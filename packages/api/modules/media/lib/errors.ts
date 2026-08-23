@@ -12,6 +12,9 @@ export const MEDIA_ERROR_CODES = [
 	"BUDGET_EXCEEDED",
 	"ENTITLEMENT_REQUIRED",
 	"CONTENT_NOT_ALLOWED",
+	"GENERATION_RETRY_IN_PROGRESS",
+	"GENERATION_RETRY_FAILED",
+	"IDEMPOTENCY_CONFLICT",
 	"NOT_FOUND",
 ] as const;
 
@@ -26,7 +29,12 @@ export class MediaPublicError extends Error {
 
 export function toMediaOrpcError(error: unknown): ORPCError<string, unknown> {
 	const code = stableMediaErrorCode(error);
-	const status = code === "NOT_FOUND" ? "NOT_FOUND" : "BAD_REQUEST";
+	const status =
+		code === "NOT_FOUND"
+			? "NOT_FOUND"
+			: code === "GENERATION_RETRY_IN_PROGRESS" || code === "IDEMPOTENCY_CONFLICT"
+				? "CONFLICT"
+				: "BAD_REQUEST";
 	return new ORPCError(status, { message: code, data: { code } });
 }
 

@@ -40,6 +40,12 @@ async function findExistingJob(
 		include: { reservation: true },
 	});
 	if (!existing?.reservation) return null;
+	if (
+		existing.quoteId !== input.quoteId ||
+		existing.submittedByUserId !== input.submittedByUserId
+	) {
+		throw new Error("IDEMPOTENCY_CONFLICT");
+	}
 	return {
 		job: {
 			id: existing.id,
@@ -64,6 +70,17 @@ export async function createGenerationJobTransaction(
 		throw new Error("First-release writes support USER owners only");
 	}
 	if (!input.idempotencyKey.trim()) throw new Error("Idempotency key is required");
+	if (
+		input.expectedInputAssets &&
+		(input.expectedInputAssets.length !== input.inputAssetIds.length ||
+			input.expectedInputAssets.some(
+				(expected, position) =>
+					expected.assetId !== input.inputAssetIds[position] ||
+					!/^[a-f0-9]{64}$/i.test(expected.assetChecksum),
+			))
+	) {
+		throw new Error("ASSET_CONTENT_CHANGED");
+	}
 
 	try {
 		return await runSerializable(client, async (tx) => {
@@ -107,12 +124,80 @@ export async function createGenerationJobTransaction(
 							ownerType: "USER",
 							ownerId: input.ownerId,
 							status: "READY",
+							checksum: { not: null },
 						},
 					})
 				: [];
-			if (inputAssets.length !== new Set(input.inputAssetIds).size) {
+			if (
+				inputAssets.length !== new Set(input.inputAssetIds).size ||
+				inputAssets.some((asset) => !asset.checksum || !/^[a-f0-9]{64}$/i.test(asset.checksum))
+			) {
 				throw new Error("Every input asset must be READY and owned by the user");
 			}
+			const now = new Date();
+			const moderationEvidence = inputAssets.length
+				? await tx.assetModerationResult.findMany({
+						where: {
+							OR: inputAssets.map((asset) => ({
+								assetId: asset.id,
+								verificationGeneration: asset.verificationGeneration,
+							})),
+						},
+						orderBy: [{ assetId: "asc" }, { attemptNumber: "desc" }, { createdAt: "desc" }],
+					})
+				: [];
+			const latestEvidenceByAssetId = new Map<string, (typeof moderationEvidence)[number]>();
+			for (const evidence of moderationEvidence) {
+				if (!latestEvidenceByAssetId.has(evidence.assetId)) {
+					latestEvidenceByAssetId.set(evidence.assetId, evidence);
+				}
+			}
+			if (
+				inputAssets.some((asset) => {
+					const evidence = latestEvidenceByAssetId.get(asset.id);
+					return (
+						asset.verificationValidUntil === null ||
+						asset.verificationValidUntil <= now ||
+						evidence?.status !== "APPROVED" ||
+						evidence.attemptNumber !== asset.verificationAttemptCount ||
+						evidence.assetChecksum !== asset.checksum ||
+						evidence.evidenceKind !== asset.kind ||
+						evidence.provider !== asset.verificationProvider ||
+						evidence.providerTaskId !== asset.verificationProviderTaskId ||
+						evidence.ruleVersion !== asset.verificationRuleVersion ||
+						evidence.policyVersion !== asset.verificationPolicyVersion ||
+						evidence.validUntil === null ||
+						evidence.validUntil.getTime() !== asset.verificationValidUntil.getTime() ||
+						evidence.validUntil <= now
+					);
+				})
+			) {
+				throw new Error("ASSET_MODERATION_EVIDENCE_STALE");
+			}
+			const currentChecksumById = new Map(
+				inputAssets.map((asset) => [asset.id, asset.checksum as string]),
+			);
+			if (
+				input.expectedInputAssets?.some(
+					(expected) => currentChecksumById.get(expected.assetId) !== expected.assetChecksum,
+				)
+			) {
+				throw new Error("ASSET_CONTENT_CHANGED");
+			}
+			if (
+				inputAssets.some(
+					(asset) =>
+						asset.verificationRuleVersion !== input.expectedAssetModerationRuleVersion ||
+						asset.verificationPolicyVersion !== input.expectedAssetModerationPolicyVersion,
+				)
+			) {
+				throw new Error("ASSET_MODERATION_EVIDENCE_STALE");
+			}
+			const inputChecksumById = input.expectedInputAssets
+				? new Map(
+						input.expectedInputAssets.map(({ assetId, assetChecksum }) => [assetId, assetChecksum]),
+					)
+				: currentChecksumById;
 
 			const account = await tx.creditAccount.findUnique({
 				where: { ownerType_ownerId: { ownerType: input.ownerType, ownerId: input.ownerId } },
@@ -147,6 +232,7 @@ export async function createGenerationJobTransaction(
 					data: input.inputAssetIds.map((assetId, position) => ({
 						jobId: job.id,
 						assetId,
+						assetChecksum: inputChecksumById.get(assetId)!,
 						role: "INPUT",
 						position,
 					})),

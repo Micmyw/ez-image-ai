@@ -42,16 +42,43 @@ describe("database-backed media generation", () => {
 			{ accountId: account.id, amount: 20n, referenceKey: `task4-grant:${suffix}` },
 			client,
 		);
+		const inputChecksum = "b".repeat(64);
 		const inputAsset = await client.mediaAsset.create({
 			data: {
 				ownerType: "USER",
 				ownerId,
 				kind: "INPUT",
-				status: "READY",
+				status: "VERIFYING",
 				objectKey: `users/${ownerId}/assets/${suffix}/input.png`,
 				mimeType: "image/png",
 				byteSize: 32n,
+				checksum: inputChecksum,
+				verificationGeneration: 1,
+				verificationAttemptCount: 1,
+				verificationProvider: "test",
+				verificationRuleVersion: "test-rule-v1",
+				verificationPolicyVersion: "test-policy-v1",
 			},
+		});
+		await client.assetModerationResult.create({
+			data: {
+				assetId: inputAsset.id,
+				assetChecksum: inputChecksum,
+				verificationGeneration: 1,
+				attemptNumber: 1,
+				evidenceKind: "INPUT",
+				provider: "test",
+				ruleVersion: "test-rule-v1",
+				policyVersion: "test-policy-v1",
+				status: "APPROVED",
+				reasonCode: "TEST_ALLOW",
+				categories: {},
+				rawEnvelope: { decision: "ALLOW" },
+			},
+		});
+		await client.mediaAsset.update({
+			where: { id: inputAsset.id },
+			data: { status: "READY" },
 		});
 		const quoteInput = {
 			ownerType: "USER",
@@ -87,6 +114,8 @@ describe("database-backed media generation", () => {
 			idempotencyKey: `task4-idempotency:${suffix}`,
 			inputAssetIds: [inputAsset.id],
 			expectedModerationRuleVersion: "TEST_ALLOW_JOBS_INTEGRATION_V1",
+			expectedAssetModerationRuleVersion: "test-rule-v1",
+			expectedAssetModerationPolicyVersion: "test-policy-v1",
 		};
 		const first = await createGenerationJobTransaction(creation, client);
 		const duplicate = await createGenerationJobTransaction(creation, client);
@@ -149,26 +178,45 @@ describe("database-backed media generation", () => {
 			{
 				store: finalizationStore,
 				persistCandidate: async (_claim, candidate) => {
+					const checksum = "a".repeat(64);
 					const asset = await client.mediaAsset.create({
 						data: {
 							ownerType: "USER",
 							ownerId,
 							kind: "OUTPUT",
-							status: "READY",
+							status: "VERIFYING",
 							objectKey: `users/${ownerId}/assets/${suffix}/output.png`,
 							mimeType: "image/png",
 							byteSize: 64n,
+							checksum,
+							finalizedAt: new Date(),
+							verificationGeneration: 1,
+							verificationAttemptCount: 1,
+							verificationProvider: "test",
+							verificationRuleVersion: "test-rule-v1",
+							verificationPolicyVersion: "test-policy-v1",
 							sourceUrl: `provider-output:${candidate.key}`,
 						},
 					});
 					await client.assetModerationResult.create({
 						data: {
 							assetId: asset.id,
+							assetChecksum: checksum,
+							verificationGeneration: 1,
+							attemptNumber: 1,
+							evidenceKind: "OUTPUT",
 							provider: "test",
+							ruleVersion: "test-rule-v1",
+							policyVersion: "test-policy-v1",
 							status: "APPROVED",
+							reasonCode: "TEST_ALLOW",
 							categories: {},
 							rawEnvelope: { decision: "ALLOW" },
 						},
+					});
+					await client.mediaAsset.update({
+						where: { id: asset.id },
+						data: { status: "READY" },
 					});
 					return { assetId: asset.id, approved: true };
 				},
@@ -300,8 +348,19 @@ function createFinalizationStore(jobId: string, ownerId: string): FinalizationSt
 		},
 		async recordFinalization(_claim, results) {
 			for (const [position, result] of results.entries()) {
+				const asset = await client.mediaAsset.findUniqueOrThrow({
+					where: { id: result.assetId },
+					select: { checksum: true },
+				});
+				if (!asset.checksum) throw new Error("Missing output checksum");
 				await client.generationJobAsset.create({
-					data: { jobId, assetId: result.assetId, role: "OUTPUT", position },
+					data: {
+						jobId,
+						assetId: result.assetId,
+						assetChecksum: asset.checksum,
+						role: "OUTPUT",
+						position,
+					},
 				});
 			}
 		},

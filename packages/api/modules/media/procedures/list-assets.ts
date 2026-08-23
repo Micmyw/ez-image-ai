@@ -1,6 +1,7 @@
-import { db } from "@repo/database/client";
+import { listReadableMediaAssets } from "@repo/database/media-assets";
 
 import { protectedProcedure } from "../../../orpc/procedures";
+import { currentMediaAssetVerificationBoundary } from "../lib/asset-authorization";
 import { decodeCursor, encodeCursor, jsonBigInt, listAssetsInputSchema } from "../types";
 
 export const listAssets = protectedProcedure
@@ -8,29 +9,15 @@ export const listAssets = protectedProcedure
 	.input(listAssetsInputSchema)
 	.handler(async ({ context: { user }, input }) => {
 		const cursor = decodeCursor(input.cursor);
-		const rows = await db.mediaAsset.findMany({
-			where: {
-				ownerType: "USER",
-				ownerId: user.id,
-				status: "READY",
-				deletedAt: null,
-				...(input.kind === "image" ? { mimeType: { startsWith: "image/" } } : {}),
-				...(input.kind === "video" ? { mimeType: { startsWith: "video/" } } : {}),
-				...(cursor
-					? {
-							OR: [
-								{ createdAt: { lt: cursor.createdAt } },
-								{ createdAt: cursor.createdAt, id: { lt: cursor.id } },
-							],
-						}
-					: {}),
-			},
-			orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-			include: { jobBindings: { where: { role: "OUTPUT" }, take: 1, select: { jobId: true } } },
-			take: input.limit + 1,
+		const page = await listReadableMediaAssets({
+			ownerType: "USER",
+			ownerId: user.id,
+			cursor,
+			take: input.limit,
+			...(input.kind ? { mimeTypePrefix: `${input.kind}/` as "image/" | "video/" } : {}),
+			verification: currentMediaAssetVerificationBoundary(),
 		});
-		const hasMore = rows.length > input.limit;
-		const items = rows.slice(0, input.limit);
+		const items = page.items;
 		const last = items[items.length - 1];
 		return {
 			items: items.map((asset) => ({
@@ -41,6 +28,6 @@ export const listAssets = protectedProcedure
 				createdAt: asset.createdAt.toISOString(),
 				sourceJobId: asset.jobBindings[0]?.jobId ?? null,
 			})),
-			nextCursor: hasMore && last ? encodeCursor(last) : null,
+			nextCursor: page.hasMore && last ? encodeCursor(last) : null,
 		};
 	});

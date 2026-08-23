@@ -6,6 +6,7 @@ vi.mock("@repo/database", () => ({
 	getAdminMediaDiagnostics: vi.fn(),
 	listAdminMediaAudit: vi.fn(),
 	replayPersistedMediaEvent: vi.fn(),
+	requeueAdminMediaVerification: vi.fn(),
 	resolveAdminUncertainSubmission: vi.fn(),
 	retryAdminMediaJobStage: vi.fn(),
 	setAdminMediaRuntimeOverride: vi.fn(),
@@ -18,6 +19,7 @@ import {
 	getAdminMediaDiagnostics,
 	listAdminMediaAudit,
 	replayPersistedMediaEvent,
+	requeueAdminMediaVerification,
 	resolveAdminUncertainSubmission,
 	retryAdminMediaJobStage,
 	setAdminMediaRuntimeOverride,
@@ -27,6 +29,7 @@ import { listMediaAuditLog } from "./admin-audit-log";
 import { adminMediaDiagnostics } from "./admin-diagnostics";
 import {
 	replayMediaEvent,
+	requeueMediaVerification,
 	resolveUncertainSubmission,
 	retryMediaJobStage,
 	setMediaRuntimeOverride,
@@ -175,6 +178,38 @@ describe("media administration mutations", () => {
 		);
 		expect(replayPersistedMediaEvent).toHaveBeenCalledWith(
 			expect.objectContaining({ actorUserId: "admin_1", idempotencyKey: "operation-123" }),
+			expect.anything(),
+		);
+	});
+
+	it("requeues verification through the audited generation-aware database command", async () => {
+		vi.mocked(requeueAdminMediaVerification).mockResolvedValue({
+			assetId: "asset_1",
+			generation: 3,
+			replayed: false,
+		});
+
+		await call(
+			requeueMediaVerification,
+			{
+				assetId: "asset_1",
+				idempotencyKey: "moderation-operation-123",
+				reason: "Re-run the failed asset with the current moderation policy",
+			},
+			context,
+		);
+
+		expect(requeueAdminMediaVerification).toHaveBeenCalledWith(
+			expect.objectContaining({
+				assetId: "asset_1",
+				actorUserId: "admin_1",
+				idempotencyKey: "moderation-operation-123",
+				currentVerification: {
+					provider: process.env.MEDIA_SAFETY_ADAPTER ?? "test",
+					ruleVersion: expect.stringMatching(/^media-safety-/),
+					policyVersion: expect.stringMatching(/^media-policy-/),
+				},
+			}),
 			expect.anything(),
 		);
 	});

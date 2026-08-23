@@ -172,6 +172,146 @@ function replayResult(value: Prisma.JsonValue | null): Record<string, unknown> {
 		: {};
 }
 
+export async function requeueAdminMediaVerification(
+	input: {
+		assetId: string;
+		actorUserId: string;
+		idempotencyKey: string;
+		reason: string;
+		currentVerification: {
+			provider: string;
+			ruleVersion: string;
+			policyVersion: string;
+		};
+	},
+	client: MediaTransactionClient,
+): Promise<{ assetId: string; generation: number; replayed: boolean }> {
+	return client.$transaction(async (tx) => {
+		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`admin-media:${input.idempotencyKey}`}, 0))`;
+		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${input.assetId}`}, 0))`;
+		const requestFingerprint = fingerprint({
+			assetId: input.assetId,
+			provider: input.currentVerification.provider,
+			ruleVersion: input.currentVerification.ruleVersion,
+			policyVersion: input.currentVerification.policyVersion,
+		});
+		const replay = await findOperationReplay(
+			input.idempotencyKey,
+			"REQUEUE_VERIFICATION",
+			requestFingerprint,
+			tx,
+		);
+		if (replay) {
+			const result = replayResult(replay.after);
+			if (result.assetId !== input.assetId || typeof result.generation !== "number") {
+				throw new Error("IDEMPOTENCY_RESULT_INVALID");
+			}
+			return { assetId: input.assetId, generation: result.generation, replayed: true };
+		}
+		const asset = await tx.mediaAsset.findUnique({ where: { id: input.assetId } });
+		if (!asset || asset.deletedAt !== null) {
+			throw new Error("MEDIA_VERIFICATION_NOT_REQUEUEABLE");
+		}
+		if (asset.kind === "OUTPUT") {
+			throw new Error("MEDIA_OUTPUT_VERIFICATION_REQUEUE_FORBIDDEN");
+		}
+		if (asset.status === "READY") {
+			const now = new Date();
+			const latestEvidence = await tx.assetModerationResult.findFirst({
+				where: {
+					assetId: asset.id,
+					verificationGeneration: asset.verificationGeneration,
+				},
+				orderBy: [{ attemptNumber: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+			});
+			const contractIsCurrent =
+				asset.verificationProvider === input.currentVerification.provider &&
+				asset.verificationRuleVersion === input.currentVerification.ruleVersion &&
+				asset.verificationPolicyVersion === input.currentVerification.policyVersion;
+			const evidenceIsCurrent =
+				latestEvidence?.status === "APPROVED" &&
+				latestEvidence.attemptNumber === asset.verificationAttemptCount &&
+				latestEvidence.assetChecksum === asset.checksum &&
+				latestEvidence.evidenceKind === asset.kind &&
+				latestEvidence.provider === asset.verificationProvider &&
+				latestEvidence.providerTaskId === asset.verificationProviderTaskId &&
+				latestEvidence.ruleVersion === asset.verificationRuleVersion &&
+				latestEvidence.policyVersion === asset.verificationPolicyVersion &&
+				latestEvidence.validUntil !== null &&
+				asset.verificationValidUntil !== null &&
+				latestEvidence.validUntil.getTime() === asset.verificationValidUntil.getTime() &&
+				latestEvidence.validUntil > now;
+			if (contractIsCurrent && evidenceIsCurrent) {
+				throw new Error("MEDIA_VERIFICATION_NOT_REQUEUEABLE");
+			}
+		} else if (
+			!(["VERIFICATION_FAILED", "QUARANTINED"] as const).includes(
+				asset.status as "VERIFICATION_FAILED" | "QUARANTINED",
+			)
+		) {
+			throw new Error("MEDIA_VERIFICATION_NOT_REQUEUEABLE");
+		}
+		const generation = Math.max(asset.verificationGeneration + 1, 1);
+		await tx.mediaAsset.update({
+			where: { id: asset.id },
+			data: {
+				status: "VERIFYING",
+				verificationGeneration: generation,
+				verificationAttemptCount: 0,
+				verificationProvider: null,
+				verificationRuleVersion: null,
+				verificationPolicyVersion: null,
+				verificationProviderTaskId: null,
+				verificationLeaseToken: null,
+				verificationLeasedUntil: null,
+				verificationNextAttemptAt: null,
+				verificationDeadlineAt: null,
+				verificationExhaustedAt: null,
+				verificationValidUntil: null,
+				verificationSubmissionToken: null,
+				verificationSubmissionUncertain: false,
+				verificationSubmittedAt: null,
+				verificationLastErrorCode: null,
+			},
+		});
+		await tx.outboxEvent.upsert({
+			where: { dedupeKey: `admin-media-verification:${asset.id}:${input.idempotencyKey}` },
+			create: {
+				eventType: "MEDIA_ASSET_VERIFY",
+				aggregateType: "MEDIA_ASSET",
+				aggregateId: asset.id,
+				dedupeKey: `admin-media-verification:${asset.id}:${input.idempotencyKey}`,
+				payload: { assetId: asset.id, verificationGeneration: generation },
+			},
+			update: {},
+		});
+		const result = { assetId: asset.id, generation };
+		await tx.auditLog.create({
+			data: {
+				actorUserId: input.actorUserId,
+				action: "MEDIA_ASSET_VERIFICATION_REQUEUED",
+				targetType: "ADMIN_MEDIA_OPERATION",
+				targetId: operationAuditId(input.idempotencyKey),
+				before: {
+					status: asset.status,
+					generation: asset.verificationGeneration,
+					attemptCount: asset.verificationAttemptCount,
+					exhaustedAt: asset.verificationExhaustedAt?.toISOString() ?? null,
+					validUntil: asset.verificationValidUntil?.toISOString() ?? null,
+				},
+				after: result,
+				metadata: {
+					reason: input.reason,
+					operationKind: "REQUEUE_VERIFICATION",
+					requestFingerprint,
+					currentVerification: input.currentVerification,
+				},
+			},
+		});
+		return { ...result, replayed: false };
+	});
+}
+
 export async function replayPersistedMediaEvent(
 	input: {
 		eventKind: PersistedEventKind;

@@ -38,8 +38,16 @@ describe("media safety contract", () => {
 			await adapter.submitVideo({
 				assetUrl: "https://cdn.test/video.mp4",
 				ruleVersion: "safety-1",
+				idempotencyKey: "moderation-video-1",
 			}),
-		).toMatchObject({ moderationTaskId: "video-1" });
+		).toMatchObject({
+			moderationTaskId: "video-1",
+			idempotency: {
+				key: "moderation-video-1",
+				providerSupported: false,
+				replayed: false,
+			},
+		});
 		expect(
 			await adapter.retrieveVideo({ moderationTaskId: "video-1", ruleVersion: "safety-1" }),
 		).toMatchObject({ decision: "REVIEW" });

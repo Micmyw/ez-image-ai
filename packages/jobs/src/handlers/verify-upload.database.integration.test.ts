@@ -1,5 +1,9 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { TestMediaSafetyAdapter } from "@repo/ai";
+import {
+	MEDIA_VERIFICATION_POLICY_VERSION,
+	MEDIA_VERIFICATION_RULE_VERSION,
+	TestMediaSafetyAdapter,
+} from "@repo/ai";
 import { claimGenerationDraftTransaction, createGenerationDraftTransaction } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -9,6 +13,7 @@ import { verifyUpload } from "./verify-upload";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const PNG_HEADER = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
+const MP4_HEADER = Buffer.from("00000018667479706d70343200000000", "hex");
 let client: PrismaClient;
 
 describe("claimed draft asset verification", () => {
@@ -42,6 +47,8 @@ describe("claimed draft asset verification", () => {
 						objectKey,
 						mimeType: "image/png",
 						byteSize: 16n,
+						checksum: "e".repeat(64),
+						finalizedAt: new Date(),
 					},
 				},
 				client,
@@ -75,18 +82,27 @@ describe("claimed draft asset verification", () => {
 			await verifyUpload({ assetId }, dependencies);
 			await verifyUpload({ assetId }, dependencies);
 
-			await expect(
-				client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
-			).resolves.toMatchObject({
+			const verifiedAsset = await client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } });
+			expect(verifiedAsset).toMatchObject({
 				status: expectedAssetStatus,
 				ownerType: "USER",
 				ownerId: `user-${suffix}`,
 			});
-			await expect(
-				client.assetModerationResult.findUniqueOrThrow({
-					where: { assetId_provider: { assetId, provider: "test" } },
-				}),
-			).resolves.toMatchObject({ status: expectedModerationStatus });
+			const evidence = await client.assetModerationResult.findFirstOrThrow({
+				where: { assetId, provider: "test" },
+				orderBy: { createdAt: "desc" },
+			});
+			expect(evidence).toMatchObject({ status: expectedModerationStatus });
+			if (decision === "ALLOW") {
+				expect(verifiedAsset.verificationValidUntil).toBeInstanceOf(Date);
+				expect(evidence.validUntil?.getTime()).toBe(
+					verifiedAsset.verificationValidUntil?.getTime(),
+				);
+				expect(evidence.validUntil!.getTime()).toBeGreaterThan(Date.now());
+			} else {
+				expect(verifiedAsset.verificationValidUntil).toBeNull();
+				expect(evidence.validUntil).toBeNull();
+			}
 			await expect(client.assetModerationResult.count({ where: { assetId } })).resolves.toBe(1);
 			expect(draft.id).toBeTruthy();
 		},
@@ -128,6 +144,7 @@ describe("claimed draft asset verification", () => {
 				objectKey: `users/${ownerId}/assets/${assetId}/original.png`,
 				mimeType: "image/png",
 				byteSize: 16n,
+				verificationLastErrorCode: "LEGACY_EVIDENCE_UNTRUSTED",
 			},
 		});
 
@@ -222,23 +239,30 @@ describe("claimed draft asset verification", () => {
 				objectKey: `users/${ownerId}/assets/${assetId}/original.png`,
 				mimeType: "image/png",
 				byteSize: 16n,
+				verificationLastErrorCode: "LEGACY_EVIDENCE_UNTRUSTED",
 			},
 		});
 
-		await expect(
-			verifyUpload({ assetId, allowQuarantinedReverification: true }, dependencies),
-		).rejects.toThrow("transient object-store failure");
+		await verifyUpload({ assetId, allowQuarantinedReverification: true }, dependencies);
 		await expect(
 			client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
 		).resolves.toMatchObject({
 			status: "VERIFYING",
 			checksum: null,
 			finalizedAt: null,
+			verificationAttemptCount: 1,
+			verificationLastErrorCode: "VERIFICATION_TRANSIENT",
+		});
+		await expect(
+			client.assetModerationResult.findFirstOrThrow({
+				where: { assetId, status: "ERROR" },
+			}),
+		).resolves.toMatchObject({ assetChecksum: null, reasonCode: "VERIFICATION_TRANSIENT" });
+		await client.mediaAsset.update({
+			where: { id: assetId },
+			data: { verificationNextAttemptAt: new Date(0) },
 		});
 		await verifyUpload({ assetId }, dependencies);
-		expect(inspections).toBe(1);
-
-		await verifyUpload({ assetId, allowQuarantinedReverification: true }, dependencies);
 		expect(inspections).toBe(2);
 		await expect(
 			client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
@@ -249,6 +273,496 @@ describe("claimed draft asset verification", () => {
 			storageVersionId: "fresh-version",
 			finalizedAt: expect.any(Date),
 		});
+	});
+
+	it("moves exhausted verification attempts out of VERIFYING without approving the asset", async () => {
+		const suffix = crypto.randomUUID();
+		const assetId = `verification_exhausted_${suffix.replaceAll("-", "")}`;
+		await client.mediaAsset.create({
+			data: {
+				id: assetId,
+				ownerType: "USER",
+				ownerId: `verification-owner-${suffix}`,
+				kind: "INPUT",
+				status: "VERIFYING",
+				objectKey: `users/verification-owner-${suffix}/assets/${assetId}/original.png`,
+				mimeType: "image/png",
+				byteSize: 16n,
+				checksum: "b".repeat(64),
+				finalizedAt: new Date(),
+			},
+		});
+		class UnavailableSafetyAdapter extends TestMediaSafetyAdapter {
+			override async moderateImage(input: { assetUrl: string; ruleVersion: string }) {
+				return {
+					decision: "ERROR" as const,
+					reasonCode: "MODERATION_UNAVAILABLE",
+					ruleVersion: input.ruleVersion,
+				};
+			}
+		}
+		const dependencies = createDatabaseVerifyUploadDependencies(client, {
+			headObject: async () => ({
+				contentLength: 16,
+				contentType: "image/png",
+				etag: '"etag"',
+				metadata: {},
+			}),
+			readMediaHeader: async () => PNG_HEADER,
+			createSignedReadUrl: async () => "https://private.example/exhausted.png",
+			safety: new UnavailableSafetyAdapter("ERROR"),
+			moderationProvider: "test",
+		});
+
+		for (let attempt = 0; attempt < 4; attempt += 1) {
+			await verifyUpload({ assetId }, dependencies).catch(() => undefined);
+			await client.mediaAsset.updateMany({
+				where: { id: assetId, status: "VERIFYING" },
+				data: { verificationNextAttemptAt: new Date(0), verificationLeasedUntil: new Date(0) },
+			});
+		}
+
+		await expect(
+			client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
+		).resolves.toMatchObject({
+			status: "VERIFICATION_FAILED",
+			verificationAttemptCount: 4,
+			verificationExhaustedAt: expect.any(Date),
+			verificationLastErrorCode: "MODERATION_UNAVAILABLE",
+		});
+		await expect(client.assetModerationResult.count({ where: { assetId } })).resolves.toBe(4);
+	});
+
+	it("does not spend the transient failure budget on normal video processing polls", async () => {
+		const suffix = crypto.randomUUID();
+		const assetId = `verification_video_pending_${suffix.replaceAll("-", "")}`;
+		await client.mediaAsset.create({
+			data: {
+				id: assetId,
+				ownerType: "USER",
+				ownerId: `verification-owner-${suffix}`,
+				kind: "INPUT",
+				status: "VERIFYING",
+				objectKey: `users/verification-owner-${suffix}/assets/${assetId}/original.mp4`,
+				mimeType: "video/mp4",
+				byteSize: 16n,
+				checksum: "d".repeat(64),
+				finalizedAt: new Date(),
+			},
+		});
+		class ProcessingVideoSafetyAdapter extends TestMediaSafetyAdapter {
+			submissions = 0;
+			retrievals = 0;
+
+			override async submitVideo(input: {
+				assetUrl: string;
+				ruleVersion: string;
+				idempotencyKey: string;
+			}) {
+				this.submissions += 1;
+				return {
+					moderationTaskId: `video-task-${suffix}`,
+					status: "QUEUED" as const,
+					ruleVersion: input.ruleVersion,
+					idempotency: {
+						key: input.idempotencyKey,
+						providerSupported: true,
+						replayed: false,
+					},
+				};
+			}
+
+			override async retrieveVideo(input: { moderationTaskId: string; ruleVersion: string }) {
+				this.retrievals += 1;
+				return this.retrievals <= 5
+					? {
+							decision: "REVIEW" as const,
+							reasonCode: "VIDEO_PROCESSING",
+							ruleVersion: input.ruleVersion,
+						}
+					: {
+							decision: "ALLOW" as const,
+							reasonCode: "VIDEO_APPROVED",
+							ruleVersion: input.ruleVersion,
+						};
+			}
+		}
+		const safety = new ProcessingVideoSafetyAdapter("ALLOW");
+		const dependencies = createDatabaseVerifyUploadDependencies(client, {
+			headObject: async () => ({
+				contentLength: 16,
+				contentType: "video/mp4",
+				etag: '"etag"',
+				metadata: {},
+			}),
+			readMediaHeader: async () => MP4_HEADER,
+			createSignedReadUrl: async () => "https://private.example/processing.mp4",
+			safety,
+			moderationProvider: "test",
+		});
+
+		for (let poll = 0; poll < 6; poll += 1) {
+			await verifyUpload({ assetId }, dependencies);
+			await client.mediaAsset.updateMany({
+				where: { id: assetId, status: "VERIFYING" },
+				data: { verificationNextAttemptAt: new Date(0), verificationLeasedUntil: new Date(0) },
+			});
+		}
+
+		expect(safety.submissions).toBe(1);
+		expect(safety.retrievals).toBe(6);
+		await expect(
+			client.assetModerationResult.count({ where: { assetId, status: "ERROR" } }),
+		).resolves.toBe(0);
+		await expect(
+			client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
+		).resolves.toMatchObject({
+			status: "READY",
+			verificationAttemptCount: 6,
+		});
+		await expect(client.assetModerationResult.count({ where: { assetId } })).resolves.toBe(6);
+	});
+
+	it("does not resubmit a video after the provider accepted it but task binding did not commit", async () => {
+		const suffix = crypto.randomUUID();
+		const assetId = `verification_video_uncertain_${suffix.replaceAll("-", "")}`;
+		await client.mediaAsset.create({
+			data: {
+				id: assetId,
+				ownerType: "USER",
+				ownerId: `verification-owner-${suffix}`,
+				kind: "INPUT",
+				status: "VERIFYING",
+				objectKey: `users/verification-owner-${suffix}/assets/${assetId}/original.mp4`,
+				mimeType: "video/mp4",
+				byteSize: 16n,
+				checksum: "e".repeat(64),
+				finalizedAt: new Date(),
+			},
+		});
+		class AcceptedVideoSafetyAdapter extends TestMediaSafetyAdapter {
+			submissions = 0;
+
+			override async submitVideo(input: {
+				assetUrl: string;
+				ruleVersion: string;
+				idempotencyKey: string;
+			}) {
+				this.submissions += 1;
+				return {
+					moderationTaskId: `accepted-video-task-${suffix}`,
+					status: "QUEUED" as const,
+					ruleVersion: input.ruleVersion,
+					idempotency: {
+						key: input.idempotencyKey,
+						providerSupported: false,
+						replayed: false,
+					},
+				};
+			}
+		}
+		const safety = new AcceptedVideoSafetyAdapter("ALLOW");
+		const dependencies = createDatabaseVerifyUploadDependencies(client, {
+			headObject: async () => ({
+				contentLength: 16,
+				contentType: "video/mp4",
+				etag: '"etag"',
+				metadata: {},
+			}),
+			readMediaHeader: async () => MP4_HEADER,
+			createSignedReadUrl: async () => "https://private.example/uncertain.mp4",
+			safety,
+			moderationProvider: "test",
+			afterVideoSubmission: async () => {
+				throw new Error("simulated crash before task binding");
+			},
+		});
+
+		await verifyUpload({ assetId }, dependencies);
+		await verifyUpload({ assetId }, dependencies);
+
+		expect(safety.submissions).toBe(1);
+		await expect(
+			client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
+		).resolves.toMatchObject({
+			status: "VERIFICATION_FAILED",
+			verificationProviderTaskId: null,
+			verificationSubmissionToken: expect.any(String),
+			verificationSubmissionUncertain: true,
+			verificationExhaustedAt: expect.any(Date),
+			verificationLastErrorCode: "VIDEO_SUBMISSION_UNCERTAIN_REQUIRES_REVIEW",
+		});
+		await expect(
+			client.assetModerationResult.findFirstOrThrow({ where: { assetId } }),
+		).resolves.toMatchObject({
+			status: "ERROR",
+			reasonCode: "VIDEO_SUBMISSION_UNCERTAIN_REQUIRES_REVIEW",
+		});
+	});
+
+	it("does not fail an in-flight video submission when another worker observes its uncertainty fence", async () => {
+		const suffix = crypto.randomUUID();
+		const assetId = `verification_video_concurrent_${suffix.replaceAll("-", "")}`;
+		await client.mediaAsset.create({
+			data: {
+				id: assetId,
+				ownerType: "USER",
+				ownerId: `verification-owner-${suffix}`,
+				kind: "INPUT",
+				status: "VERIFYING",
+				objectKey: `users/verification-owner-${suffix}/assets/${assetId}/original.mp4`,
+				mimeType: "video/mp4",
+				byteSize: 16n,
+				checksum: "7".repeat(64),
+				finalizedAt: new Date(),
+			},
+		});
+		let submissionStarted!: () => void;
+		let releaseSubmission!: () => void;
+		const started = new Promise<void>((resolve) => {
+			submissionStarted = resolve;
+		});
+		const release = new Promise<void>((resolve) => {
+			releaseSubmission = resolve;
+		});
+		class SlowAcceptedVideoSafetyAdapter extends TestMediaSafetyAdapter {
+			submissions = 0;
+
+			override async submitVideo(input: {
+				assetUrl: string;
+				ruleVersion: string;
+				idempotencyKey: string;
+			}) {
+				this.submissions += 1;
+				submissionStarted();
+				await release;
+				return {
+					moderationTaskId: `concurrent-video-task-${suffix}`,
+					status: "QUEUED" as const,
+					ruleVersion: input.ruleVersion,
+					idempotency: {
+						key: input.idempotencyKey,
+						providerSupported: true,
+						replayed: false,
+					},
+				};
+			}
+		}
+		const safety = new SlowAcceptedVideoSafetyAdapter("ALLOW");
+		const dependencies = createDatabaseVerifyUploadDependencies(client, {
+			headObject: async () => ({
+				contentLength: 16,
+				contentType: "video/mp4",
+				etag: '"etag"',
+				metadata: {},
+			}),
+			readMediaHeader: async () => MP4_HEADER,
+			createSignedReadUrl: async () => "https://private.example/concurrent-video.mp4",
+			safety,
+			moderationProvider: "test",
+		});
+
+		const first = verifyUpload({ assetId }, dependencies);
+		await started;
+		await verifyUpload({ assetId }, dependencies);
+		releaseSubmission();
+		await first;
+
+		expect(safety.submissions).toBe(1);
+		await expect(
+			client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
+		).resolves.toMatchObject({
+			status: "READY",
+			verificationSubmissionUncertain: false,
+			verificationProviderTaskId: `concurrent-video-task-${suffix}`,
+		});
+	});
+
+	it("starts a new generation when READY evidence expires", async () => {
+		const suffix = crypto.randomUUID();
+		const assetId = `verification_stale_ready_${suffix.replaceAll("-", "")}`;
+		const checksum = "9".repeat(64);
+		const validUntil = new Date(Date.now() + 750);
+		await client.mediaAsset.create({
+			data: {
+				id: assetId,
+				ownerType: "USER",
+				ownerId: `verification-owner-${suffix}`,
+				kind: "INPUT",
+				status: "VERIFYING",
+				objectKey: `users/verification-owner-${suffix}/assets/${assetId}/original.png`,
+				mimeType: "image/png",
+				byteSize: 16n,
+				checksum,
+				finalizedAt: new Date(),
+				verificationGeneration: 1,
+				verificationAttemptCount: 1,
+				verificationProvider: "test",
+				verificationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				verificationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				verificationValidUntil: validUntil,
+			},
+		});
+		await client.assetModerationResult.create({
+			data: {
+				assetId,
+				assetChecksum: checksum,
+				verificationGeneration: 1,
+				attemptNumber: 1,
+				evidenceKind: "INPUT",
+				provider: "test",
+				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				status: "APPROVED",
+				reasonCode: "TEST_ALLOW",
+				categories: {},
+				rawEnvelope: { decision: "ALLOW" },
+				validUntil,
+			},
+		});
+		await client.mediaAsset.update({ where: { id: assetId }, data: { status: "READY" } });
+		await new Promise((resolve) => setTimeout(resolve, 800));
+
+		const dependencies = createDatabaseVerifyUploadDependencies(client, {
+			headObject: async () => ({
+				contentLength: 16,
+				contentType: "image/png",
+				etag: '"etag"',
+				metadata: {},
+			}),
+			readMediaHeader: async () => PNG_HEADER,
+			createSignedReadUrl: async () => "https://private.example/stale.png",
+			safety: new TestMediaSafetyAdapter("ALLOW"),
+			moderationProvider: "test",
+		});
+		await verifyUpload({ assetId }, dependencies);
+
+		await expect(
+			client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
+		).resolves.toMatchObject({
+			status: "READY",
+			verificationGeneration: 2,
+			verificationAttemptCount: 1,
+			verificationValidUntil: expect.any(Date),
+		});
+		await expect(client.assetModerationResult.count({ where: { assetId } })).resolves.toBe(2);
+	});
+
+	it("leases verification so concurrent workers call moderation only once", async () => {
+		const suffix = crypto.randomUUID();
+		const assetId = `verification_concurrent_${suffix.replaceAll("-", "")}`;
+		await client.mediaAsset.create({
+			data: {
+				id: assetId,
+				ownerType: "USER",
+				ownerId: `verification-owner-${suffix}`,
+				kind: "INPUT",
+				status: "VERIFYING",
+				objectKey: `users/verification-owner-${suffix}/assets/${assetId}/original.png`,
+				mimeType: "image/png",
+				byteSize: 16n,
+				checksum: "c".repeat(64),
+				finalizedAt: new Date(),
+			},
+		});
+		class CountingSafetyAdapter extends TestMediaSafetyAdapter {
+			calls = 0;
+
+			override async moderateImage(input: { assetUrl: string; ruleVersion: string }) {
+				this.calls += 1;
+				await new Promise((resolve) => setTimeout(resolve, 25));
+				return super.moderateImage(input);
+			}
+		}
+		const safety = new CountingSafetyAdapter("ALLOW");
+		const dependencies = createDatabaseVerifyUploadDependencies(client, {
+			headObject: async () => ({
+				contentLength: 16,
+				contentType: "image/png",
+				etag: '"etag"',
+				metadata: {},
+			}),
+			readMediaHeader: async () => PNG_HEADER,
+			createSignedReadUrl: async () => "https://private.example/concurrent.png",
+			safety,
+			moderationProvider: "test",
+		});
+
+		await Promise.all([
+			verifyUpload({ assetId }, dependencies),
+			verifyUpload({ assetId }, dependencies),
+		]);
+
+		expect(safety.calls).toBe(1);
+		await expect(
+			client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
+		).resolves.toMatchObject({
+			status: "READY",
+			verificationAttemptCount: 1,
+		});
+		await expect(client.assetModerationResult.count({ where: { assetId } })).resolves.toBe(1);
+	});
+
+	it("does not authorize READY after the verification lease expires", async () => {
+		const suffix = crypto.randomUUID();
+		const assetId = `verification_expired_${suffix.replaceAll("-", "")}`;
+		await client.mediaAsset.create({
+			data: {
+				id: assetId,
+				ownerType: "USER",
+				ownerId: `verification-owner-${suffix}`,
+				kind: "INPUT",
+				status: "VERIFYING",
+				objectKey: `users/verification-owner-${suffix}/assets/${assetId}/original.png`,
+				mimeType: "image/png",
+				byteSize: 16n,
+				checksum: "f".repeat(64),
+				finalizedAt: new Date(),
+			},
+		});
+		let moderationStarted!: () => void;
+		let releaseModeration!: () => void;
+		const started = new Promise<void>((resolve) => {
+			moderationStarted = resolve;
+		});
+		const release = new Promise<void>((resolve) => {
+			releaseModeration = resolve;
+		});
+		class SlowSafetyAdapter extends TestMediaSafetyAdapter {
+			override async moderateImage(input: { assetUrl: string; ruleVersion: string }) {
+				moderationStarted();
+				await release;
+				return super.moderateImage(input);
+			}
+		}
+		const dependencies = createDatabaseVerifyUploadDependencies(client, {
+			headObject: async () => ({
+				contentLength: 16,
+				contentType: "image/png",
+				etag: '"etag"',
+				metadata: {},
+			}),
+			readMediaHeader: async () => PNG_HEADER,
+			createSignedReadUrl: async () => "https://private.example/expired.png",
+			safety: new SlowSafetyAdapter("ALLOW"),
+			moderationProvider: "test",
+		});
+
+		const verification = verifyUpload({ assetId }, dependencies);
+		await started;
+		await client.mediaAsset.update({
+			where: { id: assetId },
+			data: { verificationLeasedUntil: new Date(0) },
+		});
+		releaseModeration();
+		await verification;
+
+		await expect(
+			client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
+		).resolves.toMatchObject({
+			status: "VERIFYING",
+		});
+		await expect(client.assetModerationResult.count({ where: { assetId } })).resolves.toBe(0);
 	});
 });
 

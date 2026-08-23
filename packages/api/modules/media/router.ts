@@ -3,6 +3,7 @@ import { listMediaAuditLog } from "./procedures/admin-audit-log";
 import { adminMediaDiagnostics } from "./procedures/admin-diagnostics";
 import {
 	replayMediaEvent,
+	requeueMediaVerification,
 	resolveUncertainSubmission,
 	retryMediaJobStage,
 	rollbackMediaRuntimeOverride,
@@ -40,6 +41,7 @@ export const mediaRouter = {
 	adminMediaDiagnostics,
 	listMediaAuditLog,
 	replayMediaEvent,
+	requeueMediaVerification,
 	resolveUncertainSubmission,
 	retryMediaJobStage,
 	setMediaRuntimeOverride,

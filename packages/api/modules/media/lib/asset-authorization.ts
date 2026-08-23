@@ -1,5 +1,19 @@
 import { ORPCError } from "@orpc/server";
-import { getOwnedMediaAsset, getOwnedMediaUploadSession } from "@repo/database/media-assets";
+import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
+import {
+	getOwnedMediaAsset,
+	getOwnedMediaAssetReadState,
+	getOwnedMediaUploadSession,
+} from "@repo/database/media-assets";
+
+export function currentMediaAssetVerificationBoundary(now = new Date()) {
+	return {
+		provider: process.env.MEDIA_SAFETY_ADAPTER ?? "test",
+		ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+		policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+		now,
+	};
+}
 
 export async function requireOwnedMediaAsset(assetId: string, ownerId: string) {
 	const asset = await getOwnedMediaAsset(assetId, ownerId);
@@ -10,9 +24,21 @@ export async function requireOwnedMediaAsset(assetId: string, ownerId: string) {
 }
 
 export async function requireReadyOwnedMediaAsset(assetId: string, ownerId: string) {
-	const asset = await requireOwnedMediaAsset(assetId, ownerId);
-	if (asset.status !== "READY") throw new ORPCError("PRECONDITION_FAILED");
-	return asset;
+	const state = await getOwnedMediaAssetReadState({
+		assetId,
+		ownerId,
+		verification: currentMediaAssetVerificationBoundary(),
+	});
+	if (
+		!state ||
+		state.asset.ownerType !== "USER" ||
+		state.asset.deletedAt ||
+		state.asset.status === "DELETED"
+	) {
+		throw new ORPCError("NOT_FOUND");
+	}
+	if (!state.readable) throw new ORPCError("PRECONDITION_FAILED");
+	return state.asset;
 }
 
 export async function requireOwnedUploadSession(sessionId: string, ownerId: string) {

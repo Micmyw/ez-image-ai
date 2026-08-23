@@ -1,3 +1,4 @@
+import { ORPCError } from "@orpc/server";
 import { createSignedReadUrl } from "@repo/storage";
 import { z } from "zod";
 
@@ -19,16 +20,22 @@ export const getAssetAccessUrl = protectedProcedure
 	)
 	.handler(async ({ context: { user }, input }) => {
 		const asset = await requireReadyOwnedMediaAsset(input.assetId, user.id);
+		const remainingEvidenceSeconds = asset.verificationValidUntil
+			? Math.floor((asset.verificationValidUntil.getTime() - Date.now()) / 1_000)
+			: 0;
+		if (remainingEvidenceSeconds <= 0) throw new ORPCError("PRECONDITION_FAILED");
+		const expiresIn = Math.min(300, remainingEvidenceSeconds);
 		const disposition =
 			input.disposition === "inline"
 				? ("inline" as const)
 				: (`attachment; filename="${asset.id}"` as const);
 		return {
 			assetId: asset.id,
-			expiresIn: 300,
+			expiresIn,
 			url: await createSignedReadUrl({
 				bucket: "media",
 				key: asset.objectKey,
+				expiresIn,
 				responseContentDisposition: disposition,
 			}),
 		};

@@ -49,7 +49,10 @@ export interface CreateGenerationJobInput {
 	quoteId: string;
 	idempotencyKey: string;
 	inputAssetIds: string[];
+	expectedInputAssets?: Array<{ assetId: string; assetChecksum: string }>;
 	expectedModerationRuleVersion: string;
+	expectedAssetModerationRuleVersion?: string;
+	expectedAssetModerationPolicyVersion?: string;
 	maximumDailyCostMicros?: bigint;
 }
 

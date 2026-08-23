@@ -2,12 +2,90 @@ import { randomUUID } from "node:crypto";
 
 import type { MediaAssetKind, Prisma } from "../../generated/client";
 import type { CursorPageInput, MediaDatabaseClient, MediaTransactionClient } from "./types";
-import { getMediaDatabaseClient, runSerializable } from "./types";
+import { getMediaDatabaseClient, isDatabaseUniqueConflict, runSerializable } from "./types";
 
 const FINALIZATION_LEASE_MS = 5 * 60 * 1_000;
 // Keep a terminal session's reservation until durable cleanup runs. This must stay
 // at least as long as packages/storage/config.ts signedUploadExpiresSeconds.
 const STAGING_WRITE_URL_GRACE_MS = 10 * 60 * 1_000;
+
+const MEDIA_ASSET_READ_INCLUDE = {
+	moderationResults: {
+		orderBy: [
+			{ verificationGeneration: "desc" },
+			{ attemptNumber: "desc" },
+			{ createdAt: "desc" },
+			{ id: "desc" },
+		],
+		take: 1,
+	},
+	jobBindings: {
+		where: { role: "OUTPUT" },
+		take: 1,
+		select: { jobId: true },
+	},
+} satisfies Prisma.MediaAssetInclude;
+
+export type MediaAssetReadRecord = Prisma.MediaAssetGetPayload<{
+	include: typeof MEDIA_ASSET_READ_INCLUDE;
+}>;
+
+export interface MediaAssetVerificationBoundary {
+	provider: string;
+	ruleVersion: string;
+	policyVersion: string;
+	now: Date;
+}
+
+export function hasCurrentApprovedMediaAssetEvidence(
+	asset: Pick<
+		MediaAssetReadRecord,
+		| "status"
+		| "deletedAt"
+		| "kind"
+		| "checksum"
+		| "verificationGeneration"
+		| "verificationAttemptCount"
+		| "verificationProvider"
+		| "verificationProviderTaskId"
+		| "verificationRuleVersion"
+		| "verificationPolicyVersion"
+		| "verificationValidUntil"
+		| "moderationResults"
+	>,
+	verification: MediaAssetVerificationBoundary,
+): boolean {
+	if (
+		asset.status !== "READY" ||
+		asset.deletedAt !== null ||
+		!asset.checksum ||
+		!/^[a-f0-9]{64}$/i.test(asset.checksum) ||
+		asset.verificationAttemptCount < 1 ||
+		asset.verificationProvider !== verification.provider ||
+		asset.verificationRuleVersion !== verification.ruleVersion ||
+		asset.verificationPolicyVersion !== verification.policyVersion ||
+		asset.verificationValidUntil === null ||
+		asset.verificationValidUntil <= verification.now
+	) {
+		return false;
+	}
+
+	const evidence = asset.moderationResults[0];
+	return (
+		evidence?.status === "APPROVED" &&
+		evidence.assetChecksum === asset.checksum &&
+		evidence.verificationGeneration === asset.verificationGeneration &&
+		evidence.attemptNumber === asset.verificationAttemptCount &&
+		evidence.evidenceKind === asset.kind &&
+		evidence.provider === asset.verificationProvider &&
+		evidence.providerTaskId === asset.verificationProviderTaskId &&
+		evidence.ruleVersion === asset.verificationRuleVersion &&
+		evidence.policyVersion === asset.verificationPolicyVersion &&
+		evidence.validUntil !== null &&
+		evidence.validUntil.getTime() === asset.verificationValidUntil.getTime() &&
+		evidence.validUntil > verification.now
+	);
+}
 
 type CleanupReservationStatus = "EXPIRED" | "RELEASED";
 
@@ -78,6 +156,69 @@ export async function listMediaAssets(input: CursorPageInput, client?: MediaData
 		orderBy: [{ createdAt: "desc" }, { id: "desc" }],
 		take,
 	});
+}
+
+export async function listReadableMediaAssets(
+	input: CursorPageInput & {
+		mimeTypePrefix?: "image/" | "video/";
+		verification: MediaAssetVerificationBoundary;
+	},
+	client?: MediaDatabaseClient,
+): Promise<{ items: MediaAssetReadRecord[]; hasMore: boolean }> {
+	const take = Math.min(Math.max(input.take ?? 20, 1), 100);
+	const targetCount = take + 1;
+	const database = getMediaDatabaseClient(client);
+	const items: MediaAssetReadRecord[] = [];
+	let scanCursor = input.cursor;
+
+	while (items.length < targetCount) {
+		const scanTake = Math.min(100, Math.max(20, targetCount - items.length));
+		const rows = await database.mediaAsset.findMany({
+			where: {
+				ownerType: input.ownerType,
+				ownerId: input.ownerId,
+				status: "READY",
+				deletedAt: null,
+				checksum: { not: null },
+				verificationAttemptCount: { gt: 0 },
+				verificationProvider: input.verification.provider,
+				verificationRuleVersion: input.verification.ruleVersion,
+				verificationPolicyVersion: input.verification.policyVersion,
+				verificationValidUntil: { gt: input.verification.now },
+				moderationResults: {
+					some: {
+						status: "APPROVED",
+						provider: input.verification.provider,
+						ruleVersion: input.verification.ruleVersion,
+						policyVersion: input.verification.policyVersion,
+						validUntil: { gt: input.verification.now },
+					},
+				},
+				...(input.mimeTypePrefix ? { mimeType: { startsWith: input.mimeTypePrefix } } : {}),
+				...(scanCursor
+					? {
+							OR: [
+								{ createdAt: { lt: scanCursor.createdAt } },
+								{ createdAt: scanCursor.createdAt, id: { lt: scanCursor.id } },
+							],
+						}
+					: {}),
+			},
+			orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+			include: MEDIA_ASSET_READ_INCLUDE,
+			take: scanTake,
+		});
+		if (rows.length === 0) break;
+		for (const asset of rows) {
+			if (hasCurrentApprovedMediaAssetEvidence(asset, input.verification)) items.push(asset);
+			if (items.length === targetCount) break;
+		}
+		const lastScanned = rows[rows.length - 1]!;
+		scanCursor = { createdAt: lastScanned.createdAt, id: lastScanned.id };
+		if (rows.length < scanTake) break;
+	}
+
+	return { items: items.slice(0, take), hasMore: items.length > take };
 }
 
 export async function createUploadSession(
@@ -850,6 +991,25 @@ export async function getOwnedMediaAsset(
 	});
 }
 
+export async function getOwnedMediaAssetReadState(
+	input: {
+		assetId: string;
+		ownerId: string;
+		verification: MediaAssetVerificationBoundary;
+	},
+	client?: MediaDatabaseClient,
+) {
+	const asset = await getMediaDatabaseClient(client).mediaAsset.findFirst({
+		where: { id: input.assetId, ownerType: "USER", ownerId: input.ownerId },
+		include: MEDIA_ASSET_READ_INCLUDE,
+	});
+	if (!asset) return null;
+	return {
+		asset,
+		readable: hasCurrentApprovedMediaAssetEvidence(asset, input.verification),
+	};
+}
+
 export async function getOwnedMediaUploadSession(
 	sessionId: string,
 	ownerId: string,
@@ -866,20 +1026,66 @@ export async function recordAssetModeration(
 		assetId: string;
 		provider: string;
 		status: "PENDING" | "APPROVED" | "REJECTED" | "ERROR";
+		validUntil?: Date | null;
 		categories?: Prisma.InputJsonValue;
 		rawEnvelope: Prisma.InputJsonValue;
 	},
 	client?: MediaDatabaseClient,
 ) {
-	return getMediaDatabaseClient(client).assetModerationResult.upsert({
-		where: { assetId_provider: { assetId: input.assetId, provider: input.provider } },
-		create: { ...input, categories: input.categories ?? {} },
-		update: {
-			status: input.status,
-			categories: input.categories ?? {},
-			rawEnvelope: input.rawEnvelope,
-		},
-	});
+	const database = getMediaDatabaseClient(client);
+	if (input.status === "APPROVED" && (!input.validUntil || input.validUntil <= new Date())) {
+		throw new Error("APPROVED_MODERATION_EVIDENCE_REQUIRES_FUTURE_EXPIRY");
+	}
+	for (let appendAttempt = 1; appendAttempt <= 8; appendAttempt += 1) {
+		const asset = await database.mediaAsset.findUniqueOrThrow({
+			where: { id: input.assetId },
+			select: {
+				id: true,
+				kind: true,
+				checksum: true,
+				verificationGeneration: true,
+				verificationProviderTaskId: true,
+			},
+		});
+		const latest = await database.assetModerationResult.aggregate({
+			where: {
+				assetId: input.assetId,
+				verificationGeneration: asset.verificationGeneration,
+			},
+			_max: { attemptNumber: true },
+		});
+		const categories = input.categories ?? {};
+		try {
+			return await database.assetModerationResult.create({
+				data: {
+					...input,
+					assetChecksum:
+						asset.checksum && /^[a-f0-9]{64}$/i.test(asset.checksum) ? asset.checksum : null,
+					verificationGeneration: asset.verificationGeneration,
+					attemptNumber: (latest._max.attemptNumber ?? 0) + 1,
+					evidenceKind: asset.kind,
+					providerTaskId: asset.verificationProviderTaskId,
+					ruleVersion: moderationCategory(categories, "ruleVersion") ?? "legacy-api",
+					policyVersion: moderationCategory(categories, "policyVersion") ?? "legacy-api",
+					reasonCode: moderationCategory(categories, "reasonCode") ?? input.status,
+					categories,
+					validUntil: input.status === "APPROVED" ? input.validUntil : null,
+				},
+			});
+		} catch (error) {
+			if (appendAttempt < 8 && isDatabaseUniqueConflict(error)) continue;
+			throw error;
+		}
+	}
+	throw new Error("MODERATION_EVIDENCE_APPEND_RETRY_EXHAUSTED");
+}
+
+function moderationCategory(value: Prisma.InputJsonValue, key: string): string | undefined {
+	if (!value || Array.isArray(value) || typeof value !== "object" || "toJSON" in value) {
+		return undefined;
+	}
+	const selected = (value as Prisma.InputJsonObject)[key];
+	return typeof selected === "string" && selected.length > 0 ? selected : undefined;
 }
 
 export async function reserveStorageUsage(

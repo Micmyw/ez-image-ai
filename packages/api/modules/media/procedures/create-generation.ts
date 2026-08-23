@@ -1,3 +1,4 @@
+import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
 import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
 import { createGenerationJobTransaction } from "@repo/database";
 import { db } from "@repo/database/client";
@@ -48,6 +49,8 @@ export const createGeneration = protectedProcedure
 					idempotencyKey: input.idempotencyKey,
 					inputAssetIds: inputSnapshot.sourceAssetId ? [inputSnapshot.sourceAssetId] : [],
 					expectedModerationRuleVersion: TEXT_MODERATION_RULE_VERSION,
+					expectedAssetModerationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+					expectedAssetModerationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 					maximumDailyCostMicros: BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros),
 				},
 				db,

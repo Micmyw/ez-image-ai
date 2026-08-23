@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
 import { auth } from "@repo/auth";
 import { createCreditGrant, createUser, createUserAccount } from "@repo/database";
 import { db } from "@repo/database/client";
@@ -76,32 +77,99 @@ export async function seedLocalMediaE2E(): Promise<void> {
 		contentType: "image/png",
 		body: E2E_PNG,
 	});
-	await db.mediaAsset.upsert({
-		where: { id: assetId },
-		create: {
-			id: assetId,
-			ownerType: "USER",
-			ownerId: funded.id,
-			kind: "INPUT",
-			status: "READY",
-			objectKey,
-			mimeType: "image/png",
-			byteSize: BigInt(stored.bytes),
-			checksum: stored.sha256,
-			sourceUrl: `e2e-seed:${runId}`,
-		},
-		update: { status: "READY", deletedAt: null },
-	});
-	await db.assetModerationResult.upsert({
-		where: { assetId_provider: { assetId, provider: "e2e-seed" } },
-		create: {
-			assetId,
-			provider: "e2e-seed",
-			status: "APPROVED",
-			categories: { runId },
-			rawEnvelope: { decision: "ALLOW" },
-		},
-		update: { status: "APPROVED" },
+	await db.$transaction(async (tx) => {
+		const existing = await tx.mediaAsset.findUnique({ where: { id: assetId } });
+		const approvedEvidence = existing
+			? await tx.assetModerationResult.findFirst({
+					where: {
+						assetId,
+						assetChecksum: stored.sha256,
+						verificationGeneration: existing.verificationGeneration,
+						evidenceKind: "INPUT",
+						provider: "e2e-seed",
+						ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+						policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+						status: "APPROVED",
+					},
+				})
+			: null;
+
+		if (existing && approvedEvidence) {
+			await tx.mediaAsset.update({
+				where: { id: assetId },
+				data: {
+					status: "READY",
+					objectKey,
+					mimeType: "image/png",
+					byteSize: BigInt(stored.bytes),
+					checksum: stored.sha256,
+					deletedAt: null,
+					sourceUrl: `e2e-seed:${runId}`,
+				},
+			});
+			return;
+		}
+
+		const verificationGeneration = Math.max((existing?.verificationGeneration ?? 0) + 1, 1);
+		await tx.mediaAsset.upsert({
+			where: { id: assetId },
+			create: {
+				id: assetId,
+				ownerType: "USER",
+				ownerId: funded.id,
+				kind: "INPUT",
+				status: "VERIFYING",
+				objectKey,
+				mimeType: "image/png",
+				byteSize: BigInt(stored.bytes),
+				checksum: stored.sha256,
+				sourceUrl: `e2e-seed:${runId}`,
+				verificationGeneration,
+				verificationAttemptCount: 1,
+				verificationProvider: "e2e-seed",
+				verificationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				verificationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+			},
+			update: {
+				status: "VERIFYING",
+				objectKey,
+				mimeType: "image/png",
+				byteSize: BigInt(stored.bytes),
+				checksum: stored.sha256,
+				deletedAt: null,
+				sourceUrl: `e2e-seed:${runId}`,
+				verificationGeneration,
+				verificationAttemptCount: 1,
+				verificationProvider: "e2e-seed",
+				verificationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				verificationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				verificationProviderTaskId: null,
+				verificationLeaseToken: null,
+				verificationLeasedUntil: null,
+				verificationNextAttemptAt: null,
+				verificationLastErrorCode: null,
+			},
+		});
+		await tx.assetModerationResult.create({
+			data: {
+				assetId,
+				assetChecksum: stored.sha256,
+				verificationGeneration,
+				attemptNumber: 1,
+				evidenceKind: "INPUT",
+				provider: "e2e-seed",
+				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				status: "APPROVED",
+				reasonCode: "LOCAL_E2E_SEED_ALLOW",
+				categories: { runId },
+				rawEnvelope: { decision: "ALLOW", source: "local-media-e2e" },
+			},
+		});
+		await tx.mediaAsset.update({
+			where: { id: assetId },
+			data: { status: "READY" },
+		});
 	});
 }
 

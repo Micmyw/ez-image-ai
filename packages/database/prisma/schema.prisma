@@ -241,9 +241,16 @@ enum GenerationAttemptStatus {
 enum MediaAssetStatus {
   UPLOADING
   VERIFYING
+  VERIFICATION_FAILED
   READY
   QUARANTINED
   DELETED
+}
+
+enum GenerationRetryRequestStatus {
+  PROCESSING
+  SUCCEEDED
+  FAILED
 }
 
 enum MediaAssetKind {
@@ -335,7 +342,7 @@ enum GenerationDraftStatus {
 }
 
 model GenerationQuote {
-  id                    String         @id @default(cuid())
+  id                    String                  @id @default(cuid())
   ownerType             OwnerType
   ownerId               String
   submittedByUserId     String
@@ -346,14 +353,15 @@ model GenerationQuote {
   costMicros            BigInt
   inputSnapshot         Json
   pricingSnapshot       Json
-  moderationDecision    String         @default("LEGACY_UNREVIEWED")
-  moderationProvider    String         @default("legacy")
-  moderationRuleVersion String         @default("legacy")
-  moderationReasonCode  String         @default("LEGACY_UNREVIEWED")
-  inputFingerprint      String         @default("")
-  createdAt             DateTime       @default(now()) @db.Timestamptz(3)
-  expiresAt             DateTime       @db.Timestamptz(3)
+  moderationDecision    String                  @default("LEGACY_UNREVIEWED")
+  moderationProvider    String                  @default("legacy")
+  moderationRuleVersion String                  @default("legacy")
+  moderationReasonCode  String                  @default("LEGACY_UNREVIEWED")
+  inputFingerprint      String                  @default("")
+  createdAt             DateTime                @default(now()) @db.Timestamptz(3)
+  expiresAt             DateTime                @db.Timestamptz(3)
   job                   GenerationJob?
+  retryRequest          GenerationRetryRequest? @relation("GenerationRetryQuote")
 
   @@index([ownerType, ownerId, createdAt, id])
   @@index([expiresAt])
@@ -361,12 +369,12 @@ model GenerationQuote {
 }
 
 model GenerationJob {
-  id                     String               @id @default(cuid())
+  id                     String                   @id @default(cuid())
   ownerType              OwnerType
   ownerId                String
   submittedByUserId      String
-  quoteId                String               @unique
-  quote                  GenerationQuote      @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  quoteId                String                   @unique
+  quote                  GenerationQuote          @relation(fields: [quoteId], references: [id], onDelete: Restrict)
   idempotencyKey         String
   productKey             String
   catalogVersion         String
@@ -374,20 +382,22 @@ model GenerationJob {
   creditsReserved        BigInt
   inputSnapshot          Json
   pricingSnapshot        Json
-  status                 GenerationJobStatus  @default(RESERVED)
-  version                Int                  @default(0)
+  status                 GenerationJobStatus      @default(RESERVED)
+  version                Int                      @default(0)
   failureCode            String?
   failureMessage         String?
   finalizationStage      String?
-  finalizationRetryCount Int                  @default(0)
+  finalizationRetryCount Int                      @default(0)
   finalizationErrorCode  String?
-  nextFinalizeAt         DateTime?            @db.Timestamptz(3)
-  createdAt              DateTime             @default(now()) @db.Timestamptz(3)
-  updatedAt              DateTime             @updatedAt @db.Timestamptz(3)
-  terminalAt             DateTime?            @db.Timestamptz(3)
+  nextFinalizeAt         DateTime?                @db.Timestamptz(3)
+  createdAt              DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                 @updatedAt @db.Timestamptz(3)
+  terminalAt             DateTime?                @db.Timestamptz(3)
   reservation            CreditReservation?
   attempts               GenerationAttempt[]
   assets                 GenerationJobAsset[]
+  retrySourceRequests    GenerationRetryRequest[] @relation("GenerationRetrySourceJob")
+  retryResultRequest     GenerationRetryRequest?  @relation("GenerationRetryResultJob")
 
   @@unique([ownerType, ownerId, idempotencyKey])
   @@index([ownerType, ownerId, createdAt, id])
@@ -435,50 +445,69 @@ model GenerationAttempt {
 }
 
 model MediaAsset {
-  id                String                  @id @default(cuid())
-  ownerType         OwnerType
-  ownerId           String
-  kind              MediaAssetKind
-  status            MediaAssetStatus        @default(UPLOADING)
-  objectKey         String                  @unique
-  mimeType          String
-  byteSize          BigInt
-  width             Int?
-  height            Int?
-  durationMillis    BigInt?
-  checksum          String?
-  storageEtag       String?
-  storageVersionId  String?
-  finalizedAt       DateTime?               @db.Timestamptz(3)
-  sourceUrl         String?
-  createdAt         DateTime                @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime                @updatedAt @db.Timestamptz(3)
-  deletedAt         DateTime?               @db.Timestamptz(3)
-  uploadSessions    MediaUploadSession[]
-  jobBindings       GenerationJobAsset[]
-  moderationResults AssetModerationResult[]
+  id                              String                  @id @default(cuid())
+  ownerType                       OwnerType
+  ownerId                         String
+  kind                            MediaAssetKind
+  status                          MediaAssetStatus        @default(UPLOADING)
+  objectKey                       String                  @unique
+  mimeType                        String
+  byteSize                        BigInt
+  width                           Int?
+  height                          Int?
+  durationMillis                  BigInt?
+  checksum                        String?
+  storageEtag                     String?
+  storageVersionId                String?
+  finalizedAt                     DateTime?               @db.Timestamptz(3)
+  sourceUrl                       String?
+  verificationGeneration          Int                     @default(0)
+  verificationAttemptCount        Int                     @default(0)
+  verificationProvider            String?
+  verificationRuleVersion         String?
+  verificationPolicyVersion       String?
+  verificationProviderTaskId      String?
+  verificationLeaseToken          String?                 @unique
+  verificationLeasedUntil         DateTime?               @db.Timestamptz(3)
+  verificationNextAttemptAt       DateTime?               @db.Timestamptz(3)
+  verificationDeadlineAt          DateTime?               @db.Timestamptz(3)
+  verificationExhaustedAt         DateTime?               @db.Timestamptz(3)
+  verificationValidUntil          DateTime?               @db.Timestamptz(3)
+  verificationSubmissionToken     String?                 @unique
+  verificationSubmissionUncertain Boolean                 @default(false)
+  verificationSubmittedAt         DateTime?               @db.Timestamptz(3)
+  verificationLastErrorCode       String?
+  createdAt                       DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt                       DateTime                @updatedAt @db.Timestamptz(3)
+  deletedAt                       DateTime?               @db.Timestamptz(3)
+  uploadSessions                  MediaUploadSession[]
+  jobBindings                     GenerationJobAsset[]
+  moderationResults               AssetModerationResult[]
 
   @@index([ownerType, ownerId, createdAt, id])
   @@index([status, createdAt])
+  @@index([status, verificationNextAttemptAt, verificationLeasedUntil], map: "media_asset_verification_recovery_idx")
+  @@index([status, verificationDeadlineAt, verificationLeasedUntil], map: "media_asset_video_verification_recovery_idx")
+  @@index([status, verificationValidUntil], map: "media_asset_ready_expiry_idx")
   @@map("media_asset")
 }
 
 model MediaUploadSession {
-  id                String              @id @default(cuid())
-  assetId           String
-  asset             MediaAsset          @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  tokenHash         String              @unique
-  multipartUploadId String?
-  stagingObjectKey  String?             @unique
-  finalizationToken String?             @unique
-  finalizationLeaseExpiresAt DateTime?  @db.Timestamptz(3)
-  legacyFinalizationToken String?
-  finalizationParts Json?
-  status            UploadSessionStatus @default(PENDING)
-  expectedBytes     BigInt
-  createdAt         DateTime            @default(now()) @db.Timestamptz(3)
-  expiresAt         DateTime            @db.Timestamptz(3)
-  completedAt       DateTime?           @db.Timestamptz(3)
+  id                         String              @id @default(cuid())
+  assetId                    String
+  asset                      MediaAsset          @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  tokenHash                  String              @unique
+  multipartUploadId          String?
+  stagingObjectKey           String?             @unique
+  finalizationToken          String?             @unique
+  finalizationLeaseExpiresAt DateTime?           @db.Timestamptz(3)
+  legacyFinalizationToken    String?
+  finalizationParts          Json?
+  status                     UploadSessionStatus @default(PENDING)
+  expectedBytes              BigInt
+  createdAt                  DateTime            @default(now()) @db.Timestamptz(3)
+  expiresAt                  DateTime            @db.Timestamptz(3)
+  completedAt                DateTime?           @db.Timestamptz(3)
 
   @@index([status, expiresAt])
   @@index([status, finalizationLeaseExpiresAt])
@@ -486,14 +515,15 @@ model MediaUploadSession {
 }
 
 model GenerationJobAsset {
-  id        String                 @id @default(cuid())
-  jobId     String
-  job       GenerationJob          @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  assetId   String
-  asset     MediaAsset             @relation(fields: [assetId], references: [id], onDelete: Restrict)
-  role      GenerationJobAssetRole
-  position  Int                    @default(0)
-  createdAt DateTime               @default(now()) @db.Timestamptz(3)
+  id            String                 @id @default(cuid())
+  jobId         String
+  job           GenerationJob          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  assetId       String
+  asset         MediaAsset             @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  assetChecksum String
+  role          GenerationJobAssetRole
+  position      Int                    @default(0)
+  createdAt     DateTime               @default(now()) @db.Timestamptz(3)
 
   @@unique([jobId, assetId, role])
   @@index([assetId])
@@ -501,18 +531,56 @@ model GenerationJobAsset {
 }
 
 model AssetModerationResult {
-  id          String           @id @default(cuid())
-  assetId     String
-  asset       MediaAsset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
-  provider    String
-  status      ModerationStatus
-  categories  Json
-  rawEnvelope Json
-  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  id                     String           @id @default(cuid())
+  assetId                String
+  asset                  MediaAsset       @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  assetChecksum          String?
+  verificationGeneration Int
+  attemptNumber          Int
+  evidenceKind           MediaAssetKind
+  provider               String
+  providerTaskId         String?
+  ruleVersion            String
+  policyVersion          String
+  status                 ModerationStatus
+  reasonCode             String
+  categories             Json
+  rawEnvelope            Json
+  validUntil             DateTime?        @db.Timestamptz(3)
+  createdAt              DateTime         @default(now()) @db.Timestamptz(3)
 
-  @@unique([assetId, provider])
+  @@unique([assetId, verificationGeneration, attemptNumber], map: "asset_moderation_result_generation_attempt_key")
+  @@index([assetId, assetChecksum, verificationGeneration, status], map: "asset_moderation_result_authorization_idx")
   @@index([status, createdAt])
   @@map("asset_moderation_result")
+}
+
+model GenerationRetryRequest {
+  id                   String                       @id @default(cuid())
+  ownerType            OwnerType
+  ownerId              String
+  submittedByUserId    String
+  sourceJobId          String
+  sourceJob            GenerationJob                @relation("GenerationRetrySourceJob", fields: [sourceJobId], references: [id], onDelete: Restrict)
+  resultJobId          String?                      @unique
+  resultJob            GenerationJob?               @relation("GenerationRetryResultJob", fields: [resultJobId], references: [id], onDelete: Restrict)
+  quoteId              String?                      @unique
+  quote                GenerationQuote?             @relation("GenerationRetryQuote", fields: [quoteId], references: [id], onDelete: Restrict)
+  idempotencyKey       String
+  status               GenerationRetryRequestStatus @default(PROCESSING)
+  operationFingerprint String
+  operationSnapshot    Json
+  leaseToken           String?                      @unique
+  leasedUntil          DateTime?                    @db.Timestamptz(3)
+  errorCode            String?
+  createdAt            DateTime                     @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime                     @updatedAt @db.Timestamptz(3)
+  completedAt          DateTime?                    @db.Timestamptz(3)
+
+  @@unique([ownerType, ownerId, idempotencyKey])
+  @@index([sourceJobId, createdAt])
+  @@index([status, leasedUntil])
+  @@map("generation_retry_request")
 }
 
 model StorageUsageReservation {

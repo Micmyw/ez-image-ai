@@ -35,4 +35,12 @@ describe("media browser contract", () => {
 		expect(stableMediaErrorCode(new Error("TEXT_MODERATION_REJECT"))).toBe("CONTENT_NOT_ALLOWED");
 		expect(stableMediaErrorCode(new Error("TEXT_MODERATION_REVIEW"))).toBe("CONTENT_NOT_ALLOWED");
 	});
+
+	it.each([
+		"GENERATION_RETRY_IN_PROGRESS",
+		"GENERATION_RETRY_FAILED",
+		"IDEMPOTENCY_CONFLICT",
+	] as const)("preserves the safe retry error code %s", (code) => {
+		expect(stableMediaErrorCode(new Error(code))).toBe(code);
+	});
 });

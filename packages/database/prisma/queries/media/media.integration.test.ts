@@ -402,6 +402,38 @@ describe("media PostgreSQL transactions", () => {
 		expect(stale).toMatchObject({ applied: false, job: { status: "DISPATCH_QUEUED", version: 1 } });
 	});
 
+	it("rejects reuse of a generation idempotency key with a different quote", async () => {
+		const fixture = await createBudgetFixture(client, [10n, 10n]);
+		const idempotencyKey = `quote-conflict-${crypto.randomUUID()}`;
+		await createGenerationJobTransaction(
+			{
+				ownerType: "USER",
+				ownerId: fixture.ownerId,
+				submittedByUserId: fixture.ownerId,
+				quoteId: fixture.quotes[0]!.id,
+				idempotencyKey,
+				inputAssetIds: [],
+				expectedModerationRuleVersion: TEST_MODERATION_RULE_VERSION,
+			},
+			client,
+		);
+
+		await expect(
+			createGenerationJobTransaction(
+				{
+					ownerType: "USER",
+					ownerId: fixture.ownerId,
+					submittedByUserId: fixture.ownerId,
+					quoteId: fixture.quotes[1]!.id,
+					idempotencyKey,
+					inputAssetIds: [],
+					expectedModerationRuleVersion: TEST_MODERATION_RULE_VERSION,
+				},
+				client,
+			),
+		).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+	});
+
 	it("allocates reservations from earliest-expiring lots first", async () => {
 		const ownerId = `test-user-${crypto.randomUUID()}`;
 		const account = await client.creditAccount.create({
@@ -1552,6 +1584,8 @@ describe("media PostgreSQL transactions", () => {
 		const ownerId = `test-user-${crypto.randomUUID()}`;
 		const assets = [];
 		for (let index = 0; index < 3; index += 1) {
+			const checksum = index.toString(16).padStart(64, "0");
+			const validUntil = new Date(Date.now() + 60_000);
 			const asset = await createMediaAsset(
 				{
 					ownerType: "USER",
@@ -1563,6 +1597,36 @@ describe("media PostgreSQL transactions", () => {
 				},
 				client,
 			);
+			await client.mediaAsset.update({
+				where: { id: asset.id },
+				data: {
+					status: "VERIFYING",
+					checksum,
+					verificationGeneration: 1,
+					verificationAttemptCount: 1,
+					verificationProvider: "test",
+					verificationRuleVersion: "asset-rule-v1",
+					verificationPolicyVersion: "policy-v1",
+					verificationValidUntil: validUntil,
+				},
+			});
+			await client.assetModerationResult.create({
+				data: {
+					assetId: asset.id,
+					assetChecksum: checksum,
+					verificationGeneration: 1,
+					attemptNumber: 1,
+					evidenceKind: "INPUT",
+					provider: "test",
+					ruleVersion: "asset-rule-v1",
+					policyVersion: "policy-v1",
+					status: "APPROVED",
+					validUntil,
+					reasonCode: "TEST_ALLOW",
+					categories: {},
+					rawEnvelope: { decision: "ALLOW" },
+				},
+			});
 			assets.push(
 				await client.mediaAsset.update({ where: { id: asset.id }, data: { status: "READY" } }),
 			);

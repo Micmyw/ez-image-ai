@@ -8,6 +8,7 @@ import type {
 	ModerationDecision,
 	ModerationSubmission,
 	RetrieveModerationInput,
+	SubmitVideoInput,
 } from "./types";
 
 const sightengineSchema = z
@@ -50,11 +51,20 @@ export class SightengineSafetyAdapter implements MediaSafetyAdapter {
 			return decision("ERROR", "MODERATION_UNAVAILABLE", input.ruleVersion);
 		}
 	}
-	async submitVideo(input: ModerateAssetInput): Promise<ModerationSubmission> {
+	async submitVideo(input: SubmitVideoInput): Promise<ModerationSubmission> {
 		const data = await this.call("/video/check.json", { stream_url: input.assetUrl });
 		const id = data.data?.id;
 		if (!id) throw new Error("Sightengine video submission was malformed");
-		return { moderationTaskId: id, status: "QUEUED", ruleVersion: input.ruleVersion };
+		return {
+			moderationTaskId: id,
+			status: "QUEUED",
+			ruleVersion: input.ruleVersion,
+			idempotency: {
+				key: input.idempotencyKey,
+				providerSupported: false,
+				replayed: false,
+			},
+		};
 	}
 	async retrieveVideo(input: RetrieveModerationInput): Promise<ModerationDecision> {
 		const data = await this.call(

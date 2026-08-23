@@ -55,6 +55,7 @@ export const createGenerationDraft = publicProcedure
 			});
 		}
 		const expiresAt = new Date(Date.now() + 60 * 60_000);
+		const uploadedAt = new Date();
 		let draft;
 		try {
 			draft = await createGenerationDraftTransaction(
@@ -87,6 +88,8 @@ export const createGenerationDraft = publicProcedure
 									objectKey,
 									mimeType: input.upload!.contentType,
 									byteSize: BigInt(uploaded.bytes),
+									checksum: uploaded.sha256,
+									finalizedAt: uploadedAt,
 								},
 							}
 						: {}),

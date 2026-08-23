@@ -61,12 +61,14 @@ describe("generation quote moderation migration", () => {
 function safeTestDatabaseUrl(value: string | undefined): string {
 	if (!value) throw new Error("TEST_DATABASE_URL is required");
 	const parsed = new URL(value);
+	const databaseName = parsed.pathname.slice(1).toLowerCase();
 	if (
-		parsed.hostname !== "127.0.0.1" ||
+		!["localhost", "127.0.0.1", "::1"].includes(parsed.hostname) ||
 		parsed.port !== "55432" ||
-		parsed.pathname !== "/ai_media_foundation_test"
+		!/(^|[_-])(test|testing)([_-]|$)/.test(databaseName) ||
+		["postgres", "template0", "template1"].includes(databaseName)
 	) {
-		throw new Error("TEST_DATABASE_URL must target the disposable local media test database");
+		throw new Error("TEST_DATABASE_URL must target a local test database on port 55432");
 	}
 	return value;
 }

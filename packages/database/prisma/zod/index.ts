@@ -90,7 +90,7 @@ export type GenerationAttemptScalarFieldEnum = z.infer<typeof GenerationAttemptS
 
 // File: MediaAssetScalarFieldEnum.schema.ts
 
-export const MediaAssetScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'kind', 'status', 'objectKey', 'mimeType', 'byteSize', 'width', 'height', 'durationMillis', 'checksum', 'storageEtag', 'storageVersionId', 'finalizedAt', 'sourceUrl', 'createdAt', 'updatedAt', 'deletedAt'])
+export const MediaAssetScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'kind', 'status', 'objectKey', 'mimeType', 'byteSize', 'width', 'height', 'durationMillis', 'checksum', 'storageEtag', 'storageVersionId', 'finalizedAt', 'sourceUrl', 'verificationGeneration', 'verificationAttemptCount', 'verificationProvider', 'verificationRuleVersion', 'verificationPolicyVersion', 'verificationProviderTaskId', 'verificationLeaseToken', 'verificationLeasedUntil', 'verificationNextAttemptAt', 'verificationDeadlineAt', 'verificationExhaustedAt', 'verificationValidUntil', 'verificationSubmissionToken', 'verificationSubmissionUncertain', 'verificationSubmittedAt', 'verificationLastErrorCode', 'createdAt', 'updatedAt', 'deletedAt'])
 
 export type MediaAssetScalarFieldEnum = z.infer<typeof MediaAssetScalarFieldEnumSchema>;
 
@@ -102,15 +102,21 @@ export type MediaUploadSessionScalarFieldEnum = z.infer<typeof MediaUploadSessio
 
 // File: GenerationJobAssetScalarFieldEnum.schema.ts
 
-export const GenerationJobAssetScalarFieldEnumSchema = z.enum(['id', 'jobId', 'assetId', 'role', 'position', 'createdAt'])
+export const GenerationJobAssetScalarFieldEnumSchema = z.enum(['id', 'jobId', 'assetId', 'assetChecksum', 'role', 'position', 'createdAt'])
 
 export type GenerationJobAssetScalarFieldEnum = z.infer<typeof GenerationJobAssetScalarFieldEnumSchema>;
 
 // File: AssetModerationResultScalarFieldEnum.schema.ts
 
-export const AssetModerationResultScalarFieldEnumSchema = z.enum(['id', 'assetId', 'provider', 'status', 'categories', 'rawEnvelope', 'createdAt'])
+export const AssetModerationResultScalarFieldEnumSchema = z.enum(['id', 'assetId', 'assetChecksum', 'verificationGeneration', 'attemptNumber', 'evidenceKind', 'provider', 'providerTaskId', 'ruleVersion', 'policyVersion', 'status', 'reasonCode', 'categories', 'rawEnvelope', 'validUntil', 'createdAt'])
 
 export type AssetModerationResultScalarFieldEnum = z.infer<typeof AssetModerationResultScalarFieldEnumSchema>;
+
+// File: GenerationRetryRequestScalarFieldEnum.schema.ts
+
+export const GenerationRetryRequestScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'submittedByUserId', 'sourceJobId', 'resultJobId', 'quoteId', 'idempotencyKey', 'status', 'operationFingerprint', 'operationSnapshot', 'leaseToken', 'leasedUntil', 'errorCode', 'createdAt', 'updatedAt', 'completedAt'])
+
+export type GenerationRetryRequestScalarFieldEnum = z.infer<typeof GenerationRetryRequestScalarFieldEnumSchema>;
 
 // File: StorageUsageReservationScalarFieldEnum.schema.ts
 
@@ -288,7 +294,7 @@ export type MediaAssetKind = z.infer<typeof MediaAssetKindSchema>;
 
 // File: MediaAssetStatus.schema.ts
 
-export const MediaAssetStatusSchema = z.enum(['UPLOADING', 'VERIFYING', 'READY', 'QUARANTINED', 'DELETED'])
+export const MediaAssetStatusSchema = z.enum(['UPLOADING', 'VERIFYING', 'VERIFICATION_FAILED', 'READY', 'QUARANTINED', 'DELETED'])
 
 export type MediaAssetStatus = z.infer<typeof MediaAssetStatusSchema>;
 
@@ -309,6 +315,12 @@ export type GenerationJobAssetRole = z.infer<typeof GenerationJobAssetRoleSchema
 export const ModerationStatusSchema = z.enum(['PENDING', 'APPROVED', 'REJECTED', 'REVIEW', 'ERROR'])
 
 export type ModerationStatus = z.infer<typeof ModerationStatusSchema>;
+
+// File: GenerationRetryRequestStatus.schema.ts
+
+export const GenerationRetryRequestStatusSchema = z.enum(['PROCESSING', 'SUCCEEDED', 'FAILED'])
+
+export type GenerationRetryRequestStatus = z.infer<typeof GenerationRetryRequestStatusSchema>;
 
 // File: StorageReservationStatus.schema.ts
 
@@ -655,6 +667,22 @@ export const MediaAssetSchema = z.object({
   storageVersionId: z.string().nullish(),
   finalizedAt: z.date().nullish(),
   sourceUrl: z.string().nullish(),
+  verificationGeneration: z.number().int(),
+  verificationAttemptCount: z.number().int(),
+  verificationProvider: z.string().nullish(),
+  verificationRuleVersion: z.string().nullish(),
+  verificationPolicyVersion: z.string().nullish(),
+  verificationProviderTaskId: z.string().nullish(),
+  verificationLeaseToken: z.string().nullish(),
+  verificationLeasedUntil: z.date().nullish(),
+  verificationNextAttemptAt: z.date().nullish(),
+  verificationDeadlineAt: z.date().nullish(),
+  verificationExhaustedAt: z.date().nullish(),
+  verificationValidUntil: z.date().nullish(),
+  verificationSubmissionToken: z.string().nullish(),
+  verificationSubmissionUncertain: z.boolean(),
+  verificationSubmittedAt: z.date().nullish(),
+  verificationLastErrorCode: z.string().nullish(),
   createdAt: z.date(),
   updatedAt: z.date(),
   deletedAt: z.date().nullish(),
@@ -691,6 +719,7 @@ export const GenerationJobAssetSchema = z.object({
   id: z.string(),
   jobId: z.string(),
   assetId: z.string(),
+  assetChecksum: z.string(),
   role: GenerationJobAssetRoleSchema,
   position: z.number().int(),
   createdAt: z.date(),
@@ -704,14 +733,48 @@ export type GenerationJobAssetType = z.infer<typeof GenerationJobAssetSchema>;
 export const AssetModerationResultSchema = z.object({
   id: z.string(),
   assetId: z.string(),
+  assetChecksum: z.string().nullish(),
+  verificationGeneration: z.number().int(),
+  attemptNumber: z.number().int(),
+  evidenceKind: MediaAssetKindSchema,
   provider: z.string(),
+  providerTaskId: z.string().nullish(),
+  ruleVersion: z.string(),
+  policyVersion: z.string(),
   status: ModerationStatusSchema,
+  reasonCode: z.string(),
   categories: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10"),
   rawEnvelope: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10"),
+  validUntil: z.date().nullish(),
   createdAt: z.date(),
 });
 
 export type AssetModerationResultType = z.infer<typeof AssetModerationResultSchema>;
+
+
+// File: GenerationRetryRequest.schema.ts
+
+export const GenerationRetryRequestSchema = z.object({
+  id: z.string(),
+  ownerType: OwnerTypeSchema,
+  ownerId: z.string(),
+  submittedByUserId: z.string(),
+  sourceJobId: z.string(),
+  resultJobId: z.string().nullish(),
+  quoteId: z.string().nullish(),
+  idempotencyKey: z.string(),
+  status: GenerationRetryRequestStatusSchema.default("PROCESSING"),
+  operationFingerprint: z.string(),
+  operationSnapshot: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10"),
+  leaseToken: z.string().nullish(),
+  leasedUntil: z.date().nullish(),
+  errorCode: z.string().nullish(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+  completedAt: z.date().nullish(),
+});
+
+export type GenerationRetryRequestType = z.infer<typeof GenerationRetryRequestSchema>;
 
 
 // File: StorageUsageReservation.schema.ts

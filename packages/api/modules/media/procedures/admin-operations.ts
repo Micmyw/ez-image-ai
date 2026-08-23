@@ -1,7 +1,9 @@
+import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
 import { productModelKeySchema } from "@repo/config";
 import {
 	isSafeFalReconciliationEndpoint,
 	replayPersistedMediaEvent,
+	requeueAdminMediaVerification,
 	resolveAdminUncertainSubmission,
 	retryAdminMediaJobStage,
 	rollbackAdminMediaRuntimeOverride,
@@ -27,6 +29,28 @@ export const replayMediaEvent = adminProcedure
 	)
 	.handler(async ({ context: { user }, input }) =>
 		replayPersistedMediaEvent({ ...input, actorUserId: user.id }, db),
+	);
+
+export const requeueMediaVerification = adminProcedure
+	.route({
+		method: "POST",
+		path: "/admin/media/assets/{assetId}/requeue-verification",
+		tags: ["Admin", "Media"],
+	})
+	.input(operationSchema.extend({ assetId: z.string().min(1).max(128) }))
+	.handler(async ({ context: { user }, input }) =>
+		requeueAdminMediaVerification(
+			{
+				...input,
+				actorUserId: user.id,
+				currentVerification: {
+					provider: process.env.MEDIA_SAFETY_ADAPTER ?? "test",
+					ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+					policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				},
+			},
+			db,
+		),
 	);
 
 export const retryMediaJobStage = adminProcedure

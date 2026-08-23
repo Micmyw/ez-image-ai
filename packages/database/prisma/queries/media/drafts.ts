@@ -11,6 +11,8 @@ interface CreateGenerationDraftInput {
 		objectKey: string;
 		mimeType: string;
 		byteSize: bigint;
+		checksum: string;
+		finalizedAt: Date;
 	};
 	abuseLimits?: {
 		subjectHash: string;

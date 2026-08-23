@@ -555,6 +555,21 @@ export async function settleCredits(input: CreditMutationInput, client: MediaTra
 	return finalizeCreditsWithReplay("settle", input, client);
 }
 
+/**
+ * Finalize a reservation inside an existing transaction.
+ *
+ * Callers use this when the credit mutation must commit atomically with another
+ * business invariant (for example, locking verified output assets and making a
+ * generation job terminal). The surrounding transaction owns serialization
+ * retries and replay handling.
+ */
+export async function settleCreditsInTransaction(
+	input: CreditMutationInput,
+	tx: Prisma.TransactionClient,
+) {
+	return finalizeReservation("settle", input, tx);
+}
+
 export async function releaseCredits(
 	input: Omit<CreditMutationInput, "amount"> & { amount?: bigint },
 	client: MediaTransactionClient,

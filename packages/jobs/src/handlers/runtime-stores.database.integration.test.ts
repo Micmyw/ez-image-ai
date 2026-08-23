@@ -1,5 +1,12 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { FalProviderAdapter, GeminiProviderAdapter, ReplicateProviderAdapter } from "@repo/ai";
+import {
+	FalProviderAdapter,
+	GeminiProviderAdapter,
+	MEDIA_VERIFICATION_POLICY_VERSION,
+	MEDIA_VERIFICATION_RULE_VERSION,
+	ReplicateProviderAdapter,
+	TestMediaSafetyAdapter,
+} from "@repo/ai";
 import {
 	createCreditGrant,
 	createGenerationJobTransaction,
@@ -14,11 +21,13 @@ import {
 	createDatabaseProviderEventStore,
 	createDatabaseReconciliationStore,
 	createDatabaseSettlementStore,
+	createDatabaseVerifyUploadDependencies,
 } from "../runtime";
 import { dispatchGeneration } from "./dispatch-generation";
 import { finalizeMedia } from "./finalize-media";
 import { reconcileGenerations } from "./reconcile-generations";
 import { settleGeneration } from "./settle-generation";
+import { verifyUpload } from "./verify-upload";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 let client: PrismaClient;
@@ -63,6 +72,101 @@ describe("production media runtime stores", () => {
 				where: { aggregateId: seeded.jobId, eventType: "GENERATION_DISPATCH" },
 			}),
 		).toBe(1);
+	});
+
+	it("rejects dispatch when a ready input no longer matches the job-bound checksum", async () => {
+		const seeded = await seedReservedImageEditJob();
+		const replacementChecksum = "b".repeat(64);
+		await client.generationJobAsset.updateMany({
+			where: { jobId: seeded.jobId, assetId: seeded.assetId, role: "INPUT" },
+			data: { assetChecksum: replacementChecksum },
+		});
+
+		const store = createDatabaseDispatchStore(client);
+		await expect(store.claimDispatch({ jobId: seeded.jobId, version: 0 })).rejects.toThrow(
+			"Input asset checksum no longer matches job binding",
+		);
+		await expect(
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+		).resolves.toMatchObject({ status: "RESERVED", version: 0 });
+	});
+
+	it("rejects dispatch when later moderation evidence supersedes the approval", async () => {
+		const seeded = await seedReservedImageEditJob();
+		const asset = await client.mediaAsset.findUniqueOrThrow({ where: { id: seeded.assetId } });
+		await client.assetModerationResult.create({
+			data: {
+				assetId: asset.id,
+				assetChecksum: asset.checksum,
+				verificationGeneration: asset.verificationGeneration,
+				attemptNumber: asset.verificationAttemptCount + 1,
+				evidenceKind: asset.kind,
+				provider: asset.verificationProvider!,
+				providerTaskId: asset.verificationProviderTaskId,
+				ruleVersion: asset.verificationRuleVersion!,
+				policyVersion: asset.verificationPolicyVersion!,
+				status: "ERROR",
+				reasonCode: "LATER_MODERATION_FAILURE",
+				categories: {},
+				rawEnvelope: { decision: "ERROR" },
+			},
+		});
+
+		const store = createDatabaseDispatchStore(client);
+		await expect(store.claimDispatch({ jobId: seeded.jobId, version: 0 })).rejects.toThrow(
+			"Input asset moderation evidence is stale",
+		);
+		await expect(
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+		).resolves.toMatchObject({ status: "RESERVED", version: 0 });
+	});
+
+	it("serializes input authorization with stale-asset reverification", async () => {
+		const seeded = await seedReservedImageEditJob(1_000);
+		let releaseAuthorization!: () => void;
+		let authorizationReached!: () => void;
+		const reached = new Promise<void>((resolve) => {
+			authorizationReached = resolve;
+		});
+		const released = new Promise<void>((resolve) => {
+			releaseAuthorization = resolve;
+		});
+		const store = createDatabaseDispatchStore(client, {
+			createSignedReadUrl: async () => "https://private.example/input.png",
+			afterInputAuthorization: async () => {
+				authorizationReached();
+				await released;
+			},
+		});
+
+		const dispatching = store.claimDispatch({ jobId: seeded.jobId, version: 0 });
+		await reached;
+		await new Promise((resolve) =>
+			setTimeout(resolve, Math.max(0, seeded.verificationValidUntil.getTime() - Date.now()) + 25),
+		);
+		let verificationFinished = false;
+		let verificationError: unknown;
+		const verifying = verifyUpload(
+			{ assetId: seeded.assetId },
+			createOutputVerificationDependencies("ALLOW", (error) => {
+				verificationError = error;
+			}),
+		).then(() => {
+			verificationFinished = true;
+		});
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(verificationFinished).toBe(false);
+
+		releaseAuthorization();
+		await expect(dispatching).resolves.not.toBeNull();
+		await verifying;
+		expect(verificationError).toBeUndefined();
+		await expect(
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+		).resolves.toMatchObject({ status: "SUBMITTING", version: 1 });
+		await expect(
+			client.mediaAsset.findUniqueOrThrow({ where: { id: seeded.assetId } }),
+		).resolves.toMatchObject({ status: "READY", verificationGeneration: 2 });
 	});
 
 	it("routes a real HTTP 429 adapter rejection through the handler and production store", async () => {
@@ -462,6 +566,7 @@ describe("production media runtime stores", () => {
 		).toBe(0);
 
 		const reviewSeed = await seedFinalizingJob();
+		const reviewChecksum = "b".repeat(64);
 		const reviewAsset = await client.mediaAsset.create({
 			data: {
 				ownerType: "USER",
@@ -471,13 +576,26 @@ describe("production media runtime stores", () => {
 				objectKey: `review/${crypto.randomUUID()}.png`,
 				mimeType: "image/png",
 				byteSize: 1n,
+				checksum: reviewChecksum,
+				verificationGeneration: 1,
+				verificationAttemptCount: 1,
+				verificationProvider: "test",
+				verificationRuleVersion: "test-rule-v1",
+				verificationPolicyVersion: "test-policy-v1",
 			},
 		});
 		await client.assetModerationResult.create({
 			data: {
 				assetId: reviewAsset.id,
+				assetChecksum: reviewChecksum,
+				verificationGeneration: 1,
+				attemptNumber: 1,
+				evidenceKind: "OUTPUT",
 				provider: "test",
+				ruleVersion: "test-rule-v1",
+				policyVersion: "test-policy-v1",
 				status: "REVIEW",
+				reasonCode: "MANUAL_REVIEW",
 				categories: { reason: "manual" },
 				rawEnvelope: { decision: "REVIEW" },
 			},
@@ -493,6 +611,223 @@ describe("production media runtime stores", () => {
 		expect(
 			await client.mediaAsset.findUniqueOrThrow({ where: { id: reviewAsset.id } }),
 		).toMatchObject({ status: "QUARANTINED" });
+		const reviewFinalizing = await client.generationJob.findUniqueOrThrow({
+			where: { id: reviewSeed.jobId },
+		});
+		await settleGeneration(
+			{ jobId: reviewSeed.jobId, version: reviewFinalizing.version },
+			{ store: createDatabaseSettlementStore(client) },
+		);
+		const [reviewJob, reviewReservation, reviewLedger] = await Promise.all([
+			client.generationJob.findUniqueOrThrow({ where: { id: reviewSeed.jobId } }),
+			client.creditReservation.findUniqueOrThrow({ where: { id: reviewSeed.reservationId } }),
+			client.creditLedgerEntry.findUniqueOrThrow({
+				where: { referenceKey: `settle:${reviewSeed.jobId}` },
+			}),
+		]);
+		expect(reviewJob).toMatchObject({ status: "FAILED", failureCode: "NO_USABLE_OUTPUT" });
+		expect(reviewReservation).toMatchObject({
+			status: "SETTLED",
+			settledAmount: 0n,
+			releasedAmount: reviewSeed.credits,
+		});
+		expect(reviewLedger).toMatchObject({ type: "SETTLE", amount: 0n });
+	});
+
+	it("waits for a bound output verification and charges only after approval", async () => {
+		const seeded = await seedFinalizingJob();
+		const output = await seedBoundOutputAsset(seeded.jobId, "VERIFYING");
+
+		const premature = await settleGeneration(
+			{ jobId: seeded.jobId, version: seeded.version },
+			{ store: createDatabaseSettlementStore(client) },
+		);
+		expect(premature.outcome).toBe("SKIPPED");
+		await expect(
+			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+		).resolves.toMatchObject({ status: "ACTIVE", settledAmount: 0n, releasedAmount: 0n });
+		await expect(
+			client.creditLedgerEntry.count({ where: { referenceKey: `settle:${seeded.jobId}` } }),
+		).resolves.toBe(0);
+
+		await verifyUpload({ assetId: output.assetId }, createOutputVerificationDependencies("ALLOW"));
+		await expect(
+			client.mediaAsset.findUniqueOrThrow({ where: { id: output.assetId } }),
+		).resolves.toMatchObject({ status: "READY" });
+		await expect(
+			client.outboxEvent.count({
+				where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
+			}),
+		).resolves.toBe(1);
+
+		const finalizing = await client.generationJob.findUniqueOrThrow({
+			where: { id: seeded.jobId },
+		});
+		const settled = await settleGeneration(
+			{ jobId: seeded.jobId, version: finalizing.version },
+			{ store: createDatabaseSettlementStore(client) },
+		);
+		expect(settled.outcome).toBe("SETTLED");
+		await expect(
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+		).resolves.toMatchObject({ status: "SUCCEEDED", failureCode: null });
+		await expect(
+			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+		).resolves.toMatchObject({
+			status: "SETTLED",
+			settledAmount: seeded.credits,
+			releasedAmount: 0n,
+		});
+	});
+
+	it("settles at zero only after a bound output verification rejects the asset", async () => {
+		const seeded = await seedFinalizingJob();
+		const output = await seedBoundOutputAsset(seeded.jobId, "VERIFYING");
+
+		await verifyUpload({ assetId: output.assetId }, createOutputVerificationDependencies("REJECT"));
+		await expect(
+			client.mediaAsset.findUniqueOrThrow({ where: { id: output.assetId } }),
+		).resolves.toMatchObject({ status: "QUARANTINED" });
+		await expect(
+			client.outboxEvent.count({
+				where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
+			}),
+		).resolves.toBe(1);
+
+		const finalizing = await client.generationJob.findUniqueOrThrow({
+			where: { id: seeded.jobId },
+		});
+		await settleGeneration(
+			{ jobId: seeded.jobId, version: finalizing.version },
+			{ store: createDatabaseSettlementStore(client) },
+		);
+		await expect(
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+		).resolves.toMatchObject({ status: "FAILED", failureCode: "NO_USABLE_OUTPUT" });
+		await expect(
+			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+		).resolves.toMatchObject({
+			status: "SETTLED",
+			settledAmount: 0n,
+			releasedAmount: seeded.credits,
+		});
+	});
+
+	it("does not charge a bound READY output after its moderation evidence expires", async () => {
+		const seeded = await seedFinalizingJob();
+		await seedBoundOutputAsset(seeded.jobId, "READY", 100);
+		await new Promise((resolve) => setTimeout(resolve, 150));
+
+		const outcome = await settleGeneration(
+			{ jobId: seeded.jobId, version: seeded.version },
+			{ store: createDatabaseSettlementStore(client) },
+		);
+		expect(outcome.outcome).toBe("SKIPPED");
+		await expect(
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+		).resolves.toMatchObject({ status: "FINALIZING" });
+		await expect(
+			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+		).resolves.toMatchObject({ status: "ACTIVE", settledAmount: 0n, releasedAmount: 0n });
+	});
+
+	it("does not zero-settle a legacy-quarantined output before mandatory reverification", async () => {
+		const seeded = await seedFinalizingJob();
+		const output = await seedBoundOutputAsset(seeded.jobId, "READY");
+		await client.mediaAsset.update({
+			where: { id: output.assetId },
+			data: {
+				status: "QUARANTINED",
+				verificationLastErrorCode: "LEGACY_EVIDENCE_UNTRUSTED",
+			},
+		});
+
+		const premature = await settleGeneration(
+			{ jobId: seeded.jobId, version: seeded.version },
+			{ store: createDatabaseSettlementStore(client) },
+		);
+		expect(premature.outcome).toBe("SKIPPED");
+		await expect(
+			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+		).resolves.toMatchObject({ status: "ACTIVE", settledAmount: 0n, releasedAmount: 0n });
+
+		await verifyUpload(
+			{ assetId: output.assetId, allowQuarantinedReverification: true },
+			createOutputVerificationDependencies("ALLOW"),
+		);
+		await expect(
+			client.mediaAsset.findUniqueOrThrow({ where: { id: output.assetId } }),
+		).resolves.toMatchObject({ status: "READY", verificationGeneration: 2 });
+		const finalizing = await client.generationJob.findUniqueOrThrow({
+			where: { id: seeded.jobId },
+		});
+		await settleGeneration(
+			{ jobId: seeded.jobId, version: finalizing.version },
+			{ store: createDatabaseSettlementStore(client) },
+		);
+		await expect(
+			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+		).resolves.toMatchObject({ status: "SETTLED", settledAmount: seeded.credits });
+	});
+
+	it("revalidates output authorization atomically when reverification wins the settle race", async () => {
+		const seeded = await seedFinalizingJob();
+		const output = await seedBoundOutputAsset(seeded.jobId, "READY", 1_000);
+		const store = createDatabaseSettlementStore(client);
+		const claim = await store.claimSettlement({ jobId: seeded.jobId, version: seeded.version });
+		expect(claim).not.toBeNull();
+		await new Promise((resolve) =>
+			setTimeout(resolve, Math.max(0, output.verificationValidUntil.getTime() - Date.now()) + 25),
+		);
+
+		let moderationReached!: () => void;
+		let releaseModeration!: () => void;
+		const reached = new Promise<void>((resolve) => {
+			moderationReached = resolve;
+		});
+		const released = new Promise<void>((resolve) => {
+			releaseModeration = resolve;
+		});
+		class BlockingRejectSafetyAdapter extends TestMediaSafetyAdapter {
+			override async moderateImage(input: { assetUrl: string; ruleVersion: string }) {
+				moderationReached();
+				await released;
+				return super.moderateImage(input);
+			}
+		}
+		const verifying = verifyUpload(
+			{ assetId: output.assetId },
+			createOutputVerificationDependencies(
+				"REJECT",
+				undefined,
+				new BlockingRejectSafetyAdapter("REJECT"),
+			),
+		);
+		await reached;
+		await store.settle(claim!);
+		await expect(
+			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+		).resolves.toMatchObject({ status: "ACTIVE", settledAmount: 0n, releasedAmount: 0n });
+		await expect(
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+		).resolves.toMatchObject({ status: "FINALIZING" });
+
+		releaseModeration();
+		await verifying;
+		const finalizing = await client.generationJob.findUniqueOrThrow({
+			where: { id: seeded.jobId },
+		});
+		await settleGeneration({ jobId: seeded.jobId, version: finalizing.version }, { store });
+		await expect(
+			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+		).resolves.toMatchObject({
+			status: "SETTLED",
+			settledAmount: 0n,
+			releasedAmount: seeded.credits,
+		});
+		await expect(
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+		).resolves.toMatchObject({ status: "FAILED", failureCode: "NO_USABLE_OUTPUT" });
 	});
 
 	it("claims one webhook worker and keeps the first terminal response canonical", async () => {
@@ -814,6 +1149,98 @@ async function seedReservedJob(productKey: "image-fast" | "image-quality" | "vid
 	};
 }
 
+async function seedReservedImageEditJob(validForMs = 60_000) {
+	const suffix = crypto.randomUUID();
+	const ownerId = `task4-runtime-edit-${suffix}`;
+	const checksum = "a".repeat(64);
+	const verificationValidUntil = new Date(Date.now() + validForMs);
+	const asset = await client.mediaAsset.create({
+		data: {
+			ownerType: "USER",
+			ownerId,
+			kind: "INPUT",
+			status: "VERIFYING",
+			objectKey: `users/${ownerId}/assets/${suffix}/original.png`,
+			mimeType: "image/png",
+			byteSize: 16n,
+			checksum,
+			finalizedAt: new Date(),
+			verificationGeneration: 1,
+			verificationAttemptCount: 1,
+			verificationProvider: "test",
+			verificationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+			verificationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+			verificationValidUntil,
+		},
+	});
+	await client.assetModerationResult.create({
+		data: {
+			assetId: asset.id,
+			assetChecksum: checksum,
+			verificationGeneration: 1,
+			attemptNumber: 1,
+			evidenceKind: "INPUT",
+			provider: "test",
+			ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+			policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+			status: "APPROVED",
+			reasonCode: "TEST_ALLOW",
+			categories: {},
+			rawEnvelope: { decision: "ALLOW" },
+			validUntil: verificationValidUntil,
+		},
+	});
+	await client.mediaAsset.update({ where: { id: asset.id }, data: { status: "READY" } });
+	const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
+	await createCreditGrant(
+		{ accountId: account.id, amount: 100n, referenceKey: `task4-runtime-edit-grant:${suffix}` },
+		client,
+	);
+	const quoteInput = {
+		ownerType: "USER",
+		ownerId,
+		submittedByUserId: ownerId,
+		productKey: "image-fast",
+		catalogVersion: "2026-08-13.1",
+		pricingVersion: "2026-08-13.1",
+		credits: 4n,
+		costMicros: 3_000n,
+		inputSnapshot: { kind: "image-to-image", prompt: "test", sourceAssetId: asset.id },
+		pricingSnapshot: { credits: "4" },
+		expiresAt: new Date(Date.now() + 60_000),
+	} as const;
+	const { createModeratedGenerationQuoteTransaction, fingerprintGenerationQuoteSecurityPayload } =
+		await import("@repo/database");
+	const quote = await createModeratedGenerationQuoteTransaction(
+		{
+			...quoteInput,
+			moderation: {
+				decision: "ALLOW",
+				provider: "test",
+				ruleVersion: "TEST_ALLOW_RUNTIME_STORES_V1",
+				reasonCode: "TEST_ALLOW_RUNTIME_STORES",
+				inputFingerprint: fingerprintGenerationQuoteSecurityPayload(quoteInput),
+			},
+		},
+		client,
+	);
+	const created = await createGenerationJobTransaction(
+		{
+			ownerType: "USER",
+			ownerId,
+			submittedByUserId: ownerId,
+			quoteId: quote.id,
+			idempotencyKey: `task4-runtime-edit:${suffix}`,
+			inputAssetIds: [asset.id],
+			expectedModerationRuleVersion: "TEST_ALLOW_RUNTIME_STORES_V1",
+			expectedAssetModerationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+			expectedAssetModerationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+		},
+		client,
+	);
+	return { jobId: created.job.id, assetId: asset.id, verificationValidUntil };
+}
+
 async function seedReservedJobWithRoute(provider: "replicate" | "fal") {
 	const seeded = await seedReservedJob("image-fast");
 	await client.generationAttempt.create({
@@ -866,7 +1293,87 @@ async function seedFinalizingJob() {
 		},
 	);
 	const job = await client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } });
-	return { jobId: job.id, version: job.version };
+	return { ...seeded, jobId: job.id, version: job.version };
+}
+
+async function seedBoundOutputAsset(
+	jobId: string,
+	status: "VERIFYING" | "READY",
+	validForMs = 60_000,
+) {
+	const job = await client.generationJob.findUniqueOrThrow({ where: { id: jobId } });
+	const suffix = crypto.randomUUID();
+	const checksum = "c".repeat(64);
+	const verificationValidUntil = new Date(Date.now() + validForMs);
+	const asset = await client.mediaAsset.create({
+		data: {
+			ownerType: job.ownerType,
+			ownerId: job.ownerId,
+			kind: "OUTPUT",
+			status: "VERIFYING",
+			objectKey: `users/${job.ownerId}/generated/${suffix}.png`,
+			mimeType: "image/png",
+			byteSize: 16n,
+			checksum,
+			finalizedAt: new Date(),
+			verificationGeneration: 1,
+			verificationAttemptCount: status === "READY" ? 1 : 0,
+			verificationProvider: status === "READY" ? "test" : null,
+			verificationRuleVersion: status === "READY" ? MEDIA_VERIFICATION_RULE_VERSION : null,
+			verificationPolicyVersion: status === "READY" ? MEDIA_VERIFICATION_POLICY_VERSION : null,
+			verificationValidUntil: status === "READY" ? verificationValidUntil : null,
+		},
+	});
+	if (status === "READY") {
+		await client.assetModerationResult.create({
+			data: {
+				assetId: asset.id,
+				assetChecksum: checksum,
+				verificationGeneration: 1,
+				attemptNumber: 1,
+				evidenceKind: "OUTPUT",
+				provider: "test",
+				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				status: "APPROVED",
+				reasonCode: "TEST_ALLOW",
+				categories: {},
+				rawEnvelope: { decision: "ALLOW" },
+				validUntil: verificationValidUntil,
+			},
+		});
+		await client.mediaAsset.update({ where: { id: asset.id }, data: { status: "READY" } });
+	}
+	await client.generationJobAsset.create({
+		data: { jobId, assetId: asset.id, assetChecksum: checksum, role: "OUTPUT" },
+	});
+	return { assetId: asset.id, checksum, verificationValidUntil };
+}
+
+function createOutputVerificationDependencies(
+	decision: "ALLOW" | "REJECT",
+	onVerificationError?: (error: unknown) => void,
+	safety: TestMediaSafetyAdapter = new TestMediaSafetyAdapter(decision),
+) {
+	return createDatabaseVerifyUploadDependencies(client, {
+		headObject: async () => ({
+			contentLength: 16,
+			contentType: "image/png",
+			etag: '"output-etag"',
+			metadata: {},
+		}),
+		readMediaHeader: async () => Buffer.from("89504e470d0a1a0a0000000d49484452", "hex"),
+		inspectPrivateMediaObject: async () => ({
+			bytes: 16,
+			sha256: "c".repeat(64),
+			etag: '"output-etag"',
+			versionId: "output-version",
+		}),
+		createSignedReadUrl: async () => "https://private.example/generated-output.png",
+		safety,
+		moderationProvider: "test",
+		onVerificationError,
+	});
 }
 
 async function seedPendingProviderJob() {
@@ -929,11 +1436,13 @@ function normalizedResult(outputKey: string) {
 function assertSafeTestDatabaseUrl(value: string | undefined): void {
 	if (!value) throw new Error("TEST_DATABASE_URL is required");
 	const parsed = new URL(value);
+	const databaseName = parsed.pathname.slice(1).toLowerCase();
 	if (
-		parsed.hostname !== "127.0.0.1" ||
+		!["localhost", "127.0.0.1", "::1"].includes(parsed.hostname) ||
 		parsed.port !== "55432" ||
-		parsed.pathname !== "/ai_media_foundation_test"
+		!/(^|[_-])(test|testing)([_-]|$)/.test(databaseName) ||
+		["postgres", "template0", "template1"].includes(databaseName)
 	) {
-		throw new Error("TEST_DATABASE_URL must target 127.0.0.1:55432/ai_media_foundation_test");
+		throw new Error("TEST_DATABASE_URL must target a local test database on port 55432");
 	}
 }

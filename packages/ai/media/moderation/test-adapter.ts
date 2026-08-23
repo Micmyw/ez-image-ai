@@ -5,6 +5,7 @@ import type {
 	ModerationDecision,
 	ModerationSubmission,
 	RetrieveModerationInput,
+	SubmitVideoInput,
 } from "./types";
 export class TestMediaSafetyAdapter implements MediaSafetyAdapter {
 	constructor(private readonly result: ModerationDecision["decision"] = "ALLOW") {}
@@ -14,11 +15,16 @@ export class TestMediaSafetyAdapter implements MediaSafetyAdapter {
 	async moderateImage(input: ModerateAssetInput): Promise<ModerationDecision> {
 		return this.decision(input.ruleVersion);
 	}
-	async submitVideo(input: ModerateAssetInput): Promise<ModerationSubmission> {
+	async submitVideo(input: SubmitVideoInput): Promise<ModerationSubmission> {
 		return {
 			moderationTaskId: `test:${input.assetUrl}`,
 			status: "QUEUED",
 			ruleVersion: input.ruleVersion,
+			idempotency: {
+				key: input.idempotencyKey,
+				providerSupported: true,
+				replayed: false,
+			},
 		};
 	}
 	async retrieveVideo(input: RetrieveModerationInput): Promise<ModerationDecision> {
