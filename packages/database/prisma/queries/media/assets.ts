@@ -1619,6 +1619,82 @@ export async function completeGenerationOutputTransferTransaction(
 	});
 }
 
+/**
+ * Fails one claimed provider-output transfer without allowing an expired actor
+ * to terminalize a newer owner. Cleanup is queued from the same fenced state
+ * transition so retries can only remove the staging object and multipart upload
+ * that belonged to the failed token.
+ */
+export async function failGenerationOutputTransferTransaction(
+	input: {
+		assetId: string;
+		ownerId: string;
+		transferToken: string;
+		errorCode: string;
+		now?: Date;
+	},
+	client: MediaTransactionClient,
+): Promise<{ outcome: "FAILED" | "STALE"; asset: GenerationOutputTransferAsset }> {
+	if (!input.errorCode.trim()) throw new Error("Generation output transfer error code is required");
+	return runSerializable(client, async (tx) => {
+		await lockMediaAssetGenerationBindings([input.assetId], tx);
+		const asset = await tx.mediaAsset.findFirst({
+			where: { id: input.assetId, ownerType: "USER", ownerId: input.ownerId },
+		});
+		if (!asset) throw new Error("Generation output asset not found for owner");
+		if (asset.status !== "VERIFYING" || asset.outputTransferToken !== input.transferToken) {
+			return { outcome: "STALE", asset: outputTransferAsset(asset) };
+		}
+		const failedAt = input.now ?? (await getDatabaseNow(tx));
+		const stagingObjectKey = asset.outputStagingObjectKey;
+		const promotionMultipartUploadId = asset.outputPromotionMultipartUploadId;
+		const failed = await tx.mediaAsset.updateMany({
+			where: {
+				id: asset.id,
+				status: "VERIFYING",
+				outputTransferToken: input.transferToken,
+			},
+			data: {
+				status: "VERIFICATION_FAILED",
+				verificationLastErrorCode: input.errorCode,
+				verificationExhaustedAt: failedAt,
+				verificationNextAttemptAt: null,
+				outputTransferToken: null,
+				outputTransferLeaseExpiresAt: null,
+				outputStagingObjectKey: null,
+				outputPromotionMultipartUploadId: null,
+			},
+		});
+		if (failed.count !== 1) {
+			return { outcome: "STALE", asset: outputTransferAsset(asset) };
+		}
+		if (stagingObjectKey) {
+			await queueGenerationOutputStagingDeletion(
+				asset.id,
+				stagingObjectKey,
+				input.transferToken,
+				tx,
+			);
+		}
+		if (promotionMultipartUploadId) {
+			await queueGenerationOutputPromotionAbort(
+				asset.id,
+				asset.objectKey,
+				promotionMultipartUploadId,
+				input.transferToken,
+				tx,
+			);
+		}
+		return {
+			outcome: "FAILED",
+			asset: outputTransferAsset({
+				...asset,
+				status: "VERIFICATION_FAILED",
+			}),
+		};
+	});
+}
+
 function assertGenerationOutputTransferAssetMatches(
 	asset: {
 		ownerType: string;

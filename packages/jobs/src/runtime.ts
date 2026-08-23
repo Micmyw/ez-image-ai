@@ -21,8 +21,12 @@ import {
 	chooseCatalogRoute,
 } from "@repo/ai";
 import {
+	claimGenerationOutputTransferTransaction,
 	claimOutboxBatch,
+	completeGenerationOutputTransferTransaction,
 	completeOutboxEvent,
+	failGenerationOutputTransferTransaction,
+	recordGenerationOutputPromotionMultipartTransaction,
 	releaseOutboxEvent,
 	runSerializable,
 	settleCreditsInTransaction,
@@ -32,13 +36,18 @@ import { db } from "@repo/database/client";
 import type { PrismaClient } from "@repo/database/generated-client";
 import {
 	abortMultipartUpload,
+	assertMediaKind,
 	createAssetObjectKey,
+	createStagingObjectKey,
 	createSignedReadUrl,
+	decodeInlineBase64MediaOutput,
 	deleteObject,
 	detectMediaType,
 	headObject,
 	inspectPrivateMediaObject,
 	listMultipartUploads,
+	MediaValidationError,
+	promoteStagedObject,
 	putPrivateMediaObject,
 	readMediaHeader,
 	streamRemoteObjectToStorage,
@@ -466,6 +475,12 @@ export function createDatabaseStorageCleanupDependencies(
 		},
 		async complete(input) {
 			await database.$transaction(async (tx) => {
+				if (
+					input.storageReservationReferenceKey &&
+					input.storageReservationReferenceKey !== `generation-output:${input.assetId}`
+				) {
+					throw new Error("Generated output storage reservation reference is invalid");
+				}
 				await tx.auditLog.create({
 					data: {
 						action: input.action,
@@ -477,6 +492,9 @@ export function createDatabaseStorageCleanupDependencies(
 							...(input.multipartUploadId ? { multipartUploadId: input.multipartUploadId } : {}),
 							...(input.uploadSessionId ? { uploadSessionId: input.uploadSessionId } : {}),
 							...(input.reservationStatus ? { reservationStatus: input.reservationStatus } : {}),
+							...(input.storageReservationReferenceKey
+								? { storageReservationReferenceKey: input.storageReservationReferenceKey }
+								: {}),
 						},
 					},
 				});
@@ -487,6 +505,15 @@ export function createDatabaseStorageCleanupDependencies(
 							status: { in: ["ACTIVE", "COMMITTED"] },
 						},
 						data: { status: input.reservationStatus, releasedAt: new Date() },
+					});
+				}
+				if (input.storageReservationReferenceKey) {
+					await tx.storageUsageReservation.updateMany({
+						where: {
+							referenceKey: input.storageReservationReferenceKey,
+							status: { in: ["ACTIVE", "COMMITTED"] },
+						},
+						data: { status: "RELEASED", releasedAt: new Date() },
 					});
 				}
 			});
@@ -1742,52 +1769,56 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 				where: { jobId, role: "OUTPUT", asset: { sourceUrl: `provider-output:${candidateKey}` } },
 				include: { asset: true },
 			});
-			return binding
-				? { assetId: binding.assetId, approved: binding.asset.status === "READY" }
-				: null;
+			if (!binding) return null;
+			if (binding.asset.status === "READY") {
+				return { assetId: binding.assetId, approved: true };
+			}
+			if (["QUARANTINED", "VERIFICATION_FAILED", "DELETED"].includes(binding.asset.status)) {
+				return { assetId: binding.assetId, approved: false };
+			}
+			// VERIFYING can mean either a live transfer or durable bytes awaiting
+			// moderation. Returning it as persisted would let finalization settle
+			// before the transfer/verification checkpoint has completed.
+			return null;
 		},
-		async recordFinalization(claim, results) {
-			await database.$transaction(async (tx) => {
-				for (const [position, result] of results.entries()) {
-					const asset = await tx.mediaAsset.findUniqueOrThrow({
-						where: { id: result.assetId },
-						select: { checksum: true },
-					});
-					if (!asset.checksum || !/^[a-f0-9]{64}$/i.test(asset.checksum)) {
-						throw new Error("Finalized output is missing an immutable checksum");
-					}
-					await tx.generationJobAsset.upsert({
-						where: {
-							jobId_assetId_role: { jobId: claim.jobId, assetId: result.assetId, role: "OUTPUT" },
-						},
-						create: {
-							jobId: claim.jobId,
-							assetId: result.assetId,
-							assetChecksum: asset.checksum,
-							role: "OUTPUT",
-							position,
-						},
-						update: { position, assetChecksum: asset.checksum },
-					});
-				}
-				await tx.outboxEvent.upsert({
-					where: { dedupeKey: `generation-settle:${claim.jobId}` },
-					create: {
-						eventType: "GENERATION_SETTLE",
-						aggregateType: "GENERATION_JOB",
-						aggregateId: claim.jobId,
-						dedupeKey: `generation-settle:${claim.jobId}`,
-						payload: { jobId: claim.jobId },
-					},
-					update: {},
-				});
-			});
-		},
-		async recordFinalizationRetry(claim, failure) {
-			await database.$transaction(async (tx) => {
+		async recordFinalization(claim, results, failure) {
+			await runSerializable(database, async (tx) => {
 				const job = await tx.generationJob.findUniqueOrThrow({ where: { id: claim.jobId } });
 				if (job.status !== "FINALIZING") return;
+				await bindFinalizationResults(tx, claim.jobId, results);
+				await tx.generationJob.update({
+					where: { id: job.id },
+					data: {
+						finalizationStage: failure?.stage ?? null,
+						finalizationErrorCode: failure?.code ?? null,
+						nextFinalizeAt: null,
+					},
+				});
+				await queueGenerationSettlement(tx, job.id, job.version);
+			});
+		},
+		async recordFinalizationRetry(claim, failure, results) {
+			return runSerializable(database, async (tx) => {
+				const job = await tx.generationJob.findUniqueOrThrow({ where: { id: claim.jobId } });
+				if (job.status !== "FINALIZING") {
+					return { outcome: "TERMINAL" as const, retryCount: job.finalizationRetryCount };
+				}
+				await bindFinalizationResults(tx, claim.jobId, results);
 				const retryCount = job.finalizationRetryCount + 1;
+				if (retryCount >= 5) {
+					await tx.generationJob.update({
+						where: { id: job.id },
+						data: {
+							finalizationStage: failure.stage,
+							finalizationRetryCount: retryCount,
+							finalizationErrorCode: failure.code,
+							nextFinalizeAt: null,
+						},
+					});
+					await queueGenerationSettlement(tx, job.id, job.version);
+					return { outcome: "TERMINAL" as const, retryCount };
+				}
+
 				const nextFinalizeAt = new Date(Date.now() + Math.min(60, 2 ** retryCount) * 60_000);
 				await tx.generationJob.update({
 					where: { id: job.id },
@@ -1810,9 +1841,61 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 					},
 					update: {},
 				});
+				return { outcome: "RETRY_SCHEDULED" as const, retryCount };
 			});
 		},
 	};
+}
+
+async function bindFinalizationResults(
+	tx: Prisma.TransactionClient,
+	jobId: string,
+	results: Array<{ assetId: string; approved: boolean }>,
+): Promise<void> {
+	for (const [position, result] of results.entries()) {
+		const asset = await tx.mediaAsset.findUniqueOrThrow({
+			where: { id: result.assetId },
+			select: { checksum: true },
+		});
+		const hasImmutableChecksum = Boolean(asset.checksum && /^[a-f0-9]{64}$/i.test(asset.checksum));
+		if (result.approved && !hasImmutableChecksum) {
+			throw new Error("Finalized output is missing an immutable checksum");
+		}
+		const assetChecksum = hasImmutableChecksum
+			? asset.checksum!
+			: `pending-output:${result.assetId}`;
+		await tx.generationJobAsset.upsert({
+			where: {
+				jobId_assetId_role: { jobId, assetId: result.assetId, role: "OUTPUT" },
+			},
+			create: {
+				jobId,
+				assetId: result.assetId,
+				assetChecksum,
+				role: "OUTPUT",
+				position,
+			},
+			update: { position, assetChecksum },
+		});
+	}
+}
+
+async function queueGenerationSettlement(
+	tx: Prisma.TransactionClient,
+	jobId: string,
+	version: number,
+): Promise<void> {
+	await tx.outboxEvent.upsert({
+		where: { dedupeKey: `generation-settle:${jobId}` },
+		create: {
+			eventType: "GENERATION_SETTLE",
+			aggregateType: "GENERATION_JOB",
+			aggregateId: jobId,
+			dedupeKey: `generation-settle:${jobId}`,
+			payload: { jobId, version },
+		},
+		update: {},
+	});
 }
 
 export const databaseFinalizationStore: FinalizationStore = createDatabaseFinalizationStore(db);
@@ -1822,69 +1905,180 @@ export function createFinalizationDependencies(
 	options: {
 		store?: FinalizationStore;
 		safety?: SightengineSafetyAdapter | TestMediaSafetyAdapter;
+		database?: PrismaClient;
+		verification?: { verify(assetId: string): Promise<void> };
+		storage?: Partial<{
+			putPrivateMediaObject: typeof putPrivateMediaObject;
+			streamRemoteObjectToStorage: typeof streamRemoteObjectToStorage;
+			promoteStagedObject: typeof promoteStagedObject;
+		}>;
 	} = {},
 ): FinalizationDependencies {
+	const database = options.database ?? db;
 	const safety = options.safety ?? createSafetyAdapter(environment);
-	const store = options.store ?? databaseFinalizationStore;
-	const verification = createDatabaseVerifyUploadDependencies(db, {
-		safety,
-		moderationProvider: environment.MEDIA_SAFETY_ADAPTER ?? "test",
-	});
+	const store = options.store ?? createDatabaseFinalizationStore(database);
+	const verification =
+		options.verification ??
+		createDatabaseVerifyUploadDependencies(database, {
+			safety,
+			moderationProvider: environment.MEDIA_SAFETY_ADAPTER ?? "test",
+		});
+	const storage = {
+		putPrivateMediaObject,
+		streamRemoteObjectToStorage,
+		promoteStagedObject,
+		...options.storage,
+	};
 	return {
 		store,
 		async persistCandidate(claim, candidate) {
 			const existing = await store.findPersistedCandidate(claim.jobId, candidate.key);
 			if (existing) return existing;
-			const assetId = createHash("sha256")
+			let inlineBody: Buffer | null = null;
+			const mimeType =
+				candidate.output.kind === "inline-base64"
+					? (() => {
+							const decoded = decodeInlineBase64MediaOutput(candidate.output);
+							assertMediaKind(decoded.contentType, claim.mediaKind);
+							inlineBody = decoded.body;
+							return decoded.contentType;
+						})()
+					: expectedOutputMimeType(claim.mediaKind, candidate.output);
+			const assetId = `asset_${createHash("sha256")
 				.update(`${claim.jobId}:${candidate.key}`)
 				.digest("base64url")
-				.slice(0, 32);
-			const mimeType = expectedOutputMimeType(claim.mediaKind, candidate.output);
+				.slice(0, 32)}`;
 			const objectKey = createAssetObjectKey(claim.ownerId, assetId, mimeType);
-			let asset = await db.mediaAsset.findUnique({ where: { id: assetId } });
-			if (!asset) {
-				let transferred;
+			const transfer = await claimGenerationOutputTransferTransaction(
+				{
+					jobId: claim.jobId,
+					ownerId: claim.ownerId,
+					assetId,
+					objectKey,
+					mimeType,
+					sourceUrl: `provider-output:${candidate.key}`,
+					createStagingObjectKey: (transferToken) =>
+						createStagingObjectKey(claim.ownerId, assetId, transferToken, mimeType),
+				},
+				database,
+			);
+			if (transfer.outcome === "IN_PROGRESS") {
+				throw {
+					code: "OUTPUT_TRANSFER_IN_PROGRESS",
+					stage: "TRANSFER",
+					retryable: true,
+				};
+			}
+
+			let completedAsset = transfer.asset;
+			if (transfer.outcome === "CLAIMED") {
 				try {
-					transferred =
-						candidate.output.kind === "inline-base64"
-							? await putPrivateMediaObject({
-									bucket: "media",
-									key: objectKey,
-									contentType: mimeType,
-									body: Buffer.from(candidate.output.data, "base64"),
-								})
-							: await streamRemoteObjectToStorage({
-									bucket: "media",
-									key: objectKey,
-									sourceUrl: candidate.output.url,
-									allowedHosts: providerCdnAllowlist(environment),
-									expectedContentType: mimeType,
-								});
-				} catch {
+					const staged = inlineBody
+						? await storage.putPrivateMediaObject({
+								bucket: "media",
+								key: transfer.stagingObjectKey,
+								contentType: mimeType,
+								body: inlineBody,
+							})
+						: await storage.streamRemoteObjectToStorage({
+								bucket: "media",
+								key: transfer.stagingObjectKey,
+								sourceUrl: (candidate.output as Extract<ProviderOutput, { kind: "remote-url" }>)
+									.url,
+								allowedHosts: providerCdnAllowlist(environment),
+								expectedContentType: mimeType,
+								expectedMediaKind: claim.mediaKind,
+							});
+					const promoted = await storage.promoteStagedObject({
+						staging: { bucket: "media", key: transfer.stagingObjectKey },
+						final: { bucket: "media", key: objectKey },
+						contentType: mimeType,
+						contentLength: staged.bytes,
+						acceptExistingFinalIdentity: true,
+						promotion: {
+							uploadId: transfer.promotionMultipartUploadId ?? undefined,
+							onMultipartUploadCreated: async ({ uploadId }) => {
+								await recordGenerationOutputPromotionMultipartTransaction(
+									{
+										assetId,
+										ownerId: claim.ownerId,
+										transferToken: transfer.transferToken,
+										multipartUploadId: uploadId,
+									},
+									database,
+								);
+							},
+						},
+					});
+					const completed = await completeGenerationOutputTransferTransaction(
+						{
+							assetId,
+							ownerId: claim.ownerId,
+							transferToken: transfer.transferToken,
+							bytes: BigInt(promoted.bytes),
+							checksum: promoted.sha256,
+							storageEtag: promoted.etag,
+							storageVersionId: promoted.versionId,
+						},
+						database,
+					);
+					if (completed.outcome === "STALE") {
+						throw {
+							code: "OUTPUT_TRANSFER_FENCE_LOST",
+							stage: "TRANSFER",
+							retryable: true,
+						};
+					}
+					completedAsset = completed.asset;
+				} catch (error) {
+					if (error instanceof MediaValidationError) {
+						let failed;
+						try {
+							failed = await failGenerationOutputTransferTransaction(
+								{
+									assetId,
+									ownerId: claim.ownerId,
+									transferToken: transfer.transferToken,
+									errorCode: error.code,
+								},
+								database,
+							);
+						} catch {
+							throw {
+								code: "OUTPUT_TRANSFER_FAILURE_PERSIST_RETRYABLE",
+								stage: "TRANSFER",
+								retryable: true,
+							};
+						}
+						if (failed.outcome === "FAILED") throw error;
+						throw {
+							code: "OUTPUT_TRANSFER_FENCE_LOST",
+							stage: "TRANSFER",
+							retryable: true,
+						};
+					}
+					const structured = error as { code?: unknown; stage?: unknown; retryable?: unknown };
+					if (
+						typeof structured.code === "string" &&
+						structured.stage === "TRANSFER" &&
+						structured.retryable === true
+					) {
+						throw error;
+					}
 					throw { code: "STORAGE_TRANSFER_RETRYABLE", stage: "TRANSFER", retryable: true };
 				}
-				asset = await db.mediaAsset.create({
-					data: {
-						id: assetId,
-						ownerType: "USER",
-						ownerId: claim.ownerId,
-						kind: "OUTPUT",
-						status: "VERIFYING",
-						objectKey,
-						mimeType,
-						byteSize: BigInt(transferred.bytes),
-						checksum: transferred.sha256,
-						finalizedAt: new Date(),
-						sourceUrl: `provider-output:${candidate.key}`,
-					},
-				});
 			}
-			await verification.verify(asset.id);
-			asset = await db.mediaAsset.findUniqueOrThrow({ where: { id: asset.id } });
+
+			if (completedAsset.status === "READY") return { assetId, approved: true };
+			if (["QUARANTINED", "VERIFICATION_FAILED", "DELETED"].includes(completedAsset.status)) {
+				return { assetId, approved: false };
+			}
+			await verification.verify(assetId);
+			const asset = await database.mediaAsset.findUniqueOrThrow({ where: { id: assetId } });
 			if (asset.status === "VERIFYING") {
 				throw { code: "MODERATION_RETRYABLE", stage: "MODERATION", retryable: true };
 			}
-			return { assetId: asset.id, approved: asset.status === "READY" };
+			return { assetId, approved: asset.status === "READY" };
 		},
 	};
 }

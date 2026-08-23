@@ -43,6 +43,7 @@ describe("database-backed media generation", () => {
 			client,
 		);
 		const inputChecksum = "b".repeat(64);
+		const verificationValidUntil = new Date(Date.now() + 60_000);
 		const inputAsset = await client.mediaAsset.create({
 			data: {
 				ownerType: "USER",
@@ -58,6 +59,7 @@ describe("database-backed media generation", () => {
 				verificationProvider: "test",
 				verificationRuleVersion: "test-rule-v1",
 				verificationPolicyVersion: "test-policy-v1",
+				verificationValidUntil,
 			},
 		});
 		await client.assetModerationResult.create({
@@ -74,6 +76,7 @@ describe("database-backed media generation", () => {
 				reasonCode: "TEST_ALLOW",
 				categories: {},
 				rawEnvelope: { decision: "ALLOW" },
+				validUntil: verificationValidUntil,
 			},
 		});
 		await client.mediaAsset.update({
@@ -179,6 +182,7 @@ describe("database-backed media generation", () => {
 				store: finalizationStore,
 				persistCandidate: async (_claim, candidate) => {
 					const checksum = "a".repeat(64);
+					const outputVerificationValidUntil = new Date(Date.now() + 60_000);
 					const asset = await client.mediaAsset.create({
 						data: {
 							ownerType: "USER",
@@ -195,6 +199,7 @@ describe("database-backed media generation", () => {
 							verificationProvider: "test",
 							verificationRuleVersion: "test-rule-v1",
 							verificationPolicyVersion: "test-policy-v1",
+							verificationValidUntil: outputVerificationValidUntil,
 							sourceUrl: `provider-output:${candidate.key}`,
 						},
 					});
@@ -212,6 +217,7 @@ describe("database-backed media generation", () => {
 							reasonCode: "TEST_ALLOW",
 							categories: {},
 							rawEnvelope: { decision: "ALLOW" },
+							validUntil: outputVerificationValidUntil,
 						},
 					});
 					await client.mediaAsset.update({

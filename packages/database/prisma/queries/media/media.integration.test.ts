@@ -9,6 +9,7 @@ import {
 	createGenerationOutputAssetBindingTransaction,
 	claimGenerationOutputTransferTransaction,
 	completeGenerationOutputTransferTransaction,
+	failGenerationOutputTransferTransaction,
 	createModeratedGenerationQuoteTransaction,
 	expireCreditLots,
 	fingerprintGenerationQuoteSecurityPayload,
@@ -2124,6 +2125,132 @@ describe("media PostgreSQL transactions", () => {
 			eventType: "MEDIA_OBJECT_DELETE",
 			payload: expect.objectContaining({ objectKey: claimed.stagingObjectKey }),
 		});
+	});
+
+	it("terminalizes only the currently owned failed output transfer and queues exact cleanup", async () => {
+		const fixture = await createReadyInputAssetFixture(client);
+		const created = await fixture.createJob();
+		await client.generationJob.update({
+			where: { id: created.job.id },
+			data: { status: "FINALIZING" },
+		});
+		const assetId = `asset_output_failure_${crypto.randomUUID().replaceAll("-", "")}`;
+		const claimed = await claimGenerationOutputTransferTransaction(
+			{
+				jobId: created.job.id,
+				ownerId: fixture.ownerId,
+				assetId,
+				objectKey: `users/${fixture.ownerId}/assets/${assetId}/original.png`,
+				mimeType: "image/png",
+				sourceUrl: `provider-output:${assetId}`,
+				createStagingObjectKey: (token) =>
+					`users/${fixture.ownerId}/staging/${assetId}/${token}.png`,
+			},
+			client,
+		);
+		if (claimed.outcome !== "CLAIMED") throw new Error("Expected initial output transfer claim");
+		const multipartUploadId = `promotion-${assetId}`;
+		await recordGenerationOutputPromotionMultipartTransaction(
+			{
+				assetId,
+				ownerId: fixture.ownerId,
+				transferToken: claimed.transferToken,
+				multipartUploadId,
+			},
+			client,
+		);
+
+		await expect(
+			failGenerationOutputTransferTransaction(
+				{
+					assetId,
+					ownerId: fixture.ownerId,
+					transferToken: claimed.transferToken,
+					errorCode: "OUTPUT_MEDIA_TYPE_MISMATCH",
+				},
+				client,
+			),
+		).resolves.toMatchObject({ outcome: "FAILED", asset: { id: assetId } });
+		await expect(
+			client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
+		).resolves.toMatchObject({
+			status: "VERIFICATION_FAILED",
+			verificationLastErrorCode: "OUTPUT_MEDIA_TYPE_MISMATCH",
+			verificationExhaustedAt: expect.any(Date),
+			outputTransferToken: null,
+			outputTransferLeaseExpiresAt: null,
+			outputStagingObjectKey: null,
+			outputPromotionMultipartUploadId: null,
+		});
+		await expect(
+			client.generationJobAsset.findUniqueOrThrow({
+				where: {
+					jobId_assetId_role: { jobId: created.job.id, assetId, role: "OUTPUT" },
+				},
+			}),
+		).resolves.toMatchObject({ assetChecksum: `pending-output:${assetId}` });
+		await expect(
+			client.outboxEvent.findMany({
+				where: { aggregateId: assetId },
+				orderBy: { dedupeKey: "asc" },
+			}),
+		).resolves.toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					dedupeKey: `generation-output-staging-delete:${assetId}:${claimed.transferToken}`,
+					payload: expect.objectContaining({ objectKey: claimed.stagingObjectKey }),
+				}),
+				expect.objectContaining({
+					dedupeKey: `generation-output-promotion-abort:${assetId}:${claimed.transferToken}`,
+					payload: expect.objectContaining({ multipartUploadId, promotionAbortOnly: true }),
+				}),
+			]),
+		);
+	});
+
+	it("does not let a stale output transfer token terminalize the current owner", async () => {
+		const fixture = await createReadyInputAssetFixture(client);
+		const created = await fixture.createJob();
+		await client.generationJob.update({
+			where: { id: created.job.id },
+			data: { status: "FINALIZING" },
+		});
+		const assetId = `asset_output_stale_failure_${crypto.randomUUID().replaceAll("-", "")}`;
+		const claimed = await claimGenerationOutputTransferTransaction(
+			{
+				jobId: created.job.id,
+				ownerId: fixture.ownerId,
+				assetId,
+				objectKey: `users/${fixture.ownerId}/assets/${assetId}/original.png`,
+				mimeType: "image/png",
+				sourceUrl: `provider-output:${assetId}`,
+				createStagingObjectKey: (token) =>
+					`users/${fixture.ownerId}/staging/${assetId}/${token}.png`,
+			},
+			client,
+		);
+		if (claimed.outcome !== "CLAIMED") throw new Error("Expected initial output transfer claim");
+
+		await expect(
+			failGenerationOutputTransferTransaction(
+				{
+					assetId,
+					ownerId: fixture.ownerId,
+					transferToken: "stale-transfer-token",
+					errorCode: "OUTPUT_MEDIA_TYPE_MISMATCH",
+				},
+				client,
+			),
+		).resolves.toMatchObject({ outcome: "STALE", asset: { id: assetId } });
+		await expect(
+			client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
+		).resolves.toMatchObject({
+			status: "VERIFYING",
+			outputTransferToken: claimed.transferToken,
+			outputStagingObjectKey: claimed.stagingObjectKey,
+			verificationLastErrorCode: null,
+		});
+		await expect(client.outboxEvent.count({ where: { aggregateId: assetId } })).resolves.toBe(0);
 	});
 
 	it("serializes output accounting before a later storage-quota generation admission", async () => {

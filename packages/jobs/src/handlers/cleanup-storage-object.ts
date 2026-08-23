@@ -6,6 +6,7 @@ interface DeleteStorageObjectPayload {
 	cleanupObjectKeys?: string[];
 	uploadSessionId?: string;
 	reservationStatus?: CleanupReservationStatus;
+	storageReservationReferenceKey?: string;
 }
 
 interface AbortMultipartObjectPayload extends DeleteStorageObjectPayload {
@@ -42,6 +43,7 @@ export interface StorageCleanupDependencies {
 		multipartUploadId?: string;
 		uploadSessionId?: string;
 		reservationStatus?: CleanupReservationStatus;
+		storageReservationReferenceKey?: string;
 	}): Promise<void>;
 }
 
@@ -60,6 +62,9 @@ export async function deleteStorageObject(
 		...(payload.cleanupObjectKeys?.length ? { cleanupObjectKeys: payload.cleanupObjectKeys } : {}),
 		...(payload.uploadSessionId ? { uploadSessionId: payload.uploadSessionId } : {}),
 		...(payload.reservationStatus ? { reservationStatus: payload.reservationStatus } : {}),
+		...(payload.storageReservationReferenceKey
+			? { storageReservationReferenceKey: payload.storageReservationReferenceKey }
+			: {}),
 	});
 }
 
@@ -84,6 +89,9 @@ export async function abortMultipartObject(
 		...(payload.multipartUploadId ? { multipartUploadId: payload.multipartUploadId } : {}),
 		...(payload.uploadSessionId ? { uploadSessionId: payload.uploadSessionId } : {}),
 		...(payload.reservationStatus ? { reservationStatus: payload.reservationStatus } : {}),
+		...(payload.storageReservationReferenceKey
+			? { storageReservationReferenceKey: payload.storageReservationReferenceKey }
+			: {}),
 	});
 }
 
@@ -126,6 +134,9 @@ export async function cleanupUploadPromotion(
 		multipartUploadId: payload.multipartUploadId,
 		...(payload.uploadSessionId ? { uploadSessionId: payload.uploadSessionId } : {}),
 		...(payload.reservationStatus ? { reservationStatus: payload.reservationStatus } : {}),
+		...(payload.storageReservationReferenceKey
+			? { storageReservationReferenceKey: payload.storageReservationReferenceKey }
+			: {}),
 	});
 }
 

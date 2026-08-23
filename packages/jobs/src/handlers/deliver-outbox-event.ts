@@ -59,6 +59,7 @@ export async function deliverOutboxEvent(
 				objectKey: requiredString(payload.objectKey),
 				...cleanupObjectKeysPayload(payload),
 				...cleanupReservationPayload(payload),
+				...generatedOutputReservationPayload(payload, event.aggregateId),
 			});
 		case "MEDIA_MULTIPART_ABORT":
 			return triggerCleanup(dependencies, "media-abort-multipart", {
@@ -85,6 +86,7 @@ function triggerUploadCleanup(
 		objectKey: requiredString(payload.objectKey),
 		...cleanupObjectKeysPayload(payload),
 		...cleanupReservationPayload(payload),
+		...generatedOutputReservationPayload(payload, event.aggregateId),
 	};
 	const multipartUploadId =
 		typeof payload.multipartUploadId === "string" ? payload.multipartUploadId : undefined;
@@ -165,4 +167,17 @@ function cleanupReservationPayload(payload: Record<string, unknown>): {
 	return {
 		...(uploadSessionId && reservationStatus ? { uploadSessionId, reservationStatus } : {}),
 	};
+}
+
+function generatedOutputReservationPayload(
+	payload: Record<string, unknown>,
+	assetIdFallback: string,
+): { storageReservationReferenceKey?: string } {
+	if (payload.storageReservationReferenceKey === undefined) return {};
+	const assetId = requiredString(payload.assetId, assetIdFallback);
+	const expectedReferenceKey = `generation-output:${assetId}`;
+	if (payload.storageReservationReferenceKey !== expectedReferenceKey) {
+		throw new Error("Generated output storage reservation reference is invalid");
+	}
+	return { storageReservationReferenceKey: expectedReferenceKey };
 }
