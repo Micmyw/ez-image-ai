@@ -1,0 +1,1 @@
+ALTER TYPE "CreditLedgerEntryType" ADD VALUE IF NOT EXISTS 'EXPIRE';

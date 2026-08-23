@@ -324,7 +324,7 @@ export type CreditReservationStatus = z.infer<typeof CreditReservationStatusSche
 
 // File: CreditLedgerEntryType.schema.ts
 
-export const CreditLedgerEntryTypeSchema = z.enum(['GRANT', 'RESERVE', 'SETTLE', 'RELEASE', 'REFUND', 'DEBT_REPAYMENT', 'DEBT_INCURRED'])
+export const CreditLedgerEntryTypeSchema = z.enum(['GRANT', 'RESERVE', 'SETTLE', 'RELEASE', 'EXPIRE', 'REFUND', 'DEBT_REPAYMENT', 'DEBT_INCURRED'])
 
 export type CreditLedgerEntryType = z.infer<typeof CreditLedgerEntryTypeSchema>;
 

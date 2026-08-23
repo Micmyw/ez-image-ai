@@ -24,6 +24,7 @@ interface LockedLot {
 	remainingAmount: bigint;
 	reservedAmount: bigint;
 	grantReferenceKey: string;
+	expiresAt: Date | null;
 }
 
 interface LockedAllocation {
@@ -47,38 +48,13 @@ async function lockAccount(tx: Prisma.TransactionClient, accountId: string) {
 	return account;
 }
 
-async function lockSpendableLots(tx: Prisma.TransactionClient, accountId: string) {
-	return tx.$queryRaw<LockedLot[]>`
-		SELECT "id", "remainingAmount", "reservedAmount", "grantReferenceKey"
-		FROM "credit_lot"
-		WHERE "accountId" = ${accountId}
-		  AND "remainingAmount" > 0
-		  AND ("expiresAt" IS NULL OR "expiresAt" > now())
-		ORDER BY "expiresAt" ASC NULLS LAST, "createdAt" ASC, "id" ASC
-		FOR UPDATE`;
-}
-
 async function lockAllLots(tx: Prisma.TransactionClient, accountId: string) {
 	return tx.$queryRaw<LockedLot[]>`
-		SELECT "id", "remainingAmount", "reservedAmount", "grantReferenceKey"
+		SELECT "id", "remainingAmount", "reservedAmount", "grantReferenceKey", "expiresAt"
 		FROM "credit_lot"
 		WHERE "accountId" = ${accountId}
 		ORDER BY "expiresAt" ASC NULLS LAST, "createdAt" ASC, "id" ASC
 		FOR UPDATE`;
-}
-
-async function lockAllocationLots(
-	tx: Prisma.TransactionClient,
-	accountId: string,
-	reservationId: string,
-) {
-	return tx.$queryRaw<LockedLot[]>`
-		SELECT lot."id", lot."remainingAmount", lot."reservedAmount", lot."grantReferenceKey"
-		FROM "credit_lot" lot
-		JOIN "credit_reservation_allocation" allocation ON allocation."lotId" = lot."id"
-		WHERE lot."accountId" = ${accountId} AND allocation."reservationId" = ${reservationId}
-		ORDER BY lot."expiresAt" ASC NULLS LAST, lot."createdAt" ASC, lot."id" ASC
-		FOR UPDATE OF lot`;
 }
 
 async function lockMatchingActiveAllocations(
@@ -132,6 +108,10 @@ function createReserveCommand(input: ReserveCreditsInput): CreditCommand {
 	};
 }
 
+function createExpireCommand(input: { accountId: string; amount: bigint }): CreditCommand {
+	return { kind: "EXPIRE", accountId: input.accountId, amount: input.amount.toString() };
+}
+
 function createFinalizeCommand(
 	kind: "SETTLE" | "RELEASE",
 	input: CreditMutationInput,
@@ -143,6 +123,55 @@ function createFinalizeCommand(
 		amount: input.amount.toString(),
 		reservationId: input.reservationId,
 	};
+}
+
+async function materializeExpiredLots(
+	tx: Prisma.TransactionClient,
+	input: { accountId: string; lots: LockedLot[]; now: Date },
+) {
+	let expired = 0n;
+	for (const lot of input.lots) {
+		if (!lot.expiresAt || lot.expiresAt > input.now || lot.remainingAmount === 0n) continue;
+		const referenceKey = `credit-lot:${lot.id}:expiry`;
+		const command = createExpireCommand({
+			accountId: input.accountId,
+			amount: lot.remainingAmount,
+		});
+		const replay = await tx.creditLedgerEntry.findUnique({ where: { referenceKey } });
+		if (replay) {
+			assertCreditLedgerReplay(replay, {
+				type: "EXPIRE",
+				accountId: input.accountId,
+				referenceKey,
+				command,
+			});
+			throw new IdempotencyConflictError("expired lot retains spendable credits");
+		}
+		await tx.creditLot.update({ where: { id: lot.id }, data: { remainingAmount: 0n } });
+		await tx.creditLedgerEntry.create({
+			data: {
+				accountId: input.accountId,
+				lotId: lot.id,
+				type: "EXPIRE",
+				amount: lot.remainingAmount,
+				referenceKey,
+				metadata: createCreditLedgerMetadata(
+					command,
+					{ ledgerAmount: lot.remainingAmount, lotId: lot.id },
+					{ spendable: -lot.remainingAmount },
+				),
+			},
+		});
+		expired += lot.remainingAmount;
+		lot.remainingAmount = 0n;
+	}
+	if (expired > 0n) {
+		await tx.creditAccount.update({
+			where: { id: input.accountId },
+			data: { spendableCredits: { decrement: expired }, version: { increment: 1 } },
+		});
+	}
+	return expired;
 }
 
 export async function reserveCreditsInTransaction(
@@ -173,14 +202,19 @@ export async function reserveCreditsInTransaction(
 	}
 
 	const account = await lockAccount(tx, input.accountId);
-	const lots = await lockSpendableLots(tx, input.accountId);
-	if (account.spendableCredits < input.amount) throw new Error("INSUFFICIENT_CREDITS");
+	if (account.creditDebt > 0n) throw new Error("CREDIT_DEBT_OUTSTANDING");
+	const lots = await lockAllLots(tx, input.accountId);
+	const now = new Date();
+	const expired = await materializeExpiredLots(tx, { accountId: input.accountId, lots, now });
+	if (account.spendableCredits - expired < input.amount) throw new Error("INSUFFICIENT_CREDITS");
 
 	let unallocated = input.amount;
 	const allocations: Array<{ lotId: string; amount: bigint }> = [];
 	for (const lot of lots) {
 		if (unallocated === 0n) break;
+		if (lot.expiresAt && lot.expiresAt <= now) continue;
 		const amount = lot.remainingAmount < unallocated ? lot.remainingAmount : unallocated;
+		if (amount === 0n) continue;
 		await tx.creditLot.update({
 			where: { id: lot.id },
 			data: { remainingAmount: { decrement: amount }, reservedAmount: { increment: amount } },
@@ -266,6 +300,21 @@ export async function reserveCredits(input: ReserveCreditsInput, client: MediaTr
 	}
 }
 
+export async function expireCreditLots(
+	input: { accountId: string; now?: Date },
+	client: MediaTransactionClient,
+) {
+	return runSerializable(client, async (tx) => {
+		await lockAccount(tx, input.accountId);
+		const lots = await lockAllLots(tx, input.accountId);
+		return materializeExpiredLots(tx, {
+			accountId: input.accountId,
+			lots,
+			now: input.now ?? new Date(),
+		});
+	});
+}
+
 async function finalizeReservation(
 	mode: "settle" | "release",
 	input: CreditMutationInput,
@@ -294,7 +343,9 @@ async function finalizeReservation(
 	const snapshot = await tx.creditReservation.findUnique({ where: { id: input.reservationId } });
 	if (!snapshot) throw new Error("Credit reservation not found");
 	await lockAccount(tx, snapshot.accountId);
-	await lockAllocationLots(tx, snapshot.accountId, snapshot.id);
+	const lots = await lockAllLots(tx, snapshot.accountId);
+	const now = new Date();
+	await materializeExpiredLots(tx, { accountId: snapshot.accountId, lots, now });
 	const locked = (
 		await tx.$queryRaw<
 			Array<{
@@ -320,13 +371,14 @@ async function finalizeReservation(
 			amount: bigint;
 			settledAmount: bigint;
 			releasedAmount: bigint;
+			expiresAt: Date | null;
 			revokedAmount: bigint;
 			revokedSettledAmount: bigint;
 			revokedReleasedAmount: bigint;
 		}>
 	>`SELECT allocation."id", allocation."lotId", allocation."amount",
-	          allocation."settledAmount", allocation."releasedAmount", allocation."revokedAmount",
-	          allocation."revokedSettledAmount", allocation."revokedReleasedAmount"
+		          allocation."settledAmount", allocation."releasedAmount", allocation."revokedAmount",
+		          lot."expiresAt" AS "expiresAt", allocation."revokedSettledAmount", allocation."revokedReleasedAmount"
 	  FROM "credit_reservation_allocation" allocation
 	  JOIN "credit_lot" lot ON lot."id" = allocation."lotId"
 	  WHERE allocation."reservationId" = ${input.reservationId}
@@ -340,6 +392,7 @@ async function finalizeReservation(
 	let spendableReleased = 0n;
 	let revokedSettled = 0n;
 	let revokedReleased = 0n;
+	let expiredReleased = 0n;
 
 	for (const allocation of allocations) {
 		const unresolved = allocation.amount - allocation.settledAmount - allocation.releasedAmount;
@@ -349,7 +402,8 @@ async function finalizeReservation(
 			allocation.revokedAmount - allocation.revokedSettledAmount - allocation.revokedReleasedAmount;
 		const settledRevoked = unresolvedRevoked < settled ? unresolvedRevoked : settled;
 		const releasedRevoked = unresolvedRevoked - settledRevoked;
-		const restorable = released - releasedRevoked;
+		const refundableRelease = released - releasedRevoked;
+		const restorable = allocation.expiresAt && allocation.expiresAt <= now ? 0n : refundableRelease;
 		await tx.creditReservationAllocation.update({
 			where: { id: allocation.id },
 			data: {
@@ -370,6 +424,7 @@ async function finalizeReservation(
 		spendableReleased += restorable;
 		revokedSettled += settledRevoked;
 		revokedReleased += releasedRevoked;
+		expiredReleased += refundableRelease - restorable;
 	}
 
 	const status = mode === "settle" ? "SETTLED" : "RELEASED";
@@ -386,6 +441,7 @@ async function finalizeReservation(
 		data: {
 			reservedCredits: { decrement: available },
 			spendableCredits: { increment: spendableReleased },
+			creditDebt: { increment: revokedSettled },
 			version: { increment: 1 },
 		},
 	});
@@ -406,6 +462,23 @@ async function finalizeReservation(
 				),
 			},
 		});
+		if (revokedSettled > 0n) {
+			await tx.creditLedgerEntry.create({
+				data: {
+					accountId: locked.accountId,
+					reservationId: locked.id,
+					type: "DEBT_INCURRED",
+					amount: revokedSettled,
+					referenceKey: `${input.referenceKey}:debt-incurred`,
+					metadata: createCreditLedgerMetadata(
+						settleCommand,
+						{ ledgerAmount: revokedSettled },
+						{ debt: revokedSettled },
+						{ revokedSettledAmount: revokedSettled.toString() },
+					),
+				},
+			});
+		}
 		if (releaseAmount > 0n) {
 			await tx.creditLedgerEntry.create({
 				data: {
@@ -418,7 +491,10 @@ async function finalizeReservation(
 						settleCommand,
 						{ ledgerAmount: releaseAmount },
 						{ spendable: spendableReleased, reserved: -releaseAmount },
-						{ revokedAmount: revokedReleased.toString() },
+						{
+							revokedAmount: revokedReleased.toString(),
+							expiredAmount: expiredReleased.toString(),
+						},
 					),
 				},
 			});
@@ -436,7 +512,10 @@ async function finalizeReservation(
 					releaseCommand,
 					{ ledgerAmount: releaseAmount },
 					{ spendable: spendableReleased, reserved: -releaseAmount },
-					{ revokedAmount: revokedReleased.toString() },
+					{
+						revokedAmount: revokedReleased.toString(),
+						expiredAmount: expiredReleased.toString(),
+					},
 				),
 			},
 		});
@@ -508,7 +587,8 @@ export async function createCreditGrant(
 				return replay;
 			}
 			const account = await lockAccount(tx, input.accountId);
-			await lockSpendableLots(tx, input.accountId);
+			const lots = await lockAllLots(tx, input.accountId);
+			await materializeExpiredLots(tx, { accountId: input.accountId, lots, now: new Date() });
 			const debtRepaid = account.creditDebt < input.amount ? account.creditDebt : input.amount;
 			const spendable = input.amount - debtRepaid;
 			let lotId: string | undefined;
@@ -624,7 +704,9 @@ export async function refundCreditGrant(
 				});
 				consumedUnused += amount;
 				remaining -= amount;
+				lot.remainingAmount -= amount;
 			}
+			await materializeExpiredLots(tx, { accountId: input.accountId, lots, now: new Date() });
 			const allocations = await lockMatchingActiveAllocations(
 				tx,
 				input.accountId,

@@ -10,6 +10,7 @@ const BASE_SNAPSHOT: GenerationAccessSnapshot = {
 	generationEnabled: true,
 	modelEnabled: true,
 	spendableCredits: 100n,
+	creditDebt: 0n,
 	dailyCostMicros: 0n,
 	planId: "studio",
 	sourceAssetReady: true,
@@ -66,6 +67,25 @@ describe("generation authorization", () => {
 				},
 			),
 		).rejects.toThrow("RATE_LIMITED");
+	});
+
+	it("rejects a positive credit debt before a generation write", async () => {
+		await expect(
+			assertGenerationAllowed(
+				{
+					userId: "user-1",
+					productKey: "image-fast",
+					credits: 4n,
+					costMicros: 3_000n,
+					input: { kind: "text-to-image", prompt: "x" },
+				},
+				{
+					enforceRateLimit: vi.fn(),
+					isEnvironmentGenerationEnabled: () => true,
+					loadAccess: vi.fn(async () => ({ ...BASE_SNAPSHOT, creditDebt: 1n })),
+				},
+			),
+		).rejects.toThrow("CREDIT_DEBT_OUTSTANDING");
 	});
 
 	it("rejects quote and job authorization when the environment generation gate is disabled", async () => {

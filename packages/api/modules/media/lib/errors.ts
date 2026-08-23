@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 
 export const MEDIA_ERROR_CODES = [
 	"INSUFFICIENT_CREDITS",
+	"CREDIT_DEBT_OUTSTANDING",
 	"ASSET_NOT_READY",
 	"MODEL_DISABLED",
 	"RATE_LIMITED",

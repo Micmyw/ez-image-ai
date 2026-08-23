@@ -13,6 +13,7 @@ export interface GenerationAccessSnapshot {
 	generationEnabled: boolean;
 	modelEnabled: boolean;
 	spendableCredits: bigint;
+	creditDebt: bigint;
 	dailyCostMicros: bigint;
 	planId: PlanId;
 	sourceAssetReady: boolean;
@@ -41,7 +42,7 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 		const startOfDay = new Date();
 		startOfDay.setUTCHours(0, 0, 0, 0);
 		const sourceAssetId = "sourceAssetId" in input.input ? input.input.sourceAssetId : undefined;
-		const [blocked, modelDisabled, account, dailyCost, subscription, sourceAsset] =
+		const [blocked, modelDisabled, account, spendableLots, dailyCost, subscription, sourceAsset] =
 			await Promise.all([
 				db.runtimeConfigOverride.findFirst({
 					where: { active: true, configKey: "media.generation.enabled", value: { equals: false } },
@@ -55,6 +56,14 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 				}),
 				db.creditAccount.findUnique({
 					where: { ownerType_ownerId: { ownerType: "USER", ownerId: input.userId } },
+				}),
+				db.creditLot.aggregate({
+					where: {
+						account: { ownerType: "USER", ownerId: input.userId },
+						remainingAmount: { gt: 0n },
+						OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+					},
+					_sum: { remainingAmount: true },
 				}),
 				db.generationQuote.aggregate({
 					where: {
@@ -86,7 +95,8 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 		return {
 			generationEnabled: !blocked,
 			modelEnabled: isCatalogModelEnabled(input.productKey, Boolean(modelDisabled)),
-			spendableCredits: account?.spendableCredits ?? 0n,
+			spendableCredits: spendableLots._sum.remainingAmount ?? 0n,
+			creditDebt: account?.creditDebt ?? 0n,
 			dailyCostMicros: dailyCost._sum.costMicros ?? 0n,
 			planId,
 			sourceAssetReady: Boolean(sourceAsset),
@@ -118,6 +128,7 @@ export async function assertGenerationAllowed(
 		throw new Error("ENTITLEMENT_REQUIRED");
 	}
 	if (!access.sourceAssetReady) throw new Error("ASSET_NOT_READY");
+	if (access.creditDebt > 0n) throw new Error("CREDIT_DEBT_OUTSTANDING");
 	if (access.spendableCredits < input.credits) throw new Error("INSUFFICIENT_CREDITS");
 	if (
 		input.costMicros > BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumJobCostMicros) ||

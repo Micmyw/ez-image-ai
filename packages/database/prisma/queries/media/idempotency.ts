@@ -12,7 +12,7 @@ export class IdempotencyConflictError extends Error {
 }
 
 export interface CreditCommand {
-	kind: "GRANT" | "REFUND" | "RESERVE" | "SETTLE" | "RELEASE";
+	kind: "GRANT" | "REFUND" | "RESERVE" | "SETTLE" | "RELEASE" | "EXPIRE";
 	amount: string;
 	accountId: string;
 	reservationId?: string;

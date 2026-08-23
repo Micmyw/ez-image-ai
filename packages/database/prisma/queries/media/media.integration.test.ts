@@ -7,6 +7,7 @@ import {
 	createCreditGrant,
 	createGenerationJobTransaction,
 	createModeratedGenerationQuoteTransaction,
+	expireCreditLots,
 	fingerprintGenerationQuoteSecurityPayload,
 	createMediaAsset,
 	createMediaUploadSessionTransaction,
@@ -551,6 +552,182 @@ describe("media PostgreSQL transactions", () => {
 		expect(await client.creditAccount.findUnique({ where: { id: account.id } })).toMatchObject({
 			spendableCredits: 3n,
 			creditDebt: 0n,
+		});
+	});
+
+	it("rejects a generation transaction with outstanding debt without committing job side effects", async () => {
+		const ownerId = `debt-gate-${crypto.randomUUID()}`;
+		const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
+		await createCreditGrant(
+			{
+				accountId: account.id,
+				amount: 10n,
+				referenceKey: `debt-gate-grant-${crypto.randomUUID()}`,
+			},
+			client,
+		);
+		await client.creditAccount.update({ where: { id: account.id }, data: { creditDebt: 1n } });
+		const quote = await createApprovedQuote(client, {
+			ownerType: "USER",
+			ownerId,
+			submittedByUserId: ownerId,
+			productKey: "image-fast",
+			catalogVersion: "test-v1",
+			pricingVersion: "test-v1",
+			credits: 4n,
+			costMicros: 0n,
+			inputSnapshot: { kind: "text-to-image", prompt: "debt gate" },
+			pricingSnapshot: {},
+			expiresAt: new Date(Date.now() + 60_000),
+		});
+		const jobsCreatedBefore = await client.outboxEvent.count({
+			where: { eventType: "JOB_CREATED" },
+		});
+
+		await expect(
+			createGenerationJobTransaction(
+				{
+					ownerType: "USER",
+					ownerId,
+					submittedByUserId: ownerId,
+					quoteId: quote.id,
+					idempotencyKey: `debt-gate-job-${crypto.randomUUID()}`,
+					inputAssetIds: [],
+					expectedModerationRuleVersion: TEST_MODERATION_RULE_VERSION,
+				},
+				client,
+			),
+		).rejects.toThrow("CREDIT_DEBT_OUTSTANDING");
+		expect(await client.generationJob.count({ where: { ownerId } })).toBe(0);
+		expect(await client.creditReservation.count({ where: { accountId: account.id } })).toBe(0);
+		expect(await client.outboxEvent.count({ where: { eventType: "JOB_CREATED" } })).toBe(
+			jobsCreatedBefore,
+		);
+	});
+
+	it("incurs debt when a refunded active reservation later settles", async () => {
+		const fixture = await createReservedCreditsFixture(client, {
+			grantAmount: 10n,
+			reserveAmount: 10n,
+		});
+		await refundCreditGrant(
+			{
+				accountId: fixture.account.id,
+				amount: 10n,
+				grantReferenceKey: fixture.grantReferenceKey,
+				referenceKey: `test-refund-settle-${crypto.randomUUID()}`,
+			},
+			client,
+		);
+		const settlement = {
+			reservationId: fixture.reservation.id,
+			amount: 10n,
+			referenceKey: `test-settle-refunded-${crypto.randomUUID()}`,
+		};
+		await settleCredits(settlement, client);
+		await settleCredits(settlement, client);
+
+		expect(
+			await client.creditAccount.findUniqueOrThrow({ where: { id: fixture.account.id } }),
+		).toMatchObject({
+			creditDebt: 10n,
+		});
+		expect(
+			await client.creditLedgerEntry.aggregate({
+				where: { accountId: fixture.account.id, type: "DEBT_INCURRED" },
+				_sum: { amount: true },
+			}),
+		).toMatchObject({ _sum: { amount: 10n } });
+	});
+
+	it("preserves refunded settlement debt when refund and settlement overlap", async () => {
+		const fixture = await createReservedCreditsFixture(client, {
+			grantAmount: 10n,
+			reserveAmount: 10n,
+		});
+		await Promise.all([
+			refundCreditGrant(
+				{
+					accountId: fixture.account.id,
+					amount: 10n,
+					grantReferenceKey: fixture.grantReferenceKey,
+					referenceKey: `test-concurrent-refund-${crypto.randomUUID()}`,
+				},
+				client,
+			),
+			settleCredits(
+				{
+					reservationId: fixture.reservation.id,
+					amount: 10n,
+					referenceKey: `test-concurrent-settle-${crypto.randomUUID()}`,
+				},
+				client,
+			),
+		]);
+
+		expect(
+			await client.creditAccount.findUniqueOrThrow({ where: { id: fixture.account.id } }),
+		).toMatchObject({ creditDebt: 10n, reservedCredits: 0n, spendableCredits: 0n });
+		expect(await getCreditInvariantReport(fixture.account.id, client)).toMatchObject({
+			valid: true,
+		});
+	});
+
+	it("materializes an expired lot once with an immutable expiry ledger entry", async () => {
+		const ownerId = `expiry-command-${crypto.randomUUID()}`;
+		const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
+		await createCreditGrant(
+			{ accountId: account.id, amount: 10n, referenceKey: `expiry-grant-${crypto.randomUUID()}` },
+			client,
+		);
+		const lot = await client.creditLot.findFirstOrThrow({ where: { accountId: account.id } });
+		await client.creditLot.update({
+			where: { id: lot.id },
+			data: { expiresAt: new Date(Date.now() - 60_000) },
+		});
+
+		expect(await expireCreditLots({ accountId: account.id }, client)).toBe(10n);
+		expect(await expireCreditLots({ accountId: account.id }, client)).toBe(0n);
+		expect(
+			await client.creditAccount.findUniqueOrThrow({ where: { id: account.id } }),
+		).toMatchObject({
+			spendableCredits: 0n,
+		});
+		expect(
+			await client.creditLedgerEntry.findMany({
+				where: { accountId: account.id, type: "EXPIRE" },
+			}),
+		).toHaveLength(1);
+	});
+
+	it("does not restore an expired lot when its reservation releases", async () => {
+		const fixture = await createReservedCreditsFixture(client, {
+			grantAmount: 10n,
+			reserveAmount: 10n,
+		});
+		await client.creditLot.updateMany({
+			where: { accountId: fixture.account.id },
+			data: { expiresAt: new Date(Date.now() - 60_000) },
+		});
+		await releaseCredits(
+			{
+				reservationId: fixture.reservation.id,
+				referenceKey: `test-release-expired-${crypto.randomUUID()}`,
+			},
+			client,
+		);
+
+		expect(
+			await client.creditAccount.findUniqueOrThrow({ where: { id: fixture.account.id } }),
+		).toMatchObject({
+			spendableCredits: 0n,
+			reservedCredits: 0n,
+		});
+		expect(
+			await client.creditLot.findFirstOrThrow({ where: { accountId: fixture.account.id } }),
+		).toMatchObject({
+			remainingAmount: 0n,
+			reservedAmount: 0n,
 		});
 	});
 
