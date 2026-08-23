@@ -1,12 +1,17 @@
+import { randomUUID } from "node:crypto";
+
 import { db } from "@repo/database/client";
 import {
 	claimMediaUploadSessionFinalizationTransaction,
+	clearMediaUploadPromotionMultipartTransaction,
 	completeMediaUploadSessionTransaction,
 	failMediaUploadSessionFinalizationTransaction,
 	MediaUploadSessionExpiredError,
+	recordMediaUploadPromotionMultipartTransaction,
 } from "@repo/database/media-assets";
 import {
 	abortMultipartUpload,
+	abortIncompleteMultipartUploads,
 	completeMultipartUpload,
 	deleteObject,
 	promoteStagedObject,
@@ -72,6 +77,14 @@ export const completeUploadSession = protectedProcedure
 		const staging = { bucket: "media" as const, key: claimed.stagingObjectKey };
 		const final = { bucket: "media" as const, key: claimed.asset.objectKey };
 		let promoted: Awaited<ReturnType<typeof promoteStagedObject>>;
+		let promotion =
+			claimed.promotionMultipartUploadId && claimed.promotionToken
+				? {
+						multipartUploadId: claimed.promotionMultipartUploadId,
+						promotionToken: claimed.promotionToken,
+					}
+				: undefined;
+		let retriedMissingPromotionMultipart = false;
 		try {
 			if (claimed.multipartUploadId) {
 				const parts = storedMultipartParts(claimed.finalizationParts);
@@ -83,18 +96,58 @@ export const completeUploadSession = protectedProcedure
 				}
 			}
 
-			promoted = await promoteStagedObject({
-				staging,
-				final,
-				contentLength: Number(session.expectedBytes),
-				contentType: claimed.asset.mimeType as
-					| "image/jpeg"
-					| "image/png"
-					| "image/webp"
-					| "video/mp4"
-					| "video/webm"
-					| "video/quicktime",
-			});
+			for (;;) {
+				if (!promotion) await abortIncompleteMultipartUploads(final);
+				const promotionToken = randomUUID();
+				try {
+					promoted = await promoteStagedObject({
+						staging,
+						final,
+						contentLength: Number(session.expectedBytes),
+						contentType: claimed.asset.mimeType as
+							| "image/jpeg"
+							| "image/png"
+							| "image/webp"
+							| "video/mp4"
+							| "video/webm"
+							| "video/quicktime",
+						promotion: promotion
+							? { uploadId: promotion.multipartUploadId }
+							: {
+									onMultipartUploadCreated: async ({ uploadId }) => {
+										promotion = await recordMediaUploadPromotionMultipartTransaction(
+											{
+												sessionId: session.id,
+												ownerId: user.id,
+												finalizationToken: claimed.finalizationToken,
+												multipartUploadId: uploadId,
+												promotionToken,
+											},
+											db,
+										);
+									},
+								},
+					});
+					break;
+				} catch (error) {
+					if (!promotion || !isNoSuchUpload(error) || retriedMissingPromotionMultipart) {
+						throw error;
+					}
+					const missingPromotion = promotion;
+					await clearMediaUploadPromotionMultipartTransaction(
+						{
+							sessionId: session.id,
+							ownerId: user.id,
+							finalizationToken: claimed.finalizationToken,
+							multipartUploadId: missingPromotion.multipartUploadId,
+							promotionToken: missingPromotion.promotionToken,
+						},
+						db,
+					);
+					promotion = undefined;
+					retriedMissingPromotionMultipart = true;
+				}
+			}
 		} catch (error) {
 			if (isDeterministicFinalizationFailure(error)) {
 				await terminalizeDeterministicFinalizationFailure({
@@ -113,6 +166,7 @@ export const completeUploadSession = protectedProcedure
 				storageEtag: promoted.etag,
 				storageVersionId: promoted.versionId,
 				finalizationToken: claimed.finalizationToken,
+				...(promotion ? { promotion } : {}),
 			},
 			db,
 		);

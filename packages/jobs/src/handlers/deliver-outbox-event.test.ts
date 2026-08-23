@@ -63,6 +63,30 @@ describe("outbox delivery routes", () => {
 				reservationStatus: "RELEASED",
 			},
 		],
+		[
+			"MEDIA_UPLOAD_CLEANUP",
+			"media-cleanup-upload-promotion",
+			{
+				assetId: "asset-1",
+				objectKey: "staging-key",
+				multipartUploadId: "staging-upload",
+				promotionObjectKey: "final-key",
+				promotionMultipartUploadId: "final-upload",
+				cleanupObjectKeys: ["final-key"],
+				uploadSessionId: "session-1",
+				reservationStatus: "RELEASED",
+			},
+		],
+		[
+			"MEDIA_UPLOAD_CLEANUP",
+			"media-abort-promotion-multipart",
+			{
+				assetId: "asset-1",
+				objectKey: "final-key",
+				multipartUploadId: "final-upload",
+				promotionAbortOnly: true,
+			},
+		],
 	])("routes %s to its real cleanup task", async (eventType, taskId, payload) => {
 		const triggerAndWait = vi.fn(async () => undefined);
 		await deliverOutboxEvent(

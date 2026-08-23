@@ -10,6 +10,7 @@ import {
 	HeadObjectCommand,
 	HeadBucketCommand,
 	PutObjectCommand,
+	ListMultipartUploadsCommand,
 	S3Client,
 	UploadPartCommand,
 } from "@aws-sdk/client-s3";
@@ -86,6 +87,7 @@ export async function createMultipartUpload(
 		new CreateMultipartUploadCommand({
 			...mediaLocation(input),
 			ContentType: input.contentType,
+			...(input.metadata ? { Metadata: input.metadata } : {}),
 		}),
 	);
 	if (!result.UploadId) throw new Error("Storage did not return a multipart upload ID");
@@ -164,6 +166,58 @@ export async function abortMultipartUpload(
 	);
 }
 
+/**
+ * Lists incomplete multipart uploads for one exact private object key. S3 only
+ * offers prefix filtering, so callers must never act on a result without the
+ * exact-key check below.
+ */
+export async function listMultipartUploads(input: MediaObjectLocation): Promise<string[]> {
+	const location = mediaLocation(input);
+	const client = getS3Client();
+	const uploadIds: string[] = [];
+	let keyMarker: string | undefined;
+	let uploadIdMarker: string | undefined;
+	for (;;) {
+		const result = await client.send(
+			new ListMultipartUploadsCommand({
+				...location,
+				Prefix: input.key,
+				...(keyMarker ? { KeyMarker: keyMarker } : {}),
+				...(uploadIdMarker ? { UploadIdMarker: uploadIdMarker } : {}),
+			}),
+		);
+		for (const upload of result.Uploads ?? []) {
+			if (upload.Key === input.key && upload.UploadId) uploadIds.push(upload.UploadId);
+		}
+		if (!result.IsTruncated) break;
+		if (!result.NextKeyMarker) {
+			throw new Error("Storage multipart listing omitted a continuation key");
+		}
+		keyMarker = result.NextKeyMarker;
+		uploadIdMarker = result.NextUploadIdMarker;
+	}
+	return [...new Set(uploadIds)];
+}
+
+/**
+ * Clears every known incomplete multipart upload for an exact final key. This
+ * is safe for stale crash recovery only after the caller owns the session
+ * finalization lease; it must not be used against an active finalizer.
+ */
+export async function abortIncompleteMultipartUploads(input: MediaObjectLocation): Promise<number> {
+	const uploadIds = await listMultipartUploads(input);
+	let aborted = 0;
+	for (const uploadId of uploadIds) {
+		try {
+			await abortMultipartUpload({ ...input, uploadId });
+			aborted += 1;
+		} catch (error) {
+			if (!isNoSuchUpload(error)) throw error;
+		}
+	}
+	return aborted;
+}
+
 export async function headObject(input: MediaObjectLocation): Promise<MediaObjectMetadata> {
 	const result = await getS3Client().send(new HeadObjectCommand(mediaLocation(input)));
 	return {
@@ -204,11 +258,27 @@ export async function promoteStagedObject(input: {
 	if (source.ContentLength !== input.contentLength || source.ContentType !== input.contentType) {
 		throw new Error("Staging object metadata does not match the upload session");
 	}
-	const { uploadId } = await createMultipartUpload({
-		bucket: input.final.bucket,
-		key: input.final.key,
-		contentType: input.contentType,
-	});
+	let uploadId = input.promotion?.uploadId;
+	if (!uploadId) {
+		const created = await createMultipartUpload({
+			bucket: input.final.bucket,
+			key: input.final.key,
+			contentType: input.contentType,
+		});
+		uploadId = created.uploadId;
+		if (input.promotion?.onMultipartUploadCreated) {
+			try {
+				await input.promotion.onMultipartUploadCreated({ uploadId });
+			} catch (error) {
+				try {
+					await abortMultipartUpload({ ...input.final, uploadId });
+				} catch {
+					// Preserve the durable-state persistence error.
+				}
+				throw error;
+			}
+		}
+	}
 	let copied: { bytes: number; sha256: string };
 	try {
 		copied = await copyRemoteStreamToMultipart(source.Body as Readable, {
@@ -276,6 +346,12 @@ function isExplicitObjectNotFound(error: unknown): boolean {
 	if (!error || typeof error !== "object") return false;
 	const details = error as { name?: unknown; $metadata?: { httpStatusCode?: unknown } };
 	return details.name === "NoSuchKey" || details.$metadata?.httpStatusCode === 404;
+}
+
+function isNoSuchUpload(error: unknown): boolean {
+	if (!error || typeof error !== "object") return false;
+	const details = error as { name?: unknown; $metadata?: { httpStatusCode?: unknown } };
+	return details.name === "NoSuchUpload" || details.$metadata?.httpStatusCode === 404;
 }
 
 function isConditionalWriteConflict(error: unknown): boolean {

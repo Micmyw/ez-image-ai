@@ -505,6 +505,9 @@ model MediaUploadSession {
   tokenHash                  String              @unique
   multipartUploadId          String?
   stagingObjectKey           String?             @unique
+  stagedTerminalizationToken String?
+  promotionMultipartUploadId String?
+  promotionToken             String?
   finalizationToken          String?             @unique
   finalizationLeaseExpiresAt DateTime?           @db.Timestamptz(3)
   legacyFinalizationToken    String?
@@ -517,6 +520,8 @@ model MediaUploadSession {
 
   @@index([status, expiresAt])
   @@index([status, finalizationLeaseExpiresAt])
+  @@index([promotionMultipartUploadId])
+  @@index([promotionToken])
   @@map("media_upload_session")
 }
 

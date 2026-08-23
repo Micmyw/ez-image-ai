@@ -3,6 +3,8 @@ import { ingestProviderEvent } from "@repo/database";
 import { db } from "@repo/database/client";
 import {
 	abortMultipartObject,
+	abortPromotionMultipart,
+	cleanupUploadPromotion,
 	createDatabaseDispatchStore,
 	createDatabaseFinalizationStore,
 	createDatabaseSettlementStore,
@@ -123,6 +125,35 @@ async function deliverLocally(event: {
 			);
 			return;
 		case "MEDIA_UPLOAD_CLEANUP":
+			if (payload.promotionAbortOnly === true) {
+				await abortPromotionMultipart(
+					{
+						assetId: stringValue(payload.assetId, event.aggregateId),
+						objectKey: stringValue(payload.objectKey),
+						multipartUploadId: stringValue(payload.multipartUploadId),
+					},
+					createDatabaseStorageCleanupDependencies(db),
+				);
+				return;
+			}
+			if (typeof payload.promotionObjectKey === "string") {
+				await cleanupUploadPromotion(
+					{
+						assetId: stringValue(payload.assetId, event.aggregateId),
+						objectKey: stringValue(payload.objectKey),
+						...(typeof payload.multipartUploadId === "string"
+							? { multipartUploadId: payload.multipartUploadId }
+							: {}),
+						promotionObjectKey: payload.promotionObjectKey,
+						...(typeof payload.promotionMultipartUploadId === "string"
+							? { promotionMultipartUploadId: payload.promotionMultipartUploadId }
+							: {}),
+						...cleanupPayload(payload),
+					},
+					createDatabaseStorageCleanupDependencies(db),
+				);
+				return;
+			}
 			if (typeof payload.multipartUploadId === "string") {
 				await abortMultipartObject(
 					{

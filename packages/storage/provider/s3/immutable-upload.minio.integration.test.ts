@@ -1,4 +1,6 @@
+import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
+import { promisify } from "node:util";
 
 import { beforeAll, describe, expect, it } from "vitest";
 
@@ -6,6 +8,7 @@ import { createFinalAssetObjectKey, createStagingObjectKey } from "../../lib/obj
 
 const mediaBucket = process.env.MEDIA_BUCKET_NAME ?? "media-private";
 const contentType = "image/png" as const;
+const execFileAsync = promisify(execFile);
 
 requireMinioEnvironment();
 
@@ -182,7 +185,74 @@ describe("immutable staging upload promotion (MinIO)", () => {
 			await deleteLocations(staging, final);
 		}
 	});
+
+	it("recovers a zero-part final multipart upload after its creating child process exits", async () => {
+		const id = randomUUID();
+		const final = location("final", `${id}-crash-window`);
+		let orphanUploadId: string | undefined;
+
+		try {
+			orphanUploadId = await createFinalMultipartFromChild(final);
+			await expect(storage.listMultipartUploads(final)).resolves.toContain(orphanUploadId);
+
+			await expect(storage.abortIncompleteMultipartUploads(final)).resolves.toBeGreaterThanOrEqual(
+				1,
+			);
+			await expect(storage.listMultipartUploads(final)).resolves.toEqual([]);
+		} finally {
+			if (orphanUploadId) {
+				await storage
+					.abortMultipartUpload({ ...final, uploadId: orphanUploadId })
+					.catch(() => undefined);
+			}
+			await deleteLocations(final);
+		}
+	}, 60_000);
 });
+
+async function createFinalMultipartFromChild(final: {
+	bucket: "media";
+	key: string;
+}): Promise<string> {
+	const { stdout } = await execFileAsync(
+		process.execPath,
+		[
+			"-e",
+			`const { CreateMultipartUploadCommand, S3Client } = require("@aws-sdk/client-s3");
+(async () => {
+	const client = new S3Client({
+		region: process.env.S3_REGION || "auto",
+		endpoint: process.env.S3_ENDPOINT,
+		forcePathStyle: true,
+		credentials: {
+			accessKeyId: process.env.S3_ACCESS_KEY_ID,
+			secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
+		},
+	});
+	const result = await client.send(new CreateMultipartUploadCommand({
+		Bucket: process.env.MEDIA_BUCKET_NAME,
+		Key: process.env.MEDIA_FINAL_KEY,
+		ContentType: "image/png",
+	}));
+	if (!result.UploadId) throw new Error("Child multipart create omitted UploadId");
+	process.stdout.write(result.UploadId);
+})().catch((error) => {
+	console.error(error);
+	process.exitCode = 1;
+});`,
+		],
+		{
+			env: {
+				...process.env,
+				MEDIA_BUCKET_NAME: mediaBucket,
+				MEDIA_FINAL_KEY: final.key,
+			},
+		},
+	);
+	const uploadId = stdout.trim();
+	if (!uploadId) throw new Error("Child multipart create omitted stdout upload ID");
+	return uploadId;
+}
 
 async function completeStagingMultipart(
 	staging: { bucket: "media"; key: string },

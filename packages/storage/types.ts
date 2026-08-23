@@ -46,6 +46,7 @@ export interface SignedUploadInput extends MediaObjectLocation {
 
 export interface MultipartUploadInput extends MediaObjectLocation {
 	contentType: MediaContentType;
+	metadata?: Record<string, string>;
 }
 
 export interface MultipartUploadPart {

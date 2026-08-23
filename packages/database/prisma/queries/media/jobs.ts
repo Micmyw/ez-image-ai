@@ -1,4 +1,5 @@
 import type { Prisma } from "../../generated/client";
+import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { reserveCreditsInTransaction } from "./credits";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
 import { canTransition, type GenerationJobStatusValue } from "./state-machine";
@@ -116,6 +117,7 @@ export async function createGenerationJobTransaction(
 					throw new Error("BUDGET_EXCEEDED");
 				}
 			}
+			await lockMediaAssetGenerationBindings(input.inputAssetIds, tx);
 
 			const inputAssets = input.inputAssetIds.length
 				? await tx.mediaAsset.findMany({

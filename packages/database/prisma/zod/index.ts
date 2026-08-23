@@ -96,7 +96,7 @@ export type MediaAssetScalarFieldEnum = z.infer<typeof MediaAssetScalarFieldEnum
 
 // File: MediaUploadSessionScalarFieldEnum.schema.ts
 
-export const MediaUploadSessionScalarFieldEnumSchema = z.enum(['id', 'assetId', 'tokenHash', 'multipartUploadId', 'stagingObjectKey', 'finalizationToken', 'finalizationLeaseExpiresAt', 'legacyFinalizationToken', 'finalizationParts', 'status', 'expectedBytes', 'createdAt', 'expiresAt', 'completedAt'])
+export const MediaUploadSessionScalarFieldEnumSchema = z.enum(['id', 'assetId', 'tokenHash', 'multipartUploadId', 'stagingObjectKey', 'stagedTerminalizationToken', 'promotionMultipartUploadId', 'promotionToken', 'finalizationToken', 'finalizationLeaseExpiresAt', 'legacyFinalizationToken', 'finalizationParts', 'status', 'expectedBytes', 'createdAt', 'expiresAt', 'completedAt'])
 
 export type MediaUploadSessionScalarFieldEnum = z.infer<typeof MediaUploadSessionScalarFieldEnumSchema>;
 
@@ -703,6 +703,9 @@ export const MediaUploadSessionSchema = z.object({
   tokenHash: z.string(),
   multipartUploadId: z.string().nullish(),
   stagingObjectKey: z.string().nullish(),
+  stagedTerminalizationToken: z.string().nullish(),
+  promotionMultipartUploadId: z.string().nullish(),
+  promotionToken: z.string().nullish(),
   finalizationToken: z.string().nullish(),
   finalizationLeaseExpiresAt: z.date().nullish(),
   legacyFinalizationToken: z.string().nullish(),

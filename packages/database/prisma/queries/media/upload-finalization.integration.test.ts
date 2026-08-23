@@ -10,6 +10,7 @@ import {
 	createMediaUploadSessionTransaction,
 	expirePendingMediaUploadSessions,
 	MediaUploadSessionExpiredError,
+	recordMediaUploadPromotionMultipartTransaction,
 } from "./assets";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -289,4 +290,130 @@ describe("media upload finalization PostgreSQL transactions", () => {
 			payload: expect.objectContaining({ objectKey: fixture.session.stagingObjectKey }),
 		});
 	});
+
+	it("persists a final promotion multipart under its lease and clears it only at matching completion", async () => {
+		const fixture = await createUploadFixture(client);
+		const claim = await claimMediaUploadSessionFinalizationTransaction(
+			{ sessionId: fixture.session.id, ownerId: fixture.ownerId },
+			client,
+		);
+		if (claim.outcome !== "CLAIMED")
+			throw new Error("Expected the fixture claimant to acquire a lease");
+		const promotion = {
+			multipartUploadId: `promotion-${randomUUID()}`,
+			promotionToken: `promotion-token-${randomUUID()}`,
+		};
+
+		await expect(
+			recordMediaUploadPromotionMultipartTransaction(
+				{
+					sessionId: fixture.session.id,
+					ownerId: fixture.ownerId,
+					finalizationToken: claim.finalizationToken,
+					...promotion,
+				},
+				client,
+			),
+		).resolves.toMatchObject(promotion);
+
+		await expect(
+			completeMediaUploadSessionTransaction(
+				{
+					sessionId: fixture.session.id,
+					ownerId: fixture.ownerId,
+					checksum: "a".repeat(64),
+					finalizationToken: claim.finalizationToken,
+				},
+				client,
+			),
+		).rejects.toThrow(/promotion multipart/i);
+
+		await expect(
+			completeMediaUploadSessionTransaction(
+				{
+					sessionId: fixture.session.id,
+					ownerId: fixture.ownerId,
+					checksum: "a".repeat(64),
+					finalizationToken: claim.finalizationToken,
+					promotion,
+				},
+				client,
+			),
+		).resolves.toMatchObject({ id: fixture.asset.id, status: "VERIFYING" });
+		await expect(
+			client.mediaUploadSession.findUniqueOrThrow({ where: { id: fixture.session.id } }),
+		).resolves.toMatchObject({
+			status: "COMPLETED",
+			promotionMultipartUploadId: null,
+			promotionToken: null,
+		});
+	});
+
+	it("queues an exact final promotion abort before reclaiming an expired finalization lease", async () => {
+		const fixture = await createUploadFixture(client, { expiresAt: new Date(Date.now() + 60_000) });
+		const claimedAt = new Date();
+		const claim = await claimMediaUploadSessionFinalizationTransaction(
+			{
+				sessionId: fixture.session.id,
+				ownerId: fixture.ownerId,
+				now: claimedAt,
+				leaseDurationMs: 1_000,
+			},
+			client,
+		);
+		if (claim.outcome !== "CLAIMED")
+			throw new Error("Expected the fixture claimant to acquire a lease");
+		const promotion = {
+			multipartUploadId: `promotion-${randomUUID()}`,
+			promotionToken: `promotion-token-${randomUUID()}`,
+		};
+		await recordMediaUploadPromotionMultipartTransaction(
+			{
+				sessionId: fixture.session.id,
+				ownerId: fixture.ownerId,
+				finalizationToken: claim.finalizationToken,
+				...promotion,
+				now: new Date(claimedAt.getTime() + 100),
+			},
+			client,
+		);
+
+		const reclaimed = await claimMediaUploadSessionFinalizationTransaction(
+			{
+				sessionId: fixture.session.id,
+				ownerId: fixture.ownerId,
+				now: new Date(claimedAt.getTime() + 2_000),
+			},
+			client,
+		);
+		expect(reclaimed).toMatchObject({ outcome: "CLAIMED", promotionMultipartUploadId: null });
+		await expect(
+			client.outboxEvent.findUniqueOrThrow({
+				where: {
+					dedupeKey: `media-upload-promotion-abort:${fixture.session.id}:${promotion.promotionToken}`,
+				},
+			}),
+		).resolves.toMatchObject({
+			payload: {
+				assetId: fixture.asset.id,
+				objectKey: fixture.asset.objectKey,
+				multipartUploadId: promotion.multipartUploadId,
+				promotionAbortOnly: true,
+			},
+		});
+	});
+
+	it.each(["COMPLETED", "ABORTED", "EXPIRED"] as const)(
+		"rejects a legacy staged PENDING writer that tries to transition directly to %s",
+		async (status) => {
+			const fixture = await createUploadFixture(client);
+
+			await expect(
+				client.mediaUploadSession.update({
+					where: { id: fixture.session.id },
+					data: { status },
+				}),
+			).rejects.toThrow(/MEDIA_UPLOAD_STAGED_TERMINALIZATION_TOKEN_REQUIRED/);
+		},
+	);
 });

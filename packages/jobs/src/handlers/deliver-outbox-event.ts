@@ -88,6 +88,26 @@ function triggerUploadCleanup(
 	};
 	const multipartUploadId =
 		typeof payload.multipartUploadId === "string" ? payload.multipartUploadId : undefined;
+	if (payload.promotionAbortOnly === true) {
+		return triggerCleanup(dependencies, "media-abort-promotion-multipart", {
+			assetId: requiredString(payload.assetId, event.aggregateId),
+			objectKey: requiredString(payload.objectKey),
+			multipartUploadId: requiredString(multipartUploadId),
+			promotionAbortOnly: true,
+		});
+	}
+	const promotionObjectKey =
+		typeof payload.promotionObjectKey === "string" ? payload.promotionObjectKey : undefined;
+	if (promotionObjectKey) {
+		return triggerCleanup(dependencies, "media-cleanup-upload-promotion", {
+			...cleanupPayload,
+			promotionObjectKey,
+			...(typeof payload.promotionMultipartUploadId === "string"
+				? { promotionMultipartUploadId: payload.promotionMultipartUploadId }
+				: {}),
+			...(multipartUploadId ? { multipartUploadId } : {}),
+		});
+	}
 	return multipartUploadId
 		? triggerCleanup(dependencies, "media-abort-multipart", {
 				...cleanupPayload,

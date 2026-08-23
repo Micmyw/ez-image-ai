@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 
 import type { MediaAssetKind, Prisma } from "../../generated/client";
+import {
+	LIVE_GENERATION_JOB_STATUSES,
+	lockMediaAssetGenerationBindings,
+} from "./asset-binding-locks";
 import type { CursorPageInput, MediaDatabaseClient, MediaTransactionClient } from "./types";
 import { getMediaDatabaseClient, isDatabaseUniqueConflict, runSerializable } from "./types";
 
@@ -101,6 +105,8 @@ export type MediaUploadFinalizationClaim =
 			finalizationToken: string;
 			finalizationParts: Prisma.InputJsonValue | null;
 			multipartUploadId: string | null;
+			promotionMultipartUploadId: string | null;
+			promotionToken: string | null;
 			stagingObjectKey: string;
 	  };
 
@@ -116,6 +122,9 @@ type UploadSessionCleanupTarget = {
 	assetId: string;
 	multipartUploadId: string | null;
 	stagingObjectKey: string | null;
+	stagedTerminalizationToken: string | null;
+	promotionMultipartUploadId: string | null;
+	promotionToken: string | null;
 	expiresAt: Date;
 	asset: { objectKey: string };
 };
@@ -306,6 +315,7 @@ export async function createMediaUploadSessionTransaction(
 				expiresAt: input.expiresAt,
 				multipartUploadId: input.multipartUploadId,
 				stagingObjectKey: input.stagingObjectKey,
+				stagedTerminalizationToken: randomUUID(),
 			},
 		});
 		await tx.storageUsageReservation.create({
@@ -389,7 +399,13 @@ export async function claimMediaUploadSessionFinalizationTransaction(
 			now.getTime() + normalizeLeaseDuration(input.leaseDurationMs),
 		);
 		const claimed = await tx.mediaUploadSession.updateMany({
-			where: { id: session.id, status: "PENDING", expiresAt: { gt: now } },
+			where: {
+				id: session.id,
+				status: "PENDING",
+				expiresAt: { gt: now },
+				promotionMultipartUploadId: null,
+				promotionToken: null,
+			},
 			data: {
 				status: "FINALIZING",
 				finalizationToken,
@@ -405,6 +421,8 @@ export async function claimMediaUploadSessionFinalizationTransaction(
 			finalizationLeaseExpiresAt,
 			finalizationParts: input.parts ?? null,
 			multipartUploadId: session.multipartUploadId,
+			promotionMultipartUploadId: null,
+			promotionToken: null,
 			stagingObjectKey: session.stagingObjectKey,
 		};
 	});
@@ -415,10 +433,13 @@ export async function claimMediaUploadSessionFinalizationTransaction(
 async function reclaimMediaUploadFinalizationLease(
 	session: {
 		id: string;
+		assetId: string;
 		asset: { id: string; objectKey: string; mimeType: string };
 		multipartUploadId: string | null;
 		stagingObjectKey: string | null;
 		finalizationParts: Prisma.JsonValue | null;
+		promotionMultipartUploadId: string | null;
+		promotionToken: string | null;
 	},
 	input: {
 		parts?: Prisma.InputJsonValue;
@@ -435,6 +456,10 @@ async function reclaimMediaUploadFinalizationLease(
 		now.getTime() + normalizeLeaseDuration(input.leaseDurationMs),
 	);
 	const finalizationParts = session.finalizationParts ?? input.parts ?? null;
+	assertPromotionMultipartPair(session);
+	if (session.promotionMultipartUploadId && session.promotionToken) {
+		await queuePromotionAbortOnly(session, tx);
+	}
 	const claimed = await tx.mediaUploadSession.updateMany({
 		where: {
 			id: session.id,
@@ -445,6 +470,8 @@ async function reclaimMediaUploadFinalizationLease(
 			finalizationToken,
 			finalizationLeaseExpiresAt,
 			legacyFinalizationToken: null,
+			promotionMultipartUploadId: null,
+			promotionToken: null,
 			...(session.finalizationParts === null && input.parts !== undefined
 				? { finalizationParts: input.parts }
 				: {}),
@@ -457,8 +484,103 @@ async function reclaimMediaUploadFinalizationLease(
 		finalizationToken,
 		finalizationParts,
 		multipartUploadId: session.multipartUploadId,
+		promotionMultipartUploadId: null,
+		promotionToken: null,
 		stagingObjectKey: session.stagingObjectKey,
 	};
+}
+
+export async function recordMediaUploadPromotionMultipartTransaction(
+	input: {
+		sessionId: string;
+		ownerId: string;
+		finalizationToken: string;
+		multipartUploadId: string;
+		promotionToken: string;
+		now?: Date;
+	},
+	client: MediaTransactionClient,
+): Promise<{ multipartUploadId: string; promotionToken: string }> {
+	if (!input.multipartUploadId || !input.promotionToken) {
+		throw new Error("Promotion multipart upload ID and token are required");
+	}
+	return runSerializable(client, async (tx) => {
+		const session = await tx.mediaUploadSession.findFirst({
+			where: { id: input.sessionId, asset: { ownerType: "USER", ownerId: input.ownerId } },
+		});
+		if (!session) throw new Error("Upload session not found for owner");
+		const now = input.now ?? (await getDatabaseNow(tx));
+		if (
+			session.status !== "FINALIZING" ||
+			session.finalizationToken !== input.finalizationToken ||
+			!session.finalizationLeaseExpiresAt ||
+			session.finalizationLeaseExpiresAt <= now
+		) {
+			throw new Error("Upload session finalization is not owned by this token");
+		}
+		assertPromotionMultipartPair(session);
+		if (session.promotionMultipartUploadId && session.promotionToken) {
+			if (
+				session.promotionMultipartUploadId === input.multipartUploadId &&
+				session.promotionToken === input.promotionToken
+			) {
+				return {
+					multipartUploadId: session.promotionMultipartUploadId,
+					promotionToken: session.promotionToken,
+				};
+			}
+			throw new Error("Upload session already has a durable promotion multipart");
+		}
+		const recorded = await tx.mediaUploadSession.updateMany({
+			where: {
+				id: session.id,
+				status: "FINALIZING",
+				finalizationToken: input.finalizationToken,
+				finalizationLeaseExpiresAt: { gt: now },
+				promotionMultipartUploadId: null,
+				promotionToken: null,
+			},
+			data: {
+				promotionMultipartUploadId: input.multipartUploadId,
+				promotionToken: input.promotionToken,
+			},
+		});
+		if (recorded.count !== 1) {
+			throw new Error("Upload session changed concurrently before promotion registration");
+		}
+		return { multipartUploadId: input.multipartUploadId, promotionToken: input.promotionToken };
+	});
+}
+
+export async function clearMediaUploadPromotionMultipartTransaction(
+	input: {
+		sessionId: string;
+		ownerId: string;
+		finalizationToken: string;
+		multipartUploadId: string;
+		promotionToken: string;
+		now?: Date;
+	},
+	client: MediaTransactionClient,
+): Promise<void> {
+	return runSerializable(client, async (tx) => {
+		const now = input.now ?? (await getDatabaseNow(tx));
+		const cleared = await tx.mediaUploadSession.updateMany({
+			where: {
+				id: input.sessionId,
+				asset: { ownerType: "USER", ownerId: input.ownerId },
+				status: "FINALIZING",
+				finalizationToken: input.finalizationToken,
+				finalizationLeaseExpiresAt: { gt: now },
+				promotionMultipartUploadId: input.multipartUploadId,
+				promotionToken: input.promotionToken,
+			},
+			data: { promotionMultipartUploadId: null, promotionToken: null },
+		});
+		if (cleared.count !== 1) {
+			throw new Error("Upload session final promotion multipart is not owned by this token");
+		}
+	});
 }
 
 function normalizeLeaseDuration(value: number | undefined): number {
@@ -481,9 +603,21 @@ export async function failMediaUploadSessionTransaction(
 			throw new Error("Upload session cannot be failed");
 		}
 		const now = await getDatabaseNow(tx);
+		if (!session.stagedTerminalizationToken) {
+			throw new Error("Upload session staged terminalization token is missing");
+		}
 		const changed = await tx.mediaUploadSession.updateMany({
-			where: { id: session.id, status: "PENDING" },
-			data: { status: "ABORTED" },
+			where: {
+				id: session.id,
+				status: "PENDING",
+				stagedTerminalizationToken: session.stagedTerminalizationToken,
+			},
+			data: {
+				status: "ABORTED",
+				stagedTerminalizationToken: null,
+				promotionMultipartUploadId: null,
+				promotionToken: null,
+			},
 		});
 		if (changed.count !== 1) throw new Error("Upload session changed concurrently before failure");
 		const asset = await tx.mediaAsset.update({
@@ -497,6 +631,7 @@ export async function failMediaUploadSessionTransaction(
 			stagingCleanupAvailableAt(now),
 			"RELEASED",
 			tx,
+			[session.asset.objectKey],
 		);
 		await tx.auditLog.create({
 			data: {
@@ -551,6 +686,9 @@ export async function failMediaUploadSessionFinalizationTransaction(
 				status: "ABORTED",
 				finalizationToken: null,
 				finalizationLeaseExpiresAt: null,
+				stagedTerminalizationToken: null,
+				promotionMultipartUploadId: null,
+				promotionToken: null,
 			},
 		});
 		if (changed.count !== 1) {
@@ -592,6 +730,7 @@ export async function completeMediaUploadSessionTransaction(
 		storageEtag?: string | null;
 		storageVersionId?: string | null;
 		finalizationToken: string;
+		promotion?: { multipartUploadId: string; promotionToken: string };
 		now?: Date;
 	},
 	client: MediaTransactionClient,
@@ -615,18 +754,38 @@ export async function completeMediaUploadSessionTransaction(
 		if (!session.finalizationLeaseExpiresAt || session.finalizationLeaseExpiresAt <= now) {
 			throw new Error("Upload session finalization lease expired");
 		}
+		assertPromotionMultipartPair(session);
+		if (session.promotionMultipartUploadId && session.promotionToken) {
+			if (
+				input.promotion?.multipartUploadId !== session.promotionMultipartUploadId ||
+				input.promotion?.promotionToken !== session.promotionToken
+			) {
+				throw new Error("Upload session final promotion multipart is not owned by this token");
+			}
+		} else if (input.promotion) {
+			throw new Error("Upload session has no durable final promotion multipart");
+		}
 		const completion = await tx.mediaUploadSession.updateMany({
 			where: {
 				id: session.id,
 				status: "FINALIZING",
 				finalizationToken: input.finalizationToken,
 				finalizationLeaseExpiresAt: { gt: now },
+				...(session.promotionMultipartUploadId && session.promotionToken
+					? {
+							promotionMultipartUploadId: session.promotionMultipartUploadId,
+							promotionToken: session.promotionToken,
+						}
+					: { promotionMultipartUploadId: null, promotionToken: null }),
 			},
 			data: {
 				status: "COMPLETED",
 				completedAt: now,
 				finalizationToken: null,
 				finalizationLeaseExpiresAt: null,
+				stagedTerminalizationToken: null,
+				promotionMultipartUploadId: null,
+				promotionToken: null,
 			},
 		});
 		if (completion.count !== 1) {
@@ -772,9 +931,22 @@ async function expirePendingUploadSession(
 	cleanup: "ABORT_MULTIPART" | "DELETE_OBJECT",
 	tx: Prisma.TransactionClient,
 ): Promise<void> {
+	if (!session.stagedTerminalizationToken) {
+		throw new Error("Upload session staged terminalization token is missing");
+	}
 	const expired = await tx.mediaUploadSession.updateMany({
-		where: { id: session.id, status: "PENDING", expiresAt: { lte: now } },
-		data: { status: "EXPIRED" },
+		where: {
+			id: session.id,
+			status: "PENDING",
+			expiresAt: { lte: now },
+			stagedTerminalizationToken: session.stagedTerminalizationToken,
+		},
+		data: {
+			status: "EXPIRED",
+			stagedTerminalizationToken: null,
+			promotionMultipartUploadId: null,
+			promotionToken: null,
+		},
 	});
 	if (expired.count !== 1) {
 		throw new Error("Upload session changed concurrently before expiration");
@@ -811,10 +983,17 @@ async function expireFinalizingUploadSession(
 }
 
 async function reopenExpiredFinalizationLease(
-	session: Pick<UploadSessionCleanupTarget, "id">,
+	session: Pick<
+		UploadSessionCleanupTarget,
+		"id" | "assetId" | "promotionMultipartUploadId" | "promotionToken" | "asset"
+	>,
 	now: Date,
 	tx: Prisma.TransactionClient,
 ): Promise<void> {
+	assertPromotionMultipartPair(session);
+	if (session.promotionMultipartUploadId && session.promotionToken) {
+		await queuePromotionAbortOnly(session, tx);
+	}
 	const reopened = await tx.mediaUploadSession.updateMany({
 		where: {
 			id: session.id,
@@ -826,6 +1005,8 @@ async function reopenExpiredFinalizationLease(
 			finalizationToken: null,
 			finalizationLeaseExpiresAt: null,
 			legacyFinalizationToken: null,
+			promotionMultipartUploadId: null,
+			promotionToken: null,
 		},
 	});
 	if (reopened.count !== 1)
@@ -838,6 +1019,9 @@ async function queueStagingCleanup(
 		assetId: string;
 		multipartUploadId: string | null;
 		stagingObjectKey: string | null;
+		promotionMultipartUploadId?: string | null;
+		promotionToken?: string | null;
+		asset?: { objectKey: string };
 		expiresAt: Date;
 	},
 	cleanup: "ABORT_MULTIPART" | "DELETE_OBJECT",
@@ -851,6 +1035,11 @@ async function queueStagingCleanup(
 	const additionalObjectKeys = [...new Set(cleanupObjectKeys)].filter(
 		(objectKey) => objectKey !== session.stagingObjectKey,
 	);
+	assertPromotionMultipartPair(session);
+	const promotionObjectKey = session.asset?.objectKey;
+	const shouldCleanPromotion = Boolean(
+		promotionObjectKey && additionalObjectKeys.includes(promotionObjectKey),
+	);
 	await tx.outboxEvent.create({
 		data: {
 			eventType: "MEDIA_UPLOAD_CLEANUP",
@@ -863,9 +1052,54 @@ async function queueStagingCleanup(
 				objectKey: session.stagingObjectKey,
 				...(additionalObjectKeys.length ? { cleanupObjectKeys: additionalObjectKeys } : {}),
 				...(reservationStatus ? { uploadSessionId: session.id, reservationStatus } : {}),
+				...(shouldCleanPromotion && promotionObjectKey ? { promotionObjectKey } : {}),
+				...(shouldCleanPromotion && session.promotionMultipartUploadId && session.promotionToken
+					? {
+							promotionMultipartUploadId: session.promotionMultipartUploadId,
+							promotionToken: session.promotionToken,
+						}
+					: {}),
 				...(cleanup === "ABORT_MULTIPART" && session.multipartUploadId
 					? { multipartUploadId: session.multipartUploadId }
 					: {}),
+			},
+		},
+	});
+}
+
+function assertPromotionMultipartPair(session: {
+	promotionMultipartUploadId?: string | null;
+	promotionToken?: string | null;
+}): void {
+	const hasMultipartUploadId = session.promotionMultipartUploadId != null;
+	const hasPromotionToken = session.promotionToken != null;
+	if (hasMultipartUploadId !== hasPromotionToken) {
+		throw new Error("Upload session promotion multipart state is incomplete");
+	}
+}
+
+async function queuePromotionAbortOnly(
+	session: {
+		id: string;
+		assetId: string;
+		promotionMultipartUploadId: string | null;
+		promotionToken: string | null;
+		asset: { objectKey: string };
+	},
+	tx: Prisma.TransactionClient,
+): Promise<void> {
+	if (!session.promotionMultipartUploadId || !session.promotionToken) return;
+	await tx.outboxEvent.create({
+		data: {
+			eventType: "MEDIA_UPLOAD_CLEANUP",
+			aggregateType: "MEDIA_ASSET",
+			aggregateId: session.assetId,
+			dedupeKey: `media-upload-promotion-abort:${session.id}:${session.promotionToken}`,
+			payload: {
+				assetId: session.assetId,
+				objectKey: session.asset.objectKey,
+				multipartUploadId: session.promotionMultipartUploadId,
+				promotionAbortOnly: true,
 			},
 		},
 	});
@@ -888,10 +1122,23 @@ export async function abortMediaUploadSessionTransaction(
 		if (session.status === "ABORTED") return session.asset;
 		if (session.status !== "PENDING") throw new Error("Upload session cannot be aborted");
 		const now = await getDatabaseNow(tx);
-		await tx.mediaUploadSession.update({
-			where: { id: session.id },
-			data: { status: "ABORTED" },
+		if (!session.stagedTerminalizationToken) {
+			throw new Error("Upload session staged terminalization token is missing");
+		}
+		const aborted = await tx.mediaUploadSession.updateMany({
+			where: {
+				id: session.id,
+				status: "PENDING",
+				stagedTerminalizationToken: session.stagedTerminalizationToken,
+			},
+			data: {
+				status: "ABORTED",
+				stagedTerminalizationToken: null,
+				promotionMultipartUploadId: null,
+				promotionToken: null,
+			},
 		});
+		if (aborted.count !== 1) throw new Error("Upload session changed concurrently before abort");
 		const asset = await tx.mediaAsset.update({
 			where: { id: session.assetId },
 			data: { status: "DELETED", deletedAt: now },
@@ -903,6 +1150,7 @@ export async function abortMediaUploadSessionTransaction(
 			stagingCleanupAvailableAt(now),
 			"RELEASED",
 			tx,
+			[session.asset.objectKey],
 		);
 		await tx.auditLog.create({
 			data: {
@@ -1396,6 +1644,7 @@ export async function markMediaAssetDeletedTransaction(
 	client: MediaTransactionClient,
 ) {
 	return runSerializable(client, async (tx) => {
+		await lockMediaAssetGenerationBindings([input.assetId], tx);
 		const existing = await tx.mediaAsset.findFirst({
 			where: {
 				id: input.assetId,
@@ -1423,15 +1672,6 @@ export async function markMediaAssetDeletedTransaction(
 			where: { assetId: existing.id },
 			select: { id: true },
 		});
-		if (uploadSession) {
-			await tx.storageUsageReservation.updateMany({
-				where: {
-					referenceKey: `media-upload:${uploadSession.id}`,
-					status: { in: ["ACTIVE", "COMMITTED"] },
-				},
-				data: { status: "RELEASED", releasedAt: now },
-			});
-		}
 		await tx.outboxEvent.create({
 			data: {
 				eventType: "MEDIA_OBJECT_DELETE",
@@ -1443,6 +1683,9 @@ export async function markMediaAssetDeletedTransaction(
 					assetId: existing.id,
 					objectKey: existing.objectKey,
 					deleteBy: new Date(now.getTime() + 24 * 60 * 60 * 1_000).toISOString(),
+					...(uploadSession
+						? { uploadSessionId: uploadSession.id, reservationStatus: "RELEASED" }
+						: {}),
 				},
 			},
 		});

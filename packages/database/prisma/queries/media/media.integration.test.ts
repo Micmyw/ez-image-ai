@@ -155,6 +155,64 @@ async function createBudgetFixture(client: PrismaClient, costs: bigint[]) {
 	return { ownerId, quotes };
 }
 
+async function createReadyInputAssetFixture(client: PrismaClient) {
+	const ownerId = `asset-binding-user-${crypto.randomUUID()}`;
+	const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
+	await createCreditGrant(
+		{
+			accountId: account.id,
+			amount: 20n,
+			referenceKey: `asset-binding-grant-${crypto.randomUUID()}`,
+		},
+		client,
+	);
+	const asset = await createMediaAsset(
+		{
+			ownerType: "USER",
+			ownerId,
+			kind: "INPUT",
+			objectKey: `users/${ownerId}/assets/${crypto.randomUUID()}/original.png`,
+			mimeType: "image/png",
+			byteSize: 10n,
+		},
+		client,
+	);
+	const readyAsset = await client.mediaAsset.update({
+		where: { id: asset.id },
+		data: { status: "READY" },
+	});
+	const quote = await createApprovedQuote(client, {
+		ownerType: "USER",
+		ownerId,
+		submittedByUserId: ownerId,
+		productKey: "image-fast",
+		catalogVersion: "test-v1",
+		pricingVersion: "test-v1",
+		credits: 4n,
+		costMicros: 0n,
+		inputSnapshot: { kind: "image-to-image", prompt: "asset binding regression" },
+		pricingSnapshot: {},
+		expiresAt: new Date(Date.now() + 60_000),
+	});
+	return {
+		ownerId,
+		asset: readyAsset,
+		createJob: (idempotencyKey = `asset-binding-job-${crypto.randomUUID()}`) =>
+			createGenerationJobTransaction(
+				{
+					ownerType: "USER",
+					ownerId,
+					submittedByUserId: ownerId,
+					quoteId: quote.id,
+					idempotencyKey,
+					inputAssetIds: [readyAsset.id],
+					expectedModerationRuleVersion: TEST_MODERATION_RULE_VERSION,
+				},
+				client,
+			),
+	};
+}
+
 function assertSafeTestDatabaseUrl(): string {
 	if (!TEST_DATABASE_URL) {
 		throw new Error("BLOCKED_BY_ENVIRONMENT: TEST_DATABASE_URL is required");

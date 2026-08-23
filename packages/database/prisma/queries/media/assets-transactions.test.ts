@@ -34,6 +34,7 @@ function transactionClient(overrides: Record<string, unknown> = {}) {
 					assetId: "asset_1",
 					multipartUploadId: null as string | null,
 					stagingObjectKey: "users/user_1/staging/session_1/nonce.png",
+					stagedTerminalizationToken: "staged-terminalization-token",
 					finalizationToken: null,
 					finalizationLeaseExpiresAt: null,
 					finalizationParts: null,
@@ -49,6 +50,9 @@ function transactionClient(overrides: Record<string, unknown> = {}) {
 			),
 			update: vi.fn(async ({ data }) => ({ id: "session_1", ...data })),
 			updateMany: vi.fn(async (_input: { data?: Record<string, unknown> }) => ({ count: 1 })),
+		},
+		generationJobAsset: {
+			findFirst: vi.fn(async () => null),
 		},
 		storageUsageReservation: {
 			create: vi.fn(async ({ data }) => ({ id: "reservation_1", ...data })),
@@ -172,7 +176,12 @@ describe("media upload transactions", () => {
 			client as never,
 		);
 		expect(tx.mediaUploadSession.updateMany).toHaveBeenCalledWith(
-			expect.objectContaining({ data: { status: "ABORTED" } }),
+			expect.objectContaining({
+				data: expect.objectContaining({
+					status: "ABORTED",
+					stagedTerminalizationToken: null,
+				}),
+			}),
 		);
 		expect(tx.mediaAsset.update).toHaveBeenCalledWith(
 			expect.objectContaining({ data: expect.objectContaining({ status: "DELETED" }) }),
@@ -461,11 +470,12 @@ describe("media upload transactions", () => {
 					finalizationToken: "finalize_1",
 					finalizationLeaseExpiresAt: { gt: now },
 				}),
-				data: {
+				data: expect.objectContaining({
 					status: "ABORTED",
 					finalizationToken: null,
 					finalizationLeaseExpiresAt: null,
-				},
+					stagedTerminalizationToken: null,
+				}),
 			}),
 		);
 		expect(tx.storageUsageReservation.updateMany).not.toHaveBeenCalled();
@@ -543,8 +553,13 @@ describe("media upload transactions", () => {
 		).rejects.toThrow(/expired/i);
 
 		expect(tx.mediaUploadSession.updateMany).toHaveBeenCalledWith({
-			where: { id: "session_1", status: "PENDING", expiresAt: { lte: boundary } },
-			data: { status: "EXPIRED" },
+			where: {
+				id: "session_1",
+				status: "PENDING",
+				expiresAt: { lte: boundary },
+				stagedTerminalizationToken: "staged-terminalization-token",
+			},
+			data: expect.objectContaining({ status: "EXPIRED", stagedTerminalizationToken: null }),
 		});
 		expect(tx.storageUsageReservation.updateMany).not.toHaveBeenCalled();
 		expect(tx.mediaAsset.update).not.toHaveBeenCalledWith(
@@ -615,6 +630,7 @@ describe("media upload transactions", () => {
 			assetId: "asset_1",
 			multipartUploadId: "multipart_1",
 			stagingObjectKey: "users/user_1/staging/session_1/nonce.mp4",
+			stagedTerminalizationToken: "staged-terminalization-token",
 			finalizationToken: null,
 			finalizationLeaseExpiresAt: null,
 			finalizationParts: null,
@@ -653,8 +669,17 @@ describe("media upload transactions", () => {
 			{ sessionId: "session_1", ownerId: "user_1" },
 			client as never,
 		);
-		expect(tx.mediaUploadSession.update).toHaveBeenCalledWith(
-			expect.objectContaining({ data: expect.objectContaining({ status: "ABORTED" }) }),
+		expect(tx.mediaUploadSession.updateMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({
+					status: "PENDING",
+					stagedTerminalizationToken: "staged-terminalization-token",
+				}),
+				data: expect.objectContaining({
+					status: "ABORTED",
+					stagedTerminalizationToken: null,
+				}),
+			}),
 		);
 		expect(tx.mediaAsset.update).toHaveBeenCalledWith(
 			expect.objectContaining({ data: expect.objectContaining({ status: "DELETED" }) }),
@@ -664,12 +689,14 @@ describe("media upload transactions", () => {
 			data: expect.objectContaining({
 				eventType: "MEDIA_UPLOAD_CLEANUP",
 				dedupeKey: "media-upload-abort-cleanup:session_1",
-				payload: {
+				payload: expect.objectContaining({
 					assetId: "asset_1",
 					objectKey: "users/user_1/staging/session_1/nonce.png",
+					cleanupObjectKeys: ["users/user_1/assets/asset_1/original.mp4"],
+					promotionObjectKey: "users/user_1/assets/asset_1/original.mp4",
 					uploadSessionId: "session_1",
 					reservationStatus: "RELEASED",
-				},
+				}),
 				availableAt: new Date("2026-08-13T00:10:00Z"),
 			}),
 		});
@@ -684,6 +711,7 @@ describe("media upload transactions", () => {
 			assetId: "asset_1",
 			multipartUploadId: "multipart_1",
 			stagingObjectKey: "users/user_1/staging/session_1/nonce.mp4",
+			stagedTerminalizationToken: "staged-terminalization-token",
 			asset: {
 				id: "asset_1",
 				ownerType: "USER",
@@ -744,16 +772,14 @@ describe("media upload transactions", () => {
 			data: expect.objectContaining({
 				eventType: "MEDIA_OBJECT_DELETE",
 				availableAt: new Date("2026-08-14T00:00:00.000Z"),
-				payload: expect.objectContaining({ deleteBy: "2026-08-14T00:00:00.000Z" }),
+				payload: expect.objectContaining({
+					deleteBy: "2026-08-14T00:00:00.000Z",
+					uploadSessionId: "session_1",
+					reservationStatus: "RELEASED",
+				}),
 			}),
 		});
-		expect(tx.storageUsageReservation.updateMany).toHaveBeenCalledWith({
-			where: {
-				referenceKey: "media-upload:session_1",
-				status: { in: ["ACTIVE", "COMMITTED"] },
-			},
-			data: { status: "RELEASED", releasedAt: new Date("2026-08-13T00:00:00Z") },
-		});
+		expect(tx.storageUsageReservation.updateMany).not.toHaveBeenCalled();
 	});
 
 	it("refuses to delete an asset while its upload session can still write staging data", async () => {

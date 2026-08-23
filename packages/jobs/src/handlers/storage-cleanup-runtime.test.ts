@@ -6,14 +6,27 @@ import { createDatabaseStorageCleanupDependencies } from "../runtime";
 import { deleteStorageObject } from "./cleanup-storage-object";
 
 describe("production storage cleanup store", () => {
-	it("physically deletes once, records an audit completion, and skips replay", async () => {
-		const findFirst = vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce({ id: "audit-1" });
-		const create = vi.fn(async () => ({ id: "audit-1" }));
-		const updateMany = vi.fn(async () => ({ count: 1 }));
+	it("retains a committed reservation when deletion fails and releases it only after a successful retry", async () => {
+		let cleanupRecorded = false;
+		let reservationStatus: "COMMITTED" | "RELEASED" = "COMMITTED";
+		let deleteFails = true;
+		const findFirst = vi.fn(async () => (cleanupRecorded ? { id: "audit-1" } : null));
+		const create = vi.fn(async () => {
+			cleanupRecorded = true;
+			return { id: "audit-1" };
+		});
+		const updateMany = vi.fn(async ({ where, data }) => {
+			const expectedStatuses = Array.isArray(where.status?.in) ? where.status.in : [where.status];
+			if (!expectedStatuses.includes(reservationStatus)) return { count: 0 };
+			reservationStatus = data.status;
+			return { count: 1 };
+		});
 		const $transaction = vi.fn(async (operation: (tx: unknown) => Promise<unknown>) =>
 			operation({ auditLog: { create }, storageUsageReservation: { updateMany } }),
 		);
-		const deleteObject = vi.fn(async () => undefined);
+		const deleteObject = vi.fn(async () => {
+			if (deleteFails) throw new Error("object store unavailable");
+		});
 		const dependencies = createDatabaseStorageCleanupDependencies(
 			{ auditLog: { findFirst }, $transaction } as never,
 			{ deleteObject, abortMultipartUpload: vi.fn() },
@@ -26,10 +39,15 @@ describe("production storage cleanup store", () => {
 			uploadSessionId: "session-1",
 			reservationStatus: "RELEASED" as const,
 		};
-		await deleteStorageObject(payload, dependencies);
-		await deleteStorageObject(payload, dependencies);
+		await expect(deleteStorageObject(payload, dependencies)).rejects.toThrow(/unavailable/i);
+		expect(reservationStatus).toBe("COMMITTED");
+		expect(create).not.toHaveBeenCalled();
 
-		expect(deleteObject).toHaveBeenCalledTimes(2);
+		deleteFails = false;
+		await deleteStorageObject(payload, dependencies);
+		expect(reservationStatus).toBe("RELEASED");
+
+		expect(deleteObject).toHaveBeenCalledTimes(3);
 		expect(create).toHaveBeenCalledWith({
 			data: expect.objectContaining({
 				action: "MEDIA_OBJECT_DELETE_COMPLETED",
@@ -38,7 +56,10 @@ describe("production storage cleanup store", () => {
 			}),
 		});
 		expect(updateMany).toHaveBeenCalledWith({
-			where: { referenceKey: "media-upload:session-1", status: "ACTIVE" },
+			where: {
+				referenceKey: "media-upload:session-1",
+				status: { in: ["ACTIVE", "COMMITTED"] },
+			},
 			data: { status: "RELEASED", releasedAt: expect.any(Date) },
 		});
 	});

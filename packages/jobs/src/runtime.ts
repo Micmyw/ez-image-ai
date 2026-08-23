@@ -38,6 +38,7 @@ import {
 	detectMediaType,
 	headObject,
 	inspectPrivateMediaObject,
+	listMultipartUploads,
 	putPrivateMediaObject,
 	readMediaHeader,
 	streamRemoteObjectToStorage,
@@ -443,10 +444,14 @@ export const databaseOutboxStore: OutboxStore = {
 
 export function createDatabaseStorageCleanupDependencies(
 	database: PrismaClient,
-	storage: Pick<StorageCleanupDependencies, "deleteObject" | "abortMultipartUpload"> = {
+	storage: Pick<
+		StorageCleanupDependencies,
+		"deleteObject" | "abortMultipartUpload" | "listMultipartUploads"
+	> = {
 		deleteObject: (objectKey) => deleteObject({ bucket: "media", key: objectKey }),
 		abortMultipartUpload: (objectKey, uploadId) =>
 			abortMultipartUpload({ bucket: "media", key: objectKey, uploadId }),
+		listMultipartUploads: (objectKey) => listMultipartUploads({ bucket: "media", key: objectKey }),
 	},
 ): StorageCleanupDependencies {
 	return {
@@ -479,7 +484,7 @@ export function createDatabaseStorageCleanupDependencies(
 					await tx.storageUsageReservation.updateMany({
 						where: {
 							referenceKey: `media-upload:${input.uploadSessionId}`,
-							status: "ACTIVE",
+							status: { in: ["ACTIVE", "COMMITTED"] },
 						},
 						data: { status: input.reservationStatus, releasedAt: new Date() },
 					});

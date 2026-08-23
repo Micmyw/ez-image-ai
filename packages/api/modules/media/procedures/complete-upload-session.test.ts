@@ -5,8 +5,10 @@ vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database/client", () => ({ db: {} }));
 vi.mock("@repo/database/media-assets", () => ({
 	claimMediaUploadSessionFinalizationTransaction: vi.fn(),
+	clearMediaUploadPromotionMultipartTransaction: vi.fn(),
 	completeMediaUploadSessionTransaction: vi.fn(),
 	failMediaUploadSessionFinalizationTransaction: vi.fn(),
+	recordMediaUploadPromotionMultipartTransaction: vi.fn(),
 	MediaUploadSessionExpiredError: class MediaUploadSessionExpiredError extends Error {
 		constructor() {
 			super("Upload session expired");
@@ -15,6 +17,7 @@ vi.mock("@repo/database/media-assets", () => ({
 }));
 vi.mock("@repo/storage", () => ({
 	abortMultipartUpload: vi.fn(async () => undefined),
+	abortIncompleteMultipartUploads: vi.fn(async () => 0),
 	completeMultipartUpload: vi.fn(async () => undefined),
 	deleteObject: vi.fn(async () => undefined),
 	promoteStagedObject: vi.fn(),
@@ -24,12 +27,15 @@ vi.mock("../lib/asset-authorization", () => ({ requireOwnedUploadSession: vi.fn(
 import { auth } from "@repo/auth";
 import {
 	claimMediaUploadSessionFinalizationTransaction,
+	clearMediaUploadPromotionMultipartTransaction,
 	completeMediaUploadSessionTransaction,
 	failMediaUploadSessionFinalizationTransaction,
 	MediaUploadSessionExpiredError,
+	recordMediaUploadPromotionMultipartTransaction,
 } from "@repo/database/media-assets";
 import {
 	abortMultipartUpload,
+	abortIncompleteMultipartUploads,
 	completeMultipartUpload,
 	deleteObject,
 	promoteStagedObject,
@@ -89,11 +95,20 @@ describe("completeUploadSession", () => {
 		vi.mocked(claimMediaUploadSessionFinalizationTransaction).mockResolvedValue(
 			finalizationClaim() as never,
 		);
-		vi.mocked(promoteStagedObject).mockResolvedValue({
-			bytes: 16,
-			sha256: "a".repeat(64),
-			etag: "final-etag",
-			versionId: "final-version",
+		vi.mocked(recordMediaUploadPromotionMultipartTransaction).mockImplementation(async (input) => ({
+			multipartUploadId: input.multipartUploadId,
+			promotionToken: input.promotionToken,
+		}));
+		vi.mocked(clearMediaUploadPromotionMultipartTransaction).mockResolvedValue(undefined);
+		vi.mocked(abortIncompleteMultipartUploads).mockResolvedValue(0);
+		vi.mocked(promoteStagedObject).mockImplementation(async (input) => {
+			await input.promotion?.onMultipartUploadCreated?.({ uploadId: "final-multipart-1" });
+			return {
+				bytes: 16,
+				sha256: "a".repeat(64),
+				etag: "final-etag",
+				versionId: "final-version",
+			};
 		});
 		vi.mocked(completeMediaUploadSessionTransaction).mockResolvedValue({
 			id: "asset_1",
@@ -137,26 +152,136 @@ describe("completeUploadSession", () => {
 		expect(promoteStagedObject).not.toHaveBeenCalled();
 	});
 
-	it("promotes only the claimed staging object into the private final key", async () => {
+	it("cleans stale final multipart candidates and records a new durable promotion before copying", async () => {
 		await expect(
 			call(completeUploadSession, { sessionId: "session_1" }, context),
 		).resolves.toMatchObject({ id: "asset_1", status: "VERIFYING" });
 
-		expect(promoteStagedObject).toHaveBeenCalledWith({
-			staging: { bucket: "media", key: "users/user_1/staging/session_1/nonce.png" },
-			final: {
-				bucket: "media",
-				key: "users/user_1/assets/asset_1/versions/version_1/original.png",
-			},
-			contentLength: 16,
-			contentType: "image/png",
+		expect(abortIncompleteMultipartUploads).toHaveBeenCalledWith({
+			bucket: "media",
+			key: "users/user_1/assets/asset_1/versions/version_1/original.png",
 		});
+		expect(promoteStagedObject).toHaveBeenCalledWith(
+			expect.objectContaining({
+				staging: { bucket: "media", key: "users/user_1/staging/session_1/nonce.png" },
+				final: {
+					bucket: "media",
+					key: "users/user_1/assets/asset_1/versions/version_1/original.png",
+				},
+				contentLength: 16,
+				contentType: "image/png",
+				promotion: expect.objectContaining({
+					onMultipartUploadCreated: expect.any(Function),
+				}),
+			}),
+		);
+		expect(recordMediaUploadPromotionMultipartTransaction).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId: "session_1",
+				ownerId: "user_1",
+				finalizationToken: "finalize_1",
+				multipartUploadId: "final-multipart-1",
+				promotionToken: expect.any(String),
+			}),
+			expect.anything(),
+		);
 		expect(completeMediaUploadSessionTransaction).toHaveBeenCalledWith(
 			expect.objectContaining({
 				finalizationToken: "finalize_1",
 				checksum: "a".repeat(64),
+				promotion: {
+					multipartUploadId: "final-multipart-1",
+					promotionToken: expect.any(String),
+				},
 			}),
 			expect.anything(),
+		);
+	});
+
+	it("reuses a durable final multipart upload without aborting it as stale", async () => {
+		vi.mocked(claimMediaUploadSessionFinalizationTransaction).mockResolvedValueOnce(
+			finalizationClaim({
+				promotionMultipartUploadId: "durable-final-multipart",
+				promotionToken: "durable-promotion-token",
+			}) as never,
+		);
+
+		await expect(
+			call(completeUploadSession, { sessionId: "session_1" }, context),
+		).resolves.toMatchObject({ id: "asset_1" });
+
+		expect(abortIncompleteMultipartUploads).not.toHaveBeenCalled();
+		expect(recordMediaUploadPromotionMultipartTransaction).not.toHaveBeenCalled();
+		expect(promoteStagedObject).toHaveBeenCalledWith(
+			expect.objectContaining({
+				promotion: { uploadId: "durable-final-multipart" },
+			}),
+		);
+		expect(completeMediaUploadSessionTransaction).toHaveBeenCalledWith(
+			expect.objectContaining({
+				promotion: {
+					multipartUploadId: "durable-final-multipart",
+					promotionToken: "durable-promotion-token",
+				},
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("clears only a missing durable final multipart before retrying with a fresh promotion", async () => {
+		vi.mocked(claimMediaUploadSessionFinalizationTransaction).mockResolvedValueOnce(
+			finalizationClaim({
+				promotionMultipartUploadId: "lost-final-multipart",
+				promotionToken: "lost-promotion-token",
+			}) as never,
+		);
+		vi.mocked(promoteStagedObject)
+			.mockRejectedValueOnce(
+				Object.assign(new Error("final multipart expired"), { name: "NoSuchUpload" }),
+			)
+			.mockImplementationOnce(async (input) => {
+				await input.promotion?.onMultipartUploadCreated?.({
+					uploadId: "replacement-final-multipart",
+				});
+				return {
+					bytes: 16,
+					sha256: "a".repeat(64),
+					etag: "final-etag",
+					versionId: "final-version",
+				};
+			});
+
+		await expect(
+			call(completeUploadSession, { sessionId: "session_1" }, context),
+		).resolves.toMatchObject({ id: "asset_1" });
+
+		expect(clearMediaUploadPromotionMultipartTransaction).toHaveBeenCalledWith(
+			{
+				sessionId: "session_1",
+				ownerId: "user_1",
+				finalizationToken: "finalize_1",
+				multipartUploadId: "lost-final-multipart",
+				promotionToken: "lost-promotion-token",
+			},
+			expect.anything(),
+		);
+		expect(abortIncompleteMultipartUploads).toHaveBeenCalledWith({
+			bucket: "media",
+			key: "users/user_1/assets/asset_1/versions/version_1/original.png",
+		});
+		expect(recordMediaUploadPromotionMultipartTransaction).toHaveBeenCalledWith(
+			expect.objectContaining({ multipartUploadId: "replacement-final-multipart" }),
+			expect.anything(),
+		);
+		expect(promoteStagedObject).toHaveBeenNthCalledWith(
+			1,
+			expect.objectContaining({ promotion: { uploadId: "lost-final-multipart" } }),
+		);
+		expect(promoteStagedObject).toHaveBeenNthCalledWith(
+			2,
+			expect.objectContaining({
+				promotion: expect.objectContaining({ onMultipartUploadCreated: expect.any(Function) }),
+			}),
 		);
 	});
 

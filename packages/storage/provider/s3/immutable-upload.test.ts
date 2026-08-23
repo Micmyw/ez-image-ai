@@ -27,9 +27,10 @@ vi.mock("@aws-sdk/client-s3", () => {
 		GetObjectCommand: class GetObjectCommand extends Command {},
 		HeadBucketCommand: class HeadBucketCommand extends Command {},
 		HeadObjectCommand: class HeadObjectCommand extends Command {},
+		ListMultipartUploadsCommand: class ListMultipartUploadsCommand extends Command {},
 		PutObjectCommand: class PutObjectCommand extends Command {},
 		S3Client: class S3Client {
-			send = s3.send;
+			send = (...args: unknown[]) => s3.send(...args);
 		},
 		UploadPartCommand: class UploadPartCommand extends Command {},
 	};
@@ -37,7 +38,11 @@ vi.mock("@aws-sdk/client-s3", () => {
 vi.mock("@aws-sdk/s3-request-presigner", () => ({ getSignedUrl: vi.fn() }));
 vi.mock("@repo/logs", () => ({ logger: { error: vi.fn() } }));
 
-import { promoteStagedObject } from "./index";
+import {
+	abortIncompleteMultipartUploads,
+	listMultipartUploads,
+	promoteStagedObject,
+} from "./index";
 
 describe("promoteStagedObject", () => {
 	beforeEach(() => {
