@@ -1244,6 +1244,9 @@ export async function createGenerationOutputAssetBindingTransaction(
 	input: CreateGenerationOutputAssetBindingInput,
 	client: MediaTransactionClient,
 ) {
+	if (!/^[a-f0-9]{64}$/i.test(input.asset.checksum)) {
+		throw new Error("GENERATION_OUTPUT_CHECKSUM_INVALID");
+	}
 	return runSerializable(client, async (tx) => {
 		await lockMediaAssetGenerationBindings([input.asset.id], tx);
 		const job = await tx.generationJob.findFirst({
@@ -1304,7 +1307,7 @@ export async function createGenerationOutputAssetBindingTransaction(
 				role: "OUTPUT",
 				position: 0,
 			},
-			update: {},
+			update: { assetChecksum: input.asset.checksum },
 		});
 		return asset;
 	});
@@ -1536,7 +1539,7 @@ export async function completeGenerationOutputTransferTransaction(
 	},
 	client: MediaTransactionClient,
 ): Promise<{ outcome: "COMPLETED" | "STALE"; asset: GenerationOutputTransferAsset }> {
-	if (input.bytes <= 0n || !input.checksum) {
+	if (input.bytes <= 0n || !/^[a-f0-9]{64}$/i.test(input.checksum)) {
 		throw new Error("Generation output transfer identity is invalid");
 	}
 	return runSerializable(client, async (tx) => {
@@ -1662,7 +1665,10 @@ async function bindGenerationOutputAsset(
 		where: { id: assetId },
 		select: { checksum: true },
 	});
-	const assetChecksum = asset.checksum ?? "";
+	const assetChecksum =
+		asset.checksum && /^[a-f0-9]{64}$/i.test(asset.checksum)
+			? asset.checksum
+			: `pending-output:${assetId}`;
 	await tx.generationJobAsset.upsert({
 		where: { jobId_assetId_role: { jobId, assetId, role: "OUTPUT" } },
 		create: { jobId, assetId, assetChecksum, role: "OUTPUT", position: 0 },

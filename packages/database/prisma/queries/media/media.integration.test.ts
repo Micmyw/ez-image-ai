@@ -155,6 +155,48 @@ async function createBudgetFixture(client: PrismaClient, costs: bigint[]) {
 	return { ownerId, quotes };
 }
 
+async function approveReadyAssetForTest(
+	client: PrismaClient,
+	input: { assetId: string; kind: "INPUT" | "OUTPUT"; checksum?: string },
+) {
+	const checksum = input.checksum ?? crypto.randomUUID().replaceAll("-", "").repeat(2);
+	const verificationValidUntil = new Date(Date.now() + 60 * 60_000);
+	await client.mediaAsset.update({
+		where: { id: input.assetId },
+		data: {
+			status: "VERIFYING",
+			checksum,
+			verificationGeneration: 1,
+			verificationAttemptCount: 1,
+			verificationProvider: "test",
+			verificationRuleVersion: "asset-binding-rule-v1",
+			verificationPolicyVersion: "asset-binding-policy-v1",
+			verificationValidUntil,
+		},
+	});
+	await client.assetModerationResult.create({
+		data: {
+			assetId: input.assetId,
+			assetChecksum: checksum,
+			verificationGeneration: 1,
+			attemptNumber: 1,
+			evidenceKind: input.kind,
+			provider: "test",
+			ruleVersion: "asset-binding-rule-v1",
+			policyVersion: "asset-binding-policy-v1",
+			status: "APPROVED",
+			reasonCode: "TEST_ALLOW_ASSET_BINDING",
+			categories: {},
+			rawEnvelope: { decision: "ALLOW" },
+			validUntil: verificationValidUntil,
+		},
+	});
+	return client.mediaAsset.update({
+		where: { id: input.assetId },
+		data: { status: "READY" },
+	});
+}
+
 async function createReadyInputAssetFixture(client: PrismaClient) {
 	const ownerId = `asset-binding-user-${crypto.randomUUID()}`;
 	const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
@@ -1766,19 +1808,29 @@ describe("media PostgreSQL transactions", () => {
 			where: { id: created.job.id },
 			data: { status: "FINALIZING" },
 		});
-		const output = await client.mediaAsset.create({
+		const verifyingOutput = await client.mediaAsset.create({
 			data: {
 				ownerType: "USER",
 				ownerId: fixture.ownerId,
 				kind: "OUTPUT",
-				status: "READY",
+				status: "VERIFYING",
 				objectKey: `users/${fixture.ownerId}/assets/${crypto.randomUUID()}/output.png`,
 				mimeType: "image/png",
 				byteSize: 10n,
 			},
 		});
+		const output = await approveReadyAssetForTest(client, {
+			assetId: verifyingOutput.id,
+			kind: "OUTPUT",
+		});
 		await client.generationJobAsset.create({
-			data: { jobId: created.job.id, assetId: output.id, role: "OUTPUT", position: 0 },
+			data: {
+				jobId: created.job.id,
+				assetId: output.id,
+				assetChecksum: output.checksum!,
+				role: "OUTPUT",
+				position: 0,
+			},
 		});
 
 		await expect(
@@ -1807,7 +1859,7 @@ describe("media PostgreSQL transactions", () => {
 					objectKey: `users/${fixture.ownerId}/assets/${assetId}/output.png`,
 					mimeType: "image/png",
 					byteSize: 10n,
-					checksum: `sha256-${assetId}`,
+					checksum: "b".repeat(64),
 					sourceUrl: `provider-output:${assetId}`,
 				},
 			},
@@ -2036,13 +2088,17 @@ describe("media PostgreSQL transactions", () => {
 					objectKey: `users/${fixture.ownerId}/assets/${assetId}/output.png`,
 					mimeType: "image/png",
 					byteSize: 10n,
-					checksum: `sha256-${assetId}`,
+					checksum: "c".repeat(64),
 					sourceUrl: `provider-output:${assetId}`,
 				},
 			},
 			client,
 		);
-		await client.mediaAsset.update({ where: { id: assetId }, data: { status: "READY" } });
+		await approveReadyAssetForTest(client, {
+			assetId,
+			kind: "OUTPUT",
+			checksum: "c".repeat(64),
+		});
 		await client.generationJob.update({
 			where: { id: created.job.id },
 			data: { status: "SUCCEEDED" },
@@ -2126,19 +2182,24 @@ describe("media PostgreSQL transactions", () => {
 			data: { status: "FINALIZING" },
 		});
 		const assetId = `racing-output-${crypto.randomUUID()}`;
-		const output = await client.mediaAsset.create({
+		const verifyingOutput = await client.mediaAsset.create({
 			data: {
 				id: assetId,
 				ownerType: "USER",
 				ownerId: fixture.ownerId,
 				kind: "OUTPUT",
-				status: "READY",
+				status: "VERIFYING",
 				objectKey: `users/${fixture.ownerId}/assets/${assetId}/output.png`,
 				mimeType: "image/png",
 				byteSize: 10n,
-				checksum: `sha256-${assetId}`,
+				checksum: "d".repeat(64),
 				sourceUrl: `provider-output:${assetId}`,
 			},
+		});
+		const output = await approveReadyAssetForTest(client, {
+			assetId: verifyingOutput.id,
+			kind: "OUTPUT",
+			checksum: "d".repeat(64),
 		});
 		const lockClassId = 241_872;
 		const lockObjectId = Math.floor(Math.random() * 1_000_000) + 1;
