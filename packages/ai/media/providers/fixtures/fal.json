@@ -1,0 +1,24 @@
+{
+	"accepted": {
+		"request_id": "fal-1",
+		"status": "IN_QUEUE",
+		"status_url": "https://queue.fal.run/fal-1/status",
+		"response_url": "https://queue.fal.run/fal-1"
+	},
+	"queued": { "request_id": "fal-1", "status": "IN_QUEUE" },
+	"running": { "request_id": "fal-1", "status": "IN_PROGRESS" },
+	"succeeded": {
+		"request_id": "fal-1",
+		"status": "COMPLETED",
+		"images": [{ "url": "https://cdn.test/1.png" }, { "url": "https://cdn.test/2.png" }]
+	},
+	"failedRetryable": {
+		"request_id": "fal-2",
+		"status": "ERROR",
+		"error": "temporarily unavailable"
+	},
+	"failedTerminal": { "request_id": "fal-3", "status": "ERROR", "error": "invalid prompt" },
+	"canceled": { "request_id": "fal-4", "status": "CANCELED" },
+	"malformed": { "status": "IN_QUEUE" },
+	"unknownSubmission": { "detail": "unavailable" }
+}

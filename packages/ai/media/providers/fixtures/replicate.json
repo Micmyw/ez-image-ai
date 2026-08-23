@@ -1,0 +1,15 @@
+{
+	"accepted": { "id": "task-1", "status": "starting" },
+	"queued": { "id": "task-1", "status": "starting" },
+	"running": { "id": "task-1", "status": "processing" },
+	"succeeded": {
+		"id": "task-1",
+		"status": "succeeded",
+		"output": ["https://cdn.test/1.png", "https://cdn.test/2.png"]
+	},
+	"failedRetryable": { "id": "task-2", "status": "failed", "error": "rate limit exceeded" },
+	"failedTerminal": { "id": "task-3", "status": "failed", "error": "invalid prompt" },
+	"canceled": { "id": "task-4", "status": "canceled" },
+	"malformed": { "status": "starting" },
+	"unknownSubmission": { "detail": "unavailable" }
+}

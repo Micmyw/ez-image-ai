@@ -1,0 +1,42 @@
+{
+	"name": "@repo/api",
+	"version": "0.0.0",
+	"main": "./index.ts",
+	"scripts": {
+		"clean": "git clean -xdf .cache .turbo dist node_modules",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:coverage": "vitest run --coverage",
+		"type-check": "tsc --noEmit --incremental false"
+	},
+	"dependencies": {
+		"@orpc/client": "catalog:",
+		"@orpc/json-schema": "catalog:",
+		"@orpc/openapi": "catalog:",
+		"@orpc/server": "catalog:",
+		"@orpc/zod": "catalog:",
+		"@repo/ai": "workspace:*",
+		"@repo/auth": "workspace:*",
+		"@repo/config": "workspace:*",
+		"@repo/database": "workspace:*",
+		"@repo/i18n": "workspace:*",
+		"@repo/jobs": "workspace:*",
+		"@repo/logs": "workspace:*",
+		"@repo/notifications": "workspace:*",
+		"@repo/payments": "workspace:*",
+		"@repo/storage": "workspace:*",
+		"@repo/utils": "workspace:*",
+		"@sindresorhus/slugify": "catalog:",
+		"@trigger.dev/sdk": "catalog:",
+		"hono": "catalog:",
+		"nanoid": "catalog:",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@prisma/adapter-pg": "catalog:",
+		"@repo/tsconfig": "workspace:*",
+		"@vitest/coverage-v8": "catalog:",
+		"typescript": "catalog:",
+		"vitest": "catalog:"
+	}
+}

@@ -1,0 +1,1136 @@
+import { PrismaPg } from "@prisma/adapter-pg";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+
+import {
+	claimOutboxBatch,
+	completeOutboxEvent,
+	createCreditGrant,
+	createGenerationJobTransaction,
+	createModeratedGenerationQuoteTransaction,
+	fingerprintGenerationQuoteSecurityPayload,
+	createMediaAsset,
+	createMediaUploadSessionTransaction,
+	getCreditInvariantReport,
+	getCommittedDailyGenerationCost,
+	IdempotencyConflictError,
+	ingestProviderEvent,
+	listCreditReservationAllocations,
+	listMediaAssets,
+	refundCreditGrant,
+	releaseOutboxEvent,
+	releaseCredits,
+	reserveCredits,
+	settleCredits,
+	transitionGenerationJob,
+	abortMediaUploadSessionTransaction,
+} from ".";
+import { PrismaClient } from "../../generated/client";
+import type { CreateGenerationQuoteInput } from "./types";
+
+const TEST_MODERATION_RULE_VERSION = "TEST_ALLOW_DATABASE_INTEGRATION_V1";
+
+async function createApprovedQuote(client: PrismaClient, input: CreateGenerationQuoteInput) {
+	return createModeratedGenerationQuoteTransaction(
+		{
+			...input,
+			moderation: {
+				decision: "ALLOW",
+				provider: "test",
+				ruleVersion: TEST_MODERATION_RULE_VERSION,
+				reasonCode: "TEST_ALLOW_DATABASE_INTEGRATION",
+				inputFingerprint: fingerprintGenerationQuoteSecurityPayload(input),
+			},
+		},
+		client,
+	);
+}
+
+const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
+const DATABASE_URL = process.env.DATABASE_URL;
+
+interface SerializableAttemptObservation {
+	attempt: number;
+	outcome: "STARTED" | "SERIALIZATION_CONFLICT";
+}
+
+async function waitForAdvisoryLock(
+	client: PrismaClient,
+	classId: number,
+	objectId: number,
+): Promise<boolean> {
+	const deadline = Date.now() + 2_000;
+	while (Date.now() < deadline) {
+		const rows = await client.$queryRaw<Array<{ locked: boolean }>>`
+			SELECT EXISTS (
+				SELECT 1 FROM pg_locks
+				WHERE locktype = 'advisory'
+				  AND classid = ${classId}::oid
+				  AND objid = ${objectId}::oid
+				  AND granted
+			) AS locked`;
+		if (rows[0]?.locked) return true;
+		await new Promise((resolve) => setTimeout(resolve, 10));
+	}
+	return false;
+}
+
+async function createReservedCreditsFixture(
+	client: PrismaClient,
+	input: { grantAmount: bigint; reserveAmount: bigint; expiresAt?: Date },
+) {
+	const ownerId = `test-user-${crypto.randomUUID()}`;
+	const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
+	const grantReferenceKey = `test-grant-${crypto.randomUUID()}`;
+	await createCreditGrant(
+		{
+			accountId: account.id,
+			amount: input.grantAmount,
+			referenceKey: grantReferenceKey,
+			expiresAt: input.expiresAt,
+		},
+		client,
+	);
+	const quote = await createApprovedQuote(client, {
+		ownerType: "USER",
+		ownerId,
+		submittedByUserId: ownerId,
+		productKey: "test-product",
+		catalogVersion: "test-v1",
+		pricingVersion: "test-v1",
+		credits: input.reserveAmount,
+		costMicros: 0n,
+		inputSnapshot: { kind: "text-to-image", prompt: "review regression" },
+		pricingSnapshot: {},
+		expiresAt: new Date(Date.now() + 60_000),
+	});
+	const created = await createGenerationJobTransaction(
+		{
+			ownerType: "USER",
+			ownerId,
+			submittedByUserId: ownerId,
+			quoteId: quote.id,
+			idempotencyKey: `test-job-${crypto.randomUUID()}`,
+			inputAssetIds: [],
+			expectedModerationRuleVersion: TEST_MODERATION_RULE_VERSION,
+		},
+		client,
+	);
+	return { ownerId, account, grantReferenceKey, ...created };
+}
+
+async function createBudgetFixture(client: PrismaClient, costs: bigint[]) {
+	const ownerId = `budget-user-${crypto.randomUUID()}`;
+	const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
+	await createCreditGrant(
+		{
+			accountId: account.id,
+			amount: 1_000n,
+			referenceKey: `budget-grant-${crypto.randomUUID()}`,
+		},
+		client,
+	);
+	const quotes = await Promise.all(
+		costs.map((costMicros, index) =>
+			createApprovedQuote(client, {
+				ownerType: "USER",
+				ownerId,
+				submittedByUserId: ownerId,
+				productKey: "image-fast",
+				catalogVersion: "test-v1",
+				pricingVersion: "test-v1",
+				credits: 4n,
+				costMicros,
+				inputSnapshot: { kind: "text-to-image", prompt: `budget-${index}` },
+				pricingSnapshot: {},
+				expiresAt: new Date(Date.now() + 60_000),
+			}),
+		),
+	);
+	return { ownerId, quotes };
+}
+
+function assertSafeTestDatabaseUrl(): string {
+	if (!TEST_DATABASE_URL) {
+		throw new Error("BLOCKED_BY_ENVIRONMENT: TEST_DATABASE_URL is required");
+	}
+	if (DATABASE_URL && TEST_DATABASE_URL === DATABASE_URL) {
+		throw new Error("UNSAFE_TEST_DATABASE: TEST_DATABASE_URL must not equal DATABASE_URL");
+	}
+
+	const parsed = new URL(TEST_DATABASE_URL);
+	const databaseName = parsed.pathname.slice(1).toLowerCase();
+	const looksLocal = ["localhost", "127.0.0.1", "::1"].includes(parsed.hostname);
+	const looksTestOnly = /(^|[_-])(test|testing)([_-]|$)/.test(databaseName);
+	if (!looksLocal || !looksTestOnly) {
+		throw new Error(
+			"UNSAFE_TEST_DATABASE: use a local database whose name contains test or testing",
+		);
+	}
+	return TEST_DATABASE_URL;
+}
+
+describe("media PostgreSQL transactions", () => {
+	let client: PrismaClient;
+
+	beforeAll(async () => {
+		client = new PrismaClient({
+			adapter: new PrismaPg({ connectionString: assertSafeTestDatabaseUrl() }),
+		});
+	});
+
+	afterAll(async () => {
+		await client?.$disconnect();
+	});
+
+	it("never commits concurrent reservations beyond FIFO lot availability", async () => {
+		const ownerId = `test-user-${crypto.randomUUID()}`;
+		const account = await client.creditAccount.create({
+			data: { ownerType: "USER", ownerId },
+		});
+		await createCreditGrant(
+			{
+				accountId: account.id,
+				amount: 100n,
+				referenceKey: `test-grant-${crypto.randomUUID()}`,
+			},
+			client,
+		);
+
+		const quoteInputs = await Promise.all(
+			[0, 1].map((index) =>
+				createApprovedQuote(client, {
+					ownerType: "USER",
+					ownerId,
+					submittedByUserId: ownerId,
+					productKey: "image-quality",
+					catalogVersion: "test-v1",
+					pricingVersion: "test-v1",
+					credits: 80n,
+					costMicros: 0n,
+					inputSnapshot: { kind: "text-to-image", prompt: `test-${index}` },
+					pricingSnapshot: {},
+					expiresAt: new Date(Date.now() + 60_000),
+				}),
+			),
+		);
+
+		const attempts = await Promise.allSettled(
+			quoteInputs.map((quote, index) =>
+				createGenerationJobTransaction(
+					{
+						ownerType: "USER",
+						ownerId,
+						submittedByUserId: ownerId,
+						quoteId: quote.id,
+						idempotencyKey: `test-reserve-${index}-${crypto.randomUUID()}`,
+						inputAssetIds: [],
+						expectedModerationRuleVersion: TEST_MODERATION_RULE_VERSION,
+					},
+					client,
+				),
+			),
+		);
+
+		const successfulReservations = attempts
+			.filter((item) => item.status === "fulfilled")
+			.map((item) => item.value.reservation.amount);
+		expect(successfulReservations.reduce((sum, amount) => sum + amount, 0n)).toBeLessThanOrEqual(
+			100n,
+		);
+		expect(await getCreditInvariantReport(account.id, client)).toMatchObject({ valid: true });
+	});
+
+	it("does not count abandoned quotes toward committed daily generation cost", async () => {
+		const ownerId = `budget-abandoned-${crypto.randomUUID()}`;
+		await client.generationQuote.createMany({
+			data: Array.from({ length: 100 }, (_, index) => ({
+				ownerType: "USER" as const,
+				ownerId,
+				submittedByUserId: ownerId,
+				productKey: "image-fast",
+				catalogVersion: "test-v1",
+				pricingVersion: "test-v1",
+				credits: 4n,
+				costMicros: 60n,
+				inputSnapshot: { kind: "text-to-image", prompt: `abandoned-${index}` },
+				pricingSnapshot: {},
+				expiresAt: new Date(Date.now() + 60_000),
+			})),
+		});
+		expect(await getCommittedDailyGenerationCost({ ownerType: "USER", ownerId }, client)).toBe(0n);
+	});
+
+	it("commits quote cost once and idempotent replay does not consume budget twice", async () => {
+		const fixture = await createBudgetFixture(client, [60n]);
+		const input = {
+			ownerType: "USER" as const,
+			ownerId: fixture.ownerId,
+			submittedByUserId: fixture.ownerId,
+			quoteId: fixture.quotes[0]!.id,
+			idempotencyKey: `budget-once-${crypto.randomUUID()}`,
+			inputAssetIds: [],
+			expectedModerationRuleVersion: TEST_MODERATION_RULE_VERSION,
+			maximumDailyCostMicros: 100n,
+		};
+		const created = await createGenerationJobTransaction(input, client);
+		const replay = await createGenerationJobTransaction(input, client);
+		expect(replay).toMatchObject({ job: { id: created.job.id }, replayed: true });
+		expect(
+			await getCommittedDailyGenerationCost(
+				{ ownerType: "USER", ownerId: fixture.ownerId },
+				client,
+			),
+		).toBe(60n);
+	});
+
+	it("allows only one concurrent generation when two candidates would exceed the daily cap", async () => {
+		const fixture = await createBudgetFixture(client, [60n, 60n]);
+		const results = await Promise.allSettled(
+			fixture.quotes.map((quote, index) =>
+				createGenerationJobTransaction(
+					{
+						ownerType: "USER",
+						ownerId: fixture.ownerId,
+						submittedByUserId: fixture.ownerId,
+						quoteId: quote.id,
+						idempotencyKey: `budget-concurrent-${index}-${crypto.randomUUID()}`,
+						inputAssetIds: [],
+						expectedModerationRuleVersion: TEST_MODERATION_RULE_VERSION,
+						maximumDailyCostMicros: 100n,
+					},
+					client,
+				),
+			),
+		);
+		expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+		const rejected = results.filter((result) => result.status === "rejected");
+		expect(rejected).toHaveLength(1);
+		expect(rejected[0]!.reason).toMatchObject({ message: "BUDGET_EXCEEDED" });
+		expect(
+			await getCommittedDailyGenerationCost(
+				{ ownerType: "USER", ownerId: fixture.ownerId },
+				client,
+			),
+		).toBe(60n);
+	});
+
+	it("settles a reservation only once", async () => {
+		const reservation = await client.creditReservation.findFirstOrThrow({
+			where: { status: "ACTIVE" },
+		});
+		const first = await settleCredits(
+			{
+				reservationId: reservation.id,
+				amount: reservation.amount,
+				referenceKey: `test-settle-${reservation.id}`,
+			},
+			client,
+		);
+		const replay = await settleCredits(
+			{
+				reservationId: reservation.id,
+				amount: reservation.amount,
+				referenceKey: `test-settle-${reservation.id}`,
+			},
+			client,
+		);
+		expect(replay).toEqual(first);
+	});
+
+	it("returns the original job and reservation for a duplicate owner idempotency key", async () => {
+		const ownerId = `test-user-${crypto.randomUUID()}`;
+		const account = await client.creditAccount.create({
+			data: { ownerType: "USER", ownerId },
+		});
+		await createCreditGrant(
+			{ accountId: account.id, amount: 40n, referenceKey: `test-grant-${ownerId}` },
+			client,
+		);
+		const quote = await createApprovedQuote(client, {
+			ownerType: "USER",
+			ownerId,
+			submittedByUserId: ownerId,
+			productKey: "image-fast",
+			catalogVersion: "test-v1",
+			pricingVersion: "test-v1",
+			credits: 4n,
+			costMicros: 0n,
+			inputSnapshot: { kind: "text-to-image", prompt: "duplicate" },
+			pricingSnapshot: {},
+			expiresAt: new Date(Date.now() + 60_000),
+		});
+		const input = {
+			ownerType: "USER" as const,
+			ownerId,
+			submittedByUserId: ownerId,
+			quoteId: quote.id,
+			idempotencyKey: `test-job-${crypto.randomUUID()}`,
+			inputAssetIds: [],
+			expectedModerationRuleVersion: TEST_MODERATION_RULE_VERSION,
+		};
+		const created = await createGenerationJobTransaction(input, client);
+		const replay = await createGenerationJobTransaction(input, client);
+		expect(replay).toMatchObject({
+			job: { id: created.job.id },
+			reservation: { id: created.reservation.id },
+			replayed: true,
+		});
+		expect(
+			await client.outboxEvent.count({ where: { dedupeKey: `job:${created.job.id}:created` } }),
+		).toBe(1);
+
+		const applied = await transitionGenerationJob(
+			{
+				jobId: created.job.id,
+				expectedStatuses: ["RESERVED"],
+				expectedVersion: created.job.version,
+				nextStatus: "DISPATCH_QUEUED",
+			},
+			client,
+		);
+		const stale = await transitionGenerationJob(
+			{
+				jobId: created.job.id,
+				expectedStatuses: ["RESERVED"],
+				expectedVersion: created.job.version,
+				nextStatus: "DISPATCH_QUEUED",
+			},
+			client,
+		);
+		expect(applied.applied).toBe(true);
+		expect(stale).toMatchObject({ applied: false, job: { status: "DISPATCH_QUEUED", version: 1 } });
+	});
+
+	it("allocates reservations from earliest-expiring lots first", async () => {
+		const ownerId = `test-user-${crypto.randomUUID()}`;
+		const account = await client.creditAccount.create({
+			data: { ownerType: "USER", ownerId },
+		});
+		const later = await createCreditGrant(
+			{
+				accountId: account.id,
+				amount: 20n,
+				referenceKey: `test-later-${ownerId}`,
+				expiresAt: new Date(Date.now() + 120_000),
+			},
+			client,
+		);
+		const sooner = await createCreditGrant(
+			{
+				accountId: account.id,
+				amount: 10n,
+				referenceKey: `test-sooner-${ownerId}`,
+				expiresAt: new Date(Date.now() + 60_000),
+			},
+			client,
+		);
+		const quote = await createApprovedQuote(client, {
+			ownerType: "USER",
+			ownerId,
+			submittedByUserId: ownerId,
+			productKey: "video-fast",
+			catalogVersion: "test-v1",
+			pricingVersion: "test-v1",
+			credits: 25n,
+			costMicros: 0n,
+			inputSnapshot: { kind: "text-to-video", prompt: "fifo" },
+			pricingSnapshot: {},
+			expiresAt: new Date(Date.now() + 60_000),
+		});
+		const result = await createGenerationJobTransaction(
+			{
+				ownerType: "USER",
+				ownerId,
+				submittedByUserId: ownerId,
+				quoteId: quote.id,
+				idempotencyKey: `test-fifo-${crypto.randomUUID()}`,
+				inputAssetIds: [],
+				expectedModerationRuleVersion: TEST_MODERATION_RULE_VERSION,
+			},
+			client,
+		);
+		const allocations = await listCreditReservationAllocations(result.reservation.id, client);
+		expect(allocations.map(({ lot, amount }) => [lot.id, amount])).toEqual([
+			[sooner.lotId, 10n],
+			[later.lotId, 15n],
+		]);
+	});
+
+	it("records one provider envelope and one outbox event for duplicate delivery", async () => {
+		const providerEventId = `test-provider-event-${crypto.randomUUID()}`;
+		const input = {
+			provider: "replicate",
+			providerEventId,
+			providerTaskId: `test-task-${crypto.randomUUID()}`,
+			verifiedAt: new Date(),
+			envelope: { status: "succeeded" },
+		};
+		const created = await ingestProviderEvent(input, client);
+		const replay = await ingestProviderEvent(input, client);
+		expect(created.replayed).toBe(false);
+		expect(replay).toMatchObject({ event: { id: created.event.id }, replayed: true });
+		expect(
+			await client.outboxEvent.count({
+				where: { dedupeKey: `provider-event:replicate:${providerEventId}` },
+			}),
+		).toBe(1);
+	});
+
+	it("recovers expired outbox leases and dead-letters after bounded attempts", async () => {
+		const dedupeKey = `test-outbox-${crypto.randomUUID()}`;
+		await client.outboxEvent.create({
+			data: {
+				eventType: "TEST_EVENT",
+				aggregateType: "TEST",
+				aggregateId: dedupeKey,
+				dedupeKey,
+				payload: {},
+				availableAt: new Date(0),
+			},
+		});
+		const first = await claimOutboxBatch(
+			{ workerId: "test-worker-a", limit: 100, leaseSeconds: 1 },
+			client,
+		);
+		const claimed = first.find((item) => item.dedupeKey === dedupeKey)!;
+		expect(claimed.attempts).toBe(1);
+		const recovered = await claimOutboxBatch(
+			{
+				workerId: "test-worker-b",
+				limit: 100,
+				leaseSeconds: 30,
+				now: new Date(Date.now() + 2_000),
+			},
+			client,
+		);
+		expect(recovered.find((item) => item.id === claimed.id)?.attempts).toBe(2);
+		await releaseOutboxEvent(
+			{
+				id: claimed.id,
+				workerId: "test-worker-b",
+				leaseToken: recovered.find((item) => item.id === claimed.id)!.leaseToken,
+				error: "test failure",
+				maxAttempts: 2,
+				retryAt: new Date(),
+			},
+			client,
+		);
+		expect(await client.outboxEvent.findUnique({ where: { id: claimed.id } })).toMatchObject({
+			status: "DEAD_LETTER",
+			attempts: 2,
+		});
+	});
+
+	it("turns grant refund shortage into debt and repays debt before new spendable credits", async () => {
+		const ownerId = `test-user-${crypto.randomUUID()}`;
+		const account = await client.creditAccount.create({
+			data: { ownerType: "USER", ownerId },
+		});
+		const grantReferenceKey = `test-refundable-${ownerId}`;
+		await createCreditGrant(
+			{ accountId: account.id, amount: 10n, referenceKey: grantReferenceKey },
+			client,
+		);
+		await refundCreditGrant(
+			{
+				accountId: account.id,
+				amount: 15n,
+				grantReferenceKey,
+				referenceKey: `test-refund-${ownerId}`,
+			},
+			client,
+		);
+		expect(await client.creditAccount.findUnique({ where: { id: account.id } })).toMatchObject({
+			spendableCredits: 0n,
+			creditDebt: 5n,
+		});
+		await createCreditGrant(
+			{ accountId: account.id, amount: 8n, referenceKey: `test-repay-${ownerId}` },
+			client,
+		);
+		expect(await client.creditAccount.findUnique({ where: { id: account.id } })).toMatchObject({
+			spendableCredits: 3n,
+			creditDebt: 0n,
+		});
+	});
+
+	it("does not resurrect a fully refunded reserved grant on zero-charge release", async () => {
+		const fixture = await createReservedCreditsFixture(client, {
+			grantAmount: 10n,
+			reserveAmount: 10n,
+		});
+		await refundCreditGrant(
+			{
+				accountId: fixture.account.id,
+				amount: 10n,
+				grantReferenceKey: fixture.grantReferenceKey,
+				referenceKey: `test-refund-reserved-${crypto.randomUUID()}`,
+			},
+			client,
+		);
+		await releaseCredits(
+			{
+				reservationId: fixture.reservation.id,
+				referenceKey: `test-release-refunded-${crypto.randomUUID()}`,
+			},
+			client,
+		);
+
+		const [account, lot, invariant] = await Promise.all([
+			client.creditAccount.findUniqueOrThrow({ where: { id: fixture.account.id } }),
+			client.creditLot.findFirstOrThrow({ where: { accountId: fixture.account.id } }),
+			getCreditInvariantReport(fixture.account.id, client),
+		]);
+		expect(account).toMatchObject({ spendableCredits: 0n, reservedCredits: 0n, creditDebt: 0n });
+		expect(lot).toMatchObject({ remainingAmount: 0n, reservedAmount: 0n });
+		expect(invariant).toMatchObject({ valid: true });
+	});
+
+	it("restores only the non-refunded part of a partially revoked reservation", async () => {
+		const fixture = await createReservedCreditsFixture(client, {
+			grantAmount: 10n,
+			reserveAmount: 6n,
+		});
+		await refundCreditGrant(
+			{
+				accountId: fixture.account.id,
+				amount: 8n,
+				grantReferenceKey: fixture.grantReferenceKey,
+				referenceKey: `test-refund-partial-${crypto.randomUUID()}`,
+			},
+			client,
+		);
+		await releaseCredits(
+			{
+				reservationId: fixture.reservation.id,
+				referenceKey: `test-release-partial-${crypto.randomUUID()}`,
+			},
+			client,
+		);
+		expect(
+			await client.creditAccount.findUniqueOrThrow({ where: { id: fixture.account.id } }),
+		).toMatchObject({ spendableCredits: 2n, reservedCredits: 0n, creditDebt: 0n });
+		expect(await getCreditInvariantReport(fixture.account.id, client)).toMatchObject({
+			valid: true,
+		});
+	});
+
+	it("refunds unused units from an expired matching lot instead of creating false debt", async () => {
+		const ownerId = `test-user-${crypto.randomUUID()}`;
+		const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
+		const grantReferenceKey = `test-expired-grant-${crypto.randomUUID()}`;
+		await createCreditGrant(
+			{
+				accountId: account.id,
+				amount: 7n,
+				referenceKey: grantReferenceKey,
+				expiresAt: new Date(Date.now() - 60_000),
+			},
+			client,
+		);
+		await refundCreditGrant(
+			{
+				accountId: account.id,
+				amount: 7n,
+				grantReferenceKey,
+				referenceKey: `test-expired-refund-${crypto.randomUUID()}`,
+			},
+			client,
+		);
+		expect(
+			await client.creditAccount.findUniqueOrThrow({ where: { id: account.id } }),
+		).toMatchObject({
+			spendableCredits: 0n,
+			creditDebt: 0n,
+		});
+	});
+
+	it("rejects stale outbox release and completion after the lease is reclaimed", async () => {
+		const dedupeKey = `test-outbox-cas-${crypto.randomUUID()}`;
+		await client.outboxEvent.create({
+			data: {
+				eventType: "TEST_EVENT",
+				aggregateType: "TEST",
+				aggregateId: dedupeKey,
+				dedupeKey,
+				payload: {},
+				availableAt: new Date(0),
+			},
+		});
+		const first = (
+			await claimOutboxBatch(
+				{ workerId: "test-reused-worker", limit: 100, leaseSeconds: 1 },
+				client,
+			)
+		).find((item) => item.dedupeKey === dedupeKey)! as { id: string; leaseToken?: string };
+		expect(first.leaseToken).toEqual(expect.any(String));
+		const second = (
+			await claimOutboxBatch(
+				{
+					workerId: "test-reused-worker",
+					limit: 100,
+					leaseSeconds: 30,
+					now: new Date(Date.now() + 2_000),
+				},
+				client,
+			)
+		).find((item) => item.id === first.id)! as { id: string; leaseToken?: string };
+		expect(second.leaseToken).toEqual(expect.any(String));
+		expect(second.leaseToken).not.toBe(first.leaseToken);
+
+		const staleRelease = await releaseOutboxEvent(
+			{
+				id: first.id,
+				workerId: "test-reused-worker",
+				leaseToken: first.leaseToken!,
+				error: "stale failure",
+				maxAttempts: 5,
+				retryAt: new Date(),
+			} as Parameters<typeof releaseOutboxEvent>[0] & { leaseToken: string },
+			client,
+		);
+		const staleComplete = await completeOutboxEvent(
+			first.id,
+			"test-reused-worker",
+			first.leaseToken!,
+			client,
+		);
+		expect(staleRelease).toMatchObject({ applied: false });
+		expect(staleComplete).toMatchObject({ count: 0 });
+		expect(await client.outboxEvent.findUniqueOrThrow({ where: { id: first.id } })).toMatchObject({
+			status: "LEASED",
+			leaseOwner: "test-reused-worker",
+			leaseToken: second.leaseToken,
+		});
+	});
+
+	it("rejects idempotency-key reuse with different credit commands", async () => {
+		const ownerA = `test-user-${crypto.randomUUID()}`;
+		const ownerB = `test-user-${crypto.randomUUID()}`;
+		const [accountA, accountB] = await Promise.all([
+			client.creditAccount.create({ data: { ownerType: "USER", ownerId: ownerA } }),
+			client.creditAccount.create({ data: { ownerType: "USER", ownerId: ownerB } }),
+		]);
+		const grantKey = `test-grant-conflict-${crypto.randomUUID()}`;
+		const grant = await createCreditGrant(
+			{ accountId: accountA.id, amount: 10n, referenceKey: grantKey },
+			client,
+		);
+		const grantReplay = await createCreditGrant(
+			{ accountId: accountA.id, amount: 10n, referenceKey: grantKey },
+			client,
+		);
+		expect(grantReplay.id).toBe(grant.id);
+		await expect(
+			createCreditGrant({ accountId: accountA.id, amount: 11n, referenceKey: grantKey }, client),
+		).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+		await expect(
+			createCreditGrant({ accountId: accountB.id, amount: 10n, referenceKey: grantKey }, client),
+		).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+
+		const refundKey = `test-refund-conflict-${crypto.randomUUID()}`;
+		const refund = await refundCreditGrant(
+			{
+				accountId: accountA.id,
+				amount: 2n,
+				grantReferenceKey: grantKey,
+				referenceKey: refundKey,
+			},
+			client,
+		);
+		const refundReplay = await refundCreditGrant(
+			{
+				accountId: accountA.id,
+				amount: 2n,
+				grantReferenceKey: grantKey,
+				referenceKey: refundKey,
+			},
+			client,
+		);
+		expect(refundReplay.id).toBe(refund.id);
+		await expect(
+			refundCreditGrant(
+				{
+					accountId: accountA.id,
+					amount: 3n,
+					grantReferenceKey: grantKey,
+					referenceKey: refundKey,
+				},
+				client,
+			),
+		).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+		await expect(
+			refundCreditGrant(
+				{
+					accountId: accountB.id,
+					amount: 2n,
+					grantReferenceKey: grantKey,
+					referenceKey: refundKey,
+				},
+				client,
+			),
+		).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+	});
+
+	it("normalizes a concurrent cross-account reference-key race to an idempotency conflict", async () => {
+		const referenceKey = `test-concurrent-race-${crypto.randomUUID()}`;
+		const accounts = await Promise.all(
+			[0, 1].map((index) =>
+				client.creditAccount.create({
+					data: {
+						ownerType: "USER",
+						ownerId: `test-concurrent-user-${index}-${crypto.randomUUID()}`,
+					},
+				}),
+			),
+		);
+		await client.$executeRawUnsafe(`
+			CREATE OR REPLACE FUNCTION test_delay_credit_ledger_insert() RETURNS trigger AS $$
+			BEGIN
+				IF NEW."accountId" = '${accounts[0]!.id}' AND NEW."referenceKey" LIKE 'test-concurrent-race-%' THEN
+					PERFORM pg_sleep(0.2);
+				END IF;
+				RETURN NEW;
+			END;
+			$$ LANGUAGE plpgsql;
+			CREATE TRIGGER test_delay_credit_ledger_insert
+			BEFORE INSERT ON "credit_ledger_entry"
+			FOR EACH ROW EXECUTE FUNCTION test_delay_credit_ledger_insert();
+		`);
+		try {
+			const delayedLoser = createCreditGrant(
+				{ accountId: accounts[0]!.id, amount: 10n, referenceKey },
+				client,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			const committedWinner = createCreditGrant(
+				{ accountId: accounts[1]!.id, amount: 10n, referenceKey },
+				client,
+			);
+			const results = await Promise.allSettled([delayedLoser, committedWinner]);
+			const fulfilled = results.filter((result) => result.status === "fulfilled");
+			const rejected = results.filter((result) => result.status === "rejected");
+			expect(fulfilled).toHaveLength(1);
+			expect(rejected).toHaveLength(1);
+			expect(rejected[0]!.reason).toBeInstanceOf(IdempotencyConflictError);
+			expect(rejected[0]!.reason).not.toMatchObject({ code: "P2002" });
+			expect(await client.creditLedgerEntry.count({ where: { referenceKey } })).toBe(1);
+		} finally {
+			await client.$executeRawUnsafe(`
+				DROP TRIGGER IF EXISTS test_delay_credit_ledger_insert ON "credit_ledger_entry";
+				DROP FUNCTION IF EXISTS test_delay_credit_ledger_insert();
+			`);
+		}
+	});
+
+	it("returns one canonical result for concurrent identical credit commands", async () => {
+		const account = await client.creditAccount.create({
+			data: { ownerType: "USER", ownerId: `test-concurrent-replay-${crypto.randomUUID()}` },
+		});
+		const referenceKey = `test-concurrent-replay-${crypto.randomUUID()}`;
+		const lockClassId = 214_731;
+		const lockObjectId = Math.floor(Math.random() * 1_000_000) + 1;
+		const observations: SerializableAttemptObservation[][] = [[], []];
+		await client.$executeRawUnsafe(`
+			CREATE OR REPLACE FUNCTION test_hold_identical_credit_grant() RETURNS trigger AS $$
+			BEGIN
+				IF NEW."grantReferenceKey" = '${referenceKey}' THEN
+					PERFORM pg_advisory_xact_lock(${lockClassId}, ${lockObjectId});
+					PERFORM pg_sleep(1);
+				END IF;
+				RETURN NEW;
+			END;
+			$$ LANGUAGE plpgsql;
+			CREATE TRIGGER test_hold_identical_credit_grant
+			BEFORE INSERT ON "credit_lot"
+			FOR EACH ROW EXECUTE FUNCTION test_hold_identical_credit_grant();
+		`);
+		try {
+			const firstCall = createCreditGrant(
+				{ accountId: account.id, amount: 10n, referenceKey },
+				client,
+				{ onAttempt: (event) => observations[0]!.push(event) },
+			);
+			const overlapObserved = await waitForAdvisoryLock(client, lockClassId, lockObjectId);
+			expect(overlapObserved).toBe(true);
+			const secondCall = createCreditGrant(
+				{ accountId: account.id, amount: 10n, referenceKey },
+				client,
+				{ onAttempt: (event) => observations[1]!.push(event) },
+			);
+			const [first, second] = await Promise.all([firstCall, secondCall]);
+			const allObservations = observations.flat();
+			expect(allObservations.some((event) => event.outcome === "SERIALIZATION_CONFLICT")).toBe(
+				true,
+			);
+			expect(Math.max(...allObservations.map((event) => event.attempt))).toBeLessThanOrEqual(4);
+			expect(second.id).toBe(first.id);
+			expect(await client.creditLedgerEntry.count({ where: { referenceKey } })).toBe(1);
+			expect(
+				await client.creditAccount.findUniqueOrThrow({ where: { id: account.id } }),
+			).toMatchObject({ spendableCredits: 10n });
+		} finally {
+			await client.$executeRawUnsafe(`
+				DROP TRIGGER IF EXISTS test_hold_identical_credit_grant ON "credit_lot";
+				DROP FUNCTION IF EXISTS test_hold_identical_credit_grant();
+			`);
+		}
+	});
+
+	it("normalizes a concurrent reservation job-key race to an idempotency conflict", async () => {
+		const owners = [0, 1].map((index) => `test-reserve-race-user-${index}-${crypto.randomUUID()}`);
+		const accounts = await Promise.all(
+			owners.map((ownerId) =>
+				client.creditAccount.create({ data: { ownerType: "USER", ownerId } }),
+			),
+		);
+		await Promise.all(
+			accounts.map((account) =>
+				createCreditGrant(
+					{
+						accountId: account.id,
+						amount: 10n,
+						referenceKey: `test-reserve-race-grant-${crypto.randomUUID()}`,
+					},
+					client,
+				),
+			),
+		);
+		const quote = await client.generationQuote.create({
+			data: {
+				ownerType: "USER",
+				ownerId: owners[0]!,
+				submittedByUserId: owners[0]!,
+				productKey: "test-product",
+				catalogVersion: "test-v1",
+				pricingVersion: "test-v1",
+				credits: 10n,
+				costMicros: 0n,
+				inputSnapshot: {},
+				pricingSnapshot: {},
+				expiresAt: new Date(Date.now() + 60_000),
+			},
+		});
+		const job = await client.generationJob.create({
+			data: {
+				ownerType: "USER",
+				ownerId: owners[0]!,
+				submittedByUserId: owners[0]!,
+				quoteId: quote.id,
+				idempotencyKey: `test-reserve-race-job-${crypto.randomUUID()}`,
+				productKey: quote.productKey,
+				catalogVersion: quote.catalogVersion,
+				pricingVersion: quote.pricingVersion,
+				creditsReserved: 10n,
+				inputSnapshot: {},
+				pricingSnapshot: {},
+			},
+		});
+		await client.$executeRawUnsafe(`
+			CREATE OR REPLACE FUNCTION test_delay_credit_reservation_insert() RETURNS trigger AS $$
+			BEGIN
+				IF NEW."accountId" = '${accounts[0]!.id}' THEN
+					PERFORM pg_sleep(0.2);
+				END IF;
+				RETURN NEW;
+			END;
+			$$ LANGUAGE plpgsql;
+			CREATE TRIGGER test_delay_credit_reservation_insert
+			BEFORE INSERT ON "credit_reservation"
+			FOR EACH ROW EXECUTE FUNCTION test_delay_credit_reservation_insert();
+		`);
+		try {
+			const delayedLoser = reserveCredits(
+				{
+					accountId: accounts[0]!.id,
+					jobId: job.id,
+					amount: 10n,
+					referenceKey: `test-reserve-race-loser-${crypto.randomUUID()}`,
+				},
+				client,
+			);
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			const committedWinner = reserveCredits(
+				{
+					accountId: accounts[1]!.id,
+					jobId: job.id,
+					amount: 10n,
+					referenceKey: `test-reserve-race-winner-${crypto.randomUUID()}`,
+				},
+				client,
+			);
+			const results = await Promise.allSettled([delayedLoser, committedWinner]);
+			const rejected = results.filter((result) => result.status === "rejected");
+			expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+			expect(rejected).toHaveLength(1);
+			expect(rejected[0]!.reason).toBeInstanceOf(IdempotencyConflictError);
+			expect(rejected[0]!.reason).not.toMatchObject({ code: "P2002" });
+			const reservation = await client.creditReservation.findUniqueOrThrow({
+				where: { jobId: job.id },
+			});
+			expect(
+				await client.creditLedgerEntry.count({ where: { reservationId: reservation.id } }),
+			).toBe(1);
+		} finally {
+			await client.$executeRawUnsafe(`
+				DROP TRIGGER IF EXISTS test_delay_credit_reservation_insert ON "credit_reservation";
+				DROP FUNCTION IF EXISTS test_delay_credit_reservation_insert();
+			`);
+		}
+	});
+
+	it("rejects reservation and finalization replay conflicts", async () => {
+		const first = await createReservedCreditsFixture(client, {
+			grantAmount: 20n,
+			reserveAmount: 10n,
+		});
+		const second = await createReservedCreditsFixture(client, {
+			grantAmount: 20n,
+			reserveAmount: 10n,
+		});
+		const reserveReplay = await reserveCredits(
+			{
+				accountId: first.account.id,
+				jobId: first.job.id,
+				amount: 10n,
+				referenceKey: `job:${first.job.id}:reserve`,
+			},
+			client,
+		);
+		expect(reserveReplay.id).toBe(first.reservation.id);
+		await expect(
+			reserveCredits(
+				{
+					accountId: first.account.id,
+					jobId: first.job.id,
+					amount: 9n,
+					referenceKey: `different-reserve-${crypto.randomUUID()}`,
+				},
+				client,
+			),
+		).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+
+		const settleKey = `test-settle-conflict-${crypto.randomUUID()}`;
+		await settleCredits(
+			{ reservationId: first.reservation.id, amount: 5n, referenceKey: settleKey },
+			client,
+		);
+		await expect(
+			settleCredits(
+				{ reservationId: first.reservation.id, amount: 4n, referenceKey: settleKey },
+				client,
+			),
+		).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+		await expect(
+			settleCredits(
+				{ reservationId: second.reservation.id, amount: 5n, referenceKey: settleKey },
+				client,
+			),
+		).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+
+		const releaseKey = `test-release-conflict-${crypto.randomUUID()}`;
+		await releaseCredits(
+			{ reservationId: second.reservation.id, referenceKey: releaseKey },
+			client,
+		);
+		await expect(
+			releaseCredits({ reservationId: first.reservation.id, referenceKey: releaseKey }, client),
+		).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+	});
+
+	it("paginates the asset library without repeating a cursor row", async () => {
+		const ownerId = `test-user-${crypto.randomUUID()}`;
+		const assets = [];
+		for (let index = 0; index < 3; index += 1) {
+			const asset = await createMediaAsset(
+				{
+					ownerType: "USER",
+					ownerId,
+					kind: "INPUT",
+					objectKey: `test/${ownerId}/${index}`,
+					mimeType: "image/png",
+					byteSize: 10n,
+				},
+				client,
+			);
+			assets.push(
+				await client.mediaAsset.update({ where: { id: asset.id }, data: { status: "READY" } }),
+			);
+		}
+		const firstPage = await listMediaAssets({ ownerType: "USER", ownerId, take: 2 }, client);
+		const cursor = firstPage.at(-1)!;
+		const secondPage = await listMediaAssets(
+			{
+				ownerType: "USER",
+				ownerId,
+				take: 2,
+				cursor: { createdAt: cursor.createdAt, id: cursor.id },
+			},
+			client,
+		);
+		expect(firstPage).toHaveLength(2);
+		expect(secondPage).toHaveLength(1);
+		expect(new Set([...firstPage, ...secondPage].map((asset) => asset.id)).size).toBe(3);
+	});
+
+	it("atomically persists one stable cleanup event when an upload is aborted", async () => {
+		const suffix = crypto.randomUUID();
+		const ownerId = `abort-upload-${suffix}`;
+		const created = await createMediaUploadSessionTransaction(
+			{
+				assetId: `asset_abort_${suffix}`,
+				sessionId: `upload_abort_${suffix}`,
+				ownerType: "USER",
+				ownerId,
+				kind: "INPUT",
+				objectKey: `users/${ownerId}/assets/${suffix}/original.mp4`,
+				mimeType: "video/mp4",
+				expectedBytes: 1024n,
+				tokenHash: `hash-${suffix}`,
+				expiresAt: new Date(Date.now() + 60_000),
+				multipartUploadId: `multipart-${suffix}`,
+				limits: { maximumActiveSessions: 5, maximumReservedBytes: 2_147_483_648n },
+			},
+			client,
+		);
+		await abortMediaUploadSessionTransaction({ sessionId: created.session.id, ownerId }, client);
+		await abortMediaUploadSessionTransaction({ sessionId: created.session.id, ownerId }, client);
+
+		await expect(
+			client.outboxEvent.findMany({
+				where: { dedupeKey: `media-upload-abort-cleanup:${created.session.id}` },
+			}),
+		).resolves.toEqual([
+			expect.objectContaining({
+				eventType: "MEDIA_MULTIPART_ABORT",
+				status: "PENDING",
+				payload: expect.objectContaining({ multipartUploadId: `multipart-${suffix}` }),
+			}),
+		]);
+	});
+
+	it("rejects update and delete mutations to credit ledger rows", async () => {
+		const row = await client.creditLedgerEntry.findFirstOrThrow();
+		await expect(
+			client.$executeRaw`UPDATE "credit_ledger_entry" SET "amount" = "amount" + 1 WHERE "id" = ${row.id}`,
+		).rejects.toThrow("credit_ledger_entry is immutable");
+		await expect(
+			client.$executeRaw`DELETE FROM "credit_ledger_entry" WHERE "id" = ${row.id}`,
+		).rejects.toThrow("credit_ledger_entry is immutable");
+	});
+
+	it("rejects a negative aggregate balance at the database boundary", async () => {
+		const account = await client.creditAccount.findFirstOrThrow();
+		await expect(
+			client.$executeRaw`UPDATE "credit_account" SET "spendableCredits" = -1 WHERE "id" = ${account.id}`,
+		).rejects.toThrow();
+	});
+});
+
+describe("integration database safety gate", () => {
+	it("does not silently fall back to DATABASE_URL", () => {
+		if (!TEST_DATABASE_URL) {
+			expect(() => assertSafeTestDatabaseUrl()).toThrow("TEST_DATABASE_URL is required");
+		}
+	});
+});

@@ -1,0 +1,32 @@
+{
+	"name": "@repo/auth",
+	"version": "0.0.0",
+	"main": "./index.ts",
+	"types": "./**/.tsx",
+	"scripts": {
+		"clean": "git clean -xdf .cache .turbo dist node_modules",
+		"migrate": "dotenv -e ../../.env.local -- pnpm dlx @better-auth/cli@latest generate --config ./auth.ts --output ../database/prisma/schema.prisma",
+		"test": "vitest run --config vitest.config.ts",
+		"test:integration": "vitest run --config vitest.integration.config.ts",
+		"type-check": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@better-auth/passkey": "1.6.27",
+		"@repo/database": "workspace:*",
+		"@repo/i18n": "workspace:*",
+		"@repo/logs": "workspace:*",
+		"@repo/mail": "workspace:*",
+		"@repo/notifications": "workspace:*",
+		"@repo/payments": "workspace:*",
+		"@repo/utils": "workspace:*",
+		"better-auth": "catalog:",
+		"cookie": "catalog:"
+	},
+	"devDependencies": {
+		"@prisma/adapter-pg": "catalog:",
+		"@repo/tsconfig": "workspace:*",
+		"@types/node": "catalog:",
+		"typescript": "catalog:",
+		"vitest": "catalog:"
+	}
+}

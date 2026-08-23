@@ -1,0 +1,1 @@
+ALTER TYPE "ModerationStatus" ADD VALUE IF NOT EXISTS 'REVIEW';

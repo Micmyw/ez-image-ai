@@ -1,0 +1,36 @@
+{
+	"name": "docs",
+	"version": "0.0.0",
+	"private": true,
+	"scripts": {
+		"build": "next build",
+		"clean": "git clean -xdf .cache .turbo dist node_modules .next .source",
+		"dev": "next dev --port 3002",
+		"start": "next start",
+		"type-check": "next typegen && fumadocs-mdx && tsc --noEmit",
+		"postinstall": "fumadocs-mdx",
+		"lint": "oxlint .",
+		"format": "oxfmt ."
+	},
+	"dependencies": {
+		"@repo/tailwind-config": "workspace:*",
+		"@repo/ui": "workspace:*",
+		"fumadocs-core": "16.14.0",
+		"fumadocs-mdx": "15.2.2",
+		"fumadocs-ui": "16.14.0",
+		"lucide-react": "catalog:",
+		"next": "catalog:",
+		"react": "catalog:",
+		"react-dom": "catalog:"
+	},
+	"devDependencies": {
+		"@tailwindcss/postcss": "catalog:",
+		"@types/mdx": "catalog:",
+		"@types/node": "catalog:",
+		"@types/react": "^19.2.18",
+		"@types/react-dom": "catalog:",
+		"postcss": "catalog:",
+		"tailwindcss": "catalog:",
+		"typescript": "catalog:"
+	}
+}

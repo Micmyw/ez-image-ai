@@ -1,0 +1,6 @@
+{
+	"extends": "@repo/tsconfig/base.json",
+	"compilerOptions": { "target": "ES2022" },
+	"include": ["**/*.ts"],
+	"exclude": ["dist", "build", "node_modules"]
+}

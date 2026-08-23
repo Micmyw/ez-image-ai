@@ -1,0 +1,24 @@
+{
+	"name": "@repo/config",
+	"version": "0.0.0",
+	"main": "./index.ts",
+	"types": "./**/*.ts",
+	"exports": {
+		".": "./index.ts",
+		"./client": "./client.ts",
+		"./server": "./server.ts"
+	},
+	"scripts": {
+		"test": "vitest run",
+		"type-check": "tsc --noEmit"
+	},
+	"dependencies": {
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@repo/tsconfig": "workspace:*",
+		"@types/node": "catalog:",
+		"typescript": "catalog:",
+		"vitest": "catalog:"
+	}
+}

@@ -1,0 +1,50 @@
+{
+	"name": "supastarter-nextjs",
+	"private": true,
+	"scripts": {
+		"build": "dotenv -c -- turbo build",
+		"dev": "dotenv -c -- turbo dev --concurrency 15",
+		"type-check": "dotenv -c -- turbo type-check",
+		"start": "dotenv -c -- turbo start",
+		"lint": "oxlint .",
+		"lint:fix": "oxlint --fix .",
+		"clean": "turbo clean",
+		"test": "dotenv -c -- turbo test",
+		"format": "oxfmt .",
+		"format:check": "oxfmt --check .",
+		"test:unit:contracts": "tsx tests/load/run-unit-contracts.ts",
+		"test:integration": "tsx tests/load/run-integration.ts",
+		"db:migrate:deploy": "pnpm --filter @repo/database exec prisma migrate deploy",
+		"db:migrate:drift": "pnpm --filter @repo/database exec prisma migrate diff --from-schema prisma/schema.prisma --to-config-datasource --exit-code",
+		"trigger:type-check": "pnpm --filter @repo/jobs type-check",
+		"trigger:build:ci": "trigger deploy --dry-run --local-build --skip-update-check --skip-telemetry",
+		"e2e:media:ci": "pnpm --filter @repo/e2e-media run test",
+		"provider:smoke": "tsx tests/load/provider-smoke.ts",
+		"load:media": "k6 run tests/load/media-generation.js",
+		"load:smoke": "tsx tests/load/media-route-smoke.ts",
+		"load:type-check": "tsc -p tests/load/tsconfig.json",
+		"load:syntax": "node --check tests/load/media-generation.js",
+		"verify:invariants": "tsx tests/load/verify-invariants.ts"
+	},
+	"dependencies": {
+		"@prisma/adapter-pg": "catalog:",
+		"@repo/ai": "workspace:*",
+		"@repo/database": "workspace:*"
+	},
+	"devDependencies": {
+		"@repo/tsconfig": "workspace:*",
+		"@types/node": "catalog:",
+		"dotenv-cli": "catalog:",
+		"oxfmt": "catalog:",
+		"oxlint": "catalog:",
+		"oxlint-tsgolint": "^7.0.2001",
+		"trigger.dev": "catalog:",
+		"tsx": "catalog:",
+		"turbo": "^2.10.8",
+		"typescript": "catalog:"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"packageManager": "pnpm@11.3.0"
+}

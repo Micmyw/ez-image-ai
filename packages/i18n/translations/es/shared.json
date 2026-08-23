@@ -1,0 +1,60 @@
+{
+	"pricing": {
+		"choosePlan": "Elegir plan",
+		"contactSales": "Contactar ventas",
+		"description": "Elige el plan que mejor te funcione.",
+		"getStarted": "Comenzar",
+		"month": "{count, plural, one {mes} other {{count} meses}}",
+		"monthly": "Mensual",
+		"products": {
+			"creator": {
+				"description": "Para creadores que producen imágenes y vídeos cortos.",
+				"features": {
+					"commercialUse": "Derechos de uso comercial",
+					"standardQueue": "Cola de generación estándar"
+				},
+				"title": "Creator"
+			},
+			"enterprise": {
+				"description": "Plan personalizado según tus necesidades",
+				"features": {
+					"enterpriseSupport": "Soporte empresarial",
+					"unlimitedProjects": "Proyectos ilimitados"
+				},
+				"title": "Empresa"
+			},
+			"free": {
+				"description": "Comienza gratis",
+				"features": {
+					"anotherFeature": "Otra función increíble",
+					"limitedSupport": "Soporte limitado"
+				},
+				"title": "Gratis"
+			},
+			"lifetime": {
+				"description": "Compra una vez. Úsalo para siempre.",
+				"features": {
+					"extendSupport": "Soporte extendido",
+					"noRecurringCosts": "Sin costos recurrentes"
+				},
+				"title": "De por vida"
+			},
+			"studio": {
+				"description": "Para equipos con un flujo de trabajo multimedia de mayor volumen.",
+				"features": {
+					"commercialUse": "Derechos de uso comercial",
+					"priorityQueue": "Cola de generación prioritaria"
+				},
+				"title": "Studio"
+			}
+		},
+		"purchase": "Comprar",
+		"recommended": "Recomendado",
+		"subscribe": "Suscribirse",
+		"title": "Precios",
+		"trialPeriod": "{days} {days, plural, one {día} other {días}} de prueba gratis",
+		"year": "{count, plural, one {año} other {{count} años}}",
+		"yearly": "Anual",
+		"perSeat": "asiento"
+	}
+}

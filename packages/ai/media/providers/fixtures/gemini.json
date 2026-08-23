@@ -1,0 +1,28 @@
+{
+	"accepted": {
+		"candidates": [
+			{
+				"content": { "parts": [{ "inlineData": { "mimeType": "image/png", "data": "aGVsbG8=" } }] }
+			}
+		]
+	},
+	"queued": { "applicability": "not-applicable", "protocol": "synchronous" },
+	"running": { "applicability": "not-applicable", "protocol": "synchronous" },
+	"succeeded": {
+		"candidates": [
+			{
+				"content": {
+					"parts": [
+						{ "inlineData": { "mimeType": "image/png", "data": "aGVsbG8=" } },
+						{ "inlineData": { "mimeType": "image/png", "data": "d29ybGQ=" } }
+					]
+				}
+			}
+		]
+	},
+	"failedRetryable": { "error": { "code": 503, "message": "temporarily unavailable" } },
+	"failedTerminal": { "error": { "code": 400, "message": "invalid prompt" } },
+	"canceled": { "applicability": "not-applicable", "protocol": "synchronous" },
+	"malformed": { "candidates": [] },
+	"unknownSubmission": { "error": { "code": 503, "message": "unavailable" } }
+}

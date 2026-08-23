@@ -1,0 +1,220 @@
+name: Validate PRs
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-pr-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: "true"
+  TEST_DATABASE_URL: postgresql://ai_media_test:ai_media_test_only@127.0.0.1:55432/ai_media_foundation_test
+  BETTER_AUTH_SECRET: "better-auth-e2e-secret-1234567890"
+  RESEND_API_KEY: "resend-api-key-1234567890"
+  NEXT_PUBLIC_SAAS_URL: http://127.0.0.1:3000
+  NEXT_PUBLIC_MARKETING_URL: http://127.0.0.1:3001
+  MEDIA_BUCKET_NAME: media-private
+  MEDIA_PROVIDER_ADAPTER: mock
+  MEDIA_SAFETY_ADAPTER: test
+  MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true"
+
+jobs:
+  quality:
+    name: Lint, format, type and contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://build:build@127.0.0.1:5432/build_only
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint --deny-warnings
+      - run: pnpm format:check
+      - run: pnpm type-check
+      - name: Unit and provider/moderation contracts
+        run: pnpm test:unit:contracts
+      - name: Trigger task type gate
+        run: pnpm trigger:type-check
+      - name: Load and invariant tool type/syntax gate
+        run: pnpm load:type-check && pnpm load:syntax
+      - name: Trigger local deployment build
+        if: ${{ vars.TRIGGER_CI_LOCAL_BUILD == 'true' }}
+        env:
+          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_CI_ACCESS_TOKEN }}
+          TRIGGER_PROJECT_REF: ${{ vars.TRIGGER_CI_PROJECT_REF }}
+        run: pnpm trigger:build:ci
+      - name: Require explicit Trigger build configuration
+        if: ${{ vars.TRIGGER_CI_LOCAL_BUILD != 'true' }}
+        run: |
+          echo "Set TRIGGER_CI_LOCAL_BUILD=true and protected credentials before using this merge gate."
+          exit 1
+
+  postgres:
+    name: Fresh PostgreSQL migrations and integration tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_ENV: test
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: ai_media_test
+          POSTGRES_PASSWORD: ai_media_test_only
+          POSTGRES_DB: ai_media_foundation_test
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U ai_media_test -d ai_media_foundation_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install --frozen-lockfile
+      - name: Apply migrations to empty database
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+        run: pnpm db:migrate:deploy
+      - name: Detect schema drift
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+        run: pnpm db:migrate:drift
+      - name: Run PostgreSQL integration tests
+        run: pnpm test:integration
+      - name: Run controlled media load route smoke
+        run: pnpm load:smoke
+      - name: Verify data invariants
+        run: pnpm verify:invariants
+
+  builds:
+    name: Production app builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      NODE_ENV: production
+      DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+      MEDIA_PROVIDER_ADAPTER: replicate
+      MEDIA_SAFETY_ADAPTER: sightengine
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: ai_media_test
+          POSTGRES_PASSWORD: ai_media_test_only
+          POSTGRES_DB: ai_media_foundation_test
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U ai_media_test -d ai_media_foundation_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm db:migrate:deploy
+      - run: pnpm --filter saas build
+      - run: pnpm --filter marketing build
+
+  mock-e2e:
+    name: Mock media E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      NODE_ENV: test
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: ai_media_test
+          POSTGRES_PASSWORD: ai_media_test_only
+          POSTGRES_DB: ai_media_foundation_test
+        ports:
+          - 55432:5432
+        options: >-
+          --health-cmd "pg_isready -U ai_media_test -d ai_media_foundation_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install --frozen-lockfile
+      - name: Install Chromium with system dependencies
+        run: pnpm --filter @repo/e2e-media exec playwright install --with-deps chromium
+      - name: Apply test migrations
+        env:
+          DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
+        run: pnpm db:migrate:deploy
+      - name: Run authenticated mock E2E
+        run: pnpm e2e:media:ci
+      - name: Upload SaaS Playwright evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-saas
+          path: |
+            apps/saas/playwright-report/**
+            apps/saas/test-results/**
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload marketing Playwright evidence
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-marketing
+          path: |
+            apps/marketing/playwright-report/**
+            apps/marketing/test-results/**
+          if-no-files-found: error
+          retention-days: 30
+
+  supply-chain:
+    name: Dependency and secret scan
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: pnpm/action-setup@v4
+      - run: pnpm install --frozen-lockfile
+      - name: Production dependency audit
+        run: pnpm audit --prod --audit-level high
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

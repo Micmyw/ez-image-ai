@@ -1,0 +1,24 @@
+{
+	"name": "@repo/logs",
+	"version": "0.0.0",
+	"main": "./index.ts",
+	"types": "./**/.tsx",
+	"exports": {
+		".": "./index.ts",
+		"./sentry": "./lib/sentry.ts"
+	},
+	"scripts": {
+		"clean": "git clean -xdf .cache .turbo dist node_modules",
+		"test": "vitest run",
+		"type-check": "tsc --noEmit"
+	},
+	"dependencies": {
+		"consola": "^3.4.2"
+	},
+	"devDependencies": {
+		"@repo/tsconfig": "workspace:*",
+		"@types/node": "catalog:",
+		"typescript": "catalog:",
+		"vitest": "catalog:"
+	}
+}

@@ -1,0 +1,25 @@
+{
+	"accepted": { "code": 200, "msg": "success", "data": { "taskId": "kie-1" } },
+	"queued": { "data": { "taskId": "kie-1", "state": "waiting" } },
+	"running": { "code": 200, "data": { "taskId": "kie-1", "successFlag": 0 } },
+	"succeeded": {
+		"code": 200,
+		"data": {
+			"taskId": "kie-1",
+			"successFlag": 1,
+			"response": { "resultUrls": ["https://cdn.test/1.mp4", "https://cdn.test/2.mp4"] },
+			"errorMessage": ""
+		}
+	},
+	"failedRetryable": {
+		"code": 200,
+		"data": { "taskId": "kie-2", "successFlag": 2, "errorMessage": "temporarily unavailable" }
+	},
+	"failedTerminal": {
+		"code": 200,
+		"data": { "taskId": "kie-3", "successFlag": 3, "errorMessage": "invalid prompt" }
+	},
+	"canceled": { "data": { "taskId": "kie-4", "state": "canceled" } },
+	"malformed": { "code": 200, "data": { "successFlag": 0 } },
+	"unknownSubmission": { "detail": "unavailable" }
+}

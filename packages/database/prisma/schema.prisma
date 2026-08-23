@@ -1,0 +1,860 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider   = "prisma-client"
+  output     = "./generated"
+  engineType = "client"
+}
+
+generator zod {
+  provider = "prisma-zod-generator"
+  output   = "./zod"
+  config   = "./zod-generator.config.json"
+}
+
+model User {
+  id                       String                       @id @default(cuid())
+  name                     String
+  email                    String
+  emailVerified            Boolean
+  image                    String?
+  createdAt                DateTime
+  updatedAt                DateTime
+  role                     String?
+  banned                   Boolean?
+  banReason                String?
+  banExpires               DateTime?
+  onboardingComplete       Boolean                      @default(false)
+  paymentsCustomerId       String?
+  locale                   String?
+  twoFactorEnabled         Boolean?
+  lastActiveOrganizationId String?
+  sessions                 Session[]
+  accounts                 Account[]
+  passkeys                 Passkey[]
+  invitations              Invitation[]
+  purchases                Purchase[]
+  members                  Member[]
+  twofactors               TwoFactor[]
+  notifications            Notification[]
+  notificationPreferences  UserNotificationPreference[]
+
+  @@unique([email])
+  @@map("user")
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  impersonatedBy String?
+
+  activeOrganizationId String?
+
+  token     String
+  createdAt DateTime
+  updatedAt DateTime
+
+  @@unique([token])
+  @@index([userId])
+  @@map("session")
+}
+
+model Account {
+  id           String    @id @default(cuid())
+  accountId    String
+  providerId   String
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken  String?   @db.Text
+  refreshToken String?   @db.Text
+  idToken      String?   @db.Text
+  expiresAt    DateTime?
+  password     String?
+
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  createdAt             DateTime
+  updatedAt             DateTime
+
+  @@index([userId])
+  @@map("account")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String   @db.Text
+  expiresAt  DateTime
+
+  createdAt DateTime?
+  updatedAt DateTime?
+
+  @@index([identifier])
+  @@map("verification")
+}
+
+model Passkey {
+  id           String    @id @default(cuid())
+  name         String?
+  publicKey    String
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  credentialID String
+  counter      Int
+  deviceType   String
+  backedUp     Boolean
+  transports   String?
+  aaguid       String?
+  createdAt    DateTime?
+
+  @@index([userId])
+  @@index([credentialID])
+  @@map("passkey")
+}
+
+model TwoFactor {
+  id          String  @id @default(cuid())
+  secret      String
+  backupCodes String
+  verified    Boolean @default(false)
+  userId      String
+  user        User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  failedVerificationCount Int?      @default(0)
+  lockedUntil             DateTime?
+
+  @@index([secret])
+  @@index([userId])
+  @@map("twoFactor")
+}
+
+model Organization {
+  id                 String       @id @default(cuid())
+  name               String
+  slug               String?
+  logo               String?
+  createdAt          DateTime
+  metadata           String?
+  paymentsCustomerId String?
+  members            Member[]
+  invitations        Invitation[]
+  purchases          Purchase[]
+
+  @@unique([slug])
+  @@map("organization")
+}
+
+model Member {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String
+  createdAt      DateTime
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+  @@map("member")
+}
+
+model Invitation {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  email          String
+  role           String?
+  status         String
+  expiresAt      DateTime
+  inviterId      String
+  user           User         @relation(fields: [inviterId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([organizationId])
+  @@index([email])
+  @@map("invitation")
+}
+
+enum PurchaseType {
+  SUBSCRIPTION
+  ONE_TIME
+}
+
+model Purchase {
+  id                String        @id @default(cuid())
+  organization      Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId    String?
+  user              User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId            String?
+  type              PurchaseType
+  customerId        String
+  subscriptionId    String?       @unique
+  priceId           String
+  status            String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  mediaSubscription Subscription?
+
+  @@index([subscriptionId])
+  @@map("purchase")
+}
+
+enum OwnerType {
+  USER
+  ORGANIZATION
+}
+
+enum GenerationJobStatus {
+  RESERVED
+  DISPATCH_QUEUED
+  SUBMITTING
+  PROVIDER_PENDING
+  PROVIDER_RUNNING
+  NEEDS_RECONCILIATION
+  FINALIZING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+enum GenerationAttemptStatus {
+  CREATED
+  SUBMISSION_UNCERTAIN
+  SUBMITTED
+  RUNNING
+  NEEDS_RECONCILIATION
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+enum MediaAssetStatus {
+  UPLOADING
+  VERIFYING
+  READY
+  QUARANTINED
+  DELETED
+}
+
+enum MediaAssetKind {
+  INPUT
+  OUTPUT
+}
+
+enum GenerationJobAssetRole {
+  INPUT
+  OUTPUT
+}
+
+enum UploadSessionStatus {
+  PENDING
+  COMPLETED
+  EXPIRED
+  ABORTED
+}
+
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REVIEW
+  ERROR
+}
+
+enum StorageReservationStatus {
+  ACTIVE
+  COMMITTED
+  RELEASED
+  EXPIRED
+}
+
+enum CreditReservationStatus {
+  ACTIVE
+  SETTLED
+  RELEASED
+}
+
+enum CreditLedgerEntryType {
+  GRANT
+  RESERVE
+  SETTLE
+  RELEASE
+  REFUND
+  DEBT_REPAYMENT
+  DEBT_INCURRED
+}
+
+enum EventProcessingStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+}
+
+enum OutboxEventStatus {
+  PENDING
+  LEASED
+  PROCESSED
+  DEAD_LETTER
+}
+
+enum SubscriptionStatus {
+  PENDING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  EXPIRED
+}
+
+enum BillingPeriodStatus {
+  PENDING
+  ACTIVE
+  CLOSED
+  VOID
+  REFUNDED
+}
+
+enum GenerationDraftStatus {
+  ACTIVE
+  SUBMITTED
+  EXPIRED
+}
+
+model GenerationQuote {
+  id                String         @id @default(cuid())
+  ownerType         OwnerType
+  ownerId           String
+  submittedByUserId String
+  productKey        String
+  catalogVersion    String
+  pricingVersion    String
+  credits           BigInt
+  costMicros        BigInt
+  inputSnapshot     Json
+  pricingSnapshot   Json
+  moderationDecision    String         @default("LEGACY_UNREVIEWED")
+  moderationProvider    String         @default("legacy")
+  moderationRuleVersion String         @default("legacy")
+  moderationReasonCode  String         @default("LEGACY_UNREVIEWED")
+  inputFingerprint      String         @default("")
+  createdAt         DateTime       @default(now()) @db.Timestamptz(3)
+  expiresAt         DateTime       @db.Timestamptz(3)
+  job               GenerationJob?
+
+  @@index([ownerType, ownerId, createdAt, id])
+  @@index([expiresAt])
+  @@map("generation_quote")
+}
+
+model GenerationJob {
+  id                     String               @id @default(cuid())
+  ownerType              OwnerType
+  ownerId                String
+  submittedByUserId      String
+  quoteId                String               @unique
+  quote                  GenerationQuote      @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  idempotencyKey         String
+  productKey             String
+  catalogVersion         String
+  pricingVersion         String
+  creditsReserved        BigInt
+  inputSnapshot          Json
+  pricingSnapshot        Json
+  status                 GenerationJobStatus  @default(RESERVED)
+  version                Int                  @default(0)
+  failureCode            String?
+  failureMessage         String?
+  finalizationStage      String?
+  finalizationRetryCount Int                  @default(0)
+  finalizationErrorCode  String?
+  nextFinalizeAt         DateTime?            @db.Timestamptz(3)
+  createdAt              DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime             @updatedAt @db.Timestamptz(3)
+  terminalAt             DateTime?            @db.Timestamptz(3)
+  reservation            CreditReservation?
+  attempts               GenerationAttempt[]
+  assets                 GenerationJobAsset[]
+
+  @@unique([ownerType, ownerId, idempotencyKey])
+  @@index([ownerType, ownerId, createdAt, id])
+  @@index([status, updatedAt])
+  @@index([status, nextFinalizeAt])
+  @@map("generation_job")
+}
+
+model GenerationAttempt {
+  id                     String                  @id @default(cuid())
+  jobId                  String
+  job                    GenerationJob           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  attemptNumber          Int
+  provider               String
+  providerModelId        String
+  providerTaskId         String?
+  providerStatusUrl      String?
+  providerResultUrl      String?
+  submissionToken        String?
+  status                 GenerationAttemptStatus @default(CREATED)
+  providerCostMicros     BigInt?
+  progress               Int?
+  lastProviderEventAt    DateTime?               @db.Timestamptz(3)
+  lastProviderOccurredAt DateTime?               @db.Timestamptz(3)
+  lastProviderReceivedAt DateTime?               @db.Timestamptz(3)
+  lastProviderSequence   BigInt?
+  uncertainSubmission    Boolean                 @default(false)
+  reconciliationCount    Int                     @default(0)
+  nextReconcileAt        DateTime?               @db.Timestamptz(3)
+  reconcileLeaseToken    String?                 @unique
+  reconcileLeasedUntil   DateTime?               @db.Timestamptz(3)
+  requestSnapshot        Json
+  responseSnapshot       Json?
+  errorSnapshot          Json?
+  createdAt              DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                @updatedAt @db.Timestamptz(3)
+  submittedAt            DateTime?               @db.Timestamptz(3)
+  completedAt            DateTime?               @db.Timestamptz(3)
+
+  @@unique([jobId, attemptNumber])
+  @@unique([provider, providerTaskId])
+  @@index([status, updatedAt])
+  @@index([status, nextReconcileAt, updatedAt])
+  @@map("generation_attempt")
+}
+
+model MediaAsset {
+  id                String                  @id @default(cuid())
+  ownerType         OwnerType
+  ownerId           String
+  kind              MediaAssetKind
+  status            MediaAssetStatus        @default(UPLOADING)
+  objectKey         String                  @unique
+  mimeType          String
+  byteSize          BigInt
+  width             Int?
+  height            Int?
+  durationMillis    BigInt?
+  checksum          String?
+  sourceUrl         String?
+  createdAt         DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime                @updatedAt @db.Timestamptz(3)
+  deletedAt         DateTime?               @db.Timestamptz(3)
+  uploadSessions    MediaUploadSession[]
+  jobBindings       GenerationJobAsset[]
+  moderationResults AssetModerationResult[]
+
+  @@index([ownerType, ownerId, createdAt, id])
+  @@index([status, createdAt])
+  @@map("media_asset")
+}
+
+model MediaUploadSession {
+  id                String              @id @default(cuid())
+  assetId           String
+  asset             MediaAsset          @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  tokenHash         String              @unique
+  multipartUploadId String?
+  status            UploadSessionStatus @default(PENDING)
+  expectedBytes     BigInt
+  createdAt         DateTime            @default(now()) @db.Timestamptz(3)
+  expiresAt         DateTime            @db.Timestamptz(3)
+  completedAt       DateTime?           @db.Timestamptz(3)
+
+  @@index([status, expiresAt])
+  @@map("media_upload_session")
+}
+
+model GenerationJobAsset {
+  id        String                 @id @default(cuid())
+  jobId     String
+  job       GenerationJob          @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  assetId   String
+  asset     MediaAsset             @relation(fields: [assetId], references: [id], onDelete: Restrict)
+  role      GenerationJobAssetRole
+  position  Int                    @default(0)
+  createdAt DateTime               @default(now()) @db.Timestamptz(3)
+
+  @@unique([jobId, assetId, role])
+  @@index([assetId])
+  @@map("generation_job_asset")
+}
+
+model AssetModerationResult {
+  id          String           @id @default(cuid())
+  assetId     String
+  asset       MediaAsset       @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  provider    String
+  status      ModerationStatus
+  categories  Json
+  rawEnvelope Json
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+
+  @@unique([assetId, provider])
+  @@index([status, createdAt])
+  @@map("asset_moderation_result")
+}
+
+model StorageUsageReservation {
+  id           String                   @id @default(cuid())
+  ownerType    OwnerType
+  ownerId      String
+  bytes        BigInt
+  status       StorageReservationStatus @default(ACTIVE)
+  referenceKey String                   @unique
+  createdAt    DateTime                 @default(now()) @db.Timestamptz(3)
+  expiresAt    DateTime                 @db.Timestamptz(3)
+  releasedAt   DateTime?                @db.Timestamptz(3)
+
+  @@index([ownerType, ownerId, status])
+  @@index([status, expiresAt])
+  @@map("storage_usage_reservation")
+}
+
+model CreditAccount {
+  id               String              @id @default(cuid())
+  ownerType        OwnerType
+  ownerId          String
+  /// @zod.custom.use(z.bigint().default(BigInt(0)))
+  spendableCredits BigInt              @default(0)
+  /// @zod.custom.use(z.bigint().default(BigInt(0)))
+  reservedCredits  BigInt              @default(0)
+  /// @zod.custom.use(z.bigint().default(BigInt(0)))
+  creditDebt       BigInt              @default(0)
+  version          Int                 @default(0)
+  createdAt        DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime            @updatedAt @db.Timestamptz(3)
+  lots             CreditLot[]
+  reservations     CreditReservation[]
+  ledgerEntries    CreditLedgerEntry[]
+
+  @@unique([ownerType, ownerId])
+  @@map("credit_account")
+}
+
+model CreditLot {
+  id                String                        @id @default(cuid())
+  accountId         String
+  account           CreditAccount                 @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  grantReferenceKey String
+  grantedAmount     BigInt
+  remainingAmount   BigInt
+  /// @zod.custom.use(z.bigint().default(BigInt(0)))
+  reservedAmount    BigInt                        @default(0)
+  expiresAt         DateTime?                     @db.Timestamptz(3)
+  createdAt         DateTime                      @default(now()) @db.Timestamptz(3)
+  allocations       CreditReservationAllocation[]
+
+  @@unique([accountId, grantReferenceKey])
+  @@index([accountId, expiresAt, createdAt, id])
+  @@map("credit_lot")
+}
+
+model CreditReservation {
+  id             String                        @id @default(cuid())
+  accountId      String
+  account        CreditAccount                 @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  jobId          String                        @unique
+  job            GenerationJob                 @relation(fields: [jobId], references: [id], onDelete: Restrict)
+  amount         BigInt
+  /// @zod.custom.use(z.bigint().default(BigInt(0)))
+  settledAmount  BigInt                        @default(0)
+  /// @zod.custom.use(z.bigint().default(BigInt(0)))
+  releasedAmount BigInt                        @default(0)
+  status         CreditReservationStatus       @default(ACTIVE)
+  createdAt      DateTime                      @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime                      @updatedAt @db.Timestamptz(3)
+  allocations    CreditReservationAllocation[]
+
+  @@index([accountId, status, createdAt])
+  @@map("credit_reservation")
+}
+
+model CreditReservationAllocation {
+  id                    String            @id @default(cuid())
+  reservationId         String
+  reservation           CreditReservation @relation(fields: [reservationId], references: [id], onDelete: Restrict)
+  lotId                 String
+  lot                   CreditLot         @relation(fields: [lotId], references: [id], onDelete: Restrict)
+  amount                BigInt
+  /// @zod.custom.use(z.bigint().default(BigInt(0)))
+  settledAmount         BigInt            @default(0)
+  /// @zod.custom.use(z.bigint().default(BigInt(0)))
+  releasedAmount        BigInt            @default(0)
+  /// @zod.custom.use(z.bigint().default(BigInt(0)))
+  revokedAmount         BigInt            @default(0)
+  /// @zod.custom.use(z.bigint().default(BigInt(0)))
+  revokedSettledAmount  BigInt            @default(0)
+  /// @zod.custom.use(z.bigint().default(BigInt(0)))
+  revokedReleasedAmount BigInt            @default(0)
+  createdAt             DateTime          @default(now()) @db.Timestamptz(3)
+
+  @@unique([reservationId, lotId])
+  @@index([lotId])
+  @@map("credit_reservation_allocation")
+}
+
+model CreditLedgerEntry {
+  id            String                @id @default(cuid())
+  accountId     String
+  account       CreditAccount         @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  lotId         String?
+  reservationId String?
+  type          CreditLedgerEntryType
+  amount        BigInt
+  referenceKey  String                @unique
+  metadata      Json
+  createdAt     DateTime              @default(now()) @db.Timestamptz(3)
+
+  @@index([accountId, createdAt, id])
+  @@index([reservationId])
+  @@map("credit_ledger_entry")
+}
+
+model ProviderWebhookEvent {
+  id                    String                @id @default(cuid())
+  provider              String
+  providerEventId       String
+  providerTaskId        String?
+  verifiedAt            DateTime              @db.Timestamptz(3)
+  receivedAt            DateTime              @default(now()) @db.Timestamptz(3)
+  providerOccurredAt    DateTime?             @db.Timestamptz(3)
+  providerSequence      BigInt?
+  envelope              Json
+  status                EventProcessingStatus @default(RECEIVED)
+  processedAt           DateTime?             @db.Timestamptz(3)
+  failureReason         String?
+  processingToken       String?               @unique
+  processingLeasedUntil DateTime?             @db.Timestamptz(3)
+
+  @@unique([provider, providerEventId])
+  @@index([status, receivedAt])
+  @@index([processingLeasedUntil])
+  @@map("provider_webhook_event")
+}
+
+model OutboxEvent {
+  id            String            @id @default(cuid())
+  eventType     String
+  aggregateType String
+  aggregateId   String
+  dedupeKey     String            @unique
+  payload       Json
+  status        OutboxEventStatus @default(PENDING)
+  attempts      Int               @default(0)
+  availableAt   DateTime          @default(now()) @db.Timestamptz(3)
+  leaseOwner    String?
+  leaseToken    String?           @unique
+  leasedUntil   DateTime?         @db.Timestamptz(3)
+  processedAt   DateTime?         @db.Timestamptz(3)
+  lastError     String?
+  createdAt     DateTime          @default(now()) @db.Timestamptz(3)
+
+  @@index([status, availableAt, createdAt])
+  @@index([leasedUntil])
+  @@map("outbox_event")
+}
+
+model BillingPlan {
+  id               String         @id @default(cuid())
+  provider         String
+  providerPriceId  String
+  name             String
+  creditsPerPeriod BigInt
+  priceMicros      BigInt
+  currency         String
+  active           Boolean        @default(true)
+  version          Int            @default(1)
+  metadata         Json
+  createdAt        DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime       @updatedAt @db.Timestamptz(3)
+  subscriptions    Subscription[]
+
+  @@unique([provider, providerPriceId])
+  @@map("billing_plan")
+}
+
+model Subscription {
+  id                     String             @id @default(cuid())
+  ownerType              OwnerType
+  ownerId                String
+  provider               String
+  providerSubscriptionId String             @unique
+  planId                 String
+  plan                   BillingPlan        @relation(fields: [planId], references: [id], onDelete: Restrict)
+  purchaseId             String?            @unique
+  purchase               Purchase?          @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  status                 SubscriptionStatus
+  currentPeriodStart     DateTime?          @db.Timestamptz(3)
+  currentPeriodEnd       DateTime?          @db.Timestamptz(3)
+  cancelAtPeriodEnd      Boolean            @default(false)
+  scheduledPlanId        String?
+  lastProviderEventAt    DateTime?          @db.Timestamptz(3)
+  lastProviderEventId    String?
+  graceEndsAt            DateTime?          @db.Timestamptz(3)
+  createdAt              DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime           @updatedAt @db.Timestamptz(3)
+  periods                BillingPeriod[]
+
+  @@index([ownerType, ownerId, status])
+  @@map("subscription")
+}
+
+model BillingPeriod {
+  id                String              @id @default(cuid())
+  subscriptionId    String
+  subscription      Subscription        @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  startsAt          DateTime            @db.Timestamptz(3)
+  endsAt            DateTime            @db.Timestamptz(3)
+  status            BillingPeriodStatus @default(PENDING)
+  creditAmount      BigInt
+  grantReferenceKey String?             @unique
+  providerInvoiceId String?
+  providerChargeId  String?
+  /// @zod.custom.use(z.bigint().default(BigInt(0)))
+  paidAmount        BigInt              @default(0)
+  /// @zod.custom.use(z.bigint().default(BigInt(0)))
+  refundedAmount    BigInt              @default(0)
+  /// @zod.custom.use(z.bigint().default(BigInt(0)))
+  refundedCredits   BigInt              @default(0)
+  createdAt         DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime            @updatedAt @db.Timestamptz(3)
+
+  @@unique([subscriptionId, startsAt])
+  @@index([providerInvoiceId])
+  @@index([providerChargeId])
+  @@index([status, startsAt])
+  @@map("billing_period")
+}
+
+model PaymentEvent {
+  id                      String                @id @default(cuid())
+  provider                String
+  providerEventId         String
+  normalizedTransactionId String?
+  verifiedAt              DateTime              @db.Timestamptz(3)
+  receivedAt              DateTime              @default(now()) @db.Timestamptz(3)
+  envelope                Json
+  status                  EventProcessingStatus @default(RECEIVED)
+  processedAt             DateTime?             @db.Timestamptz(3)
+  failureReason           String?
+  processingToken         String?               @unique
+  processingLeasedUntil   DateTime?             @db.Timestamptz(3)
+
+  @@unique([provider, providerEventId])
+  @@index([status, receivedAt])
+  @@index([processingLeasedUntil])
+  @@map("payment_event")
+}
+
+model RuntimeConfigOverride {
+  id               String    @id @default(cuid())
+  configKey        String
+  version          Int       @unique
+  value            Json
+  active           Boolean   @default(true)
+  reason           String
+  createdByUserId  String
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  revertedAt       DateTime? @db.Timestamptz(3)
+  revertedByUserId String?
+
+  @@unique([configKey, version])
+  @@index([configKey, active, version])
+  @@map("runtime_config_override")
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  action      String
+  targetType  String
+  targetId    String
+  before      Json?
+  after       Json?
+  metadata    Json
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([targetType, targetId, createdAt])
+  @@index([actorUserId, createdAt])
+  @@map("audit_log")
+}
+
+model RateLimitBucket {
+  id          String   @id @default(cuid())
+  action      String
+  subjectHash String
+  windowStart DateTime @db.Timestamptz(3)
+  windowEnd   DateTime @db.Timestamptz(3)
+  /// @zod.custom.use(z.bigint().default(BigInt(0)))
+  count       BigInt   @default(0)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([action, subjectHash, windowStart])
+  @@index([windowEnd])
+  @@map("rate_limit_bucket")
+}
+
+model GenerationDraft {
+  id                String                @id @default(cuid())
+  ownerType         OwnerType
+  ownerId           String
+  submittedByUserId String
+  claimTokenHash    String                @unique
+  assetId           String?
+  productKey        String?
+  inputSnapshot     Json
+  status            GenerationDraftStatus @default(ACTIVE)
+  createdAt         DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime              @updatedAt @db.Timestamptz(3)
+  expiresAt         DateTime              @db.Timestamptz(3)
+
+  @@index([ownerType, ownerId, updatedAt, id])
+  @@index([status, expiresAt])
+  @@index([assetId])
+  @@map("generation_draft")
+}
+
+enum NotificationTarget {
+  IN_APP
+  EMAIL
+}
+
+enum NotificationType {
+  WELCOME
+  APP_UPDATE
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  data      Json             @default("{}")
+  link      String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  @@index([userId])
+  @@map("notification")
+}
+
+model UserNotificationPreference {
+  id        String             @id @default(cuid())
+  userId    String
+  user      User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  target    NotificationTarget
+  createdAt DateTime           @default(now())
+
+  @@unique([userId, type, target])
+  @@map("user_notification_preference")
+}
