@@ -21,7 +21,12 @@
 		"stylesheet": "./tooling/tailwind/theme.css"
 	},
 	"sortPackageJson": true,
-	"ignorePatterns": ["packages/database/prisma/zod/**.ts", "tooling/tailwind/tailwind-animate.css"],
+	"ignorePatterns": [
+		"packages/database/prisma/zod/**.ts",
+		"tooling/tailwind/tailwind-animate.css",
+		"docs/product/2026-08-23-ezpic-ai-image-editor-spec.md",
+		"docs/foundation-repair/2026-08-23/**"
+	],
 	"overrides": [
 		{
 			"files": ["**/*.json", "**/*.jsonc"],

@@ -24,6 +24,7 @@
 		"load:smoke": "tsx tests/load/media-route-smoke.ts",
 		"load:type-check": "tsc -p tests/load/tsconfig.json",
 		"load:syntax": "node --check tests/load/media-generation.js",
+		"verify:ci-workflow": "node tests/load/verify-ci-workflow.mjs",
 		"verify:invariants": "tsx tests/load/verify-invariants.ts"
 	},
 	"dependencies": {
