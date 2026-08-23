@@ -9,6 +9,7 @@ vi.mock("@repo/database/media-assets", () => ({
 	completeMediaUploadSessionTransaction: vi.fn(),
 	failMediaUploadSessionFinalizationTransaction: vi.fn(),
 	recordMediaUploadPromotionMultipartTransaction: vi.fn(),
+	renewMediaUploadSessionFinalizationLeaseTransaction: vi.fn(),
 	MediaUploadSessionExpiredError: class MediaUploadSessionExpiredError extends Error {
 		constructor() {
 			super("Upload session expired");
@@ -17,9 +18,9 @@ vi.mock("@repo/database/media-assets", () => ({
 }));
 vi.mock("@repo/storage", () => ({
 	abortMultipartUpload: vi.fn(async () => undefined),
-	abortIncompleteMultipartUploads: vi.fn(async () => 0),
 	completeMultipartUpload: vi.fn(async () => undefined),
 	deleteObject: vi.fn(async () => undefined),
+	listMultipartUploads: vi.fn(async () => []),
 	promoteStagedObject: vi.fn(),
 }));
 vi.mock("../lib/asset-authorization", () => ({ requireOwnedUploadSession: vi.fn() }));
@@ -32,12 +33,13 @@ import {
 	failMediaUploadSessionFinalizationTransaction,
 	MediaUploadSessionExpiredError,
 	recordMediaUploadPromotionMultipartTransaction,
+	renewMediaUploadSessionFinalizationLeaseTransaction,
 } from "@repo/database/media-assets";
 import {
 	abortMultipartUpload,
-	abortIncompleteMultipartUploads,
 	completeMultipartUpload,
 	deleteObject,
+	listMultipartUploads,
 	promoteStagedObject,
 } from "@repo/storage";
 
@@ -100,7 +102,10 @@ describe("completeUploadSession", () => {
 			promotionToken: input.promotionToken,
 		}));
 		vi.mocked(clearMediaUploadPromotionMultipartTransaction).mockResolvedValue(undefined);
-		vi.mocked(abortIncompleteMultipartUploads).mockResolvedValue(0);
+		vi.mocked(renewMediaUploadSessionFinalizationLeaseTransaction).mockResolvedValue({
+			finalizationLeaseExpiresAt: new Date("2026-08-14T00:05:00Z"),
+		});
+		vi.mocked(listMultipartUploads).mockResolvedValue(["stale-final-multipart"]);
 		vi.mocked(promoteStagedObject).mockImplementation(async (input) => {
 			await input.promotion?.onMultipartUploadCreated?.({ uploadId: "final-multipart-1" });
 			return {
@@ -152,15 +157,31 @@ describe("completeUploadSession", () => {
 		expect(promoteStagedObject).not.toHaveBeenCalled();
 	});
 
-	it("cleans stale final multipart candidates and records a new durable promotion before copying", async () => {
+	it("fences exact-key stale final multipart candidates before copying", async () => {
 		await expect(
 			call(completeUploadSession, { sessionId: "session_1" }, context),
 		).resolves.toMatchObject({ id: "asset_1", status: "VERIFYING" });
 
-		expect(abortIncompleteMultipartUploads).toHaveBeenCalledWith({
+		expect(listMultipartUploads).toHaveBeenCalledWith({
 			bucket: "media",
 			key: "users/user_1/assets/asset_1/versions/version_1/original.png",
 		});
+		expect(renewMediaUploadSessionFinalizationLeaseTransaction).toHaveBeenCalledWith(
+			{
+				sessionId: "session_1",
+				ownerId: "user_1",
+				finalizationToken: "finalize_1",
+			},
+			expect.anything(),
+		);
+		expect(abortMultipartUpload).toHaveBeenCalledWith({
+			bucket: "media",
+			key: "users/user_1/assets/asset_1/versions/version_1/original.png",
+			uploadId: "stale-final-multipart",
+		});
+		expect(
+			vi.mocked(renewMediaUploadSessionFinalizationLeaseTransaction).mock.invocationCallOrder[0],
+		).toBeLessThan(vi.mocked(abortMultipartUpload).mock.invocationCallOrder[0] ?? Infinity);
 		expect(promoteStagedObject).toHaveBeenCalledWith(
 			expect.objectContaining({
 				staging: { bucket: "media", key: "users/user_1/staging/session_1/nonce.png" },
@@ -210,7 +231,8 @@ describe("completeUploadSession", () => {
 			call(completeUploadSession, { sessionId: "session_1" }, context),
 		).resolves.toMatchObject({ id: "asset_1" });
 
-		expect(abortIncompleteMultipartUploads).not.toHaveBeenCalled();
+		expect(listMultipartUploads).not.toHaveBeenCalled();
+		expect(renewMediaUploadSessionFinalizationLeaseTransaction).not.toHaveBeenCalled();
 		expect(recordMediaUploadPromotionMultipartTransaction).not.toHaveBeenCalled();
 		expect(promoteStagedObject).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -265,7 +287,7 @@ describe("completeUploadSession", () => {
 			},
 			expect.anything(),
 		);
-		expect(abortIncompleteMultipartUploads).toHaveBeenCalledWith({
+		expect(listMultipartUploads).toHaveBeenCalledWith({
 			bucket: "media",
 			key: "users/user_1/assets/asset_1/versions/version_1/original.png",
 		});
@@ -283,6 +305,21 @@ describe("completeUploadSession", () => {
 				promotion: expect.objectContaining({ onMultipartUploadCreated: expect.any(Function) }),
 			}),
 		);
+	});
+
+	it("does not abort candidates discovered before a lost finalization lease", async () => {
+		vi.mocked(listMultipartUploads).mockResolvedValueOnce(["newer-claimant-multipart"]);
+		vi.mocked(renewMediaUploadSessionFinalizationLeaseTransaction).mockRejectedValueOnce(
+			new Error("Upload session finalization is not owned by this token"),
+		);
+
+		await expect(call(completeUploadSession, { sessionId: "session_1" }, context)).rejects.toThrow(
+			/not owned/i,
+		);
+
+		expect(listMultipartUploads).toHaveBeenCalledOnce();
+		expect(abortMultipartUpload).not.toHaveBeenCalled();
+		expect(promoteStagedObject).not.toHaveBeenCalled();
 	});
 
 	it("returns an in-progress response without starting a second promotion while another lease is active", async () => {

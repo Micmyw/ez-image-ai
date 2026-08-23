@@ -106,4 +106,28 @@ describe("expireGenerationDrafts", () => {
 			}),
 		});
 	});
+
+	it("does not delete an asset when a concurrent claim already consumed the draft", async () => {
+		const tx = {
+			generationDraft: {
+				findMany: vi.fn(async () => [
+					{ id: "draft_1", assetId: "asset_1", ownerId: "anonymous:subject" },
+				]),
+				updateMany: vi.fn(async () => ({ count: 0 })),
+			},
+			mediaAsset: {
+				findUnique: vi.fn(),
+				updateMany: vi.fn(),
+			},
+			outboxEvent: { create: vi.fn() },
+		};
+		const client = { $transaction: vi.fn((operation) => operation(tx)) };
+
+		await expect(
+			expireGenerationDrafts(new Date("2026-08-14T00:00:00Z"), client as never),
+		).resolves.toBe(0);
+		expect(tx.mediaAsset.findUnique).not.toHaveBeenCalled();
+		expect(tx.mediaAsset.updateMany).not.toHaveBeenCalled();
+		expect(tx.outboxEvent.create).not.toHaveBeenCalled();
+	});
 });

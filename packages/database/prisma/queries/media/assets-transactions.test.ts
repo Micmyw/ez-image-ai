@@ -7,6 +7,7 @@ import {
 	createMediaUploadSessionTransaction,
 	failMediaUploadSessionFinalizationTransaction,
 	markMediaAssetDeletedTransaction,
+	renewMediaUploadSessionFinalizationLeaseTransaction,
 } from "./assets";
 
 function transactionClient(overrides: Record<string, unknown> = {}) {
@@ -389,6 +390,60 @@ describe("media upload transactions", () => {
 		expect(vi.mocked(tx.mediaUploadSession.updateMany).mock.calls[0]?.[0].data).not.toHaveProperty(
 			"finalizationParts",
 		);
+	});
+
+	it("renews only the active matching lease before destructive multipart recovery", async () => {
+		const { client, tx } = transactionClient({
+			mediaUploadSession: {
+				updateMany: vi.fn(async () => ({ count: 1 })),
+			},
+		});
+		const now = new Date("2026-08-13T00:05:00Z");
+
+		await expect(
+			renewMediaUploadSessionFinalizationLeaseTransaction(
+				{
+					sessionId: "session_1",
+					ownerId: "user_1",
+					finalizationToken: "finalize_1",
+					now,
+					leaseDurationMs: 1_000,
+				},
+				client as never,
+			),
+		).resolves.toEqual({ finalizationLeaseExpiresAt: new Date("2026-08-13T00:05:01Z") });
+		expect(tx.mediaUploadSession.updateMany).toHaveBeenCalledWith({
+			where: {
+				id: "session_1",
+				asset: { ownerType: "USER", ownerId: "user_1" },
+				status: "FINALIZING",
+				finalizationToken: "finalize_1",
+				finalizationLeaseExpiresAt: { gt: now },
+				promotionMultipartUploadId: null,
+				promotionToken: null,
+			},
+			data: { finalizationLeaseExpiresAt: new Date("2026-08-13T00:05:01Z") },
+		});
+	});
+
+	it("rejects a stale finalization token before destructive multipart recovery", async () => {
+		const { client } = transactionClient({
+			mediaUploadSession: {
+				updateMany: vi.fn(async () => ({ count: 0 })),
+			},
+		});
+
+		await expect(
+			renewMediaUploadSessionFinalizationLeaseTransaction(
+				{
+					sessionId: "session_1",
+					ownerId: "user_1",
+					finalizationToken: "stale-token",
+					now: new Date("2026-08-13T00:05:00Z"),
+				},
+				client as never,
+			),
+		).rejects.toThrow(/not owned/i);
 	});
 
 	it("fails closed instead of reclaiming a FINALIZING row without a lease", async () => {

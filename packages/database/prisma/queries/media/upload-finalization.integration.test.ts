@@ -403,6 +403,42 @@ describe("media upload finalization PostgreSQL transactions", () => {
 		});
 	});
 
+	it("sweeps a pre-fence FINALIZING staged row that has no terminalization token", async () => {
+		const sweepAt = new Date();
+		const fixture = await createUploadFixture(client, {
+			expiresAt: new Date(sweepAt.getTime() - 60_000),
+		});
+		await client.$executeRaw`
+			UPDATE "media_upload_session"
+			SET
+				"status" = 'FINALIZING',
+				"finalizationToken" = ${`legacy-finalization-${randomUUID()}`},
+				"finalizationLeaseExpiresAt" = ${new Date(sweepAt.getTime() - 1_000)},
+				"stagedTerminalizationToken" = NULL
+			WHERE "id" = ${fixture.session.id}`;
+
+		await expect(
+			expirePendingMediaUploadSessions({ now: sweepAt, limit: 10 }, client),
+		).resolves.toBeGreaterThanOrEqual(1);
+		await expect(
+			client.mediaUploadSession.findUniqueOrThrow({ where: { id: fixture.session.id } }),
+		).resolves.toMatchObject({
+			status: "EXPIRED",
+			stagedTerminalizationToken: null,
+		});
+		await expect(
+			client.outboxEvent.findUniqueOrThrow({
+				where: { dedupeKey: `media-upload-staging-expire-cleanup:${fixture.session.id}` },
+			}),
+		).resolves.toMatchObject({
+			payload: expect.objectContaining({
+				assetId: fixture.asset.id,
+				uploadSessionId: fixture.session.id,
+				reservationStatus: "EXPIRED",
+			}),
+		});
+	});
+
 	it.each(["COMPLETED", "ABORTED", "EXPIRED"] as const)(
 		"rejects a legacy staged PENDING writer that tries to transition directly to %s",
 		async (status) => {

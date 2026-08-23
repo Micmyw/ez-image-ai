@@ -8,12 +8,13 @@ import {
 	failMediaUploadSessionFinalizationTransaction,
 	MediaUploadSessionExpiredError,
 	recordMediaUploadPromotionMultipartTransaction,
+	renewMediaUploadSessionFinalizationLeaseTransaction,
 } from "@repo/database/media-assets";
 import {
 	abortMultipartUpload,
-	abortIncompleteMultipartUploads,
 	completeMultipartUpload,
 	deleteObject,
+	listMultipartUploads,
 	promoteStagedObject,
 } from "@repo/storage";
 import { z } from "zod";
@@ -97,7 +98,14 @@ export const completeUploadSession = protectedProcedure
 			}
 
 			for (;;) {
-				if (!promotion) await abortIncompleteMultipartUploads(final);
+				if (!promotion) {
+					await abortStaleFinalMultipartUploads({
+						sessionId: session.id,
+						ownerId: user.id,
+						finalizationToken: claimed.finalizationToken,
+						final,
+					});
+				}
 				const promotionToken = randomUUID();
 				try {
 					promoted = await promoteStagedObject({
@@ -178,6 +186,35 @@ function storedMultipartParts(value: unknown): Array<{ partNumber: number; etag:
 	const parsed = multipartPartsSchema.safeParse(value);
 	if (!parsed.success) throw new Error("Stored multipart completion parts are invalid");
 	return parsed.data;
+}
+
+async function abortStaleFinalMultipartUploads(input: {
+	sessionId: string;
+	ownerId: string;
+	finalizationToken: string;
+	final: { bucket: "media"; key: string };
+}): Promise<void> {
+	// Capture the exact candidate IDs before renewing the lease. A stale handler
+	// can resume after another claimant takes the lease, but it can never abort
+	// an MPU that claimant created after this immutable snapshot.
+	const multipartUploadIds = await listMultipartUploads(input.final);
+	if (multipartUploadIds.length === 0) return;
+
+	await renewMediaUploadSessionFinalizationLeaseTransaction(
+		{
+			sessionId: input.sessionId,
+			ownerId: input.ownerId,
+			finalizationToken: input.finalizationToken,
+		},
+		db,
+	);
+	for (const uploadId of multipartUploadIds) {
+		try {
+			await abortMultipartUpload({ ...input.final, uploadId });
+		} catch (error) {
+			if (!isNoSuchUpload(error)) throw error;
+		}
+	}
 }
 
 async function cleanExpiredStaging(session: {

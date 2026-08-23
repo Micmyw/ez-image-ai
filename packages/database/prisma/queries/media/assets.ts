@@ -552,6 +552,45 @@ export async function recordMediaUploadPromotionMultipartTransaction(
 	});
 }
 
+/**
+ * Extends the active finalization lease before a caller performs destructive
+ * storage recovery. The token CAS is a fencing point: callers must snapshot
+ * candidate multipart IDs before this operation and never list again after it.
+ */
+export async function renewMediaUploadSessionFinalizationLeaseTransaction(
+	input: {
+		sessionId: string;
+		ownerId: string;
+		finalizationToken: string;
+		now?: Date;
+		leaseDurationMs?: number;
+	},
+	client: MediaTransactionClient,
+): Promise<{ finalizationLeaseExpiresAt: Date }> {
+	return runSerializable(client, async (tx) => {
+		const now = input.now ?? (await getDatabaseNow(tx));
+		const finalizationLeaseExpiresAt = new Date(
+			now.getTime() + normalizeLeaseDuration(input.leaseDurationMs),
+		);
+		const renewed = await tx.mediaUploadSession.updateMany({
+			where: {
+				id: input.sessionId,
+				asset: { ownerType: "USER", ownerId: input.ownerId },
+				status: "FINALIZING",
+				finalizationToken: input.finalizationToken,
+				finalizationLeaseExpiresAt: { gt: now },
+				promotionMultipartUploadId: null,
+				promotionToken: null,
+			},
+			data: { finalizationLeaseExpiresAt },
+		});
+		if (renewed.count !== 1) {
+			throw new Error("Upload session finalization is not owned by this token");
+		}
+		return { finalizationLeaseExpiresAt };
+	});
+}
+
 export async function clearMediaUploadPromotionMultipartTransaction(
 	input: {
 		sessionId: string;
@@ -978,22 +1017,36 @@ async function expireFinalizingUploadSession(
 	cleanup: "ABORT_MULTIPART" | "DELETE_OBJECT",
 	tx: Prisma.TransactionClient,
 ): Promise<void> {
-	await reopenExpiredFinalizationLease(session, now, tx);
-	await expirePendingUploadSession(session, now, cleanup, tx);
+	const reopened = await reopenExpiredFinalizationLease(session, now, tx);
+	await expirePendingUploadSession(
+		{ ...session, stagedTerminalizationToken: reopened.stagedTerminalizationToken },
+		now,
+		cleanup,
+		tx,
+	);
 }
 
 async function reopenExpiredFinalizationLease(
 	session: Pick<
 		UploadSessionCleanupTarget,
-		"id" | "assetId" | "promotionMultipartUploadId" | "promotionToken" | "asset"
+		| "id"
+		| "assetId"
+		| "stagingObjectKey"
+		| "stagedTerminalizationToken"
+		| "promotionMultipartUploadId"
+		| "promotionToken"
+		| "asset"
 	>,
 	now: Date,
 	tx: Prisma.TransactionClient,
-): Promise<void> {
+): Promise<{ stagedTerminalizationToken: string | null }> {
 	assertPromotionMultipartPair(session);
 	if (session.promotionMultipartUploadId && session.promotionToken) {
 		await queuePromotionAbortOnly(session, tx);
 	}
+	const stagedTerminalizationToken = session.stagingObjectKey
+		? (session.stagedTerminalizationToken ?? randomUUID())
+		: session.stagedTerminalizationToken;
 	const reopened = await tx.mediaUploadSession.updateMany({
 		where: {
 			id: session.id,
@@ -1005,12 +1058,14 @@ async function reopenExpiredFinalizationLease(
 			finalizationToken: null,
 			finalizationLeaseExpiresAt: null,
 			legacyFinalizationToken: null,
+			...(stagedTerminalizationToken ? { stagedTerminalizationToken } : {}),
 			promotionMultipartUploadId: null,
 			promotionToken: null,
 		},
 	});
 	if (reopened.count !== 1)
 		throw new Error("Upload session changed concurrently before lease sweep");
+	return { stagedTerminalizationToken };
 }
 
 async function queueStagingCleanup(

@@ -175,11 +175,16 @@ export async function expireGenerationDrafts(
 			where: { status: "ACTIVE", expiresAt: { lte: now } },
 			select: { id: true, assetId: true, ownerId: true },
 		});
+		let expiredCount = 0;
 		for (const draft of expired) {
-			await tx.generationDraft.updateMany({
+			const changed = await tx.generationDraft.updateMany({
 				where: { id: draft.id, status: "ACTIVE" },
 				data: { status: "EXPIRED" },
 			});
+			// A concurrent claim transfers the draft asset after changing the draft
+			// state. Do not emit a physical-object deletion from this stale snapshot.
+			if (changed.count !== 1) continue;
+			expiredCount += 1;
 			if (draft.assetId) {
 				const asset = await tx.mediaAsset.findUnique({
 					where: { id: draft.assetId },
@@ -200,6 +205,6 @@ export async function expireGenerationDrafts(
 				});
 			}
 		}
-		return expired.length;
+		return expiredCount;
 	});
 }
