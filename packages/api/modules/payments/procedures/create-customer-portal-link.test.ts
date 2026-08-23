@@ -62,7 +62,10 @@ const authenticatedSession = {
 	},
 } satisfies Session;
 
-const redirectUrl = "http://localhost:3000/settings/billing";
+const redirectUrl = new URL(
+	"/settings/billing",
+	process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000",
+).toString();
 
 describe("createCustomerPortalLink", () => {
 	beforeEach(() => {
