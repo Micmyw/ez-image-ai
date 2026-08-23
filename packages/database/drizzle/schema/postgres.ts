@@ -1,7 +1,8 @@
 import { createId as cuid } from "@paralleldrive/cuid2";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
 	boolean,
+	check,
 	index,
 	integer,
 	jsonb,
@@ -216,24 +217,33 @@ export const twoFactor = pgTable(
 	],
 );
 
-export const purchase = pgTable("purchase", {
-	id: text("id")
-		.$defaultFn(() => cuid())
-		.primaryKey(),
-	organizationId: text("organizationId").references(() => organization.id, {
-		onDelete: "cascade",
-	}),
-	userId: text("userId").references(() => user.id, {
-		onDelete: "cascade",
-	}),
-	type: purchaseTypeEnum("type").notNull(),
-	customerId: text("customerId").notNull(),
-	subscriptionId: text("subscriptionId").unique(),
-	priceId: text("priceId").notNull(),
-	status: text("status"),
-	createdAt: timestamp("createdAt").defaultNow().notNull(),
-	updatedAt: timestamp("updatedAt"),
-});
+export const purchase = pgTable(
+	"purchase",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		organizationId: text("organizationId").references(() => organization.id, {
+			onDelete: "cascade",
+		}),
+		userId: text("userId").references(() => user.id, {
+			onDelete: "cascade",
+		}),
+		type: purchaseTypeEnum("type").notNull(),
+		customerId: text("customerId").notNull(),
+		subscriptionId: text("subscriptionId").unique(),
+		priceId: text("priceId").notNull(),
+		status: text("status"),
+		createdAt: timestamp("createdAt").defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt"),
+	},
+	(table) => [
+		check(
+			"purchase_exactly_one_owner",
+			sql`num_nonnulls(${table.organizationId}, ${table.userId}) = 1`,
+		),
+	],
+);
 
 export const notification = pgTable(
 	"notification",

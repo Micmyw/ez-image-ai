@@ -9,8 +9,8 @@ export const deliverOutboxTask = schedules.task({
 	cron: "* * * * *",
 	queue: { name: "media-outbox", concurrencyLimit: 2 },
 	maxDuration: 120,
-	run: async () =>
-		dispatchOutbox(
+	run: async () => {
+		return dispatchOutbox(
 			{ workerId: `trigger:${crypto.randomUUID()}`, limit: 50, leaseSeconds: 90 },
 			{
 				store: databaseOutboxStore,
@@ -24,5 +24,6 @@ export const deliverOutboxTask = schedules.task({
 						resolveDispatchRoute: resolveDatabaseDispatchRoute,
 					}),
 			},
-		),
+		);
+	},
 });

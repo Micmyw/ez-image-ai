@@ -36,6 +36,16 @@ type DatabaseClient = Parameters<typeof claimPaymentEvent>[1];
 type TransactionClient = Prisma.TransactionClient;
 
 class PaymentEventFenceError extends Error {}
+class PaymentEventLeaseExpiredError extends Error {
+	constructor() {
+		super("PAYMENT_EVENT_LEASE_EXPIRED");
+	}
+}
+class PaymentEventLeaseActiveError extends Error {
+	constructor() {
+		super("PAYMENT_EVENT_LEASE_ACTIVE");
+	}
+}
 
 export async function processStripePaymentEvent(
 	input: { paymentEventId: string },
@@ -43,7 +53,21 @@ export async function processStripePaymentEvent(
 	attempt: PaymentEventAttempt = { attempt: 1, maxAttempts: 1 },
 ): Promise<ProcessResult> {
 	const claim = await claimPaymentEvent(input.paymentEventId, client);
-	if (!claim) return { outcome: "SKIPPED", grantsCreated: 0 };
+	if (!claim) {
+		const event = await client.paymentEvent.findUnique({
+			where: { id: input.paymentEventId },
+			select: { status: true, processingLeasedUntil: true },
+		});
+		if (
+			attempt.attempt > 1 &&
+			event?.status === "PROCESSING" &&
+			event.processingLeasedUntil &&
+			event.processingLeasedUntil > new Date()
+		) {
+			throw new PaymentEventLeaseActiveError();
+		}
+		return { outcome: "SKIPPED", grantsCreated: 0 };
+	}
 	return processClaimedStripePaymentEvent(
 		{ paymentEventId: claim.event.id, processingToken: claim.token },
 		client,
@@ -118,22 +142,37 @@ export async function processClaimedStripePaymentEvent(
 		});
 	} catch (error) {
 		if (error instanceof PaymentEventFenceError) {
+			const event = await client.paymentEvent.findUnique({
+				where: { id: input.paymentEventId },
+				select: { status: true, processingToken: true, processingLeasedUntil: true },
+			});
+			const leaseCheckTime = new Date(Math.max(now.getTime(), Date.now()));
+			if (
+				event?.status === "PROCESSING" &&
+				event.processingToken === input.processingToken &&
+				event.processingLeasedUntil &&
+				event.processingLeasedUntil <= leaseCheckTime
+			) {
+				throw new PaymentEventLeaseExpiredError();
+			}
 			return { outcome: "SKIPPED", grantsCreated: 0 };
 		}
 		const errorClass = classifyPaymentEventError(error);
 		const deadLetter = errorClass === "TERMINAL" || attempt.attempt >= attempt.maxAttempts;
 		const reason = safeFailureReason(error, errorClass);
-		await failPaymentEvent(
+		const persisted = await failPaymentEvent(
 			input.paymentEventId,
 			input.processingToken,
 			{
 				reason,
 				errorClass,
+				triggerAttempt: attempt.attempt,
 				triggerRunId: attempt.triggerRunId,
 				deadLetter,
 			},
 			client,
 		);
+		if (!persisted) return { outcome: "SKIPPED", grantsCreated: 0 };
 		logger.error(
 			{ paymentEventId: input.paymentEventId, errorClass, reason },
 			"Stripe payment event failed",
@@ -160,6 +199,7 @@ function classifyPaymentEventError(error: unknown): "TERMINAL" | "TRANSIENT" {
 	if (
 		/^STRIPE_EVENT_(INVALID|MISSING)(?:_|$)/.test(message) ||
 		[
+			"STRIPE_SUBSCRIPTION_ID_MISSING",
 			"STRIPE_INVOICE_PLAN_UNMAPPED",
 			"STRIPE_SCHEDULED_PLAN_MISMATCH",
 			"STRIPE_UNSCHEDULED_PLAN_CHANGE",
@@ -594,6 +634,7 @@ export async function grantDueBillingPeriods(
 		where: {
 			status: "PENDING",
 			startsAt: { lte: now },
+			endsAt: { gt: now },
 			subscription: { status: "ACTIVE" },
 		},
 		include: { subscription: true },
@@ -631,23 +672,14 @@ async function exactlyOneSubscription(
 	providerSubscriptionId: string | undefined,
 	client: TransactionClient,
 ) {
-	if (!providerSubscriptionId) throw new Error("STRIPE_SUBSCRIPTION_BINDING_AMBIGUOUS");
+	if (!providerSubscriptionId) throw new Error("STRIPE_SUBSCRIPTION_ID_MISSING");
 	const matches = await client.subscription.findMany({
 		where: { provider: "stripe", providerSubscriptionId },
 		include: { plan: true },
 		take: 2,
 	});
-	if (matches.length !== 1) {
-		await client.auditLog.create({
-			data: {
-				action: "PAYMENT_BINDING_DIAGNOSTIC",
-				targetType: "STRIPE_SUBSCRIPTION",
-				targetId: providerSubscriptionId,
-				metadata: { matchCount: matches.length, replayable: true, pageAdmin: true },
-			},
-		});
-		throw new Error("STRIPE_SUBSCRIPTION_BINDING_AMBIGUOUS");
-	}
+	if (matches.length === 0) throw new Error("STRIPE_SUBSCRIPTION_BINDING_PENDING");
+	if (matches.length > 1) throw new Error("STRIPE_SUBSCRIPTION_BINDING_AMBIGUOUS");
 	return matches[0];
 }
 

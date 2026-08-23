@@ -69,7 +69,11 @@
 				}
 			},
 			"overrides": { "title": "Aktive Laufzeitregeln", "rollback": "Zurücksetzen" },
-			"audit": { "title": "Aktuelles Medienprotokoll" }
+			"audit": { "title": "Aktuelles Medienprotokoll" },
+			"paymentEvents": {
+				"title": "Zahlungsereignisdiagnose",
+				"empty": "Keine aktuellen Ereignisse"
+			}
 		},
 		"title": "Administration",
 		"users": {

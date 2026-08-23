@@ -1,7 +1,7 @@
-import { createHmac } from "node:crypto";
+import { createHash, createHmac } from "node:crypto";
 
 import { PrismaPg } from "@prisma/adapter-pg";
-import { createCreditGrant, ingestPaymentEvent } from "@repo/database";
+import { createCreditGrant, ingestPaymentEvent, recoverExpiredPaymentEvents } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
 import { reconcileSubscriptionsWithClient } from "@repo/jobs";
 import {
@@ -11,9 +11,19 @@ import {
 	processClaimedStripePaymentEvent,
 	processStripePaymentEvent,
 } from "@repo/payments";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
+
+interface PaymentEventRetryMetadata {
+	status: string;
+	failureReason: string | null;
+	attemptCount: number;
+	lastTriggerRunId: string | null;
+	lastErrorClass: string | null;
+	lastTriggerAttempt?: number | null;
+	lastAttemptAt?: Date | null;
+}
 
 function assertSafeTestDatabaseUrl(): string {
 	if (!TEST_DATABASE_URL) throw new Error("TEST_DATABASE_URL is required");
@@ -40,6 +50,31 @@ describe("Stripe subscription credit lifecycle", () => {
 	});
 
 	afterAll(async () => client?.$disconnect());
+
+	beforeEach(async () => {
+		const recoveryEventIds = await client.paymentEvent.findMany({
+			where: { providerEventId: { startsWith: "evt_lease_recovery_" } },
+			select: { id: true },
+		});
+		if (recoveryEventIds.length === 0) return;
+		const ids = recoveryEventIds.map((event) => event.id);
+		await client.$transaction([
+			client.outboxEvent.deleteMany({
+				where: {
+					aggregateId: { in: ids },
+					dedupeKey: { startsWith: "payment-event-recovery:" },
+				},
+			}),
+			client.auditLog.deleteMany({
+				where: {
+					action: "PAYMENT_EVENT_LEASE_RECOVERED",
+					targetType: "PAYMENT_EVENT",
+					targetId: { in: ids },
+				},
+			}),
+			client.paymentEvent.deleteMany({ where: { id: { in: ids } } }),
+		]);
+	});
 
 	it("rejects new purchases with zero or multiple owners", async () => {
 		const suffix = crypto.randomUUID();
@@ -569,6 +604,68 @@ describe("Stripe subscription credit lifecycle", () => {
 		expect(await client.creditLedgerEntry.count({ where: { account: { ownerId } } })).toBe(2);
 	});
 
+	it("grants a due period after more than one batch of expired pending periods", async () => {
+		const suffix = crypto.randomUUID();
+		const now = new Date("2040-06-15T00:00:00.000Z");
+		const plan = await client.billingPlan.create({
+			data: {
+				provider: "stripe",
+				providerPriceId: `price_expired_backlog_${suffix}`,
+				name: "backlog fixture",
+				creditsPerPeriod: 50n,
+				priceMicros: 1_000_000n,
+				currency: "USD",
+				metadata: { planId: "backlog-fixture", interval: "month", version: 1 },
+			},
+		});
+		const subscription = await client.subscription.create({
+			data: {
+				ownerType: "USER",
+				ownerId: `expired-backlog-${suffix}`,
+				provider: "stripe",
+				providerSubscriptionId: `sub_expired_backlog_${suffix}`,
+				planId: plan.id,
+				status: "ACTIVE",
+			},
+		});
+		await client.billingPeriod.createMany({
+			data: Array.from({ length: 101 }, (_, index) => {
+				const startsAt = new Date(Date.UTC(2030, 0, index + 1));
+				return {
+					subscriptionId: subscription.id,
+					startsAt,
+					endsAt: new Date(startsAt.getTime() + 24 * 60 * 60 * 1_000),
+					status: "PENDING" as const,
+					creditAmount: 50n,
+					grantReferenceKey: `expired-backlog:${suffix}:${index}`,
+				};
+			}),
+		});
+		const duePeriod = await client.billingPeriod.create({
+			data: {
+				subscriptionId: subscription.id,
+				startsAt: new Date(now.getTime() - 60_000),
+				endsAt: new Date(now.getTime() + 24 * 60 * 60 * 1_000),
+				status: "PENDING",
+				creditAmount: 50n,
+				grantReferenceKey: `due-after-expired-backlog:${suffix}`,
+			},
+		});
+
+		await grantDueBillingPeriods({ now }, client);
+
+		await expect(
+			client.billingPeriod.findUniqueOrThrow({ where: { id: duePeriod.id } }),
+		).resolves.toMatchObject({
+			status: "ACTIVE",
+		});
+		expect(
+			await client.creditLedgerEntry.findUnique({
+				where: { referenceKey: duePeriod.grantReferenceKey! },
+			}),
+		).not.toBeNull();
+	});
+
 	it("voids all future annual periods after a full refund", async () => {
 		const ownerId = `annual-refund-${crypto.randomUUID()}`;
 		const plan = await client.billingPlan.create({
@@ -638,9 +735,23 @@ describe("Stripe subscription credit lifecycle", () => {
 		});
 		expect(periods).toHaveLength(12);
 		expect(periods.every((period) => period.status === "REFUNDED")).toBe(true);
+		const grantReferenceKeys = periods.flatMap((period) =>
+			period.grantReferenceKey ? [period.grantReferenceKey] : [],
+		);
+		const grantsBefore = await client.creditLedgerEntry.count({
+			where: { referenceKey: { in: grantReferenceKeys } },
+		});
+		await grantDueBillingPeriods({ now: new Date("2030-01-01T00:00:00.000Z") }, client);
 		expect(
-			await grantDueBillingPeriods({ now: new Date("2030-01-01T00:00:00.000Z") }, client),
-		).toEqual({ granted: 0 });
+			(
+				await client.billingPeriod.findMany({
+					where: { id: { in: periods.map((period) => period.id) } },
+				})
+			).every((period) => period.status === "REFUNDED"),
+		).toBe(true);
+		expect(
+			await client.creditLedgerEntry.count({ where: { referenceKey: { in: grantReferenceKeys } } }),
+		).toBe(grantsBefore);
 	});
 
 	it("rounds multiple partial annual refunds from the cumulative invoice total", async () => {
@@ -910,6 +1021,38 @@ describe("Stripe subscription credit lifecycle", () => {
 		});
 	});
 
+	it("retries when its own payment-event lease expires without a successor", async () => {
+		const processingToken = `lease-expired-${crypto.randomUUID()}`;
+		const leaseExpiry = new Date("2030-01-01T00:00:00.000Z");
+		const event = await client.paymentEvent.create({
+			data: {
+				provider: "stripe",
+				providerEventId: `evt_expired_lease_${crypto.randomUUID()}`,
+				verifiedAt: new Date(),
+				status: "PROCESSING",
+				processingToken,
+				processingLeasedUntil: leaseExpiry,
+				envelope: { id: "evt_expired_lease", type: "noop", created: 1, data: { object: {} } },
+			},
+		});
+
+		await expect(
+			processClaimedStripePaymentEvent(
+				{
+					paymentEventId: event.id,
+					processingToken,
+					now: new Date("2030-01-01T00:01:00.000Z"),
+				},
+				client,
+			),
+		).rejects.toThrow("PAYMENT_EVENT_LEASE_EXPIRED");
+		expect(await client.paymentEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({
+			status: "PROCESSING",
+			processingToken,
+			processingLeasedUntil: leaseExpiry,
+		});
+	});
+
 	it("does not retry an unsupported Stripe event", async () => {
 		const event = await client.paymentEvent.create({
 			data: {
@@ -929,6 +1072,594 @@ describe("Stripe subscription credit lifecycle", () => {
 		});
 	});
 
+	it("retries an invoice after its subscription creation is processed", async () => {
+		const suffix = crypto.randomUUID();
+		const ownerId = `invoice-before-subscription-${suffix}`;
+		const providerSubscriptionId = `sub_before_${suffix}`;
+		const customerId = `cus_before_${suffix}`;
+		await client.user.create({
+			data: {
+				id: ownerId,
+				name: "Invoice ordering fixture",
+				email: `invoice-before-subscription-${suffix}@example.test`,
+				emailVerified: true,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			},
+		});
+		const plan = await client.billingPlan.create({
+			data: {
+				provider: "stripe",
+				providerPriceId: `price_before_${suffix}`,
+				name: "creator",
+				creditsPerPeriod: 321n,
+				priceMicros: 19_000_000n,
+				currency: "USD",
+				metadata: { planId: "creator", interval: "month", version: 1 },
+			},
+		});
+		const invoiceId = `in_before_${suffix}`;
+		const invoice = await client.paymentEvent.create({
+			data: {
+				provider: "stripe",
+				providerEventId: `evt_invoice_before_${suffix}`,
+				verifiedAt: new Date(),
+				envelope: {
+					id: `evt_invoice_payload_before_${suffix}`,
+					type: "invoice.paid",
+					created: 1_800_000_000,
+					data: {
+						object: {
+							id: invoiceId,
+							subscription: providerSubscriptionId,
+							charge: `ch_before_${suffix}`,
+							amount_paid: 1_900,
+							period_start: 1_800_000_000,
+							period_end: 1_802_678_400,
+							lines: { data: [{ price: { id: plan.providerPriceId } }] },
+						},
+					},
+				},
+			},
+		});
+
+		await expect(
+			processStripePaymentEvent({ paymentEventId: invoice.id }, client, {
+				attempt: 1,
+				maxAttempts: 5,
+				triggerRunId: "run_invoice_before_subscription_1",
+			}),
+		).rejects.toThrow("STRIPE_SUBSCRIPTION_BINDING_PENDING");
+		const failedInvoice = (await client.paymentEvent.findUniqueOrThrow({
+			where: { id: invoice.id },
+		})) as PaymentEventRetryMetadata;
+		expect(failedInvoice).toMatchObject({
+			status: "FAILED",
+			failureReason: "PAYMENT_EVENT_RETRYABLE_FAILURE",
+			attemptCount: 1,
+			lastTriggerRunId: "run_invoice_before_subscription_1",
+			lastErrorClass: "TRANSIENT",
+		});
+		expect(failedInvoice.lastTriggerAttempt).toBe(1);
+		expect(failedInvoice.lastAttemptAt).toBeInstanceOf(Date);
+
+		const subscriptionEvent = await client.paymentEvent.create({
+			data: {
+				provider: "stripe",
+				providerEventId: `evt_subscription_after_${suffix}`,
+				verifiedAt: new Date(),
+				envelope: subscriptionCreatedEnvelope({
+					eventId: `evt_subscription_payload_after_${suffix}`,
+					providerSubscriptionId,
+					customerId,
+					planId: plan.id,
+					planKey: "creator",
+					ownerId,
+					priceId: plan.providerPriceId,
+				}),
+			},
+		});
+		expect(
+			await processStripePaymentEvent({ paymentEventId: subscriptionEvent.id }, client),
+		).toMatchObject({ outcome: "PROCESSED" });
+		expect(
+			await processStripePaymentEvent({ paymentEventId: invoice.id }, client, {
+				attempt: 2,
+				maxAttempts: 5,
+				triggerRunId: "run_invoice_before_subscription_2",
+			}),
+		).toMatchObject({ outcome: "PROCESSED", grantsCreated: 1 });
+		expect(await client.billingPeriod.count({ where: { providerInvoiceId: invoiceId } })).toBe(1);
+	});
+
+	it("dead letters a missing invoice subscription with durable safe audit evidence", async () => {
+		const suffix = crypto.randomUUID();
+		const event = await client.paymentEvent.create({
+			data: {
+				provider: "stripe",
+				providerEventId: `evt_invoice_without_subscription_${suffix}`,
+				verifiedAt: new Date(),
+				envelope: {
+					id: `evt_invoice_without_subscription_payload_${suffix}`,
+					type: "invoice.paid",
+					created: 1_800_000_000,
+					data: {
+						object: {
+							id: `in_without_subscription_${suffix}`,
+						},
+					},
+				},
+			},
+		});
+
+		expect(await processStripePaymentEvent({ paymentEventId: event.id }, client)).toEqual({
+			outcome: "DEAD_LETTER",
+			grantsCreated: 0,
+		});
+		const failed = (await client.paymentEvent.findUniqueOrThrow({
+			where: { id: event.id },
+		})) as PaymentEventRetryMetadata;
+		expect(failed).toMatchObject({
+			status: "DEAD_LETTER",
+			failureReason: "STRIPE_SUBSCRIPTION_ID_MISSING",
+			lastErrorClass: "TERMINAL",
+		});
+		expect(failed.lastTriggerAttempt).toBe(1);
+		expect(failed.lastAttemptAt).toBeInstanceOf(Date);
+		const audit = await client.auditLog.findFirstOrThrow({
+			where: {
+				action: "PAYMENT_EVENT_FAILURE_RECORDED",
+				targetType: "PAYMENT_EVENT",
+				targetId: event.id,
+			},
+			orderBy: { createdAt: "desc" },
+		});
+		expect(audit.after).toMatchObject({
+			status: "DEAD_LETTER",
+			attemptCount: 1,
+			lastTriggerAttempt: 1,
+			lastErrorClass: "TERMINAL",
+		});
+		expect(JSON.stringify(audit)).not.toMatch(
+			/envelope|signature|evt_invoice_without_subscription_payload/i,
+		);
+	});
+
+	it("leaves an audit-failed expired lease for durable recovery", async () => {
+		const event = await client.paymentEvent.create({
+			data: {
+				provider: "stripe",
+				providerEventId: `evt_audit_failure_lease_${crypto.randomUUID()}`,
+				verifiedAt: new Date(),
+				envelope: {
+					id: `evt_audit_failure_lease_payload_${crypto.randomUUID()}`,
+					type: "invoice.paid",
+					created: 1_800_000_000,
+					data: { object: { id: `in_audit_failure_lease_${crypto.randomUUID()}` } },
+				},
+			},
+		});
+		let transactionCalls = 0;
+		const auditFailingClient = new Proxy(client, {
+			get(target, property, receiver) {
+				if (property === "$transaction") {
+					return async (...args: Parameters<typeof client.$transaction>) => {
+						transactionCalls += 1;
+						if (transactionCalls === 2) throw new Error("PAYMENT_FAILURE_AUDIT_UNAVAILABLE");
+						return target.$transaction(...args);
+					};
+				}
+				return Reflect.get(target, property, receiver);
+			},
+		});
+
+		await expect(
+			processStripePaymentEvent({ paymentEventId: event.id }, auditFailingClient, {
+				attempt: 1,
+				maxAttempts: 8,
+				triggerRunId: "run_audit_failure_lease_1",
+			}),
+		).rejects.toThrow("PAYMENT_FAILURE_AUDIT_UNAVAILABLE");
+		const stranded = await client.paymentEvent.findUniqueOrThrow({ where: { id: event.id } });
+		expect(stranded).toMatchObject({
+			status: "PROCESSING",
+		});
+		const strandedToken = stranded.processingToken!;
+		await expect(
+			processStripePaymentEvent({ paymentEventId: event.id }, client, {
+				attempt: 2,
+				maxAttempts: 8,
+				triggerRunId: "run_audit_failure_lease_2",
+			}),
+		).rejects.toThrow("PAYMENT_EVENT_LEASE_ACTIVE");
+		const expiredLease = new Date(Date.now() - 1_000);
+		await client.paymentEvent.update({
+			where: { id: event.id },
+			data: { processingLeasedUntil: expiredLease },
+		});
+		await expect(
+			processStripePaymentEvent({ paymentEventId: event.id }, client, {
+				attempt: 3,
+				maxAttempts: 8,
+				triggerRunId: "run_audit_failure_lease_3",
+			}),
+		).resolves.toEqual({ outcome: "SKIPPED", grantsCreated: 0 });
+		expect(await client.paymentEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({
+			status: "PROCESSING",
+			processingToken: strandedToken,
+			processingLeasedUntil: expiredLease,
+		});
+		expect(
+			await client.outboxEvent.count({
+				where: { aggregateId: event.id, eventType: "PAYMENT_EVENT_RECEIVED" },
+			}),
+		).toBe(0);
+		await expect(
+			recoverExpiredPaymentEvents({ now: new Date(), limit: 25 }, client),
+		).resolves.toEqual({
+			recovered: 1,
+		});
+		expect(
+			await client.outboxEvent.findUniqueOrThrow({
+				where: {
+					dedupeKey: `payment-event-recovery:${event.id}:${createHash("sha256")
+						.update(strandedToken)
+						.digest("hex")}`,
+				},
+			}),
+		).toMatchObject({ status: "PENDING", payload: { paymentEventId: event.id } });
+	});
+
+	it("recovers an expired payment-event lease with safe evidence and a durable outbox event", async () => {
+		const now = new Date("2000-01-01T00:01:00.000Z");
+		const processingToken = `lease-recovery-${crypto.randomUUID()}`;
+		const event = await client.paymentEvent.create({
+			data: {
+				provider: "stripe",
+				providerEventId: `evt_lease_recovery_${crypto.randomUUID()}`,
+				verifiedAt: now,
+				status: "PROCESSING",
+				processingToken,
+				processingLeasedUntil: new Date(now.getTime() - 1_000),
+				envelope: {
+					id: `evt_lease_recovery_payload_${crypto.randomUUID()}`,
+					type: "invoice.paid",
+					created: 1_800_000_000,
+					data: { object: { id: `in_lease_recovery_${crypto.randomUUID()}` } },
+				},
+			},
+		});
+		const recoveryDedupeKey = `payment-event-recovery:${event.id}:${createHash("sha256")
+			.update(processingToken)
+			.digest("hex")}`;
+
+		await expect(recoverExpiredPaymentEvents({ now, limit: 25 }, client)).resolves.toEqual({
+			recovered: 1,
+		});
+		await expect(recoverExpiredPaymentEvents({ now, limit: 25 }, client)).resolves.toEqual({
+			recovered: 0,
+		});
+		expect(await client.paymentEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({
+			status: "FAILED",
+			failureReason: "PAYMENT_EVENT_LEASE_EXPIRED",
+			attemptCount: 1,
+			lastErrorClass: "TRANSIENT",
+			processingToken: null,
+			processingLeasedUntil: null,
+		});
+		expect(
+			await client.outboxEvent.findUniqueOrThrow({ where: { dedupeKey: recoveryDedupeKey } }),
+		).toMatchObject({
+			eventType: "PAYMENT_EVENT_RECEIVED",
+			aggregateType: "PAYMENT_EVENT",
+			aggregateId: event.id,
+			payload: { paymentEventId: event.id },
+		});
+		const audit = await client.auditLog.findFirstOrThrow({
+			where: {
+				action: "PAYMENT_EVENT_LEASE_RECOVERED",
+				targetType: "PAYMENT_EVENT",
+				targetId: event.id,
+			},
+			orderBy: { createdAt: "desc" },
+		});
+		expect(audit.after).toMatchObject({
+			status: "FAILED",
+			failureReason: "PAYMENT_EVENT_LEASE_EXPIRED",
+			attemptCount: 1,
+			lastErrorClass: "TRANSIENT",
+		});
+		expect(JSON.stringify(audit)).not.toMatch(
+			/envelope|lease-recovery|evt_lease_recovery_payload/i,
+		);
+	});
+
+	it("fences concurrent lease recoveries to one outbox event", async () => {
+		const now = new Date("1999-01-01T00:01:00.000Z");
+		const processingToken = `lease-recovery-concurrent-${crypto.randomUUID()}`;
+		const event = await client.paymentEvent.create({
+			data: {
+				provider: "stripe",
+				providerEventId: `evt_lease_recovery_concurrent_${crypto.randomUUID()}`,
+				verifiedAt: now,
+				status: "PROCESSING",
+				processingToken,
+				processingLeasedUntil: new Date(now.getTime() - 1_000),
+				envelope: {
+					id: "evt_lease_recovery_concurrent",
+					type: "payout.paid",
+					created: 1,
+					data: { object: {} },
+				},
+			},
+		});
+		const recoveryDedupeKey = `payment-event-recovery:${event.id}:${createHash("sha256")
+			.update(processingToken)
+			.digest("hex")}`;
+
+		const results = await Promise.all([
+			recoverExpiredPaymentEvents({ now, limit: 25 }, client),
+			recoverExpiredPaymentEvents({ now, limit: 25 }, client),
+		]);
+
+		expect(results.reduce((total, result) => total + result.recovered, 0)).toBe(1);
+		expect(await client.outboxEvent.count({ where: { dedupeKey: recoveryDedupeKey } })).toBe(1);
+		expect(
+			await client.auditLog.count({
+				where: {
+					action: "PAYMENT_EVENT_LEASE_RECOVERED",
+					targetType: "PAYMENT_EVENT",
+					targetId: event.id,
+				},
+			}),
+		).toBe(1);
+	});
+
+	it("creates an immutable recovery outbox for each expired lease cycle", async () => {
+		const now = new Date("1998-01-01T00:01:00.000Z");
+		const firstToken = `lease-recovery-first-${crypto.randomUUID()}`;
+		const event = await client.paymentEvent.create({
+			data: {
+				provider: "stripe",
+				providerEventId: `evt_lease_recovery_second_${crypto.randomUUID()}`,
+				verifiedAt: now,
+				status: "PROCESSING",
+				processingToken: firstToken,
+				processingLeasedUntil: new Date(now.getTime() - 1_000),
+				envelope: {
+					id: "evt_lease_recovery_second",
+					type: "payout.paid",
+					created: 1,
+					data: { object: {} },
+				},
+			},
+		});
+		const firstRecoveryDedupeKey = `payment-event-recovery:${event.id}:${createHash("sha256")
+			.update(firstToken)
+			.digest("hex")}`;
+
+		await recoverExpiredPaymentEvents({ now, limit: 25 }, client);
+		const firstOutbox = await client.outboxEvent.findUniqueOrThrow({
+			where: { dedupeKey: firstRecoveryDedupeKey },
+		});
+		const secondToken = `lease-recovery-second-${crypto.randomUUID()}`;
+		await client.paymentEvent.update({
+			where: { id: event.id },
+			data: {
+				status: "PROCESSING",
+				failureReason: null,
+				processingToken: secondToken,
+				processingLeasedUntil: new Date(now.getTime() - 1_000),
+			},
+		});
+
+		await expect(recoverExpiredPaymentEvents({ now, limit: 25 }, client)).resolves.toEqual({
+			recovered: 1,
+		});
+		const secondRecoveryDedupeKey = `payment-event-recovery:${event.id}:${createHash("sha256")
+			.update(secondToken)
+			.digest("hex")}`;
+		const secondOutbox = await client.outboxEvent.findUniqueOrThrow({
+			where: { dedupeKey: secondRecoveryDedupeKey },
+		});
+		expect(
+			await client.outboxEvent.count({
+				where: { aggregateId: event.id, eventType: "PAYMENT_EVENT_RECEIVED" },
+			}),
+		).toBe(2);
+		expect(
+			await client.outboxEvent.findUniqueOrThrow({ where: { id: firstOutbox.id } }),
+		).toMatchObject({
+			id: firstOutbox.id,
+			status: "PENDING",
+			attempts: 0,
+		});
+		await client.outboxEvent.update({
+			where: { id: firstOutbox.id },
+			data: { status: "DEAD_LETTER", attempts: 3, lastError: "historic-delivery-failure" },
+		});
+		const thirdToken = `lease-recovery-third-${crypto.randomUUID()}`;
+		await client.paymentEvent.update({
+			where: { id: event.id },
+			data: {
+				status: "PROCESSING",
+				failureReason: null,
+				processingToken: thirdToken,
+				processingLeasedUntil: new Date(now.getTime() - 1_000),
+			},
+		});
+
+		await expect(recoverExpiredPaymentEvents({ now, limit: 25 }, client)).resolves.toEqual({
+			recovered: 1,
+		});
+		const thirdRecoveryDedupeKey = `payment-event-recovery:${event.id}:${createHash("sha256")
+			.update(thirdToken)
+			.digest("hex")}`;
+		expect(
+			await client.outboxEvent.count({
+				where: { aggregateId: event.id, eventType: "PAYMENT_EVENT_RECEIVED" },
+			}),
+		).toBe(3);
+		expect(
+			await client.outboxEvent.findUniqueOrThrow({ where: { id: firstOutbox.id } }),
+		).toMatchObject({
+			id: firstOutbox.id,
+			status: "DEAD_LETTER",
+			attempts: 3,
+			lastError: "historic-delivery-failure",
+		});
+		expect(
+			await client.outboxEvent.findUniqueOrThrow({ where: { id: secondOutbox.id } }),
+		).toMatchObject({
+			id: secondOutbox.id,
+			status: "PENDING",
+			attempts: 0,
+		});
+		expect(
+			await client.outboxEvent.findUniqueOrThrow({ where: { dedupeKey: thirdRecoveryDedupeKey } }),
+		).toMatchObject({
+			eventType: "PAYMENT_EVENT_RECEIVED",
+			status: "PENDING",
+			payload: { paymentEventId: event.id },
+		});
+	});
+
+	it("rolls back expired-lease recovery when its safe audit cannot be written", async () => {
+		const now = new Date("1997-01-01T00:01:00.000Z");
+		const processingToken = `lease-recovery-audit-${crypto.randomUUID()}`;
+		const event = await client.paymentEvent.create({
+			data: {
+				provider: "stripe",
+				providerEventId: `evt_lease_recovery_audit_${crypto.randomUUID()}`,
+				verifiedAt: now,
+				status: "PROCESSING",
+				processingToken,
+				processingLeasedUntil: new Date(now.getTime() - 1_000),
+				envelope: {
+					id: "evt_lease_recovery_audit",
+					type: "payout.paid",
+					created: 1,
+					data: { object: {} },
+				},
+			},
+		});
+		const recoveryDedupeKey = `payment-event-recovery:${event.id}:${createHash("sha256")
+			.update(processingToken)
+			.digest("hex")}`;
+		const auditFailingClient = new Proxy(client, {
+			get(target, property, receiver) {
+				if (property !== "$transaction") return Reflect.get(target, property, receiver);
+				return async (operation: (transaction: object) => Promise<unknown>, options: object) =>
+					target.$transaction(
+						async (transaction) =>
+							operation(
+								new Proxy(transaction, {
+									get(transactionTarget, transactionProperty, transactionReceiver) {
+										if (transactionProperty !== "auditLog") {
+											return Reflect.get(
+												transactionTarget,
+												transactionProperty,
+												transactionReceiver,
+											);
+										}
+										return new Proxy(transactionTarget.auditLog, {
+											get(auditLogTarget, auditLogProperty, auditLogReceiver) {
+												if (auditLogProperty === "create") {
+													return async () => {
+														throw new Error("PAYMENT_LEASE_RECOVERY_AUDIT_UNAVAILABLE");
+													};
+												}
+												return Reflect.get(auditLogTarget, auditLogProperty, auditLogReceiver);
+											},
+										});
+									},
+								}),
+							),
+						options as never,
+					);
+			},
+		});
+
+		await expect(
+			recoverExpiredPaymentEvents({ now, limit: 25 }, auditFailingClient),
+		).rejects.toThrow("PAYMENT_LEASE_RECOVERY_AUDIT_UNAVAILABLE");
+		expect(await client.paymentEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({
+			status: "PROCESSING",
+			processingToken,
+			processingLeasedUntil: new Date(now.getTime() - 1_000),
+		});
+		expect(await client.outboxEvent.count({ where: { dedupeKey: recoveryDedupeKey } })).toBe(0);
+		expect(
+			await client.auditLog.count({
+				where: {
+					action: "PAYMENT_EVENT_LEASE_RECOVERED",
+					targetType: "PAYMENT_EVENT",
+					targetId: event.id,
+				},
+			}),
+		).toBe(0);
+	});
+
+	it("recovers an event stranded after Trigger retries exhaust", async () => {
+		const now = new Date("1996-01-01T00:01:00.000Z");
+		const processingToken = `lease-recovery-exhausted-${crypto.randomUUID()}`;
+		const triggerRunId = `run_exhausted_${crypto.randomUUID()}`;
+		const event = await client.paymentEvent.create({
+			data: {
+				provider: "stripe",
+				providerEventId: `evt_lease_recovery_exhausted_${crypto.randomUUID()}`,
+				verifiedAt: now,
+				status: "PROCESSING",
+				attemptCount: 7,
+				lastTriggerAttempt: 8,
+				lastTriggerRunId: triggerRunId,
+				lastErrorClass: "TRANSIENT",
+				processingToken,
+				processingLeasedUntil: new Date(now.getTime() - 1_000),
+				envelope: {
+					id: "evt_lease_recovery_exhausted",
+					type: "payout.paid",
+					created: 1,
+					data: { object: {} },
+				},
+			},
+		});
+
+		await expect(recoverExpiredPaymentEvents({ now, limit: 25 }, client)).resolves.toEqual({
+			recovered: 1,
+		});
+		expect(await client.paymentEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({
+			status: "FAILED",
+			attemptCount: 8,
+			failureReason: "PAYMENT_EVENT_LEASE_EXPIRED",
+			lastTriggerAttempt: 8,
+			lastTriggerRunId: triggerRunId,
+			lastAttemptAt: now,
+			lastErrorClass: "TRANSIENT",
+			processingToken: null,
+			processingLeasedUntil: null,
+		});
+		expect(
+			await client.outboxEvent.findUniqueOrThrow({
+				where: {
+					dedupeKey: `payment-event-recovery:${event.id}:${createHash("sha256")
+						.update(processingToken)
+						.digest("hex")}`,
+				},
+			}),
+		).toMatchObject({
+			eventType: "PAYMENT_EVENT_RECEIVED",
+			status: "PENDING",
+		});
+		await expect(
+			processStripePaymentEvent({ paymentEventId: event.id }, client, {
+				attempt: 1,
+				maxAttempts: 8,
+				triggerRunId: "run_recovered_after_exhaustion",
+			}),
+		).resolves.toEqual({ outcome: "IGNORED", grantsCreated: 0 });
+	});
+
 	it("throws after persisting a transient payment event failure", async () => {
 		const event = await client.paymentEvent.create({
 			data: {
@@ -938,11 +1669,14 @@ describe("Stripe subscription credit lifecycle", () => {
 				envelope: { id: "evt_transient", type: "payout.paid", created: 1, data: { object: {} } },
 			},
 		});
+		let transactionCalls = 0;
 		const transientClient = new Proxy(client, {
 			get(target, property, receiver) {
 				if (property === "$transaction") {
-					return async () => {
-						throw new Error("DATABASE_TEMPORARILY_UNAVAILABLE");
+					return async (...args: Parameters<typeof client.$transaction>) => {
+						transactionCalls += 1;
+						if (transactionCalls === 1) throw new Error("DATABASE_TEMPORARILY_UNAVAILABLE");
+						return target.$transaction(...args);
 					};
 				}
 				return Reflect.get(target, property, receiver);
@@ -978,11 +1712,14 @@ describe("Stripe subscription credit lifecycle", () => {
 				},
 			},
 		});
+		let transactionCalls = 0;
 		const transientClient = new Proxy(client, {
 			get(target, property, receiver) {
 				if (property === "$transaction") {
-					return async () => {
-						throw new Error("DATABASE_TEMPORARILY_UNAVAILABLE");
+					return async (...args: Parameters<typeof client.$transaction>) => {
+						transactionCalls += 1;
+						if (transactionCalls === 1) throw new Error("DATABASE_TEMPORARILY_UNAVAILABLE");
+						return target.$transaction(...args);
 					};
 				}
 				return Reflect.get(target, property, receiver);
@@ -996,12 +1733,26 @@ describe("Stripe subscription credit lifecycle", () => {
 				triggerRunId: "run_retry_final",
 			}),
 		).rejects.toThrow("DATABASE_TEMPORARILY_UNAVAILABLE");
-		expect(await client.paymentEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({
+		const failed = (await client.paymentEvent.findUniqueOrThrow({
+			where: { id: event.id },
+		})) as PaymentEventRetryMetadata;
+		expect(failed).toMatchObject({
 			status: "DEAD_LETTER",
 			attemptCount: 1,
 			lastTriggerRunId: "run_retry_final",
 			lastErrorClass: "TRANSIENT",
 		});
+		expect(failed.lastTriggerAttempt).toBe(5);
+		expect(failed.lastAttemptAt).toBeInstanceOf(Date);
+		expect(
+			await client.auditLog.count({
+				where: {
+					action: "PAYMENT_EVENT_FAILURE_RECORDED",
+					targetType: "PAYMENT_EVENT",
+					targetId: event.id,
+				},
+			}),
+		).toBe(1);
 	});
 
 	it("dead letters terminal payment event errors without throwing", async () => {

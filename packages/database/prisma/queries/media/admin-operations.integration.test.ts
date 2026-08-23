@@ -13,7 +13,27 @@ import {
 	rollbackAdminMediaRuntimeOverride,
 	setAdminMediaRuntimeOverride,
 } from ".";
-import { PrismaClient } from "../../generated/client";
+import { PrismaClient, type Prisma } from "../../generated/client";
+
+interface SafePaymentEventDiagnostic {
+	id: string;
+	providerEventId: string;
+	status: "FAILED" | "DEAD_LETTER" | "IGNORED";
+	attemptCount: number;
+	lastTriggerAttempt: number | null;
+	lastAttemptAt: string | null;
+	lastTriggerRunId: string | null;
+	lastErrorClass: string | null;
+}
+
+interface PaymentDiagnostics {
+	events: {
+		payment: Record<
+			"failed" | "deadLetter" | "ignored",
+			{ count: number; items: SafePaymentEventDiagnostic[] }
+		>;
+	};
+}
 
 function safeTestDatabaseUrl(): string {
 	const value = process.env.TEST_DATABASE_URL;
@@ -56,6 +76,7 @@ describe("admin media database operations", () => {
 
 	it("replays a failed persisted event exactly once and audits the operation", async () => {
 		const suffix = crypto.randomUUID();
+		const lastAttemptAt = new Date("2026-08-23T12:00:00.000Z");
 		const event = await client.paymentEvent.create({
 			data: {
 				provider: "stripe",
@@ -64,6 +85,11 @@ describe("admin media database operations", () => {
 				envelope: { privateFixture: "must-not-be-returned" },
 				status: "FAILED",
 				failureReason: "DEPENDENCY_UNAVAILABLE",
+				attemptCount: 4,
+				lastTriggerAttempt: 5,
+				lastAttemptAt,
+				lastTriggerRunId: `trigger-run-${suffix}`,
+				lastErrorClass: "TRANSIENT",
 			},
 		});
 		const input = {
@@ -80,15 +106,133 @@ describe("admin media database operations", () => {
 		expect(await client.paymentEvent.findUnique({ where: { id: event.id } })).toMatchObject({
 			status: "RECEIVED",
 			failureReason: null,
+			attemptCount: 0,
+			lastTriggerAttempt: null,
+			lastAttemptAt: null,
+			lastTriggerRunId: null,
+			lastErrorClass: null,
 		});
 		expect(
 			await client.outboxEvent.count({
 				where: { dedupeKey: `admin-replay:PAYMENT:${event.id}:${input.idempotencyKey}` },
 			}),
 		).toBe(1);
+		const audit = await client.auditLog.findFirstOrThrow({
+			where: {
+				action: "MEDIA_EVENT_REPLAYED",
+				targetId: `operation:${input.idempotencyKey}`,
+			},
+		});
+		expect(audit.before).toEqual({
+			status: "FAILED",
+			failureReason: "DEPENDENCY_UNAVAILABLE",
+			attemptCount: 4,
+			lastTriggerAttempt: 5,
+			lastAttemptAt: lastAttemptAt.toISOString(),
+			lastTriggerRunId: `trigger-run-${suffix}`,
+			lastErrorClass: "TRANSIENT",
+		});
+	});
+
+	it("does not clear newer payment retry evidence during replay", async () => {
+		const suffix = crypto.randomUUID();
+		const initialAttemptAt = new Date("2026-08-23T12:00:00.000Z");
+		const newerAttemptAt = new Date("2026-08-23T12:01:00.000Z");
+		const event = await client.paymentEvent.create({
+			data: {
+				provider: "stripe",
+				providerEventId: `replay-race-${suffix}`,
+				verifiedAt: new Date(),
+				envelope: {},
+				status: "FAILED",
+				failureReason: "INITIAL_FAILURE",
+				attemptCount: 1,
+				lastTriggerAttempt: 1,
+				lastAttemptAt: initialAttemptAt,
+				lastTriggerRunId: `initial-run-${suffix}`,
+				lastErrorClass: "TRANSIENT",
+			},
+		});
+		let injectedNewerFailure = false;
+		const racingClient = new Proxy(client, {
+			get(target, property, receiver) {
+				if (property !== "$transaction") return Reflect.get(target, property, receiver);
+				return async <T>(
+					operation: (transaction: Prisma.TransactionClient) => Promise<T>,
+					options?: Parameters<typeof client.$transaction>[1],
+				) =>
+					target.$transaction(async (transaction) => {
+						const paymentEvent = new Proxy(transaction.paymentEvent, {
+							get(delegate, delegateProperty, delegateReceiver) {
+								if (delegateProperty !== "findUnique") {
+									return Reflect.get(delegate, delegateProperty, delegateReceiver);
+								}
+								return async (...args: Parameters<typeof transaction.paymentEvent.findUnique>) => {
+									const snapshot = await transaction.paymentEvent.findUnique(...args);
+									if (!injectedNewerFailure && snapshot?.id === event.id) {
+										injectedNewerFailure = true;
+										await client.paymentEvent.update({
+											where: { id: event.id },
+											data: {
+												status: "FAILED",
+												failureReason: "NEWER_FAILURE",
+												attemptCount: 2,
+												lastTriggerAttempt: 2,
+												lastAttemptAt: newerAttemptAt,
+												lastTriggerRunId: `newer-run-${suffix}`,
+												lastErrorClass: "TRANSIENT",
+											},
+										});
+									}
+									return snapshot;
+								};
+							},
+						});
+						return operation(
+							new Proxy(transaction, {
+								get(transactionTarget, transactionProperty, transactionReceiver) {
+									return transactionProperty === "paymentEvent"
+										? paymentEvent
+										: Reflect.get(transactionTarget, transactionProperty, transactionReceiver);
+								},
+							}),
+						);
+					}, options);
+			},
+		});
+
+		await expect(
+			replayPersistedMediaEvent(
+				{
+					eventKind: "PAYMENT",
+					eventId: event.id,
+					actorUserId: `admin-${suffix}`,
+					idempotencyKey: `replay-race-${suffix}`,
+					reason: "Do not replace newly recorded retry evidence",
+				},
+				racingClient,
+			),
+		).rejects.toThrow("EVENT_NOT_REPLAYABLE");
+		expect(injectedNewerFailure).toBe(true);
+		expect(await client.paymentEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({
+			status: "FAILED",
+			failureReason: "NEWER_FAILURE",
+			attemptCount: 2,
+			lastTriggerAttempt: 2,
+			lastAttemptAt: newerAttemptAt,
+			lastTriggerRunId: `newer-run-${suffix}`,
+			lastErrorClass: "TRANSIENT",
+		});
 		expect(
-			await client.auditLog.count({ where: { targetId: `operation:${input.idempotencyKey}` } }),
-		).toBe(1);
+			await client.auditLog.count({
+				where: { action: "MEDIA_EVENT_REPLAYED", targetId: `operation:replay-race-${suffix}` },
+			}),
+		).toBe(0);
+		expect(
+			await client.outboxEvent.count({
+				where: { dedupeKey: `admin-replay:PAYMENT:${event.id}:replay-race-${suffix}` },
+			}),
+		).toBe(0);
 	});
 
 	it("versions, supersedes, and rolls back runtime overrides with audits", async () => {
@@ -492,6 +636,50 @@ describe("admin media database operations", () => {
 		);
 		expect(diagnostics).toHaveProperty("queue.depth");
 		expect(diagnostics).toHaveProperty("finance.marginMicros");
+	});
+
+	it("separates safe payment-event diagnostics by processing status", async () => {
+		const suffix = crypto.randomUUID();
+		const lastAttemptAt = new Date("2026-08-23T12:00:00.000Z");
+		const secret = `must-not-leak-${suffix}`;
+		const events = await Promise.all(
+			(["FAILED", "DEAD_LETTER", "IGNORED"] as const).map((status, index) =>
+				client.paymentEvent.create({
+					data: {
+						provider: "stripe",
+						providerEventId: `diagnostic-${status.toLowerCase()}-${suffix}`,
+						verifiedAt: new Date(),
+						envelope: { rawPayload: secret, nested: { token: secret } },
+						status,
+						attemptCount: index + 1,
+						lastTriggerAttempt: index + 2,
+						lastAttemptAt,
+						lastTriggerRunId: `diagnostic-run-${status.toLowerCase()}-${suffix}`,
+						lastErrorClass: status === "IGNORED" ? null : "TRANSIENT",
+					},
+				}),
+			),
+		);
+		const diagnostics = (await getAdminMediaDiagnostics(client)) as unknown as PaymentDiagnostics;
+		const expected = [
+			{ bucket: diagnostics.events.payment.failed, event: events[0]! },
+			{ bucket: diagnostics.events.payment.deadLetter, event: events[1]! },
+			{ bucket: diagnostics.events.payment.ignored, event: events[2]! },
+		];
+		for (const { bucket, event } of expected) {
+			expect(bucket.count).toBeGreaterThan(0);
+			expect(bucket.items).toContainEqual({
+				id: event.id,
+				providerEventId: event.providerEventId,
+				status: event.status,
+				attemptCount: event.attemptCount,
+				lastTriggerAttempt: event.lastTriggerAttempt,
+				lastAttemptAt: lastAttemptAt.toISOString(),
+				lastTriggerRunId: event.lastTriggerRunId,
+				lastErrorClass: event.lastErrorClass,
+			});
+		}
+		expect(JSON.stringify(diagnostics)).not.toContain(secret);
 	});
 
 	it("uses processed event time for revenue and completed time for provider cost", async () => {

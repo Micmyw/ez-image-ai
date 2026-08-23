@@ -5,6 +5,19 @@ interface AggregateCountAge {
 	oldestAgeSeconds: number | null;
 }
 
+const PAYMENT_EVENT_DIAGNOSTIC_LIMIT = 25;
+
+interface PaymentEventDiagnosticRow {
+	id: string;
+	providerEventId: string;
+	status: string;
+	attemptCount: number;
+	lastTriggerAttempt: number | null;
+	lastAttemptAt: Date | null;
+	lastTriggerRunId: string | null;
+	lastErrorClass: string | null;
+}
+
 export async function getAdminMediaDiagnostics(client: MediaTransactionClient) {
 	const now = new Date();
 	const stalledBefore = new Date(now.getTime() - 15 * 60_000);
@@ -22,6 +35,9 @@ export async function getAdminMediaDiagnostics(client: MediaTransactionClient) {
 		settledRows,
 		financeRows,
 		eventRows,
+		failedPaymentEvents,
+		deadLetterPaymentEvents,
+		ignoredPaymentEvents,
 		overrides,
 	] = await Promise.all([
 		client.$queryRaw<Array<AggregateCountAge>>`
@@ -83,10 +99,37 @@ export async function getAdminMediaDiagnostics(client: MediaTransactionClient) {
 				  AND event."envelope" ->> 'type' IN ('refund.created', 'charge.refund.updated')),0)::bigint AS "refundedMicros",
 			 COALESCE((SELECT SUM("providerCostMicros") FROM "generation_attempt"
 				WHERE "completedAt" >= ${dayStart}),0)::bigint AS "providerCostMicros"`,
-		client.$queryRaw<Array<{ providerFailed: bigint; paymentFailed: bigint }>>`
+		client.$queryRaw<
+			Array<{
+				providerFailed: bigint;
+				paymentFailed: bigint;
+				paymentDeadLetter: bigint;
+				paymentIgnored: bigint;
+			}>
+		>`
 			SELECT
 			 (SELECT COUNT(*) FROM "provider_webhook_event" WHERE "status" = 'FAILED')::bigint AS "providerFailed",
-			 (SELECT COUNT(*) FROM "payment_event" WHERE "status" = 'FAILED')::bigint AS "paymentFailed"`,
+			 (SELECT COUNT(*) FROM "payment_event" WHERE "status" = 'FAILED')::bigint AS "paymentFailed",
+			 (SELECT COUNT(*) FROM "payment_event" WHERE "status" = 'DEAD_LETTER')::bigint AS "paymentDeadLetter",
+			 (SELECT COUNT(*) FROM "payment_event" WHERE "status" = 'IGNORED')::bigint AS "paymentIgnored"`,
+		client.paymentEvent.findMany({
+			where: { status: "FAILED" },
+			select: paymentEventDiagnosticSelect,
+			orderBy: [{ lastAttemptAt: { sort: "desc", nulls: "last" } }, { receivedAt: "desc" }],
+			take: PAYMENT_EVENT_DIAGNOSTIC_LIMIT,
+		}),
+		client.paymentEvent.findMany({
+			where: { status: "DEAD_LETTER" },
+			select: paymentEventDiagnosticSelect,
+			orderBy: [{ lastAttemptAt: { sort: "desc", nulls: "last" } }, { receivedAt: "desc" }],
+			take: PAYMENT_EVENT_DIAGNOSTIC_LIMIT,
+		}),
+		client.paymentEvent.findMany({
+			where: { status: "IGNORED" },
+			select: paymentEventDiagnosticSelect,
+			orderBy: [{ lastAttemptAt: { sort: "desc", nulls: "last" } }, { receivedAt: "desc" }],
+			take: PAYMENT_EVENT_DIAGNOSTIC_LIMIT,
+		}),
 		client.runtimeConfigOverride.findMany({
 			where: { active: true },
 			select: {
@@ -112,7 +155,12 @@ export async function getAdminMediaDiagnostics(client: MediaTransactionClient) {
 		refundedMicros: 0n,
 		providerCostMicros: 0n,
 	};
-	const events = eventRows[0] ?? { providerFailed: 0n, paymentFailed: 0n };
+	const events = eventRows[0] ?? {
+		providerFailed: 0n,
+		paymentFailed: 0n,
+		paymentDeadLetter: 0n,
+		paymentIgnored: 0n,
+	};
 	const netRevenue = finance.revenueMicros - finance.refundedMicros;
 	return {
 		generatedAt: now.toISOString(),
@@ -153,7 +201,11 @@ export async function getAdminMediaDiagnostics(client: MediaTransactionClient) {
 		},
 		events: {
 			providerFailed: Number(events.providerFailed),
-			paymentFailed: Number(events.paymentFailed),
+			payment: {
+				failed: paymentEventDiagnosticBucket(events.paymentFailed, failedPaymentEvents),
+				deadLetter: paymentEventDiagnosticBucket(events.paymentDeadLetter, deadLetterPaymentEvents),
+				ignored: paymentEventDiagnosticBucket(events.paymentIgnored, ignoredPaymentEvents),
+			},
 		},
 		overrides: overrides.map((item) => ({
 			id: item.id,
@@ -162,6 +214,33 @@ export async function getAdminMediaDiagnostics(client: MediaTransactionClient) {
 			enabled: item.value === true,
 			reason: item.reason,
 			createdAt: item.createdAt.toISOString(),
+		})),
+	};
+}
+
+const paymentEventDiagnosticSelect = {
+	id: true,
+	providerEventId: true,
+	status: true,
+	attemptCount: true,
+	lastTriggerAttempt: true,
+	lastAttemptAt: true,
+	lastTriggerRunId: true,
+	lastErrorClass: true,
+} as const;
+
+function paymentEventDiagnosticBucket(count: bigint, items: PaymentEventDiagnosticRow[]) {
+	return {
+		count: Number(count),
+		items: items.map((item) => ({
+			id: item.id,
+			providerEventId: item.providerEventId,
+			status: item.status,
+			attemptCount: item.attemptCount,
+			lastTriggerAttempt: item.lastTriggerAttempt,
+			lastAttemptAt: item.lastAttemptAt?.toISOString() ?? null,
+			lastTriggerRunId: item.lastTriggerRunId,
+			lastErrorClass: item.lastErrorClass,
 		})),
 	};
 }

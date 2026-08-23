@@ -69,7 +69,11 @@
 				}
 			},
 			"overrides": { "title": "Règles actives", "rollback": "Annuler" },
-			"audit": { "title": "Audit média récent" }
+			"audit": { "title": "Audit média récent" },
+			"paymentEvents": {
+				"title": "Diagnostic des événements de paiement",
+				"empty": "Aucun événement récent"
+			}
 		},
 		"title": "Administration",
 		"users": {

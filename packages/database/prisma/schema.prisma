@@ -751,6 +751,8 @@ model PaymentEvent {
   processedAt             DateTime?             @db.Timestamptz(3)
   failureReason           String?
   attemptCount            Int                   @default(0)
+  lastTriggerAttempt      Int?
+  lastAttemptAt           DateTime?             @db.Timestamptz(3)
   lastTriggerRunId        String?
   lastErrorClass          String?
   processingToken         String?               @unique

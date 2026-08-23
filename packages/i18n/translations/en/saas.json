@@ -65,7 +65,8 @@
 				"override": { "title": "Model availability", "disable": "Disable", "enable": "Enable" }
 			},
 			"overrides": { "title": "Active runtime overrides", "rollback": "Roll back" },
-			"audit": { "title": "Recent media audit" }
+			"audit": { "title": "Recent media audit" },
+			"paymentEvents": { "title": "Payment event diagnostics", "empty": "No recent events" }
 		},
 		"title": "Administration",
 		"users": {

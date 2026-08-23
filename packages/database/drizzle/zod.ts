@@ -27,7 +27,18 @@ export const MemberSchema = createSelectSchema(member);
 export const InvitationSchema = createSelectSchema(invitation);
 export const PurchaseSchema = createSelectSchema(purchase);
 export type Purchase = typeof purchase.$inferSelect;
-export const PurchaseInsertSchema = createInsertSchema(purchase);
+export const PurchaseInsertSchema = createInsertSchema(purchase).superRefine((value, context) => {
+	const ownerCount =
+		Number(value.organizationId !== null && value.organizationId !== undefined) +
+		Number(value.userId !== null && value.userId !== undefined);
+	if (ownerCount !== 1) {
+		context.addIssue({
+			code: "custom",
+			path: ["organizationId"],
+			message: "A purchase must have exactly one owner",
+		});
+	}
+});
 export const PurchaseUpdateSchema = createUpdateSchema(purchase, {
 	id: z.string(),
 });

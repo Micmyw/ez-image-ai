@@ -195,10 +195,15 @@ export async function replayPersistedMediaEvent(
 			return { eventId: input.eventId, eventKind: input.eventKind, replayed: true };
 		}
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`admin-media:event:${input.eventKind}:${input.eventId}`}, 0))`;
-		const event =
+		const paymentEvent =
 			input.eventKind === "PAYMENT"
 				? await tx.paymentEvent.findUnique({ where: { id: input.eventId } })
-				: await tx.providerWebhookEvent.findUnique({ where: { id: input.eventId } });
+				: null;
+		const providerEvent =
+			input.eventKind === "PROVIDER"
+				? await tx.providerWebhookEvent.findUnique({ where: { id: input.eventId } })
+				: null;
+		const event = paymentEvent ?? providerEvent;
 		if (!event) throw new Error("EVENT_NOT_FOUND");
 		assertReplayablePersistedEventStatus(input.eventKind, event.status);
 		const eventType =
@@ -212,13 +217,23 @@ export async function replayPersistedMediaEvent(
 			const changed = await tx.paymentEvent.updateMany({
 				where: {
 					id: event.id,
-					status: { in: ["RECEIVED", "FAILED", "DEAD_LETTER"] },
-					processingToken: null,
+					status: paymentEvent!.status,
+					processedAt: paymentEvent!.processedAt,
+					failureReason: paymentEvent!.failureReason,
+					attemptCount: paymentEvent!.attemptCount,
+					lastTriggerAttempt: paymentEvent!.lastTriggerAttempt,
+					lastAttemptAt: paymentEvent!.lastAttemptAt,
+					lastTriggerRunId: paymentEvent!.lastTriggerRunId,
+					lastErrorClass: paymentEvent!.lastErrorClass,
+					processingToken: paymentEvent!.processingToken,
+					processingLeasedUntil: paymentEvent!.processingLeasedUntil,
 				},
 				data: {
 					status: "RECEIVED",
 					failureReason: null,
 					attemptCount: 0,
+					lastTriggerAttempt: null,
+					lastAttemptAt: null,
 					lastTriggerRunId: null,
 					lastErrorClass: null,
 					processingToken: null,
@@ -257,12 +272,33 @@ export async function replayPersistedMediaEvent(
 				action: "MEDIA_EVENT_REPLAYED",
 				targetType: "ADMIN_MEDIA_OPERATION",
 				targetId: operationAuditId(input.idempotencyKey),
+				...(paymentEvent ? { before: paymentEventReplaySnapshot(paymentEvent) } : {}),
 				after: result,
 				metadata: { reason: input.reason, operationKind: "REPLAY_EVENT", requestFingerprint },
 			},
 		});
 		return { ...result, replayed: false };
 	});
+}
+
+function paymentEventReplaySnapshot(event: {
+	status: string;
+	failureReason: string | null;
+	attemptCount: number;
+	lastTriggerAttempt: number | null;
+	lastAttemptAt: Date | null;
+	lastTriggerRunId: string | null;
+	lastErrorClass: string | null;
+}) {
+	return {
+		status: event.status,
+		failureReason: event.failureReason,
+		attemptCount: event.attemptCount,
+		lastTriggerAttempt: event.lastTriggerAttempt,
+		lastAttemptAt: event.lastAttemptAt?.toISOString() ?? null,
+		lastTriggerRunId: event.lastTriggerRunId,
+		lastErrorClass: event.lastErrorClass,
+	};
 }
 
 export async function retryAdminMediaJobStage(

@@ -1,6 +1,6 @@
 import { createId as cuid } from "@paralleldrive/cuid2";
 import { relations, sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { check, index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 // Tables
 export const user = sqliteTable("user", {
 	id: text("id")
@@ -176,26 +176,35 @@ export const invitation = sqliteTable(
 	],
 );
 
-export const purchase = sqliteTable("purchase", {
-	id: text("id")
-		.$defaultFn(() => cuid())
-		.primaryKey(),
-	organizationId: text("organizationId").references(() => organization.id, {
-		onDelete: "cascade",
-	}),
-	userId: text("userId").references(() => user.id, {
-		onDelete: "cascade",
-	}),
-	type: text({ enum: ["SUBSCRIPTION", "ONE_TIME"] }).notNull(),
-	customerId: text("customerId").notNull(),
-	subscriptionId: text("subscriptionId").unique(),
-	priceId: text("priceId").notNull(),
-	status: text("status"),
-	createdAt: integer("createdAt", { mode: "timestamp" })
-		.notNull()
-		.default(sql`CURRENT_TIMESTAMP`),
-	updatedAt: integer("updatedAt", { mode: "timestamp" }).default(sql`CURRENT_TIMESTAMP`),
-});
+export const purchase = sqliteTable(
+	"purchase",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		organizationId: text("organizationId").references(() => organization.id, {
+			onDelete: "cascade",
+		}),
+		userId: text("userId").references(() => user.id, {
+			onDelete: "cascade",
+		}),
+		type: text({ enum: ["SUBSCRIPTION", "ONE_TIME"] }).notNull(),
+		customerId: text("customerId").notNull(),
+		subscriptionId: text("subscriptionId").unique(),
+		priceId: text("priceId").notNull(),
+		status: text("status"),
+		createdAt: integer("createdAt", { mode: "timestamp" })
+			.notNull()
+			.default(sql`CURRENT_TIMESTAMP`),
+		updatedAt: integer("updatedAt", { mode: "timestamp" }).default(sql`CURRENT_TIMESTAMP`),
+	},
+	(table) => [
+		check(
+			"purchase_exactly_one_owner",
+			sql`(${table.organizationId} IS NOT NULL) <> (${table.userId} IS NOT NULL)`,
+		),
+	],
+);
 
 export const notification = sqliteTable(
 	"notification",

@@ -63,6 +63,8 @@ export function MediaOperations() {
 			},
 		);
 	const data = diagnostics.data;
+	const paymentEventFailureCount =
+		(data?.events.payment.failed.count ?? 0) + (data?.events.payment.deadLetter.count ?? 0);
 
 	return (
 		<div className="space-y-6">
@@ -108,10 +110,44 @@ export function MediaOperations() {
 				/>
 				<Metric
 					title={t("metrics.eventFailures")}
-					value={(data?.events.providerFailed ?? 0) + (data?.events.paymentFailed ?? 0)}
-					alert={(data?.events.providerFailed ?? 0) + (data?.events.paymentFailed ?? 0) > 0}
+					value={(data?.events.providerFailed ?? 0) + paymentEventFailureCount}
+					alert={(data?.events.providerFailed ?? 0) + paymentEventFailureCount > 0}
 				/>
 			</div>
+
+			<Card className="p-6">
+				<h2 className="font-semibold text-xl">{t("paymentEvents.title")}</h2>
+				<div className="mt-4 gap-3 lg:grid-cols-3 grid">
+					{data &&
+						(
+							[
+								["FAILED", data.events.payment.failed],
+								["DEAD_LETTER", data.events.payment.deadLetter],
+								["IGNORED", data.events.payment.ignored],
+							] as const
+						).map(([status, bucket]) => (
+							<div key={status} className="space-y-2 p-3 rounded-md border">
+								<div className="flex items-center justify-between">
+									<code className="text-sm">{status}</code>
+									<span className="font-medium text-sm">{bucket.count}</span>
+								</div>
+								{bucket.items.length === 0 ? (
+									<p className="text-sm text-muted-foreground">{t("paymentEvents.empty")}</p>
+								) : (
+									bucket.items.map((item) => (
+										<div key={item.id} className="pt-2 text-xs border-t">
+											<code className="break-all">{item.id}</code>
+											<p className="mt-1 break-all text-muted-foreground">
+												{item.providerEventId} · {item.attemptCount}/
+												{item.lastTriggerAttempt ?? "-"} · {item.lastErrorClass ?? "-"}
+											</p>
+										</div>
+									))
+								)}
+							</div>
+						))}
+				</div>
+			</Card>
 
 			<Card className="p-6">
 				<h2 className="font-semibold text-xl">{t("operations.title")}</h2>

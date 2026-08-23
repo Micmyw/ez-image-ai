@@ -3,7 +3,7 @@
 	"version": "0.0.0",
 	"main": "./index.ts",
 	"scripts": {
-		"test": "vitest run src/handlers/jobs.integration.test.ts --config vitest.config.ts",
+		"test": "vitest run src/handlers/jobs.integration.test.ts trigger --config vitest.config.ts",
 		"test:integration": "vitest run src/handlers/jobs.database.integration.test.ts src/handlers/runtime-stores.database.integration.test.ts --config vitest.config.ts",
 		"type-check": "tsc --noEmit --incremental false"
 	},

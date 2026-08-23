@@ -71,7 +71,28 @@ describe("media administration authorization and safe DTOs", () => {
 				providerCostMicros: "700",
 				marginMicros: "200",
 			},
-			events: { providerFailed: 0, paymentFailed: 0 },
+			events: {
+				providerFailed: 0,
+				payment: {
+					failed: {
+						count: 1,
+						items: [
+							{
+								id: "payment_failed_1",
+								providerEventId: "evt_failed_1",
+								status: "FAILED",
+								attemptCount: 2,
+								lastTriggerAttempt: 2,
+								lastAttemptAt: "2026-08-14T00:00:00.000Z",
+								lastTriggerRunId: "trigger_run_1",
+								lastErrorClass: "TRANSIENT",
+							},
+						],
+					},
+					deadLetter: { count: 0, items: [] },
+					ignored: { count: 0, items: [] },
+				},
+			},
 			overrides: [],
 		} as never);
 
@@ -82,6 +103,18 @@ describe("media administration authorization and safe DTOs", () => {
 		);
 		expect(serialized).not.toContain("fixture-secret-do-not-return");
 		expect(result.queue.depth).toBe(4);
+		expect(result.events.payment.failed.items).toEqual([
+			{
+				id: "payment_failed_1",
+				providerEventId: "evt_failed_1",
+				status: "FAILED",
+				attemptCount: 2,
+				lastTriggerAttempt: 2,
+				lastAttemptAt: "2026-08-14T00:00:00.000Z",
+				lastTriggerRunId: "trigger_run_1",
+				lastErrorClass: "TRANSIENT",
+			},
+		]);
 	});
 
 	it("paginates audit records without exposing before, after, or metadata JSON", async () => {

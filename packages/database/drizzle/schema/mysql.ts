@@ -1,7 +1,8 @@
 import { createId as cuid } from "@paralleldrive/cuid2";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import {
 	boolean,
+	check,
 	index,
 	int,
 	json,
@@ -183,24 +184,33 @@ export const invitation = mysqlTable(
 	],
 );
 
-export const purchase = mysqlTable("purchase", {
-	id: varchar("id", { length: 255 })
-		.$defaultFn(() => cuid())
-		.primaryKey(),
-	organizationId: text("organizationId").references(() => organization.id, {
-		onDelete: "cascade",
-	}),
-	userId: text("userId").references(() => user.id, {
-		onDelete: "cascade",
-	}),
-	type: purchaseTypeEnum.notNull(),
-	customerId: text("customerId").notNull(),
-	subscriptionId: text("subscriptionId").unique(),
-	priceId: text("priceId").notNull(),
-	status: text("status"),
-	createdAt: timestamp("createdAt").defaultNow().notNull(),
-	updatedAt: timestamp("updatedAt"),
-});
+export const purchase = mysqlTable(
+	"purchase",
+	{
+		id: varchar("id", { length: 255 })
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		organizationId: text("organizationId").references(() => organization.id, {
+			onDelete: "cascade",
+		}),
+		userId: text("userId").references(() => user.id, {
+			onDelete: "cascade",
+		}),
+		type: purchaseTypeEnum.notNull(),
+		customerId: text("customerId").notNull(),
+		subscriptionId: text("subscriptionId").unique(),
+		priceId: text("priceId").notNull(),
+		status: text("status"),
+		createdAt: timestamp("createdAt").defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt"),
+	},
+	(table) => [
+		check(
+			"purchase_exactly_one_owner",
+			sql`(${table.organizationId} IS NOT NULL) <> (${table.userId} IS NOT NULL)`,
+		),
+	],
+);
 
 export const notification = mysqlTable(
 	"notification",

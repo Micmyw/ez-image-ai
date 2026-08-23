@@ -69,7 +69,11 @@
 				}
 			},
 			"overrides": { "title": "Cambios activos", "rollback": "Revertir" },
-			"audit": { "title": "Auditoría multimedia reciente" }
+			"audit": { "title": "Auditoría multimedia reciente" },
+			"paymentEvents": {
+				"title": "Diagnóstico de eventos de pago",
+				"empty": "No hay eventos recientes"
+			}
 		},
 		"title": "Administración",
 		"users": {

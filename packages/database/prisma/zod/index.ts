@@ -180,7 +180,7 @@ export type BillingPeriodScalarFieldEnum = z.infer<typeof BillingPeriodScalarFie
 
 // File: PaymentEventScalarFieldEnum.schema.ts
 
-export const PaymentEventScalarFieldEnumSchema = z.enum(['id', 'provider', 'providerEventId', 'normalizedTransactionId', 'verifiedAt', 'receivedAt', 'envelope', 'status', 'processedAt', 'failureReason', 'attemptCount', 'lastTriggerRunId', 'lastErrorClass', 'processingToken', 'processingLeasedUntil'])
+export const PaymentEventScalarFieldEnumSchema = z.enum(['id', 'provider', 'providerEventId', 'normalizedTransactionId', 'verifiedAt', 'receivedAt', 'envelope', 'status', 'processedAt', 'failureReason', 'attemptCount', 'lastTriggerAttempt', 'lastAttemptAt', 'lastTriggerRunId', 'lastErrorClass', 'processingToken', 'processingLeasedUntil'])
 
 export type PaymentEventScalarFieldEnum = z.infer<typeof PaymentEventScalarFieldEnumSchema>;
 
@@ -934,6 +934,8 @@ export const PaymentEventSchema = z.object({
   processedAt: z.date().nullish(),
   failureReason: z.string().nullish(),
   attemptCount: z.number().int(),
+  lastTriggerAttempt: z.number().int().nullish(),
+  lastAttemptAt: z.date().nullish(),
   lastTriggerRunId: z.string().nullish(),
   lastErrorClass: z.string().nullish(),
   processingToken: z.string().nullish(),
