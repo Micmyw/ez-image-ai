@@ -700,6 +700,106 @@ describe("media PostgreSQL transactions", () => {
 		).toHaveLength(1);
 	});
 
+	it("refunds expired unspent credits without debt and permits a later reservation", async () => {
+		const ownerId = `expired-refund-${crypto.randomUUID()}`;
+		const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
+		const grantReferenceKey = `expired-refund-grant-${crypto.randomUUID()}`;
+		await createCreditGrant(
+			{ accountId: account.id, amount: 10n, referenceKey: grantReferenceKey },
+			client,
+		);
+		const lot = await client.creditLot.findFirstOrThrow({ where: { accountId: account.id } });
+		await client.creditLot.update({
+			where: { id: lot.id },
+			data: { expiresAt: new Date(Date.now() - 60_000) },
+		});
+		await expireCreditLots({ accountId: account.id }, client);
+		await refundCreditGrant(
+			{
+				accountId: account.id,
+				amount: 10n,
+				grantReferenceKey,
+				referenceKey: `expired-refund-${crypto.randomUUID()}`,
+			},
+			client,
+		);
+		expect(
+			await client.creditAccount.findUniqueOrThrow({ where: { id: account.id } }),
+		).toMatchObject({
+			creditDebt: 0n,
+		});
+
+		await createCreditGrant(
+			{
+				accountId: account.id,
+				amount: 4n,
+				referenceKey: `after-expiry-grant-${crypto.randomUUID()}`,
+			},
+			client,
+		);
+		const quote = await createApprovedQuote(client, {
+			ownerType: "USER",
+			ownerId,
+			submittedByUserId: ownerId,
+			productKey: "image-fast",
+			catalogVersion: "test-v1",
+			pricingVersion: "test-v1",
+			credits: 4n,
+			costMicros: 0n,
+			inputSnapshot: { kind: "text-to-image", prompt: "expired refund recovery" },
+			pricingSnapshot: {},
+			expiresAt: new Date(Date.now() + 60_000),
+		});
+		await expect(
+			createGenerationJobTransaction(
+				{
+					ownerType: "USER",
+					ownerId,
+					submittedByUserId: ownerId,
+					quoteId: quote.id,
+					idempotencyKey: `after-expiry-job-${crypto.randomUUID()}`,
+					inputAssetIds: [],
+					expectedModerationRuleVersion: TEST_MODERATION_RULE_VERSION,
+				},
+				client,
+			),
+		).resolves.toMatchObject({ reservation: { amount: 4n } });
+	});
+
+	it("applies partial expired refunds only to expired unrefunded credits", async () => {
+		const ownerId = `expired-partial-refund-${crypto.randomUUID()}`;
+		const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
+		const grantReferenceKey = `expired-partial-grant-${crypto.randomUUID()}`;
+		await createCreditGrant(
+			{ accountId: account.id, amount: 10n, referenceKey: grantReferenceKey },
+			client,
+		);
+		const lot = await client.creditLot.findFirstOrThrow({ where: { accountId: account.id } });
+		await client.creditLot.update({
+			where: { id: lot.id },
+			data: { expiresAt: new Date(Date.now() - 60_000) },
+		});
+		await expireCreditLots({ accountId: account.id }, client);
+		for (const amount of [4n, 3n, 3n]) {
+			await refundCreditGrant(
+				{
+					accountId: account.id,
+					amount,
+					grantReferenceKey,
+					referenceKey: `expired-partial-refund-${amount}-${crypto.randomUUID()}`,
+				},
+				client,
+			);
+		}
+		expect(
+			await client.creditAccount.findUniqueOrThrow({ where: { id: account.id } }),
+		).toMatchObject({
+			creditDebt: 0n,
+			spendableCredits: 0n,
+		});
+		expect(await getCreditInvariantReport(account.id, client)).toMatchObject({ valid: true });
+	});
+
 	it("does not restore an expired lot when its reservation releases", async () => {
 		const fixture = await createReservedCreditsFixture(client, {
 			grantAmount: 10n,

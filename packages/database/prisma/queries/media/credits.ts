@@ -22,6 +22,7 @@ import { getMediaDatabaseClient, isDatabaseUniqueConflict, runSerializable } fro
 interface LockedLot {
 	id: string;
 	remainingAmount: bigint;
+	expiredUnrefundedAmount: bigint;
 	reservedAmount: bigint;
 	grantReferenceKey: string;
 	expiresAt: Date | null;
@@ -50,7 +51,7 @@ async function lockAccount(tx: Prisma.TransactionClient, accountId: string) {
 
 async function lockAllLots(tx: Prisma.TransactionClient, accountId: string) {
 	return tx.$queryRaw<LockedLot[]>`
-		SELECT "id", "remainingAmount", "reservedAmount", "grantReferenceKey", "expiresAt"
+		SELECT "id", "remainingAmount", "expiredUnrefundedAmount", "reservedAmount", "grantReferenceKey", "expiresAt"
 		FROM "credit_lot"
 		WHERE "accountId" = ${accountId}
 		ORDER BY "expiresAt" ASC NULLS LAST, "createdAt" ASC, "id" ASC
@@ -125,6 +126,12 @@ function createFinalizeCommand(
 	};
 }
 
+function readExpiredUnrefundedRefunded(metadata: Prisma.JsonValue): bigint {
+	const value = (metadata as { expiredUnrefundedRefunded?: unknown }).expiredUnrefundedRefunded;
+	if (typeof value !== "string" || !/^\d+$/.test(value)) return 0n;
+	return BigInt(value);
+}
+
 async function materializeExpiredLots(
 	tx: Prisma.TransactionClient,
 	input: { accountId: string; lots: LockedLot[]; now: Date },
@@ -147,7 +154,13 @@ async function materializeExpiredLots(
 			});
 			throw new IdempotencyConflictError("expired lot retains spendable credits");
 		}
-		await tx.creditLot.update({ where: { id: lot.id }, data: { remainingAmount: 0n } });
+		await tx.creditLot.update({
+			where: { id: lot.id },
+			data: {
+				remainingAmount: 0n,
+				expiredUnrefundedAmount: { increment: lot.remainingAmount },
+			},
+		});
 		await tx.creditLedgerEntry.create({
 			data: {
 				accountId: input.accountId,
@@ -163,6 +176,7 @@ async function materializeExpiredLots(
 			},
 		});
 		expired += lot.remainingAmount;
+		lot.expiredUnrefundedAmount += lot.remainingAmount;
 		lot.remainingAmount = 0n;
 	}
 	if (expired > 0n) {
@@ -707,6 +721,20 @@ export async function refundCreditGrant(
 				lot.remainingAmount -= amount;
 			}
 			await materializeExpiredLots(tx, { accountId: input.accountId, lots, now: new Date() });
+			let refundedExpired = 0n;
+			for (const lot of matching) {
+				if (remaining === 0n) break;
+				const amount =
+					lot.expiredUnrefundedAmount < remaining ? lot.expiredUnrefundedAmount : remaining;
+				if (amount === 0n) continue;
+				await tx.creditLot.update({
+					where: { id: lot.id },
+					data: { expiredUnrefundedAmount: { decrement: amount } },
+				});
+				refundedExpired += amount;
+				remaining -= amount;
+				lot.expiredUnrefundedAmount -= amount;
+			}
 			const allocations = await lockMatchingActiveAllocations(
 				tx,
 				input.accountId,
@@ -751,6 +779,7 @@ export async function refundCreditGrant(
 						{ spendable: -consumedUnused },
 						{
 							consumedUnused: consumedUnused.toString(),
+							expiredUnrefundedRefunded: refundedExpired.toString(),
 							revokedReserved: revokedReserved.toString(),
 							debtIncurred: remaining.toString(),
 						},
@@ -810,7 +839,7 @@ export async function getCreditInvariantReport(accountId: string, client?: Media
 		database.creditAccount.findUniqueOrThrow({ where: { id: accountId } }),
 		database.creditLot.aggregate({
 			where: { accountId },
-			_sum: { remainingAmount: true, reservedAmount: true },
+			_sum: { remainingAmount: true, reservedAmount: true, expiredUnrefundedAmount: true },
 		}),
 		database.creditReservation.aggregate({
 			where: { accountId },
@@ -829,13 +858,17 @@ export async function getCreditInvariantReport(accountId: string, client?: Media
 			where: { accountId },
 			_sum: { amount: true },
 		}),
-		database.creditLedgerEntry.findMany({ where: { accountId }, select: { metadata: true } }),
+		database.creditLedgerEntry.findMany({
+			where: { accountId },
+			select: { type: true, metadata: true },
+		}),
 	]);
 	const ledgerByType = Object.fromEntries(
 		ledgerTotals.map((item) => [item.type, item._sum.amount ?? 0n]),
 	) as Partial<Record<string, bigint>>;
 	const lotSpendable = lotTotals._sum.remainingAmount ?? 0n;
 	const lotReserved = lotTotals._sum.reservedAmount ?? 0n;
+	const lotExpiredUnrefunded = lotTotals._sum.expiredUnrefundedAmount ?? 0n;
 	const reservationReserved =
 		(activeReservationTotals._sum.amount ?? 0n) -
 		(activeReservationTotals._sum.settledAmount ?? 0n) -
@@ -848,6 +881,11 @@ export async function getCreditInvariantReport(accountId: string, client?: Media
 	const totalSettled = reservationTotals._sum.settledAmount ?? 0n;
 	const totalReleased = reservationTotals._sum.releasedAmount ?? 0n;
 	const debtFromLedger = (ledgerByType.DEBT_INCURRED ?? 0n) - (ledgerByType.DEBT_REPAYMENT ?? 0n);
+	const expiredRefundedFromLedger = ledgerEntries.reduce(
+		(total, entry) =>
+			entry.type === "REFUND" ? total + readExpiredUnrefundedRefunded(entry.metadata) : total,
+		0n,
+	);
 	const aggregateFromLedger = ledgerEntries.reduce(
 		(total, entry) => {
 			const deltas = readCreditDeltas(entry.metadata);
@@ -869,6 +907,7 @@ export async function getCreditInvariantReport(accountId: string, client?: Media
 			totalSettled === (ledgerByType.SETTLE ?? 0n) &&
 			totalReleased === (ledgerByType.RELEASE ?? 0n) &&
 			account.creditDebt === debtFromLedger &&
+			lotExpiredUnrefunded === (ledgerByType.EXPIRE ?? 0n) - expiredRefundedFromLedger &&
 			account.spendableCredits === aggregateFromLedger.spendable &&
 			account.reservedCredits === aggregateFromLedger.reserved &&
 			account.creditDebt === aggregateFromLedger.debt,
@@ -877,7 +916,11 @@ export async function getCreditInvariantReport(accountId: string, client?: Media
 			reserved: account.reservedCredits,
 			debt: account.creditDebt,
 		},
-		lots: { spendable: lotSpendable, reserved: lotReserved },
+		lots: {
+			spendable: lotSpendable,
+			reserved: lotReserved,
+			expiredUnrefunded: lotExpiredUnrefunded,
+		},
 		reservations: { reserved: reservationReserved },
 		allocations: { reserved: allocationReserved },
 		ledger: {

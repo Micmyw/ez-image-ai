@@ -332,25 +332,25 @@ enum GenerationDraftStatus {
 }
 
 model GenerationQuote {
-  id                String         @id @default(cuid())
-  ownerType         OwnerType
-  ownerId           String
-  submittedByUserId String
-  productKey        String
-  catalogVersion    String
-  pricingVersion    String
-  credits           BigInt
-  costMicros        BigInt
-  inputSnapshot     Json
-  pricingSnapshot   Json
+  id                    String         @id @default(cuid())
+  ownerType             OwnerType
+  ownerId               String
+  submittedByUserId     String
+  productKey            String
+  catalogVersion        String
+  pricingVersion        String
+  credits               BigInt
+  costMicros            BigInt
+  inputSnapshot         Json
+  pricingSnapshot       Json
   moderationDecision    String         @default("LEGACY_UNREVIEWED")
   moderationProvider    String         @default("legacy")
   moderationRuleVersion String         @default("legacy")
   moderationReasonCode  String         @default("LEGACY_UNREVIEWED")
   inputFingerprint      String         @default("")
-  createdAt         DateTime       @default(now()) @db.Timestamptz(3)
-  expiresAt         DateTime       @db.Timestamptz(3)
-  job               GenerationJob?
+  createdAt             DateTime       @default(now()) @db.Timestamptz(3)
+  expiresAt             DateTime       @db.Timestamptz(3)
+  job                   GenerationJob?
 
   @@index([ownerType, ownerId, createdAt, id])
   @@index([expiresAt])
@@ -541,17 +541,19 @@ model CreditAccount {
 }
 
 model CreditLot {
-  id                String                        @id @default(cuid())
-  accountId         String
-  account           CreditAccount                 @relation(fields: [accountId], references: [id], onDelete: Restrict)
-  grantReferenceKey String
-  grantedAmount     BigInt
-  remainingAmount   BigInt
+  id                      String                        @id @default(cuid())
+  accountId               String
+  account                 CreditAccount                 @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  grantReferenceKey       String
+  grantedAmount           BigInt
+  remainingAmount         BigInt
   /// @zod.custom.use(z.bigint().default(BigInt(0)))
-  reservedAmount    BigInt                        @default(0)
-  expiresAt         DateTime?                     @db.Timestamptz(3)
-  createdAt         DateTime                      @default(now()) @db.Timestamptz(3)
-  allocations       CreditReservationAllocation[]
+  expiredUnrefundedAmount BigInt                        @default(0)
+  /// @zod.custom.use(z.bigint().default(BigInt(0)))
+  reservedAmount          BigInt                        @default(0)
+  expiresAt               DateTime?                     @db.Timestamptz(3)
+  createdAt               DateTime                      @default(now()) @db.Timestamptz(3)
+  allocations             CreditReservationAllocation[]
 
   @@unique([accountId, grantReferenceKey])
   @@index([accountId, expiresAt, createdAt, id])
