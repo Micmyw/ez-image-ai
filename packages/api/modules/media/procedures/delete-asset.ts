@@ -14,7 +14,9 @@ export const deleteAsset = protectedProcedure
 	})
 	.input(z.object({ assetId: z.string().min(1) }))
 	.handler(async ({ context: { user }, input }) => {
-		await requireOwnedMediaAsset(input.assetId, user.id);
+		const existing = await requireOwnedMediaAsset(input.assetId, user.id);
+		if (existing.status === "UPLOADING")
+			throw new Error("Upload asset cannot be deleted while active");
 		const asset = await markMediaAssetDeletedTransaction(
 			{ assetId: input.assetId, ownerId: user.id },
 			db,

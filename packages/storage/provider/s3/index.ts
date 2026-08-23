@@ -137,6 +137,7 @@ export async function completeMultipartUpload(
 	input: MediaObjectLocation & {
 		uploadId: string;
 		parts: Array<{ partNumber: number; etag: string }>;
+		ifNoneMatch?: "*";
 	},
 ): Promise<void> {
 	if (input.parts.length === 0) throw new Error("Multipart upload has no parts");
@@ -144,6 +145,7 @@ export async function completeMultipartUpload(
 		new CompleteMultipartUploadCommand({
 			...mediaLocation(input),
 			UploadId: input.uploadId,
+			...(input.ifNoneMatch ? { IfNoneMatch: input.ifNoneMatch } : {}),
 			MultipartUpload: {
 				Parts: input.parts.map(({ partNumber, etag }) => ({ PartNumber: partNumber, ETag: etag })),
 			},
@@ -179,11 +181,7 @@ export async function promoteStagedObject(input: {
 	contentLength: number;
 }): Promise<{ bytes: number; sha256: string; etag: string | null; versionId: string | null }> {
 	if (input.staging.key === input.final.key) throw new Error("Staging and final keys must differ");
-	const existing = await inspectStoredMediaObject(
-		input.final,
-		input.contentType,
-		input.contentLength,
-	).catch(() => null);
+	const existing = await inspectExistingFinalObject(input);
 	if (existing) return existing;
 
 	const source = await getS3Client().send(new GetObjectCommand(mediaLocation(input.staging)));
@@ -201,19 +199,26 @@ export async function promoteStagedObject(input: {
 		key: input.final.key,
 		contentType: input.contentType,
 	});
-	const copied = await copyRemoteStreamToMultipart(source.Body as Readable, {
-		maxBytes: input.contentLength,
-		partSize: config.media.multipartPartSize,
-		validateHeader(header) {
-			if (detectMediaType(header) !== input.contentType) {
-				throw new Error("Staging object signature does not match the upload session");
-			}
-		},
-		uploadPart: ({ partNumber, body }) =>
-			uploadMultipartPart({ ...input.final, uploadId, partNumber, body }),
-		complete: (parts) => completeMultipartUpload({ ...input.final, uploadId, parts }),
-		abort: () => abortMultipartUpload({ ...input.final, uploadId }),
-	});
+	let copied: { bytes: number; sha256: string };
+	try {
+		copied = await copyRemoteStreamToMultipart(source.Body as Readable, {
+			maxBytes: input.contentLength,
+			partSize: config.media.multipartPartSize,
+			validateHeader(header) {
+				if (detectMediaType(header) !== input.contentType) {
+					throw new Error("Staging object signature does not match the upload session");
+				}
+			},
+			uploadPart: ({ partNumber, body }) =>
+				uploadMultipartPart({ ...input.final, uploadId, partNumber, body }),
+			complete: (parts) =>
+				completeMultipartUpload({ ...input.final, uploadId, parts, ifNoneMatch: "*" }),
+			abort: () => abortMultipartUpload({ ...input.final, uploadId }),
+		});
+	} catch (error) {
+		if (!isConditionalWriteConflict(error)) throw error;
+		return inspectStoredMediaObject(input.final, input.contentType, input.contentLength);
+	}
 	if (copied.bytes !== input.contentLength)
 		throw new Error("Staging object size does not match the upload session");
 	return inspectStoredMediaObject(
@@ -221,6 +226,47 @@ export async function promoteStagedObject(input: {
 		input.contentType,
 		input.contentLength,
 		copied.sha256,
+	);
+}
+
+async function inspectExistingFinalObject(input: {
+	final: MediaObjectLocation;
+	contentType: MediaContentType;
+	contentLength: number;
+}): Promise<{
+	bytes: number;
+	sha256: string;
+	etag: string | null;
+	versionId: string | null;
+} | null> {
+	try {
+		return await inspectStoredMediaObject(input.final, input.contentType, input.contentLength);
+	} catch (error) {
+		if (isExplicitObjectNotFound(error)) return null;
+		throw error;
+	}
+}
+
+export async function inspectPrivateMediaObject(
+	input: MediaObjectLocation & { contentType: MediaContentType; contentLength: number },
+): Promise<{ bytes: number; sha256: string; etag: string | null; versionId: string | null }> {
+	return inspectStoredMediaObject(input, input.contentType, input.contentLength);
+}
+
+function isExplicitObjectNotFound(error: unknown): boolean {
+	if (!error || typeof error !== "object") return false;
+	const details = error as { name?: unknown; $metadata?: { httpStatusCode?: unknown } };
+	return details.name === "NoSuchKey" || details.$metadata?.httpStatusCode === 404;
+}
+
+function isConditionalWriteConflict(error: unknown): boolean {
+	if (!error || typeof error !== "object") return false;
+	const details = error as { name?: unknown; $metadata?: { httpStatusCode?: unknown } };
+	return (
+		details.name === "PreconditionFailed" ||
+		details.name === "ConditionalRequestConflict" ||
+		details.$metadata?.httpStatusCode === 409 ||
+		details.$metadata?.httpStatusCode === 412
 	);
 }
 

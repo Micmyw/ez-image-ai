@@ -2,8 +2,7 @@ import { db } from "@repo/database/client";
 import {
 	claimMediaUploadSessionFinalizationTransaction,
 	completeMediaUploadSessionTransaction,
-	expireMediaUploadSessionTransaction,
-	failMediaUploadSessionTransaction,
+	failMediaUploadSessionFinalizationTransaction,
 	MediaUploadSessionExpiredError,
 } from "@repo/database/media-assets";
 import {
@@ -20,6 +19,9 @@ import { validateMultipartCompletionParts } from "../lib/upload-parts";
 import { toMediaAssetDto } from "../lib/upload-validation";
 
 const MULTIPART_PART_SIZE = 8 * 1024 * 1024;
+const multipartPartsSchema = z
+	.array(z.object({ partNumber: z.number().int().positive(), etag: z.string().min(1) }))
+	.min(1);
 
 export const completeUploadSession = protectedProcedure
 	.route({
@@ -31,9 +33,7 @@ export const completeUploadSession = protectedProcedure
 	.input(
 		z.object({
 			sessionId: z.string().min(1),
-			parts: z
-				.array(z.object({ partNumber: z.number().int().positive(), etag: z.string().min(1) }))
-				.optional(),
+			parts: multipartPartsSchema.optional(),
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
@@ -42,52 +42,52 @@ export const completeUploadSession = protectedProcedure
 		if (!["PENDING", "FINALIZING"].includes(session.status)) {
 			throw new Error("Upload session is not pending");
 		}
-		const staging = {
-			bucket: "media" as const,
-			key: session.stagingObjectKey ?? session.asset.objectKey,
-		};
-		const final = { bucket: "media" as const, key: session.asset.objectKey };
-		if (session.expiresAt <= new Date()) {
-			await expireMediaUploadSessionTransaction(
-				{ sessionId: session.id, ownerId: user.id, now: new Date() },
-				db,
-			);
-			if (session.multipartUploadId) {
-				await abortMultipartUpload({ ...staging, uploadId: session.multipartUploadId }).catch(
-					() => undefined,
-				);
-			} else {
-				await deleteObject(staging).catch(() => undefined);
-			}
-			throw new MediaUploadSessionExpiredError();
-		}
-		if (session.multipartUploadId) {
-			if (!input.parts?.length) throw new Error("Multipart completion requires uploaded parts");
+		if (session.status === "PENDING" && session.multipartUploadId) {
+			if (!input.parts) throw new Error("Multipart completion requires uploaded parts");
 			validateMultipartCompletionParts(
 				input.parts,
 				Number(session.expectedBytes),
 				MULTIPART_PART_SIZE,
 			);
 		}
+
 		const claimed = await claimMediaUploadSessionFinalizationTransaction(
-			{ sessionId: session.id, ownerId: user.id, parts: input.parts, now: new Date() },
+			{
+				sessionId: session.id,
+				ownerId: user.id,
+				parts: session.status === "PENDING" ? input.parts : undefined,
+			},
 			db,
-		);
-		if (claimed.status === "COMPLETED") return toMediaAssetDto(claimed.asset);
-		if (!claimed.finalizationToken) throw new Error("Upload session is already finalizing");
-		try {
-			if (session.multipartUploadId && session.status === "PENDING") {
-				await completeMultipartUpload({
-					...staging,
-					uploadId: session.multipartUploadId,
-					parts: input.parts!,
-				});
+		).catch(async (error: unknown) => {
+			if (error instanceof MediaUploadSessionExpiredError && session.status === "PENDING") {
+				await cleanExpiredStaging(session);
 			}
-			const promoted = await promoteStagedObject({
+			throw error;
+		});
+		if (claimed.outcome === "COMPLETED") return toMediaAssetDto(claimed.asset);
+		if (claimed.outcome === "IN_PROGRESS") {
+			throw new Error("Upload session finalization is in progress");
+		}
+
+		const staging = { bucket: "media" as const, key: claimed.stagingObjectKey };
+		const final = { bucket: "media" as const, key: claimed.asset.objectKey };
+		let promoted: Awaited<ReturnType<typeof promoteStagedObject>>;
+		try {
+			if (claimed.multipartUploadId) {
+				const parts = storedMultipartParts(claimed.finalizationParts);
+				validateMultipartCompletionParts(parts, Number(session.expectedBytes), MULTIPART_PART_SIZE);
+				try {
+					await completeMultipartUpload({ ...staging, uploadId: claimed.multipartUploadId, parts });
+				} catch (error) {
+					if (!isNoSuchUpload(error)) throw error;
+				}
+			}
+
+			promoted = await promoteStagedObject({
 				staging,
 				final,
 				contentLength: Number(session.expectedBytes),
-				contentType: session.asset.mimeType as
+				contentType: claimed.asset.mimeType as
 					| "image/jpeg"
 					| "image/png"
 					| "image/webp"
@@ -95,34 +95,98 @@ export const completeUploadSession = protectedProcedure
 					| "video/webm"
 					| "video/quicktime",
 			});
-			const asset = await completeMediaUploadSessionTransaction(
-				{
+		} catch (error) {
+			if (isDeterministicFinalizationFailure(error)) {
+				await terminalizeDeterministicFinalizationFailure({
 					sessionId: session.id,
 					ownerId: user.id,
-					checksum: promoted.sha256,
-					storageEtag: promoted.etag,
-					storageVersionId: promoted.versionId,
 					finalizationToken: claimed.finalizationToken,
-					expiredCleanup: "DELETE_OBJECT",
-				},
-				db,
-			);
-			await deleteObject(staging).catch(() => undefined);
-			return toMediaAssetDto(asset);
-		} catch (error) {
-			if (error instanceof MediaUploadSessionExpiredError) {
-				if (session.multipartUploadId) {
-					await abortMultipartUpload({ ...staging, uploadId: session.multipartUploadId }).catch(
-						() => undefined,
-					);
-				} else await deleteObject(staging).catch(() => undefined);
-			} else {
-				await failMediaUploadSessionTransaction(
-					{ sessionId: session.id, ownerId: user.id, reason: "UPLOAD_PROMOTION_FAILED" },
-					db,
-				).catch(() => undefined);
-				await deleteObject(staging).catch(() => undefined);
+				});
 			}
 			throw error;
 		}
+		const asset = await completeMediaUploadSessionTransaction(
+			{
+				sessionId: session.id,
+				ownerId: user.id,
+				checksum: promoted.sha256,
+				storageEtag: promoted.etag,
+				storageVersionId: promoted.versionId,
+				finalizationToken: claimed.finalizationToken,
+			},
+			db,
+		);
+		await deleteObject(staging).catch(() => undefined);
+		return toMediaAssetDto(asset);
 	});
+
+function storedMultipartParts(value: unknown): Array<{ partNumber: number; etag: string }> {
+	const parsed = multipartPartsSchema.safeParse(value);
+	if (!parsed.success) throw new Error("Stored multipart completion parts are invalid");
+	return parsed.data;
+}
+
+async function cleanExpiredStaging(session: {
+	multipartUploadId: string | null;
+	stagingObjectKey: string | null;
+}): Promise<void> {
+	if (!session.stagingObjectKey) return;
+	const staging = { bucket: "media" as const, key: session.stagingObjectKey };
+	if (session.multipartUploadId) {
+		await abortMultipartUpload({ ...staging, uploadId: session.multipartUploadId }).catch(
+			() => undefined,
+		);
+		return;
+	}
+	await deleteObject(staging).catch(() => undefined);
+}
+
+function isNoSuchUpload(error: unknown): boolean {
+	return Boolean(
+		error && typeof error === "object" && "name" in error && error.name === "NoSuchUpload",
+	);
+}
+
+async function terminalizeDeterministicFinalizationFailure(input: {
+	sessionId: string;
+	ownerId: string;
+	finalizationToken: string;
+}): Promise<void> {
+	try {
+		await failMediaUploadSessionFinalizationTransaction(
+			{ ...input, reason: "UPLOAD_FINALIZATION_VALIDATION_FAILED" },
+			db,
+		);
+	} catch (error) {
+		if (!isFinalizationOwnershipLost(error)) throw error;
+	}
+}
+
+function isDeterministicFinalizationFailure(error: unknown): boolean {
+	if (!error || typeof error !== "object") return false;
+	const details = error as {
+		name?: unknown;
+		message?: unknown;
+		$metadata?: { httpStatusCode?: unknown };
+	};
+	if (
+		details.name === "NoSuchKey" ||
+		details.name === "InvalidPart" ||
+		details.name === "InvalidPartOrder" ||
+		details.name === "EntityTooSmall" ||
+		details.name === "InvalidRequest" ||
+		details.$metadata?.httpStatusCode === 404
+	) {
+		return true;
+	}
+	const message = typeof details.message === "string" ? details.message : "";
+	return /^(Multipart completion|Multipart expected|Multipart part|Multipart upload has no parts|Stored multipart completion parts|Staging (and final keys|object (body|metadata|signature|size))|Remote media (byte limit|response was empty)|Stored object|Final object checksum mismatch)/.test(
+		message,
+	);
+}
+
+function isFinalizationOwnershipLost(error: unknown): boolean {
+	return Boolean(
+		error instanceof Error && /not owned|lease expired|changed concurrently/i.test(error.message),
+	);
+}

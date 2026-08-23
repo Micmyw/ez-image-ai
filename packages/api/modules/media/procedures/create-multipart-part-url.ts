@@ -22,6 +22,7 @@ export const createMultipartPartUrl = protectedProcedure
 		if (
 			session.status !== "PENDING" ||
 			!session.multipartUploadId ||
+			!session.stagingObjectKey ||
 			session.expiresAt <= new Date()
 		)
 			throw new Error("Upload session is not active");
@@ -35,7 +36,7 @@ export const createMultipartPartUrl = protectedProcedure
 			contentLength: plan.contentLength,
 			uploadUrl: await signMultipartPart({
 				bucket: "media",
-				key: session.asset.objectKey,
+				key: session.stagingObjectKey,
 				uploadId: session.multipartUploadId,
 				partNumber: input.partNumber,
 				contentLength: plan.contentLength,

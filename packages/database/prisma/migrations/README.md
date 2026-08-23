@@ -33,3 +33,18 @@ diff --from-config-datasource --to-schema prisma/schema.prisma --script`.
 
 The baseline command records history; it does not apply the missing media schema. Never mark the
 migration applied before the reviewed delta is successfully installed.
+
+## Immutable upload rollout
+
+Before applying `20260823014000_immutable_upload_promotion`, deploy and drain to a jobs-worker
+build that understands `MEDIA_UPLOAD_CLEANUP` and `MEDIA_ASSET_LEGACY_REVERIFY`. These event types
+intentionally fail closed on older workers so an old dispatcher cannot silently drop the cleanup
+reservation, extra object keys, or legacy re-verification authorization.
+
+Run `20260823014000_immutable_upload_promotion` and
+`20260823014100_upload_finalization_leases` in an API maintenance/drain window: remove old API pods
+from traffic and wait for their in-flight upload-finalization requests to finish before applying the
+migrations, then deploy the new API producers before resuming traffic. The lease trigger provides a
+bounded compatibility fence, but cannot stop an already-running old request from performing storage
+I/O before its database transition. Monitor the outbox for either event type until all
+migration-generated cleanup and re-verification events are processed.

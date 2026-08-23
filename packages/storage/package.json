@@ -5,7 +5,9 @@
 	"types": "./**/.ts",
 	"scripts": {
 		"clean": "git clean -xdf .cache .turbo dist node_modules",
-		"test": "vitest run",
+		"test": "vitest run --exclude \"**/*.integration.test.ts\"",
+		"test:minio": "vitest run provider/s3/immutable-upload.minio.integration.test.ts",
+		"test:integration": "pnpm run test:minio",
 		"type-check": "tsc --noEmit"
 	},
 	"dependencies": {

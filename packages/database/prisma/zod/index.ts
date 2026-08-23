@@ -96,7 +96,7 @@ export type MediaAssetScalarFieldEnum = z.infer<typeof MediaAssetScalarFieldEnum
 
 // File: MediaUploadSessionScalarFieldEnum.schema.ts
 
-export const MediaUploadSessionScalarFieldEnumSchema = z.enum(['id', 'assetId', 'tokenHash', 'multipartUploadId', 'stagingObjectKey', 'finalizationToken', 'finalizationParts', 'status', 'expectedBytes', 'createdAt', 'expiresAt', 'completedAt'])
+export const MediaUploadSessionScalarFieldEnumSchema = z.enum(['id', 'assetId', 'tokenHash', 'multipartUploadId', 'stagingObjectKey', 'finalizationToken', 'finalizationLeaseExpiresAt', 'legacyFinalizationToken', 'finalizationParts', 'status', 'expectedBytes', 'createdAt', 'expiresAt', 'completedAt'])
 
 export type MediaUploadSessionScalarFieldEnum = z.infer<typeof MediaUploadSessionScalarFieldEnumSchema>;
 
@@ -672,6 +672,8 @@ export const MediaUploadSessionSchema = z.object({
   multipartUploadId: z.string().nullish(),
   stagingObjectKey: z.string().nullish(),
   finalizationToken: z.string().nullish(),
+  finalizationLeaseExpiresAt: z.date().nullish(),
+  legacyFinalizationToken: z.string().nullish(),
   finalizationParts: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10").nullish(),
   status: UploadSessionStatusSchema.default("PENDING"),
   expectedBytes: z.bigint(),

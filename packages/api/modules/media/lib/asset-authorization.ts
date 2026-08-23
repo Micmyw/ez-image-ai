@@ -17,7 +17,14 @@ export async function requireReadyOwnedMediaAsset(assetId: string, ownerId: stri
 
 export async function requireOwnedUploadSession(sessionId: string, ownerId: string) {
 	const session = await getOwnedMediaUploadSession(sessionId, ownerId);
-	if (!session || session.asset.ownerType !== "USER" || session.asset.ownerId !== ownerId) {
+	if (
+		!session ||
+		session.asset.ownerType !== "USER" ||
+		session.asset.ownerId !== ownerId ||
+		(session.status !== "ABORTED" &&
+			(session.asset.deletedAt ||
+				(session.status !== "COMPLETED" && session.asset.status !== "UPLOADING")))
+	) {
 		throw new ORPCError("NOT_FOUND");
 	}
 	return session;

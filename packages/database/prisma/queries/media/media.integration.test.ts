@@ -1594,6 +1594,7 @@ describe("media PostgreSQL transactions", () => {
 				ownerId,
 				kind: "INPUT",
 				objectKey: `users/${ownerId}/assets/${suffix}/original.mp4`,
+				stagingObjectKey: `users/${ownerId}/staging/upload_abort_${suffix}/nonce.mp4`,
 				mimeType: "video/mp4",
 				expectedBytes: 1024n,
 				tokenHash: `hash-${suffix}`,
@@ -1612,7 +1613,7 @@ describe("media PostgreSQL transactions", () => {
 			}),
 		).resolves.toEqual([
 			expect.objectContaining({
-				eventType: "MEDIA_MULTIPART_ABORT",
+				eventType: "MEDIA_UPLOAD_CLEANUP",
 				status: "PENDING",
 				payload: expect.objectContaining({ multipartUploadId: `multipart-${suffix}` }),
 			}),

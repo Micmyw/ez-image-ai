@@ -471,6 +471,8 @@ model MediaUploadSession {
   multipartUploadId String?
   stagingObjectKey  String?             @unique
   finalizationToken String?             @unique
+  finalizationLeaseExpiresAt DateTime?  @db.Timestamptz(3)
+  legacyFinalizationToken String?
   finalizationParts Json?
   status            UploadSessionStatus @default(PENDING)
   expectedBytes     BigInt
@@ -479,6 +481,7 @@ model MediaUploadSession {
   completedAt       DateTime?           @db.Timestamptz(3)
 
   @@index([status, expiresAt])
+  @@index([status, finalizationLeaseExpiresAt])
   @@map("media_upload_session")
 }
 

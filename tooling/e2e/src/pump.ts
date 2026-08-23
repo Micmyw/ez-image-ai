@@ -91,6 +91,7 @@ async function deliverLocally(event: {
 			);
 			return;
 		}
+		case "MEDIA_ASSET_LEGACY_REVERIFY":
 		case "MEDIA_ASSET_VERIFY":
 		case "MEDIA_ASSET_MODERATION_REQUESTED": {
 			const verifyDependencies = createDatabaseVerifyUploadDependencies(db, {
@@ -98,9 +99,15 @@ async function deliverLocally(event: {
 				moderationProvider: "e2e-upload",
 			});
 			await verifyUpload(
-				{ assetId: stringValue(payload.assetId, event.aggregateId) },
 				{
-					verify: (input) => verifyDependencies.verify(input),
+					assetId: stringValue(payload.assetId, event.aggregateId),
+					...(event.eventType === "MEDIA_ASSET_LEGACY_REVERIFY" ||
+					payload.allowQuarantinedReverification === true
+						? { allowQuarantinedReverification: true }
+						: {}),
+				},
+				{
+					verify: (input, options) => verifyDependencies.verify(input, options),
 				},
 			);
 			return;
@@ -110,6 +117,29 @@ async function deliverLocally(event: {
 				{
 					assetId: stringValue(payload.assetId, event.aggregateId),
 					objectKey: stringValue(payload.objectKey),
+					...cleanupPayload(payload),
+				},
+				createDatabaseStorageCleanupDependencies(db),
+			);
+			return;
+		case "MEDIA_UPLOAD_CLEANUP":
+			if (typeof payload.multipartUploadId === "string") {
+				await abortMultipartObject(
+					{
+						assetId: stringValue(payload.assetId, event.aggregateId),
+						objectKey: stringValue(payload.objectKey),
+						multipartUploadId: payload.multipartUploadId,
+						...cleanupPayload(payload),
+					},
+					createDatabaseStorageCleanupDependencies(db),
+				);
+				return;
+			}
+			await deleteStorageObject(
+				{
+					assetId: stringValue(payload.assetId, event.aggregateId),
+					objectKey: stringValue(payload.objectKey),
+					...cleanupPayload(payload),
 				},
 				createDatabaseStorageCleanupDependencies(db),
 			);
@@ -120,6 +150,7 @@ async function deliverLocally(event: {
 					assetId: stringValue(payload.assetId, event.aggregateId),
 					objectKey: stringValue(payload.objectKey),
 					multipartUploadId: stringValue(payload.multipartUploadId),
+					...cleanupPayload(payload),
 				},
 				createDatabaseStorageCleanupDependencies(db),
 			);
@@ -127,6 +158,28 @@ async function deliverLocally(event: {
 		default:
 			throw new Error(`LOCAL_MEDIA_E2E_UNSUPPORTED_OUTBOX: ${event.eventType}`);
 	}
+}
+
+function cleanupPayload(payload: Record<string, unknown>): {
+	cleanupObjectKeys?: string[];
+	uploadSessionId?: string;
+	reservationStatus?: "EXPIRED" | "RELEASED";
+} {
+	const cleanupObjectKeys = Array.isArray(payload.cleanupObjectKeys)
+		? payload.cleanupObjectKeys.filter(
+				(value): value is string => typeof value === "string" && value.length > 0,
+			)
+		: [];
+	const uploadSessionId =
+		typeof payload.uploadSessionId === "string" ? payload.uploadSessionId : undefined;
+	const reservationStatus =
+		payload.reservationStatus === "EXPIRED" || payload.reservationStatus === "RELEASED"
+			? payload.reservationStatus
+			: undefined;
+	return {
+		...(cleanupObjectKeys.length ? { cleanupObjectKeys } : {}),
+		...(uploadSessionId && reservationStatus ? { uploadSessionId, reservationStatus } : {}),
+	};
 }
 
 async function emitDelayedProviderEvents(runId: string): Promise<void> {

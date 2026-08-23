@@ -25,11 +25,43 @@ describe("outbox delivery routes", () => {
 	);
 
 	it.each([
-		["MEDIA_OBJECT_DELETE", "media-delete-object", { assetId: "asset-1", objectKey: "key" }],
+		[
+			"MEDIA_OBJECT_DELETE",
+			"media-delete-object",
+			{ assetId: "asset-1", objectKey: "key", cleanupObjectKeys: ["final-key"] },
+		],
 		[
 			"MEDIA_MULTIPART_ABORT",
 			"media-abort-multipart",
-			{ assetId: "asset-1", objectKey: "key", multipartUploadId: "upload-1" },
+			{
+				assetId: "asset-1",
+				objectKey: "key",
+				multipartUploadId: "upload-1",
+				cleanupObjectKeys: ["final-key"],
+			},
+		],
+		[
+			"MEDIA_UPLOAD_CLEANUP",
+			"media-delete-object",
+			{
+				assetId: "asset-1",
+				objectKey: "key",
+				cleanupObjectKeys: ["final-key"],
+				uploadSessionId: "session-1",
+				reservationStatus: "RELEASED",
+			},
+		],
+		[
+			"MEDIA_UPLOAD_CLEANUP",
+			"media-abort-multipart",
+			{
+				assetId: "asset-1",
+				objectKey: "key",
+				multipartUploadId: "upload-1",
+				cleanupObjectKeys: ["final-key"],
+				uploadSessionId: "session-1",
+				reservationStatus: "RELEASED",
+			},
 		],
 	])("routes %s to its real cleanup task", async (eventType, taskId, payload) => {
 		const triggerAndWait = vi.fn(async () => undefined);
@@ -45,6 +77,25 @@ describe("outbox delivery routes", () => {
 			{ trigger: vi.fn(), triggerAndWait, resolveDispatchRoute: vi.fn() },
 		);
 		expect(triggerAndWait).toHaveBeenCalledWith(taskId, payload);
+	});
+
+	it("routes the fenced legacy re-verification event with explicit authorization", async () => {
+		const trigger = vi.fn(async () => undefined);
+		await deliverOutboxEvent(
+			{
+				id: "event-legacy-reverify",
+				eventType: "MEDIA_ASSET_LEGACY_REVERIFY",
+				aggregateId: "asset-1",
+				payload: { assetId: "asset-1" },
+				leaseToken: "lease-1",
+				attempts: 1,
+			},
+			{ trigger, resolveDispatchRoute: vi.fn() },
+		);
+		expect(trigger).toHaveBeenCalledWith("media-verify-upload", {
+			assetId: "asset-1",
+			allowQuarantinedReverification: true,
+		});
 	});
 
 	it("completes a soft-delete outbox event after storage cleanup and keeps replay safe", async () => {

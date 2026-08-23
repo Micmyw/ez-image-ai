@@ -7,14 +7,25 @@ export const deleteObjectTask = task({
 	id: "media-delete-object",
 	queue: { name: "media-storage-cleanup", concurrencyLimit: 4 },
 	maxDuration: 120,
-	run: (payload: { assetId: string; objectKey: string }) =>
-		deleteStorageObject(payload, databaseStorageCleanupDependencies),
+	run: (payload: {
+		assetId: string;
+		objectKey: string;
+		cleanupObjectKeys?: string[];
+		uploadSessionId?: string;
+		reservationStatus?: "EXPIRED" | "RELEASED";
+	}) => deleteStorageObject(payload, databaseStorageCleanupDependencies),
 });
 
 export const abortMultipartTask = task({
 	id: "media-abort-multipart",
 	queue: { name: "media-storage-cleanup", concurrencyLimit: 4 },
 	maxDuration: 120,
-	run: (payload: { assetId: string; objectKey: string; multipartUploadId: string }) =>
-		abortMultipartObject(payload, databaseStorageCleanupDependencies),
+	run: (payload: {
+		assetId: string;
+		objectKey: string;
+		cleanupObjectKeys?: string[];
+		multipartUploadId: string;
+		uploadSessionId?: string;
+		reservationStatus?: "EXPIRED" | "RELEASED";
+	}) => abortMultipartObject(payload, databaseStorageCleanupDependencies),
 });

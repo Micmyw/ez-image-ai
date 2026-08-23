@@ -40,25 +40,71 @@ export async function deliverOutboxEvent(
 				jobId: event.aggregateId,
 				version: integerValue(payload.version, 0),
 			});
+		case "MEDIA_ASSET_LEGACY_REVERIFY":
+			return dependencies.trigger("media-verify-upload", {
+				assetId: requiredString(payload.assetId, event.aggregateId),
+				allowQuarantinedReverification: true,
+			});
 		case "MEDIA_ASSET_VERIFY":
 		case "MEDIA_ASSET_MODERATION_REQUESTED":
 			return dependencies.trigger("media-verify-upload", {
 				assetId: requiredString(payload.assetId, event.aggregateId),
+				...(payload.allowQuarantinedReverification === true
+					? { allowQuarantinedReverification: true }
+					: {}),
 			});
 		case "MEDIA_OBJECT_DELETE":
 			return triggerCleanup(dependencies, "media-delete-object", {
 				assetId: requiredString(payload.assetId, event.aggregateId),
 				objectKey: requiredString(payload.objectKey),
+				...cleanupObjectKeysPayload(payload),
+				...cleanupReservationPayload(payload),
 			});
 		case "MEDIA_MULTIPART_ABORT":
 			return triggerCleanup(dependencies, "media-abort-multipart", {
 				assetId: requiredString(payload.assetId, event.aggregateId),
 				objectKey: requiredString(payload.objectKey),
 				multipartUploadId: requiredString(payload.multipartUploadId),
+				...cleanupObjectKeysPayload(payload),
+				...cleanupReservationPayload(payload),
 			});
+		case "MEDIA_UPLOAD_CLEANUP":
+			return triggerUploadCleanup(event, payload, dependencies);
 		default:
 			throw new Error(`Unsupported outbox event type: ${event.eventType}`);
 	}
+}
+
+function triggerUploadCleanup(
+	event: OutboxLease,
+	payload: Record<string, unknown>,
+	dependencies: OutboxDeliveryDependencies,
+): Promise<void> {
+	const cleanupPayload = {
+		assetId: requiredString(payload.assetId, event.aggregateId),
+		objectKey: requiredString(payload.objectKey),
+		...cleanupObjectKeysPayload(payload),
+		...cleanupReservationPayload(payload),
+	};
+	const multipartUploadId =
+		typeof payload.multipartUploadId === "string" ? payload.multipartUploadId : undefined;
+	return multipartUploadId
+		? triggerCleanup(dependencies, "media-abort-multipart", {
+				...cleanupPayload,
+				multipartUploadId,
+			})
+		: triggerCleanup(dependencies, "media-delete-object", cleanupPayload);
+}
+
+function cleanupObjectKeysPayload(payload: Record<string, unknown>): {
+	cleanupObjectKeys?: string[];
+} {
+	const cleanupObjectKeys = Array.isArray(payload.cleanupObjectKeys)
+		? payload.cleanupObjectKeys.filter(
+				(value): value is string => typeof value === "string" && value.length > 0,
+			)
+		: [];
+	return cleanupObjectKeys.length ? { cleanupObjectKeys } : {};
 }
 
 function triggerCleanup(
@@ -84,4 +130,19 @@ function requiredString(value: unknown, fallback?: string): string {
 	const resolved = typeof value === "string" && value ? value : fallback;
 	if (!resolved) throw new Error("Outbox payload omitted internal ID");
 	return resolved;
+}
+
+function cleanupReservationPayload(payload: Record<string, unknown>): {
+	uploadSessionId?: string;
+	reservationStatus?: "EXPIRED" | "RELEASED";
+} {
+	const uploadSessionId =
+		typeof payload.uploadSessionId === "string" ? payload.uploadSessionId : undefined;
+	const reservationStatus =
+		payload.reservationStatus === "EXPIRED" || payload.reservationStatus === "RELEASED"
+			? payload.reservationStatus
+			: undefined;
+	return {
+		...(uploadSessionId && reservationStatus ? { uploadSessionId, reservationStatus } : {}),
+	};
 }

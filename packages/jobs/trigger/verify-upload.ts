@@ -8,5 +8,6 @@ export const verifyUploadTask = task({
 	queue: { name: "media-upload-verification", concurrencyLimit: 5 },
 	maxDuration: 120,
 	retry: { maxAttempts: 8, minTimeoutInMs: 2_000, maxTimeoutInMs: 60_000 },
-	run: (payload: { assetId: string }) => verifyUpload(payload, databaseVerifyUploadDependencies),
+	run: (payload: { assetId: string; allowQuarantinedReverification?: boolean }) =>
+		verifyUpload(payload, databaseVerifyUploadDependencies),
 });

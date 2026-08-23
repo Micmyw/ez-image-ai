@@ -912,6 +912,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 26.1.2
+      '@types/pg':
+        specifier: 8.20.0
+        version: 8.20.0
       dotenv:
         specifier: 'catalog:'
         version: 17.4.2

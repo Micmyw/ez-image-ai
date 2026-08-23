@@ -17,7 +17,7 @@
 		"migrate": "dotenv -c -e ../../.env -- prisma migrate dev",
 		"studio": "dotenv -c -e ../../.env -- prisma studio",
 		"type-check": "tsc --noEmit",
-		"test": "vitest run prisma/queries/media/state-machine.test.ts --configLoader runner",
+		"test": "vitest run prisma/queries/media/state-machine.test.ts prisma/queries/media/assets-transactions.test.ts --configLoader runner",
 		"test:integration": "vitest run --config vitest.integration.config.ts --configLoader runner"
 	},
 	"dependencies": {
@@ -32,6 +32,7 @@
 	"devDependencies": {
 		"@repo/tsconfig": "workspace:*",
 		"@types/node": "catalog:",
+		"@types/pg": "8.20.0",
 		"dotenv": "catalog:",
 		"dotenv-cli": "catalog:",
 		"drizzle-kit": "catalog:",

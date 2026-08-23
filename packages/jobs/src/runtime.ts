@@ -33,6 +33,7 @@ import {
 	deleteObject,
 	detectMediaType,
 	headObject,
+	inspectPrivateMediaObject,
 	putPrivateMediaObject,
 	readMediaHeader,
 	streamRemoteObjectToStorage,
@@ -405,17 +406,30 @@ export function createDatabaseStorageCleanupDependencies(
 			);
 		},
 		async complete(input) {
-			await database.auditLog.create({
-				data: {
-					action: input.action,
-					targetType: "MEDIA_STORAGE_OPERATION",
-					targetId: input.operationKey,
-					metadata: {
-						assetId: input.assetId,
-						objectKey: input.objectKey,
-						...(input.multipartUploadId ? { multipartUploadId: input.multipartUploadId } : {}),
+			await database.$transaction(async (tx) => {
+				await tx.auditLog.create({
+					data: {
+						action: input.action,
+						targetType: "MEDIA_STORAGE_OPERATION",
+						targetId: input.operationKey,
+						metadata: {
+							assetId: input.assetId,
+							objectKey: input.objectKey,
+							...(input.multipartUploadId ? { multipartUploadId: input.multipartUploadId } : {}),
+							...(input.uploadSessionId ? { uploadSessionId: input.uploadSessionId } : {}),
+							...(input.reservationStatus ? { reservationStatus: input.reservationStatus } : {}),
+						},
 					},
-				},
+				});
+				if (input.uploadSessionId && input.reservationStatus) {
+					await tx.storageUsageReservation.updateMany({
+						where: {
+							referenceKey: `media-upload:${input.uploadSessionId}`,
+							status: "ACTIVE",
+						},
+						data: { status: input.reservationStatus, releasedAt: new Date() },
+					});
+				}
 			});
 		},
 	};
@@ -426,6 +440,18 @@ export const databaseStorageCleanupDependencies = createDatabaseStorageCleanupDe
 interface VerifyUploadRuntimeOptions {
 	headObject?: (location: { bucket: "media"; key: string }) => Promise<MediaObjectMetadata>;
 	readMediaHeader?: (location: { bucket: "media"; key: string }) => Promise<Uint8Array>;
+	inspectPrivateMediaObject?: (input: {
+		bucket: "media";
+		key: string;
+		contentType:
+			| "image/jpeg"
+			| "image/png"
+			| "image/webp"
+			| "video/mp4"
+			| "video/webm"
+			| "video/quicktime";
+		contentLength: number;
+	}) => Promise<{ bytes: number; sha256: string; etag: string | null; versionId: string | null }>;
 	createSignedReadUrl?: (location: {
 		bucket: "media";
 		key: string;
@@ -443,9 +469,103 @@ export function createDatabaseVerifyUploadDependencies(
 	const moderationProvider =
 		options.moderationProvider ?? process.env.MEDIA_SAFETY_ADAPTER ?? "test";
 	return {
-		async verify(assetId: string): Promise<void> {
-			const asset = await database.mediaAsset.findUnique({ where: { id: assetId } });
+		async verify(
+			assetId: string,
+			verificationOptions = { allowQuarantinedReverification: false },
+		): Promise<void> {
+			let asset = await database.mediaAsset.findUnique({ where: { id: assetId } });
 			if (!asset) throw new Error("Media asset not found");
+			const hasLegacyReverificationMarker =
+				asset.status === "VERIFYING" && asset.finalizedAt === null && asset.deletedAt === null
+					? Boolean(
+							await database.auditLog.findFirst({
+								where: {
+									action: "MEDIA_ASSET_LEGACY_REVERIFICATION_STARTED",
+									targetType: "MEDIA_ASSET",
+									targetId: assetId,
+								},
+								select: { id: true },
+							}),
+						)
+					: false;
+			const isLegacyReverification =
+				verificationOptions.allowQuarantinedReverification &&
+				asset.finalizedAt === null &&
+				asset.deletedAt === null &&
+				(asset.status === "QUARANTINED" || hasLegacyReverificationMarker);
+			if (asset.status === "QUARANTINED" && !isLegacyReverification) return;
+			if (hasLegacyReverificationMarker && !isLegacyReverification) {
+				return;
+			}
+			if (isLegacyReverification) {
+				if (asset.status === "QUARANTINED") {
+					const claimed = await database.$transaction(async (tx) => {
+						const changed = await tx.mediaAsset.updateMany({
+							where: {
+								id: assetId,
+								status: "QUARANTINED",
+								finalizedAt: null,
+								deletedAt: null,
+							},
+							data: { status: "VERIFYING" },
+						});
+						if (changed.count !== 1) return false;
+						await tx.auditLog.create({
+							data: {
+								action: "MEDIA_ASSET_LEGACY_REVERIFICATION_STARTED",
+								targetType: "MEDIA_ASSET",
+								targetId: assetId,
+								before: { status: "QUARANTINED" },
+								after: { status: "VERIFYING" },
+								metadata: { source: "immutable-upload-migration" },
+							},
+						});
+						return true;
+					});
+					if (!claimed) return;
+				}
+				try {
+					const inspected = await (options.inspectPrivateMediaObject ?? inspectPrivateMediaObject)({
+						bucket: "media",
+						key: asset.objectKey,
+						contentType: asset.mimeType as
+							| "image/jpeg"
+							| "image/png"
+							| "image/webp"
+							| "video/mp4"
+							| "video/webm"
+							| "video/quicktime",
+						contentLength: Number(asset.byteSize),
+					});
+					const refreshedAt = new Date();
+					const refreshed = await database.mediaAsset.updateMany({
+						where: { id: assetId, status: "VERIFYING", finalizedAt: null, deletedAt: null },
+						data: {
+							checksum: inspected.sha256,
+							storageEtag: inspected.etag,
+							storageVersionId: inspected.versionId,
+							finalizedAt: refreshedAt,
+						},
+					});
+					if (refreshed.count !== 1) return;
+					asset = {
+						...asset,
+						checksum: inspected.sha256,
+						storageEtag: inspected.etag,
+						storageVersionId: inspected.versionId,
+						finalizedAt: refreshedAt,
+						status: "VERIFYING",
+					};
+				} catch (error) {
+					if (!isDeterministicLegacyInspectionFailure(error)) throw error;
+					await recordUploadVerification(database, assetId, "legacy-upload-validation", {
+						decision: "REJECT",
+						reasonCode: "LEGACY_UPLOAD_INSPECTION_FAILED",
+						ruleVersion: "2026-08-23.1",
+					});
+					return;
+				}
+			}
 			if (asset.status !== "VERIFYING") return;
 
 			const location = { bucket: "media" as const, key: asset.objectKey };
@@ -478,6 +598,18 @@ export function createDatabaseVerifyUploadDependencies(
 			await recordUploadVerification(database, asset.id, moderationProvider, decision);
 		},
 	};
+}
+
+function isDeterministicLegacyInspectionFailure(error: unknown): boolean {
+	if (!error || typeof error !== "object") return false;
+	const details = error as {
+		name?: unknown;
+		message?: unknown;
+		$metadata?: { httpStatusCode?: unknown };
+	};
+	if (details.name === "NoSuchKey" || details.$metadata?.httpStatusCode === 404) return true;
+	const message = typeof details.message === "string" ? details.message : "";
+	return /^(Stored object|Final object checksum mismatch)/.test(message);
 }
 
 export const databaseVerifyUploadDependencies = createDatabaseVerifyUploadDependencies(db);

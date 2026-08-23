@@ -42,6 +42,7 @@ describe("media upload quota PostgreSQL transaction", () => {
 						ownerId,
 						kind: "INPUT",
 						objectKey: `users/${ownerId}/assets/asset_${index}_${suffix}/original.png`,
+						stagingObjectKey: `users/${ownerId}/staging/session_${index}_${suffix}/nonce.png`,
 						mimeType: "image/png",
 						expectedBytes: 60n,
 						tokenHash: `token_${index}_${suffix}`,
