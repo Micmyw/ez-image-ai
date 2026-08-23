@@ -30,4 +30,10 @@ describe("media dispatch queues", () => {
 			queueName: "media-video-kie-veo3",
 		});
 	});
+
+	it("rejects undeclared provider/model tuples instead of fabricating a Trigger task ID", () => {
+		expect(() => dispatchRouteFor("image", "fal", "fal-ai/unpublished-model")).toThrow(
+			"UNDECLARED_DISPATCH_ROUTE",
+		);
+	});
 });

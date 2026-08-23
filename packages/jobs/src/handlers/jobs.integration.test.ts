@@ -188,12 +188,14 @@ function createInMemoryStore() {
 				input: { kind: "text-to-image" as const, prompt: "hello" },
 			};
 		},
+		async recordSubmissionStarted() {},
 		async recordSubmission(_attemptId: string, submission: { providerTaskId?: string }) {
 			state.providerTaskId = submission.providerTaskId ?? null;
 			state.status = "PROVIDER_PENDING";
 		},
 		async recordSynchronousCompletion() {},
 		async recordUncertainSubmission() {},
+		async recordProviderAdapterUnavailable() {},
 		async recordRejectedSubmission() {},
 		async markUncertainForManualReconciliation() {},
 		async claimProviderEvent() {
@@ -220,6 +222,7 @@ function createInMemoryStore() {
 					output,
 				}));
 		},
+		async markProviderRecoveryUnavailable() {},
 		async recordProviderEventFailure() {},
 		async claimFinalization() {
 			if (state.status !== "FINALIZING") return null;

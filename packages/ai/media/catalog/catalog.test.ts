@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { getCatalogEntry, getPublicProductCatalog, quoteCatalogInput } from "./catalog";
+import {
+	getCatalogEntry,
+	getPublicProductCatalog,
+	isCatalogInputSupported,
+	quoteCatalogInput,
+} from "./catalog";
+import {
+	configuredProviderKeysFromEnvironment,
+	enabledProviderKeysFromEnvironment,
+	locallyExecutableProviderKeysFromEnvironment,
+	recoveryProviderKeysFromEnvironment,
+} from "./routing";
 
 describe("media product catalog", () => {
 	it("validates discriminated text and asset model inputs", () => {
@@ -45,6 +56,38 @@ describe("media product catalog", () => {
 		expect(serialized).not.toContain("weight");
 	});
 
+	it("does not advertise Gemini quality-image reference input that the provider cannot receive", () => {
+		const qualityImage = getPublicProductCatalog({
+			enabledProviders: new Set(["gemini"]),
+			generationEnabled: true,
+		}).products.find((product) => product.key === "image-quality");
+
+		expect(qualityImage).toMatchObject({ inputKinds: ["text-to-image"] });
+		expect(qualityImage?.fields).not.toContainEqual(
+			expect.objectContaining({ key: "sourceAssetId" }),
+		);
+		expect(() =>
+			quoteCatalogInput({
+				productKey: "image-quality",
+				input: {
+					kind: "image-to-image",
+					prompt: "Preserve the lighting",
+					sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+				},
+			}),
+		).toThrow("Input image-to-image is not supported by image-quality");
+	});
+
+	it("rejects a malformed durable text input that smuggles a source asset", () => {
+		expect(
+			isCatalogInputSupported(getCatalogEntry("image-quality"), {
+				kind: "text-to-image",
+				prompt: "Preserve the source composition",
+				sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+			}),
+		).toBe(false);
+	});
+
 	it("publishes quality video while keeping its real Kie Veo route private", () => {
 		const internal = getCatalogEntry("video-quality");
 		const publicCatalog = getPublicProductCatalog();
@@ -73,5 +116,61 @@ describe("media product catalog", () => {
 		const catalog = getPublicProductCatalog({ enabledProviders: new Set() });
 
 		expect(catalog.products).toEqual([]);
+	});
+
+	it("keeps configured routes visible to the API without worker credentials", () => {
+		const environment = {
+			NODE_ENV: "test",
+			MEDIA_ENABLED_PROVIDERS: "replicate",
+			FAL_API_KEY: "worker-only-secret",
+		};
+		const configured = configuredProviderKeysFromEnvironment(environment);
+		const local = locallyExecutableProviderKeysFromEnvironment(environment);
+
+		expect(configured).toEqual(new Set(["replicate"]));
+		expect(local).toEqual(new Set());
+		expect(
+			getPublicProductCatalog({ enabledProviders: configured, generationEnabled: true }).products,
+		).toContainEqual(expect.objectContaining({ key: "image-fast" }));
+	});
+
+	it("removes disabled products from the executable public graph", () => {
+		const catalog = getPublicProductCatalog({
+			enabledProviders: new Set(["replicate", "fal"]),
+			generationEnabled: true,
+			disabledProductKeys: new Set(["image-fast"]),
+		} as never);
+
+		expect(catalog.products.map((product) => product.key)).not.toContain("image-fast");
+	});
+
+	it("does not publish any product when the generation environment gate is disabled", () => {
+		const catalog = getPublicProductCatalog({
+			enabledProviders: new Set(["replicate", "fal"]),
+			generationEnabled: false,
+		} as never);
+
+		expect(catalog.products).toEqual([]);
+	});
+
+	it("uses the legacy single-provider selector only when the shared list is absent", () => {
+		expect(
+			enabledProviderKeysFromEnvironment({
+				MEDIA_PROVIDER_ADAPTER: "fal",
+				REPLICATE_API_TOKEN: "unrelated-secret",
+				FAL_API_KEY: "fal-worker-secret",
+			}),
+		).toEqual(new Set(["fal"]));
+	});
+
+	it("keeps disabled providers available only for configured recovery workers", () => {
+		const environment = {
+			MEDIA_ENABLED_PROVIDERS: "fal",
+			MEDIA_RECOVERY_PROVIDERS: "replicate,fal",
+			FAL_API_KEY: "fal-worker-secret",
+		};
+
+		expect(enabledProviderKeysFromEnvironment(environment)).toEqual(new Set(["fal"]));
+		expect(recoveryProviderKeysFromEnvironment(environment)).toEqual(new Set(["replicate", "fal"]));
 	});
 });

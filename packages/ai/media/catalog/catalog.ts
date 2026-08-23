@@ -48,7 +48,7 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 		label: "Quality Image",
 		description: "High fidelity image generation",
 		mediaKind: "image",
-		inputKinds: ["text-to-image", "image-to-image"],
+		inputKinds: ["text-to-image"],
 		credits: 10,
 		routes: [
 			{
@@ -105,6 +105,28 @@ export function listCatalogEntries(): CatalogEntry[] {
 	return Object.values(CATALOG);
 }
 
+export function isCatalogInputSupported(
+	entry: Pick<CatalogEntry, "inputKinds">,
+	input: unknown,
+): boolean {
+	const parsed = mediaModelInputSchema.safeParse(input);
+	return (
+		parsed.success &&
+		hasNoStrippedInputProperties(input, parsed.data) &&
+		entry.inputKinds.includes(parsed.data.kind)
+	);
+}
+
+function hasNoStrippedInputProperties(input: unknown, parsed: MediaModelInput): boolean {
+	if (!input || typeof input !== "object" || Array.isArray(input)) return false;
+	const rawKeys = Object.keys(input);
+	const parsedKeys = Object.keys(parsed);
+	return (
+		rawKeys.length === parsedKeys.length &&
+		rawKeys.every((key) => Object.prototype.hasOwnProperty.call(parsed, key))
+	);
+}
+
 export function createExecutableRouteGraph(options: ExecutableRouteGraphOptions): {
 	entries: Array<CatalogEntry & { routes: readonly CatalogRoute[] }>;
 	getEntry(key: ProductModelKey): (CatalogEntry & { routes: readonly CatalogRoute[] }) | undefined;
@@ -128,7 +150,7 @@ export function quoteCatalogInput(input: unknown): {
 } {
 	const parsed = quoteInputSchema.parse(input);
 	const entry = getCatalogEntry(parsed.productKey);
-	if (!entry.inputKinds.includes(parsed.input.kind))
+	if (!isCatalogInputSupported(entry, parsed.input))
 		throw new Error(`Input ${parsed.input.kind} is not supported by ${parsed.productKey}`);
 	if (
 		parsed.productKey === "video-quality" &&

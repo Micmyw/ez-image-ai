@@ -36,6 +36,20 @@ export interface ReplicateProviderOptions extends HttpClientOptions {
 	webhookToleranceSeconds?: number;
 	now?: () => number;
 }
+
+export interface ReplicateWebhookVerifierOptions {
+	webhookSecret: string;
+	webhookToleranceSeconds?: number;
+	now?: () => number;
+}
+
+export function createReplicateWebhookVerifier(
+	options: ReplicateWebhookVerifierOptions,
+): Pick<MediaProviderAdapter, "verifyWebhook"> {
+	return {
+		verifyWebhook: (request) => verifyReplicateWebhook(request, options),
+	};
+}
 export class ReplicateProviderAdapter implements MediaProviderAdapter {
 	readonly provider = "replicate" as const;
 	private readonly snapshots = new Map<string, ProviderTaskSnapshot>();
@@ -65,6 +79,19 @@ export class ReplicateProviderAdapter implements MediaProviderAdapter {
 			);
 		const snapshot = toSnapshot(parsed.data);
 		this.snapshots.set(parsed.data.id, snapshot);
+		const terminalWithoutOutput =
+			snapshot.status === "SUCCEEDED" && outputsFromResponse(parsed.data).length === 0;
+		if (terminalWithoutOutput) {
+			return {
+				providerTaskId: parsed.data.id,
+				status: snapshot.status,
+				outcome: "uncertain",
+				uncertainty: { classification: "malformed_2xx", phase: "post_send" },
+				idempotency: { key: input.attemptId, providerSupported: true, replayed: false },
+				reconciliation: { submissionToken: input.attemptId },
+				snapshot,
+			};
+		}
 		return {
 			providerTaskId: parsed.data.id,
 			status: snapshot.status,
@@ -93,81 +120,31 @@ export class ReplicateProviderAdapter implements MediaProviderAdapter {
 		return snapshot;
 	}
 	async cancel(input: ProviderCancelInput): Promise<ProviderCancelResult> {
-		const { ok } = await fetchJson(
+		const { ok, status } = await fetchJson(
 			`${this.options.baseUrl ?? "https://api.replicate.com/v1"}/predictions/${encodeURIComponent(input.providerTaskId)}/cancel`,
-			{ method: "POST", headers: this.headers() },
+			{ method: "POST", headers: this.headers(input.idempotencyKey) },
 			this.options,
 		);
-		return { status: ok ? "CANCELED" : "UNKNOWN", canceled: ok };
+		return {
+			status: ok ? "CANCELED" : "UNKNOWN",
+			canceled: ok,
+			noCharge: false,
+			retryable: !ok && ([408, 409, 425, 429].includes(status) || status >= 500),
+		};
 	}
 	async verifyWebhook(request: Request): Promise<VerifiedProviderEvent> {
-		if (!this.options.webhookSecret)
+		if (!this.options.webhookSecret) {
 			throw new MediaProviderError(
 				"WEBHOOK_VERIFICATION_FAILED",
 				"Webhook secret is not configured",
 				false,
 			);
-		const body = await request.text();
-		const webhookId = request.headers.get("webhook-id") ?? "";
-		const timestampHeader = request.headers.get("webhook-timestamp") ?? "";
-		const signatureHeader = request.headers.get("webhook-signature") ?? "";
-		const timestamp = Number(timestampHeader);
-		const nowSeconds = Math.floor((this.options.now?.() ?? Date.now()) / 1000);
-		if (
-			!webhookId ||
-			!Number.isSafeInteger(timestamp) ||
-			Math.abs(nowSeconds - timestamp) > (this.options.webhookToleranceSeconds ?? 300)
-		)
-			throw new MediaProviderError(
-				"WEBHOOK_VERIFICATION_FAILED",
-				"Invalid or stale webhook timestamp",
-				false,
-			);
-		const secret = this.options.webhookSecret.startsWith("whsec_")
-			? this.options.webhookSecret.slice(6)
-			: "";
-		let key: Buffer;
-		try {
-			key = Buffer.from(secret, "base64");
-		} catch {
-			key = Buffer.alloc(0);
 		}
-		if (!secret || key.length === 0)
-			throw new MediaProviderError("WEBHOOK_VERIFICATION_FAILED", "Invalid webhook secret", false);
-		const expected = createHmac("sha256", key)
-			.update(`${webhookId}.${timestampHeader}.${body}`)
-			.digest();
-		const isValid = signatureHeader.split(/\s+/).some((signature) => {
-			const [version, encoded] = signature.split(",", 2);
-			if (version !== "v1" || !encoded) return false;
-			let candidate: Buffer;
-			try {
-				candidate = Buffer.from(encoded, "base64");
-			} catch {
-				return false;
-			}
-			return candidate.length === expected.length && timingSafeEqual(candidate, expected);
+		return verifyReplicateWebhook(request, {
+			webhookSecret: this.options.webhookSecret,
+			webhookToleranceSeconds: this.options.webhookToleranceSeconds,
+			now: this.options.now,
 		});
-		if (!isValid)
-			throw new MediaProviderError(
-				"WEBHOOK_VERIFICATION_FAILED",
-				"Invalid webhook signature",
-				false,
-			);
-		const parsed = responseSchema.safeParse(JSON.parse(body));
-		if (!parsed.success)
-			throw new MediaProviderError(
-				"MALFORMED_PROVIDER_RESPONSE",
-				"Replicate webhook was malformed",
-				false,
-			);
-		return {
-			eventId: webhookId,
-			providerTaskId: parsed.data.id,
-			status: normalizeStatus(parsed.data.status),
-			receivedAt: new Date(),
-			providerOccurredAt: replicateEventTime(parsed.data),
-		};
 	}
 	async normalizeResult(snapshot: ProviderTaskSnapshot): Promise<NormalizedResult> {
 		const parsed = responseSchema.safeParse(snapshot.raw);
@@ -201,8 +178,73 @@ export class ReplicateProviderAdapter implements MediaProviderAdapter {
 		};
 	}
 }
+
+async function verifyReplicateWebhook(
+	request: Request,
+	options: ReplicateWebhookVerifierOptions,
+): Promise<VerifiedProviderEvent> {
+	const body = await request.text();
+	const webhookId = request.headers.get("webhook-id") ?? "";
+	const timestampHeader = request.headers.get("webhook-timestamp") ?? "";
+	const signatureHeader = request.headers.get("webhook-signature") ?? "";
+	const timestamp = Number(timestampHeader);
+	const nowSeconds = Math.floor((options.now?.() ?? Date.now()) / 1000);
+	if (
+		!webhookId ||
+		!Number.isSafeInteger(timestamp) ||
+		Math.abs(nowSeconds - timestamp) > (options.webhookToleranceSeconds ?? 300)
+	)
+		throw new MediaProviderError(
+			"WEBHOOK_VERIFICATION_FAILED",
+			"Invalid or stale webhook timestamp",
+			false,
+		);
+	const secret = options.webhookSecret.startsWith("whsec_") ? options.webhookSecret.slice(6) : "";
+	let key: Buffer;
+	try {
+		key = Buffer.from(secret, "base64");
+	} catch {
+		key = Buffer.alloc(0);
+	}
+	if (!secret || key.length === 0)
+		throw new MediaProviderError("WEBHOOK_VERIFICATION_FAILED", "Invalid webhook secret", false);
+	const expected = createHmac("sha256", key)
+		.update(`${webhookId}.${timestampHeader}.${body}`)
+		.digest();
+	const isValid = signatureHeader.split(/\s+/).some((signature) => {
+		const [version, encoded] = signature.split(",", 2);
+		if (version !== "v1" || !encoded) return false;
+		let candidate: Buffer;
+		try {
+			candidate = Buffer.from(encoded, "base64");
+		} catch {
+			return false;
+		}
+		return candidate.length === expected.length && timingSafeEqual(candidate, expected);
+	});
+	if (!isValid)
+		throw new MediaProviderError("WEBHOOK_VERIFICATION_FAILED", "Invalid webhook signature", false);
+	const parsed = responseSchema.safeParse(JSON.parse(body));
+	if (!parsed.success)
+		throw new MediaProviderError(
+			"MALFORMED_PROVIDER_RESPONSE",
+			"Replicate webhook was malformed",
+			false,
+		);
+	return {
+		eventId: webhookId,
+		providerTaskId: parsed.data.id,
+		status: normalizeStatus(parsed.data.status),
+		receivedAt: new Date(),
+		providerOccurredAt: replicateEventTime(parsed.data),
+	};
+}
 function toSnapshot(data: z.infer<typeof responseSchema>): ProviderTaskSnapshot {
 	return { providerTaskId: data.id, status: normalizeStatus(data.status), raw: data };
+}
+
+function outputsFromResponse(data: z.infer<typeof responseSchema>): string[] {
+	return typeof data.output === "string" ? [data.output] : (data.output ?? []);
 }
 
 function replicateEventTime(data: z.infer<typeof responseSchema>): Date | undefined {

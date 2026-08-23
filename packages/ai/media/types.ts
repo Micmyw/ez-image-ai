@@ -29,12 +29,15 @@ export interface ProviderSubmitInput {
 	input: ProviderExecutionInput;
 	webhookUrl?: string;
 }
-export interface ProviderSubmission {
-	/** The only dispatch decision: accepted may proceed, rejected may fail over, uncertain must reconcile. */
-	outcome: SubmissionOutcome;
+export interface SubmissionUncertainty {
+	classification: "ambiguous_http" | "malformed_2xx" | "transport";
+	phase: "post_send";
+	statusCode?: number;
+}
+
+interface ProviderSubmissionBase {
 	providerTaskId?: string;
 	status: ProviderTaskStatus;
-	failure?: ProviderFailure;
 	idempotency: { key?: string; providerSupported: boolean; replayed: boolean };
 	snapshot?: ProviderTaskSnapshot;
 	reconciliation: {
@@ -43,6 +46,25 @@ export interface ProviderSubmission {
 		resultUrl?: string;
 	};
 }
+export type ProviderSubmission =
+	| (ProviderSubmissionBase & {
+			/** Accepted may proceed to provider polling or finalization. */
+			outcome: "accepted";
+			failure?: never;
+			uncertainty?: never;
+	  })
+	| (ProviderSubmissionBase & {
+			/** Rejected may fail over only when its provider failure is retryable. */
+			outcome: "rejected";
+			failure: ProviderFailure;
+			uncertainty?: never;
+	  })
+	| (ProviderSubmissionBase & {
+			/** Uncertain submissions must reconcile and retain only bounded recovery evidence. */
+			outcome: "uncertain";
+			failure?: ProviderFailure;
+			uncertainty: SubmissionUncertainty;
+	  });
 export interface ProviderRetrieveInput {
 	providerTaskId: string;
 	statusUrl?: string;
@@ -50,10 +72,13 @@ export interface ProviderRetrieveInput {
 }
 export interface ProviderCancelInput {
 	providerTaskId: string;
+	idempotencyKey: string;
 }
 export interface ProviderCancelResult {
 	status: ProviderTaskStatus;
 	canceled: boolean;
+	noCharge: boolean;
+	retryable: boolean;
 }
 export interface ProviderFailure {
 	code: string;

@@ -17,4 +17,7 @@ export class MediaProviderRegistry {
 		if (!adapter) throw new Error(`Media provider ${provider} is not registered`);
 		return adapter;
 	}
+	keys(): IterableIterator<ProviderKey> {
+		return this.providers.keys();
+	}
 }

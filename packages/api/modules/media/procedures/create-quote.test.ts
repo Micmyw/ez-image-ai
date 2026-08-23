@@ -41,6 +41,37 @@ describe("createQuoteForUser", () => {
 		);
 	});
 
+	it("rejects an unsupported quality-image reference before moderation or persistence", async () => {
+		const createAdapter = vi.fn();
+		const persistApproved = vi.fn();
+		const assertAllowed = vi.fn();
+
+		await expect(
+			createQuoteForUser(
+				"user_1",
+				{
+					productKey: "image-quality",
+					input: {
+						kind: "image-to-image",
+						prompt: "Keep the subject intact",
+						sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+					},
+				},
+				{
+					now: () => new Date("2026-08-24T00:00:00.000Z"),
+					assertAllowed,
+					createAdapter,
+					persistApproved,
+					recordDenied: vi.fn(),
+				},
+			),
+		).rejects.toThrow("Input image-to-image is not supported by image-quality");
+
+		expect(assertAllowed).not.toHaveBeenCalled();
+		expect(createAdapter).not.toHaveBeenCalled();
+		expect(persistApproved).not.toHaveBeenCalled();
+	});
+
 	it.each(["REJECT", "REVIEW", "ERROR"] as const)(
 		"records prompt-free %s evidence and creates no quote",
 		async (decision) => {

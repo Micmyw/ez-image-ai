@@ -60,7 +60,10 @@ export function GenerationForm({
 	const effectiveDuration = clampToField(values.durationSeconds, durationField);
 	const input = useMemo(() => {
 		if (!product || !values.prompt.trim()) return null;
-		const sourceAssetId = values.sourceAssetId || undefined;
+		const supportsSourceAsset = product.inputKinds.some(
+			(kind) => kind === "image-to-image" || kind === "image-to-video",
+		);
+		const sourceAssetId = supportsSourceAsset ? values.sourceAssetId || undefined : undefined;
 		const kind =
 			product.mediaKind === "image"
 				? sourceAssetId

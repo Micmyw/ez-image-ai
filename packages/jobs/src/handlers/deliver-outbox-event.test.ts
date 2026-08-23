@@ -5,6 +5,120 @@ import { deliverOutboxEvent } from "./deliver-outbox-event";
 import { dispatchOutbox } from "./dispatch-outbox";
 
 describe("outbox delivery routes", () => {
+	it.each(["JOB_CREATED", "GENERATION_DISPATCH"])(
+		"does not trigger %s when its dispatch route is unavailable",
+		async (eventType) => {
+			const trigger = vi.fn(async () => undefined);
+			const resolveDispatchRoute = vi.fn(async () => null);
+			await deliverOutboxEvent(
+				{
+					id: "event-1",
+					eventType,
+					aggregateId: "job-1",
+					payload: { version: 3 },
+					leaseToken: "lease-1",
+					attempts: 1,
+				},
+				{ trigger, resolveDispatchRoute },
+			);
+			expect(resolveDispatchRoute).toHaveBeenCalledOnce();
+			expect(resolveDispatchRoute).toHaveBeenCalledWith("job-1");
+			expect(trigger).not.toHaveBeenCalled();
+		},
+	);
+
+	it("pins the resolved provider route into every generation dispatch payload", async () => {
+		const trigger = vi.fn(async () => undefined);
+		await deliverOutboxEvent(
+			{
+				id: "event-pinned-route",
+				eventType: "JOB_CREATED",
+				aggregateId: "job-1",
+				payload: { version: 3 },
+				leaseToken: "lease-1",
+				attempts: 1,
+			},
+			{
+				trigger,
+				resolveDispatchRoute: async () => ({
+					taskId: "media-dispatch-image-replicate-black-forest-labs_flux-schnell",
+					provider: "replicate" as const,
+					providerModelId: "black-forest-labs/flux-schnell",
+				}),
+			},
+		);
+
+		expect(trigger).toHaveBeenCalledWith(
+			"media-dispatch-image-replicate-black-forest-labs_flux-schnell",
+			{
+				jobId: "job-1",
+				version: 3,
+				provider: "replicate",
+				providerModelId: "black-forest-labs/flux-schnell",
+			},
+		);
+	});
+
+	it("routes an accepted-job cancellation request to the cancellation worker, not settlement", async () => {
+		const triggerAndWait = vi.fn(async () => undefined);
+		await deliverOutboxEvent(
+			{
+				id: "event-cancel-request",
+				eventType: "GENERATION_CANCEL_REQUESTED",
+				aggregateId: "job-1",
+				payload: { version: 5 },
+				leaseToken: "lease-1",
+				attempts: 1,
+			},
+			{ trigger: vi.fn(), triggerAndWait, resolveDispatchRoute: vi.fn() },
+		);
+
+		expect(triggerAndWait).toHaveBeenCalledWith("media-cancel-generation", {
+			jobId: "job-1",
+			version: 5,
+		});
+	});
+
+	it("keeps a failed provider cancellation intent retryable in the outbox", async () => {
+		const event = {
+			id: "event-cancel-retry",
+			eventType: "GENERATION_CANCEL_REQUESTED",
+			aggregateId: "job-1",
+			payload: { version: 5 },
+			leaseToken: "lease-cancel-retry",
+			attempts: 1,
+		};
+		const store = {
+			claimBatch: vi.fn(async () => [event]),
+			complete: vi.fn(async () => undefined),
+			release: vi.fn(async () => undefined),
+		};
+
+		await dispatchOutbox(
+			{ workerId: "worker-1" },
+			{
+				store,
+				deliver: (leasedEvent) =>
+					deliverOutboxEvent(leasedEvent, {
+						trigger: vi.fn(),
+						triggerAndWait: async () => {
+							throw new Error("cancellation temporarily unavailable");
+						},
+						resolveDispatchRoute: vi.fn(),
+					}),
+			},
+		);
+
+		expect(store.complete).not.toHaveBeenCalled();
+		expect(store.release).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: event.id,
+				leaseToken: event.leaseToken,
+				errorCode: "DELIVERY_FAILED",
+			}),
+		);
+	});
+
 	it.each(["MEDIA_ASSET_VERIFY", "MEDIA_ASSET_MODERATION_REQUESTED"])(
 		"never silently completes %s",
 		async (eventType) => {

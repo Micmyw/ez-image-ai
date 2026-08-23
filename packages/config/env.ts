@@ -7,6 +7,11 @@ const booleanStringSchema = z
 
 const optionalSecretSchema = z.string().min(1).optional();
 
+export const mediaProviderKeySchema = z.enum(["replicate", "fal", "kie", "gemini"]);
+export type MediaProviderKey = z.infer<typeof mediaProviderKeySchema>;
+
+const mediaProviderAdapterSchema = z.enum(["replicate", "fal", "kie", "gemini", "mock"]);
+
 const rawServerEnvironmentSchema = z.object({
 	NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 	MEDIA_GENERATION_ENABLED: booleanStringSchema,
@@ -29,7 +34,9 @@ const rawServerEnvironmentSchema = z.object({
 	FAL_API_KEY: optionalSecretSchema,
 	KIE_API_KEY: optionalSecretSchema,
 	GEMINI_API_KEY: optionalSecretSchema,
-	MEDIA_PROVIDER_ADAPTER: z.enum(["replicate", "fal", "kie", "gemini", "mock"]).default("mock"),
+	MEDIA_PROVIDER_ADAPTER: mediaProviderAdapterSchema.default("mock"),
+	MEDIA_ENABLED_PROVIDERS: z.string().optional(),
+	MEDIA_RECOVERY_PROVIDERS: z.string().optional(),
 	MEDIA_SAFETY_ADAPTER: z.enum(["sightengine", "test"]).default("test"),
 	MEDIA_ALLOW_TEST_SAFETY_ADAPTER: booleanStringSchema,
 });
@@ -41,6 +48,8 @@ export interface ServerEnvironment {
 	billingEnabled: boolean;
 	errorMonitoringEnabled: boolean;
 	mediaProviderAdapter: "replicate" | "fal" | "kie" | "gemini" | "mock";
+	mediaEnabledProviders: MediaProviderKey[];
+	mediaRecoveryProviders: MediaProviderKey[];
 	mediaSafetyAdapter: "sightengine" | "test";
 	allowTestSafetyAdapter: boolean;
 	secrets: ServerSecrets;
@@ -71,7 +80,15 @@ export interface ServerSecrets {
 	provider: ProviderSecrets;
 }
 
-export function validateServerEnvironment(input: Record<string, unknown>): ServerEnvironment {
+export interface ValidateServerEnvironmentOptions {
+	/** API-only processes validate provider configuration but do not hold provider worker keys. */
+	requireProviderCredentials?: boolean;
+}
+
+export function validateServerEnvironment(
+	input: Record<string, unknown>,
+	options: ValidateServerEnvironmentOptions = {},
+): ServerEnvironment {
 	const parsed = rawServerEnvironmentSchema.parse(input);
 	const issues: string[] = [];
 	if (parsed.MEDIA_SAFETY_ADAPTER === "test" && !parsed.MEDIA_ALLOW_TEST_SAFETY_ADAPTER) {
@@ -79,7 +96,9 @@ export function validateServerEnvironment(input: Record<string, unknown>): Serve
 	}
 
 	if (parsed.NODE_ENV === "production") {
-		if (parsed.MEDIA_PROVIDER_ADAPTER === "mock" || parsed.MEDIA_SAFETY_ADAPTER === "test") {
+		const legacyMockProviderIsActive =
+			parsed.MEDIA_ENABLED_PROVIDERS === undefined && parsed.MEDIA_PROVIDER_ADAPTER === "mock";
+		if (legacyMockProviderIsActive || parsed.MEDIA_SAFETY_ADAPTER === "test") {
 			issues.push("Production cannot use mock or test adapters");
 		}
 
@@ -93,7 +112,12 @@ export function validateServerEnvironment(input: Record<string, unknown>): Serve
 				"S3_SECRET_ACCESS_KEY",
 				"TRIGGER_SECRET_KEY",
 			]);
-			requireSelectedProviderCredential(parsed, issues);
+			if (parseMediaEnabledProviders(parsed).length === 0) {
+				issues.push("MEDIA_ENABLED_PROVIDERS");
+			}
+			if (options.requireProviderCredentials ?? true) {
+				requireEnabledProviderCredentials(parsed, issues);
+			}
 		}
 
 		if (parsed.BILLING_ENABLED) {
@@ -120,6 +144,8 @@ export function validateServerEnvironment(input: Record<string, unknown>): Serve
 		billingEnabled: parsed.BILLING_ENABLED,
 		errorMonitoringEnabled: parsed.ERROR_MONITORING_ENABLED,
 		mediaProviderAdapter: parsed.MEDIA_PROVIDER_ADAPTER,
+		mediaEnabledProviders: parseMediaEnabledProviders(parsed),
+		mediaRecoveryProviders: parseMediaRecoveryProviders(parsed),
 		mediaSafetyAdapter: parsed.MEDIA_SAFETY_ADAPTER,
 		allowTestSafetyAdapter: parsed.MEDIA_ALLOW_TEST_SAFETY_ADAPTER,
 		secrets: Object.freeze({
@@ -142,18 +168,66 @@ export function validateServerEnvironment(input: Record<string, unknown>): Serve
 	};
 }
 
-function requireSelectedProviderCredential(
+export function parseMediaEnabledProviders(input: {
+	MEDIA_ENABLED_PROVIDERS?: string;
+	MEDIA_PROVIDER_ADAPTER?: z.infer<typeof mediaProviderAdapterSchema>;
+}): MediaProviderKey[] {
+	if (input.MEDIA_ENABLED_PROVIDERS !== undefined) {
+		return parseProviderList(input.MEDIA_ENABLED_PROVIDERS, "MEDIA_ENABLED_PROVIDERS");
+	}
+
+	const legacy = input.MEDIA_PROVIDER_ADAPTER ?? "mock";
+	return legacy === "mock" ? [] : [legacy];
+}
+
+/**
+ * Recovery routes are worker-only: they may drain callbacks and retrieve already accepted
+ * provider tasks, but they never make a provider eligible for a new submission. Falling back
+ * to the submission list preserves the pre-recovery configuration until an operator explicitly
+ * keeps a disabled provider available for drain.
+ */
+export function parseMediaRecoveryProviders(input: {
+	MEDIA_RECOVERY_PROVIDERS?: string;
+	MEDIA_ENABLED_PROVIDERS?: string;
+	MEDIA_PROVIDER_ADAPTER?: z.infer<typeof mediaProviderAdapterSchema>;
+}): MediaProviderKey[] {
+	if (input.MEDIA_RECOVERY_PROVIDERS !== undefined) {
+		return parseProviderList(input.MEDIA_RECOVERY_PROVIDERS, "MEDIA_RECOVERY_PROVIDERS");
+	}
+	return parseMediaEnabledProviders(input);
+}
+
+function parseProviderList(value: string, key: string): MediaProviderKey[] {
+	if (!value.trim()) return [];
+	const providers = value.split(",").map((item) => item.trim());
+	if (providers.some((provider) => !provider)) {
+		throw new Error(`Invalid ${key}`);
+	}
+	const normalized = providers.map((provider) => {
+		const parsed = mediaProviderKeySchema.safeParse(provider);
+		if (!parsed.success) throw new Error(`Invalid ${key}`);
+		return parsed.data;
+	});
+	if (new Set(normalized).size !== normalized.length) {
+		throw new Error(`Invalid ${key}`);
+	}
+	return normalized;
+}
+
+function requireEnabledProviderCredentials(
 	input: z.infer<typeof rawServerEnvironmentSchema>,
 	issues: string[],
 ): void {
-	const key = {
+	const credentialKeys = {
 		replicate: "REPLICATE_API_TOKEN",
 		fal: "FAL_API_KEY",
 		kie: "KIE_API_KEY",
 		gemini: "GEMINI_API_KEY",
-		mock: null,
-	}[input.MEDIA_PROVIDER_ADAPTER] as keyof typeof input | null;
-	if (key && !input[key]) issues.push(String(key));
+	} as const;
+	for (const provider of parseMediaEnabledProviders(input)) {
+		const key = credentialKeys[provider];
+		if (!input[key]) issues.push(key);
+	}
 }
 
 function selectedProviderSecrets(

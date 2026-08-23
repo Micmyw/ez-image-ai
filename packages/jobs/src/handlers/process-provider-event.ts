@@ -6,8 +6,15 @@ export async function processProviderEvent(
 ): Promise<{ outcome: "SKIPPED" | "PROCESSED" | "FAILED" }> {
 	const claim = await dependencies.store.claimProviderEvent(payload.providerWebhookEventId);
 	if (!claim) return { outcome: "SKIPPED" };
+	let adapter;
 	try {
-		const result = await dependencies.getProvider(claim.provider).normalizeResult(claim.snapshot);
+		adapter = dependencies.getProvider(claim.provider);
+	} catch {
+		await dependencies.store.markProviderRecoveryUnavailable(claim);
+		return { outcome: "PROCESSED" };
+	}
+	try {
+		const result = await adapter.normalizeResult(claim.snapshot);
 		await dependencies.store.recordProviderProgress(claim, result);
 		return { outcome: "PROCESSED" };
 	} catch {

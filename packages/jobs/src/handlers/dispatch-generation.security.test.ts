@@ -54,7 +54,10 @@ describe("dispatch generation security gates", () => {
 			),
 		).resolves.toEqual({ outcome: "RECONCILE" });
 
-		expect(recordUncertainSubmission).toHaveBeenCalledWith("attempt-1");
+		expect(recordUncertainSubmission).toHaveBeenCalledWith("attempt-1", {
+			classification: "transport",
+			phase: "post_send",
+		});
 		expect(recordRejectedSubmission).not.toHaveBeenCalled();
 	});
 
@@ -87,7 +90,10 @@ describe("dispatch generation security gates", () => {
 			),
 		).resolves.toEqual({ outcome: "RECONCILE" });
 
-		expect(recordUncertainSubmission).toHaveBeenCalledWith("attempt-1");
+		expect(recordUncertainSubmission).toHaveBeenCalledWith("attempt-1", {
+			classification: "transport",
+			phase: "post_send",
+		});
 		expect(recordRejectedSubmission).not.toHaveBeenCalled();
 	});
 });

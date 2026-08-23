@@ -33,13 +33,14 @@ export function providerQueueKey(provider: string, providerModelId: string): str
 
 export function dispatchRouteFor(
 	mediaKind: "image" | "video",
-	provider: string,
+	provider: ProviderKey,
 	providerModelId: string,
 ): { taskId: string; queueName: string } {
-	const routeKey = providerQueueKey(provider, providerModelId).replaceAll(":", "-");
+	const route = staticDispatchRouteFor(mediaKind, provider, providerModelId);
+	if (!route) throw new Error("UNDECLARED_DISPATCH_ROUTE");
 	return {
-		taskId: `media-dispatch-${mediaKind}-${routeKey}`.slice(0, 120),
-		queueName: `media-${mediaKind}-${routeKey}`.slice(0, 120),
+		taskId: route.taskId,
+		queueName: route.queueName,
 	};
 }
 
@@ -60,3 +61,4 @@ function positiveInteger(value: string | undefined, fallback: number): number {
 	const parsed = Number(value);
 	return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
+import { staticDispatchRouteFor, type ProviderKey } from "@repo/ai";

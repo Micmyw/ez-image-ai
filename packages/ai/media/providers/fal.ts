@@ -55,21 +55,37 @@ export class FalProviderAdapter implements MediaProviderAdapter {
 		const parsed = this.parse(data);
 		const statusUrl = optionalFalAuthenticatedUrl(parsed.status_url, authenticatedHostname);
 		const resultUrl = optionalFalAuthenticatedUrl(parsed.response_url, authenticatedHostname);
+		const normalizedStatus = normalizeStatus(parsed.status ?? "queued");
+		const terminalWithoutOutput =
+			normalizedStatus === "SUCCEEDED" && !parsed.images?.length && !parsed.video?.url;
+		const reconciliation = {
+			submissionToken: input.attemptId,
+			statusUrl,
+			resultUrl,
+		};
+		const snapshot = {
+			providerTaskId: parsed.request_id,
+			status: normalizedStatus,
+			raw: parsed,
+		};
+		if (terminalWithoutOutput) {
+			return {
+				providerTaskId: parsed.request_id,
+				status: normalizedStatus,
+				outcome: "uncertain",
+				uncertainty: { classification: "malformed_2xx", phase: "post_send" },
+				idempotency: { key: input.attemptId, providerSupported: true, replayed: false },
+				reconciliation,
+				snapshot,
+			};
+		}
 		return {
 			providerTaskId: parsed.request_id,
-			status: normalizeStatus(parsed.status ?? "queued"),
+			status: normalizedStatus,
 			outcome: "accepted",
 			idempotency: { key: input.attemptId, providerSupported: true, replayed: false },
-			reconciliation: {
-				submissionToken: input.attemptId,
-				statusUrl,
-				resultUrl,
-			},
-			snapshot: {
-				providerTaskId: parsed.request_id,
-				status: normalizeStatus(parsed.status ?? "queued"),
-				raw: parsed,
-			},
+			reconciliation,
+			snapshot,
 		};
 	}
 	async retrieve(input: ProviderRetrieveInput): Promise<ProviderTaskSnapshot> {

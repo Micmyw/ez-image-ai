@@ -28,14 +28,12 @@ interface PaymentEventRetryMetadata {
 function assertSafeTestDatabaseUrl(): string {
 	if (!TEST_DATABASE_URL) throw new Error("TEST_DATABASE_URL is required");
 	const parsed = new URL(TEST_DATABASE_URL);
+	const databaseName = decodeURIComponent(parsed.pathname.slice(1));
 	if (
-		parsed.hostname !== "127.0.0.1" ||
-		parsed.port !== "55432" ||
-		!["/ai_media_foundation_test", "/ezpic_payment_test"].includes(parsed.pathname)
+		!["127.0.0.1", "localhost", "::1"].includes(parsed.hostname) ||
+		!/test|testing/i.test(databaseName)
 	) {
-		throw new Error(
-			"TEST_DATABASE_URL must target 127.0.0.1:55432/ai_media_foundation_test or /ezpic_payment_test",
-		);
+		throw new Error("TEST_DATABASE_URL must use a loopback test database");
 	}
 	return TEST_DATABASE_URL;
 }

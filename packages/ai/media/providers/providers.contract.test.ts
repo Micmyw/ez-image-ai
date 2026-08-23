@@ -93,6 +93,44 @@ describe("provider adapter contract", () => {
 		},
 	);
 
+	it.each([
+		[
+			"Replicate SUCCEEDED without output",
+			new ReplicateProviderAdapter({
+				apiToken: "token",
+				fetch: fixtureFetch({ body: { id: "replicate-empty", status: "succeeded", output: null } }),
+			}),
+		],
+		[
+			"Fal COMPLETED without media",
+			new FalProviderAdapter({
+				apiKey: "key",
+				fetch: fixtureFetch({ body: { request_id: "fal-empty", status: "COMPLETED" } }),
+			}),
+		],
+		[
+			"Gemini response with text but no inline media",
+			new GeminiProviderAdapter({
+				apiKey: "key",
+				fetch: fixtureFetch({
+					body: { candidates: [{ content: { parts: [{ text: "no image was returned" }] } }] },
+				}),
+			}),
+		],
+	] as const)("marks terminal 2xx %s as uncertain instead of accepted", async (_case, adapter) => {
+		await expect(
+			adapter.submit({
+				attemptId: "terminal-empty",
+				providerModelId: "route",
+				input: { kind: "text-to-image", prompt: "x" },
+			}),
+		).resolves.toMatchObject({
+			status: "SUCCEEDED",
+			outcome: "uncertain",
+			uncertainty: { classification: "malformed_2xx", phase: "post_send" },
+		});
+	});
+
 	it("preserves a non-JSON HTTP 429 body as an uncertain submission", async () => {
 		const adapter = new ReplicateProviderAdapter({
 			apiToken: "token",
@@ -714,6 +752,48 @@ describe("provider adapter contract", () => {
 			contents: [
 				{ parts: [{ text: "x" }, { inlineData: { mimeType: "image/png", data: "aGVsbG8=" } }] },
 			],
+		});
+	});
+
+	it("keeps Replicate cancellation retries idempotent without treating acknowledgement as no-charge proof", async () => {
+		const captured: Array<{ url: string; init?: RequestInit }> = [];
+		const adapter = new ReplicateProviderAdapter({
+			apiToken: "token",
+			fetch: capturingFetch({ id: "prediction_1", status: "canceled" }, captured),
+		});
+
+		await expect(
+			adapter.cancel({
+				providerTaskId: "prediction_1",
+				idempotencyKey: "generation-cancel:job_1:attempt_1",
+			}),
+		).resolves.toEqual({
+			status: "CANCELED",
+			canceled: true,
+			noCharge: false,
+			retryable: false,
+		});
+		expect(captured[0]?.init?.headers).toMatchObject({
+			"Idempotency-Key": "generation-cancel:job_1:attempt_1",
+		});
+	});
+
+	it("marks transient Replicate cancellation responses retryable", async () => {
+		const adapter = new ReplicateProviderAdapter({
+			apiToken: "token",
+			fetch: fixtureFetch({ status: 503, body: { detail: "temporary outage" } }),
+		});
+
+		await expect(
+			adapter.cancel({
+				providerTaskId: "prediction_1",
+				idempotencyKey: "generation-cancel:job_1:attempt_1",
+			}),
+		).resolves.toEqual({
+			status: "UNKNOWN",
+			canceled: false,
+			noCharge: false,
+			retryable: true,
 		});
 	});
 });

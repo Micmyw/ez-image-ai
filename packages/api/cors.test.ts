@@ -2,7 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/auth", () => ({ auth: { handler: vi.fn(), api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database/client", () => ({ db: { $queryRaw: vi.fn() } }));
-vi.mock("@repo/jobs", () => ({ createProviderRegistry: () => ({ get: vi.fn() }) }));
+vi.mock("@repo/jobs", () => ({
+	createProviderRegistry: () => ({ get: vi.fn() }),
+	createProviderWebhookVerifierRegistry: () => ({ get: vi.fn(() => null) }),
+}));
 vi.mock("@repo/storage", () => ({ checkStorageMetadataAccess: vi.fn() }));
 vi.mock("@repo/payments", () => ({ webhookHandler: vi.fn() }));
 vi.mock("@trigger.dev/sdk", () => ({ tasks: { trigger: vi.fn() } }));

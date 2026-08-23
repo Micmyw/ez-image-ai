@@ -59,12 +59,26 @@ const RETRYABLE_JOB_STATUS: Record<AdminRetryStage, readonly string[]> = {
 	FINALIZE: ["FINALIZING"],
 	SETTLE: ["FINALIZING", "CANCELED"],
 };
+const DISPATCH_RECOVERY_CODES = new Set([
+	"PROVIDER_ADAPTER_UNAVAILABLE",
+	"QUOTED_ROUTE_UNAVAILABLE",
+	"LEGACY_QUOTE_ROUTE_UNAVAILABLE",
+]);
 
 export function assertRetryableAdminStage(
 	stage: AdminRetryStage,
 	status: string,
 	hasExistingStageEvent = true,
+	failureCode?: string | null,
 ): void {
+	if (
+		stage === "DISPATCH" &&
+		status === "NEEDS_RECONCILIATION" &&
+		failureCode &&
+		DISPATCH_RECOVERY_CODES.has(failureCode)
+	) {
+		return;
+	}
 	if (
 		!RETRYABLE_JOB_STATUS[stage].includes(status) ||
 		((stage === "FINALIZE" || stage === "SETTLE") && !hasExistingStageEvent)
@@ -462,7 +476,13 @@ export async function retryAdminMediaJobStage(
 		);
 		if (replay) return { jobId: input.jobId, stage: input.stage, replayed: true };
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`admin-media:job-stage:${input.jobId}:${input.stage}`}, 0))`;
-		const job = await tx.generationJob.findUnique({ where: { id: input.jobId } });
+		const job = await tx.generationJob.findUnique({
+			where: { id: input.jobId },
+			include: {
+				attempts: { orderBy: { attemptNumber: "desc" }, take: 1 },
+				reservation: { select: { status: true } },
+			},
+		});
 		if (!job) throw new Error("JOB_NOT_FOUND");
 		const existingStageEvent =
 			input.stage === "DISPATCH"
@@ -479,7 +499,7 @@ export async function retryAdminMediaJobStage(
 							select: { id: true },
 						}),
 					);
-		assertRetryableAdminStage(input.stage, job.status, existingStageEvent);
+		assertRetryableAdminStage(input.stage, job.status, existingStageEvent, job.failureCode);
 		const eventType =
 			input.stage === "DISPATCH"
 				? "GENERATION_DISPATCH"
@@ -498,6 +518,54 @@ export async function retryAdminMediaJobStage(
 			select: { id: true },
 		});
 		if (activeStageEvent) throw new Error("OPERATION_ALREADY_PENDING");
+		let version = job.version;
+		if (input.stage === "DISPATCH" && job.status === "NEEDS_RECONCILIATION") {
+			if (job.reservation?.status !== "ACTIVE") {
+				throw new Error("UNCERTAIN_RESERVATION_NOT_ACTIVE");
+			}
+			const attempt = job.attempts[0];
+			if (
+				attempt &&
+				(attempt.status !== "NEEDS_RECONCILIATION" ||
+					attempt.uncertainSubmission ||
+					attempt.providerTaskId)
+			) {
+				throw new Error("STAGE_NOT_RETRYABLE");
+			}
+			const restored = await tx.generationJob.updateMany({
+				where: {
+					id: job.id,
+					status: "NEEDS_RECONCILIATION",
+					failureCode: { in: [...DISPATCH_RECOVERY_CODES] },
+				},
+				data: {
+					status: "DISPATCH_QUEUED",
+					failureCode: null,
+					version: { increment: 1 },
+				},
+			});
+			if (restored.count !== 1) throw new Error("STAGE_NOT_RETRYABLE");
+			if (attempt) {
+				const attemptRestored = await tx.generationAttempt.updateMany({
+					where: {
+						id: attempt.id,
+						status: "NEEDS_RECONCILIATION",
+						uncertainSubmission: false,
+						providerTaskId: null,
+					},
+					data: {
+						status: "CREATED",
+						errorSnapshot: {},
+						submittedAt: null,
+						nextReconcileAt: null,
+					},
+				});
+				if (attemptRestored.count !== 1) {
+					throw new Error("STAGE_NOT_RETRYABLE");
+				}
+			}
+			version += 1;
+		}
 		await tx.outboxEvent.upsert({
 			where: { dedupeKey: `admin-stage:${job.id}:${input.stage}:${input.idempotencyKey}` },
 			create: {
@@ -505,7 +573,7 @@ export async function retryAdminMediaJobStage(
 				aggregateType: "GENERATION_JOB",
 				aggregateId: job.id,
 				dedupeKey: `admin-stage:${job.id}:${input.stage}:${input.idempotencyKey}`,
-				payload: { jobId: job.id, version: job.version },
+				payload: { jobId: job.id, version },
 			},
 			update: {},
 		});

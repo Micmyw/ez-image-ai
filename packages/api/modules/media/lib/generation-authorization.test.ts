@@ -8,7 +8,7 @@ import {
 
 const BASE_SNAPSHOT: GenerationAccessSnapshot = {
 	generationEnabled: true,
-	modelEnabled: true,
+	modelDisabled: false,
 	spendableCredits: 100n,
 	creditDebt: 0n,
 	dailyCostMicros: 0n,
@@ -26,7 +26,7 @@ describe("generation authorization", () => {
 
 	it.each([
 		["kill switch", { generationEnabled: false }, "MODEL_DISABLED"],
-		["disabled model", { modelEnabled: false }, "MODEL_DISABLED"],
+		["disabled model", { modelDisabled: true }, "MODEL_DISABLED"],
 		["daily budget", { dailyCostMicros: 25_000_000n }, "BUDGET_EXCEEDED"],
 		[
 			"storage quota",
@@ -53,6 +53,43 @@ describe("generation authorization", () => {
 				},
 			),
 		).rejects.toThrow(code);
+	});
+
+	it("uses the route graph supplied by quote/create admission instead of recomputing local process routing", async () => {
+		const input = {
+			userId: "user-1",
+			productKey: "image-fast" as const,
+			credits: 4n,
+			costMicros: 3_000n,
+			input: { kind: "text-to-image" as const, prompt: "x" },
+		};
+		const dependencies = {
+			enforceRateLimit: vi.fn(),
+			isEnvironmentGenerationEnabled: () => true,
+			loadAccess: vi.fn(async () => BASE_SNAPSHOT),
+		};
+
+		await expect(
+			assertGenerationAllowed(
+				{
+					...input,
+					routeGraphOptions: {
+						enabledProviders: new Set(["replicate"]),
+						generationEnabled: true,
+					},
+				},
+				dependencies,
+			),
+		).resolves.toBeUndefined();
+		await expect(
+			assertGenerationAllowed(
+				{
+					...input,
+					routeGraphOptions: { enabledProviders: new Set(), generationEnabled: true },
+				},
+				dependencies,
+			),
+		).rejects.toThrow("MODEL_DISABLED");
 	});
 
 	it("preserves a stable rate-limit code", async () => {

@@ -1,6 +1,7 @@
 import {
 	createExecutableRouteGraph,
-	enabledProviderKeysFromEnvironment,
+	executableRouteGraphOptionsFromEnvironment,
+	type ExecutableRouteGraphOptions,
 	type MediaModelInput,
 } from "@repo/ai";
 import {
@@ -16,7 +17,7 @@ import { maximumMediaStorageBytes } from "./storage-limits";
 
 export interface GenerationAccessSnapshot {
 	generationEnabled: boolean;
-	modelEnabled: boolean;
+	modelDisabled: boolean;
 	spendableCredits: bigint;
 	creditDebt: bigint;
 	dailyCostMicros: bigint;
@@ -35,6 +36,7 @@ export interface GenerationAuthorizationInput {
 	catalogVersion?: string;
 	pricingVersion?: string;
 	enforceProspectiveDailyBudget?: boolean;
+	routeGraphOptions?: ExecutableRouteGraphOptions;
 }
 
 interface GenerationAuthorizationDependencies {
@@ -117,7 +119,7 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 		const planId = resolvePlanId(subscription?.plan.metadata, subscription?.plan.name) ?? "free";
 		return {
 			generationEnabled: !blocked,
-			modelEnabled: isCatalogModelEnabled(input.productKey, Boolean(modelDisabled)),
+			modelDisabled: Boolean(modelDisabled),
 			spendableCredits: spendableLots._sum.remainingAmount ?? 0n,
 			creditDebt: account?.creditDebt ?? 0n,
 			dailyCostMicros: dailyCost._sum.costMicros ?? 0n,
@@ -147,7 +149,13 @@ export async function assertGenerationAllowed(
 		throw new Error("PRICE_CHANGED");
 	}
 	const access = await dependencies.loadAccess(input);
-	if (!access.generationEnabled || !access.modelEnabled) throw new Error("MODEL_DISABLED");
+	if (
+		!access.generationEnabled ||
+		access.modelDisabled ||
+		!isCatalogModelEnabled(input.productKey, false, input.routeGraphOptions)
+	) {
+		throw new Error("MODEL_DISABLED");
+	}
 	const entitlement = PLAN_ENTITLEMENTS.find((plan) => plan.id === access.planId);
 	if (!entitlement?.allowedProducts.includes(input.productKey)) {
 		throw new Error("ENTITLEMENT_REQUIRED");
@@ -171,14 +179,10 @@ export async function assertGenerationAllowed(
 export function isCatalogModelEnabled(
 	productKey: ProductModelKey,
 	modelDisabled: boolean,
+	routeGraphOptions: ExecutableRouteGraphOptions = executableRouteGraphOptionsFromEnvironment(),
 ): boolean {
 	return (
-		!modelDisabled &&
-		Boolean(
-			createExecutableRouteGraph({
-				enabledProviders: enabledProviderKeysFromEnvironment(),
-			}).getEntry(productKey),
-		)
+		!modelDisabled && Boolean(createExecutableRouteGraph(routeGraphOptions).getEntry(productKey))
 	);
 }
 

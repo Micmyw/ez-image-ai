@@ -13,19 +13,33 @@ export function rejectedHttpSubmission(input: {
 	providerIdempotencySupported?: boolean;
 }): ProviderSubmission {
 	const uncertain = [408, 409, 425, 429].includes(input.status) || input.status >= 500;
-	return {
-		status: "FAILED",
+	const base = {
+		status: "FAILED" as const,
 		failure: {
 			code: `HTTP_${input.status}`,
 			message: providerHttpMessage(input.data, input.status),
 			retryable: false,
 		},
-		outcome: uncertain ? "uncertain" : "rejected",
 		idempotency:
 			input.providerIdempotencySupported === false
 				? { providerSupported: false, replayed: false }
 				: { key: input.attemptId, providerSupported: true, replayed: false },
 		reconciliation: { submissionToken: input.attemptId },
+	};
+	if (uncertain) {
+		return {
+			...base,
+			outcome: "uncertain",
+			uncertainty: {
+				classification: "ambiguous_http",
+				phase: "post_send",
+				statusCode: input.status,
+			},
+		};
+	}
+	return {
+		...base,
+		outcome: "rejected",
 	};
 }
 

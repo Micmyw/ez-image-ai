@@ -7,6 +7,7 @@ import {
 	createModeratedGenerationQuoteTransaction,
 	fingerprintGenerationQuoteSecurityPayload,
 	getAdminMediaDiagnostics,
+	listAdminUncertainGenerationAttempts,
 	replayPersistedMediaEvent,
 	resolveAdminUncertainSubmission,
 	retryAdminMediaJobStage,
@@ -532,6 +533,72 @@ describe("admin media database operations", () => {
 		).rejects.toThrow("OPERATION_ALREADY_PENDING");
 	});
 
+	it.each([
+		"PROVIDER_ADAPTER_UNAVAILABLE",
+		"QUOTED_ROUTE_UNAVAILABLE",
+		"LEGACY_QUOTE_ROUTE_UNAVAILABLE",
+	] as const)(
+		"requeues an explicit no-submit %s recovery while preserving its active reservation",
+		async (failureCode) => {
+			const fixture = await seedUncertainAttempt(client, uncertainFixtureIds);
+			await client.$transaction(async (tx) => {
+				await tx.generationJob.update({
+					where: { id: fixture.jobId },
+					data: { failureCode },
+				});
+				await tx.generationAttempt.update({
+					where: { id: fixture.attemptId },
+					data: {
+						uncertainSubmission: false,
+						providerTaskId: null,
+						submittedAt: new Date(),
+						errorSnapshot: { code: failureCode },
+					},
+				});
+			});
+
+			await expect(
+				retryAdminMediaJobStage(
+					{
+						jobId: fixture.jobId,
+						stage: "DISPATCH",
+						actorUserId: fixture.actorUserId,
+						idempotencyKey: `retry-no-submit-${failureCode}-${crypto.randomUUID()}`,
+						reason: "Provider configuration is available again and no submission occurred",
+					},
+					client,
+				),
+			).resolves.toMatchObject({ jobId: fixture.jobId, stage: "DISPATCH", replayed: false });
+
+			const [job, attempt, reservation, dispatchEvents] = await Promise.all([
+				client.generationJob.findUniqueOrThrow({ where: { id: fixture.jobId } }),
+				client.generationAttempt.findUniqueOrThrow({ where: { id: fixture.attemptId } }),
+				client.creditReservation.findUniqueOrThrow({ where: { jobId: fixture.jobId } }),
+				client.outboxEvent.findMany({
+					where: { aggregateId: fixture.jobId, eventType: "GENERATION_DISPATCH" },
+				}),
+			]);
+			expect(job).toMatchObject({ status: "DISPATCH_QUEUED", failureCode: null });
+			expect(attempt).toMatchObject({
+				status: "CREATED",
+				uncertainSubmission: false,
+				providerTaskId: null,
+				submittedAt: null,
+				nextReconcileAt: null,
+			});
+			expect(reservation).toMatchObject({
+				status: "ACTIVE",
+				settledAmount: 0n,
+				releasedAmount: 0n,
+			});
+			expect(dispatchEvents).toHaveLength(1);
+			expect(dispatchEvents[0]).toMatchObject({
+				status: "PENDING",
+				payload: { jobId: fixture.jobId, version: job.version },
+			});
+		},
+	);
+
 	it("resolves uncertain submissions only with provider evidence and idempotent admin decisions", async () => {
 		const accepted = await seedUncertainAttempt(client, uncertainFixtureIds);
 		const acceptedInput = {
@@ -680,6 +747,62 @@ describe("admin media database operations", () => {
 			});
 		}
 		expect(JSON.stringify(diagnostics)).not.toContain(secret);
+	});
+
+	it("lists uncertain attempts through a narrow recovery projection", async () => {
+		const fixture = await seedUncertainAttempt(client, uncertainFixtureIds, "fal");
+		await client.generationJob.update({
+			where: { id: fixture.jobId },
+			data: { failureCode: "SUBMISSION_UNCERTAIN_NEEDS_RECONCILIATION" },
+		});
+		await client.generationAttempt.update({
+			where: { id: fixture.attemptId },
+			data: {
+				providerTaskId: "provider-task-secret",
+				providerStatusUrl: "https://queue.fal.run/task?signature=secret",
+				providerResultUrl: "https://queue.fal.run/result?token=secret",
+				submissionToken: "submission-secret",
+				requestSnapshot: { prompt: "private prompt", rawPayload: "request-secret" },
+				responseSnapshot: { signedUrl: "https://cdn.example/output?signature=secret" },
+				errorSnapshot: { rawPayload: "error-secret" },
+			},
+		});
+
+		const diagnostics = await listAdminUncertainGenerationAttempts({ limit: 100 }, client);
+		const item = diagnostics.find((diagnostic) => diagnostic.ids.attemptId === fixture.attemptId);
+
+		expect(item).toEqual({
+			ids: {
+				attemptId: fixture.attemptId,
+				jobId: fixture.jobId,
+				reservationId: fixture.reservationId,
+			},
+			route: { provider: "fal", providerModelId: "test-model" },
+			status: { attempt: "NEEDS_RECONCILIATION", job: "NEEDS_RECONCILIATION" },
+			timestamps: {
+				createdAt: expect.any(String),
+				updatedAt: expect.any(String),
+				submittedAt: null,
+				completedAt: null,
+				lastProviderEventAt: null,
+				nextReconcileAt: null,
+			},
+			retryCount: 0,
+			reservationStatus: "ACTIVE",
+			reasonCode: "SUBMISSION_UNCERTAIN_NEEDS_RECONCILIATION",
+		});
+		expect(JSON.stringify(item)).not.toMatch(
+			/providerTaskId|providerStatusUrl|providerResultUrl|submissionToken|requestSnapshot|responseSnapshot|errorSnapshot|prompt|rawPayload|signature|token|secret/i,
+		);
+
+		await client.generationJob.update({
+			where: { id: fixture.jobId },
+			data: { failureCode: "UNSAFE_REASON_WITH_SECRET" },
+		});
+		const [redacted] = (await listAdminUncertainGenerationAttempts({ limit: 100 }, client)).filter(
+			(diagnostic) => diagnostic.ids.attemptId === fixture.attemptId,
+		);
+		expect(redacted?.reasonCode).toBe("SUBMISSION_UNCERTAIN");
 	});
 
 	it("uses processed event time for revenue and completed time for provider cost", async () => {
@@ -860,7 +983,12 @@ async function seedUncertainAttempt(
 			},
 		});
 	});
-	return { actorUserId, attemptId: attempt.id, jobId: created.job.id };
+	return {
+		actorUserId,
+		attemptId: attempt.id,
+		jobId: created.job.id,
+		reservationId: created.reservation.id,
+	};
 }
 
 interface UncertainFixtureIds {

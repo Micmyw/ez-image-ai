@@ -82,18 +82,91 @@ describe("validateServerEnvironment", () => {
 		).toThrow(/test|mock/i);
 	});
 
-	it.each([
-		["replicate", "REPLICATE_API_TOKEN"],
-		["fal", "FAL_API_KEY"],
-		["kie", "KIE_API_KEY"],
-		["gemini", "GEMINI_API_KEY"],
-	] as const)("requires the selected %s provider credential", (provider, credential) => {
+	it("requires every production submission provider to hold its worker credential", () => {
 		const input: Record<string, string | undefined> = {
 			...productionBase,
-			MEDIA_PROVIDER_ADAPTER: provider,
+			MEDIA_ENABLED_PROVIDERS: "replicate,fal",
 		};
-		delete input[credential];
-		expect(() => validateServerEnvironment(input)).toThrow(new RegExp(credential));
+		delete input.REPLICATE_API_TOKEN;
+
+		expect(() => validateServerEnvironment(input)).toThrow(/REPLICATE_API_TOKEN|FAL_API_KEY/);
+	});
+
+	it("allows an API-only process to validate configured routes without worker provider credentials", () => {
+		const input: Record<string, string | undefined> = {
+			...productionBase,
+			MEDIA_ENABLED_PROVIDERS: "replicate",
+		};
+		delete input.REPLICATE_API_TOKEN;
+
+		expect(validateServerEnvironment(input, { requireProviderCredentials: false })).toMatchObject({
+			mediaEnabledProviders: ["replicate"],
+		});
+		expect(() => validateServerEnvironment(input)).toThrow(/REPLICATE_API_TOKEN/);
+	});
+
+	it("rejects an explicit empty provider list when generation is enabled", () => {
+		expect(() =>
+			validateServerEnvironment({
+				...productionBase,
+				MEDIA_PROVIDER_ADAPTER: "mock",
+				MEDIA_ENABLED_PROVIDERS: "",
+			}),
+		).toThrow(/MEDIA_ENABLED_PROVIDERS/);
+	});
+
+	it("allows shared real routes in production when the ignored legacy adapter remains mock", () => {
+		expect(
+			validateServerEnvironment({
+				...productionBase,
+				MEDIA_PROVIDER_ADAPTER: "mock",
+				MEDIA_ENABLED_PROVIDERS: "replicate,fal",
+				FAL_API_KEY: "fal-secret",
+			}),
+		).toMatchObject({ mediaEnabledProviders: ["replicate", "fal"] });
+	});
+
+	it("keeps explicit recovery providers server-side and independent from new submission routes", () => {
+		expect(
+			validateServerEnvironment({
+				...productionBase,
+				MEDIA_ENABLED_PROVIDERS: "fal",
+				MEDIA_RECOVERY_PROVIDERS: "replicate,fal",
+				FAL_API_KEY: "fal-secret",
+			}),
+		).toMatchObject({
+			mediaEnabledProviders: ["fal"],
+			mediaRecoveryProviders: ["replicate", "fal"],
+		});
+	});
+
+	it("requires the legacy selected provider credential when the shared list is absent", () => {
+		expect(() =>
+			validateServerEnvironment({
+				...productionBase,
+				MEDIA_PROVIDER_ADAPTER: "kie",
+				KIE_API_KEY: undefined,
+			}),
+		).toThrow(/KIE_API_KEY/);
+	});
+
+	it("rejects unknown and duplicate shared provider keys", () => {
+		for (const mediaEnabledProviders of ["replicate,unknown", "replicate,replicate"]) {
+			expect(() =>
+				validateServerEnvironment({
+					...productionBase,
+					MEDIA_ENABLED_PROVIDERS: mediaEnabledProviders,
+				}),
+			).toThrow(/MEDIA_ENABLED_PROVIDERS/);
+		}
+		for (const mediaRecoveryProviders of ["replicate,unknown", "replicate,replicate"]) {
+			expect(() =>
+				validateServerEnvironment({
+					...productionBase,
+					MEDIA_RECOVERY_PROVIDERS: mediaRecoveryProviders,
+				}),
+			).toThrow(/MEDIA_RECOVERY_PROVIDERS/);
+		}
 	});
 
 	it("returns typed server-only storage and selected provider secrets", () => {

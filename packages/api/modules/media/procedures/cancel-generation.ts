@@ -36,11 +36,13 @@ export const cancelGeneration = protectedProcedure
 					message: "This generation requires provider reconciliation before cancellation",
 				});
 			}
-			if (
-				!["RESERVED", "DISPATCH_QUEUED", "PROVIDER_PENDING", "PROVIDER_RUNNING"].includes(
-					job.status,
-				)
-			) {
+			const canCancelBeforeProviderSubmission = ["RESERVED", "DISPATCH_QUEUED"].includes(
+				job.status,
+			);
+			const canRequestProviderCancellation = ["PROVIDER_PENDING", "PROVIDER_RUNNING"].includes(
+				job.status,
+			);
+			if (!canCancelBeforeProviderSubmission && !canRequestProviderCancellation) {
 				throw new ORPCError("CONFLICT", {
 					message: "This generation can no longer be canceled safely",
 				});
@@ -50,7 +52,9 @@ export const cancelGeneration = protectedProcedure
 					id: job.id,
 					version: job.version,
 					status: {
-						in: ["RESERVED", "DISPATCH_QUEUED", "PROVIDER_PENDING", "PROVIDER_RUNNING"],
+						in: canCancelBeforeProviderSubmission
+							? ["RESERVED", "DISPATCH_QUEUED"]
+							: ["PROVIDER_PENDING", "PROVIDER_RUNNING"],
 					},
 					attempts: {
 						none: {
@@ -61,7 +65,9 @@ export const cancelGeneration = protectedProcedure
 						},
 					},
 				},
-				data: { status: "CANCELED", version: { increment: 1 }, terminalAt: new Date() },
+				data: canCancelBeforeProviderSubmission
+					? { status: "CANCELED", version: { increment: 1 }, terminalAt: new Date() }
+					: { version: { increment: 1 } },
 			});
 			if (canceled.count !== 1) {
 				const current = await tx.generationJob.findFirst({
@@ -79,14 +85,24 @@ export const cancelGeneration = protectedProcedure
 				where: { id: job.id },
 				select: { id: true, status: true, version: true },
 			});
-			await tx.outboxEvent.create({
-				data: {
-					eventType: "GENERATION_CANCEL_REQUESTED",
+			await tx.outboxEvent.upsert({
+				where: {
+					dedupeKey: canCancelBeforeProviderSubmission
+						? `generation-settle:${job.id}`
+						: `generation-cancel:${job.id}`,
+				},
+				create: {
+					eventType: canCancelBeforeProviderSubmission
+						? "GENERATION_SETTLE"
+						: "GENERATION_CANCEL_REQUESTED",
 					aggregateType: "GENERATION_JOB",
 					aggregateId: job.id,
-					dedupeKey: `generation-cancel:${job.id}`,
+					dedupeKey: canCancelBeforeProviderSubmission
+						? `generation-settle:${job.id}`
+						: `generation-cancel:${job.id}`,
 					payload: { jobId: job.id, version: canceledJob.version },
 				},
+				update: {},
 			});
 			return { id: canceledJob.id, status: canceledJob.status };
 		});

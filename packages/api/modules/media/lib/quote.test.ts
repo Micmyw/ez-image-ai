@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildMediaQuote } from "./quote";
+import { assertFrozenQuoteRouteGraphIsCurrent, buildMediaQuote } from "./quote";
 
 describe("buildMediaQuote", () => {
 	it("persists a deterministic per-output settlement policy in the pricing snapshot", () => {
@@ -9,7 +9,7 @@ describe("buildMediaQuote", () => {
 			input: { kind: "text-to-image", prompt: "test prompt" },
 		});
 
-		expect(quote.pricingSnapshot).toEqual({
+		expect(quote.pricingSnapshot).toMatchObject({
 			credits: 4,
 			maximumJobCostMicros: 5_000_000,
 			settlementPolicy: {
@@ -27,5 +27,76 @@ describe("buildMediaQuote", () => {
 		});
 
 		expect(quote.costMicros).toBe(3_500n);
+	});
+
+	it("locks the quote to the routes enabled by the shared API configuration", () => {
+		const previous = process.env.MEDIA_ENABLED_PROVIDERS;
+		process.env.MEDIA_ENABLED_PROVIDERS = "replicate";
+		try {
+			const quote = buildMediaQuote({
+				productKey: "image-fast",
+				input: { kind: "text-to-image", prompt: "A studio product photo" },
+			});
+
+			expect(quote.costMicros).toBe(3_000n);
+			expect(quote.pricingSnapshot).toMatchObject({
+				routeGraph: {
+					graphFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+					maximumRouteCostMicros: 3_000,
+					allowedRoutes: [
+						{
+							provider: "replicate",
+							providerModelId: "black-forest-labs/flux-schnell",
+							providerCostMicros: 3_000,
+						},
+					],
+				},
+			});
+		} finally {
+			if (previous === undefined) delete process.env.MEDIA_ENABLED_PROVIDERS;
+			else process.env.MEDIA_ENABLED_PROVIDERS = previous;
+		}
+	});
+
+	it("quotes a configured provider without requiring the API process to hold its worker credential", () => {
+		const previousEnabledProviders = process.env.MEDIA_ENABLED_PROVIDERS;
+		const previousReplicateToken = process.env.REPLICATE_API_TOKEN;
+		process.env.MEDIA_ENABLED_PROVIDERS = "replicate";
+		delete process.env.REPLICATE_API_TOKEN;
+		try {
+			expect(
+				buildMediaQuote({
+					productKey: "image-fast",
+					input: { kind: "text-to-image", prompt: "A studio product photo" },
+				}),
+			).toMatchObject({ costMicros: 3_000n });
+		} finally {
+			if (previousEnabledProviders === undefined) delete process.env.MEDIA_ENABLED_PROVIDERS;
+			else process.env.MEDIA_ENABLED_PROVIDERS = previousEnabledProviders;
+			if (previousReplicateToken === undefined) delete process.env.REPLICATE_API_TOKEN;
+			else process.env.REPLICATE_API_TOKEN = previousReplicateToken;
+		}
+	});
+
+	it("requires a requote when no frozen provider/model route remains executable", () => {
+		const frozenQuote = buildMediaQuote(
+			{
+				productKey: "image-fast",
+				input: { kind: "text-to-image", prompt: "A studio product photo" },
+			},
+			{ enabledProviders: new Set(["replicate"]), generationEnabled: true },
+		);
+
+		expect(() =>
+			assertFrozenQuoteRouteGraphIsCurrent(
+				{
+					productKey: frozenQuote.productKey,
+					catalogVersion: frozenQuote.catalogVersion,
+					pricingVersion: frozenQuote.pricingVersion,
+					pricingSnapshot: frozenQuote.pricingSnapshot,
+				},
+				{ enabledProviders: new Set(["fal"]), generationEnabled: true },
+			),
+		).toThrow("PRICE_CHANGED");
 	});
 });

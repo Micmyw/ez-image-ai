@@ -28,7 +28,11 @@ describe("committed generation fast dispatch", () => {
 		await dispatchCreatedJobBestEffort(
 			{ jobId: created.job.id, version: created.job.version, replayed: created.replayed },
 			{
-				resolveRoute: async () => ({ taskId: "media-dispatch-image-replicate" }),
+				resolveRoute: async () => ({
+					taskId: "media-dispatch-image-replicate",
+					provider: "replicate",
+					providerModelId: "black-forest-labs/flux-schnell",
+				}),
 				trigger: async () => {
 					throw new Error("Trigger unavailable");
 				},
@@ -99,12 +103,12 @@ async function createCommittedJob(database: PrismaClient) {
 function assertSafeTestDatabaseUrl(value: string | undefined): string {
 	if (!value) throw new Error("TEST_DATABASE_URL is required");
 	const parsed = new URL(value);
+	const databaseName = decodeURIComponent(parsed.pathname.slice(1));
 	if (
-		parsed.hostname !== "127.0.0.1" ||
-		parsed.port !== "55432" ||
-		parsed.pathname !== "/ai_media_foundation_test"
+		!["127.0.0.1", "localhost", "::1"].includes(parsed.hostname) ||
+		!/test|testing/i.test(databaseName)
 	) {
-		throw new Error("TEST_DATABASE_URL must target 127.0.0.1:55432/ai_media_foundation_test");
+		throw new Error("TEST_DATABASE_URL must use a loopback test database");
 	}
 	return value;
 }

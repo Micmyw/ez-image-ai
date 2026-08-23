@@ -13,7 +13,7 @@ export const reconcileGenerationsTask = schedules.task({
 	queue: { name: "media-reconciliation", concurrencyLimit: 1 },
 	maxDuration: 240,
 	run: async () => {
-		const registry = createProviderRegistry();
+		const registry = createProviderRegistry(process.env, { includeRecoveryProviders: true });
 		return reconcileGenerations(
 			{ limit: 25, leaseSeconds: 120 },
 			{

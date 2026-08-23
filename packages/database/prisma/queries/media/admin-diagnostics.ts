@@ -1,3 +1,8 @@
+import type {
+	CreditReservationStatus,
+	GenerationAttemptStatus,
+	GenerationJobStatus,
+} from "../../generated/client";
 import type { MediaTransactionClient } from "./types";
 
 interface AggregateCountAge {
@@ -16,6 +21,145 @@ interface PaymentEventDiagnosticRow {
 	lastAttemptAt: Date | null;
 	lastTriggerRunId: string | null;
 	lastErrorClass: string | null;
+}
+
+const safeUncertainReasonCodes = new Set([
+	"SUBMISSION_UNCERTAIN_NEEDS_RECONCILIATION",
+	"TERMINAL_SUCCESS_WITHOUT_MEDIA",
+	"PROVIDER_RECOVERY_UNAVAILABLE",
+	"PROVIDER_ADAPTER_UNAVAILABLE",
+	"PROVIDER_CANCELLATION_UNCONFIRMED",
+	"PROVIDER_CANCELLATION_UNSUPPORTED",
+	"QUOTED_ROUTE_UNAVAILABLE",
+	"LEGACY_QUOTE_ROUTE_UNAVAILABLE",
+]);
+const explicitNoSubmitRecoveryCodes = [
+	"PROVIDER_ADAPTER_UNAVAILABLE",
+	"QUOTED_ROUTE_UNAVAILABLE",
+	"LEGACY_QUOTE_ROUTE_UNAVAILABLE",
+] as const;
+
+export interface ListAdminUncertainGenerationAttemptsInput {
+	limit?: number;
+}
+
+export interface AdminUncertainGenerationAttemptDiagnostic {
+	ids: {
+		attemptId: string;
+		jobId: string;
+		reservationId: string | null;
+	};
+	route: {
+		provider: string;
+		providerModelId: string;
+	};
+	status: {
+		attempt: GenerationAttemptStatus;
+		job: GenerationJobStatus;
+	};
+	timestamps: {
+		createdAt: string;
+		updatedAt: string;
+		submittedAt: string | null;
+		completedAt: string | null;
+		lastProviderEventAt: string | null;
+		nextReconcileAt: string | null;
+	};
+	retryCount: number;
+	reservationStatus: CreditReservationStatus | null;
+	reasonCode:
+		| "SUBMISSION_UNCERTAIN"
+		| "SUBMISSION_UNCERTAIN_NEEDS_RECONCILIATION"
+		| "TERMINAL_SUCCESS_WITHOUT_MEDIA"
+		| "PROVIDER_RECOVERY_UNAVAILABLE"
+		| "PROVIDER_ADAPTER_UNAVAILABLE"
+		| "PROVIDER_CANCELLATION_UNCONFIRMED"
+		| "PROVIDER_CANCELLATION_UNSUPPORTED"
+		| "QUOTED_ROUTE_UNAVAILABLE"
+		| "LEGACY_QUOTE_ROUTE_UNAVAILABLE";
+}
+
+function boundedLimit(value: number | undefined): number {
+	if (value === undefined) return 20;
+	if (!Number.isInteger(value)) throw new Error("Invalid uncertain attempt diagnostics limit");
+	return Math.min(Math.max(value, 1), 100);
+}
+
+function safeUncertainReasonCode(
+	value: string | null,
+): AdminUncertainGenerationAttemptDiagnostic["reasonCode"] {
+	return value && safeUncertainReasonCodes.has(value)
+		? (value as Exclude<
+				AdminUncertainGenerationAttemptDiagnostic["reasonCode"],
+				"SUBMISSION_UNCERTAIN"
+			>)
+		: "SUBMISSION_UNCERTAIN";
+}
+
+/**
+ * Returns only the administrator-facing recovery metadata needed to triage uncertain attempts.
+ * Provider task identifiers, endpoints, and snapshots deliberately never enter
+ * the select projection.
+ */
+export async function listAdminUncertainGenerationAttempts(
+	input: ListAdminUncertainGenerationAttemptsInput,
+	client: MediaTransactionClient,
+): Promise<AdminUncertainGenerationAttemptDiagnostic[]> {
+	const attempts = await client.generationAttempt.findMany({
+		where: {
+			OR: [
+				{ uncertainSubmission: true },
+				{
+					status: "NEEDS_RECONCILIATION",
+					job: { failureCode: { in: [...explicitNoSubmitRecoveryCodes] } },
+				},
+			],
+		},
+		select: {
+			id: true,
+			provider: true,
+			providerModelId: true,
+			status: true,
+			reconciliationCount: true,
+			createdAt: true,
+			updatedAt: true,
+			submittedAt: true,
+			completedAt: true,
+			lastProviderEventAt: true,
+			nextReconcileAt: true,
+			job: {
+				select: {
+					id: true,
+					status: true,
+					failureCode: true,
+					reservation: { select: { id: true, status: true } },
+				},
+			},
+		},
+		orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
+		take: boundedLimit(input.limit),
+	});
+
+	return attempts.map((attempt) => ({
+		ids: {
+			attemptId: attempt.id,
+			jobId: attempt.job.id,
+			reservationId: attempt.job.reservation?.id ?? null,
+		},
+		route: { provider: attempt.provider, providerModelId: attempt.providerModelId },
+		status: { attempt: attempt.status, job: attempt.job.status },
+		timestamps: {
+			createdAt: attempt.createdAt.toISOString(),
+			updatedAt: attempt.updatedAt.toISOString(),
+			submittedAt: attempt.submittedAt?.toISOString() ?? null,
+			completedAt: attempt.completedAt?.toISOString() ?? null,
+			lastProviderEventAt: attempt.lastProviderEventAt?.toISOString() ?? null,
+			nextReconcileAt: attempt.nextReconcileAt?.toISOString() ?? null,
+		},
+		retryCount: attempt.reconciliationCount,
+		reservationStatus: attempt.job.reservation?.status ?? null,
+		reasonCode: safeUncertainReasonCode(attempt.job.failureCode),
+	}));
 }
 
 export async function getAdminMediaDiagnostics(client: MediaTransactionClient) {

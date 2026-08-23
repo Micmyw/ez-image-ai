@@ -8,6 +8,7 @@ import {
 	MEDIA_VERIFICATION_RULE_VERSION,
 	ReplicateProviderAdapter,
 	TestMediaSafetyAdapter,
+	type ProviderKey,
 } from "@repo/ai";
 import {
 	createCreditGrant,
@@ -20,6 +21,7 @@ import { PrismaClient } from "@repo/database/generated-client";
 import { MediaValidationError } from "@repo/storage";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { DispatchAdmissionBlockedError } from "../contracts";
 import {
 	createDatabaseDispatchStore,
 	createFinalizationDependencies,
@@ -28,6 +30,7 @@ import {
 	createDatabaseReconciliationStore,
 	createDatabaseSettlementStore,
 	createDatabaseVerifyUploadDependencies,
+	type DispatchRuntimeOptions,
 } from "../runtime";
 import { dispatchGeneration } from "./dispatch-generation";
 import { finalizeMedia } from "./finalize-media";
@@ -36,7 +39,15 @@ import { settleGeneration } from "./settle-generation";
 import { verifyUpload } from "./verify-upload";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
+const TEST_EXECUTABLE_PROVIDERS = new Set<ProviderKey>(["replicate", "fal", "kie", "gemini"]);
 let client: PrismaClient;
+
+function createTestDispatchStore(options: Omit<DispatchRuntimeOptions, "enabledProviders"> = {}) {
+	return createDatabaseDispatchStore(client, {
+		...options,
+		enabledProviders: TEST_EXECUTABLE_PROVIDERS,
+	});
+}
 
 describe("production media runtime stores", () => {
 	beforeAll(() => {
@@ -50,7 +61,7 @@ describe("production media runtime stores", () => {
 
 	it("queues a catalog-approved route after a retryable rejected submission", async () => {
 		const seeded = await seedReservedJob("image-fast");
-		const store = createDatabaseDispatchStore(client);
+		const store = createTestDispatchStore();
 		const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
 		expect(claim).not.toBeNull();
 
@@ -182,7 +193,7 @@ describe("production media runtime stores", () => {
 			const outcome = await dispatchGeneration(
 				{ jobId: seeded.jobId, version: 0 },
 				{
-					store: createDatabaseDispatchStore(client),
+					store: createTestDispatchStore(),
 					getProvider: () =>
 						new ReplicateProviderAdapter({
 							apiToken: "test",
@@ -214,12 +225,24 @@ describe("production media runtime stores", () => {
 			client,
 		);
 		try {
-			const claim = await createDatabaseDispatchStore(client).claimDispatch({
-				jobId: seeded.jobId,
-				version: 0,
+			await expect(
+				createTestDispatchStore().claimDispatch({
+					jobId: seeded.jobId,
+					version: 0,
+				}),
+			).rejects.toBeInstanceOf(DispatchAdmissionBlockedError);
+			const job = await client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } });
+			expect(job).toMatchObject({ status: "RESERVED", version: 1 });
+			expect(await client.generationAttempt.count({ where: { jobId: seeded.jobId } })).toBe(0);
+			expect(
+				await client.outboxEvent.findUniqueOrThrow({
+					where: { dedupeKey: `generation-dispatch-kill-switch:${seeded.jobId}:1` },
+				}),
+			).toMatchObject({
+				eventType: "GENERATION_DISPATCH",
+				aggregateId: seeded.jobId,
+				payload: { jobId: seeded.jobId, version: 1 },
 			});
-
-			expect(claim).toBeNull();
 		} finally {
 			await revertRuntimeConfigOverride(override.id, "admin-test", client);
 		}
@@ -227,7 +250,7 @@ describe("production media runtime stores", () => {
 
 	it("finalizes a non-retryable rejection and releases the entire reservation", async () => {
 		const seeded = await seedReservedJob("image-fast");
-		const dispatchStore = createDatabaseDispatchStore(client);
+		const dispatchStore = createTestDispatchStore();
 		const claim = await dispatchStore.claimDispatch({ jobId: seeded.jobId, version: 0 });
 
 		await dispatchStore.recordRejectedSubmission(claim!.attemptId, {
@@ -273,7 +296,7 @@ describe("production media runtime stores", () => {
 		const outcome = await dispatchGeneration(
 			{ jobId: seeded.jobId, version: 0 },
 			{
-				store: createDatabaseDispatchStore(client),
+				store: createTestDispatchStore(),
 				getProvider: () =>
 					new FalProviderAdapter({
 						apiKey: "test",
@@ -307,7 +330,7 @@ describe("production media runtime stores", () => {
 		const outcome = await dispatchGeneration(
 			{ jobId: seeded.jobId, version: 0 },
 			{
-				store: createDatabaseDispatchStore(client),
+				store: createTestDispatchStore(),
 				getProvider: () =>
 					new GeminiProviderAdapter({
 						apiKey: "test",
@@ -444,7 +467,7 @@ describe("production media runtime stores", () => {
 	it("persists typed Fal reconciliation endpoints without inventing provider task IDs", async () => {
 		const seeded = await seedReservedJob("video-fast");
 		const providerTaskId = `fal-real-task-${crypto.randomUUID()}`;
-		const store = createDatabaseDispatchStore(client);
+		const store = createTestDispatchStore();
 		const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
 
 		await store.recordSubmission(claim!.attemptId, {
@@ -453,8 +476,8 @@ describe("production media runtime stores", () => {
 			outcome: "accepted",
 			idempotency: { key: claim!.attemptId, providerSupported: true, replayed: false },
 			reconciliation: {
-				statusUrl: `https://queue.test/${providerTaskId}/status`,
-				resultUrl: `https://queue.test/${providerTaskId}/result`,
+				statusUrl: `https://queue.fal.run/${providerTaskId}/status`,
+				resultUrl: `https://queue.fal.run/${providerTaskId}/result`,
 				submissionToken: claim!.attemptId,
 			},
 		});
@@ -464,8 +487,8 @@ describe("production media runtime stores", () => {
 		});
 		expect(attempt).toMatchObject({
 			providerTaskId,
-			providerStatusUrl: `https://queue.test/${providerTaskId}/status`,
-			providerResultUrl: `https://queue.test/${providerTaskId}/result`,
+			providerStatusUrl: `https://queue.fal.run/${providerTaskId}/status`,
+			providerResultUrl: `https://queue.fal.run/${providerTaskId}/result`,
 			submissionToken: claim!.attemptId,
 		});
 	});
@@ -480,7 +503,7 @@ describe("production media runtime stores", () => {
 		const commitReleased = new Promise<void>((resolve) => {
 			releaseCommit = resolve;
 		});
-		const store = createDatabaseDispatchStore(client, {
+		const store = createTestDispatchStore({
 			beforeSynchronousCommit: async () => {
 				reachedBarrier();
 				await commitReleased;
@@ -1699,7 +1722,7 @@ describe("production media runtime stores", () => {
 		).toMatchObject({ status: "PROCESSED", failureReason: null });
 	});
 
-	it("routes failed reconciliation through zero-charge settlement", async () => {
+	it("freezes an unverified terminal reconciliation without settling credits", async () => {
 		const seeded = await seedPendingProviderJob();
 		await client.generationAttempt.update({
 			where: { id: seeded.attemptId },
@@ -1721,20 +1744,22 @@ describe("production media runtime stores", () => {
 				providerCharged: false,
 			},
 		);
-		const job = await client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } });
-		expect(job.status).toBe("FINALIZING");
+		const [job, attempt, reservation] = await Promise.all([
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+			client.generationAttempt.findUniqueOrThrow({ where: { id: seeded.attemptId } }),
+			client.creditReservation.findUniqueOrThrow({ where: { jobId: seeded.jobId } }),
+		]);
+		expect(job).toMatchObject({
+			status: "NEEDS_RECONCILIATION",
+			failureCode: "RECONCILIATION_TERMINAL_UNVERIFIED",
+		});
+		expect(attempt).toMatchObject({ status: "NEEDS_RECONCILIATION", uncertainSubmission: true });
+		expect(reservation).toMatchObject({ status: "ACTIVE", settledAmount: 0n, releasedAmount: 0n });
 		expect(
 			await client.outboxEvent.count({
 				where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
 			}),
-		).toBe(1);
-		await settleGeneration(
-			{ jobId: seeded.jobId, version: job.version },
-			{ store: createDatabaseSettlementStore(client) },
-		);
-		expect(
-			await client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
-		).toMatchObject({ status: "FAILED", failureCode: "NO_USABLE_OUTPUT" });
+		).toBe(0);
 	});
 });
 
@@ -1765,6 +1790,8 @@ async function seedReservedJob(
 	const credits =
 		options?.credits ??
 		(productKey.startsWith("video") ? 25n : productKey === "image-quality" ? 10n : 4n);
+	const costMicros =
+		productKey === "video-fast" ? 100_000n : productKey === "image-quality" ? 8_000n : 3_500n;
 	const quoteInput = {
 		ownerType: "USER",
 		ownerId,
@@ -1773,7 +1800,7 @@ async function seedReservedJob(
 		catalogVersion: "2026-08-13.1",
 		pricingVersion: "2026-08-13.1",
 		credits,
-		costMicros: 3_000n,
+		costMicros,
 		inputSnapshot,
 		pricingSnapshot: options?.pricingSnapshot ?? { credits: credits.toString() },
 		expiresAt: new Date(Date.now() + 60_000),
@@ -1818,8 +1845,10 @@ async function seedReservedImageEditJob(validForMs = 60_000) {
 	const ownerId = `task4-runtime-edit-${suffix}`;
 	const checksum = "a".repeat(64);
 	const verificationValidUntil = new Date(Date.now() + validForMs);
+	const assetId = `asset_${suffix}`;
 	const asset = await client.mediaAsset.create({
 		data: {
+			id: assetId,
 			ownerType: "USER",
 			ownerId,
 			kind: "INPUT",
@@ -1868,7 +1897,7 @@ async function seedReservedImageEditJob(validForMs = 60_000) {
 		catalogVersion: "2026-08-13.1",
 		pricingVersion: "2026-08-13.1",
 		credits: 4n,
-		costMicros: 3_000n,
+		costMicros: 3_500n,
 		inputSnapshot: { kind: "image-to-image", prompt: "test", sourceAssetId: asset.id },
 		pricingSnapshot: { credits: "4" },
 		expiresAt: new Date(Date.now() + 60_000),
@@ -1930,7 +1959,7 @@ function responseFetch(status: number, body: unknown): typeof fetch {
 
 async function seedFinalizingJob() {
 	const seeded = await seedReservedJob("image-quality");
-	const store = createDatabaseDispatchStore(client);
+	const store = createTestDispatchStore();
 	const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
 	await store.recordSynchronousCompletion(
 		claim!.attemptId,
@@ -2100,7 +2129,7 @@ function createOutputVerificationDependencies(
 
 async function seedPendingProviderJob() {
 	const seeded = await seedReservedJob("image-fast");
-	const store = createDatabaseDispatchStore(client);
+	const store = createTestDispatchStore();
 	const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
 	const providerTaskId = `provider-${crypto.randomUUID()}`;
 	await store.recordSubmission(claim!.attemptId, {

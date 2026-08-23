@@ -179,8 +179,8 @@ describe("retryGenerationForUser", () => {
 				operation: {
 					assetModerationPolicyVersion: expect.any(String),
 					assetModerationRuleVersion: expect.any(String),
-					catalogVersion: "2026-08-13.1",
-					costMicros: "3000",
+					catalogVersion: "2026-08-24.1",
+					costMicros: "3500",
 					credits: "4",
 					inputAssets: [{ assetChecksum: "1".repeat(64), assetId: "asset-1" }],
 					moderationProvider: "test",
@@ -189,15 +189,16 @@ describe("retryGenerationForUser", () => {
 						kind: "text-to-image",
 						prompt: "A current prompt",
 					},
-					pricingSnapshot: {
+					pricingSnapshot: expect.objectContaining({
 						credits: 4,
 						maximumJobCostMicros: 5_000_000,
+						routeGraph: expect.objectContaining({ maximumRouteCostMicros: 3_500 }),
 						settlementPolicy: {
 							unitCredits: "4",
 							requestedOutputCount: 1,
 							maxCharge: "4",
 						},
-					},
+					}),
 					pricingVersion: "2026-08-13.1",
 					productKey: "image-fast",
 					sourceJobId: "source-job-1",

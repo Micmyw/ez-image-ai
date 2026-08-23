@@ -4,6 +4,7 @@ export * from "./src/runtime";
 export * from "./src/handlers/check-credit-invariants";
 export * from "./src/handlers/cleanup-assets";
 export * from "./src/handlers/cleanup-storage-object";
+export * from "./src/handlers/cancel-generation";
 export * from "./src/handlers/expire-media-uploads";
 export * from "./src/handlers/dispatch-generation";
 export * from "./src/handlers/dispatch-outbox";

@@ -66,7 +66,7 @@ export type PricingVersion = z.infer<typeof pricingVersionSchema>;
 export const DEFAULT_PRODUCT_CONFIG = productConfigSchema.parse({
 	planIds: PLAN_IDS,
 	productKeys: PRODUCT_MODEL_KEYS,
-	catalogVersion: "2026-08-13.1",
+	catalogVersion: "2026-08-24.1",
 	pricingVersion: "2026-08-13.1",
 	features: {
 		mediaGeneration: true,

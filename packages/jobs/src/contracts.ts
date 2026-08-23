@@ -8,11 +8,22 @@ import type {
 	ProviderFailure,
 	ProviderSubmission,
 	ProviderTaskSnapshot,
+	ProviderTaskStatus,
+	SubmissionUncertainty,
 } from "@repo/ai";
 
 export interface JobPayload {
 	jobId: string;
 	version: number;
+}
+
+/**
+ * Provider/model pins are optional only while old Trigger messages drain. Static task
+ * closures add them before submission, and the database store verifies them before mutation.
+ */
+export interface DispatchJobPayload extends JobPayload {
+	provider?: ProviderKey;
+	providerModelId?: string;
 }
 
 export interface ProviderWebhookPayload {
@@ -33,16 +44,39 @@ export interface DispatchClaim {
 	queueKey: string;
 }
 
+export class DispatchAdmissionBlockedError extends Error {
+	readonly code = "MEDIA_GENERATION_DISABLED";
+
+	constructor() {
+		super("MEDIA_GENERATION_DISABLED");
+		this.name = "DispatchAdmissionBlockedError";
+	}
+}
+
 export interface DispatchStore {
-	claimDispatch(payload: JobPayload): Promise<DispatchClaim | null>;
+	claimDispatch(payload: DispatchJobPayload): Promise<DispatchClaim | null>;
+	recordSubmissionStarted(attemptId: string): Promise<void>;
 	recordSubmission(attemptId: string, submission: ProviderSubmission): Promise<void>;
 	recordSynchronousCompletion(
 		attemptId: string,
 		submission: ProviderSubmission,
 		result: NormalizedResult,
 	): Promise<void>;
-	recordUncertainSubmission(attemptId: string): Promise<void>;
+	recordUncertainSubmission(
+		attemptId: string,
+		evidence: UncertainSubmissionEvidence,
+	): Promise<void>;
+	recordProviderAdapterUnavailable(attemptId: string): Promise<void>;
 	recordRejectedSubmission(attemptId: string, failure: ProviderFailure): Promise<void>;
+}
+
+export interface UncertainSubmissionEvidence extends SubmissionUncertainty {
+	providerTaskId?: string;
+	providerStatus?: ProviderTaskStatus;
+	statusUrl?: string;
+	resultUrl?: string;
+	submissionToken?: string;
+	providerIdempotencySupported?: boolean;
 }
 
 export interface DispatchDependencies {
@@ -65,6 +99,7 @@ export interface ProviderEventClaim {
 export interface ProviderEventStore {
 	claimProviderEvent(eventId: string): Promise<ProviderEventClaim | null>;
 	recordProviderProgress(claim: ProviderEventClaim, result: NormalizedResult): Promise<void>;
+	markProviderRecoveryUnavailable(claim: ProviderEventClaim): Promise<void>;
 	recordProviderEventFailure(claim: ProviderEventClaim, code: string): Promise<void>;
 }
 
@@ -154,6 +189,45 @@ export interface SettlementDependencies {
 	store: SettlementStore;
 }
 
+export interface ProviderCancellationClaim {
+	jobId: string;
+	attemptId: string;
+	provider: ProviderKey;
+	providerTaskId: string;
+	leaseToken: string;
+	idempotencyKey: string;
+}
+
+export interface ProviderCancellationBlocked {
+	kind: "BLOCKED";
+	reason: "ATTEMPT_LEASED";
+	retryable: true;
+}
+
+export type ProviderCancellationClaimResult =
+	| ProviderCancellationClaim
+	| ProviderCancellationBlocked
+	| null;
+
+export type ProviderCancellationManualRecoveryCode =
+	| "PROVIDER_CANCELLATION_UNCONFIRMED"
+	| "PROVIDER_CANCELLATION_UNSUPPORTED";
+
+export interface ProviderCancellationStore {
+	claimProviderCancellation(payload: JobPayload): Promise<ProviderCancellationClaimResult>;
+	confirmProviderCancellation(claim: ProviderCancellationClaim): Promise<boolean>;
+	markProviderCancellationManualRecovery(
+		claim: ProviderCancellationClaim,
+		code: ProviderCancellationManualRecoveryCode,
+	): Promise<boolean>;
+	releaseProviderCancellation(claim: ProviderCancellationClaim): Promise<void>;
+}
+
+export interface ProviderCancellationDependencies {
+	store: ProviderCancellationStore;
+	getProvider(provider: ProviderKey): MediaProviderAdapter;
+}
+
 export interface ReconciliationLease {
 	jobId: string;
 	version: number;
@@ -183,7 +257,7 @@ export interface ReconciliationStore {
 		code: string,
 		retryAt: Date,
 	): Promise<void>;
-	markUncertainForManualReconciliation(lease: ReconciliationLease): Promise<void>;
+	markUncertainForManualReconciliation(lease: ReconciliationLease, code?: string): Promise<void>;
 }
 
 export interface ReconciliationDependencies {

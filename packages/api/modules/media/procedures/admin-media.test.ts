@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database", () => ({
 	getAdminMediaDiagnostics: vi.fn(),
+	listAdminUncertainGenerationAttempts: vi.fn(),
 	listAdminMediaAudit: vi.fn(),
 	replayPersistedMediaEvent: vi.fn(),
 	requeueAdminMediaVerification: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock("@repo/database/client", () => ({ db: {} }));
 import { auth } from "@repo/auth";
 import {
 	getAdminMediaDiagnostics,
+	listAdminUncertainGenerationAttempts,
 	listAdminMediaAudit,
 	replayPersistedMediaEvent,
 	requeueAdminMediaVerification,
@@ -26,7 +28,7 @@ import {
 } from "@repo/database";
 
 import { listMediaAuditLog } from "./admin-audit-log";
-import { adminMediaDiagnostics } from "./admin-diagnostics";
+import { adminMediaDiagnostics, listUncertainGenerationAttempts } from "./admin-diagnostics";
 import {
 	replayMediaEvent,
 	requeueMediaVerification,
@@ -52,6 +54,20 @@ describe("media administration authorization and safe DTOs", () => {
 			code: "FORBIDDEN",
 		});
 		expect(getAdminMediaDiagnostics).not.toHaveBeenCalled();
+	});
+
+	it("rejects uncertain-attempt recovery diagnostics before touching the database for non-admin users", async () => {
+		vi.mocked(auth.api.getSession).mockResolvedValue({
+			user: { id: "user_1", role: "user" },
+			session: { id: "session_1" },
+		} as never);
+
+		await expect(
+			call(listUncertainGenerationAttempts, { limit: 20 }, context),
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+		});
+		expect(listAdminUncertainGenerationAttempts).not.toHaveBeenCalled();
 	});
 
 	it("returns only allowlisted aggregate diagnostics", async () => {
@@ -118,6 +134,68 @@ describe("media administration authorization and safe DTOs", () => {
 				lastErrorClass: "TRANSIENT",
 			},
 		]);
+	});
+
+	it("returns a redacted uncertain-attempt recovery DTO only to administrators", async () => {
+		vi.mocked(auth.api.getSession).mockResolvedValue({
+			user: { id: "admin_1", role: "admin" },
+			session: { id: "session_1" },
+		} as never);
+		vi.mocked(listAdminUncertainGenerationAttempts).mockResolvedValue([
+			{
+				ids: {
+					attemptId: "attempt_1",
+					jobId: "job_1",
+					reservationId: "reservation_1",
+				},
+				route: { provider: "fal", providerModelId: "fal-ai/flux/schnell" },
+				status: { attempt: "NEEDS_RECONCILIATION", job: "NEEDS_RECONCILIATION" },
+				timestamps: {
+					createdAt: "2026-08-23T00:00:00.000Z",
+					updatedAt: "2026-08-23T00:01:00.000Z",
+					submittedAt: "2026-08-23T00:00:10.000Z",
+					completedAt: null,
+					lastProviderEventAt: null,
+					nextReconcileAt: null,
+				},
+				retryCount: 2,
+				reservationStatus: "ACTIVE",
+				reasonCode: "SUBMISSION_UNCERTAIN_NEEDS_RECONCILIATION",
+				providerTaskId: "provider-task-secret",
+				providerStatusUrl: "https://queue.fal.run/secret",
+				responseSnapshot: { signedUrl: "https://cdn.example/output?signature=secret" },
+			},
+		] as never);
+
+		const result = await call(listUncertainGenerationAttempts, { limit: 20 }, context);
+
+		expect(listAdminUncertainGenerationAttempts).toHaveBeenCalledWith(
+			{ limit: 20 },
+			expect.anything(),
+		);
+		expect(result).toEqual({
+			items: [
+				{
+					ids: { attemptId: "attempt_1", jobId: "job_1", reservationId: "reservation_1" },
+					route: { provider: "fal", providerModelId: "fal-ai/flux/schnell" },
+					status: { attempt: "NEEDS_RECONCILIATION", job: "NEEDS_RECONCILIATION" },
+					timestamps: {
+						createdAt: "2026-08-23T00:00:00.000Z",
+						updatedAt: "2026-08-23T00:01:00.000Z",
+						submittedAt: "2026-08-23T00:00:10.000Z",
+						completedAt: null,
+						lastProviderEventAt: null,
+						nextReconcileAt: null,
+					},
+					retryCount: 2,
+					reservationStatus: "ACTIVE",
+					reasonCode: "SUBMISSION_UNCERTAIN_NEEDS_RECONCILIATION",
+				},
+			],
+		});
+		expect(JSON.stringify(result)).not.toMatch(
+			/providerTaskId|providerStatusUrl|responseSnapshot|signature|token|secret/i,
+		);
 	});
 
 	it("paginates audit records without exposing before, after, or metadata JSON", async () => {

@@ -1,7 +1,10 @@
 import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
 
 import { createExecutableRouteGraph } from "./catalog";
-import { enabledProviderKeysFromEnvironment, type ExecutableRouteGraphOptions } from "./routing";
+import {
+	executableRouteGraphOptionsFromEnvironment,
+	type ExecutableRouteGraphOptions,
+} from "./routing";
 
 export interface PublicCatalogEntry {
 	key: string;
@@ -21,9 +24,7 @@ export interface PublicCatalogEntry {
 	}>;
 }
 export function getPublicProductCatalog(
-	options: ExecutableRouteGraphOptions = {
-		enabledProviders: enabledProviderKeysFromEnvironment(),
-	},
+	options: ExecutableRouteGraphOptions = executableRouteGraphOptionsFromEnvironment(),
 ): {
 	catalogVersion: string;
 	pricingVersion: string;

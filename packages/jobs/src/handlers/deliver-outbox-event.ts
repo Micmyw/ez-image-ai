@@ -1,9 +1,15 @@
+import type { ProviderKey } from "@repo/ai";
+
 import type { OutboxLease } from "../contracts";
 
 interface OutboxDeliveryDependencies {
 	trigger(taskId: string, payload: Record<string, unknown>): Promise<void>;
 	triggerAndWait?(taskId: string, payload: Record<string, unknown>): Promise<void>;
-	resolveDispatchRoute(jobId: string): Promise<{ taskId: string }>;
+	resolveDispatchRoute(jobId: string): Promise<{
+		taskId: string;
+		provider: ProviderKey;
+		providerModelId: string;
+	} | null>;
 }
 
 export async function deliverOutboxEvent(
@@ -19,9 +25,12 @@ export async function deliverOutboxEvent(
 		case "JOB_CREATED":
 		case "GENERATION_DISPATCH": {
 			const route = await dependencies.resolveDispatchRoute(event.aggregateId);
+			if (!route) return;
 			return dependencies.trigger(route.taskId, {
 				jobId: event.aggregateId,
 				version: integerValue(payload.version, 0),
+				provider: route.provider,
+				providerModelId: route.providerModelId,
 			});
 		}
 		case "PROVIDER_EVENT_RECEIVED":
@@ -35,8 +44,12 @@ export async function deliverOutboxEvent(
 				version: integerValue(payload.version, 0),
 			});
 		case "GENERATION_SETTLE":
-		case "GENERATION_CANCEL_REQUESTED":
 			return dependencies.trigger("media-settle-generation", {
+				jobId: event.aggregateId,
+				version: integerValue(payload.version, 0),
+			});
+		case "GENERATION_CANCEL_REQUESTED":
+			return triggerAndWait(dependencies, "media-cancel-generation", {
 				jobId: event.aggregateId,
 				version: integerValue(payload.version, 0),
 			});
@@ -134,7 +147,15 @@ function triggerCleanup(
 	taskId: string,
 	payload: Record<string, unknown>,
 ): Promise<void> {
-	if (!dependencies.triggerAndWait) throw new Error("Cleanup task waiter is unavailable");
+	return triggerAndWait(dependencies, taskId, payload);
+}
+
+function triggerAndWait(
+	dependencies: OutboxDeliveryDependencies,
+	taskId: string,
+	payload: Record<string, unknown>,
+): Promise<void> {
+	if (!dependencies.triggerAndWait) throw new Error("Task waiter is unavailable");
 	return dependencies.triggerAndWait(taskId, payload);
 }
 

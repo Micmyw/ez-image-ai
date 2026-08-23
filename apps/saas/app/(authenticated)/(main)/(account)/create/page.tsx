@@ -42,7 +42,7 @@ export default async function CreatePage({
 			const isImage = asset.mimeType.startsWith("image/");
 			draftInput = {
 				id: asset.id,
-				productKey: isImage ? "image-quality" : null,
+				productKey: isImage ? "image-fast" : null,
 				input: { prompt: "", sourceAssetId: asset.id },
 			};
 		}

@@ -1,4 +1,8 @@
-import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
+import {
+	MEDIA_VERIFICATION_POLICY_VERSION,
+	MEDIA_VERIFICATION_RULE_VERSION,
+	type ExecutableRouteGraphOptions,
+} from "@repo/ai";
 import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
 import { createGenerationJobTransaction } from "@repo/database";
 import { db } from "@repo/database/client";
@@ -9,7 +13,9 @@ import { tasks } from "@trigger.dev/sdk";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { dispatchCreatedJobBestEffort } from "../lib/dispatch-created-job";
 import { toMediaOrpcError } from "../lib/errors";
+import { getCurrentExecutableRouteGraphOptions } from "../lib/executable-route-graph";
 import { assertGenerationAllowed } from "../lib/generation-authorization";
+import { assertFrozenQuoteRouteGraphIsCurrent } from "../lib/quote";
 import { maximumMediaStorageBytes } from "../lib/storage-limits";
 import { TEXT_MODERATION_RULE_VERSION } from "../lib/text-moderation";
 import { createGenerationInputSchema, jsonBigInt } from "../types";
@@ -19,44 +25,7 @@ export const createGeneration = protectedProcedure
 	.input(createGenerationInputSchema)
 	.handler(async ({ context: { user }, input }) => {
 		try {
-			const quote = await db.generationQuote.findFirst({
-				where: { id: input.quoteId, ownerType: "USER", ownerId: user.id },
-			});
-			if (!quote) throw new Error("NOT_FOUND");
-			if (quote.expiresAt <= new Date()) throw new Error("QUOTE_EXPIRED");
-			if (
-				quote.catalogVersion !== DEFAULT_PRODUCT_CONFIG.catalogVersion ||
-				quote.pricingVersion !== DEFAULT_PRODUCT_CONFIG.pricingVersion
-			) {
-				throw new Error("PRICE_CHANGED");
-			}
-			const inputSnapshot = quote.inputSnapshot as { sourceAssetId?: string };
-			await assertGenerationAllowed({
-				userId: user.id,
-				productKey: quote.productKey as Parameters<typeof assertGenerationAllowed>[0]["productKey"],
-				credits: quote.credits,
-				costMicros: quote.costMicros,
-				input: quote.inputSnapshot as Parameters<typeof assertGenerationAllowed>[0]["input"],
-				catalogVersion: quote.catalogVersion,
-				pricingVersion: quote.pricingVersion,
-				enforceProspectiveDailyBudget: false,
-			});
-			const result = await createGenerationJobTransaction(
-				{
-					ownerType: "USER",
-					ownerId: user.id,
-					submittedByUserId: user.id,
-					quoteId: quote.id,
-					idempotencyKey: input.idempotencyKey,
-					inputAssetIds: inputSnapshot.sourceAssetId ? [inputSnapshot.sourceAssetId] : [],
-					expectedModerationRuleVersion: TEXT_MODERATION_RULE_VERSION,
-					expectedAssetModerationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
-					expectedAssetModerationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
-					maximumDailyCostMicros: BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros),
-					maximumStorageBytes: maximumMediaStorageBytes(),
-				},
-				db,
-			);
+			const result = await createGenerationForUser(user.id, input);
 			await dispatchCreatedJobBestEffort(
 				{
 					jobId: result.job.id,
@@ -82,3 +51,107 @@ export const createGeneration = protectedProcedure
 			throw toMediaOrpcError(error);
 		}
 	});
+
+interface GenerationQuoteForCreation {
+	id: string;
+	productKey: string;
+	catalogVersion: string;
+	pricingVersion: string;
+	expiresAt: Date;
+	credits: bigint;
+	costMicros: bigint;
+	inputSnapshot: unknown;
+	pricingSnapshot: unknown;
+}
+
+interface CreatedGenerationJob {
+	job: {
+		id: string;
+		status: string;
+		version: number;
+		creditsReserved: bigint;
+	};
+	replayed: boolean;
+}
+
+interface CreateGenerationDependencies {
+	now(): Date;
+	findQuote(userId: string, quoteId: string): Promise<GenerationQuoteForCreation | null>;
+	getRouteGraphOptions(): Promise<ExecutableRouteGraphOptions>;
+	assertAllowed: typeof assertGenerationAllowed;
+	createGenerationJob(input: {
+		ownerType: "USER";
+		ownerId: string;
+		submittedByUserId: string;
+		quoteId: string;
+		idempotencyKey: string;
+		inputAssetIds: string[];
+		expectedModerationRuleVersion: string;
+		expectedAssetModerationRuleVersion: string;
+		expectedAssetModerationPolicyVersion: string;
+		maximumDailyCostMicros: bigint;
+		maximumStorageBytes: bigint;
+	}): Promise<CreatedGenerationJob>;
+}
+
+const defaultDependencies: CreateGenerationDependencies = {
+	now: () => new Date(),
+	findQuote: (userId, quoteId) =>
+		db.generationQuote.findFirst({
+			where: { id: quoteId, ownerType: "USER", ownerId: userId },
+		}),
+	getRouteGraphOptions: () => getCurrentExecutableRouteGraphOptions(),
+	assertAllowed: (input) => assertGenerationAllowed(input),
+	createGenerationJob: (input) => createGenerationJobTransaction(input, db),
+};
+
+export async function createGenerationForUser(
+	userId: string,
+	input: { quoteId: string; idempotencyKey: string },
+	dependencies: CreateGenerationDependencies = defaultDependencies,
+): Promise<CreatedGenerationJob> {
+	const quote = await dependencies.findQuote(userId, input.quoteId);
+	if (!quote) throw new Error("NOT_FOUND");
+	if (quote.expiresAt <= dependencies.now()) throw new Error("QUOTE_EXPIRED");
+	if (
+		quote.catalogVersion !== DEFAULT_PRODUCT_CONFIG.catalogVersion ||
+		quote.pricingVersion !== DEFAULT_PRODUCT_CONFIG.pricingVersion
+	) {
+		throw new Error("PRICE_CHANGED");
+	}
+	const routeGraphOptions = await dependencies.getRouteGraphOptions();
+	assertFrozenQuoteRouteGraphIsCurrent(
+		{
+			productKey: quote.productKey as Parameters<typeof assertGenerationAllowed>[0]["productKey"],
+			catalogVersion: quote.catalogVersion,
+			pricingVersion: quote.pricingVersion,
+			pricingSnapshot: quote.pricingSnapshot,
+		},
+		routeGraphOptions,
+	);
+	const inputSnapshot = quote.inputSnapshot as { sourceAssetId?: string };
+	await dependencies.assertAllowed({
+		userId,
+		productKey: quote.productKey as Parameters<typeof assertGenerationAllowed>[0]["productKey"],
+		credits: quote.credits,
+		costMicros: quote.costMicros,
+		input: quote.inputSnapshot as Parameters<typeof assertGenerationAllowed>[0]["input"],
+		catalogVersion: quote.catalogVersion,
+		pricingVersion: quote.pricingVersion,
+		enforceProspectiveDailyBudget: false,
+		routeGraphOptions,
+	});
+	return dependencies.createGenerationJob({
+		ownerType: "USER",
+		ownerId: userId,
+		submittedByUserId: userId,
+		quoteId: quote.id,
+		idempotencyKey: input.idempotencyKey,
+		inputAssetIds: inputSnapshot.sourceAssetId ? [inputSnapshot.sourceAssetId] : [],
+		expectedModerationRuleVersion: TEXT_MODERATION_RULE_VERSION,
+		expectedAssetModerationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+		expectedAssetModerationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+		maximumDailyCostMicros: BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros),
+		maximumStorageBytes: maximumMediaStorageBytes(),
+	});
+}

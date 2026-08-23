@@ -1,4 +1,4 @@
-import type { MediaModelInput, ModerationDecision } from "@repo/ai";
+import type { ExecutableRouteGraphOptions, MediaModelInput, ModerationDecision } from "@repo/ai";
 import type { ProductModelKey } from "@repo/config";
 import { db } from "@repo/database/client";
 import {
@@ -8,6 +8,7 @@ import {
 
 import { protectedProcedure } from "../../../orpc/procedures";
 import { toMediaOrpcError } from "../lib/errors";
+import { getCurrentExecutableRouteGraphOptions } from "../lib/executable-route-graph";
 import { assertGenerationAllowed } from "../lib/generation-authorization";
 import { buildMediaQuote } from "../lib/quote";
 import {
@@ -20,6 +21,7 @@ import { createQuoteInputSchema, jsonBigInt } from "../types";
 interface CreateQuoteDependencies {
 	now(): Date;
 	assertAllowed: typeof assertGenerationAllowed;
+	getRouteGraphOptions?(): Promise<ExecutableRouteGraphOptions>;
 	createAdapter(): {
 		provider: TextModerationEvidence["provider"];
 		adapter: {
@@ -40,6 +42,7 @@ interface CreateQuoteDependencies {
 const defaultDependencies: CreateQuoteDependencies = {
 	now: () => new Date(),
 	assertAllowed: (input) => assertGenerationAllowed(input),
+	getRouteGraphOptions: () => getCurrentExecutableRouteGraphOptions(),
 	createAdapter: () => createTextModerationAdapter(process.env),
 	persistApproved: (input) => createModeratedGenerationQuoteTransaction(input, db),
 	recordDenied: async (evidence) => {
@@ -60,13 +63,15 @@ export async function createQuoteForUser(
 	input: { productKey: ProductModelKey; input: MediaModelInput },
 	dependencies: CreateQuoteDependencies = defaultDependencies,
 ) {
-	const quote = buildMediaQuote(input);
+	const routeGraphOptions = await dependencies.getRouteGraphOptions?.();
+	const quote = buildMediaQuote(input, routeGraphOptions);
 	await dependencies.assertAllowed({
 		userId,
 		productKey: input.productKey,
 		credits: quote.credits,
 		costMicros: quote.costMicros,
 		input: input.input,
+		routeGraphOptions,
 	});
 	const quoteInput = {
 		ownerType: "USER" as const,

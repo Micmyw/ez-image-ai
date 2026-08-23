@@ -1,11 +1,13 @@
-import { MediaProviderError } from "@repo/ai";
+import { MediaProviderError, type ProviderSubmission } from "@repo/ai";
 
-import type { DispatchDependencies, JobPayload } from "../contracts";
+import type { DispatchDependencies, DispatchJobPayload } from "../contracts";
 
 export async function dispatchGeneration(
-	payload: JobPayload,
+	payload: DispatchJobPayload,
 	dependencies: DispatchDependencies,
-): Promise<{ outcome: "SKIPPED" | "SUBMITTED" | "RECONCILE" | "REJECTED" }> {
+): Promise<{
+	outcome: "SKIPPED" | "SUBMITTED" | "RECONCILE" | "REJECTED" | "RECOVERY_REQUIRED";
+}> {
 	const generationEnabled =
 		dependencies.isGenerationEnabled?.() ?? process.env.MEDIA_GENERATION_ENABLED === "true";
 	if (!generationEnabled) {
@@ -13,8 +15,15 @@ export async function dispatchGeneration(
 	}
 	const claim = await dependencies.store.claimDispatch(payload);
 	if (!claim) return { outcome: "SKIPPED" };
-	const adapter = dependencies.getProvider(claim.provider);
+	let adapter;
 	try {
+		adapter = dependencies.getProvider(claim.provider);
+	} catch {
+		await dependencies.store.recordProviderAdapterUnavailable(claim.attemptId);
+		return { outcome: "RECOVERY_REQUIRED" };
+	}
+	try {
+		await dependencies.store.recordSubmissionStarted(claim.attemptId);
 		const submission = await adapter.submit({
 			attemptId: claim.attemptId,
 			providerModelId: claim.providerModelId,
@@ -22,7 +31,10 @@ export async function dispatchGeneration(
 			webhookUrl: claim.webhookUrl,
 		});
 		if (submission.outcome === "uncertain") {
-			await dependencies.store.recordUncertainSubmission(claim.attemptId);
+			await dependencies.store.recordUncertainSubmission(
+				claim.attemptId,
+				uncertaintyEvidenceFromSubmission(submission),
+			);
 			return { outcome: "RECONCILE" };
 		}
 		if (submission.outcome === "rejected") {
@@ -51,7 +63,33 @@ export async function dispatchGeneration(
 			});
 			return { outcome: "REJECTED" };
 		}
-		await dependencies.store.recordUncertainSubmission(claim.attemptId);
+		await dependencies.store.recordUncertainSubmission(claim.attemptId, {
+			classification:
+				error instanceof MediaProviderError && error.code === "MALFORMED_PROVIDER_RESPONSE"
+					? "malformed_2xx"
+					: "transport",
+			phase: "post_send",
+		});
 		return { outcome: "RECONCILE" };
 	}
+}
+
+function uncertaintyEvidenceFromSubmission(
+	submission: Extract<ProviderSubmission, { outcome: "uncertain" }>,
+) {
+	return {
+		...submission.uncertainty,
+		...(submission.providerTaskId ? { providerTaskId: submission.providerTaskId } : {}),
+		providerStatus: submission.status,
+		...(submission.reconciliation.statusUrl
+			? { statusUrl: submission.reconciliation.statusUrl }
+			: {}),
+		...(submission.reconciliation.resultUrl
+			? { resultUrl: submission.reconciliation.resultUrl }
+			: {}),
+		...(submission.reconciliation.submissionToken
+			? { submissionToken: submission.reconciliation.submissionToken }
+			: {}),
+		providerIdempotencySupported: submission.idempotency.providerSupported,
+	};
 }

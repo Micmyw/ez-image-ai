@@ -5,8 +5,15 @@ interface CreatedJobDispatchInput {
 }
 
 interface CreatedJobDispatchDependencies {
-	resolveRoute(jobId: string): Promise<{ taskId: string }>;
-	trigger(taskId: string, payload: { jobId: string; version: number }): Promise<void>;
+	resolveRoute(jobId: string): Promise<{
+		taskId: string;
+		provider: ProviderKey;
+		providerModelId: string;
+	} | null>;
+	trigger(
+		taskId: string,
+		payload: { jobId: string; version: number; provider: ProviderKey; providerModelId: string },
+	): Promise<void>;
 	warn?(message: string, context: Record<string, unknown>): void;
 }
 
@@ -17,7 +24,13 @@ export async function dispatchCreatedJobBestEffort(
 	if (input.replayed) return { delivered: false };
 	try {
 		const route = await dependencies.resolveRoute(input.jobId);
-		await dependencies.trigger(route.taskId, { jobId: input.jobId, version: input.version });
+		if (!route) throw new Error("Generation dispatch route is unavailable");
+		await dependencies.trigger(route.taskId, {
+			jobId: input.jobId,
+			version: input.version,
+			provider: route.provider,
+			providerModelId: route.providerModelId,
+		});
 		return { delivered: true };
 	} catch (error) {
 		dependencies.warn?.("Immediate generation dispatch failed; outbox recovery remains pending", {
@@ -27,3 +40,4 @@ export async function dispatchCreatedJobBestEffort(
 		return { delivered: false };
 	}
 }
+import type { ProviderKey } from "@repo/ai";

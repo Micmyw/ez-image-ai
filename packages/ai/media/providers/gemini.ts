@@ -59,6 +59,18 @@ export class GeminiProviderAdapter implements MediaProviderAdapter {
 			progress: 100,
 			raw: parsed,
 		};
+		const hasMedia = parsed.candidates.some((candidate) =>
+			candidate.content.parts.some((part) => part.inlineData !== undefined),
+		);
+		if (!hasMedia) {
+			return {
+				status: "SUCCEEDED",
+				outcome: "uncertain",
+				uncertainty: { classification: "malformed_2xx", phase: "post_send" },
+				idempotency: { providerSupported: false, replayed: false },
+				reconciliation: { submissionToken: input.attemptId },
+			};
+		}
 		return {
 			providerTaskId: input.attemptId,
 			status: "SUCCEEDED",

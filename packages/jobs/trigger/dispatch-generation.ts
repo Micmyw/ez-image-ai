@@ -1,10 +1,12 @@
+import { staticDispatchRouteFor, type ProviderKey, type StaticDispatchRoute } from "@repo/ai";
+import { db } from "@repo/database/client";
 import { task } from "@trigger.dev/sdk";
 
 import { dispatchGeneration } from "../src/handlers/dispatch-generation";
-import { dispatchRouteFor, parseMediaQueueLimits, providerQueueKey } from "../src/queues";
+import { parseMediaQueueLimits, providerQueueKey } from "../src/queues";
 import {
 	createProviderRegistry,
-	databaseDispatchStore,
+	createDatabaseDispatchStore,
 	getRegisteredProvider,
 } from "../src/runtime";
 
@@ -13,14 +15,25 @@ const limits = parseMediaQueueLimits(process.env);
 interface DispatchTaskPayload {
 	jobId: string;
 	version: number;
+	provider?: ProviderKey;
+	providerModelId?: string;
 }
 
-function runDispatch(payload: DispatchTaskPayload) {
-	const registry = createProviderRegistry();
-	return dispatchGeneration(payload, {
-		store: databaseDispatchStore,
-		getProvider: (provider) => getRegisteredProvider(registry, provider),
-	});
+function runDispatch(route: StaticDispatchRoute) {
+	return (payload: DispatchTaskPayload) => {
+		const registry = createProviderRegistry();
+		return dispatchGeneration(
+			{
+				...payload,
+				provider: payload.provider ?? route.provider,
+				providerModelId: payload.providerModelId ?? route.providerModelId,
+			},
+			{
+				store: createDatabaseDispatchStore(db, { enabledProviders: new Set(registry.keys()) }),
+				getProvider: (provider) => getRegisteredProvider(registry, provider),
+			},
+		);
+	};
 }
 
 function concurrency(provider: string, providerModelId: string, mediaKind: "image" | "video") {
@@ -31,7 +44,11 @@ function concurrency(provider: string, providerModelId: string, mediaKind: "imag
 	);
 }
 
-const replicateImage = dispatchRouteFor("image", "replicate", "black-forest-labs/flux-schnell");
+const replicateImage = requiredStaticDispatchRoute(
+	"image",
+	"replicate",
+	"black-forest-labs/flux-schnell",
+);
 export const dispatchReplicateImageTask = task({
 	id: replicateImage.taskId,
 	queue: {
@@ -39,11 +56,11 @@ export const dispatchReplicateImageTask = task({
 		concurrencyLimit: concurrency("replicate", "black-forest-labs/flux-schnell", "image"),
 	},
 	maxDuration: 60,
-	retry: { maxAttempts: 1 },
-	run: runDispatch,
+	retry: { maxAttempts: 5, minTimeoutInMs: 1_000, maxTimeoutInMs: 30_000 },
+	run: runDispatch(replicateImage),
 });
 
-const falImage = dispatchRouteFor("image", "fal", "fal-ai/flux/schnell");
+const falImage = requiredStaticDispatchRoute("image", "fal", "fal-ai/flux/schnell");
 export const dispatchFalImageTask = task({
 	id: falImage.taskId,
 	queue: {
@@ -51,11 +68,11 @@ export const dispatchFalImageTask = task({
 		concurrencyLimit: concurrency("fal", "fal-ai/flux/schnell", "image"),
 	},
 	maxDuration: 60,
-	retry: { maxAttempts: 1 },
-	run: runDispatch,
+	retry: { maxAttempts: 5, minTimeoutInMs: 1_000, maxTimeoutInMs: 30_000 },
+	run: runDispatch(falImage),
 });
 
-const geminiImage = dispatchRouteFor("image", "gemini", "gemini-2.5-flash-image");
+const geminiImage = requiredStaticDispatchRoute("image", "gemini", "gemini-2.5-flash-image");
 export const dispatchGeminiImageTask = task({
 	id: geminiImage.taskId,
 	queue: {
@@ -63,11 +80,11 @@ export const dispatchGeminiImageTask = task({
 		concurrencyLimit: concurrency("gemini", "gemini-2.5-flash-image", "image"),
 	},
 	maxDuration: 60,
-	retry: { maxAttempts: 1 },
-	run: runDispatch,
+	retry: { maxAttempts: 5, minTimeoutInMs: 1_000, maxTimeoutInMs: 30_000 },
+	run: runDispatch(geminiImage),
 });
 
-const falVideo = dispatchRouteFor("video", "fal", "fal-ai/fast-video");
+const falVideo = requiredStaticDispatchRoute("video", "fal", "fal-ai/fast-video");
 export const dispatchFalVideoTask = task({
 	id: falVideo.taskId,
 	queue: {
@@ -75,11 +92,11 @@ export const dispatchFalVideoTask = task({
 		concurrencyLimit: concurrency("fal", "fal-ai/fast-video", "video"),
 	},
 	maxDuration: 60,
-	retry: { maxAttempts: 1 },
-	run: runDispatch,
+	retry: { maxAttempts: 5, minTimeoutInMs: 1_000, maxTimeoutInMs: 30_000 },
+	run: runDispatch(falVideo),
 });
 
-const kieVideo = dispatchRouteFor("video", "kie", "veo3");
+const kieVideo = requiredStaticDispatchRoute("video", "kie", "veo3");
 export const dispatchKieVideoTask = task({
 	id: kieVideo.taskId,
 	queue: {
@@ -87,6 +104,24 @@ export const dispatchKieVideoTask = task({
 		concurrencyLimit: concurrency("kie", "veo3", "video"),
 	},
 	maxDuration: 60,
-	retry: { maxAttempts: 1 },
-	run: runDispatch,
+	retry: { maxAttempts: 5, minTimeoutInMs: 1_000, maxTimeoutInMs: 30_000 },
+	run: runDispatch(kieVideo),
 });
+
+export const declaredDispatchTaskIds = [
+	replicateImage.taskId,
+	falImage.taskId,
+	geminiImage.taskId,
+	falVideo.taskId,
+	kieVideo.taskId,
+] as const;
+
+function requiredStaticDispatchRoute(
+	mediaKind: "image" | "video",
+	provider: ProviderKey,
+	providerModelId: string,
+): StaticDispatchRoute {
+	const route = staticDispatchRouteFor(mediaKind, provider, providerModelId);
+	if (!route) throw new Error("UNDECLARED_DISPATCH_ROUTE");
+	return route;
+}

@@ -4,7 +4,7 @@ import { auth } from "@repo/auth";
 import { validateServerEnvironment } from "@repo/config/server";
 import { ingestProviderEvent } from "@repo/database";
 import { db } from "@repo/database/client";
-import { createProviderRegistry } from "@repo/jobs";
+import { createProviderWebhookVerifierRegistry } from "@repo/jobs";
 import { getLogContext, logger, withLogContext } from "@repo/logs";
 import { webhookHandler as paymentsWebhookHandler } from "@repo/payments";
 import { checkStorageMetadataAccess } from "@repo/storage";
@@ -21,14 +21,10 @@ import { openApiHandler, rpcHandler } from "./orpc/handler";
 
 export { router } from "./orpc/router";
 
-const providerRegistry = createProviderRegistry();
+const providerWebhookVerifiers = createProviderWebhookVerifierRegistry();
 const providerWebhookHandler = createProviderWebhookHandler({
 	getVerifier(provider) {
-		try {
-			return providerRegistry.get(provider);
-		} catch {
-			return null;
-		}
+		return providerWebhookVerifiers.get(provider) ?? null;
 	},
 	async persist({ provider, event, envelope }) {
 		const result = await ingestProviderEvent(
@@ -110,7 +106,9 @@ export const app = new Hono()
 	// Read-only readiness checks. Storage access is metadata-only.
 	.get("/ready", async (c) => {
 		const checks = await Promise.allSettled([
-			Promise.resolve(validateServerEnvironment(process.env)),
+			Promise.resolve(
+				validateServerEnvironment(process.env, { requireProviderCredentials: false }),
+			),
 			db.$queryRaw`SELECT 1 AS "ready"`,
 			checkStorageMetadataAccess(),
 			Promise.resolve(assertTriggerConfiguration()),

@@ -13,7 +13,7 @@ export const processProviderWebhookTask = task({
 	maxDuration: 60,
 	retry: { maxAttempts: 5, minTimeoutInMs: 1_000, maxTimeoutInMs: 30_000 },
 	run: async (payload: { providerWebhookEventId: string }) => {
-		const registry = createProviderRegistry();
+		const registry = createProviderRegistry(process.env, { includeRecoveryProviders: true });
 		return processProviderEvent(payload, {
 			store: databaseProviderEventStore,
 			getProvider: (provider) => getRegisteredProvider(registry, provider),
