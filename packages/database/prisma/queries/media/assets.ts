@@ -1297,7 +1297,13 @@ export async function createGenerationOutputAssetBindingTransaction(
 					role: "OUTPUT",
 				},
 			},
-			create: { jobId: job.id, assetId: asset.id, role: "OUTPUT", position: 0 },
+			create: {
+				jobId: job.id,
+				assetId: asset.id,
+				assetChecksum: input.asset.checksum,
+				role: "OUTPUT",
+				position: 0,
+			},
 			update: {},
 		});
 		return asset;
@@ -1572,6 +1578,10 @@ export async function completeGenerationOutputTransferTransaction(
 		if (completed.count !== 1) {
 			return { outcome: "STALE", asset: outputTransferAsset(asset) };
 		}
+		await tx.generationJobAsset.updateMany({
+			where: { assetId: asset.id, role: "OUTPUT" },
+			data: { assetChecksum: input.checksum },
+		});
 		await queueGenerationOutputStagingDeletion(asset.id, stagingObjectKey, input.transferToken, tx);
 		return {
 			outcome: "COMPLETED",
@@ -1648,10 +1658,15 @@ async function bindGenerationOutputAsset(
 	assetId: string,
 	tx: Prisma.TransactionClient,
 ): Promise<void> {
+	const asset = await tx.mediaAsset.findUniqueOrThrow({
+		where: { id: assetId },
+		select: { checksum: true },
+	});
+	const assetChecksum = asset.checksum ?? "";
 	await tx.generationJobAsset.upsert({
 		where: { jobId_assetId_role: { jobId, assetId, role: "OUTPUT" } },
-		create: { jobId, assetId, role: "OUTPUT", position: 0 },
-		update: {},
+		create: { jobId, assetId, assetChecksum, role: "OUTPUT", position: 0 },
+		update: { assetChecksum },
 	});
 }
 

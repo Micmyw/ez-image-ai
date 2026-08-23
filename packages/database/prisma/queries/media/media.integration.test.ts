@@ -177,6 +177,38 @@ async function createReadyInputAssetFixture(client: PrismaClient) {
 		},
 		client,
 	);
+	const checksum = "a".repeat(64);
+	const verificationValidUntil = new Date(Date.now() + 60 * 60_000);
+	await client.mediaAsset.update({
+		where: { id: asset.id },
+		data: {
+			status: "VERIFYING",
+			checksum,
+			verificationGeneration: 1,
+			verificationAttemptCount: 1,
+			verificationProvider: "test",
+			verificationRuleVersion: "asset-binding-rule-v1",
+			verificationPolicyVersion: "asset-binding-policy-v1",
+			verificationValidUntil,
+		},
+	});
+	await client.assetModerationResult.create({
+		data: {
+			assetId: asset.id,
+			assetChecksum: checksum,
+			verificationGeneration: 1,
+			attemptNumber: 1,
+			evidenceKind: "INPUT",
+			provider: "test",
+			ruleVersion: "asset-binding-rule-v1",
+			policyVersion: "asset-binding-policy-v1",
+			status: "APPROVED",
+			reasonCode: "TEST_ALLOW_ASSET_BINDING",
+			categories: {},
+			rawEnvelope: { decision: "ALLOW" },
+			validUntil: verificationValidUntil,
+		},
+	});
 	const readyAsset = await client.mediaAsset.update({
 		where: { id: asset.id },
 		data: { status: "READY" },
@@ -207,6 +239,8 @@ async function createReadyInputAssetFixture(client: PrismaClient) {
 					idempotencyKey,
 					inputAssetIds: [readyAsset.id],
 					expectedModerationRuleVersion: TEST_MODERATION_RULE_VERSION,
+					expectedAssetModerationRuleVersion: "asset-binding-rule-v1",
+					expectedAssetModerationPolicyVersion: "asset-binding-policy-v1",
 				},
 				client,
 			),
@@ -1966,6 +2000,13 @@ describe("media PostgreSQL transactions", () => {
 			outputPromotionMultipartUploadId: null,
 			finalizedAt: expect.any(Date),
 		});
+		await expect(
+			client.generationJobAsset.findUniqueOrThrow({
+				where: {
+					jobId_assetId_role: { jobId: created.job.id, assetId, role: "OUTPUT" },
+				},
+			}),
+		).resolves.toMatchObject({ assetChecksum: "b".repeat(64) });
 		await expect(
 			client.outboxEvent.findUnique({
 				where: {
