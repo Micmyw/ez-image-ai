@@ -20,6 +20,8 @@ assertIncludes(mockE2e, "S3_ENDPOINT: http://127.0.0.1:9000");
 assertIncludes(mockE2e, "S3_REGION: auto");
 assertIncludes(mockE2e, "S3_ACCESS_KEY_ID: minioadmin");
 assertIncludes(mockE2e, "S3_SECRET_ACCESS_KEY: minioadmin");
+assertIncludes(mockE2e, "name: Run immutable upload MinIO regression");
+assertIncludes(mockE2e, "run: pnpm --filter @repo/storage test:minio");
 
 function jobBlock(workflowText, jobName, nextJobName) {
 	const start = workflowText.indexOf(`  ${jobName}:\n`);

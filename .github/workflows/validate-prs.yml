@@ -210,6 +210,8 @@ jobs:
               mc mb --ignore-existing local/avatars
               mc anonymous set download local/avatars
             '
+      - name: Run immutable upload MinIO regression
+        run: pnpm --filter @repo/storage test:minio
       - name: Install Chromium with system dependencies
         run: pnpm --filter @repo/e2e-media exec playwright install --with-deps chromium
       - name: Apply test migrations
