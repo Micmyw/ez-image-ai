@@ -56,6 +56,7 @@ import type { MediaObjectMetadata } from "@repo/storage";
 
 import type {
 	DispatchStore,
+	FinalizationClaim,
 	FinalizationDependencies,
 	FinalizationStore,
 	OutboxStore,
@@ -1785,7 +1786,7 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 			await runSerializable(database, async (tx) => {
 				const job = await tx.generationJob.findUniqueOrThrow({ where: { id: claim.jobId } });
 				if (job.status !== "FINALIZING") return;
-				await bindFinalizationResults(tx, claim.jobId, results);
+				await bindFinalizationResults(tx, claim, results);
 				await tx.generationJob.update({
 					where: { id: job.id },
 					data: {
@@ -1803,7 +1804,7 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 				if (job.status !== "FINALIZING") {
 					return { outcome: "TERMINAL" as const, retryCount: job.finalizationRetryCount };
 				}
-				await bindFinalizationResults(tx, claim.jobId, results);
+				await bindFinalizationResults(tx, claim, results);
 				const retryCount = job.finalizationRetryCount + 1;
 				if (retryCount >= 5) {
 					await tx.generationJob.update({
@@ -1849,10 +1850,20 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 
 async function bindFinalizationResults(
 	tx: Prisma.TransactionClient,
-	jobId: string,
-	results: Array<{ assetId: string; approved: boolean }>,
+	claim: Pick<FinalizationClaim, "jobId" | "candidates">,
+	results: Array<{ assetId: string; approved: boolean; candidateKey: string }>,
 ): Promise<void> {
-	for (const [position, result] of results.entries()) {
+	const candidatePositions = new Map(
+		claim.candidates.map((candidate, position) => [candidate.key, position] as const),
+	);
+	if (candidatePositions.size !== claim.candidates.length) {
+		throw new Error("Finalization claim contains duplicate candidate keys");
+	}
+	for (const result of results) {
+		const position = candidatePositions.get(result.candidateKey);
+		if (position === undefined) {
+			throw new Error("Finalization result does not belong to the claimed candidates");
+		}
 		const asset = await tx.mediaAsset.findUniqueOrThrow({
 			where: { id: result.assetId },
 			select: { checksum: true },
@@ -1866,10 +1877,10 @@ async function bindFinalizationResults(
 			: `pending-output:${result.assetId}`;
 		await tx.generationJobAsset.upsert({
 			where: {
-				jobId_assetId_role: { jobId, assetId: result.assetId, role: "OUTPUT" },
+				jobId_assetId_role: { jobId: claim.jobId, assetId: result.assetId, role: "OUTPUT" },
 			},
 			create: {
-				jobId,
+				jobId: claim.jobId,
 				assetId: result.assetId,
 				assetChecksum,
 				role: "OUTPUT",

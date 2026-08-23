@@ -13,6 +13,7 @@ import {
 	resolveAdminUncertainSubmission,
 } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
+import { MediaValidationError } from "@repo/storage";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -632,6 +633,105 @@ describe("production media runtime stores", () => {
 			releasedAmount: reviewSeed.credits,
 		});
 		expect(reviewLedger).toMatchObject({ type: "SETTLE", amount: 0n });
+	});
+
+	it("preserves the provider candidate position when an earlier output is rejected", async () => {
+		const seeded = await seedFinalizingJob();
+		const job = await client.generationJob.findUniqueOrThrow({
+			where: { id: seeded.jobId },
+			include: { attempts: { where: { status: "SUCCEEDED" }, take: 1 } },
+		});
+		const attempt = job.attempts[0]!;
+		await client.generationAttempt.update({
+			where: { id: attempt.id },
+			data: {
+				responseSnapshot: {
+					outputs: [
+						{
+							kind: "remote-url",
+							url: "https://replicate.delivery/rejected.png",
+							trust: "untrusted-transfer-candidate",
+						},
+						{
+							kind: "remote-url",
+							url: "https://replicate.delivery/approved.png",
+							trust: "untrusted-transfer-candidate",
+						},
+					],
+				},
+			},
+		});
+
+		const checksum = "d".repeat(64);
+		const verificationValidUntil = new Date(Date.now() + 60_000);
+		const approvedAsset = await client.mediaAsset.create({
+			data: {
+				ownerType: job.ownerType,
+				ownerId: job.ownerId,
+				kind: "OUTPUT",
+				status: "VERIFYING",
+				objectKey: `users/${job.ownerId}/generated/${crypto.randomUUID()}.png`,
+				mimeType: "image/png",
+				byteSize: 16n,
+				checksum,
+				finalizedAt: new Date(),
+				verificationGeneration: 1,
+				verificationAttemptCount: 1,
+				verificationProvider: "test",
+				verificationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				verificationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				verificationValidUntil,
+			},
+		});
+		await client.assetModerationResult.create({
+			data: {
+				assetId: approvedAsset.id,
+				assetChecksum: checksum,
+				verificationGeneration: 1,
+				attemptNumber: 1,
+				evidenceKind: "OUTPUT",
+				provider: "test",
+				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				status: "APPROVED",
+				reasonCode: "TEST_ALLOW_POSITION",
+				categories: {},
+				rawEnvelope: { decision: "ALLOW" },
+				validUntil: verificationValidUntil,
+			},
+		});
+		await client.mediaAsset.update({
+			where: { id: approvedAsset.id },
+			data: { status: "READY" },
+		});
+
+		await finalizeMedia(
+			{ jobId: seeded.jobId, version: seeded.version },
+			{
+				store: createDatabaseFinalizationStore(client),
+				persistCandidate: async (_claim, candidate) => {
+					if (candidate.key.endsWith(":0")) {
+						throw new MediaValidationError(
+							"OUTPUT_MEDIA_TYPE_MISMATCH",
+							"The first provider output is invalid",
+						);
+					}
+					return { assetId: approvedAsset.id, approved: true };
+				},
+			},
+		);
+
+		await expect(
+			client.generationJobAsset.findUniqueOrThrow({
+				where: {
+					jobId_assetId_role: {
+						jobId: seeded.jobId,
+						assetId: approvedAsset.id,
+						role: "OUTPUT",
+					},
+				},
+			}),
+		).resolves.toMatchObject({ position: 1, assetChecksum: checksum });
 	});
 
 	it("waits for a bound output verification and charges only after approval", async () => {
