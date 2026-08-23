@@ -2,6 +2,13 @@ import { createHash } from "node:crypto";
 import * as https from "node:https";
 import type { Readable } from "node:stream";
 
+import type { MediaContentType } from "../types";
+import {
+	assertDetectedMediaType,
+	assertMediaKind,
+	MediaValidationError,
+	type MediaKind,
+} from "./media-signatures";
 import type { RemoteUrlPolicyOptions, ValidatedRemoteUrl } from "./remote-url-policy";
 import { assertAllowedRemoteUrl } from "./remote-url-policy";
 
@@ -41,7 +48,12 @@ export async function copyRemoteStreamToMultipart(
 		for await (const value of source) {
 			const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value);
 			bytes += chunk.byteLength;
-			if (bytes > target.maxBytes) throw new Error("Remote media byte limit exceeded");
+			if (bytes > target.maxBytes) {
+				throw new MediaValidationError(
+					"OUTPUT_MEDIA_SIZE_EXCEEDED",
+					"Remote media byte limit exceeded",
+				);
+			}
 			hash.update(chunk);
 			if (headerBytes < 64) {
 				const slice = chunk.subarray(0, 64 - headerBytes);
@@ -66,7 +78,12 @@ export async function copyRemoteStreamToMultipart(
 				});
 			}
 		}
-		if (bytes === 0) throw new Error("Remote media response was empty");
+		if (bytes === 0) {
+			throw new MediaValidationError(
+				"OUTPUT_MEDIA_SIZE_EXCEEDED",
+				"Remote media response was empty",
+			);
+		}
 		if (!isHeaderValidated) target.validateHeader?.(Buffer.concat(headerChunks));
 		if (pendingBytes > 0) {
 			const taken = takePendingBytes(pendingChunks, pendingIndex, pendingBytes, pendingBytes);
@@ -154,6 +171,24 @@ export interface RemoteMediaRequestOptions extends RemoteUrlPolicyOptions {
 	request?: (input: ValidatedRemoteUrl) => Promise<RemoteStreamResponse>;
 }
 
+/**
+ * Reads only the initial bounded prefix of a provider object. This gives the
+ * finalizer a detected media type for the immutable object key before it
+ * claims a transfer lease; the later full transfer validates the same type
+ * again to close the probe/transfer race.
+ */
+export async function inspectRemoteMedia(
+	initialUrl: string,
+	options: RemoteMediaRequestOptions & { expectedKind: MediaKind },
+): Promise<{ contentType: MediaContentType }> {
+	const response = await requestRemoteMediaStream(initialUrl, options);
+	try {
+		return { contentType: await detectMediaTypeFromStream(response.stream, options.expectedKind) };
+	} finally {
+		response.stream.destroy();
+	}
+}
+
 export async function requestRemoteMediaStream(
 	initialUrl: string,
 	options: RemoteMediaRequestOptions,
@@ -177,6 +212,37 @@ export async function requestRemoteMediaStream(
 		return { ...response, url: current };
 	}
 	throw new Error("Remote redirect limit exceeded");
+}
+
+async function detectMediaTypeFromStream(
+	stream: Readable,
+	expectedKind: MediaKind,
+): Promise<MediaContentType> {
+	const headerChunks: Buffer[] = [];
+	let headerBytes = 0;
+	for await (const value of stream) {
+		const chunk = Buffer.isBuffer(value) ? value : Buffer.from(value);
+		if (headerBytes < 64) {
+			const slice = chunk.subarray(0, 64 - headerBytes);
+			headerChunks.push(slice);
+			headerBytes += slice.byteLength;
+		}
+		try {
+			const contentType = assertDetectedMediaType(Buffer.concat(headerChunks));
+			assertMediaKind(contentType, expectedKind);
+			return contentType;
+		} catch (error) {
+			if (
+				headerBytes >= 64 ||
+				!(error instanceof MediaValidationError) ||
+				error.code !== "OUTPUT_MEDIA_TYPE_UNSUPPORTED"
+			)
+				throw error;
+		}
+	}
+	const contentType = assertDetectedMediaType(Buffer.concat(headerChunks));
+	assertMediaKind(contentType, expectedKind);
+	return contentType;
 }
 
 function requestPinnedHttps(

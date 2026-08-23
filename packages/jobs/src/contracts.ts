@@ -96,14 +96,31 @@ export interface FinalizationFailure {
 	retryable: boolean;
 }
 
+export const MAX_TRANSIENT_FINALIZATION_RETRIES = 5;
+
+export type FinalizationRetryResolution =
+	| { outcome: "RETRY_SCHEDULED"; retryCount: number }
+	| { outcome: "TERMINAL"; retryCount: number };
+
 export interface FinalizationStore {
 	claimFinalization(payload: JobPayload): Promise<FinalizationClaim | null>;
 	findPersistedCandidate(jobId: string, candidateKey: string): Promise<PersistedCandidate | null>;
 	recordFinalization(
 		claim: FinalizationClaim,
 		results: Array<PersistedCandidate & { candidateKey: string }>,
+		failure?: FinalizationFailure,
 	): Promise<void>;
-	recordFinalizationRetry(claim: FinalizationClaim, failure: FinalizationFailure): Promise<void>;
+	/**
+	 * A terminal resolution has already bound any usable results, persisted the
+	 * failure evidence, and queued settlement. Keeping `void` in the union lets
+	 * older stores remain source-compatible until their runtime implementation is
+	 * upgraded to the bounded policy.
+	 */
+	recordFinalizationRetry(
+		claim: FinalizationClaim,
+		failure: FinalizationFailure,
+		results: Array<PersistedCandidate & { candidateKey: string }>,
+	): Promise<FinalizationRetryResolution | void>;
 }
 
 export interface FinalizationDependencies {

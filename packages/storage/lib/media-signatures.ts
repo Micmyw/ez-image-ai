@@ -3,6 +3,33 @@ import type { MediaContentType } from "../types";
 export const IMAGE_MAX_BYTES = 25 * 1024 * 1024;
 export const VIDEO_MAX_BYTES = 500 * 1024 * 1024;
 
+export type MediaKind = "image" | "video";
+
+export type MediaValidationErrorCode =
+	| "OUTPUT_INLINE_BASE64_INVALID"
+	| "OUTPUT_MEDIA_KIND_MISMATCH"
+	| "OUTPUT_MEDIA_SIZE_EXCEEDED"
+	| "OUTPUT_MEDIA_TYPE_MISMATCH"
+	| "OUTPUT_MEDIA_TYPE_UNSUPPORTED";
+
+/**
+ * An untrusted provider result failed a deterministic content validation. The
+ * finalizer may safely settle this job; retrying the same candidate cannot
+ * make its bytes valid.
+ */
+export class MediaValidationError extends Error {
+	readonly stage = "TRANSFER" as const;
+	readonly retryable = false as const;
+
+	constructor(
+		readonly code: MediaValidationErrorCode,
+		message: string,
+	) {
+		super(message);
+		this.name = "MediaValidationError";
+	}
+}
+
 const ALLOWED_MEDIA_TYPES = new Set<MediaContentType>([
 	"image/jpeg",
 	"image/png",
@@ -32,8 +59,45 @@ export function detectMediaType(bytes: Uint8Array): MediaContentType | null {
 	return null;
 }
 
+export function mediaKindForType(contentType: MediaContentType): MediaKind {
+	return contentType.startsWith("image/") ? "image" : "video";
+}
+
+export function assertMediaKind(contentType: MediaContentType, expectedKind: MediaKind): void {
+	if (mediaKindForType(contentType) !== expectedKind) {
+		throw new MediaValidationError(
+			"OUTPUT_MEDIA_KIND_MISMATCH",
+			"Provider output media kind does not match the generation product",
+		);
+	}
+}
+
+export function assertDetectedMediaType(
+	header: Uint8Array,
+	expectedContentType?: MediaContentType,
+): MediaContentType {
+	const detected = detectMediaType(header);
+	if (!detected) {
+		throw new MediaValidationError(
+			"OUTPUT_MEDIA_TYPE_UNSUPPORTED",
+			"Provider output has an unsupported media signature",
+		);
+	}
+	if (expectedContentType && detected !== expectedContentType) {
+		throw new MediaValidationError(
+			"OUTPUT_MEDIA_TYPE_MISMATCH",
+			"Provider output signature does not match its declared media type",
+		);
+	}
+	return detected;
+}
+
 export function getMediaByteLimit(contentType: MediaContentType): number {
 	return contentType.startsWith("image/") ? IMAGE_MAX_BYTES : VIDEO_MAX_BYTES;
+}
+
+export function getMediaKindByteLimit(mediaKind: MediaKind): number {
+	return mediaKind === "image" ? IMAGE_MAX_BYTES : VIDEO_MAX_BYTES;
 }
 
 export function validateMediaUpload(
@@ -42,18 +106,61 @@ export function validateMediaUpload(
 	byteSize: number,
 ): asserts declaredType is MediaContentType {
 	if (!ALLOWED_MEDIA_TYPES.has(declaredType as MediaContentType)) {
-		throw new Error("Media content type is not allowed");
+		throw new MediaValidationError(
+			"OUTPUT_MEDIA_TYPE_UNSUPPORTED",
+			"Media content type is not allowed",
+		);
 	}
 	if (!Number.isSafeInteger(byteSize) || byteSize <= 0) {
-		throw new Error("Media byte size is invalid");
+		throw new MediaValidationError("OUTPUT_INLINE_BASE64_INVALID", "Media byte size is invalid");
 	}
 	const contentType = declaredType as MediaContentType;
 	if (byteSize > getMediaByteLimit(contentType)) {
-		throw new Error("Media byte limit exceeded");
+		throw new MediaValidationError("OUTPUT_MEDIA_SIZE_EXCEEDED", "Media byte limit exceeded");
 	}
-	if (detectMediaType(header) !== contentType) {
-		throw new Error("Media signature does not match its declared content type");
+	assertDetectedMediaType(header, contentType);
+}
+
+/**
+ * Decodes an inline provider result only after verifying its bytes. Provider
+ * MIME metadata is advisory: the detected signature determines the result.
+ */
+export function decodeInlineBase64MediaOutput(input: { mimeType: string; data: string }): {
+	contentType: MediaContentType;
+	body: Buffer;
+} {
+	if (!isStrictBase64(input.data)) {
+		throw new MediaValidationError(
+			"OUTPUT_INLINE_BASE64_INVALID",
+			"Inline provider output is not valid base64",
+		);
 	}
+	const body = Buffer.from(input.data, "base64");
+	if (body.byteLength === 0) {
+		throw new MediaValidationError(
+			"OUTPUT_INLINE_BASE64_INVALID",
+			"Inline provider output is empty",
+		);
+	}
+	const contentType = assertDetectedMediaType(
+		body.subarray(0, 64),
+		ALLOWED_MEDIA_TYPES.has(input.mimeType as MediaContentType)
+			? (input.mimeType as MediaContentType)
+			: undefined,
+	);
+	if (!ALLOWED_MEDIA_TYPES.has(input.mimeType as MediaContentType)) {
+		throw new MediaValidationError(
+			"OUTPUT_MEDIA_TYPE_MISMATCH",
+			"Provider output MIME metadata is not an allowed media type",
+		);
+	}
+	if (body.byteLength > getMediaByteLimit(contentType)) {
+		throw new MediaValidationError(
+			"OUTPUT_MEDIA_SIZE_EXCEEDED",
+			"Inline provider output exceeds the media byte limit",
+		);
+	}
+	return { contentType, body };
 }
 
 export function decodeInlineBase64Image(value: string): {
@@ -61,8 +168,20 @@ export function decodeInlineBase64Image(value: string): {
 	body: Buffer;
 } {
 	const match = /^data:(image\/(?:jpeg|png|webp));base64,([A-Za-z0-9+/]+={0,2})$/.exec(value);
-	if (!match) throw new Error("Inline provider output must be a supported base64 image");
-	const body = Buffer.from(match[2]!, "base64");
-	validateMediaUpload(match[1]!, body.subarray(0, 32), body.byteLength);
-	return { contentType: match[1] as Extract<MediaContentType, `image/${string}`>, body };
+	if (!match) {
+		throw new MediaValidationError(
+			"OUTPUT_INLINE_BASE64_INVALID",
+			"Inline provider output must be a supported base64 image",
+		);
+	}
+	const decoded = decodeInlineBase64MediaOutput({ mimeType: match[1]!, data: match[2]! });
+	assertMediaKind(decoded.contentType, "image");
+	return {
+		contentType: decoded.contentType as Extract<MediaContentType, `image/${string}`>,
+		body: decoded.body,
+	};
+}
+
+function isStrictBase64(value: string): boolean {
+	return /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(value);
 }

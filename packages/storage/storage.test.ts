@@ -4,6 +4,7 @@ import { Readable } from "node:stream";
 import { describe, expect, it, vi } from "vitest";
 
 import {
+	decodeInlineBase64MediaOutput,
 	decodeInlineBase64Image,
 	detectMediaType,
 	validateMediaUpload,
@@ -17,6 +18,7 @@ import { assertAllowedRemoteUrl } from "./lib/remote-url-policy";
 import {
 	copyRemoteRequestToMultipart,
 	copyRemoteStreamToMultipart,
+	inspectRemoteMedia,
 	requestRemoteMediaStream,
 } from "./lib/stream-copy";
 
@@ -72,6 +74,31 @@ describe("private media storage policy", () => {
 		const inlinePng = `data:image/png;base64,${FIXTURES.png.toString("base64")}`;
 		expect(decodeInlineBase64Image(inlinePng).contentType).toBe("image/png");
 		expect(() => decodeInlineBase64Image("data:video/mp4;base64,AAAA")).toThrow(/image/i);
+	});
+
+	it.each([
+		[FIXTURES.jpeg, "image/jpeg"],
+		[FIXTURES.png, "image/png"],
+		[FIXTURES.webp, "image/webp"],
+		[FIXTURES.mp4, "video/mp4"],
+		[FIXTURES.webm, "video/webm"],
+		[FIXTURES.mov, "video/quicktime"],
+	] as const)("derives inline output MIME from %s bytes", (body, mimeType) => {
+		expect(
+			decodeInlineBase64MediaOutput({ mimeType, data: body.toString("base64") }),
+		).toMatchObject({ contentType: mimeType, body });
+	});
+
+	it("rejects inline MIME metadata when it disagrees with detected bytes", () => {
+		try {
+			decodeInlineBase64MediaOutput({
+				mimeType: "image/png",
+				data: FIXTURES.jpeg.toString("base64"),
+			});
+			throw new Error("Expected inline MIME mismatch");
+		} catch (error) {
+			expect(error).toMatchObject({ code: "OUTPUT_MEDIA_TYPE_MISMATCH", retryable: false });
+		}
 	});
 });
 
@@ -168,6 +195,40 @@ describe("remote URL policy", () => {
 				maxRedirects: 2,
 			}),
 		).rejects.toThrow(/address/i);
+	});
+
+	it.each([
+		[FIXTURES.jpeg, "image", "image/jpeg"],
+		[FIXTURES.png, "image", "image/png"],
+		[FIXTURES.webp, "image", "image/webp"],
+		[FIXTURES.mp4, "video", "video/mp4"],
+		[FIXTURES.webm, "video", "video/webm"],
+		[FIXTURES.mov, "video", "video/quicktime"],
+	] as const)(
+		"probes remote %s bytes before choosing the final key",
+		async (body, expectedKind, type) => {
+			await expect(
+				inspectRemoteMedia("https://cdn.provider.test/output", {
+					allowedHosts: ["cdn.provider.test"],
+					expectedKind,
+					maxRedirects: 0,
+					resolve: async () => [{ address: "8.8.8.8", family: 4 }],
+					request: async () => ({ status: 200, headers: {}, stream: Readable.from([body]) }),
+				}),
+			).resolves.toEqual({ contentType: type });
+		},
+	);
+
+	it("treats an incompatible remote media kind as deterministic", async () => {
+		await expect(
+			inspectRemoteMedia("https://cdn.provider.test/output", {
+				allowedHosts: ["cdn.provider.test"],
+				expectedKind: "image",
+				maxRedirects: 0,
+				resolve: async () => [{ address: "8.8.8.8", family: 4 }],
+				request: async () => ({ status: 200, headers: {}, stream: Readable.from([FIXTURES.mp4]) }),
+			}),
+		).rejects.toMatchObject({ code: "OUTPUT_MEDIA_KIND_MISMATCH", retryable: false });
 	});
 });
 

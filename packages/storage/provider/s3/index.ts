@@ -18,7 +18,14 @@ import { getSignedUrl as getS3SignedUrl } from "@aws-sdk/s3-request-presigner";
 import { logger } from "@repo/logs";
 
 import { config } from "../../config";
-import { detectMediaType, getMediaByteLimit } from "../../lib/media-signatures";
+import {
+	assertDetectedMediaType,
+	assertMediaKind,
+	getMediaByteLimit,
+	getMediaKindByteLimit,
+	MediaValidationError,
+	type MediaKind,
+} from "../../lib/media-signatures";
 import type { RemoteMediaRequestOptions } from "../../lib/stream-copy";
 import {
 	copyRemoteRequestToMultipart,
@@ -253,10 +260,19 @@ export async function promoteStagedObject(input: {
 		!source.Body ||
 		typeof (source.Body as AsyncIterable<Uint8Array>)[Symbol.asyncIterator] !== "function"
 	) {
-		throw new Error("Staging object body was empty");
+		throw new MediaValidationError("OUTPUT_MEDIA_SIZE_EXCEEDED", "Staging object body was empty");
 	}
-	if (source.ContentLength !== input.contentLength || source.ContentType !== input.contentType) {
-		throw new Error("Staging object metadata does not match the upload session");
+	if (source.ContentLength !== input.contentLength) {
+		throw new MediaValidationError(
+			"OUTPUT_MEDIA_SIZE_EXCEEDED",
+			"Staging object size does not match the expected provider output",
+		);
+	}
+	if (source.ContentType !== input.contentType) {
+		throw new MediaValidationError(
+			"OUTPUT_MEDIA_TYPE_MISMATCH",
+			"Staging object metadata does not match the expected provider output",
+		);
 	}
 	let uploadId = input.promotion?.uploadId;
 	if (!uploadId) {
@@ -285,9 +301,7 @@ export async function promoteStagedObject(input: {
 			maxBytes: input.contentLength,
 			partSize: config.media.multipartPartSize,
 			validateHeader(header) {
-				if (detectMediaType(header) !== input.contentType) {
-					throw new Error("Staging object signature does not match the upload session");
-				}
+				assertDetectedMediaType(header, input.contentType);
 			},
 			uploadPart: ({ partNumber, body }) =>
 				uploadMultipartPart({ ...input.final, uploadId, partNumber, body }),
@@ -304,7 +318,10 @@ export async function promoteStagedObject(input: {
 		);
 	}
 	if (copied.bytes !== input.contentLength)
-		throw new Error("Staging object size does not match the upload session");
+		throw new MediaValidationError(
+			"OUTPUT_MEDIA_SIZE_EXCEEDED",
+			"Staging object size does not match the expected provider output",
+		);
 	return inspectStoredMediaObject(
 		input.final,
 		input.contentType,
@@ -376,17 +393,25 @@ async function inspectStoredMediaObject(
 		!result.Body ||
 		typeof (result.Body as AsyncIterable<Uint8Array>)[Symbol.asyncIterator] !== "function"
 	) {
-		throw new Error("Stored object body was empty");
+		throw new MediaValidationError("OUTPUT_MEDIA_SIZE_EXCEEDED", "Stored object body was empty");
 	}
 	const storedContentLength = result.ContentLength;
 	if (
 		!Number.isSafeInteger(storedContentLength) ||
 		!storedContentLength ||
 		storedContentLength > getMediaByteLimit(contentType) ||
-		(contentLength !== undefined && storedContentLength !== contentLength) ||
-		result.ContentType !== contentType
+		(contentLength !== undefined && storedContentLength !== contentLength)
 	) {
-		throw new Error("Stored object metadata does not match the upload session");
+		throw new MediaValidationError(
+			"OUTPUT_MEDIA_SIZE_EXCEEDED",
+			"Stored object size does not match the expected provider output",
+		);
+	}
+	if (result.ContentType !== contentType) {
+		throw new MediaValidationError(
+			"OUTPUT_MEDIA_TYPE_MISMATCH",
+			"Stored object MIME metadata does not match the expected provider output",
+		);
 	}
 	const hash = createHash("sha256");
 	const headerChunks: Buffer[] = [];
@@ -396,7 +421,10 @@ async function inspectStoredMediaObject(
 		const chunk = Buffer.from(value);
 		bytes += chunk.byteLength;
 		if (bytes > storedContentLength)
-			throw new Error("Stored object exceeds the upload session size");
+			throw new MediaValidationError(
+				"OUTPUT_MEDIA_SIZE_EXCEEDED",
+				"Stored object exceeds the expected provider output size",
+			);
 		hash.update(chunk);
 		if (headerBytes < 64) {
 			const slice = chunk.subarray(0, 64 - headerBytes);
@@ -404,15 +432,19 @@ async function inspectStoredMediaObject(
 			headerBytes += slice.byteLength;
 		}
 	}
-	if (
-		bytes !== storedContentLength ||
-		detectMediaType(Buffer.concat(headerChunks)) !== contentType
-	) {
-		throw new Error("Stored object does not match the upload session");
+	if (bytes !== storedContentLength) {
+		throw new MediaValidationError(
+			"OUTPUT_MEDIA_SIZE_EXCEEDED",
+			"Stored object does not match the expected provider output size",
+		);
 	}
+	assertDetectedMediaType(Buffer.concat(headerChunks), contentType);
 	const sha256 = hash.digest("hex");
 	if (expectedSha256 && sha256 !== expectedSha256)
-		throw new Error("Final object checksum mismatch");
+		throw new MediaValidationError(
+			"OUTPUT_MEDIA_TYPE_MISMATCH",
+			"Final object checksum does not match the expected provider output",
+		);
 	return { bytes, sha256, etag: result.ETag ?? null, versionId: result.VersionId ?? null };
 }
 
@@ -427,11 +459,9 @@ export async function putPrivateMediaObject(
 	},
 ): Promise<{ bytes: number; sha256: string }> {
 	if (input.body.byteLength > getMediaByteLimit(input.contentType)) {
-		throw new Error("Media byte limit exceeded");
+		throw new MediaValidationError("OUTPUT_MEDIA_SIZE_EXCEEDED", "Media byte limit exceeded");
 	}
-	if (detectMediaType(input.body.subarray(0, 64)) !== input.contentType) {
-		throw new Error("Media signature does not match the expected content type");
-	}
+	assertDetectedMediaType(input.body.subarray(0, 64), input.contentType);
 	const sha256 = createHash("sha256").update(input.body).digest("hex");
 	await getS3Client().send(
 		new PutObjectCommand({
@@ -483,6 +513,7 @@ export interface StreamRemoteObjectInput extends MediaObjectLocation {
 	sourceUrl: string;
 	allowedHosts: readonly string[];
 	expectedContentType: MediaContentType;
+	expectedMediaKind?: MediaKind;
 	maxBytes?: number;
 }
 
@@ -515,13 +546,14 @@ export async function streamRemoteObjectToStorage(
 		{
 			maxBytes: Math.min(
 				input.maxBytes ?? Number.MAX_SAFE_INTEGER,
-				getMediaByteLimit(input.expectedContentType),
+				input.expectedMediaKind
+					? getMediaKindByteLimit(input.expectedMediaKind)
+					: getMediaByteLimit(input.expectedContentType),
 			),
 			partSize: config.media.multipartPartSize,
 			validateHeader(header) {
-				if (detectMediaType(header) !== input.expectedContentType) {
-					throw new Error("Remote media signature does not match the expected content type");
-				}
+				const contentType = assertDetectedMediaType(header, input.expectedContentType);
+				if (input.expectedMediaKind) assertMediaKind(contentType, input.expectedMediaKind);
 			},
 			uploadPart: ({ partNumber, body }) =>
 				uploadMultipartPart({ ...input, uploadId, partNumber, body }),
