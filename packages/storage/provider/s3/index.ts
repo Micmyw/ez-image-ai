@@ -179,6 +179,16 @@ export async function promoteStagedObject(input: {
 	final: MediaObjectLocation;
 	contentType: MediaContentType;
 	contentLength: number;
+	/**
+	 * Allows a recovery caller that owns a deterministic final key to commit the
+	 * already-immutable final object's observed identity, even when a mutable
+	 * remote source produced different bytes during a later retry.
+	 */
+	acceptExistingFinalIdentity?: boolean;
+	promotion?: {
+		uploadId?: string;
+		onMultipartUploadCreated?: (input: { uploadId: string }) => Promise<void>;
+	};
 }): Promise<{ bytes: number; sha256: string; etag: string | null; versionId: string | null }> {
 	if (input.staging.key === input.final.key) throw new Error("Staging and final keys must differ");
 	const existing = await inspectExistingFinalObject(input);
@@ -217,7 +227,11 @@ export async function promoteStagedObject(input: {
 		});
 	} catch (error) {
 		if (!isConditionalWriteConflict(error)) throw error;
-		return inspectStoredMediaObject(input.final, input.contentType, input.contentLength);
+		return inspectStoredMediaObject(
+			input.final,
+			input.contentType,
+			input.acceptExistingFinalIdentity ? undefined : input.contentLength,
+		);
 	}
 	if (copied.bytes !== input.contentLength)
 		throw new Error("Staging object size does not match the upload session");
@@ -233,6 +247,7 @@ async function inspectExistingFinalObject(input: {
 	final: MediaObjectLocation;
 	contentType: MediaContentType;
 	contentLength: number;
+	acceptExistingFinalIdentity?: boolean;
 }): Promise<{
 	bytes: number;
 	sha256: string;
@@ -240,7 +255,11 @@ async function inspectExistingFinalObject(input: {
 	versionId: string | null;
 } | null> {
 	try {
-		return await inspectStoredMediaObject(input.final, input.contentType, input.contentLength);
+		return await inspectStoredMediaObject(
+			input.final,
+			input.contentType,
+			input.acceptExistingFinalIdentity ? undefined : input.contentLength,
+		);
 	} catch (error) {
 		if (isExplicitObjectNotFound(error)) return null;
 		throw error;
@@ -273,7 +292,7 @@ function isConditionalWriteConflict(error: unknown): boolean {
 async function inspectStoredMediaObject(
 	location: MediaObjectLocation,
 	contentType: MediaContentType,
-	contentLength: number,
+	contentLength: number | undefined,
 	expectedSha256?: string,
 ): Promise<{ bytes: number; sha256: string; etag: string | null; versionId: string | null }> {
 	const result = await getS3Client().send(new GetObjectCommand(mediaLocation(location)));
@@ -283,7 +302,14 @@ async function inspectStoredMediaObject(
 	) {
 		throw new Error("Stored object body was empty");
 	}
-	if (result.ContentLength !== contentLength || result.ContentType !== contentType) {
+	const storedContentLength = result.ContentLength;
+	if (
+		!Number.isSafeInteger(storedContentLength) ||
+		!storedContentLength ||
+		storedContentLength > getMediaByteLimit(contentType) ||
+		(contentLength !== undefined && storedContentLength !== contentLength) ||
+		result.ContentType !== contentType
+	) {
 		throw new Error("Stored object metadata does not match the upload session");
 	}
 	const hash = createHash("sha256");
@@ -293,7 +319,8 @@ async function inspectStoredMediaObject(
 	for await (const value of result.Body as AsyncIterable<Uint8Array>) {
 		const chunk = Buffer.from(value);
 		bytes += chunk.byteLength;
-		if (bytes > contentLength) throw new Error("Stored object exceeds the upload session size");
+		if (bytes > storedContentLength)
+			throw new Error("Stored object exceeds the upload session size");
 		hash.update(chunk);
 		if (headerBytes < 64) {
 			const slice = chunk.subarray(0, 64 - headerBytes);
@@ -301,7 +328,10 @@ async function inspectStoredMediaObject(
 			headerBytes += slice.byteLength;
 		}
 	}
-	if (bytes !== contentLength || detectMediaType(Buffer.concat(headerChunks)) !== contentType) {
+	if (
+		bytes !== storedContentLength ||
+		detectMediaType(Buffer.concat(headerChunks)) !== contentType
+	) {
 		throw new Error("Stored object does not match the upload session");
 	}
 	const sha256 = hash.digest("hex");

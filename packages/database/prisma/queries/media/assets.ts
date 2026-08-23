@@ -919,6 +919,478 @@ export async function abortMediaUploadSessionTransaction(
 	});
 }
 
+export interface CreateGenerationOutputAssetBindingInput {
+	jobId: string;
+	asset: {
+		id: string;
+		ownerId: string;
+		objectKey: string;
+		mimeType: string;
+		byteSize: bigint;
+		checksum: string;
+		sourceUrl: string;
+	};
+}
+
+/**
+ * Makes an output asset durable and ties it to its FINALIZING job in the same
+ * serializable transaction. The asset must never be visible as READY before
+ * the settlement path can find the OUTPUT binding.
+ */
+export async function createGenerationOutputAssetBindingTransaction(
+	input: CreateGenerationOutputAssetBindingInput,
+	client: MediaTransactionClient,
+) {
+	return runSerializable(client, async (tx) => {
+		await lockMediaAssetGenerationBindings([input.asset.id], tx);
+		const job = await tx.generationJob.findFirst({
+			where: {
+				id: input.jobId,
+				ownerType: "USER",
+				ownerId: input.asset.ownerId,
+				status: "FINALIZING",
+			},
+			select: { id: true },
+		});
+		if (!job) throw new Error("GENERATION_JOB_NOT_FINALIZING_FOR_OUTPUT");
+
+		let asset = await tx.mediaAsset.findUnique({ where: { id: input.asset.id } });
+		if (asset) {
+			const matchesCandidate =
+				asset.ownerType === "USER" &&
+				asset.ownerId === input.asset.ownerId &&
+				asset.kind === "OUTPUT" &&
+				asset.objectKey === input.asset.objectKey &&
+				asset.mimeType === input.asset.mimeType &&
+				asset.byteSize === input.asset.byteSize &&
+				asset.checksum === input.asset.checksum &&
+				asset.sourceUrl === input.asset.sourceUrl;
+			if (!matchesCandidate) throw new Error("GENERATION_OUTPUT_ASSET_CONFLICT");
+			if (asset.status === "DELETED" || asset.deletedAt) {
+				throw new Error("GENERATION_OUTPUT_ASSET_DELETED");
+			}
+		} else {
+			asset = await tx.mediaAsset.create({
+				data: {
+					id: input.asset.id,
+					ownerType: "USER",
+					ownerId: input.asset.ownerId,
+					kind: "OUTPUT",
+					status: "VERIFYING",
+					objectKey: input.asset.objectKey,
+					mimeType: input.asset.mimeType,
+					byteSize: input.asset.byteSize,
+					checksum: input.asset.checksum,
+					sourceUrl: input.asset.sourceUrl,
+				},
+			});
+		}
+
+		await tx.generationJobAsset.upsert({
+			where: {
+				jobId_assetId_role: {
+					jobId: job.id,
+					assetId: asset.id,
+					role: "OUTPUT",
+				},
+			},
+			create: { jobId: job.id, assetId: asset.id, role: "OUTPUT", position: 0 },
+			update: {},
+		});
+		return asset;
+	});
+}
+
+export interface ClaimGenerationOutputTransferInput {
+	jobId: string;
+	ownerId: string;
+	assetId: string;
+	objectKey: string;
+	mimeType: string;
+	sourceUrl: string;
+	createStagingObjectKey: (transferToken: string) => string;
+	now?: Date;
+	leaseDurationMs?: number;
+}
+
+type GenerationOutputTransferAsset = {
+	id: string;
+	status: string;
+	objectKey: string;
+	mimeType: string;
+	byteSize: bigint;
+	checksum: string | null;
+	storageEtag: string | null;
+	storageVersionId: string | null;
+	finalizedAt: Date | null;
+};
+
+export type GenerationOutputTransferClaim =
+	| { outcome: "COMPLETED"; asset: GenerationOutputTransferAsset }
+	| { outcome: "IN_PROGRESS"; asset: { id: string } }
+	| {
+			outcome: "CLAIMED";
+			asset: GenerationOutputTransferAsset;
+			transferToken: string;
+			stagingObjectKey: string;
+			promotionMultipartUploadId: string | null;
+	  };
+
+/**
+ * Serializes all writes for one deterministic output asset before any storage
+ * transfer begins. A claim owns an isolated staging key; final-object writes
+ * are still conditional in the storage provider and this token fences the
+ * database commit that follows promotion.
+ */
+export async function claimGenerationOutputTransferTransaction(
+	input: ClaimGenerationOutputTransferInput,
+	client: MediaTransactionClient,
+): Promise<GenerationOutputTransferClaim> {
+	return runSerializable(client, async (tx) => {
+		await lockMediaAssetGenerationBindings([input.assetId], tx);
+		const now = input.now ?? (await getDatabaseNow(tx));
+		const job = await tx.generationJob.findFirst({
+			where: {
+				id: input.jobId,
+				ownerType: "USER",
+				ownerId: input.ownerId,
+				status: "FINALIZING",
+			},
+			select: { id: true },
+		});
+		if (!job) throw new Error("GENERATION_JOB_NOT_FINALIZING_FOR_OUTPUT");
+
+		let asset = await tx.mediaAsset.findUnique({ where: { id: input.assetId } });
+		if (asset) {
+			assertGenerationOutputTransferAssetMatches(asset, input);
+			if (asset.status === "DELETED" || asset.deletedAt) {
+				throw new Error("GENERATION_OUTPUT_ASSET_DELETED");
+			}
+			if (asset.status === "READY" || asset.status === "QUARANTINED") {
+				await bindGenerationOutputAsset(job.id, asset.id, tx);
+				return { outcome: "COMPLETED", asset: outputTransferAsset(asset) };
+			}
+			if (asset.status !== "VERIFYING") {
+				throw new Error("GENERATION_OUTPUT_ASSET_NOT_VERIFYING");
+			}
+			if (asset.outputTransferToken) {
+				if (!asset.outputTransferLeaseExpiresAt || !asset.outputStagingObjectKey) {
+					throw new Error("GENERATION_OUTPUT_TRANSFER_STATE_INCOMPLETE");
+				}
+				if (asset.outputTransferLeaseExpiresAt > now) {
+					await bindGenerationOutputAsset(job.id, asset.id, tx);
+					return { outcome: "IN_PROGRESS", asset: { id: asset.id } };
+				}
+				await queueGenerationOutputStagingDeletion(
+					asset.id,
+					asset.outputStagingObjectKey,
+					asset.outputTransferToken,
+					tx,
+				);
+				if (asset.outputPromotionMultipartUploadId) {
+					await queueGenerationOutputPromotionAbort(
+						asset.id,
+						asset.objectKey,
+						asset.outputPromotionMultipartUploadId,
+						asset.outputTransferToken,
+						tx,
+					);
+				}
+			} else if (
+				asset.outputTransferLeaseExpiresAt ||
+				asset.outputStagingObjectKey ||
+				asset.outputPromotionMultipartUploadId
+			) {
+				throw new Error("GENERATION_OUTPUT_TRANSFER_STATE_INCOMPLETE");
+			} else if (asset.finalizedAt) {
+				await bindGenerationOutputAsset(job.id, asset.id, tx);
+				return { outcome: "COMPLETED", asset: outputTransferAsset(asset) };
+			}
+		}
+
+		const transferToken = randomUUID();
+		const stagingObjectKey = createGenerationOutputStagingObjectKey(input, transferToken);
+		const outputTransferLeaseExpiresAt = new Date(
+			now.getTime() + normalizeLeaseDuration(input.leaseDurationMs),
+		);
+		if (!asset) {
+			asset = await tx.mediaAsset.create({
+				data: {
+					id: input.assetId,
+					ownerType: "USER",
+					ownerId: input.ownerId,
+					kind: "OUTPUT",
+					status: "VERIFYING",
+					objectKey: input.objectKey,
+					mimeType: input.mimeType,
+					byteSize: 0n,
+					sourceUrl: input.sourceUrl,
+					outputTransferToken: transferToken,
+					outputTransferLeaseExpiresAt,
+					outputStagingObjectKey: stagingObjectKey,
+				},
+			});
+		} else {
+			const reclaimed = await tx.mediaAsset.updateMany({
+				where: {
+					id: asset.id,
+					status: "VERIFYING",
+					outputTransferToken: asset.outputTransferToken,
+				},
+				data: {
+					outputTransferToken: transferToken,
+					outputTransferLeaseExpiresAt,
+					outputStagingObjectKey: stagingObjectKey,
+					outputPromotionMultipartUploadId: null,
+				},
+			});
+			if (reclaimed.count !== 1) {
+				throw new Error("GENERATION_OUTPUT_TRANSFER_CHANGED_CONCURRENTLY");
+			}
+			asset = {
+				...asset,
+				outputTransferToken: transferToken,
+				outputTransferLeaseExpiresAt,
+				outputStagingObjectKey: stagingObjectKey,
+				outputPromotionMultipartUploadId: null,
+			};
+		}
+		await bindGenerationOutputAsset(job.id, asset.id, tx);
+		return {
+			outcome: "CLAIMED",
+			asset: outputTransferAsset(asset),
+			transferToken,
+			stagingObjectKey,
+			promotionMultipartUploadId: null,
+		};
+	});
+}
+
+export async function recordGenerationOutputPromotionMultipartTransaction(
+	input: {
+		assetId: string;
+		ownerId: string;
+		transferToken: string;
+		multipartUploadId: string;
+		now?: Date;
+	},
+	client: MediaTransactionClient,
+): Promise<{ multipartUploadId: string }> {
+	if (!input.multipartUploadId)
+		throw new Error("Generation output promotion multipart ID is required");
+	return runSerializable(client, async (tx) => {
+		await lockMediaAssetGenerationBindings([input.assetId], tx);
+		const asset = await tx.mediaAsset.findFirst({
+			where: { id: input.assetId, ownerType: "USER", ownerId: input.ownerId },
+		});
+		if (!asset) throw new Error("Generation output asset not found for owner");
+		const now = input.now ?? (await getDatabaseNow(tx));
+		if (
+			asset.status !== "VERIFYING" ||
+			asset.outputTransferToken !== input.transferToken ||
+			!asset.outputTransferLeaseExpiresAt ||
+			asset.outputTransferLeaseExpiresAt <= now
+		) {
+			throw new Error("GENERATION_OUTPUT_TRANSFER_NOT_OWNED");
+		}
+		if (asset.outputPromotionMultipartUploadId) {
+			if (asset.outputPromotionMultipartUploadId === input.multipartUploadId) {
+				return { multipartUploadId: asset.outputPromotionMultipartUploadId };
+			}
+			throw new Error("GENERATION_OUTPUT_PROMOTION_MULTIPART_ALREADY_RECORDED");
+		}
+		const recorded = await tx.mediaAsset.updateMany({
+			where: {
+				id: asset.id,
+				status: "VERIFYING",
+				outputTransferToken: input.transferToken,
+				outputTransferLeaseExpiresAt: { gt: now },
+				outputPromotionMultipartUploadId: null,
+			},
+			data: { outputPromotionMultipartUploadId: input.multipartUploadId },
+		});
+		if (recorded.count !== 1) throw new Error("GENERATION_OUTPUT_TRANSFER_CHANGED_CONCURRENTLY");
+		return { multipartUploadId: input.multipartUploadId };
+	});
+}
+
+export async function completeGenerationOutputTransferTransaction(
+	input: {
+		assetId: string;
+		ownerId: string;
+		transferToken: string;
+		bytes: bigint;
+		checksum: string;
+		storageEtag: string | null;
+		storageVersionId: string | null;
+		now?: Date;
+	},
+	client: MediaTransactionClient,
+): Promise<{ outcome: "COMPLETED" | "STALE"; asset: GenerationOutputTransferAsset }> {
+	if (input.bytes <= 0n || !input.checksum) {
+		throw new Error("Generation output transfer identity is invalid");
+	}
+	return runSerializable(client, async (tx) => {
+		await lockMediaAssetGenerationBindings([input.assetId], tx);
+		const asset = await tx.mediaAsset.findFirst({
+			where: { id: input.assetId, ownerType: "USER", ownerId: input.ownerId },
+		});
+		if (!asset) throw new Error("Generation output asset not found for owner");
+		const now = input.now ?? (await getDatabaseNow(tx));
+		if (
+			asset.status !== "VERIFYING" ||
+			asset.outputTransferToken !== input.transferToken ||
+			!asset.outputTransferLeaseExpiresAt ||
+			asset.outputTransferLeaseExpiresAt <= now ||
+			!asset.outputStagingObjectKey
+		) {
+			return { outcome: "STALE", asset: outputTransferAsset(asset) };
+		}
+		const stagingObjectKey = asset.outputStagingObjectKey;
+		const completed = await tx.mediaAsset.updateMany({
+			where: {
+				id: asset.id,
+				status: "VERIFYING",
+				outputTransferToken: input.transferToken,
+				outputTransferLeaseExpiresAt: { gt: now },
+			},
+			data: {
+				byteSize: input.bytes,
+				checksum: input.checksum,
+				storageEtag: input.storageEtag,
+				storageVersionId: input.storageVersionId,
+				finalizedAt: now,
+				outputTransferToken: null,
+				outputTransferLeaseExpiresAt: null,
+				outputStagingObjectKey: null,
+				outputPromotionMultipartUploadId: null,
+			},
+		});
+		if (completed.count !== 1) {
+			return { outcome: "STALE", asset: outputTransferAsset(asset) };
+		}
+		await queueGenerationOutputStagingDeletion(asset.id, stagingObjectKey, input.transferToken, tx);
+		return {
+			outcome: "COMPLETED",
+			asset: {
+				...outputTransferAsset(asset),
+				byteSize: input.bytes,
+				checksum: input.checksum,
+				storageEtag: input.storageEtag,
+				storageVersionId: input.storageVersionId,
+				finalizedAt: now,
+			},
+		};
+	});
+}
+
+function assertGenerationOutputTransferAssetMatches(
+	asset: {
+		ownerType: string;
+		ownerId: string;
+		kind: string;
+		objectKey: string;
+		mimeType: string;
+		sourceUrl: string | null;
+	},
+	input: ClaimGenerationOutputTransferInput,
+): void {
+	const matches =
+		asset.ownerType === "USER" &&
+		asset.ownerId === input.ownerId &&
+		asset.kind === "OUTPUT" &&
+		asset.objectKey === input.objectKey &&
+		asset.mimeType === input.mimeType &&
+		asset.sourceUrl === input.sourceUrl;
+	if (!matches) throw new Error("GENERATION_OUTPUT_ASSET_CONFLICT");
+}
+
+function createGenerationOutputStagingObjectKey(
+	input: ClaimGenerationOutputTransferInput,
+	transferToken: string,
+): string {
+	const stagingObjectKey = input.createStagingObjectKey(transferToken);
+	if (!stagingObjectKey || stagingObjectKey === input.objectKey) {
+		throw new Error("Generation output staging key must differ from final asset key");
+	}
+	return stagingObjectKey;
+}
+
+function outputTransferAsset(asset: {
+	id: string;
+	status: string;
+	objectKey: string;
+	mimeType: string;
+	byteSize: bigint;
+	checksum: string | null;
+	storageEtag: string | null;
+	storageVersionId: string | null;
+	finalizedAt: Date | null;
+}): GenerationOutputTransferAsset {
+	return {
+		id: asset.id,
+		status: asset.status,
+		objectKey: asset.objectKey,
+		mimeType: asset.mimeType,
+		byteSize: asset.byteSize,
+		checksum: asset.checksum,
+		storageEtag: asset.storageEtag,
+		storageVersionId: asset.storageVersionId,
+		finalizedAt: asset.finalizedAt,
+	};
+}
+
+async function bindGenerationOutputAsset(
+	jobId: string,
+	assetId: string,
+	tx: Prisma.TransactionClient,
+): Promise<void> {
+	await tx.generationJobAsset.upsert({
+		where: { jobId_assetId_role: { jobId, assetId, role: "OUTPUT" } },
+		create: { jobId, assetId, role: "OUTPUT", position: 0 },
+		update: {},
+	});
+}
+
+async function queueGenerationOutputStagingDeletion(
+	assetId: string,
+	stagingObjectKey: string,
+	transferToken: string,
+	tx: Prisma.TransactionClient,
+): Promise<void> {
+	await tx.outboxEvent.upsert({
+		where: { dedupeKey: `generation-output-staging-delete:${assetId}:${transferToken}` },
+		create: {
+			eventType: "MEDIA_OBJECT_DELETE",
+			aggregateType: "MEDIA_ASSET",
+			aggregateId: assetId,
+			dedupeKey: `generation-output-staging-delete:${assetId}:${transferToken}`,
+			payload: { assetId, objectKey: stagingObjectKey },
+		},
+		update: {},
+	});
+}
+
+async function queueGenerationOutputPromotionAbort(
+	assetId: string,
+	objectKey: string,
+	multipartUploadId: string,
+	transferToken: string,
+	tx: Prisma.TransactionClient,
+): Promise<void> {
+	await tx.outboxEvent.upsert({
+		where: { dedupeKey: `generation-output-promotion-abort:${assetId}:${transferToken}` },
+		create: {
+			eventType: "MEDIA_UPLOAD_CLEANUP",
+			aggregateType: "MEDIA_ASSET",
+			aggregateId: assetId,
+			dedupeKey: `generation-output-promotion-abort:${assetId}:${transferToken}`,
+			payload: { assetId, objectKey, multipartUploadId, promotionAbortOnly: true },
+		},
+		update: {},
+	});
+}
+
 export async function markMediaAssetDeletedTransaction(
 	input: { assetId: string; ownerId: string; now?: Date },
 	client: MediaTransactionClient,
@@ -934,6 +1406,14 @@ export async function markMediaAssetDeletedTransaction(
 			},
 		});
 		if (!existing) throw new Error("Media asset not found for owner");
+		const liveBinding = await tx.generationJobAsset.findFirst({
+			where: {
+				assetId: existing.id,
+				job: { status: { in: [...LIVE_GENERATION_JOB_STATUSES] } },
+			},
+			select: { jobId: true },
+		});
+		if (liveBinding) throw new Error("MEDIA_ASSET_BOUND_TO_ACTIVE_GENERATION_JOB");
 		const now = input.now ?? new Date();
 		const asset = await tx.mediaAsset.update({
 			where: { id: existing.id },

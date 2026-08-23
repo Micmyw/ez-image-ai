@@ -6,6 +6,9 @@ import {
 	completeOutboxEvent,
 	createCreditGrant,
 	createGenerationJobTransaction,
+	createGenerationOutputAssetBindingTransaction,
+	claimGenerationOutputTransferTransaction,
+	completeGenerationOutputTransferTransaction,
 	createModeratedGenerationQuoteTransaction,
 	expireCreditLots,
 	fingerprintGenerationQuoteSecurityPayload,
@@ -17,6 +20,8 @@ import {
 	ingestProviderEvent,
 	listCreditReservationAllocations,
 	listMediaAssets,
+	markMediaAssetDeletedTransaction,
+	recordGenerationOutputPromotionMultipartTransaction,
 	refundCreditGrant,
 	releaseOutboxEvent,
 	releaseCredits,
@@ -1645,6 +1650,450 @@ describe("media PostgreSQL transactions", () => {
 		expect(firstPage).toHaveLength(2);
 		expect(secondPage).toHaveLength(1);
 		expect(new Set([...firstPage, ...secondPage].map((asset) => asset.id)).size).toBe(3);
+	});
+
+	it("refuses to delete a READY asset bound to a nonterminal generation job", async () => {
+		const fixture = await createReadyInputAssetFixture(client);
+		await fixture.createJob();
+
+		await expect(
+			markMediaAssetDeletedTransaction(
+				{ assetId: fixture.asset.id, ownerId: fixture.ownerId },
+				client,
+			),
+		).rejects.toThrow("MEDIA_ASSET_BOUND_TO_ACTIVE_GENERATION_JOB");
+		expect(
+			await client.mediaAsset.findUniqueOrThrow({ where: { id: fixture.asset.id } }),
+		).toMatchObject({ status: "READY", deletedAt: null });
+	});
+
+	it("refuses to delete a READY output while finalizing settlement can consume it", async () => {
+		const fixture = await createReadyInputAssetFixture(client);
+		const created = await fixture.createJob();
+		await client.generationJob.update({
+			where: { id: created.job.id },
+			data: { status: "FINALIZING" },
+		});
+		const output = await client.mediaAsset.create({
+			data: {
+				ownerType: "USER",
+				ownerId: fixture.ownerId,
+				kind: "OUTPUT",
+				status: "READY",
+				objectKey: `users/${fixture.ownerId}/assets/${crypto.randomUUID()}/output.png`,
+				mimeType: "image/png",
+				byteSize: 10n,
+			},
+		});
+		await client.generationJobAsset.create({
+			data: { jobId: created.job.id, assetId: output.id, role: "OUTPUT", position: 0 },
+		});
+
+		await expect(
+			markMediaAssetDeletedTransaction({ assetId: output.id, ownerId: fixture.ownerId }, client),
+		).rejects.toThrow("MEDIA_ASSET_BOUND_TO_ACTIVE_GENERATION_JOB");
+		expect(await client.mediaAsset.findUniqueOrThrow({ where: { id: output.id } })).toMatchObject({
+			status: "READY",
+			deletedAt: null,
+		});
+	});
+
+	it("binds a VERIFYING output to its FINALIZING job before it can become READY", async () => {
+		const fixture = await createReadyInputAssetFixture(client);
+		const created = await fixture.createJob();
+		await client.generationJob.update({
+			where: { id: created.job.id },
+			data: { status: "FINALIZING" },
+		});
+		const assetId = `bound-output-${crypto.randomUUID()}`;
+		const output = await createGenerationOutputAssetBindingTransaction(
+			{
+				jobId: created.job.id,
+				asset: {
+					id: assetId,
+					ownerId: fixture.ownerId,
+					objectKey: `users/${fixture.ownerId}/assets/${assetId}/output.png`,
+					mimeType: "image/png",
+					byteSize: 10n,
+					checksum: `sha256-${assetId}`,
+					sourceUrl: `provider-output:${assetId}`,
+				},
+			},
+			client,
+		);
+
+		expect(output).toMatchObject({ id: assetId, status: "VERIFYING" });
+		expect(
+			await client.generationJobAsset.findUnique({
+				where: {
+					jobId_assetId_role: { jobId: created.job.id, assetId, role: "OUTPUT" },
+				},
+			}),
+		).toMatchObject({ jobId: created.job.id, assetId, role: "OUTPUT" });
+	});
+
+	it("claims one output transfer and fences duplicate writers before storage work", async () => {
+		const fixture = await createReadyInputAssetFixture(client);
+		const created = await fixture.createJob();
+		await client.generationJob.update({
+			where: { id: created.job.id },
+			data: { status: "FINALIZING" },
+		});
+		const assetId = `asset_output_transfer_${crypto.randomUUID().replaceAll("-", "")}`;
+		const input = {
+			jobId: created.job.id,
+			ownerId: fixture.ownerId,
+			assetId,
+			objectKey: `users/${fixture.ownerId}/assets/${assetId}/original.png`,
+			mimeType: "image/png",
+			sourceUrl: `provider-output:${assetId}`,
+			createStagingObjectKey: (token: string) =>
+				`users/${fixture.ownerId}/staging/${assetId}/${token}.png`,
+		};
+
+		const first = await claimGenerationOutputTransferTransaction(input, client);
+		expect(first).toMatchObject({
+			outcome: "CLAIMED",
+			asset: { id: assetId, status: "VERIFYING" },
+		});
+		if (first.outcome !== "CLAIMED") throw new Error("Expected initial output transfer claim");
+
+		await expect(claimGenerationOutputTransferTransaction(input, client)).resolves.toMatchObject({
+			outcome: "IN_PROGRESS",
+			asset: { id: assetId },
+		});
+		expect(
+			await client.generationJobAsset.findUnique({
+				where: {
+					jobId_assetId_role: { jobId: created.job.id, assetId, role: "OUTPUT" },
+				},
+			}),
+		).toMatchObject({ jobId: created.job.id, assetId, role: "OUTPUT" });
+		expect(await client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } })).toMatchObject({
+			outputTransferToken: first.transferToken,
+			outputStagingObjectKey: first.stagingObjectKey,
+		});
+	});
+
+	it("reclaims an expired output transfer and queues only stale staging and exact promotion abort", async () => {
+		const fixture = await createReadyInputAssetFixture(client);
+		const created = await fixture.createJob();
+		await client.generationJob.update({
+			where: { id: created.job.id },
+			data: { status: "FINALIZING" },
+		});
+		const assetId = `asset_output_reclaim_${crypto.randomUUID().replaceAll("-", "")}`;
+		const initialNow = new Date("2026-08-24T00:00:00.000Z");
+		const input = {
+			jobId: created.job.id,
+			ownerId: fixture.ownerId,
+			assetId,
+			objectKey: `users/${fixture.ownerId}/assets/${assetId}/original.png`,
+			mimeType: "image/png",
+			sourceUrl: `provider-output:${assetId}`,
+			createStagingObjectKey: (token: string) =>
+				`users/${fixture.ownerId}/staging/${assetId}/${token}.png`,
+		};
+		const first = await claimGenerationOutputTransferTransaction(
+			{ ...input, now: initialNow, leaseDurationMs: 1_000 },
+			client,
+		);
+		if (first.outcome !== "CLAIMED") throw new Error("Expected initial output transfer claim");
+		await recordGenerationOutputPromotionMultipartTransaction(
+			{
+				assetId,
+				ownerId: fixture.ownerId,
+				transferToken: first.transferToken,
+				multipartUploadId: `promotion-${assetId}`,
+				now: new Date("2026-08-24T00:00:00.500Z"),
+			},
+			client,
+		);
+
+		const reclaimed = await claimGenerationOutputTransferTransaction(
+			{ ...input, now: new Date("2026-08-24T00:00:02.000Z"), leaseDurationMs: 1_000 },
+			client,
+		);
+		expect(reclaimed).toMatchObject({ outcome: "CLAIMED", asset: { id: assetId } });
+		if (reclaimed.outcome !== "CLAIMED")
+			throw new Error("Expected expired output transfer reclaim");
+		expect(reclaimed.transferToken).not.toBe(first.transferToken);
+		expect(reclaimed.stagingObjectKey).not.toBe(first.stagingObjectKey);
+		await expect(
+			client.outboxEvent.findMany({
+				where: { aggregateId: assetId },
+				orderBy: { dedupeKey: "asc" },
+			}),
+		).resolves.toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					eventType: "MEDIA_OBJECT_DELETE",
+					dedupeKey: `generation-output-staging-delete:${assetId}:${first.transferToken}`,
+					payload: expect.objectContaining({ objectKey: first.stagingObjectKey }),
+				}),
+				expect.objectContaining({
+					eventType: "MEDIA_UPLOAD_CLEANUP",
+					dedupeKey: `generation-output-promotion-abort:${assetId}:${first.transferToken}`,
+					payload: expect.objectContaining({
+						objectKey: input.objectKey,
+						multipartUploadId: `promotion-${assetId}`,
+						promotionAbortOnly: true,
+					}),
+				}),
+			]),
+		);
+	});
+
+	it("commits only the current output transfer identity and queues staging deletion", async () => {
+		const fixture = await createReadyInputAssetFixture(client);
+		const created = await fixture.createJob();
+		await client.generationJob.update({
+			where: { id: created.job.id },
+			data: { status: "FINALIZING" },
+		});
+		const assetId = `asset_output_complete_${crypto.randomUUID().replaceAll("-", "")}`;
+		const input = {
+			jobId: created.job.id,
+			ownerId: fixture.ownerId,
+			assetId,
+			objectKey: `users/${fixture.ownerId}/assets/${assetId}/original.png`,
+			mimeType: "image/png",
+			sourceUrl: `provider-output:${assetId}`,
+			createStagingObjectKey: (token: string) =>
+				`users/${fixture.ownerId}/staging/${assetId}/${token}.png`,
+		};
+		const claimed = await claimGenerationOutputTransferTransaction(input, client);
+		if (claimed.outcome !== "CLAIMED") throw new Error("Expected initial output transfer claim");
+
+		await expect(
+			completeGenerationOutputTransferTransaction(
+				{
+					assetId,
+					ownerId: fixture.ownerId,
+					transferToken: "stale-transfer-token",
+					bytes: 123n,
+					checksum: "a".repeat(64),
+					storageEtag: '"final-etag"',
+					storageVersionId: "final-version",
+				},
+				client,
+			),
+		).resolves.toMatchObject({ outcome: "STALE" });
+		await expect(
+			completeGenerationOutputTransferTransaction(
+				{
+					assetId,
+					ownerId: fixture.ownerId,
+					transferToken: claimed.transferToken,
+					bytes: 123n,
+					checksum: "b".repeat(64),
+					storageEtag: '"final-etag"',
+					storageVersionId: "final-version",
+				},
+				client,
+			),
+		).resolves.toMatchObject({
+			outcome: "COMPLETED",
+			asset: { id: assetId, checksum: "b".repeat(64) },
+		});
+		expect(await client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } })).toMatchObject({
+			status: "VERIFYING",
+			byteSize: 123n,
+			checksum: "b".repeat(64),
+			storageEtag: '"final-etag"',
+			storageVersionId: "final-version",
+			outputTransferToken: null,
+			outputTransferLeaseExpiresAt: null,
+			outputStagingObjectKey: null,
+			outputPromotionMultipartUploadId: null,
+			finalizedAt: expect.any(Date),
+		});
+		await expect(
+			client.outboxEvent.findUnique({
+				where: {
+					dedupeKey: `generation-output-staging-delete:${assetId}:${claimed.transferToken}`,
+				},
+			}),
+		).resolves.toMatchObject({
+			eventType: "MEDIA_OBJECT_DELETE",
+			payload: expect.objectContaining({ objectKey: claimed.stagingObjectKey }),
+		});
+	});
+
+	it("permits deletion of a READY output after its bound job is terminal", async () => {
+		const fixture = await createReadyInputAssetFixture(client);
+		const created = await fixture.createJob();
+		await client.generationJob.update({
+			where: { id: created.job.id },
+			data: { status: "FINALIZING" },
+		});
+		const assetId = `terminal-output-${crypto.randomUUID()}`;
+		await createGenerationOutputAssetBindingTransaction(
+			{
+				jobId: created.job.id,
+				asset: {
+					id: assetId,
+					ownerId: fixture.ownerId,
+					objectKey: `users/${fixture.ownerId}/assets/${assetId}/output.png`,
+					mimeType: "image/png",
+					byteSize: 10n,
+					checksum: `sha256-${assetId}`,
+					sourceUrl: `provider-output:${assetId}`,
+				},
+			},
+			client,
+		);
+		await client.mediaAsset.update({ where: { id: assetId }, data: { status: "READY" } });
+		await client.generationJob.update({
+			where: { id: created.job.id },
+			data: { status: "SUCCEEDED" },
+		});
+
+		await expect(
+			markMediaAssetDeletedTransaction({ assetId, ownerId: fixture.ownerId }, client),
+		).resolves.toMatchObject({ id: assetId, status: "DELETED" });
+	});
+
+	it("permits deletion after every input binding belongs to a terminal generation job", async () => {
+		const fixture = await createReadyInputAssetFixture(client);
+		const created = await fixture.createJob();
+		const transitioned = await transitionGenerationJob(
+			{
+				jobId: created.job.id,
+				expectedStatuses: ["RESERVED"],
+				expectedVersion: created.job.version,
+				nextStatus: "CANCELED",
+			},
+			client,
+		);
+		expect(transitioned.applied).toBe(true);
+
+		await expect(
+			markMediaAssetDeletedTransaction(
+				{ assetId: fixture.asset.id, ownerId: fixture.ownerId },
+				client,
+			),
+		).resolves.toMatchObject({ id: fixture.asset.id, status: "DELETED" });
+	});
+
+	it("serializes input binding creation against asset deletion so both cannot succeed", async () => {
+		const fixture = await createReadyInputAssetFixture(client);
+		const lockClassId = 241_871;
+		const lockObjectId = Math.floor(Math.random() * 1_000_000) + 1;
+		const barrierName = `test_hold_media_asset_binding_${crypto.randomUUID().replaceAll("-", "")}`;
+		await client.$executeRawUnsafe(`
+			CREATE OR REPLACE FUNCTION "${barrierName}"() RETURNS trigger AS $$
+			BEGIN
+				IF NEW."assetId" = '${fixture.asset.id}' THEN
+					PERFORM pg_advisory_xact_lock(${lockClassId}, ${lockObjectId});
+					PERFORM pg_sleep(1);
+				END IF;
+				RETURN NEW;
+			END;
+			$$ LANGUAGE plpgsql;
+			CREATE TRIGGER "${barrierName}"
+			BEFORE INSERT ON "generation_job_asset"
+			FOR EACH ROW EXECUTE FUNCTION "${barrierName}"();
+		`);
+		try {
+			const creating = fixture.createJob();
+			expect(await waitForAdvisoryLock(client, lockClassId, lockObjectId)).toBe(true);
+			const deleting = markMediaAssetDeletedTransaction(
+				{ assetId: fixture.asset.id, ownerId: fixture.ownerId },
+				client,
+			);
+			const [created, deleted] = await Promise.allSettled([creating, deleting]);
+
+			expect(created.status).toBe("fulfilled");
+			expect(deleted.status).toBe("rejected");
+			if (deleted.status === "rejected") {
+				expect(deleted.reason).toMatchObject({
+					message: "MEDIA_ASSET_BOUND_TO_ACTIVE_GENERATION_JOB",
+				});
+			}
+		} finally {
+			await client.$executeRawUnsafe(`
+				DROP TRIGGER IF EXISTS "${barrierName}" ON "generation_job_asset";
+				DROP FUNCTION IF EXISTS "${barrierName}"();
+			`);
+		}
+	});
+
+	it("serializes finalizing output binding against deletion", async () => {
+		const fixture = await createReadyInputAssetFixture(client);
+		const created = await fixture.createJob();
+		await client.generationJob.update({
+			where: { id: created.job.id },
+			data: { status: "FINALIZING" },
+		});
+		const assetId = `racing-output-${crypto.randomUUID()}`;
+		const output = await client.mediaAsset.create({
+			data: {
+				id: assetId,
+				ownerType: "USER",
+				ownerId: fixture.ownerId,
+				kind: "OUTPUT",
+				status: "READY",
+				objectKey: `users/${fixture.ownerId}/assets/${assetId}/output.png`,
+				mimeType: "image/png",
+				byteSize: 10n,
+				checksum: `sha256-${assetId}`,
+				sourceUrl: `provider-output:${assetId}`,
+			},
+		});
+		const lockClassId = 241_872;
+		const lockObjectId = Math.floor(Math.random() * 1_000_000) + 1;
+		const barrierName = `test_hold_output_asset_binding_${crypto.randomUUID().replaceAll("-", "")}`;
+		await client.$executeRawUnsafe(`
+			CREATE OR REPLACE FUNCTION "${barrierName}"() RETURNS trigger AS $$
+			BEGIN
+				IF NEW."assetId" = '${assetId}' THEN
+					PERFORM pg_advisory_xact_lock(${lockClassId}, ${lockObjectId});
+					PERFORM pg_sleep(1);
+				END IF;
+				RETURN NEW;
+			END;
+			$$ LANGUAGE plpgsql;
+			CREATE TRIGGER "${barrierName}"
+			BEFORE INSERT ON "generation_job_asset"
+			FOR EACH ROW EXECUTE FUNCTION "${barrierName}"();
+		`);
+		try {
+			const binding = createGenerationOutputAssetBindingTransaction(
+				{
+					jobId: created.job.id,
+					asset: {
+						id: output.id,
+						ownerId: fixture.ownerId,
+						objectKey: output.objectKey,
+						mimeType: output.mimeType,
+						byteSize: output.byteSize,
+						checksum: output.checksum!,
+						sourceUrl: output.sourceUrl!,
+					},
+				},
+				client,
+			);
+			expect(await waitForAdvisoryLock(client, lockClassId, lockObjectId)).toBe(true);
+			const deleting = markMediaAssetDeletedTransaction(
+				{ assetId: output.id, ownerId: fixture.ownerId },
+				client,
+			);
+			const [bound, deleted] = await Promise.allSettled([binding, deleting]);
+
+			expect(bound.status).toBe("fulfilled");
+			expect(deleted.status).toBe("rejected");
+			if (deleted.status === "rejected") {
+				expect(deleted.reason).toMatchObject({
+					message: "MEDIA_ASSET_BOUND_TO_ACTIVE_GENERATION_JOB",
+				});
+			}
+		} finally {
+			await client.$executeRawUnsafe(`
+				DROP TRIGGER IF EXISTS "${barrierName}" ON "generation_job_asset";
+				DROP FUNCTION IF EXISTS "${barrierName}"();
+			`);
+		}
 	});
 
 	it("atomically persists one stable cleanup event when an upload is aborted", async () => {

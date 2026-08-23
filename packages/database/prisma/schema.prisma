@@ -460,6 +460,10 @@ model MediaAsset {
   storageEtag                     String?
   storageVersionId                String?
   finalizedAt                     DateTime?               @db.Timestamptz(3)
+  outputTransferToken             String?                 @unique
+  outputTransferLeaseExpiresAt    DateTime?               @db.Timestamptz(3)
+  outputStagingObjectKey          String?                 @unique
+  outputPromotionMultipartUploadId String?
   sourceUrl                       String?
   verificationGeneration          Int                     @default(0)
   verificationAttemptCount        Int                     @default(0)
@@ -489,6 +493,8 @@ model MediaAsset {
   @@index([status, verificationNextAttemptAt, verificationLeasedUntil], map: "media_asset_verification_recovery_idx")
   @@index([status, verificationDeadlineAt, verificationLeasedUntil], map: "media_asset_video_verification_recovery_idx")
   @@index([status, verificationValidUntil], map: "media_asset_ready_expiry_idx")
+  @@index([outputTransferLeaseExpiresAt])
+  @@index([outputPromotionMultipartUploadId])
   @@map("media_asset")
 }
 

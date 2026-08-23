@@ -90,7 +90,7 @@ export type GenerationAttemptScalarFieldEnum = z.infer<typeof GenerationAttemptS
 
 // File: MediaAssetScalarFieldEnum.schema.ts
 
-export const MediaAssetScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'kind', 'status', 'objectKey', 'mimeType', 'byteSize', 'width', 'height', 'durationMillis', 'checksum', 'storageEtag', 'storageVersionId', 'finalizedAt', 'sourceUrl', 'verificationGeneration', 'verificationAttemptCount', 'verificationProvider', 'verificationRuleVersion', 'verificationPolicyVersion', 'verificationProviderTaskId', 'verificationLeaseToken', 'verificationLeasedUntil', 'verificationNextAttemptAt', 'verificationDeadlineAt', 'verificationExhaustedAt', 'verificationValidUntil', 'verificationSubmissionToken', 'verificationSubmissionUncertain', 'verificationSubmittedAt', 'verificationLastErrorCode', 'createdAt', 'updatedAt', 'deletedAt'])
+export const MediaAssetScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'kind', 'status', 'objectKey', 'mimeType', 'byteSize', 'width', 'height', 'durationMillis', 'checksum', 'storageEtag', 'storageVersionId', 'finalizedAt', 'outputTransferToken', 'outputTransferLeaseExpiresAt', 'outputStagingObjectKey', 'outputPromotionMultipartUploadId', 'sourceUrl', 'verificationGeneration', 'verificationAttemptCount', 'verificationProvider', 'verificationRuleVersion', 'verificationPolicyVersion', 'verificationProviderTaskId', 'verificationLeaseToken', 'verificationLeasedUntil', 'verificationNextAttemptAt', 'verificationDeadlineAt', 'verificationExhaustedAt', 'verificationValidUntil', 'verificationSubmissionToken', 'verificationSubmissionUncertain', 'verificationSubmittedAt', 'verificationLastErrorCode', 'createdAt', 'updatedAt', 'deletedAt'])
 
 export type MediaAssetScalarFieldEnum = z.infer<typeof MediaAssetScalarFieldEnumSchema>;
 
@@ -666,6 +666,10 @@ export const MediaAssetSchema = z.object({
   storageEtag: z.string().nullish(),
   storageVersionId: z.string().nullish(),
   finalizedAt: z.date().nullish(),
+  outputTransferToken: z.string().nullish(),
+  outputTransferLeaseExpiresAt: z.date().nullish(),
+  outputStagingObjectKey: z.string().nullish(),
+  outputPromotionMultipartUploadId: z.string().nullish(),
   sourceUrl: z.string().nullish(),
   verificationGeneration: z.number().int(),
   verificationAttemptCount: z.number().int(),
@@ -1112,4 +1116,3 @@ export const UserNotificationPreferenceSchema = z.object({
 });
 
 export type UserNotificationPreferenceType = z.infer<typeof UserNotificationPreferenceSchema>;
-

@@ -1,4 +1,5 @@
 export * from "./assets";
+export * from "./asset-binding-locks";
 export * from "./admin-diagnostics";
 export * from "./admin-operations";
 export * from "./attempts";
