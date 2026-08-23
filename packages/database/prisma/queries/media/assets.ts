@@ -5,6 +5,7 @@ import {
 	LIVE_GENERATION_JOB_STATUSES,
 	lockMediaAssetGenerationBindings,
 } from "./asset-binding-locks";
+import { lockOwnerStorageUsage } from "./storage-usage-locks";
 import type { CursorPageInput, MediaDatabaseClient, MediaTransactionClient } from "./types";
 import { getMediaDatabaseClient, isDatabaseUniqueConflict, runSerializable } from "./types";
 
@@ -271,7 +272,7 @@ export async function createMediaUploadSessionTransaction(
 		throw new Error("Staging upload key must differ from final asset key");
 	}
 	return runSerializable(client, async (tx) => {
-		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`media-upload:${input.ownerId}`}))`;
+		await lockOwnerStorageUsage(input, tx);
 		const [activeSessions, reserved] = await Promise.all([
 			tx.mediaUploadSession.count({
 				where: {
@@ -1543,6 +1544,7 @@ export async function completeGenerationOutputTransferTransaction(
 		throw new Error("Generation output transfer identity is invalid");
 	}
 	return runSerializable(client, async (tx) => {
+		await lockOwnerStorageUsage({ ownerType: "USER", ownerId: input.ownerId }, tx);
 		await lockMediaAssetGenerationBindings([input.assetId], tx);
 		const asset = await tx.mediaAsset.findFirst({
 			where: { id: input.assetId, ownerType: "USER", ownerId: input.ownerId },
@@ -1581,6 +1583,23 @@ export async function completeGenerationOutputTransferTransaction(
 		if (completed.count !== 1) {
 			return { outcome: "STALE", asset: outputTransferAsset(asset) };
 		}
+		await tx.storageUsageReservation.upsert({
+			where: { referenceKey: `generation-output:${asset.id}` },
+			create: {
+				ownerType: asset.ownerType,
+				ownerId: asset.ownerId,
+				bytes: input.bytes,
+				status: "COMMITTED",
+				referenceKey: `generation-output:${asset.id}`,
+				expiresAt: now,
+			},
+			update: {
+				bytes: input.bytes,
+				status: "COMMITTED",
+				expiresAt: now,
+				releasedAt: null,
+			},
+		});
 		await tx.generationJobAsset.updateMany({
 			where: { assetId: asset.id, role: "OUTPUT" },
 			data: { assetChecksum: input.checksum },
@@ -1761,7 +1780,9 @@ export async function markMediaAssetDeletedTransaction(
 					deleteBy: new Date(now.getTime() + 24 * 60 * 60 * 1_000).toISOString(),
 					...(uploadSession
 						? { uploadSessionId: uploadSession.id, reservationStatus: "RELEASED" }
-						: {}),
+						: existing.kind === "OUTPUT"
+							? { storageReservationReferenceKey: `generation-output:${existing.id}` }
+							: {}),
 				},
 			},
 		});

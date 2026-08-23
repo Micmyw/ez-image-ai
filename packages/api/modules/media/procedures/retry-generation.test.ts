@@ -23,6 +23,7 @@ vi.mock("@repo/jobs", () => ({ resolveDatabaseDispatchRoute: vi.fn() }));
 vi.mock("@repo/logs", () => ({ logger: { warn: vi.fn() } }));
 vi.mock("@trigger.dev/sdk", () => ({ tasks: { trigger: vi.fn() } }));
 
+import { maximumMediaStorageBytes } from "../lib/storage-limits";
 import { retryGenerationForUser, type RetryGenerationDependencies } from "./retry-generation";
 
 const source = {
@@ -204,6 +205,7 @@ describe("retryGenerationForUser", () => {
 		expect(deps.createJob).toHaveBeenCalledWith(
 			expect.objectContaining({
 				expectedInputAssets: [{ assetId: "asset-1", assetChecksum: "1".repeat(64) }],
+				maximumStorageBytes: maximumMediaStorageBytes(),
 			}),
 		);
 		expect(deps.completeRequest).toHaveBeenCalledWith(

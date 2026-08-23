@@ -454,6 +454,45 @@ describe("media PostgreSQL transactions", () => {
 		).toBe(60n);
 	});
 
+	it("blocks later generation admission at the durable storage cap but preserves idempotent replay", async () => {
+		const fixture = await createBudgetFixture(client, [0n, 0n]);
+		await client.storageUsageReservation.create({
+			data: {
+				ownerType: "USER",
+				ownerId: fixture.ownerId,
+				bytes: 100n,
+				status: "COMMITTED",
+				referenceKey: `generation-output:at-cap-${crypto.randomUUID()}`,
+				expiresAt: new Date(),
+			},
+		});
+		const initialInput = {
+			ownerType: "USER" as const,
+			ownerId: fixture.ownerId,
+			submittedByUserId: fixture.ownerId,
+			quoteId: fixture.quotes[0]!.id,
+			idempotencyKey: `storage-cap-replay-${crypto.randomUUID()}`,
+			inputAssetIds: [],
+			expectedModerationRuleVersion: TEST_MODERATION_RULE_VERSION,
+			maximumStorageBytes: 101n,
+		};
+		const created = await createGenerationJobTransaction(initialInput, client);
+		await expect(
+			createGenerationJobTransaction({ ...initialInput, maximumStorageBytes: 100n }, client),
+		).resolves.toMatchObject({ job: { id: created.job.id }, replayed: true });
+		await expect(
+			createGenerationJobTransaction(
+				{
+					...initialInput,
+					quoteId: fixture.quotes[1]!.id,
+					idempotencyKey: `storage-cap-rejected-${crypto.randomUUID()}`,
+					maximumStorageBytes: 100n,
+				},
+				client,
+			),
+		).rejects.toThrow("STORAGE_QUOTA_EXCEEDED");
+	});
+
 	it("settles a reservation only once", async () => {
 		const reservation = await client.creditReservation.findFirstOrThrow({
 			where: { status: "ACTIVE" },
@@ -2024,6 +2063,11 @@ describe("media PostgreSQL transactions", () => {
 			),
 		).resolves.toMatchObject({ outcome: "STALE" });
 		await expect(
+			client.storageUsageReservation.findUnique({
+				where: { referenceKey: `generation-output:${assetId}` },
+			}),
+		).resolves.toBeNull();
+		await expect(
 			completeGenerationOutputTransferTransaction(
 				{
 					assetId,
@@ -2060,6 +2104,17 @@ describe("media PostgreSQL transactions", () => {
 			}),
 		).resolves.toMatchObject({ assetChecksum: "b".repeat(64) });
 		await expect(
+			client.storageUsageReservation.findUnique({
+				where: { referenceKey: `generation-output:${assetId}` },
+			}),
+		).resolves.toMatchObject({
+			ownerType: "USER",
+			ownerId: fixture.ownerId,
+			bytes: 123n,
+			status: "COMMITTED",
+			releasedAt: null,
+		});
+		await expect(
 			client.outboxEvent.findUnique({
 				where: {
 					dedupeKey: `generation-output-staging-delete:${assetId}:${claimed.transferToken}`,
@@ -2069,6 +2124,101 @@ describe("media PostgreSQL transactions", () => {
 			eventType: "MEDIA_OBJECT_DELETE",
 			payload: expect.objectContaining({ objectKey: claimed.stagingObjectKey }),
 		});
+	});
+
+	it("serializes output accounting before a later storage-quota generation admission", async () => {
+		const fixture = await createReadyInputAssetFixture(client);
+		const created = await fixture.createJob();
+		await client.generationJob.update({
+			where: { id: created.job.id },
+			data: { status: "FINALIZING" },
+		});
+		const assetId = `asset_output_storage_race_${crypto.randomUUID().replaceAll("-", "")}`;
+		const claim = await claimGenerationOutputTransferTransaction(
+			{
+				jobId: created.job.id,
+				ownerId: fixture.ownerId,
+				assetId,
+				objectKey: `users/${fixture.ownerId}/assets/${assetId}/original.png`,
+				mimeType: "image/png",
+				sourceUrl: `provider-output:${assetId}`,
+				createStagingObjectKey: (token) =>
+					`users/${fixture.ownerId}/staging/${assetId}/${token}.png`,
+			},
+			client,
+		);
+		if (claim.outcome !== "CLAIMED") throw new Error("Expected initial output transfer claim");
+		const quote = await createApprovedQuote(client, {
+			ownerType: "USER",
+			ownerId: fixture.ownerId,
+			submittedByUserId: fixture.ownerId,
+			productKey: "image-fast",
+			catalogVersion: "test-v1",
+			pricingVersion: "test-v1",
+			credits: 4n,
+			costMicros: 0n,
+			inputSnapshot: { kind: "text-to-image", prompt: "storage admission race" },
+			pricingSnapshot: {},
+			expiresAt: new Date(Date.now() + 60_000),
+		});
+		const lockClassId = 241_872;
+		const lockObjectId = Math.floor(Math.random() * 1_000_000) + 1;
+		const barrierName = `test_hold_output_storage_${crypto.randomUUID().replaceAll("-", "")}`;
+		await client.$executeRawUnsafe(`
+			CREATE OR REPLACE FUNCTION "${barrierName}"() RETURNS trigger AS $$
+			BEGIN
+				IF NEW."id" = '${assetId}'
+					AND OLD."outputTransferToken" IS NOT NULL
+					AND NEW."outputTransferToken" IS NULL THEN
+					PERFORM pg_advisory_xact_lock(${lockClassId}, ${lockObjectId});
+					PERFORM pg_sleep(0.5);
+				END IF;
+				RETURN NEW;
+			END;
+			$$ LANGUAGE plpgsql;
+			CREATE TRIGGER "${barrierName}"
+			BEFORE UPDATE ON "media_asset"
+			FOR EACH ROW EXECUTE FUNCTION "${barrierName}"();
+		`);
+		try {
+			const completing = completeGenerationOutputTransferTransaction(
+				{
+					assetId,
+					ownerId: fixture.ownerId,
+					transferToken: claim.transferToken,
+					bytes: 123n,
+					checksum: "c".repeat(64),
+					storageEtag: '"final-etag"',
+					storageVersionId: "final-version",
+				},
+				client,
+			);
+			expect(await waitForAdvisoryLock(client, lockClassId, lockObjectId)).toBe(true);
+			const admitting = createGenerationJobTransaction(
+				{
+					ownerType: "USER",
+					ownerId: fixture.ownerId,
+					submittedByUserId: fixture.ownerId,
+					quoteId: quote.id,
+					idempotencyKey: `storage-admission-race-${crypto.randomUUID()}`,
+					inputAssetIds: [],
+					expectedModerationRuleVersion: TEST_MODERATION_RULE_VERSION,
+					maximumStorageBytes: 123n,
+				},
+				client,
+			);
+			const [completed, admitted] = await Promise.allSettled([completing, admitting]);
+			expect(completed.status).toBe("fulfilled");
+			expect(admitted).toMatchObject({
+				status: "rejected",
+				reason: { message: "STORAGE_QUOTA_EXCEEDED" },
+			});
+		} finally {
+			await client.$executeRawUnsafe(`
+				DROP TRIGGER IF EXISTS "${barrierName}" ON "media_asset";
+				DROP FUNCTION IF EXISTS "${barrierName}"();
+			`);
+		}
 	});
 
 	it("permits deletion of a READY output after its bound job is terminal", async () => {
@@ -2107,6 +2257,13 @@ describe("media PostgreSQL transactions", () => {
 		await expect(
 			markMediaAssetDeletedTransaction({ assetId, ownerId: fixture.ownerId }, client),
 		).resolves.toMatchObject({ id: assetId, status: "DELETED" });
+		await expect(
+			client.outboxEvent.findUnique({ where: { dedupeKey: `media-object-delete:${assetId}` } }),
+		).resolves.toMatchObject({
+			payload: expect.objectContaining({
+				storageReservationReferenceKey: `generation-output:${assetId}`,
+			}),
+		});
 	});
 
 	it("permits deletion after every input binding belongs to a terminal generation job", async () => {

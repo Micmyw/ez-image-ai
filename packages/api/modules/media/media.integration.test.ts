@@ -43,4 +43,10 @@ describe("media browser contract", () => {
 	] as const)("preserves the safe retry error code %s", (code) => {
 		expect(stableMediaErrorCode(new Error(code))).toBe(code);
 	});
+
+	it("maps storage quota admission to a stable public error", () => {
+		expect(stableMediaErrorCode(new Error("STORAGE_QUOTA_EXCEEDED"))).toBe(
+			"STORAGE_QUOTA_EXCEEDED",
+		);
+	});
 });

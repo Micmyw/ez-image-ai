@@ -10,6 +10,7 @@ import { protectedProcedure } from "../../../orpc/procedures";
 import { dispatchCreatedJobBestEffort } from "../lib/dispatch-created-job";
 import { toMediaOrpcError } from "../lib/errors";
 import { assertGenerationAllowed } from "../lib/generation-authorization";
+import { maximumMediaStorageBytes } from "../lib/storage-limits";
 import { TEXT_MODERATION_RULE_VERSION } from "../lib/text-moderation";
 import { createGenerationInputSchema, jsonBigInt } from "../types";
 
@@ -52,6 +53,7 @@ export const createGeneration = protectedProcedure
 					expectedAssetModerationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 					expectedAssetModerationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 					maximumDailyCostMicros: BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros),
+					maximumStorageBytes: maximumMediaStorageBytes(),
 				},
 				db,
 			);

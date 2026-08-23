@@ -12,6 +12,8 @@ const BASE_SNAPSHOT: GenerationAccessSnapshot = {
 	spendableCredits: 100n,
 	creditDebt: 0n,
 	dailyCostMicros: 0n,
+	storageUsageBytes: 0n,
+	maximumStorageBytes: 2n * 1024n * 1024n * 1024n,
 	planId: "studio",
 	sourceAssetReady: true,
 };
@@ -26,6 +28,11 @@ describe("generation authorization", () => {
 		["kill switch", { generationEnabled: false }, "MODEL_DISABLED"],
 		["disabled model", { modelEnabled: false }, "MODEL_DISABLED"],
 		["daily budget", { dailyCostMicros: 25_000_000n }, "BUDGET_EXCEEDED"],
+		[
+			"storage quota",
+			{ storageUsageBytes: 100n, maximumStorageBytes: 100n },
+			"STORAGE_QUOTA_EXCEEDED",
+		],
 		["plan entitlement", { planId: "free" }, "ENTITLEMENT_REQUIRED"],
 		["source asset", { sourceAssetReady: false }, "ASSET_NOT_READY"],
 		["credits", { spendableCredits: 1n }, "INSUFFICIENT_CREDITS"],

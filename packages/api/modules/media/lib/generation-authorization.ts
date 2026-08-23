@@ -8,6 +8,7 @@ import {
 import { db } from "@repo/database/client";
 
 import { enforceMediaRateLimit } from "./rate-limit";
+import { maximumMediaStorageBytes } from "./storage-limits";
 
 export interface GenerationAccessSnapshot {
 	generationEnabled: boolean;
@@ -15,6 +16,8 @@ export interface GenerationAccessSnapshot {
 	spendableCredits: bigint;
 	creditDebt: bigint;
 	dailyCostMicros: bigint;
+	storageUsageBytes: bigint;
+	maximumStorageBytes: bigint;
 	planId: PlanId;
 	sourceAssetReady: boolean;
 }
@@ -42,55 +45,71 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 		const startOfDay = new Date();
 		startOfDay.setUTCHours(0, 0, 0, 0);
 		const sourceAssetId = "sourceAssetId" in input.input ? input.input.sourceAssetId : undefined;
-		const [blocked, modelDisabled, account, spendableLots, dailyCost, subscription, sourceAsset] =
-			await Promise.all([
-				db.runtimeConfigOverride.findFirst({
-					where: { active: true, configKey: "media.generation.enabled", value: { equals: false } },
-				}),
-				db.runtimeConfigOverride.findFirst({
-					where: {
-						active: true,
-						configKey: `media.model.${input.productKey}.enabled`,
-						value: { equals: false },
-					},
-				}),
-				db.creditAccount.findUnique({
-					where: { ownerType_ownerId: { ownerType: "USER", ownerId: input.userId } },
-				}),
-				db.creditLot.aggregate({
-					where: {
-						account: { ownerType: "USER", ownerId: input.userId },
-						remainingAmount: { gt: 0n },
-						OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-					},
-					_sum: { remainingAmount: true },
-				}),
-				db.generationQuote.aggregate({
-					where: {
-						ownerType: "USER",
-						ownerId: input.userId,
-						job: { isNot: null },
-						createdAt: { gte: startOfDay },
-					},
-					_sum: { costMicros: true },
-				}),
-				db.subscription.findFirst({
-					where: { ownerType: "USER", ownerId: input.userId, status: "ACTIVE" },
-					include: { plan: true },
-					orderBy: { updatedAt: "desc" },
-				}),
-				sourceAssetId
-					? db.mediaAsset.findFirst({
-							where: {
-								id: sourceAssetId,
-								ownerType: "USER",
-								ownerId: input.userId,
-								status: "READY",
-								deletedAt: null,
-							},
-						})
-					: Promise.resolve({ id: "not-required" }),
-			]);
+		const [
+			blocked,
+			modelDisabled,
+			account,
+			spendableLots,
+			dailyCost,
+			storageUsage,
+			subscription,
+			sourceAsset,
+		] = await Promise.all([
+			db.runtimeConfigOverride.findFirst({
+				where: { active: true, configKey: "media.generation.enabled", value: { equals: false } },
+			}),
+			db.runtimeConfigOverride.findFirst({
+				where: {
+					active: true,
+					configKey: `media.model.${input.productKey}.enabled`,
+					value: { equals: false },
+				},
+			}),
+			db.creditAccount.findUnique({
+				where: { ownerType_ownerId: { ownerType: "USER", ownerId: input.userId } },
+			}),
+			db.creditLot.aggregate({
+				where: {
+					account: { ownerType: "USER", ownerId: input.userId },
+					remainingAmount: { gt: 0n },
+					OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+				},
+				_sum: { remainingAmount: true },
+			}),
+			db.generationQuote.aggregate({
+				where: {
+					ownerType: "USER",
+					ownerId: input.userId,
+					job: { isNot: null },
+					createdAt: { gte: startOfDay },
+				},
+				_sum: { costMicros: true },
+			}),
+			db.storageUsageReservation.aggregate({
+				where: {
+					ownerType: "USER",
+					ownerId: input.userId,
+					status: { in: ["ACTIVE", "COMMITTED"] },
+				},
+				_sum: { bytes: true },
+			}),
+			db.subscription.findFirst({
+				where: { ownerType: "USER", ownerId: input.userId, status: "ACTIVE" },
+				include: { plan: true },
+				orderBy: { updatedAt: "desc" },
+			}),
+			sourceAssetId
+				? db.mediaAsset.findFirst({
+						where: {
+							id: sourceAssetId,
+							ownerType: "USER",
+							ownerId: input.userId,
+							status: "READY",
+							deletedAt: null,
+						},
+					})
+				: Promise.resolve({ id: "not-required" }),
+		]);
 		const planId = resolvePlanId(subscription?.plan.metadata, subscription?.plan.name) ?? "free";
 		return {
 			generationEnabled: !blocked,
@@ -98,6 +117,8 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 			spendableCredits: spendableLots._sum.remainingAmount ?? 0n,
 			creditDebt: account?.creditDebt ?? 0n,
 			dailyCostMicros: dailyCost._sum.costMicros ?? 0n,
+			storageUsageBytes: storageUsage._sum.bytes ?? 0n,
+			maximumStorageBytes: maximumMediaStorageBytes(),
 			planId,
 			sourceAssetReady: Boolean(sourceAsset),
 		};
@@ -130,6 +151,9 @@ export async function assertGenerationAllowed(
 	if (!access.sourceAssetReady) throw new Error("ASSET_NOT_READY");
 	if (access.creditDebt > 0n) throw new Error("CREDIT_DEBT_OUTSTANDING");
 	if (access.spendableCredits < input.credits) throw new Error("INSUFFICIENT_CREDITS");
+	if (access.storageUsageBytes >= access.maximumStorageBytes) {
+		throw new Error("STORAGE_QUOTA_EXCEEDED");
+	}
 	if (
 		input.costMicros > BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumJobCostMicros) ||
 		((input.enforceProspectiveDailyBudget ?? true) &&

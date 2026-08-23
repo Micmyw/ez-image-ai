@@ -14,5 +14,6 @@ export * from "./outbox";
 export * from "./quotes";
 export * from "./retry-requests";
 export * from "./state-machine";
+export * from "./storage-usage-locks";
 export * from "./types";
 export * from "./webhooks";

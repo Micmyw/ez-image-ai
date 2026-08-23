@@ -3,6 +3,7 @@ import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { reserveCreditsInTransaction } from "./credits";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
 import { canTransition, type GenerationJobStatusValue } from "./state-machine";
+import { lockOwnerStorageUsage } from "./storage-usage-locks";
 import type {
 	CreateGenerationJobInput,
 	CreateGenerationJobResult,
@@ -85,9 +86,6 @@ export async function createGenerationJobTransaction(
 
 	try {
 		return await runSerializable(client, async (tx) => {
-			if (input.maximumDailyCostMicros !== undefined) {
-				await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${input.ownerType}:${input.ownerId}:media-daily-budget`}, 0))`;
-			}
 			const quote = await tx.generationQuote.findUnique({ where: { id: input.quoteId } });
 			if (
 				!quote ||
@@ -108,6 +106,26 @@ export async function createGenerationJobTransaction(
 			}
 			const replay = await findExistingJob(input, tx);
 			if (replay) return replay;
+			if (input.maximumStorageBytes !== undefined) {
+				if (input.maximumStorageBytes <= 0n) {
+					throw new Error("Generation storage quota must be positive");
+				}
+				await lockOwnerStorageUsage(input, tx);
+				const usage = await tx.storageUsageReservation.aggregate({
+					where: {
+						ownerType: input.ownerType,
+						ownerId: input.ownerId,
+						status: { in: ["ACTIVE", "COMMITTED"] },
+					},
+					_sum: { bytes: true },
+				});
+				if ((usage._sum.bytes ?? 0n) >= input.maximumStorageBytes) {
+					throw new Error("STORAGE_QUOTA_EXCEEDED");
+				}
+			}
+			if (input.maximumDailyCostMicros !== undefined) {
+				await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${input.ownerType}:${input.ownerId}:media-daily-budget`}, 0))`;
+			}
 			if (input.maximumDailyCostMicros !== undefined) {
 				const committed = await getCommittedDailyGenerationCost(
 					{ ownerType: input.ownerType, ownerId: input.ownerId },

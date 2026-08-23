@@ -30,6 +30,7 @@ import { dispatchCreatedJobBestEffort } from "../lib/dispatch-created-job";
 import { stableMediaErrorCode, toMediaOrpcError } from "../lib/errors";
 import { assertGenerationAllowed } from "../lib/generation-authorization";
 import { buildMediaQuote } from "../lib/quote";
+import { maximumMediaStorageBytes } from "../lib/storage-limits";
 import {
 	createTextModerationAdapter,
 	moderateQuoteInput,
@@ -258,6 +259,7 @@ export async function retryGenerationForUser(
 			expectedAssetModerationRuleVersion: operation.assetModerationRuleVersion,
 			expectedAssetModerationPolicyVersion: operation.assetModerationPolicyVersion,
 			maximumDailyCostMicros: BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros),
+			maximumStorageBytes: maximumMediaStorageBytes(),
 		});
 		jobCreated = true;
 		await dependencies.completeRequest({

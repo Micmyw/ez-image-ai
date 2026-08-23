@@ -12,10 +12,8 @@ import { z } from "zod";
 
 import { protectedProcedure } from "../../../orpc/procedures";
 import { enforceMediaRateLimit } from "../lib/rate-limit";
+import { mediaUploadLimits } from "../lib/storage-limits";
 import { parseUploadRequest } from "../lib/upload-validation";
-
-const DEFAULT_MAXIMUM_ACTIVE_UPLOAD_SESSIONS = 5;
-const DEFAULT_MAXIMUM_STORAGE_BYTES = 2 * 1024 * 1024 * 1024;
 
 export const createUploadSession = protectedProcedure
 	.route({
@@ -70,7 +68,7 @@ export const createUploadSession = protectedProcedure
 					tokenHash,
 					expiresAt,
 					multipartUploadId: multipart?.uploadId ?? null,
-					limits: uploadLimits(process.env),
+					limits: mediaUploadLimits(process.env),
 				},
 				db,
 			);
@@ -101,20 +99,3 @@ export const createUploadSession = protectedProcedure
 					uploadUrl: signedUploadUrl!,
 				};
 	});
-
-function uploadLimits(environment: NodeJS.ProcessEnv) {
-	return {
-		maximumActiveSessions: positiveInteger(
-			environment.MEDIA_MAX_ACTIVE_UPLOAD_SESSIONS,
-			DEFAULT_MAXIMUM_ACTIVE_UPLOAD_SESSIONS,
-		),
-		maximumReservedBytes: BigInt(
-			positiveInteger(environment.MEDIA_MAX_STORAGE_BYTES, DEFAULT_MAXIMUM_STORAGE_BYTES),
-		),
-	};
-}
-
-function positiveInteger(value: string | undefined, fallback: number): number {
-	const parsed = Number(value);
-	return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
-}

@@ -17,6 +17,8 @@ import { createDatabaseDispatchStore, dispatchGeneration } from "@repo/jobs";
 import type { Context } from "hono";
 import { z } from "zod";
 
+import { maximumMediaStorageBytes } from "../media/lib/storage-limits";
+
 const LOAD_BODY_LIMIT_BYTES = 4 * 1024;
 const DEFAULT_RATE_LIMIT_PER_MINUTE = 600;
 const DEFAULT_CONCURRENCY_LIMIT = 64;
@@ -275,6 +277,7 @@ export async function executeMediaLoadRequest(
 			inputAssetIds: [],
 			expectedModerationRuleVersion: LOAD_TEST_MODERATION_RULE_VERSION,
 			maximumDailyCostMicros: BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros),
+			maximumStorageBytes: maximumMediaStorageBytes(),
 		},
 		db,
 	);
