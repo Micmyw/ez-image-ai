@@ -13,6 +13,7 @@ import {
 	MediaValidationError,
 	promoteStagedObject,
 	putPrivateMediaObject,
+	RemoteMediaPolicyError,
 	streamRemoteObjectToStorage,
 } from "@repo/storage";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -214,6 +215,128 @@ describe("generation output transfer runtime", () => {
 			outputTransferLeaseExpiresAt: null,
 			outputStagingObjectKey: null,
 			outputPromotionMultipartUploadId: null,
+		});
+	});
+
+	it("terminalizes a deterministic remote URL policy rejection without promotion", async () => {
+		const seeded = await seedFinalizingJob([
+			{
+				kind: "remote-url",
+				url: "https://untrusted.example/output.png",
+				trust: "untrusted-transfer-candidate",
+			},
+		]);
+		const claim = await createDatabaseFinalizationStore(client).claimFinalization({
+			jobId: seeded.jobId,
+			version: seeded.version,
+		});
+		if (!claim) throw new Error("Expected finalization claim");
+		const policyError = new RemoteMediaPolicyError(
+			"OUTPUT_REMOTE_URL_HOST_NOT_ALLOWED",
+			"Remote URL host is not allowed",
+		);
+		const stream = vi.fn(async (_input: Parameters<typeof streamRemoteObjectToStorage>[0]) => {
+			throw policyError;
+		});
+		const promote = vi.fn(async (_input: Parameters<typeof promoteStagedObject>[0]) =>
+			Promise.reject(new Error("promotion must not run")),
+		);
+		const dependencies = createFinalizationDependencies(process.env, {
+			database: client,
+			verification: { verify: vi.fn(async () => undefined) },
+			storage: { streamRemoteObjectToStorage: stream, promoteStagedObject: promote },
+		});
+
+		await expect(dependencies.persistCandidate(claim, claim.candidates[0]!)).rejects.toBe(
+			policyError,
+		);
+		expect(promote).not.toHaveBeenCalled();
+		const binding = await client.generationJobAsset.findFirstOrThrow({
+			where: { jobId: seeded.jobId, role: "OUTPUT" },
+			include: { asset: true },
+		});
+		expect(binding.asset).toMatchObject({
+			status: "VERIFICATION_FAILED",
+			verificationLastErrorCode: "OUTPUT_REMOTE_URL_HOST_NOT_ALLOWED",
+			outputTransferToken: null,
+		});
+	});
+
+	it("rejects aggregate output quota before promotion and queues fenced physical cleanup", async () => {
+		const seeded = await seedFinalizingJob([
+			{
+				kind: "remote-url",
+				url: "https://replicate.delivery/quota.png",
+				trust: "untrusted-transfer-candidate",
+			},
+		]);
+		await client.storageUsageReservation.create({
+			data: {
+				ownerType: "USER",
+				ownerId: seeded.ownerId,
+				bytes: 90n,
+				status: "COMMITTED",
+				referenceKey: `quota-existing:${crypto.randomUUID()}`,
+				expiresAt: new Date(),
+			},
+		});
+		const claim = await createDatabaseFinalizationStore(client).claimFinalization({
+			jobId: seeded.jobId,
+			version: seeded.version,
+		});
+		if (!claim) throw new Error("Expected finalization claim");
+		const stream = vi.fn(async (_input: Parameters<typeof streamRemoteObjectToStorage>[0]) => ({
+			bytes: PNG_BODY.byteLength,
+			sha256: PNG_CHECKSUM,
+		}));
+		const promote = vi.fn(async (_input: Parameters<typeof promoteStagedObject>[0]) => ({
+			bytes: PNG_BODY.byteLength,
+			sha256: PNG_CHECKSUM,
+			etag: '"quota-etag"',
+			versionId: "quota-version",
+		}));
+		const dependencies = createFinalizationDependencies(
+			{ ...process.env, MEDIA_MAX_STORAGE_BYTES: "100" },
+			{
+				database: client,
+				verification: { verify: vi.fn(async () => undefined) },
+				storage: { streamRemoteObjectToStorage: stream, promoteStagedObject: promote },
+			},
+		);
+
+		await expect(dependencies.persistCandidate(claim, claim.candidates[0]!)).rejects.toMatchObject({
+			code: "STORAGE_QUOTA_EXCEEDED",
+			stage: "TRANSFER",
+			retryable: false,
+		});
+		expect(stream).toHaveBeenCalledOnce();
+		expect(promote).not.toHaveBeenCalled();
+		const binding = await client.generationJobAsset.findFirstOrThrow({
+			where: { jobId: seeded.jobId, role: "OUTPUT" },
+			include: { asset: true },
+		});
+		expect(binding.asset).toMatchObject({
+			status: "VERIFICATION_FAILED",
+			verificationLastErrorCode: "STORAGE_QUOTA_EXCEEDED",
+			outputTransferToken: null,
+		});
+		await expect(
+			client.storageUsageReservation.findUnique({
+				where: { referenceKey: `generation-output:${binding.assetId}` },
+			}),
+		).resolves.toBeNull();
+		await expect(
+			client.outboxEvent.findFirst({
+				where: {
+					aggregateId: binding.assetId,
+					eventType: "MEDIA_OBJECT_DELETE",
+				},
+			}),
+		).resolves.toMatchObject({
+			payload: expect.objectContaining({
+				objectKey: binding.asset.objectKey,
+				storageReservationReferenceKey: `generation-output:${binding.assetId}`,
+			}),
 		});
 	});
 

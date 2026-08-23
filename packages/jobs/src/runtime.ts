@@ -20,14 +20,17 @@ import {
 	type RetrieveOnlyMediaProviderAdapter,
 	chooseCatalogRoute,
 } from "@repo/ai";
+import { maximumMediaStorageBytes } from "@repo/config/server";
 import {
 	claimGenerationOutputTransferTransaction,
 	claimOutboxBatch,
 	completeGenerationOutputTransferTransaction,
 	completeOutboxEvent,
 	failGenerationOutputTransferTransaction,
+	GenerationOutputStorageError,
 	recordGenerationOutputPromotionMultipartTransaction,
 	releaseOutboxEvent,
+	reserveGenerationOutputStorageTransaction,
 	runSerializable,
 	settleCreditsInTransaction,
 } from "@repo/database";
@@ -50,6 +53,7 @@ import {
 	promoteStagedObject,
 	putPrivateMediaObject,
 	readMediaHeader,
+	RemoteMediaPolicyError,
 	streamRemoteObjectToStorage,
 } from "@repo/storage";
 import type { MediaObjectMetadata } from "@repo/storage";
@@ -2000,6 +2004,23 @@ export function createFinalizationDependencies(
 								expectedContentType: mimeType,
 								expectedMediaKind: claim.mediaKind,
 							});
+					const reserved = await reserveGenerationOutputStorageTransaction(
+						{
+							assetId,
+							ownerId: claim.ownerId,
+							transferToken: transfer.transferToken,
+							bytes: BigInt(staged.bytes),
+							maximumStorageBytes: maximumMediaStorageBytes(environment),
+						},
+						database,
+					);
+					if (reserved.outcome === "STALE") {
+						throw {
+							code: "OUTPUT_TRANSFER_FENCE_LOST",
+							stage: "TRANSFER",
+							retryable: true,
+						};
+					}
 					const promoted = await storage.promoteStagedObject({
 						staging: { bucket: "media", key: transfer.stagingObjectKey },
 						final: { bucket: "media", key: objectKey },
@@ -2042,7 +2063,11 @@ export function createFinalizationDependencies(
 					}
 					completedAsset = completed.asset;
 				} catch (error) {
-					if (error instanceof MediaValidationError) {
+					if (
+						error instanceof MediaValidationError ||
+						error instanceof RemoteMediaPolicyError ||
+						error instanceof GenerationOutputStorageError
+					) {
 						let failed;
 						try {
 							failed = await failGenerationOutputTransferTransaction(

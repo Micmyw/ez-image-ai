@@ -14,7 +14,7 @@ import {
 	createFinalAssetObjectKey,
 	createStagingObjectKey,
 } from "./lib/object-key";
-import { assertAllowedRemoteUrl } from "./lib/remote-url-policy";
+import { assertAllowedRemoteUrl, RemoteMediaPolicyError } from "./lib/remote-url-policy";
 import {
 	copyRemoteRequestToMultipart,
 	copyRemoteStreamToMultipart,
@@ -110,7 +110,12 @@ describe("remote URL policy", () => {
 				allowedHosts: ["127.0.0.1"],
 				resolve,
 			}),
-		).rejects.toThrow(/https/i);
+		).rejects.toMatchObject({
+			name: "RemoteMediaPolicyError",
+			code: "OUTPUT_REMOTE_URL_HTTPS_REQUIRED",
+			stage: "TRANSFER",
+			retryable: false,
+		});
 		expect(resolve).not.toHaveBeenCalled();
 	});
 
@@ -194,7 +199,40 @@ describe("remote URL policy", () => {
 				}),
 				maxRedirects: 2,
 			}),
-		).rejects.toThrow(/address/i);
+		).rejects.toMatchObject({
+			name: "RemoteMediaPolicyError",
+			code: "OUTPUT_REMOTE_URL_PRIVATE_ADDRESS",
+			retryable: false,
+		});
+	});
+
+	it("classifies malformed redirect policy as deterministic but leaves 5xx transient", async () => {
+		const policyOptions = {
+			allowedHosts: ["cdn.provider.test"],
+			resolve: async () => [{ address: "8.8.8.8", family: 4 as const }],
+			maxRedirects: 1,
+		};
+		await expect(
+			requestRemoteMediaStream("https://cdn.provider.test/start", {
+				...policyOptions,
+				request: async () => ({ status: 302, headers: {}, stream: Readable.from([]) }),
+			}),
+		).rejects.toMatchObject({
+			name: "RemoteMediaPolicyError",
+			code: "OUTPUT_REMOTE_REDIRECT_POLICY_REJECTED",
+			retryable: false,
+		});
+
+		try {
+			await requestRemoteMediaStream("https://cdn.provider.test/start", {
+				...policyOptions,
+				request: async () => ({ status: 503, headers: {}, stream: Readable.from([]) }),
+			});
+			throw new Error("Expected remote 5xx failure");
+		} catch (error) {
+			expect(error).not.toBeInstanceOf(RemoteMediaPolicyError);
+			expect(error).toMatchObject({ message: expect.stringContaining("503") });
+		}
 	});
 
 	it.each([

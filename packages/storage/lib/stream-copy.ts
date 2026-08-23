@@ -10,7 +10,7 @@ import {
 	type MediaKind,
 } from "./media-signatures";
 import type { RemoteUrlPolicyOptions, ValidatedRemoteUrl } from "./remote-url-policy";
-import { assertAllowedRemoteUrl } from "./remote-url-policy";
+import { assertAllowedRemoteUrl, RemoteMediaPolicyError } from "./remote-url-policy";
 
 export interface MultipartStreamTarget {
 	maxBytes: number;
@@ -193,25 +193,39 @@ export async function requestRemoteMediaStream(
 	initialUrl: string,
 	options: RemoteMediaRequestOptions,
 ): Promise<RemoteStreamResponse & { url: URL }> {
-	let current = new URL(initialUrl);
+	let current: string | URL = initialUrl;
 	for (let redirect = 0; redirect <= options.maxRedirects; redirect += 1) {
 		const validated = await assertAllowedRemoteUrl(current, options);
 		const response = await (options.request ?? requestPinnedHttps)(validated, options);
 		if (response.status >= 300 && response.status < 400) {
 			response.stream.destroy();
 			const location = response.headers.location;
-			if (!location) throw new Error("Remote redirect omitted Location");
-			if (redirect === options.maxRedirects) throw new Error("Remote redirect limit exceeded");
-			current = new URL(location, current);
+			if (!location || redirect === options.maxRedirects) {
+				throw new RemoteMediaPolicyError(
+					"OUTPUT_REMOTE_REDIRECT_POLICY_REJECTED",
+					location ? "Remote redirect limit exceeded" : "Remote redirect omitted Location",
+				);
+			}
+			try {
+				current = new URL(location, validated.url);
+			} catch {
+				throw new RemoteMediaPolicyError(
+					"OUTPUT_REMOTE_REDIRECT_POLICY_REJECTED",
+					"Remote redirect Location is invalid",
+				);
+			}
 			continue;
 		}
 		if (response.status < 200 || response.status >= 300) {
 			response.stream.destroy();
 			throw new Error(`Remote media request failed with status ${response.status}`);
 		}
-		return { ...response, url: current };
+		return { ...response, url: validated.url };
 	}
-	throw new Error("Remote redirect limit exceeded");
+	throw new RemoteMediaPolicyError(
+		"OUTPUT_REMOTE_REDIRECT_POLICY_REJECTED",
+		"Remote redirect limit exceeded",
+	);
 }
 
 async function detectMediaTypeFromStream(

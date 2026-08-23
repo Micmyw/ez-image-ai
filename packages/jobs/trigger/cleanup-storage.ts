@@ -18,6 +18,7 @@ export const deleteObjectTask = task({
 		cleanupObjectKeys?: string[];
 		uploadSessionId?: string;
 		reservationStatus?: "EXPIRED" | "RELEASED";
+		storageReservationReferenceKey?: string;
 	}) => deleteStorageObject(payload, databaseStorageCleanupDependencies),
 });
 
@@ -32,6 +33,7 @@ export const abortMultipartTask = task({
 		multipartUploadId: string;
 		uploadSessionId?: string;
 		reservationStatus?: "EXPIRED" | "RELEASED";
+		storageReservationReferenceKey?: string;
 	}) => abortMultipartObject(payload, databaseStorageCleanupDependencies),
 });
 
@@ -48,6 +50,7 @@ export const cleanupUploadPromotionTask = task({
 		cleanupObjectKeys?: string[];
 		uploadSessionId?: string;
 		reservationStatus?: "EXPIRED" | "RELEASED";
+		storageReservationReferenceKey?: string;
 	}) => cleanupUploadPromotion(payload, databaseStorageCleanupDependencies),
 });
 

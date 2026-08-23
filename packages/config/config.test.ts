@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { getPublicConfig, parseProductConfig } from "./index";
-import { getConfigurationFingerprint, validateServerEnvironment } from "./server";
+import {
+	getConfigurationFingerprint,
+	maximumMediaStorageBytes,
+	validateServerEnvironment,
+} from "./server";
 
 const productionBase = {
 	NODE_ENV: "production",
@@ -116,6 +120,18 @@ describe("validateServerEnvironment", () => {
 		delete input.MEDIA_BUCKET_NAME;
 		input.S3_BUCKET = "legacy-wrong-bucket";
 		expect(() => validateServerEnvironment(input)).toThrow(/MEDIA_BUCKET_NAME/);
+	});
+});
+
+describe("server media limits", () => {
+	it("parses one deployment-wide media storage cap with a safe fallback", () => {
+		expect(maximumMediaStorageBytes({ MEDIA_MAX_STORAGE_BYTES: "123" })).toBe(123n);
+		expect(maximumMediaStorageBytes({ MEDIA_MAX_STORAGE_BYTES: "0" })).toBe(
+			2n * 1024n * 1024n * 1024n,
+		);
+		expect(maximumMediaStorageBytes({ MEDIA_MAX_STORAGE_BYTES: "not-a-number" })).toBe(
+			2n * 1024n * 1024n * 1024n,
+		);
 	});
 });
 

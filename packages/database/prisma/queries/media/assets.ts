@@ -1349,6 +1349,17 @@ export type GenerationOutputTransferClaim =
 			promotionMultipartUploadId: string | null;
 	  };
 
+export class GenerationOutputStorageError extends Error {
+	readonly code = "STORAGE_QUOTA_EXCEEDED" as const;
+	readonly stage = "TRANSFER" as const;
+	readonly retryable = false as const;
+
+	constructor() {
+		super("STORAGE_QUOTA_EXCEEDED");
+		this.name = "GenerationOutputStorageError";
+	}
+}
+
 /**
  * Serializes all writes for one deterministic output asset before any storage
  * transfer begins. A claim owns an isolated staging key; final-object writes
@@ -1527,6 +1538,92 @@ export async function recordGenerationOutputPromotionMultipartTransaction(
 	});
 }
 
+/**
+ * Reserves aggregate owner storage before the caller can promote a staged
+ * provider output to its durable final key. The owner advisory lock is shared
+ * with upload and generation admission so concurrent writers cannot each
+ * observe capacity that only one of them may consume.
+ */
+export async function reserveGenerationOutputStorageTransaction(
+	input: {
+		assetId: string;
+		ownerId: string;
+		transferToken: string;
+		bytes: bigint;
+		maximumStorageBytes: bigint;
+		now?: Date;
+	},
+	client: MediaTransactionClient,
+): Promise<{ outcome: "RESERVED" | "STALE"; bytes: bigint }> {
+	if (input.bytes <= 0n) throw new Error("Generation output storage bytes must be positive");
+	if (input.maximumStorageBytes <= 0n) {
+		throw new Error("Generation output storage quota must be positive");
+	}
+	return runSerializable(client, async (tx) => {
+		await lockOwnerStorageUsage({ ownerType: "USER", ownerId: input.ownerId }, tx);
+		await lockMediaAssetGenerationBindings([input.assetId], tx);
+		const asset = await tx.mediaAsset.findFirst({
+			where: { id: input.assetId, ownerType: "USER", ownerId: input.ownerId },
+		});
+		if (!asset) throw new Error("Generation output asset not found for owner");
+		const now = input.now ?? (await getDatabaseNow(tx));
+		if (
+			asset.status !== "VERIFYING" ||
+			asset.outputTransferToken !== input.transferToken ||
+			!asset.outputTransferLeaseExpiresAt ||
+			asset.outputTransferLeaseExpiresAt <= now ||
+			!asset.outputStagingObjectKey
+		) {
+			return { outcome: "STALE", bytes: 0n };
+		}
+
+		const referenceKey = generationOutputStorageReferenceKey(asset.id);
+		const existing = await tx.storageUsageReservation.findUnique({ where: { referenceKey } });
+		if (
+			existing &&
+			(existing.ownerType !== asset.ownerType || existing.ownerId !== asset.ownerId)
+		) {
+			throw new Error("GENERATION_OUTPUT_STORAGE_RESERVATION_OWNER_CONFLICT");
+		}
+		if (existing?.status === "COMMITTED") {
+			throw new Error("GENERATION_OUTPUT_STORAGE_RESERVATION_ALREADY_COMMITTED");
+		}
+		const bytes =
+			existing?.status === "ACTIVE" && existing.bytes > input.bytes ? existing.bytes : input.bytes;
+		const usage = await tx.storageUsageReservation.aggregate({
+			where: {
+				ownerType: asset.ownerType,
+				ownerId: asset.ownerId,
+				status: { in: ["ACTIVE", "COMMITTED"] },
+				referenceKey: { not: referenceKey },
+			},
+			_sum: { bytes: true },
+		});
+		if ((usage._sum.bytes ?? 0n) + bytes > input.maximumStorageBytes) {
+			throw new GenerationOutputStorageError();
+		}
+
+		await tx.storageUsageReservation.upsert({
+			where: { referenceKey },
+			create: {
+				ownerType: asset.ownerType,
+				ownerId: asset.ownerId,
+				bytes,
+				status: "ACTIVE",
+				referenceKey,
+				expiresAt: asset.outputTransferLeaseExpiresAt,
+			},
+			update: {
+				bytes,
+				status: "ACTIVE",
+				expiresAt: asset.outputTransferLeaseExpiresAt,
+				releasedAt: null,
+			},
+		});
+		return { outcome: "RESERVED", bytes };
+	});
+}
+
 export async function completeGenerationOutputTransferTransaction(
 	input: {
 		assetId: string;
@@ -1561,6 +1658,19 @@ export async function completeGenerationOutputTransferTransaction(
 			return { outcome: "STALE", asset: outputTransferAsset(asset) };
 		}
 		const stagingObjectKey = asset.outputStagingObjectKey;
+		const referenceKey = generationOutputStorageReferenceKey(asset.id);
+		const reservation = await tx.storageUsageReservation.findUnique({
+			where: { referenceKey },
+		});
+		if (
+			!reservation ||
+			reservation.ownerType !== asset.ownerType ||
+			reservation.ownerId !== asset.ownerId ||
+			reservation.status !== "ACTIVE" ||
+			reservation.bytes < input.bytes
+		) {
+			throw new Error("GENERATION_OUTPUT_STORAGE_RESERVATION_INSUFFICIENT");
+		}
 		const completed = await tx.mediaAsset.updateMany({
 			where: {
 				id: asset.id,
@@ -1583,23 +1693,24 @@ export async function completeGenerationOutputTransferTransaction(
 		if (completed.count !== 1) {
 			return { outcome: "STALE", asset: outputTransferAsset(asset) };
 		}
-		await tx.storageUsageReservation.upsert({
-			where: { referenceKey: `generation-output:${asset.id}` },
-			create: {
+		const committed = await tx.storageUsageReservation.updateMany({
+			where: {
+				referenceKey,
 				ownerType: asset.ownerType,
 				ownerId: asset.ownerId,
-				bytes: input.bytes,
-				status: "COMMITTED",
-				referenceKey: `generation-output:${asset.id}`,
-				expiresAt: now,
+				status: "ACTIVE",
+				bytes: { gte: input.bytes },
 			},
-			update: {
+			data: {
 				bytes: input.bytes,
 				status: "COMMITTED",
 				expiresAt: now,
 				releasedAt: null,
 			},
 		});
+		if (committed.count !== 1) {
+			throw new Error("GENERATION_OUTPUT_STORAGE_RESERVATION_CHANGED_CONCURRENTLY");
+		}
 		await tx.generationJobAsset.updateMany({
 			where: { assetId: asset.id, role: "OUTPUT" },
 			data: { assetChecksum: input.checksum },
@@ -1622,8 +1733,9 @@ export async function completeGenerationOutputTransferTransaction(
 /**
  * Fails one claimed provider-output transfer without allowing an expired actor
  * to terminalize a newer owner. Cleanup is queued from the same fenced state
- * transition so retries can only remove the staging object and multipart upload
- * that belonged to the failed token.
+ * transition. Only the active token may schedule final/staging deletion and an
+ * exact multipart abort; cleanup releases storage accounting after physical
+ * deletion succeeds.
  */
 export async function failGenerationOutputTransferTransaction(
 	input: {
@@ -1642,10 +1754,16 @@ export async function failGenerationOutputTransferTransaction(
 			where: { id: input.assetId, ownerType: "USER", ownerId: input.ownerId },
 		});
 		if (!asset) throw new Error("Generation output asset not found for owner");
-		if (asset.status !== "VERIFYING" || asset.outputTransferToken !== input.transferToken) {
+		const failedAt = input.now ?? (await getDatabaseNow(tx));
+		if (
+			asset.status !== "VERIFYING" ||
+			asset.outputTransferToken !== input.transferToken ||
+			!asset.outputTransferLeaseExpiresAt ||
+			asset.outputTransferLeaseExpiresAt <= failedAt ||
+			!asset.outputStagingObjectKey
+		) {
 			return { outcome: "STALE", asset: outputTransferAsset(asset) };
 		}
-		const failedAt = input.now ?? (await getDatabaseNow(tx));
 		const stagingObjectKey = asset.outputStagingObjectKey;
 		const promotionMultipartUploadId = asset.outputPromotionMultipartUploadId;
 		const failed = await tx.mediaAsset.updateMany({
@@ -1653,6 +1771,7 @@ export async function failGenerationOutputTransferTransaction(
 				id: asset.id,
 				status: "VERIFYING",
 				outputTransferToken: input.transferToken,
+				outputTransferLeaseExpiresAt: { gt: failedAt },
 			},
 			data: {
 				status: "VERIFICATION_FAILED",
@@ -1668,14 +1787,13 @@ export async function failGenerationOutputTransferTransaction(
 		if (failed.count !== 1) {
 			return { outcome: "STALE", asset: outputTransferAsset(asset) };
 		}
-		if (stagingObjectKey) {
-			await queueGenerationOutputStagingDeletion(
-				asset.id,
-				stagingObjectKey,
-				input.transferToken,
-				tx,
-			);
-		}
+		await queueGenerationOutputTerminalCleanup(
+			asset.id,
+			asset.objectKey,
+			stagingObjectKey,
+			input.transferToken,
+			tx,
+		);
 		if (promotionMultipartUploadId) {
 			await queueGenerationOutputPromotionAbort(
 				asset.id,
@@ -1808,6 +1926,35 @@ async function queueGenerationOutputPromotionAbort(
 		},
 		update: {},
 	});
+}
+
+async function queueGenerationOutputTerminalCleanup(
+	assetId: string,
+	objectKey: string,
+	stagingObjectKey: string | null,
+	transferToken: string,
+	tx: Prisma.TransactionClient,
+): Promise<void> {
+	await tx.outboxEvent.upsert({
+		where: { dedupeKey: `generation-output-terminal-delete:${assetId}:${transferToken}` },
+		create: {
+			eventType: "MEDIA_OBJECT_DELETE",
+			aggregateType: "MEDIA_ASSET",
+			aggregateId: assetId,
+			dedupeKey: `generation-output-terminal-delete:${assetId}:${transferToken}`,
+			payload: {
+				assetId,
+				objectKey,
+				...(stagingObjectKey ? { cleanupObjectKeys: [stagingObjectKey] } : {}),
+				storageReservationReferenceKey: generationOutputStorageReferenceKey(assetId),
+			},
+		},
+		update: {},
+	});
+}
+
+function generationOutputStorageReferenceKey(assetId: string): string {
+	return `generation-output:${assetId}`;
 }
 
 export async function markMediaAssetDeletedTransaction(

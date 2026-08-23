@@ -17,6 +17,28 @@ export interface ValidatedRemoteUrl {
 	lookup: LookupFunction;
 }
 
+export type RemoteMediaPolicyErrorCode =
+	| "OUTPUT_REMOTE_REDIRECT_POLICY_REJECTED"
+	| "OUTPUT_REMOTE_URL_AUTHORITY_INVALID"
+	| "OUTPUT_REMOTE_URL_HOST_NOT_ALLOWED"
+	| "OUTPUT_REMOTE_URL_HTTPS_REQUIRED"
+	| "OUTPUT_REMOTE_URL_INVALID"
+	| "OUTPUT_REMOTE_URL_PRIVATE_ADDRESS";
+
+/** A deterministic provider-output URL policy rejection. */
+export class RemoteMediaPolicyError extends Error {
+	readonly stage = "TRANSFER" as const;
+	readonly retryable = false as const;
+
+	constructor(
+		readonly code: RemoteMediaPolicyErrorCode,
+		message: string,
+	) {
+		super(message);
+		this.name = "RemoteMediaPolicyError";
+	}
+}
+
 function hostMatches(hostname: string, rule: string): boolean {
 	const normalized = rule.toLowerCase();
 	if (normalized.startsWith("*.")) {
@@ -127,15 +149,33 @@ export async function assertAllowedRemoteUrl(
 	try {
 		url = new URL(value);
 	} catch {
-		throw new Error("Remote URL is invalid");
+		throw new RemoteMediaPolicyError("OUTPUT_REMOTE_URL_INVALID", "Remote URL is invalid");
 	}
-	if (url.protocol !== "https:") throw new Error("Remote URL must use HTTPS");
-	if (url.username || url.password || url.port) throw new Error("Remote URL authority is invalid");
+	if (url.protocol !== "https:") {
+		throw new RemoteMediaPolicyError(
+			"OUTPUT_REMOTE_URL_HTTPS_REQUIRED",
+			"Remote URL must use HTTPS",
+		);
+	}
+	if (url.username || url.password || url.port) {
+		throw new RemoteMediaPolicyError(
+			"OUTPUT_REMOTE_URL_AUTHORITY_INVALID",
+			"Remote URL authority is invalid",
+		);
+	}
 	const hostname = url.hostname.toLowerCase();
 	if (!options.allowedHosts.some((rule) => hostMatches(hostname, rule))) {
-		throw new Error("Remote URL host is not allowed");
+		throw new RemoteMediaPolicyError(
+			"OUTPUT_REMOTE_URL_HOST_NOT_ALLOWED",
+			"Remote URL host is not allowed",
+		);
 	}
-	if (isIP(hostname)) throw new Error("Remote URL must use an allowed provider hostname");
+	if (isIP(hostname)) {
+		throw new RemoteMediaPolicyError(
+			"OUTPUT_REMOTE_URL_HOST_NOT_ALLOWED",
+			"Remote URL must use an allowed provider hostname",
+		);
+	}
 	const resolver =
 		options.resolve ??
 		(async (name: string) => {
@@ -144,7 +184,10 @@ export async function assertAllowedRemoteUrl(
 		});
 	const addresses = await resolver(hostname);
 	if (addresses.length === 0 || addresses.some((entry) => isUnsafeAddress(entry.address))) {
-		throw new Error("Remote URL resolved to a private or reserved address");
+		throw new RemoteMediaPolicyError(
+			"OUTPUT_REMOTE_URL_PRIVATE_ADDRESS",
+			"Remote URL resolved to a private or reserved address",
+		);
 	}
 	return { url, addresses, lookup: createPinnedLookup(addresses) };
 }
