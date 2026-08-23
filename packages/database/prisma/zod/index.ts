@@ -126,7 +126,7 @@ export type CreditAccountScalarFieldEnum = z.infer<typeof CreditAccountScalarFie
 
 // File: CreditLotScalarFieldEnum.schema.ts
 
-export const CreditLotScalarFieldEnumSchema = z.enum(['id', 'accountId', 'grantReferenceKey', 'grantedAmount', 'remainingAmount', 'reservedAmount', 'expiresAt', 'createdAt'])
+export const CreditLotScalarFieldEnumSchema = z.enum(['id', 'accountId', 'grantReferenceKey', 'grantedAmount', 'remainingAmount', 'expiredUnrefundedAmount', 'reservedAmount', 'expiresAt', 'createdAt'])
 
 export type CreditLotScalarFieldEnum = z.infer<typeof CreditLotScalarFieldEnumSchema>;
 
@@ -748,6 +748,7 @@ export const CreditLotSchema = z.object({
   grantReferenceKey: z.string(),
   grantedAmount: z.bigint(),
   remainingAmount: z.bigint(),
+  expiredUnrefundedAmount: z.bigint().default(BigInt(0)),
   reservedAmount: z.bigint().default(BigInt(0)),
   expiresAt: z.date().nullish(),
   createdAt: z.date(),

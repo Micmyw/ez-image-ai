@@ -132,6 +132,12 @@ function readExpiredUnrefundedRefunded(metadata: Prisma.JsonValue): bigint {
 	return BigInt(value);
 }
 
+function readExpiredReleased(metadata: Prisma.JsonValue): bigint {
+	const value = (metadata as { expiredAmount?: unknown }).expiredAmount;
+	if (typeof value !== "string" || !/^\d+$/.test(value)) return 0n;
+	return BigInt(value);
+}
+
 async function materializeExpiredLots(
 	tx: Prisma.TransactionClient,
 	input: { accountId: string; lots: LockedLot[]; now: Date },
@@ -407,17 +413,39 @@ async function finalizeReservation(
 	let revokedSettled = 0n;
 	let revokedReleased = 0n;
 	let expiredReleased = 0n;
-
-	for (const allocation of allocations) {
+	const finalizations = allocations.map((allocation) => {
 		const unresolved = allocation.amount - allocation.settledAmount - allocation.releasedAmount;
-		const settled = unresolved < settleRemaining ? unresolved : settleRemaining;
-		const released = unresolved - settled;
 		const unresolvedRevoked =
 			allocation.revokedAmount - allocation.revokedSettledAmount - allocation.revokedReleasedAmount;
-		const settledRevoked = unresolvedRevoked < settled ? unresolvedRevoked : settled;
+		return { allocation, unresolved, unresolvedRevoked, settled: 0n, settledRevoked: 0n };
+	});
+
+	for (const finalization of finalizations) {
+		if (settleRemaining === 0n) break;
+		const unrevokedUnresolved = finalization.unresolved - finalization.unresolvedRevoked;
+		const settled = unrevokedUnresolved < settleRemaining ? unrevokedUnresolved : settleRemaining;
+		finalization.settled = settled;
+		settleRemaining -= settled;
+	}
+	for (const finalization of finalizations) {
+		if (settleRemaining === 0n) break;
+		const settledRevoked =
+			finalization.unresolvedRevoked < settleRemaining
+				? finalization.unresolvedRevoked
+				: settleRemaining;
+		finalization.settled += settledRevoked;
+		finalization.settledRevoked = settledRevoked;
+		settleRemaining -= settledRevoked;
+	}
+	if (settleRemaining !== 0n) throw new Error("Settlement allocation is inconsistent");
+
+	for (const finalization of finalizations) {
+		const { allocation, unresolved, unresolvedRevoked, settled, settledRevoked } = finalization;
+		const released = unresolved - settled;
 		const releasedRevoked = unresolvedRevoked - settledRevoked;
 		const refundableRelease = released - releasedRevoked;
 		const restorable = allocation.expiresAt && allocation.expiresAt <= now ? 0n : refundableRelease;
+		const expiredUnrefunded = refundableRelease - restorable;
 		await tx.creditReservationAllocation.update({
 			where: { id: allocation.id },
 			data: {
@@ -432,13 +460,13 @@ async function finalizeReservation(
 			data: {
 				reservedAmount: { decrement: unresolved },
 				remainingAmount: { increment: restorable },
+				expiredUnrefundedAmount: { increment: expiredUnrefunded },
 			},
 		});
-		settleRemaining -= settled;
 		spendableReleased += restorable;
 		revokedSettled += settledRevoked;
 		revokedReleased += releasedRevoked;
-		expiredReleased += refundableRelease - restorable;
+		expiredReleased += expiredUnrefunded;
 	}
 
 	const status = mode === "settle" ? "SETTLED" : "RELEASED";
@@ -886,6 +914,11 @@ export async function getCreditInvariantReport(accountId: string, client?: Media
 			entry.type === "REFUND" ? total + readExpiredUnrefundedRefunded(entry.metadata) : total,
 		0n,
 	);
+	const expiredReleasedFromLedger = ledgerEntries.reduce(
+		(total, entry) =>
+			entry.type === "RELEASE" ? total + readExpiredReleased(entry.metadata) : total,
+		0n,
+	);
 	const aggregateFromLedger = ledgerEntries.reduce(
 		(total, entry) => {
 			const deltas = readCreditDeltas(entry.metadata);
@@ -907,7 +940,8 @@ export async function getCreditInvariantReport(accountId: string, client?: Media
 			totalSettled === (ledgerByType.SETTLE ?? 0n) &&
 			totalReleased === (ledgerByType.RELEASE ?? 0n) &&
 			account.creditDebt === debtFromLedger &&
-			lotExpiredUnrefunded === (ledgerByType.EXPIRE ?? 0n) - expiredRefundedFromLedger &&
+			lotExpiredUnrefunded ===
+				(ledgerByType.EXPIRE ?? 0n) + expiredReleasedFromLedger - expiredRefundedFromLedger &&
 			account.spendableCredits === aggregateFromLedger.spendable &&
 			account.reservedCredits === aggregateFromLedger.reserved &&
 			account.creditDebt === aggregateFromLedger.debt,

@@ -92,7 +92,8 @@ async function checkLotBalances(): Promise<CheckResult> {
 	const rows = await client.$queryRaw<Array<{ count: bigint }>>`
 		SELECT count(*)::bigint AS count FROM "credit_lot"
 		WHERE "grantedAmount" < 0 OR "remainingAmount" < 0 OR "reservedAmount" < 0
-		   OR "remainingAmount" + "reservedAmount" > "grantedAmount"`;
+		   OR "expiredUnrefundedAmount" < 0
+		   OR "remainingAmount" + "reservedAmount" + "expiredUnrefundedAmount" > "grantedAmount"`;
 	return countResult("credit lot balances", rows);
 }
 

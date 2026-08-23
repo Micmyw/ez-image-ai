@@ -673,6 +673,68 @@ describe("media PostgreSQL transactions", () => {
 		});
 	});
 
+	it("makes partial settlement and refund order financially equivalent", async () => {
+		const runSequence = async (settleAmount: bigint, settleFirst: boolean) => {
+			const fixture = await createReservedCreditsFixture(client, {
+				grantAmount: 10n,
+				reserveAmount: 10n,
+			});
+			const refund = () =>
+				refundCreditGrant(
+					{
+						accountId: fixture.account.id,
+						amount: 5n,
+						grantReferenceKey: fixture.grantReferenceKey,
+						referenceKey: `partial-order-refund-${crypto.randomUUID()}`,
+					},
+					client,
+				);
+			const settle = () =>
+				settleCredits(
+					{
+						reservationId: fixture.reservation.id,
+						amount: settleAmount,
+						referenceKey: `partial-order-settle-${crypto.randomUUID()}`,
+					},
+					client,
+				);
+			if (settleFirst) {
+				await settle();
+				await refund();
+			} else {
+				await refund();
+				await settle();
+			}
+			return client.creditAccount.findUniqueOrThrow({ where: { id: fixture.account.id } });
+		};
+
+		const refundThenSettleFive = await runSequence(5n, false);
+		const settleThenRefundFive = await runSequence(5n, true);
+		const refundThenSettleEight = await runSequence(8n, false);
+		const settleThenRefundEight = await runSequence(8n, true);
+
+		expect(refundThenSettleFive).toMatchObject({
+			spendableCredits: 0n,
+			reservedCredits: 0n,
+			creditDebt: 0n,
+		});
+		expect(settleThenRefundFive).toMatchObject({
+			spendableCredits: 0n,
+			reservedCredits: 0n,
+			creditDebt: 0n,
+		});
+		expect(refundThenSettleEight).toMatchObject({
+			spendableCredits: 0n,
+			reservedCredits: 0n,
+			creditDebt: 3n,
+		});
+		expect(settleThenRefundEight).toMatchObject({
+			spendableCredits: 0n,
+			reservedCredits: 0n,
+			creditDebt: 3n,
+		});
+	});
+
 	it("materializes an expired lot once with an immutable expiry ledger entry", async () => {
 		const ownerId = `expiry-command-${crypto.randomUUID()}`;
 		const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
@@ -800,7 +862,7 @@ describe("media PostgreSQL transactions", () => {
 		expect(await getCreditInvariantReport(account.id, client)).toMatchObject({ valid: true });
 	});
 
-	it("does not restore an expired lot when its reservation releases", async () => {
+	it("refunds an expired released reservation without false debt", async () => {
 		const fixture = await createReservedCreditsFixture(client, {
 			grantAmount: 10n,
 			reserveAmount: 10n,
@@ -823,11 +885,31 @@ describe("media PostgreSQL transactions", () => {
 			spendableCredits: 0n,
 			reservedCredits: 0n,
 		});
-		expect(
-			await client.creditLot.findFirstOrThrow({ where: { accountId: fixture.account.id } }),
-		).toMatchObject({
+		const lot = await client.creditLot.findFirstOrThrow({
+			where: { accountId: fixture.account.id },
+		});
+		expect(lot).toMatchObject({
 			remainingAmount: 0n,
 			reservedAmount: 0n,
+			expiredUnrefundedAmount: 10n,
+		});
+		await refundCreditGrant(
+			{
+				accountId: fixture.account.id,
+				amount: 10n,
+				grantReferenceKey: fixture.grantReferenceKey,
+				referenceKey: `test-refund-expired-release-${crypto.randomUUID()}`,
+			},
+			client,
+		);
+		expect(
+			await client.creditAccount.findUniqueOrThrow({ where: { id: fixture.account.id } }),
+		).toMatchObject({ spendableCredits: 0n, reservedCredits: 0n, creditDebt: 0n });
+		expect(await client.creditLot.findUniqueOrThrow({ where: { id: lot.id } })).toMatchObject({
+			expiredUnrefundedAmount: 0n,
+		});
+		expect(await getCreditInvariantReport(fixture.account.id, client)).toMatchObject({
+			valid: true,
 		});
 	});
 
