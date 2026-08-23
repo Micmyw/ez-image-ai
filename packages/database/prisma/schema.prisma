@@ -300,6 +300,8 @@ enum EventProcessingStatus {
   PROCESSING
   PROCESSED
   FAILED
+  IGNORED
+  DEAD_LETTER
 }
 
 enum OutboxEventStatus {
@@ -748,6 +750,9 @@ model PaymentEvent {
   status                  EventProcessingStatus @default(RECEIVED)
   processedAt             DateTime?             @db.Timestamptz(3)
   failureReason           String?
+  attemptCount            Int                   @default(0)
+  lastTriggerRunId        String?
+  lastErrorClass          String?
   processingToken         String?               @unique
   processingLeasedUntil   DateTime?             @db.Timestamptz(3)
 

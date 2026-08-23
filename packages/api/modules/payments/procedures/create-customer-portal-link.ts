@@ -36,9 +36,15 @@ export const createCustomerPortalLink = protectedProcedure
 			throw new ORPCError("NOT_FOUND");
 		}
 
-		if (purchase.organizationId) {
+		const hasOrganizationOwner = purchase.organizationId !== null;
+		const hasUserOwner = purchase.userId !== null;
+		if (hasOrganizationOwner === hasUserOwner) {
+			throw new ORPCError("NOT_FOUND");
+		}
+
+		if (hasOrganizationOwner) {
 			const userOrganizationMembership = await getOrganizationMembership(
-				purchase.organizationId,
+				purchase.organizationId!,
 				user.id,
 			);
 			if (userOrganizationMembership?.role !== "owner") {
@@ -46,7 +52,7 @@ export const createCustomerPortalLink = protectedProcedure
 			}
 		}
 
-		if (purchase.userId && purchase.userId !== user.id) {
+		if (hasUserOwner && purchase.userId !== user.id) {
 			throw new ORPCError("NOT_FOUND");
 		}
 

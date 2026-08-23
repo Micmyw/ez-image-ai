@@ -21,9 +21,11 @@ function assertSafeTestDatabaseUrl(): string {
 	if (
 		parsed.hostname !== "127.0.0.1" ||
 		parsed.port !== "55432" ||
-		parsed.pathname !== "/ai_media_foundation_test"
+		!["/ai_media_foundation_test", "/ezpic_payment_test"].includes(parsed.pathname)
 	) {
-		throw new Error("TEST_DATABASE_URL must target 127.0.0.1:55432/ai_media_foundation_test");
+		throw new Error(
+			"TEST_DATABASE_URL must target 127.0.0.1:55432/ai_media_foundation_test or /ezpic_payment_test",
+		);
 	}
 	return TEST_DATABASE_URL;
 }
@@ -38,6 +40,44 @@ describe("Stripe subscription credit lifecycle", () => {
 	});
 
 	afterAll(async () => client?.$disconnect());
+
+	it("rejects new purchases with zero or multiple owners", async () => {
+		const suffix = crypto.randomUUID();
+		const user = await client.user.create({
+			data: {
+				id: `purchase-owner-user-${suffix}`,
+				name: "Purchase owner fixture",
+				email: `purchase-owner-${suffix}@example.test`,
+				emailVerified: true,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			},
+		});
+		const organization = await client.organization.create({
+			data: {
+				name: "Purchase owner fixture",
+				slug: `purchase-owner-${suffix}`,
+				createdAt: new Date(),
+			},
+		});
+		const common = {
+			type: "SUBSCRIPTION" as const,
+			customerId: `cus_owner_${suffix}`,
+			priceId: `price_owner_${suffix}`,
+		};
+
+		await expect(client.purchase.create({ data: common })).rejects.toThrow();
+		await expect(
+			client.purchase.create({
+				data: {
+					...common,
+					customerId: `cus_multiple_${suffix}`,
+					organizationId: organization.id,
+					userId: user.id,
+				},
+			}),
+		).rejects.toThrow();
+	});
 
 	it("repairs a pre-existing Purchase and replays subscription creation exactly once", async () => {
 		const suffix = crypto.randomUUID();
@@ -128,7 +168,18 @@ describe("Stripe subscription credit lifecycle", () => {
 	});
 
 	it("grants a paid monthly invoice exactly once across event replay", async () => {
-		const ownerId = `stripe-monthly-${crypto.randomUUID()}`;
+		const suffix = crypto.randomUUID();
+		const ownerId = `stripe-monthly-${suffix}`;
+		await client.user.create({
+			data: {
+				id: ownerId,
+				name: "Monthly purchase fixture",
+				email: `stripe-monthly-${suffix}@example.test`,
+				emailVerified: true,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			},
+		});
 		const plan = await client.billingPlan.create({
 			data: {
 				provider: "stripe",
@@ -142,7 +193,7 @@ describe("Stripe subscription credit lifecycle", () => {
 		});
 		const purchase = await client.purchase.create({
 			data: {
-				userId: null,
+				userId: ownerId,
 				type: "SUBSCRIPTION",
 				customerId: `cus_${crypto.randomUUID()}`,
 				subscriptionId: `sub_${crypto.randomUUID()}`,
@@ -746,6 +797,18 @@ describe("Stripe subscription credit lifecycle", () => {
 	});
 
 	it("keeps paid-through credits on cancellation and ignores a stale reactivation", async () => {
+		const suffix = crypto.randomUUID();
+		const ownerId = `cancel-user-${suffix}`;
+		await client.user.create({
+			data: {
+				id: ownerId,
+				name: "Cancellation purchase fixture",
+				email: `cancel-user-${suffix}@example.test`,
+				emailVerified: true,
+				createdAt: new Date(),
+				updatedAt: new Date(),
+			},
+		});
 		const plan = await client.billingPlan.create({
 			data: {
 				provider: "stripe",
@@ -759,6 +822,7 @@ describe("Stripe subscription credit lifecycle", () => {
 		});
 		const purchase = await client.purchase.create({
 			data: {
+				userId: ownerId,
 				type: "SUBSCRIPTION",
 				customerId: `cus_cancel_${crypto.randomUUID()}`,
 				subscriptionId: `sub_cancel_${crypto.randomUUID()}`,
@@ -769,7 +833,7 @@ describe("Stripe subscription credit lifecycle", () => {
 		const subscription = await client.subscription.create({
 			data: {
 				ownerType: "USER",
-				ownerId: `cancel-user-${crypto.randomUUID()}`,
+				ownerId,
 				provider: "stripe",
 				providerSubscriptionId: purchase.subscriptionId!,
 				planId: plan.id,
@@ -843,6 +907,146 @@ describe("Stripe subscription credit lifecycle", () => {
 		expect(await client.paymentEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({
 			status: "PROCESSING",
 			processingToken: leaseB,
+		});
+	});
+
+	it("does not retry an unsupported Stripe event", async () => {
+		const event = await client.paymentEvent.create({
+			data: {
+				provider: "stripe",
+				providerEventId: `evt_unsupported_${crypto.randomUUID()}`,
+				verifiedAt: new Date(),
+				envelope: { id: "evt_unsupported", type: "payout.paid", created: 1, data: { object: {} } },
+			},
+		});
+
+		expect(await processStripePaymentEvent({ paymentEventId: event.id }, client)).toEqual({
+			outcome: "IGNORED",
+			grantsCreated: 0,
+		});
+		expect(await client.paymentEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({
+			status: "IGNORED",
+		});
+	});
+
+	it("throws after persisting a transient payment event failure", async () => {
+		const event = await client.paymentEvent.create({
+			data: {
+				provider: "stripe",
+				providerEventId: `evt_transient_${crypto.randomUUID()}`,
+				verifiedAt: new Date(),
+				envelope: { id: "evt_transient", type: "payout.paid", created: 1, data: { object: {} } },
+			},
+		});
+		const transientClient = new Proxy(client, {
+			get(target, property, receiver) {
+				if (property === "$transaction") {
+					return async () => {
+						throw new Error("DATABASE_TEMPORARILY_UNAVAILABLE");
+					};
+				}
+				return Reflect.get(target, property, receiver);
+			},
+		});
+
+		await expect(
+			processStripePaymentEvent({ paymentEventId: event.id }, transientClient, {
+				attempt: 2,
+				maxAttempts: 5,
+				triggerRunId: "run_retry_2",
+			}),
+		).rejects.toThrow("DATABASE_TEMPORARILY_UNAVAILABLE");
+		expect(await client.paymentEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({
+			status: "FAILED",
+			attemptCount: 1,
+			lastTriggerRunId: "run_retry_2",
+			lastErrorClass: "TRANSIENT",
+		});
+	});
+
+	it("dead letters the final transient payment event attempt and still throws", async () => {
+		const event = await client.paymentEvent.create({
+			data: {
+				provider: "stripe",
+				providerEventId: `evt_final_transient_${crypto.randomUUID()}`,
+				verifiedAt: new Date(),
+				envelope: {
+					id: "evt_final_transient",
+					type: "payout.paid",
+					created: 1,
+					data: { object: {} },
+				},
+			},
+		});
+		const transientClient = new Proxy(client, {
+			get(target, property, receiver) {
+				if (property === "$transaction") {
+					return async () => {
+						throw new Error("DATABASE_TEMPORARILY_UNAVAILABLE");
+					};
+				}
+				return Reflect.get(target, property, receiver);
+			},
+		});
+
+		await expect(
+			processStripePaymentEvent({ paymentEventId: event.id }, transientClient, {
+				attempt: 5,
+				maxAttempts: 5,
+				triggerRunId: "run_retry_final",
+			}),
+		).rejects.toThrow("DATABASE_TEMPORARILY_UNAVAILABLE");
+		expect(await client.paymentEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({
+			status: "DEAD_LETTER",
+			attemptCount: 1,
+			lastTriggerRunId: "run_retry_final",
+			lastErrorClass: "TRANSIENT",
+		});
+	});
+
+	it("dead letters terminal payment event errors without throwing", async () => {
+		const event = await client.paymentEvent.create({
+			data: {
+				provider: "stripe",
+				providerEventId: `evt_terminal_${crypto.randomUUID()}`,
+				verifiedAt: new Date(),
+				envelope: {
+					id: "evt_terminal",
+					type: "invoice.paid",
+					created: 1,
+					data: { object: { id: "in_terminal" } },
+				},
+			},
+		});
+
+		expect(await processStripePaymentEvent({ paymentEventId: event.id }, client)).toEqual({
+			outcome: "DEAD_LETTER",
+			grantsCreated: 0,
+		});
+		expect(await client.paymentEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({
+			status: "DEAD_LETTER",
+			lastErrorClass: "TERMINAL",
+		});
+	});
+
+	it("dead letters a malformed payment event instead of treating it as unsupported", async () => {
+		const event = await client.paymentEvent.create({
+			data: {
+				provider: "stripe",
+				providerEventId: `evt_malformed_${crypto.randomUUID()}`,
+				verifiedAt: new Date(),
+				envelope: { type: "payout.paid" },
+			},
+		});
+
+		expect(await processStripePaymentEvent({ paymentEventId: event.id }, client)).toEqual({
+			outcome: "DEAD_LETTER",
+			grantsCreated: 0,
+		});
+		expect(await client.paymentEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({
+			status: "DEAD_LETTER",
+			failureReason: "STRIPE_EVENT_INVALID",
+			lastErrorClass: "TERMINAL",
 		});
 	});
 

@@ -1,6 +1,9 @@
 import { db } from "@repo/database/client";
-import { processStripePaymentEvent } from "@repo/payments";
+import { processStripePaymentEvent, type PaymentEventAttempt } from "@repo/payments";
 
-export async function processPaymentEvent(payload: { paymentEventId: string }) {
-	return processStripePaymentEvent(payload, db);
+export async function processPaymentEvent(
+	payload: { paymentEventId: string },
+	attempt: PaymentEventAttempt,
+) {
+	return processStripePaymentEvent(payload, db, attempt);
 }

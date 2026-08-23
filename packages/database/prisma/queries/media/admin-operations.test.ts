@@ -10,6 +10,7 @@ describe("admin media operation policy", () => {
 	it.each([
 		["PAYMENT", "FAILED"],
 		["PAYMENT", "RECEIVED"],
+		["PAYMENT", "DEAD_LETTER"],
 		["PROVIDER", "FAILED"],
 		["PROVIDER", "RECEIVED"],
 	])("allows persisted %s events in %s state", (kind, status) => {

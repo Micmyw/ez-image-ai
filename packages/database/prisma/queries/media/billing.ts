@@ -105,14 +105,22 @@ export async function completePaymentEvent(
 export async function failPaymentEvent(
 	id: string,
 	token: string,
-	reason: string,
+	input: {
+		reason: string;
+		errorClass: "TERMINAL" | "TRANSIENT";
+		triggerRunId?: string;
+		deadLetter: boolean;
+	},
 	client: MediaTransactionClient,
 ) {
 	const changed = await client.paymentEvent.updateMany({
 		where: { id, status: "PROCESSING", processingToken: token },
 		data: {
-			status: "FAILED",
-			failureReason: reason.slice(0, 500),
+			status: input.deadLetter ? "DEAD_LETTER" : "FAILED",
+			failureReason: input.reason.slice(0, 500),
+			attemptCount: { increment: 1 },
+			lastTriggerRunId: input.triggerRunId ?? null,
+			lastErrorClass: input.errorClass,
 			processingToken: null,
 			processingLeasedUntil: null,
 		},

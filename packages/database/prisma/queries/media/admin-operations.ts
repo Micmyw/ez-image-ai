@@ -49,7 +49,9 @@ export function assertReplayablePersistedEventStatus(
 	_kind: PersistedEventKind,
 	status: string,
 ): void {
-	if (status !== "RECEIVED" && status !== "FAILED") throw new Error("EVENT_NOT_REPLAYABLE");
+	if (status !== "RECEIVED" && status !== "FAILED" && status !== "DEAD_LETTER") {
+		throw new Error("EVENT_NOT_REPLAYABLE");
+	}
 }
 
 const RETRYABLE_JOB_STATUS: Record<AdminRetryStage, readonly string[]> = {
@@ -208,10 +210,17 @@ export async function replayPersistedMediaEvent(
 		if (active) throw new Error("OPERATION_ALREADY_PENDING");
 		if (input.eventKind === "PAYMENT") {
 			const changed = await tx.paymentEvent.updateMany({
-				where: { id: event.id, status: { in: ["RECEIVED", "FAILED"] }, processingToken: null },
+				where: {
+					id: event.id,
+					status: { in: ["RECEIVED", "FAILED", "DEAD_LETTER"] },
+					processingToken: null,
+				},
 				data: {
 					status: "RECEIVED",
 					failureReason: null,
+					attemptCount: 0,
+					lastTriggerRunId: null,
+					lastErrorClass: null,
 					processingToken: null,
 					processingLeasedUntil: null,
 				},

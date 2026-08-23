@@ -22,8 +22,14 @@ interface StripeEnvelope {
 }
 
 interface ProcessResult {
-	outcome: "PROCESSED" | "SKIPPED" | "FAILED";
+	outcome: "PROCESSED" | "SKIPPED" | "IGNORED" | "DEAD_LETTER";
 	grantsCreated: number;
+}
+
+export interface PaymentEventAttempt {
+	attempt: number;
+	maxAttempts: number;
+	triggerRunId?: string;
 }
 
 type DatabaseClient = Parameters<typeof claimPaymentEvent>[1];
@@ -34,22 +40,25 @@ class PaymentEventFenceError extends Error {}
 export async function processStripePaymentEvent(
 	input: { paymentEventId: string },
 	client: DatabaseClient,
+	attempt: PaymentEventAttempt = { attempt: 1, maxAttempts: 1 },
 ): Promise<ProcessResult> {
 	const claim = await claimPaymentEvent(input.paymentEventId, client);
 	if (!claim) return { outcome: "SKIPPED", grantsCreated: 0 };
 	return processClaimedStripePaymentEvent(
 		{ paymentEventId: claim.event.id, processingToken: claim.token },
 		client,
+		attempt,
 	);
 }
 
 export async function processClaimedStripePaymentEvent(
 	input: { paymentEventId: string; processingToken: string; now?: Date },
 	client: DatabaseClient,
+	attempt: PaymentEventAttempt = { attempt: 1, maxAttempts: 1 },
 ): Promise<ProcessResult> {
 	const now = input.now ?? new Date();
 	try {
-		const grantsCreated = await runSerializable(client, async (tx) => {
+		return await runSerializable(client, async (tx) => {
 			const rows = await tx.$queryRaw<
 				Array<{
 					id: string;
@@ -70,7 +79,26 @@ export async function processClaimedStripePaymentEvent(
 			) {
 				throw new PaymentEventFenceError();
 			}
-			const processed = await processEnvelope(parseEnvelope(event.envelope), tx);
+			const envelope = parseEnvelope(event.envelope);
+			if (!isSupportedStripeEvent(envelope.type)) {
+				const ignored = await tx.paymentEvent.updateMany({
+					where: {
+						id: input.paymentEventId,
+						status: "PROCESSING",
+						processingToken: input.processingToken,
+						processingLeasedUntil: { gt: now },
+					},
+					data: {
+						status: "IGNORED",
+						processedAt: now,
+						processingToken: null,
+						processingLeasedUntil: null,
+					},
+				});
+				if (ignored.count !== 1) throw new PaymentEventFenceError();
+				return { outcome: "IGNORED" as const, grantsCreated: 0 };
+			}
+			const grantsCreated = await processEnvelope(envelope, tx);
 			const completed = await tx.paymentEvent.updateMany({
 				where: {
 					id: input.paymentEventId,
@@ -86,18 +114,72 @@ export async function processClaimedStripePaymentEvent(
 				},
 			});
 			if (completed.count !== 1) throw new PaymentEventFenceError();
-			return processed;
+			return { outcome: "PROCESSED" as const, grantsCreated };
 		});
-		return { outcome: "PROCESSED", grantsCreated };
 	} catch (error) {
 		if (error instanceof PaymentEventFenceError) {
 			return { outcome: "SKIPPED", grantsCreated: 0 };
 		}
-		const reason = error instanceof Error ? error.message : "PAYMENT_EVENT_FAILED";
-		await failPaymentEvent(input.paymentEventId, input.processingToken, reason, client);
-		logger.error({ paymentEventId: input.paymentEventId, reason }, "Stripe payment event failed");
-		return { outcome: "FAILED", grantsCreated: 0 };
+		const errorClass = classifyPaymentEventError(error);
+		const deadLetter = errorClass === "TERMINAL" || attempt.attempt >= attempt.maxAttempts;
+		const reason = safeFailureReason(error, errorClass);
+		await failPaymentEvent(
+			input.paymentEventId,
+			input.processingToken,
+			{
+				reason,
+				errorClass,
+				triggerRunId: attempt.triggerRunId,
+				deadLetter,
+			},
+			client,
+		);
+		logger.error(
+			{ paymentEventId: input.paymentEventId, errorClass, reason },
+			"Stripe payment event failed",
+		);
+		if (errorClass === "TERMINAL") return { outcome: "DEAD_LETTER", grantsCreated: 0 };
+		throw error;
 	}
+}
+
+function isSupportedStripeEvent(type: string): boolean {
+	return [
+		"customer.subscription.created",
+		"customer.subscription.updated",
+		"customer.subscription.deleted",
+		"invoice.paid",
+		"invoice.payment_failed",
+		"refund.created",
+		"charge.refund.updated",
+	].includes(type);
+}
+
+function classifyPaymentEventError(error: unknown): "TERMINAL" | "TRANSIENT" {
+	const message = error instanceof Error ? error.message : "";
+	if (
+		/^STRIPE_EVENT_(INVALID|MISSING)(?:_|$)/.test(message) ||
+		[
+			"STRIPE_INVOICE_PLAN_UNMAPPED",
+			"STRIPE_SCHEDULED_PLAN_MISMATCH",
+			"STRIPE_UNSCHEDULED_PLAN_CHANGE",
+			"STRIPE_REFUND_BINDING_AMBIGUOUS",
+			"STRIPE_SUBSCRIPTION_BINDING_AMBIGUOUS",
+			"STRIPE_OWNER_TYPE_INVALID",
+			"STRIPE_BILLING_PLAN_BINDING_INVALID",
+			"STRIPE_PURCHASE_BINDING_INVALID",
+		].includes(message)
+	) {
+		return "TERMINAL";
+	}
+	return "TRANSIENT";
+}
+
+function safeFailureReason(error: unknown, errorClass: "TERMINAL" | "TRANSIENT"): string {
+	const message = error instanceof Error ? error.message : "";
+	return errorClass === "TERMINAL" && message.startsWith("STRIPE_")
+		? message
+		: "PAYMENT_EVENT_RETRYABLE_FAILURE";
 }
 
 async function processEnvelope(
@@ -120,7 +202,7 @@ async function processEnvelope(
 			await processRefund(envelope, client);
 			return 0;
 		default:
-			return 0;
+			throw new Error("STRIPE_EVENT_UNSUPPORTED");
 	}
 }
 
@@ -585,7 +667,22 @@ function parseEnvelope(value: Prisma.JsonValue): StripeEnvelope {
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
 		throw new Error("STRIPE_EVENT_INVALID");
 	}
-	return value as unknown as StripeEnvelope;
+	const envelope = value as Record<string, unknown>;
+	const data = recordValue(envelope.data);
+	const object = data.object;
+	if (
+		!stringValue(envelope.id) ||
+		!stringValue(envelope.type) ||
+		typeof envelope.created !== "number" ||
+		!Number.isSafeInteger(envelope.created) ||
+		Object.keys(data).length === 0 ||
+		!object ||
+		typeof object !== "object" ||
+		Array.isArray(object)
+	) {
+		throw new Error("STRIPE_EVENT_INVALID");
+	}
+	return envelope as unknown as StripeEnvelope;
 }
 
 function requiredString(value: unknown, name: string): string {
