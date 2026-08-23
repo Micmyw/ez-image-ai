@@ -735,6 +735,157 @@ describe("media PostgreSQL transactions", () => {
 		});
 	});
 
+	it("preserves FIFO settlement allocation identity across refunded lots", async () => {
+		const createTwoLotFixture = async () => {
+			const ownerId = `fifo-refund-${crypto.randomUUID()}`;
+			const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
+			const grantA = await createCreditGrant(
+				{
+					accountId: account.id,
+					amount: 5n,
+					referenceKey: `fifo-refund-a-${crypto.randomUUID()}`,
+					expiresAt: new Date(Date.now() + 60_000),
+				},
+				client,
+			);
+			const grantB = await createCreditGrant(
+				{
+					accountId: account.id,
+					amount: 5n,
+					referenceKey: `fifo-refund-b-${crypto.randomUUID()}`,
+					expiresAt: new Date(Date.now() + 120_000),
+				},
+				client,
+			);
+			const quote = await createApprovedQuote(client, {
+				ownerType: "USER",
+				ownerId,
+				submittedByUserId: ownerId,
+				productKey: "image-fast",
+				catalogVersion: "test-v1",
+				pricingVersion: "test-v1",
+				credits: 10n,
+				costMicros: 0n,
+				inputSnapshot: { kind: "text-to-image", prompt: "fifo refunded settlement" },
+				pricingSnapshot: {},
+				expiresAt: new Date(Date.now() + 60_000),
+			});
+			const { reservation } = await createGenerationJobTransaction(
+				{
+					ownerType: "USER",
+					ownerId,
+					submittedByUserId: ownerId,
+					quoteId: quote.id,
+					idempotencyKey: `fifo-refund-job-${crypto.randomUUID()}`,
+					inputAssetIds: [],
+					expectedModerationRuleVersion: TEST_MODERATION_RULE_VERSION,
+				},
+				client,
+			);
+			const aLotId = grantA.lotId;
+			if (!aLotId || !grantB.lotId) throw new Error("Test grants must create credit lots");
+			await client.creditLot.update({
+				where: { id: aLotId },
+				data: { expiresAt: new Date(Date.now() - 60_000) },
+			});
+			return { account, grantA, grantB, reservation, aLotId };
+		};
+
+		const runSequence = async (refundLot: "A" | "B", settleFirst: boolean) => {
+			const fixture = await createTwoLotFixture();
+			const grant = refundLot === "A" ? fixture.grantA : fixture.grantB;
+			const refund = () =>
+				refundCreditGrant(
+					{
+						accountId: fixture.account.id,
+						amount: 5n,
+						grantReferenceKey: grant.referenceKey,
+						referenceKey: `fifo-refund-command-${crypto.randomUUID()}`,
+					},
+					client,
+				);
+			const settle = () =>
+				settleCredits(
+					{
+						reservationId: fixture.reservation.id,
+						amount: 5n,
+						referenceKey: `fifo-settle-command-${crypto.randomUUID()}`,
+					},
+					client,
+				);
+			if (settleFirst) {
+				await settle();
+				await refund();
+			} else {
+				await refund();
+				await settle();
+			}
+			const allocations = await listCreditReservationAllocations(fixture.reservation.id, client);
+			return {
+				aLotId: fixture.aLotId,
+				account: await client.creditAccount.findUniqueOrThrow({
+					where: { id: fixture.account.id },
+				}),
+				allocations: allocations.map(({ lot, settledAmount, releasedAmount }) => ({
+					lotId: lot.id,
+					settledAmount,
+					releasedAmount,
+				})),
+				invariant: await getCreditInvariantReport(fixture.account.id, client),
+			};
+		};
+
+		const refundAThenSettle = await runSequence("A", false);
+		const settleThenRefundA = await runSequence("A", true);
+		const refundBThenSettle = await runSequence("B", false);
+		const settleThenRefundB = await runSequence("B", true);
+
+		for (const result of [refundAThenSettle, settleThenRefundA]) {
+			expect(result.account).toMatchObject({
+				spendableCredits: 5n,
+				reservedCredits: 0n,
+				creditDebt: 5n,
+			});
+			expect(
+				result.allocations.map(({ settledAmount, releasedAmount }) => [
+					settledAmount,
+					releasedAmount,
+				]),
+			).toEqual([
+				[5n, 0n],
+				[0n, 5n],
+			]);
+			expect(
+				result.allocations
+					.filter(({ settledAmount }) => settledAmount > 0n)
+					.map(({ lotId }) => lotId),
+			).toEqual([result.aLotId]);
+			expect(result.invariant).toMatchObject({ valid: true });
+		}
+		for (const result of [refundBThenSettle, settleThenRefundB]) {
+			expect(result.account).toMatchObject({
+				spendableCredits: 0n,
+				reservedCredits: 0n,
+				creditDebt: 0n,
+			});
+			expect(
+				result.allocations.map(({ settledAmount, releasedAmount }) => [
+					settledAmount,
+					releasedAmount,
+				]),
+			).toEqual([
+				[5n, 0n],
+				[0n, 5n],
+			]);
+			expect(
+				result.allocations
+					.filter(({ settledAmount }) => settledAmount > 0n)
+					.map(({ lotId }) => lotId),
+			).toEqual([result.aLotId]);
+			expect(result.invariant).toMatchObject({ valid: true });
+		}
+	});
+
 	it("materializes an expired lot once with an immutable expiry ledger entry", async () => {
 		const ownerId = `expiry-command-${crypto.randomUUID()}`;
 		const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });

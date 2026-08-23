@@ -413,34 +413,19 @@ async function finalizeReservation(
 	let revokedSettled = 0n;
 	let revokedReleased = 0n;
 	let expiredReleased = 0n;
-	const finalizations = allocations.map((allocation) => {
+
+	for (const allocation of allocations) {
 		const unresolved = allocation.amount - allocation.settledAmount - allocation.releasedAmount;
 		const unresolvedRevoked =
 			allocation.revokedAmount - allocation.revokedSettledAmount - allocation.revokedReleasedAmount;
-		return { allocation, unresolved, unresolvedRevoked, settled: 0n, settledRevoked: 0n };
-	});
-
-	for (const finalization of finalizations) {
-		if (settleRemaining === 0n) break;
-		const unrevokedUnresolved = finalization.unresolved - finalization.unresolvedRevoked;
-		const settled = unrevokedUnresolved < settleRemaining ? unrevokedUnresolved : settleRemaining;
-		finalization.settled = settled;
-		settleRemaining -= settled;
-	}
-	for (const finalization of finalizations) {
-		if (settleRemaining === 0n) break;
+		const unrevokedUnresolved = unresolved - unresolvedRevoked;
+		const settledUnrevoked =
+			unrevokedUnresolved < settleRemaining ? unrevokedUnresolved : settleRemaining;
+		settleRemaining -= settledUnrevoked;
 		const settledRevoked =
-			finalization.unresolvedRevoked < settleRemaining
-				? finalization.unresolvedRevoked
-				: settleRemaining;
-		finalization.settled += settledRevoked;
-		finalization.settledRevoked = settledRevoked;
+			unresolvedRevoked < settleRemaining ? unresolvedRevoked : settleRemaining;
 		settleRemaining -= settledRevoked;
-	}
-	if (settleRemaining !== 0n) throw new Error("Settlement allocation is inconsistent");
-
-	for (const finalization of finalizations) {
-		const { allocation, unresolved, unresolvedRevoked, settled, settledRevoked } = finalization;
+		const settled = settledUnrevoked + settledRevoked;
 		const released = unresolved - settled;
 		const releasedRevoked = unresolvedRevoked - settledRevoked;
 		const refundableRelease = released - releasedRevoked;
@@ -468,6 +453,7 @@ async function finalizeReservation(
 		revokedReleased += releasedRevoked;
 		expiredReleased += expiredUnrefunded;
 	}
+	if (settleRemaining !== 0n) throw new Error("Settlement allocation is inconsistent");
 
 	const status = mode === "settle" ? "SETTLED" : "RELEASED";
 	const reservation = await tx.creditReservation.update({
