@@ -80,7 +80,7 @@ describe("provider adapter contract", () => {
 			expect(submission).toMatchObject({
 				providerTaskId: "gemini-fixture",
 				status: "SUCCEEDED",
-				acceptance: "CERTAIN",
+				outcome: "accepted",
 			});
 			const result = await adapter.normalizeResult(submission.snapshot!);
 			expect(result.outputs).toHaveLength(outputCount);
@@ -93,7 +93,7 @@ describe("provider adapter contract", () => {
 		},
 	);
 
-	it("preserves a non-JSON HTTP rejection body without treating it as transport uncertainty", async () => {
+	it("preserves a non-JSON HTTP 429 body as an uncertain submission", async () => {
 		const adapter = new ReplicateProviderAdapter({
 			apiToken: "token",
 			fetch: (async () =>
@@ -110,8 +110,8 @@ describe("provider adapter contract", () => {
 			}),
 		).resolves.toMatchObject({
 			status: "FAILED",
-			acceptance: "CERTAIN",
-			failure: { code: "HTTP_429", message: "rate limited by provider", retryable: true },
+			outcome: "uncertain",
+			failure: { code: "HTTP_429", message: "rate limited by provider", retryable: false },
 		});
 	});
 
@@ -239,7 +239,7 @@ describe("provider adapter contract", () => {
 					input: { kind: "text-to-image", prompt: "x" },
 				}),
 			).resolves.toMatchObject({
-				acceptance: "CERTAIN",
+				outcome: "uncertain",
 				status: "FAILED",
 				reconciliation: { submissionToken: "unknown" },
 			});
@@ -348,7 +348,7 @@ describe("provider adapter contract", () => {
 		expect(submission).toMatchObject({
 			providerTaskId: "task-1",
 			status: "QUEUED",
-			acceptance: "CERTAIN",
+			outcome: "accepted",
 		});
 
 		const running = await adapter.retrieve({ providerTaskId: "task-1" });
@@ -377,7 +377,7 @@ describe("provider adapter contract", () => {
 		expect(canceled.status).toBe("CANCELED");
 	});
 
-	it("rejects malformed responses and normalizes HTTP rejections", async () => {
+	it("rejects malformed responses and preserves HTTP 503 uncertainty", async () => {
 		const malformed = new ReplicateProviderAdapter({
 			apiToken: "token",
 			fetch: fixtureFetch({ body: { status: "starting" } }),
@@ -401,44 +401,41 @@ describe("provider adapter contract", () => {
 				input: { kind: "text-to-image", prompt: "x" },
 			}),
 		).resolves.toMatchObject({
-			acceptance: "CERTAIN",
+			outcome: "uncertain",
 			status: "FAILED",
-			failure: { code: "HTTP_503", retryable: true },
+			failure: { code: "HTTP_503", retryable: false },
 		});
 	});
 
 	it.each([
-		["replicate", 429, true],
-		["replicate", 400, false],
-		["fal", 503, true],
-		["fal", 422, false],
-	] as const)(
-		"normalizes %s HTTP %s submission rejection as certain (retryable=%s)",
-		async (provider, status, retryable) => {
-			const adapter =
-				provider === "replicate"
-					? new ReplicateProviderAdapter({
-							apiToken: "token",
-							fetch: fixtureFetch({ status, body: { detail: "provider rejected request" } }),
-						})
-					: new FalProviderAdapter({
-							apiKey: "key",
-							fetch: fixtureFetch({ status, body: { detail: "provider rejected request" } }),
-						});
+		["replicate", 429, "uncertain"],
+		["replicate", 400, "rejected"],
+		["fal", 503, "uncertain"],
+		["fal", 422, "rejected"],
+	] as const)("normalizes %s HTTP %s submission as %s", async (provider, status, outcome) => {
+		const adapter =
+			provider === "replicate"
+				? new ReplicateProviderAdapter({
+						apiToken: "token",
+						fetch: fixtureFetch({ status, body: { detail: "provider rejected request" } }),
+					})
+				: new FalProviderAdapter({
+						apiKey: "key",
+						fetch: fixtureFetch({ status, body: { detail: "provider rejected request" } }),
+					});
 
-			const submission = await adapter.submit({
-				attemptId: `http-${status}`,
-				providerModelId: "route",
-				input: { kind: "text-to-image", prompt: "x" },
-			});
-			expect(submission).toMatchObject({
-				status: "FAILED",
-				acceptance: "CERTAIN",
-				failure: { code: `HTTP_${status}`, retryable },
-			});
-			expect(submission.providerTaskId).toBeUndefined();
-		},
-	);
+		const submission = await adapter.submit({
+			attemptId: `http-${status}`,
+			providerModelId: "route",
+			input: { kind: "text-to-image", prompt: "x" },
+		});
+		expect(submission).toMatchObject({
+			status: "FAILED",
+			outcome,
+			failure: { code: `HTTP_${status}`, retryable: false },
+		});
+		expect(submission.providerTaskId).toBeUndefined();
+	});
 
 	it("submits Kie video jobs with the server-resolved input and a stable attempt id", async () => {
 		const captured: Array<{ url: string; init?: RequestInit }> = [];
@@ -463,8 +460,8 @@ describe("provider adapter contract", () => {
 		).resolves.toMatchObject({
 			providerTaskId: "kie-1",
 			status: "QUEUED",
-			acceptance: "CERTAIN",
-			idempotency: { key: "attempt-1", replayed: false },
+			outcome: "accepted",
+			idempotency: { providerSupported: false, replayed: false },
 		});
 		expect(captured[0]?.url).toBe("https://api.kie.ai/api/v1/veo/generate");
 		expect(captured[0]?.init?.headers).not.toHaveProperty("X-Idempotency-Key");
@@ -477,12 +474,12 @@ describe("provider adapter contract", () => {
 	});
 
 	it.each([
-		[429, true],
-		[500, true],
-		[422, false],
+		[429, "uncertain"],
+		[500, "uncertain"],
+		[422, "rejected"],
 	] as const)(
-		"normalizes a Kie business code %s without requiring a task id (retryable=%s)",
-		async (code, retryable) => {
+		"normalizes Kie business code %s as %s without requiring a task id",
+		async (code, outcome) => {
 			const kie = new KieProviderAdapter({
 				apiKey: "key",
 				fetch: fixtureFetch({ body: { code, msg: "provider business rejection", data: null } }),
@@ -495,8 +492,8 @@ describe("provider adapter contract", () => {
 				}),
 			).resolves.toMatchObject({
 				status: "FAILED",
-				acceptance: "CERTAIN",
-				failure: { code: `HTTP_${code}`, retryable },
+				outcome,
+				failure: { code: `HTTP_${code}`, retryable: false },
 			});
 		},
 	);

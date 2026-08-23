@@ -68,4 +68,10 @@ describe("media product catalog", () => {
 			}),
 		).toThrow(/4, 6, or 8/);
 	});
+
+	it("does not publish a product when none of its routes have an executable adapter", () => {
+		const catalog = getPublicProductCatalog({ enabledProviders: new Set() });
+
+		expect(catalog.products).toEqual([]);
+	});
 });

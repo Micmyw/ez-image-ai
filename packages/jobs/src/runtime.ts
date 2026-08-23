@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import {
 	FalProviderAdapter,
 	GeminiProviderAdapter,
-	getCatalogEntry,
 	KieProviderAdapter,
 	MEDIA_VERIFICATION_POLICY_VERSION,
 	MEDIA_VERIFICATION_RULE_VERSION,
@@ -18,8 +17,12 @@ import {
 	type ProviderKey,
 	type ProviderOutput,
 	type RetrieveOnlyMediaProviderAdapter,
+	createExecutableRouteGraph,
 	chooseCatalogRoute,
+	enabledProviderKeysFromEnvironment,
+	getCatalogEntry,
 } from "@repo/ai";
+import type { ProductModelKey } from "@repo/config";
 import { maximumMediaStorageBytes } from "@repo/config/server";
 import {
 	claimGenerationOutputTransferTransaction,
@@ -115,7 +118,10 @@ export async function resolveDatabaseDispatchRoute(jobId: string) {
 		include: { attempts: { orderBy: { attemptNumber: "desc" }, take: 1 } },
 	});
 	if (!job) throw new Error("Generation job not found");
-	const entry = getCatalogEntry(job.productKey as Parameters<typeof getCatalogEntry>[0]);
+	const entry = createExecutableRouteGraph({
+		enabledProviders: enabledProviderKeysFromEnvironment(),
+	}).getEntry(job.productKey as ProductModelKey);
+	if (!entry) throw new Error("Catalog product has no executable route");
 	const existing = job.attempts[0];
 	const route = existing
 		? entry.routes.find(
@@ -149,9 +155,24 @@ export function createDatabaseDispatchStore(
 					include: { attempts: { orderBy: { attemptNumber: "desc" }, take: 1 }, assets: true },
 				});
 				if (!job) return null;
+				const disabled = await tx.runtimeConfigOverride.findFirst({
+					where: {
+						active: true,
+						value: { equals: false },
+						OR: [
+							{ configKey: "media.generation.enabled" },
+							{ configKey: `media.model.${job.productKey}.enabled` },
+						],
+					},
+					select: { id: true },
+				});
+				if (disabled) return null;
 				const existing = job.attempts[0];
 				if (existing && existing.status !== "CREATED") return null;
-				const entry = getCatalogEntry(job.productKey as Parameters<typeof getCatalogEntry>[0]);
+				const entry = createExecutableRouteGraph({
+					enabledProviders: enabledProviderKeysFromEnvironment(),
+				}).getEntry(job.productKey as ProductModelKey);
+				if (!entry) return null;
 				const route = existing
 					? entry.routes.find(
 							(candidate) =>
@@ -159,7 +180,7 @@ export function createDatabaseDispatchStore(
 								candidate.providerModelId === existing.providerModelId,
 						)
 					: chooseCatalogRoute(entry.routes, deterministicFraction(job.id));
-				if (!route) throw new Error("Catalog route no longer exists");
+				if (!route) throw new Error("Catalog route no longer executable");
 				const rawInput = job.inputSnapshot as unknown as ProviderExecutionInput & {
 					sourceAssetId?: string;
 				};
@@ -261,8 +282,8 @@ export function createDatabaseDispatchStore(
 			await database.$transaction(async (tx) => {
 				const attempt = await tx.generationAttempt.findUniqueOrThrow({ where: { id: attemptId } });
 				const terminal = submission.status === "SUCCEEDED";
-				if (!submission.providerTaskId && submission.acceptance === "CERTAIN") {
-					throw new Error("Certain provider submission omitted its task ID");
+				if (!submission.providerTaskId && submission.outcome === "accepted") {
+					throw new Error("Accepted provider submission omitted its task ID");
 				}
 				await tx.generationAttempt.update({
 					where: { id: attempt.id },
@@ -278,8 +299,13 @@ export function createDatabaseDispatchStore(
 								: "SUBMITTED",
 						submittedAt: new Date(),
 						completedAt: terminal ? new Date() : undefined,
-						responseSnapshot: submission.snapshot?.raw as Prisma.InputJsonValue | undefined,
-						uncertainSubmission: submission.acceptance === "UNKNOWN",
+						responseSnapshot: submission.snapshot
+							? {
+									providerTaskId: submission.snapshot.providerTaskId,
+									status: submission.snapshot.status,
+								}
+							: undefined,
+						uncertainSubmission: false,
 						nextReconcileAt: new Date(Date.now() + 30_000),
 					},
 				});
@@ -378,17 +404,18 @@ export function createDatabaseDispatchStore(
 						completedAt: new Date(),
 					},
 				});
-				const entry = getCatalogEntry(
-					attempt.job.productKey as Parameters<typeof getCatalogEntry>[0],
-				);
+				const entry = createExecutableRouteGraph({
+					enabledProviders: enabledProviderKeysFromEnvironment(),
+				}).getEntry(attempt.job.productKey as ProductModelKey);
 				const attemptedRoutes = new Set(
 					attempt.job.attempts.map((item) => `${item.provider}:${item.providerModelId}`),
 				);
-				const retryRoute = failure.retryable
-					? entry.routes.find(
-							(route) => !attemptedRoutes.has(`${route.provider}:${route.providerModelId}`),
-						)
-					: undefined;
+				const retryRoute =
+					failure.retryable && entry
+						? entry.routes.find(
+								(route) => !attemptedRoutes.has(`${route.provider}:${route.providerModelId}`),
+							)
+						: undefined;
 				if (retryRoute) {
 					const nextAttemptNumber =
 						Math.max(...attempt.job.attempts.map((item) => item.attemptNumber)) + 1;

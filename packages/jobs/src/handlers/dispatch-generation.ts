@@ -21,7 +21,13 @@ export async function dispatchGeneration(
 			input: claim.input,
 			webhookUrl: claim.webhookUrl,
 		});
-		if (submission.failure) {
+		if (submission.outcome === "uncertain") {
+			await dependencies.store.recordUncertainSubmission(claim.attemptId);
+			return { outcome: "RECONCILE" };
+		}
+		if (submission.outcome === "rejected") {
+			if (!submission.failure)
+				throw new Error("Rejected provider submission omitted its failure evidence");
 			await dependencies.store.recordRejectedSubmission(claim.attemptId, submission.failure);
 			return { outcome: "REJECTED" };
 		}
@@ -31,13 +37,13 @@ export async function dispatchGeneration(
 		} else {
 			await dependencies.store.recordSubmission(claim.attemptId, submission);
 		}
-		if (submission.acceptance === "UNKNOWN") {
-			await dependencies.store.recordUncertainSubmission(claim.attemptId);
-			return { outcome: "RECONCILE" };
-		}
 		return { outcome: "SUBMITTED" };
 	} catch (error) {
-		if (error instanceof MediaProviderError && error.code !== "HTTP_ERROR") {
+		if (
+			error instanceof MediaProviderError &&
+			error.code !== "HTTP_ERROR" &&
+			error.code !== "MALFORMED_PROVIDER_RESPONSE"
+		) {
 			await dependencies.store.recordRejectedSubmission(claim.attemptId, {
 				code: error.code,
 				message: error.message,

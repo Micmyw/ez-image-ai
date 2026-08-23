@@ -68,8 +68,8 @@ export class ReplicateProviderAdapter implements MediaProviderAdapter {
 		return {
 			providerTaskId: parsed.data.id,
 			status: snapshot.status,
-			idempotency: { key: input.attemptId, replayed: false },
-			acceptance: "CERTAIN",
+			idempotency: { key: input.attemptId, providerSupported: true, replayed: false },
+			outcome: "accepted",
 			reconciliation: { submissionToken: input.attemptId },
 			snapshot,
 		};

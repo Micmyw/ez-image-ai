@@ -12,6 +12,8 @@ import {
 import {
 	createCreditGrant,
 	createGenerationJobTransaction,
+	createRuntimeConfigOverride,
+	revertRuntimeConfigOverride,
 	resolveAdminUncertainSubmission,
 } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
@@ -173,29 +175,54 @@ describe("production media runtime stores", () => {
 		).resolves.toMatchObject({ status: "READY", verificationGeneration: 2 });
 	});
 
-	it("routes a real HTTP 429 adapter rejection through the handler and production store", async () => {
-		const seeded = await seedReservedJobWithRoute("replicate");
-		const outcome = await dispatchGeneration(
-			{ jobId: seeded.jobId, version: 0 },
+	it.each([429, 503])(
+		"preserves HTTP %i submission ambiguity through the handler and production store",
+		async (status) => {
+			const seeded = await seedReservedJobWithRoute("replicate");
+			const outcome = await dispatchGeneration(
+				{ jobId: seeded.jobId, version: 0 },
+				{
+					store: createDatabaseDispatchStore(client),
+					getProvider: () =>
+						new ReplicateProviderAdapter({
+							apiToken: "test",
+							fetch: responseFetch(status, { detail: "temporarily unavailable" }),
+						}),
+				},
+			);
+			expect(outcome.outcome).toBe("RECONCILE");
+			const job = await client.generationJob.findUniqueOrThrow({
+				where: { id: seeded.jobId },
+				include: { attempts: { orderBy: { attemptNumber: "asc" } } },
+			});
+			expect(job.status).toBe("PROVIDER_PENDING");
+			expect(job.attempts).toMatchObject([
+				{ provider: "replicate", status: "SUBMISSION_UNCERTAIN", uncertainSubmission: true },
+			]);
+		},
+	);
+
+	it("does not claim a job for provider submission when the database kill switch is active", async () => {
+		const seeded = await seedReservedJob("image-fast");
+		const override = await createRuntimeConfigOverride(
 			{
-				store: createDatabaseDispatchStore(client),
-				getProvider: () =>
-					new ReplicateProviderAdapter({
-						apiToken: "test",
-						fetch: responseFetch(429, { detail: "rate limited" }),
-					}),
+				configKey: "media.generation.enabled",
+				value: false,
+				reason: "test worker kill switch",
+				createdByUserId: "admin-test",
 			},
+			client,
 		);
-		expect(outcome.outcome).toBe("REJECTED");
-		const job = await client.generationJob.findUniqueOrThrow({
-			where: { id: seeded.jobId },
-			include: { attempts: { orderBy: { attemptNumber: "asc" } } },
-		});
-		expect(job.status).toBe("DISPATCH_QUEUED");
-		expect(job.attempts).toMatchObject([
-			{ provider: "replicate", status: "FAILED" },
-			{ provider: "fal", status: "CREATED" },
-		]);
+		try {
+			const claim = await createDatabaseDispatchStore(client).claimDispatch({
+				jobId: seeded.jobId,
+				version: 0,
+			});
+
+			expect(claim).toBeNull();
+		} finally {
+			await revertRuntimeConfigOverride(override.id, "admin-test", client);
+		}
 	});
 
 	it("finalizes a non-retryable rejection and releases the entire reservation", async () => {
@@ -423,8 +450,8 @@ describe("production media runtime stores", () => {
 		await store.recordSubmission(claim!.attemptId, {
 			providerTaskId,
 			status: "QUEUED",
-			acceptance: "CERTAIN",
-			idempotency: { key: claim!.attemptId, replayed: false },
+			outcome: "accepted",
+			idempotency: { key: claim!.attemptId, providerSupported: true, replayed: false },
 			reconciliation: {
 				statusUrl: `https://queue.test/${providerTaskId}/status`,
 				resultUrl: `https://queue.test/${providerTaskId}/result`,
@@ -463,8 +490,8 @@ describe("production media runtime stores", () => {
 		const submission = {
 			providerTaskId: claim!.attemptId,
 			status: "SUCCEEDED" as const,
-			acceptance: "CERTAIN" as const,
-			idempotency: { key: claim!.attemptId, replayed: false },
+			outcome: "accepted" as const,
+			idempotency: { key: claim!.attemptId, providerSupported: true, replayed: false },
 			reconciliation: { submissionToken: claim!.attemptId },
 		};
 		const result = {
@@ -1910,8 +1937,8 @@ async function seedFinalizingJob() {
 		{
 			providerTaskId: claim!.attemptId,
 			status: "SUCCEEDED",
-			acceptance: "CERTAIN",
-			idempotency: { key: claim!.attemptId, replayed: false },
+			outcome: "accepted",
+			idempotency: { key: claim!.attemptId, providerSupported: true, replayed: false },
 			reconciliation: { submissionToken: claim!.attemptId },
 		},
 		{
@@ -2079,8 +2106,8 @@ async function seedPendingProviderJob() {
 	await store.recordSubmission(claim!.attemptId, {
 		providerTaskId,
 		status: "QUEUED",
-		acceptance: "CERTAIN",
-		idempotency: { key: claim!.attemptId, replayed: false },
+		outcome: "accepted",
+		idempotency: { key: claim!.attemptId, providerSupported: true, replayed: false },
 		reconciliation: { submissionToken: claim!.attemptId },
 	});
 	return {

@@ -327,8 +327,8 @@ class ControlledLoadProvider implements MediaProviderAdapter {
 					message: "Controlled load-test failure",
 					retryable: false,
 				},
-				idempotency: { key: input.attemptId, replayed: false },
-				acceptance: "CERTAIN",
+				idempotency: { key: input.attemptId, providerSupported: true, replayed: false },
+				outcome: "rejected",
 				reconciliation: { submissionToken: input.attemptId },
 			};
 		}
@@ -337,8 +337,8 @@ class ControlledLoadProvider implements MediaProviderAdapter {
 			return {
 				providerTaskId,
 				status: "QUEUED",
-				idempotency: { key: input.attemptId, replayed: false },
-				acceptance: "CERTAIN",
+				idempotency: { key: input.attemptId, providerSupported: true, replayed: false },
+				outcome: "accepted",
 				reconciliation: { submissionToken: input.attemptId },
 			};
 		}
@@ -347,8 +347,8 @@ class ControlledLoadProvider implements MediaProviderAdapter {
 			providerTaskId,
 			status: "SUCCEEDED",
 			snapshot,
-			idempotency: { key: input.attemptId, replayed: false },
-			acceptance: "CERTAIN",
+			idempotency: { key: input.attemptId, providerSupported: true, replayed: false },
+			outcome: "accepted",
 			reconciliation: { submissionToken: input.attemptId },
 		};
 	}

@@ -1,6 +1,7 @@
 import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
 
-import { listCatalogEntries } from "./catalog";
+import { createExecutableRouteGraph } from "./catalog";
+import { enabledProviderKeysFromEnvironment, type ExecutableRouteGraphOptions } from "./routing";
 
 export interface PublicCatalogEntry {
 	key: string;
@@ -19,7 +20,11 @@ export interface PublicCatalogEntry {
 		step?: number;
 	}>;
 }
-export function getPublicProductCatalog(): {
+export function getPublicProductCatalog(
+	options: ExecutableRouteGraphOptions = {
+		enabledProviders: enabledProviderKeysFromEnvironment(),
+	},
+): {
 	catalogVersion: string;
 	pricingVersion: string;
 	products: PublicCatalogEntry[];
@@ -27,7 +32,7 @@ export function getPublicProductCatalog(): {
 	return {
 		catalogVersion: DEFAULT_PRODUCT_CONFIG.catalogVersion,
 		pricingVersion: DEFAULT_PRODUCT_CONFIG.pricingVersion,
-		products: listCatalogEntries().map(
+		products: createExecutableRouteGraph(options).entries.map(
 			({ key, label, description, mediaKind, inputKinds, credits }) => ({
 				key,
 				label,

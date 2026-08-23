@@ -131,8 +131,8 @@ describe("database-backed media generation", () => {
 			submit: vi.fn(async () => ({
 				providerTaskId: `provider-${suffix}`,
 				status: "QUEUED" as const,
-				acceptance: "CERTAIN" as const,
-				idempotency: { key: `attempt-${suffix}`, replayed: false },
+				outcome: "accepted" as const,
+				idempotency: { key: `attempt-${suffix}`, providerSupported: true, replayed: false },
 				reconciliation: { submissionToken: `attempt-${suffix}` },
 			})),
 			retrieve: vi.fn(),
@@ -412,8 +412,10 @@ function assertSafeTestDatabaseUrl(value: string | undefined): void {
 	if (
 		parsed.hostname !== "127.0.0.1" ||
 		parsed.port !== "55432" ||
-		parsed.pathname !== "/ai_media_foundation_test"
+		!["/ai_media_foundation_test", "/ezpic_provider_test"].includes(parsed.pathname)
 	) {
-		throw new Error("TEST_DATABASE_URL must target 127.0.0.1:55432/ai_media_foundation_test");
+		throw new Error(
+			"TEST_DATABASE_URL must target 127.0.0.1:55432/ai_media_foundation_test or /ezpic_provider_test",
+		);
 	}
 }

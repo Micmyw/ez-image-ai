@@ -58,8 +58,8 @@ export class FalProviderAdapter implements MediaProviderAdapter {
 		return {
 			providerTaskId: parsed.request_id,
 			status: normalizeStatus(parsed.status ?? "queued"),
-			acceptance: "CERTAIN",
-			idempotency: { key: input.attemptId, replayed: false },
+			outcome: "accepted",
+			idempotency: { key: input.attemptId, providerSupported: true, replayed: false },
 			reconciliation: {
 				submissionToken: input.attemptId,
 				statusUrl,

@@ -83,7 +83,13 @@ export class KieProviderAdapter implements MediaProviderAdapter {
 			},
 			this.options,
 		);
-		if (!ok) return rejectedHttpSubmission({ status, data, attemptId: input.attemptId });
+		if (!ok)
+			return rejectedHttpSubmission({
+				status,
+				data,
+				attemptId: input.attemptId,
+				providerIdempotencySupported: false,
+			});
 		const envelope = kieCreateEnvelopeSchema.safeParse(data);
 		if (!envelope.success) throw malformedKieResponse();
 		if (envelope.data.code !== undefined && envelope.data.code !== 200) {
@@ -91,6 +97,7 @@ export class KieProviderAdapter implements MediaProviderAdapter {
 				status: providerCodeStatus(envelope.data.code),
 				data: envelope.data.msg,
 				attemptId: input.attemptId,
+				providerIdempotencySupported: false,
 			});
 		}
 		const successData = kieCreateSuccessDataSchema.safeParse(envelope.data.data);
@@ -103,8 +110,8 @@ export class KieProviderAdapter implements MediaProviderAdapter {
 		return {
 			providerTaskId: snapshot.providerTaskId,
 			status: snapshot.status,
-			acceptance: "CERTAIN",
-			idempotency: { key: input.attemptId, replayed: false },
+			outcome: "accepted",
+			idempotency: { providerSupported: false, replayed: false },
 			reconciliation: { submissionToken: input.attemptId },
 			snapshot,
 		};

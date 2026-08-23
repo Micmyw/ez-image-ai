@@ -1,7 +1,11 @@
 import { DEFAULT_PRODUCT_CONFIG, type ProductModelKey } from "@repo/config";
 import { z } from "zod";
 
-import type { CatalogRoute } from "./routing";
+import {
+	executableRouteGraph,
+	type CatalogRoute,
+	type ExecutableRouteGraphOptions,
+} from "./routing";
 import { mediaModelInputSchema, type MediaModelInput } from "./schemas";
 
 export { getPublicProductCatalog } from "./public";
@@ -99,6 +103,22 @@ export function getCatalogEntry(key: ProductModelKey): CatalogEntry {
 }
 export function listCatalogEntries(): CatalogEntry[] {
 	return Object.values(CATALOG);
+}
+
+export function createExecutableRouteGraph(options: ExecutableRouteGraphOptions): {
+	entries: Array<CatalogEntry & { routes: readonly CatalogRoute[] }>;
+	getEntry(key: ProductModelKey): (CatalogEntry & { routes: readonly CatalogRoute[] }) | undefined;
+} {
+	const entries = executableRouteGraph(Object.values(CATALOG), options).map(
+		({ entry, routes }) => ({
+			...entry,
+			routes,
+		}),
+	);
+	return {
+		entries,
+		getEntry: (key) => entries.find((entry) => entry.key === key),
+	};
 }
 export function quoteCatalogInput(input: unknown): {
 	productKey: ProductModelKey;

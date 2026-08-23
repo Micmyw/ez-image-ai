@@ -45,7 +45,13 @@ export class GeminiProviderAdapter implements MediaProviderAdapter {
 			},
 			this.options,
 		);
-		if (!ok) return rejectedHttpSubmission({ status, data, attemptId: input.attemptId });
+		if (!ok)
+			return rejectedHttpSubmission({
+				status,
+				data,
+				attemptId: input.attemptId,
+				providerIdempotencySupported: false,
+			});
 		const parsed = this.parse(data);
 		const snapshot = {
 			providerTaskId: input.attemptId,
@@ -56,8 +62,8 @@ export class GeminiProviderAdapter implements MediaProviderAdapter {
 		return {
 			providerTaskId: input.attemptId,
 			status: "SUCCEEDED",
-			acceptance: "CERTAIN",
-			idempotency: { key: input.attemptId, replayed: false },
+			outcome: "accepted",
+			idempotency: { providerSupported: false, replayed: false },
 			reconciliation: { submissionToken: input.attemptId },
 			snapshot,
 		};

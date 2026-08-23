@@ -19,4 +19,13 @@ describe("buildMediaQuote", () => {
 			},
 		});
 	});
+
+	it("reserves for the highest executable route cost rather than only the first route", () => {
+		const quote = buildMediaQuote({
+			productKey: "image-fast",
+			input: { kind: "text-to-image", prompt: "A studio product photo" },
+		});
+
+		expect(quote.costMicros).toBe(3_500n);
+	});
 });

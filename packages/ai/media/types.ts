@@ -8,7 +8,7 @@ export type ProviderTaskStatus =
 	| "SUCCEEDED"
 	| "FAILED"
 	| "CANCELED";
-export type AcceptanceCertainty = "CERTAIN" | "UNKNOWN";
+export type SubmissionOutcome = "accepted" | "rejected" | "uncertain";
 
 export interface ResolvedMediaAsset {
 	assetId: string;
@@ -30,11 +30,12 @@ export interface ProviderSubmitInput {
 	webhookUrl?: string;
 }
 export interface ProviderSubmission {
+	/** The only dispatch decision: accepted may proceed, rejected may fail over, uncertain must reconcile. */
+	outcome: SubmissionOutcome;
 	providerTaskId?: string;
 	status: ProviderTaskStatus;
 	failure?: ProviderFailure;
-	idempotency: { key: string; replayed: boolean };
-	acceptance: AcceptanceCertainty;
+	idempotency: { key?: string; providerSupported: boolean; replayed: boolean };
 	snapshot?: ProviderTaskSnapshot;
 	reconciliation: {
 		submissionToken: string;

@@ -12,8 +12,8 @@ describe("reliable generation orchestration", () => {
 		const submit = vi.fn(async () => ({
 			providerTaskId: "provider-task-1",
 			status: "QUEUED" as const,
-			acceptance: "CERTAIN" as const,
-			idempotency: { key: "attempt-1", replayed: false },
+			outcome: "accepted" as const,
+			idempotency: { key: "attempt-1", providerSupported: true, replayed: false },
 			reconciliation: { submissionToken: "attempt-1" },
 		}));
 		const store = createInMemoryStore();

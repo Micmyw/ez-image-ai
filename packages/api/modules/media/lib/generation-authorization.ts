@@ -1,4 +1,8 @@
-import { getCatalogEntry, type MediaModelInput } from "@repo/ai";
+import {
+	createExecutableRouteGraph,
+	enabledProviderKeysFromEnvironment,
+	type MediaModelInput,
+} from "@repo/ai";
 import {
 	DEFAULT_PRODUCT_CONFIG,
 	PLAN_ENTITLEMENTS,
@@ -168,7 +172,14 @@ export function isCatalogModelEnabled(
 	productKey: ProductModelKey,
 	modelDisabled: boolean,
 ): boolean {
-	return !modelDisabled && getCatalogEntry(productKey).routes.length > 0;
+	return (
+		!modelDisabled &&
+		Boolean(
+			createExecutableRouteGraph({
+				enabledProviders: enabledProviderKeysFromEnvironment(),
+			}).getEntry(productKey),
+		)
+	);
 }
 
 function resolvePlanId(metadata: unknown, planName: string | undefined): PlanId | null {

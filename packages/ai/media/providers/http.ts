@@ -10,17 +10,21 @@ export function rejectedHttpSubmission(input: {
 	status: number;
 	data: unknown;
 	attemptId: string;
+	providerIdempotencySupported?: boolean;
 }): ProviderSubmission {
-	const retryable = [408, 409, 425, 429].includes(input.status) || input.status >= 500;
+	const uncertain = [408, 409, 425, 429].includes(input.status) || input.status >= 500;
 	return {
 		status: "FAILED",
 		failure: {
 			code: `HTTP_${input.status}`,
 			message: providerHttpMessage(input.data, input.status),
-			retryable,
+			retryable: false,
 		},
-		acceptance: "CERTAIN",
-		idempotency: { key: input.attemptId, replayed: false },
+		outcome: uncertain ? "uncertain" : "rejected",
+		idempotency:
+			input.providerIdempotencySupported === false
+				? { providerSupported: false, replayed: false }
+				: { key: input.attemptId, providerSupported: true, replayed: false },
 		reconciliation: { submissionToken: input.attemptId },
 	};
 }

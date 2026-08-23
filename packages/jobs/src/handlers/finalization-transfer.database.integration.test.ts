@@ -458,10 +458,10 @@ async function seedFinalizingJob(outputs: ProviderOutput[]) {
 	await dispatchStore.recordSynchronousCompletion(
 		dispatch.attemptId,
 		{
+			outcome: "accepted",
 			providerTaskId: dispatch.attemptId,
 			status: "SUCCEEDED",
-			acceptance: "CERTAIN",
-			idempotency: { key: dispatch.attemptId, replayed: false },
+			idempotency: { key: dispatch.attemptId, providerSupported: false, replayed: false },
 			reconciliation: { submissionToken: dispatch.attemptId },
 		},
 		{
