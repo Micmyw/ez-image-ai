@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import type { Readable } from "node:stream";
 
 import {
 	AbortMultipartUploadCommand,
@@ -18,7 +19,11 @@ import { logger } from "@repo/logs";
 import { config } from "../../config";
 import { detectMediaType, getMediaByteLimit } from "../../lib/media-signatures";
 import type { RemoteMediaRequestOptions } from "../../lib/stream-copy";
-import { copyRemoteRequestToMultipart, requestRemoteMediaStream } from "../../lib/stream-copy";
+import {
+	copyRemoteRequestToMultipart,
+	copyRemoteStreamToMultipart,
+	requestRemoteMediaStream,
+} from "../../lib/stream-copy";
 import type {
 	GetSignedUploadUrlHandler,
 	GetSignedUrlHander,
@@ -165,6 +170,98 @@ export async function headObject(input: MediaObjectLocation): Promise<MediaObjec
 		etag: result.ETag ?? null,
 		metadata: result.Metadata ?? {},
 	};
+}
+
+export async function promoteStagedObject(input: {
+	staging: MediaObjectLocation;
+	final: MediaObjectLocation;
+	contentType: MediaContentType;
+	contentLength: number;
+}): Promise<{ bytes: number; sha256: string; etag: string | null; versionId: string | null }> {
+	if (input.staging.key === input.final.key) throw new Error("Staging and final keys must differ");
+	const existing = await inspectStoredMediaObject(
+		input.final,
+		input.contentType,
+		input.contentLength,
+	).catch(() => null);
+	if (existing) return existing;
+
+	const source = await getS3Client().send(new GetObjectCommand(mediaLocation(input.staging)));
+	if (
+		!source.Body ||
+		typeof (source.Body as AsyncIterable<Uint8Array>)[Symbol.asyncIterator] !== "function"
+	) {
+		throw new Error("Staging object body was empty");
+	}
+	if (source.ContentLength !== input.contentLength || source.ContentType !== input.contentType) {
+		throw new Error("Staging object metadata does not match the upload session");
+	}
+	const { uploadId } = await createMultipartUpload({
+		bucket: input.final.bucket,
+		key: input.final.key,
+		contentType: input.contentType,
+	});
+	const copied = await copyRemoteStreamToMultipart(source.Body as Readable, {
+		maxBytes: input.contentLength,
+		partSize: config.media.multipartPartSize,
+		validateHeader(header) {
+			if (detectMediaType(header) !== input.contentType) {
+				throw new Error("Staging object signature does not match the upload session");
+			}
+		},
+		uploadPart: ({ partNumber, body }) =>
+			uploadMultipartPart({ ...input.final, uploadId, partNumber, body }),
+		complete: (parts) => completeMultipartUpload({ ...input.final, uploadId, parts }),
+		abort: () => abortMultipartUpload({ ...input.final, uploadId }),
+	});
+	if (copied.bytes !== input.contentLength)
+		throw new Error("Staging object size does not match the upload session");
+	return inspectStoredMediaObject(
+		input.final,
+		input.contentType,
+		input.contentLength,
+		copied.sha256,
+	);
+}
+
+async function inspectStoredMediaObject(
+	location: MediaObjectLocation,
+	contentType: MediaContentType,
+	contentLength: number,
+	expectedSha256?: string,
+): Promise<{ bytes: number; sha256: string; etag: string | null; versionId: string | null }> {
+	const result = await getS3Client().send(new GetObjectCommand(mediaLocation(location)));
+	if (
+		!result.Body ||
+		typeof (result.Body as AsyncIterable<Uint8Array>)[Symbol.asyncIterator] !== "function"
+	) {
+		throw new Error("Stored object body was empty");
+	}
+	if (result.ContentLength !== contentLength || result.ContentType !== contentType) {
+		throw new Error("Stored object metadata does not match the upload session");
+	}
+	const hash = createHash("sha256");
+	const headerChunks: Buffer[] = [];
+	let headerBytes = 0;
+	let bytes = 0;
+	for await (const value of result.Body as AsyncIterable<Uint8Array>) {
+		const chunk = Buffer.from(value);
+		bytes += chunk.byteLength;
+		if (bytes > contentLength) throw new Error("Stored object exceeds the upload session size");
+		hash.update(chunk);
+		if (headerBytes < 64) {
+			const slice = chunk.subarray(0, 64 - headerBytes);
+			headerChunks.push(slice);
+			headerBytes += slice.byteLength;
+		}
+	}
+	if (bytes !== contentLength || detectMediaType(Buffer.concat(headerChunks)) !== contentType) {
+		throw new Error("Stored object does not match the upload session");
+	}
+	const sha256 = hash.digest("hex");
+	if (expectedSha256 && sha256 !== expectedSha256)
+		throw new Error("Final object checksum mismatch");
+	return { bytes, sha256, etag: result.ETag ?? null, versionId: result.VersionId ?? null };
 }
 
 export async function checkStorageMetadataAccess(): Promise<void> {

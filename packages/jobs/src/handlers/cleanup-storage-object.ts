@@ -24,7 +24,7 @@ export async function deleteStorageObject(
 	payload: DeleteStorageObjectPayload,
 	dependencies: StorageCleanupDependencies,
 ): Promise<void> {
-	const operationKey = `media-object-delete:${payload.assetId}`;
+	const operationKey = `media-object-delete:${payload.assetId}:${objectKeyFingerprint(payload.objectKey)}`;
 	if (await dependencies.isComplete(operationKey)) return;
 	await dependencies.deleteObject(payload.objectKey);
 	await dependencies.complete({
@@ -33,6 +33,10 @@ export async function deleteStorageObject(
 		assetId: payload.assetId,
 		objectKey: payload.objectKey,
 	});
+}
+
+function objectKeyFingerprint(objectKey: string): string {
+	return createHash("sha256").update(objectKey).digest("base64url").slice(0, 16);
 }
 
 export async function abortMultipartObject(
@@ -60,3 +64,4 @@ function isNoSuchUpload(error: unknown): boolean {
 		error && typeof error === "object" && "name" in error && error.name === "NoSuchUpload",
 	);
 }
+import { createHash } from "node:crypto";

@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import type { MediaAssetKind, Prisma } from "../../generated/client";
 import type { CursorPageInput, MediaDatabaseClient, MediaTransactionClient } from "./types";
 import { getMediaDatabaseClient, runSerializable } from "./types";
@@ -59,6 +61,7 @@ export interface CreateMediaUploadSessionTransactionInput {
 	ownerId: string;
 	kind: MediaAssetKind;
 	objectKey: string;
+	stagingObjectKey?: string;
 	mimeType: string;
 	expectedBytes: bigint;
 	tokenHash: string;
@@ -120,6 +123,7 @@ export async function createMediaUploadSessionTransaction(
 				expectedBytes: input.expectedBytes,
 				expiresAt: input.expiresAt,
 				multipartUploadId: input.multipartUploadId,
+				stagingObjectKey: input.stagingObjectKey ?? input.objectKey,
 			},
 		});
 		await tx.storageUsageReservation.create({
@@ -149,6 +153,44 @@ export async function createMediaUploadSessionTransaction(
 	});
 }
 
+export async function claimMediaUploadSessionFinalizationTransaction(
+	input: {
+		sessionId: string;
+		ownerId: string;
+		parts?: Prisma.InputJsonValue;
+		now?: Date;
+	},
+	client: MediaTransactionClient,
+) {
+	return runSerializable(client, async (tx) => {
+		const session = await tx.mediaUploadSession.findFirst({
+			where: { id: input.sessionId, asset: { ownerType: "USER", ownerId: input.ownerId } },
+			include: { asset: true },
+		});
+		if (!session) throw new Error("Upload session not found for owner");
+		if (session.status === "COMPLETED" || session.status === "FINALIZING") return session;
+		if (session.status !== "PENDING") throw new Error("Upload session is not pending");
+		const now = input.now ?? (await getDatabaseNow(tx));
+		if (session.expiresAt <= now) {
+			await expirePendingUploadSession(session, now, "DELETE_OBJECT", tx);
+			throw new MediaUploadSessionExpiredError();
+		}
+		const finalizationToken = randomUUID();
+		const claimed = await tx.mediaUploadSession.updateMany({
+			where: { id: session.id, status: "PENDING", expiresAt: { gt: now } },
+			data: { status: "FINALIZING", finalizationToken, finalizationParts: input.parts },
+		});
+		if (claimed.count !== 1)
+			throw new Error("Upload session changed concurrently before finalization");
+		return {
+			...session,
+			status: "FINALIZING" as const,
+			finalizationToken,
+			finalizationParts: input.parts ?? null,
+		};
+	});
+}
+
 export async function failMediaUploadSessionTransaction(
 	input: { sessionId: string; ownerId: string; reason: string },
 	client: MediaTransactionClient,
@@ -160,9 +202,11 @@ export async function failMediaUploadSessionTransaction(
 		});
 		if (!session) throw new Error("Upload session not found for owner");
 		if (session.status === "ABORTED") return session.asset;
-		if (session.status !== "PENDING") throw new Error("Upload session cannot be failed");
+		if (!["PENDING", "FINALIZING"].includes(session.status)) {
+			throw new Error("Upload session cannot be failed");
+		}
 		const changed = await tx.mediaUploadSession.updateMany({
-			where: { id: session.id, status: "PENDING" },
+			where: { id: session.id, status: { in: ["PENDING", "FINALIZING"] } },
 			data: { status: "ABORTED" },
 		});
 		if (changed.count !== 1) throw new Error("Upload session changed concurrently before failure");
@@ -180,7 +224,10 @@ export async function failMediaUploadSessionTransaction(
 				aggregateType: "MEDIA_ASSET",
 				aggregateId: session.assetId,
 				dedupeKey: `media-upload-invalid-cleanup:${session.id}`,
-				payload: { assetId: session.assetId, objectKey: session.asset.objectKey },
+				payload: {
+					assetId: session.assetId,
+					objectKey: session.stagingObjectKey ?? session.asset.objectKey,
+				},
 			},
 		});
 		await tx.auditLog.create({
@@ -203,6 +250,9 @@ export async function completeMediaUploadSessionTransaction(
 		sessionId: string;
 		ownerId: string;
 		checksum: string;
+		storageEtag?: string | null;
+		storageVersionId?: string | null;
+		finalizationToken?: string;
 		now?: Date;
 		expiredCleanup?: "ABORT_MULTIPART" | "DELETE_OBJECT";
 	},
@@ -217,22 +267,42 @@ export async function completeMediaUploadSessionTransaction(
 		if (session.status === "COMPLETED") {
 			return { outcome: "COMPLETED" as const, asset: session.asset };
 		}
-		if (session.status !== "PENDING") throw new Error("Upload session is not pending");
+		if (input.finalizationToken) {
+			if (
+				session.status !== "FINALIZING" ||
+				session.finalizationToken !== input.finalizationToken
+			) {
+				throw new Error("Upload session is not finalizing with this token");
+			}
+		} else if (session.status !== "PENDING") {
+			throw new Error("Upload session is not pending");
+		}
 		const now = input.now ?? (await getDatabaseNow(tx));
 		if (session.expiresAt <= now) {
 			await expirePendingUploadSession(session, now, input.expiredCleanup ?? "DELETE_OBJECT", tx);
 			return { outcome: "EXPIRED" as const, asset: session.asset };
 		}
 		const completion = await tx.mediaUploadSession.updateMany({
-			where: { id: session.id, status: "PENDING", expiresAt: { gt: now } },
-			data: { status: "COMPLETED", completedAt: now },
+			where: {
+				id: session.id,
+				status: input.finalizationToken ? "FINALIZING" : "PENDING",
+				expiresAt: { gt: now },
+				...(input.finalizationToken ? { finalizationToken: input.finalizationToken } : {}),
+			},
+			data: { status: "COMPLETED", completedAt: now, finalizationToken: null },
 		});
 		if (completion.count !== 1) {
 			throw new Error("Upload session changed concurrently before completion");
 		}
 		const asset = await tx.mediaAsset.update({
 			where: { id: session.assetId },
-			data: { status: "VERIFYING", checksum: input.checksum },
+			data: {
+				status: "VERIFYING",
+				checksum: input.checksum,
+				storageEtag: input.storageEtag ?? null,
+				storageVersionId: input.storageVersionId ?? null,
+				finalizedAt: now,
+			},
 		});
 		await tx.storageUsageReservation.updateMany({
 			where: { referenceKey: `media-upload:${session.id}`, status: "ACTIVE" },

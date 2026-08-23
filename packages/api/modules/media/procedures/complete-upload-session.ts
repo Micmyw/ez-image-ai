@@ -1,5 +1,6 @@
 import { db } from "@repo/database/client";
 import {
+	claimMediaUploadSessionFinalizationTransaction,
 	completeMediaUploadSessionTransaction,
 	expireMediaUploadSessionTransaction,
 	failMediaUploadSessionTransaction,
@@ -9,15 +10,14 @@ import {
 	abortMultipartUpload,
 	completeMultipartUpload,
 	deleteObject,
-	headObject,
-	readMediaHeader,
+	promoteStagedObject,
 } from "@repo/storage";
 import { z } from "zod";
 
 import { protectedProcedure } from "../../../orpc/procedures";
 import { requireOwnedUploadSession } from "../lib/asset-authorization";
 import { validateMultipartCompletionParts } from "../lib/upload-parts";
-import { assertCompletedObjectMatchesSession, toMediaAssetDto } from "../lib/upload-validation";
+import { toMediaAssetDto } from "../lib/upload-validation";
 
 const MULTIPART_PART_SIZE = 8 * 1024 * 1024;
 
@@ -26,7 +26,7 @@ export const completeUploadSession = protectedProcedure
 		method: "POST",
 		path: "/media/upload-sessions/{sessionId}/complete",
 		tags: ["Media"],
-		summary: "Complete and queue verification for an upload",
+		summary: "Promote a staged upload into an immutable private media asset",
 	})
 	.input(
 		z.object({
@@ -39,24 +39,28 @@ export const completeUploadSession = protectedProcedure
 	.handler(async ({ context: { user }, input }) => {
 		const session = await requireOwnedUploadSession(input.sessionId, user.id);
 		if (session.status === "COMPLETED") return toMediaAssetDto(session.asset);
-		if (session.status !== "PENDING") throw new Error("Upload session is not pending");
-		const location = { bucket: "media" as const, key: session.asset.objectKey };
+		if (!["PENDING", "FINALIZING"].includes(session.status)) {
+			throw new Error("Upload session is not pending");
+		}
+		const staging = {
+			bucket: "media" as const,
+			key: session.stagingObjectKey ?? session.asset.objectKey,
+		};
+		const final = { bucket: "media" as const, key: session.asset.objectKey };
 		if (session.expiresAt <= new Date()) {
 			await expireMediaUploadSessionTransaction(
 				{ sessionId: session.id, ownerId: user.id, now: new Date() },
 				db,
 			);
 			if (session.multipartUploadId) {
-				await abortMultipartUpload({
-					...location,
-					uploadId: session.multipartUploadId,
-				}).catch(() => undefined);
+				await abortMultipartUpload({ ...staging, uploadId: session.multipartUploadId }).catch(
+					() => undefined,
+				);
 			} else {
-				await deleteObject(location).catch(() => undefined);
+				await deleteObject(staging).catch(() => undefined);
 			}
 			throw new MediaUploadSessionExpiredError();
 		}
-		let storageFinalized = !session.multipartUploadId;
 		if (session.multipartUploadId) {
 			if (!input.parts?.length) throw new Error("Multipart completion requires uploaded parts");
 			validateMultipartCompletionParts(
@@ -64,56 +68,60 @@ export const completeUploadSession = protectedProcedure
 				Number(session.expectedBytes),
 				MULTIPART_PART_SIZE,
 			);
-			await completeMultipartUpload({
-				bucket: "media",
-				key: session.asset.objectKey,
-				uploadId: session.multipartUploadId,
-				parts: input.parts,
-			});
-			storageFinalized = true;
 		}
+		const claimed = await claimMediaUploadSessionFinalizationTransaction(
+			{ sessionId: session.id, ownerId: user.id, parts: input.parts, now: new Date() },
+			db,
+		);
+		if (claimed.status === "COMPLETED") return toMediaAssetDto(claimed.asset);
+		if (!claimed.finalizationToken) throw new Error("Upload session is already finalizing");
 		try {
-			const [head, header] = await Promise.all([headObject(location), readMediaHeader(location)]);
-			assertCompletedObjectMatchesSession({
-				expectedContentType: session.asset.mimeType as Parameters<
-					typeof assertCompletedObjectMatchesSession
-				>[0]["expectedContentType"],
-				expectedBytes: Number(session.expectedBytes),
-				head,
-				header,
+			if (session.multipartUploadId && session.status === "PENDING") {
+				await completeMultipartUpload({
+					...staging,
+					uploadId: session.multipartUploadId,
+					parts: input.parts!,
+				});
+			}
+			const promoted = await promoteStagedObject({
+				staging,
+				final,
+				contentLength: Number(session.expectedBytes),
+				contentType: session.asset.mimeType as
+					| "image/jpeg"
+					| "image/png"
+					| "image/webp"
+					| "video/mp4"
+					| "video/webm"
+					| "video/quicktime",
 			});
 			const asset = await completeMediaUploadSessionTransaction(
 				{
 					sessionId: session.id,
 					ownerId: user.id,
-					checksum: head.metadata.sha256 ?? head.etag ?? "pending-sha256",
+					checksum: promoted.sha256,
+					storageEtag: promoted.etag,
+					storageVersionId: promoted.versionId,
+					finalizationToken: claimed.finalizationToken,
 					expiredCleanup: "DELETE_OBJECT",
 				},
 				db,
 			);
+			await deleteObject(staging).catch(() => undefined);
 			return toMediaAssetDto(asset);
 		} catch (error) {
 			if (error instanceof MediaUploadSessionExpiredError) {
-				if (storageFinalized) await deleteObject(location).catch(() => undefined);
-				else if (session.multipartUploadId) {
-					await abortMultipartUpload({
-						...location,
-						uploadId: session.multipartUploadId,
-					}).catch(() => undefined);
-				}
-			} else if (storageFinalized) {
-				try {
-					await failMediaUploadSessionTransaction(
-						{
-							sessionId: session.id,
-							ownerId: user.id,
-							reason: "UPLOAD_VALIDATION_FAILED",
-						},
-						db,
+				if (session.multipartUploadId) {
+					await abortMultipartUpload({ ...staging, uploadId: session.multipartUploadId }).catch(
+						() => undefined,
 					);
-				} finally {
-					await deleteObject(location).catch(() => undefined);
-				}
+				} else await deleteObject(staging).catch(() => undefined);
+			} else {
+				await failMediaUploadSessionTransaction(
+					{ sessionId: session.id, ownerId: user.id, reason: "UPLOAD_PROMOTION_FAILED" },
+					db,
+				).catch(() => undefined);
+				await deleteObject(staging).catch(() => undefined);
 			}
 			throw error;
 		}

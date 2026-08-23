@@ -2,7 +2,12 @@ import { createHash, randomUUID } from "node:crypto";
 
 import { db } from "@repo/database/client";
 import { createMediaUploadSessionTransaction } from "@repo/database/media-assets";
-import { createAssetObjectKey, createMultipartUpload, createSignedUpload } from "@repo/storage";
+import {
+	createFinalAssetObjectKey,
+	createMultipartUpload,
+	createSignedUpload,
+	createStagingObjectKey,
+} from "@repo/storage";
 import { z } from "zod";
 
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -25,18 +30,25 @@ export const createUploadSession = protectedProcedure
 		await enforceMediaRateLimit(user.id, "media:upload-session");
 		const assetId = randomUUID();
 		const sessionId = randomUUID();
-		const objectKey = createAssetObjectKey(user.id, assetId, parsed.contentType);
+		const versionId = randomUUID();
+		const objectKey = createFinalAssetObjectKey(user.id, assetId, versionId, parsed.contentType);
+		const stagingObjectKey = createStagingObjectKey(
+			user.id,
+			sessionId,
+			randomUUID(),
+			parsed.contentType,
+		);
 		const multipart = parsed.multipart
 			? await createMultipartUpload({
 					bucket: "media",
-					key: objectKey,
+					key: stagingObjectKey,
 					contentType: parsed.contentType,
 				})
 			: null;
 		const signedUploadUrl = !parsed.multipart
 			? await createSignedUpload({
 					bucket: "media",
-					key: objectKey,
+					key: stagingObjectKey,
 					contentType: parsed.contentType,
 					contentLength: parsed.byteSize,
 				})
@@ -52,6 +64,7 @@ export const createUploadSession = protectedProcedure
 					ownerId: user.id,
 					kind: "INPUT",
 					objectKey,
+					stagingObjectKey,
 					mimeType: parsed.contentType,
 					expectedBytes: BigInt(parsed.byteSize),
 					tokenHash,
@@ -66,7 +79,7 @@ export const createUploadSession = protectedProcedure
 				const { abortMultipartUpload } = await import("@repo/storage");
 				await abortMultipartUpload({
 					bucket: "media",
-					key: objectKey,
+					key: stagingObjectKey,
 					uploadId: multipart.uploadId,
 				}).catch(() => undefined);
 			}

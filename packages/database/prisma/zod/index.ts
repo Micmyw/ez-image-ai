@@ -90,13 +90,13 @@ export type GenerationAttemptScalarFieldEnum = z.infer<typeof GenerationAttemptS
 
 // File: MediaAssetScalarFieldEnum.schema.ts
 
-export const MediaAssetScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'kind', 'status', 'objectKey', 'mimeType', 'byteSize', 'width', 'height', 'durationMillis', 'checksum', 'sourceUrl', 'createdAt', 'updatedAt', 'deletedAt'])
+export const MediaAssetScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'kind', 'status', 'objectKey', 'mimeType', 'byteSize', 'width', 'height', 'durationMillis', 'checksum', 'storageEtag', 'storageVersionId', 'finalizedAt', 'sourceUrl', 'createdAt', 'updatedAt', 'deletedAt'])
 
 export type MediaAssetScalarFieldEnum = z.infer<typeof MediaAssetScalarFieldEnumSchema>;
 
 // File: MediaUploadSessionScalarFieldEnum.schema.ts
 
-export const MediaUploadSessionScalarFieldEnumSchema = z.enum(['id', 'assetId', 'tokenHash', 'multipartUploadId', 'status', 'expectedBytes', 'createdAt', 'expiresAt', 'completedAt'])
+export const MediaUploadSessionScalarFieldEnumSchema = z.enum(['id', 'assetId', 'tokenHash', 'multipartUploadId', 'stagingObjectKey', 'finalizationToken', 'finalizationParts', 'status', 'expectedBytes', 'createdAt', 'expiresAt', 'completedAt'])
 
 export type MediaUploadSessionScalarFieldEnum = z.infer<typeof MediaUploadSessionScalarFieldEnumSchema>;
 
@@ -294,7 +294,7 @@ export type MediaAssetStatus = z.infer<typeof MediaAssetStatusSchema>;
 
 // File: UploadSessionStatus.schema.ts
 
-export const UploadSessionStatusSchema = z.enum(['PENDING', 'COMPLETED', 'EXPIRED', 'ABORTED'])
+export const UploadSessionStatusSchema = z.enum(['PENDING', 'FINALIZING', 'COMPLETED', 'EXPIRED', 'ABORTED'])
 
 export type UploadSessionStatus = z.infer<typeof UploadSessionStatusSchema>;
 
@@ -651,6 +651,9 @@ export const MediaAssetSchema = z.object({
   height: z.number().int().nullish(),
   durationMillis: z.bigint().nullish(),
   checksum: z.string().nullish(),
+  storageEtag: z.string().nullish(),
+  storageVersionId: z.string().nullish(),
+  finalizedAt: z.date().nullish(),
   sourceUrl: z.string().nullish(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -667,6 +670,9 @@ export const MediaUploadSessionSchema = z.object({
   assetId: z.string(),
   tokenHash: z.string(),
   multipartUploadId: z.string().nullish(),
+  stagingObjectKey: z.string().nullish(),
+  finalizationToken: z.string().nullish(),
+  finalizationParts: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10").nullish(),
   status: UploadSessionStatusSchema.default("PENDING"),
   expectedBytes: z.bigint(),
   createdAt: z.date(),

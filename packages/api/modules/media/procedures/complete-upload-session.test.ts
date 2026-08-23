@@ -7,6 +7,7 @@ vi.mock("@repo/auth", () => ({
 
 vi.mock("@repo/database/client", () => ({ db: {} }));
 vi.mock("@repo/database/media-assets", () => ({
+	claimMediaUploadSessionFinalizationTransaction: vi.fn(),
 	completeMediaUploadSessionTransaction: vi.fn(),
 	failMediaUploadSessionTransaction: vi.fn(async () => undefined),
 	expireMediaUploadSessionTransaction: vi.fn(async () => undefined),
@@ -20,7 +21,9 @@ vi.mock("@repo/storage", () => ({
 	abortMultipartUpload: vi.fn(async () => undefined),
 	completeMultipartUpload: vi.fn(async () => undefined),
 	deleteObject: vi.fn(async () => undefined),
+	detectMediaType: vi.fn(() => "image/png"),
 	headObject: vi.fn(),
+	promoteStagedObject: vi.fn(),
 	readMediaHeader: vi.fn(),
 }));
 vi.mock("../lib/asset-authorization", () => ({
@@ -28,11 +31,15 @@ vi.mock("../lib/asset-authorization", () => ({
 }));
 
 import { auth } from "@repo/auth";
-import { completeMediaUploadSessionTransaction } from "@repo/database/media-assets";
+import {
+	claimMediaUploadSessionFinalizationTransaction,
+	completeMediaUploadSessionTransaction,
+} from "@repo/database/media-assets";
 import {
 	abortMultipartUpload,
 	completeMultipartUpload,
 	headObject,
+	promoteStagedObject,
 	readMediaHeader,
 } from "@repo/storage";
 
@@ -55,6 +62,7 @@ describe("completeUploadSession", () => {
 			status: "PENDING",
 			expiresAt: new Date("2026-08-14T00:00:00Z"),
 			multipartUploadId: "multipart_1",
+			stagingObjectKey: "users/user_1/staging/session_1/nonce.mp4",
 			asset: {
 				id: "asset_1",
 				ownerType: "USER",
@@ -62,6 +70,12 @@ describe("completeUploadSession", () => {
 				objectKey: "users/user_1/assets/asset_1/original.mp4",
 				mimeType: "video/mp4",
 			},
+		} as never);
+		vi.mocked(claimMediaUploadSessionFinalizationTransaction).mockResolvedValue({
+			id: "session_1",
+			status: "FINALIZING",
+			finalizationToken: "finalize_1",
+			asset: { id: "asset_1", objectKey: "users/user_1/assets/asset_1/original.mp4" },
 		} as never);
 	});
 
@@ -95,6 +109,7 @@ describe("completeUploadSession", () => {
 			expectedBytes: BigInt(16 * 1024 * 1024),
 			expiresAt: new Date("2026-08-15T00:00:00Z"),
 			multipartUploadId: "multipart_1",
+			stagingObjectKey: "users/user_1/staging/session_1/nonce.mp4",
 			asset: {
 				id: "asset_1",
 				ownerType: "USER",
@@ -111,6 +126,9 @@ describe("completeUploadSession", () => {
 		});
 		vi.mocked(readMediaHeader).mockResolvedValueOnce(
 			Buffer.from([0, 0, 0, 0, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]),
+		);
+		vi.mocked(promoteStagedObject).mockRejectedValueOnce(
+			new Error("Staging object size does not match the upload session"),
 		);
 
 		await expect(
@@ -135,7 +153,79 @@ describe("completeUploadSession", () => {
 		const { deleteObject } = await import("@repo/storage");
 		expect(deleteObject).toHaveBeenCalledWith({
 			bucket: "media",
-			key: "users/user_1/assets/asset_1/original.mp4",
+			key: "users/user_1/staging/session_1/nonce.mp4",
 		});
+	});
+
+	it("promotes the verified staging object into the private final asset key", async () => {
+		const { claimMediaUploadSessionFinalizationTransaction } =
+			await import("@repo/database/media-assets");
+		vi.mocked(requireOwnedUploadSession).mockResolvedValueOnce({
+			id: "session_1",
+			assetId: "asset_1",
+			status: "PENDING",
+			expectedBytes: 16n,
+			expiresAt: new Date("2026-08-15T00:00:00Z"),
+			multipartUploadId: null,
+			stagingObjectKey: "users/user_1/staging/session_1/nonce.png",
+			asset: {
+				id: "asset_1",
+				ownerType: "USER",
+				ownerId: "user_1",
+				objectKey: "users/user_1/assets/asset_1/versions/version_1/original.png",
+				mimeType: "image/png",
+			},
+		} as never);
+		vi.mocked(claimMediaUploadSessionFinalizationTransaction).mockResolvedValueOnce({
+			id: "session_1",
+			status: "FINALIZING",
+			finalizationToken: "finalize_1",
+			asset: {
+				id: "asset_1",
+				objectKey: "users/user_1/assets/asset_1/versions/version_1/original.png",
+				mimeType: "image/png",
+			},
+		} as never);
+		vi.mocked(promoteStagedObject).mockResolvedValueOnce({
+			bytes: 16,
+			sha256: "a".repeat(64),
+			etag: "final-etag",
+			versionId: "final-version",
+		});
+		vi.mocked(completeMediaUploadSessionTransaction).mockResolvedValueOnce({
+			id: "asset_1",
+			status: "VERIFYING",
+			mimeType: "image/png",
+			byteSize: 16n,
+		} as never);
+		vi.mocked(headObject).mockResolvedValueOnce({
+			contentLength: 16,
+			contentType: "image/png",
+			etag: "staging-etag",
+			metadata: {},
+		});
+		vi.mocked(readMediaHeader).mockResolvedValueOnce(
+			Buffer.from("89504e470d0a1a0a0000000d49484452", "hex"),
+		);
+
+		await call(completeUploadSession, { sessionId: "session_1" }, context);
+
+		expect(promoteStagedObject).toHaveBeenCalledWith({
+			staging: { bucket: "media", key: "users/user_1/staging/session_1/nonce.png" },
+			final: {
+				bucket: "media",
+				key: "users/user_1/assets/asset_1/versions/version_1/original.png",
+			},
+			contentLength: 16,
+			contentType: "image/png",
+		});
+		expect(completeMediaUploadSessionTransaction).toHaveBeenCalledWith(
+			expect.objectContaining({
+				checksum: "a".repeat(64),
+				storageEtag: "final-etag",
+				storageVersionId: "final-version",
+			}),
+			expect.anything(),
+		);
 	});
 });

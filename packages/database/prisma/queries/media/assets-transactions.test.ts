@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
 	abortMediaUploadSessionTransaction,
+	claimMediaUploadSessionFinalizationTransaction,
 	completeMediaUploadSessionTransaction,
 	createMediaUploadSessionTransaction,
 	markMediaAssetDeletedTransaction,
@@ -187,6 +188,29 @@ describe("media upload transactions", () => {
 			client as never,
 		);
 		expect(tx.mediaAsset.update).toHaveBeenCalledTimes(1);
+	});
+
+	it("claims exactly one FINALIZING transition before storage promotion", async () => {
+		const { client, tx } = transactionClient();
+		const claimed = await claimMediaUploadSessionFinalizationTransaction(
+			{
+				sessionId: "session_1",
+				ownerId: "user_1",
+				parts: [{ partNumber: 1, etag: "etag_1" }],
+				now: new Date("2026-08-13T00:00:00Z"),
+			},
+			client as never,
+		);
+		expect(claimed.status).toBe("FINALIZING");
+		expect(tx.mediaUploadSession.updateMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({ status: "PENDING" }),
+				data: expect.objectContaining({
+					status: "FINALIZING",
+					finalizationToken: expect.any(String),
+				}),
+			}),
+		);
 	});
 
 	it("rejects the exact expiration boundary and atomically expires the reservation", async () => {

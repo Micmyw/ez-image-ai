@@ -22,3 +22,27 @@ export function createAssetObjectKey(
 	}
 	return `users/${ownerId}/assets/${assetId}/${derivative}.${EXTENSIONS[contentType]}`;
 }
+
+export function createFinalAssetObjectKey(
+	ownerId: string,
+	assetId: string,
+	versionId: string,
+	contentType: MediaContentType,
+): string {
+	if (![ownerId, assetId, versionId].every((value) => SAFE_IDENTIFIER.test(value))) {
+		throw new Error("Storage object identifier is invalid");
+	}
+	return `users/${ownerId}/assets/${assetId}/versions/${versionId}/original.${EXTENSIONS[contentType]}`;
+}
+
+export function createStagingObjectKey(
+	ownerId: string,
+	sessionId: string,
+	nonce: string,
+	contentType: MediaContentType,
+): string {
+	if (![ownerId, sessionId, nonce].every((value) => SAFE_IDENTIFIER.test(value))) {
+		throw new Error("Storage object identifier is invalid");
+	}
+	return `users/${ownerId}/staging/${sessionId}/${nonce}.${EXTENSIONS[contentType]}`;
+}

@@ -8,7 +8,11 @@ import {
 	detectMediaType,
 	validateMediaUpload,
 } from "./lib/media-signatures";
-import { createAssetObjectKey } from "./lib/object-key";
+import {
+	createAssetObjectKey,
+	createFinalAssetObjectKey,
+	createStagingObjectKey,
+} from "./lib/object-key";
 import { assertAllowedRemoteUrl } from "./lib/remote-url-policy";
 import {
 	copyRemoteRequestToMultipart,
@@ -53,6 +57,15 @@ describe("private media storage policy", () => {
 			"users/user_1/assets/asset_2/thumbnail.mp4",
 		);
 		expect(() => createAssetObjectKey("../victim", "asset_2", "image/png")).toThrow(/identifier/i);
+	});
+
+	it("separates client-writable staging keys from immutable final asset keys", () => {
+		const finalKey = createFinalAssetObjectKey("user_1", "asset_2", "version_3", "image/png");
+		const stagingKey = createStagingObjectKey("user_1", "session_4", "nonce_5", "image/png");
+
+		expect(finalKey).toBe("users/user_1/assets/asset_2/versions/version_3/original.png");
+		expect(stagingKey).toBe("users/user_1/staging/session_4/nonce_5.png");
+		expect(stagingKey).not.toBe(finalKey);
 	});
 
 	it("accepts capped inline images but rejects inline video", () => {

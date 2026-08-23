@@ -258,6 +258,7 @@ enum GenerationJobAssetRole {
 
 enum UploadSessionStatus {
   PENDING
+  FINALIZING
   COMPLETED
   EXPIRED
   ABORTED
@@ -446,6 +447,9 @@ model MediaAsset {
   height            Int?
   durationMillis    BigInt?
   checksum          String?
+  storageEtag       String?
+  storageVersionId  String?
+  finalizedAt       DateTime?               @db.Timestamptz(3)
   sourceUrl         String?
   createdAt         DateTime                @default(now()) @db.Timestamptz(3)
   updatedAt         DateTime                @updatedAt @db.Timestamptz(3)
@@ -465,6 +469,9 @@ model MediaUploadSession {
   asset             MediaAsset          @relation(fields: [assetId], references: [id], onDelete: Cascade)
   tokenHash         String              @unique
   multipartUploadId String?
+  stagingObjectKey  String?             @unique
+  finalizationToken String?             @unique
+  finalizationParts Json?
   status            UploadSessionStatus @default(PENDING)
   expectedBytes     BigInt
   createdAt         DateTime            @default(now()) @db.Timestamptz(3)
