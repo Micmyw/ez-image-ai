@@ -29,6 +29,22 @@
 		"description": "Respuestas claras sobre planes, créditos y tu espacio de edición de imágenes.",
 		"title": "Preguntas frecuentes",
 		"items": {
+			"realGeneration": {
+				"question": "¿La página de inicio genera una imagen editada?",
+				"answer": "No. La página de inicio solo guarda un borrador. La generación real comienza después de iniciar sesión, revisar el coste en créditos y confirmar."
+			},
+			"privateUploads": {
+				"question": "¿Las imágenes subidas son públicas?",
+				"answer": "No. Las fuentes y los resultados son recursos privados de la cuenta; antes de iniciar sesión se usa un borrador anónimo de corta duración."
+			},
+			"restrictions": {
+				"question": "¿Qué significa aquí “No Restrictions”?",
+				"answer": "Significa instrucciones naturales, menos pasos basados solo en plantillas, subidas privadas y créditos transparentes. Siguen aplicándose los límites normales de seguridad, legales, del proveedor y de uso."
+			},
+			"formats": {
+				"question": "¿Qué formatos de imagen puedo subir?",
+				"answer": "La página de inicio acepta JPEG, PNG y WebP hasta el límite de tamaño indicado junto al cargador."
+			},
 			"refundPolicy": {
 				"question": "¿Cómo se gestionan los reembolsos?",
 				"answer": "La elegibilidad depende de las condiciones de pago aplicables. Contacta con soporte e incluye tus datos de facturación para su revisión."
@@ -58,7 +74,171 @@
 			"continue": "Continuar con la edición",
 			"privacy": "Tu borrador se guarda de forma privada durante un máximo de una hora. No se edita ninguna imagen hasta que inicies sesión y confirmes.",
 			"error": "No pudimos guardar este borrador de edición. Inténtalo de nuevo en unos minutos.",
-			"steps": { "idea": "Subir", "control": "Describir", "create": "Revisar" }
+			"steps": { "idea": "Subir", "control": "Describir", "create": "Revisar" },
+			"fileHint": "JPEG, PNG o WebP de hasta {megabytes, number} MB",
+			"uploadLabel": "Suelta una imagen aquí o elige un archivo",
+			"removeImage": "Quitar imagen",
+			"suggestionsLabel": "Prueba una instrucción",
+			"suggestions": {
+				"background": "Sustituye el fondo por un estudio costero luminoso",
+				"object": "Quita la taza y conserva la textura natural del escritorio",
+				"color": "Cambia la chaqueta a satén coral intenso",
+				"lighting": "Añade luz cálida de ventana al final de la tarde"
+			},
+			"modes": {
+				"legend": "Modo de edición",
+				"standard": {
+					"title": "Standard Edit",
+					"description": "Ediciones cotidianas",
+					"credits": "4 créditos"
+				},
+				"quality": {
+					"title": "Quality Edit",
+					"description": "Más detalle",
+					"credits": "10 créditos"
+				}
+			},
+			"loginNotice": "La generación real comienza después de iniciar sesión y confirmar el coste en créditos.",
+			"previewCaption": "Vista previa de origen",
+			"previewPlaceholderAlt": "Ilustración vectorial original de EzPic de una sala de lectura neutra",
+			"previewAlt": "Vista previa de {fileName}",
+			"privateLabel": "Borrador privado",
+			"fileErrors": {
+				"required": "Elige una imagen de origen antes de continuar.",
+				"empty": "Elige una imagen de origen que no esté vacía.",
+				"type": "Elige una imagen JPEG, PNG o WebP.",
+				"size": "Elige una imagen de {megabytes, number} MB o menos.",
+				"read": "No pudimos leer esa imagen. Elige otro archivo."
+			}
+		},
+		"imageEditorHero": {
+			"eyebrow": "Edición por instrucciones con subida primero",
+			"title": "Editor de imágenes con IA mediante instrucciones, sin las restricciones habituales",
+			"subtitle": "Empieza con tu imagen, explica qué debe cambiar y lleva un borrador privado al editor de EzPic. Verás el coste en créditos antes de cualquier edición real.",
+			"private": "Imágenes de origen privadas",
+			"draftOnly": "Este borrador no tiene coste"
+		},
+		"beforeAfter": {
+			"eyebrow": "Una fuente, un cambio claro",
+			"title": "Compara la dirección antes de confirmar",
+			"description": "Arrastra el divisor para revisar una escena vectorial original y su dirección de edición creada a mano.",
+			"disclaimer": "Esta ilustración muestra la interfaz; no es una promesa de calidad de un proveedor.",
+			"before": "Original",
+			"after": "Dirección de edición",
+			"beforeAlt": "Ilustración vectorial original de una sala de lectura neutra",
+			"controlLabel": "Comparar la ilustración original y editada",
+			"showOriginal": "Mostrar original",
+			"showEdit": "Mostrar dirección"
+		},
+		"showcase": {
+			"eyebrow": "Direcciones de edición",
+			"title": "Cinco formas útiles de describir un cambio",
+			"description": "Conserva el sujeto importante y dirige la parte que debe cambiar con lenguaje natural.",
+			"provenanceNote": "Ilustraciones vectoriales originales de EzPic. Muestran categorías, no la calidad de salida de un modelo.",
+			"items": {
+				"background": {
+					"tag": "Fondo",
+					"title": "Sustituye un entorno",
+					"description": "Mueve un producto o sujeto a un entorno que encaje mejor.",
+					"alt": "Botella sobre fondos neutro y azul costero"
+				},
+				"object": {
+					"tag": "Objeto",
+					"title": "Quita una distracción",
+					"description": "Señala un objeto no deseado y pide conservar las texturas cercanas.",
+					"alt": "Escritorio con una taza seleccionada para eliminar"
+				},
+				"color": {
+					"tag": "Color y material",
+					"title": "Cambia el acabado",
+					"description": "Describe un color o material nuevo sin reconstruir toda la imagen.",
+					"alt": "Chaqueta que cambia de tela azul a satén coral"
+				},
+				"lighting": {
+					"tag": "Iluminación",
+					"title": "Cambia la atmósfera",
+					"description": "Pide sombras más frías, luz más cálida u otra hora del día.",
+					"alt": "Planta que pasa de sombra fría a luz cálida"
+				},
+				"style": {
+					"tag": "Estilo",
+					"title": "Explora un tratamiento visual",
+					"description": "Describe una dirección gráfica conservando la composición.",
+					"alt": "Escena arquitectónica como cartel geométrico colorido"
+				}
+			}
+		},
+		"noRestrictions": {
+			"eyebrow": "Control en lenguaje natural",
+			"title": "Qué significa realmente “No Restrictions”",
+			"description": "EzPic reduce la fricción sin fingir que desaparecen los límites responsables.",
+			"limits": "Siguen aplicándose los límites normales de seguridad, legales, del proveedor y de uso.",
+			"items": {
+				"prompts": {
+					"title": "Instrucciones naturales",
+					"description": "Describe el cambio deseado con tus propias palabras."
+				},
+				"templates": {
+					"title": "Más allá de plantillas",
+					"description": "Empieza por la imagen y la dirección, no por una lista fija de efectos."
+				},
+				"privacy": {
+					"title": "Subidas privadas",
+					"description": "Fuentes y resultados permanecen en almacenamiento privado de la cuenta."
+				},
+				"credits": {
+					"title": "Créditos transparentes",
+					"description": "Revisa el coste antes de confirmar la generación real."
+				},
+				"steps": {
+					"title": "Menos pasos innecesarios",
+					"description": "Crea aquí el borrador e inicia sesión una sola vez para continuar."
+				}
+			}
+		},
+		"howItWorks": {
+			"eyebrow": "Cómo funciona",
+			"title": "Del borrador de inicio a la edición confirmada",
+			"description": "La página pública prepara la solicitud. El editor autenticado controla cada acción con coste o medición.",
+			"steps": {
+				"draft": {
+					"title": "Sube y describe",
+					"description": "Elige una imagen compatible, introduce una instrucción y selecciona Standard o Quality."
+				},
+				"signin": {
+					"title": "Inicia sesión y revisa",
+					"description": "El borrador privado continúa mediante POST seguro. Revisa el modo y el coste."
+				},
+				"generate": {
+					"title": "Confirma la edición real",
+					"description": "Solo tu confirmación explícita inicia el flujo asíncrono existente."
+				}
+			}
+		},
+		"trust": {
+			"eyebrow": "Límites claros",
+			"title": "Privado por defecto, medido con claridad",
+			"description": "La página de inicio recoge solo la fuente y la instrucción para un borrador breve. No crea cotización, trabajo, reserva de créditos ni solicitud al proveedor.",
+			"items": {
+				"privacy": {
+					"title": "Medios privados",
+					"description": "Entradas y salidas siguen siendo recursos privados de la cuenta."
+				},
+				"credits": {
+					"title": "Coste antes de actuar",
+					"description": "La generación real espera el inicio de sesión, la cotización del servidor y tu confirmación."
+				},
+				"safety": {
+					"title": "Protecciones normales",
+					"description": "Las comprobaciones de seguridad y legales siguen formando parte del flujo real."
+				}
+			}
+		},
+		"finalCta": {
+			"eyebrow": "Empieza con una imagen",
+			"title": "Describe la edición que ya tienes en mente",
+			"description": "Crea aquí el borrador. La generación real empieza después de iniciar sesión, revisar los créditos y confirmar.",
+			"button": "Volver al editor"
 		},
 		"hero": {
 			"new": "Privado desde el diseño:",

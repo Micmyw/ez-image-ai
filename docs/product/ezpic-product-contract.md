@@ -43,6 +43,39 @@ not removed or replaced.
 
 Catalog and pricing contract version: `2026-08-25.1`.
 
+## Marketing homepage and anonymous draft boundary
+
+The marketing homepage is an upload-first image editor. A visitor must choose a JPEG, PNG, or WebP
+source image within the configured public image-size limit, enter a prompt, and select Standard
+Edit or Quality Edit. Prompt suggestions populate the prompt field only; they never submit a draft.
+
+The anonymous request has one public shape:
+
+```ts
+{
+	productKey: "image-fast" | "image-quality";
+	input: {
+		kind: "image-to-image";
+		prompt: string;
+	}
+	upload: {
+		contentType: "image/jpeg" | "image/png" | "image/webp";
+		base64: string;
+	}
+}
+```
+
+`POST /api/media/drafts` creates only the existing short-lived anonymous `GenerationDraft` and its
+private source asset. It does not create a quote, generation job, credit reservation, or Provider
+request. After draft creation, the browser sends the opaque claim token to the configured SaaS
+`/draft/continue` route in a hidden top-level POST form. The token and prompt are never added to a
+query string. Real generation starts only after sign-in, server-side quote review, and explicit
+confirmation in the authenticated editor.
+
+The homepage uses original repository-owned vector illustrations documented in
+`apps/marketing/public/examples/PROVENANCE.md`. They explain edit categories and the comparison UI;
+they are not represented as Provider output or evidence of model quality.
+
 ## Plans
 
 PR 1 retains the existing plan IDs, credit grants, concurrency, upload entitlements, Stripe price
@@ -92,7 +125,7 @@ brand assets. No ledger rewrite or data migration is required.
 
 ## Explicit exclusions
 
-PR 1 does not include Provider benchmarking or route certification, homepage redesign, a real
-Before/After experience, real anonymous or authenticated generation, Stripe repricing, public
-gallery/community features, a second job/credit/storage system, or any PR 2-and-later route or
-workflow work.
+The original PR 1 scope did not include the homepage editor; PR 3 adds the anonymous draft and
+original illustrative Before/After experience described above. The current product still excludes
+anonymous real generation, verified Provider quality claims, Stripe repricing, public
+gallery/community features, and any second job, credit, Provider, or storage system.

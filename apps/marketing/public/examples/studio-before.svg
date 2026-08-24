@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title desc">
+  <title id="title">Neutral reading studio</title>
+  <desc id="desc">Original vector illustration of a chair, side table, lamp, and window in a neutral room.</desc>
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#e8edf4"/>
+      <stop offset="1" stop-color="#cfd8e5"/>
+    </linearGradient>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#afc8de"/>
+      <stop offset="1" stop-color="#e8eef4"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#wall)"/>
+  <path d="M0 605h1200v195H0z" fill="#aeb8c5"/>
+  <path d="M0 645h1200" stroke="#8f9bab" stroke-width="3"/>
+  <rect x="720" y="88" width="350" height="410" rx="8" fill="#f8fafc"/>
+  <rect x="744" y="112" width="302" height="362" fill="url(#sky)"/>
+  <path d="M895 112v362M744 292h302" stroke="#f8fafc" stroke-width="16"/>
+  <path d="M744 412c78-65 146-69 218-18 29 21 57 31 84 30v50H744z" fill="#8da69b" opacity=".75"/>
+  <ellipse cx="481" cy="674" rx="298" ry="58" fill="#748092" opacity=".28"/>
+  <path d="M330 355c0-65 53-118 118-118h70c65 0 118 53 118 118v201c0 53-43 96-96 96H426c-53 0-96-43-96-96z" fill="#697789"/>
+  <path d="M358 378c0-49 40-89 89-89h67c49 0 89 40 89 89v135c0 36-29 65-65 65H423c-36 0-65-29-65-65z" fill="#8290a2"/>
+  <path d="M382 604l-24 104M577 604l25 104" stroke="#384353" stroke-width="18" stroke-linecap="round"/>
+  <rect x="671" y="510" width="222" height="28" rx="14" fill="#596678"/>
+  <path d="M700 538l-24 158M865 538l23 158" stroke="#465264" stroke-width="14" stroke-linecap="round"/>
+  <path d="M744 510v-84" stroke="#4c596b" stroke-width="10"/>
+  <path d="M704 427h80l-21-56h-38z" fill="#e9d6a8"/>
+  <path d="M744 371V250" stroke="#4c596b" stroke-width="9"/>
+  <path d="M680 252h128l-34-88h-60z" fill="#f3e6c4"/>
+  <circle cx="744" cy="252" r="10" fill="#ddc17d"/>
+  <rect x="773" y="456" width="43" height="54" rx="18" fill="#b47f68"/>
+  <path d="M794 458c-28-62-62-74-89-66 31 12 50 37 58 74M795 453c13-63 50-84 82-85-26 20-39 48-44 88" fill="none" stroke="#5f8069" stroke-width="12" stroke-linecap="round"/>
+</svg>

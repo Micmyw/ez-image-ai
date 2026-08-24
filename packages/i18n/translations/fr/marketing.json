@@ -29,6 +29,22 @@
 		"description": "Des réponses claires sur les forfaits, les crédits et votre espace de retouche d'image.",
 		"title": "Questions fréquemment posées",
 		"items": {
+			"realGeneration": {
+				"question": "La page d’accueil génère-t-elle déjà une image retouchée ?",
+				"answer": "Non. La page d’accueil enregistre seulement un brouillon. La génération réelle commence après la connexion, la vérification du coût en crédits et la confirmation."
+			},
+			"privateUploads": {
+				"question": "Les images importées sont-elles publiques ?",
+				"answer": "Non. Les sources et résultats sont des ressources privées liées au compte ; un brouillon anonyme de courte durée est utilisé avant la connexion."
+			},
+			"restrictions": {
+				"question": "Que signifie « No Restrictions » ici ?",
+				"answer": "Cela signifie des instructions naturelles, moins d’étapes limitées aux modèles, des imports privés et des crédits transparents. Les limites habituelles de sécurité, légales, du fournisseur et d’usage s’appliquent toujours."
+			},
+			"formats": {
+				"question": "Quels formats d’image puis-je importer ?",
+				"answer": "La page d’accueil accepte les images JPEG, PNG et WebP jusqu’à la limite affichée près de l’import."
+			},
 			"refundPolicy": {
 				"question": "Comment les remboursements sont-ils traités ?",
 				"answer": "L'éligibilité dépend des conditions de paiement applicables. Contactez le support avec vos informations de facturation pour examen."
@@ -58,7 +74,171 @@
 			"continue": "Continuer la retouche",
 			"privacy": "Votre brouillon est conservé de façon privée pendant une heure maximum. Aucune image n'est retouchée avant votre connexion et votre confirmation.",
 			"error": "Nous n'avons pas pu enregistrer ce brouillon de retouche. Veuillez réessayer dans quelques instants.",
-			"steps": { "idea": "Importer", "control": "Décrire", "create": "Vérifier" }
+			"steps": { "idea": "Importer", "control": "Décrire", "create": "Vérifier" },
+			"fileHint": "JPEG, PNG ou WebP jusqu’à {megabytes, number} Mo",
+			"uploadLabel": "Déposez une image ici ou choisissez un fichier",
+			"removeImage": "Retirer l’image",
+			"suggestionsLabel": "Essayez une instruction",
+			"suggestions": {
+				"background": "Remplacez l’arrière-plan par un studio côtier lumineux",
+				"object": "Retirez la tasse et conservez la texture naturelle du bureau",
+				"color": "Passez la veste à un satin corail profond",
+				"lighting": "Ajoutez une lumière chaude de fin d’après-midi"
+			},
+			"modes": {
+				"legend": "Mode de retouche",
+				"standard": {
+					"title": "Standard Edit",
+					"description": "Retouches courantes",
+					"credits": "4 crédits"
+				},
+				"quality": {
+					"title": "Quality Edit",
+					"description": "Plus de détails",
+					"credits": "10 crédits"
+				}
+			},
+			"loginNotice": "La génération réelle commence après votre connexion et la confirmation du coût en crédits.",
+			"previewCaption": "Aperçu de la source",
+			"previewPlaceholderAlt": "Illustration vectorielle EzPic originale d’un salon de lecture neutre",
+			"previewAlt": "Aperçu de {fileName}",
+			"privateLabel": "Brouillon privé",
+			"fileErrors": {
+				"required": "Choisissez une image source avant de continuer.",
+				"empty": "Choisissez une image source non vide.",
+				"type": "Choisissez une image JPEG, PNG ou WebP.",
+				"size": "Choisissez une image de {megabytes, number} Mo maximum.",
+				"read": "Cette image n’a pas pu être lue. Choisissez un autre fichier."
+			}
+		},
+		"imageEditorHero": {
+			"eyebrow": "Retouche par instruction, import d’abord",
+			"title": "Éditeur d’images IA avec instructions, sans les restrictions habituelles",
+			"subtitle": "Partez de votre image, décrivez précisément le changement et transmettez un brouillon privé à l’éditeur EzPic. Le coût en crédits est visible avant toute retouche réelle.",
+			"private": "Images source privées",
+			"draftOnly": "Aucun coût pour ce brouillon"
+		},
+		"beforeAfter": {
+			"eyebrow": "Une source, un changement clair",
+			"title": "Comparez la direction avant de confirmer",
+			"description": "Faites glisser le séparateur pour comparer une scène vectorielle originale et sa direction de retouche dessinée à la main.",
+			"disclaimer": "Cette illustration présente l’interface ; elle ne promet pas la qualité d’un fournisseur.",
+			"before": "Original",
+			"after": "Direction de retouche",
+			"beforeAlt": "Illustration vectorielle originale d’un salon de lecture neutre",
+			"controlLabel": "Comparer l’illustration originale et retouchée",
+			"showOriginal": "Afficher l’original",
+			"showEdit": "Afficher la direction"
+		},
+		"showcase": {
+			"eyebrow": "Directions de retouche",
+			"title": "Cinq façons utiles de décrire un changement",
+			"description": "Conservez le sujet important et dirigez la partie à modifier avec une instruction naturelle.",
+			"provenanceNote": "Illustrations vectorielles EzPic originales. Elles montrent des catégories, pas la qualité de sortie d’un modèle.",
+			"items": {
+				"background": {
+					"tag": "Arrière-plan",
+					"title": "Remplacer un décor",
+					"description": "Placez un produit ou sujet dans un environnement plus adapté.",
+					"alt": "Bouteille sur des arrière-plans neutre et bleu côtier"
+				},
+				"object": {
+					"tag": "Objet",
+					"title": "Retirer une distraction",
+					"description": "Signalez un objet indésirable tout en préservant les textures proches.",
+					"alt": "Bureau avec une tasse sélectionnée pour être retirée"
+				},
+				"color": {
+					"tag": "Couleur et matière",
+					"title": "Changer la finition",
+					"description": "Décrivez une nouvelle couleur ou matière sans reconstruire toute l’image.",
+					"alt": "Veste passant d’un tissu bleu à un satin corail"
+				},
+				"lighting": {
+					"tag": "Éclairage",
+					"title": "Changer l’atmosphère",
+					"description": "Demandez des ombres plus froides, une lumière plus chaude ou un autre moment de la journée.",
+					"alt": "Plante passant d’une ombre froide à une lumière chaude"
+				},
+				"style": {
+					"tag": "Style",
+					"title": "Explorer un traitement visuel",
+					"description": "Décrivez une direction graphique tout en conservant la composition.",
+					"alt": "Scène architecturale en affiche géométrique colorée"
+				}
+			}
+		},
+		"noRestrictions": {
+			"eyebrow": "Contrôle en langage naturel",
+			"title": "Ce que « No Restrictions » signifie vraiment",
+			"description": "EzPic réduit les frictions sans prétendre que les limites responsables disparaissent.",
+			"limits": "Les limites habituelles de sécurité, légales, du fournisseur et d’usage s’appliquent toujours.",
+			"items": {
+				"prompts": {
+					"title": "Instructions naturelles",
+					"description": "Décrivez le changement souhaité avec vos propres mots."
+				},
+				"templates": {
+					"title": "Au-delà des modèles",
+					"description": "Partez de l’image et de la direction plutôt que d’une liste d’effets."
+				},
+				"privacy": {
+					"title": "Imports privés",
+					"description": "Sources et résultats restent dans un stockage privé lié au compte."
+				},
+				"credits": {
+					"title": "Crédits transparents",
+					"description": "Vérifiez le coût avant de confirmer la génération réelle."
+				},
+				"steps": {
+					"title": "Moins d’étapes inutiles",
+					"description": "Créez le brouillon ici puis connectez-vous une seule fois."
+				}
+			}
+		},
+		"howItWorks": {
+			"eyebrow": "Fonctionnement",
+			"title": "Du brouillon d’accueil à la retouche confirmée",
+			"description": "La page publique prépare votre demande. L’éditeur authentifié contrôle chaque action facturée ou mesurée.",
+			"steps": {
+				"draft": {
+					"title": "Importez et décrivez",
+					"description": "Choisissez une image compatible, saisissez une instruction et sélectionnez Standard ou Quality."
+				},
+				"signin": {
+					"title": "Connectez-vous et vérifiez",
+					"description": "Le brouillon privé continue par POST sécurisé. Vérifiez le mode et le coût."
+				},
+				"generate": {
+					"title": "Confirmez la retouche réelle",
+					"description": "Seule votre confirmation explicite démarre le flux asynchrone existant."
+				}
+			}
+		},
+		"trust": {
+			"eyebrow": "Limites claires",
+			"title": "Privé par défaut, mesuré clairement",
+			"description": "La page d’accueil collecte seulement la source et l’instruction d’un brouillon bref. Elle ne crée ni devis, tâche, réservation de crédits ni demande au fournisseur.",
+			"items": {
+				"privacy": {
+					"title": "Médias privés",
+					"description": "Entrées et sorties restent des ressources privées du compte."
+				},
+				"credits": {
+					"title": "Coût avant action",
+					"description": "La génération réelle attend la connexion, le devis serveur et votre confirmation."
+				},
+				"safety": {
+					"title": "Protections normales",
+					"description": "Les contrôles de sécurité et légaux restent dans le flux réel."
+				}
+			}
+		},
+		"finalCta": {
+			"eyebrow": "Commencez par une image",
+			"title": "Décrivez la retouche que vous avez déjà en tête",
+			"description": "Créez le brouillon ici. La génération réelle commence après la connexion, la vérification des crédits et la confirmation.",
+			"button": "Retour à l’éditeur"
 		},
 		"hero": {
 			"new": "Privé par conception :",

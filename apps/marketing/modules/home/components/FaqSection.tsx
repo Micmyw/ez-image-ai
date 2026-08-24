@@ -9,7 +9,7 @@ import {
 } from "@repo/ui/components/accordion";
 import { useTranslations } from "next-intl";
 
-const FAQ_ITEM_KEYS = ["refundPolicy", "cancelSubscription", "changePlan", "freeTrial"] as const;
+const FAQ_ITEM_KEYS = ["realGeneration", "privateUploads", "restrictions", "formats"] as const;
 
 export function FaqSection({ className }: { className?: string }) {
 	const t = useTranslations();
@@ -20,13 +20,13 @@ export function FaqSection({ className }: { className?: string }) {
 	}));
 
 	return (
-		<section className={cn("scroll-mt-20 py-12 lg:py-16", className)} id="faq">
+		<section className={cn("scroll-mt-24 py-14 sm:py-20", className)} id="faq">
 			<div className="container">
 				<div className="gap-6 md:gap-8 lg:gap-12 max-w-2xl mx-auto grid grid-cols-1">
 					<div className="text-center">
-						<h1 className="font-medium text-2xl md:text-3xl lg:text-4xl xl:text-5xl leading-tight text-foreground">
+						<h2 className="text-3xl leading-tight font-semibold text-slate-950 sm:text-4xl lg:text-5xl tracking-[-0.035em]">
 							{t("faq.title")}
-						</h1>
+						</h2>
 						<p className="text-sm sm:text-lg mt-2 text-foreground/60">{t("faq.description")}</p>
 					</div>
 					<Accordion className="space-y-2 w-full text-left" defaultValue={[]} multiple={false}>

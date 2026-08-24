@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" role="img" aria-labelledby="title desc">
+  <title id="title">Background replacement illustration</title>
+  <desc id="desc">A white ceramic bottle centered across a split neutral and coastal-blue background.</desc>
+  <defs><linearGradient id="sea" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#67e8f9"/><stop offset=".58" stop-color="#38bdf8"/><stop offset=".59" stop-color="#fef3c7"/><stop offset="1" stop-color="#fde68a"/></linearGradient></defs>
+  <rect width="400" height="500" fill="#dbe2ea"/><rect x="400" width="400" height="500" fill="url(#sea)"/>
+  <path d="M400 0v500" stroke="#fff" stroke-width="6"/>
+  <ellipse cx="400" cy="418" rx="145" ry="28" fill="#0f172a" opacity=".18"/>
+  <path d="M343 175h114l24 219c3 28-19 52-47 52h-68c-28 0-50-24-47-52z" fill="#fff" stroke="#cbd5e1" stroke-width="5"/>
+  <rect x="364" y="112" width="72" height="84" rx="18" fill="#f8fafc" stroke="#cbd5e1" stroke-width="5"/>
+  <path d="M374 266h52" stroke="#6366f1" stroke-width="12" stroke-linecap="round"/>
+</svg>

@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" role="img" aria-labelledby="title desc">
+  <title id="title">Style transformation illustration</title>
+  <desc id="desc">An architectural scene rendered with layered graphic poster shapes.</desc>
+  <rect width="800" height="500" fill="#fef3c7"/>
+  <circle cx="650" cy="102" r="72" fill="#fb7185"/>
+  <path d="M0 355l175-155 112 83 137-173 151 143 104-88 121 112v223H0z" fill="#4338ca"/>
+  <path d="M0 386l176-98 103 70 133-132 176 98 110-66 102 65v177H0z" fill="#06b6d4"/>
+  <rect x="228" y="190" width="338" height="268" fill="#111827"/>
+  <path d="M260 222h274v236H260z" fill="#f8fafc"/>
+  <path d="M397 222v236M260 340h274" stroke="#111827" stroke-width="18"/>
+  <rect x="292" y="252" width="74" height="56" fill="#f59e0b"/><rect x="430" y="252" width="74" height="56" fill="#ec4899"/>
+  <rect x="292" y="371" width="74" height="87" fill="#22c55e"/><rect x="430" y="371" width="74" height="87" fill="#8b5cf6"/>
+  <path d="M198 458h406" stroke="#111827" stroke-width="20" stroke-linecap="round"/>
+</svg>

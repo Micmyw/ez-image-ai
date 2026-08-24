@@ -10,6 +10,13 @@ vi.mock("next-intl", () => ({
 			reference: "Source image",
 			prompt: "Edit instructions",
 			continue: "Continue to edit",
+			"modes.legend": "Edit mode",
+			"modes.standard.title": "Standard Edit",
+			"modes.standard.credits": "4 credits",
+			"modes.quality.title": "Quality Edit",
+			"modes.quality.credits": "10 credits",
+			loginNotice: "Real image generation starts after you sign in and confirm the credit cost.",
+			fileHint: "JPEG, PNG, or WebP up to 20 MB",
 		})[key] ?? key,
 }));
 vi.mock("@repo/ui/components/alert", () => ({
@@ -46,12 +53,19 @@ vi.mock("@repo/ui/components/textarea", () => ({
 import { MarketingGenerator } from "./MarketingGenerator";
 
 describe("MarketingGenerator", () => {
-	it("renders an image-edit-only draft form with a required source image", () => {
+	it("renders an image-edit-only draft form with modes, limits, and the login boundary", () => {
 		const markup = renderToStaticMarkup(<MarketingGenerator />);
 
 		expect(markup).toContain('type="file"');
 		expect(markup).toContain("Source image");
 		expect(markup).toContain("required");
+		expect(markup).toContain("Standard Edit");
+		expect(markup).toContain("Quality Edit");
+		expect(markup).toContain("4 credits");
+		expect(markup).toContain("10 credits");
+		expect(markup).toContain("JPEG, PNG, or WebP up to 20 MB");
+		expect(markup).toContain("Real image generation starts after you sign in");
+		expect(markup).toContain('type="radio"');
 		expect(markup).not.toContain("Video");
 		expect(markup).not.toContain("marketing-kind");
 	});

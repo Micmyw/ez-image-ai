@@ -97,13 +97,18 @@ export function PricingSection() {
 	);
 
 	return (
-		<section id="pricing" className="scroll-mt-16 py-12 lg:py-16 border-y">
+		<section
+			id="pricing"
+			className="scroll-mt-24 border-slate-200 bg-slate-50 py-14 sm:py-20 border-y"
+		>
 			<div className="container">
-				<div className="mb-6 max-w-3xl mx-auto text-center">
-					<h1 className="font-medium text-2xl md:text-3xl lg:text-4xl xl:text-5xl leading-tight text-foreground">
+				<div className="mb-8 max-w-3xl mx-auto text-center">
+					<h2 className="text-3xl leading-tight font-semibold text-slate-950 sm:text-4xl lg:text-5xl tracking-[-0.035em]">
 						{t("pricing.title")}
-					</h1>
-					<p className="mt-2 text-sm sm:text-lg text-foreground/60">{t("pricing.description")}</p>
+					</h2>
+					<p className="mt-4 text-base leading-7 text-slate-600 sm:text-lg">
+						{t("pricing.description")}
+					</p>
 				</div>
 
 				<div className="@container">

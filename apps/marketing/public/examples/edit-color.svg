@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" role="img" aria-labelledby="title desc">
+  <title id="title">Color and material edit illustration</title>
+  <desc id="desc">A jacket divided into muted blue fabric and vivid coral satin.</desc>
+  <defs><linearGradient id="coral" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#fb7185"/><stop offset=".5" stop-color="#f43f5e"/><stop offset="1" stop-color="#be123c"/></linearGradient></defs>
+  <rect width="800" height="500" fill="#eef2ff"/>
+  <circle cx="400" cy="86" r="42" fill="#f1c7a5"/>
+  <path d="M332 124l68 36 68-36 108 67-66 92-23-22 16 202H297l16-202-23 22-66-92z" fill="#64748b"/>
+  <path d="M400 160l68-36 108 67-66 92-23-22 16 202H400z" fill="url(#coral)"/>
+  <path d="M400 160v303" stroke="#fff" stroke-width="5" opacity=".8"/>
+  <path d="M370 163l30 53 30-53" fill="none" stroke="#e2e8f0" stroke-width="8"/>
+  <circle cx="400" cy="271" r="7" fill="#fff"/><circle cx="400" cy="321" r="7" fill="#fff"/><circle cx="400" cy="371" r="7" fill="#fff"/>
+</svg>

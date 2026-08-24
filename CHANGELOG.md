@@ -6,6 +6,12 @@
 
 - Specialized the public product as EzPic, with Standard Edit (`image-fast`) and Quality Edit
   (`image-quality`) as source-image-required editing workflows.
+- Rebuilt the marketing homepage around an upload-first prompt editor with Standard and Quality
+  mode selection, configured JPEG/PNG/WebP limits, prompt suggestions, private source previews,
+  original Before/After and edit-category illustrations, and clear sign-in and credit boundaries.
+- Limited the anonymous homepage action to a short-lived image-to-image draft and private upload;
+  real quoting, job creation, credit reservation, Provider submission, and generation remain behind
+  authenticated review and confirmation.
 - Limited public catalog responses, plan entitlements, upload surfaces, and product selectors to
   image-to-image editing while retaining the existing internal video catalog, Provider, worker,
   storage, moderation, and historical-data paths.
@@ -22,11 +28,15 @@
 
 ### SEO
 
+- Published the exact EzPic image-editor homepage title, description, canonical URL, single H1,
+  responsive module order, and factual WebSite/SoftwareApplication structured data.
 - Restricted the marketing sitemap to approved default-English pages, marked other locales
   `noindex, follow`, hid the launch locale switch, and blocked indexing across the SaaS app.
 
 ### Documentation
 
+- Documented the anonymous marketing-draft payload, POST-only claim-token handoff, accepted image
+  formats, and the boundary between the public draft and authenticated generation.
 - Added the EzPic product contract with public/internal product keys, plans, configuration,
   indexing, rollback, architecture boundaries, and PR 1 exclusions.
 - Added a reproducible image-edit benchmark harness, ten-input/thirty-task placeholder manifest,

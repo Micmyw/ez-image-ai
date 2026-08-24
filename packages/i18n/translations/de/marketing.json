@@ -29,6 +29,22 @@
 		"description": "Klare Antworten zu Tarifen, Credits und deinem Arbeitsbereich für Bildbearbeitung.",
 		"title": "Häufig gestellte Fragen",
 		"items": {
+			"realGeneration": {
+				"question": "Erzeugt die Startseite bereits ein bearbeitetes Bild?",
+				"answer": "Nein. Die Startseite speichert nur einen Entwurf. Die echte Erzeugung beginnt erst nach Anmeldung, Prüfung der Credit-Kosten und Bestätigung."
+			},
+			"privateUploads": {
+				"question": "Sind hochgeladene Bilder öffentlich?",
+				"answer": "Nein. Quellbilder und Ergebnisse sind private, kontogebundene Assets; vor der Anmeldung wird ein kurzlebiger anonymer Entwurf verwendet."
+			},
+			"restrictions": {
+				"question": "Was bedeutet „No Restrictions“ hier?",
+				"answer": "Gemeint sind natürlichsprachige Prompts, weniger vorlagengebundene Schritte, private Uploads und transparente Credits. Übliche Sicherheits-, Rechts-, Provider- und Nutzungslimits gelten weiterhin."
+			},
+			"formats": {
+				"question": "Welche Bildformate kann ich hochladen?",
+				"answer": "Die Startseite akzeptiert JPEG-, PNG- und WebP-Bilder bis zu dem am Upload angegebenen Dateilimit."
+			},
 			"refundPolicy": {
 				"question": "Wie werden Rückerstattungen behandelt?",
 				"answer": "Ob eine Rückerstattung möglich ist, richtet sich nach den geltenden Zahlungsbedingungen. Wende dich mit deinen Rechnungsdaten an den Support."
@@ -58,7 +74,171 @@
 			"continue": "Mit der Bearbeitung fortfahren",
 			"privacy": "Dein Entwurf wird bis zu einer Stunde privat gespeichert. Kein Bild wird bearbeitet, bevor du dich anmeldest und bestätigst.",
 			"error": "Der Bearbeitungsentwurf konnte nicht gespeichert werden. Bitte versuche es später erneut.",
-			"steps": { "idea": "Hochladen", "control": "Beschreiben", "create": "Prüfen" }
+			"steps": { "idea": "Hochladen", "control": "Beschreiben", "create": "Prüfen" },
+			"fileHint": "JPEG, PNG oder WebP bis {megabytes, number} MB",
+			"uploadLabel": "Bild hier ablegen oder Datei auswählen",
+			"removeImage": "Bild entfernen",
+			"suggestionsLabel": "Prompt ausprobieren",
+			"suggestions": {
+				"background": "Ersetze den Hintergrund durch ein helles Küstenstudio",
+				"object": "Entferne die Tasse und erhalte die natürliche Tischstruktur",
+				"color": "Ändere die Jacke in tiefroten Korallsatin",
+				"lighting": "Füge warmes spätnachmittägliches Fensterlicht hinzu"
+			},
+			"modes": {
+				"legend": "Bearbeitungsmodus",
+				"standard": {
+					"title": "Standard Edit",
+					"description": "Alltägliche Änderungen",
+					"credits": "4 Credits"
+				},
+				"quality": {
+					"title": "Quality Edit",
+					"description": "Mehr Details",
+					"credits": "10 Credits"
+				}
+			},
+			"loginNotice": "Die echte Bilderzeugung beginnt erst nach Anmeldung und Bestätigung der Credit-Kosten.",
+			"previewCaption": "Quellvorschau",
+			"previewPlaceholderAlt": "Originale EzPic-Vektorillustration eines neutralen Lesezimmers",
+			"previewAlt": "Vorschau von {fileName}",
+			"privateLabel": "Privater Entwurf",
+			"fileErrors": {
+				"required": "Wähle vor dem Fortfahren ein Quellbild.",
+				"empty": "Wähle ein nicht leeres Quellbild.",
+				"type": "Wähle ein JPEG-, PNG- oder WebP-Bild.",
+				"size": "Wähle ein Bild mit höchstens {megabytes, number} MB.",
+				"read": "Dieses Bild konnte nicht gelesen werden. Wähle eine andere Datei."
+			}
+		},
+		"imageEditorHero": {
+			"eyebrow": "Prompt-Bearbeitung mit Upload zuerst",
+			"title": "KI-Bildeditor mit Prompts, ohne die üblichen Einschränkungen",
+			"subtitle": "Beginne mit deinem Bild, beschreibe die Änderung genau und übergib einen privaten Entwurf an den EzPic-Editor. Vor jeder echten Bearbeitung siehst du die Credit-Kosten.",
+			"private": "Private Quellbilder",
+			"draftOnly": "Keine Kosten für diesen Entwurf"
+		},
+		"beforeAfter": {
+			"eyebrow": "Eine Quelle, eine klare Änderung",
+			"title": "Vergleiche die Richtung vor der Bestätigung",
+			"description": "Ziehe den Regler, um eine originale Vektorszene mit ihrer handgezeichneten Bearbeitungsrichtung zu vergleichen.",
+			"disclaimer": "Diese Illustration zeigt die Oberfläche und ist kein Qualitätsversprechen eines Providers.",
+			"before": "Original",
+			"after": "Bearbeitungsrichtung",
+			"beforeAlt": "Originale Vektorillustration eines neutralen Lesezimmers",
+			"controlLabel": "Original und bearbeitete Illustration vergleichen",
+			"showOriginal": "Original zeigen",
+			"showEdit": "Bearbeitungsrichtung zeigen"
+		},
+		"showcase": {
+			"eyebrow": "Bearbeitungsrichtungen",
+			"title": "Fünf nützliche Arten, eine Änderung zu beschreiben",
+			"description": "Bewahre das wichtige Motiv und beschreibe den Teil, der sich ändern soll, mit einem natürlichen Prompt.",
+			"provenanceNote": "Originale EzPic-Vektorillustrationen. Sie zeigen Kategorien, nicht die Ausgabequalität eines Modells.",
+			"items": {
+				"background": {
+					"tag": "Hintergrund",
+					"title": "Umgebung ersetzen",
+					"description": "Setze Produkt oder Motiv in eine passendere Umgebung.",
+					"alt": "Flasche vor neutralem und küstenblauem Hintergrund"
+				},
+				"object": {
+					"tag": "Objekt",
+					"title": "Ablenkung entfernen",
+					"description": "Markiere ein unerwünschtes Objekt und erhalte benachbarte Strukturen.",
+					"alt": "Schreibtisch mit zur Entfernung markierter Tasse"
+				},
+				"color": {
+					"tag": "Farbe & Material",
+					"title": "Oberfläche ändern",
+					"description": "Beschreibe eine neue Farbe oder ein Material, ohne das ganze Bild neu aufzubauen.",
+					"alt": "Jacke wechselt von blauem Stoff zu Korallsatin"
+				},
+				"lighting": {
+					"tag": "Licht",
+					"title": "Atmosphäre verändern",
+					"description": "Bitte um kühlere Schatten, wärmeres Licht oder eine andere Tageszeit.",
+					"alt": "Pflanze wechselt von kühlem Schatten zu warmem Licht"
+				},
+				"style": {
+					"tag": "Stil",
+					"title": "Visuelle Behandlung erkunden",
+					"description": "Beschreibe eine grafische Richtung und erhalte die Komposition.",
+					"alt": "Architekturszene als farbiges geometrisches Poster"
+				}
+			}
+		},
+		"noRestrictions": {
+			"eyebrow": "Kontrolle in Alltagssprache",
+			"title": "Was „No Restrictions“ wirklich bedeutet",
+			"description": "EzPic reduziert Reibung, ohne verantwortungsvolle Grenzen zu verschweigen.",
+			"limits": "Übliche Sicherheits-, Rechts-, Provider- und Nutzungslimits gelten weiterhin.",
+			"items": {
+				"prompts": {
+					"title": "Natürlichsprachige Prompts",
+					"description": "Beschreibe die gewünschte Änderung in eigenen Worten."
+				},
+				"templates": {
+					"title": "Mehr als Vorlagen",
+					"description": "Beginne mit Bild und Richtung statt mit einer festen Effektliste."
+				},
+				"privacy": {
+					"title": "Private Uploads",
+					"description": "Quellbilder und Ergebnisse bleiben in privatem, kontogebundenem Speicher."
+				},
+				"credits": {
+					"title": "Transparente Credits",
+					"description": "Prüfe die Credit-Kosten vor der echten Erzeugung."
+				},
+				"steps": {
+					"title": "Weniger unnötige Schritte",
+					"description": "Erstelle hier den Entwurf und melde dich einmal sicher an."
+				}
+			}
+		},
+		"howItWorks": {
+			"eyebrow": "So funktioniert es",
+			"title": "Vom Startseitenentwurf zur bestätigten Bearbeitung",
+			"description": "Die öffentliche Seite bereitet deine Anfrage vor. Der angemeldete Editor steuert jede kostenpflichtige oder gemessene Aktion.",
+			"steps": {
+				"draft": {
+					"title": "Hochladen und beschreiben",
+					"description": "Wähle ein unterstütztes Bild, gib einen Prompt ein und wähle Standard oder Quality."
+				},
+				"signin": {
+					"title": "Anmelden und prüfen",
+					"description": "Der private Entwurf wird per sicherem POST fortgesetzt. Prüfe Modus und Credit-Kosten."
+				},
+				"generate": {
+					"title": "Echte Bearbeitung bestätigen",
+					"description": "Nur deine ausdrückliche Bestätigung startet den bestehenden asynchronen Ablauf."
+				}
+			}
+		},
+		"trust": {
+			"eyebrow": "Klare Grenzen",
+			"title": "Standardmäßig privat, transparent gemessen",
+			"description": "Die Startseite erfasst nur Quelle und Anweisung für einen kurzlebigen Entwurf. Sie erstellt weder Angebot, Auftrag, Credit-Reservierung noch Provider-Anfrage.",
+			"items": {
+				"privacy": {
+					"title": "Private Medien",
+					"description": "Eingaben und Ausgaben bleiben private Konto-Assets statt einer öffentlichen Galerie."
+				},
+				"credits": {
+					"title": "Kosten vor Aktion",
+					"description": "Die echte Erzeugung wartet auf Anmeldung, Serverangebot und Bestätigung."
+				},
+				"safety": {
+					"title": "Normale Schutzmaßnahmen",
+					"description": "Sicherheits- und Rechtsprüfungen bleiben Teil des echten Ablaufs."
+				}
+			}
+		},
+		"finalCta": {
+			"eyebrow": "Beginne mit einem Bild",
+			"title": "Beschreibe die Bearbeitung, die du schon im Kopf hast",
+			"description": "Erstelle hier den Entwurf. Die echte Erzeugung beginnt erst nach Anmeldung, Credit-Prüfung und Bestätigung.",
+			"button": "Zurück zum Editor"
 		},
 		"hero": {
 			"new": "Privat konzipiert:",

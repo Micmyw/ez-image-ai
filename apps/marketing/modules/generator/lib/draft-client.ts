@@ -1,23 +1,47 @@
-interface MarketingDraftInput {
-	productKey: "image-fast" | "video-fast";
-	input: { kind: "text-to-image" | "text-to-video"; prompt: string; durationSeconds?: number };
-	upload?: { contentType: "image/jpeg" | "image/png" | "image/webp"; base64: string };
+export const MARKETING_IMAGE_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+
+export type MarketingImageProductKey = "image-fast" | "image-quality";
+export type MarketingImageContentType = (typeof MARKETING_IMAGE_CONTENT_TYPES)[number];
+
+export interface MarketingDraftInput {
+	productKey: MarketingImageProductKey;
+	input: { kind: "image-to-image"; prompt: string };
+	upload: { contentType: MarketingImageContentType; base64: string };
 }
 
 type MarketingImageUpload = NonNullable<MarketingDraftInput["upload"]>;
 
 export function buildMarketingImageEditDraft(input: {
+	productKey: MarketingImageProductKey;
 	prompt: string;
 	upload?: MarketingImageUpload;
 }): MarketingDraftInput {
 	const prompt = input.prompt.trim();
 	if (!prompt) throw new Error("PROMPT_REQUIRED");
 	if (!input.upload) throw new Error("SOURCE_IMAGE_REQUIRED");
+	if (input.productKey !== "image-fast" && input.productKey !== "image-quality") {
+		throw new Error("PRODUCT_KEY_UNSUPPORTED");
+	}
+	if (!MARKETING_IMAGE_CONTENT_TYPES.includes(input.upload.contentType)) {
+		throw new Error("SOURCE_IMAGE_TYPE_UNSUPPORTED");
+	}
+	if (!input.upload.base64) throw new Error("SOURCE_IMAGE_EMPTY");
 	return {
-		productKey: "image-fast",
-		input: { kind: "text-to-image", prompt },
+		productKey: input.productKey,
+		input: { kind: "image-to-image", prompt },
 		upload: input.upload,
 	};
+}
+
+export function validateMarketingImageFile(
+	file: { size: number; type: string },
+	maximumBytes: number,
+): void {
+	if (file.size <= 0) throw new Error("SOURCE_IMAGE_EMPTY");
+	if (!MARKETING_IMAGE_CONTENT_TYPES.includes(file.type as MarketingImageContentType)) {
+		throw new Error("SOURCE_IMAGE_TYPE_UNSUPPORTED");
+	}
+	if (file.size > maximumBytes) throw new Error("SOURCE_IMAGE_TOO_LARGE");
 }
 
 export interface MarketingDraftHandoff {

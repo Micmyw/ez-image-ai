@@ -26,7 +26,7 @@
 		"title": "Documentation"
 	},
 	"faq": {
-		"description": "Clear answers about plans, credits, and your image-editing workspace.",
+		"description": "Clear answers about drafts, private images, credits, and the sign-in boundary.",
 		"title": "Frequently asked questions",
 		"items": {
 			"refundPolicy": {
@@ -44,6 +44,22 @@
 			"freeTrial": {
 				"question": "Is there a free plan?",
 				"answer": "Yes. The Free plan includes 25 monthly credits and access to Standard Edit."
+			},
+			"realGeneration": {
+				"question": "Does the homepage generate an edited image?",
+				"answer": "No. The homepage saves an image-edit draft. Real generation starts only after you sign in, review the credit cost, and confirm the edit."
+			},
+			"privateUploads": {
+				"question": "Are uploaded images public?",
+				"answer": "No. Source images and results are private account-scoped assets; a short-lived anonymous draft is used before sign-in."
+			},
+			"restrictions": {
+				"question": "What does “No Restrictions” mean here?",
+				"answer": "It means natural-language prompts, fewer template-only steps, private uploads, and transparent credits. Standard safety, legal, provider, and usage limits still apply."
+			},
+			"formats": {
+				"question": "Which source-image formats can I upload?",
+				"answer": "The homepage accepts JPEG, PNG, and WebP images up to the file-size limit shown beside the uploader."
 			}
 		}
 	},
@@ -55,10 +71,174 @@
 			"prompt": "Describe your edit",
 			"reference": "Source image",
 			"placeholder": "Replace the background with a softly lit studio wall while keeping the subject unchanged…",
-			"continue": "Continue to edit",
+			"continue": "Continue to Edit",
 			"privacy": "Your draft is saved privately for up to one hour. No image is edited until you sign in and confirm.",
 			"error": "We could not save this edit draft. Please try again shortly.",
-			"steps": { "idea": "Upload", "control": "Describe", "create": "Review" }
+			"steps": { "idea": "Upload", "control": "Describe", "create": "Review" },
+			"fileHint": "JPEG, PNG, or WebP up to {megabytes, number} MB",
+			"uploadLabel": "Drop an image here or choose a file",
+			"removeImage": "Remove image",
+			"suggestionsLabel": "Try a prompt",
+			"suggestions": {
+				"background": "Replace the background with a bright coastal studio",
+				"object": "Remove the cup and keep the desk texture natural",
+				"color": "Change the jacket to deep coral satin",
+				"lighting": "Add warm late-afternoon window light"
+			},
+			"modes": {
+				"legend": "Edit mode",
+				"standard": {
+					"title": "Standard Edit",
+					"description": "Everyday edits",
+					"credits": "4 credits"
+				},
+				"quality": {
+					"title": "Quality Edit",
+					"description": "More detail",
+					"credits": "10 credits"
+				}
+			},
+			"loginNotice": "Real image generation starts after you sign in and confirm the credit cost.",
+			"previewCaption": "Source preview",
+			"previewPlaceholderAlt": "Original EzPic vector illustration of a neutral reading studio",
+			"previewAlt": "Preview of {fileName}",
+			"privateLabel": "Private draft",
+			"fileErrors": {
+				"required": "Choose a source image before continuing.",
+				"empty": "Choose a non-empty source image.",
+				"type": "Choose a JPEG, PNG, or WebP image.",
+				"size": "Choose an image that is {megabytes, number} MB or smaller.",
+				"read": "We could not read that image. Choose another file."
+			}
+		},
+		"imageEditorHero": {
+			"eyebrow": "Upload-first prompt editing",
+			"title": "AI Image Editor With Prompts, Without the Usual Restrictions",
+			"subtitle": "Start with your image, say exactly what should change, and carry a private draft into the EzPic editor. You see the credit cost before any real edit begins.",
+			"private": "Private source images",
+			"draftOnly": "No charge for this draft"
+		},
+		"beforeAfter": {
+			"eyebrow": "One source, one clear change",
+			"title": "Compare the direction before you commit",
+			"description": "Drag the divider to inspect an original vector scene and its hand-authored edit direction. The same comparison pattern is used to make source and result easy to distinguish.",
+			"disclaimer": "This illustration demonstrates the interface; it is not a Provider quality claim.",
+			"before": "Original",
+			"after": "Edit direction",
+			"beforeAlt": "Original vector illustration of a neutral reading studio",
+			"controlLabel": "Compare original and edited illustration",
+			"showOriginal": "Show original",
+			"showEdit": "Show edit direction"
+		},
+		"showcase": {
+			"eyebrow": "Edit directions",
+			"title": "Five useful ways to describe a change",
+			"description": "Keep the subject you care about and direct the part that should change with a natural-language prompt.",
+			"provenanceNote": "Original EzPic vector illustrations. They demonstrate edit categories, not model output quality.",
+			"items": {
+				"background": {
+					"tag": "Background",
+					"title": "Replace a setting",
+					"description": "Move a product or subject into a setting that better fits the scene.",
+					"alt": "Illustration of a bottle across neutral and coastal backgrounds"
+				},
+				"object": {
+					"tag": "Object",
+					"title": "Remove a distraction",
+					"description": "Point out an unwanted object while asking to preserve nearby textures.",
+					"alt": "Illustration of a desk with a cup selected for removal"
+				},
+				"color": {
+					"tag": "Color & material",
+					"title": "Change the finish",
+					"description": "Describe a new color or material without rebuilding the whole image.",
+					"alt": "Illustration of a jacket changing from blue fabric to coral satin"
+				},
+				"lighting": {
+					"tag": "Lighting",
+					"title": "Shift the atmosphere",
+					"description": "Ask for cooler shadows, warmer light, or a different time-of-day mood.",
+					"alt": "Illustration of a plant moving from cool shadow into warm light"
+				},
+				"style": {
+					"tag": "Style",
+					"title": "Explore a visual treatment",
+					"description": "Describe a graphic direction while keeping the source composition recognizable.",
+					"alt": "Architectural scene rendered as a colorful geometric poster"
+				}
+			}
+		},
+		"noRestrictions": {
+			"eyebrow": "Plain-language control",
+			"title": "What “No Restrictions” actually means",
+			"description": "EzPic reduces workflow friction without pretending that responsible boundaries disappear.",
+			"limits": "Standard safety, legal, provider, and usage limits still apply.",
+			"items": {
+				"prompts": {
+					"title": "Natural-language prompts",
+					"description": "Describe the intended change in your own words."
+				},
+				"templates": {
+					"title": "Beyond template-only flows",
+					"description": "Start from the image and direction instead of a fixed effect list."
+				},
+				"privacy": {
+					"title": "Private uploads",
+					"description": "Source images and results stay in private, account-scoped storage."
+				},
+				"credits": {
+					"title": "Transparent credits",
+					"description": "Review the credit cost before confirming real generation."
+				},
+				"steps": {
+					"title": "Fewer unnecessary steps",
+					"description": "Create the draft here, then sign in once to continue securely."
+				}
+			}
+		},
+		"howItWorks": {
+			"eyebrow": "How it works",
+			"title": "From homepage draft to confirmed edit",
+			"description": "The public page prepares your request. The authenticated editor owns every paid or metered action.",
+			"steps": {
+				"draft": {
+					"title": "Upload and describe",
+					"description": "Choose a supported source image, enter a prompt, and select Standard or Quality."
+				},
+				"signin": {
+					"title": "Sign in and review",
+					"description": "Your private draft continues by secure POST. Review the mode and credit cost in your account."
+				},
+				"generate": {
+					"title": "Confirm the real edit",
+					"description": "Only your explicit confirmation can start the existing asynchronous generation workflow."
+				}
+			}
+		},
+		"trust": {
+			"eyebrow": "Clear boundaries",
+			"title": "Private by default, metered by design",
+			"description": "The homepage collects only the source and instruction needed for a short-lived draft. It does not create a quote, job, credit reservation, or Provider request.",
+			"items": {
+				"privacy": {
+					"title": "Private media",
+					"description": "Inputs and outputs remain private account assets rather than a public gallery."
+				},
+				"credits": {
+					"title": "Cost before action",
+					"description": "Real generation waits for sign-in, a server quote, and your confirmation."
+				},
+				"safety": {
+					"title": "Normal safeguards",
+					"description": "Safety and legal checks remain part of the real editing workflow."
+				}
+			}
+		},
+		"finalCta": {
+			"eyebrow": "Start with one image",
+			"title": "Describe the edit you already have in mind",
+			"description": "Build the draft here. Real generation starts only after sign-in, credit review, and confirmation.",
+			"button": "Back to the editor"
 		},
 		"hero": {
 			"new": "Private by design:",
@@ -84,7 +264,7 @@
 				},
 				"benefit2": {
 					"title": "Source required",
-					"description": "The editor never presents text-only image generation as an EzPic product."
+					"description": "Every public edit starts with an image."
 				},
 				"benefit3": {
 					"title": "Two edit levels",

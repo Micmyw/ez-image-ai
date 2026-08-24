@@ -1,7 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 
-import { mediaModelInputSchema } from "@repo/ai";
-import { productModelKeySchema } from "@repo/config";
+import { promptSchema } from "@repo/ai";
 import { createGenerationDraftTransaction } from "@repo/database";
 import { db } from "@repo/database/client";
 import { createAssetObjectKey, deleteObject, putPrivateMediaObject } from "@repo/storage";
@@ -15,20 +14,29 @@ import {
 	hashDraftClaimToken,
 } from "../lib/draft-security";
 
-const draftUploadSchema = z.object({
-	contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
-	base64: z.string().min(1).max(35_000_000),
-});
+const draftUploadSchema = z
+	.object({
+		contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
+		base64: z.string().min(1).max(35_000_000),
+	})
+	.strict();
+
+export const marketingGenerationDraftInputSchema = z
+	.object({
+		productKey: z.enum(["image-fast", "image-quality"]),
+		input: z
+			.object({
+				kind: z.literal("image-to-image"),
+				prompt: promptSchema,
+			})
+			.strict(),
+		upload: draftUploadSchema,
+	})
+	.strict();
 
 export const createGenerationDraft = publicProcedure
 	.route({ method: "POST", path: "/media/drafts", tags: ["Media"] })
-	.input(
-		z.object({
-			productKey: productModelKeySchema,
-			input: mediaModelInputSchema,
-			upload: draftUploadSchema.optional(),
-		}),
-	)
+	.input(marketingGenerationDraftInputSchema)
 	.handler(async ({ context, input }) => {
 		const marketingOrigin = process.env.NEXT_PUBLIC_MARKETING_URL;
 		if (!marketingOrigin) throw new Error("FORBIDDEN_ORIGIN");
@@ -37,23 +45,18 @@ export const createGenerationDraft = publicProcedure
 		await enforceDraftRateLimit(subjectHash, "marketing-draft");
 
 		const token = createDraftClaimToken();
-		const assetId = input.upload ? `asset_${randomUUID().replaceAll("-", "")}` : undefined;
-		const objectKey = assetId
-			? createAssetObjectKey(
-					`draft_${randomUUID().replaceAll("-", "")}`,
-					assetId,
-					input.upload!.contentType,
-				)
-			: undefined;
-		let uploaded: { bytes: number; sha256: string } | undefined;
-		if (input.upload && objectKey) {
-			uploaded = await putPrivateMediaObject({
-				bucket: "media",
-				key: objectKey,
-				contentType: input.upload.contentType,
-				body: Buffer.from(input.upload.base64, "base64"),
-			});
-		}
+		const assetId = `asset_${randomUUID().replaceAll("-", "")}`;
+		const objectKey = createAssetObjectKey(
+			`draft_${randomUUID().replaceAll("-", "")}`,
+			assetId,
+			input.upload.contentType,
+		);
+		const uploaded = await putPrivateMediaObject({
+			bucket: "media",
+			key: objectKey,
+			contentType: input.upload.contentType,
+			body: Buffer.from(input.upload.base64, "base64"),
+		});
 		const expiresAt = new Date(Date.now() + 60 * 60_000);
 		const uploadedAt = new Date();
 		let draft;
@@ -81,25 +84,19 @@ export const createGenerationDraft = publicProcedure
 							100,
 						),
 					},
-					...(assetId && objectKey && uploaded
-						? {
-								asset: {
-									id: assetId,
-									objectKey,
-									mimeType: input.upload!.contentType,
-									byteSize: BigInt(uploaded.bytes),
-									checksum: uploaded.sha256,
-									finalizedAt: uploadedAt,
-								},
-							}
-						: {}),
+					asset: {
+						id: assetId,
+						objectKey,
+						mimeType: input.upload.contentType,
+						byteSize: BigInt(uploaded.bytes),
+						checksum: uploaded.sha256,
+						finalizedAt: uploadedAt,
+					},
 				},
 				db,
 			);
 		} catch (error) {
-			if (objectKey && uploaded) {
-				await deleteObject({ bucket: "media", key: objectKey }).catch(() => undefined);
-			}
+			await deleteObject({ bucket: "media", key: objectKey }).catch(() => undefined);
 			throw error;
 		}
 		context.responseHeaders?.set("Cache-Control", "no-store");
