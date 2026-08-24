@@ -2,48 +2,51 @@
 	"pricing": {
 		"choosePlan": "Choisir un forfait",
 		"contactSales": "Contacter les ventes",
-		"description": "Choisissez le forfait qui vous convient le mieux.",
+		"concurrentEdits": "{count, plural, one {# retouche simultanée} other {# retouches simultanées}}",
+		"description": "Choisissez un forfait de retouche d'image avec des crédits et des limites de tâches clairs.",
 		"getStarted": "Commencer",
+		"maximumInputSize": "Images source jusqu'à {megabytes, number} MB",
 		"month": "{count, plural, one {mois} other {{count} mois}}",
+		"monthlyCredits": "{credits, number} crédits par mois",
 		"monthly": "Mensuel",
 		"products": {
 			"creator": {
-				"description": "Pour les créateurs qui produisent des images et de courtes vidéos.",
+				"description": "Pour les créateurs qui retouchent régulièrement des images.",
 				"features": {
-					"commercialUse": "Droits d’utilisation commerciale",
-					"standardQueue": "File de génération standard"
+					"editLevels": "Accès à Standard Edit et Quality Edit",
+					"creditReview": "Coût en crédits affiché avant chaque retouche"
 				},
 				"title": "Creator"
 			},
 			"enterprise": {
 				"description": "Forfait personnalisé adapté à vos besoins",
 				"features": {
-					"enterpriseSupport": "Support entreprise",
-					"unlimitedProjects": "Projets illimités"
+					"customSupport": "Options de support personnalisées",
+					"customLimits": "Limites d'utilisation définies par contrat"
 				},
 				"title": "Entreprise"
 			},
 			"free": {
-				"description": "Commencez gratuitement",
+				"description": "Essayez Standard Edit avec une allocation mensuelle de crédits.",
 				"features": {
-					"anotherFeature": "Une autre fonctionnalité incroyable",
-					"limitedSupport": "Support limité"
+					"standardEdit": "Accès à Standard Edit",
+					"privateAssets": "Images source et ressources retouchées privées"
 				},
 				"title": "Gratuit"
 			},
 			"lifetime": {
-				"description": "Achetez une fois. Utilisez pour toujours.",
+				"description": "La disponibilité dépend des options de facturation configurées.",
 				"features": {
-					"extendSupport": "Support étendu",
-					"noRecurringCosts": "Pas de frais récurrents"
+					"accountAccess": "Accès lié au compte",
+					"creditMetering": "Retouches comptabilisées en crédits"
 				},
 				"title": "À vie"
 			},
 			"studio": {
-				"description": "Pour les équipes avec un flux de production média plus soutenu.",
+				"description": "Pour les flux de retouche d'image à plus grand volume.",
 				"features": {
-					"commercialUse": "Droits d’utilisation commerciale",
-					"priorityQueue": "File de génération prioritaire"
+					"editLevels": "Accès à Standard Edit et Quality Edit",
+					"privateHistory": "Historique de retouches et ressources privées"
 				},
 				"title": "Studio"
 			}

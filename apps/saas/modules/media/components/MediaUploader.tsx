@@ -1,11 +1,25 @@
 "use client";
 
+import { getPublicConfig } from "@repo/config/client";
 import { Button } from "@repo/ui/components/button";
+import { useTranslations } from "next-intl";
 import { type ClipboardEvent, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 
 import { useMediaUpload } from "../hooks/use-media-upload";
 import { getFileFingerprint } from "../lib/upload-state";
+
+const publicProductConfig = getPublicConfig();
+const ezPicImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+
+export function filterEzPicImageFiles(files: File[]): File[] {
+	return files.filter(
+		(file) =>
+			file.size > 0 &&
+			file.size <= publicProductConfig.uploadLimits.imageBytes &&
+			ezPicImageTypes.has(file.type),
+	);
+}
 
 export interface MediaUploaderProps {
 	value?: string[];
@@ -14,30 +28,34 @@ export interface MediaUploaderProps {
 }
 
 export function MediaUploader({ onChange, multiple = true }: MediaUploaderProps) {
+	const t = useTranslations("media.uploader");
 	const uploader = useMediaUpload(onChange);
 	const addFiles = uploader.addFiles;
-	const onDrop = useCallback(
-		(files: File[]) => addFiles(multiple ? files : files.slice(0, 1)),
+	const addImageFiles = useCallback(
+		(files: File[]) => {
+			const acceptedFiles = filterEzPicImageFiles(files);
+			if (acceptedFiles.length) addFiles(multiple ? acceptedFiles : acceptedFiles.slice(0, 1));
+		},
 		[addFiles, multiple],
 	);
 	const { getInputProps, getRootProps, isDragActive } = useDropzone({
-		onDrop,
+		onDrop: addImageFiles,
 		multiple,
+		maxSize: publicProductConfig.uploadLimits.imageBytes,
 		accept: {
 			"image/jpeg": [".jpg", ".jpeg"],
 			"image/png": [".png"],
 			"image/webp": [".webp"],
-			"video/mp4": [".mp4"],
-			"video/webm": [".webm"],
-			"video/quicktime": [".mov"],
 		},
 	});
 	const onPaste = useCallback(
 		(event: ClipboardEvent<HTMLDivElement>) => {
 			const files = Array.from(event.clipboardData.files);
-			if (files.length) addFiles(multiple ? files : files.slice(0, 1));
+			if (!files.length) return;
+			event.preventDefault();
+			addImageFiles(files);
 		},
-		[addFiles, multiple],
+		[addImageFiles],
 	);
 	return (
 		<div className="space-y-3">
@@ -45,11 +63,11 @@ export function MediaUploader({ onChange, multiple = true }: MediaUploaderProps)
 				{...getRootProps()}
 				onPaste={onPaste}
 				className="p-6 rounded-lg border border-dashed text-center focus-visible:ring-2 focus-visible:outline-none"
-				aria-label="Upload images or video"
+				aria-label={t("label")}
 			>
 				<input {...getInputProps()} />
-				<p>{isDragActive ? "Drop files here" : "Drag files here, paste, or choose files"}</p>
-				<p className="text-sm text-muted-foreground">Images up to 25 MB; videos up to 500 MB.</p>
+				<p>{isDragActive ? t("active") : t("idle")}</p>
+				<p className="text-sm text-muted-foreground">{t("limit")}</p>
 			</div>
 			<ul className="space-y-2" aria-live="polite">
 				{uploader.items.map((item) => {
@@ -72,21 +90,21 @@ export function MediaUploader({ onChange, multiple = true }: MediaUploaderProps)
 							</div>
 							{item.status === "uploading" && (
 								<Button type="button" variant="outline" onClick={() => uploader.pause(id)}>
-									Pause
+									{t("pause")}
 								</Button>
 							)}
 							{item.status === "paused" && (
 								<Button type="button" variant="outline" onClick={() => uploader.resume(id)}>
-									Resume
+									{t("resume")}
 								</Button>
 							)}
 							{item.status === "error" && (
 								<Button type="button" variant="outline" onClick={() => uploader.retry(id)}>
-									Retry
+									{t("retry")}
 								</Button>
 							)}
 							<Button type="button" variant="ghost" onClick={() => void uploader.remove(id)}>
-								Remove
+								{t("remove")}
 							</Button>
 						</li>
 					);

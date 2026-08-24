@@ -1,12 +1,13 @@
 import { AnalyticsScript } from "@analytics";
 import { config } from "@config";
-import { config as i18nConfig } from "@i18n/config";
+import { config as i18nConfig, getLocaleRobots } from "@i18n/config";
 import { cn } from "@repo/ui";
 import { ClientProviders } from "@shared/components/ClientProviders";
 import { ConsentBanner } from "@shared/components/ConsentBanner";
 import { ConsentProvider } from "@shared/components/ConsentProvider";
 import { Footer } from "@shared/components/Footer";
 import { NavBar } from "@shared/components/NavBar";
+import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getMessages, setRequestLocale } from "next-intl/server";
 import { ThemeProvider } from "next-themes";
@@ -25,6 +26,15 @@ const locales = Object.keys(i18nConfig.locales) as string[];
 
 export function generateStaticParams() {
 	return locales.map((locale) => ({ locale }));
+}
+
+export async function generateMetadata({
+	params,
+}: {
+	params: Promise<{ locale: string }>;
+}): Promise<Metadata> {
+	const { locale } = await params;
+	return { robots: getLocaleRobots(locale) };
 }
 
 export default async function MarketingLayout({

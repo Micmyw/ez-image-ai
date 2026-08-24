@@ -1,8 +1,17 @@
-# AI media SaaS foundation
+# EzPic
 
-A reusable Supastarter-based subscription foundation for private AI image and video generation. Supastarter remains the product base; only reviewed request/status mapping and upload UX patterns were adapted from ShipAny. It is production-oriented, but a checkout is not live-certified until its own cloud accounts, credentials, quotas, Webhooks, alerts, and staging load have been verified.
+EzPic is a focused, private prompt-based AI image editor. Its public product offers Standard Edit
+and Quality Edit as upload-first, image-to-image workflows while retaining the existing AI media
+foundation for jobs, credits, storage, moderation, Providers, payments, and administration. Brand,
+origins, and support details are deployment configuration rather than hardcoded production
+identity.
 
-## Foundation capabilities
+The repository is production-oriented, but a checkout is not live-certified until its own cloud
+accounts, credentials, quotas, Webhooks, alerts, and staging load have been verified. See the
+[EzPic product contract](docs/product/ezpic-product-contract.md) for the exact public/internal
+boundary and PR 1 exclusions.
+
+## Inherited foundation capabilities
 
 - **Stable product catalog and Provider abstraction:** clients submit public product keys and validated parameters; server-only routes moderate prompts and map approved requests to Replicate, Fal, Kie, or Gemini adapters. Provider names, model IDs, credentials, raw errors, and arbitrary result URLs stay off the public contract.
 - **Durable background work:** PostgreSQL is the only business source of truth. Job creation, input binding, credit reservation, and the initial Outbox event commit atomically. Trigger.dev is the first-release task engine, while polling, Webhooks, and reconciliation recover work from persisted state.

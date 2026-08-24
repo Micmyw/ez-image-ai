@@ -1,6 +1,7 @@
 "use client";
 
 import { useSession } from "@auth/hooks/use-session";
+import { config } from "@config";
 import { useActiveOrganization } from "@organizations/hooks/use-active-organization";
 import { config as authConfig } from "@repo/auth/config";
 import { config as paymentsConfig } from "@repo/payments/config";
@@ -30,11 +31,10 @@ import {
 import { NotificationCenter } from "@shared/components/NotificationCenter";
 import { UserMenu } from "@shared/components/UserMenu";
 import {
-	BotMessageSquareIcon,
-	ClapperboardIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
 	HistoryIcon,
+	ImagePlusIcon,
 	ImagesIcon,
 	MenuIcon,
 	SettingsIcon,
@@ -380,7 +380,7 @@ export function NavBar() {
 			{
 				label: t("app.menu.create"),
 				href: "/create",
-				icon: ClapperboardIcon,
+				icon: ImagePlusIcon,
 				isActive: pathname.startsWith("/create"),
 			},
 			{
@@ -394,12 +394,6 @@ export function NavBar() {
 				href: "/assets",
 				icon: ImagesIcon,
 				isActive: pathname.startsWith("/assets"),
-			},
-			{
-				label: t("app.menu.aiChatbot"),
-				href: "/chatbot",
-				icon: BotMessageSquareIcon,
-				isActive: pathname.startsWith("/chatbot"),
 			},
 			...(organizationSubItems
 				? [
@@ -490,7 +484,7 @@ export function NavBar() {
 									</SheetContent>
 								</Sheet>
 								<Link href="/" className="block shrink-0">
-									<Logo withLabel={!isCollapsedEffective} />
+									<Logo label={config.appName} withLabel={!isCollapsedEffective} />
 								</Link>
 							</div>
 

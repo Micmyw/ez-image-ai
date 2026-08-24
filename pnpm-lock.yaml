@@ -1009,6 +1009,9 @@ importers:
 
   packages/mail:
     dependencies:
+      '@repo/config':
+        specifier: workspace:*
+        version: link:../config
       '@repo/i18n':
         specifier: workspace:*
         version: link:../i18n

@@ -4,7 +4,6 @@ import type { PropsWithChildren } from "react";
 
 import { ColorModeToggle } from "./ColorModeToggle";
 import { Footer } from "./Footer";
-import { LocaleSwitch } from "./LocaleSwitch";
 
 export function AuthWrapper({
 	children,
@@ -16,11 +15,10 @@ export function AuthWrapper({
 				<div className="container">
 					<div className="flex items-center justify-between">
 						<a href={config.marketingUrl ?? "/"} className="block">
-							<Logo />
+							<Logo label={config.appName} />
 						</a>
 
 						<div className="gap-2 flex items-center justify-end">
-							<LocaleSwitch />
 							<ColorModeToggle />
 						</div>
 					</div>

@@ -6,17 +6,18 @@ import { cn, Logo } from "@repo/ui";
 import { Button } from "@repo/ui/components/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@repo/ui/components/sheet";
 import { ColorModeToggle } from "@shared/components/ColorModeToggle";
-import { LocaleSwitch } from "@shared/components/LocaleSwitch";
 import { MenuIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import NextLink from "next/link";
-import { Suspense, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { useDebounceCallback } from "usehooks-ts";
 
 export function NavBar() {
 	const t = useTranslations();
 	const localePathname = useLocalePathname();
 	const saasUrl = config.saasUrl;
+	const signInUrl = saasUrl ? new URL("/login", saasUrl).toString() : undefined;
+	const startEditingUrl = saasUrl ? new URL("/signup", saasUrl).toString() : undefined;
 
 	const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 	const [isTop, setIsTop] = useState(true);
@@ -52,6 +53,14 @@ export function NavBar() {
 		href: string;
 	}[] = [
 		{
+			label: t("common.menu.examples"),
+			href: "/#examples",
+		},
+		{
+			label: t("common.menu.howItWorks"),
+			href: "/#how-it-works",
+		},
+		{
 			label: t("common.menu.pricing"),
 			href: "/#pricing",
 		},
@@ -59,26 +68,6 @@ export function NavBar() {
 			label: t("common.menu.faq"),
 			href: "/#faq",
 		},
-		{
-			label: t("common.menu.blog"),
-			href: "/blog",
-		},
-		{
-			label: t("common.menu.changelog"),
-			href: "/changelog",
-		},
-		{
-			label: t("common.menu.contact"),
-			href: "/contact",
-		},
-		...(config.docsUrl
-			? [
-					{
-						label: t("common.menu.docs"),
-						href: config.docsUrl,
-					},
-				]
-			: []),
 	];
 
 	const isMenuItemActive = (href: string) => localePathname.startsWith(href);
@@ -99,7 +88,7 @@ export function NavBar() {
 				>
 					<div className="flex flex-1 justify-start">
 						<LocaleLink href="/" className="block hover:no-underline active:no-underline">
-							<Logo />
+							<Logo label={config.appName} />
 						</LocaleLink>
 					</div>
 
@@ -121,9 +110,6 @@ export function NavBar() {
 
 					<div className="gap-3 flex flex-1 items-center justify-end">
 						<ColorModeToggle />
-						<Suspense>
-							<LocaleSwitch />
-						</Suspense>
 
 						<Sheet open={mobileMenuOpen} onOpenChange={(open) => setMobileMenuOpen(open)}>
 							<SheetTrigger
@@ -156,9 +142,9 @@ export function NavBar() {
 										</LocaleLink>
 									))}
 
-									{config.saasUrl && (
+									{signInUrl && (
 										<NextLink
-											href={config.saasUrl}
+											href={signInUrl}
 											className="px-3 py-2 text-base block"
 											onClick={handleMobileMenuClose}
 											prefetch
@@ -166,17 +152,38 @@ export function NavBar() {
 											{t("common.menu.login")}
 										</NextLink>
 									)}
+									{startEditingUrl && (
+										<NextLink
+											href={startEditingUrl}
+											className="px-3 py-2 font-medium text-base block"
+											onClick={handleMobileMenuClose}
+											prefetch
+										>
+											{t("common.menu.startEditing")}
+										</NextLink>
+									)}
 								</div>
 							</SheetContent>
 						</Sheet>
 
-						{saasUrl && (
+						{signInUrl && (
 							<Button
 								className="lg:flex hidden"
 								variant="secondary"
 								render={(props) => (
-									<NextLink {...props} href={saasUrl} prefetch>
+									<NextLink {...props} href={signInUrl} prefetch>
 										{t("common.menu.login")}
+									</NextLink>
+								)}
+							/>
+						)}
+						{startEditingUrl && (
+							<Button
+								className="lg:flex hidden"
+								variant="primary"
+								render={(props) => (
+									<NextLink {...props} href={startEditingUrl} prefetch>
+										{t("common.menu.startEditing")}
 									</NextLink>
 								)}
 							/>

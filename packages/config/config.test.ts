@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { getPublicConfig, parseProductConfig } from "./index";
+import {
+	DEFAULT_PRODUCT_CONFIG,
+	getPublicConfig,
+	parseProductConfig,
+	PLAN_ENTITLEMENTS,
+} from "./index";
 import {
 	getConfigurationFingerprint,
 	maximumMediaStorageBytes,
@@ -209,6 +214,70 @@ describe("server media limits", () => {
 });
 
 describe("product configuration", () => {
+	it("publishes the EzPic image-editing product contract without template branding", () => {
+		const publicConfig = getPublicConfig();
+
+		expect(DEFAULT_PRODUCT_CONFIG.productKeys).toEqual(["image-fast", "image-quality"]);
+		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-08-25.1");
+		expect(DEFAULT_PRODUCT_CONFIG.pricingVersion).toBe("2026-08-25.1");
+		expect(publicConfig.brand).toMatchObject({
+			siteName: "EzPic",
+			siteDescription: expect.stringMatching(/image edit/i),
+			supportEmail: null,
+		});
+		expect(Object.values(publicConfig.publicUrls)).toEqual([
+			"https://marketing.placeholder.invalid",
+			"https://app.placeholder.invalid",
+		]);
+	});
+
+	it("limits every plan to the image editing products while preserving plan economics", () => {
+		expect(
+			PLAN_ENTITLEMENTS.map(
+				({
+					id,
+					monthlyCredits,
+					maximumConcurrentJobs,
+					maximumInputBytes,
+					allowedProducts,
+					stripePriceId,
+				}) => ({
+					id,
+					monthlyCredits,
+					maximumConcurrentJobs,
+					maximumInputBytes,
+					allowedProducts,
+					stripePriceId,
+				}),
+			),
+		).toEqual([
+			{
+				id: "free",
+				monthlyCredits: 25,
+				maximumConcurrentJobs: 1,
+				maximumInputBytes: 10 * 1024 * 1024,
+				allowedProducts: ["image-fast"],
+				stripePriceId: null,
+			},
+			{
+				id: "creator",
+				monthlyCredits: 1_000,
+				maximumConcurrentJobs: 3,
+				maximumInputBytes: 100 * 1024 * 1024,
+				allowedProducts: ["image-fast", "image-quality"],
+				stripePriceId: "price_creator",
+			},
+			{
+				id: "studio",
+				monthlyCredits: 5_000,
+				maximumConcurrentJobs: 10,
+				maximumInputBytes: 250 * 1024 * 1024,
+				allowedProducts: ["image-fast", "image-quality"],
+				stripePriceId: "price_studio",
+			},
+		]);
+	});
+
 	it("schema-validates identifiers, versions, flags, limits, and public URLs", () => {
 		expect(() =>
 			parseProductConfig({

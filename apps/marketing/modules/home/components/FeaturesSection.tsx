@@ -1,19 +1,22 @@
 "use client";
 
 import { cn } from "@repo/ui";
-import { CloudIcon, ComputerIcon, SmartphoneIcon, StarIcon, WandIcon } from "lucide-react";
+import {
+	CloudIcon,
+	ComputerIcon,
+	type LucideIcon,
+	SmartphoneIcon,
+	StarIcon,
+	WandIcon,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import Image from "next/image";
-import type { JSXElementConstructor, ReactNode } from "react";
+import type { ReactNode } from "react";
 
 interface FeatureTab {
 	id: string;
 	title: string;
-	icon: JSXElementConstructor<{
-		className?: string;
-		width?: string;
-		height?: string;
-	}>;
+	icon: LucideIcon;
 	subtitle?: string;
 	description?: ReactNode;
 	image?: string;
@@ -21,12 +24,12 @@ interface FeatureTab {
 	stack?: {
 		title: string;
 		href: string;
-		icon: JSXElementConstructor<any>;
+		icon: LucideIcon;
 	}[];
 	highlights?: {
 		title: string;
 		description: string;
-		icon: JSXElementConstructor<any>;
+		icon: LucideIcon;
 		demoLink?: string;
 		docsUrl?: string;
 	}[];
@@ -93,7 +96,7 @@ export function FeaturesSection() {
 	];
 
 	return (
-		<section id="features" className="scroll-my-20 py-12 lg:py-16">
+		<section id="examples" className="scroll-my-20 py-12 lg:py-16">
 			<div className="container">
 				<div className="mb-6 lg:mb-0 max-w-3xl mx-auto text-center">
 					<small className="font-medium text-xs tracking-wider mb-4 block text-primary uppercase">

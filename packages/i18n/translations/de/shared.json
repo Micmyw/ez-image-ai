@@ -2,48 +2,51 @@
 	"pricing": {
 		"choosePlan": "Plan auswählen",
 		"contactSales": "Vertrieb kontaktieren",
-		"description": "Wähle das passende Paket für dich aus.",
+		"concurrentEdits": "{count, plural, one {# gleichzeitige Bearbeitung} other {# gleichzeitige Bearbeitungen}}",
+		"description": "Wähle einen Bildbearbeitungstarif mit klaren Credits und Auftragslimits.",
 		"getStarted": "Jetzt loslegen",
+		"maximumInputSize": "Quellbilder bis {megabytes, number} MB",
 		"month": "Monat",
+		"monthlyCredits": "{credits, number} Credits pro Monat",
 		"monthly": "Monatlich",
 		"products": {
 			"creator": {
-				"description": "Für einzelne Kreative, die Bilder und kurze Videos erstellen.",
+				"description": "Für einzelne Kreative mit regelmäßigen Bildbearbeitungen.",
 				"features": {
-					"commercialUse": "Kommerzielle Nutzungsrechte",
-					"standardQueue": "Standard-Warteschlange für Generierungen"
+					"editLevels": "Zugriff auf Standard Edit und Quality Edit",
+					"creditReview": "Credit-Kosten vor jeder Bearbeitung sichtbar"
 				},
 				"title": "Creator"
 			},
 			"enterprise": {
 				"description": "Maßgeschneiderter Plan für deine Anforderungen",
 				"features": {
-					"enterpriseSupport": "Support für Unternehmen",
-					"unlimitedProjects": "Unbegrenzte Projekte"
+					"customSupport": "Individuelle Supportoptionen",
+					"customLimits": "Vertraglich festgelegte Nutzungslimits"
 				},
 				"title": "Enterprise"
 			},
 			"free": {
-				"description": "Kostenloser Start",
+				"description": "Teste Standard Edit mit einem monatlichen Credit-Kontingent.",
 				"features": {
-					"anotherFeature": "Ein weiteres erstaunliches Merkmal",
-					"limitedSupport": "Begrenzter Support"
+					"standardEdit": "Zugriff auf Standard Edit",
+					"privateAssets": "Private Quellbilder und bearbeitete Assets"
 				},
 				"title": "Free"
 			},
 			"lifetime": {
-				"description": "Einmal kaufen. Für immer verwenden.",
+				"description": "Die Verfügbarkeit hängt von den konfigurierten Zahlungsoptionen ab.",
 				"features": {
-					"extendSupport": "Erweiterter Support",
-					"noRecurringCosts": "Keine wiederkehrenden Kosten"
+					"accountAccess": "Kontobasierter Zugriff",
+					"creditMetering": "Bearbeitungen nach Credits"
 				},
 				"title": "Lifetime"
 			},
 			"studio": {
-				"description": "Für Teams mit einem Medien-Workflow in höherem Umfang.",
+				"description": "Für umfangreichere Arbeitsabläufe zur Bildbearbeitung.",
 				"features": {
-					"commercialUse": "Kommerzielle Nutzungsrechte",
-					"priorityQueue": "Bevorzugte Warteschlange für Generierungen"
+					"editLevels": "Zugriff auf Standard Edit und Quality Edit",
+					"privateHistory": "Privater Bearbeitungsverlauf und Assets"
 				},
 				"title": "Studio"
 			}

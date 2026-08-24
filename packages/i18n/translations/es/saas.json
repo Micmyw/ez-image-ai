@@ -702,19 +702,43 @@
 		"welcome": "¡Bienvenido {name}!"
 	},
 	"media": {
+		"uploader": {
+			"label": "Subir imágenes de origen",
+			"active": "Suelta las imágenes aquí",
+			"idle": "Arrastra imágenes aquí, pégalas o elige archivos",
+			"limit": "Imágenes JPG, PNG o WebP de hasta 20 MB.",
+			"pause": "Pausar",
+			"resume": "Reanudar",
+			"retry": "Reintentar",
+			"remove": "Eliminar"
+		},
 		"create": {
-			"eyebrow": "Espacio creativo",
-			"title": "Convierte una idea en un recurso terminado",
-			"subtitle": "Elige un formato, controla el resultado, revisa la reserva de créditos y empieza a crear.",
-			"draftRestored": "Tu idea guardada está lista para continuar.",
-			"product": "Calidad de salida",
+			"eyebrow": "Editor de imágenes",
+			"title": "Edita una imagen de origen con una instrucción",
+			"subtitle": "Sube una imagen de origen, describe el cambio, elige un nivel de edición y revisa la reserva de créditos.",
+			"draftRestored": "Tu borrador de edición guardado está listo para continuar.",
+			"product": "Calidad de edición",
+			"products": {
+				"image-fast": {
+					"label": "Standard Edit",
+					"description": "Edición privada mediante instrucciones para cambios cotidianos."
+				},
+				"image-quality": {
+					"label": "Quality Edit",
+					"description": "Edición privada de mayor fidelidad para cambios detallados."
+				}
+			},
+			"fields": {
+				"prompt": "Instrucción de edición",
+				"sourceAssetId": "Imagen de origen"
+			},
 			"credits": "créditos",
-			"quoteReady": "Listo para crear",
-			"reserveCredits": "Esta creación reservará {credits} créditos. Solo se cobra el trabajo completado.",
-			"confirm": "Empezar a crear",
+			"quoteReady": "Listo para editar",
+			"reserveCredits": "Esta edición reservará {credits} créditos. Solo se cobra el trabajo completado.",
+			"confirm": "Iniciar edición",
 			"edit": "Editar ajustes",
 			"review": "Revisar créditos",
-			"safeError": "No pudimos iniciar esta creación. Comprueba tus créditos o inténtalo de nuevo en unos minutos."
+			"safeError": "No pudimos iniciar esta edición. Comprueba tus créditos o inténtalo de nuevo en unos minutos."
 		},
 		"status": {
 			"emptyTitle": "Tu resultado aparecerá aquí",
@@ -778,7 +802,7 @@
 		},
 		"assets": {
 			"title": "Biblioteca de recursos",
-			"subtitle": "Imágenes y vídeos privados de tus creaciones.",
+			"subtitle": "Imágenes de origen y resultados editados privados.",
 			"filters": { "all": "Todos", "image": "Imágenes", "video": "Vídeos" },
 			"previewAlt": "Recurso generado privado",
 			"preview": "Mostrar vista previa",
@@ -788,11 +812,17 @@
 			"download": "Descargar",
 			"source": "Creación de origen",
 			"delete": "Eliminar",
-			"empty": "No hay recursos para este filtro.",
+			"empty": "Aún no hay recursos de imagen.",
 			"more": "Cargar más"
 		}
 	},
 	"common": {
+		"consent": {
+			"message": "Elige si permites cookies de análisis opcionales. El almacenamiento esencial para preferencias y seguridad sigue disponible.",
+			"decline": "Rechazar opcionales",
+			"allow": "Permitir opcionales"
+		},
+		"footer": { "support": "Soporte" },
 		"confirmation": {
 			"cancel": "Cancelar",
 			"confirm": "Confirmar"

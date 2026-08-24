@@ -2,6 +2,8 @@ import { Logo } from "@repo/ui";
 import React, { type PropsWithChildren } from "react";
 import { Container, Font, Head, Html, Section, Tailwind } from "react-email";
 
+import { config } from "../config";
+
 export default function Wrapper({ children }: PropsWithChildren) {
 	return (
 		<Tailwind
@@ -67,7 +69,7 @@ export default function Wrapper({ children }: PropsWithChildren) {
 				</Head>
 				<Section className="p-4 bg-background">
 					<Container className="p-6 rounded-lg bg-card text-card-foreground">
-						<Logo />
+						<Logo label={config.appName} />
 						{children}
 					</Container>
 				</Section>

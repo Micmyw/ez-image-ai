@@ -286,7 +286,8 @@
 	"notFound": {
 		"code": "404",
 		"title": "Seite nicht gefunden",
-		"goToDashboard": "Zum Dashboard gehen"
+		"goToDashboard": "Zum Dashboard gehen",
+		"goToHomepage": "Zur Startseite"
 	},
 	"onboarding": {
 		"account": {
@@ -667,9 +668,6 @@
 				}
 			},
 			"types": {
-				"WELCOME": {
-					"label": "Willkommen"
-				},
 				"APP_UPDATE": {
 					"label": "App-Updates"
 				}
@@ -704,19 +702,43 @@
 		"welcome": "Willkommen {name}!"
 	},
 	"media": {
+		"uploader": {
+			"label": "Quellbilder hochladen",
+			"active": "Bilder hier ablegen",
+			"idle": "Bilder hierher ziehen, einfügen oder Dateien auswählen",
+			"limit": "JPG-, PNG- oder WebP-Bilder bis 20 MB.",
+			"pause": "Pausieren",
+			"resume": "Fortsetzen",
+			"retry": "Erneut versuchen",
+			"remove": "Entfernen"
+		},
 		"create": {
-			"eyebrow": "Kreativbereich",
-			"title": "Von der Idee zum fertigen Medium",
-			"subtitle": "Format wählen, Ergebnis steuern, Credit-Reservierung prüfen und erstellen.",
-			"draftRestored": "Ihre gespeicherte Idee kann jetzt fortgesetzt werden.",
-			"product": "Ausgabequalität",
+			"eyebrow": "Bildeditor",
+			"title": "Quellbild mit einem Prompt bearbeiten",
+			"subtitle": "Laden Sie ein Quellbild hoch, beschreiben Sie die Änderung, wählen Sie eine Bearbeitungsstufe und prüfen Sie die Credit-Reservierung.",
+			"draftRestored": "Ihr gespeicherter Bearbeitungsentwurf kann jetzt fortgesetzt werden.",
+			"product": "Bearbeitungsqualität",
+			"products": {
+				"image-fast": {
+					"label": "Standard Edit",
+					"description": "Private promptbasierte Bildbearbeitung für alltägliche Änderungen."
+				},
+				"image-quality": {
+					"label": "Quality Edit",
+					"description": "Private Bildbearbeitung mit höherer Detailtreue."
+				}
+			},
+			"fields": {
+				"prompt": "Bearbeitungsanweisung",
+				"sourceAssetId": "Quellbild"
+			},
 			"credits": "Credits",
-			"quoteReady": "Bereit zum Erstellen",
-			"reserveCredits": "Für diesen Lauf werden {credits} Credits reserviert. Berechnet wird nur abgeschlossene Arbeit.",
-			"confirm": "Erstellung starten",
+			"quoteReady": "Bereit zum Bearbeiten",
+			"reserveCredits": "Für diese Bearbeitung werden {credits} Credits reserviert. Berechnet wird nur abgeschlossene Arbeit.",
+			"confirm": "Bearbeitung starten",
 			"edit": "Einstellungen ändern",
 			"review": "Credits prüfen",
-			"safeError": "Die Erstellung konnte nicht gestartet werden. Prüfen Sie Ihr Guthaben oder versuchen Sie es später erneut."
+			"safeError": "Die Bearbeitung konnte nicht gestartet werden. Prüfen Sie Ihre Credits oder versuchen Sie es später erneut."
 		},
 		"status": {
 			"emptyTitle": "Ihre Ausgabe erscheint hier",
@@ -780,7 +802,7 @@
 		},
 		"assets": {
 			"title": "Medienbibliothek",
-			"subtitle": "Private Bilder und Videos aus Ihren Erstellungen.",
+			"subtitle": "Private Quellbilder und bearbeitete Ergebnisse.",
 			"filters": { "all": "Alle Medien", "image": "Bilder", "video": "Videos" },
 			"previewAlt": "Privates generiertes Medium",
 			"preview": "Vorschau anzeigen",
@@ -790,11 +812,17 @@
 			"download": "Herunterladen",
 			"source": "Quellerstellung",
 			"delete": "Löschen",
-			"empty": "Keine passenden Medien.",
+			"empty": "Noch keine Bild-Assets.",
 			"more": "Mehr laden"
 		}
 	},
 	"common": {
+		"consent": {
+			"message": "Entscheiden Sie, ob Sie optionale Analyse-Cookies zulassen. Notwendiger Speicher für Seiteneinstellungen und Sicherheit bleibt verfügbar.",
+			"decline": "Optionale ablehnen",
+			"allow": "Optionale erlauben"
+		},
+		"footer": { "support": "Support" },
 		"confirmation": {
 			"cancel": "Abbrechen",
 			"confirm": "Bestätigen"
@@ -802,6 +830,11 @@
 		"actions": {
 			"continue": "Weiter",
 			"verify": "Überprüfen Sie"
+		},
+		"colorMode": {
+			"system": "System",
+			"light": "Hell",
+			"dark": "Dunkel"
 		},
 		"passwordCriteria": {
 			"minLength": "Min. 8 Zeichen",

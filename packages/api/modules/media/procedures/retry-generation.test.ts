@@ -26,17 +26,23 @@ vi.mock("@trigger.dev/sdk", () => ({ tasks: { trigger: vi.fn() } }));
 import { maximumMediaStorageBytes } from "../lib/storage-limits";
 import { retryGenerationForUser, type RetryGenerationDependencies } from "./retry-generation";
 
+const SOURCE_ASSET_ID = "asset_01J5ABCD1234EFGH5678JKLMNP";
+
 const source = {
 	id: "source-job-1",
 	productKey: "image-fast",
 	quote: {
-		inputSnapshot: { kind: "text-to-image", prompt: "  A current prompt  " },
+		inputSnapshot: {
+			kind: "image-to-image",
+			prompt: "  A current prompt  ",
+			sourceAssetId: SOURCE_ASSET_ID,
+		},
 		moderationDecision: "ALLOW",
 		moderationProvider: "legacy-provider",
 		moderationRuleVersion: "stale-rule",
 		moderationReasonCode: "STALE_ALLOW",
 	},
-	assets: [{ assetId: "asset-1", assetChecksum: "1".repeat(64) }],
+	assets: [{ assetId: SOURCE_ASSET_ID, assetChecksum: "1".repeat(64) }],
 };
 
 const checkpointQuote = {
@@ -45,11 +51,15 @@ const checkpointQuote = {
 	ownerId: "user-1",
 	submittedByUserId: "user-1",
 	productKey: "image-fast",
-	catalogVersion: "2026-08-13.1",
-	pricingVersion: "2026-08-13.1",
+	catalogVersion: "2026-08-25.1",
+	pricingVersion: "2026-08-25.1",
 	credits: 4n,
 	costMicros: 3_000n,
-	inputSnapshot: { kind: "text-to-image", prompt: "A current prompt" },
+	inputSnapshot: {
+		kind: "image-to-image",
+		prompt: "A current prompt",
+		sourceAssetId: SOURCE_ASSET_ID,
+	},
 	pricingSnapshot: { credits: 4, maximumJobCostMicros: 5_000_000 },
 	expiresAt: new Date("2026-08-23T00:10:00.000Z"),
 	moderationDecision: "ALLOW",
@@ -62,10 +72,14 @@ const checkpointQuote = {
 const retryOperation = {
 	sourceJobId: "source-job-1",
 	productKey: "image-fast",
-	normalizedInput: { kind: "text-to-image" as const, prompt: "A current prompt" },
-	inputAssets: [{ assetId: "asset-1", assetChecksum: "1".repeat(64) }],
-	catalogVersion: "2026-08-13.1",
-	pricingVersion: "2026-08-13.1",
+	normalizedInput: {
+		kind: "image-to-image" as const,
+		prompt: "A current prompt",
+		sourceAssetId: SOURCE_ASSET_ID,
+	},
+	inputAssets: [{ assetId: SOURCE_ASSET_ID, assetChecksum: "1".repeat(64) }],
+	catalogVersion: "2026-08-25.1",
+	pricingVersion: "2026-08-25.1",
 	credits: "4",
 	costMicros: "3000",
 	pricingSnapshot: { credits: 4, maximumJobCostMicros: 5_000_000 },
@@ -179,15 +193,16 @@ describe("retryGenerationForUser", () => {
 				operation: {
 					assetModerationPolicyVersion: expect.any(String),
 					assetModerationRuleVersion: expect.any(String),
-					catalogVersion: "2026-08-24.1",
+					catalogVersion: "2026-08-25.1",
 					costMicros: "3500",
 					credits: "4",
-					inputAssets: [{ assetChecksum: "1".repeat(64), assetId: "asset-1" }],
+					inputAssets: [{ assetChecksum: "1".repeat(64), assetId: SOURCE_ASSET_ID }],
 					moderationProvider: "test",
 					moderationRuleVersion: expect.stringMatching(/^text-safety-/),
 					normalizedInput: {
-						kind: "text-to-image",
+						kind: "image-to-image",
 						prompt: "A current prompt",
+						sourceAssetId: SOURCE_ASSET_ID,
 					},
 					pricingSnapshot: expect.objectContaining({
 						credits: 4,
@@ -199,7 +214,7 @@ describe("retryGenerationForUser", () => {
 							maxCharge: "4",
 						},
 					}),
-					pricingVersion: "2026-08-13.1",
+					pricingVersion: "2026-08-25.1",
 					productKey: "image-fast",
 					sourceJobId: "source-job-1",
 				},
@@ -213,7 +228,7 @@ describe("retryGenerationForUser", () => {
 		);
 		expect(deps.createJob).toHaveBeenCalledWith(
 			expect.objectContaining({
-				expectedInputAssets: [{ assetId: "asset-1", assetChecksum: "1".repeat(64) }],
+				expectedInputAssets: [{ assetId: SOURCE_ASSET_ID, assetChecksum: "1".repeat(64) }],
 				maximumStorageBytes: maximumMediaStorageBytes(),
 			}),
 		);

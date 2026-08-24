@@ -4,9 +4,15 @@ vi.mock("@repo/database/client", () => ({ db: {} }));
 
 import { createQuoteForUser } from "./create-quote";
 
+const SOURCE_ASSET_ID = "asset_01J5ABCD1234EFGH5678JKLMNP";
+
 const INPUT = {
 	productKey: "image-fast" as const,
-	input: { kind: "text-to-image" as const, prompt: "private prompt", width: 1024 },
+	input: {
+		kind: "image-to-image" as const,
+		prompt: "private prompt",
+		sourceAssetId: SOURCE_ASSET_ID,
+	},
 };
 
 describe("createQuoteForUser", () => {
@@ -41,7 +47,7 @@ describe("createQuoteForUser", () => {
 		);
 	});
 
-	it("rejects an unsupported quality-image reference before moderation or persistence", async () => {
+	it("rejects quality text-to-image input before moderation or persistence", async () => {
 		const createAdapter = vi.fn();
 		const persistApproved = vi.fn();
 		const assertAllowed = vi.fn();
@@ -52,9 +58,8 @@ describe("createQuoteForUser", () => {
 				{
 					productKey: "image-quality",
 					input: {
-						kind: "image-to-image",
-						prompt: "Keep the subject intact",
-						sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+						kind: "text-to-image",
+						prompt: "Create a studio product photo",
 					},
 				},
 				{
@@ -65,7 +70,7 @@ describe("createQuoteForUser", () => {
 					recordDenied: vi.fn(),
 				},
 			),
-		).rejects.toThrow("Input image-to-image is not supported by image-quality");
+		).rejects.toThrow("Input text-to-image is not supported by image-quality");
 
 		expect(assertAllowed).not.toHaveBeenCalled();
 		expect(createAdapter).not.toHaveBeenCalled();

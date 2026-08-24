@@ -5,6 +5,35 @@ import {
 	DRAFT_HANDOFF_INTENT,
 	submitMarketingDraftHandoff,
 } from "./draft-client";
+import * as draftClientModule from "./draft-client";
+
+describe("buildMarketingImageEditDraft", () => {
+	it("builds only an image edit draft with a required source upload", () => {
+		const buildMarketingImageEditDraft = (
+			draftClientModule as typeof draftClientModule & {
+				buildMarketingImageEditDraft?: (input: {
+					prompt: string;
+					upload?: {
+						contentType: "image/jpeg" | "image/png" | "image/webp";
+						base64: string;
+					};
+				}) => unknown;
+			}
+		).buildMarketingImageEditDraft;
+		const upload = { contentType: "image/png" as const, base64: "c291cmNl" };
+
+		expect(buildMarketingImageEditDraft).toBeTypeOf("function");
+		expect(buildMarketingImageEditDraft?.({ prompt: "  Replace the sky  ", upload })).toEqual({
+			productKey: "image-fast",
+			input: { kind: "text-to-image", prompt: "Replace the sky" },
+			upload,
+		});
+		expect(() => buildMarketingImageEditDraft?.({ prompt: "", upload })).toThrow("PROMPT_REQUIRED");
+		expect(() => buildMarketingImageEditDraft?.({ prompt: "Replace the sky" })).toThrow(
+			"SOURCE_IMAGE_REQUIRED",
+		);
+	});
+});
 
 describe("createMarketingDraft", () => {
 	afterEach(() => vi.unstubAllGlobals());

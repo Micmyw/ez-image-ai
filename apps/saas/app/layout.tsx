@@ -2,6 +2,7 @@ import { config } from "@config";
 import { cn, Toaster } from "@repo/ui";
 import { ApiClientProvider } from "@shared/components/ApiClientProvider";
 import { ClientProviders } from "@shared/components/ClientProviders";
+import { getBaseUrl } from "@shared/lib/base-url";
 import type { Metadata } from "next";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
@@ -19,6 +20,9 @@ const sansFont = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
+	applicationName: config.appName,
+	description: config.appDescription,
+	metadataBase: new URL(getBaseUrl()),
 	robots: {
 		index: false,
 		follow: false,

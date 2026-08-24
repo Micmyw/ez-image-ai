@@ -6,6 +6,12 @@ export interface MarketingConfig {
 	 * page copy.
 	 */
 	appName: string;
+	/** Concise product description used by metadata and public product chrome. */
+	appDescription: string;
+	/** Absolute URL for the public marketing origin when explicitly configured. */
+	marketingUrl?: string;
+	/** Public support address. Omitted until an operator configures one. */
+	supportEmail?: string;
 	/**
 	 * Absolute URL for the docs site. When omitted, documentation calls to action
 	 * are not rendered.

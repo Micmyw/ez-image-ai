@@ -3,43 +3,38 @@
 import { config } from "@config";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
-import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@repo/ui/components/select";
 import { Textarea } from "@repo/ui/components/textarea";
-import { FilmIcon, ImageIcon, SparklesIcon } from "lucide-react";
+import { SparklesIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
-import { createMarketingDraft, submitMarketingDraftHandoff } from "../lib/draft-client";
+import {
+	buildMarketingImageEditDraft,
+	createMarketingDraft,
+	submitMarketingDraftHandoff,
+} from "../lib/draft-client";
 
 export function MarketingGenerator() {
 	const t = useTranslations("home.generator");
-	const [kind, setKind] = useState<"image" | "video">("image");
 	const [prompt, setPrompt] = useState("");
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [hasError, setHasError] = useState(false);
 	const [file, setFile] = useState<File | null>(null);
 	async function submit() {
-		if (!config.saasUrl || !prompt.trim()) return;
+		if (!config.saasUrl || !prompt.trim() || !file) return;
 		setIsSubmitting(true);
 		setHasError(false);
 		try {
-			const upload = file
-				? {
+			const handoff = await createMarketingDraft(
+				config.saasUrl,
+				buildMarketingImageEditDraft({
+					prompt,
+					upload: {
 						contentType: file.type as "image/jpeg" | "image/png" | "image/webp",
 						base64: await fileToBase64(file),
-					}
-				: undefined;
-			const handoff = await createMarketingDraft(config.saasUrl, {
-				productKey: kind === "image" ? "image-fast" : "video-fast",
-				input: { kind: kind === "image" ? "text-to-image" : "text-to-video", prompt },
-				upload,
-			});
+					},
+				}),
+			);
 			submitMarketingDraftHandoff(handoff);
 		} catch {
 			setHasError(true);
@@ -47,7 +42,11 @@ export function MarketingGenerator() {
 		}
 	}
 	return (
-		<section className="py-12 lg:py-16" aria-labelledby="generator-title">
+		<section
+			id="how-it-works"
+			className="scroll-mt-20 py-12 lg:py-16"
+			aria-labelledby="generator-title"
+		>
 			<div className="container">
 				<div className="overflow-hidden rounded-4xl border bg-card">
 					<div className="lg:grid-cols-[0.9fr_1.1fr] grid">
@@ -78,33 +77,6 @@ export function MarketingGenerator() {
 						<div className="p-5 md:p-8 lg:border-l lg:border-t-0 border-t bg-background">
 							<div className="space-y-5">
 								<div>
-									<label htmlFor="marketing-kind" className="mb-2 text-sm font-medium block">
-										{t("format")}
-									</label>
-									<Select
-										value={kind}
-										onValueChange={(value) => setKind(value as "image" | "video")}
-									>
-										<SelectTrigger id="marketing-kind" aria-label={t("format")}>
-											<SelectValue />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="image">
-												<span className="gap-2 flex items-center">
-													<ImageIcon className="size-4" />
-													{t("image")}
-												</span>
-											</SelectItem>
-											<SelectItem value="video">
-												<span className="gap-2 flex items-center">
-													<FilmIcon className="size-4" />
-													{t("video")}
-												</span>
-											</SelectItem>
-										</SelectContent>
-									</Select>
-								</div>
-								<div>
 									<label htmlFor="marketing-prompt" className="mb-2 text-sm font-medium block">
 										{t("prompt")}
 									</label>
@@ -125,6 +97,7 @@ export function MarketingGenerator() {
 										id="marketing-reference"
 										aria-label={t("reference")}
 										type="file"
+										required
 										accept="image/jpeg,image/png,image/webp"
 										className="text-sm file:mr-3 file:px-3 file:py-2 block w-full file:rounded-md file:border-0 file:bg-muted"
 										onChange={(event) => setFile(event.target.files?.[0] ?? null)}
@@ -135,7 +108,7 @@ export function MarketingGenerator() {
 									size="lg"
 									variant="primary"
 									loading={isSubmitting}
-									disabled={!config.saasUrl || !prompt.trim()}
+									disabled={!config.saasUrl || !prompt.trim() || !file}
 									onClick={() => void submit()}
 								>
 									{t("continue")}

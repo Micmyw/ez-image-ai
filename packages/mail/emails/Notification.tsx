@@ -50,7 +50,7 @@ Notification.PreviewProps = {
 	translations: defaultTranslations,
 	title: "Example",
 	message: "This is a notification email.",
-	link: "https://example.com",
+	link: "#",
 };
 
 export default Notification;

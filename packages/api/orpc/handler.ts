@@ -7,6 +7,7 @@ import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { auth } from "@repo/auth";
 import { logger } from "@repo/logs";
 
+import { getOpenApiTitle } from "./product-metadata";
 import { router } from "./router";
 
 export const rpcHandler = new RPCHandler(router, {
@@ -34,7 +35,7 @@ export const openApiHandler = new OpenAPIHandler(router, {
 				return {
 					...(authSchema as any),
 					info: {
-						title: "supastarter API",
+						title: getOpenApiTitle(),
 						version: "1.0.0",
 					},
 					servers: [

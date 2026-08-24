@@ -10,25 +10,28 @@ export function Footer() {
 		<footer className="py-8 text-sm border-t text-foreground/60">
 			<div className="gap-6 lg:grid-cols-3 container grid grid-cols-1">
 				<div>
-					<Logo className="opacity-70 grayscale" />
+					<Logo label={config.appName} className="opacity-70 grayscale" />
 					<p className="mt-3 text-sm opacity-70">
-						© {new Date().getFullYear()} {config.appName}.{" "}
-						<a href="https://supastarter.dev">{t("common.footer.builtWith")}</a>.
+						© {new Date().getFullYear()} {config.appName}.
 					</p>
 				</div>
 
 				<div className="gap-2 flex flex-col">
-					<LocaleLink href="/blog" className="block">
-						{t("common.footer.blog")}
+					<LocaleLink href="/#examples" className="block">
+						{t("common.menu.examples")}
 					</LocaleLink>
 
-					<a href="#features" className="block">
-						{t("common.footer.features")}
-					</a>
+					<LocaleLink href="/#how-it-works" className="block">
+						{t("common.menu.howItWorks")}
+					</LocaleLink>
 
-					<a href="/#pricing" className="block">
-						{t("common.footer.pricing")}
-					</a>
+					<LocaleLink href="/#pricing" className="block">
+						{t("common.menu.pricing")}
+					</LocaleLink>
+
+					<LocaleLink href="/#faq" className="block">
+						{t("common.menu.faq")}
+					</LocaleLink>
 				</div>
 
 				<div className="gap-2 flex flex-col">
@@ -39,6 +42,12 @@ export function Footer() {
 					<LocaleLink href="/legal/terms" className="block">
 						{t("common.footer.termsAndConditions")}
 					</LocaleLink>
+
+					{config.supportEmail && (
+						<a href={`mailto:${config.supportEmail}`} className="block">
+							{t("common.footer.support")}
+						</a>
+					)}
 				</div>
 			</div>
 		</footer>

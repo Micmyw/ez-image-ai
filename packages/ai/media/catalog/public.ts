@@ -33,8 +33,9 @@ export function getPublicProductCatalog(
 	return {
 		catalogVersion: DEFAULT_PRODUCT_CONFIG.catalogVersion,
 		pricingVersion: DEFAULT_PRODUCT_CONFIG.pricingVersion,
-		products: createExecutableRouteGraph(options).entries.map(
-			({ key, label, description, mediaKind, inputKinds, credits }) => ({
+		products: createExecutableRouteGraph(options)
+			.entries.filter(({ key }) => DEFAULT_PRODUCT_CONFIG.productKeys.includes(key))
+			.map(({ key, label, description, mediaKind, inputKinds, credits }) => ({
 				key,
 				label,
 				description,
@@ -42,8 +43,7 @@ export function getPublicProductCatalog(
 				inputKinds: [...inputKinds],
 				credits,
 				fields: publicFields(key, mediaKind, inputKinds),
-			}),
-		),
+			})),
 	};
 }
 
@@ -55,19 +55,28 @@ function publicFields(
 	return [
 		{ type: "text", key: "prompt", label: "Prompt", required: true },
 		...(inputKinds.some((kind) => kind.startsWith("image-to-"))
-			? [{ type: "image-asset" as const, key: "sourceAssetId", label: "Reference image" }]
-			: []),
-		...(mediaKind === "image"
-			? [{ type: "aspect-ratio" as const, key: "aspectRatio", label: "Format" }]
-			: [
+			? [
 					{
-						type: "slider" as const,
-						key: "durationSeconds",
-						label: "Length",
-						min: productKey === "video-quality" ? 4 : 1,
-						max: productKey === "video-quality" ? 8 : 30,
-						step: productKey === "video-quality" ? 2 : 1,
+						type: "image-asset" as const,
+						key: "sourceAssetId",
+						label: "Source image",
+						required: true,
 					},
-				]),
+				]
+			: []),
+		...(mediaKind === "image" && inputKinds.includes("text-to-image")
+			? [{ type: "aspect-ratio" as const, key: "aspectRatio", label: "Format" }]
+			: mediaKind === "video"
+				? [
+						{
+							type: "slider" as const,
+							key: "durationSeconds",
+							label: "Length",
+							min: productKey === "video-quality" ? 4 : 1,
+							max: productKey === "video-quality" ? 8 : 30,
+							step: productKey === "video-quality" ? 2 : 1,
+						},
+					]
+				: []),
 	];
 }

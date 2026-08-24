@@ -4,6 +4,22 @@ interface MarketingDraftInput {
 	upload?: { contentType: "image/jpeg" | "image/png" | "image/webp"; base64: string };
 }
 
+type MarketingImageUpload = NonNullable<MarketingDraftInput["upload"]>;
+
+export function buildMarketingImageEditDraft(input: {
+	prompt: string;
+	upload?: MarketingImageUpload;
+}): MarketingDraftInput {
+	const prompt = input.prompt.trim();
+	if (!prompt) throw new Error("PROMPT_REQUIRED");
+	if (!input.upload) throw new Error("SOURCE_IMAGE_REQUIRED");
+	return {
+		productKey: "image-fast",
+		input: { kind: "text-to-image", prompt },
+		upload: input.upload,
+	};
+}
+
 export interface MarketingDraftHandoff {
 	action: string;
 	claimToken: string;

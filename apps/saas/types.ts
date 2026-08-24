@@ -6,6 +6,12 @@ export interface SaasConfig {
 	 * user-facing surfaces throughout the SaaS application.
 	 */
 	appName: string;
+	/** Concise product description used by application metadata. */
+	appDescription: string;
+	/** Absolute URL for this SaaS origin when explicitly configured. */
+	saasUrl?: string;
+	/** Public support address. Omitted until an operator configures one. */
+	supportEmail?: string;
 	/**
 	 * Absolute URL for the documentation site. When omitted, documentation links
 	 * are hidden from the SaaS UI.

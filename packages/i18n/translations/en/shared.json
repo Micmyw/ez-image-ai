@@ -2,48 +2,51 @@
 	"pricing": {
 		"choosePlan": "Choose plan",
 		"contactSales": "Contact sales",
-		"description": "Choose the plan that works best for you.",
+		"concurrentEdits": "{count, plural, one {# concurrent edit} other {# concurrent edits}}",
+		"description": "Choose an image-editing plan with clear credits and job limits.",
 		"getStarted": "Get started",
+		"maximumInputSize": "Source images up to {megabytes, number} MB",
 		"month": "{count, plural, one {month} other {{count} months}}",
+		"monthlyCredits": "{credits, number} credits per month",
 		"monthly": "Monthly",
 		"products": {
 			"creator": {
-				"description": "For individual creators producing images and short videos.",
+				"description": "For individual creators running regular image edits.",
 				"features": {
-					"commercialUse": "Commercial usage rights",
-					"standardQueue": "Standard generation queue"
+					"editLevels": "Standard Edit and Quality Edit access",
+					"creditReview": "Credit cost shown before each edit"
 				},
 				"title": "Creator"
 			},
 			"enterprise": {
 				"description": "Custom plan tailored to your requirements",
 				"features": {
-					"enterpriseSupport": "Enterprise support",
-					"unlimitedProjects": "Unlimited projects"
+					"customSupport": "Custom support options",
+					"customLimits": "Contract-defined usage limits"
 				},
 				"title": "Enterprise"
 			},
 			"free": {
-				"description": "Start for free",
+				"description": "Try Standard Edit with a monthly credit allowance.",
 				"features": {
-					"anotherFeature": "Another amazing feature",
-					"limitedSupport": "Limited support"
+					"standardEdit": "Standard Edit access",
+					"privateAssets": "Private source images and edited assets"
 				},
 				"title": "Free"
 			},
 			"lifetime": {
-				"description": "Buy once. Use forever.",
+				"description": "Availability depends on the configured billing options.",
 				"features": {
-					"extendSupport": "Extended support",
-					"noRecurringCosts": "No recurring costs"
+					"accountAccess": "Account-based access",
+					"creditMetering": "Credit-metered edits"
 				},
 				"title": "Lifetime"
 			},
 			"studio": {
-				"description": "For teams running a higher-volume media workflow.",
+				"description": "For higher-volume image-editing workflows.",
 				"features": {
-					"commercialUse": "Commercial usage rights",
-					"priorityQueue": "Priority generation queue"
+					"editLevels": "Standard Edit and Quality Edit access",
+					"privateHistory": "Private edit history and assets"
 				},
 				"title": "Studio"
 			}

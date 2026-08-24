@@ -1,5 +1,35 @@
 # Changelog
 
+## 2026-08-25
+
+### Product
+
+- Specialized the public product as EzPic, with Standard Edit (`image-fast`) and Quality Edit
+  (`image-quality`) as source-image-required editing workflows.
+- Limited public catalog responses, plan entitlements, upload surfaces, and product selectors to
+  image-to-image editing while retaining the existing internal video catalog, Provider, worker,
+  storage, moderation, and historical-data paths.
+- Kept Free on Standard Edit and enabled both edit modes for Creator and Studio without changing
+  existing credit grants, Stripe price references, or configured monetary prices.
+
+### Changed
+
+- Made the product name, description, marketing/SaaS origins, and support email configurable and
+  applied that identity to navigation, footers, metadata, email, and OpenAPI surfaces.
+- Replaced starter branding and screenshots with original EzPic placeholder icons, social images,
+  and workspace illustrations, and aligned public/authenticated navigation and copy with image
+  editing.
+
+### SEO
+
+- Restricted the marketing sitemap to approved default-English pages, marked other locales
+  `noindex, follow`, hid the launch locale switch, and blocked indexing across the SaaS app.
+
+### Documentation
+
+- Added the EzPic product contract with public/internal product keys, plans, configuration,
+  indexing, rollback, architecture boundaries, and PR 1 exclusions.
+
 ## 2026-08-24
 
 ### Fixed

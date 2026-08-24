@@ -1,7 +1,7 @@
 {
 	"blog": {
-		"description": "In diesem Blog schreibe ich über alles mögliche.",
-		"title": "Mein toller Blog",
+		"description": "Lies Anleitungen zur Bildbearbeitung und EzPic-Produktneuigkeiten.",
+		"title": "EzPic-Anleitungen",
 		"back": "Zurück zum Blog"
 	},
 	"changelog": {
@@ -26,12 +26,12 @@
 		"title": "Dokumentation"
 	},
 	"faq": {
-		"description": "Hast du irgendwelche Fragen? \nWir sind für dich da.",
+		"description": "Klare Antworten zu Tarifen, Credits und deinem Arbeitsbereich für Bildbearbeitung.",
 		"title": "Häufig gestellte Fragen",
 		"items": {
 			"refundPolicy": {
-				"question": "Wie ist die Rückerstattungsrichtlinie?",
-				"answer": "Wir bieten eine 30-tägige Geld-zurück-Garantie, wenn du mit unserem Produkt nicht zufrieden bist."
+				"question": "Wie werden Rückerstattungen behandelt?",
+				"answer": "Ob eine Rückerstattung möglich ist, richtet sich nach den geltenden Zahlungsbedingungen. Wende dich mit deinen Rechnungsdaten an den Support."
 			},
 			"cancelSubscription": {
 				"question": "Wie kann ich mein Abonnement kündigen?",
@@ -42,73 +42,70 @@
 				"answer": "Ja, du kannst deinen Plan jederzeit auf der Rechnungsseite ändern."
 			},
 			"freeTrial": {
-				"question": "Bietet ihr eine kostenlose Testversion an?",
-				"answer": "Ja, wir bieten eine 14-tägige kostenlose Testversion an."
+				"question": "Gibt es einen kostenlosen Tarif?",
+				"answer": "Ja. Der Free-Tarif enthält 25 monatliche Credits und Zugriff auf Standard Edit."
 			}
 		}
 	},
 	"home": {
 		"generator": {
-			"eyebrow": "Idee ausprobieren",
-			"title": "Beginnen Sie mit der Idee, die Sie bereits haben",
-			"subtitle": "Wählen Sie Bild oder Video, beschreiben Sie das Ergebnis und wechseln Sie sicher in Ihren privaten Arbeitsbereich.",
-			"format": "Erstellen",
-			"image": "Bild",
-			"video": "Video",
-			"prompt": "Beschreiben Sie Ihre Idee",
-			"reference": "Optionales Referenzbild",
-			"placeholder": "Eine sonnige Produktszene mit weichen Schatten und klarer redaktioneller Gestaltung…",
-			"continue": "Im Studio fortfahren",
-			"privacy": "Ihre Idee wird bis zu einer Stunde privat gespeichert und erst nach Anmeldung und Bestätigung erstellt.",
-			"error": "Diese Idee konnte nicht gespeichert werden. Bitte versuchen Sie es später erneut.",
-			"steps": { "idea": "Beschreiben", "control": "Verfeinern", "create": "Erstellen" }
+			"eyebrow": "Bearbeitung planen",
+			"title": "Beschreibe die gewünschte Änderung",
+			"subtitle": "Lade ein Quellbild hoch, beschreibe die Bearbeitung und fahre sicher in deinem privaten Bildeditor fort.",
+			"prompt": "Bearbeitung beschreiben",
+			"reference": "Quellbild",
+			"placeholder": "Ersetze den Hintergrund durch eine weich beleuchtete Studiowand und lasse das Motiv unverändert…",
+			"continue": "Mit der Bearbeitung fortfahren",
+			"privacy": "Dein Entwurf wird bis zu einer Stunde privat gespeichert. Kein Bild wird bearbeitet, bevor du dich anmeldest und bestätigst.",
+			"error": "Der Bearbeitungsentwurf konnte nicht gespeichert werden. Bitte versuche es später erneut.",
+			"steps": { "idea": "Hochladen", "control": "Beschreiben", "create": "Prüfen" }
 		},
 		"hero": {
-			"new": "Neu:",
-			"featureBadge": "Tolle Funktion deines SaaS",
-			"title": "Dein revolutionäres SaaS mit Next.js",
-			"subtitle": "Dies ist eine Demo-Anwendung, die mit supastarter erstellt wurde. Sie spart dir viel Zeit und Aufwand beim Aufbau deiner nächsten SaaS.",
-			"getStarted": "Loslegen",
-			"documentation": "Dokumentation",
-			"imageAlt": "Unsere Anwendung",
-			"builtWith": "Erstellt & ausgeliefert mit diesen tollen Tools"
+			"new": "Privat konzipiert:",
+			"featureBadge": "Prompt-basierte Bildbearbeitung",
+			"title": "Ein KI-Bildeditor, der mit deinem Bild beginnt",
+			"subtitle": "Lade ein Quellbild hoch, beschreibe die Änderung und prüfe die Credit-Kosten, bevor du ein bearbeitetes Ergebnis erstellst.",
+			"getStarted": "Bearbeitung starten",
+			"documentation": "Produktleitfaden",
+			"imageAlt": "Privater EzPic-Arbeitsbereich für Bildbearbeitung",
+			"builtWith": "Ein fokussierter Ablauf für Bildbearbeitung"
 		},
 		"features": {
-			"badge": "Unglaubliche Funktionen",
-			"title": "Funktionen, die deine Kunden lieben werden",
-			"description": "In diesem Abschnitt kannst du alle Funktionen deines SaaS präsentieren und zeigen, wie sie deinen Kunden zugute kommen.",
+			"badge": "Ablauf für Bildbearbeitung",
+			"title": "Vom Quellbild zur kontrollierten Bearbeitung",
+			"description": "EzPic bündelt Bearbeitungsprompt, Qualitätswahl, Credits und private Assets in einem fokussierten Arbeitsbereich.",
 			"feature1": {
-				"title": "Funktion 1",
-				"subtitle": "Erledige mehr mit unserem tollen SaaS.",
-				"description": "Dies ist eine brillante Funktion. Unten siehst du einige Gründe warum. Dies ist im Grunde nur ein Platzhaltertext.",
+				"title": "Gezielte Bearbeitungen",
+				"subtitle": "Beschreibe die Änderung, statt das Bild neu aufzubauen.",
+				"description": "Jede öffentliche Bearbeitung beginnt mit einem erforderlichen Quellbild und einer klaren Anweisung.",
 				"benefit1": {
-					"title": "Vorteil 1",
-					"description": "Dies ist ein toller Vorteil. Unten siehst du einige Gründe warum. Dies ist im Grunde nur ein Platzhaltertext."
+					"title": "Änderungen per Prompt",
+					"description": "Beschreibe in Alltagssprache, was geändert werden soll."
 				},
 				"benefit2": {
-					"title": "Vorteil 2",
-					"description": "Dies ist ein toller Vorteil. Unten siehst du einige Gründe warum. Dies ist im Grunde nur ein Platzhaltertext."
+					"title": "Quellbild erforderlich",
+					"description": "Der Editor stellt reine Text-zu-Bild-Erzeugung nie als EzPic-Produkt dar."
 				},
 				"benefit3": {
-					"title": "Vorteil 3",
-					"description": "Dies ist ein toller Vorteil. Unten siehst du einige Gründe warum. Dies ist im Grunde nur ein Platzhaltertext."
+					"title": "Zwei Bearbeitungsstufen",
+					"description": "Wähle Standard Edit oder Quality Edit, wenn dein Tarif dies erlaubt."
 				}
 			},
 			"feature2": {
-				"title": "Funktion 2",
-				"subtitle": "Dein SaaS kann auch das.",
-				"description": "Ein weiterer Platzhaltertext für eine weitere Funktion.",
+				"title": "Privater Arbeitsablauf",
+				"subtitle": "Bewahre Quellbilder, Bearbeitungen und Status in deinem Arbeitsbereich auf.",
+				"description": "Credits werden vor dem Start reserviert und anhand des abgeschlossenen Auftragsstatus abgerechnet.",
 				"benefit1": {
-					"title": "Vorteil 1",
-					"description": "Dies ist ein toller Vorteil. Unten siehst du einige Gründe warum. Dies ist im Grunde nur ein Platzhaltertext."
+					"title": "Private Assets",
+					"description": "Eingaben und Ausgaben bleiben dem Konto zugeordnete Medien-Assets."
 				},
 				"benefit2": {
-					"title": "Vorteil 2",
-					"description": "Dies ist ein toller Vorteil. Unten siehst du einige Gründe warum. Dies ist im Grunde nur ein Platzhaltertext."
+					"title": "Sichtbare Credit-Kosten",
+					"description": "Prüfe die Credit-Reservierung, bevor du eine Bearbeitung bestätigst."
 				},
 				"benefit3": {
-					"title": "Vorteil 3",
-					"description": "Dies ist ein toller Vorteil. Unten siehst du einige Gründe warum. Dies ist im Grunde nur ein Platzhaltertext."
+					"title": "Nachvollziehbarer Verlauf",
+					"description": "Kehre zum Bearbeitungsverlauf zurück und prüfe den neuesten Auftragsstatus."
 				}
 			}
 		}
@@ -125,22 +122,28 @@
 			}
 		},
 		"submit": "Abonnieren",
-		"subtitle": "Gehöre zu den Ersten, die Zugriff auf supastarter.nextjs erhalten.",
-		"title": "Erhalte frühen Zugang"
+		"subtitle": "Erhalte gelegentliche EzPic-Produktneuigkeiten und Tipps zur Bildbearbeitung.",
+		"title": "Produktneuigkeiten"
 	},
 	"notFound": {
 		"code": "404",
 		"title": "Seite nicht gefunden",
-		"goToDashboard": "Zum Dashboard gehen"
+		"goToDashboard": "Zum Dashboard gehen",
+		"goToHomepage": "Zur Startseite"
 	},
 	"common": {
+		"consent": {
+			"message": "Entscheide, ob du optionale Analyse-Cookies zulässt. Notwendiger Speicher für Seiteneinstellungen und Sicherheit bleibt verfügbar.",
+			"decline": "Optionale ablehnen",
+			"allow": "Optionale erlauben"
+		},
 		"footer": {
 			"blog": "Blog",
 			"features": "Funktionen",
 			"pricing": "Preise",
 			"privacyPolicy": "Datenschutz",
 			"termsAndConditions": "Allgemeine Geschäftsbedingungen",
-			"builtWith": "Erstellt mit supastarter"
+			"support": "Support"
 		},
 		"menu": {
 			"blog": "Blog",
@@ -148,9 +151,12 @@
 			"contact": "Kontakt",
 			"dashboard": "Dashboard",
 			"docs": "Dokumentation",
+			"examples": "Beispiele",
 			"faq": "FAQ",
+			"howItWorks": "So funktioniert es",
 			"login": "Anmelden",
-			"pricing": "Preise"
+			"pricing": "Preise",
+			"startEditing": "Bearbeitung starten"
 		},
 		"aria": {
 			"menu": "Menü",
@@ -158,6 +164,11 @@
 		},
 		"tableOfContents": {
 			"title": "Auf dieser Seite"
+		},
+		"colorMode": {
+			"system": "System",
+			"light": "Hell",
+			"dark": "Dunkel"
 		}
 	}
 }

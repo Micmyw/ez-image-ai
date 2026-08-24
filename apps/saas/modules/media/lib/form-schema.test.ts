@@ -22,48 +22,62 @@ describe("generation form schema", () => {
 		).toBe(false);
 	});
 
-	it("builds only public generation input and enforces visible ranges", () => {
+	it("builds only an image-to-image edit input", () => {
 		expect(
 			buildGenerationInput({
-				kind: "text-to-video",
-				prompt: "  Paper birds  ",
-				durationSeconds: 8,
+				kind: "image-to-image",
+				prompt: "  Replace the background  ",
+				sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+				strength: 0.7,
 			}),
 		).toEqual({
-			kind: "text-to-video",
-			prompt: "Paper birds",
-			durationSeconds: 8,
+			kind: "image-to-image",
+			prompt: "Replace the background",
+			sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+			strength: 0.7,
 		});
+	});
+
+	it.each(["text-to-image", "text-to-video", "image-to-video"] as const)(
+		"rejects the non-editor %s input kind",
+		(kind) => {
+			expect(() =>
+				buildGenerationInput({
+					kind,
+					prompt: "Do not expose this workflow",
+					sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+				}),
+			).toThrow();
+		},
+	);
+
+	it("requires a source image for both public edit modes", () => {
+		for (const productKey of ["image-fast", "image-quality"] as const) {
+			expect(
+				generationFormValuesSchema.parse({
+					productKey,
+					prompt: "  Studio portrait  ",
+					sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+				}),
+			).toMatchObject({ productKey, prompt: "Studio portrait" });
+		}
+
 		expect(() =>
-			buildGenerationInput({ kind: "text-to-video", prompt: "Paper birds", durationSeconds: 99 }),
+			generationFormValuesSchema.parse({
+				productKey: "image-fast",
+				prompt: "Missing source image",
+			}),
 		).toThrow();
 	});
 
-	it("maps the public aspect-ratio control to server-owned image dimensions", () => {
-		expect(
-			buildGenerationInput({
-				kind: "text-to-image",
-				prompt: "Square portrait",
-				aspectRatio: "1:1",
-			}),
-		).toEqual({ kind: "text-to-image", prompt: "Square portrait", width: 1024, height: 1024 });
-	});
-
-	it("validates the React Hook Form values before quote creation", () => {
-		expect(
-			generationFormValuesSchema.parse({
-				productKey: "image-fast",
-				prompt: "  Studio portrait  ",
-				aspectRatio: "1:1",
-				durationSeconds: 5,
-			}),
-		).toMatchObject({ prompt: "Studio portrait" });
+	it("rejects video products before quote creation", () => {
 		expect(() =>
 			generationFormValuesSchema.parse({
 				productKey: "video-fast",
-				prompt: "",
+				prompt: "Animate this image",
 				aspectRatio: "1:1",
-				durationSeconds: 31,
+				durationSeconds: 5,
+				sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
 			}),
 		).toThrow();
 	});

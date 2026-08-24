@@ -2,48 +2,51 @@
 	"pricing": {
 		"choosePlan": "Elegir plan",
 		"contactSales": "Contactar ventas",
-		"description": "Elige el plan que mejor te funcione.",
+		"concurrentEdits": "{count, plural, one {# edición simultánea} other {# ediciones simultáneas}}",
+		"description": "Elige un plan de edición de imágenes con créditos y límites de trabajos claros.",
 		"getStarted": "Comenzar",
+		"maximumInputSize": "Imágenes de origen de hasta {megabytes, number} MB",
 		"month": "{count, plural, one {mes} other {{count} meses}}",
+		"monthlyCredits": "{credits, number} créditos al mes",
 		"monthly": "Mensual",
 		"products": {
 			"creator": {
-				"description": "Para creadores que producen imágenes y vídeos cortos.",
+				"description": "Para creadores que realizan ediciones de imágenes con regularidad.",
 				"features": {
-					"commercialUse": "Derechos de uso comercial",
-					"standardQueue": "Cola de generación estándar"
+					"editLevels": "Acceso a Standard Edit y Quality Edit",
+					"creditReview": "Coste en créditos visible antes de cada edición"
 				},
 				"title": "Creator"
 			},
 			"enterprise": {
 				"description": "Plan personalizado según tus necesidades",
 				"features": {
-					"enterpriseSupport": "Soporte empresarial",
-					"unlimitedProjects": "Proyectos ilimitados"
+					"customSupport": "Opciones de soporte personalizadas",
+					"customLimits": "Límites de uso definidos por contrato"
 				},
 				"title": "Empresa"
 			},
 			"free": {
-				"description": "Comienza gratis",
+				"description": "Prueba Standard Edit con una asignación mensual de créditos.",
 				"features": {
-					"anotherFeature": "Otra función increíble",
-					"limitedSupport": "Soporte limitado"
+					"standardEdit": "Acceso a Standard Edit",
+					"privateAssets": "Imágenes de origen y recursos editados privados"
 				},
 				"title": "Gratis"
 			},
 			"lifetime": {
-				"description": "Compra una vez. Úsalo para siempre.",
+				"description": "La disponibilidad depende de las opciones de facturación configuradas.",
 				"features": {
-					"extendSupport": "Soporte extendido",
-					"noRecurringCosts": "Sin costos recurrentes"
+					"accountAccess": "Acceso mediante cuenta",
+					"creditMetering": "Ediciones medidas por créditos"
 				},
 				"title": "De por vida"
 			},
 			"studio": {
-				"description": "Para equipos con un flujo de trabajo multimedia de mayor volumen.",
+				"description": "Para flujos de edición de imágenes de mayor volumen.",
 				"features": {
-					"commercialUse": "Derechos de uso comercial",
-					"priorityQueue": "Cola de generación prioritaria"
+					"editLevels": "Acceso a Standard Edit y Quality Edit",
+					"privateHistory": "Historial de ediciones y recursos privados"
 				},
 				"title": "Studio"
 			}

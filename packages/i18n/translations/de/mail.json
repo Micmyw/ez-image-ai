@@ -14,9 +14,9 @@
 		"subject": "Passwort zurücksetzen"
 	},
 	"magicLink": {
-		"body": "Hey,\ndu hast eine Anmelde-E-Mail von supastarter angefordert.\n\nKlicke auf den unten stehenden Link, um dich anzumelden.",
-		"login": "Login",
-		"subject": "Login bei supastarter"
+		"body": "Hallo,\ndu hast einen sicheren Anmeldelink angefordert.\n\nKlicke auf den unten stehenden Link, um dich anzumelden.",
+		"login": "Anmelden",
+		"subject": "Dein sicherer Anmeldelink"
 	},
 	"organizationInvitation": {
 		"body": "Du wurdest eingeladen, der Organisation {organizationName} beizutreten. Klicke auf den Button unten oder kopiere den Link und füge ihn in den Browser deiner Wahl ein, um die Einladung anzunehmen und der Organisation beizutreten.",

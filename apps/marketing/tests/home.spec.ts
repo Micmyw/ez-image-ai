@@ -6,7 +6,7 @@ test.describe("home page", () => {
 
 		await expect(
 			page.getByRole("heading", {
-				name: "Your revolutionary SaaS built with Next.js",
+				name: "An AI image editor that starts with your image",
 			}),
 		).toBeVisible();
 

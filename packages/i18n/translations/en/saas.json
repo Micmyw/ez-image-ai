@@ -695,19 +695,43 @@
 		"welcome": "Welcome {name}!"
 	},
 	"media": {
+		"uploader": {
+			"label": "Upload source images",
+			"active": "Drop images here",
+			"idle": "Drag images here, paste, or choose files",
+			"limit": "JPG, PNG, or WebP images up to 20 MB.",
+			"pause": "Pause",
+			"resume": "Resume",
+			"retry": "Retry",
+			"remove": "Remove"
+		},
 		"create": {
-			"eyebrow": "Creative workspace",
-			"title": "Turn an idea into a finished asset",
-			"subtitle": "Choose a format, shape the result, review the credit reservation, and start creating.",
-			"draftRestored": "Your saved idea is ready to continue.",
-			"product": "Output quality",
+			"eyebrow": "Image editor",
+			"title": "Edit a source image with a prompt",
+			"subtitle": "Upload a source image, describe the change, choose an edit level, and review the credit reservation.",
+			"draftRestored": "Your saved edit draft is ready to continue.",
+			"product": "Edit quality",
+			"products": {
+				"image-fast": {
+					"label": "Standard Edit",
+					"description": "Private prompt-based image editing for everyday changes."
+				},
+				"image-quality": {
+					"label": "Quality Edit",
+					"description": "Higher-fidelity private image editing for detailed changes."
+				}
+			},
+			"fields": {
+				"prompt": "Edit instruction",
+				"sourceAssetId": "Source image"
+			},
 			"credits": "credits",
-			"quoteReady": "Ready to create",
-			"reserveCredits": "This run will reserve {credits} credits. You are charged only for completed work.",
-			"confirm": "Start creating",
+			"quoteReady": "Ready to edit",
+			"reserveCredits": "This edit will reserve {credits} credits. You are charged only for completed work.",
+			"confirm": "Start edit",
 			"edit": "Edit settings",
 			"review": "Review credits",
-			"safeError": "We could not start this creation. Check your credits or try again shortly."
+			"safeError": "We could not start this edit. Check your credits or try again shortly."
 		},
 		"status": {
 			"emptyTitle": "Your output will appear here",
@@ -771,7 +795,7 @@
 		},
 		"assets": {
 			"title": "Asset library",
-			"subtitle": "Private images and videos from your creations.",
+			"subtitle": "Private source images and edited outputs.",
 			"filters": { "all": "All assets", "image": "Images", "video": "Videos" },
 			"previewAlt": "Private generated asset",
 			"preview": "Show preview",
@@ -781,11 +805,17 @@
 			"download": "Download",
 			"source": "Source creation",
 			"delete": "Delete",
-			"empty": "No assets match this filter.",
+			"empty": "No image assets yet.",
 			"more": "Load more"
 		}
 	},
 	"common": {
+		"consent": {
+			"message": "Choose whether to allow optional analytics cookies. Essential storage used for site preferences and security remains available.",
+			"decline": "Decline optional",
+			"allow": "Allow optional"
+		},
+		"footer": { "support": "Support" },
 		"confirmation": {
 			"cancel": "Cancel",
 			"confirm": "Confirm"

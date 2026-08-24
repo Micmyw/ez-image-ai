@@ -1,7 +1,7 @@
 {
 	"blog": {
-		"description": "Lee las últimas noticias de nuestra empresa",
-		"title": "Mi increíble blog",
+		"description": "Lee guías de edición de imágenes y novedades del producto EzPic.",
+		"title": "Guías de EzPic",
 		"back": "Volver al blog"
 	},
 	"changelog": {
@@ -26,12 +26,12 @@
 		"title": "Documentación"
 	},
 	"faq": {
-		"description": "¿Tienes alguna pregunta? Te tenemos cubierto.",
+		"description": "Respuestas claras sobre planes, créditos y tu espacio de edición de imágenes.",
 		"title": "Preguntas frecuentes",
 		"items": {
 			"refundPolicy": {
-				"question": "¿Cuál es la política de reembolso?",
-				"answer": "Ofrecemos una garantía de devolución de 30 días si no estás satisfecho con nuestro producto."
+				"question": "¿Cómo se gestionan los reembolsos?",
+				"answer": "La elegibilidad depende de las condiciones de pago aplicables. Contacta con soporte e incluye tus datos de facturación para su revisión."
 			},
 			"cancelSubscription": {
 				"question": "¿Cómo cancelo mi suscripción?",
@@ -42,73 +42,70 @@
 				"answer": "Sí, puedes cambiar tu plan en cualquier momento visitando la página de facturación."
 			},
 			"freeTrial": {
-				"question": "¿Ofrecen una prueba gratuita?",
-				"answer": "Sí, ofrecemos una prueba gratuita de 14 días."
+				"question": "¿Hay un plan gratuito?",
+				"answer": "Sí. El plan Gratis incluye 25 créditos mensuales y acceso a Standard Edit."
 			}
 		}
 	},
 	"home": {
 		"generator": {
-			"eyebrow": "Prueba tu idea",
-			"title": "Empieza con la idea que ya tienes en mente",
-			"subtitle": "Elige imagen o vídeo, describe el resultado y continúa de forma segura en tu espacio privado.",
-			"format": "Crear",
-			"image": "Imagen",
-			"video": "Vídeo",
-			"prompt": "Describe tu idea",
-			"reference": "Imagen de referencia opcional",
-			"placeholder": "Una escena de producto luminosa, con sombras suaves y un estilo editorial limpio…",
-			"continue": "Continuar en el estudio",
-			"privacy": "Tu idea se guarda de forma privada durante un máximo de una hora y no se genera hasta que inicies sesión y confirmes.",
-			"error": "No pudimos guardar esta idea. Inténtalo de nuevo en unos minutos.",
-			"steps": { "idea": "Describir", "control": "Ajustar", "create": "Crear" }
+			"eyebrow": "Planifica tu edición",
+			"title": "Describe el cambio que quieres",
+			"subtitle": "Sube una imagen de origen, describe la edición y continúa de forma segura en tu editor de imágenes privado.",
+			"prompt": "Describe tu edición",
+			"reference": "Imagen de origen",
+			"placeholder": "Sustituye el fondo por una pared de estudio con luz suave y conserva el sujeto sin cambios…",
+			"continue": "Continuar con la edición",
+			"privacy": "Tu borrador se guarda de forma privada durante un máximo de una hora. No se edita ninguna imagen hasta que inicies sesión y confirmes.",
+			"error": "No pudimos guardar este borrador de edición. Inténtalo de nuevo en unos minutos.",
+			"steps": { "idea": "Subir", "control": "Describir", "create": "Revisar" }
 		},
 		"hero": {
-			"new": "Nuevo:",
-			"featureBadge": "Increíble función de tu SaaS",
-			"title": "Tu SaaS revolucionario construido con Next.js",
-			"subtitle": "Esta es una aplicación de demostración construida con supastarter. Te ahorrará mucho tiempo y esfuerzo al construir tu próximo SaaS.",
-			"getStarted": "Comenzar",
-			"documentation": "Documentación",
-			"imageAlt": "Nuestra aplicación",
-			"builtWith": "Construido y enviado con estas increíbles herramientas"
+			"new": "Privado desde el diseño:",
+			"featureBadge": "Edición de imágenes mediante instrucciones",
+			"title": "Un editor de imágenes con IA que parte de tu imagen",
+			"subtitle": "Sube una imagen de origen, describe el cambio y revisa el coste en créditos antes de crear un resultado editado.",
+			"getStarted": "Empezar a editar",
+			"documentation": "Guía del producto",
+			"imageAlt": "Espacio privado de edición de imágenes de EzPic",
+			"builtWith": "Un flujo centrado en la edición de imágenes"
 		},
 		"features": {
-			"badge": "Funciones increíbles",
-			"title": "Funciones que tus clientes adorarán",
-			"description": "En esta sección puedes mostrar todas las funciones que ofrece tu SaaS y cómo pueden beneficiar a tus clientes.",
+			"badge": "Flujo de edición de imágenes",
+			"title": "De la imagen de origen a una edición controlada",
+			"description": "EzPic reúne la instrucción, la calidad, los créditos y los recursos privados en un espacio de trabajo enfocado.",
 			"feature1": {
-				"title": "Función 1",
-				"subtitle": "Haz más con nuestro increíble SaaS.",
-				"description": "Esta es una función brillante. Y abajo puedes ver algunas razones por las que. Básicamente es solo un texto de ejemplo.",
+				"title": "Ediciones dirigidas",
+				"subtitle": "Describe el cambio en vez de reconstruir la imagen.",
+				"description": "Cada edición pública comienza con una imagen de origen obligatoria y una instrucción clara.",
 				"benefit1": {
-					"title": "Beneficio 1",
-					"description": "Este es un beneficio increíble. Y abajo puedes ver algunas razones por las que. Básicamente es solo un texto de ejemplo."
+					"title": "Cambios por instrucciones",
+					"description": "Indica con lenguaje cotidiano qué debe cambiar."
 				},
 				"benefit2": {
-					"title": "Beneficio 2",
-					"description": "Este es un beneficio increíble. Y abajo puedes ver algunas razones por las que. Básicamente es solo un texto de ejemplo."
+					"title": "Origen obligatorio",
+					"description": "El editor nunca presenta la generación solo desde texto como producto EzPic."
 				},
 				"benefit3": {
-					"title": "Beneficio 3",
-					"description": "Este es un beneficio increíble. Y abajo puedes ver algunas razones por las que. Básicamente es solo un texto de ejemplo."
+					"title": "Dos niveles de edición",
+					"description": "Elige Standard Edit o Quality Edit cuando tu plan lo permita."
 				}
 			},
 			"feature2": {
-				"title": "Función 2",
-				"subtitle": "Tu SaaS también puede hacer esto.",
-				"description": "Otro texto de ejemplo para otra función.",
+				"title": "Flujo privado",
+				"subtitle": "Mantén las imágenes de origen, las ediciones y el estado en tu espacio.",
+				"description": "Los créditos se reservan antes de comenzar y se liquidan según el estado final del trabajo.",
 				"benefit1": {
-					"title": "Beneficio 1",
-					"description": "Este es un beneficio increíble. Y abajo puedes ver algunas razones por las que. Básicamente es solo un texto de ejemplo."
+					"title": "Recursos privados",
+					"description": "Las entradas y salidas se mantienen como recursos vinculados a la cuenta."
 				},
 				"benefit2": {
-					"title": "Beneficio 2",
-					"description": "Este es un beneficio increíble. Y abajo puedes ver algunas razones por las que. Básicamente es solo un texto de ejemplo."
+					"title": "Coste visible en créditos",
+					"description": "Revisa la reserva de créditos antes de confirmar una edición."
 				},
 				"benefit3": {
-					"title": "Beneficio 3",
-					"description": "Este es un beneficio increíble. Y abajo puedes ver algunas razones por las que. Básicamente es solo un texto de ejemplo."
+					"title": "Historial recuperable",
+					"description": "Vuelve al historial de ediciones y consulta el estado más reciente."
 				}
 			}
 		}
@@ -125,8 +122,8 @@
 			}
 		},
 		"submit": "Suscribirse",
-		"subtitle": "Sé de los primeros en obtener acceso a supastarter.nextjs.",
-		"title": "Obtén acceso anticipado"
+		"subtitle": "Recibe ocasionalmente novedades de EzPic y consejos de edición de imágenes.",
+		"title": "Novedades del producto"
 	},
 	"notFound": {
 		"code": "404",
@@ -135,13 +132,18 @@
 		"goToHomepage": "Ir a la página principal"
 	},
 	"common": {
+		"consent": {
+			"message": "Elige si permites cookies de análisis opcionales. El almacenamiento esencial para preferencias y seguridad sigue disponible.",
+			"decline": "Rechazar opcionales",
+			"allow": "Permitir opcionales"
+		},
 		"footer": {
 			"blog": "Blog",
 			"features": "Funciones",
 			"pricing": "Precios",
 			"privacyPolicy": "Política de privacidad",
 			"termsAndConditions": "Términos y condiciones",
-			"builtWith": "Construido con supastarter"
+			"support": "Soporte"
 		},
 		"menu": {
 			"blog": "Blog",
@@ -149,9 +151,12 @@
 			"contact": "Contacto",
 			"dashboard": "Panel",
 			"docs": "Docs",
+			"examples": "Ejemplos",
 			"faq": "FAQ",
+			"howItWorks": "Cómo funciona",
 			"login": "Iniciar sesión",
-			"pricing": "Precios"
+			"pricing": "Precios",
+			"startEditing": "Empezar a editar"
 		},
 		"aria": {
 			"menu": "Menú",

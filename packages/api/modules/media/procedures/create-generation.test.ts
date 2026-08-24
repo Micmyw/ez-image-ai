@@ -10,12 +10,18 @@ vi.mock("@trigger.dev/sdk", () => ({ tasks: { trigger: vi.fn() } }));
 
 import { createGenerationForUser } from "./create-generation";
 
+const SOURCE_ASSET_ID = "asset_01J5ABCD1234EFGH5678JKLMNP";
+
 describe("createGenerationForUser", () => {
 	it("requires a requote before reserving credits when the frozen route graph is no longer executable", async () => {
 		const quote = buildMediaQuote(
 			{
 				productKey: "image-fast",
-				input: { kind: "text-to-image", prompt: "A studio product photo" },
+				input: {
+					kind: "image-to-image",
+					prompt: "A studio product photo",
+					sourceAssetId: SOURCE_ASSET_ID,
+				},
 			},
 			{ enabledProviders: new Set(["replicate"]), generationEnabled: true },
 		);
@@ -35,7 +41,11 @@ describe("createGenerationForUser", () => {
 						expiresAt: new Date("2026-08-23T00:10:00.000Z"),
 						credits: quote.credits,
 						costMicros: quote.costMicros,
-						inputSnapshot: { kind: "text-to-image", prompt: "A studio product photo" },
+						inputSnapshot: {
+							kind: "image-to-image",
+							prompt: "A studio product photo",
+							sourceAssetId: SOURCE_ASSET_ID,
+						},
 						pricingSnapshot: quote.pricingSnapshot,
 					}),
 					getRouteGraphOptions: async () => ({
@@ -51,11 +61,15 @@ describe("createGenerationForUser", () => {
 		expect(createGenerationJob).not.toHaveBeenCalled();
 	});
 
-	it("requires a requote before reserving credits for the former quality-image reference capability", async () => {
+	it("requires a requote before reserving credits for a stale quality-edit catalog", async () => {
 		const quote = buildMediaQuote(
 			{
 				productKey: "image-quality",
-				input: { kind: "text-to-image", prompt: "A studio product photo" },
+				input: {
+					kind: "image-to-image",
+					prompt: "A studio product photo",
+					sourceAssetId: SOURCE_ASSET_ID,
+				},
 			},
 			{ enabledProviders: new Set(["gemini"]), generationEnabled: true },
 		);
@@ -78,7 +92,7 @@ describe("createGenerationForUser", () => {
 						inputSnapshot: {
 							kind: "image-to-image",
 							prompt: "A studio product photo",
-							sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+							sourceAssetId: SOURCE_ASSET_ID,
 						},
 						pricingSnapshot: quote.pricingSnapshot,
 					}),

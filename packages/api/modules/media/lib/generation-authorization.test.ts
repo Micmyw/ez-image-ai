@@ -6,6 +6,12 @@ import {
 	type GenerationAccessSnapshot,
 } from "./generation-authorization";
 
+const IMAGE_EDIT_INPUT = {
+	kind: "image-to-image" as const,
+	prompt: "x",
+	sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+};
+
 const BASE_SNAPSHOT: GenerationAccessSnapshot = {
 	generationEnabled: true,
 	modelDisabled: false,
@@ -41,10 +47,10 @@ describe("generation authorization", () => {
 			assertGenerationAllowed(
 				{
 					userId: "user-1",
-					productKey: "video-fast",
-					credits: 25n,
-					costMicros: 100_000n,
-					input: { kind: "text-to-video", prompt: "x" },
+					productKey: "image-quality",
+					credits: 10n,
+					costMicros: 8_000n,
+					input: IMAGE_EDIT_INPUT,
 				},
 				{
 					enforceRateLimit: vi.fn(),
@@ -61,7 +67,7 @@ describe("generation authorization", () => {
 			productKey: "image-fast" as const,
 			credits: 4n,
 			costMicros: 3_000n,
-			input: { kind: "text-to-image" as const, prompt: "x" },
+			input: IMAGE_EDIT_INPUT,
 		};
 		const dependencies = {
 			enforceRateLimit: vi.fn(),
@@ -100,7 +106,7 @@ describe("generation authorization", () => {
 					productKey: "image-fast",
 					credits: 4n,
 					costMicros: 3_000n,
-					input: { kind: "text-to-image", prompt: "x" },
+					input: IMAGE_EDIT_INPUT,
 				},
 				{
 					enforceRateLimit: vi.fn(async () => {
@@ -121,7 +127,7 @@ describe("generation authorization", () => {
 					productKey: "image-fast",
 					credits: 4n,
 					costMicros: 3_000n,
-					input: { kind: "text-to-image", prompt: "x" },
+					input: IMAGE_EDIT_INPUT,
 				},
 				{
 					enforceRateLimit: vi.fn(),
@@ -141,7 +147,7 @@ describe("generation authorization", () => {
 					productKey: "image-fast",
 					credits: 4n,
 					costMicros: 3_000n,
-					input: { kind: "text-to-image", prompt: "x" },
+					input: IMAGE_EDIT_INPUT,
 				},
 				{
 					enforceRateLimit: vi.fn(),
@@ -161,7 +167,7 @@ describe("generation authorization", () => {
 					productKey: "image-fast",
 					credits: 4n,
 					costMicros: 3_000n,
-					input: { kind: "text-to-image", prompt: "x" },
+					input: IMAGE_EDIT_INPUT,
 					catalogVersion: "2025-01-01.1",
 					pricingVersion: "2025-01-01.1",
 				},
@@ -180,7 +186,7 @@ describe("generation authorization", () => {
 			productKey: "image-fast" as const,
 			credits: 4n,
 			costMicros: 60n,
-			input: { kind: "text-to-image" as const, prompt: "x" },
+			input: IMAGE_EDIT_INPUT,
 		};
 		const dependencies = {
 			enforceRateLimit: vi.fn(),

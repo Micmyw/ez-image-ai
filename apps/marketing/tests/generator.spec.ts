@@ -8,11 +8,11 @@ const pool = new pg.Pool({ connectionString: process.env.TEST_DATABASE_URL });
 
 test("generator sits between the hero and feature proof", async ({ page }) => {
 	await page.goto("/");
-	const generator = page.getByRole("heading", { name: /start with the thought/i });
+	const generator = page.getByRole("heading", { name: /describe the change you want/i });
 	await expect(generator).toBeVisible();
-	await expect(page.locator("section#features")).toBeVisible();
+	await expect(page.locator("section#examples")).toBeVisible();
 	const order = await page
-		.locator("h1, #generator-title, section#features h2")
+		.locator("h1, #generator-title, section#examples h2")
 		.evaluateAll((nodes) => nodes.map((node) => node.id || node.tagName));
 	expect(order.indexOf("generator-title")).toBeGreaterThan(0);
 });
@@ -33,7 +33,15 @@ test("draft handoff posts to SaaS and redirects without prompt data", async ({
 		}
 	});
 	await page.goto("/");
-	await page.getByLabel(/describe your idea/i).fill(prompt);
+	await page.getByLabel(/describe your edit/i).fill(prompt);
+	await page.getByLabel(/source image/i).setInputFiles({
+		name: "source.png",
+		mimeType: "image/png",
+		buffer: Buffer.from(
+			"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M/wHwAEAQH/7X2wWQAAAABJRU5ErkJggg==",
+			"base64",
+		),
+	});
 	await page.getByRole("button", { name: /continue/i }).click();
 	await expect(page).toHaveURL(/\/login\?redirectTo=/);
 	expect(page.url()).not.toContain(encodeURIComponent(prompt));

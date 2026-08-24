@@ -33,7 +33,7 @@ export const PLAN_ENTITLEMENTS = z
 			monthlyCredits: 1_000,
 			maximumConcurrentJobs: 3,
 			maximumInputBytes: 100 * 1024 * 1024,
-			allowedProducts: ["image-fast", "image-quality", "video-fast"],
+			allowedProducts: ["image-fast", "image-quality"],
 			stripePriceId: "price_creator",
 		},
 		{
@@ -41,7 +41,7 @@ export const PLAN_ENTITLEMENTS = z
 			monthlyCredits: 5_000,
 			maximumConcurrentJobs: 10,
 			maximumInputBytes: 250 * 1024 * 1024,
-			allowedProducts: ["image-fast", "image-quality", "video-fast", "video-quality"],
+			allowedProducts: ["image-fast", "image-quality"],
 			stripePriceId: "price_studio",
 		},
 	]);

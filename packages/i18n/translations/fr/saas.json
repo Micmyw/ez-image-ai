@@ -702,19 +702,43 @@
 		"welcome": "Bienvenue {name} !"
 	},
 	"media": {
+		"uploader": {
+			"label": "Importer des images source",
+			"active": "Déposez les images ici",
+			"idle": "Glissez des images ici, collez-les ou choisissez des fichiers",
+			"limit": "Images JPG, PNG ou WebP jusqu'à 20 Mo.",
+			"pause": "Mettre en pause",
+			"resume": "Reprendre",
+			"retry": "Réessayer",
+			"remove": "Supprimer"
+		},
 		"create": {
-			"eyebrow": "Espace créatif",
-			"title": "Transformez une idée en média finalisé",
-			"subtitle": "Choisissez un format, contrôlez le résultat, vérifiez la réservation de crédits et lancez la création.",
-			"draftRestored": "Votre idée enregistrée est prête à être poursuivie.",
-			"product": "Qualité de sortie",
+			"eyebrow": "Éditeur d'images",
+			"title": "Retouchez une image source avec une instruction",
+			"subtitle": "Importez une image source, décrivez le changement, choisissez un niveau de retouche et vérifiez la réservation de crédits.",
+			"draftRestored": "Votre brouillon de retouche enregistré est prêt à être poursuivi.",
+			"product": "Qualité de retouche",
+			"products": {
+				"image-fast": {
+					"label": "Standard Edit",
+					"description": "Retouche privée guidée par instruction pour les changements courants."
+				},
+				"image-quality": {
+					"label": "Quality Edit",
+					"description": "Retouche privée haute fidélité pour les changements détaillés."
+				}
+			},
+			"fields": {
+				"prompt": "Instruction de retouche",
+				"sourceAssetId": "Image source"
+			},
 			"credits": "crédits",
-			"quoteReady": "Prêt à créer",
-			"reserveCredits": "Cette création réservera {credits} crédits. Seul le travail terminé est facturé.",
-			"confirm": "Lancer la création",
+			"quoteReady": "Prêt à retoucher",
+			"reserveCredits": "Cette retouche réservera {credits} crédits. Seul le travail terminé est facturé.",
+			"confirm": "Lancer la retouche",
 			"edit": "Modifier les réglages",
 			"review": "Vérifier les crédits",
-			"safeError": "La création n'a pas pu démarrer. Vérifiez vos crédits ou réessayez dans quelques instants."
+			"safeError": "La retouche n'a pas pu démarrer. Vérifiez vos crédits ou réessayez dans quelques instants."
 		},
 		"status": {
 			"emptyTitle": "Votre résultat apparaîtra ici",
@@ -778,7 +802,7 @@
 		},
 		"assets": {
 			"title": "Bibliothèque de médias",
-			"subtitle": "Images et vidéos privées issues de vos créations.",
+			"subtitle": "Images source et résultats retouchés privés.",
 			"filters": { "all": "Tous les médias", "image": "Images", "video": "Vidéos" },
 			"previewAlt": "Média généré privé",
 			"preview": "Afficher l'aperçu",
@@ -788,11 +812,17 @@
 			"download": "Télécharger",
 			"source": "Création source",
 			"delete": "Supprimer",
-			"empty": "Aucun média ne correspond à ce filtre.",
+			"empty": "Aucune ressource image pour le moment.",
 			"more": "Charger plus"
 		}
 	},
 	"common": {
+		"consent": {
+			"message": "Choisissez si vous autorisez les cookies d'analyse facultatifs. Le stockage essentiel aux préférences et à la sécurité reste disponible.",
+			"decline": "Refuser les facultatifs",
+			"allow": "Autoriser les facultatifs"
+		},
+		"footer": { "support": "Support" },
 		"confirmation": {
 			"cancel": "Annuler",
 			"confirm": "Confirmer"

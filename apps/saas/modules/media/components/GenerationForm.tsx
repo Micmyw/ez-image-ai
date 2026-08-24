@@ -35,7 +35,6 @@ export function GenerationForm({
 	const generation = useGeneration();
 	const products = generation.catalog.data?.products ?? [];
 	const draftPrompt = initialDraft?.input.prompt;
-	const draftDuration = initialDraft?.input.durationSeconds;
 	const draftSourceAssetId = initialDraft?.input.sourceAssetId;
 	const initialProductKey = isProductKey(initialDraft?.productKey)
 		? initialDraft.productKey
@@ -46,45 +45,49 @@ export function GenerationForm({
 		defaultValues: {
 			productKey: initialProductKey,
 			prompt: typeof draftPrompt === "string" ? draftPrompt : "",
-			aspectRatio: "1:1",
-			durationSeconds: typeof draftDuration === "number" ? draftDuration : 5,
 			sourceAssetId:
-				typeof draftSourceAssetId === "string" && draftSourceAssetId
-					? draftSourceAssetId
-					: undefined,
+				typeof draftSourceAssetId === "string" && draftSourceAssetId ? draftSourceAssetId : "",
 		},
 	});
 	const values = form.watch();
 	const product = products.find((candidate) => candidate.key === values.productKey) ?? products[0];
-	const durationField = product?.fields.find((field) => field.key === "durationSeconds");
-	const effectiveDuration = clampToField(values.durationSeconds, durationField);
 	const input = useMemo(() => {
-		if (!product || !values.prompt.trim()) return null;
-		const supportsSourceAsset = product.inputKinds.some(
-			(kind) => kind === "image-to-image" || kind === "image-to-video",
-		);
-		const sourceAssetId = supportsSourceAsset ? values.sourceAssetId || undefined : undefined;
-		const kind =
-			product.mediaKind === "image"
-				? sourceAssetId
-					? "image-to-image"
-					: "text-to-image"
-				: sourceAssetId
-					? "image-to-video"
-					: "text-to-video";
+		if (!product || !values.prompt.trim() || !values.sourceAssetId) return null;
 		try {
 			return buildGenerationInput({
-				kind,
+				kind: "image-to-image",
 				prompt: values.prompt,
-				sourceAssetId,
-				aspectRatio: values.aspectRatio,
-				...(product.mediaKind === "video" ? { durationSeconds: effectiveDuration } : {}),
+				sourceAssetId: values.sourceAssetId,
 			});
 		} catch {
 			return null;
 		}
-	}, [effectiveDuration, product, values]);
+	}, [product, values]);
 	const error = generation.createQuote.error ?? generation.createGeneration.error;
+	const getProductCopy = (key: string) => {
+		if (key === "image-fast") {
+			return {
+				label: t("products.image-fast.label"),
+				description: t("products.image-fast.description"),
+			};
+		}
+		if (key === "image-quality") {
+			return {
+				label: t("products.image-quality.label"),
+				description: t("products.image-quality.description"),
+			};
+		}
+		return null;
+	};
+	const localizedFields = ((product?.fields ?? []) as PublicField[]).map((field) => ({
+		...field,
+		label:
+			field.key === "prompt"
+				? t("fields.prompt")
+				: field.key === "sourceAssetId"
+					? t("fields.sourceAssetId")
+					: field.label,
+	}));
 
 	async function confirmGeneration() {
 		const result = await generation.createGeneration.mutateAsync();
@@ -121,7 +124,7 @@ export function GenerationForm({
 								{products.map((entry) => (
 									<SelectItem key={entry.key} value={entry.key}>
 										<span className="gap-4 flex items-center justify-between">
-											<span>{entry.label}</span>
+											<span>{getProductCopy(entry.key)?.label ?? entry.label}</span>
 											<span className="text-xs text-muted-foreground">
 												{entry.credits} {t("credits")}
 											</span>
@@ -132,12 +135,16 @@ export function GenerationForm({
 						</Select>
 					)}
 				/>
-				{product && <p className="text-sm text-muted-foreground">{product.description}</p>}
+				{product && (
+					<p className="text-sm text-muted-foreground">
+						{getProductCopy(product.key)?.description ?? product.description}
+					</p>
+				)}
 			</div>
 			{product && (
 				<GenerationFields
-					fields={product.fields as PublicField[]}
-					values={{ ...values, durationSeconds: effectiveDuration }}
+					fields={localizedFields}
+					values={values}
 					onChange={(key, value) => {
 						form.setValue(key as keyof GenerationFormValues, value as never, {
 							shouldDirty: true,
@@ -189,15 +196,5 @@ export function GenerationForm({
 }
 
 function isProductKey(value: string | null | undefined): value is ProductKey {
-	return ["image-fast", "image-quality", "video-fast", "video-quality"].includes(value ?? "");
-}
-
-function clampToField(
-	value: number,
-	field: { min?: number; max?: number; step?: number } | undefined,
-): number {
-	const min = field?.min ?? 1;
-	const max = field?.max ?? 30;
-	const step = field?.step ?? 1;
-	return Math.min(max, Math.max(min, min + Math.round((value - min) / step) * step));
+	return ["image-fast", "image-quality"].includes(value ?? "");
 }

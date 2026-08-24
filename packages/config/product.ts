@@ -7,6 +7,7 @@ export const PRODUCT_MODEL_KEYS = [
 	"video-fast",
 	"video-quality",
 ] as const;
+export const EZPIC_PRODUCT_KEYS = ["image-fast", "image-quality"] as const;
 
 export const planIdSchema = z.enum(PLAN_IDS);
 export const productModelKeySchema = z.enum(PRODUCT_MODEL_KEYS);
@@ -26,6 +27,11 @@ export const productConfigSchema = z.object({
 	productKeys: z.array(productModelKeySchema).min(1),
 	catalogVersion: catalogVersionSchema,
 	pricingVersion: pricingVersionSchema,
+	brand: z.object({
+		siteName: z.string().trim().min(1),
+		siteDescription: z.string().trim().min(1),
+		supportEmail: z.email().nullable(),
+	}),
 	features: z.object({
 		mediaGeneration: z.boolean(),
 		mediaModeration: z.boolean(),
@@ -65,9 +71,14 @@ export type PricingVersion = z.infer<typeof pricingVersionSchema>;
 
 export const DEFAULT_PRODUCT_CONFIG = productConfigSchema.parse({
 	planIds: PLAN_IDS,
-	productKeys: PRODUCT_MODEL_KEYS,
-	catalogVersion: "2026-08-24.1",
-	pricingVersion: "2026-08-13.1",
+	productKeys: EZPIC_PRODUCT_KEYS,
+	catalogVersion: "2026-08-25.1",
+	pricingVersion: "2026-08-25.1",
+	brand: {
+		siteName: "EzPic",
+		siteDescription: "Private prompt-based AI image editing with transparent credits.",
+		supportEmail: null,
+	},
 	features: {
 		mediaGeneration: true,
 		mediaModeration: true,
@@ -79,8 +90,8 @@ export const DEFAULT_PRODUCT_CONFIG = productConfigSchema.parse({
 		videoBytes: 250 * 1024 * 1024,
 	},
 	publicUrls: {
-		marketing: "https://example.com",
-		saas: "https://app.example.com",
+		marketing: "https://marketing.placeholder.invalid",
+		saas: "https://app.placeholder.invalid",
 	},
 	enabledLocales: ["en"],
 	retention: {

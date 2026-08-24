@@ -1,6 +1,8 @@
 import type { Locale } from "@repo/i18n";
 
 export interface MailConfig {
+	/** Public product name displayed in transactional email chrome. */
+	appName: string;
 	/**
 	 * Default sender address applied to transactional emails when a custom `from`
 	 * value is not provided by the caller.

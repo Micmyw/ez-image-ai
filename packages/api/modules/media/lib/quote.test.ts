@@ -2,11 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import { assertFrozenQuoteRouteGraphIsCurrent, buildMediaQuote } from "./quote";
 
+const SOURCE_ASSET_ID = "asset_01J5ABCD1234EFGH5678JKLMNP";
+
 describe("buildMediaQuote", () => {
 	it("persists a deterministic per-output settlement policy in the pricing snapshot", () => {
 		const quote = buildMediaQuote({
 			productKey: "image-fast",
-			input: { kind: "text-to-image", prompt: "test prompt" },
+			input: {
+				kind: "image-to-image",
+				prompt: "test prompt",
+				sourceAssetId: SOURCE_ASSET_ID,
+			},
 		});
 
 		expect(quote.pricingSnapshot).toMatchObject({
@@ -23,7 +29,11 @@ describe("buildMediaQuote", () => {
 	it("reserves for the highest executable route cost rather than only the first route", () => {
 		const quote = buildMediaQuote({
 			productKey: "image-fast",
-			input: { kind: "text-to-image", prompt: "A studio product photo" },
+			input: {
+				kind: "image-to-image",
+				prompt: "A studio product photo",
+				sourceAssetId: SOURCE_ASSET_ID,
+			},
 		});
 
 		expect(quote.costMicros).toBe(3_500n);
@@ -35,7 +45,11 @@ describe("buildMediaQuote", () => {
 		try {
 			const quote = buildMediaQuote({
 				productKey: "image-fast",
-				input: { kind: "text-to-image", prompt: "A studio product photo" },
+				input: {
+					kind: "image-to-image",
+					prompt: "A studio product photo",
+					sourceAssetId: SOURCE_ASSET_ID,
+				},
 			});
 
 			expect(quote.costMicros).toBe(3_000n);
@@ -67,7 +81,11 @@ describe("buildMediaQuote", () => {
 			expect(
 				buildMediaQuote({
 					productKey: "image-fast",
-					input: { kind: "text-to-image", prompt: "A studio product photo" },
+					input: {
+						kind: "image-to-image",
+						prompt: "A studio product photo",
+						sourceAssetId: SOURCE_ASSET_ID,
+					},
 				}),
 			).toMatchObject({ costMicros: 3_000n });
 		} finally {
@@ -82,7 +100,11 @@ describe("buildMediaQuote", () => {
 		const frozenQuote = buildMediaQuote(
 			{
 				productKey: "image-fast",
-				input: { kind: "text-to-image", prompt: "A studio product photo" },
+				input: {
+					kind: "image-to-image",
+					prompt: "A studio product photo",
+					sourceAssetId: SOURCE_ASSET_ID,
+				},
 			},
 			{ enabledProviders: new Set(["replicate"]), generationEnabled: true },
 		);

@@ -1,7 +1,7 @@
 {
 	"blog": {
-		"description": "Read the latest news from our company",
-		"title": "My awesome blog",
+		"description": "Read image-editing guides and EzPic product updates.",
+		"title": "EzPic guides",
 		"back": "Back to blog"
 	},
 	"changelog": {
@@ -26,12 +26,12 @@
 		"title": "Documentation"
 	},
 	"faq": {
-		"description": "Do you have any questions? We have got you covered.",
+		"description": "Clear answers about plans, credits, and your image-editing workspace.",
 		"title": "Frequently asked questions",
 		"items": {
 			"refundPolicy": {
-				"question": "What is the refund policy?",
-				"answer": "We offer a 30-day money-back guarantee if you're not happy with our product."
+				"question": "How are refunds handled?",
+				"answer": "Refund eligibility depends on the applicable payment terms. Contact support with your billing details for review."
 			},
 			"cancelSubscription": {
 				"question": "How do I cancel my subscription?",
@@ -42,73 +42,70 @@
 				"answer": "Yes, you can change your plan at any time by visiting the billing page."
 			},
 			"freeTrial": {
-				"question": "Do you offer a free trial?",
-				"answer": "Yes, we offer a 14-day free trial."
+				"question": "Is there a free plan?",
+				"answer": "Yes. The Free plan includes 25 monthly credits and access to Standard Edit."
 			}
 		}
 	},
 	"home": {
 		"generator": {
-			"eyebrow": "Try your idea",
-			"title": "Start with the thought already in your head",
-			"subtitle": "Choose an image or video, describe the result, then continue securely in your private workspace.",
-			"format": "Create",
-			"image": "Image",
-			"video": "Video",
-			"prompt": "Describe your idea",
-			"reference": "Optional reference image",
-			"placeholder": "A sunlit product scene with soft shadows and clean editorial styling…",
-			"continue": "Continue in the studio",
-			"privacy": "Your idea is saved privately for up to one hour and is not generated until you sign in and confirm.",
-			"error": "We could not save this idea. Please try again shortly.",
-			"steps": { "idea": "Describe", "control": "Refine", "create": "Create" }
+			"eyebrow": "Plan your edit",
+			"title": "Describe the change you want",
+			"subtitle": "Upload a source image, describe the edit, then continue securely in your private image editor.",
+			"prompt": "Describe your edit",
+			"reference": "Source image",
+			"placeholder": "Replace the background with a softly lit studio wall while keeping the subject unchanged…",
+			"continue": "Continue to edit",
+			"privacy": "Your draft is saved privately for up to one hour. No image is edited until you sign in and confirm.",
+			"error": "We could not save this edit draft. Please try again shortly.",
+			"steps": { "idea": "Upload", "control": "Describe", "create": "Review" }
 		},
 		"hero": {
-			"new": "New:",
-			"featureBadge": "Amazing feature of your SaaS",
-			"title": "Your revolutionary SaaS built with Next.js",
-			"subtitle": "This is a demo application built with supastarter. It will save you a lot of time and effort building your next SaaS.",
-			"getStarted": "Get started",
-			"documentation": "Documentation",
-			"imageAlt": "Our application",
-			"builtWith": "Built & shipped with these awesome tools"
+			"new": "Private by design:",
+			"featureBadge": "Prompt-based image editing",
+			"title": "An AI image editor that starts with your image",
+			"subtitle": "Upload a source image, describe the change, and review the credit cost before you create an edited result.",
+			"getStarted": "Start editing",
+			"documentation": "Product guide",
+			"imageAlt": "EzPic private image-editing workspace",
+			"builtWith": "A focused image-editing workflow"
 		},
 		"features": {
-			"badge": "Incredible features",
-			"title": "Features your clients will love",
-			"description": "In this section you can showcase all the features of your SaaS provides and how they can benefit your clients.",
+			"badge": "Image-editing workflow",
+			"title": "From source image to controlled edit",
+			"description": "EzPic keeps the edit prompt, quality choice, credits, and private assets in one focused workspace.",
 			"feature1": {
-				"title": "Feature 1",
-				"subtitle": "Do more with our amazing SaaS.",
-				"description": "This is a brilliant feature. And below you can see some reasons why. This is basically just a dummy text.",
+				"title": "Directed edits",
+				"subtitle": "Describe the change instead of rebuilding the image.",
+				"description": "Every public edit starts with a required source image and a clear instruction.",
 				"benefit1": {
-					"title": "Benefit 1",
-					"description": "This is an awesome benefit. And below you can see some reasons why. This is basically just a dummy text."
+					"title": "Prompted changes",
+					"description": "State what should change in plain language."
 				},
 				"benefit2": {
-					"title": "Benefit 2",
-					"description": "This is an awesome benefit. And below you can see some reasons why. This is basically just a dummy text."
+					"title": "Source required",
+					"description": "The editor never presents text-only image generation as an EzPic product."
 				},
 				"benefit3": {
-					"title": "Benefit 3",
-					"description": "This is an awesome benefit. And below you can see some reasons why. This is basically just a dummy text."
+					"title": "Two edit levels",
+					"description": "Choose Standard Edit or Quality Edit when your plan allows it."
 				}
 			},
 			"feature2": {
-				"title": "Feature 2",
-				"subtitle": "Your SaaS can also do this.",
-				"description": "Another dummy text for another feature.",
+				"title": "Private workflow",
+				"subtitle": "Keep source images, edits, and status in your workspace.",
+				"description": "Credits are reserved before work starts and settled against the completed job state.",
 				"benefit1": {
-					"title": "Benefit 1",
-					"description": "This is an awesome benefit. And below you can see some reasons why. This is basically just a dummy text."
+					"title": "Private assets",
+					"description": "Inputs and outputs remain account-scoped media assets."
 				},
 				"benefit2": {
-					"title": "Benefit 2",
-					"description": "This is an awesome benefit. And below you can see some reasons why. This is basically just a dummy text."
+					"title": "Visible credit cost",
+					"description": "Review the credit reservation before confirming an edit."
 				},
 				"benefit3": {
-					"title": "Benefit 3",
-					"description": "This is an awesome benefit. And below you can see some reasons why. This is basically just a dummy text."
+					"title": "Recoverable history",
+					"description": "Return to edit history and inspect the latest job state."
 				}
 			}
 		}
@@ -125,8 +122,8 @@
 			}
 		},
 		"submit": "Subscribe",
-		"subtitle": "Be among the first to get access to supastarter.nextjs.",
-		"title": "Get early access"
+		"subtitle": "Receive occasional EzPic product and image-editing updates.",
+		"title": "Product updates"
 	},
 	"notFound": {
 		"code": "404",
@@ -135,13 +132,18 @@
 		"goToHomepage": "Go to homepage"
 	},
 	"common": {
+		"consent": {
+			"message": "Choose whether to allow optional analytics cookies. Essential storage used for site preferences and security remains available.",
+			"decline": "Decline optional",
+			"allow": "Allow optional"
+		},
 		"footer": {
 			"blog": "Blog",
 			"features": "Features",
 			"pricing": "Pricing",
 			"privacyPolicy": "Privacy policy",
 			"termsAndConditions": "Terms and conditions",
-			"builtWith": "Built with supastarter"
+			"support": "Support"
 		},
 		"menu": {
 			"blog": "Blog",
@@ -149,9 +151,12 @@
 			"contact": "Contact",
 			"dashboard": "Dashboard",
 			"docs": "Docs",
+			"examples": "Examples",
 			"faq": "FAQ",
-			"login": "Login",
-			"pricing": "Pricing"
+			"howItWorks": "How It Works",
+			"login": "Sign In",
+			"pricing": "Pricing",
+			"startEditing": "Start Editing"
 		},
 		"aria": {
 			"menu": "Menu",

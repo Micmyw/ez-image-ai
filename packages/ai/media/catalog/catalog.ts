@@ -23,10 +23,10 @@ export interface CatalogEntry {
 const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 	"image-fast": {
 		key: "image-fast",
-		label: "Fast Image",
-		description: "Rapid image generation",
+		label: "Standard Edit",
+		description: "Private prompt-based image editing for everyday changes",
 		mediaKind: "image",
-		inputKinds: ["text-to-image", "image-to-image"],
+		inputKinds: ["image-to-image"],
 		credits: 4,
 		routes: [
 			{
@@ -45,10 +45,10 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 	},
 	"image-quality": {
 		key: "image-quality",
-		label: "Quality Image",
-		description: "High fidelity image generation",
+		label: "Quality Edit",
+		description: "Higher-fidelity private image editing for detailed changes",
 		mediaKind: "image",
-		inputKinds: ["text-to-image"],
+		inputKinds: ["image-to-image"],
 		credits: 10,
 		routes: [
 			{

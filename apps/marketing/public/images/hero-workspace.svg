@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1600 900" role="img">
+  <title>EzPic private image-editing workspace placeholder</title>
+  <defs>
+    <linearGradient id="light-bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f3f0ff"/>
+      <stop offset="1" stop-color="#edf9ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="1600" height="900" rx="42" fill="url(#light-bg)"/>
+  <rect x="50" y="50" width="1500" height="800" rx="30" fill="#fff" stroke="#ded9ee" stroke-width="2"/>
+  <rect x="50" y="50" width="270" height="800" rx="30" fill="#faf9ff"/>
+  <rect x="88" y="88" width="56" height="56" rx="16" fill="#6d5dfc"/>
+  <path d="m101 132 11-12 8 8 6-6 7 7" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round" stroke-width="4"/>
+  <circle cx="108" cy="108" r="3.5" fill="#fff"/>
+  <path d="M127 98v10M122 103h10" stroke="#fff" stroke-linecap="round" stroke-width="3"/>
+  <text x="162" y="126" fill="#211d36" font-family="Arial, sans-serif" font-size="34" font-weight="700">EzPic</text>
+  <rect x="82" y="194" width="206" height="58" rx="18" fill="#ede9ff"/>
+  <circle cx="112" cy="223" r="9" fill="#6d5dfc"/>
+  <text x="138" y="232" fill="#30294d" font-family="Arial, sans-serif" font-size="24" font-weight="600">Create</text>
+  <text x="98" y="314" fill="#777189" font-family="Arial, sans-serif" font-size="22">History</text>
+  <text x="98" y="370" fill="#777189" font-family="Arial, sans-serif" font-size="22">Assets</text>
+  <text x="98" y="426" fill="#777189" font-family="Arial, sans-serif" font-size="22">Billing</text>
+  <text x="98" y="482" fill="#777189" font-family="Arial, sans-serif" font-size="22">Settings</text>
+  <text x="370" y="128" fill="#201b34" font-family="Arial, sans-serif" font-size="38" font-weight="700">Edit a source image</text>
+  <text x="370" y="170" fill="#716b82" font-family="Arial, sans-serif" font-size="22">Describe the change, choose an edit level, and review the credit reservation.</text>
+  <rect x="370" y="214" width="690" height="558" rx="28" fill="#fbfaff" stroke="#ded9ee" stroke-width="2"/>
+  <text x="410" y="270" fill="#3c3650" font-family="Arial, sans-serif" font-size="22" font-weight="600">Source image</text>
+  <rect x="410" y="298" width="610" height="380" rx="22" fill="#e9e5fb"/>
+  <circle cx="550" cy="410" r="45" fill="#b5aaf2"/>
+  <path d="M430 630 610 456l120 120 84-84 184 138" fill="#c9c1f4" stroke="#8b7ee1" stroke-linejoin="round" stroke-width="8"/>
+  <rect x="410" y="706" width="180" height="38" rx="19" fill="#ede9ff"/>
+  <text x="438" y="732" fill="#5c51ae" font-family="Arial, sans-serif" font-size="18">Private source</text>
+  <rect x="1100" y="214" width="400" height="558" rx="28" fill="#fff" stroke="#ded9ee" stroke-width="2"/>
+  <text x="1140" y="270" fill="#3c3650" font-family="Arial, sans-serif" font-size="22" font-weight="600">Edit instruction</text>
+  <rect x="1140" y="298" width="320" height="132" rx="18" fill="#faf9ff" stroke="#d9d3e9" stroke-width="2"/>
+  <text x="1164" y="340" fill="#5f596f" font-family="Arial, sans-serif" font-size="18">Replace the background with a</text>
+  <text x="1164" y="372" fill="#5f596f" font-family="Arial, sans-serif" font-size="18">soft studio wall. Keep the</text>
+  <text x="1164" y="404" fill="#5f596f" font-family="Arial, sans-serif" font-size="18">subject unchanged.</text>
+  <text x="1140" y="482" fill="#3c3650" font-family="Arial, sans-serif" font-size="20" font-weight="600">Edit quality</text>
+  <rect x="1140" y="505" width="320" height="64" rx="18" fill="#ede9ff"/>
+  <text x="1164" y="545" fill="#4d438c" font-family="Arial, sans-serif" font-size="20" font-weight="600">Standard Edit</text>
+  <rect x="1140" y="600" width="145" height="44" rx="22" fill="#f0edff"/>
+  <text x="1170" y="629" fill="#5c51ae" font-family="Arial, sans-serif" font-size="18">4 credits</text>
+  <rect x="1140" y="678" width="320" height="62" rx="31" fill="#6d5dfc"/>
+  <text x="1246" y="717" fill="#fff" font-family="Arial, sans-serif" font-size="20" font-weight="700">Review edit</text>
+</svg>

@@ -6,8 +6,8 @@ import { ArrowRightIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Image from "next/image";
 
-import heroImageDark from "../../../public/images/hero-image-dark.png";
-import heroImage from "../../../public/images/hero-image.png";
+import heroImageDark from "../../../public/images/hero-workspace-dark.svg";
+import heroImage from "../../../public/images/hero-workspace.svg";
 
 export function HeroSection() {
 	const t = useTranslations();

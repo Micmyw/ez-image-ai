@@ -14,9 +14,9 @@
 		"subject": "Reset your password"
 	},
 	"magicLink": {
-		"body": "Hey,\nyou requested a login email from supastarter.\n\nClick the link below to login.",
-		"login": "Login",
-		"subject": "Login to supastarter"
+		"body": "Hey,\nyou requested a secure sign-in link.\n\nClick the link below to sign in.",
+		"login": "Sign in",
+		"subject": "Your secure sign-in link"
 	},
 	"organizationInvitation": {
 		"body": "You have been invited to join the organization {organizationName}. Click the button below or copy and paste the link into your browser of choice to accept the invitation and join the organization.",

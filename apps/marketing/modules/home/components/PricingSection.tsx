@@ -2,7 +2,7 @@
 
 import { config } from "@config";
 import { LocaleLink } from "@i18n/routing";
-import { PLAN_ENTITLEMENTS } from "@repo/config/client";
+import { getPublicConfig, PLAN_ENTITLEMENTS } from "@repo/config/client";
 import { config as paymentsConfig } from "@repo/payments/config";
 import type { PaidPlan } from "@repo/payments/types";
 import { cn } from "@repo/ui";
@@ -11,6 +11,8 @@ import { Tabs, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
 import { ArrowRightIcon, BadgePercentIcon, CheckIcon, StarIcon } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useMemo, useState } from "react";
+
+const publicProductConfig = getPublicConfig();
 
 export function PricingSection() {
 	const t = useTranslations();
@@ -34,15 +36,30 @@ export function PricingSection() {
 			prices?: PaidPlan["prices"];
 			to: string;
 		}> = [];
+		const entitlementFeatures = (entitlement: (typeof PLAN_ENTITLEMENTS)[number]) => [
+			t("pricing.monthlyCredits", { credits: entitlement.monthlyCredits }),
+			t("pricing.concurrentEdits", { count: entitlement.maximumConcurrentJobs }),
+			t("pricing.maximumInputSize", {
+				megabytes: Math.round(
+					Math.min(entitlement.maximumInputBytes, publicProductConfig.uploadLimits.imageBytes) /
+						1024 /
+						1024,
+				),
+			}),
+		];
 
 		if (!paymentsConfig.requireActiveSubscription) {
+			const entitlement = PLAN_ENTITLEMENTS.find((item) => item.id === "free");
 			result.push({
 				id: "free",
 				title: t("pricing.products.free.title") ?? "",
 				description: t("pricing.products.free.description") ?? "",
-				features: Object.values(
-					(t.raw("pricing.products.free.features") as Record<string, string>) ?? {},
-				),
+				features: [
+					...(entitlement ? entitlementFeatures(entitlement) : []),
+					...Object.values(
+						(t.raw("pricing.products.free.features") as Record<string, string>) ?? {},
+					),
+				],
 				cta: t("pricing.getStarted") ?? "",
 				to: signupUrl ?? "#",
 			});
@@ -52,19 +69,14 @@ export function PricingSection() {
 			const isEnterprise = "isEnterprise" in plan;
 			const prices = "prices" in plan ? (plan as PaidPlan).prices : undefined;
 			const entitlement = PLAN_ENTITLEMENTS.find((item) => item.id === planId);
+			if (!entitlement) continue;
 
 			result.push({
 				id: planId,
 				title: t(`pricing.products.${planId}.title`) ?? "",
 				description: t(`pricing.products.${planId}.description`) ?? "",
 				features: [
-					...(entitlement
-						? [
-								`${entitlement.monthlyCredits.toLocaleString()} credits per month`,
-								`${entitlement.maximumConcurrentJobs} concurrent jobs`,
-								`${Math.round(entitlement.maximumInputBytes / 1024 / 1024)} MB input storage`,
-							]
-						: []),
+					...entitlementFeatures(entitlement),
 					...Object.values(
 						(t.raw(`pricing.products.${planId}.features`) as Record<string, string>) ?? {},
 					),

@@ -1,7 +1,7 @@
 {
 	"blog": {
-		"description": "Lisez les dernières actualités de notre entreprise",
-		"title": "Mon super blog",
+		"description": "Lisez des guides de retouche d'image et les nouveautés du produit EzPic.",
+		"title": "Guides EzPic",
 		"back": "Retour au blog"
 	},
 	"changelog": {
@@ -26,12 +26,12 @@
 		"title": "Documentation"
 	},
 	"faq": {
-		"description": "Avez-vous des questions ? Nous sommes là pour vous.",
+		"description": "Des réponses claires sur les forfaits, les crédits et votre espace de retouche d'image.",
 		"title": "Questions fréquemment posées",
 		"items": {
 			"refundPolicy": {
-				"question": "Quelle est la politique de remboursement ?",
-				"answer": "Nous offrons une garantie de remboursement de 30 jours si vous n'êtes pas satisfait de notre produit."
+				"question": "Comment les remboursements sont-ils traités ?",
+				"answer": "L'éligibilité dépend des conditions de paiement applicables. Contactez le support avec vos informations de facturation pour examen."
 			},
 			"cancelSubscription": {
 				"question": "Comment annuler mon abonnement ?",
@@ -42,73 +42,70 @@
 				"answer": "Oui, vous pouvez changer de forfait à tout moment en visitant la page de facturation."
 			},
 			"freeTrial": {
-				"question": "Proposez-vous un essai gratuit ?",
-				"answer": "Oui, nous proposons un essai gratuit de 14 jours."
+				"question": "Existe-t-il un forfait gratuit ?",
+				"answer": "Oui. Le forfait Gratuit comprend 25 crédits mensuels et l'accès à Standard Edit."
 			}
 		}
 	},
 	"home": {
 		"generator": {
-			"eyebrow": "Essayez votre idée",
-			"title": "Commencez par l'idée que vous avez déjà en tête",
-			"subtitle": "Choisissez une image ou une vidéo, décrivez le résultat, puis poursuivez en toute sécurité dans votre espace privé.",
-			"format": "Créer",
-			"image": "Image",
-			"video": "Vidéo",
-			"prompt": "Décrivez votre idée",
-			"reference": "Image de référence facultative",
-			"placeholder": "Une scène produit lumineuse, aux ombres douces et au style éditorial épuré…",
-			"continue": "Continuer dans le studio",
-			"privacy": "Votre idée est conservée de façon privée pendant une heure maximum et n'est générée qu'après votre connexion et votre confirmation.",
-			"error": "Nous n'avons pas pu enregistrer cette idée. Veuillez réessayer dans quelques instants.",
-			"steps": { "idea": "Décrire", "control": "Affiner", "create": "Créer" }
+			"eyebrow": "Planifiez votre retouche",
+			"title": "Décrivez le changement souhaité",
+			"subtitle": "Importez une image source, décrivez la retouche, puis continuez en toute sécurité dans votre éditeur d'images privé.",
+			"prompt": "Décrivez votre retouche",
+			"reference": "Image source",
+			"placeholder": "Remplacez l'arrière-plan par un mur de studio doucement éclairé tout en conservant le sujet…",
+			"continue": "Continuer la retouche",
+			"privacy": "Votre brouillon est conservé de façon privée pendant une heure maximum. Aucune image n'est retouchée avant votre connexion et votre confirmation.",
+			"error": "Nous n'avons pas pu enregistrer ce brouillon de retouche. Veuillez réessayer dans quelques instants.",
+			"steps": { "idea": "Importer", "control": "Décrire", "create": "Vérifier" }
 		},
 		"hero": {
-			"new": "Nouveau :",
-			"featureBadge": "Fonctionnalité incroyable de votre SaaS",
-			"title": "Votre SaaS révolutionnaire construit avec Next.js",
-			"subtitle": "Ceci est une application de démonstration construite avec supastarter. Elle vous fera gagner beaucoup de temps et d'efforts pour construire votre prochain SaaS.",
-			"getStarted": "Commencer",
-			"documentation": "Documentation",
-			"imageAlt": "Notre application",
-			"builtWith": "Construit et livré avec ces outils incroyables"
+			"new": "Privé par conception :",
+			"featureBadge": "Retouche d'image guidée par instruction",
+			"title": "Un éditeur d'images IA qui part de votre image",
+			"subtitle": "Importez une image source, décrivez le changement et vérifiez le coût en crédits avant de créer un résultat retouché.",
+			"getStarted": "Commencer la retouche",
+			"documentation": "Guide du produit",
+			"imageAlt": "Espace privé de retouche d'image EzPic",
+			"builtWith": "Un flux ciblé de retouche d'image"
 		},
 		"features": {
-			"badge": "Fonctionnalités incroyables",
-			"title": "Des fonctionnalités que vos clients adoreront",
-			"description": "Dans cette section, vous pouvez présenter toutes les fonctionnalités que votre SaaS offre et comment elles peuvent bénéficier à vos clients.",
+			"badge": "Flux de retouche d'image",
+			"title": "De l'image source à une retouche contrôlée",
+			"description": "EzPic regroupe l'instruction, le niveau de qualité, les crédits et les ressources privées dans un espace ciblé.",
 			"feature1": {
-				"title": "Fonctionnalité 1",
-				"subtitle": "Faites plus avec notre SaaS incroyable.",
-				"description": "C'est une fonctionnalité brillante. Et ci-dessous vous pouvez voir quelques raisons pour lesquelles. C'est essentiellement juste un texte de démonstration.",
+				"title": "Retouches dirigées",
+				"subtitle": "Décrivez le changement au lieu de reconstruire l'image.",
+				"description": "Chaque retouche publique commence par une image source obligatoire et une instruction claire.",
 				"benefit1": {
-					"title": "Avantage 1",
-					"description": "C'est un avantage incroyable. Et ci-dessous vous pouvez voir quelques raisons pour lesquelles. C'est essentiellement juste un texte de démonstration."
+					"title": "Changements guidés",
+					"description": "Indiquez en langage courant ce qui doit changer."
 				},
 				"benefit2": {
-					"title": "Avantage 2",
-					"description": "C'est un avantage incroyable. Et ci-dessous vous pouvez voir quelques raisons pour lesquelles. C'est essentiellement juste un texte de démonstration."
+					"title": "Source obligatoire",
+					"description": "L'éditeur ne présente jamais la génération à partir de texte seul comme un produit EzPic."
 				},
 				"benefit3": {
-					"title": "Avantage 3",
-					"description": "C'est un avantage incroyable. Et ci-dessous vous pouvez voir quelques raisons pour lesquelles. C'est essentiellement juste un texte de démonstration."
+					"title": "Deux niveaux de retouche",
+					"description": "Choisissez Standard Edit ou Quality Edit lorsque votre forfait le permet."
 				}
 			},
 			"feature2": {
-				"title": "Fonctionnalité 2",
-				"subtitle": "Votre SaaS peut aussi faire ça.",
-				"description": "Un autre texte de démonstration pour une autre fonctionnalité.",
+				"title": "Flux privé",
+				"subtitle": "Conservez les images source, les retouches et leur état dans votre espace.",
+				"description": "Les crédits sont réservés avant le démarrage et réglés selon l'état final de la tâche.",
 				"benefit1": {
-					"title": "Avantage 1",
-					"description": "C'est un avantage incroyable. Et ci-dessous vous pouvez voir quelques raisons pour lesquelles. C'est essentiellement juste un texte de démonstration."
+					"title": "Ressources privées",
+					"description": "Les entrées et sorties restent des ressources rattachées au compte."
 				},
 				"benefit2": {
-					"title": "Avantage 2",
-					"description": "C'est un avantage incroyable. Et ci-dessous vous pouvez voir quelques raisons pour lesquelles. C'est essentiellement juste un texte de démonstration."
+					"title": "Coût visible en crédits",
+					"description": "Vérifiez la réservation de crédits avant de confirmer une retouche."
 				},
 				"benefit3": {
-					"title": "Avantage 3",
-					"description": "C'est un avantage incroyable. Et ci-dessous vous pouvez voir quelques raisons pour lesquelles. C'est essentiellement juste un texte de démonstration."
+					"title": "Historique consultable",
+					"description": "Revenez à l'historique des retouches et consultez l'état le plus récent."
 				}
 			}
 		}
@@ -125,8 +122,8 @@
 			}
 		},
 		"submit": "S'abonner",
-		"subtitle": "Soyez parmi les premiers à accéder à supastarter.nextjs.",
-		"title": "Accès anticipé"
+		"subtitle": "Recevez occasionnellement les nouveautés EzPic et des conseils de retouche d'image.",
+		"title": "Nouveautés du produit"
 	},
 	"notFound": {
 		"code": "404",
@@ -135,13 +132,18 @@
 		"goToHomepage": "Aller à l'accueil"
 	},
 	"common": {
+		"consent": {
+			"message": "Choisissez si vous autorisez les cookies d'analyse facultatifs. Le stockage essentiel aux préférences et à la sécurité reste disponible.",
+			"decline": "Refuser les facultatifs",
+			"allow": "Autoriser les facultatifs"
+		},
 		"footer": {
 			"blog": "Blog",
 			"features": "Fonctionnalités",
 			"pricing": "Tarifs",
 			"privacyPolicy": "Politique de confidentialité",
 			"termsAndConditions": "Conditions générales",
-			"builtWith": "Construit avec supastarter"
+			"support": "Support"
 		},
 		"menu": {
 			"blog": "Blog",
@@ -149,9 +151,12 @@
 			"contact": "Contact",
 			"dashboard": "Tableau de bord",
 			"docs": "Docs",
+			"examples": "Exemples",
 			"faq": "FAQ",
+			"howItWorks": "Fonctionnement",
 			"login": "Connexion",
-			"pricing": "Tarifs"
+			"pricing": "Tarifs",
+			"startEditing": "Commencer la retouche"
 		},
 		"aria": {
 			"menu": "Menu",
