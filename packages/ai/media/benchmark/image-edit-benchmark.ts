@@ -310,17 +310,20 @@ export async function runImageEditBenchmark(
 				remainingCatalogCostMicros -= route.catalogCostMicros;
 				const observation = parseImageEditBenchmarkObservation({ caseId, route, ...result });
 				observations.push(observation);
-				if (observation.providerCostMicros !== null) {
-					observedCostMicros = safeSum(
-						observedCostMicros,
-						observation.providerCostMicros,
-						"observed Provider cost",
+				if (observation.providerCostMicros === null) {
+					throw new Error(
+						"Observed Provider cost is unavailable after a Provider call; no further calls are allowed",
 					);
-					if (observedCostMicros > maxBudgetMicros) {
-						throw new Error(
-							`Observed Provider cost ${observedCostMicros} exceeds explicit budget ${maxBudgetMicros}; no further calls are allowed`,
-						);
-					}
+				}
+				observedCostMicros = safeSum(
+					observedCostMicros,
+					observation.providerCostMicros,
+					"observed Provider cost",
+				);
+				if (observedCostMicros > maxBudgetMicros) {
+					throw new Error(
+						`Observed Provider cost ${observedCostMicros} exceeds explicit budget ${maxBudgetMicros}; no further calls are allowed`,
+					);
 				}
 			}
 		}

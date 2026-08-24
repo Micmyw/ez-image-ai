@@ -135,6 +135,22 @@ describe("image edit benchmark manifest", () => {
 					index === 0
 						? {
 								...image,
+								tasks: image.tasks.map((task) => ({
+									...task,
+									kind: "replace-background",
+								})),
+							}
+						: image,
+				),
+			}),
+		).toThrow(/at least 3 distinct task kinds/i);
+		expect(() =>
+			parseImageEditBenchmarkManifest({
+				...manifest,
+				images: manifest.images.map((image, index) =>
+					index === 0
+						? {
+								...image,
 								source: {
 									kind: "private-asset",
 									assetId: "asset_benchmark00000001",
@@ -386,6 +402,31 @@ describe("image edit benchmark spend and privacy gates", () => {
 		expect(calls).toBe(1);
 	});
 
+	it("stops after one Provider call when its observed cost is unavailable", async () => {
+		let calls = 0;
+		const executeCase: ImageEditBenchmarkExecutor = async () => {
+			calls += 1;
+			return safeResult({ providerCostMicros: null });
+		};
+
+		await expect(
+			runImageEditBenchmark(
+				{
+					manifest: await authorizedManifest(),
+					mode: "live",
+					confirmSpend: true,
+					maxBudgetMicros: 90_000,
+					routeSelectors: ["image-fast:replicate:black-forest-labs/flux-schnell"],
+				},
+				{
+					executeCase,
+					environment: { REPLICATE_API_TOKEN: "test-only" },
+				},
+			),
+		).rejects.toThrow(/observed Provider cost is unavailable.*no further calls/i);
+		expect(calls).toBe(1);
+	});
+
 	it("rejects an executor result that bypasses private transfer or output moderation", async () => {
 		const executeCase: ImageEditBenchmarkExecutor = async () =>
 			safeResult({ privateTransfer: "not-stored" });
@@ -484,7 +525,7 @@ describe("image edit benchmark scorecard and report", () => {
 
 		expect(summary.observedInvocations).toBe(5);
 		expect(summary.successRate).toEqual({ status: "MEASURED", value: 0.8 });
-		expect(summary.firstResultUsableRate).toEqual({ status: "MEASURED", value: 0.75 });
+		expect(summary.firstResultUsableRate).toEqual({ status: "MEASURED", value: 0.6 });
 		expect(summary.latencyP50Ms).toEqual({ status: "MEASURED", value: 200 });
 		expect(summary.latencyP95Ms).toEqual({ status: "MEASURED", value: 400 });
 		expect(summary.providerCostMicros).toEqual({ status: "MEASURED", value: 12_000 });

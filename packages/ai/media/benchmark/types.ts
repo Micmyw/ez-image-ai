@@ -66,7 +66,16 @@ const imageSchema = z
 		authorization: authorizationSchema,
 		tasks: z.array(taskSchema).min(3, "Each benchmark input must define at least 3 tasks"),
 	})
-	.strict();
+	.strict()
+	.superRefine((image, context) => {
+		if (new Set(image.tasks.map((task) => task.kind)).size < 3) {
+			context.addIssue({
+				code: "custom",
+				message: "Each benchmark input must define at least 3 distinct task kinds",
+				path: ["tasks"],
+			});
+		}
+	});
 
 const manifestSchema = z
 	.object({

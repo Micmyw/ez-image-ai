@@ -51,13 +51,12 @@ export function buildImageEditBenchmarkScorecard(
 				plannedInvocations,
 				observedInvocations: routeObservations.length,
 				successRate: complete ? measured(successes.length / plannedInvocations) : notCompleted(),
-				firstResultUsableRate:
-					complete && successes.length > 0
-						? measured(
-								successes.filter((observation) => observation.firstResultUsable).length /
-									successes.length,
-							)
-						: notCompleted(),
+				firstResultUsableRate: complete
+					? measured(
+							successes.filter((observation) => observation.firstResultUsable).length /
+								plannedInvocations,
+						)
+					: notCompleted(),
 				latencyP50Ms:
 					complete && successes.length > 0
 						? measured(

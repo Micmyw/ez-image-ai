@@ -24,7 +24,7 @@ weights, Provider cost estimates, credits, catalog version, or pricing version.
 ## Reproducible dry-run snapshot
 
 The committed manifest contains no images. It defines ten placeholder input slots, two in each
-required category, with three synthetic tasks each:
+required category, with three distinct synthetic task kinds each:
 
 - product on white background;
 - portrait;
@@ -88,11 +88,13 @@ A live harness invocation must include all of the following before any Provider 
 The core harness checks the entire plan before invoking the first case and executes cases
 sequentially. Before each subsequent call, it combines observed cost with the remaining catalog
 ceiling and fails closed if that amount would exceed the explicit maximum. It also stops further
-calls when a completed call reports observed cost above the maximum. The checked-in CLI
-intentionally does not install a direct Provider executor: direct adapter calls would bypass input
-authorization, remote URL/DNS policy, private storage transfer, output moderation, durable attempt
-evidence, and uncertain-submission recovery. A future authorized operator binding must reuse those
-existing paths rather than create a second Provider or storage architecture.
+calls when a completed call reports unknown cost or observed cost above the maximum. This cannot
+guarantee or undo the real charge for that already-completed single call; it only guarantees that no
+subsequent call is made without known remaining budget. The checked-in CLI intentionally does not
+install a direct Provider executor: direct adapter calls would bypass input authorization, remote
+URL/DNS policy, private storage transfer, output moderation, durable attempt evidence, and
+uncertain-submission recovery. A future authorized operator binding must reuse those existing paths
+rather than create a second Provider or storage architecture.
 
 Example syntax after the private executor and all external prerequisites are supplied:
 
@@ -115,10 +117,12 @@ Each executed case can record only sanitized observations:
 - proof that the output was stored privately and approved by output moderation.
 
 The aggregate scorecard computes route coverage, success rate, first-result usability, p50/p95,
-cost totals, average human scores, MIME/dimension counts, rejection counts, and retries. Partial or
-unscored data remains `NOT_COMPLETED`. The harness never selects Standard or Quality automatically;
-an authorized human must record the final selection and rejection reasons after reviewing complete
-private outputs against the PR 2 thresholds.
+cost totals, average human scores, MIME/dimension counts, rejection counts, and retries. The
+first-result usability denominator is the complete planned invocation count: failures, Provider
+rejections, and moderation rejections are first-result unusable. Partial or unscored data remains
+`NOT_COMPLETED`. The harness never selects Standard or Quality automatically; an authorized human
+must record the final selection and rejection reasons after reviewing complete private outputs
+against the PR 2 thresholds.
 
 ## Privacy boundary
 
