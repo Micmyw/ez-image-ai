@@ -16,6 +16,15 @@
 - Kept partially refunded annual-period grants replayable at their original net command, allowed a
   fresh approval only when an unapplied repair authority's frozen charge snapshot changes, and
   prevented already-expired Purchase rows from starving later deadline-sync batches.
+- Prioritized expired upload-finalization leases ahead of ordinary upload-expiry cleanup so a
+  bounded sweep cannot starve active recovery behind an upload backlog, with repeatable PostgreSQL
+  coverage that removes its own fixtures.
+- Overrode Prisma's vulnerable `deepmerge-ts@7.1.5` transitively to `8.0.2`, closing
+  GHSA-ggr8-5vv4-36mx while retaining the workspace release-age guard.
+- Redirected anonymous draft handoff through the configured SaaS origin, isolated Playwright retry
+  fixtures, and limited abandoned-draft cleanup to explicitly marked candidate IDs.
+- Restored separate unit, PostgreSQL integration, and production-build E2E script boundaries so the
+  standard `pnpm test` command does not start browsers or load database integration suites.
 
 ## 2026-08-14
 
