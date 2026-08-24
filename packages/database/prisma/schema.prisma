@@ -335,6 +335,35 @@ enum BillingPeriodStatus {
   REFUNDED
 }
 
+enum StripeRefundStatus {
+  PENDING
+  REQUIRES_ACTION
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+enum StripeRefundRepairAction {
+  CONFIRM_SUCCEEDED
+  COMPENSATE_FAILED_OR_CANCELED
+}
+
+enum StripeReconciliationStatus {
+  IDLE
+  RUNNING
+}
+
+enum StripeReconciliationStage {
+  SUBSCRIPTIONS
+  INVOICES
+  REFUNDS
+}
+
+enum StripeReconciliationIssueStatus {
+  OPEN
+  RESOLVED
+}
+
 enum GenerationDraftStatus {
   ACTIVE
   SUBMITTED
@@ -787,54 +816,63 @@ model BillingPlan {
 }
 
 model Subscription {
-  id                     String             @id @default(cuid())
-  ownerType              OwnerType
-  ownerId                String
-  provider               String
-  providerSubscriptionId String             @unique
-  planId                 String
-  plan                   BillingPlan        @relation(fields: [planId], references: [id], onDelete: Restrict)
-  purchaseId             String?            @unique
-  purchase               Purchase?          @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
-  status                 SubscriptionStatus
-  currentPeriodStart     DateTime?          @db.Timestamptz(3)
-  currentPeriodEnd       DateTime?          @db.Timestamptz(3)
-  cancelAtPeriodEnd      Boolean            @default(false)
-  scheduledPlanId        String?
-  lastProviderEventAt    DateTime?          @db.Timestamptz(3)
-  lastProviderEventId    String?
-  graceEndsAt            DateTime?          @db.Timestamptz(3)
-  createdAt              DateTime           @default(now()) @db.Timestamptz(3)
-  updatedAt              DateTime           @updatedAt @db.Timestamptz(3)
-  periods                BillingPeriod[]
+  id                               String             @id @default(cuid())
+  ownerType                        OwnerType
+  ownerId                          String
+  provider                         String
+  providerSubscriptionId           String             @unique
+  planId                           String
+  plan                             BillingPlan        @relation(fields: [planId], references: [id], onDelete: Restrict)
+  purchaseId                       String?            @unique
+  purchase                         Purchase?          @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  status                           SubscriptionStatus
+  currentPeriodStart               DateTime?          @db.Timestamptz(3)
+  currentPeriodEnd                 DateTime?          @db.Timestamptz(3)
+  cancelAtPeriodEnd                Boolean            @default(false)
+  scheduledPlanId                  String?
+  lastProviderEventAt              DateTime?          @db.Timestamptz(3)
+  lastProviderEventId              String?
+  lastReconciliationSweepId        String?
+  lastReconciliationAppliedSweepId String?
+  lastReconciledAt                 DateTime?          @db.Timestamptz(3)
+  graceEndsAt                      DateTime?          @db.Timestamptz(3)
+  createdAt                        DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt                        DateTime           @updatedAt @db.Timestamptz(3)
+  periods                          BillingPeriod[]
 
   @@index([ownerType, ownerId, status])
+  @@index([provider, status, createdAt])
+  @@index([provider, lastReconciliationAppliedSweepId, status], map: "subscription_provider_reconcile_sweep_status_idx")
   @@map("subscription")
 }
 
 model BillingPeriod {
-  id                String              @id @default(cuid())
-  subscriptionId    String
-  subscription      Subscription        @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
-  startsAt          DateTime            @db.Timestamptz(3)
-  endsAt            DateTime            @db.Timestamptz(3)
-  status            BillingPeriodStatus @default(PENDING)
-  creditAmount      BigInt
-  grantReferenceKey String?             @unique
-  providerInvoiceId String?
-  providerChargeId  String?
+  id                       String              @id @default(cuid())
+  subscriptionId           String
+  subscription             Subscription        @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+  startsAt                 DateTime            @db.Timestamptz(3)
+  endsAt                   DateTime            @db.Timestamptz(3)
+  status                   BillingPeriodStatus @default(PENDING)
+  creditAmount             BigInt
+  grantReferenceKey        String?             @unique
+  providerInvoiceId        String?
+  providerInvoicePaymentId String?
+  providerChargeId         String?
+  providerPaymentIntentId  String?
   /// @zod.custom.use(z.bigint().default(BigInt(0)))
-  paidAmount        BigInt              @default(0)
+  paidAmount               BigInt              @default(0)
   /// @zod.custom.use(z.bigint().default(BigInt(0)))
-  refundedAmount    BigInt              @default(0)
+  refundedAmount           BigInt              @default(0)
   /// @zod.custom.use(z.bigint().default(BigInt(0)))
-  refundedCredits   BigInt              @default(0)
-  createdAt         DateTime            @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime            @updatedAt @db.Timestamptz(3)
+  refundedCredits          BigInt              @default(0)
+  createdAt                DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime            @updatedAt @db.Timestamptz(3)
 
   @@unique([subscriptionId, startsAt])
   @@index([providerInvoiceId])
+  @@index([providerInvoicePaymentId])
   @@index([providerChargeId])
+  @@index([providerPaymentIntentId])
   @@index([status, startsAt])
   @@map("billing_period")
 }
@@ -857,11 +895,132 @@ model PaymentEvent {
   lastErrorClass          String?
   processingToken         String?               @unique
   processingLeasedUntil   DateTime?             @db.Timestamptz(3)
+  stripeRefundReceipts    StripeRefundReceipt[]
 
   @@unique([provider, providerEventId])
+  @@index([provider, normalizedTransactionId])
   @@index([status, receivedAt])
   @@index([processingLeasedUntil])
   @@map("payment_event")
+}
+
+model StripeRefund {
+  id                      String                        @id @default(cuid())
+  provider                String
+  providerRefundId        String
+  providerChargeId        String
+  providerPaymentIntentId String?
+  amount                  BigInt
+  currency                String
+  status                  StripeRefundStatus
+  providerCreatedAt       DateTime                      @db.Timestamptz(3)
+  lastProviderChangeAt    DateTime                      @db.Timestamptz(3)
+  lastProviderChangeId    String
+  finalizedCredits        BigInt                        @default(0)
+  creditsFinalizedAt      DateTime?                     @db.Timestamptz(3)
+  createdAt               DateTime                      @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime                      @updatedAt @db.Timestamptz(3)
+  receipts                StripeRefundReceipt[]
+  repairAuthorities       StripeRefundRepairAuthority[]
+
+  @@unique([provider, providerRefundId])
+  @@index([provider, providerChargeId, status])
+  @@index([status, creditsFinalizedAt])
+  @@map("stripe_refund")
+}
+
+model StripeRefundRepairAuthority {
+  id                            String                     @id @default(cuid())
+  approvalKey                   String                     @unique
+  refundId                      String
+  refund                        StripeRefund               @relation(fields: [refundId], references: [id], onDelete: Restrict)
+  issueId                       String
+  issue                         StripeReconciliationIssue  @relation(fields: [issueId], references: [id], onDelete: Restrict)
+  action                        StripeRefundRepairAction
+  lifecycleStatus               StripeRefundStatus
+  lifecycleLastProviderChangeId String
+  lifecycleLastProviderChangeAt DateTime                   @db.Timestamptz(3)
+  approvedCredits               BigInt
+  ledgerFingerprint             String
+  approvedByUserId              String
+  reason                        String
+  createdAt                     DateTime                   @default(now()) @db.Timestamptz(3)
+  receipt                       StripeRefundRepairReceipt?
+
+  @@unique([refundId, lifecycleLastProviderChangeId, ledgerFingerprint], map: "stripe_refund_repair_authority_refund_snapshot_key")
+  @@index([issueId, createdAt])
+  @@map("stripe_refund_repair_authority")
+}
+
+model StripeRefundRepairReceipt {
+  id                 String                      @id @default(cuid())
+  authorityId        String                      @unique
+  authority          StripeRefundRepairAuthority @relation(fields: [authorityId], references: [id], onDelete: Restrict)
+  operationKey       String                      @unique
+  appliedByUserId    String
+  reason             String
+  compensatedCredits BigInt                      @default(0)
+  appliedAt          DateTime                    @default(now()) @db.Timestamptz(3)
+
+  @@map("stripe_refund_repair_receipt")
+}
+
+model StripeRefundReceipt {
+  id             String       @id @default(cuid())
+  refundId       String
+  refund         StripeRefund @relation(fields: [refundId], references: [id], onDelete: Restrict)
+  paymentEventId String       @unique
+  paymentEvent   PaymentEvent @relation(fields: [paymentEventId], references: [id], onDelete: Restrict)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+
+  @@unique([refundId, paymentEventId])
+  @@index([refundId, createdAt])
+  @@map("stripe_refund_receipt")
+}
+
+model StripeReconciliationCheckpoint {
+  id                   String                     @id
+  provider             String                     @unique
+  status               StripeReconciliationStatus @default(IDLE)
+  sweepId              String?
+  sweepCutoff          DateTime?                  @db.Timestamptz(3)
+  stage                StripeReconciliationStage  @default(SUBSCRIPTIONS)
+  cursor               String?
+  leaseToken           String?                    @unique
+  leasedUntil          DateTime?                  @db.Timestamptz(3)
+  pagesProcessed       Int                        @default(0)
+  continuationSequence Int                        @default(0)
+  failureCount         Int                        @default(0)
+  lastAttemptAt        DateTime?                  @db.Timestamptz(3)
+  lastCompletedAt      DateTime?                  @db.Timestamptz(3)
+  lastErrorCode        String?
+  createdAt            DateTime                   @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime                   @updatedAt @db.Timestamptz(3)
+
+  @@index([status, leasedUntil])
+  @@map("stripe_reconciliation_checkpoint")
+}
+
+model StripeReconciliationIssue {
+  id                String                          @id @default(cuid())
+  issueKey          String                          @unique
+  provider          String
+  sweepId           String
+  stage             StripeReconciliationStage
+  code              String
+  entityType        String
+  providerObjectId  String
+  status            StripeReconciliationIssueStatus @default(OPEN)
+  details           Json
+  occurrences       Int                             @default(1)
+  firstSeenAt       DateTime                        @default(now()) @db.Timestamptz(3)
+  lastSeenAt        DateTime                        @default(now()) @db.Timestamptz(3)
+  resolvedAt        DateTime?                       @db.Timestamptz(3)
+  repairAuthorities StripeRefundRepairAuthority[]
+
+  @@index([status, lastSeenAt])
+  @@index([provider, providerObjectId])
+  @@map("stripe_reconciliation_issue")
 }
 
 model RuntimeConfigOverride {

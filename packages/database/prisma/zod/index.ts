@@ -180,13 +180,13 @@ export type BillingPlanScalarFieldEnum = z.infer<typeof BillingPlanScalarFieldEn
 
 // File: SubscriptionScalarFieldEnum.schema.ts
 
-export const SubscriptionScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'provider', 'providerSubscriptionId', 'planId', 'purchaseId', 'status', 'currentPeriodStart', 'currentPeriodEnd', 'cancelAtPeriodEnd', 'scheduledPlanId', 'lastProviderEventAt', 'lastProviderEventId', 'graceEndsAt', 'createdAt', 'updatedAt'])
+export const SubscriptionScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'provider', 'providerSubscriptionId', 'planId', 'purchaseId', 'status', 'currentPeriodStart', 'currentPeriodEnd', 'cancelAtPeriodEnd', 'scheduledPlanId', 'lastProviderEventAt', 'lastProviderEventId', 'lastReconciliationSweepId', 'lastReconciliationAppliedSweepId', 'lastReconciledAt', 'graceEndsAt', 'createdAt', 'updatedAt'])
 
 export type SubscriptionScalarFieldEnum = z.infer<typeof SubscriptionScalarFieldEnumSchema>;
 
 // File: BillingPeriodScalarFieldEnum.schema.ts
 
-export const BillingPeriodScalarFieldEnumSchema = z.enum(['id', 'subscriptionId', 'startsAt', 'endsAt', 'status', 'creditAmount', 'grantReferenceKey', 'providerInvoiceId', 'providerChargeId', 'paidAmount', 'refundedAmount', 'refundedCredits', 'createdAt', 'updatedAt'])
+export const BillingPeriodScalarFieldEnumSchema = z.enum(['id', 'subscriptionId', 'startsAt', 'endsAt', 'status', 'creditAmount', 'grantReferenceKey', 'providerInvoiceId', 'providerInvoicePaymentId', 'providerChargeId', 'providerPaymentIntentId', 'paidAmount', 'refundedAmount', 'refundedCredits', 'createdAt', 'updatedAt'])
 
 export type BillingPeriodScalarFieldEnum = z.infer<typeof BillingPeriodScalarFieldEnumSchema>;
 
@@ -195,6 +195,42 @@ export type BillingPeriodScalarFieldEnum = z.infer<typeof BillingPeriodScalarFie
 export const PaymentEventScalarFieldEnumSchema = z.enum(['id', 'provider', 'providerEventId', 'normalizedTransactionId', 'verifiedAt', 'receivedAt', 'envelope', 'status', 'processedAt', 'failureReason', 'attemptCount', 'lastTriggerAttempt', 'lastAttemptAt', 'lastTriggerRunId', 'lastErrorClass', 'processingToken', 'processingLeasedUntil'])
 
 export type PaymentEventScalarFieldEnum = z.infer<typeof PaymentEventScalarFieldEnumSchema>;
+
+// File: StripeRefundScalarFieldEnum.schema.ts
+
+export const StripeRefundScalarFieldEnumSchema = z.enum(['id', 'provider', 'providerRefundId', 'providerChargeId', 'providerPaymentIntentId', 'amount', 'currency', 'status', 'providerCreatedAt', 'lastProviderChangeAt', 'lastProviderChangeId', 'finalizedCredits', 'creditsFinalizedAt', 'createdAt', 'updatedAt'])
+
+export type StripeRefundScalarFieldEnum = z.infer<typeof StripeRefundScalarFieldEnumSchema>;
+
+// File: StripeRefundRepairAuthorityScalarFieldEnum.schema.ts
+
+export const StripeRefundRepairAuthorityScalarFieldEnumSchema = z.enum(['id', 'approvalKey', 'refundId', 'issueId', 'action', 'lifecycleStatus', 'lifecycleLastProviderChangeId', 'lifecycleLastProviderChangeAt', 'approvedCredits', 'ledgerFingerprint', 'approvedByUserId', 'reason', 'createdAt'])
+
+export type StripeRefundRepairAuthorityScalarFieldEnum = z.infer<typeof StripeRefundRepairAuthorityScalarFieldEnumSchema>;
+
+// File: StripeRefundRepairReceiptScalarFieldEnum.schema.ts
+
+export const StripeRefundRepairReceiptScalarFieldEnumSchema = z.enum(['id', 'authorityId', 'operationKey', 'appliedByUserId', 'reason', 'compensatedCredits', 'appliedAt'])
+
+export type StripeRefundRepairReceiptScalarFieldEnum = z.infer<typeof StripeRefundRepairReceiptScalarFieldEnumSchema>;
+
+// File: StripeRefundReceiptScalarFieldEnum.schema.ts
+
+export const StripeRefundReceiptScalarFieldEnumSchema = z.enum(['id', 'refundId', 'paymentEventId', 'createdAt'])
+
+export type StripeRefundReceiptScalarFieldEnum = z.infer<typeof StripeRefundReceiptScalarFieldEnumSchema>;
+
+// File: StripeReconciliationCheckpointScalarFieldEnum.schema.ts
+
+export const StripeReconciliationCheckpointScalarFieldEnumSchema = z.enum(['id', 'provider', 'status', 'sweepId', 'sweepCutoff', 'stage', 'cursor', 'leaseToken', 'leasedUntil', 'pagesProcessed', 'continuationSequence', 'failureCount', 'lastAttemptAt', 'lastCompletedAt', 'lastErrorCode', 'createdAt', 'updatedAt'])
+
+export type StripeReconciliationCheckpointScalarFieldEnum = z.infer<typeof StripeReconciliationCheckpointScalarFieldEnumSchema>;
+
+// File: StripeReconciliationIssueScalarFieldEnum.schema.ts
+
+export const StripeReconciliationIssueScalarFieldEnumSchema = z.enum(['id', 'issueKey', 'provider', 'sweepId', 'stage', 'code', 'entityType', 'providerObjectId', 'status', 'details', 'occurrences', 'firstSeenAt', 'lastSeenAt', 'resolvedAt'])
+
+export type StripeReconciliationIssueScalarFieldEnum = z.infer<typeof StripeReconciliationIssueScalarFieldEnumSchema>;
 
 // File: RuntimeConfigOverrideScalarFieldEnum.schema.ts
 
@@ -369,6 +405,36 @@ export type SubscriptionStatus = z.infer<typeof SubscriptionStatusSchema>;
 export const BillingPeriodStatusSchema = z.enum(['PENDING', 'ACTIVE', 'CLOSED', 'VOID', 'REFUNDED'])
 
 export type BillingPeriodStatus = z.infer<typeof BillingPeriodStatusSchema>;
+
+// File: StripeRefundStatus.schema.ts
+
+export const StripeRefundStatusSchema = z.enum(['PENDING', 'REQUIRES_ACTION', 'SUCCEEDED', 'FAILED', 'CANCELED'])
+
+export type StripeRefundStatus = z.infer<typeof StripeRefundStatusSchema>;
+
+// File: StripeRefundRepairAction.schema.ts
+
+export const StripeRefundRepairActionSchema = z.enum(['CONFIRM_SUCCEEDED', 'COMPENSATE_FAILED_OR_CANCELED'])
+
+export type StripeRefundRepairAction = z.infer<typeof StripeRefundRepairActionSchema>;
+
+// File: StripeReconciliationStatus.schema.ts
+
+export const StripeReconciliationStatusSchema = z.enum(['IDLE', 'RUNNING'])
+
+export type StripeReconciliationStatus = z.infer<typeof StripeReconciliationStatusSchema>;
+
+// File: StripeReconciliationStage.schema.ts
+
+export const StripeReconciliationStageSchema = z.enum(['SUBSCRIPTIONS', 'INVOICES', 'REFUNDS'])
+
+export type StripeReconciliationStage = z.infer<typeof StripeReconciliationStageSchema>;
+
+// File: StripeReconciliationIssueStatus.schema.ts
+
+export const StripeReconciliationIssueStatusSchema = z.enum(['OPEN', 'RESOLVED'])
+
+export type StripeReconciliationIssueStatus = z.infer<typeof StripeReconciliationIssueStatusSchema>;
 
 // File: GenerationDraftStatus.schema.ts
 
@@ -986,6 +1052,9 @@ export const SubscriptionSchema = z.object({
   scheduledPlanId: z.string().nullish(),
   lastProviderEventAt: z.date().nullish(),
   lastProviderEventId: z.string().nullish(),
+  lastReconciliationSweepId: z.string().nullish(),
+  lastReconciliationAppliedSweepId: z.string().nullish(),
+  lastReconciledAt: z.date().nullish(),
   graceEndsAt: z.date().nullish(),
   createdAt: z.date(),
   updatedAt: z.date(),
@@ -1005,7 +1074,9 @@ export const BillingPeriodSchema = z.object({
   creditAmount: z.bigint(),
   grantReferenceKey: z.string().nullish(),
   providerInvoiceId: z.string().nullish(),
+  providerInvoicePaymentId: z.string().nullish(),
   providerChargeId: z.string().nullish(),
+  providerPaymentIntentId: z.string().nullish(),
   paidAmount: z.bigint().default(BigInt(0)),
   refundedAmount: z.bigint().default(BigInt(0)),
   refundedCredits: z.bigint().default(BigInt(0)),
@@ -1039,6 +1110,124 @@ export const PaymentEventSchema = z.object({
 });
 
 export type PaymentEventType = z.infer<typeof PaymentEventSchema>;
+
+
+// File: StripeRefund.schema.ts
+
+export const StripeRefundSchema = z.object({
+  id: z.string(),
+  provider: z.string(),
+  providerRefundId: z.string(),
+  providerChargeId: z.string(),
+  providerPaymentIntentId: z.string().nullish(),
+  amount: z.bigint(),
+  currency: z.string(),
+  status: StripeRefundStatusSchema,
+  providerCreatedAt: z.date(),
+  lastProviderChangeAt: z.date(),
+  lastProviderChangeId: z.string(),
+  finalizedCredits: z.bigint().default(BigInt("0")),
+  creditsFinalizedAt: z.date().nullish(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export type StripeRefundType = z.infer<typeof StripeRefundSchema>;
+
+
+// File: StripeRefundRepairAuthority.schema.ts
+
+export const StripeRefundRepairAuthoritySchema = z.object({
+  id: z.string(),
+  approvalKey: z.string(),
+  refundId: z.string(),
+  issueId: z.string(),
+  action: StripeRefundRepairActionSchema,
+  lifecycleStatus: StripeRefundStatusSchema,
+  lifecycleLastProviderChangeId: z.string(),
+  lifecycleLastProviderChangeAt: z.date(),
+  approvedCredits: z.bigint(),
+  ledgerFingerprint: z.string(),
+  approvedByUserId: z.string(),
+  reason: z.string(),
+  createdAt: z.date(),
+});
+
+export type StripeRefundRepairAuthorityType = z.infer<typeof StripeRefundRepairAuthoritySchema>;
+
+
+// File: StripeRefundRepairReceipt.schema.ts
+
+export const StripeRefundRepairReceiptSchema = z.object({
+  id: z.string(),
+  authorityId: z.string(),
+  operationKey: z.string(),
+  appliedByUserId: z.string(),
+  reason: z.string(),
+  compensatedCredits: z.bigint().default(BigInt("0")),
+  appliedAt: z.date(),
+});
+
+export type StripeRefundRepairReceiptType = z.infer<typeof StripeRefundRepairReceiptSchema>;
+
+
+// File: StripeRefundReceipt.schema.ts
+
+export const StripeRefundReceiptSchema = z.object({
+  id: z.string(),
+  refundId: z.string(),
+  paymentEventId: z.string(),
+  createdAt: z.date(),
+});
+
+export type StripeRefundReceiptType = z.infer<typeof StripeRefundReceiptSchema>;
+
+
+// File: StripeReconciliationCheckpoint.schema.ts
+
+export const StripeReconciliationCheckpointSchema = z.object({
+  id: z.string(),
+  provider: z.string(),
+  status: StripeReconciliationStatusSchema.default("IDLE"),
+  sweepId: z.string().nullish(),
+  sweepCutoff: z.date().nullish(),
+  stage: StripeReconciliationStageSchema.default("SUBSCRIPTIONS"),
+  cursor: z.string().nullish(),
+  leaseToken: z.string().nullish(),
+  leasedUntil: z.date().nullish(),
+  pagesProcessed: z.number().int(),
+  continuationSequence: z.number().int(),
+  failureCount: z.number().int(),
+  lastAttemptAt: z.date().nullish(),
+  lastCompletedAt: z.date().nullish(),
+  lastErrorCode: z.string().nullish(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export type StripeReconciliationCheckpointType = z.infer<typeof StripeReconciliationCheckpointSchema>;
+
+
+// File: StripeReconciliationIssue.schema.ts
+
+export const StripeReconciliationIssueSchema = z.object({
+  id: z.string(),
+  issueKey: z.string(),
+  provider: z.string(),
+  sweepId: z.string(),
+  stage: StripeReconciliationStageSchema,
+  code: z.string(),
+  entityType: z.string(),
+  providerObjectId: z.string(),
+  status: StripeReconciliationIssueStatusSchema.default("OPEN"),
+  details: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10"),
+  occurrences: z.number().int().default(1),
+  firstSeenAt: z.date(),
+  lastSeenAt: z.date(),
+  resolvedAt: z.date().nullish(),
+});
+
+export type StripeReconciliationIssueType = z.infer<typeof StripeReconciliationIssueSchema>;
 
 
 // File: RuntimeConfigOverride.schema.ts

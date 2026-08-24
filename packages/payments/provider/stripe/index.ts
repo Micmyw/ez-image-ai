@@ -24,7 +24,7 @@ export function getStripeClient() {
 		throw new Error("Missing env variable STRIPE_SECRET_KEY");
 	}
 
-	stripeClient = new Stripe(stripeSecretKey);
+	stripeClient = new Stripe(stripeSecretKey, { apiVersion: "2026-07-29.dahlia" });
 
 	return stripeClient;
 }

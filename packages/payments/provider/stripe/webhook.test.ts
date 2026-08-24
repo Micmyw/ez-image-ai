@@ -1,10 +1,20 @@
 import Stripe from "stripe";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const { loggerError } = vi.hoisted(() => ({ loggerError: vi.fn() }));
+
+vi.mock("@repo/logs", () => ({
+	logger: { error: loggerError },
+}));
 
 import { createStripeWebhookHandler } from "./webhook";
 import { getStripeNormalizedTransactionId } from "./webhook";
 
 describe("Stripe webhook", () => {
+	beforeEach(() => {
+		loggerError.mockReset();
+	});
+
 	it("verifies the raw signature before persistence and returns fast success", async () => {
 		const secret = "whsec_test_secret";
 		const raw = JSON.stringify({
@@ -57,13 +67,63 @@ describe("Stripe webhook", () => {
 		expect(persist).not.toHaveBeenCalled();
 	});
 
+	it("logs only an allowlisted database failure class when persistence fails", async () => {
+		const secret = "whsec_test_secret";
+		const leakedValue = "raw-envelope-must-not-reach-logs";
+		const raw = JSON.stringify({
+			id: "evt_persistence_failed",
+			object: "event",
+			api_version: "2026-07-29.dahlia",
+			created: 1_786_590_000,
+			type: "invoice.paid",
+			data: { object: { id: "in_failed", private_note: leakedValue } },
+		});
+		const signature = Stripe.webhooks.generateTestHeaderString({ payload: raw, secret });
+		const persistenceError = Object.assign(new Error(`database failed: ${leakedValue}`), {
+			code: "P1001",
+			rawEnvelope: { privateNote: leakedValue },
+		});
+		const handler = createStripeWebhookHandler({
+			stripe: new Stripe("sk_test_fixture"),
+			webhookSecret: secret,
+			persist: vi.fn().mockRejectedValue(persistenceError),
+		});
+
+		const response = await handler(
+			new Request("https://example.com/api/webhooks/payments", {
+				method: "POST",
+				headers: { "stripe-signature": signature },
+				body: raw,
+			}),
+		);
+
+		expect(response.status).toBe(500);
+		expect(loggerError).toHaveBeenCalledWith(
+			{
+				errorClass: "DATABASE_UNAVAILABLE",
+				providerEventId: "evt_persistence_failed",
+			},
+			"Stripe payment event persistence failed",
+		);
+		expect(JSON.stringify(loggerError.mock.calls)).not.toContain(leakedValue);
+	});
+
 	it("uses each refund ID rather than the shared charge as its idempotency transaction", () => {
-		expect(
-			getStripeNormalizedTransactionId({
-				type: "refund.created",
-				data: { object: { id: "re_first", charge: "ch_shared" } },
-			} as never),
-		).toBe("refund:re_first");
+		for (const type of [
+			"refund.created",
+			"refund.updated",
+			"refund.failed",
+			"charge.refund.updated",
+		] as const) {
+			expect(
+				getStripeNormalizedTransactionId({
+					type,
+					data: {
+						object: { id: "re_first", charge: "ch_shared", payment_intent: "pi_shared" },
+					},
+				} as never),
+			).toBe("refund:re_first");
+		}
 		expect(
 			getStripeNormalizedTransactionId({
 				type: "refund.created",

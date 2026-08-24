@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-08-24
+
+### Fixed
+
+- Made Stripe payment-event failures retry through Trigger.dev with durable leases, bounded
+  dead-letter recovery, safe diagnostics, and exact event-ID idempotency.
+- Added current Stripe subscription, paid-invoice, and refund reconciliation with resumable
+  checkpoints, terminal-state conflict review, cumulative partial-refund accounting, and recovery
+  of missed Webhooks without granting expired historical periods.
+- Added a two-administrator, snapshot-fenced forward-repair workflow for legacy early refund
+  mutations. Immutable approval/receipt records authorize either full-charge succeeded
+  finalization or failed/canceled credit compensation and future-period restoration without
+  rewriting the credit ledger.
+- Kept partially refunded annual-period grants replayable at their original net command, allowed a
+  fresh approval only when an unapplied repair authority's frozen charge snapshot changes, and
+  prevented already-expired Purchase rows from starving later deadline-sync batches.
+
 ## 2026-08-14
 
 ### Added

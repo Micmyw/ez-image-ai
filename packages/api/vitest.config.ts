@@ -13,5 +13,6 @@ export default defineConfig({
 			GEMINI_API_KEY: "test-gemini-key",
 			RESEND_API_KEY: "re_test_api_key",
 		},
+		fileParallelism: false,
 	},
 });

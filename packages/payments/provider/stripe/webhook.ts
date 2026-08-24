@@ -14,7 +14,12 @@ export function getStripeNormalizedTransactionId(event: Stripe.Event): string | 
 		charge?: string | Stripe.Charge | null;
 		payment_intent?: string | Stripe.PaymentIntent | null;
 	};
-	if (event.type === "refund.created" || event.type === "charge.refund.updated") {
+	if (
+		event.type === "refund.created" ||
+		event.type === "refund.updated" ||
+		event.type === "refund.failed" ||
+		event.type === "charge.refund.updated"
+	) {
 		return object.id ? `refund:${object.id}` : undefined;
 	}
 	if (event.type === "invoice.paid") return object.id ? `invoice:${object.id}` : undefined;
@@ -54,8 +59,32 @@ export function createStripeWebhookHandler(dependencies: StripeWebhookDependenci
 			});
 			return new Response(null, { status: 204 });
 		} catch (error) {
-			logger.error({ error, providerEventId: event.id }, "Stripe payment event persistence failed");
+			logger.error(
+				{ errorClass: classifyPersistenceError(error), providerEventId: event.id },
+				"Stripe payment event persistence failed",
+			);
 			return new Response("Webhook persistence failed.", { status: 500 });
 		}
 	};
+}
+
+function classifyPersistenceError(
+	error: unknown,
+): "DATABASE_CONFLICT" | "DATABASE_UNAVAILABLE" | "DATABASE_ERROR" {
+	const code =
+		error && typeof error === "object" && "code" in error && typeof error.code === "string"
+			? error.code
+			: undefined;
+	if (code === "P2002") return "DATABASE_CONFLICT";
+	if (
+		code === "P1000" ||
+		code === "P1001" ||
+		code === "P1002" ||
+		code === "P1008" ||
+		code === "P1017" ||
+		code === "P2024"
+	) {
+		return "DATABASE_UNAVAILABLE";
+	}
+	return "DATABASE_ERROR";
 }

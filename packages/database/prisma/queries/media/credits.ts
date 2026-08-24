@@ -324,14 +324,19 @@ export async function expireCreditLots(
 	input: { accountId: string; now?: Date },
 	client: MediaTransactionClient,
 ) {
-	return runSerializable(client, async (tx) => {
-		await lockAccount(tx, input.accountId);
-		const lots = await lockAllLots(tx, input.accountId);
-		return materializeExpiredLots(tx, {
-			accountId: input.accountId,
-			lots,
-			now: input.now ?? new Date(),
-		});
+	return runSerializable(client, (tx) => expireCreditLotsInTransaction(input, tx));
+}
+
+export async function expireCreditLotsInTransaction(
+	input: { accountId: string; now?: Date },
+	tx: Prisma.TransactionClient,
+) {
+	await lockAccount(tx, input.accountId);
+	const lots = await lockAllLots(tx, input.accountId);
+	return materializeExpiredLots(tx, {
+		accountId: input.accountId,
+		lots,
+		now: input.now ?? new Date(),
 	});
 }
 

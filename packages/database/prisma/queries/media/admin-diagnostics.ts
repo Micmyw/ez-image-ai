@@ -11,6 +11,7 @@ interface AggregateCountAge {
 }
 
 const PAYMENT_EVENT_DIAGNOSTIC_LIMIT = 25;
+const STRIPE_RECONCILIATION_DIAGNOSTIC_LIMIT = 25;
 
 interface PaymentEventDiagnosticRow {
 	id: string;
@@ -162,6 +163,41 @@ export async function listAdminUncertainGenerationAttempts(
 	}));
 }
 
+interface StripeReconciliationCheckpointDiagnosticRow {
+	provider: string;
+	status: string;
+	stage: string;
+	pages: number;
+	failures: number;
+	cutoff: Date | null;
+	lastAttempt: Date | null;
+	lastCompleted: Date | null;
+	lastError: string | null;
+	hasCursor: boolean;
+	leaseActive: boolean;
+}
+
+interface HistoricalStripeRefundDiagnosticRow {
+	providerRefundId: string;
+	reason:
+		| "MISSING_LIFECYCLE"
+		| "NON_SUCCEEDED_LIFECYCLE"
+		| "FINALIZATION_MISSING"
+		| "CREDIT_TOTAL_MISMATCH";
+	lifecycleStatus: string | null;
+	ledgerEntryCount: bigint;
+	ledgerCredits: bigint;
+	finalizedCredits: bigint | null;
+	creditsFinalizedAt: Date | null;
+	firstLedgerAt: Date;
+	lastLedgerAt: Date;
+}
+
+interface HistoricalStripeRefundCountRow {
+	needsReviewCount: bigint;
+	missingLifecycleCount: bigint;
+}
+
 export async function getAdminMediaDiagnostics(client: MediaTransactionClient) {
 	const now = new Date();
 	const stalledBefore = new Date(now.getTime() - 15 * 60_000);
@@ -182,6 +218,11 @@ export async function getAdminMediaDiagnostics(client: MediaTransactionClient) {
 		failedPaymentEvents,
 		deadLetterPaymentEvents,
 		ignoredPaymentEvents,
+		stripeReconciliationCheckpoints,
+		openStripeReconciliationIssueCount,
+		openStripeReconciliationIssues,
+		historicalStripeRefundCountRows,
+		historicalStripeRefundRows,
 		overrides,
 	] = await Promise.all([
 		client.$queryRaw<Array<AggregateCountAge>>`
@@ -230,17 +271,17 @@ export async function getAdminMediaDiagnostics(client: MediaTransactionClient) {
 			Array<{ revenueMicros: bigint; refundedMicros: bigint; providerCostMicros: bigint }>
 		>`
 			SELECT
-			 COALESCE((SELECT SUM((event."envelope" #>> '{data,object,amount_paid}')::bigint) * 10000
-				FROM "payment_event" event
-				WHERE event."status" = 'PROCESSED' AND event."processedAt" >= ${dayStart}
-				  AND event."envelope" ->> 'type' = 'invoice.paid'),0)::bigint AS "revenueMicros",
-			 COALESCE((SELECT SUM(CASE event."envelope" ->> 'type'
-				WHEN 'refund.created' THEN (event."envelope" #>> '{data,object,amount}')::bigint
-				WHEN 'charge.refund.updated' THEN (event."envelope" #>> '{data,object,amount}')::bigint
-				ELSE 0 END) * 10000
-				FROM "payment_event" event
-				WHERE event."status" = 'PROCESSED' AND event."processedAt" >= ${dayStart}
-				  AND event."envelope" ->> 'type' IN ('refund.created', 'charge.refund.updated')),0)::bigint AS "refundedMicros",
+			 COALESCE((SELECT SUM(invoice."paidAmount") * 10000
+				FROM (
+					SELECT "providerInvoiceId", MAX("paidAmount") AS "paidAmount"
+					FROM "billing_period"
+					WHERE "createdAt" >= ${dayStart} AND "providerInvoiceId" IS NOT NULL
+					GROUP BY "providerInvoiceId"
+				) invoice),0)::bigint AS "revenueMicros",
+			 COALESCE((SELECT SUM(refund."amount") * 10000
+				FROM "stripe_refund" refund
+				WHERE refund."status" = 'SUCCEEDED'
+				  AND refund."creditsFinalizedAt" >= ${dayStart}),0)::bigint AS "refundedMicros",
 			 COALESCE((SELECT SUM("providerCostMicros") FROM "generation_attempt"
 				WHERE "completedAt" >= ${dayStart}),0)::bigint AS "providerCostMicros"`,
 		client.$queryRaw<
@@ -274,6 +315,160 @@ export async function getAdminMediaDiagnostics(client: MediaTransactionClient) {
 			orderBy: [{ lastAttemptAt: { sort: "desc", nulls: "last" } }, { receivedAt: "desc" }],
 			take: PAYMENT_EVENT_DIAGNOSTIC_LIMIT,
 		}),
+		client.$queryRaw<Array<StripeReconciliationCheckpointDiagnosticRow>>`
+			SELECT "provider",
+			       "status"::text AS status,
+			       "stage"::text AS stage,
+			       "pagesProcessed" AS pages,
+			       "failureCount" AS failures,
+			       "sweepCutoff" AS cutoff,
+			       "lastAttemptAt" AS "lastAttempt",
+			       "lastCompletedAt" AS "lastCompleted",
+			       "lastErrorCode" AS "lastError",
+			       ("cursor" IS NOT NULL) AS "hasCursor",
+			       COALESCE(("status" = 'RUNNING'
+			        AND "leaseToken" IS NOT NULL
+			        AND "leasedUntil" > now()), false) AS "leaseActive"
+			FROM "stripe_reconciliation_checkpoint"
+			WHERE "provider" = 'stripe'
+			LIMIT 1`,
+		client.stripeReconciliationIssue.count({
+			where: { provider: "stripe", status: "OPEN" },
+		}),
+		client.stripeReconciliationIssue.findMany({
+			where: { provider: "stripe", status: "OPEN" },
+			select: {
+				code: true,
+				entityType: true,
+				providerObjectId: true,
+				stage: true,
+				occurrences: true,
+				firstSeenAt: true,
+				lastSeenAt: true,
+			},
+			orderBy: [{ lastSeenAt: "desc" }, { id: "desc" }],
+			take: STRIPE_RECONCILIATION_DIAGNOSTIC_LIMIT,
+		}),
+		client.$queryRaw<Array<HistoricalStripeRefundCountRow>>`
+			WITH legacy_refund AS (
+				SELECT split_part(entry."referenceKey", ':', 2) AS "providerRefundId",
+				       SUM(entry."amount")::bigint AS "ledgerCredits"
+				FROM "credit_ledger_entry" entry
+				WHERE entry."type" = 'REFUND'
+				  AND entry."referenceKey" LIKE 'stripe-refund:%'
+				  AND entry."referenceKey" ~ '^stripe-refund:re_[A-Za-z0-9_-]+:[^:]+$'
+				GROUP BY split_part(entry."referenceKey", ':', 2)
+			), compensated_repair AS (
+				SELECT refund."providerRefundId", authority."approvedCredits"
+				FROM "stripe_refund_repair_authority" authority
+				JOIN "stripe_refund_repair_receipt" receipt
+				  ON receipt."authorityId" = authority."id"
+				 AND receipt."compensatedCredits" = authority."approvedCredits"
+				JOIN "stripe_refund" refund ON refund."id" = authority."refundId"
+				JOIN "stripe_reconciliation_issue" issue
+				  ON issue."id" = authority."issueId"
+				 AND issue."provider" = 'stripe'
+				 AND issue."entityType" = 'REFUND'
+				 AND issue."providerObjectId" = refund."providerRefundId"
+				 AND issue."code" = 'STRIPE_LEGACY_REFUND_REPAIR_REQUIRED'
+				 AND issue."issueKey" =
+				     'stripe:REFUND:' || refund."providerRefundId" || ':STRIPE_LEGACY_REFUND_REPAIR_REQUIRED'
+				 AND issue."status" = 'RESOLVED'
+				JOIN "credit_ledger_entry" compensation
+				  ON compensation."type" IN ('GRANT', 'DEBT_REPAYMENT')
+				 AND compensation."metadata" #>> '{command,metadata,authorityId}' = authority."id"
+				 AND compensation."metadata" #>> '{command,metadata,providerRefundId}' =
+				     refund."providerRefundId"
+				WHERE authority."action" = 'COMPENSATE_FAILED_OR_CANCELED'
+				GROUP BY refund."providerRefundId", authority."id", authority."approvedCredits"
+				HAVING SUM(compensation."amount") = authority."approvedCredits"
+			)
+			SELECT COUNT(*) FILTER (
+			         WHERE (
+			                 refund."id" IS NULL
+			                 OR refund."status" <> 'SUCCEEDED'
+			                 OR refund."creditsFinalizedAt" IS NULL
+			                 OR refund."finalizedCredits" < legacy."ledgerCredits"
+			               )
+			           AND NOT EXISTS (
+			                 SELECT 1 FROM compensated_repair repair
+			                 WHERE repair."providerRefundId" = legacy."providerRefundId"
+			                   AND repair."approvedCredits" = legacy."ledgerCredits"
+			               )
+			       )::bigint AS "needsReviewCount",
+			       COUNT(*) FILTER (WHERE refund."id" IS NULL)::bigint AS "missingLifecycleCount"
+			FROM legacy_refund legacy
+			LEFT JOIN "stripe_refund" refund
+			  ON refund."provider" = 'stripe'
+			 AND refund."providerRefundId" = legacy."providerRefundId"`,
+		client.$queryRaw<Array<HistoricalStripeRefundDiagnosticRow>>`
+			WITH legacy_refund AS (
+				SELECT split_part(entry."referenceKey", ':', 2) AS "providerRefundId",
+				       COUNT(*)::bigint AS "ledgerEntryCount",
+				       SUM(entry."amount")::bigint AS "ledgerCredits",
+				       MIN(entry."createdAt") AS "firstLedgerAt",
+				       MAX(entry."createdAt") AS "lastLedgerAt"
+				FROM "credit_ledger_entry" entry
+				WHERE entry."type" = 'REFUND'
+				  AND entry."referenceKey" LIKE 'stripe-refund:%'
+				  AND entry."referenceKey" ~ '^stripe-refund:re_[A-Za-z0-9_-]+:[^:]+$'
+				GROUP BY split_part(entry."referenceKey", ':', 2)
+			), compensated_repair AS (
+				SELECT refund."providerRefundId", authority."approvedCredits"
+				FROM "stripe_refund_repair_authority" authority
+				JOIN "stripe_refund_repair_receipt" receipt
+				  ON receipt."authorityId" = authority."id"
+				 AND receipt."compensatedCredits" = authority."approvedCredits"
+				JOIN "stripe_refund" refund ON refund."id" = authority."refundId"
+				JOIN "stripe_reconciliation_issue" issue
+				  ON issue."id" = authority."issueId"
+				 AND issue."provider" = 'stripe'
+				 AND issue."entityType" = 'REFUND'
+				 AND issue."providerObjectId" = refund."providerRefundId"
+				 AND issue."code" = 'STRIPE_LEGACY_REFUND_REPAIR_REQUIRED'
+				 AND issue."issueKey" =
+				     'stripe:REFUND:' || refund."providerRefundId" || ':STRIPE_LEGACY_REFUND_REPAIR_REQUIRED'
+				 AND issue."status" = 'RESOLVED'
+				JOIN "credit_ledger_entry" compensation
+				  ON compensation."type" IN ('GRANT', 'DEBT_REPAYMENT')
+				 AND compensation."metadata" #>> '{command,metadata,authorityId}' = authority."id"
+				 AND compensation."metadata" #>> '{command,metadata,providerRefundId}' =
+				     refund."providerRefundId"
+				WHERE authority."action" = 'COMPENSATE_FAILED_OR_CANCELED'
+				GROUP BY refund."providerRefundId", authority."id", authority."approvedCredits"
+				HAVING SUM(compensation."amount") = authority."approvedCredits"
+			)
+			SELECT legacy."providerRefundId",
+			       CASE
+			         WHEN refund."id" IS NULL THEN 'MISSING_LIFECYCLE'
+			         WHEN refund."status" <> 'SUCCEEDED' THEN 'NON_SUCCEEDED_LIFECYCLE'
+			         WHEN refund."creditsFinalizedAt" IS NULL THEN 'FINALIZATION_MISSING'
+			         ELSE 'CREDIT_TOTAL_MISMATCH'
+			       END AS reason,
+			       refund."status"::text AS "lifecycleStatus",
+			       legacy."ledgerEntryCount",
+			       legacy."ledgerCredits",
+			       refund."finalizedCredits",
+			       refund."creditsFinalizedAt",
+			       legacy."firstLedgerAt",
+			       legacy."lastLedgerAt"
+			FROM legacy_refund legacy
+			LEFT JOIN "stripe_refund" refund
+			  ON refund."provider" = 'stripe'
+			 AND refund."providerRefundId" = legacy."providerRefundId"
+			WHERE (
+				refund."id" IS NULL
+				OR refund."status" <> 'SUCCEEDED'
+				OR refund."creditsFinalizedAt" IS NULL
+				OR refund."finalizedCredits" < legacy."ledgerCredits"
+			)
+			  AND NOT EXISTS (
+				SELECT 1 FROM compensated_repair repair
+				WHERE repair."providerRefundId" = legacy."providerRefundId"
+				  AND repair."approvedCredits" = legacy."ledgerCredits"
+			  )
+			ORDER BY legacy."lastLedgerAt" DESC, legacy."providerRefundId" DESC
+			LIMIT ${STRIPE_RECONCILIATION_DIAGNOSTIC_LIMIT}`,
 		client.runtimeConfigOverride.findMany({
 			where: { active: true },
 			select: {
@@ -304,6 +499,11 @@ export async function getAdminMediaDiagnostics(client: MediaTransactionClient) {
 		paymentFailed: 0n,
 		paymentDeadLetter: 0n,
 		paymentIgnored: 0n,
+	};
+	const stripeReconciliationCheckpoint = stripeReconciliationCheckpoints[0];
+	const historicalStripeRefundCounts = historicalStripeRefundCountRows[0] ?? {
+		needsReviewCount: 0n,
+		missingLifecycleCount: 0n,
 	};
 	const netRevenue = finance.revenueMicros - finance.refundedMicros;
 	return {
@@ -351,6 +551,50 @@ export async function getAdminMediaDiagnostics(client: MediaTransactionClient) {
 				ignored: paymentEventDiagnosticBucket(events.paymentIgnored, ignoredPaymentEvents),
 			},
 		},
+		stripeReconciliation: {
+			checkpoint: stripeReconciliationCheckpoint
+				? {
+						provider: stripeReconciliationCheckpoint.provider,
+						status: stripeReconciliationCheckpoint.status,
+						stage: stripeReconciliationCheckpoint.stage,
+						pages: stripeReconciliationCheckpoint.pages,
+						failures: stripeReconciliationCheckpoint.failures,
+						cutoff: stripeReconciliationCheckpoint.cutoff?.toISOString() ?? null,
+						lastAttempt: stripeReconciliationCheckpoint.lastAttempt?.toISOString() ?? null,
+						lastCompleted: stripeReconciliationCheckpoint.lastCompleted?.toISOString() ?? null,
+						lastError: safeStripeDiagnosticCode(stripeReconciliationCheckpoint.lastError),
+						hasCursor: stripeReconciliationCheckpoint.hasCursor,
+						leaseActive: stripeReconciliationCheckpoint.leaseActive,
+					}
+				: null,
+			issues: {
+				openCount: openStripeReconciliationIssueCount,
+				items: openStripeReconciliationIssues.map((issue) => ({
+					code: safeStripeDiagnosticCode(issue.code) ?? "STRIPE_RECONCILIATION_ERROR_REDACTED",
+					entityType: issue.entityType,
+					providerObjectId: issue.providerObjectId,
+					stage: issue.stage,
+					occurrences: issue.occurrences,
+					firstSeenAt: issue.firstSeenAt.toISOString(),
+					lastSeenAt: issue.lastSeenAt.toISOString(),
+				})),
+			},
+			historicalRefunds: {
+				needsReviewCount: Number(historicalStripeRefundCounts.needsReviewCount),
+				missingLifecycleCount: Number(historicalStripeRefundCounts.missingLifecycleCount),
+				items: historicalStripeRefundRows.map((refund) => ({
+					providerRefundId: refund.providerRefundId,
+					reason: refund.reason,
+					lifecycleStatus: refund.lifecycleStatus,
+					ledgerEntryCount: Number(refund.ledgerEntryCount),
+					ledgerCredits: refund.ledgerCredits.toString(),
+					finalizedCredits: refund.finalizedCredits?.toString() ?? null,
+					creditsFinalizedAt: refund.creditsFinalizedAt?.toISOString() ?? null,
+					firstLedgerAt: refund.firstLedgerAt.toISOString(),
+					lastLedgerAt: refund.lastLedgerAt.toISOString(),
+				})),
+			},
+		},
 		overrides: overrides.map((item) => ({
 			id: item.id,
 			configKey: item.configKey,
@@ -360,6 +604,12 @@ export async function getAdminMediaDiagnostics(client: MediaTransactionClient) {
 			createdAt: item.createdAt.toISOString(),
 		})),
 	};
+}
+
+function safeStripeDiagnosticCode(code: string | null): string | null {
+	return code === null || (code.length <= 128 && /^STRIPE_[A-Z0-9_]+$/.test(code))
+		? code
+		: "STRIPE_RECONCILIATION_ERROR_REDACTED";
 }
 
 const paymentEventDiagnosticSelect = {

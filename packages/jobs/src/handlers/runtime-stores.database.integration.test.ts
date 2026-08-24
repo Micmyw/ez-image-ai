@@ -2446,13 +2446,12 @@ function normalizedResult(outputKey: string) {
 function assertSafeTestDatabaseUrl(value: string | undefined): void {
 	if (!value) throw new Error("TEST_DATABASE_URL is required");
 	const parsed = new URL(value);
-	const databaseName = parsed.pathname.slice(1).toLowerCase();
-	if (
-		!["localhost", "127.0.0.1", "::1"].includes(parsed.hostname) ||
-		parsed.port !== "55432" ||
-		!/(^|[_-])(test|testing)([_-]|$)/.test(databaseName) ||
-		["postgres", "template0", "template1"].includes(databaseName)
-	) {
-		throw new Error("TEST_DATABASE_URL must target a local test database on port 55432");
+	const safeDatabase =
+		parsed.pathname === "/ai_media_foundation_test" ||
+		/^\/ezpic_[a-z0-9_]+_test$/.test(parsed.pathname);
+	if (parsed.hostname !== "127.0.0.1" || parsed.port !== "55432" || !safeDatabase) {
+		throw new Error(
+			"TEST_DATABASE_URL must target 127.0.0.1:55432/ai_media_foundation_test or a dedicated ezpic_*_test database",
+		);
 	}
 }

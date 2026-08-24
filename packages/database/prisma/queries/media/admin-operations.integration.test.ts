@@ -34,6 +34,52 @@ interface PaymentDiagnostics {
 			{ count: number; items: SafePaymentEventDiagnostic[] }
 		>;
 	};
+	stripeReconciliation: {
+		checkpoint: null | {
+			provider: string;
+			status: string;
+			stage: string;
+			pages: number;
+			failures: number;
+			cutoff: string | null;
+			lastAttempt: string | null;
+			lastCompleted: string | null;
+			lastError: string | null;
+			hasCursor: boolean;
+			leaseActive: boolean;
+		};
+		issues: {
+			openCount: number;
+			items: Array<{
+				code: string;
+				entityType: string;
+				providerObjectId: string;
+				stage: string;
+				occurrences: number;
+				firstSeenAt: string;
+				lastSeenAt: string;
+			}>;
+		};
+		historicalRefunds: {
+			needsReviewCount: number;
+			missingLifecycleCount: number;
+			items: Array<{
+				providerRefundId: string;
+				reason:
+					| "MISSING_LIFECYCLE"
+					| "NON_SUCCEEDED_LIFECYCLE"
+					| "FINALIZATION_MISSING"
+					| "CREDIT_TOTAL_MISMATCH";
+				lifecycleStatus: string | null;
+				ledgerEntryCount: number;
+				ledgerCredits: string;
+				finalizedCredits: string | null;
+				creditsFinalizedAt: string | null;
+				firstLedgerAt: string;
+				lastLedgerAt: string;
+			}>;
+		};
+	};
 }
 
 function safeTestDatabaseUrl(): string {
@@ -805,7 +851,363 @@ describe("admin media database operations", () => {
 		expect(redacted?.reasonCode).toBe("SUBMISSION_UNCERTAIN");
 	});
 
-	it("uses processed event time for revenue and completed time for provider cost", async () => {
+	it("returns only allowlisted Stripe reconciliation diagnostics", async () => {
+		const suffix = crypto.randomUUID();
+		const sweepId = `admin-diagnostic-sweep-${suffix}`;
+		const checkpointId = "stripe-billing-reconciliation";
+		const secretCursor = `secret-cursor-${suffix}`;
+		const secretLeaseToken = `secret-lease-token-${suffix}`;
+		const secretDetails = `secret-provider-envelope-${suffix}`;
+		const cutoff = new Date("2026-08-23T10:00:00.000Z");
+		const lastAttempt = new Date("2026-08-23T10:01:00.000Z");
+		const lastCompleted = new Date("2026-08-22T10:00:00.000Z");
+		const previous = await client.stripeReconciliationCheckpoint.findUnique({
+			where: { provider: "stripe" },
+		});
+		try {
+			await client.stripeReconciliationCheckpoint.upsert({
+				where: { provider: "stripe" },
+				create: {
+					id: checkpointId,
+					provider: "stripe",
+					status: "RUNNING",
+					sweepId,
+					sweepCutoff: cutoff,
+					stage: "INVOICES",
+					cursor: secretCursor,
+					leaseToken: secretLeaseToken,
+					leasedUntil: new Date(Date.now() + 60_000),
+					pagesProcessed: 7,
+					failureCount: 2,
+					lastAttemptAt: lastAttempt,
+					lastCompletedAt: lastCompleted,
+					lastErrorCode: secretDetails,
+				},
+				update: {
+					status: "RUNNING",
+					sweepId,
+					sweepCutoff: cutoff,
+					stage: "INVOICES",
+					cursor: secretCursor,
+					leaseToken: secretLeaseToken,
+					leasedUntil: new Date(Date.now() + 60_000),
+					pagesProcessed: 7,
+					failureCount: 2,
+					lastAttemptAt: lastAttempt,
+					lastCompletedAt: lastCompleted,
+					lastErrorCode: secretDetails,
+				},
+			});
+			await client.stripeReconciliationIssue.createMany({
+				data: Array.from({ length: 26 }, (_, index) => ({
+					issueKey: `admin-diagnostic-issue-${suffix}-${index}`,
+					provider: "stripe",
+					sweepId,
+					stage: "INVOICES" as const,
+					code: index === 25 ? secretDetails : "STRIPE_INVOICE_PAYMENT_METHOD_UNSUPPORTED",
+					entityType: "invoice",
+					providerObjectId: `in_admin_diagnostic_${suffix}_${index}`,
+					status: "OPEN" as const,
+					details: {
+						rawError: secretDetails,
+						envelope: { authorization: secretDetails },
+					},
+					occurrences: index + 1,
+					firstSeenAt: new Date(Date.UTC(2099, 0, 1, 0, 0, index)),
+					lastSeenAt: new Date(Date.UTC(2099, 0, 2, 0, 0, index)),
+				})),
+			});
+
+			const diagnostics = (await getAdminMediaDiagnostics(client)) as unknown as PaymentDiagnostics;
+			const reconciliation = diagnostics.stripeReconciliation;
+			expect(reconciliation.checkpoint).toEqual({
+				provider: "stripe",
+				status: "RUNNING",
+				stage: "INVOICES",
+				pages: 7,
+				failures: 2,
+				cutoff: cutoff.toISOString(),
+				lastAttempt: lastAttempt.toISOString(),
+				lastCompleted: lastCompleted.toISOString(),
+				lastError: "STRIPE_RECONCILIATION_ERROR_REDACTED",
+				hasCursor: true,
+				leaseActive: true,
+			});
+			expect(reconciliation.checkpoint).not.toHaveProperty("cursor");
+			expect(reconciliation.checkpoint).not.toHaveProperty("leaseToken");
+			expect(reconciliation.checkpoint).not.toHaveProperty("leasedUntil");
+			expect(reconciliation.issues.openCount).toBeGreaterThanOrEqual(26);
+			expect(reconciliation.issues.items).toHaveLength(25);
+			for (const issue of reconciliation.issues.items) {
+				expect(Object.keys(issue).sort()).toEqual(
+					[
+						"code",
+						"entityType",
+						"firstSeenAt",
+						"lastSeenAt",
+						"occurrences",
+						"providerObjectId",
+						"stage",
+					].sort(),
+				);
+			}
+			const serialized = JSON.stringify(reconciliation);
+			expect(serialized).not.toContain(secretCursor);
+			expect(serialized).not.toContain(secretLeaseToken);
+			expect(serialized).not.toContain(secretDetails);
+			expect(serialized).not.toContain('"details"');
+		} finally {
+			await client.stripeReconciliationIssue.deleteMany({ where: { sweepId } });
+			if (previous) {
+				await client.stripeReconciliationCheckpoint.update({
+					where: { id: previous.id },
+					data: {
+						status: previous.status,
+						sweepId: previous.sweepId,
+						sweepCutoff: previous.sweepCutoff,
+						stage: previous.stage,
+						cursor: previous.cursor,
+						leaseToken: previous.leaseToken,
+						leasedUntil: previous.leasedUntil,
+						pagesProcessed: previous.pagesProcessed,
+						failureCount: previous.failureCount,
+						lastAttemptAt: previous.lastAttemptAt,
+						lastCompletedAt: previous.lastCompletedAt,
+						lastErrorCode: previous.lastErrorCode,
+					},
+				});
+			} else {
+				await client.stripeReconciliationCheckpoint.deleteMany({
+					where: { provider: "stripe", sweepId },
+				});
+			}
+		}
+	});
+
+	it("reports historical Stripe refund ledger mutations without creating lifecycle state", async () => {
+		const suffix = crypto.randomUUID();
+		const missingRefundId = `re_historical_missing_${suffix}`;
+		const trackedRefundId = `re_historical_tracked_${suffix}`;
+		const consistentRefundId = `re_historical_consistent_${suffix}`;
+		const unfinalizedRefundId = `re_historical_unfinalized_${suffix}`;
+		const mismatchedRefundId = `re_historical_mismatched_${suffix}`;
+		const secretMetadata = `historical-raw-envelope-${suffix}`;
+		const firstLedgerAt = new Date(Date.now() + 1_000);
+		const lastLedgerAt = new Date(firstLedgerAt.getTime() + 1_000);
+		const account = await client.creditAccount.create({
+			data: { ownerType: "USER", ownerId: `historical-refund-owner-${suffix}` },
+		});
+		await client.creditLedgerEntry.createMany({
+			data: [
+				{
+					accountId: account.id,
+					type: "REFUND",
+					amount: 4n,
+					referenceKey: `stripe-refund:${missingRefundId}:period-a-${suffix}`,
+					metadata: { rawEnvelope: secretMetadata },
+					createdAt: firstLedgerAt,
+				},
+				{
+					accountId: account.id,
+					type: "REFUND",
+					amount: 6n,
+					referenceKey: `stripe-refund:${missingRefundId}:period-b-${suffix}`,
+					metadata: { rawEnvelope: secretMetadata },
+					createdAt: lastLedgerAt,
+				},
+				{
+					accountId: account.id,
+					type: "REFUND",
+					amount: 1n,
+					referenceKey: `stripe-refund:${trackedRefundId}:period-c-${suffix}`,
+					metadata: {},
+					createdAt: new Date(lastLedgerAt.getTime() + 1_000),
+				},
+				{
+					accountId: account.id,
+					type: "REFUND",
+					amount: 2n,
+					referenceKey: `stripe-refund:${consistentRefundId}:period-d-${suffix}`,
+					metadata: {},
+					createdAt: new Date(lastLedgerAt.getTime() + 2_000),
+				},
+				{
+					accountId: account.id,
+					type: "REFUND",
+					amount: 3n,
+					referenceKey: `stripe-refund:${unfinalizedRefundId}:period-e-${suffix}`,
+					metadata: {},
+					createdAt: new Date(lastLedgerAt.getTime() + 3_000),
+				},
+				{
+					accountId: account.id,
+					type: "REFUND",
+					amount: 4n,
+					referenceKey: `stripe-refund:${mismatchedRefundId}:period-f-${suffix}`,
+					metadata: {},
+					createdAt: new Date(lastLedgerAt.getTime() + 4_000),
+				},
+			],
+		});
+		await client.stripeRefund.createMany({
+			data: [
+				{
+					provider: "stripe",
+					providerRefundId: trackedRefundId,
+					providerChargeId: `ch_historical_${suffix}`,
+					amount: 1n,
+					currency: "USD",
+					status: "FAILED",
+					providerCreatedAt: new Date("2026-08-01T00:00:00.000Z"),
+					lastProviderChangeAt: new Date("2026-08-01T00:00:00.000Z"),
+					lastProviderChangeId: `evt_historical_failed_${suffix}`,
+				},
+				{
+					provider: "stripe",
+					providerRefundId: consistentRefundId,
+					providerChargeId: `ch_historical_consistent_${suffix}`,
+					amount: 2n,
+					currency: "USD",
+					status: "SUCCEEDED",
+					providerCreatedAt: new Date("2026-08-01T00:00:00.000Z"),
+					lastProviderChangeAt: new Date("2026-08-01T00:00:00.000Z"),
+					lastProviderChangeId: `evt_historical_succeeded_${suffix}`,
+					finalizedCredits: 2n,
+					creditsFinalizedAt: new Date("2026-08-01T00:01:00.000Z"),
+				},
+				{
+					provider: "stripe",
+					providerRefundId: unfinalizedRefundId,
+					providerChargeId: `ch_historical_unfinalized_${suffix}`,
+					amount: 3n,
+					currency: "USD",
+					status: "SUCCEEDED",
+					providerCreatedAt: new Date("2026-08-01T00:00:00.000Z"),
+					lastProviderChangeAt: new Date("2026-08-01T00:00:00.000Z"),
+					lastProviderChangeId: `evt_historical_unfinalized_${suffix}`,
+				},
+				{
+					provider: "stripe",
+					providerRefundId: mismatchedRefundId,
+					providerChargeId: `ch_historical_mismatched_${suffix}`,
+					amount: 4n,
+					currency: "USD",
+					status: "SUCCEEDED",
+					providerCreatedAt: new Date("2026-08-01T00:00:00.000Z"),
+					lastProviderChangeAt: new Date("2026-08-01T00:00:00.000Z"),
+					lastProviderChangeId: `evt_historical_mismatched_${suffix}`,
+					finalizedCredits: 3n,
+					creditsFinalizedAt: new Date("2026-08-01T00:01:00.000Z"),
+				},
+			],
+		});
+
+		const diagnostics = (await getAdminMediaDiagnostics(client)) as unknown as PaymentDiagnostics;
+		const historical = diagnostics.stripeReconciliation.historicalRefunds;
+		expect(historical.needsReviewCount).toBeGreaterThanOrEqual(4);
+		expect(historical.missingLifecycleCount).toBeGreaterThanOrEqual(1);
+		expect(historical.items.length).toBeLessThanOrEqual(25);
+		expect(historical.items).toContainEqual({
+			providerRefundId: missingRefundId,
+			reason: "MISSING_LIFECYCLE",
+			lifecycleStatus: null,
+			ledgerEntryCount: 2,
+			ledgerCredits: "10",
+			finalizedCredits: null,
+			creditsFinalizedAt: null,
+			firstLedgerAt: firstLedgerAt.toISOString(),
+			lastLedgerAt: lastLedgerAt.toISOString(),
+		});
+		expect(historical.items).toContainEqual({
+			providerRefundId: trackedRefundId,
+			reason: "NON_SUCCEEDED_LIFECYCLE",
+			lifecycleStatus: "FAILED",
+			ledgerEntryCount: 1,
+			ledgerCredits: "1",
+			finalizedCredits: "0",
+			creditsFinalizedAt: null,
+			firstLedgerAt: new Date(lastLedgerAt.getTime() + 1_000).toISOString(),
+			lastLedgerAt: new Date(lastLedgerAt.getTime() + 1_000).toISOString(),
+		});
+		expect(historical.items.some((item) => item.providerRefundId === consistentRefundId)).toBe(
+			false,
+		);
+		expect(historical.items).toContainEqual({
+			providerRefundId: unfinalizedRefundId,
+			reason: "FINALIZATION_MISSING",
+			lifecycleStatus: "SUCCEEDED",
+			ledgerEntryCount: 1,
+			ledgerCredits: "3",
+			finalizedCredits: "0",
+			creditsFinalizedAt: null,
+			firstLedgerAt: new Date(lastLedgerAt.getTime() + 3_000).toISOString(),
+			lastLedgerAt: new Date(lastLedgerAt.getTime() + 3_000).toISOString(),
+		});
+		expect(historical.items).toContainEqual({
+			providerRefundId: mismatchedRefundId,
+			reason: "CREDIT_TOTAL_MISMATCH",
+			lifecycleStatus: "SUCCEEDED",
+			ledgerEntryCount: 1,
+			ledgerCredits: "4",
+			finalizedCredits: "3",
+			creditsFinalizedAt: "2026-08-01T00:01:00.000Z",
+			firstLedgerAt: new Date(lastLedgerAt.getTime() + 4_000).toISOString(),
+			lastLedgerAt: new Date(lastLedgerAt.getTime() + 4_000).toISOString(),
+		});
+		expect(JSON.stringify(historical)).not.toContain(secretMetadata);
+		expect(
+			await client.stripeRefund.findFirst({
+				where: { provider: "stripe", providerRefundId: missingRefundId },
+			}),
+		).toBeNull();
+		expect(
+			await client.creditLedgerEntry.count({
+				where: { accountId: account.id, referenceKey: { startsWith: "stripe-refund:" } },
+			}),
+		).toBe(6);
+	});
+
+	it("does not flag a finalized refund when future ungranted periods need no refund ledger", async () => {
+		const suffix = crypto.randomUUID();
+		const providerRefundId = `re_historical_future_periods_${suffix}`;
+		const account = await client.creditAccount.create({
+			data: { ownerType: "USER", ownerId: `historical-future-owner-${suffix}` },
+		});
+		await client.creditLedgerEntry.create({
+			data: {
+				accountId: account.id,
+				type: "REFUND",
+				amount: 2n,
+				referenceKey: `stripe-refund:${providerRefundId}:granted-period-${suffix}`,
+				metadata: {},
+				createdAt: new Date(Date.now() + 60_000),
+			},
+		});
+		await client.stripeRefund.create({
+			data: {
+				provider: "stripe",
+				providerRefundId,
+				providerChargeId: `ch_historical_future_periods_${suffix}`,
+				amount: 100n,
+				currency: "USD",
+				status: "SUCCEEDED",
+				providerCreatedAt: new Date("2026-08-01T00:00:00.000Z"),
+				lastProviderChangeAt: new Date("2026-08-01T00:00:00.000Z"),
+				lastProviderChangeId: `evt_historical_future_periods_${suffix}`,
+				finalizedCredits: 10n,
+				creditsFinalizedAt: new Date("2026-08-01T00:01:00.000Z"),
+			},
+		});
+
+		const diagnostics = (await getAdminMediaDiagnostics(client)) as unknown as PaymentDiagnostics;
+		expect(
+			diagnostics.stripeReconciliation.historicalRefunds.items.some(
+				(item) => item.providerRefundId === providerRefundId,
+			),
+		).toBe(false);
+	});
+
+	it("uses normalized billing rows instead of raw envelopes for finance diagnostics", async () => {
 		const suffix = crypto.randomUUID();
 		const before = await getAdminMediaDiagnostics(client);
 		const old = new Date("2026-01-01T00:00:00Z");
@@ -818,7 +1220,7 @@ describe("admin media database operations", () => {
 					receivedAt: old,
 					processedAt: new Date(),
 					status: "PROCESSED" as const,
-					envelope: { type: "invoice.paid", data: { object: { amount_paid: 100 } } },
+					envelope: { type: "invoice.paid", data: { object: { amount_paid: 999 } } },
 				},
 				{
 					provider: "stripe",
@@ -827,7 +1229,7 @@ describe("admin media database operations", () => {
 					receivedAt: old,
 					processedAt: new Date(),
 					status: "PROCESSED" as const,
-					envelope: { type: "refund.created", data: { object: { amount: 25 } } },
+					envelope: { type: "refund.created", data: { object: { amount: 888 } } },
 				},
 				{
 					provider: "stripe",
@@ -838,10 +1240,59 @@ describe("admin media database operations", () => {
 					status: "PROCESSED" as const,
 					envelope: {
 						type: "charge.refund.updated",
-						data: { object: { amount: 15 } },
+						data: { object: { amount: 777 } },
 					},
 				},
 			],
+		});
+		const plan = await client.billingPlan.create({
+			data: {
+				provider: "stripe",
+				providerPriceId: `finance-price-${suffix}`,
+				name: "finance fixture",
+				creditsPerPeriod: 10n,
+				priceMicros: 1_000_000n,
+				currency: "USD",
+				metadata: { planId: "finance", interval: "month" },
+			},
+		});
+		const subscription = await client.subscription.create({
+			data: {
+				ownerType: "USER",
+				ownerId: `finance-owner-${suffix}`,
+				provider: "stripe",
+				providerSubscriptionId: `finance-subscription-${suffix}`,
+				planId: plan.id,
+				status: "ACTIVE",
+			},
+		});
+		await client.billingPeriod.create({
+			data: {
+				subscriptionId: subscription.id,
+				startsAt: new Date(),
+				endsAt: new Date(Date.now() + 28 * 24 * 60 * 60_000),
+				status: "ACTIVE",
+				creditAmount: 10n,
+				providerInvoiceId: `finance-invoice-${suffix}`,
+				providerInvoicePaymentId: `finance-payment-${suffix}`,
+				providerChargeId: `finance-charge-${suffix}`,
+				paidAmount: 100n,
+			},
+		});
+		await client.stripeRefund.create({
+			data: {
+				provider: "stripe",
+				providerRefundId: `finance-refund-${suffix}`,
+				providerChargeId: `finance-charge-${suffix}`,
+				amount: 40n,
+				currency: "USD",
+				status: "SUCCEEDED",
+				providerCreatedAt: new Date(),
+				lastProviderChangeAt: new Date(),
+				lastProviderChangeId: `finance-change-${suffix}`,
+				finalizedCredits: 4n,
+				creditsFinalizedAt: new Date(),
+			},
 		});
 		const quote = await client.generationQuote.create({
 			data: {

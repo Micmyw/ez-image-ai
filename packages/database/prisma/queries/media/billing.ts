@@ -32,15 +32,12 @@ export async function ingestPaymentEvent(
 			event = await tx.paymentEvent.create({ data: input });
 		} catch (error) {
 			if (!isDatabaseUniqueConflict(error)) throw error;
-			const duplicate = await tx.paymentEvent.findFirst({
+			const duplicate = await tx.paymentEvent.findUnique({
 				where: {
-					provider: input.provider,
-					OR: [
-						{ providerEventId: input.providerEventId },
-						...(input.normalizedTransactionId
-							? [{ normalizedTransactionId: input.normalizedTransactionId }]
-							: []),
-					],
+					provider_providerEventId: {
+						provider: input.provider,
+						providerEventId: input.providerEventId,
+					},
 				},
 			});
 			if (!duplicate) throw error;
@@ -163,11 +160,12 @@ export async function failPaymentEvent(
 }
 
 export async function recoverExpiredPaymentEvents(
-	input: { now?: Date; limit?: number } = {},
+	input: { now?: Date; limit?: number; maxAttempts?: number } = {},
 	client: MediaTransactionClient,
-): Promise<{ recovered: number }> {
+): Promise<{ recovered: number; deadLettered: number }> {
 	const now = input.now ?? new Date();
 	const limit = Math.min(Math.max(input.limit ?? 25, 1), 100);
+	const maxAttempts = Math.min(Math.max(input.maxAttempts ?? 8, 1), 100);
 	return runSerializable(client, async (tx) => {
 		const candidates = await tx.paymentEvent.findMany({
 			where: {
@@ -184,6 +182,7 @@ export async function recoverExpiredPaymentEvents(
 			take: limit,
 		});
 		let recovered = 0;
+		let deadLettered = 0;
 		for (const candidate of candidates) {
 			const processingToken = candidate.processingToken;
 			const processingLeasedUntil = candidate.processingLeasedUntil;
@@ -191,6 +190,8 @@ export async function recoverExpiredPaymentEvents(
 			const recoveryDedupeKey = `payment-event-recovery:${candidate.id}:${createHash("sha256")
 				.update(processingToken)
 				.digest("hex")}`;
+			const nextAttemptCount = candidate.attemptCount + 1;
+			const budgetExhausted = nextAttemptCount >= maxAttempts;
 			const changed = await tx.paymentEvent.updateMany({
 				where: {
 					id: candidate.id,
@@ -199,8 +200,10 @@ export async function recoverExpiredPaymentEvents(
 					processingLeasedUntil,
 				},
 				data: {
-					status: "FAILED",
-					failureReason: "PAYMENT_EVENT_LEASE_EXPIRED",
+					status: budgetExhausted ? "DEAD_LETTER" : "FAILED",
+					failureReason: budgetExhausted
+						? "PAYMENT_EVENT_RETRY_BUDGET_EXHAUSTED"
+						: "PAYMENT_EVENT_LEASE_EXPIRED",
 					attemptCount: { increment: 1 },
 					lastAttemptAt: now,
 					lastErrorClass: "TRANSIENT",
@@ -209,37 +212,47 @@ export async function recoverExpiredPaymentEvents(
 				},
 			});
 			if (changed.count !== 1) continue;
-			await tx.outboxEvent.create({
-				data: {
-					eventType: "PAYMENT_EVENT_RECEIVED",
-					aggregateType: "PAYMENT_EVENT",
-					aggregateId: candidate.id,
-					dedupeKey: recoveryDedupeKey,
-					payload: { paymentEventId: candidate.id },
-				},
-			});
+			if (!budgetExhausted) {
+				await tx.outboxEvent.create({
+					data: {
+						eventType: "PAYMENT_EVENT_RECEIVED",
+						aggregateType: "PAYMENT_EVENT",
+						aggregateId: candidate.id,
+						dedupeKey: recoveryDedupeKey,
+						payload: { paymentEventId: candidate.id },
+					},
+				});
+			}
 			await tx.auditLog.create({
 				data: {
-					action: "PAYMENT_EVENT_LEASE_RECOVERED",
+					action: budgetExhausted
+						? "PAYMENT_EVENT_LEASE_DEAD_LETTERED"
+						: "PAYMENT_EVENT_LEASE_RECOVERED",
 					targetType: "PAYMENT_EVENT",
 					targetId: candidate.id,
 					before: { status: "PROCESSING", attemptCount: candidate.attemptCount },
 					after: {
-						status: "FAILED",
-						failureReason: "PAYMENT_EVENT_LEASE_EXPIRED",
-						attemptCount: candidate.attemptCount + 1,
+						status: budgetExhausted ? "DEAD_LETTER" : "FAILED",
+						failureReason: budgetExhausted
+							? "PAYMENT_EVENT_RETRY_BUDGET_EXHAUSTED"
+							: "PAYMENT_EVENT_LEASE_EXPIRED",
+						attemptCount: nextAttemptCount,
 						lastErrorClass: "TRANSIENT",
 					},
 					metadata: {
-						reason: "PAYMENT_EVENT_LEASE_EXPIRED",
+						reason: budgetExhausted
+							? "PAYMENT_EVENT_RETRY_BUDGET_EXHAUSTED"
+							: "PAYMENT_EVENT_LEASE_EXPIRED",
+						maxAttempts,
 						expiredAt: processingLeasedUntil.toISOString(),
 						lastAttemptAt: now.toISOString(),
 					},
 				},
 			});
-			recovered += 1;
+			if (budgetExhausted) deadLettered += 1;
+			else recovered += 1;
 		}
-		return { recovered };
+		return { recovered, deadLettered };
 	});
 }
 
