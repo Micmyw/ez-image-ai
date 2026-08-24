@@ -29,6 +29,7 @@ const CLAIM: FinalizationClaim = {
 };
 
 function createStore(): FinalizationStore & {
+	claimFinalization: ReturnType<typeof vi.fn>;
 	recordFinalization: ReturnType<typeof vi.fn>;
 	recordFinalizationRetry: ReturnType<typeof vi.fn>;
 } {
@@ -118,7 +119,7 @@ describe("finalizeMedia terminal transfer policy", () => {
 				},
 			],
 		};
-		vi.mocked(store.claimFinalization).mockResolvedValueOnce(claim);
+		store.claimFinalization.mockResolvedValueOnce(claim);
 
 		await expect(
 			finalizeMedia(

@@ -1,12 +1,18 @@
-import { TestMediaSafetyAdapter, type ProviderKey } from "@repo/ai";
+import {
+	TestMediaSafetyAdapter,
+	configuredProviderKeysFromEnvironment,
+	type ProviderKey,
+} from "@repo/ai";
 import { ingestProviderEvent } from "@repo/database";
 import { db } from "@repo/database/client";
 import {
 	abortMultipartObject,
 	abortPromotionMultipart,
+	cancelProviderGeneration,
 	cleanupUploadPromotion,
 	createDatabaseDispatchStore,
 	createDatabaseFinalizationStore,
+	createDatabaseProviderCancellationStore,
 	createDatabaseSettlementStore,
 	createDatabaseStorageCleanupDependencies,
 	createDatabaseVerifyUploadDependencies,
@@ -22,9 +28,10 @@ import {
 } from "@repo/jobs";
 
 import { LocalMediaE2EProvider, scenarioFromPrompt } from "./fixtures";
-import { assertLocalMediaE2E } from "./guard";
+import { assertLocalMediaE2E, LOCAL_MEDIA_SAFETY_PROVIDER } from "./guard";
 
 const providers = new Map<ProviderKey, LocalMediaE2EProvider>();
+const enabledProviders = configuredProviderKeysFromEnvironment(process.env);
 
 export async function runPump(): Promise<never> {
 	const { runId } = assertLocalMediaE2E();
@@ -56,7 +63,7 @@ async function deliverLocally(event: {
 			await dispatchGeneration(
 				{ jobId, version: integerValue(payload.version, job.version) },
 				{
-					store: createDatabaseDispatchStore(db),
+					store: createDatabaseDispatchStore(db, { enabledProviders }),
 					getProvider: providerFor,
 				},
 			);
@@ -84,8 +91,15 @@ async function deliverLocally(event: {
 			await finalizeMedia({ jobId, version: job.version }, dependencies);
 			return;
 		}
-		case "GENERATION_SETTLE":
 		case "GENERATION_CANCEL_REQUESTED": {
+			const job = await db.generationJob.findUniqueOrThrow({ where: { id: jobId } });
+			await cancelProviderGeneration(
+				{ jobId, version: integerValue(payload.version, job.version) },
+				{ store: createDatabaseProviderCancellationStore(db), getProvider: providerFor },
+			);
+			return;
+		}
+		case "GENERATION_SETTLE": {
 			const job = await db.generationJob.findUniqueOrThrow({ where: { id: jobId } });
 			await settleGeneration(
 				{ jobId, version: job.version },
@@ -98,7 +112,7 @@ async function deliverLocally(event: {
 		case "MEDIA_ASSET_MODERATION_REQUESTED": {
 			const verifyDependencies = createDatabaseVerifyUploadDependencies(db, {
 				safety: new TestMediaSafetyAdapter("ALLOW"),
-				moderationProvider: "e2e-upload",
+				moderationProvider: LOCAL_MEDIA_SAFETY_PROVIDER,
 			});
 			await verifyUpload(
 				{

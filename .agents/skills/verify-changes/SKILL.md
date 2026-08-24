@@ -27,11 +27,12 @@ Use for the final repository gates and for selecting focused tests. Do not use t
    pnpm --filter @repo/api --filter saas --filter marketing test
    ```
    Narrow to one workspace when appropriate, for example `pnpm --filter @repo/api test`.
-4. Run the matching Playwright suite when routes, rendering, auth, navigation, forms, or another browser-visible flow changed. Each config builds and starts its own app:
+4. Run the matching Playwright suite when routes, rendering, auth, navigation, forms, or another browser-visible flow changed. Each config starts an isolated webpack development server by default; set `E2E_USE_PRODUCTION_BUILD=true` to build and start production mode:
    ```bash
    pnpm --filter saas e2e:ci
    pnpm --filter marketing e2e:ci
    ```
+   Foundation media changes should also run `pnpm e2e:media:ci`, which seeds isolated users/assets, runs the local Outbox pump, and executes the SaaS media and marketing handoff suites without real Provider calls.
    Tests are under `apps/saas/tests` and `apps/marketing/tests`.
    E2E may be skipped for docs-only, server-only, unit-only, or non-behavioral changes when no browser contract is affected; state that reason in the handoff. CI still runs both suites for every PR.
 5. Run CI-parity read-only gates:
@@ -42,7 +43,7 @@ Use for the final repository gates and for selecting focused tests. Do not use t
    ```
    If they fail, use `pnpm lint:fix` and/or `pnpm format`, review the edits, then rerun the read-only gates.
 6. Reinspect `git diff` after any fix command. Confirm no secrets, generated client artifacts, `console.log`, unjustified `any`, or unrelated edits were introduced.
-7. Compare failures with `.github/workflows/validate-prs.yml`; its jobs are `lint`, `type-check`, `unit`, and `e2e`. The workflow uploads only `apps/saas/playwright-report/` as the `playwright-report` artifact.
+7. Compare failures with `.github/workflows/validate-prs.yml`; its jobs cover quality/contracts, PostgreSQL integration, production builds, mock media E2E with MinIO, and supply-chain checks. The mock E2E job uploads separate SaaS and marketing reports plus test results.
 
 ## Canonical reference
 

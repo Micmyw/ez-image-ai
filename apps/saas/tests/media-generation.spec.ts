@@ -64,6 +64,12 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	test("valid upload becomes READY and invalid signature is deleted with its storage reservation released", async ({
 		page,
 	}) => {
+		const renderPhaseUpdateWarnings: string[] = [];
+		page.on("console", (message) => {
+			if (message.text().includes("Cannot update a component")) {
+				renderPhaseUpdateWarnings.push(message.text());
+			}
+		});
 		const user = await userByEmail(fundedEmail);
 		await page.goto("/create");
 		const before = new Set(
@@ -95,15 +101,39 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 				[`media-upload:${session!.id}`],
 			)
 		)[0];
-		expect(reservation?.status).toBe("RELEASED");
+		expect(reservation?.status).toBe("ACTIVE");
+		const cleanupDedupeKey = `media-upload-finalization-failure-cleanup:${session!.id}`;
+		const cleanup = (
+			await rows<{ status: string; availableAt: Date; createdAt: Date }>(
+				`SELECT status, "availableAt", "createdAt" FROM outbox_event WHERE "dedupeKey"=$1`,
+				[cleanupDedupeKey],
+			)
+		)[0];
+		expect(cleanup?.status).toBe("PENDING");
+		expect(cleanup!.availableAt.getTime()).toBeGreaterThan(cleanup!.createdAt.getTime());
+		await pool.query(`UPDATE outbox_event SET "availableAt"=now() WHERE "dedupeKey"=$1`, [
+			cleanupDedupeKey,
+		]);
 		await expect
 			.poll(async () =>
 				count(
 					`SELECT count(*) FROM outbox_event WHERE "dedupeKey"=$1 AND "processedAt" IS NOT NULL`,
-					[`media-upload-invalid-cleanup:${session!.id}`],
+					[cleanupDedupeKey],
 				),
 			)
 			.toBe(1);
+		await expect
+			.poll(
+				async () =>
+					(
+						await rows<{ status: string }>(
+							`SELECT status FROM storage_usage_reservation WHERE "referenceKey"=$1`,
+							[`media-upload:${session!.id}`],
+						)
+					)[0]?.status,
+			)
+			.toBe("RELEASED");
+		expect(renderPhaseUpdateWarnings).toEqual([]);
 	});
 
 	async function uploadFile(page: import("@playwright/test").Page, name: string, buffer: Buffer) {
@@ -182,7 +212,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	});
 
 	test("cancellation releases all reserved credits for the exact job", async ({ page }) => {
-		const prompt = marker("delayed-success", "Cancel this generation");
+		const prompt = marker("cancel-pending", "Cancel this generation");
 		const jobId = await createScenario(page, prompt);
 		await page.getByRole("button", { name: /cancel/i }).click();
 		await expect

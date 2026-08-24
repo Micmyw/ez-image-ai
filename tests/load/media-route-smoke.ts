@@ -9,6 +9,7 @@ const idempotencyKey = `k6:${runId}:1:1`;
 
 process.env.DATABASE_URL = testDatabaseUrl;
 process.env.NODE_ENV = "test";
+process.env.MEDIA_GENERATION_ENABLED = "true";
 process.env.LOAD_TESTING_ENABLED = "false";
 process.env.LOAD_TEST_DATABASE_URL = testDatabaseUrl;
 process.env.LOAD_AUTH_TOKEN = token;

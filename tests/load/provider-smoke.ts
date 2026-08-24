@@ -101,8 +101,9 @@ async function runProviderSmoke(): Promise<void> {
 	try {
 		for (const [index, execution] of executions.entries()) {
 			const { route, adapter } = execution;
+			const attemptId = `smoke-${Date.now()}-${index}`;
 			const submission = await adapter.submit({
-				attemptId: `smoke-${Date.now()}-${index}`,
+				attemptId,
 				providerModelId: route.model,
 				input: inputForTier(route.tier, prompt),
 			});
@@ -114,7 +115,10 @@ async function runProviderSmoke(): Promise<void> {
 			if (submission.providerTaskId && adapter.cancel) {
 				const providerTaskId = submission.providerTaskId;
 				cleanupTasks.push(async () => {
-					const canceled = await adapter.cancel!({ providerTaskId });
+					const canceled = await adapter.cancel!({
+						providerTaskId,
+						idempotencyKey: `provider-smoke-cancel:${attemptId}`,
+					});
 					if (!canceled.canceled && canceled.status !== "CANCELED") {
 						throw new Error(`Cleanup could not confirm cancellation for ${providerTaskId}`);
 					}

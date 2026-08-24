@@ -30,7 +30,9 @@ describe("controlled media load database path", () => {
 
 	it("creates one quote, reserved job, ledger reservation, attempt and outbox path", async () => {
 		const idempotencyKey = `k6:${RUN_ID}:1:1`;
-		const result = await executeMediaLoadRequest({ mode: "fast", idempotencyKey }, configuration);
+		const result = await withoutExternalProviderConfiguration(() =>
+			executeMediaLoadRequest({ mode: "fast", idempotencyKey }, configuration),
+		);
 		const job = await client.generationJob.findUniqueOrThrow({
 			where: { id: result.jobId },
 			include: { quote: true, reservation: true, attempts: true },
@@ -111,6 +113,30 @@ describe("controlled media load database path", () => {
 		).resolves.toMatchObject({ status: "SUBMISSION_UNCERTAIN", uncertainSubmission: true });
 	});
 });
+
+const EXTERNAL_PROVIDER_ENVIRONMENT_KEYS = [
+	"MEDIA_ENABLED_PROVIDERS",
+	"MEDIA_PROVIDER_ADAPTER",
+	"REPLICATE_API_TOKEN",
+	"FAL_API_KEY",
+	"KIE_API_KEY",
+	"GEMINI_API_KEY",
+] as const;
+
+async function withoutExternalProviderConfiguration<T>(operation: () => Promise<T>): Promise<T> {
+	const previous = new Map(
+		EXTERNAL_PROVIDER_ENVIRONMENT_KEYS.map((key) => [key, process.env[key]] as const),
+	);
+	for (const key of EXTERNAL_PROVIDER_ENVIRONMENT_KEYS) delete process.env[key];
+	try {
+		return await operation();
+	} finally {
+		for (const [key, value] of previous) {
+			if (value === undefined) delete process.env[key];
+			else process.env[key] = value;
+		}
+	}
+}
 
 function assertSafeTestDatabaseUrl(value: string | undefined): string {
 	if (!value) throw new Error("TEST_DATABASE_URL is required");

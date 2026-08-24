@@ -17,6 +17,18 @@ vi.mock("@repo/database/media-assets", () => ({
 	},
 }));
 vi.mock("@repo/storage", () => ({
+	MediaValidationError: class MediaValidationError extends Error {
+		readonly stage = "TRANSFER" as const;
+		readonly retryable = false as const;
+
+		constructor(
+			readonly code: string,
+			message: string,
+		) {
+			super(message);
+			this.name = "MediaValidationError";
+		}
+	},
 	abortMultipartUpload: vi.fn(async () => undefined),
 	completeMultipartUpload: vi.fn(async () => undefined),
 	deleteObject: vi.fn(async () => undefined),
@@ -36,6 +48,7 @@ import {
 	renewMediaUploadSessionFinalizationLeaseTransaction,
 } from "@repo/database/media-assets";
 import {
+	MediaValidationError,
 	abortMultipartUpload,
 	completeMultipartUpload,
 	deleteObject,
@@ -418,6 +431,29 @@ describe("completeUploadSession", () => {
 
 		await expect(call(completeUploadSession, { sessionId: "session_1" }, context)).rejects.toThrow(
 			/staging object missing/i,
+		);
+		expect(failMediaUploadSessionFinalizationTransaction).toHaveBeenCalledWith(
+			{
+				sessionId: "session_1",
+				ownerId: "user_1",
+				finalizationToken: "finalize_1",
+				reason: "UPLOAD_FINALIZATION_VALIDATION_FAILED",
+			},
+			expect.anything(),
+		);
+		expect(completeMediaUploadSessionTransaction).not.toHaveBeenCalled();
+	});
+
+	it("terminalizes a claimed session when staging bytes fail deterministic media validation", async () => {
+		vi.mocked(promoteStagedObject).mockRejectedValueOnce(
+			new MediaValidationError(
+				"OUTPUT_MEDIA_TYPE_UNSUPPORTED",
+				"Provider output has an unsupported media signature",
+			),
+		);
+
+		await expect(call(completeUploadSession, { sessionId: "session_1" }, context)).rejects.toThrow(
+			/unsupported media signature/i,
 		);
 		expect(failMediaUploadSessionFinalizationTransaction).toHaveBeenCalledWith(
 			{

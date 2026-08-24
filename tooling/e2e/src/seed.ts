@@ -4,10 +4,11 @@ import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } fr
 import { auth } from "@repo/auth";
 import { createCreditGrant, createUser, createUserAccount } from "@repo/database";
 import { db } from "@repo/database/client";
+import { MEDIA_VERIFICATION_RETRY_POLICY } from "@repo/jobs";
 import { createAssetObjectKey, putPrivateMediaObject } from "@repo/storage";
 
 import { E2E_PASSWORD, E2E_PNG, emptyEmail, fundedEmail } from "./fixtures";
-import { assertLocalMediaE2E } from "./guard";
+import { assertLocalMediaE2E, LOCAL_MEDIA_SAFETY_PROVIDER } from "./guard";
 
 export async function seedLocalMediaE2E(): Promise<void> {
 	const { runId } = assertLocalMediaE2E();
@@ -78,6 +79,7 @@ export async function seedLocalMediaE2E(): Promise<void> {
 		body: E2E_PNG,
 	});
 	await db.$transaction(async (tx) => {
+		const now = new Date();
 		const existing = await tx.mediaAsset.findUnique({ where: { id: assetId } });
 		const approvedEvidence = existing
 			? await tx.assetModerationResult.findFirst({
@@ -86,15 +88,20 @@ export async function seedLocalMediaE2E(): Promise<void> {
 						assetChecksum: stored.sha256,
 						verificationGeneration: existing.verificationGeneration,
 						evidenceKind: "INPUT",
-						provider: "e2e-seed",
+						provider: LOCAL_MEDIA_SAFETY_PROVIDER,
 						ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 						policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 						status: "APPROVED",
+						validUntil: { gt: now },
 					},
 				})
 			: null;
 
-		if (existing && approvedEvidence) {
+		if (
+			existing?.verificationValidUntil &&
+			existing.verificationValidUntil > now &&
+			approvedEvidence?.validUntil?.getTime() === existing.verificationValidUntil.getTime()
+		) {
 			await tx.mediaAsset.update({
 				where: { id: assetId },
 				data: {
@@ -111,6 +118,9 @@ export async function seedLocalMediaE2E(): Promise<void> {
 		}
 
 		const verificationGeneration = Math.max((existing?.verificationGeneration ?? 0) + 1, 1);
+		const verificationValidUntil = new Date(
+			now.getTime() + MEDIA_VERIFICATION_RETRY_POLICY.evidenceTtlMs,
+		);
 		await tx.mediaAsset.upsert({
 			where: { id: assetId },
 			create: {
@@ -126,9 +136,10 @@ export async function seedLocalMediaE2E(): Promise<void> {
 				sourceUrl: `e2e-seed:${runId}`,
 				verificationGeneration,
 				verificationAttemptCount: 1,
-				verificationProvider: "e2e-seed",
+				verificationProvider: LOCAL_MEDIA_SAFETY_PROVIDER,
 				verificationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 				verificationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				verificationValidUntil,
 			},
 			update: {
 				status: "VERIFYING",
@@ -140,9 +151,10 @@ export async function seedLocalMediaE2E(): Promise<void> {
 				sourceUrl: `e2e-seed:${runId}`,
 				verificationGeneration,
 				verificationAttemptCount: 1,
-				verificationProvider: "e2e-seed",
+				verificationProvider: LOCAL_MEDIA_SAFETY_PROVIDER,
 				verificationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 				verificationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				verificationValidUntil,
 				verificationProviderTaskId: null,
 				verificationLeaseToken: null,
 				verificationLeasedUntil: null,
@@ -157,13 +169,14 @@ export async function seedLocalMediaE2E(): Promise<void> {
 				verificationGeneration,
 				attemptNumber: 1,
 				evidenceKind: "INPUT",
-				provider: "e2e-seed",
+				provider: LOCAL_MEDIA_SAFETY_PROVIDER,
 				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 				policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 				status: "APPROVED",
 				reasonCode: "LOCAL_E2E_SEED_ALLOW",
 				categories: { runId },
 				rawEnvelope: { decision: "ALLOW", source: "local-media-e2e" },
+				validUntil: verificationValidUntil,
 			},
 		});
 		await tx.mediaAsset.update({

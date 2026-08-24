@@ -15,6 +15,7 @@ import {
 	completeMultipartUpload,
 	deleteObject,
 	listMultipartUploads,
+	MediaValidationError,
 	promoteStagedObject,
 } from "@repo/storage";
 import { z } from "zod";
@@ -254,6 +255,7 @@ async function terminalizeDeterministicFinalizationFailure(input: {
 }
 
 function isDeterministicFinalizationFailure(error: unknown): boolean {
+	if (error instanceof MediaValidationError) return true;
 	if (!error || typeof error !== "object") return false;
 	const details = error as {
 		name?: unknown;

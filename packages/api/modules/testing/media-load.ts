@@ -285,7 +285,9 @@ export async function executeMediaLoadRequest(
 		await dispatchGeneration(
 			{ jobId: created.job.id, version: created.job.version },
 			{
-				store: createDatabaseDispatchStore(db),
+				store: createDatabaseDispatchStore(db, {
+					enabledProviders: new Set([route.provider]),
+				}),
 				getProvider: (provider) => new ControlledLoadProvider(provider, input.mode),
 				isGenerationEnabled: () => true,
 			},

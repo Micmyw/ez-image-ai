@@ -28,6 +28,7 @@ export function useMediaUpload(onChange?: (assetIds: string[]) => void) {
 	const [items, setItems] = useState<MediaUploadItem[]>([]);
 	const abortControllers = useRef(new Map<string, AbortController>());
 	const previewUrls = useRef(new Set<string>());
+	const emittedAssetIds = useRef<string[]>([]);
 
 	useEffect(
 		() => () => {
@@ -37,25 +38,26 @@ export function useMediaUpload(onChange?: (assetIds: string[]) => void) {
 		[],
 	);
 
-	const emitAssets = useCallback(
-		(next: MediaUploadItem[]) => {
-			onChange?.(next.flatMap((item) => (item.assetId ? [item.assetId] : [])));
-		},
-		[onChange],
-	);
+	useEffect(() => {
+		if (!onChange) return;
+		const assetIds = items.flatMap((item) => (item.assetId ? [item.assetId] : []));
+		if (
+			assetIds.length === emittedAssetIds.current.length &&
+			assetIds.every((assetId, index) => assetId === emittedAssetIds.current[index])
+		) {
+			return;
+		}
+		emittedAssetIds.current = assetIds;
+		onChange(assetIds);
+	}, [items, onChange]);
 
-	const update = useCallback(
-		(fingerprint: string, changes: Partial<MediaUploadItem>) => {
-			setItems((current) => {
-				const next = current.map((item) =>
-					getFileFingerprint(item.file) === fingerprint ? { ...item, ...changes } : item,
-				);
-				emitAssets(next);
-				return next;
-			});
-		},
-		[emitAssets],
-	);
+	const update = useCallback((fingerprint: string, changes: Partial<MediaUploadItem>) => {
+		setItems((current) =>
+			current.map((item) =>
+				getFileFingerprint(item.file) === fingerprint ? { ...item, ...changes } : item,
+			),
+		);
+	}, []);
 
 	const upload = useCallback(
 		async (file: File) => {
@@ -157,30 +159,25 @@ export function useMediaUpload(onChange?: (assetIds: string[]) => void) {
 		[upload],
 	);
 
-	const remove = useCallback(
-		async (fingerprint: string) => {
-			abortControllers.current.get(fingerprint)?.abort();
-			const saved = parsePersistedUploadState(
-				localStorage.getItem(`${STORAGE_PREFIX}${fingerprint}`),
-			);
-			if (saved)
-				await orpcClient.media
-					.abortUploadSession({ sessionId: saved.sessionId })
-					.catch(() => undefined);
-			localStorage.removeItem(`${STORAGE_PREFIX}${fingerprint}`);
-			setItems((current) => {
-				const removed = current.find((item) => getFileFingerprint(item.file) === fingerprint);
-				if (removed?.previewUrl) {
-					URL.revokeObjectURL(removed.previewUrl);
-					previewUrls.current.delete(removed.previewUrl);
-				}
-				const next = current.filter((item) => getFileFingerprint(item.file) !== fingerprint);
-				emitAssets(next);
-				return next;
-			});
-		},
-		[emitAssets],
-	);
+	const remove = useCallback(async (fingerprint: string) => {
+		abortControllers.current.get(fingerprint)?.abort();
+		const saved = parsePersistedUploadState(
+			localStorage.getItem(`${STORAGE_PREFIX}${fingerprint}`),
+		);
+		if (saved)
+			await orpcClient.media
+				.abortUploadSession({ sessionId: saved.sessionId })
+				.catch(() => undefined);
+		localStorage.removeItem(`${STORAGE_PREFIX}${fingerprint}`);
+		setItems((current) => {
+			const removed = current.find((item) => getFileFingerprint(item.file) === fingerprint);
+			if (removed?.previewUrl) {
+				URL.revokeObjectURL(removed.previewUrl);
+				previewUrls.current.delete(removed.previewUrl);
+			}
+			return current.filter((item) => getFileFingerprint(item.file) !== fingerprint);
+		});
+	}, []);
 
 	return {
 		items,

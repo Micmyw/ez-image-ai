@@ -1,4 +1,5 @@
 const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
+export const LOCAL_MEDIA_SAFETY_PROVIDER = "test";
 
 export interface LocalMediaE2EEnvironment {
 	databaseUrl: string;
@@ -30,7 +31,7 @@ export function assertLocalMediaE2E(
 		throw new Error("LOCAL_MEDIA_E2E_REFUSED: E2E_TEST_MEDIA_ADAPTERS=true is required");
 	}
 	if (
-		environment.MEDIA_SAFETY_ADAPTER !== "test" ||
+		environment.MEDIA_SAFETY_ADAPTER !== LOCAL_MEDIA_SAFETY_PROVIDER ||
 		environment.MEDIA_ALLOW_TEST_SAFETY_ADAPTER !== "true"
 	) {
 		throw new Error("LOCAL_MEDIA_E2E_REFUSED: explicit test prompt moderation opt-in is required");

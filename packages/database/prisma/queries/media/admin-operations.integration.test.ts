@@ -10,6 +10,7 @@ import {
 	listAdminUncertainGenerationAttempts,
 	replayPersistedMediaEvent,
 	resolveAdminUncertainSubmission,
+	revertRuntimeConfigOverride,
 	retryAdminMediaJobStage,
 	rollbackAdminMediaRuntimeOverride,
 	setAdminMediaRuntimeOverride,
@@ -105,6 +106,7 @@ describe("admin media database operations", () => {
 		quoteIds: new Set(),
 		reservationIds: new Set(),
 	};
+	const runtimeOverrideIds = new Set<string>();
 
 	beforeAll(() => {
 		client = new PrismaClient({
@@ -115,6 +117,9 @@ describe("admin media database operations", () => {
 	afterAll(async () => {
 		if (!client) return;
 		try {
+			for (const id of runtimeOverrideIds) {
+				await revertRuntimeConfigOverride(id, "admin-integration-test-cleanup", client);
+			}
 			await cleanupUncertainFixtures(client, uncertainFixtureIds);
 		} finally {
 			await client.$disconnect();
@@ -294,6 +299,7 @@ describe("admin media database operations", () => {
 			},
 			client,
 		);
+		runtimeOverrideIds.add(first.id);
 		const second = await setAdminMediaRuntimeOverride(
 			{
 				configKey: "media.model.image-fast.enabled",
@@ -304,6 +310,7 @@ describe("admin media database operations", () => {
 			},
 			client,
 		);
+		runtimeOverrideIds.add(second.id);
 		expect(second.version).toBeGreaterThan(first.version as number);
 		expect(
 			await client.runtimeConfigOverride.findUnique({ where: { id: first.id as string } }),
@@ -326,7 +333,7 @@ describe("admin media database operations", () => {
 	it("rejects reuse of an operation key with different parameters", async () => {
 		const suffix = crypto.randomUUID();
 		const idempotencyKey = `conflict-${suffix}`;
-		await setAdminMediaRuntimeOverride(
+		const created = await setAdminMediaRuntimeOverride(
 			{
 				configKey: "media.model.video-fast.enabled",
 				value: false,
@@ -336,6 +343,7 @@ describe("admin media database operations", () => {
 			},
 			client,
 		);
+		runtimeOverrideIds.add(created.id);
 		await expect(
 			setAdminMediaRuntimeOverride(
 				{
@@ -363,6 +371,7 @@ describe("admin media database operations", () => {
 			},
 			client,
 		);
+		runtimeOverrideIds.add(created.id);
 		await expect(
 			rollbackAdminMediaRuntimeOverride(
 				{
@@ -388,6 +397,7 @@ describe("admin media database operations", () => {
 			},
 			client,
 		);
+		runtimeOverrideIds.add(target.id);
 		const sharedKey = `shared-${suffix}`;
 		const results = await Promise.allSettled([
 			setAdminMediaRuntimeOverride(
@@ -399,7 +409,10 @@ describe("admin media database operations", () => {
 					reason: "Concurrent set operation should win or conflict",
 				},
 				client,
-			),
+			).then((override) => {
+				runtimeOverrideIds.add(override.id);
+				return override;
+			}),
 			rollbackAdminMediaRuntimeOverride(
 				{
 					overrideId: target.id,
@@ -753,7 +766,7 @@ describe("admin media database operations", () => {
 
 	it("separates safe payment-event diagnostics by processing status", async () => {
 		const suffix = crypto.randomUUID();
-		const lastAttemptAt = new Date("2026-08-23T12:00:00.000Z");
+		const lastAttemptAt = new Date();
 		const secret = `must-not-leak-${suffix}`;
 		const events = await Promise.all(
 			(["FAILED", "DEAD_LETTER", "IGNORED"] as const).map((status, index) =>
@@ -773,26 +786,32 @@ describe("admin media database operations", () => {
 				}),
 			),
 		);
-		const diagnostics = (await getAdminMediaDiagnostics(client)) as unknown as PaymentDiagnostics;
-		const expected = [
-			{ bucket: diagnostics.events.payment.failed, event: events[0]! },
-			{ bucket: diagnostics.events.payment.deadLetter, event: events[1]! },
-			{ bucket: diagnostics.events.payment.ignored, event: events[2]! },
-		];
-		for (const { bucket, event } of expected) {
-			expect(bucket.count).toBeGreaterThan(0);
-			expect(bucket.items).toContainEqual({
-				id: event.id,
-				providerEventId: event.providerEventId,
-				status: event.status,
-				attemptCount: event.attemptCount,
-				lastTriggerAttempt: event.lastTriggerAttempt,
-				lastAttemptAt: lastAttemptAt.toISOString(),
-				lastTriggerRunId: event.lastTriggerRunId,
-				lastErrorClass: event.lastErrorClass,
+		try {
+			const diagnostics = (await getAdminMediaDiagnostics(client)) as unknown as PaymentDiagnostics;
+			const expected = [
+				{ bucket: diagnostics.events.payment.failed, event: events[0]! },
+				{ bucket: diagnostics.events.payment.deadLetter, event: events[1]! },
+				{ bucket: diagnostics.events.payment.ignored, event: events[2]! },
+			];
+			for (const { bucket, event } of expected) {
+				expect(bucket.count).toBeGreaterThan(0);
+				expect(bucket.items).toContainEqual({
+					id: event.id,
+					providerEventId: event.providerEventId,
+					status: event.status,
+					attemptCount: event.attemptCount,
+					lastTriggerAttempt: event.lastTriggerAttempt,
+					lastAttemptAt: lastAttemptAt.toISOString(),
+					lastTriggerRunId: event.lastTriggerRunId,
+					lastErrorClass: event.lastErrorClass,
+				});
+			}
+			expect(JSON.stringify(diagnostics)).not.toContain(secret);
+		} finally {
+			await client.paymentEvent.deleteMany({
+				where: { id: { in: events.map((event) => event.id) } },
 			});
 		}
-		expect(JSON.stringify(diagnostics)).not.toContain(secret);
 	});
 
 	it("lists uncertain attempts through a narrow recovery projection", async () => {

@@ -10,6 +10,7 @@ const commands: Array<{ args: string[]; database: boolean }> = [
 	{ args: ["--filter", "@repo/payments", "test"], database: false },
 	{ args: ["--filter", "@repo/database", "test"], database: false },
 	{ args: ["--filter", "@repo/jobs", "test"], database: false },
+	{ args: ["--filter", "@repo/e2e-media", "test:contracts"], database: false },
 	{
 		args: [
 			"--filter",

@@ -1,6 +1,8 @@
 import type {
 	MediaProviderAdapter,
 	NormalizedResult,
+	ProviderCancelInput,
+	ProviderCancelResult,
 	ProviderSubmitInput,
 	ProviderSubmission,
 	ProviderTaskSnapshot,
@@ -26,6 +28,7 @@ export function emptyEmail(runId: string): string {
 export function scenarioFromPrompt(prompt: string): MediaE2EScenario {
 	if (prompt.includes("[e2e:provider-failure]")) return "provider-failure";
 	if (prompt.includes("[e2e:moderation-rejection]")) return "moderation-rejection";
+	if (prompt.includes("[e2e:cancel-pending]")) return "cancel-pending";
 	if (prompt.includes("[e2e:delayed-success]")) return "delayed-success";
 	return "success";
 }
@@ -34,6 +37,7 @@ export type MediaE2EScenario =
 	| "success"
 	| "provider-failure"
 	| "moderation-rejection"
+	| "cancel-pending"
 	| "delayed-success";
 
 export class LocalMediaE2EProvider implements MediaProviderAdapter {
@@ -55,7 +59,7 @@ export class LocalMediaE2EProvider implements MediaProviderAdapter {
 				reconciliation: { submissionToken: input.attemptId },
 			};
 		}
-		if (scenario === "delayed-success") {
+		if (scenario === "delayed-success" || scenario === "cancel-pending") {
 			return {
 				providerTaskId,
 				status: "QUEUED",
@@ -77,6 +81,10 @@ export class LocalMediaE2EProvider implements MediaProviderAdapter {
 
 	async retrieve(input: { providerTaskId: string }): Promise<ProviderTaskSnapshot> {
 		return successSnapshot(input.providerTaskId);
+	}
+
+	async cancel(_input: ProviderCancelInput): Promise<ProviderCancelResult> {
+		return { status: "CANCELED", canceled: true, noCharge: true, retryable: false };
 	}
 
 	async normalizeResult(snapshot: ProviderTaskSnapshot): Promise<NormalizedResult> {

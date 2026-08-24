@@ -24,6 +24,7 @@ const environment = {
 	MEDIA_GENERATION_ENABLED: "true",
 	MEDIA_MODERATION_ENABLED: "true",
 	MEDIA_PROVIDER_ADAPTER: "mock",
+	MEDIA_ENABLED_PROVIDERS: "replicate,fal,kie,gemini",
 	MEDIA_SAFETY_ADAPTER: "test",
 	MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true",
 	NODE_ENV: process.env.E2E_USE_PRODUCTION_BUILD === "true" ? "production" : "development",

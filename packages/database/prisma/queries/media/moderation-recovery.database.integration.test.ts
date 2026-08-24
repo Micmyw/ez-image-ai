@@ -657,11 +657,10 @@ describe("media verification evidence invariants", () => {
 function safeTestDatabaseUrl(value: string | undefined): string {
 	if (!value) throw new Error("TEST_DATABASE_URL is required");
 	const parsed = new URL(value);
-	if (
-		parsed.hostname !== "127.0.0.1" ||
-		parsed.port !== "55432" ||
-		!["/ezpic_moderation_repair_test", "/ezpic_moderation_hardening_test"].includes(parsed.pathname)
-	) {
+	const safeDatabase =
+		parsed.pathname === "/ai_media_foundation_test" ||
+		/^\/ezpic_[a-z0-9_]+_test$/.test(parsed.pathname);
+	if (parsed.hostname !== "127.0.0.1" || parsed.port !== "55432" || !safeDatabase) {
 		throw new Error("TEST_DATABASE_URL must target the disposable local media test database");
 	}
 	return value;
