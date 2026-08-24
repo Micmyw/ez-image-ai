@@ -15,9 +15,9 @@
 	"dependencies": {
 		"@repo/tailwind-config": "workspace:*",
 		"@repo/ui": "workspace:*",
-		"fumadocs-core": "16.14.0",
-		"fumadocs-mdx": "15.2.2",
-		"fumadocs-ui": "16.14.0",
+		"fumadocs-core": "16.14.5",
+		"fumadocs-mdx": "15.3.0",
+		"fumadocs-ui": "16.14.5",
 		"lucide-react": "catalog:",
 		"next": "catalog:",
 		"react": "catalog:",
