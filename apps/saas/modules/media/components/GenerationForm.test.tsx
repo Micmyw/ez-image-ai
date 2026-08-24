@@ -7,7 +7,19 @@ vi.mock("@repo/ui/components/alert", () => ({
 	AlertDescription: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
 }));
 vi.mock("@repo/ui/components/button", () => ({
-	Button: ({ children }: { children: React.ReactNode }) => <button>{children}</button>,
+	Button: ({
+		children,
+		disabled,
+		type,
+	}: {
+		children: React.ReactNode;
+		disabled?: boolean;
+		type?: "button" | "submit" | "reset";
+	}) => (
+		<button type={type} disabled={disabled}>
+			{children}
+		</button>
+	),
 }));
 vi.mock("@repo/ui/components/select", () => {
 	const Container = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
@@ -20,7 +32,7 @@ vi.mock("@repo/ui/components/select", () => {
 	};
 });
 vi.mock("next-intl", () => ({
-	useTranslations: () => (key: string) =>
+	useTranslations: () => (key: string, values?: Record<string, unknown>) =>
 		({
 			product: "Localized quality",
 			"products.image-fast.label": "Localized Standard Edit",
@@ -29,6 +41,14 @@ vi.mock("next-intl", () => ({
 			"products.image-quality.description": "Localized detailed edits",
 			"fields.prompt": "Localized edit instruction",
 			"fields.sourceAssetId": "Localized source image",
+			standard: "Localized Standard Edit",
+			standardDescription: "Localized everyday edits",
+			quality: "Localized Quality Edit",
+			qualityDescription: "Localized detailed edits",
+			credits:
+				typeof values?.credits === "number" || typeof values?.credits === "string"
+					? `${values.credits} localized credits`
+					: "localized credits",
 		})[key] ?? key,
 }));
 vi.mock("../hooks/use-generation", () => ({
@@ -66,14 +86,11 @@ vi.mock("../hooks/use-generation", () => ({
 		beginNewAction: vi.fn(),
 	}),
 }));
-vi.mock("./GenerationFields", () => ({
-	GenerationFields: ({ fields }: { fields: Array<{ key: string; label: string }> }) => (
-		<div>
-			{fields.map((field) => (
-				<span key={field.key}>{field.label}</span>
-			))}
-		</div>
-	),
+vi.mock("./editor/ImageSourcePanel", () => ({
+	ImageSourcePanel: () => <span>Localized source image</span>,
+}));
+vi.mock("./editor/PromptPanel", () => ({
+	PromptPanel: ({ label }: { label: string }) => <span>{label}</span>,
 }));
 
 import { GenerationForm } from "./GenerationForm";
@@ -92,5 +109,24 @@ describe("GenerationForm product copy", () => {
 			expect(markup).toContain(copy);
 		}
 		expect(markup).not.toMatch(/Catalog (?:Standard|Quality|everyday|prompt|source)/);
+	});
+
+	it("enables Review when the restored source and instruction form a valid input", () => {
+		const markup = renderToStaticMarkup(
+			<GenerationForm
+				onCreated={vi.fn()}
+				initialSourceReady
+				initialDraft={{
+					productKey: "image-fast",
+					input: {
+						kind: "image-to-image",
+						prompt: "Replace the background with a quiet studio",
+						sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+					},
+				}}
+			/>,
+		);
+
+		expect(markup).toContain('<button type="submit">review</button>');
 	});
 });

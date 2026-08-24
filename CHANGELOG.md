@@ -17,6 +17,9 @@
   storage, moderation, and historical-data paths.
 - Kept Free on Standard Edit and enabled both edit modes for Creator and Studio without changing
   existing credit grants, Stripe price references, or configured monetary prices.
+- Delivered the authenticated single-edit workspace from draft/asset recovery through quote review,
+  explicit idempotent confirmation, asynchronous status recovery, job-bound Before/After, private
+  download, and clear reserved/charged/returned credit summaries.
 
 ### Changed
 

@@ -8,15 +8,19 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { useJob } from "../hooks/use-job";
+import { isEditorProductKey } from "../lib/editor-recovery";
 import { getJobPresentation } from "../lib/job-status";
 
 export function JobDetail({ jobId }: { jobId: string }) {
 	const t = useTranslations("media.detail");
 	const stages = useTranslations("media.status.stages");
+	const products = useTranslations("media.create.products");
 	const router = useRouter();
 	const job = useJob(jobId);
+	if (job.isError && !job.data) return <JobDetailUnavailable />;
 	if (!job.data) return <div aria-busy="true">{t("loading")}</div>;
 	const presentation = getJobPresentation({ status: job.data.status, progress: job.data.progress });
+	const editorProductKey = isEditorProductKey(job.data.productKey) ? job.data.productKey : null;
 	async function retry() {
 		const result = await orpcClient.media.retryGeneration({
 			jobId,
@@ -32,7 +36,9 @@ export function JobDetail({ jobId }: { jobId: string }) {
 			<div className="mt-5 p-5 md:p-8 rounded-2xl border bg-background">
 				<div className="gap-3 flex flex-wrap items-center justify-between">
 					<div>
-						<h1 className="text-2xl font-medium">{job.data.productKey}</h1>
+						<h1 className="text-2xl font-medium">
+							{editorProductKey ? products(`${editorProductKey}.label`) : t("legacyProduct")}
+						</h1>
 						<p className="text-xs text-muted-foreground">{job.data.id}</p>
 					</div>
 					<Badge status="info">{stages(presentation.stage)}</Badge>
@@ -55,18 +61,35 @@ export function JobDetail({ jobId }: { jobId: string }) {
 					<p className="mt-5 p-4 text-sm rounded-xl bg-destructive/10">{t("safeFailure")}</p>
 				)}
 				<div className="mt-6 gap-2 flex flex-wrap">
-					<Button
-						variant="primary"
-						render={(props) => <Link {...props} href={`/create?reuseJob=${jobId}`} />}
-					>
-						{t("reuse")}
-					</Button>
-					{presentation.stage === "failed" && (
+					{editorProductKey && (
+						<Button
+							variant="primary"
+							render={(props) => <Link {...props} href={`/create?reuseJob=${jobId}`} />}
+						>
+							{t("reuse")}
+						</Button>
+					)}
+					{editorProductKey && presentation.stage === "failed" && (
 						<Button variant="secondary" onClick={() => void retry()}>
 							{t("retry")}
 						</Button>
 					)}
 				</div>
+			</div>
+		</div>
+	);
+}
+
+function JobDetailUnavailable() {
+	const t = useTranslations("media.detail");
+	return (
+		<div>
+			<Link href="/history" className="text-sm text-muted-foreground">
+				← {t("back")}
+			</Link>
+			<div className="mt-5 p-5 md:p-8 rounded-2xl border bg-background">
+				<h1 className="text-2xl font-medium">{t("unavailableTitle")}</h1>
+				<p className="mt-2 max-w-xl text-sm text-muted-foreground">{t("unavailableDescription")}</p>
 			</div>
 		</div>
 	);

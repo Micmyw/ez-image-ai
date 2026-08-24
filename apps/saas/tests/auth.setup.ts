@@ -37,7 +37,7 @@ async function authenticate(
 	await page.locator('input[type="password"]').fill(password);
 	await page.locator('button[type="submit"]').click();
 	await expect(page).toHaveURL(/\/create/, { timeout: 60_000 });
-	await expect(page.getByLabel(/prompt/i)).toBeVisible({ timeout: 120_000 });
+	await expect(page.getByLabel(/edit instruction/i)).toBeVisible({ timeout: 120_000 });
 	await context.storageState({ path });
 	await context.close();
 }

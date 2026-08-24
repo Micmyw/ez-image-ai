@@ -15,13 +15,13 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	test.describe.configure({ timeout: 90_000 });
 	test.afterAll(async () => pool.end());
 
-	test("duplicate click creates exactly one job and one reservation", async ({
+	test("successful edit is idempotent and shows the job-bound before, after, and private download", async ({
 		page,
 	}, testInfo) => {
 		const prompt = marker("duplicate", "A ceramic lamp on a quiet desk", testInfo.retry);
-		await openCreator(page, prompt);
+		await openCreator(page, prompt, fundedEmail);
 		await page.getByRole("button", { name: /review credits/i }).click();
-		await page.getByRole("button", { name: /start creating/i }).dblclick();
+		await page.getByRole("button", { name: /start edit/i }).dblclick();
 		const job = await waitForJob(prompt, "SUCCEEDED");
 		const user = await userByEmail(fundedEmail);
 		expect(await jobsForPrompt(user.id, prompt)).toHaveLength(1);
@@ -34,6 +34,32 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			]),
 		).toBe(1);
 		await expect(page.getByText(job.id)).toBeVisible();
+		await expect(page.getByRole("heading", { name: /your edit is ready/i })).toBeVisible({
+			timeout: 30_000,
+		});
+		const originalPreviewUrl = await page
+			.getByRole("img", { name: /original source image/i })
+			.getAttribute("src");
+		const comparison = page.getByRole("slider", {
+			name: /compare original and edited image/i,
+		});
+		await expect(comparison).toBeVisible();
+		await comparison.focus();
+		await page.keyboard.press("End");
+		await expect(comparison).toHaveValue("100");
+		await page.getByRole("button", { name: /show original/i }).click();
+		await expect(comparison).toHaveValue("0");
+		const download = page.waitForEvent("download");
+		await page.getByRole("button", { name: /^download$/i }).click();
+		expect((await download).suggestedFilename()).toBeTruthy();
+
+		const editAgain = page.getByRole("link", { name: /edit again/i });
+		await expect(editAgain).toHaveAttribute("href", /\/create\?asset=/);
+		await editAgain.click();
+		await expect(page).toHaveURL(/\/create\?asset=/);
+		const reusedSource = page.getByRole("img", { name: /selected source image/i });
+		await expect(reusedSource).toBeVisible({ timeout: 30_000 });
+		await expect.poll(() => reusedSource.getAttribute("src")).not.toBe(originalPreviewUrl);
 	});
 
 	test("insufficient credits creates no quote, job, reservation, or ledger entry", async ({
@@ -45,7 +71,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			`SELECT count(*) FROM credit_ledger_entry l JOIN credit_account a ON a.id=l."accountId" WHERE a."ownerId"=$1`,
 			[user.id],
 		);
-		await openCreator(page, prompt);
+		await openCreator(page, prompt, emptyEmail);
 		await page.getByRole("button", { name: /review credits/i }).click();
 		await expect(page.getByRole("alert")).toBeVisible();
 		expect(await jobsForPrompt(user.id, prompt)).toHaveLength(0);
@@ -140,7 +166,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 
 	async function uploadFile(page: import("@playwright/test").Page, name: string, buffer: Buffer) {
 		await page
-			.getByLabel(/upload images or video/i)
+			.getByLabel(/upload source images/i)
 			.locator('input[type="file"]')
 			.setInputFiles({
 				name,
@@ -180,7 +206,8 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		expect(job.failureCode).toBe("NO_USABLE_OUTPUT");
 		expect(reservation.settledAmount).toBe("0");
 		expect(reservation.releasedAmount).toBe(job.creditsReserved);
-		await expect(page.getByText(/could not finish/i)).toBeVisible();
+		await expect(page.getByRole("heading", { name: /could not finish/i })).toBeVisible();
+		await expect(page.getByText(/all 4 of 4 reserved credits were returned/i)).toBeVisible();
 	});
 
 	test("moderation rejection quarantines the exact output and charges zero", async ({
@@ -198,6 +225,9 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		expect(bindings[0]!.moderationStatus).toBe("REJECTED");
 		const reservation = await reservationFor(job.id);
 		expect(reservation.settledAmount).toBe("0");
+		await expect(page.getByText(/could not pass the safety review/i)).toBeVisible({
+			timeout: 30_000,
+		});
 		await page.goto("/assets");
 		await expect(page.locator(`[data-asset-id="${bindings[0]!.assetId}"]`)).toHaveCount(0);
 	});
@@ -205,12 +235,12 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	test("refresh follows the same in-flight job through success", async ({ page }, testInfo) => {
 		const prompt = marker("delayed-success", "Refresh recovery", testInfo.retry);
 		const jobId = await createScenario(page, prompt);
-		await page.goto(`/create?job=${jobId}`);
+		await expect(page).toHaveURL(new RegExp(`/create\\?job=${jobId}`));
 		await page.reload();
 		await expect(page.getByText(jobId)).toBeVisible({ timeout: 30_000 });
 		const job = await waitForJob(prompt, "SUCCEEDED");
 		expect(job.id).toBe(jobId);
-		await expect(page.getByRole("heading", { name: /creation is ready/i })).toBeVisible({
+		await expect(page.getByRole("heading", { name: /edit is ready/i })).toBeVisible({
 			timeout: 30_000,
 		});
 	});
@@ -245,7 +275,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 					: "missing";
 			})
 			.toBe("SETTLED:0:4");
-		await expect(page.getByRole("heading", { name: /creation was canceled/i })).toBeVisible();
+		await expect(page.getByRole("heading", { name: /edit was canceled/i })).toBeVisible();
 		await expect(page.getByText("4").nth(2)).toBeVisible();
 	});
 
@@ -262,10 +292,10 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await card.getByRole("link", { name: /reuse/i }).click();
 		await expect(page).toHaveURL(new RegExp(`/create\\?asset=${asset.id}`));
 		const prompt = marker("reuse", "Turn the reference into a watercolor scene", testInfo.retry);
-		await page.getByLabel(/prompt/i).fill(prompt);
+		await page.getByLabel(/edit instruction/i).fill(prompt);
 		await page.getByRole("button", { name: /review credits/i }).click();
-		await expect(page.getByText(/ready to create/i)).toBeVisible();
-		await page.getByRole("button", { name: /start creating/i }).click();
+		await expect(page.getByText(/ready to edit/i)).toBeVisible();
+		await page.getByRole("button", { name: /start edit/i }).click();
 		const job = await waitForJob(prompt, "SUCCEEDED");
 		const binding = (
 			await rows<{ assetId: string }>(
@@ -275,21 +305,47 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		)[0];
 		expect(binding?.assetId).toBe(asset.id);
 	});
+
+	test("mobile editor keeps the required source, prompt, modes, and review action keyboard accessible", async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width: 390, height: 844 });
+		await openCreator(page, marker("mobile", "Warm the evening light", 0), fundedEmail);
+
+		await expect(page.getByRole("img", { name: /selected source image/i })).toBeVisible();
+		await expect(page.getByRole("radiogroup", { name: /edit mode/i })).toBeVisible();
+		const quality = page.getByRole("radio", { name: /quality edit/i });
+		await quality.focus();
+		await page.keyboard.press("Space");
+		await expect(quality).toBeChecked();
+		await expect(page.getByRole("button", { name: /review credits/i })).toBeEnabled();
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+		).toBe(true);
+	});
 });
 
-async function openCreator(page: import("@playwright/test").Page, prompt: string) {
-	await page.goto("/create");
-	await page.getByLabel(/prompt/i).fill(prompt);
+async function openCreator(page: import("@playwright/test").Page, prompt: string, email: string) {
+	const user = await userByEmail(email);
+	const source = (
+		await rows<{ id: string }>(
+			`SELECT id FROM media_asset WHERE "ownerId"=$1 AND "sourceUrl"=$2 AND status='READY' AND "deletedAt" IS NULL`,
+			[user.id, `e2e-seed:${runId}`],
+		)
+	)[0];
+	if (!source) throw new Error(`Seed source image missing for ${email}`);
+	await page.goto(`/create?asset=${source.id}`);
+	await page.getByLabel(/edit instruction/i).fill(prompt);
 }
 
 async function createScenario(
 	page: import("@playwright/test").Page,
 	prompt: string,
 ): Promise<string> {
-	await openCreator(page, prompt);
+	await openCreator(page, prompt, fundedEmail);
 	await page.getByRole("button", { name: /review credits/i }).click();
-	await expect(page.getByText(/ready to create/i)).toBeVisible();
-	await page.getByRole("button", { name: /start creating/i }).click();
+	await expect(page.getByText(/ready to edit/i)).toBeVisible();
+	await page.getByRole("button", { name: /start edit/i }).click();
 	const user = await userByEmail(fundedEmail);
 	const job = await expect
 		.poll(async () => (await jobsForPrompt(user.id, prompt))[0] ?? null)

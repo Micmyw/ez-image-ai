@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	assertGenerationAllowed,
 	isCatalogModelEnabled,
+	isUsableGenerationSourceAsset,
 	type GenerationAccessSnapshot,
 } from "./generation-authorization";
 
@@ -25,6 +26,12 @@ const BASE_SNAPSHOT: GenerationAccessSnapshot = {
 };
 
 describe("generation authorization", () => {
+	it("requires an owned READY image asset for image-to-image input", () => {
+		expect(isUsableGenerationSourceAsset(IMAGE_EDIT_INPUT, { mimeType: "image/png" })).toBe(true);
+		expect(isUsableGenerationSourceAsset(IMAGE_EDIT_INPUT, { mimeType: "video/mp4" })).toBe(false);
+		expect(isUsableGenerationSourceAsset(IMAGE_EDIT_INPUT, null)).toBe(false);
+	});
+
 	it("authorizes the implemented Kie quality-video product when no runtime override disables it", () => {
 		expect(isCatalogModelEnabled("video-quality", false)).toBe(true);
 		expect(isCatalogModelEnabled("video-quality", true)).toBe(false);

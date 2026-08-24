@@ -40,6 +40,6 @@ export async function GET(request: Request) {
 		});
 		return response;
 	} catch {
-		return NextResponse.redirect(new URL("/create", request.url));
+		return NextResponse.redirect(new URL("/create?draftError=unavailable", request.url));
 	}
 }

@@ -12,14 +12,84 @@ export const getJob = protectedProcedure
 			where: { id: input.jobId, ownerType: "USER", ownerId: user.id },
 			include: {
 				reservation: true,
-				attempts: { orderBy: { attemptNumber: "desc" }, take: 1, select: { progress: true } },
+				_count: {
+					select: {
+						attempts: {
+							where: {
+								OR: [
+									{ uncertainSubmission: true },
+									{
+										status: {
+											in: ["SUBMISSION_UNCERTAIN", "NEEDS_RECONCILIATION"],
+										},
+									},
+								],
+							},
+						},
+					},
+				},
+				attempts: {
+					orderBy: { attemptNumber: "desc" },
+					take: 1,
+					select: { progress: true, status: true, uncertainSubmission: true },
+				},
 				assets: {
-					where: { role: "OUTPUT", asset: { status: "READY", deletedAt: null } },
-					select: { asset: true },
+					orderBy: [{ role: "asc" }, { position: "asc" }, { id: "asc" }],
+					select: {
+						role: true,
+						position: true,
+						asset: {
+							include: {
+								moderationResults: {
+									orderBy: [{ attemptNumber: "desc" }, { createdAt: "desc" }],
+									take: 1,
+									select: { status: true },
+								},
+							},
+						},
+					},
 				},
 			},
 		});
 		if (!job) throw new ORPCError("NOT_FOUND");
+		const inputAssets = job.assets
+			.filter(
+				(binding) =>
+					binding.role === "INPUT" &&
+					binding.asset.ownerType === "USER" &&
+					binding.asset.ownerId === user.id &&
+					binding.asset.status === "READY" &&
+					binding.asset.deletedAt === null,
+			)
+			.map(({ asset }) => assetDto(asset));
+		const outputAssets = job.assets
+			.filter(
+				(binding) =>
+					binding.role === "OUTPUT" &&
+					binding.asset.ownerType === "USER" &&
+					binding.asset.ownerId === user.id &&
+					binding.asset.status === "READY" &&
+					binding.asset.deletedAt === null &&
+					binding.asset.moderationResults[0]?.status === "APPROVED",
+			)
+			.map(({ asset }) => assetDto(asset));
+		const moderationRejected = job.assets.some(
+			(binding) =>
+				binding.role === "OUTPUT" &&
+				binding.asset.ownerType === "USER" &&
+				binding.asset.ownerId === user.id &&
+				(binding.asset.status === "QUARANTINED" ||
+					binding.asset.moderationResults[0]?.status === "REJECTED"),
+		);
+		const attempt = job.attempts[0];
+		const canCancel =
+			["RESERVED", "DISPATCH_QUEUED", "PROVIDER_PENDING", "PROVIDER_RUNNING"].includes(
+				job.status,
+			) &&
+			job._count.attempts === 0 &&
+			!attempt?.uncertainSubmission &&
+			attempt?.status !== "SUBMISSION_UNCERTAIN" &&
+			attempt?.status !== "NEEDS_RECONCILIATION";
 		return {
 			id: job.id,
 			status: job.status,
@@ -29,11 +99,18 @@ export const getJob = protectedProcedure
 			creditsReleased: jsonBigInt(job.reservation?.releasedAmount ?? 0n),
 			productKey: job.productKey,
 			input: job.inputSnapshot,
-			progress: job.attempts[0]?.progress ?? null,
+			progress: attempt?.progress ?? null,
 			failureCode: job.failureCode,
+			failureReason: moderationRejected
+				? ("CONTENT_NOT_ALLOWED" as const)
+				: job.status === "FAILED"
+					? ("GENERATION_FAILED" as const)
+					: null,
+			canCancel,
 			createdAt: job.createdAt.toISOString(),
 			updatedAt: job.updatedAt.toISOString(),
-			assets: job.assets.map(({ asset }) => assetDto(asset)),
+			inputAssets,
+			assets: outputAssets,
 		};
 	});
 
@@ -46,6 +123,7 @@ function assetDto(asset: {
 	height: number | null;
 	durationMillis: bigint | null;
 	createdAt: Date;
+	moderationResults?: Array<{ status: string }>;
 }) {
 	return {
 		id: asset.id,

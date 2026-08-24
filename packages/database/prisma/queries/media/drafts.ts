@@ -106,11 +106,21 @@ export async function claimGenerationDraftTransaction(
 		const draft = await tx.generationDraft.findFirst({
 			where: {
 				claimTokenHash: input.claimTokenHash,
-				status: "ACTIVE",
 				expiresAt: { gt: now },
+				OR: [
+					{ status: "ACTIVE" },
+					{
+						status: "SUBMITTED",
+						ownerType: "USER",
+						ownerId: input.userId,
+						submittedByUserId: input.userId,
+					},
+				],
 			},
 		});
 		if (!draft) throw new Error("DRAFT_UNAVAILABLE");
+		if (draft.status === "SUBMITTED") return toClaimedGenerationDraft(draft);
+		if (draft.status !== "ACTIVE") throw new Error("DRAFT_UNAVAILABLE");
 		const changed = await tx.generationDraft.updateMany({
 			where: { id: draft.id, status: "ACTIVE", expiresAt: { gt: now } },
 			data: {
@@ -120,7 +130,21 @@ export async function claimGenerationDraftTransaction(
 				status: "SUBMITTED",
 			},
 		});
-		if (changed.count !== 1) throw new Error("DRAFT_UNAVAILABLE");
+		if (changed.count !== 1) {
+			const claimed = await tx.generationDraft.findFirst({
+				where: {
+					id: draft.id,
+					claimTokenHash: input.claimTokenHash,
+					status: "SUBMITTED",
+					ownerType: "USER",
+					ownerId: input.userId,
+					submittedByUserId: input.userId,
+					expiresAt: { gt: now },
+				},
+			});
+			if (!claimed) throw new Error("DRAFT_UNAVAILABLE");
+			return toClaimedGenerationDraft(claimed);
+		}
 		if (draft.assetId) {
 			const transferred = await tx.mediaAsset.updateMany({
 				where: { id: draft.assetId, ownerId: draft.ownerId, status: "VERIFYING" },
@@ -137,15 +161,24 @@ export async function claimGenerationDraftTransaction(
 				},
 			});
 		}
-		return {
-			id: draft.id,
-			productKey: draft.productKey,
-			input: {
-				...(draft.inputSnapshot as Record<string, unknown>),
-				...(draft.assetId ? { sourceAssetId: draft.assetId } : {}),
-			},
-		};
+		return toClaimedGenerationDraft(draft);
 	});
+}
+
+function toClaimedGenerationDraft(draft: {
+	id: string;
+	productKey: string | null;
+	inputSnapshot: Prisma.JsonValue;
+	assetId: string | null;
+}): { id: string; productKey: string | null; input: Record<string, unknown> } {
+	return {
+		id: draft.id,
+		productKey: draft.productKey,
+		input: {
+			...(draft.inputSnapshot as Record<string, unknown>),
+			...(draft.assetId ? { sourceAssetId: draft.assetId } : {}),
+		},
+	};
 }
 
 export async function getClaimedGenerationDraft(

@@ -181,8 +181,15 @@ test("draft handoff posts to SaaS and redirects without prompt data", async ({
 			"base64",
 		),
 	});
+	await page.getByLabel(/quality edit/i).check();
+	const sessionResponse = page.waitForResponse(
+		(response) =>
+			response.url().includes("/api/auth/get-session") && response.request().method() === "GET",
+	);
 	await page.getByRole("button", { name: /continue to edit/i }).click();
+	await expect(page.getByLabel(/email/i)).toBeVisible({ timeout: 30_000 });
 	await expect(page).toHaveURL(/\/login\?redirectTo=/);
+	await sessionResponse;
 	expect(page.url()).not.toContain(encodeURIComponent(prompt));
 	expect(page.url()).not.toContain("private");
 	expect(claimToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
@@ -197,9 +204,15 @@ test("draft handoff posts to SaaS and redirects without prompt data", async ({
 
 	await page.getByLabel(/email/i).fill(`media-e2e-funded-${runId}@example.test`);
 	await page.locator('input[type="password"]').fill(process.env.E2E_USER_PASSWORD!);
-	await page.locator('button[type="submit"]').click();
+	const submit = page.locator('button[type="submit"]');
+	await expect(submit).toBeEnabled({ timeout: 30_000 });
+	await submit.click();
 	await expect(page).toHaveURL(/\/create$/);
-	await expect(page.getByLabel(/prompt/i)).toHaveValue(prompt);
+	await expect(page.getByLabel(/edit instruction/i)).toHaveValue(prompt);
+	await expect(page.getByRole("radio", { name: /quality edit/i })).toBeChecked();
+	await expect(page.getByRole("img", { name: /selected source image/i })).toBeVisible({
+		timeout: 30_000,
+	});
 	expect(page.url()).not.toContain("private");
 
 	const claimed = (

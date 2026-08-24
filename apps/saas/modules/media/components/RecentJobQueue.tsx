@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 
 import { useJobHistory } from "../hooks/use-job-history";
+import { isEditorProductKey, type EditorProductKey } from "../lib/editor-recovery";
 import { getJobPresentation } from "../lib/job-status";
 
 export function RecentJobQueue({
@@ -15,8 +16,13 @@ export function RecentJobQueue({
 	onSelect: (id: string) => void;
 }) {
 	const t = useTranslations("media.status");
+	const products = useTranslations("media.create.products");
 	const history = useJobHistory({});
-	const jobs = history.data?.pages.flatMap((page) => page.items).slice(0, 8) ?? [];
+	const jobs =
+		history.data?.pages
+			.flatMap((page) => page.items)
+			.filter(hasEditorProductKey)
+			.slice(0, 8) ?? [];
 	if (!jobs.length) return null;
 	return (
 		<div className="mt-5 pb-2 overflow-x-auto" aria-label={t("recent")}>
@@ -31,7 +37,7 @@ export function RecentJobQueue({
 							className={`min-w-48 p-3 rounded-xl border text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${selectedJobId === job.id ? "border-primary bg-primary/10" : "bg-background"}`}
 						>
 							<div className="gap-2 flex items-center justify-between">
-								<span className="font-medium text-sm">{job.productKey}</span>
+								<span className="font-medium text-sm">{products(`${job.productKey}.label`)}</span>
 								<Badge status="info">{t(`stages.${stage}`)}</Badge>
 							</div>
 							<span className="mt-2 text-xs block text-muted-foreground">
@@ -49,4 +55,10 @@ export function RecentJobQueue({
 			</div>
 		</div>
 	);
+}
+
+function hasEditorProductKey<T extends { productKey: string }>(
+	job: T,
+): job is T & { productKey: EditorProductKey } {
+	return isEditorProductKey(job.productKey);
 }

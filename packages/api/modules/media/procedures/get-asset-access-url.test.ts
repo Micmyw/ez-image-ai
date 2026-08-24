@@ -64,4 +64,19 @@ describe("getAssetAccessUrl", () => {
 		).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
 		expect(createSignedReadUrl).not.toHaveBeenCalled();
 	});
+
+	it("authorizes every preview and download against the authenticated owner", async () => {
+		await call(
+			getAssetAccessUrl,
+			{ assetId: "asset-1", disposition: "attachment" },
+			{ context: { headers: new Headers() } },
+		);
+
+		expect(requireReadyOwnedMediaAsset).toHaveBeenCalledWith("asset-1", "user-1");
+		expect(createSignedReadUrl).toHaveBeenCalledWith(
+			expect.objectContaining({
+				responseContentDisposition: 'attachment; filename="asset-1"',
+			}),
+		);
+	});
 });

@@ -725,27 +725,83 @@
 				"prompt": "Edit instruction",
 				"sourceAssetId": "Source image"
 			},
+			"promptHint": "Describe only the change you want. Your source image remains private.",
+			"suggestions": {
+				"label": "Try an instruction",
+				"background": "Replace the background with a quiet mountain lake",
+				"object": "Remove the distracting object and preserve the subject",
+				"lighting": "Add warm evening light while keeping natural skin tones",
+				"style": "Give the scene a refined editorial look"
+			},
 			"credits": "credits",
 			"quoteReady": "Ready to edit",
 			"reserveCredits": "This edit will reserve {credits} credits. You are charged only for completed work.",
+			"quoteMode": "{mode} will reserve {credits} credits. You are charged only for completed work.",
+			"quoteExpires": "Quote expires at {time}. Changes to the image, instruction, or mode require a new quote.",
 			"confirm": "Start edit",
 			"edit": "Edit settings",
 			"review": "Review credits",
-			"safeError": "We could not start this edit. Check your credits or try again shortly."
+			"safeError": "We could not start this edit. Check your credits or try again shortly.",
+			"restore": {
+				"qualityDowngraded": "Your image and instruction were restored. Quality Edit is not included in your current plan, so the mode was changed to Standard Edit.",
+				"verifying": "Your draft was restored. The private source image is still completing its safety check; Review will unlock when it is ready.",
+				"unavailable": "This saved edit is expired or its source image is no longer available. No job or credit reservation was created."
+			},
+			"errors": {
+				"insufficientCredits": "You do not have enough credits for this edit. No job or reservation was created.",
+				"qualityUnavailable": "Quality Edit is not included in your current plan. Choose Standard Edit or review your plan.",
+				"assetNotReady": "The source image is not ready. Wait for its private safety check or choose another image.",
+				"quoteExpired": "This quote expired or pricing changed. Review the edit again before confirming.",
+				"contentNotAllowed": "This instruction could not pass the safety review. No job or reservation was created.",
+				"safeError": "We could not start this edit. Check the form or try again shortly."
+			}
+		},
+		"editor": {
+			"source": {
+				"title": "Source image",
+				"chooseLibrary": "Choose from Assets",
+				"selectedAlt": "Selected source image",
+				"preparing": "Preparing source image…",
+				"ready": "Source image ready",
+				"private": "Only you can access this image through a short-lived private link.",
+				"remove": "Remove source"
+			},
+			"mode": {
+				"label": "Edit mode",
+				"standard": "Standard Edit",
+				"standardDescription": "Fast private editing for everyday changes.",
+				"quality": "Quality Edit",
+				"qualityDescription": "Higher-fidelity private editing for detailed changes.",
+				"credits": "{credits} credits",
+				"qualityUnavailable": "Upgrade to use Quality Edit. Your image and instruction will stay in place.",
+				"upgrade": "View upgrade options"
+			}
 		},
 		"status": {
 			"emptyTitle": "Your output will appear here",
-			"emptyDescription": "Set your controls, review the credit reservation, then start. You can prepare another idea while work continues.",
-			"loading": "Loading your creation…",
-			"progress": "Creation progress: {progress}%",
+			"emptyDescription": "Upload a source image, describe the change, and review the credit reservation to begin.",
+			"loading": "Loading your edit…",
+			"unavailableTitle": "This edit is unavailable",
+			"unavailableDescription": "The selected creation cannot be opened in this editor.",
+			"progress": "Edit progress: {progress}%",
 			"reserved": "Reserved",
 			"charged": "Charged",
 			"released": "Returned",
 			"cancel": "Cancel",
-			"new": "New idea",
+			"download": "Download",
+			"editAgain": "Edit Again",
+			"new": "New edit",
 			"details": "View details",
 			"recent": "Recent creations",
 			"all": "View all",
+			"creditSummaryReserved": "{reserved} credits are reserved while this edit runs.",
+			"creditSummarySucceeded": "{charged} credits were charged and {released} were returned.",
+			"creditSummaryReturned": "No credits were charged. All {released} of {reserved} reserved credits were returned.",
+			"moderationRejected": "The result could not pass the safety review. It remains unavailable, and eligible reserved credits were returned.",
+			"failureHelp": "This edit could not finish. Any eligible reserved credits were returned; you can adjust the instruction and try a new edit.",
+			"comparisonUnavailable": "The private source or approved result is no longer available for comparison.",
+			"downloadUnavailable": "The private download is unavailable right now. Please try again.",
+			"cancelUnavailable": "This edit changed state and can no longer be canceled safely.",
 			"stages": {
 				"reserved": "Reserved",
 				"queued": "In line",
@@ -758,13 +814,23 @@
 			},
 			"headings": {
 				"reserved": "Credits reserved",
-				"queued": "Your creation is in line",
-				"starting": "Preparing your creation",
-				"creating": "Creating your asset",
-				"finishing": "Preparing your files",
-				"ready": "Your creation is ready",
-				"failed": "This creation could not finish",
-				"canceled": "This creation was canceled"
+				"queued": "Your edit is in line",
+				"starting": "Preparing your edit",
+				"creating": "Editing your image",
+				"finishing": "Preparing your result",
+				"ready": "Your edit is ready",
+				"failed": "This edit could not finish",
+				"canceled": "This edit was canceled"
+			},
+			"compare": {
+				"loading": "Preparing private before and after previews…",
+				"beforeAlt": "Original source image",
+				"afterAlt": "Edited result image",
+				"control": "Compare original and edited image",
+				"showOriginal": "Show original",
+				"showResult": "Show result",
+				"before": "Original",
+				"after": "Result"
 			}
 		},
 		"history": {
@@ -785,6 +851,9 @@
 		},
 		"detail": {
 			"loading": "Loading creation…",
+			"unavailableTitle": "This creation is unavailable",
+			"unavailableDescription": "Return to your history and choose another creation.",
+			"legacyProduct": "Legacy creation",
 			"back": "Back to history",
 			"reserved": "Reserved credits",
 			"charged": "Charged credits",

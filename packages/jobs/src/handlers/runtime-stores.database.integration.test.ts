@@ -45,6 +45,7 @@ let client: PrismaClient;
 
 function createTestDispatchStore(options: Omit<DispatchRuntimeOptions, "enabledProviders"> = {}) {
 	return createDatabaseDispatchStore(client, {
+		createSignedReadUrl: async () => "https://private.example/runtime-input.png",
 		...options,
 		enabledProviders: TEST_EXECUTABLE_PROVIDERS,
 	});
@@ -2038,6 +2039,9 @@ async function seedReservedJob(
 ) {
 	const suffix = crypto.randomUUID();
 	const ownerId = `task4-runtime-${suffix}`;
+	const inputAssetId = productKey.startsWith("video")
+		? undefined
+		: await seedReadyImageInput(ownerId, suffix);
 	const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
 	await createCreditGrant(
 		{ accountId: account.id, amount: 100n, referenceKey: `task4-runtime-grant:${suffix}` },
@@ -2045,7 +2049,7 @@ async function seedReservedJob(
 	);
 	const inputSnapshot = productKey.startsWith("video")
 		? { kind: "text-to-video", prompt: "test" }
-		: { kind: "text-to-image", prompt: "test" };
+		: { kind: "image-to-image", prompt: "test", sourceAssetId: inputAssetId! };
 	const credits =
 		options?.credits ??
 		(productKey.startsWith("video") ? 25n : productKey === "image-quality" ? 10n : 4n);
@@ -2086,8 +2090,14 @@ async function seedReservedJob(
 			submittedByUserId: ownerId,
 			quoteId: quote.id,
 			idempotencyKey: `task4-runtime:${suffix}`,
-			inputAssetIds: [],
+			inputAssetIds: inputAssetId ? [inputAssetId] : [],
 			expectedModerationRuleVersion: "TEST_ALLOW_RUNTIME_STORES_V1",
+			...(inputAssetId
+				? {
+						expectedAssetModerationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+						expectedAssetModerationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+					}
+				: {}),
 		},
 		client,
 	);
@@ -2097,6 +2107,50 @@ async function seedReservedJob(
 		accountId: account.id,
 		credits,
 	};
+}
+
+async function seedReadyImageInput(ownerId: string, suffix: string): Promise<string> {
+	const checksum = createHash("sha256").update(`runtime-input:${suffix}`).digest("hex");
+	const verificationValidUntil = new Date(Date.now() + 60_000);
+	const asset = await client.mediaAsset.create({
+		data: {
+			id: `asset_${suffix}`,
+			ownerType: "USER",
+			ownerId,
+			kind: "INPUT",
+			status: "VERIFYING",
+			objectKey: `users/${ownerId}/assets/${suffix}/original.png`,
+			mimeType: "image/png",
+			byteSize: 16n,
+			checksum,
+			finalizedAt: new Date(),
+			verificationGeneration: 1,
+			verificationAttemptCount: 1,
+			verificationProvider: "test",
+			verificationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+			verificationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+			verificationValidUntil,
+		},
+	});
+	await client.assetModerationResult.create({
+		data: {
+			assetId: asset.id,
+			assetChecksum: checksum,
+			verificationGeneration: 1,
+			attemptNumber: 1,
+			evidenceKind: "INPUT",
+			provider: "test",
+			ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+			policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+			status: "APPROVED",
+			reasonCode: "TEST_ALLOW",
+			categories: {},
+			rawEnvelope: { decision: "ALLOW" },
+			validUntil: verificationValidUntil,
+		},
+	});
+	await client.mediaAsset.update({ where: { id: asset.id }, data: { status: "READY" } });
+	return asset.id;
 }
 
 async function seedReservedImageEditJob(validForMs = 60_000) {

@@ -732,27 +732,83 @@
 				"prompt": "Instrucción de edición",
 				"sourceAssetId": "Imagen de origen"
 			},
+			"promptHint": "Describe solo el cambio que quieres. La imagen de origen permanece privada.",
+			"suggestions": {
+				"label": "Prueba una instrucción",
+				"background": "Sustituye el fondo por un lago tranquilo de montaña",
+				"object": "Elimina el objeto que distrae y conserva el sujeto",
+				"lighting": "Añade luz cálida de atardecer y conserva tonos de piel naturales",
+				"style": "Da a la escena un acabado editorial refinado"
+			},
 			"credits": "créditos",
 			"quoteReady": "Listo para editar",
 			"reserveCredits": "Esta edición reservará {credits} créditos. Solo se cobra el trabajo completado.",
+			"quoteMode": "{mode} reservará {credits} créditos. Solo se cobra el trabajo completado.",
+			"quoteExpires": "El presupuesto caduca a las {time}. Cambiar la imagen, la instrucción o el modo requiere otro presupuesto.",
 			"confirm": "Iniciar edición",
 			"edit": "Editar ajustes",
 			"review": "Revisar créditos",
-			"safeError": "No pudimos iniciar esta edición. Comprueba tus créditos o inténtalo de nuevo en unos minutos."
+			"safeError": "No pudimos iniciar esta edición. Comprueba tus créditos o inténtalo de nuevo en unos minutos.",
+			"restore": {
+				"qualityDowngraded": "Se restauraron la imagen y la instrucción. Quality Edit no está incluido en tu plan, así que se eligió Standard Edit.",
+				"verifying": "Se restauró el borrador. La imagen privada aún está completando su revisión de seguridad; Revisar se activará cuando esté lista.",
+				"unavailable": "La edición guardada caducó o su imagen ya no está disponible. No se creó ningún trabajo ni reserva de créditos."
+			},
+			"errors": {
+				"insufficientCredits": "No tienes créditos suficientes para esta edición. No se creó ningún trabajo ni reserva.",
+				"qualityUnavailable": "Quality Edit no está incluido en tu plan. Elige Standard Edit o revisa tu plan.",
+				"assetNotReady": "La imagen de origen no está lista. Espera la revisión privada o elige otra imagen.",
+				"quoteExpired": "El presupuesto caducó o cambió el precio. Vuelve a revisar la edición antes de confirmar.",
+				"contentNotAllowed": "La instrucción no superó la revisión de seguridad. No se creó ningún trabajo ni reserva.",
+				"safeError": "No pudimos iniciar la edición. Comprueba el formulario o inténtalo de nuevo en unos minutos."
+			}
+		},
+		"editor": {
+			"source": {
+				"title": "Imagen de origen",
+				"chooseLibrary": "Elegir de Recursos",
+				"selectedAlt": "Imagen de origen seleccionada",
+				"preparing": "Preparando la imagen de origen…",
+				"ready": "Imagen de origen lista",
+				"private": "Solo tú puedes acceder a esta imagen mediante un enlace privado de corta duración.",
+				"remove": "Quitar imagen"
+			},
+			"mode": {
+				"label": "Modo de edición",
+				"standard": "Standard Edit",
+				"standardDescription": "Edición privada rápida para cambios cotidianos.",
+				"quality": "Quality Edit",
+				"qualityDescription": "Edición privada de mayor fidelidad para cambios detallados.",
+				"credits": "{credits} créditos",
+				"qualityUnavailable": "Mejora el plan para usar Quality Edit. La imagen y la instrucción se conservarán.",
+				"upgrade": "Ver opciones de mejora"
+			}
 		},
 		"status": {
 			"emptyTitle": "Tu resultado aparecerá aquí",
 			"emptyDescription": "Configura los controles, revisa la reserva y empieza. Puedes preparar otra idea mientras continúa el trabajo.",
-			"loading": "Cargando tu creación…",
-			"progress": "Progreso: {progress}%",
+			"loading": "Cargando tu edición…",
+			"unavailableTitle": "Esta edición no está disponible",
+			"unavailableDescription": "La creación seleccionada no se puede abrir en este editor.",
+			"progress": "Progreso de edición: {progress}%",
 			"reserved": "Reservados",
 			"charged": "Cobrados",
 			"released": "Devueltos",
 			"cancel": "Cancelar",
-			"new": "Nueva idea",
+			"download": "Descargar",
+			"editAgain": "Editar de nuevo",
+			"new": "Nueva edición",
 			"details": "Ver detalles",
 			"recent": "Creaciones recientes",
 			"all": "Ver todas",
+			"creditSummaryReserved": "Hay {reserved} créditos reservados mientras se procesa la edición.",
+			"creditSummarySucceeded": "Se cobraron {charged} créditos y se devolvieron {released}.",
+			"creditSummaryReturned": "No se cobraron créditos. Se devolvieron los {released} de {reserved} créditos reservados.",
+			"moderationRejected": "El resultado no superó la revisión de seguridad, permanece inaccesible y se devolvieron los créditos reservados correspondientes.",
+			"failureHelp": "La edición no pudo terminar. Se devolvieron los créditos reservados correspondientes; ajusta la instrucción e inicia otra edición.",
+			"comparisonUnavailable": "La imagen de origen o el resultado aprobado ya no está disponible para comparar.",
+			"downloadUnavailable": "La descarga privada no está disponible en este momento. Inténtalo de nuevo.",
+			"cancelUnavailable": "El estado cambió y la edición ya no puede cancelarse de forma segura.",
 			"stages": {
 				"reserved": "Reservado",
 				"queued": "En cola",
@@ -765,13 +821,23 @@
 			},
 			"headings": {
 				"reserved": "Créditos reservados",
-				"queued": "Tu creación está en cola",
-				"starting": "Preparando tu creación",
-				"creating": "Creando tu recurso",
-				"finishing": "Preparando tus archivos",
-				"ready": "Tu creación está lista",
-				"failed": "La creación no pudo terminar",
-				"canceled": "La creación fue cancelada"
+				"queued": "Tu edición está en cola",
+				"starting": "Preparando tu edición",
+				"creating": "Editando tu imagen",
+				"finishing": "Preparando el resultado",
+				"ready": "Tu edición está lista",
+				"failed": "La edición no pudo terminar",
+				"canceled": "La edición fue cancelada"
+			},
+			"compare": {
+				"loading": "Preparando las vistas privadas de antes y después…",
+				"beforeAlt": "Imagen de origen original",
+				"afterAlt": "Imagen con el resultado editado",
+				"control": "Comparar imagen original y editada",
+				"showOriginal": "Mostrar original",
+				"showResult": "Mostrar resultado",
+				"before": "Original",
+				"after": "Resultado"
 			}
 		},
 		"history": {
@@ -792,6 +858,9 @@
 		},
 		"detail": {
 			"loading": "Cargando creación…",
+			"unavailableTitle": "Esta creación no está disponible",
+			"unavailableDescription": "Vuelve al historial y elige otra creación.",
+			"legacyProduct": "Creación anterior",
 			"back": "Volver al historial",
 			"reserved": "Créditos reservados",
 			"charged": "Créditos cobrados",

@@ -2,6 +2,8 @@ import { createHash, timingSafeEqual } from "node:crypto";
 
 import {
 	getCatalogEntry,
+	MEDIA_VERIFICATION_POLICY_VERSION,
+	MEDIA_VERIFICATION_RULE_VERSION,
 	quoteCatalogInput,
 	type MediaProviderAdapter,
 	type NormalizedResult,
@@ -220,9 +222,11 @@ export async function executeMediaLoadRequest(
 		db,
 	);
 
+	const inputAsset = await ensureControlledLoadInput(input.idempotencyKey, configuration.ownerId);
 	const modelInput = {
-		kind: "text-to-image" as const,
+		kind: "image-to-image" as const,
 		prompt: `Controlled load fixture [${input.mode}]`,
+		sourceAssetId: inputAsset.id,
 	};
 	const productKey = "image-fast" as const;
 	const quoted = quoteCatalogInput({ productKey, input: modelInput });
@@ -274,8 +278,10 @@ export async function executeMediaLoadRequest(
 			submittedByUserId: configuration.ownerId,
 			quoteId: quote.id,
 			idempotencyKey: input.idempotencyKey,
-			inputAssetIds: [],
+			inputAssetIds: [inputAsset.id],
 			expectedModerationRuleVersion: LOAD_TEST_MODERATION_RULE_VERSION,
+			expectedAssetModerationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+			expectedAssetModerationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 			maximumDailyCostMicros: BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros),
 			maximumStorageBytes: maximumMediaStorageBytes(),
 		},
@@ -286,6 +292,7 @@ export async function executeMediaLoadRequest(
 			{ jobId: created.job.id, version: created.job.version },
 			{
 				store: createDatabaseDispatchStore(db, {
+					createSignedReadUrl: async () => "https://private.example/controlled-load-input.png",
 					enabledProviders: new Set([route.provider]),
 				}),
 				getProvider: (provider) => new ControlledLoadProvider(provider, input.mode),
@@ -311,6 +318,94 @@ export async function executeMediaLoadRequest(
 		replayed: created.replayed,
 		internalQueueMs,
 	};
+}
+
+async function ensureControlledLoadInput(idempotencyKey: string, ownerId: string) {
+	const digest = createHash("sha256").update(idempotencyKey).digest("hex");
+	const assetId = `asset_${digest.slice(0, 32)}`;
+	const checksum = createHash("sha256")
+		.update(Buffer.from(CONTROLLED_INLINE_PNG_BASE64, "base64"))
+		.digest("hex");
+	const objectKey = `users/${ownerId}/assets/${digest}/original.png`;
+	const verificationValidUntil = new Date(Date.now() + 60 * 60_000);
+
+	return db.$transaction(async (tx) => {
+		const asset = await tx.mediaAsset.upsert({
+			where: { id: assetId },
+			create: {
+				id: assetId,
+				ownerType: "USER",
+				ownerId,
+				kind: "INPUT",
+				status: "VERIFYING",
+				objectKey,
+				mimeType: "image/png",
+				byteSize: BigInt(Buffer.from(CONTROLLED_INLINE_PNG_BASE64, "base64").byteLength),
+				checksum,
+				finalizedAt: new Date(),
+				verificationGeneration: 1,
+				verificationAttemptCount: 1,
+				verificationProvider: "test",
+				verificationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				verificationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				verificationValidUntil,
+			},
+			update: {},
+		});
+		if (
+			asset.ownerType !== "USER" ||
+			asset.ownerId !== ownerId ||
+			asset.kind !== "INPUT" ||
+			!["VERIFYING", "READY"].includes(asset.status) ||
+			asset.deletedAt ||
+			asset.objectKey !== objectKey ||
+			asset.mimeType !== "image/png" ||
+			asset.checksum !== checksum ||
+			asset.verificationRuleVersion !== MEDIA_VERIFICATION_RULE_VERSION ||
+			asset.verificationPolicyVersion !== MEDIA_VERIFICATION_POLICY_VERSION ||
+			!asset.verificationValidUntil ||
+			asset.verificationValidUntil <= new Date()
+		) {
+			throw new LoadTestConflictError("The load input asset is not reusable");
+		}
+
+		const existingModeration = await tx.assetModerationResult.findFirst({
+			where: { assetId, verificationGeneration: 1, attemptNumber: 1 },
+		});
+		if (!existingModeration) {
+			await tx.assetModerationResult.create({
+				data: {
+					assetId,
+					assetChecksum: checksum,
+					verificationGeneration: 1,
+					attemptNumber: 1,
+					evidenceKind: "INPUT",
+					provider: "test",
+					ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+					policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+					status: "APPROVED",
+					reasonCode: "TEST_ALLOW",
+					categories: {},
+					rawEnvelope: { decision: "ALLOW" },
+					validUntil: asset.verificationValidUntil,
+				},
+			});
+		} else if (
+			existingModeration.assetChecksum !== checksum ||
+			existingModeration.evidenceKind !== "INPUT" ||
+			existingModeration.ruleVersion !== MEDIA_VERIFICATION_RULE_VERSION ||
+			existingModeration.policyVersion !== MEDIA_VERIFICATION_POLICY_VERSION ||
+			existingModeration.status !== "APPROVED" ||
+			!existingModeration.validUntil ||
+			existingModeration.validUntil <= new Date()
+		) {
+			throw new LoadTestConflictError("The load input moderation is not reusable");
+		}
+
+		return asset.status === "READY"
+			? asset
+			: tx.mediaAsset.update({ where: { id: asset.id }, data: { status: "READY" } });
+	});
 }
 
 class ControlledLoadProvider implements MediaProviderAdapter {

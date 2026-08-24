@@ -113,8 +113,9 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 							status: "READY",
 							deletedAt: null,
 						},
+						select: { mimeType: true },
 					})
-				: Promise.resolve({ id: "not-required" }),
+				: Promise.resolve(null),
 		]);
 		const planId = resolvePlanId(subscription?.plan.metadata, subscription?.plan.name) ?? "free";
 		return {
@@ -126,7 +127,7 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 			storageUsageBytes: storageUsage._sum.bytes ?? 0n,
 			maximumStorageBytes: maximumMediaStorageBytes(),
 			planId,
-			sourceAssetReady: Boolean(sourceAsset),
+			sourceAssetReady: isUsableGenerationSourceAsset(input.input, sourceAsset),
 		};
 	},
 };
@@ -184,6 +185,14 @@ export function isCatalogModelEnabled(
 	return (
 		!modelDisabled && Boolean(createExecutableRouteGraph(routeGraphOptions).getEntry(productKey))
 	);
+}
+
+export function isUsableGenerationSourceAsset(
+	input: MediaModelInput,
+	asset: { mimeType: string } | null,
+): boolean {
+	if (!("sourceAssetId" in input)) return true;
+	return asset?.mimeType.startsWith("image/") ?? false;
 }
 
 function resolvePlanId(metadata: unknown, planName: string | undefined): PlanId | null {

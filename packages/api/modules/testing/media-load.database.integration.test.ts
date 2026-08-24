@@ -35,7 +35,12 @@ describe("controlled media load database path", () => {
 		);
 		const job = await client.generationJob.findUniqueOrThrow({
 			where: { id: result.jobId },
-			include: { quote: true, reservation: true, attempts: true },
+			include: {
+				quote: true,
+				reservation: true,
+				attempts: true,
+				assets: { include: { asset: true } },
+			},
 		});
 		const account = await client.creditAccount.findUniqueOrThrow({
 			where: { ownerType_ownerId: { ownerType: "USER", ownerId: OWNER_ID } },
@@ -54,8 +59,19 @@ describe("controlled media load database path", () => {
 		expect(job).toMatchObject({
 			ownerId: OWNER_ID,
 			creditsReserved: 4n,
+			inputSnapshot: { kind: "image-to-image" },
 			quote: { ownerId: OWNER_ID, productKey: "image-fast" },
 			reservation: { amount: 4n, status: "ACTIVE" },
+			assets: [
+				expect.objectContaining({
+					role: "INPUT",
+					asset: expect.objectContaining({
+						ownerId: OWNER_ID,
+						status: "READY",
+						mimeType: "image/png",
+					}),
+				}),
+			],
 			attempts: [
 				expect.objectContaining({
 					status: "SUCCEEDED",
@@ -64,6 +80,9 @@ describe("controlled media load database path", () => {
 				}),
 			],
 		});
+		expect((job.inputSnapshot as { sourceAssetId?: string }).sourceAssetId).toBe(
+			job.assets[0]?.assetId,
+		);
 		expect(outbox.map((event) => event.eventType)).toEqual(["JOB_CREATED", "GENERATION_FINALIZE"]);
 		expect(
 			await client.creditLedgerEntry.count({

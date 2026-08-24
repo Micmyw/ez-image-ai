@@ -79,6 +79,31 @@ request. After draft creation, the browser sends the opaque claim token to the c
 query string. Real generation starts only after sign-in, server-side quote review, and explicit
 confirmation in the authenticated editor.
 
+## Authenticated editor and one-edit lifecycle
+
+The authenticated `/create` workspace accepts only `image-fast` and `image-quality` image edits.
+Its source asset must belong to the signed-in user, be an undeleted READY image, and remain readable
+under current moderation evidence. The prompt is required and limited to the same 10,000-character
+boundary in the client form and server input schema.
+
+Review creates only the existing server-owned `GenerationQuote` and shows its mode, credit amount,
+and expiry. Changing the source, prompt, or mode invalidates that quote. Confirm then uses a stable
+per-quote idempotency key and the existing transaction to bind the frozen input snapshot, reserve
+credits, create the job, and write its initial Outbox event. Clients never submit Provider/model
+routes, prices, credit amounts, signed URLs, or arbitrary remote inputs.
+
+Claimed drafts, `reuseJob`, and asset reuse restore the source image, prompt, and edit mode. When an
+active plan no longer permits Quality Edit, recovery preserves the image and prompt, falls back to
+Standard Edit, and explains the downgrade. Expired, missing, cross-owner, deleted, and otherwise
+invalid recovery inputs show an explicit error without creating a quote, job, or reservation.
+
+Job state is recoverable from the URL after refresh. The result panel reports safe progress and
+reserved/charged/released credit summaries, delegates cancellation eligibility to the server state
+machine, and covers success, ordinary failure, moderation rejection, and cancellation. A successful
+comparison uses the exact job-bound input and only an approved job output; both previews and the
+download are requested through short-lived owner-authorized signed URLs. No signed URL is sent to
+analytics or application logs.
+
 The homepage uses original repository-owned vector illustrations documented in
 `apps/marketing/public/examples/PROVENANCE.md`. They explain edit categories and the comparison UI;
 they are not represented as Provider output or evidence of model quality.
@@ -133,6 +158,8 @@ brand assets. No ledger rewrite or data migration is required.
 ## Explicit exclusions
 
 The original PR 1 scope did not include the homepage editor; PR 3 adds the anonymous draft and
-original illustrative Before/After experience described above. The current product still excludes
-anonymous real generation, verified Provider quality claims, Stripe repricing, public
-gallery/community features, and any second job, credit, Provider, or storage system.
+original illustrative Before/After experience described above, and PR 4 adds the authenticated
+single-edit lifecycle. The current product still excludes anonymous real generation, multi-round
+editing, project/version history, masks, batch editing, a public generation API, verified Provider
+quality claims, Stripe repricing, public gallery/community features, and any second job, credit,
+Provider, or storage system.

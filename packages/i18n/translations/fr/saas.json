@@ -732,27 +732,83 @@
 				"prompt": "Instruction de retouche",
 				"sourceAssetId": "Image source"
 			},
+			"promptHint": "Décrivez uniquement la modification voulue. Votre image source reste privée.",
+			"suggestions": {
+				"label": "Essayer une instruction",
+				"background": "Remplace l’arrière-plan par un lac de montagne paisible",
+				"object": "Supprime l’objet gênant tout en préservant le sujet",
+				"lighting": "Ajoute une lumière chaude du soir en gardant des tons de peau naturels",
+				"style": "Donne à la scène un rendu éditorial raffiné"
+			},
 			"credits": "crédits",
 			"quoteReady": "Prêt à retoucher",
 			"reserveCredits": "Cette retouche réservera {credits} crédits. Seul le travail terminé est facturé.",
+			"quoteMode": "{mode} réservera {credits} crédits. Seul le travail terminé est facturé.",
+			"quoteExpires": "Le devis expire à {time}. Modifier l’image, l’instruction ou le mode nécessite un nouveau devis.",
 			"confirm": "Lancer la retouche",
 			"edit": "Modifier les réglages",
 			"review": "Vérifier les crédits",
-			"safeError": "La retouche n'a pas pu démarrer. Vérifiez vos crédits ou réessayez dans quelques instants."
+			"safeError": "La retouche n'a pas pu démarrer. Vérifiez vos crédits ou réessayez dans quelques instants.",
+			"restore": {
+				"qualityDowngraded": "L’image et l’instruction ont été restaurées. Quality Edit n’est pas inclus dans votre offre ; Standard Edit a donc été sélectionné.",
+				"verifying": "Le brouillon a été restauré. L’image privée termine encore son contrôle de sécurité ; Vérifier sera activé ensuite.",
+				"unavailable": "Cette retouche enregistrée a expiré ou son image source n’est plus disponible. Aucune tâche ni réservation de crédits n’a été créée."
+			},
+			"errors": {
+				"insufficientCredits": "Vous n’avez pas assez de crédits pour cette retouche. Aucune tâche ni réservation n’a été créée.",
+				"qualityUnavailable": "Quality Edit n’est pas inclus dans votre offre. Choisissez Standard Edit ou consultez votre offre.",
+				"assetNotReady": "L’image source n’est pas prête. Attendez son contrôle privé ou choisissez une autre image.",
+				"quoteExpired": "Ce devis a expiré ou le prix a changé. Vérifiez de nouveau la retouche avant de confirmer.",
+				"contentNotAllowed": "L’instruction n’a pas réussi le contrôle de sécurité. Aucune tâche ni réservation n’a été créée.",
+				"safeError": "La retouche n’a pas pu démarrer. Vérifiez le formulaire ou réessayez dans quelques instants."
+			}
+		},
+		"editor": {
+			"source": {
+				"title": "Image source",
+				"chooseLibrary": "Choisir dans les médias",
+				"selectedAlt": "Image source sélectionnée",
+				"preparing": "Préparation de l’image source…",
+				"ready": "Image source prête",
+				"private": "Vous seul pouvez accéder à cette image via un lien privé de courte durée.",
+				"remove": "Retirer l’image"
+			},
+			"mode": {
+				"label": "Mode de retouche",
+				"standard": "Standard Edit",
+				"standardDescription": "Retouche privée rapide pour les modifications courantes.",
+				"quality": "Quality Edit",
+				"qualityDescription": "Retouche privée haute fidélité pour les changements détaillés.",
+				"credits": "{credits} crédits",
+				"qualityUnavailable": "Passez à une offre supérieure pour Quality Edit. L’image et l’instruction seront conservées.",
+				"upgrade": "Voir les options"
+			}
 		},
 		"status": {
 			"emptyTitle": "Votre résultat apparaîtra ici",
 			"emptyDescription": "Réglez les contrôles, vérifiez la réservation, puis lancez la création. Vous pouvez préparer une autre idée pendant le traitement.",
-			"loading": "Chargement de votre création…",
-			"progress": "Progression : {progress}%",
+			"loading": "Chargement de votre retouche…",
+			"unavailableTitle": "Cette retouche n’est pas disponible",
+			"unavailableDescription": "La création sélectionnée ne peut pas être ouverte dans cet éditeur.",
+			"progress": "Progression de la retouche : {progress}%",
 			"reserved": "Réservés",
 			"charged": "Facturés",
 			"released": "Restitués",
 			"cancel": "Annuler",
-			"new": "Nouvelle idée",
+			"download": "Télécharger",
+			"editAgain": "Retoucher à nouveau",
+			"new": "Nouvelle retouche",
 			"details": "Voir les détails",
 			"recent": "Créations récentes",
 			"all": "Tout afficher",
+			"creditSummaryReserved": "{reserved} crédits sont réservés pendant la retouche.",
+			"creditSummarySucceeded": "{charged} crédits ont été facturés et {released} restitués.",
+			"creditSummaryReturned": "Aucun crédit n’a été facturé. Les {released} crédits sur {reserved} réservés ont tous été restitués.",
+			"moderationRejected": "Le résultat n’a pas réussi le contrôle de sécurité, reste inaccessible et les crédits réservés éligibles ont été restitués.",
+			"failureHelp": "La retouche n’a pas abouti. Les crédits réservés éligibles ont été restitués ; ajustez l’instruction et recommencez.",
+			"comparisonUnavailable": "L’image source ou le résultat approuvé n’est plus disponible pour la comparaison.",
+			"downloadUnavailable": "Le téléchargement privé est indisponible pour le moment. Réessayez.",
+			"cancelUnavailable": "L’état a changé et la retouche ne peut plus être annulée en toute sécurité.",
 			"stages": {
 				"reserved": "Réservé",
 				"queued": "En attente",
@@ -765,13 +821,23 @@
 			},
 			"headings": {
 				"reserved": "Crédits réservés",
-				"queued": "Votre création est en attente",
-				"starting": "Préparation de votre création",
-				"creating": "Création de votre média",
-				"finishing": "Préparation de vos fichiers",
-				"ready": "Votre création est prête",
-				"failed": "La création n'a pas abouti",
-				"canceled": "La création a été annulée"
+				"queued": "Votre retouche est en attente",
+				"starting": "Préparation de votre retouche",
+				"creating": "Retouche de votre image",
+				"finishing": "Préparation du résultat",
+				"ready": "Votre retouche est prête",
+				"failed": "La retouche n'a pas abouti",
+				"canceled": "La retouche a été annulée"
+			},
+			"compare": {
+				"loading": "Préparation des aperçus privés avant et après…",
+				"beforeAlt": "Image source originale",
+				"afterAlt": "Image du résultat retouché",
+				"control": "Comparer l’image originale et l’image retouchée",
+				"showOriginal": "Afficher l’original",
+				"showResult": "Afficher le résultat",
+				"before": "Original",
+				"after": "Résultat"
 			}
 		},
 		"history": {
@@ -792,6 +858,9 @@
 		},
 		"detail": {
 			"loading": "Chargement de la création…",
+			"unavailableTitle": "Cette création n’est pas disponible",
+			"unavailableDescription": "Revenez à l’historique et choisissez une autre création.",
+			"legacyProduct": "Création antérieure",
 			"back": "Retour à l'historique",
 			"reserved": "Crédits réservés",
 			"charged": "Crédits facturés",

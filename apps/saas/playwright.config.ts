@@ -52,7 +52,7 @@ export default defineConfig({
 			process.env.E2E_USE_PRODUCTION_BUILD === "true"
 				? "pnpm --filter saas exec next build --webpack && pnpm --filter saas run start"
 				: "pnpm --filter saas exec next dev --webpack -p 3000",
-		url: saasBaseUrl,
+		url: `${saasBaseUrl}/login`,
 		reuseExistingServer: false,
 		stdout: "pipe",
 		timeout: 180 * 1000,

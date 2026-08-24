@@ -1,51 +1,105 @@
 import { getSession } from "@auth/lib/server";
 import { CreatorWorkspace } from "@media/components/CreatorWorkspace";
+import { resolveEditorAllowedProductKeys, resolveEditorRecovery } from "@media/lib/editor-recovery";
 import { getClaimedGenerationDraft } from "@repo/database";
 import { db } from "@repo/database/client";
 import { cookies } from "next/headers";
 
+interface CreatePageFilters {
+	reuseJob?: string;
+	asset?: string;
+	draftError?: string;
+}
+
 export default async function CreatePage({
 	searchParams,
 }: {
-	searchParams: Promise<{ reuseJob?: string; asset?: string }>;
+	searchParams: Promise<CreatePageFilters>;
 }) {
 	const session = await getSession();
 	const filters = await searchParams;
 	const cookieStore = await cookies();
 	const draftId = cookieStore.get("media_claimed_draft")?.value;
-	let draftInput =
-		session && draftId
-			? await getClaimedGenerationDraft({ draftId, userId: session.user.id }, db)
-			: null;
-	if (session && filters.reuseJob) {
-		const job = await db.generationJob.findFirst({
-			where: { id: filters.reuseJob, ownerType: "USER", ownerId: session.user.id },
-		});
-		if (job)
-			draftInput = {
-				id: job.id,
-				productKey: job.productKey,
-				input: job.inputSnapshot as Record<string, unknown>,
+	const requested = Boolean(filters.draftError || filters.asset || filters.reuseJob || draftId);
+	let candidate: { productKey: string | null; input: Record<string, unknown> } | null = null;
+	let sourceAsset: {
+		id: string;
+		status: string;
+		mimeType: string;
+		deletedAt: Date | null;
+	} | null = null;
+
+	const subscription = session
+		? await db.subscription.findFirst({
+				where: { ownerType: "USER", ownerId: session.user.id, status: "ACTIVE" },
+				include: { plan: { select: { metadata: true, name: true } } },
+				orderBy: { updatedAt: "desc" },
+			})
+		: null;
+	const allowedProductKeys = resolveEditorAllowedProductKeys(
+		subscription?.plan.metadata,
+		subscription?.plan.name,
+	);
+
+	if (session && !filters.draftError) {
+		if (filters.asset) {
+			sourceAsset = await findEditorSourceAsset(filters.asset, session.user.id);
+			candidate = {
+				productKey: "image-fast",
+				input: {
+					kind: "image-to-image",
+					prompt: "",
+					sourceAssetId: filters.asset,
+				},
 			};
-	}
-	if (session && filters.asset) {
-		const asset = await db.mediaAsset.findFirst({
-			where: {
-				id: filters.asset,
-				ownerType: "USER",
-				ownerId: session.user.id,
-				status: "READY",
-				deletedAt: null,
-			},
-		});
-		if (asset) {
-			const isImage = asset.mimeType.startsWith("image/");
-			draftInput = {
-				id: asset.id,
-				productKey: isImage ? "image-fast" : null,
-				input: { prompt: "", sourceAssetId: asset.id },
-			};
+		} else if (filters.reuseJob) {
+			const job = await db.generationJob.findFirst({
+				where: {
+					id: filters.reuseJob,
+					ownerType: "USER",
+					ownerId: session.user.id,
+				},
+				select: { productKey: true, inputSnapshot: true },
+			});
+			if (job) {
+				candidate = {
+					productKey: job.productKey,
+					input: job.inputSnapshot as Record<string, unknown>,
+				};
+				const sourceAssetId = candidate.input.sourceAssetId;
+				if (typeof sourceAssetId === "string") {
+					sourceAsset = await findEditorSourceAsset(sourceAssetId, session.user.id);
+				}
+			}
+		} else if (draftId) {
+			candidate = await getClaimedGenerationDraft({ draftId, userId: session.user.id }, db);
+			const sourceAssetId = candidate?.input.sourceAssetId;
+			if (typeof sourceAssetId === "string") {
+				sourceAsset = await findEditorSourceAsset(sourceAssetId, session.user.id);
+			}
 		}
 	}
-	return <CreatorWorkspace draftInput={draftInput} />;
+
+	const recovery = resolveEditorRecovery({
+		requested,
+		candidate,
+		sourceAsset,
+		allowedProductKeys,
+	});
+
+	return (
+		<CreatorWorkspace
+			initialDraft={recovery.initialDraft}
+			allowedProductKeys={allowedProductKeys}
+			restoreState={recovery.restoreState}
+			restoreNotice={recovery.notice}
+		/>
+	);
+}
+
+async function findEditorSourceAsset(assetId: string, userId: string) {
+	return db.mediaAsset.findFirst({
+		where: { id: assetId, ownerType: "USER", ownerId: userId },
+		select: { id: true, status: true, mimeType: true, deletedAt: true },
+	});
 }

@@ -81,4 +81,21 @@ describe("generation form schema", () => {
 			}),
 		).toThrow();
 	});
+
+	it("enforces the same required and maximum prompt boundary used by the server", () => {
+		expect(() =>
+			generationFormValuesSchema.parse({
+				productKey: "image-fast",
+				prompt: " ",
+				sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+			}),
+		).toThrow();
+		expect(() =>
+			generationFormValuesSchema.parse({
+				productKey: "image-fast",
+				prompt: "x".repeat(10_001),
+				sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+			}),
+		).toThrow();
+	});
 });

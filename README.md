@@ -11,6 +11,20 @@ accounts, credentials, quotas, Webhooks, alerts, and staging load have been veri
 [EzPic product contract](docs/product/ezpic-product-contract.md) for the exact public/internal
 boundary and PR 1 exclusions.
 
+## Authenticated editor workflow
+
+The `/create` workspace restores an eligible claimed draft, prior job, or owned asset; requires an
+owned, READY private source image and a non-empty prompt; and exposes only Standard Edit and Quality
+Edit. Review creates a server-side quote without reserving credits. Explicit confirmation uses one
+stable idempotency key to atomically create the existing job, input binding, credit reservation, and
+Outbox event.
+
+The result panel follows the job across refreshes, presents safe success, failure, moderation,
+cancellation, and credit-settlement states, and compares the job-bound input with only an approved
+output. Previews and downloads use short-lived owner-authorized URLs. A recovered Quality draft
+safely falls back to Standard when the active plan lacks that entitlement while retaining its image
+and prompt.
+
 ## Inherited foundation capabilities
 
 - **Stable product catalog and Provider abstraction:** clients submit public product keys and validated parameters; server-only routes moderate prompts and map approved requests to Replicate, Fal, Kie, or Gemini adapters. Provider names, model IDs, credentials, raw errors, and arbitrary result URLs stay off the public contract.

@@ -8,11 +8,15 @@ describe("claimGenerationDraftTransaction", () => {
 			generationDraft: {
 				findFirst: vi.fn().mockResolvedValue({
 					id: "draft_1",
+					ownerType: "USER",
 					ownerId: "draft:draft_1",
+					submittedByUserId: "draft:draft_1",
+					status: "ACTIVE",
 					claimTokenHash: "hash",
 					assetId: "asset_1",
-					inputSnapshot: { kind: "text-to-image", prompt: "A quiet studio" },
+					inputSnapshot: { kind: "image-to-image", prompt: "Soften the background" },
 					productKey: "image-fast",
+					expiresAt: new Date("2026-08-14T01:00:00Z"),
 				}),
 				updateMany: vi.fn().mockResolvedValue({ count: 1 }),
 			},
@@ -29,7 +33,11 @@ describe("claimGenerationDraftTransaction", () => {
 		expect(claimed).toEqual({
 			id: "draft_1",
 			productKey: "image-fast",
-			input: { kind: "text-to-image", prompt: "A quiet studio", sourceAssetId: "asset_1" },
+			input: {
+				kind: "image-to-image",
+				prompt: "Soften the background",
+				sourceAssetId: "asset_1",
+			},
 		});
 		expect(tx.generationDraft.updateMany).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -59,11 +67,21 @@ describe("claimGenerationDraftTransaction", () => {
 	});
 
 	it("rejects a replay when the atomic state change loses", async () => {
+		const activeDraft = {
+			id: "draft_1",
+			ownerType: "USER",
+			ownerId: "draft:draft_1",
+			submittedByUserId: "draft:draft_1",
+			status: "ACTIVE",
+			claimTokenHash: "hash",
+			assetId: null,
+			inputSnapshot: { kind: "image-to-image", prompt: "Soften the background" },
+			productKey: "image-fast",
+			expiresAt: new Date("2026-08-14T01:00:00Z"),
+		};
 		const tx = {
 			generationDraft: {
-				findFirst: vi
-					.fn()
-					.mockResolvedValue({ id: "draft_1", assetId: null, inputSnapshot: {}, productKey: null }),
+				findFirst: vi.fn().mockResolvedValueOnce(activeDraft).mockResolvedValueOnce(null),
 				updateMany: vi.fn().mockResolvedValue({ count: 0 }),
 			},
 		};
@@ -75,6 +93,113 @@ describe("claimGenerationDraftTransaction", () => {
 				client as never,
 			),
 		).rejects.toThrow("DRAFT_UNAVAILABLE");
+	});
+
+	it("returns the claimed draft when the same user loses a concurrent claim race", async () => {
+		const activeDraft = {
+			id: "draft_1",
+			ownerType: "USER",
+			ownerId: "draft:draft_1",
+			submittedByUserId: "draft:draft_1",
+			status: "ACTIVE",
+			assetId: "asset_1",
+			claimTokenHash: "hash",
+			inputSnapshot: { kind: "image-to-image", prompt: "Soften the background" },
+			productKey: "image-fast",
+			expiresAt: new Date("2026-08-14T01:00:00Z"),
+		};
+		const submittedDraft = {
+			...activeDraft,
+			ownerId: "user_1",
+			submittedByUserId: "user_1",
+			status: "SUBMITTED",
+		};
+		const tx = {
+			generationDraft: {
+				findFirst: vi.fn().mockResolvedValueOnce(activeDraft).mockResolvedValueOnce(submittedDraft),
+				updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+			},
+			mediaAsset: { updateMany: vi.fn() },
+			outboxEvent: { create: vi.fn() },
+		};
+		const client = { $transaction: vi.fn((operation) => operation(tx)) };
+
+		await expect(
+			claimGenerationDraftTransaction(
+				{ claimTokenHash: "hash", userId: "user_1", now: new Date("2026-08-14T00:00:00Z") },
+				client as never,
+			),
+		).resolves.toEqual({
+			id: "draft_1",
+			productKey: "image-fast",
+			input: {
+				kind: "image-to-image",
+				prompt: "Soften the background",
+				sourceAssetId: "asset_1",
+			},
+		});
+		expect(tx.mediaAsset.updateMany).not.toHaveBeenCalled();
+		expect(tx.outboxEvent.create).not.toHaveBeenCalled();
+	});
+
+	it("returns an unexpired submitted draft when the same user repeats the claim", async () => {
+		const submittedDraft = {
+			id: "draft_1",
+			ownerType: "USER",
+			ownerId: "user_1",
+			submittedByUserId: "user_1",
+			status: "SUBMITTED",
+			assetId: "asset_1",
+			claimTokenHash: "hash",
+			inputSnapshot: { kind: "image-to-image", prompt: "Soften the background" },
+			productKey: "image-fast",
+			expiresAt: new Date("2026-08-14T01:00:00Z"),
+		};
+		const tx = {
+			generationDraft: {
+				findFirst: vi.fn().mockResolvedValue(submittedDraft),
+				updateMany: vi.fn().mockResolvedValue({ count: 0 }),
+			},
+			mediaAsset: { updateMany: vi.fn() },
+			outboxEvent: { create: vi.fn() },
+		};
+		const client = { $transaction: vi.fn((operation) => operation(tx)) };
+
+		await expect(
+			claimGenerationDraftTransaction(
+				{ claimTokenHash: "hash", userId: "user_1", now: new Date("2026-08-14T00:00:00Z") },
+				client as never,
+			),
+		).resolves.toEqual({
+			id: "draft_1",
+			productKey: "image-fast",
+			input: {
+				kind: "image-to-image",
+				prompt: "Soften the background",
+				sourceAssetId: "asset_1",
+			},
+		});
+		expect(tx.generationDraft.updateMany).not.toHaveBeenCalled();
+		expect(tx.mediaAsset.updateMany).not.toHaveBeenCalled();
+		expect(tx.outboxEvent.create).not.toHaveBeenCalled();
+	});
+
+	it("rejects a repeated claim after another user submitted the draft", async () => {
+		const tx = {
+			generationDraft: {
+				findFirst: vi.fn().mockResolvedValue(null),
+				updateMany: vi.fn(),
+			},
+		};
+		const client = { $transaction: vi.fn((operation) => operation(tx)) };
+
+		await expect(
+			claimGenerationDraftTransaction(
+				{ claimTokenHash: "hash", userId: "user_2", now: new Date("2026-08-14T00:00:00Z") },
+				client as never,
+			),
+		).rejects.toThrow("DRAFT_UNAVAILABLE");
+		expect(tx.generationDraft.updateMany).not.toHaveBeenCalled();
 	});
 });
 

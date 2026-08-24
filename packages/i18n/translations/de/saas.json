@@ -732,27 +732,83 @@
 				"prompt": "Bearbeitungsanweisung",
 				"sourceAssetId": "Quellbild"
 			},
+			"promptHint": "Beschreiben Sie nur die gewünschte Änderung. Ihr Quellbild bleibt privat.",
+			"suggestions": {
+				"label": "Anweisung ausprobieren",
+				"background": "Ersetze den Hintergrund durch einen ruhigen Bergsee",
+				"object": "Entferne das störende Objekt und erhalte das Motiv",
+				"lighting": "Füge warmes Abendlicht hinzu und erhalte natürliche Hauttöne",
+				"style": "Verleihe der Szene einen hochwertigen Editorial-Look"
+			},
 			"credits": "Credits",
 			"quoteReady": "Bereit zum Bearbeiten",
 			"reserveCredits": "Für diese Bearbeitung werden {credits} Credits reserviert. Berechnet wird nur abgeschlossene Arbeit.",
+			"quoteMode": "{mode} reserviert {credits} Credits. Berechnet wird nur abgeschlossene Arbeit.",
+			"quoteExpires": "Das Angebot läuft um {time} ab. Änderungen an Bild, Anweisung oder Modus erfordern ein neues Angebot.",
 			"confirm": "Bearbeitung starten",
 			"edit": "Einstellungen ändern",
 			"review": "Credits prüfen",
-			"safeError": "Die Bearbeitung konnte nicht gestartet werden. Prüfen Sie Ihre Credits oder versuchen Sie es später erneut."
+			"safeError": "Die Bearbeitung konnte nicht gestartet werden. Prüfen Sie Ihre Credits oder versuchen Sie es später erneut.",
+			"restore": {
+				"qualityDowngraded": "Bild und Anweisung wurden wiederhergestellt. Quality Edit ist in Ihrem Tarif nicht enthalten, daher wurde Standard Edit gewählt.",
+				"verifying": "Der Entwurf wurde wiederhergestellt. Die private Sicherheitsprüfung des Quellbilds läuft noch; danach wird Prüfen freigeschaltet.",
+				"unavailable": "Diese gespeicherte Bearbeitung ist abgelaufen oder das Quellbild ist nicht mehr verfügbar. Es wurden weder Auftrag noch Credit-Reservierung erstellt."
+			},
+			"errors": {
+				"insufficientCredits": "Für diese Bearbeitung sind nicht genügend Credits vorhanden. Es wurden weder Auftrag noch Reservierung erstellt.",
+				"qualityUnavailable": "Quality Edit ist in Ihrem Tarif nicht enthalten. Wählen Sie Standard Edit oder prüfen Sie Ihren Tarif.",
+				"assetNotReady": "Das Quellbild ist noch nicht bereit. Warten Sie auf die private Sicherheitsprüfung oder wählen Sie ein anderes Bild.",
+				"quoteExpired": "Dieses Angebot ist abgelaufen oder die Preise haben sich geändert. Prüfen Sie die Bearbeitung erneut.",
+				"contentNotAllowed": "Die Anweisung hat die Sicherheitsprüfung nicht bestanden. Es wurden weder Auftrag noch Reservierung erstellt.",
+				"safeError": "Die Bearbeitung konnte nicht gestartet werden. Prüfen Sie das Formular oder versuchen Sie es später erneut."
+			}
+		},
+		"editor": {
+			"source": {
+				"title": "Quellbild",
+				"chooseLibrary": "Aus Assets wählen",
+				"selectedAlt": "Ausgewähltes Quellbild",
+				"preparing": "Quellbild wird vorbereitet…",
+				"ready": "Quellbild ist bereit",
+				"private": "Nur Sie können über einen kurzlebigen privaten Link auf dieses Bild zugreifen.",
+				"remove": "Quellbild entfernen"
+			},
+			"mode": {
+				"label": "Bearbeitungsmodus",
+				"standard": "Standard Edit",
+				"standardDescription": "Schnelle private Bearbeitung für alltägliche Änderungen.",
+				"quality": "Quality Edit",
+				"qualityDescription": "Private Bearbeitung mit höherer Detailtreue.",
+				"credits": "{credits} Credits",
+				"qualityUnavailable": "Für Quality Edit ist ein Upgrade nötig. Bild und Anweisung bleiben erhalten.",
+				"upgrade": "Upgrade-Optionen anzeigen"
+			}
 		},
 		"status": {
 			"emptyTitle": "Ihre Ausgabe erscheint hier",
 			"emptyDescription": "Legen Sie die Einstellungen fest, prüfen Sie die Reservierung und starten Sie. Währenddessen können Sie eine weitere Idee vorbereiten.",
-			"loading": "Erstellung wird geladen…",
-			"progress": "Fortschritt: {progress}%",
+			"loading": "Bearbeitung wird geladen…",
+			"unavailableTitle": "Diese Bearbeitung ist nicht verfügbar",
+			"unavailableDescription": "Die ausgewählte Erstellung kann in diesem Editor nicht geöffnet werden.",
+			"progress": "Bearbeitungsfortschritt: {progress}%",
 			"reserved": "Reserviert",
 			"charged": "Berechnet",
 			"released": "Zurückgegeben",
 			"cancel": "Abbrechen",
-			"new": "Neue Idee",
+			"download": "Herunterladen",
+			"editAgain": "Erneut bearbeiten",
+			"new": "Neue Bearbeitung",
 			"details": "Details anzeigen",
 			"recent": "Letzte Erstellungen",
 			"all": "Alle anzeigen",
+			"creditSummaryReserved": "{reserved} Credits sind während der Bearbeitung reserviert.",
+			"creditSummarySucceeded": "{charged} Credits wurden berechnet und {released} zurückgegeben.",
+			"creditSummaryReturned": "Es wurden keine Credits berechnet. Alle {released} von {reserved} reservierten Credits wurden zurückgegeben.",
+			"moderationRejected": "Das Ergebnis hat die Sicherheitsprüfung nicht bestanden, bleibt nicht verfügbar und berechtigte Credits wurden zurückgegeben.",
+			"failureHelp": "Die Bearbeitung konnte nicht abgeschlossen werden. Berechtigte reservierte Credits wurden zurückgegeben; passen Sie die Anweisung an und starten Sie neu.",
+			"comparisonUnavailable": "Quellbild oder freigegebenes Ergebnis ist für den Vergleich nicht mehr verfügbar.",
+			"downloadUnavailable": "Der private Download ist momentan nicht verfügbar. Bitte versuche es erneut.",
+			"cancelUnavailable": "Der Status hat sich geändert; die Bearbeitung kann nicht mehr sicher abgebrochen werden.",
 			"stages": {
 				"reserved": "Reserviert",
 				"queued": "In Warteschlange",
@@ -765,13 +821,23 @@
 			},
 			"headings": {
 				"reserved": "Credits reserviert",
-				"queued": "Ihre Erstellung wartet",
-				"starting": "Erstellung wird vorbereitet",
-				"creating": "Ihr Medium wird erstellt",
-				"finishing": "Dateien werden vorbereitet",
-				"ready": "Ihre Erstellung ist bereit",
-				"failed": "Erstellung nicht abgeschlossen",
-				"canceled": "Erstellung abgebrochen"
+				"queued": "Ihre Bearbeitung wartet",
+				"starting": "Bearbeitung wird vorbereitet",
+				"creating": "Ihr Bild wird bearbeitet",
+				"finishing": "Ergebnis wird vorbereitet",
+				"ready": "Ihre Bearbeitung ist bereit",
+				"failed": "Bearbeitung nicht abgeschlossen",
+				"canceled": "Bearbeitung abgebrochen"
+			},
+			"compare": {
+				"loading": "Private Vorher-/Nachher-Vorschau wird vorbereitet…",
+				"beforeAlt": "Ursprüngliches Quellbild",
+				"afterAlt": "Bearbeitetes Ergebnisbild",
+				"control": "Original und bearbeitetes Bild vergleichen",
+				"showOriginal": "Original anzeigen",
+				"showResult": "Ergebnis anzeigen",
+				"before": "Original",
+				"after": "Ergebnis"
 			}
 		},
 		"history": {
@@ -792,6 +858,9 @@
 		},
 		"detail": {
 			"loading": "Erstellung wird geladen…",
+			"unavailableTitle": "Diese Erstellung ist nicht verfügbar",
+			"unavailableDescription": "Kehren Sie zum Verlauf zurück und wählen Sie eine andere Erstellung.",
+			"legacyProduct": "Frühere Erstellung",
 			"back": "Zurück zum Verlauf",
 			"reserved": "Reservierte Credits",
 			"charged": "Berechnete Credits",

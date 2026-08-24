@@ -14,11 +14,13 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { useJobHistory } from "../hooks/use-job-history";
+import { isEditorProductKey, type EditorProductKey } from "../lib/editor-recovery";
 import { getJobPresentation } from "../lib/job-status";
 
 export function JobHistory() {
 	const t = useTranslations("media.history");
 	const stages = useTranslations("media.status.stages");
+	const products = useTranslations("media.create.products");
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const status = searchParams.get("status") as
@@ -28,7 +30,7 @@ export function JobHistory() {
 		| "canceled"
 		| null;
 	const history = useJobHistory({ status: status ?? undefined });
-	const jobs = history.data?.pages.flatMap((page) => page.items) ?? [];
+	const jobs = history.data?.pages.flatMap((page) => page.items).filter(hasEditorProductKey) ?? [];
 
 	function setStatus(value: string) {
 		const next = new URLSearchParams(searchParams);
@@ -73,7 +75,7 @@ export function JobHistory() {
 						>
 							<div>
 								<div className="gap-2 flex items-center">
-									<span className="font-medium">{job.productKey}</span>
+									<span className="font-medium">{products(`${job.productKey}.label`)}</span>
 									<Badge status="info">{stages(stage)}</Badge>
 								</div>
 								<p className="mt-1 text-xs text-muted-foreground">
@@ -105,4 +107,10 @@ export function JobHistory() {
 			)}
 		</div>
 	);
+}
+
+function hasEditorProductKey<T extends { productKey: string }>(
+	job: T,
+): job is T & { productKey: EditorProductKey } {
+	return isEditorProductKey(job.productKey);
 }

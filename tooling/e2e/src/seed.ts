@@ -45,7 +45,7 @@ export async function seedLocalMediaE2E(): Promise<void> {
 		throw new Error("Local media E2E seed left an active disabled media runtime override");
 	}
 	const funded = await ensureCredentialUser(fundedEmail(runId), `E2E Funded ${runId}`);
-	await ensureCredentialUser(emptyEmail(runId), `E2E Empty ${runId}`);
+	const empty = await ensureCredentialUser(emptyEmail(runId), `E2E Empty ${runId}`);
 	await ensureCreatorSubscription(funded.id, runId);
 
 	const account = await db.creditAccount.upsert({
@@ -64,20 +64,18 @@ export async function seedLocalMediaE2E(): Promise<void> {
 	);
 	await db.creditAccount.upsert({
 		where: {
-			ownerType_ownerId: {
-				ownerType: "USER",
-				ownerId: (await db.user.findUniqueOrThrow({ where: { email: emptyEmail(runId) } })).id,
-			},
+			ownerType_ownerId: { ownerType: "USER", ownerId: empty.id },
 		},
-		create: {
-			ownerType: "USER",
-			ownerId: (await db.user.findUniqueOrThrow({ where: { email: emptyEmail(runId) } })).id,
-		},
+		create: { ownerType: "USER", ownerId: empty.id },
 		update: {},
 	});
+	await ensureReadySourceAsset(funded.id, `reuse:${runId}`, runId);
+	await ensureReadySourceAsset(empty.id, `empty:${runId}`, runId);
+}
 
-	const assetId = `asset_${createHash("sha256").update(`reuse:${runId}`).digest("base64url").slice(0, 24)}`;
-	const objectKey = createAssetObjectKey(funded.id, assetId, "image/png");
+async function ensureReadySourceAsset(ownerId: string, assetSeed: string, fixtureRunId: string) {
+	const assetId = `asset_${createHash("sha256").update(assetSeed).digest("base64url").slice(0, 24)}`;
+	const objectKey = createAssetObjectKey(ownerId, assetId, "image/png");
 	const stored = await putPrivateMediaObject({
 		bucket: "media",
 		key: objectKey,
@@ -117,7 +115,7 @@ export async function seedLocalMediaE2E(): Promise<void> {
 					byteSize: BigInt(stored.bytes),
 					checksum: stored.sha256,
 					deletedAt: null,
-					sourceUrl: `e2e-seed:${runId}`,
+					sourceUrl: `e2e-seed:${fixtureRunId}`,
 				},
 			});
 			return;
@@ -132,14 +130,14 @@ export async function seedLocalMediaE2E(): Promise<void> {
 			create: {
 				id: assetId,
 				ownerType: "USER",
-				ownerId: funded.id,
+				ownerId,
 				kind: "INPUT",
 				status: "VERIFYING",
 				objectKey,
 				mimeType: "image/png",
 				byteSize: BigInt(stored.bytes),
 				checksum: stored.sha256,
-				sourceUrl: `e2e-seed:${runId}`,
+				sourceUrl: `e2e-seed:${fixtureRunId}`,
 				verificationGeneration,
 				verificationAttemptCount: 1,
 				verificationProvider: LOCAL_MEDIA_SAFETY_PROVIDER,
@@ -154,7 +152,7 @@ export async function seedLocalMediaE2E(): Promise<void> {
 				byteSize: BigInt(stored.bytes),
 				checksum: stored.sha256,
 				deletedAt: null,
-				sourceUrl: `e2e-seed:${runId}`,
+				sourceUrl: `e2e-seed:${fixtureRunId}`,
 				verificationGeneration,
 				verificationAttemptCount: 1,
 				verificationProvider: LOCAL_MEDIA_SAFETY_PROVIDER,
@@ -180,7 +178,7 @@ export async function seedLocalMediaE2E(): Promise<void> {
 				policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 				status: "APPROVED",
 				reasonCode: "LOCAL_E2E_SEED_ALLOW",
-				categories: { runId },
+				categories: { runId: fixtureRunId },
 				rawEnvelope: { decision: "ALLOW", source: "local-media-e2e" },
 				validUntil: verificationValidUntil,
 			},
