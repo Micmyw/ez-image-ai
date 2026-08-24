@@ -18,7 +18,7 @@
 		"db:migrate:drift": "pnpm --filter @repo/database exec prisma migrate diff --from-schema prisma/schema.prisma --to-config-datasource --exit-code",
 		"trigger:type-check": "pnpm --filter @repo/jobs type-check",
 		"trigger:build:ci": "trigger deploy --dry-run --local-build --skip-update-check --skip-telemetry",
-		"e2e:media:ci": "pnpm --filter @repo/e2e-media run test",
+		"e2e:media:ci": "pnpm --filter @repo/e2e-media run e2e",
 		"provider:smoke": "tsx tests/load/provider-smoke.ts",
 		"load:media": "k6 run tests/load/media-generation.js",
 		"load:smoke": "tsx tests/load/media-route-smoke.ts",

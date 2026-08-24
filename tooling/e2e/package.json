@@ -6,7 +6,8 @@
 		"seed": "tsx ./src/seed.ts",
 		"pump": "tsx ./src/pump.ts",
 		"test:contracts": "tsx --test src/*.test.ts",
-		"test": "tsx ./src/run.ts",
+		"test": "pnpm run test:contracts",
+		"e2e": "tsx ./src/run.ts",
 		"type-check": "tsc --noEmit"
 	},
 	"dependencies": {

@@ -2,6 +2,8 @@ import { expect, test } from "@playwright/test";
 import pg from "pg";
 
 const runId = process.env.E2E_RUN_ID;
+const saasUrl = process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000";
+const marketingUrl = process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3001";
 const pool = new pg.Pool({ connectionString: process.env.TEST_DATABASE_URL });
 
 test("generator sits between the hero and feature proof", async ({ page }) => {
@@ -15,13 +17,15 @@ test("generator sits between the hero and feature proof", async ({ page }) => {
 	expect(order.indexOf("generator-title")).toBeGreaterThan(0);
 });
 
-test("draft handoff posts to SaaS and redirects without prompt data", async ({ page }) => {
+test("draft handoff posts to SaaS and redirects without prompt data", async ({
+	page,
+}, testInfo) => {
 	if (process.env.E2E_DRAFT_HANDOFF !== "true" || !runId) {
 		throw new Error(
 			"E2E_DRAFT_HANDOFF=true and E2E_RUN_ID are required; this scenario never skips",
 		);
 	}
-	const prompt = `[e2e:draft] [run:${runId}] A private launch concept`;
+	const prompt = `[e2e:draft] [run:${runId}] [retry:${testInfo.retry}] A private launch concept`;
 	let claimToken = "";
 	page.on("request", (request) => {
 		if (request.url().endsWith("/draft/continue") && request.method() === "POST") {
@@ -55,9 +59,9 @@ test("draft handoff posts to SaaS and redirects without prompt data", async ({ p
 		await pool.query(`SELECT status FROM generation_draft WHERE id=$1`, [activeDraft.id])
 	).rows[0] as { status: string };
 	expect(claimed.status).toBe("SUBMITTED");
-	const replay = await page.request.post("http://localhost:3000/draft/continue", {
+	const replay = await page.request.post(new URL("/draft/continue", saasUrl).toString(), {
 		headers: {
-			Origin: "http://localhost:3001",
+			Origin: new URL(marketingUrl).origin,
 			"Content-Type": "application/x-www-form-urlencoded",
 		},
 		form: { intent: "continue-marketing-draft", claimToken },

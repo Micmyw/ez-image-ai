@@ -169,10 +169,15 @@ export async function getClaimedGenerationDraft(
 export async function expireGenerationDrafts(
 	now: Date,
 	client: MediaTransactionClient,
+	candidateDraftIds?: string[],
 ): Promise<number> {
 	return client.$transaction(async (tx) => {
 		const expired = await tx.generationDraft.findMany({
-			where: { status: "ACTIVE", expiresAt: { lte: now } },
+			where: {
+				...(candidateDraftIds ? { id: { in: candidateDraftIds } } : {}),
+				status: "ACTIVE",
+				expiresAt: { lte: now },
+			},
 			select: { id: true, assetId: true, ownerId: true },
 		});
 		let expiredCount = 0;

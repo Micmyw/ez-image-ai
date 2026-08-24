@@ -4,7 +4,8 @@
 	"main": "./index.ts",
 	"scripts": {
 		"clean": "git clean -xdf .cache .turbo dist node_modules",
-		"test": "vitest run",
+		"test": "vitest run --exclude \"**/*.integration.test.ts\"",
+		"test:integration": "vitest run",
 		"test:watch": "vitest",
 		"test:coverage": "vitest run --coverage",
 		"type-check": "tsc --noEmit --incremental false"

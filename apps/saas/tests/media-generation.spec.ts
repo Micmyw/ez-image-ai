@@ -15,8 +15,10 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	test.describe.configure({ timeout: 90_000 });
 	test.afterAll(async () => pool.end());
 
-	test("duplicate click creates exactly one job and one reservation", async ({ page }) => {
-		const prompt = marker("duplicate", "A ceramic lamp on a quiet desk");
+	test("duplicate click creates exactly one job and one reservation", async ({
+		page,
+	}, testInfo) => {
+		const prompt = marker("duplicate", "A ceramic lamp on a quiet desk", testInfo.retry);
 		await openCreator(page, prompt);
 		await page.getByRole("button", { name: /review credits/i }).click();
 		await page.getByRole("button", { name: /start creating/i }).dblclick();
@@ -36,8 +38,8 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 
 	test("insufficient credits creates no quote, job, reservation, or ledger entry", async ({
 		page,
-	}) => {
-		const prompt = marker("insufficient", "A long cinematic sequence");
+	}, testInfo) => {
+		const prompt = marker("insufficient", "A long cinematic sequence", testInfo.retry);
 		const user = await userByEmail(emptyEmail);
 		const before = await count(
 			`SELECT count(*) FROM credit_ledger_entry l JOIN credit_account a ON a.id=l."accountId" WHERE a."ownerId"=$1`,
@@ -170,8 +172,8 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		)[0]!;
 	}
 
-	test("provider failure settles the exact job at zero charge", async ({ page }) => {
-		const prompt = marker("provider-failure", "Provider failure");
+	test("provider failure settles the exact job at zero charge", async ({ page }, testInfo) => {
+		const prompt = marker("provider-failure", "Provider failure", testInfo.retry);
 		await createScenario(page, prompt);
 		const job = await waitForJob(prompt, "FAILED");
 		const reservation = await reservationFor(job.id);
@@ -181,8 +183,10 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await expect(page.getByText(/could not finish/i)).toBeVisible();
 	});
 
-	test("moderation rejection quarantines the exact output and charges zero", async ({ page }) => {
-		const prompt = marker("moderation-rejection", "Unsafe output fixture");
+	test("moderation rejection quarantines the exact output and charges zero", async ({
+		page,
+	}, testInfo) => {
+		const prompt = marker("moderation-rejection", "Unsafe output fixture", testInfo.retry);
 		await createScenario(page, prompt);
 		const job = await waitForJob(prompt, "FAILED");
 		const bindings = await rows<{ assetId: string; status: string; moderationStatus: string }>(
@@ -198,8 +202,8 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await expect(page.locator(`[data-asset-id="${bindings[0]!.assetId}"]`)).toHaveCount(0);
 	});
 
-	test("refresh follows the same in-flight job through success", async ({ page }) => {
-		const prompt = marker("delayed-success", "Refresh recovery");
+	test("refresh follows the same in-flight job through success", async ({ page }, testInfo) => {
+		const prompt = marker("delayed-success", "Refresh recovery", testInfo.retry);
 		const jobId = await createScenario(page, prompt);
 		await page.goto(`/create?job=${jobId}`);
 		await page.reload();
@@ -211,9 +215,14 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		});
 	});
 
-	test("cancellation releases all reserved credits for the exact job", async ({ page }) => {
-		const prompt = marker("cancel-pending", "Cancel this generation");
+	test("cancellation releases all reserved credits for the exact job", async ({
+		page,
+	}, testInfo) => {
+		const prompt = marker("cancel-pending", "Cancel this generation", testInfo.retry);
 		const jobId = await createScenario(page, prompt);
+		await expect
+			.poll(() => providerCancellationReadiness(jobId), { timeout: 30_000 })
+			.toBe("PROVIDER_PENDING:SUBMITTED:false:task-bound");
 		await page.getByRole("button", { name: /cancel/i }).click();
 		await expect
 			.poll(
@@ -240,7 +249,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await expect(page.getByText("4").nth(2)).toBeVisible();
 	});
 
-	test("reuse binds the seeded READY asset into the new job", async ({ page }) => {
+	test("reuse binds the seeded READY asset into the new job", async ({ page }, testInfo) => {
 		const user = await userByEmail(fundedEmail);
 		const asset = (
 			await rows<{ id: string }>(
@@ -252,7 +261,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		const card = page.locator(`[data-asset-id="${asset.id}"]`);
 		await card.getByRole("link", { name: /reuse/i }).click();
 		await expect(page).toHaveURL(new RegExp(`/create\\?asset=${asset.id}`));
-		const prompt = marker("reuse", "Turn the reference into a watercolor scene");
+		const prompt = marker("reuse", "Turn the reference into a watercolor scene", testInfo.retry);
 		await page.getByLabel(/prompt/i).fill(prompt);
 		await page.getByRole("button", { name: /review credits/i }).click();
 		await expect(page.getByText(/ready to create/i)).toBeVisible();
@@ -305,6 +314,23 @@ async function jobsForPrompt(userId: string, prompt: string) {
 	);
 }
 
+async function providerCancellationReadiness(jobId: string): Promise<string> {
+	const state = (
+		await rows<{
+			jobStatus: string;
+			attemptStatus: string;
+			uncertainSubmission: boolean;
+			providerTaskId: string | null;
+		}>(
+			`SELECT j.status AS "jobStatus", a.status AS "attemptStatus", a."uncertainSubmission", a."providerTaskId" FROM generation_job j JOIN generation_attempt a ON a."jobId"=j.id WHERE j.id=$1 ORDER BY a."attemptNumber" DESC LIMIT 1`,
+			[jobId],
+		)
+	)[0];
+	return state
+		? `${state.jobStatus}:${state.attemptStatus}:${state.uncertainSubmission}:${state.providerTaskId ? "task-bound" : "task-missing"}`
+		: "missing";
+}
+
 async function userByEmail(email: string) {
 	const user = (await rows<{ id: string }>(`SELECT id FROM "user" WHERE email=$1`, [email]))[0];
 	if (!user) throw new Error(`Seed user missing: ${email}`);
@@ -342,8 +368,8 @@ async function count(sql: string, values: unknown[] = []): Promise<number> {
 	return Number((await rows<{ count: string }>(sql, values))[0]?.count ?? 0);
 }
 
-function marker(scenario: string, text: string): string {
-	return `[e2e:${scenario}] [run:${runId}] ${text}`;
+function marker(scenario: string, text: string, retry: number): string {
+	return `[e2e:${scenario}] [run:${runId}] [retry:${retry}] ${text}`;
 }
 
 function validPng(): Buffer {

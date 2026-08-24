@@ -79,6 +79,28 @@ describe("claimGenerationDraftTransaction", () => {
 });
 
 describe("expireGenerationDrafts", () => {
+	it("limits expiry to the requested draft candidates", async () => {
+		const tx = {
+			generationDraft: {
+				findMany: vi.fn(async () => []),
+			},
+		};
+		const client = { $transaction: vi.fn((operation) => operation(tx)) };
+		const now = new Date("2026-08-14T00:00:00Z");
+
+		await expect(
+			expireGenerationDrafts(now, client as never, ["draft_e2e_1", "draft_e2e_2"]),
+		).resolves.toBe(0);
+		expect(tx.generationDraft.findMany).toHaveBeenCalledWith({
+			where: {
+				id: { in: ["draft_e2e_1", "draft_e2e_2"] },
+				status: "ACTIVE",
+				expiresAt: { lte: now },
+			},
+			select: { id: true, assetId: true, ownerId: true },
+		});
+	});
+
 	it("queues physical deletion for each expired anonymous draft asset", async () => {
 		const tx = {
 			generationDraft: {

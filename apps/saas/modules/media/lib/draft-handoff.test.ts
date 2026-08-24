@@ -4,8 +4,11 @@ import { createDraftHandoffResponse, DRAFT_HANDOFF_INTENT } from "./draft-handof
 
 const claimToken = "c".repeat(43);
 
-function request(origin = "https://www.example.com") {
-	return new Request("https://app.example.com/draft/continue", {
+function request(
+	origin = "https://www.example.com",
+	requestUrl = "https://app.example.com/draft/continue",
+) {
+	return new Request(requestUrl, {
 		method: "POST",
 		headers: {
 			Origin: origin,
@@ -16,12 +19,16 @@ function request(origin = "https://www.example.com") {
 }
 
 describe("draft handoff POST", () => {
-	it("sets the scoped HttpOnly cookie and uses a fixed login redirect", async () => {
-		const response = await createDraftHandoffResponse(request(), {
-			marketingOrigin: "https://www.example.com",
-			secure: true,
-			isAuthenticated: false,
-		});
+	it("sets the scoped HttpOnly cookie and redirects through the configured SaaS origin", async () => {
+		const response = await createDraftHandoffResponse(
+			request("https://www.example.com", "https://internal.example/draft/continue"),
+			{
+				marketingOrigin: "https://www.example.com",
+				saasOrigin: "https://app.example.com",
+				secure: true,
+				isAuthenticated: false,
+			},
+		);
 
 		expect(response.status).toBe(303);
 		expect(response.headers.get("location")).toBe(
@@ -40,6 +47,7 @@ describe("draft handoff POST", () => {
 		await expect(
 			createDraftHandoffResponse(request("https://evil.example"), {
 				marketingOrigin: "https://www.example.com",
+				saasOrigin: "https://app.example.com",
 				secure: true,
 				isAuthenticated: false,
 			}),

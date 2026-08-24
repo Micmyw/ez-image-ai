@@ -2,7 +2,12 @@ import { createHash } from "node:crypto";
 
 import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
 import { auth } from "@repo/auth";
-import { createCreditGrant, createUser, createUserAccount } from "@repo/database";
+import {
+	createCreditGrant,
+	createUser,
+	createUserAccount,
+	expireGenerationDrafts,
+} from "@repo/database";
 import { db } from "@repo/database/client";
 import { MEDIA_VERIFICATION_RETRY_POLICY } from "@repo/jobs";
 import { createAssetObjectKey, putPrivateMediaObject } from "@repo/storage";
@@ -12,6 +17,7 @@ import { assertLocalMediaE2E, LOCAL_MEDIA_SAFETY_PROVIDER } from "./guard";
 
 export async function seedLocalMediaE2E(): Promise<void> {
 	const { runId } = assertLocalMediaE2E();
+	await resetAbandonedMarketingDraftFixtures();
 	const mediaModelOverrideKeys = [
 		"media.generation.enabled",
 		"media.model.image-fast.enabled",
@@ -183,6 +189,32 @@ export async function seedLocalMediaE2E(): Promise<void> {
 			where: { id: assetId },
 			data: { status: "READY" },
 		});
+	});
+}
+
+async function resetAbandonedMarketingDraftFixtures(): Promise<void> {
+	const activeDrafts = await db.generationDraft.findMany({
+		where: { status: "ACTIVE" },
+		select: { id: true, inputSnapshot: true },
+	});
+	const abandonedIds = activeDrafts
+		.filter((draft) => {
+			const snapshot = draft.inputSnapshot;
+			if (!snapshot || typeof snapshot !== "object" || Array.isArray(snapshot)) return false;
+			const prompt = (snapshot as Record<string, unknown>).prompt;
+			return typeof prompt === "string" && prompt.startsWith("[e2e:draft] [run:");
+		})
+		.map((draft) => draft.id);
+	const now = new Date();
+	if (abandonedIds.length > 0) {
+		await db.generationDraft.updateMany({
+			where: { id: { in: abandonedIds }, status: "ACTIVE" },
+			data: { expiresAt: now },
+		});
+		await expireGenerationDrafts(now, db, abandonedIds);
+	}
+	await db.rateLimitBucket.deleteMany({
+		where: { action: { in: ["marketing-draft", "marketing-draft-global"] } },
 	});
 }
 

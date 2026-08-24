@@ -8,6 +8,7 @@ export const DRAFT_HANDOFF_INTENT = "continue-marketing-draft";
 
 interface DraftHandoffOptions {
 	marketingOrigin: string;
+	saasOrigin: string;
 	secure: boolean;
 	isAuthenticated: boolean;
 }
@@ -28,7 +29,7 @@ export async function createDraftHandoffResponse(
 		throw new Error("INVALID_DRAFT_HANDOFF");
 	}
 	const target = options.isAuthenticated ? "/draft/continue" : "/login?redirectTo=/draft/continue";
-	const response = NextResponse.redirect(new URL(target, request.url), 303);
+	const response = NextResponse.redirect(new URL(target, options.saasOrigin), 303);
 	response.headers.set("Cache-Control", "no-store");
 	response.headers.set("Referrer-Policy", "no-referrer");
 	response.headers.append("Set-Cookie", getDraftClaimCookie(claimToken, options.secure));

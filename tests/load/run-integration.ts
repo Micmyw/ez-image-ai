@@ -20,7 +20,7 @@ run(
 	],
 	true,
 );
-run(["--filter", "@repo/api", "test"], true);
+run(["--filter", "@repo/api", "run", "test:integration"], true);
 
 function run(args: string[], needsRuntimeDatabaseUrl: boolean): void {
 	const environment = { ...process.env };
