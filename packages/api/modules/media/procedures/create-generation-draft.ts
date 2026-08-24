@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import { promptSchema } from "@repo/ai";
+import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
 import { createGenerationDraftTransaction } from "@repo/database";
 import { db } from "@repo/database/client";
 import { createAssetObjectKey, deleteObject, putPrivateMediaObject } from "@repo/storage";
@@ -17,7 +18,15 @@ import {
 const draftUploadSchema = z
 	.object({
 		contentType: z.enum(["image/jpeg", "image/png", "image/webp"]),
-		base64: z.string().min(1).max(35_000_000),
+		base64: z
+			.string()
+			.min(1)
+			.max(4 * Math.ceil(DEFAULT_PRODUCT_CONFIG.uploadLimits.imageBytes / 3))
+			.refine(
+				(value) =>
+					Buffer.from(value, "base64").byteLength <= DEFAULT_PRODUCT_CONFIG.uploadLimits.imageBytes,
+				{ message: "SOURCE_IMAGE_TOO_LARGE" },
+			),
 	})
 	.strict();
 

@@ -87,15 +87,12 @@
 			},
 			"modes": {
 				"legend": "Modo de edición",
+				"credits": "{credits, number} créditos",
 				"standard": {
-					"title": "Standard Edit",
-					"description": "Ediciones cotidianas",
-					"credits": "4 créditos"
+					"description": "Ediciones cotidianas"
 				},
 				"quality": {
-					"title": "Quality Edit",
-					"description": "Más detalle",
-					"credits": "10 créditos"
+					"description": "Más detalle"
 				}
 			},
 			"loginNotice": "La generación real comienza después de iniciar sesión y confirmar el coste en créditos.",

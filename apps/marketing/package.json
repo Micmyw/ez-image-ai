@@ -19,6 +19,7 @@
 		"@bprogress/next": "^3.2.12",
 		"@hookform/resolvers": "catalog:",
 		"@next/third-parties": "catalog:",
+		"@repo/ai": "workspace:*",
 		"@repo/config": "workspace:*",
 		"@repo/i18n": "workspace:*",
 		"@repo/logs": "workspace:*",

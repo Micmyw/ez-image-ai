@@ -36,6 +36,10 @@ Both products require a private source asset ID and a prompt. `text-to-image` is
 server-side quoting. Public catalog responses contain fields needed to render the editor, but never
 Provider names, model IDs, credentials, route costs, or raw Provider payloads.
 
+The marketing server selects each public label and credit amount from that canonical media catalog
+and passes only those two display fields to the client form. Locale messages supply a value-only
+credit template; they do not own product labels or credit amounts.
+
 `video-fast` and `video-quality` remain internal catalog entries. They are excluded from
 `DEFAULT_PRODUCT_CONFIG.productKeys`, public catalog responses, plans, navigation, and EzPic user
 interfaces. Their existing Provider, worker, storage, moderation, job, and historical-data paths are
@@ -48,6 +52,9 @@ Catalog and pricing contract version: `2026-08-25.1`.
 The marketing homepage is an upload-first image editor. A visitor must choose a JPEG, PNG, or WebP
 source image within the configured public image-size limit, enter a prompt, and select Standard
 Edit or Quality Edit. Prompt suggestions populate the prompt field only; they never submit a draft.
+The draft API derives the same byte limit from `DEFAULT_PRODUCT_CONFIG`, checks decoded payload
+bytes at the exact boundary, and rejects oversized requests before rate-limit, storage, or draft
+database writes.
 
 The anonymous request has one public shape:
 

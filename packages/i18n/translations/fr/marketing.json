@@ -87,15 +87,12 @@
 			},
 			"modes": {
 				"legend": "Mode de retouche",
+				"credits": "{credits, number} crédits",
 				"standard": {
-					"title": "Standard Edit",
-					"description": "Retouches courantes",
-					"credits": "4 crédits"
+					"description": "Retouches courantes"
 				},
 				"quality": {
-					"title": "Quality Edit",
-					"description": "Plus de détails",
-					"credits": "10 crédits"
+					"description": "Plus de détails"
 				}
 			},
 			"loginNotice": "La génération réelle commence après votre connexion et la confirmation du coût en crédits.",

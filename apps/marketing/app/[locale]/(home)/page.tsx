@@ -5,6 +5,7 @@ import { getBaseUrl } from "@shared/lib/base-url";
 import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
 
+import { getMarketingImageModes } from "../../../modules/generator/lib/marketing-catalog";
 import { BeforeAfterDemo } from "../../../modules/image-editor/components/BeforeAfterDemo";
 import { FinalCtaSection } from "../../../modules/image-editor/components/FinalCtaSection";
 import { HowItWorksSection } from "../../../modules/image-editor/components/HowItWorksSection";
@@ -43,6 +44,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
 	const { locale } = await params;
 	setRequestLocale(locale);
 	const structuredData = buildHomeStructuredData(getBaseUrl());
+	const imageModes = getMarketingImageModes();
 
 	return (
 		<>
@@ -52,7 +54,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
 					__html: JSON.stringify(structuredData).replaceAll("<", "\\u003c"),
 				}}
 			/>
-			<ImageEditorHero />
+			<ImageEditorHero modes={imageModes} />
 			<BeforeAfterDemo />
 			<ShowcaseSection />
 			<NoRestrictionsSection />

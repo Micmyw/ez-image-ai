@@ -87,15 +87,12 @@
 			},
 			"modes": {
 				"legend": "Bearbeitungsmodus",
+				"credits": "{credits, number} Credits",
 				"standard": {
-					"title": "Standard Edit",
-					"description": "Alltägliche Änderungen",
-					"credits": "4 Credits"
+					"description": "Alltägliche Änderungen"
 				},
 				"quality": {
-					"title": "Quality Edit",
-					"description": "Mehr Details",
-					"credits": "10 Credits"
+					"description": "Mehr Details"
 				}
 			},
 			"loginNotice": "Die echte Bilderzeugung beginnt erst nach Anmeldung und Bestätigung der Credit-Kosten.",

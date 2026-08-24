@@ -26,6 +26,13 @@
   and workspace illustrations, and aligned public/authenticated navigation and copy with image
   editing.
 
+### Fixed
+
+- Enforced the configured product image-byte limit on anonymous draft payloads before rate-limit,
+  storage, or draft-state writes, including the exact decoded-byte boundary.
+- Made the marketing edit-mode labels and credit amounts come from the canonical media catalog;
+  locale messages now format supplied credit values instead of owning pricing numbers.
+
 ### SEO
 
 - Published the exact EzPic image-editor homepage title, description, canonical URL, single H1,

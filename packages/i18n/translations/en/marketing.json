@@ -87,15 +87,12 @@
 			},
 			"modes": {
 				"legend": "Edit mode",
+				"credits": "{credits, number} credits",
 				"standard": {
-					"title": "Standard Edit",
-					"description": "Everyday edits",
-					"credits": "4 credits"
+					"description": "Everyday edits"
 				},
 				"quality": {
-					"title": "Quality Edit",
-					"description": "More detail",
-					"credits": "10 credits"
+					"description": "More detail"
 				}
 			},
 			"loginNotice": "Real image generation starts after you sign in and confirm the credit cost.",

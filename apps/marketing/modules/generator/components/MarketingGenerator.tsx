@@ -21,6 +21,7 @@ import {
 	submitMarketingDraftHandoff,
 	validateMarketingImageFile,
 } from "../lib/draft-client";
+import type { MarketingImageModes } from "../lib/marketing-catalog";
 
 const publicConfig = getPublicConfig();
 const maximumImageBytes = publicConfig.uploadLimits.imageBytes;
@@ -28,7 +29,7 @@ const maximumImageMegabytes = Math.round(maximumImageBytes / 1024 / 1024);
 
 const SUGGESTION_KEYS = ["background", "object", "color", "lighting"] as const;
 
-export function MarketingGenerator() {
+export function MarketingGenerator({ modes }: { modes: MarketingImageModes }) {
 	const t = useTranslations("home.generator");
 	const [prompt, setPrompt] = useState("");
 	const [productKey, setProductKey] = useState<MarketingImageProductKey>("image-fast");
@@ -154,17 +155,21 @@ export function MarketingGenerator() {
 						>
 							<ModeOption
 								checked={productKey === "image-fast"}
-								credits={t("modes.standard.credits")}
+								credits={t("modes.credits", {
+									credits: modes["image-fast"].credits,
+								})}
 								description={t("modes.standard.description")}
-								label={t("modes.standard.title")}
+								label={modes["image-fast"].label}
 								onChange={setProductKey}
 								value="image-fast"
 							/>
 							<ModeOption
 								checked={productKey === "image-quality"}
-								credits={t("modes.quality.credits")}
+								credits={t("modes.credits", {
+									credits: modes["image-quality"].credits,
+								})}
 								description={t("modes.quality.description")}
-								label={t("modes.quality.title")}
+								label={modes["image-quality"].label}
 								onChange={setProductKey}
 								value="image-quality"
 							/>

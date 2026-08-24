@@ -4,8 +4,9 @@ import { CheckCircle2Icon, ShieldCheckIcon, SparklesIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { MarketingGenerator } from "../../generator/components/MarketingGenerator";
+import type { MarketingImageModes } from "../../generator/lib/marketing-catalog";
 
-export function ImageEditorHero() {
+export function ImageEditorHero({ modes }: { modes: MarketingImageModes }) {
 	const t = useTranslations("home.imageEditorHero");
 
 	return (
@@ -45,7 +46,7 @@ export function ImageEditorHero() {
 					</div>
 				</div>
 
-				<MarketingGenerator />
+				<MarketingGenerator modes={modes} />
 			</div>
 		</section>
 	);
