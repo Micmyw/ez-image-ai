@@ -1,0 +1,237 @@
+{
+	"schemaVersion": 1,
+	"dataset": "ezpic-image-edit-placeholder-v1",
+	"privacy": "private",
+	"images": [
+		{
+			"id": "input-01-product",
+			"category": "product-white-background",
+			"source": { "kind": "placeholder", "replacementRequired": true },
+			"authorization": { "status": "pending" },
+			"tasks": [
+				{
+					"id": "input-01-background",
+					"kind": "replace-background",
+					"prompt": "Replace the white background with a neutral studio gray while preserving the product."
+				},
+				{
+					"id": "input-01-material",
+					"kind": "change-color-material",
+					"prompt": "Change the product finish to matte blue while preserving its shape and markings."
+				},
+				{
+					"id": "input-01-lighting",
+					"kind": "adjust-lighting-atmosphere",
+					"prompt": "Add soft catalog lighting and a subtle grounded shadow without changing the product."
+				}
+			]
+		},
+		{
+			"id": "input-02-product",
+			"category": "product-white-background",
+			"source": { "kind": "placeholder", "replacementRequired": true },
+			"authorization": { "status": "pending" },
+			"tasks": [
+				{
+					"id": "input-02-add",
+					"kind": "add-object",
+					"prompt": "Add a small green leaf beside the product without covering its label."
+				},
+				{
+					"id": "input-02-remove",
+					"kind": "remove-object",
+					"prompt": "Remove the temporary display stand and reconstruct the white background."
+				},
+				{
+					"id": "input-02-style",
+					"kind": "style-transfer",
+					"prompt": "Render the scene as a clean editorial product photograph while preserving the item."
+				}
+			]
+		},
+		{
+			"id": "input-03-portrait",
+			"category": "portrait",
+			"source": { "kind": "placeholder", "replacementRequired": true },
+			"authorization": { "status": "pending" },
+			"tasks": [
+				{
+					"id": "input-03-background",
+					"kind": "replace-background",
+					"prompt": "Replace the background with a softly lit library while preserving the person's identity."
+				},
+				{
+					"id": "input-03-color",
+					"kind": "change-color-material",
+					"prompt": "Change the jacket color to dark green without changing the face, hair, or pose."
+				},
+				{
+					"id": "input-03-local",
+					"kind": "local-edit-preserve-identity",
+					"prompt": "Remove a small wrinkle from the jacket while preserving facial identity and composition."
+				}
+			]
+		},
+		{
+			"id": "input-04-portrait",
+			"category": "portrait",
+			"source": { "kind": "placeholder", "replacementRequired": true },
+			"authorization": { "status": "pending" },
+			"tasks": [
+				{
+					"id": "input-04-lighting",
+					"kind": "adjust-lighting-atmosphere",
+					"prompt": "Change the lighting to soft late-afternoon window light while preserving identity."
+				},
+				{
+					"id": "input-04-add",
+					"kind": "add-object",
+					"prompt": "Add a simple silver pendant without changing the person's face, hair, or clothing."
+				},
+				{
+					"id": "input-04-style",
+					"kind": "style-transfer",
+					"prompt": "Apply a restrained film portrait look while preserving facial identity and skin detail."
+				}
+			]
+		},
+		{
+			"id": "input-05-indoor",
+			"category": "indoor",
+			"source": { "kind": "placeholder", "replacementRequired": true },
+			"authorization": { "status": "pending" },
+			"tasks": [
+				{
+					"id": "input-05-remove",
+					"kind": "remove-object",
+					"prompt": "Remove the floor lamp and reconstruct the wall and floor behind it."
+				},
+				{
+					"id": "input-05-material",
+					"kind": "change-color-material",
+					"prompt": "Change the sofa upholstery to light beige linen while preserving the room layout."
+				},
+				{
+					"id": "input-05-lighting",
+					"kind": "adjust-lighting-atmosphere",
+					"prompt": "Make the room feel like a bright overcast morning without moving any furniture."
+				}
+			]
+		},
+		{
+			"id": "input-06-indoor",
+			"category": "indoor",
+			"source": { "kind": "placeholder", "replacementRequired": true },
+			"authorization": { "status": "pending" },
+			"tasks": [
+				{
+					"id": "input-06-add",
+					"kind": "add-object",
+					"prompt": "Add a small potted plant on the empty side table with matching perspective and light."
+				},
+				{
+					"id": "input-06-background",
+					"kind": "replace-background",
+					"prompt": "Replace the view through the window with a rainy city evening while preserving the room."
+				},
+				{
+					"id": "input-06-style",
+					"kind": "style-transfer",
+					"prompt": "Apply a warm Scandinavian interior photography style without changing the layout."
+				}
+			]
+		},
+		{
+			"id": "input-07-outdoor",
+			"category": "outdoor",
+			"source": { "kind": "placeholder", "replacementRequired": true },
+			"authorization": { "status": "pending" },
+			"tasks": [
+				{
+					"id": "input-07-remove",
+					"kind": "remove-object",
+					"prompt": "Remove the trash bin and reconstruct the path and vegetation behind it."
+				},
+				{
+					"id": "input-07-lighting",
+					"kind": "adjust-lighting-atmosphere",
+					"prompt": "Change the scene to golden-hour lighting while preserving all structures and people."
+				},
+				{
+					"id": "input-07-add",
+					"kind": "add-object",
+					"prompt": "Add two small birds in the distant sky with natural scale and lighting."
+				}
+			]
+		},
+		{
+			"id": "input-08-outdoor",
+			"category": "outdoor",
+			"source": { "kind": "placeholder", "replacementRequired": true },
+			"authorization": { "status": "pending" },
+			"tasks": [
+				{
+					"id": "input-08-background",
+					"kind": "replace-background",
+					"prompt": "Replace the distant skyline with low forested hills while preserving the foreground."
+				},
+				{
+					"id": "input-08-color",
+					"kind": "change-color-material",
+					"prompt": "Change the painted bench from red to navy blue while preserving texture and shadows."
+				},
+				{
+					"id": "input-08-style",
+					"kind": "style-transfer",
+					"prompt": "Apply a subtle travel-magazine color grade without changing scene geometry."
+				}
+			]
+		},
+		{
+			"id": "input-09-complex",
+			"category": "complex-multi-object",
+			"source": { "kind": "placeholder", "replacementRequired": true },
+			"authorization": { "status": "pending" },
+			"tasks": [
+				{
+					"id": "input-09-remove",
+					"kind": "remove-object",
+					"prompt": "Remove the blue cup only and reconstruct the table surface without moving other objects."
+				},
+				{
+					"id": "input-09-add",
+					"kind": "add-object",
+					"prompt": "Add a closed notebook beside the keyboard without changing any existing object."
+				},
+				{
+					"id": "input-09-local",
+					"kind": "local-edit-preserve-identity",
+					"prompt": "Repair the torn corner of the paper while preserving every other object and its position."
+				}
+			]
+		},
+		{
+			"id": "input-10-complex",
+			"category": "complex-multi-object",
+			"source": { "kind": "placeholder", "replacementRequired": true },
+			"authorization": { "status": "pending" },
+			"tasks": [
+				{
+					"id": "input-10-material",
+					"kind": "change-color-material",
+					"prompt": "Change only the center chair to natural oak while preserving every surrounding object."
+				},
+				{
+					"id": "input-10-lighting",
+					"kind": "adjust-lighting-atmosphere",
+					"prompt": "Add soft overhead gallery lighting while preserving object colors and arrangement."
+				},
+				{
+					"id": "input-10-background",
+					"kind": "replace-background",
+					"prompt": "Replace the rear wall with plain warm plaster while preserving all foreground objects."
+				}
+			]
+		}
+	]
+}

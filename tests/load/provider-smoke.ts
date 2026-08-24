@@ -57,13 +57,13 @@ if (allowlist.length > maxInvocations) {
 }
 const routes = allowlist.map((key) => {
 	const route = ROUTES[key];
-	if (!route) throw new Error(`Provider smoke route is not certified: ${key}`);
+	if (!route) throw new Error(`Provider smoke route is not configured: ${key}`);
 	return route;
 });
 for (const tier of enabledTiers) {
 	const matches = routes.filter((route) => route.tier === tier);
 	if (matches.length !== 1) {
-		throw new Error(`Enabled tier ${tier} must have exactly one certified smoke route`);
+		throw new Error(`Enabled tier ${tier} must have exactly one configured smoke route`);
 	}
 }
 for (const route of routes) {

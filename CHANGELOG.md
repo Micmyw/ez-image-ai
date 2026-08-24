@@ -29,6 +29,10 @@
 
 - Added the EzPic product contract with public/internal product keys, plans, configuration,
   indexing, rollback, architecture boundaries, and PR 1 exclusions.
+- Added a reproducible image-edit benchmark harness, ten-input/thirty-task placeholder manifest,
+  Provider request-mapping fixtures, aggregate scorecard, and default dry-run command. Real
+  Provider results and Standard/Quality route certification remain explicitly not completed; no
+  route, credit, price, or pricing-version value changed.
 
 ## 2026-08-24
 

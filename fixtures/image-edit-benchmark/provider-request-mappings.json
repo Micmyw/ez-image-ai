@@ -1,0 +1,32 @@
+{
+	"schemaVersion": 1,
+	"source": {
+		"assetId": "asset_benchmarkmapping01",
+		"httpsTransferUrl": "https://private-transfer.test/source.png",
+		"inlineDataUrl": "data:image/png;base64,aGVsbG8="
+	},
+	"expected": {
+		"replicate": {
+			"version": "black-forest-labs/flux-schnell",
+			"input": {
+				"prompt": "Preserve the subject and replace the background",
+				"image": "https://private-transfer.test/source.png",
+				"strength": 0.6
+			}
+		},
+		"fal": {
+			"prompt": "Preserve the subject and replace the background",
+			"image_url": "https://private-transfer.test/source.png"
+		},
+		"gemini": {
+			"contents": [
+				{
+					"parts": [
+						{ "text": "Preserve the subject and replace the background" },
+						{ "inlineData": { "mimeType": "image/png", "data": "aGVsbG8=" } }
+					]
+				}
+			]
+		}
+	}
+}

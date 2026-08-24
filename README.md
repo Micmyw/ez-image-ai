@@ -58,7 +58,22 @@ pnpm verify:invariants
 
 The guarded local route smoke is implemented and has passed against the isolated test database; its post-run invariant checks remained at zero violations. This workstation does not have k6 installed, so no real k6 result is claimed. The five-minute peak, 30-minute steady, and active-1000 profiles still require a dedicated staging-equivalent deployment and have not been certified from this checkout.
 
-Real Provider smoke tests are excluded from PR CI. The protected `Provider smoke` workflow validates its certified route allowlist, maximum invocation count, and maximum expected cost before a Provider call; no live result is implied by local mocks or a dry run.
+Real Provider smoke tests are excluded from PR CI. The protected `Provider smoke` workflow validates its configured route allowlist, maximum invocation count, and maximum expected cost before a Provider call; no image-edit certification or live result is implied by local mocks or a dry run.
+
+The image-edit benchmark command is safe by default:
+
+```bash
+pnpm provider:benchmark:image-edit
+```
+
+It reads the committed placeholder manifest, plans 30 edit tasks across the current internal route
+candidates, and reports every real quality, latency, cost, success, and routing decision as
+`NOT_COMPLETED`. It does not call a Provider. Live execution additionally requires `--live`,
+`--confirm-spend`, a positive `--max-budget-micros`, an authorized private manifest, the selected
+Provider credentials, and an executor bound to the existing private generation, remote-URL policy,
+storage, and moderation path. See
+[the benchmark report](docs/product/image-edit-model-benchmark.md); the existing routes are not
+claimed as image-edit-certified.
 
 Before calling a deployment live-ready, record successful staging checks for Trigger.dev task deployment, Stripe test-mode Webhook delivery, every enabled Provider route, Sightengine, private S3/R2 multipart and streamed transfer, Sentry ingestion/alerts, and the documented staging load profiles.
 
