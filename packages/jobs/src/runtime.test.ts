@@ -7,6 +7,31 @@ import {
 } from "./runtime";
 
 describe("provider runtime registration", () => {
+	it("fails production worker admission when an explicitly enabled provider lacks its credential", () => {
+		expect(() =>
+			createProviderRegistry({
+				NODE_ENV: "production",
+				MEDIA_ENABLED_PROVIDERS: "replicate,fal,kie,gemini",
+				REPLICATE_API_TOKEN: "replicate-worker-secret",
+				FAL_API_KEY: "fal-worker-secret",
+				KIE_API_KEY: "kie-worker-secret",
+			}),
+		).toThrow("PROVIDER_WORKER_CREDENTIAL_MISSING:gemini");
+	});
+
+	it("builds the full configured production worker graph when all credentials exist", () => {
+		const registry = createProviderRegistry({
+			NODE_ENV: "production",
+			MEDIA_ENABLED_PROVIDERS: "replicate,fal,kie,gemini",
+			REPLICATE_API_TOKEN: "replicate-worker-secret",
+			FAL_API_KEY: "fal-worker-secret",
+			KIE_API_KEY: "kie-worker-secret",
+			GEMINI_API_KEY: "gemini-worker-secret",
+		});
+
+		expect([...registry.keys()]).toEqual(["replicate", "fal", "kie", "gemini"]);
+	});
+
 	it("registers only configured providers that have local credentials", () => {
 		const registry = createProviderRegistry({
 			MEDIA_ENABLED_PROVIDERS: "replicate",

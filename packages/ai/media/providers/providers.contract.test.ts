@@ -12,6 +12,7 @@ import {
 	KieProviderAdapter,
 	ReplicateProviderAdapter,
 } from "./index";
+import type { MediaProviderAdapter } from "./provider-adapter";
 
 interface FetchFixture {
 	status?: number;
@@ -52,7 +53,141 @@ function parseCapturedBody(captured: Array<{ url: string; init?: RequestInit }>)
 	return JSON.parse(body) as unknown;
 }
 
+interface ProviderSubmissionMatrixCase {
+	provider: "replicate" | "fal" | "kie" | "gemini";
+	create(fetch: typeof globalThis.fetch): MediaProviderAdapter;
+	acceptedBody: unknown;
+	malformedBody: unknown;
+	providerIdempotencySupported: boolean;
+	input: {
+		attemptId: string;
+		providerModelId: string;
+		input:
+			| { kind: "text-to-image"; prompt: string }
+			| { kind: "text-to-video"; prompt: string; durationSeconds: number };
+	};
+}
+
+const providerSubmissionMatrix: ProviderSubmissionMatrixCase[] = [
+	{
+		provider: "replicate",
+		create: (fetch) => new ReplicateProviderAdapter({ apiToken: "token", fetch }),
+		acceptedBody: { id: "replicate-task", status: "starting" },
+		malformedBody: { status: "starting" },
+		providerIdempotencySupported: true,
+		input: {
+			attemptId: "replicate-attempt",
+			providerModelId: "owner/model:version",
+			input: { kind: "text-to-image", prompt: "x" },
+		},
+	},
+	{
+		provider: "fal",
+		create: (fetch) => new FalProviderAdapter({ apiKey: "key", fetch }),
+		acceptedBody: { request_id: "fal-task", status: "IN_QUEUE" },
+		malformedBody: { status: "IN_QUEUE" },
+		providerIdempotencySupported: true,
+		input: {
+			attemptId: "fal-attempt",
+			providerModelId: "fal-ai/model",
+			input: { kind: "text-to-image", prompt: "x" },
+		},
+	},
+	{
+		provider: "kie",
+		create: (fetch) => new KieProviderAdapter({ apiKey: "key", fetch }),
+		acceptedBody: { code: 200, data: { taskId: "kie-task" } },
+		malformedBody: { code: 200, data: {} },
+		providerIdempotencySupported: false,
+		input: {
+			attemptId: "kie-attempt",
+			providerModelId: "veo3",
+			input: { kind: "text-to-video", prompt: "x", durationSeconds: 8 },
+		},
+	},
+	{
+		provider: "gemini",
+		create: (fetch) => new GeminiProviderAdapter({ apiKey: "key", fetch }),
+		acceptedBody: {
+			candidates: [
+				{ content: { parts: [{ inlineData: { mimeType: "image/png", data: "aA==" } }] } },
+			],
+		},
+		malformedBody: { candidates: [{ content: { parts: [{ text: "no image" }] } }] },
+		providerIdempotencySupported: false,
+		input: {
+			attemptId: "gemini-attempt",
+			providerModelId: "gemini-2.5-flash-image",
+			input: { kind: "text-to-image", prompt: "x" },
+		},
+	},
+];
+
 describe("provider adapter contract", () => {
+	it.each(providerSubmissionMatrix)(
+		"classifies $provider accepted, rejected, ambiguous HTTP, malformed 2xx, and transport cases",
+		async (testCase) => {
+			const { acceptedBody, malformedBody, providerIdempotencySupported, input } = testCase;
+			const accepted = await testCase.create(fixtureFetch({ body: acceptedBody })).submit(input);
+			expect(accepted).toMatchObject({
+				outcome: "accepted",
+				idempotency: { providerSupported: providerIdempotencySupported, replayed: false },
+			});
+
+			for (const status of [400, 422]) {
+				await expect(
+					testCase
+						.create(fixtureFetch({ status, body: { detail: "definitive validation rejection" } }))
+						.submit(input),
+				).resolves.toMatchObject({
+					outcome: "rejected",
+					failure: { code: `HTTP_${status}` },
+				});
+			}
+
+			for (const status of [429, 503]) {
+				await expect(
+					testCase
+						.create(fixtureFetch({ status, body: { detail: "ambiguous provider response" } }))
+						.submit(input),
+				).resolves.toMatchObject({
+					outcome: "uncertain",
+					uncertainty: { classification: "ambiguous_http", phase: "post_send", statusCode: status },
+				});
+			}
+
+			const malformed = testCase.create(fixtureFetch({ body: malformedBody })).submit(input);
+			const malformedOutcome = await malformed.then(
+				(value) => value.outcome,
+				(error: unknown) =>
+					error && typeof error === "object" && "code" in error
+						? (error as { code: string }).code
+						: "unexpected-error",
+			);
+			expect(["uncertain", "MALFORMED_PROVIDER_RESPONSE"]).toContain(malformedOutcome);
+
+			await expect(
+				testCase
+					.create(
+						(async () =>
+							new Response("not-json", {
+								status: 200,
+								headers: { "content-type": "application/json" },
+							})) as typeof fetch,
+					)
+					.submit(input),
+			).rejects.toMatchObject({ code: "MALFORMED_PROVIDER_RESPONSE" });
+
+			await expect(
+				testCase
+					.create((async () => {
+						throw new DOMException("connection interrupted after send", "AbortError");
+					}) as typeof fetch)
+					.submit(input),
+			).rejects.toMatchObject({ code: "HTTP_ERROR", retryable: true });
+		},
+	);
+
 	it("marks unsupported asynchronous Gemini fixture states as not applicable", () => {
 		for (const state of ["queued", "running", "canceled"] as const) {
 			expect(geminiFixtures[state]).toMatchObject({

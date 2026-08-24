@@ -82,6 +82,12 @@ import {
 	type UncertainSubmissionEvidence,
 } from "./contracts";
 import type { StorageCleanupDependencies } from "./handlers/cleanup-storage-object";
+import {
+	createOutputTransferEnvelope,
+	providerOutputsFromTransferEnvelope,
+	responseSnapshotForResult,
+} from "./output-transfer-envelope";
+import type { OutputTransferEnvelope } from "./output-transfer-envelope";
 import { providerCdnAllowlist } from "./provider-output-policy";
 import { dispatchRouteFor, providerQueueKey } from "./queues";
 
@@ -95,12 +101,21 @@ export function createProviderRegistry(
 ): ProviderRegistry {
 	const registry = new MediaProviderRegistry();
 	const configuredProviders = configuredProviderKeysFromEnvironment(environment);
+	const requestedProviders = options.includeRecoveryProviders
+		? new Set([...configuredProviders, ...recoveryProviderKeysFromEnvironment(environment)])
+		: configuredProviders;
 	const registeredProviders = locallyExecutableProviderKeysFromEnvironment(
 		environment,
-		options.includeRecoveryProviders
-			? new Set([...configuredProviders, ...recoveryProviderKeysFromEnvironment(environment)])
-			: configuredProviders,
+		requestedProviders,
 	);
+	if (environment.NODE_ENV === "production") {
+		const missingCredentials = [...requestedProviders]
+			.filter((provider) => !registeredProviders.has(provider))
+			.sort();
+		if (missingCredentials.length > 0) {
+			throw new Error(`PROVIDER_WORKER_CREDENTIAL_MISSING:${missingCredentials.join(",")}`);
+		}
+	}
 	if (registeredProviders.has("replicate") && environment.REPLICATE_API_TOKEN) {
 		registry.register(
 			new ReplicateProviderAdapter({
@@ -158,6 +173,7 @@ export interface DispatchRuntimeOptions {
 	beforeSynchronousCommit?: () => Promise<void>;
 	afterInputAuthorization?: () => Promise<void>;
 	createSignedReadUrl?: typeof createSignedReadUrl;
+	database?: PrismaClient;
 	enabledProviders?: ReadonlySet<ProviderKey>;
 	environment?: Record<string, string | undefined>;
 }
@@ -168,7 +184,8 @@ export async function resolveDatabaseDispatchRoute(
 	jobId: string,
 	options: DispatchRuntimeOptions = {},
 ) {
-	const job = await db.generationJob.findUnique({
+	const database = options.database ?? db;
+	const job = await database.generationJob.findUnique({
 		where: { id: jobId },
 		include: {
 			attempts: { orderBy: { attemptNumber: "desc" }, take: 1 },
@@ -180,19 +197,21 @@ export async function resolveDatabaseDispatchRoute(
 	if (environment.MEDIA_GENERATION_ENABLED !== "true") {
 		throw new Error("MEDIA_GENERATION_DISABLED");
 	}
-	if (await isMediaGenerationDisabled(db, job.productKey)) {
+	if (await isMediaGenerationDisabled(database, job.productKey)) {
 		throw new Error("MEDIA_GENERATION_DISABLED");
 	}
 	const resolution = quotedExecutableRoutes(
 		job,
-		options.enabledProviders ?? locallyExecutableProviderKeysFromEnvironment(environment),
+		options.enabledProviders ?? configuredProviderKeysFromEnvironment(environment),
 	);
 	if (resolution.kind === "UNAVAILABLE") {
-		await markQuotedRouteUnavailable(db, {
-			jobId: job.id,
-			code: resolution.code,
-			diagnosticRoute: resolution.diagnosticRoute,
-		});
+		await database.$transaction((tx) =>
+			markQuotedRouteUnavailable(tx, {
+				jobId: job.id,
+				code: resolution.code,
+				diagnosticRoute: resolution.diagnosticRoute,
+			}),
+		);
 		return null;
 	}
 	const existing = job.attempts[0];
@@ -204,18 +223,20 @@ export async function resolveDatabaseDispatchRoute(
 			)
 		: chooseCatalogRoute(resolution.routes, deterministicFraction(job.id));
 	if (!route) {
-		await markQuotedRouteUnavailable(db, {
-			jobId: job.id,
-			code: resolution.code,
-			diagnosticRoute: existing
-				? {
-						provider: existing.provider as ProviderKey,
-						providerModelId: existing.providerModelId,
-						providerCostMicros: 0,
-						weight: 1,
-					}
-				: resolution.diagnosticRoute,
-		});
+		await database.$transaction((tx) =>
+			markQuotedRouteUnavailable(tx, {
+				jobId: job.id,
+				code: resolution.code,
+				diagnosticRoute: existing
+					? {
+							provider: existing.provider as ProviderKey,
+							providerModelId: existing.providerModelId,
+							providerCostMicros: 0,
+							weight: 1,
+						}
+					: resolution.diagnosticRoute,
+			}),
+		);
 		return null;
 	}
 	return {
@@ -389,7 +410,17 @@ export function createDatabaseDispatchStore(
 				const now = new Date();
 				await tx.generationAttempt.update({
 					where: { id: attempt.id },
-					data: preSendAttemptState(attempt.provider, now),
+					data: preSendAttemptState(
+						{
+							attemptId: attempt.id,
+							attemptNumber: attempt.attemptNumber,
+							jobId: job.id,
+							provider: route.provider,
+							providerModelId: route.providerModelId,
+							inputSnapshot: job.inputSnapshot,
+						},
+						now,
+					),
 				});
 				return {
 					attemptId: attempt.id,
@@ -410,11 +441,21 @@ export function createDatabaseDispatchStore(
 		async recordSubmissionStarted(attemptId) {
 			const attempt = await database.generationAttempt.findUniqueOrThrow({
 				where: { id: attemptId },
-				select: { provider: true },
+				include: { job: { select: { inputSnapshot: true } } },
 			});
 			await database.generationAttempt.update({
 				where: { id: attemptId },
-				data: preSendAttemptState(attempt.provider, new Date()),
+				data: preSendAttemptState(
+					{
+						attemptId: attempt.id,
+						attemptNumber: attempt.attemptNumber,
+						jobId: attempt.jobId,
+						provider: attempt.provider,
+						providerModelId: attempt.providerModelId,
+						inputSnapshot: attempt.job.inputSnapshot,
+					},
+					new Date(),
+				),
 			});
 		},
 		async recordSubmission(attemptId, submission) {
@@ -520,7 +561,10 @@ export function createDatabaseDispatchStore(
 		},
 		async recordSynchronousCompletion(attemptId, submission, result) {
 			await database.$transaction(async (tx) => {
-				const attempt = await tx.generationAttempt.findUniqueOrThrow({ where: { id: attemptId } });
+				const attempt = await tx.generationAttempt.findUniqueOrThrow({
+					where: { id: attemptId },
+					include: { job: { select: { productKey: true } } },
+				});
 				if (submission.outcome !== "accepted") {
 					throw new Error("Only accepted provider submissions may complete synchronously");
 				}
@@ -531,6 +575,32 @@ export function createDatabaseDispatchStore(
 					attempt.provider,
 					submission.reconciliation,
 				);
+				const envelope = createOutputTransferEnvelope(
+					mediaKindForJob(attempt.job.productKey),
+					result.outputs,
+				);
+				if (!envelope) {
+					await transitionTerminalSuccessWithoutMedia(tx, {
+						attemptId,
+						jobId: attempt.jobId,
+						errorSnapshot: attempt.errorSnapshot,
+						responseSnapshot: responseSnapshotForResult(result),
+						attemptData: {
+							providerTaskId,
+							...reconciliationEndpoints,
+							...(submissionToken ? { submissionToken } : {}),
+							providerCostMicros:
+								result.providerCostMicros === null ? undefined : BigInt(result.providerCostMicros),
+							submittedAt: new Date(),
+						},
+					});
+					return;
+				}
+				await tx.generationAttemptTransferEnvelope.upsert({
+					where: { attemptId },
+					create: { attemptId, payload: outputTransferEnvelopeInput(envelope) },
+					update: { payload: outputTransferEnvelopeInput(envelope) },
+				});
 				await tx.generationAttempt.update({
 					where: { id: attemptId },
 					data: {
@@ -540,10 +610,7 @@ export function createDatabaseDispatchStore(
 						status: "SUCCEEDED",
 						submittedAt: new Date(),
 						completedAt: new Date(),
-						responseSnapshot: {
-							outputs: result.outputs,
-							providerCharged: result.providerCharged,
-						} as Prisma.InputJsonValue,
+						responseSnapshot: responseSnapshotForResult(result) as Prisma.InputJsonValue,
 						providerCostMicros:
 							result.providerCostMicros === null ? undefined : BigInt(result.providerCostMicros),
 						uncertainSubmission: false,
@@ -2196,23 +2263,74 @@ export const databaseProviderCancellationStore: ProviderCancellationStore =
 export function createDatabaseFinalizationStore(database: PrismaClient): FinalizationStore {
 	return {
 		async claimFinalization(payload) {
-			const job = await database.generationJob.findFirst({
-				where: { id: payload.jobId, status: "FINALIZING" },
-				include: {
-					attempts: { where: { status: "SUCCEEDED" }, orderBy: { attemptNumber: "desc" }, take: 1 },
-				},
+			return database.$transaction(async (tx) => {
+				const job = await tx.generationJob.findFirst({
+					where: { id: payload.jobId, status: "FINALIZING" },
+					include: {
+						attempts: {
+							where: { status: "SUCCEEDED" },
+							orderBy: { attemptNumber: "desc" },
+							take: 1,
+							include: { transferEnvelope: true },
+						},
+					},
+				});
+				const attempt = job?.attempts[0];
+				if (!job || !attempt) return null;
+				const mediaKind = mediaKindForJob(job.productKey);
+				let outputs = providerOutputsFromTransferEnvelope(
+					mediaKind,
+					attempt.transferEnvelope?.payload,
+				);
+				if (attempt.transferEnvelope && outputs.length === 0) {
+					await transitionTerminalSuccessWithoutMedia(tx, {
+						attemptId: attempt.id,
+						jobId: job.id,
+						errorSnapshot: attempt.errorSnapshot,
+						responseSnapshot: safeResponseSnapshot(attempt.responseSnapshot),
+						reasonCode: "TRANSFER_ENVELOPE_INVALID",
+					});
+					return null;
+				}
+				if (!attempt.transferEnvelope) {
+					const promoted = createOutputTransferEnvelope(
+						mediaKind,
+						legacyOutputsFromResponseSnapshot(attempt.responseSnapshot),
+					);
+					if (!promoted) {
+						await transitionTerminalSuccessWithoutMedia(tx, {
+							attemptId: attempt.id,
+							jobId: job.id,
+							errorSnapshot: attempt.errorSnapshot,
+							responseSnapshot: safeResponseSnapshot(attempt.responseSnapshot),
+							reasonCode: "LEGACY_OUTPUT_PROMOTION_FAILED",
+						});
+						return null;
+					}
+					await tx.generationAttemptTransferEnvelope.create({
+						data: { attemptId: attempt.id, payload: outputTransferEnvelopeInput(promoted) },
+					});
+					await tx.generationAttempt.update({
+						where: { id: attempt.id },
+						data: {
+							responseSnapshot: safeResponseSnapshot(
+								attempt.responseSnapshot,
+								promoted.outputs.length,
+							),
+						},
+					});
+					outputs = providerOutputsFromTransferEnvelope(mediaKind, promoted);
+				}
+				return {
+					jobId: job.id,
+					ownerId: job.ownerId,
+					mediaKind,
+					candidates: outputs.map((output, index) => ({
+						key: `${attempt.id}:${index}`,
+						output,
+					})),
+				};
 			});
-			const attempt = job?.attempts[0];
-			if (!job || !attempt) return null;
-			const snapshot = attempt.responseSnapshot as { outputs?: ProviderOutput[] } | null;
-			const outputs = snapshot?.outputs?.filter(isProviderOutput) ?? [];
-			return {
-				jobId: job.id,
-				ownerId: job.ownerId,
-				mediaKind: getCatalogEntry(job.productKey as Parameters<typeof getCatalogEntry>[0])
-					.mediaKind,
-				candidates: outputs.map((output, index) => ({ key: `${attempt.id}:${index}`, output })),
-			};
 		},
 		async findPersistedCandidate(jobId, candidateKey) {
 			const binding = await database.generationJobAsset.findFirst({
@@ -2941,15 +3059,39 @@ export function createDatabaseProviderEventStore(
 				await options.afterAttemptLock?.({ eventId: claim.eventId, attemptId: attempt.id });
 				const job = await tx.generationJob.findUniqueOrThrow({
 					where: { id: attempt.jobId },
-					select: { status: true },
+					select: { productKey: true, status: true },
 				});
+				const incoming = claim.snapshot.status;
+				const canonicalTime = claim.providerOccurredAt ?? claim.receivedAt;
+				const envelope =
+					incoming === "SUCCEEDED"
+						? createOutputTransferEnvelope(mediaKindForJob(job.productKey), result.outputs)
+						: null;
 				if (attempt.status === "NEEDS_RECONCILIATION" || job.status === "NEEDS_RECONCILIATION") {
+					if (
+						envelope &&
+						attempt.status === "NEEDS_RECONCILIATION" &&
+						job.status === "NEEDS_RECONCILIATION"
+					) {
+						await recoverManualProviderSuccess(tx, {
+							attempt,
+							job,
+							result,
+							envelope,
+							providerEvent: {
+								canonicalTime,
+								occurredAt: claim.providerOccurredAt,
+								receivedAt: claim.receivedAt,
+								sequence: claim.providerSequence,
+							},
+						});
+						await completeProviderWebhookEvent(tx, claim, "MANUAL_RECOVERY_SUCCEEDED");
+						return;
+					}
 					await completeProviderWebhookEvent(tx, claim, "MANUAL_RECOVERY_RETAINED");
 					return;
 				}
-				const incoming = claim.snapshot.status;
 				const incomingTerminal = ["SUCCEEDED", "FAILED", "CANCELED"].includes(incoming);
-				const canonicalTime = claim.providerOccurredAt ?? claim.receivedAt;
 				const staleSequence =
 					!incomingTerminal &&
 					attempt.lastProviderSequence !== null &&
@@ -2979,18 +3121,34 @@ export function createDatabaseProviderEventStore(
 					await completeProviderWebhookEvent(tx, claim, "STALE_EVENT_IGNORED");
 					return;
 				}
-				if (incoming === "SUCCEEDED" && result.outputs.length === 0) {
-					await moveAttemptToManualReconciliation(tx, {
-						attempt,
-						jobStatus: job.status,
-						code: "TERMINAL_SUCCESS_WITHOUT_MEDIA",
-						attemptStatuses: ["SUBMISSION_UNCERTAIN", "SUBMITTED", "RUNNING"],
-						jobStatuses: ["SUBMITTING", "PROVIDER_PENDING", "PROVIDER_RUNNING"],
-						action: "MEDIA_TERMINAL_SUCCESS_WITHOUT_MEDIA",
-						uncertainSubmission: true,
+				if (incoming === "SUCCEEDED" && !envelope) {
+					await transitionTerminalSuccessWithoutMedia(tx, {
+						attemptId: attempt.id,
+						jobId: attempt.jobId,
+						errorSnapshot: attempt.errorSnapshot,
+						responseSnapshot: responseSnapshotForResult(result),
+						attemptData: {
+							progress:
+								result.progress === null
+									? attempt.progress
+									: Math.max(attempt.progress ?? 0, Math.min(100, Math.round(result.progress))),
+							providerCostMicros:
+								result.providerCostMicros === null ? undefined : BigInt(result.providerCostMicros),
+							lastProviderEventAt: canonicalTime,
+							lastProviderOccurredAt: claim.providerOccurredAt,
+							lastProviderReceivedAt: claim.receivedAt,
+							lastProviderSequence: claim.providerSequence,
+						},
 					});
 					await completeProviderWebhookEvent(tx, claim);
 					return;
+				}
+				if (envelope) {
+					await tx.generationAttemptTransferEnvelope.upsert({
+						where: { attemptId: attempt.id },
+						create: { attemptId: attempt.id, payload: outputTransferEnvelopeInput(envelope) },
+						update: { payload: outputTransferEnvelopeInput(envelope) },
+					});
 				}
 				await tx.generationAttempt.update({
 					where: { id: attempt.id },
@@ -3018,10 +3176,7 @@ export function createDatabaseProviderEventStore(
 								: Math.max(attempt.progress ?? 0, Math.min(100, Math.round(result.progress))),
 						providerCostMicros:
 							result.providerCostMicros === null ? undefined : BigInt(result.providerCostMicros),
-						responseSnapshot: {
-							outputs: result.outputs,
-							providerCharged: result.providerCharged,
-						} as Prisma.InputJsonValue,
+						responseSnapshot: responseSnapshotForResult(result) as Prisma.InputJsonValue,
 						uncertainSubmission: incomingTerminal ? false : undefined,
 						reconcileLeaseToken: incomingTerminal ? null : undefined,
 						reconcileLeasedUntil: incomingTerminal ? null : undefined,
@@ -3175,7 +3330,7 @@ export function createDatabaseReconciliationStore(
 			await database.$transaction(async (tx) => {
 				const attempt = await tx.generationAttempt.findFirst({
 					where: { id: lease.attemptId, reconcileLeaseToken: lease.leaseToken },
-					include: { job: { select: { status: true } } },
+					include: { job: { select: { productKey: true, status: true } } },
 				});
 				await options.afterAttemptRead?.();
 				if (!attempt) return;
@@ -3190,18 +3345,31 @@ export function createDatabaseReconciliationStore(
 					return;
 				}
 				const terminalFailure = snapshot.status === "FAILED" || snapshot.status === "CANCELED";
-				if (snapshot.status === "SUCCEEDED" && result.outputs.length === 0) {
-					await moveAttemptToManualReconciliation(tx, {
-						attempt,
-						jobStatus: attempt.job.status,
-						code: "TERMINAL_SUCCESS_WITHOUT_MEDIA",
-						attemptStatuses: ["SUBMISSION_UNCERTAIN", "SUBMITTED", "RUNNING"],
-						jobStatuses: ["SUBMITTING", "PROVIDER_PENDING", "PROVIDER_RUNNING"],
-						action: "MEDIA_TERMINAL_SUCCESS_WITHOUT_MEDIA",
-						uncertainSubmission: true,
+				const envelope =
+					snapshot.status === "SUCCEEDED"
+						? createOutputTransferEnvelope(mediaKindForJob(attempt.job.productKey), result.outputs)
+						: null;
+				if (snapshot.status === "SUCCEEDED" && !envelope) {
+					await transitionTerminalSuccessWithoutMedia(tx, {
+						attemptId: attempt.id,
+						jobId: attempt.jobId,
+						errorSnapshot: attempt.errorSnapshot,
+						responseSnapshot: responseSnapshotForResult(result),
 						reconcileLeaseToken: lease.leaseToken,
+						attemptData: {
+							progress: result.progress,
+							providerCostMicros:
+								result.providerCostMicros === null ? undefined : BigInt(result.providerCostMicros),
+						},
 					});
 					return;
+				}
+				if (envelope) {
+					await tx.generationAttemptTransferEnvelope.upsert({
+						where: { attemptId: attempt.id },
+						create: { attemptId: attempt.id, payload: outputTransferEnvelopeInput(envelope) },
+						update: { payload: outputTransferEnvelopeInput(envelope) },
+					});
 				}
 				const changed = await tx.generationAttempt.updateMany({
 					where: { id: attempt.id, reconcileLeaseToken: lease.leaseToken },
@@ -3215,10 +3383,7 @@ export function createDatabaseReconciliationStore(
 										? "RUNNING"
 										: undefined,
 						progress: result.progress,
-						responseSnapshot: {
-							outputs: result.outputs,
-							providerCharged: result.providerCharged,
-						} as Prisma.InputJsonValue,
+						responseSnapshot: responseSnapshotForResult(result) as Prisma.InputJsonValue,
 						providerCostMicros:
 							result.providerCostMicros === null ? undefined : BigInt(result.providerCostMicros),
 						uncertainSubmission: terminalFailure
@@ -3649,6 +3814,43 @@ function objectRecord(value: unknown): Record<string, unknown> | undefined {
 		: undefined;
 }
 
+function legacyOutputsFromResponseSnapshot(value: unknown): ProviderOutput[] {
+	const record = objectRecord(value);
+	return Array.isArray(record?.outputs) ? (record.outputs as ProviderOutput[]) : [];
+}
+
+function safeResponseSnapshot(value: unknown, outputCountOverride?: number): Prisma.InputJsonValue {
+	const record = objectRecord(value);
+	const outputCount =
+		outputCountOverride ??
+		(Array.isArray(record?.outputs)
+			? record.outputs.length
+			: typeof record?.outputCount === "number" &&
+				  Number.isSafeInteger(record.outputCount) &&
+				  record.outputCount >= 0
+				? record.outputCount
+				: 0);
+	return {
+		providerCharged: record?.providerCharged === true,
+		outputCount,
+	};
+}
+
+function mediaKindForJob(productKey: string): "image" | "video" {
+	const entry = getCatalogEntry(productKey as ProductModelKey);
+	if (!entry) throw new Error("Catalog product is unavailable for output transfer");
+	return entry.mediaKind;
+}
+
+function outputTransferEnvelopeInput(envelope: OutputTransferEnvelope): Prisma.InputJsonValue {
+	const outputs: Prisma.InputJsonObject[] = envelope.outputs.map((output) =>
+		output.kind === "remote-url"
+			? { kind: output.kind, url: output.url }
+			: { kind: output.kind, mimeType: output.mimeType, data: output.data },
+	);
+	return { version: envelope.version, outputs };
+}
+
 type AttemptState =
 	| "CREATED"
 	| "SUBMISSION_UNCERTAIN"
@@ -3757,17 +3959,239 @@ async function moveAttemptToManualReconciliation(
 	return true;
 }
 
-function preSendAttemptState(provider: string, now: Date): Prisma.GenerationAttemptUpdateInput {
+async function recoverManualProviderSuccess(
+	tx: Prisma.TransactionClient,
+	input: {
+		attempt: { id: string; jobId: string; status: string; progress: number | null };
+		job: { status: string };
+		result: {
+			progress: number | null;
+			providerCostMicros: number | null;
+			providerCharged: boolean;
+			outputs: ProviderOutput[];
+		};
+		envelope: OutputTransferEnvelope;
+		providerEvent?: {
+			canonicalTime: Date;
+			occurredAt?: Date;
+			receivedAt: Date;
+			sequence?: bigint;
+		};
+	},
+): Promise<void> {
+	if (
+		input.attempt.status !== "NEEDS_RECONCILIATION" ||
+		input.job.status !== "NEEDS_RECONCILIATION"
+	) {
+		throw new Error("MANUAL_RECOVERY_STATE_CONFLICT");
+	}
+	const reservation = await tx.creditReservation.findUnique({
+		where: { jobId: input.attempt.jobId },
+		select: { id: true, amount: true, status: true },
+	});
+	if (!reservation || reservation.status !== "ACTIVE") {
+		throw new Error("UNCERTAIN_RESERVATION_NOT_ACTIVE");
+	}
+	await tx.generationAttemptTransferEnvelope.upsert({
+		where: { attemptId: input.attempt.id },
+		create: { attemptId: input.attempt.id, payload: outputTransferEnvelopeInput(input.envelope) },
+		update: { payload: outputTransferEnvelopeInput(input.envelope) },
+	});
+	const attemptChanged = await tx.generationAttempt.updateMany({
+		where: { id: input.attempt.id, status: "NEEDS_RECONCILIATION" },
+		data: {
+			status: "SUCCEEDED",
+			progress:
+				input.result.progress === null
+					? input.attempt.progress
+					: Math.max(input.attempt.progress ?? 0, Math.min(100, Math.round(input.result.progress))),
+			providerCostMicros:
+				input.result.providerCostMicros === null
+					? undefined
+					: BigInt(input.result.providerCostMicros),
+			responseSnapshot: responseSnapshotForResult(input.result) as Prisma.InputJsonValue,
+			uncertainSubmission: false,
+			errorSnapshot: {},
+			...(input.providerEvent
+				? {
+						lastProviderEventAt: input.providerEvent.canonicalTime,
+						lastProviderOccurredAt: input.providerEvent.occurredAt,
+						lastProviderReceivedAt: input.providerEvent.receivedAt,
+						lastProviderSequence: input.providerEvent.sequence,
+					}
+				: {}),
+			reconcileLeaseToken: null,
+			reconcileLeasedUntil: null,
+			nextReconcileAt: null,
+			completedAt: new Date(),
+		},
+	});
+	if (attemptChanged.count !== 1) throw new Error("MANUAL_RECOVERY_ATTEMPT_STATE_CONFLICT");
+	const jobChanged = await tx.generationJob.updateMany({
+		where: { id: input.attempt.jobId, status: "NEEDS_RECONCILIATION" },
+		data: {
+			status: "FINALIZING",
+			failureCode: null,
+			finalizationStage: null,
+			finalizationErrorCode: null,
+			nextFinalizeAt: null,
+			version: { increment: 1 },
+		},
+	});
+	if (jobChanged.count !== 1) throw new Error("MANUAL_RECOVERY_JOB_STATE_CONFLICT");
+	await tx.outboxEvent.upsert({
+		where: { dedupeKey: `generation-finalize:${input.attempt.jobId}:${input.attempt.id}` },
+		create: {
+			eventType: "GENERATION_FINALIZE",
+			aggregateType: "GENERATION_JOB",
+			aggregateId: input.attempt.jobId,
+			dedupeKey: `generation-finalize:${input.attempt.jobId}:${input.attempt.id}`,
+			payload: { jobId: input.attempt.jobId },
+		},
+		update: {},
+	});
+	await tx.auditLog.create({
+		data: {
+			action: "MEDIA_PROVIDER_SUCCESS_RECOVERED",
+			targetType: "GENERATION_ATTEMPT",
+			targetId: input.attempt.id,
+			metadata: {
+				jobId: input.attempt.jobId,
+				reservationId: reservation.id,
+				reservedCredits: reservation.amount.toString(),
+				outputCount: input.envelope.outputs.length,
+				pageAdmin: true,
+			},
+		},
+	});
+}
+
+async function transitionTerminalSuccessWithoutMedia(
+	tx: Prisma.TransactionClient,
+	input: {
+		attemptId: string;
+		jobId: string;
+		errorSnapshot: unknown;
+		responseSnapshot: Prisma.InputJsonValue;
+		reconcileLeaseToken?: string;
+		attemptData?: Prisma.GenerationAttemptUpdateManyMutationInput;
+		reasonCode?: string;
+	},
+): Promise<void> {
+	const reasonCode = safeRecoveryCode(input.reasonCode ?? "TERMINAL_SUCCESS_WITHOUT_MEDIA");
+	const reservation = await tx.creditReservation.findUnique({
+		where: { jobId: input.jobId },
+		select: { id: true, amount: true, status: true },
+	});
+	if (!reservation || reservation.status !== "ACTIVE") {
+		throw new Error("UNCERTAIN_RESERVATION_NOT_ACTIVE");
+	}
+	const attemptChanged = await tx.generationAttempt.updateMany({
+		where: {
+			id: input.attemptId,
+			status: { in: ["SUBMISSION_UNCERTAIN", "SUBMITTED", "RUNNING", "SUCCEEDED"] },
+			...(input.reconcileLeaseToken ? { reconcileLeaseToken: input.reconcileLeaseToken } : {}),
+		},
+		data: {
+			...(input.attemptData ?? {}),
+			status: "NEEDS_RECONCILIATION",
+			uncertainSubmission: true,
+			errorSnapshot: manualReconciliationErrorSnapshot(input.errorSnapshot, reasonCode),
+			responseSnapshot: input.responseSnapshot,
+			reconcileLeaseToken: null,
+			reconcileLeasedUntil: null,
+			nextReconcileAt: null,
+			completedAt: new Date(),
+		},
+	});
+	if (attemptChanged.count !== 1) return;
+	const jobChanged = await tx.generationJob.updateMany({
+		where: {
+			id: input.jobId,
+			status: { in: ["SUBMITTING", "PROVIDER_PENDING", "PROVIDER_RUNNING", "FINALIZING"] },
+		},
+		data: {
+			status: "NEEDS_RECONCILIATION",
+			failureCode: reasonCode,
+			version: { increment: 1 },
+		},
+	});
+	if (jobChanged.count !== 1) throw new Error("UNCERTAIN_JOB_STATE_CONFLICT");
+	await tx.auditLog.create({
+		data: {
+			action: "MEDIA_TERMINAL_SUCCESS_WITHOUT_MEDIA",
+			targetType: "GENERATION_ATTEMPT",
+			targetId: input.attemptId,
+			metadata: {
+				jobId: input.jobId,
+				reservationId: reservation.id,
+				reservedCredits: reservation.amount.toString(),
+				code: reasonCode,
+				creditsFrozen: true,
+				pageAdmin: true,
+			},
+		},
+	});
+}
+
+function preSendAttemptState(
+	input: {
+		attemptId: string;
+		attemptNumber: number;
+		jobId: string;
+		provider: string;
+		providerModelId: string;
+		inputSnapshot: unknown;
+	},
+	now: Date,
+): Prisma.GenerationAttemptUpdateInput {
+	const requestFingerprint = createHash("sha256")
+		.update(
+			canonicalJson({
+				version: 1,
+				attemptId: input.attemptId,
+				attemptNumber: input.attemptNumber,
+				jobId: input.jobId,
+				provider: input.provider,
+				providerModelId: input.providerModelId,
+				inputSnapshot: input.inputSnapshot,
+			}),
+		)
+		.digest("hex");
 	return {
 		status: "SUBMISSION_UNCERTAIN",
 		uncertainSubmission: true,
 		submittedAt: now,
 		nextReconcileAt: new Date(now.getTime() + 30_000),
 		requestSnapshot: {
-			catalogRoute: provider,
+			attemptNumber: input.attemptNumber,
+			catalogRoute: input.provider,
+			provider: input.provider,
+			providerModelId: input.providerModelId,
+			requestFingerprint,
 			submissionPhase: "pre_send",
 		} as Prisma.InputJsonValue,
 	};
+}
+
+function canonicalJson(value: unknown): string {
+	if (value === null || typeof value === "string" || typeof value === "boolean") {
+		return JSON.stringify(value);
+	}
+	if (typeof value === "number") {
+		if (!Number.isFinite(value)) throw new Error("Provider request fingerprint is not JSON-safe");
+		return JSON.stringify(value);
+	}
+	if (Array.isArray(value)) return `[${value.map(canonicalJson).join(",")}]`;
+	if (typeof value === "object") {
+		const record = value as Record<string, unknown>;
+		return `{${Object.keys(record)
+			.sort()
+			.filter((key) => record[key] !== undefined)
+			.map((key) => `${JSON.stringify(key)}:${canonicalJson(record[key])}`)
+			.join(",")}}`;
+	}
+	throw new Error("Provider request fingerprint is not JSON-safe");
 }
 
 function safeUncertainRecoveryEvidence(
@@ -3905,17 +4329,6 @@ function rawUrlAuthority(value: string): string | undefined {
 	return authorityEnd === -1
 		? value.slice(authorityStart)
 		: value.slice(authorityStart, authorityStart + authorityEnd);
-}
-
-function isProviderOutput(value: unknown): value is ProviderOutput {
-	if (!value || typeof value !== "object") return false;
-	const output = value as Record<string, unknown>;
-	return (
-		(output.kind === "remote-url" && typeof output.url === "string") ||
-		(output.kind === "inline-base64" &&
-			typeof output.mimeType === "string" &&
-			typeof output.data === "string")
-	);
 }
 
 function expectedOutputMimeType(

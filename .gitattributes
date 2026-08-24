@@ -4,3 +4,6 @@
 # These supplied records must retain their original bytes across checkouts.
 docs/product/2026-08-23-ezpic-ai-image-editor-spec.md -text -eol
 docs/foundation-repair/2026-08-23/** -text -eol
+
+# The tracked single-file Prisma Zod generator output ends with a blank line.
+packages/database/prisma/zod/index.ts whitespace=-blank-at-eof

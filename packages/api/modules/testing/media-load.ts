@@ -359,7 +359,14 @@ class ControlledLoadProvider implements MediaProviderAdapter {
 
 	async normalizeResult(_snapshot: ProviderTaskSnapshot): Promise<NormalizedResult> {
 		return {
-			outputs: [],
+			outputs: [
+				{
+					kind: "inline-base64",
+					mimeType: "image/png",
+					data: CONTROLLED_INLINE_PNG_BASE64,
+					trust: "untrusted-transfer-candidate",
+				},
+			],
 			progress: 100,
 			providerCostMicros: 0,
 			failure: null,
@@ -368,6 +375,9 @@ class ControlledLoadProvider implements MediaProviderAdapter {
 		};
 	}
 }
+
+const CONTROLLED_INLINE_PNG_BASE64 =
+	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=";
 
 function successfulSnapshot(providerTaskId: string): ProviderTaskSnapshot {
 	return { providerTaskId, status: "SUCCEEDED", progress: 100, raw: { controlled: true } };

@@ -30,6 +30,7 @@ import {
 	createDatabaseReconciliationStore,
 	createDatabaseSettlementStore,
 	createDatabaseVerifyUploadDependencies,
+	resolveDatabaseDispatchRoute,
 	type DispatchRuntimeOptions,
 } from "../runtime";
 import { dispatchGeneration } from "./dispatch-generation";
@@ -89,6 +90,83 @@ describe("production media runtime stores", () => {
 				where: { aggregateId: seeded.jobId, eventType: "GENERATION_DISPATCH" },
 			}),
 		).toBe(1);
+	});
+
+	it("atomically closes an unavailable Outbox route into manual reconciliation", async () => {
+		const seeded = await seedReservedJob("image-fast");
+		const options = {
+			database: client,
+			enabledProviders: new Set<ProviderKey>(),
+			environment: { MEDIA_GENERATION_ENABLED: "true" },
+		} as DispatchRuntimeOptions & { database: PrismaClient };
+
+		await expect(resolveDatabaseDispatchRoute(seeded.jobId, options)).resolves.toBeNull();
+		const [job, reservation, audits] = await Promise.all([
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+			client.auditLog.count({
+				where: { action: "MEDIA_DISPATCH_ROUTE_UNAVAILABLE", targetId: seeded.jobId },
+			}),
+		]);
+		expect(job).toMatchObject({ status: "NEEDS_RECONCILIATION" });
+		expect(reservation).toMatchObject({ status: "ACTIVE", settledAmount: 0n, releasedAmount: 0n });
+		expect(audits).toBe(1);
+	});
+
+	it("resolves an API dispatch route from configured providers without worker credentials", async () => {
+		const seeded = await seedReservedJob("image-fast");
+
+		await expect(
+			resolveDatabaseDispatchRoute(seeded.jobId, {
+				database: client,
+				environment: {
+					MEDIA_GENERATION_ENABLED: "true",
+					MEDIA_ENABLED_PROVIDERS: "replicate",
+				},
+			}),
+		).resolves.toMatchObject({ provider: "replicate" });
+
+		const [job, attemptCount, auditCount] = await Promise.all([
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+			client.generationAttempt.count({ where: { jobId: seeded.jobId } }),
+			client.auditLog.count({
+				where: { action: "MEDIA_DISPATCH_ROUTE_UNAVAILABLE", targetId: seeded.jobId },
+			}),
+		]);
+		expect(job.status).toBe("RESERVED");
+		expect(attemptCount).toBe(0);
+		expect(auditCount).toBe(0);
+	});
+
+	it("persists a stable pre-send fingerprint without signed input material", async () => {
+		const seeded = await seedReservedImageEditJob();
+		const signedUrl =
+			"https://private.example/input.png?X-Amz-Credential=temporary&X-Amz-Signature=secret";
+		const store = createTestDispatchStore({ createSignedReadUrl: async () => signedUrl });
+		const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
+		if (!claim) throw new Error("Expected a dispatch claim");
+		const before = await client.generationAttempt.findUniqueOrThrow({
+			where: { id: claim.attemptId },
+			select: { requestSnapshot: true },
+		});
+		await store.recordSubmissionStarted(claim.attemptId);
+		await store.recordSubmissionStarted(claim.attemptId);
+		const after = await client.generationAttempt.findUniqueOrThrow({
+			where: { id: claim.attemptId },
+			select: { requestSnapshot: true },
+		});
+		const requestSnapshot = after.requestSnapshot as Record<string, unknown>;
+
+		expect(requestSnapshot).toMatchObject({
+			attemptNumber: 1,
+			provider: claim.provider,
+			providerModelId: claim.providerModelId,
+			submissionPhase: "pre_send",
+		});
+		expect(requestSnapshot.requestFingerprint).toMatch(/^[a-f0-9]{64}$/);
+		expect(after.requestSnapshot).toEqual(before.requestSnapshot);
+		expect(JSON.stringify(after.requestSnapshot)).not.toContain("X-Amz-Signature");
+		expect(JSON.stringify(after.requestSnapshot)).not.toContain(signedUrl);
 	});
 
 	it("rejects dispatch when a ready input no longer matches the job-bound checksum", async () => {
@@ -541,14 +619,110 @@ describe("production media runtime stores", () => {
 		).toBe(0);
 		releaseCommit();
 		await completing;
-		const [attempt, outboxCount] = await Promise.all([
+		const [attempt, transferEnvelope, outboxCount] = await Promise.all([
 			client.generationAttempt.findUniqueOrThrow({ where: { id: claim!.attemptId } }),
+			client.generationAttemptTransferEnvelope.findUniqueOrThrow({
+				where: { attemptId: claim!.attemptId },
+			}),
 			client.outboxEvent.count({
 				where: { aggregateId: seeded.jobId, eventType: "GENERATION_FINALIZE" },
 			}),
 		]);
-		expect(attempt.responseSnapshot).toMatchObject({ outputs: result.outputs });
+		expect(attempt.responseSnapshot).toEqual({ providerCharged: true, outputCount: 1 });
+		expect(transferEnvelope.payload).toEqual({
+			version: 1,
+			outputs: [{ kind: "inline-base64", mimeType: "image/png", data: "aGVsbG8=" }],
+		});
 		expect(outboxCount).toBe(1);
+	});
+
+	it("promotes a legacy output snapshot once and scrubs ordinary attempt diagnostics", async () => {
+		const seeded = await seedFinalizingJob();
+		const attempt = await client.generationAttempt.findFirstOrThrow({
+			where: { jobId: seeded.jobId, status: "SUCCEEDED" },
+		});
+		await client.$transaction([
+			client.generationAttemptTransferEnvelope.delete({ where: { attemptId: attempt.id } }),
+			client.generationAttempt.update({
+				where: { id: attempt.id },
+				data: {
+					responseSnapshot: {
+						providerCharged: true,
+						outputs: [
+							{
+								kind: "remote-url",
+								url: "https://replicate.delivery/legacy-signed.png?signature=secret",
+								trust: "untrusted-transfer-candidate",
+							},
+						],
+					},
+				},
+			}),
+		]);
+
+		const claim = await createDatabaseFinalizationStore(client).claimFinalization({
+			jobId: seeded.jobId,
+			version: seeded.version,
+		});
+		expect(claim?.candidates).toEqual([
+			{
+				key: `${attempt.id}:0`,
+				output: {
+					kind: "remote-url",
+					url: "https://replicate.delivery/legacy-signed.png?signature=secret",
+					trust: "untrusted-transfer-candidate",
+				},
+			},
+		]);
+		const [updatedAttempt, transferEnvelope] = await Promise.all([
+			client.generationAttempt.findUniqueOrThrow({ where: { id: attempt.id } }),
+			client.generationAttemptTransferEnvelope.findUniqueOrThrow({
+				where: { attemptId: attempt.id },
+			}),
+		]);
+		expect(updatedAttempt.responseSnapshot).toEqual({ providerCharged: true, outputCount: 1 });
+		expect(JSON.stringify(updatedAttempt.responseSnapshot)).not.toContain("signature=secret");
+		expect(transferEnvelope.payload).toMatchObject({
+			version: 1,
+			outputs: [{ kind: "remote-url" }],
+		});
+	});
+
+	it("freezes an invalid persisted transfer envelope without releasing credits", async () => {
+		const seeded = await seedFinalizingJob();
+		const attempt = await client.generationAttempt.findFirstOrThrow({
+			where: { jobId: seeded.jobId, status: "SUCCEEDED" },
+		});
+		await client.generationAttemptTransferEnvelope.update({
+			where: { attemptId: attempt.id },
+			data: {
+				payload: {
+					version: 1,
+					outputs: [{ kind: "remote-url", url: "http://unsafe.example/output.png" }],
+				},
+			},
+		});
+
+		await expect(
+			createDatabaseFinalizationStore(client).claimFinalization({
+				jobId: seeded.jobId,
+				version: seeded.version,
+			}),
+		).resolves.toBeNull();
+		const [job, updatedAttempt, reservation] = await Promise.all([
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+			client.generationAttempt.findUniqueOrThrow({ where: { id: attempt.id } }),
+			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+		]);
+		expect(job).toMatchObject({
+			status: "NEEDS_RECONCILIATION",
+			failureCode: "TRANSFER_ENVELOPE_INVALID",
+		});
+		expect(updatedAttempt).toMatchObject({
+			status: "NEEDS_RECONCILIATION",
+			uncertainSubmission: true,
+		});
+		expect(reservation).toMatchObject({ status: "ACTIVE", settledAmount: 0n, releasedAmount: 0n });
 	});
 
 	it("keeps finalization pending and queues retry when transfer fails transiently", async () => {
@@ -1083,25 +1257,40 @@ describe("production media runtime stores", () => {
 			include: { attempts: { where: { status: "SUCCEEDED" }, take: 1 } },
 		});
 		const attempt = job.attempts[0]!;
-		await client.generationAttempt.update({
-			where: { id: attempt.id },
-			data: {
-				responseSnapshot: {
-					outputs: [
-						{
-							kind: "remote-url",
-							url: "https://replicate.delivery/rejected.png",
-							trust: "untrusted-transfer-candidate",
-						},
-						{
-							kind: "remote-url",
-							url: "https://replicate.delivery/approved.png",
-							trust: "untrusted-transfer-candidate",
-						},
-					],
+		await client.$transaction([
+			client.generationAttempt.update({
+				where: { id: attempt.id },
+				data: { responseSnapshot: { providerCharged: true, outputCount: 2 } },
+			}),
+			client.generationAttemptTransferEnvelope.upsert({
+				where: { attemptId: attempt.id },
+				create: {
+					attemptId: attempt.id,
+					payload: {
+						version: 1,
+						outputs: [
+							{
+								kind: "remote-url",
+								url: "https://replicate.delivery/rejected.png",
+							},
+							{
+								kind: "remote-url",
+								url: "https://replicate.delivery/approved.png",
+							},
+						],
+					},
 				},
-			},
-		});
+				update: {
+					payload: {
+						version: 1,
+						outputs: [
+							{ kind: "remote-url", url: "https://replicate.delivery/rejected.png" },
+							{ kind: "remote-url", url: "https://replicate.delivery/approved.png" },
+						],
+					},
+				},
+			}),
+		]);
 
 		const checksum = "d".repeat(64);
 		const verificationValidUntil = new Date(Date.now() + 60_000);
@@ -1538,11 +1727,15 @@ describe("production media runtime stores", () => {
 		);
 		expect(await store.claimProviderEvent(staleSuccess.id)).toBeNull();
 
-		const attempt = await client.generationAttempt.findUniqueOrThrow({
-			where: { id: seeded.attemptId },
-		});
+		const [attempt, transferEnvelope] = await Promise.all([
+			client.generationAttempt.findUniqueOrThrow({ where: { id: seeded.attemptId } }),
+			client.generationAttemptTransferEnvelope.findUniqueOrThrow({
+				where: { attemptId: seeded.attemptId },
+			}),
+		]);
 		expect(attempt.status).toBe("SUCCEEDED");
-		expect(attempt.responseSnapshot).toMatchObject({
+		expect(attempt.responseSnapshot).toEqual({ providerCharged: true, outputCount: 1 });
+		expect(transferEnvelope.payload).toMatchObject({
 			outputs: [
 				expect.objectContaining({ url: "https://replicate.delivery/canonical-output.png" }),
 			],
@@ -1552,6 +1745,63 @@ describe("production media runtime stores", () => {
 				where: { aggregateId: seeded.jobId, eventType: "GENERATION_FINALIZE" },
 			}),
 		).toBe(1);
+	});
+
+	it("recovers a late verified success from manual reconciliation without a second submission", async () => {
+		const seeded = await seedPendingProviderJob();
+		await client.$transaction([
+			client.generationAttempt.update({
+				where: { id: seeded.attemptId },
+				data: {
+					status: "NEEDS_RECONCILIATION",
+					uncertainSubmission: true,
+					nextReconcileAt: null,
+				},
+			}),
+			client.generationJob.update({
+				where: { id: seeded.jobId },
+				data: {
+					status: "NEEDS_RECONCILIATION",
+					failureCode: "SUBMISSION_UNCERTAIN_NEEDS_RECONCILIATION",
+				},
+			}),
+		]);
+		const event = await createProviderEvent(
+			seeded.provider,
+			seeded.providerTaskId,
+			"succeeded",
+			new Date("2026-08-13T13:00:00.000Z"),
+			40n,
+		);
+		const store = createDatabaseProviderEventStore(client);
+		const claim = await store.claimProviderEvent(event.id);
+		expect(claim).not.toBeNull();
+		await store.recordProviderProgress(claim!, normalizedResult("late-recovered-success"));
+
+		const [job, attempt, transferEnvelope, reservation, auditCount] = await Promise.all([
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+			client.generationAttempt.findUniqueOrThrow({ where: { id: seeded.attemptId } }),
+			client.generationAttemptTransferEnvelope.findUniqueOrThrow({
+				where: { attemptId: seeded.attemptId },
+			}),
+			client.creditReservation.findUniqueOrThrow({ where: { jobId: seeded.jobId } }),
+			client.auditLog.count({
+				where: { action: "MEDIA_PROVIDER_SUCCESS_RECOVERED", targetId: seeded.attemptId },
+			}),
+		]);
+		expect(job).toMatchObject({ status: "FINALIZING", failureCode: null });
+		expect(attempt).toMatchObject({
+			status: "SUCCEEDED",
+			uncertainSubmission: false,
+			responseSnapshot: { providerCharged: true, outputCount: 1 },
+		});
+		expect(transferEnvelope.payload).toMatchObject({
+			outputs: [
+				expect.objectContaining({ url: expect.stringContaining("late-recovered-success") }),
+			],
+		});
+		expect(reservation.status).toBe("ACTIVE");
+		expect(auditCount).toBe(1);
 	});
 
 	it("persists provider cancellation as terminal and prevents later progress from reviving it", async () => {
@@ -1649,8 +1899,11 @@ describe("production media runtime stores", () => {
 		releaseNewer();
 		await Promise.all([newerWrite, olderWrite]);
 
-		const [attempt, olderEvent, finalizeCount, settleCount] = await Promise.all([
+		const [attempt, transferEnvelope, olderEvent, finalizeCount, settleCount] = await Promise.all([
 			client.generationAttempt.findUniqueOrThrow({ where: { id: seeded.attemptId } }),
+			client.generationAttemptTransferEnvelope.findUniqueOrThrow({
+				where: { attemptId: seeded.attemptId },
+			}),
 			client.providerWebhookEvent.findUniqueOrThrow({ where: { id: older.id } }),
 			client.outboxEvent.count({
 				where: { aggregateId: seeded.jobId, eventType: "GENERATION_FINALIZE" },
@@ -1662,9 +1915,10 @@ describe("production media runtime stores", () => {
 		expect(attempt).toMatchObject({
 			status: "SUCCEEDED",
 			lastProviderSequence: 30n,
-			responseSnapshot: {
-				outputs: [expect.objectContaining({ url: "https://replicate.delivery/newer-success.png" })],
-			},
+			responseSnapshot: { providerCharged: true, outputCount: 1 },
+		});
+		expect(transferEnvelope.payload).toMatchObject({
+			outputs: [expect.objectContaining({ url: "https://replicate.delivery/newer-success.png" })],
 		});
 		expect(olderEvent).toMatchObject({
 			status: "PROCESSED",
@@ -1709,13 +1963,18 @@ describe("production media runtime stores", () => {
 		});
 		await store.recordProviderProgress(completionClaim!, normalizedResult("terminal-wins"));
 
-		expect(
-			await client.generationAttempt.findUniqueOrThrow({ where: { id: seeded.attemptId } }),
-		).toMatchObject({
+		const [attempt, transferEnvelope] = await Promise.all([
+			client.generationAttempt.findUniqueOrThrow({ where: { id: seeded.attemptId } }),
+			client.generationAttemptTransferEnvelope.findUniqueOrThrow({
+				where: { attemptId: seeded.attemptId },
+			}),
+		]);
+		expect(attempt).toMatchObject({
 			status: "SUCCEEDED",
-			responseSnapshot: {
-				outputs: [expect.objectContaining({ url: expect.stringContaining("terminal-wins") })],
-			},
+			responseSnapshot: { providerCharged: true, outputCount: 1 },
+		});
+		expect(transferEnvelope.payload).toMatchObject({
+			outputs: [expect.objectContaining({ url: expect.stringContaining("terminal-wins") })],
 		});
 		expect(
 			await client.providerWebhookEvent.findUniqueOrThrow({ where: { id: completion.id } }),

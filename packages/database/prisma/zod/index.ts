@@ -88,6 +88,12 @@ export const GenerationAttemptScalarFieldEnumSchema = z.enum(['id', 'jobId', 'at
 
 export type GenerationAttemptScalarFieldEnum = z.infer<typeof GenerationAttemptScalarFieldEnumSchema>;
 
+// File: GenerationAttemptTransferEnvelopeScalarFieldEnum.schema.ts
+
+export const GenerationAttemptTransferEnvelopeScalarFieldEnumSchema = z.enum(['attemptId', 'payload', 'createdAt', 'updatedAt'])
+
+export type GenerationAttemptTransferEnvelopeScalarFieldEnum = z.infer<typeof GenerationAttemptTransferEnvelopeScalarFieldEnumSchema>;
+
 // File: MediaAssetScalarFieldEnum.schema.ts
 
 export const MediaAssetScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'kind', 'status', 'objectKey', 'mimeType', 'byteSize', 'width', 'height', 'durationMillis', 'checksum', 'storageEtag', 'storageVersionId', 'finalizedAt', 'outputTransferToken', 'outputTransferLeaseExpiresAt', 'outputStagingObjectKey', 'outputPromotionMultipartUploadId', 'sourceUrl', 'verificationGeneration', 'verificationAttemptCount', 'verificationProvider', 'verificationRuleVersion', 'verificationPolicyVersion', 'verificationProviderTaskId', 'verificationLeaseToken', 'verificationLeasedUntil', 'verificationNextAttemptAt', 'verificationDeadlineAt', 'verificationExhaustedAt', 'verificationValidUntil', 'verificationSubmissionToken', 'verificationSubmissionUncertain', 'verificationSubmittedAt', 'verificationLastErrorCode', 'createdAt', 'updatedAt', 'deletedAt'])
@@ -648,6 +654,18 @@ export const GenerationAttemptSchema = z.object({
 export type GenerationAttemptType = z.infer<typeof GenerationAttemptSchema>;
 
 
+// File: GenerationAttemptTransferEnvelope.schema.ts
+
+export const GenerationAttemptTransferEnvelopeSchema = z.object({
+  attemptId: z.string(),
+  payload: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10"),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export type GenerationAttemptTransferEnvelopeType = z.infer<typeof GenerationAttemptTransferEnvelopeSchema>;
+
+
 // File: MediaAsset.schema.ts
 
 export const MediaAssetSchema = z.object({
@@ -1119,3 +1137,4 @@ export const UserNotificationPreferenceSchema = z.object({
 });
 
 export type UserNotificationPreferenceType = z.infer<typeof UserNotificationPreferenceSchema>;
+

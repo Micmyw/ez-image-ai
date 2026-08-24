@@ -432,6 +432,7 @@ model GenerationAttempt {
   requestSnapshot        Json
   responseSnapshot       Json?
   errorSnapshot          Json?
+  transferEnvelope       GenerationAttemptTransferEnvelope?
   createdAt              DateTime                @default(now()) @db.Timestamptz(3)
   updatedAt              DateTime                @updatedAt @db.Timestamptz(3)
   submittedAt            DateTime?               @db.Timestamptz(3)
@@ -442,6 +443,16 @@ model GenerationAttempt {
   @@index([status, updatedAt])
   @@index([status, nextReconcileAt, updatedAt])
   @@map("generation_attempt")
+}
+
+model GenerationAttemptTransferEnvelope {
+  attemptId String            @id
+  attempt   GenerationAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  payload   Json
+  createdAt DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime          @updatedAt @db.Timestamptz(3)
+
+  @@map("generation_attempt_transfer_envelope")
 }
 
 model MediaAsset {
