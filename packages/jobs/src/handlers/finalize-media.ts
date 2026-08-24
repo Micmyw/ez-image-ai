@@ -18,6 +18,7 @@ export async function finalizeMedia(
 	if (!claim) return { outcome: "SKIPPED", readyOutputs: 0 };
 	const results: Array<PersistedCandidate & { candidateKey: string }> = [];
 	let terminalFailure: FinalizationFailure | undefined;
+	let retryFailure: FinalizationFailure | undefined;
 	for (const candidate of claim.candidates) {
 		const existing = await dependencies.store.findPersistedCandidate(claim.jobId, candidate.key);
 		if (existing) {
@@ -42,39 +43,55 @@ export async function finalizeMedia(
 			const result = await dependencies.persistCandidate(claim, candidate);
 			results.push({ ...result, candidateKey: candidate.key });
 		} catch (error) {
-			const failure = finalizationFailure(error);
+			const failure = { ...finalizationFailure(error), candidateKey: candidate.key };
 			if (failure.retryable) {
-				const resolution = await dependencies.store.recordFinalizationRetry(
-					claim,
-					failure,
-					results,
-				);
-				if (resolution?.outcome === "TERMINAL") {
-					return {
-						outcome: "FINALIZED",
-						readyOutputs: results.filter((result) => result.approved).length,
-					};
-				}
-				return {
-					outcome: "RETRY_SCHEDULED",
-					readyOutputs: results.filter((result) => result.approved).length,
-				};
+				retryFailure ??= failure;
+			} else {
+				// Keep scanning independent candidates: an invalid provider item must not
+				// hide a valid sibling output. The store persists this evidence together
+				// with the one settlement outbox row after the scan completes.
+				terminalFailure ??= failure;
 			}
-			// Keep scanning independent candidates: an invalid provider item must not
-			// hide a valid sibling output. The store persists this evidence together
-			// with the one settlement outbox row after the scan completes.
-			terminalFailure ??= failure;
 		}
 	}
-	await dependencies.store.recordFinalization(claim, results, terminalFailure);
+	if (retryFailure) {
+		const resolution = await dependencies.store.recordFinalizationRetry(
+			claim,
+			retryFailure,
+			results,
+		);
+		if (resolution?.outcome === "TERMINAL") {
+			return {
+				outcome: "FINALIZED",
+				readyOutputs: results.filter((result) => result.approved).length,
+			};
+		}
+		return {
+			outcome: "RETRY_SCHEDULED",
+			readyOutputs: results.filter((result) => result.approved).length,
+		};
+	}
+	if (terminalFailure) {
+		await dependencies.store.recordFinalization(claim, results, terminalFailure);
+	} else {
+		await dependencies.store.recordFinalization(claim, results);
+	}
 	return { outcome: "FINALIZED", readyOutputs: results.filter((result) => result.approved).length };
 }
 
 function finalizationFailure(error: unknown): FinalizationFailure {
-	const value = error as { code?: unknown; stage?: unknown; retryable?: unknown };
+	const value = error as {
+		code?: unknown;
+		stage?: unknown;
+		retryable?: unknown;
+		assetId?: unknown;
+		transferToken?: unknown;
+	};
 	return {
 		code: typeof value.code === "string" ? value.code : "FINALIZATION_RETRYABLE",
 		stage: value.stage === "MODERATION" ? "MODERATION" : "TRANSFER",
 		retryable: value.retryable !== false,
+		...(typeof value.assetId === "string" ? { assetId: value.assetId } : {}),
+		...(typeof value.transferToken === "string" ? { transferToken: value.transferToken } : {}),
 	};
 }

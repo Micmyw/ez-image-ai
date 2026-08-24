@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { PrismaPg } from "@prisma/adapter-pg";
 import {
 	FalProviderAdapter,
@@ -18,6 +20,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
 	createDatabaseDispatchStore,
+	createFinalizationDependencies,
 	createDatabaseFinalizationStore,
 	createDatabaseProviderEventStore,
 	createDatabaseReconciliationStore,
@@ -500,6 +503,10 @@ describe("production media runtime stores", () => {
 
 	it("keeps finalization pending and queues retry when transfer fails transiently", async () => {
 		const seeded = await seedFinalizingJob();
+		await client.generationJob.update({
+			where: { id: seeded.jobId },
+			data: { finalizationStage: "MODERATION", finalizationRetryCount: 4 },
+		});
 		const outcome = await finalizeMedia(
 			{ jobId: seeded.jobId, version: seeded.version },
 			{
@@ -542,6 +549,390 @@ describe("production media runtime stores", () => {
 				where: { aggregateId: seeded.jobId, eventType: "GENERATION_FINALIZE_RETRY" },
 			}),
 		).toBe(1);
+	});
+
+	it("retries finalization after terminalizing an exhausted output transfer before settlement", async () => {
+		const seeded = await seedFinalizingJob();
+		const store = createDatabaseFinalizationStore(client);
+		const claim = await store.claimFinalization({ jobId: seeded.jobId, version: seeded.version });
+		if (!claim?.candidates[0]) throw new Error("Expected a finalization candidate");
+		const candidate = claim.candidates[0];
+		const assetId = `asset_${createHash("sha256")
+			.update(`${seeded.jobId}:${candidate.key}`)
+			.digest("base64url")
+			.slice(0, 32)}`;
+		const transferToken = crypto.randomUUID();
+		const transferLeaseExpiresAt = new Date(Date.now() + 60_000);
+		const stagingObjectKey = `users/${claim.ownerId}/staging/${assetId}/${transferToken}.png`;
+		const objectKey = `users/${claim.ownerId}/assets/${assetId}/original.png`;
+		await client.$transaction([
+			client.generationJob.update({
+				where: { id: seeded.jobId },
+				data: {
+					finalizationStage: "TRANSFER",
+					finalizationRetryCount: 4,
+					finalizationErrorCode: "STORAGE_TRANSFER_RETRYABLE",
+				},
+			}),
+			client.mediaAsset.create({
+				data: {
+					id: assetId,
+					ownerType: "USER",
+					ownerId: claim.ownerId,
+					kind: "OUTPUT",
+					status: "VERIFYING",
+					objectKey,
+					mimeType: "image/png",
+					byteSize: 0n,
+					sourceUrl: `provider-output:${candidate.key}`,
+					outputTransferToken: transferToken,
+					outputTransferLeaseExpiresAt: transferLeaseExpiresAt,
+					outputStagingObjectKey: stagingObjectKey,
+					outputPromotionMultipartUploadId: `promotion-${assetId}`,
+				},
+			}),
+			client.generationJobAsset.create({
+				data: { jobId: seeded.jobId, assetId, assetChecksum: "", role: "OUTPUT" },
+			}),
+		]);
+		await expect(store.findPersistedCandidate(seeded.jobId, candidate.key)).resolves.toBeNull();
+
+		const failure = {
+			code: "STORAGE_TRANSFER_RETRYABLE",
+			stage: "TRANSFER" as const,
+			retryable: true,
+			assetId,
+			transferToken,
+			candidateKey: candidate.key,
+		};
+		await Promise.all([
+			store.recordFinalizationRetry(claim, failure),
+			store.recordFinalizationRetry(claim, failure),
+		]);
+
+		await expect(
+			client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
+		).resolves.toMatchObject({
+			status: "VERIFICATION_FAILED",
+			verificationLastErrorCode: "STORAGE_TRANSFER_EXHAUSTED",
+			outputTransferToken: null,
+			outputTransferLeaseExpiresAt: null,
+			outputStagingObjectKey: null,
+			outputPromotionMultipartUploadId: null,
+		});
+		await expect(store.findPersistedCandidate(seeded.jobId, candidate.key)).resolves.toBeNull();
+		await expect(
+			createFinalizationDependencies(
+				{ MEDIA_SAFETY_ADAPTER: "test" },
+				{ store, safety: new TestMediaSafetyAdapter("ALLOW"), database: client },
+			).persistCandidate(claim, candidate),
+		).rejects.toMatchObject({
+			code: "STORAGE_TRANSFER_EXHAUSTED",
+			stage: "TRANSFER",
+			retryable: false,
+		});
+		await expect(
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+		).resolves.toMatchObject({
+			status: "FINALIZING",
+			finalizationStage: "TRANSFER",
+			finalizationRetryCount: 5,
+			finalizationErrorCode: "STORAGE_TRANSFER_EXHAUSTED",
+			nextFinalizeAt: expect.any(Date),
+		});
+		await expect(
+			client.outboxEvent.count({
+				where: { aggregateId: seeded.jobId, eventType: "GENERATION_FINALIZE_RETRY" },
+			}),
+		).resolves.toBe(1);
+		await expect(
+			client.outboxEvent.count({
+				where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
+			}),
+		).resolves.toBe(0);
+		await expect(client.outboxEvent.findMany({ where: { aggregateId: assetId } })).resolves.toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					eventType: "MEDIA_UPLOAD_CLEANUP",
+					payload: expect.objectContaining({
+						objectKey: stagingObjectKey,
+						promotionObjectKey: objectKey,
+						promotionMultipartUploadId: `promotion-${assetId}`,
+						storageReservationReferenceKey: `generation-output:${assetId}`,
+					}),
+				}),
+			]),
+		);
+		const cleanup = await client.outboxEvent.findUniqueOrThrow({
+			where: { dedupeKey: `generation-output-terminal-cleanup:${assetId}:${transferToken}` },
+		});
+		expect(cleanup.availableAt.getTime()).toBeGreaterThanOrEqual(transferLeaseExpiresAt.getTime());
+		const siblingWaitAt = new Date(Date.now() + 60_000);
+		await client.generationJob.update({
+			where: { id: seeded.jobId },
+			data: {
+				finalizationErrorCode: "OUTPUT_TRANSFER_IN_PROGRESS",
+				nextFinalizeAt: siblingWaitAt,
+			},
+		});
+		await store.recordFinalizationRetry(claim, failure);
+		await expect(
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+		).resolves.toMatchObject({
+			finalizationRetryCount: 5,
+			finalizationErrorCode: "OUTPUT_TRANSFER_IN_PROGRESS",
+			nextFinalizeAt: siblingWaitAt,
+		});
+		const finalizationDependencies = createFinalizationDependencies(
+			{ MEDIA_SAFETY_ADAPTER: "test" },
+			{ store, safety: new TestMediaSafetyAdapter("ALLOW"), database: client },
+		);
+
+		await expect(
+			finalizeMedia(
+				{ jobId: seeded.jobId, version: seeded.version },
+				{
+					store,
+					persistCandidate: (candidateClaim, candidateToPersist) =>
+						finalizationDependencies.persistCandidate(candidateClaim, candidateToPersist),
+				},
+			),
+		).resolves.toEqual({ outcome: "FINALIZED", readyOutputs: 0 });
+		await expect(
+			client.outboxEvent.count({
+				where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
+			}),
+		).resolves.toBe(1);
+
+		await settleGeneration(
+			{ jobId: seeded.jobId, version: seeded.version },
+			{ store: createDatabaseSettlementStore(client) },
+		);
+		await expect(
+			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+		).resolves.toMatchObject({
+			status: "SETTLED",
+			settledAmount: 0n,
+			releasedAmount: seeded.credits,
+		});
+	});
+
+	it("does not count an in-progress transfer or terminalize its expired token", async () => {
+		const seeded = await seedFinalizingJob();
+		const store = createDatabaseFinalizationStore(client);
+		const claim = await store.claimFinalization({ jobId: seeded.jobId, version: seeded.version });
+		if (!claim?.candidates[0]) throw new Error("Expected a finalization candidate");
+		const candidate = claim.candidates[0];
+		const assetId = `asset_${createHash("sha256")
+			.update(`${seeded.jobId}:${candidate.key}`)
+			.digest("base64url")
+			.slice(0, 32)}`;
+		const transferToken = crypto.randomUUID();
+		await client.$transaction([
+			client.generationJob.update({
+				where: { id: seeded.jobId },
+				data: {
+					finalizationStage: "MODERATION",
+					finalizationRetryCount: 4,
+					finalizationErrorCode: "MODERATION_RETRYABLE",
+				},
+			}),
+			client.mediaAsset.create({
+				data: {
+					id: assetId,
+					ownerType: "USER",
+					ownerId: claim.ownerId,
+					kind: "OUTPUT",
+					status: "VERIFYING",
+					objectKey: `users/${claim.ownerId}/assets/${assetId}/original.png`,
+					mimeType: "image/png",
+					byteSize: 0n,
+					sourceUrl: `provider-output:${candidate.key}`,
+					outputTransferToken: transferToken,
+					outputTransferLeaseExpiresAt: new Date(Date.now() + 60_000),
+					outputStagingObjectKey: `users/${claim.ownerId}/staging/${assetId}/${transferToken}.png`,
+				},
+			}),
+			client.generationJobAsset.create({
+				data: { jobId: seeded.jobId, assetId, assetChecksum: "", role: "OUTPUT" },
+			}),
+		]);
+
+		await expect(
+			createFinalizationDependencies(
+				{ MEDIA_SAFETY_ADAPTER: "test" },
+				{ store, safety: new TestMediaSafetyAdapter("ALLOW"), database: client },
+			).persistCandidate(claim, candidate),
+		).rejects.toMatchObject({
+			code: "OUTPUT_TRANSFER_IN_PROGRESS",
+			stage: "TRANSFER",
+			retryable: true,
+		});
+		const inProgress = {
+			code: "OUTPUT_TRANSFER_IN_PROGRESS",
+			stage: "TRANSFER" as const,
+			retryable: true,
+		};
+		await Promise.all([
+			store.recordFinalizationRetry(claim, inProgress),
+			store.recordFinalizationRetry(claim, inProgress),
+		]);
+		await expect(
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+		).resolves.toMatchObject({
+			finalizationStage: "TRANSFER",
+			finalizationRetryCount: 0,
+			finalizationErrorCode: "OUTPUT_TRANSFER_IN_PROGRESS",
+			nextFinalizeAt: expect.any(Date),
+		});
+		await client.generationJob.update({
+			where: { id: seeded.jobId },
+			data: {
+				finalizationStage: "TRANSFER",
+				finalizationRetryCount: 4,
+				finalizationErrorCode: "STORAGE_TRANSFER_RETRYABLE",
+			},
+		});
+		await store.recordFinalizationRetry(claim, {
+			code: "STORAGE_TRANSFER_RETRYABLE",
+			stage: "TRANSFER",
+			retryable: true,
+			assetId,
+			transferToken: crypto.randomUUID(),
+			candidateKey: candidate.key,
+		});
+		await expect(
+			client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
+		).resolves.toMatchObject({
+			status: "VERIFYING",
+			outputTransferToken: transferToken,
+		});
+		await client.mediaAsset.update({
+			where: { id: assetId },
+			data: { outputTransferLeaseExpiresAt: new Date(Date.now() - 60_000) },
+		});
+
+		await store.recordFinalizationRetry(claim, {
+			code: "STORAGE_TRANSFER_RETRYABLE",
+			stage: "TRANSFER",
+			retryable: true,
+			assetId,
+			transferToken,
+			candidateKey: candidate.key,
+		});
+
+		await expect(
+			client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
+		).resolves.toMatchObject({
+			status: "VERIFYING",
+			outputTransferToken: transferToken,
+		});
+		await expect(
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+		).resolves.toMatchObject({
+			finalizationRetryCount: 6,
+			finalizationErrorCode: "STORAGE_TRANSFER_RETRYABLE",
+			nextFinalizeAt: expect.any(Date),
+		});
+		await expect(
+			client.outboxEvent.count({
+				where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
+			}),
+		).resolves.toBe(0);
+	});
+
+	it("re-arms a transfer wait after each expired transfer token loses its fence", async () => {
+		const seeded = await seedFinalizingJob();
+		const store = createDatabaseFinalizationStore(client);
+		const claim = await store.claimFinalization({ jobId: seeded.jobId, version: seeded.version });
+		if (!claim?.candidates[0]) throw new Error("Expected a finalization candidate");
+		const candidate = claim.candidates[0];
+		const assetId = createHash("sha256")
+			.update(`${seeded.jobId}:${candidate.key}`)
+			.digest("base64url")
+			.slice(0, 32);
+		const activeToken = crypto.randomUUID();
+		await client.$transaction([
+			client.mediaAsset.create({
+				data: {
+					id: assetId,
+					ownerType: "USER",
+					ownerId: claim.ownerId,
+					kind: "OUTPUT",
+					status: "VERIFYING",
+					objectKey: `users/${claim.ownerId}/assets/${assetId}/original.png`,
+					mimeType: "image/png",
+					byteSize: 0n,
+					sourceUrl: `provider-output:${candidate.key}`,
+					outputTransferToken: activeToken,
+					outputTransferLeaseExpiresAt: new Date(Date.now() + 60_000),
+					outputStagingObjectKey: `users/${claim.ownerId}/staging/${assetId}/${activeToken}.png`,
+				},
+			}),
+			client.generationJobAsset.create({
+				data: { jobId: seeded.jobId, assetId, assetChecksum: "", role: "OUTPUT" },
+			}),
+		]);
+		const waitEvents = {
+			aggregateId: seeded.jobId,
+			eventType: "GENERATION_FINALIZE_RETRY",
+			dedupeKey: { startsWith: `generation-finalize-transfer-wait:${seeded.jobId}:` },
+		} as const;
+
+		await store.recordFinalizationRetry(claim, {
+			code: "OUTPUT_TRANSFER_FENCE_LOST",
+			stage: "TRANSFER",
+			retryable: true,
+			assetId,
+			transferToken: activeToken,
+			candidateKey: candidate.key,
+		});
+		await expect(client.outboxEvent.count({ where: waitEvents })).resolves.toBe(1);
+		await client.outboxEvent.updateMany({
+			where: { ...waitEvents, status: "PENDING" },
+			data: { status: "PROCESSED", processedAt: new Date() },
+		});
+
+		const expiredTokenA = crypto.randomUUID();
+		await client.mediaAsset.update({
+			where: { id: assetId },
+			data: {
+				outputTransferToken: expiredTokenA,
+				outputTransferLeaseExpiresAt: new Date(Date.now() - 60_000),
+			},
+		});
+		await store.recordFinalizationRetry(claim, {
+			code: "OUTPUT_TRANSFER_FENCE_LOST",
+			stage: "TRANSFER",
+			retryable: true,
+			assetId,
+			transferToken: expiredTokenA,
+			candidateKey: candidate.key,
+		});
+		await expect(client.outboxEvent.count({ where: waitEvents })).resolves.toBe(2);
+		await client.outboxEvent.updateMany({
+			where: { ...waitEvents, status: "PENDING" },
+			data: { status: "PROCESSED", processedAt: new Date() },
+		});
+
+		const expiredTokenB = crypto.randomUUID();
+		await client.mediaAsset.update({
+			where: { id: assetId },
+			data: { outputTransferToken: expiredTokenB },
+		});
+		await store.recordFinalizationRetry(claim, {
+			code: "OUTPUT_TRANSFER_FENCE_LOST",
+			stage: "TRANSFER",
+			retryable: true,
+			assetId,
+			transferToken: expiredTokenB,
+			candidateKey: candidate.key,
+		});
+
+		await expect(client.outboxEvent.count({ where: waitEvents })).resolves.toBe(3);
+		await expect(
+			client.outboxEvent.count({ where: { ...waitEvents, status: "PENDING" } }),
+		).resolves.toBe(1);
 	});
 
 	it("does not settle a moderation ERROR and keeps REVIEW assets non-ready", async () => {
@@ -750,13 +1141,18 @@ describe("production media runtime stores", () => {
 			client.creditLedgerEntry.count({ where: { referenceKey: `settle:${seeded.jobId}` } }),
 		).resolves.toBe(0);
 
+		await recordCompletedFinalizationScan(seeded.jobId);
 		await verifyUpload({ assetId: output.assetId }, createOutputVerificationDependencies("ALLOW"));
 		await expect(
 			client.mediaAsset.findUniqueOrThrow({ where: { id: output.assetId } }),
 		).resolves.toMatchObject({ status: "READY" });
 		await expect(
 			client.outboxEvent.count({
-				where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
+				where: {
+					aggregateId: seeded.jobId,
+					eventType: "GENERATION_SETTLE",
+					dedupeKey: { startsWith: "generation-settle-after-output-verification:" },
+				},
 			}),
 		).resolves.toBe(1);
 
@@ -780,17 +1176,143 @@ describe("production media runtime stores", () => {
 		});
 	});
 
+	it("does not queue output settlement before finalization records a complete scan", async () => {
+		const seeded = await seedFinalizingJob();
+		const output = await seedBoundOutputAsset(seeded.jobId, "VERIFYING");
+
+		await verifyUpload({ assetId: output.assetId }, createOutputVerificationDependencies("ALLOW"));
+
+		await expect(
+			client.outboxEvent.count({
+				where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
+			}),
+		).resolves.toBe(0);
+	});
+
+	it("charges only approved output units and releases the rejected-output remainder", async () => {
+		const seeded = await seedReservedJob("image-fast", {
+			credits: 8n,
+			pricingSnapshot: {
+				credits: "8",
+				settlementPolicy: {
+					unitCredits: "4",
+					requestedOutputCount: 2,
+					maxCharge: "8",
+				},
+			},
+		});
+		await client.generationJob.update({
+			where: { id: seeded.jobId },
+			data: { status: "FINALIZING" },
+		});
+		await seedBoundOutputAsset(seeded.jobId, "READY");
+		await seedRejectedOutputAsset(seeded.jobId);
+
+		const first = await settleGeneration(
+			{ jobId: seeded.jobId, version: 0 },
+			{ store: createDatabaseSettlementStore(client) },
+		);
+		const replay = await settleGeneration(
+			{ jobId: seeded.jobId, version: 0 },
+			{ store: createDatabaseSettlementStore(client) },
+		);
+
+		expect(first.outcome).toBe("SETTLED");
+		expect(replay.outcome).toBe("SKIPPED");
+		await expect(
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+		).resolves.toMatchObject({ status: "SUCCEEDED", failureCode: null });
+		await expect(
+			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+		).resolves.toMatchObject({
+			status: "SETTLED",
+			settledAmount: 4n,
+			releasedAmount: 4n,
+		});
+		await expect(
+			client.creditLedgerEntry.count({ where: { referenceKey: `settle:${seeded.jobId}` } }),
+		).resolves.toBe(1);
+	});
+
+	it("fails closed when a settlement policy changes after the claim", async () => {
+		const seeded = await seedReservedJob("image-fast", {
+			credits: 8n,
+			pricingSnapshot: {
+				credits: "8",
+				settlementPolicy: {
+					unitCredits: "4",
+					requestedOutputCount: 2,
+					maxCharge: "8",
+				},
+			},
+		});
+		await client.generationJob.update({
+			where: { id: seeded.jobId },
+			data: { status: "FINALIZING" },
+		});
+		await seedBoundOutputAsset(seeded.jobId, "READY");
+		const store = createDatabaseSettlementStore(client);
+		const claim = await store.claimSettlement({ jobId: seeded.jobId, version: 0 });
+		expect(claim).toMatchObject({ chargeCredits: 4n, readyOutputCount: 1 });
+
+		await client.generationJob.update({
+			where: { id: seeded.jobId },
+			data: {
+				pricingSnapshot: {
+					credits: "8",
+					settlementPolicy: {
+						unitCredits: "4",
+						requestedOutputCount: 2,
+						maxCharge: "7",
+					},
+				},
+			},
+		});
+
+		await expect(store.settle(claim!)).rejects.toThrow("INVALID_SETTLEMENT_POLICY");
+		await expect(
+			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+		).resolves.toMatchObject({ status: "ACTIVE", settledAmount: 0n, releasedAmount: 0n });
+		await expect(
+			client.creditLedgerEntry.count({ where: { referenceKey: `settle:${seeded.jobId}` } }),
+		).resolves.toBe(0);
+	});
+
+	it("does not release a canceled zero-output reservation with a malformed pricing snapshot", async () => {
+		const seeded = await seedReservedJob("image-fast");
+		await client.generationJob.update({
+			where: { id: seeded.jobId },
+			data: { status: "CANCELED", pricingSnapshot: [] },
+		});
+		const store = createDatabaseSettlementStore(client);
+
+		await expect(settleGeneration({ jobId: seeded.jobId, version: 0 }, { store })).rejects.toThrow(
+			"INVALID_SETTLEMENT_POLICY",
+		);
+		await expect(
+			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+		).resolves.toMatchObject({ status: "ACTIVE", settledAmount: 0n, releasedAmount: 0n });
+		await expect(
+			client.creditLedgerEntry.count({ where: { referenceKey: `settle:${seeded.jobId}` } }),
+		).resolves.toBe(0);
+	});
+
 	it("settles at zero only after a bound output verification rejects the asset", async () => {
 		const seeded = await seedFinalizingJob();
 		const output = await seedBoundOutputAsset(seeded.jobId, "VERIFYING");
 
+		await recordCompletedFinalizationScan(seeded.jobId);
 		await verifyUpload({ assetId: output.assetId }, createOutputVerificationDependencies("REJECT"));
 		await expect(
 			client.mediaAsset.findUniqueOrThrow({ where: { id: output.assetId } }),
 		).resolves.toMatchObject({ status: "QUARANTINED" });
 		await expect(
 			client.outboxEvent.count({
-				where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
+				where: {
+					aggregateId: seeded.jobId,
+					eventType: "GENERATION_SETTLE",
+					dedupeKey: { startsWith: "generation-settle-after-output-verification:" },
+				},
 			}),
 		).resolves.toBe(1);
 
@@ -1189,7 +1711,20 @@ describe("production media runtime stores", () => {
 	});
 });
 
-async function seedReservedJob(productKey: "image-fast" | "image-quality" | "video-fast") {
+async function seedReservedJob(
+	productKey: "image-fast" | "image-quality" | "video-fast",
+	options?: {
+		credits?: bigint;
+		pricingSnapshot?: {
+			credits: string;
+			settlementPolicy: {
+				unitCredits: string;
+				requestedOutputCount: number;
+				maxCharge: string;
+			};
+		};
+	},
+) {
 	const suffix = crypto.randomUUID();
 	const ownerId = `task4-runtime-${suffix}`;
 	const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
@@ -1200,7 +1735,9 @@ async function seedReservedJob(productKey: "image-fast" | "image-quality" | "vid
 	const inputSnapshot = productKey.startsWith("video")
 		? { kind: "text-to-video", prompt: "test" }
 		: { kind: "text-to-image", prompt: "test" };
-	const credits = productKey.startsWith("video") ? 25n : productKey === "image-quality" ? 10n : 4n;
+	const credits =
+		options?.credits ??
+		(productKey.startsWith("video") ? 25n : productKey === "image-quality" ? 10n : 4n);
 	const quoteInput = {
 		ownerType: "USER",
 		ownerId,
@@ -1211,7 +1748,7 @@ async function seedReservedJob(productKey: "image-fast" | "image-quality" | "vid
 		credits,
 		costMicros: 3_000n,
 		inputSnapshot,
-		pricingSnapshot: { credits: credits.toString() },
+		pricingSnapshot: options?.pricingSnapshot ?? { credits: credits.toString() },
 		expiresAt: new Date(Date.now() + 60_000),
 	} as const;
 	const { createModeratedGenerationQuoteTransaction, fingerprintGenerationQuoteSecurityPayload } =
@@ -1448,6 +1985,64 @@ async function seedBoundOutputAsset(
 		data: { jobId, assetId: asset.id, assetChecksum: checksum, role: "OUTPUT" },
 	});
 	return { assetId: asset.id, checksum, verificationValidUntil };
+}
+
+async function seedRejectedOutputAsset(jobId: string) {
+	const job = await client.generationJob.findUniqueOrThrow({ where: { id: jobId } });
+	const suffix = crypto.randomUUID();
+	const checksum = "d".repeat(64);
+	const asset = await client.mediaAsset.create({
+		data: {
+			ownerType: job.ownerType,
+			ownerId: job.ownerId,
+			kind: "OUTPUT",
+			status: "QUARANTINED",
+			objectKey: `users/${job.ownerId}/generated/${suffix}.png`,
+			mimeType: "image/png",
+			byteSize: 16n,
+			checksum,
+			finalizedAt: new Date(),
+			verificationGeneration: 1,
+			verificationAttemptCount: 1,
+			verificationProvider: "test",
+			verificationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+			verificationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+		},
+	});
+	await client.assetModerationResult.create({
+		data: {
+			assetId: asset.id,
+			assetChecksum: checksum,
+			verificationGeneration: 1,
+			attemptNumber: 1,
+			evidenceKind: "OUTPUT",
+			provider: "test",
+			ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+			policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+			status: "REJECTED",
+			reasonCode: "TEST_REJECT",
+			categories: {},
+			rawEnvelope: { decision: "REJECT" },
+		},
+	});
+	await client.generationJobAsset.create({
+		data: { jobId, assetId: asset.id, assetChecksum: checksum, role: "OUTPUT" },
+	});
+	return asset.id;
+}
+
+async function recordCompletedFinalizationScan(jobId: string) {
+	await client.outboxEvent.create({
+		data: {
+			eventType: "GENERATION_SETTLE",
+			aggregateType: "GENERATION_JOB",
+			aggregateId: jobId,
+			dedupeKey: `generation-settle:${jobId}`,
+			payload: { jobId },
+			status: "PROCESSED",
+			processedAt: new Date(),
+		},
+	});
 }
 
 function createOutputVerificationDependencies(

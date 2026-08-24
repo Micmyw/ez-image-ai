@@ -17,6 +17,11 @@ export function buildMediaQuote(input: { productKey: ProductModelKey; input: Med
 		pricingSnapshot: {
 			credits: quote.credits,
 			maximumJobCostMicros: DEFAULT_PRODUCT_CONFIG.budgets.maximumJobCostMicros,
+			settlementPolicy: {
+				unitCredits: quote.credits.toString(),
+				requestedOutputCount: 1,
+				maxCharge: quote.credits.toString(),
+			},
 		},
 	};
 }

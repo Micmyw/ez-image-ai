@@ -189,7 +189,15 @@ describe("retryGenerationForUser", () => {
 						kind: "text-to-image",
 						prompt: "A current prompt",
 					},
-					pricingSnapshot: { credits: 4, maximumJobCostMicros: 5_000_000 },
+					pricingSnapshot: {
+						credits: 4,
+						maximumJobCostMicros: 5_000_000,
+						settlementPolicy: {
+							unitCredits: "4",
+							requestedOutputCount: 1,
+							maxCharge: "4",
+						},
+					},
 					pricingVersion: "2026-08-13.1",
 					productKey: "image-fast",
 					sourceJobId: "source-job-1",
@@ -352,8 +360,17 @@ describe("retryGenerationForUser", () => {
 		expect(deps.failRequest).not.toHaveBeenCalled();
 	});
 
-	it("keeps a create-job commit acknowledgement loss recoverable", async () => {
+	it("returns a durably recovered job when create-job commit acknowledgement is lost", async () => {
+		const resumeRequest = vi
+			.fn()
+			.mockResolvedValueOnce(null)
+			.mockResolvedValueOnce({
+				outcome: "SUCCEEDED" as const,
+				requestId: "request-1",
+				resultJobId: "result-job-1",
+			});
 		const deps = dependencies({
+			resumeRequest,
 			createJob: vi.fn(async () => {
 				throw new Error("connection terminated after COMMIT");
 			}),
@@ -365,7 +382,12 @@ describe("retryGenerationForUser", () => {
 				{ jobId: "source-job-1", idempotencyKey: "retry-operation-1" },
 				deps,
 			),
-		).rejects.toThrow("connection terminated after COMMIT");
+		).resolves.toEqual({
+			jobId: "result-job-1",
+			status: "PROVIDER_RUNNING",
+			replayed: true,
+		});
+		expect(resumeRequest).toHaveBeenCalledTimes(2);
 		expect(deps.failRequest).not.toHaveBeenCalled();
 	});
 });

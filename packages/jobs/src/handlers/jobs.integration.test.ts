@@ -1,6 +1,7 @@
 import type { NormalizedResult } from "@repo/ai";
 import { describe, expect, it, vi } from "vitest";
 
+import type { FinalizationClaim, FinalizationStore } from "../contracts";
 import { dispatchGeneration } from "./dispatch-generation";
 import { finalizeMedia } from "./finalize-media";
 import { processProviderEvent } from "./process-provider-event";
@@ -63,6 +64,96 @@ describe("reliable generation orchestration", () => {
 		expect(store.state.status).toBe("SUCCEEDED");
 		expect(store.state.assets).toEqual(["asset-1"]);
 		expect(store.state.settlementCount).toBe(1);
+	});
+
+	it("scans every sibling before retrying and records settlement only after the terminal scan", async () => {
+		const claim: FinalizationClaim = {
+			jobId: "job-1",
+			ownerId: "user-1",
+			mediaKind: "image",
+			candidates: [
+				{
+					key: "candidate-transient",
+					output: {
+						kind: "remote-url",
+						url: "https://cdn.example/transient.png",
+						trust: "untrusted-transfer-candidate",
+					},
+				},
+				{
+					key: "candidate-approved",
+					output: {
+						kind: "remote-url",
+						url: "https://cdn.example/approved.png",
+						trust: "untrusted-transfer-candidate",
+					},
+				},
+			],
+		};
+		const recordFinalization = vi.fn(async () => undefined);
+		const recordFinalizationRetry = vi.fn(async () => undefined);
+		const finalizationStore: FinalizationStore = {
+			claimFinalization: vi.fn(async () => claim),
+			findPersistedCandidate: vi.fn(async () => null),
+			recordFinalization,
+			recordFinalizationRetry,
+		};
+		let round = 0;
+		let approvedSiblingScans = 0;
+		const persistCandidate = vi.fn(async (_claim: FinalizationClaim, candidate) => {
+			if (candidate.key === "candidate-transient" && round < 5) {
+				throw {
+					code: "STORAGE_TRANSFER_RETRYABLE",
+					stage: "TRANSFER",
+					retryable: true,
+					assetId: "asset-transient",
+					transferToken: "transfer-transient",
+				};
+			}
+			if (candidate.key === "candidate-approved") approvedSiblingScans += 1;
+			return candidate.key === "candidate-approved"
+				? { assetId: "asset-approved", approved: true }
+				: { assetId: "asset-terminal", approved: false };
+		});
+
+		for (round = 1; round < 5; round += 1) {
+			await expect(
+				finalizeMedia(
+					{ jobId: claim.jobId, version: round },
+					{ store: finalizationStore, persistCandidate },
+				),
+			).resolves.toEqual({ outcome: "RETRY_SCHEDULED", readyOutputs: 1 });
+		}
+		round = 5;
+		await expect(
+			finalizeMedia(
+				{ jobId: claim.jobId, version: round },
+				{ store: finalizationStore, persistCandidate },
+			),
+		).resolves.toEqual({ outcome: "FINALIZED", readyOutputs: 1 });
+
+		expect(approvedSiblingScans).toBe(5);
+		expect(recordFinalizationRetry).toHaveBeenCalledTimes(4);
+		expect(recordFinalizationRetry).toHaveBeenLastCalledWith(
+			claim,
+			expect.objectContaining({
+				candidateKey: "candidate-transient",
+				assetId: "asset-transient",
+				transferToken: "transfer-transient",
+			}),
+			[
+				{
+					assetId: "asset-approved",
+					approved: true,
+					candidateKey: "candidate-approved",
+				},
+			],
+		);
+		expect(recordFinalization).toHaveBeenCalledTimes(1);
+		expect(recordFinalization).toHaveBeenCalledWith(claim, [
+			{ assetId: "asset-terminal", approved: false, candidateKey: "candidate-transient" },
+			{ assetId: "asset-approved", approved: true, candidateKey: "candidate-approved" },
+		]);
 	});
 });
 

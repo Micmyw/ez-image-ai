@@ -279,9 +279,27 @@ export async function retryGenerationForUser(
 	} catch (error) {
 		const errorCode = stableMediaErrorCode(error);
 		// Once createJob starts, an exception cannot prove that PostgreSQL did not
-		// commit and only the acknowledgement was lost. Keep the durable request
-		// recoverable; resume logic can bind the idempotent job on the next lease.
+		// commit and only the acknowledgement was lost. Resolve the durable job by
+		// the same idempotency key before deciding that this request failed.
 		const mayHaveCommitted = jobCreationStarted || errorCode === "IDEMPOTENCY_CONFLICT";
+		if (!jobCreated && mayHaveCommitted) {
+			const recovered = await dependencies
+				.resumeRequest({
+					ownerType: "USER",
+					ownerId: userId,
+					submittedByUserId: userId,
+					sourceJobId: input.jobId,
+					idempotencyKey: input.idempotencyKey,
+					now: dependencies.now(),
+				})
+				.catch(() => null);
+			if (recovered?.outcome === "SUCCEEDED") {
+				const resultJob = await dependencies.getJob(recovered.resultJobId);
+				if (!resultJob) throw new Error("GENERATION_RETRY_RESULT_MISSING");
+				return { jobId: resultJob.id, status: resultJob.status, replayed: true };
+			}
+			if (recovered?.outcome === "FAILED") throw new Error(recovered.errorCode);
+		}
 		if (!jobCreated && !mayHaveCommitted) {
 			await dependencies
 				.failRequest({

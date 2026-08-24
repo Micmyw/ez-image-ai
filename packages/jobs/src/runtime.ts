@@ -60,8 +60,9 @@ import type { MediaObjectMetadata } from "@repo/storage";
 
 import type {
 	DispatchStore,
-	FinalizationClaim,
 	FinalizationDependencies,
+	FinalizationClaim,
+	FinalizationFailure,
 	FinalizationStore,
 	OutboxStore,
 	ProviderEventStore,
@@ -837,6 +838,11 @@ async function resolveJobsWaitingForMediaVerification(
 	});
 	for (const binding of bindings) {
 		if (binding.role === "OUTPUT") {
+			const completedFinalizationScan = await tx.outboxEvent.findUnique({
+				where: { dedupeKey: `generation-settle:${binding.jobId}` },
+				select: { id: true },
+			});
+			if (!completedFinalizationScan) continue;
 			await tx.outboxEvent.upsert({
 				where: {
 					dedupeKey: `generation-settle-after-output-verification:${binding.jobId}:${input.assetId}:g${input.verificationGeneration}`,
@@ -1626,6 +1632,77 @@ function evaluateSettlementOutputs(
 	return { readyOutputCount, waitingForVerification };
 }
 
+interface SettlementPolicy {
+	unitCredits: bigint;
+	requestedOutputCount: number;
+	maxCharge: bigint;
+}
+
+function settlementPolicyFromSnapshot(
+	pricingSnapshot: unknown,
+	reservedCredits: bigint,
+): SettlementPolicy {
+	if (!pricingSnapshot || typeof pricingSnapshot !== "object" || Array.isArray(pricingSnapshot)) {
+		throw new Error("INVALID_SETTLEMENT_POLICY");
+	}
+	const candidate = (pricingSnapshot as Record<string, unknown>).settlementPolicy;
+	if (candidate === undefined) return legacySettlementPolicy(reservedCredits);
+	if (!candidate || typeof candidate !== "object" || Array.isArray(candidate)) {
+		throw new Error("INVALID_SETTLEMENT_POLICY");
+	}
+	const policy = candidate as Record<string, unknown>;
+	const unitCredits = parsePositiveCreditAmount(policy.unitCredits);
+	const maxCharge = parsePositiveCreditAmount(policy.maxCharge);
+	const requestedOutputCount = policy.requestedOutputCount;
+	if (
+		unitCredits === null ||
+		maxCharge === null ||
+		typeof requestedOutputCount !== "number" ||
+		!Number.isSafeInteger(requestedOutputCount) ||
+		requestedOutputCount < 1 ||
+		requestedOutputCount > 100 ||
+		maxCharge !== reservedCredits ||
+		unitCredits > maxCharge ||
+		unitCredits * BigInt(requestedOutputCount) < maxCharge
+	) {
+		throw new Error("INVALID_SETTLEMENT_POLICY");
+	}
+	return { unitCredits, requestedOutputCount, maxCharge };
+}
+
+function legacySettlementPolicy(reservedCredits: bigint): SettlementPolicy {
+	return { unitCredits: reservedCredits, requestedOutputCount: 1, maxCharge: reservedCredits };
+}
+
+function parsePositiveCreditAmount(value: unknown): bigint | null {
+	if (typeof value !== "string" || !/^[1-9]\d*$/.test(value)) return null;
+	try {
+		return BigInt(value);
+	} catch {
+		return null;
+	}
+}
+
+function calculateSettlementCharge(input: {
+	status: string;
+	failureCode: string | null;
+	readyOutputCount: number;
+	reservedCredits: bigint;
+	pricingSnapshot: unknown;
+}): bigint {
+	const policy = settlementPolicyFromSnapshot(input.pricingSnapshot, input.reservedCredits);
+	if (
+		input.status === "CANCELED" ||
+		input.failureCode === "SUBMISSION_REJECTED_CONFIRMED" ||
+		input.readyOutputCount === 0
+	) {
+		return 0n;
+	}
+	const approvedUnits = Math.min(input.readyOutputCount, policy.requestedOutputCount);
+	const unitCharge = policy.unitCredits * BigInt(approvedUnits);
+	return unitCharge < policy.maxCharge ? unitCharge : policy.maxCharge;
+}
+
 const settlementOutputInclude = {
 	where: { role: "OUTPUT" as const },
 	include: {
@@ -1678,12 +1755,13 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 				jobId: job.id,
 				reservationId: job.reservation.id,
 				reservedCredits: job.creditsReserved,
-				chargeCredits:
-					job.status === "CANCELED" ||
-					job.failureCode === "SUBMISSION_REJECTED_CONFIRMED" ||
-					outputState.readyOutputCount === 0
-						? 0n
-						: job.creditsReserved,
+				chargeCredits: calculateSettlementCharge({
+					status: job.status,
+					failureCode: job.failureCode,
+					readyOutputCount: outputState.readyOutputCount,
+					reservedCredits: job.creditsReserved,
+					pricingSnapshot: job.pricingSnapshot,
+				}),
 				readyOutputCount: outputState.readyOutputCount,
 				failureCode: job.failureCode,
 				providerCostMicros: job.attempts.reduce(
@@ -1713,12 +1791,13 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 					process.env.MEDIA_SAFETY_ADAPTER ?? "test",
 				);
 				if (outputState.waitingForVerification) return;
-				const chargeCredits =
-					job.status === "CANCELED" ||
-					job.failureCode === "SUBMISSION_REJECTED_CONFIRMED" ||
-					outputState.readyOutputCount === 0
-						? 0n
-						: job.creditsReserved;
+				const chargeCredits = calculateSettlementCharge({
+					status: job.status,
+					failureCode: job.failureCode,
+					readyOutputCount: outputState.readyOutputCount,
+					reservedCredits: job.creditsReserved,
+					pricingSnapshot: job.pricingSnapshot,
+				});
 				await settleCreditsInTransaction(
 					{
 						reservationId: job.reservation.id,
@@ -1748,6 +1827,24 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 
 export const databaseSettlementStore: SettlementStore = createDatabaseSettlementStore(db);
 
+const OUTPUT_TRANSFER_MAX_FINALIZATION_ATTEMPTS = 5;
+const OUTPUT_TRANSFER_CLEANUP_GRACE_MS = 60_000;
+const OUTPUT_TRANSFER_EXHAUSTED_CODE = "STORAGE_TRANSFER_EXHAUSTED";
+const OUTPUT_TRANSFER_FENCE_LOST_CODE = "OUTPUT_TRANSFER_FENCE_LOST";
+const OUTPUT_TRANSFER_IN_PROGRESS_CODE = "OUTPUT_TRANSFER_IN_PROGRESS";
+
+function isOutputTransferExhaustedPlaceholder(asset: {
+	status: string;
+	verificationLastErrorCode: string | null;
+	checksum: string | null;
+}): boolean {
+	return (
+		asset.status === "VERIFICATION_FAILED" &&
+		asset.verificationLastErrorCode === OUTPUT_TRANSFER_EXHAUSTED_CODE &&
+		!asset.checksum
+	);
+}
+
 export function createDatabaseFinalizationStore(database: PrismaClient): FinalizationStore {
 	return {
 		async claimFinalization(payload) {
@@ -1774,17 +1871,17 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 				where: { jobId, role: "OUTPUT", asset: { sourceUrl: `provider-output:${candidateKey}` } },
 				include: { asset: true },
 			});
-			if (!binding) return null;
-			if (binding.asset.status === "READY") {
-				return { assetId: binding.assetId, approved: true };
+			if (
+				!binding ||
+				binding.asset.status === "VERIFYING" ||
+				binding.asset.status === "UPLOADING"
+			) {
+				return null;
 			}
-			if (["QUARANTINED", "VERIFICATION_FAILED", "DELETED"].includes(binding.asset.status)) {
-				return { assetId: binding.assetId, approved: false };
+			if (isOutputTransferExhaustedPlaceholder(binding.asset)) {
+				return null;
 			}
-			// VERIFYING can mean either a live transfer or durable bytes awaiting
-			// moderation. Returning it as persisted would let finalization settle
-			// before the transfer/verification checkpoint has completed.
-			return null;
+			return { assetId: binding.assetId, approved: binding.asset.status === "READY" };
 		},
 		async recordFinalization(claim, results, failure) {
 			await runSerializable(database, async (tx) => {
@@ -1802,28 +1899,97 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 				await queueGenerationSettlement(tx, job.id, job.version);
 			});
 		},
-		async recordFinalizationRetry(claim, failure, results) {
+		async recordFinalizationRetry(claim, failure, results = []) {
 			return runSerializable(database, async (tx) => {
+				const locked = await tx.$queryRaw<Array<{ id: string }>>`
+					SELECT "id" FROM "generation_job" WHERE "id" = ${claim.jobId} FOR UPDATE
+				`;
+				if (locked.length !== 1) return { outcome: "TERMINAL" as const, retryCount: 0 };
 				const job = await tx.generationJob.findUniqueOrThrow({ where: { id: claim.jobId } });
 				if (job.status !== "FINALIZING") {
 					return { outcome: "TERMINAL" as const, retryCount: job.finalizationRetryCount };
 				}
 				await bindFinalizationResults(tx, claim, results);
-				const retryCount = job.finalizationRetryCount + 1;
-				if (retryCount >= 5) {
+				if (
+					failure.stage === "TRANSFER" &&
+					job.finalizationStage === "TRANSFER" &&
+					job.finalizationRetryCount >= OUTPUT_TRANSFER_MAX_FINALIZATION_ATTEMPTS &&
+					(await isAlreadyTerminalizedOutputTransfer(tx, claim, failure))
+				) {
+					return {
+						outcome: "RETRY_SCHEDULED" as const,
+						retryCount: job.finalizationRetryCount,
+					};
+				}
+				if (
+					failure.stage === "TRANSFER" &&
+					(failure.code === OUTPUT_TRANSFER_IN_PROGRESS_CODE ||
+						failure.code === OUTPUT_TRANSFER_FENCE_LOST_CODE)
+				) {
+					const transferRetryCount =
+						job.finalizationStage === "TRANSFER" ? job.finalizationRetryCount : 0;
+					const wait = await getOutputTransferWait(
+						tx,
+						claim,
+						job.version,
+						transferRetryCount,
+						failure,
+					);
+					await tx.generationJob.update({
+						where: { id: job.id },
+						data: {
+							finalizationStage: failure.stage,
+							finalizationRetryCount: transferRetryCount,
+							finalizationErrorCode: failure.code,
+							nextFinalizeAt: wait.availableAt,
+						},
+					});
+					await tx.outboxEvent.upsert({
+						where: { dedupeKey: `generation-finalize-transfer-wait:${job.id}:${wait.key}` },
+						create: {
+							eventType: "GENERATION_FINALIZE_RETRY",
+							aggregateType: "GENERATION_JOB",
+							aggregateId: job.id,
+							dedupeKey: `generation-finalize-transfer-wait:${job.id}:${wait.key}`,
+							payload: { jobId: job.id, version: job.version },
+							availableAt: wait.availableAt,
+						},
+						update: {},
+					});
+					return { outcome: "RETRY_SCHEDULED" as const, retryCount: transferRetryCount };
+				}
+				const retryCount =
+					job.finalizationStage === failure.stage ? job.finalizationRetryCount + 1 : 1;
+				if (
+					failure.stage === "TRANSFER" &&
+					retryCount >= OUTPUT_TRANSFER_MAX_FINALIZATION_ATTEMPTS &&
+					(await terminalizeExhaustedOutputTransfer(tx, claim, failure))
+				) {
+					const nextFinalizeAt = new Date();
 					await tx.generationJob.update({
 						where: { id: job.id },
 						data: {
 							finalizationStage: failure.stage,
 							finalizationRetryCount: retryCount,
-							finalizationErrorCode: failure.code,
-							nextFinalizeAt: null,
+							finalizationErrorCode: OUTPUT_TRANSFER_EXHAUSTED_CODE,
+							nextFinalizeAt,
 						},
 					});
-					await queueGenerationSettlement(tx, job.id, job.version);
-					return { outcome: "TERMINAL" as const, retryCount };
+					const retryDedupeKey = `generation-finalize-after-transfer-exhaustion:${job.id}:${failure.assetId}:${failure.transferToken}`;
+					await tx.outboxEvent.upsert({
+						where: { dedupeKey: retryDedupeKey },
+						create: {
+							eventType: "GENERATION_FINALIZE_RETRY",
+							aggregateType: "GENERATION_JOB",
+							aggregateId: job.id,
+							dedupeKey: retryDedupeKey,
+							payload: { jobId: job.id, version: job.version },
+							availableAt: nextFinalizeAt,
+						},
+						update: {},
+					});
+					return { outcome: "RETRY_SCHEDULED" as const, retryCount };
 				}
-
 				const nextFinalizeAt = new Date(Date.now() + Math.min(60, 2 ** retryCount) * 60_000);
 				await tx.generationJob.update({
 					where: { id: job.id },
@@ -1834,13 +2000,14 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 						nextFinalizeAt,
 					},
 				});
+				const retryDedupeKey = `generation-finalize-retry:${job.id}:${failure.stage.toLowerCase()}:${retryCount}`;
 				await tx.outboxEvent.upsert({
-					where: { dedupeKey: `generation-finalize-retry:${job.id}:${retryCount}` },
+					where: { dedupeKey: retryDedupeKey },
 					create: {
 						eventType: "GENERATION_FINALIZE_RETRY",
 						aggregateType: "GENERATION_JOB",
 						aggregateId: job.id,
-						dedupeKey: `generation-finalize-retry:${job.id}:${retryCount}`,
+						dedupeKey: retryDedupeKey,
 						payload: { jobId: job.id, version: job.version },
 						availableAt: nextFinalizeAt,
 					},
@@ -1913,6 +2080,205 @@ async function queueGenerationSettlement(
 	});
 }
 
+async function isAlreadyTerminalizedOutputTransfer(
+	tx: Prisma.TransactionClient,
+	claim: FinalizationClaim,
+	failure: FinalizationFailure,
+): Promise<boolean> {
+	if (!failure.assetId || !failure.transferToken || !failure.candidateKey) return false;
+	if (!claim.candidates.some((candidate) => candidate.key === failure.candidateKey)) return false;
+	const [asset, cleanup] = await Promise.all([
+		tx.mediaAsset.findFirst({
+			where: {
+				id: failure.assetId,
+				ownerType: "USER",
+				ownerId: claim.ownerId,
+				kind: "OUTPUT",
+				status: "VERIFICATION_FAILED",
+				verificationLastErrorCode: OUTPUT_TRANSFER_EXHAUSTED_CODE,
+				sourceUrl: `provider-output:${failure.candidateKey}`,
+				jobBindings: { some: { jobId: claim.jobId, role: "OUTPUT" } },
+			},
+			select: { id: true },
+		}),
+		tx.outboxEvent.findUnique({
+			where: {
+				dedupeKey: `generation-output-terminal-cleanup:${failure.assetId}:${failure.transferToken}`,
+			},
+			select: { id: true },
+		}),
+	]);
+	return Boolean(asset && cleanup);
+}
+
+async function getOutputTransferWait(
+	tx: Prisma.TransactionClient,
+	claim: FinalizationClaim,
+	jobVersion: number,
+	retryCount: number,
+	failure: FinalizationFailure,
+): Promise<{ availableAt: Date; key: string }> {
+	const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`
+		SELECT clock_timestamp() AS "now"
+	`;
+	if (!clock) throw new Error("Database did not return its current time");
+	const sourceUrls = claim.candidates.map((candidate) => `provider-output:${candidate.key}`);
+	const bindings = await tx.generationJobAsset.findMany({
+		where: {
+			jobId: claim.jobId,
+			role: "OUTPUT",
+			asset: {
+				ownerType: "USER",
+				ownerId: claim.ownerId,
+				status: "VERIFYING",
+				sourceUrl: { in: sourceUrls },
+				outputTransferToken: { not: null },
+				outputTransferLeaseExpiresAt: { gt: clock.now },
+			},
+		},
+		select: {
+			asset: {
+				select: {
+					id: true,
+					outputTransferToken: true,
+					outputTransferLeaseExpiresAt: true,
+				},
+			},
+		},
+	});
+	const active = bindings
+		.map(({ asset }) => asset)
+		.filter(
+			(
+				asset,
+			): asset is typeof asset & {
+				outputTransferToken: string;
+				outputTransferLeaseExpiresAt: Date;
+			} => Boolean(asset.outputTransferToken && asset.outputTransferLeaseExpiresAt),
+		)
+		.sort((left, right) => left.id.localeCompare(right.id));
+	if (active.length === 0) {
+		const recoveryIdentity = createHash("sha256")
+			.update(
+				JSON.stringify({
+					jobVersion,
+					retryCount,
+					candidateKey: failure.candidateKey ?? null,
+					assetId: failure.assetId ?? null,
+					transferToken: failure.transferToken ?? null,
+				}),
+			)
+			.digest("base64url")
+			.slice(0, 24);
+		return {
+			availableAt: new Date(clock.now.getTime() + 60_000),
+			key: `recovery:${recoveryIdentity}`,
+		};
+	}
+	const earliestLease = active.reduce(
+		(earliest, asset) =>
+			asset.outputTransferLeaseExpiresAt < earliest ? asset.outputTransferLeaseExpiresAt : earliest,
+		active[0]!.outputTransferLeaseExpiresAt,
+	);
+	const key = createHash("sha256")
+		.update(
+			active
+				.map(
+					(asset) =>
+						`${asset.id}:${asset.outputTransferToken}:${asset.outputTransferLeaseExpiresAt.toISOString()}`,
+				)
+				.join("|"),
+		)
+		.digest("base64url")
+		.slice(0, 24);
+	return { availableAt: new Date(earliestLease.getTime() + 1_000), key };
+}
+
+async function terminalizeExhaustedOutputTransfer(
+	tx: Prisma.TransactionClient,
+	claim: FinalizationClaim,
+	failure: FinalizationFailure,
+): Promise<boolean> {
+	if (!failure.assetId || !failure.transferToken || !failure.candidateKey) return false;
+	if (!claim.candidates.some((candidate) => candidate.key === failure.candidateKey)) return false;
+	await tx.$executeRaw`
+		SELECT pg_advisory_xact_lock(
+			hashtextextended(${`media-asset-generation-binding:${failure.assetId}`}, 0)
+		)`;
+	const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`
+		SELECT clock_timestamp() AS "now"
+	`;
+	if (!clock) throw new Error("Database did not return its current time");
+	const transfer = await tx.mediaAsset.findFirst({
+		where: {
+			id: failure.assetId,
+			ownerType: "USER",
+			ownerId: claim.ownerId,
+			kind: "OUTPUT",
+			status: "VERIFYING",
+			sourceUrl: `provider-output:${failure.candidateKey}`,
+			outputTransferToken: failure.transferToken,
+			outputTransferLeaseExpiresAt: { gt: clock.now },
+			jobBindings: { some: { jobId: claim.jobId, role: "OUTPUT" } },
+		},
+		select: {
+			id: true,
+			objectKey: true,
+			outputTransferLeaseExpiresAt: true,
+			outputStagingObjectKey: true,
+			outputPromotionMultipartUploadId: true,
+		},
+	});
+	if (!transfer) return false;
+	if (!transfer.outputTransferLeaseExpiresAt || !transfer.outputStagingObjectKey) {
+		throw new Error("GENERATION_OUTPUT_TRANSFER_STATE_INCOMPLETE");
+	}
+	const terminalized = await tx.mediaAsset.updateMany({
+		where: {
+			id: transfer.id,
+			status: "VERIFYING",
+			outputTransferToken: failure.transferToken,
+			outputTransferLeaseExpiresAt: { gt: clock.now },
+		},
+		data: {
+			status: "VERIFICATION_FAILED",
+			verificationLastErrorCode: OUTPUT_TRANSFER_EXHAUSTED_CODE,
+			verificationExhaustedAt: clock.now,
+			verificationNextAttemptAt: null,
+			outputTransferToken: null,
+			outputTransferLeaseExpiresAt: null,
+			outputStagingObjectKey: null,
+			outputPromotionMultipartUploadId: null,
+		},
+	});
+	if (terminalized.count !== 1) return false;
+	await tx.outboxEvent.upsert({
+		where: {
+			dedupeKey: `generation-output-terminal-cleanup:${transfer.id}:${failure.transferToken}`,
+		},
+		create: {
+			eventType: "MEDIA_UPLOAD_CLEANUP",
+			aggregateType: "MEDIA_ASSET",
+			aggregateId: transfer.id,
+			dedupeKey: `generation-output-terminal-cleanup:${transfer.id}:${failure.transferToken}`,
+			payload: {
+				assetId: transfer.id,
+				objectKey: transfer.outputStagingObjectKey,
+				promotionObjectKey: transfer.objectKey,
+				storageReservationReferenceKey: `generation-output:${transfer.id}`,
+				...(transfer.outputPromotionMultipartUploadId
+					? { promotionMultipartUploadId: transfer.outputPromotionMultipartUploadId }
+					: {}),
+			},
+			availableAt: new Date(
+				transfer.outputTransferLeaseExpiresAt.getTime() + OUTPUT_TRANSFER_CLEANUP_GRACE_MS,
+			),
+		},
+		update: {},
+	});
+	return true;
+}
+
 export const databaseFinalizationStore: FinalizationStore = createDatabaseFinalizationStore(db);
 
 export function createFinalizationDependencies(
@@ -1964,6 +2330,20 @@ export function createFinalizationDependencies(
 				.digest("base64url")
 				.slice(0, 32)}`;
 			const objectKey = createAssetObjectKey(claim.ownerId, assetId, mimeType);
+			const sourceUrl = `provider-output:${candidate.key}`;
+			const placeholder = await database.mediaAsset.findUnique({ where: { id: assetId } });
+			if (
+				placeholder?.ownerType === "USER" &&
+				placeholder.ownerId === claim.ownerId &&
+				placeholder.sourceUrl === sourceUrl &&
+				isOutputTransferExhaustedPlaceholder(placeholder)
+			) {
+				throw {
+					code: OUTPUT_TRANSFER_EXHAUSTED_CODE,
+					stage: "TRANSFER",
+					retryable: false,
+				};
+			}
 			const transfer = await claimGenerationOutputTransferTransaction(
 				{
 					jobId: claim.jobId,
@@ -1971,7 +2351,7 @@ export function createFinalizationDependencies(
 					assetId,
 					objectKey,
 					mimeType,
-					sourceUrl: `provider-output:${candidate.key}`,
+					sourceUrl,
 					createStagingObjectKey: (transferToken) =>
 						createStagingObjectKey(claim.ownerId, assetId, transferToken, mimeType),
 				},
@@ -1979,7 +2359,7 @@ export function createFinalizationDependencies(
 			);
 			if (transfer.outcome === "IN_PROGRESS") {
 				throw {
-					code: "OUTPUT_TRANSFER_IN_PROGRESS",
+					code: OUTPUT_TRANSFER_IN_PROGRESS_CODE,
 					stage: "TRANSFER",
 					retryable: true,
 				};
@@ -2099,9 +2479,21 @@ export function createFinalizationDependencies(
 						structured.stage === "TRANSFER" &&
 						structured.retryable === true
 					) {
-						throw error;
+						throw {
+							code: structured.code,
+							stage: "TRANSFER",
+							retryable: true,
+							assetId,
+							transferToken: transfer.transferToken,
+						};
 					}
-					throw { code: "STORAGE_TRANSFER_RETRYABLE", stage: "TRANSFER", retryable: true };
+					throw {
+						code: "STORAGE_TRANSFER_RETRYABLE",
+						stage: "TRANSFER",
+						retryable: true,
+						assetId,
+						transferToken: transfer.transferToken,
+					};
 				}
 			}
 

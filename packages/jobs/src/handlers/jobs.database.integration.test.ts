@@ -54,6 +54,7 @@ describe("database-backed media generation", () => {
 				mimeType: "image/png",
 				byteSize: 32n,
 				checksum: inputChecksum,
+				finalizedAt: new Date(),
 				verificationGeneration: 1,
 				verificationAttemptCount: 1,
 				verificationProvider: "test",

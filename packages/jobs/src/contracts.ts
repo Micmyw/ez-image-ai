@@ -94,6 +94,9 @@ export interface FinalizationFailure {
 	stage: "TRANSFER" | "MODERATION";
 	code: string;
 	retryable: boolean;
+	candidateKey?: string;
+	assetId?: string;
+	transferToken?: string;
 }
 
 export const MAX_TRANSIENT_FINALIZATION_RETRIES = 5;
@@ -119,7 +122,7 @@ export interface FinalizationStore {
 	recordFinalizationRetry(
 		claim: FinalizationClaim,
 		failure: FinalizationFailure,
-		results: Array<PersistedCandidate & { candidateKey: string }>,
+		results?: Array<PersistedCandidate & { candidateKey: string }>,
 	): Promise<FinalizationRetryResolution | void>;
 }
 
