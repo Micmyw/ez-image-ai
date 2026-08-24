@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { PrismaPg } from "@prisma/adapter-pg";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
 import {
@@ -14,6 +14,7 @@ import {
 } from "./assets";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
+const createdFixtureIds: Array<{ assetId: string; sessionId: string }> = [];
 
 function safeTestDatabaseUrl(): string {
 	if (!TEST_DATABASE_URL) throw new Error("BLOCKED_BY_ENVIRONMENT: TEST_DATABASE_URL is required");
@@ -33,27 +34,26 @@ async function createUploadFixture(client: PrismaClient, overrides: { expiresAt?
 	const assetId = `asset_${suffix}`;
 	const sessionId = `session_${suffix}`;
 	const expiresAt = overrides.expiresAt ?? new Date(Date.now() + 60_000);
-	return {
-		ownerId,
-		...(await createMediaUploadSessionTransaction(
-			{
-				assetId,
-				sessionId,
-				ownerType: "USER",
-				ownerId,
-				kind: "INPUT",
-				objectKey: `users/${ownerId}/assets/${assetId}/original.png`,
-				stagingObjectKey: `users/${ownerId}/staging/${sessionId}/nonce.png`,
-				mimeType: "image/png",
-				expectedBytes: 16n,
-				tokenHash: `token-${suffix}`,
-				expiresAt,
-				multipartUploadId: null,
-				limits: { maximumActiveSessions: 5, maximumReservedBytes: 1_000_000n },
-			},
-			client,
-		)),
-	};
+	const fixture = await createMediaUploadSessionTransaction(
+		{
+			assetId,
+			sessionId,
+			ownerType: "USER",
+			ownerId,
+			kind: "INPUT",
+			objectKey: `users/${ownerId}/assets/${assetId}/original.png`,
+			stagingObjectKey: `users/${ownerId}/staging/${sessionId}/nonce.png`,
+			mimeType: "image/png",
+			expectedBytes: 16n,
+			tokenHash: `token-${suffix}`,
+			expiresAt,
+			multipartUploadId: null,
+			limits: { maximumActiveSessions: 5, maximumReservedBytes: 1_000_000n },
+		},
+		client,
+	);
+	createdFixtureIds.push({ assetId: fixture.asset.id, sessionId: fixture.session.id });
+	return { ownerId, ...fixture };
 }
 
 async function waitForAdvisoryLock(
@@ -87,6 +87,24 @@ describe("media upload finalization PostgreSQL transactions", () => {
 	});
 
 	afterAll(async () => client?.$disconnect());
+
+	afterEach(async () => {
+		const fixtures = createdFixtureIds.splice(0);
+		if (fixtures.length === 0) return;
+		const assetIds = fixtures.map(({ assetId }) => assetId);
+		const sessionIds = fixtures.map(({ sessionId }) => sessionId);
+		await client.$transaction([
+			client.outboxEvent.deleteMany({ where: { aggregateId: { in: assetIds } } }),
+			client.auditLog.deleteMany({
+				where: { targetId: { in: [...assetIds, ...sessionIds] } },
+			}),
+			client.storageUsageReservation.deleteMany({
+				where: { referenceKey: { in: sessionIds.map((id) => `media-upload:${id}`) } },
+			}),
+			client.mediaUploadSession.deleteMany({ where: { id: { in: sessionIds } } }),
+			client.mediaAsset.deleteMany({ where: { id: { in: assetIds } } }),
+		]);
+	});
 
 	it("gives one concurrent claimant the lease and keeps the other claimant out of promotion", async () => {
 		const fixture = await createUploadFixture(client);
@@ -142,22 +160,29 @@ describe("media upload finalization PostgreSQL transactions", () => {
 		}
 	});
 
-	it("requeues an expired finalization lease before the upload session expires", async () => {
-		const fixture = await createUploadFixture(client, { expiresAt: new Date(Date.now() + 60_000) });
-		const expiredLease = new Date(Date.now() - 1_000);
+	it("prioritizes an expired finalization lease over an expired upload backlog", async () => {
+		const sweptAt = new Date();
+		const fixture = await createUploadFixture(client, {
+			expiresAt: new Date(sweptAt.getTime() + 60_000),
+		});
 		await client.mediaUploadSession.update({
 			where: { id: fixture.session.id },
 			data: {
 				status: "FINALIZING",
 				finalizationToken: `expired-${randomUUID()}`,
-				finalizationLeaseExpiresAt: expiredLease,
+				finalizationLeaseExpiresAt: new Date(sweptAt.getTime() - 1_000),
 				finalizationParts: [{ partNumber: 1, etag: "persisted" }],
 			},
 		});
+		for (let index = 0; index < 10; index += 1) {
+			await createUploadFixture(client, {
+				expiresAt: new Date(sweptAt.getTime() - 60_000 - index),
+			});
+		}
 
 		await expect(
-			expirePendingMediaUploadSessions({ now: new Date(), limit: 10 }, client),
-		).resolves.toBeGreaterThanOrEqual(1);
+			expirePendingMediaUploadSessions({ now: sweptAt, limit: 10 }, client),
+		).resolves.toBe(10);
 		await expect(
 			client.mediaUploadSession.findUniqueOrThrow({ where: { id: fixture.session.id } }),
 		).resolves.toMatchObject({

@@ -937,7 +937,11 @@ export async function expirePendingMediaUploadSessions(
 			],
 		},
 		select: { id: true, asset: { select: { ownerId: true } } },
-		orderBy: [{ expiresAt: "asc" }, { id: "asc" }],
+		orderBy: [
+			{ finalizationLeaseExpiresAt: { sort: "asc", nulls: "last" } },
+			{ expiresAt: "asc" },
+			{ id: "asc" },
+		],
 		take: Math.min(Math.max(input.limit, 1), 500),
 	});
 	let expired = 0;
