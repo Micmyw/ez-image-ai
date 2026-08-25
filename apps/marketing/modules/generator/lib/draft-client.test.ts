@@ -186,4 +186,39 @@ describe("createMarketingDraft", () => {
 		);
 		expect(appended.find((entry) => entry.action)?.action).not.toContain(claimToken);
 	});
+
+	it("carries only consent and the pseudonymous hash across the POST handoff", () => {
+		const submitted = vi.fn();
+		const appended: Array<{ name?: string; value?: string; action?: string }> = [];
+		const anonymousSessionHash =
+			"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+		const documentRef = {
+			cookie: `consent=true; ezpic_analytics_session=${anonymousSessionHash}`,
+			body: { append: (value: object) => appended.push(value) },
+			createElement: (tag: string) =>
+				tag === "form"
+					? {
+							style: {},
+							append: (...values: object[]) => appended.push(...values),
+							submit: submitted,
+						}
+					: {},
+		} as unknown as Document;
+
+		submitMarketingDraftHandoff(
+			{
+				action: "https://app.example.com/draft/continue",
+				claimToken: "b".repeat(43),
+			},
+			documentRef,
+		);
+
+		expect(appended).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ name: "analyticsConsent", value: "true" }),
+				expect.objectContaining({ name: "anonymousSessionHash", value: anonymousSessionHash }),
+			]),
+		);
+		expect(JSON.stringify(appended)).not.toMatch(/prompt|email|provider|model|cost|asset|url/i);
+	});
 });

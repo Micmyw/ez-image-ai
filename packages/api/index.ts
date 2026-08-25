@@ -1,7 +1,7 @@
 import { randomBytes, randomUUID } from "node:crypto";
 
 import { auth } from "@repo/auth";
-import { validateServerEnvironment } from "@repo/config/server";
+import { validateEzPicLaunchEnvironment, validateServerEnvironment } from "@repo/config/server";
 import { ingestProviderEvent } from "@repo/database";
 import { db } from "@repo/database/client";
 import { createProviderWebhookVerifierRegistry } from "@repo/jobs";
@@ -106,12 +106,13 @@ export const app = new Hono()
 	// Read-only readiness checks. Storage access is metadata-only.
 	.get("/ready", async (c) => {
 		const checks = await Promise.allSettled([
-			Promise.resolve(
+			Promise.resolve().then(() =>
 				validateServerEnvironment(process.env, { requireProviderCredentials: false }),
 			),
 			db.$queryRaw`SELECT 1 AS "ready"`,
 			checkStorageMetadataAccess(),
-			Promise.resolve(assertTriggerConfiguration()),
+			Promise.resolve().then(() => assertTriggerConfiguration()),
+			Promise.resolve().then(() => assertEzPicLaunchReadinessEnvironment()),
 		]);
 		const ready = checks.every((check) => check.status === "fulfilled");
 		const session = await auth.api.getSession({ headers: c.req.raw.headers });
@@ -121,14 +122,13 @@ export const app = new Hono()
 				status: ready ? "ready" : "not_ready",
 				...(isAdmin
 					? {
-							checks: ["configuration", "database", "storage", "trigger"].map((name, index) => ({
-								name,
-								ok: checks[index]?.status === "fulfilled",
-								error:
-									checks[index]?.status === "rejected"
-										? safeReadinessError(checks[index].reason)
-										: undefined,
-							})),
+							checks: ["configuration", "database", "storage", "trigger", "launch"].map(
+								(name, index) => ({
+									name,
+									ok: checks[index]?.status === "fulfilled",
+									error: checks[index]?.status === "rejected" ? safeReadinessError() : undefined,
+								}),
+							),
 						}
 					: {}),
 			},
@@ -171,8 +171,14 @@ function assertTriggerConfiguration(): void {
 	if (!process.env.TRIGGER_PROJECT_REF) throw new Error("Trigger project reference is missing");
 }
 
-function safeReadinessError(error: unknown): string {
-	return error instanceof Error ? error.message.slice(0, 200) : "Readiness check failed";
+function assertEzPicLaunchReadinessEnvironment(): void {
+	if (process.env.NODE_ENV === "production") {
+		validateEzPicLaunchEnvironment(process.env, { requireProviderCredentials: false });
+	}
+}
+
+function safeReadinessError(): string {
+	return "Readiness check failed";
 }
 
 const DEFAULT_BODY_LIMIT_BYTES = 1024 * 1024;

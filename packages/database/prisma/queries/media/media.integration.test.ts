@@ -17,6 +17,7 @@ import {
 	createMediaUploadSessionTransaction,
 	getCreditInvariantReport,
 	getCommittedDailyGenerationCost,
+	getCommittedGlobalDailyGenerationCost,
 	IdempotencyConflictError,
 	ingestProviderEvent,
 	listCreditReservationAllocations,
@@ -454,6 +455,33 @@ describe("media PostgreSQL transactions", () => {
 				client,
 			),
 		).toBe(60n);
+	});
+
+	it("atomically enforces the global daily Provider budget across different owners", async () => {
+		const firstFixture = await createBudgetFixture(client, [60n]);
+		const secondFixture = await createBudgetFixture(client, [60n]);
+		const alreadyCommitted = await getCommittedGlobalDailyGenerationCost({}, client);
+		const maximumGlobalDailyCostMicros = alreadyCommitted + 100n;
+		const candidates = [firstFixture, secondFixture].map((fixture, index) => ({
+			ownerType: "USER" as const,
+			ownerId: fixture.ownerId,
+			submittedByUserId: fixture.ownerId,
+			quoteId: fixture.quotes[0]!.id,
+			idempotencyKey: `global-budget-${index}-${crypto.randomUUID()}`,
+			inputAssetIds: [],
+			expectedModerationRuleVersion: TEST_MODERATION_RULE_VERSION,
+			maximumDailyCostMicros: 100n,
+			maximumGlobalDailyCostMicros,
+		}));
+
+		const results = await Promise.allSettled(
+			candidates.map((input) => createGenerationJobTransaction(input, client)),
+		);
+		expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+		const rejected = results.filter((result) => result.status === "rejected");
+		expect(rejected).toHaveLength(1);
+		expect(rejected[0]!.reason).toMatchObject({ message: "GLOBAL_DAILY_BUDGET_EXCEEDED" });
+		expect(await getCommittedGlobalDailyGenerationCost({}, client)).toBe(alreadyCommitted + 60n);
 	});
 
 	it("serializes plan concurrency admission and preserves the winning idempotent replay", async () => {

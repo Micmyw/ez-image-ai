@@ -1,5 +1,5 @@
 /* oxlint-disable typescript/unbound-method -- assertions target dependency-injected Vitest mocks */
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/auth", () => ({
 	auth: { api: { getSession: vi.fn() } },
@@ -29,6 +29,8 @@ import { retryGenerationForUser, type RetryGenerationDependencies } from "./retr
 const SOURCE_ASSET_ID = "asset_01J5ABCD1234EFGH5678JKLMNP";
 const EDIT_SESSION_ID = "edit-session-1";
 const PARENT_JOB_ID = "parent-job-1";
+
+afterEach(() => vi.unstubAllEnvs());
 
 const source = {
 	id: "source-job-1",
@@ -171,6 +173,7 @@ describe("retryGenerationForUser", () => {
 	});
 
 	it("ignores stale source evidence and moderates the current prompt and policy once", async () => {
+		vi.stubEnv("MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS", "250000000");
 		const moderateText = vi.fn(async ({ ruleVersion }: { text: string; ruleVersion: string }) => ({
 			decision: "ALLOW" as const,
 			reasonCode: "TEST_ALLOW",
@@ -236,6 +239,7 @@ describe("retryGenerationForUser", () => {
 			expect.objectContaining({
 				expectedInputAssets: [{ assetId: SOURCE_ASSET_ID, assetChecksum: "1".repeat(64) }],
 				maximumConcurrentJobs: 3,
+				maximumGlobalDailyCostMicros: 250_000_000n,
 				maximumStorageBytes: maximumMediaStorageBytes(),
 			}),
 		);

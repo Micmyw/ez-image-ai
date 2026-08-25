@@ -77,15 +77,45 @@ when the matching configured Stripe Price is actually available and always reuse
 
 The 18-step editing funnel uses one shared strict event schema and the existing cookie-consent
 choice. It rejects prompts, filenames, private/signed URLs, raw job or asset IDs, email, tokens,
-Provider/model/cost data, and raw responses before transport. The current browser transport is only
-the local `ezpic:growth-event` fixture; real external analytics ingestion is not configured or
-claimed. Admins receive read-only aggregate media operations—success, latency, Provider cost,
+Provider/model/cost data, and raw responses before transport. The browser keeps the local
+`ezpic:growth-event` fixture and, only with consent and complete production configuration, sends the
+same minimized event to PostHog under a `sha256:` anonymous session identifier. Marketing hands that
+identifier to SaaS through POST rather than a URL. Real external ingestion is still
+`NOT_COMPLETED`. Admins receive read-only aggregate media operations—success, latency, Provider cost,
 moderation, failure, credit settlement, repeat-edit, route, and kill-switch state—through the
 existing admin-only oRPC and PostgreSQL boundaries.
 
 See [the growth, SEO, and operations contract](docs/product/ezpic-growth-operations.md) for the
 index matrix, complete event list, metrics definitions, rollback, and external `NOT_COMPLETED`
 items.
+
+## Production launch certification
+
+PR 8 adds fail-closed staging/production configuration, independent Standard and Quality launch
+flags, an atomic global UTC-day Provider cost ceiling, production readiness integration, an offline
+evidence validator, and a guarded six-surface k6 plan. It prepares a launch but does not deploy one.
+
+```bash
+pnpm launch:evidence:validate
+pnpm load:ezpic:syntax
+pnpm load:type-check
+pnpm load:ezpic
+```
+
+The committed environment matrix and 20-scenario staging record intentionally produce
+`NOT_COMPLETED`. A protected release job may point to approved external evidence and run
+`pnpm launch:certify`; the command fails unless the exact deployment revision, every staging
+scenario, all isolated resource identifiers, kill switches, budgets, alerts, and external service
+contracts pass. `pnpm load:ezpic` only prints a bounded plan. Actual k6 execution additionally needs
+an exact run confirmation, and remote targets must be HTTPS, allowlisted, dual-origin-confirmed, and
+identified as staging.
+
+See the [production runbook](docs/operations/ezpic-production-runbook.md),
+[launch checklist](docs/operations/ezpic-launch-checklist.md),
+[rollback procedure](docs/operations/ezpic-rollback.md), and
+[final cost model](docs/product/ezpic-final-cost-model.md). Real PostgreSQL, Trigger.dev, private
+S3/R2, Provider, moderation, Stripe, Sentry, PostHog/GSC, mail, deployment, DNS/SSL, alert arrival,
+load, cost, and rollback evidence remains separately `NOT_COMPLETED`.
 
 ## Inherited foundation capabilities
 
@@ -119,6 +149,9 @@ pnpm test:unit:contracts
 pnpm test:integration
 pnpm e2e:media:ci
 pnpm verify:invariants
+pnpm launch:evidence:validate
+pnpm load:ezpic:syntax
+pnpm load:type-check
 ```
 
 PostgreSQL integration commands require an explicit loopback `TEST_DATABASE_URL` whose database name contains `test` or `testing`; they never fall back to `DATABASE_URL`. Mock E2E fails when its database, test user, Chromium, or test adapters are missing.

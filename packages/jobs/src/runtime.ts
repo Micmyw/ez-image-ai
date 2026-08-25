@@ -29,7 +29,7 @@ import {
 	recoveryProviderKeysFromEnvironment,
 } from "@repo/ai";
 import type { ProductModelKey } from "@repo/config";
-import { maximumMediaStorageBytes } from "@repo/config/server";
+import { isEzPicProductEnvironmentEnabled, maximumMediaStorageBytes } from "@repo/config/server";
 import {
 	claimGenerationOutputTransferTransaction,
 	claimOutboxBatch,
@@ -197,7 +197,7 @@ export async function resolveDatabaseDispatchRoute(
 	if (environment.MEDIA_GENERATION_ENABLED !== "true") {
 		throw new Error("MEDIA_GENERATION_DISABLED");
 	}
-	if (await isMediaGenerationDisabled(database, job.productKey)) {
+	if (await isMediaGenerationDisabled(database, job.productKey, environment)) {
 		throw new Error("MEDIA_GENERATION_DISABLED");
 	}
 	const resolution = quotedExecutableRoutes(
@@ -273,7 +273,7 @@ export function createDatabaseDispatchStore(
 					},
 				});
 				if (!job) return null;
-				if (await isMediaGenerationDisabled(tx, job.productKey)) {
+				if (await isMediaGenerationDisabled(tx, job.productKey, environment)) {
 					const requeued = await requeueDispatchBlockedByKillSwitch(tx, job);
 					if (!requeued) return null;
 					return dispatchAdmissionBlocked;
@@ -3792,7 +3792,9 @@ async function requeueDispatchBlockedByKillSwitch(
 async function isMediaGenerationDisabled(
 	database: Pick<PrismaClient, "runtimeConfigOverride">,
 	productKey: string,
+	environment: Record<string, string | undefined> = process.env,
 ): Promise<boolean> {
+	if (!isEzPicProductEnvironmentEnabled(productKey, environment)) return true;
 	return Boolean(
 		await database.runtimeConfigOverride.findFirst({
 			where: {

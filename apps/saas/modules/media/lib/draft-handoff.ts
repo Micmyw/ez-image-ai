@@ -2,6 +2,7 @@ import {
 	assertMarketingOrigin,
 	getDraftClaimCookie,
 } from "@repo/api/modules/media/lib/draft-security";
+import { EZPIC_ANALYTICS_SESSION_COOKIE } from "@repo/utils";
 import { NextResponse } from "next/server";
 
 export const DRAFT_HANDOFF_INTENT = "continue-marketing-draft";
@@ -28,10 +29,35 @@ export async function createDraftHandoffResponse(
 	if (typeof claimToken !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(claimToken)) {
 		throw new Error("INVALID_DRAFT_HANDOFF");
 	}
+	const analyticsConsent = form.get("analyticsConsent");
+	const anonymousSessionHash = form.get("anonymousSessionHash");
+	if (
+		(analyticsConsent !== null || anonymousSessionHash !== null) &&
+		(analyticsConsent !== "true" ||
+			typeof anonymousSessionHash !== "string" ||
+			!/^sha256:[a-f0-9]{64}$/.test(anonymousSessionHash))
+	) {
+		throw new Error("INVALID_DRAFT_HANDOFF");
+	}
 	const target = options.isAuthenticated ? "/draft/continue" : "/login?redirectTo=/draft/continue";
 	const response = NextResponse.redirect(new URL(target, options.saasOrigin), 303);
 	response.headers.set("Cache-Control", "no-store");
 	response.headers.set("Referrer-Policy", "no-referrer");
+	if (analyticsConsent === "true" && typeof anonymousSessionHash === "string") {
+		const analyticsCookieOptions = {
+			httpOnly: false,
+			sameSite: "lax" as const,
+			secure: options.secure,
+			path: "/",
+			maxAge: 30 * 24 * 60 * 60,
+		};
+		response.cookies.set("consent", "true", analyticsCookieOptions);
+		response.cookies.set(
+			EZPIC_ANALYTICS_SESSION_COOKIE,
+			anonymousSessionHash,
+			analyticsCookieOptions,
+		);
+	}
 	response.headers.append("Set-Cookie", getDraftClaimCookie(claimToken, options.secure));
 	return response;
 }

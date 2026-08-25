@@ -1,0 +1,57 @@
+{
+	"version": 1,
+	"environments": [
+		{
+			"environment": "development",
+			"environmentId": "NOT_COMPLETED/development/environment",
+			"resources": {
+				"database": "NOT_COMPLETED/development/database",
+				"mediaBucket": "NOT_COMPLETED/development/media-bucket",
+				"stripeWebhookScope": "NOT_COMPLETED/development/stripe-webhook",
+				"triggerEnvironment": "NOT_COMPLETED/development/trigger",
+				"posthogProject": "NOT_COMPLETED/development/posthog",
+				"sentryEnvironment": "NOT_COMPLETED/development/sentry",
+				"mailProvider": "NOT_COMPLETED/development/mail"
+			}
+		},
+		{
+			"environment": "test",
+			"environmentId": "NOT_COMPLETED/test/environment",
+			"resources": {
+				"database": "NOT_COMPLETED/test/database",
+				"mediaBucket": "NOT_COMPLETED/test/media-bucket",
+				"stripeWebhookScope": "NOT_COMPLETED/test/stripe-webhook",
+				"triggerEnvironment": "NOT_COMPLETED/test/trigger",
+				"posthogProject": "NOT_COMPLETED/test/posthog",
+				"sentryEnvironment": "NOT_COMPLETED/test/sentry",
+				"mailProvider": "NOT_COMPLETED/test/mail"
+			}
+		},
+		{
+			"environment": "staging",
+			"environmentId": "NOT_COMPLETED/staging/environment",
+			"resources": {
+				"database": "NOT_COMPLETED/staging/database",
+				"mediaBucket": "NOT_COMPLETED/staging/media-bucket",
+				"stripeWebhookScope": "NOT_COMPLETED/staging/stripe-webhook",
+				"triggerEnvironment": "NOT_COMPLETED/staging/trigger",
+				"posthogProject": "NOT_COMPLETED/staging/posthog",
+				"sentryEnvironment": "NOT_COMPLETED/staging/sentry",
+				"mailProvider": "NOT_COMPLETED/staging/mail"
+			}
+		},
+		{
+			"environment": "production",
+			"environmentId": "NOT_COMPLETED/production/environment",
+			"resources": {
+				"database": "NOT_COMPLETED/production/database",
+				"mediaBucket": "NOT_COMPLETED/production/media-bucket",
+				"stripeWebhookScope": "NOT_COMPLETED/production/stripe-webhook",
+				"triggerEnvironment": "NOT_COMPLETED/production/trigger",
+				"posthogProject": "NOT_COMPLETED/production/posthog",
+				"sentryEnvironment": "NOT_COMPLETED/production/sentry",
+				"mailProvider": "NOT_COMPLETED/production/mail"
+			}
+		}
+	]
+}

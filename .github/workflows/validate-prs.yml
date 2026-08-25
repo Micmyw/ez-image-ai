@@ -52,7 +52,9 @@ jobs:
       - name: Trigger task type gate
         run: pnpm trigger:type-check
       - name: Load and invariant tool type/syntax gate
-        run: pnpm load:type-check && pnpm load:syntax
+        run: pnpm load:type-check && pnpm load:syntax && pnpm load:ezpic:syntax
+      - name: Validate the explicitly incomplete launch evidence templates
+        run: pnpm launch:evidence:validate
       - name: Trigger local deployment build
         if: ${{ vars.TRIGGER_CI_LOCAL_BUILD == 'true' }}
         env:

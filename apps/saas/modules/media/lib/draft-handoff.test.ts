@@ -7,14 +7,20 @@ const claimToken = "c".repeat(43);
 function request(
 	origin = "https://www.example.com",
 	requestUrl = "https://app.example.com/draft/continue",
+	analytics?: { consent: boolean; anonymousSessionHash: string },
 ) {
+	const form = new URLSearchParams({ intent: DRAFT_HANDOFF_INTENT, claimToken });
+	if (analytics?.consent) {
+		form.set("analyticsConsent", "true");
+		form.set("anonymousSessionHash", analytics.anonymousSessionHash);
+	}
 	return new Request(requestUrl, {
 		method: "POST",
 		headers: {
 			Origin: origin,
 			"Content-Type": "application/x-www-form-urlencoded",
 		},
-		body: new URLSearchParams({ intent: DRAFT_HANDOFF_INTENT, claimToken }),
+		body: form,
 	});
 }
 
@@ -52,5 +58,49 @@ describe("draft handoff POST", () => {
 				isAuthenticated: false,
 			}),
 		).rejects.toThrow("FORBIDDEN_ORIGIN");
+	});
+
+	it("restores consent and the anonymous funnel hash on the SaaS origin", async () => {
+		const anonymousSessionHash =
+			"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+		const response = await createDraftHandoffResponse(
+			request("https://www.example.com", "https://app.example.com/draft/continue", {
+				consent: true,
+				anonymousSessionHash,
+			}),
+			{
+				marketingOrigin: "https://www.example.com",
+				saasOrigin: "https://app.example.com",
+				secure: true,
+				isAuthenticated: false,
+			},
+		);
+
+		const cookies = response.headers.getSetCookie().join("\n");
+		expect(cookies).toContain(`media_draft_claim=${claimToken}`);
+		expect(cookies).toContain("consent=true");
+		expect(cookies).toContain(
+			`ezpic_analytics_session=${encodeURIComponent(anonymousSessionHash)}`,
+		);
+		expect(cookies).toMatch(/SameSite=(?:Lax|lax)/);
+		expect(cookies).toContain("Secure");
+		expect(cookies).not.toContain("HttpOnly; Path=/; Max-Age=2592000");
+	});
+
+	it("rejects malformed cross-app analytics identity", async () => {
+		await expect(
+			createDraftHandoffResponse(
+				request("https://www.example.com", "https://app.example.com/draft/continue", {
+					consent: true,
+					anonymousSessionHash: "raw-user-id",
+				}),
+				{
+					marketingOrigin: "https://www.example.com",
+					saasOrigin: "https://app.example.com",
+					secure: true,
+					isAuthenticated: false,
+				},
+			),
+		).rejects.toThrow("INVALID_DRAFT_HANDOFF");
 	});
 });

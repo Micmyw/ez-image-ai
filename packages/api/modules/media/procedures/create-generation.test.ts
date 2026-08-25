@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildMediaQuote } from "../lib/quote";
 
@@ -12,8 +12,11 @@ import { createGenerationForUser } from "./create-generation";
 
 const SOURCE_ASSET_ID = "asset_01J5ABCD1234EFGH5678JKLMNP";
 
+afterEach(() => vi.unstubAllEnvs());
+
 describe("createGenerationForUser", () => {
 	it("binds a first confirmed image edit as a root session transaction", async () => {
+		vi.stubEnv("MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS", "250000000");
 		const quote = buildMediaQuote(
 			{
 				productKey: "image-fast",
@@ -66,6 +69,7 @@ describe("createGenerationForUser", () => {
 				inputAssetIds: [SOURCE_ASSET_ID],
 				edit: { kind: "ROOT", rootAssetId: SOURCE_ASSET_ID },
 				maximumConcurrentJobs: 3,
+				maximumGlobalDailyCostMicros: 250_000_000n,
 			}),
 		);
 	});

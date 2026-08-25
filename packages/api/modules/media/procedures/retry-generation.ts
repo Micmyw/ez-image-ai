@@ -5,6 +5,7 @@ import {
 	type ModerationDecision,
 } from "@repo/ai";
 import { DEFAULT_PRODUCT_CONFIG, productModelKeySchema, type PlanEntitlement } from "@repo/config";
+import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
 import {
 	claimGenerationRetryRequest,
 	completeGenerationRetryRequest,
@@ -217,6 +218,7 @@ export async function retryGenerationForUser(
 			enforceProspectiveDailyBudget: false,
 		});
 		const entitlement = await dependencies.loadEntitlement(userId);
+		const maximumGlobalDailyCostMicros = mediaDailyProviderCostBudgetMicros(process.env);
 		const quoteInput = {
 			ownerType: "USER" as const,
 			ownerId: userId,
@@ -274,6 +276,7 @@ export async function retryGenerationForUser(
 			expectedAssetModerationRuleVersion: operation.assetModerationRuleVersion,
 			expectedAssetModerationPolicyVersion: operation.assetModerationPolicyVersion,
 			maximumDailyCostMicros: BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros),
+			...(maximumGlobalDailyCostMicros === undefined ? {} : { maximumGlobalDailyCostMicros }),
 			maximumStorageBytes: maximumMediaStorageBytes(),
 			maximumConcurrentJobs: entitlement.maximumConcurrentJobs,
 			...(operation.editContext ? { edit: operation.editContext } : {}),

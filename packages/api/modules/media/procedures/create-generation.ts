@@ -4,6 +4,7 @@ import {
 	type ExecutableRouteGraphOptions,
 } from "@repo/ai";
 import { DEFAULT_PRODUCT_CONFIG, type PlanEntitlement } from "@repo/config";
+import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
 import { createGenerationJobTransaction } from "@repo/database";
 import { db } from "@repo/database/client";
 import { resolveDatabaseDispatchRoute } from "@repo/jobs";
@@ -92,6 +93,7 @@ interface CreateGenerationDependencies {
 		expectedAssetModerationRuleVersion: string;
 		expectedAssetModerationPolicyVersion: string;
 		maximumDailyCostMicros: bigint;
+		maximumGlobalDailyCostMicros?: bigint;
 		maximumStorageBytes: bigint;
 		maximumConcurrentJobs: number;
 		edit?:
@@ -156,6 +158,7 @@ export async function createGenerationForUser(
 		routeGraphOptions,
 	});
 	const entitlement = await dependencies.loadEntitlement(userId);
+	const maximumGlobalDailyCostMicros = mediaDailyProviderCostBudgetMicros(process.env);
 	return dependencies.createGenerationJob({
 		ownerType: "USER",
 		ownerId: userId,
@@ -167,6 +170,7 @@ export async function createGenerationForUser(
 		expectedAssetModerationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 		expectedAssetModerationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 		maximumDailyCostMicros: BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros),
+		...(maximumGlobalDailyCostMicros === undefined ? {} : { maximumGlobalDailyCostMicros }),
 		maximumStorageBytes: maximumMediaStorageBytes(),
 		maximumConcurrentJobs: entitlement.maximumConcurrentJobs,
 		...imageEditBinding(quote.productKey, inputSnapshot, input.parentJobId),

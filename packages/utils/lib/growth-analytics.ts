@@ -69,6 +69,7 @@ export type GrowthAnalyticsEvent = z.infer<typeof growthAnalyticsEventSchema>;
 export type GrowthAnalyticsTrackResult = "blocked" | "duplicate" | "failed" | "rejected" | "sent";
 
 export const EZPIC_GROWTH_EVENT_FIXTURE = "ezpic:growth-event";
+export const EZPIC_ANALYTICS_SESSION_COOKIE = "ezpic_analytics_session";
 
 const sensitiveKeyPatterns = [
 	/^prompt$/,
@@ -159,10 +160,23 @@ export function hasGrowthAnalyticsConsent(cookie: string): boolean {
 export function createBrowserGrowthAnalyticsDispatcher(runtime: {
 	getCookie: () => string;
 	dispatch: (eventName: string, detail: GrowthAnalyticsEvent) => void;
+	resolveAnonymousSessionHash?: () => Promise<string | undefined>;
+	sendExternal?: (event: GrowthAnalyticsEvent) => Promise<void>;
 }) {
 	return createGrowthAnalyticsDispatcher({
 		hasConsent: () => hasGrowthAnalyticsConsent(runtime.getCookie()),
-		send: (event) => runtime.dispatch(EZPIC_GROWTH_EVENT_FIXTURE, event),
+		send: async (event) => {
+			const anonymousSessionHash = await runtime.resolveAnonymousSessionHash?.();
+			const enriched = growthAnalyticsEventSchema.parse({
+				...event,
+				properties: {
+					...event.properties,
+					...(anonymousSessionHash ? { anonymousSessionHash } : {}),
+				},
+			});
+			runtime.dispatch(EZPIC_GROWTH_EVENT_FIXTURE, enriched);
+			await runtime.sendExternal?.(enriched);
+		},
 	});
 }
 
@@ -176,14 +190,106 @@ export function trackBrowserGrowthEvent(
 ): Promise<GrowthAnalyticsTrackResult> {
 	browserGrowthAnalyticsDispatcher ??= createBrowserGrowthAnalyticsDispatcher({
 		getCookie: () => (typeof document === "undefined" ? "" : document.cookie),
+		resolveAnonymousSessionHash: getOrCreateBrowserGrowthAnalyticsSessionHash,
 		dispatch: (eventName, detail) => {
 			if (typeof window === "undefined" || typeof CustomEvent === "undefined") {
 				throw new Error("BROWSER_GROWTH_ANALYTICS_UNAVAILABLE");
 			}
 			window.dispatchEvent(new CustomEvent(eventName, { detail }));
 		},
+		sendExternal: sendConfiguredPostHogGrowthEvent,
 	});
 	return browserGrowthAnalyticsDispatcher.track(event, options);
+}
+
+export function readGrowthAnalyticsSessionHash(cookie: string): string | undefined {
+	for (const part of cookie.split(";")) {
+		const [name, ...valueParts] = part.trim().split("=");
+		if (name !== EZPIC_ANALYTICS_SESSION_COOKIE) continue;
+		let value: string;
+		try {
+			value = decodeURIComponent(valueParts.join("="));
+		} catch {
+			return undefined;
+		}
+		if (/^sha256:[a-f0-9]{64}$/.test(value)) return value;
+	}
+	return undefined;
+}
+
+export function createPostHogGrowthSender(options: {
+	key: string;
+	host: string;
+	fetch: typeof fetch;
+}): (event: unknown) => Promise<void> {
+	if (!/^phc_[A-Za-z0-9_-]{10,}$/.test(options.key)) {
+		throw new Error("NEXT_PUBLIC_POSTHOG_KEY is invalid");
+	}
+	const host = productionAnalyticsHost(options.host);
+	return async (input) => {
+		if (containsSensitiveAnalyticsData(input)) throw new Error("ANALYTICS_EVENT_REJECTED");
+		const event = growthAnalyticsEventSchema.parse(input);
+		const distinctId = event.properties.anonymousSessionHash;
+		if (!distinctId) throw new Error("ANALYTICS_SESSION_REQUIRED");
+		const response = await options.fetch(new URL("/capture/", host).toString(), {
+			method: "POST",
+			credentials: "omit",
+			keepalive: true,
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				api_key: options.key,
+				event: event.name,
+				properties: { ...event.properties, distinct_id: distinctId, $lib: "ezpic-browser" },
+			}),
+		});
+		if (!response.ok) throw new Error("POSTHOG_INGESTION_FAILED");
+	};
+}
+
+async function getOrCreateBrowserGrowthAnalyticsSessionHash(): Promise<string | undefined> {
+	if (typeof document === "undefined" || typeof crypto === "undefined") return undefined;
+	const existing = readGrowthAnalyticsSessionHash(document.cookie);
+	if (existing) return existing;
+	if (!crypto.getRandomValues || !crypto.subtle) return undefined;
+	const random = crypto.getRandomValues(new Uint8Array(32));
+	const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", random));
+	const hash = `sha256:${[...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+	const secure =
+		typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
+	document.cookie = `${EZPIC_ANALYTICS_SESSION_COOKIE}=${hash}; Path=/; Max-Age=2592000; SameSite=Lax${secure}`;
+	return hash;
+}
+
+let configuredPostHogSender: ((event: unknown) => Promise<void>) | null | undefined;
+
+async function sendConfiguredPostHogGrowthEvent(event: GrowthAnalyticsEvent): Promise<void> {
+	if (configuredPostHogSender === undefined) {
+		const key = process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim();
+		const host = process.env.NEXT_PUBLIC_POSTHOG_HOST?.trim();
+		if (!key && !host) configuredPostHogSender = null;
+		else if (!key || !host) throw new Error("POSTHOG_CONFIGURATION_INCOMPLETE");
+		else configuredPostHogSender = createPostHogGrowthSender({ key, host, fetch });
+	}
+	await configuredPostHogSender?.(event);
+}
+
+function productionAnalyticsHost(value: string): URL {
+	let url: URL;
+	try {
+		url = new URL(value);
+	} catch {
+		throw new Error("NEXT_PUBLIC_POSTHOG_HOST is invalid");
+	}
+	if (
+		url.protocol !== "https:" ||
+		url.username ||
+		url.password ||
+		url.hostname.endsWith(".invalid") ||
+		["localhost", "127.0.0.1", "::1"].includes(url.hostname)
+	) {
+		throw new Error("NEXT_PUBLIC_POSTHOG_HOST must be a real HTTPS origin");
+	}
+	return new URL(url.origin);
 }
 
 type EzPicProductKey = "image-fast" | "image-quality";

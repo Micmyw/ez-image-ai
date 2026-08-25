@@ -60,6 +60,12 @@ const getAdminGrowthOperations = (
 	mediaQueries as typeof mediaQueries & { getAdminGrowthOperations?: GrowthOperationsQuery }
 ).getAdminGrowthOperations;
 
+const approvedGrowthTestDatabases = new Set([
+	"ezpic_pr7_growth_operations_test",
+	"ezpic_pr8_test",
+	...(process.env.CI === "true" ? ["ai_media_foundation_test"] : []),
+]);
+
 function safeTestDatabaseUrl(): string {
 	const value = process.env.TEST_DATABASE_URL;
 	if (!value) throw new Error("BLOCKED_BY_ENVIRONMENT: TEST_DATABASE_URL is required");
@@ -68,7 +74,7 @@ function safeTestDatabaseUrl(): string {
 	if (
 		parsed.hostname !== "127.0.0.1" ||
 		parsed.port !== "55432" ||
-		parsed.pathname !== "/ezpic_pr7_growth_operations_test"
+		!approvedGrowthTestDatabases.has(parsed.pathname.slice(1))
 	) {
 		throw new Error("UNSAFE_TEST_DATABASE");
 	}
@@ -381,7 +387,7 @@ describe("admin growth operations aggregate query", () => {
 async function truncateDedicatedGrowthFixtures(client: PrismaClient) {
 	const [database] = await client.$queryRaw<Array<{ name: string }>>`
 		SELECT current_database()::text AS name`;
-	if (database?.name !== "ezpic_pr7_growth_operations_test") {
+	if (!database?.name || !approvedGrowthTestDatabases.has(database.name)) {
 		throw new Error("UNSAFE_TEST_DATABASE");
 	}
 	await client.$executeRawUnsafe(`

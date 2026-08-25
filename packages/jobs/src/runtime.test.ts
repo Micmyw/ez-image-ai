@@ -123,4 +123,81 @@ describe("provider runtime registration", () => {
 			}),
 		);
 	});
+
+	it("blocks a queued Quality edit when the production launch switch is disabled", async () => {
+		const transaction = {
+			$executeRaw: vi.fn(async () => 0),
+			generationJob: {
+				findFirst: vi.fn(async () => ({
+					id: "job_quality",
+					version: 4,
+					status: "DISPATCH_QUEUED",
+					productKey: "image-quality",
+					attempts: [],
+					assets: [],
+					quote: { costMicros: 8_000n },
+				})),
+				updateMany: vi.fn(async () => ({ count: 1 })),
+			},
+			runtimeConfigOverride: { findFirst: vi.fn(async () => null) },
+			outboxEvent: { upsert: vi.fn(async () => ({})) },
+		};
+		const store = createDatabaseDispatchStore(
+			{
+				$transaction: async (callback: (value: typeof transaction) => unknown) =>
+					callback(transaction),
+			} as never,
+			{
+				environment: {
+					MEDIA_GENERATION_ENABLED: "true",
+					MEDIA_QUALITY_EDIT_ENABLED: "false",
+				},
+				enabledProviders: new Set(["gemini"]),
+			},
+		);
+
+		await expect(store.claimDispatch({ jobId: "job_quality", version: 4 })).rejects.toMatchObject({
+			code: "MEDIA_GENERATION_DISABLED",
+		});
+		expect(transaction.generationJob.updateMany).toHaveBeenCalledOnce();
+	});
+
+	it("blocks a queued Standard edit when production omits its launch switch", async () => {
+		const transaction = {
+			$executeRaw: vi.fn(async () => 0),
+			generationJob: {
+				findFirst: vi.fn(async () => ({
+					id: "job_standard",
+					version: 5,
+					status: "DISPATCH_QUEUED",
+					productKey: "image-fast",
+					attempts: [],
+					assets: [],
+					quote: { costMicros: 4_000n },
+				})),
+				updateMany: vi.fn(async () => ({ count: 1 })),
+			},
+			runtimeConfigOverride: { findFirst: vi.fn(async () => null) },
+			outboxEvent: { upsert: vi.fn(async () => ({})) },
+		};
+		const store = createDatabaseDispatchStore(
+			{
+				$transaction: async (callback: (value: typeof transaction) => unknown) =>
+					callback(transaction),
+			} as never,
+			{
+				environment: {
+					NODE_ENV: "production",
+					EZPIC_DEPLOYMENT_ENVIRONMENT: "production",
+					MEDIA_GENERATION_ENABLED: "true",
+				},
+				enabledProviders: new Set(["replicate"]),
+			},
+		);
+
+		await expect(store.claimDispatch({ jobId: "job_standard", version: 5 })).rejects.toMatchObject({
+			code: "MEDIA_GENERATION_DISABLED",
+		});
+		expect(transaction.generationJob.updateMany).toHaveBeenCalledOnce();
+	});
 });

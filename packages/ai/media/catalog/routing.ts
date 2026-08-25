@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 
-import { parseMediaEnabledProviders, parseMediaRecoveryProviders } from "@repo/config";
+import {
+	isEzPicProductEnvironmentEnabled,
+	parseMediaEnabledProviders,
+	parseMediaRecoveryProviders,
+} from "@repo/config";
 import { z } from "zod";
 
 import type { ProviderKey } from "../types";
@@ -142,9 +146,16 @@ export function recoveryProviderKeysFromEnvironment(
 export function configuredRouteGraphOptionsFromEnvironment(
 	environment: Record<string, string | undefined> = process.env,
 ): ExecutableRouteGraphOptions {
+	const disabledProductKeys = new Set<string>();
+	for (const productKey of ["image-fast", "image-quality"] as const) {
+		if (!isEzPicProductEnvironmentEnabled(productKey, environment)) {
+			disabledProductKeys.add(productKey);
+		}
+	}
 	return {
 		enabledProviders: configuredProviderKeysFromEnvironment(environment),
 		generationEnabled: environment.MEDIA_GENERATION_ENABLED === "true",
+		disabledProductKeys,
 	};
 }
 

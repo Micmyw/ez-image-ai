@@ -7,6 +7,7 @@ import {
 	quoteCatalogInput,
 } from "./catalog";
 import {
+	configuredRouteGraphOptionsFromEnvironment,
 	configuredProviderKeysFromEnvironment,
 	enabledProviderKeysFromEnvironment,
 	locallyExecutableProviderKeysFromEnvironment,
@@ -167,6 +168,43 @@ describe("media product catalog", () => {
 		});
 
 		expect(catalog.products.map((product) => product.key)).not.toContain("image-fast");
+	});
+
+	it("layers the Standard and Quality launch switches onto the executable route graph", () => {
+		const options = configuredRouteGraphOptionsFromEnvironment({
+			MEDIA_GENERATION_ENABLED: "true",
+			MEDIA_ENABLED_PROVIDERS: "replicate,gemini",
+			MEDIA_STANDARD_EDIT_ENABLED: "true",
+			MEDIA_QUALITY_EDIT_ENABLED: "false",
+		});
+		expect(options.disabledProductKeys).toEqual(new Set(["image-quality"]));
+		expect(getPublicProductCatalog(options).products.map((product) => product.key)).toEqual([
+			"image-fast",
+		]);
+	});
+
+	it("fails closed when production omits the Standard and Quality launch switches", () => {
+		const options = configuredRouteGraphOptionsFromEnvironment({
+			NODE_ENV: "production",
+			EZPIC_DEPLOYMENT_ENVIRONMENT: "production",
+			MEDIA_GENERATION_ENABLED: "true",
+			MEDIA_ENABLED_PROVIDERS: "replicate,gemini",
+		});
+
+		expect(options.disabledProductKeys).toEqual(new Set(["image-fast", "image-quality"]));
+		expect(getPublicProductCatalog(options).products).toEqual([]);
+	});
+
+	it("keeps the pre-launch defaults available in development and test", () => {
+		for (const nodeEnvironment of ["development", "test"]) {
+			const options = configuredRouteGraphOptionsFromEnvironment({
+				NODE_ENV: nodeEnvironment,
+				MEDIA_GENERATION_ENABLED: "true",
+				MEDIA_ENABLED_PROVIDERS: "replicate,gemini",
+			});
+
+			expect(options.disabledProductKeys, nodeEnvironment).toEqual(new Set());
+		}
 	});
 
 	it("does not publish any product when the generation environment gate is disabled", () => {

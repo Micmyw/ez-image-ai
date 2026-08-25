@@ -1,3 +1,5 @@
+import { hasGrowthAnalyticsConsent, readGrowthAnalyticsSessionHash } from "@repo/utils";
+
 export const MARKETING_IMAGE_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
 export type MarketingImageProductKey = "image-fast" | "image-quality";
@@ -82,6 +84,14 @@ export function submitMarketingDraftHandoff(
 	form.style.display = "none";
 	form.append(hiddenField(documentRef, "intent", DRAFT_HANDOFF_INTENT));
 	form.append(hiddenField(documentRef, "claimToken", handoff.claimToken));
+	const cookie = documentRef.cookie ?? "";
+	if (hasGrowthAnalyticsConsent(cookie)) {
+		const anonymousSessionHash = readGrowthAnalyticsSessionHash(cookie);
+		if (anonymousSessionHash) {
+			form.append(hiddenField(documentRef, "analyticsConsent", "true"));
+			form.append(hiddenField(documentRef, "anonymousSessionHash", anonymousSessionHash));
+		}
+	}
 	documentRef.body.append(form);
 	form.submit();
 }

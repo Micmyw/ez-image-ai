@@ -27,12 +27,13 @@ export async function getCurrentExecutableRouteGraphOptions(
 		select: { configKey: true },
 	});
 	const disabledConfigKeys = new Set(disabledOverrides.map((override) => override.configKey));
-	const disabledProductKeys = new Set(
-		DEFAULT_PRODUCT_CONFIG.productKeys.filter((productKey) =>
+	const environmentGraph = executableRouteGraphOptionsFromEnvironment(environment);
+	const disabledProductKeys = new Set([
+		...(environmentGraph.disabledProductKeys ?? []),
+		...DEFAULT_PRODUCT_CONFIG.productKeys.filter((productKey) =>
 			disabledConfigKeys.has(`media.model.${productKey}.enabled`),
 		),
-	);
-	const environmentGraph = executableRouteGraphOptionsFromEnvironment(environment);
+	]);
 	return {
 		...environmentGraph,
 		generationEnabled:

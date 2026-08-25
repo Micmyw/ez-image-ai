@@ -1,0 +1,106 @@
+{
+	"version": 1,
+	"deploymentRevision": null,
+	"scenarios": [
+		{
+			"id": "registration-draft-recovery",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs the staging environment name, deployed revision, mail delivery reference, and redacted Playwright trace for registration, verification, login, and draft recovery."
+		},
+		{
+			"id": "standard-success",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs the staging Standard route identifier, Trigger.dev run reference, PostgreSQL job/reservation evidence, private output metadata, and billed Provider cost."
+		},
+		{
+			"id": "quality-success",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs the separately enabled staging Quality route identifier, Trigger.dev run reference, private approved output evidence, latency, and billed Provider cost."
+		},
+		{
+			"id": "provider-failure-credit-release",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs a real staging Provider failure reference and immutable reservation, release, ledger, job, and Outbox evidence showing zero charge."
+		},
+		{
+			"id": "uncertain-submission-recovery",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs a staging uncertain-acceptance attempt, recovery references for the same attempt, retained reservation, audited decision, and idempotent replay result."
+		},
+		{
+			"id": "moderation-rejection",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs production-like prompt and output moderation rejection references, quarantined private asset state, released credits, and redacted audit evidence."
+		},
+		{
+			"id": "cancelable-job-cancellation",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs a cancelable staging Provider task reference, cancellation acknowledgement, terminal job state, cleanup evidence, and one idempotent credit mutation."
+		},
+		{
+			"id": "before-after-signed-download",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs owner-scoped Before/After rendering and short-lived signed download evidence from the private staging bucket, with URL values redacted."
+		},
+		{
+			"id": "edit-again-three-rounds",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs a redacted staging trace for three Edit Again rounds plus private session ownership, parentJobId chain, and immutable version evidence."
+		},
+		{
+			"id": "checkout",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs Stripe test-mode Product/Price environment name, Checkout reference, verified Webhook event, Outbox processing, Purchase projection, and no browser-side credit grant."
+		},
+		{
+			"id": "monthly-credits",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs a Stripe test-mode monthly renewal reference and idempotent Billing Period, Credit Lot, Ledger, Subscription, and Outbox evidence."
+		},
+		{
+			"id": "annual-monthly-credits",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs a Stripe test-mode annual purchase and two internal monthly grant references proving credits are not granted as one browser-side annual lump sum."
+		},
+		{
+			"id": "subscription-cancellation",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs Stripe test-mode cancellation and Portal references plus the server-owned Subscription projection and effective-period entitlement evidence."
+		},
+		{
+			"id": "refund-and-debt",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs partial and full Stripe test refunds, immutable refund ledger references, insufficient-balance Debt evidence, repayment behavior, and idempotent replay."
+		},
+		{
+			"id": "webhook-replay",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs repeated delivery of the same verified Stripe and Provider staging events with stable raw-event, Outbox, projection, and ledger identities."
+		},
+		{
+			"id": "reconciliation-recovery",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs a deliberately missed staging event, reconciliation checkpoint, recovered projection, audit reference, and proof that no duplicate credit or Provider attempt was created."
+		},
+		{
+			"id": "asset-deletion-cleanup",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs private staging object metadata before and after soft deletion, durable cleanup Outbox processing, retention timing, and physical deletion confirmation."
+		},
+		{
+			"id": "global-product-kill-switch",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs staging evidence for global disable, Standard-only enable, independent Quality disable, late worker admission rejection, and audited runtime override rollback."
+		},
+		{
+			"id": "sentry-alert",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs the Sentry staging environment name, redacted event reference, configured alert rule, destination receipt, release correlation, and privacy review."
+		},
+		{
+			"id": "recovery-rollback-drill",
+			"status": "NOT_COMPLETED",
+			"evidence": "Needs drill timestamps, operators, deployed and restored revisions, kill-switch evidence, queue and Outbox drain, invariant report, smoke result, and recovery time."
+		}
+	]
+}

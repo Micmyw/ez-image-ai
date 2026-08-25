@@ -188,6 +188,8 @@ function safeTestDatabaseUrl(): string {
 	const allowedDatabases = new Set([
 		"/ezpic_pr6_subscriptions_test",
 		"/ezpic_pr7_growth_operations_test",
+		"/ezpic_pr8_test",
+		...(process.env.CI === "true" ? ["/ai_media_foundation_test"] : []),
 	]);
 	if (
 		(parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") ||

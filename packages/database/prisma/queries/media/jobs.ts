@@ -31,6 +31,20 @@ export async function getCommittedDailyGenerationCost(
 	return result?.total ?? 0n;
 }
 
+export async function getCommittedGlobalDailyGenerationCost(
+	input: { now?: Date },
+	client: MediaTransactionClient | Prisma.TransactionClient,
+): Promise<bigint> {
+	const startOfDay = new Date(input.now ?? new Date());
+	startOfDay.setUTCHours(0, 0, 0, 0);
+	const [result] = await client.$queryRaw<Array<{ total: bigint | null }>>`
+		SELECT COALESCE(SUM(quote."costMicros"), 0)::bigint AS "total"
+		FROM "generation_job" job
+		JOIN "generation_quote" quote ON quote."id" = job."quoteId"
+		WHERE job."createdAt" >= ${startOfDay}`;
+	return result?.total ?? 0n;
+}
+
 async function findExistingJob(
 	input: CreateGenerationJobInput,
 	client: MediaTransactionClient | Prisma.TransactionClient,
@@ -159,6 +173,21 @@ export async function createGenerationJobTransaction(
 				);
 				if (committed + quote.costMicros > input.maximumDailyCostMicros) {
 					throw new Error("BUDGET_EXCEEDED");
+				}
+			}
+			if (input.maximumGlobalDailyCostMicros !== undefined) {
+				if (input.maximumGlobalDailyCostMicros <= 0n) {
+					throw new Error("Global daily Provider budget must be positive");
+				}
+				const budgetNow = new Date();
+				const utcDay = budgetNow.toISOString().slice(0, 10);
+				await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media:global-daily-provider-budget:${utcDay}`}, 0))`;
+				const globallyCommitted = await getCommittedGlobalDailyGenerationCost(
+					{ now: budgetNow },
+					tx,
+				);
+				if (globallyCommitted + quote.costMicros > input.maximumGlobalDailyCostMicros) {
+					throw new Error("GLOBAL_DAILY_BUDGET_EXCEEDED");
 				}
 			}
 			await lockMediaAssetGenerationBindings(input.inputAssetIds, tx);

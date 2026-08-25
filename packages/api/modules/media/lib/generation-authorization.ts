@@ -10,6 +10,7 @@ import {
 	type PlanId,
 	type ProductModelKey,
 } from "@repo/config";
+import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
 import { db } from "@repo/database/client";
 
 import { ensureFreePlanCreditsForUser } from "./free-plan-credits";
@@ -23,6 +24,8 @@ export interface GenerationAccessSnapshot {
 	spendableCredits: bigint;
 	creditDebt: bigint;
 	dailyCostMicros: bigint;
+	globalDailyCostMicros?: bigint;
+	maximumGlobalDailyCostMicros?: bigint;
 	storageUsageBytes: bigint;
 	maximumStorageBytes: bigint;
 	planId: PlanId;
@@ -56,12 +59,14 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 		const startOfDay = new Date();
 		startOfDay.setUTCHours(0, 0, 0, 0);
 		const sourceAssetId = "sourceAssetId" in input.input ? input.input.sourceAssetId : undefined;
+		const maximumGlobalDailyCostMicros = mediaDailyProviderCostBudgetMicros(process.env);
 		const [
 			blocked,
 			modelDisabled,
 			account,
 			spendableLots,
 			dailyCost,
+			globalDailyCost,
 			storageUsage,
 			entitlement,
 			sourceAsset,
@@ -96,6 +101,13 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 				},
 				_sum: { costMicros: true },
 			}),
+			db.generationQuote.aggregate({
+				where: {
+					job: { isNot: null },
+					createdAt: { gte: startOfDay },
+				},
+				_sum: { costMicros: true },
+			}),
 			db.storageUsageReservation.aggregate({
 				where: {
 					ownerType: "USER",
@@ -124,6 +136,8 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 			spendableCredits: spendableLots._sum.remainingAmount ?? 0n,
 			creditDebt: account?.creditDebt ?? 0n,
 			dailyCostMicros: dailyCost._sum.costMicros ?? 0n,
+			globalDailyCostMicros: globalDailyCost._sum.costMicros ?? 0n,
+			...(maximumGlobalDailyCostMicros === undefined ? {} : { maximumGlobalDailyCostMicros }),
 			storageUsageBytes: storageUsage._sum.bytes ?? 0n,
 			maximumStorageBytes: maximumMediaStorageBytes(),
 			planId: entitlement.id,
@@ -179,8 +193,11 @@ export async function assertGenerationAllowed(
 	if (
 		input.costMicros > BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumJobCostMicros) ||
 		((input.enforceProspectiveDailyBudget ?? true) &&
-			access.dailyCostMicros + input.costMicros >
-				BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros))
+			(access.dailyCostMicros + input.costMicros >
+				BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros) ||
+				(access.maximumGlobalDailyCostMicros !== undefined &&
+					(access.globalDailyCostMicros ?? 0n) + input.costMicros >
+						access.maximumGlobalDailyCostMicros)))
 	) {
 		throw new Error("BUDGET_EXCEEDED");
 	}

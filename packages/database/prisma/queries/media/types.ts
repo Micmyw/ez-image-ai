@@ -54,6 +54,7 @@ export interface CreateGenerationJobInput {
 	expectedAssetModerationRuleVersion?: string;
 	expectedAssetModerationPolicyVersion?: string;
 	maximumDailyCostMicros?: bigint;
+	maximumGlobalDailyCostMicros?: bigint;
 	maximumStorageBytes?: bigint;
 	maximumConcurrentJobs?: number;
 	edit?:

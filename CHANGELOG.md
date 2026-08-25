@@ -1,5 +1,42 @@
 # Changelog
 
+## 2026-08-26
+
+### Operations
+
+- Added a fail-closed EzPic staging/production contract covering isolated environment/resource
+  identities, real HTTPS origins, PostgreSQL, Trigger.dev, private S3/R2, Standard/Quality Providers,
+  production moderation, Stripe, Sentry, PostHog/GSC, mail, kill switches, daily Provider budget,
+  and alert thresholds. Production readiness now includes this contract and returns a bounded 503
+  instead of leaking configuration details.
+- Added independent Standard Edit and Quality Edit environment flags on API route selection and late
+  worker admission. Quality requires Standard; existing audited database runtime overrides remain
+  the operational kill-switch path.
+- Added a global UTC-day Provider cost admission gate. Job creation serializes the cross-user budget
+  check in PostgreSQL, uses frozen Quote cost, and preserves idempotent replay without a second job,
+  credit, Outbox, or cost state system.
+- Added offline evidence validation and production certification commands, a distinct four-environment
+  matrix, an exact 20-scenario staging evidence contract, and a six-surface k6 plan for Marketing,
+  upload concurrency, Quote/Create, polling, signed URLs, and admin aggregates. Remote execution is
+  staging-only and requires opt-in, allowlisting, dual-origin confirmation, request/error/P95 gates,
+  and bounded Provider spend confirmation.
+
+### Analytics and privacy
+
+- Added consent-gated PostHog delivery for the existing minimized funnel schema and a POST-only
+  Marketing-to-SaaS `sha256:` anonymous session handoff. The sender omits credentials and continues
+  to reject prompts, private identifiers, URLs, Provider/model/cost data, and other sensitive fields.
+- Preserved the HttpOnly anonymous draft claim cookie when writing the separate analytics-session
+  cookie. Real cross-origin ingestion and GSC verification remain `NOT_COMPLETED` until externally
+  evidenced.
+
+### Documentation
+
+- Added the EzPic production runbook, launch checklist, rollback procedure, final cost model, and
+  machine-validated evidence templates. Every unavailable cloud, deployment, billing, analytics,
+  cost, alert, load, DNS/SSL, and rollback item is explicitly `NOT_COMPLETED`; no local mock, dry run,
+  or build is described as live certification.
+
 ## 2026-08-25
 
 ### Product

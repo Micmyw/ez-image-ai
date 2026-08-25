@@ -107,6 +107,11 @@ describe("generation authorization", () => {
 		["disabled model", { modelDisabled: true }, "MODEL_DISABLED"],
 		["daily budget", { dailyCostMicros: 25_000_000n }, "BUDGET_EXCEEDED"],
 		[
+			"global daily Provider budget",
+			{ globalDailyCostMicros: 249_999_000n, maximumGlobalDailyCostMicros: 250_000_000n },
+			"BUDGET_EXCEEDED",
+		],
+		[
 			"storage quota",
 			{ storageUsageBytes: 100n, maximumStorageBytes: 100n },
 			"STORAGE_QUOTA_EXCEEDED",
