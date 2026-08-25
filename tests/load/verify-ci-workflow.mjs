@@ -1,12 +1,35 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const workflow = readFileSync(resolve(process.cwd(), ".github/workflows/validate-prs.yml"), "utf8");
+const gitleaksIgnorePath = resolve(process.cwd(), ".gitleaksignore");
+if (!existsSync(gitleaksIgnorePath))
+	throw new Error("exact Gitleaks fixture fingerprints are missing");
+const gitleaksIgnore = readFileSync(gitleaksIgnorePath, "utf8");
+const quality = jobBlock(workflow, "quality", "postgres");
+const postgres = jobBlock(workflow, "postgres", "builds");
 const builds = jobBlock(workflow, "builds", "mock-e2e");
 const mockE2e = jobBlock(workflow, "mock-e2e", "supply-chain");
 
+assertNarrowGitleaksFixtureIgnores(gitleaksIgnore);
 assertNotMatch(builds, /^ {6}DATABASE_URL:\s*\$\{\{\s*env\./m);
 assertPnpmSetupPrecedesNodeCache(workflow);
+assertStepPrecedes(
+	quality,
+	"run: pnpm --filter @repo/database generate",
+	"run: pnpm lint --deny-warnings",
+);
+assertStepPrecedes(
+	postgres,
+	"run: pnpm --filter @repo/database generate",
+	"run: pnpm test:integration",
+);
+assertStepPrecedes(
+	builds,
+	"run: pnpm --filter @repo/database generate",
+	"run: pnpm --filter saas build",
+);
+assertStepPrecedes(mockE2e, "run: pnpm --filter @repo/database generate", "run: pnpm e2e:media:ci");
 
 assertIncludes(mockE2e, "name: Start pinned MinIO service");
 assertMatch(mockE2e, /minio\/minio:RELEASE\.[0-9T:-]+Z/);
@@ -26,6 +49,8 @@ assertIncludes(mockE2e, "S3_ACCESS_KEY_ID: minioadmin");
 assertIncludes(mockE2e, "S3_SECRET_ACCESS_KEY: minioadmin");
 assertIncludes(mockE2e, "name: Run immutable upload MinIO regression");
 assertIncludes(mockE2e, "run: pnpm --filter @repo/storage test:minio");
+assertIncludes(mockE2e, "run: pnpm --filter saas exec playwright install --with-deps chromium");
+assertNotMatch(mockE2e, /run: pnpm --filter @repo\/e2e-media exec playwright install/);
 
 function jobBlock(workflowText, jobName, nextJobName) {
 	const start = workflowText.indexOf(`  ${jobName}:\n`);
@@ -68,4 +93,31 @@ function assertPnpmSetupPrecedesNodeCache(workflowText) {
 		}
 	}
 	if (setupNodeCount === 0) throw new Error("workflow contract is missing setup-node");
+}
+
+function assertNarrowGitleaksFixtureIgnores(value) {
+	const fingerprints = value
+		.split("\n")
+		.map((line) => line.trim())
+		.filter((line) => line && !line.startsWith("#"));
+	if (fingerprints.length !== 20) {
+		throw new Error("Gitleaks fixture allowlist must contain exactly 20 known fingerprints");
+	}
+	for (const fingerprint of fingerprints) {
+		if (
+			!/^[0-9a-f]{40}:[^:]+\.test\.ts:(?:generic-api-key|stripe-access-token):[0-9]+$/.test(
+				fingerprint,
+			)
+		) {
+			throw new Error("Gitleaks fixture allowlist contains a broad or non-test entry");
+		}
+	}
+}
+
+function assertStepPrecedes(job, requiredStep, dependentStep) {
+	const requiredIndex = job.indexOf(requiredStep);
+	const dependentIndex = job.indexOf(dependentStep);
+	if (requiredIndex === -1 || dependentIndex === -1 || requiredIndex >= dependentIndex) {
+		throw new Error(`workflow step must precede dependent step: ${requiredStep}`);
+	}
 }

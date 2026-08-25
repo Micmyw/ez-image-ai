@@ -1,0 +1,21 @@
+# Exact historical fingerprints for synthetic credentials in test fixtures.
+c56c7ab545c0a975c9646480a7e23cf464a0298b:packages/api/modules/media/procedures/create-generation.test.ts:generic-api-key:35
+c56c7ab545c0a975c9646480a7e23cf464a0298b:packages/api/modules/media/procedures/create-generation.test.ts:generic-api-key:90
+c56c7ab545c0a975c9646480a7e23cf464a0298b:packages/api/modules/media/procedures/create-generation.test.ts:generic-api-key:155
+c56c7ab545c0a975c9646480a7e23cf464a0298b:packages/api/modules/media/procedures/create-generation.test.ts:generic-api-key:213
+48692fbcb9f9e6d68430ea5b0d1545102f2ba4d4:packages/api/modules/payments/procedures/admin-stripe-refund-repairs.test.ts:generic-api-key:30
+48692fbcb9f9e6d68430ea5b0d1545102f2ba4d4:packages/api/modules/payments/procedures/admin-stripe-refund-repairs.test.ts:generic-api-key:53
+48692fbcb9f9e6d68430ea5b0d1545102f2ba4d4:packages/api/modules/payments/procedures/admin-stripe-refund-repairs.test.ts:generic-api-key:104
+e458b5f2b2dff836ba9da9bc9277410467221afb:packages/api/modules/media/procedures/create-generation.test.ts:generic-api-key:27
+e458b5f2b2dff836ba9da9bc9277410467221afb:packages/api/modules/media/procedures/create-generation.test.ts:generic-api-key:67
+e458b5f2b2dff836ba9da9bc9277410467221afb:packages/jobs/src/runtime.test.ts:generic-api-key:46
+8938c213cae8c078bf05433b9acdc89aa96fa0be:packages/api/modules/testing/media-load.test.ts:generic-api-key:8
+8938c213cae8c078bf05433b9acdc89aa96fa0be:packages/api/modules/media/procedures/admin-media.test.ts:generic-api-key:138
+8938c213cae8c078bf05433b9acdc89aa96fa0be:packages/api/modules/media/procedures/admin-media.test.ts:generic-api-key:144
+8938c213cae8c078bf05433b9acdc89aa96fa0be:packages/api/modules/media/procedures/admin-media.test.ts:generic-api-key:161
+8938c213cae8c078bf05433b9acdc89aa96fa0be:packages/api/modules/media/procedures/admin-media.test.ts:generic-api-key:178
+8938c213cae8c078bf05433b9acdc89aa96fa0be:packages/api/modules/media/procedures/admin-media.test.ts:generic-api-key:194
+8938c213cae8c078bf05433b9acdc89aa96fa0be:packages/api/modules/media/procedures/admin-media.test.ts:generic-api-key:221
+8938c213cae8c078bf05433b9acdc89aa96fa0be:packages/auth/lib/organization-deletion.integration.test.ts:generic-api-key:121
+8938c213cae8c078bf05433b9acdc89aa96fa0be:packages/logs/lib/redaction.test.ts:stripe-access-token:10
+8938c213cae8c078bf05433b9acdc89aa96fa0be:packages/logs/lib/redaction.test.ts:stripe-access-token:31
