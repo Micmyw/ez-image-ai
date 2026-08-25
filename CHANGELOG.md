@@ -29,6 +29,12 @@
 - Kept user retries of failed root and child edits inside the original private session and branch.
   Retry recovery checkpoints the immutable edit context in a fresh moderated quote, creates a new
   reservation/job/Outbox event, and rejects any recovered result that detached from the session.
+- Packaged Free, Creator, and Studio from one entitlement catalog: 25/1,000/5,000 monthly credits;
+  1/3/10 concurrent edits; Standard-only Free and Standard/Quality paid access; 10/20/20 MB image
+  inputs; and $19/$190 Creator plus $79/$790 Studio billing intervals.
+- Added a Free-to-paid editor upgrade path that retains the private source image, prompt, Quality
+  selection, and edit-session context. Checkout return waits for server Webhook state and restores
+  that context only after the expected paid plan becomes active.
 
 ### Changed
 
@@ -37,6 +43,10 @@
 - Replaced starter branding and screenshots with original EzPic placeholder icons, social images,
   and workspace illustrations, and aligned public/authenticated navigation and copy with image
   editing.
+- Derived paid checkout prices from the entitlement catalog while keeping all Stripe Price IDs in
+  server environment configuration. Missing or malformed IDs now fail closed before Stripe is
+  called and show a localized temporary-unavailability message; active internal BillingPlan
+  snapshots must also match canonical plan credits, identity, amount, and currency.
 
 ### Fixed
 
@@ -44,6 +54,12 @@
   storage, or draft-state writes, including the exact decoded-byte boundary.
 - Made the marketing edit-mode labels and credit amounts come from the canonical media catalog;
   locale messages now format supplied credit values instead of owning pricing numbers.
+- Enforced paid-plan resolution, product access, concurrent-job limits, and plan-specific image byte
+  limits across generation, retry, upload, balance, and editor recovery APIs, including active
+  PAST_DUE grace periods and exact boundary behavior.
+- Granted Free monthly credits through the existing transactional Credit Account/Lot/Ledger command
+  with a stable UTC-month reference key, suppressing grants for effective paid subscriptions and
+  making replay and concurrent requests idempotent.
 
 ### SEO
 
@@ -65,12 +81,19 @@
 - Documented the nullable edit-session migration, non-destructive rollback, legacy-job
   compatibility, and the existing Prisma-only media boundary. No partial Drizzle media schema or
   second job/credit/Outbox data layer was introduced.
+- Added the EzPic pricing and margin record with the full-use calculation method, environment-only
+  Stripe identifier boundary, rollback instructions, and explicit `NOT_COMPLETED` status for real
+  Provider cost, margin approval, legal/payment inputs, external services, deployment, and live
+  verification.
 
 ### Testing
 
-- Expanded the deterministic production-build browser suite to 11 SaaS checks and five marketing
+- Expanded the deterministic production-build browser suite to 13 SaaS checks and five marketing
   checks with no skips, including root session creation, a second edit, and branching from an older
   successful version with isolated PostgreSQL, private MinIO, and test Provider/moderation adapters.
+- Added unit, PostgreSQL integration, Stripe fixture, and Playwright coverage for entitlement drift,
+  exact input/concurrency boundaries, Free-grant races, paid grace state, missing Price IDs,
+  checkout-return non-grant behavior, and editor restoration after local server-side activation.
 
 ## 2026-08-24
 

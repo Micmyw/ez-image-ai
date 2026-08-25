@@ -4,6 +4,7 @@
 	"private": true,
 	"scripts": {
 		"seed": "tsx ./src/seed.ts",
+		"cleanup": "tsx ./src/cleanup.ts",
 		"pump": "tsx ./src/pump.ts",
 		"test:contracts": "tsx --test src/*.test.ts",
 		"test": "pnpm run test:contracts",

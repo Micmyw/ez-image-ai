@@ -12,6 +12,8 @@ import {
 } from "@repo/config";
 import { db } from "@repo/database/client";
 
+import { ensureFreePlanCreditsForUser } from "./free-plan-credits";
+import { loadUserPlanEntitlement } from "./plan-entitlement";
 import { enforceMediaRateLimit } from "./rate-limit";
 import { maximumMediaStorageBytes } from "./storage-limits";
 
@@ -25,6 +27,7 @@ export interface GenerationAccessSnapshot {
 	maximumStorageBytes: bigint;
 	planId: PlanId;
 	sourceAssetReady: boolean;
+	sourceAssetBytes: bigint | null;
 }
 
 export interface GenerationAuthorizationInput {
@@ -42,11 +45,13 @@ export interface GenerationAuthorizationInput {
 interface GenerationAuthorizationDependencies {
 	enforceRateLimit(userId: string, action: string): Promise<void>;
 	isEnvironmentGenerationEnabled?(): boolean;
+	ensureFreeCredits?(userId: string): Promise<unknown>;
 	loadAccess(input: GenerationAuthorizationInput): Promise<GenerationAccessSnapshot>;
 }
 
 const productionDependencies: GenerationAuthorizationDependencies = {
 	enforceRateLimit: enforceMediaRateLimit,
+	ensureFreeCredits: ensureFreePlanCreditsForUser,
 	async loadAccess(input) {
 		const startOfDay = new Date();
 		startOfDay.setUTCHours(0, 0, 0, 0);
@@ -58,7 +63,7 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 			spendableLots,
 			dailyCost,
 			storageUsage,
-			subscription,
+			entitlement,
 			sourceAsset,
 		] = await Promise.all([
 			db.runtimeConfigOverride.findFirst({
@@ -99,11 +104,7 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 				},
 				_sum: { bytes: true },
 			}),
-			db.subscription.findFirst({
-				where: { ownerType: "USER", ownerId: input.userId, status: "ACTIVE" },
-				include: { plan: true },
-				orderBy: { updatedAt: "desc" },
-			}),
+			loadUserPlanEntitlement(input.userId),
 			sourceAssetId
 				? db.mediaAsset.findFirst({
 						where: {
@@ -113,11 +114,10 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 							status: "READY",
 							deletedAt: null,
 						},
-						select: { mimeType: true },
+						select: { mimeType: true, byteSize: true },
 					})
 				: Promise.resolve(null),
 		]);
-		const planId = resolvePlanId(subscription?.plan.metadata, subscription?.plan.name) ?? "free";
 		return {
 			generationEnabled: !blocked,
 			modelDisabled: Boolean(modelDisabled),
@@ -126,8 +126,9 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 			dailyCostMicros: dailyCost._sum.costMicros ?? 0n,
 			storageUsageBytes: storageUsage._sum.bytes ?? 0n,
 			maximumStorageBytes: maximumMediaStorageBytes(),
-			planId,
+			planId: entitlement.id,
 			sourceAssetReady: isUsableGenerationSourceAsset(input.input, sourceAsset),
+			sourceAssetBytes: sourceAsset?.byteSize ?? null,
 		};
 	},
 };
@@ -149,6 +150,7 @@ export async function assertGenerationAllowed(
 	) {
 		throw new Error("PRICE_CHANGED");
 	}
+	await dependencies.ensureFreeCredits?.(input.userId);
 	const access = await dependencies.loadAccess(input);
 	if (
 		!access.generationEnabled ||
@@ -162,6 +164,13 @@ export async function assertGenerationAllowed(
 		throw new Error("ENTITLEMENT_REQUIRED");
 	}
 	if (!access.sourceAssetReady) throw new Error("ASSET_NOT_READY");
+	if (
+		"sourceAssetId" in input.input &&
+		(access.sourceAssetBytes === null ||
+			access.sourceAssetBytes > BigInt(entitlement.maximumInputBytes))
+	) {
+		throw new Error("INPUT_TOO_LARGE");
+	}
 	if (access.creditDebt > 0n) throw new Error("CREDIT_DEBT_OUTSTANDING");
 	if (access.spendableCredits < input.credits) throw new Error("INSUFFICIENT_CREDITS");
 	if (access.storageUsageBytes >= access.maximumStorageBytes) {
@@ -193,15 +202,4 @@ export function isUsableGenerationSourceAsset(
 ): boolean {
 	if (!("sourceAssetId" in input)) return true;
 	return asset?.mimeType.startsWith("image/") ?? false;
-}
-
-function resolvePlanId(metadata: unknown, planName: string | undefined): PlanId | null {
-	const metadataPlanId =
-		metadata && typeof metadata === "object" && !Array.isArray(metadata)
-			? (metadata as Record<string, unknown>).planId
-			: undefined;
-	for (const value of [metadataPlanId, planName?.trim().toLowerCase()]) {
-		if (value === "free" || value === "creator" || value === "studio") return value;
-	}
-	return null;
 }

@@ -1,6 +1,11 @@
 import { FaqSection } from "@home/components/FaqSection";
-import { PricingSection } from "@home/components/PricingSection";
+import {
+	type MarketingCheckoutAvailability,
+	PricingSection,
+} from "@home/components/PricingSection";
 import { buildHomeStructuredData, HOME_DESCRIPTION, HOME_TITLE } from "@home/lib/home-seo";
+import { config as paymentsConfig } from "@repo/payments/config";
+import type { PaidPlan } from "@repo/payments/types";
 import { getBaseUrl } from "@shared/lib/base-url";
 import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
@@ -45,6 +50,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
 	setRequestLocale(locale);
 	const structuredData = buildHomeStructuredData(getBaseUrl());
 	const imageModes = getMarketingImageModes();
+	const checkoutAvailability = marketingCheckoutAvailability();
 
 	return (
 		<>
@@ -60,9 +66,30 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
 			<NoRestrictionsSection />
 			<HowItWorksSection />
 			<TrustSection />
-			<PricingSection />
+			<PricingSection checkoutAvailability={checkoutAvailability} />
 			<FaqSection />
 			<FinalCtaSection />
 		</>
 	);
+}
+
+function marketingCheckoutAvailability(): MarketingCheckoutAvailability {
+	const isConfigured = (planId: "creator" | "studio", interval: "month" | "year") => {
+		const plan = paymentsConfig.plans[planId];
+		if (!("prices" in plan)) return false;
+		return (plan as PaidPlan).prices.some(
+			(price) =>
+				price.type === "subscription" && price.interval === interval && Boolean(price.priceId),
+		);
+	};
+	return {
+		creator: {
+			month: isConfigured("creator", "month"),
+			year: isConfigured("creator", "year"),
+		},
+		studio: {
+			month: isConfigured("studio", "month"),
+			year: isConfigured("studio", "year"),
+		},
+	};
 }

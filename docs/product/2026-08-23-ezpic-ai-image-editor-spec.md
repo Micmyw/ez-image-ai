@@ -879,7 +879,7 @@ credits = round_up_even(
 |---|---:|---:|---:|---|
 | Free | $0 | 25/月 | 1 | Standard |
 | Creator | $19/月或$190/年 | 1,000/月 | 3 | Standard + Quality |
-| Studio | $79/月或$790/年 | 5,000/月 | 10 | Standard + Quality + 更高优先级 |
+| Studio | $79/月或$790/年 | 5,000/月 | 10 | Standard + Quality |
 
 上线前可以调整 credits，不得在组件中写死。
 
@@ -915,19 +915,18 @@ Gross Margin
 可以销售：
 
 - monthly credits；
-- Standard / Quality models；
-- priority processing；
-- longer history retention；
-- higher-resolution output；
+- Standard / Quality access；
 - more concurrent jobs；
-- commercial use only if legal and Provider terms support it。
+- private assets；
+- edit sessions/history；
+- plan-specific image input size。
 
 不得销售：
 
 - 隐私本身；所有用户默认私有；
 - 无安全审核；
 - 无限生成，除非有独立成本模型且真实实现；
-- 不存在的 4K、批量或 API。
+- 未实现的优先队列、无限历史、更高输出分辨率、商业使用承诺、4K、批量或 API。
 
 ---
 
@@ -1645,4 +1644,3 @@ latency_bucket
 - fal FLUX.2 Turbo Edit：<https://fal.ai/models/fal-ai/flux-2/turbo/edit>
 - fal FLUX.1 Kontext Pro：<https://fal.ai/models/fal-ai/flux-pro/kontext>
 - fal FLUX.1 Kontext Max：<https://fal.ai/models/fal-ai/flux-pro/kontext/max>
-

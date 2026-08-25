@@ -15,6 +15,8 @@ import { ArrowRightIcon, BadgePercentIcon, CheckIcon, StarIcon } from "lucide-re
 import { useFormatter, useTranslations } from "next-intl";
 import { useState } from "react";
 
+import { buildCheckoutReturnUrl } from "../lib/editor-upgrade";
+
 const plans = paymentsConfig.plans;
 
 interface PlanSelection {
@@ -27,11 +29,13 @@ export function PricingTable({
 	userId,
 	organizationId,
 	activePlanId,
+	returnTo = "/create",
 }: {
 	className?: string;
 	userId?: string;
 	organizationId?: string;
 	activePlanId?: string;
+	returnTo?: string;
 }) {
 	const t = useTranslations();
 	const format = useFormatter();
@@ -39,6 +43,7 @@ export function PricingTable({
 	const localeCurrency = useLocaleCurrency();
 	const [loading, setLoading] = useState<PlanId | false>(false);
 	const [interval, setInterval] = useState<"month" | "year">("month");
+	const [checkoutUnavailable, setCheckoutUnavailable] = useState(false);
 
 	const { planData } = usePlanData();
 
@@ -55,8 +60,13 @@ export function PricingTable({
 		if (!selection) {
 			return;
 		}
+		if (planId !== "creator" && planId !== "studio") {
+			setCheckoutUnavailable(true);
+			return;
+		}
 
 		setLoading(planId);
+		setCheckoutUnavailable(false);
 
 		try {
 			const { checkoutLink } = await createCheckoutLinkMutation.mutateAsync({
@@ -64,14 +74,17 @@ export function PricingTable({
 				type: selection.type,
 				interval: selection.interval,
 				organizationId,
-				redirectUrl: organizationId
-					? `${window.location.origin}/checkout-return?organizationId=${organizationId}`
-					: `${window.location.origin}/checkout-return`,
+				redirectUrl: buildCheckoutReturnUrl({
+					origin: window.location.origin,
+					planId,
+					returnTo,
+					organizationId,
+				}),
 			});
 
 			window.location.href = checkoutLink;
-		} catch (error) {
-			console.error(error);
+		} catch {
+			setCheckoutUnavailable(true);
 		} finally {
 			setLoading(false);
 		}
@@ -87,6 +100,11 @@ export function PricingTable({
 
 	return (
 		<div className={cn("@container", className)}>
+			{checkoutUnavailable && (
+				<p className="mb-4 text-sm text-center text-destructive" role="alert">
+					{t("pricing.checkoutUnavailable")}
+				</p>
+			)}
 			{hasSubscriptions && (
 				<div className="mb-6 flex justify-center">
 					<Tabs

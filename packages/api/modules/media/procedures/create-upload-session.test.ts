@@ -5,7 +5,11 @@ vi.mock("@repo/auth", () => ({
 	auth: { api: { getSession: vi.fn() } },
 }));
 
-vi.mock("@repo/database/client", () => ({ db: {} }));
+const { findSubscription } = vi.hoisted(() => ({ findSubscription: vi.fn() }));
+
+vi.mock("@repo/database/client", () => ({
+	db: { subscription: { findFirst: findSubscription } },
+}));
 vi.mock("@repo/database/media-assets", () => ({
 	createMediaUploadSessionTransaction: vi.fn(async () => undefined),
 }));
@@ -30,10 +34,25 @@ import { createUploadSession } from "./create-upload-session";
 
 describe("createUploadSession", () => {
 	beforeEach(() => {
+		vi.clearAllMocks();
 		vi.mocked(auth.api.getSession).mockResolvedValue({
 			user: { id: "user_1" },
 			session: { id: "auth_session_1" },
 		} as never);
+		findSubscription.mockResolvedValue(null);
+	});
+
+	it("rejects a Free image above 10 MB before storage or database writes", async () => {
+		await expect(
+			call(
+				createUploadSession,
+				{ contentType: "image/png", byteSize: 10 * 1024 * 1024 + 1 },
+				{ context: { headers: new Headers() } },
+			),
+		).rejects.toThrow("INPUT_TOO_LARGE");
+
+		expect(createSignedUpload).not.toHaveBeenCalled();
+		expect(createMediaUploadSessionTransaction).not.toHaveBeenCalled();
 	});
 
 	it("signs only a staging key and persists a distinct immutable final key", async () => {

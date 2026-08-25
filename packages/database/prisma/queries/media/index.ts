@@ -8,6 +8,7 @@ export * from "./credit-allocations";
 export * from "./credits";
 export * from "./drafts";
 export * from "./edit-sessions";
+export * from "./free-plan-credits";
 export * from "./jobs";
 export * from "./idempotency";
 export * from "./operations";

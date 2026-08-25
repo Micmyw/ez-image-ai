@@ -707,7 +707,7 @@
 			"label": "Quellbilder hochladen",
 			"active": "Bilder hier ablegen",
 			"idle": "Bilder hierher ziehen, einfügen oder Dateien auswählen",
-			"limit": "JPG-, PNG- oder WebP-Bilder bis 20 MB.",
+			"limit": "JPG-, PNG- oder WebP-Bilder bis {megabytes, number} MB.",
 			"pause": "Pausieren",
 			"resume": "Fortsetzen",
 			"retry": "Erneut versuchen",
@@ -750,8 +750,14 @@
 			"edit": "Einstellungen ändern",
 			"review": "Credits prüfen",
 			"safeError": "Die Bearbeitung konnte nicht gestartet werden. Prüfen Sie Ihre Credits oder versuchen Sie es später erneut.",
+			"requiredCredits": "Erforderlich: {credits, number} Credits",
+			"availableCredits": "Verfügbar: {credits} Credits",
+			"upgrade": "Tarife vergleichen",
+			"concurrentJobs": "Derzeit {count, plural, one {läuft # Bearbeitung} other {laufen # Bearbeitungen}}.",
+			"history": "Verlauf anzeigen",
 			"restore": {
-				"qualityDowngraded": "Bild und Anweisung wurden wiederhergestellt. Quality Edit ist in Ihrem Tarif nicht enthalten, daher wurde Standard Edit gewählt.",
+				"qualityUpgradeRequired": "Bild, Anweisung und die Auswahl Quality Edit wurden wiederhergestellt. Wählen Sie Creator oder Studio, um mit Quality Edit fortzufahren.",
+				"upgradeComplete": "Ihr bezahlter Tarif ist aktiv. Bild, Anweisung, Modus und Bearbeitungssitzung wurden wiederhergestellt.",
 				"verifying": "Der Entwurf wurde wiederhergestellt. Die private Sicherheitsprüfung des Quellbilds läuft noch; danach wird Prüfen freigeschaltet.",
 				"unavailable": "Diese gespeicherte Bearbeitung ist abgelaufen oder das Quellbild ist nicht mehr verfügbar. Es wurden weder Auftrag noch Credit-Reservierung erstellt."
 			},
@@ -761,8 +767,19 @@
 				"assetNotReady": "Das Quellbild ist noch nicht bereit. Warten Sie auf die private Sicherheitsprüfung oder wählen Sie ein anderes Bild.",
 				"quoteExpired": "Dieses Angebot ist abgelaufen oder die Preise haben sich geändert. Prüfen Sie die Bearbeitung erneut.",
 				"contentNotAllowed": "Die Anweisung hat die Sicherheitsprüfung nicht bestanden. Es wurden weder Auftrag noch Reservierung erstellt.",
+				"concurrentLimit": "In Ihrem Tarif läuft bereits die maximale Anzahl an Bearbeitungen. Es wurden weder neuer Auftrag noch Credit-Reservierung erstellt.",
+				"inputTooLarge": "Dieses Quellbild überschreitet das Eingabelimit Ihres Tarifs. Wählen Sie ein kleineres Bild oder vergleichen Sie Tarife.",
 				"safeError": "Die Bearbeitung konnte nicht gestartet werden. Prüfen Sie das Formular oder versuchen Sie es später erneut."
 			}
+		},
+		"upgradeDialog": {
+			"title": "Quality Edit freischalten",
+			"description": "Quellbild, Anweisung, Quality-Edit-Auswahl und Bearbeitungssitzung bleiben erhalten, während Sie Tarife vergleichen.",
+			"creator": "Creator: {credits, number} Credits pro Monat, {concurrency, number} gleichzeitige Bearbeitungen, Quellbilder bis {megabytes, number} MB.",
+			"studio": "Studio: {credits, number} Credits pro Monat, {concurrency, number} gleichzeitige Bearbeitungen, Quellbilder bis {megabytes, number} MB.",
+			"storageUnavailable": "Dieser Browser konnte den Bearbeitungsentwurf nicht speichern. Lassen Sie diesen Tab geöffnet und versuchen Sie es erneut.",
+			"cancel": "Nicht jetzt",
+			"continue": "Tarif auswählen"
 		},
 		"editor": {
 			"source": {

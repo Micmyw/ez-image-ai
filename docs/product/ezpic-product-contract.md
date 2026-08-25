@@ -92,10 +92,12 @@ per-quote idempotency key and the existing transaction to bind the frozen input 
 credits, create the job, and write its initial Outbox event. Clients never submit Provider/model
 routes, prices, credit amounts, signed URLs, or arbitrary remote inputs.
 
-Claimed drafts, `reuseJob`, and asset reuse restore the source image, prompt, and edit mode. When an
-active plan no longer permits Quality Edit, recovery preserves the image and prompt, falls back to
-Standard Edit, and explains the downgrade. Expired, missing, cross-owner, deleted, and otherwise
-invalid recovery inputs show an explicit error without creating a quote, job, or reservation.
+Claimed drafts, `reuseJob`, and asset reuse restore the source image, prompt, and edit mode. When the
+current plan does not permit Quality Edit, recovery preserves the image, prompt, Quality selection,
+and eligible edit-session context, then opens the upgrade path. It never silently downgrades or
+submits Standard Edit. The API independently rejects the unavailable product even if a client
+bypasses the interface. Expired, missing, cross-owner, deleted, and otherwise invalid recovery
+inputs show an explicit error without creating a quote, job, or reservation.
 
 Job state is recoverable from the URL after refresh. The result panel reports safe progress and
 reserved/charged/released credit summaries, delegates cancellation eligibility to the server state
@@ -151,17 +153,44 @@ accept only a result Job whose session and parent match that checkpoint; a detac
 
 ## Plans
 
-PR 1 retains the existing plan IDs, credit grants, concurrency, upload entitlements, Stripe price
-references, and configured monetary prices. Only the public product entitlements change:
+PR 6 freezes the public package contract below. `PLAN_ENTITLEMENTS` supplies these values to both
+pricing surfaces and every runtime authorization path; Stripe configuration derives its monetary
+prices from the same entries rather than repeating entitlement numbers.
 
-| Plan    | Allowed products               |
-| ------- | ------------------------------ |
-| Free    | Standard Edit (`image-fast`)   |
-| Creator | Standard Edit and Quality Edit |
-| Studio  | Standard Edit and Quality Edit |
+| Plan    | Monthly credits | Concurrent edits | Allowed products                                      | Max image input | Price                |
+| ------- | --------------: | ---------------: | ----------------------------------------------------- | --------------: | -------------------- |
+| Free    |              25 |                1 | Standard Edit (`image-fast`)                          |           10 MB | $0                   |
+| Creator |           1,000 |                3 | Standard (`image-fast`) and Quality (`image-quality`) |           20 MB | $19/month, $190/year |
+| Studio  |           5,000 |               10 | Standard (`image-fast`) and Quality (`image-quality`) |           20 MB | $79/month, $790/year |
 
-No Stripe price is created or changed in this PR. Provider benchmarking and the final credit/price
-decision belong to later product PRs.
+The API enforces product access, active-job concurrency, and input byte size at exact boundaries and
+fails closed under concurrent confirmation. Privacy, private assets, edit sessions/history, and the
+existing review-before-confirm workflow apply to every plan. Pricing does not promise priority
+queues, unbounded history, bulk operations, an API, or any other unimplemented entitlement.
+
+Free users receive 25 expiring credits per UTC calendar month through the existing Credit Account,
+Credit Lot, immutable Ledger, and `createCreditGrant` path. The stable reference key is
+`free-plan:user:<userId>:<YYYY-MM>`. The server serializes the operation and suppresses it for both
+ACTIVE paid subscriptions and still-valid PAST_DUE grace periods, so concurrent requests, replay,
+and legacy paid state cannot create a second or inappropriate Free grant. The browser and checkout
+return never issue credits.
+
+Creator and Studio Price IDs come only from the four server environment variables documented
+in `.env.local.example`. A missing or malformed ID removes that checkout selection server-side and
+the paid CTA reports temporary unavailability before any Stripe call. A matching active
+`BillingPlan` snapshot must agree with the canonical plan identity, monthly credits, interval price,
+and currency; drift also fails closed without rewriting history. Checkout return waits for the
+server-owned Webhook projection and restores the saved editor draft/session only after the expected
+plan is ACTIVE or still inside its recorded PAST_DUE grace. Annual billing continues to create the
+existing monthly internal credit periods;
+Webhook replay, cancellation, partial/full refund, refund Debt, and failed-job releases keep the
+existing immutable-ledger semantics. Customer Portal access remains subject to the existing user or
+organization owner authorization rules.
+
+The monetary amounts above are configuration, not a production margin certification. PR 2 contains
+no measured or billed Provider cost and did not certify Standard or Quality routes. The calculation
+method, evidence status, production prerequisites, and rollback are recorded in
+[`ezpic-pricing-and-margin.md`](./ezpic-pricing-and-margin.md).
 
 ## Navigation and indexing
 

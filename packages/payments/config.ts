@@ -1,4 +1,32 @@
+import { getPlanEntitlement } from "@repo/config";
+
 import type { PaymentsConfig } from "./types";
+
+const STRIPE_PRICE_ID = /^price_[A-Za-z0-9]+$/;
+const PRICE_ENVIRONMENT_KEYS = {
+	creator: {
+		month: "PRICE_ID_CREATOR_MONTHLY",
+		year: "PRICE_ID_CREATOR_YEARLY",
+	},
+	studio: {
+		month: "PRICE_ID_STUDIO_MONTHLY",
+		year: "PRICE_ID_STUDIO_YEARLY",
+	},
+} as const;
+
+function stripePriceId(value: string | undefined): string | undefined {
+	const candidate = value?.trim();
+	return candidate && STRIPE_PRICE_ID.test(candidate) ? candidate : undefined;
+}
+
+function subscriptionPrices(planId: "creator" | "studio") {
+	const entitlement = getPlanEntitlement(planId);
+	return entitlement.prices.map((price) => ({
+		type: "subscription" as const,
+		...price,
+		priceId: stripePriceId(process.env[PRICE_ENVIRONMENT_KEYS[planId][price.interval]]),
+	}));
+}
 
 export const config: PaymentsConfig = {
 	billingAttachedTo: "user",
@@ -6,55 +34,10 @@ export const config: PaymentsConfig = {
 	plans: {
 		creator: {
 			recommended: true,
-			prices: [
-				{
-					type: "subscription",
-					priceId: process.env.PRICE_ID_CREATOR_MONTHLY as string,
-					interval: "month",
-					amount: 19,
-					currency: "USD",
-					monthlyCredits: 1_000,
-					maximumConcurrentJobs: 3,
-					maximumStorageBytes: 100 * 1024 * 1024,
-				},
-				{
-					type: "subscription",
-					priceId: process.env.PRICE_ID_CREATOR_YEARLY as string,
-					interval: "year",
-					amount: 190,
-					currency: "USD",
-					monthlyCredits: 1_000,
-					maximumConcurrentJobs: 3,
-					maximumStorageBytes: 100 * 1024 * 1024,
-				},
-			],
+			prices: subscriptionPrices("creator"),
 		},
 		studio: {
-			prices: [
-				{
-					type: "subscription",
-					interval: "month",
-					priceId: process.env.PRICE_ID_STUDIO_MONTHLY as string,
-					amount: 79,
-					currency: "USD",
-					monthlyCredits: 5_000,
-					maximumConcurrentJobs: 10,
-					maximumStorageBytes: 250 * 1024 * 1024,
-				},
-				{
-					type: "subscription",
-					interval: "year",
-					priceId: process.env.PRICE_ID_STUDIO_YEARLY as string,
-					amount: 790,
-					currency: "USD",
-					monthlyCredits: 5_000,
-					maximumConcurrentJobs: 10,
-					maximumStorageBytes: 250 * 1024 * 1024,
-				},
-			],
-		},
-		enterprise: {
-			isEnterprise: true,
+			prices: subscriptionPrices("studio"),
 		},
 	},
 };

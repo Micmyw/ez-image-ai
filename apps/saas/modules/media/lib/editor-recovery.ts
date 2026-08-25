@@ -1,4 +1,4 @@
-import { PLAN_ENTITLEMENTS } from "@repo/config/client";
+import { resolvePlanEntitlement } from "@repo/config/client";
 
 import { buildGenerationInput } from "./form-schema";
 
@@ -32,7 +32,7 @@ interface RecoverySourceAsset {
 }
 
 export type EditorRestoreState = "idle" | "ready" | "verifying" | "error";
-export type EditorRestoreNotice = "quality-downgraded" | "unavailable" | null;
+export type EditorRestoreNotice = "quality-upgrade-required" | "unavailable" | null;
 
 export interface EditorRecoveryResult {
 	initialDraft: EditorDraftInput | null;
@@ -58,15 +58,7 @@ export function resolveEditorAllowedProductKeys(
 	metadata: unknown,
 	planName: string | undefined,
 ): EditorProductKey[] {
-	const metadataPlanId =
-		metadata && typeof metadata === "object" && !Array.isArray(metadata)
-			? (metadata as Record<string, unknown>).planId
-			: undefined;
-	const planId = [metadataPlanId, planName?.trim().toLowerCase()].find(
-		(value) => value === "free" || value === "creator" || value === "studio",
-	);
-	const entitlement = PLAN_ENTITLEMENTS.find((plan) => plan.id === (planId ?? "free"));
-	return (entitlement?.allowedProducts ?? ["image-fast"]).filter(
+	return resolvePlanEntitlement(metadata, planName).allowedProducts.filter(
 		(productKey): productKey is EditorProductKey => isEditorProductKey(productKey),
 	);
 }
@@ -113,16 +105,16 @@ export function resolveEditorRecovery(input: {
 	}
 	if (generationInput.sourceAssetId !== input.sourceAsset.id) return unavailableRecovery();
 
-	const qualityDowngraded =
+	const qualityUpgradeRequired =
 		input.candidate.productKey === "image-quality" &&
 		!input.allowedProductKeys.includes("image-quality");
 	return {
 		initialDraft: {
-			productKey: qualityDowngraded ? "image-fast" : input.candidate.productKey,
+			productKey: input.candidate.productKey,
 			input: generationInput,
 		},
 		restoreState: input.sourceAsset.status === "READY" ? "ready" : "verifying",
-		notice: qualityDowngraded ? "quality-downgraded" : null,
+		notice: qualityUpgradeRequired ? "quality-upgrade-required" : null,
 	};
 }
 

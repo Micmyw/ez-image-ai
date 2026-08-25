@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { getPlanEntitlement, resolvePlanEntitlement } from "@repo/config";
 import { getOrganizationById, getOrganizationMembership } from "@repo/database";
 import { db } from "@repo/database/client";
 import { logger } from "@repo/logs";
@@ -45,13 +46,15 @@ export const createCheckoutLink = protectedProcedure
 			context: { user },
 		}) => {
 			const safeRedirectUrl = resolveCheckoutRedirectUrl(redirectUrl);
-			const customerId = await resolveCheckoutCustomerId({ organizationId, userId: user.id });
 
 			const normalizedType = type === "subscription" ? "subscription" : "one-time";
 			if (normalizedType !== "subscription") {
 				throw new ORPCError("BAD_REQUEST");
 			}
 			if (!isPlanId(planId)) {
+				throw new ORPCError("NOT_FOUND");
+			}
+			if (planId !== "creator" && planId !== "studio") {
 				throw new ORPCError("NOT_FOUND");
 			}
 
@@ -67,6 +70,7 @@ export const createCheckoutLink = protectedProcedure
 			if (!price || !priceId) {
 				throw new ORPCError("NOT_FOUND");
 			}
+			const customerId = await resolveCheckoutCustomerId({ organizationId, userId: user.id });
 
 			const trialPeriodDays =
 				price && "trialPeriodDays" in price ? price.trialPeriodDays : undefined;
@@ -79,7 +83,16 @@ export const createCheckoutLink = protectedProcedure
 			const billingPlan = await db.billingPlan.findUnique({
 				where: { provider_providerPriceId: { provider: "stripe", providerPriceId: priceId } },
 			});
-			if (!billingPlan?.active) throw new ORPCError("NOT_FOUND");
+			const entitlement = getPlanEntitlement(planId);
+			if (
+				!billingPlan?.active ||
+				resolvePlanEntitlement(billingPlan.metadata, billingPlan.name).id !== planId ||
+				billingPlan.creditsPerPeriod !== BigInt(entitlement.monthlyCredits) ||
+				billingPlan.priceMicros !== BigInt(Math.round(price.amount * 1_000_000)) ||
+				billingPlan.currency !== price.currency
+			) {
+				throw new ORPCError("NOT_FOUND");
+			}
 
 			const seats =
 				organization && price && "seatBased" in price && price.seatBased

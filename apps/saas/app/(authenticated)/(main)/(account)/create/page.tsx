@@ -5,7 +5,11 @@ import {
 	resolveEditorAllowedProductKeys,
 	resolveEditorRecovery,
 } from "@media/lib/editor-recovery";
-import { findEligibleImageEditParentForOwner, getClaimedGenerationDraft } from "@repo/database";
+import {
+	findEffectivePaidSubscription,
+	findEligibleImageEditParentForOwner,
+	getClaimedGenerationDraft,
+} from "@repo/database";
 import { db } from "@repo/database/client";
 import { cookies } from "next/headers";
 
@@ -36,11 +40,7 @@ export default async function CreatePage({
 	let parentJobId: string | null = null;
 
 	const subscription = session
-		? await db.subscription.findFirst({
-				where: { ownerType: "USER", ownerId: session.user.id, status: "ACTIVE" },
-				include: { plan: { select: { metadata: true, name: true } } },
-				orderBy: { updatedAt: "desc" },
-			})
+		? await findEffectivePaidSubscription({ ownerType: "USER", ownerId: session.user.id }, db)
 		: null;
 	const allowedProductKeys = resolveEditorAllowedProductKeys(
 		subscription?.plan.metadata,

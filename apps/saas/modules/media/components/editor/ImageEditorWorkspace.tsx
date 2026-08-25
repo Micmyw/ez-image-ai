@@ -1,10 +1,12 @@
 "use client";
 
+import { readEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { canConfirmEditorUpgrade } from "../../lib/editor-entitlement";
 import type {
 	EditorDraftInput,
 	EditorProductKey,
@@ -42,6 +44,24 @@ export function ImageEditorWorkspace({
 		formKey: 0,
 		recoveryVisible: true,
 	}));
+	const [sourceReady, setSourceReady] = useState(restoreState === "ready");
+	const [upgradeRestored, setUpgradeRestored] = useState(false);
+
+	useEffect(() => {
+		if (searchParams.get("upgrade") !== "complete") return;
+		const restored = readEditorUpgradeDraft(window.sessionStorage);
+		if (!restored) return;
+		setWorkspace((current) => ({
+			...current,
+			parentJobId: restored.parentJobId,
+			initialDraft: restored.draft,
+			formKey: current.formKey + 1,
+			recoveryVisible: true,
+		}));
+		setSourceReady(restored.sourceReady);
+		setUpgradeRestored(canConfirmEditorUpgrade(restored.draft.productKey, allowedProductKeys));
+		router.replace("/create", { scroll: false });
+	}, [allowedProductKeys, router, searchParams]);
 
 	function selectJob(nextJobId: string | null) {
 		setWorkspace((current) => ({ ...current, jobId: nextJobId }));
@@ -52,6 +72,8 @@ export function ImageEditorWorkspace({
 
 	function beginNewEdit() {
 		setWorkspace(beginNewEditorWorkspaceState);
+		setSourceReady(false);
+		setUpgradeRestored(false);
 		router.replace("/create", { scroll: false });
 	}
 
@@ -66,14 +88,19 @@ export function ImageEditorWorkspace({
 					{workspace.initialDraft ? t("draftRestored") : t("subtitle")}
 				</p>
 			</header>
-			{workspace.recoveryVisible && restoreNotice === "quality-downgraded" && (
+			{workspace.recoveryVisible && restoreNotice === "quality-upgrade-required" && (
 				<Alert className="mb-5">
-					<AlertDescription>{t("restore.qualityDowngraded")}</AlertDescription>
+					<AlertDescription>{t("restore.qualityUpgradeRequired")}</AlertDescription>
 				</Alert>
 			)}
 			{workspace.recoveryVisible && restoreState === "verifying" && (
 				<Alert className="mb-5">
 					<AlertDescription>{t("restore.verifying")}</AlertDescription>
+				</Alert>
+			)}
+			{upgradeRestored && (
+				<Alert className="mb-5">
+					<AlertDescription>{t("restore.upgradeComplete")}</AlertDescription>
 				</Alert>
 			)}
 			{workspace.recoveryVisible && restoreState === "error" && (
@@ -87,7 +114,7 @@ export function ImageEditorWorkspace({
 						key={workspace.formKey}
 						initialDraft={workspace.initialDraft}
 						allowedProductKeys={allowedProductKeys}
-						initialSourceReady={restoreState === "ready"}
+						initialSourceReady={sourceReady}
 						parentJobId={workspace.parentJobId}
 						onCreated={selectJob}
 					/>

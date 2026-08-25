@@ -13,17 +13,18 @@ export function usePlanData() {
 	const t = useTranslations();
 
 	const planData: Record<string, PlanDataEntry> = {};
-
-	for (const planId of Object.keys(config.plans)) {
+	const buildPlanDataEntry = (planId: string): PlanDataEntry => {
 		const entitlement = PLAN_ENTITLEMENTS.find((plan) => plan.id === planId);
 		const technicalFeatures = entitlement
 			? [
-					`${entitlement.monthlyCredits.toLocaleString()} credits per month`,
-					`${entitlement.maximumConcurrentJobs} concurrent jobs`,
-					`${Math.round(entitlement.maximumInputBytes / 1024 / 1024)} MB input storage`,
+					t("pricing.monthlyCredits", { credits: entitlement.monthlyCredits }),
+					t("pricing.concurrentEdits", { count: entitlement.maximumConcurrentJobs }),
+					t("pricing.maximumInputSize", {
+						megabytes: Math.round(entitlement.maximumInputBytes / 1024 / 1024),
+					}),
 				]
 			: [];
-		planData[planId] = {
+		return {
 			title: t(`pricing.products.${planId}.title`),
 			description: t(`pricing.products.${planId}.description`),
 			features: [
@@ -33,16 +34,14 @@ export function usePlanData() {
 				),
 			],
 		};
+	};
+
+	for (const planId of Object.keys(config.plans)) {
+		planData[planId] = buildPlanDataEntry(planId);
 	}
 
 	if (!config.requireActiveSubscription) {
-		planData.free = {
-			title: t("pricing.products.free.title"),
-			description: t("pricing.products.free.description"),
-			features: Object.values(
-				(t.raw("pricing.products.free.features") as Record<string, string>) ?? {},
-			),
-		};
+		planData.free = buildPlanDataEntry("free");
 	}
 
 	return { planData };

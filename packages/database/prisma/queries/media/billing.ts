@@ -1,8 +1,37 @@
 import { createHash } from "node:crypto";
 
 import type { Prisma } from "../../generated/client";
-import type { MediaTransactionClient } from "./types";
+import type { MediaDatabaseClient, MediaTransactionClient } from "./types";
 import { isDatabaseUniqueConflict, runSerializable } from "./types";
+
+export interface FindEffectivePaidSubscriptionInput {
+	ownerType: "USER" | "ORGANIZATION";
+	ownerId: string;
+	now?: Date;
+}
+
+export async function findEffectivePaidSubscription(
+	input: FindEffectivePaidSubscriptionInput,
+	client: MediaDatabaseClient,
+) {
+	const now = input.now ?? new Date();
+	return client.subscription.findFirst({
+		where: {
+			ownerType: input.ownerType,
+			ownerId: input.ownerId,
+			OR: [{ status: "ACTIVE" }, { status: "PAST_DUE", graceEndsAt: { gt: now } }],
+		},
+		select: {
+			id: true,
+			ownerType: true,
+			ownerId: true,
+			status: true,
+			graceEndsAt: true,
+			plan: { select: { metadata: true, name: true } },
+		},
+		orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+	});
+}
 
 export interface IngestPaymentEventInput {
 	provider: string;

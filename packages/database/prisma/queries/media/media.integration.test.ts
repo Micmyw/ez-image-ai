@@ -456,6 +456,39 @@ describe("media PostgreSQL transactions", () => {
 		).toBe(60n);
 	});
 
+	it("serializes plan concurrency admission and preserves the winning idempotent replay", async () => {
+		const fixture = await createBudgetFixture(client, [0n, 0n]);
+		const inputs = fixture.quotes.map((quote, index) => ({
+			ownerType: "USER" as const,
+			ownerId: fixture.ownerId,
+			submittedByUserId: fixture.ownerId,
+			quoteId: quote.id,
+			idempotencyKey: `plan-concurrency-${index}-${crypto.randomUUID()}`,
+			inputAssetIds: [],
+			expectedModerationRuleVersion: TEST_MODERATION_RULE_VERSION,
+			maximumConcurrentJobs: 1,
+		}));
+		const results = await Promise.allSettled(
+			inputs.map((input) => createGenerationJobTransaction(input, client)),
+		);
+
+		expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+		const rejected = results.filter((result) => result.status === "rejected");
+		expect(rejected).toHaveLength(1);
+		expect(rejected[0]!.reason).toMatchObject({ message: "CONCURRENT_JOB_LIMIT_REACHED" });
+		const winnerIndex = results.findIndex((result) => result.status === "fulfilled");
+		await expect(
+			createGenerationJobTransaction(inputs[winnerIndex]!, client),
+		).resolves.toMatchObject({
+			replayed: true,
+		});
+		expect(
+			await client.generationJob.count({
+				where: { ownerType: "USER", ownerId: fixture.ownerId, status: "RESERVED" },
+			}),
+		).toBe(1);
+	});
+
 	it("blocks later generation admission at the durable storage cap but preserves idempotent replay", async () => {
 		const fixture = await createBudgetFixture(client, [0n, 0n]);
 		await client.storageUsageReservation.create({

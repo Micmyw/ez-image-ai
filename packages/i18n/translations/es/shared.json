@@ -1,6 +1,7 @@
 {
 	"pricing": {
 		"choosePlan": "Elegir plan",
+		"checkoutUnavailable": "El pago está temporalmente no disponible. Inténtalo más tarde o contacta con soporte.",
 		"contactSales": "Contactar ventas",
 		"concurrentEdits": "{count, plural, one {# edición simultánea} other {# ediciones simultáneas}}",
 		"description": "Elige un plan de edición de imágenes con créditos y límites de trabajos claros.",
@@ -14,7 +15,8 @@
 				"description": "Para creadores que realizan ediciones de imágenes con regularidad.",
 				"features": {
 					"editLevels": "Acceso a Standard Edit y Quality Edit",
-					"creditReview": "Coste en créditos visible antes de cada edición"
+					"privateAssets": "Imágenes de origen y recursos editados privados",
+					"editHistory": "Sesiones e historial de edición privados"
 				},
 				"title": "Creator"
 			},
@@ -30,7 +32,8 @@
 				"description": "Prueba Standard Edit con una asignación mensual de créditos.",
 				"features": {
 					"standardEdit": "Acceso a Standard Edit",
-					"privateAssets": "Imágenes de origen y recursos editados privados"
+					"privateAssets": "Imágenes de origen y recursos editados privados",
+					"editHistory": "Sesiones e historial de edición privados"
 				},
 				"title": "Gratis"
 			},
@@ -46,7 +49,8 @@
 				"description": "Para flujos de edición de imágenes de mayor volumen.",
 				"features": {
 					"editLevels": "Acceso a Standard Edit y Quality Edit",
-					"privateHistory": "Historial de ediciones y recursos privados"
+					"privateAssets": "Imágenes de origen y recursos editados privados",
+					"editHistory": "Sesiones e historial de edición privados"
 				},
 				"title": "Studio"
 			}

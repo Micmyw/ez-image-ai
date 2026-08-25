@@ -8,10 +8,13 @@ export const planEntitlementSchema = z.object({
 	maximumConcurrentJobs: z.number().int().positive(),
 	maximumInputBytes: z.number().int().positive(),
 	allowedProducts: z.array(productModelKeySchema).min(1),
-	stripePriceId: z
-		.string()
-		.regex(/^price_[A-Za-z0-9]+$/)
-		.nullable(),
+	prices: z.array(
+		z.object({
+			interval: z.enum(["month", "year"]),
+			amount: z.number().positive(),
+			currency: z.literal("USD"),
+		}),
+	),
 });
 
 export type PlanEntitlement = z.infer<typeof planEntitlementSchema>;
@@ -26,22 +29,49 @@ export const PLAN_ENTITLEMENTS = z
 			maximumConcurrentJobs: 1,
 			maximumInputBytes: 10 * 1024 * 1024,
 			allowedProducts: ["image-fast"],
-			stripePriceId: null,
+			prices: [],
 		},
 		{
 			id: "creator",
 			monthlyCredits: 1_000,
 			maximumConcurrentJobs: 3,
-			maximumInputBytes: 100 * 1024 * 1024,
+			maximumInputBytes: 20 * 1024 * 1024,
 			allowedProducts: ["image-fast", "image-quality"],
-			stripePriceId: "price_creator",
+			prices: [
+				{ interval: "month", amount: 19, currency: "USD" },
+				{ interval: "year", amount: 190, currency: "USD" },
+			],
 		},
 		{
 			id: "studio",
 			monthlyCredits: 5_000,
 			maximumConcurrentJobs: 10,
-			maximumInputBytes: 250 * 1024 * 1024,
+			maximumInputBytes: 20 * 1024 * 1024,
 			allowedProducts: ["image-fast", "image-quality"],
-			stripePriceId: "price_studio",
+			prices: [
+				{ interval: "month", amount: 79, currency: "USD" },
+				{ interval: "year", amount: 790, currency: "USD" },
+			],
 		},
 	]);
+
+export function getPlanEntitlement(planId: PlanEntitlement["id"]): PlanEntitlement {
+	const entitlement = PLAN_ENTITLEMENTS.find((plan) => plan.id === planId);
+	if (!entitlement) throw new Error(`Unknown plan entitlement: ${planId}`);
+	return entitlement;
+}
+
+export function resolvePlanEntitlement(
+	metadata: unknown,
+	planName: string | undefined,
+): PlanEntitlement {
+	const metadataPlanId =
+		metadata && typeof metadata === "object" && !Array.isArray(metadata)
+			? (metadata as Record<string, unknown>).planId
+			: undefined;
+	const planId = [metadataPlanId, planName?.trim().toLowerCase()].find(
+		(value): value is PlanEntitlement["id"] =>
+			value === "free" || value === "creator" || value === "studio",
+	);
+	return getPlanEntitlement(planId ?? "free");
+}

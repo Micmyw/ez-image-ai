@@ -346,7 +346,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			})
 			.toBe("SETTLED:0:4");
 		await expect(page.getByRole("heading", { name: /edit was canceled/i })).toBeVisible();
-		await expect(page.getByText("4").nth(2)).toBeVisible();
+		await expect(page.getByText(/all 4 of 4 reserved credits were returned/i)).toBeVisible();
 	});
 
 	test("reuse binds the seeded READY asset into the new job", async ({ page }, testInfo) => {

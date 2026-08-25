@@ -7,36 +7,48 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { checkoutReturnDestination, createChoosePlanPath } from "../lib/editor-upgrade";
+
 const MAX_WAIT_MS = 20_000;
 const POLL_INTERVAL_MS = 2_000;
 
-export function CheckoutReturnContent({ organizationId }: { organizationId?: string }) {
+export function CheckoutReturnContent({
+	organizationId,
+	expectedPlanId,
+	returnTo,
+}: {
+	organizationId?: string;
+	expectedPlanId: "creator" | "studio";
+	returnTo: string;
+}) {
 	const t = useTranslations("checkoutReturn");
 	const router = useRouter();
 	const [polling, setPolling] = useState(true);
 
 	const { data } = useQuery({
 		...orpc.payments.getCheckoutReturnState.queryOptions({
-			input: { organizationId },
+			input: { organizationId, expectedPlanId },
 		}),
 		refetchInterval: polling ? POLL_INTERVAL_MS : false,
 	});
 
 	useEffect(() => {
-		if (data?.status === "ACTIVE" || data?.status === "PAST_DUE") {
+		const destination = checkoutReturnDestination(data?.status, returnTo);
+		if (destination) {
 			setPolling(false);
-			router.replace("/");
+			router.replace(destination);
 		}
-	}, [data?.status, router]);
+	}, [data?.status, returnTo, router]);
 
 	useEffect(() => {
+		if (!polling) return;
 		const timer = setTimeout(() => {
 			setPolling(false);
-			router.replace("/choose-plan");
+			router.replace(createChoosePlanPath(returnTo));
 		}, MAX_WAIT_MS);
 
 		return () => clearTimeout(timer);
-	}, [router]);
+	}, [polling, returnTo, router]);
 
 	return (
 		<div className="gap-4 py-8 flex flex-col items-center justify-center">

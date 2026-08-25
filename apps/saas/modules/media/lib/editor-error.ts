@@ -4,6 +4,8 @@ export type EditorErrorKey =
 	| "assetNotReady"
 	| "quoteExpired"
 	| "contentNotAllowed"
+	| "concurrentLimit"
+	| "inputTooLarge"
 	| "safeError";
 
 export function getEditorErrorKey(error: unknown): EditorErrorKey {
@@ -15,5 +17,7 @@ export function getEditorErrorKey(error: unknown): EditorErrorKey {
 		return "quoteExpired";
 	}
 	if (message.includes("CONTENT_NOT_ALLOWED")) return "contentNotAllowed";
+	if (message.includes("CONCURRENT_JOB_LIMIT_REACHED")) return "concurrentLimit";
+	if (message.includes("INPUT_TOO_LARGE")) return "inputTooLarge";
 	return "safeError";
 }

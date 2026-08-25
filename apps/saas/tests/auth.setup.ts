@@ -16,6 +16,12 @@ setup("authenticate deterministic creators", async ({ browser }) => {
 		password,
 		"playwright/.auth/empty.json",
 	);
+	await authenticate(
+		browser,
+		`media-e2e-free-${runId}@example.test`,
+		password,
+		"playwright/.auth/free.json",
+	);
 });
 
 async function authenticate(

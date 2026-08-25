@@ -1,6 +1,7 @@
 {
 	"pricing": {
 		"choosePlan": "Choisir un forfait",
+		"checkoutUnavailable": "Le paiement est temporairement indisponible. Réessayez plus tard ou contactez le support.",
 		"contactSales": "Contacter les ventes",
 		"concurrentEdits": "{count, plural, one {# retouche simultanée} other {# retouches simultanées}}",
 		"description": "Choisissez un forfait de retouche d'image avec des crédits et des limites de tâches clairs.",
@@ -14,7 +15,8 @@
 				"description": "Pour les créateurs qui retouchent régulièrement des images.",
 				"features": {
 					"editLevels": "Accès à Standard Edit et Quality Edit",
-					"creditReview": "Coût en crédits affiché avant chaque retouche"
+					"privateAssets": "Images source et ressources retouchées privées",
+					"editHistory": "Sessions et historique de retouche privés"
 				},
 				"title": "Creator"
 			},
@@ -30,7 +32,8 @@
 				"description": "Essayez Standard Edit avec une allocation mensuelle de crédits.",
 				"features": {
 					"standardEdit": "Accès à Standard Edit",
-					"privateAssets": "Images source et ressources retouchées privées"
+					"privateAssets": "Images source et ressources retouchées privées",
+					"editHistory": "Sessions et historique de retouche privés"
 				},
 				"title": "Gratuit"
 			},
@@ -46,7 +49,8 @@
 				"description": "Pour les flux de retouche d'image à plus grand volume.",
 				"features": {
 					"editLevels": "Accès à Standard Edit et Quality Edit",
-					"privateHistory": "Historique de retouches et ressources privées"
+					"privateAssets": "Images source et ressources retouchées privées",
+					"editHistory": "Sessions et historique de retouche privés"
 				},
 				"title": "Studio"
 			}

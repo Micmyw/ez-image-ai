@@ -10,6 +10,8 @@ describe("getEditorErrorKey", () => {
 		["QUOTE_EXPIRED", "quoteExpired"],
 		["PRICE_CHANGED", "quoteExpired"],
 		["CONTENT_NOT_ALLOWED", "contentNotAllowed"],
+		["CONCURRENT_JOB_LIMIT_REACHED", "concurrentLimit"],
+		["INPUT_TOO_LARGE", "inputTooLarge"],
 	] as const)("maps %s to safe editor copy", (code, key) => {
 		expect(getEditorErrorKey(new Error(code))).toBe(key);
 	});

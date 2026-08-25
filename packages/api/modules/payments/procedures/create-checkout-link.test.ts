@@ -87,12 +87,20 @@ describe("createCheckoutLink", () => {
 
 	it("rejects checkout management for an unauthorized organization", async () => {
 		vi.mocked(getOrganizationMembership).mockResolvedValueOnce(null);
+		vi.mocked(isPlanId).mockReturnValueOnce(true);
+		vi.mocked(findPriceByPlanId).mockReturnValueOnce({
+			type: "subscription",
+			interval: "month",
+			amount: 19,
+			currency: "USD",
+		});
+		vi.mocked(getProviderPriceIdByPlanId).mockReturnValueOnce("price_creator_monthly");
 
 		await expect(
 			call(
 				createCheckoutLink,
 				{
-					planId: "pro",
+					planId: "creator",
 					type: "subscription",
 					interval: "month",
 					organizationId: "organization-2",
@@ -105,6 +113,69 @@ describe("createCheckoutLink", () => {
 		expect(createCheckoutLinkWithProvider).not.toHaveBeenCalled();
 	});
 
+	it("fails closed before database or Stripe access when the configured Price ID is missing", async () => {
+		vi.mocked(isPlanId).mockReturnValueOnce(true);
+		vi.mocked(findPriceByPlanId).mockReturnValueOnce({
+			type: "subscription",
+			interval: "month",
+			amount: 19,
+			currency: "USD",
+		});
+		vi.mocked(getProviderPriceIdByPlanId).mockReturnValueOnce(null);
+
+		await expect(
+			call(
+				createCheckoutLink,
+				{
+					planId: "creator",
+					type: "subscription",
+					interval: "month",
+					redirectUrl: "http://localhost:3000/checkout-return",
+				},
+				{ context: { headers: new Headers() } },
+			),
+		).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+		expect(getCustomerIdFromEntity).not.toHaveBeenCalled();
+		expect(findBillingPlan).not.toHaveBeenCalled();
+		expect(createCheckoutLinkWithProvider).not.toHaveBeenCalled();
+	});
+
+	it("fails closed when the internal billing snapshot drifts from the canonical plan", async () => {
+		vi.mocked(isPlanId).mockReturnValueOnce(true);
+		vi.mocked(findPriceByPlanId).mockReturnValueOnce({
+			type: "subscription",
+			interval: "month",
+			amount: 19,
+			currency: "USD",
+		});
+		vi.mocked(getProviderPriceIdByPlanId).mockReturnValueOnce("price_creator_monthly");
+		vi.mocked(getCustomerIdFromEntity).mockResolvedValueOnce(null);
+		findBillingPlan.mockResolvedValueOnce({
+			id: "billing-plan-drifted",
+			active: true,
+			name: "creator",
+			metadata: { planId: "creator" },
+			creditsPerPeriod: 999n,
+			priceMicros: 19_000_000n,
+			currency: "USD",
+		} as never);
+
+		await expect(
+			call(
+				createCheckoutLink,
+				{
+					planId: "creator",
+					type: "subscription",
+					interval: "month",
+					redirectUrl: "http://localhost:3000/checkout-return",
+				},
+				{ context: { headers: new Headers() } },
+			),
+		).rejects.toMatchObject({ code: "NOT_FOUND" });
+		expect(createCheckoutLinkWithProvider).not.toHaveBeenCalled();
+	});
+
 	it("allows organization owners to create checkout links", async () => {
 		vi.mocked(getOrganizationMembership).mockResolvedValueOnce({ role: "owner" } as never);
 		vi.mocked(getCustomerIdFromEntity).mockResolvedValueOnce(null);
@@ -112,7 +183,7 @@ describe("createCheckoutLink", () => {
 		vi.mocked(findPriceByPlanId).mockReturnValueOnce({
 			type: "subscription",
 			interval: "month",
-			amount: 29,
+			amount: 19,
 			currency: "USD",
 			priceId: "price-1",
 			seatBased: true,
@@ -121,6 +192,11 @@ describe("createCheckoutLink", () => {
 		findBillingPlan.mockResolvedValueOnce({
 			id: "billing-plan-1",
 			active: true,
+			name: "creator",
+			metadata: { planId: "creator" },
+			creditsPerPeriod: 1_000n,
+			priceMicros: 19_000_000n,
+			currency: "USD",
 		} as never);
 		vi.mocked(getOrganizationById).mockResolvedValueOnce({
 			id: "organization-1",
@@ -148,7 +224,7 @@ describe("createCheckoutLink", () => {
 		const result = await call(
 			createCheckoutLink,
 			{
-				planId: "pro",
+				planId: "creator",
 				type: "subscription",
 				interval: "month",
 				organizationId: "organization-1",
@@ -165,7 +241,7 @@ describe("createCheckoutLink", () => {
 				ownerId: "organization-1",
 				ownerType: "ORGANIZATION",
 				organizationId: "organization-1",
-				planKey: "pro",
+				planKey: "creator",
 				seats: 1,
 				submittedByUserId: "user-1",
 			}),

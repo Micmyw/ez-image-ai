@@ -14,7 +14,29 @@ import { useMemo, useState } from "react";
 
 const publicProductConfig = getPublicConfig();
 
-export function PricingSection() {
+export interface MarketingCheckoutAvailability {
+	creator: Record<"month" | "year", boolean>;
+	studio: Record<"month" | "year", boolean>;
+}
+
+const unavailableCheckout: MarketingCheckoutAvailability = {
+	creator: { month: false, year: false },
+	studio: { month: false, year: false },
+};
+
+export function isMarketingCheckoutAvailable(
+	planId: string,
+	interval: "month" | "year",
+	availability: MarketingCheckoutAvailability,
+): boolean {
+	return (planId === "creator" || planId === "studio") && availability[planId][interval];
+}
+
+export function PricingSection({
+	checkoutAvailability = unavailableCheckout,
+}: {
+	checkoutAvailability?: MarketingCheckoutAvailability;
+}) {
 	const t = useTranslations();
 	const format = useFormatter();
 	const [interval, setBillingInterval] = useState<"month" | "year">("month");
@@ -139,6 +161,10 @@ export function PricingSection() {
 							const price = isFree
 								? undefined
 								: plan.prices?.find((p) => p.type === "one-time" || p.interval === interval);
+							const isPaidCheckoutUnavailable =
+								!isFree &&
+								!plan.isEnterprise &&
+								(!price || !isMarketingCheckoutAvailable(plan.id, interval, checkoutAvailability));
 							const trialPeriodDays =
 								price && "trialPeriodDays" in price && price.trialPeriodDays
 									? price.trialPeriodDays
@@ -226,7 +252,25 @@ export function PricingSection() {
 												</strong>
 											)}
 
-											{plan.to.startsWith("/") ? (
+											{isPaidCheckoutUnavailable ? (
+												<>
+													<Button
+														className="mt-4 w-full"
+														variant={plan.recommended ? "primary" : "secondary"}
+														disabled
+														aria-disabled="true"
+														aria-describedby={`pricing-${plan.id}-unavailable`}
+													>
+														{plan.cta}
+													</Button>
+													<p
+														id={`pricing-${plan.id}-unavailable`}
+														className="mt-2 text-sm text-destructive"
+													>
+														{t("pricing.checkoutUnavailable")}
+													</p>
+												</>
+											) : plan.to.startsWith("/") ? (
 												<Button
 													className="mt-4 w-full"
 													variant={plan.recommended ? "primary" : "secondary"}

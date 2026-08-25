@@ -1,13 +1,20 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { CreditBalanceSummary } from "@payments/components/CreditBalanceSummary";
+import { EditorUpgradeDialog } from "@payments/components/EditorUpgradeDialog";
+import { createChoosePlanPath, writeEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
+import { getPlanEntitlement } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
+import { useRouter } from "@shared/hooks/router";
 import { useTranslations } from "next-intl";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { useGeneration } from "../hooks/use-generation";
+import { resolveEditorProductSelection } from "../lib/editor-entitlement";
 import { getEditorErrorKey } from "../lib/editor-error";
 import type { EditorDraftInput, EditorProductKey } from "../lib/editor-recovery";
 import {
@@ -33,9 +40,14 @@ export function GenerationForm({
 	parentJobId?: string | null;
 }) {
 	const t = useTranslations("media.create");
+	const router = useRouter();
 	const generation = useGeneration({ parentJobId });
 	const products = generation.catalog.data?.products ?? [];
 	const [sourceReady, setSourceReady] = useState(initialSourceReady);
+	const [upgradeOpen, setUpgradeOpen] = useState(
+		initialDraft?.productKey === "image-quality" && !allowedProductKeys.includes("image-quality"),
+	);
+	const [upgradeStorageUnavailable, setUpgradeStorageUnavailable] = useState(false);
 	const form = useForm<GenerationFormValues>({
 		resolver: zodResolver(generationFormValuesSchema),
 		mode: "onChange",
@@ -60,6 +72,7 @@ export function GenerationForm({
 		}
 	}, [product, sourceReady, values.prompt, values.sourceAssetId]);
 	const error = generation.createQuote.error ?? generation.createGeneration.error;
+	const errorKey = getEditorErrorKey(error);
 	const suggestions = ["background", "object", "lighting", "style"].map((key) =>
 		t(`suggestions.${key}`),
 	);
@@ -78,8 +91,35 @@ export function GenerationForm({
 	}
 
 	function updateProduct(productKey: EditorProductKey) {
-		form.setValue("productKey", productKey, { shouldDirty: true, shouldValidate: true });
+		const selection = resolveEditorProductSelection(productKey, allowedProductKeys);
+		form.setValue("productKey", selection.productKey, {
+			shouldDirty: true,
+			shouldValidate: true,
+		});
 		generation.beginNewAction();
+		if (selection.upgradeRequired) setUpgradeOpen(true);
+	}
+
+	function continueToUpgrade() {
+		const current = form.getValues();
+		const saved = writeEditorUpgradeDraft(window.sessionStorage, {
+			draft: {
+				productKey: current.productKey,
+				input: {
+					kind: "image-to-image",
+					prompt: current.prompt,
+					sourceAssetId: current.sourceAssetId,
+				},
+			},
+			parentJobId: parentJobId ?? null,
+			sourceReady,
+		});
+		if (!saved) {
+			setUpgradeStorageUnavailable(true);
+			setUpgradeOpen(true);
+			return;
+		}
+		router.push(createChoosePlanPath("/create?upgrade=complete"));
 	}
 
 	async function confirmGeneration() {
@@ -96,11 +136,19 @@ export function GenerationForm({
 		<form
 			className="space-y-6"
 			onSubmit={form.handleSubmit((validated) => {
+				if (!allowedProductKeys.includes(validated.productKey)) {
+					setUpgradeOpen(true);
+					return;
+				}
 				if (input) generation.createQuote.mutate({ productKey: validated.productKey, input });
 			})}
 		>
 			<ImageSourcePanel
 				sourceAssetId={values.sourceAssetId}
+				maximumImageBytes={
+					generation.creditAccount.data?.maximumInputBytes ??
+					getPlanEntitlement("free").maximumInputBytes
+				}
 				onReadyChange={setSourceReady}
 				onChange={(assetId) => {
 					setSourceReady(false);
@@ -118,6 +166,7 @@ export function GenerationForm({
 			<EditModeSelector
 				value={values.productKey}
 				onChange={updateProduct}
+				onUpgrade={continueToUpgrade}
 				products={products}
 				allowedProductKeys={allowedProductKeys}
 			/>
@@ -166,9 +215,43 @@ export function GenerationForm({
 			)}
 			{error && (
 				<Alert variant="error">
-					<AlertDescription>{t(`errors.${getEditorErrorKey(error)}`)}</AlertDescription>
+					<AlertDescription>
+						{t(`errors.${errorKey}`)}
+						{errorKey === "insufficientCredits" && product && (
+							<CreditBalanceSummary
+								requiredCredits={product.credits}
+								availableCredits={generation.creditAccount.data?.spendableCredits ?? "0"}
+								onUpgrade={continueToUpgrade}
+							/>
+						)}
+						{errorKey === "concurrentLimit" && (
+							<div className="mt-3 gap-3 flex flex-wrap items-center justify-between">
+								<p className="text-sm">
+									{t("concurrentJobs", {
+										count: generation.creditAccount.data?.activeJobs ?? 0,
+									})}
+								</p>
+								<Button
+									size="sm"
+									variant="secondary"
+									render={(props) => <Link {...props} href="/history" />}
+								>
+									{t("history")}
+								</Button>
+							</div>
+						)}
+					</AlertDescription>
 				</Alert>
 			)}
+			<EditorUpgradeDialog
+				open={upgradeOpen}
+				onOpenChange={(open) => {
+					setUpgradeOpen(open);
+					if (!open) setUpgradeStorageUnavailable(false);
+				}}
+				onContinue={continueToUpgrade}
+				storageUnavailable={upgradeStorageUnavailable}
+			/>
 		</form>
 	);
 }

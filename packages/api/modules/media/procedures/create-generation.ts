@@ -3,7 +3,7 @@ import {
 	MEDIA_VERIFICATION_RULE_VERSION,
 	type ExecutableRouteGraphOptions,
 } from "@repo/ai";
-import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
+import { DEFAULT_PRODUCT_CONFIG, type PlanEntitlement } from "@repo/config";
 import { createGenerationJobTransaction } from "@repo/database";
 import { db } from "@repo/database/client";
 import { resolveDatabaseDispatchRoute } from "@repo/jobs";
@@ -15,6 +15,7 @@ import { dispatchCreatedJobBestEffort } from "../lib/dispatch-created-job";
 import { toMediaOrpcError } from "../lib/errors";
 import { getCurrentExecutableRouteGraphOptions } from "../lib/executable-route-graph";
 import { assertGenerationAllowed } from "../lib/generation-authorization";
+import { loadUserPlanEntitlement } from "../lib/plan-entitlement";
 import { assertFrozenQuoteRouteGraphIsCurrent } from "../lib/quote";
 import { maximumMediaStorageBytes } from "../lib/storage-limits";
 import { TEXT_MODERATION_RULE_VERSION } from "../lib/text-moderation";
@@ -78,6 +79,7 @@ interface CreateGenerationDependencies {
 	now(): Date;
 	findQuote(userId: string, quoteId: string): Promise<GenerationQuoteForCreation | null>;
 	getRouteGraphOptions(): Promise<ExecutableRouteGraphOptions>;
+	loadEntitlement(userId: string): Promise<Pick<PlanEntitlement, "maximumConcurrentJobs">>;
 	assertAllowed: typeof assertGenerationAllowed;
 	createGenerationJob(input: {
 		ownerType: "USER";
@@ -91,6 +93,7 @@ interface CreateGenerationDependencies {
 		expectedAssetModerationPolicyVersion: string;
 		maximumDailyCostMicros: bigint;
 		maximumStorageBytes: bigint;
+		maximumConcurrentJobs: number;
 		edit?:
 			| { kind: "ROOT"; rootAssetId: string }
 			| {
@@ -109,6 +112,7 @@ const defaultDependencies: CreateGenerationDependencies = {
 			where: { id: quoteId, ownerType: "USER", ownerId: userId },
 		}),
 	getRouteGraphOptions: () => getCurrentExecutableRouteGraphOptions(),
+	loadEntitlement: (userId) => loadUserPlanEntitlement(userId),
 	assertAllowed: (input) => assertGenerationAllowed(input),
 	createGenerationJob: (input) => createGenerationJobTransaction(input, db),
 };
@@ -151,6 +155,7 @@ export async function createGenerationForUser(
 		enforceProspectiveDailyBudget: false,
 		routeGraphOptions,
 	});
+	const entitlement = await dependencies.loadEntitlement(userId);
 	return dependencies.createGenerationJob({
 		ownerType: "USER",
 		ownerId: userId,
@@ -163,6 +168,7 @@ export async function createGenerationForUser(
 		expectedAssetModerationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 		maximumDailyCostMicros: BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros),
 		maximumStorageBytes: maximumMediaStorageBytes(),
+		maximumConcurrentJobs: entitlement.maximumConcurrentJobs,
 		...imageEditBinding(quote.productKey, inputSnapshot, input.parentJobId),
 	});
 }

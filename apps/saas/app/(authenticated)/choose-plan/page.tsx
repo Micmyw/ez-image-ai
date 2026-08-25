@@ -1,5 +1,9 @@
 import { getOrganizationList, getSession } from "@auth/lib/server";
 import { PricingTable } from "@payments/components/PricingTable";
+import {
+	activePlanChoosePlanDestination,
+	sanitizeEditorReturnPath,
+} from "@payments/lib/editor-upgrade";
 import { listPurchases } from "@payments/lib/server";
 import { config as authConfig } from "@repo/auth/config";
 import { config as paymentsConfig } from "@repo/payments/config";
@@ -19,9 +23,13 @@ export async function generateMetadata() {
 	};
 }
 
-export default async function ChoosePlanPage() {
+export default async function ChoosePlanPage({
+	searchParams,
+}: {
+	searchParams: Promise<{ returnTo?: string }>;
+}) {
 	const t = await getTranslations("choosePlan");
-	const session = await getSession();
+	const [session, { returnTo }] = await Promise.all([getSession(), searchParams]);
 
 	if (!session) {
 		redirect("/login");
@@ -41,9 +49,10 @@ export default async function ChoosePlanPage() {
 	const purchases = await listPurchases(organizationId);
 
 	const { activePlan } = createPurchasesHelper(purchases);
+	const activePlanDestination = activePlanChoosePlanDestination(activePlan?.id, returnTo);
 
-	if (activePlan) {
-		redirect("/");
+	if (activePlanDestination) {
+		redirect(activePlanDestination);
 	}
 
 	return (
@@ -55,6 +64,7 @@ export default async function ChoosePlanPage() {
 
 			<div>
 				<PricingTable
+					returnTo={sanitizeEditorReturnPath(returnTo)}
 					{...(organizationId
 						? {
 								organizationId,

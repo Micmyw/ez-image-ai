@@ -2,7 +2,11 @@ import type { Prisma } from "../../generated/client";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { reserveCreditsInTransaction } from "./credits";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
-import { canTransition, type GenerationJobStatusValue } from "./state-machine";
+import {
+	ACTIVE_GENERATION_JOB_STATUSES,
+	canTransition,
+	type GenerationJobStatusValue,
+} from "./state-machine";
 import { lockOwnerStorageUsage } from "./storage-usage-locks";
 import type {
 	CreateGenerationJobInput,
@@ -87,6 +91,15 @@ export async function createGenerationJobTransaction(
 
 	try {
 		return await runSerializable(client, async (tx) => {
+			if (input.maximumConcurrentJobs !== undefined) {
+				if (
+					!Number.isSafeInteger(input.maximumConcurrentJobs) ||
+					input.maximumConcurrentJobs <= 0
+				) {
+					throw new Error("Generation concurrency limit must be a positive safe integer");
+				}
+				await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`${input.ownerType}:${input.ownerId}:generation-concurrency`}, 0))`;
+			}
 			const quote = await tx.generationQuote.findUnique({ where: { id: input.quoteId } });
 			if (
 				!quote ||
@@ -107,6 +120,18 @@ export async function createGenerationJobTransaction(
 			}
 			const replay = await findExistingJob(input, tx);
 			if (replay) return replay;
+			if (input.maximumConcurrentJobs !== undefined) {
+				const activeJobs = await tx.generationJob.count({
+					where: {
+						ownerType: input.ownerType,
+						ownerId: input.ownerId,
+						status: { in: [...ACTIVE_GENERATION_JOB_STATUSES] },
+					},
+				});
+				if (activeJobs >= input.maximumConcurrentJobs) {
+					throw new Error("CONCURRENT_JOB_LIMIT_REACHED");
+				}
+			}
 			if (input.maximumStorageBytes !== undefined) {
 				if (input.maximumStorageBytes <= 0n) {
 					throw new Error("Generation storage quota must be positive");

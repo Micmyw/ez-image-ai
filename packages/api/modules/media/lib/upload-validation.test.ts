@@ -24,6 +24,21 @@ describe("media upload validation", () => {
 		).toThrow(/limit/i);
 	});
 
+	it("enforces an exact plan image boundary before upload admission", () => {
+		expect(
+			parseUploadRequest(
+				{ contentType: "image/png", byteSize: 10 * 1024 * 1024 },
+				{ maximumImageBytes: 10 * 1024 * 1024 },
+			),
+		).toMatchObject({ byteSize: 10 * 1024 * 1024, multipart: false });
+		expect(() =>
+			parseUploadRequest(
+				{ contentType: "image/png", byteSize: 10 * 1024 * 1024 + 1 },
+				{ maximumImageBytes: 10 * 1024 * 1024 },
+			),
+		).toThrow("INPUT_TOO_LARGE");
+	});
+
 	it("requires HEAD metadata and magic bytes to agree before verification", () => {
 		expect(() =>
 			assertCompletedObjectMatchesSession({

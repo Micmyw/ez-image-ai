@@ -12,12 +12,13 @@ import { getFileFingerprint } from "../lib/upload-state";
 const publicProductConfig = getPublicConfig();
 const ezPicImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 
-export function filterEzPicImageFiles(files: File[]): File[] {
+export function filterEzPicImageFiles(
+	files: File[],
+	maximumImageBytes = publicProductConfig.uploadLimits.imageBytes,
+): File[] {
+	const limit = Math.min(maximumImageBytes, publicProductConfig.uploadLimits.imageBytes);
 	return files.filter(
-		(file) =>
-			file.size > 0 &&
-			file.size <= publicProductConfig.uploadLimits.imageBytes &&
-			ezPicImageTypes.has(file.type),
+		(file) => file.size > 0 && file.size <= limit && ezPicImageTypes.has(file.type),
 	);
 }
 
@@ -25,23 +26,29 @@ export interface MediaUploaderProps {
 	value?: string[];
 	onChange: (assetIds: string[]) => void;
 	multiple?: boolean;
+	maximumImageBytes?: number;
 }
 
-export function MediaUploader({ onChange, multiple = true }: MediaUploaderProps) {
+export function MediaUploader({
+	onChange,
+	multiple = true,
+	maximumImageBytes = publicProductConfig.uploadLimits.imageBytes,
+}: MediaUploaderProps) {
 	const t = useTranslations("media.uploader");
 	const uploader = useMediaUpload(onChange);
 	const addFiles = uploader.addFiles;
+	const imageByteLimit = Math.min(maximumImageBytes, publicProductConfig.uploadLimits.imageBytes);
 	const addImageFiles = useCallback(
 		(files: File[]) => {
-			const acceptedFiles = filterEzPicImageFiles(files);
+			const acceptedFiles = filterEzPicImageFiles(files, imageByteLimit);
 			if (acceptedFiles.length) addFiles(multiple ? acceptedFiles : acceptedFiles.slice(0, 1));
 		},
-		[addFiles, multiple],
+		[addFiles, imageByteLimit, multiple],
 	);
 	const { getInputProps, getRootProps, isDragActive } = useDropzone({
 		onDrop: addImageFiles,
 		multiple,
-		maxSize: publicProductConfig.uploadLimits.imageBytes,
+		maxSize: imageByteLimit,
 		accept: {
 			"image/jpeg": [".jpg", ".jpeg"],
 			"image/png": [".png"],
@@ -67,7 +74,9 @@ export function MediaUploader({ onChange, multiple = true }: MediaUploaderProps)
 			>
 				<input {...getInputProps()} />
 				<p>{isDragActive ? t("active") : t("idle")}</p>
-				<p className="text-sm text-muted-foreground">{t("limit")}</p>
+				<p className="text-sm text-muted-foreground">
+					{t("limit", { megabytes: Math.round(imageByteLimit / 1024 / 1024) })}
+				</p>
 			</div>
 			<ul className="space-y-2" aria-live="polite">
 				{uploader.items.map((item) => {

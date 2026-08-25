@@ -13,6 +13,16 @@ export const GENERATION_JOB_STATUSES = [
 
 export type GenerationJobStatusValue = (typeof GENERATION_JOB_STATUSES)[number];
 
+export const ACTIVE_GENERATION_JOB_STATUSES = [
+	"RESERVED",
+	"DISPATCH_QUEUED",
+	"SUBMITTING",
+	"PROVIDER_PENDING",
+	"PROVIDER_RUNNING",
+	"NEEDS_RECONCILIATION",
+	"FINALIZING",
+] as const satisfies readonly GenerationJobStatusValue[];
+
 const ALLOWED_TRANSITIONS: Readonly<
 	Record<GenerationJobStatusValue, ReadonlySet<GenerationJobStatusValue>>
 > = {

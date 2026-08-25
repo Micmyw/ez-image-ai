@@ -707,7 +707,7 @@
 			"label": "Importer des images source",
 			"active": "Déposez les images ici",
 			"idle": "Glissez des images ici, collez-les ou choisissez des fichiers",
-			"limit": "Images JPG, PNG ou WebP jusqu'à 20 Mo.",
+			"limit": "Images JPG, PNG ou WebP jusqu'à {megabytes, number} Mo.",
 			"pause": "Mettre en pause",
 			"resume": "Reprendre",
 			"retry": "Réessayer",
@@ -750,8 +750,14 @@
 			"edit": "Modifier les réglages",
 			"review": "Vérifier les crédits",
 			"safeError": "La retouche n'a pas pu démarrer. Vérifiez vos crédits ou réessayez dans quelques instants.",
+			"requiredCredits": "Nécessaires : {credits, number} crédits",
+			"availableCredits": "Disponibles : {credits} crédits",
+			"upgrade": "Comparer les forfaits",
+			"concurrentJobs": "{count, plural, one {# retouche est en cours} other {# retouches sont en cours}}.",
+			"history": "Voir l'historique",
 			"restore": {
-				"qualityDowngraded": "L’image et l’instruction ont été restaurées. Quality Edit n’est pas inclus dans votre offre ; Standard Edit a donc été sélectionné.",
+				"qualityUpgradeRequired": "L’image, l’instruction et la sélection Quality Edit ont été restaurées. Choisissez Creator ou Studio pour continuer avec Quality Edit.",
+				"upgradeComplete": "Votre forfait payant est actif. L’image, l’instruction, le mode et la session de retouche ont été restaurés.",
 				"verifying": "Le brouillon a été restauré. L’image privée termine encore son contrôle de sécurité ; Vérifier sera activé ensuite.",
 				"unavailable": "Cette retouche enregistrée a expiré ou son image source n’est plus disponible. Aucune tâche ni réservation de crédits n’a été créée."
 			},
@@ -761,8 +767,19 @@
 				"assetNotReady": "L’image source n’est pas prête. Attendez son contrôle privé ou choisissez une autre image.",
 				"quoteExpired": "Ce devis a expiré ou le prix a changé. Vérifiez de nouveau la retouche avant de confirmer.",
 				"contentNotAllowed": "L’instruction n’a pas réussi le contrôle de sécurité. Aucune tâche ni réservation n’a été créée.",
+				"concurrentLimit": "Votre forfait a déjà atteint son maximum de retouches en cours. Aucune nouvelle tâche ni réservation de crédits n’a été créée.",
+				"inputTooLarge": "Cette image dépasse la limite d’entrée de votre forfait. Choisissez une image plus petite ou comparez les forfaits.",
 				"safeError": "La retouche n’a pas pu démarrer. Vérifiez le formulaire ou réessayez dans quelques instants."
 			}
+		},
+		"upgradeDialog": {
+			"title": "Débloquer Quality Edit",
+			"description": "Conservez l’image, l’instruction, la sélection Quality Edit et la session de retouche pendant que vous comparez les forfaits payants.",
+			"creator": "Creator : {credits, number} crédits par mois, {concurrency, number} retouches simultanées et images jusqu’à {megabytes, number} MB.",
+			"studio": "Studio : {credits, number} crédits par mois, {concurrency, number} retouches simultanées et images jusqu’à {megabytes, number} MB.",
+			"storageUnavailable": "Le navigateur n’a pas pu enregistrer le brouillon. Gardez cet onglet ouvert et réessayez.",
+			"cancel": "Pas maintenant",
+			"continue": "Choisir un forfait"
 		},
 		"editor": {
 			"source": {

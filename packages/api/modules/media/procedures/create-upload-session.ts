@@ -11,6 +11,7 @@ import {
 import { z } from "zod";
 
 import { protectedProcedure } from "../../../orpc/procedures";
+import { loadUserPlanEntitlement } from "../lib/plan-entitlement";
 import { enforceMediaRateLimit } from "../lib/rate-limit";
 import { mediaUploadLimits } from "../lib/storage-limits";
 import { parseUploadRequest } from "../lib/upload-validation";
@@ -24,7 +25,10 @@ export const createUploadSession = protectedProcedure
 	})
 	.input(z.object({ contentType: z.string(), byteSize: z.number().int().positive() }))
 	.handler(async ({ context: { user }, input }) => {
-		const parsed = parseUploadRequest(input);
+		const entitlement = await loadUserPlanEntitlement(user.id);
+		const parsed = parseUploadRequest(input, {
+			maximumImageBytes: entitlement.maximumInputBytes,
+		});
 		await enforceMediaRateLimit(user.id, "media:upload-session");
 		const assetId = randomUUID();
 		const sessionId = randomUUID();

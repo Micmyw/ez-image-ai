@@ -20,7 +20,12 @@ const environment = {
 	S3_SECRET_ACCESS_KEY: process.env.S3_SECRET_ACCESS_KEY ?? "minioadmin",
 	BETTER_AUTH_SECRET:
 		process.env.BETTER_AUTH_SECRET ?? "local-media-e2e-secret-must-never-be-used-outside-tests",
+	RESEND_API_KEY: process.env.RESEND_API_KEY ?? "re_local_media_e2e_not_used",
 	E2E_USER_PASSWORD: process.env.E2E_USER_PASSWORD ?? "LocalMediaE2E!2026",
+	PRICE_ID_CREATOR_MONTHLY: "",
+	PRICE_ID_CREATOR_YEARLY: "",
+	PRICE_ID_STUDIO_MONTHLY: "",
+	PRICE_ID_STUDIO_YEARLY: "",
 	MEDIA_GENERATION_ENABLED: "true",
 	MEDIA_MODERATION_ENABLED: "true",
 	MEDIA_PROVIDER_ADAPTER: "mock",
@@ -58,6 +63,7 @@ async function main(): Promise<void> {
 			"playwright",
 			"test",
 			"tests/media-generation.spec.ts",
+			"tests/subscription-upgrade.spec.ts",
 		]);
 		await command([
 			"--filter",
@@ -69,6 +75,7 @@ async function main(): Promise<void> {
 		]);
 	} finally {
 		pump?.kill();
+		await command(["--filter", "@repo/e2e-media", "run", "cleanup"]);
 	}
 }
 

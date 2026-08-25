@@ -21,9 +21,9 @@ Outbox event.
 
 The result panel follows the job across refreshes, presents safe success, failure, moderation,
 cancellation, and credit-settlement states, and compares the job-bound input with only an approved
-output. Previews and downloads use short-lived owner-authorized URLs. A recovered Quality draft
-safely falls back to Standard when the active plan lacks that entitlement while retaining its image
-and prompt.
+output. Previews and downloads use short-lived owner-authorized URLs. When the current plan does not
+include Quality Edit, the editor keeps the private source image, prompt, Quality selection, and edit
+session context and opens the plan comparison; it never silently submits a Standard Edit instead.
 
 The first confirmed edit also creates a lightweight private edit session inside that same job,
 input-binding, reservation, and Outbox transaction. `/edits` lists the signed-in user's sessions,
@@ -35,6 +35,37 @@ confirmation cannot omit, inject, or replace the quoted edit relationship.
 Retrying a failed version also creates a fresh quote, moderation decision, reservation, job, and
 Outbox event while preserving the original session and branch; durable retry recovery rejects a
 result that lost that private binding.
+
+## Plans and subscription safety
+
+`PLAN_ENTITLEMENTS` is the single source for the pricing UI and runtime product, concurrency, and
+input-size authorization:
+
+| Plan    | Monthly credits | Concurrent edits | Products                       | Max input | Price                |
+| ------- | --------------: | ---------------: | ------------------------------ | --------: | -------------------- |
+| Free    |              25 |                1 | Standard Edit                  |     10 MB | $0                   |
+| Creator |           1,000 |                3 | Standard Edit and Quality Edit |     20 MB | $19/month, $190/year |
+| Studio  |           5,000 |               10 | Standard Edit and Quality Edit |     20 MB | $79/month, $790/year |
+
+Free credits are granted only by the server through the existing immutable Credit Account, Lot,
+and Ledger path, once per UTC calendar month with a stable reference key. An ACTIVE paid
+subscription or a PAST_DUE subscription whose grace period is still valid suppresses the Free
+grant. Monthly and annual paid subscriptions continue to use the existing internal monthly credit
+periods, Webhook idempotency, refund, Debt, and failed-job settlement semantics.
+
+Stripe Price identifiers are never hardcoded. Creator and Studio checkout requires valid
+server-only `PRICE_ID_CREATOR_MONTHLY`, `PRICE_ID_CREATOR_YEARLY`,
+`PRICE_ID_STUDIO_MONTHLY`, and `PRICE_ID_STUDIO_YEARLY` values. Missing or malformed values fail
+closed with a visible temporary-unavailability message before Stripe is called. The matching active
+`BillingPlan` snapshot must also agree with the canonical plan identity, monthly credits, interval
+price, and currency or checkout remains unavailable. Checkout return
+only polls server-owned Webhook state; it grants no credits and restores the saved editor context
+only after the requested paid plan is ACTIVE or still inside its server-recorded PAST_DUE grace.
+The existing owner-authorized Customer Portal remains the place to manage cancellation and payment
+methods.
+
+See [the pricing and margin record](docs/product/ezpic-pricing-and-margin.md) for the cost formula,
+configuration boundary, rollback, and external items that remain `NOT_COMPLETED`.
 
 ## Inherited foundation capabilities
 
@@ -72,13 +103,13 @@ pnpm verify:invariants
 
 PostgreSQL integration commands require an explicit loopback `TEST_DATABASE_URL` whose database name contains `test` or `testing`; they never fall back to `DATABASE_URL`. Mock E2E fails when its database, test user, Chromium, or test adapters are missing.
 
-The current local production-build browser suite passes 11 SaaS checks and five marketing checks
-with no skips. SaaS coverage includes a root edit, a second edit, and a branch from the older
-successful version. It uses deterministic test Provider and moderation adapters, an isolated
-PostgreSQL database, and private local MinIO; this is evidence for the application workflow, not
-for external Provider or cloud connectivity. The production dependency audit currently has no
-high or critical advisories; low and moderate advisories remain subject to normal dependency
-maintenance.
+The local production-build browser harness covers the authenticated editing lifecycle, private edit
+sessions and branching, insufficient credits, Free-to-paid upgrade recovery, checkout return, and
+the marketing draft handoff. It uses deterministic test Provider and moderation adapters, an
+isolated PostgreSQL database, and private local MinIO; this is evidence for the application workflow,
+not for Stripe, Provider, Trigger.dev, moderation, or cloud-storage connectivity. The production
+dependency audit currently has no high or critical advisories; low and moderate advisories remain
+subject to normal dependency maintenance.
 
 Load profiles are `smoke`, `steady` (200 jobs/min for 30 minutes), `peak` (400 jobs/min for five minutes), and `active-1000`. Remote targets require both `ALLOW_REMOTE_LOAD_TARGET=true` and an exact `LOAD_TARGET_CONFIRMATION` origin.
 

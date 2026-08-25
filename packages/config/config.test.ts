@@ -231,7 +231,7 @@ describe("product configuration", () => {
 		]);
 	});
 
-	it("limits every plan to the image editing products while preserving plan economics", () => {
+	it("publishes the complete EzPic plan contract from one server-owned catalog", () => {
 		expect(
 			PLAN_ENTITLEMENTS.map(
 				({
@@ -240,14 +240,14 @@ describe("product configuration", () => {
 					maximumConcurrentJobs,
 					maximumInputBytes,
 					allowedProducts,
-					stripePriceId,
+					prices,
 				}) => ({
 					id,
 					monthlyCredits,
 					maximumConcurrentJobs,
 					maximumInputBytes,
 					allowedProducts,
-					stripePriceId,
+					prices,
 				}),
 			),
 		).toEqual([
@@ -257,23 +257,29 @@ describe("product configuration", () => {
 				maximumConcurrentJobs: 1,
 				maximumInputBytes: 10 * 1024 * 1024,
 				allowedProducts: ["image-fast"],
-				stripePriceId: null,
+				prices: [],
 			},
 			{
 				id: "creator",
 				monthlyCredits: 1_000,
 				maximumConcurrentJobs: 3,
-				maximumInputBytes: 100 * 1024 * 1024,
+				maximumInputBytes: 20 * 1024 * 1024,
 				allowedProducts: ["image-fast", "image-quality"],
-				stripePriceId: "price_creator",
+				prices: [
+					{ interval: "month", amount: 19, currency: "USD" },
+					{ interval: "year", amount: 190, currency: "USD" },
+				],
 			},
 			{
 				id: "studio",
 				monthlyCredits: 5_000,
 				maximumConcurrentJobs: 10,
-				maximumInputBytes: 250 * 1024 * 1024,
+				maximumInputBytes: 20 * 1024 * 1024,
 				allowedProducts: ["image-fast", "image-quality"],
-				stripePriceId: "price_studio",
+				prices: [
+					{ interval: "month", amount: 79, currency: "USD" },
+					{ interval: "year", amount: 790, currency: "USD" },
+				],
 			},
 		]);
 	});

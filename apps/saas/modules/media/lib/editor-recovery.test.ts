@@ -22,7 +22,7 @@ describe("resolveEditorRecovery", () => {
 		expect(resolveEditorAllowedProductKeys({}, "unknown-plan")).toEqual(["image-fast"]);
 	});
 
-	it("preserves a claimed draft image and prompt while safely downgrading unavailable Quality", () => {
+	it("preserves an unavailable Quality selection with its image and prompt for upgrade", () => {
 		expect(
 			resolveEditorRecovery({
 				requested: true,
@@ -44,7 +44,7 @@ describe("resolveEditorRecovery", () => {
 			}),
 		).toEqual({
 			initialDraft: {
-				productKey: "image-fast",
+				productKey: "image-quality",
 				input: {
 					kind: "image-to-image",
 					prompt: "Replace the sky with a soft sunset",
@@ -52,7 +52,7 @@ describe("resolveEditorRecovery", () => {
 				},
 			},
 			restoreState: "ready",
-			notice: "quality-downgraded",
+			notice: "quality-upgrade-required",
 		});
 	});
 

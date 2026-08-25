@@ -13,10 +13,12 @@ export function ImageSourcePanel({
 	sourceAssetId,
 	onChange,
 	onReadyChange,
+	maximumImageBytes,
 }: {
 	sourceAssetId: string;
 	onChange: (assetId: string) => void;
 	onReadyChange: (ready: boolean) => void;
+	maximumImageBytes?: number;
 }) {
 	const t = useTranslations("media.editor.source");
 	const preview = useQuery({
@@ -82,6 +84,7 @@ export function ImageSourcePanel({
 			)}
 			<MediaUploader
 				multiple={false}
+				maximumImageBytes={maximumImageBytes}
 				value={sourceAssetId ? [sourceAssetId] : []}
 				onChange={(assetIds) => onChange(assetIds[0] ?? "")}
 			/>

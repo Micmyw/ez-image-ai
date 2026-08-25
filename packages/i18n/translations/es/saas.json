@@ -707,7 +707,7 @@
 			"label": "Subir imágenes de origen",
 			"active": "Suelta las imágenes aquí",
 			"idle": "Arrastra imágenes aquí, pégalas o elige archivos",
-			"limit": "Imágenes JPG, PNG o WebP de hasta 20 MB.",
+			"limit": "Imágenes JPG, PNG o WebP de hasta {megabytes, number} MB.",
 			"pause": "Pausar",
 			"resume": "Reanudar",
 			"retry": "Reintentar",
@@ -750,8 +750,14 @@
 			"edit": "Editar ajustes",
 			"review": "Revisar créditos",
 			"safeError": "No pudimos iniciar esta edición. Comprueba tus créditos o inténtalo de nuevo en unos minutos.",
+			"requiredCredits": "Necesarios: {credits, number} créditos",
+			"availableCredits": "Disponibles: {credits} créditos",
+			"upgrade": "Comparar planes",
+			"concurrentJobs": "Ahora {count, plural, one {hay # edición en curso} other {hay # ediciones en curso}}.",
+			"history": "Ver Historial",
 			"restore": {
-				"qualityDowngraded": "Se restauraron la imagen y la instrucción. Quality Edit no está incluido en tu plan, así que se eligió Standard Edit.",
+				"qualityUpgradeRequired": "Se restauraron la imagen, la instrucción y la selección Quality Edit. Elige Creator o Studio para continuar con Quality Edit.",
+				"upgradeComplete": "Tu plan de pago está activo y se restauraron la imagen, la instrucción, el modo y la sesión de edición.",
 				"verifying": "Se restauró el borrador. La imagen privada aún está completando su revisión de seguridad; Revisar se activará cuando esté lista.",
 				"unavailable": "La edición guardada caducó o su imagen ya no está disponible. No se creó ningún trabajo ni reserva de créditos."
 			},
@@ -761,8 +767,19 @@
 				"assetNotReady": "La imagen de origen no está lista. Espera la revisión privada o elige otra imagen.",
 				"quoteExpired": "El presupuesto caducó o cambió el precio. Vuelve a revisar la edición antes de confirmar.",
 				"contentNotAllowed": "La instrucción no superó la revisión de seguridad. No se creó ningún trabajo ni reserva.",
+				"concurrentLimit": "Tu plan ya tiene el máximo de ediciones en curso. No se creó ningún trabajo ni reserva de créditos.",
+				"inputTooLarge": "Esta imagen supera el límite de entrada de tu plan. Elige una imagen más pequeña o compara planes.",
 				"safeError": "No pudimos iniciar la edición. Comprueba el formulario o inténtalo de nuevo en unos minutos."
 			}
+		},
+		"upgradeDialog": {
+			"title": "Desbloquea Quality Edit",
+			"description": "Conserva la imagen, la instrucción, la selección Quality Edit y la sesión de edición mientras comparas planes de pago.",
+			"creator": "Creator: {credits, number} créditos al mes, {concurrency, number} ediciones simultáneas e imágenes de hasta {megabytes, number} MB.",
+			"studio": "Studio: {credits, number} créditos al mes, {concurrency, number} ediciones simultáneas e imágenes de hasta {megabytes, number} MB.",
+			"storageUnavailable": "El navegador no pudo guardar el borrador. Mantén esta pestaña abierta e inténtalo de nuevo.",
+			"cancel": "Ahora no",
+			"continue": "Elegir un plan"
 		},
 		"editor": {
 			"source": {

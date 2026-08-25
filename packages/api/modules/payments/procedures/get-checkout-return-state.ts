@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/client";
+import { resolvePlanEntitlement } from "@repo/config";
 import { db } from "@repo/database/client";
 import { z } from "zod";
 
@@ -11,7 +12,12 @@ export const getCheckoutReturnState = protectedProcedure
 		tags: ["Payments"],
 		summary: "Read internal checkout processing state",
 	})
-	.input(z.object({ organizationId: z.string().optional() }))
+	.input(
+		z.object({
+			organizationId: z.string().optional(),
+			expectedPlanId: z.enum(["creator", "studio"]),
+		}),
+	)
 	.handler(async ({ input, context: { user } }) => {
 		assertCheckoutReturnOwnerScope(input.organizationId);
 		const ownerType = "USER";
@@ -24,19 +30,37 @@ export const getCheckoutReturnState = protectedProcedure
 			},
 			orderBy: { updatedAt: "desc" },
 		});
-		return {
-			status: subscription?.status ?? "PENDING",
-			planId: subscription?.plan.metadata && jsonPlanId(subscription.plan.metadata),
-			paidThrough: subscription?.periods[0]?.endsAt ?? subscription?.currentPeriodEnd ?? null,
-		};
+		return resolveCheckoutReturnState(subscription, input.expectedPlanId);
 	});
 
 export function assertCheckoutReturnOwnerScope(organizationId: string | undefined): void {
 	if (organizationId) throw new ORPCError("FORBIDDEN");
 }
 
-function jsonPlanId(value: unknown): string | null {
-	return value && typeof value === "object" && !Array.isArray(value) && "planId" in value
-		? String(value.planId)
+export function resolveCheckoutReturnState(
+	subscription: {
+		status: string;
+		graceEndsAt: Date | null;
+		plan: { metadata: unknown; name: string };
+		periods: Array<{ endsAt: Date }>;
+		currentPeriodEnd: Date | null;
+	} | null,
+	expectedPlanId: "creator" | "studio",
+	now = new Date(),
+) {
+	const planId = subscription
+		? resolvePlanEntitlement(subscription.plan.metadata, subscription.plan.name).id
 		: null;
+	const effective =
+		subscription?.status === "ACTIVE" ||
+		(subscription?.status === "PAST_DUE" &&
+			Boolean(subscription.graceEndsAt && subscription.graceEndsAt > now));
+	if (!subscription || planId !== expectedPlanId || !effective) {
+		return { status: "PENDING", planId: null, paidThrough: null };
+	}
+	return {
+		status: subscription.status,
+		planId,
+		paidThrough: subscription.periods[0]?.endsAt ?? subscription.currentPeriodEnd ?? null,
+	};
 }

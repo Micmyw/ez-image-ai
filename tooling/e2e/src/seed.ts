@@ -12,7 +12,7 @@ import { db } from "@repo/database/client";
 import { MEDIA_VERIFICATION_RETRY_POLICY } from "@repo/jobs";
 import { createAssetObjectKey, putPrivateMediaObject } from "@repo/storage";
 
-import { E2E_PASSWORD, E2E_PNG, emptyEmail, fundedEmail } from "./fixtures";
+import { E2E_PASSWORD, E2E_PNG, emptyEmail, freeEmail, fundedEmail } from "./fixtures";
 import { assertLocalMediaE2E, LOCAL_MEDIA_SAFETY_PROVIDER } from "./guard";
 
 export async function seedLocalMediaE2E(): Promise<void> {
@@ -46,7 +46,9 @@ export async function seedLocalMediaE2E(): Promise<void> {
 	}
 	const funded = await ensureCredentialUser(fundedEmail(runId), `E2E Funded ${runId}`);
 	const empty = await ensureCredentialUser(emptyEmail(runId), `E2E Empty ${runId}`);
-	await ensureCreatorSubscription(funded.id, runId);
+	const free = await ensureCredentialUser(freeEmail(runId), `E2E Free ${runId}`);
+	await ensureCreatorSubscription(funded.id, runId, "funded");
+	await ensureCreatorSubscription(empty.id, runId, "empty");
 
 	const account = await db.creditAccount.upsert({
 		where: { ownerType_ownerId: { ownerType: "USER", ownerId: funded.id } },
@@ -71,6 +73,7 @@ export async function seedLocalMediaE2E(): Promise<void> {
 	});
 	await ensureReadySourceAsset(funded.id, `reuse:${runId}`, runId);
 	await ensureReadySourceAsset(empty.id, `empty:${runId}`, runId);
+	await ensureReadySourceAsset(free.id, `free:${runId}`, runId);
 }
 
 async function ensureReadySourceAsset(ownerId: string, assetSeed: string, fixtureRunId: string) {
@@ -216,7 +219,11 @@ async function resetAbandonedMarketingDraftFixtures(): Promise<void> {
 	});
 }
 
-async function ensureCreatorSubscription(userId: string, runId: string): Promise<void> {
+async function ensureCreatorSubscription(
+	userId: string,
+	runId: string,
+	fixture: "funded" | "empty",
+): Promise<void> {
 	const plan = await db.billingPlan.upsert({
 		where: {
 			provider_providerPriceId: {
@@ -235,13 +242,15 @@ async function ensureCreatorSubscription(userId: string, runId: string): Promise
 		},
 		update: { active: true, metadata: { planId: "creator", source: "local-media-e2e" } },
 	});
+	const providerSubscriptionId =
+		fixture === "funded" ? `e2e:${runId}:creator` : `e2e:${runId}:creator:empty`;
 	await db.subscription.upsert({
-		where: { providerSubscriptionId: `e2e:${runId}:creator` },
+		where: { providerSubscriptionId },
 		create: {
 			ownerType: "USER",
 			ownerId: userId,
 			provider: "e2e",
-			providerSubscriptionId: `e2e:${runId}:creator`,
+			providerSubscriptionId,
 			planId: plan.id,
 			status: "ACTIVE",
 		},

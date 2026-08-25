@@ -25,6 +25,10 @@ export function emptyEmail(runId: string): string {
 	return `media-e2e-empty-${runId}@example.test`;
 }
 
+export function freeEmail(runId: string): string {
+	return `media-e2e-free-${runId}@example.test`;
+}
+
 export function scenarioFromPrompt(prompt: string): MediaE2EScenario {
 	if (prompt.includes("[e2e:provider-failure]")) return "provider-failure";
 	if (prompt.includes("[e2e:moderation-rejection]")) return "moderation-rejection";

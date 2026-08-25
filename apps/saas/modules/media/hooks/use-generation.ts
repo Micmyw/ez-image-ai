@@ -1,7 +1,7 @@
 "use client";
 
 import { orpcClient } from "@shared/lib/orpc-client";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
 import { createEditorActionController } from "../lib/editor-action";
@@ -22,6 +22,10 @@ export function useGeneration({ parentJobId }: { parentJobId?: string | null } =
 		queryKey: ["media-catalog"],
 		queryFn: () => orpcClient.media.getPublicCatalog(),
 		staleTime: 5 * 60_000,
+	});
+	const creditAccount = useQuery({
+		queryKey: ["media-credit-account"],
+		queryFn: () => orpcClient.media.getCreditAccount(),
 	});
 	const createQuote = useMutation({
 		mutationFn: async (input: {
@@ -49,9 +53,7 @@ export function useGeneration({ parentJobId }: { parentJobId?: string | null } =
 				...(parentJobId ? { parentJobId } : {}),
 			});
 		},
-		onSuccess: async () => {
-			await queryClient.invalidateQueries({ queryKey: ["media-jobs"] });
-		},
+		onSettled: () => refreshGenerationQueries(queryClient),
 	});
 	function beginNewAction() {
 		action.current!.invalidate();
@@ -59,7 +61,16 @@ export function useGeneration({ parentJobId }: { parentJobId?: string | null } =
 		createQuote.reset();
 		createGeneration.reset();
 	}
-	return { catalog, quote, createQuote, createGeneration, beginNewAction };
+	return { catalog, creditAccount, quote, createQuote, createGeneration, beginNewAction };
+}
+
+export async function refreshGenerationQueries(
+	queryClient: Pick<QueryClient, "invalidateQueries">,
+): Promise<void> {
+	await Promise.all([
+		queryClient.invalidateQueries({ queryKey: ["media-jobs"] }),
+		queryClient.invalidateQueries({ queryKey: ["media-credit-account"] }),
+	]);
 }
 
 function requireEditorProductKey(productKey: string): EditorProductKey {

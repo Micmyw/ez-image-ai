@@ -31,7 +31,7 @@ export default defineConfig({
 		{
 			name: "funded",
 			dependencies: ["setup"],
-			grepInvert: /insufficient credits/,
+			grepInvert: /insufficient credits|subscription upgrade/,
 			use: {
 				...devices["Desktop Chrome"],
 				storageState: "playwright/.auth/user.json",
@@ -44,6 +44,15 @@ export default defineConfig({
 			use: {
 				...devices["Desktop Chrome"],
 				storageState: "playwright/.auth/empty.json",
+			},
+		},
+		{
+			name: "free",
+			dependencies: ["setup"],
+			grep: /subscription upgrade/,
+			use: {
+				...devices["Desktop Chrome"],
+				storageState: "playwright/.auth/free.json",
 			},
 		},
 	],

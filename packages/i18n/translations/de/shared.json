@@ -1,6 +1,7 @@
 {
 	"pricing": {
 		"choosePlan": "Plan auswählen",
+		"checkoutUnavailable": "Der Bezahlvorgang ist vorübergehend nicht verfügbar. Versuchen Sie es später erneut oder kontaktieren Sie den Support.",
 		"contactSales": "Vertrieb kontaktieren",
 		"concurrentEdits": "{count, plural, one {# gleichzeitige Bearbeitung} other {# gleichzeitige Bearbeitungen}}",
 		"description": "Wähle einen Bildbearbeitungstarif mit klaren Credits und Auftragslimits.",
@@ -14,7 +15,8 @@
 				"description": "Für einzelne Kreative mit regelmäßigen Bildbearbeitungen.",
 				"features": {
 					"editLevels": "Zugriff auf Standard Edit und Quality Edit",
-					"creditReview": "Credit-Kosten vor jeder Bearbeitung sichtbar"
+					"privateAssets": "Private Quellbilder und bearbeitete Assets",
+					"editHistory": "Private Bearbeitungssitzungen und Verlauf"
 				},
 				"title": "Creator"
 			},
@@ -30,7 +32,8 @@
 				"description": "Teste Standard Edit mit einem monatlichen Credit-Kontingent.",
 				"features": {
 					"standardEdit": "Zugriff auf Standard Edit",
-					"privateAssets": "Private Quellbilder und bearbeitete Assets"
+					"privateAssets": "Private Quellbilder und bearbeitete Assets",
+					"editHistory": "Private Bearbeitungssitzungen und Verlauf"
 				},
 				"title": "Free"
 			},
@@ -46,7 +49,8 @@
 				"description": "Für umfangreichere Arbeitsabläufe zur Bildbearbeitung.",
 				"features": {
 					"editLevels": "Zugriff auf Standard Edit und Quality Edit",
-					"privateHistory": "Privater Bearbeitungsverlauf und Assets"
+					"privateAssets": "Private Quellbilder und bearbeitete Assets",
+					"editHistory": "Private Bearbeitungssitzungen und Verlauf"
 				},
 				"title": "Studio"
 			}

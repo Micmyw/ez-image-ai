@@ -13,10 +13,13 @@ export interface ParsedUploadRequest {
 	multipart: boolean;
 }
 
-export function parseUploadRequest(input: {
-	contentType: string;
-	byteSize: number;
-}): ParsedUploadRequest {
+export function parseUploadRequest(
+	input: {
+		contentType: string;
+		byteSize: number;
+	},
+	limits?: { maximumImageBytes: number },
+): ParsedUploadRequest {
 	const allowed = new Set<MediaContentType>([
 		"image/jpeg",
 		"image/png",
@@ -30,6 +33,9 @@ export function parseUploadRequest(input: {
 	const contentType = input.contentType as MediaContentType;
 	if (!Number.isSafeInteger(input.byteSize) || input.byteSize <= 0)
 		throw new Error("Media size is invalid");
+	if (contentType.startsWith("image/") && limits && input.byteSize > limits.maximumImageBytes) {
+		throw new Error("INPUT_TOO_LARGE");
+	}
 	if (input.byteSize > getMediaByteLimit(contentType)) throw new Error("Media size limit exceeded");
 	return {
 		contentType,

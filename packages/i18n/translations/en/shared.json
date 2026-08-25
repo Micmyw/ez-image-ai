@@ -1,6 +1,7 @@
 {
 	"pricing": {
 		"choosePlan": "Choose plan",
+		"checkoutUnavailable": "Paid checkout is temporarily unavailable. Try again later or contact support.",
 		"contactSales": "Contact sales",
 		"concurrentEdits": "{count, plural, one {# concurrent edit} other {# concurrent edits}}",
 		"description": "Choose an image-editing plan with clear credits and job limits.",
@@ -14,7 +15,8 @@
 				"description": "For individual creators running regular image edits.",
 				"features": {
 					"editLevels": "Standard Edit and Quality Edit access",
-					"creditReview": "Credit cost shown before each edit"
+					"privateAssets": "Private source images and edited assets",
+					"editHistory": "Private edit sessions and history"
 				},
 				"title": "Creator"
 			},
@@ -30,7 +32,8 @@
 				"description": "Try Standard Edit with a monthly credit allowance.",
 				"features": {
 					"standardEdit": "Standard Edit access",
-					"privateAssets": "Private source images and edited assets"
+					"privateAssets": "Private source images and edited assets",
+					"editHistory": "Private edit sessions and history"
 				},
 				"title": "Free"
 			},
@@ -46,7 +49,8 @@
 				"description": "For higher-volume image-editing workflows.",
 				"features": {
 					"editLevels": "Standard Edit and Quality Edit access",
-					"privateHistory": "Private edit history and assets"
+					"privateAssets": "Private source images and edited assets",
+					"editHistory": "Private edit sessions and history"
 				},
 				"title": "Studio"
 			}

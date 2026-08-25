@@ -35,6 +35,7 @@ describe("createGenerationForUser", () => {
 			{ quoteId: "quote-1", idempotencyKey: "idempotency-key-1" },
 			{
 				now: () => new Date("2026-08-25T00:00:00.000Z"),
+				loadEntitlement: vi.fn(async () => ({ maximumConcurrentJobs: 3 })),
 				findQuote: async () => ({
 					id: "quote-1",
 					productKey: quote.productKey,
@@ -64,6 +65,7 @@ describe("createGenerationForUser", () => {
 			expect.objectContaining({
 				inputAssetIds: [SOURCE_ASSET_ID],
 				edit: { kind: "ROOT", rootAssetId: SOURCE_ASSET_ID },
+				maximumConcurrentJobs: 3,
 			}),
 		);
 	});
@@ -90,6 +92,7 @@ describe("createGenerationForUser", () => {
 			{ quoteId: "quote-2", idempotencyKey: "idempotency-key-2" },
 			{
 				now: () => new Date("2026-08-25T00:00:00.000Z"),
+				loadEntitlement: vi.fn(async () => ({ maximumConcurrentJobs: 3 })),
 				findQuote: async () => ({
 					id: "quote-2",
 					productKey: quote.productKey,
@@ -157,6 +160,7 @@ describe("createGenerationForUser", () => {
 				},
 				{
 					now: () => new Date("2026-08-25T00:00:00.000Z"),
+					loadEntitlement: vi.fn(async () => ({ maximumConcurrentJobs: 3 })),
 					findQuote: async () => ({
 						id: "quote-2",
 						productKey: quote.productKey,
@@ -215,6 +219,7 @@ describe("createGenerationForUser", () => {
 				},
 				{
 					now: () => new Date("2026-08-25T00:00:00.000Z"),
+					loadEntitlement: vi.fn(async () => ({ maximumConcurrentJobs: 3 })),
 					findQuote: async () => ({
 						id: "quote-1",
 						productKey: quote.productKey,
@@ -264,6 +269,7 @@ describe("createGenerationForUser", () => {
 				{ quoteId: "quote-1", idempotencyKey: "idempotency-key-1" },
 				{
 					now: () => new Date("2026-08-23T00:00:00.000Z"),
+					loadEntitlement: vi.fn(async () => ({ maximumConcurrentJobs: 3 })),
 					findQuote: async () => ({
 						id: "quote-1",
 						productKey: quote.productKey,
@@ -312,6 +318,7 @@ describe("createGenerationForUser", () => {
 				{ quoteId: "quote-1", idempotencyKey: "idempotency-key-1" },
 				{
 					now: () => new Date("2026-08-24T00:00:00.000Z"),
+					loadEntitlement: vi.fn(async () => ({ maximumConcurrentJobs: 3 })),
 					findQuote: async () => ({
 						id: "quote-1",
 						productKey: quote.productKey,

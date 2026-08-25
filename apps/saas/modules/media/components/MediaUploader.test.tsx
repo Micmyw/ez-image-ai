@@ -3,11 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 
 const dropzoneState = vi.hoisted(() => ({
 	accept: undefined as Record<string, string[]> | undefined,
+	maxSize: undefined as number | undefined,
 }));
 
 vi.mock("react-dropzone", () => ({
-	useDropzone: (options: { accept?: Record<string, string[]> }) => {
+	useDropzone: (options: { accept?: Record<string, string[]>; maxSize?: number }) => {
 		dropzoneState.accept = options.accept;
+		dropzoneState.maxSize = options.maxSize;
 		return {
 			getInputProps: () => ({}),
 			getRootProps: () => ({}),
@@ -16,12 +18,12 @@ vi.mock("react-dropzone", () => ({
 	},
 }));
 vi.mock("next-intl", () => ({
-	useTranslations: () => (key: string) =>
+	useTranslations: () => (key: string, values?: Record<string, number>) =>
 		({
 			active: "Drop images here",
 			idle: "Drag images here, paste, or choose files",
 			label: "Upload images",
-			limit: "Images up to 20 MB.",
+			limit: `Images up to ${values?.megabytes} MB.`,
 		})[key] ?? key,
 }));
 vi.mock("../hooks/use-media-upload", () => ({
@@ -60,5 +62,19 @@ describe("EzPic media uploader", () => {
 		const video = { name: "clip.mp4", size: 1024, type: "video/mp4" } as File;
 
 		expect(filterEzPicImageFiles([allowed, tooLarge, video])).toEqual([allowed]);
+	});
+
+	it("uses the current plan's smaller image limit for selection and guidance", () => {
+		const limit = 10 * 1024 * 1024;
+		const allowed = { name: "source.webp", size: limit, type: "image/webp" } as File;
+		const tooLarge = { name: "large.webp", size: limit + 1, type: "image/webp" } as File;
+
+		const markup = renderToStaticMarkup(
+			<MediaUploader onChange={() => undefined} maximumImageBytes={limit} />,
+		);
+
+		expect(dropzoneState.maxSize).toBe(limit);
+		expect(markup).toContain("Images up to 10 MB.");
+		expect(filterEzPicImageFiles([allowed, tooLarge], limit)).toEqual([allowed]);
 	});
 });

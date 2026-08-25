@@ -700,7 +700,7 @@
 			"label": "Upload source images",
 			"active": "Drop images here",
 			"idle": "Drag images here, paste, or choose files",
-			"limit": "JPG, PNG, or WebP images up to 20 MB.",
+			"limit": "JPG, PNG, or WebP images up to {megabytes, number} MB.",
 			"pause": "Pause",
 			"resume": "Resume",
 			"retry": "Retry",
@@ -743,8 +743,14 @@
 			"edit": "Edit settings",
 			"review": "Review credits",
 			"safeError": "We could not start this edit. Check your credits or try again shortly.",
+			"requiredCredits": "Required: {credits, number} credits",
+			"availableCredits": "Available: {credits} credits",
+			"upgrade": "Compare plans",
+			"concurrentJobs": "{count, plural, one {# edit is currently running} other {# edits are currently running}}.",
+			"history": "View History",
 			"restore": {
-				"qualityDowngraded": "Your image and instruction were restored. Quality Edit is not included in your current plan, so the mode was changed to Standard Edit.",
+				"qualityUpgradeRequired": "Your image, instruction, and Quality Edit selection were restored. Choose Creator or Studio to continue with Quality Edit.",
+				"upgradeComplete": "Your paid plan is active, and your saved image, instruction, mode, and edit session have been restored.",
 				"verifying": "Your draft was restored. The private source image is still completing its safety check; Review will unlock when it is ready.",
 				"unavailable": "This saved edit is expired or its source image is no longer available. No job or credit reservation was created."
 			},
@@ -754,8 +760,19 @@
 				"assetNotReady": "The source image is not ready. Wait for its private safety check or choose another image.",
 				"quoteExpired": "This quote expired or pricing changed. Review the edit again before confirming.",
 				"contentNotAllowed": "This instruction could not pass the safety review. No job or reservation was created.",
+				"concurrentLimit": "Your plan already has its maximum number of edits running. No new job or credit reservation was created.",
+				"inputTooLarge": "This source image is larger than your plan's input limit. Choose a smaller image or compare plans.",
 				"safeError": "We could not start this edit. Check the form or try again shortly."
 			}
+		},
+		"upgradeDialog": {
+			"title": "Unlock Quality Edit",
+			"description": "Keep your source image, instruction, Quality Edit selection, and edit session while you compare paid plans.",
+			"creator": "Creator: {credits, number} credits per month, {concurrency, number} concurrent edits, source images up to {megabytes, number} MB.",
+			"studio": "Studio: {credits, number} credits per month, {concurrency, number} concurrent edits, source images up to {megabytes, number} MB.",
+			"storageUnavailable": "This browser could not save the editor draft. Keep this tab open and try again.",
+			"cancel": "Not now",
+			"continue": "Choose a plan"
 		},
 		"editor": {
 			"source": {
