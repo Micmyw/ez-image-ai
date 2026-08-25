@@ -1,4 +1,8 @@
-import { getAdminMediaDiagnostics, listAdminUncertainGenerationAttempts } from "@repo/database";
+import {
+	getAdminGrowthOperations,
+	getAdminMediaDiagnostics,
+	listAdminUncertainGenerationAttempts,
+} from "@repo/database";
 import { db } from "@repo/database/client";
 import { z } from "zod";
 
@@ -27,6 +31,87 @@ const jobStatusSchema = z.enum([
 	"FAILED",
 	"CANCELED",
 ]);
+
+const operationsProductKeySchema = z.enum(["image-fast", "image-quality"]);
+const operationsFilterSchema = z
+	.object({
+		productKey: operationsProductKeySchema.optional(),
+		provider: z
+			.string()
+			.trim()
+			.regex(/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/)
+			.optional(),
+		model: z
+			.string()
+			.trim()
+			.regex(/^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$/)
+			.optional(),
+		status: jobStatusSchema.optional(),
+		from: z.string().datetime().optional(),
+		to: z.string().datetime().optional(),
+	})
+	.strict()
+	.superRefine((input, context) => {
+		const to = input.to ? new Date(input.to) : new Date();
+		const from = input.from ? new Date(input.from) : new Date(to.getTime() - 30 * 24 * 60 * 60_000);
+		if (from >= to) {
+			context.addIssue({ code: "custom", path: ["to"], message: "to must be after from" });
+		}
+		if (to.getTime() - from.getTime() > 366 * 24 * 60 * 60 * 1_000) {
+			context.addIssue({
+				code: "custom",
+				path: ["from"],
+				message: "operations range cannot exceed 366 days",
+			});
+		}
+	});
+
+const operationsOutputSchema = z.object({
+	generatedAt: z.string().datetime(),
+	summary: z.object({
+		jobs: z.number().int().nonnegative(),
+		succeeded: z.number().int().nonnegative(),
+		failed: z.number().int().nonnegative(),
+		successRate: z.number().min(0).max(1).nullable(),
+		latencyMs: z.object({
+			p50: z.number().int().nonnegative().nullable(),
+			p95: z.number().int().nonnegative().nullable(),
+		}),
+		averageProviderCostMicros: z.string().regex(/^\d+$/).nullable(),
+		moderationRejectionRate: z.number().min(0).max(1).nullable(),
+		repeatEditRate: z.number().min(0).max(1).nullable(),
+	}),
+	credits: z.object({
+		reserved: z.string().regex(/^\d+$/),
+		charged: z.string().regex(/^\d+$/),
+		released: z.string().regex(/^\d+$/),
+	}),
+	failureCodes: z.array(
+		z.object({
+			code: z.string().regex(/^[A-Z][A-Z0-9_]{0,127}$/),
+			count: z.number().int().nonnegative(),
+		}),
+	),
+	routes: z.array(
+		z.object({
+			productKey: operationsProductKeySchema,
+			provider: z.string().min(1).max(128),
+			model: z.string().min(1).max(256),
+			status: jobStatusSchema,
+			jobs: z.number().int().nonnegative(),
+		}),
+	),
+	controls: z.object({
+		generationEnabled: z.boolean(),
+		products: z.array(
+			z.object({
+				productKey: operationsProductKeySchema,
+				publicName: z.enum(["Standard Edit", "Quality Edit"]),
+				enabled: z.boolean(),
+			}),
+		),
+	}),
+});
 
 const uncertainAttemptDiagnosticSchema = z.object({
 	ids: z.object({
@@ -62,6 +147,34 @@ const uncertainAttemptDiagnosticSchema = z.object({
 export const adminMediaDiagnostics = adminProcedure
 	.route({ method: "GET", path: "/admin/media/diagnostics", tags: ["Admin", "Media"] })
 	.handler(async () => getAdminMediaDiagnostics(db));
+
+export const adminGrowthOperations = adminProcedure
+	.route({
+		method: "GET",
+		path: "/admin/media/growth-operations",
+		tags: ["Admin", "Media"],
+		summary: "Read EzPic growth and generation operations aggregates",
+		description:
+			"Returns aggregate editing metrics and effective controls without prompts, private media, URLs, or raw job identifiers.",
+	})
+	.input(operationsFilterSchema)
+	.output(operationsOutputSchema)
+	.handler(async ({ input }) => {
+		const to = input.to ? new Date(input.to) : new Date();
+		const from = input.from ? new Date(input.from) : new Date(to.getTime() - 30 * 24 * 60 * 60_000);
+		return getAdminGrowthOperations(
+			{
+				...(input.productKey ? { productKey: input.productKey } : {}),
+				...(input.provider ? { provider: input.provider } : {}),
+				...(input.model ? { model: input.model } : {}),
+				...(input.status ? { status: input.status } : {}),
+				from,
+				to,
+				generationEnabled: process.env.MEDIA_GENERATION_ENABLED === "true",
+			},
+			db,
+		);
+	});
 
 export const listUncertainGenerationAttempts = adminProcedure
 	.route({

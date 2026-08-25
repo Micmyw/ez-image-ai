@@ -67,6 +67,26 @@ methods.
 See [the pricing and margin record](docs/product/ezpic-pricing-and-margin.md) for the cost formula,
 configuration boundary, rollback, and external items that remain `NOT_COMPLETED`.
 
+## SEO, consented growth, and operations
+
+Only default-English `/`, `/pricing`, `/privacy`, and `/terms` are indexable. Canonicals and the
+sitemap derive from the configured production marketing origin; all localized marketing variants
+are `noindex, follow`, while every SaaS route is `noindex, nofollow`. Paid JSON-LD offers appear only
+when the matching configured Stripe Price is actually available and always reuse
+`PLAN_ENTITLEMENTS` amounts.
+
+The 18-step editing funnel uses one shared strict event schema and the existing cookie-consent
+choice. It rejects prompts, filenames, private/signed URLs, raw job or asset IDs, email, tokens,
+Provider/model/cost data, and raw responses before transport. The current browser transport is only
+the local `ezpic:growth-event` fixture; real external analytics ingestion is not configured or
+claimed. Admins receive read-only aggregate media operations—success, latency, Provider cost,
+moderation, failure, credit settlement, repeat-edit, route, and kill-switch state—through the
+existing admin-only oRPC and PostgreSQL boundaries.
+
+See [the growth, SEO, and operations contract](docs/product/ezpic-growth-operations.md) for the
+index matrix, complete event list, metrics definitions, rollback, and external `NOT_COMPLETED`
+items.
+
 ## Inherited foundation capabilities
 
 - **Stable product catalog and Provider abstraction:** clients submit public product keys and validated parameters; server-only routes moderate prompts and map approved requests to Replicate, Fal, Kie, or Gemini adapters. Provider names, model IDs, credentials, raw errors, and arbitrary result URLs stay off the public contract.
@@ -105,7 +125,8 @@ PostgreSQL integration commands require an explicit loopback `TEST_DATABASE_URL`
 
 The local production-build browser harness covers the authenticated editing lifecycle, private edit
 sessions and branching, insufficient credits, Free-to-paid upgrade recovery, checkout return, and
-the marketing draft handoff. It uses deterministic test Provider and moderation adapters, an
+the marketing draft handoff. It also captures the consent-gated local funnel fixture and verifies
+the English-only SEO/canonical/sitemap boundary. It uses deterministic test Provider and moderation adapters, an
 isolated PostgreSQL database, and private local MinIO; this is evidence for the application workflow,
 not for Stripe, Provider, Trigger.dev, moderation, or cloud-storage connectivity. The production
 dependency audit currently has no high or critical advisories; low and moderate advisories remain

@@ -1,3 +1,4 @@
+import { getBaseUrl } from "@shared/lib/base-url";
 import type { MetadataRoute } from "next";
 
 export default function robots(): MetadataRoute.Robots {
@@ -6,5 +7,6 @@ export default function robots(): MetadataRoute.Robots {
 			userAgent: "*",
 			allow: "/",
 		},
+		sitemap: new URL("/sitemap.xml", getBaseUrl()).href,
 	};
 }

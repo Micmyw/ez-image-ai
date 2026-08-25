@@ -36,6 +36,45 @@
 			"title": "Gérer les organisations"
 		},
 		"media": {
+			"growth": {
+				"title": "Croissance et opérations de génération",
+				"description": "Agrégats EzPic en lecture seule sans instructions, médias privés, URL ni identifiants bruts de tâches.",
+				"all": "Tous",
+				"apply": "Appliquer les filtres",
+				"loading": "Chargement des agrégats opérationnels…",
+				"error": "Les agrégats opérationnels n’ont pas pu être chargés.",
+				"empty": "Aucun enregistrement correspondant",
+				"enabled": "Actif",
+				"disabled": "Inactif",
+				"filters": {
+					"product": "Mode de retouche",
+					"provider": "Fournisseur",
+					"model": "Modèle",
+					"status": "État de la tâche",
+					"from": "Depuis",
+					"to": "Jusqu’à"
+				},
+				"metrics": {
+					"jobs": "Tâches",
+					"successRate": "Taux de réussite",
+					"latency": "Latence p50 / p95",
+					"cost": "Coût moyen fournisseur (micros)",
+					"moderation": "Rejets de modération",
+					"repeat": "Taux de seconde retouche",
+					"credits": "Réservés / débités / libérés",
+					"terminal": "Réussies / échouées"
+				},
+				"controls": { "title": "Contrôles effectifs", "global": "Interrupteur de génération" },
+				"failures": { "title": "Codes d’échec" },
+				"routes": {
+					"title": "Répartition des routes",
+					"product": "Mode de retouche",
+					"provider": "Fournisseur",
+					"model": "Modèle",
+					"status": "État",
+					"jobs": "Tâches"
+				}
+			},
 			"metrics": {
 				"queue": "File d'attente",
 				"oldest": "Attente maximale : {seconds}s",

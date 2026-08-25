@@ -165,6 +165,37 @@
 				}
 			}
 		},
+		"supportedEdits": {
+			"eyebrow": "Retouches prises en charge",
+			"title": "Dirigez le changement tout en gardant votre image source",
+			"description": "EzPic prend en charge les retouches guidées sur une image JPEG, PNG ou WebP importée. Vérifiez chaque résultat avant utilisation.",
+			"items": {
+				"background": {
+					"title": "Changer l’arrière-plan",
+					"description": "Remplacez ou restylez le décor en demandant de conserver le sujet principal."
+				},
+				"objects": {
+					"title": "Modifier des objets",
+					"description": "Ajoutez, retirez ou ajustez un objet clairement décrit dans la scène."
+				},
+				"color": {
+					"title": "Couleur et matière",
+					"description": "Changez une couleur, une surface ou une matière sélectionnée."
+				},
+				"lighting": {
+					"title": "Éclairage et ambiance",
+					"description": "Décrivez une lumière plus chaude, des ombres froides ou une autre atmosphère."
+				},
+				"style": {
+					"title": "Direction de style",
+					"description": "Appliquez un traitement visuel en conservant la composition importante."
+				},
+				"cleanup": {
+					"title": "Nettoyage ciblé",
+					"description": "Signalez une distraction ou une petite zone à simplifier ou retirer."
+				}
+			}
+		},
 		"noRestrictions": {
 			"eyebrow": "Contrôle en langage naturel",
 			"title": "Ce que « No Restrictions » signifie vraiment",

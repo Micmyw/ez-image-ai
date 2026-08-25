@@ -35,6 +35,13 @@
 - Added a Free-to-paid editor upgrade path that retains the private source image, prompt, Quality
   selection, and edit-session context. Checkout return waits for server Webhook state and restores
   that context only after the expected paid plan becomes active.
+- Added the consent-gated 18-event editing funnel on the existing marketing, draft, editor,
+  generation, private-result, Edit Again, checkout, and subscription boundaries. The strict shared
+  schema accepts only public product/plan enums and credit/latency buckets and rejects private or
+  Provider data before the local browser fixture dispatches.
+- Added read-only admin growth operations with product, Provider, model, status, and date filters;
+  aggregate success, latency, Provider cost, moderation, failure, credit-settlement, repeat-edit,
+  route, and effective kill-switch diagnostics remain behind the existing admin procedure.
 
 ### Changed
 
@@ -64,9 +71,14 @@
 ### SEO
 
 - Published the exact EzPic image-editor homepage title, description, canonical URL, single H1,
-  responsive module order, and factual WebSite/SoftwareApplication structured data.
+  responsive module order, supported-edits/trust/pricing/FAQ content, and factual
+  WebSite/Organization/SoftwareApplication structured data.
 - Restricted the marketing sitemap to approved default-English pages, marked other locales
   `noindex, follow`, hid the launch locale switch, and blocked indexing across the SaaS app.
+- Added canonical `/pricing`, `/privacy`, and `/terms` pages, routed footer trust links to them, and
+  derived canonical/sitemap/robots URLs from the configured marketing origin. Paid structured-data
+  offers fail closed when their configured Stripe Price ID is unavailable, and placeholder GSC
+  verification values are not rendered.
 
 ### Documentation
 
@@ -85,6 +97,9 @@
   Stripe identifier boundary, rollback instructions, and explicit `NOT_COMPLETED` status for real
   Provider cost, margin approval, legal/payment inputs, external services, deployment, and live
   verification.
+- Added the growth, SEO, and operations contract with the index matrix, full event/property safety
+  boundary, consent/dedupe/failure semantics, aggregate metric definitions, rollback, and explicit
+  external `NOT_COMPLETED` list.
 
 ### Testing
 
@@ -94,6 +109,9 @@
 - Added unit, PostgreSQL integration, Stripe fixture, and Playwright coverage for entitlement drift,
   exact input/concurrency boundaries, Free-grant races, paid grace state, missing Price IDs,
   checkout-return non-grant behavior, and editor restoration after local server-side activation.
+- Added local-event Playwright coverage for the marketing/editor funnel and subscription recovery,
+  plus browser checks for homepage/pricing/trust metadata, canonical URLs, robots, sitemap, GSC
+  fail-closed behavior, localized noindex pages, and the SaaS noindex boundary.
 
 ## 2026-08-24
 

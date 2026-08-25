@@ -165,6 +165,37 @@
 				}
 			}
 		},
+		"supportedEdits": {
+			"eyebrow": "Unterstützte Bearbeitungen",
+			"title": "Bestimme die Änderung und behalte dein Quellbild",
+			"description": "EzPic unterstützt prompt-gesteuerte Änderungen an hochgeladenen JPEG-, PNG- oder WebP-Bildern. Prüfe jedes Ergebnis vor der Verwendung.",
+			"items": {
+				"background": {
+					"title": "Hintergrund ändern",
+					"description": "Ersetze oder gestalte die Umgebung neu und erhalte dabei das Hauptmotiv."
+				},
+				"objects": {
+					"title": "Objekte ändern",
+					"description": "Füge ein klar beschriebenes Objekt hinzu, entferne oder verändere es."
+				},
+				"color": {
+					"title": "Farbe und Material",
+					"description": "Ändere eine ausgewählte Farbe, Oberfläche oder ein Material."
+				},
+				"lighting": {
+					"title": "Licht und Stimmung",
+					"description": "Beschreibe wärmeres Licht, kühlere Schatten oder eine andere Atmosphäre."
+				},
+				"style": {
+					"title": "Stilrichtung",
+					"description": "Wende eine visuelle Richtung an und erhalte die wichtige Komposition."
+				},
+				"cleanup": {
+					"title": "Gezielte Bereinigung",
+					"description": "Benenne eine Ablenkung oder einen kleinen Bereich zum Vereinfachen oder Entfernen."
+				}
+			}
+		},
 		"noRestrictions": {
 			"eyebrow": "Kontrolle in Alltagssprache",
 			"title": "Was „No Restrictions“ wirklich bedeutet",

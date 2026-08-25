@@ -4,11 +4,12 @@ import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
 import { Progress } from "@repo/ui/components/progress";
+import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpcClient } from "@shared/lib/orpc-client";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useJob } from "../../hooks/use-job";
 import { isEditorProductKey } from "../../lib/editor-recovery";
@@ -21,6 +22,18 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 	const job = useJob(jobId);
 	const [canceling, setCanceling] = useState(false);
 	const [cancelError, setCancelError] = useState(false);
+
+	useEffect(() => {
+		const data = job.data;
+		if (!jobId || !data || !isEditorProductKey(data.productKey)) return;
+		const latencyMs = Math.max(0, Date.parse(data.updatedAt) - Date.parse(data.createdAt));
+		if (data.status === "SUCCEEDED") {
+			void saasGrowthFunnel.generationSucceeded(jobId, data.productKey, latencyMs);
+		}
+		if (data.status === "FAILED") {
+			void saasGrowthFunnel.generationFailed(jobId, data.productKey, latencyMs);
+		}
+	}, [job.data, jobId]);
 
 	if (!jobId) return <EditorEmptyState />;
 	if (job.isError && !job.data) return <EditorUnavailableState />;
@@ -41,6 +54,7 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 	}
 
 	const presentation = getJobPresentation({ status: job.data.status, progress: job.data.progress });
+	const productKey = job.data.productKey;
 	const source = job.data.inputAssets[0];
 	const output = job.data.assets[0];
 
@@ -85,7 +99,11 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 			)}
 			{job.data.status === "SUCCEEDED" && source && output && (
 				<div className="mt-6">
-					<SignedComparison inputAssetId={source.id} outputAssetId={output.id} />
+					<SignedComparison
+						inputAssetId={source.id}
+						outputAssetId={output.id}
+						productKey={productKey}
+					/>
 				</div>
 			)}
 			{job.data.status === "SUCCEEDED" && (!source || !output) && (
@@ -104,13 +122,16 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 						{t("cancel")}
 					</Button>
 				)}
-				{job.data.status === "SUCCEEDED" && output && <DownloadButton assetId={output.id} />}
+				{job.data.status === "SUCCEEDED" && output && (
+					<DownloadButton assetId={output.id} productKey={productKey} />
+				)}
 				{job.data.status === "SUCCEEDED" && output && (
 					<Button
 						variant="secondary"
 						render={(props) => (
 							<a
 								{...props}
+								onClick={() => void saasGrowthFunnel.editAgainStarted(jobId, productKey)}
 								href={`/create?asset=${encodeURIComponent(output.id)}&parentJob=${encodeURIComponent(jobId)}`}
 							>
 								{props.children}
@@ -167,9 +188,11 @@ function EditorEmptyState() {
 function SignedComparison({
 	inputAssetId,
 	outputAssetId,
+	productKey,
 }: {
 	inputAssetId: string;
 	outputAssetId: string;
+	productKey: "image-fast" | "image-quality";
 }) {
 	const t = useTranslations("media.status");
 	const input = useQuery({
@@ -208,11 +231,18 @@ function SignedComparison({
 			showResultLabel={t("compare.showResult")}
 			beforeLabel={t("compare.before")}
 			afterLabel={t("compare.after")}
+			onCompared={() => void saasGrowthFunnel.resultCompared(outputAssetId, productKey)}
 		/>
 	);
 }
 
-function DownloadButton({ assetId }: { assetId: string }) {
+function DownloadButton({
+	assetId,
+	productKey,
+}: {
+	assetId: string;
+	productKey: "image-fast" | "image-quality";
+}) {
 	const t = useTranslations("media.status");
 	const [downloading, setDownloading] = useState(false);
 	const [downloadError, setDownloadError] = useState(false);
@@ -226,7 +256,10 @@ function DownloadButton({ assetId }: { assetId: string }) {
 						assetId: requestedAssetId,
 						disposition: "attachment",
 					}),
-				navigate: (url) => window.location.assign(url),
+				navigate: (url) => {
+					void saasGrowthFunnel.resultDownloaded(assetId, productKey);
+					window.location.assign(url);
+				},
 			});
 			setDownloadError(!downloaded);
 		} finally {

@@ -9,6 +9,7 @@ import type {
 import { ImageEditorWorkspace } from "./editor/ImageEditorWorkspace";
 
 export function CreatorWorkspace(props: {
+	claimedDraft?: boolean;
 	initialDraft?: EditorDraftInput | null;
 	allowedProductKeys: EditorProductKey[];
 	restoreState: EditorRestoreState;

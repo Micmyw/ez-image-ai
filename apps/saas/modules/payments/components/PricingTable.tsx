@@ -9,6 +9,7 @@ import { Button } from "@repo/ui/components/button";
 import { Tabs, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
 import { useLocaleCurrency } from "@shared/hooks/locale-currency";
 import { useRouter } from "@shared/hooks/router";
+import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpc } from "@shared/lib/orpc-query-utils";
 import { useMutation } from "@tanstack/react-query";
 import { ArrowRightIcon, BadgePercentIcon, CheckIcon, StarIcon } from "lucide-react";
@@ -67,6 +68,7 @@ export function PricingTable({
 
 		setLoading(planId);
 		setCheckoutUnavailable(false);
+		const checkoutAttemptKey = createGrowthAttemptKey();
 
 		try {
 			const { checkoutLink } = await createCheckoutLinkMutation.mutateAsync({
@@ -82,6 +84,7 @@ export function PricingTable({
 				}),
 			});
 
+			await saasGrowthFunnel.checkoutStarted(checkoutAttemptKey, planId);
 			window.location.href = checkoutLink;
 		} catch {
 			setCheckoutUnavailable(true);
@@ -259,4 +262,11 @@ export function PricingTable({
 			</div>
 		</div>
 	);
+}
+
+function createGrowthAttemptKey(): string {
+	if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+		return crypto.randomUUID();
+	}
+	return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }

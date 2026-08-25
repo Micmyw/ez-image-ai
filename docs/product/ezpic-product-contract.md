@@ -110,6 +110,11 @@ The homepage uses original repository-owned vector illustrations documented in
 `apps/marketing/public/examples/PROVENANCE.md`. They explain edit categories and the comparison UI;
 they are not represented as Provider output or evidence of model quality.
 
+The default-English homepage, pricing, privacy, and terms pages plus the consented editing funnel
+and read-only admin aggregate boundary are specified in
+[the growth, SEO, and operations contract](ezpic-growth-operations.md). Other locales and every
+authenticated route remain outside the search index.
+
 ## Private edit sessions and version history
 
 The first confirmed edit creates one lightweight `ImageEditSession` inside the existing atomic job

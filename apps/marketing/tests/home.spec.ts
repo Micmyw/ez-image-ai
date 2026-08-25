@@ -37,13 +37,29 @@ test.describe("home page", () => {
 		const schemas = await page.locator('script[type="application/ld+json"]').allTextContents();
 		expect(schemas).toHaveLength(1);
 		const schemaText = schemas[0] ?? "";
-		expect(JSON.parse(schemaText)).toMatchObject({
+		const schema = JSON.parse(schemaText) as {
+			"@context": string;
+			"@graph": Array<Record<string, unknown>>;
+		};
+		expect(schema).toMatchObject({
 			"@context": "https://schema.org",
-			"@graph": [
-				{ "@type": "WebSite", name: "EzPic" },
-				{ "@type": "SoftwareApplication", name: "EzPic", operatingSystem: "Web" },
-			],
 		});
+		expect(schema["@graph"].map((node) => node["@type"])).toEqual([
+			"WebSite",
+			"Organization",
+			"SoftwareApplication",
+		]);
+		expect(schema["@graph"]).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ "@type": "WebSite", name: "EzPic" }),
+				expect.objectContaining({ "@type": "Organization", name: "EzPic" }),
+				expect.objectContaining({
+					"@type": "SoftwareApplication",
+					name: "EzPic",
+					operatingSystem: "Web",
+				}),
+			]),
+		);
 		expect(schemaText).not.toMatch(
 			/"(?:provider|modelId|(?:aggregate)?rating|review|offers?|price)"\s*:/i,
 		);
@@ -58,6 +74,7 @@ test.describe("home page", () => {
 			"image-editor",
 			"before-after",
 			"examples",
+			"supported-edits",
 			"no-restrictions",
 			"how-it-works",
 			"trust",
@@ -88,7 +105,7 @@ test.describe("home page", () => {
 			await page.goto("/");
 			await expect(page.getByRole("heading", { level: 1, name: HOME_H1 })).toBeVisible();
 			await expect(page.getByRole("main")).toBeVisible();
-			await expect(page.getByLabel(/source image/i)).toBeAttached();
+			await expect(page.getByLabel("Source image", { exact: true })).toBeAttached();
 			await expect(page.getByLabel(/describe your edit/i)).toBeVisible();
 			await expect(page.getByRole("radiogroup", { name: /edit mode/i })).toBeVisible();
 			expect(

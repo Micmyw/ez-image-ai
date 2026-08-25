@@ -36,6 +36,45 @@
 			"title": "Verwalten von Organisationen"
 		},
 		"media": {
+			"growth": {
+				"title": "Wachstum und Generierungsbetrieb",
+				"description": "Schreibgeschützte EzPic-Aggregate ohne Prompts, private Medien, URLs oder rohe Auftrags-IDs.",
+				"all": "Alle",
+				"apply": "Filter anwenden",
+				"loading": "Betriebsdaten werden geladen…",
+				"error": "Betriebsdaten konnten nicht geladen werden.",
+				"empty": "Keine passenden Datensätze",
+				"enabled": "Aktiv",
+				"disabled": "Inaktiv",
+				"filters": {
+					"product": "Bearbeitungsmodus",
+					"provider": "Provider",
+					"model": "Modell",
+					"status": "Auftragsstatus",
+					"from": "Von",
+					"to": "Bis"
+				},
+				"metrics": {
+					"jobs": "Aufträge",
+					"successRate": "Erfolgsrate",
+					"latency": "p50-/p95-Latenz",
+					"cost": "Durchschnittliche Provider-Kosten (Mikro)",
+					"moderation": "Moderationsablehnungen",
+					"repeat": "Rate weiterer Bearbeitungen",
+					"credits": "Reserviert / belastet / freigegeben",
+					"terminal": "Erfolgreich / fehlgeschlagen"
+				},
+				"controls": { "title": "Wirksame Schalter", "global": "Generierungsschalter" },
+				"failures": { "title": "Fehlercodes" },
+				"routes": {
+					"title": "Routenübersicht",
+					"product": "Bearbeitungsmodus",
+					"provider": "Provider",
+					"model": "Modell",
+					"status": "Status",
+					"jobs": "Aufträge"
+				}
+			},
 			"metrics": {
 				"queue": "Warteschlange",
 				"oldest": "Älteste Wartezeit: {seconds}s",

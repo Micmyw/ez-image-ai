@@ -1,6 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { getBaseUrl } from "./base-url";
+import * as baseUrlExports from "./base-url";
+
+const { getBaseUrl } = baseUrlExports;
+const baseUrlModule = baseUrlExports as typeof baseUrlExports & {
+	parseProductionMarketingOrigin?: (value: string | undefined) => string | undefined;
+	parseGoogleSiteVerification?: (value: string | undefined) => string | undefined;
+};
 
 describe("getBaseUrl (marketing)", () => {
 	const originalEnv = process.env;
@@ -39,5 +45,43 @@ describe("getBaseUrl (marketing)", () => {
 		process.env.NEXT_PUBLIC_MARKETING_URL = "https://marketing.example.com";
 		process.env.NEXT_PUBLIC_VERCEL_URL = "my-marketing.vercel.app";
 		expect(getBaseUrl()).toBe("https://marketing.example.com");
+	});
+
+	it("rejects placeholder and insecure non-loopback canonical origins", () => {
+		expect(baseUrlModule.parseProductionMarketingOrigin).toBeTypeOf("function");
+		if (!baseUrlModule.parseProductionMarketingOrigin) return;
+
+		expect(
+			baseUrlModule.parseProductionMarketingOrigin("https://marketing.placeholder.invalid"),
+		).toBeUndefined();
+		expect(
+			baseUrlModule.parseProductionMarketingOrigin("http://marketing.example.com"),
+		).toBeUndefined();
+		expect(baseUrlModule.parseProductionMarketingOrigin("https://ezpic.example")).toBe(
+			"https://ezpic.example",
+		);
+		expect(baseUrlModule.parseProductionMarketingOrigin("http://localhost:3001/")).toBe(
+			"http://localhost:3001",
+		);
+	});
+
+	it("renders GSC verification only for a real configured token", () => {
+		expect(baseUrlModule.parseGoogleSiteVerification).toBeTypeOf("function");
+		if (!baseUrlModule.parseGoogleSiteVerification) return;
+
+		for (const value of [
+			undefined,
+			"",
+			"replace-me",
+			"placeholder",
+			"google-site-verification=replace_me",
+			"short",
+			"token with spaces",
+		]) {
+			expect(baseUrlModule.parseGoogleSiteVerification(value)).toBeUndefined();
+		}
+		expect(
+			baseUrlModule.parseGoogleSiteVerification("0123456789abcdefghijklmnopqrstuvwxyz_ABCD-EFGH"),
+		).toBe("0123456789abcdefghijklmnopqrstuvwxyz_ABCD-EFGH");
 	});
 });

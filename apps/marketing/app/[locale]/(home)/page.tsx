@@ -1,11 +1,9 @@
+import { LandingGrowthTracker } from "@analytics";
 import { FaqSection } from "@home/components/FaqSection";
-import {
-	type MarketingCheckoutAvailability,
-	PricingSection,
-} from "@home/components/PricingSection";
+import { PricingSection } from "@home/components/PricingSection";
 import { buildHomeStructuredData, HOME_DESCRIPTION, HOME_TITLE } from "@home/lib/home-seo";
-import { config as paymentsConfig } from "@repo/payments/config";
-import type { PaidPlan } from "@repo/payments/types";
+import { getMarketingCheckoutAvailability } from "@home/lib/pricing";
+import { getApprovedMarketingPageRobots } from "@i18n/config";
 import { getBaseUrl } from "@shared/lib/base-url";
 import type { Metadata } from "next";
 import { setRequestLocale } from "next-intl/server";
@@ -17,6 +15,7 @@ import { HowItWorksSection } from "../../../modules/image-editor/components/HowI
 import { ImageEditorHero } from "../../../modules/image-editor/components/ImageEditorHero";
 import { NoRestrictionsSection } from "../../../modules/image-editor/components/NoRestrictionsSection";
 import { ShowcaseSection } from "../../../modules/image-editor/components/ShowcaseSection";
+import { SupportedEditsSection } from "../../../modules/image-editor/components/SupportedEditsSection";
 import { TrustSection } from "../../../modules/image-editor/components/TrustSection";
 
 export async function generateMetadata({
@@ -25,12 +24,13 @@ export async function generateMetadata({
 	params: Promise<{ locale: string }>;
 }): Promise<Metadata> {
 	const { locale } = await params;
-	const canonical = new URL(locale === "en" ? "/" : `/${locale}`, getBaseUrl()).href;
+	const canonical = new URL("/", getBaseUrl()).href;
 
 	return {
 		title: { absolute: HOME_TITLE },
 		description: HOME_DESCRIPTION,
 		alternates: { canonical },
+		robots: getApprovedMarketingPageRobots(locale, "/"),
 		openGraph: {
 			title: HOME_TITLE,
 			description: HOME_DESCRIPTION,
@@ -48,12 +48,13 @@ export async function generateMetadata({
 export default async function Home({ params }: { params: Promise<{ locale: string }> }) {
 	const { locale } = await params;
 	setRequestLocale(locale);
-	const structuredData = buildHomeStructuredData(getBaseUrl());
+	const checkoutAvailability = getMarketingCheckoutAvailability();
+	const structuredData = buildHomeStructuredData(getBaseUrl(), checkoutAvailability);
 	const imageModes = getMarketingImageModes();
-	const checkoutAvailability = marketingCheckoutAvailability();
 
 	return (
 		<>
+			<LandingGrowthTracker />
 			<script
 				type="application/ld+json"
 				dangerouslySetInnerHTML={{
@@ -63,6 +64,7 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
 			<ImageEditorHero modes={imageModes} />
 			<BeforeAfterDemo />
 			<ShowcaseSection />
+			<SupportedEditsSection />
 			<NoRestrictionsSection />
 			<HowItWorksSection />
 			<TrustSection />
@@ -71,25 +73,4 @@ export default async function Home({ params }: { params: Promise<{ locale: strin
 			<FinalCtaSection />
 		</>
 	);
-}
-
-function marketingCheckoutAvailability(): MarketingCheckoutAvailability {
-	const isConfigured = (planId: "creator" | "studio", interval: "month" | "year") => {
-		const plan = paymentsConfig.plans[planId];
-		if (!("prices" in plan)) return false;
-		return (plan as PaidPlan).prices.some(
-			(price) =>
-				price.type === "subscription" && price.interval === interval && Boolean(price.priceId),
-		);
-	};
-	return {
-		creator: {
-			month: isConfigured("creator", "month"),
-			year: isConfigured("creator", "year"),
-		},
-		studio: {
-			month: isConfigured("studio", "month"),
-			year: isConfigured("studio", "year"),
-		},
-	};
 }

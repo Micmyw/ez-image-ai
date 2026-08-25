@@ -1,5 +1,6 @@
 "use client";
 
+import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpcClient } from "@shared/lib/orpc-client";
 import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
@@ -41,7 +42,10 @@ export function useGeneration({ parentJobId }: { parentJobId?: string | null } =
 			return { request, value: { ...value, productKey } };
 		},
 		onSuccess: ({ request, value }) => {
-			if (action.current!.acceptQuote(request)) setQuote(value);
+			if (action.current!.acceptQuote(request)) {
+				setQuote(value);
+				void saasGrowthFunnel.quoteCreated(value.id, value.productKey, Number(value.credits));
+			}
 		},
 	});
 	const createGeneration = useMutation({

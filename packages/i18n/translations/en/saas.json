@@ -36,6 +36,48 @@
 			"title": "Manage organizations"
 		},
 		"media": {
+			"growth": {
+				"title": "Growth and generation operations",
+				"description": "Read-only aggregates for the EzPic editing funnel. Prompts, private media, URLs, and raw job IDs are excluded.",
+				"all": "All",
+				"apply": "Apply filters",
+				"loading": "Loading operations aggregates…",
+				"error": "Operations aggregates could not be loaded.",
+				"empty": "No matching records",
+				"enabled": "Enabled",
+				"disabled": "Disabled",
+				"filters": {
+					"product": "Edit mode",
+					"provider": "Provider",
+					"model": "Model",
+					"status": "Job status",
+					"from": "From",
+					"to": "To"
+				},
+				"metrics": {
+					"jobs": "Jobs",
+					"successRate": "Success rate",
+					"latency": "p50 / p95 latency",
+					"cost": "Average Provider cost (micros)",
+					"moderation": "Moderation rejection rate",
+					"repeat": "Repeat-edit rate",
+					"credits": "Reserved / charged / released",
+					"terminal": "Succeeded / failed"
+				},
+				"controls": {
+					"title": "Effective controls",
+					"global": "Generation kill switch"
+				},
+				"failures": { "title": "Failure codes" },
+				"routes": {
+					"title": "Route breakdown",
+					"product": "Edit mode",
+					"provider": "Provider",
+					"model": "Model",
+					"status": "Status",
+					"jobs": "Jobs"
+				}
+			},
 			"metrics": {
 				"queue": "Queue depth",
 				"oldest": "Oldest wait: {seconds}s",

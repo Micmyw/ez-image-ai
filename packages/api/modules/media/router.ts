@@ -1,6 +1,7 @@
 import { abortUploadSession } from "./procedures/abort-upload-session";
 import { listMediaAuditLog } from "./procedures/admin-audit-log";
 import {
+	adminGrowthOperations,
 	adminMediaDiagnostics,
 	listUncertainGenerationAttempts,
 } from "./procedures/admin-diagnostics";
@@ -48,6 +49,7 @@ export const mediaRouter = {
 	listAssets,
 	getCreditAccount,
 	adminMediaDiagnostics,
+	adminGrowthOperations,
 	listUncertainGenerationAttempts,
 	listMediaAuditLog,
 	replayMediaEvent,

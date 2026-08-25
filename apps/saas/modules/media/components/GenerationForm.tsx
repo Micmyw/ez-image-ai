@@ -8,9 +8,10 @@ import { getPlanEntitlement } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
 import { useRouter } from "@shared/hooks/router";
+import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import { useGeneration } from "../hooks/use-generation";
@@ -77,6 +78,10 @@ export function GenerationForm({
 		t(`suggestions.${key}`),
 	);
 
+	useEffect(() => {
+		if (upgradeOpen) void saasGrowthFunnel.upgradePromptViewed(values.productKey);
+	}, [upgradeOpen, values.productKey]);
+
 	function updatePrompt(prompt: string) {
 		form.setValue("prompt", prompt, { shouldDirty: true, shouldValidate: true });
 		generation.beginNewAction();
@@ -124,6 +129,8 @@ export function GenerationForm({
 
 	async function confirmGeneration() {
 		try {
+			if (!generation.quote) return;
+			await saasGrowthFunnel.generationConfirmed(generation.quote.id, generation.quote.productKey);
 			const result = await generation.createGeneration.mutateAsync();
 			onCreated(result.job.id);
 			generation.beginNewAction();

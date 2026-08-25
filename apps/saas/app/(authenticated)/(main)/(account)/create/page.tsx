@@ -38,6 +38,7 @@ export default async function CreatePage({
 		deletedAt: Date | null;
 	} | null = null;
 	let parentJobId: string | null = null;
+	let claimedDraft = false;
 
 	const subscription = session
 		? await findEffectivePaidSubscription({ ownerType: "USER", ownerId: session.user.id }, db)
@@ -95,6 +96,7 @@ export default async function CreatePage({
 			}
 		} else if (draftId) {
 			candidate = await getClaimedGenerationDraft({ draftId, userId: session.user.id }, db);
+			claimedDraft = Boolean(candidate);
 			const sourceAssetId = candidate?.input.sourceAssetId;
 			if (typeof sourceAssetId === "string") {
 				sourceAsset = await findEditorSourceAsset(sourceAssetId, session.user.id);
@@ -111,6 +113,7 @@ export default async function CreatePage({
 
 	return (
 		<CreatorWorkspace
+			claimedDraft={claimedDraft}
 			initialDraft={recovery.initialDraft}
 			parentJobId={parentJobId}
 			allowedProductKeys={allowedProductKeys}

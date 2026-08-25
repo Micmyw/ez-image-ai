@@ -1,6 +1,7 @@
 "use client";
 
 import { Spinner } from "@repo/ui/components/spinner";
+import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpc } from "@shared/lib/orpc-query-utils";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
@@ -35,10 +36,11 @@ export function CheckoutReturnContent({
 	useEffect(() => {
 		const destination = checkoutReturnDestination(data?.status, returnTo);
 		if (destination) {
+			void saasGrowthFunnel.subscriptionActivated(expectedPlanId);
 			setPolling(false);
 			router.replace(destination);
 		}
-	}, [data?.status, returnTo, router]);
+	}, [data?.status, expectedPlanId, returnTo, router]);
 
 	useEffect(() => {
 		if (!polling) return;

@@ -7,7 +7,17 @@ export const config: MarketingI18nConfig = i18nConfig;
 export type { Locale };
 
 export function getLocaleRobots(locale: string): { index: boolean; follow: boolean } {
-	return locale === config.defaultLocale
+	void locale;
+	return { index: false, follow: true };
+}
+
+const approvedIndexablePaths = new Set(["/", "/pricing", "/privacy", "/terms"]);
+
+export function getApprovedMarketingPageRobots(
+	locale: string,
+	path: string,
+): { index: boolean; follow: boolean } {
+	return locale === config.defaultLocale && approvedIndexablePaths.has(path)
 		? { index: true, follow: true }
 		: { index: false, follow: true };
 }

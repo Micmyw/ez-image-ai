@@ -123,4 +123,26 @@ describe("EzPic public copy contract", () => {
 			/14-day|30-day|unlimited projects|commercial usage rights|priority generation queue|short videos/i,
 		);
 	});
+
+	it("ships substantive English privacy and terms content for the approved trust routes", () => {
+		const privacy = readFileSync(
+			path.join(repositoryRoot, "apps/marketing/content/legal/privacy-policy.md"),
+			"utf8",
+		);
+		const terms = readFileSync(
+			path.join(repositoryRoot, "apps/marketing/content/legal/terms.md"),
+			"utf8",
+		);
+
+		expect(privacy).not.toMatch(/placeholder|edit the .* file/i);
+		expect(privacy).toMatch(/private account-scoped/i);
+		expect(privacy).toMatch(/retention/i);
+		expect(privacy).toMatch(/analytics consent/i);
+		expect(privacy).toMatch(/signed URL/i);
+		expect(terms).not.toMatch(/placeholder|edit the .* file/i);
+		expect(terms).toMatch(/credits/i);
+		expect(terms).toMatch(/safety|moderation/i);
+		expect(terms).toMatch(/subscription/i);
+		expect(terms).toMatch(/refund/i);
+	});
 });

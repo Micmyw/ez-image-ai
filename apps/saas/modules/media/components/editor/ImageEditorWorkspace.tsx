@@ -2,9 +2,10 @@
 
 import { readEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
+import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { useTranslations } from "next-intl";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 import { canConfirmEditorUpgrade } from "../../lib/editor-entitlement";
 import type {
@@ -22,12 +23,14 @@ import { RecentJobQueue } from "../RecentJobQueue";
 import { EditorResultPanel } from "./EditorResultPanel";
 
 export function ImageEditorWorkspace({
+	claimedDraft = false,
 	initialDraft,
 	allowedProductKeys,
 	restoreState,
 	restoreNotice,
 	parentJobId,
 }: {
+	claimedDraft?: boolean;
 	initialDraft?: EditorDraftInput | null;
 	allowedProductKeys: EditorProductKey[];
 	restoreState: EditorRestoreState;
@@ -37,6 +40,7 @@ export function ImageEditorWorkspace({
 	const t = useTranslations("media.create");
 	const router = useRouter();
 	const searchParams = useSearchParams();
+	const claimedDraftEventKey = useId();
 	const [workspace, setWorkspace] = useState<EditorWorkspaceState>(() => ({
 		jobId: searchParams.get("job"),
 		parentJobId: parentJobId ?? null,
@@ -46,6 +50,12 @@ export function ImageEditorWorkspace({
 	}));
 	const [sourceReady, setSourceReady] = useState(restoreState === "ready");
 	const [upgradeRestored, setUpgradeRestored] = useState(false);
+
+	useEffect(() => {
+		if (claimedDraft && initialDraft) {
+			void saasGrowthFunnel.draftClaimed(claimedDraftEventKey, initialDraft.productKey);
+		}
+	}, [claimedDraft, claimedDraftEventKey, initialDraft]);
 
 	useEffect(() => {
 		if (searchParams.get("upgrade") !== "complete") return;

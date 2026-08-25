@@ -36,6 +36,45 @@
 			"title": "Gestionar organizaciones"
 		},
 		"media": {
+			"growth": {
+				"title": "Crecimiento y operaciones de generación",
+				"description": "Agregados de solo lectura de EzPic sin instrucciones, medios privados, URL ni ID de trabajos sin procesar.",
+				"all": "Todos",
+				"apply": "Aplicar filtros",
+				"loading": "Cargando agregados operativos…",
+				"error": "No se pudieron cargar los agregados operativos.",
+				"empty": "No hay registros coincidentes",
+				"enabled": "Activo",
+				"disabled": "Inactivo",
+				"filters": {
+					"product": "Modo de edición",
+					"provider": "Proveedor",
+					"model": "Modelo",
+					"status": "Estado del trabajo",
+					"from": "Desde",
+					"to": "Hasta"
+				},
+				"metrics": {
+					"jobs": "Trabajos",
+					"successRate": "Tasa de éxito",
+					"latency": "Latencia p50 / p95",
+					"cost": "Coste medio del proveedor (micros)",
+					"moderation": "Rechazos de moderación",
+					"repeat": "Tasa de segunda edición",
+					"credits": "Reservados / cobrados / liberados",
+					"terminal": "Correctos / fallidos"
+				},
+				"controls": { "title": "Controles efectivos", "global": "Interruptor de generación" },
+				"failures": { "title": "Códigos de error" },
+				"routes": {
+					"title": "Desglose de rutas",
+					"product": "Modo de edición",
+					"provider": "Proveedor",
+					"model": "Modelo",
+					"status": "Estado",
+					"jobs": "Trabajos"
+				}
+			},
 			"metrics": {
 				"queue": "Cola",
 				"oldest": "Espera máxima: {seconds}s",

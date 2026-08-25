@@ -12,6 +12,7 @@ export function BeforeAfterSlider({
 	showResultLabel,
 	beforeLabel,
 	afterLabel,
+	onCompared,
 }: {
 	beforeUrl: string;
 	afterUrl: string;
@@ -22,6 +23,7 @@ export function BeforeAfterSlider({
 	showResultLabel: string;
 	beforeLabel: string;
 	afterLabel: string;
+	onCompared?: () => void;
 }) {
 	const [position, setPosition] = useState(50);
 
@@ -52,21 +54,30 @@ export function BeforeAfterSlider({
 					max={100}
 					value={position}
 					aria-label={controlLabel}
-					onChange={(event) => setPosition(Number(event.target.value))}
+					onChange={(event) => {
+						setPosition(Number(event.target.value));
+						onCompared?.();
+					}}
 					className="inset-0 absolute h-full w-full cursor-ew-resize opacity-0"
 				/>
 			</div>
 			<div className="gap-2 flex flex-wrap">
 				<button
 					type="button"
-					onClick={() => setPosition(100)}
+					onClick={() => {
+						setPosition(100);
+						onCompared?.();
+					}}
 					className="px-3 py-2 text-sm rounded-lg border hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 				>
 					{showOriginalLabel}
 				</button>
 				<button
 					type="button"
-					onClick={() => setPosition(0)}
+					onClick={() => {
+						setPosition(0);
+						onCompared?.();
+					}}
 					className="px-3 py-2 text-sm rounded-lg border hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 				>
 					{showResultLabel}

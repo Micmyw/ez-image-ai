@@ -185,12 +185,16 @@ function safeTestDatabaseUrl(): string {
 		throw new Error("UNSAFE_TEST_DATABASE: TEST_DATABASE_URL must not equal DATABASE_URL");
 	}
 	const parsed = new URL(TEST_DATABASE_URL);
+	const allowedDatabases = new Set([
+		"/ezpic_pr6_subscriptions_test",
+		"/ezpic_pr7_growth_operations_test",
+	]);
 	if (
 		(parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") ||
 		parsed.port !== "55432" ||
-		parsed.pathname !== "/ezpic_pr6_subscriptions_test"
+		!allowedDatabases.has(parsed.pathname)
 	) {
-		throw new Error("UNSAFE_TEST_DATABASE: expected the disposable PR 6 database");
+		throw new Error("UNSAFE_TEST_DATABASE: expected an approved disposable EzPic database");
 	}
 	return TEST_DATABASE_URL;
 }

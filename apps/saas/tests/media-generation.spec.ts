@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import pg from "pg";
 
+import { captureConsentedGrowthEvents } from "./growth-events";
+
 const pool = new pg.Pool({ connectionString: requiredEnvironment("TEST_DATABASE_URL") });
 
 const runId = requiredEnvironment("E2E_RUN_ID");
@@ -18,6 +20,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	test("successful edit is idempotent and shows the job-bound before, after, and private download", async ({
 		page,
 	}, testInfo) => {
+		const growthEvents = await captureConsentedGrowthEvents(page);
 		const prompt = marker("duplicate", "A ceramic lamp on a quiet desk", testInfo.retry);
 		await openCreator(page, prompt, fundedEmail);
 		await page.getByRole("button", { name: /review credits/i }).click();
@@ -63,11 +66,28 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		const reusedSource = page.getByRole("img", { name: /selected source image/i });
 		await expect(reusedSource).toBeVisible({ timeout: 30_000 });
 		await expect.poll(() => reusedSource.getAttribute("src")).not.toBe(originalPreviewUrl);
+		await expect
+			.poll(() => growthEvents.map(({ name }) => name))
+			.toEqual([
+				"editor_quote_created",
+				"editor_generation_confirmed",
+				"editor_generation_succeeded",
+				"result_compared",
+				"result_downloaded",
+				"edit_again_started",
+			]);
+		const serializedGrowthEvents = JSON.stringify(growthEvents);
+		expect(serializedGrowthEvents).not.toContain(prompt);
+		expect(serializedGrowthEvents).not.toContain(job.id);
+		expect(serializedGrowthEvents).not.toMatch(
+			/assetId|signed|https?:|provider|model|cost|email|token/i,
+		);
 	});
 
 	test("creates a second edit and branches again from the older successful version", async ({
 		page,
 	}, testInfo) => {
+		const growthEvents = await captureConsentedGrowthEvents(page);
 		const rootPrompt = marker("session-root", "A warm editorial background", testInfo.retry);
 		await createScenario(page, rootPrompt);
 		const rootJob = await waitForJob(rootPrompt, "SUCCEEDED");
@@ -130,6 +150,8 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await page.goto(`/edits/${rootVersion.editSessionId}`);
 		await expect(page.locator("ol > li")).toHaveCount(3);
 		await expect(page.getByText(branchPrompt)).toBeVisible();
+		await expect.poll(() => growthEvents.map(({ name }) => name)).toContain("edit_session_opened");
+		expect(growthEvents.map(({ name }) => name)).toContain("edit_again_started");
 	});
 
 	test("insufficient credits creates no quote, job, reservation, or ledger entry", async ({
@@ -269,6 +291,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	}
 
 	test("provider failure settles the exact job at zero charge", async ({ page }, testInfo) => {
+		const growthEvents = await captureConsentedGrowthEvents(page);
 		const prompt = marker("provider-failure", "Provider failure", testInfo.retry);
 		await createScenario(page, prompt);
 		const job = await waitForJob(prompt, "FAILED");
@@ -278,6 +301,10 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		expect(reservation.releasedAmount).toBe(job.creditsReserved);
 		await expect(page.getByRole("heading", { name: /could not finish/i })).toBeVisible();
 		await expect(page.getByText(/all 4 of 4 reserved credits were returned/i)).toBeVisible();
+		await expect
+			.poll(() => growthEvents.map(({ name }) => name))
+			.toContain("editor_generation_failed");
+		expect(growthEvents.map(({ name }) => name)).not.toContain("editor_generation_succeeded");
 	});
 
 	test("moderation rejection quarantines the exact output and charges zero", async ({

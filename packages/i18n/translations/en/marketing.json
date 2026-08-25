@@ -165,6 +165,37 @@
 				}
 			}
 		},
+		"supportedEdits": {
+			"eyebrow": "Supported edits",
+			"title": "Direct the change while keeping your source image",
+			"description": "EzPic supports prompt-guided edits to an uploaded JPEG, PNG, or WebP. Results depend on the source and instruction, so review each output before use.",
+			"items": {
+				"background": {
+					"title": "Background changes",
+					"description": "Replace or restyle the setting while asking to preserve the main subject."
+				},
+				"objects": {
+					"title": "Object changes",
+					"description": "Add, remove, or adjust a clearly described object in the source scene."
+				},
+				"color": {
+					"title": "Color and material",
+					"description": "Change a selected color, surface, or material without requesting a new scene."
+				},
+				"lighting": {
+					"title": "Lighting and mood",
+					"description": "Describe warmer light, cooler shadows, or another photographic atmosphere."
+				},
+				"style": {
+					"title": "Style direction",
+					"description": "Apply a visual treatment while asking to retain the important composition."
+				},
+				"cleanup": {
+					"title": "Focused cleanup",
+					"description": "Call out a distraction or small area that should be simplified or removed."
+				}
+			}
+		},
 		"noRestrictions": {
 			"eyebrow": "Plain-language control",
 			"title": "What “No Restrictions” actually means",

@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 import pg from "pg";
 
+import { captureGrowthEvents } from "./growth-events";
+
 const runId = process.env.E2E_RUN_ID;
 const saasUrl = process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000";
 const marketingUrl = process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3001";
@@ -69,7 +71,7 @@ test("guest selects a suggestion, uploads, chooses Quality, and hands off by POS
 	await expect(prompt).toHaveValue(/replace the background/i);
 	await expect.poll(() => draftPayload).toBeUndefined();
 
-	await page.getByLabel(/source image/i).setInputFiles({
+	await page.getByLabel("Source image", { exact: true }).setInputFiles({
 		name: "source.png",
 		mimeType: "image/png",
 		buffer: Buffer.from(
@@ -108,7 +110,7 @@ test("guest receives accessible file errors without creating a draft", async ({ 
 	});
 	await page.goto("/");
 
-	const sourceInput = page.getByLabel(/source image/i);
+	const sourceInput = page.getByLabel("Source image", { exact: true });
 	expect(await sourceInput.evaluate((input: HTMLInputElement) => input.labels?.length ?? 0)).toBe(
 		1,
 	);
@@ -131,7 +133,7 @@ test("editor controls support a basic keyboard and screen-reader workflow", asyn
 	});
 	await page.goto("/");
 
-	const sourceInput = page.getByLabel(/source image/i);
+	const sourceInput = page.getByLabel("Source image", { exact: true });
 	const prompt = page.getByLabel(/describe your edit/i);
 	const suggestion = page.getByRole("button", { name: /replace the background/i });
 	const quality = page.getByLabel(/quality edit/i);
@@ -165,6 +167,8 @@ test("draft handoff posts to SaaS and redirects without prompt data", async ({
 		);
 	}
 	const prompt = `[e2e:draft] [run:${runId}] [retry:${testInfo.retry}] A private launch concept`;
+	await page.context().addCookies([{ name: "consent", value: "true", url: marketingUrl }]);
+	const growthEvents = await captureGrowthEvents(page);
 	let claimToken = "";
 	page.on("request", (request) => {
 		if (request.url().endsWith("/draft/continue") && request.method() === "POST") {
@@ -173,7 +177,10 @@ test("draft handoff posts to SaaS and redirects without prompt data", async ({
 	});
 	await page.goto("/");
 	await page.getByLabel(/describe your edit/i).fill(prompt);
-	await page.getByLabel(/source image/i).setInputFiles({
+	const chooserPromise = page.waitForEvent("filechooser");
+	await page.getByRole("button", { name: /drop an image here or choose a file/i }).click();
+	const chooser = await chooserPromise;
+	await chooser.setFiles({
 		name: "source.png",
 		mimeType: "image/png",
 		buffer: Buffer.from(
@@ -209,11 +216,32 @@ test("draft handoff posts to SaaS and redirects without prompt data", async ({
 	await submit.click();
 	await expect(page).toHaveURL(/\/create$/);
 	await expect(page.getByLabel(/edit instruction/i)).toHaveValue(prompt);
-	await expect(page.getByRole("radio", { name: /quality edit/i })).toBeChecked();
+	const upgradeDialog = page.getByRole("dialog", { name: /unlock quality edit/i });
+	if (await upgradeDialog.isVisible()) {
+		await upgradeDialog.getByRole("button", { name: /not now/i }).click();
+	}
 	await expect(page.getByRole("img", { name: /selected source image/i })).toBeVisible({
 		timeout: 30_000,
 	});
+	await expect(page.getByRole("radio", { name: /quality edit/i })).toBeChecked({
+		timeout: 30_000,
+	});
 	expect(page.url()).not.toContain("private");
+	await expect
+		.poll(() => growthEvents.map(({ name }) => name))
+		.toEqual(
+			expect.arrayContaining([
+				"landing_viewed",
+				"source_upload_started",
+				"source_upload_completed",
+				"marketing_draft_created",
+				"auth_handoff_started",
+				"draft_claimed",
+			]),
+		);
+	expect(JSON.stringify(growthEvents)).not.toMatch(
+		/private launch|source\.png|claimToken|jobId|assetId|provider|model|cost|email|https?:/i,
+	);
 
 	const claimed = (
 		await pool.query(`SELECT status FROM generation_draft WHERE id=$1`, [activeDraft.id])

@@ -35,11 +35,11 @@ export function Footer() {
 				</div>
 
 				<div className="gap-2 flex flex-col">
-					<LocaleLink href="/legal/privacy-policy" className="block">
+					<LocaleLink href="/privacy" className="block">
 						{t("common.footer.privacyPolicy")}
 					</LocaleLink>
 
-					<LocaleLink href="/legal/terms" className="block">
+					<LocaleLink href="/terms" className="block">
 						{t("common.footer.termsAndConditions")}
 					</LocaleLink>
 

@@ -10,6 +10,7 @@ describe("marketing root metadata", () => {
 			applicationName: config.appName,
 			description: config.appDescription,
 			metadataBase: new URL(getBaseUrl()),
+			robots: { index: false, follow: true },
 			openGraph: {
 				description: config.appDescription,
 				siteName: config.appName,

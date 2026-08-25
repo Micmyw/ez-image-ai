@@ -1,10 +1,12 @@
 "use client";
 
 import { config } from "@config";
+import {
+	type MarketingCheckoutAvailability,
+	unavailableMarketingCheckout,
+} from "@home/lib/pricing";
 import { LocaleLink } from "@i18n/routing";
 import { getPublicConfig, PLAN_ENTITLEMENTS } from "@repo/config/client";
-import { config as paymentsConfig } from "@repo/payments/config";
-import type { PaidPlan } from "@repo/payments/types";
 import { cn } from "@repo/ui";
 import { Button } from "@repo/ui/components/button";
 import { Tabs, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
@@ -14,15 +16,7 @@ import { useMemo, useState } from "react";
 
 const publicProductConfig = getPublicConfig();
 
-export interface MarketingCheckoutAvailability {
-	creator: Record<"month" | "year", boolean>;
-	studio: Record<"month" | "year", boolean>;
-}
-
-const unavailableCheckout: MarketingCheckoutAvailability = {
-	creator: { month: false, year: false },
-	studio: { month: false, year: false },
-};
+export type { MarketingCheckoutAvailability } from "@home/lib/pricing";
 
 export function isMarketingCheckoutAvailable(
 	planId: string,
@@ -33,9 +27,11 @@ export function isMarketingCheckoutAvailable(
 }
 
 export function PricingSection({
-	checkoutAvailability = unavailableCheckout,
+	checkoutAvailability = unavailableMarketingCheckout,
+	showHeading = true,
 }: {
 	checkoutAvailability?: MarketingCheckoutAvailability;
+	showHeading?: boolean;
 }) {
 	const t = useTranslations();
 	const format = useFormatter();
@@ -55,7 +51,13 @@ export function PricingSection({
 			cta: string;
 			recommended?: boolean;
 			isEnterprise?: boolean;
-			prices?: PaidPlan["prices"];
+			prices?: Array<{
+				type: "subscription";
+				interval: "month" | "year";
+				amount: number;
+				currency: string;
+				trialPeriodDays?: number;
+			}>;
 			to: string;
 		}> = [];
 		const entitlementFeatures = (entitlement: (typeof PLAN_ENTITLEMENTS)[number]) => [
@@ -70,7 +72,7 @@ export function PricingSection({
 			}),
 		];
 
-		if (!paymentsConfig.requireActiveSubscription) {
+		{
 			const entitlement = PLAN_ENTITLEMENTS.find((item) => item.id === "free");
 			result.push({
 				id: "free",
@@ -87,11 +89,12 @@ export function PricingSection({
 			});
 		}
 
-		for (const [planId, plan] of Object.entries(paymentsConfig.plans)) {
-			const isEnterprise = "isEnterprise" in plan;
-			const prices = "prices" in plan ? (plan as PaidPlan).prices : undefined;
-			const entitlement = PLAN_ENTITLEMENTS.find((item) => item.id === planId);
-			if (!entitlement) continue;
+		for (const entitlement of PLAN_ENTITLEMENTS.filter(({ id }) => id !== "free")) {
+			const planId = entitlement.id;
+			const prices = entitlement.prices.map((price) => ({
+				type: "subscription" as const,
+				...price,
+			}));
 
 			result.push({
 				id: planId,
@@ -103,9 +106,9 @@ export function PricingSection({
 						(t.raw(`pricing.products.${planId}.features`) as Record<string, string>) ?? {},
 					),
 				],
-				cta: isEnterprise ? (t("pricing.contactSales") ?? "") : (t("pricing.getStarted") ?? ""),
-				recommended: plan.recommended,
-				isEnterprise,
+				cta: t("pricing.getStarted") ?? "",
+				recommended: planId === "creator",
+				isEnterprise: false,
 				prices,
 				to: signupUrl ?? "#",
 			});
@@ -124,14 +127,16 @@ export function PricingSection({
 			className="scroll-mt-24 border-slate-200 bg-slate-50 py-14 sm:py-20 border-y"
 		>
 			<div className="container">
-				<div className="mb-8 max-w-3xl mx-auto text-center">
-					<h2 className="text-3xl leading-tight font-semibold text-slate-950 sm:text-4xl lg:text-5xl tracking-[-0.035em]">
-						{t("pricing.title")}
-					</h2>
-					<p className="mt-4 text-base leading-7 text-slate-600 sm:text-lg">
-						{t("pricing.description")}
-					</p>
-				</div>
+				{showHeading && (
+					<div className="mb-8 max-w-3xl mx-auto text-center">
+						<h2 className="text-3xl leading-tight font-semibold text-slate-950 sm:text-4xl lg:text-5xl tracking-[-0.035em]">
+							{t("pricing.title")}
+						</h2>
+						<p className="mt-4 text-base leading-7 text-slate-600 sm:text-lg">
+							{t("pricing.description")}
+						</p>
+					</div>
+				)}
 
 				<div className="@container">
 					{hasSubscriptions && (
@@ -160,15 +165,12 @@ export function PricingSection({
 							const isFree = !plan.prices && !plan.isEnterprise;
 							const price = isFree
 								? undefined
-								: plan.prices?.find((p) => p.type === "one-time" || p.interval === interval);
+								: plan.prices?.find((price) => price.interval === interval);
 							const isPaidCheckoutUnavailable =
 								!isFree &&
 								!plan.isEnterprise &&
 								(!price || !isMarketingCheckoutAvailable(plan.id, interval, checkoutAvailability));
-							const trialPeriodDays =
-								price && "trialPeriodDays" in price && price.trialPeriodDays
-									? price.trialPeriodDays
-									: undefined;
+							const trialPeriodDays = price?.trialPeriodDays;
 
 							return (
 								<div

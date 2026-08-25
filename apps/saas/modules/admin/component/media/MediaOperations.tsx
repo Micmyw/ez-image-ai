@@ -1,6 +1,6 @@
 "use client";
 
-import { PRODUCT_MODEL_KEYS } from "@repo/config/client";
+import { EZPIC_PRODUCT_KEYS } from "@repo/config/client";
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
 import { Card } from "@repo/ui/components/card";
@@ -18,6 +18,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
+import { GrowthOperationsPanel } from "./GrowthOperationsPanel";
+
 const AUDIT_PAGE_SIZE = 20;
 
 function operationKey(): string {
@@ -31,7 +33,7 @@ export function MediaOperations() {
 	const [eventKind, setEventKind] = useState<"PAYMENT" | "PROVIDER">("PAYMENT");
 	const [jobId, setJobId] = useState("");
 	const [stage, setStage] = useState<"DISPATCH" | "FINALIZE" | "SETTLE">("FINALIZE");
-	const [productKey, setProductKey] = useState<(typeof PRODUCT_MODEL_KEYS)[number]>("image-fast");
+	const [productKey, setProductKey] = useState<(typeof EZPIC_PRODUCT_KEYS)[number]>("image-fast");
 	const [reason, setReason] = useState("");
 	const diagnostics = useQuery(
 		orpc.media.adminMediaDiagnostics.queryOptions({ refetchInterval: 15_000 }),
@@ -46,6 +48,7 @@ export function MediaOperations() {
 
 	const refresh = async () => {
 		await Promise.all([
+			queryClient.invalidateQueries({ queryKey: orpc.media.adminGrowthOperations.key() }),
 			queryClient.invalidateQueries({ queryKey: orpc.media.adminMediaDiagnostics.key() }),
 			queryClient.invalidateQueries({ queryKey: orpc.media.listMediaAuditLog.key() }),
 		]);
@@ -68,6 +71,7 @@ export function MediaOperations() {
 
 	return (
 		<div className="space-y-6">
+			<GrowthOperationsPanel />
 			<div className="gap-4 md:grid-cols-2 xl:grid-cols-4 grid">
 				<Metric
 					title={t("metrics.queue")}
@@ -223,9 +227,9 @@ export function MediaOperations() {
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								{PRODUCT_MODEL_KEYS.map((key) => (
+								{EZPIC_PRODUCT_KEYS.map((key) => (
 									<SelectItem key={key} value={key}>
-										{key}
+										{key === "image-fast" ? "Standard Edit" : "Quality Edit"}
 									</SelectItem>
 								))}
 							</SelectContent>

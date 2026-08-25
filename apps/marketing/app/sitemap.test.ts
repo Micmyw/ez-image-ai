@@ -7,7 +7,7 @@ describe("marketing sitemap", () => {
 		const entries = await sitemap();
 		const paths = entries.map(({ url }) => new URL(url).pathname);
 
-		expect(paths.sort()).toEqual(["/", "/legal/privacy-policy", "/legal/terms"]);
+		expect(paths.sort()).toEqual(["/", "/pricing", "/privacy", "/terms"]);
 		expect(paths).not.toEqual(
 			expect.arrayContaining([expect.stringMatching(/^\/(?:de|es|fr)(?:\/|$)/)]),
 		);

@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import pg from "pg";
 
 import { EDITOR_UPGRADE_STORAGE_KEY } from "../modules/payments/lib/editor-upgrade";
+import { captureConsentedGrowthEvents } from "./growth-events";
 
 const pool = new pg.Pool({ connectionString: requiredEnvironment("TEST_DATABASE_URL") });
 const runId = requiredEnvironment("E2E_RUN_ID");
@@ -34,6 +35,7 @@ test.describe("subscription upgrade checkout recovery", () => {
 	test("subscription upgrade with missing Price ID stays local and visibly unavailable", async ({
 		page,
 	}) => {
+		const growthEvents = await captureConsentedGrowthEvents(page);
 		const user = await userByEmail(freeEmail);
 		const before = await checkoutFixtureCounts(user.id);
 		await page.goto("/choose-plan?returnTo=%2Fcreate");
@@ -44,11 +46,13 @@ test.describe("subscription upgrade checkout recovery", () => {
 			page.getByRole("alert").filter({ hasText: /paid checkout is temporarily unavailable/i }),
 		).toBeVisible();
 		await expect.poll(() => checkoutFixtureCounts(user.id)).toEqual(before);
+		expect(growthEvents.map(({ name }) => name)).not.toContain("checkout_started");
 	});
 
 	test("subscription upgrade waits for server activation and restores the editor", async ({
 		page,
 	}) => {
+		const growthEvents = await captureConsentedGrowthEvents(page);
 		const user = await userByEmail(freeEmail);
 		const source = await sourceForUser(user.id);
 		const prompt = `[e2e:subscription-upgrade] [run:${runId}] Keep the subject and soften the background`;
@@ -98,6 +102,9 @@ test.describe("subscription upgrade checkout recovery", () => {
 			)
 			.toBeNull();
 		expect(await freeGrantCount(user.id)).toBe(grantCountBeforeReturn);
+		await expect
+			.poll(() => growthEvents.map(({ name }) => name))
+			.toEqual(expect.arrayContaining(["upgrade_prompt_viewed", "subscription_activated"]));
 	});
 });
 

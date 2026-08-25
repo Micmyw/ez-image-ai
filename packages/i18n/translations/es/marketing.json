@@ -165,6 +165,37 @@
 				}
 			}
 		},
+		"supportedEdits": {
+			"eyebrow": "Ediciones compatibles",
+			"title": "Indica el cambio conservando tu imagen de origen",
+			"description": "EzPic admite ediciones guiadas por instrucciones sobre imágenes JPEG, PNG o WebP subidas. Revisa cada resultado antes de usarlo.",
+			"items": {
+				"background": {
+					"title": "Cambios de fondo",
+					"description": "Sustituye o cambia el estilo del entorno conservando el sujeto principal."
+				},
+				"objects": {
+					"title": "Cambios de objetos",
+					"description": "Añade, elimina o ajusta un objeto descrito claramente en la escena."
+				},
+				"color": {
+					"title": "Color y material",
+					"description": "Cambia un color, una superficie o un material seleccionado."
+				},
+				"lighting": {
+					"title": "Iluminación y ambiente",
+					"description": "Describe una luz más cálida, sombras frías u otra atmósfera."
+				},
+				"style": {
+					"title": "Dirección de estilo",
+					"description": "Aplica un tratamiento visual conservando la composición importante."
+				},
+				"cleanup": {
+					"title": "Limpieza específica",
+					"description": "Señala una distracción o una zona pequeña que deba simplificarse o eliminarse."
+				}
+			}
+		},
 		"noRestrictions": {
 			"eyebrow": "Control en lenguaje natural",
 			"title": "Qué significa realmente “No Restrictions”",

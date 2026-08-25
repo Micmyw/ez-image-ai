@@ -116,6 +116,13 @@ Remote load is blocked unless `ALLOW_REMOTE_LOAD_TARGET=true` and `LOAD_TARGET_C
 
 Use admin diagnostics and stored audit identifiers, not raw database edits. Safe actions are replaying a persisted event, retrying an idempotent stage, running reconciliation, disabling a model, reducing concurrency, or turning off generation. Each action needs an operator, reason, timestamp, aggregate ID, prior state, result, and correlation ID.
 
+The EzPic growth operations panel is read-only and reuses these controls and media tables. Its
+Provider/model/status/date filters and aggregate success, latency, cost, moderation, failure,
+credit, repeat-edit, route, and kill-switch outputs must remain admin-only and prompt/URL/asset/job
+ID free. See [the growth, SEO, and operations contract](../product/ezpic-growth-operations.md) for
+metric definitions and the analytics consent/data-minimization boundary. Do not treat its local
+browser event fixture as external analytics ingestion.
+
 - Outbox: release an expired lease or replay a pending/dead-letter event only after the cause is fixed. Dedupe keys prevent duplicate side effects.
 - Provider Webhook: replay the persisted verified event. Never fabricate or weaken signature verification.
 - Uncertain submission: keep its reservation frozen, block user cancellation, and reconcile the same attempt; do not fail over while the Provider may have accepted it. After bounded automated recovery, an administrator must record evidence and decide `ACCEPTED` or `REJECTED`. `ACCEPTED` requires Provider-specific recovery identifiers/endpoints; `REJECTED` releases the full reservation and charges zero. Both actions are locked, idempotent, and audited.

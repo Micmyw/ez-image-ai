@@ -1,5 +1,6 @@
 "use client";
 
+import { marketingGrowthFunnel } from "@analytics";
 import { config } from "@config";
 import { getPublicConfig } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
@@ -7,7 +8,7 @@ import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { ArrowRightIcon, LockKeyholeIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { type FormEvent, useEffect, useState } from "react";
+import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { ImageDropzone } from "../../image-editor/components/ImageDropzone";
 import { PromptSuggestions } from "../../image-editor/components/PromptSuggestions";
@@ -38,6 +39,7 @@ export function MarketingGenerator({ modes }: { modes: MarketingImageModes }) {
 	const [file, setFile] = useState<File | null>(null);
 	const [fileError, setFileError] = useState<string>();
 	const [previewUrl, setPreviewUrl] = useState<string>();
+	const sourceUploadAttemptKey = useRef<string | null>(null);
 
 	useEffect(
 		() => () => {
@@ -49,10 +51,13 @@ export function MarketingGenerator({ modes }: { modes: MarketingImageModes }) {
 	function chooseFile(nextFile: File) {
 		try {
 			validateMarketingImageFile(nextFile, maximumImageBytes);
+			const attemptKey = sourceUploadAttemptKey.current ?? createGrowthAttemptKey();
+			sourceUploadAttemptKey.current = attemptKey;
 			setFile(nextFile);
 			setFileError(undefined);
 			setSubmitError(false);
 			setPreviewUrl(URL.createObjectURL(nextFile));
+			void marketingGrowthFunnel.sourceUploadCompleted(attemptKey, productKey);
 		} catch (error) {
 			setFile(null);
 			setPreviewUrl(undefined);
@@ -64,6 +69,13 @@ export function MarketingGenerator({ modes }: { modes: MarketingImageModes }) {
 		setFile(null);
 		setFileError(undefined);
 		setPreviewUrl(undefined);
+		sourceUploadAttemptKey.current = null;
+	}
+
+	function beginSourceUpload() {
+		const attemptKey = createGrowthAttemptKey();
+		sourceUploadAttemptKey.current = attemptKey;
+		void marketingGrowthFunnel.sourceUploadStarted(attemptKey, productKey);
 	}
 
 	async function submit(event: FormEvent<HTMLFormElement>) {
@@ -76,6 +88,7 @@ export function MarketingGenerator({ modes }: { modes: MarketingImageModes }) {
 
 		setIsSubmitting(true);
 		setSubmitError(false);
+		const draftAttemptKey = createGrowthAttemptKey();
 		try {
 			validateMarketingImageFile(file, maximumImageBytes);
 			const handoff = await createMarketingDraft(
@@ -89,6 +102,8 @@ export function MarketingGenerator({ modes }: { modes: MarketingImageModes }) {
 					},
 				}),
 			);
+			await marketingGrowthFunnel.marketingDraftCreated(draftAttemptKey, productKey);
+			await marketingGrowthFunnel.authHandoffStarted(draftAttemptKey, productKey);
 			submitMarketingDraftHandoff(handoff);
 		} catch (error) {
 			if (error instanceof Error && error.message.startsWith("SOURCE_IMAGE_")) {
@@ -114,6 +129,7 @@ export function MarketingGenerator({ modes }: { modes: MarketingImageModes }) {
 						label={t("reference")}
 						onClear={clearFile}
 						onFile={chooseFile}
+						onUploadStarted={beginSourceUpload}
 						removeLabel={t("removeImage")}
 						uploadLabel={t("uploadLabel")}
 					/>
@@ -270,4 +286,11 @@ function fileToBase64(file: File): Promise<string> {
 		};
 		reader.readAsDataURL(file);
 	});
+}
+
+function createGrowthAttemptKey(): string {
+	if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+		return crypto.randomUUID();
+	}
+	return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }

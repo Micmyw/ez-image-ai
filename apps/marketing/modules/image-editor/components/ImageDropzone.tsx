@@ -11,6 +11,7 @@ interface ImageDropzoneProps {
 	label: string;
 	onClear: () => void;
 	onFile: (file: File) => void;
+	onUploadStarted: () => void;
 	removeLabel: string;
 	uploadLabel: string;
 }
@@ -23,6 +24,7 @@ export function ImageDropzone({
 	label,
 	onClear,
 	onFile,
+	onUploadStarted,
 	removeLabel,
 	uploadLabel,
 }: ImageDropzoneProps) {
@@ -37,7 +39,10 @@ export function ImageDropzone({
 	function handleDrop(event: DragEvent<HTMLButtonElement>) {
 		event.preventDefault();
 		const nextFile = event.dataTransfer.files[0];
-		if (nextFile) onFile(nextFile);
+		if (nextFile) {
+			onUploadStarted();
+			onFile(nextFile);
+		}
 	}
 
 	return (
@@ -61,7 +66,10 @@ export function ImageDropzone({
 				type="button"
 				aria-label={fileName ? `${uploadLabel}: ${fileName}` : uploadLabel}
 				aria-describedby={`marketing-reference-hint${error ? " marketing-reference-error" : ""}`}
-				onClick={() => inputRef.current?.click()}
+				onClick={() => {
+					onUploadStarted();
+					inputRef.current?.click();
+				}}
 				onDragOver={(event) => event.preventDefault()}
 				onDrop={handleDrop}
 				className="group min-h-28 border-indigo-300 bg-indigo-50/70 px-4 py-5 hover:border-indigo-500 hover:bg-indigo-50 focus-visible:border-indigo-600 focus-visible:ring-indigo-600 flex w-full cursor-pointer items-center justify-center rounded-2xl border border-dashed text-center transition focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"

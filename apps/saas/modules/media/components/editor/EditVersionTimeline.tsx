@@ -2,13 +2,15 @@
 
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
+import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpcClient } from "@shared/lib/orpc-client";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useEditSession } from "../../hooks/use-edit-session";
+import { isEditorProductKey } from "../../lib/editor-recovery";
 import { getJobPresentation } from "../../lib/job-status";
 import { PromptHistory } from "./PromptHistory";
 
@@ -19,6 +21,10 @@ export function EditVersionTimeline({ sessionId }: { sessionId: string }) {
 	const session = useEditSession(sessionId);
 	const [renaming, setRenaming] = useState(false);
 	const [title, setTitle] = useState("");
+
+	useEffect(() => {
+		if (session.data) void saasGrowthFunnel.editSessionOpened(sessionId);
+	}, [session.data, sessionId]);
 
 	if (session.isError && !session.data) {
 		return <UnavailableSession />;
@@ -107,6 +113,11 @@ export function EditVersionTimeline({ sessionId }: { sessionId: string }) {
 										render={(props) => (
 											<Link
 												{...props}
+												onClick={() => {
+													if (isEditorProductKey(version.productKey)) {
+														void saasGrowthFunnel.editAgainStarted(version.id, version.productKey);
+													}
+												}}
 												href={`/create?asset=${encodeURIComponent(outputAssetId)}&parentJob=${encodeURIComponent(version.id)}`}
 											/>
 										)}

@@ -64,6 +64,8 @@ async function main(): Promise<void> {
 			"test",
 			"tests/media-generation.spec.ts",
 			"tests/subscription-upgrade.spec.ts",
+			"tests/seo.spec.ts",
+			"--workers=1",
 		]);
 		await command([
 			"--filter",
@@ -72,6 +74,10 @@ async function main(): Promise<void> {
 			"playwright",
 			"test",
 			"tests/generator.spec.ts",
+			"tests/growth-analytics.spec.ts",
+			"tests/home.spec.ts",
+			"tests/seo.spec.ts",
+			"--workers=1",
 		]);
 	} finally {
 		pump?.kill();

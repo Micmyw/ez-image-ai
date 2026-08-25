@@ -45,6 +45,9 @@ describe("marketing footer", () => {
 			expect(markup).toContain(label);
 		}
 		expect(markup).toContain('href="mailto:help@configured.test"');
+		expect(markup).toContain('href="/privacy"');
+		expect(markup).toContain('href="/terms"');
+		expect(markup).not.toMatch(/href="\/legal\/(?:privacy-policy|terms)"/);
 		expect(markup).toContain('data-logo-label="EzPic"');
 		expect(markup).not.toMatch(/supastarter|built with/i);
 	});
