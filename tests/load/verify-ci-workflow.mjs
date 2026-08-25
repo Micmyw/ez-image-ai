@@ -2,7 +2,10 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 const workflow = readFileSync(resolve(process.cwd(), ".github/workflows/validate-prs.yml"), "utf8");
+const builds = jobBlock(workflow, "builds", "mock-e2e");
 const mockE2e = jobBlock(workflow, "mock-e2e", "supply-chain");
+
+assertNotMatch(builds, /^ {6}DATABASE_URL:\s*\$\{\{\s*env\./m);
 
 assertIncludes(mockE2e, "name: Start pinned MinIO service");
 assertMatch(mockE2e, /minio\/minio:RELEASE\.[0-9T:-]+Z/);
@@ -46,6 +49,6 @@ function assertMatch(value, expected) {
 
 function assertNotMatch(value, unexpected) {
 	if (unexpected.test(value)) {
-		throw new Error(`mock-e2e workflow contract must not include: ${unexpected.source}`);
+		throw new Error(`workflow contract must not include: ${unexpected.source}`);
 	}
 }
