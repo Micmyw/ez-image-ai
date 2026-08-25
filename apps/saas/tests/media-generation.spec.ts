@@ -47,19 +47,89 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await comparison.focus();
 		await page.keyboard.press("End");
 		await expect(comparison).toHaveValue("100");
-		await page.getByRole("button", { name: /show original/i }).click();
+		await page.getByRole("button", { name: /show result/i }).click();
 		await expect(comparison).toHaveValue("0");
 		const download = page.waitForEvent("download");
 		await page.getByRole("button", { name: /^download$/i }).click();
 		expect((await download).suggestedFilename()).toBeTruthy();
 
 		const editAgain = page.getByRole("link", { name: /edit again/i });
-		await expect(editAgain).toHaveAttribute("href", /\/create\?asset=/);
+		await expect(editAgain).toHaveAttribute(
+			"href",
+			new RegExp(`/create\\?asset=.*&parentJob=${job.id}`),
+		);
 		await editAgain.click();
 		await expect(page).toHaveURL(/\/create\?asset=/);
 		const reusedSource = page.getByRole("img", { name: /selected source image/i });
 		await expect(reusedSource).toBeVisible({ timeout: 30_000 });
 		await expect.poll(() => reusedSource.getAttribute("src")).not.toBe(originalPreviewUrl);
+	});
+
+	test("creates a second edit and branches again from the older successful version", async ({
+		page,
+	}, testInfo) => {
+		const rootPrompt = marker("session-root", "A warm editorial background", testInfo.retry);
+		await createScenario(page, rootPrompt);
+		const rootJob = await waitForJob(rootPrompt, "SUCCEEDED");
+		const rootVersion = await editVersion(rootJob.id);
+		expect(rootVersion.editSessionId).toBeTruthy();
+		expect(rootVersion.parentJobId).toBeNull();
+
+		await page.goto(`/edits/${rootVersion.editSessionId}`);
+		await expect(page.getByText(rootPrompt)).toBeVisible();
+		await expect(page.getByText(/standard edit/i)).toBeVisible();
+		await expect(page.getByText(/4 credits/i)).toBeVisible();
+		const rootCard = page.getByRole("listitem").filter({ hasText: rootPrompt });
+		await rootCard.getByRole("link", { name: /edit again/i }).click();
+		await expect(page).toHaveURL(
+			new RegExp(`/create\\?asset=${rootVersion.outputAssetId}&parentJob=${rootJob.id}`),
+		);
+
+		const childPrompt = marker("session-child", "Add a soft shadow", testInfo.retry);
+		await page.getByLabel(/edit instruction/i).fill(childPrompt);
+		await page.getByRole("button", { name: /review credits/i }).click();
+		await page.getByRole("button", { name: /start edit/i }).click();
+		const childJob = await waitForJob(childPrompt, "SUCCEEDED");
+		const childVersion = await editVersion(childJob.id);
+		expect(childVersion.editSessionId).toBe(rootVersion.editSessionId);
+		expect(childVersion.parentJobId).toBe(rootJob.id);
+
+		await page.goto(`/edits/${rootVersion.editSessionId}`);
+		await expect(page.getByText(childPrompt)).toBeVisible();
+		await rootCard.getByRole("link", { name: /edit again/i }).click();
+		const branchPrompt = marker("session-branch", "Try a cooler background", testInfo.retry);
+		await page.getByLabel(/edit instruction/i).fill(branchPrompt);
+		await page.getByRole("button", { name: /review credits/i }).click();
+		await page.getByRole("button", { name: /start edit/i }).click();
+		const branchJob = await waitForJob(branchPrompt, "SUCCEEDED");
+		const branchVersion = await editVersion(branchJob.id);
+
+		expect(branchVersion.editSessionId).toBe(rootVersion.editSessionId);
+		expect(branchVersion.parentJobId).toBe(rootJob.id);
+		expect(
+			new Set([rootVersion.quoteId, childVersion.quoteId, branchVersion.quoteId]),
+		).toHaveProperty("size", 3);
+		expect(
+			new Set([
+				rootVersion.idempotencyKey,
+				childVersion.idempotencyKey,
+				branchVersion.idempotencyKey,
+			]),
+		).toHaveProperty("size", 3);
+		expect(
+			await count(`SELECT count(*) FROM credit_reservation WHERE "jobId" = ANY($1::text[])`, [
+				[rootJob.id, childJob.id, branchJob.id],
+			]),
+		).toBe(3);
+		expect(
+			await count(`SELECT count(*) FROM outbox_event WHERE "dedupeKey" = ANY($1::text[])`, [
+				[rootJob.id, childJob.id, branchJob.id].map((jobId) => `job:${jobId}:created`),
+			]),
+		).toBe(3);
+
+		await page.goto(`/edits/${rootVersion.editSessionId}`);
+		await expect(page.locator("ol > li")).toHaveCount(3);
+		await expect(page.getByText(branchPrompt)).toBeVisible();
 	});
 
 	test("insufficient credits creates no quote, job, reservation, or ledger entry", async ({
@@ -368,6 +438,28 @@ async function jobsForPrompt(userId: string, prompt: string) {
 		`SELECT id, status, "failureCode", "creditsReserved" FROM generation_job WHERE "ownerId"=$1 AND "inputSnapshot"->>'prompt'=$2 ORDER BY "createdAt" DESC`,
 		[userId, prompt],
 	);
+}
+
+async function editVersion(jobId: string) {
+	const version = (
+		await rows<{
+			editSessionId: string | null;
+			parentJobId: string | null;
+			quoteId: string;
+			idempotencyKey: string;
+			outputAssetId: string;
+		}>(
+			`SELECT j."editSessionId", j."parentJobId", j."quoteId", j."idempotencyKey", b."assetId" AS "outputAssetId"
+			 FROM generation_job j
+			 JOIN generation_job_asset b ON b."jobId"=j.id AND b.role='OUTPUT'
+			 WHERE j.id=$1
+			 ORDER BY b.position ASC
+			 LIMIT 1`,
+			[jobId],
+		)
+	)[0];
+	if (!version) throw new Error(`Edit version missing for ${jobId}`);
+	return version;
 }
 
 async function providerCancellationReadiness(jobId: string): Promise<string> {

@@ -78,9 +78,15 @@ export type GenerationQuoteScalarFieldEnum = z.infer<typeof GenerationQuoteScala
 
 // File: GenerationJobScalarFieldEnum.schema.ts
 
-export const GenerationJobScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'submittedByUserId', 'quoteId', 'idempotencyKey', 'productKey', 'catalogVersion', 'pricingVersion', 'creditsReserved', 'inputSnapshot', 'pricingSnapshot', 'status', 'version', 'failureCode', 'failureMessage', 'finalizationStage', 'finalizationRetryCount', 'finalizationErrorCode', 'nextFinalizeAt', 'createdAt', 'updatedAt', 'terminalAt'])
+export const GenerationJobScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'submittedByUserId', 'quoteId', 'idempotencyKey', 'productKey', 'catalogVersion', 'pricingVersion', 'creditsReserved', 'inputSnapshot', 'pricingSnapshot', 'status', 'version', 'failureCode', 'failureMessage', 'finalizationStage', 'finalizationRetryCount', 'finalizationErrorCode', 'nextFinalizeAt', 'createdAt', 'updatedAt', 'terminalAt', 'editSessionId', 'parentJobId'])
 
 export type GenerationJobScalarFieldEnum = z.infer<typeof GenerationJobScalarFieldEnumSchema>;
+
+// File: ImageEditSessionScalarFieldEnum.schema.ts
+
+export const ImageEditSessionScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'rootAssetId', 'title', 'createdAt', 'updatedAt'])
+
+export type ImageEditSessionScalarFieldEnum = z.infer<typeof ImageEditSessionScalarFieldEnumSchema>;
 
 // File: GenerationAttemptScalarFieldEnum.schema.ts
 
@@ -679,9 +685,26 @@ export const GenerationJobSchema = z.object({
   createdAt: z.date(),
   updatedAt: z.date(),
   terminalAt: z.date().nullish(),
+  editSessionId: z.string().nullish(),
+  parentJobId: z.string().nullish(),
 });
 
 export type GenerationJobType = z.infer<typeof GenerationJobSchema>;
+
+
+// File: ImageEditSession.schema.ts
+
+export const ImageEditSessionSchema = z.object({
+  id: z.string(),
+  ownerType: OwnerTypeSchema,
+  ownerId: z.string(),
+  rootAssetId: z.string(),
+  title: z.string().nullish(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export type ImageEditSessionType = z.infer<typeof ImageEditSessionSchema>;
 
 
 // File: GenerationAttempt.schema.ts

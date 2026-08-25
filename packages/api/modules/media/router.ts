@@ -23,10 +23,13 @@ import { createUploadSession } from "./procedures/create-upload-session";
 import { deleteAsset } from "./procedures/delete-asset";
 import { getAssetAccessUrl } from "./procedures/get-asset-access-url";
 import { getCreditAccount } from "./procedures/get-credit-account";
+import { getEditSession } from "./procedures/get-edit-session";
 import { getJob } from "./procedures/get-job";
 import { getPublicCatalog } from "./procedures/get-public-catalog";
 import { listAssets } from "./procedures/list-assets";
+import { listEditSessions } from "./procedures/list-edit-sessions";
 import { listJobs } from "./procedures/list-jobs";
+import { renameEditSession } from "./procedures/rename-edit-session";
 import { retryGeneration } from "./procedures/retry-generation";
 
 export const mediaRouter = {
@@ -38,7 +41,10 @@ export const mediaRouter = {
 	cancelGeneration,
 	retryGeneration,
 	getJob,
+	getEditSession,
 	listJobs,
+	listEditSessions,
+	renameEditSession,
 	listAssets,
 	getCreditAccount,
 	adminMediaDiagnostics,

@@ -7,6 +7,7 @@ describe("editor workspace state", () => {
 		expect(
 			beginNewEditorWorkspaceState({
 				jobId: "job-1",
+				parentJobId: "job-parent",
 				initialDraft: {
 					productKey: "image-quality",
 					input: {
@@ -20,6 +21,7 @@ describe("editor workspace state", () => {
 			}),
 		).toEqual({
 			jobId: null,
+			parentJobId: null,
 			initialDraft: null,
 			formKey: 3,
 			recoveryVisible: false,

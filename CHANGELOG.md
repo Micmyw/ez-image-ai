@@ -20,6 +20,15 @@
 - Delivered the authenticated single-edit workspace from draft/asset recovery through quote review,
   explicit idempotent confirmation, asynchronous status recovery, job-bound Before/After, private
   download, and clear reserved/charged/returned credit summaries.
+- Added private USER-owned edit sessions with stable pagination, rename, branchable version
+  timelines, private thumbnails, deleted-output audit history, and Edit Again from any eligible
+  successful version. Root sessions and child versions reuse the existing atomic job, moderation,
+  credit reservation, Outbox, Provider, and private-storage architecture.
+- Froze root/child edit relationships into the server-side quote fingerprint so confirmation cannot
+  omit, replace, or inject a parent while the transaction still revalidates live eligibility.
+- Kept user retries of failed root and child edits inside the original private session and branch.
+  Retry recovery checkpoints the immutable edit context in a fresh moderated quote, creates a new
+  reservation/job/Outbox event, and rejects any recovered result that detached from the session.
 
 ### Changed
 
@@ -53,6 +62,15 @@
   Provider request-mapping fixtures, aggregate scorecard, and default dry-run command. Real
   Provider results and Standard/Quality route certification remain explicitly not completed; no
   route, credit, price, or pricing-version value changed.
+- Documented the nullable edit-session migration, non-destructive rollback, legacy-job
+  compatibility, and the existing Prisma-only media boundary. No partial Drizzle media schema or
+  second job/credit/Outbox data layer was introduced.
+
+### Testing
+
+- Expanded the deterministic production-build browser suite to 11 SaaS checks and five marketing
+  checks with no skips, including root session creation, a second edit, and branching from an older
+  successful version with isolated PostgreSQL, private MinIO, and test Provider/moderation adapters.
 
 ## 2026-08-24
 

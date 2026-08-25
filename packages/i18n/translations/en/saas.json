@@ -142,6 +142,7 @@
 			"admin": "Admin",
 			"aiChatbot": "AI Chatbot",
 			"create": "Create",
+			"edits": "Edits",
 			"history": "History",
 			"assets": "Assets",
 			"collapseSidebar": "Collapse sidebar",
@@ -832,6 +833,28 @@
 				"before": "Original",
 				"after": "Result"
 			}
+		},
+		"edits": {
+			"title": "Edit sessions",
+			"subtitle": "Continue private image revisions and branch from any ready version.",
+			"untitled": "Untitled edit",
+			"versions": "{count, plural, one {# version} other {# versions}}",
+			"empty": "No edit sessions yet.",
+			"more": "Load more",
+			"back": "Back to edit sessions",
+			"loading": "Loading edit session…",
+			"version": "Version {number}",
+			"prompt": "Prompt",
+			"credits": "{credits} credits",
+			"editAgain": "Edit again",
+			"assetDeleted": "Asset deleted",
+			"outputUnavailable": "Output unavailable",
+			"thumbnailAlt": "Private result thumbnail",
+			"renameLabel": "Session title",
+			"renamePlaceholder": "Name this edit",
+			"rename": "Rename",
+			"unavailableTitle": "This edit session is unavailable",
+			"unavailableDescription": "Return to your edit sessions and choose another one."
 		},
 		"history": {
 			"title": "Creation history",

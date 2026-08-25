@@ -34,6 +34,18 @@ DATABASE_URL=<empty-database-url> pnpm db:migrate:drift
 
 For an existing Supastarter deployment, do not blindly apply the initial foundation migration. Follow `packages/database/prisma/migrations/README.md`: diff the real database, review the deployment-specific SQL, test it against a restored staging copy, verify invariants, then baseline only after the schema exists. A clean Prisma diff is not sufficient baseline evidence because Prisma does not fully model the raw SQL invariants in the migration history. Before `migrate resolve --applied`, compare `pg_constraint`, `pg_trigger`, and `pg_indexes` with the committed migration SQL and explicitly prove that the named credit/account/lot/reservation/allocation CHECK constraints and the `credit_ledger_entry_immutable` trigger exist and are enabled. Apply any missing raw invariant through reviewed deployment-specific SQL before baselining; otherwise later migrations can fail or the database can silently lose ledger protections. A drift result or missing raw invariant is a release blocker.
 
+For `20260825024738_add_image_edit_sessions`, verify on an isolated restored copy that legacy
+`generation_job` rows remain unchanged with nullable `editSessionId` and `parentJobId`, that both
+new foreign keys use `ON DELETE SET NULL`, and that no job, quote, reservation, ledger, asset, or
+Outbox row is backfilled or rewritten. The media domain remains Prisma-only; do not create a partial
+PostgreSQL/MySQL/SQLite Drizzle shadow schema for edit sessions. Retain the additive table and
+columns during application rollback once session data exists, and prefer a forward repair.
+
+User retry checkpoints for failed edit-session Jobs must retain the original session and branch in
+the new Quote's fingerprinted private context. A root retry reuses its session with no parent; a
+child retry keeps the same parent. Recovery must reject a result Job with a missing or different
+session/parent, and the private context must not appear in the Job/Provider input snapshot.
+
 Rollback application code by redeploying the previous immutable image. Prefer forward database repairs; do not reverse a migration that could discard business data. If a schema change is incompatible, disable generation/billing, restore into a new database, validate, and atomically switch the application connection under an approved incident plan.
 
 ## 3. Trigger.dev deployment
@@ -218,4 +230,10 @@ Immediately rotate any secret suspected of exposure. Search logs/artifacts and P
 6. Verify recovery with fresh requests, worker drain, invariants, and external dashboards. Monitor at least one full reconciliation interval.
 7. Document impact, cost/refund exposure, timeline, root cause, remediation, and tests/alerts added.
 
-The deterministic production-build browser suite currently covers nine authenticated SaaS media workflows and two marketing draft-handoff workflows with no skips. Live readiness remains blocked until credentials/accounts exist and recorded checks pass for Trigger deploy, Stripe Webhook delivery, each enabled Provider, Sightengine, private S3/R2 streaming/multipart, Sentry ingestion/alerts, and staging load. Local browser tests, mocks, contracts, PostgreSQL integration tests, production builds, and a dry-run Provider smoke must be reported separately from those live checks.
+The deterministic production-build browser suite currently passes 11 SaaS checks and five
+marketing checks with no skips, including root edit-session creation, a second edit, and a branch
+from an older successful version. Live readiness remains blocked until credentials/accounts exist
+and recorded checks pass for Trigger deploy, Stripe Webhook delivery, each enabled Provider,
+Sightengine, private S3/R2 streaming/multipart, Sentry ingestion/alerts, and staging load. Local
+browser tests, mocks, contracts, PostgreSQL integration tests, production builds, and a dry-run
+Provider smoke must be reported separately from those live checks.

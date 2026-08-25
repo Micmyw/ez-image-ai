@@ -109,7 +109,10 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 					<Button
 						variant="secondary"
 						render={(props) => (
-							<a {...props} href={`/create?asset=${encodeURIComponent(output.id)}`}>
+							<a
+								{...props}
+								href={`/create?asset=${encodeURIComponent(output.id)}&parentJob=${encodeURIComponent(jobId)}`}
+							>
 								{props.children}
 							</a>
 						)}

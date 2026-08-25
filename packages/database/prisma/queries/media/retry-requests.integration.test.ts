@@ -2,7 +2,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
-import { createCreditGrant } from "./credits";
+import { createCreditGrant, reserveCredits } from "./credits";
 import { createGenerationJobTransaction } from "./jobs";
 import {
 	createModeratedGenerationQuoteTransaction,
@@ -132,6 +132,94 @@ describe("generation retry request idempotency", () => {
 			resultJobId: created.job.id,
 		});
 		expect(await client.creditReservation.count({ where: { jobId: created.job.id } })).toBe(1);
+	});
+
+	it("recovers a root edit retry in the original session after a lost completion acknowledgement", async () => {
+		const fixture = await createRootEditRetryFixture(client);
+		const claimed = await claimGenerationRetryRequest(fixture.claimInput, client);
+		if (claimed.outcome !== "CLAIMED") throw new Error("Expected a root retry claim");
+		const quote = await checkpointQuote(client, fixture, claimed);
+		const created = await createGenerationJobTransaction(
+			{
+				ownerType: "USER",
+				ownerId: fixture.ownerId,
+				submittedByUserId: fixture.ownerId,
+				quoteId: quote.id,
+				idempotencyKey: fixture.idempotencyKey,
+				inputAssetIds: [fixture.assetId],
+				expectedInputAssets: [{ assetId: fixture.assetId, assetChecksum: fixture.assetChecksum }],
+				expectedModerationRuleVersion: TEXT_RULE,
+				expectedAssetModerationRuleVersion: ASSET_RULE,
+				expectedAssetModerationPolicyVersion: ASSET_POLICY,
+				edit: fixture.operation.editContext,
+			} as never,
+			client,
+		);
+
+		await expect(
+			resumeGenerationRetryRequest(
+				{ ...fixture.resumeInput, now: new Date(fixture.now.getTime() + 6 * 60_000) },
+				client,
+			),
+		).resolves.toMatchObject({ outcome: "SUCCEEDED", resultJobId: created.job.id });
+		const [storedQuote, storedJob] = await Promise.all([
+			client.generationQuote.findUniqueOrThrow({ where: { id: quote.id } }),
+			client.generationJob.findUniqueOrThrow({ where: { id: created.job.id } }),
+		]);
+		expect(storedQuote.inputSnapshot).toMatchObject({ editContext: fixture.operation.editContext });
+		expect(storedJob).toMatchObject({
+			editSessionId: fixture.editSessionId,
+			parentJobId: null,
+		});
+		expect(storedJob.inputSnapshot).toEqual(fixture.operation.normalizedInput);
+		expect(await client.imageEditSession.count({ where: { ownerId: fixture.ownerId } })).toBe(1);
+	});
+
+	it("does not recover an edit retry result that detached from the frozen session", async () => {
+		const fixture = await createRootEditRetryFixture(client);
+		const claimed = await claimGenerationRetryRequest(fixture.claimInput, client);
+		if (claimed.outcome !== "CLAIMED") throw new Error("Expected a root retry claim");
+		const quote = await checkpointQuote(client, fixture, claimed);
+		const detached = await client.generationJob.create({
+			data: {
+				ownerType: "USER",
+				ownerId: fixture.ownerId,
+				submittedByUserId: fixture.ownerId,
+				quoteId: quote.id,
+				idempotencyKey: fixture.idempotencyKey,
+				productKey: fixture.operation.productKey,
+				catalogVersion: fixture.operation.catalogVersion,
+				pricingVersion: fixture.operation.pricingVersion,
+				creditsReserved: BigInt(fixture.operation.credits),
+				inputSnapshot: fixture.operation.normalizedInput,
+				pricingSnapshot: fixture.operation.pricingSnapshot,
+			},
+		});
+		await reserveCredits(
+			{
+				accountId: fixture.accountId,
+				jobId: detached.id,
+				amount: BigInt(fixture.operation.credits),
+				referenceKey: `detached-root-retry:${detached.id}:reserve`,
+			},
+			client,
+		);
+		await client.generationJobAsset.create({
+			data: {
+				jobId: detached.id,
+				assetId: fixture.assetId,
+				assetChecksum: fixture.assetChecksum,
+				role: "INPUT",
+				position: 0,
+			},
+		});
+
+		await expect(
+			resumeGenerationRetryRequest(
+				{ ...fixture.resumeInput, now: new Date(fixture.now.getTime() + 6 * 60_000) },
+				client,
+			),
+		).resolves.toMatchObject({ outcome: "FAILED", errorCode: "IDEMPOTENCY_CONFLICT" });
 	});
 
 	it("does not recover an exact-looking job without its credit reservation", async () => {
@@ -352,6 +440,124 @@ async function createRetryFixture(
 	};
 }
 
+async function createRootEditRetryFixture(client: PrismaClient) {
+	const suffix = crypto.randomUUID();
+	const ownerId = `root-retry-owner-${suffix}`;
+	const idempotencyKey = `root-retry-operation-${suffix}`;
+	const now = new Date();
+	const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
+	await createCreditGrant(
+		{ accountId: account.id, amount: 40n, referenceKey: `root-retry-grant-${suffix}` },
+		client,
+	);
+	const asset = await createRetryImageAsset(client, ownerId);
+	const normalizedInput = {
+		kind: "image-to-image" as const,
+		prompt: `retry the failed root ${suffix}`,
+		sourceAssetId: asset.id,
+	};
+	const originalQuoteInput = {
+		ownerType: "USER" as const,
+		ownerId,
+		submittedByUserId: ownerId,
+		productKey: "image-fast",
+		catalogVersion: "2026-08-23.1",
+		pricingVersion: "2026-08-23.1",
+		credits: 4n,
+		costMicros: 3_000n,
+		inputSnapshot: {
+			...normalizedInput,
+			editContext: { kind: "ROOT", rootAssetId: asset.id },
+		},
+		pricingSnapshot: { credits: 4 },
+		expiresAt: new Date(Date.now() + 10 * 60_000),
+	};
+	const originalQuote = await createModeratedGenerationQuoteTransaction(
+		{
+			...originalQuoteInput,
+			moderation: {
+				decision: "ALLOW",
+				provider: "test",
+				ruleVersion: TEXT_RULE,
+				reasonCode: "TEST_ALLOW",
+				inputFingerprint: fingerprintGenerationQuoteSecurityPayload(originalQuoteInput),
+			},
+		},
+		client,
+	);
+	const source = await createGenerationJobTransaction(
+		{
+			ownerType: "USER",
+			ownerId,
+			submittedByUserId: ownerId,
+			quoteId: originalQuote.id,
+			idempotencyKey: `root-retry-source-${suffix}`,
+			inputAssetIds: [asset.id],
+			expectedInputAssets: [{ assetId: asset.id, assetChecksum: asset.checksum! }],
+			expectedModerationRuleVersion: TEXT_RULE,
+			expectedAssetModerationRuleVersion: ASSET_RULE,
+			expectedAssetModerationPolicyVersion: ASSET_POLICY,
+			edit: { kind: "ROOT", rootAssetId: asset.id },
+		},
+		client,
+	);
+	await client.generationJob.update({
+		where: { id: source.job.id },
+		data: { status: "FAILED", terminalAt: new Date() },
+	});
+	const sourceJob = await client.generationJob.findUniqueOrThrow({
+		where: { id: source.job.id },
+		select: { editSessionId: true },
+	});
+	if (!sourceJob.editSessionId) throw new Error("Root retry source has no edit session");
+	const operation = {
+		sourceJobId: source.job.id,
+		productKey: "image-fast",
+		normalizedInput,
+		inputAssets: [{ assetId: asset.id, assetChecksum: asset.checksum! }],
+		catalogVersion: "2026-08-23.1",
+		pricingVersion: "2026-08-23.1",
+		credits: "4",
+		costMicros: "3000",
+		pricingSnapshot: { credits: 4 },
+		moderationProvider: "test",
+		moderationRuleVersion: TEXT_RULE,
+		assetModerationRuleVersion: ASSET_RULE,
+		assetModerationPolicyVersion: ASSET_POLICY,
+		editContext: {
+			kind: "ROOT_RETRY" as const,
+			editSessionId: sourceJob.editSessionId,
+			rootAssetId: asset.id,
+		},
+	};
+	return {
+		ownerId,
+		accountId: account.id,
+		assetId: asset.id,
+		assetChecksum: asset.checksum!,
+		editSessionId: sourceJob.editSessionId,
+		idempotencyKey,
+		now,
+		operation,
+		claimInput: {
+			ownerType: "USER" as const,
+			ownerId,
+			submittedByUserId: ownerId,
+			idempotencyKey,
+			operation,
+			now,
+		},
+		resumeInput: {
+			ownerType: "USER" as const,
+			ownerId,
+			submittedByUserId: ownerId,
+			sourceJobId: source.job.id,
+			idempotencyKey,
+			now,
+		},
+	};
+}
+
 function buildOperation(input: {
 	sourceJobId: string;
 	prompt: string;
@@ -406,7 +612,7 @@ async function createSourceJob(
 
 async function checkpointQuote(
 	client: PrismaClient,
-	fixture: Awaited<ReturnType<typeof createRetryFixture>>,
+	fixture: { ownerId: string; operation: GenerationRetryOperation },
 	claim: Extract<Awaited<ReturnType<typeof claimGenerationRetryRequest>>, { outcome: "CLAIMED" }>,
 ) {
 	const quoteInput = quoteInputFor(fixture.ownerId, fixture.operation);
@@ -451,6 +657,13 @@ async function createApprovedQuote(
 }
 
 function quoteInputFor(ownerId: string, operation: GenerationRetryOperation) {
+	const editContext = operation.editContext;
+	const normalizedRecord =
+		typeof operation.normalizedInput === "object" &&
+		operation.normalizedInput !== null &&
+		!Array.isArray(operation.normalizedInput)
+			? operation.normalizedInput
+			: null;
 	return {
 		ownerType: "USER" as const,
 		ownerId,
@@ -460,10 +673,55 @@ function quoteInputFor(ownerId: string, operation: GenerationRetryOperation) {
 		pricingVersion: operation.pricingVersion,
 		credits: BigInt(operation.credits),
 		costMicros: BigInt(operation.costMicros),
-		inputSnapshot: operation.normalizedInput,
+		inputSnapshot:
+			editContext && normalizedRecord
+				? Object.assign({}, normalizedRecord, { editContext })
+				: operation.normalizedInput,
 		pricingSnapshot: operation.pricingSnapshot,
 		expiresAt: new Date(Date.now() + 10 * 60_000),
 	};
+}
+
+async function createRetryImageAsset(client: PrismaClient, ownerId: string) {
+	const suffix = crypto.randomUUID();
+	const checksum = suffix.replaceAll("-", "").repeat(2);
+	const validUntil = new Date(Date.now() + 60 * 60_000);
+	const asset = await client.mediaAsset.create({
+		data: {
+			ownerType: "USER",
+			ownerId,
+			kind: "INPUT",
+			status: "VERIFYING",
+			objectKey: `users/${ownerId}/root-retry-${suffix}`,
+			mimeType: "image/png",
+			byteSize: 128n,
+			checksum,
+			verificationGeneration: 1,
+			verificationAttemptCount: 1,
+			verificationProvider: "test",
+			verificationRuleVersion: ASSET_RULE,
+			verificationPolicyVersion: ASSET_POLICY,
+			verificationValidUntil: validUntil,
+		},
+	});
+	await client.assetModerationResult.create({
+		data: {
+			assetId: asset.id,
+			assetChecksum: checksum,
+			verificationGeneration: 1,
+			attemptNumber: 1,
+			evidenceKind: "INPUT",
+			provider: "test",
+			ruleVersion: ASSET_RULE,
+			policyVersion: ASSET_POLICY,
+			status: "APPROVED",
+			reasonCode: "TEST_ALLOW",
+			categories: {},
+			rawEnvelope: {},
+			validUntil,
+		},
+	});
+	return client.mediaAsset.update({ where: { id: asset.id }, data: { status: "READY" } });
 }
 
 async function createResultJob(

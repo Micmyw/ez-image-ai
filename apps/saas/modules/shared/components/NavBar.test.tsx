@@ -62,6 +62,7 @@ vi.mock("next-intl", () => ({
 	useTranslations: () => (key: string) =>
 		({
 			"app.menu.create": "Create",
+			"app.menu.edits": "Edits",
 			"app.menu.history": "History",
 			"app.menu.assets": "Assets",
 			"app.menu.aiChatbot": "AI Chatbot",
@@ -85,11 +86,12 @@ describe("SaaS navigation", () => {
 	it("shows the EzPic editor destinations without the chatbot example", () => {
 		const markup = renderToStaticMarkup(<NavBar />);
 
-		for (const label of ["Create", "History", "Assets", "Settings", "Billing"]) {
+		for (const label of ["Create", "Edits", "History", "Assets", "Settings", "Billing"]) {
 			expect(markup).toContain(label);
 		}
 		for (const href of [
 			"/create",
+			"/edits",
 			"/history",
 			"/assets",
 			"/settings/general",

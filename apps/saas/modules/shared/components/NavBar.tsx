@@ -33,6 +33,7 @@ import { UserMenu } from "@shared/components/UserMenu";
 import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
+	GitBranchIcon,
 	HistoryIcon,
 	ImagePlusIcon,
 	ImagesIcon,
@@ -382,6 +383,12 @@ export function NavBar() {
 				href: "/create",
 				icon: ImagePlusIcon,
 				isActive: pathname.startsWith("/create"),
+			},
+			{
+				label: t("app.menu.edits"),
+				href: "/edits",
+				icon: GitBranchIcon,
+				isActive: pathname.startsWith("/edits"),
 			},
 			{
 				label: t("app.menu.history"),

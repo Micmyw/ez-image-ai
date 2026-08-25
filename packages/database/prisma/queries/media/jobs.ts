@@ -9,7 +9,7 @@ import type {
 	CreateGenerationJobResult,
 	MediaTransactionClient,
 } from "./types";
-import { runSerializable } from "./types";
+import { isDatabaseUniqueConflict, runSerializable } from "./types";
 
 export async function getCommittedDailyGenerationCost(
 	input: { ownerType: "USER" | "ORGANIZATION"; ownerId: string; now?: Date },
@@ -39,12 +39,13 @@ async function findExistingJob(
 				idempotencyKey: input.idempotencyKey,
 			},
 		},
-		include: { reservation: true },
+		include: { reservation: true, editSession: true },
 	});
 	if (!existing?.reservation) return null;
 	if (
 		existing.quoteId !== input.quoteId ||
-		existing.submittedByUserId !== input.submittedByUserId
+		existing.submittedByUserId !== input.submittedByUserId ||
+		!existingJobMatchesEdit(input, existing)
 	) {
 		throw new Error("IDEMPOTENCY_CONFLICT");
 	}
@@ -136,6 +137,11 @@ export async function createGenerationJobTransaction(
 				}
 			}
 			await lockMediaAssetGenerationBindings(input.inputAssetIds, tx);
+			const edit = input.edit;
+			if (!edit && imageEditContext(quote.inputSnapshot)) throw new Error("NOT_FOUND");
+			const editBinding = edit
+				? await resolveImageEditBinding({ ...input, edit }, quote, tx)
+				: null;
 
 			const inputAssets = input.inputAssetIds.length
 				? await tx.mediaAsset.findMany({
@@ -223,6 +229,16 @@ export async function createGenerationJobTransaction(
 				where: { ownerType_ownerId: { ownerType: input.ownerType, ownerId: input.ownerId } },
 			});
 			if (!account) throw new Error("Credit account not found");
+			const editSession =
+				input.edit?.kind === "ROOT"
+					? await tx.imageEditSession.create({
+							data: {
+								ownerType: input.ownerType,
+								ownerId: input.ownerId,
+								rootAssetId: input.edit.rootAssetId,
+							},
+						})
+					: null;
 			const job = await tx.generationJob.create({
 				data: {
 					ownerType: input.ownerType,
@@ -234,8 +250,10 @@ export async function createGenerationJobTransaction(
 					catalogVersion: quote.catalogVersion,
 					pricingVersion: quote.pricingVersion,
 					creditsReserved: quote.credits,
-					inputSnapshot: quote.inputSnapshot as Prisma.InputJsonValue,
+					inputSnapshot: generationJobInputSnapshot(quote.inputSnapshot),
 					pricingSnapshot: quote.pricingSnapshot as Prisma.InputJsonValue,
+					editSessionId: editSession?.id ?? editBinding?.editSessionId,
+					parentJobId: editBinding?.parentJobId,
 				},
 			});
 			const reservation = await reserveCreditsInTransaction(
@@ -267,6 +285,12 @@ export async function createGenerationJobTransaction(
 					payload: { jobId: job.id },
 				},
 			});
+			if (editBinding?.editSessionId) {
+				await tx.imageEditSession.update({
+					where: { id: editBinding.editSessionId },
+					data: { updatedAt: new Date() },
+				});
+			}
 			return {
 				job: {
 					id: job.id,
@@ -283,12 +307,237 @@ export async function createGenerationJobTransaction(
 			};
 		});
 	} catch (error) {
-		if ((error as { code?: string }).code === "P2002") {
+		if (isDatabaseUniqueConflict(error)) {
 			const replay = await findExistingJob(input, client);
 			if (replay) return replay;
 		}
 		throw error;
 	}
+}
+
+function existingJobMatchesEdit(
+	input: CreateGenerationJobInput,
+	existing: {
+		editSessionId: string | null;
+		parentJobId: string | null;
+		editSession: { ownerType: string; ownerId: string; rootAssetId: string } | null;
+	},
+): boolean {
+	if (!input.edit) return existing.editSessionId === null && existing.parentJobId === null;
+	if (
+		!existing.editSessionId ||
+		existing.editSession?.ownerType !== input.ownerType ||
+		existing.editSession.ownerId !== input.ownerId
+	) {
+		return false;
+	}
+	if (input.edit.kind === "ROOT") {
+		return (
+			existing.parentJobId === null && existing.editSession.rootAssetId === input.edit.rootAssetId
+		);
+	}
+	if (input.edit.kind === "ROOT_RETRY") {
+		return (
+			existing.parentJobId === null &&
+			existing.editSessionId === input.edit.editSessionId &&
+			existing.editSession.rootAssetId === input.edit.rootAssetId
+		);
+	}
+	return (
+		existing.parentJobId === input.edit.parentJobId &&
+		existing.editSessionId === input.edit.editSessionId
+	);
+}
+
+async function resolveImageEditBinding(
+	input: CreateGenerationJobInput & { edit: NonNullable<CreateGenerationJobInput["edit"]> },
+	quote: { productKey: string; inputSnapshot: Prisma.JsonValue },
+	tx: Prisma.TransactionClient,
+): Promise<{ editSessionId: string | null; parentJobId: string | null }> {
+	const sourceAssetId = imageEditSourceAssetId(quote.inputSnapshot);
+	const frozenEditContext = imageEditContext(quote.inputSnapshot);
+	const expectedSourceAssetId =
+		input.edit.kind === "CHILD" ? input.edit.sourceAssetId : input.edit.rootAssetId;
+	if (
+		!isImageEditProduct(quote.productKey) ||
+		sourceAssetId !== expectedSourceAssetId ||
+		input.inputAssetIds.length !== 1 ||
+		input.inputAssetIds[0] !== expectedSourceAssetId
+	) {
+		throw new Error("NOT_FOUND");
+	}
+
+	if (input.edit.kind === "ROOT" || input.edit.kind === "ROOT_RETRY") {
+		if (
+			input.edit.kind === "ROOT"
+				? frozenEditContext &&
+					(frozenEditContext.kind !== "ROOT" ||
+						frozenEditContext.rootAssetId !== input.edit.rootAssetId)
+				: frozenEditContext?.kind !== "ROOT_RETRY" ||
+					frozenEditContext.editSessionId !== input.edit.editSessionId ||
+					frozenEditContext.rootAssetId !== input.edit.rootAssetId
+		) {
+			throw new Error("NOT_FOUND");
+		}
+		if (input.edit.kind === "ROOT_RETRY") {
+			const session = await tx.imageEditSession.findFirst({
+				where: {
+					id: input.edit.editSessionId,
+					ownerType: input.ownerType,
+					ownerId: input.ownerId,
+					rootAssetId: input.edit.rootAssetId,
+				},
+				select: { id: true },
+			});
+			if (!session) throw new Error("NOT_FOUND");
+		}
+		const rootAsset = await tx.mediaAsset.findFirst({
+			where: {
+				id: input.edit.rootAssetId,
+				ownerType: "USER",
+				ownerId: input.ownerId,
+			},
+			select: { status: true, deletedAt: true, mimeType: true },
+		});
+		if (!rootAsset) throw new Error("NOT_FOUND");
+		if (
+			rootAsset.status !== "READY" ||
+			rootAsset.deletedAt !== null ||
+			!rootAsset.mimeType.startsWith("image/")
+		) {
+			throw new Error("ASSET_NOT_READY");
+		}
+		return {
+			editSessionId: input.edit.kind === "ROOT_RETRY" ? input.edit.editSessionId : null,
+			parentJobId: null,
+		};
+	}
+	if (
+		frozenEditContext?.kind !== "CHILD" ||
+		frozenEditContext.parentJobId !== input.edit.parentJobId ||
+		frozenEditContext.editSessionId !== input.edit.editSessionId ||
+		frozenEditContext.sourceAssetId !== input.edit.sourceAssetId
+	) {
+		throw new Error("NOT_FOUND");
+	}
+
+	const parent = await tx.generationJob.findFirst({
+		where: {
+			id: input.edit.parentJobId,
+			ownerType: "USER",
+			ownerId: input.ownerId,
+		},
+		select: {
+			status: true,
+			productKey: true,
+			editSessionId: true,
+			editSession: { select: { ownerType: true, ownerId: true } },
+			assets: {
+				where: { role: "OUTPUT", assetId: input.edit.sourceAssetId },
+				select: {
+					asset: {
+						select: {
+							ownerType: true,
+							ownerId: true,
+							status: true,
+							deletedAt: true,
+							mimeType: true,
+							moderationResults: {
+								orderBy: [{ attemptNumber: "desc" }, { createdAt: "desc" }],
+								take: 1,
+								select: { status: true },
+							},
+						},
+					},
+				},
+			},
+		},
+	});
+	const output = parent?.assets[0]?.asset;
+	if (
+		!parent ||
+		parent.status !== "SUCCEEDED" ||
+		!isImageEditProduct(parent.productKey) ||
+		!parent.editSessionId ||
+		parent.editSessionId !== input.edit.editSessionId ||
+		parent.editSession?.ownerType !== input.ownerType ||
+		parent.editSession.ownerId !== input.ownerId ||
+		!output ||
+		output.ownerType !== input.ownerType ||
+		output.ownerId !== input.ownerId ||
+		output.status !== "READY" ||
+		output.deletedAt !== null ||
+		!output.mimeType.startsWith("image/") ||
+		output.moderationResults[0]?.status !== "APPROVED"
+	) {
+		throw new Error("NOT_FOUND");
+	}
+	return { editSessionId: input.edit.editSessionId, parentJobId: input.edit.parentJobId };
+}
+
+type FrozenImageEditContext =
+	| { kind: "ROOT"; rootAssetId: string }
+	| { kind: "ROOT_RETRY"; editSessionId: string; rootAssetId: string }
+	| { kind: "CHILD"; parentJobId: string; editSessionId: string; sourceAssetId: string };
+
+function imageEditContext(inputSnapshot: Prisma.JsonValue): FrozenImageEditContext | null {
+	if (!isJsonObject(inputSnapshot)) return null;
+	const context = inputSnapshot.editContext;
+	if (context === undefined) return null;
+	if (!isJsonObject(context)) throw new Error("NOT_FOUND");
+	if (context.kind === "ROOT" && typeof context.rootAssetId === "string") {
+		return { kind: "ROOT", rootAssetId: context.rootAssetId };
+	}
+	if (
+		context.kind === "ROOT_RETRY" &&
+		typeof context.editSessionId === "string" &&
+		context.editSessionId &&
+		typeof context.rootAssetId === "string" &&
+		context.rootAssetId
+	) {
+		return {
+			kind: "ROOT_RETRY",
+			editSessionId: context.editSessionId,
+			rootAssetId: context.rootAssetId,
+		};
+	}
+	if (
+		context.kind === "CHILD" &&
+		typeof context.parentJobId === "string" &&
+		typeof context.editSessionId === "string" &&
+		typeof context.sourceAssetId === "string"
+	) {
+		return {
+			kind: "CHILD",
+			parentJobId: context.parentJobId,
+			editSessionId: context.editSessionId,
+			sourceAssetId: context.sourceAssetId,
+		};
+	}
+	throw new Error("NOT_FOUND");
+}
+
+function generationJobInputSnapshot(inputSnapshot: Prisma.JsonValue): Prisma.InputJsonValue {
+	if (!isJsonObject(inputSnapshot)) return inputSnapshot as Prisma.InputJsonValue;
+	const { editContext: _editContext, ...generationInput } = inputSnapshot;
+	return generationInput as Prisma.InputJsonObject;
+}
+
+function isJsonObject(value: Prisma.JsonValue | undefined): value is Prisma.JsonObject {
+	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function imageEditSourceAssetId(inputSnapshot: Prisma.JsonValue): string | null {
+	if (!inputSnapshot || typeof inputSnapshot !== "object" || Array.isArray(inputSnapshot))
+		return null;
+	const input = inputSnapshot as Record<string, unknown>;
+	return input.kind === "image-to-image" && typeof input.sourceAssetId === "string"
+		? input.sourceAssetId
+		: null;
+}
+
+function isImageEditProduct(productKey: string): boolean {
+	return productKey === "image-fast" || productKey === "image-quality";
 }
 
 export interface TransitionGenerationJobInput {

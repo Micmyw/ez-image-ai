@@ -427,12 +427,34 @@ model GenerationJob {
   assets                 GenerationJobAsset[]
   retrySourceRequests    GenerationRetryRequest[] @relation("GenerationRetrySourceJob")
   retryResultRequest     GenerationRetryRequest?  @relation("GenerationRetryResultJob")
+  editSessionId          String?
+  editSession            ImageEditSession?        @relation(fields: [editSessionId], references: [id], onDelete: SetNull)
+  parentJobId            String?
+  parentJob              GenerationJob?           @relation("ImageEditParent", fields: [parentJobId], references: [id], onDelete: SetNull)
+  childJobs              GenerationJob[]          @relation("ImageEditParent")
 
   @@unique([ownerType, ownerId, idempotencyKey])
   @@index([ownerType, ownerId, createdAt, id])
   @@index([status, updatedAt])
   @@index([status, nextFinalizeAt])
+  @@index([editSessionId, createdAt, id])
+  @@index([parentJobId])
   @@map("generation_job")
+}
+
+model ImageEditSession {
+  id          String          @id @default(cuid())
+  ownerType   OwnerType
+  ownerId     String
+  rootAssetId String
+  title       String?
+  createdAt   DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime        @updatedAt @db.Timestamptz(3)
+  jobs        GenerationJob[]
+
+  @@index([ownerType, ownerId, updatedAt, id])
+  @@index([rootAssetId])
+  @@map("image_edit_session")
 }
 
 model GenerationAttempt {

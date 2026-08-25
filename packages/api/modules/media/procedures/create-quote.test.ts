@@ -16,6 +16,76 @@ const INPUT = {
 };
 
 describe("createQuoteForUser", () => {
+	it("validates the selected parent output and runs fresh text moderation for Edit Again", async () => {
+		const persistApproved = vi.fn(async (quote) => ({ id: "quote_child", ...quote }));
+		const moderateText = vi.fn(async ({ ruleVersion }) => ({
+			decision: "ALLOW" as const,
+			reasonCode: "NO_POLICY_MATCH",
+			ruleVersion,
+		}));
+		const findEligibleEditParent = vi.fn(async () => ({
+			editSessionId: "session-1",
+			parentJobId: "job-parent",
+			sourceAssetId: SOURCE_ASSET_ID,
+		}));
+
+		await expect(
+			createQuoteForUser(
+				"user_1",
+				{ ...INPUT, parentJobId: "job-parent" } as never,
+				{
+					now: () => new Date("2026-08-25T00:00:00.000Z"),
+					assertAllowed: vi.fn(async () => undefined),
+					findEligibleEditParent,
+					createAdapter: () => ({ provider: "sightengine", adapter: { moderateText } }),
+					persistApproved,
+					recordDenied: vi.fn(),
+				} as never,
+			),
+		).resolves.toMatchObject({ id: "quote_child" });
+
+		expect(findEligibleEditParent).toHaveBeenCalledWith("user_1", "job-parent", SOURCE_ASSET_ID);
+		expect(moderateText).toHaveBeenCalledOnce();
+		expect(persistApproved).toHaveBeenCalledWith(
+			expect.objectContaining({
+				inputSnapshot: {
+					...INPUT.input,
+					editContext: {
+						kind: "CHILD",
+						parentJobId: "job-parent",
+						editSessionId: "session-1",
+						sourceAssetId: SOURCE_ASSET_ID,
+					},
+				},
+			}),
+		);
+	});
+
+	it("creates no quote or moderation decision for an ineligible Edit Again parent", async () => {
+		const createAdapter = vi.fn();
+		const persistApproved = vi.fn();
+		const assertAllowed = vi.fn();
+
+		await expect(
+			createQuoteForUser(
+				"user_1",
+				{ ...INPUT, parentJobId: "job-hidden" } as never,
+				{
+					now: () => new Date("2026-08-25T00:00:00.000Z"),
+					assertAllowed,
+					findEligibleEditParent: vi.fn(async () => null),
+					createAdapter,
+					persistApproved,
+					recordDenied: vi.fn(),
+				} as never,
+			),
+		).rejects.toThrow("NOT_FOUND");
+
+		expect(assertAllowed).not.toHaveBeenCalled();
+		expect(createAdapter).not.toHaveBeenCalled();
+		expect(persistApproved).not.toHaveBeenCalled();
+	});
+
 	it("persists a quote only after one ALLOW decision", async () => {
 		const persistApproved = vi.fn(async (quote) => ({ id: "quote_1", ...quote }));
 		const moderateText = vi.fn(async ({ ruleVersion }) => ({
@@ -38,7 +108,10 @@ describe("createQuoteForUser", () => {
 		expect(persistApproved).toHaveBeenCalledWith(
 			expect.objectContaining({
 				ownerId: "user_1",
-				inputSnapshot: INPUT.input,
+				inputSnapshot: {
+					...INPUT.input,
+					editContext: { kind: "ROOT", rootAssetId: SOURCE_ASSET_ID },
+				},
 				moderation: expect.objectContaining({
 					decision: "ALLOW",
 					inputFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),

@@ -24,6 +24,7 @@ export const config = {
 			"organization-invitation",
 			"chatbot",
 			"create",
+			"edits",
 			"history",
 			"assets",
 			"draft",

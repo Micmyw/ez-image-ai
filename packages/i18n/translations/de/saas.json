@@ -149,6 +149,7 @@
 			"admin": "Administration",
 			"aiChatbot": "AI Chatbot",
 			"create": "Erstellen",
+			"edits": "Bearbeitungen",
 			"history": "Verlauf",
 			"assets": "Medien",
 			"collapseSidebar": "Seitenleiste einklappen",
@@ -839,6 +840,28 @@
 				"before": "Original",
 				"after": "Ergebnis"
 			}
+		},
+		"edits": {
+			"title": "Bearbeitungssitzungen",
+			"subtitle": "Setzen Sie private Bildbearbeitungen fort oder verzweigen Sie von jeder fertigen Version.",
+			"untitled": "Unbenannte Bearbeitung",
+			"versions": "{count, plural, one {# Version} other {# Versionen}}",
+			"empty": "Noch keine Bearbeitungssitzungen.",
+			"more": "Mehr laden",
+			"back": "Zurück zu den Bearbeitungen",
+			"loading": "Bearbeitungssitzung wird geladen…",
+			"version": "Version {number}",
+			"prompt": "Prompt",
+			"credits": "{credits} Credits",
+			"editAgain": "Erneut bearbeiten",
+			"assetDeleted": "Bild gelöscht",
+			"outputUnavailable": "Ergebnis nicht verfügbar",
+			"thumbnailAlt": "Private Ergebnisvorschau",
+			"renameLabel": "Sitzungstitel",
+			"renamePlaceholder": "Bearbeitung benennen",
+			"rename": "Umbenennen",
+			"unavailableTitle": "Diese Bearbeitungssitzung ist nicht verfügbar",
+			"unavailableDescription": "Kehren Sie zu Ihren Bearbeitungen zurück und wählen Sie eine andere Sitzung."
 		},
 		"history": {
 			"title": "Erstellungsverlauf",

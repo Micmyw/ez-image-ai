@@ -1,8 +1,8 @@
 # EzPic product contract
 
-This document records the public product boundary introduced by EzPic product PR 1. It is the
-reference for later product work; the lower-level AI media foundation remains the implementation
-base.
+This document records the public product boundary introduced by EzPic product PR 1 and extended by
+the later editor PRs. It is the reference for later product work; the lower-level AI media
+foundation remains the implementation base.
 
 ## Product identity and configuration
 
@@ -108,6 +108,47 @@ The homepage uses original repository-owned vector illustrations documented in
 `apps/marketing/public/examples/PROVENANCE.md`. They explain edit categories and the comparison UI;
 they are not represented as Provider output or evidence of model quality.
 
+## Private edit sessions and version history
+
+The first confirmed edit creates one lightweight `ImageEditSession` inside the existing atomic job
+transaction. That transaction revalidates the signed-in USER owner's undeleted READY root image,
+then creates the session, first `GenerationJob`, input binding, credit reservation, and initial
+Outbox event together. A failed transaction leaves none of those records behind, and replaying the
+same confirmation does not create a duplicate session or job. Historical jobs are not guessed into
+sessions or backfilled.
+
+`/edits` and `/edits/[sessionId]` are protected USER-owned surfaces. List, detail, and rename
+operations always scope by `ownerType=USER` and the current user ID; cross-owner session, job, or
+asset references use a generic not-found/forbidden response without confirming whether the target
+exists. Session listing uses a stable `(updatedAt, id)` cursor. The timeline exposes only the real
+prompt, Standard Edit or Quality Edit label, credits, status, timestamps, and owner-authorized
+private thumbnail. It does not expose Provider/model/cost data, object keys, signed URLs, or raw
+snapshots. Failed versions remain for audit but cannot be edited again. A deleted output remains in
+the timeline as `Asset deleted`; deleting it does not cascade into jobs, quotes, the ledger, or the
+session.
+
+**Edit Again** accepts only a SUCCEEDED image-edit job in the current user's session whose exact
+OUTPUT binding is undeleted, READY, image MIME, and covered by the latest approved moderation
+decision. The child job's source asset is that selected output, `editSessionId` is inherited, and
+`parentJobId` points to the selected version. Any older eligible version can be selected, so the
+history is a branchable version graph rather than a forced linear chain. Every child still creates
+a new server-side quote, text and asset moderation evidence, credit reservation, stable but new
+confirmation idempotency key, asynchronous job, and Outbox event. It never reuses the parent's
+quote, moderation decision, reservation, or confirmation key. Parent, session, and exact source
+output are validated by the server and frozen into the quote's fingerprinted private snapshot.
+Confirmation derives the relationship only from that snapshot: the client may omit its parent echo,
+but a mismatched child echo or any parent injected into a root quote is rejected. The atomic job
+transaction still revalidates current ownership, parent/output eligibility, moderation, and READY
+state before binding the version. The internal edit context is not copied into the Job's Provider
+input or returned as a raw public snapshot.
+
+Retrying a failed session version uses the existing durable generation-retry workflow and creates a
+new Quote, moderation decision, Reservation, Job, and Outbox event. A failed root retries as another
+root version in the same session; a failed child retries as a sibling with the same frozen parent.
+The retry operation and its fresh Quote checkpoint carry the server-validated private edit context,
+while the Job/Provider input retains only the normalized media input. Replay and post-commit recovery
+accept only a result Job whose session and parent match that checkpoint; a detached result is rejected.
+
 ## Plans
 
 PR 1 retains the existing plan IDs, credit grants, concurrency, upload entitlements, Stripe price
@@ -126,8 +167,8 @@ decision belong to later product PRs.
 
 Marketing navigation is limited to Examples, How It Works, Pricing, FAQ, Sign In, and Start
 Editing. Pricing is an English homepage section in PR 1, not a new standalone route. Authenticated
-navigation is limited to Create, History, Assets, Billing, and Settings. Existing chatbot and video
-implementation code may remain, but those entries are hidden from EzPic navigation.
+navigation is limited to Create, Edits, History, Assets, Billing, and Settings. Existing chatbot and
+video implementation code may remain, but those entries are hidden from EzPic navigation.
 
 English is the only indexable product language at launch. The marketing sitemap includes the
 default-English homepage and the existing approved Privacy and Terms pages. German, Spanish, and
@@ -149,17 +190,25 @@ application disallows crawling and uses noindex metadata.
 
 ## Migration and rollback
 
-There is no database migration. Historical jobs, assets, quotes, and video data are not deleted.
+Migration `20260825024738_add_image_edit_sessions` adds `image_edit_session` and only nullable
+`generation_job.editSessionId` and `generation_job.parentJobId` relations. Both foreign keys use
+`ON DELETE SET NULL`; existing jobs remain valid with null values, receive no speculative backfill,
+and no historical asset, quote, reservation, ledger, Outbox, or video row is rewritten. The AI
+media domain was already Prisma-only: the PostgreSQL/MySQL/SQLite Drizzle schemas do not contain a
+canonical media job, asset, credit, or Outbox model, so this migration deliberately does not create
+a second, partial shadow media schema or query layer.
 
-Rollback consists of reverting the EzPic product keys and plan entitlements, catalog labels/input
-rules and contract version, navigation and indexing configuration, product copy, and placeholder
-brand assets. No ledger rewrite or data migration is required.
+Before rollout, back up PostgreSQL and prove the nullable migration on a restored or isolated copy
+containing legacy jobs. Deploy schema-compatible application code after `prisma migrate deploy`.
+Rollback the application only to code that tolerates the additive nullable columns and table.
+Prefer a forward repair; do not drop the session table or columns after they contain data because
+that would discard version history. No ledger rewrite is part of rollout or rollback.
 
 ## Explicit exclusions
 
 The original PR 1 scope did not include the homepage editor; PR 3 adds the anonymous draft and
-original illustrative Before/After experience described above, and PR 4 adds the authenticated
-single-edit lifecycle. The current product still excludes anonymous real generation, multi-round
-editing, project/version history, masks, batch editing, a public generation API, verified Provider
-quality claims, Stripe repricing, public gallery/community features, and any second job, credit,
-Provider, or storage system.
+original illustrative Before/After experience described above, PR 4 adds the authenticated
+single-edit lifecycle, and PR 5 adds private branchable edit sessions. The current product still
+excludes anonymous real generation, collaboration, comments, public sharing, layers/canvas, masks,
+batch editing, a public generation API, verified Provider quality claims, Stripe repricing, public
+gallery/community features, and any second job, credit, Provider, or storage system.

@@ -24,14 +24,16 @@ export function GenerationForm({
 	initialDraft,
 	allowedProductKeys = ["image-fast", "image-quality"],
 	initialSourceReady = false,
+	parentJobId,
 }: {
 	onCreated: (jobId: string) => void;
 	initialDraft?: EditorDraftInput | null;
 	allowedProductKeys?: EditorProductKey[];
 	initialSourceReady?: boolean;
+	parentJobId?: string | null;
 }) {
 	const t = useTranslations("media.create");
-	const generation = useGeneration();
+	const generation = useGeneration({ parentJobId });
 	const products = generation.catalog.data?.products ?? [];
 	const [sourceReady, setSourceReady] = useState(initialSourceReady);
 	const form = useForm<GenerationFormValues>({

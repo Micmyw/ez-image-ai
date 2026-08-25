@@ -1,5 +1,10 @@
 import { PrismaPg } from "@prisma/adapter-pg";
-import { TestMediaSafetyAdapter, type ProviderOutput } from "@repo/ai";
+import {
+	MEDIA_VERIFICATION_POLICY_VERSION,
+	MEDIA_VERIFICATION_RULE_VERSION,
+	TestMediaSafetyAdapter,
+	type ProviderOutput,
+} from "@repo/ai";
 import {
 	claimGenerationOutputTransferTransaction,
 	createCreditGrant,
@@ -409,6 +414,46 @@ describe("generation output transfer runtime", () => {
 async function seedFinalizingJob(outputs: ProviderOutput[]) {
 	const suffix = crypto.randomUUID();
 	const ownerId = `output-transfer-runtime-${suffix}`;
+	const checksum = "a".repeat(64);
+	const verificationValidUntil = new Date(Date.now() + 60_000);
+	const inputAsset = await client.mediaAsset.create({
+		data: {
+			id: `asset_${suffix}`,
+			ownerType: "USER",
+			ownerId,
+			kind: "INPUT",
+			status: "VERIFYING",
+			objectKey: `users/${ownerId}/assets/${suffix}/original.png`,
+			mimeType: "image/png",
+			byteSize: 16n,
+			checksum,
+			finalizedAt: new Date(),
+			verificationGeneration: 1,
+			verificationAttemptCount: 1,
+			verificationProvider: "test",
+			verificationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+			verificationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+			verificationValidUntil,
+		},
+	});
+	await client.assetModerationResult.create({
+		data: {
+			assetId: inputAsset.id,
+			assetChecksum: checksum,
+			verificationGeneration: 1,
+			attemptNumber: 1,
+			evidenceKind: "INPUT",
+			provider: "test",
+			ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+			policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+			status: "APPROVED",
+			reasonCode: "TEST_ALLOW",
+			categories: {},
+			rawEnvelope: { decision: "ALLOW" },
+			validUntil: verificationValidUntil,
+		},
+	});
+	await client.mediaAsset.update({ where: { id: inputAsset.id }, data: { status: "READY" } });
 	const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
 	await createCreditGrant(
 		{ accountId: account.id, amount: 100n, referenceKey: `output-transfer-grant:${suffix}` },
@@ -423,7 +468,11 @@ async function seedFinalizingJob(outputs: ProviderOutput[]) {
 		pricingVersion: "2026-08-13.1",
 		credits: 10n,
 		costMicros: 8_000n,
-		inputSnapshot: { kind: "text-to-image", prompt: "output transfer test" },
+		inputSnapshot: {
+			kind: "image-to-image",
+			prompt: "output transfer test",
+			sourceAssetId: inputAsset.id,
+		},
 		pricingSnapshot: { credits: "10" },
 		expiresAt: new Date(Date.now() + 60_000),
 	} as const;
@@ -447,12 +496,16 @@ async function seedFinalizingJob(outputs: ProviderOutput[]) {
 			submittedByUserId: ownerId,
 			quoteId: quote.id,
 			idempotencyKey: `output-transfer-job:${suffix}`,
-			inputAssetIds: [],
+			inputAssetIds: [inputAsset.id],
 			expectedModerationRuleVersion: "TEST_OUTPUT_TRANSFER_RUNTIME_V1",
+			expectedAssetModerationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+			expectedAssetModerationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 		},
 		client,
 	);
-	const dispatchStore = createDatabaseDispatchStore(client);
+	const dispatchStore = createDatabaseDispatchStore(client, {
+		createSignedReadUrl: async () => "https://private.example/output-transfer-input.png",
+	});
 	const dispatch = await dispatchStore.claimDispatch({ jobId: created.job.id, version: 0 });
 	if (!dispatch) throw new Error("Expected dispatch claim");
 	await dispatchStore.recordSynchronousCompletion(

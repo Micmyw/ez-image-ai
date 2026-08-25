@@ -27,10 +27,15 @@ import { maximumMediaStorageBytes } from "../lib/storage-limits";
 import { retryGenerationForUser, type RetryGenerationDependencies } from "./retry-generation";
 
 const SOURCE_ASSET_ID = "asset_01J5ABCD1234EFGH5678JKLMNP";
+const EDIT_SESSION_ID = "edit-session-1";
+const PARENT_JOB_ID = "parent-job-1";
 
 const source = {
 	id: "source-job-1",
 	productKey: "image-fast",
+	editSessionId: null,
+	parentJobId: null,
+	editSession: null,
 	quote: {
 		inputSnapshot: {
 			kind: "image-to-image",
@@ -242,6 +247,133 @@ describe("retryGenerationForUser", () => {
 		);
 	});
 
+	it("retries a failed root edit inside its existing session with private quote-only context", async () => {
+		const claimRequest = vi.fn(
+			async (claimInput: Parameters<RetryGenerationDependencies["claimRequest"]>[0]) => ({
+				outcome: "CLAIMED" as const,
+				requestId: "request-root",
+				leaseToken: "lease-root",
+				operation: claimInput.operation,
+			}),
+		);
+		const deps = dependencies({
+			findSource: vi.fn(async () => ({
+				...source,
+				editSessionId: EDIT_SESSION_ID,
+				parentJobId: null,
+				editSession: {
+					ownerType: "USER",
+					ownerId: "user-1",
+					rootAssetId: SOURCE_ASSET_ID,
+				},
+				quote: {
+					...source.quote,
+					inputSnapshot: {
+						...source.quote.inputSnapshot,
+						editContext: { kind: "ROOT", rootAssetId: SOURCE_ASSET_ID },
+					},
+				},
+			})),
+			claimRequest,
+		});
+
+		await retryGenerationForUser(
+			"user-1",
+			{ jobId: "source-job-1", idempotencyKey: "retry-root-operation" },
+			deps,
+		);
+
+		const operation = claimRequest.mock.calls[0]![0].operation;
+		expect(operation).toMatchObject({
+			editContext: {
+				kind: "ROOT_RETRY",
+				editSessionId: EDIT_SESSION_ID,
+				rootAssetId: SOURCE_ASSET_ID,
+			},
+		});
+		expect(operation.normalizedInput).not.toHaveProperty("editContext");
+		expect(deps.persistApproved).toHaveBeenCalledWith(
+			expect.objectContaining({
+				quote: expect.objectContaining({
+					inputSnapshot: expect.objectContaining({
+						editContext: {
+							kind: "ROOT_RETRY",
+							editSessionId: EDIT_SESSION_ID,
+							rootAssetId: SOURCE_ASSET_ID,
+						},
+					}),
+				}),
+			}),
+		);
+		expect(deps.createJob).toHaveBeenCalledWith(
+			expect.objectContaining({
+				edit: {
+					kind: "ROOT_RETRY",
+					editSessionId: EDIT_SESSION_ID,
+					rootAssetId: SOURCE_ASSET_ID,
+				},
+			}),
+		);
+	});
+
+	it("retries a failed child as a sibling on its frozen parent branch", async () => {
+		const claimRequest = vi.fn(
+			async (claimInput: Parameters<RetryGenerationDependencies["claimRequest"]>[0]) => ({
+				outcome: "CLAIMED" as const,
+				requestId: "request-child",
+				leaseToken: "lease-child",
+				operation: claimInput.operation,
+			}),
+		);
+		const deps = dependencies({
+			findSource: vi.fn(async () => ({
+				...source,
+				editSessionId: EDIT_SESSION_ID,
+				parentJobId: PARENT_JOB_ID,
+				editSession: {
+					ownerType: "USER",
+					ownerId: "user-1",
+					rootAssetId: "root-asset-1",
+				},
+				quote: {
+					...source.quote,
+					inputSnapshot: {
+						...source.quote.inputSnapshot,
+						editContext: {
+							kind: "CHILD",
+							parentJobId: PARENT_JOB_ID,
+							editSessionId: EDIT_SESSION_ID,
+							sourceAssetId: SOURCE_ASSET_ID,
+						},
+					},
+				},
+			})),
+			claimRequest,
+		});
+
+		await retryGenerationForUser(
+			"user-1",
+			{ jobId: "source-job-1", idempotencyKey: "retry-child-operation" },
+			deps,
+		);
+
+		const editContext = {
+			kind: "CHILD",
+			parentJobId: PARENT_JOB_ID,
+			editSessionId: EDIT_SESSION_ID,
+			sourceAssetId: SOURCE_ASSET_ID,
+		};
+		expect(claimRequest.mock.calls[0]![0].operation).toMatchObject({ editContext });
+		expect(deps.persistApproved).toHaveBeenCalledWith(
+			expect.objectContaining({
+				quote: expect.objectContaining({
+					inputSnapshot: expect.objectContaining({ editContext }),
+				}),
+			}),
+		);
+		expect(deps.createJob).toHaveBeenCalledWith(expect.objectContaining({ edit: editContext }));
+	});
+
 	it("resumes a durable approved quote checkpoint without calling moderation again", async () => {
 		const deps = dependencies({
 			findSource: vi.fn(async () => {
@@ -271,6 +403,41 @@ describe("retryGenerationForUser", () => {
 		expect(deps.claimRequest).not.toHaveBeenCalled();
 		expect(deps.persistApproved).not.toHaveBeenCalled();
 		expect(deps.createJob).toHaveBeenCalledWith(expect.objectContaining({ quoteId: "quote-1" }));
+	});
+
+	it("restores frozen child edit context when resuming a durable quote checkpoint", async () => {
+		const editContext = {
+			kind: "CHILD" as const,
+			parentJobId: PARENT_JOB_ID,
+			editSessionId: EDIT_SESSION_ID,
+			sourceAssetId: SOURCE_ASSET_ID,
+		};
+		const operation = { ...retryOperation, editContext };
+		const deps = dependencies({
+			resumeRequest: vi.fn(async () => ({
+				outcome: "CLAIMED" as const,
+				requestId: "request-child-resume",
+				leaseToken: "lease-child-resume",
+				operation,
+				quoteId: "quote-child-resume",
+			})),
+			findCheckpointQuote: vi.fn(async () => ({ id: "quote-child-resume" })),
+			createAdapter: vi.fn(() => {
+				throw new Error("durable retry resume must not remoderate");
+			}),
+		} as never);
+
+		await retryGenerationForUser(
+			"user-1",
+			{ jobId: "source-job-1", idempotencyKey: "retry-child-resume" },
+			deps,
+		);
+
+		expect(deps.findSource).not.toHaveBeenCalled();
+		expect(deps.persistApproved).not.toHaveBeenCalled();
+		expect(deps.createJob).toHaveBeenCalledWith(
+			expect.objectContaining({ quoteId: "quote-child-resume", edit: editContext }),
+		);
 	});
 
 	it("does not call moderation when the same request is already in progress", async () => {

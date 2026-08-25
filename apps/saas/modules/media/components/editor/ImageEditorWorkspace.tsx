@@ -24,17 +24,20 @@ export function ImageEditorWorkspace({
 	allowedProductKeys,
 	restoreState,
 	restoreNotice,
+	parentJobId,
 }: {
 	initialDraft?: EditorDraftInput | null;
 	allowedProductKeys: EditorProductKey[];
 	restoreState: EditorRestoreState;
 	restoreNotice: EditorRestoreNotice;
+	parentJobId?: string | null;
 }) {
 	const t = useTranslations("media.create");
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const [workspace, setWorkspace] = useState<EditorWorkspaceState>(() => ({
 		jobId: searchParams.get("job"),
+		parentJobId: parentJobId ?? null,
 		initialDraft: initialDraft ?? null,
 		formKey: 0,
 		recoveryVisible: true,
@@ -85,6 +88,7 @@ export function ImageEditorWorkspace({
 						initialDraft={workspace.initialDraft}
 						allowedProductKeys={allowedProductKeys}
 						initialSourceReady={restoreState === "ready"}
+						parentJobId={workspace.parentJobId}
 						onCreated={selectJob}
 					/>
 				</section>

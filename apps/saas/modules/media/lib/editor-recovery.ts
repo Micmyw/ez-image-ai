@@ -40,6 +40,20 @@ export interface EditorRecoveryResult {
 	notice: EditorRestoreNotice;
 }
 
+export function hasEditorRecoveryRequest(
+	filters: {
+		draftError?: string;
+		asset?: string;
+		reuseJob?: string;
+		parentJob?: string;
+	},
+	draftId: string | null | undefined,
+): boolean {
+	return Boolean(
+		filters.draftError || filters.asset || filters.reuseJob || filters.parentJob || draftId,
+	);
+}
+
 export function resolveEditorAllowedProductKeys(
 	metadata: unknown,
 	planName: string | undefined,

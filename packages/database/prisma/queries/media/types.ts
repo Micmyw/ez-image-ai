@@ -55,6 +55,22 @@ export interface CreateGenerationJobInput {
 	expectedAssetModerationPolicyVersion?: string;
 	maximumDailyCostMicros?: bigint;
 	maximumStorageBytes?: bigint;
+	edit?:
+		| {
+				kind: "ROOT";
+				rootAssetId: string;
+		  }
+		| {
+				kind: "ROOT_RETRY";
+				editSessionId: string;
+				rootAssetId: string;
+		  }
+		| {
+				kind: "CHILD";
+				parentJobId: string;
+				editSessionId: string;
+				sourceAssetId: string;
+		  };
 }
 
 export interface CreateGenerationJobResult {

@@ -1,5 +1,6 @@
 import type { ExecutableRouteGraphOptions, MediaModelInput, ModerationDecision } from "@repo/ai";
 import type { ProductModelKey } from "@repo/config";
+import { findEligibleImageEditParentForOwner } from "@repo/database";
 import { db } from "@repo/database/client";
 import {
 	createModeratedGenerationQuoteTransaction,
@@ -21,6 +22,15 @@ import { createQuoteInputSchema, jsonBigInt } from "../types";
 interface CreateQuoteDependencies {
 	now(): Date;
 	assertAllowed: typeof assertGenerationAllowed;
+	findEligibleEditParent?(
+		userId: string,
+		parentJobId: string,
+		sourceAssetId: string,
+	): Promise<{
+		editSessionId: string;
+		parentJobId: string;
+		sourceAssetId: string;
+	} | null>;
 	getRouteGraphOptions?(): Promise<ExecutableRouteGraphOptions>;
 	createAdapter(): {
 		provider: TextModerationEvidence["provider"];
@@ -42,6 +52,16 @@ interface CreateQuoteDependencies {
 const defaultDependencies: CreateQuoteDependencies = {
 	now: () => new Date(),
 	assertAllowed: (input) => assertGenerationAllowed(input),
+	findEligibleEditParent: (userId, parentJobId, sourceAssetId) =>
+		findEligibleImageEditParentForOwner(
+			{
+				ownerType: "USER",
+				ownerId: userId,
+				parentJobId,
+				sourceAssetId,
+			},
+			db,
+		),
 	getRouteGraphOptions: () => getCurrentExecutableRouteGraphOptions(),
 	createAdapter: () => createTextModerationAdapter(process.env),
 	persistApproved: (input) => createModeratedGenerationQuoteTransaction(input, db),
@@ -60,9 +80,10 @@ const defaultDependencies: CreateQuoteDependencies = {
 
 export async function createQuoteForUser(
 	userId: string,
-	input: { productKey: ProductModelKey; input: MediaModelInput },
+	input: { productKey: ProductModelKey; input: MediaModelInput; parentJobId?: string },
 	dependencies: CreateQuoteDependencies = defaultDependencies,
 ) {
+	const editContext = await freezeImageEditContext(userId, input, dependencies);
 	const routeGraphOptions = await dependencies.getRouteGraphOptions?.();
 	const quote = buildMediaQuote(input, routeGraphOptions);
 	await dependencies.assertAllowed({
@@ -82,7 +103,7 @@ export async function createQuoteForUser(
 		pricingVersion: quote.pricingVersion,
 		credits: quote.credits,
 		costMicros: quote.costMicros,
-		inputSnapshot: input.input,
+		inputSnapshot: editContext ? { ...input.input, editContext } : input.input,
 		pricingSnapshot: quote.pricingSnapshot,
 		expiresAt: new Date(dependencies.now().getTime() + 10 * 60_000),
 	};
@@ -93,6 +114,41 @@ export async function createQuoteForUser(
 		persistApproved: (moderation) => dependencies.persistApproved({ ...quoteInput, moderation }),
 		recordDenied: (evidence) => dependencies.recordDenied(evidence),
 	});
+}
+
+async function freezeImageEditContext(
+	userId: string,
+	input: { productKey: ProductModelKey; input: MediaModelInput; parentJobId?: string },
+	dependencies: CreateQuoteDependencies,
+) {
+	const sourceAssetId = imageEditSourceAssetId(input.input);
+	if (!sourceAssetId || !isImageEditProduct(input.productKey)) {
+		if (input.parentJobId) throw new Error("NOT_FOUND");
+		return null;
+	}
+	if (!input.parentJobId) {
+		return { kind: "ROOT" as const, rootAssetId: sourceAssetId };
+	}
+	const eligible = await dependencies.findEligibleEditParent?.(
+		userId,
+		input.parentJobId,
+		sourceAssetId,
+	);
+	if (!eligible) throw new Error("NOT_FOUND");
+	return {
+		kind: "CHILD" as const,
+		parentJobId: eligible.parentJobId,
+		editSessionId: eligible.editSessionId,
+		sourceAssetId: eligible.sourceAssetId,
+	};
+}
+
+function imageEditSourceAssetId(input: MediaModelInput): string | null {
+	return input.kind === "image-to-image" ? input.sourceAssetId : null;
+}
+
+function isImageEditProduct(productKey: ProductModelKey): boolean {
+	return productKey === "image-fast" || productKey === "image-quality";
 }
 
 export const createQuote = protectedProcedure

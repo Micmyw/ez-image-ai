@@ -13,6 +13,7 @@ export function CreatorWorkspace(props: {
 	allowedProductKeys: EditorProductKey[];
 	restoreState: EditorRestoreState;
 	restoreNotice: EditorRestoreNotice;
+	parentJobId?: string | null;
 }) {
 	return <ImageEditorWorkspace {...props} />;
 }

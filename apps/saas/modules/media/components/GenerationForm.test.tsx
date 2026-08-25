@@ -1,6 +1,8 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const mocks = vi.hoisted(() => ({ useGeneration: vi.fn() }));
 
 vi.mock("@repo/ui/components/alert", () => ({
 	Alert: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -51,8 +53,10 @@ vi.mock("next-intl", () => ({
 					: "localized credits",
 		})[key] ?? key,
 }));
-vi.mock("../hooks/use-generation", () => ({
-	useGeneration: () => ({
+vi.mock("../hooks/use-generation", () => ({ useGeneration: mocks.useGeneration }));
+
+function generationState() {
+	return {
 		catalog: {
 			data: {
 				products: [
@@ -84,8 +88,8 @@ vi.mock("../hooks/use-generation", () => ({
 		createGeneration: { error: null, isPending: false, mutateAsync: vi.fn() },
 		quote: null,
 		beginNewAction: vi.fn(),
-	}),
-}));
+	};
+}
 vi.mock("./editor/ImageSourcePanel", () => ({
 	ImageSourcePanel: () => <span>Localized source image</span>,
 }));
@@ -96,6 +100,10 @@ vi.mock("./editor/PromptPanel", () => ({
 import { GenerationForm } from "./GenerationForm";
 
 describe("GenerationForm product copy", () => {
+	beforeEach(() => {
+		mocks.useGeneration.mockReturnValue(generationState());
+	});
+
 	it("renders localized product and field copy instead of catalog English", () => {
 		const markup = renderToStaticMarkup(<GenerationForm onCreated={vi.fn()} />);
 
@@ -128,5 +136,25 @@ describe("GenerationForm product copy", () => {
 		);
 
 		expect(markup).toContain('<button type="submit">review</button>');
+	});
+
+	it("keeps the selected parent attached to both quote and confirmation requests", () => {
+		renderToStaticMarkup(
+			<GenerationForm
+				onCreated={vi.fn()}
+				parentJobId="job-parent"
+				initialSourceReady
+				initialDraft={{
+					productKey: "image-fast",
+					input: {
+						kind: "image-to-image",
+						prompt: "Continue from this version",
+						sourceAssetId: "asset-output",
+					},
+				}}
+			/>,
+		);
+
+		expect(mocks.useGeneration).toHaveBeenCalledWith({ parentJobId: "job-parent" });
 	});
 });

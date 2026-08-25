@@ -15,6 +15,7 @@ import {
 	type ClaimGenerationRetryRequestInput,
 	type CreateGenerationJobInput,
 	type CreateGenerationJobResult,
+	type GenerationRetryEditContext,
 	type GenerationRetryOperation,
 	type GenerationRetryRequestClaim,
 } from "@repo/database";
@@ -43,6 +44,13 @@ interface RetryGenerationSource {
 	productKey: string;
 	quote: { inputSnapshot: unknown };
 	assets: Array<{ assetId: string; assetChecksum: string }>;
+	editSessionId: string | null;
+	parentJobId: string | null;
+	editSession: {
+		ownerType: string;
+		ownerId: string;
+		rootAssetId: string;
+	} | null;
 }
 
 export interface RetryGenerationDependencies {
@@ -97,6 +105,7 @@ const defaultDependencies: RetryGenerationDependencies = {
 			include: {
 				assets: { where: { role: "INPUT" }, orderBy: [{ position: "asc" }, { id: "asc" }] },
 				quote: true,
+				editSession: true,
 			},
 		}),
 	assertAllowed: (input) => assertGenerationAllowed(input),
@@ -148,6 +157,7 @@ export async function retryGenerationForUser(
 		if (!source) throw new Error("NOT_FOUND");
 		const productKey = productModelKeySchema.parse(source.productKey);
 		const normalizedInput = mediaModelInputSchema.parse(source.quote.inputSnapshot);
+		const editContext = retryEditContextForSource(userId, source, normalizedInput);
 		const currentQuote = buildMediaQuote({ productKey, input: normalizedInput });
 		selection = dependencies.createAdapter();
 		const operation: GenerationRetryOperation = {
@@ -167,6 +177,7 @@ export async function retryGenerationForUser(
 			moderationRuleVersion: TEXT_MODERATION_RULE_VERSION,
 			assetModerationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 			assetModerationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+			...(editContext ? { editContext } : {}),
 		};
 		claim = await dependencies.claimRequest({
 			ownerType: "USER",
@@ -211,7 +222,7 @@ export async function retryGenerationForUser(
 			pricingVersion: operation.pricingVersion,
 			credits: BigInt(operation.credits),
 			costMicros: BigInt(operation.costMicros),
-			inputSnapshot: normalizedInput,
+			inputSnapshot: retryQuoteInputSnapshot(normalizedInput, operation.editContext),
 			pricingSnapshot: operation.pricingSnapshot,
 			expiresAt: new Date(dependencies.now().getTime() + 10 * 60_000),
 		};
@@ -260,6 +271,7 @@ export async function retryGenerationForUser(
 			expectedAssetModerationPolicyVersion: operation.assetModerationPolicyVersion,
 			maximumDailyCostMicros: BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros),
 			maximumStorageBytes: maximumMediaStorageBytes(),
+			...(operation.editContext ? { edit: operation.editContext } : {}),
 		});
 		jobCreated = true;
 		await dependencies.completeRequest({
@@ -311,6 +323,109 @@ export async function retryGenerationForUser(
 		}
 		throw error;
 	}
+}
+
+function retryEditContextForSource(
+	userId: string,
+	source: RetryGenerationSource,
+	normalizedInput: ReturnType<typeof mediaModelInputSchema.parse>,
+): GenerationRetryEditContext | undefined {
+	const originalContext = quoteEditContext(source.quote.inputSnapshot);
+	if (!source.editSessionId && !source.parentJobId && !source.editSession && !originalContext) {
+		return undefined;
+	}
+	if (
+		normalizedInput.kind !== "image-to-image" ||
+		!source.editSessionId ||
+		source.editSession?.ownerType !== "USER" ||
+		source.editSession.ownerId !== userId ||
+		!originalContext
+	) {
+		throw new Error("NOT_FOUND");
+	}
+	if (!source.parentJobId) {
+		const rootAssetId = source.editSession.rootAssetId;
+		if (
+			(originalContext.kind !== "ROOT" && originalContext.kind !== "ROOT_RETRY") ||
+			originalContext.rootAssetId !== rootAssetId ||
+			normalizedInput.sourceAssetId !== rootAssetId ||
+			(originalContext.kind === "ROOT_RETRY" &&
+				originalContext.editSessionId !== source.editSessionId)
+		) {
+			throw new Error("NOT_FOUND");
+		}
+		return { kind: "ROOT_RETRY", editSessionId: source.editSessionId, rootAssetId };
+	}
+	if (
+		originalContext.kind !== "CHILD" ||
+		originalContext.parentJobId !== source.parentJobId ||
+		originalContext.editSessionId !== source.editSessionId ||
+		originalContext.sourceAssetId !== normalizedInput.sourceAssetId
+	) {
+		throw new Error("NOT_FOUND");
+	}
+	return {
+		kind: "CHILD",
+		parentJobId: source.parentJobId,
+		editSessionId: source.editSessionId,
+		sourceAssetId: normalizedInput.sourceAssetId,
+	};
+}
+
+type QuoteEditContext =
+	| { kind: "ROOT"; rootAssetId: string }
+	| { kind: "ROOT_RETRY"; editSessionId: string; rootAssetId: string }
+	| { kind: "CHILD"; parentJobId: string; editSessionId: string; sourceAssetId: string };
+
+function quoteEditContext(inputSnapshot: unknown): QuoteEditContext | null {
+	if (!isRecord(inputSnapshot)) return null;
+	const value = inputSnapshot.editContext;
+	if (value === undefined) return null;
+	if (!isRecord(value)) throw new Error("NOT_FOUND");
+	if (value.kind === "ROOT" && typeof value.rootAssetId === "string" && value.rootAssetId) {
+		return { kind: "ROOT", rootAssetId: value.rootAssetId };
+	}
+	if (
+		value.kind === "ROOT_RETRY" &&
+		typeof value.editSessionId === "string" &&
+		value.editSessionId &&
+		typeof value.rootAssetId === "string" &&
+		value.rootAssetId
+	) {
+		return {
+			kind: "ROOT_RETRY",
+			editSessionId: value.editSessionId,
+			rootAssetId: value.rootAssetId,
+		};
+	}
+	if (
+		value.kind === "CHILD" &&
+		typeof value.parentJobId === "string" &&
+		value.parentJobId &&
+		typeof value.editSessionId === "string" &&
+		value.editSessionId &&
+		typeof value.sourceAssetId === "string" &&
+		value.sourceAssetId
+	) {
+		return {
+			kind: "CHILD",
+			parentJobId: value.parentJobId,
+			editSessionId: value.editSessionId,
+			sourceAssetId: value.sourceAssetId,
+		};
+	}
+	throw new Error("NOT_FOUND");
+}
+
+function retryQuoteInputSnapshot(
+	normalizedInput: ReturnType<typeof mediaModelInputSchema.parse>,
+	editContext: GenerationRetryEditContext | undefined,
+) {
+	return editContext ? { ...normalizedInput, editContext } : normalizedInput;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 export const retryGeneration = protectedProcedure

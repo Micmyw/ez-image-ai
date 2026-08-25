@@ -106,6 +106,13 @@ describe("EditorResultPanel", () => {
 		expect(markup).not.toContain('aria-busy="true"');
 		expect(mocks.useQuery).not.toHaveBeenCalled();
 	});
+
+	it("continues a successful version with its exact output and parent job", () => {
+		const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
+
+		expect(markup).toContain('href="/create?asset=asset-output&amp;parentJob=job-1"');
+		expect(markup).toContain("Edit again");
+	});
 });
 
 function imageJob({

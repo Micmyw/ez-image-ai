@@ -91,6 +91,14 @@ interface CreateGenerationDependencies {
 		expectedAssetModerationPolicyVersion: string;
 		maximumDailyCostMicros: bigint;
 		maximumStorageBytes: bigint;
+		edit?:
+			| { kind: "ROOT"; rootAssetId: string }
+			| {
+					kind: "CHILD";
+					parentJobId: string;
+					editSessionId: string;
+					sourceAssetId: string;
+			  };
 	}): Promise<CreatedGenerationJob>;
 }
 
@@ -107,7 +115,7 @@ const defaultDependencies: CreateGenerationDependencies = {
 
 export async function createGenerationForUser(
 	userId: string,
-	input: { quoteId: string; idempotencyKey: string },
+	input: { quoteId: string; idempotencyKey: string; parentJobId?: string },
 	dependencies: CreateGenerationDependencies = defaultDependencies,
 ): Promise<CreatedGenerationJob> {
 	const quote = await dependencies.findQuote(userId, input.quoteId);
@@ -129,7 +137,9 @@ export async function createGenerationForUser(
 		},
 		routeGraphOptions,
 	);
-	const inputSnapshot = quote.inputSnapshot as { sourceAssetId?: string };
+	const inputSnapshot = objectRecord(quote.inputSnapshot);
+	const sourceAssetId =
+		typeof inputSnapshot.sourceAssetId === "string" ? inputSnapshot.sourceAssetId : undefined;
 	await dependencies.assertAllowed({
 		userId,
 		productKey: quote.productKey as Parameters<typeof assertGenerationAllowed>[0]["productKey"],
@@ -147,11 +157,72 @@ export async function createGenerationForUser(
 		submittedByUserId: userId,
 		quoteId: quote.id,
 		idempotencyKey: input.idempotencyKey,
-		inputAssetIds: inputSnapshot.sourceAssetId ? [inputSnapshot.sourceAssetId] : [],
+		inputAssetIds: sourceAssetId ? [sourceAssetId] : [],
 		expectedModerationRuleVersion: TEXT_MODERATION_RULE_VERSION,
 		expectedAssetModerationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 		expectedAssetModerationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 		maximumDailyCostMicros: BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros),
 		maximumStorageBytes: maximumMediaStorageBytes(),
+		...imageEditBinding(quote.productKey, inputSnapshot, input.parentJobId),
 	});
+}
+
+function imageEditBinding(
+	productKey: string,
+	inputSnapshot: Record<string, unknown>,
+	parentJobIdEcho: string | undefined,
+) {
+	if (
+		(productKey !== "image-fast" && productKey !== "image-quality") ||
+		inputSnapshot.kind !== "image-to-image" ||
+		typeof inputSnapshot.sourceAssetId !== "string"
+	) {
+		if (parentJobIdEcho || inputSnapshot.editContext !== undefined) {
+			throw new Error("NOT_FOUND");
+		}
+		return {};
+	}
+	const editContext = inputSnapshot.editContext;
+	if (editContext === undefined) {
+		if (parentJobIdEcho) throw new Error("NOT_FOUND");
+		return {
+			edit: { kind: "ROOT" as const, rootAssetId: inputSnapshot.sourceAssetId },
+		};
+	}
+	if (!isRecord(editContext)) throw new Error("NOT_FOUND");
+	if (editContext.kind === "ROOT") {
+		if (parentJobIdEcho || editContext.rootAssetId !== inputSnapshot.sourceAssetId) {
+			throw new Error("NOT_FOUND");
+		}
+		return {
+			edit: { kind: "ROOT" as const, rootAssetId: inputSnapshot.sourceAssetId },
+		};
+	}
+	if (
+		editContext.kind !== "CHILD" ||
+		typeof editContext.parentJobId !== "string" ||
+		!editContext.parentJobId ||
+		typeof editContext.editSessionId !== "string" ||
+		!editContext.editSessionId ||
+		editContext.sourceAssetId !== inputSnapshot.sourceAssetId ||
+		(parentJobIdEcho !== undefined && parentJobIdEcho !== editContext.parentJobId)
+	) {
+		throw new Error("NOT_FOUND");
+	}
+	return {
+		edit: {
+			kind: "CHILD" as const,
+			parentJobId: editContext.parentJobId,
+			editSessionId: editContext.editSessionId,
+			sourceAssetId: inputSnapshot.sourceAssetId,
+		},
+	};
+}
+
+function objectRecord(value: unknown): Record<string, unknown> {
+	return isRecord(value) ? value : {};
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }

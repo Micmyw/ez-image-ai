@@ -1,10 +1,19 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveEditorAllowedProductKeys, resolveEditorRecovery } from "./editor-recovery";
+import {
+	hasEditorRecoveryRequest,
+	resolveEditorAllowedProductKeys,
+	resolveEditorRecovery,
+} from "./editor-recovery";
 
 const SOURCE_ASSET_ID = "asset_01J5ABCD1234EFGH5678JKLMNP";
 
 describe("resolveEditorRecovery", () => {
+	it("treats a parent-only branch URL as a recovery request that must fail closed", () => {
+		expect(hasEditorRecoveryRequest({ parentJob: "job-parent" }, null)).toBe(true);
+		expect(hasEditorRecoveryRequest({}, null)).toBe(false);
+	});
+
 	it("derives editor entitlements from the durable active billing plan and defaults safely", () => {
 		expect(resolveEditorAllowedProductKeys({ planId: "creator" }, "ignored")).toEqual([
 			"image-fast",

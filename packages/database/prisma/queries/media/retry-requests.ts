@@ -24,7 +24,12 @@ export interface GenerationRetryOperation {
 	moderationRuleVersion: string;
 	assetModerationRuleVersion: string;
 	assetModerationPolicyVersion: string;
+	editContext?: GenerationRetryEditContext;
 }
+
+export type GenerationRetryEditContext =
+	| { kind: "ROOT_RETRY"; editSessionId: string; rootAssetId: string }
+	| { kind: "CHILD"; parentJobId: string; editSessionId: string; sourceAssetId: string };
 
 export interface ClaimGenerationRetryRequestInput {
 	ownerType: "USER" | "ORGANIZATION";
@@ -465,6 +470,7 @@ async function findGenerationJobForRetry(
 		include: {
 			quote: true,
 			reservation: true,
+			editSession: true,
 			assets: { where: { role: "INPUT" }, orderBy: [{ position: "asc" }, { id: "asc" }] },
 		},
 	});
@@ -527,10 +533,35 @@ function isMatchingRecoveredJob(
 		job.quote.moderationProvider === operation.moderationProvider &&
 		job.quote.moderationRuleVersion === operation.moderationRuleVersion &&
 		job.quote.inputFingerprint === fingerprintGenerationQuoteSecurityPayload(job.quote) &&
-		stableSerialize(job.quote.inputSnapshot) === stableSerialize(operation.normalizedInput) &&
+		stableSerialize(job.quote.inputSnapshot) ===
+			stableSerialize(retryQuoteInputSnapshot(operation)) &&
 		stableSerialize(job.quote.pricingSnapshot) === stableSerialize(operation.pricingSnapshot) &&
-		bindingsMatchOperation(job.assets, operation.inputAssets)
+		bindingsMatchOperation(job.assets, operation.inputAssets) &&
+		jobMatchesRetryEditContext(job, operation.editContext)
 	);
+}
+
+function jobMatchesRetryEditContext(
+	job: {
+		editSessionId: string | null;
+		parentJobId: string | null;
+		editSession: { ownerType: string; ownerId: string; rootAssetId: string } | null;
+		ownerType: string;
+		ownerId: string;
+	},
+	editContext: GenerationRetryEditContext | undefined,
+): boolean {
+	if (!editContext) return job.editSessionId === null && job.parentJobId === null;
+	if (
+		job.editSessionId !== editContext.editSessionId ||
+		job.editSession?.ownerType !== job.ownerType ||
+		job.editSession.ownerId !== job.ownerId
+	) {
+		return false;
+	}
+	return editContext.kind === "ROOT_RETRY"
+		? job.parentJobId === null && job.editSession.rootAssetId === editContext.rootAssetId
+		: job.parentJobId === editContext.parentJobId;
 }
 
 function bindingsMatchOperation(
@@ -573,7 +604,7 @@ function quoteMatchesRetryOperation(
 		quote.pricingVersion === operation.pricingVersion &&
 		quote.credits.toString() === operation.credits &&
 		(quote.costMicros ?? 0n).toString() === operation.costMicros &&
-		stableSerialize(quote.inputSnapshot) === stableSerialize(operation.normalizedInput) &&
+		stableSerialize(quote.inputSnapshot) === stableSerialize(retryQuoteInputSnapshot(operation)) &&
 		stableSerialize(quote.pricingSnapshot ?? {}) === stableSerialize(operation.pricingSnapshot) &&
 		moderationDecision === "ALLOW" &&
 		moderationProvider === operation.moderationProvider &&
@@ -597,10 +628,36 @@ function assertValidRetryOperation(operation: GenerationRetryOperation): void {
 			(binding) => !binding.assetId || !/^[a-f0-9]{64}$/i.test(binding.assetChecksum),
 		) ||
 		new Set(operation.inputAssets.map((binding) => binding.assetId)).size !==
-			operation.inputAssets.length
+			operation.inputAssets.length ||
+		!validRetryEditContext(operation)
 	) {
 		throw new Error("INVALID_GENERATION_RETRY_OPERATION");
 	}
+}
+
+function validRetryEditContext(operation: GenerationRetryOperation): boolean {
+	if (!operation.editContext) return true;
+	if (
+		(operation.productKey !== "image-fast" && operation.productKey !== "image-quality") ||
+		!isJsonObject(operation.normalizedInput) ||
+		operation.normalizedInput.kind !== "image-to-image" ||
+		typeof operation.normalizedInput.sourceAssetId !== "string" ||
+		operation.inputAssets.length !== 1 ||
+		operation.inputAssets[0]?.assetId !== operation.normalizedInput.sourceAssetId
+	) {
+		return false;
+	}
+	if (operation.editContext.kind === "ROOT_RETRY") {
+		return (
+			Boolean(operation.editContext.editSessionId) &&
+			operation.editContext.rootAssetId === operation.normalizedInput.sourceAssetId
+		);
+	}
+	return (
+		Boolean(operation.editContext.parentJobId) &&
+		Boolean(operation.editContext.editSessionId) &&
+		operation.editContext.sourceAssetId === operation.normalizedInput.sourceAssetId
+	);
 }
 
 function parseRetryOperation(value: Prisma.JsonValue): GenerationRetryOperation | null {
@@ -629,6 +686,8 @@ function parseRetryOperation(value: Prisma.JsonValue): GenerationRetryOperation 
 	] as const;
 	if (stringFields.some((field) => typeof record[field] !== "string")) return null;
 	if (record.normalizedInput === undefined || record.pricingSnapshot === undefined) return null;
+	const editContext = parseRetryEditContext(record.editContext);
+	if (record.editContext !== undefined && !editContext) return null;
 	const operation = {
 		sourceJobId: record.sourceJobId as string,
 		productKey: record.productKey as string,
@@ -643,6 +702,7 @@ function parseRetryOperation(value: Prisma.JsonValue): GenerationRetryOperation 
 		moderationRuleVersion: record.moderationRuleVersion as string,
 		assetModerationRuleVersion: record.assetModerationRuleVersion as string,
 		assetModerationPolicyVersion: record.assetModerationPolicyVersion as string,
+		...(editContext ? { editContext } : {}),
 	};
 	try {
 		assertValidRetryOperation(operation);
@@ -650,6 +710,50 @@ function parseRetryOperation(value: Prisma.JsonValue): GenerationRetryOperation 
 	} catch {
 		return null;
 	}
+}
+
+function parseRetryEditContext(
+	value: Prisma.JsonValue | undefined,
+): GenerationRetryEditContext | null {
+	if (!isJsonObject(value)) return null;
+	if (
+		value.kind === "ROOT_RETRY" &&
+		typeof value.editSessionId === "string" &&
+		typeof value.rootAssetId === "string"
+	) {
+		return {
+			kind: "ROOT_RETRY",
+			editSessionId: value.editSessionId,
+			rootAssetId: value.rootAssetId,
+		};
+	}
+	if (
+		value.kind === "CHILD" &&
+		typeof value.parentJobId === "string" &&
+		typeof value.editSessionId === "string" &&
+		typeof value.sourceAssetId === "string"
+	) {
+		return {
+			kind: "CHILD",
+			parentJobId: value.parentJobId,
+			editSessionId: value.editSessionId,
+			sourceAssetId: value.sourceAssetId,
+		};
+	}
+	return null;
+}
+
+function retryQuoteInputSnapshot(operation: GenerationRetryOperation): Prisma.InputJsonValue {
+	if (!operation.editContext || !isJsonObject(operation.normalizedInput)) {
+		return operation.normalizedInput;
+	}
+	return { ...operation.normalizedInput, editContext: operation.editContext };
+}
+
+function isJsonObject(
+	value: Prisma.JsonValue | Prisma.InputJsonValue | undefined,
+): value is Prisma.JsonObject {
+	return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
 function stableSerialize(value: unknown): string {

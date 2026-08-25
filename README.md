@@ -25,13 +25,24 @@ output. Previews and downloads use short-lived owner-authorized URLs. A recovere
 safely falls back to Standard when the active plan lacks that entitlement while retaining its image
 and prompt.
 
+The first confirmed edit also creates a lightweight private edit session inside that same job,
+input-binding, reservation, and Outbox transaction. `/edits` lists the signed-in user's sessions,
+and `/edits/[sessionId]` shows an auditable version timeline. **Edit Again** can branch from any
+eligible successful version, but every branch creates a fresh server-side quote, moderation
+decision, reservation, idempotency key, job, and Outbox event; it never reuses the earlier job's
+financial or safety decisions. The selected parent/session is frozen into that quote by the server;
+confirmation cannot omit, inject, or replace the quoted edit relationship.
+Retrying a failed version also creates a fresh quote, moderation decision, reservation, job, and
+Outbox event while preserving the original session and branch; durable retry recovery rejects a
+result that lost that private binding.
+
 ## Inherited foundation capabilities
 
 - **Stable product catalog and Provider abstraction:** clients submit public product keys and validated parameters; server-only routes moderate prompts and map approved requests to Replicate, Fal, Kie, or Gemini adapters. Provider names, model IDs, credentials, raw errors, and arbitrary result URLs stay off the public contract.
 - **Durable background work:** PostgreSQL is the only business source of truth. Job creation, input binding, credit reservation, and the initial Outbox event commit atomically. Trigger.dev is the first-release task engine, while polling, Webhooks, and reconciliation recover work from persisted state.
 - **Auditable credits and subscriptions:** immutable ledger entries, expiring credit lots, atomic reservation/charge/release, zero charge when no usable output exists, monthly grants for monthly and annual Stripe plans, cancellation, refunds, and refund debt are modeled explicitly.
 - **Private media pipeline:** direct single-part or multipart upload, aggregate per-owner storage and active-session quotas, exact part constraints, signed reads, streamed Provider transfer, moderation, quarantine, soft delete, and durable object cleanup avoid buffering large videos through Vercel.
-- **Reusable product surfaces:** authenticated creator, history, job detail and asset library, plus an anonymous marketing draft handoff that transfers only after sign-in and one-time claim.
+- **Reusable product surfaces:** authenticated creator, private edit-session/version history, job history/detail and asset library, plus an anonymous marketing draft handoff that transfers only after sign-in and one-time claim.
 - **Operational controls:** generation, moderation, billing, Provider/model and queue gates; redacted structured logs; Sentry hooks; protected diagnostics, replay, stage retry and uncertain-submission resolution; CI, Provider smoke budgets, load profiles, and invariant verification.
 
 ## Local development
@@ -61,7 +72,13 @@ pnpm verify:invariants
 
 PostgreSQL integration commands require an explicit loopback `TEST_DATABASE_URL` whose database name contains `test` or `testing`; they never fall back to `DATABASE_URL`. Mock E2E fails when its database, test user, Chromium, or test adapters are missing.
 
-The current local production-build browser suite covers 11 scenarios with no skips: nine authenticated SaaS generation/storage/credit workflows and two marketing draft-handoff workflows. It uses deterministic test Provider and moderation adapters, an isolated PostgreSQL database, and private local MinIO; this is evidence for the application workflow, not for external Provider or cloud connectivity. The production dependency audit currently has no high or critical advisories; low and moderate advisories remain subject to normal dependency maintenance.
+The current local production-build browser suite passes 11 SaaS checks and five marketing checks
+with no skips. SaaS coverage includes a root edit, a second edit, and a branch from the older
+successful version. It uses deterministic test Provider and moderation adapters, an isolated
+PostgreSQL database, and private local MinIO; this is evidence for the application workflow, not
+for external Provider or cloud connectivity. The production dependency audit currently has no
+high or critical advisories; low and moderate advisories remain subject to normal dependency
+maintenance.
 
 Load profiles are `smoke`, `steady` (200 jobs/min for 30 minutes), `peak` (400 jobs/min for five minutes), and `active-1000`. Remote targets require both `ALLOW_REMOTE_LOAD_TARGET=true` and an exact `LOAD_TARGET_CONFIRMATION` origin.
 

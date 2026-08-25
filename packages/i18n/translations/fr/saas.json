@@ -149,6 +149,7 @@
 			"admin": "Admin",
 			"aiChatbot": "Chatbot IA",
 			"create": "Créer",
+			"edits": "Retouches",
 			"history": "Historique",
 			"assets": "Médias",
 			"collapseSidebar": "Réduire la barre latérale",
@@ -839,6 +840,28 @@
 				"before": "Original",
 				"after": "Résultat"
 			}
+		},
+		"edits": {
+			"title": "Sessions de retouche",
+			"subtitle": "Poursuivez vos retouches privées ou créez une branche depuis toute version prête.",
+			"untitled": "Retouche sans titre",
+			"versions": "{count, plural, one {# version} other {# versions}}",
+			"empty": "Aucune session de retouche pour le moment.",
+			"more": "Charger plus",
+			"back": "Retour aux sessions de retouche",
+			"loading": "Chargement de la session de retouche…",
+			"version": "Version {number}",
+			"prompt": "Prompt",
+			"credits": "{credits} crédits",
+			"editAgain": "Retoucher à nouveau",
+			"assetDeleted": "Média supprimé",
+			"outputUnavailable": "Résultat indisponible",
+			"thumbnailAlt": "Miniature privée du résultat",
+			"renameLabel": "Titre de la session",
+			"renamePlaceholder": "Nommer cette retouche",
+			"rename": "Renommer",
+			"unavailableTitle": "Cette session de retouche n’est pas disponible",
+			"unavailableDescription": "Revenez à vos sessions de retouche et choisissez-en une autre."
 		},
 		"history": {
 			"title": "Historique des créations",

@@ -149,6 +149,7 @@
 			"admin": "Admin",
 			"aiChatbot": "Chatbot IA",
 			"create": "Crear",
+			"edits": "Ediciones",
 			"history": "Historial",
 			"assets": "Recursos",
 			"collapseSidebar": "Contraer barra lateral",
@@ -839,6 +840,28 @@
 				"before": "Original",
 				"after": "Resultado"
 			}
+		},
+		"edits": {
+			"title": "Sesiones de edición",
+			"subtitle": "Continúa revisiones privadas de imágenes o crea una rama desde cualquier versión lista.",
+			"untitled": "Edición sin título",
+			"versions": "{count, plural, one {# versión} other {# versiones}}",
+			"empty": "Aún no hay sesiones de edición.",
+			"more": "Cargar más",
+			"back": "Volver a las sesiones de edición",
+			"loading": "Cargando sesión de edición…",
+			"version": "Versión {number}",
+			"prompt": "Prompt",
+			"credits": "{credits} créditos",
+			"editAgain": "Editar de nuevo",
+			"assetDeleted": "Recurso eliminado",
+			"outputUnavailable": "Resultado no disponible",
+			"thumbnailAlt": "Miniatura privada del resultado",
+			"renameLabel": "Título de la sesión",
+			"renamePlaceholder": "Pon nombre a esta edición",
+			"rename": "Cambiar nombre",
+			"unavailableTitle": "Esta sesión de edición no está disponible",
+			"unavailableDescription": "Vuelve a tus sesiones de edición y elige otra."
 		},
 		"history": {
 			"title": "Historial de creaciones",

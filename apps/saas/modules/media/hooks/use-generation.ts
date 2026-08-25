@@ -8,7 +8,7 @@ import { createEditorActionController } from "../lib/editor-action";
 import type { EditorProductKey } from "../lib/editor-recovery";
 import type { GenerationInput } from "../lib/form-schema";
 
-export function useGeneration() {
+export function useGeneration({ parentJobId }: { parentJobId?: string | null } = {}) {
 	const queryClient = useQueryClient();
 	const action = useRef<ReturnType<typeof createEditorActionController> | null>(null);
 	action.current ??= createEditorActionController();
@@ -29,7 +29,10 @@ export function useGeneration() {
 			input: GenerationInput;
 		}) => {
 			const request = action.current!.beginQuoteRequest();
-			const value = await orpcClient.media.createQuote(input);
+			const value = await orpcClient.media.createQuote({
+				...input,
+				...(parentJobId ? { parentJobId } : {}),
+			});
 			const productKey = requireEditorProductKey(value.productKey);
 			return { request, value: { ...value, productKey } };
 		},
@@ -43,6 +46,7 @@ export function useGeneration() {
 			return orpcClient.media.createGeneration({
 				quoteId: quote.id,
 				idempotencyKey: action.current!.idempotencyKeyFor(quote.id),
+				...(parentJobId ? { parentJobId } : {}),
 			});
 		},
 		onSuccess: async () => {

@@ -96,3 +96,25 @@ Run the catalog checks against an empty migrated database and a restored staging
 `prisma migrate diff` is necessary but does not replace these checks, and an unresolved historical
 Purchase owner row blocks `VALIDATE CONSTRAINT purchase_exactly_one_owner` rather than authorizing a
 constraint drop.
+
+## Image edit session rollout
+
+`20260825024738_add_image_edit_sessions` is an additive PostgreSQL migration. It creates
+`image_edit_session`, adds nullable `generation_job.editSessionId` and
+`generation_job.parentJobId`, and installs only the owner/session timeline indexes and `ON DELETE
+SET NULL` foreign keys needed by the edit-session aggregate. It performs no historical-job
+backfill, ledger rewrite, asset mutation, or speculative data conversion.
+
+Before deployment, apply the PR 4 migration history to an isolated database, insert a representative
+legacy job with both new relations absent, apply this migration, and prove the row remains with both
+columns null. Review the generated SQL, run `prisma migrate status`, and compare the schema against
+`prisma/schema.prisma`. Roll application code back only while retaining the additive table and
+columns; once sessions exist, dropping them is destructive and requires a separately approved data
+retention/export plan. Prefer a forward repair.
+
+The media domain's existing canonical implementation is Prisma-only. The PostgreSQL, MySQL, and
+SQLite Drizzle schemas and query exports do not model `MediaAsset`, `GenerationJob`, credits, or
+Outbox. Do not add a partial Drizzle `ImageEditSession`/job shadow layer: it would be a second,
+incomplete media data model rather than provider synchronization. If the repository later adopts a
+canonical Drizzle media domain, synchronize the complete domain and its relation, nullability,
+index, and deletion semantics in that dedicated change.
