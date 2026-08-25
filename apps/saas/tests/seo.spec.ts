@@ -20,12 +20,12 @@ test.describe("SaaS index boundary", () => {
 		await context.close();
 	});
 
-	test("authenticated product routes remain noindex and nofollow", async ({ page }) => {
-		for (const path of authenticatedNoindexPaths) {
+	for (const path of authenticatedNoindexPaths) {
+		test(`authenticated product route ${path} remains noindex and nofollow`, async ({ page }) => {
 			await page.goto(path);
 			await expectNoindexNofollow(page);
-		}
-	});
+		});
+	}
 });
 
 async function expectNoindexNofollow(page: import("@playwright/test").Page) {
