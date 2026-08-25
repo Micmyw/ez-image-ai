@@ -6,6 +6,7 @@ const builds = jobBlock(workflow, "builds", "mock-e2e");
 const mockE2e = jobBlock(workflow, "mock-e2e", "supply-chain");
 
 assertNotMatch(builds, /^ {6}DATABASE_URL:\s*\$\{\{\s*env\./m);
+assertPnpmSetupPrecedesNodeCache(workflow);
 
 assertIncludes(mockE2e, "name: Start pinned MinIO service");
 assertMatch(mockE2e, /minio\/minio:RELEASE\.[0-9T:-]+Z/);
@@ -51,4 +52,20 @@ function assertNotMatch(value, unexpected) {
 	if (unexpected.test(value)) {
 		throw new Error(`workflow contract must not include: ${unexpected.source}`);
 	}
+}
+
+function assertPnpmSetupPrecedesNodeCache(workflowText) {
+	const lines = workflowText.split("\n");
+	let setupNodeCount = 0;
+	for (const [index, line] of lines.entries()) {
+		if (line !== "      - uses: actions/setup-node@v4") continue;
+		setupNodeCount += 1;
+		const previousStep = lines
+			.slice(0, index)
+			.findLast((candidate) => candidate.startsWith("      - "));
+		if (previousStep !== "      - uses: pnpm/action-setup@v4") {
+			throw new Error("pnpm/action-setup must run before setup-node enables the pnpm cache");
+		}
+	}
+	if (setupNodeCount === 0) throw new Error("workflow contract is missing setup-node");
 }
