@@ -15,8 +15,8 @@
 		"nodemailer": "^9.0.5",
 		"react": "catalog:",
 		"react-dom": "catalog:",
-		"react-email": "^6.9.1",
-		"resend": "^6.18.1",
+		"react-email": "^6.9.2",
+		"resend": "^6.22.0",
 		"use-intl": "catalog:"
 	},
 	"devDependencies": {
