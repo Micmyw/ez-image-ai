@@ -25,6 +25,7 @@ export const user = sqliteTable("user", {
 	paymentsCustomerId: text("paymentsCustomerId"),
 	locale: text("locale"),
 	lastActiveOrganizationId: text("lastActiveOrganizationId"),
+	isAnonymous: integer("isAnonymous", { mode: "boolean" }).default(false).notNull(),
 });
 
 export const session = sqliteTable(

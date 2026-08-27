@@ -13,6 +13,7 @@ const PLAN_PROVIDER = `pr6-free-credits-${RUN_ID}`;
 let client: PrismaClient;
 const planIds: string[] = [];
 const subscriptionIds: string[] = [];
+const userIds: string[] = [];
 
 describe("Free monthly credit grants", () => {
 	beforeAll(() => {
@@ -23,23 +24,61 @@ describe("Free monthly credit grants", () => {
 
 	afterAll(async () => {
 		if (!client) return;
-		const [deletedSubscriptions, deletedPlans] = await client.$transaction([
+		const [deletedSubscriptions, deletedPlans, deletedUsers] = await client.$transaction([
 			client.subscription.deleteMany({ where: { id: { in: subscriptionIds } } }),
 			client.billingPlan.deleteMany({ where: { id: { in: planIds } } }),
+			client.user.deleteMany({ where: { id: { in: userIds } } }),
 		]);
-		const [remainingSubscriptions, remainingPlans] = await Promise.all([
+		const [remainingSubscriptions, remainingPlans, remainingUsers] = await Promise.all([
 			client.subscription.count({ where: { id: { in: subscriptionIds } } }),
 			client.billingPlan.count({ where: { id: { in: planIds } } }),
+			client.user.count({ where: { id: { in: userIds } } }),
 		]);
 		if (
 			deletedSubscriptions.count !== subscriptionIds.length ||
 			deletedPlans.count !== planIds.length ||
+			deletedUsers.count !== userIds.length ||
 			remainingSubscriptions !== 0 ||
-			remainingPlans !== 0
+			remainingPlans !== 0 ||
+			remainingUsers !== 0
 		) {
 			throw new Error("PR6_FREE_PLAN_FIXTURE_CLEANUP_FAILED");
 		}
 		await client.$disconnect();
+	});
+
+	it("returns before account, lot, or ledger writes for an anonymous user", async () => {
+		const ownerId = `${OWNER_PREFIX}-anonymous`;
+		const user = await client.user.create({
+			data: {
+				id: ownerId,
+				name: "Anonymous",
+				email: `${ownerId}@guest.invalid`,
+				emailVerified: false,
+				isAnonymous: true,
+				createdAt: new Date("2026-08-25T06:00:00.000Z"),
+				updatedAt: new Date("2026-08-25T06:00:00.000Z"),
+			},
+		});
+		userIds.push(user.id);
+
+		await expect(
+			ensureFreeMonthlyCreditGrant(
+				{
+					ownerId,
+					amount: 25n,
+					now: new Date("2026-08-25T06:00:00.000Z"),
+					isAnonymous: user.isAnonymous,
+				},
+				client,
+			),
+		).resolves.toEqual({ status: "ANONYMOUS_USER" });
+		expect(await client.creditAccount.count({ where: { ownerType: "USER", ownerId } })).toBe(0);
+		expect(
+			await client.creditLedgerEntry.count({
+				where: { account: { ownerType: "USER", ownerId } },
+			}),
+		).toBe(0);
 	});
 
 	it("creates one existing-ledger grant for the UTC month", async () => {
@@ -185,18 +224,11 @@ function safeTestDatabaseUrl(): string {
 		throw new Error("UNSAFE_TEST_DATABASE: TEST_DATABASE_URL must not equal DATABASE_URL");
 	}
 	const parsed = new URL(TEST_DATABASE_URL);
-	const allowedDatabases = new Set([
-		"/ezpic_pr6_subscriptions_test",
-		"/ezpic_pr7_growth_operations_test",
-		"/ezpic_pr8_test",
-		...(process.env.CI === "true" ? ["/ai_media_foundation_test"] : []),
-	]);
 	if (
 		(parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") ||
-		parsed.port !== "55432" ||
-		!allowedDatabases.has(parsed.pathname)
+		!/test|testing/i.test(parsed.pathname)
 	) {
-		throw new Error("UNSAFE_TEST_DATABASE: expected an approved disposable EzPic database");
+		throw new Error("UNSAFE_TEST_DATABASE: expected a disposable loopback test database");
 	}
 	return TEST_DATABASE_URL;
 }

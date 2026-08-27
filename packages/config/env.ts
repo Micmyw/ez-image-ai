@@ -39,6 +39,20 @@ const rawServerEnvironmentSchema = z.object({
 	MEDIA_RECOVERY_PROVIDERS: z.string().optional(),
 	MEDIA_SAFETY_ADAPTER: z.enum(["sightengine", "test"]).default("test"),
 	MEDIA_ALLOW_TEST_SAFETY_ADAPTER: booleanStringSchema,
+	GUEST_MEDIA_ENABLED: booleanStringSchema,
+	GUEST_PROMOTION_PERIOD: z.string().trim().min(1).optional(),
+	GUEST_COST_EVIDENCE_ID: z.string().trim().min(1).optional(),
+	GUEST_HARD_BUDGET_MICROS: z
+		.string()
+		.regex(/^[1-9][0-9]*$/)
+		.optional(),
+	GUEST_RISK_BUDGET_MICROS: z
+		.string()
+		.regex(/^[1-9][0-9]*$/)
+		.optional(),
+	GUEST_TURNSTILE_SECRET_KEY: optionalSecretSchema,
+	NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY: optionalSecretSchema,
+	MEDIA_TRUSTED_PROXY_PROVIDER: z.enum(["vercel", "cloudflare"]).optional(),
 });
 
 export interface ServerEnvironment {
@@ -52,6 +66,8 @@ export interface ServerEnvironment {
 	mediaRecoveryProviders: MediaProviderKey[];
 	mediaSafetyAdapter: "sightengine" | "test";
 	allowTestSafetyAdapter: boolean;
+	guestMediaRequestedEnabled: boolean;
+	guestMediaPromotionPeriod: string | undefined;
 	secrets: ServerSecrets;
 }
 
@@ -77,6 +93,7 @@ export interface ServerSecrets {
 	sentryDsn: string | undefined;
 	sightengineApiUser: string | undefined;
 	sightengineApiSecret: string | undefined;
+	guestTurnstileSecretKey: string | undefined;
 	provider: ProviderSecrets;
 }
 
@@ -148,6 +165,8 @@ export function validateServerEnvironment(
 		mediaRecoveryProviders: parseMediaRecoveryProviders(parsed),
 		mediaSafetyAdapter: parsed.MEDIA_SAFETY_ADAPTER,
 		allowTestSafetyAdapter: parsed.MEDIA_ALLOW_TEST_SAFETY_ADAPTER,
+		guestMediaRequestedEnabled: parsed.GUEST_MEDIA_ENABLED,
+		guestMediaPromotionPeriod: parsed.GUEST_PROMOTION_PERIOD,
 		secrets: Object.freeze({
 			databaseUrl: parsed.DATABASE_URL,
 			storage: Object.freeze({
@@ -163,6 +182,7 @@ export function validateServerEnvironment(
 			sentryDsn: parsed.SENTRY_DSN,
 			sightengineApiUser: parsed.SIGHTENGINE_API_USER,
 			sightengineApiSecret: parsed.SIGHTENGINE_API_SECRET,
+			guestTurnstileSecretKey: parsed.GUEST_TURNSTILE_SECRET_KEY,
 			provider: selectedProviderSecrets(parsed),
 		}),
 	};

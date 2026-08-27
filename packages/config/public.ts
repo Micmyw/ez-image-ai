@@ -1,5 +1,30 @@
+import type { GuestMediaConfig } from "./guest-media";
 import { PLAN_ENTITLEMENTS } from "./plans";
 import { DEFAULT_PRODUCT_CONFIG } from "./product";
+
+export interface PublicGuestMediaConfig {
+	enabled: boolean;
+	reason: GuestMediaConfig["reason"];
+	promotionPeriod: string | null;
+	productKey: GuestMediaConfig["productKey"];
+	sponsorCredits: string;
+	maximumBytes: number;
+	mimeTypes: GuestMediaConfig["mimeTypes"];
+	turnstileSiteKey: string | null;
+}
+
+export function getPublicGuestMediaConfig(config: GuestMediaConfig): PublicGuestMediaConfig {
+	return {
+		enabled: config.enabled,
+		reason: config.reason,
+		promotionPeriod: config.promotionPeriod,
+		productKey: config.productKey,
+		sponsorCredits: config.sponsorCredits.toString(),
+		maximumBytes: config.maximumBytes,
+		mimeTypes: config.mimeTypes,
+		turnstileSiteKey: config.turnstile.siteKey,
+	};
+}
 
 export interface PublicConfig {
 	catalogVersion: string;

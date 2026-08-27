@@ -41,6 +41,7 @@ export const user = mysqlTable("user", {
 	paymentsCustomerId: text("paymentsCustomerId"),
 	locale: text("locale"),
 	lastActiveOrganizationId: text("lastActiveOrganizationId"),
+	isAnonymous: boolean("isAnonymous").default(false).notNull(),
 });
 
 export const session = mysqlTable(

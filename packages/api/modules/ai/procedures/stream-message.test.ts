@@ -43,6 +43,7 @@ const authenticatedSession = {
 		locale: null,
 		twoFactorEnabled: false,
 		lastActiveOrganizationId: null,
+		isAnonymous: false,
 	},
 } satisfies Session;
 

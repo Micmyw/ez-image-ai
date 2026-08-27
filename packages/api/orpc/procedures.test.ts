@@ -11,6 +11,7 @@ vi.mock("@repo/auth", () => ({
 
 import { auth } from "@repo/auth";
 
+import { guestMediaProcedure } from "../modules/media/guest-procedure";
 import { adminProcedure, protectedProcedure, publicProcedure } from "./procedures";
 
 describe("publicProcedure", () => {
@@ -44,7 +45,7 @@ describe("protectedProcedure", () => {
 	});
 
 	it("passes user and session to context when authenticated", async () => {
-		const mockUser = { id: "user-1", role: "user", name: "Test User" };
+		const mockUser = { id: "user-1", role: "user", name: "Test User", isAnonymous: false };
 		const mockSession = { id: "session-1", userId: "user-1" };
 		vi.mocked(auth.api.getSession).mockResolvedValue({
 			user: mockUser,
@@ -65,6 +66,39 @@ describe("protectedProcedure", () => {
 			user: mockUser,
 			session: mockSession,
 		});
+	});
+
+	it("rejects an anonymous user at the registered procedure boundary", async () => {
+		vi.mocked(auth.api.getSession).mockResolvedValue({
+			user: { id: "guest", role: "user", isAnonymous: true },
+			session: { id: "guest-session", userId: "guest" },
+		} as never);
+		const testProcedure = protectedProcedure.handler(async () => ({ success: true }));
+
+		await expect(
+			call(testProcedure, undefined, { context: { headers: new Headers() } }),
+		).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+	});
+});
+
+describe("guestMediaProcedure", () => {
+	it("accepts only an anonymous Better Auth user", async () => {
+		const testProcedure = guestMediaProcedure.handler(async ({ context }) => context.user.id);
+		vi.mocked(auth.api.getSession).mockResolvedValue({
+			user: { id: "registered", role: "user", isAnonymous: false },
+			session: { id: "registered-session", userId: "registered" },
+		} as never);
+		await expect(
+			call(testProcedure, undefined, { context: { headers: new Headers() } }),
+		).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+
+		vi.mocked(auth.api.getSession).mockResolvedValue({
+			user: { id: "guest", role: "user", isAnonymous: true },
+			session: { id: "guest-session", userId: "guest" },
+		} as never);
+		await expect(
+			call(testProcedure, undefined, { context: { headers: new Headers() } }),
+		).resolves.toBe("guest");
 	});
 });
 

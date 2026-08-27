@@ -32,6 +32,8 @@ export interface AuthOrganizationsConfig {
 }
 
 export interface AuthConfig {
+	/** Exposes Better Auth's anonymous client capability; server admission remains fail-closed. */
+	enableAnonymousTrial: boolean;
 	/**
 	 * Enables self-serve account creation across the authentication flows.
 	 */

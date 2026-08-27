@@ -1,6 +1,7 @@
 import { passkeyClient } from "@better-auth/passkey/client";
 import {
 	adminClient,
+	anonymousClient,
 	inferAdditionalFields,
 	magicLinkClient,
 	organizationClient,
@@ -13,6 +14,7 @@ import type { auth } from ".";
 export const authClient = createAuthClient({
 	plugins: [
 		inferAdditionalFields<typeof auth>(),
+		anonymousClient(),
 		magicLinkClient(),
 		organizationClient(),
 		adminClient(),

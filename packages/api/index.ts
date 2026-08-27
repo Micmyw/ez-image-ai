@@ -1,7 +1,12 @@
 import { randomBytes, randomUUID } from "node:crypto";
 
 import { auth } from "@repo/auth";
-import { validateEzPicLaunchEnvironment, validateServerEnvironment } from "@repo/config/server";
+import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
+import {
+	getGuestMediaConfig,
+	validateEzPicLaunchEnvironment,
+	validateServerEnvironment,
+} from "@repo/config/server";
 import { ingestProviderEvent } from "@repo/database";
 import { db } from "@repo/database/client";
 import { createProviderWebhookVerifierRegistry } from "@repo/jobs";
@@ -93,7 +98,21 @@ export const app = new Hono()
 		}),
 	)
 	// Auth handler
-	.on(["POST", "GET"], "/auth/**", (c) => auth.handler(c.req.raw))
+	.on(["POST", "GET"], "/auth/**", async (c) => {
+		const authPath = c.req.path.slice(c.req.path.indexOf("/auth") + "/auth".length);
+		const session = await auth.api.getSession({ headers: c.req.raw.headers });
+		if (authPath === "/sign-in/anonymous") {
+			if (c.req.method !== "POST" || !getGuestMediaConfig(process.env, null).enabled) {
+				return c.json({ code: "NOT_FOUND" }, 404);
+			}
+			if (session) return c.json({ code: "ANONYMOUS_SESSION_REPLACEMENT_FORBIDDEN" }, 403);
+			return auth.handler(c.req.raw);
+		}
+		if (session && isAnonymousUser(session.user) && !isAnonymousAuthPath(authPath)) {
+			return c.json({ code: "ANONYMOUS_AUTH_ROUTE_FORBIDDEN" }, 403);
+		}
+		return auth.handler(c.req.raw);
+	})
 	// Payments webhook handler
 	.post("/webhooks/payments", (c) => paymentsWebhookHandler(c.req.raw))
 	// Provider webhooks must receive the untouched raw body before the oRPC catch-all.
@@ -179,6 +198,28 @@ function assertEzPicLaunchReadinessEnvironment(): void {
 
 function safeReadinessError(): string {
 	return "Readiness check failed";
+}
+
+const ANONYMOUS_AUTH_PATHS = [
+	"/get-session",
+	"/sign-out",
+	"/sign-in/email",
+	"/sign-up/email",
+	"/sign-in/social",
+	"/callback/",
+	"/oauth2/callback/",
+	"/magic-link/verify",
+	"/verify-email",
+	"/email-otp/verify-email",
+	"/one-tap/callback",
+	"/passkey/verify-authentication",
+	"/phone-number/verify",
+] as const;
+
+function isAnonymousAuthPath(path: string): boolean {
+	return ANONYMOUS_AUTH_PATHS.some((allowed) =>
+		allowed.endsWith("/") ? path.startsWith(allowed) : path === allowed,
+	);
 }
 
 const DEFAULT_BODY_LIMIT_BYTES = 1024 * 1024;

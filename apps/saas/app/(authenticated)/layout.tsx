@@ -5,6 +5,7 @@ import { ActiveOrganizationProvider } from "@organizations/components/ActiveOrga
 import { organizationListQueryKey } from "@organizations/lib/api";
 import { listPurchases } from "@payments/lib/server";
 import { config as authConfig } from "@repo/auth/config";
+import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
 import { config as paymentsConfig } from "@repo/payments/config";
 import { ConfirmationAlertProvider } from "@shared/components/ConfirmationAlertProvider";
 import { orpc } from "@shared/lib/orpc-query-utils";
@@ -21,6 +22,9 @@ export default async function AuthenticatedLayout({ children }: PropsWithChildre
 
 	if (!session) {
 		redirect("/login");
+	}
+	if (isAnonymousUser(session.user)) {
+		redirect("/try");
 	}
 
 	const queryClient = getServerQueryClient();

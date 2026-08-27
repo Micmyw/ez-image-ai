@@ -1,5 +1,6 @@
 import { ORPCError, os } from "@orpc/server";
 import { auth } from "@repo/auth";
+import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
 
 export const publicProcedure = os.$context<{
 	headers: Headers;
@@ -13,7 +14,7 @@ export const protectedProcedure = publicProcedure.use(async ({ context, next }) 
 		headers: context.headers,
 	});
 
-	if (!session) {
+	if (!session || isAnonymousUser(session.user)) {
 		throw new ORPCError("UNAUTHORIZED");
 	}
 

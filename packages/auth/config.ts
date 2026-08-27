@@ -1,6 +1,7 @@
 import type { AuthConfig } from "./types";
 
 export const config = {
+	enableAnonymousTrial: true,
 	enableSignup: true,
 	enableMagicLink: true,
 	enableSocialLogin: true,

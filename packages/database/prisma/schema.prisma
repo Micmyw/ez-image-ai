@@ -31,6 +31,7 @@ model User {
   locale                   String?
   twoFactorEnabled         Boolean?
   lastActiveOrganizationId String?
+  isAnonymous              Boolean                      @default(false)
   sessions                 Session[]
   accounts                 Account[]
   passkeys                 Passkey[]
@@ -40,6 +41,10 @@ model User {
   twofactors               TwoFactor[]
   notifications            Notification[]
   notificationPreferences  UserNotificationPreference[]
+  guestSessionBootstraps   GuestSessionBootstrap[]      @relation("GuestBootstrapOwner")
+  guestMediaTrials         GuestMediaTrial[]            @relation("GuestTrialOwner")
+  guestLinkRegistrations   GuestLinkIntent[]            @relation("GuestLinkRegisteredUser")
+  guestResultGrants        GuestResultAccessGrant[]     @relation("GuestGrantRegisteredUser")
 
   @@unique([email])
   @@map("user")
@@ -227,6 +232,11 @@ enum GenerationJobStatus {
   CANCELED
 }
 
+enum GenerationServiceClass {
+  STANDARD
+  GUEST_SLOW
+}
+
 enum GenerationAttemptStatus {
   CREATED
   SUBMISSION_UNCERTAIN
@@ -256,6 +266,24 @@ enum GenerationRetryRequestStatus {
 enum MediaAssetKind {
   INPUT
   OUTPUT
+}
+
+enum MediaRetentionClass {
+  ACCOUNT
+  GUEST_TRIAL
+}
+
+enum GuestTrialEligibility {
+  AVAILABLE
+  IN_FLIGHT
+  CONSUMED
+  EXPIRED
+}
+
+enum GuestLinkState {
+  NONE
+  LINKING
+  LINKED
 }
 
 enum GenerationJobAssetRole {
@@ -412,6 +440,13 @@ model GenerationJob {
   inputSnapshot          Json
   pricingSnapshot        Json
   status                 GenerationJobStatus      @default(RESERVED)
+  serviceClass           GenerationServiceClass   @default(STANDARD)
+  dispatchEligibleAt     DateTime?                @db.Timestamptz(3)
+  guestTrialId           String?
+  guestTrial             GuestMediaTrial?         @relation("GuestTrialJobs", fields: [guestTrialId], references: [id], onDelete: SetNull)
+  currentForGuestTrial   GuestMediaTrial?         @relation("GuestTrialCurrentJob")
+  consumedForGuestTrial  GuestMediaTrial?         @relation("GuestTrialConsumedJob")
+  guestResultGrants      GuestResultAccessGrant[]
   version                Int                      @default(0)
   failureCode            String?
   failureMessage         String?
@@ -439,6 +474,8 @@ model GenerationJob {
   @@index([status, nextFinalizeAt])
   @@index([editSessionId, createdAt, id])
   @@index([parentJobId])
+  @@index([serviceClass, dispatchEligibleAt, status])
+  @@index([guestTrialId, createdAt, id])
   @@map("generation_job")
 }
 
@@ -507,48 +544,55 @@ model GenerationAttemptTransferEnvelope {
 }
 
 model MediaAsset {
-  id                              String                  @id @default(cuid())
-  ownerType                       OwnerType
-  ownerId                         String
-  kind                            MediaAssetKind
-  status                          MediaAssetStatus        @default(UPLOADING)
-  objectKey                       String                  @unique
-  mimeType                        String
-  byteSize                        BigInt
-  width                           Int?
-  height                          Int?
-  durationMillis                  BigInt?
-  checksum                        String?
-  storageEtag                     String?
-  storageVersionId                String?
-  finalizedAt                     DateTime?               @db.Timestamptz(3)
-  outputTransferToken             String?                 @unique
-  outputTransferLeaseExpiresAt    DateTime?               @db.Timestamptz(3)
-  outputStagingObjectKey          String?                 @unique
+  id                               String                  @id @default(cuid())
+  ownerType                        OwnerType
+  ownerId                          String
+  kind                             MediaAssetKind
+  status                           MediaAssetStatus        @default(UPLOADING)
+  retentionClass                   MediaRetentionClass     @default(ACCOUNT)
+  deleteAfter                      DateTime?               @db.Timestamptz(3)
+  watermarkVersion                 String?
+  watermarkedAt                    DateTime?               @db.Timestamptz(3)
+  cleanStagingDeletedAt            DateTime?               @db.Timestamptz(3)
+  objectKey                        String                  @unique
+  mimeType                         String
+  byteSize                         BigInt
+  width                            Int?
+  height                           Int?
+  durationMillis                   BigInt?
+  checksum                         String?
+  storageEtag                      String?
+  storageVersionId                 String?
+  finalizedAt                      DateTime?               @db.Timestamptz(3)
+  outputTransferToken              String?                 @unique
+  outputTransferLeaseExpiresAt     DateTime?               @db.Timestamptz(3)
+  outputStagingObjectKey           String?                 @unique
   outputPromotionMultipartUploadId String?
-  sourceUrl                       String?
-  verificationGeneration          Int                     @default(0)
-  verificationAttemptCount        Int                     @default(0)
-  verificationProvider            String?
-  verificationRuleVersion         String?
-  verificationPolicyVersion       String?
-  verificationProviderTaskId      String?
-  verificationLeaseToken          String?                 @unique
-  verificationLeasedUntil         DateTime?               @db.Timestamptz(3)
-  verificationNextAttemptAt       DateTime?               @db.Timestamptz(3)
-  verificationDeadlineAt          DateTime?               @db.Timestamptz(3)
-  verificationExhaustedAt         DateTime?               @db.Timestamptz(3)
-  verificationValidUntil          DateTime?               @db.Timestamptz(3)
-  verificationSubmissionToken     String?                 @unique
-  verificationSubmissionUncertain Boolean                 @default(false)
-  verificationSubmittedAt         DateTime?               @db.Timestamptz(3)
-  verificationLastErrorCode       String?
-  createdAt                       DateTime                @default(now()) @db.Timestamptz(3)
-  updatedAt                       DateTime                @updatedAt @db.Timestamptz(3)
-  deletedAt                       DateTime?               @db.Timestamptz(3)
-  uploadSessions                  MediaUploadSession[]
-  jobBindings                     GenerationJobAsset[]
-  moderationResults               AssetModerationResult[]
+  sourceUrl                        String?
+  verificationGeneration           Int                     @default(0)
+  verificationAttemptCount         Int                     @default(0)
+  verificationProvider             String?
+  verificationRuleVersion          String?
+  verificationPolicyVersion        String?
+  verificationProviderTaskId       String?
+  verificationLeaseToken           String?                 @unique
+  verificationLeasedUntil          DateTime?               @db.Timestamptz(3)
+  verificationNextAttemptAt        DateTime?               @db.Timestamptz(3)
+  verificationDeadlineAt           DateTime?               @db.Timestamptz(3)
+  verificationExhaustedAt          DateTime?               @db.Timestamptz(3)
+  verificationValidUntil           DateTime?               @db.Timestamptz(3)
+  verificationSubmissionToken      String?                 @unique
+  verificationSubmissionUncertain  Boolean                 @default(false)
+  verificationSubmittedAt          DateTime?               @db.Timestamptz(3)
+  verificationLastErrorCode        String?
+  createdAt                        DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt                        DateTime                @updatedAt @db.Timestamptz(3)
+  deletedAt                        DateTime?               @db.Timestamptz(3)
+  uploadSessions                   MediaUploadSession[]
+  jobBindings                      GenerationJobAsset[]
+  moderationResults                AssetModerationResult[]
+  guestBootstrapSources            GuestSessionBootstrap[] @relation("GuestBootstrapSourceAsset")
+  guestTrialSources                GuestMediaTrial[]       @relation("GuestTrialSourceAsset")
 
   @@index([ownerType, ownerId, createdAt, id])
   @@index([status, createdAt])
@@ -557,6 +601,7 @@ model MediaAsset {
   @@index([status, verificationValidUntil], map: "media_asset_ready_expiry_idx")
   @@index([outputTransferLeaseExpiresAt])
   @@index([outputPromotionMultipartUploadId])
+  @@index([retentionClass, deleteAfter])
   @@map("media_asset")
 }
 
@@ -797,25 +842,147 @@ model ProviderWebhookEvent {
 }
 
 model OutboxEvent {
-  id            String            @id @default(cuid())
-  eventType     String
-  aggregateType String
-  aggregateId   String
-  dedupeKey     String            @unique
-  payload       Json
-  status        OutboxEventStatus @default(PENDING)
-  attempts      Int               @default(0)
-  availableAt   DateTime          @default(now()) @db.Timestamptz(3)
-  leaseOwner    String?
-  leaseToken    String?           @unique
-  leasedUntil   DateTime?         @db.Timestamptz(3)
-  processedAt   DateTime?         @db.Timestamptz(3)
-  lastError     String?
-  createdAt     DateTime          @default(now()) @db.Timestamptz(3)
+  id                String            @id @default(cuid())
+  eventType         String
+  aggregateType     String
+  aggregateId       String
+  dedupeKey         String            @unique
+  payload           Json
+  status            OutboxEventStatus @default(PENDING)
+  attempts          Int               @default(0)
+  availableAt       DateTime          @default(now()) @db.Timestamptz(3)
+  leaseOwner        String?
+  leaseToken        String?           @unique
+  leasedUntil       DateTime?         @db.Timestamptz(3)
+  processedAt       DateTime?         @db.Timestamptz(3)
+  lastError         String?
+  createdAt         DateTime          @default(now()) @db.Timestamptz(3)
+  guestCleanupTrial GuestMediaTrial?  @relation("GuestTrialCleanupOutbox")
 
   @@index([status, availableAt, createdAt])
   @@index([leasedUntil])
   @@map("outbox_event")
+}
+
+model GuestSessionBootstrap {
+  id              String           @id @default(cuid())
+  ownerId         String
+  owner           User             @relation("GuestBootstrapOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  promotionPeriod String
+  claimHash       String           @unique
+  idempotencyKey  String           @unique
+  claimedDraftId  String?          @unique
+  claimedDraft    GenerationDraft? @relation(fields: [claimedDraftId], references: [id], onDelete: SetNull)
+  sourceAssetId   String?          @unique
+  sourceAsset     MediaAsset?      @relation("GuestBootstrapSourceAsset", fields: [sourceAssetId], references: [id], onDelete: SetNull)
+  createdAt       DateTime         @default(now()) @db.Timestamptz(3)
+  expiresAt       DateTime         @db.Timestamptz(3)
+  completedAt     DateTime?        @db.Timestamptz(3)
+
+  @@unique([ownerId, promotionPeriod])
+  @@index([expiresAt])
+  @@map("guest_session_bootstrap")
+}
+
+model GuestMediaTrial {
+  id                   String                   @id @default(cuid())
+  ownerId              String
+  owner                User                     @relation("GuestTrialOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  promotionPeriod      String
+  eligibility          GuestTrialEligibility    @default(AVAILABLE)
+  sponsorCredits       BigInt                   @default(4)
+  sourceAssetId        String?
+  sourceAsset          MediaAsset?              @relation("GuestTrialSourceAsset", fields: [sourceAssetId], references: [id], onDelete: SetNull)
+  currentJobId         String?                  @unique
+  currentJob           GenerationJob?           @relation("GuestTrialCurrentJob", fields: [currentJobId], references: [id], onDelete: SetNull)
+  consumedJobId        String?                  @unique
+  consumedJob          GenerationJob?           @relation("GuestTrialConsumedJob", fields: [consumedJobId], references: [id], onDelete: Restrict)
+  cleanupOutboxEventId String?                  @unique
+  cleanupOutboxEvent   OutboxEvent?             @relation("GuestTrialCleanupOutbox", fields: [cleanupOutboxEventId], references: [id], onDelete: SetNull)
+  jobs                 GenerationJob[]          @relation("GuestTrialJobs")
+  linkIntents          GuestLinkIntent[]
+  resultAccessGrants   GuestResultAccessGrant[]
+  createdAt            DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime                 @updatedAt @db.Timestamptz(3)
+  consumedAt           DateTime?                @db.Timestamptz(3)
+  expiresAt            DateTime                 @db.Timestamptz(3)
+
+  @@unique([ownerId, promotionPeriod])
+  @@index([eligibility, expiresAt])
+  @@index([sourceAssetId])
+  @@map("guest_media_trial")
+}
+
+model GuestLinkIntent {
+  id               String          @id @default(cuid())
+  trialId          String
+  trial            GuestMediaTrial @relation(fields: [trialId], references: [id], onDelete: Cascade)
+  state            GuestLinkState  @default(NONE)
+  tokenHash        String          @unique
+  idempotencyKey   String          @unique
+  registeredUserId String?
+  registeredUser   User?           @relation("GuestLinkRegisteredUser", fields: [registeredUserId], references: [id], onDelete: SetNull)
+  createdAt        DateTime        @default(now()) @db.Timestamptz(3)
+  expiresAt        DateTime        @db.Timestamptz(3)
+  linkedAt         DateTime?       @db.Timestamptz(3)
+
+  @@index([trialId, state, createdAt])
+  @@index([registeredUserId])
+  @@map("guest_link_intent")
+}
+
+model GuestResultAccessGrant {
+  id               String          @id @default(cuid())
+  trialId          String
+  trial            GuestMediaTrial @relation(fields: [trialId], references: [id], onDelete: Cascade)
+  guestJobId       String
+  guestJob         GenerationJob   @relation(fields: [guestJobId], references: [id], onDelete: Restrict)
+  registeredUserId String
+  registeredUser   User            @relation("GuestGrantRegisteredUser", fields: [registeredUserId], references: [id], onDelete: Cascade)
+  grantTokenHash   String          @unique
+  createdAt        DateTime        @default(now()) @db.Timestamptz(3)
+  expiresAt        DateTime        @db.Timestamptz(3)
+  consumedAt       DateTime?       @db.Timestamptz(3)
+
+  @@unique([guestJobId, registeredUserId])
+  @@index([trialId, expiresAt])
+  @@index([registeredUserId])
+  @@map("guest_result_access_grant")
+}
+
+model GuestAbuseBucket {
+  id             String    @id @default(cuid())
+  scope          String
+  subjectHash    String
+  windowStart    DateTime  @db.Timestamptz(3)
+  windowEnd      DateTime  @db.Timestamptz(3)
+  requestCount   BigInt    @default(0)
+  rejectionCount BigInt    @default(0)
+  blockedUntil   DateTime? @db.Timestamptz(3)
+  expiresAt      DateTime  @db.Timestamptz(3)
+  version        Int       @default(0)
+  updatedAt      DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@unique([scope, subjectHash, windowStart])
+  @@index([expiresAt])
+  @@index([blockedUntil])
+  @@map("guest_abuse_bucket")
+}
+
+model GuestRiskBudgetBucket {
+  id              String   @id @default(cuid())
+  promotionPeriod String
+  subjectHash     String
+  reservedMicros  BigInt   @default(0)
+  consumedMicros  BigInt   @default(0)
+  hardLimitMicros BigInt
+  expiresAt       DateTime @db.Timestamptz(3)
+  version         Int      @default(0)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([promotionPeriod, subjectHash])
+  @@index([expiresAt])
+  @@map("guest_risk_budget_bucket")
 }
 
 model BillingPlan {
@@ -1094,18 +1261,19 @@ model RateLimitBucket {
 }
 
 model GenerationDraft {
-  id                String                @id @default(cuid())
+  id                String                 @id @default(cuid())
   ownerType         OwnerType
   ownerId           String
   submittedByUserId String
-  claimTokenHash    String                @unique
+  claimTokenHash    String                 @unique
   assetId           String?
   productKey        String?
   inputSnapshot     Json
-  status            GenerationDraftStatus @default(ACTIVE)
-  createdAt         DateTime              @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime              @updatedAt @db.Timestamptz(3)
-  expiresAt         DateTime              @db.Timestamptz(3)
+  status            GenerationDraftStatus  @default(ACTIVE)
+  createdAt         DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime               @updatedAt @db.Timestamptz(3)
+  expiresAt         DateTime               @db.Timestamptz(3)
+  guestBootstrap    GuestSessionBootstrap?
 
   @@index([ownerType, ownerId, updatedAt, id])
   @@index([status, expiresAt])
