@@ -8,7 +8,7 @@ import {
 } from "./quotes";
 import { ACTIVE_GENERATION_JOB_STATUSES } from "./state-machine";
 import type { CreateModeratedGenerationQuoteInput, MediaTransactionClient } from "./types";
-import { isDatabaseUniqueConflict, runSerializable } from "./types";
+import { isDatabaseUniqueConflict, runReadCommitted } from "./types";
 
 export const GUEST_GENERATION_ELIGIBLE_EVENT = "GUEST_GENERATION_ELIGIBLE";
 
@@ -103,7 +103,7 @@ export async function createGuestGenerationTransaction(
 ): Promise<CreateGuestGenerationTransactionResult> {
 	validateAdmissionInput(input);
 	try {
-		return await runSerializable(client, async (tx) => {
+		return await runReadCommitted(client, async (tx) => {
 			await acquireGuestAdmissionLocks(input, tx);
 			const replay = await findGuestAdmissionReplay(input, tx);
 			if (replay) return replay;

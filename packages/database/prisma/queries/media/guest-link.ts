@@ -2,7 +2,7 @@ import type { Prisma } from "../../generated/client";
 import { transferGuestGenerationDraftToRegisteredUserInTransaction } from "./drafts";
 import { lockGuestOwnerPromotion } from "./guest-admission";
 import type { MediaTransactionClient } from "./types";
-import { runSerializable } from "./types";
+import { runReadCommitted, runSerializable } from "./types";
 
 const GUEST_RETURN_PATHS = ["/try", "/create", "/pricing"] as const;
 
@@ -43,7 +43,7 @@ export async function beginGuestLinkIntentTransaction(
 	client: MediaTransactionClient,
 ): Promise<GuestLinkIntentSnapshot> {
 	validateBeginLinkInput(input);
-	return runSerializable(client, async (tx) => {
+	return runReadCommitted(client, async (tx) => {
 		await lockGuestOwnerPromotion(tx, input.anonymousOwnerId, input.promotionPeriod);
 		const existing = await tx.guestLinkIntent.findUnique({
 			where: {

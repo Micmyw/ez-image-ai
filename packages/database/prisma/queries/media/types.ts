@@ -208,3 +208,14 @@ export async function runSerializable<T>(
 	}
 	throw new Error("Serializable transaction retry limit exceeded");
 }
+
+export function runReadCommitted<T>(
+	client: MediaTransactionClient,
+	operation: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
+	return client.$transaction(operation, {
+		isolationLevel: "ReadCommitted",
+		maxWait: 5_000,
+		timeout: 20_000,
+	});
+}

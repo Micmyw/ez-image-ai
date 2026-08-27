@@ -21,7 +21,11 @@ export interface GuestTurnstileInput {
 }
 
 export interface GuestTurnstileDependencies {
-	verify(input: { token: string; clientIp: string }): Promise<GuestTurnstileEvidence>;
+	verify(input: {
+		token: string;
+		clientIp: string;
+		idempotencyKey: string;
+	}): Promise<GuestTurnstileEvidence>;
 	consumeTokenHash(
 		tokenHash: string,
 		evidence: { challengeTimestamp: Date; expiresAt: Date },
@@ -58,7 +62,12 @@ export async function verifyGuestTurnstileEvidence(
 	dependencies: Pick<GuestTurnstileDependencies, "verify">,
 ): Promise<VerifiedGuestTurnstileToken> {
 	if (!input.token || input.token.length > 2_048) throw new Error("TURNSTILE_REJECTED");
-	const evidence = await dependencies.verify({ token: input.token, clientIp: input.clientIp });
+	const tokenHash = createHash("sha256").update(input.token, "utf8").digest("hex");
+	const evidence = await dependencies.verify({
+		token: input.token,
+		clientIp: input.clientIp,
+		idempotencyKey: turnstileIdempotencyKey(tokenHash),
+	});
 	if (!evidence.success) throw new Error("TURNSTILE_REJECTED");
 	if (evidence.hostname?.toLowerCase() !== input.hostname.toLowerCase()) {
 		throw new Error("TURNSTILE_HOSTNAME_MISMATCH");
@@ -74,9 +83,16 @@ export async function verifyGuestTurnstileEvidence(
 	) {
 		throw new Error("TURNSTILE_EXPIRED");
 	}
-	const tokenHash = createHash("sha256").update(input.token, "utf8").digest("hex");
 	const expiresAt = new Date(challengeTimestamp.getTime() + TURNSTILE_MAX_AGE_MS);
 	return { tokenHash, challengeTimestamp, expiresAt };
+}
+
+function turnstileIdempotencyKey(tokenHash: string): string {
+	const bytes = Buffer.from(tokenHash.slice(0, 32), "hex");
+	bytes[6] = (bytes[6]! & 0x0f) | 0x50;
+	bytes[8] = (bytes[8]! & 0x3f) | 0x80;
+	const hex = bytes.toString("hex");
+	return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 export function databaseTurnstileTokenConsumer(
@@ -87,11 +103,16 @@ export function databaseTurnstileTokenConsumer(
 }
 
 export function cloudflareTurnstileVerifier(secretKey: string) {
-	return async (input: { token: string; clientIp: string }): Promise<GuestTurnstileEvidence> => {
+	return async (input: {
+		token: string;
+		clientIp: string;
+		idempotencyKey: string;
+	}): Promise<GuestTurnstileEvidence> => {
 		const body = new URLSearchParams({
 			secret: secretKey,
 			response: input.token,
 			remoteip: input.clientIp,
+			idempotency_key: input.idempotencyKey,
 		});
 		const response = await fetch("https://challenges.cloudflare.com/turnstile/v0/siteverify", {
 			method: "POST",

@@ -41,11 +41,12 @@ describe("guest admission real boundary", () => {
 
 	it("canonicalizes a 32-way Turnstile replay through oRPC and the anonymous auth boundary", async () => {
 		const fixture = await createGuestFixture("full-boundary-replay");
+		const siteverify = strictSingleUseSiteverify("app.ezpic.test", fixture.now);
 		vi.mocked(auth.api.getSession).mockResolvedValue({
 			user: { id: fixture.ownerId, isAnonymous: true },
 			session: { id: fixture.sessionId, userId: fixture.ownerId },
 		} as never);
-		configureAdmissionDependencies(fixture);
+		configureAdmissionDependencies(fixture, siteverify.verify);
 
 		const headers = new Headers({
 			origin: "https://app.ezpic.test",
@@ -64,6 +65,12 @@ describe("guest admission real boundary", () => {
 		);
 
 		expect(new Set(results.map((result) => JSON.stringify(result))).size).toBe(1);
+		expect(siteverify.providerConsumptions()).toBe(1);
+		const idempotencyKeys = siteverify.verify.mock.calls.map(([request]) => request.idempotencyKey);
+		expect(new Set(idempotencyKeys).size).toBe(1);
+		expect(idempotencyKeys[0]).toMatch(
+			/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+		);
 		const jobId = results[0]!.jobId;
 		const account = await client.creditAccount.findUniqueOrThrow({
 			where: { ownerType_ownerId: { ownerType: "USER", ownerId: fixture.ownerId } },
@@ -104,7 +111,7 @@ describe("guest admission real boundary", () => {
 			user: { id: otherFixture.ownerId, isAnonymous: true },
 			session: { id: otherFixture.sessionId, userId: otherFixture.ownerId },
 		} as never);
-		configureAdmissionDependencies(otherFixture);
+		configureAdmissionDependencies(otherFixture, siteverify.verify);
 		await expect(
 			call(
 				submitGuestGeneration,
@@ -116,6 +123,7 @@ describe("guest admission real boundary", () => {
 				{ context: { headers } },
 			),
 		).rejects.toThrow("TURNSTILE_REPLAYED");
+		expect(siteverify.providerConsumptions()).toBe(1);
 		await expect(
 			Promise.all([
 				client.guestMediaTrial.count({ where: { ownerId: otherFixture.ownerId } }),
@@ -125,7 +133,10 @@ describe("guest admission real boundary", () => {
 	});
 });
 
-function configureAdmissionDependencies(fixture: GuestFixture): void {
+function configureAdmissionDependencies(
+	fixture: GuestFixture,
+	verifySiteverify: (request: SiteverifyRequest) => Promise<SiteverifyEvidence>,
+): void {
 	const resolveQuote = () => ({
 		productKey: "image-fast",
 		catalogVersion: "catalog-v1",
@@ -163,14 +174,7 @@ function configureAdmissionDependencies(fixture: GuestFixture): void {
 		verifyTurnstile: async ({ token, hostname, clientIp, now }: TurnstileBoundaryInput) =>
 			verifyGuestTurnstileEvidence(
 				{ token, action: "guest_generate", hostname, clientIp, now },
-				{
-					verify: async () => ({
-						success: true,
-						hostname,
-						action: "guest_generate",
-						challengeTimestamp: now.toISOString(),
-					}),
-				},
+				{ verify: verifySiteverify },
 			),
 		loadSourceAsset: (assetId: string, ownerId: string) =>
 			client.mediaAsset.findFirst({
@@ -336,6 +340,48 @@ interface BootstrapInput {
 	promotionPeriod: string;
 	sourceAssetId: string;
 	now: Date;
+}
+
+interface SiteverifyRequest {
+	token: string;
+	clientIp: string;
+	idempotencyKey?: string;
+}
+
+interface SiteverifyEvidence {
+	success: boolean;
+	hostname?: string;
+	action?: string;
+	challengeTimestamp?: string;
+}
+
+function strictSingleUseSiteverify(hostname: string, now: Date) {
+	const accepted = new Map<
+		string,
+		{ idempotencyKey: string | null; evidence: SiteverifyEvidence }
+	>();
+	let providerConsumptions = 0;
+	const verify = vi.fn(async (request: SiteverifyRequest): Promise<SiteverifyEvidence> => {
+		const existing = accepted.get(request.token);
+		if (existing) {
+			return request.idempotencyKey && request.idempotencyKey === existing.idempotencyKey
+				? existing.evidence
+				: { success: false };
+		}
+		providerConsumptions += 1;
+		const evidence = {
+			success: true,
+			hostname,
+			action: "guest_generate",
+			challengeTimestamp: now.toISOString(),
+		};
+		accepted.set(request.token, {
+			idempotencyKey: request.idempotencyKey ?? null,
+			evidence,
+		});
+		return evidence;
+	});
+	return { verify, providerConsumptions: () => providerConsumptions };
 }
 
 async function concurrentBarrier<T>(count: number, operation: () => Promise<T>): Promise<T[]> {

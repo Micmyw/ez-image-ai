@@ -1,10 +1,10 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { PrismaPg } from "@prisma/adapter-pg";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
-import { createGuestGenerationTransaction } from "./guest-admission";
+import { createGuestGenerationTransaction, lockGuestOwnerPromotion } from "./guest-admission";
 import { beginGuestLinkIntentTransaction, completeGuestLinkIntentTransaction } from "./guest-link";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
 
@@ -127,6 +127,59 @@ describe("guest account-link fence", () => {
 			client.mediaAsset.findUniqueOrThrow({ where: { id: fixture.assetId } }),
 		).resolves.toMatchObject({ ownerId: fixture.ownerId, retentionClass: "GUEST_TRIAL" });
 		await expect(client.session.count({ where: { userId: fixture.ownerId } })).resolves.toBe(0);
+	});
+
+	it("rejects a begin replay whose owner lock wait spans a completed link", async () => {
+		const fixture = await createFixture("completion-before-delayed-begin");
+		const tokenHash = hashFixture(`link:${fixture.ownerId}`);
+		await beginGuestLinkIntentTransaction(linkInput(fixture, tokenHash), client);
+
+		let signalBlockerReady!: () => void;
+		const blockerReady = new Promise<void>((resolve) => {
+			signalBlockerReady = resolve;
+		});
+		let releaseBlocker!: () => void;
+		const blockerRelease = new Promise<void>((resolve) => {
+			releaseBlocker = resolve;
+		});
+		const blocker = client.$transaction(async (tx) => {
+			await lockGuestOwnerPromotion(tx, fixture.ownerId, fixture.promotionPeriod);
+			signalBlockerReady();
+			await blockerRelease;
+		});
+		await blockerReady;
+
+		try {
+			const completion = completeGuestLinkIntentTransaction(
+				{
+					tokenHash,
+					registeredUserId: fixture.registeredUserId,
+					grantTokenHash: hashFixture(`grant:${fixture.ownerId}`),
+					now: fixture.now,
+				},
+				client,
+			);
+			await waitForAdvisoryWaiters(1);
+
+			const delayedBegin = beginGuestLinkIntentTransaction(linkInput(fixture, tokenHash), client);
+			await waitForAdvisoryWaiters(2);
+			releaseBlocker();
+
+			await expect(completion).resolves.toMatchObject({
+				mode: "DRAFT",
+				draftId: fixture.draftId,
+			});
+			await expect(delayedBegin).rejects.toThrow("GUEST_LINK_UNAVAILABLE");
+			await expect(
+				client.guestLinkIntent.findUniqueOrThrow({ where: { tokenHash } }),
+			).resolves.toMatchObject({
+				state: "LINKED",
+				registeredUserId: fixture.registeredUserId,
+			});
+		} finally {
+			releaseBlocker();
+			await blocker;
+		}
 	});
 
 	it("serializes link versus admission into one legal terminal target", async () => {
@@ -406,7 +459,23 @@ async function concurrentBarrier(
 }
 
 function hashFixture(value: string): string {
-	return Buffer.from(value).toString("hex").padEnd(64, "0").slice(0, 64);
+	return createHash("sha256").update(value, "utf8").digest("hex");
+}
+
+async function waitForAdvisoryWaiters(minimum: number): Promise<void> {
+	await vi.waitFor(
+		async () => {
+			const [row] = await client.$queryRaw<Array<{ count: bigint }>>`
+				SELECT count(*)::bigint AS count
+				FROM pg_stat_activity
+				WHERE datname = current_database()
+					AND wait_event_type = 'Lock'
+					AND wait_event = 'advisory'
+			`;
+			expect(Number(row?.count ?? 0)).toBeGreaterThanOrEqual(minimum);
+		},
+		{ timeout: 5_000, interval: 20 },
+	);
 }
 
 function safeTestDatabaseUrl(): string {

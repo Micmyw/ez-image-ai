@@ -1,9 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/database", () => ({ consumeGuestTurnstileTokenHash: vi.fn() }));
 vi.mock("@repo/database/client", () => ({ db: {} }));
 
-import { verifyGuestTurnstileToken } from "./turnstile";
+import {
+	cloudflareTurnstileVerifier,
+	verifyGuestTurnstileEvidence,
+	verifyGuestTurnstileToken,
+} from "./turnstile";
 
 const now = new Date("2026-08-28T00:05:00.000Z");
 
@@ -17,6 +21,10 @@ function validResponse(action: "guest_upload" | "guest_generate") {
 }
 
 describe("guest Turnstile verification", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+	});
+
 	it("consumes one token for only the exact guest_upload action", async () => {
 		const used = new Set<string>();
 		const consumeTokenHash = vi.fn(async (tokenHash: string) => {
@@ -69,5 +77,41 @@ describe("guest Turnstile verification", () => {
 			),
 		).rejects.toThrow(code);
 		expect(consumeTokenHash).not.toHaveBeenCalled();
+	});
+
+	it("serializes one stable UUID idempotency key into the real Siteverify form", async () => {
+		const fetchMock = vi.fn(async (_input: string | URL | Request, _init?: RequestInit) =>
+			Response.json({
+				success: true,
+				hostname: "marketing.test",
+				action: "guest_generate",
+				challenge_ts: now.toISOString(),
+			}),
+		);
+		vi.stubGlobal("fetch", fetchMock);
+		const input = {
+			token: "opaque-turnstile-token",
+			action: "guest_generate" as const,
+			hostname: "marketing.test",
+			clientIp: "203.0.113.9",
+			now,
+		};
+
+		await verifyGuestTurnstileEvidence(input, {
+			verify: cloudflareTurnstileVerifier("siteverify-secret"),
+		});
+		await verifyGuestTurnstileEvidence(input, {
+			verify: cloudflareTurnstileVerifier("siteverify-secret"),
+		});
+
+		const forms = fetchMock.mock.calls.map(([, init]) => init?.body as URLSearchParams);
+		expect(forms).toHaveLength(2);
+		expect(forms[0]!.get("secret")).toBe("siteverify-secret");
+		expect(forms[0]!.get("response")).toBe(input.token);
+		expect(forms[0]!.get("remoteip")).toBe(input.clientIp);
+		expect(forms[0]!.get("idempotency_key")).toMatch(
+			/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/,
+		);
+		expect(forms[1]!.get("idempotency_key")).toBe(forms[0]!.get("idempotency_key"));
 	});
 });
