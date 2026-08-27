@@ -236,6 +236,125 @@ describe("anonymous Standard trial persistent schema contract", () => {
 		);
 	});
 
+	it("persists the admission, risk, and durable pre-admission link fence", async () => {
+		const columns = await client.query<{
+			columnName: string;
+			isNullable: "YES" | "NO";
+			tableName: string;
+			udtName: string;
+		}>(`
+			SELECT
+				table_name AS "tableName",
+				column_name AS "columnName",
+				is_nullable AS "isNullable",
+				udt_name AS "udtName"
+			FROM information_schema.columns
+			WHERE table_schema = 'public'
+			  AND (
+				(table_name = 'guest_media_trial' AND column_name IN (
+					'sourceDraftId', 'sourceBootstrapId', 'sourceSessionHash', 'deviceHash',
+					'ipHash', 'subnetHash', 'capabilityVersion', 'idempotencyFingerprint',
+					'replacementCount', 'frozenQuotedRiskMicros', 'riskState',
+					'projectedDispatchAt', 'estimateExpiresAt', 'linkedAt',
+					'providerBoundaryAt', 'terminalAt'
+				))
+				OR (table_name = 'guest_link_intent' AND column_name IN (
+					'trialId', 'anonymousOwnerId', 'promotionPeriod', 'sourceSessionHash',
+					'deviceHash', 'returnPath', 'claimedDraftId'
+				))
+			  )
+		`);
+		const byColumn = new Map(
+			columns.rows.map((column) => [`${column.tableName}.${column.columnName}`, column] as const),
+		);
+
+		for (const column of [
+			"sourceDraftId",
+			"sourceBootstrapId",
+			"sourceSessionHash",
+			"deviceHash",
+			"ipHash",
+			"subnetHash",
+			"capabilityVersion",
+			"idempotencyFingerprint",
+			"replacementCount",
+			"frozenQuotedRiskMicros",
+			"riskState",
+			"projectedDispatchAt",
+			"estimateExpiresAt",
+		]) {
+			expect(byColumn.get(`guest_media_trial.${column}`), column).toBeDefined();
+		}
+		expect(byColumn.get("guest_media_trial.riskState")?.udtName).toBe("GuestRiskState");
+		expect(byColumn.get("guest_link_intent.trialId")?.isNullable).toBe("YES");
+		for (const column of [
+			"anonymousOwnerId",
+			"promotionPeriod",
+			"sourceSessionHash",
+			"deviceHash",
+			"returnPath",
+		]) {
+			expect(byColumn.get(`guest_link_intent.${column}`)?.isNullable, column).toBe("NO");
+		}
+		expect(byColumn.get("guest_link_intent.claimedDraftId")?.isNullable).toBe("YES");
+
+		const riskEnum = await client.query<{ enumLabel: string }>(`
+			SELECT enum.enumlabel AS "enumLabel"
+			FROM pg_type type
+			JOIN pg_enum enum ON enum.enumtypid = type.oid
+			JOIN pg_namespace namespace ON namespace.oid = type.typnamespace
+			WHERE namespace.nspname = 'public' AND type.typname = 'GuestRiskState'
+			ORDER BY enum.enumsortorder
+		`);
+		expect(riskEnum.rows.map((row) => row.enumLabel)).toEqual(["HELD", "COMMITTED", "RELEASED"]);
+
+		const constraints = await client.query<{ constraintName: string; definition: string }>(`
+			SELECT
+				constraint_row.conname AS "constraintName",
+				pg_get_constraintdef(constraint_row.oid) AS "definition"
+			FROM pg_constraint constraint_row
+			JOIN pg_class table_row ON table_row.oid = constraint_row.conrelid
+			JOIN pg_namespace namespace ON namespace.oid = table_row.relnamespace
+			WHERE namespace.nspname = 'public'
+			  AND table_row.relname IN ('guest_media_trial', 'guest_link_intent')
+		`);
+		const byConstraint = new Map(
+			constraints.rows.map((row) => [row.constraintName, row.definition] as const),
+		);
+		expect(byConstraint.get("guest_link_intent_exact_target_check")).toContain(
+			'("trialId" IS NULL) <> ("claimedDraftId" IS NULL)',
+		);
+		expect(byConstraint.get("guest_link_intent_state_consistency_check")).toContain(
+			'"registeredUserId" IS NOT NULL',
+		);
+		expect(byConstraint.get("guest_media_trial_replacement_count_check")).toContain(
+			'"replacementCount" <= 1',
+		);
+		expect(byConstraint.get("guest_media_trial_risk_state_check")).toContain(
+			'"frozenQuotedRiskMicros" > 0',
+		);
+
+		const uniqueIndexes = await client.query<{ indexName: string }>(`
+			SELECT index_class.relname AS "indexName"
+			FROM pg_index index
+			JOIN pg_class index_class ON index_class.oid = index.indexrelid
+			JOIN pg_class table_class ON table_class.oid = index.indrelid
+			JOIN pg_namespace namespace ON namespace.oid = table_class.relnamespace
+			WHERE namespace.nspname = 'public'
+			  AND index.indisunique
+			  AND table_class.relname IN ('guest_media_trial', 'guest_link_intent')
+		`);
+		expect(uniqueIndexes.rows.map((row) => row.indexName)).toEqual(
+			expect.arrayContaining([
+				"guest_media_trial_promotionPeriod_sourceSessionHash_key",
+				"guest_media_trial_promotionPeriod_deviceHash_key",
+				"guest_link_intent_anonymousOwnerId_promotionPeriod_key",
+				"guest_link_intent_trialId_key",
+				"guest_link_intent_claimedDraftId_key",
+			]),
+		);
+	});
+
 	it.each([
 		["postgres.ts", /boolean\("isAnonymous"\)\.default\(false\)\.notNull\(\)/],
 		["mysql.ts", /boolean\("isAnonymous"\)\.default\(false\)\.notNull\(\)/],

@@ -43,6 +43,7 @@ model User {
   notificationPreferences  UserNotificationPreference[]
   guestSessionBootstraps   GuestSessionBootstrap[]      @relation("GuestBootstrapOwner")
   guestMediaTrials         GuestMediaTrial[]            @relation("GuestTrialOwner")
+  guestLinkAnonymousOwners GuestLinkIntent[]            @relation("GuestLinkAnonymousOwner")
   guestLinkRegistrations   GuestLinkIntent[]            @relation("GuestLinkRegisteredUser")
   guestResultGrants        GuestResultAccessGrant[]     @relation("GuestGrantRegisteredUser")
 
@@ -284,6 +285,12 @@ enum GuestLinkState {
   NONE
   LINKING
   LINKED
+}
+
+enum GuestRiskState {
+  HELD
+  COMMITTED
+  RELEASED
 }
 
 enum GenerationJobAssetRole {
@@ -885,6 +892,7 @@ model GuestSessionBootstrap {
   createdAt       DateTime         @default(now()) @db.Timestamptz(3)
   expiresAt       DateTime         @db.Timestamptz(3)
   completedAt     DateTime?        @db.Timestamptz(3)
+  guestMediaTrial GuestMediaTrial? @relation("GuestTrialSourceBootstrap")
 
   @@unique([ownerId, promotionPeriod])
   @@index([expiresAt])
@@ -893,48 +901,78 @@ model GuestSessionBootstrap {
 }
 
 model GuestMediaTrial {
-  id                   String                   @id @default(cuid())
-  ownerId              String
-  owner                User                     @relation("GuestTrialOwner", fields: [ownerId], references: [id], onDelete: Restrict)
-  promotionPeriod      String
-  eligibility          GuestTrialEligibility    @default(AVAILABLE)
-  sponsorCredits       BigInt                   @default(4)
-  sourceAssetId        String?
-  sourceAsset          MediaAsset?              @relation("GuestTrialSourceAsset", fields: [sourceAssetId], references: [id], onDelete: SetNull)
-  currentJobId         String?                  @unique
-  currentJob           GenerationJob?           @relation("GuestTrialCurrentJob", fields: [currentJobId], references: [id], onDelete: SetNull)
-  consumedJobId        String?                  @unique
-  consumedJob          GenerationJob?           @relation("GuestTrialConsumedJob", fields: [consumedJobId], references: [id], onDelete: Restrict)
-  cleanupOutboxEventId String?                  @unique
-  cleanupOutboxEvent   OutboxEvent?             @relation("GuestTrialCleanupOutbox", fields: [cleanupOutboxEventId], references: [id], onDelete: SetNull)
-  jobs                 GenerationJob[]          @relation("GuestTrialJobs")
-  linkIntents          GuestLinkIntent[]
-  resultAccessGrants   GuestResultAccessGrant[]
-  createdAt            DateTime                 @default(now()) @db.Timestamptz(3)
-  updatedAt            DateTime                 @updatedAt @db.Timestamptz(3)
-  consumedAt           DateTime?                @db.Timestamptz(3)
-  expiresAt            DateTime                 @db.Timestamptz(3)
+  id                       String                @id @default(cuid())
+  ownerId                  String
+  owner                    User                  @relation("GuestTrialOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  promotionPeriod          String
+  eligibility              GuestTrialEligibility @default(AVAILABLE)
+  sponsorCredits           BigInt                @default(4)
+  sourceDraftId            String?               @unique
+  sourceDraft              GenerationDraft?      @relation("GuestTrialSourceDraft", fields: [sourceDraftId], references: [id], onDelete: SetNull)
+  sourceBootstrapId        String?               @unique
+  sourceBootstrap          GuestSessionBootstrap? @relation("GuestTrialSourceBootstrap", fields: [sourceBootstrapId], references: [id], onDelete: SetNull)
+  sourceAssetId            String?
+  sourceAsset              MediaAsset?           @relation("GuestTrialSourceAsset", fields: [sourceAssetId], references: [id], onDelete: SetNull)
+  sourceSessionHash        String
+  deviceHash               String
+  ipHash                   String
+  subnetHash               String
+  capabilityVersion        String
+  idempotencyFingerprint   String                @unique
+  replacementCount         Int                   @default(0)
+  frozenQuotedRiskMicros   BigInt
+  riskState                GuestRiskState        @default(HELD)
+  projectedDispatchAt      DateTime              @db.Timestamptz(3)
+  estimateExpiresAt        DateTime              @db.Timestamptz(3)
+  currentJobId             String?               @unique
+  currentJob               GenerationJob?        @relation("GuestTrialCurrentJob", fields: [currentJobId], references: [id], onDelete: SetNull)
+  consumedJobId            String?               @unique
+  consumedJob              GenerationJob?        @relation("GuestTrialConsumedJob", fields: [consumedJobId], references: [id], onDelete: Restrict)
+  cleanupOutboxEventId     String?               @unique
+  cleanupOutboxEvent       OutboxEvent?          @relation("GuestTrialCleanupOutbox", fields: [cleanupOutboxEventId], references: [id], onDelete: SetNull)
+  jobs                     GenerationJob[]       @relation("GuestTrialJobs")
+  linkIntents              GuestLinkIntent[]
+  resultAccessGrants       GuestResultAccessGrant[]
+  createdAt                DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime              @updatedAt @db.Timestamptz(3)
+  linkedAt                 DateTime?             @db.Timestamptz(3)
+  providerBoundaryAt       DateTime?             @db.Timestamptz(3)
+  terminalAt               DateTime?             @db.Timestamptz(3)
+  consumedAt               DateTime?             @db.Timestamptz(3)
+  expiresAt                DateTime              @db.Timestamptz(3)
 
   @@unique([ownerId, promotionPeriod])
+  @@unique([promotionPeriod, sourceSessionHash])
+  @@unique([promotionPeriod, deviceHash])
   @@index([eligibility, expiresAt])
   @@index([sourceAssetId])
   @@map("guest_media_trial")
 }
 
 model GuestLinkIntent {
-  id               String          @id @default(cuid())
-  trialId          String
-  trial            GuestMediaTrial @relation(fields: [trialId], references: [id], onDelete: Cascade)
-  state            GuestLinkState  @default(NONE)
-  tokenHash        String          @unique
-  idempotencyKey   String          @unique
-  registeredUserId String?
-  registeredUser   User?           @relation("GuestLinkRegisteredUser", fields: [registeredUserId], references: [id], onDelete: SetNull)
-  createdAt        DateTime        @default(now()) @db.Timestamptz(3)
-  expiresAt        DateTime        @db.Timestamptz(3)
-  linkedAt         DateTime?       @db.Timestamptz(3)
+  id                 String           @id @default(cuid())
+  trialId            String?          @unique
+  trial              GuestMediaTrial? @relation(fields: [trialId], references: [id], onDelete: Restrict)
+  claimedDraftId     String?          @unique
+  claimedDraft       GenerationDraft? @relation("GuestLinkClaimedDraft", fields: [claimedDraftId], references: [id], onDelete: Restrict)
+  anonymousOwnerId   String
+  anonymousOwner     User             @relation("GuestLinkAnonymousOwner", fields: [anonymousOwnerId], references: [id], onDelete: Restrict)
+  promotionPeriod    String
+  sourceSessionHash  String
+  deviceHash         String
+  returnPath         String
+  state              GuestLinkState   @default(NONE)
+  tokenHash          String           @unique
+  idempotencyKey     String           @unique
+  registeredUserId   String?
+  registeredUser     User?            @relation("GuestLinkRegisteredUser", fields: [registeredUserId], references: [id], onDelete: Restrict)
+  createdAt          DateTime         @default(now()) @db.Timestamptz(3)
+  expiresAt          DateTime         @db.Timestamptz(3)
+  linkedAt           DateTime?        @db.Timestamptz(3)
 
+  @@unique([anonymousOwnerId, promotionPeriod])
   @@index([trialId, state, createdAt])
+  @@index([anonymousOwnerId, state, expiresAt])
   @@index([registeredUserId])
   @@map("guest_link_intent")
 }
@@ -1282,6 +1320,8 @@ model GenerationDraft {
   updatedAt         DateTime               @updatedAt @db.Timestamptz(3)
   expiresAt         DateTime               @db.Timestamptz(3)
   guestBootstrap    GuestSessionBootstrap?
+  guestMediaTrial   GuestMediaTrial?        @relation("GuestTrialSourceDraft")
+  guestLinkIntent   GuestLinkIntent?        @relation("GuestLinkClaimedDraft")
 
   @@index([ownerType, ownerId, updatedAt, id])
   @@index([status, expiresAt])

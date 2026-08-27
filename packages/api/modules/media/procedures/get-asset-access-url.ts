@@ -1,9 +1,14 @@
 import { ORPCError } from "@orpc/server";
+import { getRegisteredGuestResultAssetForAccess } from "@repo/database";
+import { db } from "@repo/database/client";
 import { createSignedReadUrl } from "@repo/storage";
 import { z } from "zod";
 
 import { protectedProcedure } from "../../../orpc/procedures";
-import { requireReadyOwnedMediaAsset } from "../lib/asset-authorization";
+import {
+	currentMediaAssetVerificationBoundary,
+	requireReadyOwnedMediaAsset,
+} from "../lib/asset-authorization";
 
 export const getAssetAccessUrl = protectedProcedure
 	.route({
@@ -19,12 +24,46 @@ export const getAssetAccessUrl = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const asset = await requireReadyOwnedMediaAsset(input.assetId, user.id);
+		const now = new Date();
+		let asset: {
+			id: string;
+			objectKey: string;
+			verificationValidUntil: Date | null;
+			deleteAfter?: Date | null;
+			resultExpiresAt?: Date;
+		};
+		try {
+			asset = await requireReadyOwnedMediaAsset(input.assetId, user.id);
+		} catch (error) {
+			if (!(error instanceof ORPCError) || error.code !== "NOT_FOUND") throw error;
+			const granted = await getRegisteredGuestResultAssetForAccess(
+				{
+					registeredUserId: user.id,
+					assetId: input.assetId,
+					now,
+					verification: currentMediaAssetVerificationBoundary(now),
+				},
+				db,
+			);
+			if (!granted) throw new ORPCError("NOT_FOUND");
+			asset = granted;
+		}
 		const remainingEvidenceSeconds = asset.verificationValidUntil
-			? Math.floor((asset.verificationValidUntil.getTime() - Date.now()) / 1_000)
+			? Math.floor((asset.verificationValidUntil.getTime() - now.getTime()) / 1_000)
 			: 0;
-		if (remainingEvidenceSeconds <= 0) throw new ORPCError("PRECONDITION_FAILED");
-		const expiresIn = Math.min(300, remainingEvidenceSeconds);
+		const remainingDeleteSeconds = asset.deleteAfter
+			? Math.floor((asset.deleteAfter.getTime() - now.getTime()) / 1_000)
+			: 300;
+		const remainingResultSeconds = asset.resultExpiresAt
+			? Math.floor((asset.resultExpiresAt.getTime() - now.getTime()) / 1_000)
+			: 300;
+		const expiresIn = Math.min(
+			300,
+			remainingEvidenceSeconds,
+			remainingDeleteSeconds,
+			remainingResultSeconds,
+		);
+		if (expiresIn <= 0) throw new ORPCError("PRECONDITION_FAILED");
 		const disposition =
 			input.disposition === "inline"
 				? ("inline" as const)

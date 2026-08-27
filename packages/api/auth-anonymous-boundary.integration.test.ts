@@ -1,4 +1,6 @@
 /* oxlint-disable typescript/unbound-method -- assertions configure Vitest-mocked dependency methods */
+import { createHash, createHmac } from "node:crypto";
+
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const databaseMocks = vi.hoisted(() => ({
@@ -10,6 +12,7 @@ const databaseMocks = vi.hoisted(() => ({
 
 const databaseClientMocks = vi.hoisted(() => ({
 	$queryRaw: vi.fn(),
+	guestLinkIntent: { findFirst: vi.fn() },
 	user: { findFirst: vi.fn() },
 }));
 
@@ -49,6 +52,7 @@ describe("anonymous Better Auth wildcard boundary", () => {
 		vi.clearAllMocks();
 		databaseMocks.hasDurableGuestBootstrapProof.mockResolvedValue(false);
 		databaseMocks.resolveGuestRuntimeConfigOverride.mockResolvedValue(null);
+		databaseClientMocks.guestLinkIntent.findFirst.mockResolvedValue(null);
 		vi.mocked(getGuestMediaConfig).mockImplementation(
 			(_environment, runtimeOverride) => ({ enabled: runtimeOverride === true }) as never,
 		);
@@ -252,6 +256,134 @@ describe("anonymous Better Auth wildcard boundary", () => {
 
 		const response = await createApiApp(dependencies).request("/api/auth/sign-in/email", {
 			method: "POST",
+		});
+
+		expect(response.status).toBe(403);
+		expect(await response.json()).toEqual({ code: "GUEST_LINK_INTENT_REQUIRED" });
+		expect(auth.handler).not.toHaveBeenCalled();
+	});
+
+	it("uses the real durable LINKING intent for the exact anonymous owner and session", async () => {
+		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", "independent-link-secret");
+		vi.stubEnv("GUEST_PROMOTION_PERIOD", "2026-launch");
+		vi.mocked(auth.api.getSession).mockResolvedValue({
+			user: { id: "guest", isAnonymous: true },
+			session: { id: "guest-session" },
+		} as never);
+		databaseClientMocks.guestLinkIntent.findFirst.mockResolvedValue({ id: "intent-1" });
+		const token = "a".repeat(43);
+
+		const response = await app.request("/api/auth/sign-in/email", {
+			method: "POST",
+			headers: { cookie: `media_guest_link_intent=${token}` },
+		});
+
+		expect(response.status).toBe(200);
+		expect(databaseClientMocks.guestLinkIntent.findFirst).toHaveBeenCalledWith({
+			where: {
+				tokenHash: createHash("sha256").update(token, "utf8").digest("hex"),
+				anonymousOwnerId: "guest",
+				promotionPeriod: "2026-launch",
+				sourceSessionHash: createHmac("sha256", "independent-link-secret")
+					.update("guest-source-session:guest-session", "utf8")
+					.digest("hex"),
+				state: "LINKING",
+				expiresAt: { gt: expect.any(Date) },
+			},
+			select: { id: true },
+		});
+		expect(auth.handler).toHaveBeenCalledOnce();
+	});
+
+	it.each([
+		["missing cookie", undefined],
+		["malformed cookie", "short"],
+	] as const)("fails closed for a %s on a real guest link route", async (_label, token) => {
+		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", "independent-link-secret");
+		vi.mocked(auth.api.getSession).mockResolvedValue({
+			user: { id: "guest", isAnonymous: true },
+			session: { id: "guest-session" },
+		} as never);
+
+		const response = await app.request("/api/auth/sign-in/email", {
+			method: "POST",
+			headers: token ? { cookie: `media_guest_link_intent=${token}` } : undefined,
+		});
+
+		expect(response.status).toBe(403);
+		expect(await response.json()).toEqual({ code: "GUEST_LINK_INTENT_REQUIRED" });
+		expect(databaseClientMocks.guestLinkIntent.findFirst).not.toHaveBeenCalled();
+		expect(auth.handler).not.toHaveBeenCalled();
+	});
+
+	it("fails closed when the real link intent is wrong, expired, linked, or unavailable", async () => {
+		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", "independent-link-secret");
+		vi.mocked(auth.api.getSession).mockResolvedValue({
+			user: { id: "guest", isAnonymous: true },
+			session: { id: "guest-session" },
+		} as never);
+		databaseClientMocks.guestLinkIntent.findFirst.mockRejectedValue(
+			new Error("database unavailable: do-not-expose"),
+		);
+
+		const response = await app.request("/api/auth/sign-in/email", {
+			method: "POST",
+			headers: { cookie: `media_guest_link_intent=${"a".repeat(43)}` },
+		});
+
+		expect(response.status).toBe(403);
+		expect(await response.json()).toEqual({ code: "GUEST_LINK_INTENT_REQUIRED" });
+		expect(auth.handler).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		["wrong owner", { anonymousOwnerId: "other-guest" }],
+		["wrong session", { sourceSessionHash: "f".repeat(64) }],
+		["already linked", { state: "LINKED" }],
+		["expired", { expiresAt: new Date("2020-01-01T00:00:00.000Z") }],
+	] as const)("rejects a durable intent bound to the %s", async (_label, override) => {
+		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", "independent-link-secret");
+		vi.stubEnv("GUEST_PROMOTION_PERIOD", "2026-launch");
+		vi.mocked(auth.api.getSession).mockResolvedValue({
+			user: { id: "guest", isAnonymous: true },
+			session: { id: "guest-session" },
+		} as never);
+		const token = "a".repeat(43);
+		const row = {
+			tokenHash: createHash("sha256").update(token, "utf8").digest("hex"),
+			anonymousOwnerId: "guest",
+			promotionPeriod: "2026-launch",
+			sourceSessionHash: createHmac("sha256", "independent-link-secret")
+				.update("guest-source-session:guest-session", "utf8")
+				.digest("hex"),
+			state: "LINKING",
+			expiresAt: new Date("2099-01-01T00:00:00.000Z"),
+			...override,
+		};
+		databaseClientMocks.guestLinkIntent.findFirst.mockImplementation(
+			async (query: {
+				where: {
+					tokenHash: string;
+					anonymousOwnerId: string;
+					promotionPeriod: string;
+					sourceSessionHash: string;
+					state: string;
+					expiresAt: { gt: Date };
+				};
+			}) =>
+				row.tokenHash === query.where.tokenHash &&
+				row.anonymousOwnerId === query.where.anonymousOwnerId &&
+				row.promotionPeriod === query.where.promotionPeriod &&
+				row.sourceSessionHash === query.where.sourceSessionHash &&
+				row.state === query.where.state &&
+				row.expiresAt > query.where.expiresAt.gt
+					? { id: "intent-1" }
+					: null,
+		);
+
+		const response = await app.request("/api/auth/sign-in/email", {
+			method: "POST",
+			headers: { cookie: `media_guest_link_intent=${token}` },
 		});
 
 		expect(response.status).toBe(403);

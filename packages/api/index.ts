@@ -43,13 +43,17 @@ type MaybePromise<T> = T | Promise<T>;
 
 export interface ApiAppDependencies {
 	hasGuestBootstrapProof: (request: Request) => MaybePromise<boolean>;
-	hasGuestLinkIntent: (request: Request, guestUserId: string) => MaybePromise<boolean>;
+	hasGuestLinkIntent: (
+		request: Request,
+		guestUserId: string,
+		guestSessionId: string,
+	) => MaybePromise<boolean>;
 	resolveGuestRuntimeOverride: (request: Request) => MaybePromise<GuestMediaRuntimeOverride>;
 }
 
 const defaultApiAppDependencies: ApiAppDependencies = {
 	hasGuestBootstrapProof: defaultHasGuestBootstrapProof,
-	hasGuestLinkIntent: () => false,
+	hasGuestLinkIntent: defaultHasGuestLinkIntent,
 	resolveGuestRuntimeOverride: defaultResolveGuestRuntimeOverride,
 };
 
@@ -163,7 +167,13 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 						return auth.handler(c.req.raw);
 					}
 					if (isGuestLinkAuthRoute(c.req.method, authPath)) {
-						if (await boundaryDependencies.hasGuestLinkIntent(c.req.raw, session.user.id)) {
+						if (
+							await boundaryDependencies.hasGuestLinkIntent(
+								c.req.raw,
+								session.user.id,
+								session.session.id,
+							)
+						) {
 							return auth.handler(c.req.raw);
 						}
 						return c.json({ code: "GUEST_LINK_INTENT_REQUIRED" }, 403);
@@ -267,6 +277,43 @@ async function defaultHasGuestBootstrapProof(request: Request): Promise<boolean>
 		return await hasDurableGuestBootstrapProof(
 			{ claimHash: hashDraftClaimToken(token), promotionPeriod },
 			db,
+		);
+	} catch {
+		return false;
+	}
+}
+
+async function defaultHasGuestLinkIntent(
+	request: Request,
+	guestUserId: string,
+	guestSessionId: string,
+): Promise<boolean> {
+	const abuseSecret = process.env.GUEST_ABUSE_HMAC_SECRET;
+	const promotionPeriod = process.env.GUEST_PROMOTION_PERIOD;
+	const token = readRequestCookie(request, "media_guest_link_intent");
+	if (
+		!abuseSecret ||
+		!promotionPeriod ||
+		!guestUserId ||
+		!guestSessionId ||
+		!token ||
+		!/^[A-Za-z0-9_-]{43}$/.test(token)
+	) {
+		return false;
+	}
+	try {
+		return Boolean(
+			await db.guestLinkIntent.findFirst({
+				where: {
+					tokenHash: hashDraftClaimToken(token),
+					anonymousOwnerId: guestUserId,
+					promotionPeriod,
+					sourceSessionHash: hashGuestBinding(abuseSecret, "guest-source-session", guestSessionId),
+					state: "LINKING",
+					expiresAt: { gt: new Date() },
+				},
+				select: { id: true },
+			}),
 		);
 	} catch {
 		return false;

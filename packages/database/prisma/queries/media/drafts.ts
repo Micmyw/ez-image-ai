@@ -259,31 +259,100 @@ async function claimGenerationDraftWithPolicy(
 			if (!claimed) throw new Error("DRAFT_UNAVAILABLE");
 			return toClaimedGenerationDraft(claimed);
 		}
-		if (draft.assetId) {
-			const transferredVerifying = await tx.mediaAsset.updateMany({
-				where: { id: draft.assetId, ownerId: draft.ownerId, status: "VERIFYING" },
-				data: { ownerType: "USER", ownerId: input.userId },
-			});
-			if (transferredVerifying.count === 1) {
-				await tx.outboxEvent.create({
-					data: {
-						eventType: "MEDIA_ASSET_VERIFY",
-						aggregateType: "MEDIA_ASSET",
-						aggregateId: draft.assetId,
-						dedupeKey: `media-asset-verify:${draft.assetId}`,
-						payload: { assetId: draft.assetId },
-					},
-				});
-			} else {
-				const transferredReady = await tx.mediaAsset.updateMany({
-					where: { id: draft.assetId, ownerId: draft.ownerId, status: "READY" },
-					data: { ownerType: "USER", ownerId: input.userId },
-				});
-				if (transferredReady.count !== 1) throw new Error("DRAFT_UNAVAILABLE");
-			}
-		}
+		await transferGenerationDraftAssetOwnership(
+			{
+				assetId: draft.assetId,
+				previousOwnerId: draft.ownerId,
+				nextOwnerId: input.userId,
+			},
+			tx,
+		);
 		return toClaimedGenerationDraft(draft);
 	});
+}
+
+export async function transferGuestGenerationDraftToRegisteredUserInTransaction(
+	input: {
+		draftId: string;
+		anonymousOwnerId: string;
+		registeredUserId: string;
+		now: Date;
+	},
+	tx: Prisma.TransactionClient,
+): Promise<{ id: string; productKey: string | null; input: Record<string, unknown> }> {
+	const registeredUser = await tx.user.findUnique({
+		where: { id: input.registeredUserId },
+		select: { isAnonymous: true },
+	});
+	if (!registeredUser || registeredUser.isAnonymous) throw new Error("DRAFT_UNAVAILABLE");
+	const draft = await tx.generationDraft.findFirst({
+		where: {
+			id: input.draftId,
+			ownerType: "USER",
+			ownerId: input.anonymousOwnerId,
+			submittedByUserId: input.anonymousOwnerId,
+			status: "SUBMITTED",
+			expiresAt: { gt: input.now },
+		},
+	});
+	if (!draft) throw new Error("DRAFT_UNAVAILABLE");
+	const transferred = await tx.generationDraft.updateMany({
+		where: {
+			id: draft.id,
+			ownerType: "USER",
+			ownerId: input.anonymousOwnerId,
+			submittedByUserId: input.anonymousOwnerId,
+			status: "SUBMITTED",
+			expiresAt: { gt: input.now },
+		},
+		data: {
+			ownerId: input.registeredUserId,
+			submittedByUserId: input.registeredUserId,
+		},
+	});
+	if (transferred.count !== 1) throw new Error("DRAFT_UNAVAILABLE");
+	await transferGenerationDraftAssetOwnership(
+		{
+			assetId: draft.assetId,
+			previousOwnerId: input.anonymousOwnerId,
+			nextOwnerId: input.registeredUserId,
+		},
+		tx,
+	);
+	return toClaimedGenerationDraft(draft);
+}
+
+async function transferGenerationDraftAssetOwnership(
+	input: { assetId: string | null; previousOwnerId: string; nextOwnerId: string },
+	tx: Prisma.TransactionClient,
+): Promise<void> {
+	if (!input.assetId) return;
+	const transferredVerifying = await tx.mediaAsset.updateMany({
+		where: { id: input.assetId, ownerId: input.previousOwnerId, status: "VERIFYING" },
+		data: { ownerType: "USER", ownerId: input.nextOwnerId },
+	});
+	if (transferredVerifying.count === 1) {
+		await tx.outboxEvent.create({
+			data: {
+				eventType: "MEDIA_ASSET_VERIFY",
+				aggregateType: "MEDIA_ASSET",
+				aggregateId: input.assetId,
+				dedupeKey: `media-asset-verify:${input.assetId}`,
+				payload: { assetId: input.assetId },
+			},
+		});
+		return;
+	}
+	const startedReadyTransfer = await tx.mediaAsset.updateMany({
+		where: { id: input.assetId, ownerId: input.previousOwnerId, status: "READY" },
+		data: { status: "VERIFYING" },
+	});
+	if (startedReadyTransfer.count !== 1) throw new Error("DRAFT_UNAVAILABLE");
+	const transferredReady = await tx.mediaAsset.updateMany({
+		where: { id: input.assetId, ownerId: input.previousOwnerId, status: "VERIFYING" },
+		data: { ownerType: "USER", ownerId: input.nextOwnerId, status: "READY" },
+	});
+	if (transferredReady.count !== 1) throw new Error("DRAFT_UNAVAILABLE");
 }
 
 function toClaimedGenerationDraft(draft: {

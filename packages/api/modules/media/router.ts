@@ -13,9 +13,11 @@ import {
 	rollbackMediaRuntimeOverride,
 	setMediaRuntimeOverride,
 } from "./procedures/admin-operations";
+import { beginGuestLinkIntent } from "./procedures/begin-guest-link-intent";
 import { cancelGeneration } from "./procedures/cancel-generation";
 import { claimGenerationDraft } from "./procedures/claim-generation-draft";
 import { claimGuestDraft } from "./procedures/claim-guest-draft";
+import { completeGuestLinkIntent } from "./procedures/complete-guest-link-intent";
 import { completeGuestDraftUpload } from "./procedures/complete-guest-upload";
 import { completeUploadSession } from "./procedures/complete-upload-session";
 import { createGeneration } from "./procedures/create-generation";
@@ -28,7 +30,10 @@ import { deleteAsset } from "./procedures/delete-asset";
 import { getAssetAccessUrl } from "./procedures/get-asset-access-url";
 import { getCreditAccount } from "./procedures/get-credit-account";
 import { getEditSession } from "./procedures/get-edit-session";
+import { getGuestAssetAccessUrl } from "./procedures/get-guest-asset-access-url";
 import { getGuestCapability } from "./procedures/get-guest-capability";
+import { getGuestEligibility } from "./procedures/get-guest-eligibility";
+import { getGrantedGuestJob, getGuestJob } from "./procedures/get-guest-job";
 import { getJob } from "./procedures/get-job";
 import { getPublicCatalog } from "./procedures/get-public-catalog";
 import { listAssets } from "./procedures/list-assets";
@@ -36,6 +41,7 @@ import { listEditSessions } from "./procedures/list-edit-sessions";
 import { listJobs } from "./procedures/list-jobs";
 import { renameEditSession } from "./procedures/rename-edit-session";
 import { retryGeneration } from "./procedures/retry-generation";
+import { submitGuestGeneration } from "./procedures/submit-guest-generation";
 
 export { guestMediaProcedure } from "./guest-procedure";
 
@@ -45,9 +51,16 @@ export const mediaRouter = {
 	createGeneration,
 	createGenerationDraft,
 	getGuestCapability,
+	getGuestEligibility,
 	createGuestDraftUploadIntent,
 	completeGuestDraftUpload,
 	claimGuestDraft,
+	submitGuestGeneration,
+	getGuestJob,
+	getGrantedGuestJob,
+	getGuestAssetAccessUrl,
+	beginGuestLinkIntent,
+	completeGuestLinkIntent,
 	claimGenerationDraft,
 	cancelGeneration,
 	retryGeneration,
