@@ -1,6 +1,7 @@
 import {
 	MEDIA_VERIFICATION_POLICY_VERSION,
 	MEDIA_VERIFICATION_RULE_VERSION,
+	type MediaModelInput,
 	type ModerationDecision,
 } from "@repo/ai";
 import {
@@ -26,8 +27,8 @@ import {
 } from "./text-moderation";
 import {
 	cloudflareTurnstileVerifier,
-	databaseTurnstileTokenConsumer,
-	verifyGuestTurnstileToken,
+	verifyGuestTurnstileEvidence,
+	type VerifiedGuestTurnstileToken,
 } from "./turnstile";
 
 const GUEST_ESTIMATED_SERVICE_TIME_MS = 60_000;
@@ -112,7 +113,7 @@ interface GuestAdmissionDependencies {
 		clientIp: string;
 		now: Date;
 		config: GuestAdmissionConfig;
-	}): Promise<unknown>;
+	}): Promise<VerifiedGuestTurnstileToken>;
 	loadSourceAsset(assetId: string, ownerId: string): Promise<GuestSourceAsset | null>;
 	loadSourceBootstrap(input: {
 		ownerId: string;
@@ -146,9 +147,9 @@ export const guestAdmissionDependencies: GuestAdmissionDependencies = {
 					action: "guest_generate" as const,
 					challengeTimestamp: now.toISOString(),
 				});
-		await verifyGuestTurnstileToken(
+		return verifyGuestTurnstileEvidence(
 			{ token, action: "guest_generate", hostname, clientIp, now },
-			{ verify, consumeTokenHash: databaseTurnstileTokenConsumer },
+			{ verify },
 		);
 	},
 	loadSourceAsset: (assetId, ownerId) =>
@@ -185,7 +186,10 @@ export const guestAdmissionDependencies: GuestAdmissionDependencies = {
 		return selection.adapter.moderateText(input);
 	},
 	moderationProvider: undefined,
-	createTransaction: (input) => createGuestGenerationTransaction(input, db),
+	createTransaction: (input) =>
+		createGuestGenerationTransaction(input, db, ({ productKey, inputSnapshot }) =>
+			buildMediaQuote({ productKey, input: inputSnapshot as MediaModelInput }),
+		),
 };
 
 export async function submitGuestGenerationForGuest(
@@ -207,7 +211,7 @@ export async function submitGuestGenerationForGuest(
 		throw new Error("GUEST_CAPABILITY_DISABLED");
 	}
 	assertGuestCapabilityVersion(input.capabilityVersion, loaded.snapshot.version);
-	await dependencies.verifyTurnstile({
+	const verifiedTurnstile = await dependencies.verifyTurnstile({
 		token: input.turnstileToken,
 		hostname: new URL(dependencies.saasOrigin).hostname,
 		clientIp: identity.ip,
@@ -296,6 +300,7 @@ export async function submitGuestGenerationForGuest(
 		subnetHash: hashGuestBinding(dependencies.abuseSecret, "guest-subnet", identity.subnet),
 		idempotencyKey: input.idempotencyKey,
 		idempotencyFingerprint,
+		turnstile: verifiedTurnstile,
 		sourceDraftId: bootstrap.claimedDraftId,
 		sourceBootstrapId: bootstrap.id,
 		sourceAssetId: source.id,

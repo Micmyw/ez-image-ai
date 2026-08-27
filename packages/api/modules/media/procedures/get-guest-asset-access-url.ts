@@ -34,19 +34,20 @@ export const getGuestAssetAccessUrl = guestMediaProcedure
 			.strict(),
 	)
 	.handler(async ({ context, input }) => {
-		const now = new Date();
+		const authorizationNow = new Date();
 		const asset = await getGuestOwnedResultAssetForAccess(
 			{
 				ownerId: context.user.id,
 				jobId: input.jobId,
 				assetId: input.assetId,
-				now,
-				verification: currentMediaAssetVerificationBoundary(now),
+				now: authorizationNow,
+				verification: currentMediaAssetVerificationBoundary(authorizationNow),
 			},
 			db,
 		);
 		if (!asset) throw new ORPCError("NOT_FOUND");
-		const expiresIn = accessLifetimeSeconds(asset, now);
+		const signingNow = new Date();
+		const expiresIn = accessLifetimeSeconds(asset, signingNow);
 		if (expiresIn <= 0) throw new ORPCError("PRECONDITION_FAILED");
 		context.responseHeaders?.set("Cache-Control", "no-store");
 		return {

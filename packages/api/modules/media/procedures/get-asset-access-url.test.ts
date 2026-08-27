@@ -137,4 +137,27 @@ describe("getAssetAccessUrl", () => {
 		).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
 		expect(createSignedReadUrl).not.toHaveBeenCalled();
 	});
+
+	it("does not sign when exact-grant authorization latency reaches its result deadline", async () => {
+		vi.mocked(requireReadyOwnedMediaAsset).mockRejectedValue(new ORPCError("NOT_FOUND"));
+		vi.mocked(getRegisteredGuestResultAssetForAccess).mockImplementation(async () => {
+			vi.setSystemTime(new Date("2026-08-24T00:00:01.000Z"));
+			return {
+				id: "guest-output-1",
+				objectKey: "users/guest-1/assets/guest-output-1/watermarked.png",
+				verificationValidUntil: new Date("2026-08-24T00:00:01.000Z"),
+				deleteAfter: new Date("2026-08-24T00:00:01.000Z"),
+				resultExpiresAt: new Date("2026-08-24T00:00:01.000Z"),
+			};
+		});
+
+		await expect(
+			call(
+				getAssetAccessUrl,
+				{ assetId: "guest-output-1", disposition: "inline" },
+				{ context: { headers: new Headers() } },
+			),
+		).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+		expect(createSignedReadUrl).not.toHaveBeenCalled();
+	});
 });

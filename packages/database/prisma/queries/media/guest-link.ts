@@ -288,6 +288,7 @@ function assertLinkIntentReplay(
 	},
 	input: BeginGuestLinkIntentTransactionInput,
 ): GuestLinkIntentSnapshot {
+	if (intent.state === "LINKED") throw new Error("GUEST_LINK_UNAVAILABLE");
 	if (
 		intent.anonymousOwnerId !== input.anonymousOwnerId ||
 		intent.promotionPeriod !== input.promotionPeriod ||
@@ -296,8 +297,8 @@ function assertLinkIntentReplay(
 		intent.tokenHash !== input.tokenHash ||
 		intent.idempotencyKey !== input.idempotencyKey ||
 		intent.returnPath !== (intent.trialId ? "/try" : input.returnPath) ||
-		!(["LINKING", "LINKED"] as string[]).includes(intent.state) ||
-		(intent.state !== "LINKED" && intent.expiresAt <= input.now)
+		intent.state !== "LINKING" ||
+		intent.expiresAt <= input.now
 	) {
 		throw new Error("GUEST_LINK_CONFLICT");
 	}

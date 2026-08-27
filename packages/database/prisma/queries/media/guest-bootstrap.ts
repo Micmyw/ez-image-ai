@@ -32,7 +32,7 @@ export async function resolveGuestRuntimeConfigOverride(
 
 export async function consumeGuestTurnstileTokenHash(
 	input: { tokenHash: string; challengeTimestamp: Date; expiresAt: Date },
-	client: MediaTransactionClient,
+	client: MediaTransactionClient | Prisma.TransactionClient,
 ): Promise<boolean> {
 	try {
 		await client.guestAbuseBucket.create({

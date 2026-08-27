@@ -24,7 +24,6 @@ export const getAssetAccessUrl = protectedProcedure
 		}),
 	)
 	.handler(async ({ context: { user }, input }) => {
-		const now = new Date();
 		let asset: {
 			id: string;
 			objectKey: string;
@@ -36,26 +35,28 @@ export const getAssetAccessUrl = protectedProcedure
 			asset = await requireReadyOwnedMediaAsset(input.assetId, user.id);
 		} catch (error) {
 			if (!(error instanceof ORPCError) || error.code !== "NOT_FOUND") throw error;
+			const authorizationNow = new Date();
 			const granted = await getRegisteredGuestResultAssetForAccess(
 				{
 					registeredUserId: user.id,
 					assetId: input.assetId,
-					now,
-					verification: currentMediaAssetVerificationBoundary(now),
+					now: authorizationNow,
+					verification: currentMediaAssetVerificationBoundary(authorizationNow),
 				},
 				db,
 			);
 			if (!granted) throw new ORPCError("NOT_FOUND");
 			asset = granted;
 		}
+		const signingNow = new Date();
 		const remainingEvidenceSeconds = asset.verificationValidUntil
-			? Math.floor((asset.verificationValidUntil.getTime() - now.getTime()) / 1_000)
+			? Math.floor((asset.verificationValidUntil.getTime() - signingNow.getTime()) / 1_000)
 			: 0;
 		const remainingDeleteSeconds = asset.deleteAfter
-			? Math.floor((asset.deleteAfter.getTime() - now.getTime()) / 1_000)
+			? Math.floor((asset.deleteAfter.getTime() - signingNow.getTime()) / 1_000)
 			: 300;
 		const remainingResultSeconds = asset.resultExpiresAt
-			? Math.floor((asset.resultExpiresAt.getTime() - now.getTime()) / 1_000)
+			? Math.floor((asset.resultExpiresAt.getTime() - signingNow.getTime()) / 1_000)
 			: 300;
 		const expiresIn = Math.min(
 			300,

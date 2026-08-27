@@ -80,10 +80,7 @@ describe("guest account-link fence", () => {
 
 	it("grants only the admitted guest job through its original expiry", async () => {
 		const fixture = await createFixture("admitted");
-		const admitted = await createGuestGenerationTransaction(
-			admissionInput(fixture, "guest-admitted-link"),
-			client,
-		);
+		const admitted = await createGuestAdmission(admissionInput(fixture, "guest-admitted-link"));
 		const tokenHash = hashFixture(`link:${fixture.ownerId}`);
 		const intent = await beginGuestLinkIntentTransaction(linkInput(fixture, tokenHash), client);
 		expect(intent).toMatchObject({ state: "LINKING", trialId: admitted.trialId });
@@ -97,6 +94,9 @@ describe("guest account-link fence", () => {
 			},
 			client,
 		);
+		await expect(
+			beginGuestLinkIntentTransaction(linkInput(fixture, tokenHash), client),
+		).rejects.toThrow("GUEST_LINK_UNAVAILABLE");
 		const trial = await client.guestMediaTrial.findUniqueOrThrow({
 			where: { id: admitted.trialId },
 		});
@@ -133,7 +133,7 @@ describe("guest account-link fence", () => {
 		const fixture = await createFixture("race");
 		const tokenHash = hashFixture(`link:${fixture.ownerId}`);
 		const [admission, linking] = await concurrentBarrier([
-			() => createGuestGenerationTransaction(admissionInput(fixture, "guest-race-link"), client),
+			() => createGuestAdmission(admissionInput(fixture, "guest-race-link")),
 			() => beginGuestLinkIntentTransaction(linkInput(fixture, tokenHash), client),
 		]);
 		const intent = await client.guestLinkIntent.findUniqueOrThrow({ where: { tokenHash } });
@@ -341,6 +341,11 @@ function admissionInput(fixture: LinkFixture, idempotencyKey: string) {
 		subnetHash: hashFixture(`subnet:${fixture.ownerId}`),
 		idempotencyKey,
 		idempotencyFingerprint: hashFixture(`admission:${idempotencyKey}`),
+		turnstile: {
+			tokenHash: hashFixture(`turnstile:${idempotencyKey}`),
+			challengeTimestamp: fixture.now,
+			expiresAt: new Date(fixture.now.getTime() + 5 * 60_000),
+		},
 		sourceDraftId: fixture.draftId,
 		sourceBootstrapId: fixture.bootstrapId,
 		sourceAssetId: fixture.assetId,
@@ -372,6 +377,17 @@ function admissionInput(fixture: LinkFixture, idempotencyKey: string) {
 			},
 		},
 	};
+}
+
+function createGuestAdmission(input: ReturnType<typeof admissionInput>) {
+	return createGuestGenerationTransaction(input, client, () => ({
+		productKey: input.quote.productKey,
+		catalogVersion: input.quote.catalogVersion,
+		pricingVersion: input.quote.pricingVersion,
+		credits: input.quote.credits,
+		costMicros: input.quote.costMicros,
+		pricingSnapshot: input.quote.pricingSnapshot,
+	}));
 }
 
 async function concurrentBarrier(

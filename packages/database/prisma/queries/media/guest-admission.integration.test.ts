@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
@@ -33,9 +33,7 @@ describe("guest generation admission", () => {
 	it("commits exactly one sponsored graph under a deterministic 32-way replay", async () => {
 		const fixture = await createGuestFixture("replay");
 		const input = guestAdmissionInput(fixture, { idempotencyKey: "guest-replay-0001" });
-		const results = await concurrentBarrier(32, () =>
-			createGuestGenerationTransaction(input, client),
-		);
+		const results = await concurrentBarrier(32, () => createGuestAdmission(input));
 
 		expect(new Set(results.map((result) => result.jobId)).size).toBe(1);
 		const jobId = results[0]!.jobId;
@@ -84,22 +82,20 @@ describe("guest generation admission", () => {
 
 	it("creates no business graph when the queue dimension is N plus one", async () => {
 		const admitted = await createGuestFixture("capacity-a");
-		await createGuestGenerationTransaction(
+		await createGuestAdmission(
 			guestAdmissionInput(admitted, {
 				idempotencyKey: "guest-capacity-a",
 				maximumGlobalQueueDepth: 1,
 			}),
-			client,
 		);
 		const rejected = await createGuestFixture("capacity-b");
 
 		await expect(
-			createGuestGenerationTransaction(
+			createGuestAdmission(
 				guestAdmissionInput(rejected, {
 					idempotencyKey: "guest-capacity-b",
 					maximumGlobalQueueDepth: 1,
 				}),
-				client,
 			),
 		).rejects.toThrow("GUEST_CAPACITY_UNAVAILABLE");
 		await expect(
@@ -110,6 +106,63 @@ describe("guest generation admission", () => {
 				client.creditAccount.count({ where: { ownerId: rejected.ownerId } }),
 			]),
 		).resolves.toEqual([0, 0, 0, 0]);
+	});
+
+	it.each([
+		["catalog version", { catalogVersion: "catalog-v2" }],
+		["pricing version", { pricingVersion: "pricing-v2" }],
+		["sponsor credits", { credits: 5n }],
+		["maximum route cost", { costMicros: 4500n }],
+		["route graph", { pricingSnapshot: { routeGraph: { graphFingerprint: "changed-at-commit" } } }],
+	] as const)(
+		"rolls back the entire graph when canonical %s changes after preflight",
+		async (_label, canonicalOverride) => {
+			const slug = _label.replaceAll(" ", "-");
+			const fixture = await createGuestFixture(`stale-${slug}`);
+			const input = guestAdmissionInput(fixture, { idempotencyKey: `guest-stale-${slug}` });
+			const resolveCanonicalQuote = () => ({ ...input.quote, ...canonicalOverride });
+
+			await expect(
+				createGuestGenerationTransaction(input, client, resolveCanonicalQuote),
+			).rejects.toThrow("GUEST_PRICE_CHANGED");
+			await expect(
+				Promise.all([
+					client.guestAbuseBucket.count({ where: { scope: "guest-turnstile-token" } }),
+					client.guestMediaTrial.count({ where: { ownerId: fixture.ownerId } }),
+					client.generationQuote.count({ where: { ownerId: fixture.ownerId } }),
+					client.generationJob.count({ where: { ownerId: fixture.ownerId } }),
+					client.creditAccount.count({ where: { ownerId: fixture.ownerId } }),
+				]),
+			).resolves.toEqual([0, 0, 0, 0, 0]);
+		},
+	);
+
+	it("extends aggregate risk expiry through the latest staggered hold", async () => {
+		const firstFixture = await createGuestFixture(
+			"risk-expiry-first",
+			new Date("2026-08-28T00:00:00.000Z"),
+		);
+		const first = await createGuestAdmission(
+			guestAdmissionInput(firstFixture, { idempotencyKey: "guest-risk-expiry-first" }),
+		);
+		const laterFixture = await createGuestFixture(
+			"risk-expiry-later",
+			new Date("2026-08-28T01:00:00.000Z"),
+		);
+		const later = await createGuestAdmission(
+			guestAdmissionInput(laterFixture, { idempotencyKey: "guest-risk-expiry-later" }),
+		);
+		const bucket = await client.guestRiskBudgetBucket.findUniqueOrThrow({
+			where: {
+				promotionPeriod_subjectHash: {
+					promotionPeriod: firstFixture.promotionPeriod,
+					subjectHash: "global",
+				},
+			},
+		});
+
+		expect(later.resultExpiresAt.getTime()).toBeGreaterThan(first.resultExpiresAt.getTime());
+		expect(bucket.expiresAt).toEqual(later.resultExpiresAt);
 	});
 
 	it("rejects a link-fenced draft without creating sponsor or job rows", async () => {
@@ -130,10 +183,7 @@ describe("guest generation admission", () => {
 		});
 
 		await expect(
-			createGuestGenerationTransaction(
-				guestAdmissionInput(fixture, { idempotencyKey: "guest-link-fenced" }),
-				client,
-			),
+			createGuestAdmission(guestAdmissionInput(fixture, { idempotencyKey: "guest-link-fenced" })),
 		).rejects.toThrow("GUEST_LINK_IN_PROGRESS");
 		await expect(
 			Promise.all([
@@ -144,9 +194,8 @@ describe("guest generation admission", () => {
 		).resolves.toEqual([0, 0, 0]);
 	});
 
-	async function createGuestFixture(label: string) {
+	async function createGuestFixture(label: string, now = new Date("2026-08-28T00:00:00.000Z")) {
 		const suffix = `${label}-${randomUUID()}`;
-		const now = new Date("2026-08-28T00:00:00.000Z");
 		const ownerId = `guest-${suffix}`;
 		const sessionId = `session-${suffix}`;
 		const sourceSessionHash = hashFixture(`session:${suffix}`);
@@ -312,6 +361,11 @@ function guestAdmissionInput(
 		subnetHash: hashFixture(`subnet:${fixture.ownerId}`),
 		idempotencyKey: overrides.idempotencyKey,
 		idempotencyFingerprint: hashFixture(`admission:${overrides.idempotencyKey}`),
+		turnstile: {
+			tokenHash: hashFixture(`turnstile:${overrides.idempotencyKey}`),
+			challengeTimestamp: fixture.now,
+			expiresAt: new Date(fixture.now.getTime() + 5 * 60_000),
+		},
 		sourceDraftId: fixture.draftId,
 		sourceBootstrapId: fixture.bootstrapId,
 		sourceAssetId: fixture.assetId,
@@ -345,6 +399,17 @@ function guestAdmissionInput(
 	};
 }
 
+function createGuestAdmission(input: ReturnType<typeof guestAdmissionInput>) {
+	return createGuestGenerationTransaction(input, client, () => ({
+		productKey: input.quote.productKey,
+		catalogVersion: input.quote.catalogVersion,
+		pricingVersion: input.quote.pricingVersion,
+		credits: input.quote.credits,
+		costMicros: input.quote.costMicros,
+		pricingSnapshot: input.quote.pricingSnapshot,
+	}));
+}
+
 async function concurrentBarrier<T>(count: number, operation: () => Promise<T>): Promise<T[]> {
 	let release!: () => void;
 	const gate = new Promise<void>((resolve) => {
@@ -359,7 +424,7 @@ async function concurrentBarrier<T>(count: number, operation: () => Promise<T>):
 }
 
 function hashFixture(value: string): string {
-	return Buffer.from(value).toString("hex").padEnd(64, "0").slice(0, 64);
+	return createHash("sha256").update(value, "utf8").digest("hex");
 }
 
 function safeTestDatabaseUrl(): string {

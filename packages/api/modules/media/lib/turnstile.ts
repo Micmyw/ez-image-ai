@@ -28,13 +28,35 @@ export interface GuestTurnstileDependencies {
 	): Promise<boolean>;
 }
 
+export interface VerifiedGuestTurnstileToken {
+	tokenHash: string;
+	challengeTimestamp: Date;
+	expiresAt: Date;
+}
+
 const TURNSTILE_MAX_AGE_MS = 5 * 60_000;
 const TURNSTILE_FUTURE_TOLERANCE_MS = 30_000;
 
 export async function verifyGuestTurnstileToken(
 	input: GuestTurnstileInput,
 	dependencies: GuestTurnstileDependencies,
-): Promise<{ tokenHash: string }> {
+): Promise<VerifiedGuestTurnstileToken> {
+	const verified = await verifyGuestTurnstileEvidence(input, dependencies);
+	if (
+		!(await dependencies.consumeTokenHash(verified.tokenHash, {
+			challengeTimestamp: verified.challengeTimestamp,
+			expiresAt: verified.expiresAt,
+		}))
+	) {
+		throw new Error("TURNSTILE_REPLAYED");
+	}
+	return verified;
+}
+
+export async function verifyGuestTurnstileEvidence(
+	input: GuestTurnstileInput,
+	dependencies: Pick<GuestTurnstileDependencies, "verify">,
+): Promise<VerifiedGuestTurnstileToken> {
 	if (!input.token || input.token.length > 2_048) throw new Error("TURNSTILE_REJECTED");
 	const evidence = await dependencies.verify({ token: input.token, clientIp: input.clientIp });
 	if (!evidence.success) throw new Error("TURNSTILE_REJECTED");
@@ -54,10 +76,7 @@ export async function verifyGuestTurnstileToken(
 	}
 	const tokenHash = createHash("sha256").update(input.token, "utf8").digest("hex");
 	const expiresAt = new Date(challengeTimestamp.getTime() + TURNSTILE_MAX_AGE_MS);
-	if (!(await dependencies.consumeTokenHash(tokenHash, { challengeTimestamp, expiresAt }))) {
-		throw new Error("TURNSTILE_REPLAYED");
-	}
-	return { tokenHash };
+	return { tokenHash, challengeTimestamp, expiresAt };
 }
 
 export function databaseTurnstileTokenConsumer(

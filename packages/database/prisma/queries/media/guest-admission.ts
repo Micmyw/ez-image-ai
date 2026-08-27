@@ -1,8 +1,11 @@
 import type { Prisma } from "../../generated/client";
 import { hasCurrentApprovedMediaAssetEvidence } from "./assets";
 import { createCreditGrant, reserveCreditsInTransaction } from "./credits";
-import { incrementGuestBucket } from "./guest-bootstrap";
-import { createModeratedGenerationQuote } from "./quotes";
+import { consumeGuestTurnstileTokenHash, incrementGuestBucket } from "./guest-bootstrap";
+import {
+	createModeratedGenerationQuote,
+	fingerprintGenerationQuoteSecurityPayload,
+} from "./quotes";
 import { ACTIVE_GENERATION_JOB_STATUSES } from "./state-machine";
 import type { CreateModeratedGenerationQuoteInput, MediaTransactionClient } from "./types";
 import { isDatabaseUniqueConflict, runSerializable } from "./types";
@@ -39,6 +42,11 @@ export interface CreateGuestGenerationTransactionInput {
 	subnetHash: string;
 	idempotencyKey: string;
 	idempotencyFingerprint: string;
+	turnstile: {
+		tokenHash: string;
+		challengeTimestamp: Date;
+		expiresAt: Date;
+	};
 	sourceDraftId: string;
 	sourceBootstrapId: string;
 	sourceAssetId: string;
@@ -66,6 +74,20 @@ export interface CreateGuestGenerationTransactionResult extends GuestJobSnapshot
 	trialId: string;
 }
 
+export interface CanonicalGuestGenerationQuote {
+	productKey: string;
+	catalogVersion: string;
+	pricingVersion: string;
+	credits: bigint;
+	costMicros: bigint;
+	pricingSnapshot: Prisma.InputJsonValue;
+}
+
+export type ResolveCanonicalGuestGenerationQuote = (input: {
+	productKey: "image-fast";
+	inputSnapshot: Prisma.InputJsonValue;
+}) => CanonicalGuestGenerationQuote | Promise<CanonicalGuestGenerationQuote>;
+
 export interface GuestGrantedAsset {
 	id: string;
 	objectKey: string;
@@ -77,6 +99,7 @@ export interface GuestGrantedAsset {
 export async function createGuestGenerationTransaction(
 	input: CreateGuestGenerationTransactionInput,
 	client: MediaTransactionClient,
+	resolveCanonicalQuote: ResolveCanonicalGuestGenerationQuote,
 ): Promise<CreateGuestGenerationTransactionResult> {
 	validateAdmissionInput(input);
 	try {
@@ -84,6 +107,9 @@ export async function createGuestGenerationTransaction(
 			await acquireGuestAdmissionLocks(input, tx);
 			const replay = await findGuestAdmissionReplay(input, tx);
 			if (replay) return replay;
+			if (!(await consumeGuestTurnstileTokenHash(input.turnstile, tx))) {
+				throw new Error("TURNSTILE_REPLAYED");
+			}
 
 			const linkIntent = await tx.guestLinkIntent.findUnique({
 				where: {
@@ -152,6 +178,7 @@ export async function createGuestGenerationTransaction(
 				Math.min(projectedDispatchAt.getTime() + input.serviceTimeMs, resultExpiresAt.getTime()),
 			);
 
+			await assertCanonicalGuestQuote(input, resolveCanonicalQuote);
 			await holdQuotedRisk(input, resultExpiresAt, tx);
 			const trial = await tx.guestMediaTrial.create({
 				data: {
@@ -252,12 +279,54 @@ export async function createGuestGenerationTransaction(
 			};
 		});
 	} catch (error) {
-		if (isDatabaseUniqueConflict(error)) {
+		if (isDatabaseUniqueConflict(error) || isErrorCode(error, "TURNSTILE_REPLAYED")) {
 			const replay = await findGuestAdmissionReplay(input, client);
 			if (replay) return replay;
 		}
 		throw error;
 	}
+}
+
+async function assertCanonicalGuestQuote(
+	input: CreateGuestGenerationTransactionInput,
+	resolveCanonicalQuote: ResolveCanonicalGuestGenerationQuote,
+): Promise<void> {
+	let canonical: CanonicalGuestGenerationQuote;
+	try {
+		canonical = await resolveCanonicalQuote({
+			productKey: "image-fast",
+			inputSnapshot: input.quote.inputSnapshot,
+		});
+	} catch {
+		throw new Error("GUEST_PRICE_CHANGED");
+	}
+	const canonicalPayload = {
+		...input.quote,
+		productKey: canonical.productKey,
+		catalogVersion: canonical.catalogVersion,
+		pricingVersion: canonical.pricingVersion,
+		credits: canonical.credits,
+		costMicros: canonical.costMicros,
+		pricingSnapshot: canonical.pricingSnapshot,
+	};
+	if (
+		canonical.productKey !== "image-fast" ||
+		canonical.catalogVersion !== input.quote.catalogVersion ||
+		canonical.pricingVersion !== input.quote.pricingVersion ||
+		canonical.credits !== 4n ||
+		canonical.credits !== input.sponsorCredits ||
+		canonical.credits !== input.quote.credits ||
+		canonical.costMicros <= 0n ||
+		canonical.costMicros !== (input.quote.costMicros ?? 0n) ||
+		fingerprintGenerationQuoteSecurityPayload(canonicalPayload) !==
+			fingerprintGenerationQuoteSecurityPayload(input.quote)
+	) {
+		throw new Error("GUEST_PRICE_CHANGED");
+	}
+}
+
+function isErrorCode(error: unknown, code: string): boolean {
+	return error instanceof Error && error.message === code;
 }
 
 export async function getGuestJobSnapshot(
@@ -722,6 +791,8 @@ async function holdQuotedRisk(
 			? existing.hardLimitMicros
 			: input.riskBudgetMicros
 		: input.riskBudgetMicros;
+	const aggregateExpiresAt =
+		existing && existing.expiresAt > expiresAt ? existing.expiresAt : expiresAt;
 	if (
 		risk <= 0n ||
 		(existing?.reservedMicros ?? 0n) + (existing?.consumedMicros ?? 0n) + risk > hardLimit
@@ -740,11 +811,12 @@ async function holdQuotedRisk(
 			subjectHash: "global",
 			reservedMicros: risk,
 			hardLimitMicros: hardLimit,
-			expiresAt,
+			expiresAt: aggregateExpiresAt,
 		},
 		update: {
 			reservedMicros: { increment: risk },
 			hardLimitMicros: hardLimit,
+			expiresAt: aggregateExpiresAt,
 			version: { increment: 1 },
 		},
 	});
@@ -764,6 +836,7 @@ function validateAdmissionInput(input: CreateGuestGenerationTransactionInput): v
 			input.subnetHash,
 			input.idempotencyFingerprint,
 			input.sourceAssetChecksum,
+			input.turnstile.tokenHash,
 		].every((value) => /^[a-f0-9]{64}$/.test(value)) ||
 		input.sponsorCredits !== 4n ||
 		input.quote.credits !== input.sponsorCredits ||
@@ -786,7 +859,13 @@ function validateAdmissionInput(input: CreateGuestGenerationTransactionInput): v
 	]) {
 		if (!Number.isSafeInteger(value) || value <= 0) throw new Error("GUEST_CONFIGURATION_ERROR");
 	}
-	if (input.riskBudgetMicros <= 0n || input.quote.expiresAt <= input.now) {
+	if (
+		input.riskBudgetMicros <= 0n ||
+		input.quote.expiresAt <= input.now ||
+		Number.isNaN(input.turnstile.challengeTimestamp.getTime()) ||
+		input.turnstile.expiresAt <= input.turnstile.challengeTimestamp ||
+		input.turnstile.expiresAt <= input.now
+	) {
 		throw new Error("GUEST_CONFIGURATION_ERROR");
 	}
 }

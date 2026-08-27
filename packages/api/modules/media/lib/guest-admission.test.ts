@@ -71,6 +71,7 @@ describe("guest admission pre-transaction boundary", () => {
 				capabilityVersion: "guest-v7",
 				sourceAssetId: "asset-1",
 				sourceAssetChecksum: "a".repeat(64),
+				turnstile: expect.objectContaining({ tokenHash: "f".repeat(64) }),
 				sponsorCredits: 4n,
 				quote: expect.objectContaining({
 					productKey: "image-fast",
@@ -134,7 +135,11 @@ function validDependencies(options?: {
 			},
 		})),
 		resolveIdentity: vi.fn(() => ({ ip: "203.0.113.42", subnet: "203.0.113.0/24" })),
-		verifyTurnstile: vi.fn(async () => undefined),
+		verifyTurnstile: vi.fn(async () => ({
+			tokenHash: "f".repeat(64),
+			challengeTimestamp: now,
+			expiresAt: new Date(now.getTime() + 5 * 60_000),
+		})),
 		loadSourceAsset: vi.fn(async () => ({
 			id: "asset-1",
 			ownerType: "USER",

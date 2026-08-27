@@ -74,6 +74,7 @@ export const beginGuestLinkIntent = guestMediaProcedure
 			},
 			db,
 		);
+		if (intent.state !== "LINKING") throw new Error("GUEST_LINK_UNAVAILABLE");
 		context.responseHeaders?.append(
 			"Set-Cookie",
 			guestLinkIntentCookie(
