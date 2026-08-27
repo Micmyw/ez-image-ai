@@ -1,5 +1,17 @@
 /* oxlint-disable typescript/unbound-method -- assertions configure Vitest-mocked dependency methods */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+const databaseMocks = vi.hoisted(() => ({
+	consumeGuestBootstrap: vi.fn(),
+	hasDurableGuestBootstrapProof: vi.fn(),
+	ingestProviderEvent: vi.fn(),
+	resolveGuestRuntimeConfigOverride: vi.fn(),
+}));
+
+const databaseClientMocks = vi.hoisted(() => ({
+	$queryRaw: vi.fn(),
+	user: { findFirst: vi.fn() },
+}));
 
 vi.mock("@repo/auth", () => ({
 	auth: { handler: vi.fn(), api: { getSession: vi.fn() } },
@@ -9,7 +21,11 @@ vi.mock("@repo/config/server", () => ({
 	validateEzPicLaunchEnvironment: vi.fn(),
 	validateServerEnvironment: vi.fn(),
 }));
-vi.mock("@repo/database/client", () => ({ db: { $queryRaw: vi.fn() } }));
+vi.mock("@repo/database", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@repo/database")>()),
+	...databaseMocks,
+}));
+vi.mock("@repo/database/client", () => ({ db: databaseClientMocks }));
 vi.mock("@repo/jobs", () => ({
 	createProviderWebhookVerifierRegistry: () => ({ get: vi.fn(() => null) }),
 }));
@@ -31,6 +47,8 @@ const createOpenBoundaryDependencies = () => ({
 describe("anonymous Better Auth wildcard boundary", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		databaseMocks.hasDurableGuestBootstrapProof.mockResolvedValue(false);
+		databaseMocks.resolveGuestRuntimeConfigOverride.mockResolvedValue(null);
 		vi.mocked(getGuestMediaConfig).mockImplementation(
 			(_environment, runtimeOverride) => ({ enabled: runtimeOverride === true }) as never,
 		);
@@ -39,6 +57,8 @@ describe("anonymous Better Auth wildcard boundary", () => {
 			Promise.resolve(new Response("handled", { status: 200 })),
 		);
 	});
+
+	afterEach(() => vi.unstubAllEnvs());
 
 	it("keeps the exported app closed until persistent boundary dependencies are wired", async () => {
 		const response = await app.request("/api/auth/sign-in/anonymous", { method: "POST" });
@@ -93,6 +113,30 @@ describe("anonymous Better Auth wildcard boundary", () => {
 		expect(await response.text()).toBe("handled");
 		expect(dependencies.resolveGuestRuntimeOverride).toHaveBeenCalledOnce();
 		expect(dependencies.hasGuestBootstrapProof).toHaveBeenCalledOnce();
+	});
+
+	it("maps unexpected durable bootstrap failures to one reviewed public code", async () => {
+		vi.stubEnv("GUEST_PROMOTION_PERIOD", "2026-launch");
+		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", "https://app.test");
+		vi.stubEnv("BETTER_AUTH_SECRET", "test-secret");
+		vi.stubEnv("MEDIA_TRUSTED_PROXY_PROVIDER", "cloudflare");
+		databaseMocks.hasDurableGuestBootstrapProof.mockResolvedValue(true);
+		databaseMocks.resolveGuestRuntimeConfigOverride.mockResolvedValue({ enabled: true });
+		databaseMocks.consumeGuestBootstrap.mockRejectedValue(
+			new Error("Prisma connection failed: password=do-not-expose"),
+		);
+
+		const response = await app.request("/api/auth/sign-in/anonymous", {
+			method: "POST",
+			headers: {
+				origin: "https://app.test",
+				"cf-connecting-ip": "203.0.113.10",
+				cookie: `media_guest_bootstrap=${"a".repeat(43)}`,
+			},
+		});
+
+		expect(response.status).toBe(403);
+		expect(await response.json()).toEqual({ code: "GUEST_BOOTSTRAP_FAILED" });
 	});
 
 	it("rejects existing users attempting to replace their session with an anonymous one", async () => {

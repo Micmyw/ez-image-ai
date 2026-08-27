@@ -4,7 +4,13 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
-import { cleanupUnboundGuestPrincipal, consumeGuestBootstrap } from "./guest-bootstrap";
+import {
+	acquireGuestBootstrapPrincipalLease,
+	bindGuestBootstrapPrincipalLease,
+	cleanupGuestBootstrapPrincipalLease,
+	consumeGuestBootstrap,
+	createGuestSessionBootstrapWithClaimFence,
+} from "./guest-bootstrap";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -38,6 +44,7 @@ describe("guest bootstrap consumption", () => {
 	it("creates one anonymous principal when the same bootstrap is claimed concurrently", async () => {
 		const fixture = await createBootstrapFixture();
 		const createPrincipal = vi.fn(async ({ email }: { email: string }) => {
+			await new Promise((resolve) => setTimeout(resolve, 75));
 			const userId = `guest_${randomUUID().replaceAll("-", "")}`;
 			createdUserIds.push(userId);
 			await principalClient.user.create({
@@ -100,85 +107,148 @@ describe("guest bootstrap consumption", () => {
 		).resolves.toEqual({ ownerId: results[0]!.userId, completedAt: expect.any(Date) });
 	});
 
-	it("holds the claim lock through bind failure and removes the unbound principal during cleanup", async () => {
+	it("makes bootstrap creation wait for the same claim fence used by lease operations", async () => {
+		const claimHash = randomUUID().replaceAll("-", "").padEnd(64, "0");
+		const promotionPeriod = `integration-${randomUUID()}`;
+		const draftId = await createDraftFixture(claimHash);
+		const bootstrapId = randomUUID();
+		createdBootstrapIds.push(bootstrapId);
+		let lockHeld!: () => void;
+		const lockHeldSignal = new Promise<void>((resolve) => {
+			lockHeld = resolve;
+		});
+		let releaseLock!: () => void;
+		const lockRelease = new Promise<void>((resolve) => {
+			releaseLock = resolve;
+		});
+		const blocker = client.$transaction(async (tx) => {
+			await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${claimHash}, 0))`;
+			lockHeld();
+			await lockRelease;
+		});
+		await lockHeldSignal;
+		let writerFinished = false;
+		const writer = principalClient
+			.$transaction((tx) =>
+				createGuestSessionBootstrapWithClaimFence(
+					{
+						id: bootstrapId,
+						promotionPeriod,
+						claimHash,
+						idempotencyKey: `bootstrap:${bootstrapId}`,
+						claimedDraftId: draftId,
+						expiresAt: new Date(Date.now() + 60_000),
+					},
+					tx,
+				),
+			)
+			.then(() => {
+				writerFinished = true;
+			});
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		expect(writerFinished).toBe(false);
+		await expect(client.guestSessionBootstrap.count({ where: { claimHash } })).resolves.toBe(0);
+
+		releaseLock();
+		await Promise.all([blocker, writer]);
+		expect(writerFinished).toBe(true);
+	});
+
+	it("recovers an orphan after cleanup failure and rejects the old owner's late bind after takeover", async () => {
 		const fixture = await createBootstrapFixture();
-		let principalCreated!: () => void;
-		const principalCreatedSignal = new Promise<void>((resolve) => {
-			principalCreated = resolve;
-		});
-		let releasePrincipal!: () => void;
-		const principalRelease = new Promise<void>((resolve) => {
-			releasePrincipal = resolve;
-		});
-		const createdUserId = `guest_${randomUUID().replaceAll("-", "")}`;
-		createdUserIds.push(createdUserId);
-		const createPrincipal = vi.fn(async ({ email }: { email: string }) => {
-			await principalClient.user.create({
-				data: {
-					id: createdUserId,
-					name: "Anonymous",
-					email,
-					emailVerified: false,
-					isAnonymous: true,
-					createdAt: new Date(),
-					updatedAt: new Date(),
+		const leaseStartedAt = new Date();
+		const firstLease = await acquireGuestBootstrapPrincipalLease(
+			guestConsumeInput(fixture, { now: leaseStartedAt }),
+			client,
+			{ leaseDurationMs: 50 },
+		);
+		expect(firstLease.outcome).toBe("ACQUIRED");
+		if (firstLease.outcome !== "ACQUIRED") throw new Error("expected acquired lease");
+
+		const oldUserId = await createPrincipalFixture(fixture.principalEmail);
+		await expect(
+			bindGuestBootstrapPrincipalLease(
+				{
+					claimHash: fixture.claimHash,
+					leaseToken: firstLease.leaseToken,
+					leaseVersion: firstLease.leaseVersion,
+					userId: `missing_${randomUUID()}`,
+					now: new Date(leaseStartedAt.getTime() + 1),
 				},
-			});
-			await principalClient.session.create({
-				data: {
-					id: randomUUID(),
-					token: randomUUID(),
-					userId: createdUserId,
-					expiresAt: new Date(Date.now() + 60_000),
-					createdAt: new Date(),
-					updatedAt: new Date(),
+				client,
+			),
+		).rejects.toThrow();
+
+		const unavailableCleanupClient = {
+			$transaction: vi.fn().mockRejectedValue(new Error("simulated cleanup outage")),
+		};
+		await expect(
+			cleanupGuestBootstrapPrincipalLease(
+				{
+					claimHash: fixture.claimHash,
+					leaseToken: firstLease.leaseToken,
+					leaseVersion: firstLease.leaseVersion,
+					principalEmail: fixture.principalEmail,
 				},
-			});
-			principalCreated();
-			await principalRelease;
-			return { userId: `missing_${randomUUID()}`, value: "unused" };
-		});
-		const consume = consumeGuestBootstrap(
+				unavailableCleanupClient as never,
+			),
+		).rejects.toThrow("simulated cleanup outage");
+		await expect(client.user.count({ where: { id: oldUserId } })).resolves.toBe(1);
+
+		const takeover = await acquireGuestBootstrapPrincipalLease(
+			guestConsumeInput(fixture, { now: new Date(leaseStartedAt.getTime() + 51) }),
+			client,
+			{ leaseDurationMs: 1_000 },
+		);
+		expect(takeover.outcome).toBe("ACQUIRED");
+		if (takeover.outcome !== "ACQUIRED") throw new Error("expected takeover lease");
+		await expect(client.user.count({ where: { id: oldUserId } })).resolves.toBe(0);
+		await expect(client.session.count({ where: { userId: oldUserId } })).resolves.toBe(0);
+
+		await expect(
+			bindGuestBootstrapPrincipalLease(
+				{
+					claimHash: fixture.claimHash,
+					leaseToken: firstLease.leaseToken,
+					leaseVersion: firstLease.leaseVersion,
+					userId: oldUserId,
+					now: new Date(leaseStartedAt.getTime() + 52),
+				},
+				client,
+			),
+		).rejects.toThrow("GUEST_BOOTSTRAP_LEASE_LOST");
+
+		const replacementUserId = await createPrincipalFixture(fixture.principalEmail);
+		await bindGuestBootstrapPrincipalLease(
 			{
 				claimHash: fixture.claimHash,
-				expectedOrigin: "https://app.test",
-				origin: "https://app.test",
-				principalEmail: fixture.principalEmail,
-				promotionPeriod: fixture.promotionPeriod,
-				ipHash: "ip-hash-bind-failure",
-				subnetHash: "subnet-hash-bind-failure",
-				limits: {
-					maximumRequestsPerMinute: 100,
-					maximumRequestsPerIpPerHour: 100,
-					maximumGlobalQueueDepth: 100,
-				},
+				leaseToken: takeover.leaseToken,
+				leaseVersion: takeover.leaseVersion,
+				userId: replacementUserId,
+				now: new Date(leaseStartedAt.getTime() + 53),
 			},
-			createPrincipal,
 			client,
 		);
-		await principalCreatedSignal;
-		let cleanupFinished = false;
-		const cleanup = cleanupUnboundGuestPrincipal(
-			{ claimHash: fixture.claimHash, principalEmail: fixture.principalEmail },
-			client,
-		).then(() => {
-			cleanupFinished = true;
-		});
-		await new Promise((resolve) => setTimeout(resolve, 50));
-		expect(cleanupFinished).toBe(false);
-
-		releasePrincipal();
-		await expect(consume).rejects.toThrow();
-		await cleanup;
-		expect(cleanupFinished).toBe(true);
-		await expect(client.user.count({ where: { id: createdUserId } })).resolves.toBe(0);
-		await expect(client.session.count({ where: { userId: createdUserId } })).resolves.toBe(0);
+		await expect(
+			client.user.count({ where: { email: fixture.principalEmail, isAnonymous: true } }),
+		).resolves.toBe(1);
+		await expect(client.session.count({ where: { userId: replacementUserId } })).resolves.toBe(1);
 		await expect(
 			client.guestSessionBootstrap.findUnique({
 				where: { claimHash: fixture.claimHash },
-				select: { ownerId: true, completedAt: true },
+				select: {
+					ownerId: true,
+					completedAt: true,
+					principalLeaseToken: true,
+					principalLeaseExpiresAt: true,
+				},
 			}),
-		).resolves.toEqual({ ownerId: null, completedAt: null });
+		).resolves.toEqual({
+			ownerId: replacementUserId,
+			completedAt: expect.any(Date),
+			principalLeaseToken: null,
+			principalLeaseExpiresAt: null,
+		});
 	});
 
 	it("rejects origin, expiry, and caps before creating any principal", async () => {
@@ -256,13 +326,31 @@ describe("guest bootstrap consumption", () => {
 });
 
 async function createBootstrapFixture(overrides: { expiresAt?: Date } = {}) {
-	const draftId = randomUUID();
 	const bootstrapId = randomUUID();
 	const claimHash = randomUUID().replaceAll("-", "").padEnd(64, "0");
 	const promotionPeriod = `integration-${randomUUID()}`;
 	const principalEmail = `guest-${randomUUID()}@anonymous.invalid`;
-	createdDraftIds.push(draftId);
 	createdBootstrapIds.push(bootstrapId);
+	const draftId = await createDraftFixture(claimHash);
+	await client.$transaction((tx) =>
+		createGuestSessionBootstrapWithClaimFence(
+			{
+				id: bootstrapId,
+				promotionPeriod,
+				claimHash,
+				idempotencyKey: `bootstrap:${bootstrapId}`,
+				claimedDraftId: draftId,
+				expiresAt: overrides.expiresAt ?? new Date(Date.now() + 60_000),
+			},
+			tx,
+		),
+	);
+	return { claimHash, principalEmail, promotionPeriod };
+}
+
+async function createDraftFixture(claimHash: string): Promise<string> {
+	const draftId = randomUUID();
+	createdDraftIds.push(draftId);
 	await client.generationDraft.create({
 		data: {
 			id: draftId,
@@ -275,18 +363,55 @@ async function createBootstrapFixture(overrides: { expiresAt?: Date } = {}) {
 			expiresAt: new Date(Date.now() + 60_000),
 		},
 	});
-	await client.guestSessionBootstrap.create({
+	return draftId;
+}
+
+function guestConsumeInput(
+	fixture: { claimHash: string; principalEmail: string; promotionPeriod: string },
+	overrides: { now?: Date } = {},
+) {
+	return {
+		claimHash: fixture.claimHash,
+		expectedOrigin: "https://app.test",
+		origin: "https://app.test",
+		principalEmail: fixture.principalEmail,
+		promotionPeriod: fixture.promotionPeriod,
+		ipHash: `ip-${randomUUID()}`,
+		subnetHash: `subnet-${randomUUID()}`,
+		limits: {
+			maximumRequestsPerMinute: 100,
+			maximumRequestsPerIpPerHour: 100,
+			maximumGlobalQueueDepth: 100,
+		},
+		...overrides,
+	};
+}
+
+async function createPrincipalFixture(email: string): Promise<string> {
+	const userId = `guest_${randomUUID().replaceAll("-", "")}`;
+	createdUserIds.push(userId);
+	await principalClient.user.create({
 		data: {
-			id: bootstrapId,
-			ownerId: null,
-			promotionPeriod,
-			claimHash,
-			idempotencyKey: `bootstrap:${bootstrapId}`,
-			claimedDraftId: draftId,
-			expiresAt: overrides.expiresAt ?? new Date(Date.now() + 60_000),
+			id: userId,
+			name: "Anonymous",
+			email,
+			emailVerified: false,
+			isAnonymous: true,
+			createdAt: new Date(),
+			updatedAt: new Date(),
 		},
 	});
-	return { claimHash, principalEmail, promotionPeriod };
+	await principalClient.session.create({
+		data: {
+			id: randomUUID(),
+			token: randomUUID(),
+			userId,
+			expiresAt: new Date(Date.now() + 60_000),
+			createdAt: new Date(),
+			updatedAt: new Date(),
+		},
+	});
+	return userId;
 }
 
 function safeTestDatabaseUrl(): string {

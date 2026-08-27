@@ -37,6 +37,7 @@ class FakeXhr {
 describe("marketing signed guest upload", () => {
 	afterEach(() => {
 		FakeXhr.instances = [];
+		vi.useRealTimers();
 		vi.unstubAllGlobals();
 	});
 
@@ -56,6 +57,7 @@ describe("marketing signed guest upload", () => {
 	});
 
 	it("uses separate intent/completion calls and returns an opaque form handoff", async () => {
+		vi.useFakeTimers();
 		vi.stubGlobal("XMLHttpRequest", FakeXhr);
 		vi.stubGlobal("crypto", {
 			subtle: { digest: vi.fn(async () => new Uint8Array(32).fill(0xaa).buffer) },
@@ -71,21 +73,27 @@ describe("marketing signed guest upload", () => {
 					expiresAt: "2026-08-28T01:00:00.000Z",
 				}),
 			)
+			.mockResolvedValueOnce(Response.json({ status: "PENDING", retryAfterMs: 250 }))
 			.mockResolvedValueOnce(
-				Response.json({ claimToken: "c".repeat(43), continueUrl: "/draft/continue" }),
+				Response.json({
+					status: "READY",
+					claimToken: "c".repeat(43),
+					continueUrl: "/draft/continue",
+				}),
 			);
 		vi.stubGlobal("fetch", fetchMock);
 		const file = new File([new Uint8Array(8)], "source.png", { type: "image/png" });
 
-		await expect(
-			uploadGuestDraft({
-				saasUrl: "https://app.test",
-				capabilityVersion: "guest-v17",
-				file,
-				prompt: "Replace the background",
-				turnstileToken: "turnstile-proof",
-			}),
-		).resolves.toEqual({
+		const upload = uploadGuestDraft({
+			saasUrl: "https://app.test",
+			capabilityVersion: "guest-v17",
+			file,
+			prompt: "Replace the background",
+			turnstileToken: "turnstile-proof",
+		});
+		await vi.runAllTimersAsync();
+
+		await expect(upload).resolves.toEqual({
 			action: "https://app.test/draft/continue",
 			claimToken: "c".repeat(43),
 		});
@@ -96,15 +104,46 @@ describe("marketing signed guest upload", () => {
 			expect.objectContaining({ credentials: "omit", method: "POST" }),
 		);
 		expect(fetchMock).toHaveBeenNthCalledWith(
-			2,
+			3,
 			"https://app.test/api/media/guest-drafts/upload-completions",
 			expect.objectContaining({ credentials: "omit", method: "POST" }),
 		);
+		expect(FakeXhr.instances).toHaveLength(1);
+		const firstCompletionBody = JSON.parse(fetchMock.mock.calls[1]![1]!.body as string);
+		const resumedCompletionBody = JSON.parse(fetchMock.mock.calls[2]![1]!.body as string);
+		expect(resumedCompletionBody).toEqual(firstCompletionBody);
+		expect(resumedCompletionBody.completionToken).toBe("b".repeat(43));
 		const serializedCalls = JSON.stringify(fetchMock.mock.calls);
 		expect(serializedCalls).not.toContain("data:image");
 		expect(serializedCalls).not.toContain("base64");
 		expect(serializedCalls).not.toContain('"credentials":"include"');
 		expect(serializedCalls).not.toContain('"credentials":"same-origin"');
+	});
+
+	it("fails with a stable timeout after bounded non-consuming completion polls", async () => {
+		vi.useFakeTimers();
+		const fetchMock = vi
+			.fn()
+			.mockImplementation(async () => Response.json({ status: "PENDING", retryAfterMs: 250 }));
+		vi.stubGlobal("fetch", fetchMock);
+
+		const completion = import("./guest-upload-client").then(({ completeGuestDraftUpload }) =>
+			completeGuestDraftUpload(
+				{
+					saasUrl: "https://app.test",
+					sessionId: "session_1",
+					completionToken: "b".repeat(43),
+					capabilityVersion: "guest-v17",
+					sha256: "a".repeat(64),
+					prompt: "Replace the background",
+				},
+				{ maximumAttempts: 3 },
+			),
+		);
+		const timeout = expect(completion).rejects.toThrow("GUEST_UPLOAD_COMPLETION_TIMEOUT");
+		await vi.runAllTimersAsync();
+		await timeout;
+		expect(fetchMock).toHaveBeenCalledTimes(3);
 	});
 
 	it("allows task-owned loopback HTTP storage in local testing but rejects remote HTTP", async () => {

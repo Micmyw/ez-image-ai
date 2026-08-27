@@ -44,12 +44,19 @@ CREATE TABLE "guest_session_bootstrap" (
     "idempotencyKey" TEXT NOT NULL,
     "claimedDraftId" TEXT,
     "sourceAssetId" TEXT,
+    "principalLeaseToken" TEXT,
+    "principalLeaseExpiresAt" TIMESTAMPTZ(3),
+    "version" INTEGER NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "expiresAt" TIMESTAMPTZ(3) NOT NULL,
     "completedAt" TIMESTAMPTZ(3),
 
     CONSTRAINT "guest_session_bootstrap_pkey" PRIMARY KEY ("id"),
-    CONSTRAINT "guest_session_bootstrap_expiry_check" CHECK ("expiresAt" > "createdAt")
+    CONSTRAINT "guest_session_bootstrap_expiry_check" CHECK ("expiresAt" > "createdAt"),
+    CONSTRAINT "guest_session_bootstrap_principal_lease_pair_check" CHECK (("principalLeaseToken" IS NULL) = ("principalLeaseExpiresAt" IS NULL)),
+    CONSTRAINT "guest_session_bootstrap_owner_completion_pair_check" CHECK (("ownerId" IS NULL) = ("completedAt" IS NULL)),
+    CONSTRAINT "guest_session_bootstrap_bound_lease_clear_check" CHECK ("ownerId" IS NULL OR ("principalLeaseToken" IS NULL AND "principalLeaseExpiresAt" IS NULL)),
+    CONSTRAINT "guest_session_bootstrap_version_check" CHECK ("version" >= 0)
 );
 
 -- CreateTable
@@ -148,8 +155,10 @@ CREATE UNIQUE INDEX "guest_session_bootstrap_claimHash_key" ON "guest_session_bo
 CREATE UNIQUE INDEX "guest_session_bootstrap_idempotencyKey_key" ON "guest_session_bootstrap"("idempotencyKey");
 CREATE UNIQUE INDEX "guest_session_bootstrap_claimedDraftId_key" ON "guest_session_bootstrap"("claimedDraftId");
 CREATE UNIQUE INDEX "guest_session_bootstrap_sourceAssetId_key" ON "guest_session_bootstrap"("sourceAssetId");
+CREATE UNIQUE INDEX "guest_session_bootstrap_principalLeaseToken_key" ON "guest_session_bootstrap"("principalLeaseToken");
 CREATE UNIQUE INDEX "guest_session_bootstrap_ownerId_promotionPeriod_key" ON "guest_session_bootstrap"("ownerId", "promotionPeriod");
 CREATE INDEX "guest_session_bootstrap_expiresAt_idx" ON "guest_session_bootstrap"("expiresAt");
+CREATE INDEX "guest_session_bootstrap_principalLeaseExpiresAt_idx" ON "guest_session_bootstrap"("principalLeaseExpiresAt");
 
 CREATE UNIQUE INDEX "guest_media_trial_currentJobId_key" ON "guest_media_trial"("currentJobId");
 CREATE UNIQUE INDEX "guest_media_trial_consumedJobId_key" ON "guest_media_trial"("consumedJobId");

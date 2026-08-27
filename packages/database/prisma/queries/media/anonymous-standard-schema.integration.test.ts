@@ -95,7 +95,12 @@ describe("anonymous Standard trial persistent schema contract", () => {
 			FROM information_schema.columns
 			WHERE table_schema = 'public'
 			  AND (
-				(table_name = 'guest_session_bootstrap' AND column_name = 'ownerId')
+				(table_name = 'guest_session_bootstrap' AND column_name IN (
+					'ownerId',
+					'principalLeaseToken',
+					'principalLeaseExpiresAt',
+					'version'
+				))
 				OR (table_name = 'media_upload_session' AND column_name IN (
 					'guestCapabilityVersion',
 					'guestOriginHash',
@@ -107,6 +112,9 @@ describe("anonymous Standard trial persistent schema contract", () => {
 		const byColumn = new Map(columns.rows.map((column) => [column.columnName, column] as const));
 
 		expect(byColumn.get("ownerId")?.isNullable).toBe("YES");
+		expect(byColumn.get("principalLeaseToken")?.isNullable).toBe("YES");
+		expect(byColumn.get("principalLeaseExpiresAt")?.isNullable).toBe("YES");
+		expect(byColumn.get("version")?.isNullable).toBe("NO");
 		for (const column of [
 			"guestCapabilityVersion",
 			"guestOriginHash",
@@ -133,6 +141,7 @@ describe("anonymous Standard trial persistent schema contract", () => {
 				"guest_session_bootstrap_claimHash_key",
 				"guest_session_bootstrap_idempotencyKey_key",
 				"guest_session_bootstrap_ownerId_promotionPeriod_key",
+				"guest_session_bootstrap_principalLeaseToken_key",
 				"guest_media_trial_currentJobId_key",
 				"guest_media_trial_consumedJobId_key",
 				"guest_media_trial_ownerId_promotionPeriod_key",
@@ -205,6 +214,15 @@ describe("anonymous Standard trial persistent schema contract", () => {
 
 		expect(byConstraint.get("guest_session_bootstrap_expiry_check")).toContain(
 			'"expiresAt" > "createdAt"',
+		);
+		expect(byConstraint.get("guest_session_bootstrap_principal_lease_pair_check")).toContain(
+			'("principalLeaseToken" IS NULL) = ("principalLeaseExpiresAt" IS NULL)',
+		);
+		expect(byConstraint.get("guest_session_bootstrap_owner_completion_pair_check")).toContain(
+			'("ownerId" IS NULL) = ("completedAt" IS NULL)',
+		);
+		expect(byConstraint.get("guest_session_bootstrap_bound_lease_clear_check")).toContain(
+			'"principalLeaseToken" IS NULL',
 		);
 		expect(byConstraint.get("guest_media_trial_sponsor_credits_check")).toContain(
 			'"sponsorCredits" = 4',

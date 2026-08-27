@@ -1,5 +1,6 @@
 import type { Prisma } from "../../generated/client";
 import { hasCurrentApprovedMediaAssetEvidence } from "./assets";
+import { createGuestSessionBootstrapWithClaimFence } from "./guest-bootstrap";
 import type { MediaTransactionClient } from "./types";
 
 interface CreateGenerationDraftInput {
@@ -173,9 +174,8 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 				expiresAt: input.expiresAt,
 			},
 		});
-		await tx.guestSessionBootstrap.create({
-			data: {
-				ownerId: null,
+		await createGuestSessionBootstrapWithClaimFence(
+			{
 				promotionPeriod: input.promotionPeriod,
 				claimHash: input.claimTokenHash,
 				idempotencyKey: `guest-bootstrap:${input.sessionId}`,
@@ -183,7 +183,8 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 				sourceAssetId: session.assetId,
 				expiresAt: input.expiresAt,
 			},
-		});
+			tx,
+		);
 		return { id: draft.id, expiresAt: draft.expiresAt };
 	});
 }

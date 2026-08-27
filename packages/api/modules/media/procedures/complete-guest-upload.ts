@@ -44,12 +44,21 @@ export const completeGuestDraftUpload = publicProcedure
 			.strict(),
 	)
 	.output(
-		z
-			.object({
-				claimToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
-				continueUrl: z.literal("/draft/continue"),
-			})
-			.strict(),
+		z.discriminatedUnion("status", [
+			z
+				.object({
+					status: z.literal("PENDING"),
+					retryAfterMs: z.number().int().min(100).max(5_000),
+				})
+				.strict(),
+			z
+				.object({
+					status: z.literal("READY"),
+					claimToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+					continueUrl: z.literal("/draft/continue"),
+				})
+				.strict(),
+		]),
 	)
 	.handler(async ({ context, input }) => {
 		const marketingOrigin = process.env.NEXT_PUBLIC_MARKETING_URL;
@@ -92,22 +101,29 @@ export const completeGuestDraftUpload = publicProcedure
 		}
 
 		const claimToken = createDraftClaimToken();
-		await finalizeGuestDraftFromReadyUploadTransaction(
-			{
-				sessionId: input.sessionId,
-				completionTokenHash,
-				consumedTokenHash: hashGuestSecret(
-					`consumed:${input.sessionId}:${randomBytes(32).toString("base64url")}`,
-				),
-				claimTokenHash: hashDraftClaimToken(claimToken),
-				capabilityVersion: loaded.snapshot.version,
-				promotionPeriod: loaded.config.promotionPeriod,
-				prompt: input.prompt,
-				expiresAt: new Date(Date.now() + loaded.config.bootstrapTtlMs),
-				verification: currentMediaAssetVerificationBoundary(),
-			},
-			db,
-		);
 		context.responseHeaders?.set("Cache-Control", "no-store");
-		return { claimToken, continueUrl: "/draft/continue" as const };
+		try {
+			await finalizeGuestDraftFromReadyUploadTransaction(
+				{
+					sessionId: input.sessionId,
+					completionTokenHash,
+					consumedTokenHash: hashGuestSecret(
+						`consumed:${input.sessionId}:${randomBytes(32).toString("base64url")}`,
+					),
+					claimTokenHash: hashDraftClaimToken(claimToken),
+					capabilityVersion: loaded.snapshot.version,
+					promotionPeriod: loaded.config.promotionPeriod,
+					prompt: input.prompt,
+					expiresAt: new Date(Date.now() + loaded.config.bootstrapTtlMs),
+					verification: currentMediaAssetVerificationBoundary(),
+				},
+				db,
+			);
+		} catch (error) {
+			if (error instanceof Error && error.message === "GUEST_UPLOAD_NOT_READY") {
+				return { status: "PENDING" as const, retryAfterMs: 500 };
+			}
+			throw error;
+		}
+		return { status: "READY" as const, claimToken, continueUrl: "/draft/continue" as const };
 	});

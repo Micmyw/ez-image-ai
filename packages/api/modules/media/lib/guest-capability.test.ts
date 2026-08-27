@@ -121,6 +121,7 @@ describe("guest private upload handoff", () => {
 		databaseMocks.loadCompletion.mockResolvedValue({
 			ownerId: "guest_owner",
 			assetId: "asset_1",
+			status: "PENDING",
 			stagingObjectKey: "users/guest_owner/staging/session_1/nonce.png",
 			contentType: "image/png",
 			expectedBytes: 8,
@@ -216,33 +217,64 @@ describe("guest private upload handoff", () => {
 			"guest_owner",
 		);
 		expect(result).toEqual({
+			status: "READY",
 			claimToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
 			continueUrl: "/draft/continue",
 		});
+		if (result.status !== "READY") throw new Error("expected ready completion");
 		expect(result.claimToken).not.toBe("b".repeat(43));
 	});
 
-	it("does not return a claim until verification and input moderation are READY", async () => {
-		databaseMocks.finalizeDraft.mockRejectedValue(new Error("GUEST_UPLOAD_NOT_READY"));
+	it("keeps completion retryable without repeating upload finalization while moderation becomes READY", async () => {
+		databaseMocks.finalizeDraft
+			.mockRejectedValueOnce(new Error("GUEST_UPLOAD_NOT_READY"))
+			.mockResolvedValueOnce({ id: "draft_1", expiresAt: new Date() });
+		databaseMocks.loadCompletion
+			.mockResolvedValueOnce({
+				ownerId: "guest_owner",
+				assetId: "asset_1",
+				status: "PENDING",
+				stagingObjectKey: "users/guest_owner/staging/session_1/nonce.png",
+				contentType: "image/png",
+				expectedBytes: 8,
+				expectedSha256: "a".repeat(64),
+				capabilityVersion: "guest-v17",
+			})
+			.mockResolvedValueOnce({
+				ownerId: "guest_owner",
+				assetId: "asset_1",
+				status: "COMPLETED",
+				stagingObjectKey: "users/guest_owner/staging/session_1/nonce.png",
+				contentType: "image/png",
+				expectedBytes: 8,
+				expectedSha256: "a".repeat(64),
+				capabilityVersion: "guest-v17",
+			});
+		const request = {
+			sessionId: "session_1",
+			completionToken: "b".repeat(43),
+			capabilityVersion: "guest-v17",
+			sha256: "a".repeat(64),
+			prompt: "Replace the background",
+		};
+		const context = {
+			context: {
+				headers: new Headers({ origin: "https://marketing.test" }),
+				responseHeaders: new Headers(),
+			},
+		};
 
-		await expect(
-			call(
-				completeGuestDraftUpload,
-				{
-					sessionId: "session_1",
-					completionToken: "b".repeat(43),
-					capabilityVersion: "guest-v17",
-					sha256: "a".repeat(64),
-					prompt: "Replace the background",
-				},
-				{
-					context: {
-						headers: new Headers({ origin: "https://marketing.test" }),
-						responseHeaders: new Headers(),
-					},
-				},
-			),
-		).rejects.toThrow("GUEST_UPLOAD_NOT_READY");
-		expect(databaseMocks.finalizeDraft).toHaveBeenCalledOnce();
+		await expect(call(completeGuestDraftUpload, request, context)).resolves.toEqual({
+			status: "PENDING",
+			retryAfterMs: expect.any(Number),
+		});
+		await expect(call(completeGuestDraftUpload, request, context)).resolves.toEqual({
+			status: "READY",
+			claimToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
+			continueUrl: "/draft/continue",
+		});
+		expect(uploadMocks.completeOwnedUploadSession).toHaveBeenCalledOnce();
+		expect(storageMocks.headObject).toHaveBeenCalledOnce();
+		expect(databaseMocks.finalizeDraft).toHaveBeenCalledTimes(2);
 	});
 });

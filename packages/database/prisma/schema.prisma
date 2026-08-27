@@ -879,12 +879,16 @@ model GuestSessionBootstrap {
   claimedDraft    GenerationDraft? @relation(fields: [claimedDraftId], references: [id], onDelete: SetNull)
   sourceAssetId   String?          @unique
   sourceAsset     MediaAsset?      @relation("GuestBootstrapSourceAsset", fields: [sourceAssetId], references: [id], onDelete: SetNull)
+  principalLeaseToken     String?  @unique
+  principalLeaseExpiresAt DateTime? @db.Timestamptz(3)
+  version         Int              @default(0)
   createdAt       DateTime         @default(now()) @db.Timestamptz(3)
   expiresAt       DateTime         @db.Timestamptz(3)
   completedAt     DateTime?        @db.Timestamptz(3)
 
   @@unique([ownerId, promotionPeriod])
   @@index([expiresAt])
+  @@index([principalLeaseExpiresAt])
   @@map("guest_session_bootstrap")
 }
 

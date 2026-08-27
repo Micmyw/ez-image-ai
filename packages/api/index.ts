@@ -9,7 +9,6 @@ import {
 	validateServerEnvironment,
 } from "@repo/config/server";
 import {
-	cleanupUnboundGuestPrincipal,
 	consumeGuestBootstrap,
 	hasDurableGuestBootstrapProof,
 	ingestProviderEvent,
@@ -340,17 +339,30 @@ async function handleDurableGuestAnonymousSignIn(request: Request): Promise<Resp
 			? guestHandoffRedirect(result.value, request)
 			: withExpiredGuestBootstrapCookie(result.value);
 	} catch (error) {
-		await cleanupUnboundGuestPrincipal({ claimHash, principalEmail }, db).catch(() => undefined);
 		if (error instanceof GuestAuthHandlerResponseError) {
 			return withExpiredGuestBootstrapCookie(error.response);
 		}
-		return withExpiredGuestBootstrapCookie(
-			guestAuthErrorResponse(
-				error instanceof Error ? error.message : "GUEST_BOOTSTRAP_FAILED",
-				403,
-			),
-		);
+		const failure = stableGuestAuthFailure(error);
+		return withExpiredGuestBootstrapCookie(guestAuthErrorResponse(failure.code, failure.status));
 	}
+}
+
+export function stableGuestAuthFailure(error: unknown): {
+	code:
+		| "GUEST_BOOTSTRAP_FAILED"
+		| "GUEST_BOOTSTRAP_IN_PROGRESS"
+		| "GUEST_BOOTSTRAP_LEASE_LOST"
+		| "GUEST_BOOTSTRAP_UNAVAILABLE"
+		| "GUEST_TEMPORARY_USER_CAP_EXCEEDED";
+	status: StatusCode;
+} {
+	const code = error instanceof Error ? error.message : "";
+	if (code === "GUEST_BOOTSTRAP_IN_PROGRESS" || code === "GUEST_BOOTSTRAP_LEASE_LOST") {
+		return { code, status: 409 };
+	}
+	if (code === "GUEST_BOOTSTRAP_UNAVAILABLE") return { code, status: 403 };
+	if (code === "GUEST_TEMPORARY_USER_CAP_EXCEEDED") return { code, status: 429 };
+	return { code: "GUEST_BOOTSTRAP_FAILED", status: 403 };
 }
 
 class GuestAuthHandlerResponseError extends Error {

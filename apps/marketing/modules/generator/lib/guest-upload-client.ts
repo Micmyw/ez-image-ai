@@ -110,43 +110,77 @@ export async function uploadGuestFile(
 	});
 }
 
-export async function completeGuestDraftUpload(input: {
-	saasUrl: string;
-	sessionId: string;
-	completionToken: string;
-	capabilityVersion: string;
-	sha256: string;
-	prompt: string;
-}): Promise<MarketingDraftHandoff> {
+export async function completeGuestDraftUpload(
+	input: {
+		saasUrl: string;
+		sessionId: string;
+		completionToken: string;
+		capabilityVersion: string;
+		sha256: string;
+		prompt: string;
+	},
+	options: {
+		maximumAttempts?: number;
+		wait?: (milliseconds: number) => Promise<void>;
+	} = {},
+): Promise<MarketingDraftHandoff> {
 	const endpoint = new URL(
 		"/api/media/guest-drafts/upload-completions",
 		requireAbsoluteSaasUrl(input.saasUrl),
 	);
-	const response = await fetch(endpoint.toString(), {
-		method: "POST",
-		credentials: "omit",
-		headers: { "Content-Type": "application/json" },
-		body: JSON.stringify({
-			sessionId: input.sessionId,
-			completionToken: input.completionToken,
-			capabilityVersion: input.capabilityVersion,
-			sha256: input.sha256,
-			prompt: input.prompt,
-		}),
-	});
-	if (!response.ok) throw new Error("GUEST_UPLOAD_COMPLETION_FAILED");
-	const result = (await response.json()) as { claimToken?: unknown; continueUrl?: unknown };
-	if (
-		typeof result.claimToken !== "string" ||
-		!/^[A-Za-z0-9_-]{43}$/.test(result.claimToken) ||
-		result.continueUrl !== "/draft/continue"
-	) {
-		throw new Error("GUEST_UPLOAD_COMPLETION_INVALID");
+	const maximumAttempts = options.maximumAttempts ?? 60;
+	if (!Number.isInteger(maximumAttempts) || maximumAttempts < 1 || maximumAttempts > 60) {
+		throw new Error("GUEST_UPLOAD_COMPLETION_OPTIONS_INVALID");
 	}
-	return {
-		action: new URL(result.continueUrl, endpoint.origin).toString(),
-		claimToken: result.claimToken,
-	};
+	const wait = options.wait ?? delay;
+	const body = JSON.stringify({
+		sessionId: input.sessionId,
+		completionToken: input.completionToken,
+		capabilityVersion: input.capabilityVersion,
+		sha256: input.sha256,
+		prompt: input.prompt,
+	});
+	for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
+		const response = await fetch(endpoint.toString(), {
+			method: "POST",
+			credentials: "omit",
+			headers: { "Content-Type": "application/json" },
+			body,
+		});
+		if (!response.ok) throw new Error("GUEST_UPLOAD_COMPLETION_FAILED");
+		const result = (await response.json()) as {
+			status?: unknown;
+			retryAfterMs?: unknown;
+			claimToken?: unknown;
+			continueUrl?: unknown;
+		};
+		if (result.status === "PENDING") {
+			if (
+				typeof result.retryAfterMs !== "number" ||
+				!Number.isInteger(result.retryAfterMs) ||
+				result.retryAfterMs < 100 ||
+				result.retryAfterMs > 5_000
+			) {
+				throw new Error("GUEST_UPLOAD_COMPLETION_INVALID");
+			}
+			if (attempt === maximumAttempts) throw new Error("GUEST_UPLOAD_COMPLETION_TIMEOUT");
+			await wait(result.retryAfterMs);
+			continue;
+		}
+		if (
+			result.status !== "READY" ||
+			typeof result.claimToken !== "string" ||
+			!/^[A-Za-z0-9_-]{43}$/.test(result.claimToken) ||
+			result.continueUrl !== "/draft/continue"
+		) {
+			throw new Error("GUEST_UPLOAD_COMPLETION_INVALID");
+		}
+		return {
+			action: new URL(result.continueUrl, endpoint.origin).toString(),
+			claimToken: result.claimToken,
+		};
+	}
+	throw new Error("GUEST_UPLOAD_COMPLETION_TIMEOUT");
 }
 
 async function sha256File(file: File): Promise<string> {
@@ -175,4 +209,8 @@ function isAllowedSignedUploadUrl(value: string): boolean {
 	} catch {
 		return false;
 	}
+}
+
+async function delay(milliseconds: number): Promise<void> {
+	await new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
