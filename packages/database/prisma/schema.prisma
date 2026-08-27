@@ -624,6 +624,10 @@ model MediaUploadSession {
   createdAt                  DateTime            @default(now()) @db.Timestamptz(3)
   expiresAt                  DateTime            @db.Timestamptz(3)
   completedAt                DateTime?           @db.Timestamptz(3)
+  guestCapabilityVersion     String?
+  guestOriginHash            String?
+  guestExpectedSha256        String?
+  guestCompletionConsumedAt  DateTime?           @db.Timestamptz(3)
 
   @@index([status, expiresAt])
   @@index([status, finalizationLeaseExpiresAt])
@@ -866,8 +870,8 @@ model OutboxEvent {
 
 model GuestSessionBootstrap {
   id              String           @id @default(cuid())
-  ownerId         String
-  owner           User             @relation("GuestBootstrapOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  ownerId         String?
+  owner           User?            @relation("GuestBootstrapOwner", fields: [ownerId], references: [id], onDelete: Cascade)
   promotionPeriod String
   claimHash       String           @unique
   idempotencyKey  String           @unique

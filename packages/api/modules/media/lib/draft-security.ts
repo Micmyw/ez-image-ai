@@ -1,6 +1,7 @@
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 
 export const DRAFT_CLAIM_COOKIE = "media_draft_claim";
+export const GUEST_BOOTSTRAP_COOKIE = "media_guest_bootstrap";
 
 export function createDraftClaimToken(): string {
 	return randomBytes(32).toString("base64url");
@@ -46,4 +47,21 @@ export function getDraftClaimCookie(token: string, secure: boolean): string {
 
 export function getExpiredDraftClaimCookie(secure: boolean): string {
 	return getDraftClaimCookie("", secure).replace("Max-Age=3600", "Max-Age=0");
+}
+
+export function getGuestBootstrapCookie(token: string, secure: boolean): string {
+	return [
+		`${GUEST_BOOTSTRAP_COOKIE}=${encodeURIComponent(token)}`,
+		"HttpOnly",
+		"SameSite=Lax",
+		secure ? "Secure" : "",
+		"Path=/api/auth/sign-in/anonymous",
+		"Max-Age=1800",
+	]
+		.filter(Boolean)
+		.join("; ");
+}
+
+export function getExpiredGuestBootstrapCookie(secure: boolean): string {
+	return getGuestBootstrapCookie("", secure).replace("Max-Age=1800", "Max-Age=0");
 }

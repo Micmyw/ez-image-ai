@@ -148,6 +148,26 @@ describe("promoteStagedObject", () => {
 		expect(s3.send).toHaveBeenCalledTimes(1);
 	});
 
+	it("rejects an immutable final object whose checksum differs from the guest declaration", async () => {
+		const existing = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
+		s3.send.mockResolvedValueOnce({
+			Body: Readable.from([existing]),
+			ContentLength: existing.byteLength,
+			ContentType: "image/png",
+		});
+
+		await expect(
+			promoteStagedObject({
+				staging: { bucket: "media", key: "users/guest/staging/session/nonce.png" },
+				final: { bucket: "media", key: "users/guest/assets/asset/original.png" },
+				contentType: "image/png",
+				contentLength: existing.byteLength,
+				expectedSha256: "0".repeat(64),
+			}),
+		).rejects.toMatchObject({ code: "OUTPUT_MEDIA_TYPE_MISMATCH", retryable: false });
+		expect(s3.send).toHaveBeenCalledTimes(1);
+	});
+
 	it("records a newly created final multipart upload before its first part is copied", async () => {
 		const content = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
 		const notFound = Object.assign(new Error("missing"), {

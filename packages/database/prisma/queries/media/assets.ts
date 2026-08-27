@@ -260,6 +260,12 @@ export interface CreateMediaUploadSessionTransactionInput {
 		maximumActiveSessions: number;
 		maximumReservedBytes: bigint;
 	};
+	guest?: {
+		capabilityVersion: string;
+		originHash: string;
+		expectedSha256: string;
+		deleteAfter: Date;
+	};
 }
 
 export async function createMediaUploadSessionTransaction(
@@ -270,6 +276,9 @@ export async function createMediaUploadSessionTransaction(
 	if (input.expectedBytes <= BigInt(0)) throw new Error("Expected upload bytes must be positive");
 	if (!input.stagingObjectKey || input.stagingObjectKey === input.objectKey) {
 		throw new Error("Staging upload key must differ from final asset key");
+	}
+	if (input.guest && input.guest.deleteAfter <= input.expiresAt) {
+		throw new Error("Guest asset deletion deadline must outlive its upload session");
 	}
 	return runSerializable(client, async (tx) => {
 		await lockOwnerStorageUsage(input, tx);
@@ -305,6 +314,9 @@ export async function createMediaUploadSessionTransaction(
 				objectKey: input.objectKey,
 				mimeType: input.mimeType,
 				byteSize: input.expectedBytes,
+				...(input.guest
+					? { retentionClass: "GUEST_TRIAL" as const, deleteAfter: input.guest.deleteAfter }
+					: {}),
 			},
 		});
 		const session = await tx.mediaUploadSession.create({
@@ -317,6 +329,13 @@ export async function createMediaUploadSessionTransaction(
 				multipartUploadId: input.multipartUploadId,
 				stagingObjectKey: input.stagingObjectKey,
 				stagedTerminalizationToken: randomUUID(),
+				...(input.guest
+					? {
+							guestCapabilityVersion: input.guest.capabilityVersion,
+							guestOriginHash: input.guest.originHash,
+							guestExpectedSha256: input.guest.expectedSha256,
+						}
+					: {}),
 			},
 		});
 		await tx.storageUsageReservation.create({
@@ -342,6 +361,22 @@ export async function createMediaUploadSessionTransaction(
 				metadata: {},
 			},
 		});
+		if (input.guest) {
+			await tx.outboxEvent.create({
+				data: {
+					eventType: "MEDIA_OBJECT_DELETE",
+					aggregateType: "MEDIA_ASSET",
+					aggregateId: input.assetId,
+					dedupeKey: `guest-media-deadline-cleanup:${input.assetId}`,
+					availableAt: input.guest.deleteAfter,
+					payload: {
+						assetId: input.assetId,
+						objectKey: input.objectKey,
+						cleanupObjectKeys: [input.stagingObjectKey],
+					},
+				},
+			});
+		}
 		return { asset, session };
 	});
 }

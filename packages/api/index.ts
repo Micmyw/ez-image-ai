@@ -1,14 +1,20 @@
 import { randomBytes, randomUUID } from "node:crypto";
 
 import { auth } from "@repo/auth";
-import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
+import { isAnonymousUser, runAnonymousBootstrapIdentity } from "@repo/auth/lib/anonymous-boundary";
 import {
 	type GuestMediaRuntimeOverride,
 	getGuestMediaConfig,
 	validateEzPicLaunchEnvironment,
 	validateServerEnvironment,
 } from "@repo/config/server";
-import { ingestProviderEvent } from "@repo/database";
+import {
+	cleanupUnboundGuestPrincipal,
+	consumeGuestBootstrap,
+	hasDurableGuestBootstrapProof,
+	ingestProviderEvent,
+	resolveGuestRuntimeConfigOverride,
+} from "@repo/database";
 import { db } from "@repo/database/client";
 import { createProviderWebhookVerifierRegistry } from "@repo/jobs";
 import { getLogContext, logger, withLogContext } from "@repo/logs";
@@ -21,6 +27,13 @@ import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
 import type { StatusCode } from "hono/utils/http-status";
 
+import { trustedGuestClientIdentity } from "./modules/media/lib/draft-client-identity";
+import {
+	GUEST_BOOTSTRAP_COOKIE,
+	getExpiredGuestBootstrapCookie,
+	hashDraftClaimToken,
+} from "./modules/media/lib/draft-security";
+import { guestPrincipalEmail, hashGuestBinding } from "./modules/media/lib/guest-capability";
 import { createProviderWebhookHandler } from "./modules/media/webhooks/provider-webhook";
 import { mediaLoadTestHandler } from "./modules/testing/media-load";
 import { openApiHandler, rpcHandler } from "./orpc/handler";
@@ -36,9 +49,9 @@ export interface ApiAppDependencies {
 }
 
 const defaultApiAppDependencies: ApiAppDependencies = {
-	hasGuestBootstrapProof: () => false,
+	hasGuestBootstrapProof: defaultHasGuestBootstrapProof,
 	hasGuestLinkIntent: () => false,
-	resolveGuestRuntimeOverride: () => null,
+	resolveGuestRuntimeOverride: defaultResolveGuestRuntimeOverride,
 };
 
 const providerWebhookVerifiers = createProviderWebhookVerifierRegistry();
@@ -67,6 +80,7 @@ const providerWebhookHandler = createProviderWebhookHandler({
 });
 
 export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
+	const usesDefaultGuestBootstrap = dependencies.hasGuestBootstrapProof === undefined;
 	const boundaryDependencies: ApiAppDependencies = {
 		hasGuestBootstrapProof:
 			dependencies.hasGuestBootstrapProof ?? defaultApiAppDependencies.hasGuestBootstrapProof,
@@ -110,7 +124,7 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 						const saasOrigin = getBaseUrl(process.env.NEXT_PUBLIC_SAAS_URL, 3000);
 						const marketingOrigin = process.env.NEXT_PUBLIC_MARKETING_URL;
 						if (
-							context.req.path.endsWith("/media/drafts") &&
+							isMarketingMediaPath(context.req.path) &&
 							marketingOrigin &&
 							origin === marketingOrigin
 						) {
@@ -141,7 +155,9 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 					if (!(await boundaryDependencies.hasGuestBootstrapProof(c.req.raw))) {
 						return c.json({ code: "GUEST_BOOTSTRAP_PROOF_REQUIRED" }, 403);
 					}
-					return auth.handler(c.req.raw);
+					return usesDefaultGuestBootstrap
+						? handleDurableGuestAnonymousSignIn(c.req.raw)
+						: auth.handler(c.req.raw);
 				}
 				if (session && isAnonymousUser(session.user)) {
 					if (isAnonymousSessionAuthRoute(c.req.method, authPath)) {
@@ -235,6 +251,169 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 }
 
 export const app = createApiApp();
+
+async function defaultResolveGuestRuntimeOverride(): Promise<GuestMediaRuntimeOverride> {
+	try {
+		return (await resolveGuestRuntimeConfigOverride(db))?.enabled ?? null;
+	} catch {
+		return null;
+	}
+}
+
+async function defaultHasGuestBootstrapProof(request: Request): Promise<boolean> {
+	const promotionPeriod = process.env.GUEST_PROMOTION_PERIOD;
+	const token = readRequestCookie(request, GUEST_BOOTSTRAP_COOKIE);
+	if (!promotionPeriod || !token || !/^[A-Za-z0-9_-]{43}$/.test(token)) return false;
+	try {
+		return await hasDurableGuestBootstrapProof(
+			{ claimHash: hashDraftClaimToken(token), promotionPeriod },
+			db,
+		);
+	} catch {
+		return false;
+	}
+}
+
+async function handleDurableGuestAnonymousSignIn(request: Request): Promise<Response> {
+	const promotionPeriod = process.env.GUEST_PROMOTION_PERIOD;
+	const saasOriginValue = process.env.NEXT_PUBLIC_SAAS_URL;
+	const secret = process.env.BETTER_AUTH_SECRET;
+	const token = readRequestCookie(request, GUEST_BOOTSTRAP_COOKIE);
+	const identity = trustedGuestClientIdentity(request.headers, process.env);
+	if (
+		!promotionPeriod ||
+		!saasOriginValue ||
+		!secret ||
+		!token ||
+		!/^[A-Za-z0-9_-]{43}$/.test(token) ||
+		!identity
+	) {
+		return guestAuthErrorResponse("GUEST_BOOTSTRAP_BOUNDARY_REJECTED", 403);
+	}
+	const saasOrigin = new URL(saasOriginValue).origin;
+	const claimHash = hashDraftClaimToken(token);
+	const principalEmail = guestPrincipalEmail(secret, claimHash);
+	const runtimeOverride = await defaultResolveGuestRuntimeOverride();
+	const guestConfig = getGuestMediaConfig(process.env, runtimeOverride);
+	if (!guestConfig.enabled) return guestAuthErrorResponse("GUEST_CAPABILITY_DISABLED", 404);
+
+	try {
+		const result = await consumeGuestBootstrap(
+			{
+				claimHash,
+				expectedOrigin: saasOrigin,
+				origin: request.headers.get("origin"),
+				principalEmail,
+				promotionPeriod,
+				ipHash: hashGuestBinding(secret, "guest-ip", identity.ip),
+				subnetHash: hashGuestBinding(secret, "guest-subnet", identity.subnet),
+				limits: guestConfig.limits,
+			},
+			async ({ email }) => {
+				const response = await runAnonymousBootstrapIdentity(email, () => auth.handler(request));
+				if (!response.ok) throw new GuestAuthHandlerResponseError(response);
+				const payload = (await response.clone().json()) as { user?: { id?: unknown } };
+				if (typeof payload.user?.id !== "string") {
+					throw new GuestAuthHandlerResponseError(
+						guestAuthErrorResponse("GUEST_PRINCIPAL_INVALID", 500),
+					);
+				}
+				const canonicalUser = await db.user.findFirst({
+					where: { id: payload.user.id, email, isAnonymous: true },
+					select: { id: true },
+				});
+				if (!canonicalUser) {
+					throw new GuestAuthHandlerResponseError(
+						guestAuthErrorResponse("GUEST_PRINCIPAL_INVALID", 500),
+					);
+				}
+				return { userId: payload.user.id, value: response };
+			},
+			db,
+		);
+		if (result.outcome === "REPLAY") {
+			return withExpiredGuestBootstrapCookie(
+				guestAuthErrorResponse("GUEST_BOOTSTRAP_RETRY_IN_ORIGINAL_BROWSER", 409),
+			);
+		}
+		return requestUrlFlag(request, "handoff") === "1"
+			? guestHandoffRedirect(result.value, request)
+			: withExpiredGuestBootstrapCookie(result.value);
+	} catch (error) {
+		await cleanupUnboundGuestPrincipal({ claimHash, principalEmail }, db).catch(() => undefined);
+		if (error instanceof GuestAuthHandlerResponseError) {
+			return withExpiredGuestBootstrapCookie(error.response);
+		}
+		return withExpiredGuestBootstrapCookie(
+			guestAuthErrorResponse(
+				error instanceof Error ? error.message : "GUEST_BOOTSTRAP_FAILED",
+				403,
+			),
+		);
+	}
+}
+
+class GuestAuthHandlerResponseError extends Error {
+	constructor(readonly response: Response) {
+		super("GUEST_AUTH_HANDLER_REJECTED");
+	}
+}
+
+function guestHandoffRedirect(authResponse: Response, request: Request): Response {
+	const headers = new Headers({
+		Location: new URL("/draft/continue", request.url).toString(),
+		"Cache-Control": "no-store",
+		"Referrer-Policy": "no-referrer",
+	});
+	for (const cookie of authResponse.headers.getSetCookie()) headers.append("Set-Cookie", cookie);
+	headers.append(
+		"Set-Cookie",
+		getExpiredGuestBootstrapCookie(process.env.NODE_ENV === "production"),
+	);
+	return new Response(null, { status: 303, headers });
+}
+
+function withExpiredGuestBootstrapCookie(response: Response): Response {
+	const headers = new Headers(response.headers);
+	headers.append(
+		"Set-Cookie",
+		getExpiredGuestBootstrapCookie(process.env.NODE_ENV === "production"),
+	);
+	return new Response(response.body, {
+		status: response.status,
+		statusText: response.statusText,
+		headers,
+	});
+}
+
+function guestAuthErrorResponse(code: string, status: StatusCode): Response {
+	return Response.json({ code }, { status });
+}
+
+function readRequestCookie(request: Request, name: string): string | null {
+	for (const entry of request.headers.get("cookie")?.split(";") ?? []) {
+		const [key, ...value] = entry.trim().split("=");
+		if (key === name) return decodeURIComponent(value.join("="));
+	}
+	return null;
+}
+
+function requestUrlFlag(request: Request, name: string): string | null {
+	try {
+		return new URL(request.url).searchParams.get(name);
+	} catch {
+		return null;
+	}
+}
+
+function isMarketingMediaPath(path: string): boolean {
+	return [
+		"/media/drafts",
+		"/media/guest-capability",
+		"/media/guest-drafts/upload-intents",
+		"/media/guest-drafts/upload-completions",
+	].some((suffix) => path.endsWith(suffix));
+}
 
 function assertTriggerConfiguration(): void {
 	if (!process.env.TRIGGER_SECRET_KEY) throw new Error("Trigger credentials are missing");

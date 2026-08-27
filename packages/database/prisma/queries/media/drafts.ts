@@ -1,4 +1,5 @@
 import type { Prisma } from "../../generated/client";
+import { hasCurrentApprovedMediaAssetEvidence } from "./assets";
 import type { MediaTransactionClient } from "./types";
 
 interface CreateGenerationDraftInput {
@@ -97,9 +98,114 @@ export async function createGenerationDraftTransaction(
 	});
 }
 
+export async function finalizeGuestDraftFromReadyUploadTransaction(
+	input: {
+		sessionId: string;
+		completionTokenHash: string;
+		consumedTokenHash: string;
+		claimTokenHash: string;
+		capabilityVersion: string;
+		promotionPeriod: string;
+		prompt: string;
+		expiresAt: Date;
+		verification: {
+			provider: string;
+			ruleVersion: string;
+			policyVersion: string;
+			now: Date;
+		};
+	},
+	client: MediaTransactionClient,
+): Promise<{ id: string; expiresAt: Date }> {
+	return client.$transaction(async (tx) => {
+		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${input.completionTokenHash}, 0))`;
+		const session = await tx.mediaUploadSession.findFirst({
+			where: {
+				id: input.sessionId,
+				tokenHash: input.completionTokenHash,
+				guestCompletionConsumedAt: null,
+				guestCapabilityVersion: input.capabilityVersion,
+				status: "COMPLETED",
+				expiresAt: { gt: input.verification.now },
+			},
+			include: {
+				asset: {
+					include: {
+						moderationResults: {
+							orderBy: [
+								{ verificationGeneration: "desc" },
+								{ attemptNumber: "desc" },
+								{ createdAt: "desc" },
+								{ id: "desc" },
+							],
+							take: 1,
+						},
+						jobBindings: { where: { role: "OUTPUT" }, take: 1, select: { jobId: true } },
+					},
+				},
+			},
+		});
+		if (!session) throw new Error("GUEST_UPLOAD_UNAVAILABLE");
+		if (!hasCurrentApprovedMediaAssetEvidence(session.asset, input.verification)) {
+			throw new Error("GUEST_UPLOAD_NOT_READY");
+		}
+		const consumed = await tx.mediaUploadSession.updateMany({
+			where: {
+				id: session.id,
+				tokenHash: input.completionTokenHash,
+				guestCompletionConsumedAt: null,
+			},
+			data: {
+				tokenHash: input.consumedTokenHash,
+				guestCompletionConsumedAt: input.verification.now,
+			},
+		});
+		if (consumed.count !== 1) throw new Error("GUEST_COMPLETION_REPLAYED");
+		const draft = await tx.generationDraft.create({
+			data: {
+				ownerType: "USER",
+				ownerId: session.asset.ownerId,
+				submittedByUserId: session.asset.ownerId,
+				claimTokenHash: input.claimTokenHash,
+				assetId: session.assetId,
+				productKey: "image-fast",
+				inputSnapshot: { kind: "image-to-image", prompt: input.prompt },
+				expiresAt: input.expiresAt,
+			},
+		});
+		await tx.guestSessionBootstrap.create({
+			data: {
+				ownerId: null,
+				promotionPeriod: input.promotionPeriod,
+				claimHash: input.claimTokenHash,
+				idempotencyKey: `guest-bootstrap:${input.sessionId}`,
+				claimedDraftId: draft.id,
+				sourceAssetId: session.assetId,
+				expiresAt: input.expiresAt,
+			},
+		});
+		return { id: draft.id, expiresAt: draft.expiresAt };
+	});
+}
+
 export async function claimGenerationDraftTransaction(
 	input: { claimTokenHash: string; userId: string; now?: Date },
 	client: MediaTransactionClient,
+): Promise<{ id: string; productKey: string | null; input: Record<string, unknown> }> {
+	return claimGenerationDraftWithPolicy(input, client, false);
+}
+
+export async function claimGuestGenerationDraftTransaction(
+	input: { claimTokenHash: string; userId: string; now?: Date },
+	client: MediaTransactionClient,
+): Promise<{ id: string; productKey: string | null; input: Record<string, unknown> }> {
+	return claimGenerationDraftWithPolicy(input, client, true);
+}
+
+async function claimGenerationDraftWithPolicy(
+	input: { claimTokenHash: string; userId: string; now?: Date },
+	client: MediaTransactionClient,
+	requireGuestBootstrap: boolean,
 ): Promise<{ id: string; productKey: string | null; input: Record<string, unknown> }> {
 	return client.$transaction(async (tx) => {
 		const now = input.now ?? new Date();
@@ -107,6 +213,13 @@ export async function claimGenerationDraftTransaction(
 			where: {
 				claimTokenHash: input.claimTokenHash,
 				expiresAt: { gt: now },
+				...(requireGuestBootstrap
+					? {
+							guestBootstrap: {
+								is: { ownerId: input.userId, completedAt: { not: null } },
+							},
+						}
+					: {}),
 				OR: [
 					{ status: "ACTIVE" },
 					{
@@ -146,20 +259,27 @@ export async function claimGenerationDraftTransaction(
 			return toClaimedGenerationDraft(claimed);
 		}
 		if (draft.assetId) {
-			const transferred = await tx.mediaAsset.updateMany({
+			const transferredVerifying = await tx.mediaAsset.updateMany({
 				where: { id: draft.assetId, ownerId: draft.ownerId, status: "VERIFYING" },
 				data: { ownerType: "USER", ownerId: input.userId },
 			});
-			if (transferred.count !== 1) throw new Error("DRAFT_UNAVAILABLE");
-			await tx.outboxEvent.create({
-				data: {
-					eventType: "MEDIA_ASSET_VERIFY",
-					aggregateType: "MEDIA_ASSET",
-					aggregateId: draft.assetId,
-					dedupeKey: `media-asset-verify:${draft.assetId}`,
-					payload: { assetId: draft.assetId },
-				},
-			});
+			if (transferredVerifying.count === 1) {
+				await tx.outboxEvent.create({
+					data: {
+						eventType: "MEDIA_ASSET_VERIFY",
+						aggregateType: "MEDIA_ASSET",
+						aggregateId: draft.assetId,
+						dedupeKey: `media-asset-verify:${draft.assetId}`,
+						payload: { assetId: draft.assetId },
+					},
+				});
+			} else {
+				const transferredReady = await tx.mediaAsset.updateMany({
+					where: { id: draft.assetId, ownerId: draft.ownerId, status: "READY" },
+					data: { ownerType: "USER", ownerId: input.userId },
+				});
+				if (transferredReady.count !== 1) throw new Error("DRAFT_UNAVAILABLE");
+			}
 		}
 		return toClaimedGenerationDraft(draft);
 	});

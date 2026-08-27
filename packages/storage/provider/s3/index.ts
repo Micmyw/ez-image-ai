@@ -240,6 +240,7 @@ export async function promoteStagedObject(input: {
 	final: MediaObjectLocation;
 	contentType: MediaContentType;
 	contentLength: number;
+	expectedSha256?: string;
 	/**
 	 * Allows a recovery caller that owns a deterministic final key to commit the
 	 * already-immutable final object's observed identity, even when a mutable
@@ -315,6 +316,7 @@ export async function promoteStagedObject(input: {
 			input.final,
 			input.contentType,
 			input.acceptExistingFinalIdentity ? undefined : input.contentLength,
+			input.expectedSha256,
 		);
 	}
 	if (copied.bytes !== input.contentLength)
@@ -326,7 +328,7 @@ export async function promoteStagedObject(input: {
 		input.final,
 		input.contentType,
 		input.contentLength,
-		copied.sha256,
+		input.expectedSha256 ?? copied.sha256,
 	);
 }
 
@@ -334,6 +336,7 @@ async function inspectExistingFinalObject(input: {
 	final: MediaObjectLocation;
 	contentType: MediaContentType;
 	contentLength: number;
+	expectedSha256?: string;
 	acceptExistingFinalIdentity?: boolean;
 }): Promise<{
 	bytes: number;
@@ -346,6 +349,7 @@ async function inspectExistingFinalObject(input: {
 			input.final,
 			input.contentType,
 			input.acceptExistingFinalIdentity ? undefined : input.contentLength,
+			input.expectedSha256,
 		);
 	} catch (error) {
 		if (isExplicitObjectNotFound(error)) return null;

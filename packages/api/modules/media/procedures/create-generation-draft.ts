@@ -111,6 +111,7 @@ export const createGenerationDraft = publicProcedure
 		context.responseHeaders?.set("Cache-Control", "no-store");
 		return {
 			draftId: draft.id,
+			guestReady: false as const,
 			expiresAt: draft.expiresAt.toISOString(),
 			continueUrl: "/draft/continue",
 			claimToken: token,

@@ -86,6 +86,37 @@ describe("anonymous Standard trial persistent schema contract", () => {
 		expect(labels("GuestLinkState")).toEqual(["NONE", "LINKING", "LINKED"]);
 	});
 
+	it("persists bootstrap proof before binding the Better Auth anonymous owner", async () => {
+		const columns = await client.query<{
+			columnName: string;
+			isNullable: "YES" | "NO";
+		}>(`
+			SELECT column_name AS "columnName", is_nullable AS "isNullable"
+			FROM information_schema.columns
+			WHERE table_schema = 'public'
+			  AND (
+				(table_name = 'guest_session_bootstrap' AND column_name = 'ownerId')
+				OR (table_name = 'media_upload_session' AND column_name IN (
+					'guestCapabilityVersion',
+					'guestOriginHash',
+					'guestExpectedSha256',
+					'guestCompletionConsumedAt'
+				))
+			  )
+		`);
+		const byColumn = new Map(columns.rows.map((column) => [column.columnName, column] as const));
+
+		expect(byColumn.get("ownerId")?.isNullable).toBe("YES");
+		for (const column of [
+			"guestCapabilityVersion",
+			"guestOriginHash",
+			"guestExpectedSha256",
+			"guestCompletionConsumedAt",
+		]) {
+			expect(byColumn.get(column)?.isNullable).toBe("YES");
+		}
+	});
+
 	it("retains the critical unique and foreign-key constraints", async () => {
 		const uniqueIndexes = await client.query<{ indexName: string }>(`
 			SELECT index_class.relname AS "indexName"

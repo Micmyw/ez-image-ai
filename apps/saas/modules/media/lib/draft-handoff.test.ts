@@ -32,20 +32,21 @@ describe("draft handoff POST", () => {
 				marketingOrigin: "https://www.example.com",
 				saasOrigin: "https://app.example.com",
 				secure: true,
-				isAuthenticated: false,
+				isRegistered: false,
 			},
 		);
 
 		expect(response.status).toBe(303);
-		expect(response.headers.get("location")).toBe(
-			"https://app.example.com/login?redirectTo=/draft/continue",
-		);
+		expect(response.headers.get("location")).toBe("https://app.example.com/draft/continue");
 		expect(response.headers.get("location")).not.toContain(claimToken);
 		expect(response.headers.get("set-cookie")).toContain(`media_draft_claim=${claimToken}`);
 		expect(response.headers.get("set-cookie")).toContain("HttpOnly");
 		expect(response.headers.get("set-cookie")).toContain("SameSite=Lax");
 		expect(response.headers.get("set-cookie")).toContain("Secure");
 		expect(response.headers.get("set-cookie")).toContain("Path=/draft/continue");
+		expect(response.headers.getSetCookie().join("\n")).toContain(
+			"Path=/api/auth/sign-in/anonymous",
+		);
 		expect(response.headers.get("referrer-policy")).toBe("no-referrer");
 	});
 
@@ -55,7 +56,7 @@ describe("draft handoff POST", () => {
 				marketingOrigin: "https://www.example.com",
 				saasOrigin: "https://app.example.com",
 				secure: true,
-				isAuthenticated: false,
+				isRegistered: false,
 			}),
 		).rejects.toThrow("FORBIDDEN_ORIGIN");
 	});
@@ -72,7 +73,7 @@ describe("draft handoff POST", () => {
 				marketingOrigin: "https://www.example.com",
 				saasOrigin: "https://app.example.com",
 				secure: true,
-				isAuthenticated: false,
+				isRegistered: false,
 			},
 		);
 
@@ -98,7 +99,7 @@ describe("draft handoff POST", () => {
 					marketingOrigin: "https://www.example.com",
 					saasOrigin: "https://app.example.com",
 					secure: true,
-					isAuthenticated: false,
+					isRegistered: false,
 				},
 			),
 		).rejects.toThrow("INVALID_DRAFT_HANDOFF");

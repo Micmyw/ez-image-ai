@@ -1,5 +1,8 @@
 import { hasGrowthAnalyticsConsent, readGrowthAnalyticsSessionHash } from "@repo/utils";
 
+export { uploadGuestDraft } from "./guest-upload-client";
+export type { GuestDraftUploadInput } from "./guest-upload-client";
+
 export const MARKETING_IMAGE_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
 export type MarketingImageProductKey = "image-fast" | "image-quality";
@@ -53,6 +56,11 @@ export interface MarketingDraftHandoff {
 
 export const DRAFT_HANDOFF_INTENT = "continue-marketing-draft";
 
+/**
+ * Compatibility-only base64 handoff for existing registered-editor entrypoints.
+ * New guest trial callers must use `uploadGuestDraft` so source bytes go directly
+ * to the private signed upload rather than through the application request body.
+ */
 export async function createMarketingDraft(
 	saasUrl: string,
 	input: MarketingDraftInput,

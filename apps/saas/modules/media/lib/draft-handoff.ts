@@ -1,6 +1,7 @@
 import {
 	assertMarketingOrigin,
 	getDraftClaimCookie,
+	getGuestBootstrapCookie,
 } from "@repo/api/modules/media/lib/draft-security";
 import { EZPIC_ANALYTICS_SESSION_COOKIE } from "@repo/utils";
 import { NextResponse } from "next/server";
@@ -11,7 +12,7 @@ interface DraftHandoffOptions {
 	marketingOrigin: string;
 	saasOrigin: string;
 	secure: boolean;
-	isAuthenticated: boolean;
+	isRegistered: boolean;
 }
 
 export async function createDraftHandoffResponse(
@@ -39,8 +40,7 @@ export async function createDraftHandoffResponse(
 	) {
 		throw new Error("INVALID_DRAFT_HANDOFF");
 	}
-	const target = options.isAuthenticated ? "/draft/continue" : "/login?redirectTo=/draft/continue";
-	const response = NextResponse.redirect(new URL(target, options.saasOrigin), 303);
+	const response = NextResponse.redirect(new URL("/draft/continue", options.saasOrigin), 303);
 	response.headers.set("Cache-Control", "no-store");
 	response.headers.set("Referrer-Policy", "no-referrer");
 	if (analyticsConsent === "true" && typeof anonymousSessionHash === "string") {
@@ -59,5 +59,8 @@ export async function createDraftHandoffResponse(
 		);
 	}
 	response.headers.append("Set-Cookie", getDraftClaimCookie(claimToken, options.secure));
+	if (!options.isRegistered) {
+		response.headers.append("Set-Cookie", getGuestBootstrapCookie(claimToken, options.secure));
+	}
 	return response;
 }

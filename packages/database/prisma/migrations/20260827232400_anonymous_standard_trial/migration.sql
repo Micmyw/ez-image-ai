@@ -25,10 +25,20 @@ ADD COLUMN "watermarkVersion" TEXT,
 ADD COLUMN "watermarkedAt" TIMESTAMPTZ(3),
 ADD COLUMN "cleanStagingDeletedAt" TIMESTAMPTZ(3);
 
+-- Guest upload credentials and capability bindings extend the existing private
+-- upload session rather than introducing a parallel upload table.
+ALTER TABLE "media_upload_session"
+ADD COLUMN "guestCapabilityVersion" TEXT,
+ADD COLUMN "guestOriginHash" TEXT,
+ADD COLUMN "guestExpectedSha256" TEXT,
+ADD COLUMN "guestCompletionConsumedAt" TIMESTAMPTZ(3);
+
 -- CreateTable
 CREATE TABLE "guest_session_bootstrap" (
     "id" TEXT NOT NULL,
-    "ownerId" TEXT NOT NULL,
+    -- Durable proof must exist before Better Auth creates the anonymous owner.
+    -- The owner is bound under the claim advisory lock after User+Session creation.
+    "ownerId" TEXT,
     "promotionPeriod" TEXT NOT NULL,
     "claimHash" TEXT NOT NULL,
     "idempotencyKey" TEXT NOT NULL,

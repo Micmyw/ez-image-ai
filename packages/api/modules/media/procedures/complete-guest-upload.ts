@@ -1,0 +1,113 @@
+import { randomBytes } from "node:crypto";
+
+import { promptSchema } from "@repo/ai";
+import {
+	finalizeGuestDraftFromReadyUploadTransaction,
+	loadGuestUploadCompletion,
+} from "@repo/database";
+import { db } from "@repo/database/client";
+import { headObject } from "@repo/storage";
+import { z } from "zod";
+
+import { publicProcedure } from "../../../orpc/procedures";
+import { currentMediaAssetVerificationBoundary } from "../lib/asset-authorization";
+import {
+	assertMarketingOrigin,
+	createDraftClaimToken,
+	hashDraftClaimToken,
+} from "../lib/draft-security";
+import {
+	assertGuestCapabilityVersion,
+	hashGuestBinding,
+	hashGuestSecret,
+	loadGuestCapability,
+} from "../lib/guest-capability";
+import { completeOwnedUploadSession } from "./complete-upload-session";
+
+export const completeGuestDraftUpload = publicProcedure
+	.route({
+		method: "POST",
+		path: "/media/guest-drafts/upload-completions",
+		tags: ["Media"],
+		summary: "Complete and moderate a private guest draft upload",
+		description: "Returns a one-use claim only after the immutable input asset is READY.",
+	})
+	.input(
+		z
+			.object({
+				sessionId: z.string().min(1).max(128),
+				completionToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+				capabilityVersion: z.string().min(1).max(128),
+				sha256: z.string().regex(/^[a-f0-9]{64}$/),
+				prompt: promptSchema,
+			})
+			.strict(),
+	)
+	.output(
+		z
+			.object({
+				claimToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
+				continueUrl: z.literal("/draft/continue"),
+			})
+			.strict(),
+	)
+	.handler(async ({ context, input }) => {
+		const marketingOrigin = process.env.NEXT_PUBLIC_MARKETING_URL;
+		const secret = process.env.BETTER_AUTH_SECRET;
+		if (!marketingOrigin || !secret) throw new Error("GUEST_CONFIGURATION_ERROR");
+		assertMarketingOrigin(context.headers.get("origin"), marketingOrigin);
+		const loaded = await loadGuestCapability();
+		if (!loaded.config.enabled || !loaded.config.promotionPeriod) {
+			throw new Error("GUEST_CAPABILITY_DISABLED");
+		}
+		assertGuestCapabilityVersion(input.capabilityVersion, loaded.snapshot.version);
+		const completionTokenHash = hashGuestSecret(input.completionToken);
+		const completion = await loadGuestUploadCompletion(
+			{
+				sessionId: input.sessionId,
+				completionTokenHash,
+				capabilityVersion: loaded.snapshot.version,
+				originHash: hashGuestBinding(secret, "guest-origin", marketingOrigin),
+				expectedSha256: input.sha256,
+			},
+			db,
+		);
+		assertGuestCapabilityVersion(completion.capabilityVersion, loaded.snapshot.version);
+
+		if (completion.status !== "COMPLETED") {
+			const metadata = await headObject({ bucket: "media", key: completion.stagingObjectKey });
+			if (
+				metadata.contentLength !== completion.expectedBytes ||
+				metadata.contentType !== completion.contentType
+			) {
+				throw new Error("GUEST_UPLOAD_METADATA_MISMATCH");
+			}
+			await completeOwnedUploadSession(
+				{
+					sessionId: input.sessionId,
+					expectedSha256: completion.expectedSha256,
+				},
+				completion.ownerId,
+			);
+		}
+
+		const claimToken = createDraftClaimToken();
+		await finalizeGuestDraftFromReadyUploadTransaction(
+			{
+				sessionId: input.sessionId,
+				completionTokenHash,
+				consumedTokenHash: hashGuestSecret(
+					`consumed:${input.sessionId}:${randomBytes(32).toString("base64url")}`,
+				),
+				claimTokenHash: hashDraftClaimToken(claimToken),
+				capabilityVersion: loaded.snapshot.version,
+				promotionPeriod: loaded.config.promotionPeriod,
+				prompt: input.prompt,
+				expiresAt: new Date(Date.now() + loaded.config.bootstrapTtlMs),
+				verification: currentMediaAssetVerificationBoundary(),
+			},
+			db,
+		);
+		context.responseHeaders?.set("Cache-Control", "no-store");
+		return { claimToken, continueUrl: "/draft/continue" as const };
+	});

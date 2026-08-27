@@ -97,7 +97,7 @@ describe("marketing generation draft input", () => {
 
 		await expect(
 			call(draftProcedureModule.createGenerationDraft, boundaryInput, context),
-		).resolves.toMatchObject({ draftId: "draft_1" });
+		).resolves.toMatchObject({ draftId: "draft_1", guestReady: false });
 		expect(databaseMocks.queryRaw).toHaveBeenCalledOnce();
 		expect(putPrivateMediaObject).toHaveBeenCalledOnce();
 		expect(createGenerationDraftTransaction).toHaveBeenCalledOnce();

@@ -43,145 +43,155 @@ export const completeUploadSession = protectedProcedure
 			parts: multipartPartsSchema.optional(),
 		}),
 	)
-	.handler(async ({ context: { user }, input }) => {
-		const session = await requireOwnedUploadSession(input.sessionId, user.id);
-		if (session.status === "COMPLETED") return toMediaAssetDto(session.asset);
-		if (!["PENDING", "FINALIZING"].includes(session.status)) {
-			throw new Error("Upload session is not pending");
+	.handler(({ context: { user }, input }) => completeOwnedUploadSession(input, user.id));
+
+export async function completeOwnedUploadSession(
+	input: {
+		sessionId: string;
+		parts?: Array<{ partNumber: number; etag: string }>;
+		expectedSha256?: string;
+	},
+	ownerId: string,
+) {
+	const session = await requireOwnedUploadSession(input.sessionId, ownerId);
+	if (session.status === "COMPLETED") return toMediaAssetDto(session.asset);
+	if (!["PENDING", "FINALIZING"].includes(session.status)) {
+		throw new Error("Upload session is not pending");
+	}
+	if (session.status === "PENDING" && session.multipartUploadId) {
+		if (!input.parts) throw new Error("Multipart completion requires uploaded parts");
+		validateMultipartCompletionParts(
+			input.parts,
+			Number(session.expectedBytes),
+			MULTIPART_PART_SIZE,
+		);
+	}
+
+	const claimed = await claimMediaUploadSessionFinalizationTransaction(
+		{
+			sessionId: session.id,
+			ownerId,
+			parts: session.status === "PENDING" ? input.parts : undefined,
+		},
+		db,
+	).catch(async (error: unknown) => {
+		if (error instanceof MediaUploadSessionExpiredError && session.status === "PENDING") {
+			await cleanExpiredStaging(session);
 		}
-		if (session.status === "PENDING" && session.multipartUploadId) {
-			if (!input.parts) throw new Error("Multipart completion requires uploaded parts");
-			validateMultipartCompletionParts(
-				input.parts,
-				Number(session.expectedBytes),
-				MULTIPART_PART_SIZE,
-			);
+		throw error;
+	});
+	if (claimed.outcome === "COMPLETED") return toMediaAssetDto(claimed.asset);
+	if (claimed.outcome === "IN_PROGRESS") {
+		throw new Error("Upload session finalization is in progress");
+	}
+
+	const staging = { bucket: "media" as const, key: claimed.stagingObjectKey };
+	const final = { bucket: "media" as const, key: claimed.asset.objectKey };
+	let promoted: Awaited<ReturnType<typeof promoteStagedObject>>;
+	let promotion =
+		claimed.promotionMultipartUploadId && claimed.promotionToken
+			? {
+					multipartUploadId: claimed.promotionMultipartUploadId,
+					promotionToken: claimed.promotionToken,
+				}
+			: undefined;
+	let retriedMissingPromotionMultipart = false;
+	try {
+		if (claimed.multipartUploadId) {
+			const parts = storedMultipartParts(claimed.finalizationParts);
+			validateMultipartCompletionParts(parts, Number(session.expectedBytes), MULTIPART_PART_SIZE);
+			try {
+				await completeMultipartUpload({ ...staging, uploadId: claimed.multipartUploadId, parts });
+			} catch (error) {
+				if (!isNoSuchUpload(error)) throw error;
+			}
 		}
 
-		const claimed = await claimMediaUploadSessionFinalizationTransaction(
-			{
-				sessionId: session.id,
-				ownerId: user.id,
-				parts: session.status === "PENDING" ? input.parts : undefined,
-			},
-			db,
-		).catch(async (error: unknown) => {
-			if (error instanceof MediaUploadSessionExpiredError && session.status === "PENDING") {
-				await cleanExpiredStaging(session);
-			}
-			throw error;
-		});
-		if (claimed.outcome === "COMPLETED") return toMediaAssetDto(claimed.asset);
-		if (claimed.outcome === "IN_PROGRESS") {
-			throw new Error("Upload session finalization is in progress");
-		}
-
-		const staging = { bucket: "media" as const, key: claimed.stagingObjectKey };
-		const final = { bucket: "media" as const, key: claimed.asset.objectKey };
-		let promoted: Awaited<ReturnType<typeof promoteStagedObject>>;
-		let promotion =
-			claimed.promotionMultipartUploadId && claimed.promotionToken
-				? {
-						multipartUploadId: claimed.promotionMultipartUploadId,
-						promotionToken: claimed.promotionToken,
-					}
-				: undefined;
-		let retriedMissingPromotionMultipart = false;
-		try {
-			if (claimed.multipartUploadId) {
-				const parts = storedMultipartParts(claimed.finalizationParts);
-				validateMultipartCompletionParts(parts, Number(session.expectedBytes), MULTIPART_PART_SIZE);
-				try {
-					await completeMultipartUpload({ ...staging, uploadId: claimed.multipartUploadId, parts });
-				} catch (error) {
-					if (!isNoSuchUpload(error)) throw error;
-				}
-			}
-
-			for (;;) {
-				if (!promotion) {
-					await abortStaleFinalMultipartUploads({
-						sessionId: session.id,
-						ownerId: user.id,
-						finalizationToken: claimed.finalizationToken,
-						final,
-					});
-				}
-				const promotionToken = randomUUID();
-				try {
-					promoted = await promoteStagedObject({
-						staging,
-						final,
-						contentLength: Number(session.expectedBytes),
-						contentType: claimed.asset.mimeType as
-							| "image/jpeg"
-							| "image/png"
-							| "image/webp"
-							| "video/mp4"
-							| "video/webm"
-							| "video/quicktime",
-						promotion: promotion
-							? { uploadId: promotion.multipartUploadId }
-							: {
-									onMultipartUploadCreated: async ({ uploadId }) => {
-										promotion = await recordMediaUploadPromotionMultipartTransaction(
-											{
-												sessionId: session.id,
-												ownerId: user.id,
-												finalizationToken: claimed.finalizationToken,
-												multipartUploadId: uploadId,
-												promotionToken,
-											},
-											db,
-										);
-									},
-								},
-					});
-					break;
-				} catch (error) {
-					if (!promotion || !isNoSuchUpload(error) || retriedMissingPromotionMultipart) {
-						throw error;
-					}
-					const missingPromotion = promotion;
-					await clearMediaUploadPromotionMultipartTransaction(
-						{
-							sessionId: session.id,
-							ownerId: user.id,
-							finalizationToken: claimed.finalizationToken,
-							multipartUploadId: missingPromotion.multipartUploadId,
-							promotionToken: missingPromotion.promotionToken,
-						},
-						db,
-					);
-					promotion = undefined;
-					retriedMissingPromotionMultipart = true;
-				}
-			}
-		} catch (error) {
-			if (isDeterministicFinalizationFailure(error)) {
-				await terminalizeDeterministicFinalizationFailure({
+		for (;;) {
+			if (!promotion) {
+				await abortStaleFinalMultipartUploads({
 					sessionId: session.id,
-					ownerId: user.id,
+					ownerId,
 					finalizationToken: claimed.finalizationToken,
+					final,
 				});
 			}
-			throw error;
+			const promotionToken = randomUUID();
+			try {
+				promoted = await promoteStagedObject({
+					staging,
+					final,
+					contentLength: Number(session.expectedBytes),
+					expectedSha256: input.expectedSha256,
+					contentType: claimed.asset.mimeType as
+						| "image/jpeg"
+						| "image/png"
+						| "image/webp"
+						| "video/mp4"
+						| "video/webm"
+						| "video/quicktime",
+					promotion: promotion
+						? { uploadId: promotion.multipartUploadId }
+						: {
+								onMultipartUploadCreated: async ({ uploadId }) => {
+									promotion = await recordMediaUploadPromotionMultipartTransaction(
+										{
+											sessionId: session.id,
+											ownerId,
+											finalizationToken: claimed.finalizationToken,
+											multipartUploadId: uploadId,
+											promotionToken,
+										},
+										db,
+									);
+								},
+							},
+				});
+				break;
+			} catch (error) {
+				if (!promotion || !isNoSuchUpload(error) || retriedMissingPromotionMultipart) {
+					throw error;
+				}
+				const missingPromotion = promotion;
+				await clearMediaUploadPromotionMultipartTransaction(
+					{
+						sessionId: session.id,
+						ownerId,
+						finalizationToken: claimed.finalizationToken,
+						multipartUploadId: missingPromotion.multipartUploadId,
+						promotionToken: missingPromotion.promotionToken,
+					},
+					db,
+				);
+				promotion = undefined;
+				retriedMissingPromotionMultipart = true;
+			}
 		}
-		const asset = await completeMediaUploadSessionTransaction(
-			{
+	} catch (error) {
+		if (isDeterministicFinalizationFailure(error)) {
+			await terminalizeDeterministicFinalizationFailure({
 				sessionId: session.id,
-				ownerId: user.id,
-				checksum: promoted.sha256,
-				storageEtag: promoted.etag,
-				storageVersionId: promoted.versionId,
+				ownerId,
 				finalizationToken: claimed.finalizationToken,
-				...(promotion ? { promotion } : {}),
-			},
-			db,
-		);
-		await deleteObject(staging).catch(() => undefined);
-		return toMediaAssetDto(asset);
-	});
+			});
+		}
+		throw error;
+	}
+	const asset = await completeMediaUploadSessionTransaction(
+		{
+			sessionId: session.id,
+			ownerId,
+			checksum: promoted.sha256,
+			storageEtag: promoted.etag,
+			storageVersionId: promoted.versionId,
+			finalizationToken: claimed.finalizationToken,
+			...(promotion ? { promotion } : {}),
+		},
+		db,
+	);
+	await deleteObject(staging).catch(() => undefined);
+	return toMediaAssetDto(asset);
+}
 
 function storedMultipartParts(value: unknown): Array<{ partNumber: number; etag: string }> {
 	const parsed = multipartPartsSchema.safeParse(value);

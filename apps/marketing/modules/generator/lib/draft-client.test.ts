@@ -1,9 +1,18 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const guestUploadMocks = vi.hoisted(() => ({
+	uploadGuestDraft: vi.fn(),
+}));
+
+vi.mock("./guest-upload-client", () => ({
+	uploadGuestDraft: guestUploadMocks.uploadGuestDraft,
+}));
+
 import {
 	createMarketingDraft,
 	DRAFT_HANDOFF_INTENT,
 	submitMarketingDraftHandoff,
+	uploadGuestDraft,
 } from "./draft-client";
 import * as draftClientModule from "./draft-client";
 
@@ -20,6 +29,28 @@ type MarketingImageFileValidator = (
 	file: { size: number; type: string },
 	maximumBytes: number,
 ) => void;
+
+describe("signed guest upload facade", () => {
+	afterEach(() => vi.clearAllMocks());
+
+	it("exposes the direct private-upload workflow through the draft client", async () => {
+		const input = {
+			saasUrl: "https://app.example.com",
+			capabilityVersion: "guest-v17",
+			file: new File([new Uint8Array(8)], "source.png", { type: "image/png" }),
+			prompt: "Replace the background",
+			turnstileToken: "turnstile-proof",
+		};
+		const handoff = {
+			action: "https://app.example.com/draft/continue",
+			claimToken: "a".repeat(43),
+		};
+		guestUploadMocks.uploadGuestDraft.mockResolvedValue(handoff);
+
+		await expect(uploadGuestDraft(input)).resolves.toEqual(handoff);
+		expect(guestUploadMocks.uploadGuestDraft).toHaveBeenCalledWith(input);
+	});
+});
 
 describe("buildMarketingImageEditDraft", () => {
 	it("builds a selected Standard or Quality image-to-image draft with a required upload", () => {

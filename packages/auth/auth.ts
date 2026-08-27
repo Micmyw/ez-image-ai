@@ -21,7 +21,10 @@ import { admin, anonymous, magicLink, openAPI, organization, twoFactor } from "b
 import { parseCookie as parseCookies } from "cookie";
 
 import { config } from "./config";
-import { runRegisteredUserCreatedLifecycle } from "./lib/anonymous-boundary";
+import {
+	getAnonymousBootstrapEmail,
+	runRegisteredUserCreatedLifecycle,
+} from "./lib/anonymous-boundary";
 import { updateSeatsInOrganizationSubscription } from "./lib/organization";
 import { cancelOrganizationSubscriptionsBeforeDeletion } from "./lib/organization-deletion";
 import { invitationOnlyPlugin } from "./plugins/invitation-only";
@@ -220,7 +223,10 @@ export const auth = betterAuth({
 	},
 	plugins: [
 		admin(),
-		anonymous({ disableDeleteAnonymousUser: true }),
+		anonymous({
+			disableDeleteAnonymousUser: true,
+			generateRandomEmail: getAnonymousBootstrapEmail,
+		}),
 		passkey(),
 		magicLink({
 			disableSignUp: false,

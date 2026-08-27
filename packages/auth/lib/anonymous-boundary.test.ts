@@ -3,7 +3,9 @@ import { describe, expect, it, vi } from "vitest";
 import {
 	assertAnonymousSession,
 	assertRegisteredSession,
+	getAnonymousBootstrapEmail,
 	isAnonymousUser,
+	runAnonymousBootstrapIdentity,
 	runRegisteredUserCreatedLifecycle,
 } from "./anonymous-boundary";
 
@@ -50,5 +52,20 @@ describe("anonymous authentication boundary", () => {
 			runRegisteredUserCreatedLifecycle({ id: "registered", isAnonymous: false }, lifecycle),
 		).resolves.toBe(true);
 		expect(lifecycle).toHaveBeenCalledWith("registered");
+	});
+
+	it("keeps deterministic bootstrap emails request-local and unavailable by default", async () => {
+		expect(() => getAnonymousBootstrapEmail()).toThrow("GUEST_BOOTSTRAP_CONTEXT_REQUIRED");
+
+		await expect(
+			Promise.all(
+				["guest-a@anonymous.invalid", "guest-b@anonymous.invalid"].map((email) =>
+					runAnonymousBootstrapIdentity(email, async () => {
+						await Promise.resolve();
+						return getAnonymousBootstrapEmail();
+					}),
+				),
+			),
+		).resolves.toEqual(["guest-a@anonymous.invalid", "guest-b@anonymous.invalid"]);
 	});
 });
