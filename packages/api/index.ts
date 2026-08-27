@@ -310,21 +310,19 @@ async function handleDurableGuestAnonymousSignIn(request: Request): Promise<Resp
 			},
 			async ({ email }) => {
 				const response = await runAnonymousBootstrapIdentity(email, () => auth.handler(request));
-				if (!response.ok) throw new GuestAuthHandlerResponseError(response);
+				if (!response.ok) {
+					throw new GuestAuthHandlerResponseError("GUEST_BOOTSTRAP_FAILED", 403);
+				}
 				const payload = (await response.clone().json()) as { user?: { id?: unknown } };
 				if (typeof payload.user?.id !== "string") {
-					throw new GuestAuthHandlerResponseError(
-						guestAuthErrorResponse("GUEST_PRINCIPAL_INVALID", 500),
-					);
+					throw new GuestAuthHandlerResponseError("GUEST_PRINCIPAL_INVALID", 500);
 				}
 				const canonicalUser = await db.user.findFirst({
 					where: { id: payload.user.id, email, isAnonymous: true },
 					select: { id: true },
 				});
 				if (!canonicalUser) {
-					throw new GuestAuthHandlerResponseError(
-						guestAuthErrorResponse("GUEST_PRINCIPAL_INVALID", 500),
-					);
+					throw new GuestAuthHandlerResponseError("GUEST_PRINCIPAL_INVALID", 500);
 				}
 				return { userId: payload.user.id, value: response };
 			},
@@ -340,7 +338,9 @@ async function handleDurableGuestAnonymousSignIn(request: Request): Promise<Resp
 			: withExpiredGuestBootstrapCookie(result.value);
 	} catch (error) {
 		if (error instanceof GuestAuthHandlerResponseError) {
-			return withExpiredGuestBootstrapCookie(error.response);
+			return withExpiredGuestBootstrapCookie(
+				guestAuthErrorResponse(error.publicCode, error.publicStatus),
+			);
 		}
 		const failure = stableGuestAuthFailure(error);
 		return withExpiredGuestBootstrapCookie(guestAuthErrorResponse(failure.code, failure.status));
@@ -366,8 +366,11 @@ export function stableGuestAuthFailure(error: unknown): {
 }
 
 class GuestAuthHandlerResponseError extends Error {
-	constructor(readonly response: Response) {
-		super("GUEST_AUTH_HANDLER_REJECTED");
+	constructor(
+		readonly publicCode: "GUEST_BOOTSTRAP_FAILED" | "GUEST_PRINCIPAL_INVALID",
+		readonly publicStatus: StatusCode,
+	) {
+		super(publicCode);
 	}
 }
 

@@ -139,6 +139,69 @@ describe("anonymous Better Auth wildcard boundary", () => {
 		expect(await response.json()).toEqual({ code: "GUEST_BOOTSTRAP_FAILED" });
 	});
 
+	it("waits for lease cleanup and maps a non-OK Better Auth response without leaking it", async () => {
+		vi.stubEnv("GUEST_PROMOTION_PERIOD", "2026-launch");
+		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", "https://app.test");
+		vi.stubEnv("BETTER_AUTH_SECRET", "test-secret");
+		vi.stubEnv("MEDIA_TRUSTED_PROXY_PROVIDER", "cloudflare");
+		databaseMocks.hasDurableGuestBootstrapProof.mockResolvedValue(true);
+		databaseMocks.resolveGuestRuntimeConfigOverride.mockResolvedValue({ enabled: true });
+		let cleanupStarted!: () => void;
+		const cleanupStartedSignal = new Promise<void>((resolve) => {
+			cleanupStarted = resolve;
+		});
+		let releaseCleanup!: () => void;
+		const cleanupRelease = new Promise<void>((resolve) => {
+			releaseCleanup = resolve;
+		});
+		databaseMocks.consumeGuestBootstrap.mockImplementation(
+			async (_input, createPrincipal: (input: { email: string }) => Promise<unknown>) => {
+				try {
+					return await createPrincipal({ email: "guest@anonymous.invalid" });
+				} catch (error) {
+					cleanupStarted();
+					await cleanupRelease;
+					throw error;
+				}
+			},
+		);
+		vi.mocked(auth.handler).mockResolvedValue(
+			new Response("Prisma auth failure: password=do-not-expose", {
+				status: 418,
+				headers: {
+					"set-cookie": "leaked_session=do-not-expose; HttpOnly",
+					"x-auth-debug": "internal-constraint-detail",
+				},
+			}),
+		);
+
+		let responseSettled = false;
+		const responsePromise = Promise.resolve(
+			app.request("/api/auth/sign-in/anonymous", {
+				method: "POST",
+				headers: {
+					origin: "https://app.test",
+					"cf-connecting-ip": "203.0.113.10",
+					cookie: `media_guest_bootstrap=${"a".repeat(43)}`,
+				},
+			}),
+		).then((response) => {
+			responseSettled = true;
+			return response;
+		});
+		await cleanupStartedSignal;
+		expect(responseSettled).toBe(false);
+		releaseCleanup();
+		const response = await responsePromise;
+		const body = await response.text();
+
+		expect(response.status).toBe(403);
+		expect(JSON.parse(body)).toEqual({ code: "GUEST_BOOTSTRAP_FAILED" });
+		expect(body).not.toContain("password");
+		expect(response.headers.get("x-auth-debug")).toBeNull();
+		expect(response.headers.get("set-cookie")).not.toContain("leaked_session");
+	});
+
 	it("rejects existing users attempting to replace their session with an anonymous one", async () => {
 		vi.mocked(auth.api.getSession).mockResolvedValue({
 			user: { id: "registered", isAnonymous: false },
