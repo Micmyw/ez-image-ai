@@ -33,10 +33,12 @@ describe("Free monthly credits", () => {
 		);
 	});
 
-	it("returns without a ledger call for an anonymous Better Auth user", async () => {
-		await expect(
-			ensureFreePlanCreditsForUser({ id: "guest-1", isAnonymous: true }),
-		).resolves.toEqual({ status: "ANONYMOUS_USER" });
-		expect(database.ensureFreeMonthlyCreditGrant).not.toHaveBeenCalled();
+	it("delegates identity classification to the authoritative transactional helper", async () => {
+		await ensureFreePlanCreditsForUser("guest-1");
+
+		expect(database.ensureFreeMonthlyCreditGrant).toHaveBeenCalledWith(
+			expect.objectContaining({ ownerId: "guest-1" }),
+			databaseClient.db,
+		);
 	});
 });

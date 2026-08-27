@@ -68,7 +68,6 @@ describe("Free monthly credit grants", () => {
 					ownerId,
 					amount: 25n,
 					now: new Date("2026-08-25T06:00:00.000Z"),
-					isAnonymous: user.isAnonymous,
 				},
 				client,
 			),
@@ -81,9 +80,22 @@ describe("Free monthly credit grants", () => {
 		).toBe(0);
 	});
 
+	it("fails closed before ledger writes when the authoritative user row is missing", async () => {
+		const ownerId = `${OWNER_PREFIX}-missing`;
+
+		await expect(
+			ensureFreeMonthlyCreditGrant(
+				{ ownerId, amount: 25n, now: new Date("2026-08-25T06:00:00.000Z") },
+				client,
+			),
+		).resolves.toEqual({ status: "USER_NOT_FOUND" });
+		expect(await client.creditAccount.count({ where: { ownerType: "USER", ownerId } })).toBe(0);
+	});
+
 	it("creates one existing-ledger grant for the UTC month", async () => {
 		const ownerId = `${OWNER_PREFIX}-grant`;
 		const now = new Date("2026-08-25T06:00:00.000Z");
+		await createRegisteredUser(ownerId);
 
 		await expect(
 			ensureFreeMonthlyCreditGrant({ ownerId, amount: 25n, now }, client),
@@ -125,6 +137,7 @@ describe("Free monthly credit grants", () => {
 
 	it("is idempotent for replays and concurrent requests", async () => {
 		const ownerId = `${OWNER_PREFIX}-concurrent`;
+		await createRegisteredUser(ownerId);
 		const input = {
 			ownerId,
 			amount: 25n,
@@ -177,6 +190,7 @@ describe("Free monthly credit grants", () => {
 		},
 	])("handles a paid $label without stacking Free credits", async (scenario) => {
 		const ownerId = `${OWNER_PREFIX}-${scenario.status.toLowerCase()}-${crypto.randomUUID()}`;
+		await createRegisteredUser(ownerId);
 		const plan = await client.billingPlan.create({
 			data: {
 				provider: PLAN_PROVIDER,
@@ -216,6 +230,21 @@ describe("Free monthly credit grants", () => {
 	});
 });
 
+async function createRegisteredUser(ownerId: string): Promise<void> {
+	const user = await client.user.create({
+		data: {
+			id: ownerId,
+			name: "Registered",
+			email: `${ownerId}@example.test`,
+			emailVerified: true,
+			isAnonymous: false,
+			createdAt: new Date("2026-08-25T06:00:00.000Z"),
+			updatedAt: new Date("2026-08-25T06:00:00.000Z"),
+		},
+	});
+	userIds.push(user.id);
+}
+
 function safeTestDatabaseUrl(): string {
 	if (!TEST_DATABASE_URL) {
 		throw new Error("BLOCKED_BY_ENVIRONMENT: TEST_DATABASE_URL is required");
@@ -224,6 +253,10 @@ function safeTestDatabaseUrl(): string {
 		throw new Error("UNSAFE_TEST_DATABASE: TEST_DATABASE_URL must not equal DATABASE_URL");
 	}
 	const parsed = new URL(TEST_DATABASE_URL);
+	const databaseName = parsed.pathname.slice(1);
+	if (process.env.CI === "true" && databaseName !== "ai_media_foundation_test") {
+		throw new Error("UNSAFE_TEST_DATABASE: expected the canonical CI test database");
+	}
 	if (
 		(parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") ||
 		!/test|testing/i.test(parsed.pathname)

@@ -11,7 +11,7 @@ const developmentEnvironment = {
 
 describe("guest media configuration", () => {
 	it("exposes the fixed Standard trial envelope in non-production", () => {
-		expect(getGuestMediaConfig(developmentEnvironment, null)).toMatchObject({
+		expect(getGuestMediaConfig(developmentEnvironment, true)).toMatchObject({
 			enabled: true,
 			reason: null,
 			promotionPeriod: "2026-launch",
@@ -24,17 +24,30 @@ describe("guest media configuration", () => {
 		});
 	});
 
-	it("requires both the environment gate and an enabled database override", () => {
-		expect(
-			getGuestMediaConfig(developmentEnvironment, {
+	it.each([null, undefined, false, { enabled: true }, { enabled: false }])(
+		"requires the exact literal runtime override for %j",
+		(runtimeOverride) => {
+			expect(getGuestMediaConfig(developmentEnvironment, runtimeOverride)).toMatchObject({
 				enabled: false,
-				promotionPeriod: "2026-launch",
-			}),
-		).toMatchObject({ enabled: false, reason: "GUEST_RUNTIME_DISABLED" });
+				reason: "GUEST_RUNTIME_DISABLED",
+			});
+		},
+	);
+
+	it("requires both the environment gate and the literal runtime override", () => {
 		expect(
 			getGuestMediaConfig({ ...developmentEnvironment, GUEST_MEDIA_ENABLED: "false" }, true),
 		).toMatchObject({ enabled: false, reason: "GUEST_ENVIRONMENT_DISABLED" });
 	});
+
+	it.each([undefined, "", "staging", "preview", false])(
+		"fails closed for missing or unknown NODE_ENV %j",
+		(nodeEnvironment) => {
+			expect(
+				getGuestMediaConfig({ ...developmentEnvironment, NODE_ENV: nodeEnvironment }, true),
+			).toMatchObject({ enabled: false, reason: "GUEST_ENVIRONMENT_INVALID" });
+		},
+	);
 
 	it("fails closed when production guest cost evidence or hard-budget evidence is absent", () => {
 		expect(

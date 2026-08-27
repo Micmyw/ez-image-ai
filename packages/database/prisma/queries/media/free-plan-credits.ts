@@ -6,11 +6,11 @@ export interface EnsureFreeMonthlyCreditGrantInput {
 	ownerId: string;
 	amount: bigint;
 	now: Date;
-	isAnonymous?: boolean;
 }
 
 export type EnsureFreeMonthlyCreditGrantResult =
 	| { status: "ANONYMOUS_USER" }
+	| { status: "USER_NOT_FOUND" }
 	| { status: "PAID_SUBSCRIPTION"; referenceKey: string }
 	| { status: "GRANTED"; referenceKey: string; accountId: string };
 
@@ -18,7 +18,6 @@ export async function ensureFreeMonthlyCreditGrant(
 	input: EnsureFreeMonthlyCreditGrantInput,
 	client: MediaTransactionClient,
 ): Promise<EnsureFreeMonthlyCreditGrantResult> {
-	if (input.isAnonymous === true) return { status: "ANONYMOUS_USER" };
 	if (input.amount <= 0n) throw new Error("Free monthly credit amount must be positive");
 	if (Number.isNaN(input.now.getTime())) throw new Error("Free monthly credit date is invalid");
 
@@ -30,6 +29,12 @@ export async function ensureFreeMonthlyCreditGrant(
 	return runSerializable(client, async (tx) => {
 		await tx.$queryRaw<Array<{ locked: string }>>`
 			SELECT pg_advisory_xact_lock(hashtextextended(${referenceKey}, 0))::text AS "locked"`;
+		const user = await tx.user.findUnique({
+			where: { id: input.ownerId },
+			select: { isAnonymous: true },
+		});
+		if (!user) return { status: "USER_NOT_FOUND" };
+		if (user.isAnonymous) return { status: "ANONYMOUS_USER" };
 
 		const paidSubscription = await findEffectivePaidSubscription(
 			{ ownerType: "USER", ownerId: input.ownerId, now: input.now },

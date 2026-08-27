@@ -3,6 +3,7 @@ import { randomBytes, randomUUID } from "node:crypto";
 import { auth } from "@repo/auth";
 import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
 import {
+	type GuestMediaRuntimeOverride,
 	getGuestMediaConfig,
 	validateEzPicLaunchEnvironment,
 	validateServerEnvironment,
@@ -25,6 +26,20 @@ import { mediaLoadTestHandler } from "./modules/testing/media-load";
 import { openApiHandler, rpcHandler } from "./orpc/handler";
 
 export { router } from "./orpc/router";
+
+type MaybePromise<T> = T | Promise<T>;
+
+export interface ApiAppDependencies {
+	hasGuestBootstrapProof: (request: Request) => MaybePromise<boolean>;
+	hasGuestLinkIntent: (request: Request, guestUserId: string) => MaybePromise<boolean>;
+	resolveGuestRuntimeOverride: (request: Request) => MaybePromise<GuestMediaRuntimeOverride>;
+}
+
+const defaultApiAppDependencies: ApiAppDependencies = {
+	hasGuestBootstrapProof: () => false,
+	hasGuestLinkIntent: () => false,
+	resolveGuestRuntimeOverride: () => null,
+};
 
 const providerWebhookVerifiers = createProviderWebhookVerifierRegistry();
 const providerWebhookHandler = createProviderWebhookHandler({
@@ -51,139 +66,175 @@ const providerWebhookHandler = createProviderWebhookHandler({
 		tasks.trigger("media-process-provider-webhook", payload).then(() => undefined),
 });
 
-export const app = new Hono()
-	.basePath("/api")
-	// Correlation values are bounded and validated before entering structured logs.
-	.use("*", async (c, next) => {
-		const requestId = trustedRequestId(c.req.header("x-request-id")) ?? randomUUID();
-		const traceId = trustedTraceId(c.req.header("traceparent")) ?? randomBytes(16).toString("hex");
-		return await withLogContext(
-			{
-				requestId,
-				traceId,
-				deploymentVersion:
-					process.env.DEPLOYMENT_VERSION ?? process.env.VERCEL_GIT_COMMIT_SHA ?? undefined,
-			},
-			async () => {
-				await next();
-				c.header("x-request-id", requestId);
-				c.header("x-trace-id", traceId);
-			},
-		);
-	})
-	// Size is enforced on both declared and streamed bodies. Webhooks keep the reconstructed raw bytes.
-	.use("*", boundedRequestBody)
-	// Logger middleware
-	.use(honoLogger((message, ...rest) => logger.log(message, ...rest)))
-	// Cors middleware
-	.use(
-		cors({
-			origin: (origin, context) => {
-				const saasOrigin = getBaseUrl(process.env.NEXT_PUBLIC_SAAS_URL, 3000);
-				const marketingOrigin = process.env.NEXT_PUBLIC_MARKETING_URL;
-				if (
-					context.req.path.endsWith("/media/drafts") &&
-					marketingOrigin &&
-					origin === marketingOrigin
-				) {
-					return marketingOrigin;
-				}
-				return origin === saasOrigin ? saasOrigin : null;
-			},
-			allowHeaders: ["Content-Type", "Authorization"],
-			allowMethods: ["POST", "GET", "OPTIONS"],
-			exposeHeaders: ["Content-Length"],
-			maxAge: 600,
-			credentials: false,
-		}),
-	)
-	// Auth handler
-	.on(["POST", "GET"], "/auth/**", async (c) => {
-		const authPath = c.req.path.slice(c.req.path.indexOf("/auth") + "/auth".length);
-		const session = await auth.api.getSession({ headers: c.req.raw.headers });
-		if (authPath === "/sign-in/anonymous") {
-			if (c.req.method !== "POST" || !getGuestMediaConfig(process.env, null).enabled) {
-				return c.json({ code: "NOT_FOUND" }, 404);
-			}
-			if (session) return c.json({ code: "ANONYMOUS_SESSION_REPLACEMENT_FORBIDDEN" }, 403);
-			return auth.handler(c.req.raw);
-		}
-		if (session && isAnonymousUser(session.user) && !isAnonymousAuthPath(authPath)) {
-			return c.json({ code: "ANONYMOUS_AUTH_ROUTE_FORBIDDEN" }, 403);
-		}
-		return auth.handler(c.req.raw);
-	})
-	// Payments webhook handler
-	.post("/webhooks/payments", (c) => paymentsWebhookHandler(c.req.raw))
-	// Provider webhooks must receive the untouched raw body before the oRPC catch-all.
-	.post("/webhooks/ai/:provider", (c) => providerWebhookHandler(c.req.param("provider"), c.req.raw))
-	.post("/webhooks/moderation/:provider", (c) => c.json({ code: "WEBHOOK_NOT_SUPPORTED" }, 404))
-	// Pure process liveness; no dependencies or business effects.
-	.get("/health", (c) => c.json({ status: "alive" }))
-	// Deliberately absent unless the guarded local/staging load-test environment is explicit.
-	.post("/testing/media-load", mediaLoadTestHandler)
-	// Read-only readiness checks. Storage access is metadata-only.
-	.get("/ready", async (c) => {
-		const checks = await Promise.allSettled([
-			Promise.resolve().then(() =>
-				validateServerEnvironment(process.env, { requireProviderCredentials: false }),
-			),
-			db.$queryRaw`SELECT 1 AS "ready"`,
-			checkStorageMetadataAccess(),
-			Promise.resolve().then(() => assertTriggerConfiguration()),
-			Promise.resolve().then(() => assertEzPicLaunchReadinessEnvironment()),
-		]);
-		const ready = checks.every((check) => check.status === "fulfilled");
-		const session = await auth.api.getSession({ headers: c.req.raw.headers });
-		const isAdmin = session?.user.role === "admin";
-		return c.json(
-			{
-				status: ready ? "ready" : "not_ready",
-				...(isAdmin
-					? {
-							checks: ["configuration", "database", "storage", "trigger", "launch"].map(
-								(name, index) => ({
-									name,
-									ok: checks[index]?.status === "fulfilled",
-									error: checks[index]?.status === "rejected" ? safeReadinessError() : undefined,
-								}),
-							),
+export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
+	const boundaryDependencies: ApiAppDependencies = {
+		hasGuestBootstrapProof:
+			dependencies.hasGuestBootstrapProof ?? defaultApiAppDependencies.hasGuestBootstrapProof,
+		hasGuestLinkIntent:
+			dependencies.hasGuestLinkIntent ?? defaultApiAppDependencies.hasGuestLinkIntent,
+		resolveGuestRuntimeOverride:
+			dependencies.resolveGuestRuntimeOverride ??
+			defaultApiAppDependencies.resolveGuestRuntimeOverride,
+	};
+
+	return (
+		new Hono()
+			.basePath("/api")
+			// Correlation values are bounded and validated before entering structured logs.
+			.use("*", async (c, next) => {
+				const requestId = trustedRequestId(c.req.header("x-request-id")) ?? randomUUID();
+				const traceId =
+					trustedTraceId(c.req.header("traceparent")) ?? randomBytes(16).toString("hex");
+				return await withLogContext(
+					{
+						requestId,
+						traceId,
+						deploymentVersion:
+							process.env.DEPLOYMENT_VERSION ?? process.env.VERCEL_GIT_COMMIT_SHA ?? undefined,
+					},
+					async () => {
+						await next();
+						c.header("x-request-id", requestId);
+						c.header("x-trace-id", traceId);
+					},
+				);
+			})
+			// Size is enforced on both declared and streamed bodies. Webhooks keep the reconstructed raw bytes.
+			.use("*", boundedRequestBody)
+			// Logger middleware
+			.use(honoLogger((message, ...rest) => logger.log(message, ...rest)))
+			// Cors middleware
+			.use(
+				cors({
+					origin: (origin, context) => {
+						const saasOrigin = getBaseUrl(process.env.NEXT_PUBLIC_SAAS_URL, 3000);
+						const marketingOrigin = process.env.NEXT_PUBLIC_MARKETING_URL;
+						if (
+							context.req.path.endsWith("/media/drafts") &&
+							marketingOrigin &&
+							origin === marketingOrigin
+						) {
+							return marketingOrigin;
 						}
-					: {}),
-			},
-			ready ? 200 : 503,
-		);
-	})
-	// oRPC handlers (for RPC and OpenAPI)
-	.use("*", async (c, next) => {
-		const { requestId, traceId } = getLogContext();
-		const context = {
-			headers: new Headers(c.req.raw.headers),
-			responseHeaders: new Headers(),
-			requestId,
-			traceId,
-		};
+						return origin === saasOrigin ? saasOrigin : null;
+					},
+					allowHeaders: ["Content-Type", "Authorization"],
+					allowMethods: ["POST", "GET", "OPTIONS"],
+					exposeHeaders: ["Content-Length"],
+					maxAge: 600,
+					credentials: false,
+				}),
+			)
+			// Auth handler
+			.on(["POST", "GET"], "/auth/**", async (c) => {
+				const authPath = c.req.path.slice(c.req.path.indexOf("/auth") + "/auth".length);
+				const session = await auth.api.getSession({ headers: c.req.raw.headers });
+				if (authPath === "/sign-in/anonymous") {
+					if (c.req.method !== "POST") {
+						return c.json({ code: "NOT_FOUND" }, 404);
+					}
+					const runtimeOverride = await boundaryDependencies.resolveGuestRuntimeOverride(c.req.raw);
+					if (!getGuestMediaConfig(process.env, runtimeOverride).enabled) {
+						return c.json({ code: "NOT_FOUND" }, 404);
+					}
+					if (session) return c.json({ code: "ANONYMOUS_SESSION_REPLACEMENT_FORBIDDEN" }, 403);
+					if (!(await boundaryDependencies.hasGuestBootstrapProof(c.req.raw))) {
+						return c.json({ code: "GUEST_BOOTSTRAP_PROOF_REQUIRED" }, 403);
+					}
+					return auth.handler(c.req.raw);
+				}
+				if (session && isAnonymousUser(session.user)) {
+					if (isAnonymousSessionAuthRoute(c.req.method, authPath)) {
+						return auth.handler(c.req.raw);
+					}
+					if (isGuestLinkAuthRoute(c.req.method, authPath)) {
+						if (await boundaryDependencies.hasGuestLinkIntent(c.req.raw, session.user.id)) {
+							return auth.handler(c.req.raw);
+						}
+						return c.json({ code: "GUEST_LINK_INTENT_REQUIRED" }, 403);
+					}
+					return c.json({ code: "ANONYMOUS_AUTH_ROUTE_FORBIDDEN" }, 403);
+				}
+				return auth.handler(c.req.raw);
+			})
+			// Payments webhook handler
+			.post("/webhooks/payments", (c) => paymentsWebhookHandler(c.req.raw))
+			// Provider webhooks must receive the untouched raw body before the oRPC catch-all.
+			.post("/webhooks/ai/:provider", (c) =>
+				providerWebhookHandler(c.req.param("provider"), c.req.raw),
+			)
+			.post("/webhooks/moderation/:provider", (c) => c.json({ code: "WEBHOOK_NOT_SUPPORTED" }, 404))
+			// Pure process liveness; no dependencies or business effects.
+			.get("/health", (c) => c.json({ status: "alive" }))
+			// Deliberately absent unless the guarded local/staging load-test environment is explicit.
+			.post("/testing/media-load", mediaLoadTestHandler)
+			// Read-only readiness checks. Storage access is metadata-only.
+			.get("/ready", async (c) => {
+				const checks = await Promise.allSettled([
+					Promise.resolve().then(() =>
+						validateServerEnvironment(process.env, { requireProviderCredentials: false }),
+					),
+					db.$queryRaw`SELECT 1 AS "ready"`,
+					checkStorageMetadataAccess(),
+					Promise.resolve().then(() => assertTriggerConfiguration()),
+					Promise.resolve().then(() => assertEzPicLaunchReadinessEnvironment()),
+				]);
+				const ready = checks.every((check) => check.status === "fulfilled");
+				const session = await auth.api.getSession({ headers: c.req.raw.headers });
+				const isAdmin = session?.user.role === "admin";
+				return c.json(
+					{
+						status: ready ? "ready" : "not_ready",
+						...(isAdmin
+							? {
+									checks: ["configuration", "database", "storage", "trigger", "launch"].map(
+										(name, index) => ({
+											name,
+											ok: checks[index]?.status === "fulfilled",
+											error:
+												checks[index]?.status === "rejected" ? safeReadinessError() : undefined,
+										}),
+									),
+								}
+							: {}),
+					},
+					ready ? 200 : 503,
+				);
+			})
+			// oRPC handlers (for RPC and OpenAPI)
+			.use("*", async (c, next) => {
+				const { requestId, traceId } = getLogContext();
+				const context = {
+					headers: new Headers(c.req.raw.headers),
+					responseHeaders: new Headers(),
+					requestId,
+					traceId,
+				};
 
-		const isRpc = c.req.path.includes("/rpc/");
+				const isRpc = c.req.path.includes("/rpc/");
 
-		const handler = isRpc ? rpcHandler : openApiHandler;
+				const handler = isRpc ? rpcHandler : openApiHandler;
 
-		const prefix = isRpc ? "/api/rpc" : "/api";
+				const prefix = isRpc ? "/api/rpc" : "/api";
 
-		const { matched, response } = await handler.handle(c.req.raw, {
-			prefix,
-			context,
-		});
+				const { matched, response } = await handler.handle(c.req.raw, {
+					prefix,
+					context,
+				});
 
-		if (matched) {
-			const outgoing = c.newResponse(response.body, response.status as StatusCode);
-			for (const [name, value] of response.headers) outgoing.headers.append(name, value);
-			for (const [name, value] of context.responseHeaders) outgoing.headers.append(name, value);
-			return outgoing;
-		}
+				if (matched) {
+					const outgoing = c.newResponse(response.body, response.status as StatusCode);
+					for (const [name, value] of response.headers) outgoing.headers.append(name, value);
+					for (const [name, value] of context.responseHeaders) outgoing.headers.append(name, value);
+					return outgoing;
+				}
 
-		await next();
-	});
+				await next();
+			})
+	);
+}
+
+export const app = createApiApp();
 
 function assertTriggerConfiguration(): void {
 	if (!process.env.TRIGGER_SECRET_KEY) throw new Error("Trigger credentials are missing");
@@ -200,26 +251,25 @@ function safeReadinessError(): string {
 	return "Readiness check failed";
 }
 
-const ANONYMOUS_AUTH_PATHS = [
-	"/get-session",
-	"/sign-out",
-	"/sign-in/email",
-	"/sign-up/email",
-	"/sign-in/social",
-	"/callback/",
-	"/oauth2/callback/",
-	"/magic-link/verify",
-	"/verify-email",
-	"/email-otp/verify-email",
-	"/one-tap/callback",
-	"/passkey/verify-authentication",
-	"/phone-number/verify",
-] as const;
+const ANONYMOUS_SESSION_AUTH_ROUTES = new Set(["GET /get-session", "POST /sign-out"]);
 
-function isAnonymousAuthPath(path: string): boolean {
-	return ANONYMOUS_AUTH_PATHS.some((allowed) =>
-		allowed.endsWith("/") ? path.startsWith(allowed) : path === allowed,
-	);
+const GUEST_LINK_AUTH_ROUTES = new Set([
+	"POST /sign-in/email",
+	"POST /sign-up/email",
+	"POST /sign-in/magic-link",
+	"GET /magic-link/verify",
+	"POST /sign-in/social",
+	"GET /callback/google",
+	"GET /callback/github",
+	"GET /verify-email",
+]);
+
+function isAnonymousSessionAuthRoute(method: string, path: string): boolean {
+	return ANONYMOUS_SESSION_AUTH_ROUTES.has(`${method} ${path}`);
+}
+
+function isGuestLinkAuthRoute(method: string, path: string): boolean {
+	return GUEST_LINK_AUTH_ROUTES.has(`${method} ${path}`);
 }
 
 const DEFAULT_BODY_LIMIT_BYTES = 1024 * 1024;

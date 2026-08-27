@@ -1,6 +1,7 @@
 export const GUEST_MEDIA_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
 export type GuestMediaDisabledReason =
+	| "GUEST_ENVIRONMENT_INVALID"
 	| "GUEST_ENVIRONMENT_DISABLED"
 	| "GUEST_RUNTIME_DISABLED"
 	| "GUEST_PROMOTION_PERIOD_REQUIRED"
@@ -16,12 +17,7 @@ export interface GuestAdmissionLimits {
 	maximumGlobalQueueDepth: number;
 }
 
-export interface GuestMediaRuntimeOverride {
-	enabled: boolean;
-	promotionPeriod?: string | null;
-	costEvidenceId?: string | null;
-	hardBudgetMicros?: bigint | null;
-}
+export type GuestMediaRuntimeOverride = boolean | null | undefined;
 
 export interface GuestMediaConfig {
 	enabled: boolean;
@@ -73,26 +69,28 @@ const FIXED_GUEST_MEDIA_CONFIG = {
 
 export function getGuestMediaConfig(
 	environment: Record<string, unknown>,
-	runtimeOverride: GuestMediaRuntimeOverride | boolean | null,
+	runtimeOverride: unknown,
 ): GuestMediaConfig {
-	const nodeEnvironment = stringValue(environment.NODE_ENV) ?? "development";
+	const nodeEnvironment = stringValue(environment.NODE_ENV);
 	const production = nodeEnvironment === "production";
-	const override = normalizeRuntimeOverride(runtimeOverride);
-	const promotionPeriod =
-		override?.promotionPeriod ?? normalizedPromotionPeriod(environment.GUEST_PROMOTION_PERIOD);
-	const costEvidenceId =
-		override?.costEvidenceId ?? normalizedNonEmptyString(environment.GUEST_COST_EVIDENCE_ID);
-	const hardBudgetMicros =
-		override?.hardBudgetMicros ?? positiveBigInt(environment.GUEST_HARD_BUDGET_MICROS);
+	const promotionPeriod = normalizedPromotionPeriod(environment.GUEST_PROMOTION_PERIOD);
+	const costEvidenceId = normalizedNonEmptyString(environment.GUEST_COST_EVIDENCE_ID);
+	const hardBudgetMicros = positiveBigInt(environment.GUEST_HARD_BUDGET_MICROS);
 	const riskBudgetMicros = positiveBigInt(environment.GUEST_RISK_BUDGET_MICROS) ?? BigInt(250_000);
 	const siteKey = normalizedNonEmptyString(environment.NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY);
 	const secretKey = normalizedNonEmptyString(environment.GUEST_TURNSTILE_SECRET_KEY);
 	const proxyProvider = trustedProxyProvider(environment.MEDIA_TRUSTED_PROXY_PROVIDER);
 
 	let reason: GuestMediaDisabledReason | null = null;
-	if (environment.GUEST_MEDIA_ENABLED !== "true") {
+	if (
+		nodeEnvironment !== "development" &&
+		nodeEnvironment !== "test" &&
+		nodeEnvironment !== "production"
+	) {
+		reason = "GUEST_ENVIRONMENT_INVALID";
+	} else if (environment.GUEST_MEDIA_ENABLED !== "true") {
 		reason = "GUEST_ENVIRONMENT_DISABLED";
-	} else if (override?.enabled === false) {
+	} else if (runtimeOverride !== true) {
 		reason = "GUEST_RUNTIME_DISABLED";
 	} else if (!promotionPeriod) {
 		reason = "GUEST_PROMOTION_PERIOD_REQUIRED";
@@ -119,24 +117,6 @@ export function getGuestMediaConfig(
 			required: production,
 		}),
 	});
-}
-
-function normalizeRuntimeOverride(
-	value: GuestMediaRuntimeOverride | boolean | null,
-): GuestMediaRuntimeOverride | null {
-	if (value === null) return null;
-	if (typeof value === "boolean") return { enabled: value };
-	return {
-		...value,
-		promotionPeriod: normalizedPromotionPeriod(value.promotionPeriod),
-		costEvidenceId: normalizedNonEmptyString(value.costEvidenceId),
-		hardBudgetMicros:
-			value.hardBudgetMicros !== undefined && value.hardBudgetMicros !== null
-				? value.hardBudgetMicros > BigInt(0)
-					? value.hardBudgetMicros
-					: null
-				: undefined,
-	};
 }
 
 function normalizedPromotionPeriod(value: unknown): string | null {
