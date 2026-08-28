@@ -120,7 +120,7 @@ describe("guest generation admission", () => {
 			guestAdmissionInput(oldFixture, {
 				idempotencyKey: "guest-old-promotion",
 				maximumGlobalQueueDepth: 1,
-				riskBudgetMicros: 3_500n,
+				riskBudgetMicros: 4_000n,
 			}),
 		);
 		await client.generationJob.update({
@@ -129,7 +129,7 @@ describe("guest generation admission", () => {
 		});
 		await client.guestMediaTrial.update({
 			where: { id: oldAdmission.trialId },
-			data: { riskState: "COMMITTED" },
+			data: { riskState: "COMMITTED", providerBoundaryAt: oldFixture.now },
 		});
 		await client.guestAbuseBucket.create({
 			data: {
