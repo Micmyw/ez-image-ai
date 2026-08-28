@@ -10,6 +10,7 @@ const testState = vi.hoisted(() => {
 		refCursor: 0,
 		states: [] as unknown[],
 		submit: vi.fn(() => Promise.resolve()),
+		beginLink: vi.fn(),
 		turnstile: vi.fn(() => null),
 	};
 });
@@ -58,7 +59,7 @@ vi.mock("../../hooks/use-guest-trial", () => ({
 			viewStatus: vi.fn(),
 			viewResult: vi.fn(),
 			download: vi.fn(),
-			beginLink: vi.fn(),
+			beginLink: testState.beginLink,
 		},
 	}),
 }));
@@ -123,6 +124,19 @@ describe("GuestTrialWorkspace Turnstile recovery", () => {
 
 		expect(findElement(tree, (element) => element.type === Turnstile)?.props.resetKey).toBe(1);
 		expect(visibleText(tree)).toContain("retryChallenge");
+	});
+
+	it("routes the guest Quality upgrade through the existing signup link fence", () => {
+		const tree = renderWorkspace();
+		const qualityUpgrade = findElement(
+			tree,
+			(element) => element.type === "button" && visibleText(element).includes("qualityCta"),
+		);
+
+		callbackProp<() => void>(qualityUpgrade, "onClick")?.();
+
+		expect(testState.beginLink).toHaveBeenCalledOnce();
+		expect(testState.beginLink).toHaveBeenCalledWith("signup");
 	});
 });
 

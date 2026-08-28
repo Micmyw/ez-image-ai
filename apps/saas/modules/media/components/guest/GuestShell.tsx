@@ -31,13 +31,18 @@ export function GuestShell({ children }: PropsWithChildren) {
 		<GuestLinkContext.Provider value={context}>
 			<div className="text-slate-950 min-h-screen bg-[radial-gradient(circle_at_top,#ede9fe_0,transparent_34rem),linear-gradient(180deg,#f8fafc,#fff)]">
 				<header className="border-violet-100 bg-white/80 backdrop-blur-xl border-b">
-					<div className="min-h-16 gap-4 px-4 sm:px-6 lg:px-8 mx-auto flex max-w-[90rem] items-center justify-between">
-						<Logo label="EzPic" className="text-slate-950" />
-						<nav aria-label={t("brand")} className="gap-2 flex items-center">
+					<div className="min-h-16 gap-2 px-4 sm:gap-4 sm:px-6 lg:px-8 mx-auto flex max-w-[90rem] items-center justify-between">
+						<div className="flex shrink-0 items-center">
+							<Logo label="EzPic" withLabel={false} className="text-slate-950" />
+							<span className="ml-2 text-base font-semibold text-slate-950 sm:text-lg leading-none">
+								EzPic
+							</span>
+						</div>
+						<nav aria-label={t("brand")} className="min-w-0 gap-1 sm:gap-2 flex items-center">
 							<Button
 								type="button"
 								variant="ghost"
-								className="min-h-11"
+								className="min-h-11 px-2 text-xs sm:px-4 sm:text-sm"
 								disabled={!linkHandler}
 								onClick={() => linkHandler?.("login")}
 							>
@@ -46,7 +51,7 @@ export function GuestShell({ children }: PropsWithChildren) {
 							<Button
 								type="button"
 								variant="primary"
-								className="min-h-11 bg-indigo-600 hover:bg-indigo-700"
+								className="min-h-11 bg-indigo-600 px-2 text-xs hover:bg-indigo-700 sm:px-4 sm:text-sm"
 								disabled={!linkHandler}
 								onClick={() => linkHandler?.("signup")}
 							>

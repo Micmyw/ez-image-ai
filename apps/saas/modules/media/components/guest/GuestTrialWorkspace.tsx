@@ -4,7 +4,7 @@ import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { Turnstile } from "@repo/ui/components/turnstile";
-import { CheckIcon, ImageIcon } from "lucide-react";
+import { ArrowRightIcon, CheckIcon, ImageIcon, LockKeyholeIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
@@ -92,7 +92,7 @@ export function GuestTrialWorkspace({ registered = false }: { registered?: boole
 									</span>
 									<div>
 										<p className="text-sm font-semibold text-slate-950">{t("sourceReady")}</p>
-										<p className="mt-0.5 text-xs text-slate-500">{t("temporary")}</p>
+										<p className="mt-0.5 text-xs text-slate-500">{t("sourceHandoff")}</p>
 									</div>
 								</div>
 							</div>
@@ -109,7 +109,7 @@ export function GuestTrialWorkspace({ registered = false }: { registered?: boole
 									onChange={(event) => trial.setPrompt(event.target.value)}
 								/>
 								<p className="mt-1 text-xs text-slate-500 text-right tabular-nums">
-									{trial.prompt.length.toLocaleString()} / 10,000
+									{t("characterCount", { count: trial.prompt.length, maximum: 10_000 })}
 								</p>
 							</div>
 							<div className="space-y-2 border-violet-200 bg-violet-50/70 p-3 rounded-xl border">
@@ -128,10 +128,21 @@ export function GuestTrialWorkspace({ registered = false }: { registered?: boole
 								</div>
 								<button
 									type="button"
-									className="min-h-11 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:text-violet-800 focus-visible:outline-violet-600 w-full rounded-xl text-left transition focus-visible:outline-2 focus-visible:outline-offset-2"
+									aria-label={t("qualityCta")}
+									className="group min-h-11 gap-3 border-violet-200 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:border-violet-300 hover:bg-violet-100/70 hover:text-violet-900 focus-visible:outline-violet-600 flex w-full items-center justify-between rounded-xl border text-left transition focus-visible:outline-2 focus-visible:outline-offset-2"
 									onClick={() => void trial.actions.beginLink("signup")}
 								>
-									{t("qualityCta")}
+									<span className="min-w-0 gap-2 flex items-center">
+										<LockKeyholeIcon
+											className="size-4 text-violet-700 shrink-0"
+											aria-hidden="true"
+										/>
+										<span>{t("qualityCta")}</span>
+									</span>
+									<ArrowRightIcon
+										className="size-4 text-violet-600 group-hover:translate-x-0.5 shrink-0 transition-transform"
+										aria-hidden="true"
+									/>
 								</button>
 								<p className="text-xs leading-5 text-slate-600">{t("freeQueue")}</p>
 								<p className="text-xs leading-5 text-slate-600">{t("temporary")}</p>

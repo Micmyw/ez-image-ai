@@ -9,9 +9,22 @@ const mocks = vi.hoisted(() => ({ useGuestTrial: vi.fn() }));
 vi.mock("next-intl", () => ({
 	useTranslations: () => (key: string, values?: Record<string, unknown>) => {
 		const date = typeof values?.date === "string" ? values.date : "";
+		const count = typeof values?.count === "number" ? values.count : 0;
+		const maximum = typeof values?.maximum === "number" ? values.maximum : 0;
 		return (
 			{
+				sourceReady: "Private source ready",
+				sourceHandoff: "Transferred privately for this edit",
+				promptLabel: "Edit instruction",
+				characterCount: `${count} / ${maximum}`,
+				standard: "Standard Edit",
+				oneOutput: "One output",
+				freeQueue: "Free queue",
+				temporary: "Watermarked · available for up to 24 hours",
+				temporaryCompact: "Watermarked · temporary",
+				resultPlaceholder: "Your watermarked result will appear here.",
 				"states.waiting": "Waiting in the free queue",
+				"states.preparingSession": "Preparing your private guest session",
 				"states.delayed": "This is taking longer than expected",
 				"states.ready": "Your watermarked preview is ready",
 				"states.failed": "This edit could not be completed",
@@ -36,9 +49,11 @@ vi.mock("../../hooks/use-guest-trial", () => ({ useGuestTrial: mocks.useGuestTri
 vi.mock("@repo/ui/components/button", () => ({
 	Button: ({
 		children,
+		loading: _loading,
 		render,
 		...props
 	}: React.ButtonHTMLAttributes<HTMLButtonElement> & {
+		loading?: boolean;
 		render?: (props: Record<string, unknown>) => React.ReactNode;
 	}) => (render ? render({ ...props, children }) : <button {...props}>{children}</button>),
 }));
@@ -74,6 +89,7 @@ describe("GuestTrialWorkspace", () => {
 
 	it("reserves one stable result card and offers explicit status navigation", () => {
 		const markup = renderToStaticMarkup(<GuestTrialWorkspace />);
+		const visibleText = markup.replaceAll(/<[^>]+>/g, " ");
 
 		expect(markup).toContain('aria-live="polite"');
 		expect(markup).toContain('aria-busy="true"');
@@ -82,6 +98,8 @@ describe("GuestTrialWorkspace", () => {
 		expect(markup).toContain("sm:grid-cols-2");
 		expect(markup).toContain("min-[1200px]:grid-cols-[minmax(20rem,0.9fr)_minmax(0,1.25fr)]");
 		expect(markup).not.toContain("lg:grid-cols-");
+		expect(visibleText.match(/Waiting in the free queue/g)).toHaveLength(1);
+		expect(visibleText).toContain("Your watermarked result will appear here.");
 		expect(markup).not.toMatch(/\d+%|queue position|history|edit again|cancel/i);
 	});
 
@@ -107,9 +125,11 @@ describe("GuestTrialWorkspace", () => {
 		const markup = renderToStaticMarkup(<GuestTrialWorkspace />);
 		const visibleText = markup.replaceAll(/<[^>]+>/g, " ");
 
-		expect(markup).toMatch(
-			/<button[^>]*type="button"[^>]*>Quality Edit · Creator or Studio<\/button>/,
-		);
+		const qualityButton = markup.match(
+			/<button[^>]*type="button"[^>]*aria-label="Quality Edit · Creator or Studio"[^>]*>(.*?)<\/button>/s,
+		)?.[1];
+		expect(qualityButton).toBeDefined();
+		expect(qualityButton?.match(/<svg/g)).toHaveLength(2);
 		expect(markup).not.toMatch(/href="[^"]*(?:pricing|billing)/i);
 		expect(markup).not.toMatch(/type="radio"[^>]*Quality/i);
 		expect(markup).toMatch(
@@ -130,6 +150,33 @@ describe("GuestTrialWorkspace", () => {
 				expect(messages.media.guest[key], `${locale}: media.guest.${key}`).toBeDefined();
 			}
 		}
+	});
+
+	it("keeps result retention claims off the private source handoff and localizes the count", () => {
+		mocks.useGuestTrial.mockReturnValue({
+			view: { state: "preparingSession" },
+			draft: { sourceAssetId: "private-source-id", prompt: "Keep the subject" },
+			prompt: "Keep the subject",
+			setPrompt: vi.fn(),
+			canSubmit: true,
+			isSubmitting: false,
+			resultUrl: null,
+			actions: {
+				submit: vi.fn(),
+				viewStatus: vi.fn(),
+				viewResult: vi.fn(),
+				download: vi.fn(),
+				beginLink: vi.fn(),
+			},
+		});
+
+		const markup = renderToStaticMarkup(<GuestTrialWorkspace />);
+		const visibleText = markup.replaceAll(/<[^>]+>/g, " ");
+
+		expect(visibleText).toContain("Transferred privately for this edit");
+		expect(visibleText.match(/Watermarked · available for up to 24 hours/g)).toHaveLength(1);
+		expect(visibleText).toContain("16 / 10000");
+		expect(markup).not.toContain("private-source-id");
 	});
 
 	it("shows the private watermarked result, exact expiry, download, and fenced account actions", () => {
