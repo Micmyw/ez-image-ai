@@ -638,7 +638,23 @@ async function findGuestAdmissionReplay(
 		include: {
 			quote: true,
 			guestTrial: { include: { linkIntents: { take: 1, select: { state: true } } } },
-			assets: { include: { asset: true } },
+			assets: {
+				include: {
+					asset: {
+						include: {
+							moderationResults: {
+								orderBy: [
+									{ verificationGeneration: "desc" },
+									{ attemptNumber: "desc" },
+									{ createdAt: "desc" },
+									{ id: "desc" },
+								],
+								take: 1,
+							},
+						},
+					},
+				},
+			},
 		},
 	});
 	if (!existing) return null;
@@ -661,7 +677,9 @@ async function findGuestAdmissionReplay(
 	const output = outputBinding?.asset;
 	const watermarked = Boolean(
 		existing.status === "SUCCEEDED" &&
-		isGuestWatermarkedOutput(outputBinding, input.ownerId, trial.expiresAt, input.now),
+		isGuestWatermarkedOutput(outputBinding, input.ownerId, trial.expiresAt, input.now) &&
+		output &&
+		hasCurrentApprovedMediaAssetEvidence(output, { ...input.assetModeration, now: input.now }),
 	);
 	return {
 		jobId: existing.id,

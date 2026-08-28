@@ -317,6 +317,40 @@ describe("guest generation admission", () => {
 		).resolves.toEqual([0, 0, 0]);
 	});
 
+	it.each([
+		["current approved", {}, false, "READY", true] as const,
+		["stale provider", { provider: "stale-provider" }, false, "FINISHING", false] as const,
+		["stale rule", { ruleVersion: "stale-rule" }, false, "FINISHING", false] as const,
+		["stale policy", { policyVersion: "stale-policy" }, false, "FINISHING", false] as const,
+		["latest rejected", {}, true, "FINISHING", false] as const,
+	])(
+		"replays a succeeded admission with %s result evidence",
+		async (label, outputVerification, appendRejectedEvidence, expectedStage, expectedReady) => {
+			const fixture = await createGuestFixture(`result-replay-${label.replaceAll(" ", "-")}`);
+			const input = guestAdmissionInput(fixture, {
+				idempotencyKey: `guest-result-replay-${label.replaceAll(" ", "-")}`,
+			});
+			const admitted = await createGuestAdmission(input);
+			const resultAssetId = await finalizeGuestAdmissionResultForReplay({
+				fixture,
+				jobId: admitted.jobId,
+				resultExpiresAt: admitted.resultExpiresAt,
+				outputVerification,
+				appendRejectedEvidence,
+			});
+
+			const replay = await createGuestAdmission(input);
+
+			expect(replay).toMatchObject({
+				jobId: admitted.jobId,
+				trialId: admitted.trialId,
+				stage: expectedStage,
+				watermarked: expectedReady,
+				resultAssetId: expectedReady ? resultAssetId : null,
+			});
+		},
+	);
+
 	async function createGuestFixture(label: string, now = new Date()) {
 		const suffix = `${label}-${randomUUID()}`;
 		const ownerId = `guest-${suffix}`;
@@ -436,6 +470,123 @@ describe("guest generation admission", () => {
 			sourceSessionHash,
 			validUntil,
 		};
+	}
+
+	async function finalizeGuestAdmissionResultForReplay(input: {
+		fixture: GuestFixture;
+		jobId: string;
+		resultExpiresAt: Date;
+		outputVerification: Partial<{
+			provider: string;
+			ruleVersion: string;
+			policyVersion: string;
+		}>;
+		appendRejectedEvidence: boolean;
+	}) {
+		const suffix = randomUUID();
+		const assetId = `result-${suffix}`;
+		const checksum = hashFixture(`result:${suffix}`);
+		const provider = input.outputVerification.provider ?? "test";
+		const ruleVersion = input.outputVerification.ruleVersion ?? "media-safety-rule-v1";
+		const policyVersion = input.outputVerification.policyVersion ?? "media-safety-policy-v1";
+		const providerTaskId = `moderation-${suffix}`;
+
+		await client.mediaAsset.create({
+			data: {
+				id: assetId,
+				ownerType: "USER",
+				ownerId: input.fixture.ownerId,
+				kind: "OUTPUT",
+				status: "VERIFYING",
+				retentionClass: "GUEST_TRIAL",
+				deleteAfter: input.resultExpiresAt,
+				watermarkVersion: "ezpic-watermark-v1",
+				watermarkedAt: input.fixture.now,
+				cleanStagingDeletedAt: input.fixture.now,
+				objectKey: `users/${input.fixture.ownerId}/assets/${assetId}/watermarked.png`,
+				mimeType: "image/png",
+				byteSize: 1024n,
+				checksum,
+				finalizedAt: input.fixture.now,
+				verificationGeneration: 1,
+				verificationAttemptCount: 1,
+				verificationProvider: provider,
+				verificationProviderTaskId: providerTaskId,
+				verificationRuleVersion: ruleVersion,
+				verificationPolicyVersion: policyVersion,
+				verificationValidUntil: input.resultExpiresAt,
+			},
+		});
+		await client.assetModerationResult.create({
+			data: {
+				assetId,
+				assetChecksum: checksum,
+				verificationGeneration: 1,
+				attemptNumber: 1,
+				evidenceKind: "OUTPUT",
+				provider,
+				providerTaskId,
+				ruleVersion,
+				policyVersion,
+				status: "APPROVED",
+				reasonCode: "ALLOW",
+				categories: {},
+				rawEnvelope: {},
+				validUntil: input.resultExpiresAt,
+			},
+		});
+		await client.mediaAsset.update({ where: { id: assetId }, data: { status: "READY" } });
+		if (input.appendRejectedEvidence) {
+			await client.assetModerationResult.create({
+				data: {
+					assetId,
+					assetChecksum: checksum,
+					verificationGeneration: 1,
+					attemptNumber: 2,
+					evidenceKind: "OUTPUT",
+					provider,
+					providerTaskId: `${providerTaskId}-rejected`,
+					ruleVersion,
+					policyVersion,
+					status: "REJECTED",
+					reasonCode: "POLICY_REJECTED",
+					categories: {},
+					rawEnvelope: {},
+					validUntil: null,
+				},
+			});
+		}
+		await client.generationJobAsset.create({
+			data: {
+				jobId: input.jobId,
+				assetId,
+				assetChecksum: checksum,
+				role: "OUTPUT",
+				position: 0,
+			},
+		});
+		await client.generationJob.update({
+			where: { id: input.jobId },
+			data: { status: "SUCCEEDED", terminalAt: input.fixture.now },
+		});
+		await client.guestMediaTrial.update({
+			where: {
+				ownerId_promotionPeriod: {
+					ownerId: input.fixture.ownerId,
+					promotionPeriod: input.fixture.promotionPeriod,
+				},
+			},
+			data: {
+				eligibility: "CONSUMED",
+				currentJobId: null,
+				consumedJobId: input.jobId,
+				riskState: "COMMITTED",
+				providerBoundaryAt: input.fixture.now,
+				consumedAt: input.fixture.now,
+				terminalAt: input.fixture.now,
+			},
+		});
+		return assetId;
 	}
 });
 
