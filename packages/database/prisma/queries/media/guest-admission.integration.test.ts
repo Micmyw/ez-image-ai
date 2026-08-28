@@ -4,6 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
+import { getAdminMediaDiagnostics } from "./admin-diagnostics";
 import { createGuestGenerationTransaction } from "./guest-admission";
 import { expireGuestJobBeforeProvider } from "./guest-retention";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
@@ -98,7 +99,7 @@ describe("guest generation admission", () => {
 					maximumGlobalQueueDepth: 1,
 				}),
 			),
-		).rejects.toThrow("GUEST_CAPACITY_UNAVAILABLE");
+		).rejects.toThrow("GUEST_QUEUE_CAPACITY");
 		await expect(
 			Promise.all([
 				client.guestMediaTrial.count({ where: { ownerId: rejected.ownerId } }),
@@ -107,6 +108,128 @@ describe("guest generation admission", () => {
 				client.creditAccount.count({ where: { ownerId: rejected.ownerId } }),
 			]),
 		).resolves.toEqual([0, 0, 0, 0]);
+	});
+
+	it("keeps old promotion queue and failures out of current admission and diagnostics", async () => {
+		const oldFixture = await createGuestFixture(
+			"old-promotion",
+			new Date("2026-08-28T00:00:00.000Z"),
+			"promotion-old",
+		);
+		const oldAdmission = await createGuestAdmission(
+			guestAdmissionInput(oldFixture, {
+				idempotencyKey: "guest-old-promotion",
+				maximumGlobalQueueDepth: 1,
+				riskBudgetMicros: 3_500n,
+			}),
+		);
+		await client.generationJob.update({
+			where: { id: oldAdmission.jobId },
+			data: { failureCode: "GUEST_WATERMARK_FAILED" },
+		});
+		await client.guestMediaTrial.update({
+			where: { id: oldAdmission.trialId },
+			data: { riskState: "COMMITTED" },
+		});
+		await client.guestAbuseBucket.create({
+			data: {
+				scope: "guest-denial:promotion-old:QUEUE_CAPACITY",
+				subjectHash: hashFixture("old-denial"),
+				windowStart: new Date(0),
+				windowEnd: new Date(1),
+				rejectionCount: 1n,
+				expiresAt: oldFixture.validUntil,
+			},
+		});
+
+		const currentFixture = await createGuestFixture(
+			"current-promotion",
+			new Date("2026-08-28T00:00:00.000Z"),
+			"promotion-current",
+		);
+		await expect(
+			createGuestAdmission(
+				guestAdmissionInput(currentFixture, {
+					idempotencyKey: "guest-current-promotion",
+					maximumGlobalQueueDepth: 1,
+				}),
+			),
+		).resolves.toMatchObject({ stage: "WAITING" });
+
+		const diagnostics = await getAdminMediaDiagnostics(client, {
+			guestEnvironmentEnabled: true,
+			guestPromotionPeriod: "promotion-current",
+			guestRiskBudgetMicros: 350_000n,
+		});
+		expect(diagnostics.guest.watermark.failed).toBe(0);
+		expect(diagnostics.guest.admission.deniedByReason).toEqual([]);
+		expect(diagnostics.guest.admission.accepted).toBe(1);
+		expect(diagnostics.guest.risk.heldMicros).toBe("3500");
+	});
+
+	it("doubles the queue estimate at 75 percent risk and rejects at 90 percent", async () => {
+		const slowFixture = await createGuestFixture(
+			"risk-slow",
+			new Date("2026-08-28T00:00:00.000Z"),
+			"promotion-slow",
+		);
+		await client.guestRiskBudgetBucket.create({
+			data: {
+				promotionPeriod: slowFixture.promotionPeriod,
+				subjectHash: "global",
+				reservedMicros: 262_500n,
+				hardLimitMicros: 350_000n,
+				expiresAt: slowFixture.validUntil,
+			},
+		});
+		const slow = await createGuestAdmission(
+			guestAdmissionInput(slowFixture, { idempotencyKey: "guest-risk-slow" }),
+		);
+		expect(slow.projectedDispatchAt).toEqual(new Date(slowFixture.now.getTime() + 120_000));
+
+		const closedFixture = await createGuestFixture(
+			"risk-closed",
+			new Date("2026-08-28T00:00:00.000Z"),
+			"promotion-closed",
+		);
+		await client.guestRiskBudgetBucket.create({
+			data: {
+				promotionPeriod: closedFixture.promotionPeriod,
+				subjectHash: "global",
+				reservedMicros: 315_000n,
+				hardLimitMicros: 350_000n,
+				expiresAt: closedFixture.validUntil,
+			},
+		});
+		await expect(
+			createGuestAdmission(
+				guestAdmissionInput(closedFixture, { idempotencyKey: "guest-risk-closed" }),
+			),
+		).rejects.toThrow("GUEST_RISK_CAPACITY");
+	});
+
+	it("persists one idempotent global-rate denial after the business transaction rolls back", async () => {
+		const first = await createGuestFixture("rate-first");
+		await createGuestAdmission(
+			guestAdmissionInput(first, {
+				idempotencyKey: "guest-rate-first",
+				maximumRequestsPerMinute: 1,
+			}),
+		);
+		const denied = await createGuestFixture("rate-denied");
+		const input = guestAdmissionInput(denied, {
+			idempotencyKey: "guest-rate-denied",
+			maximumRequestsPerMinute: 1,
+		});
+
+		await expect(createGuestAdmission(input)).rejects.toThrow("GUEST_GLOBAL_RATE_LIMIT");
+		await expect(createGuestAdmission(input)).rejects.toThrow("GUEST_GLOBAL_RATE_LIMIT");
+		await expect(
+			client.guestAbuseBucket.aggregate({
+				where: { scope: `guest-denial:${denied.promotionPeriod}:GLOBAL_RATE_LIMIT` },
+				_sum: { rejectionCount: true },
+			}),
+		).resolves.toMatchObject({ _sum: { rejectionCount: 1n } });
 	});
 
 	it("projects admission in capacity waves instead of multiplying every queued job", async () => {
@@ -351,7 +474,11 @@ describe("guest generation admission", () => {
 		},
 	);
 
-	async function createGuestFixture(label: string, now = new Date()) {
+	async function createGuestFixture(
+		label: string,
+		now = new Date(),
+		promotionPeriod = "launch-2026-08",
+	) {
 		const suffix = `${label}-${randomUUID()}`;
 		const ownerId = `guest-${suffix}`;
 		const sessionId = `session-${suffix}`;
@@ -361,7 +488,6 @@ describe("guest generation admission", () => {
 		const draftId = `draft-${suffix}`;
 		const bootstrapId = `bootstrap-${suffix}`;
 		const checksum = hashFixture(`asset:${suffix}`);
-		const promotionPeriod = "launch-2026-08";
 		const validUntil = new Date(now.getTime() + 24 * 60 * 60_000);
 		await client.user.create({
 			data: {
@@ -608,8 +734,10 @@ function guestAdmissionInput(
 	fixture: GuestFixture,
 	overrides: {
 		idempotencyKey: string;
+		maximumRequestsPerMinute?: number;
 		maximumGlobalQueueDepth?: number;
 		queueCapacity?: number;
+		riskBudgetMicros?: bigint;
 	},
 ) {
 	const quoteBase = {
@@ -656,9 +784,9 @@ function guestAdmissionInput(
 		maximumBytes: 10 * 1024 * 1024,
 		maximumGlobalQueueDepth: overrides.maximumGlobalQueueDepth ?? 100,
 		maximumActiveJobsPerGuest: 1,
-		maximumRequestsPerMinute: 100,
+		maximumRequestsPerMinute: overrides.maximumRequestsPerMinute ?? 100,
 		maximumRequestsPerIpPerHour: 100,
-		riskBudgetMicros: 350_000n,
+		riskBudgetMicros: overrides.riskBudgetMicros ?? 350_000n,
 		sponsorCredits: 4n,
 		assetModeration: {
 			provider: "test",

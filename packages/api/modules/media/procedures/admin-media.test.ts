@@ -1,5 +1,5 @@
 import { call } from "@orpc/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database", () => ({
@@ -42,7 +42,12 @@ const context = { context: { headers: new Headers() } };
 describe("media administration authorization and safe DTOs", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.stubEnv("GUEST_MEDIA_ENABLED", "true");
+		vi.stubEnv("GUEST_PROMOTION_PERIOD", "review-period");
+		vi.stubEnv("GUEST_RISK_BUDGET_MICROS", "100000");
 	});
+
+	afterEach(() => vi.unstubAllEnvs());
 
 	it("rejects diagnostics before touching the database for non-admin users", async () => {
 		vi.mocked(auth.api.getSession).mockResolvedValue({
@@ -165,6 +170,14 @@ describe("media administration authorization and safe DTOs", () => {
 		} as never);
 
 		const result = await call(adminMediaDiagnostics, undefined, context);
+		expect(getAdminMediaDiagnostics).toHaveBeenCalledWith(
+			{},
+			{
+				guestEnvironmentEnabled: true,
+				guestPromotionPeriod: "review-period",
+				guestRiskBudgetMicros: 100_000n,
+			},
+		);
 		const serialized = JSON.stringify(result);
 		expect(serialized).not.toMatch(
 			/prompt|rawPayload|requestBody|responseBody|envelope|secret|signature|signedUrl|objectKey|sourceUrl|token|url/i,

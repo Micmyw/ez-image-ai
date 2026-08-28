@@ -17,7 +17,7 @@ test("public SaaS shell resources contain no competitor or internal route expres
 		}
 	});
 
-	await page.goto("/login");
+	await page.goto("/try");
 	await expect(page.getByRole("heading")).toBeVisible();
 	for (const resource of responses) {
 		expect(resource.url, resource.url).not.toMatch(forbiddenPublicArtifactPattern);

@@ -87,8 +87,12 @@ export function evaluateGuestOperationalSafety(input: GuestOperationalSafetyInpu
 
 export interface AdminMediaDiagnosticsOptions {
 	guestEnvironmentEnabled?: boolean;
+	guestPromotionPeriod?: string;
 	guestRiskBudgetMicros?: bigint;
-	applyAutomaticGuestClosure?: boolean;
+}
+
+export interface MonitorGuestOperationalSafetyOptions extends AdminMediaDiagnosticsOptions {
+	now?: Date;
 }
 
 const PAYMENT_EVENT_DIAGNOSTIC_LIMIT = 25;
@@ -737,15 +741,20 @@ async function getAdminGuestDiagnostics(
 	client: MediaTransactionClient,
 	now: Date,
 	options: AdminMediaDiagnosticsOptions,
+	applyAutomaticGuestClosure = false,
 ) {
 	const uncertainBefore = new Date(now.getTime() - 10 * 60_000);
 	const cleanupOverdueBefore = new Date(now.getTime() - 30 * 60_000);
+	const promotionPeriod = options.guestPromotionPeriod ?? "";
+	const denialScopePrefix = `guest-denial:${promotionPeriod}:`;
 	const [rows, denialRows, runtimeOverride] = await Promise.all([
 		client.$queryRaw<Array<GuestDiagnosticRow>>`
-			WITH guest_job AS (
+			WITH guest_trial AS (
+				SELECT * FROM "guest_media_trial" WHERE "promotionPeriod" = ${promotionPeriod}
+			), guest_job AS (
 				SELECT job.*, trial."frozenQuotedRiskMicros", trial."riskState"::text AS "trialRiskState"
 				FROM "generation_job" job
-				JOIN "guest_media_trial" trial ON trial."id" = job."guestTrialId"
+				JOIN guest_trial trial ON trial."id" = job."guestTrialId"
 				WHERE job."serviceClass" = 'GUEST_SLOW'::"GenerationServiceClass"
 			), guest_attempt AS (
 				SELECT attempt.*, job."frozenQuotedRiskMicros"
@@ -765,7 +774,7 @@ async function getAdminGuestDiagnostics(
 				         result."attemptNumber" DESC, result."createdAt" DESC, result."id" DESC
 			)
 			SELECT
-			 (SELECT COUNT(*) FROM "guest_media_trial")::bigint AS accepted,
+			 (SELECT COUNT(*) FROM guest_trial)::bigint AS accepted,
 			 COUNT(*) FILTER (WHERE job."status" IN ('RESERVED','DISPATCH_QUEUED'))::bigint AS "queueDepth",
 			 EXTRACT(EPOCH FROM (${now} - MIN(job."createdAt") FILTER
 			   (WHERE job."status" IN ('RESERVED','DISPATCH_QUEUED'))))::double precision AS "oldestQueueAgeSeconds",
@@ -776,15 +785,16 @@ async function getAdminGuestDiagnostics(
 			   EXTRACT(EPOCH FROM (job."dispatchEligibleAt" - job."createdAt")) * 1000)
 			   FILTER (WHERE job."dispatchEligibleAt" IS NOT NULL))::numeric)::bigint AS "waitP95Ms",
 			 COUNT(*) FILTER (WHERE job."failureCode" = 'GUEST_QUEUE_EXPIRED')::bigint AS "expiredBeforeDispatch",
-			 COALESCE((SELECT SUM(trial."frozenQuotedRiskMicros") FROM "guest_media_trial" trial
+			 COALESCE((SELECT SUM(trial."frozenQuotedRiskMicros") FROM guest_trial trial
 			   WHERE trial."riskState" = 'HELD'::"GuestRiskState"), 0)::bigint AS "heldRiskMicros",
-			 COALESCE((SELECT SUM(trial."frozenQuotedRiskMicros") FROM "guest_media_trial" trial
+			 COALESCE((SELECT SUM(trial."frozenQuotedRiskMicros") FROM guest_trial trial
 			   WHERE trial."riskState" = 'COMMITTED'::"GuestRiskState"), 0)::bigint AS "committedRiskMicros",
-			 COALESCE((SELECT SUM(trial."frozenQuotedRiskMicros") FROM "guest_media_trial" trial
+			 COALESCE((SELECT SUM(trial."frozenQuotedRiskMicros") FROM guest_trial trial
 			   WHERE trial."riskState" = 'RELEASED'::"GuestRiskState"), 0)::bigint AS "releasedRiskMicros",
 			 COALESCE((SELECT SUM(entry."amount") FROM "credit_ledger_entry" entry
-			   WHERE entry."type" = 'GRANT'::"CreditLedgerEntryType"
-			     AND entry."referenceKey" LIKE 'guest-trial:%:grant'), 0)::bigint AS "sponsorGranted",
+			   JOIN guest_trial trial
+			     ON entry."referenceKey" = 'guest-trial:' || trial."id" || ':grant'
+			   WHERE entry."type" = 'GRANT'::"CreditLedgerEntryType"), 0)::bigint AS "sponsorGranted",
 			 COALESCE(SUM(reservation."amount"), 0)::bigint AS "sponsorReserved",
 			 COALESCE(SUM(reservation."settledAmount"), 0)::bigint AS "sponsorSettled",
 			 COALESCE(SUM(reservation."releasedAmount"), 0)::bigint AS "sponsorReleased",
@@ -813,14 +823,17 @@ async function getAdminGuestDiagnostics(
 			   WHERE asset."kind" = 'OUTPUT' AND asset."status" = 'READY'
 			     AND asset."watermarkVersion" IS NOT NULL)::bigint AS "readyResults",
 			 (SELECT COUNT(*) FROM "guest_result_access_grant" grant_row
+			   JOIN guest_trial trial ON trial."id" = grant_row."trialId"
 			   WHERE grant_row."consumedAt" IS NOT NULL)::bigint AS "grantsCompleted",
 			 (SELECT COUNT(*) FROM "guest_result_access_grant" grant_row
+			   JOIN guest_trial trial ON trial."id" = grant_row."trialId"
 			   WHERE grant_row."expiresAt" <= ${now})::bigint AS "expiredGrants",
 			 (SELECT COUNT(*) FROM guest_asset asset
 			   WHERE asset."deleteAfter" <= ${now} AND asset."deletedAt" IS NULL)::bigint AS "expiredAssets",
 			 (SELECT COUNT(*) FROM guest_asset asset
 			   WHERE asset."deleteAfter" <= ${cleanupOverdueBefore} AND asset."deletedAt" IS NULL)::bigint AS "overdueAssets",
 			 (SELECT COUNT(*) FROM "outbox_event" outbox
+			   JOIN guest_asset asset ON asset."id" = outbox."aggregateId"
 			   WHERE outbox."status" = 'DEAD_LETTER' AND outbox."eventType" IN
 			     ('MEDIA_OBJECT_DELETE','MEDIA_UPLOAD_CLEANUP','MEDIA_MULTIPART_ABORT'))::bigint AS "cleanupDeadLetterEvents",
 			 EXTRACT(EPOCH FROM (${now} - (SELECT MIN(asset."deleteAfter") FROM guest_asset asset
@@ -828,16 +841,11 @@ async function getAdminGuestDiagnostics(
 			FROM guest_job job
 			LEFT JOIN "credit_reservation" reservation ON reservation."jobId" = job."id"`,
 		client.$queryRaw<Array<GuestDenialRow>>`
-			SELECT CASE
-			  WHEN "scope" LIKE '%turnstile%' THEN 'TURNSTILE_REPLAY'
-			  WHEN "scope" LIKE '%device%' THEN 'DEVICE_LIMIT'
-			  WHEN "scope" LIKE '%subnet%' THEN 'SUBNET_RATE_LIMIT'
-			  WHEN "scope" LIKE '%ip%' THEN 'IP_RATE_LIMIT'
-			  WHEN "scope" LIKE '%global%' THEN 'GLOBAL_RATE_LIMIT'
-			  ELSE 'OTHER_RATE_LIMIT'
-			 END AS reason, SUM("rejectionCount")::bigint AS count
+			SELECT substr("scope", char_length(${denialScopePrefix}) + 1) AS reason,
+			       SUM("rejectionCount")::bigint AS count
 			FROM "guest_abuse_bucket"
-			WHERE "rejectionCount" > 0
+			WHERE left("scope", char_length(${denialScopePrefix})) = ${denialScopePrefix}
+			  AND "rejectionCount" > 0
 			GROUP BY reason
 			ORDER BY reason`,
 		client.runtimeConfigOverride.findFirst({
@@ -863,7 +871,7 @@ async function getAdminGuestDiagnostics(
 	let runtimeEnabled = runtimeOverride?.value === true;
 	if (
 		options.guestEnvironmentEnabled === true &&
-		options.applyAutomaticGuestClosure === true &&
+		applyAutomaticGuestClosure &&
 		safety.automaticOverride &&
 		runtimeEnabled
 	) {
@@ -939,6 +947,13 @@ async function getAdminGuestDiagnostics(
 			automaticClosureReasons: safety.closureReasons,
 		},
 	};
+}
+
+export async function monitorGuestOperationalSafety(
+	client: MediaTransactionClient,
+	options: MonitorGuestOperationalSafetyOptions,
+) {
+	return getAdminGuestDiagnostics(client, options.now ?? new Date(), options, true);
 }
 
 async function closeGuestAdmissionForSafety(

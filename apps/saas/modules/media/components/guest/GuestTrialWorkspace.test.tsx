@@ -112,6 +112,9 @@ describe("GuestTrialWorkspace", () => {
 		);
 		expect(markup).not.toMatch(/href="[^"]*(?:pricing|billing)/i);
 		expect(markup).not.toMatch(/type="radio"[^>]*Quality/i);
+		expect(markup).toMatch(
+			/data-test="guest-standard-selection"[^>]*aria-current="true"[^>]*>.*?<svg/s,
+		);
 		expect(visibleText).toContain("Quality Edit · Creator or Studio");
 		for (const locale of ["en", "de", "es", "fr"]) {
 			const messages = JSON.parse(

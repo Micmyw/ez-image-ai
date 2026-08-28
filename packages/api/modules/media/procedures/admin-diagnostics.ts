@@ -219,8 +219,8 @@ export const adminMediaDiagnostics = adminProcedure
 	.handler(async () => {
 		const diagnostics = await getAdminMediaDiagnostics(db, {
 			guestEnvironmentEnabled: process.env.GUEST_MEDIA_ENABLED === "true",
+			guestPromotionPeriod: process.env.GUEST_PROMOTION_PERIOD ?? "",
 			guestRiskBudgetMicros: guestRiskBudgetMicros(process.env.GUEST_RISK_BUDGET_MICROS),
-			applyAutomaticGuestClosure: true,
 		});
 		return { ...diagnostics, guest: guestDiagnosticsSchema.parse(diagnostics.guest) };
 	});

@@ -4,23 +4,30 @@ import { submitGuestGenerationForGuest } from "./guest-admission";
 
 describe("guest admission pre-transaction boundary", () => {
 	it.each([
-		["oversized source", { byteSize: 10_485_761n }, "GUEST_INPUT_UNAVAILABLE", 4n],
+		["oversized source", { byteSize: 10_485_761n }, "GUEST_INPUT_UNAVAILABLE", 4n, "INPUT"],
 		[
 			"stale source",
 			{ verificationValidUntil: new Date("2026-08-27T23:59:59.999Z") },
 			"GUEST_INPUT_UNAVAILABLE",
 			4n,
+			"INPUT",
 		],
-		["wrong product price", {}, "GUEST_PRICE_CHANGED", 5n],
+		["wrong product price", {}, "GUEST_PRICE_CHANGED", 5n, "QUOTE"],
 	] as const)(
 		"creates no business graph for %s",
-		async (_label, assetOverride, errorCode, quoteCredits) => {
+		async (_label, assetOverride, errorCode, quoteCredits, denialReason) => {
 			const dependencies = validDependencies({ assetOverride, quoteCredits });
 
 			await expect(
 				submitGuestGenerationForGuest(validBoundary(), validInput(), dependencies),
 			).rejects.toThrow(errorCode);
 			expect(dependencies.createTransaction).not.toHaveBeenCalled();
+			expect(dependencies.recordDenial).toHaveBeenCalledWith(
+				expect.objectContaining({
+					promotionPeriod: "launch-2026-08",
+					reason: denialReason,
+				}),
+			);
 		},
 	);
 
@@ -33,8 +40,29 @@ describe("guest admission pre-transaction boundary", () => {
 				submitGuestGenerationForGuest(validBoundary(), validInput(), dependencies),
 			).rejects.toThrow(`TEXT_MODERATION_${decision}`);
 			expect(dependencies.createTransaction).not.toHaveBeenCalled();
+			expect(dependencies.recordDenial).toHaveBeenCalledWith(
+				expect.objectContaining({ reason: "CONTENT" }),
+			);
 		},
 	);
+
+	it("records bounded capability and durable transaction denial reasons", async () => {
+		const disabled = validDependencies({ capabilityEnabled: false });
+		await expect(
+			submitGuestGenerationForGuest(validBoundary(), validInput(), disabled),
+		).rejects.toThrow("GUEST_CAPABILITY_DISABLED");
+		expect(disabled.recordDenial).toHaveBeenCalledWith(
+			expect.objectContaining({ reason: "CAPABILITY" }),
+		);
+
+		const queueDenied = validDependencies({ createError: "GUEST_QUEUE_CAPACITY" });
+		await expect(
+			submitGuestGenerationForGuest(validBoundary(), validInput(), queueDenied),
+		).rejects.toThrow("GUEST_QUEUE_CAPACITY");
+		expect(queueDenied.recordDenial).toHaveBeenCalledWith(
+			expect.objectContaining({ reason: "QUEUE_CAPACITY" }),
+		);
+	});
 
 	it("requires an exact origin, attributed client, and bounded random device before Turnstile", async () => {
 		const dependencies = validDependencies();
@@ -63,6 +91,7 @@ describe("guest admission pre-transaction boundary", () => {
 		await expect(
 			submitGuestGenerationForGuest(validBoundary(), validInput(), dependencies),
 		).resolves.toMatchObject({ jobId: "job-1", stage: "WAITING" });
+		expect(dependencies.recordDenial).not.toHaveBeenCalled();
 		expect(dependencies.verifyTurnstile).toHaveBeenCalledOnce();
 		expect(dependencies.createTransaction).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -105,6 +134,8 @@ function validInput() {
 
 function validDependencies(options?: {
 	assetOverride?: Record<string, unknown>;
+	capabilityEnabled?: boolean;
+	createError?: string;
 	moderationDecision?: "ALLOW" | "REJECT" | "REVIEW" | "ERROR";
 	quoteCredits?: bigint;
 }) {
@@ -116,7 +147,7 @@ function validDependencies(options?: {
 		loadCapability: vi.fn(async () => ({
 			snapshot: { version: "guest-v7" },
 			config: {
-				enabled: true,
+				enabled: options?.capabilityEnabled ?? true,
 				promotionPeriod: "launch-2026-08",
 				productKey: "image-fast",
 				sponsorCredits: 4n,
@@ -173,17 +204,21 @@ function validDependencies(options?: {
 			ruleVersion: "text-safety-2026-08-14.1",
 			reasonCode: options?.moderationDecision ?? "ALLOW",
 		})),
-		createTransaction: vi.fn(async () => ({
-			jobId: "job-1",
-			trialId: "trial-1",
-			stage: "WAITING" as const,
-			projectedDispatchAt: new Date("2026-08-28T00:00:00.000Z"),
-			estimateExpiresAt: new Date("2026-08-28T00:01:00.000Z"),
-			resultExpiresAt: new Date("2026-08-29T00:00:00.000Z"),
-			resultAssetId: null,
-			watermarked: false,
-			trialConsumed: false,
-			linkReady: true,
-		})),
+		createTransaction: vi.fn(async () => {
+			if (options?.createError) throw new Error(options.createError);
+			return {
+				jobId: "job-1",
+				trialId: "trial-1",
+				stage: "WAITING" as const,
+				projectedDispatchAt: new Date("2026-08-28T00:00:00.000Z"),
+				estimateExpiresAt: new Date("2026-08-28T00:01:00.000Z"),
+				resultExpiresAt: new Date("2026-08-29T00:00:00.000Z"),
+				resultAssetId: null,
+				watermarked: false,
+				trialConsumed: false,
+				linkReady: true,
+			};
+		}),
+		recordDenial: vi.fn(async () => undefined),
 	};
 }

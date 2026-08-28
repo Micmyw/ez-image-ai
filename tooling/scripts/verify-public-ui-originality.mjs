@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -11,20 +11,27 @@ const forbiddenExpression = [
 	["internal-task-field", /providerTaskId/i],
 	["internal-route-brand", /fal-ai|replicate\.com/i],
 ];
-const publicTextExtensions = new Set([".css", ".html", ".js", ".mjs", ".rsc"]);
-const publicResourceAttribute = /(?:src|href|poster)=["'](https?:\/\/[^"']+)["']/gi;
-const cssResourceUrl = /url\(\s*["']?(https?:\/\/[^)'"\s]+)["']?\s*\)/gi;
+const publicTextExtensions = new Set([".css", ".html", ".js", ".map", ".mjs", ".rsc"]);
+const publicResourceAttribute = /(?:src|href|poster)=["']((?:https?:)?\/\/[^"']+)["']/gi;
+const cssResourceUrl = /url\(\s*["']?((?:https?:)?\/\/[^)'"\s]+)["']?\s*\)/gi;
 const scriptAssetUrl =
-	/["'](https?:\/\/[^"']+\.(?:avif|gif|jpe?g|png|svg|webp)(?:\?[^"']*)?)["']/gi;
+	/["']((?:https?:)?\/\/[^"']+\.(?:avif|css|gif|jpe?g|js|mjs|mp4|png|svg|webm|webp|woff2?)(?:\?[^"']*)?)["']/gi;
+const browserArtifactReference =
+	/["']((?:(?:\.{1,2}\/)|(?:\/_next\/)?static\/)[^"']+\.(?:css|js|mjs))["']/g;
 const ownedHosts = new Set(["ezpic.ai", "www.ezpic.ai", "app.ezpic.ai", "localhost", "127.0.0.1"]);
+const approvedPublicResourceHosts = new Set(["challenges.cloudflare.com"]);
 const builtPublicRoutes = [
 	{
 		buildRoot: path.resolve("apps/marketing/.next"),
 		manifest: path.join("server", "app", "[locale]", "(home)", "page_client-reference-manifest.js"),
+		appPathKey: "/[locale]/(home)/page",
+		outputRoutes: [],
 	},
 	{
 		buildRoot: path.resolve("apps/saas/.next"),
 		manifest: path.join("server", "app", "(guest)", "try", "page_client-reference-manifest.js"),
+		appPathKey: "/(guest)/try/page",
+		outputRoutes: ["try"],
 	},
 ];
 
@@ -65,6 +72,7 @@ function resourcePatternsFor(file) {
 		case ".rsc":
 			return [publicResourceAttribute, cssResourceUrl];
 		case ".js":
+		case ".map":
 		case ".mjs":
 			return [scriptAssetUrl];
 		default:
@@ -92,7 +100,10 @@ async function publicArtifactFiles(root) {
 
 function isOwnedResource(value) {
 	try {
-		return ownedHosts.has(new URL(value).hostname.toLowerCase());
+		const hostname = new URL(
+			value.startsWith("//") ? `https:${value}` : value,
+		).hostname.toLowerCase();
+		return ownedHosts.has(hostname) || approvedPublicResourceHosts.has(hostname);
 	} catch {
 		return false;
 	}
@@ -102,10 +113,14 @@ async function assertProductionBuild(root) {
 	await readFile(path.join(root, "BUILD_ID"), "utf8");
 }
 
-async function publicRouteArtifactFiles(buildRoot, manifestRelativePath) {
+async function publicRouteArtifactFiles(
+	buildRoot,
+	manifestRelativePath,
+	{ appPathKey, outputRoutes = [] } = {},
+) {
 	const manifest = await readFile(path.join(buildRoot, manifestRelativePath), "utf8");
 	const buildRootPrefix = `${path.resolve(buildRoot)}${path.sep}`;
-	const files = new Set();
+	const browserSeeds = new Set();
 	const artifactPath = /(?:\/_next\/)?(static\/[^"'\\]+?\.(?:css|js|mjs))/g;
 	for (const match of manifest.matchAll(artifactPath)) {
 		const relativePath = match[1];
@@ -114,13 +129,84 @@ async function publicRouteArtifactFiles(buildRoot, manifestRelativePath) {
 		if (!absolute.startsWith(buildRootPrefix)) {
 			throw new Error(`Public route manifest escaped its build root: ${relativePath}`);
 		}
-		files.add(absolute);
+		browserSeeds.add(absolute);
 	}
-	if (!files.size)
+	if (!browserSeeds.size)
 		throw new Error(
 			`Public route manifest contained no browser artifacts: ${manifestRelativePath}`,
 		);
+	const files = await recursivelyReferencedBrowserFiles([...browserSeeds], buildRoot);
+	if (appPathKey) {
+		const appPaths = JSON.parse(
+			await readFile(path.join(buildRoot, "server", "app-paths-manifest.json"), "utf8"),
+		);
+		const routePage = appPaths[appPathKey];
+		if (typeof routePage !== "string") {
+			throw new Error(`Public app path was absent from its build manifest: ${appPathKey}`);
+		}
+		files.add(
+			resolveBuildArtifact(
+				buildRoot,
+				/^server[\\/]/.test(routePage) ? routePage : path.join("server", routePage),
+			),
+		);
+	}
+	for (const outputRoute of outputRoutes) {
+		for (const extension of [".html", ".rsc"]) {
+			const artifact = resolveBuildArtifact(
+				buildRoot,
+				path.join("server", "app", `${outputRoute}${extension}`),
+			);
+			if (await fileExists(artifact)) files.add(artifact);
+		}
+	}
+	for (const file of [...files]) {
+		const sourceMap = `${file}.map`;
+		if (await fileExists(sourceMap)) files.add(sourceMap);
+	}
 	return [...files];
+}
+
+async function recursivelyReferencedBrowserFiles(seeds, buildRoot) {
+	const files = new Set();
+	const stack = [...seeds];
+	const staticRoot = `${path.resolve(buildRoot, "static")}${path.sep}`;
+	while (stack.length) {
+		const file = stack.pop();
+		if (!file || files.has(file)) continue;
+		files.add(file);
+		const content = await readFile(file, "utf8");
+		browserArtifactReference.lastIndex = 0;
+		for (const match of content.matchAll(browserArtifactReference)) {
+			const reference = match[1];
+			if (!reference) continue;
+			const candidate =
+				reference.startsWith("./") || reference.startsWith("../")
+					? path.resolve(path.dirname(file), reference)
+					: path.resolve(buildRoot, reference.replace(/^\/_next\//, ""));
+			if (!candidate.startsWith(staticRoot) || !(await fileExists(candidate))) continue;
+			stack.push(candidate);
+		}
+	}
+	return files;
+}
+
+function resolveBuildArtifact(buildRoot, relativePath) {
+	const resolvedRoot = path.resolve(buildRoot);
+	const absolute = path.resolve(resolvedRoot, relativePath);
+	if (!absolute.startsWith(`${resolvedRoot}${path.sep}`)) {
+		throw new Error(`Public route artifact escaped its build root: ${relativePath}`);
+	}
+	return absolute;
+}
+
+async function fileExists(file) {
+	try {
+		await access(file);
+		return true;
+	} catch {
+		return false;
+	}
 }
 
 async function selfTest() {
@@ -154,11 +240,22 @@ async function selfTest() {
 		]);
 		const goodFindings = await scanPublicUiRoots([good]);
 		const badFindings = await scanPublicUiRoots([bad]);
-		const routeFiles = await publicRouteArtifactFiles(build, manifest);
+		const routeFiles = await publicRouteArtifactFiles(build, manifest, {
+			appPathKey: "/public/page",
+			outputRoutes: ["public"],
+		});
 		const routeFindings = await scanPublicUiFiles(routeFiles);
 		if (goodFindings.length !== 0) throw new Error("Controlled owned fixture was rejected");
-		if (routeFiles.length !== 1 || routeFindings.length !== 0) {
-			throw new Error("Server-only or unreferenced route artifacts entered the public scan");
+		if (routeFiles.length !== 4) {
+			throw new Error(`Controlled route graph selected ${routeFiles.length} files instead of 4`);
+		}
+		for (const expected of ["competitor-route", "internal-task-field", "foreign-hotlink"]) {
+			if (!routeFindings.some((finding) => finding.kind === expected)) {
+				throw new Error(`Controlled route-owned fixture did not trigger ${expected}`);
+			}
+		}
+		if (routeFindings.some((finding) => finding.kind === "internal-model-field")) {
+			throw new Error("Server-only or unreferenced private chunks entered the public scan");
 		}
 		for (const expected of [
 			"competitor-route",
@@ -183,16 +280,25 @@ async function writeFixture(root, content) {
 
 async function writeRouteFixture(buildRoot, manifestRelativePath) {
 	const publicChunk = path.join(buildRoot, "static", "chunks", "public.js");
+	const dynamicChunk = path.join(buildRoot, "static", "chunks", "dynamic.js");
 	const privateChunk = path.join(buildRoot, "server", "chunks", "private.js");
+	const routePage = path.join(buildRoot, "server", "app", "public", "page.js");
+	const routeHtml = path.join(buildRoot, "server", "app", "public.html");
+	const appPathsManifest = path.join(buildRoot, "server", "app-paths-manifest.json");
 	const manifestPath = path.join(buildRoot, manifestRelativePath);
 	await Promise.all([
 		mkdir(path.dirname(publicChunk), { recursive: true }),
 		mkdir(path.dirname(privateChunk), { recursive: true }),
+		mkdir(path.dirname(routePage), { recursive: true }),
 		mkdir(path.dirname(manifestPath), { recursive: true }),
 	]);
 	await Promise.all([
-		writeFile(publicChunk, 'const asset="/owned.webp";', "utf8"),
+		writeFile(publicChunk, 'import("./dynamic.js"); const asset="/owned.webp";', "utf8"),
+		writeFile(dynamicChunk, 'const providerTaskId="public-dynamic-leak";', "utf8"),
 		writeFile(privateChunk, 'const providerModelId="server-only";', "utf8"),
+		writeFile(routePage, 'const publicHeading="Seedream route leak";', "utf8"),
+		writeFile(routeHtml, '<img src="//foreign.example/route-owned.png">', "utf8"),
+		writeFile(appPathsManifest, '{"/public/page":"server/app/public/page.js"}', "utf8"),
 		writeFile(manifestPath, '{"chunks":["/_next/static/chunks/public.js"]}', "utf8"),
 	]);
 }
@@ -214,8 +320,8 @@ async function main() {
 		await Promise.all(builtPublicRoutes.map(({ buildRoot }) => assertProductionBuild(buildRoot)));
 		files = (
 			await Promise.all(
-				builtPublicRoutes.map(({ buildRoot, manifest }) =>
-					publicRouteArtifactFiles(buildRoot, manifest),
+				builtPublicRoutes.map(({ buildRoot, manifest, appPathKey, outputRoutes }) =>
+					publicRouteArtifactFiles(buildRoot, manifest, { appPathKey, outputRoutes }),
 				),
 			)
 		).flat();

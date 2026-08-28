@@ -113,7 +113,11 @@ export function GuestTrialWorkspace({ registered = false }: { registered?: boole
 								</p>
 							</div>
 							<div className="space-y-2 border-violet-200 bg-violet-50/70 p-3 rounded-xl border">
-								<div className="min-h-11 gap-3 bg-white px-3 py-2 flex items-center justify-between rounded-xl">
+								<div
+									data-test="guest-standard-selection"
+									aria-current="true"
+									className="min-h-11 gap-3 bg-white px-3 py-2 flex items-center justify-between rounded-xl"
+								>
 									<span className="gap-2 text-sm font-semibold text-slate-950 flex items-center">
 										<span className="size-6 bg-violet-600 text-white grid place-items-center rounded-lg">
 											<CheckIcon className="size-3.5" aria-hidden="true" />

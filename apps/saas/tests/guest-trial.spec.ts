@@ -47,6 +47,7 @@ test("anonymous Standard trial is private, accessible, responsive, and temporary
 	await page.getByRole("button", { name: /standard edit/i }).click();
 	const viewStatus = page.getByRole("button", { name: /view status/i });
 	await expect(viewStatus).toBeVisible({ timeout: 30_000 });
+	await assertGuestReducedMotion(page);
 	await viewStatus.click();
 	await expect(page.locator("#guest-status-region")).toBeFocused();
 
@@ -107,11 +108,43 @@ async function assertGuestLayouts(page: Page, widths: number[]): Promise<void> {
 		expect(geometry.result?.left ?? -1).toBeGreaterThanOrEqual(0);
 		expect(geometry.result?.right ?? width + 1).toBeLessThanOrEqual(width + 1);
 	}
-	await page.setViewportSize({ width: 1280, height: 900 });
+	await assertFourHundredPercentReflow(page);
+}
+
+async function assertFourHundredPercentReflow(page: Page): Promise<void> {
 	const session = await page.context().newCDPSession(page);
-	await session.send("Emulation.setPageScaleFactor", { pageScaleFactor: 4 });
-	expect(await page.evaluate(() => window.visualViewport?.scale)).toBe(4);
-	await session.send("Emulation.setPageScaleFactor", { pageScaleFactor: 1 });
+	try {
+		await session.send("Emulation.setDeviceMetricsOverride", {
+			width: 320,
+			height: 800,
+			deviceScaleFactor: 4,
+			mobile: false,
+		});
+		const geometry = await page.evaluate(() => ({
+			devicePixelRatio: window.devicePixelRatio,
+			viewport: document.documentElement.clientWidth,
+			pageWidth: document.documentElement.scrollWidth,
+		}));
+		expect(geometry.devicePixelRatio, "400% device scale").toBe(4);
+		expect(geometry.viewport, "400% CSS viewport").toBe(320);
+		expect(geometry.pageWidth, "400% page overflow").toBeLessThanOrEqual(geometry.viewport + 1);
+		for (const target of [
+			page.getByLabel(/edit instruction/i),
+			page.getByRole("button", { name: /quality edit/i }),
+			page.getByRole("button", { name: /standard edit/i }),
+			page.locator("#guest-result-region"),
+		]) {
+			await target.scrollIntoViewIfNeeded();
+			await expect(target).toBeVisible();
+			const box = await target.boundingBox();
+			expect(box?.x ?? -1, "400% target left clipping").toBeGreaterThanOrEqual(0);
+			expect((box?.x ?? 321) + (box?.width ?? 0), "400% target right clipping").toBeLessThanOrEqual(
+				321,
+			);
+		}
+	} finally {
+		await session.send("Emulation.clearDeviceMetricsOverride");
+	}
 }
 
 async function assertGuestAccessibility(page: Page): Promise<void> {
@@ -122,25 +155,42 @@ async function assertGuestAccessibility(page: Page): Promise<void> {
 	const primaryBox = await primary.boundingBox();
 	expect(primaryBox?.height ?? 0).toBeGreaterThanOrEqual(48);
 	for (const control of await page
-		.locator("button:visible, input:visible, textarea:visible")
+		.locator("button:visible, input:visible, textarea:visible, select:visible, a[href]:visible")
 		.all()) {
 		const box = await control.boundingBox();
-		if (box) expect(box.height).toBeGreaterThanOrEqual(44);
+		if (!box) continue;
+		const inlineTextLink = await control.evaluate(
+			(element) =>
+				element.tagName === "A" &&
+				getComputedStyle(element).display === "inline" &&
+				Boolean(element.closest("p, li")),
+		);
+		if (inlineTextLink) continue;
+		expect(box.width, "interactive target width").toBeGreaterThanOrEqual(44);
+		expect(box.height, "interactive target height").toBeGreaterThanOrEqual(44);
 	}
-	await page.emulateMedia({ reducedMotion: "reduce" });
-	const animation = await page
-		.locator("#guest-result-region [aria-hidden=true]")
-		.last()
-		.evaluate((element) => getComputedStyle(element).animationName)
-		.catch(() => "none");
-	expect(animation).toBe("none");
-	await page.emulateMedia({ reducedMotion: "no-preference" });
+	const selectedStandard = page.locator('[data-test="guest-standard-selection"]');
+	await expect(selectedStandard).toHaveAttribute("aria-current", "true");
+	await expect(selectedStandard.locator("svg")).toBeVisible();
 	await page.getByLabel(/edit instruction/i).focus();
 	await page.keyboard.press("Tab");
 	await expect(page.getByRole("button", { name: /quality edit/i })).toBeFocused();
 	await page.keyboard.press("Tab");
 	await expect(primary).toBeFocused();
 	await expect(page.getByText(/standard edit/i).first()).toBeVisible();
+}
+
+async function assertGuestReducedMotion(page: Page): Promise<void> {
+	const target = page.locator("#guest-result-region .motion-safe\\:animate-pulse");
+	await expect(target).toHaveCount(1);
+	await page.emulateMedia({ reducedMotion: "reduce" });
+	await expect
+		.poll(() => target.evaluate((element) => getComputedStyle(element).animationName))
+		.toBe("none");
+	await page.emulateMedia({ reducedMotion: "no-preference" });
+	await expect
+		.poll(() => target.evaluate((element) => getComputedStyle(element).animationName))
+		.not.toBe("none");
 }
 
 async function assertGuestOriginality(page: Page): Promise<void> {

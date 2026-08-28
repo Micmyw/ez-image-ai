@@ -9,7 +9,9 @@ import {
 	fingerprintGenerationQuoteSecurityPayload,
 	type CreateGuestGenerationTransactionInput,
 	type CreateGuestGenerationTransactionResult,
+	type GuestAdmissionDenialReason,
 	type GuestJobSnapshot,
+	recordGuestAdmissionDenial,
 } from "@repo/database";
 import { db } from "@repo/database/client";
 
@@ -128,6 +130,13 @@ interface GuestAdmissionDependencies {
 	}): GuestQuote;
 	moderatePrompt(input: { text: string; ruleVersion: string }): Promise<ModerationDecision>;
 	moderationProvider?: TextModerationEvidence["provider"];
+	transactionRecordsDenials?: boolean;
+	recordDenial(input: {
+		promotionPeriod: string;
+		reason: GuestAdmissionDenialReason;
+		subjectHash: string;
+		now: Date;
+	}): Promise<void>;
 	createTransaction(
 		input: CreateGuestGenerationTransactionInput,
 	): Promise<CreateGuestGenerationTransactionResult>;
@@ -187,6 +196,8 @@ export const guestAdmissionDependencies: GuestAdmissionDependencies = {
 		return selection.adapter.moderateText(input);
 	},
 	moderationProvider: undefined,
+	transactionRecordsDenials: true,
+	recordDenial: (input) => recordGuestAdmissionDenial(input, db),
 	createTransaction: (input) =>
 		createGuestGenerationTransaction(input, db, ({ productKey, inputSnapshot }) =>
 			buildMediaQuote({ productKey, input: inputSnapshot as MediaModelInput }),
@@ -209,20 +220,61 @@ export async function submitGuestGenerationForGuest(
 
 	const loaded = await dependencies.loadCapability();
 	if (!loaded.config.enabled || !loaded.config.promotionPeriod) {
-		throw new Error("GUEST_CAPABILITY_DISABLED");
+		return rejectGuestAdmission(
+			dependencies,
+			boundary,
+			input,
+			loaded.config.promotionPeriod,
+			now,
+			"CAPABILITY",
+			new Error("GUEST_CAPABILITY_DISABLED"),
+		);
 	}
-	assertGuestCapabilityVersion(input.capabilityVersion, loaded.snapshot.version);
-	const verifiedTurnstile = await dependencies.verifyTurnstile({
-		token: input.turnstileToken,
-		hostname: new URL(dependencies.saasOrigin).hostname,
-		clientIp: identity.ip,
-		now,
-		config: loaded.config,
-	});
+	try {
+		assertGuestCapabilityVersion(input.capabilityVersion, loaded.snapshot.version);
+	} catch (error) {
+		return rejectGuestAdmission(
+			dependencies,
+			boundary,
+			input,
+			loaded.config.promotionPeriod,
+			now,
+			"CAPABILITY",
+			error,
+		);
+	}
+	let verifiedTurnstile: VerifiedGuestTurnstileToken;
+	try {
+		verifiedTurnstile = await dependencies.verifyTurnstile({
+			token: input.turnstileToken,
+			hostname: new URL(dependencies.saasOrigin).hostname,
+			clientIp: identity.ip,
+			now,
+			config: loaded.config,
+		});
+	} catch (error) {
+		return rejectGuestAdmission(
+			dependencies,
+			boundary,
+			input,
+			loaded.config.promotionPeriod,
+			now,
+			"TURNSTILE",
+			error,
+		);
+	}
 
 	const source = await dependencies.loadSourceAsset(input.sourceAssetId, boundary.ownerId);
 	if (!isEligibleGuestSource(source, boundary.ownerId, loaded.config, now)) {
-		throw new Error("GUEST_INPUT_UNAVAILABLE");
+		return rejectGuestAdmission(
+			dependencies,
+			boundary,
+			input,
+			loaded.config.promotionPeriod,
+			now,
+			"INPUT",
+			new Error("GUEST_INPUT_UNAVAILABLE"),
+		);
 	}
 	const bootstrap = await dependencies.loadSourceBootstrap({
 		ownerId: boundary.ownerId,
@@ -231,7 +283,15 @@ export async function submitGuestGenerationForGuest(
 		now,
 	});
 	if (!bootstrap?.claimedDraftId || bootstrap.sourceAssetId !== source.id) {
-		throw new Error("GUEST_INPUT_UNAVAILABLE");
+		return rejectGuestAdmission(
+			dependencies,
+			boundary,
+			input,
+			loaded.config.promotionPeriod,
+			now,
+			"INPUT",
+			new Error("GUEST_INPUT_UNAVAILABLE"),
+		);
 	}
 
 	const modelInput = {
@@ -246,7 +306,15 @@ export async function submitGuestGenerationForGuest(
 		quote.credits !== 4n ||
 		quote.costMicros <= 0n
 	) {
-		throw new Error("GUEST_PRICE_CHANGED");
+		return rejectGuestAdmission(
+			dependencies,
+			boundary,
+			input,
+			loaded.config.promotionPeriod,
+			now,
+			"QUOTE",
+			new Error("GUEST_PRICE_CHANGED"),
+		);
 	}
 	const quoteBase = {
 		ownerType: "USER" as const,
@@ -267,7 +335,15 @@ export async function submitGuestGenerationForGuest(
 		ruleVersion: TEXT_MODERATION_RULE_VERSION,
 	});
 	if (moderation.decision !== "ALLOW") {
-		throw new Error(`TEXT_MODERATION_${moderation.decision}`);
+		return rejectGuestAdmission(
+			dependencies,
+			boundary,
+			input,
+			loaded.config.promotionPeriod,
+			now,
+			"CONTENT",
+			new Error(`TEXT_MODERATION_${moderation.decision}`),
+		);
 	}
 	const moderationProvider =
 		dependencies.moderationProvider ??
@@ -291,7 +367,7 @@ export async function submitGuestGenerationForGuest(
 			quote.pricingVersion,
 		].join("\n"),
 	);
-	return dependencies.createTransaction({
+	const transactionInput = {
 		ownerId: boundary.ownerId,
 		promotionPeriod: loaded.config.promotionPeriod,
 		capabilityVersion: loaded.snapshot.version,
@@ -331,7 +407,64 @@ export async function submitGuestGenerationForGuest(
 				inputFingerprint: fingerprintGenerationQuoteSecurityPayload(quoteBase),
 			},
 		},
-	});
+	} satisfies CreateGuestGenerationTransactionInput;
+	try {
+		return await dependencies.createTransaction(transactionInput);
+	} catch (error) {
+		const reason = transactionDenialReason(error);
+		if (!reason) throw error;
+		if (dependencies.transactionRecordsDenials === true) throw error;
+		return rejectGuestAdmission(
+			dependencies,
+			boundary,
+			input,
+			loaded.config.promotionPeriod,
+			now,
+			reason,
+			error,
+		);
+	}
+}
+
+async function rejectGuestAdmission(
+	dependencies: GuestAdmissionDependencies,
+	boundary: GuestAdmissionBoundary,
+	input: SubmitGuestGenerationInput,
+	promotionPeriod: string | null,
+	now: Date,
+	reason: GuestAdmissionDenialReason,
+	error: unknown,
+): Promise<never> {
+	if (promotionPeriod) {
+		const subjectHash = hashGuestBinding(
+			dependencies.abuseSecret,
+			"guest-denial-idempotency",
+			`${boundary.ownerId}\n${input.idempotencyKey}`,
+		);
+		await dependencies
+			.recordDenial({ promotionPeriod, reason, subjectHash, now })
+			.catch(() => undefined);
+	}
+	throw error instanceof Error ? error : new Error("GUEST_ADMISSION_REJECTED");
+}
+
+function transactionDenialReason(error: unknown): GuestAdmissionDenialReason | null {
+	if (!(error instanceof Error)) return null;
+	const reasonByCode: Partial<Record<string, GuestAdmissionDenialReason>> = {
+		GUEST_DEVICE_LIMIT: "DEVICE_LIMIT",
+		GUEST_GLOBAL_RATE_LIMIT: "GLOBAL_RATE_LIMIT",
+		GUEST_INPUT_UNAVAILABLE: "INPUT",
+		GUEST_IP_RATE_LIMIT: "IP_RATE_LIMIT",
+		GUEST_LINK_IN_PROGRESS: "TRIAL_UNAVAILABLE",
+		GUEST_OWNER_CAPACITY: "OWNER_CAPACITY",
+		GUEST_PRICE_CHANGED: "QUOTE",
+		GUEST_QUEUE_CAPACITY: "QUEUE_CAPACITY",
+		GUEST_RISK_CAPACITY: "RISK_CAPACITY",
+		GUEST_SUBNET_RATE_LIMIT: "SUBNET_RATE_LIMIT",
+		GUEST_TRIAL_UNAVAILABLE: "TRIAL_UNAVAILABLE",
+		TURNSTILE_REPLAYED: "TURNSTILE_REPLAY",
+	};
+	return reasonByCode[error.message] ?? null;
 }
 
 function isEligibleGuestSource(

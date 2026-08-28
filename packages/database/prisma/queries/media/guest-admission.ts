@@ -99,6 +99,64 @@ export interface GuestGrantedAsset {
 	resultExpiresAt: Date;
 }
 
+export type GuestAdmissionDenialReason =
+	| "CAPABILITY"
+	| "CONTENT"
+	| "DEVICE_LIMIT"
+	| "GLOBAL_RATE_LIMIT"
+	| "INPUT"
+	| "IP_RATE_LIMIT"
+	| "OWNER_CAPACITY"
+	| "QUEUE_CAPACITY"
+	| "QUOTE"
+	| "RISK_CAPACITY"
+	| "SUBNET_RATE_LIMIT"
+	| "TRIAL_UNAVAILABLE"
+	| "TURNSTILE"
+	| "TURNSTILE_REPLAY";
+
+export interface RecordGuestAdmissionDenialInput {
+	promotionPeriod: string;
+	reason: GuestAdmissionDenialReason;
+	subjectHash: string;
+	now: Date;
+}
+
+export async function recordGuestAdmissionDenial(
+	input: RecordGuestAdmissionDenialInput,
+	client: MediaTransactionClient,
+): Promise<void> {
+	if (
+		!input.promotionPeriod ||
+		!/^[A-Z][A-Z0-9_]{0,127}$/.test(input.reason) ||
+		!/^[a-f0-9]{64}$/.test(input.subjectHash) ||
+		Number.isNaN(input.now.getTime())
+	) {
+		throw new Error("GUEST_DENIAL_INPUT_INVALID");
+	}
+	const windowStart = new Date(0);
+	const windowEnd = new Date(1);
+	const expiresAt = new Date(input.now.getTime() + 90 * 24 * 60 * 60_000);
+	await client.guestAbuseBucket.upsert({
+		where: {
+			scope_subjectHash_windowStart: {
+				scope: `guest-denial:${input.promotionPeriod}:${input.reason}`,
+				subjectHash: input.subjectHash,
+				windowStart,
+			},
+		},
+		create: {
+			scope: `guest-denial:${input.promotionPeriod}:${input.reason}`,
+			subjectHash: input.subjectHash,
+			windowStart,
+			windowEnd,
+			rejectionCount: 1n,
+			expiresAt,
+		},
+		update: { expiresAt },
+	});
+}
+
 export async function createGuestGenerationTransaction(
 	input: CreateGuestGenerationTransactionInput,
 	client: MediaTransactionClient,
@@ -151,39 +209,44 @@ export async function createGuestGenerationTransaction(
 				where: {
 					ownerType: "USER",
 					ownerId: input.ownerId,
+					guestTrial: { promotionPeriod: input.promotionPeriod },
 					status: { in: [...ACTIVE_GENERATION_JOB_STATUSES] },
 				},
 			});
 			if (activeGuestJobs >= input.maximumActiveJobsPerGuest) {
-				throw new Error("GUEST_CAPACITY_UNAVAILABLE");
+				throw new Error("GUEST_OWNER_CAPACITY");
 			}
 
 			const queueDepth = await tx.generationJob.count({
 				where: {
 					serviceClass: "GUEST_SLOW",
+					guestTrial: { promotionPeriod: input.promotionPeriod },
 					status: { in: [...ACTIVE_GENERATION_JOB_STATUSES] },
 				},
 			});
 			if (queueDepth >= input.maximumGlobalQueueDepth) {
-				throw new Error("GUEST_CAPACITY_UNAVAILABLE");
+				throw new Error("GUEST_QUEUE_CAPACITY");
 			}
+			const riskAdmission = await guestRiskAdmissionAction(input, tx);
+			if (riskAdmission === "REJECT") throw new Error("GUEST_RISK_CAPACITY");
 			const resultExpiresAt = new Date(
 				Math.min(input.now.getTime() + input.retentionMs, source.asset.deleteAfter!.getTime()),
 			);
+			const queueCapacity = input.queueCapacity ?? 1;
 			const estimate = deriveGuestQueueEstimate({
 				now: input.now,
-				queueDepth,
-				queueCapacity: input.queueCapacity ?? 1,
-				serviceTimeMs: input.serviceTimeMs,
+				queueDepth: riskAdmission === "SLOW" ? Math.max(queueDepth, queueCapacity) : queueDepth,
+				queueCapacity,
+				serviceTimeMs: riskAdmission === "SLOW" ? input.serviceTimeMs * 2 : input.serviceTimeMs,
 				immutableExpiry: resultExpiresAt,
 			});
-			if (!estimate) throw new Error("GUEST_CAPACITY_UNAVAILABLE");
+			if (!estimate) throw new Error("GUEST_QUEUE_CAPACITY");
 			const { projectedDispatchAt, estimateExpiresAt } = estimate;
 			if (projectedDispatchAt.getTime() - input.now.getTime() > input.queueTtlMs) {
-				throw new Error("GUEST_CAPACITY_UNAVAILABLE");
+				throw new Error("GUEST_QUEUE_CAPACITY");
 			}
 			if (resultExpiresAt <= projectedDispatchAt) {
-				throw new Error("GUEST_CAPACITY_UNAVAILABLE");
+				throw new Error("GUEST_QUEUE_CAPACITY");
 			}
 
 			await assertCanonicalGuestQuote(input, resolveCanonicalQuote);
@@ -291,6 +354,18 @@ export async function createGuestGenerationTransaction(
 		if (isDatabaseUniqueConflict(error) || isErrorCode(error, "TURNSTILE_REPLAYED")) {
 			const replay = await findGuestAdmissionReplay(input, client);
 			if (replay) return replay;
+		}
+		const denialReason = guestAdmissionDenialReason(error);
+		if (denialReason) {
+			await recordGuestAdmissionDenial(
+				{
+					promotionPeriod: input.promotionPeriod,
+					reason: denialReason,
+					subjectHash: input.idempotencyFingerprint,
+					now: input.now,
+				},
+				client,
+			).catch(() => undefined);
 		}
 		throw error;
 	}
@@ -825,41 +900,80 @@ async function enforceAdmissionBuckets(
 ): Promise<void> {
 	const minuteStart = new Date(Math.floor(input.now.getTime() / 60_000) * 60_000);
 	const hourStart = new Date(Math.floor(input.now.getTime() / 3_600_000) * 3_600_000);
-	const allowed = [
-		await incrementGuestBucket(
+	if (
+		!(await incrementGuestBucket(
 			tx,
 			"guest-generate-global-minute",
 			"global",
 			minuteStart,
 			60_000,
 			input.maximumRequestsPerMinute,
-		),
-		await incrementGuestBucket(
+		))
+	) {
+		throw new Error("GUEST_GLOBAL_RATE_LIMIT");
+	}
+	if (
+		!(await incrementGuestBucket(
 			tx,
 			"guest-generate-ip-hour",
 			input.ipHash,
 			hourStart,
 			3_600_000,
 			input.maximumRequestsPerIpPerHour,
-		),
-		await incrementGuestBucket(
+		))
+	) {
+		throw new Error("GUEST_IP_RATE_LIMIT");
+	}
+	if (
+		!(await incrementGuestBucket(
 			tx,
 			"guest-generate-subnet-hour",
 			input.subnetHash,
 			hourStart,
 			3_600_000,
 			input.maximumRequestsPerIpPerHour,
-		),
-		await incrementGuestBucket(
+		))
+	) {
+		throw new Error("GUEST_SUBNET_RATE_LIMIT");
+	}
+	if (
+		!(await incrementGuestBucket(
 			tx,
 			`guest-generate-device:${input.promotionPeriod}`,
 			input.deviceHash,
 			new Date(0),
 			365 * 24 * 60 * 60_000,
 			1,
-		),
-	];
-	if (allowed.some((value) => !value)) throw new Error("GUEST_CAPACITY_UNAVAILABLE");
+		))
+	) {
+		throw new Error("GUEST_DEVICE_LIMIT");
+	}
+}
+
+async function guestRiskAdmissionAction(
+	input: CreateGuestGenerationTransactionInput,
+	tx: Prisma.TransactionClient,
+): Promise<"OPEN" | "SLOW" | "REJECT"> {
+	const existing = await tx.guestRiskBudgetBucket.findUnique({
+		where: {
+			promotionPeriod_subjectHash: {
+				promotionPeriod: input.promotionPeriod,
+				subjectHash: "global",
+			},
+		},
+	});
+	const hardLimit = existing
+		? existing.hardLimitMicros < input.riskBudgetMicros
+			? existing.hardLimitMicros
+			: input.riskBudgetMicros
+		: input.riskBudgetMicros;
+	const projectedRiskMicros =
+		(existing?.reservedMicros ?? 0n) +
+		(existing?.consumedMicros ?? 0n) +
+		(input.quote.costMicros ?? 0n);
+	if (hardLimit <= 0n || projectedRiskMicros * 100n >= hardLimit * 90n) return "REJECT";
+	if (projectedRiskMicros * 100n >= hardLimit * 75n) return "SLOW";
+	return "OPEN";
 }
 
 async function holdQuotedRisk(
@@ -887,7 +1001,7 @@ async function holdQuotedRisk(
 		risk <= 0n ||
 		(existing?.reservedMicros ?? 0n) + (existing?.consumedMicros ?? 0n) + risk > hardLimit
 	) {
-		throw new Error("GUEST_CAPACITY_UNAVAILABLE");
+		throw new Error("GUEST_RISK_CAPACITY");
 	}
 	await tx.guestRiskBudgetBucket.upsert({
 		where: {
@@ -910,6 +1024,25 @@ async function holdQuotedRisk(
 			version: { increment: 1 },
 		},
 	});
+}
+
+function guestAdmissionDenialReason(error: unknown): GuestAdmissionDenialReason | null {
+	if (!(error instanceof Error)) return null;
+	const reasonByCode: Partial<Record<string, GuestAdmissionDenialReason>> = {
+		GUEST_DEVICE_LIMIT: "DEVICE_LIMIT",
+		GUEST_GLOBAL_RATE_LIMIT: "GLOBAL_RATE_LIMIT",
+		GUEST_INPUT_UNAVAILABLE: "INPUT",
+		GUEST_IP_RATE_LIMIT: "IP_RATE_LIMIT",
+		GUEST_LINK_IN_PROGRESS: "TRIAL_UNAVAILABLE",
+		GUEST_OWNER_CAPACITY: "OWNER_CAPACITY",
+		GUEST_PRICE_CHANGED: "QUOTE",
+		GUEST_QUEUE_CAPACITY: "QUEUE_CAPACITY",
+		GUEST_RISK_CAPACITY: "RISK_CAPACITY",
+		GUEST_SUBNET_RATE_LIMIT: "SUBNET_RATE_LIMIT",
+		GUEST_TRIAL_UNAVAILABLE: "TRIAL_UNAVAILABLE",
+		TURNSTILE_REPLAYED: "TURNSTILE_REPLAY",
+	};
+	return reasonByCode[error.message] ?? null;
 }
 
 function validateAdmissionInput(input: CreateGuestGenerationTransactionInput): void {
