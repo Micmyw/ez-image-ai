@@ -1,12 +1,54 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { deleteStorageObject } from "./handlers/cleanup-storage-object";
 import {
 	createDatabaseDispatchStore,
 	createProviderRegistry,
 	createProviderWebhookVerifierRegistry,
+	createDatabaseStorageCleanupDependencies,
 } from "./runtime";
 
 describe("provider runtime registration", () => {
+	it("physically deletes expired guest objects after database read authorization is already closed", async () => {
+		const assetAuthorizationLookup = vi.fn(() => {
+			throw new Error("cleanup must not reopen guest read authorization");
+		});
+		const create = vi.fn(async () => ({ id: "cleanup-audit" }));
+		const dependencies = createDatabaseStorageCleanupDependencies(
+			{
+				auditLog: { findFirst: vi.fn(async () => null) },
+				mediaAsset: { findFirst: assetAuthorizationLookup },
+				$transaction: async (operation: (tx: unknown) => Promise<unknown>) =>
+					operation({
+						auditLog: { create },
+						storageUsageReservation: { updateMany: vi.fn(async () => ({ count: 0 })) },
+					}),
+			} as never,
+			{
+				deleteObject: vi.fn(async () => undefined),
+				abortMultipartUpload: vi.fn(async () => undefined),
+				listMultipartUploads: vi.fn(async () => []),
+			},
+		);
+
+		await deleteStorageObject(
+			{
+				assetId: "guest-output",
+				objectKey: "users/guest/assets/guest-output/watermarked.png",
+				cleanupObjectKeys: ["users/guest/staging/guest-output/clean.png"],
+			},
+			dependencies,
+		);
+
+		expect(assetAuthorizationLookup).not.toHaveBeenCalled();
+		expect(create).toHaveBeenCalledWith({
+			data: expect.objectContaining({
+				action: "MEDIA_OBJECT_DELETE_COMPLETED",
+				targetType: "MEDIA_STORAGE_OPERATION",
+			}),
+		});
+	});
+
 	it("fails production worker admission when an explicitly enabled provider lacks its credential", () => {
 		expect(() =>
 			createProviderRegistry({

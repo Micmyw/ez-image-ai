@@ -3,9 +3,81 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("@repo/database/client", () => ({ db: {} }));
 
 import { createDatabaseStorageCleanupDependencies } from "../runtime";
-import { deleteStorageObject } from "./cleanup-storage-object";
+import { cleanupUploadPromotion, deleteStorageObject } from "./cleanup-storage-object";
 
 describe("production storage cleanup store", () => {
+	it("releases guest storage only after final, staging, and multipart cleanup survives a retry", async () => {
+		let cleanupRecorded = false;
+		let reservationStatus: "COMMITTED" | "RELEASED" = "COMMITTED";
+		let finalDeleteFails = true;
+		const findFirst = vi.fn(async () => (cleanupRecorded ? { id: "guest-cleanup-audit" } : null));
+		const create = vi.fn(async () => {
+			cleanupRecorded = true;
+			return { id: "guest-cleanup-audit" };
+		});
+		const updateMany = vi.fn(async ({ where, data }) => {
+			if (
+				where.referenceKey !== "media-upload:guest-session" ||
+				!where.status.in.includes(reservationStatus)
+			) {
+				return { count: 0 };
+			}
+			reservationStatus = data.status;
+			return { count: 1 };
+		});
+		const $transaction = vi.fn(async (operation: (tx: unknown) => Promise<unknown>) =>
+			operation({ auditLog: { create }, storageUsageReservation: { updateMany } }),
+		);
+		const deleteObject = vi.fn(async (objectKey: string) => {
+			if (objectKey.endsWith("watermarked.png") && finalDeleteFails) {
+				throw new Error("guest final delete unavailable");
+			}
+		});
+		const abortMultipartUpload = vi.fn(async () => undefined);
+		const listMultipartUploads = vi.fn(async () => ["guest-orphan-upload"]);
+		const dependencies = createDatabaseStorageCleanupDependencies(
+			{ auditLog: { findFirst }, $transaction } as never,
+			{ deleteObject, abortMultipartUpload, listMultipartUploads },
+		);
+		const payload = {
+			assetId: "guest-output",
+			objectKey: "users/guest/staging/guest-output/clean.png",
+			multipartUploadId: "guest-staging-upload",
+			promotionObjectKey: "users/guest/assets/guest-output/watermarked.png",
+			promotionMultipartUploadId: "guest-final-upload",
+			cleanupObjectKeys: ["users/guest/assets/guest-output/watermarked.png"],
+			uploadSessionId: "guest-session",
+			reservationStatus: "RELEASED" as const,
+		};
+
+		await expect(cleanupUploadPromotion(payload, dependencies)).rejects.toThrow(
+			/guest final delete unavailable/i,
+		);
+		expect(reservationStatus).toBe("COMMITTED");
+		expect(create).not.toHaveBeenCalled();
+
+		finalDeleteFails = false;
+		await cleanupUploadPromotion(payload, dependencies);
+		await cleanupUploadPromotion(payload, dependencies);
+
+		expect(reservationStatus).toBe("RELEASED");
+		expect(create).toHaveBeenCalledOnce();
+		expect(abortMultipartUpload).toHaveBeenCalledWith(
+			"users/guest/staging/guest-output/clean.png",
+			"guest-staging-upload",
+		);
+		expect(abortMultipartUpload).toHaveBeenCalledWith(
+			"users/guest/assets/guest-output/watermarked.png",
+			"guest-final-upload",
+		);
+		expect(abortMultipartUpload).toHaveBeenCalledWith(
+			"users/guest/assets/guest-output/watermarked.png",
+			"guest-orphan-upload",
+		);
+		expect(deleteObject).toHaveBeenCalledWith("users/guest/staging/guest-output/clean.png");
+		expect(deleteObject).toHaveBeenCalledWith("users/guest/assets/guest-output/watermarked.png");
+	});
+
 	it("retains a committed reservation when deletion fails and releases it only after a successful retry", async () => {
 		let cleanupRecorded = false;
 		let reservationStatus: "COMMITTED" | "RELEASED" = "COMMITTED";

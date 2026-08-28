@@ -8,6 +8,46 @@ import {
 } from "./cleanup-storage-object";
 
 describe("storage cleanup handlers", () => {
+	it("retries guest final and clean-staging deletion and completes duplicate delivery only once", async () => {
+		let completed = false;
+		let failCleanStaging = true;
+		const deleteObject = vi.fn(async (objectKey: string) => {
+			if (objectKey.endsWith("clean.png") && failCleanStaging) {
+				throw new Error("guest clean staging delete unavailable");
+			}
+		});
+		const complete = vi.fn(async () => {
+			completed = true;
+		});
+		const dependencies = {
+			isComplete: vi.fn(async () => completed),
+			deleteObject,
+			abortMultipartUpload: vi.fn(async () => undefined),
+			complete,
+		};
+		const payload = {
+			assetId: "guest-output",
+			objectKey: "users/guest/assets/guest-output/watermarked.png",
+			cleanupObjectKeys: ["users/guest/staging/guest-output/clean.png"],
+		};
+
+		await expect(deleteStorageObject(payload, dependencies)).rejects.toThrow(
+			/clean staging delete unavailable/i,
+		);
+		expect(complete).not.toHaveBeenCalled();
+		failCleanStaging = false;
+		await deleteStorageObject(payload, dependencies);
+		await deleteStorageObject(payload, dependencies);
+
+		expect(deleteObject).toHaveBeenCalledTimes(4);
+		expect(deleteObject).toHaveBeenNthCalledWith(
+			1,
+			"users/guest/assets/guest-output/watermarked.png",
+		);
+		expect(deleteObject).toHaveBeenNthCalledWith(2, "users/guest/staging/guest-output/clean.png");
+		expect(complete).toHaveBeenCalledOnce();
+	});
+
 	it("deletes a soft-deleted object once and records cleanup completion idempotently", async () => {
 		const deleteObject = vi.fn(async () => undefined);
 		const isComplete = vi.fn().mockResolvedValueOnce(false).mockResolvedValueOnce(true);

@@ -5,6 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
 import { createGuestGenerationTransaction } from "./guest-admission";
+import { expireGuestJobBeforeProvider } from "./guest-retention";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -108,6 +109,64 @@ describe("guest generation admission", () => {
 		).resolves.toEqual([0, 0, 0, 0]);
 	});
 
+	it("projects admission in capacity waves instead of multiplying every queued job", async () => {
+		for (const label of ["wave-a", "wave-b", "wave-c"]) {
+			const queued = await createGuestFixture(label);
+			await createGuestAdmission(
+				guestAdmissionInput(queued, {
+					idempotencyKey: `guest-${label}`,
+					queueCapacity: 2,
+				}),
+			);
+		}
+		const fixture = await createGuestFixture("wave-target");
+		const result = await createGuestAdmission(
+			guestAdmissionInput(fixture, {
+				idempotencyKey: "guest-wave-target",
+				queueCapacity: 2,
+			}),
+		);
+
+		expect(result.projectedDispatchAt).toEqual(new Date(fixture.now.getTime() + 2 * 60_000));
+		expect(result.estimateExpiresAt).toEqual(new Date(fixture.now.getTime() + 3 * 60_000));
+	});
+
+	it("reprojects a pre-provider replacement from remaining queue capacity", async () => {
+		const queued = await createGuestFixture("replacement-blocker");
+		await createGuestAdmission(
+			guestAdmissionInput(queued, { idempotencyKey: "guest-replacement-blocker" }),
+		);
+		const fixture = await createGuestFixture("replacement-target");
+		const original = await createGuestAdmission(
+			guestAdmissionInput(fixture, { idempotencyKey: "guest-replacement-target" }),
+		);
+		const replacementNow = new Date(fixture.now.getTime() + 10_000);
+
+		const expired = await client.$transaction((tx) =>
+			expireGuestJobBeforeProvider({ jobId: original.jobId, now: replacementNow }, tx),
+		);
+		if (expired.outcome !== "EXPIRED" || !expired.replacementJobId) {
+			throw new Error("Expected one bounded guest replacement");
+		}
+		const [trial, replacement, event] = await Promise.all([
+			client.guestMediaTrial.findUniqueOrThrow({ where: { id: original.trialId } }),
+			client.generationJob.findUniqueOrThrow({ where: { id: expired.replacementJobId } }),
+			client.outboxEvent.findFirstOrThrow({
+				where: {
+					aggregateId: expired.replacementJobId,
+					eventType: "GUEST_GENERATION_ELIGIBLE",
+				},
+			}),
+		]);
+		const projectedDispatchAt = new Date(replacementNow.getTime() + 60_000);
+		expect(trial).toMatchObject({
+			projectedDispatchAt,
+			estimateExpiresAt: new Date(replacementNow.getTime() + 2 * 60_000),
+		});
+		expect(replacement.dispatchEligibleAt).toEqual(projectedDispatchAt);
+		expect(event.availableAt).toEqual(projectedDispatchAt);
+	});
+
 	it.each([
 		["catalog version", { catalogVersion: "catalog-v2" }],
 		["pricing version", { pricingVersion: "pricing-v2" }],
@@ -194,7 +253,7 @@ describe("guest generation admission", () => {
 		).resolves.toEqual([0, 0, 0]);
 	});
 
-	async function createGuestFixture(label: string, now = new Date("2026-08-28T00:00:00.000Z")) {
+	async function createGuestFixture(label: string, now = new Date()) {
 		const suffix = `${label}-${randomUUID()}`;
 		const ownerId = `guest-${suffix}`;
 		const sessionId = `session-${suffix}`;
@@ -332,7 +391,11 @@ interface GuestFixture {
 
 function guestAdmissionInput(
 	fixture: GuestFixture,
-	overrides: { idempotencyKey: string; maximumGlobalQueueDepth?: number },
+	overrides: {
+		idempotencyKey: string;
+		maximumGlobalQueueDepth?: number;
+		queueCapacity?: number;
+	},
 ) {
 	const quoteBase = {
 		ownerType: "USER" as const,
@@ -374,6 +437,7 @@ function guestAdmissionInput(
 		retentionMs: 24 * 60 * 60_000,
 		queueTtlMs: 15 * 60_000,
 		serviceTimeMs: 60_000,
+		queueCapacity: overrides.queueCapacity ?? 1,
 		maximumBytes: 10 * 1024 * 1024,
 		maximumGlobalQueueDepth: overrides.maximumGlobalQueueDepth ?? 100,
 		maximumActiveJobsPerGuest: 1,

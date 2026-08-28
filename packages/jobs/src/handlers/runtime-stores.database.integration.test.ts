@@ -24,6 +24,7 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { DispatchAdmissionBlockedError } from "../contracts";
 import {
 	createDatabaseDispatchStore,
+	createDatabaseGuestAdmissionDependencies,
 	createFinalizationDependencies,
 	createDatabaseFinalizationStore,
 	createDatabaseProviderEventStore,
@@ -218,6 +219,53 @@ describe("production media runtime stores", () => {
 				data: { status: "FAILED", terminalAt: new Date() },
 			});
 			await revertRuntimeConfigOverride(guest.overrideId, "task4-guest-test", client);
+		}
+	});
+
+	it("keeps internal guest polling separate from the public capacity estimate", async () => {
+		await client.$executeRawUnsafe(
+			'TRUNCATE TABLE "user", "guest_abuse_bucket", "guest_risk_budget_bucket", "outbox_event", "generation_quote" CASCADE',
+		);
+		const active = await seedGuestDispatchJob();
+		const waiting = await seedGuestDispatchJob();
+		await client.generationJob.update({
+			where: { id: waiting.jobId },
+			data: { status: "RESERVED", version: 0 },
+		});
+		const dependencies = createDatabaseGuestAdmissionDependencies(client, {
+			environment: waiting.environment,
+			retryDelayMs: 5_000,
+		});
+		try {
+			const result = await dependencies.admit({
+				jobId: waiting.jobId,
+				trialId: waiting.trialId,
+				now: waiting.now,
+			});
+			expect(result).toEqual({
+				outcome: "BUSY",
+				retryAt: new Date(waiting.now.getTime() + 5_000),
+			});
+			await expect(
+				client.guestMediaTrial.findUniqueOrThrow({ where: { id: waiting.trialId } }),
+			).resolves.toMatchObject({
+				projectedDispatchAt: new Date(waiting.now.getTime() + 60_000),
+				estimateExpiresAt: new Date(waiting.now.getTime() + 2 * 60_000),
+			});
+			await expect(
+				client.generationJob.findUniqueOrThrow({ where: { id: waiting.jobId } }),
+			).resolves.toMatchObject({
+				dispatchEligibleAt: new Date(waiting.now.getTime() + 5_000),
+			});
+		} finally {
+			await client.generationJob.updateMany({
+				where: { id: { in: [active.jobId, waiting.jobId] } },
+				data: { status: "FAILED", terminalAt: new Date() },
+			});
+			await Promise.all([
+				revertRuntimeConfigOverride(active.overrideId, "task4-guest-test", client),
+				revertRuntimeConfigOverride(waiting.overrideId, "task4-guest-test", client),
+			]);
 		}
 	});
 
@@ -738,6 +786,133 @@ describe("production media runtime stores", () => {
 			version: 1,
 			outputs: [{ kind: "remote-url" }],
 		});
+	});
+
+	it("settles a guest success with zero outputs without publishing media", async () => {
+		const seeded = await seedGuestFinalizingJob();
+		await replaceFinalizationOutputs(seeded.jobId, []);
+
+		await expect(
+			createDatabaseFinalizationStore(client).claimFinalization({
+				jobId: seeded.jobId,
+				version: seeded.version,
+			}),
+		).resolves.toBeNull();
+
+		const [failedJob, attempt, outputCount, settlementEvents] = await Promise.all([
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+			client.generationAttempt.findFirstOrThrow({ where: { jobId: seeded.jobId } }),
+			client.generationJobAsset.count({ where: { jobId: seeded.jobId, role: "OUTPUT" } }),
+			client.outboxEvent.count({
+				where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
+			}),
+		]);
+		expect(failedJob).toMatchObject({
+			status: "FINALIZING",
+			failureCode: "GUEST_OUTPUT_CARDINALITY_INVALID",
+		});
+		expect(attempt).toMatchObject({
+			status: "SUCCEEDED",
+			errorSnapshot: expect.objectContaining({ code: "GUEST_OUTPUT_CARDINALITY_INVALID" }),
+		});
+		expect(outputCount).toBe(0);
+		expect(settlementEvents).toBe(1);
+
+		await expect(
+			settleGeneration(
+				{ jobId: seeded.jobId, version: failedJob.version },
+				{ store: createDatabaseSettlementStore(client) },
+			),
+		).resolves.toEqual({ outcome: "SETTLED" });
+		await expect(
+			Promise.all([
+				client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+				client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+			]),
+		).resolves.toEqual([
+			expect.objectContaining({
+				status: "FAILED",
+				failureCode: "GUEST_OUTPUT_CARDINALITY_INVALID",
+			}),
+			expect.objectContaining({ status: "SETTLED", settledAmount: 0n, releasedAmount: 4n }),
+		]);
+	});
+
+	it("settles a guest success with multiple outputs without publishing media", async () => {
+		const seeded = await seedGuestFinalizingJob();
+		await replaceFinalizationOutputs(seeded.jobId, [
+			{
+				kind: "remote-url",
+				url: "https://replicate.delivery/guest-output-1.png",
+			},
+			{
+				kind: "remote-url",
+				url: "https://replicate.delivery/guest-output-2.png",
+			},
+		]);
+
+		await expect(
+			createDatabaseFinalizationStore(client).claimFinalization({
+				jobId: seeded.jobId,
+				version: seeded.version,
+			}),
+		).resolves.toBeNull();
+		const failedJob = await client.generationJob.findUniqueOrThrow({
+			where: { id: seeded.jobId },
+		});
+		await expect(
+			Promise.all([
+				client.generationJobAsset.count({ where: { jobId: seeded.jobId, role: "OUTPUT" } }),
+				client.outboxEvent.count({
+					where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
+				}),
+			]),
+		).resolves.toEqual([0, 1]);
+
+		await settleGeneration(
+			{ jobId: seeded.jobId, version: failedJob.version },
+			{ store: createDatabaseSettlementStore(client) },
+		);
+		await expect(
+			Promise.all([
+				client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+				client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+			]),
+		).resolves.toEqual([
+			expect.objectContaining({
+				status: "FAILED",
+				failureCode: "GUEST_OUTPUT_CARDINALITY_INVALID",
+			}),
+			expect.objectContaining({ status: "SETTLED", settledAmount: 0n, releasedAmount: 4n }),
+		]);
+	});
+
+	it("preserves multiple registered outputs as finalization candidates", async () => {
+		const seeded = await seedFinalizingJob();
+		await replaceFinalizationOutputs(seeded.jobId, [
+			{
+				kind: "remote-url",
+				url: "https://replicate.delivery/registered-output-1.png",
+			},
+			{
+				kind: "remote-url",
+				url: "https://replicate.delivery/registered-output-2.png",
+			},
+		]);
+
+		const claim = await createDatabaseFinalizationStore(client).claimFinalization({
+			jobId: seeded.jobId,
+			version: seeded.version,
+		});
+
+		expect(claim?.candidates).toHaveLength(2);
+		expect(claim?.candidates.map((candidate) => candidate.output)).toEqual([
+			expect.objectContaining({ url: "https://replicate.delivery/registered-output-1.png" }),
+			expect.objectContaining({ url: "https://replicate.delivery/registered-output-2.png" }),
+		]);
+		await expect(
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+		).resolves.toMatchObject({ status: "FINALIZING", failureCode: null });
 	});
 
 	it("freezes an invalid persisted transfer envelope without releasing credits", async () => {
@@ -2144,6 +2319,7 @@ async function seedGuestDispatchJob() {
 		jobId: job.id,
 		trialId: trial.id,
 		overrideId: override.id,
+		now,
 		environment: {
 			NODE_ENV: "test",
 			MEDIA_GENERATION_ENABLED: "true",
@@ -2401,8 +2577,10 @@ function responseFetch(status: number, body: unknown): typeof fetch {
 		})) as typeof fetch;
 }
 
-async function seedFinalizingJob() {
-	const seeded = await seedReservedJob("image-quality");
+async function seedFinalizingJob(
+	productKey: "image-fast" | "image-quality" | "video-fast" = "image-quality",
+) {
+	const seeded = await seedReservedJob(productKey);
 	const store = createTestDispatchStore();
 	const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
 	await store.recordSynchronousCompletion(
@@ -2431,6 +2609,65 @@ async function seedFinalizingJob() {
 	);
 	const job = await client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } });
 	return { ...seeded, jobId: job.id, version: job.version };
+}
+
+async function seedGuestFinalizingJob() {
+	const seeded = await seedFinalizingJob("image-fast");
+	const job = await client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } });
+	const suffix = crypto.randomUUID();
+	const now = new Date();
+	const expiresAt = new Date(now.getTime() + 24 * 60 * 60_000);
+	await client.user.create({
+		data: {
+			id: job.ownerId,
+			name: "Guest",
+			email: `${suffix}@anonymous.invalid`,
+			emailVerified: false,
+			isAnonymous: true,
+			createdAt: now,
+			updatedAt: now,
+		},
+	});
+	const trial = await client.guestMediaTrial.create({
+		data: {
+			ownerId: job.ownerId,
+			promotionPeriod: `task4-finalization-${suffix}`,
+			eligibility: "CONSUMED",
+			sponsorCredits: 4n,
+			sourceSessionHash: `session-${suffix}`,
+			deviceHash: `device-${suffix}`,
+			ipHash: `ip-${suffix}`,
+			subnetHash: `subnet-${suffix}`,
+			capabilityVersion: "task4-guest-finalization-v1",
+			idempotencyFingerprint: `fingerprint-${suffix}`,
+			frozenQuotedRiskMicros: 3_500n,
+			riskState: "COMMITTED",
+			projectedDispatchAt: now,
+			estimateExpiresAt: new Date(now.getTime() + 60_000),
+			consumedJobId: job.id,
+			providerBoundaryAt: now,
+			consumedAt: now,
+			expiresAt,
+		},
+	});
+	await client.generationJob.update({
+		where: { id: job.id },
+		data: { serviceClass: "GUEST_SLOW", guestTrialId: trial.id },
+	});
+	return seeded;
+}
+
+async function replaceFinalizationOutputs(
+	jobId: string,
+	outputs: Array<{ kind: "remote-url"; url: string }>,
+) {
+	const attempt = await client.generationAttempt.findFirstOrThrow({
+		where: { jobId, status: "SUCCEEDED" },
+	});
+	await client.generationAttemptTransferEnvelope.update({
+		where: { attemptId: attempt.id },
+		data: { payload: { version: 1, outputs } },
+	});
 }
 
 async function seedBoundOutputAsset(
@@ -2633,7 +2870,7 @@ function assertSafeTestDatabaseUrl(value: string | undefined): void {
 	const parsed = new URL(value);
 	const safeDatabase =
 		parsed.pathname === "/ai_media_foundation_test" ||
-		/^\/ezpic_[a-z0-9_]+_test$/.test(parsed.pathname);
+		/^\/ezpic_[a-z0-9_]+_test(?:ing)?$/.test(parsed.pathname);
 	if (parsed.hostname !== "127.0.0.1" || parsed.port !== "55432" || !safeDatabase) {
 		throw new Error(
 			"TEST_DATABASE_URL must target 127.0.0.1:55432/ai_media_foundation_test or a dedicated ezpic_*_test database",

@@ -35,7 +35,7 @@ describe("guest absolute media retention", () => {
 				ownerType: "USER",
 				ownerId,
 				kind: "INPUT",
-				status: "READY",
+				status: "VERIFYING",
 				retentionClass: "GUEST_TRIAL",
 				deleteAfter: new Date(now.getTime() - 1),
 				objectKey: `users/${ownerId}/assets/input/original.png`,

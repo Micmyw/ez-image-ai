@@ -40,6 +40,7 @@ import {
 	claimOutboxBatch,
 	completeGenerationOutputTransferTransaction,
 	completeOutboxEvent,
+	deriveGuestQueueEstimate,
 	expireGuestJobBeforeProvider,
 	expireGuestMediaTransaction,
 	failGenerationOutputTransferTransaction,
@@ -193,6 +194,8 @@ export interface DispatchRuntimeOptions {
 export interface GuestAdmissionRuntimeOptions {
 	environment?: Record<string, string | undefined>;
 	retryDelayMs?: number;
+	queueCapacity?: number;
+	serviceTimeMs?: number;
 }
 
 const dispatchAdmissionBlocked = Symbol("dispatch-admission-blocked");
@@ -269,6 +272,8 @@ export function createDatabaseGuestAdmissionDependencies(
 ): GuestAdmissionDependencies {
 	const environment = options.environment ?? process.env;
 	const retryDelayMs = options.retryDelayMs ?? 30_000;
+	const queueCapacity = options.queueCapacity ?? 1;
+	const serviceTimeMs = options.serviceTimeMs ?? 60_000;
 	return {
 		async admit(input) {
 			return database.$transaction(
@@ -295,7 +300,7 @@ export function createDatabaseGuestAdmissionDependencies(
 						trial.expiresAt <= input.now
 					) {
 						const expired = await expireGuestJobBeforeProvider(
-							{ jobId: job.id, now: input.now },
+							{ jobId: job.id, now: input.now, queueCapacity, serviceTimeMs },
 							tx,
 						);
 						return expired.outcome === "SKIPPED"
@@ -304,7 +309,13 @@ export function createDatabaseGuestAdmissionDependencies(
 					}
 					if (!(await guestRuntimeEnabled(tx, environment, trial.promotionPeriod))) {
 						const expired = await expireGuestJobBeforeProvider(
-							{ jobId: job.id, now: input.now, createReplacement: false },
+							{
+								jobId: job.id,
+								now: input.now,
+								createReplacement: false,
+								queueCapacity,
+								serviceTimeMs,
+							},
 							tx,
 						);
 						return expired.outcome === "SKIPPED"
@@ -320,7 +331,13 @@ export function createDatabaseGuestAdmissionDependencies(
 						trial.linkIntents.some((intent) => intent.state !== "NONE")
 					) {
 						const expired = await expireGuestJobBeforeProvider(
-							{ jobId: job.id, now: input.now, createReplacement: false },
+							{
+								jobId: job.id,
+								now: input.now,
+								createReplacement: false,
+								queueCapacity,
+								serviceTimeMs,
+							},
 							tx,
 						);
 						return expired.outcome === "SKIPPED"
@@ -361,7 +378,31 @@ export function createDatabaseGuestAdmissionDependencies(
 						const retryAt = new Date(
 							Math.min(input.now.getTime() + retryDelayMs, trial.expiresAt.getTime() - 1),
 						);
-						await updateGuestQueueEstimate(tx, job.id, trial.id, retryAt, trial.expiresAt);
+						const queueDepth = await tx.generationJob.count({
+							where: {
+								serviceClass: "GUEST_SLOW",
+								id: { not: job.id },
+								status: {
+									in: [
+										"RESERVED",
+										"DISPATCH_QUEUED",
+										"SUBMITTING",
+										"PROVIDER_PENDING",
+										"PROVIDER_RUNNING",
+										"NEEDS_RECONCILIATION",
+										"FINALIZING",
+									],
+								},
+							},
+						});
+						const estimate = deriveGuestQueueEstimate({
+							now: input.now,
+							queueDepth,
+							queueCapacity,
+							serviceTimeMs,
+							immutableExpiry: trial.expiresAt,
+						});
+						await updateGuestQueueEstimate(tx, job.id, trial.id, retryAt, estimate);
 						return { outcome: "BUSY" as const, retryAt };
 					}
 					const changed = await tx.generationJob.updateMany({
@@ -410,19 +451,16 @@ async function updateGuestQueueEstimate(
 	tx: Prisma.TransactionClient,
 	jobId: string,
 	trialId: string,
-	projectedDispatchAt: Date,
-	expiresAt: Date,
+	retryAt: Date,
+	estimate: { projectedDispatchAt: Date; estimateExpiresAt: Date },
 ): Promise<void> {
-	const estimateExpiresAt = new Date(
-		Math.min(projectedDispatchAt.getTime() + 30_000, expiresAt.getTime()),
-	);
 	await tx.generationJob.update({
 		where: { id: jobId },
-		data: { dispatchEligibleAt: projectedDispatchAt },
+		data: { dispatchEligibleAt: retryAt },
 	});
 	await tx.guestMediaTrial.update({
 		where: { id: trialId },
-		data: { projectedDispatchAt, estimateExpiresAt },
+		data: estimate,
 	});
 }
 
@@ -2334,7 +2372,8 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 						failureCode:
 							outputState.readyOutputCount > 0
 								? null
-								: job.failureCode === "SUBMISSION_REJECTED_CONFIRMED"
+								: job.failureCode === "SUBMISSION_REJECTED_CONFIRMED" ||
+									  job.failureCode === GUEST_OUTPUT_CARDINALITY_INVALID_CODE
 									? job.failureCode
 									: "NO_USABLE_OUTPUT",
 						terminalAt: new Date(),
@@ -2353,6 +2392,7 @@ const OUTPUT_TRANSFER_CLEANUP_GRACE_MS = 60_000;
 const OUTPUT_TRANSFER_EXHAUSTED_CODE = "STORAGE_TRANSFER_EXHAUSTED";
 const OUTPUT_TRANSFER_FENCE_LOST_CODE = "OUTPUT_TRANSFER_FENCE_LOST";
 const OUTPUT_TRANSFER_IN_PROGRESS_CODE = "OUTPUT_TRANSFER_IN_PROGRESS";
+const GUEST_OUTPUT_CARDINALITY_INVALID_CODE = "GUEST_OUTPUT_CARDINALITY_INVALID";
 
 function isOutputTransferExhaustedPlaceholder(asset: {
 	status: string;
@@ -2530,6 +2570,16 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 					attempt.transferEnvelope?.payload,
 				);
 				if (attempt.transferEnvelope && outputs.length === 0) {
+					if (job.serviceClass === "GUEST_SLOW") {
+						await transitionGuestOutputCardinalityFailure(tx, {
+							attemptId: attempt.id,
+							jobId: job.id,
+							jobVersion: job.version,
+							previousFailureCode: job.failureCode,
+							outputCount: 0,
+						});
+						return null;
+					}
 					await transitionTerminalSuccessWithoutMedia(tx, {
 						attemptId: attempt.id,
 						jobId: job.id,
@@ -2545,6 +2595,16 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 						legacyOutputsFromResponseSnapshot(attempt.responseSnapshot),
 					);
 					if (!promoted) {
+						if (job.serviceClass === "GUEST_SLOW") {
+							await transitionGuestOutputCardinalityFailure(tx, {
+								attemptId: attempt.id,
+								jobId: job.id,
+								jobVersion: job.version,
+								previousFailureCode: job.failureCode,
+								outputCount: 0,
+							});
+							return null;
+						}
 						await transitionTerminalSuccessWithoutMedia(tx, {
 							attemptId: attempt.id,
 							jobId: job.id,
@@ -2567,6 +2627,16 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 						},
 					});
 					outputs = providerOutputsFromTransferEnvelope(mediaKind, promoted);
+				}
+				if (job.serviceClass === "GUEST_SLOW" && outputs.length !== 1) {
+					await transitionGuestOutputCardinalityFailure(tx, {
+						attemptId: attempt.id,
+						jobId: job.id,
+						jobVersion: job.version,
+						previousFailureCode: job.failureCode,
+						outputCount: outputs.length,
+					});
+					return null;
 				}
 				return {
 					jobId: job.id,
@@ -2813,6 +2883,53 @@ async function queueGenerationSettlement(
 			payload: { jobId, version },
 		},
 		update: {},
+	});
+}
+
+async function transitionGuestOutputCardinalityFailure(
+	tx: Prisma.TransactionClient,
+	input: {
+		attemptId: string;
+		jobId: string;
+		jobVersion: number;
+		previousFailureCode: string | null;
+		outputCount: number;
+	},
+): Promise<void> {
+	await tx.generationAttempt.updateMany({
+		where: { id: input.attemptId, status: "SUCCEEDED" },
+		data: {
+			errorSnapshot: {
+				code: GUEST_OUTPUT_CARDINALITY_INVALID_CODE,
+				outputCount: input.outputCount,
+			},
+		},
+	});
+	const changed = await tx.generationJob.updateMany({
+		where: {
+			id: input.jobId,
+			status: "FINALIZING",
+			failureCode: input.previousFailureCode,
+		},
+		data: {
+			failureCode: GUEST_OUTPUT_CARDINALITY_INVALID_CODE,
+			version: { increment: 1 },
+		},
+	});
+	const settlementVersion = input.jobVersion + (changed.count === 1 ? 1 : 0);
+	await queueGenerationSettlement(tx, input.jobId, settlementVersion);
+	if (changed.count !== 1) return;
+	await tx.auditLog.create({
+		data: {
+			action: "MEDIA_GUEST_OUTPUT_CARDINALITY_REJECTED",
+			targetType: "GENERATION_ATTEMPT",
+			targetId: input.attemptId,
+			metadata: {
+				jobId: input.jobId,
+				code: GUEST_OUTPUT_CARDINALITY_INVALID_CODE,
+				outputCount: input.outputCount,
+			},
+		},
 	});
 }
 

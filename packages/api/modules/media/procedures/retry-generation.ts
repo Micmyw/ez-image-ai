@@ -44,6 +44,7 @@ import {
 interface RetryGenerationSource {
 	id: string;
 	productKey: string;
+	serviceClass: "STANDARD" | "GUEST_SLOW";
 	quote: { inputSnapshot: unknown };
 	assets: Array<{ assetId: string; assetChecksum: string }>;
 	editSessionId: string | null;
@@ -104,7 +105,13 @@ const defaultDependencies: RetryGenerationDependencies = {
 	resumeRequest: (input) => resumeGenerationRetryRequest(input, db),
 	findSource: ({ userId, jobId }) =>
 		db.generationJob.findFirst({
-			where: { id: jobId, ownerType: "USER", ownerId: userId, status: "FAILED" },
+			where: {
+				id: jobId,
+				ownerType: "USER",
+				ownerId: userId,
+				status: "FAILED",
+				serviceClass: "STANDARD",
+			},
 			include: {
 				assets: { where: { role: "INPUT" }, orderBy: [{ position: "asc" }, { id: "asc" }] },
 				quote: true,
@@ -161,7 +168,7 @@ export async function retryGenerationForUser(
 	let selection: ReturnType<RetryGenerationDependencies["createAdapter"]> | undefined;
 	if (!claim) {
 		const source = await dependencies.findSource({ userId, jobId: input.jobId });
-		if (!source) throw new Error("NOT_FOUND");
+		if (!source || source.serviceClass !== "STANDARD") throw new Error("NOT_FOUND");
 		const productKey = productModelKeySchema.parse(source.productKey);
 		const normalizedInput = mediaModelInputSchema.parse(source.quote.inputSnapshot);
 		const editContext = retryEditContextForSource(userId, source, normalizedInput);

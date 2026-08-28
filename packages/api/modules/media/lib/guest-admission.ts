@@ -32,6 +32,7 @@ import {
 } from "./turnstile";
 
 const GUEST_ESTIMATED_SERVICE_TIME_MS = 60_000;
+const GUEST_QUEUE_CAPACITY = 1;
 const GUEST_QUOTE_TTL_MS = 10 * 60_000;
 
 export interface GuestAdmissionBoundary {
@@ -309,6 +310,7 @@ export async function submitGuestGenerationForGuest(
 		retentionMs: loaded.config.retentionMs,
 		queueTtlMs: loaded.config.queueTtlMs,
 		serviceTimeMs: GUEST_ESTIMATED_SERVICE_TIME_MS,
+		queueCapacity: GUEST_QUEUE_CAPACITY,
 		maximumBytes: loaded.config.maximumBytes,
 		maximumGlobalQueueDepth: loaded.config.limits.maximumGlobalQueueDepth,
 		maximumActiveJobsPerGuest: loaded.config.limits.maximumActiveJobsPerGuest,

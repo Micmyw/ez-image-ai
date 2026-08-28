@@ -2,6 +2,7 @@ import type { Prisma } from "../../generated/client";
 import { hasCurrentApprovedMediaAssetEvidence } from "./assets";
 import { createCreditGrant, reserveCreditsInTransaction } from "./credits";
 import { consumeGuestTurnstileTokenHash, incrementGuestBucket } from "./guest-bootstrap";
+import { deriveGuestQueueEstimate } from "./guest-retention";
 import {
 	createModeratedGenerationQuote,
 	fingerprintGenerationQuoteSecurityPayload,
@@ -55,6 +56,7 @@ export interface CreateGuestGenerationTransactionInput {
 	retentionMs: number;
 	queueTtlMs: number;
 	serviceTimeMs: number;
+	queueCapacity?: number;
 	maximumBytes: number;
 	maximumGlobalQueueDepth: number;
 	maximumActiveJobsPerGuest: number;
@@ -164,7 +166,15 @@ export async function createGuestGenerationTransaction(
 			if (queueDepth >= input.maximumGlobalQueueDepth) {
 				throw new Error("GUEST_CAPACITY_UNAVAILABLE");
 			}
-			const projectedDispatchAt = new Date(input.now.getTime() + queueDepth * input.serviceTimeMs);
+			const { projectedDispatchAt, estimateExpiresAt } = deriveGuestQueueEstimate({
+				now: input.now,
+				queueDepth,
+				queueCapacity: input.queueCapacity ?? 1,
+				serviceTimeMs: input.serviceTimeMs,
+				immutableExpiry: new Date(
+					Math.min(input.now.getTime() + input.retentionMs, source.asset.deleteAfter!.getTime()),
+				),
+			});
 			if (projectedDispatchAt.getTime() - input.now.getTime() > input.queueTtlMs) {
 				throw new Error("GUEST_CAPACITY_UNAVAILABLE");
 			}
@@ -174,9 +184,6 @@ export async function createGuestGenerationTransaction(
 			if (resultExpiresAt <= projectedDispatchAt) {
 				throw new Error("GUEST_CAPACITY_UNAVAILABLE");
 			}
-			const estimateExpiresAt = new Date(
-				Math.min(projectedDispatchAt.getTime() + input.serviceTimeMs, resultExpiresAt.getTime()),
-			);
 
 			await assertCanonicalGuestQuote(input, resolveCanonicalQuote);
 			await holdQuotedRisk(input, resultExpiresAt, tx);
@@ -851,6 +858,7 @@ function validateAdmissionInput(input: CreateGuestGenerationTransactionInput): v
 		input.retentionMs,
 		input.queueTtlMs,
 		input.serviceTimeMs,
+		input.queueCapacity ?? 1,
 		input.maximumBytes,
 		input.maximumGlobalQueueDepth,
 		input.maximumActiveJobsPerGuest,

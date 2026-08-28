@@ -35,6 +35,7 @@ afterEach(() => vi.unstubAllEnvs());
 const source = {
 	id: "source-job-1",
 	productKey: "image-fast",
+	serviceClass: "STANDARD" as const,
 	editSessionId: null,
 	parentJobId: null,
 	editSession: null,
@@ -142,6 +143,25 @@ function dependencies(
 }
 
 describe("retryGenerationForUser", () => {
+	it("rejects a guest-service source before creating retry state or dispatching work", async () => {
+		const deps = dependencies({
+			findSource: vi.fn(async () => ({ ...source, serviceClass: "GUEST_SLOW" as const })),
+		});
+
+		await expect(
+			retryGenerationForUser(
+				"user-1",
+				{ jobId: "source-job-1", idempotencyKey: "retry-guest-operation" },
+				deps,
+			),
+		).rejects.toThrow("NOT_FOUND");
+		expect(deps.claimRequest).not.toHaveBeenCalled();
+		expect(deps.createAdapter).not.toHaveBeenCalled();
+		expect(deps.assertAllowed).not.toHaveBeenCalled();
+		expect(deps.createJob).not.toHaveBeenCalled();
+		expect(deps.dispatch).not.toHaveBeenCalled();
+	});
+
 	it("replays a completed retry before resolving a retired product or current policy", async () => {
 		const moderateText = vi.fn();
 		const deps = dependencies({

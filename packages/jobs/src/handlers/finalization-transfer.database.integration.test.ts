@@ -758,6 +758,9 @@ async function markSeededJobAsGuest(
 	deleteAfter: Date,
 ): Promise<void> {
 	const suffix = crypto.randomUUID();
+	const createdAt = new Date(deleteAfter.getTime() - 120_000);
+	const projectedDispatchAt = new Date(createdAt.getTime() + 60_000);
+	const estimateExpiresAt = new Date(deleteAfter.getTime() - 1);
 	await client.user.create({
 		data: {
 			id: seeded.ownerId,
@@ -783,11 +786,13 @@ async function markSeededJobAsGuest(
 			idempotencyFingerprint: `fingerprint-${suffix}`,
 			frozenQuotedRiskMicros: 8_000n,
 			riskState: "COMMITTED",
-			projectedDispatchAt: new Date(),
-			estimateExpiresAt: new Date(),
+			projectedDispatchAt,
+			estimateExpiresAt,
 			consumedJobId: seeded.jobId,
-			providerBoundaryAt: new Date(),
-			consumedAt: new Date(),
+			providerBoundaryAt: projectedDispatchAt,
+			consumedAt: projectedDispatchAt,
+			createdAt,
+			updatedAt: projectedDispatchAt,
 			expiresAt: deleteAfter,
 		},
 	});

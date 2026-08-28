@@ -2,10 +2,49 @@ import { createHash } from "node:crypto";
 
 import type { Prisma } from "../../generated/client";
 import { releaseCreditsInTransaction, reserveCreditsInTransaction } from "./credits";
+import { ACTIVE_GENERATION_JOB_STATUSES } from "./state-machine";
 import type { MediaTransactionClient } from "./types";
 
 const GUEST_UNDISPATCHED_TTL_MS = 10 * 60_000;
-const REPLACEMENT_ESTIMATE_MS = 30_000;
+
+export interface GuestQueueEstimateInput {
+	now: Date;
+	queueDepth: number;
+	queueCapacity: number;
+	serviceTimeMs: number;
+	immutableExpiry: Date;
+}
+
+export function deriveGuestQueueEstimate(input: GuestQueueEstimateInput): {
+	projectedDispatchAt: Date;
+	estimateExpiresAt: Date;
+} {
+	if (
+		Number.isNaN(input.now.getTime()) ||
+		Number.isNaN(input.immutableExpiry.getTime()) ||
+		!Number.isSafeInteger(input.queueDepth) ||
+		input.queueDepth < 0 ||
+		!Number.isSafeInteger(input.queueCapacity) ||
+		input.queueCapacity <= 0 ||
+		!Number.isSafeInteger(input.serviceTimeMs) ||
+		input.serviceTimeMs <= 0
+	) {
+		throw new Error("GUEST_QUEUE_ESTIMATE_INVALID");
+	}
+	const waves = Math.ceil(input.queueDepth / input.queueCapacity);
+	const queueDelayMs = waves * input.serviceTimeMs;
+	if (!Number.isSafeInteger(queueDelayMs)) throw new Error("GUEST_QUEUE_ESTIMATE_INVALID");
+	const projectedDispatchAt = new Date(input.now.getTime() + queueDelayMs);
+	return {
+		projectedDispatchAt,
+		estimateExpiresAt: new Date(
+			Math.min(
+				projectedDispatchAt.getTime() + input.serviceTimeMs,
+				input.immutableExpiry.getTime(),
+			),
+		),
+	};
+}
 
 export interface ExpireGuestMediaInput {
 	now: Date;
@@ -216,7 +255,13 @@ async function expireUndispatchedGuestJobs(
 }
 
 export async function expireGuestJobBeforeProvider(
-	input: { jobId: string; now: Date; createReplacement?: boolean },
+	input: {
+		jobId: string;
+		now: Date;
+		createReplacement?: boolean;
+		queueCapacity?: number;
+		serviceTimeMs?: number;
+	},
 	tx: Prisma.TransactionClient,
 ): Promise<
 	{ outcome: "SKIPPED" } | { outcome: "EXPIRED"; jobId: string; replacementJobId?: string }
@@ -271,7 +316,7 @@ export async function expireGuestJobBeforeProvider(
 		trial.linkedAt === null &&
 		trial.linkIntents.every((intent) => intent.state === "NONE");
 	if (replacementAllowed) {
-		const replacement = await createGuestReplacement(job, trial, input.now, tx);
+		const replacement = await createGuestReplacement(job, trial, input, tx);
 		return { outcome: "EXPIRED", jobId: job.id, replacementJobId: replacement.id };
 	}
 
@@ -299,9 +344,31 @@ async function createGuestReplacement(
 		};
 	}>,
 	trial: NonNullable<typeof job.guestTrial>,
-	now: Date,
+	input: {
+		now: Date;
+		queueCapacity?: number;
+		serviceTimeMs?: number;
+	},
 	tx: Prisma.TransactionClient,
 ) {
+	const queueDepth = await tx.generationJob.count({
+		where: {
+			serviceClass: "GUEST_SLOW",
+			id: { not: job.id },
+			status: { in: [...ACTIVE_GENERATION_JOB_STATUSES] },
+		},
+	});
+	const persistedServiceTimeMs = Math.max(
+		1,
+		trial.estimateExpiresAt.getTime() - trial.projectedDispatchAt.getTime(),
+	);
+	const estimate = deriveGuestQueueEstimate({
+		now: input.now,
+		queueDepth,
+		queueCapacity: input.queueCapacity ?? 1,
+		serviceTimeMs: input.serviceTimeMs ?? persistedServiceTimeMs,
+		immutableExpiry: trial.expiresAt,
+	});
 	const quote = await tx.generationQuote.create({
 		data: {
 			ownerType: job.quote.ownerType,
@@ -336,7 +403,7 @@ async function createGuestReplacement(
 			inputSnapshot: job.inputSnapshot as Prisma.InputJsonValue,
 			pricingSnapshot: job.pricingSnapshot as Prisma.InputJsonValue,
 			serviceClass: "GUEST_SLOW",
-			dispatchEligibleAt: now,
+			dispatchEligibleAt: estimate.projectedDispatchAt,
 			guestTrialId: trial.id,
 		},
 	});
@@ -363,9 +430,6 @@ async function createGuestReplacement(
 			})),
 		});
 	}
-	const estimateExpiresAt = new Date(
-		Math.min(now.getTime() + REPLACEMENT_ESTIMATE_MS, trial.expiresAt.getTime()),
-	);
 	await tx.guestMediaTrial.update({
 		where: { id: trial.id },
 		data: {
@@ -373,8 +437,8 @@ async function createGuestReplacement(
 			currentJobId: replacement.id,
 			eligibility: "IN_FLIGHT",
 			riskState: "HELD",
-			projectedDispatchAt: now,
-			estimateExpiresAt,
+			projectedDispatchAt: estimate.projectedDispatchAt,
+			estimateExpiresAt: estimate.estimateExpiresAt,
 			terminalAt: null,
 		},
 	});
@@ -385,7 +449,7 @@ async function createGuestReplacement(
 			aggregateId: replacement.id,
 			dedupeKey: `guest-job:${replacement.id}:eligible`,
 			payload: { jobId: replacement.id, trialId: trial.id },
-			availableAt: now,
+			availableAt: estimate.projectedDispatchAt,
 		},
 	});
 	return replacement;
