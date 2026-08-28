@@ -13,6 +13,8 @@ const forbiddenExpression = [
 ];
 const publicTextExtensions = new Set([".css", ".html", ".js", ".map", ".mjs", ".rsc"]);
 const publicResourceAttribute = /(?:src|href|poster)=["']((?:https?:)?\/\/[^"']+)["']/gi;
+const serializedRscResourceProperty =
+	/\\?"(?:src|href|poster)\\?"\s*:\s*\\?"((?:https?:)?\/\/[^"\\]+)\\?"/gi;
 const cssResourceUrl = /url\(\s*["']?((?:https?:)?\/\/[^)'"\s]+)["']?\s*\)/gi;
 const scriptAssetUrl =
 	/["']((?:https?:)?\/\/[^"']+\.(?:avif|css|gif|jpe?g|js|mjs|mp4|png|svg|webm|webp|woff2?)(?:\?[^"']*)?)["']/gi;
@@ -69,8 +71,9 @@ function resourcePatternsFor(file) {
 		case ".css":
 			return [cssResourceUrl];
 		case ".html":
-		case ".rsc":
 			return [publicResourceAttribute, cssResourceUrl];
+		case ".rsc":
+			return [publicResourceAttribute, serializedRscResourceProperty, cssResourceUrl];
 		case ".js":
 		case ".map":
 		case ".mjs":
@@ -246,8 +249,8 @@ async function selfTest() {
 		});
 		const routeFindings = await scanPublicUiFiles(routeFiles);
 		if (goodFindings.length !== 0) throw new Error("Controlled owned fixture was rejected");
-		if (routeFiles.length !== 4) {
-			throw new Error(`Controlled route graph selected ${routeFiles.length} files instead of 4`);
+		if (routeFiles.length !== 5) {
+			throw new Error(`Controlled route graph selected ${routeFiles.length} files instead of 5`);
 		}
 		for (const expected of ["competitor-route", "internal-task-field", "foreign-hotlink"]) {
 			if (!routeFindings.some((finding) => finding.kind === expected)) {
@@ -256,6 +259,21 @@ async function selfTest() {
 		}
 		if (routeFindings.some((finding) => finding.kind === "internal-model-field")) {
 			throw new Error("Server-only or unreferenced private chunks entered the public scan");
+		}
+		for (const expected of [
+			"https://rsc-foreign.example/serialized.png",
+			"https://nested-rsc-foreign.example/preview.webp",
+		]) {
+			if (
+				!routeFindings.some(
+					(finding) =>
+						finding.kind === "foreign-hotlink" &&
+						path.basename(finding.file) === "public.rsc" &&
+						finding.value === expected,
+				)
+			) {
+				throw new Error(`Controlled serialized RSC resource was not detected: ${expected}`);
+			}
 		}
 		for (const expected of [
 			"competitor-route",
@@ -284,6 +302,7 @@ async function writeRouteFixture(buildRoot, manifestRelativePath) {
 	const privateChunk = path.join(buildRoot, "server", "chunks", "private.js");
 	const routePage = path.join(buildRoot, "server", "app", "public", "page.js");
 	const routeHtml = path.join(buildRoot, "server", "app", "public.html");
+	const routeRsc = path.join(buildRoot, "server", "app", "public.rsc");
 	const appPathsManifest = path.join(buildRoot, "server", "app-paths-manifest.json");
 	const manifestPath = path.join(buildRoot, manifestRelativePath);
 	await Promise.all([
@@ -298,6 +317,11 @@ async function writeRouteFixture(buildRoot, manifestRelativePath) {
 		writeFile(privateChunk, 'const providerModelId="server-only";', "utf8"),
 		writeFile(routePage, 'const publicHeading="Seedream route leak";', "utf8"),
 		writeFile(routeHtml, '<img src="//foreign.example/route-owned.png">', "utf8"),
+		writeFile(
+			routeRsc,
+			'1:["$","img",null,{"src":"https://rsc-foreign.example/serialized.png"}]\n2:"{\\"poster\\":\\"https://nested-rsc-foreign.example/preview.webp\\"}"',
+			"utf8",
+		),
 		writeFile(appPathsManifest, '{"/public/page":"server/app/public/page.js"}', "utf8"),
 		writeFile(manifestPath, '{"chunks":["/_next/static/chunks/public.js"]}', "utf8"),
 	]);
