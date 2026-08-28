@@ -326,9 +326,7 @@ export function createDatabaseGuestAdmissionDependencies(
 						trial.currentJobId !== job.id ||
 						trial.consumedJobId !== null ||
 						trial.eligibility !== "IN_FLIGHT" ||
-						trial.riskState !== "HELD" ||
-						trial.linkedAt !== null ||
-						trial.linkIntents.some((intent) => intent.state !== "NONE")
+						trial.riskState !== "HELD"
 					) {
 						const expired = await expireGuestJobBeforeProvider(
 							{
@@ -526,7 +524,7 @@ export function createDatabaseDispatchStore(
 				if (existing && existing.status !== "CREATED") return null;
 				if (isGuest) {
 					const trial = job.guestTrial;
-					if (!trial) return null;
+					if (!trial || trial.ownerId === null) return null;
 					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`guest-owner-promotion:${job.ownerId}:${trial.promotionPeriod}`}, 0))`;
 					await tx.$queryRaw`SELECT "id" FROM "guest_media_trial" WHERE "id" = ${trial.id} FOR UPDATE`;
 					if (!(await guestDispatchChecksPass(tx, job, trial, environment, new Date()))) {
@@ -4304,7 +4302,7 @@ async function guestDispatchChecksPass(
 	},
 	trial: {
 		id: string;
-		ownerId: string;
+		ownerId: string | null;
 		promotionPeriod: string;
 		eligibility: string;
 		riskState: string;

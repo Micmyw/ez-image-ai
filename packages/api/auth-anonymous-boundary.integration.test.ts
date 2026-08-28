@@ -103,8 +103,38 @@ describe("anonymous Better Auth wildcard boundary", () => {
 
 		expect(missingProof.status).toBe(403);
 		expect(await missingProof.json()).toEqual({ code: "GUEST_BOOTSTRAP_PROOF_REQUIRED" });
+		const clearedBootstrapCookie = missingProof.headers.get("set-cookie");
+		expect(clearedBootstrapCookie).not.toBeNull();
+		expect(clearedBootstrapCookie ?? "").toContain("media_guest_bootstrap=;");
+		expect(clearedBootstrapCookie ?? "").toContain("Max-Age=0");
+		expect(clearedBootstrapCookie ?? "").toContain("Path=/api/auth/sign-in/anonymous");
 		expect(wrongMethod.status).toBe(404);
 		expect(auth.handler).not.toHaveBeenCalled();
+	});
+
+	it("maps malformed percent-encoded bootstrap cookies to the stable denial boundary", async () => {
+		vi.stubEnv("GUEST_PROMOTION_PERIOD", "2026-launch");
+		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", "https://app.test");
+		vi.stubEnv("BETTER_AUTH_SECRET", "test-secret");
+		vi.stubEnv("MEDIA_TRUSTED_PROXY_PROVIDER", "cloudflare");
+		databaseMocks.resolveGuestRuntimeConfigOverride.mockResolvedValue({ enabled: true });
+
+		const response = await app.request("/api/auth/sign-in/anonymous", {
+			method: "POST",
+			headers: {
+				origin: "https://app.test",
+				"cf-connecting-ip": "203.0.113.10",
+				cookie: "media_guest_bootstrap=%E0%A4%A",
+			},
+		});
+
+		expect(response.status).toBe(403);
+		expect(await response.json()).toEqual({ code: "GUEST_BOOTSTRAP_PROOF_REQUIRED" });
+		const clearedBootstrapCookie = response.headers.get("set-cookie");
+		expect(clearedBootstrapCookie).not.toBeNull();
+		expect(clearedBootstrapCookie ?? "").toContain("media_guest_bootstrap=;");
+		expect(clearedBootstrapCookie ?? "").toContain("Max-Age=0");
+		expect(clearedBootstrapCookie ?? "").toContain("Path=/api/auth/sign-in/anonymous");
 	});
 
 	it("allows an enabled, proven, unauthenticated anonymous sign-in", async () => {
@@ -337,6 +367,24 @@ describe("anonymous Better Auth wildcard boundary", () => {
 			select: { id: true },
 		});
 		expect(auth.handler).toHaveBeenCalledOnce();
+	});
+
+	it("maps a malformed percent-encoded link cookie to the stable generic denial", async () => {
+		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", "independent-link-secret");
+		vi.stubEnv("GUEST_PROMOTION_PERIOD", "2026-launch");
+		vi.mocked(auth.api.getSession).mockResolvedValue({
+			user: { id: "guest", isAnonymous: true },
+			session: { id: "guest-session" },
+		} as never);
+
+		const response = await app.request("/api/auth/sign-in/email", {
+			method: "POST",
+			headers: { cookie: "media_guest_link_intent=%E0%A4%A" },
+		});
+
+		expect(response.status).toBe(403);
+		expect(await response.json()).toEqual({ code: "GUEST_LINK_INTENT_REQUIRED" });
+		expect(auth.handler).not.toHaveBeenCalled();
 	});
 
 	it.each([

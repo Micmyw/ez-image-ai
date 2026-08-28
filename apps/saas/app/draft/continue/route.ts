@@ -62,13 +62,13 @@ export async function GET(request: Request) {
 }
 
 function anonymousBootstrapPostResponse(): Response {
-	const body = `<!doctype html><html><head><meta name="referrer" content="origin"></head><body><form method="post" action="/api/auth/sign-in/anonymous?handoff=1"><noscript><button type="submit">Continue</button></noscript></form><script>document.forms[0].submit()</script></body></html>`;
+	const body = `<!doctype html><html><head><meta name="referrer" content="no-referrer"></head><body><form method="post" action="/api/auth/sign-in/anonymous?handoff=1"><noscript><button type="submit">Continue</button></noscript></form><script>document.forms[0].submit()</script></body></html>`;
 	return new Response(body, {
 		status: 200,
 		headers: {
 			"Cache-Control": "no-store",
 			"Content-Type": "text/html; charset=utf-8",
-			"Referrer-Policy": "origin",
+			"Referrer-Policy": "no-referrer",
 			"X-Content-Type-Options": "nosniff",
 		},
 	});

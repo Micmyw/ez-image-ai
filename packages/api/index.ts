@@ -148,15 +148,21 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 				const session = await auth.api.getSession({ headers: c.req.raw.headers });
 				if (authPath === "/sign-in/anonymous") {
 					if (c.req.method !== "POST") {
-						return c.json({ code: "NOT_FOUND" }, 404);
+						return withExpiredGuestBootstrapCookie(c.json({ code: "NOT_FOUND" }, 404));
 					}
 					const runtimeOverride = await boundaryDependencies.resolveGuestRuntimeOverride(c.req.raw);
 					if (!getGuestMediaConfig(process.env, runtimeOverride).enabled) {
-						return c.json({ code: "NOT_FOUND" }, 404);
+						return withExpiredGuestBootstrapCookie(c.json({ code: "NOT_FOUND" }, 404));
 					}
-					if (session) return c.json({ code: "ANONYMOUS_SESSION_REPLACEMENT_FORBIDDEN" }, 403);
+					if (session) {
+						return withExpiredGuestBootstrapCookie(
+							c.json({ code: "ANONYMOUS_SESSION_REPLACEMENT_FORBIDDEN" }, 403),
+						);
+					}
 					if (!(await boundaryDependencies.hasGuestBootstrapProof(c.req.raw))) {
-						return c.json({ code: "GUEST_BOOTSTRAP_PROOF_REQUIRED" }, 403);
+						return withExpiredGuestBootstrapCookie(
+							c.json({ code: "GUEST_BOOTSTRAP_PROOF_REQUIRED" }, 403),
+						);
 					}
 					return usesDefaultGuestBootstrap
 						? handleDurableGuestAnonymousSignIn(c.req.raw)
@@ -334,14 +340,20 @@ async function handleDurableGuestAnonymousSignIn(request: Request): Promise<Resp
 		!/^[A-Za-z0-9_-]{43}$/.test(token) ||
 		!identity
 	) {
-		return guestAuthErrorResponse("GUEST_BOOTSTRAP_BOUNDARY_REJECTED", 403);
+		return withExpiredGuestBootstrapCookie(
+			guestAuthErrorResponse("GUEST_BOOTSTRAP_BOUNDARY_REJECTED", 403),
+		);
 	}
 	const saasOrigin = new URL(saasOriginValue).origin;
 	const claimHash = hashDraftClaimToken(token);
 	const principalEmail = guestPrincipalEmail(secret, claimHash);
 	const runtimeOverride = await defaultResolveGuestRuntimeOverride();
 	const guestConfig = getGuestMediaConfig(process.env, runtimeOverride);
-	if (!guestConfig.enabled) return guestAuthErrorResponse("GUEST_CAPABILITY_DISABLED", 404);
+	if (!guestConfig.enabled) {
+		return withExpiredGuestBootstrapCookie(
+			guestAuthErrorResponse("GUEST_CAPABILITY_DISABLED", 404),
+		);
+	}
 
 	try {
 		const result = await consumeGuestBootstrap(
@@ -354,6 +366,7 @@ async function handleDurableGuestAnonymousSignIn(request: Request): Promise<Resp
 				ipHash: hashGuestBinding(secret, "guest-ip", identity.ip),
 				subnetHash: hashGuestBinding(secret, "guest-subnet", identity.subnet),
 				limits: guestConfig.limits,
+				abuseEvidenceTtlMs: guestConfig.abuseEvidenceTtlMs,
 			},
 			async ({ email }) => {
 				const authHeaders = new Headers(request.headers);
@@ -464,7 +477,13 @@ function guestAuthErrorResponse(code: string, status: StatusCode): Response {
 function readRequestCookie(request: Request, name: string): string | null {
 	for (const entry of request.headers.get("cookie")?.split(";") ?? []) {
 		const [key, ...value] = entry.trim().split("=");
-		if (key === name) return decodeURIComponent(value.join("="));
+		if (key === name) {
+			try {
+				return decodeURIComponent(value.join("="));
+			} catch {
+				return null;
+			}
+		}
 	}
 	return null;
 }

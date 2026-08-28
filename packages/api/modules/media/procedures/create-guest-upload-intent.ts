@@ -133,6 +133,7 @@ export const createGuestDraftUploadIntent = publicProcedure
 				ipHash: hashGuestBinding(secret, "guest-ip", identity.ip),
 				subnetHash: hashGuestBinding(secret, "guest-subnet", identity.subnet),
 				abuseLimits: loaded.config.limits,
+				abuseEvidenceTtlMs: loaded.config.abuseEvidenceTtlMs,
 			},
 			db,
 		);

@@ -11,8 +11,23 @@ const forbiddenExpression = [
 	["internal-task-field", /providerTaskId/i],
 	["internal-route-brand", /fal-ai|replicate\.com/i],
 ];
-const publicTextExtensions = new Set([".css", ".html", ".js", ".map", ".mjs", ".rsc"]);
+const publicTextExtensions = new Set([
+	".css",
+	".csv",
+	".html",
+	".js",
+	".json",
+	".map",
+	".md",
+	".mjs",
+	".rsc",
+	".svg",
+	".txt",
+	".webmanifest",
+	".xml",
+]);
 const publicResourceAttribute = /(?:src|href|poster)=["']((?:https?:)?\/\/[^"']+)["']/gi;
+const markdownImageResource = /!\[[^\]]*\]\(((?:https?:)?\/\/[^)\s]+)[^)]*\)/gi;
 const serializedRscResourceProperty =
 	/\\?"(?:src|href|poster)\\?"\s*:\s*\\?"((?:https?:)?\/\/[^"\\]+)\\?"/gi;
 const cssResourceUrl = /url\(\s*["']?((?:https?:)?\/\/[^)'"\s]+)["']?\s*\)/gi;
@@ -35,6 +50,10 @@ const builtPublicRoutes = [
 		appPathKey: "/(guest)/try/page",
 		outputRoutes: ["try"],
 	},
+];
+const deployedPublicRoots = [
+	path.resolve("apps/marketing/public"),
+	path.resolve("apps/saas/public"),
 ];
 
 export async function scanPublicUiRoots(roots) {
@@ -72,8 +91,13 @@ function resourcePatternsFor(file) {
 			return [cssResourceUrl];
 		case ".html":
 			return [publicResourceAttribute, cssResourceUrl];
+		case ".md":
+			return [markdownImageResource, publicResourceAttribute];
 		case ".rsc":
 			return [publicResourceAttribute, serializedRscResourceProperty, cssResourceUrl];
+		case ".svg":
+		case ".xml":
+			return [publicResourceAttribute, cssResourceUrl];
 		case ".js":
 		case ".map":
 		case ".mjs":
@@ -85,7 +109,9 @@ function resourcePatternsFor(file) {
 
 async function publicArtifactFiles(root) {
 	const result = [];
-	const stack = [path.resolve(root)];
+	const resolvedRoot = path.resolve(root);
+	if (!(await fileExists(resolvedRoot))) return result;
+	const stack = [resolvedRoot];
 	while (stack.length) {
 		const current = stack.pop();
 		if (!current) continue;
@@ -342,14 +368,22 @@ async function main() {
 		files = (await Promise.all(explicitRoots.map(publicArtifactFiles))).flat();
 	} else {
 		await Promise.all(builtPublicRoutes.map(({ buildRoot }) => assertProductionBuild(buildRoot)));
-		files = (
+		const existingPublicRoots = [];
+		for (const root of deployedPublicRoots) {
+			if (await fileExists(root)) existingPublicRoots.push(root);
+		}
+		const builtFiles = (
 			await Promise.all(
 				builtPublicRoutes.map(({ buildRoot, manifest, appPathKey, outputRoutes }) =>
 					publicRouteArtifactFiles(buildRoot, manifest, { appPathKey, outputRoutes }),
 				),
 			)
 		).flat();
-		roots = builtPublicRoutes.map(({ buildRoot }) => buildRoot);
+		const rawPublicFiles = (
+			await Promise.all(existingPublicRoots.map((root) => publicArtifactFiles(root)))
+		).flat();
+		files = [...builtFiles, ...rawPublicFiles];
+		roots = [...builtPublicRoutes.map(({ buildRoot }) => buildRoot), ...existingPublicRoots];
 	}
 	const findings = await scanPublicUiFiles(files);
 	if (findings.length) {

@@ -89,6 +89,38 @@
 					"runtime": "Gast-Laufzeitschalter",
 					"admission": "Neue Gastzulassung"
 				},
+				"values": { "on": "Aktiviert", "off": "Deaktiviert" },
+				"states": {
+					"ok": "Normal",
+					"warn": "Warnung",
+					"slow": "Zulassung verlangsamt",
+					"closed": "Zulassung geschlossen",
+					"exhausted": "Budget ausgeschöpft"
+				},
+				"reasons": {
+					"capability": "Funktion nicht verfügbar",
+					"content": "Inhaltsrichtlinie",
+					"deviceLimit": "Gerätelimit",
+					"globalRateLimit": "Globales Ratenlimit",
+					"input": "Eingabe nicht verfügbar",
+					"ipRateLimit": "IP-Ratenlimit",
+					"ownerCapacity": "Sitzungskapazität",
+					"queueCapacity": "Warteschlangenkapazität",
+					"quote": "Angebot nicht verfügbar",
+					"riskCapacity": "Risikokapazität",
+					"subnetRateLimit": "Netzwerk-Ratenlimit",
+					"trialUnavailable": "Test nicht verfügbar",
+					"turnstile": "Bestätigung als Mensch",
+					"turnstileReplay": "Wiederholte Bestätigung als Mensch",
+					"riskBudgetConfiguration": "Risikobudget-Konfiguration",
+					"riskBudget": "Risikobudget",
+					"queueDepth": "Warteschlangentiefe",
+					"queueAge": "Warteschlangenalter",
+					"moderationErrors": "Moderationsfehler",
+					"watermarkFailure": "Wasserzeichenfehler",
+					"billedSpendMismatch": "Abweichung bei abgerechneten Kosten",
+					"cleanupOverdue": "Bereinigung überfällig"
+				},
 				"metrics": {
 					"risk": "Nutzung des Sponsoring-Risikos",
 					"queue": "Gastwarteschlange",

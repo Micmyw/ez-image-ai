@@ -129,6 +129,89 @@ describe("guest account-link fence", () => {
 		await expect(client.session.count({ where: { userId: fixture.ownerId } })).resolves.toBe(0);
 	});
 
+	it.each(["SUBMITTING", "SUCCEEDED"] as const)(
+		"links the canonical consumed guest job while it is %s",
+		async (status) => {
+			const fixture = await createFixture(`consumed-${status.toLowerCase()}`);
+			const admitted = await createGuestAdmission(
+				admissionInput(fixture, `guest-consumed-${status.toLowerCase()}`),
+			);
+			await client.guestMediaTrial.update({
+				where: { id: admitted.trialId },
+				data: {
+					currentJobId: null,
+					consumedJobId: admitted.jobId,
+					eligibility: "CONSUMED",
+					riskState: "COMMITTED",
+					providerBoundaryAt: fixture.now,
+					consumedAt: fixture.now,
+				},
+			});
+			await client.generationJob.update({
+				where: { id: admitted.jobId },
+				data: { status, ...(status === "SUCCEEDED" ? { terminalAt: fixture.now } : {}) },
+			});
+			const tokenHash = hashFixture(`link-consumed:${fixture.ownerId}`);
+			await beginGuestLinkIntentTransaction(linkInput(fixture, tokenHash), client);
+
+			const completed = await completeGuestLinkIntentTransaction(
+				{
+					tokenHash,
+					registeredUserId: fixture.registeredUserId,
+					grantTokenHash: hashFixture(`grant-consumed:${fixture.ownerId}`),
+					now: fixture.now,
+				},
+				client,
+			);
+
+			expect(completed).toMatchObject({ mode: "RESULT", jobId: admitted.jobId });
+			await expect(
+				completeGuestLinkIntentTransaction(
+					{
+						tokenHash,
+						registeredUserId: fixture.registeredUserId,
+						grantTokenHash: hashFixture(`ignored-replay:${fixture.ownerId}`),
+						now: fixture.now,
+					},
+					client,
+				),
+			).resolves.toMatchObject({ mode: "RESULT", jobId: admitted.jobId });
+		},
+	);
+
+	it("rejects an expired consumed-job link without creating a grant", async () => {
+		const fixture = await createFixture("consumed-expired");
+		const admitted = await createGuestAdmission(admissionInput(fixture, "guest-consumed-expired"));
+		const expiredAt = new Date(Date.now() + 10 * 60 * 1000);
+		await client.guestMediaTrial.update({
+			where: { id: admitted.trialId },
+			data: {
+				currentJobId: null,
+				consumedJobId: admitted.jobId,
+				eligibility: "CONSUMED",
+				riskState: "COMMITTED",
+				providerBoundaryAt: fixture.now,
+				consumedAt: fixture.now,
+				expiresAt: expiredAt,
+			},
+		});
+		const tokenHash = hashFixture(`link-expired:${fixture.ownerId}`);
+		await beginGuestLinkIntentTransaction(linkInput(fixture, tokenHash), client);
+
+		await expect(
+			completeGuestLinkIntentTransaction(
+				{
+					tokenHash,
+					registeredUserId: fixture.registeredUserId,
+					grantTokenHash: hashFixture(`grant-expired:${fixture.ownerId}`),
+					now: new Date(expiredAt.getTime() + 1),
+				},
+				client,
+			),
+		).rejects.toThrow("GUEST_LINK_UNAVAILABLE");
+		await expect(client.guestResultAccessGrant.count()).resolves.toBe(0);
+	});
+
 	it("rejects a begin replay whose owner lock wait spans a completed link", async () => {
 		const fixture = await createFixture("completion-before-delayed-begin");
 		const tokenHash = hashFixture(`link:${fixture.ownerId}`);
@@ -405,7 +488,7 @@ function admissionInput(fixture: LinkFixture, idempotencyKey: string) {
 		sourceAssetChecksum: fixture.checksum,
 		now: fixture.now,
 		retentionMs: 24 * 60 * 60_000,
-		queueTtlMs: 15 * 60_000,
+		queueTtlMs: 10 * 60_000,
 		serviceTimeMs: 60_000,
 		maximumBytes: 10 * 1024 * 1024,
 		maximumGlobalQueueDepth: 100,

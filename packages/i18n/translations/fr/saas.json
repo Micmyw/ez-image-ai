@@ -89,6 +89,38 @@
 					"runtime": "Contrôle d’exécution invité",
 					"admission": "Nouvelle admission invitée"
 				},
+				"values": { "on": "Activé", "off": "Désactivé" },
+				"states": {
+					"ok": "Normal",
+					"warn": "Avertissement",
+					"slow": "Admission ralentie",
+					"closed": "Admission fermée",
+					"exhausted": "Budget épuisé"
+				},
+				"reasons": {
+					"capability": "Fonction indisponible",
+					"content": "Règles de contenu",
+					"deviceLimit": "Limite de l’appareil",
+					"globalRateLimit": "Limite globale de requêtes",
+					"input": "Entrée indisponible",
+					"ipRateLimit": "Limite de requêtes par IP",
+					"ownerCapacity": "Capacité de la session",
+					"queueCapacity": "Capacité de la file",
+					"quote": "Devis indisponible",
+					"riskCapacity": "Capacité de risque",
+					"subnetRateLimit": "Limite de requêtes réseau",
+					"trialUnavailable": "Essai indisponible",
+					"turnstile": "Vérification humaine",
+					"turnstileReplay": "Répétition de la vérification humaine",
+					"riskBudgetConfiguration": "Configuration du budget de risque",
+					"riskBudget": "Budget de risque",
+					"queueDepth": "Profondeur de la file",
+					"queueAge": "Ancienneté de la file",
+					"moderationErrors": "Erreurs de modération",
+					"watermarkFailure": "Échec du filigrane",
+					"billedSpendMismatch": "Écart de dépenses facturées",
+					"cleanupOverdue": "Nettoyage en retard"
+				},
 				"metrics": {
 					"risk": "Utilisation du risque sponsorisé",
 					"queue": "File d’attente invitée",

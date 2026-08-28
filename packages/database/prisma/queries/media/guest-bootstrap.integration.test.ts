@@ -82,11 +82,7 @@ describe("guest bootstrap consumption", () => {
 						promotionPeriod: fixture.promotionPeriod,
 						ipHash: "ip-hash",
 						subnetHash: "subnet-hash",
-						limits: {
-							maximumRequestsPerMinute: 100,
-							maximumRequestsPerIpPerHour: 100,
-							maximumGlobalQueueDepth: 100,
-						},
+						limits: guestBoundaryLimits(),
 					},
 					createPrincipal,
 					client,
@@ -265,11 +261,7 @@ describe("guest bootstrap consumption", () => {
 					promotionPeriod: originFixture.promotionPeriod,
 					ipHash: "ip-hash-expired",
 					subnetHash: "subnet-hash-expired",
-					limits: {
-						maximumRequestsPerMinute: 1,
-						maximumRequestsPerIpPerHour: 1,
-						maximumGlobalQueueDepth: 1,
-					},
+					limits: guestBoundaryLimits(1),
 				},
 				createPrincipal,
 				client,
@@ -288,11 +280,7 @@ describe("guest bootstrap consumption", () => {
 					promotionPeriod: expiredFixture.promotionPeriod,
 					ipHash: "ip-hash-expired",
 					subnetHash: "subnet-hash-expired",
-					limits: {
-						maximumRequestsPerMinute: 1,
-						maximumRequestsPerIpPerHour: 1,
-						maximumGlobalQueueDepth: 1,
-					},
+					limits: guestBoundaryLimits(1),
 					now: new Date(expiryBoundary.getTime() + 1),
 				},
 				createPrincipal,
@@ -312,15 +300,83 @@ describe("guest bootstrap consumption", () => {
 					ipHash: "ip-hash-capped",
 					subnetHash: "subnet-hash-capped",
 					limits: {
-						maximumRequestsPerMinute: 0,
-						maximumRequestsPerIpPerHour: 1,
-						maximumGlobalQueueDepth: 1,
+						...guestBoundaryLimits(1),
+						maximumRequestsPerIpPerTenMinutes: 0,
 					},
 				},
 				createPrincipal,
 				client,
 			),
 		).rejects.toThrow("GUEST_TEMPORARY_USER_CAP_EXCEEDED");
+		expect(createPrincipal).not.toHaveBeenCalled();
+	});
+
+	it("uses the explicit global admission limit instead of queue depth during bootstrap", async () => {
+		const fixture = await createBootstrapFixture();
+		const createPrincipal = vi.fn(async ({ email }: { email: string }) => {
+			const userId = await createPrincipalFixture(email);
+			return { userId, value: userId };
+		});
+
+		await expect(
+			consumeGuestBootstrap(
+				{
+					...guestConsumeInput(fixture),
+					limits: {
+						...guestConsumeInput(fixture).limits,
+						maximumGlobalQueueDepth: 100,
+						maximumGlobalRequestsPerMinute: 0,
+					},
+				},
+				createPrincipal,
+				client,
+			),
+		).rejects.toThrow("GUEST_TEMPORARY_USER_CAP_EXCEEDED");
+		expect(createPrincipal).not.toHaveBeenCalled();
+	});
+
+	it("enforces outstanding-bootstrap and total-temporary-principal caps before identity creation", async () => {
+		const blocker = await createBootstrapFixture();
+		const bootstrapTarget = await createBootstrapFixture();
+		const createPrincipal = vi.fn(async ({ email }: { email: string }) => {
+			const userId = await createPrincipalFixture(email);
+			return { userId, value: userId };
+		});
+		await expect(
+			consumeGuestBootstrap(
+				{
+					...guestConsumeInput(bootstrapTarget),
+					limits: {
+						...guestConsumeInput(bootstrapTarget).limits,
+						maximumOutstandingBootstraps: 1,
+						maximumTemporaryPrincipals: 100,
+					},
+				},
+				createPrincipal,
+				client,
+			),
+		).rejects.toThrow("GUEST_OUTSTANDING_BOOTSTRAP_CAP_EXCEEDED");
+
+		const existingUserId = await createPrincipalFixture(
+			`existing-${randomUUID()}@anonymous.invalid`,
+		);
+		const principalTarget = await createBootstrapFixture();
+		await client.guestSessionBootstrap.delete({ where: { id: blocker.bootstrapId } });
+		await expect(
+			consumeGuestBootstrap(
+				{
+					...guestConsumeInput(principalTarget),
+					limits: {
+						...guestConsumeInput(principalTarget).limits,
+						maximumOutstandingBootstraps: 100,
+						maximumTemporaryPrincipals: 1,
+					},
+				},
+				createPrincipal,
+				client,
+			),
+		).rejects.toThrow("GUEST_TEMPORARY_PRINCIPAL_CAP_EXCEEDED");
+		expect(existingUserId).toBeTruthy();
 		expect(createPrincipal).not.toHaveBeenCalled();
 	});
 });
@@ -345,7 +401,7 @@ async function createBootstrapFixture(overrides: { expiresAt?: Date } = {}) {
 			tx,
 		),
 	);
-	return { claimHash, principalEmail, promotionPeriod };
+	return { bootstrapId, claimHash, principalEmail, promotionPeriod };
 }
 
 async function createDraftFixture(claimHash: string): Promise<string> {
@@ -378,12 +434,24 @@ function guestConsumeInput(
 		promotionPeriod: fixture.promotionPeriod,
 		ipHash: `ip-${randomUUID()}`,
 		subnetHash: `subnet-${randomUUID()}`,
-		limits: {
-			maximumRequestsPerMinute: 100,
-			maximumRequestsPerIpPerHour: 100,
-			maximumGlobalQueueDepth: 100,
-		},
+		limits: guestBoundaryLimits(),
 		...overrides,
+	};
+}
+
+function guestBoundaryLimits(maximum = 100) {
+	return {
+		maximumRequestsPerMinute: maximum,
+		maximumRequestsPerIpPerHour: maximum,
+		maximumGlobalQueueDepth: maximum,
+		maximumOutstandingBootstraps: 100,
+		maximumTemporaryPrincipals: 100,
+		maximumRequestsPerIpPerTenMinutes: maximum,
+		maximumRequestsPerIpPerDay: maximum,
+		maximumRequestsPerSubnetPerDay: maximum,
+		maximumGlobalRequestsPerMinute: maximum,
+		maximumGlobalRequestsPerHour: maximum,
+		maximumGlobalRequestsPerDay: maximum,
 	};
 }
 

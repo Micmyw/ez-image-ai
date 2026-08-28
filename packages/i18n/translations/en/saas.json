@@ -92,6 +92,38 @@
 					"runtime": "Guest runtime override",
 					"admission": "New guest admission"
 				},
+				"values": { "on": "Enabled", "off": "Disabled" },
+				"states": {
+					"ok": "Normal",
+					"warn": "Warning",
+					"slow": "Admission slowed",
+					"closed": "Admission closed",
+					"exhausted": "Budget exhausted"
+				},
+				"reasons": {
+					"capability": "Capability unavailable",
+					"content": "Content policy",
+					"deviceLimit": "Device limit",
+					"globalRateLimit": "Global rate limit",
+					"input": "Input unavailable",
+					"ipRateLimit": "IP rate limit",
+					"ownerCapacity": "Session capacity",
+					"queueCapacity": "Queue capacity",
+					"quote": "Quote unavailable",
+					"riskCapacity": "Risk capacity",
+					"subnetRateLimit": "Network rate limit",
+					"trialUnavailable": "Trial unavailable",
+					"turnstile": "Human verification",
+					"turnstileReplay": "Human verification replay",
+					"riskBudgetConfiguration": "Risk budget configuration",
+					"riskBudget": "Risk budget",
+					"queueDepth": "Queue depth",
+					"queueAge": "Queue age",
+					"moderationErrors": "Moderation errors",
+					"watermarkFailure": "Watermark failure",
+					"billedSpendMismatch": "Billed spend mismatch",
+					"cleanupOverdue": "Cleanup overdue"
+				},
 				"metrics": {
 					"risk": "Sponsored risk utilization",
 					"queue": "Guest queue",

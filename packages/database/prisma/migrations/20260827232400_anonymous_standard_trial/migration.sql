@@ -65,7 +65,7 @@ CREATE TABLE "guest_session_bootstrap" (
 -- CreateTable
 CREATE TABLE "guest_media_trial" (
     "id" TEXT NOT NULL,
-    "ownerId" TEXT NOT NULL,
+    "ownerId" TEXT,
     "promotionPeriod" TEXT NOT NULL,
     "eligibility" "GuestTrialEligibility" NOT NULL DEFAULT 'AVAILABLE',
     "sponsorCredits" BIGINT NOT NULL DEFAULT 4,
@@ -242,7 +242,7 @@ ALTER TABLE "guest_session_bootstrap" ADD CONSTRAINT "guest_session_bootstrap_ow
 ALTER TABLE "guest_session_bootstrap" ADD CONSTRAINT "guest_session_bootstrap_claimedDraftId_fkey" FOREIGN KEY ("claimedDraftId") REFERENCES "generation_draft"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "guest_session_bootstrap" ADD CONSTRAINT "guest_session_bootstrap_sourceAssetId_fkey" FOREIGN KEY ("sourceAssetId") REFERENCES "media_asset"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
-ALTER TABLE "guest_media_trial" ADD CONSTRAINT "guest_media_trial_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "user"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "guest_media_trial" ADD CONSTRAINT "guest_media_trial_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "user"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "guest_media_trial" ADD CONSTRAINT "guest_media_trial_sourceDraftId_fkey" FOREIGN KEY ("sourceDraftId") REFERENCES "generation_draft"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "guest_media_trial" ADD CONSTRAINT "guest_media_trial_sourceBootstrapId_fkey" FOREIGN KEY ("sourceBootstrapId") REFERENCES "guest_session_bootstrap"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 ALTER TABLE "guest_media_trial" ADD CONSTRAINT "guest_media_trial_sourceAssetId_fkey" FOREIGN KEY ("sourceAssetId") REFERENCES "media_asset"("id") ON DELETE SET NULL ON UPDATE CASCADE;

@@ -4,6 +4,13 @@
 
 ### Operations and verification
 
+- Completed the anonymous-trial admission envelope with explicit production limits for temporary
+  principals, session/device/IP/subnet/global windows, queue depth/age, and abuse-evidence expiry;
+  account linking now preserves waiting and accepted guest work, while retention detaches expired
+  temporary owners and keeps immutable job, Attempt, credit, ledger, and audit evidence.
+- Expanded public originality verification to raw deployed Markdown, SVG, and other text artifacts,
+  isolated guest-only Playwright specs from registered projects, and localized guest diagnostic
+  control, state, denial, and automatic-closure labels in all four supported locales.
 - Added aggregate anonymous-trial diagnostics for admission, queue age, sponsored risk and credits,
   attempt/cost coverage, moderation, watermarking, result grants, and cleanup. Automatic threshold
   breaches create only an audited guest-admission disable override; raw network/device evidence,

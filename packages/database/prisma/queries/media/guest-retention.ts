@@ -210,19 +210,20 @@ async function queueGuestCleanupEvent(
 	now: Date,
 	tx: Prisma.TransactionClient,
 ): Promise<number> {
-	await tx.outboxEvent.upsert({
-		where: { dedupeKey: event.dedupeKey },
-		create: {
-			eventType: event.eventType,
-			aggregateType: "MEDIA_ASSET",
-			aggregateId: assetId,
-			dedupeKey: event.dedupeKey,
-			payload: event.payload,
-			availableAt: now,
-		},
-		update: {},
+	const result = await tx.outboxEvent.createMany({
+		data: [
+			{
+				eventType: event.eventType,
+				aggregateType: "MEDIA_ASSET",
+				aggregateId: assetId,
+				dedupeKey: event.dedupeKey,
+				payload: event.payload,
+				availableAt: now,
+			},
+		],
+		skipDuplicates: true,
 	});
-	return 1;
+	return result.count;
 }
 
 function guestObjectCleanupDedupeKey(assetId: string, action: string, objectKey: string): string {
@@ -482,60 +483,112 @@ async function removeExpiredGuestPrincipals(
 	input: ExpireGuestMediaInput,
 	tx: Prisma.TransactionClient,
 ): Promise<number> {
+	const ownerCandidates = await tx.$queryRaw<Array<{ id: string }>>`
+		SELECT candidate."id"
+		FROM "user" candidate
+		WHERE candidate."isAnonymous" = true
+		  AND (
+			EXISTS (
+				SELECT 1
+				FROM "guest_session_bootstrap" bootstrap
+				WHERE bootstrap."ownerId" = candidate."id"
+				  AND bootstrap."expiresAt" <= ${input.now}
+			)
+			OR EXISTS (
+				SELECT 1
+				FROM "guest_media_trial" trial
+				WHERE trial."ownerId" = candidate."id"
+				  AND trial."expiresAt" <= ${input.now}
+			)
+			OR EXISTS (
+				SELECT 1
+				FROM "guest_link_intent" intent
+				WHERE intent."anonymousOwnerId" = candidate."id"
+				  AND intent."expiresAt" <= ${input.now}
+			)
+		  )
+		  AND NOT EXISTS (
+			SELECT 1 FROM "session" session
+			WHERE session."userId" = candidate."id" AND session."expiresAt" > ${input.now}
+		  )
+		  AND NOT EXISTS (
+			SELECT 1 FROM "guest_session_bootstrap" bootstrap
+			WHERE bootstrap."ownerId" = candidate."id" AND bootstrap."expiresAt" > ${input.now}
+		  )
+		  AND NOT EXISTS (
+			SELECT 1 FROM "guest_link_intent" intent
+			WHERE intent."anonymousOwnerId" = candidate."id" AND intent."expiresAt" > ${input.now}
+		  )
+		  AND NOT EXISTS (
+			SELECT 1 FROM "guest_media_trial" trial
+			WHERE trial."ownerId" = candidate."id" AND trial."expiresAt" > ${input.now}
+		  )
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM "guest_media_trial" trial
+			JOIN "media_asset" asset ON asset."id" = trial."sourceAssetId"
+			WHERE trial."ownerId" = candidate."id"
+			  AND (
+				asset."status" <> 'DELETED'::"MediaAssetStatus"
+				OR asset."deletedAt" IS NULL
+				OR EXISTS (
+					SELECT 1 FROM "outbox_event" cleanup
+					WHERE cleanup."aggregateId" = asset."id"
+					  AND cleanup."eventType" IN (
+						'MEDIA_OBJECT_DELETE',
+						'MEDIA_MULTIPART_ABORT',
+						'MEDIA_UPLOAD_CLEANUP'
+					  )
+					  AND cleanup."status" <> 'PROCESSED'::"OutboxEventStatus"
+				)
+			  )
+		  )
+		  AND NOT EXISTS (
+			SELECT 1
+			FROM "guest_media_trial" trial
+			JOIN "generation_job" job ON job."guestTrialId" = trial."id"
+			JOIN "generation_job_asset" binding ON binding."jobId" = job."id"
+			JOIN "media_asset" asset ON asset."id" = binding."assetId"
+			WHERE trial."ownerId" = candidate."id"
+			  AND (
+				asset."status" <> 'DELETED'::"MediaAssetStatus"
+				OR asset."deletedAt" IS NULL
+				OR EXISTS (
+					SELECT 1 FROM "outbox_event" cleanup
+					WHERE cleanup."aggregateId" = asset."id"
+					  AND cleanup."eventType" IN (
+						'MEDIA_OBJECT_DELETE',
+						'MEDIA_MULTIPART_ABORT',
+						'MEDIA_UPLOAD_CLEANUP'
+					  )
+					  AND cleanup."status" <> 'PROCESSED'::"OutboxEventStatus"
+				)
+			  )
+		  )
+		ORDER BY candidate."createdAt" ASC, candidate."id" ASC
+		FOR UPDATE OF candidate SKIP LOCKED
+		LIMIT ${input.limit}
+	`;
+
 	await tx.guestResultAccessGrant.deleteMany({ where: { expiresAt: { lte: input.now } } });
 	await tx.guestLinkIntent.deleteMany({ where: { expiresAt: { lte: input.now } } });
 	await tx.guestSessionBootstrap.deleteMany({ where: { expiresAt: { lte: input.now } } });
-
-	const trials = await tx.guestMediaTrial.findMany({
-		where: {
-			expiresAt: { lte: input.now },
-			currentJobId: null,
-			consumedJobId: null,
-			jobs: { none: {} },
-		},
-		orderBy: [{ expiresAt: "asc" }, { id: "asc" }],
-		take: input.limit,
-		include: {
-			jobs: { include: { assets: { select: { assetId: true } } } },
-		},
+	await tx.session.deleteMany({
+		where: { expiresAt: { lte: input.now }, user: { isAnonymous: true } },
 	});
-	const ownerCandidates = new Set<string>();
-	for (const trial of trials) {
-		const assetIds = new Set([
-			...(trial.sourceAssetId ? [trial.sourceAssetId] : []),
-			...trial.jobs.flatMap((job) => job.assets.map((binding) => binding.assetId)),
-		]);
-		const [notDeleted, pendingCleanup] = await Promise.all([
-			tx.mediaAsset.count({
-				where: {
-					id: { in: [...assetIds] },
-					OR: [{ status: { not: "DELETED" } }, { deletedAt: null }],
-				},
-			}),
-			tx.outboxEvent.count({
-				where: {
-					aggregateId: { in: [...assetIds] },
-					eventType: {
-						in: ["MEDIA_OBJECT_DELETE", "MEDIA_MULTIPART_ABORT", "MEDIA_UPLOAD_CLEANUP"],
-					},
-					status: { not: "PROCESSED" },
-				},
-			}),
-		]);
-		if (notDeleted || pendingCleanup) continue;
-		ownerCandidates.add(trial.ownerId);
-		await tx.guestMediaTrial.delete({ where: { id: trial.id } });
-	}
+	await tx.guestAbuseBucket.deleteMany({ where: { expiresAt: { lte: input.now } } });
+	await tx.guestRiskBudgetBucket.deleteMany({ where: { expiresAt: { lte: input.now } } });
 
 	let removed = 0;
-	for (const ownerId of ownerCandidates) {
+	for (const { id: ownerId } of ownerCandidates) {
 		const deleted = await tx.user.deleteMany({
 			where: {
 				id: ownerId,
 				isAnonymous: true,
-				guestMediaTrials: { none: {} },
+				sessions: { none: {} },
 				guestLinkAnonymousOwners: { none: {} },
 				guestSessionBootstraps: { none: {} },
+				guestMediaTrials: { every: { expiresAt: { lte: input.now } } },
 			},
 		});
 		removed += deleted.count;

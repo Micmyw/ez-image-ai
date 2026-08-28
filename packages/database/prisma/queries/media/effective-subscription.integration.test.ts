@@ -141,10 +141,11 @@ function safeTestDatabaseUrl(): string {
 		"/ezpic_pr8_test",
 		...(process.env.CI === "true" ? ["/ai_media_foundation_test"] : []),
 	]);
+	const safeNamedDatabase = /^\/ezpic_[a-z0-9_]+_test$/.test(parsed.pathname);
 	if (
 		(parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") ||
 		parsed.port !== "55432" ||
-		!allowedDatabases.has(parsed.pathname)
+		(!allowedDatabases.has(parsed.pathname) && !safeNamedDatabase)
 	) {
 		throw new Error("UNSAFE_TEST_DATABASE: expected an approved disposable EzPic database");
 	}

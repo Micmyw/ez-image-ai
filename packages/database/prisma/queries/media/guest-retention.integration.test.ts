@@ -100,9 +100,14 @@ describe("guest absolute media retention", () => {
 			},
 		});
 
-		await expireGuestMediaTransaction({ now, limit: 25 }, client);
-		await expireGuestMediaTransaction({ now: new Date(now.getTime() + 1_000), limit: 25 }, client);
+		const first = await expireGuestMediaTransaction({ now, limit: 25 }, client);
+		const replay = await expireGuestMediaTransaction(
+			{ now: new Date(now.getTime() + 1_000), limit: 25 },
+			client,
+		);
 
+		expect(first.cleanupEvents).toBe(3);
+		expect(replay.cleanupEvents).toBe(0);
 		expect(await client.outboxEvent.count({ where: { aggregateId: asset.id } })).toBe(3);
 		expect(
 			await client.outboxEvent.groupBy({
@@ -112,7 +117,111 @@ describe("guest absolute media retention", () => {
 			}),
 		).toEqual(expect.arrayContaining([expect.objectContaining({ _count: { _all: 1 } })]));
 	});
+
+	it("removes an expired bootstrap-only anonymous principal and prunes expired abuse evidence", async () => {
+		const now = new Date("2026-08-28T12:00:00.000Z");
+		const ownerId = await createAnonymousOwner("bootstrap-only");
+		await client.session.create({
+			data: {
+				id: randomUUID(),
+				token: randomUUID(),
+				userId: ownerId,
+				expiresAt: new Date(now.getTime() - 1),
+				createdAt: new Date(now.getTime() - 60_000),
+				updatedAt: new Date(now.getTime() - 60_000),
+			},
+		});
+		await client.guestSessionBootstrap.create({
+			data: {
+				ownerId,
+				promotionPeriod: "launch-cleanup",
+				claimHash: "b".repeat(64),
+				idempotencyKey: randomUUID(),
+				createdAt: new Date(now.getTime() - 60_000),
+				expiresAt: new Date(now.getTime() - 1),
+				completedAt: new Date(now.getTime() - 30_000),
+			},
+		});
+		await client.guestAbuseBucket.create({
+			data: {
+				scope: "guest-bootstrap-ip-minute",
+				subjectHash: "c".repeat(64),
+				windowStart: new Date(now.getTime() - 120_000),
+				windowEnd: new Date(now.getTime() - 60_000),
+				expiresAt: new Date(now.getTime() - 1),
+			},
+		});
+
+		const result = await expireGuestMediaTransaction({ now, limit: 25 }, client);
+
+		expect(result.removedAnonymousUsers).toBe(1);
+		await expect(client.user.count({ where: { id: ownerId } })).resolves.toBe(0);
+		await expect(client.session.count({ where: { userId: ownerId } })).resolves.toBe(0);
+		await expect(client.guestAbuseBucket.count()).resolves.toBe(0);
+	});
+
+	it("never deletes registered or not-yet-expired principals", async () => {
+		const now = new Date("2026-08-28T12:00:00.000Z");
+		const anonymousOwnerId = await createAnonymousOwner("not-due");
+		const registered = await client.user.create({
+			data: {
+				name: "Registered",
+				email: `${randomUUID()}@example.test`,
+				emailVerified: true,
+				isAnonymous: false,
+				createdAt: now,
+				updatedAt: now,
+			},
+		});
+		for (const ownerId of [anonymousOwnerId, registered.id]) {
+			await client.guestSessionBootstrap.create({
+				data: {
+					ownerId,
+					promotionPeriod: `period-${ownerId}`,
+					claimHash: createHashValue(ownerId),
+					idempotencyKey: randomUUID(),
+					createdAt: now,
+					expiresAt: new Date(now.getTime() + 60_000),
+					completedAt: now,
+				},
+			});
+		}
+
+		await expireGuestMediaTransaction({ now, limit: 25 }, client);
+
+		await expect(
+			client.user.count({ where: { id: { in: [anonymousOwnerId, registered.id] } } }),
+		).resolves.toBe(2);
+	});
+
+	it("is idempotent under concurrent cleanup of one expired bootstrap-only principal", async () => {
+		const now = new Date("2026-08-28T12:00:00.000Z");
+		const ownerId = await createAnonymousOwner("concurrent");
+		await client.guestSessionBootstrap.create({
+			data: {
+				ownerId,
+				promotionPeriod: "concurrent-cleanup",
+				claimHash: "d".repeat(64),
+				idempotencyKey: randomUUID(),
+				createdAt: new Date(now.getTime() - 60_000),
+				expiresAt: new Date(now.getTime() - 1),
+				completedAt: new Date(now.getTime() - 30_000),
+			},
+		});
+
+		const results = await Promise.all([
+			expireGuestMediaTransaction({ now, limit: 25 }, client),
+			expireGuestMediaTransaction({ now, limit: 25 }, client),
+		]);
+
+		expect(results.reduce((sum, result) => sum + result.removedAnonymousUsers, 0)).toBe(1);
+		await expect(client.user.count({ where: { id: ownerId } })).resolves.toBe(0);
+	});
 });
+
+function createHashValue(value: string): string {
+	return Buffer.from(value).toString("hex").padEnd(64, "0").slice(0, 64);
+}
 
 async function createAnonymousOwner(label: string): Promise<string> {
 	const suffix = randomUUID();

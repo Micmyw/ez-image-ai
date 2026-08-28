@@ -902,8 +902,8 @@ model GuestSessionBootstrap {
 
 model GuestMediaTrial {
   id                       String                @id @default(cuid())
-  ownerId                  String
-  owner                    User                  @relation("GuestTrialOwner", fields: [ownerId], references: [id], onDelete: Restrict)
+  ownerId                  String?
+  owner                    User?                 @relation("GuestTrialOwner", fields: [ownerId], references: [id], onDelete: SetNull)
   promotionPeriod          String
   eligibility              GuestTrialEligibility @default(AVAILABLE)
   sponsorCredits           BigInt                @default(4)

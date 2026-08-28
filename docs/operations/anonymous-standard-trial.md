@@ -102,7 +102,9 @@ After closing guest admission:
 6. Replay only persisted cleanup events after correcting the cause. Object-not-found is idempotent
    cleanup success; do not fabricate object or event identifiers.
 7. Verify expired grants, link intents, bootstraps, Sessions, abuse buckets/HMAC evidence, and finally
-   orphaned temporary Users are pruned without affecting registered accounts.
+   orphaned temporary Users are pruned without affecting registered accounts. Confirm retained
+   trial, job, Attempt, credit, ledger, and audit rows remain intact with the expired temporary owner
+   relationship detached.
 
 If cleanup exceeds TTL plus 30 minutes, admission remains closed until the backlog and dead letters
 are zero or an approved incident decision documents the residual risk.

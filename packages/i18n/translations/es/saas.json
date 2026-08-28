@@ -89,6 +89,38 @@
 					"runtime": "Control de ejecución de invitados",
 					"admission": "Nueva admisión de invitados"
 				},
+				"values": { "on": "Activado", "off": "Desactivado" },
+				"states": {
+					"ok": "Normal",
+					"warn": "Advertencia",
+					"slow": "Admisión ralentizada",
+					"closed": "Admisión cerrada",
+					"exhausted": "Presupuesto agotado"
+				},
+				"reasons": {
+					"capability": "Función no disponible",
+					"content": "Política de contenido",
+					"deviceLimit": "Límite del dispositivo",
+					"globalRateLimit": "Límite global de solicitudes",
+					"input": "Entrada no disponible",
+					"ipRateLimit": "Límite de solicitudes por IP",
+					"ownerCapacity": "Capacidad de la sesión",
+					"queueCapacity": "Capacidad de la cola",
+					"quote": "Cotización no disponible",
+					"riskCapacity": "Capacidad de riesgo",
+					"subnetRateLimit": "Límite de solicitudes de red",
+					"trialUnavailable": "Prueba no disponible",
+					"turnstile": "Verificación humana",
+					"turnstileReplay": "Repetición de verificación humana",
+					"riskBudgetConfiguration": "Configuración del presupuesto de riesgo",
+					"riskBudget": "Presupuesto de riesgo",
+					"queueDepth": "Profundidad de la cola",
+					"queueAge": "Antigüedad de la cola",
+					"moderationErrors": "Errores de moderación",
+					"watermarkFailure": "Fallo de marca de agua",
+					"billedSpendMismatch": "Diferencia en el gasto facturado",
+					"cleanupOverdue": "Limpieza atrasada"
+				},
 				"metrics": {
 					"risk": "Uso del riesgo patrocinado",
 					"queue": "Cola de invitados",

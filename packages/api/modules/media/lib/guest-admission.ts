@@ -91,8 +91,19 @@ interface GuestAdmissionConfig {
 	mimeTypes: readonly string[];
 	retentionMs: number;
 	queueTtlMs: number;
+	abuseEvidenceTtlMs?: number;
 	limits: {
 		maximumActiveJobsPerGuest: number;
+		maximumAcceptedTrialsPerSession?: number;
+		maximumActiveJobsPerDevice?: number;
+		maximumAcceptedTrialsPerDevicePromotion?: number;
+		maximumActiveJobsPerIp?: number;
+		maximumRequestsPerIpPerTenMinutes?: number;
+		maximumRequestsPerIpPerDay?: number;
+		maximumRequestsPerSubnetPerDay?: number;
+		maximumGlobalRequestsPerMinute?: number;
+		maximumGlobalRequestsPerHour?: number;
+		maximumGlobalRequestsPerDay?: number;
 		maximumRequestsPerMinute: number;
 		maximumRequestsPerIpPerHour: number;
 		maximumGlobalQueueDepth: number;
@@ -392,6 +403,18 @@ export async function submitGuestGenerationForGuest(
 		maximumActiveJobsPerGuest: loaded.config.limits.maximumActiveJobsPerGuest,
 		maximumRequestsPerMinute: loaded.config.limits.maximumRequestsPerMinute,
 		maximumRequestsPerIpPerHour: loaded.config.limits.maximumRequestsPerIpPerHour,
+		maximumAcceptedTrialsPerSession: loaded.config.limits.maximumAcceptedTrialsPerSession,
+		maximumActiveJobsPerDevice: loaded.config.limits.maximumActiveJobsPerDevice,
+		maximumAcceptedTrialsPerDevicePromotion:
+			loaded.config.limits.maximumAcceptedTrialsPerDevicePromotion,
+		maximumActiveJobsPerIp: loaded.config.limits.maximumActiveJobsPerIp,
+		maximumRequestsPerIpPerTenMinutes: loaded.config.limits.maximumRequestsPerIpPerTenMinutes,
+		maximumRequestsPerIpPerDay: loaded.config.limits.maximumRequestsPerIpPerDay,
+		maximumRequestsPerSubnetPerDay: loaded.config.limits.maximumRequestsPerSubnetPerDay,
+		maximumGlobalRequestsPerMinute: loaded.config.limits.maximumGlobalRequestsPerMinute,
+		maximumGlobalRequestsPerHour: loaded.config.limits.maximumGlobalRequestsPerHour,
+		maximumGlobalRequestsPerDay: loaded.config.limits.maximumGlobalRequestsPerDay,
+		abuseEvidenceTtlMs: loaded.config.abuseEvidenceTtlMs,
 		riskBudgetMicros: loaded.config.riskBudgetMicros,
 		sponsorCredits: loaded.config.sponsorCredits,
 		assetModeration: {

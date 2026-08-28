@@ -21,6 +21,8 @@ describe("GuestShell", () => {
 
 		expect(labelClasses).toBeDefined();
 		expect(labelClasses).not.toContain("hidden");
+		expect(markup).toMatch(/<svg(?=[^>]*aria-hidden="true")[^>]*>/);
+		expect(markup.match(/<title>/g) ?? []).toHaveLength(0);
 		expect(markup).toContain("Guest editor");
 	});
 });

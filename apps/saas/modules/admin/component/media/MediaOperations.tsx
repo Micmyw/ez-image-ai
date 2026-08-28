@@ -381,6 +381,8 @@ export function MediaOperations() {
 
 function GuestOperationsPanel({ data }: { data?: GuestDiagnostics }) {
 	const t = useTranslations("admin.media.guest");
+	const diagnosticLabel = (kind: GuestDiagnosticKind, value: string) =>
+		formatGuestDiagnosticLabel(kind, value, (key) => t(key as never));
 	const unsafe = Boolean(
 		data &&
 		(!data.controls.admissionOpen ||
@@ -419,7 +421,7 @@ function GuestOperationsPanel({ data }: { data?: GuestDiagnostics }) {
 					<div className="mt-5 gap-3 sm:grid-cols-2 xl:grid-cols-4 grid">
 						<SummaryCard
 							title={t("metrics.risk")}
-							value={`${formatPercent(data.risk.utilizationPercent)} · ${data.risk.state}`}
+							value={`${formatPercent(data.risk.utilizationPercent)} · ${diagnosticLabel("state", data.risk.state)}`}
 							detail={t("details.risk", {
 								held: data.risk.heldMicros,
 								committed: data.risk.committedMicros,
@@ -494,7 +496,7 @@ function GuestOperationsPanel({ data }: { data?: GuestDiagnostics }) {
 							title={t("denials")}
 							empty={t("empty")}
 							items={data.admission.deniedByReason.map((item) => ({
-								label: item.reason,
+								label: diagnosticLabel("reason", item.reason),
 								value: item.count,
 							}))}
 						/>
@@ -502,7 +504,7 @@ function GuestOperationsPanel({ data }: { data?: GuestDiagnostics }) {
 							title={t("automaticClosures")}
 							empty={t("empty")}
 							items={data.controls.automaticClosureReasons.map((reason) => ({
-								label: reason,
+								label: diagnosticLabel("reason", reason),
 								value: "—",
 							}))}
 						/>
@@ -516,11 +518,27 @@ function GuestOperationsPanel({ data }: { data?: GuestDiagnostics }) {
 }
 
 function GuestControlBadge({ label, enabled }: { label: string; enabled: boolean }) {
+	const t = useTranslations("admin.media.guest");
 	return (
 		<Badge status={enabled ? "success" : "error"}>
-			{label}: {enabled ? "ON" : "OFF"}
+			{label}:{" "}
+			{formatGuestDiagnosticLabel("control", enabled ? "ON" : "OFF", (key) => t(key as never))}
 		</Badge>
 	);
+}
+
+type GuestDiagnosticKind = "control" | "state" | "reason";
+
+export function formatGuestDiagnosticLabel(
+	kind: GuestDiagnosticKind,
+	value: string,
+	t: (key: string) => string,
+): string {
+	const key = value
+		.toLowerCase()
+		.replace(/_+([a-z0-9])/g, (_match, character: string) => character.toUpperCase());
+	const namespace = kind === "control" ? "values" : kind === "state" ? "states" : "reasons";
+	return t(`${namespace}.${key}`);
 }
 
 function SummaryCard({

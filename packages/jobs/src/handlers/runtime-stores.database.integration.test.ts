@@ -269,6 +269,50 @@ describe("production media runtime stores", () => {
 		}
 	});
 
+	it("keeps a waiting guest job admissible while its account link is in progress", async () => {
+		await client.$executeRawUnsafe(
+			'TRUNCATE TABLE "user", "guest_abuse_bucket", "guest_risk_budget_bucket", "outbox_event", "generation_quote" CASCADE',
+		);
+		const guest = await seedGuestDispatchJob();
+		const trial = await client.guestMediaTrial.findUniqueOrThrow({ where: { id: guest.trialId } });
+		if (trial.ownerId === null) throw new Error("Active guest trial owner is required");
+		await client.generationJob.update({
+			where: { id: guest.jobId },
+			data: { status: "RESERVED", version: 0 },
+		});
+		await client.guestLinkIntent.create({
+			data: {
+				trialId: guest.trialId,
+				anonymousOwnerId: trial.ownerId,
+				promotionPeriod: trial.promotionPeriod,
+				sourceSessionHash: trial.sourceSessionHash,
+				deviceHash: trial.deviceHash,
+				returnPath: "/try",
+				state: "LINKING",
+				tokenHash: createHash("sha256").update(`link:${guest.jobId}`).digest("hex"),
+				idempotencyKey: `link:${guest.jobId}`,
+				expiresAt: trial.expiresAt,
+			},
+		});
+		const dependencies = createDatabaseGuestAdmissionDependencies(client, {
+			environment: guest.environment,
+		});
+		try {
+			await expect(
+				dependencies.admit({ jobId: guest.jobId, trialId: guest.trialId, now: guest.now }),
+			).resolves.toMatchObject({ outcome: "ADMITTED", jobId: guest.jobId });
+			await expect(
+				client.generationJob.findUniqueOrThrow({ where: { id: guest.jobId } }),
+			).resolves.toMatchObject({ status: "DISPATCH_QUEUED", failureCode: null });
+		} finally {
+			await client.generationJob.updateMany({
+				where: { id: guest.jobId },
+				data: { status: "FAILED", terminalAt: new Date() },
+			});
+			await revertRuntimeConfigOverride(guest.overrideId, "task4-guest-test", client);
+		}
+	});
+
 	it("expires a busy guest job when its public queue estimate would exceed immutable expiry", async () => {
 		await client.$executeRawUnsafe(
 			'TRUNCATE TABLE "user", "guest_abuse_bucket", "guest_risk_budget_bucket", "outbox_event", "generation_quote" CASCADE',
@@ -304,6 +348,7 @@ describe("production media runtime stores", () => {
 			const trial = await client.guestMediaTrial.findUniqueOrThrow({
 				where: { id: waiting.trialId },
 			});
+			if (trial.ownerId === null) throw new Error("Active guest trial owner is required");
 			await expect(
 				Promise.all([
 					client.generationJob.findUniqueOrThrow({ where: { id: waiting.jobId } }),

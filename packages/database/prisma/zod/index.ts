@@ -12,7 +12,7 @@ export type TransactionIsolationLevel = z.infer<typeof TransactionIsolationLevel
 
 // File: UserScalarFieldEnum.schema.ts
 
-export const UserScalarFieldEnumSchema = z.enum(['id', 'name', 'email', 'emailVerified', 'image', 'createdAt', 'updatedAt', 'role', 'banned', 'banReason', 'banExpires', 'onboardingComplete', 'paymentsCustomerId', 'locale', 'twoFactorEnabled', 'lastActiveOrganizationId'])
+export const UserScalarFieldEnumSchema = z.enum(['id', 'name', 'email', 'emailVerified', 'image', 'createdAt', 'updatedAt', 'role', 'banned', 'banReason', 'banExpires', 'onboardingComplete', 'paymentsCustomerId', 'locale', 'twoFactorEnabled', 'lastActiveOrganizationId', 'isAnonymous'])
 
 export type UserScalarFieldEnum = z.infer<typeof UserScalarFieldEnumSchema>;
 
@@ -78,7 +78,7 @@ export type GenerationQuoteScalarFieldEnum = z.infer<typeof GenerationQuoteScala
 
 // File: GenerationJobScalarFieldEnum.schema.ts
 
-export const GenerationJobScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'submittedByUserId', 'quoteId', 'idempotencyKey', 'productKey', 'catalogVersion', 'pricingVersion', 'creditsReserved', 'inputSnapshot', 'pricingSnapshot', 'status', 'version', 'failureCode', 'failureMessage', 'finalizationStage', 'finalizationRetryCount', 'finalizationErrorCode', 'nextFinalizeAt', 'createdAt', 'updatedAt', 'terminalAt', 'editSessionId', 'parentJobId'])
+export const GenerationJobScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'submittedByUserId', 'quoteId', 'idempotencyKey', 'productKey', 'catalogVersion', 'pricingVersion', 'creditsReserved', 'inputSnapshot', 'pricingSnapshot', 'status', 'serviceClass', 'dispatchEligibleAt', 'guestTrialId', 'version', 'failureCode', 'failureMessage', 'finalizationStage', 'finalizationRetryCount', 'finalizationErrorCode', 'nextFinalizeAt', 'createdAt', 'updatedAt', 'terminalAt', 'editSessionId', 'parentJobId'])
 
 export type GenerationJobScalarFieldEnum = z.infer<typeof GenerationJobScalarFieldEnumSchema>;
 
@@ -102,13 +102,13 @@ export type GenerationAttemptTransferEnvelopeScalarFieldEnum = z.infer<typeof Ge
 
 // File: MediaAssetScalarFieldEnum.schema.ts
 
-export const MediaAssetScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'kind', 'status', 'objectKey', 'mimeType', 'byteSize', 'width', 'height', 'durationMillis', 'checksum', 'storageEtag', 'storageVersionId', 'finalizedAt', 'outputTransferToken', 'outputTransferLeaseExpiresAt', 'outputStagingObjectKey', 'outputPromotionMultipartUploadId', 'sourceUrl', 'verificationGeneration', 'verificationAttemptCount', 'verificationProvider', 'verificationRuleVersion', 'verificationPolicyVersion', 'verificationProviderTaskId', 'verificationLeaseToken', 'verificationLeasedUntil', 'verificationNextAttemptAt', 'verificationDeadlineAt', 'verificationExhaustedAt', 'verificationValidUntil', 'verificationSubmissionToken', 'verificationSubmissionUncertain', 'verificationSubmittedAt', 'verificationLastErrorCode', 'createdAt', 'updatedAt', 'deletedAt'])
+export const MediaAssetScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'kind', 'status', 'retentionClass', 'deleteAfter', 'watermarkVersion', 'watermarkedAt', 'cleanStagingDeletedAt', 'objectKey', 'mimeType', 'byteSize', 'width', 'height', 'durationMillis', 'checksum', 'storageEtag', 'storageVersionId', 'finalizedAt', 'outputTransferToken', 'outputTransferLeaseExpiresAt', 'outputStagingObjectKey', 'outputPromotionMultipartUploadId', 'sourceUrl', 'verificationGeneration', 'verificationAttemptCount', 'verificationProvider', 'verificationRuleVersion', 'verificationPolicyVersion', 'verificationProviderTaskId', 'verificationLeaseToken', 'verificationLeasedUntil', 'verificationNextAttemptAt', 'verificationDeadlineAt', 'verificationExhaustedAt', 'verificationValidUntil', 'verificationSubmissionToken', 'verificationSubmissionUncertain', 'verificationSubmittedAt', 'verificationLastErrorCode', 'createdAt', 'updatedAt', 'deletedAt'])
 
 export type MediaAssetScalarFieldEnum = z.infer<typeof MediaAssetScalarFieldEnumSchema>;
 
 // File: MediaUploadSessionScalarFieldEnum.schema.ts
 
-export const MediaUploadSessionScalarFieldEnumSchema = z.enum(['id', 'assetId', 'tokenHash', 'multipartUploadId', 'stagingObjectKey', 'stagedTerminalizationToken', 'promotionMultipartUploadId', 'promotionToken', 'finalizationToken', 'finalizationLeaseExpiresAt', 'legacyFinalizationToken', 'finalizationParts', 'status', 'expectedBytes', 'createdAt', 'expiresAt', 'completedAt'])
+export const MediaUploadSessionScalarFieldEnumSchema = z.enum(['id', 'assetId', 'tokenHash', 'multipartUploadId', 'stagingObjectKey', 'stagedTerminalizationToken', 'promotionMultipartUploadId', 'promotionToken', 'finalizationToken', 'finalizationLeaseExpiresAt', 'legacyFinalizationToken', 'finalizationParts', 'status', 'expectedBytes', 'createdAt', 'expiresAt', 'completedAt', 'guestCapabilityVersion', 'guestOriginHash', 'guestExpectedSha256', 'guestCompletionConsumedAt'])
 
 export type MediaUploadSessionScalarFieldEnum = z.infer<typeof MediaUploadSessionScalarFieldEnumSchema>;
 
@@ -177,6 +177,42 @@ export type ProviderWebhookEventScalarFieldEnum = z.infer<typeof ProviderWebhook
 export const OutboxEventScalarFieldEnumSchema = z.enum(['id', 'eventType', 'aggregateType', 'aggregateId', 'dedupeKey', 'payload', 'status', 'attempts', 'availableAt', 'leaseOwner', 'leaseToken', 'leasedUntil', 'processedAt', 'lastError', 'createdAt'])
 
 export type OutboxEventScalarFieldEnum = z.infer<typeof OutboxEventScalarFieldEnumSchema>;
+
+// File: GuestSessionBootstrapScalarFieldEnum.schema.ts
+
+export const GuestSessionBootstrapScalarFieldEnumSchema = z.enum(['id', 'ownerId', 'promotionPeriod', 'claimHash', 'idempotencyKey', 'claimedDraftId', 'sourceAssetId', 'principalLeaseToken', 'principalLeaseExpiresAt', 'version', 'createdAt', 'expiresAt', 'completedAt'])
+
+export type GuestSessionBootstrapScalarFieldEnum = z.infer<typeof GuestSessionBootstrapScalarFieldEnumSchema>;
+
+// File: GuestMediaTrialScalarFieldEnum.schema.ts
+
+export const GuestMediaTrialScalarFieldEnumSchema = z.enum(['id', 'ownerId', 'promotionPeriod', 'eligibility', 'sponsorCredits', 'sourceDraftId', 'sourceBootstrapId', 'sourceAssetId', 'sourceSessionHash', 'deviceHash', 'ipHash', 'subnetHash', 'capabilityVersion', 'idempotencyFingerprint', 'replacementCount', 'frozenQuotedRiskMicros', 'riskState', 'projectedDispatchAt', 'estimateExpiresAt', 'currentJobId', 'consumedJobId', 'cleanupOutboxEventId', 'createdAt', 'updatedAt', 'linkedAt', 'providerBoundaryAt', 'terminalAt', 'consumedAt', 'expiresAt'])
+
+export type GuestMediaTrialScalarFieldEnum = z.infer<typeof GuestMediaTrialScalarFieldEnumSchema>;
+
+// File: GuestLinkIntentScalarFieldEnum.schema.ts
+
+export const GuestLinkIntentScalarFieldEnumSchema = z.enum(['id', 'trialId', 'claimedDraftId', 'anonymousOwnerId', 'promotionPeriod', 'sourceSessionHash', 'deviceHash', 'returnPath', 'state', 'tokenHash', 'idempotencyKey', 'registeredUserId', 'createdAt', 'expiresAt', 'linkedAt'])
+
+export type GuestLinkIntentScalarFieldEnum = z.infer<typeof GuestLinkIntentScalarFieldEnumSchema>;
+
+// File: GuestResultAccessGrantScalarFieldEnum.schema.ts
+
+export const GuestResultAccessGrantScalarFieldEnumSchema = z.enum(['id', 'trialId', 'guestJobId', 'registeredUserId', 'grantTokenHash', 'createdAt', 'expiresAt', 'consumedAt'])
+
+export type GuestResultAccessGrantScalarFieldEnum = z.infer<typeof GuestResultAccessGrantScalarFieldEnumSchema>;
+
+// File: GuestAbuseBucketScalarFieldEnum.schema.ts
+
+export const GuestAbuseBucketScalarFieldEnumSchema = z.enum(['id', 'scope', 'subjectHash', 'windowStart', 'windowEnd', 'requestCount', 'rejectionCount', 'blockedUntil', 'expiresAt', 'version', 'updatedAt'])
+
+export type GuestAbuseBucketScalarFieldEnum = z.infer<typeof GuestAbuseBucketScalarFieldEnumSchema>;
+
+// File: GuestRiskBudgetBucketScalarFieldEnum.schema.ts
+
+export const GuestRiskBudgetBucketScalarFieldEnumSchema = z.enum(['id', 'promotionPeriod', 'subjectHash', 'reservedMicros', 'consumedMicros', 'hardLimitMicros', 'expiresAt', 'version', 'updatedAt'])
+
+export type GuestRiskBudgetBucketScalarFieldEnum = z.infer<typeof GuestRiskBudgetBucketScalarFieldEnumSchema>;
 
 // File: BillingPlanScalarFieldEnum.schema.ts
 
@@ -328,6 +364,12 @@ export const GenerationJobStatusSchema = z.enum(['RESERVED', 'DISPATCH_QUEUED', 
 
 export type GenerationJobStatus = z.infer<typeof GenerationJobStatusSchema>;
 
+// File: GenerationServiceClass.schema.ts
+
+export const GenerationServiceClassSchema = z.enum(['STANDARD', 'GUEST_SLOW'])
+
+export type GenerationServiceClass = z.infer<typeof GenerationServiceClassSchema>;
+
 // File: GenerationAttemptStatus.schema.ts
 
 export const GenerationAttemptStatusSchema = z.enum(['CREATED', 'SUBMISSION_UNCERTAIN', 'SUBMITTED', 'RUNNING', 'NEEDS_RECONCILIATION', 'SUCCEEDED', 'FAILED', 'CANCELED'])
@@ -345,6 +387,12 @@ export type MediaAssetKind = z.infer<typeof MediaAssetKindSchema>;
 export const MediaAssetStatusSchema = z.enum(['UPLOADING', 'VERIFYING', 'VERIFICATION_FAILED', 'READY', 'QUARANTINED', 'DELETED'])
 
 export type MediaAssetStatus = z.infer<typeof MediaAssetStatusSchema>;
+
+// File: MediaRetentionClass.schema.ts
+
+export const MediaRetentionClassSchema = z.enum(['ACCOUNT', 'GUEST_TRIAL'])
+
+export type MediaRetentionClass = z.infer<typeof MediaRetentionClassSchema>;
 
 // File: UploadSessionStatus.schema.ts
 
@@ -399,6 +447,24 @@ export type EventProcessingStatus = z.infer<typeof EventProcessingStatusSchema>;
 export const OutboxEventStatusSchema = z.enum(['PENDING', 'LEASED', 'PROCESSED', 'DEAD_LETTER'])
 
 export type OutboxEventStatus = z.infer<typeof OutboxEventStatusSchema>;
+
+// File: GuestTrialEligibility.schema.ts
+
+export const GuestTrialEligibilitySchema = z.enum(['AVAILABLE', 'IN_FLIGHT', 'CONSUMED', 'EXPIRED'])
+
+export type GuestTrialEligibility = z.infer<typeof GuestTrialEligibilitySchema>;
+
+// File: GuestRiskState.schema.ts
+
+export const GuestRiskStateSchema = z.enum(['HELD', 'COMMITTED', 'RELEASED'])
+
+export type GuestRiskState = z.infer<typeof GuestRiskStateSchema>;
+
+// File: GuestLinkState.schema.ts
+
+export const GuestLinkStateSchema = z.enum(['NONE', 'LINKING', 'LINKED'])
+
+export type GuestLinkState = z.infer<typeof GuestLinkStateSchema>;
 
 // File: SubscriptionStatus.schema.ts
 
@@ -479,6 +545,7 @@ export const UserSchema = z.object({
   locale: z.string().nullish(),
   twoFactorEnabled: z.boolean().nullish(),
   lastActiveOrganizationId: z.string().nullish(),
+  isAnonymous: z.boolean(),
 });
 
 export type UserType = z.infer<typeof UserSchema>;
@@ -675,6 +742,9 @@ export const GenerationJobSchema = z.object({
   inputSnapshot: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10"),
   pricingSnapshot: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10"),
   status: GenerationJobStatusSchema.default("RESERVED"),
+  serviceClass: GenerationServiceClassSchema.default("STANDARD"),
+  dispatchEligibleAt: z.date().nullish(),
+  guestTrialId: z.string().nullish(),
   version: z.number().int(),
   failureCode: z.string().nullish(),
   failureMessage: z.string().nullish(),
@@ -763,6 +833,11 @@ export const MediaAssetSchema = z.object({
   ownerId: z.string(),
   kind: MediaAssetKindSchema,
   status: MediaAssetStatusSchema.default("UPLOADING"),
+  retentionClass: MediaRetentionClassSchema.default("ACCOUNT"),
+  deleteAfter: z.date().nullish(),
+  watermarkVersion: z.string().nullish(),
+  watermarkedAt: z.date().nullish(),
+  cleanStagingDeletedAt: z.date().nullish(),
   objectKey: z.string(),
   mimeType: z.string(),
   byteSize: z.bigint(),
@@ -822,6 +897,10 @@ export const MediaUploadSessionSchema = z.object({
   createdAt: z.date(),
   expiresAt: z.date(),
   completedAt: z.date().nullish(),
+  guestCapabilityVersion: z.string().nullish(),
+  guestOriginHash: z.string().nullish(),
+  guestExpectedSha256: z.string().nullish(),
+  guestCompletionConsumedAt: z.date().nullish(),
 });
 
 export type MediaUploadSessionType = z.infer<typeof MediaUploadSessionSchema>;
@@ -1036,6 +1115,139 @@ export const OutboxEventSchema = z.object({
 });
 
 export type OutboxEventType = z.infer<typeof OutboxEventSchema>;
+
+
+// File: GuestSessionBootstrap.schema.ts
+
+export const GuestSessionBootstrapSchema = z.object({
+  id: z.string(),
+  ownerId: z.string().nullish(),
+  promotionPeriod: z.string(),
+  claimHash: z.string(),
+  idempotencyKey: z.string(),
+  claimedDraftId: z.string().nullish(),
+  sourceAssetId: z.string().nullish(),
+  principalLeaseToken: z.string().nullish(),
+  principalLeaseExpiresAt: z.date().nullish(),
+  version: z.number().int(),
+  createdAt: z.date(),
+  expiresAt: z.date(),
+  completedAt: z.date().nullish(),
+});
+
+export type GuestSessionBootstrapType = z.infer<typeof GuestSessionBootstrapSchema>;
+
+
+// File: GuestMediaTrial.schema.ts
+
+export const GuestMediaTrialSchema = z.object({
+  id: z.string(),
+  ownerId: z.string().nullish(),
+  promotionPeriod: z.string(),
+  eligibility: GuestTrialEligibilitySchema.default("AVAILABLE"),
+  sponsorCredits: z.bigint().default(BigInt("4")),
+  sourceDraftId: z.string().nullish(),
+  sourceBootstrapId: z.string().nullish(),
+  sourceAssetId: z.string().nullish(),
+  sourceSessionHash: z.string(),
+  deviceHash: z.string(),
+  ipHash: z.string(),
+  subnetHash: z.string(),
+  capabilityVersion: z.string(),
+  idempotencyFingerprint: z.string(),
+  replacementCount: z.number().int(),
+  frozenQuotedRiskMicros: z.bigint(),
+  riskState: GuestRiskStateSchema.default("HELD"),
+  projectedDispatchAt: z.date(),
+  estimateExpiresAt: z.date(),
+  currentJobId: z.string().nullish(),
+  consumedJobId: z.string().nullish(),
+  cleanupOutboxEventId: z.string().nullish(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+  linkedAt: z.date().nullish(),
+  providerBoundaryAt: z.date().nullish(),
+  terminalAt: z.date().nullish(),
+  consumedAt: z.date().nullish(),
+  expiresAt: z.date(),
+});
+
+export type GuestMediaTrialType = z.infer<typeof GuestMediaTrialSchema>;
+
+
+// File: GuestLinkIntent.schema.ts
+
+export const GuestLinkIntentSchema = z.object({
+  id: z.string(),
+  trialId: z.string().nullish(),
+  claimedDraftId: z.string().nullish(),
+  anonymousOwnerId: z.string(),
+  promotionPeriod: z.string(),
+  sourceSessionHash: z.string(),
+  deviceHash: z.string(),
+  returnPath: z.string(),
+  state: GuestLinkStateSchema.default("NONE"),
+  tokenHash: z.string(),
+  idempotencyKey: z.string(),
+  registeredUserId: z.string().nullish(),
+  createdAt: z.date(),
+  expiresAt: z.date(),
+  linkedAt: z.date().nullish(),
+});
+
+export type GuestLinkIntentType = z.infer<typeof GuestLinkIntentSchema>;
+
+
+// File: GuestResultAccessGrant.schema.ts
+
+export const GuestResultAccessGrantSchema = z.object({
+  id: z.string(),
+  trialId: z.string(),
+  guestJobId: z.string(),
+  registeredUserId: z.string(),
+  grantTokenHash: z.string(),
+  createdAt: z.date(),
+  expiresAt: z.date(),
+  consumedAt: z.date().nullish(),
+});
+
+export type GuestResultAccessGrantType = z.infer<typeof GuestResultAccessGrantSchema>;
+
+
+// File: GuestAbuseBucket.schema.ts
+
+export const GuestAbuseBucketSchema = z.object({
+  id: z.string(),
+  scope: z.string(),
+  subjectHash: z.string(),
+  windowStart: z.date(),
+  windowEnd: z.date(),
+  requestCount: z.bigint().default(BigInt("0")),
+  rejectionCount: z.bigint().default(BigInt("0")),
+  blockedUntil: z.date().nullish(),
+  expiresAt: z.date(),
+  version: z.number().int(),
+  updatedAt: z.date(),
+});
+
+export type GuestAbuseBucketType = z.infer<typeof GuestAbuseBucketSchema>;
+
+
+// File: GuestRiskBudgetBucket.schema.ts
+
+export const GuestRiskBudgetBucketSchema = z.object({
+  id: z.string(),
+  promotionPeriod: z.string(),
+  subjectHash: z.string(),
+  reservedMicros: z.bigint().default(BigInt("0")),
+  consumedMicros: z.bigint().default(BigInt("0")),
+  hardLimitMicros: z.bigint(),
+  expiresAt: z.date(),
+  version: z.number().int(),
+  updatedAt: z.date(),
+});
+
+export type GuestRiskBudgetBucketType = z.infer<typeof GuestRiskBudgetBucketSchema>;
 
 
 // File: BillingPlan.schema.ts

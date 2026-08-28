@@ -10,6 +10,7 @@ dotenv.config({ path: path.resolve(__dirname, "../../.env.local") });
 const saasBaseUrl = process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000";
 const marketingBaseUrl = process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3001";
 const localMediaE2ELaunchOptions = localMediaE2EChromiumLaunchOptions(process.env);
+const guestOnlySpecs = /(?:guest-trial|originality)\.spec\.ts/;
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -35,6 +36,7 @@ export default defineConfig({
 		{
 			name: "funded",
 			dependencies: ["setup"],
+			testIgnore: guestOnlySpecs,
 			grepInvert: /insufficient credits|subscription upgrade/,
 			use: {
 				...devices["Desktop Chrome"],
@@ -44,6 +46,7 @@ export default defineConfig({
 		{
 			name: "empty",
 			dependencies: ["setup"],
+			testIgnore: guestOnlySpecs,
 			grep: /insufficient credits/,
 			use: {
 				...devices["Desktop Chrome"],
@@ -53,6 +56,7 @@ export default defineConfig({
 		{
 			name: "free",
 			dependencies: ["setup"],
+			testIgnore: guestOnlySpecs,
 			grep: /subscription upgrade/,
 			use: {
 				...devices["Desktop Chrome"],
@@ -61,7 +65,7 @@ export default defineConfig({
 		},
 		{
 			name: "guest",
-			testMatch: /(?:guest-trial|originality)\.spec\.ts/,
+			testMatch: guestOnlySpecs,
 			use: {
 				...devices["Desktop Chrome"],
 				storageState: undefined,

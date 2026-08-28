@@ -32,7 +32,7 @@
 		"verify:ci-workflow": "node tests/load/verify-ci-workflow.mjs",
 		"verify:invariants": "tsx tests/load/verify-invariants.ts",
 		"verify:ui-originality": "node tooling/scripts/verify-public-ui-originality.mjs",
-		"verify:ui-originality:self-test": "node tooling/scripts/verify-public-ui-originality.mjs --self-test",
+		"verify:ui-originality:self-test": "node --test tooling/scripts/verify-public-ui-originality.test.mjs && node tooling/scripts/verify-public-ui-originality.mjs --self-test",
 		"provider:benchmark:image-edit": "tsx packages/ai/media/benchmark/cli.ts"
 	},
 	"dependencies": {

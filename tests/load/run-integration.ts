@@ -6,6 +6,13 @@ const testDatabaseUrl = assertSafeDatabaseUrl(process.env.TEST_DATABASE_URL).toS
 const guestTestDatabaseUrl = assertSafeDatabaseUrl(
 	process.env.GUEST_TEST_DATABASE_URL ?? process.env.TEST_DATABASE_URL,
 ).toString();
+const isolatedGuestDatabaseTests = [
+	"prisma/queries/media/anonymous-standard-schema.integration.test.ts",
+	"prisma/queries/media/guest-admission.integration.test.ts",
+	"prisma/queries/media/guest-bootstrap.integration.test.ts",
+	"prisma/queries/media/guest-link.integration.test.ts",
+	"prisma/queries/media/guest-retention.integration.test.ts",
+] as const;
 
 run(
 	[
@@ -18,8 +25,7 @@ run(
 		"vitest.integration.config.ts",
 		"--configLoader",
 		"runner",
-		"--exclude",
-		"prisma/queries/media/guest-retention.integration.test.ts",
+		...isolatedGuestDatabaseTests.flatMap((test) => ["--exclude", test]),
 	],
 	false,
 	testDatabaseUrl,
@@ -31,7 +37,7 @@ run(
 		"exec",
 		"vitest",
 		"run",
-		"prisma/queries/media/guest-retention.integration.test.ts",
+		...isolatedGuestDatabaseTests,
 		"--config",
 		"vitest.integration.config.ts",
 		"--configLoader",
@@ -48,6 +54,7 @@ run(
 		"vitest",
 		"run",
 		"src/handlers/jobs.database.integration.test.ts",
+		"src/handlers/finalization-transfer.database.integration.test.ts",
 		"src/handlers/runtime-stores.database.integration.test.ts",
 		"src/handlers/verify-upload.database.integration.test.ts",
 		"--config",

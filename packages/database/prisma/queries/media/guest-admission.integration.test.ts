@@ -232,6 +232,45 @@ describe("guest generation admission", () => {
 		).resolves.toMatchObject({ _sum: { rejectionCount: 1n } });
 	});
 
+	it.each([
+		["IP ten-minute", "maximumRequestsPerIpPerTenMinutes", "GUEST_IP_RATE_LIMIT", "ipHash"],
+		["IP daily", "maximumRequestsPerIpPerDay", "GUEST_IP_RATE_LIMIT", "ipHash"],
+		["subnet daily", "maximumRequestsPerSubnetPerDay", "GUEST_SUBNET_RATE_LIMIT", "subnetHash"],
+		["global hourly", "maximumGlobalRequestsPerHour", "GUEST_GLOBAL_RATE_LIMIT", null],
+		["global daily", "maximumGlobalRequestsPerDay", "GUEST_GLOBAL_RATE_LIMIT", null],
+	] as const)(
+		"enforces the %s dimension at N plus one with no rejected business graph",
+		async (_label, limitName, expectedCode, sharedField) => {
+			const promotionPeriod = `promotion-${limitName}`;
+			const first = await createGuestFixture("limit-first", undefined, promotionPeriod);
+			const second = await createGuestFixture("limit-second", undefined, promotionPeriod);
+			const sharedHash = hashFixture(`shared:${limitName}`);
+			const limitOverrides = { [limitName]: 1 };
+			await createGuestAdmission(
+				guestAdmissionInput(first, {
+					idempotencyKey: `guest-${limitName}-first`,
+					...limitOverrides,
+					...(sharedField ? { [sharedField]: sharedHash } : {}),
+				}),
+			);
+			const rejectedInput = guestAdmissionInput(second, {
+				idempotencyKey: `guest-${limitName}-second`,
+				...limitOverrides,
+				...(sharedField ? { [sharedField]: sharedHash } : {}),
+			});
+
+			await expect(createGuestAdmission(rejectedInput)).rejects.toThrow(expectedCode);
+			await expect(
+				Promise.all([
+					client.guestMediaTrial.count({ where: { ownerId: second.ownerId } }),
+					client.generationQuote.count({ where: { ownerId: second.ownerId } }),
+					client.generationJob.count({ where: { ownerId: second.ownerId } }),
+					client.creditAccount.count({ where: { ownerId: second.ownerId } }),
+				]),
+			).resolves.toEqual([0, 0, 0, 0]);
+		},
+	);
+
 	it("projects admission in capacity waves instead of multiplying every queued job", async () => {
 		for (const label of ["wave-a", "wave-b", "wave-c"]) {
 			const queued = await createGuestFixture(label);
@@ -738,6 +777,13 @@ function guestAdmissionInput(
 		maximumGlobalQueueDepth?: number;
 		queueCapacity?: number;
 		riskBudgetMicros?: bigint;
+		ipHash?: string;
+		subnetHash?: string;
+		maximumRequestsPerIpPerTenMinutes?: number;
+		maximumRequestsPerIpPerDay?: number;
+		maximumRequestsPerSubnetPerDay?: number;
+		maximumGlobalRequestsPerHour?: number;
+		maximumGlobalRequestsPerDay?: number;
 	},
 ) {
 	const quoteBase = {
@@ -763,8 +809,8 @@ function guestAdmissionInput(
 		capabilityVersion: "guest-v7",
 		sourceSessionHash: fixture.sourceSessionHash,
 		deviceHash: fixture.deviceHash,
-		ipHash: hashFixture(`ip:${fixture.ownerId}`),
-		subnetHash: hashFixture(`subnet:${fixture.ownerId}`),
+		ipHash: overrides.ipHash ?? hashFixture(`ip:${fixture.ownerId}`),
+		subnetHash: overrides.subnetHash ?? hashFixture(`subnet:${fixture.ownerId}`),
 		idempotencyKey: overrides.idempotencyKey,
 		idempotencyFingerprint: hashFixture(`admission:${overrides.idempotencyKey}`),
 		turnstile: {
@@ -778,7 +824,7 @@ function guestAdmissionInput(
 		sourceAssetChecksum: fixture.checksum,
 		now: fixture.now,
 		retentionMs: 24 * 60 * 60_000,
-		queueTtlMs: 15 * 60_000,
+		queueTtlMs: 10 * 60_000,
 		serviceTimeMs: 60_000,
 		queueCapacity: overrides.queueCapacity ?? 1,
 		maximumBytes: 10 * 1024 * 1024,
@@ -786,6 +832,11 @@ function guestAdmissionInput(
 		maximumActiveJobsPerGuest: 1,
 		maximumRequestsPerMinute: overrides.maximumRequestsPerMinute ?? 100,
 		maximumRequestsPerIpPerHour: 100,
+		maximumRequestsPerIpPerTenMinutes: overrides.maximumRequestsPerIpPerTenMinutes ?? 100,
+		maximumRequestsPerIpPerDay: overrides.maximumRequestsPerIpPerDay ?? 100,
+		maximumRequestsPerSubnetPerDay: overrides.maximumRequestsPerSubnetPerDay ?? 100,
+		maximumGlobalRequestsPerHour: overrides.maximumGlobalRequestsPerHour ?? 100,
+		maximumGlobalRequestsPerDay: overrides.maximumGlobalRequestsPerDay ?? 100,
 		riskBudgetMicros: overrides.riskBudgetMicros ?? 350_000n,
 		sponsorCredits: 4n,
 		assetModeration: {

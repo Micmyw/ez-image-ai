@@ -33,7 +33,7 @@ export function GuestShell({ children }: PropsWithChildren) {
 				<header className="border-violet-100 bg-white/80 backdrop-blur-xl border-b">
 					<div className="min-h-16 gap-2 px-4 sm:gap-4 sm:px-6 lg:px-8 mx-auto flex max-w-[90rem] items-center justify-between">
 						<div className="flex shrink-0 items-center">
-							<Logo label="EzPic" withLabel={false} className="text-slate-950" />
+							<Logo label="EzPic" withLabel={false} decorative className="text-slate-950" />
 							<span className="ml-2 text-base font-semibold text-slate-950 sm:text-lg leading-none">
 								EzPic
 							</span>

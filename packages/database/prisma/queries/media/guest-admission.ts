@@ -63,6 +63,17 @@ export interface CreateGuestGenerationTransactionInput {
 	maximumActiveJobsPerGuest: number;
 	maximumRequestsPerMinute: number;
 	maximumRequestsPerIpPerHour: number;
+	maximumAcceptedTrialsPerSession?: number;
+	maximumActiveJobsPerDevice?: number;
+	maximumAcceptedTrialsPerDevicePromotion?: number;
+	maximumActiveJobsPerIp?: number;
+	maximumRequestsPerIpPerTenMinutes?: number;
+	maximumRequestsPerIpPerDay?: number;
+	maximumRequestsPerSubnetPerDay?: number;
+	maximumGlobalRequestsPerMinute?: number;
+	maximumGlobalRequestsPerHour?: number;
+	maximumGlobalRequestsPerDay?: number;
+	abuseEvidenceTtlMs?: number;
 	riskBudgetMicros: bigint;
 	sponsorCredits: bigint;
 	assetModeration: {
@@ -120,6 +131,7 @@ export interface RecordGuestAdmissionDenialInput {
 	reason: GuestAdmissionDenialReason;
 	subjectHash: string;
 	now: Date;
+	evidenceTtlMs?: number;
 }
 
 export async function recordGuestAdmissionDenial(
@@ -136,7 +148,11 @@ export async function recordGuestAdmissionDenial(
 	}
 	const windowStart = new Date(0);
 	const windowEnd = new Date(1);
-	const expiresAt = new Date(input.now.getTime() + 90 * 24 * 60 * 60_000);
+	const evidenceTtlMs = input.evidenceTtlMs ?? 90 * 24 * 60 * 60_000;
+	if (!Number.isSafeInteger(evidenceTtlMs) || evidenceTtlMs <= 0) {
+		throw new Error("GUEST_DENIAL_INPUT_INVALID");
+	}
+	const expiresAt = new Date(input.now.getTime() + evidenceTtlMs);
 	await client.guestAbuseBucket.upsert({
 		where: {
 			scope_subjectHash_windowStart: {
@@ -193,14 +209,23 @@ export async function createGuestGenerationTransaction(
 				select: { id: true },
 			});
 			if (existingTrial) throw new Error("GUEST_TRIAL_UNAVAILABLE");
-			const existingPromotionBinding = await tx.guestMediaTrial.findFirst({
-				where: {
-					promotionPeriod: input.promotionPeriod,
-					OR: [{ sourceSessionHash: input.sourceSessionHash }, { deviceHash: input.deviceHash }],
-				},
-				select: { id: true },
-			});
-			if (existingPromotionBinding) throw new Error("GUEST_TRIAL_UNAVAILABLE");
+			const [sessionTrialCount, deviceTrialCount] = await Promise.all([
+				tx.guestMediaTrial.count({
+					where: {
+						promotionPeriod: input.promotionPeriod,
+						sourceSessionHash: input.sourceSessionHash,
+					},
+				}),
+				tx.guestMediaTrial.count({
+					where: { promotionPeriod: input.promotionPeriod, deviceHash: input.deviceHash },
+				}),
+			]);
+			if (
+				sessionTrialCount >= (input.maximumAcceptedTrialsPerSession ?? 1) ||
+				deviceTrialCount >= (input.maximumAcceptedTrialsPerDevicePromotion ?? 1)
+			) {
+				throw new Error("GUEST_TRIAL_UNAVAILABLE");
+			}
 
 			await assertAnonymousOwner(input.ownerId, tx);
 			const source = await loadAdmissionSource(input, tx);
@@ -215,6 +240,31 @@ export async function createGuestGenerationTransaction(
 			});
 			if (activeGuestJobs >= input.maximumActiveJobsPerGuest) {
 				throw new Error("GUEST_OWNER_CAPACITY");
+			}
+			const [activeDeviceJobs, activeIpJobs] = await Promise.all([
+				tx.generationJob.count({
+					where: {
+						serviceClass: "GUEST_SLOW",
+						guestTrial: {
+							promotionPeriod: input.promotionPeriod,
+							deviceHash: input.deviceHash,
+						},
+						status: { in: [...ACTIVE_GENERATION_JOB_STATUSES] },
+					},
+				}),
+				tx.generationJob.count({
+					where: {
+						serviceClass: "GUEST_SLOW",
+						guestTrial: { promotionPeriod: input.promotionPeriod, ipHash: input.ipHash },
+						status: { in: [...ACTIVE_GENERATION_JOB_STATUSES] },
+					},
+				}),
+			]);
+			if (activeDeviceJobs >= (input.maximumActiveJobsPerDevice ?? 1)) {
+				throw new Error("GUEST_DEVICE_LIMIT");
+			}
+			if (activeIpJobs >= (input.maximumActiveJobsPerIp ?? 2)) {
+				throw new Error("GUEST_IP_RATE_LIMIT");
 			}
 
 			const queueDepth = await tx.generationJob.count({
@@ -363,6 +413,7 @@ export async function createGuestGenerationTransaction(
 					reason: denialReason,
 					subjectHash: input.idempotencyFingerprint,
 					now: input.now,
+					evidenceTtlMs: input.abuseEvidenceTtlMs,
 				},
 				client,
 			).catch(() => undefined);
@@ -508,6 +559,7 @@ export async function getRegisteredGuestJobSnapshot(
 	});
 	if (
 		!grant ||
+		grant.trial.ownerId === null ||
 		grant.trialId !== grant.guestJob.guestTrialId ||
 		grant.expiresAt.getTime() !== grant.trial.expiresAt.getTime()
 	) {
@@ -622,6 +674,7 @@ export async function getRegisteredGuestResultAssetForAccess(
 	if (
 		!grant ||
 		!binding ||
+		grant.trial.ownerId === null ||
 		grant.trialId !== grant.guestJob.guestTrialId ||
 		grant.expiresAt.getTime() !== grant.trial.expiresAt.getTime()
 	) {
@@ -899,7 +952,10 @@ async function enforceAdmissionBuckets(
 	tx: Prisma.TransactionClient,
 ): Promise<void> {
 	const minuteStart = new Date(Math.floor(input.now.getTime() / 60_000) * 60_000);
+	const tenMinuteStart = new Date(Math.floor(input.now.getTime() / 600_000) * 600_000);
 	const hourStart = new Date(Math.floor(input.now.getTime() / 3_600_000) * 3_600_000);
+	const dayStart = new Date(Math.floor(input.now.getTime() / 86_400_000) * 86_400_000);
+	const evidenceTtlMs = input.abuseEvidenceTtlMs;
 	if (
 		!(await incrementGuestBucket(
 			tx,
@@ -907,7 +963,8 @@ async function enforceAdmissionBuckets(
 			"global",
 			minuteStart,
 			60_000,
-			input.maximumRequestsPerMinute,
+			input.maximumGlobalRequestsPerMinute ?? input.maximumRequestsPerMinute,
+			evidenceTtlMs,
 		))
 	) {
 		throw new Error("GUEST_GLOBAL_RATE_LIMIT");
@@ -915,11 +972,38 @@ async function enforceAdmissionBuckets(
 	if (
 		!(await incrementGuestBucket(
 			tx,
-			"guest-generate-ip-hour",
-			input.ipHash,
+			"guest-generate-global-hour",
+			"global",
 			hourStart,
 			3_600_000,
-			input.maximumRequestsPerIpPerHour,
+			input.maximumGlobalRequestsPerHour ?? input.maximumRequestsPerIpPerHour,
+			evidenceTtlMs,
+		))
+	) {
+		throw new Error("GUEST_GLOBAL_RATE_LIMIT");
+	}
+	if (
+		!(await incrementGuestBucket(
+			tx,
+			"guest-generate-global-day",
+			"global",
+			dayStart,
+			86_400_000,
+			input.maximumGlobalRequestsPerDay ?? input.maximumRequestsPerIpPerHour,
+			evidenceTtlMs,
+		))
+	) {
+		throw new Error("GUEST_GLOBAL_RATE_LIMIT");
+	}
+	if (
+		!(await incrementGuestBucket(
+			tx,
+			"guest-generate-ip-ten-minute",
+			input.ipHash,
+			tenMinuteStart,
+			600_000,
+			input.maximumRequestsPerIpPerTenMinutes ?? input.maximumRequestsPerIpPerHour,
+			evidenceTtlMs,
 		))
 	) {
 		throw new Error("GUEST_IP_RATE_LIMIT");
@@ -927,26 +1011,28 @@ async function enforceAdmissionBuckets(
 	if (
 		!(await incrementGuestBucket(
 			tx,
-			"guest-generate-subnet-hour",
-			input.subnetHash,
-			hourStart,
-			3_600_000,
-			input.maximumRequestsPerIpPerHour,
+			"guest-generate-ip-day",
+			input.ipHash,
+			dayStart,
+			86_400_000,
+			input.maximumRequestsPerIpPerDay ?? input.maximumRequestsPerIpPerHour,
+			evidenceTtlMs,
 		))
 	) {
-		throw new Error("GUEST_SUBNET_RATE_LIMIT");
+		throw new Error("GUEST_IP_RATE_LIMIT");
 	}
 	if (
 		!(await incrementGuestBucket(
 			tx,
-			`guest-generate-device:${input.promotionPeriod}`,
-			input.deviceHash,
-			new Date(0),
-			365 * 24 * 60 * 60_000,
-			1,
+			"guest-generate-subnet-day",
+			input.subnetHash,
+			dayStart,
+			86_400_000,
+			input.maximumRequestsPerSubnetPerDay ?? input.maximumRequestsPerIpPerHour,
+			evidenceTtlMs,
 		))
 	) {
-		throw new Error("GUEST_DEVICE_LIMIT");
+		throw new Error("GUEST_SUBNET_RATE_LIMIT");
 	}
 }
 
@@ -1080,6 +1166,17 @@ function validateAdmissionInput(input: CreateGuestGenerationTransactionInput): v
 		input.maximumActiveJobsPerGuest,
 		input.maximumRequestsPerMinute,
 		input.maximumRequestsPerIpPerHour,
+		input.maximumAcceptedTrialsPerSession ?? 1,
+		input.maximumActiveJobsPerDevice ?? 1,
+		input.maximumAcceptedTrialsPerDevicePromotion ?? 1,
+		input.maximumActiveJobsPerIp ?? 2,
+		input.maximumRequestsPerIpPerTenMinutes ?? input.maximumRequestsPerIpPerHour,
+		input.maximumRequestsPerIpPerDay ?? input.maximumRequestsPerIpPerHour,
+		input.maximumRequestsPerSubnetPerDay ?? input.maximumRequestsPerIpPerHour,
+		input.maximumGlobalRequestsPerMinute ?? input.maximumRequestsPerMinute,
+		input.maximumGlobalRequestsPerHour ?? input.maximumRequestsPerIpPerHour,
+		input.maximumGlobalRequestsPerDay ?? input.maximumRequestsPerIpPerHour,
+		input.abuseEvidenceTtlMs ?? 24 * 60 * 60_000,
 	]) {
 		if (!Number.isSafeInteger(value) || value <= 0) throw new Error("GUEST_CONFIGURATION_ERROR");
 	}

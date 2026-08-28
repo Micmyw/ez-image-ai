@@ -20,7 +20,71 @@ describe("guest media configuration", () => {
 			maximumBytes: 10 * 1024 * 1024,
 			mimeTypes: ["image/jpeg", "image/png", "image/webp"],
 			retentionMs: 24 * 60 * 60 * 1_000,
-			queueTtlMs: 15 * 60 * 1_000,
+			queueTtlMs: 10 * 60 * 1_000,
+			riskBudgetMicros: 350_000n,
+			limits: {
+				maximumActiveJobsPerGuest: 1,
+				maximumAcceptedTrialsPerSession: 1,
+				maximumAcceptedTrialsPerDevicePromotion: 1,
+				maximumActiveJobsPerIp: 2,
+				maximumRequestsPerIpPerTenMinutes: 1,
+				maximumRequestsPerIpPerDay: 3,
+				maximumRequestsPerSubnetPerDay: 20,
+				maximumGlobalRequestsPerMinute: 3,
+				maximumGlobalRequestsPerHour: 30,
+				maximumGlobalRequestsPerDay: 100,
+				maximumGlobalQueueDepth: 25,
+				maximumOutstandingBootstraps: 25,
+				maximumTemporaryPrincipals: 100,
+			},
+		});
+	});
+
+	it("fails production closed unless every abuse and capacity limit is explicit and positive", () => {
+		const production = {
+			...developmentEnvironment,
+			NODE_ENV: "production",
+			GUEST_COST_EVIDENCE_ID: "benchmark-2026-08-27",
+			GUEST_HARD_BUDGET_MICROS: "10000000",
+			NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY: "site-key",
+			GUEST_TURNSTILE_SECRET_KEY: "secret-key",
+			MEDIA_TRUSTED_PROXY_PROVIDER: "cloudflare",
+		};
+
+		expect(getGuestMediaConfig(production, true)).toMatchObject({
+			enabled: false,
+			reason: "GUEST_CONFIGURATION_INVALID",
+		});
+		expect(
+			getGuestMediaConfig(
+				{
+					...production,
+					GUEST_QUEUE_TTL_SECONDS: "600",
+					GUEST_QUEUE_MAX_DEPTH: "25",
+					GUEST_BOOTSTRAP_MAX_OUTSTANDING: "25",
+					GUEST_TEMPORARY_PRINCIPAL_MAX_TOTAL: "100",
+					GUEST_SESSION_MAX_ACTIVE_JOBS: "1",
+					GUEST_SESSION_MAX_ACCEPTED_TRIALS: "1",
+					GUEST_DEVICE_MAX_ACTIVE_JOBS: "1",
+					GUEST_DEVICE_MAX_ACCEPTED_PER_PROMOTION: "1",
+					GUEST_IP_MAX_ACTIVE_JOBS: "2",
+					GUEST_IP_MAX_PER_10_MINUTES: "1",
+					GUEST_IP_MAX_PER_24_HOURS: "3",
+					GUEST_SUBNET_MAX_PER_24_HOURS: "20",
+					GUEST_GLOBAL_MAX_PER_MINUTE: "3",
+					GUEST_GLOBAL_MAX_PER_HOUR: "30",
+					GUEST_GLOBAL_MAX_PER_24_HOURS: "100",
+					GUEST_ABUSE_EVIDENCE_TTL_DAYS: "30",
+				},
+				true,
+			),
+		).toMatchObject({
+			enabled: true,
+			reason: null,
+			limits: {
+				maximumRequestsPerMinute: 3,
+				maximumRequestsPerIpPerHour: 3,
+			},
 		});
 	});
 

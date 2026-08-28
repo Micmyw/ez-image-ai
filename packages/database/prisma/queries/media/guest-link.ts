@@ -195,15 +195,15 @@ export async function completeGuestLinkIntentTransaction(
 					sourceSessionHash: intent.sourceSessionHash,
 					deviceHash: intent.deviceHash,
 					expiresAt: { gt: input.now },
-					currentJobId: { not: null },
 				},
-				select: { id: true, currentJobId: true, expiresAt: true },
+				select: { id: true, currentJobId: true, consumedJobId: true, expiresAt: true },
 			});
-			if (!trial?.currentJobId) throw new Error("GUEST_LINK_UNAVAILABLE");
+			const guestJobId = trial?.currentJobId ?? trial?.consumedJobId;
+			if (!trial || !guestJobId) throw new Error("GUEST_LINK_UNAVAILABLE");
 			await tx.guestResultAccessGrant.create({
 				data: {
 					trialId: trial.id,
-					guestJobId: trial.currentJobId,
+					guestJobId,
 					registeredUserId: input.registeredUserId,
 					grantTokenHash: input.grantTokenHash,
 					createdAt: input.now,
@@ -216,7 +216,7 @@ export async function completeGuestLinkIntentTransaction(
 			});
 			result = {
 				mode: "RESULT",
-				jobId: trial.currentJobId,
+				jobId: guestJobId,
 				returnPath: "/try",
 				expiresAt: trial.expiresAt,
 			};

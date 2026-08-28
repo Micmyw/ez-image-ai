@@ -54,6 +54,15 @@ export async function consumeGuestTurnstileTokenHash(
 	}
 }
 
+interface GuestBoundaryAbuseLimits {
+	maximumRequestsPerIpPerTenMinutes: number;
+	maximumRequestsPerIpPerDay: number;
+	maximumRequestsPerSubnetPerDay: number;
+	maximumGlobalRequestsPerMinute: number;
+	maximumGlobalRequestsPerHour: number;
+	maximumGlobalRequestsPerDay: number;
+}
+
 export interface CreateGuestMediaUploadIntentTransactionInput extends Omit<
 	CreateMediaUploadSessionTransactionInput,
 	"guest" | "tokenHash"
@@ -64,11 +73,12 @@ export interface CreateGuestMediaUploadIntentTransactionInput extends Omit<
 	deleteAfter: Date;
 	ipHash: string;
 	subnetHash: string;
-	abuseLimits: {
+	abuseLimits: GuestBoundaryAbuseLimits & {
 		maximumRequestsPerMinute: number;
 		maximumRequestsPerIpPerHour: number;
 		maximumGlobalQueueDepth: number;
 	};
+	abuseEvidenceTtlMs?: number;
 	completionTokenHash: string;
 }
 
@@ -78,43 +88,21 @@ export async function createGuestMediaUploadIntentTransaction(
 ) {
 	const now = new Date();
 	await client.$transaction(async (tx) => {
-		const minuteStart = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
-		const hourStart = new Date(Math.floor(now.getTime() / 3_600_000) * 3_600_000);
-		const checks = [
-			await incrementGuestBucket(
+		if (
+			!(await enforceGuestBoundaryRateLimits(
+				{
+					scopePrefix: "guest-upload",
+					ipHash: input.ipHash,
+					subnetHash: input.subnetHash,
+					limits: input.abuseLimits,
+					now,
+					evidenceTtlMs: input.abuseEvidenceTtlMs,
+				},
 				tx,
-				"guest-upload-ip-minute",
-				input.ipHash,
-				minuteStart,
-				60_000,
-				input.abuseLimits.maximumRequestsPerMinute,
-			),
-			await incrementGuestBucket(
-				tx,
-				"guest-upload-ip-hour",
-				input.ipHash,
-				hourStart,
-				3_600_000,
-				input.abuseLimits.maximumRequestsPerIpPerHour,
-			),
-			await incrementGuestBucket(
-				tx,
-				"guest-upload-subnet-hour",
-				input.subnetHash,
-				hourStart,
-				3_600_000,
-				input.abuseLimits.maximumRequestsPerIpPerHour,
-			),
-			await incrementGuestBucket(
-				tx,
-				"guest-upload-global-minute",
-				"global",
-				minuteStart,
-				60_000,
-				input.abuseLimits.maximumGlobalQueueDepth,
-			),
-		];
-		if (checks.some((allowed) => !allowed)) throw new Error("GUEST_UPLOAD_RATE_LIMITED");
+			))
+		) {
+			throw new Error("GUEST_UPLOAD_RATE_LIMITED");
+		}
 	});
 	return createMediaUploadSessionTransaction(
 		{
@@ -253,11 +241,14 @@ export interface ConsumeGuestBootstrapInput {
 	promotionPeriod: string;
 	ipHash: string;
 	subnetHash: string;
-	limits: {
+	limits: GuestBoundaryAbuseLimits & {
 		maximumRequestsPerMinute: number;
 		maximumRequestsPerIpPerHour: number;
 		maximumGlobalQueueDepth: number;
+		maximumOutstandingBootstraps?: number;
+		maximumTemporaryPrincipals?: number;
 	};
+	abuseEvidenceTtlMs?: number;
 	now?: Date;
 }
 
@@ -511,43 +502,120 @@ async function enforceGuestBootstrapCaps(
 	now: Date,
 	tx: Prisma.TransactionClient,
 ): Promise<void> {
-	const minuteStart = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
-	const hourStart = new Date(Math.floor(now.getTime() / 3_600_000) * 3_600_000);
-	const checks = [
-		await incrementGuestBucket(
+	if (
+		input.limits.maximumOutstandingBootstraps !== undefined ||
+		input.limits.maximumTemporaryPrincipals !== undefined
+	) {
+		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`guest-bootstrap-cap:${input.promotionPeriod}`}, 0))`;
+	}
+	if (input.limits.maximumOutstandingBootstraps !== undefined) {
+		const outstandingBootstraps = await tx.guestSessionBootstrap.count({
+			where: { ownerId: null, completedAt: null, expiresAt: { gt: now } },
+		});
+		if (outstandingBootstraps > input.limits.maximumOutstandingBootstraps) {
+			throw new Error("GUEST_OUTSTANDING_BOOTSTRAP_CAP_EXCEEDED");
+		}
+	}
+	if (input.limits.maximumTemporaryPrincipals !== undefined) {
+		const [anonymousPrincipals, activePrincipalLeases] = await Promise.all([
+			tx.user.count({ where: { isAnonymous: true } }),
+			tx.guestSessionBootstrap.count({
+				where: {
+					ownerId: null,
+					principalLeaseToken: { not: null },
+					principalLeaseExpiresAt: { gt: now },
+				},
+			}),
+		]);
+		if (anonymousPrincipals + activePrincipalLeases >= input.limits.maximumTemporaryPrincipals) {
+			throw new Error("GUEST_TEMPORARY_PRINCIPAL_CAP_EXCEEDED");
+		}
+	}
+	if (
+		!(await enforceGuestBoundaryRateLimits(
+			{
+				scopePrefix: "guest-bootstrap",
+				ipHash: input.ipHash,
+				subnetHash: input.subnetHash,
+				limits: input.limits,
+				now,
+				evidenceTtlMs: input.abuseEvidenceTtlMs,
+			},
 			tx,
-			"guest-bootstrap-ip-minute",
-			input.ipHash,
-			minuteStart,
-			60_000,
-			input.limits.maximumRequestsPerMinute,
-		),
-		await incrementGuestBucket(
-			tx,
-			"guest-bootstrap-ip-hour",
-			input.ipHash,
-			hourStart,
-			3_600_000,
-			input.limits.maximumRequestsPerIpPerHour,
-		),
-		await incrementGuestBucket(
-			tx,
-			"guest-bootstrap-subnet-hour",
-			input.subnetHash,
-			hourStart,
-			3_600_000,
-			input.limits.maximumRequestsPerIpPerHour,
-		),
-		await incrementGuestBucket(
-			tx,
-			"guest-bootstrap-global-minute",
-			"global",
-			minuteStart,
-			60_000,
-			input.limits.maximumGlobalQueueDepth,
-		),
-	];
-	if (checks.some((allowed) => !allowed)) throw new Error("GUEST_TEMPORARY_USER_CAP_EXCEEDED");
+		))
+	) {
+		throw new Error("GUEST_TEMPORARY_USER_CAP_EXCEEDED");
+	}
+}
+
+async function enforceGuestBoundaryRateLimits(
+	input: {
+		scopePrefix: "guest-upload" | "guest-bootstrap";
+		ipHash: string;
+		subnetHash: string;
+		limits: GuestBoundaryAbuseLimits;
+		now: Date;
+		evidenceTtlMs?: number;
+	},
+	tx: Prisma.TransactionClient,
+): Promise<boolean> {
+	const windows = [
+		{
+			scope: `${input.scopePrefix}-ip-ten-minute`,
+			subjectHash: input.ipHash,
+			windowMs: 10 * 60_000,
+			maximum: input.limits.maximumRequestsPerIpPerTenMinutes,
+		},
+		{
+			scope: `${input.scopePrefix}-ip-day`,
+			subjectHash: input.ipHash,
+			windowMs: 24 * 60 * 60_000,
+			maximum: input.limits.maximumRequestsPerIpPerDay,
+		},
+		{
+			scope: `${input.scopePrefix}-subnet-day`,
+			subjectHash: input.subnetHash,
+			windowMs: 24 * 60 * 60_000,
+			maximum: input.limits.maximumRequestsPerSubnetPerDay,
+		},
+		{
+			scope: `${input.scopePrefix}-global-minute`,
+			subjectHash: "global",
+			windowMs: 60_000,
+			maximum: input.limits.maximumGlobalRequestsPerMinute,
+		},
+		{
+			scope: `${input.scopePrefix}-global-hour`,
+			subjectHash: "global",
+			windowMs: 60 * 60_000,
+			maximum: input.limits.maximumGlobalRequestsPerHour,
+		},
+		{
+			scope: `${input.scopePrefix}-global-day`,
+			subjectHash: "global",
+			windowMs: 24 * 60 * 60_000,
+			maximum: input.limits.maximumGlobalRequestsPerDay,
+		},
+	] as const;
+	for (const window of windows) {
+		const windowStart = new Date(
+			Math.floor(input.now.getTime() / window.windowMs) * window.windowMs,
+		);
+		if (
+			!(await incrementGuestBucket(
+				tx,
+				window.scope,
+				window.subjectHash,
+				windowStart,
+				window.windowMs,
+				window.maximum,
+				input.evidenceTtlMs,
+			))
+		) {
+			return false;
+		}
+	}
+	return true;
 }
 
 export async function incrementGuestBucket(
@@ -557,13 +625,15 @@ export async function incrementGuestBucket(
 	windowStart: Date,
 	windowMs: number,
 	maximum: number,
+	evidenceTtlMs = 24 * 60 * 60_000,
 ): Promise<boolean> {
 	const windowEnd = new Date(windowStart.getTime() + windowMs);
+	const expiresAt = new Date(windowEnd.getTime() + evidenceTtlMs);
 	const [result] = await tx.$queryRaw<Array<{ allowed: boolean }>>`
 		INSERT INTO "guest_abuse_bucket"
 			("id", "scope", "subjectHash", "windowStart", "windowEnd", "requestCount", "rejectionCount", "expiresAt", "version", "updatedAt")
 		VALUES
-			(gen_random_uuid()::text, ${scope}, ${subjectHash}, ${windowStart}, ${windowEnd}, 1, 0, ${new Date(windowEnd.getTime() + 24 * 60 * 60_000)}, 0, now())
+			(gen_random_uuid()::text, ${scope}, ${subjectHash}, ${windowStart}, ${windowEnd}, 1, 0, ${expiresAt}, 0, now())
 		ON CONFLICT ("scope", "subjectHash", "windowStart") DO UPDATE
 		SET "requestCount" = "guest_abuse_bucket"."requestCount" + 1,
 			"version" = "guest_abuse_bucket"."version" + 1,

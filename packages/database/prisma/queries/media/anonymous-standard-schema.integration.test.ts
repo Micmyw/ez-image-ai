@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -194,6 +195,46 @@ describe("anonymous Standard trial persistent schema contract", () => {
 			tableName: "guest_result_access_grant",
 			referencedTable: "user",
 		});
+	});
+
+	it("detaches an expired anonymous trial owner while preserving the trial evidence row", async () => {
+		const ownerId = `cleanup-owner-${randomUUID()}`;
+		const trialId = `cleanup-trial-${randomUUID()}`;
+		await client.query("BEGIN");
+		try {
+			await client.query(
+				`INSERT INTO "user" ("id", "name", "email", "emailVerified", "isAnonymous", "createdAt", "updatedAt")
+				 VALUES ($1, 'Guest', $2, false, true, now() - interval '2 days', now() - interval '2 days')`,
+				[ownerId, `${ownerId}@anonymous.invalid`],
+			);
+			await client.query(
+				`INSERT INTO "guest_media_trial" (
+					"id", "ownerId", "promotionPeriod", "sourceSessionHash", "deviceHash", "ipHash", "subnetHash",
+					"capabilityVersion", "idempotencyFingerprint", "frozenQuotedRiskMicros", "riskState",
+					"projectedDispatchAt", "estimateExpiresAt", "expiresAt", "createdAt", "updatedAt"
+				) VALUES ($1, $2, 'cleanup-period', $3, $4, $5, $6, 'v1', $7, 3500, 'RELEASED',
+					now() - interval '2 days', now() - interval '2 days' + interval '1 minute',
+					now() - interval '1 day', now() - interval '3 days', now() - interval '2 days')`,
+				[
+					trialId,
+					ownerId,
+					`${ownerId}-session`,
+					`${ownerId}-device`,
+					`${ownerId}-ip`,
+					`${ownerId}-subnet`,
+					`${ownerId}-fingerprint`,
+				],
+			);
+
+			await client.query('DELETE FROM "user" WHERE "id" = $1', [ownerId]);
+			const preserved = await client.query<{ ownerId: string | null }>(
+				'SELECT "ownerId" FROM "guest_media_trial" WHERE "id" = $1',
+				[trialId],
+			);
+			expect(preserved.rows).toEqual([{ ownerId: null }]);
+		} finally {
+			await client.query("ROLLBACK");
+		}
 	});
 
 	it("retains the critical guest-domain checks", async () => {
