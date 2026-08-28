@@ -181,6 +181,8 @@ function createInMemoryStore() {
 			state.attemptId = "attempt-1";
 			return {
 				attemptId: "attempt-1",
+				attemptNumber: 1,
+				serviceClass: "STANDARD" as const,
 				provider: "replicate" as const,
 				providerModelId: "model-1",
 				mediaKind: "image" as const,

@@ -15,6 +15,9 @@ export async function dispatchGeneration(
 	}
 	const claim = await dependencies.store.claimDispatch(payload);
 	if (!claim) return { outcome: "SKIPPED" };
+	if (claim.serviceClass === "GUEST_SLOW" && claim.attemptNumber !== 1) {
+		throw new Error("GUEST_ATTEMPT_LIMIT_EXCEEDED");
+	}
 	let adapter;
 	try {
 		adapter = dependencies.getProvider(claim.provider);

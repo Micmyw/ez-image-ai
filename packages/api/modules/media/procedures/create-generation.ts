@@ -33,6 +33,7 @@ export const createGeneration = protectedProcedure
 					jobId: result.job.id,
 					version: result.job.version,
 					replayed: result.replayed,
+					serviceClass: "STANDARD",
 				},
 				{
 					resolveRoute: resolveDatabaseDispatchRoute,

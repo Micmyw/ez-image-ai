@@ -135,11 +135,14 @@ const defaultDependencies: RetryGenerationDependencies = {
 	getJob: (jobId) =>
 		db.generationJob.findUnique({ where: { id: jobId }, select: { id: true, status: true } }),
 	dispatch: (input) =>
-		dispatchCreatedJobBestEffort(input, {
-			resolveRoute: resolveDatabaseDispatchRoute,
-			trigger: (taskId, payload) => tasks.trigger(taskId, payload).then(() => undefined),
-			warn: (message, details) => logger.warn(message, details),
-		}),
+		dispatchCreatedJobBestEffort(
+			{ ...input, serviceClass: "STANDARD" },
+			{
+				resolveRoute: resolveDatabaseDispatchRoute,
+				trigger: (taskId, payload) => tasks.trigger(taskId, payload).then(() => undefined),
+				warn: (message, details) => logger.warn(message, details),
+			},
+		),
 };
 
 export async function retryGenerationForUser(

@@ -582,6 +582,17 @@ export async function releaseCredits(
 	return finalizeCreditsWithReplay("release", { ...input, amount: input.amount ?? 0n }, client);
 }
 
+/**
+ * Release a reservation inside an existing transaction so callers can make a
+ * pre-provider job terminal together with its trial and risk fences.
+ */
+export async function releaseCreditsInTransaction(
+	input: Omit<CreditMutationInput, "amount"> & { amount?: bigint },
+	tx: Prisma.TransactionClient,
+) {
+	return finalizeReservation("release", { ...input, amount: input.amount ?? 0n }, tx);
+}
+
 async function finalizeCreditsWithReplay(
 	mode: "settle" | "release",
 	input: CreditMutationInput,

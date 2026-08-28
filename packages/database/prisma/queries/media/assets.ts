@@ -1360,6 +1360,7 @@ export interface ClaimGenerationOutputTransferInput {
 	objectKey: string;
 	mimeType: string;
 	sourceUrl: string;
+	guest?: { deleteAfter: Date };
 	createStagingObjectKey: (transferToken: string) => string;
 	now?: Date;
 	leaseDurationMs?: number;
@@ -1419,9 +1420,24 @@ export async function claimGenerationOutputTransferTransaction(
 				ownerId: input.ownerId,
 				status: "FINALIZING",
 			},
-			select: { id: true },
+			select: {
+				id: true,
+				serviceClass: true,
+				guestTrial: { select: { expiresAt: true } },
+			},
 		});
 		if (!job) throw new Error("GENERATION_JOB_NOT_FINALIZING_FOR_OUTPUT");
+		const guestDeleteAfter = job.serviceClass === "GUEST_SLOW" ? job.guestTrial?.expiresAt : null;
+		if (
+			(job.serviceClass === "GUEST_SLOW" &&
+				(!guestDeleteAfter ||
+					!input.guest ||
+					input.guest.deleteAfter.getTime() !== guestDeleteAfter.getTime() ||
+					guestDeleteAfter <= now)) ||
+			(job.serviceClass !== "GUEST_SLOW" && input.guest)
+		) {
+			throw new Error("GENERATION_OUTPUT_GUEST_RETENTION_INVALID");
+		}
 
 		let asset = await tx.mediaAsset.findUnique({ where: { id: input.assetId } });
 		if (asset) {
@@ -1491,6 +1507,9 @@ export async function claimGenerationOutputTransferTransaction(
 					outputTransferToken: transferToken,
 					outputTransferLeaseExpiresAt,
 					outputStagingObjectKey: stagingObjectKey,
+					...(guestDeleteAfter
+						? { retentionClass: "GUEST_TRIAL" as const, deleteAfter: guestDeleteAfter }
+						: {}),
 				},
 			});
 		} else {
@@ -1672,6 +1691,12 @@ export async function completeGenerationOutputTransferTransaction(
 		checksum: string;
 		storageEtag: string | null;
 		storageVersionId: string | null;
+		guestWatermark?: {
+			version: string;
+			watermarkedAt: Date;
+			cleanStagingDeletedAt: Date;
+			deleteAfter: Date;
+		};
 		now?: Date;
 	},
 	client: MediaTransactionClient,
@@ -1697,6 +1722,22 @@ export async function completeGenerationOutputTransferTransaction(
 			return { outcome: "STALE", asset: outputTransferAsset(asset) };
 		}
 		const stagingObjectKey = asset.outputStagingObjectKey;
+		const guestAsset = asset.retentionClass === "GUEST_TRIAL";
+		if (guestAsset && asset.deleteAfter && asset.deleteAfter <= now) {
+			throw new Error("GENERATION_OUTPUT_GUEST_RETENTION_EXPIRED");
+		}
+		if (
+			(guestAsset &&
+				(!asset.deleteAfter ||
+					!input.guestWatermark ||
+					!input.guestWatermark.version ||
+					input.guestWatermark.deleteAfter.getTime() !== asset.deleteAfter.getTime() ||
+					input.guestWatermark.watermarkedAt > now ||
+					input.guestWatermark.cleanStagingDeletedAt > now)) ||
+			(!guestAsset && input.guestWatermark)
+		) {
+			throw new Error("GENERATION_OUTPUT_GUEST_WATERMARK_INVALID");
+		}
 		const referenceKey = generationOutputStorageReferenceKey(asset.id);
 		const reservation = await tx.storageUsageReservation.findUnique({
 			where: { referenceKey },
@@ -1723,6 +1764,13 @@ export async function completeGenerationOutputTransferTransaction(
 				storageEtag: input.storageEtag,
 				storageVersionId: input.storageVersionId,
 				finalizedAt: now,
+				...(input.guestWatermark
+					? {
+							watermarkVersion: input.guestWatermark.version,
+							watermarkedAt: input.guestWatermark.watermarkedAt,
+							cleanStagingDeletedAt: input.guestWatermark.cleanStagingDeletedAt,
+						}
+					: {}),
 				outputTransferToken: null,
 				outputTransferLeaseExpiresAt: null,
 				outputStagingObjectKey: null,
@@ -1854,12 +1902,19 @@ export async function failGenerationOutputTransferTransaction(
 
 function assertGenerationOutputTransferAssetMatches(
 	asset: {
+		status: string;
 		ownerType: string;
 		ownerId: string;
 		kind: string;
 		objectKey: string;
 		mimeType: string;
 		sourceUrl: string | null;
+		retentionClass: string;
+		deleteAfter: Date | null;
+		watermarkVersion: string | null;
+		watermarkedAt: Date | null;
+		cleanStagingDeletedAt: Date | null;
+		finalizedAt: Date | null;
 	},
 	input: ClaimGenerationOutputTransferInput,
 ): void {
@@ -1869,7 +1924,15 @@ function assertGenerationOutputTransferAssetMatches(
 		asset.kind === "OUTPUT" &&
 		asset.objectKey === input.objectKey &&
 		asset.mimeType === input.mimeType &&
-		asset.sourceUrl === input.sourceUrl;
+		asset.sourceUrl === input.sourceUrl &&
+		(input.guest
+			? asset.retentionClass === "GUEST_TRIAL" &&
+				asset.deleteAfter?.getTime() === input.guest.deleteAfter.getTime() &&
+				(!asset.finalizedAt ||
+					(Boolean(asset.watermarkVersion) &&
+						Boolean(asset.watermarkedAt) &&
+						Boolean(asset.cleanStagingDeletedAt)))
+			: asset.retentionClass === "ACCOUNT" && asset.deleteAfter === null);
 	if (!matches) throw new Error("GENERATION_OUTPUT_ASSET_CONFLICT");
 }
 

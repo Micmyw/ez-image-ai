@@ -19,7 +19,7 @@ import {
 } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
 import { MediaValidationError } from "@repo/storage";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { DispatchAdmissionBlockedError } from "../contracts";
 import {
@@ -168,6 +168,57 @@ describe("production media runtime stores", () => {
 		expect(after.requestSnapshot).toEqual(before.requestSnapshot);
 		expect(JSON.stringify(after.requestSnapshot)).not.toContain("X-Amz-Signature");
 		expect(JSON.stringify(after.requestSnapshot)).not.toContain(signedUrl);
+	});
+
+	it("allows two racing workers to submit a guest trial only once", async () => {
+		const guest = await seedGuestDispatchJob();
+		const submit = vi.fn(async () => ({
+			providerTaskId: `guest-provider-${crypto.randomUUID()}`,
+			status: "QUEUED" as const,
+			outcome: "accepted" as const,
+			idempotency: { key: guest.jobId, providerSupported: true, replayed: false },
+			reconciliation: { submissionToken: guest.jobId },
+		}));
+		const provider = {
+			provider: "replicate" as const,
+			submit,
+			retrieve: vi.fn(),
+			normalizeResult: vi.fn(),
+		};
+		const store = createTestDispatchStore({
+			environment: guest.environment,
+		});
+		try {
+			await Promise.all([
+				dispatchGeneration(
+					{ jobId: guest.jobId, version: 0 },
+					{ store, getProvider: () => provider },
+				),
+				dispatchGeneration(
+					{ jobId: guest.jobId, version: 0 },
+					{ store, getProvider: () => provider },
+				),
+			]);
+
+			expect(submit).toHaveBeenCalledTimes(1);
+			expect(await client.generationAttempt.count({ where: { jobId: guest.jobId } })).toBe(1);
+			await expect(
+				client.generationJob.findUniqueOrThrow({ where: { id: guest.jobId } }),
+			).resolves.toMatchObject({ status: "PROVIDER_PENDING", serviceClass: "GUEST_SLOW" });
+			await expect(
+				client.guestMediaTrial.findUniqueOrThrow({ where: { id: guest.trialId } }),
+			).resolves.toMatchObject({
+				eligibility: "CONSUMED",
+				riskState: "COMMITTED",
+				consumedJobId: guest.jobId,
+			});
+		} finally {
+			await client.generationJob.updateMany({
+				where: { id: guest.jobId },
+				data: { status: "FAILED", terminalAt: new Date() },
+			});
+			await revertRuntimeConfigOverride(guest.overrideId, "task4-guest-test", client);
+		}
 	});
 
 	it("rejects dispatch when a ready input no longer matches the job-bound checksum", async () => {
@@ -2022,6 +2073,86 @@ describe("production media runtime stores", () => {
 		).toBe(0);
 	});
 });
+
+async function seedGuestDispatchJob() {
+	const seeded = await seedReservedJob("image-fast");
+	const job = await client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } });
+	const suffix = crypto.randomUUID();
+	const promotionPeriod = `task4-${suffix}`;
+	const now = new Date();
+	const expiresAt = new Date(now.getTime() + 24 * 60 * 60_000);
+	await client.user.create({
+		data: {
+			id: job.ownerId,
+			name: "Guest",
+			email: `${suffix}@anonymous.invalid`,
+			emailVerified: false,
+			isAnonymous: true,
+			createdAt: now,
+			updatedAt: now,
+		},
+	});
+	await client.guestRiskBudgetBucket.create({
+		data: {
+			promotionPeriod,
+			subjectHash: "global",
+			reservedMicros: 3_500n,
+			consumedMicros: 0n,
+			hardLimitMicros: 250_000n,
+			expiresAt,
+		},
+	});
+	const trial = await client.guestMediaTrial.create({
+		data: {
+			ownerId: job.ownerId,
+			promotionPeriod,
+			eligibility: "IN_FLIGHT",
+			sponsorCredits: 4n,
+			sourceSessionHash: `session-${suffix}`,
+			deviceHash: `device-${suffix}`,
+			ipHash: `ip-${suffix}`,
+			subnetHash: `subnet-${suffix}`,
+			capabilityVersion: "task4-guest-dispatch-v1",
+			idempotencyFingerprint: `fingerprint-${suffix}`,
+			frozenQuotedRiskMicros: 3_500n,
+			riskState: "HELD",
+			projectedDispatchAt: now,
+			estimateExpiresAt: new Date(now.getTime() + 30_000),
+			currentJobId: job.id,
+			expiresAt,
+		},
+	});
+	await client.generationJob.update({
+		where: { id: job.id },
+		data: {
+			status: "DISPATCH_QUEUED",
+			serviceClass: "GUEST_SLOW",
+			dispatchEligibleAt: now,
+			guestTrialId: trial.id,
+		},
+	});
+	const override = await createRuntimeConfigOverride(
+		{
+			configKey: "media.guestGeneration.enabled",
+			value: true,
+			reason: "task4 guest dispatch integration test",
+			createdByUserId: "task4-guest-test",
+		},
+		client,
+	);
+	return {
+		jobId: job.id,
+		trialId: trial.id,
+		overrideId: override.id,
+		environment: {
+			NODE_ENV: "test",
+			MEDIA_GENERATION_ENABLED: "true",
+			GUEST_MEDIA_ENABLED: "true",
+			GUEST_PROMOTION_PERIOD: promotionPeriod,
+			GUEST_RISK_BUDGET_MICROS: "250000",
+		},
+	};
+}
 
 async function seedReservedJob(
 	productKey: "image-fast" | "image-quality" | "video-fast",

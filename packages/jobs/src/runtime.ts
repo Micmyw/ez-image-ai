@@ -29,14 +29,22 @@ import {
 	recoveryProviderKeysFromEnvironment,
 } from "@repo/ai";
 import type { ProductModelKey } from "@repo/config";
-import { isEzPicProductEnvironmentEnabled, maximumMediaStorageBytes } from "@repo/config/server";
+import {
+	getGuestMediaConfig,
+	isEzPicProductEnvironmentEnabled,
+	maximumMediaStorageBytes,
+	mediaDailyProviderCostBudgetMicros,
+} from "@repo/config/server";
 import {
 	claimGenerationOutputTransferTransaction,
 	claimOutboxBatch,
 	completeGenerationOutputTransferTransaction,
 	completeOutboxEvent,
+	expireGuestJobBeforeProvider,
+	expireGuestMediaTransaction,
 	failGenerationOutputTransferTransaction,
 	GenerationOutputStorageError,
+	getCommittedGlobalDailyGenerationCost,
 	recordGenerationOutputPromotionMultipartTransaction,
 	releaseOutboxEvent,
 	reserveGenerationOutputStorageTransaction,
@@ -64,6 +72,8 @@ import {
 	readMediaHeader,
 	RemoteMediaPolicyError,
 	streamRemoteObjectToStorage,
+	GUEST_WATERMARK_VERSION,
+	watermarkStagedGuestImage,
 } from "@repo/storage";
 import type { MediaObjectMetadata } from "@repo/storage";
 
@@ -74,6 +84,8 @@ import {
 	type FinalizationClaim,
 	type FinalizationFailure,
 	type FinalizationStore,
+	type GuestAdmissionDependencies,
+	type GuestMediaExpiryDependencies,
 	type OutboxStore,
 	type ProviderCancellationStore,
 	type ProviderEventStore,
@@ -178,6 +190,11 @@ export interface DispatchRuntimeOptions {
 	environment?: Record<string, string | undefined>;
 }
 
+export interface GuestAdmissionRuntimeOptions {
+	environment?: Record<string, string | undefined>;
+	retryDelayMs?: number;
+}
+
 const dispatchAdmissionBlocked = Symbol("dispatch-admission-blocked");
 
 export async function resolveDatabaseDispatchRoute(
@@ -246,6 +263,169 @@ export async function resolveDatabaseDispatchRoute(
 	};
 }
 
+export function createDatabaseGuestAdmissionDependencies(
+	database: PrismaClient,
+	options: GuestAdmissionRuntimeOptions = {},
+): GuestAdmissionDependencies {
+	const environment = options.environment ?? process.env;
+	const retryDelayMs = options.retryDelayMs ?? 30_000;
+	return {
+		async admit(input) {
+			return database.$transaction(
+				async (tx) => {
+					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('guest-dispatch-global', 0))`;
+					const job = await tx.generationJob.findUnique({
+						where: { id: input.jobId },
+						include: {
+							attempts: { select: { id: true }, take: 1 },
+							guestTrial: { include: { linkIntents: { select: { state: true } } } },
+						},
+					});
+					const trial = job?.guestTrial;
+					if (!job || !trial || trial.id !== input.trialId || job.serviceClass !== "GUEST_SLOW") {
+						return { outcome: "SKIPPED" as const, jobId: input.jobId };
+					}
+					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`guest-owner-promotion:${job.ownerId}:${trial.promotionPeriod}`}, 0))`;
+					await tx.$queryRaw`SELECT "id" FROM "guest_media_trial" WHERE "id" = ${trial.id} FOR UPDATE`;
+					if (job.attempts.length !== 0 || job.status !== "RESERVED") {
+						return { outcome: "SKIPPED" as const, jobId: job.id };
+					}
+					if (
+						input.now.getTime() - job.createdAt.getTime() >= 10 * 60_000 ||
+						trial.expiresAt <= input.now
+					) {
+						const expired = await expireGuestJobBeforeProvider(
+							{ jobId: job.id, now: input.now },
+							tx,
+						);
+						return expired.outcome === "SKIPPED"
+							? { outcome: "SKIPPED" as const, jobId: job.id }
+							: expired;
+					}
+					if (!(await guestRuntimeEnabled(tx, environment, trial.promotionPeriod))) {
+						const expired = await expireGuestJobBeforeProvider(
+							{ jobId: job.id, now: input.now, createReplacement: false },
+							tx,
+						);
+						return expired.outcome === "SKIPPED"
+							? { outcome: "SKIPPED" as const, jobId: job.id }
+							: expired;
+					}
+					if (
+						trial.currentJobId !== job.id ||
+						trial.consumedJobId !== null ||
+						trial.eligibility !== "IN_FLIGHT" ||
+						trial.riskState !== "HELD" ||
+						trial.linkedAt !== null ||
+						trial.linkIntents.some((intent) => intent.state !== "NONE")
+					) {
+						const expired = await expireGuestJobBeforeProvider(
+							{ jobId: job.id, now: input.now, createReplacement: false },
+							tx,
+						);
+						return expired.outcome === "SKIPPED"
+							? { outcome: "SKIPPED" as const, jobId: job.id }
+							: expired;
+					}
+					if (job.dispatchEligibleAt && job.dispatchEligibleAt > input.now) {
+						return { outcome: "BUSY" as const, retryAt: job.dispatchEligibleAt };
+					}
+					const active = await tx.generationJob.findFirst({
+						where: {
+							serviceClass: "GUEST_SLOW",
+							id: { not: job.id },
+							status: {
+								in: [
+									"DISPATCH_QUEUED",
+									"SUBMITTING",
+									"PROVIDER_PENDING",
+									"PROVIDER_RUNNING",
+									"NEEDS_RECONCILIATION",
+									"FINALIZING",
+								],
+							},
+						},
+						select: { id: true },
+					});
+					const [oldest] = await tx.$queryRaw<Array<{ id: string }>>`
+						SELECT "id"
+						FROM "generation_job"
+						WHERE "serviceClass" = 'GUEST_SLOW'::"GenerationServiceClass"
+						  AND "status" = 'RESERVED'::"GenerationJobStatus"
+						  AND ("dispatchEligibleAt" IS NULL OR "dispatchEligibleAt" <= ${input.now})
+						ORDER BY "createdAt" ASC, "id" ASC
+						FOR UPDATE SKIP LOCKED
+						LIMIT 1
+					`;
+					if (active || oldest?.id !== job.id) {
+						const retryAt = new Date(
+							Math.min(input.now.getTime() + retryDelayMs, trial.expiresAt.getTime() - 1),
+						);
+						await updateGuestQueueEstimate(tx, job.id, trial.id, retryAt, trial.expiresAt);
+						return { outcome: "BUSY" as const, retryAt };
+					}
+					const changed = await tx.generationJob.updateMany({
+						where: {
+							id: job.id,
+							version: job.version,
+							status: "RESERVED",
+							serviceClass: "GUEST_SLOW",
+						},
+						data: { status: "DISPATCH_QUEUED", version: { increment: 1 } },
+					});
+					if (changed.count !== 1) {
+						return { outcome: "BUSY" as const, retryAt: new Date(input.now.getTime() + 1_000) };
+					}
+					const version = job.version + 1;
+					await tx.outboxEvent.upsert({
+						where: { dedupeKey: `generation-dispatch:${job.id}:guest-1` },
+						create: {
+							eventType: "GENERATION_DISPATCH",
+							aggregateType: "GENERATION_JOB",
+							aggregateId: job.id,
+							dedupeKey: `generation-dispatch:${job.id}:guest-1`,
+							payload: { jobId: job.id, version },
+						},
+						update: {},
+					});
+					return { outcome: "ADMITTED" as const, jobId: job.id, version };
+				},
+				{ isolationLevel: "ReadCommitted", maxWait: 5_000, timeout: 20_000 },
+			);
+		},
+	};
+}
+
+export const databaseGuestAdmissionDependencies = createDatabaseGuestAdmissionDependencies(db);
+
+export function createDatabaseGuestMediaExpiryDependencies(
+	database: PrismaClient,
+): GuestMediaExpiryDependencies {
+	return { expire: (input) => expireGuestMediaTransaction(input, database) };
+}
+
+export const databaseGuestMediaExpiryDependencies = createDatabaseGuestMediaExpiryDependencies(db);
+
+async function updateGuestQueueEstimate(
+	tx: Prisma.TransactionClient,
+	jobId: string,
+	trialId: string,
+	projectedDispatchAt: Date,
+	expiresAt: Date,
+): Promise<void> {
+	const estimateExpiresAt = new Date(
+		Math.min(projectedDispatchAt.getTime() + 30_000, expiresAt.getTime()),
+	);
+	await tx.generationJob.update({
+		where: { id: jobId },
+		data: { dispatchEligibleAt: projectedDispatchAt },
+	});
+	await tx.guestMediaTrial.update({
+		where: { id: trialId },
+		data: { projectedDispatchAt, estimateExpiresAt },
+	});
+}
+
 export function createDatabaseDispatchStore(
 	database: PrismaClient,
 	options: DispatchRuntimeOptions = {},
@@ -270,16 +450,40 @@ export function createDatabaseDispatchStore(
 						attempts: { orderBy: { attemptNumber: "desc" }, take: 1 },
 						assets: true,
 						quote: { select: { costMicros: true } },
+						guestTrial: { include: { linkIntents: { select: { state: true } } } },
 					},
 				});
 				if (!job) return null;
+				const isGuest = job.serviceClass === "GUEST_SLOW";
+				if (isGuest && job.status !== "DISPATCH_QUEUED") return null;
 				if (await isMediaGenerationDisabled(tx, job.productKey, environment)) {
+					if (isGuest) {
+						await expireGuestJobBeforeProvider(
+							{ jobId: job.id, now: new Date(), createReplacement: false },
+							tx,
+						);
+						return null;
+					}
 					const requeued = await requeueDispatchBlockedByKillSwitch(tx, job);
 					if (!requeued) return null;
 					return dispatchAdmissionBlocked;
 				}
 				const existing = job.attempts[0];
+				if (isGuest && existing) return null;
 				if (existing && existing.status !== "CREATED") return null;
+				if (isGuest) {
+					const trial = job.guestTrial;
+					if (!trial) return null;
+					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`guest-owner-promotion:${job.ownerId}:${trial.promotionPeriod}`}, 0))`;
+					await tx.$queryRaw`SELECT "id" FROM "guest_media_trial" WHERE "id" = ${trial.id} FOR UPDATE`;
+					if (!(await guestDispatchChecksPass(tx, job, trial, environment, new Date()))) {
+						await expireGuestJobBeforeProvider(
+							{ jobId: job.id, now: new Date(), createReplacement: false },
+							tx,
+						);
+						return null;
+					}
+				}
 				const resolution = quotedExecutableRoutes(job, enabledProviders);
 				if (resolution.kind === "UNAVAILABLE") {
 					await markQuotedRouteUnavailable(tx, {
@@ -391,6 +595,12 @@ export function createDatabaseDispatchStore(
 					} as ProviderExecutionInput;
 					await options.afterInputAuthorization?.();
 				}
+				const changed = await tx.generationJob.updateMany({
+					where: { id: job.id, version: job.version, status: job.status },
+					data: { status: "SUBMITTING", version: { increment: 1 } },
+				});
+				if (changed.count !== 1) return null;
+				const now = new Date();
 				const attempt =
 					existing ??
 					(await tx.generationAttempt.create({
@@ -402,12 +612,6 @@ export function createDatabaseDispatchStore(
 							requestSnapshot: { catalogRoute: route.provider } as Prisma.InputJsonValue,
 						},
 					}));
-				const changed = await tx.generationJob.updateMany({
-					where: { id: job.id, version: job.version, status: job.status },
-					data: { status: "SUBMITTING", version: { increment: 1 } },
-				});
-				if (changed.count !== 1) return null;
-				const now = new Date();
 				await tx.generationAttempt.update({
 					where: { id: attempt.id },
 					data: preSendAttemptState(
@@ -422,8 +626,45 @@ export function createDatabaseDispatchStore(
 						now,
 					),
 				});
+				if (isGuest) {
+					const trial = job.guestTrial!;
+					const committedRisk = await tx.guestRiskBudgetBucket.updateMany({
+						where: {
+							promotionPeriod: trial.promotionPeriod,
+							subjectHash: "global",
+							reservedMicros: { gte: trial.frozenQuotedRiskMicros },
+						},
+						data: {
+							reservedMicros: { decrement: trial.frozenQuotedRiskMicros },
+							consumedMicros: { increment: trial.frozenQuotedRiskMicros },
+							version: { increment: 1 },
+						},
+					});
+					if (committedRisk.count !== 1) throw new Error("GUEST_RISK_COMMIT_FAILED");
+					const consumed = await tx.guestMediaTrial.updateMany({
+						where: {
+							id: trial.id,
+							currentJobId: job.id,
+							consumedJobId: null,
+							eligibility: "IN_FLIGHT",
+							riskState: "HELD",
+							providerBoundaryAt: null,
+						},
+						data: {
+							currentJobId: null,
+							consumedJobId: job.id,
+							eligibility: "CONSUMED",
+							riskState: "COMMITTED",
+							providerBoundaryAt: now,
+							consumedAt: now,
+						},
+					});
+					if (consumed.count !== 1) throw new Error("GUEST_TRIAL_CONSUME_FAILED");
+				}
 				return {
 					attemptId: attempt.id,
+					attemptNumber: attempt.attemptNumber,
+					serviceClass: job.serviceClass,
 					provider: route.provider,
 					providerModelId: route.providerModelId,
 					mediaKind: resolution.entry.mediaKind,
@@ -663,7 +904,9 @@ export function createDatabaseDispatchStore(
 					attempt.job.attempts.map((item) => `${item.provider}:${item.providerModelId}`),
 				);
 				const retryRoute =
-					failure.retryable && resolution.kind === "RESOLVED"
+					attempt.job.serviceClass !== "GUEST_SLOW" &&
+					failure.retryable &&
+					resolution.kind === "RESOLVED"
 						? resolution.routes.find(
 								(route) => !attemptedRoutes.has(`${route.provider}:${route.providerModelId}`),
 							)
@@ -2267,6 +2510,7 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 				const job = await tx.generationJob.findFirst({
 					where: { id: payload.jobId, status: "FINALIZING" },
 					include: {
+						guestTrial: { select: { expiresAt: true } },
 						attempts: {
 							where: { status: "SUCCEEDED" },
 							orderBy: { attemptNumber: "desc" },
@@ -2278,6 +2522,9 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 				const attempt = job?.attempts[0];
 				if (!job || !attempt) return null;
 				const mediaKind = mediaKindForJob(job.productKey);
+				if (job.serviceClass === "GUEST_SLOW" && (!job.guestTrial || mediaKind !== "image")) {
+					throw new Error("GUEST_FINALIZATION_CONTEXT_INVALID");
+				}
 				let outputs = providerOutputsFromTransferEnvelope(
 					mediaKind,
 					attempt.transferEnvelope?.payload,
@@ -2325,6 +2572,9 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 					jobId: job.id,
 					ownerId: job.ownerId,
 					mediaKind,
+					...(job.serviceClass === "GUEST_SLOW" && job.guestTrial
+						? { guest: { deleteAfter: job.guestTrial.expiresAt } }
+						: {}),
 					candidates: outputs.map((output, index) => ({
 						key: `${attempt.id}:${index}`,
 						output,
@@ -2335,12 +2585,32 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 		async findPersistedCandidate(jobId, candidateKey) {
 			const binding = await database.generationJobAsset.findFirst({
 				where: { jobId, role: "OUTPUT", asset: { sourceUrl: `provider-output:${candidateKey}` } },
-				include: { asset: true },
+				include: {
+					asset: true,
+					job: {
+						select: {
+							serviceClass: true,
+							guestTrial: { select: { expiresAt: true } },
+						},
+					},
+				},
 			});
 			if (
 				!binding ||
 				binding.asset.status === "VERIFYING" ||
 				binding.asset.status === "UPLOADING"
+			) {
+				return null;
+			}
+			if (
+				binding.job.serviceClass === "GUEST_SLOW" &&
+				(!binding.job.guestTrial ||
+					binding.asset.retentionClass !== "GUEST_TRIAL" ||
+					binding.asset.watermarkVersion !== GUEST_WATERMARK_VERSION ||
+					!binding.asset.watermarkedAt ||
+					!binding.asset.cleanStagingDeletedAt ||
+					!binding.asset.deleteAfter ||
+					binding.asset.deleteAfter.getTime() !== binding.job.guestTrial.expiresAt.getTime())
 			) {
 				return null;
 			}
@@ -2758,6 +3028,7 @@ export function createFinalizationDependencies(
 			putPrivateMediaObject: typeof putPrivateMediaObject;
 			streamRemoteObjectToStorage: typeof streamRemoteObjectToStorage;
 			promoteStagedObject: typeof promoteStagedObject;
+			watermarkStagedGuestImage: typeof watermarkStagedGuestImage;
 		}>;
 	} = {},
 ): FinalizationDependencies {
@@ -2774,6 +3045,7 @@ export function createFinalizationDependencies(
 		putPrivateMediaObject,
 		streamRemoteObjectToStorage,
 		promoteStagedObject,
+		watermarkStagedGuestImage,
 		...options.storage,
 	};
 	return {
@@ -2781,6 +3053,13 @@ export function createFinalizationDependencies(
 		async persistCandidate(claim, candidate) {
 			const existing = await store.findPersistedCandidate(claim.jobId, candidate.key);
 			if (existing) return existing;
+			if (claim.guest && claim.guest.deleteAfter <= new Date()) {
+				throw {
+					code: "GUEST_RETENTION_EXPIRED",
+					stage: "TRANSFER",
+					retryable: false,
+				};
+			}
 			let inlineBody: Buffer | null = null;
 			const mimeType =
 				candidate.output.kind === "inline-base64"
@@ -2818,6 +3097,7 @@ export function createFinalizationDependencies(
 					objectKey,
 					mimeType,
 					sourceUrl,
+					...(claim.guest ? { guest: { deleteAfter: claim.guest.deleteAfter } } : {}),
 					createStagingObjectKey: (transferToken) =>
 						createStagingObjectKey(claim.ownerId, assetId, transferToken, mimeType),
 				},
@@ -2867,27 +3147,53 @@ export function createFinalizationDependencies(
 							retryable: true,
 						};
 					}
-					const promoted = await storage.promoteStagedObject({
-						staging: { bucket: "media", key: transfer.stagingObjectKey },
-						final: { bucket: "media", key: objectKey },
-						contentType: mimeType,
-						contentLength: staged.bytes,
-						acceptExistingFinalIdentity: true,
-						promotion: {
-							uploadId: transfer.promotionMultipartUploadId ?? undefined,
-							onMultipartUploadCreated: async ({ uploadId }) => {
-								await recordGenerationOutputPromotionMultipartTransaction(
-									{
-										assetId,
-										ownerId: claim.ownerId,
-										transferToken: transfer.transferToken,
-										multipartUploadId: uploadId,
+					const promoted = claim.guest
+						? await storage.watermarkStagedGuestImage({
+								staging: { bucket: "media", key: transfer.stagingObjectKey },
+								final: { bucket: "media", key: objectKey },
+								contentType: mimeType as "image/jpeg" | "image/png" | "image/webp",
+								deleteAfter: claim.guest.deleteAfter,
+							})
+						: await storage.promoteStagedObject({
+								staging: { bucket: "media", key: transfer.stagingObjectKey },
+								final: { bucket: "media", key: objectKey },
+								contentType: mimeType,
+								contentLength: staged.bytes,
+								acceptExistingFinalIdentity: true,
+								promotion: {
+									uploadId: transfer.promotionMultipartUploadId ?? undefined,
+									onMultipartUploadCreated: async ({ uploadId }) => {
+										await recordGenerationOutputPromotionMultipartTransaction(
+											{
+												assetId,
+												ownerId: claim.ownerId,
+												transferToken: transfer.transferToken,
+												multipartUploadId: uploadId,
+											},
+											database,
+										);
 									},
-									database,
-								);
+								},
+							});
+					if (claim.guest) {
+						const resizedReservation = await reserveGenerationOutputStorageTransaction(
+							{
+								assetId,
+								ownerId: claim.ownerId,
+								transferToken: transfer.transferToken,
+								bytes: BigInt(promoted.bytes),
+								maximumStorageBytes: maximumMediaStorageBytes(environment),
 							},
-						},
-					});
+							database,
+						);
+						if (resizedReservation.outcome === "STALE") {
+							throw {
+								code: "OUTPUT_TRANSFER_FENCE_LOST",
+								stage: "TRANSFER",
+								retryable: true,
+							};
+						}
+					}
 					const completed = await completeGenerationOutputTransferTransaction(
 						{
 							assetId,
@@ -2895,8 +3201,18 @@ export function createFinalizationDependencies(
 							transferToken: transfer.transferToken,
 							bytes: BigInt(promoted.bytes),
 							checksum: promoted.sha256,
-							storageEtag: promoted.etag,
-							storageVersionId: promoted.versionId,
+							storageEtag: promoted.etag ?? null,
+							storageVersionId: promoted.versionId ?? null,
+							...(claim.guest && "cleanStagingDeletedAt" in promoted
+								? {
+										guestWatermark: {
+											version: GUEST_WATERMARK_VERSION,
+											watermarkedAt: promoted.cleanStagingDeletedAt,
+											cleanStagingDeletedAt: promoted.cleanStagingDeletedAt,
+											deleteAfter: claim.guest.deleteAfter,
+										},
+									}
+								: {}),
 						},
 						database,
 					);
@@ -2909,10 +3225,18 @@ export function createFinalizationDependencies(
 					}
 					completedAsset = completed.asset;
 				} catch (error) {
+					const structured = error as {
+						code?: unknown;
+						stage?: unknown;
+						retryable?: unknown;
+					};
 					if (
 						error instanceof MediaValidationError ||
 						error instanceof RemoteMediaPolicyError ||
-						error instanceof GenerationOutputStorageError
+						error instanceof GenerationOutputStorageError ||
+						(typeof structured.code === "string" &&
+							structured.stage === "TRANSFER" &&
+							structured.retryable === false)
 					) {
 						let failed;
 						try {
@@ -2921,7 +3245,12 @@ export function createFinalizationDependencies(
 									assetId,
 									ownerId: claim.ownerId,
 									transferToken: transfer.transferToken,
-									errorCode: error.code,
+									errorCode:
+										error instanceof MediaValidationError ||
+										error instanceof RemoteMediaPolicyError ||
+										error instanceof GenerationOutputStorageError
+											? error.code
+											: (structured.code as string),
 								},
 								database,
 							);
@@ -2939,7 +3268,6 @@ export function createFinalizationDependencies(
 							retryable: true,
 						};
 					}
-					const structured = error as { code?: unknown; stage?: unknown; retryable?: unknown };
 					if (
 						typeof structured.code === "string" &&
 						structured.stage === "TRANSFER" &&
@@ -3808,6 +4136,129 @@ async function isMediaGenerationDisabled(
 			select: { id: true },
 		}),
 	);
+}
+
+async function guestRuntimeEnabled(
+	database: Pick<Prisma.TransactionClient, "runtimeConfigOverride">,
+	environment: Record<string, string | undefined>,
+	promotionPeriod: string,
+): Promise<boolean> {
+	const override = await database.runtimeConfigOverride.findFirst({
+		where: {
+			configKey: "media.guestGeneration.enabled",
+			active: true,
+			revertedAt: null,
+		},
+		orderBy: { version: "desc" },
+		select: { value: true },
+	});
+	const config = getGuestMediaConfig(environment, override?.value === true);
+	return config.enabled && config.promotionPeriod === promotionPeriod;
+}
+
+async function guestDispatchChecksPass(
+	tx: Prisma.TransactionClient,
+	job: {
+		id: string;
+		ownerId: string;
+		productKey: string;
+		serviceClass: string;
+		status: string;
+		guestTrialId: string | null;
+		creditsReserved: bigint;
+		createdAt: Date;
+		dispatchEligibleAt: Date | null;
+		quote: { costMicros: bigint };
+	},
+	trial: {
+		id: string;
+		ownerId: string;
+		promotionPeriod: string;
+		eligibility: string;
+		riskState: string;
+		frozenQuotedRiskMicros: bigint;
+		sponsorCredits: bigint;
+		currentJobId: string | null;
+		consumedJobId: string | null;
+		expiresAt: Date;
+		linkedAt: Date | null;
+		providerBoundaryAt: Date | null;
+		linkIntents: Array<{ state: string }>;
+	},
+	environment: Record<string, string | undefined>,
+	now: Date,
+): Promise<boolean> {
+	if (
+		job.serviceClass !== "GUEST_SLOW" ||
+		job.status !== "DISPATCH_QUEUED" ||
+		job.productKey !== "image-fast" ||
+		job.guestTrialId !== trial.id ||
+		job.ownerId !== trial.ownerId ||
+		job.creditsReserved !== 4n ||
+		job.quote.costMicros !== trial.frozenQuotedRiskMicros ||
+		trial.sponsorCredits !== 4n ||
+		trial.currentJobId !== job.id ||
+		trial.consumedJobId !== null ||
+		trial.eligibility !== "IN_FLIGHT" ||
+		trial.riskState !== "HELD" ||
+		trial.providerBoundaryAt !== null ||
+		trial.linkedAt !== null ||
+		trial.linkIntents.some((intent) => intent.state !== "NONE") ||
+		trial.expiresAt <= now ||
+		now.getTime() - job.createdAt.getTime() >= 10 * 60_000 ||
+		(job.dispatchEligibleAt !== null && job.dispatchEligibleAt > now) ||
+		!(await guestRuntimeEnabled(tx, environment, trial.promotionPeriod))
+	) {
+		return false;
+	}
+	const config = getGuestMediaConfig(environment, true);
+	const risk = await tx.guestRiskBudgetBucket.findUnique({
+		where: {
+			promotionPeriod_subjectHash: {
+				promotionPeriod: trial.promotionPeriod,
+				subjectHash: "global",
+			},
+		},
+	});
+	if (
+		!risk ||
+		risk.expiresAt <= now ||
+		risk.reservedMicros < trial.frozenQuotedRiskMicros ||
+		risk.reservedMicros + risk.consumedMicros > risk.hardLimitMicros ||
+		risk.reservedMicros + risk.consumedMicros > config.riskBudgetMicros
+	) {
+		return false;
+	}
+	const active = await tx.generationJob.findFirst({
+		where: {
+			serviceClass: "GUEST_SLOW",
+			id: { not: job.id },
+			status: {
+				in: [
+					"DISPATCH_QUEUED",
+					"SUBMITTING",
+					"PROVIDER_PENDING",
+					"PROVIDER_RUNNING",
+					"NEEDS_RECONCILIATION",
+					"FINALIZING",
+				],
+			},
+		},
+		select: { id: true },
+	});
+	if (active) return false;
+	const globalBudget = mediaDailyProviderCostBudgetMicros(environment);
+	if (globalBudget !== undefined) {
+		const utcDay = now.toISOString().slice(0, 10);
+		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media:global-daily-provider-budget:${utcDay}`}, 0))`;
+		if (
+			(await getCommittedGlobalDailyGenerationCost({ now }, tx)) + trial.frozenQuotedRiskMicros >
+			globalBudget
+		) {
+			return false;
+		}
+	}
+	return true;
 }
 
 function objectRecord(value: unknown): Record<string, unknown> | undefined {

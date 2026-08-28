@@ -12,7 +12,7 @@ describe("dispatchCreatedJobBestEffort", () => {
 		}));
 
 		await dispatchCreatedJobBestEffort(
-			{ jobId: "job_1", version: 0, replayed: false },
+			{ jobId: "job_1", version: 0, replayed: false, serviceClass: "STANDARD" },
 			{ resolveRoute, trigger },
 		);
 
@@ -30,7 +30,7 @@ describe("dispatchCreatedJobBestEffort", () => {
 
 		await expect(
 			dispatchCreatedJobBestEffort(
-				{ jobId: "job_2", version: 0, replayed: false },
+				{ jobId: "job_2", version: 0, replayed: false, serviceClass: "STANDARD" },
 				{
 					resolveRoute: async () => ({
 						taskId: "media-dispatch-image-fal",
@@ -53,7 +53,7 @@ describe("dispatchCreatedJobBestEffort", () => {
 
 		await expect(
 			dispatchCreatedJobBestEffort(
-				{ jobId: "job_3", version: 0, replayed: false },
+				{ jobId: "job_3", version: 0, replayed: false, serviceClass: "STANDARD" },
 				{ resolveRoute: async () => null, trigger, warn },
 			),
 		).resolves.toEqual({ delivered: false });
@@ -68,8 +68,31 @@ describe("dispatchCreatedJobBestEffort", () => {
 	it("does not duplicate immediate delivery for an idempotent replay", async () => {
 		const trigger = vi.fn(async () => undefined);
 		await dispatchCreatedJobBestEffort(
-			{ jobId: "job_1", version: 0, replayed: true },
+			{ jobId: "job_1", version: 0, replayed: true, serviceClass: "STANDARD" },
 			{ resolveRoute: vi.fn(), trigger },
+		);
+		expect(trigger).not.toHaveBeenCalled();
+	});
+
+	it("never sends GUEST_SLOW through the immediate dispatch helper", async () => {
+		const trigger = vi.fn(async () => undefined);
+		const guestJob = {
+			jobId: "guest-job-1",
+			version: 0,
+			replayed: false,
+			serviceClass: "GUEST_SLOW" as const,
+		};
+		const dependencies = {
+			resolveRoute: vi.fn(async () => ({
+				taskId: "media-dispatch-image-fal",
+				provider: "fal" as const,
+				providerModelId: "fal-ai/flux/schnell",
+			})),
+			trigger,
+		};
+
+		await expect(dispatchCreatedJobBestEffort(guestJob, dependencies)).rejects.toThrow(
+			"GUEST_DISPATCH_REQUIRES_ADMISSION",
 		);
 		expect(trigger).not.toHaveBeenCalled();
 	});

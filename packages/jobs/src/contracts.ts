@@ -36,12 +36,46 @@ export interface OutboxPayload {
 
 export interface DispatchClaim {
 	attemptId: string;
+	attemptNumber: number;
+	serviceClass: "STANDARD" | "GUEST_SLOW";
 	provider: ProviderKey;
 	providerModelId: string;
 	input: ProviderExecutionInput;
 	webhookUrl?: string;
 	mediaKind: "image" | "video";
 	queueKey: string;
+}
+
+export interface GuestAdmissionPayload {
+	jobId: string;
+	trialId: string;
+}
+
+export type GuestAdmissionResult =
+	| { outcome: "ADMITTED"; jobId: string; version: number }
+	| { outcome: "BUSY"; retryAt: Date }
+	| { outcome: "SKIPPED"; jobId: string }
+	| { outcome: "EXPIRED"; jobId: string; replacementJobId?: string };
+
+export interface GuestAdmissionDependencies {
+	admit(input: GuestAdmissionPayload & { now: Date }): Promise<GuestAdmissionResult>;
+	now?(): Date;
+}
+
+export interface GuestMediaExpiryInput {
+	now: Date;
+	limit: number;
+}
+
+export interface GuestMediaExpiryResult {
+	expiredAssets: number;
+	expiredJobs: number;
+	cleanupEvents: number;
+	removedAnonymousUsers: number;
+}
+
+export interface GuestMediaExpiryDependencies {
+	expire(input: GuestMediaExpiryInput): Promise<GuestMediaExpiryResult>;
 }
 
 export class DispatchAdmissionBlockedError extends Error {
@@ -117,6 +151,7 @@ export interface FinalizationClaim {
 	jobId: string;
 	ownerId: string;
 	mediaKind: "image" | "video";
+	guest?: { deleteAfter: Date };
 	candidates: FinalizationCandidate[];
 }
 

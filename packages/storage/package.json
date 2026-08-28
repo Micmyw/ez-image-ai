@@ -13,7 +13,8 @@
 	"dependencies": {
 		"@aws-sdk/client-s3": "catalog:",
 		"@aws-sdk/s3-request-presigner": "catalog:",
-		"@repo/logs": "workspace:*"
+		"@repo/logs": "workspace:*",
+		"sharp": "catalog:"
 	},
 	"devDependencies": {
 		"@repo/tsconfig": "workspace:*",

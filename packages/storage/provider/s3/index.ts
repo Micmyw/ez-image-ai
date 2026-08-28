@@ -16,8 +16,13 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl as getS3SignedUrl } from "@aws-sdk/s3-request-presigner";
 import { logger } from "@repo/logs";
+import sharp from "sharp";
 
 import { config } from "../../config";
+import {
+	GUEST_WATERMARK_VERSION,
+	createWatermarkStagedGuestImage,
+} from "../../lib/image-watermark";
 import {
 	assertDetectedMediaType,
 	assertMediaKind,
@@ -511,6 +516,121 @@ export async function createSignedReadUrl(input: SignedReadInput): Promise<strin
 
 export async function deleteObject(input: MediaObjectLocation): Promise<void> {
 	await getS3Client().send(new DeleteObjectCommand(mediaLocation(input)));
+}
+
+export const watermarkStagedGuestImage = createWatermarkStagedGuestImage({
+	inspectImage: inspectStagedGuestImage,
+	transformAndStore: transformAndStoreGuestImage,
+	deleteObject,
+});
+
+async function inspectStagedGuestImage(
+	location: MediaObjectLocation,
+	contentType: Extract<MediaContentType, `image/${string}`>,
+): Promise<{ width: number; height: number }> {
+	const result = await getS3Client().send(new GetObjectCommand(mediaLocation(location)));
+	if (!result.Body || result.ContentType !== contentType) {
+		throw new MediaValidationError(
+			"OUTPUT_MEDIA_TYPE_MISMATCH",
+			"Guest staging image metadata is invalid",
+		);
+	}
+	const source = result.Body as Readable;
+	const inspector = sharp({ sequentialRead: true, failOn: "error" });
+	source.pipe(inspector);
+	try {
+		const metadata = await inspector.metadata();
+		if (!metadata.width || !metadata.height) {
+			throw new MediaValidationError(
+				"OUTPUT_MEDIA_TYPE_MISMATCH",
+				"Guest staging image dimensions are unavailable",
+			);
+		}
+		return { width: metadata.width, height: metadata.height };
+	} finally {
+		source.destroy();
+	}
+}
+
+async function transformAndStoreGuestImage(input: {
+	staging: MediaObjectLocation;
+	final: MediaObjectLocation;
+	contentType: Extract<MediaContentType, `image/${string}`>;
+	deleteAfter: Date;
+	createTransform(): import("sharp").Sharp;
+}): Promise<{ bytes: number; sha256: string; etag?: string; versionId?: string }> {
+	const sourceObject = await getS3Client().send(new GetObjectCommand(mediaLocation(input.staging)));
+	if (
+		!sourceObject.Body ||
+		sourceObject.ContentType !== input.contentType ||
+		!Number.isSafeInteger(sourceObject.ContentLength) ||
+		!sourceObject.ContentLength ||
+		sourceObject.ContentLength > getMediaByteLimit(input.contentType)
+	) {
+		throw new MediaValidationError(
+			"OUTPUT_MEDIA_SIZE_EXCEEDED",
+			"Guest staging image identity is invalid",
+		);
+	}
+	const { uploadId } = await createMultipartUpload({
+		...input.final,
+		contentType: input.contentType,
+		metadata: {
+			watermark: GUEST_WATERMARK_VERSION,
+			"delete-after": input.deleteAfter.toISOString(),
+		},
+	});
+	let conditionalConflict = false;
+	const source = sourceObject.Body as Readable;
+	const transform = input.createTransform();
+	source.once("error", (error) => transform.destroy(error));
+	const transformed = source.pipe(transform);
+	let copied;
+	try {
+		copied = await copyRemoteStreamToMultipart(transformed, {
+			maxBytes: getMediaByteLimit(input.contentType),
+			partSize: config.media.multipartPartSize,
+			validateHeader(header) {
+				assertDetectedMediaType(header, input.contentType);
+			},
+			uploadPart: ({ partNumber, body }) =>
+				uploadMultipartPart({ ...input.final, uploadId, partNumber, body }),
+			complete: async (parts) => {
+				try {
+					await completeMultipartUpload({ ...input.final, uploadId, parts, ifNoneMatch: "*" });
+				} catch (error) {
+					if (!isConditionalWriteConflict(error)) throw error;
+					conditionalConflict = true;
+					try {
+						await abortMultipartUpload({ ...input.final, uploadId });
+					} catch (abortError) {
+						if (!isNoSuchUpload(abortError)) throw abortError;
+					}
+				}
+			},
+			abort: () => abortMultipartUpload({ ...input.final, uploadId }),
+		});
+	} finally {
+		source.destroy();
+	}
+	const stored = await inspectStoredMediaObject(
+		input.final,
+		input.contentType,
+		copied.bytes,
+		copied.sha256,
+	);
+	if (conditionalConflict && stored.sha256 !== copied.sha256) {
+		throw new MediaValidationError(
+			"OUTPUT_MEDIA_TYPE_MISMATCH",
+			"Existing guest watermarked object identity differs",
+		);
+	}
+	return {
+		bytes: stored.bytes,
+		sha256: stored.sha256,
+		...(stored.etag ? { etag: stored.etag } : {}),
+		...(stored.versionId ? { versionId: stored.versionId } : {}),
+	};
 }
 
 export interface StreamRemoteObjectInput extends MediaObjectLocation {

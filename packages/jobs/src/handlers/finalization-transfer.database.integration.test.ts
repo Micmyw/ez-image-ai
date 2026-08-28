@@ -7,19 +7,24 @@ import {
 } from "@repo/ai";
 import {
 	claimGenerationOutputTransferTransaction,
+	completeGenerationOutputTransferTransaction,
 	createCreditGrant,
 	createGenerationJobTransaction,
 	createModeratedGenerationQuoteTransaction,
 	failGenerationOutputTransferTransaction,
 	fingerprintGenerationQuoteSecurityPayload,
+	reserveGenerationOutputStorageTransaction,
 } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
 import {
+	GUEST_WATERMARK_VERSION,
+	GuestWatermarkError,
 	MediaValidationError,
 	promoteStagedObject,
 	putPrivateMediaObject,
 	RemoteMediaPolicyError,
 	streamRemoteObjectToStorage,
+	watermarkStagedGuestImage,
 } from "@repo/storage";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -31,6 +36,9 @@ const globalStorage = vi.hoisted(() => ({
 		throw new Error("GLOBAL_STORAGE_USED");
 	}),
 	promoteStagedObject: vi.fn(async () => {
+		throw new Error("GLOBAL_STORAGE_USED");
+	}),
+	watermarkStagedGuestImage: vi.fn(async () => {
 		throw new Error("GLOBAL_STORAGE_USED");
 	}),
 }));
@@ -220,6 +228,221 @@ describe("generation output transfer runtime", () => {
 			outputTransferLeaseExpiresAt: null,
 			outputStagingObjectKey: null,
 			outputPromotionMultipartUploadId: null,
+		});
+	});
+
+	it("does not publish a guest output when clean staging cannot be physically deleted", async () => {
+		const seeded = await seedFinalizingJob([
+			{
+				kind: "remote-url",
+				url: "https://replicate.delivery/guest-output.png",
+				trust: "untrusted-transfer-candidate",
+			},
+		]);
+		const deleteAfter = new Date(Date.now() + 24 * 60 * 60_000);
+		await markSeededJobAsGuest(seeded, deleteAfter);
+		const claim = await createDatabaseFinalizationStore(client).claimFinalization({
+			jobId: seeded.jobId,
+			version: seeded.version,
+		});
+		if (!claim) throw new Error("Expected guest finalization claim");
+
+		const promote = vi.fn(async (_input: Parameters<typeof promoteStagedObject>[0]) => ({
+			bytes: PNG_BODY.byteLength,
+			sha256: PNG_CHECKSUM,
+			etag: null,
+			versionId: null,
+		}));
+		const watermark = vi.fn(async (_input: Parameters<typeof watermarkStagedGuestImage>[0]) => {
+			throw new GuestWatermarkError("GUEST_CLEAN_STAGE_DELETE_REQUIRED");
+		});
+		const verify = vi.fn(async () => undefined);
+		const dependencies = createFinalizationDependencies(process.env, {
+			database: client,
+			verification: { verify },
+			storage: {
+				streamRemoteObjectToStorage: vi.fn(async () => ({
+					bytes: PNG_BODY.byteLength,
+					sha256: PNG_CHECKSUM,
+				})),
+				promoteStagedObject: promote,
+				watermarkStagedGuestImage: watermark,
+			} as never,
+		});
+
+		await expect(dependencies.persistCandidate(claim, claim.candidates[0]!)).rejects.toMatchObject({
+			code: "GUEST_CLEAN_STAGE_DELETE_REQUIRED",
+			stage: "TRANSFER",
+			retryable: false,
+		});
+		expect(watermark).toHaveBeenCalledWith(expect.objectContaining({ deleteAfter }));
+		expect(promote).not.toHaveBeenCalled();
+		expect(verify).not.toHaveBeenCalled();
+		const output = await client.mediaAsset.findFirstOrThrow({
+			where: { sourceUrl: `provider-output:${claim.candidates[0]!.key}` },
+		});
+		expect(output).toMatchObject({
+			status: "VERIFICATION_FAILED",
+			retentionClass: "GUEST_TRIAL",
+			deleteAfter,
+			watermarkVersion: null,
+			watermarkedAt: null,
+			cleanStagingDeletedAt: null,
+		});
+		await client.generationJob.update({
+			where: { id: seeded.jobId },
+			data: { status: "FAILED", terminalAt: new Date() },
+		});
+	});
+
+	it("refuses guest output completion after the absolute retention deadline", async () => {
+		const seeded = await seedFinalizingJob([
+			{
+				kind: "remote-url",
+				url: "https://replicate.delivery/guest-expired-output.png",
+				trust: "untrusted-transfer-candidate",
+			},
+		]);
+		const startedAt = new Date("2026-08-28T00:00:00.000Z");
+		const deleteAfter = new Date(startedAt.getTime() + 60_000);
+		await markSeededJobAsGuest(seeded, deleteAfter);
+		const assetId = `asset_guest_expiry_${crypto.randomUUID().replaceAll("-", "")}`;
+		try {
+			const claimed = await claimGenerationOutputTransferTransaction(
+				{
+					jobId: seeded.jobId,
+					ownerId: seeded.ownerId,
+					assetId,
+					objectKey: `users/${seeded.ownerId}/assets/${assetId}/original.png`,
+					mimeType: "image/png",
+					sourceUrl: `provider-output:${assetId}`,
+					guest: { deleteAfter },
+					createStagingObjectKey: (token) =>
+						`users/${seeded.ownerId}/staging/${assetId}/${token}.png`,
+					now: startedAt,
+				},
+				client,
+			);
+			if (claimed.outcome !== "CLAIMED") throw new Error("Expected guest transfer claim");
+			await expect(
+				reserveGenerationOutputStorageTransaction(
+					{
+						assetId,
+						ownerId: seeded.ownerId,
+						transferToken: claimed.transferToken,
+						bytes: BigInt(PNG_BODY.byteLength),
+						maximumStorageBytes: 1_000n,
+						now: new Date(startedAt.getTime() + 10_000),
+					},
+					client,
+				),
+			).resolves.toMatchObject({ outcome: "RESERVED" });
+
+			await expect(
+				completeGenerationOutputTransferTransaction(
+					{
+						assetId,
+						ownerId: seeded.ownerId,
+						transferToken: claimed.transferToken,
+						bytes: BigInt(PNG_BODY.byteLength),
+						checksum: "f".repeat(64),
+						storageEtag: '"guest-expired-etag"',
+						storageVersionId: "guest-expired-version",
+						guestWatermark: {
+							version: GUEST_WATERMARK_VERSION,
+							watermarkedAt: new Date(startedAt.getTime() + 20_000),
+							cleanStagingDeletedAt: new Date(startedAt.getTime() + 30_000),
+							deleteAfter,
+						},
+						now: new Date(deleteAfter.getTime() + 1),
+					},
+					client,
+				),
+			).rejects.toThrow("GENERATION_OUTPUT_GUEST_RETENTION_EXPIRED");
+		} finally {
+			await client.generationJob.update({
+				where: { id: seeded.jobId },
+				data: { status: "FAILED", terminalAt: new Date() },
+			});
+		}
+	});
+
+	it("moderates and publishes only the transformed guest output identity", async () => {
+		const seeded = await seedFinalizingJob([
+			{
+				kind: "remote-url",
+				url: "https://replicate.delivery/guest-watermarked-output.png",
+				trust: "untrusted-transfer-candidate",
+			},
+		]);
+		const deleteAfter = new Date(Date.now() + 24 * 60 * 60_000);
+		await markSeededJobAsGuest(seeded, deleteAfter);
+		const claim = await createDatabaseFinalizationStore(client).claimFinalization({
+			jobId: seeded.jobId,
+			version: seeded.version,
+		});
+		if (!claim) throw new Error("Expected guest finalization claim");
+
+		const transformedChecksum = "e".repeat(64);
+		const cleanStagingDeletedAt = new Date();
+		const promote = vi.fn(async (_input: Parameters<typeof promoteStagedObject>[0]) => ({
+			bytes: PNG_BODY.byteLength,
+			sha256: PNG_CHECKSUM,
+			etag: null,
+			versionId: null,
+		}));
+		const watermark = vi.fn(async (_input: Parameters<typeof watermarkStagedGuestImage>[0]) => ({
+			bytes: PNG_BODY.byteLength,
+			sha256: transformedChecksum,
+			etag: '"guest-watermarked-etag"',
+			versionId: "guest-watermarked-version",
+			cleanStagingDeletedAt,
+		}));
+		const verification = createDatabaseVerifyUploadDependencies(client, {
+			headObject: async () => ({
+				contentLength: PNG_BODY.byteLength,
+				contentType: "image/png",
+				etag: '"guest-watermarked-etag"',
+				metadata: {},
+			}),
+			readMediaHeader: async () => PNG_BODY,
+			createSignedReadUrl: async () => "https://private.example/guest-watermarked-output.png",
+			safety: new TestMediaSafetyAdapter("ALLOW"),
+			moderationProvider: "test",
+		});
+		const dependencies = createFinalizationDependencies(process.env, {
+			database: client,
+			verification,
+			storage: {
+				streamRemoteObjectToStorage: vi.fn(async () => ({
+					bytes: PNG_BODY.byteLength,
+					sha256: PNG_CHECKSUM,
+				})),
+				promoteStagedObject: promote,
+				watermarkStagedGuestImage: watermark,
+			},
+		});
+
+		await expect(dependencies.persistCandidate(claim, claim.candidates[0]!)).resolves.toMatchObject(
+			{ approved: true },
+		);
+		expect(watermark).toHaveBeenCalledWith(expect.objectContaining({ deleteAfter }));
+		expect(promote).not.toHaveBeenCalled();
+		const output = await client.mediaAsset.findFirstOrThrow({
+			where: { sourceUrl: `provider-output:${claim.candidates[0]!.key}` },
+		});
+		expect(output).toMatchObject({
+			status: "READY",
+			checksum: transformedChecksum,
+			retentionClass: "GUEST_TRIAL",
+			deleteAfter,
+			watermarkVersion: GUEST_WATERMARK_VERSION,
+			watermarkedAt: cleanStagingDeletedAt,
+			cleanStagingDeletedAt,
+		});
+		await client.generationJob.update({
+			where: { id: seeded.jobId },
+			data: { status: "FAILED", terminalAt: new Date() },
 		});
 	});
 
@@ -528,6 +751,54 @@ async function seedFinalizingJob(outputs: ProviderOutput[]) {
 	);
 	const job = await client.generationJob.findUniqueOrThrow({ where: { id: created.job.id } });
 	return { jobId: job.id, ownerId, version: job.version };
+}
+
+async function markSeededJobAsGuest(
+	seeded: { jobId: string; ownerId: string },
+	deleteAfter: Date,
+): Promise<void> {
+	const suffix = crypto.randomUUID();
+	await client.user.create({
+		data: {
+			id: seeded.ownerId,
+			name: "Guest",
+			email: `${suffix}@anonymous.invalid`,
+			emailVerified: false,
+			isAnonymous: true,
+			createdAt: new Date(),
+			updatedAt: new Date(),
+		},
+	});
+	const trial = await client.guestMediaTrial.create({
+		data: {
+			ownerId: seeded.ownerId,
+			promotionPeriod: `finalization-${suffix}`,
+			eligibility: "CONSUMED",
+			sponsorCredits: 4n,
+			sourceSessionHash: `session-${suffix}`,
+			deviceHash: `device-${suffix}`,
+			ipHash: `ip-${suffix}`,
+			subnetHash: `subnet-${suffix}`,
+			capabilityVersion: "guest-finalization-test-v1",
+			idempotencyFingerprint: `fingerprint-${suffix}`,
+			frozenQuotedRiskMicros: 8_000n,
+			riskState: "COMMITTED",
+			projectedDispatchAt: new Date(),
+			estimateExpiresAt: new Date(),
+			consumedJobId: seeded.jobId,
+			providerBoundaryAt: new Date(),
+			consumedAt: new Date(),
+			expiresAt: deleteAfter,
+		},
+	});
+	await client.generationJob.update({
+		where: { id: seeded.jobId },
+		data: {
+			productKey: "image-fast",
+			serviceClass: "GUEST_SLOW",
+			guestTrialId: trial.id,
+		},
+	});
 }
 
 function assertSafeTestDatabaseUrl(value: string | undefined): void {

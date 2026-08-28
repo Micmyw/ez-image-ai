@@ -5,6 +5,28 @@ import { deliverOutboxEvent } from "./deliver-outbox-event";
 import { dispatchOutbox } from "./dispatch-outbox";
 
 describe("outbox delivery routes", () => {
+	it("routes guest eligibility through the durable admission worker and waits for its result", async () => {
+		const trigger = vi.fn(async () => undefined);
+		const triggerAndWait = vi.fn(async () => undefined);
+		await deliverOutboxEvent(
+			{
+				id: "guest-event-1",
+				eventType: "GUEST_GENERATION_ELIGIBLE",
+				aggregateId: "guest-job-1",
+				payload: { jobId: "guest-job-1", trialId: "guest-trial-1" },
+				leaseToken: "guest-lease-1",
+				attempts: 1,
+			},
+			{ trigger, triggerAndWait, resolveDispatchRoute: vi.fn() },
+		);
+
+		expect(triggerAndWait).toHaveBeenCalledWith("media-admit-guest-generation", {
+			jobId: "guest-job-1",
+			trialId: "guest-trial-1",
+		});
+		expect(trigger).not.toHaveBeenCalled();
+	});
+
 	it.each(["JOB_CREATED", "GENERATION_DISPATCH"])(
 		"does not trigger %s when its dispatch route is unavailable",
 		async (eventType) => {

@@ -13,6 +13,7 @@ export * from "./free-plan-credits";
 export * from "./guest-bootstrap";
 export * from "./guest-admission";
 export * from "./guest-link";
+export * from "./guest-retention";
 export * from "./jobs";
 export * from "./idempotency";
 export * from "./operations";

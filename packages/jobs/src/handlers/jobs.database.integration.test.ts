@@ -265,6 +265,8 @@ function createDispatchStore(jobId: string): DispatchStore {
 				await tx.generationJob.update({ where: { id: jobId }, data: { status: "SUBMITTING" } });
 				return {
 					attemptId: attempt.id,
+					attemptNumber: attempt.attemptNumber,
+					serviceClass: "STANDARD",
 					provider: "replicate",
 					providerModelId: "test-model",
 					mediaKind: "image",

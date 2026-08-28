@@ -18,6 +18,11 @@ export async function deliverOutboxEvent(
 ): Promise<void> {
 	const payload = objectValue(event.payload);
 	switch (event.eventType) {
+		case "GUEST_GENERATION_ELIGIBLE":
+			return triggerAndWait(dependencies, "media-admit-guest-generation", {
+				jobId: requiredString(payload.jobId, event.aggregateId),
+				trialId: requiredString(payload.trialId),
+			});
 		case "PAYMENT_EVENT_RECEIVED":
 			return dependencies.trigger("media-process-payment-event", {
 				paymentEventId: requiredString(payload.paymentEventId),

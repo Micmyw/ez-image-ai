@@ -4,6 +4,36 @@ import { describe, expect, it, vi } from "vitest";
 import { dispatchGeneration } from "./dispatch-generation";
 
 describe("dispatch generation security gates", () => {
+	it("rejects a second guest attempt before resolving or submitting to a provider", async () => {
+		const getProvider = vi.fn();
+		await expect(
+			dispatchGeneration(
+				{ jobId: "guest-job-1", version: 2 },
+				{
+					store: {
+						claimDispatch: vi.fn(async () => ({
+							attemptId: "guest-attempt-2",
+							attemptNumber: 2,
+							serviceClass: "GUEST_SLOW" as const,
+							provider: "replicate" as const,
+							providerModelId: "model-1",
+							mediaKind: "image" as const,
+							queueKey: "replicate:model-1",
+							input: {
+								kind: "image-to-image" as const,
+								prompt: "x",
+								sourceAsset: { assetId: "asset-1", transferUrl: "https://private.example/input" },
+							},
+						})),
+					} as never,
+					getProvider,
+					isGenerationEnabled: () => true,
+				},
+			),
+		).rejects.toThrow("GUEST_ATTEMPT_LIMIT_EXCEEDED");
+		expect(getProvider).not.toHaveBeenCalled();
+	});
+
 	it("rejects before claiming or contacting a provider when generation is disabled", async () => {
 		const claimDispatch = vi.fn();
 		const getProvider = vi.fn();

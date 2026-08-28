@@ -2,6 +2,7 @@ interface CreatedJobDispatchInput {
 	jobId: string;
 	version: number;
 	replayed: boolean;
+	serviceClass: "STANDARD" | "GUEST_SLOW";
 }
 
 interface CreatedJobDispatchDependencies {
@@ -21,6 +22,9 @@ export async function dispatchCreatedJobBestEffort(
 	input: CreatedJobDispatchInput,
 	dependencies: CreatedJobDispatchDependencies,
 ): Promise<{ delivered: boolean }> {
+	if (input.serviceClass === "GUEST_SLOW") {
+		throw new Error("GUEST_DISPATCH_REQUIRES_ADMISSION");
+	}
 	if (input.replayed) return { delivered: false };
 	try {
 		const route = await dependencies.resolveRoute(input.jobId);

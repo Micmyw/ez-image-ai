@@ -26,7 +26,12 @@ describe("committed generation fast dispatch", () => {
 		const created = await createCommittedJob(client);
 
 		await dispatchCreatedJobBestEffort(
-			{ jobId: created.job.id, version: created.job.version, replayed: created.replayed },
+			{
+				jobId: created.job.id,
+				version: created.job.version,
+				replayed: created.replayed,
+				serviceClass: "STANDARD",
+			},
 			{
 				resolveRoute: async () => ({
 					taskId: "media-dispatch-image-replicate",
