@@ -23,4 +23,31 @@ describe("marketing guest capability client", () => {
 			expect.objectContaining({ method: "GET", credentials: "omit" }),
 		);
 	});
+
+	it.each([
+		[["image/jpeg", "image/png"], 10_485_760],
+		[["image/jpeg", "image/png", "image/webp", "image/gif"], 10_485_760],
+		[["image/jpeg", "image/png", "image/webp"], 20_971_520],
+	] as const)(
+		"rejects a capability that drifts from the exact guest upload contract",
+		async (mimeTypes, maximumBytes) => {
+			vi.stubGlobal(
+				"fetch",
+				vi.fn().mockResolvedValue(
+					Response.json({
+						version: "guest-v17",
+						enabled: true,
+						reason: null,
+						upload: { mimeTypes, maximumBytes },
+						product: { key: "image-fast", label: "Standard Edit", credits: "4" },
+						queueEstimate: { kind: "capacity" },
+					}),
+				),
+			);
+
+			await expect(getGuestCapability("https://app.test")).rejects.toThrow(
+				"GUEST_CAPABILITY_INVALID",
+			);
+		},
+	);
 });

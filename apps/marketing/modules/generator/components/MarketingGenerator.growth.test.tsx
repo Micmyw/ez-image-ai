@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
 	),
 	sourceUploadStarted: vi.fn((_attemptKey: string, _productKey: string) => Promise.resolve("sent")),
 	submitMarketingDraftHandoff: vi.fn(),
+	uploadGuestDraft: vi.fn(),
 }));
 
 const reactState = vi.hoisted(() => ({ index: 0, values: [] as unknown[] }));
@@ -38,6 +39,11 @@ vi.mock("@analytics", () => ({
 	},
 }));
 vi.mock("@config", () => ({ config: { saasUrl: "https://app.configured.test" } }));
+vi.mock("@i18n/routing", () => ({
+	LocaleLink: ({ children, href }: { children: React.ReactNode; href: string }) => (
+		<a href={href}>{children}</a>
+	),
+}));
 vi.mock("@repo/config/client", () => ({
 	getPublicConfig: () => ({ uploadLimits: { imageBytes: 20 * 1024 * 1024 } }),
 }));
@@ -52,6 +58,7 @@ vi.mock("../lib/draft-client", async (importOriginal) => {
 		submitMarketingDraftHandoff: mocks.submitMarketingDraftHandoff,
 	};
 });
+vi.mock("../lib/guest-upload-client", () => ({ uploadGuestDraft: mocks.uploadGuestDraft }));
 
 import { ImageDropzone } from "../../image-editor/components/ImageDropzone";
 import { MarketingGenerator } from "./MarketingGenerator";
@@ -59,6 +66,17 @@ import { MarketingGenerator } from "./MarketingGenerator";
 const modes = {
 	"image-fast": { credits: 4, label: "Standard Edit" },
 	"image-quality": { credits: 10, label: "Quality Edit" },
+} as const;
+const capability = {
+	version: "guest-v12",
+	enabled: true,
+	reason: null,
+	upload: {
+		mimeTypes: ["image/jpeg", "image/png", "image/webp"],
+		maximumBytes: 10 * 1024 * 1024,
+	},
+	product: { key: "image-fast", label: "Standard Edit", credits: "4" },
+	queueEstimate: { kind: "capacity" as const },
 } as const;
 
 describe("MarketingGenerator growth events", () => {
@@ -70,7 +88,7 @@ describe("MarketingGenerator growth events", () => {
 	});
 
 	it("tracks upload start and valid completion with one opaque attempt key", () => {
-		const tree = MarketingGenerator({ modes });
+		const tree = MarketingGenerator({ modes, capability });
 		const dropzone = findElement(tree, (element) => element.type === ImageDropzone);
 
 		expect(dropzone?.props.onUploadStarted).toBeTypeOf("function");
@@ -94,32 +112,22 @@ describe("MarketingGenerator growth events", () => {
 		const sourceFile = { name: "private-photo.png", size: 12, type: "image/png" };
 		reactState.values = [
 			"safe edit instruction",
-			"image-quality",
 			false,
-			false,
+			undefined,
 			sourceFile,
 			undefined,
 			undefined,
+			capability,
+			false,
+			undefined,
+			"turnstile-proof",
 		];
-		mocks.createMarketingDraft.mockResolvedValue({
+		mocks.uploadGuestDraft.mockResolvedValue({
 			action: "https://app.configured.test/draft/continue",
 			claimToken: "a".repeat(43),
 		});
-		vi.stubGlobal(
-			"FileReader",
-			class {
-				result: string | null = null;
-				onerror: (() => void) | null = null;
-				onload: (() => void) | null = null;
 
-				readAsDataURL() {
-					this.result = "data:image/png;base64,ZmFrZQ==";
-					this.onload?.();
-				}
-			},
-		);
-
-		const tree = MarketingGenerator({ modes });
+		const tree = MarketingGenerator({ modes, capability });
 		const form = findElement(tree, (element) => element.type === "form");
 		expect(form).toBeDefined();
 		(form?.props.onSubmit as ((event: { preventDefault: () => void }) => void) | undefined)?.({
@@ -128,9 +136,9 @@ describe("MarketingGenerator growth events", () => {
 
 		await vi.waitFor(() => expect(mocks.submitMarketingDraftHandoff).toHaveBeenCalledOnce());
 		const attemptKey = mocks.marketingDraftCreated.mock.calls[0]?.[0];
-		expect(mocks.marketingDraftCreated).toHaveBeenCalledWith(attemptKey, "image-quality");
-		expect(mocks.authHandoffStarted).toHaveBeenCalledWith(attemptKey, "image-quality");
-		expect(mocks.createMarketingDraft.mock.invocationCallOrder[0]).toBeLessThan(
+		expect(mocks.marketingDraftCreated).toHaveBeenCalledWith(attemptKey, "image-fast");
+		expect(mocks.authHandoffStarted).toHaveBeenCalledWith(attemptKey, "image-fast");
+		expect(mocks.uploadGuestDraft.mock.invocationCallOrder[0]).toBeLessThan(
 			mocks.marketingDraftCreated.mock.invocationCallOrder[0] ?? 0,
 		);
 		expect(mocks.marketingDraftCreated.mock.invocationCallOrder[0]).toBeLessThan(

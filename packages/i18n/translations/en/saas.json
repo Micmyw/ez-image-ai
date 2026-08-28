@@ -790,6 +790,13 @@
 			"upgrade": "Compare plans",
 			"concurrentJobs": "{count, plural, one {# edit is currently running} other {# edits are currently running}}.",
 			"history": "View History",
+			"workspace": {
+				"sequence": "Source · instruction · service · result",
+				"editor": "Edit setup",
+				"result": "Private result",
+				"recent": "Recent registered edits",
+				"private": "Owner-scoped private media"
+			},
 			"restore": {
 				"qualityUpgradeRequired": "Your image, instruction, and Quality Edit selection were restored. Choose Creator or Studio to continue with Quality Edit.",
 				"upgradeComplete": "Your paid plan is active, and your saved image, instruction, mode, and edit session have been restored.",
@@ -805,6 +812,56 @@
 				"concurrentLimit": "Your plan already has its maximum number of edits running. No new job or credit reservation was created.",
 				"inputTooLarge": "This source image is larger than your plan's input limit. Choose a smaller image or compare plans.",
 				"safeError": "We could not start this edit. Check the form or try again shortly."
+			}
+		},
+		"guest": {
+			"eyebrow": "Guest Standard trial",
+			"title": "Make one private image edit",
+			"subtitle": "Your source and instruction are ready. Join the free queue for one temporary watermarked preview.",
+			"sourceReady": "Private source ready",
+			"promptLabel": "Edit instruction",
+			"standard": "Standard Edit",
+			"oneOutput": "One output",
+			"freeQueue": "Free queue",
+			"temporary": "Watermarked · available for up to 24 hours",
+			"submit": "Start my Standard edit",
+			"challenge": "Verify this guest edit",
+			"viewStatus": "View status",
+			"viewResult": "View result",
+			"download": "Download watermarked preview",
+			"resultAlt": "Private watermarked guest edit result",
+			"resultExpires": "Available until {date}",
+			"signIn": "Sign in",
+			"createAccount": "Create account",
+			"accountDisclosure": "The current preview still expires. Account benefits apply to future registered edits.",
+			"trialConsumed": "This trial was consumed.",
+			"trialNotConsumed": "This trial was not consumed. You can retry the safe recovery step.",
+			"startsWithCapacity": "Starts as free capacity becomes available",
+			"estimatedStart": "Estimated start: {start}",
+			"nav": {
+				"brand": "EzPic image editor",
+				"signIn": "Sign in",
+				"createAccount": "Create account"
+			},
+			"states": {
+				"preparingSession": "Preparing your private guest session",
+				"waiting": "Waiting in the free queue",
+				"editing": "Editing your image",
+				"finishing": "Preparing the private result",
+				"moderatingOutput": "Checking the watermarked result",
+				"ready": "Your watermarked preview is ready",
+				"delayed": "This is taking longer than expected",
+				"rejected": "This edit could not pass the safety review",
+				"failed": "This edit could not be completed",
+				"expired": "This guest result has expired"
+			},
+			"errors": {
+				"eligibility": "We could not recover this guest edit. Return to EzPic and prepare it again.",
+				"submit": "We could not submit this edit. Check the highlighted step and try again.",
+				"access": "The private result link is unavailable. Request it again.",
+				"download": "The private download is unavailable right now.",
+				"link": "Account sign-in is not available for this trial right now.",
+				"turnstile": "Complete the verification and try again."
 			}
 		},
 		"upgradeDialog": {

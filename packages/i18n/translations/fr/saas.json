@@ -794,6 +794,13 @@
 			"upgrade": "Comparer les forfaits",
 			"concurrentJobs": "{count, plural, one {# retouche est en cours} other {# retouches sont en cours}}.",
 			"history": "Voir l'historique",
+			"workspace": {
+				"sequence": "Source · instruction · service · résultat",
+				"editor": "Configuration de la retouche",
+				"result": "Résultat privé",
+				"recent": "Retouches enregistrées récentes",
+				"private": "Médias privés liés au propriétaire"
+			},
 			"restore": {
 				"qualityUpgradeRequired": "L’image, l’instruction et la sélection Quality Edit ont été restaurées. Choisissez Creator ou Studio pour continuer avec Quality Edit.",
 				"upgradeComplete": "Votre forfait payant est actif. L’image, l’instruction, le mode et la session de retouche ont été restaurés.",
@@ -809,6 +816,56 @@
 				"concurrentLimit": "Votre forfait a déjà atteint son maximum de retouches en cours. Aucune nouvelle tâche ni réservation de crédits n’a été créée.",
 				"inputTooLarge": "Cette image dépasse la limite d’entrée de votre forfait. Choisissez une image plus petite ou comparez les forfaits.",
 				"safeError": "La retouche n’a pas pu démarrer. Vérifiez le formulaire ou réessayez dans quelques instants."
+			}
+		},
+		"guest": {
+			"eyebrow": "Essai Standard invité",
+			"title": "Réalisez une retouche d’image privée",
+			"subtitle": "Votre source et votre instruction sont prêtes. Rejoignez la file gratuite pour un aperçu temporaire filigrané.",
+			"sourceReady": "Source privée prête",
+			"promptLabel": "Instruction de retouche",
+			"standard": "Retouche Standard",
+			"oneOutput": "Un résultat",
+			"freeQueue": "File gratuite",
+			"temporary": "Filigrané · disponible jusqu’à 24 heures",
+			"submit": "Lancer ma retouche Standard",
+			"challenge": "Vérifier cette retouche invitée",
+			"viewStatus": "Voir le statut",
+			"viewResult": "Voir le résultat",
+			"download": "Télécharger l’aperçu filigrané",
+			"resultAlt": "Résultat invité privé filigrané",
+			"resultExpires": "Disponible jusqu’au {date}",
+			"signIn": "Se connecter",
+			"createAccount": "Créer un compte",
+			"accountDisclosure": "L’aperçu actuel expirera toujours. Les avantages du compte s’appliquent aux futures retouches enregistrées.",
+			"trialConsumed": "Cet essai a été utilisé.",
+			"trialNotConsumed": "Cet essai n’a pas été utilisé. Vous pouvez réessayer l’étape de récupération sûre.",
+			"startsWithCapacity": "Démarre dès qu’une capacité gratuite est disponible",
+			"estimatedStart": "Début estimé : {start}",
+			"nav": {
+				"brand": "Éditeur d’images EzPic",
+				"signIn": "Se connecter",
+				"createAccount": "Créer un compte"
+			},
+			"states": {
+				"preparingSession": "Préparation de votre session invitée privée",
+				"waiting": "Dans la file gratuite",
+				"editing": "Retouche de votre image",
+				"finishing": "Préparation du résultat privé",
+				"moderatingOutput": "Vérification du résultat filigrané",
+				"ready": "Votre aperçu filigrané est prêt",
+				"delayed": "Cela prend plus de temps que prévu",
+				"rejected": "Cette retouche n’a pas satisfait le contrôle de sécurité",
+				"failed": "Cette retouche n’a pas pu être terminée",
+				"expired": "Ce résultat invité a expiré"
+			},
+			"errors": {
+				"eligibility": "Impossible de récupérer cette retouche invitée. Revenez sur EzPic et préparez-la à nouveau.",
+				"submit": "Impossible d’envoyer cette retouche. Vérifiez l’étape indiquée et réessayez.",
+				"access": "Le lien privé du résultat est indisponible. Demandez-le à nouveau.",
+				"download": "Le téléchargement privé est indisponible pour le moment.",
+				"link": "La connexion au compte est indisponible pour cet essai pour le moment.",
+				"turnstile": "Terminez la vérification puis réessayez."
 			}
 		},
 		"upgradeDialog": {

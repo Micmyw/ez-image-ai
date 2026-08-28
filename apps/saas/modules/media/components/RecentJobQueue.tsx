@@ -25,7 +25,10 @@ export function RecentJobQueue({
 			.slice(0, 8) ?? [];
 	if (!jobs.length) return null;
 	return (
-		<div className="mt-5 pb-2 overflow-x-auto" aria-label={t("recent")}>
+		<div
+			className="border-slate-200 p-3 pb-4 shadow-sm overflow-x-auto rounded-2xl border bg-background"
+			aria-label={t("recent")}
+		>
 			<div className="gap-2 flex min-w-max">
 				{jobs.map((job) => {
 					const stage = getJobPresentation({ status: job.status }).stage;
@@ -34,7 +37,7 @@ export function RecentJobQueue({
 							key={job.id}
 							type="button"
 							onClick={() => onSelect(job.id)}
-							className={`min-w-48 p-3 rounded-xl border text-left focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none ${selectedJobId === job.id ? "border-primary bg-primary/10" : "bg-background"}`}
+							className={`min-h-20 min-w-48 p-3 focus-visible:ring-violet-600 rounded-xl border text-left focus-visible:ring-2 focus-visible:outline-none ${selectedJobId === job.id ? "border-violet-500 bg-violet-50" : "bg-background"}`}
 						>
 							<div className="gap-2 flex items-center justify-between">
 								<span className="font-medium text-sm">{products(`${job.productKey}.label`)}</span>

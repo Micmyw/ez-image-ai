@@ -141,6 +141,7 @@ export function GenerationForm({
 
 	return (
 		<form
+			data-task-order="source-prompt-service-action"
 			className="space-y-6"
 			onSubmit={form.handleSubmit((validated) => {
 				if (!allowedProductKeys.includes(validated.productKey)) {
@@ -213,7 +214,7 @@ export function GenerationForm({
 				<Button
 					type="submit"
 					variant="primary"
-					className="w-full"
+					className="min-h-12 bg-indigo-600 hover:bg-indigo-700 w-full"
 					disabled={!input}
 					loading={generation.createQuote.isPending}
 				>

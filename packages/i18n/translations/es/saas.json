@@ -794,6 +794,13 @@
 			"upgrade": "Comparar planes",
 			"concurrentJobs": "Ahora {count, plural, one {hay # edición en curso} other {hay # ediciones en curso}}.",
 			"history": "Ver Historial",
+			"workspace": {
+				"sequence": "Origen · instrucción · servicio · resultado",
+				"editor": "Configuración de edición",
+				"result": "Resultado privado",
+				"recent": "Ediciones registradas recientes",
+				"private": "Archivos privados vinculados al propietario"
+			},
 			"restore": {
 				"qualityUpgradeRequired": "Se restauraron la imagen, la instrucción y la selección Quality Edit. Elige Creator o Studio para continuar con Quality Edit.",
 				"upgradeComplete": "Tu plan de pago está activo y se restauraron la imagen, la instrucción, el modo y la sesión de edición.",
@@ -809,6 +816,56 @@
 				"concurrentLimit": "Tu plan ya tiene el máximo de ediciones en curso. No se creó ningún trabajo ni reserva de créditos.",
 				"inputTooLarge": "Esta imagen supera el límite de entrada de tu plan. Elige una imagen más pequeña o compara planes.",
 				"safeError": "No pudimos iniciar la edición. Comprueba el formulario o inténtalo de nuevo en unos minutos."
+			}
+		},
+		"guest": {
+			"eyebrow": "Prueba Standard para invitados",
+			"title": "Haz una edición de imagen privada",
+			"subtitle": "Tu origen y tu instrucción están listos. Entra en la cola gratuita para obtener una vista previa temporal con marca de agua.",
+			"sourceReady": "Origen privado listo",
+			"promptLabel": "Instrucción de edición",
+			"standard": "Edición Standard",
+			"oneOutput": "Un resultado",
+			"freeQueue": "Cola gratuita",
+			"temporary": "Con marca de agua · disponible hasta 24 horas",
+			"submit": "Iniciar mi edición Standard",
+			"challenge": "Verifica esta edición de invitado",
+			"viewStatus": "Ver estado",
+			"viewResult": "Ver resultado",
+			"download": "Descargar vista previa con marca de agua",
+			"resultAlt": "Resultado privado de invitado con marca de agua",
+			"resultExpires": "Disponible hasta {date}",
+			"signIn": "Iniciar sesión",
+			"createAccount": "Crear cuenta",
+			"accountDisclosure": "La vista previa actual seguirá caducando. Las ventajas de la cuenta se aplican a futuras ediciones registradas.",
+			"trialConsumed": "Esta prueba se consumió.",
+			"trialNotConsumed": "Esta prueba no se consumió. Puedes repetir el paso de recuperación seguro.",
+			"startsWithCapacity": "Empieza cuando haya capacidad gratuita",
+			"estimatedStart": "Inicio estimado: {start}",
+			"nav": {
+				"brand": "Editor de imágenes EzPic",
+				"signIn": "Iniciar sesión",
+				"createAccount": "Crear cuenta"
+			},
+			"states": {
+				"preparingSession": "Preparando tu sesión privada de invitado",
+				"waiting": "Esperando en la cola gratuita",
+				"editing": "Editando tu imagen",
+				"finishing": "Preparando el resultado privado",
+				"moderatingOutput": "Comprobando el resultado con marca de agua",
+				"ready": "Tu vista previa con marca de agua está lista",
+				"delayed": "Está tardando más de lo esperado",
+				"rejected": "Esta edición no superó la revisión de seguridad",
+				"failed": "Esta edición no se pudo completar",
+				"expired": "Este resultado de invitado ha caducado"
+			},
+			"errors": {
+				"eligibility": "No pudimos recuperar esta edición de invitado. Vuelve a EzPic y prepárala de nuevo.",
+				"submit": "No pudimos enviar esta edición. Revisa el paso resaltado y vuelve a intentarlo.",
+				"access": "El enlace privado del resultado no está disponible. Solicítalo de nuevo.",
+				"download": "La descarga privada no está disponible ahora mismo.",
+				"link": "El inicio de sesión no está disponible para esta prueba ahora mismo.",
+				"turnstile": "Completa la verificación y vuelve a intentarlo."
 			}
 		},
 		"upgradeDialog": {

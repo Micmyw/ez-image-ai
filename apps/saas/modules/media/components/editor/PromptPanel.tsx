@@ -21,7 +21,7 @@ export function PromptPanel({
 	onChange: (value: string) => void;
 }) {
 	return (
-		<div className="space-y-3">
+		<div className="space-y-3 border-slate-200 bg-white p-4 rounded-xl border">
 			<div className="gap-3 flex items-end justify-between">
 				<Label htmlFor="generation-prompt">{label}</Label>
 				<span className="text-xs text-muted-foreground tabular-nums" aria-live="polite">
@@ -34,6 +34,7 @@ export function PromptPanel({
 				required
 				maxLength={MAX_PROMPT_LENGTH}
 				rows={6}
+				className="min-h-36 border-slate-200 bg-slate-50/60 focus-visible:ring-violet-600 resize-y"
 				aria-describedby="generation-prompt-hint"
 				onChange={(event) => onChange(event.target.value)}
 			/>

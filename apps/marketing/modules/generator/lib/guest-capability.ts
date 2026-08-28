@@ -34,12 +34,9 @@ function parseGuestCapability(value: unknown): GuestCapabilitySnapshot {
 		!(value.reason === null || typeof value.reason === "string") ||
 		!isRecord(upload) ||
 		!hasExactKeys(upload, ["mimeTypes", "maximumBytes"]) ||
-		!Array.isArray(upload.mimeTypes) ||
-		!upload.mimeTypes.every((mimeType) =>
-			["image/jpeg", "image/png", "image/webp"].includes(String(mimeType)),
-		) ||
+		!hasExactGuestMimeTypes(upload.mimeTypes) ||
 		!Number.isSafeInteger(upload.maximumBytes) ||
-		Number(upload.maximumBytes) <= 0 ||
+		Number(upload.maximumBytes) !== 10 * 1024 * 1024 ||
 		!isRecord(product) ||
 		!hasExactKeys(product, ["key", "label", "credits"]) ||
 		product.key !== "image-fast" ||
@@ -50,6 +47,11 @@ function parseGuestCapability(value: unknown): GuestCapabilitySnapshot {
 		throw new Error("GUEST_CAPABILITY_INVALID");
 	}
 	return value as unknown as GuestCapabilitySnapshot;
+}
+
+function hasExactGuestMimeTypes(value: unknown): boolean {
+	if (!Array.isArray(value) || value.length !== 3) return false;
+	return ["image/jpeg", "image/png", "image/webp"].every((mimeType) => value.includes(mimeType));
 }
 
 const GUEST_CAPABILITY_KEYS = [

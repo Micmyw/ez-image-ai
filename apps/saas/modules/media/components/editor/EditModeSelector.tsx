@@ -28,7 +28,7 @@ export function EditModeSelector({
 	});
 
 	return (
-		<fieldset className="space-y-3">
+		<fieldset className="space-y-3 border-violet-200 bg-violet-50/50 p-4 rounded-xl border">
 			<legend className="font-medium text-sm">{t("label")}</legend>
 			<div className="gap-3 sm:grid-cols-2 grid" role="radiogroup" aria-label={t("label")}>
 				{modes.map((mode) => {
@@ -37,8 +37,10 @@ export function EditModeSelector({
 					return (
 						<label
 							key={mode.key}
-							className={`p-4 rounded-xl border transition ${
-								value === mode.key ? "border-primary bg-primary/5" : "bg-background"
+							className={`min-h-28 p-4 rounded-xl border transition ${
+								value === mode.key
+									? "border-violet-500 bg-white ring-violet-500 ring-1"
+									: "bg-background"
 							} cursor-pointer hover:border-primary/50 ${allowed ? "" : "border-dashed"}`}
 						>
 							<span className="gap-3 flex items-start">

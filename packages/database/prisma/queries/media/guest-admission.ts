@@ -28,6 +28,7 @@ export interface GuestJobSnapshot {
 	projectedDispatchAt: Date;
 	estimateExpiresAt: Date;
 	resultExpiresAt: Date;
+	resultAssetId: string | null;
 	watermarked: boolean;
 	trialConsumed: boolean;
 	linkReady: boolean;
@@ -280,6 +281,7 @@ export async function createGuestGenerationTransaction(
 				projectedDispatchAt,
 				estimateExpiresAt,
 				resultExpiresAt,
+				resultAssetId: null,
 				watermarked: false,
 				trialConsumed: false,
 				linkReady: true,
@@ -367,19 +369,11 @@ export async function getGuestJobSnapshot(
 	) {
 		return null;
 	}
-	const output = job.assets[0]?.asset;
+	const outputBinding = job.assets[0];
+	const output = outputBinding?.asset;
 	const watermarked = Boolean(
-		output &&
-		output.ownerType === "USER" &&
-		output.ownerId === input.ownerId &&
-		output.kind === "OUTPUT" &&
-		output.status === "READY" &&
-		output.retentionClass === "GUEST_TRIAL" &&
-		output.watermarkVersion &&
-		output.watermarkedAt &&
-		output.cleanStagingDeletedAt &&
-		output.deleteAfter &&
-		output.deleteAfter > input.now,
+		job.status === "SUCCEEDED" &&
+		isGuestWatermarkedOutput(outputBinding, input.ownerId, trial.expiresAt, input.now),
 	);
 	return {
 		jobId: job.id,
@@ -390,6 +384,7 @@ export async function getGuestJobSnapshot(
 		projectedDispatchAt: trial.projectedDispatchAt,
 		estimateExpiresAt: trial.estimateExpiresAt,
 		resultExpiresAt: trial.expiresAt,
+		resultAssetId: watermarked ? output!.id : null,
 		watermarked,
 		trialConsumed: trial.eligibility === "CONSUMED" || trial.consumedJobId !== null,
 		linkReady: trial.expiresAt > input.now && trial.linkIntents.length === 0,
@@ -631,19 +626,11 @@ async function findGuestAdmissionReplay(
 	) {
 		throw new Error("IDEMPOTENCY_CONFLICT");
 	}
-	const output = existing.assets.find((asset) => asset.role === "OUTPUT")?.asset;
+	const outputBinding = existing.assets.find((asset) => asset.role === "OUTPUT");
+	const output = outputBinding?.asset;
 	const watermarked = Boolean(
-		output &&
-		output.ownerType === "USER" &&
-		output.ownerId === input.ownerId &&
-		output.kind === "OUTPUT" &&
-		output.status === "READY" &&
-		output.retentionClass === "GUEST_TRIAL" &&
-		output.watermarkVersion &&
-		output.watermarkedAt &&
-		output.cleanStagingDeletedAt &&
-		output.deleteAfter &&
-		output.deleteAfter > input.now,
+		existing.status === "SUCCEEDED" &&
+		isGuestWatermarkedOutput(outputBinding, input.ownerId, trial.expiresAt, input.now),
 	);
 	return {
 		jobId: existing.id,
@@ -655,10 +642,57 @@ async function findGuestAdmissionReplay(
 		projectedDispatchAt: trial.projectedDispatchAt,
 		estimateExpiresAt: trial.estimateExpiresAt,
 		resultExpiresAt: trial.expiresAt,
+		resultAssetId: watermarked ? output!.id : null,
 		watermarked,
 		trialConsumed: trial.eligibility === "CONSUMED" || trial.consumedJobId !== null,
 		linkReady: trial.expiresAt > input.now && trial.linkIntents.length === 0,
 	};
+}
+
+function isGuestWatermarkedOutput(
+	binding:
+		| {
+				assetChecksum: string;
+				asset: {
+					ownerType: string;
+					ownerId: string;
+					kind: string;
+					status: string;
+					retentionClass: string;
+					checksum: string | null;
+					watermarkVersion: string | null;
+					watermarkedAt: Date | null;
+					cleanStagingDeletedAt: Date | null;
+					verificationValidUntil: Date | null;
+					deleteAfter: Date | null;
+					deletedAt: Date | null;
+				};
+		  }
+		| undefined,
+	ownerId: string,
+	resultExpiresAt: Date,
+	now: Date,
+): boolean {
+	const asset = binding?.asset;
+	return Boolean(
+		asset &&
+		asset.ownerType === "USER" &&
+		asset.ownerId === ownerId &&
+		asset.kind === "OUTPUT" &&
+		asset.status === "READY" &&
+		asset.retentionClass === "GUEST_TRIAL" &&
+		asset.deletedAt === null &&
+		asset.checksum &&
+		asset.checksum === binding.assetChecksum &&
+		asset.watermarkVersion &&
+		asset.watermarkedAt &&
+		asset.cleanStagingDeletedAt &&
+		asset.verificationValidUntil &&
+		asset.verificationValidUntil > now &&
+		asset.deleteAfter &&
+		asset.deleteAfter > now &&
+		asset.deleteAfter <= resultExpiresAt,
+	);
 }
 
 async function assertAnonymousOwner(ownerId: string, tx: Prisma.TransactionClient): Promise<void> {

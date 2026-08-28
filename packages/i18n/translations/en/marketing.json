@@ -68,6 +68,24 @@
 			"eyebrow": "Plan your edit",
 			"title": "Describe the change you want",
 			"subtitle": "Upload a source image, describe the edit, then continue securely in your private image editor.",
+			"offer": "Try one Standard edit free",
+			"noSignUp": "No sign-up required",
+			"oneOutput": "One output",
+			"freeQueue": "Free queue · one watermarked preview · available for up to 24 hours",
+			"temporaryResult": "Your preview stays private and temporary.",
+			"temporarySessionDisclosure": "EzPic creates a temporary session for this trial, keeps guest media for up to 24 hours, and uses pseudonymous abuse signals for the policy period described in our Privacy Policy.",
+			"qualityCta": "Quality edit · Creator or Studio",
+			"characterCount": "{count, number} / {maximum, number}",
+			"states": {
+				"challenge": "Verify this guest upload",
+				"loadingCapability": "Checking guest availability…",
+				"unavailable": "The guest Standard queue is not accepting new edits right now.",
+				"uploading": "Uploading private source image: {percentage, number}%"
+			},
+			"errors": {
+				"turnstile": "Complete the verification and try again.",
+				"upload": "We could not prepare this private guest edit. Try the upload again."
+			},
 			"prompt": "Describe your edit",
 			"reference": "Source image",
 			"placeholder": "Replace the background with a softly lit studio wall while keeping the subject unchanged…",

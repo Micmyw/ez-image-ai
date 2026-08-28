@@ -180,6 +180,7 @@ function validDependencies(options?: {
 			projectedDispatchAt: new Date("2026-08-28T00:00:00.000Z"),
 			estimateExpiresAt: new Date("2026-08-28T00:01:00.000Z"),
 			resultExpiresAt: new Date("2026-08-29T00:00:00.000Z"),
+			resultAssetId: null,
 			watermarked: false,
 			trialConsumed: false,
 			linkReady: true,

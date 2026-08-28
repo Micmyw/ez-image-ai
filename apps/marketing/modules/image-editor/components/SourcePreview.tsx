@@ -21,7 +21,7 @@ export function SourcePreview({
 	privateLabel,
 }: SourcePreviewProps) {
 	return (
-		<div className="p-4 text-white shadow-2xl shadow-indigo-950/20 sm:p-6 lg:min-h-full relative min-h-[26rem] overflow-hidden rounded-[2rem] bg-[#111827]">
+		<div className="bg-slate-950 p-4 text-white shadow-2xl shadow-indigo-950/20 sm:p-5 relative min-h-[18rem] overflow-hidden rounded-2xl">
 			<div
 				className="inset-0 absolute opacity-35"
 				style={{
@@ -31,7 +31,7 @@ export function SourcePreview({
 				}}
 				aria-hidden="true"
 			/>
-			<div className="relative flex h-full min-h-[23rem] flex-col">
+			<div className="relative flex h-full min-h-[16rem] flex-col">
 				<div className="mb-4 font-semibold text-slate-300 flex items-center justify-between text-[0.68rem] tracking-[0.16em] uppercase">
 					<span className="gap-2 flex items-center">
 						<span className="size-2 bg-emerald-400 rounded-full" aria-hidden="true" />

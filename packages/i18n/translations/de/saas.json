@@ -794,6 +794,13 @@
 			"upgrade": "Tarife vergleichen",
 			"concurrentJobs": "Derzeit {count, plural, one {läuft # Bearbeitung} other {laufen # Bearbeitungen}}.",
 			"history": "Verlauf anzeigen",
+			"workspace": {
+				"sequence": "Quelle · Anweisung · Dienst · Ergebnis",
+				"editor": "Bearbeitung einrichten",
+				"result": "Privates Ergebnis",
+				"recent": "Letzte registrierte Bearbeitungen",
+				"private": "Eigentümergebundene private Medien"
+			},
 			"restore": {
 				"qualityUpgradeRequired": "Bild, Anweisung und die Auswahl Quality Edit wurden wiederhergestellt. Wählen Sie Creator oder Studio, um mit Quality Edit fortzufahren.",
 				"upgradeComplete": "Ihr bezahlter Tarif ist aktiv. Bild, Anweisung, Modus und Bearbeitungssitzung wurden wiederhergestellt.",
@@ -809,6 +816,56 @@
 				"concurrentLimit": "In Ihrem Tarif läuft bereits die maximale Anzahl an Bearbeitungen. Es wurden weder neuer Auftrag noch Credit-Reservierung erstellt.",
 				"inputTooLarge": "Dieses Quellbild überschreitet das Eingabelimit Ihres Tarifs. Wählen Sie ein kleineres Bild oder vergleichen Sie Tarife.",
 				"safeError": "Die Bearbeitung konnte nicht gestartet werden. Prüfen Sie das Formular oder versuchen Sie es später erneut."
+			}
+		},
+		"guest": {
+			"eyebrow": "Gast-Test für Standard",
+			"title": "Eine private Bildbearbeitung erstellen",
+			"subtitle": "Quelle und Anweisung sind bereit. Nutze die kostenlose Warteschlange für eine temporäre Vorschau mit Wasserzeichen.",
+			"sourceReady": "Private Quelle bereit",
+			"promptLabel": "Bearbeitungsanweisung",
+			"standard": "Standard-Bearbeitung",
+			"oneOutput": "Ein Ergebnis",
+			"freeQueue": "Kostenlose Warteschlange",
+			"temporary": "Mit Wasserzeichen · bis zu 24 Stunden verfügbar",
+			"submit": "Meine Standard-Bearbeitung starten",
+			"challenge": "Diese Gastbearbeitung bestätigen",
+			"viewStatus": "Status anzeigen",
+			"viewResult": "Ergebnis anzeigen",
+			"download": "Vorschau mit Wasserzeichen herunterladen",
+			"resultAlt": "Privates Gast-Ergebnis mit Wasserzeichen",
+			"resultExpires": "Verfügbar bis {date}",
+			"signIn": "Anmelden",
+			"createAccount": "Konto erstellen",
+			"accountDisclosure": "Die aktuelle Vorschau läuft weiterhin ab. Kontovorteile gelten für zukünftige registrierte Bearbeitungen.",
+			"trialConsumed": "Dieser Test wurde verbraucht.",
+			"trialNotConsumed": "Dieser Test wurde nicht verbraucht. Du kannst den sicheren Wiederherstellungsschritt erneut versuchen.",
+			"startsWithCapacity": "Startet, sobald kostenlose Kapazität verfügbar ist",
+			"estimatedStart": "Voraussichtlicher Start: {start}",
+			"nav": {
+				"brand": "EzPic Bildeditor",
+				"signIn": "Anmelden",
+				"createAccount": "Konto erstellen"
+			},
+			"states": {
+				"preparingSession": "Private Gastsitzung wird vorbereitet",
+				"waiting": "In der kostenlosen Warteschlange",
+				"editing": "Dein Bild wird bearbeitet",
+				"finishing": "Privates Ergebnis wird vorbereitet",
+				"moderatingOutput": "Ergebnis mit Wasserzeichen wird geprüft",
+				"ready": "Deine Vorschau mit Wasserzeichen ist bereit",
+				"delayed": "Dies dauert länger als erwartet",
+				"rejected": "Diese Bearbeitung hat die Sicherheitsprüfung nicht bestanden",
+				"failed": "Diese Bearbeitung konnte nicht abgeschlossen werden",
+				"expired": "Dieses Gast-Ergebnis ist abgelaufen"
+			},
+			"errors": {
+				"eligibility": "Diese Gastbearbeitung konnte nicht wiederhergestellt werden. Kehre zu EzPic zurück und bereite sie erneut vor.",
+				"submit": "Diese Bearbeitung konnte nicht gesendet werden. Prüfe den markierten Schritt und versuche es erneut.",
+				"access": "Der private Ergebnislink ist nicht verfügbar. Fordere ihn erneut an.",
+				"download": "Der private Download ist derzeit nicht verfügbar.",
+				"link": "Die Kontoanmeldung ist für diesen Test derzeit nicht verfügbar.",
+				"turnstile": "Schließe die Überprüfung ab und versuche es erneut."
 			}
 		},
 		"upgradeDialog": {

@@ -72,10 +72,10 @@ export function ImageDropzone({
 				}}
 				onDragOver={(event) => event.preventDefault()}
 				onDrop={handleDrop}
-				className="group min-h-28 border-indigo-300 bg-indigo-50/70 px-4 py-5 hover:border-indigo-500 hover:bg-indigo-50 focus-visible:border-indigo-600 focus-visible:ring-indigo-600 flex w-full cursor-pointer items-center justify-center rounded-2xl border border-dashed text-center transition focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+				className="group min-h-36 border-violet-300 bg-violet-50/70 px-4 py-5 hover:border-violet-500 hover:bg-violet-50 focus-visible:border-violet-600 focus-visible:ring-violet-600 flex w-full cursor-pointer items-center justify-center rounded-xl border border-dashed text-center transition focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
 			>
 				<span className="gap-2 flex flex-col items-center">
-					<span className="size-10 bg-white text-indigo-700 shadow-sm ring-indigo-100 group-hover:-translate-y-0.5 grid place-items-center rounded-xl ring-1 transition">
+					<span className="size-11 bg-white text-violet-700 shadow-sm ring-violet-100 group-hover:-translate-y-0.5 grid place-items-center rounded-xl ring-1 transition motion-reduce:transform-none">
 						{fileName ? (
 							<ImageIcon className="size-5" aria-hidden="true" />
 						) : (

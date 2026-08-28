@@ -44,6 +44,7 @@ describe("guest media read and grant boundary", () => {
 		expect(snapshot).toMatchObject({
 			jobId: fixture.jobId,
 			stage: "READY",
+			resultAssetId: fixture.outputAssetId,
 			watermarked: true,
 			trialConsumed: true,
 			linkReady: false,
@@ -54,6 +55,7 @@ describe("guest media read and grant boundary", () => {
 			"projectedDispatchAt",
 			"estimateExpiresAt",
 			"resultExpiresAt",
+			"resultAssetId",
 			"watermarked",
 			"trialConsumed",
 			"linkReady",
@@ -64,6 +66,64 @@ describe("guest media read and grant boundary", () => {
 				client,
 			),
 		).resolves.toBeNull();
+	});
+
+	it("returns no result asset id for a non-ready, expired, or non-watermarked output", async () => {
+		const fixture = await createReadyGuestResult("snapshot-output-fence", {
+			outputVerificationLifetimeMs: 60_000,
+		});
+
+		await client.mediaAsset.update({
+			where: { id: fixture.outputAssetId },
+			data: { status: "VERIFYING" },
+		});
+		await expect(
+			getGuestJobSnapshot(
+				{ ownerId: fixture.guestId, jobId: fixture.jobId, now: fixture.now },
+				client,
+			),
+		).resolves.toMatchObject({ resultAssetId: null, watermarked: false });
+
+		await client.mediaAsset.update({
+			where: { id: fixture.outputAssetId },
+			data: {
+				status: "READY",
+				watermarkVersion: null,
+				watermarkedAt: null,
+				cleanStagingDeletedAt: null,
+			},
+		});
+		await expect(
+			getGuestJobSnapshot(
+				{ ownerId: fixture.guestId, jobId: fixture.jobId, now: fixture.now },
+				client,
+			),
+		).resolves.toMatchObject({ resultAssetId: null, watermarked: false });
+
+		await client.mediaAsset.update({
+			where: { id: fixture.outputAssetId },
+			data: {
+				watermarkVersion: "ezpic-watermark-v1",
+				watermarkedAt: fixture.now,
+				cleanStagingDeletedAt: fixture.now,
+			},
+		});
+		await expect(
+			getGuestJobSnapshot(
+				{
+					ownerId: fixture.guestId,
+					jobId: fixture.jobId,
+					now: fixture.outputVerificationExpiresAt,
+				},
+				client,
+			),
+		).resolves.toMatchObject({ resultAssetId: null, watermarked: false });
+		await expect(
+			getGuestJobSnapshot(
+				{ ownerId: fixture.guestId, jobId: fixture.jobId, now: fixture.expiresAt },
+				client,
+			),
+		).resolves.toMatchObject({ resultAssetId: null, watermarked: false });
 	});
 
 	it("authorizes only the exact approved watermarked guest output", async () => {
@@ -150,10 +210,16 @@ describe("guest media read and grant boundary", () => {
 		).resolves.toEqual([0, 0]);
 	});
 
-	async function createReadyGuestResult(label: string) {
+	async function createReadyGuestResult(
+		label: string,
+		options: { outputVerificationLifetimeMs?: number } = {},
+	) {
 		const suffix = `${label}-${randomUUID()}`;
 		const now = new Date();
 		const expiresAt = new Date(now.getTime() + 24 * 60 * 60_000);
+		const outputVerificationExpiresAt = new Date(
+			now.getTime() + (options.outputVerificationLifetimeMs ?? 24 * 60 * 60_000),
+		);
 		const guestId = `guest-${suffix}`;
 		const otherGuestId = `other-${suffix}`;
 		const registeredUserId = `registered-${suffix}`;
@@ -257,6 +323,7 @@ describe("guest media read and grant boundary", () => {
 			kind: "OUTPUT",
 			checksum: outputChecksum,
 			expiresAt,
+			verificationExpiresAt: outputVerificationExpiresAt,
 			watermarked: true,
 		});
 		await client.generationJobAsset.createMany({
@@ -307,6 +374,7 @@ describe("guest media read and grant boundary", () => {
 			inputAssetId,
 			outputAssetId,
 			jobId,
+			outputVerificationExpiresAt,
 		};
 	}
 
@@ -316,8 +384,10 @@ describe("guest media read and grant boundary", () => {
 		kind: "INPUT" | "OUTPUT";
 		checksum: string;
 		expiresAt: Date;
+		verificationExpiresAt?: Date;
 		watermarked: boolean;
 	}) {
+		const verificationExpiresAt = input.verificationExpiresAt ?? input.expiresAt;
 		await client.mediaAsset.create({
 			data: {
 				id: input.id,
@@ -338,7 +408,7 @@ describe("guest media read and grant boundary", () => {
 				verificationProviderTaskId: `moderation-${input.id}`,
 				verificationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 				verificationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
-				verificationValidUntil: input.expiresAt,
+				verificationValidUntil: verificationExpiresAt,
 				...(input.watermarked
 					? {
 							watermarkVersion: "ezpic-watermark-v1",
@@ -363,7 +433,7 @@ describe("guest media read and grant boundary", () => {
 				reasonCode: "ALLOW",
 				categories: {},
 				rawEnvelope: {},
-				validUntil: input.expiresAt,
+				validUntil: verificationExpiresAt,
 			},
 		});
 		await client.mediaAsset.update({

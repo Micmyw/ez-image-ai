@@ -68,6 +68,24 @@
 			"eyebrow": "Planifiez votre retouche",
 			"title": "Décrivez le changement souhaité",
 			"subtitle": "Importez une image source, décrivez la retouche, puis continuez en toute sécurité dans votre éditeur d'images privé.",
+			"offer": "Essayez gratuitement une retouche Standard",
+			"noSignUp": "Aucune inscription requise",
+			"oneOutput": "Un résultat",
+			"freeQueue": "File gratuite · un aperçu filigrané · disponible jusqu’à 24 heures",
+			"temporaryResult": "Votre aperçu reste privé et temporaire.",
+			"temporarySessionDisclosure": "EzPic crée une session temporaire pour cet essai, conserve les médias invités jusqu’à 24 heures et utilise des signaux pseudonymes contre les abus pendant la période décrite dans notre Politique de confidentialité.",
+			"qualityCta": "Retouche Quality · Creator ou Studio",
+			"characterCount": "{count, number} / {maximum, number}",
+			"states": {
+				"challenge": "Vérifier cet import invité",
+				"loadingCapability": "Vérification de la disponibilité invitée…",
+				"unavailable": "La file Standard gratuite n’accepte pas de nouvelles retouches pour le moment.",
+				"uploading": "Import de l’image source privée : {percentage, number}%"
+			},
+			"errors": {
+				"turnstile": "Terminez la vérification puis réessayez.",
+				"upload": "Impossible de préparer cette retouche invitée privée. Réessayez l’import."
+			},
 			"prompt": "Décrivez votre retouche",
 			"reference": "Image source",
 			"placeholder": "Remplacez l'arrière-plan par un mur de studio doucement éclairé tout en conservant le sujet…",

@@ -37,7 +37,7 @@ export function ImageSourcePanel({
 	}, [onReadyChange, preview.data, preview.isError, sourceAssetId]);
 
 	return (
-		<div className="space-y-3">
+		<div className="space-y-3 border-slate-200 bg-slate-50/60 p-4 rounded-xl border">
 			<div className="gap-3 flex flex-wrap items-center justify-between">
 				<h2 className="font-medium text-sm">{t("title")}</h2>
 				<Button
@@ -50,7 +50,7 @@ export function ImageSourcePanel({
 				</Button>
 			</div>
 			{sourceAssetId && (
-				<div className="gap-3 p-3 sm:grid-cols-[7rem_1fr] grid items-center rounded-xl border bg-muted/30">
+				<div className="gap-3 border-violet-200 bg-white p-3 sm:grid-cols-[7rem_1fr] grid items-center rounded-xl border">
 					<div className="aspect-square overflow-hidden rounded-lg bg-muted">
 						{preview.data ? (
 							<img

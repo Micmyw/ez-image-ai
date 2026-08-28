@@ -13,21 +13,21 @@ export function ImageEditorHero({ modes }: { modes: MarketingImageModes }) {
 		<section
 			id="image-editor"
 			aria-labelledby="image-editor-title"
-			className="border-indigo-100 py-10 sm:py-14 lg:py-20 relative overflow-hidden border-b bg-[linear-gradient(180deg,#f7f8ff_0%,#ffffff_78%)]"
+			className="border-violet-100 py-10 sm:py-14 lg:py-20 relative overflow-hidden border-b bg-[radial-gradient(circle_at_top,#ede9fe_0,transparent_34rem),linear-gradient(180deg,#f8fafc_0%,#ffffff_78%)]"
 		>
 			<div
-				className="-top-40 h-80 bg-indigo-300/20 blur-3xl pointer-events-none absolute left-1/2 w-[52rem] -translate-x-1/2 rounded-full"
+				className="-top-40 h-80 bg-violet-300/20 blur-3xl pointer-events-none absolute left-1/2 w-[52rem] -translate-x-1/2 rounded-full"
 				aria-hidden="true"
 			/>
 			<div className="relative container">
-				<div className="max-w-5xl mx-auto text-center">
+				<div className="max-w-4xl mx-auto text-center">
 					<div className="gap-2 border-indigo-200 bg-white/80 px-3 py-1.5 text-xs font-bold text-indigo-800 shadow-sm backdrop-blur inline-flex items-center rounded-full border tracking-[0.1em] uppercase">
 						<SparklesIcon className="size-3.5" aria-hidden="true" />
 						{t("eyebrow")}
 					</div>
 					<h1
 						id="image-editor-title"
-						className="mt-5 max-w-5xl text-4xl font-semibold text-slate-950 sm:text-5xl lg:text-7xl mx-auto leading-[1.02] tracking-[-0.045em] text-balance"
+						className="mt-5 max-w-4xl text-4xl font-semibold text-slate-950 sm:text-5xl lg:text-6xl mx-auto leading-[1.02] tracking-[-0.045em] text-balance"
 					>
 						{t("title")}
 					</h1>

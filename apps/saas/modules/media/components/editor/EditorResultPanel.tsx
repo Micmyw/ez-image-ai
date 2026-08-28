@@ -73,7 +73,10 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 	}
 
 	return (
-		<section className="min-h-80 p-5 md:p-6 rounded-2xl border bg-background" aria-live="polite">
+		<section
+			className="min-h-80 border-slate-200 p-5 shadow-sm md:p-6 rounded-2xl border bg-background"
+			aria-live="polite"
+		>
 			<div className="gap-3 flex flex-wrap items-center justify-between">
 				<Badge status="info">{t(`stages.${presentation.stage}`)}</Badge>
 				<span className="text-xs text-muted-foreground">{job.data.id}</span>
@@ -174,7 +177,7 @@ function EditorUnavailableState({ detailsHref }: { detailsHref?: string }) {
 function EditorEmptyState() {
 	const t = useTranslations("media.status");
 	return (
-		<div className="min-h-80 p-6 md:p-8 flex flex-col items-center justify-center rounded-2xl border border-dashed text-center">
+		<div className="min-h-80 border-violet-200 bg-violet-50/30 p-6 md:p-8 flex flex-col items-center justify-center rounded-2xl border border-dashed text-center">
 			<div className="mb-5 gap-2 grid grid-cols-2" aria-hidden="true">
 				<div className="size-20 rounded-xl bg-gradient-to-br from-muted to-muted/40" />
 				<div className="size-20 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5" />
