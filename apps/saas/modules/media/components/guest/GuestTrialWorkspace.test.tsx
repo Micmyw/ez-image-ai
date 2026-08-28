@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -18,6 +20,9 @@ vi.mock("next-intl", () => ({
 				download: "Download watermarked preview",
 				signIn: "Sign in",
 				createAccount: "Create account",
+				qualityCta: "Quality Edit · Creator or Studio",
+				retryPreview: "Retry private preview",
+				retryChallenge: "Retry verification",
 				resultExpires: `Available until ${date}`,
 				trialConsumed: "This trial was consumed.",
 				history: "History",
@@ -74,7 +79,54 @@ describe("GuestTrialWorkspace", () => {
 		expect(markup).toContain('aria-busy="true"');
 		expect(markup).toContain("aspect-");
 		expect(markup).toContain("View status");
+		expect(markup).toContain("sm:grid-cols-2");
+		expect(markup).toContain("min-[1200px]:grid-cols-[minmax(20rem,0.9fr)_minmax(0,1.25fr)]");
+		expect(markup).not.toContain("lg:grid-cols-");
 		expect(markup).not.toMatch(/\d+%|queue position|history|edit again|cancel/i);
+	});
+
+	it("keeps Quality explanatory and sends its focusable action through fenced account transition", () => {
+		const beginLink = vi.fn();
+		mocks.useGuestTrial.mockReturnValue({
+			view: { state: "preparingSession" },
+			draft: { sourceAssetId: "source-1", prompt: "Keep the subject" },
+			prompt: "Keep the subject",
+			setPrompt: vi.fn(),
+			canSubmit: true,
+			isSubmitting: false,
+			resultUrl: null,
+			actions: {
+				submit: vi.fn(),
+				viewStatus: vi.fn(),
+				viewResult: vi.fn(),
+				download: vi.fn(),
+				beginLink,
+			},
+		});
+
+		const markup = renderToStaticMarkup(<GuestTrialWorkspace />);
+		const visibleText = markup.replaceAll(/<[^>]+>/g, " ");
+
+		expect(markup).toMatch(
+			/<button[^>]*type="button"[^>]*>Quality Edit · Creator or Studio<\/button>/,
+		);
+		expect(markup).not.toMatch(/href="[^"]*(?:pricing|billing)/i);
+		expect(markup).not.toMatch(/type="radio"[^>]*Quality/i);
+		expect(visibleText).toContain("Quality Edit · Creator or Studio");
+		for (const locale of ["en", "de", "es", "fr"]) {
+			const messages = JSON.parse(
+				readFileSync(
+					new URL(
+						`../../../../../../packages/i18n/translations/${locale}/saas.json`,
+						import.meta.url,
+					),
+					"utf8",
+				),
+			) as { media: { guest: Record<string, unknown> } };
+			for (const key of ["qualityCta", "retryPreview", "retryChallenge"]) {
+				expect(messages.media.guest[key], `${locale}: media.guest.${key}`).toBeDefined();
+			}
+		}
 	});
 
 	it("shows the private watermarked result, exact expiry, download, and fenced account actions", () => {
@@ -126,5 +178,30 @@ describe("GuestTrialWorkspace", () => {
 		const markup = renderToStaticMarkup(<GuestTrialWorkspace />);
 		expect(markup).toContain('role="alert"');
 		expect(markup).toContain("This trial was consumed.");
+	});
+
+	it("shows an explicit retry after transient private preview access failure", () => {
+		mocks.useGuestTrial.mockReturnValue({
+			view: {
+				state: "ready",
+				jobId: "guest-job-1",
+				resultAssetId: "guest-output-1",
+				resultExpiresAt: "2026-08-29T00:00:00.000Z",
+			},
+			errorKey: "access",
+			isSubmitting: false,
+			resultUrl: null,
+			actions: {
+				submit: vi.fn(),
+				viewStatus: vi.fn(),
+				viewResult: vi.fn(),
+				retryAccess: vi.fn(),
+				download: vi.fn(),
+				beginLink: vi.fn(),
+			},
+		});
+
+		const markup = renderToStaticMarkup(<GuestTrialWorkspace />);
+		expect(markup).toContain("Retry private preview");
 	});
 });

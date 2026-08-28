@@ -75,6 +75,7 @@
 			"temporaryResult": "Tu vista previa permanece privada y temporal.",
 			"temporarySessionDisclosure": "EzPic crea una sesión temporal para esta prueba, conserva los archivos del invitado hasta 24 horas y usa señales seudónimas contra abusos durante el periodo descrito en nuestra Política de privacidad.",
 			"qualityCta": "Edición Quality · Creator o Studio",
+			"retryChallenge": "Reintentar la verificación",
 			"characterCount": "{count, number} / {maximum, number}",
 			"states": {
 				"challenge": "Verifica esta carga de invitado",

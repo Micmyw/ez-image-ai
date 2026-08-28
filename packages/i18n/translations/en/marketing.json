@@ -75,6 +75,7 @@
 			"temporaryResult": "Your preview stays private and temporary.",
 			"temporarySessionDisclosure": "EzPic creates a temporary session for this trial, keeps guest media for up to 24 hours, and uses pseudonymous abuse signals for the policy period described in our Privacy Policy.",
 			"qualityCta": "Quality edit · Creator or Studio",
+			"retryChallenge": "Retry verification",
 			"characterCount": "{count, number} / {maximum, number}",
 			"states": {
 				"challenge": "Verify this guest upload",

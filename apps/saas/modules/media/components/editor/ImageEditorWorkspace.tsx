@@ -123,7 +123,7 @@ export function ImageEditorWorkspace({
 			)}
 			<div
 				data-editor-layout="responsive-split"
-				className="gap-5 xl:grid-cols-[minmax(22rem,0.9fr)_minmax(0,1.35fr)] xl:items-start grid"
+				className="gap-5 grid min-[1200px]:grid-cols-[minmax(22rem,0.9fr)_minmax(0,1.35fr)] min-[1200px]:items-start"
 			>
 				<section
 					className="border-violet-200/70 p-5 shadow-sm md:p-6 rounded-2xl border bg-background"

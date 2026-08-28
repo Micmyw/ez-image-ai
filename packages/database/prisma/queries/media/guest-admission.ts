@@ -339,7 +339,12 @@ function isErrorCode(error: unknown, code: string): boolean {
 }
 
 export async function getGuestJobSnapshot(
-	input: { ownerId: string; jobId: string; now: Date },
+	input: {
+		ownerId: string;
+		jobId: string;
+		now: Date;
+		verification: { provider: string; ruleVersion: string; policyVersion: string };
+	},
 	client: MediaTransactionClient,
 ): Promise<GuestJobSnapshot | null> {
 	const job = await client.generationJob.findFirst({
@@ -355,7 +360,21 @@ export async function getGuestJobSnapshot(
 			guestTrial: { include: { linkIntents: { take: 1, select: { state: true } } } },
 			assets: {
 				where: { role: "OUTPUT" },
-				include: { asset: true },
+				include: {
+					asset: {
+						include: {
+							moderationResults: {
+								orderBy: [
+									{ verificationGeneration: "desc" },
+									{ attemptNumber: "desc" },
+									{ createdAt: "desc" },
+									{ id: "desc" },
+								],
+								take: 1,
+							},
+						},
+					},
+				},
 				orderBy: [{ position: "asc" }, { createdAt: "asc" }],
 			},
 		},
@@ -373,7 +392,9 @@ export async function getGuestJobSnapshot(
 	const output = outputBinding?.asset;
 	const watermarked = Boolean(
 		job.status === "SUCCEEDED" &&
-		isGuestWatermarkedOutput(outputBinding, input.ownerId, trial.expiresAt, input.now),
+		isGuestWatermarkedOutput(outputBinding, input.ownerId, trial.expiresAt, input.now) &&
+		output &&
+		hasCurrentApprovedMediaAssetEvidence(output, { ...input.verification, now: input.now }),
 	);
 	return {
 		jobId: job.id,
@@ -392,7 +413,12 @@ export async function getGuestJobSnapshot(
 }
 
 export async function getRegisteredGuestJobSnapshot(
-	input: { registeredUserId: string; jobId: string; now: Date },
+	input: {
+		registeredUserId: string;
+		jobId: string;
+		now: Date;
+		verification: { provider: string; ruleVersion: string; policyVersion: string };
+	},
 	client: MediaTransactionClient,
 ): Promise<GuestJobSnapshot | null> {
 	const grant = await client.guestResultAccessGrant.findFirst({
@@ -413,7 +439,12 @@ export async function getRegisteredGuestJobSnapshot(
 		return null;
 	}
 	return getGuestJobSnapshot(
-		{ ownerId: grant.trial.ownerId, jobId: input.jobId, now: input.now },
+		{
+			ownerId: grant.trial.ownerId,
+			jobId: input.jobId,
+			now: input.now,
+			verification: input.verification,
+		},
 		client,
 	);
 }

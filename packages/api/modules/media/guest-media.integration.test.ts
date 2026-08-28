@@ -37,7 +37,12 @@ describe("guest media read and grant boundary", () => {
 	it("returns only the public guest snapshot to the exact anonymous owner", async () => {
 		const fixture = await createReadyGuestResult("snapshot");
 		const snapshot = await getGuestJobSnapshot(
-			{ ownerId: fixture.guestId, jobId: fixture.jobId, now: fixture.now },
+			{
+				ownerId: fixture.guestId,
+				jobId: fixture.jobId,
+				now: fixture.now,
+				verification: currentVerification(),
+			},
 			client,
 		);
 
@@ -62,7 +67,12 @@ describe("guest media read and grant boundary", () => {
 		]);
 		await expect(
 			getGuestJobSnapshot(
-				{ ownerId: fixture.otherGuestId, jobId: fixture.jobId, now: fixture.now },
+				{
+					ownerId: fixture.otherGuestId,
+					jobId: fixture.jobId,
+					now: fixture.now,
+					verification: currentVerification(),
+				},
 				client,
 			),
 		).resolves.toBeNull();
@@ -79,7 +89,12 @@ describe("guest media read and grant boundary", () => {
 		});
 		await expect(
 			getGuestJobSnapshot(
-				{ ownerId: fixture.guestId, jobId: fixture.jobId, now: fixture.now },
+				{
+					ownerId: fixture.guestId,
+					jobId: fixture.jobId,
+					now: fixture.now,
+					verification: currentVerification(),
+				},
 				client,
 			),
 		).resolves.toMatchObject({ resultAssetId: null, watermarked: false });
@@ -95,7 +110,12 @@ describe("guest media read and grant boundary", () => {
 		});
 		await expect(
 			getGuestJobSnapshot(
-				{ ownerId: fixture.guestId, jobId: fixture.jobId, now: fixture.now },
+				{
+					ownerId: fixture.guestId,
+					jobId: fixture.jobId,
+					now: fixture.now,
+					verification: currentVerification(),
+				},
 				client,
 			),
 		).resolves.toMatchObject({ resultAssetId: null, watermarked: false });
@@ -114,16 +134,81 @@ describe("guest media read and grant boundary", () => {
 					ownerId: fixture.guestId,
 					jobId: fixture.jobId,
 					now: fixture.outputVerificationExpiresAt,
+					verification: currentVerification(),
 				},
 				client,
 			),
 		).resolves.toMatchObject({ resultAssetId: null, watermarked: false });
 		await expect(
 			getGuestJobSnapshot(
-				{ ownerId: fixture.guestId, jobId: fixture.jobId, now: fixture.expiresAt },
+				{
+					ownerId: fixture.guestId,
+					jobId: fixture.jobId,
+					now: fixture.expiresAt,
+					verification: currentVerification(),
+				},
 				client,
 			),
 		).resolves.toMatchObject({ resultAssetId: null, watermarked: false });
+	});
+
+	it.each([
+		["provider", { provider: "stale-provider" }],
+		["rule", { ruleVersion: "stale-rule" }],
+		["policy", { policyVersion: "stale-policy" }],
+	] as const)(
+		"does not disclose READY when the approved %s boundary is stale",
+		async (_case, verification) => {
+			const fixture = await createReadyGuestResult(`snapshot-stale-${_case}`, {
+				outputVerification: verification,
+			});
+
+			await expect(
+				getGuestJobSnapshot(
+					{
+						ownerId: fixture.guestId,
+						jobId: fixture.jobId,
+						now: fixture.now,
+						verification: currentVerification(),
+					},
+					client,
+				),
+			).resolves.toMatchObject({ stage: "FINISHING", resultAssetId: null, watermarked: false });
+		},
+	);
+
+	it("does not disclose READY when the latest moderation evidence is non-approved", async () => {
+		const fixture = await createReadyGuestResult("snapshot-latest-rejected");
+		await client.assetModerationResult.create({
+			data: {
+				assetId: fixture.outputAssetId,
+				assetChecksum: hash(`output:snapshot-latest-rejected`),
+				verificationGeneration: 2,
+				attemptNumber: 1,
+				evidenceKind: "OUTPUT",
+				provider: "test",
+				providerTaskId: `moderation-rejected-${fixture.outputAssetId}`,
+				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				status: "REJECTED",
+				reasonCode: "POLICY_REJECTED",
+				categories: {},
+				rawEnvelope: {},
+				validUntil: fixture.expiresAt,
+			},
+		});
+
+		await expect(
+			getGuestJobSnapshot(
+				{
+					ownerId: fixture.guestId,
+					jobId: fixture.jobId,
+					now: fixture.now,
+					verification: currentVerification(),
+				},
+				client,
+			),
+		).resolves.toMatchObject({ stage: "FINISHING", resultAssetId: null, watermarked: false });
 	});
 
 	it("authorizes only the exact approved watermarked guest output", async () => {
@@ -174,7 +259,12 @@ describe("guest media read and grant boundary", () => {
 
 		await expect(
 			getRegisteredGuestJobSnapshot(
-				{ registeredUserId: fixture.registeredUserId, jobId: fixture.jobId, now: fixture.now },
+				{
+					registeredUserId: fixture.registeredUserId,
+					jobId: fixture.jobId,
+					now: fixture.now,
+					verification: currentVerification(),
+				},
 				client,
 			),
 		).resolves.toMatchObject({ jobId: fixture.jobId, stage: "READY" });
@@ -212,7 +302,14 @@ describe("guest media read and grant boundary", () => {
 
 	async function createReadyGuestResult(
 		label: string,
-		options: { outputVerificationLifetimeMs?: number } = {},
+		options: {
+			outputVerificationLifetimeMs?: number;
+			outputVerification?: Partial<{
+				provider: string;
+				ruleVersion: string;
+				policyVersion: string;
+			}>;
+		} = {},
 	) {
 		const suffix = `${label}-${randomUUID()}`;
 		const now = new Date();
@@ -324,6 +421,7 @@ describe("guest media read and grant boundary", () => {
 			checksum: outputChecksum,
 			expiresAt,
 			verificationExpiresAt: outputVerificationExpiresAt,
+			verification: options.outputVerification,
 			watermarked: true,
 		});
 		await client.generationJobAsset.createMany({
@@ -385,9 +483,19 @@ describe("guest media read and grant boundary", () => {
 		checksum: string;
 		expiresAt: Date;
 		verificationExpiresAt?: Date;
+		verification?: Partial<{
+			provider: string;
+			ruleVersion: string;
+			policyVersion: string;
+		}>;
 		watermarked: boolean;
 	}) {
 		const verificationExpiresAt = input.verificationExpiresAt ?? input.expiresAt;
+		const verification = {
+			provider: input.verification?.provider ?? "test",
+			ruleVersion: input.verification?.ruleVersion ?? MEDIA_VERIFICATION_RULE_VERSION,
+			policyVersion: input.verification?.policyVersion ?? MEDIA_VERIFICATION_POLICY_VERSION,
+		};
 		await client.mediaAsset.create({
 			data: {
 				id: input.id,
@@ -404,10 +512,10 @@ describe("guest media read and grant boundary", () => {
 				finalizedAt: new Date(),
 				verificationGeneration: 1,
 				verificationAttemptCount: 1,
-				verificationProvider: "test",
+				verificationProvider: verification.provider,
 				verificationProviderTaskId: `moderation-${input.id}`,
-				verificationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
-				verificationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				verificationRuleVersion: verification.ruleVersion,
+				verificationPolicyVersion: verification.policyVersion,
 				verificationValidUntil: verificationExpiresAt,
 				...(input.watermarked
 					? {
@@ -425,10 +533,10 @@ describe("guest media read and grant boundary", () => {
 				verificationGeneration: 1,
 				attemptNumber: 1,
 				evidenceKind: input.kind,
-				provider: "test",
+				provider: verification.provider,
 				providerTaskId: `moderation-${input.id}`,
-				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
-				policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				ruleVersion: verification.ruleVersion,
+				policyVersion: verification.policyVersion,
 				status: "APPROVED",
 				reasonCode: "ALLOW",
 				categories: {},

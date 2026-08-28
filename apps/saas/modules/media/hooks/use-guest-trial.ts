@@ -30,6 +30,7 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 	const [errorKey, setErrorKey] = useState<GuestErrorKey>();
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [resultUrl, setResultUrl] = useState<string | null>(null);
+	const [accessRetryNonce, setAccessRetryNonce] = useState(0);
 	const [submitErrorNonce, setSubmitErrorNonce] = useState(0);
 	const [clockNow, setClockNow] = useState(() => new Date());
 	const initialLoad = useRef<{
@@ -127,7 +128,10 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 		let active = true;
 		void requestAccess(view.jobId, view.resultAssetId, "inline")
 			.then((result) => {
-				if (active) setResultUrl(result.url);
+				if (active) {
+					setResultUrl(result.url);
+					setErrorKey((current) => (current === "access" ? undefined : current));
+				}
 			})
 			.catch(() => {
 				if (active) setErrorKey("access");
@@ -135,7 +139,14 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 		return () => {
 			active = false;
 		};
-	}, [requestAccess, resultUrl, view.jobId, view.resultAssetId, view.state]);
+	}, [accessRetryNonce, requestAccess, resultUrl, view.jobId, view.resultAssetId, view.state]);
+
+	function retryAccess() {
+		if (view.state !== "ready" || !view.jobId || !view.resultAssetId) return;
+		setResultUrl(null);
+		setErrorKey(undefined);
+		setAccessRetryNonce((value) => value + 1);
+	}
 
 	async function submit(turnstileToken: string) {
 		if (!draft || !capabilityVersion || !prompt.trim()) return;
@@ -209,7 +220,7 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 		errorKey,
 		resultUrl,
 		submitErrorNonce,
-		actions: { submit, download, beginLink, viewStatus, viewResult },
+		actions: { submit, download, beginLink, retryAccess, viewStatus, viewResult },
 	};
 }
 

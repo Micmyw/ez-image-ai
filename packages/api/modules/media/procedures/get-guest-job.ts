@@ -5,6 +5,7 @@ import { z } from "zod";
 
 import { protectedProcedure } from "../../../orpc/procedures";
 import { guestMediaProcedure } from "../guest-procedure";
+import { currentMediaAssetVerificationBoundary } from "../lib/asset-authorization";
 
 const guestJobInputSchema = z.object({ jobId: z.string().min(1).max(256) }).strict();
 const guestJobOutputSchema = z
@@ -32,8 +33,14 @@ export const getGuestJob = guestMediaProcedure
 	.input(guestJobInputSchema)
 	.output(guestJobOutputSchema)
 	.handler(async ({ context, input }) => {
+		const now = new Date();
 		const snapshot = await getGuestJobSnapshot(
-			{ ownerId: context.user.id, jobId: input.jobId, now: new Date() },
+			{
+				ownerId: context.user.id,
+				jobId: input.jobId,
+				now,
+				verification: currentMediaAssetVerificationBoundary(now),
+			},
 			db,
 		);
 		if (!snapshot) throw new ORPCError("NOT_FOUND");
@@ -52,8 +59,14 @@ export const getGrantedGuestJob = protectedProcedure
 	.input(guestJobInputSchema)
 	.output(guestJobOutputSchema)
 	.handler(async ({ context, input }) => {
+		const now = new Date();
 		const snapshot = await getRegisteredGuestJobSnapshot(
-			{ registeredUserId: context.user.id, jobId: input.jobId, now: new Date() },
+			{
+				registeredUserId: context.user.id,
+				jobId: input.jobId,
+				now,
+				verification: currentMediaAssetVerificationBoundary(now),
+			},
 			db,
 		);
 		if (!snapshot) throw new ORPCError("NOT_FOUND");

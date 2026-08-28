@@ -23,6 +23,8 @@ export function GuestTrialWorkspace({ registered = false }: { registered?: boole
 	const [turnstileToken, setTurnstileToken] = useState(
 		GUEST_TURNSTILE_SITE_KEY ? "" : LOCAL_TURNSTILE_EVIDENCE,
 	);
+	const [turnstileResetKey, setTurnstileResetKey] = useState(0);
+	const [challengeFailed, setChallengeFailed] = useState(false);
 	const errorRef = useRef<HTMLDivElement>(null);
 	const linkHandler = trial.actions.beginLink;
 	const { setLinkHandler } = useGuestShellLinking(linkHandler);
@@ -38,8 +40,24 @@ export function GuestTrialWorkspace({ registered = false }: { registered?: boole
 
 	function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		void trial.actions.submit(turnstileToken);
-		if (GUEST_TURNSTILE_SITE_KEY) setTurnstileToken("");
+		const consumedTurnstileToken = turnstileToken;
+		void trial.actions.submit(consumedTurnstileToken);
+		if (GUEST_TURNSTILE_SITE_KEY) resetChallenge();
+	}
+
+	function resetChallenge() {
+		setTurnstileToken("");
+		setTurnstileResetKey((value) => value + 1);
+	}
+
+	function handleChallengeError() {
+		setChallengeFailed(true);
+		resetChallenge();
+	}
+
+	function handleChallengeToken(token: string) {
+		setChallengeFailed(false);
+		setTurnstileToken(token);
 	}
 
 	const error = trial.errorKey ? t(`errors.${trial.errorKey}`) : null;
@@ -60,7 +78,7 @@ export function GuestTrialWorkspace({ registered = false }: { registered?: boole
 				</p>
 			</header>
 
-			<div className="mt-8 gap-5 lg:grid-cols-[minmax(20rem,0.9fr)_minmax(0,1.25fr)] lg:items-start grid">
+			<div className="mt-8 gap-5 sm:grid-cols-2 grid min-[1200px]:grid-cols-[minmax(20rem,0.9fr)_minmax(0,1.25fr)] min-[1200px]:items-start">
 				<div className="space-y-5">
 					{trial.canSubmit && trial.draft && (
 						<form
@@ -104,6 +122,13 @@ export function GuestTrialWorkspace({ registered = false }: { registered?: boole
 									</span>
 									<span className="text-xs font-semibold text-violet-700">{t("oneOutput")}</span>
 								</div>
+								<button
+									type="button"
+									className="min-h-11 bg-white px-3 py-2 text-sm font-semibold text-slate-700 hover:text-violet-800 focus-visible:outline-violet-600 w-full rounded-xl text-left transition focus-visible:outline-2 focus-visible:outline-offset-2"
+									onClick={() => void trial.actions.beginLink("signup")}
+								>
+									{t("qualityCta")}
+								</button>
 								<p className="text-xs leading-5 text-slate-600">{t("freeQueue")}</p>
 								<p className="text-xs leading-5 text-slate-600">{t("temporary")}</p>
 							</div>
@@ -112,10 +137,20 @@ export function GuestTrialWorkspace({ registered = false }: { registered?: boole
 									siteKey={GUEST_TURNSTILE_SITE_KEY}
 									action="guest_generate"
 									ariaLabel={t("challenge")}
-									onToken={setTurnstileToken}
-									onError={() => setTurnstileToken("")}
-									onExpire={() => setTurnstileToken("")}
+									resetKey={turnstileResetKey}
+									onToken={handleChallengeToken}
+									onError={handleChallengeError}
+									onExpire={resetChallenge}
 								/>
+							)}
+							{challengeFailed && (
+								<button
+									type="button"
+									className="min-h-11 text-sm font-semibold text-violet-700 underline underline-offset-2"
+									onClick={resetChallenge}
+								>
+									{t("retryChallenge")}
+								</button>
 							)}
 							<Button
 								type="submit"
@@ -140,6 +175,16 @@ export function GuestTrialWorkspace({ registered = false }: { registered?: boole
 							<Alert role={submissionError || terminalFailure ? "alert" : "status"} variant="error">
 								<AlertDescription>
 									{error ?? t(`states.${trial.view.state}`)}
+									{trial.errorKey === "access" && trial.view.state === "ready" && (
+										<Button
+											type="button"
+											variant="ghost"
+											className="mt-2 min-h-11"
+											onClick={() => trial.actions.retryAccess()}
+										>
+											{t("retryPreview")}
+										</Button>
+									)}
 									{terminalFailure && (
 										<span className="mt-1 block">
 											{trial.view.trialConsumed ? t("trialConsumed") : t("trialNotConsumed")}

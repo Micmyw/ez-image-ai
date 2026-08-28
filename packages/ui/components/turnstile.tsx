@@ -35,6 +35,7 @@ export function Turnstile({
 	onToken,
 	onError,
 	onExpire,
+	resetKey,
 }: {
 	siteKey: string;
 	action: string;
@@ -43,6 +44,7 @@ export function Turnstile({
 	onToken: (token: string) => void;
 	onError?: () => void;
 	onExpire?: () => void;
+	resetKey?: string | number;
 }) {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const callbacks = useRef({ onToken, onError, onExpire });
@@ -66,10 +68,16 @@ export function Turnstile({
 		if (window.turnstile) {
 			renderWidget();
 		} else {
-			const existing = document.querySelector<HTMLScriptElement>(
-				`script[src="${TURNSTILE_SCRIPT}"]`,
-			);
+			let existing = document.querySelector<HTMLScriptElement>(`script[src="${TURNSTILE_SCRIPT}"]`);
+			if (existing?.dataset.turnstileFailed === "true") {
+				existing.remove();
+				existing = null;
+			}
 			const script = existing ?? document.createElement("script");
+			const reportScriptError = () => {
+				if (script.dataset) script.dataset.turnstileFailed = "true";
+				callbacks.current.onError?.();
+			};
 			if (!existing) {
 				script.src = TURNSTILE_SCRIPT;
 				script.async = true;
@@ -77,9 +85,11 @@ export function Turnstile({
 				document.head.append(script);
 			}
 			script.addEventListener("load", renderWidget);
+			script.addEventListener("error", reportScriptError);
 			return () => {
 				disposed = true;
 				script.removeEventListener("load", renderWidget);
+				script.removeEventListener("error", reportScriptError);
 				if (widgetId && window.turnstile) window.turnstile.remove(widgetId);
 			};
 		}
@@ -88,7 +98,7 @@ export function Turnstile({
 			disposed = true;
 			if (widgetId && window.turnstile) window.turnstile.remove(widgetId);
 		};
-	}, [action, siteKey]);
+	}, [action, resetKey, siteKey]);
 
 	return (
 		<div ref={containerRef} className={cn("min-h-[65px]", className)} aria-label={ariaLabel} />

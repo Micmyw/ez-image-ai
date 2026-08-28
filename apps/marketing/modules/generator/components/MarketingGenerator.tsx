@@ -48,6 +48,7 @@ export function MarketingGenerator({
 	const [turnstileToken, setTurnstileToken] = useState(
 		GUEST_TURNSTILE_SITE_KEY ? "" : LOCAL_TURNSTILE_EVIDENCE,
 	);
+	const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 	const sourceUploadAttemptKey = useRef<string | null>(null);
 
 	useEffect(() => {
@@ -133,12 +134,14 @@ export function MarketingGenerator({
 		const draftAttemptKey = createGrowthAttemptKey();
 		try {
 			validateMarketingImageFile(file, capability.upload.maximumBytes);
+			const consumedTurnstileToken = turnstileToken;
+			if (GUEST_TURNSTILE_SITE_KEY) resetChallenge();
 			const handoff = await uploadGuestDraft({
 				saasUrl: config.saasUrl,
 				capabilityVersion: capability.version,
 				file,
 				prompt,
-				turnstileToken,
+				turnstileToken: consumedTurnstileToken,
 				onProgress: ({ percentage }) => setUploadPercentage(percentage),
 			});
 			await marketingGrowthFunnel.marketingDraftCreated(draftAttemptKey, "image-fast");
@@ -153,8 +156,22 @@ export function MarketingGenerator({
 			}
 			setIsSubmitting(false);
 			setUploadPercentage(undefined);
-			if (GUEST_TURNSTILE_SITE_KEY) setTurnstileToken("");
 		}
+	}
+
+	function resetChallenge() {
+		setTurnstileToken("");
+		setTurnstileResetKey((value) => value + 1);
+	}
+
+	function handleChallengeError() {
+		setSubmitError("turnstile");
+		resetChallenge();
+	}
+
+	function handleChallengeToken(token: string) {
+		setTurnstileToken(token);
+		setSubmitError((current) => (current === "turnstile" ? undefined : current));
 	}
 
 	const suggestions = SUGGESTION_KEYS.map((key) => t(`suggestions.${key}`));
@@ -180,7 +197,7 @@ export function MarketingGenerator({
 			</div>
 
 			<form onSubmit={(event) => void submit(event)}>
-				<div className="gap-4 xl:grid-cols-[minmax(15rem,0.72fr)_minmax(24rem,1.32fr)_minmax(17rem,0.78fr)] xl:items-stretch grid">
+				<div className="gap-4 sm:grid-cols-[minmax(15rem,0.72fr)_minmax(0,1.32fr)] grid min-[1200px]:grid-cols-[minmax(15rem,0.72fr)_minmax(24rem,1.32fr)_minmax(17rem,0.78fr)] min-[1200px]:items-stretch">
 					<div className="border-slate-200 bg-white p-4 order-1 rounded-2xl border">
 						<ImageDropzone
 							accept={supportedMimeTypes.join(",")}
@@ -225,7 +242,7 @@ export function MarketingGenerator({
 						</div>
 					</div>
 
-					<div className="border-violet-200 bg-violet-50/70 p-4 order-3 flex flex-col rounded-2xl border">
+					<div className="border-violet-200 bg-violet-50/70 p-4 sm:max-[1199px]:col-span-2 order-3 flex flex-col rounded-2xl border">
 						<div className="space-y-2">
 							<div className="min-h-11 gap-3 border-violet-300 bg-white px-3 py-2 flex items-center justify-between rounded-xl border">
 								<span className="gap-2 text-sm font-bold text-slate-950 flex items-center">
@@ -265,14 +282,15 @@ export function MarketingGenerator({
 								action="guest_upload"
 								ariaLabel={t("states.challenge")}
 								className="mt-4"
-								onToken={setTurnstileToken}
-								onError={() => setSubmitError("turnstile")}
-								onExpire={() => setTurnstileToken("")}
+								resetKey={turnstileResetKey}
+								onToken={handleChallengeToken}
+								onError={handleChallengeError}
+								onExpire={resetChallenge}
 							/>
 						)}
 						<Button
 							type="submit"
-							className="mt-4 min-h-12 bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 focus-visible:ring-indigo-600 xl:mt-auto w-full"
+							className="mt-4 min-h-12 bg-indigo-600 text-white shadow-lg shadow-indigo-600/20 hover:bg-indigo-700 focus-visible:ring-indigo-600 w-full min-[1200px]:mt-auto"
 							size="lg"
 							variant="primary"
 							loading={isSubmitting}
@@ -321,7 +339,18 @@ export function MarketingGenerator({
 				)}
 				{submitError && (
 					<Alert className="mt-3" variant="error" role="alert">
-						<AlertDescription>{t(`errors.${submitError}`)}</AlertDescription>
+						<AlertDescription>
+							{t(`errors.${submitError}`)}
+							{submitError === "turnstile" && GUEST_TURNSTILE_SITE_KEY && (
+								<button
+									type="button"
+									className="ml-2 font-semibold underline underline-offset-2"
+									onClick={resetChallenge}
+								>
+									{t("retryChallenge")}
+								</button>
+							)}
+						</AlertDescription>
 					</Alert>
 				)}
 			</form>

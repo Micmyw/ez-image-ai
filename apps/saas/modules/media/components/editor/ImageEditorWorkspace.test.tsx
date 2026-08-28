@@ -36,7 +36,8 @@ describe("ImageEditorWorkspace responsive composition", () => {
 		);
 
 		expect(markup).toContain('data-editor-layout="responsive-split"');
-		expect(markup).toContain("xl:grid-cols-[minmax(22rem,0.9fr)_minmax(0,1.35fr)]");
+		expect(markup).toContain("min-[1200px]:grid-cols-[minmax(22rem,0.9fr)_minmax(0,1.35fr)]");
+		expect(markup).not.toContain("xl:grid-cols-");
 		expect(markup.indexOf('data-testid="generation-form"')).toBeLessThan(
 			markup.indexOf('data-testid="result-panel"'),
 		);

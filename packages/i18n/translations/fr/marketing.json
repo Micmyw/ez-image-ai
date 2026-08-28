@@ -75,6 +75,7 @@
 			"temporaryResult": "Votre aperçu reste privé et temporaire.",
 			"temporarySessionDisclosure": "EzPic crée une session temporaire pour cet essai, conserve les médias invités jusqu’à 24 heures et utilise des signaux pseudonymes contre les abus pendant la période décrite dans notre Politique de confidentialité.",
 			"qualityCta": "Retouche Quality · Creator ou Studio",
+			"retryChallenge": "Réessayer la vérification",
 			"characterCount": "{count, number} / {maximum, number}",
 			"states": {
 				"challenge": "Vérifier cet import invité",

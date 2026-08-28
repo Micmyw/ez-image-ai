@@ -186,6 +186,12 @@ describe("MarketingGenerator", () => {
 		expect(standard).toBeGreaterThan(prompt);
 		expect(action).toBeGreaterThan(standard);
 		expect(markup).toContain("min-h-12");
+		expect(markup).toContain("sm:grid-cols-[minmax(15rem,0.72fr)_minmax(0,1.32fr)]");
+		expect(markup).toContain("sm:max-[1199px]:col-span-2");
+		expect(markup).toContain(
+			"min-[1200px]:grid-cols-[minmax(15rem,0.72fr)_minmax(24rem,1.32fr)_minmax(17rem,0.78fr)]",
+		);
+		expect(markup).not.toContain("xl:grid-cols-");
 
 		for (const locale of ["en", "de", "es", "fr"]) {
 			const messages = JSON.parse(
@@ -205,6 +211,7 @@ describe("MarketingGenerator", () => {
 				"temporaryResult",
 				"temporarySessionDisclosure",
 				"qualityCta",
+				"retryChallenge",
 				"characterCount",
 				"states",
 				"errors",

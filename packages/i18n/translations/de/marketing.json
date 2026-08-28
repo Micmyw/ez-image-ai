@@ -75,6 +75,7 @@
 			"temporaryResult": "Deine Vorschau bleibt privat und vorübergehend.",
 			"temporarySessionDisclosure": "EzPic erstellt für diesen Test eine temporäre Sitzung, bewahrt Gastmedien bis zu 24 Stunden auf und nutzt pseudonyme Missbrauchssignale für den in unserer Datenschutzerklärung beschriebenen Zeitraum.",
 			"qualityCta": "Qualitätsbearbeitung · Creator oder Studio",
+			"retryChallenge": "Überprüfung erneut versuchen",
 			"characterCount": "{count, number} / {maximum, number}",
 			"states": {
 				"challenge": "Diesen Gast-Upload bestätigen",
