@@ -167,6 +167,70 @@ describe("guest generation admission", () => {
 		expect(event.availableAt).toEqual(projectedDispatchAt);
 	});
 
+	it("terminalizes a pre-provider job when replacement projection exceeds immutable expiry", async () => {
+		const queued = await createGuestFixture("replacement-expiry-blocker");
+		await createGuestAdmission(
+			guestAdmissionInput(queued, { idempotencyKey: "guest-replacement-expiry-blocker" }),
+		);
+		const fixture = await createGuestFixture("replacement-expiry-target");
+		const original = await createGuestAdmission(
+			guestAdmissionInput(fixture, { idempotencyKey: "guest-replacement-expiry-target" }),
+		);
+		const replacementNow = new Date(fixture.now.getTime() + 10_000);
+		const nearExpiry = new Date(replacementNow.getTime() + 30_000);
+		await client.guestMediaTrial.update({
+			where: { id: original.trialId },
+			data: {
+				projectedDispatchAt: replacementNow,
+				estimateExpiresAt: nearExpiry,
+				expiresAt: nearExpiry,
+			},
+		});
+
+		await expect(
+			client.$transaction((tx) =>
+				expireGuestJobBeforeProvider(
+					{ jobId: original.jobId, now: replacementNow, serviceTimeMs: 60_000 },
+					tx,
+				),
+			),
+		).resolves.toEqual({ outcome: "EXPIRED", jobId: original.jobId });
+		const [trial, job, reservation, riskBudget, jobCount, attemptCount] = await Promise.all([
+			client.guestMediaTrial.findUniqueOrThrow({ where: { id: original.trialId } }),
+			client.generationJob.findUniqueOrThrow({ where: { id: original.jobId } }),
+			client.creditReservation.findUniqueOrThrow({ where: { jobId: original.jobId } }),
+			client.guestRiskBudgetBucket.findUniqueOrThrow({
+				where: {
+					promotionPeriod_subjectHash: {
+						promotionPeriod: fixture.promotionPeriod,
+						subjectHash: "global",
+					},
+				},
+			}),
+			client.generationJob.count({ where: { ownerId: fixture.ownerId } }),
+			client.generationAttempt.count({ where: { job: { ownerId: fixture.ownerId } } }),
+		]);
+		expect(trial).toMatchObject({
+			currentJobId: null,
+			eligibility: "AVAILABLE",
+			replacementCount: 0,
+			riskState: "RELEASED",
+			projectedDispatchAt: replacementNow,
+			estimateExpiresAt: nearExpiry,
+			expiresAt: nearExpiry,
+			terminalAt: replacementNow,
+		});
+		expect(job).toMatchObject({
+			status: "FAILED",
+			failureCode: "GUEST_QUEUE_EXPIRED",
+			terminalAt: replacementNow,
+		});
+		expect(reservation).toMatchObject({ status: "RELEASED", releasedAmount: 4n });
+		expect(riskBudget).toMatchObject({ reservedMicros: 3_500n });
+		expect(jobCount).toBe(1);
+		expect(attemptCount).toBe(0);
+	});
+
 	it.each([
 		["catalog version", { catalogVersion: "catalog-v2" }],
 		["pricing version", { pricingVersion: "pricing-v2" }],

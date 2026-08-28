@@ -18,7 +18,7 @@ export interface GuestQueueEstimateInput {
 export function deriveGuestQueueEstimate(input: GuestQueueEstimateInput): {
 	projectedDispatchAt: Date;
 	estimateExpiresAt: Date;
-} {
+} | null {
 	if (
 		Number.isNaN(input.now.getTime()) ||
 		Number.isNaN(input.immutableExpiry.getTime()) ||
@@ -35,6 +35,7 @@ export function deriveGuestQueueEstimate(input: GuestQueueEstimateInput): {
 	const queueDelayMs = waves * input.serviceTimeMs;
 	if (!Number.isSafeInteger(queueDelayMs)) throw new Error("GUEST_QUEUE_ESTIMATE_INVALID");
 	const projectedDispatchAt = new Date(input.now.getTime() + queueDelayMs);
+	if (projectedDispatchAt.getTime() >= input.immutableExpiry.getTime()) return null;
 	return {
 		projectedDispatchAt,
 		estimateExpiresAt: new Date(
@@ -317,7 +318,9 @@ export async function expireGuestJobBeforeProvider(
 		trial.linkIntents.every((intent) => intent.state === "NONE");
 	if (replacementAllowed) {
 		const replacement = await createGuestReplacement(job, trial, input, tx);
-		return { outcome: "EXPIRED", jobId: job.id, replacementJobId: replacement.id };
+		if (replacement) {
+			return { outcome: "EXPIRED", jobId: job.id, replacementJobId: replacement.id };
+		}
 	}
 
 	await releaseGuestRisk(trial, tx);
@@ -369,6 +372,7 @@ async function createGuestReplacement(
 		serviceTimeMs: input.serviceTimeMs ?? persistedServiceTimeMs,
 		immutableExpiry: trial.expiresAt,
 	});
+	if (!estimate) return null;
 	const quote = await tx.generationQuote.create({
 		data: {
 			ownerType: job.quote.ownerType,

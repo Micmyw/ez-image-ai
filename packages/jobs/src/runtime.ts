@@ -402,6 +402,21 @@ export function createDatabaseGuestAdmissionDependencies(
 							serviceTimeMs,
 							immutableExpiry: trial.expiresAt,
 						});
+						if (!estimate) {
+							const expired = await expireGuestJobBeforeProvider(
+								{
+									jobId: job.id,
+									now: input.now,
+									createReplacement: false,
+									queueCapacity,
+									serviceTimeMs,
+								},
+								tx,
+							);
+							return expired.outcome === "SKIPPED"
+								? { outcome: "SKIPPED" as const, jobId: job.id }
+								: expired;
+						}
 						await updateGuestQueueEstimate(tx, job.id, trial.id, retryAt, estimate);
 						return { outcome: "BUSY" as const, retryAt };
 					}

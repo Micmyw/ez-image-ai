@@ -269,6 +269,91 @@ describe("production media runtime stores", () => {
 		}
 	});
 
+	it("expires a busy guest job when its public queue estimate would exceed immutable expiry", async () => {
+		await client.$executeRawUnsafe(
+			'TRUNCATE TABLE "user", "guest_abuse_bucket", "guest_risk_budget_bucket", "outbox_event", "generation_quote" CASCADE',
+		);
+		const active = await seedGuestDispatchJob();
+		const waiting = await seedGuestDispatchJob();
+		const nearExpiry = new Date(waiting.now.getTime() + 30_000);
+		await client.generationJob.update({
+			where: { id: waiting.jobId },
+			data: { status: "RESERVED", version: 0 },
+		});
+		await client.guestMediaTrial.update({
+			where: { id: waiting.trialId },
+			data: {
+				projectedDispatchAt: waiting.now,
+				estimateExpiresAt: nearExpiry,
+				expiresAt: nearExpiry,
+			},
+		});
+		const dependencies = createDatabaseGuestAdmissionDependencies(client, {
+			environment: waiting.environment,
+			retryDelayMs: 5_000,
+			serviceTimeMs: 60_000,
+		});
+		try {
+			await expect(
+				dependencies.admit({
+					jobId: waiting.jobId,
+					trialId: waiting.trialId,
+					now: waiting.now,
+				}),
+			).resolves.toEqual({ outcome: "EXPIRED", jobId: waiting.jobId });
+			const trial = await client.guestMediaTrial.findUniqueOrThrow({
+				where: { id: waiting.trialId },
+			});
+			await expect(
+				Promise.all([
+					client.generationJob.findUniqueOrThrow({ where: { id: waiting.jobId } }),
+					client.creditReservation.findUniqueOrThrow({ where: { jobId: waiting.jobId } }),
+					client.guestRiskBudgetBucket.findUniqueOrThrow({
+						where: {
+							promotionPeriod_subjectHash: {
+								promotionPeriod: trial.promotionPeriod,
+								subjectHash: "global",
+							},
+						},
+					}),
+					client.generationJob.count({ where: { ownerId: trial.ownerId } }),
+					client.generationAttempt.count(),
+				]),
+			).resolves.toEqual([
+				expect.objectContaining({
+					status: "FAILED",
+					failureCode: "GUEST_QUEUE_EXPIRED",
+					terminalAt: waiting.now,
+				}),
+				expect.objectContaining({
+					status: "RELEASED",
+					releasedAmount: 4n,
+				}),
+				expect.objectContaining({ reservedMicros: 0n }),
+				1,
+				0,
+			]);
+			expect(trial).toMatchObject({
+				currentJobId: null,
+				eligibility: "AVAILABLE",
+				riskState: "RELEASED",
+				projectedDispatchAt: waiting.now,
+				estimateExpiresAt: nearExpiry,
+				expiresAt: nearExpiry,
+				terminalAt: waiting.now,
+			});
+		} finally {
+			await client.generationJob.updateMany({
+				where: { id: { in: [active.jobId, waiting.jobId] } },
+				data: { status: "FAILED", terminalAt: new Date() },
+			});
+			await Promise.all([
+				revertRuntimeConfigOverride(active.overrideId, "task4-guest-test", client),
+				revertRuntimeConfigOverride(waiting.overrideId, "task4-guest-test", client),
+			]);
+		}
+	});
+
 	it("rejects dispatch when a ready input no longer matches the job-bound checksum", async () => {
 		const seeded = await seedReservedImageEditJob();
 		const replacementChecksum = "b".repeat(64);

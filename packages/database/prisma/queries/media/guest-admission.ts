@@ -166,21 +166,21 @@ export async function createGuestGenerationTransaction(
 			if (queueDepth >= input.maximumGlobalQueueDepth) {
 				throw new Error("GUEST_CAPACITY_UNAVAILABLE");
 			}
-			const { projectedDispatchAt, estimateExpiresAt } = deriveGuestQueueEstimate({
+			const resultExpiresAt = new Date(
+				Math.min(input.now.getTime() + input.retentionMs, source.asset.deleteAfter!.getTime()),
+			);
+			const estimate = deriveGuestQueueEstimate({
 				now: input.now,
 				queueDepth,
 				queueCapacity: input.queueCapacity ?? 1,
 				serviceTimeMs: input.serviceTimeMs,
-				immutableExpiry: new Date(
-					Math.min(input.now.getTime() + input.retentionMs, source.asset.deleteAfter!.getTime()),
-				),
+				immutableExpiry: resultExpiresAt,
 			});
+			if (!estimate) throw new Error("GUEST_CAPACITY_UNAVAILABLE");
+			const { projectedDispatchAt, estimateExpiresAt } = estimate;
 			if (projectedDispatchAt.getTime() - input.now.getTime() > input.queueTtlMs) {
 				throw new Error("GUEST_CAPACITY_UNAVAILABLE");
 			}
-			const resultExpiresAt = new Date(
-				Math.min(input.now.getTime() + input.retentionMs, source.asset.deleteAfter!.getTime()),
-			);
 			if (resultExpiresAt <= projectedDispatchAt) {
 				throw new Error("GUEST_CAPACITY_UNAVAILABLE");
 			}
