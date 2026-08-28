@@ -75,6 +75,40 @@
 					"jobs": "Trabajos"
 				}
 			},
+			"guest": {
+				"title": "Operaciones de la prueba Estándar anónima",
+				"description": "Solo diagnóstico agregado de invitados. Se excluyen datos sin procesar de red, dispositivo, token, instrucciones, medios y rutas.",
+				"attention": "Requiere atención",
+				"healthy": "Dentro de los umbrales",
+				"loading": "Cargando operaciones de invitados…",
+				"empty": "No hay señales coincidentes",
+				"denials": "Denegaciones de admisión por motivo",
+				"automaticClosures": "Motivos de cierre automático",
+				"controls": {
+					"environment": "Puerta de entorno",
+					"runtime": "Control de ejecución de invitados",
+					"admission": "Nueva admisión de invitados"
+				},
+				"metrics": {
+					"risk": "Uso del riesgo patrocinado",
+					"queue": "Cola de invitados",
+					"attempts": "Aceptados / rechazados / inciertos",
+					"moderation": "Aprobados / rechazados / errores",
+					"watermark": "Con marca / fallidos",
+					"results": "Listos / accesos completados",
+					"sponsorCredits": "Créditos concedidos / liquidados",
+					"cleanup": "Recursos vencidos / atrasados"
+				},
+				"details": {
+					"risk": "retenido {held} · comprometido {committed} · presupuesto {budget} micros",
+					"queue": "más antiguo {age}s · p50 {p50}ms · p95 {p95}ms",
+					"attempts": "coste informado {covered} · coste ausente {missing}",
+					"errorRate": "tasa de error {rate}",
+					"expiredGrants": "accesos vencidos {count}",
+					"credits": "reservados {reserved} · liberados {released}",
+					"cleanup": "fallos finales {deadLetters} · atraso máximo {seconds}s"
+				}
+			},
 			"metrics": {
 				"queue": "Cola",
 				"oldest": "Espera máxima: {seconds}s",

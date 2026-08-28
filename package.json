@@ -31,6 +31,8 @@
 		"launch:certify": "tsx tests/load/ezpic-production-certification.ts --assert-complete",
 		"verify:ci-workflow": "node tests/load/verify-ci-workflow.mjs",
 		"verify:invariants": "tsx tests/load/verify-invariants.ts",
+		"verify:ui-originality": "node tooling/scripts/verify-public-ui-originality.mjs",
+		"verify:ui-originality:self-test": "node tooling/scripts/verify-public-ui-originality.mjs --self-test",
 		"provider:benchmark:image-edit": "tsx packages/ai/media/benchmark/cli.ts"
 	},
 	"dependencies": {

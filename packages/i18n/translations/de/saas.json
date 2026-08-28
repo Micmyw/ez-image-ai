@@ -75,6 +75,40 @@
 					"jobs": "Aufträge"
 				}
 			},
+			"guest": {
+				"title": "Betrieb des anonymen Standard-Tests",
+				"description": "Nur aggregierte Gastdiagnosen. Rohe Netzwerk-, Geräte-, Token-, Prompt-, Medien- und Routendaten sind ausgeschlossen.",
+				"attention": "Prüfung erforderlich",
+				"healthy": "Innerhalb der Grenzwerte",
+				"loading": "Gastbetrieb wird geladen…",
+				"empty": "Keine passenden Signale",
+				"denials": "Zulassungsablehnungen nach Grund",
+				"automaticClosures": "Gründe für automatische Sperren",
+				"controls": {
+					"environment": "Umgebungssperre",
+					"runtime": "Gast-Laufzeitschalter",
+					"admission": "Neue Gastzulassung"
+				},
+				"metrics": {
+					"risk": "Nutzung des Sponsoring-Risikos",
+					"queue": "Gastwarteschlange",
+					"attempts": "Akzeptiert / abgelehnt / unsicher",
+					"moderation": "Freigegeben / abgelehnt / Fehler",
+					"watermark": "Wasserzeichen / fehlgeschlagen",
+					"results": "Bereit / Zugriffe abgeschlossen",
+					"sponsorCredits": "Gewährte / abgerechnete Credits",
+					"cleanup": "Abgelaufene / überfällige Assets"
+				},
+				"details": {
+					"risk": "gehalten {held} · gebunden {committed} · Budget {budget} Mikro",
+					"queue": "älteste {age}s · p50 {p50}ms · p95 {p95}ms",
+					"attempts": "Kosten gemeldet {covered} · Kosten fehlen {missing}",
+					"errorRate": "Fehlerrate {rate}",
+					"expiredGrants": "abgelaufene Zugriffe {count}",
+					"credits": "reserviert {reserved} · freigegeben {released}",
+					"cleanup": "Dead Letters {deadLetters} · älteste Überfälligkeit {seconds}s"
+				}
+			},
 			"metrics": {
 				"queue": "Warteschlange",
 				"oldest": "Älteste Wartezeit: {seconds}s",

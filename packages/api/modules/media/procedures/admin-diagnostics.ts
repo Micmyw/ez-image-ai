@@ -113,6 +113,76 @@ const operationsOutputSchema = z.object({
 	}),
 });
 
+const aggregateCountSchema = z.number().int().nonnegative();
+const aggregateMicrosSchema = z.string().regex(/^\d+$/);
+const guestDiagnosticsSchema = z.object({
+	admission: z.object({
+		accepted: aggregateCountSchema,
+		deniedByReason: z.array(
+			z.object({
+				reason: z.string().regex(/^[A-Z][A-Z0-9_]{0,127}$/),
+				count: aggregateCountSchema,
+			}),
+		),
+	}),
+	queue: z.object({
+		depth: aggregateCountSchema,
+		oldestAgeSeconds: aggregateCountSchema,
+		waitMs: z.object({
+			p50: aggregateCountSchema.nullable(),
+			p95: aggregateCountSchema.nullable(),
+		}),
+		expiredBeforeDispatch: aggregateCountSchema,
+	}),
+	risk: z.object({
+		budgetMicros: aggregateMicrosSchema,
+		heldMicros: aggregateMicrosSchema,
+		committedMicros: aggregateMicrosSchema,
+		releasedMicros: aggregateMicrosSchema,
+		utilizationPercent: z.number().min(0),
+		state: z.enum(["OK", "WARN", "SLOW", "CLOSED", "EXHAUSTED"]),
+	}),
+	sponsorCredits: z.object({
+		granted: aggregateMicrosSchema,
+		reserved: aggregateMicrosSchema,
+		settled: aggregateMicrosSchema,
+		released: aggregateMicrosSchema,
+	}),
+	attempts: z.object({
+		accepted: aggregateCountSchema,
+		rejected: aggregateCountSchema,
+		uncertain: aggregateCountSchema,
+		uncertainOlderThanTenMinutes: aggregateCountSchema,
+		reportedCostCovered: aggregateCountSchema,
+		reportedCostMissing: aggregateCountSchema,
+		billedSpendMismatch: aggregateCountSchema,
+	}),
+	moderation: z.object({
+		approved: aggregateCountSchema,
+		rejected: aggregateCountSchema,
+		errors: aggregateCountSchema,
+		errorRate: z.number().min(0).max(1).nullable(),
+	}),
+	watermark: z.object({ succeeded: aggregateCountSchema, failed: aggregateCountSchema }),
+	resultAccess: z.object({
+		ready: aggregateCountSchema,
+		grantsCompleted: aggregateCountSchema,
+		expiredGrants: aggregateCountSchema,
+	}),
+	cleanup: z.object({
+		expiredAssets: aggregateCountSchema,
+		overdueAssets: aggregateCountSchema,
+		deadLetterEvents: aggregateCountSchema,
+		oldestOverdueSeconds: aggregateCountSchema,
+	}),
+	controls: z.object({
+		environmentEnabled: z.boolean(),
+		runtimeEnabled: z.boolean(),
+		admissionOpen: z.boolean(),
+		automaticClosureReasons: z.array(z.string().regex(/^[A-Z][A-Z0-9_]{0,127}$/)),
+	}),
+});
+
 const uncertainAttemptDiagnosticSchema = z.object({
 	ids: z.object({
 		attemptId: z.string(),
@@ -146,7 +216,14 @@ const uncertainAttemptDiagnosticSchema = z.object({
 
 export const adminMediaDiagnostics = adminProcedure
 	.route({ method: "GET", path: "/admin/media/diagnostics", tags: ["Admin", "Media"] })
-	.handler(async () => getAdminMediaDiagnostics(db));
+	.handler(async () => {
+		const diagnostics = await getAdminMediaDiagnostics(db, {
+			guestEnvironmentEnabled: process.env.GUEST_MEDIA_ENABLED === "true",
+			guestRiskBudgetMicros: guestRiskBudgetMicros(process.env.GUEST_RISK_BUDGET_MICROS),
+			applyAutomaticGuestClosure: true,
+		});
+		return { ...diagnostics, guest: guestDiagnosticsSchema.parse(diagnostics.guest) };
+	});
 
 export const adminGrowthOperations = adminProcedure
 	.route({
@@ -190,3 +267,8 @@ export const listUncertainGenerationAttempts = adminProcedure
 	.handler(async ({ input }) => ({
 		items: await listAdminUncertainGenerationAttempts({ limit: input.limit }, db),
 	}));
+
+function guestRiskBudgetMicros(value: string | undefined): bigint {
+	if (!value || !/^[1-9][0-9]*$/.test(value)) return 0n;
+	return BigInt(value);
+}

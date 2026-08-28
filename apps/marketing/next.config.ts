@@ -2,10 +2,13 @@ import { withContentCollections } from "@content-collections/next";
 import type { NextConfig } from "next";
 import nextIntlPlugin from "next-intl/plugin";
 
+import { resolveMarketingStorageConnectSource } from "./storage-connect-source";
+
 const withNextIntl = nextIntlPlugin("./modules/i18n/request.ts");
 
 const isProduction = process.env.NODE_ENV === "production";
 const e2eSaasConnectSource = resolveE2ESaasConnectSource();
+const storageConnectSource = resolveMarketingStorageConnectSource(process.env);
 const contentSecurityPolicy = [
 	"default-src 'self'",
 	"base-uri 'self'",
@@ -16,7 +19,7 @@ const contentSecurityPolicy = [
 	"style-src 'self' 'unsafe-inline'",
 	"img-src 'self' blob: data: https:",
 	"font-src 'self' data:",
-	`connect-src 'self' https:${e2eSaasConnectSource ? ` ${e2eSaasConnectSource}` : ""}${isProduction ? "" : " ws: http:"}`,
+	`connect-src 'self' https:${e2eSaasConnectSource ? ` ${e2eSaasConnectSource}` : ""}${storageConnectSource ? ` ${storageConnectSource}` : ""}${isProduction ? "" : " ws: http:"}`,
 	"worker-src 'self' blob:",
 	...(isProduction ? ["upgrade-insecure-requests"] : []),
 ].join("; ");

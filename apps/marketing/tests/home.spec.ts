@@ -107,7 +107,10 @@ test.describe("home page", () => {
 			await expect(page.getByRole("main")).toBeVisible();
 			await expect(page.getByLabel("Source image", { exact: true })).toBeAttached();
 			await expect(page.getByLabel(/describe your edit/i)).toBeVisible();
-			await expect(page.getByRole("radiogroup", { name: /edit mode/i })).toBeVisible();
+			await expect(page.getByRole("button", { name: /try one standard edit free/i })).toBeVisible();
+			await expect(
+				page.getByRole("link", { name: /quality edit.*creator or studio/i }),
+			).toBeVisible();
 			expect(
 				await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
 			).toBe(true);

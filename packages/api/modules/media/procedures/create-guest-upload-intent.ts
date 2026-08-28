@@ -98,7 +98,7 @@ export const createGuestDraftUploadIntent = publicProcedure
 			{ verify, consumeTokenHash: databaseTurnstileTokenConsumer },
 		);
 
-		const assetId = randomUUID();
+		const assetId = `asset_${randomUUID().replaceAll("-", "")}`;
 		const sessionId = randomUUID();
 		const ownerId = `guest_${randomUUID().replaceAll("-", "")}`;
 		const completionToken = randomBytes(32).toString("base64url");

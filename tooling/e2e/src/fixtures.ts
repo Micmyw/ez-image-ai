@@ -11,9 +11,9 @@ import type {
 
 export const E2E_PASSWORD = "LocalMediaE2E!2026";
 
-// A valid 1x1 transparent PNG. It is small enough to make the storage path fast and deterministic.
+// A valid 64x64 PNG. It is the smallest deterministic fixture accepted by guest watermarking.
 export const E2E_PNG = Buffer.from(
-	"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+	"iVBORw0KGgoAAAANSUhEUgAAAEAAAABACAYAAACqaXHeAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAZklEQVR42u3QQREAAAQAMEn8ZdA/FzmcPVZgkdXzWQgQIECAAAECBAgQIECAAAECBAgQIECAAAECBAgQIECAAAECBAgQIECAAAECBAgQIECAAAECBAgQIECAAAECBAgQIECAAAH3LeS3EWmOK1SQAAAAAElFTkSuQmCC",
 	"base64",
 );
 

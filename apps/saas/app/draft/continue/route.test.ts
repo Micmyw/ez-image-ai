@@ -43,14 +43,16 @@ describe("draft continuation identity router", () => {
 		expect(mocks.claimRegistered).not.toHaveBeenCalled();
 	});
 
-	it("returns a no-store same-origin anonymous bootstrap POST for a missing session", async () => {
+	it("returns a no-store origin-only anonymous bootstrap POST for a missing session", async () => {
 		mocks.getSession.mockResolvedValue(null);
 		const response = await GET(new Request("https://app.test/draft/continue"));
 		const body = await response.text();
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(response.headers.get("referrer-policy")).toBe("origin");
 		expect(body).toContain("/api/auth/sign-in/anonymous?handoff=1");
+		expect(body).toContain('<meta name="referrer" content="origin">');
 		expect(body).not.toMatch(/claimToken|media_draft_claim|prompt|asset/i);
 	});
 });

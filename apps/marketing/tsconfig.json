@@ -1,6 +1,7 @@
 {
 	"extends": "@repo/tsconfig/nextjs.json",
 	"compilerOptions": {
+		"target": "ES2022",
 		"plugins": [{ "name": "next" }],
 		"paths": {
 			"@config": ["./config"],

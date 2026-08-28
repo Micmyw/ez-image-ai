@@ -90,6 +90,37 @@ describe("guest media configuration", () => {
 		).toMatchObject({ enabled: false, reason: "GUEST_PRODUCTION_TRUSTED_PROXY_REQUIRED" });
 	});
 
+	it("permits the guest path only for a complete loopback production-build E2E identity", () => {
+		const localDatabase = "postgresql://postgres:postgres@127.0.0.1:55432/guest_media_testing";
+		const localProductionE2E = {
+			...developmentEnvironment,
+			NODE_ENV: "production",
+			E2E_USE_PRODUCTION_BUILD: "true",
+			E2E_TEST_MEDIA_ADAPTERS: "true",
+			E2E_RUN_ID: "guest-e2e-123",
+			MEDIA_PROVIDER_ADAPTER: "mock",
+			MEDIA_SAFETY_ADAPTER: "test",
+			MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true",
+			DATABASE_URL: localDatabase,
+			TEST_DATABASE_URL: localDatabase,
+			NEXT_PUBLIC_SAAS_URL: "http://localhost:3000",
+			NEXT_PUBLIC_MARKETING_URL: "http://localhost:3001",
+		};
+
+		expect(getGuestMediaConfig(localProductionE2E, true)).toMatchObject({
+			enabled: true,
+			reason: null,
+			turnstile: { required: false, siteKey: null, secretKey: null },
+			trustedProxyPolicy: { provider: "none", required: false },
+		});
+		expect(
+			getGuestMediaConfig({ ...localProductionE2E, TEST_DATABASE_URL: "" }, true),
+		).toMatchObject({
+			enabled: false,
+			reason: "GUEST_PRODUCTION_EVIDENCE_REQUIRED",
+		});
+	});
+
 	it("keeps server evidence, budgets, and the Turnstile secret out of the public projection", () => {
 		const serverConfig = getGuestMediaConfig(
 			{

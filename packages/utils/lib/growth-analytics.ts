@@ -19,6 +19,13 @@ export const EZPIC_GROWTH_EVENT_NAMES = [
 	"upgrade_prompt_viewed",
 	"checkout_started",
 	"subscription_activated",
+	"guest_generation_admitted",
+	"guest_result_ready",
+	"guest_result_viewed",
+	"guest_watermarked_downloaded",
+	"guest_sign_in_cta_started",
+	"guest_registered_session_established",
+	"guest_result_grant_completed",
 ] as const;
 
 export const growthAnalyticsEventNameSchema = z.enum(EZPIC_GROWTH_EVENT_NAMES);
@@ -43,6 +50,9 @@ export const growthAnalyticsPropertiesSchema = z
 				"opened",
 				"activated",
 				"unavailable",
+				"admitted",
+				"ready",
+				"registered",
 			])
 			.optional(),
 		creditsBucket: z
@@ -82,7 +92,7 @@ const sensitiveKeyPatterns = [
 	/^cookie$/,
 	/(?:access|refresh|auth|session)?token$/,
 	/^provider$/,
-	/^providermodelid$/,
+	/^provider(?:model|task)id$/,
 	/^modelid$/,
 	/^(?:provider)?cost(?:micros)?$/,
 	/^(?:provider)?rawresponse$/,
@@ -189,7 +199,7 @@ export function trackBrowserGrowthEvent(
 	options?: { dedupeKey?: string },
 ): Promise<GrowthAnalyticsTrackResult> {
 	browserGrowthAnalyticsDispatcher ??= createBrowserGrowthAnalyticsDispatcher({
-		getCookie: () => (typeof document === "undefined" ? "" : document.cookie),
+		getCookie: () => (typeof document === "undefined" ? "" : (document.cookie ?? "")),
 		resolveAnonymousSessionHash: getOrCreateBrowserGrowthAnalyticsSessionHash,
 		dispatch: (eventName, detail) => {
 			if (typeof window === "undefined" || typeof CustomEvent === "undefined") {
@@ -381,6 +391,41 @@ export function createSaasGrowthFunnel(track: TrackGrowthEvent = trackBrowserGro
 			track(
 				{ name: "subscription_activated", properties: { plan, status: "activated" } },
 				{ dedupeKey: `subscription-activated:${plan}` },
+			),
+		guestGenerationAdmitted: (key: string) =>
+			track(
+				{ name: "guest_generation_admitted", properties: { status: "admitted" } },
+				{ dedupeKey: `guest-generation-admitted:${key}` },
+			),
+		guestResultReady: (key: string) =>
+			track(
+				{ name: "guest_result_ready", properties: { status: "ready" } },
+				{ dedupeKey: `guest-result-ready:${key}` },
+			),
+		guestResultViewed: (key: string) =>
+			track(
+				{ name: "guest_result_viewed", properties: { status: "viewed" } },
+				{ dedupeKey: `guest-result-viewed:${key}` },
+			),
+		guestWatermarkedDownloaded: (key: string) =>
+			track(
+				{ name: "guest_watermarked_downloaded", properties: { status: "downloaded" } },
+				{ dedupeKey: `guest-watermarked-downloaded:${key}` },
+			),
+		guestSignInCtaStarted: (key: string) =>
+			track(
+				{ name: "guest_sign_in_cta_started", properties: { status: "started" } },
+				{ dedupeKey: `guest-sign-in-cta-started:${key}` },
+			),
+		guestRegisteredSessionEstablished: (key: string) =>
+			track(
+				{ name: "guest_registered_session_established", properties: { status: "registered" } },
+				{ dedupeKey: `guest-registered-session-established:${key}` },
+			),
+		guestResultGrantCompleted: (key: string) =>
+			track(
+				{ name: "guest_result_grant_completed", properties: { status: "completed" } },
+				{ dedupeKey: `guest-result-grant-completed:${key}` },
 			),
 	};
 }

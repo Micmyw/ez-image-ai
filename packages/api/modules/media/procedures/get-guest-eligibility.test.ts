@@ -50,6 +50,21 @@ describe("getGuestEligibility claimed draft recovery", () => {
 		);
 	});
 
+	it("returns the consumed job so a completed guest result can recover after reload", async () => {
+		databaseMocks.guestMediaTrial.findUnique.mockResolvedValue({
+			currentJobId: null,
+			consumedJobId: "job-consumed-1",
+		});
+
+		await expect(
+			call(getGuestEligibility, undefined, { context: { headers: new Headers() } }),
+		).resolves.toMatchObject({
+			eligible: false,
+			reason: "EXISTING_TRIAL",
+			existingJobId: "job-consumed-1",
+		});
+	});
+
 	it.each([
 		["owner mismatch", { ownerId: "guest-other" }],
 		["submitter mismatch", { submittedByUserId: "guest-other" }],

@@ -80,6 +80,8 @@ export function getGuestMediaConfig(
 	const siteKey = normalizedNonEmptyString(environment.NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY);
 	const secretKey = normalizedNonEmptyString(environment.GUEST_TURNSTILE_SECRET_KEY);
 	const proxyProvider = trustedProxyProvider(environment.MEDIA_TRUSTED_PROXY_PROVIDER);
+	const productionControlsRequired =
+		production && !isLocalProductionBuildE2EEnvironment(environment);
 
 	let reason: GuestMediaDisabledReason | null = null;
 	if (
@@ -96,11 +98,11 @@ export function getGuestMediaConfig(
 		reason = "GUEST_PROMOTION_PERIOD_REQUIRED";
 	} else if (environment.GUEST_HARD_BUDGET_MICROS !== undefined && hardBudgetMicros === null) {
 		reason = "GUEST_CONFIGURATION_INVALID";
-	} else if (production && (!costEvidenceId || hardBudgetMicros === null)) {
+	} else if (productionControlsRequired && (!costEvidenceId || hardBudgetMicros === null)) {
 		reason = "GUEST_PRODUCTION_EVIDENCE_REQUIRED";
-	} else if (production && (!siteKey || !secretKey)) {
+	} else if (productionControlsRequired && (!siteKey || !secretKey)) {
 		reason = "GUEST_PRODUCTION_TURNSTILE_REQUIRED";
-	} else if (production && proxyProvider === "none") {
+	} else if (productionControlsRequired && proxyProvider === "none") {
 		reason = "GUEST_PRODUCTION_TRUSTED_PROXY_REQUIRED";
 	}
 
@@ -111,12 +113,67 @@ export function getGuestMediaConfig(
 		...FIXED_GUEST_MEDIA_CONFIG,
 		riskBudgetMicros,
 		productionEvidence: Object.freeze({ costEvidenceId, hardBudgetMicros }),
-		turnstile: Object.freeze({ required: production, siteKey, secretKey }),
+		turnstile: Object.freeze({ required: productionControlsRequired, siteKey, secretKey }),
 		trustedProxyPolicy: Object.freeze({
 			provider: proxyProvider,
-			required: production,
+			required: productionControlsRequired,
 		}),
 	});
+}
+
+export function isLocalProductionBuildE2EEnvironment(
+	environment: Record<string, unknown>,
+): boolean {
+	const databaseUrl = normalizedNonEmptyString(environment.DATABASE_URL);
+	const testDatabaseUrl = normalizedNonEmptyString(environment.TEST_DATABASE_URL);
+	const runId = normalizedNonEmptyString(environment.E2E_RUN_ID);
+	if (
+		environment.NODE_ENV !== "production" ||
+		environment.E2E_USE_PRODUCTION_BUILD !== "true" ||
+		environment.E2E_TEST_MEDIA_ADAPTERS !== "true" ||
+		environment.MEDIA_PROVIDER_ADAPTER !== "mock" ||
+		environment.MEDIA_SAFETY_ADAPTER !== "test" ||
+		environment.MEDIA_ALLOW_TEST_SAFETY_ADAPTER !== "true" ||
+		!runId ||
+		!/^[a-z0-9-]{6,48}$/i.test(runId) ||
+		!databaseUrl ||
+		!testDatabaseUrl ||
+		databaseUrl !== testDatabaseUrl
+	) {
+		return false;
+	}
+	try {
+		const database = new URL(databaseUrl);
+		const saas = new URL(normalizedNonEmptyString(environment.NEXT_PUBLIC_SAAS_URL) ?? "");
+		const marketing = new URL(
+			normalizedNonEmptyString(environment.NEXT_PUBLIC_MARKETING_URL) ?? "",
+		);
+		return (
+			isLoopbackHost(database.hostname) &&
+			/test|testing/i.test(database.pathname) &&
+			isLocalHttpOrigin(saas) &&
+			isLocalHttpOrigin(marketing) &&
+			saas.origin !== marketing.origin
+		);
+	} catch {
+		return false;
+	}
+}
+
+function isLocalHttpOrigin(url: URL): boolean {
+	return (
+		url.protocol === "http:" &&
+		isLoopbackHost(url.hostname) &&
+		url.pathname === "/" &&
+		!url.username &&
+		!url.password &&
+		!url.search &&
+		!url.hash
+	);
+}
+
+function isLoopbackHost(hostname: string): boolean {
+	return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
 }
 
 function normalizedPromotionPeriod(value: unknown): string | null {

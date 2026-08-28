@@ -1,9 +1,12 @@
 import { isIP } from "node:net";
 
+import { isLocalProductionBuildE2EEnvironment } from "@repo/config/server";
+
 export function draftClientIdentity(
 	headers: Headers,
 	environment: Record<string, string | undefined>,
 ): string {
+	if (isLocalProductionBuildE2EEnvironment(environment)) return "127.0.0.1";
 	const provider = environment.MEDIA_TRUSTED_PROXY_PROVIDER?.trim().toLowerCase();
 	const value =
 		provider === "vercel"

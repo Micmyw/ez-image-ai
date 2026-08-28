@@ -9,8 +9,22 @@ const commands: Array<{ args: string[]; database: boolean }> = [
 	{ args: ["--filter", "@repo/storage", "test"], database: false },
 	{ args: ["--filter", "@repo/payments", "test"], database: false },
 	{ args: ["--filter", "@repo/database", "test"], database: false },
+	{
+		args: [
+			"--filter",
+			"@repo/database",
+			"exec",
+			"vitest",
+			"run",
+			"prisma/queries/media/admin-diagnostics.test.ts",
+			"--configLoader",
+			"runner",
+		],
+		database: false,
+	},
 	{ args: ["--filter", "@repo/jobs", "test"], database: false },
 	{ args: ["--filter", "@repo/e2e-media", "test:contracts"], database: false },
+	{ args: ["verify:ui-originality:self-test"], database: false },
 	{
 		args: [
 			"--filter",

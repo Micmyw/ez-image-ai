@@ -4,12 +4,13 @@ import { randomBytes } from "node:crypto";
 import { assertLocalMediaE2E } from "./guard";
 
 const workspaceRoot = process.cwd().replace(/[\\/]tooling[\\/]e2e$/, "");
+const runId =
+	process.env.E2E_RUN_ID ?? `${Date.now().toString(36)}-${randomBytes(3).toString("hex")}`;
 const environment = {
 	...process.env,
 	E2E_TEST_MEDIA_ADAPTERS: "true",
 	E2E_DRAFT_HANDOFF: "true",
-	E2E_RUN_ID:
-		process.env.E2E_RUN_ID ?? `${Date.now().toString(36)}-${randomBytes(3).toString("hex")}`,
+	E2E_RUN_ID: runId,
 	DATABASE_URL: process.env.TEST_DATABASE_URL,
 	NEXT_PUBLIC_SAAS_URL: process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000",
 	NEXT_PUBLIC_MARKETING_URL: process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3001",
@@ -35,6 +36,16 @@ const environment = {
 	MEDIA_ENABLED_PROVIDERS: "replicate,fal,kie,gemini",
 	MEDIA_SAFETY_ADAPTER: "test",
 	MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true",
+	GUEST_MEDIA_ENABLED: "true",
+	GUEST_PROMOTION_PERIOD: `local-e2e-${runId}`,
+	GUEST_ABUSE_HMAC_SECRET: "local-e2e-guest-abuse-hmac-secret-not-for-production",
+	GUEST_ABUSE_HMAC_VERSION: "local-e2e-v1",
+	GUEST_RISK_BUDGET_MICROS: "250000",
+	GUEST_COST_EVIDENCE_ID: "",
+	GUEST_HARD_BUDGET_MICROS: undefined,
+	NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY: "",
+	GUEST_TURNSTILE_SECRET_KEY: "",
+	MEDIA_TRUSTED_PROXY_PROVIDER: "",
 	NODE_ENV: process.env.E2E_USE_PRODUCTION_BUILD === "true" ? "production" : "development",
 };
 
@@ -72,6 +83,17 @@ async function main(): Promise<void> {
 		]);
 		await command([
 			"--filter",
+			"saas",
+			"exec",
+			"playwright",
+			"test",
+			"tests/guest-trial.spec.ts",
+			"tests/originality.spec.ts",
+			"--project=guest",
+			"--workers=1",
+		]);
+		await command([
+			"--filter",
 			"marketing",
 			"exec",
 			"playwright",
@@ -79,6 +101,7 @@ async function main(): Promise<void> {
 			"tests/generator.spec.ts",
 			"tests/growth-analytics.spec.ts",
 			"tests/home.spec.ts",
+			"tests/originality.spec.ts",
 			"tests/seo.spec.ts",
 			"--workers=1",
 		]);

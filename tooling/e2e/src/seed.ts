@@ -24,6 +24,7 @@ export async function seedLocalMediaE2E(): Promise<void> {
 		"media.model.image-quality.enabled",
 		"media.model.video-fast.enabled",
 		"media.model.video-quality.enabled",
+		"media.guestGeneration.enabled",
 	];
 	await db.runtimeConfigOverride.updateMany({
 		where: {
@@ -44,6 +45,7 @@ export async function seedLocalMediaE2E(): Promise<void> {
 	if (disabledActiveOverrideCount !== 0) {
 		throw new Error("Local media E2E seed left an active disabled media runtime override");
 	}
+	await enableGuestRuntimeOverride(runId);
 	const funded = await ensureCredentialUser(fundedEmail(runId), `E2E Funded ${runId}`);
 	const empty = await ensureCredentialUser(emptyEmail(runId), `E2E Empty ${runId}`);
 	const free = await ensureCredentialUser(freeEmail(runId), `E2E Free ${runId}`);
@@ -74,6 +76,23 @@ export async function seedLocalMediaE2E(): Promise<void> {
 	await ensureReadySourceAsset(funded.id, `reuse:${runId}`, runId);
 	await ensureReadySourceAsset(empty.id, `empty:${runId}`, runId);
 	await ensureReadySourceAsset(free.id, `free:${runId}`, runId);
+}
+
+async function enableGuestRuntimeOverride(runId: string): Promise<void> {
+	await db.$transaction(async (tx) => {
+		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('runtime_config_override_version'))`;
+		const [next] = await tx.$queryRaw<Array<{ version: number }>>`
+			SELECT COALESCE(MAX("version"), 0)::int + 1 AS "version" FROM "runtime_config_override"`;
+		await tx.runtimeConfigOverride.create({
+			data: {
+				configKey: "media.guestGeneration.enabled",
+				version: next!.version,
+				value: true,
+				reason: `Local deterministic guest E2E run ${runId}`,
+				createdByUserId: `local-e2e:${runId}`,
+			},
+		});
+	});
 }
 
 async function ensureReadySourceAsset(ownerId: string, assetSeed: string, fixtureRunId: string) {

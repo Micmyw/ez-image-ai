@@ -190,6 +190,34 @@ describe("guest private upload handoff", () => {
 		);
 	});
 
+	it("allocates a generation-compatible opaque asset ID for the guest source", async () => {
+		const result = await call(
+			createGuestDraftUploadIntent,
+			{
+				capabilityVersion: "guest-v17",
+				contentType: "image/png",
+				bytes: 8,
+				sha256: "a".repeat(64),
+				turnstileToken: "turnstile-proof",
+			},
+			{
+				context: {
+					headers: new Headers({
+						origin: "https://marketing.test",
+						"cf-connecting-ip": "203.0.113.9",
+					}),
+					responseHeaders: new Headers(),
+				},
+			},
+		);
+
+		expect(result.assetId).toMatch(/^asset_[A-Za-z0-9_-]{16,64}$/);
+		expect(databaseMocks.createUpload).toHaveBeenCalledWith(
+			expect.objectContaining({ assetId: result.assetId }),
+			expect.anything(),
+		);
+	});
+
 	it("checks HEAD and readiness before returning a distinct one-use draft claim", async () => {
 		const result = await call(
 			completeGuestDraftUpload,

@@ -5,7 +5,7 @@ import { captureGrowthEvents } from "./growth-events";
 const saasUrl = process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000";
 const marketingUrl = process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3001";
 
-test("consent-gated local fixture records the complete marketing draft funnel once", async ({
+test("consent-gated local fixture records the complete marketing guest funnel once", async ({
 	page,
 }) => {
 	const events = await captureGrowthEvents(page);
@@ -17,25 +17,57 @@ test("consent-gated local fixture records the complete marketing draft funnel on
 		}
 	});
 
-	const draftEndpoint = new URL("/api/media/drafts", saasUrl).toString();
+	const intentEndpoint = new URL("/api/media/guest-drafts/upload-intents", saasUrl).toString();
+	const uploadEndpoint = new URL("/e2e/growth-guest-upload", saasUrl).toString();
+	const completionEndpoint = new URL(
+		"/api/media/guest-drafts/upload-completions",
+		saasUrl,
+	).toString();
 	const continueEndpoint = new URL("/draft/continue", saasUrl).toString();
-	await page.route(draftEndpoint, async (route) => {
+	const corsHeaders = {
+		"Access-Control-Allow-Headers": "content-type",
+		"Access-Control-Allow-Methods": "POST, PUT, OPTIONS",
+		"Access-Control-Allow-Origin": marketingUrl,
+	};
+	await page.route(intentEndpoint, async (route) => {
 		if (route.request().method() === "OPTIONS") {
-			await route.fulfill({
-				status: 204,
-				headers: {
-					"Access-Control-Allow-Headers": "content-type",
-					"Access-Control-Allow-Methods": "POST, OPTIONS",
-					"Access-Control-Allow-Origin": marketingUrl,
-				},
-			});
+			await route.fulfill({ status: 204, headers: corsHeaders });
 			return;
 		}
 		await route.fulfill({
 			status: 200,
 			contentType: "application/json",
-			headers: { "Access-Control-Allow-Origin": marketingUrl },
-			body: JSON.stringify({ claimToken: "q".repeat(43), continueUrl: "/draft/continue" }),
+			headers: corsHeaders,
+			body: JSON.stringify({
+				sessionId: "guest-growth-session-1",
+				assetId: "asset-guest-growth-1",
+				uploadUrl: uploadEndpoint,
+				completionToken: "c".repeat(43),
+				expiresAt: "2099-08-29T00:00:00.000Z",
+			}),
+		});
+	});
+	await page.route(uploadEndpoint, async (route) => {
+		if (route.request().method() === "OPTIONS") {
+			await route.fulfill({ status: 204, headers: corsHeaders });
+			return;
+		}
+		await route.fulfill({ status: 200, headers: corsHeaders });
+	});
+	await page.route(completionEndpoint, async (route) => {
+		if (route.request().method() === "OPTIONS") {
+			await route.fulfill({ status: 204, headers: corsHeaders });
+			return;
+		}
+		await route.fulfill({
+			status: 200,
+			contentType: "application/json",
+			headers: corsHeaders,
+			body: JSON.stringify({
+				status: "READY",
+				claimToken: "q".repeat(43),
+				continueUrl: "/draft/continue",
+			}),
 		});
 	});
 	await page.route(continueEndpoint, async (route) => {
@@ -67,8 +99,7 @@ test("consent-gated local fixture records the complete marketing draft funnel on
 			"base64",
 		),
 	});
-	await page.getByLabel(/quality edit/i).check();
-	await page.getByRole("button", { name: /continue to edit/i }).click();
+	await page.getByRole("button", { name: /try one standard edit free/i }).click();
 	await expect(page.getByRole("heading", { name: "Handoff fixture" })).toBeVisible();
 
 	await expect

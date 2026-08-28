@@ -12,6 +12,7 @@ import {
 	cleanupUploadPromotion,
 	createDatabaseDispatchStore,
 	createDatabaseFinalizationStore,
+	createDatabaseGuestAdmissionDependencies,
 	createDatabaseProviderCancellationStore,
 	createDatabaseSettlementStore,
 	createDatabaseStorageCleanupDependencies,
@@ -57,6 +58,18 @@ async function deliverLocally(event: {
 	const payload = objectValue(event.payload);
 	const jobId = stringValue(payload.jobId, event.aggregateId);
 	switch (event.eventType) {
+		case "GUEST_GENERATION_ELIGIBLE": {
+			const result = await createDatabaseGuestAdmissionDependencies(db, {
+				retryDelayMs: 250,
+				serviceTimeMs: 250,
+			}).admit({
+				jobId,
+				trialId: stringValue(payload.trialId),
+				now: new Date(),
+			});
+			if (result.outcome === "BUSY") throw new Error("LOCAL_MEDIA_E2E_GUEST_ADMISSION_BUSY");
+			return;
+		}
 		case "JOB_CREATED":
 		case "GENERATION_DISPATCH": {
 			const job = await db.generationJob.findUniqueOrThrow({ where: { id: jobId } });

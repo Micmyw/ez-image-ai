@@ -21,6 +21,7 @@ vi.mock("@repo/auth", () => ({
 }));
 vi.mock("@repo/config/server", () => ({
 	getGuestMediaConfig: vi.fn(),
+	isLocalProductionBuildE2EEnvironment: vi.fn(() => false),
 	validateEzPicLaunchEnvironment: vi.fn(),
 	validateServerEnvironment: vi.fn(),
 }));
@@ -141,6 +142,49 @@ describe("anonymous Better Auth wildcard boundary", () => {
 
 		expect(response.status).toBe(403);
 		expect(await response.json()).toEqual({ code: "GUEST_BOOTSTRAP_FAILED" });
+	});
+
+	it("normalizes the proven anonymous HTML form POST to Better Auth JSON", async () => {
+		vi.stubEnv("GUEST_PROMOTION_PERIOD", "2026-launch");
+		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", "https://app.test");
+		vi.stubEnv("BETTER_AUTH_SECRET", "test-secret");
+		vi.stubEnv("MEDIA_TRUSTED_PROXY_PROVIDER", "cloudflare");
+		databaseMocks.hasDurableGuestBootstrapProof.mockResolvedValue(true);
+		databaseMocks.resolveGuestRuntimeConfigOverride.mockResolvedValue({ enabled: true });
+		databaseClientMocks.user.findFirst.mockResolvedValue({ id: "guest-user" });
+		databaseMocks.consumeGuestBootstrap.mockImplementation(
+			async (_input, createPrincipal: (input: { email: string }) => Promise<unknown>) => ({
+				outcome: "CREATED",
+				value: await createPrincipal({ email: "guest@anonymous.invalid" }),
+			}),
+		);
+		let forwardedRequest: Request | undefined;
+		vi.mocked(auth.handler).mockImplementation(async (request) => {
+			forwardedRequest = request;
+			return Response.json({ user: { id: "guest-user" } });
+		});
+
+		const response = await app.request("/api/auth/sign-in/anonymous", {
+			method: "POST",
+			headers: {
+				origin: "https://app.test",
+				"cf-connecting-ip": "203.0.113.10",
+				"content-length": "0",
+				"content-type": "application/x-www-form-urlencoded",
+				cookie: `media_guest_bootstrap=${"a".repeat(43)}`,
+			},
+			body: "",
+		});
+
+		expect(response.status).toBe(200);
+		expect(forwardedRequest).toBeDefined();
+		expect(forwardedRequest?.url).toBe("http://localhost/api/auth/sign-in/anonymous");
+		expect(forwardedRequest?.headers.get("origin")).toBe("https://app.test");
+		expect(forwardedRequest?.headers.get("cf-connecting-ip")).toBe("203.0.113.10");
+		expect(forwardedRequest?.headers.get("cookie")).toBe(`media_guest_bootstrap=${"a".repeat(43)}`);
+		expect(forwardedRequest?.headers.get("content-type")).toBe("application/json");
+		expect(forwardedRequest?.headers.get("content-length")).toBeNull();
+		expect(await forwardedRequest?.clone().json()).toEqual({});
 	});
 
 	it("waits for lease cleanup and maps a non-OK Better Auth response without leaking it", async () => {

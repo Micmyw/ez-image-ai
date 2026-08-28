@@ -20,6 +20,13 @@ const EXPECTED_EVENTS = [
 	"upgrade_prompt_viewed",
 	"checkout_started",
 	"subscription_activated",
+	"guest_generation_admitted",
+	"guest_result_ready",
+	"guest_result_viewed",
+	"guest_watermarked_downloaded",
+	"guest_sign_in_cta_started",
+	"guest_registered_session_established",
+	"guest_result_grant_completed",
 ] as const;
 
 type GrowthAnalyticsModule = {
@@ -94,7 +101,15 @@ describe("EzPic growth analytics event contract", () => {
 			{ accessToken: "Bearer secret-token" },
 			{ provider: "replicate" },
 			{ modelId: "provider/model-version" },
+			{ providerModelId: "provider/model-version" },
+			{ "Provider Model ID": "provider/model-version" },
+			{ provider_model_id: "provider/model-version" },
 			{ providerCostMicros: 1234 },
+			{ "Provider Cost Micros": 1234 },
+			{ provider_cost_micros: 1234 },
+			{ providerTaskId: "task-private-1" },
+			{ "Provider Task ID": "task-private-1" },
+			{ provider_task_id: "task-private-1" },
 			{ status: "https://cdn.example/output.png?token=secret" },
 			{ status: "person@example.com" },
 		]) {

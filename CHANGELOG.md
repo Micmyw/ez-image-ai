@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-08-28
+
+### Operations and verification
+
+- Added aggregate anonymous-trial diagnostics for admission, queue age, sponsored risk and credits,
+  attempt/cost coverage, moderation, watermarking, result grants, and cleanup. Automatic threshold
+  breaches create only an audited guest-admission disable override; raw network/device evidence,
+  prompts, tokens, media URLs, and service payloads remain excluded from the admin response.
+- Added consent-aware guest lifecycle events from admission through result access and account-link
+  completion, preserving internal identifiers only as local dedupe keys and keeping analytics out of
+  authorization and abuse decisions.
+- Added deterministic anonymous-trial browser coverage, responsive/accessibility assertions, public
+  artifact originality checks, and launch-certification gates for measured billed Standard cost,
+  external hard-budget evidence, privacy/cleanup readiness, and production runtime evidence.
+- Documented the temporary anonymous User/Session, up-to-24-hour private guest media, pseudonymous
+  promotion-period HMAC abuse evidence, expiry-bounded account-link grant, deletion sequence, four
+  kill switches, and drain/reconcile rollback procedure in English and German privacy content and a
+  dedicated operator runbook.
+- Production deployment, live external services, billed image-service evidence, external budget
+  enforcement, and production guest enablement remain `NOT_COMPLETED`.
+
 ## 2026-08-26
 
 ### Operations

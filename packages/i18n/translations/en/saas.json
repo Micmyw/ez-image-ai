@@ -78,6 +78,40 @@
 					"jobs": "Jobs"
 				}
 			},
+			"guest": {
+				"title": "Anonymous Standard trial operations",
+				"description": "Aggregate guest health only. Raw network, device, token, prompt, media, and route payloads are excluded.",
+				"attention": "Attention required",
+				"healthy": "Within thresholds",
+				"loading": "Loading guest operations…",
+				"empty": "No matching signals",
+				"denials": "Admission denials by reason",
+				"automaticClosures": "Automatic closure reasons",
+				"controls": {
+					"environment": "Environment gate",
+					"runtime": "Guest runtime override",
+					"admission": "New guest admission"
+				},
+				"metrics": {
+					"risk": "Sponsored risk utilization",
+					"queue": "Guest queue",
+					"attempts": "Accepted / rejected / uncertain",
+					"moderation": "Approved / rejected / errors",
+					"watermark": "Watermarked / failed",
+					"results": "Ready / grants completed",
+					"sponsorCredits": "Granted / settled credits",
+					"cleanup": "Expired / overdue assets"
+				},
+				"details": {
+					"risk": "held {held} · committed {committed} · budget {budget} micros",
+					"queue": "oldest {age}s · p50 {p50}ms · p95 {p95}ms",
+					"attempts": "reported cost {covered} · missing cost {missing}",
+					"errorRate": "error rate {rate}",
+					"expiredGrants": "expired grants {count}",
+					"credits": "reserved {reserved} · released {released}",
+					"cleanup": "dead letters {deadLetters} · oldest overdue {seconds}s"
+				}
+			},
 			"metrics": {
 				"queue": "Queue depth",
 				"oldest": "Oldest wait: {seconds}s",

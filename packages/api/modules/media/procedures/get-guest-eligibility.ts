@@ -46,7 +46,7 @@ export const getGuestEligibility = guestMediaProcedure
 						promotionPeriod: loaded.config.promotionPeriod,
 					},
 				},
-				select: { currentJobId: true },
+				select: { currentJobId: true, consumedJobId: true },
 			}),
 			db.guestLinkIntent.findUnique({
 				where: {
@@ -104,7 +104,7 @@ export const getGuestEligibility = guestMediaProcedure
 				: linkIntent
 					? ("LINK_IN_PROGRESS" as const)
 					: ("AVAILABLE" as const),
-			existingJobId: trial?.currentJobId ?? null,
+			existingJobId: trial?.currentJobId ?? trial?.consumedJobId ?? null,
 			claimedDraft,
 		};
 	});

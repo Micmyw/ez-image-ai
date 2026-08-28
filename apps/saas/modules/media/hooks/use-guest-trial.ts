@@ -1,5 +1,6 @@
 "use client";
 
+import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpcClient } from "@shared/lib/orpc-client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -125,11 +126,13 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 
 	useEffect(() => {
 		if (view.state !== "ready" || !view.jobId || !view.resultAssetId || resultUrl) return;
+		void saasGrowthFunnel.guestResultReady(view.jobId);
 		let active = true;
 		void requestAccess(view.jobId, view.resultAssetId, "inline")
 			.then((result) => {
 				if (active) {
 					setResultUrl(result.url);
+					void saasGrowthFunnel.guestResultViewed(view.resultAssetId!);
 					setErrorKey((current) => (current === "access" ? undefined : current));
 				}
 			})
@@ -167,6 +170,7 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 				turnstileToken,
 			});
 			updateSnapshot(next);
+			void saasGrowthFunnel.guestGenerationAdmitted(next.jobId);
 		} catch {
 			setErrorKey("submit");
 			setSubmitErrorNonce((value) => value + 1);
@@ -180,6 +184,7 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 		setErrorKey(undefined);
 		try {
 			const result = await requestAccess(view.jobId, view.resultAssetId, "attachment");
+			void saasGrowthFunnel.guestWatermarkedDownloaded(view.resultAssetId);
 			window.location.assign(result.url);
 		} catch {
 			setErrorKey("download");
@@ -196,6 +201,7 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 				returnPath: "/try",
 				idempotencyKey: createIdempotencyKey("guest-link"),
 			});
+			void saasGrowthFunnel.guestSignInCtaStarted(view.jobId ?? "draft");
 			window.location.assign(`/${destination}?redirectTo=${encodeURIComponent("/try")}`);
 		} catch {
 			setErrorKey("link");
@@ -230,6 +236,10 @@ async function loadInitialGuestTrial(
 ): Promise<GuestInitialLoad> {
 	if (registered) {
 		const linked = await orpcClient.media.completeGuestLinkIntent({});
+		if (linked.mode === "RESULT") {
+			void saasGrowthFunnel.guestRegisteredSessionEstablished(linked.jobId);
+			void saasGrowthFunnel.guestResultGrantCompleted(linked.jobId);
+		}
 		return linked.mode === "DRAFT"
 			? { kind: "redirect" }
 			: { kind: "snapshot", snapshot: await pollJob(linked.jobId) };

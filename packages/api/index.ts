@@ -356,7 +356,16 @@ async function handleDurableGuestAnonymousSignIn(request: Request): Promise<Resp
 				limits: guestConfig.limits,
 			},
 			async ({ email }) => {
-				const response = await runAnonymousBootstrapIdentity(email, () => auth.handler(request));
+				const authHeaders = new Headers(request.headers);
+				authHeaders.set("content-type", "application/json");
+				authHeaders.delete("content-length");
+				const authRequest = new Request(request, {
+					body: "{}",
+					headers: authHeaders,
+				});
+				const response = await runAnonymousBootstrapIdentity(email, () =>
+					auth.handler(authRequest),
+				);
 				if (!response.ok) {
 					throw new GuestAuthHandlerResponseError("GUEST_BOOTSTRAP_FAILED", 403);
 				}

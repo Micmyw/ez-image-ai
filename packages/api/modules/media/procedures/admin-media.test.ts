@@ -113,6 +113,55 @@ describe("media administration authorization and safe DTOs", () => {
 				},
 			},
 			overrides: [],
+			guest: {
+				admission: {
+					accepted: 3,
+					deniedByReason: [{ reason: "QUEUE_CAPACITY", count: 2 }],
+				},
+				queue: {
+					depth: 4,
+					oldestAgeSeconds: 301,
+					waitMs: { p50: 80_000, p95: 140_000 },
+					expiredBeforeDispatch: 1,
+				},
+				risk: {
+					budgetMicros: "100000",
+					heldMicros: "20000",
+					committedMicros: "60000",
+					releasedMicros: "10000",
+					utilizationPercent: 80,
+					state: "SLOW",
+				},
+				sponsorCredits: { granted: "12", reserved: "4", settled: "8", released: "0" },
+				attempts: {
+					accepted: 2,
+					rejected: 0,
+					uncertain: 1,
+					uncertainOlderThanTenMinutes: 1,
+					reportedCostCovered: 2,
+					reportedCostMissing: 1,
+					billedSpendMismatch: 0,
+				},
+				moderation: { approved: 2, rejected: 1, errors: 0, errorRate: 0 },
+				watermark: { succeeded: 2, failed: 0 },
+				resultAccess: { ready: 2, grantsCompleted: 1, expiredGrants: 0 },
+				cleanup: {
+					expiredAssets: 1,
+					overdueAssets: 1,
+					deadLetterEvents: 0,
+					oldestOverdueSeconds: 42,
+				},
+				controls: {
+					environmentEnabled: false,
+					runtimeEnabled: false,
+					admissionOpen: false,
+					automaticClosureReasons: ["QUEUE_AGE"],
+				},
+				rawIp: "203.0.113.8",
+				deviceHash: "fixture-secret-do-not-return",
+				prompt: "fixture-secret-do-not-return",
+				providerPayload: { costMicros: 1234 },
+			},
 		} as never);
 
 		const result = await call(adminMediaDiagnostics, undefined, context);
@@ -122,6 +171,51 @@ describe("media administration authorization and safe DTOs", () => {
 		);
 		expect(serialized).not.toContain("fixture-secret-do-not-return");
 		expect(result.queue.depth).toBe(4);
+		expect(result.guest).toEqual({
+			admission: {
+				accepted: 3,
+				deniedByReason: [{ reason: "QUEUE_CAPACITY", count: 2 }],
+			},
+			queue: {
+				depth: 4,
+				oldestAgeSeconds: 301,
+				waitMs: { p50: 80_000, p95: 140_000 },
+				expiredBeforeDispatch: 1,
+			},
+			risk: {
+				budgetMicros: "100000",
+				heldMicros: "20000",
+				committedMicros: "60000",
+				releasedMicros: "10000",
+				utilizationPercent: 80,
+				state: "SLOW",
+			},
+			sponsorCredits: { granted: "12", reserved: "4", settled: "8", released: "0" },
+			attempts: {
+				accepted: 2,
+				rejected: 0,
+				uncertain: 1,
+				uncertainOlderThanTenMinutes: 1,
+				reportedCostCovered: 2,
+				reportedCostMissing: 1,
+				billedSpendMismatch: 0,
+			},
+			moderation: { approved: 2, rejected: 1, errors: 0, errorRate: 0 },
+			watermark: { succeeded: 2, failed: 0 },
+			resultAccess: { ready: 2, grantsCompleted: 1, expiredGrants: 0 },
+			cleanup: {
+				expiredAssets: 1,
+				overdueAssets: 1,
+				deadLetterEvents: 0,
+				oldestOverdueSeconds: 42,
+			},
+			controls: {
+				environmentEnabled: false,
+				runtimeEnabled: false,
+				admissionOpen: false,
+				automaticClosureReasons: ["QUEUE_AGE"],
+			},
+		});
 		expect(result.events.payment.failed.items).toEqual([
 			{
 				id: "payment_failed_1",

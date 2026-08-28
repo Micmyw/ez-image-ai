@@ -10,6 +10,87 @@ interface AggregateCountAge {
 	oldestAgeSeconds: number | null;
 }
 
+const GUEST_RUNTIME_CONFIG_KEY = "media.guestGeneration.enabled";
+const GUEST_SAFETY_ACTOR = "system:guest-safety-monitor";
+
+function bigintRatio(numerator: bigint, denominator: bigint): number | null {
+	if (denominator === 0n) return null;
+	return Number((numerator * 1_000_000n) / denominator) / 1_000_000;
+}
+
+export interface GuestOperationalSafetyInput {
+	heldRiskMicros: bigint;
+	committedRiskMicros: bigint;
+	riskBudgetMicros: bigint;
+	queueDepth: number;
+	oldestQueueAgeSeconds: number;
+	uncertainOlderThanTenMinutes: number;
+	moderationErrorRate: number | null;
+	watermarkFailures: number;
+	billedSpendMismatch: number;
+	overdueCleanupAssets: number;
+}
+
+export function evaluateGuestOperationalSafety(input: GuestOperationalSafetyInput) {
+	const usedRiskMicros = input.heldRiskMicros + input.committedRiskMicros;
+	const budgetConfigured = input.riskBudgetMicros > 0n;
+	const utilizationPercent = budgetConfigured
+		? Number((usedRiskMicros * 10_000n) / input.riskBudgetMicros) / 100
+		: 100;
+	const riskState =
+		utilizationPercent >= 100
+			? ("EXHAUSTED" as const)
+			: utilizationPercent >= 90
+				? ("CLOSED" as const)
+				: utilizationPercent >= 75
+					? ("SLOW" as const)
+					: utilizationPercent >= 50
+						? ("WARN" as const)
+						: ("OK" as const);
+	const warnings: string[] = [];
+	const closureReasons: string[] = [];
+	if (!budgetConfigured) closureReasons.push("RISK_BUDGET_CONFIGURATION");
+	else if (utilizationPercent >= 90) closureReasons.push("RISK_BUDGET");
+	else if (utilizationPercent >= 50) warnings.push("RISK_BUDGET");
+	if (input.queueDepth >= 25) closureReasons.push("QUEUE_DEPTH");
+	else if (input.queueDepth > 20) warnings.push("QUEUE_DEPTH");
+	if (input.oldestQueueAgeSeconds >= 600) closureReasons.push("QUEUE_AGE");
+	else if (input.oldestQueueAgeSeconds > 300) warnings.push("QUEUE_AGE");
+	if (input.uncertainOlderThanTenMinutes > 0) warnings.push("UNCERTAIN_ATTEMPT_AGE");
+	if ((input.moderationErrorRate ?? 0) > 0.01) closureReasons.push("MODERATION_ERRORS");
+	if (input.watermarkFailures > 0) closureReasons.push("WATERMARK_FAILURE");
+	if (input.billedSpendMismatch > 0) closureReasons.push("BILLED_SPEND_MISMATCH");
+	if (input.overdueCleanupAssets > 0) closureReasons.push("CLEANUP_OVERDUE");
+
+	const admissionAction =
+		utilizationPercent >= 100
+			? ("REJECT" as const)
+			: closureReasons.length > 0
+				? ("CLOSE" as const)
+				: utilizationPercent >= 75
+					? ("SLOW" as const)
+					: warnings.length > 0
+						? ("WARN" as const)
+						: ("OPEN" as const);
+	return {
+		usedRiskMicros,
+		utilizationPercent,
+		riskState,
+		admissionAction,
+		warnings,
+		closureReasons,
+		...(admissionAction === "CLOSE" || admissionAction === "REJECT"
+			? { automaticOverride: { configKey: GUEST_RUNTIME_CONFIG_KEY, value: false as const } }
+			: {}),
+	};
+}
+
+export interface AdminMediaDiagnosticsOptions {
+	guestEnvironmentEnabled?: boolean;
+	guestRiskBudgetMicros?: bigint;
+	applyAutomaticGuestClosure?: boolean;
+}
+
 const PAYMENT_EVENT_DIAGNOSTIC_LIMIT = 25;
 const STRIPE_RECONCILIATION_DIAGNOSTIC_LIMIT = 25;
 
@@ -198,7 +279,10 @@ interface HistoricalStripeRefundCountRow {
 	missingLifecycleCount: bigint;
 }
 
-export async function getAdminMediaDiagnostics(client: MediaTransactionClient) {
+export async function getAdminMediaDiagnostics(
+	client: MediaTransactionClient,
+	options: AdminMediaDiagnosticsOptions = {},
+) {
 	const now = new Date();
 	const stalledBefore = new Date(now.getTime() - 15 * 60_000);
 	const dayStart = new Date(now);
@@ -506,6 +590,7 @@ export async function getAdminMediaDiagnostics(client: MediaTransactionClient) {
 		missingLifecycleCount: 0n,
 	};
 	const netRevenue = finance.revenueMicros - finance.refundedMicros;
+	const guest = await getAdminGuestDiagnostics(client, now, options);
 	return {
 		generatedAt: now.toISOString(),
 		queue: {
@@ -603,6 +688,333 @@ export async function getAdminMediaDiagnostics(client: MediaTransactionClient) {
 			reason: item.reason,
 			createdAt: item.createdAt.toISOString(),
 		})),
+		guest,
+	};
+}
+
+interface GuestDiagnosticRow {
+	accepted: bigint;
+	queueDepth: bigint;
+	oldestQueueAgeSeconds: number | null;
+	waitP50Ms: bigint | null;
+	waitP95Ms: bigint | null;
+	expiredBeforeDispatch: bigint;
+	heldRiskMicros: bigint;
+	committedRiskMicros: bigint;
+	releasedRiskMicros: bigint;
+	sponsorGranted: bigint;
+	sponsorReserved: bigint;
+	sponsorSettled: bigint;
+	sponsorReleased: bigint;
+	attemptAccepted: bigint;
+	attemptRejected: bigint;
+	attemptUncertain: bigint;
+	uncertainOlderThanTenMinutes: bigint;
+	reportedCostCovered: bigint;
+	reportedCostMissing: bigint;
+	billedSpendMismatch: bigint;
+	moderationApproved: bigint;
+	moderationRejected: bigint;
+	moderationErrors: bigint;
+	moderationTotal: bigint;
+	watermarkSucceeded: bigint;
+	watermarkFailed: bigint;
+	readyResults: bigint;
+	grantsCompleted: bigint;
+	expiredGrants: bigint;
+	expiredAssets: bigint;
+	overdueAssets: bigint;
+	cleanupDeadLetterEvents: bigint;
+	oldestOverdueSeconds: number | null;
+}
+
+interface GuestDenialRow {
+	reason: string;
+	count: bigint;
+}
+
+async function getAdminGuestDiagnostics(
+	client: MediaTransactionClient,
+	now: Date,
+	options: AdminMediaDiagnosticsOptions,
+) {
+	const uncertainBefore = new Date(now.getTime() - 10 * 60_000);
+	const cleanupOverdueBefore = new Date(now.getTime() - 30 * 60_000);
+	const [rows, denialRows, runtimeOverride] = await Promise.all([
+		client.$queryRaw<Array<GuestDiagnosticRow>>`
+			WITH guest_job AS (
+				SELECT job.*, trial."frozenQuotedRiskMicros", trial."riskState"::text AS "trialRiskState"
+				FROM "generation_job" job
+				JOIN "guest_media_trial" trial ON trial."id" = job."guestTrialId"
+				WHERE job."serviceClass" = 'GUEST_SLOW'::"GenerationServiceClass"
+			), guest_attempt AS (
+				SELECT attempt.*, job."frozenQuotedRiskMicros"
+				FROM "generation_attempt" attempt
+				JOIN guest_job job ON job."id" = attempt."jobId"
+			), guest_asset AS (
+				SELECT DISTINCT asset.*
+				FROM "media_asset" asset
+				JOIN "generation_job_asset" binding ON binding."assetId" = asset."id"
+				JOIN guest_job job ON job."id" = binding."jobId"
+				WHERE asset."retentionClass" = 'GUEST_TRIAL'::"MediaRetentionClass"
+			), latest_moderation AS (
+				SELECT DISTINCT ON (result."assetId") result."assetId", result."status"::text AS status
+				FROM "asset_moderation_result" result
+				JOIN guest_asset asset ON asset."id" = result."assetId"
+				ORDER BY result."assetId", result."verificationGeneration" DESC,
+				         result."attemptNumber" DESC, result."createdAt" DESC, result."id" DESC
+			)
+			SELECT
+			 (SELECT COUNT(*) FROM "guest_media_trial")::bigint AS accepted,
+			 COUNT(*) FILTER (WHERE job."status" IN ('RESERVED','DISPATCH_QUEUED'))::bigint AS "queueDepth",
+			 EXTRACT(EPOCH FROM (${now} - MIN(job."createdAt") FILTER
+			   (WHERE job."status" IN ('RESERVED','DISPATCH_QUEUED'))))::double precision AS "oldestQueueAgeSeconds",
+			 ROUND((percentile_cont(0.5) WITHIN GROUP (ORDER BY
+			   EXTRACT(EPOCH FROM (job."dispatchEligibleAt" - job."createdAt")) * 1000)
+			   FILTER (WHERE job."dispatchEligibleAt" IS NOT NULL))::numeric)::bigint AS "waitP50Ms",
+			 ROUND((percentile_cont(0.95) WITHIN GROUP (ORDER BY
+			   EXTRACT(EPOCH FROM (job."dispatchEligibleAt" - job."createdAt")) * 1000)
+			   FILTER (WHERE job."dispatchEligibleAt" IS NOT NULL))::numeric)::bigint AS "waitP95Ms",
+			 COUNT(*) FILTER (WHERE job."failureCode" = 'GUEST_QUEUE_EXPIRED')::bigint AS "expiredBeforeDispatch",
+			 COALESCE((SELECT SUM(trial."frozenQuotedRiskMicros") FROM "guest_media_trial" trial
+			   WHERE trial."riskState" = 'HELD'::"GuestRiskState"), 0)::bigint AS "heldRiskMicros",
+			 COALESCE((SELECT SUM(trial."frozenQuotedRiskMicros") FROM "guest_media_trial" trial
+			   WHERE trial."riskState" = 'COMMITTED'::"GuestRiskState"), 0)::bigint AS "committedRiskMicros",
+			 COALESCE((SELECT SUM(trial."frozenQuotedRiskMicros") FROM "guest_media_trial" trial
+			   WHERE trial."riskState" = 'RELEASED'::"GuestRiskState"), 0)::bigint AS "releasedRiskMicros",
+			 COALESCE((SELECT SUM(entry."amount") FROM "credit_ledger_entry" entry
+			   WHERE entry."type" = 'GRANT'::"CreditLedgerEntryType"
+			     AND entry."referenceKey" LIKE 'guest-trial:%:grant'), 0)::bigint AS "sponsorGranted",
+			 COALESCE(SUM(reservation."amount"), 0)::bigint AS "sponsorReserved",
+			 COALESCE(SUM(reservation."settledAmount"), 0)::bigint AS "sponsorSettled",
+			 COALESCE(SUM(reservation."releasedAmount"), 0)::bigint AS "sponsorReleased",
+			 (SELECT COUNT(*) FROM guest_attempt attempt
+			   WHERE attempt."status" IN ('SUBMITTED','RUNNING','SUCCEEDED'))::bigint AS "attemptAccepted",
+			 (SELECT COUNT(*) FROM guest_attempt attempt
+			   WHERE attempt."status" IN ('FAILED','CANCELED'))::bigint AS "attemptRejected",
+			 (SELECT COUNT(*) FROM guest_attempt attempt
+			   WHERE attempt."uncertainSubmission" = true OR attempt."status" = 'SUBMISSION_UNCERTAIN')::bigint AS "attemptUncertain",
+			 (SELECT COUNT(*) FROM guest_attempt attempt
+			   WHERE (attempt."uncertainSubmission" = true OR attempt."status" = 'SUBMISSION_UNCERTAIN')
+			     AND attempt."createdAt" < ${uncertainBefore})::bigint AS "uncertainOlderThanTenMinutes",
+			 (SELECT COUNT(*) FROM guest_attempt attempt WHERE attempt."providerCostMicros" IS NOT NULL)::bigint AS "reportedCostCovered",
+			 (SELECT COUNT(*) FROM guest_attempt attempt WHERE attempt."providerCostMicros" IS NULL)::bigint AS "reportedCostMissing",
+			 (SELECT COUNT(*) FROM guest_attempt attempt
+			   WHERE attempt."providerCostMicros" > attempt."frozenQuotedRiskMicros")::bigint AS "billedSpendMismatch",
+			 (SELECT COUNT(*) FROM latest_moderation WHERE status = 'APPROVED')::bigint AS "moderationApproved",
+			 (SELECT COUNT(*) FROM latest_moderation WHERE status IN ('REJECTED','REVIEW'))::bigint AS "moderationRejected",
+			 (SELECT COUNT(*) FROM latest_moderation WHERE status = 'ERROR')::bigint AS "moderationErrors",
+			 (SELECT COUNT(*) FROM latest_moderation)::bigint AS "moderationTotal",
+			 (SELECT COUNT(*) FROM guest_asset asset
+			   WHERE asset."kind" = 'OUTPUT' AND asset."watermarkVersion" IS NOT NULL
+			     AND asset."watermarkedAt" IS NOT NULL AND asset."cleanStagingDeletedAt" IS NOT NULL)::bigint AS "watermarkSucceeded",
+			 COUNT(*) FILTER (WHERE job."failureCode" LIKE 'GUEST%WATERMARK%')::bigint AS "watermarkFailed",
+			 (SELECT COUNT(*) FROM guest_asset asset
+			   WHERE asset."kind" = 'OUTPUT' AND asset."status" = 'READY'
+			     AND asset."watermarkVersion" IS NOT NULL)::bigint AS "readyResults",
+			 (SELECT COUNT(*) FROM "guest_result_access_grant" grant_row
+			   WHERE grant_row."consumedAt" IS NOT NULL)::bigint AS "grantsCompleted",
+			 (SELECT COUNT(*) FROM "guest_result_access_grant" grant_row
+			   WHERE grant_row."expiresAt" <= ${now})::bigint AS "expiredGrants",
+			 (SELECT COUNT(*) FROM guest_asset asset
+			   WHERE asset."deleteAfter" <= ${now} AND asset."deletedAt" IS NULL)::bigint AS "expiredAssets",
+			 (SELECT COUNT(*) FROM guest_asset asset
+			   WHERE asset."deleteAfter" <= ${cleanupOverdueBefore} AND asset."deletedAt" IS NULL)::bigint AS "overdueAssets",
+			 (SELECT COUNT(*) FROM "outbox_event" outbox
+			   WHERE outbox."status" = 'DEAD_LETTER' AND outbox."eventType" IN
+			     ('MEDIA_OBJECT_DELETE','MEDIA_UPLOAD_CLEANUP','MEDIA_MULTIPART_ABORT'))::bigint AS "cleanupDeadLetterEvents",
+			 EXTRACT(EPOCH FROM (${now} - (SELECT MIN(asset."deleteAfter") FROM guest_asset asset
+			   WHERE asset."deleteAfter" <= ${cleanupOverdueBefore} AND asset."deletedAt" IS NULL)))::double precision AS "oldestOverdueSeconds"
+			FROM guest_job job
+			LEFT JOIN "credit_reservation" reservation ON reservation."jobId" = job."id"`,
+		client.$queryRaw<Array<GuestDenialRow>>`
+			SELECT CASE
+			  WHEN "scope" LIKE '%turnstile%' THEN 'TURNSTILE_REPLAY'
+			  WHEN "scope" LIKE '%device%' THEN 'DEVICE_LIMIT'
+			  WHEN "scope" LIKE '%subnet%' THEN 'SUBNET_RATE_LIMIT'
+			  WHEN "scope" LIKE '%ip%' THEN 'IP_RATE_LIMIT'
+			  WHEN "scope" LIKE '%global%' THEN 'GLOBAL_RATE_LIMIT'
+			  ELSE 'OTHER_RATE_LIMIT'
+			 END AS reason, SUM("rejectionCount")::bigint AS count
+			FROM "guest_abuse_bucket"
+			WHERE "rejectionCount" > 0
+			GROUP BY reason
+			ORDER BY reason`,
+		client.runtimeConfigOverride.findFirst({
+			where: { configKey: GUEST_RUNTIME_CONFIG_KEY, active: true },
+			select: { value: true },
+			orderBy: { version: "desc" },
+		}),
+	]);
+	const row = rows[0] ?? emptyGuestDiagnosticRow();
+	const moderationErrorRate = bigintRatio(row.moderationErrors, row.moderationTotal);
+	const safety = evaluateGuestOperationalSafety({
+		heldRiskMicros: row.heldRiskMicros,
+		committedRiskMicros: row.committedRiskMicros,
+		riskBudgetMicros: options.guestRiskBudgetMicros ?? 0n,
+		queueDepth: Number(row.queueDepth),
+		oldestQueueAgeSeconds: Math.round(row.oldestQueueAgeSeconds ?? 0),
+		uncertainOlderThanTenMinutes: Number(row.uncertainOlderThanTenMinutes),
+		moderationErrorRate,
+		watermarkFailures: Number(row.watermarkFailed),
+		billedSpendMismatch: Number(row.billedSpendMismatch),
+		overdueCleanupAssets: Number(row.overdueAssets),
+	});
+	let runtimeEnabled = runtimeOverride?.value === true;
+	if (
+		options.guestEnvironmentEnabled === true &&
+		options.applyAutomaticGuestClosure === true &&
+		safety.automaticOverride &&
+		runtimeEnabled
+	) {
+		await closeGuestAdmissionForSafety(safety.closureReasons, client);
+		runtimeEnabled = false;
+	}
+	return {
+		admission: {
+			accepted: Number(row.accepted),
+			deniedByReason: denialRows.map((denial) => ({
+				reason: denial.reason,
+				count: Number(denial.count),
+			})),
+		},
+		queue: {
+			depth: Number(row.queueDepth),
+			oldestAgeSeconds: Math.round(row.oldestQueueAgeSeconds ?? 0),
+			waitMs: {
+				p50: row.waitP50Ms === null ? null : Number(row.waitP50Ms),
+				p95: row.waitP95Ms === null ? null : Number(row.waitP95Ms),
+			},
+			expiredBeforeDispatch: Number(row.expiredBeforeDispatch),
+		},
+		risk: {
+			budgetMicros: (options.guestRiskBudgetMicros ?? 0n).toString(),
+			heldMicros: row.heldRiskMicros.toString(),
+			committedMicros: row.committedRiskMicros.toString(),
+			releasedMicros: row.releasedRiskMicros.toString(),
+			utilizationPercent: safety.utilizationPercent,
+			state: safety.riskState,
+		},
+		sponsorCredits: {
+			granted: row.sponsorGranted.toString(),
+			reserved: row.sponsorReserved.toString(),
+			settled: row.sponsorSettled.toString(),
+			released: row.sponsorReleased.toString(),
+		},
+		attempts: {
+			accepted: Number(row.attemptAccepted),
+			rejected: Number(row.attemptRejected),
+			uncertain: Number(row.attemptUncertain),
+			uncertainOlderThanTenMinutes: Number(row.uncertainOlderThanTenMinutes),
+			reportedCostCovered: Number(row.reportedCostCovered),
+			reportedCostMissing: Number(row.reportedCostMissing),
+			billedSpendMismatch: Number(row.billedSpendMismatch),
+		},
+		moderation: {
+			approved: Number(row.moderationApproved),
+			rejected: Number(row.moderationRejected),
+			errors: Number(row.moderationErrors),
+			errorRate: moderationErrorRate,
+		},
+		watermark: {
+			succeeded: Number(row.watermarkSucceeded),
+			failed: Number(row.watermarkFailed),
+		},
+		resultAccess: {
+			ready: Number(row.readyResults),
+			grantsCompleted: Number(row.grantsCompleted),
+			expiredGrants: Number(row.expiredGrants),
+		},
+		cleanup: {
+			expiredAssets: Number(row.expiredAssets),
+			overdueAssets: Number(row.overdueAssets),
+			deadLetterEvents: Number(row.cleanupDeadLetterEvents),
+			oldestOverdueSeconds: Math.round(row.oldestOverdueSeconds ?? 0),
+		},
+		controls: {
+			environmentEnabled: options.guestEnvironmentEnabled === true,
+			runtimeEnabled,
+			admissionOpen:
+				options.guestEnvironmentEnabled === true && runtimeEnabled && !safety.automaticOverride,
+			automaticClosureReasons: safety.closureReasons,
+		},
+	};
+}
+
+async function closeGuestAdmissionForSafety(
+	reasons: string[],
+	client: MediaTransactionClient,
+): Promise<void> {
+	await client.$transaction(async (tx) => {
+		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('runtime_config_override_version'))`;
+		const active = await tx.runtimeConfigOverride.findFirst({
+			where: { configKey: GUEST_RUNTIME_CONFIG_KEY, active: true },
+			orderBy: { version: "desc" },
+		});
+		if (!active || active.value !== true) return;
+		await tx.runtimeConfigOverride.updateMany({
+			where: { configKey: GUEST_RUNTIME_CONFIG_KEY, active: true },
+			data: { active: false, revertedAt: new Date(), revertedByUserId: GUEST_SAFETY_ACTOR },
+		});
+		const [next] = await tx.$queryRaw<Array<{ version: number }>>`
+			SELECT COALESCE(MAX("version"), 0)::int + 1 AS "version" FROM "runtime_config_override"`;
+		const created = await tx.runtimeConfigOverride.create({
+			data: {
+				configKey: GUEST_RUNTIME_CONFIG_KEY,
+				version: next!.version,
+				value: false,
+				reason: `Automatic guest safety closure: ${reasons.join(",")}`,
+				createdByUserId: GUEST_SAFETY_ACTOR,
+			},
+		});
+		await tx.auditLog.create({
+			data: {
+				actorUserId: null,
+				action: "MEDIA_GUEST_ADMISSION_AUTOMATICALLY_DISABLED",
+				targetType: "RUNTIME_CONFIG_OVERRIDE",
+				targetId: created.id,
+				after: { configKey: GUEST_RUNTIME_CONFIG_KEY, enabled: false, version: created.version },
+				metadata: { reasons },
+			},
+		});
+	});
+}
+
+function emptyGuestDiagnosticRow(): GuestDiagnosticRow {
+	return {
+		accepted: 0n,
+		queueDepth: 0n,
+		oldestQueueAgeSeconds: null,
+		waitP50Ms: null,
+		waitP95Ms: null,
+		expiredBeforeDispatch: 0n,
+		heldRiskMicros: 0n,
+		committedRiskMicros: 0n,
+		releasedRiskMicros: 0n,
+		sponsorGranted: 0n,
+		sponsorReserved: 0n,
+		sponsorSettled: 0n,
+		sponsorReleased: 0n,
+		attemptAccepted: 0n,
+		attemptRejected: 0n,
+		attemptUncertain: 0n,
+		uncertainOlderThanTenMinutes: 0n,
+		reportedCostCovered: 0n,
+		reportedCostMissing: 0n,
+		billedSpendMismatch: 0n,
+		moderationApproved: 0n,
+		moderationRejected: 0n,
+		moderationErrors: 0n,
+		moderationTotal: 0n,
+		watermarkSucceeded: 0n,
+		watermarkFailed: 0n,
+		readyResults: 0n,
+		grantsCompleted: 0n,
+		expiredGrants: 0n,
+		expiredAssets: 0n,
+		overdueAssets: 0n,
+		cleanupDeadLetterEvents: 0n,
+		oldestOverdueSeconds: null,
 	};
 }
 

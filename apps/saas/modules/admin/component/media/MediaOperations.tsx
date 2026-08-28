@@ -22,6 +22,49 @@ import { GrowthOperationsPanel } from "./GrowthOperationsPanel";
 
 const AUDIT_PAGE_SIZE = 20;
 
+interface GuestDiagnostics {
+	admission: { accepted: number; deniedByReason: Array<{ reason: string; count: number }> };
+	queue: {
+		depth: number;
+		oldestAgeSeconds: number;
+		waitMs: { p50: number | null; p95: number | null };
+		expiredBeforeDispatch: number;
+	};
+	risk: {
+		budgetMicros: string;
+		heldMicros: string;
+		committedMicros: string;
+		releasedMicros: string;
+		utilizationPercent: number;
+		state: "OK" | "WARN" | "SLOW" | "CLOSED" | "EXHAUSTED";
+	};
+	sponsorCredits: { granted: string; reserved: string; settled: string; released: string };
+	attempts: {
+		accepted: number;
+		rejected: number;
+		uncertain: number;
+		uncertainOlderThanTenMinutes: number;
+		reportedCostCovered: number;
+		reportedCostMissing: number;
+		billedSpendMismatch: number;
+	};
+	moderation: { approved: number; rejected: number; errors: number; errorRate: number | null };
+	watermark: { succeeded: number; failed: number };
+	resultAccess: { ready: number; grantsCompleted: number; expiredGrants: number };
+	cleanup: {
+		expiredAssets: number;
+		overdueAssets: number;
+		deadLetterEvents: number;
+		oldestOverdueSeconds: number;
+	};
+	controls: {
+		environmentEnabled: boolean;
+		runtimeEnabled: boolean;
+		admissionOpen: boolean;
+		automaticClosureReasons: string[];
+	};
+}
+
 function operationKey(): string {
 	return crypto.randomUUID();
 }
@@ -72,6 +115,7 @@ export function MediaOperations() {
 	return (
 		<div className="space-y-6">
 			<GrowthOperationsPanel />
+			<GuestOperationsPanel data={data?.guest} />
 			<div className="gap-4 md:grid-cols-2 xl:grid-cols-4 grid">
 				<Metric
 					title={t("metrics.queue")}
@@ -333,6 +377,205 @@ export function MediaOperations() {
 			</Card>
 		</div>
 	);
+}
+
+function GuestOperationsPanel({ data }: { data?: GuestDiagnostics }) {
+	const t = useTranslations("admin.media.guest");
+	const unsafe = Boolean(
+		data &&
+		(!data.controls.admissionOpen ||
+			data.watermark.failed > 0 ||
+			data.cleanup.overdueAssets > 0 ||
+			data.attempts.billedSpendMismatch > 0),
+	);
+	return (
+		<Card className="p-6">
+			<div className="gap-3 flex flex-wrap items-start justify-between">
+				<div>
+					<h2 className="font-semibold text-xl">{t("title")}</h2>
+					<p className="mt-1 max-w-3xl text-sm text-muted-foreground">{t("description")}</p>
+				</div>
+				{data && (
+					<Badge status={unsafe ? "error" : "success"}>{t(unsafe ? "attention" : "healthy")}</Badge>
+				)}
+			</div>
+
+			{data ? (
+				<>
+					<div className="mt-4 gap-2 flex flex-wrap">
+						<GuestControlBadge
+							label={t("controls.environment")}
+							enabled={data.controls.environmentEnabled}
+						/>
+						<GuestControlBadge
+							label={t("controls.runtime")}
+							enabled={data.controls.runtimeEnabled}
+						/>
+						<GuestControlBadge
+							label={t("controls.admission")}
+							enabled={data.controls.admissionOpen}
+						/>
+					</div>
+					<div className="mt-5 gap-3 sm:grid-cols-2 xl:grid-cols-4 grid">
+						<SummaryCard
+							title={t("metrics.risk")}
+							value={`${formatPercent(data.risk.utilizationPercent)} · ${data.risk.state}`}
+							detail={t("details.risk", {
+								held: data.risk.heldMicros,
+								committed: data.risk.committedMicros,
+								budget: data.risk.budgetMicros,
+							})}
+							alert={data.risk.state !== "OK"}
+						/>
+						<SummaryCard
+							title={t("metrics.queue")}
+							value={data.queue.depth}
+							detail={t("details.queue", {
+								age: data.queue.oldestAgeSeconds,
+								p50: data.queue.waitMs.p50 ?? "-",
+								p95: data.queue.waitMs.p95 ?? "-",
+							})}
+							alert={data.queue.depth > 20 || data.queue.oldestAgeSeconds > 300}
+						/>
+						<SummaryCard
+							title={t("metrics.attempts")}
+							value={`${data.attempts.accepted} / ${data.attempts.rejected} / ${data.attempts.uncertain}`}
+							detail={t("details.attempts", {
+								covered: data.attempts.reportedCostCovered,
+								missing: data.attempts.reportedCostMissing,
+							})}
+							alert={
+								data.attempts.uncertainOlderThanTenMinutes > 0 ||
+								data.attempts.billedSpendMismatch > 0
+							}
+						/>
+						<SummaryCard
+							title={t("metrics.moderation")}
+							value={`${data.moderation.approved} / ${data.moderation.rejected} / ${data.moderation.errors}`}
+							detail={t("details.errorRate", {
+								rate:
+									data.moderation.errorRate === null
+										? "-"
+										: formatPercent(data.moderation.errorRate * 100),
+							})}
+							alert={(data.moderation.errorRate ?? 0) > 0.01}
+						/>
+						<SummaryCard
+							title={t("metrics.watermark")}
+							value={`${data.watermark.succeeded} / ${data.watermark.failed}`}
+							alert={data.watermark.failed > 0}
+						/>
+						<SummaryCard
+							title={t("metrics.results")}
+							value={`${data.resultAccess.ready} / ${data.resultAccess.grantsCompleted}`}
+							detail={t("details.expiredGrants", { count: data.resultAccess.expiredGrants })}
+						/>
+						<SummaryCard
+							title={t("metrics.sponsorCredits")}
+							value={`${data.sponsorCredits.granted} / ${data.sponsorCredits.settled}`}
+							detail={t("details.credits", {
+								reserved: data.sponsorCredits.reserved,
+								released: data.sponsorCredits.released,
+							})}
+						/>
+						<SummaryCard
+							title={t("metrics.cleanup")}
+							value={`${data.cleanup.expiredAssets} / ${data.cleanup.overdueAssets}`}
+							detail={t("details.cleanup", {
+								deadLetters: data.cleanup.deadLetterEvents,
+								seconds: data.cleanup.oldestOverdueSeconds,
+							})}
+							alert={data.cleanup.overdueAssets > 0 || data.cleanup.deadLetterEvents > 0}
+						/>
+					</div>
+
+					<div className="mt-5 gap-4 lg:grid-cols-2 grid">
+						<AggregateList
+							title={t("denials")}
+							empty={t("empty")}
+							items={data.admission.deniedByReason.map((item) => ({
+								label: item.reason,
+								value: item.count,
+							}))}
+						/>
+						<AggregateList
+							title={t("automaticClosures")}
+							empty={t("empty")}
+							items={data.controls.automaticClosureReasons.map((reason) => ({
+								label: reason,
+								value: "—",
+							}))}
+						/>
+					</div>
+				</>
+			) : (
+				<p className="mt-5 text-sm text-muted-foreground">{t("loading")}</p>
+			)}
+		</Card>
+	);
+}
+
+function GuestControlBadge({ label, enabled }: { label: string; enabled: boolean }) {
+	return (
+		<Badge status={enabled ? "success" : "error"}>
+			{label}: {enabled ? "ON" : "OFF"}
+		</Badge>
+	);
+}
+
+function SummaryCard({
+	title,
+	value,
+	detail,
+	alert = false,
+}: {
+	title: string;
+	value: string | number;
+	detail?: string;
+	alert?: boolean;
+}) {
+	return (
+		<div className="p-4 rounded-md border">
+			<div className="gap-2 flex items-center justify-between">
+				<p className="text-xs text-muted-foreground">{title}</p>
+				{alert && <Badge status="error">!</Badge>}
+			</div>
+			<p className="mt-2 font-semibold text-xl">{value}</p>
+			{detail && <p className="mt-1 text-xs break-words text-muted-foreground">{detail}</p>}
+		</div>
+	);
+}
+
+function AggregateList({
+	title,
+	empty,
+	items,
+}: {
+	title: string;
+	empty: string;
+	items: Array<{ label: string; value: string | number }>;
+}) {
+	return (
+		<div>
+			<h3 className="font-medium">{title}</h3>
+			<div className="mt-2 divide-y rounded-md border">
+				{items.length ? (
+					items.map((item) => (
+						<div key={item.label} className="gap-3 p-3 text-sm flex justify-between">
+							<code>{item.label}</code>
+							<span>{item.value}</span>
+						</div>
+					))
+				) : (
+					<p className="p-3 text-sm text-muted-foreground">{empty}</p>
+				)}
+			</div>
+		</div>
+	);
+}
+
+function formatPercent(value: number): string {
+	return `${Math.round(value * 10) / 10}%`;
 }
 
 function Metric({

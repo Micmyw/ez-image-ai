@@ -75,6 +75,40 @@
 					"jobs": "Tâches"
 				}
 			},
+			"guest": {
+				"title": "Opérations de l’essai Standard anonyme",
+				"description": "Diagnostics invités agrégés uniquement. Les données brutes de réseau, appareil, jeton, instruction, média et route sont exclues.",
+				"attention": "Attention requise",
+				"healthy": "Dans les seuils",
+				"loading": "Chargement des opérations invitées…",
+				"empty": "Aucun signal correspondant",
+				"denials": "Refus d’admission par motif",
+				"automaticClosures": "Motifs de fermeture automatique",
+				"controls": {
+					"environment": "Verrou d’environnement",
+					"runtime": "Contrôle d’exécution invité",
+					"admission": "Nouvelle admission invitée"
+				},
+				"metrics": {
+					"risk": "Utilisation du risque sponsorisé",
+					"queue": "File d’attente invitée",
+					"attempts": "Acceptées / rejetées / incertaines",
+					"moderation": "Approuvées / rejetées / erreurs",
+					"watermark": "Filigranées / échouées",
+					"results": "Prêts / accès terminés",
+					"sponsorCredits": "Crédits accordés / réglés",
+					"cleanup": "Ressources expirées / en retard"
+				},
+				"details": {
+					"risk": "retenu {held} · engagé {committed} · budget {budget} micros",
+					"queue": "plus ancienne {age}s · p50 {p50}ms · p95 {p95}ms",
+					"attempts": "coût indiqué {covered} · coût absent {missing}",
+					"errorRate": "taux d’erreur {rate}",
+					"expiredGrants": "accès expirés {count}",
+					"credits": "réservés {reserved} · libérés {released}",
+					"cleanup": "échecs finaux {deadLetters} · retard maximal {seconds}s"
+				}
+			},
 			"metrics": {
 				"queue": "File d'attente",
 				"oldest": "Attente maximale : {seconds}s",
