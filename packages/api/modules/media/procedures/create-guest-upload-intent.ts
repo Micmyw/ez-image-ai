@@ -68,7 +68,9 @@ export const createGuestDraftUploadIntent = publicProcedure
 		const identity = trustedGuestClientIdentity(context.headers, process.env);
 		if (!identity) throw new Error("GUEST_TRUSTED_CLIENT_REQUIRED");
 		const loaded = await loadGuestCapability();
-		if (!loaded.config.enabled) throw new Error("GUEST_CAPABILITY_DISABLED");
+		if (!loaded.config.enabled || !loaded.config.promotionPeriod) {
+			throw new Error("GUEST_CAPABILITY_DISABLED");
+		}
 		assertGuestCapabilityVersion(input.capabilityVersion, loaded.snapshot.version);
 		if (
 			input.bytes > loaded.config.maximumBytes ||
@@ -127,6 +129,7 @@ export const createGuestDraftUploadIntent = publicProcedure
 				multipartUploadId: null,
 				limits: { maximumActiveSessions: 1, maximumReservedBytes: BigInt(10 * 1024 * 1024) },
 				capabilityVersion: loaded.snapshot.version,
+				promotionPeriod: loaded.config.promotionPeriod,
 				originHash: hashGuestBinding(secret, "guest-origin", marketingOrigin),
 				expectedSha256: input.sha256,
 				deleteAfter,

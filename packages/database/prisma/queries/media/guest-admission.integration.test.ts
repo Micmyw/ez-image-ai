@@ -128,14 +128,9 @@ describe("guest generation admission", () => {
 				}),
 			),
 		).rejects.toThrow("GUEST_QUEUE_CAPACITY");
-		await expect(
-			Promise.all([
-				client.guestMediaTrial.count({ where: { ownerId: rejected.ownerId } }),
-				client.generationQuote.count({ where: { ownerId: rejected.ownerId } }),
-				client.generationJob.count({ where: { ownerId: rejected.ownerId } }),
-				client.creditAccount.count({ where: { ownerId: rejected.ownerId } }),
-			]),
-		).resolves.toEqual([0, 0, 0, 0]);
+		await expect(countGuestBusinessGraph(rejected.ownerId)).resolves.toEqual(
+			emptyGuestBusinessGraph(),
+		);
 	});
 
 	it("keeps old promotion queue and failures out of current admission and diagnostics", async () => {
@@ -266,6 +261,373 @@ describe("guest generation admission", () => {
 		});
 	});
 
+	it("isolates generation IP and subnet evidence by promotion while sharing global capacity", async () => {
+		const now = new Date("2026-08-29T03:10:00.000Z");
+		const sharedIpHash = hashFixture("promotion-isolation-ip");
+		const sharedSubnetHash = hashFixture("promotion-isolation-subnet");
+		const first = await createGuestFixture("promotion-isolation-a", now, "promotion-a");
+		const second = await createGuestFixture("promotion-isolation-b", now, "promotion-b");
+		const limits = {
+			maximumRequestsPerIpPerTenMinutes: 1,
+			maximumRequestsPerIpPerDay: 1,
+			maximumRequestsPerSubnetPerDay: 1,
+			maximumGlobalRequestsPerMinute: 2,
+			maximumGlobalRequestsPerHour: 2,
+			maximumGlobalRequestsPerDay: 2,
+		};
+
+		await expect(
+			createGuestAdmission(
+				guestAdmissionInput(first, {
+					idempotencyKey: "guest-promotion-isolation-a",
+					ipHash: sharedIpHash,
+					subnetHash: sharedSubnetHash,
+					...limits,
+				}),
+			),
+		).resolves.toMatchObject({ stage: "WAITING" });
+		await expect(
+			createGuestAdmission(
+				guestAdmissionInput(second, {
+					idempotencyKey: "guest-promotion-isolation-b",
+					ipHash: sharedIpHash,
+					subnetHash: sharedSubnetHash,
+					...limits,
+				}),
+			),
+		).resolves.toMatchObject({ stage: "WAITING" });
+
+		const scopes = await client.guestAbuseBucket.findMany({
+			where: { subjectHash: { in: [sharedIpHash, sharedSubnetHash, "global"] } },
+			select: { scope: true, subjectHash: true, requestCount: true },
+		});
+		expect(scopes).toEqual(
+			expect.arrayContaining([
+				{
+					scope: "guest-generate:promotion-a:ip:ten-minute",
+					subjectHash: sharedIpHash,
+					requestCount: 1n,
+				},
+				{
+					scope: "guest-generate:promotion-b:ip:ten-minute",
+					subjectHash: sharedIpHash,
+					requestCount: 1n,
+				},
+				{
+					scope: "guest-generate:promotion-a:ip:day",
+					subjectHash: sharedIpHash,
+					requestCount: 1n,
+				},
+				{
+					scope: "guest-generate:promotion-b:ip:day",
+					subjectHash: sharedIpHash,
+					requestCount: 1n,
+				},
+				{
+					scope: "guest-generate:promotion-a:subnet:day",
+					subjectHash: sharedSubnetHash,
+					requestCount: 1n,
+				},
+				{
+					scope: "guest-generate:promotion-b:subnet:day",
+					subjectHash: sharedSubnetHash,
+					requestCount: 1n,
+				},
+				{
+					scope: "guest-generate:global:minute",
+					subjectHash: "global",
+					requestCount: 2n,
+				},
+				{
+					scope: "guest-generate:global:hour",
+					subjectHash: "global",
+					requestCount: 2n,
+				},
+				{
+					scope: "guest-generate:global:day",
+					subjectHash: "global",
+					requestCount: 2n,
+				},
+			]),
+		);
+	});
+
+	it("keeps generation global capacity cross-promotion without leaking a rejected graph", async () => {
+		const now = new Date("2026-08-29T03:20:00.000Z");
+		const first = await createGuestFixture("global-capacity-a", now, "global-promotion-a");
+		const rejected = await createGuestFixture("global-capacity-b", now, "global-promotion-b");
+
+		await createGuestAdmission(
+			guestAdmissionInput(first, {
+				idempotencyKey: "guest-global-capacity-a",
+				maximumGlobalRequestsPerMinute: 1,
+			}),
+		);
+		await expect(
+			createGuestAdmission(
+				guestAdmissionInput(rejected, {
+					idempotencyKey: "guest-global-capacity-b",
+					maximumGlobalRequestsPerMinute: 1,
+				}),
+			),
+		).rejects.toThrow("GUEST_GLOBAL_RATE_LIMIT");
+
+		await expect(countGuestBusinessGraph(rejected.ownerId)).resolves.toEqual({
+			trials: 0,
+			quotes: 0,
+			accounts: 0,
+			lots: 0,
+			ledgers: 0,
+			reservations: 0,
+			jobs: 0,
+			outbox: 0,
+			attempts: 0,
+		});
+		await expect(
+			client.guestAbuseBucket.findFirst({
+				where: { scope: "guest-generate:global:minute", subjectHash: "global" },
+				select: { requestCount: true },
+			}),
+		).resolves.toEqual({ requestCount: 1n });
+	});
+
+	it("admits exactly N concurrent global requests across promotions", async () => {
+		const now = new Date("2026-08-29T03:25:00.000Z");
+		const fixtures = await Promise.all(
+			Array.from({ length: 8 }, (_, index) =>
+				createGuestFixture(`global-concurrent-${index}`, now, `global-concurrent-${index}`),
+			),
+		);
+		const results = await concurrentSettledBarrier(
+			fixtures.map(
+				(fixture, index) => () =>
+					createGuestAdmission(
+						guestAdmissionInput(fixture, {
+							idempotencyKey: `guest-global-concurrent-${index}`,
+							maximumGlobalRequestsPerMinute: 2,
+						}),
+					),
+			),
+		);
+
+		expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(2);
+		expect(results.filter((result) => result.status === "rejected")).toHaveLength(6);
+		for (const [index, result] of results.entries()) {
+			if (result.status === "fulfilled") continue;
+			expect(result.reason).toEqual(
+				expect.objectContaining({ message: "GUEST_GLOBAL_RATE_LIMIT" }),
+			);
+			await expect(countGuestBusinessGraph(fixtures[index]!.ownerId)).resolves.toEqual(
+				emptyGuestBusinessGraph(),
+			);
+		}
+		await expect(
+			client.guestAbuseBucket.findFirst({
+				where: { scope: "guest-generate:global:minute", subjectHash: "global" },
+				select: { requestCount: true },
+			}),
+		).resolves.toEqual({ requestCount: 2n });
+	});
+
+	it("returns one stable domain rejection for concurrent admissions sharing a session", async () => {
+		const now = new Date("2026-08-29T03:30:00.000Z");
+		const promotionPeriod = "shared-session-promotion";
+		const sharedSessionHash = hashFixture("shared-session");
+		const fixtures = await Promise.all([
+			createGuestFixture("shared-session-a", now, promotionPeriod),
+			createGuestFixture("shared-session-b", now, promotionPeriod),
+		]);
+		const results = await concurrentSettledBarrier(
+			fixtures.map(
+				(fixture, index) => () =>
+					createGuestAdmission(
+						guestAdmissionInput(fixture, {
+							idempotencyKey: `guest-shared-session-${index}`,
+							sourceSessionHash: sharedSessionHash,
+						}),
+					),
+			),
+		);
+
+		expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+		const rejected = results.find((result) => result.status === "rejected");
+		expect(rejected).toMatchObject({
+			status: "rejected",
+			reason: expect.objectContaining({ message: "GUEST_TRIAL_UNAVAILABLE" }),
+		});
+		await expect(
+			client.guestMediaTrial.count({
+				where: { promotionPeriod, sourceSessionHash: sharedSessionHash },
+			}),
+		).resolves.toBe(1);
+		await expect(
+			client.generationAttempt.count({ where: { job: { guestTrial: { promotionPeriod } } } }),
+		).resolves.toBe(0);
+		const rejectedIndex = results.findIndex((result) => result.status === "rejected");
+		await expect(countGuestBusinessGraph(fixtures[rejectedIndex]!.ownerId)).resolves.toEqual(
+			emptyGuestBusinessGraph(),
+		);
+	});
+
+	it("enforces the production device-accepted invariant before a second active device graph", async () => {
+		const promotionPeriod = `device-accepted-${randomUUID()}`;
+		const sharedDeviceHash = hashFixture("device-accepted-shared");
+		const first = await createGuestFixture("device-accepted-first", undefined, promotionPeriod);
+		const rejected = await createGuestFixture(
+			"device-accepted-rejected",
+			undefined,
+			promotionPeriod,
+		);
+
+		await createGuestAdmission(
+			guestAdmissionInput(first, {
+				idempotencyKey: "guest-device-accepted-first",
+				deviceHash: sharedDeviceHash,
+			}),
+		);
+		await expect(
+			createGuestAdmission(
+				guestAdmissionInput(rejected, {
+					idempotencyKey: "guest-device-accepted-rejected",
+					deviceHash: sharedDeviceHash,
+				}),
+			),
+		).rejects.toThrow("GUEST_TRIAL_UNAVAILABLE");
+		await expect(countGuestBusinessGraph(rejected.ownerId)).resolves.toEqual(
+			emptyGuestBusinessGraph(),
+		);
+	});
+
+	it("keeps the active-device fence reachable under a targeted accepted-count override", async () => {
+		const promotionPeriod = `device-active-${randomUUID()}`;
+		const sharedDeviceHash = hashFixture("device-active-shared");
+		const first = await createGuestFixture("device-active-first", undefined, promotionPeriod);
+		const rejected = await createGuestFixture("device-active-rejected", undefined, promotionPeriod);
+		const targetedLimits = {
+			deviceHash: sharedDeviceHash,
+			maximumAcceptedTrialsPerDevicePromotion: 2,
+			maximumActiveJobsPerDevice: 1,
+		};
+
+		await createGuestAdmission(
+			guestAdmissionInput(first, {
+				idempotencyKey: "guest-device-active-first",
+				...targetedLimits,
+			}),
+		);
+		await expect(
+			createGuestAdmission(
+				guestAdmissionInput(rejected, {
+					idempotencyKey: "guest-device-active-rejected",
+					...targetedLimits,
+				}),
+			),
+		).rejects.toThrow("GUEST_DEVICE_LIMIT");
+		await expect(countGuestBusinessGraph(rejected.ownerId)).resolves.toEqual(
+			emptyGuestBusinessGraph(),
+		);
+	});
+
+	it("allows two active IP jobs and rejects the literal third without a partial graph", async () => {
+		const promotionPeriod = `ip-active-${randomUUID()}`;
+		const sharedIpHash = hashFixture("ip-active-shared");
+		const fixtures = await Promise.all(
+			["first", "second", "rejected"].map((label) =>
+				createGuestFixture(`ip-active-${label}`, undefined, promotionPeriod),
+			),
+		);
+		for (const [index, fixture] of fixtures.slice(0, 2).entries()) {
+			await createGuestAdmission(
+				guestAdmissionInput(fixture, {
+					idempotencyKey: `guest-ip-active-${index}`,
+					ipHash: sharedIpHash,
+					maximumActiveJobsPerIp: 2,
+				}),
+			);
+		}
+		const rejected = fixtures[2]!;
+		await expect(
+			createGuestAdmission(
+				guestAdmissionInput(rejected, {
+					idempotencyKey: "guest-ip-active-rejected",
+					ipHash: sharedIpHash,
+					maximumActiveJobsPerIp: 2,
+				}),
+			),
+		).rejects.toThrow("GUEST_IP_RATE_LIMIT");
+		await expect(countGuestBusinessGraph(rejected.ownerId)).resolves.toEqual(
+			emptyGuestBusinessGraph(),
+		);
+	});
+
+	it("lets queue age reach exactly 600 seconds and rejects the next minute before depth 25", async () => {
+		const now = new Date("2026-08-29T04:00:00.000Z");
+		const promotionPeriod = `queue-age-${randomUUID()}`;
+		for (let index = 0; index < 11; index += 1) {
+			const fixture = await createGuestFixture(`queue-age-${index}`, now, promotionPeriod);
+			const admitted = await createGuestAdmission(
+				guestAdmissionInput(fixture, {
+					idempotencyKey: `guest-queue-age-${index}`,
+					queueTtlMs: 600_000,
+					queueCapacity: 1,
+					maximumGlobalQueueDepth: 25,
+				}),
+			);
+			if (index === 10) {
+				expect(admitted.projectedDispatchAt).toEqual(new Date(now.getTime() + 600_000));
+			}
+		}
+		const rejected = await createGuestFixture("queue-age-rejected", now, promotionPeriod);
+
+		await expect(
+			createGuestAdmission(
+				guestAdmissionInput(rejected, {
+					idempotencyKey: "guest-queue-age-rejected",
+					queueTtlMs: 600_000,
+					queueCapacity: 1,
+					maximumGlobalQueueDepth: 25,
+				}),
+			),
+		).rejects.toThrow("GUEST_QUEUE_CAPACITY");
+		await expect(countGuestBusinessGraph(rejected.ownerId)).resolves.toEqual(
+			emptyGuestBusinessGraph(),
+		);
+	});
+
+	it("admits exactly 25 queued jobs with controlled capacity and rejects depth N plus one", async () => {
+		const now = new Date("2026-08-29T04:20:00.000Z");
+		const promotionPeriod = `queue-depth-${randomUUID()}`;
+		for (let index = 0; index < 25; index += 1) {
+			const fixture = await createGuestFixture(`queue-depth-${index}`, now, promotionPeriod);
+			await expect(
+				createGuestAdmission(
+					guestAdmissionInput(fixture, {
+						idempotencyKey: `guest-queue-depth-${index}`,
+						queueTtlMs: 600_000,
+						queueCapacity: 25,
+						maximumGlobalQueueDepth: 25,
+					}),
+				),
+			).resolves.toMatchObject({ stage: "WAITING" });
+		}
+		const rejected = await createGuestFixture("queue-depth-rejected", now, promotionPeriod);
+
+		await expect(
+			createGuestAdmission(
+				guestAdmissionInput(rejected, {
+					idempotencyKey: "guest-queue-depth-rejected",
+					queueTtlMs: 600_000,
+					queueCapacity: 25,
+					maximumGlobalQueueDepth: 25,
+				}),
+			),
+		).rejects.toThrow("GUEST_QUEUE_CAPACITY");
+		await expect(countGuestBusinessGraph(rejected.ownerId)).resolves.toEqual(
+			emptyGuestBusinessGraph(),
+		);
+		await expect(client.guestMediaTrial.count({ where: { promotionPeriod } })).resolves.toBe(25);
+	});
+
 	it.each([
 		["IP ten-minute", "maximumRequestsPerIpPerTenMinutes", "GUEST_IP_RATE_LIMIT", "ipHash"],
 		["IP daily", "maximumRequestsPerIpPerDay", "GUEST_IP_RATE_LIMIT", "ipHash"],
@@ -294,14 +656,9 @@ describe("guest generation admission", () => {
 			});
 
 			await expect(createGuestAdmission(rejectedInput)).rejects.toThrow(expectedCode);
-			await expect(
-				Promise.all([
-					client.guestMediaTrial.count({ where: { ownerId: second.ownerId } }),
-					client.generationQuote.count({ where: { ownerId: second.ownerId } }),
-					client.generationJob.count({ where: { ownerId: second.ownerId } }),
-					client.creditAccount.count({ where: { ownerId: second.ownerId } }),
-				]),
-			).resolves.toEqual([0, 0, 0, 0]);
+			await expect(countGuestBusinessGraph(second.ownerId)).resolves.toEqual(
+				emptyGuestBusinessGraph(),
+			);
 		},
 	);
 
@@ -502,13 +859,9 @@ describe("guest generation admission", () => {
 		await expect(
 			createGuestAdmission(guestAdmissionInput(fixture, { idempotencyKey: "guest-link-fenced" })),
 		).rejects.toThrow("GUEST_LINK_IN_PROGRESS");
-		await expect(
-			Promise.all([
-				client.guestMediaTrial.count({ where: { ownerId: fixture.ownerId } }),
-				client.generationJob.count({ where: { ownerId: fixture.ownerId } }),
-				client.creditAccount.count({ where: { ownerId: fixture.ownerId } }),
-			]),
-		).resolves.toEqual([0, 0, 0]);
+		await expect(countGuestBusinessGraph(fixture.ownerId)).resolves.toEqual(
+			emptyGuestBusinessGraph(),
+		);
 	});
 
 	it.each([
@@ -808,11 +1161,20 @@ function guestAdmissionInput(
 		idempotencyKey: string;
 		abuseEvidenceTtlMs?: number;
 		maximumRequestsPerMinute?: number;
+		maximumGlobalRequestsPerMinute?: number;
 		maximumGlobalQueueDepth?: number;
+		queueTtlMs?: number;
 		queueCapacity?: number;
 		riskBudgetMicros?: bigint;
+		sourceSessionHash?: string;
+		deviceHash?: string;
 		ipHash?: string;
 		subnetHash?: string;
+		maximumActiveJobsPerGuest?: number;
+		maximumAcceptedTrialsPerSession?: number;
+		maximumActiveJobsPerDevice?: number;
+		maximumAcceptedTrialsPerDevicePromotion?: number;
+		maximumActiveJobsPerIp?: number;
 		maximumRequestsPerIpPerTenMinutes?: number;
 		maximumRequestsPerIpPerDay?: number;
 		maximumRequestsPerSubnetPerDay?: number;
@@ -841,8 +1203,8 @@ function guestAdmissionInput(
 		ownerId: fixture.ownerId,
 		promotionPeriod: fixture.promotionPeriod,
 		capabilityVersion: "guest-v7",
-		sourceSessionHash: fixture.sourceSessionHash,
-		deviceHash: fixture.deviceHash,
+		sourceSessionHash: overrides.sourceSessionHash ?? fixture.sourceSessionHash,
+		deviceHash: overrides.deviceHash ?? fixture.deviceHash,
 		ipHash: overrides.ipHash ?? hashFixture(`ip:${fixture.ownerId}`),
 		subnetHash: overrides.subnetHash ?? hashFixture(`subnet:${fixture.ownerId}`),
 		idempotencyKey: overrides.idempotencyKey,
@@ -858,17 +1220,23 @@ function guestAdmissionInput(
 		sourceAssetChecksum: fixture.checksum,
 		now: fixture.now,
 		retentionMs: 24 * 60 * 60_000,
-		queueTtlMs: 10 * 60_000,
+		queueTtlMs: overrides.queueTtlMs ?? 10 * 60_000,
 		serviceTimeMs: 60_000,
 		queueCapacity: overrides.queueCapacity ?? 1,
 		maximumBytes: 10 * 1024 * 1024,
 		maximumGlobalQueueDepth: overrides.maximumGlobalQueueDepth ?? 100,
-		maximumActiveJobsPerGuest: 1,
+		maximumActiveJobsPerGuest: overrides.maximumActiveJobsPerGuest ?? 1,
 		maximumRequestsPerMinute: overrides.maximumRequestsPerMinute ?? 100,
 		maximumRequestsPerIpPerHour: 100,
+		maximumAcceptedTrialsPerSession: overrides.maximumAcceptedTrialsPerSession ?? 1,
+		maximumActiveJobsPerDevice: overrides.maximumActiveJobsPerDevice ?? 1,
+		maximumAcceptedTrialsPerDevicePromotion: overrides.maximumAcceptedTrialsPerDevicePromotion ?? 1,
+		maximumActiveJobsPerIp: overrides.maximumActiveJobsPerIp ?? 2,
 		maximumRequestsPerIpPerTenMinutes: overrides.maximumRequestsPerIpPerTenMinutes ?? 100,
 		maximumRequestsPerIpPerDay: overrides.maximumRequestsPerIpPerDay ?? 100,
 		maximumRequestsPerSubnetPerDay: overrides.maximumRequestsPerSubnetPerDay ?? 100,
+		maximumGlobalRequestsPerMinute:
+			overrides.maximumGlobalRequestsPerMinute ?? overrides.maximumRequestsPerMinute ?? 100,
 		maximumGlobalRequestsPerHour: overrides.maximumGlobalRequestsPerHour ?? 100,
 		maximumGlobalRequestsPerDay: overrides.maximumGlobalRequestsPerDay ?? 100,
 		abuseEvidenceTtlMs: overrides.abuseEvidenceTtlMs ?? 30 * 24 * 60 * 60_000,
@@ -901,6 +1269,56 @@ function createGuestAdmission(input: ReturnType<typeof guestAdmissionInput>) {
 		costMicros: input.quote.costMicros,
 		pricingSnapshot: input.quote.pricingSnapshot,
 	}));
+}
+
+async function countGuestBusinessGraph(ownerId: string) {
+	const account = await client.creditAccount.findUnique({
+		where: { ownerType_ownerId: { ownerType: "USER", ownerId } },
+		select: { id: true },
+	});
+	const jobIds = (
+		await client.generationJob.findMany({ where: { ownerId }, select: { id: true } })
+	).map((job) => job.id);
+	const [trials, quotes, accounts, lots, ledgers, reservations, jobs, outbox, attempts] =
+		await Promise.all([
+			client.guestMediaTrial.count({ where: { ownerId } }),
+			client.generationQuote.count({ where: { ownerId } }),
+			client.creditAccount.count({ where: { ownerId } }),
+			account ? client.creditLot.count({ where: { accountId: account.id } }) : 0,
+			account ? client.creditLedgerEntry.count({ where: { accountId: account.id } }) : 0,
+			jobIds.length ? client.creditReservation.count({ where: { jobId: { in: jobIds } } }) : 0,
+			client.generationJob.count({ where: { ownerId } }),
+			jobIds.length ? client.outboxEvent.count({ where: { aggregateId: { in: jobIds } } }) : 0,
+			client.generationAttempt.count({ where: { job: { ownerId } } }),
+		]);
+	return { trials, quotes, accounts, lots, ledgers, reservations, jobs, outbox, attempts };
+}
+
+function emptyGuestBusinessGraph() {
+	return {
+		trials: 0,
+		quotes: 0,
+		accounts: 0,
+		lots: 0,
+		ledgers: 0,
+		reservations: 0,
+		jobs: 0,
+		outbox: 0,
+		attempts: 0,
+	};
+}
+
+async function concurrentSettledBarrier<T>(operations: Array<() => Promise<T>>) {
+	let release!: () => void;
+	const gate = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	const contenders = operations.map(async (operation) => {
+		await gate;
+		return operation();
+	});
+	release();
+	return Promise.allSettled(contenders);
 }
 
 async function concurrentBarrier<T>(count: number, operation: () => Promise<T>): Promise<T[]> {

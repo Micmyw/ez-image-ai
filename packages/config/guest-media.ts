@@ -103,7 +103,8 @@ export function getGuestMediaConfig(
 	const promotionPeriod = normalizedPromotionPeriod(environment.GUEST_PROMOTION_PERIOD);
 	const costEvidenceId = normalizedNonEmptyString(environment.GUEST_COST_EVIDENCE_ID);
 	const hardBudgetMicros = positiveBigInt(environment.GUEST_HARD_BUDGET_MICROS);
-	const riskBudgetMicros = positiveBigInt(environment.GUEST_RISK_BUDGET_MICROS) ?? BigInt(350_000);
+	const configuredRiskBudgetMicros = positiveBigInt(environment.GUEST_RISK_BUDGET_MICROS);
+	const riskBudgetMicros = configuredRiskBudgetMicros ?? BigInt(350_000);
 	const siteKey = normalizedNonEmptyString(environment.NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY);
 	const secretKey = normalizedNonEmptyString(environment.GUEST_TURNSTILE_SECRET_KEY);
 	const proxyProvider = trustedProxyProvider(environment.MEDIA_TRUSTED_PROXY_PROVIDER);
@@ -134,6 +135,11 @@ export function getGuestMediaConfig(
 		reason = "GUEST_PRODUCTION_TURNSTILE_REQUIRED";
 	} else if (productionControlsRequired && proxyProvider === "none") {
 		reason = "GUEST_PRODUCTION_TRUSTED_PROXY_REQUIRED";
+	} else if (
+		productionControlsRequired &&
+		(configuredRiskBudgetMicros === null || configuredRiskBudgetMicros > BigInt(350_000))
+	) {
+		reason = "GUEST_CONFIGURATION_INVALID";
 	} else if (productionControlsRequired && productionEnvelope === null) {
 		reason = "GUEST_CONFIGURATION_INVALID";
 	}
@@ -193,6 +199,26 @@ function readProductionGuestEnvelope(environment: Record<string, unknown>): {
 		return null;
 	}
 	const completeLimits = configured as Record<keyof typeof configured, number>;
+	if (
+		queueTtlSeconds > 600 ||
+		abuseEvidenceTtlDays !== 30 ||
+		completeLimits.maximumActiveJobsPerGuest > 1 ||
+		completeLimits.maximumAcceptedTrialsPerSession > 1 ||
+		completeLimits.maximumActiveJobsPerDevice > 1 ||
+		completeLimits.maximumAcceptedTrialsPerDevicePromotion > 1 ||
+		completeLimits.maximumActiveJobsPerIp > 2 ||
+		completeLimits.maximumRequestsPerIpPerTenMinutes > 1 ||
+		completeLimits.maximumRequestsPerIpPerDay > 3 ||
+		completeLimits.maximumRequestsPerSubnetPerDay > 20 ||
+		completeLimits.maximumGlobalRequestsPerMinute > 3 ||
+		completeLimits.maximumGlobalRequestsPerHour > 30 ||
+		completeLimits.maximumGlobalRequestsPerDay > 100 ||
+		completeLimits.maximumGlobalQueueDepth > 25 ||
+		completeLimits.maximumOutstandingBootstraps > 25 ||
+		completeLimits.maximumTemporaryPrincipals > 100
+	) {
+		return null;
+	}
 	return {
 		queueTtlMs: queueTtlSeconds * 1_000,
 		abuseEvidenceTtlMs: abuseEvidenceTtlDays * 24 * 60 * 60 * 1_000,

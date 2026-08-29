@@ -9,6 +9,33 @@ const developmentEnvironment = {
 	GUEST_PROMOTION_PERIOD: "2026-launch",
 };
 
+const productionEnvironment = {
+	...developmentEnvironment,
+	NODE_ENV: "production",
+	GUEST_COST_EVIDENCE_ID: "benchmark-2026-08-27",
+	GUEST_HARD_BUDGET_MICROS: "10000000",
+	GUEST_RISK_BUDGET_MICROS: "350000",
+	NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY: "site-key",
+	GUEST_TURNSTILE_SECRET_KEY: "secret-key",
+	MEDIA_TRUSTED_PROXY_PROVIDER: "cloudflare",
+	GUEST_QUEUE_TTL_SECONDS: "600",
+	GUEST_QUEUE_MAX_DEPTH: "25",
+	GUEST_BOOTSTRAP_MAX_OUTSTANDING: "25",
+	GUEST_TEMPORARY_PRINCIPAL_MAX_TOTAL: "100",
+	GUEST_SESSION_MAX_ACTIVE_JOBS: "1",
+	GUEST_SESSION_MAX_ACCEPTED_TRIALS: "1",
+	GUEST_DEVICE_MAX_ACTIVE_JOBS: "1",
+	GUEST_DEVICE_MAX_ACCEPTED_PER_PROMOTION: "1",
+	GUEST_IP_MAX_ACTIVE_JOBS: "2",
+	GUEST_IP_MAX_PER_10_MINUTES: "1",
+	GUEST_IP_MAX_PER_24_HOURS: "3",
+	GUEST_SUBNET_MAX_PER_24_HOURS: "20",
+	GUEST_GLOBAL_MAX_PER_MINUTE: "3",
+	GUEST_GLOBAL_MAX_PER_HOUR: "30",
+	GUEST_GLOBAL_MAX_PER_24_HOURS: "100",
+	GUEST_ABUSE_EVIDENCE_TTL_DAYS: "30",
+} as const;
+
 describe("guest media configuration", () => {
 	it("exposes the fixed Standard trial envelope in non-production", () => {
 		expect(getGuestMediaConfig(developmentEnvironment, true)).toMatchObject({
@@ -42,43 +69,30 @@ describe("guest media configuration", () => {
 
 	it("fails production closed unless every abuse and capacity limit is explicit and positive", () => {
 		const production = {
-			...developmentEnvironment,
-			NODE_ENV: "production",
-			GUEST_COST_EVIDENCE_ID: "benchmark-2026-08-27",
-			GUEST_HARD_BUDGET_MICROS: "10000000",
-			NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY: "site-key",
-			GUEST_TURNSTILE_SECRET_KEY: "secret-key",
-			MEDIA_TRUSTED_PROXY_PROVIDER: "cloudflare",
+			...productionEnvironment,
+			GUEST_QUEUE_TTL_SECONDS: undefined,
+			GUEST_QUEUE_MAX_DEPTH: undefined,
+			GUEST_BOOTSTRAP_MAX_OUTSTANDING: undefined,
+			GUEST_TEMPORARY_PRINCIPAL_MAX_TOTAL: undefined,
+			GUEST_SESSION_MAX_ACTIVE_JOBS: undefined,
+			GUEST_SESSION_MAX_ACCEPTED_TRIALS: undefined,
+			GUEST_DEVICE_MAX_ACTIVE_JOBS: undefined,
+			GUEST_DEVICE_MAX_ACCEPTED_PER_PROMOTION: undefined,
+			GUEST_IP_MAX_ACTIVE_JOBS: undefined,
+			GUEST_IP_MAX_PER_10_MINUTES: undefined,
+			GUEST_IP_MAX_PER_24_HOURS: undefined,
+			GUEST_SUBNET_MAX_PER_24_HOURS: undefined,
+			GUEST_GLOBAL_MAX_PER_MINUTE: undefined,
+			GUEST_GLOBAL_MAX_PER_HOUR: undefined,
+			GUEST_GLOBAL_MAX_PER_24_HOURS: undefined,
+			GUEST_ABUSE_EVIDENCE_TTL_DAYS: undefined,
 		};
 
 		expect(getGuestMediaConfig(production, true)).toMatchObject({
 			enabled: false,
 			reason: "GUEST_CONFIGURATION_INVALID",
 		});
-		expect(
-			getGuestMediaConfig(
-				{
-					...production,
-					GUEST_QUEUE_TTL_SECONDS: "600",
-					GUEST_QUEUE_MAX_DEPTH: "25",
-					GUEST_BOOTSTRAP_MAX_OUTSTANDING: "25",
-					GUEST_TEMPORARY_PRINCIPAL_MAX_TOTAL: "100",
-					GUEST_SESSION_MAX_ACTIVE_JOBS: "1",
-					GUEST_SESSION_MAX_ACCEPTED_TRIALS: "1",
-					GUEST_DEVICE_MAX_ACTIVE_JOBS: "1",
-					GUEST_DEVICE_MAX_ACCEPTED_PER_PROMOTION: "1",
-					GUEST_IP_MAX_ACTIVE_JOBS: "2",
-					GUEST_IP_MAX_PER_10_MINUTES: "1",
-					GUEST_IP_MAX_PER_24_HOURS: "3",
-					GUEST_SUBNET_MAX_PER_24_HOURS: "20",
-					GUEST_GLOBAL_MAX_PER_MINUTE: "3",
-					GUEST_GLOBAL_MAX_PER_HOUR: "30",
-					GUEST_GLOBAL_MAX_PER_24_HOURS: "100",
-					GUEST_ABUSE_EVIDENCE_TTL_DAYS: "30",
-				},
-				true,
-			),
-		).toMatchObject({
+		expect(getGuestMediaConfig(productionEnvironment, true)).toMatchObject({
 			enabled: true,
 			reason: null,
 			limits: {
@@ -86,6 +100,54 @@ describe("guest media configuration", () => {
 				maximumRequestsPerIpPerHour: 3,
 			},
 		});
+	});
+
+	it.each([
+		["GUEST_RISK_BUDGET_MICROS", undefined],
+		["GUEST_RISK_BUDGET_MICROS", "350001"],
+		["GUEST_QUEUE_TTL_SECONDS", "601"],
+		["GUEST_QUEUE_MAX_DEPTH", "26"],
+		["GUEST_ABUSE_EVIDENCE_TTL_DAYS", "29"],
+		["GUEST_ABUSE_EVIDENCE_TTL_DAYS", "31"],
+		["GUEST_SESSION_MAX_ACTIVE_JOBS", "2"],
+		["GUEST_SESSION_MAX_ACCEPTED_TRIALS", "2"],
+		["GUEST_DEVICE_MAX_ACTIVE_JOBS", "2"],
+		["GUEST_DEVICE_MAX_ACCEPTED_PER_PROMOTION", "2"],
+		["GUEST_IP_MAX_ACTIVE_JOBS", "3"],
+		["GUEST_IP_MAX_PER_10_MINUTES", "2"],
+		["GUEST_IP_MAX_PER_24_HOURS", "4"],
+		["GUEST_SUBNET_MAX_PER_24_HOURS", "21"],
+		["GUEST_GLOBAL_MAX_PER_MINUTE", "4"],
+		["GUEST_GLOBAL_MAX_PER_HOUR", "31"],
+		["GUEST_GLOBAL_MAX_PER_24_HOURS", "101"],
+		["GUEST_BOOTSTRAP_MAX_OUTSTANDING", "26"],
+		["GUEST_TEMPORARY_PRINCIPAL_MAX_TOTAL", "101"],
+	] as const)("fails production closed when %s is outside the frozen envelope", (key, value) => {
+		expect(getGuestMediaConfig({ ...productionEnvironment, [key]: value }, true)).toMatchObject({
+			enabled: false,
+			reason: "GUEST_CONFIGURATION_INVALID",
+		});
+	});
+
+	it("accepts stricter positive production limits while keeping evidence at exactly 30 days", () => {
+		expect(
+			getGuestMediaConfig(
+				{
+					...productionEnvironment,
+					GUEST_RISK_BUDGET_MICROS: "1",
+					GUEST_QUEUE_TTL_SECONDS: "1",
+					GUEST_QUEUE_MAX_DEPTH: "1",
+					GUEST_BOOTSTRAP_MAX_OUTSTANDING: "1",
+					GUEST_TEMPORARY_PRINCIPAL_MAX_TOTAL: "1",
+					GUEST_IP_MAX_ACTIVE_JOBS: "1",
+					GUEST_IP_MAX_PER_24_HOURS: "1",
+					GUEST_SUBNET_MAX_PER_24_HOURS: "1",
+					GUEST_GLOBAL_MAX_PER_HOUR: "1",
+					GUEST_GLOBAL_MAX_PER_24_HOURS: "1",
+				},
+				true,
+			),
+		).toMatchObject({ enabled: true, reason: null, riskBudgetMicros: 1n });
 	});
 
 	it.each([null, undefined, false, { enabled: true }, { enabled: false }])(

@@ -182,12 +182,40 @@ describe("guest private upload handoff", () => {
 		expect(databaseMocks.createUpload).toHaveBeenCalledWith(
 			expect.objectContaining({
 				capabilityVersion: "guest-v17",
+				promotionPeriod: "2026-launch",
 				expectedSha256: "a".repeat(64),
 				completionTokenHash: expect.stringMatching(/^[a-f0-9]{64}$/),
 				deleteAfter: expect.any(Date),
 			}),
 			expect.anything(),
 		);
+	});
+
+	it("does not sign an upload when the database admission boundary rejects", async () => {
+		databaseMocks.createUpload.mockRejectedValueOnce(new Error("GUEST_UPLOAD_RATE_LIMITED"));
+
+		await expect(
+			call(
+				createGuestDraftUploadIntent,
+				{
+					capabilityVersion: "guest-v17",
+					contentType: "image/png",
+					bytes: 8,
+					sha256: "a".repeat(64),
+					turnstileToken: "turnstile-proof",
+				},
+				{
+					context: {
+						headers: new Headers({
+							origin: "https://marketing.test",
+							"cf-connecting-ip": "203.0.113.9",
+						}),
+						responseHeaders: new Headers(),
+					},
+				},
+			),
+		).rejects.toThrow("GUEST_UPLOAD_RATE_LIMITED");
+		expect(storageMocks.createSignedUpload).not.toHaveBeenCalled();
 	});
 
 	it("allocates a generation-compatible opaque asset ID for the guest source", async () => {

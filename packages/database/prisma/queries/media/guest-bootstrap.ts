@@ -68,6 +68,7 @@ export interface CreateGuestMediaUploadIntentTransactionInput extends Omit<
 	"guest" | "tokenHash"
 > {
 	capabilityVersion: string;
+	promotionPeriod: string;
 	originHash: string;
 	expectedSha256: string;
 	deleteAfter: Date;
@@ -86,12 +87,16 @@ export async function createGuestMediaUploadIntentTransaction(
 	input: CreateGuestMediaUploadIntentTransactionInput,
 	client: MediaTransactionClient,
 ) {
+	if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(input.promotionPeriod)) {
+		throw new Error("GUEST_UPLOAD_CONFIGURATION_INVALID");
+	}
 	const now = new Date();
 	await client.$transaction(async (tx) => {
 		if (
 			!(await enforceGuestBoundaryRateLimits(
 				{
 					scopePrefix: "guest-upload",
+					promotionPeriod: input.promotionPeriod,
 					ipHash: input.ipHash,
 					subnetHash: input.subnetHash,
 					limits: input.abuseLimits,
@@ -506,7 +511,7 @@ async function enforceGuestBootstrapCaps(
 		input.limits.maximumOutstandingBootstraps !== undefined ||
 		input.limits.maximumTemporaryPrincipals !== undefined
 	) {
-		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`guest-bootstrap-cap:${input.promotionPeriod}`}, 0))`;
+		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('guest-bootstrap-cap:global', 0))`;
 	}
 	if (input.limits.maximumOutstandingBootstraps !== undefined) {
 		const outstandingBootstraps = await tx.guestSessionBootstrap.count({
@@ -535,6 +540,7 @@ async function enforceGuestBootstrapCaps(
 		!(await enforceGuestBoundaryRateLimits(
 			{
 				scopePrefix: "guest-bootstrap",
+				promotionPeriod: input.promotionPeriod,
 				ipHash: input.ipHash,
 				subnetHash: input.subnetHash,
 				limits: input.limits,
@@ -551,6 +557,7 @@ async function enforceGuestBootstrapCaps(
 async function enforceGuestBoundaryRateLimits(
 	input: {
 		scopePrefix: "guest-upload" | "guest-bootstrap";
+		promotionPeriod: string;
 		ipHash: string;
 		subnetHash: string;
 		limits: GuestBoundaryAbuseLimits;
@@ -561,37 +568,37 @@ async function enforceGuestBoundaryRateLimits(
 ): Promise<boolean> {
 	const windows = [
 		{
-			scope: `${input.scopePrefix}-ip-ten-minute`,
+			scope: `${input.scopePrefix}:${input.promotionPeriod}:ip:ten-minute`,
 			subjectHash: input.ipHash,
 			windowMs: 10 * 60_000,
 			maximum: input.limits.maximumRequestsPerIpPerTenMinutes,
 		},
 		{
-			scope: `${input.scopePrefix}-ip-day`,
+			scope: `${input.scopePrefix}:${input.promotionPeriod}:ip:day`,
 			subjectHash: input.ipHash,
 			windowMs: 24 * 60 * 60_000,
 			maximum: input.limits.maximumRequestsPerIpPerDay,
 		},
 		{
-			scope: `${input.scopePrefix}-subnet-day`,
+			scope: `${input.scopePrefix}:${input.promotionPeriod}:subnet:day`,
 			subjectHash: input.subnetHash,
 			windowMs: 24 * 60 * 60_000,
 			maximum: input.limits.maximumRequestsPerSubnetPerDay,
 		},
 		{
-			scope: `${input.scopePrefix}-global-minute`,
+			scope: `${input.scopePrefix}:global:minute`,
 			subjectHash: "global",
 			windowMs: 60_000,
 			maximum: input.limits.maximumGlobalRequestsPerMinute,
 		},
 		{
-			scope: `${input.scopePrefix}-global-hour`,
+			scope: `${input.scopePrefix}:global:hour`,
 			subjectHash: "global",
 			windowMs: 60 * 60_000,
 			maximum: input.limits.maximumGlobalRequestsPerHour,
 		},
 		{
-			scope: `${input.scopePrefix}-global-day`,
+			scope: `${input.scopePrefix}:global:day`,
 			subjectHash: "global",
 			windowMs: 24 * 60 * 60_000,
 			maximum: input.limits.maximumGlobalRequestsPerDay,

@@ -959,7 +959,7 @@ async function enforceAdmissionBuckets(
 	if (
 		!(await incrementGuestBucket(
 			tx,
-			"guest-generate-global-minute",
+			"guest-generate:global:minute",
 			"global",
 			minuteStart,
 			60_000,
@@ -972,7 +972,7 @@ async function enforceAdmissionBuckets(
 	if (
 		!(await incrementGuestBucket(
 			tx,
-			"guest-generate-global-hour",
+			"guest-generate:global:hour",
 			"global",
 			hourStart,
 			3_600_000,
@@ -985,7 +985,7 @@ async function enforceAdmissionBuckets(
 	if (
 		!(await incrementGuestBucket(
 			tx,
-			"guest-generate-global-day",
+			"guest-generate:global:day",
 			"global",
 			dayStart,
 			86_400_000,
@@ -998,7 +998,7 @@ async function enforceAdmissionBuckets(
 	if (
 		!(await incrementGuestBucket(
 			tx,
-			"guest-generate-ip-ten-minute",
+			`guest-generate:${input.promotionPeriod}:ip:ten-minute`,
 			input.ipHash,
 			tenMinuteStart,
 			600_000,
@@ -1011,7 +1011,7 @@ async function enforceAdmissionBuckets(
 	if (
 		!(await incrementGuestBucket(
 			tx,
-			"guest-generate-ip-day",
+			`guest-generate:${input.promotionPeriod}:ip:day`,
 			input.ipHash,
 			dayStart,
 			86_400_000,
@@ -1024,7 +1024,7 @@ async function enforceAdmissionBuckets(
 	if (
 		!(await incrementGuestBucket(
 			tx,
-			"guest-generate-subnet-day",
+			`guest-generate:${input.promotionPeriod}:subnet:day`,
 			input.subnetHash,
 			dayStart,
 			86_400_000,

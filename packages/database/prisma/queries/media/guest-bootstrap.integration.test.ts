@@ -9,6 +9,7 @@ import {
 	bindGuestBootstrapPrincipalLease,
 	cleanupGuestBootstrapPrincipalLease,
 	consumeGuestBootstrap,
+	createGuestMediaUploadIntentTransaction,
 	createGuestSessionBootstrapWithClaimFence,
 } from "./guest-bootstrap";
 
@@ -20,6 +21,22 @@ let principalClient: PrismaClient;
 const createdBootstrapIds: string[] = [];
 const createdDraftIds: string[] = [];
 const createdUserIds: string[] = [];
+
+async function waitForDatabaseLockWaiters(expectedCount: number) {
+	const deadline = Date.now() + 5_000;
+	while (Date.now() < deadline) {
+		const [result] = await client.$queryRaw<Array<{ count: bigint }>>`
+			SELECT COUNT(*)::bigint AS "count"
+			FROM pg_stat_activity
+			WHERE datname = current_database()
+				AND pid <> pg_backend_pid()
+				AND wait_event_type = 'Lock'
+		`;
+		if (Number(result?.count ?? 0n) >= expectedCount) return;
+		await new Promise((resolve) => setTimeout(resolve, 10));
+	}
+	throw new Error(`Timed out waiting for ${expectedCount} database lock waiters`);
+}
 
 describe("guest bootstrap consumption", () => {
 	beforeAll(() => {
@@ -379,12 +396,336 @@ describe("guest bootstrap consumption", () => {
 		expect(existingUserId).toBeTruthy();
 		expect(createPrincipal).not.toHaveBeenCalled();
 	});
+
+	it("isolates upload subject evidence by promotion while retaining boundary-global capacity", async () => {
+		await client.guestAbuseBucket.deleteMany({ where: { scope: { startsWith: "guest-upload" } } });
+		const sharedIpHash = `upload-ip-${randomUUID()}`;
+		const sharedSubnetHash = `upload-subnet-${randomUUID()}`;
+		const limits = {
+			...guestBoundaryLimits(2),
+			maximumRequestsPerIpPerTenMinutes: 1,
+			maximumRequestsPerIpPerDay: 1,
+			maximumRequestsPerSubnetPerDay: 1,
+		};
+		const first = guestUploadIntentInput(
+			"promotion-a",
+			"upload-promotion-a",
+			sharedIpHash,
+			sharedSubnetHash,
+			limits,
+		);
+		const second = guestUploadIntentInput(
+			"promotion-b",
+			"upload-promotion-b",
+			sharedIpHash,
+			sharedSubnetHash,
+			limits,
+		);
+
+		await expect(createGuestMediaUploadIntentTransaction(first, client)).resolves.toBeDefined();
+		await expect(createGuestMediaUploadIntentTransaction(second, client)).resolves.toBeDefined();
+		await expect(
+			client.mediaUploadSession.count({
+				where: { asset: { ownerId: { in: [first.ownerId, second.ownerId] } } },
+			}),
+		).resolves.toBe(2);
+		const scopes = await client.guestAbuseBucket.findMany({
+			where: { subjectHash: { in: [sharedIpHash, sharedSubnetHash, "global"] } },
+			select: { scope: true, subjectHash: true, requestCount: true },
+		});
+		expect(scopes).toEqual(
+			expect.arrayContaining([
+				{
+					scope: "guest-upload:upload-promotion-a:ip:ten-minute",
+					subjectHash: sharedIpHash,
+					requestCount: 1n,
+				},
+				{
+					scope: "guest-upload:upload-promotion-b:ip:day",
+					subjectHash: sharedIpHash,
+					requestCount: 1n,
+				},
+				{
+					scope: "guest-upload:upload-promotion-a:subnet:day",
+					subjectHash: sharedSubnetHash,
+					requestCount: 1n,
+				},
+				{
+					scope: "guest-upload:global:minute",
+					subjectHash: "global",
+					requestCount: 2n,
+				},
+				{
+					scope: "guest-upload:global:hour",
+					subjectHash: "global",
+					requestCount: 2n,
+				},
+				{
+					scope: "guest-upload:global:day",
+					subjectHash: "global",
+					requestCount: 2n,
+				},
+			]),
+		);
+		await expect(
+			client.guestAbuseBucket.findFirst({
+				where: { scope: "guest-upload:global:minute", subjectHash: "global" },
+				select: { requestCount: true },
+			}),
+		).resolves.toEqual({ requestCount: 2n });
+	});
+
+	it.each(["", "bad:scope", "x".repeat(65)])(
+		"rejects invalid upload promotion scope %j before writing rows",
+		async (promotionPeriod) => {
+			const input = guestUploadIntentInput(
+				"invalid-promotion",
+				promotionPeriod,
+				`invalid-upload-ip-${randomUUID()}`,
+				`invalid-upload-subnet-${randomUUID()}`,
+			);
+
+			await expect(createGuestMediaUploadIntentTransaction(input, client)).rejects.toThrow(
+				"GUEST_UPLOAD_CONFIGURATION_INVALID",
+			);
+			await expect(
+				Promise.all([
+					client.mediaAsset.count({ where: { ownerId: input.ownerId } }),
+					client.guestAbuseBucket.count({ where: { subjectHash: input.ipHash } }),
+				]),
+			).resolves.toEqual([0, 0]);
+		},
+	);
+
+	it("keeps upload global capacity cross-promotion and creates no rejected upload rows", async () => {
+		await client.guestAbuseBucket.deleteMany({ where: { scope: { startsWith: "guest-upload" } } });
+		const first = guestUploadIntentInput(
+			"global-a",
+			"upload-global-a",
+			`upload-global-ip-a-${randomUUID()}`,
+			`upload-global-subnet-a-${randomUUID()}`,
+			{ ...guestBoundaryLimits(100), maximumGlobalRequestsPerMinute: 1 },
+		);
+		const rejected = guestUploadIntentInput(
+			"global-b",
+			"upload-global-b",
+			`upload-global-ip-b-${randomUUID()}`,
+			`upload-global-subnet-b-${randomUUID()}`,
+			{ ...guestBoundaryLimits(100), maximumGlobalRequestsPerMinute: 1 },
+		);
+
+		await createGuestMediaUploadIntentTransaction(first, client);
+		await expect(createGuestMediaUploadIntentTransaction(rejected, client)).rejects.toThrow(
+			"GUEST_UPLOAD_RATE_LIMITED",
+		);
+		await expect(
+			Promise.all([
+				client.mediaAsset.count({ where: { ownerId: rejected.ownerId } }),
+				client.mediaUploadSession.count({ where: { asset: { ownerId: rejected.ownerId } } }),
+				client.storageUsageReservation.count({ where: { ownerId: rejected.ownerId } }),
+				client.auditLog.count({ where: { actorUserId: rejected.ownerId } }),
+			]),
+		).resolves.toEqual([0, 0, 0, 0]);
+		await expect(
+			client.guestAbuseBucket.findFirst({
+				where: { scope: "guest-upload:global:minute", subjectHash: "global" },
+				select: { requestCount: true },
+			}),
+		).resolves.toEqual({ requestCount: 1n });
+	});
+
+	it("isolates bootstrap subject evidence by promotion while retaining boundary-global capacity", async () => {
+		await client.guestAbuseBucket.deleteMany({
+			where: { scope: { startsWith: "guest-bootstrap" } },
+		});
+		const sharedIpHash = `bootstrap-ip-${randomUUID()}`;
+		const sharedSubnetHash = `bootstrap-subnet-${randomUUID()}`;
+		const first = await createBootstrapFixture({ promotionPeriod: "bootstrap-promotion-a" });
+		const second = await createBootstrapFixture({ promotionPeriod: "bootstrap-promotion-b" });
+		const createPrincipal = async ({ email }: { email: string }) => {
+			const userId = await createPrincipalFixture(email);
+			return { userId, value: userId };
+		};
+		const limits = {
+			...guestBoundaryLimits(2),
+			maximumRequestsPerIpPerTenMinutes: 1,
+			maximumRequestsPerIpPerDay: 1,
+			maximumRequestsPerSubnetPerDay: 1,
+		};
+
+		await expect(
+			consumeGuestBootstrap(
+				{ ...guestConsumeInput(first), ipHash: sharedIpHash, subnetHash: sharedSubnetHash, limits },
+				createPrincipal,
+				client,
+			),
+		).resolves.toMatchObject({ outcome: "CREATED" });
+		await expect(
+			consumeGuestBootstrap(
+				{
+					...guestConsumeInput(second),
+					ipHash: sharedIpHash,
+					subnetHash: sharedSubnetHash,
+					limits,
+				},
+				createPrincipal,
+				client,
+			),
+		).resolves.toMatchObject({ outcome: "CREATED" });
+		const scopes = await client.guestAbuseBucket.findMany({
+			where: { subjectHash: { in: [sharedIpHash, sharedSubnetHash, "global"] } },
+			select: { scope: true, subjectHash: true, requestCount: true },
+		});
+		expect(scopes).toEqual(
+			expect.arrayContaining([
+				{
+					scope: "guest-bootstrap:bootstrap-promotion-a:ip:ten-minute",
+					subjectHash: sharedIpHash,
+					requestCount: 1n,
+				},
+				{
+					scope: "guest-bootstrap:bootstrap-promotion-b:ip:day",
+					subjectHash: sharedIpHash,
+					requestCount: 1n,
+				},
+				{
+					scope: "guest-bootstrap:bootstrap-promotion-a:subnet:day",
+					subjectHash: sharedSubnetHash,
+					requestCount: 1n,
+				},
+				{
+					scope: "guest-bootstrap:global:minute",
+					subjectHash: "global",
+					requestCount: 2n,
+				},
+				{
+					scope: "guest-bootstrap:global:hour",
+					subjectHash: "global",
+					requestCount: 2n,
+				},
+				{
+					scope: "guest-bootstrap:global:day",
+					subjectHash: "global",
+					requestCount: 2n,
+				},
+			]),
+		);
+		await expect(
+			client.guestAbuseBucket.findFirst({
+				where: { scope: "guest-bootstrap:global:minute", subjectHash: "global" },
+				select: { requestCount: true },
+			}),
+		).resolves.toEqual({ requestCount: 2n });
+	});
+
+	it("keeps bootstrap global capacity cross-promotion", async () => {
+		await client.guestAbuseBucket.deleteMany({
+			where: { scope: { startsWith: "guest-bootstrap" } },
+		});
+		const first = await createBootstrapFixture({ promotionPeriod: "bootstrap-global-a" });
+		const rejected = await createBootstrapFixture({ promotionPeriod: "bootstrap-global-b" });
+		const createPrincipal = async ({ email }: { email: string }) => {
+			const userId = await createPrincipalFixture(email);
+			return { userId, value: userId };
+		};
+		const limits = { ...guestBoundaryLimits(100), maximumGlobalRequestsPerMinute: 1 };
+
+		await consumeGuestBootstrap({ ...guestConsumeInput(first), limits }, createPrincipal, client);
+		await expect(
+			consumeGuestBootstrap({ ...guestConsumeInput(rejected), limits }, createPrincipal, client),
+		).rejects.toThrow("GUEST_TEMPORARY_USER_CAP_EXCEEDED");
+		await expect(
+			client.guestAbuseBucket.findFirst({
+				where: { scope: "guest-bootstrap:global:minute", subjectHash: "global" },
+				select: { requestCount: true },
+			}),
+		).resolves.toEqual({ requestCount: 1n });
+	});
+
+	it("serializes the total temporary-principal cap across promotions", async () => {
+		await client.guestAbuseBucket.deleteMany({
+			where: { scope: { startsWith: "guest-bootstrap" } },
+		});
+		const now = new Date();
+		const minuteStart = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
+		const minuteEnd = new Date(minuteStart.getTime() + 60_000);
+		const blockingScopes = ["guest-bootstrap-global-minute", "guest-bootstrap:global:minute"];
+		await client.guestAbuseBucket.createMany({
+			data: blockingScopes.map((scope) => ({
+				scope,
+				subjectHash: "global",
+				windowStart: minuteStart,
+				windowEnd: minuteEnd,
+				expiresAt: new Date(minuteEnd.getTime() + 30 * 24 * 60 * 60_000),
+			})),
+		});
+		const first = await createBootstrapFixture({ promotionPeriod: "principal-cap-a" });
+		const second = await createBootstrapFixture({ promotionPeriod: "principal-cap-b" });
+		const existingPrincipals = await client.user.count({ where: { isAnonymous: true } });
+		const maximumTemporaryPrincipals = existingPrincipals + 1;
+		const limits = {
+			...guestBoundaryLimits(100),
+			maximumOutstandingBootstraps: 100,
+			maximumTemporaryPrincipals,
+		};
+		let markRowsLocked!: () => void;
+		const rowsLocked = new Promise<void>((resolve) => {
+			markRowsLocked = resolve;
+		});
+		let releaseRows!: () => void;
+		const rowsReleased = new Promise<void>((resolve) => {
+			releaseRows = resolve;
+		});
+		const blocker = principalClient.$transaction(async (tx) => {
+			for (const scope of blockingScopes) {
+				await tx.$queryRaw`SELECT "id" FROM "guest_abuse_bucket" WHERE "scope" = ${scope} AND "subjectHash" = 'global' AND "windowStart" = ${minuteStart} FOR UPDATE`;
+			}
+			markRowsLocked();
+			await rowsReleased;
+		});
+		await rowsLocked;
+		const resultsPromise = Promise.allSettled([
+			acquireGuestBootstrapPrincipalLease({ ...guestConsumeInput(first), limits, now }, client, {
+				leaseDurationMs: 60_000,
+			}),
+			acquireGuestBootstrapPrincipalLease({ ...guestConsumeInput(second), limits, now }, client, {
+				leaseDurationMs: 60_000,
+			}),
+		]);
+		await waitForDatabaseLockWaiters(2);
+		releaseRows();
+		const results = await resultsPromise;
+		await blocker;
+
+		for (const [index, result] of results.entries()) {
+			if (result.status === "fulfilled" && result.value.outcome === "ACQUIRED") {
+				const fixture = index === 0 ? first : second;
+				await cleanupGuestBootstrapPrincipalLease(
+					{
+						claimHash: fixture.claimHash,
+						leaseToken: result.value.leaseToken,
+						leaseVersion: result.value.leaseVersion,
+						principalEmail: fixture.principalEmail,
+					},
+					client,
+				);
+			}
+		}
+		expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+		const denied = results.find((result) => result.status === "rejected");
+		expect(denied).toMatchObject({
+			status: "rejected",
+			reason: expect.objectContaining({ message: "GUEST_TEMPORARY_PRINCIPAL_CAP_EXCEEDED" }),
+		});
+	});
 });
 
-async function createBootstrapFixture(overrides: { expiresAt?: Date } = {}) {
+async function createBootstrapFixture(
+	overrides: { expiresAt?: Date; promotionPeriod?: string } = {},
+) {
 	const bootstrapId = randomUUID();
 	const claimHash = randomUUID().replaceAll("-", "").padEnd(64, "0");
-	const promotionPeriod = `integration-${randomUUID()}`;
+	const promotionPeriod = overrides.promotionPeriod ?? `integration-${randomUUID()}`;
 	const principalEmail = `guest-${randomUUID()}@anonymous.invalid`;
 	createdBootstrapIds.push(bootstrapId);
 	const draftId = await createDraftFixture(claimHash);
@@ -452,6 +793,41 @@ function guestBoundaryLimits(maximum = 100) {
 		maximumGlobalRequestsPerMinute: maximum,
 		maximumGlobalRequestsPerHour: maximum,
 		maximumGlobalRequestsPerDay: maximum,
+	};
+}
+
+function guestUploadIntentInput(
+	label: string,
+	promotionPeriod: string,
+	ipHash: string,
+	subnetHash: string,
+	abuseLimits = guestBoundaryLimits(),
+) {
+	const suffix = `${label}-${randomUUID()}`;
+	const now = new Date();
+	return {
+		assetId: `asset-${suffix}`,
+		sessionId: `session-${suffix}`,
+		ownerType: "USER" as const,
+		ownerId: `guest-${suffix}`,
+		kind: "INPUT" as const,
+		objectKey: `users/guest-${suffix}/assets/asset-${suffix}/original.png`,
+		stagingObjectKey: `users/guest-${suffix}/staging/session-${suffix}/upload.png`,
+		mimeType: "image/png",
+		expectedBytes: 8n,
+		completionTokenHash: randomUUID().replaceAll("-", "").padEnd(64, "0"),
+		expiresAt: new Date(now.getTime() + 10 * 60_000),
+		multipartUploadId: null,
+		limits: { maximumActiveSessions: 1, maximumReservedBytes: 10n * 1024n * 1024n },
+		capabilityVersion: "guest-v17",
+		promotionPeriod,
+		originHash: randomUUID().replaceAll("-", "").padEnd(64, "0"),
+		expectedSha256: randomUUID().replaceAll("-", "").padEnd(64, "0"),
+		deleteAfter: new Date(now.getTime() + 24 * 60 * 60_000),
+		ipHash,
+		subnetHash,
+		abuseLimits,
+		abuseEvidenceTtlMs: 30 * 24 * 60 * 60_000,
 	};
 }
 
