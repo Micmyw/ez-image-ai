@@ -50,9 +50,9 @@ describe("draft continuation identity router", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("cache-control")).toBe("no-store");
-		expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+		expect(response.headers.get("referrer-policy")).toBe("origin");
 		expect(body).toContain("/api/auth/sign-in/anonymous?handoff=1");
-		expect(body).toContain('<meta name="referrer" content="no-referrer">');
+		expect(body).toContain('<meta name="referrer" content="origin">');
 		expect(body).not.toMatch(/claimToken|media_draft_claim|prompt|asset/i);
 	});
 });
