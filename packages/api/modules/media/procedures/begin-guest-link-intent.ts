@@ -10,6 +10,7 @@ import {
 	hashGuestAbuseBinding,
 	hashGuestSecret,
 	loadGuestCapability,
+	requireGuestAbuseHmac,
 } from "../lib/guest-capability";
 
 export const GUEST_LINK_INTENT_COOKIE = "media_guest_link_intent";
@@ -43,16 +44,15 @@ export const beginGuestLinkIntent = guestMediaProcedure
 	)
 	.handler(async ({ context, input }) => {
 		const saasOrigin = process.env.NEXT_PUBLIC_SAAS_URL;
-		const abuseSecret = process.env.GUEST_ABUSE_HMAC_SECRET;
-		const abuseKeyVersion = process.env.GUEST_ABUSE_HMAC_VERSION;
-		if (!saasOrigin || !abuseSecret || !abuseKeyVersion) {
-			throw new Error("GUEST_CONFIGURATION_ERROR");
-		}
+		if (!saasOrigin) throw new Error("GUEST_CONFIGURATION_ERROR");
 		assertExactOrigin(context.headers.get("origin"), saasOrigin);
 		const loaded = await loadGuestCapability();
 		if (!loaded.config.enabled || !loaded.config.promotionPeriod) {
 			throw new Error("GUEST_CAPABILITY_DISABLED");
 		}
+		const { secretKey: abuseSecret, keyVersion: abuseKeyVersion } = requireGuestAbuseHmac(
+			loaded.config,
+		);
 		assertGuestCapabilityVersion(input.capabilityVersion, loaded.snapshot.version);
 		const now = new Date();
 		const expiresAt = new Date(now.getTime() + loaded.config.linkIntentTtlMs);

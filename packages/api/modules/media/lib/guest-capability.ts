@@ -143,6 +143,17 @@ export function hashGuestAbuseBinding(
 		.digest("hex");
 }
 
+export function requireGuestAbuseHmac(config: {
+	abuseHmac: Pick<GuestMediaConfig["abuseHmac"], "secretKey" | "keyVersion">;
+}): {
+	secretKey: string;
+	keyVersion: string;
+} {
+	const { secretKey, keyVersion } = config.abuseHmac;
+	if (!secretKey || !keyVersion) throw new Error("GUEST_CONFIGURATION_ERROR");
+	return { secretKey, keyVersion };
+}
+
 export function guestPrincipalEmail(secret: string, claimHash: string): string {
 	const localPart = hashGuestBinding(secret, "anonymous-principal", claimHash).slice(0, 48);
 	return `guest-${localPart}@anonymous.invalid`;

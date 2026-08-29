@@ -17,6 +17,7 @@ import {
 	hashGuestAbuseBinding,
 	hashGuestSecret,
 	loadGuestCapability,
+	requireGuestAbuseHmac,
 } from "../lib/guest-capability";
 import {
 	cloudflareTurnstileVerifier,
@@ -62,11 +63,7 @@ export const createGuestDraftUploadIntent = publicProcedure
 	)
 	.handler(async ({ context, input }) => {
 		const marketingOrigin = process.env.NEXT_PUBLIC_MARKETING_URL;
-		const abuseSecret = process.env.GUEST_ABUSE_HMAC_SECRET;
-		const abuseKeyVersion = process.env.GUEST_ABUSE_HMAC_VERSION;
-		if (!marketingOrigin || !abuseSecret || !abuseKeyVersion) {
-			throw new Error("GUEST_CONFIGURATION_ERROR");
-		}
+		if (!marketingOrigin) throw new Error("GUEST_CONFIGURATION_ERROR");
 		assertMarketingOrigin(context.headers.get("origin"), marketingOrigin);
 		const identity = trustedGuestClientIdentity(context.headers, process.env);
 		if (!identity) throw new Error("GUEST_TRUSTED_CLIENT_REQUIRED");
@@ -74,6 +71,9 @@ export const createGuestDraftUploadIntent = publicProcedure
 		if (!loaded.config.enabled || !loaded.config.promotionPeriod) {
 			throw new Error("GUEST_CAPABILITY_DISABLED");
 		}
+		const { secretKey: abuseSecret, keyVersion: abuseKeyVersion } = requireGuestAbuseHmac(
+			loaded.config,
+		);
 		assertGuestCapabilityVersion(input.capabilityVersion, loaded.snapshot.version);
 		if (
 			input.bytes > loaded.config.maximumBytes ||

@@ -830,6 +830,72 @@ describe("production media runtime stores", () => {
 		).toBe(1);
 	});
 
+	it("freezes accepted work when the recovery provider is unavailable", async () => {
+		const seeded = await seedPendingProviderJob();
+		const recoveryNow = new Date("2000-01-01T00:00:00.000Z");
+		const dueAt = new Date("1999-12-31T23:00:00.000Z");
+		await client.generationAttempt.update({
+			where: { id: seeded.attemptId },
+			data: { nextReconcileAt: dueAt, updatedAt: dueAt },
+		});
+
+		await expect(
+			reconcileGenerations(
+				{ limit: 1 },
+				{
+					store: createDatabaseReconciliationStore(client),
+					getProvider: () => {
+						throw new Error("Provider recovery credentials are unavailable");
+					},
+					now: () => recoveryNow,
+				},
+			),
+		).resolves.toEqual({ claimed: 1, reconciled: 0 });
+
+		const [job, attempt, reservation, settlementCount, audit] = await Promise.all([
+			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+			client.generationAttempt.findUniqueOrThrow({ where: { id: seeded.attemptId } }),
+			client.creditReservation.findUniqueOrThrow({ where: { jobId: seeded.jobId } }),
+			client.outboxEvent.count({
+				where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
+			}),
+			client.auditLog.findFirstOrThrow({
+				where: {
+					targetId: seeded.attemptId,
+					action: "MEDIA_PROVIDER_RECOVERY_UNAVAILABLE",
+				},
+			}),
+		]);
+		expect(job).toMatchObject({
+			status: "NEEDS_RECONCILIATION",
+			failureCode: "PROVIDER_RECOVERY_UNAVAILABLE",
+		});
+		expect(attempt).toMatchObject({
+			status: "NEEDS_RECONCILIATION",
+			providerTaskId: seeded.providerTaskId,
+			nextReconcileAt: null,
+			reconcileLeaseToken: null,
+			reconcileLeasedUntil: null,
+			errorSnapshot: {
+				code: "PROVIDER_RECOVERY_UNAVAILABLE",
+				retryable: false,
+				manualResolution: true,
+			},
+		});
+		expect(reservation).toMatchObject({
+			status: "ACTIVE",
+			settledAmount: 0n,
+			releasedAmount: 0n,
+		});
+		expect(settlementCount).toBe(0);
+		expect(audit.metadata).toMatchObject({
+			jobId: seeded.jobId,
+			code: "PROVIDER_RECOVERY_UNAVAILABLE",
+			creditsFrozen: true,
+			pageAdmin: true,
+		});
+	});
+
 	it("settles a provider-confirmed rejection at zero credits and preserves the decision", async () => {
 		const seeded = await seedReservedJob("image-fast");
 		const attempt = await client.generationAttempt.create({

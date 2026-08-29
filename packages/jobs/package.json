@@ -4,7 +4,7 @@
 	"main": "./index.ts",
 	"scripts": {
 		"test": "vitest run --config vitest.config.ts --exclude \"**/*.database.integration.test.ts\"",
-		"test:integration": "vitest run src/handlers/jobs.database.integration.test.ts src/handlers/runtime-stores.database.integration.test.ts src/handlers/finalization-transfer.database.integration.test.ts --config vitest.config.ts",
+		"test:integration": "vitest run src/handlers/finalization-transfer.database.integration.test.ts src/handlers/jobs.database.integration.test.ts src/handlers/recover-finalizing-generations.database.integration.test.ts src/handlers/runtime-stores.database.integration.test.ts src/handlers/verify-upload.database.integration.test.ts --config vitest.config.ts",
 		"type-check": "tsc --noEmit --incremental false"
 	},
 	"dependencies": {

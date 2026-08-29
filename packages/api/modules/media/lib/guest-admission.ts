@@ -20,6 +20,7 @@ import {
 	assertGuestCapabilityVersion,
 	hashGuestAbuseBinding,
 	loadGuestCapability,
+	requireGuestAbuseHmac,
 } from "./guest-capability";
 import { buildMediaQuote } from "./quote";
 import {
@@ -109,14 +110,16 @@ interface GuestAdmissionConfig {
 		maximumGlobalQueueDepth: number;
 	};
 	riskBudgetMicros: bigint;
+	abuseHmac: {
+		keyVersion: string | null;
+		secretKey: string | null;
+	};
 	turnstile: { required: boolean; secretKey: string | null };
 }
 
 interface GuestAdmissionDependencies {
 	now(): Date;
 	saasOrigin: string;
-	abuseSecret: string;
-	abuseKeyVersion: string;
 	loadCapability(): Promise<{
 		snapshot: { version: string };
 		config: GuestAdmissionConfig;
@@ -158,8 +161,6 @@ interface GuestAdmissionDependencies {
 export const guestAdmissionDependencies: GuestAdmissionDependencies = {
 	now: () => new Date(),
 	saasOrigin: process.env.NEXT_PUBLIC_SAAS_URL ?? "",
-	abuseSecret: process.env.GUEST_ABUSE_HMAC_SECRET ?? "",
-	abuseKeyVersion: process.env.GUEST_ABUSE_HMAC_VERSION ?? "",
 	loadCapability: () => loadGuestCapability(),
 	resolveIdentity: (headers) => trustedGuestClientIdentity(headers, process.env),
 	verifyTurnstile: async ({ token, hostname, clientIp, now, config }) => {
@@ -230,16 +231,15 @@ export async function submitGuestGenerationForGuest(
 	const identity = dependencies.resolveIdentity(boundary.headers);
 	if (!identity) throw new Error("GUEST_TRUSTED_CLIENT_REQUIRED");
 	if (!isRandomDeviceId(input.deviceId)) throw new Error("GUEST_DEVICE_INVALID");
-	if (!dependencies.abuseSecret || !dependencies.abuseKeyVersion) {
-		throw new Error("GUEST_CONFIGURATION_ERROR");
-	}
 
 	const loaded = await dependencies.loadCapability();
+	const abuseHmac = requireGuestAbuseHmac(loaded.config);
 	if (!loaded.config.enabled || !loaded.config.promotionPeriod) {
 		return rejectGuestAdmission(
 			dependencies,
 			boundary,
 			input,
+			abuseHmac,
 			loaded.config.promotionPeriod,
 			loaded.config.abuseEvidenceTtlMs,
 			now,
@@ -254,6 +254,7 @@ export async function submitGuestGenerationForGuest(
 			dependencies,
 			boundary,
 			input,
+			abuseHmac,
 			loaded.config.promotionPeriod,
 			loaded.config.abuseEvidenceTtlMs,
 			now,
@@ -275,6 +276,7 @@ export async function submitGuestGenerationForGuest(
 			dependencies,
 			boundary,
 			input,
+			abuseHmac,
 			loaded.config.promotionPeriod,
 			loaded.config.abuseEvidenceTtlMs,
 			now,
@@ -289,6 +291,7 @@ export async function submitGuestGenerationForGuest(
 			dependencies,
 			boundary,
 			input,
+			abuseHmac,
 			loaded.config.promotionPeriod,
 			loaded.config.abuseEvidenceTtlMs,
 			now,
@@ -307,6 +310,7 @@ export async function submitGuestGenerationForGuest(
 			dependencies,
 			boundary,
 			input,
+			abuseHmac,
 			loaded.config.promotionPeriod,
 			loaded.config.abuseEvidenceTtlMs,
 			now,
@@ -331,6 +335,7 @@ export async function submitGuestGenerationForGuest(
 			dependencies,
 			boundary,
 			input,
+			abuseHmac,
 			loaded.config.promotionPeriod,
 			loaded.config.abuseEvidenceTtlMs,
 			now,
@@ -361,6 +366,7 @@ export async function submitGuestGenerationForGuest(
 			dependencies,
 			boundary,
 			input,
+			abuseHmac,
 			loaded.config.promotionPeriod,
 			loaded.config.abuseEvidenceTtlMs,
 			now,
@@ -372,20 +378,20 @@ export async function submitGuestGenerationForGuest(
 		dependencies.moderationProvider ??
 		(process.env.MEDIA_SAFETY_ADAPTER === "sightengine" ? "sightengine" : "test");
 	const sourceSessionHash = hashGuestAbuseBinding(
-		dependencies.abuseSecret,
-		dependencies.abuseKeyVersion,
+		abuseHmac.secretKey,
+		abuseHmac.keyVersion,
 		"guest-source-session",
 		boundary.sessionId,
 	);
 	const deviceHash = hashGuestAbuseBinding(
-		dependencies.abuseSecret,
-		dependencies.abuseKeyVersion,
+		abuseHmac.secretKey,
+		abuseHmac.keyVersion,
 		"guest-device",
 		input.deviceId,
 	);
 	const idempotencyFingerprint = hashGuestAbuseBinding(
-		dependencies.abuseSecret,
-		dependencies.abuseKeyVersion,
+		abuseHmac.secretKey,
+		abuseHmac.keyVersion,
 		"guest-admission-idempotency",
 		[
 			boundary.ownerId,
@@ -404,14 +410,14 @@ export async function submitGuestGenerationForGuest(
 		sourceSessionHash,
 		deviceHash,
 		ipHash: hashGuestAbuseBinding(
-			dependencies.abuseSecret,
-			dependencies.abuseKeyVersion,
+			abuseHmac.secretKey,
+			abuseHmac.keyVersion,
 			"guest-ip",
 			identity.ip,
 		),
 		subnetHash: hashGuestAbuseBinding(
-			dependencies.abuseSecret,
-			dependencies.abuseKeyVersion,
+			abuseHmac.secretKey,
+			abuseHmac.keyVersion,
 			"guest-subnet",
 			identity.subnet,
 		),
@@ -470,6 +476,7 @@ export async function submitGuestGenerationForGuest(
 			dependencies,
 			boundary,
 			input,
+			abuseHmac,
 			loaded.config.promotionPeriod,
 			loaded.config.abuseEvidenceTtlMs,
 			now,
@@ -483,6 +490,7 @@ async function rejectGuestAdmission(
 	dependencies: GuestAdmissionDependencies,
 	boundary: GuestAdmissionBoundary,
 	input: SubmitGuestGenerationInput,
+	abuseHmac: { secretKey: string; keyVersion: string },
 	promotionPeriod: string | null,
 	evidenceTtlMs: number,
 	now: Date,
@@ -491,8 +499,8 @@ async function rejectGuestAdmission(
 ): Promise<never> {
 	if (promotionPeriod) {
 		const subjectHash = hashGuestAbuseBinding(
-			dependencies.abuseSecret,
-			dependencies.abuseKeyVersion,
+			abuseHmac.secretKey,
+			abuseHmac.keyVersion,
 			"guest-denial-idempotency",
 			`${boundary.ownerId}\n${input.idempotencyKey}`,
 		);

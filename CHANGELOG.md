@@ -1,5 +1,19 @@
 # Changelog
 
+## 2026-08-29
+
+### Reliability and operations
+
+- Normalized the versioned guest-abuse HMAC configuration once at the server capability boundary
+  and reused it across anonymous upload, admission, account-link, bootstrap, and auth checks. Secrets
+  remain server-only and malformed key versions still fail closed.
+- Escalated accepted Provider attempts to audited `PROVIDER_RECOVERY_UNAVAILABLE` manual
+  reconciliation when the recovery adapter cannot be loaded. The original attempt and active credit
+  reservation remain frozen without a duplicate Provider call, settlement, or release.
+- Registered every Jobs database integration suite in both repository entry points, added a
+  validation guard against future omissions, and documented the full-drain rollout required by the
+  moderation verification recovery migration.
+
 ## 2026-08-28
 
 ### Operations and verification

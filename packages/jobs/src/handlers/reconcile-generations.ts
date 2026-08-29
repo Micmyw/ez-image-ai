@@ -24,8 +24,17 @@ export async function reconcileGenerations(
 			);
 			continue;
 		}
+		let adapter: ReturnType<ReconciliationDependencies["getProvider"]>;
 		try {
-			const adapter = dependencies.getProvider(lease.provider);
+			adapter = dependencies.getProvider(lease.provider);
+		} catch {
+			await dependencies.store.markUncertainForManualReconciliation(
+				lease,
+				"PROVIDER_RECOVERY_UNAVAILABLE",
+			);
+			continue;
+		}
+		try {
 			const snapshot = await adapter.retrieve({
 				providerTaskId: lease.providerTaskId,
 				statusUrl: lease.statusUrl,

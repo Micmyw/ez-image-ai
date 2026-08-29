@@ -59,6 +59,22 @@ bounded compatibility fence, but cannot stop an already-running old request from
 I/O before its database transition. Monitor the outbox for either event type until all
 migration-generated cleanup and re-verification events are processed.
 
+## Moderation verification recovery rollout
+
+`20260823015000_moderation_verification_recovery` is not rolling-compatible with older API or
+worker builds. It changes the moderation evidence key, makes evidence append-only, and requires
+checksum- and policy-bound evidence for new `READY` transitions. Stop new generation, remove old API
+and worker processes from traffic, and wait for in-flight upload verification, generation
+finalization, and settlement work to finish before applying it. Deploy the matching API and recovery
+workers before traffic resumes.
+
+The migration preserves historical object bytes but moves legacy `READY` assets to `QUARANTINED`
+with `LEGACY_EVIDENCE_UNTRUSTED`. It does not mutate their generation jobs, credit reservations, or
+ledger history. Settlement waits while that marker is present, so keep moderation verification and
+finalization recovery enabled until every affected asset is re-verified or resolved through an
+audited operator action. Monitor the recovery schedules and their Outbox events; neither `READY` nor
+`QUARANTINED` storage status alone is authorization to read or charge for an asset.
+
 ## Raw invariants in later migrations
 
 The AI-media domain remains Prisma-only, but Prisma's schema model still cannot represent every

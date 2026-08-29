@@ -14,19 +14,12 @@ vi.mock("@repo/auth", () => ({
 vi.mock("@repo/database", () => ({
 	beginGuestLinkIntentTransaction: databaseMocks.begin,
 	completeGuestLinkIntentTransaction: databaseMocks.complete,
+	resolveGuestRuntimeConfigOverride: vi.fn(async () => true),
 }));
 vi.mock("@repo/database/client", () => ({ db: {} }));
 vi.mock("../lib/guest-capability", async (importOriginal) => ({
 	...(await importOriginal<typeof import("../lib/guest-capability")>()),
 	assertGuestCapabilityVersion: vi.fn(),
-	loadGuestCapability: vi.fn(async () => ({
-		snapshot: { version: "guest-v7" },
-		config: {
-			enabled: true,
-			promotionPeriod: "launch-2026-08",
-			linkIntentTtlMs: 15 * 60_000,
-		},
-	})),
 }));
 
 import { auth } from "@repo/auth";
@@ -39,6 +32,8 @@ const linkToken = "a".repeat(43);
 describe("beginGuestLinkIntent response ordering", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.stubEnv("GUEST_MEDIA_ENABLED", "true");
+		vi.stubEnv("GUEST_PROMOTION_PERIOD", "launch-2026-08");
 		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", "https://app.ezpic.test");
 		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", "independent-guest-abuse-secret");
 		vi.stubEnv("GUEST_ABUSE_HMAC_VERSION", "launch-key-v1");
@@ -125,7 +120,8 @@ describe("beginGuestLinkIntent response ordering", () => {
 		expect(beginResponseHeaders.get("set-cookie")).toBeNull();
 	});
 
-	it("binds link session, device, and intent token to the versioned abuse domain", async () => {
+	it("uses the capability-normalized abuse version for the link intent bindings", async () => {
+		vi.stubEnv("GUEST_ABUSE_HMAC_VERSION", " launch-key-v1 ");
 		const now = new Date();
 		databaseMocks.begin.mockResolvedValue({
 			id: "intent-1",

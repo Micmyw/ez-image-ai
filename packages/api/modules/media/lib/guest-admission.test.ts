@@ -199,8 +199,6 @@ function validDependencies(options?: {
 	return {
 		now: () => now,
 		saasOrigin: "https://app.ezpic.test",
-		abuseSecret: "independent-guest-abuse-secret",
-		abuseKeyVersion: "launch-key-v1",
 		loadCapability: vi.fn(async () => ({
 			snapshot: { version: "guest-v7" },
 			config: {
@@ -230,6 +228,10 @@ function validDependencies(options?: {
 					maximumGlobalQueueDepth: 25,
 				},
 				riskBudgetMicros: 350_000n,
+				abuseHmac: {
+					secretKey: "independent-guest-abuse-secret",
+					keyVersion: "launch-key-v1",
+				},
 				turnstile: { required: false, secretKey: null },
 			},
 		})),

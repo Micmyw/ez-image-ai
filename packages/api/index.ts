@@ -32,7 +32,11 @@ import {
 	getExpiredGuestBootstrapCookie,
 	hashDraftClaimToken,
 } from "./modules/media/lib/draft-security";
-import { guestPrincipalEmail, hashGuestAbuseBinding } from "./modules/media/lib/guest-capability";
+import {
+	guestPrincipalEmail,
+	hashGuestAbuseBinding,
+	requireGuestAbuseHmac,
+} from "./modules/media/lib/guest-capability";
 import { createProviderWebhookHandler } from "./modules/media/webhooks/provider-webhook";
 import { mediaLoadTestHandler } from "./modules/testing/media-load";
 import { openApiHandler, rpcHandler } from "./orpc/handler";
@@ -294,19 +298,18 @@ async function defaultHasGuestLinkIntent(
 	guestUserId: string,
 	guestSessionId: string,
 ): Promise<boolean> {
-	const abuseSecret = process.env.GUEST_ABUSE_HMAC_SECRET;
-	const abuseKeyVersion = process.env.GUEST_ABUSE_HMAC_VERSION;
-	const promotionPeriod = process.env.GUEST_PROMOTION_PERIOD;
 	const token = readRequestCookie(request, "media_guest_link_intent");
-	if (
-		!abuseSecret ||
-		!abuseKeyVersion ||
-		!promotionPeriod ||
-		!guestUserId ||
-		!guestSessionId ||
-		!token ||
-		!/^[A-Za-z0-9_-]{43}$/.test(token)
-	) {
+	if (!guestUserId || !guestSessionId || !token || !/^[A-Za-z0-9_-]{43}$/.test(token)) {
+		return false;
+	}
+	const runtimeOverride = await defaultResolveGuestRuntimeOverride();
+	const guestConfig = getGuestMediaConfig(process.env, runtimeOverride);
+	const promotionPeriod = guestConfig.promotionPeriod;
+	if (!promotionPeriod) return false;
+	let abuseHmac: ReturnType<typeof requireGuestAbuseHmac>;
+	try {
+		abuseHmac = requireGuestAbuseHmac(guestConfig);
+	} catch {
 		return false;
 	}
 	try {
@@ -317,8 +320,8 @@ async function defaultHasGuestLinkIntent(
 					anonymousOwnerId: guestUserId,
 					promotionPeriod,
 					sourceSessionHash: hashGuestAbuseBinding(
-						abuseSecret,
-						abuseKeyVersion,
+						abuseHmac.secretKey,
+						abuseHmac.keyVersion,
 						"guest-source-session",
 						guestSessionId,
 					),
@@ -334,19 +337,13 @@ async function defaultHasGuestLinkIntent(
 }
 
 async function handleDurableGuestAnonymousSignIn(request: Request): Promise<Response> {
-	const promotionPeriod = process.env.GUEST_PROMOTION_PERIOD;
 	const saasOriginValue = process.env.NEXT_PUBLIC_SAAS_URL;
 	const authSecret = process.env.BETTER_AUTH_SECRET;
-	const abuseSecret = process.env.GUEST_ABUSE_HMAC_SECRET;
-	const abuseKeyVersion = process.env.GUEST_ABUSE_HMAC_VERSION;
 	const token = readRequestCookie(request, GUEST_BOOTSTRAP_COOKIE);
 	const identity = trustedGuestClientIdentity(request.headers, process.env);
 	if (
-		!promotionPeriod ||
 		!saasOriginValue ||
 		!authSecret ||
-		!abuseSecret ||
-		!abuseKeyVersion ||
 		!token ||
 		!/^[A-Za-z0-9_-]{43}$/.test(token) ||
 		!identity
@@ -360,6 +357,20 @@ async function handleDurableGuestAnonymousSignIn(request: Request): Promise<Resp
 	const principalEmail = guestPrincipalEmail(authSecret, claimHash);
 	const runtimeOverride = await defaultResolveGuestRuntimeOverride();
 	const guestConfig = getGuestMediaConfig(process.env, runtimeOverride);
+	const promotionPeriod = guestConfig.promotionPeriod;
+	let abuseHmac: ReturnType<typeof requireGuestAbuseHmac>;
+	try {
+		abuseHmac = requireGuestAbuseHmac(guestConfig);
+	} catch {
+		return withExpiredGuestBootstrapCookie(
+			guestAuthErrorResponse("GUEST_BOOTSTRAP_BOUNDARY_REJECTED", 403),
+		);
+	}
+	if (!promotionPeriod) {
+		return withExpiredGuestBootstrapCookie(
+			guestAuthErrorResponse("GUEST_BOOTSTRAP_BOUNDARY_REJECTED", 403),
+		);
+	}
 	if (!guestConfig.enabled) {
 		return withExpiredGuestBootstrapCookie(
 			guestAuthErrorResponse("GUEST_CAPABILITY_DISABLED", 404),
@@ -374,10 +385,15 @@ async function handleDurableGuestAnonymousSignIn(request: Request): Promise<Resp
 				origin: request.headers.get("origin"),
 				principalEmail,
 				promotionPeriod,
-				ipHash: hashGuestAbuseBinding(abuseSecret, abuseKeyVersion, "guest-ip", identity.ip),
+				ipHash: hashGuestAbuseBinding(
+					abuseHmac.secretKey,
+					abuseHmac.keyVersion,
+					"guest-ip",
+					identity.ip,
+				),
 				subnetHash: hashGuestAbuseBinding(
-					abuseSecret,
-					abuseKeyVersion,
+					abuseHmac.secretKey,
+					abuseHmac.keyVersion,
 					"guest-subnet",
 					identity.subnet,
 				),

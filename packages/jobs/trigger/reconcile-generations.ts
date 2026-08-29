@@ -2,7 +2,7 @@ import { schedules } from "@trigger.dev/sdk";
 
 import { reconcileGenerations } from "../src/handlers/reconcile-generations";
 import {
-	createProviderRegistry,
+	createReconciliationProviderRegistry,
 	getAnyRegisteredProvider,
 	databaseReconciliationStore,
 } from "../src/runtime";
@@ -13,7 +13,7 @@ export const reconcileGenerationsTask = schedules.task({
 	queue: { name: "media-reconciliation", concurrencyLimit: 1 },
 	maxDuration: 240,
 	run: async () => {
-		const registry = createProviderRegistry(process.env, { includeRecoveryProviders: true });
+		const registry = createReconciliationProviderRegistry(process.env);
 		return reconcileGenerations(
 			{ limit: 25, leaseSeconds: 120 },
 			{

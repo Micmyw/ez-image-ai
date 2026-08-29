@@ -56,18 +56,27 @@ describe("anonymous Better Auth wildcard boundary", () => {
 		databaseMocks.hasDurableGuestBootstrapProof.mockResolvedValue(false);
 		databaseMocks.resolveGuestRuntimeConfigOverride.mockResolvedValue(null);
 		databaseClientMocks.guestLinkIntent.findFirst.mockResolvedValue(null);
-		vi.mocked(getGuestMediaConfig).mockImplementation(
-			(_environment, runtimeOverride) =>
-				({
-					enabled:
-						runtimeOverride === true ||
-						(typeof runtimeOverride === "object" &&
-							runtimeOverride !== null &&
-							Reflect.get(runtimeOverride, "enabled") === true),
-					limits: {},
-					abuseEvidenceTtlMs: 30 * 24 * 60 * 60_000,
-				}) as never,
-		);
+		vi.mocked(getGuestMediaConfig).mockImplementation((environment, runtimeOverride) => {
+			const normalizedString = (value: unknown) =>
+				typeof value === "string" && value.trim() ? value.trim() : null;
+			return {
+				enabled:
+					runtimeOverride === true ||
+					(typeof runtimeOverride === "object" &&
+						runtimeOverride !== null &&
+						Reflect.get(runtimeOverride, "enabled") === true),
+				promotionPeriod: normalizedString(environment.GUEST_PROMOTION_PERIOD),
+				abuseHmac: {
+					secretKey:
+						typeof environment.GUEST_ABUSE_HMAC_SECRET === "string"
+							? environment.GUEST_ABUSE_HMAC_SECRET
+							: null,
+					keyVersion: normalizedString(environment.GUEST_ABUSE_HMAC_VERSION),
+				},
+				limits: {},
+				abuseEvidenceTtlMs: 30 * 24 * 60 * 60_000,
+			} as never;
+		});
 		vi.mocked(auth.api.getSession).mockResolvedValue(null);
 		vi.mocked(auth.handler).mockImplementation(async () =>
 			Promise.resolve(new Response("handled", { status: 200 })),

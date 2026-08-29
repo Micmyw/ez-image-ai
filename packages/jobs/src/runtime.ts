@@ -113,7 +113,6 @@ export function createProviderRegistry(
 	environment = process.env,
 	options: ProviderRegistryOptions = {},
 ): ProviderRegistry {
-	const registry = new MediaProviderRegistry();
 	const configuredProviders = configuredProviderKeysFromEnvironment(environment);
 	const requestedProviders = options.includeRecoveryProviders
 		? new Set([...configuredProviders, ...recoveryProviderKeysFromEnvironment(environment)])
@@ -130,6 +129,26 @@ export function createProviderRegistry(
 			throw new Error(`PROVIDER_WORKER_CREDENTIAL_MISSING:${missingCredentials.join(",")}`);
 		}
 	}
+	return createLocallyExecutableProviderRegistry(environment, registeredProviders);
+}
+
+export function createReconciliationProviderRegistry(environment = process.env): ProviderRegistry {
+	const requestedProviders = new Set([
+		...configuredProviderKeysFromEnvironment(environment),
+		...recoveryProviderKeysFromEnvironment(environment),
+	]);
+	const registeredProviders = locallyExecutableProviderKeysFromEnvironment(
+		environment,
+		requestedProviders,
+	);
+	return createLocallyExecutableProviderRegistry(environment, registeredProviders);
+}
+
+function createLocallyExecutableProviderRegistry(
+	environment: Record<string, string | undefined>,
+	registeredProviders: ReadonlySet<ProviderKey>,
+): ProviderRegistry {
+	const registry = new MediaProviderRegistry();
 	if (registeredProviders.has("replicate") && environment.REPLICATE_API_TOKEN) {
 		registry.register(
 			new ReplicateProviderAdapter({

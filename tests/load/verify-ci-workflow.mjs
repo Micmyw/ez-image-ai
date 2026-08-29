@@ -1,7 +1,20 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 const workflow = readFileSync(resolve(process.cwd(), ".github/workflows/validate-prs.yml"), "utf8");
+const integrationRunner = readFileSync(
+	resolve(process.cwd(), "tests/load/run-integration.ts"),
+	"utf8",
+);
+const jobsPackage = JSON.parse(
+	readFileSync(resolve(process.cwd(), "packages/jobs/package.json"), "utf8"),
+);
+const jobsDatabaseIntegrationTests = readdirSync(
+	resolve(process.cwd(), "packages/jobs/src/handlers"),
+)
+	.filter((name) => name.endsWith(".database.integration.test.ts"))
+	.sort()
+	.map((name) => `src/handlers/${name}`);
 const gitleaksIgnorePath = resolve(process.cwd(), ".gitleaksignore");
 if (!existsSync(gitleaksIgnorePath))
 	throw new Error("exact Gitleaks fixture fingerprints are missing");
@@ -12,6 +25,11 @@ const builds = jobBlock(workflow, "builds", "mock-e2e");
 const mockE2e = jobBlock(workflow, "mock-e2e", "supply-chain");
 
 assertNarrowGitleaksFixtureIgnores(gitleaksIgnore);
+assertJobsDatabaseIntegrationCoverage(
+	jobsDatabaseIntegrationTests,
+	jobsPackage.scripts?.["test:integration"],
+	integrationRunner,
+);
 assertNotMatch(builds, /^ {6}DATABASE_URL:\s*\$\{\{\s*env\./m);
 assertPnpmSetupPrecedesNodeCache(workflow);
 assertStepPrecedes(
@@ -64,7 +82,17 @@ function jobBlock(workflowText, jobName, nextJobName) {
 
 function assertIncludes(value, expected) {
 	if (!value.includes(expected)) {
-		throw new Error(`mock-e2e workflow contract is missing: ${expected}`);
+		throw new Error(`repository validation contract is missing: ${expected}`);
+	}
+}
+
+function assertJobsDatabaseIntegrationCoverage(testFiles, packageCommand, rootRunner) {
+	if (typeof packageCommand !== "string") {
+		throw new Error("@repo/jobs test:integration command is missing");
+	}
+	for (const testFile of testFiles) {
+		assertIncludes(packageCommand, testFile);
+		assertIncludes(rootRunner, `"${testFile}"`);
 	}
 }
 

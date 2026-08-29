@@ -4,6 +4,7 @@ import { deleteStorageObject } from "./handlers/cleanup-storage-object";
 import {
 	createDatabaseDispatchStore,
 	createProviderRegistry,
+	createReconciliationProviderRegistry,
 	createProviderWebhookVerifierRegistry,
 	createDatabaseStorageCleanupDependencies,
 } from "./runtime";
@@ -61,6 +62,19 @@ describe("provider runtime registration", () => {
 		).toThrow("PROVIDER_WORKER_CREDENTIAL_MISSING:gemini");
 	});
 
+	it("keeps ordinary production admission strict while recovery omits unavailable adapters", () => {
+		const environment = {
+			NODE_ENV: "production",
+			MEDIA_ENABLED_PROVIDERS: "replicate",
+			MEDIA_RECOVERY_PROVIDERS: "replicate",
+		};
+
+		expect(() => createProviderRegistry(environment)).toThrow(
+			"PROVIDER_WORKER_CREDENTIAL_MISSING:replicate",
+		);
+		expect([...createReconciliationProviderRegistry(environment).keys()]).toEqual([]);
+	});
+
 	it("builds the full configured production worker graph when all credentials exist", () => {
 		const registry = createProviderRegistry({
 			NODE_ENV: "production",
@@ -101,6 +115,10 @@ describe("provider runtime registration", () => {
 		};
 
 		expect([...createProviderRegistry(environment).keys()]).toEqual(["fal"]);
+		expect([...createReconciliationProviderRegistry(environment).keys()]).toEqual([
+			"replicate",
+			"fal",
+		]);
 		expect([
 			...createProviderRegistry(environment, { includeRecoveryProviders: true }).keys(),
 		]).toEqual(["replicate", "fal"]);

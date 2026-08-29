@@ -148,8 +148,6 @@ function configureAdmissionDependencies(
 	Object.assign(guestAdmissionDependencies, {
 		now: () => fixture.now,
 		saasOrigin: "https://app.ezpic.test",
-		abuseSecret: "independent-guest-abuse-secret",
-		abuseKeyVersion: "launch-key-v1",
 		loadCapability: async () => ({
 			snapshot: { version: "guest-v7" },
 			config: {
@@ -169,6 +167,10 @@ function configureAdmissionDependencies(
 					maximumGlobalQueueDepth: 100,
 				},
 				riskBudgetMicros: 350_000n,
+				abuseHmac: {
+					secretKey: "independent-guest-abuse-secret",
+					keyVersion: "launch-key-v1",
+				},
 				turnstile: { required: false, secretKey: null },
 			},
 		}),

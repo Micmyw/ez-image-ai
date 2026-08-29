@@ -34,6 +34,15 @@ DATABASE_URL=<empty-database-url> pnpm db:migrate:drift
 
 For an existing Supastarter deployment, do not blindly apply the initial foundation migration. Follow `packages/database/prisma/migrations/README.md`: diff the real database, review the deployment-specific SQL, test it against a restored staging copy, verify invariants, then baseline only after the schema exists. A clean Prisma diff is not sufficient baseline evidence because Prisma does not fully model the raw SQL invariants in the migration history. Before `migrate resolve --applied`, compare `pg_constraint`, `pg_trigger`, and `pg_indexes` with the committed migration SQL and explicitly prove that the named credit/account/lot/reservation/allocation CHECK constraints and the `credit_ledger_entry_immutable` trigger exist and are enabled. Apply any missing raw invariant through reviewed deployment-specific SQL before baselining; otherwise later migrations can fail or the database can silently lose ledger protections. A drift result or missing raw invariant is a release blocker.
 
+Apply `20260823015000_moderation_verification_recovery` only during a full API and jobs-worker
+maintenance window. Stop new generation, drain in-flight upload verification, output finalization,
+and settlement work, then apply the migration and deploy the matching API and recovery workers
+before restoring traffic. The migration preserves historical bytes but moves legacy `READY` assets
+to `QUARANTINED` with `LEGACY_EVIDENCE_UNTRUSTED`; it does not release the affected jobs' active
+credit reservations. Keep moderation and finalization recovery running until every affected asset
+is re-verified or resolved through an audited operator action, and never treat storage status alone
+as proof that an asset is readable or billable.
+
 For `20260825024738_add_image_edit_sessions`, verify on an isolated restored copy that legacy
 `generation_job` rows remain unchanged with nullable `editSessionId` and `parentJobId`, that both
 new foreign keys use `ON DELETE SET NULL`, and that no job, quote, reservation, ledger, asset, or
@@ -125,7 +134,7 @@ browser event fixture as external analytics ingestion.
 
 - Outbox: release an expired lease or replay a pending/dead-letter event only after the cause is fixed. Dedupe keys prevent duplicate side effects.
 - Provider Webhook: replay the persisted verified event. Never fabricate or weaken signature verification.
-- Uncertain submission: keep its reservation frozen, block user cancellation, and reconcile the same attempt; do not fail over while the Provider may have accepted it. After bounded automated recovery, an administrator must record evidence and decide `ACCEPTED` or `REJECTED`. `ACCEPTED` requires Provider-specific recovery identifiers/endpoints; `REJECTED` releases the full reservation and charges zero. Both actions are locked, idempotent, and audited.
+- Uncertain submission: keep its reservation frozen, block user cancellation, and reconcile the same attempt; do not fail over while the Provider may have accepted it. If recovery reports `PROVIDER_RECOVERY_UNAVAILABLE`, restore the exact server-side Provider recovery configuration and inspect the audited attempt instead of submitting again; the job remains in manual reconciliation with its reservation active. After bounded automated recovery, an administrator must record evidence and decide `ACCEPTED` or `REJECTED`. `ACCEPTED` requires Provider-specific recovery identifiers/endpoints; `REJECTED` releases the full reservation and charges zero. Both actions are locked, idempotent, and audited.
 - Finalization/transfer/moderation: retry the failed stage; do not create another paid submission.
 - PaymentEvent: replay the verified persisted Stripe event after lease expiry/cause repair.
 - Object cleanup: replay `MEDIA_OBJECT_DELETE` or `MEDIA_MULTIPART_ABORT`. Object-not-found and `NoSuchUpload` are idempotent success conditions.
