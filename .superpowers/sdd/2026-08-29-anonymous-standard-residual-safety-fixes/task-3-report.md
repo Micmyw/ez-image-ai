@@ -86,3 +86,66 @@ Production guest configuration now fails closed unless the complete launch envel
 
 - The first forced type-check invocation stopped before source type checking because Prisma generation had no `DATABASE_URL`. It was rerun with the exact isolated database URL and passed `21/21`; this was an invocation-environment issue, not a source failure.
 - Existing PostgreSQL `client.query()` nested-query deprecation warnings and intentional payment-fixture error logs remained unchanged and non-blocking.
+
+## Review fix round 1: make the outstanding-bootstrap ceiling atomic
+
+- Status: `DONE`.
+- Reviewed HEAD: `1cafd79210c4af1fe02d09d4adfd48a3c5407c32` (`fix: enforce guest admission ceilings`).
+- Delivery is a new regular `fix:` commit; `1cafd79` was not amended.
+- No Schema or migration changed.
+
+### Root cause and implementation
+
+- The outstanding-bootstrap check previously ran during principal lease acquisition, after the Bootstrap had already been created. It therefore did not serialize the operation that increased the outstanding count.
+- The old claim-time predicate also used `count > maximum`. Once historical rows exceeded the ceiling it rejected the very claim that would have reduced the outstanding count, creating a self-sustaining backlog until expiry.
+- `createGuestSessionBootstrapWithClaimFence` now requires the configured ceiling, takes the existing claim lock and the cross-promotion `guest-bootstrap-cap:global` advisory lock in the same transaction, counts active unclaimed/uncompleted Bootstraps, and rejects at `count >= maximum` before inserting the Bootstrap.
+- The ready-upload finalization transaction passes the ceiling and verification clock into that creation path. Draft creation, completion-token consumption, Bootstrap counting/insertion, and both locks therefore commit or roll back together.
+- Principal lease acquisition retains the same global lock for temporary-principal capacity but no longer rejects based on outstanding Bootstrap count, so claims can drain a historical over-cap backlog.
+- `complete-guest-upload` forwards `loaded.config.limits.maximumOutstandingBootstraps` and maps the internal `GUEST_OUTSTANDING_BOOTSTRAP_CAP_EXCEEDED` error to stable public `GUEST_CAPACITY_UNAVAILABLE`.
+
+### TDD evidence
+
+#### RED
+
+- Public error mapping reached the real procedure catch path and failed behaviorally: expected `GUEST_CAPACITY_UNAVAILABLE`, received `GUEST_OUTSTANDING_BOOTSTRAP_CAP_EXCEEDED`.
+- Historical over-cap drain reached the real claim transaction and failed behaviorally: expected `CREATED`, received `GUEST_OUTSTANDING_BOOTSTRAP_CAP_EXCEEDED`.
+- The cross-promotion creation fixture first had its READY moderation ordering and staged-terminalization token transition aligned with current database guards. After those fixture-only repairs, the unchanged production code produced the intended RED: both concurrent `finalizeGuestDraftFromReadyUploadTransaction` calls fulfilled when exactly one was allowed. This was not a connection, migration, constraint, timeout, or fixture-setup failure.
+
+#### GREEN
+
+- Guest Bootstrap PostgreSQL file: `16/16` passed. The concurrent case preseeds N-1, produces exactly one success and one stable cap error, proves the loser has zero Draft/Bootstrap rows and an unchanged completion token/consumption timestamp, and finishes at exactly N outstanding rows.
+- The historical over-cap case permits one claim and reduces outstanding count by one; the temporary-principal cap regression remains enforced.
+- Guest upload API/capability file: `9/9` passed, including exact ceiling forwarding and stable public error mapping.
+- Task 3 config and generation admission regressions: `37/37 + 35/35` passed.
+- Task 1 regressions: guest link `7/7`; jobs runtime store `50/50`.
+- Task 2 regressions: guest retention `11/11`; API admission `14/14`.
+
+### Mutation check
+
+- Temporarily changed the creation predicate from `count >= maximum` to `count > maximum`. The cross-promotion concurrency test failed exactly because both finalizations fulfilled instead of one. Restoring `>=` returned the focused test to GREEN.
+
+### Final gates
+
+- `pnpm test:unit:contracts`: exit `0`; `1,110` tests passed.
+- `pnpm test:integration`: exit `0`; database `156 + 79`, jobs `70`, API `407 + 11` = `723` tests.
+- `pnpm test --force`: exit `0`; `12/12` tasks successful, `0` cached.
+- `pnpm format`, `pnpm format:check`, `pnpm lint`, and `git diff --check`: exit `0`; all `1,115` files matched formatting.
+- `pnpm type-check --force`: exit `0`; `21/21` tasks successful, `0` cached, using the exact isolated database URL for Prisma generation.
+- Existing PostgreSQL nested-query deprecation warnings, Turbo no-output warnings, and intentional payment-fixture error logs remained unchanged and non-blocking.
+
+### Exact cleanup
+
+- The exact disposable database was `ezpic_residual_limits_fix1_20260829_test` through loopback port `55432`; all `36` migrations had been applied before testing.
+- Before deletion, the database list was `ezpic`, `ezpic_residual_limits_fix1_20260829_test`, `ezpic_testing`, `postgres`, `supastarter`, and `supastarter_test`. Only `ezpic_residual_limits_fix1_20260829_test` was dropped; the repeated list retained every other database.
+- Forwarder managed session `19578` received Ctrl-C. Launcher PID `30284` and Node PID `43724` are absent; port `55432` is closed.
+- Docker Desktop root PID `34724` was started at `2026-08-29T11:56:03.5082144+08:00`. Its final current task-owned tree before shutdown was `3184,24504,25312,27272,31448,32728,34724,36140`; initial PID `37044` had already exited.
+- Docker stopped through supported isolated `docker desktop stop`; stop launcher PID `42436`, created `2026-08-29T12:15:59.2345363+08:00`, exited `0`. No PID-termination fallback was used.
+- Every recorded Docker, forwarder, and stop PID is absent; no Docker product process remains. `com.docker.service`, `Ubuntu-24.04`, and `docker-desktop` are stopped.
+- Guarded ports `2375,2376,3000,3001,5432,55432,9000,9001` are closed.
+- Global Docker settings SHA-256 remains `C3AEA9DBD24BF4FEED03CF2C81F4B683E712BDDBDD6E4D28953E935E4DFEF4F2`; isolated settings SHA-256 remains `E4ED5A1109B5E156604E38424BED432FDD7E5FD04662E399FBB521281000EE22`.
+- Registry mapping remains `\\?\D:\Docker\DockerDesktopWSL\main`; C-drive Docker VHDX count is `0`.
+- Supported shutdown left task records `24504.json` and `31448.json`. Their exact recorded processes were absent; only those two verified current-run records were removed, leaving the isolated task directory empty. These transient task records are not recoverable, but contain no product or user data.
+
+### NOT_COMPLETED
+
+- No push, PR, merge, deployment, production enablement, remote CI, browser/public/live verification, or real Provider, Turnstile, Stripe, Trigger.dev, mail, or cloud-storage call was performed.

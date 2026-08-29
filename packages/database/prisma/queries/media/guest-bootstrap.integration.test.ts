@@ -4,6 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
+import { finalizeGuestDraftFromReadyUploadTransaction } from "./drafts";
 import {
 	acquireGuestBootstrapPrincipalLease,
 	bindGuestBootstrapPrincipalLease,
@@ -15,6 +16,7 @@ import {
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const DATABASE_URL = process.env.DATABASE_URL;
+const TEST_MAXIMUM_OUTSTANDING_BOOTSTRAPS = Number.MAX_SAFE_INTEGER;
 
 let client: PrismaClient;
 let principalClient: PrismaClient;
@@ -151,6 +153,7 @@ describe("guest bootstrap consumption", () => {
 						idempotencyKey: `bootstrap:${bootstrapId}`,
 						claimedDraftId: draftId,
 						expiresAt: new Date(Date.now() + 60_000),
+						maximumOutstandingBootstraps: TEST_MAXIMUM_OUTSTANDING_BOOTSTRAPS,
 					},
 					tx,
 				),
@@ -352,33 +355,15 @@ describe("guest bootstrap consumption", () => {
 		expect(createPrincipal).not.toHaveBeenCalled();
 	});
 
-	it("enforces outstanding-bootstrap and total-temporary-principal caps before identity creation", async () => {
-		const blocker = await createBootstrapFixture();
-		const bootstrapTarget = await createBootstrapFixture();
+	it("enforces the total-temporary-principal cap before identity creation", async () => {
 		const createPrincipal = vi.fn(async ({ email }: { email: string }) => {
 			const userId = await createPrincipalFixture(email);
 			return { userId, value: userId };
 		});
-		await expect(
-			consumeGuestBootstrap(
-				{
-					...guestConsumeInput(bootstrapTarget),
-					limits: {
-						...guestConsumeInput(bootstrapTarget).limits,
-						maximumOutstandingBootstraps: 1,
-						maximumTemporaryPrincipals: 100,
-					},
-				},
-				createPrincipal,
-				client,
-			),
-		).rejects.toThrow("GUEST_OUTSTANDING_BOOTSTRAP_CAP_EXCEEDED");
-
 		const existingUserId = await createPrincipalFixture(
 			`existing-${randomUUID()}@anonymous.invalid`,
 		);
 		const principalTarget = await createBootstrapFixture();
-		await client.guestSessionBootstrap.delete({ where: { id: blocker.bootstrapId } });
 		await expect(
 			consumeGuestBootstrap(
 				{
@@ -718,6 +703,99 @@ describe("guest bootstrap consumption", () => {
 			reason: expect.objectContaining({ message: "GUEST_TEMPORARY_PRINCIPAL_CAP_EXCEEDED" }),
 		});
 	});
+
+	it("serializes outstanding bootstrap creation across promotions without partial loser writes", async () => {
+		const now = new Date();
+		const outstandingBefore = await countOutstandingBootstraps(now);
+		await createBootstrapFixture({ promotionPeriod: "bootstrap-cap-preseed" });
+		const maximumOutstandingBootstraps = outstandingBefore + 2;
+		await expect(countOutstandingBootstraps(now)).resolves.toBe(maximumOutstandingBootstraps - 1);
+		const fixtures = await Promise.all([
+			createReadyGuestUploadFixture("bootstrap-cap-promotion-a"),
+			createReadyGuestUploadFixture("bootstrap-cap-promotion-b"),
+		]);
+		const attempts = fixtures.map((fixture, index) => {
+			const claimTokenHash = randomUUID().replaceAll("-", "").padEnd(64, "0");
+			const consumedTokenHash = randomUUID().replaceAll("-", "").padEnd(64, "0");
+			return {
+				fixture,
+				claimTokenHash,
+				consumedTokenHash,
+				run: () =>
+					finalizeGuestDraftFromReadyUploadTransaction(
+						{
+							sessionId: fixture.sessionId,
+							completionTokenHash: fixture.completionTokenHash,
+							consumedTokenHash,
+							claimTokenHash,
+							capabilityVersion: fixture.capabilityVersion,
+							promotionPeriod: fixture.promotionPeriod,
+							maximumOutstandingBootstraps,
+							prompt: `Concurrent cap contender ${index}`,
+							expiresAt: new Date(fixture.now.getTime() + 30 * 60_000),
+							verification: fixture.verification,
+						},
+						client,
+					),
+			};
+		});
+
+		const results = await concurrentSettledBarrier(attempts.map((attempt) => attempt.run));
+
+		expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+		expect(results.filter((result) => result.status === "rejected")).toHaveLength(1);
+		const loserIndex = results.findIndex((result) => result.status === "rejected");
+		expect(results[loserIndex]).toMatchObject({
+			status: "rejected",
+			reason: expect.objectContaining({ message: "GUEST_OUTSTANDING_BOOTSTRAP_CAP_EXCEEDED" }),
+		});
+		const loser = attempts[loserIndex]!;
+		await expect(
+			Promise.all([
+				client.generationDraft.count({ where: { claimTokenHash: loser.claimTokenHash } }),
+				client.guestSessionBootstrap.count({ where: { claimHash: loser.claimTokenHash } }),
+				client.mediaUploadSession.findUniqueOrThrow({
+					where: { id: loser.fixture.sessionId },
+					select: { tokenHash: true, guestCompletionConsumedAt: true },
+				}),
+			]),
+		).resolves.toEqual([
+			0,
+			0,
+			{ tokenHash: loser.fixture.completionTokenHash, guestCompletionConsumedAt: null },
+		]);
+		await expect(countOutstandingBootstraps(now)).resolves.toBe(maximumOutstandingBootstraps);
+	});
+
+	it("allows a claim to drain an already over-cap outstanding bootstrap backlog", async () => {
+		const blocker = await createBootstrapFixture({ promotionPeriod: "bootstrap-drain-blocker" });
+		const target = await createBootstrapFixture({ promotionPeriod: "bootstrap-drain-target" });
+		const now = new Date();
+		const outstandingBefore = await countOutstandingBootstraps(now);
+		const maximumOutstandingBootstraps = outstandingBefore - 1;
+		const createPrincipal = vi.fn(async ({ email }: { email: string }) => {
+			const userId = await createPrincipalFixture(email);
+			return { userId, value: userId };
+		});
+
+		await expect(
+			consumeGuestBootstrap(
+				{
+					...guestConsumeInput(target),
+					limits: {
+						...guestBoundaryLimits(100),
+						maximumOutstandingBootstraps,
+					},
+					now,
+				},
+				createPrincipal,
+				client,
+			),
+		).resolves.toMatchObject({ outcome: "CREATED" });
+		expect(blocker.bootstrapId).toBeTruthy();
+		expect(createPrincipal).toHaveBeenCalledOnce();
+		await expect(countOutstandingBootstraps(now)).resolves.toBe(outstandingBefore - 1);
+	});
 });
 
 async function createBootstrapFixture(
@@ -738,6 +816,7 @@ async function createBootstrapFixture(
 				idempotencyKey: `bootstrap:${bootstrapId}`,
 				claimedDraftId: draftId,
 				expiresAt: overrides.expiresAt ?? new Date(Date.now() + 60_000),
+				maximumOutstandingBootstraps: TEST_MAXIMUM_OUTSTANDING_BOOTSTRAPS,
 			},
 			tx,
 		),
@@ -829,6 +908,99 @@ function guestUploadIntentInput(
 		abuseLimits,
 		abuseEvidenceTtlMs: 30 * 24 * 60 * 60_000,
 	};
+}
+
+async function createReadyGuestUploadFixture(promotionPeriod: string) {
+	const input = guestUploadIntentInput(
+		`ready-${promotionPeriod}`,
+		promotionPeriod,
+		`ready-ip-${randomUUID()}`,
+		`ready-subnet-${randomUUID()}`,
+	);
+	await createGuestMediaUploadIntentTransaction(input, client);
+	const now = new Date();
+	const validUntil = new Date(now.getTime() + 60 * 60_000);
+	const verification = {
+		provider: "test",
+		ruleVersion: "media-safety-rule-v1",
+		policyVersion: "media-safety-policy-v1",
+		now,
+	};
+	const providerTaskId = `moderation-${randomUUID()}`;
+	await client.mediaAsset.update({
+		where: { id: input.assetId },
+		data: {
+			status: "VERIFYING",
+			checksum: input.expectedSha256,
+			finalizedAt: now,
+			verificationGeneration: 1,
+			verificationAttemptCount: 1,
+			verificationProvider: verification.provider,
+			verificationProviderTaskId: providerTaskId,
+			verificationRuleVersion: verification.ruleVersion,
+			verificationPolicyVersion: verification.policyVersion,
+			verificationValidUntil: validUntil,
+		},
+	});
+	await client.assetModerationResult.create({
+		data: {
+			assetId: input.assetId,
+			assetChecksum: input.expectedSha256,
+			verificationGeneration: 1,
+			attemptNumber: 1,
+			evidenceKind: "INPUT",
+			provider: verification.provider,
+			providerTaskId,
+			ruleVersion: verification.ruleVersion,
+			policyVersion: verification.policyVersion,
+			status: "APPROVED",
+			reasonCode: "ALLOW",
+			categories: {},
+			rawEnvelope: {},
+			validUntil,
+			createdAt: now,
+		},
+	});
+	await client.mediaAsset.update({
+		where: { id: input.assetId },
+		data: { status: "READY" },
+	});
+	await client.mediaUploadSession.update({
+		where: { id: input.sessionId },
+		data: {
+			status: "COMPLETED",
+			completedAt: now,
+			stagedTerminalizationToken: null,
+		},
+	});
+	return {
+		assetId: input.assetId,
+		sessionId: input.sessionId,
+		completionTokenHash: input.completionTokenHash,
+		capabilityVersion: input.capabilityVersion,
+		promotionPeriod,
+		now,
+		verification,
+	};
+}
+
+async function countOutstandingBootstraps(now: Date) {
+	return client.guestSessionBootstrap.count({
+		where: { ownerId: null, completedAt: null, expiresAt: { gt: now } },
+	});
+}
+
+async function concurrentSettledBarrier<T>(operations: Array<() => Promise<T>>) {
+	let release!: () => void;
+	const gate = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	const contenders = operations.map(async (operation) => {
+		await gate;
+		return operation();
+	});
+	release();
+	return Promise.allSettled(contenders);
 }
 
 async function createPrincipalFixture(email: string): Promise<string> {

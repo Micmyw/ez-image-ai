@@ -107,6 +107,7 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 		claimTokenHash: string;
 		capabilityVersion: string;
 		promotionPeriod: string;
+		maximumOutstandingBootstraps: number;
 		prompt: string;
 		expiresAt: Date;
 		verification: {
@@ -182,6 +183,8 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 				claimedDraftId: draft.id,
 				sourceAssetId: session.assetId,
 				expiresAt: input.expiresAt,
+				maximumOutstandingBootstraps: input.maximumOutstandingBootstraps,
+				now: input.verification.now,
 			},
 			tx,
 		);

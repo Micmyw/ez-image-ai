@@ -143,13 +143,32 @@ export interface CreateGuestSessionBootstrapInput {
 	claimedDraftId: string;
 	sourceAssetId?: string;
 	expiresAt: Date;
+	maximumOutstandingBootstraps: number;
+	now?: Date;
 }
 
 export async function createGuestSessionBootstrapWithClaimFence(
 	input: CreateGuestSessionBootstrapInput,
 	tx: Prisma.TransactionClient,
 ) {
+	if (
+		!Number.isSafeInteger(input.maximumOutstandingBootstraps) ||
+		input.maximumOutstandingBootstraps < 1
+	) {
+		throw new Error("GUEST_OUTSTANDING_BOOTSTRAP_CAP_INVALID");
+	}
 	await lockGuestBootstrapClaim(input.claimHash, tx);
+	await lockGuestBootstrapGlobalCap(tx);
+	const outstandingBootstraps = await tx.guestSessionBootstrap.count({
+		where: {
+			ownerId: null,
+			completedAt: null,
+			expiresAt: { gt: input.now ?? new Date() },
+		},
+	});
+	if (outstandingBootstraps >= input.maximumOutstandingBootstraps) {
+		throw new Error("GUEST_OUTSTANDING_BOOTSTRAP_CAP_EXCEEDED");
+	}
 	return tx.guestSessionBootstrap.create({
 		data: {
 			id: input.id,
@@ -498,6 +517,10 @@ async function lockGuestBootstrapClaim(
 	await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${claimHash}, 0))`;
 }
 
+async function lockGuestBootstrapGlobalCap(tx: Prisma.TransactionClient): Promise<void> {
+	await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('guest-bootstrap-cap:global', 0))`;
+}
+
 async function delay(milliseconds: number): Promise<void> {
 	await new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
@@ -507,21 +530,8 @@ async function enforceGuestBootstrapCaps(
 	now: Date,
 	tx: Prisma.TransactionClient,
 ): Promise<void> {
-	if (
-		input.limits.maximumOutstandingBootstraps !== undefined ||
-		input.limits.maximumTemporaryPrincipals !== undefined
-	) {
-		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('guest-bootstrap-cap:global', 0))`;
-	}
-	if (input.limits.maximumOutstandingBootstraps !== undefined) {
-		const outstandingBootstraps = await tx.guestSessionBootstrap.count({
-			where: { ownerId: null, completedAt: null, expiresAt: { gt: now } },
-		});
-		if (outstandingBootstraps > input.limits.maximumOutstandingBootstraps) {
-			throw new Error("GUEST_OUTSTANDING_BOOTSTRAP_CAP_EXCEEDED");
-		}
-	}
 	if (input.limits.maximumTemporaryPrincipals !== undefined) {
+		await lockGuestBootstrapGlobalCap(tx);
 		const [anonymousPrincipals, activePrincipalLeases] = await Promise.all([
 			tx.user.count({ where: { isAnonymous: true } }),
 			tx.guestSessionBootstrap.count({

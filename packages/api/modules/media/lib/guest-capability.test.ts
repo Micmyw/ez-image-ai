@@ -272,6 +272,10 @@ describe("guest private upload handoff", () => {
 			expect.objectContaining({ expectedSha256: "a".repeat(64), sessionId: "session_1" }),
 			"guest_owner",
 		);
+		expect(databaseMocks.finalizeDraft).toHaveBeenCalledWith(
+			expect.objectContaining({ maximumOutstandingBootstraps: 25 }),
+			expect.anything(),
+		);
 		expect(result).toEqual({
 			status: "READY",
 			claimToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
@@ -332,5 +336,30 @@ describe("guest private upload handoff", () => {
 		expect(uploadMocks.completeOwnedUploadSession).toHaveBeenCalledOnce();
 		expect(storageMocks.headObject).toHaveBeenCalledOnce();
 		expect(databaseMocks.finalizeDraft).toHaveBeenCalledTimes(2);
+	});
+
+	it("maps the internal bootstrap ceiling to one stable public capacity error", async () => {
+		databaseMocks.finalizeDraft.mockRejectedValueOnce(
+			new Error("GUEST_OUTSTANDING_BOOTSTRAP_CAP_EXCEEDED"),
+		);
+
+		await expect(
+			call(
+				completeGuestDraftUpload,
+				{
+					sessionId: "session_1",
+					completionToken: "b".repeat(43),
+					capabilityVersion: "guest-v17",
+					sha256: "a".repeat(64),
+					prompt: "Replace the background",
+				},
+				{
+					context: {
+						headers: new Headers({ origin: "https://marketing.test" }),
+						responseHeaders: new Headers(),
+					},
+				},
+			),
+		).rejects.toThrow("GUEST_CAPACITY_UNAVAILABLE");
 	});
 });

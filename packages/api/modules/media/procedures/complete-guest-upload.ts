@@ -113,6 +113,7 @@ export const completeGuestDraftUpload = publicProcedure
 					claimTokenHash: hashDraftClaimToken(claimToken),
 					capabilityVersion: loaded.snapshot.version,
 					promotionPeriod: loaded.config.promotionPeriod,
+					maximumOutstandingBootstraps: loaded.config.limits.maximumOutstandingBootstraps,
 					prompt: input.prompt,
 					expiresAt: new Date(Date.now() + loaded.config.bootstrapTtlMs),
 					verification: currentMediaAssetVerificationBoundary(),
@@ -122,6 +123,9 @@ export const completeGuestDraftUpload = publicProcedure
 		} catch (error) {
 			if (error instanceof Error && error.message === "GUEST_UPLOAD_NOT_READY") {
 				return { status: "PENDING" as const, retryAfterMs: 500 };
+			}
+			if (error instanceof Error && error.message === "GUEST_OUTSTANDING_BOOTSTRAP_CAP_EXCEEDED") {
+				throw new Error("GUEST_CAPACITY_UNAVAILABLE");
 			}
 			throw error;
 		}
