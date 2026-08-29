@@ -4,6 +4,30 @@ import { submitGuestGenerationForGuest } from "./guest-admission";
 
 describe("guest admission pre-transaction boundary", () => {
 	it.each([
+		["capability", { capabilityEnabled: false }, "GUEST_CAPABILITY_DISABLED", "CAPABILITY"],
+		["Turnstile", { turnstileError: "TURNSTILE_INVALID" }, "TURNSTILE_INVALID", "TURNSTILE"],
+		["input", { assetOverride: { byteSize: 10_485_761n } }, "GUEST_INPUT_UNAVAILABLE", "INPUT"],
+		["quote", { quoteCredits: 5n }, "GUEST_PRICE_CHANGED", "QUOTE"],
+		["content", { moderationDecision: "REJECT" }, "TEXT_MODERATION_REJECT", "CONTENT"],
+	] as const)(
+		"bounds %s denial evidence with the configured TTL",
+		async (_label, options, expectedError, expectedReason) => {
+			const dependencies = validDependencies(options);
+
+			await expect(
+				submitGuestGenerationForGuest(validBoundary(), validInput(), dependencies),
+			).rejects.toThrow(expectedError);
+			expect(dependencies.recordDenial).toHaveBeenCalledWith(
+				expect.objectContaining({
+					promotionPeriod: "launch-2026-08",
+					reason: expectedReason,
+					evidenceTtlMs: 30 * 24 * 60 * 60_000,
+				}),
+			);
+		},
+	);
+
+	it.each([
 		["oversized source", { byteSize: 10_485_761n }, "GUEST_INPUT_UNAVAILABLE", 4n, "INPUT"],
 		[
 			"stale source",
@@ -139,6 +163,7 @@ function validDependencies(options?: {
 	createError?: string;
 	moderationDecision?: "ALLOW" | "REJECT" | "REVIEW" | "ERROR";
 	quoteCredits?: bigint;
+	turnstileError?: string;
 }) {
 	const now = new Date("2026-08-28T00:00:00.000Z");
 	return {
@@ -168,11 +193,14 @@ function validDependencies(options?: {
 			},
 		})),
 		resolveIdentity: vi.fn(() => ({ ip: "203.0.113.42", subnet: "203.0.113.0/24" })),
-		verifyTurnstile: vi.fn(async () => ({
-			tokenHash: "f".repeat(64),
-			challengeTimestamp: now,
-			expiresAt: new Date(now.getTime() + 5 * 60_000),
-		})),
+		verifyTurnstile: vi.fn(async () => {
+			if (options?.turnstileError) throw new Error(options.turnstileError);
+			return {
+				tokenHash: "f".repeat(64),
+				challengeTimestamp: now,
+				expiresAt: new Date(now.getTime() + 5 * 60_000),
+			};
+		}),
 		loadSourceAsset: vi.fn(async () => ({
 			id: "asset-1",
 			ownerType: "USER",

@@ -147,6 +147,7 @@ interface GuestAdmissionDependencies {
 		reason: GuestAdmissionDenialReason;
 		subjectHash: string;
 		now: Date;
+		evidenceTtlMs: number;
 	}): Promise<void>;
 	createTransaction(
 		input: CreateGuestGenerationTransactionInput,
@@ -236,6 +237,7 @@ export async function submitGuestGenerationForGuest(
 			boundary,
 			input,
 			loaded.config.promotionPeriod,
+			loaded.config.abuseEvidenceTtlMs,
 			now,
 			"CAPABILITY",
 			new Error("GUEST_CAPABILITY_DISABLED"),
@@ -249,6 +251,7 @@ export async function submitGuestGenerationForGuest(
 			boundary,
 			input,
 			loaded.config.promotionPeriod,
+			loaded.config.abuseEvidenceTtlMs,
 			now,
 			"CAPABILITY",
 			error,
@@ -269,6 +272,7 @@ export async function submitGuestGenerationForGuest(
 			boundary,
 			input,
 			loaded.config.promotionPeriod,
+			loaded.config.abuseEvidenceTtlMs,
 			now,
 			"TURNSTILE",
 			error,
@@ -282,6 +286,7 @@ export async function submitGuestGenerationForGuest(
 			boundary,
 			input,
 			loaded.config.promotionPeriod,
+			loaded.config.abuseEvidenceTtlMs,
 			now,
 			"INPUT",
 			new Error("GUEST_INPUT_UNAVAILABLE"),
@@ -299,6 +304,7 @@ export async function submitGuestGenerationForGuest(
 			boundary,
 			input,
 			loaded.config.promotionPeriod,
+			loaded.config.abuseEvidenceTtlMs,
 			now,
 			"INPUT",
 			new Error("GUEST_INPUT_UNAVAILABLE"),
@@ -322,6 +328,7 @@ export async function submitGuestGenerationForGuest(
 			boundary,
 			input,
 			loaded.config.promotionPeriod,
+			loaded.config.abuseEvidenceTtlMs,
 			now,
 			"QUOTE",
 			new Error("GUEST_PRICE_CHANGED"),
@@ -351,6 +358,7 @@ export async function submitGuestGenerationForGuest(
 			boundary,
 			input,
 			loaded.config.promotionPeriod,
+			loaded.config.abuseEvidenceTtlMs,
 			now,
 			"CONTENT",
 			new Error(`TEXT_MODERATION_${moderation.decision}`),
@@ -442,6 +450,7 @@ export async function submitGuestGenerationForGuest(
 			boundary,
 			input,
 			loaded.config.promotionPeriod,
+			loaded.config.abuseEvidenceTtlMs,
 			now,
 			reason,
 			error,
@@ -454,6 +463,7 @@ async function rejectGuestAdmission(
 	boundary: GuestAdmissionBoundary,
 	input: SubmitGuestGenerationInput,
 	promotionPeriod: string | null,
+	evidenceTtlMs: number,
 	now: Date,
 	reason: GuestAdmissionDenialReason,
 	error: unknown,
@@ -465,7 +475,7 @@ async function rejectGuestAdmission(
 			`${boundary.ownerId}\n${input.idempotencyKey}`,
 		);
 		await dependencies
-			.recordDenial({ promotionPeriod, reason, subjectHash, now })
+			.recordDenial({ promotionPeriod, reason, subjectHash, now, evidenceTtlMs })
 			.catch(() => undefined);
 	}
 	throw error instanceof Error ? error : new Error("GUEST_ADMISSION_REJECTED");

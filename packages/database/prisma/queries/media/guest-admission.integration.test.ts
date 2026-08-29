@@ -227,17 +227,20 @@ describe("guest generation admission", () => {
 	});
 
 	it("persists one idempotent global-rate denial after the business transaction rolls back", async () => {
+		const evidenceTtlMs = 17 * 24 * 60 * 60_000;
 		const first = await createGuestFixture("rate-first");
 		await createGuestAdmission(
 			guestAdmissionInput(first, {
 				idempotencyKey: "guest-rate-first",
 				maximumRequestsPerMinute: 1,
+				abuseEvidenceTtlMs: evidenceTtlMs,
 			}),
 		);
 		const denied = await createGuestFixture("rate-denied");
 		const input = guestAdmissionInput(denied, {
 			idempotencyKey: "guest-rate-denied",
 			maximumRequestsPerMinute: 1,
+			abuseEvidenceTtlMs: evidenceTtlMs,
 		});
 
 		await expect(createGuestAdmission(input)).rejects.toThrow("GUEST_GLOBAL_RATE_LIMIT");
@@ -248,6 +251,19 @@ describe("guest generation admission", () => {
 				_sum: { rejectionCount: true },
 			}),
 		).resolves.toMatchObject({ _sum: { rejectionCount: 1n } });
+		await expect(
+			client.guestAbuseBucket.findUniqueOrThrow({
+				where: {
+					scope_subjectHash_windowStart: {
+						scope: `guest-denial:${denied.promotionPeriod}:GLOBAL_RATE_LIMIT`,
+						subjectHash: input.idempotencyFingerprint,
+						windowStart: new Date(0),
+					},
+				},
+			}),
+		).resolves.toMatchObject({
+			expiresAt: new Date(input.now.getTime() + evidenceTtlMs),
+		});
 	});
 
 	it.each([

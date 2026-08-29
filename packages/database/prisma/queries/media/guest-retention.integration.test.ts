@@ -191,6 +191,40 @@ describe("guest absolute media retention", () => {
 		await expect(client.guestMediaTrial.count({ where: { id: trialId } })).resolves.toBe(1);
 	});
 
+	it("scrubs a due IN_FLIGHT trial while preserving its waiting business graph", async () => {
+		const now = new Date("2026-08-28T12:00:00.000Z");
+		const graph = await createWaitingTrialGraph(now);
+		const before = await waitingGraphSnapshot(graph);
+		expect(before).toMatchObject({
+			job: { id: graph.jobId, status: "DISPATCH_QUEUED" },
+			quote: { id: graph.quoteId },
+			reservation: { id: graph.reservationId, status: "ACTIVE" },
+			outbox: { id: graph.outboxId, status: "PENDING" },
+		});
+
+		const result = await expireGuestMediaTransaction({ now, limit: 25 }, client);
+
+		expect(result.expiredJobs).toBe(0);
+		const trial = await trialEvidenceSnapshot(graph.trialId);
+		expect([
+			trial.sourceSessionHash,
+			trial.deviceHash,
+			trial.ipHash,
+			trial.subnetHash,
+			trial.idempotencyFingerprint,
+		]).toEqual([null, null, null, null, null]);
+		expect(asDate(trial.abuseEvidenceDeletedAt)).toEqual(now);
+		expect(trial).toMatchObject({
+			ownerId: graph.ownerId,
+			eligibility: "IN_FLIGHT",
+			riskState: "HELD",
+			currentJobId: graph.jobId,
+			consumedJobId: null,
+		});
+		await expect(waitingGraphSnapshot(graph)).resolves.toEqual(before);
+		await expect(client.user.count({ where: { id: graph.ownerId } })).resolves.toBe(1);
+	});
+
 	it("scrubs due evidence in a deterministic bounded batch and preserves the first scrub time", async () => {
 		const now = new Date("2026-08-28T12:00:00.000Z");
 		const owners = await Promise.all([
@@ -435,6 +469,161 @@ async function createAnonymousOwner(label: string): Promise<string> {
 		},
 	});
 	return owner.id;
+}
+
+interface WaitingTrialGraph {
+	ownerId: string;
+	trialId: string;
+	quoteId: string;
+	jobId: string;
+	accountId: string;
+	lotId: string;
+	reservationId: string;
+	allocationId: string;
+	ledgerIds: string[];
+	outboxId: string;
+}
+
+async function createWaitingTrialGraph(now: Date): Promise<WaitingTrialGraph> {
+	const ownerId = await createAnonymousOwner("waiting-in-flight");
+	const expiresAt = new Date(now.getTime() + 24 * 60 * 60_000);
+	const trialId = await createTrialEvidenceRow({
+		ownerId,
+		promotionPeriod: "waiting-in-flight-period",
+		evidenceExpiresAt: new Date(now.getTime() - 1),
+		expiresAt,
+		eligibility: "IN_FLIGHT",
+		riskState: "HELD",
+	});
+	const quote = await client.generationQuote.create({
+		data: {
+			ownerType: "USER",
+			ownerId,
+			submittedByUserId: ownerId,
+			productKey: "image-fast",
+			catalogVersion: "catalog-waiting-v1",
+			pricingVersion: "pricing-waiting-v1",
+			credits: 4n,
+			costMicros: 3500n,
+			inputSnapshot: { kind: "image-to-image", prompt: "waiting" },
+			pricingSnapshot: { settlementPolicy: { maxCharge: "4" } },
+			moderationDecision: "ALLOW",
+			moderationProvider: "test",
+			moderationRuleVersion: "text-safety-v1",
+			moderationReasonCode: "ALLOW",
+			inputFingerprint: createHashValue(`${trialId}:waiting-quote`),
+			expiresAt,
+		},
+	});
+	const job = await client.generationJob.create({
+		data: {
+			ownerType: "USER",
+			ownerId,
+			submittedByUserId: ownerId,
+			quoteId: quote.id,
+			idempotencyKey: `waiting-${randomUUID()}`,
+			productKey: "image-fast",
+			catalogVersion: quote.catalogVersion,
+			pricingVersion: quote.pricingVersion,
+			creditsReserved: 4n,
+			inputSnapshot: { kind: "image-to-image", prompt: "waiting" },
+			pricingSnapshot: { settlementPolicy: { maxCharge: "4" } },
+			status: "DISPATCH_QUEUED",
+			serviceClass: "GUEST_SLOW",
+			dispatchEligibleAt: new Date(now.getTime() + 60_000),
+			guestTrialId: trialId,
+			createdAt: now,
+			updatedAt: now,
+		},
+	});
+	const account = await client.creditAccount.create({
+		data: { ownerType: "USER", ownerId, reservedCredits: 4n },
+	});
+	const lot = await client.creditLot.create({
+		data: {
+			accountId: account.id,
+			grantReferenceKey: `guest-trial:${trialId}:grant`,
+			grantedAmount: 4n,
+			remainingAmount: 0n,
+			reservedAmount: 4n,
+			expiresAt,
+		},
+	});
+	const reservation = await client.creditReservation.create({
+		data: {
+			accountId: account.id,
+			jobId: job.id,
+			amount: 4n,
+			status: "ACTIVE",
+		},
+	});
+	const allocation = await client.creditReservationAllocation.create({
+		data: {
+			reservationId: reservation.id,
+			lotId: lot.id,
+			amount: 4n,
+		},
+	});
+	const ledgerEntries = await Promise.all(
+		(["GRANT", "RESERVE"] as const).map((type) =>
+			client.creditLedgerEntry.create({
+				data: {
+					accountId: account.id,
+					lotId: lot.id,
+					reservationId: type === "GRANT" ? null : reservation.id,
+					type,
+					amount: 4n,
+					referenceKey: `${trialId}:waiting:${type.toLowerCase()}`,
+					metadata: { guestTrialId: trialId, command: type },
+				},
+			}),
+		),
+	);
+	const outbox = await client.outboxEvent.create({
+		data: {
+			eventType: "GUEST_GENERATION_ELIGIBLE",
+			aggregateType: "GENERATION_JOB",
+			aggregateId: job.id,
+			dedupeKey: `guest-job:${job.id}:eligible`,
+			payload: { jobId: job.id, trialId },
+			availableAt: job.dispatchEligibleAt!,
+		},
+	});
+	await client.guestMediaTrial.update({
+		where: { id: trialId },
+		data: { currentJobId: job.id },
+	});
+	return {
+		ownerId,
+		trialId,
+		quoteId: quote.id,
+		jobId: job.id,
+		accountId: account.id,
+		lotId: lot.id,
+		reservationId: reservation.id,
+		allocationId: allocation.id,
+		ledgerIds: ledgerEntries.map((entry) => entry.id),
+		outboxId: outbox.id,
+	};
+}
+
+async function waitingGraphSnapshot(graph: WaitingTrialGraph) {
+	const [quote, job, account, lot, reservation, allocation, ledgers, outbox] = await Promise.all([
+		client.generationQuote.findUniqueOrThrow({ where: { id: graph.quoteId } }),
+		client.generationJob.findUniqueOrThrow({ where: { id: graph.jobId } }),
+		client.creditAccount.findUniqueOrThrow({ where: { id: graph.accountId } }),
+		client.creditLot.findUniqueOrThrow({ where: { id: graph.lotId } }),
+		client.creditReservation.findUniqueOrThrow({ where: { id: graph.reservationId } }),
+		client.creditReservationAllocation.findUniqueOrThrow({
+			where: { id: graph.allocationId },
+		}),
+		client.creditLedgerEntry.findMany({
+			where: { id: { in: graph.ledgerIds } },
+			orderBy: { referenceKey: "asc" },
+		}),
+		client.outboxEvent.findUniqueOrThrow({ where: { id: graph.outboxId } }),
+	]);
+	return { quote, job, account, lot, reservation, allocation, ledgers, outbox };
 }
 
 interface ConsumedTerminalGraph {

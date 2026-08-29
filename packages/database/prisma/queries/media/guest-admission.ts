@@ -131,7 +131,7 @@ export interface RecordGuestAdmissionDenialInput {
 	reason: GuestAdmissionDenialReason;
 	subjectHash: string;
 	now: Date;
-	evidenceTtlMs?: number;
+	evidenceTtlMs: number;
 }
 
 export async function recordGuestAdmissionDenial(
@@ -142,17 +142,15 @@ export async function recordGuestAdmissionDenial(
 		!input.promotionPeriod ||
 		!/^[A-Z][A-Z0-9_]{0,127}$/.test(input.reason) ||
 		!/^[a-f0-9]{64}$/.test(input.subjectHash) ||
-		Number.isNaN(input.now.getTime())
+		Number.isNaN(input.now.getTime()) ||
+		!Number.isSafeInteger(input.evidenceTtlMs) ||
+		input.evidenceTtlMs <= 0
 	) {
 		throw new Error("GUEST_DENIAL_INPUT_INVALID");
 	}
 	const windowStart = new Date(0);
 	const windowEnd = new Date(1);
-	const evidenceTtlMs = input.evidenceTtlMs ?? 90 * 24 * 60 * 60_000;
-	if (!Number.isSafeInteger(evidenceTtlMs) || evidenceTtlMs <= 0) {
-		throw new Error("GUEST_DENIAL_INPUT_INVALID");
-	}
-	const expiresAt = new Date(input.now.getTime() + evidenceTtlMs);
+	const expiresAt = new Date(input.now.getTime() + input.evidenceTtlMs);
 	await client.guestAbuseBucket.upsert({
 		where: {
 			scope_subjectHash_windowStart: {
