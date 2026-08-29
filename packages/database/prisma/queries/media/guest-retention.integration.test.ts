@@ -245,10 +245,13 @@ function assertSafeTestDatabaseUrl(
 	if (!value) throw new Error("TEST_DATABASE_URL is required");
 	if (value === databaseUrl) throw new Error("TEST_DATABASE_URL must differ from DATABASE_URL");
 	const parsed = new URL(value);
+	const pathname = parsed.pathname.toLowerCase();
+	const databaseName = pathname.slice(1);
 	if (
 		parsed.hostname !== "127.0.0.1" ||
-		!parsed.pathname.toLowerCase().includes("testing") ||
-		parsed.pathname === "/ezpic_testing"
+		pathname === "/ezpic" ||
+		pathname === "/ezpic_testing" ||
+		!/(^|[_-])(test|testing)([_-]|$)/.test(databaseName)
 	) {
 		throw new Error("TEST_DATABASE_URL must target a dedicated loopback testing database");
 	}

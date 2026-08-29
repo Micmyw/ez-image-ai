@@ -219,7 +219,7 @@ function configureAdmissionDependencies(
 
 async function createGuestFixture(label: string): Promise<GuestFixture> {
 	const suffix = `${label}-${randomUUID()}`;
-	const now = new Date("2026-08-28T00:00:00.000Z");
+	const now = new Date();
 	const ownerId = `guest-${suffix}`;
 	const sessionId = `session-${suffix}`;
 	const assetId = `asset-${suffix}`;
@@ -287,6 +287,7 @@ async function createGuestFixture(label: string): Promise<GuestFixture> {
 			categories: {},
 			rawEnvelope: {},
 			validUntil,
+			createdAt: now,
 		},
 	});
 	await client.mediaAsset.update({ where: { id: assetId }, data: { status: "READY" } });

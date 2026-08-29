@@ -4332,8 +4332,6 @@ async function guestDispatchChecksPass(
 		trial.eligibility !== "IN_FLIGHT" ||
 		trial.riskState !== "HELD" ||
 		trial.providerBoundaryAt !== null ||
-		trial.linkedAt !== null ||
-		trial.linkIntents.some((intent) => intent.state !== "NONE") ||
 		trial.expiresAt <= now ||
 		now.getTime() - job.createdAt.getTime() >= 10 * 60_000 ||
 		(job.dispatchEligibleAt !== null && job.dispatchEligibleAt > now) ||

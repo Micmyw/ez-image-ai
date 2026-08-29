@@ -94,6 +94,15 @@ describe("guest account-link fence", () => {
 			},
 			client,
 		);
+		const replayed = await completeGuestLinkIntentTransaction(
+			{
+				tokenHash,
+				registeredUserId: fixture.registeredUserId,
+				grantTokenHash: hashFixture(`ignored-replay:${fixture.ownerId}`),
+				now: fixture.now,
+			},
+			client,
+		);
 		await expect(
 			beginGuestLinkIntentTransaction(linkInput(fixture, tokenHash), client),
 		).rejects.toThrow("GUEST_LINK_UNAVAILABLE");
@@ -107,6 +116,7 @@ describe("guest account-link fence", () => {
 			returnPath: "/try",
 			expiresAt: trial.expiresAt,
 		});
+		expect(replayed).toEqual(completed);
 		await expect(
 			client.guestResultAccessGrant.findUniqueOrThrow({
 				where: {
@@ -127,6 +137,25 @@ describe("guest account-link fence", () => {
 			client.mediaAsset.findUniqueOrThrow({ where: { id: fixture.assetId } }),
 		).resolves.toMatchObject({ ownerId: fixture.ownerId, retentionClass: "GUEST_TRIAL" });
 		await expect(client.session.count({ where: { userId: fixture.ownerId } })).resolves.toBe(0);
+		await expect(
+			Promise.all([
+				client.guestResultAccessGrant.count({
+					where: {
+						guestJobId: admitted.jobId,
+						registeredUserId: fixture.registeredUserId,
+					},
+				}),
+				client.creditAccount.count({ where: { ownerId: fixture.registeredUserId } }),
+				client.creditLot.count({
+					where: { account: { ownerId: fixture.registeredUserId } },
+				}),
+				client.creditLedgerEntry.count({
+					where: { account: { ownerId: fixture.registeredUserId } },
+				}),
+				client.generationQuote.count({ where: { ownerId: fixture.registeredUserId } }),
+				client.generationJob.count({ where: { ownerId: fixture.registeredUserId } }),
+			]),
+		).resolves.toEqual([1, 0, 0, 0, 0, 0]);
 	});
 
 	it.each(["SUBMITTING", "SUCCEEDED"] as const)(
@@ -151,6 +180,8 @@ describe("guest account-link fence", () => {
 				where: { id: admitted.jobId },
 				data: { status, ...(status === "SUCCEEDED" ? { terminalAt: fixture.now } : {}) },
 			});
+			const readyOutput =
+				status === "SUCCEEDED" ? await createReadyGuestOutput(fixture, admitted.jobId) : null;
 			const tokenHash = hashFixture(`link-consumed:${fixture.ownerId}`);
 			await beginGuestLinkIntentTransaction(linkInput(fixture, tokenHash), client);
 
@@ -176,6 +207,16 @@ describe("guest account-link fence", () => {
 					client,
 				),
 			).resolves.toMatchObject({ mode: "RESULT", jobId: admitted.jobId });
+			if (readyOutput) {
+				await expect(
+					client.mediaAsset.findUniqueOrThrow({ where: { id: readyOutput.id } }),
+				).resolves.toMatchObject({
+					ownerId: fixture.ownerId,
+					kind: "OUTPUT",
+					status: "READY",
+					retentionClass: "GUEST_TRIAL",
+				});
+			}
 		},
 	);
 
@@ -292,7 +333,7 @@ describe("guest account-link fence", () => {
 
 	async function createFixture(label: string): Promise<LinkFixture> {
 		const suffix = `${label}-${randomUUID()}`;
-		const now = new Date("2026-08-28T00:00:00.000Z");
+		const now = new Date();
 		const validUntil = new Date(now.getTime() + 24 * 60 * 60_000);
 		const ownerId = `guest-${suffix}`;
 		const registeredUserId = `registered-${suffix}`;
@@ -371,6 +412,7 @@ describe("guest account-link fence", () => {
 				categories: {},
 				rawEnvelope: {},
 				validUntil,
+				createdAt: now,
 			},
 		});
 		await client.mediaAsset.update({
@@ -524,6 +566,65 @@ function createGuestAdmission(input: ReturnType<typeof admissionInput>) {
 		costMicros: input.quote.costMicros,
 		pricingSnapshot: input.quote.pricingSnapshot,
 	}));
+}
+
+async function createReadyGuestOutput(fixture: LinkFixture, jobId: string) {
+	const id = `ready-output-${randomUUID()}`;
+	const checksum = hashFixture(`ready-output:${id}`);
+	const providerTaskId = `moderation-${id}`;
+	const asset = await client.mediaAsset.create({
+		data: {
+			id,
+			ownerType: "USER",
+			ownerId: fixture.ownerId,
+			kind: "OUTPUT",
+			status: "VERIFYING",
+			retentionClass: "GUEST_TRIAL",
+			deleteAfter: fixture.validUntil,
+			watermarkVersion: "ezpic-watermark-v1",
+			watermarkedAt: fixture.now,
+			cleanStagingDeletedAt: fixture.now,
+			objectKey: `users/${fixture.ownerId}/assets/${id}/watermarked.png`,
+			mimeType: "image/png",
+			byteSize: 1024n,
+			checksum,
+			finalizedAt: fixture.now,
+			verificationGeneration: 1,
+			verificationAttemptCount: 1,
+			verificationProvider: "test",
+			verificationProviderTaskId: providerTaskId,
+			verificationRuleVersion: "media-safety-rule-v1",
+			verificationPolicyVersion: "media-safety-policy-v1",
+			verificationValidUntil: fixture.validUntil,
+		},
+	});
+	await client.assetModerationResult.create({
+		data: {
+			assetId: asset.id,
+			assetChecksum: checksum,
+			verificationGeneration: 1,
+			attemptNumber: 1,
+			evidenceKind: "OUTPUT",
+			provider: "test",
+			providerTaskId,
+			ruleVersion: "media-safety-rule-v1",
+			policyVersion: "media-safety-policy-v1",
+			status: "APPROVED",
+			reasonCode: "ALLOW",
+			categories: {},
+			rawEnvelope: {},
+			validUntil: fixture.validUntil,
+			createdAt: fixture.now,
+		},
+	});
+	const readyAsset = await client.mediaAsset.update({
+		where: { id: asset.id },
+		data: { status: "READY" },
+	});
+	await client.generationJobAsset.create({
+		data: { jobId, assetId: asset.id, assetChecksum: checksum, role: "OUTPUT", position: 0 },
+	});
+	return readyAsset;
 }
 
 async function concurrentBarrier(

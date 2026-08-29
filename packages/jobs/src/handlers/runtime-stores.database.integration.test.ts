@@ -11,6 +11,8 @@ import {
 	type ProviderKey,
 } from "@repo/ai";
 import {
+	beginGuestLinkIntentTransaction,
+	completeGuestLinkIntentTransaction,
 	createCreditGrant,
 	createGenerationJobTransaction,
 	createRuntimeConfigOverride,
@@ -310,6 +312,122 @@ describe("production media runtime stores", () => {
 				data: { status: "FAILED", terminalAt: new Date() },
 			});
 			await revertRuntimeConfigOverride(guest.overrideId, "task4-guest-test", client);
+		}
+	});
+
+	it.each(["link-then-dispatch", "dispatch-then-link", "concurrent"] as const)(
+		"%s preserves one canonical guest job and one Provider attempt",
+		async (ordering) => {
+			const fixture = await seedGuestLinkDispatchFixture(ordering);
+			try {
+				const { claim, linked } = await runGuestLinkDispatchOrdering(fixture, ordering);
+
+				expect(claim).not.toBeNull();
+				expect(linked).toMatchObject({ mode: "RESULT", jobId: fixture.jobId });
+				await expect(fixture.completeLink("replay")).resolves.toMatchObject({
+					mode: "RESULT",
+					jobId: fixture.jobId,
+				});
+				await expect(fixture.claimDispatch()).resolves.toBeNull();
+
+				const [job, trial, grants, attempt, registeredGraph, guestAccounts] = await Promise.all([
+					client.generationJob.findUniqueOrThrow({
+						where: { id: fixture.jobId },
+						include: { attempts: true, quote: true },
+					}),
+					client.guestMediaTrial.findUniqueOrThrow({ where: { id: fixture.trialId } }),
+					client.guestResultAccessGrant.findMany({
+						where: {
+							guestJobId: fixture.jobId,
+							registeredUserId: fixture.registeredUserId,
+						},
+					}),
+					client.generationAttempt.findUniqueOrThrow({ where: { id: claim!.attemptId } }),
+					Promise.all([
+						client.creditAccount.count({ where: { ownerId: fixture.registeredUserId } }),
+						client.creditLot.count({
+							where: { account: { ownerId: fixture.registeredUserId } },
+						}),
+						client.creditLedgerEntry.count({
+							where: { account: { ownerId: fixture.registeredUserId } },
+						}),
+						client.generationQuote.count({ where: { ownerId: fixture.registeredUserId } }),
+						client.generationJob.count({ where: { ownerId: fixture.registeredUserId } }),
+						client.mediaAsset.count({ where: { ownerId: fixture.registeredUserId } }),
+					]),
+					client.creditAccount.count({ where: { ownerId: fixture.ownerId } }),
+				]);
+
+				expect(job).toMatchObject({
+					ownerId: fixture.ownerId,
+					status: "SUBMITTING",
+					failureCode: null,
+				});
+				expect(job.quote.ownerId).toBe(fixture.ownerId);
+				expect(job.attempts).toHaveLength(1);
+				expect(attempt).toMatchObject({ jobId: fixture.jobId, attemptNumber: 1 });
+				expect(trial).toMatchObject({
+					ownerId: fixture.ownerId,
+					currentJobId: null,
+					consumedJobId: fixture.jobId,
+					eligibility: "CONSUMED",
+					riskState: "COMMITTED",
+				});
+				expect(trial.providerBoundaryAt).not.toBeNull();
+				expect(grants).toHaveLength(1);
+				expect(grants[0]).toMatchObject({
+					trialId: fixture.trialId,
+					guestJobId: fixture.jobId,
+					registeredUserId: fixture.registeredUserId,
+					expiresAt: trial.expiresAt,
+				});
+				expect(registeredGraph).toEqual([0, 0, 0, 0, 0, 0]);
+				expect(guestAccounts).toBe(1);
+			} finally {
+				await cleanupGuestLinkDispatchFixture(fixture);
+			}
+		},
+	);
+
+	it("rejects both linking and final dispatch after immutable guest expiry", async () => {
+		const fixture = await seedGuestLinkDispatchFixture("expired");
+		const expiredAt = new Date(Date.now() - 1_000);
+		const createdAt = new Date(expiredAt.getTime() - 10 * 60_000);
+		try {
+			await client.guestMediaTrial.update({
+				where: { id: fixture.trialId },
+				data: {
+					createdAt,
+					projectedDispatchAt: createdAt,
+					estimateExpiresAt: expiredAt,
+					expiresAt: expiredAt,
+				},
+			});
+
+			await expect(fixture.completeLink("expired", new Date())).rejects.toThrow(
+				"GUEST_LINK_UNAVAILABLE",
+			);
+			await expect(fixture.claimDispatch()).resolves.toBeNull();
+			await expect(
+				Promise.all([
+					client.generationJob.findUniqueOrThrow({ where: { id: fixture.jobId } }),
+					client.guestMediaTrial.findUniqueOrThrow({ where: { id: fixture.trialId } }),
+					client.generationAttempt.count({ where: { jobId: fixture.jobId } }),
+					client.guestResultAccessGrant.count({ where: { guestJobId: fixture.jobId } }),
+				]),
+			).resolves.toEqual([
+				expect.objectContaining({ status: "FAILED", failureCode: "GUEST_QUEUE_EXPIRED" }),
+				expect.objectContaining({
+					currentJobId: null,
+					consumedJobId: null,
+					eligibility: "EXPIRED",
+					riskState: "RELEASED",
+				}),
+				0,
+				0,
+			]);
+		} finally {
+			await cleanupGuestLinkDispatchFixture(fixture);
 		}
 	});
 
@@ -2407,14 +2525,16 @@ async function seedGuestDispatchJob() {
 			expiresAt,
 		},
 	});
+	const sourceSessionHash = createHash("sha256").update(`session-${suffix}`).digest("hex");
+	const deviceHash = createHash("sha256").update(`device-${suffix}`).digest("hex");
 	const trial = await client.guestMediaTrial.create({
 		data: {
 			ownerId: job.ownerId,
 			promotionPeriod,
 			eligibility: "IN_FLIGHT",
 			sponsorCredits: 4n,
-			sourceSessionHash: `session-${suffix}`,
-			deviceHash: `device-${suffix}`,
+			sourceSessionHash,
+			deviceHash,
 			ipHash: `ip-${suffix}`,
 			subnetHash: `subnet-${suffix}`,
 			capabilityVersion: "task4-guest-dispatch-v1",
@@ -2448,6 +2568,11 @@ async function seedGuestDispatchJob() {
 	return {
 		jobId: job.id,
 		trialId: trial.id,
+		ownerId: job.ownerId,
+		promotionPeriod,
+		sourceSessionHash,
+		deviceHash,
+		expiresAt,
 		overrideId: override.id,
 		now,
 		environment: {
@@ -2458,6 +2583,98 @@ async function seedGuestDispatchJob() {
 			GUEST_RISK_BUDGET_MICROS: "250000",
 		},
 	};
+}
+
+async function seedGuestLinkDispatchFixture(label: string) {
+	const guest = await seedGuestDispatchJob();
+	const suffix = `${label}-${crypto.randomUUID()}`;
+	const registeredUserId = `task1-registered-${suffix}`;
+	const tokenHash = createHash("sha256").update(`link:${suffix}`).digest("hex");
+	await client.user.create({
+		data: {
+			id: registeredUserId,
+			name: "Registered",
+			email: `${registeredUserId}@example.test`,
+			emailVerified: true,
+			isAnonymous: false,
+			createdAt: guest.now,
+			updatedAt: guest.now,
+		},
+	});
+	await beginGuestLinkIntentTransaction(
+		{
+			anonymousOwnerId: guest.ownerId,
+			promotionPeriod: guest.promotionPeriod,
+			sourceSessionHash: guest.sourceSessionHash,
+			deviceHash: guest.deviceHash,
+			returnPath: "/try",
+			idempotencyKey: `task1-link:${suffix}`,
+			tokenHash,
+			now: guest.now,
+			expiresAt: new Date(guest.now.getTime() + 15 * 60_000),
+		},
+		client,
+	);
+	const store = createTestDispatchStore({ environment: guest.environment });
+	return {
+		...guest,
+		registeredUserId,
+		claimDispatch: () => store.claimDispatch({ jobId: guest.jobId, version: 0 }),
+		completeLink: (replayLabel = "initial", now = guest.now) =>
+			completeGuestLinkIntentTransaction(
+				{
+					tokenHash,
+					registeredUserId,
+					grantTokenHash: createHash("sha256")
+						.update(`grant:${suffix}:${replayLabel}`)
+						.digest("hex"),
+					now,
+				},
+				client,
+			),
+	};
+}
+
+type GuestLinkDispatchFixture = Awaited<ReturnType<typeof seedGuestLinkDispatchFixture>>;
+
+async function runGuestLinkDispatchOrdering(
+	fixture: GuestLinkDispatchFixture,
+	ordering: "link-then-dispatch" | "dispatch-then-link" | "concurrent",
+) {
+	if (ordering === "link-then-dispatch") {
+		const linked = await fixture.completeLink();
+		const claim = await fixture.claimDispatch();
+		return { claim, linked };
+	}
+	if (ordering === "dispatch-then-link") {
+		const claim = await fixture.claimDispatch();
+		const linked = await fixture.completeLink();
+		return { claim, linked };
+	}
+
+	let release!: () => void;
+	const gate = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	const dispatching = (async () => {
+		await gate;
+		return fixture.claimDispatch();
+	})();
+	const linking = (async () => {
+		await gate;
+		return fixture.completeLink();
+	})();
+	release();
+	const [claim, linked] = await Promise.all([dispatching, linking]);
+	return { claim, linked };
+}
+
+async function cleanupGuestLinkDispatchFixture(fixture: GuestLinkDispatchFixture) {
+	await client.generationJob.updateMany({
+		where: { id: fixture.jobId },
+		data: { status: "FAILED", terminalAt: new Date() },
+	});
+	await revertRuntimeConfigOverride(fixture.overrideId, "task4-guest-test", client);
 }
 
 async function seedReservedJob(

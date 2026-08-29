@@ -111,11 +111,8 @@ describe("guest generation admission", () => {
 	});
 
 	it("keeps old promotion queue and failures out of current admission and diagnostics", async () => {
-		const oldFixture = await createGuestFixture(
-			"old-promotion",
-			new Date("2026-08-28T00:00:00.000Z"),
-			"promotion-old",
-		);
+		const fixtureNow = new Date();
+		const oldFixture = await createGuestFixture("old-promotion", fixtureNow, "promotion-old");
 		const oldAdmission = await createGuestAdmission(
 			guestAdmissionInput(oldFixture, {
 				idempotencyKey: "guest-old-promotion",
@@ -144,7 +141,7 @@ describe("guest generation admission", () => {
 
 		const currentFixture = await createGuestFixture(
 			"current-promotion",
-			new Date("2026-08-28T00:00:00.000Z"),
+			fixtureNow,
 			"promotion-current",
 		);
 		await expect(
@@ -168,11 +165,8 @@ describe("guest generation admission", () => {
 	});
 
 	it("doubles the queue estimate at 75 percent risk and rejects at 90 percent", async () => {
-		const slowFixture = await createGuestFixture(
-			"risk-slow",
-			new Date("2026-08-28T00:00:00.000Z"),
-			"promotion-slow",
-		);
+		const fixtureNow = new Date();
+		const slowFixture = await createGuestFixture("risk-slow", fixtureNow, "promotion-slow");
 		await client.guestRiskBudgetBucket.create({
 			data: {
 				promotionPeriod: slowFixture.promotionPeriod,
@@ -187,11 +181,7 @@ describe("guest generation admission", () => {
 		);
 		expect(slow.projectedDispatchAt).toEqual(new Date(slowFixture.now.getTime() + 120_000));
 
-		const closedFixture = await createGuestFixture(
-			"risk-closed",
-			new Date("2026-08-28T00:00:00.000Z"),
-			"promotion-closed",
-		);
+		const closedFixture = await createGuestFixture("risk-closed", fixtureNow, "promotion-closed");
 		await client.guestRiskBudgetBucket.create({
 			data: {
 				promotionPeriod: closedFixture.promotionPeriod,
@@ -423,16 +413,14 @@ describe("guest generation admission", () => {
 	);
 
 	it("extends aggregate risk expiry through the latest staggered hold", async () => {
-		const firstFixture = await createGuestFixture(
-			"risk-expiry-first",
-			new Date("2026-08-28T00:00:00.000Z"),
-		);
+		const fixtureNow = new Date();
+		const firstFixture = await createGuestFixture("risk-expiry-first", fixtureNow);
 		const first = await createGuestAdmission(
 			guestAdmissionInput(firstFixture, { idempotencyKey: "guest-risk-expiry-first" }),
 		);
 		const laterFixture = await createGuestFixture(
 			"risk-expiry-later",
-			new Date("2026-08-28T01:00:00.000Z"),
+			new Date(fixtureNow.getTime() + 60 * 60_000),
 		);
 		const later = await createGuestAdmission(
 			guestAdmissionInput(laterFixture, { idempotencyKey: "guest-risk-expiry-later" }),
@@ -588,6 +576,7 @@ describe("guest generation admission", () => {
 				categories: {},
 				rawEnvelope: {},
 				validUntil,
+				createdAt: now,
 			},
 		});
 		await client.mediaAsset.update({

@@ -85,6 +85,7 @@ describe("guest image watermark", () => {
 				final: { bucket: "media", key: "users/guest/assets/output/original.png" },
 				contentType: "image/png",
 				deleteAfter: new Date("2026-08-29T00:00:00.000Z"),
+				now: () => new Date("2026-08-28T00:00:00.000Z"),
 			}),
 		).rejects.toMatchObject({
 			code: "GUEST_CLEAN_STAGE_DELETE_REQUIRED",
