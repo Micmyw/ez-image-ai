@@ -1,3 +1,5 @@
+import { createHash, createHmac } from "node:crypto";
+
 import { call } from "@orpc/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -14,10 +16,9 @@ vi.mock("@repo/database", () => ({
 	completeGuestLinkIntentTransaction: databaseMocks.complete,
 }));
 vi.mock("@repo/database/client", () => ({ db: {} }));
-vi.mock("../lib/guest-capability", () => ({
+vi.mock("../lib/guest-capability", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../lib/guest-capability")>()),
 	assertGuestCapabilityVersion: vi.fn(),
-	hashGuestBinding: vi.fn(() => "b".repeat(64)),
-	hashGuestSecret: vi.fn(() => "c".repeat(64)),
 	loadGuestCapability: vi.fn(async () => ({
 		snapshot: { version: "guest-v7" },
 		config: {
@@ -40,6 +41,7 @@ describe("beginGuestLinkIntent response ordering", () => {
 		vi.clearAllMocks();
 		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", "https://app.ezpic.test");
 		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", "independent-guest-abuse-secret");
+		vi.stubEnv("GUEST_ABUSE_HMAC_VERSION", "launch-key-v1");
 		vi.mocked(auth.api.getSession).mockImplementation(async (request) => {
 			const headers = (request as { headers: Headers }).headers;
 			return headers.get("x-test-principal") === "guest"
@@ -122,4 +124,60 @@ describe("beginGuestLinkIntent response ordering", () => {
 		await expect(beginCall).rejects.toThrow("GUEST_LINK_UNAVAILABLE");
 		expect(beginResponseHeaders.get("set-cookie")).toBeNull();
 	});
+
+	it("binds link session, device, and intent token to the versioned abuse domain", async () => {
+		const now = new Date();
+		databaseMocks.begin.mockResolvedValue({
+			id: "intent-1",
+			state: "LINKING",
+			trialId: "trial-1",
+			claimedDraftId: null,
+			returnPath: "/create",
+			expiresAt: new Date(now.getTime() + 15 * 60_000),
+		});
+		const responseHeaders = new Headers();
+		const idempotencyKey = "guest-link-order-0002";
+		const deviceId = "d4fbf8d2-945a-4f2c-8359-f179f6c734de";
+
+		await expect(
+			call(
+				beginGuestLinkIntent,
+				{
+					capabilityVersion: "guest-v7",
+					deviceId,
+					returnPath: "/create",
+					idempotencyKey,
+				},
+				{
+					context: {
+						headers: new Headers({
+							origin: "https://app.ezpic.test",
+							"x-test-principal": "guest",
+						}),
+						responseHeaders,
+					},
+				},
+			),
+		).resolves.toMatchObject({ state: "LINKING" });
+		const token = createHmac("sha256", "independent-guest-abuse-secret")
+			.update(`launch-key-v1:guest-link-intent:guest-1:${idempotencyKey}`, "utf8")
+			.digest("base64url");
+		expect(databaseMocks.begin).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sourceSessionHash: testGuestAbuseBinding("guest-source-session", "anonymous-session-1"),
+				deviceHash: testGuestAbuseBinding("guest-device", deviceId),
+				tokenHash: createHash("sha256").update(token, "utf8").digest("hex"),
+			}),
+			expect.anything(),
+		);
+		expect(responseHeaders.get("set-cookie")).toContain(
+			`media_guest_link_intent=${encodeURIComponent(token)}`,
+		);
+	});
 });
+
+function testGuestAbuseBinding(purpose: string, value: string): string {
+	return createHmac("sha256", "independent-guest-abuse-secret")
+		.update(`launch-key-v1:${purpose}:${value}`, "utf8")
+		.digest("hex");
+}

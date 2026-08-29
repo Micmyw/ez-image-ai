@@ -629,37 +629,66 @@ describe("guest generation admission", () => {
 	});
 
 	it.each([
-		["IP ten-minute", "maximumRequestsPerIpPerTenMinutes", "GUEST_IP_RATE_LIMIT", "ipHash"],
-		["IP daily", "maximumRequestsPerIpPerDay", "GUEST_IP_RATE_LIMIT", "ipHash"],
-		["subnet daily", "maximumRequestsPerSubnetPerDay", "GUEST_SUBNET_RATE_LIMIT", "subnetHash"],
-		["global hourly", "maximumGlobalRequestsPerHour", "GUEST_GLOBAL_RATE_LIMIT", null],
-		["global daily", "maximumGlobalRequestsPerDay", "GUEST_GLOBAL_RATE_LIMIT", null],
+		["IP ten-minute", "maximumRequestsPerIpPerTenMinutes", 1, "GUEST_IP_RATE_LIMIT", "ipHash"],
+		["IP daily", "maximumRequestsPerIpPerDay", 3, "GUEST_IP_RATE_LIMIT", "ipHash"],
+		["subnet daily", "maximumRequestsPerSubnetPerDay", 20, "GUEST_SUBNET_RATE_LIMIT", "subnetHash"],
+		["global hourly", "maximumGlobalRequestsPerHour", 30, "GUEST_GLOBAL_RATE_LIMIT", null],
+		["global daily", "maximumGlobalRequestsPerDay", 100, "GUEST_GLOBAL_RATE_LIMIT", null],
 	] as const)(
-		"enforces the %s dimension at N plus one with no rejected business graph",
-		async (_label, limitName, expectedCode, sharedField) => {
-			const promotionPeriod = `promotion-${limitName}`;
-			const first = await createGuestFixture("limit-first", undefined, promotionPeriod);
-			const second = await createGuestFixture("limit-second", undefined, promotionPeriod);
+		"enforces the literal %s limit at N plus one with no rejected business graph",
+		async (_label, limitName, limit, expectedCode, sharedField) => {
+			const now = new Date("2026-08-29T04:40:00.000Z");
+			const promotionPeriod = `promotion-${limitName}-${randomUUID()}`;
 			const sharedHash = hashFixture(`shared:${limitName}`);
-			const limitOverrides = { [limitName]: 1 };
-			await createGuestAdmission(
-				guestAdmissionInput(first, {
-					idempotencyKey: `guest-${limitName}-first`,
-					...limitOverrides,
-					...(sharedField ? { [sharedField]: sharedHash } : {}),
-				}),
+			const isolationOverrides = {
+				maximumActiveJobsPerIp: limit + 1,
+				maximumRequestsPerIpPerTenMinutes: limit + 1,
+				maximumRequestsPerIpPerDay: limit + 1,
+				maximumRequestsPerSubnetPerDay: limit + 1,
+				maximumGlobalRequestsPerMinute: limit + 1,
+				maximumGlobalRequestsPerHour: limit + 1,
+				maximumGlobalRequestsPerDay: limit + 1,
+				maximumGlobalQueueDepth: limit + 1,
+				queueCapacity: limit + 1,
+				riskBudgetMicros: BigInt(limit + 1) * 35_000n,
+				[limitName]: limit,
+			};
+			for (let index = 0; index < limit; index += 1) {
+				const fixture = await createGuestFixture(
+					`limit-${limitName}-${index}`,
+					now,
+					promotionPeriod,
+				);
+				await expect(
+					createGuestAdmission(
+						guestAdmissionInput(fixture, {
+							idempotencyKey: `guest-${limitName}-${index}`,
+							...isolationOverrides,
+							...(sharedField ? { [sharedField]: sharedHash } : {}),
+						}),
+					),
+				).resolves.toMatchObject({ stage: "WAITING" });
+			}
+			const rejected = await createGuestFixture(
+				`limit-${limitName}-rejected`,
+				now,
+				promotionPeriod,
 			);
-			const rejectedInput = guestAdmissionInput(second, {
-				idempotencyKey: `guest-${limitName}-second`,
-				...limitOverrides,
+			const rejectedInput = guestAdmissionInput(rejected, {
+				idempotencyKey: `guest-${limitName}-rejected`,
+				...isolationOverrides,
 				...(sharedField ? { [sharedField]: sharedHash } : {}),
 			});
 
 			await expect(createGuestAdmission(rejectedInput)).rejects.toThrow(expectedCode);
-			await expect(countGuestBusinessGraph(second.ownerId)).resolves.toEqual(
+			await expect(countGuestBusinessGraph(rejected.ownerId)).resolves.toEqual(
 				emptyGuestBusinessGraph(),
 			);
+			await expect(client.guestMediaTrial.count({ where: { promotionPeriod } })).resolves.toBe(
+				limit,
+			);
 		},
+		120_000,
 	);
 
 	it("projects admission in capacity waves instead of multiplying every queued job", async () => {

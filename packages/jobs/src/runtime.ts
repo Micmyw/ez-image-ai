@@ -48,6 +48,7 @@ import {
 	getCommittedGlobalDailyGenerationCost,
 	recordGenerationOutputPromotionMultipartTransaction,
 	releaseOutboxEvent,
+	resolveGuestRuntimeConfigOverride,
 	reserveGenerationOutputStorageTransaction,
 	runSerializable,
 	settleCreditsInTransaction,
@@ -4273,16 +4274,8 @@ async function guestRuntimeEnabled(
 	environment: Record<string, string | undefined>,
 	promotionPeriod: string,
 ): Promise<boolean> {
-	const override = await database.runtimeConfigOverride.findFirst({
-		where: {
-			configKey: "media.guestGeneration.enabled",
-			active: true,
-			revertedAt: null,
-		},
-		orderBy: { version: "desc" },
-		select: { value: true },
-	});
-	const config = getGuestMediaConfig(environment, override?.value === true);
+	const override = await resolveGuestRuntimeConfigOverride(database);
+	const config = getGuestMediaConfig(environment, override);
 	return config.enabled && config.promotionPeriod === promotionPeriod;
 }
 

@@ -51,11 +51,22 @@ const createOpenBoundaryDependencies = () => ({
 describe("anonymous Better Auth wildcard boundary", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", "independent-guest-abuse-secret");
+		vi.stubEnv("GUEST_ABUSE_HMAC_VERSION", "launch-key-v1");
 		databaseMocks.hasDurableGuestBootstrapProof.mockResolvedValue(false);
 		databaseMocks.resolveGuestRuntimeConfigOverride.mockResolvedValue(null);
 		databaseClientMocks.guestLinkIntent.findFirst.mockResolvedValue(null);
 		vi.mocked(getGuestMediaConfig).mockImplementation(
-			(_environment, runtimeOverride) => ({ enabled: runtimeOverride === true }) as never,
+			(_environment, runtimeOverride) =>
+				({
+					enabled:
+						runtimeOverride === true ||
+						(typeof runtimeOverride === "object" &&
+							runtimeOverride !== null &&
+							Reflect.get(runtimeOverride, "enabled") === true),
+					limits: {},
+					abuseEvidenceTtlMs: 30 * 24 * 60 * 60_000,
+				}) as never,
 		);
 		vi.mocked(auth.api.getSession).mockResolvedValue(null);
 		vi.mocked(auth.handler).mockImplementation(async () =>
@@ -215,6 +226,20 @@ describe("anonymous Better Auth wildcard boundary", () => {
 		expect(forwardedRequest?.headers.get("content-type")).toBe("application/json");
 		expect(forwardedRequest?.headers.get("content-length")).toBeNull();
 		expect(await forwardedRequest?.clone().json()).toEqual({});
+		const bootstrapToken = "a".repeat(43);
+		const claimHash = createHash("sha256").update(bootstrapToken, "utf8").digest("hex");
+		expect(databaseMocks.consumeGuestBootstrap).toHaveBeenCalledWith(
+			expect.objectContaining({
+				principalEmail: `guest-${createHmac("sha256", "test-secret")
+					.update(`anonymous-principal:${claimHash}`, "utf8")
+					.digest("hex")
+					.slice(0, 48)}@anonymous.invalid`,
+				ipHash: testGuestAbuseBinding("guest-ip", "203.0.113.10"),
+				subnetHash: testGuestAbuseBinding("guest-subnet", "203.0.113.0/24"),
+			}),
+			expect.any(Function),
+			expect.anything(),
+		);
 	});
 
 	it("waits for lease cleanup and maps a non-OK Better Auth response without leaking it", async () => {
@@ -359,7 +384,7 @@ describe("anonymous Better Auth wildcard boundary", () => {
 				anonymousOwnerId: "guest",
 				promotionPeriod: "2026-launch",
 				sourceSessionHash: createHmac("sha256", "independent-link-secret")
-					.update("guest-source-session:guest-session", "utf8")
+					.update("launch-key-v1:guest-source-session:guest-session", "utf8")
 					.digest("hex"),
 				state: "LINKING",
 				expiresAt: { gt: expect.any(Date) },
@@ -446,7 +471,7 @@ describe("anonymous Better Auth wildcard boundary", () => {
 			anonymousOwnerId: "guest",
 			promotionPeriod: "2026-launch",
 			sourceSessionHash: createHmac("sha256", "independent-link-secret")
-				.update("guest-source-session:guest-session", "utf8")
+				.update("launch-key-v1:guest-source-session:guest-session", "utf8")
 				.digest("hex"),
 			state: "LINKING",
 			expiresAt: new Date("2099-01-01T00:00:00.000Z"),
@@ -527,3 +552,9 @@ describe("anonymous Better Auth wildcard boundary", () => {
 		},
 	);
 });
+
+function testGuestAbuseBinding(purpose: string, value: string): string {
+	return createHmac("sha256", "independent-guest-abuse-secret")
+		.update(`launch-key-v1:${purpose}:${value}`, "utf8")
+		.digest("hex");
+}

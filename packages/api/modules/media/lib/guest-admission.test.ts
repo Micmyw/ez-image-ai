@@ -1,3 +1,5 @@
+import { createHmac } from "node:crypto";
+
 import { describe, expect, it, vi } from "vitest";
 
 import { submitGuestGenerationForGuest } from "./guest-admission";
@@ -122,11 +124,39 @@ describe("guest admission pre-transaction boundary", () => {
 				ownerId: "guest-1",
 				promotionPeriod: "launch-2026-08",
 				capabilityVersion: "guest-v7",
+				sourceSessionHash: testGuestAbuseBinding(
+					"independent-guest-abuse-secret",
+					"launch-key-v1",
+					"guest-source-session",
+					"anonymous-session-1",
+				),
+				deviceHash: testGuestAbuseBinding(
+					"independent-guest-abuse-secret",
+					"launch-key-v1",
+					"guest-device",
+					"d4fbf8d2-945a-4f2c-8359-f179f6c734de",
+				),
+				ipHash: testGuestAbuseBinding(
+					"independent-guest-abuse-secret",
+					"launch-key-v1",
+					"guest-ip",
+					"203.0.113.42",
+				),
+				subnetHash: testGuestAbuseBinding(
+					"independent-guest-abuse-secret",
+					"launch-key-v1",
+					"guest-subnet",
+					"203.0.113.0/24",
+				),
 				sourceAssetId: "asset-1",
 				sourceAssetChecksum: "a".repeat(64),
 				turnstile: expect.objectContaining({ tokenHash: "f".repeat(64) }),
 				sponsorCredits: 4n,
 				abuseEvidenceTtlMs: 30 * 24 * 60 * 60_000,
+				maximumRequestsPerIpPerDay: 3,
+				maximumRequestsPerSubnetPerDay: 20,
+				maximumGlobalRequestsPerHour: 30,
+				maximumGlobalRequestsPerDay: 100,
 				quote: expect.objectContaining({
 					productKey: "image-fast",
 					credits: 4n,
@@ -170,6 +200,7 @@ function validDependencies(options?: {
 		now: () => now,
 		saasOrigin: "https://app.ezpic.test",
 		abuseSecret: "independent-guest-abuse-secret",
+		abuseKeyVersion: "launch-key-v1",
 		loadCapability: vi.fn(async () => ({
 			snapshot: { version: "guest-v7" },
 			config: {
@@ -184,9 +215,19 @@ function validDependencies(options?: {
 				abuseEvidenceTtlMs: 30 * 24 * 60 * 60_000,
 				limits: {
 					maximumActiveJobsPerGuest: 1,
+					maximumAcceptedTrialsPerSession: 1,
+					maximumActiveJobsPerDevice: 1,
+					maximumAcceptedTrialsPerDevicePromotion: 1,
+					maximumActiveJobsPerIp: 2,
+					maximumRequestsPerIpPerTenMinutes: 1,
+					maximumRequestsPerIpPerDay: 3,
+					maximumRequestsPerSubnetPerDay: 20,
+					maximumGlobalRequestsPerMinute: 3,
+					maximumGlobalRequestsPerHour: 30,
+					maximumGlobalRequestsPerDay: 100,
 					maximumRequestsPerMinute: 3,
-					maximumRequestsPerIpPerHour: 12,
-					maximumGlobalQueueDepth: 100,
+					maximumRequestsPerIpPerHour: 3,
+					maximumGlobalQueueDepth: 25,
 				},
 				riskBudgetMicros: 350_000n,
 				turnstile: { required: false, secretKey: null },
@@ -251,4 +292,15 @@ function validDependencies(options?: {
 		}),
 		recordDenial: vi.fn(async () => undefined),
 	};
+}
+
+function testGuestAbuseBinding(
+	secret: string,
+	keyVersion: string,
+	purpose: string,
+	value: string,
+): string {
+	return createHmac("sha256", secret)
+		.update(`${keyVersion}:${purpose}:${value}`, "utf8")
+		.digest("hex");
 }

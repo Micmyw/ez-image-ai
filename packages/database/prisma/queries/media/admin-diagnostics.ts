@@ -3,6 +3,7 @@ import type {
 	GenerationAttemptStatus,
 	GenerationJobStatus,
 } from "../../generated/client";
+import { isGuestRuntimeConfigEnabledValue } from "./guest-bootstrap";
 import type { MediaTransactionClient } from "./types";
 
 interface AggregateCountAge {
@@ -868,7 +869,9 @@ async function getAdminGuestDiagnostics(
 		billedSpendMismatch: Number(row.billedSpendMismatch),
 		overdueCleanupAssets: Number(row.overdueAssets),
 	});
-	let runtimeEnabled = runtimeOverride?.value === true;
+	let runtimeEnabled = runtimeOverride
+		? isGuestRuntimeConfigEnabledValue(runtimeOverride.value)
+		: false;
 	if (
 		options.guestEnvironmentEnabled === true &&
 		applyAutomaticGuestClosure &&
@@ -966,7 +969,7 @@ async function closeGuestAdmissionForSafety(
 			where: { configKey: GUEST_RUNTIME_CONFIG_KEY, active: true },
 			orderBy: { version: "desc" },
 		});
-		if (!active || active.value !== true) return;
+		if (!active || !isGuestRuntimeConfigEnabledValue(active.value)) return;
 		await tx.runtimeConfigOverride.updateMany({
 			where: { configKey: GUEST_RUNTIME_CONFIG_KEY, active: true },
 			data: { active: false, revertedAt: new Date(), revertedByUserId: GUEST_SAFETY_ACTOR },

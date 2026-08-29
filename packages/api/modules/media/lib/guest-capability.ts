@@ -29,11 +29,12 @@ export async function loadGuestCapability(
 	} catch {
 		// A public capability must never fail open when its persistent source is unavailable.
 	}
-	const config = getGuestMediaConfig(environment, runtimeOverride?.enabled ?? null);
+	const config = getGuestMediaConfig(environment, runtimeOverride);
+	const runtimeVersion = runtimeOverride?.version ?? 0;
 	return {
 		config,
 		snapshot: Object.freeze({
-			version: `guest-v${runtimeOverride?.version ?? 0}`,
+			version: createGuestCapabilityVersion(runtimeVersion, config),
 			enabled: config.enabled,
 			reason: config.reason,
 			upload: Object.freeze({
@@ -46,6 +47,60 @@ export async function loadGuestCapability(
 			queueEstimate: Object.freeze({ kind: "capacity" as const }),
 		}),
 	};
+}
+
+function createGuestCapabilityVersion(runtimeVersion: number, config: GuestMediaConfig): string {
+	const canonicalSecurityVector = [
+		"guest-capability-v1",
+		runtimeVersion,
+		config.enabled,
+		config.reason ?? "",
+		config.promotionPeriod ?? "",
+		config.productKey,
+		config.sponsorCredits.toString(),
+		config.maximumBytes,
+		[...config.mimeTypes].sort(),
+		config.retentionMs,
+		config.queueTtlMs,
+		config.abuseEvidenceTtlMs,
+		config.bootstrapTtlMs,
+		config.linkIntentTtlMs,
+		config.resultGrantTtlMs,
+		config.limits.maximumActiveJobsPerGuest,
+		config.limits.maximumAcceptedTrialsPerSession,
+		config.limits.maximumActiveJobsPerDevice,
+		config.limits.maximumAcceptedTrialsPerDevicePromotion,
+		config.limits.maximumActiveJobsPerIp,
+		config.limits.maximumRequestsPerIpPerTenMinutes,
+		config.limits.maximumRequestsPerIpPerDay,
+		config.limits.maximumRequestsPerSubnetPerDay,
+		config.limits.maximumGlobalRequestsPerMinute,
+		config.limits.maximumGlobalRequestsPerHour,
+		config.limits.maximumGlobalRequestsPerDay,
+		config.limits.maximumOutstandingBootstraps,
+		config.limits.maximumTemporaryPrincipals,
+		config.limits.maximumRequestsPerMinute,
+		config.limits.maximumRequestsPerIpPerHour,
+		config.limits.maximumGlobalQueueDepth,
+		config.riskBudgetMicros.toString(),
+		config.productionEvidence.costEvidenceId ?? "",
+		config.productionEvidence.hardBudgetMicros?.toString() ?? "",
+		config.turnstile.required,
+		config.turnstile.siteKey ?? "",
+		safePrivateIdentity("turnstile", config.turnstile.secretKey),
+		config.trustedProxyPolicy.provider,
+		config.trustedProxyPolicy.required,
+		config.abuseHmac.keyVersion ?? "",
+		config.abuseHmac.keyIdentity ?? "",
+	] as const;
+	const identity = createHash("sha256")
+		.update(JSON.stringify(canonicalSecurityVector), "utf8")
+		.digest("hex");
+	return `guest-v${runtimeVersion}-${identity}`;
+}
+
+function safePrivateIdentity(domain: string, value: string | null): string {
+	return value ? createHash("sha256").update(`${domain}\0${value}`, "utf8").digest("hex") : "";
 }
 
 export async function loadGuestCapabilitySnapshot(
@@ -72,6 +127,20 @@ export function hashGuestSecret(value: string): string {
 export function hashGuestBinding(secret: string, purpose: string, value: string): string {
 	if (!secret) throw new Error("GUEST_CONFIGURATION_ERROR");
 	return createHmac("sha256", secret).update(`${purpose}:${value}`, "utf8").digest("hex");
+}
+
+export function hashGuestAbuseBinding(
+	secret: string,
+	keyVersion: string,
+	purpose: string,
+	value: string,
+): string {
+	if (!secret || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(keyVersion)) {
+		throw new Error("GUEST_CONFIGURATION_ERROR");
+	}
+	return createHmac("sha256", secret)
+		.update(`${keyVersion}:${purpose}:${value}`, "utf8")
+		.digest("hex");
 }
 
 export function guestPrincipalEmail(secret: string, claimHash: string): string {

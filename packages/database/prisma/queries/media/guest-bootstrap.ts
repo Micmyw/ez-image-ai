@@ -13,10 +13,13 @@ export const GUEST_RUNTIME_CONFIG_KEY = "media.guestGeneration.enabled";
 export interface GuestRuntimeConfigOverride {
 	enabled: true;
 	version: number;
+	createdAt: Date;
+	abuseHmacKeyVersion: string | null;
+	abuseHmacKeyIdentity: string | null;
 }
 
 export async function resolveGuestRuntimeConfigOverride(
-	client: MediaTransactionClient,
+	client: Pick<MediaTransactionClient, "runtimeConfigOverride">,
 ): Promise<GuestRuntimeConfigOverride | null> {
 	const override = await client.runtimeConfigOverride.findFirst({
 		where: {
@@ -25,9 +28,39 @@ export async function resolveGuestRuntimeConfigOverride(
 			revertedAt: null,
 		},
 		orderBy: { version: "desc" },
-		select: { value: true, version: true },
+		select: { value: true, version: true, createdAt: true },
 	});
-	return override?.value === true ? { enabled: true, version: override.version } : null;
+	if (!override || !isGuestRuntimeConfigEnabledValue(override.value)) return null;
+	const metadata = guestRuntimeConfigAbuseMetadata(override.value);
+	return {
+		enabled: true,
+		version: override.version,
+		createdAt: override.createdAt,
+		abuseHmacKeyVersion: metadata?.abuseHmacKeyVersion ?? null,
+		abuseHmacKeyIdentity: metadata?.abuseHmacKeyIdentity ?? null,
+	};
+}
+
+export function isGuestRuntimeConfigEnabledValue(value: Prisma.JsonValue): boolean {
+	return value === true || guestRuntimeConfigAbuseMetadata(value) !== null;
+}
+
+function guestRuntimeConfigAbuseMetadata(value: Prisma.JsonValue): {
+	abuseHmacKeyVersion: string;
+	abuseHmacKeyIdentity: string;
+} | null {
+	if (!value || Array.isArray(value) || typeof value !== "object") return null;
+	const candidate = value as Prisma.JsonObject;
+	return candidate.enabled === true &&
+		typeof candidate.abuseHmacKeyVersion === "string" &&
+		/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(candidate.abuseHmacKeyVersion) &&
+		typeof candidate.abuseHmacKeyIdentity === "string" &&
+		/^[a-f0-9]{64}$/.test(candidate.abuseHmacKeyIdentity)
+		? {
+				abuseHmacKeyVersion: candidate.abuseHmacKeyVersion,
+				abuseHmacKeyIdentity: candidate.abuseHmacKeyIdentity,
+			}
+		: null;
 }
 
 export async function consumeGuestTurnstileTokenHash(

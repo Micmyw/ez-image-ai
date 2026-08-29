@@ -14,7 +14,7 @@ import { trustedGuestClientIdentity } from "../lib/draft-client-identity";
 import { assertMarketingOrigin } from "../lib/draft-security";
 import {
 	assertGuestCapabilityVersion,
-	hashGuestBinding,
+	hashGuestAbuseBinding,
 	hashGuestSecret,
 	loadGuestCapability,
 } from "../lib/guest-capability";
@@ -62,8 +62,11 @@ export const createGuestDraftUploadIntent = publicProcedure
 	)
 	.handler(async ({ context, input }) => {
 		const marketingOrigin = process.env.NEXT_PUBLIC_MARKETING_URL;
-		const secret = process.env.BETTER_AUTH_SECRET;
-		if (!marketingOrigin || !secret) throw new Error("GUEST_CONFIGURATION_ERROR");
+		const abuseSecret = process.env.GUEST_ABUSE_HMAC_SECRET;
+		const abuseKeyVersion = process.env.GUEST_ABUSE_HMAC_VERSION;
+		if (!marketingOrigin || !abuseSecret || !abuseKeyVersion) {
+			throw new Error("GUEST_CONFIGURATION_ERROR");
+		}
 		assertMarketingOrigin(context.headers.get("origin"), marketingOrigin);
 		const identity = trustedGuestClientIdentity(context.headers, process.env);
 		if (!identity) throw new Error("GUEST_TRUSTED_CLIENT_REQUIRED");
@@ -130,11 +133,21 @@ export const createGuestDraftUploadIntent = publicProcedure
 				limits: { maximumActiveSessions: 1, maximumReservedBytes: BigInt(10 * 1024 * 1024) },
 				capabilityVersion: loaded.snapshot.version,
 				promotionPeriod: loaded.config.promotionPeriod,
-				originHash: hashGuestBinding(secret, "guest-origin", marketingOrigin),
+				originHash: hashGuestAbuseBinding(
+					abuseSecret,
+					abuseKeyVersion,
+					"guest-origin",
+					marketingOrigin,
+				),
 				expectedSha256: input.sha256,
 				deleteAfter,
-				ipHash: hashGuestBinding(secret, "guest-ip", identity.ip),
-				subnetHash: hashGuestBinding(secret, "guest-subnet", identity.subnet),
+				ipHash: hashGuestAbuseBinding(abuseSecret, abuseKeyVersion, "guest-ip", identity.ip),
+				subnetHash: hashGuestAbuseBinding(
+					abuseSecret,
+					abuseKeyVersion,
+					"guest-subnet",
+					identity.subnet,
+				),
 				abuseLimits: loaded.config.limits,
 				abuseEvidenceTtlMs: loaded.config.abuseEvidenceTtlMs,
 			},

@@ -33,6 +33,50 @@ Before enabling admission, prove all of the following for the exact production r
 
 If any item is missing, guest admission stays disabled and certification remains `NOT_COMPLETED`.
 
+## Abuse HMAC key binding and rotation
+
+Production accepts only an audited object-valued `media.guestGeneration.enabled` override. A legacy
+JSON boolean `true` remains a local development/test compatibility value and is rejected by the
+production gate. The active production override value has this exact non-secret shape:
+
+```json
+{
+	"enabled": true,
+	"abuseHmacKeyVersion": "launch-key-v1",
+	"abuseHmacKeyIdentity": "<64 lowercase hexadecimal characters>"
+}
+```
+
+`abuseHmacKeyIdentity` is the SHA-256 digest of the UTF-8 bytes
+`guest-abuse-hmac-key\0<secret>`. Compute it inside the approved secret-management/deployment
+boundary; never put the source secret in the database, audit log, runbook, ticket, command history,
+or capability response. The override version and `createdAt` are database-owned audit fields and
+must not be edited or backdated.
+
+There is no live production rotation. Rotation is a fail-closed drain lasting at least the immutable
+30-day abuse-evidence TTL:
+
+1. Close guest admission and record the old key version, active override version, time, deployment,
+   and aggregate queue/risk state. Do not record either key.
+2. Drain or expire undispatched work and reconcile accepted/uncertain attempts under the normal
+   kill-switch procedure.
+3. Create a new audited, higher-version object override containing the new key version and safe
+   identity. Its `createdAt` starts a new 30-day clock. Keep `GUEST_MEDIA_ENABLED=false`.
+4. Deploy the new secret and version while admission remains closed. Any secret, version, promotion,
+   or security-envelope change immediately changes the capability identity, so old upload,
+   bootstrap, generation, and link requests fail before consuming credentials or writing business
+   state.
+5. Wait at least 30 full days from the new override's database `createdAt`. Verify every old-key
+   upload, bootstrap, link intent, active trial, session, abuse bucket, and trial-held HMAC value has
+   expired or been scrubbed, while immutable job/Attempt/credit/audit facts remain.
+6. Rerun the complete production gate. Only then may the environment gate be enabled. The runtime
+   gate still rejects a mismatched identity, a fresh override, a malformed/missing key version, or a
+   secret shorter than 32 characters.
+
+Changing either key field requires another higher-version override and restarts the full 30-day
+clock. Never overlap two abuse keys, accept both identities, copy old HMAC buckets, or backdate the
+override to bypass the drain.
+
 ## Aggregate monitoring
 
 Use the admin media operations page. Guest diagnostics intentionally exclude raw IPs, subnet or

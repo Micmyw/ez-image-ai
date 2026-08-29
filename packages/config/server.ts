@@ -2,11 +2,13 @@ export * from "./env";
 export * from "./fingerprint";
 export {
 	getGuestMediaConfig,
+	guestAbuseHmacKeyIdentity,
 	isLocalProductionBuildE2EEnvironment,
 	type GuestAdmissionLimits,
 	type GuestMediaConfig,
 	type GuestMediaDisabledReason,
 	type GuestMediaRuntimeOverride,
+	type GuestMediaRuntimeOverrideRecord,
 } from "./guest-media";
 export * from "./media-limits";
 export * from "./launch-evidence";

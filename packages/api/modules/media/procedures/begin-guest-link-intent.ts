@@ -7,7 +7,7 @@ import { z } from "zod";
 import { guestMediaProcedure } from "../guest-procedure";
 import {
 	assertGuestCapabilityVersion,
-	hashGuestBinding,
+	hashGuestAbuseBinding,
 	hashGuestSecret,
 	loadGuestCapability,
 } from "../lib/guest-capability";
@@ -44,7 +44,10 @@ export const beginGuestLinkIntent = guestMediaProcedure
 	.handler(async ({ context, input }) => {
 		const saasOrigin = process.env.NEXT_PUBLIC_SAAS_URL;
 		const abuseSecret = process.env.GUEST_ABUSE_HMAC_SECRET;
-		if (!saasOrigin || !abuseSecret) throw new Error("GUEST_CONFIGURATION_ERROR");
+		const abuseKeyVersion = process.env.GUEST_ABUSE_HMAC_VERSION;
+		if (!saasOrigin || !abuseSecret || !abuseKeyVersion) {
+			throw new Error("GUEST_CONFIGURATION_ERROR");
+		}
 		assertExactOrigin(context.headers.get("origin"), saasOrigin);
 		const loaded = await loadGuestCapability();
 		if (!loaded.config.enabled || !loaded.config.promotionPeriod) {
@@ -54,18 +57,27 @@ export const beginGuestLinkIntent = guestMediaProcedure
 		const now = new Date();
 		const expiresAt = new Date(now.getTime() + loaded.config.linkIntentTtlMs);
 		const token = createHmac("sha256", abuseSecret)
-			.update(`guest-link-intent:${context.user.id}:${input.idempotencyKey}`, "utf8")
+			.update(
+				`${abuseKeyVersion}:guest-link-intent:${context.user.id}:${input.idempotencyKey}`,
+				"utf8",
+			)
 			.digest("base64url");
 		const intent = await beginGuestLinkIntentTransaction(
 			{
 				anonymousOwnerId: context.user.id,
 				promotionPeriod: loaded.config.promotionPeriod,
-				sourceSessionHash: hashGuestBinding(
+				sourceSessionHash: hashGuestAbuseBinding(
 					abuseSecret,
+					abuseKeyVersion,
 					"guest-source-session",
 					context.session.id,
 				),
-				deviceHash: hashGuestBinding(abuseSecret, "guest-device", input.deviceId),
+				deviceHash: hashGuestAbuseBinding(
+					abuseSecret,
+					abuseKeyVersion,
+					"guest-device",
+					input.deviceId,
+				),
 				returnPath: input.returnPath,
 				idempotencyKey: input.idempotencyKey,
 				tokenHash: hashGuestSecret(token),

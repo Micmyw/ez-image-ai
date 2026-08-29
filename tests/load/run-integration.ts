@@ -64,6 +64,7 @@ run(
 	testDatabaseUrl,
 );
 const isolatedApiDatabaseTests = [
+	"modules/media/guest-capability.database.integration.test.ts",
 	"modules/media/guest-media.integration.test.ts",
 	"modules/media/guest-admission-boundary.integration.test.ts",
 	"modules/media/procedures/get-guest-eligibility.database.integration.test.ts",

@@ -18,7 +18,7 @@ import { db } from "@repo/database/client";
 import { trustedGuestClientIdentity } from "./draft-client-identity";
 import {
 	assertGuestCapabilityVersion,
-	hashGuestBinding,
+	hashGuestAbuseBinding,
 	loadGuestCapability,
 } from "./guest-capability";
 import { buildMediaQuote } from "./quote";
@@ -116,6 +116,7 @@ interface GuestAdmissionDependencies {
 	now(): Date;
 	saasOrigin: string;
 	abuseSecret: string;
+	abuseKeyVersion: string;
 	loadCapability(): Promise<{
 		snapshot: { version: string };
 		config: GuestAdmissionConfig;
@@ -158,6 +159,7 @@ export const guestAdmissionDependencies: GuestAdmissionDependencies = {
 	now: () => new Date(),
 	saasOrigin: process.env.NEXT_PUBLIC_SAAS_URL ?? "",
 	abuseSecret: process.env.GUEST_ABUSE_HMAC_SECRET ?? "",
+	abuseKeyVersion: process.env.GUEST_ABUSE_HMAC_VERSION ?? "",
 	loadCapability: () => loadGuestCapability(),
 	resolveIdentity: (headers) => trustedGuestClientIdentity(headers, process.env),
 	verifyTurnstile: async ({ token, hostname, clientIp, now, config }) => {
@@ -228,7 +230,9 @@ export async function submitGuestGenerationForGuest(
 	const identity = dependencies.resolveIdentity(boundary.headers);
 	if (!identity) throw new Error("GUEST_TRUSTED_CLIENT_REQUIRED");
 	if (!isRandomDeviceId(input.deviceId)) throw new Error("GUEST_DEVICE_INVALID");
-	if (!dependencies.abuseSecret) throw new Error("GUEST_CONFIGURATION_ERROR");
+	if (!dependencies.abuseSecret || !dependencies.abuseKeyVersion) {
+		throw new Error("GUEST_CONFIGURATION_ERROR");
+	}
 
 	const loaded = await dependencies.loadCapability();
 	if (!loaded.config.enabled || !loaded.config.promotionPeriod) {
@@ -367,14 +371,21 @@ export async function submitGuestGenerationForGuest(
 	const moderationProvider =
 		dependencies.moderationProvider ??
 		(process.env.MEDIA_SAFETY_ADAPTER === "sightengine" ? "sightengine" : "test");
-	const sourceSessionHash = hashGuestBinding(
+	const sourceSessionHash = hashGuestAbuseBinding(
 		dependencies.abuseSecret,
+		dependencies.abuseKeyVersion,
 		"guest-source-session",
 		boundary.sessionId,
 	);
-	const deviceHash = hashGuestBinding(dependencies.abuseSecret, "guest-device", input.deviceId);
-	const idempotencyFingerprint = hashGuestBinding(
+	const deviceHash = hashGuestAbuseBinding(
 		dependencies.abuseSecret,
+		dependencies.abuseKeyVersion,
+		"guest-device",
+		input.deviceId,
+	);
+	const idempotencyFingerprint = hashGuestAbuseBinding(
+		dependencies.abuseSecret,
+		dependencies.abuseKeyVersion,
 		"guest-admission-idempotency",
 		[
 			boundary.ownerId,
@@ -392,8 +403,18 @@ export async function submitGuestGenerationForGuest(
 		capabilityVersion: loaded.snapshot.version,
 		sourceSessionHash,
 		deviceHash,
-		ipHash: hashGuestBinding(dependencies.abuseSecret, "guest-ip", identity.ip),
-		subnetHash: hashGuestBinding(dependencies.abuseSecret, "guest-subnet", identity.subnet),
+		ipHash: hashGuestAbuseBinding(
+			dependencies.abuseSecret,
+			dependencies.abuseKeyVersion,
+			"guest-ip",
+			identity.ip,
+		),
+		subnetHash: hashGuestAbuseBinding(
+			dependencies.abuseSecret,
+			dependencies.abuseKeyVersion,
+			"guest-subnet",
+			identity.subnet,
+		),
 		idempotencyKey: input.idempotencyKey,
 		idempotencyFingerprint,
 		turnstile: verifiedTurnstile,
@@ -469,8 +490,9 @@ async function rejectGuestAdmission(
 	error: unknown,
 ): Promise<never> {
 	if (promotionPeriod) {
-		const subjectHash = hashGuestBinding(
+		const subjectHash = hashGuestAbuseBinding(
 			dependencies.abuseSecret,
+			dependencies.abuseKeyVersion,
 			"guest-denial-idempotency",
 			`${boundary.ownerId}\n${input.idempotencyKey}`,
 		);

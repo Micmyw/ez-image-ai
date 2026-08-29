@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { describe, expect, it } from "vitest";
 
 import { getGuestMediaConfig } from "./guest-media";
@@ -34,7 +36,18 @@ const productionEnvironment = {
 	GUEST_GLOBAL_MAX_PER_HOUR: "30",
 	GUEST_GLOBAL_MAX_PER_24_HOURS: "100",
 	GUEST_ABUSE_EVIDENCE_TTL_DAYS: "30",
+	GUEST_ABUSE_HMAC_SECRET: "production-guest-abuse-secret-at-least-32-bytes",
+	GUEST_ABUSE_HMAC_VERSION: "launch-key-v1",
 } as const;
+
+const productionNow = new Date("2026-08-29T00:00:00.000Z");
+const productionRuntimeOverride = {
+	enabled: true as const,
+	version: 17,
+	createdAt: new Date(productionNow.getTime() - 30 * 24 * 60 * 60 * 1_000),
+	abuseHmacKeyVersion: productionEnvironment.GUEST_ABUSE_HMAC_VERSION,
+	abuseHmacKeyIdentity: testGuestAbuseKeyIdentity(productionEnvironment.GUEST_ABUSE_HMAC_SECRET),
+};
 
 describe("guest media configuration", () => {
 	it("exposes the fixed Standard trial envelope in non-production", () => {
@@ -88,11 +101,15 @@ describe("guest media configuration", () => {
 			GUEST_ABUSE_EVIDENCE_TTL_DAYS: undefined,
 		};
 
-		expect(getGuestMediaConfig(production, true)).toMatchObject({
-			enabled: false,
-			reason: "GUEST_CONFIGURATION_INVALID",
-		});
-		expect(getGuestMediaConfig(productionEnvironment, true)).toMatchObject({
+		expect(getGuestMediaConfig(production, productionRuntimeOverride, productionNow)).toMatchObject(
+			{
+				enabled: false,
+				reason: "GUEST_CONFIGURATION_INVALID",
+			},
+		);
+		expect(
+			getGuestMediaConfig(productionEnvironment, productionRuntimeOverride, productionNow),
+		).toMatchObject({
 			enabled: true,
 			reason: null,
 			limits: {
@@ -123,7 +140,13 @@ describe("guest media configuration", () => {
 		["GUEST_BOOTSTRAP_MAX_OUTSTANDING", "26"],
 		["GUEST_TEMPORARY_PRINCIPAL_MAX_TOTAL", "101"],
 	] as const)("fails production closed when %s is outside the frozen envelope", (key, value) => {
-		expect(getGuestMediaConfig({ ...productionEnvironment, [key]: value }, true)).toMatchObject({
+		expect(
+			getGuestMediaConfig(
+				{ ...productionEnvironment, [key]: value },
+				productionRuntimeOverride,
+				productionNow,
+			),
+		).toMatchObject({
 			enabled: false,
 			reason: "GUEST_CONFIGURATION_INVALID",
 		});
@@ -145,9 +168,52 @@ describe("guest media configuration", () => {
 					GUEST_GLOBAL_MAX_PER_HOUR: "1",
 					GUEST_GLOBAL_MAX_PER_24_HOURS: "1",
 				},
-				true,
+				productionRuntimeOverride,
+				productionNow,
 			),
 		).toMatchObject({ enabled: true, reason: null, riskBudgetMicros: 1n });
+	});
+
+	it.each([
+		["missing secret", { GUEST_ABUSE_HMAC_SECRET: undefined }],
+		["short secret", { GUEST_ABUSE_HMAC_SECRET: "too-short" }],
+		["missing version", { GUEST_ABUSE_HMAC_VERSION: undefined }],
+		["invalid version", { GUEST_ABUSE_HMAC_VERSION: "invalid version" }],
+	] as const)("fails production closed for %s", (_name, override) => {
+		expect(
+			getGuestMediaConfig(
+				{ ...productionEnvironment, ...override },
+				productionRuntimeOverride,
+				productionNow,
+			),
+		).toMatchObject({ enabled: false, reason: "GUEST_CONFIGURATION_INVALID" });
+	});
+
+	it("requires a matching abuse-key identity and a completed 30-day no-live-rotation window", () => {
+		const mismatched = {
+			...productionRuntimeOverride,
+			abuseHmacKeyIdentity: "0".repeat(64),
+		};
+		const stillDraining = {
+			...productionRuntimeOverride,
+			createdAt: new Date(productionNow.getTime() - 30 * 24 * 60 * 60 * 1_000 + 1),
+		};
+
+		expect(getGuestMediaConfig(productionEnvironment, true, productionNow)).toMatchObject({
+			enabled: false,
+			reason: "GUEST_CONFIGURATION_INVALID",
+		});
+		expect(getGuestMediaConfig(productionEnvironment, mismatched, productionNow)).toMatchObject({
+			enabled: false,
+			reason: "GUEST_CONFIGURATION_INVALID",
+		});
+		expect(getGuestMediaConfig(productionEnvironment, stillDraining, productionNow)).toMatchObject({
+			enabled: false,
+			reason: "GUEST_CONFIGURATION_INVALID",
+		});
+		expect(
+			getGuestMediaConfig(productionEnvironment, productionRuntimeOverride, productionNow),
+		).toMatchObject({ enabled: true, reason: null });
 	});
 
 	it.each([null, undefined, false, { enabled: true }, { enabled: false }])(
@@ -200,10 +266,12 @@ describe("guest media configuration", () => {
 			GUEST_COST_EVIDENCE_ID: "benchmark-2026-08-27",
 			GUEST_HARD_BUDGET_MICROS: "10000000",
 		};
-		expect(getGuestMediaConfig(production, true)).toMatchObject({
-			enabled: false,
-			reason: "GUEST_PRODUCTION_TURNSTILE_REQUIRED",
-		});
+		expect(getGuestMediaConfig(production, productionRuntimeOverride, productionNow)).toMatchObject(
+			{
+				enabled: false,
+				reason: "GUEST_PRODUCTION_TURNSTILE_REQUIRED",
+			},
+		);
 		expect(
 			getGuestMediaConfig(
 				{
@@ -211,7 +279,8 @@ describe("guest media configuration", () => {
 					NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY: "site-key",
 					GUEST_TURNSTILE_SECRET_KEY: "secret-key",
 				},
-				true,
+				productionRuntimeOverride,
+				productionNow,
 			),
 		).toMatchObject({ enabled: false, reason: "GUEST_PRODUCTION_TRUSTED_PROXY_REQUIRED" });
 	});
@@ -268,3 +337,7 @@ describe("guest media configuration", () => {
 		expect(serialized).not.toContain("250000");
 	});
 });
+
+function testGuestAbuseKeyIdentity(secret: string): string {
+	return createHash("sha256").update(`guest-abuse-hmac-key\0${secret}`, "utf8").digest("hex");
+}

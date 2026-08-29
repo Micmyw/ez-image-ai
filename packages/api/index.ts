@@ -32,7 +32,7 @@ import {
 	getExpiredGuestBootstrapCookie,
 	hashDraftClaimToken,
 } from "./modules/media/lib/draft-security";
-import { guestPrincipalEmail, hashGuestBinding } from "./modules/media/lib/guest-capability";
+import { guestPrincipalEmail, hashGuestAbuseBinding } from "./modules/media/lib/guest-capability";
 import { createProviderWebhookHandler } from "./modules/media/webhooks/provider-webhook";
 import { mediaLoadTestHandler } from "./modules/testing/media-load";
 import { openApiHandler, rpcHandler } from "./orpc/handler";
@@ -269,7 +269,7 @@ export const app = createApiApp();
 
 async function defaultResolveGuestRuntimeOverride(): Promise<GuestMediaRuntimeOverride> {
 	try {
-		return (await resolveGuestRuntimeConfigOverride(db))?.enabled ?? null;
+		return await resolveGuestRuntimeConfigOverride(db);
 	} catch {
 		return null;
 	}
@@ -295,10 +295,12 @@ async function defaultHasGuestLinkIntent(
 	guestSessionId: string,
 ): Promise<boolean> {
 	const abuseSecret = process.env.GUEST_ABUSE_HMAC_SECRET;
+	const abuseKeyVersion = process.env.GUEST_ABUSE_HMAC_VERSION;
 	const promotionPeriod = process.env.GUEST_PROMOTION_PERIOD;
 	const token = readRequestCookie(request, "media_guest_link_intent");
 	if (
 		!abuseSecret ||
+		!abuseKeyVersion ||
 		!promotionPeriod ||
 		!guestUserId ||
 		!guestSessionId ||
@@ -314,7 +316,12 @@ async function defaultHasGuestLinkIntent(
 					tokenHash: hashDraftClaimToken(token),
 					anonymousOwnerId: guestUserId,
 					promotionPeriod,
-					sourceSessionHash: hashGuestBinding(abuseSecret, "guest-source-session", guestSessionId),
+					sourceSessionHash: hashGuestAbuseBinding(
+						abuseSecret,
+						abuseKeyVersion,
+						"guest-source-session",
+						guestSessionId,
+					),
 					state: "LINKING",
 					expiresAt: { gt: new Date() },
 				},
@@ -329,13 +336,17 @@ async function defaultHasGuestLinkIntent(
 async function handleDurableGuestAnonymousSignIn(request: Request): Promise<Response> {
 	const promotionPeriod = process.env.GUEST_PROMOTION_PERIOD;
 	const saasOriginValue = process.env.NEXT_PUBLIC_SAAS_URL;
-	const secret = process.env.BETTER_AUTH_SECRET;
+	const authSecret = process.env.BETTER_AUTH_SECRET;
+	const abuseSecret = process.env.GUEST_ABUSE_HMAC_SECRET;
+	const abuseKeyVersion = process.env.GUEST_ABUSE_HMAC_VERSION;
 	const token = readRequestCookie(request, GUEST_BOOTSTRAP_COOKIE);
 	const identity = trustedGuestClientIdentity(request.headers, process.env);
 	if (
 		!promotionPeriod ||
 		!saasOriginValue ||
-		!secret ||
+		!authSecret ||
+		!abuseSecret ||
+		!abuseKeyVersion ||
 		!token ||
 		!/^[A-Za-z0-9_-]{43}$/.test(token) ||
 		!identity
@@ -346,7 +357,7 @@ async function handleDurableGuestAnonymousSignIn(request: Request): Promise<Resp
 	}
 	const saasOrigin = new URL(saasOriginValue).origin;
 	const claimHash = hashDraftClaimToken(token);
-	const principalEmail = guestPrincipalEmail(secret, claimHash);
+	const principalEmail = guestPrincipalEmail(authSecret, claimHash);
 	const runtimeOverride = await defaultResolveGuestRuntimeOverride();
 	const guestConfig = getGuestMediaConfig(process.env, runtimeOverride);
 	if (!guestConfig.enabled) {
@@ -363,8 +374,13 @@ async function handleDurableGuestAnonymousSignIn(request: Request): Promise<Resp
 				origin: request.headers.get("origin"),
 				principalEmail,
 				promotionPeriod,
-				ipHash: hashGuestBinding(secret, "guest-ip", identity.ip),
-				subnetHash: hashGuestBinding(secret, "guest-subnet", identity.subnet),
+				ipHash: hashGuestAbuseBinding(abuseSecret, abuseKeyVersion, "guest-ip", identity.ip),
+				subnetHash: hashGuestAbuseBinding(
+					abuseSecret,
+					abuseKeyVersion,
+					"guest-subnet",
+					identity.subnet,
+				),
 				limits: guestConfig.limits,
 				abuseEvidenceTtlMs: guestConfig.abuseEvidenceTtlMs,
 			},

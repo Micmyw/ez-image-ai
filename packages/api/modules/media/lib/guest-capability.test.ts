@@ -1,3 +1,5 @@
+import { createHash, createHmac } from "node:crypto";
+
 import { call } from "@orpc/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -48,10 +50,20 @@ const enabledEnvironment = {
 	GUEST_MEDIA_ENABLED: "true",
 	GUEST_PROMOTION_PERIOD: "2026-launch",
 	BETTER_AUTH_SECRET: "test-secret",
+	GUEST_ABUSE_HMAC_SECRET: "independent-guest-abuse-secret-at-least-32-bytes",
+	GUEST_ABUSE_HMAC_VERSION: "launch-key-v1",
 	NEXT_PUBLIC_MARKETING_URL: "https://marketing.test",
 	MEDIA_TRUSTED_PROXY_PROVIDER: "cloudflare",
 };
-const capabilityOverride = { enabled: true as const, version: 17 };
+const capabilityOverride = {
+	enabled: true as const,
+	version: 17,
+	createdAt: new Date("2026-06-01T00:00:00.000Z"),
+	abuseHmacKeyVersion: enabledEnvironment.GUEST_ABUSE_HMAC_VERSION,
+	abuseHmacKeyIdentity: createHash("sha256")
+		.update(`guest-abuse-hmac-key\0${enabledEnvironment.GUEST_ABUSE_HMAC_SECRET}`, "utf8")
+		.digest("hex"),
+};
 
 describe("guest capability snapshot", () => {
 	beforeEach(() => {
@@ -103,18 +115,86 @@ describe("guest capability snapshot", () => {
 			"GUEST_CAPABILITY_CHANGED",
 		);
 	});
+
+	it("binds promotion, effective security configuration, and abuse-key identity into the version", async () => {
+		const baseline = await loadGuestCapabilitySnapshot(enabledEnvironment);
+		const changedPromotion = await loadGuestCapabilitySnapshot({
+			...enabledEnvironment,
+			GUEST_PROMOTION_PERIOD: "2026-launch-b",
+		});
+		const changedRiskBudget = await loadGuestCapabilitySnapshot({
+			...enabledEnvironment,
+			GUEST_RISK_BUDGET_MICROS: "349999",
+		});
+		const changedSecret = await loadGuestCapabilitySnapshot({
+			...enabledEnvironment,
+			GUEST_ABUSE_HMAC_SECRET: "rotated-independent-guest-abuse-secret-32-bytes",
+		});
+		const changedKeyVersion = await loadGuestCapabilitySnapshot({
+			...enabledEnvironment,
+			GUEST_ABUSE_HMAC_VERSION: "launch-key-v2",
+		});
+
+		expect(baseline.version).toMatch(/^guest-v17-[a-f0-9]{64}$/);
+		expect(
+			new Set([
+				baseline.version,
+				changedPromotion.version,
+				changedRiskBudget.version,
+				changedSecret.version,
+				changedKeyVersion.version,
+			]),
+		).toHaveLength(5);
+	});
+
+	it("keeps capability identity stable across irrelevant environment and object-key ordering", async () => {
+		const baseline = await loadGuestCapabilitySnapshot(enabledEnvironment);
+		const reorderedWithNoise = Object.fromEntries([
+			["UNRELATED_RUNTIME_NOISE", "ignored"],
+			...Object.entries(enabledEnvironment).reverse(),
+		]);
+
+		await expect(loadGuestCapabilitySnapshot(reorderedWithNoise)).resolves.toMatchObject({
+			version: baseline.version,
+		});
+	});
+
+	it("never serializes raw abuse or Turnstile secrets or their private identities", async () => {
+		const snapshot = await loadGuestCapabilitySnapshot({
+			...enabledEnvironment,
+			GUEST_TURNSTILE_SECRET_KEY: "private-turnstile-secret",
+		});
+		const serialized = JSON.stringify(snapshot);
+
+		expect(serialized).not.toContain(enabledEnvironment.GUEST_ABUSE_HMAC_SECRET);
+		expect(serialized).not.toContain(capabilityOverride.abuseHmacKeyIdentity);
+		expect(serialized).not.toContain("private-turnstile-secret");
+		expect(Object.keys(snapshot).sort()).toEqual([
+			"enabled",
+			"product",
+			"queueEstimate",
+			"reason",
+			"upload",
+			"version",
+		]);
+	});
 });
 
 describe("guest private upload handoff", () => {
-	beforeEach(() => {
+	let capabilityVersion: string;
+
+	beforeEach(async () => {
 		vi.clearAllMocks();
 		vi.stubEnv("NODE_ENV", "development");
 		vi.stubEnv("GUEST_MEDIA_ENABLED", "true");
 		vi.stubEnv("GUEST_PROMOTION_PERIOD", "2026-launch");
 		vi.stubEnv("BETTER_AUTH_SECRET", "test-secret");
+		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", enabledEnvironment.GUEST_ABUSE_HMAC_SECRET);
+		vi.stubEnv("GUEST_ABUSE_HMAC_VERSION", enabledEnvironment.GUEST_ABUSE_HMAC_VERSION);
 		vi.stubEnv("NEXT_PUBLIC_MARKETING_URL", "https://marketing.test");
 		vi.stubEnv("MEDIA_TRUSTED_PROXY_PROVIDER", "cloudflare");
 		databaseMocks.resolveOverride.mockResolvedValue(capabilityOverride);
+		capabilityVersion = (await loadGuestCapabilitySnapshot(process.env)).version;
 		turnstileMocks.verifyGuestTurnstileToken.mockResolvedValue({ tokenHash: "f".repeat(64) });
 		storageMocks.createSignedUpload.mockResolvedValue("https://storage.test/private-signed-put");
 		databaseMocks.createUpload.mockResolvedValue(undefined);
@@ -126,7 +206,7 @@ describe("guest private upload handoff", () => {
 			contentType: "image/png",
 			expectedBytes: 8,
 			expectedSha256: "a".repeat(64),
-			capabilityVersion: "guest-v17",
+			capabilityVersion,
 		});
 		storageMocks.headObject.mockResolvedValue({
 			contentLength: 8,
@@ -149,7 +229,7 @@ describe("guest private upload handoff", () => {
 		const result = await call(
 			createGuestDraftUploadIntent,
 			{
-				capabilityVersion: "guest-v17",
+				capabilityVersion,
 				contentType: "image/png",
 				bytes: 8,
 				sha256: "a".repeat(64),
@@ -181,7 +261,25 @@ describe("guest private upload handoff", () => {
 		);
 		expect(databaseMocks.createUpload).toHaveBeenCalledWith(
 			expect.objectContaining({
-				capabilityVersion: "guest-v17",
+				capabilityVersion,
+				originHash: testGuestAbuseBinding(
+					enabledEnvironment.GUEST_ABUSE_HMAC_SECRET,
+					enabledEnvironment.GUEST_ABUSE_HMAC_VERSION,
+					"guest-origin",
+					"https://marketing.test",
+				),
+				ipHash: testGuestAbuseBinding(
+					enabledEnvironment.GUEST_ABUSE_HMAC_SECRET,
+					enabledEnvironment.GUEST_ABUSE_HMAC_VERSION,
+					"guest-ip",
+					"203.0.113.9",
+				),
+				subnetHash: testGuestAbuseBinding(
+					enabledEnvironment.GUEST_ABUSE_HMAC_SECRET,
+					enabledEnvironment.GUEST_ABUSE_HMAC_VERSION,
+					"guest-subnet",
+					"203.0.113.0/24",
+				),
 				promotionPeriod: "2026-launch",
 				expectedSha256: "a".repeat(64),
 				completionTokenHash: expect.stringMatching(/^[a-f0-9]{64}$/),
@@ -198,7 +296,7 @@ describe("guest private upload handoff", () => {
 			call(
 				createGuestDraftUploadIntent,
 				{
-					capabilityVersion: "guest-v17",
+					capabilityVersion,
 					contentType: "image/png",
 					bytes: 8,
 					sha256: "a".repeat(64),
@@ -222,7 +320,7 @@ describe("guest private upload handoff", () => {
 		const result = await call(
 			createGuestDraftUploadIntent,
 			{
-				capabilityVersion: "guest-v17",
+				capabilityVersion,
 				contentType: "image/png",
 				bytes: 8,
 				sha256: "a".repeat(64),
@@ -252,7 +350,7 @@ describe("guest private upload handoff", () => {
 			{
 				sessionId: "session_1",
 				completionToken: "b".repeat(43),
-				capabilityVersion: "guest-v17",
+				capabilityVersion,
 				sha256: "a".repeat(64),
 				prompt: "Replace the background",
 			},
@@ -271,6 +369,17 @@ describe("guest private upload handoff", () => {
 		expect(uploadMocks.completeOwnedUploadSession).toHaveBeenCalledWith(
 			expect.objectContaining({ expectedSha256: "a".repeat(64), sessionId: "session_1" }),
 			"guest_owner",
+		);
+		expect(databaseMocks.loadCompletion).toHaveBeenCalledWith(
+			expect.objectContaining({
+				originHash: testGuestAbuseBinding(
+					enabledEnvironment.GUEST_ABUSE_HMAC_SECRET,
+					enabledEnvironment.GUEST_ABUSE_HMAC_VERSION,
+					"guest-origin",
+					"https://marketing.test",
+				),
+			}),
+			expect.anything(),
 		);
 		expect(databaseMocks.finalizeDraft).toHaveBeenCalledWith(
 			expect.objectContaining({ maximumOutstandingBootstraps: 25 }),
@@ -298,7 +407,7 @@ describe("guest private upload handoff", () => {
 				contentType: "image/png",
 				expectedBytes: 8,
 				expectedSha256: "a".repeat(64),
-				capabilityVersion: "guest-v17",
+				capabilityVersion,
 			})
 			.mockResolvedValueOnce({
 				ownerId: "guest_owner",
@@ -308,12 +417,12 @@ describe("guest private upload handoff", () => {
 				contentType: "image/png",
 				expectedBytes: 8,
 				expectedSha256: "a".repeat(64),
-				capabilityVersion: "guest-v17",
+				capabilityVersion,
 			});
 		const request = {
 			sessionId: "session_1",
 			completionToken: "b".repeat(43),
-			capabilityVersion: "guest-v17",
+			capabilityVersion,
 			sha256: "a".repeat(64),
 			prompt: "Replace the background",
 		};
@@ -349,7 +458,7 @@ describe("guest private upload handoff", () => {
 				{
 					sessionId: "session_1",
 					completionToken: "b".repeat(43),
-					capabilityVersion: "guest-v17",
+					capabilityVersion,
 					sha256: "a".repeat(64),
 					prompt: "Replace the background",
 				},
@@ -363,3 +472,14 @@ describe("guest private upload handoff", () => {
 		).rejects.toThrow("GUEST_CAPACITY_UNAVAILABLE");
 	});
 });
+
+function testGuestAbuseBinding(
+	secret: string,
+	keyVersion: string,
+	purpose: string,
+	value: string,
+): string {
+	return createHmac("sha256", secret)
+		.update(`${keyVersion}:${purpose}:${value}`, "utf8")
+		.digest("hex");
+}

@@ -48,42 +48,42 @@
 
   The central assertion must exercise the real store, in this shape:
 
-  ```ts
-  const linked = await completeGuestLinkIntentTransaction(linkInput, database);
-  expect(linked).toMatchObject({ mode: "RESULT", jobId: guestJobId });
+```ts
+const linked = await completeGuestLinkIntentTransaction(linkInput, database);
+expect(linked).toMatchObject({ mode: "RESULT", jobId: guestJobId });
 
-  const claim = await dispatchStore.claimDispatch({ jobId: guestJobId, version: 0 });
-  expect(claim).not.toBeNull();
-  expect(claim?.jobId).toBe(guestJobId);
+const claim = await dispatchStore.claimDispatch({ jobId: guestJobId, version: 0 });
+expect(claim).not.toBeNull();
+expect(claim?.jobId).toBe(guestJobId);
 
-  const persisted = await database.generationJob.findUniqueOrThrow({
-  	where: { id: guestJobId },
-  	include: { attempts: true, guestTrial: true },
-  });
-  expect(persisted.status).not.toBe("EXPIRED");
-  expect(persisted.attempts).toHaveLength(1);
-  expect(persisted.guestTrial?.currentJobId).toBeNull();
-  expect(persisted.guestTrial?.consumedJobId).toBe(guestJobId);
-  ```
+const persisted = await database.generationJob.findUniqueOrThrow({
+	where: { id: guestJobId },
+	include: { attempts: true, guestTrial: true },
+});
+expect(persisted.status).not.toBe("EXPIRED");
+expect(persisted.attempts).toHaveLength(1);
+expect(persisted.guestTrial?.currentJobId).toBeNull();
+expect(persisted.guestTrial?.consumedJobId).toBe(guestJobId);
+```
 
 - [ ] **Step 2: Add failing dispatch-before-link and concurrency tests**
 
   Cover these independent orderings with real transactions:
 
-  ```ts
-  test.each(["dispatch-then-link", "link-then-dispatch", "concurrent"])(
-  	"%s preserves one canonical guest job and one Attempt",
-  	async (ordering) => {
-  		// Arrange one real trial/job, execute the named ordering, then reload all rows.
-  		expect(job.status).not.toBe("EXPIRED");
-  		expect(job.attempts).toHaveLength(1);
-  		expect(grant.guestJobId).toBe(job.id);
-  		expect(trial.consumedJobId).toBe(job.id);
-  	},
-  );
-  ```
+```ts
+test.each(["dispatch-then-link", "link-then-dispatch", "concurrent"])(
+	"%s preserves one canonical guest job and one Attempt",
+	async (ordering) => {
+		// Arrange one real trial/job, execute the named ordering, then reload all rows.
+		expect(job.status).not.toBe("EXPIRED");
+		expect(job.attempts).toHaveLength(1);
+		expect(grant.guestJobId).toBe(job.id);
+		expect(trial.consumedJobId).toBe(job.id);
+	},
+);
+```
 
-  Also prove replay returns the same grant, an expired trial cannot dispatch or link, the registered user receives no sponsor CreditAccount/Lot/Ledger rows, and the guest job owner remains the anonymous user.
+Also prove replay returns the same grant, an expired trial cannot dispatch or link, the registered user receives no sponsor CreditAccount/Lot/Ledger rows, and the guest job owner remains the anonymous user.
 
 - [ ] **Step 3: Run the focused tests and retain the expected RED output**
 
@@ -95,23 +95,23 @@
 
   The final predicate must retain this form:
 
-  ```ts
-  if (
-  	job.serviceClass !== "GUEST_SLOW" ||
-  	job.status !== "DISPATCH_QUEUED" ||
-  	job.productKey !== "image-fast" ||
-  	job.guestTrialId !== trial.id ||
-  	job.ownerId !== trial.ownerId ||
-  	trial.currentJobId !== job.id ||
-  	trial.consumedJobId !== null ||
-  	trial.providerBoundaryAt !== null ||
-  	trial.expiresAt <= now
-  ) {
-  	return false;
-  }
-  ```
+```ts
+if (
+	job.serviceClass !== "GUEST_SLOW" ||
+	job.status !== "DISPATCH_QUEUED" ||
+	job.productKey !== "image-fast" ||
+	job.guestTrialId !== trial.id ||
+	job.ownerId !== trial.ownerId ||
+	trial.currentJobId !== job.id ||
+	trial.consumedJobId !== null ||
+	trial.providerBoundaryAt !== null ||
+	trial.expiresAt <= now
+) {
+	return false;
+}
+```
 
-  Both link completion and dispatch already take the owner-promotion advisory lock; preserve that shared serialization and existing trial row lock ordering.
+Both link completion and dispatch already take the owner-promotion advisory lock; preserve that shared serialization and existing trial row lock ordering.
 
 - [ ] **Step 5: Run focused GREEN and mutation checks**
 
@@ -148,18 +148,18 @@
 
   Add real lifecycle fixtures for:
 
-  ```ts
-  const cases = [
-  	"bootstrap-only anonymous principal",
-  	"admitted waiting trial",
-  	"consumed terminal trial with Attempt and credit ledger",
-  	"linked trial with expired result grant",
-  	"not-yet-due anonymous trial",
-  	"registered user",
-  ] as const;
-  ```
+```ts
+const cases = [
+	"bootstrap-only anonymous principal",
+	"admitted waiting trial",
+	"consumed terminal trial with Attempt and credit ledger",
+	"linked trial with expired result grant",
+	"not-yet-due anonymous trial",
+	"registered user",
+] as const;
+```
 
-  For due anonymous trials, assert all five HMAC fields become `null`, `abuseEvidenceDeletedAt` equals the sweep time, expired sessions/buckets are removed, and retained Trial/Job/Attempt/Reservation/Ledger/Outbox rows still exist. A bootstrap-only principal has no Trial HMAC row; use it only to prove bootstrap/session/bucket/user cleanup. Use not-yet-due evidence for the registered-user control so the test proves the registered User remains without incorrectly requiring globally expired abuse buckets to survive.
+For due anonymous trials, assert all five HMAC fields become `null`, `abuseEvidenceDeletedAt` equals the sweep time, expired sessions/buckets are removed, and retained Trial/Job/Attempt/Reservation/Ledger/Outbox rows still exist. A bootstrap-only principal has no Trial HMAC row; use it only to prove bootstrap/session/bucket/user cleanup. Use not-yet-due evidence for the registered-user control so the test proves the registered User remains without incorrectly requiring globally expired abuse buckets to survive.
 
 - [ ] **Step 2: Add replay and concurrent-sweeper RED tests**
 
@@ -202,28 +202,28 @@
 
   In the existing retention transaction, after deleting due link/bootstrap/session/bucket rows and before deleting eligible Users, select no more than `input.limit` due unsanitized Trial IDs with `FOR UPDATE SKIP LOCKED`, ordered by evidence expiry and ID. Update only that selected batch:
 
-  ```ts
-  const dueTrialIds = await selectDueEvidenceTrialIdsWithSkipLocked(tx, {
-  	now: input.now,
-  	limit: input.limit,
-  });
-  await tx.guestMediaTrial.updateMany({
-  	where: {
-  		id: { in: dueTrialIds },
-  		abuseEvidenceDeletedAt: null,
-  	},
-  	data: {
-  		sourceSessionHash: null,
-  		deviceHash: null,
-  		ipHash: null,
-  		subnetHash: null,
-  		idempotencyFingerprint: null,
-  		abuseEvidenceDeletedAt: input.now,
-  	},
-  });
-  ```
+```ts
+const dueTrialIds = await selectDueEvidenceTrialIdsWithSkipLocked(tx, {
+	now: input.now,
+	limit: input.limit,
+});
+await tx.guestMediaTrial.updateMany({
+	where: {
+		id: { in: dueTrialIds },
+		abuseEvidenceDeletedAt: null,
+	},
+	data: {
+		sourceSessionHash: null,
+		deviceHash: null,
+		ipHash: null,
+		subnetHash: null,
+		idempotencyFingerprint: null,
+		abuseEvidenceDeletedAt: input.now,
+	},
+});
+```
 
-  Preserve promotion period, pricing/risk totals, Trial/Job/Attempt/Reservation/Ledger/Outbox facts, and result deletion evidence. The bounded selection plus the new index must prevent an unbounded sweep and allow concurrent sweepers to claim disjoint batches. Active lookup/link/admission paths must reject expired trials before depending on nullable hashes; add explicit null guards only where TypeScript or an active-path invariant requires them.
+Preserve promotion period, pricing/risk totals, Trial/Job/Attempt/Reservation/Ledger/Outbox facts, and result deletion evidence. The bounded selection plus the new index must prevent an unbounded sweep and allow concurrent sweepers to claim disjoint batches. Active lookup/link/admission paths must reject expired trials before depending on nullable hashes; add explicit null guards only where TypeScript or an active-path invariant requires them.
 
 - [ ] **Step 7: Run GREEN, migration, and mutation verification**
 
@@ -261,24 +261,24 @@
 
   Assert these mutations disable guest media with `GUEST_CONFIGURATION_INVALID`. Cover every frozen ceiling, including session active/accepted, device active/accepted, IP active, outstanding bootstraps, temporary principals, and risk budget. At minimum include:
 
-  ```ts
-  const invalid = [
-  	["GUEST_RISK_BUDGET_MICROS", undefined],
-  	["GUEST_RISK_BUDGET_MICROS", "350001"],
-  	["GUEST_QUEUE_TTL_SECONDS", "601"],
-  	["GUEST_QUEUE_MAX_DEPTH", "26"],
-  	["GUEST_ABUSE_EVIDENCE_TTL_DAYS", "29"],
-  	["GUEST_ABUSE_EVIDENCE_TTL_DAYS", "31"],
-  	["GUEST_IP_MAX_PER_10_MINUTES", "2"],
-  	["GUEST_IP_MAX_PER_24_HOURS", "4"],
-  	["GUEST_SUBNET_MAX_PER_24_HOURS", "21"],
-  	["GUEST_GLOBAL_MAX_PER_MINUTE", "4"],
-  	["GUEST_GLOBAL_MAX_PER_HOUR", "31"],
-  	["GUEST_GLOBAL_MAX_PER_24_HOURS", "101"],
-  ] as const;
-  ```
+```ts
+const invalid = [
+	["GUEST_RISK_BUDGET_MICROS", undefined],
+	["GUEST_RISK_BUDGET_MICROS", "350001"],
+	["GUEST_QUEUE_TTL_SECONDS", "601"],
+	["GUEST_QUEUE_MAX_DEPTH", "26"],
+	["GUEST_ABUSE_EVIDENCE_TTL_DAYS", "29"],
+	["GUEST_ABUSE_EVIDENCE_TTL_DAYS", "31"],
+	["GUEST_IP_MAX_PER_10_MINUTES", "2"],
+	["GUEST_IP_MAX_PER_24_HOURS", "4"],
+	["GUEST_SUBNET_MAX_PER_24_HOURS", "21"],
+	["GUEST_GLOBAL_MAX_PER_MINUTE", "4"],
+	["GUEST_GLOBAL_MAX_PER_HOUR", "31"],
+	["GUEST_GLOBAL_MAX_PER_24_HOURS", "101"],
+] as const;
+```
 
-  Positive values below a request/capacity ceiling remain valid and intentionally stricter. Queue TTL/depth must be positive and no greater than 600/25. The launch evidence policy is exactly 30 days until the privacy disclosure and spec are deliberately revised together. The risk configuration test covers the hard `350000`/`350001` ceiling; runtime risk behavior remains the existing 75%-slow and 90%-close policy, not an artificial request-count N/N+1 test.
+Positive values below a request/capacity ceiling remain valid and intentionally stricter. Queue TTL/depth must be positive and no greater than 600/25. The launch evidence policy is exactly 30 days until the privacy disclosure and spec are deliberately revised together. The risk configuration test covers the hard `350000`/`350001` ceiling; runtime risk behavior remains the existing 75%-slow and 90%-close policy, not an artificial request-count N/N+1 test.
 
 - [ ] **Step 2: Add promotion-scope and global-scope RED tests**
 
@@ -309,27 +309,27 @@
 
   For each dimension:
 
-  ```ts
-  expect(await admitExactly(limit)).toHaveLength(limit);
-  await expect(admitOneMore()).rejects.toThrow(expectedReason);
-  expect(await countBusinessGraphRows()).toEqual({
-  	trials: limit,
-  	quotes: limit,
-  	accounts: limit,
-  	lots: limit,
-  	ledgers: limit,
-  	reservations: limit,
-  	jobs: limit,
-  	outbox: limit,
-  	attempts: 0,
-  });
-  ```
+```ts
+expect(await admitExactly(limit)).toHaveLength(limit);
+await expect(admitOneMore()).rejects.toThrow(expectedReason);
+expect(await countBusinessGraphRows()).toEqual({
+	trials: limit,
+	quotes: limit,
+	accounts: limit,
+	lots: limit,
+	ledgers: limit,
+	reservations: limit,
+	jobs: limit,
+	outbox: limit,
+	attempts: 0,
+});
+```
 
-  The generic graph-count assertion applies to generation admission only; upload/bootstrap use boundary-specific row and signed-upload side-effect snapshots. Queue age and depth need separate fixtures: with the real API's one-slot/60-second estimate, depth 10 reaches 600 seconds and depth 11 is rejected by age first, while the depth-25 fence must be isolated with controlled queue capacity or preseeded rows. The one-trial invariant can make owner-active and device-active reason codes unreachable first; verify the composite production invariant and use safe targeted overrides only where a dimension can be reached without constructing an invalid graph.
+The generic graph-count assertion applies to generation admission only; upload/bootstrap use boundary-specific row and signed-upload side-effect snapshots. Queue age and depth need separate fixtures: with the real API's one-slot/60-second estimate, depth 10 reaches 600 seconds and depth 11 is rejected by age first, while the depth-25 fence must be isolated with controlled queue capacity or preseeded rows. The one-trial invariant can make owner-active and device-active reason codes unreachable first; verify the composite production invariant and use safe targeted overrides only where a dimension can be reached without constructing an invalid graph.
 
-  Add concurrent `Promise.allSettled` variants using small override limits of 1 or 2 so exactly N requests succeed and the rest deterministically reject. Rejection must create no partial Trial/Quote/CreditAccount/Lot/Ledger/Reservation/Job/Outbox/Attempt and invoke no Provider boundary. Replayed denials must increment the durable denial counter once for generation, whose stable idempotency fingerprint defines replay; do not invent denial identity for upload/bootstrap.
+Add concurrent `Promise.allSettled` variants using small override limits of 1 or 2 so exactly N requests succeed and the rest deterministically reject. Rejection must create no partial Trial/Quote/CreditAccount/Lot/Ledger/Reservation/Job/Outbox/Attempt and invoke no Provider boundary. Replayed denials must increment the durable denial counter once for generation, whose stable idempotency fingerprint defines replay; do not invent denial identity for upload/bootstrap.
 
-  Also cover two concurrency defects directly: the total-temporary-principal and outstanding-bootstrap caps require one cross-promotion global advisory lock, and concurrent admissions sharing one `promotionPeriod + sourceSessionHash` require a matching lock or stable error mapping so exactly one graph wins without exposing a raw unique-constraint error.
+Also cover two concurrency defects directly: the total-temporary-principal and outstanding-bootstrap caps require one cross-promotion global advisory lock, and concurrent admissions sharing one `promotionPeriod + sourceSessionHash` require a matching lock or stable error mapping so exactly one graph wins without exposing a raw unique-constraint error.
 
 - [ ] **Step 4: Run focused RED and verify failures are behavioral**
 

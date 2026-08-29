@@ -18,7 +18,7 @@ import {
 } from "../lib/draft-security";
 import {
 	assertGuestCapabilityVersion,
-	hashGuestBinding,
+	hashGuestAbuseBinding,
 	hashGuestSecret,
 	loadGuestCapability,
 } from "../lib/guest-capability";
@@ -62,8 +62,11 @@ export const completeGuestDraftUpload = publicProcedure
 	)
 	.handler(async ({ context, input }) => {
 		const marketingOrigin = process.env.NEXT_PUBLIC_MARKETING_URL;
-		const secret = process.env.BETTER_AUTH_SECRET;
-		if (!marketingOrigin || !secret) throw new Error("GUEST_CONFIGURATION_ERROR");
+		const abuseSecret = process.env.GUEST_ABUSE_HMAC_SECRET;
+		const abuseKeyVersion = process.env.GUEST_ABUSE_HMAC_VERSION;
+		if (!marketingOrigin || !abuseSecret || !abuseKeyVersion) {
+			throw new Error("GUEST_CONFIGURATION_ERROR");
+		}
 		assertMarketingOrigin(context.headers.get("origin"), marketingOrigin);
 		const loaded = await loadGuestCapability();
 		if (!loaded.config.enabled || !loaded.config.promotionPeriod) {
@@ -76,7 +79,12 @@ export const completeGuestDraftUpload = publicProcedure
 				sessionId: input.sessionId,
 				completionTokenHash,
 				capabilityVersion: loaded.snapshot.version,
-				originHash: hashGuestBinding(secret, "guest-origin", marketingOrigin),
+				originHash: hashGuestAbuseBinding(
+					abuseSecret,
+					abuseKeyVersion,
+					"guest-origin",
+					marketingOrigin,
+				),
 				expectedSha256: input.sha256,
 			},
 			db,

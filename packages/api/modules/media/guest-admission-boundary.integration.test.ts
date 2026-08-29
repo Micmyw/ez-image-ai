@@ -149,6 +149,7 @@ function configureAdmissionDependencies(
 		now: () => fixture.now,
 		saasOrigin: "https://app.ezpic.test",
 		abuseSecret: "independent-guest-abuse-secret",
+		abuseKeyVersion: "launch-key-v1",
 		loadCapability: async () => ({
 			snapshot: { version: "guest-v7" },
 			config: {

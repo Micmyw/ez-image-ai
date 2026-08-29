@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 export const GUEST_MEDIA_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
 export type GuestMediaDisabledReason =
@@ -30,7 +32,15 @@ export interface GuestAdmissionLimits {
 	maximumGlobalQueueDepth: number;
 }
 
-export type GuestMediaRuntimeOverride = boolean | null | undefined;
+export interface GuestMediaRuntimeOverrideRecord {
+	enabled: true;
+	version: number;
+	createdAt: Date;
+	abuseHmacKeyVersion: string | null;
+	abuseHmacKeyIdentity: string | null;
+}
+
+export type GuestMediaRuntimeOverride = true | GuestMediaRuntimeOverrideRecord | null | undefined;
 
 export interface GuestMediaConfig {
 	enabled: boolean;
@@ -48,6 +58,11 @@ export interface GuestMediaConfig {
 	resultGrantTtlMs: number;
 	limits: GuestAdmissionLimits;
 	riskBudgetMicros: bigint;
+	abuseHmac: {
+		keyVersion: string | null;
+		keyIdentity: string | null;
+		secretKey: string | null;
+	};
 	productionEvidence: {
 		costEvidenceId: string | null;
 		hardBudgetMicros: bigint | null;
@@ -97,6 +112,7 @@ const FIXED_GUEST_MEDIA_CONFIG = {
 export function getGuestMediaConfig(
 	environment: Record<string, unknown>,
 	runtimeOverride: unknown,
+	now: Date = new Date(),
 ): GuestMediaConfig {
 	const nodeEnvironment = stringValue(environment.NODE_ENV);
 	const production = nodeEnvironment === "production";
@@ -108,6 +124,10 @@ export function getGuestMediaConfig(
 	const siteKey = normalizedNonEmptyString(environment.NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY);
 	const secretKey = normalizedNonEmptyString(environment.GUEST_TURNSTILE_SECRET_KEY);
 	const proxyProvider = trustedProxyProvider(environment.MEDIA_TRUSTED_PROXY_PROVIDER);
+	const abuseSecretKey = stringValue(environment.GUEST_ABUSE_HMAC_SECRET);
+	const abuseKeyVersion = normalizedGuestAbuseHmacVersion(environment.GUEST_ABUSE_HMAC_VERSION);
+	const abuseKeyIdentity = abuseSecretKey ? guestAbuseHmacKeyIdentity(abuseSecretKey) : null;
+	const normalizedRuntimeOverride = normalizeRuntimeOverride(runtimeOverride);
 	const productionControlsRequired =
 		production && !isLocalProductionBuildE2EEnvironment(environment);
 	const productionEnvelope = productionControlsRequired
@@ -123,7 +143,7 @@ export function getGuestMediaConfig(
 		reason = "GUEST_ENVIRONMENT_INVALID";
 	} else if (environment.GUEST_MEDIA_ENABLED !== "true") {
 		reason = "GUEST_ENVIRONMENT_DISABLED";
-	} else if (runtimeOverride !== true) {
+	} else if (!normalizedRuntimeOverride.enabled) {
 		reason = "GUEST_RUNTIME_DISABLED";
 	} else if (!promotionPeriod) {
 		reason = "GUEST_PROMOTION_PERIOD_REQUIRED";
@@ -142,6 +162,21 @@ export function getGuestMediaConfig(
 		reason = "GUEST_CONFIGURATION_INVALID";
 	} else if (productionControlsRequired && productionEnvelope === null) {
 		reason = "GUEST_CONFIGURATION_INVALID";
+	} else if (
+		productionControlsRequired &&
+		(!abuseSecretKey ||
+			abuseSecretKey.length < 32 ||
+			!abuseKeyVersion ||
+			!productionEnvelope ||
+			!productionAbuseOverrideReady({
+				override: normalizedRuntimeOverride.record,
+				keyVersion: abuseKeyVersion,
+				keyIdentity: abuseKeyIdentity,
+				evidenceTtlMs: productionEnvelope.abuseEvidenceTtlMs,
+				now,
+			}))
+	) {
+		reason = "GUEST_CONFIGURATION_INVALID";
 	}
 	const queueTtlMs = productionEnvelope?.queueTtlMs ?? FIXED_GUEST_MEDIA_CONFIG.queueTtlMs;
 	const abuseEvidenceTtlMs =
@@ -157,6 +192,11 @@ export function getGuestMediaConfig(
 		abuseEvidenceTtlMs,
 		limits,
 		riskBudgetMicros,
+		abuseHmac: Object.freeze({
+			keyVersion: abuseKeyVersion,
+			keyIdentity: abuseKeyIdentity,
+			secretKey: abuseSecretKey,
+		}),
 		productionEvidence: Object.freeze({ costEvidenceId, hardBudgetMicros }),
 		turnstile: Object.freeze({ required: productionControlsRequired, siteKey, secretKey }),
 		trustedProxyPolicy: Object.freeze({
@@ -164,6 +204,51 @@ export function getGuestMediaConfig(
 			required: productionControlsRequired,
 		}),
 	});
+}
+
+export function guestAbuseHmacKeyIdentity(secret: string): string {
+	return createHash("sha256").update(`guest-abuse-hmac-key\0${secret}`, "utf8").digest("hex");
+}
+
+function normalizeRuntimeOverride(runtimeOverride: unknown): {
+	enabled: boolean;
+	record: GuestMediaRuntimeOverrideRecord | null;
+} {
+	if (runtimeOverride === true) return { enabled: true, record: null };
+	if (!runtimeOverride || typeof runtimeOverride !== "object") {
+		return { enabled: false, record: null };
+	}
+	const candidate = runtimeOverride as Partial<GuestMediaRuntimeOverrideRecord>;
+	if (
+		candidate.enabled !== true ||
+		!Number.isSafeInteger(candidate.version) ||
+		(candidate.version ?? -1) < 0 ||
+		!(candidate.createdAt instanceof Date) ||
+		!Number.isFinite(candidate.createdAt.getTime()) ||
+		!(
+			candidate.abuseHmacKeyVersion === null || typeof candidate.abuseHmacKeyVersion === "string"
+		) ||
+		!(candidate.abuseHmacKeyIdentity === null || typeof candidate.abuseHmacKeyIdentity === "string")
+	) {
+		return { enabled: false, record: null };
+	}
+	return { enabled: true, record: candidate as GuestMediaRuntimeOverrideRecord };
+}
+
+function productionAbuseOverrideReady(input: {
+	override: GuestMediaRuntimeOverrideRecord | null;
+	keyVersion: string;
+	keyIdentity: string | null;
+	evidenceTtlMs: number;
+	now: Date;
+}): boolean {
+	return Boolean(
+		input.override &&
+		input.keyIdentity &&
+		input.override.abuseHmacKeyVersion === input.keyVersion &&
+		input.override.abuseHmacKeyIdentity === input.keyIdentity &&
+		input.now.getTime() - input.override.createdAt.getTime() >= input.evidenceTtlMs,
+	);
 }
 
 function readProductionGuestEnvelope(environment: Record<string, unknown>): {
@@ -289,6 +374,11 @@ function isLoopbackHost(hostname: string): boolean {
 }
 
 function normalizedPromotionPeriod(value: unknown): string | null {
+	const candidate = normalizedNonEmptyString(value);
+	return candidate && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(candidate) ? candidate : null;
+}
+
+function normalizedGuestAbuseHmacVersion(value: unknown): string | null {
 	const candidate = normalizedNonEmptyString(value);
 	return candidate && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(candidate) ? candidate : null;
 }
