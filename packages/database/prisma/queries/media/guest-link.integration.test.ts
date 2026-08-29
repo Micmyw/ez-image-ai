@@ -530,6 +530,7 @@ function admissionInput(fixture: LinkFixture, idempotencyKey: string) {
 		sourceAssetChecksum: fixture.checksum,
 		now: fixture.now,
 		retentionMs: 24 * 60 * 60_000,
+		abuseEvidenceTtlMs: 30 * 24 * 60 * 60_000,
 		queueTtlMs: 10 * 60_000,
 		serviceTimeMs: 60_000,
 		maximumBytes: 10 * 1024 * 1024,

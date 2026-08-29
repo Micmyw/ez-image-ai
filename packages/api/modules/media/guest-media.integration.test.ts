@@ -359,6 +359,7 @@ describe("guest media read and grant boundary", () => {
 				subnetHash: hash(`subnet:${suffix}`),
 				capabilityVersion: "guest-v7",
 				idempotencyFingerprint: hash(`idempotency:${suffix}`),
+				abuseEvidenceExpiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60_000),
 				frozenQuotedRiskMicros: 3500n,
 				riskState: "COMMITTED",
 				providerBoundaryAt: now,

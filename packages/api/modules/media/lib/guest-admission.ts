@@ -91,7 +91,7 @@ interface GuestAdmissionConfig {
 	mimeTypes: readonly string[];
 	retentionMs: number;
 	queueTtlMs: number;
-	abuseEvidenceTtlMs?: number;
+	abuseEvidenceTtlMs: number;
 	limits: {
 		maximumActiveJobsPerGuest: number;
 		maximumAcceptedTrialsPerSession?: number;

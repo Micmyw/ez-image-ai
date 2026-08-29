@@ -73,7 +73,7 @@ export interface CreateGuestGenerationTransactionInput {
 	maximumGlobalRequestsPerMinute?: number;
 	maximumGlobalRequestsPerHour?: number;
 	maximumGlobalRequestsPerDay?: number;
-	abuseEvidenceTtlMs?: number;
+	abuseEvidenceTtlMs: number;
 	riskBudgetMicros: bigint;
 	sponsorCredits: bigint;
 	assetModeration: {
@@ -316,6 +316,8 @@ export async function createGuestGenerationTransaction(
 					subnetHash: input.subnetHash,
 					capabilityVersion: input.capabilityVersion,
 					idempotencyFingerprint: input.idempotencyFingerprint,
+					abuseEvidenceExpiresAt: new Date(input.now.getTime() + input.abuseEvidenceTtlMs),
+					abuseEvidenceDeletedAt: null,
 					frozenQuotedRiskMicros: input.quote.costMicros ?? 0n,
 					riskState: "HELD",
 					projectedDispatchAt,
@@ -1176,7 +1178,7 @@ function validateAdmissionInput(input: CreateGuestGenerationTransactionInput): v
 		input.maximumGlobalRequestsPerMinute ?? input.maximumRequestsPerMinute,
 		input.maximumGlobalRequestsPerHour ?? input.maximumRequestsPerIpPerHour,
 		input.maximumGlobalRequestsPerDay ?? input.maximumRequestsPerIpPerHour,
-		input.abuseEvidenceTtlMs ?? 24 * 60 * 60_000,
+		input.abuseEvidenceTtlMs,
 	]) {
 		if (!Number.isSafeInteger(value) || value <= 0) throw new Error("GUEST_CONFIGURATION_ERROR");
 	}

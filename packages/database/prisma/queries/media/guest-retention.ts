@@ -578,6 +578,7 @@ async function removeExpiredGuestPrincipals(
 	});
 	await tx.guestAbuseBucket.deleteMany({ where: { expiresAt: { lte: input.now } } });
 	await tx.guestRiskBudgetBucket.deleteMany({ where: { expiresAt: { lte: input.now } } });
+	await scrubDueTrialAbuseEvidence(input, tx);
 
 	let removed = 0;
 	for (const { id: ownerId } of ownerCandidates) {
@@ -594,6 +595,44 @@ async function removeExpiredGuestPrincipals(
 		removed += deleted.count;
 	}
 	return removed;
+}
+
+async function scrubDueTrialAbuseEvidence(
+	input: ExpireGuestMediaInput,
+	tx: Prisma.TransactionClient,
+): Promise<void> {
+	const dueTrialIds = await selectDueEvidenceTrialIdsWithSkipLocked(input, tx);
+	if (dueTrialIds.length === 0) return;
+	await tx.guestMediaTrial.updateMany({
+		where: {
+			id: { in: dueTrialIds },
+			abuseEvidenceDeletedAt: null,
+		},
+		data: {
+			sourceSessionHash: null,
+			deviceHash: null,
+			ipHash: null,
+			subnetHash: null,
+			idempotencyFingerprint: null,
+			abuseEvidenceDeletedAt: input.now,
+		},
+	});
+}
+
+async function selectDueEvidenceTrialIdsWithSkipLocked(
+	input: ExpireGuestMediaInput,
+	tx: Prisma.TransactionClient,
+): Promise<string[]> {
+	const due = await tx.$queryRaw<Array<{ id: string }>>`
+		SELECT "id"
+		FROM "guest_media_trial"
+		WHERE "abuseEvidenceDeletedAt" IS NULL
+		  AND "abuseEvidenceExpiresAt" <= ${input.now}
+		ORDER BY "abuseEvidenceExpiresAt" ASC, "id" ASC
+		FOR UPDATE SKIP LOCKED
+		LIMIT ${input.limit}
+	`;
+	return due.map(({ id }) => id);
 }
 
 function assertExpiryInput(input: ExpireGuestMediaInput): void {

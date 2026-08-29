@@ -913,12 +913,14 @@ model GuestMediaTrial {
   sourceBootstrap          GuestSessionBootstrap? @relation("GuestTrialSourceBootstrap", fields: [sourceBootstrapId], references: [id], onDelete: SetNull)
   sourceAssetId            String?
   sourceAsset              MediaAsset?           @relation("GuestTrialSourceAsset", fields: [sourceAssetId], references: [id], onDelete: SetNull)
-  sourceSessionHash        String
-  deviceHash               String
-  ipHash                   String
-  subnetHash               String
+  sourceSessionHash        String?
+  deviceHash               String?
+  ipHash                   String?
+  subnetHash               String?
   capabilityVersion        String
-  idempotencyFingerprint   String                @unique
+  idempotencyFingerprint   String?               @unique
+  abuseEvidenceExpiresAt   DateTime              @db.Timestamptz(3)
+  abuseEvidenceDeletedAt   DateTime?             @db.Timestamptz(3)
   replacementCount         Int                   @default(0)
   frozenQuotedRiskMicros   BigInt
   riskState                GuestRiskState        @default(HELD)
@@ -946,6 +948,7 @@ model GuestMediaTrial {
   @@unique([promotionPeriod, deviceHash])
   @@index([eligibility, expiresAt])
   @@index([sourceAssetId])
+  @@index([abuseEvidenceDeletedAt, abuseEvidenceExpiresAt], map: "guest_media_trial_abuse_evidence_expiry_idx")
   @@map("guest_media_trial")
 }
 

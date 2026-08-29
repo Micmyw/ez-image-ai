@@ -82,6 +82,34 @@ describe("guest generation admission", () => {
 		).resolves.toMatchObject({ availableAt: trial.projectedDispatchAt });
 	});
 
+	it("persists the immutable abuse-evidence expiry from the admission TTL", async () => {
+		const fixture = await createGuestFixture("evidence-expiry");
+		const abuseEvidenceTtlMs = 17 * 24 * 60 * 60_000;
+		const admitted = await createGuestAdmission(
+			guestAdmissionInput(fixture, {
+				idempotencyKey: "guest-evidence-expiry",
+				abuseEvidenceTtlMs,
+			}),
+		);
+
+		const rows = await client.$queryRaw<
+			Array<{ abuseEvidenceDeletedAt: Date | null; abuseEvidenceExpiresAt: Date | null }>
+		>`
+			SELECT
+				(to_jsonb(trial)->>'abuseEvidenceExpiresAt')::timestamptz AS "abuseEvidenceExpiresAt",
+				(to_jsonb(trial)->>'abuseEvidenceDeletedAt')::timestamptz AS "abuseEvidenceDeletedAt"
+			FROM "guest_media_trial" trial
+			WHERE trial."id" = ${admitted.trialId}
+		`;
+
+		expect(rows).toEqual([
+			{
+				abuseEvidenceExpiresAt: new Date(fixture.now.getTime() + abuseEvidenceTtlMs),
+				abuseEvidenceDeletedAt: null,
+			},
+		]);
+	});
+
 	it("creates no business graph when the queue dimension is N plus one", async () => {
 		const admitted = await createGuestFixture("capacity-a");
 		await createGuestAdmission(
@@ -762,6 +790,7 @@ function guestAdmissionInput(
 	fixture: GuestFixture,
 	overrides: {
 		idempotencyKey: string;
+		abuseEvidenceTtlMs?: number;
 		maximumRequestsPerMinute?: number;
 		maximumGlobalQueueDepth?: number;
 		queueCapacity?: number;
@@ -826,6 +855,7 @@ function guestAdmissionInput(
 		maximumRequestsPerSubnetPerDay: overrides.maximumRequestsPerSubnetPerDay ?? 100,
 		maximumGlobalRequestsPerHour: overrides.maximumGlobalRequestsPerHour ?? 100,
 		maximumGlobalRequestsPerDay: overrides.maximumGlobalRequestsPerDay ?? 100,
+		abuseEvidenceTtlMs: overrides.abuseEvidenceTtlMs ?? 30 * 24 * 60 * 60_000,
 		riskBudgetMicros: overrides.riskBudgetMicros ?? 350_000n,
 		sponsorCredits: 4n,
 		assetModeration: {

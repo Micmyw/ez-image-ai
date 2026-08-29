@@ -102,6 +102,7 @@ describe("guest admission pre-transaction boundary", () => {
 				sourceAssetChecksum: "a".repeat(64),
 				turnstile: expect.objectContaining({ tokenHash: "f".repeat(64) }),
 				sponsorCredits: 4n,
+				abuseEvidenceTtlMs: 30 * 24 * 60 * 60_000,
 				quote: expect.objectContaining({
 					productKey: "image-fast",
 					credits: 4n,
@@ -155,6 +156,7 @@ function validDependencies(options?: {
 				mimeTypes: ["image/jpeg", "image/png", "image/webp"],
 				retentionMs: 24 * 60 * 60_000,
 				queueTtlMs: 15 * 60_000,
+				abuseEvidenceTtlMs: 30 * 24 * 60 * 60_000,
 				limits: {
 					maximumActiveJobsPerGuest: 1,
 					maximumRequestsPerMinute: 3,

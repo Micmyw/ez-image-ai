@@ -134,6 +134,7 @@ async function seedFailedGuestJob() {
 			subnetHash: hash(`subnet:${suffix}`),
 			capabilityVersion: "guest-retry-regression-v1",
 			idempotencyFingerprint: hash(`idempotency:${suffix}`),
+			abuseEvidenceExpiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60_000),
 			frozenQuotedRiskMicros: 3_500n,
 			riskState: "COMMITTED",
 			providerBoundaryAt: now,

@@ -186,7 +186,7 @@ export type GuestSessionBootstrapScalarFieldEnum = z.infer<typeof GuestSessionBo
 
 // File: GuestMediaTrialScalarFieldEnum.schema.ts
 
-export const GuestMediaTrialScalarFieldEnumSchema = z.enum(['id', 'ownerId', 'promotionPeriod', 'eligibility', 'sponsorCredits', 'sourceDraftId', 'sourceBootstrapId', 'sourceAssetId', 'sourceSessionHash', 'deviceHash', 'ipHash', 'subnetHash', 'capabilityVersion', 'idempotencyFingerprint', 'replacementCount', 'frozenQuotedRiskMicros', 'riskState', 'projectedDispatchAt', 'estimateExpiresAt', 'currentJobId', 'consumedJobId', 'cleanupOutboxEventId', 'createdAt', 'updatedAt', 'linkedAt', 'providerBoundaryAt', 'terminalAt', 'consumedAt', 'expiresAt'])
+export const GuestMediaTrialScalarFieldEnumSchema = z.enum(['id', 'ownerId', 'promotionPeriod', 'eligibility', 'sponsorCredits', 'sourceDraftId', 'sourceBootstrapId', 'sourceAssetId', 'sourceSessionHash', 'deviceHash', 'ipHash', 'subnetHash', 'capabilityVersion', 'idempotencyFingerprint', 'abuseEvidenceExpiresAt', 'abuseEvidenceDeletedAt', 'replacementCount', 'frozenQuotedRiskMicros', 'riskState', 'projectedDispatchAt', 'estimateExpiresAt', 'currentJobId', 'consumedJobId', 'cleanupOutboxEventId', 'createdAt', 'updatedAt', 'linkedAt', 'providerBoundaryAt', 'terminalAt', 'consumedAt', 'expiresAt'])
 
 export type GuestMediaTrialScalarFieldEnum = z.infer<typeof GuestMediaTrialScalarFieldEnumSchema>;
 
@@ -1149,12 +1149,14 @@ export const GuestMediaTrialSchema = z.object({
   sourceDraftId: z.string().nullish(),
   sourceBootstrapId: z.string().nullish(),
   sourceAssetId: z.string().nullish(),
-  sourceSessionHash: z.string(),
-  deviceHash: z.string(),
-  ipHash: z.string(),
-  subnetHash: z.string(),
+  sourceSessionHash: z.string().nullish(),
+  deviceHash: z.string().nullish(),
+  ipHash: z.string().nullish(),
+  subnetHash: z.string().nullish(),
   capabilityVersion: z.string(),
-  idempotencyFingerprint: z.string(),
+  idempotencyFingerprint: z.string().nullish(),
+  abuseEvidenceExpiresAt: z.date(),
+  abuseEvidenceDeletedAt: z.date().nullish(),
   replacementCount: z.number().int(),
   frozenQuotedRiskMicros: z.bigint(),
   riskState: GuestRiskStateSchema.default("HELD"),

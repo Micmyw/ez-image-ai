@@ -72,12 +72,14 @@ CREATE TABLE "guest_media_trial" (
     "sourceDraftId" TEXT,
     "sourceBootstrapId" TEXT,
     "sourceAssetId" TEXT,
-    "sourceSessionHash" TEXT NOT NULL,
-    "deviceHash" TEXT NOT NULL,
-    "ipHash" TEXT NOT NULL,
-    "subnetHash" TEXT NOT NULL,
+    "sourceSessionHash" TEXT,
+    "deviceHash" TEXT,
+    "ipHash" TEXT,
+    "subnetHash" TEXT,
     "capabilityVersion" TEXT NOT NULL,
-    "idempotencyFingerprint" TEXT NOT NULL,
+    "idempotencyFingerprint" TEXT,
+    "abuseEvidenceExpiresAt" TIMESTAMPTZ(3) NOT NULL,
+    "abuseEvidenceDeletedAt" TIMESTAMPTZ(3),
     "replacementCount" INTEGER NOT NULL DEFAULT 0,
     "frozenQuotedRiskMicros" BIGINT NOT NULL,
     "riskState" "GuestRiskState" NOT NULL DEFAULT 'HELD',
@@ -211,6 +213,7 @@ CREATE UNIQUE INDEX "guest_media_trial_promotionPeriod_sourceSessionHash_key" ON
 CREATE UNIQUE INDEX "guest_media_trial_promotionPeriod_deviceHash_key" ON "guest_media_trial"("promotionPeriod", "deviceHash");
 CREATE INDEX "guest_media_trial_eligibility_expiresAt_idx" ON "guest_media_trial"("eligibility", "expiresAt");
 CREATE INDEX "guest_media_trial_sourceAssetId_idx" ON "guest_media_trial"("sourceAssetId");
+CREATE INDEX "guest_media_trial_abuse_evidence_expiry_idx" ON "guest_media_trial"("abuseEvidenceDeletedAt", "abuseEvidenceExpiresAt");
 
 CREATE UNIQUE INDEX "guest_link_intent_tokenHash_key" ON "guest_link_intent"("tokenHash");
 CREATE UNIQUE INDEX "guest_link_intent_idempotencyKey_key" ON "guest_link_intent"("idempotencyKey");

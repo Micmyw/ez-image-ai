@@ -784,6 +784,7 @@ async function markSeededJobAsGuest(
 			subnetHash: `subnet-${suffix}`,
 			capabilityVersion: "guest-finalization-test-v1",
 			idempotencyFingerprint: `fingerprint-${suffix}`,
+			abuseEvidenceExpiresAt: new Date(createdAt.getTime() + 30 * 24 * 60 * 60_000),
 			frozenQuotedRiskMicros: 8_000n,
 			riskState: "COMMITTED",
 			projectedDispatchAt,

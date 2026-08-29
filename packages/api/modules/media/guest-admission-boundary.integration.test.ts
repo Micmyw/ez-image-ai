@@ -160,6 +160,7 @@ function configureAdmissionDependencies(
 				mimeTypes: ["image/jpeg", "image/png", "image/webp"],
 				retentionMs: 24 * 60 * 60_000,
 				queueTtlMs: 15 * 60_000,
+				abuseEvidenceTtlMs: 30 * 24 * 60 * 60_000,
 				limits: {
 					maximumActiveJobsPerGuest: 1,
 					maximumRequestsPerMinute: 100,

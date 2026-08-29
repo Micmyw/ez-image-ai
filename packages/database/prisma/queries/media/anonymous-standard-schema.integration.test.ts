@@ -197,6 +197,77 @@ describe("anonymous Standard trial persistent schema contract", () => {
 		});
 	});
 
+	it("expiry-bounds trial-held HMAC evidence while preserving owner detachment", async () => {
+		const columns = await client.query<{
+			columnName: string;
+			isNullable: "YES" | "NO";
+			udtName: string;
+		}>(`
+			SELECT
+				column_name AS "columnName",
+				is_nullable AS "isNullable",
+				udt_name AS "udtName"
+			FROM information_schema.columns
+			WHERE table_schema = 'public'
+			  AND table_name = 'guest_media_trial'
+			  AND column_name IN (
+				'sourceSessionHash',
+				'deviceHash',
+				'ipHash',
+				'subnetHash',
+				'idempotencyFingerprint',
+				'abuseEvidenceExpiresAt',
+				'abuseEvidenceDeletedAt'
+			  )
+		`);
+		const byColumn = new Map(columns.rows.map((column) => [column.columnName, column] as const));
+
+		for (const column of [
+			"sourceSessionHash",
+			"deviceHash",
+			"ipHash",
+			"subnetHash",
+			"idempotencyFingerprint",
+		]) {
+			expect(byColumn.get(column), column).toMatchObject({
+				isNullable: "YES",
+				udtName: "text",
+			});
+		}
+		expect(byColumn.get("abuseEvidenceExpiresAt")).toMatchObject({
+			isNullable: "NO",
+			udtName: "timestamptz",
+		});
+		expect(byColumn.get("abuseEvidenceDeletedAt")).toMatchObject({
+			isNullable: "YES",
+			udtName: "timestamptz",
+		});
+
+		const ownerForeignKey = await client.query<{ definition: string }>(`
+			SELECT pg_get_constraintdef(constraint_row.oid) AS "definition"
+			FROM pg_constraint constraint_row
+			JOIN pg_class table_row ON table_row.oid = constraint_row.conrelid
+			JOIN pg_namespace namespace ON namespace.oid = table_row.relnamespace
+			WHERE namespace.nspname = 'public'
+			  AND table_row.relname = 'guest_media_trial'
+			  AND constraint_row.conname = 'guest_media_trial_ownerId_fkey'
+		`);
+		expect(ownerForeignKey.rows).toEqual([
+			expect.objectContaining({ definition: expect.stringContaining("ON DELETE SET NULL") }),
+		]);
+
+		const evidenceIndex = await client.query<{ indexName: string }>(`
+			SELECT indexname AS "indexName"
+			FROM pg_indexes
+			WHERE schemaname = 'public'
+			  AND tablename = 'guest_media_trial'
+			  AND indexname = 'guest_media_trial_abuse_evidence_expiry_idx'
+		`);
+		expect(evidenceIndex.rows).toEqual([
+			{ indexName: "guest_media_trial_abuse_evidence_expiry_idx" },
+		]);
+	});
+
 	it("detaches an expired anonymous trial owner while preserving the trial evidence row", async () => {
 		const ownerId = `cleanup-owner-${randomUUID()}`;
 		const trialId = `cleanup-trial-${randomUUID()}`;
@@ -211,9 +282,9 @@ describe("anonymous Standard trial persistent schema contract", () => {
 				`INSERT INTO "guest_media_trial" (
 					"id", "ownerId", "promotionPeriod", "sourceSessionHash", "deviceHash", "ipHash", "subnetHash",
 					"capabilityVersion", "idempotencyFingerprint", "frozenQuotedRiskMicros", "riskState",
-					"projectedDispatchAt", "estimateExpiresAt", "expiresAt", "createdAt", "updatedAt"
+					"projectedDispatchAt", "estimateExpiresAt", "abuseEvidenceExpiresAt", "expiresAt", "createdAt", "updatedAt"
 				) VALUES ($1, $2, 'cleanup-period', $3, $4, $5, $6, 'v1', $7, 3500, 'RELEASED',
-					now() - interval '2 days', now() - interval '2 days' + interval '1 minute',
+					now() - interval '2 days', now() - interval '2 days' + interval '1 minute', now() + interval '30 days',
 					now() - interval '1 day', now() - interval '3 days', now() - interval '2 days')`,
 				[
 					trialId,
