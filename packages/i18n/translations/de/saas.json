@@ -413,6 +413,17 @@
 		"step": "Schritt {step} / {total}",
 		"title": "Richte dein Konto ein"
 	},
+	"payments": {
+		"providerSelector": {
+			"label": "Zahlungsmethode",
+			"providers": {
+				"stripe": "Kredit- oder Debitkarte",
+				"paypal": "PayPal",
+				"waffo": "Waffo"
+			},
+			"unavailable": "Für diesen Tarif ist derzeit keine Zahlungsmethode verfügbar."
+		}
+	},
 	"organizations": {
 		"createForm": {
 			"name": "Name der Organisation",
@@ -738,6 +749,18 @@
 			"title": "Kontoeinstellungen"
 		},
 		"billing": {
+			"cancelSubscription": {
+				"label": "Abonnement kündigen",
+				"confirmation": {
+					"title": "Abonnement kündigen?",
+					"description": "Dein Zugriff endet gemäß den Kündigungsbedingungen deines Zahlungsanbieters.",
+					"confirm": "Abonnement kündigen"
+				},
+				"notifications": {
+					"success": "Kündigung angefordert.",
+					"error": "Das Abonnement konnte nicht gekündigt werden. Bitte versuche es erneut."
+				}
+			},
 			"createCustomerPortal": {
 				"label": "Abrechung verwalten",
 				"notifications": {

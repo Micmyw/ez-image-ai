@@ -3,16 +3,20 @@ import { z } from "zod";
 
 import {
 	account,
+	billingPlan,
 	invitation,
 	member,
 	notification,
 	organization,
 	passkey,
+	paymentCheckoutIntent,
+	paymentCustomer,
 	purchase,
 	session,
 	user,
 	userNotificationPreference,
 	verification,
+	subscription,
 } from "./schema";
 
 export const UserSchema = createSelectSchema(user);
@@ -40,6 +44,16 @@ export const PurchaseInsertSchema = createInsertSchema(purchase).superRefine((va
 	}
 });
 export const PurchaseUpdateSchema = createUpdateSchema(purchase, {
+	id: z.string(),
+});
+export const BillingPlanSchema = createSelectSchema(billingPlan);
+export const SubscriptionSchema = createSelectSchema(subscription);
+export const PaymentCustomerSchema = createSelectSchema(paymentCustomer);
+export const PaymentCustomerInsertSchema = createInsertSchema(paymentCustomer);
+export const PaymentCustomerUpdateSchema = createUpdateSchema(paymentCustomer, { id: z.string() });
+export const PaymentCheckoutIntentSchema = createSelectSchema(paymentCheckoutIntent);
+export const PaymentCheckoutIntentInsertSchema = createInsertSchema(paymentCheckoutIntent);
+export const PaymentCheckoutIntentUpdateSchema = createUpdateSchema(paymentCheckoutIntent, {
 	id: z.string(),
 });
 export const SessionSchema = createSelectSchema(session);

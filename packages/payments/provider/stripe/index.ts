@@ -4,11 +4,12 @@ import type {
 	CancelSubscription,
 	CreateCheckoutLink,
 	CreateCustomerPortalLink,
+	PaymentProvider,
 	SetSubscriptionSeats,
 	WebhookHandler,
 } from "../../types";
 import { cancelStripeSubscription } from "./cancellation";
-import { createStripeCheckoutLink } from "./checkout";
+import { createStripeCheckout, createStripeCheckoutLink } from "./checkout";
 import { createStripeWebhookHandler } from "./webhook";
 
 let stripeClient: Stripe | null = null;
@@ -69,6 +70,23 @@ export const setSubscriptionSeats: SetSubscriptionSeats = async ({ id, seats }) 
 export const cancelSubscription: CancelSubscription = async (id) => {
 	await cancelStripeSubscription(getStripeClient(), id);
 };
+
+export function createStripeProvider(): PaymentProvider {
+	return {
+		name: "stripe",
+		capabilities: {
+			checkout: true,
+			portal: true,
+			cancellation: true,
+			seatUpdates: true,
+			webhooks: true,
+		},
+		createCheckout: (options) => createStripeCheckout(getStripeClient(), options),
+		createPortal: createCustomerPortalLink,
+		cancelSubscription,
+		setSubscriptionSeats,
+	};
+}
 
 export const webhookHandler: WebhookHandler = (request) =>
 	createStripeWebhookHandler({

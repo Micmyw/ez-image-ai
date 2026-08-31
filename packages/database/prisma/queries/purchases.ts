@@ -25,19 +25,22 @@ export async function getPurchasesByUserId(userId: string) {
 	});
 }
 
-export async function getPurchaseBySubscriptionId(subscriptionId: string) {
+export async function getPurchaseBySubscriptionId(subscriptionId: string, provider = "stripe") {
 	return db.purchase.findFirst({
 		where: {
+			provider,
 			subscriptionId,
 		},
 	});
 }
 
 export async function createPurchase(
-	purchase: Omit<z.infer<typeof PurchaseSchema>, "id" | "createdAt" | "updatedAt">,
+	purchase: Omit<z.infer<typeof PurchaseSchema>, "id" | "createdAt" | "updatedAt" | "provider"> & {
+		provider?: string;
+	},
 ) {
 	const created = await db.purchase.create({
-		data: purchase,
+		data: { ...purchase, provider: purchase.provider ?? "stripe" },
 	});
 
 	return getPurchaseById(created.id);
@@ -58,10 +61,8 @@ export async function updatePurchase(
 	return getPurchaseById(updated.id);
 }
 
-export async function deletePurchaseBySubscriptionId(subscriptionId: string) {
+export async function deletePurchaseBySubscriptionId(subscriptionId: string, provider = "stripe") {
 	await db.purchase.delete({
-		where: {
-			subscriptionId,
-		},
+		where: { provider_subscriptionId: { provider, subscriptionId } },
 	});
 }

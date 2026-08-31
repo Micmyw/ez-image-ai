@@ -5,13 +5,19 @@ import { cancelOrganizationSubscriptionsBeforeDeletion } from "./organization-de
 interface HarnessOptions {
 	role?: string;
 	subscriptionIds?: string[];
+	provider?: string;
 }
 
-function createHarness({ role, subscriptionIds = ["sub_org_1"] }: HarnessOptions = {}) {
+function createHarness({
+	role,
+	subscriptionIds = ["sub_org_1"],
+	provider = "stripe",
+}: HarnessOptions = {}) {
 	const findMembership = vi.fn().mockResolvedValue(role ? { role } : null);
 	const listPurchases = vi.fn().mockResolvedValue(
 		subscriptionIds.map((subscriptionId) => ({
 			type: "SUBSCRIPTION" as const,
+			provider,
 			subscriptionId,
 		})),
 	);
@@ -57,8 +63,24 @@ describe("organization deletion subscription safety", () => {
 
 		await expect(harness.cancel()).resolves.toBeUndefined();
 		expect(harness.listPurchases).toHaveBeenCalledWith("org-1");
-		expect(harness.cancelSubscription).toHaveBeenNthCalledWith(1, "sub_org_1");
-		expect(harness.cancelSubscription).toHaveBeenNthCalledWith(2, "sub_org_2");
+		expect(harness.cancelSubscription).toHaveBeenNthCalledWith(1, "stripe", "sub_org_1");
+		expect(harness.cancelSubscription).toHaveBeenNthCalledWith(2, "stripe", "sub_org_2");
+	});
+
+	it("keeps identical subscription IDs isolated by provider", async () => {
+		const findMembership = vi.fn().mockResolvedValue({ role: "owner" });
+		const listPurchases = vi.fn().mockResolvedValue([
+			{ type: "SUBSCRIPTION", provider: "paypal", subscriptionId: "shared-id" },
+			{ type: "SUBSCRIPTION", provider: "waffo", subscriptionId: "shared-id" },
+		]);
+		const cancelSubscription = vi.fn();
+
+		await cancelOrganizationSubscriptionsBeforeDeletion(
+			{ organizationId: "org-1", userId: "user-1" },
+			{ findMembership, listPurchases, cancelSubscription },
+		);
+		expect(cancelSubscription).toHaveBeenNthCalledWith(1, "paypal", "shared-id");
+		expect(cancelSubscription).toHaveBeenNthCalledWith(2, "waffo", "shared-id");
 	});
 
 	it("propagates a provider failure so Better Auth cannot delete the organization", async () => {

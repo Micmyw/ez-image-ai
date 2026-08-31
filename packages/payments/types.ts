@@ -14,6 +14,18 @@ export interface BasePrice {
 	priceId?: string;
 }
 
+export const paymentProviderNames = ["stripe", "paypal", "waffo"] as const;
+
+export type PaymentProviderName = (typeof paymentProviderNames)[number];
+
+export interface PaymentProviderCapabilities {
+	checkout: boolean;
+	portal: boolean;
+	cancellation: boolean;
+	seatUpdates: boolean;
+	webhooks: boolean;
+}
+
 export interface SubscriptionPrice {
 	/**
 	 * Marks the price as a subscription charge.
@@ -96,7 +108,10 @@ export interface PaymentsConfig {
 export interface CreateCheckoutLinkOptions {
 	type: "subscription" | "one-time";
 	priceId: string;
+	currency: string;
 	billingPlanId: string;
+	checkoutIntentId: string;
+	idempotencyKey: string;
 	planKey: string;
 	ownerType: "USER" | "ORGANIZATION";
 	ownerId: string;
@@ -114,6 +129,16 @@ export interface CreateCheckoutLinkOptions {
 
 export type CreateCheckoutLink = (params: CreateCheckoutLinkOptions) => Promise<string | null>;
 
+export interface CreatedCheckout {
+	checkoutUrl: string;
+	providerSessionId: string;
+	expiresAt: Date | null;
+}
+
+export type CreateProviderCheckout = (
+	params: CreateCheckoutLinkOptions,
+) => Promise<CreatedCheckout>;
+
 export type CreateCustomerPortalLink = (params: {
 	subscriptionId?: string;
 	customerId: string;
@@ -127,7 +152,10 @@ export type CancelSubscription = (id: string) => Promise<void>;
 export type WebhookHandler = (req: Request) => Promise<Response>;
 
 export type PaymentProvider = {
-	createCheckoutLink: CreateCheckoutLink;
-	createCustomerPortalLink: CreateCustomerPortalLink;
-	webhookHandler: WebhookHandler;
+	name: PaymentProviderName;
+	capabilities: PaymentProviderCapabilities;
+	createCheckout: CreateProviderCheckout;
+	createPortal?: CreateCustomerPortalLink;
+	cancelSubscription?: CancelSubscription;
+	setSubscriptionSeats?: SetSubscriptionSeats;
 };

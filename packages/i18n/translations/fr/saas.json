@@ -413,6 +413,17 @@
 		"step": "Étape {step} / {total}",
 		"title": "Configurez votre compte"
 	},
+	"payments": {
+		"providerSelector": {
+			"label": "Mode de paiement",
+			"providers": {
+				"stripe": "Carte de crédit ou de débit",
+				"paypal": "PayPal",
+				"waffo": "Waffo"
+			},
+			"unavailable": "Aucun mode de paiement n’est actuellement disponible pour cette offre."
+		}
+	},
 	"organizations": {
 		"createForm": {
 			"name": "Nom de l'organisation",
@@ -738,6 +749,18 @@
 			"title": "Paramètres du compte"
 		},
 		"billing": {
+			"cancelSubscription": {
+				"label": "Résilier l’abonnement",
+				"confirmation": {
+					"title": "Résilier l’abonnement ?",
+					"description": "Votre accès prendra fin selon les conditions de résiliation de votre prestataire de paiement.",
+					"confirm": "Résilier l’abonnement"
+				},
+				"notifications": {
+					"success": "Résiliation demandée.",
+					"error": "Impossible de résilier l’abonnement. Veuillez réessayer."
+				}
+			},
 			"createCustomerPortal": {
 				"label": "Gérer la facturation",
 				"notifications": {

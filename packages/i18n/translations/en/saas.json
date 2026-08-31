@@ -409,6 +409,17 @@
 		"step": "Step {step} / {total}",
 		"title": "Set up your account"
 	},
+	"payments": {
+		"providerSelector": {
+			"label": "Payment method",
+			"providers": {
+				"stripe": "Credit or debit card",
+				"paypal": "PayPal",
+				"waffo": "Waffo"
+			},
+			"unavailable": "No payment method is currently available for this plan."
+		}
+	},
 	"organizations": {
 		"createForm": {
 			"name": "Organization name",
@@ -734,6 +745,18 @@
 			"title": "Account settings"
 		},
 		"billing": {
+			"cancelSubscription": {
+				"label": "Cancel subscription",
+				"confirmation": {
+					"title": "Cancel subscription?",
+					"description": "Your access will end according to your payment provider's cancellation terms.",
+					"confirm": "Cancel subscription"
+				},
+				"notifications": {
+					"success": "Cancellation requested.",
+					"error": "Could not cancel the subscription. Please try again."
+				}
+			},
 			"createCustomerPortal": {
 				"label": "Manage billing",
 				"notifications": {

@@ -3,7 +3,7 @@
 import { usePlanData } from "@payments/hooks/plan-data";
 import type { PlanId } from "@payments/types";
 import { config as paymentsConfig } from "@repo/payments/config";
-import type { PaidPlan } from "@repo/payments/types";
+import type { PaidPlan, PaymentProviderName } from "@repo/payments/types";
 import { cn } from "@repo/ui";
 import { Button } from "@repo/ui/components/button";
 import { Tabs, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
@@ -11,26 +11,20 @@ import { useLocaleCurrency } from "@shared/hooks/locale-currency";
 import { useRouter } from "@shared/hooks/router";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpc } from "@shared/lib/orpc-query-utils";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowRightIcon, BadgePercentIcon, CheckIcon, StarIcon } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { useState } from "react";
 
-import { buildCheckoutReturnUrl } from "../lib/editor-upgrade";
+import { PaymentProviderSelector } from "./PaymentProviderSelector";
 
 const plans = paymentsConfig.plans;
-
-interface PlanSelection {
-	type: "one-time" | "subscription";
-	interval?: "month" | "year";
-}
 
 export function PricingTable({
 	className,
 	userId,
 	organizationId,
 	activePlanId,
-	returnTo = "/create",
 }: {
 	className?: string;
 	userId?: string;
@@ -52,15 +46,16 @@ export function PricingTable({
 		orpc.payments.createCheckoutLink.mutationOptions(),
 	);
 
-	const onSelectPlan = async (planId: PlanId, selection?: PlanSelection) => {
+	const onSelectPlan = async (
+		planId: PlanId,
+		interval: "month" | "year",
+		provider: PaymentProviderName,
+	) => {
 		if (!(userId || organizationId)) {
 			router.push("/signup");
 			return;
 		}
 
-		if (!selection) {
-			return;
-		}
 		if (planId !== "creator" && planId !== "studio") {
 			setCheckoutUnavailable(true);
 			return;
@@ -72,16 +67,10 @@ export function PricingTable({
 
 		try {
 			const { checkoutLink } = await createCheckoutLinkMutation.mutateAsync({
+				provider,
 				planId,
-				type: selection.type,
-				interval: selection.interval,
-				organizationId,
-				redirectUrl: buildCheckoutReturnUrl({
-					origin: window.location.origin,
-					planId,
-					returnTo,
-					organizationId,
-				}),
+				interval,
+				idempotencyKey: checkoutAttemptKey,
 			});
 
 			await saasGrowthFunnel.checkoutStarted(checkoutAttemptKey, planId);
@@ -235,25 +224,26 @@ export function PricingTable({
 										</strong>
 									)}
 
-									<Button
-										className="mt-4 w-full"
-										variant={recommended ? "primary" : "secondary"}
-										onClick={() =>
-											onSelectPlan(
-												planId as PlanId,
-												price
-													? {
-															type: price.type === "one-time" ? "one-time" : "subscription",
-															interval: price.type === "subscription" ? price.interval : undefined,
-														}
-													: undefined,
-											)
-										}
-										loading={loading === planId}
-									>
-										{userId || organizationId ? t("pricing.choosePlan") : t("pricing.getStarted")}
-										<ArrowRightIcon className="ml-2 size-4" />
-									</Button>
+									{price?.type === "subscription" &&
+									(planId === "creator" || planId === "studio") ? (
+										<CheckoutControls
+											planId={planId}
+											interval={price.interval}
+											recommended={recommended}
+											authenticated={Boolean(userId || organizationId)}
+											loading={loading === planId}
+											onCheckout={(provider) => onSelectPlan(planId, price.interval, provider)}
+										/>
+									) : (
+										<Button
+											className="mt-4 w-full"
+											variant={recommended ? "primary" : "secondary"}
+											onClick={() => setCheckoutUnavailable(true)}
+										>
+											{userId || organizationId ? t("pricing.choosePlan") : t("pricing.getStarted")}
+											<ArrowRightIcon className="ml-2 size-4" />
+										</Button>
+									)}
 								</div>
 							</div>
 						</div>
@@ -261,6 +251,65 @@ export function PricingTable({
 				})}
 			</div>
 		</div>
+	);
+}
+
+function CheckoutControls({
+	planId,
+	interval,
+	recommended,
+	authenticated,
+	loading,
+	onCheckout,
+}: {
+	planId: "creator" | "studio";
+	interval: "month" | "year";
+	recommended: boolean;
+	authenticated: boolean;
+	loading: boolean;
+	onCheckout: (provider: PaymentProviderName) => void;
+}) {
+	const t = useTranslations();
+	const [selectedProvider, setSelectedProvider] = useState<PaymentProviderName | null>(null);
+	const availability = useQuery(
+		orpc.payments.getProviderAvailability.queryOptions({ input: { planId, interval } }),
+	);
+	const providers =
+		availability.data?.providers
+			.filter(({ capabilities }) => capabilities.checkout)
+			.map(({ name }) => name) ?? [];
+	const provider = providers.includes(selectedProvider as PaymentProviderName)
+		? selectedProvider
+		: (providers[0] ?? null);
+	const unavailable = availability.isError || (!availability.isPending && providers.length === 0);
+
+	return (
+		<>
+			{providers.length > 0 && (
+				<PaymentProviderSelector
+					name={`${planId}-${interval}-provider`}
+					providers={providers}
+					value={provider}
+					onValueChange={setSelectedProvider}
+					disabled={loading}
+				/>
+			)}
+			{unavailable && (
+				<p className="mt-3 text-sm text-destructive" role="alert">
+					{t("payments.providerSelector.unavailable")}
+				</p>
+			)}
+			<Button
+				className="mt-4 w-full"
+				variant={recommended ? "primary" : "secondary"}
+				onClick={() => provider && onCheckout(provider)}
+				loading={loading || availability.isPending}
+				disabled={!provider || unavailable}
+			>
+				{authenticated ? t("pricing.choosePlan") : t("pricing.getStarted")}
+				<ArrowRightIcon className="ml-2 size-4" />
+			</Button>
+		</>
 	);
 }
 

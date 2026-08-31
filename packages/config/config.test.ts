@@ -215,6 +215,39 @@ describe("validateServerEnvironment", () => {
 		input.S3_BUCKET = "legacy-wrong-bucket";
 		expect(() => validateServerEnvironment(input)).toThrow(/MEDIA_BUCKET_NAME/);
 	});
+
+	it.each([
+		[
+			"PayPal",
+			{ PAYPAL_ENVIRONMENT: "live", PAYPAL_CLIENT_ID: "paypal-client" },
+			/PAYPAL_CLIENT_SECRET|PAYPAL_WEBHOOK_ID/,
+		],
+		[
+			"Waffo",
+			{ WAFFO_ENVIRONMENT: "prod", WAFFO_MERCHANT_ID: "waffo-merchant" },
+			/WAFFO_PRIVATE_KEY|WAFFO_WEBHOOK_PUBLIC_KEY/,
+		],
+	] as const)("rejects partially configured production %s payments", (_provider, values, error) => {
+		expect(() => validateServerEnvironment({ ...productionBase, ...values })).toThrow(error);
+	});
+
+	it("accepts complete optional PayPal and Waffo payment credentials", () => {
+		expect(() =>
+			validateServerEnvironment({
+				...productionBase,
+				PAYPAL_ENVIRONMENT: "live",
+				PAYPAL_CLIENT_ID: "paypal-client",
+				PAYPAL_CLIENT_SECRET: "paypal-secret",
+				PAYPAL_WEBHOOK_ID: "WH-paypal-webhook",
+				PAYPAL_PLAN_ID_CREATOR_MONTHLY: "P-CREATOR-MONTHLY",
+				WAFFO_ENVIRONMENT: "prod",
+				WAFFO_MERCHANT_ID: "waffo-merchant",
+				WAFFO_PRIVATE_KEY: "waffo-private-key",
+				WAFFO_WEBHOOK_PUBLIC_KEY: "waffo-webhook-public-key",
+				WAFFO_PRODUCT_ID_CREATOR_MONTHLY: "PROD_CreatorMonthly",
+			}),
+		).not.toThrow();
+	});
 });
 
 describe("server media limits", () => {

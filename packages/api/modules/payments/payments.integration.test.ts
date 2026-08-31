@@ -494,7 +494,14 @@ describe("Stripe subscription credit lifecycle", () => {
 			1,
 		);
 		expect(
-			await client.subscription.findUniqueOrThrow({ where: { providerSubscriptionId } }),
+			await client.subscription.findUniqueOrThrow({
+				where: {
+					provider_providerSubscriptionId: {
+						provider: "stripe",
+						providerSubscriptionId,
+					},
+				},
+			}),
 		).toMatchObject({
 			purchaseId: purchase.id,
 			ownerId: user.id,

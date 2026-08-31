@@ -7,7 +7,7 @@ vi.mock("@repo/logs", () => ({
 	logger: { error: loggerError },
 }));
 
-import { createStripeWebhookHandler } from "./webhook";
+import { createStripeWebhookHandler, createStripeWebhookVerifier } from "./webhook";
 import { getStripeNormalizedTransactionId } from "./webhook";
 
 describe("Stripe webhook", () => {
@@ -46,6 +46,29 @@ describe("Stripe webhook", () => {
 		expect(persist.mock.calls[0]?.[0]).toMatchObject({
 			provider: "stripe",
 			providerEventId: "evt_invoice_paid",
+		});
+	});
+
+	it("exposes the verified event envelope for shared provider routing", async () => {
+		const secret = "whsec_shared_router";
+		const raw = JSON.stringify({
+			id: "evt_shared_router",
+			object: "event",
+			api_version: "2026-07-29.dahlia",
+			created: 1_786_590_000,
+			type: "invoice.paid",
+			data: { object: { id: "in_shared_router" } },
+		});
+		const signature = Stripe.webhooks.generateTestHeaderString({ payload: raw, secret });
+		const verifier = createStripeWebhookVerifier({
+			stripe: new Stripe("sk_test_fixture"),
+			webhookSecret: secret,
+		});
+
+		await expect(verifier(raw, new Headers({ "stripe-signature": signature }))).resolves.toEqual({
+			providerEventId: "evt_shared_router",
+			normalizedTransactionId: "invoice:in_shared_router",
+			envelope: expect.objectContaining({ id: "evt_shared_router", type: "invoice.paid" }),
 		});
 	});
 

@@ -22,11 +22,15 @@ vi.mock("@repo/database", async () => {
 
 vi.mock("@repo/payments", () => ({
 	createCustomerPortalLink: vi.fn(),
+	getPaymentProvider: vi.fn(),
 }));
 
 import { auth } from "@repo/auth";
 import { getOrganizationMembership, getPurchaseById } from "@repo/database";
-import { createCustomerPortalLink as createCustomerPortalLinkFn } from "@repo/payments";
+import {
+	createCustomerPortalLink as createCustomerPortalLinkFn,
+	getPaymentProvider,
+} from "@repo/payments";
 
 import { createCustomerPortalLink } from "./create-customer-portal-link";
 
@@ -73,6 +77,18 @@ describe("createCustomerPortalLink", () => {
 		vi.clearAllMocks();
 		vi.mocked(auth.api.getSession).mockResolvedValue(authenticatedSession);
 		vi.mocked(createCustomerPortalLinkFn).mockResolvedValue("https://billing.stripe.test/session");
+		vi.mocked(getPaymentProvider).mockReturnValue({
+			name: "stripe",
+			capabilities: {
+				checkout: true,
+				portal: true,
+				cancellation: true,
+				seatUpdates: true,
+				webhooks: true,
+			},
+			createCheckout: vi.fn(),
+			createPortal: vi.mocked(createCustomerPortalLinkFn),
+		});
 	});
 
 	it("rejects an unowned purchase before creating a customer portal link", async () => {
@@ -113,6 +129,37 @@ describe("createCustomerPortalLink", () => {
 			),
 		).rejects.toMatchObject({ code: "NOT_FOUND" });
 
+		expect(createCustomerPortalLinkFn).not.toHaveBeenCalled();
+	});
+
+	it("fails closed when the purchase provider has no owner-scoped portal", async () => {
+		vi.mocked(getPurchaseById).mockResolvedValueOnce({
+			id: "purchase-paypal",
+			provider: "paypal",
+			organizationId: null,
+			userId: "user-1",
+			customerId: "paypal-customer",
+			subscriptionId: "I-SUBSCRIPTION",
+		} as never);
+		vi.mocked(getPaymentProvider).mockReturnValueOnce({
+			name: "paypal",
+			capabilities: {
+				checkout: true,
+				portal: false,
+				cancellation: true,
+				seatUpdates: false,
+				webhooks: true,
+			},
+			createCheckout: vi.fn(),
+		});
+
+		await expect(
+			call(
+				createCustomerPortalLink,
+				{ purchaseId: "purchase-paypal", redirectUrl },
+				{ context: { headers: new Headers() } },
+			),
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		expect(createCustomerPortalLinkFn).not.toHaveBeenCalled();
 	});
 });

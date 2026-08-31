@@ -11,7 +11,18 @@ type PurchaseWithoutTimestamps = Omit<z.infer<typeof PurchaseSchema>, "createdAt
 export interface ResolvedPurchase extends PurchaseWithoutTimestamps {
 	planId?: PlanId | null;
 	planPrice?: PlanPrice | null;
+	providerCapabilities?: {
+		portal: boolean;
+		cancellation: boolean;
+		seatUpdates: boolean;
+	};
 }
+
+const noManagementCapabilities = {
+	portal: false,
+	cancellation: false,
+	seatUpdates: false,
+};
 
 function resolvePurchasePlan(purchase: ResolvedPurchase) {
 	if (purchase.planId && purchase.planPrice) {
@@ -21,7 +32,7 @@ function resolvePurchasePlan(purchase: ResolvedPurchase) {
 		};
 	}
 
-	const resolvedPrice = getPlanPriceByProviderPriceId(purchase.priceId);
+	const resolvedPrice = getPlanPriceByProviderPriceId(purchase.provider, purchase.priceId);
 
 	if (!resolvedPrice) {
 		return null;
@@ -35,7 +46,7 @@ function resolvePurchasePlanId(purchase: ResolvedPurchase) {
 		return purchase.planId;
 	}
 
-	return getPlanIdByProviderPriceId(purchase.priceId);
+	return getPlanIdByProviderPriceId(purchase.provider, purchase.priceId);
 }
 
 function getActivePlanFromPurchases(purchases?: ResolvedPurchase[]) {
@@ -57,6 +68,7 @@ function getActivePlanFromPurchases(purchases?: ResolvedPurchase[]) {
 			price: resolvedPrice.price,
 			status: subscriptionPurchase.status || "active",
 			purchaseId: subscriptionPurchase.id,
+			providerCapabilities: subscriptionPurchase.providerCapabilities ?? noManagementCapabilities,
 		};
 	}
 
@@ -74,6 +86,7 @@ function getActivePlanFromPurchases(purchases?: ResolvedPurchase[]) {
 			price: resolvedPrice.price,
 			status: "active",
 			purchaseId: oneTimePurchase.id,
+			providerCapabilities: oneTimePurchase.providerCapabilities ?? noManagementCapabilities,
 		};
 	}
 

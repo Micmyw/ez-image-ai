@@ -1101,6 +1101,9 @@ importers:
       '@repo/logs':
         specifier: workspace:*
         version: link:../logs
+      '@waffo/pancake-ts':
+        specifier: 0.19.1
+        version: 0.19.1
       dodopayments:
         specifier: ^2.44.0
         version: 2.44.0
@@ -5342,6 +5345,10 @@ packages:
 
   '@vitest/utils@4.1.10':
     resolution: {integrity: sha512-fy9am/HWxbaGt/Sawrp90vt6Y6jQwf1RX77cz3uwoJwJVMli/e1IEwRPnMNJ7vKfPTwo0diXifkpPvwH9v7nGA==}
+
+  '@waffo/pancake-ts@0.19.1':
+    resolution: {integrity: sha512-X1vCyZcVwbFROZiQQrrDh3OPqm8KvEX3/65PT9xGy10zWTNX1nO+D1cL1ERBe17ot57mI9T5Dhzt/Gf2k/lIdg==}
+    engines: {node: '>=20.0.0'}
 
   '@webassemblyjs/ast@1.14.1':
     resolution: {integrity: sha512-nuBEDgQfm1ccRp/8bCQrx1frohyufl4JlbMMZ4P1wpeOfDhF6FQkxZJ1b/e+PLwr6X1Nhw6OLme5usuBWYBvuQ==}
@@ -13484,6 +13491,8 @@ snapshots:
       '@vitest/pretty-format': 4.1.10
       convert-source-map: 2.0.0
       tinyrainbow: 3.1.0
+
+  '@waffo/pancake-ts@0.19.1': {}
 
   '@webassemblyjs/ast@1.14.1':
     dependencies:

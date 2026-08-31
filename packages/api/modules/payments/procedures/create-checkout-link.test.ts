@@ -2,50 +2,47 @@ import { call } from "@orpc/server";
 import type { Session } from "@repo/auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { findBillingPlan } = vi.hoisted(() => ({
+const {
+	bindCheckoutIntent,
+	createCheckoutIntent,
+	findBillingPlan,
+	getPaymentCustomer,
+	providerCheckout,
+} = vi.hoisted(() => ({
+	bindCheckoutIntent: vi.fn(),
+	createCheckoutIntent: vi.fn(),
 	findBillingPlan: vi.fn(),
+	getPaymentCustomer: vi.fn(),
+	providerCheckout: vi.fn(),
 }));
 
-vi.mock("@repo/auth", () => ({
-	auth: {
-		api: {
-			getSession: vi.fn(),
-		},
-	},
-}));
-
+vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database", () => ({
-	getOrganizationById: vi.fn(),
-	getOrganizationMembership: vi.fn(),
+	bindPaymentCheckoutIntentSession: bindCheckoutIntent,
+	createPaymentCheckoutIntent: createCheckoutIntent,
+	getPaymentCustomer,
 }));
-
 vi.mock("@repo/database/client", () => ({
-	db: {
-		billingPlan: {
-			findUnique: findBillingPlan,
-		},
-	},
+	db: { billingPlan: { findUnique: findBillingPlan } },
 }));
-
+vi.mock("@repo/logs", () => ({ logger: { error: vi.fn() } }));
 vi.mock("@repo/payments", () => ({
-	createCheckoutLink: vi.fn(),
 	findPriceByPlanId: vi.fn(),
-	getCustomerIdFromEntity: vi.fn(),
+	getPaymentProvider: vi.fn(),
 	getProviderPriceIdByPlanId: vi.fn(),
-	isPlanId: vi.fn(),
+	isPaymentProviderConfigured: vi.fn(),
+	paymentProviderNames: ["stripe", "paypal", "waffo"],
 }));
 
 import { auth } from "@repo/auth";
-import { getOrganizationById, getOrganizationMembership } from "@repo/database";
 import {
-	createCheckoutLink as createCheckoutLinkWithProvider,
 	findPriceByPlanId,
-	getCustomerIdFromEntity,
+	getPaymentProvider,
 	getProviderPriceIdByPlanId,
-	isPlanId,
+	isPaymentProviderConfigured,
 } from "@repo/payments";
 
-import { createCheckoutLink } from "./create-checkout-link";
+import { checkoutInputSchema, createCheckoutLink } from "./create-checkout-link";
 
 const authenticatedSession = {
 	session: {
@@ -80,172 +77,155 @@ const authenticatedSession = {
 	},
 } satisfies Session;
 
+const monthlyPrice = {
+	type: "subscription" as const,
+	interval: "month" as const,
+	amount: 19,
+	currency: "USD",
+	monthlyCredits: 1_000,
+};
+
+const billingPlan = {
+	id: "billing-plan-paypal-creator-month",
+	provider: "paypal",
+	providerPriceId: "P-CREATOR-MONTHLY",
+	active: true,
+	name: "creator",
+	creditsPerPeriod: 1_000n,
+	priceMicros: 19_000_000n,
+	currency: "USD",
+	metadata: { planId: "creator", interval: "month", version: 1 },
+};
+
 describe("createCheckoutLink", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		process.env.NEXT_PUBLIC_SAAS_URL = "https://app.ezpic.test";
 		vi.mocked(auth.api.getSession).mockResolvedValue(authenticatedSession);
+		vi.mocked(isPaymentProviderConfigured).mockReturnValue(true);
+		vi.mocked(findPriceByPlanId).mockReturnValue(monthlyPrice);
+		vi.mocked(getProviderPriceIdByPlanId).mockReturnValue("P-CREATOR-MONTHLY");
+		findBillingPlan.mockResolvedValue(billingPlan);
+		getPaymentCustomer.mockResolvedValue(null);
+		createCheckoutIntent.mockResolvedValue({
+			intent: { id: "checkout-intent-1", providerSessionId: null },
+			replayed: false,
+		});
+		providerCheckout.mockResolvedValue({
+			checkoutUrl: "https://www.sandbox.paypal.com/approve",
+			providerSessionId: "I-SUBSCRIPTION",
+			expiresAt: null,
+		});
+		vi.mocked(getPaymentProvider).mockReturnValue({
+			name: "paypal",
+			capabilities: {
+				checkout: true,
+				portal: false,
+				cancellation: true,
+				seatUpdates: false,
+				webhooks: true,
+			},
+			createCheckout: providerCheckout,
+		});
 	});
 
-	it("rejects checkout management for an unauthorized organization", async () => {
-		vi.mocked(getOrganizationMembership).mockResolvedValueOnce(null);
-		vi.mocked(isPlanId).mockReturnValueOnce(true);
-		vi.mocked(findPriceByPlanId).mockReturnValueOnce({
-			type: "subscription",
-			interval: "month",
-			amount: 19,
-			currency: "USD",
-		});
-		vi.mocked(getProviderPriceIdByPlanId).mockReturnValueOnce("price_creator_monthly");
+	it("accepts only provider, planId, interval, and idempotencyKey", () => {
+		expect(
+			checkoutInputSchema.safeParse({
+				provider: "paypal",
+				planId: "creator",
+				interval: "month",
+				idempotencyKey: "checkout-operation-0001",
+				providerPriceId: "P-ATTACKER-CONTROLLED",
+			}),
+		).toMatchObject({ success: false });
+	});
+
+	it("fails closed before persistence or provider access when configuration is incomplete", async () => {
+		vi.mocked(isPaymentProviderConfigured).mockReturnValue(false);
 
 		await expect(
 			call(
 				createCheckoutLink,
 				{
+					provider: "paypal",
 					planId: "creator",
-					type: "subscription",
 					interval: "month",
-					organizationId: "organization-2",
-				},
-				{ context: { headers: new Headers() } },
-			),
-		).rejects.toMatchObject({ code: "FORBIDDEN" });
-
-		expect(getCustomerIdFromEntity).not.toHaveBeenCalled();
-		expect(createCheckoutLinkWithProvider).not.toHaveBeenCalled();
-	});
-
-	it("fails closed before database or Stripe access when the configured Price ID is missing", async () => {
-		vi.mocked(isPlanId).mockReturnValueOnce(true);
-		vi.mocked(findPriceByPlanId).mockReturnValueOnce({
-			type: "subscription",
-			interval: "month",
-			amount: 19,
-			currency: "USD",
-		});
-		vi.mocked(getProviderPriceIdByPlanId).mockReturnValueOnce(null);
-
-		await expect(
-			call(
-				createCheckoutLink,
-				{
-					planId: "creator",
-					type: "subscription",
-					interval: "month",
-					redirectUrl: "http://localhost:3000/checkout-return",
-				},
-				{ context: { headers: new Headers() } },
-			),
-		).rejects.toMatchObject({ code: "NOT_FOUND" });
-
-		expect(getCustomerIdFromEntity).not.toHaveBeenCalled();
-		expect(findBillingPlan).not.toHaveBeenCalled();
-		expect(createCheckoutLinkWithProvider).not.toHaveBeenCalled();
-	});
-
-	it("fails closed when the internal billing snapshot drifts from the canonical plan", async () => {
-		vi.mocked(isPlanId).mockReturnValueOnce(true);
-		vi.mocked(findPriceByPlanId).mockReturnValueOnce({
-			type: "subscription",
-			interval: "month",
-			amount: 19,
-			currency: "USD",
-		});
-		vi.mocked(getProviderPriceIdByPlanId).mockReturnValueOnce("price_creator_monthly");
-		vi.mocked(getCustomerIdFromEntity).mockResolvedValueOnce(null);
-		findBillingPlan.mockResolvedValueOnce({
-			id: "billing-plan-drifted",
-			active: true,
-			name: "creator",
-			metadata: { planId: "creator" },
-			creditsPerPeriod: 999n,
-			priceMicros: 19_000_000n,
-			currency: "USD",
-		} as never);
-
-		await expect(
-			call(
-				createCheckoutLink,
-				{
-					planId: "creator",
-					type: "subscription",
-					interval: "month",
-					redirectUrl: "http://localhost:3000/checkout-return",
+					idempotencyKey: "checkout-operation-0001",
 				},
 				{ context: { headers: new Headers() } },
 			),
 		).rejects.toMatchObject({ code: "NOT_FOUND" });
-		expect(createCheckoutLinkWithProvider).not.toHaveBeenCalled();
+		expect(createCheckoutIntent).not.toHaveBeenCalled();
+		expect(providerCheckout).not.toHaveBeenCalled();
 	});
 
-	it("allows organization owners to create checkout links", async () => {
-		vi.mocked(getOrganizationMembership).mockResolvedValueOnce({ role: "owner" } as never);
-		vi.mocked(getCustomerIdFromEntity).mockResolvedValueOnce(null);
-		vi.mocked(isPlanId).mockReturnValueOnce(true);
-		vi.mocked(findPriceByPlanId).mockReturnValueOnce({
-			type: "subscription",
-			interval: "month",
-			amount: 19,
-			currency: "USD",
-			priceId: "price-1",
-			seatBased: true,
-		});
-		vi.mocked(getProviderPriceIdByPlanId).mockReturnValueOnce("price-1");
-		findBillingPlan.mockResolvedValueOnce({
-			id: "billing-plan-1",
-			active: true,
-			name: "creator",
-			metadata: { planId: "creator" },
-			creditsPerPeriod: 1_000n,
-			priceMicros: 19_000_000n,
-			currency: "USD",
-		} as never);
-		vi.mocked(getOrganizationById).mockResolvedValueOnce({
-			id: "organization-1",
-			name: "Test Organization",
-			slug: "test-organization",
-			logo: null,
-			createdAt: new Date(),
-			metadata: null,
-			paymentsCustomerId: null,
-			members: [
-				{
-					id: "membership-1",
-					organizationId: "organization-1",
-					userId: "user-1",
-					role: "owner",
-					createdAt: new Date(),
-				},
-			],
-			invitations: [],
-		});
-		vi.mocked(createCheckoutLinkWithProvider).mockResolvedValueOnce(
-			"https://payments.example/checkout/session-1",
-		);
-
+	it("creates and binds an internal checkout intent before returning the provider URL", async () => {
 		const result = await call(
 			createCheckoutLink,
 			{
+				provider: "paypal",
 				planId: "creator",
-				type: "subscription",
 				interval: "month",
-				organizationId: "organization-1",
+				idempotencyKey: "checkout-operation-0001",
 			},
 			{ context: { headers: new Headers() } },
 		);
 
-		expect(result).toEqual({
-			checkoutLink: "https://payments.example/checkout/session-1",
-		});
-		expect(createCheckoutLinkWithProvider).toHaveBeenCalledWith(
-			expect.objectContaining({
-				billingPlanId: "billing-plan-1",
-				ownerId: "organization-1",
-				ownerType: "ORGANIZATION",
-				organizationId: "organization-1",
-				planKey: "creator",
-				seats: 1,
+		expect(result).toEqual({ checkoutLink: "https://www.sandbox.paypal.com/approve" });
+		expect(createCheckoutIntent).toHaveBeenCalledWith(
+			{
+				provider: "paypal",
+				ownerType: "USER",
+				ownerId: "user-1",
 				submittedByUserId: "user-1",
+				billingPlanId: billingPlan.id,
+				planKey: "creator",
+				interval: "month",
+				idempotencyKey: "checkout-operation-0001",
+			},
+			expect.anything(),
+		);
+		expect(providerCheckout).toHaveBeenCalledWith(
+			expect.objectContaining({
+				priceId: "P-CREATOR-MONTHLY",
+				currency: "USD",
+				checkoutIntentId: "checkout-intent-1",
+				ownerType: "USER",
+				ownerId: "user-1",
+				redirectUrl:
+					"https://app.ezpic.test/checkout-return?expectedPlanId=creator&returnTo=%2Fcreate%3Fupgrade%3Dcomplete",
 			}),
 		);
+		expect(bindCheckoutIntent).toHaveBeenCalledWith(
+			{
+				intentId: "checkout-intent-1",
+				provider: "paypal",
+				providerSessionId: "I-SUBSCRIPTION",
+				expiresAt: null,
+			},
+			expect.anything(),
+		);
+	});
+
+	it("reuses a provider-bound intent only when the replay returns the same session", async () => {
+		createCheckoutIntent.mockResolvedValue({
+			intent: { id: "checkout-intent-1", providerSessionId: "I-SUBSCRIPTION" },
+			replayed: true,
+		});
+
+		await expect(
+			call(
+				createCheckoutLink,
+				{
+					provider: "paypal",
+					planId: "creator",
+					interval: "month",
+					idempotencyKey: "checkout-operation-0001",
+				},
+				{ context: { headers: new Headers() } },
+			),
+		).resolves.toEqual({ checkoutLink: "https://www.sandbox.paypal.com/approve" });
+		expect(bindCheckoutIntent).not.toHaveBeenCalled();
 	});
 });

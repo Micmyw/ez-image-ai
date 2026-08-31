@@ -2,11 +2,18 @@ import type { IngestPaymentEventInput } from "@repo/database";
 import { logger } from "@repo/logs";
 import type Stripe from "stripe";
 
+import type { VerifiedPaymentEvent } from "../webhook";
+
 interface StripeWebhookDependencies {
 	stripe: Stripe;
 	webhookSecret: string;
 	persist(input: IngestPaymentEventInput): Promise<{ replayed: boolean }>;
 }
+
+type StripeWebhookVerifierDependencies = Pick<
+	StripeWebhookDependencies,
+	"stripe" | "webhookSecret"
+>;
 
 export function getStripeNormalizedTransactionId(event: Stripe.Event): string | undefined {
 	const object = event.data.object as Stripe.Event.Data.Object & {
@@ -29,21 +36,31 @@ export function getStripeNormalizedTransactionId(event: Stripe.Event): string | 
 	return undefined;
 }
 
+export function createStripeWebhookVerifier(dependencies: StripeWebhookVerifierDependencies) {
+	return async (rawBody: string, headers: Headers): Promise<VerifiedPaymentEvent> => {
+		const signature = headers.get("stripe-signature");
+		if (!signature || !dependencies.webhookSecret) {
+			throw new Error("STRIPE_WEBHOOK_SIGNATURE_MISSING");
+		}
+		const event = await dependencies.stripe.webhooks.constructEventAsync(
+			rawBody,
+			signature,
+			dependencies.webhookSecret,
+		);
+		return {
+			providerEventId: event.id,
+			normalizedTransactionId: getStripeNormalizedTransactionId(event),
+			envelope: JSON.parse(JSON.stringify(event)) as Record<string, unknown>,
+		};
+	};
+}
+
 export function createStripeWebhookHandler(dependencies: StripeWebhookDependencies) {
 	return async function stripeWebhookHandler(request: Request): Promise<Response> {
-		const signature = request.headers.get("stripe-signature");
-		if (!signature || !dependencies.webhookSecret) {
-			return new Response("Invalid request.", { status: 400 });
-		}
-
-		let event: Stripe.Event;
+		let event: VerifiedPaymentEvent;
 		try {
 			const rawBody = await request.text();
-			event = await dependencies.stripe.webhooks.constructEventAsync(
-				rawBody,
-				signature,
-				dependencies.webhookSecret,
-			);
+			event = await createStripeWebhookVerifier(dependencies)(rawBody, request.headers);
 		} catch {
 			return new Response("Invalid request.", { status: 400 });
 		}
@@ -51,16 +68,19 @@ export function createStripeWebhookHandler(dependencies: StripeWebhookDependenci
 		try {
 			await dependencies.persist({
 				provider: "stripe",
-				providerEventId: event.id,
-				normalizedTransactionId: getStripeNormalizedTransactionId(event),
+				providerEventId: event.providerEventId,
+				normalizedTransactionId: event.normalizedTransactionId,
 				verifiedAt: new Date(),
 				receivedAt: new Date(),
-				envelope: JSON.parse(JSON.stringify(event)),
+				envelope: event.envelope as never,
 			});
 			return new Response(null, { status: 204 });
 		} catch (error) {
 			logger.error(
-				{ errorClass: classifyPersistenceError(error), providerEventId: event.id },
+				{
+					errorClass: classifyPersistenceError(error),
+					providerEventId: event.providerEventId,
+				},
 				"Stripe payment event persistence failed",
 			);
 			return new Response("Webhook persistence failed.", { status: 500 });

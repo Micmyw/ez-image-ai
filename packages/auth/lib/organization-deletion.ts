@@ -7,13 +7,14 @@ interface OrganizationDeletionInput {
 
 interface OrganizationDeletionPurchase {
 	type: "SUBSCRIPTION" | "ONE_TIME";
+	provider: string;
 	subscriptionId: string | null;
 }
 
 interface OrganizationDeletionDependencies {
 	findMembership: (organizationId: string, userId: string) => Promise<{ role: string } | null>;
 	listPurchases: (organizationId: string) => Promise<OrganizationDeletionPurchase[]>;
-	cancelSubscription: (subscriptionId: string) => Promise<void>;
+	cancelSubscription: (provider: string, subscriptionId: string) => Promise<void>;
 }
 
 export async function cancelOrganizationSubscriptionsBeforeDeletion(
@@ -31,13 +32,17 @@ export async function cancelOrganizationSubscriptionsBeforeDeletion(
 	}
 
 	const purchases = await dependencies.listPurchases(input.organizationId);
-	const subscriptionIds = new Set(
-		purchases.flatMap((purchase) =>
-			purchase.type === "SUBSCRIPTION" && purchase.subscriptionId ? [purchase.subscriptionId] : [],
-		),
-	);
+	const subscriptions = new Map<string, { provider: string; subscriptionId: string }>();
+	for (const purchase of purchases) {
+		if (purchase.type !== "SUBSCRIPTION" || !purchase.subscriptionId) continue;
+		const key = `${purchase.provider}:${purchase.subscriptionId}`;
+		subscriptions.set(key, {
+			provider: purchase.provider,
+			subscriptionId: purchase.subscriptionId,
+		});
+	}
 
-	for (const subscriptionId of subscriptionIds) {
-		await dependencies.cancelSubscription(subscriptionId);
+	for (const subscription of subscriptions.values()) {
+		await dependencies.cancelSubscription(subscription.provider, subscription.subscriptionId);
 	}
 }

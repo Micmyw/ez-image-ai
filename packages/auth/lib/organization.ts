@@ -1,6 +1,6 @@
 import { getOrganizationWithPurchasesAndMembersCount } from "@repo/database";
 import { logger } from "@repo/logs";
-import { setSubscriptionSeats } from "@repo/payments";
+import { setProviderSubscriptionSeats } from "@repo/payments";
 
 export async function updateSeatsInOrganizationSubscription(organizationId: string) {
 	const organization = await getOrganizationWithPurchasesAndMembersCount(organizationId);
@@ -18,10 +18,11 @@ export async function updateSeatsInOrganizationSubscription(organizationId: stri
 	}
 
 	try {
-		await setSubscriptionSeats({
-			id: activeSubscription.subscriptionId,
-			seats: organization.membersCount,
-		});
+		await setProviderSubscriptionSeats(
+			activeSubscription.provider,
+			activeSubscription.subscriptionId,
+			organization.membersCount,
+		);
 	} catch (error) {
 		logger.error("Could not update seats in organization subscription", {
 			organizationId,

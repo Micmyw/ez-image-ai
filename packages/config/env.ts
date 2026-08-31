@@ -6,6 +6,14 @@ const booleanStringSchema = z
 	.transform((value) => value === "true");
 
 const optionalSecretSchema = z.string().min(1).optional();
+const optionalPayPalPlanIdSchema = z
+	.string()
+	.regex(/^P-[A-Z0-9-]+$/)
+	.optional();
+const optionalWaffoProductIdSchema = z
+	.string()
+	.regex(/^PROD_[A-Za-z0-9]+$/)
+	.optional();
 
 export const mediaProviderKeySchema = z.enum(["replicate", "fal", "kie", "gemini", "openrouter"]);
 export type MediaProviderKey = z.infer<typeof mediaProviderKeySchema>;
@@ -34,6 +42,22 @@ const rawServerEnvironmentSchema = z.object({
 	TRIGGER_SECRET_KEY: optionalSecretSchema,
 	STRIPE_SECRET_KEY: optionalSecretSchema,
 	STRIPE_WEBHOOK_SECRET: optionalSecretSchema,
+	PAYPAL_ENVIRONMENT: z.enum(["sandbox", "live"]).optional(),
+	PAYPAL_CLIENT_ID: optionalSecretSchema,
+	PAYPAL_CLIENT_SECRET: optionalSecretSchema,
+	PAYPAL_WEBHOOK_ID: optionalSecretSchema,
+	PAYPAL_PLAN_ID_CREATOR_MONTHLY: optionalPayPalPlanIdSchema,
+	PAYPAL_PLAN_ID_CREATOR_YEARLY: optionalPayPalPlanIdSchema,
+	PAYPAL_PLAN_ID_STUDIO_MONTHLY: optionalPayPalPlanIdSchema,
+	PAYPAL_PLAN_ID_STUDIO_YEARLY: optionalPayPalPlanIdSchema,
+	WAFFO_ENVIRONMENT: z.enum(["test", "prod"]).optional(),
+	WAFFO_MERCHANT_ID: optionalSecretSchema,
+	WAFFO_PRIVATE_KEY: optionalSecretSchema,
+	WAFFO_WEBHOOK_PUBLIC_KEY: optionalSecretSchema,
+	WAFFO_PRODUCT_ID_CREATOR_MONTHLY: optionalWaffoProductIdSchema,
+	WAFFO_PRODUCT_ID_CREATOR_YEARLY: optionalWaffoProductIdSchema,
+	WAFFO_PRODUCT_ID_STUDIO_MONTHLY: optionalWaffoProductIdSchema,
+	WAFFO_PRODUCT_ID_STUDIO_YEARLY: optionalWaffoProductIdSchema,
 	SENTRY_DSN: z.url().optional(),
 	SIGHTENGINE_API_USER: optionalSecretSchema,
 	SIGHTENGINE_API_SECRET: optionalSecretSchema,
@@ -149,6 +173,7 @@ export function validateServerEnvironment(
 		if (parsed.BILLING_ENABLED) {
 			requireValues(parsed, issues, ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]);
 		}
+		validateOptionalPaymentProviders(parsed, issues);
 
 		if (parsed.ERROR_MONITORING_ENABLED) {
 			requireValues(parsed, issues, ["SENTRY_DSN"]);
@@ -195,6 +220,44 @@ export function validateServerEnvironment(
 			provider: selectedProviderSecrets(parsed),
 		}),
 	};
+}
+
+function validateOptionalPaymentProviders(
+	input: z.infer<typeof rawServerEnvironmentSchema>,
+	issues: string[],
+): void {
+	requireCompleteProviderGroup(
+		input,
+		issues,
+		["PAYPAL_ENVIRONMENT", "PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "PAYPAL_WEBHOOK_ID"],
+		[
+			"PAYPAL_PLAN_ID_CREATOR_MONTHLY",
+			"PAYPAL_PLAN_ID_CREATOR_YEARLY",
+			"PAYPAL_PLAN_ID_STUDIO_MONTHLY",
+			"PAYPAL_PLAN_ID_STUDIO_YEARLY",
+		],
+	);
+	requireCompleteProviderGroup(
+		input,
+		issues,
+		["WAFFO_ENVIRONMENT", "WAFFO_MERCHANT_ID", "WAFFO_PRIVATE_KEY", "WAFFO_WEBHOOK_PUBLIC_KEY"],
+		[
+			"WAFFO_PRODUCT_ID_CREATOR_MONTHLY",
+			"WAFFO_PRODUCT_ID_CREATOR_YEARLY",
+			"WAFFO_PRODUCT_ID_STUDIO_MONTHLY",
+			"WAFFO_PRODUCT_ID_STUDIO_YEARLY",
+		],
+	);
+}
+
+function requireCompleteProviderGroup(
+	input: z.infer<typeof rawServerEnvironmentSchema>,
+	issues: string[],
+	requiredKeys: Array<keyof z.infer<typeof rawServerEnvironmentSchema>>,
+	priceKeys: Array<keyof z.infer<typeof rawServerEnvironmentSchema>>,
+): void {
+	if (![...requiredKeys, ...priceKeys].some((key) => Boolean(input[key]))) return;
+	requireValues(input, issues, requiredKeys);
 }
 
 export function parseMediaEnabledProviders(input: {

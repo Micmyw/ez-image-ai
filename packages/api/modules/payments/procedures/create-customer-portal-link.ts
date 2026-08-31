@@ -1,7 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { getOrganizationMembership, getPurchaseById } from "@repo/database";
 import { logger } from "@repo/logs";
-import { createCustomerPortalLink as createCustomerPortalLinkFn } from "@repo/payments";
+import { getPaymentProvider } from "@repo/payments";
 import { z } from "zod";
 
 import { localeMiddleware } from "../../../orpc/middleware/locale-middleware";
@@ -55,9 +55,13 @@ export const createCustomerPortalLink = protectedProcedure
 		if (hasUserOwner && purchase.userId !== user.id) {
 			throw new ORPCError("NOT_FOUND");
 		}
+		const provider = getPaymentProvider(purchase.provider);
+		if (!provider?.capabilities.portal || !provider.createPortal) {
+			throw new ORPCError("BAD_REQUEST");
+		}
 
 		try {
-			const customerPortalLink = await createCustomerPortalLinkFn({
+			const customerPortalLink = await provider.createPortal({
 				subscriptionId: purchase.subscriptionId ?? undefined,
 				customerId: purchase.customerId,
 				redirectUrl,
@@ -68,8 +72,8 @@ export const createCustomerPortalLink = protectedProcedure
 			}
 
 			return { customerPortalLink };
-		} catch (error) {
-			logger.error("Could not create customer portal link", error);
+		} catch {
+			logger.error({ provider: purchase.provider }, "Could not create customer portal link");
 			throw new ORPCError("INTERNAL_SERVER_ERROR");
 		}
 	});

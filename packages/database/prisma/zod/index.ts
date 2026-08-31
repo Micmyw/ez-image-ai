@@ -66,7 +66,7 @@ export type InvitationScalarFieldEnum = z.infer<typeof InvitationScalarFieldEnum
 
 // File: PurchaseScalarFieldEnum.schema.ts
 
-export const PurchaseScalarFieldEnumSchema = z.enum(['id', 'organizationId', 'userId', 'type', 'customerId', 'subscriptionId', 'priceId', 'status', 'createdAt', 'updatedAt'])
+export const PurchaseScalarFieldEnumSchema = z.enum(['id', 'organizationId', 'userId', 'type', 'provider', 'customerId', 'subscriptionId', 'priceId', 'status', 'createdAt', 'updatedAt'])
 
 export type PurchaseScalarFieldEnum = z.infer<typeof PurchaseScalarFieldEnumSchema>;
 
@@ -225,6 +225,18 @@ export type BillingPlanScalarFieldEnum = z.infer<typeof BillingPlanScalarFieldEn
 export const SubscriptionScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'provider', 'providerSubscriptionId', 'planId', 'purchaseId', 'status', 'currentPeriodStart', 'currentPeriodEnd', 'cancelAtPeriodEnd', 'scheduledPlanId', 'lastProviderEventAt', 'lastProviderEventId', 'lastReconciliationSweepId', 'lastReconciliationAppliedSweepId', 'lastReconciledAt', 'graceEndsAt', 'createdAt', 'updatedAt'])
 
 export type SubscriptionScalarFieldEnum = z.infer<typeof SubscriptionScalarFieldEnumSchema>;
+
+// File: PaymentCustomerScalarFieldEnum.schema.ts
+
+export const PaymentCustomerScalarFieldEnumSchema = z.enum(['id', 'provider', 'ownerType', 'ownerId', 'providerCustomerId', 'createdAt', 'updatedAt'])
+
+export type PaymentCustomerScalarFieldEnum = z.infer<typeof PaymentCustomerScalarFieldEnumSchema>;
+
+// File: PaymentCheckoutIntentScalarFieldEnum.schema.ts
+
+export const PaymentCheckoutIntentScalarFieldEnumSchema = z.enum(['id', 'provider', 'ownerType', 'ownerId', 'submittedByUserId', 'billingPlanId', 'planKey', 'interval', 'idempotencyKey', 'providerSessionId', 'activeScopeKey', 'status', 'expiresAt', 'createdAt', 'updatedAt'])
+
+export type PaymentCheckoutIntentScalarFieldEnum = z.infer<typeof PaymentCheckoutIntentScalarFieldEnumSchema>;
 
 // File: BillingPeriodScalarFieldEnum.schema.ts
 
@@ -472,6 +484,12 @@ export const SubscriptionStatusSchema = z.enum(['PENDING', 'ACTIVE', 'PAST_DUE',
 
 export type SubscriptionStatus = z.infer<typeof SubscriptionStatusSchema>;
 
+// File: PaymentCheckoutIntentStatus.schema.ts
+
+export const PaymentCheckoutIntentStatusSchema = z.enum(['CREATED', 'PROVIDER_PENDING', 'COMPLETED', 'EXPIRED', 'CANCELED', 'REVIEW'])
+
+export type PaymentCheckoutIntentStatus = z.infer<typeof PaymentCheckoutIntentStatusSchema>;
+
 // File: BillingPeriodStatus.schema.ts
 
 export const BillingPeriodStatusSchema = z.enum(['PENDING', 'ACTIVE', 'CLOSED', 'VOID', 'REFUNDED'])
@@ -690,6 +708,7 @@ export const PurchaseSchema = z.object({
   organizationId: z.string().nullish(),
   userId: z.string().nullish(),
   type: PurchaseTypeSchema,
+  provider: z.string().default("stripe"),
   customerId: z.string(),
   subscriptionId: z.string().nullish(),
   priceId: z.string(),
@@ -1298,6 +1317,44 @@ export const SubscriptionSchema = z.object({
 });
 
 export type SubscriptionType = z.infer<typeof SubscriptionSchema>;
+
+
+// File: PaymentCustomer.schema.ts
+
+export const PaymentCustomerSchema = z.object({
+  id: z.string(),
+  provider: z.string(),
+  ownerType: OwnerTypeSchema,
+  ownerId: z.string(),
+  providerCustomerId: z.string(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export type PaymentCustomerType = z.infer<typeof PaymentCustomerSchema>;
+
+
+// File: PaymentCheckoutIntent.schema.ts
+
+export const PaymentCheckoutIntentSchema = z.object({
+  id: z.string(),
+  provider: z.string(),
+  ownerType: OwnerTypeSchema,
+  ownerId: z.string(),
+  submittedByUserId: z.string(),
+  billingPlanId: z.string(),
+  planKey: z.string(),
+  interval: z.string(),
+  idempotencyKey: z.string(),
+  providerSessionId: z.string().nullish(),
+  activeScopeKey: z.string().nullish(),
+  status: PaymentCheckoutIntentStatusSchema.default("CREATED"),
+  expiresAt: z.date(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export type PaymentCheckoutIntentType = z.infer<typeof PaymentCheckoutIntentSchema>;
 
 
 // File: BillingPeriod.schema.ts

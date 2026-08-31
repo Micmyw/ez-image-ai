@@ -1,6 +1,10 @@
 import { ORPCError } from "@orpc/server";
 import { getPurchasesByOrganizationId, getPurchasesByUserId, PurchaseSchema } from "@repo/database";
-import { getPlanIdByProviderPriceId, getPlanPriceByProviderPriceId } from "@repo/payments";
+import {
+	getPlanIdByProviderPriceId,
+	getPlanPriceByProviderPriceId,
+	resolvePaymentProvider,
+} from "@repo/payments";
 import { z } from "zod";
 
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -23,6 +27,11 @@ export const listPurchases = protectedProcedure
 		z.array(
 			PurchaseSchema.extend({
 				planId: z.string().nullable(),
+				providerCapabilities: z.object({
+					portal: z.boolean(),
+					cancellation: z.boolean(),
+					seatUpdates: z.boolean(),
+				}),
 				planPrice: z
 					.discriminatedUnion("type", [
 						z.object({
@@ -60,7 +69,17 @@ export const listPurchases = protectedProcedure
 
 		return purchases.map((purchase) => ({
 			...purchase,
-			planId: getPlanIdByProviderPriceId(purchase.priceId),
-			planPrice: getPlanPriceByProviderPriceId(purchase.priceId)?.price ?? null,
+			planId: getPlanIdByProviderPriceId(purchase.provider, purchase.priceId),
+			planPrice: getPlanPriceByProviderPriceId(purchase.provider, purchase.priceId)?.price ?? null,
+			providerCapabilities: managementCapabilities(purchase.provider),
 		}));
 	});
+
+function managementCapabilities(provider: string) {
+	const capabilities = resolvePaymentProvider(provider)?.capabilities;
+	return {
+		portal: capabilities?.portal ?? false,
+		cancellation: capabilities?.cancellation ?? false,
+		seatUpdates: capabilities?.seatUpdates ?? false,
+	};
+}

@@ -264,7 +264,9 @@ async function ensureCreatorSubscription(
 	const providerSubscriptionId =
 		fixture === "funded" ? `e2e:${runId}:creator` : `e2e:${runId}:creator:empty`;
 	await db.subscription.upsert({
-		where: { providerSubscriptionId },
+		where: {
+			provider_providerSubscriptionId: { provider: "e2e", providerSubscriptionId },
+		},
 		create: {
 			ownerType: "USER",
 			ownerId: userId,

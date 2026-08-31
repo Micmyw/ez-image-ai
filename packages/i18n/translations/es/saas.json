@@ -413,6 +413,17 @@
 		"step": "Paso {step} / {total}",
 		"title": "Configura tu cuenta"
 	},
+	"payments": {
+		"providerSelector": {
+			"label": "Método de pago",
+			"providers": {
+				"stripe": "Tarjeta de crédito o débito",
+				"paypal": "PayPal",
+				"waffo": "Waffo"
+			},
+			"unavailable": "Actualmente no hay ningún método de pago disponible para este plan."
+		}
+	},
 	"organizations": {
 		"createForm": {
 			"name": "Nombre de la organización",
@@ -738,6 +749,18 @@
 			"title": "Configuración de cuenta"
 		},
 		"billing": {
+			"cancelSubscription": {
+				"label": "Cancelar suscripción",
+				"confirmation": {
+					"title": "¿Cancelar la suscripción?",
+					"description": "Tu acceso finalizará según las condiciones de cancelación de tu proveedor de pago.",
+					"confirm": "Cancelar suscripción"
+				},
+				"notifications": {
+					"success": "Cancelación solicitada.",
+					"error": "No se pudo cancelar la suscripción. Inténtalo de nuevo."
+				}
+			},
 			"createCustomerPortal": {
 				"label": "Gestionar facturación",
 				"notifications": {

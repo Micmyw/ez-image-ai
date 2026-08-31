@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { z } from "zod";
 
 import { db } from "../client";
@@ -23,9 +23,10 @@ export async function getPurchaseById(id: string) {
 	});
 }
 
-export async function getPurchaseBySubscriptionId(subscriptionId: string) {
+export async function getPurchaseBySubscriptionId(subscriptionId: string, provider = "stripe") {
 	return db.query.purchase.findFirst({
-		where: (purchase, { eq }) => eq(purchase.subscriptionId, subscriptionId),
+		where: (purchase, { eq, and }) =>
+			and(eq(purchase.provider, provider), eq(purchase.subscriptionId, subscriptionId)),
 	});
 }
 
@@ -44,6 +45,8 @@ export async function updatePurchase(updatedPurchase: z.infer<typeof PurchaseUpd
 	return getPurchaseById(id);
 }
 
-export async function deletePurchaseBySubscriptionId(subscriptionId: string) {
-	await db.delete(purchase).where(eq(purchase.subscriptionId, subscriptionId));
+export async function deletePurchaseBySubscriptionId(subscriptionId: string, provider = "stripe") {
+	await db
+		.delete(purchase)
+		.where(and(eq(purchase.provider, provider), eq(purchase.subscriptionId, subscriptionId)));
 }

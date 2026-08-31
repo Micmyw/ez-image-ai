@@ -12,7 +12,7 @@ import { config as i18nConfig, type Locale } from "@repo/i18n";
 import { logger } from "@repo/logs";
 import { sendEmail } from "@repo/mail";
 import { createWelcomeNotification } from "@repo/notifications";
-import { cancelSubscription } from "@repo/payments";
+import { cancelProviderSubscription } from "@repo/payments";
 import { getBaseUrl } from "@repo/utils";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
@@ -129,7 +129,8 @@ export const auth = betterAuth({
 
 					if (subscriptions.length > 0) {
 						for (const subscription of subscriptions) {
-							await cancelSubscription(
+							await cancelProviderSubscription(
+								subscription.provider,
 								// oxlint-disable-next-line typescript/no-non-null-assertion -- This is a valid case
 								subscription.subscriptionId!,
 							);
@@ -255,7 +256,7 @@ export const auth = betterAuth({
 						{
 							findMembership: getOrganizationMembership,
 							listPurchases: getPurchasesByOrganizationId,
-							cancelSubscription,
+							cancelSubscription: cancelProviderSubscription,
 						},
 					);
 				},

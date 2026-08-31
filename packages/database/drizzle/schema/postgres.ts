@@ -1,6 +1,7 @@
 import { createId as cuid } from "@paralleldrive/cuid2";
 import { relations, sql } from "drizzle-orm";
 import {
+	bigint,
 	boolean,
 	check,
 	index,
@@ -14,6 +15,25 @@ import {
 } from "drizzle-orm/pg-core";
 
 export const purchaseTypeEnum = pgEnum("PurchaseType", ["SUBSCRIPTION", "ONE_TIME"]);
+
+export const ownerTypeEnum = pgEnum("OwnerType", ["USER", "ORGANIZATION"]);
+
+export const subscriptionStatusEnum = pgEnum("SubscriptionStatus", [
+	"PENDING",
+	"ACTIVE",
+	"PAST_DUE",
+	"CANCELED",
+	"EXPIRED",
+]);
+
+export const paymentCheckoutIntentStatusEnum = pgEnum("PaymentCheckoutIntentStatus", [
+	"CREATED",
+	"PROVIDER_PENDING",
+	"COMPLETED",
+	"EXPIRED",
+	"CANCELED",
+	"REVIEW",
+]);
 
 export const notificationTypeEnum = pgEnum("NotificationType", ["WELCOME", "APP_UPDATE"]);
 
@@ -231,18 +251,159 @@ export const purchase = pgTable(
 			onDelete: "cascade",
 		}),
 		type: purchaseTypeEnum("type").notNull(),
+		provider: text("provider").default("stripe").notNull(),
 		customerId: text("customerId").notNull(),
-		subscriptionId: text("subscriptionId").unique(),
+		subscriptionId: text("subscriptionId"),
 		priceId: text("priceId").notNull(),
 		status: text("status"),
 		createdAt: timestamp("createdAt").defaultNow().notNull(),
 		updatedAt: timestamp("updatedAt"),
 	},
 	(table) => [
+		uniqueIndex("purchase_provider_subscriptionId_uidx").on(table.provider, table.subscriptionId),
+		index("purchase_subscriptionId_idx").on(table.subscriptionId),
 		check(
 			"purchase_exactly_one_owner",
 			sql`num_nonnulls(${table.organizationId}, ${table.userId}) = 1`,
 		),
+	],
+);
+
+export const billingPlan = pgTable(
+	"billing_plan",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		provider: text("provider").notNull(),
+		providerPriceId: text("providerPriceId").notNull(),
+		name: text("name").notNull(),
+		creditsPerPeriod: bigint("creditsPerPeriod", { mode: "bigint" }).notNull(),
+		priceMicros: bigint("priceMicros", { mode: "bigint" }).notNull(),
+		currency: text("currency").notNull(),
+		active: boolean("active").default(true).notNull(),
+		version: integer("version").default(1).notNull(),
+		metadata: jsonb("metadata").$type<Record<string, unknown>>().notNull(),
+		createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("billing_plan_provider_providerPriceId_uidx").on(
+			table.provider,
+			table.providerPriceId,
+		),
+	],
+);
+
+export const subscription = pgTable(
+	"subscription",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		ownerType: ownerTypeEnum("ownerType").notNull(),
+		ownerId: text("ownerId").notNull(),
+		provider: text("provider").notNull(),
+		providerSubscriptionId: text("providerSubscriptionId").notNull(),
+		planId: text("planId")
+			.notNull()
+			.references(() => billingPlan.id, { onDelete: "restrict" }),
+		purchaseId: text("purchaseId").references(() => purchase.id, { onDelete: "set null" }),
+		status: subscriptionStatusEnum("status").notNull(),
+		currentPeriodStart: timestamp("currentPeriodStart", { withTimezone: true }),
+		currentPeriodEnd: timestamp("currentPeriodEnd", { withTimezone: true }),
+		cancelAtPeriodEnd: boolean("cancelAtPeriodEnd").default(false).notNull(),
+		scheduledPlanId: text("scheduledPlanId"),
+		lastProviderEventAt: timestamp("lastProviderEventAt", { withTimezone: true }),
+		lastProviderEventId: text("lastProviderEventId"),
+		lastReconciliationSweepId: text("lastReconciliationSweepId"),
+		lastReconciliationAppliedSweepId: text("lastReconciliationAppliedSweepId"),
+		lastReconciledAt: timestamp("lastReconciledAt", { withTimezone: true }),
+		graceEndsAt: timestamp("graceEndsAt", { withTimezone: true }),
+		createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("subscription_provider_providerSubscriptionId_uidx").on(
+			table.provider,
+			table.providerSubscriptionId,
+		),
+		uniqueIndex("subscription_purchaseId_uidx").on(table.purchaseId),
+		index("subscription_owner_status_idx").on(table.ownerType, table.ownerId, table.status),
+		index("subscription_provider_status_createdAt_idx").on(
+			table.provider,
+			table.status,
+			table.createdAt,
+		),
+	],
+);
+
+export const paymentCustomer = pgTable(
+	"payment_customer",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		provider: text("provider").notNull(),
+		ownerType: ownerTypeEnum("ownerType").notNull(),
+		ownerId: text("ownerId").notNull(),
+		providerCustomerId: text("providerCustomerId").notNull(),
+		createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("payment_customer_provider_owner_uidx").on(
+			table.provider,
+			table.ownerType,
+			table.ownerId,
+		),
+		index("payment_customer_provider_customer_idx").on(table.provider, table.providerCustomerId),
+	],
+);
+
+export const paymentCheckoutIntent = pgTable(
+	"payment_checkout_intent",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		provider: text("provider").notNull(),
+		ownerType: ownerTypeEnum("ownerType").notNull(),
+		ownerId: text("ownerId").notNull(),
+		submittedByUserId: text("submittedByUserId").notNull(),
+		billingPlanId: text("billingPlanId")
+			.notNull()
+			.references(() => billingPlan.id, { onDelete: "restrict" }),
+		planKey: text("planKey").notNull(),
+		interval: text("interval").notNull(),
+		idempotencyKey: text("idempotencyKey").notNull(),
+		providerSessionId: text("providerSessionId"),
+		activeScopeKey: text("activeScopeKey"),
+		status: paymentCheckoutIntentStatusEnum("status").default("CREATED").notNull(),
+		expiresAt: timestamp("expiresAt", { withTimezone: true }).notNull(),
+		createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt", { withTimezone: true }).defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("payment_checkout_intent_provider_owner_idempotency_uidx").on(
+			table.provider,
+			table.ownerType,
+			table.ownerId,
+			table.idempotencyKey,
+		),
+		uniqueIndex("payment_checkout_intent_provider_session_uidx").on(
+			table.provider,
+			table.providerSessionId,
+		),
+		uniqueIndex("payment_checkout_intent_activeScopeKey_uidx").on(table.activeScopeKey),
+		index("payment_checkout_intent_owner_plan_status_idx").on(
+			table.ownerType,
+			table.ownerId,
+			table.planKey,
+			table.interval,
+			table.status,
+		),
+		index("payment_checkout_intent_expiry_status_idx").on(table.expiresAt, table.status),
 	],
 );
 

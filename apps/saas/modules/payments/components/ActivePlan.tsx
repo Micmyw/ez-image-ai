@@ -6,6 +6,7 @@ import { SettingsItem } from "@shared/components/SettingsItem";
 import { BadgeCheckIcon, CheckIcon } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 
+import { CancelSubscriptionButton } from "../../settings/components/CancelSubscriptionButton";
 import { CustomerPortalButton } from "../../settings/components/CustomerPortalButton";
 import { SubscriptionStatusBadge } from "../../settings/components/SubscriptionStatusBadge";
 
@@ -84,7 +85,14 @@ export function ActivePlan({ organizationId }: { organizationId?: string; seats?
 				{"purchaseId" in activePlan && activePlan.purchaseId && (
 					<div className="mt-4 flex justify-end">
 						<div className="gap-2 md:flex-row flex w-full flex-col flex-wrap">
-							<CustomerPortalButton purchaseId={activePlan.purchaseId} />
+							{activePlan.providerCapabilities.portal ? (
+								<CustomerPortalButton purchaseId={activePlan.purchaseId} />
+							) : activePlan.providerCapabilities.cancellation ? (
+								<CancelSubscriptionButton
+									purchaseId={activePlan.purchaseId}
+									organizationId={organizationId}
+								/>
+							) : null}
 						</div>
 					</div>
 				)}

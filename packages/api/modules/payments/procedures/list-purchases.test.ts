@@ -2,6 +2,13 @@ import { call } from "@orpc/server";
 import type { Session } from "@repo/auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+const { getPlanIdByProviderPriceId, getPlanPriceByProviderPriceId, resolvePaymentProvider } =
+	vi.hoisted(() => ({
+		getPlanIdByProviderPriceId: vi.fn(),
+		getPlanPriceByProviderPriceId: vi.fn(),
+		resolvePaymentProvider: vi.fn(),
+	}));
+
 vi.mock("@repo/auth", () => ({
 	auth: {
 		api: {
@@ -14,12 +21,17 @@ vi.mock("@repo/database", async () => {
 	const { z } = await import("zod");
 
 	return {
-		PurchaseSchema: z.object({}),
+		PurchaseSchema: z.object({ provider: z.string() }),
 		getOrganizationMembership: vi.fn(),
 		getPurchasesByOrganizationId: vi.fn(),
 		getPurchasesByUserId: vi.fn(),
 	};
 });
+vi.mock("@repo/payments", () => ({
+	getPlanIdByProviderPriceId,
+	getPlanPriceByProviderPriceId,
+	resolvePaymentProvider,
+}));
 
 import { auth } from "@repo/auth";
 import {
@@ -122,5 +134,51 @@ describe("listPurchases", () => {
 		expect(result).toEqual([]);
 		expect(getPurchasesByUserId).toHaveBeenCalledWith("user-1");
 		expect(getOrganizationMembership).not.toHaveBeenCalled();
+	});
+
+	it("resolves plan and management capabilities within the purchase provider namespace", async () => {
+		vi.mocked(getPurchasesByUserId).mockResolvedValueOnce([
+			{
+				id: "purchase-paypal",
+				provider: "paypal",
+				priceId: "P-CREATOR-MONTHLY",
+				type: "SUBSCRIPTION",
+				customerId: "paypal-customer",
+				subscriptionId: "I-SUBSCRIPTION",
+				organizationId: null,
+				userId: "user-1",
+				status: "active",
+				createdAt: new Date("2026-08-31T00:00:00Z"),
+				updatedAt: new Date("2026-08-31T00:00:00Z"),
+			},
+		] as never);
+		getPlanIdByProviderPriceId.mockReturnValue("creator");
+		getPlanPriceByProviderPriceId.mockReturnValue({
+			planId: "creator",
+			price: { type: "subscription", interval: "month", amount: 19, currency: "USD" },
+		});
+		resolvePaymentProvider.mockReturnValue({
+			name: "paypal",
+			capabilities: {
+				checkout: true,
+				portal: false,
+				cancellation: true,
+				seatUpdates: false,
+				webhooks: true,
+			},
+		});
+
+		const result = await call(listPurchases, {}, { context: { headers: new Headers() } });
+
+		expect(getPlanIdByProviderPriceId).toHaveBeenCalledWith("paypal", "P-CREATOR-MONTHLY");
+		expect(result[0]).toMatchObject({
+			provider: "paypal",
+			planId: "creator",
+			providerCapabilities: {
+				portal: false,
+				cancellation: true,
+				seatUpdates: false,
+			},
+		});
 	});
 });

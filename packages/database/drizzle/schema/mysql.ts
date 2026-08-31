@@ -1,6 +1,7 @@
 import { createId as cuid } from "@paralleldrive/cuid2";
 import { relations, sql } from "drizzle-orm";
 import {
+	bigint,
 	boolean,
 	check,
 	index,
@@ -198,18 +199,172 @@ export const purchase = mysqlTable(
 			onDelete: "cascade",
 		}),
 		type: purchaseTypeEnum.notNull(),
+		provider: text("provider").default("stripe").notNull(),
 		customerId: text("customerId").notNull(),
-		subscriptionId: text("subscriptionId").unique(),
+		subscriptionId: text("subscriptionId"),
 		priceId: text("priceId").notNull(),
 		status: text("status"),
 		createdAt: timestamp("createdAt").defaultNow().notNull(),
 		updatedAt: timestamp("updatedAt"),
 	},
 	(table) => [
+		uniqueIndex("purchase_provider_subscriptionId_uidx").on(table.provider, table.subscriptionId),
+		index("purchase_subscriptionId_idx").on(table.subscriptionId),
 		check(
 			"purchase_exactly_one_owner",
 			sql`(${table.organizationId} IS NOT NULL) <> (${table.userId} IS NOT NULL)`,
 		),
+	],
+);
+
+export const billingPlan = mysqlTable(
+	"billing_plan",
+	{
+		id: varchar("id", { length: 255 })
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		provider: varchar("provider", { length: 64 }).notNull(),
+		providerPriceId: varchar("providerPriceId", { length: 255 }).notNull(),
+		name: text("name").notNull(),
+		creditsPerPeriod: bigint("creditsPerPeriod", { mode: "bigint" }).notNull(),
+		priceMicros: bigint("priceMicros", { mode: "bigint" }).notNull(),
+		currency: varchar("currency", { length: 16 }).notNull(),
+		active: boolean("active").default(true).notNull(),
+		version: int("version").default(1).notNull(),
+		metadata: json("metadata").$type<Record<string, unknown>>().notNull(),
+		createdAt: timestamp("createdAt").defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("billing_plan_provider_providerPriceId_uidx").on(
+			table.provider,
+			table.providerPriceId,
+		),
+	],
+);
+
+export const subscription = mysqlTable(
+	"subscription",
+	{
+		id: varchar("id", { length: 255 })
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		ownerType: mysqlEnum("ownerType", ["USER", "ORGANIZATION"]).notNull(),
+		ownerId: varchar("ownerId", { length: 255 }).notNull(),
+		provider: varchar("provider", { length: 64 }).notNull(),
+		providerSubscriptionId: varchar("providerSubscriptionId", { length: 255 }).notNull(),
+		planId: varchar("planId", { length: 255 })
+			.notNull()
+			.references(() => billingPlan.id, { onDelete: "restrict" }),
+		purchaseId: varchar("purchaseId", { length: 255 }).references(() => purchase.id, {
+			onDelete: "set null",
+		}),
+		status: mysqlEnum("status", ["PENDING", "ACTIVE", "PAST_DUE", "CANCELED", "EXPIRED"]).notNull(),
+		currentPeriodStart: timestamp("currentPeriodStart"),
+		currentPeriodEnd: timestamp("currentPeriodEnd"),
+		cancelAtPeriodEnd: boolean("cancelAtPeriodEnd").default(false).notNull(),
+		scheduledPlanId: varchar("scheduledPlanId", { length: 255 }),
+		lastProviderEventAt: timestamp("lastProviderEventAt"),
+		lastProviderEventId: varchar("lastProviderEventId", { length: 255 }),
+		lastReconciliationSweepId: varchar("lastReconciliationSweepId", { length: 255 }),
+		lastReconciliationAppliedSweepId: varchar("lastReconciliationAppliedSweepId", {
+			length: 255,
+		}),
+		lastReconciledAt: timestamp("lastReconciledAt"),
+		graceEndsAt: timestamp("graceEndsAt"),
+		createdAt: timestamp("createdAt").defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("subscription_provider_providerSubscriptionId_uidx").on(
+			table.provider,
+			table.providerSubscriptionId,
+		),
+		uniqueIndex("subscription_purchaseId_uidx").on(table.purchaseId),
+		index("subscription_owner_status_idx").on(table.ownerType, table.ownerId, table.status),
+		index("subscription_provider_status_createdAt_idx").on(
+			table.provider,
+			table.status,
+			table.createdAt,
+		),
+	],
+);
+
+export const paymentCustomer = mysqlTable(
+	"payment_customer",
+	{
+		id: varchar("id", { length: 255 })
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		provider: varchar("provider", { length: 64 }).notNull(),
+		ownerType: mysqlEnum("ownerType", ["USER", "ORGANIZATION"]).notNull(),
+		ownerId: varchar("ownerId", { length: 255 }).notNull(),
+		providerCustomerId: varchar("providerCustomerId", { length: 255 }).notNull(),
+		createdAt: timestamp("createdAt").defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("payment_customer_provider_owner_uidx").on(
+			table.provider,
+			table.ownerType,
+			table.ownerId,
+		),
+		index("payment_customer_provider_customer_idx").on(table.provider, table.providerCustomerId),
+	],
+);
+
+export const paymentCheckoutIntent = mysqlTable(
+	"payment_checkout_intent",
+	{
+		id: varchar("id", { length: 255 })
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		provider: varchar("provider", { length: 64 }).notNull(),
+		ownerType: mysqlEnum("ownerType", ["USER", "ORGANIZATION"]).notNull(),
+		ownerId: varchar("ownerId", { length: 255 }).notNull(),
+		submittedByUserId: varchar("submittedByUserId", { length: 255 }).notNull(),
+		billingPlanId: varchar("billingPlanId", { length: 255 })
+			.notNull()
+			.references(() => billingPlan.id, { onDelete: "restrict" }),
+		planKey: varchar("planKey", { length: 64 }).notNull(),
+		interval: varchar("interval", { length: 16 }).notNull(),
+		idempotencyKey: varchar("idempotencyKey", { length: 255 }).notNull(),
+		providerSessionId: varchar("providerSessionId", { length: 255 }),
+		activeScopeKey: varchar("activeScopeKey", { length: 768 }),
+		status: mysqlEnum("status", [
+			"CREATED",
+			"PROVIDER_PENDING",
+			"COMPLETED",
+			"EXPIRED",
+			"CANCELED",
+			"REVIEW",
+		])
+			.default("CREATED")
+			.notNull(),
+		expiresAt: timestamp("expiresAt").notNull(),
+		createdAt: timestamp("createdAt").defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("payment_checkout_intent_provider_owner_idempotency_uidx").on(
+			table.provider,
+			table.ownerType,
+			table.ownerId,
+			table.idempotencyKey,
+		),
+		uniqueIndex("payment_checkout_intent_provider_session_uidx").on(
+			table.provider,
+			table.providerSessionId,
+		),
+		uniqueIndex("payment_checkout_intent_activeScopeKey_uidx").on(table.activeScopeKey),
+		index("payment_checkout_intent_owner_plan_status_idx").on(
+			table.ownerType,
+			table.ownerId,
+			table.planKey,
+			table.interval,
+			table.status,
+		),
+		index("payment_checkout_intent_expiry_status_idx").on(table.expiresAt, table.status),
 	],
 );
 

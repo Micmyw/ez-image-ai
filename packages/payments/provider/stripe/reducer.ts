@@ -532,7 +532,12 @@ async function applySubscriptionFact(
 ): Promise<void> {
 	await lockStripeSubscriptionAndCustomer(fact.providerSubscriptionId, fact.customerId, client);
 	const existing = await client.subscription.findUnique({
-		where: { providerSubscriptionId: fact.providerSubscriptionId },
+		where: {
+			provider_providerSubscriptionId: {
+				provider: "stripe",
+				providerSubscriptionId: fact.providerSubscriptionId,
+			},
+		},
 		include: { purchase: true },
 	});
 	if (!existing) {
@@ -639,7 +644,12 @@ async function createBoundSubscription(
 		client,
 	);
 	const existingPurchase = await client.purchase.findUnique({
-		where: { subscriptionId: fact.providerSubscriptionId },
+		where: {
+			provider_subscriptionId: {
+				provider: "stripe",
+				subscriptionId: fact.providerSubscriptionId,
+			},
+		},
 	});
 	const existingOwnerMatches = existingPurchase
 		? binding.ownerType === "USER"
@@ -667,6 +677,7 @@ async function createBoundSubscription(
 			})
 		: await client.purchase.create({
 				data: {
+					provider: "stripe",
 					organizationId: binding.ownerType === "ORGANIZATION" ? binding.ownerId : null,
 					userId: binding.ownerType === "USER" ? binding.ownerId : null,
 					type: "SUBSCRIPTION",

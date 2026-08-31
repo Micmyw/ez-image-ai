@@ -23,6 +23,7 @@
 		"@repo/config": "workspace:*",
 		"@repo/database": "workspace:*",
 		"@repo/logs": "workspace:*",
+		"@waffo/pancake-ts": "0.19.1",
 		"dodopayments": "^2.44.0",
 		"stripe": "^22.4.0",
 		"ufo": "catalog:",

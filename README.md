@@ -64,6 +64,15 @@ only after the requested paid plan is ACTIVE or still inside its server-recorded
 The existing owner-authorized Customer Portal remains the place to manage cancellation and payment
 methods.
 
+Authenticated customers can choose only payment methods advertised by the server for the selected
+plan and interval. PayPal and Waffo Pancake require complete server-only credentials, provider plan
+or product IDs, and matching active `BillingPlan` snapshots; the browser submits only the stable
+provider name, plan, interval, and idempotency key. Stripe keeps its owner-authorized portal, while
+providers without a private billing portal expose only the owner-authorized cancellation action they
+declare. All providers share `/api/webhooks/payments`, persisted `PaymentEvent`/Outbox delivery, and
+the immutable credit lifecycle. Real PayPal and Waffo sandbox certification remains
+`NOT_COMPLETED` until deployment credentials and dashboard evidence are available.
+
 See [the pricing and margin record](docs/product/ezpic-pricing-and-margin.md) for the cost formula,
 configuration boundary, rollback, and external items that remain `NOT_COMPLETED`.
 

@@ -124,7 +124,12 @@ describe("Stripe external-state reconciliation", () => {
 			new Set([now.toISOString()]),
 		);
 		const subscription = await client.subscription.findUniqueOrThrow({
-			where: { providerSubscriptionId: subscriptionFact.providerSubscriptionId },
+			where: {
+				provider_providerSubscriptionId: {
+					provider: "stripe",
+					providerSubscriptionId: subscriptionFact.providerSubscriptionId,
+				},
+			},
 		});
 		expect(subscription).toMatchObject({ ownerId: userId, status: "ACTIVE" });
 		const period = await client.billingPeriod.findFirstOrThrow({
@@ -376,7 +381,11 @@ describe("Stripe external-state reconciliation", () => {
 			),
 		).resolves.toMatchObject({ completed: true });
 		await expect(
-			client.subscription.findUniqueOrThrow({ where: { providerSubscriptionId } }),
+			client.subscription.findUniqueOrThrow({
+				where: {
+					provider_providerSubscriptionId: { provider: "stripe", providerSubscriptionId },
+				},
+			}),
 		).resolves.toMatchObject({ status: "CANCELED" });
 		await expect(
 			client.stripeRefund.findUniqueOrThrow({
@@ -648,7 +657,12 @@ describe("Stripe external-state reconciliation", () => {
 		if (result.skipped) throw new Error("Expected the reconciliation sweep to complete");
 		await expect(
 			client.subscription.findUniqueOrThrow({
-				where: { providerSubscriptionId: fact.providerSubscriptionId },
+				where: {
+					provider_providerSubscriptionId: {
+						provider: "stripe",
+						providerSubscriptionId: fact.providerSubscriptionId,
+					},
+				},
 			}),
 		).resolves.toMatchObject({
 			status: "PAST_DUE",
@@ -732,7 +746,12 @@ describe("Stripe external-state reconciliation", () => {
 			).rejects.toThrow("STRIPE_RECONCILIATION_LEASE_LOST");
 			expect(
 				await client.subscription.findUnique({
-					where: { providerSubscriptionId: fact.providerSubscriptionId },
+					where: {
+						provider_providerSubscriptionId: {
+							provider: "stripe",
+							providerSubscriptionId: fact.providerSubscriptionId,
+						},
+					},
 				}),
 			).toBeNull();
 		} finally {
@@ -803,12 +822,22 @@ describe("Stripe external-state reconciliation", () => {
 			).rejects.toThrow("STRIPE_RECONCILIATION_LEASE_LOST");
 			expect(
 				await client.subscription.findUnique({
-					where: { providerSubscriptionId: firstFact.providerSubscriptionId },
+					where: {
+						provider_providerSubscriptionId: {
+							provider: "stripe",
+							providerSubscriptionId: firstFact.providerSubscriptionId,
+						},
+					},
 				}),
 			).not.toBeNull();
 			expect(
 				await client.subscription.findUnique({
-					where: { providerSubscriptionId: secondFact.providerSubscriptionId },
+					where: {
+						provider_providerSubscriptionId: {
+							provider: "stripe",
+							providerSubscriptionId: secondFact.providerSubscriptionId,
+						},
+					},
 				}),
 			).toBeNull();
 		} finally {
@@ -901,7 +930,12 @@ describe("Stripe external-state reconciliation", () => {
 		});
 		await reconcileStripeBilling({ now: firstSweepAt, maxPages: 3 }, client, seenSource);
 		await client.subscription.update({
-			where: { providerSubscriptionId: fact.providerSubscriptionId },
+			where: {
+				provider_providerSubscriptionId: {
+					provider: "stripe",
+					providerSubscriptionId: fact.providerSubscriptionId,
+				},
+			},
 			data: { createdAt: new Date("2026-12-31T00:00:00.000Z") },
 		});
 
@@ -915,7 +949,12 @@ describe("Stripe external-state reconciliation", () => {
 		).toMatchObject({ status: "OPEN", code: "STRIPE_SUBSCRIPTION_MISSING_FROM_PROVIDER" });
 		expect(
 			await client.subscription.findUniqueOrThrow({
-				where: { providerSubscriptionId: fact.providerSubscriptionId },
+				where: {
+					provider_providerSubscriptionId: {
+						provider: "stripe",
+						providerSubscriptionId: fact.providerSubscriptionId,
+					},
+				},
 			}),
 		).toMatchObject({ status: "ACTIVE" });
 		const independentIssueKey = `stripe:SUBSCRIPTION:${fact.providerSubscriptionId}:STRIPE_SUBSCRIPTION_BINDING_AMBIGUOUS`;
@@ -1197,7 +1236,11 @@ describe("Stripe external-state reconciliation", () => {
 			}),
 		).resolves.toBeNull();
 		await expect(
-			client.subscription.findUniqueOrThrow({ where: { providerSubscriptionId } }),
+			client.subscription.findUniqueOrThrow({
+				where: {
+					provider_providerSubscriptionId: { provider: "stripe", providerSubscriptionId },
+				},
+			}),
 		).resolves.toMatchObject({ planId: currentPlan.id });
 		await expect(
 			client.purchase.findUniqueOrThrow({ where: { id: purchase.id } }),

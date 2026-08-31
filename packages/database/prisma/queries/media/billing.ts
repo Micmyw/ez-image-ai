@@ -290,7 +290,12 @@ export async function upsertSubscription(
 	client: MediaTransactionClient,
 ) {
 	return client.subscription.upsert({
-		where: { providerSubscriptionId: input.providerSubscriptionId },
+		where: {
+			provider_providerSubscriptionId: {
+				provider: input.provider,
+				providerSubscriptionId: input.providerSubscriptionId,
+			},
+		},
 		create: input,
 		update: {
 			planId: input.planId,

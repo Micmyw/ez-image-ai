@@ -92,11 +92,42 @@ Provider transfer, soft delete followed by physical cleanup, quota release, and 
 of abandoned multipart uploads. Alerts must cover cleanup dead letters and unexpected storage
 growth.
 
-## 5. Stripe and credit lifecycle
+## 5. Payment providers and credit lifecycle
 
 Create monthly/yearly Creator and Studio prices and set all four price IDs. Configure the Webhook endpoint with only required events and store its signing secret. Validate signatures against the raw body. The Webhook request only persists the PaymentEvent and Outbox record; workers perform mutation.
 
 Test in Stripe test mode: checkout return, monthly renew, annual purchase split into 12 internal periods, plan A to B to A, payment failure/recovery, cancellation, partial refund, full refund, future period voiding, and refund debt after consumed credits. Reconcile Stripe subscriptions on schedule. Never directly edit credit balances; use immutable ledger commands and reference keys.
+
+PayPal and Waffo Pancake are optional, server-advertised checkout providers. Configure the provider
+as one complete group; a partial production group fails launch validation:
+
+- PayPal: `PAYPAL_ENVIRONMENT`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, and
+  `PAYPAL_WEBHOOK_ID`, plus the applicable `PAYPAL_PLAN_ID_{CREATOR|STUDIO}_{MONTHLY|YEARLY}`
+  values.
+- Waffo: `WAFFO_ENVIRONMENT`, `WAFFO_MERCHANT_ID`, `WAFFO_PRIVATE_KEY`, and
+  `WAFFO_WEBHOOK_PUBLIC_KEY`, plus the applicable
+  `WAFFO_PRODUCT_ID_{CREATOR|STUDIO}_{MONTHLY|YEARLY}` values. Do not advertise annual checkout
+  unless the annual product and exact annual `BillingPlan` snapshot both exist.
+
+All payment dashboards must deliver to `POST /api/webhooks/payments`. Routing uses exactly one
+provider signature header and raw-body verification; never add a provider name to the request body
+as routing authority. Availability also requires an active `BillingPlan` whose provider ID, plan,
+interval, price, currency, and credits exactly match the canonical EzPic entitlement. Missing or
+invalid configuration omits that provider for that plan instead of allowing a late checkout failure.
+
+PayPal and Waffo have no assumed owner-scoped customer portal. Their authenticated billing action is
+provider-routed cancellation. The worker routes by the provider persisted on `PaymentEvent`, keeps
+Stripe on its existing reconciliation/refund path, and applies PayPal/Waffo facts only after checkout
+correlation, owner, customer, amount, currency, period, and event-order checks. Unsupported or
+ambiguous refund events are terminal review/dead-letter cases and must not grant or revoke credits.
+Investigate the provider record and persisted envelope before an audited replay; do not convert them
+into Stripe refund records or edit the immutable ledger.
+
+Before enabling either provider in production, certify checkout, verified webhook delivery, replay,
+renewal, failure/recovery, cancellation, out-of-order delivery, and unsupported-refund review in its
+real sandbox/test account. Record dashboard endpoint IDs and evidence outside this repository without
+copying secrets. PayPal and Waffo real sandbox certification is `NOT_COMPLETED` until those external
+credentials and accounts are supplied and the evidence is captured.
 
 The F6 Stripe refund/reconciliation migration is a coordinated stop-the-world cutover for the old billing code. Use this order:
 

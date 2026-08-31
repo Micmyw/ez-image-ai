@@ -31,6 +31,22 @@
   its localized edit prompt into the editor and returns focus there without reintroducing a
   Marketing runtime or presenting inspiration images as EzPic model output.
 
+### Selectable payment providers
+
+- Added server-advertised Stripe, PayPal, and Waffo Pancake checkout availability with an accessible
+  authenticated payment-method chooser. Checkout now accepts only provider, EzPic plan, interval,
+  and idempotency key; provider price/product IDs and redirects remain server-owned.
+- Added provider-scoped customers, checkout intents, purchases, and subscriptions, plus verified
+  raw-body webhook routing through the existing payment endpoint and persisted PaymentEvent/Outbox
+  worker path. Stripe keeps its existing reconciliation and refund repair behavior; PayPal/Waffo
+  events fail closed on missing correlation, inconsistent billing facts, stale order, or unsupported
+  refunds without granting credits.
+- Routed billing management by persisted provider capabilities: Stripe retains its customer portal,
+  while PayPal and Waffo use owner-authorized cancellation. Production validation rejects partial
+  provider credential groups, and the example environment documents all server-only provider IDs.
+  Real PayPal and Waffo sandbox checkout/webhook certification remains `NOT_COMPLETED` pending
+  external credentials and dashboard evidence.
+
 ## 2026-08-29
 
 ### Reliability and operations
