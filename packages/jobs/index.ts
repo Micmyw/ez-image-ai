@@ -8,6 +8,7 @@ export * from "./src/handlers/cancel-generation";
 export * from "./src/handlers/expire-media-uploads";
 export * from "./src/handlers/dispatch-generation";
 export * from "./src/handlers/dispatch-outbox";
+export * from "./src/handlers/deliver-outbox-event";
 export * from "./src/handlers/finalize-media";
 export * from "./src/handlers/process-provider-event";
 export * from "./src/handlers/process-payment-event";

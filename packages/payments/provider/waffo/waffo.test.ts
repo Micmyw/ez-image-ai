@@ -96,6 +96,7 @@ describe("Waffo Pancake SDK boundary", () => {
 		expect(verifier(rawBody, new Headers({ "x-waffo-signature": "signature-1" }))).toEqual({
 			providerEventId: "delivery-1",
 			normalizedTransactionId: "event-1",
+			providerSubscriptionId: "order-1",
 			envelope: {
 				id: "delivery-1",
 				eventId: "event-1",

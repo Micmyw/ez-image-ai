@@ -234,7 +234,7 @@ export type PaymentCustomerScalarFieldEnum = z.infer<typeof PaymentCustomerScala
 
 // File: PaymentCheckoutIntentScalarFieldEnum.schema.ts
 
-export const PaymentCheckoutIntentScalarFieldEnumSchema = z.enum(['id', 'provider', 'ownerType', 'ownerId', 'submittedByUserId', 'billingPlanId', 'planKey', 'interval', 'idempotencyKey', 'providerSessionId', 'providerCheckoutUrl', 'activeScopeKey', 'status', 'expiresAt', 'createdAt', 'updatedAt'])
+export const PaymentCheckoutIntentScalarFieldEnumSchema = z.enum(['id', 'provider', 'ownerType', 'ownerId', 'submittedByUserId', 'billingPlanId', 'planKey', 'interval', 'idempotencyKey', 'providerSessionId', 'providerOrderId', 'providerCheckoutUrl', 'activeScopeKey', 'status', 'expiresAt', 'createdAt', 'updatedAt'])
 
 export type PaymentCheckoutIntentScalarFieldEnum = z.infer<typeof PaymentCheckoutIntentScalarFieldEnumSchema>;
 
@@ -246,7 +246,7 @@ export type BillingPeriodScalarFieldEnum = z.infer<typeof BillingPeriodScalarFie
 
 // File: PaymentEventScalarFieldEnum.schema.ts
 
-export const PaymentEventScalarFieldEnumSchema = z.enum(['id', 'provider', 'providerEventId', 'normalizedTransactionId', 'verifiedAt', 'receivedAt', 'envelope', 'status', 'processedAt', 'failureReason', 'attemptCount', 'lastTriggerAttempt', 'lastAttemptAt', 'lastTriggerRunId', 'lastErrorClass', 'processingToken', 'processingLeasedUntil'])
+export const PaymentEventScalarFieldEnumSchema = z.enum(['id', 'provider', 'providerEventId', 'normalizedTransactionId', 'providerSubscriptionId', 'verifiedAt', 'receivedAt', 'envelope', 'status', 'processedAt', 'failureReason', 'attemptCount', 'lastTriggerAttempt', 'lastAttemptAt', 'lastTriggerRunId', 'lastErrorClass', 'processingToken', 'processingLeasedUntil'])
 
 export type PaymentEventScalarFieldEnum = z.infer<typeof PaymentEventScalarFieldEnumSchema>;
 
@@ -1347,6 +1347,7 @@ export const PaymentCheckoutIntentSchema = z.object({
   interval: z.string(),
   idempotencyKey: z.string(),
   providerSessionId: z.string().nullish(),
+  providerOrderId: z.string().nullish(),
   providerCheckoutUrl: z.string().nullish(),
   activeScopeKey: z.string().nullish(),
   status: PaymentCheckoutIntentStatusSchema.default("CREATED"),
@@ -1389,6 +1390,7 @@ export const PaymentEventSchema = z.object({
   provider: z.string(),
   providerEventId: z.string(),
   normalizedTransactionId: z.string().nullish(),
+  providerSubscriptionId: z.string().nullish(),
   verifiedAt: z.date(),
   receivedAt: z.date(),
   envelope: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10"),

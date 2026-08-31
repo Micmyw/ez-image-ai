@@ -1124,6 +1124,7 @@ model PaymentCheckoutIntent {
   interval            String
   idempotencyKey      String
   providerSessionId   String?
+  providerOrderId     String?
   providerCheckoutUrl String?
   activeScopeKey      String?                     @unique
   status              PaymentCheckoutIntentStatus @default(CREATED)
@@ -1133,6 +1134,7 @@ model PaymentCheckoutIntent {
 
   @@unique([ownerType, ownerId, idempotencyKey])
   @@unique([provider, providerSessionId])
+  @@unique([provider, providerOrderId])
   @@index([ownerType, ownerId, planKey, interval, status])
   @@index([expiresAt, status])
   @@map("payment_checkout_intent")
@@ -1174,6 +1176,7 @@ model PaymentEvent {
   provider                String
   providerEventId         String
   normalizedTransactionId String?
+  providerSubscriptionId  String?
   verifiedAt              DateTime              @db.Timestamptz(3)
   receivedAt              DateTime              @default(now()) @db.Timestamptz(3)
   envelope                Json
@@ -1191,6 +1194,7 @@ model PaymentEvent {
 
   @@unique([provider, providerEventId])
   @@index([provider, normalizedTransactionId])
+  @@index([provider, providerSubscriptionId])
   @@index([status, receivedAt])
   @@index([processingLeasedUntil])
   @@map("payment_event")

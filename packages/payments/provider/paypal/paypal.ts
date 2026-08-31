@@ -147,9 +147,23 @@ export function createPayPalWebhookVerifier(
 		return {
 			providerEventId,
 			normalizedTransactionId: stringValue(recordValue(event.resource)?.id) ?? undefined,
+			providerSubscriptionId: paypalSubscriptionId(event),
 			envelope: event,
 		};
 	};
+}
+
+function paypalSubscriptionId(event: Record<string, unknown>): string | undefined {
+	const eventType = stringValue(event.event_type);
+	const resource = recordValue(event.resource);
+	if (!eventType || !resource) return undefined;
+	if (eventType.startsWith("BILLING.SUBSCRIPTION.")) {
+		return stringValue(resource.id) ?? undefined;
+	}
+	if (eventType.startsWith("PAYMENT.SALE.")) {
+		return stringValue(resource.billing_agreement_id) ?? undefined;
+	}
+	return undefined;
 }
 
 function requiredHeader(headers: Headers, name: string): string {

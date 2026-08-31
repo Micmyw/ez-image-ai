@@ -81,9 +81,11 @@ export function createWaffoWebhookVerifier(
 		const verified = recordValue(client.webhooks.verify(rawBody, signature, { environment }));
 		const providerEventId = stringValue(verified?.id);
 		if (!verified || !providerEventId) throw new Error("WAFFO_WEBHOOK_EVENT_INVALID");
+		const data = recordValue(verified.data);
 		return {
 			providerEventId,
 			normalizedTransactionId: stringValue(verified.eventId) ?? undefined,
+			providerSubscriptionId: stringValue(data?.orderId) ?? undefined,
 			envelope: verified,
 		} satisfies VerifiedPaymentEvent;
 	};

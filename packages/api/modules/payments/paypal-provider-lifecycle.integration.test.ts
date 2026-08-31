@@ -5,6 +5,7 @@ import {
 	markPaymentCheckoutIntentProviderCreating,
 } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
+import { deliverOutboxEvent } from "@repo/jobs";
 import { processProviderPaymentEvent } from "@repo/payments";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -88,6 +89,12 @@ describe("PayPal subscription payment recovery", () => {
 				select: { id: true },
 			});
 			const paymentEventIds = paymentEvents.map(({ id }) => id);
+			await tx.outboxEvent.deleteMany({
+				where: {
+					eventType: "PAYMENT_EVENT_RECEIVED",
+					aggregateId: { in: paymentEventIds },
+				},
+			});
 			await tx.auditLog.deleteMany({
 				where: { targetType: "PAYMENT_EVENT", targetId: { in: paymentEventIds } },
 			});
@@ -138,11 +145,22 @@ describe("PayPal subscription payment recovery", () => {
 			paymentId: firstPaymentId,
 			occurredAt: "2026-01-31T00:00:00.000Z",
 		});
+		const duplicateSale = await createSaleEvent(client, {
+			eventId: `PAYPAL-SALE-DUPLICATE-DELIVERY-${RUN_ID}`,
+			paymentId: firstPaymentId,
+			occurredAt: "2026-01-31T00:00:30.000Z",
+		});
 
 		await expect(
 			processProviderPaymentEvent({ paymentEventId: firstSale.id }, client, {
 				attempt: 1,
-				maxAttempts: 3,
+				maxAttempts: 8,
+			}),
+		).rejects.toThrow("PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISSING");
+		await expect(
+			processProviderPaymentEvent({ paymentEventId: duplicateSale.id }, client, {
+				attempt: 8,
+				maxAttempts: 8,
 			}),
 		).rejects.toThrow("PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISSING");
 		await expect(
@@ -150,7 +168,56 @@ describe("PayPal subscription payment recovery", () => {
 		).resolves.toMatchObject({
 			status: "FAILED",
 			lastErrorClass: "TRANSIENT",
-			failureReason: "PAYMENT_EVENT_RETRYABLE_FAILURE",
+			failureReason: "PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISSING",
+		});
+		await expect(
+			client.paymentEvent.findUnique({ where: { id: duplicateSale.id } }),
+		).resolves.toMatchObject({
+			status: "DEAD_LETTER",
+			lastErrorClass: "TRANSIENT",
+			failureReason: "PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISSING",
+		});
+		const unrelatedIdentity = await client.paymentEvent.create({
+			data: {
+				provider: "paypal",
+				providerEventId: `PAYPAL-UNRELATED-SUBSCRIPTION-${RUN_ID}`,
+				providerSubscriptionId: `I-UNRELATED-${RUN_ID}`,
+				verifiedAt: new Date("2026-01-31T00:00:45.000Z"),
+				status: "DEAD_LETTER",
+				failureReason: "PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISSING",
+				attemptCount: 8,
+				lastErrorClass: "TRANSIENT",
+				envelope: {
+					ownerId,
+					resource: { billing_agreement_id: providerSubscriptionId },
+				},
+			},
+		});
+		const unrelatedFailure = await client.paymentEvent.create({
+			data: {
+				provider: "paypal",
+				providerEventId: `PAYPAL-UNRELATED-FAILURE-${RUN_ID}`,
+				providerSubscriptionId,
+				verifiedAt: new Date("2026-01-31T00:00:46.000Z"),
+				status: "DEAD_LETTER",
+				failureReason: "PAYMENT_EVENT_RETRYABLE_FAILURE",
+				attemptCount: 8,
+				lastErrorClass: "TRANSIENT",
+				envelope: { ownerId },
+			},
+		});
+		const unrelatedProvider = await client.paymentEvent.create({
+			data: {
+				provider: "waffo",
+				providerEventId: `WAFFO-SAME-SUBSCRIPTION-${RUN_ID}`,
+				providerSubscriptionId,
+				verifiedAt: new Date("2026-01-31T00:00:47.000Z"),
+				status: "DEAD_LETTER",
+				failureReason: "PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISSING",
+				attemptCount: 8,
+				lastErrorClass: "TRANSIENT",
+				envelope: { ownerId },
+			},
 		});
 		await expect(client.creditAccount.findFirst({ where: { ownerId } })).resolves.toBeNull();
 
@@ -159,6 +226,7 @@ describe("PayPal subscription payment recovery", () => {
 			data: {
 				provider: "paypal",
 				providerEventId: activationEventId,
+				providerSubscriptionId,
 				verifiedAt: new Date("2026-01-31T00:01:00.000Z"),
 				envelope: {
 					id: activationEventId,
@@ -182,23 +250,121 @@ describe("PayPal subscription payment recovery", () => {
 		await expect(
 			processProviderPaymentEvent({ paymentEventId: activation.id }, client),
 		).resolves.toEqual({ outcome: "PROCESSED", grantsCreated: 0 });
-		await expect(client.creditAccount.findFirst({ where: { ownerId } })).resolves.toBeNull();
-
-		await expect(
-			processProviderPaymentEvent({ paymentEventId: firstSale.id }, client, {
-				attempt: 2,
-				maxAttempts: 3,
-			}),
-		).resolves.toEqual({ outcome: "PROCESSED", grantsCreated: 1 });
-
-		const duplicateSale = await createSaleEvent(client, {
-			eventId: `PAYPAL-SALE-DUPLICATE-DELIVERY-${RUN_ID}`,
-			paymentId: firstPaymentId,
-			occurredAt: "2026-01-31T00:00:30.000Z",
+		const replayActivationEventId = `PAYPAL-ACTIVATION-REPLAY-${RUN_ID}`;
+		const replayActivation = await client.paymentEvent.create({
+			data: {
+				provider: "paypal",
+				providerEventId: replayActivationEventId,
+				providerSubscriptionId,
+				verifiedAt: new Date("2026-01-31T00:02:00.000Z"),
+				envelope: {
+					id: replayActivationEventId,
+					event_type: "BILLING.SUBSCRIPTION.ACTIVATED",
+					create_time: "2026-01-31T00:02:00.000Z",
+					resource: {
+						id: providerSubscriptionId,
+						custom_id: checkoutIntentId,
+						subscriber: { payer_id: `PAYER-${RUN_ID}` },
+						billing_info: {
+							last_payment: {
+								time: "2026-01-31T00:00:00.000Z",
+								amount: { value: "19.00", currency_code: "USD" },
+							},
+							next_billing_time: "2026-02-28T00:00:00.000Z",
+						},
+					},
+				},
+			},
 		});
 		await expect(
-			processProviderPaymentEvent({ paymentEventId: duplicateSale.id }, client),
+			processProviderPaymentEvent({ paymentEventId: replayActivation.id }, client),
 		).resolves.toEqual({ outcome: "PROCESSED", grantsCreated: 0 });
+		await expect(client.creditAccount.findFirst({ where: { ownerId } })).resolves.toBeNull();
+		await expect(
+			client.paymentEvent.findMany({
+				where: { id: { in: [firstSale.id, duplicateSale.id] } },
+				orderBy: { id: "asc" },
+			}),
+		).resolves.toEqual([
+			expect.objectContaining({ status: "FAILED" }),
+			expect.objectContaining({ status: "FAILED" }),
+		]);
+		const replayOutbox = await client.outboxEvent.findMany({
+			where: {
+				eventType: "PAYMENT_EVENT_RECEIVED",
+				aggregateId: { in: [firstSale.id, duplicateSale.id] },
+			},
+			orderBy: { aggregateId: "asc" },
+		});
+		expect(replayOutbox).toEqual([
+			expect.objectContaining({
+				aggregateType: "PAYMENT_EVENT",
+				payload: { paymentEventId: expect.any(String) },
+				status: "PENDING",
+			}),
+			expect.objectContaining({
+				aggregateType: "PAYMENT_EVENT",
+				payload: { paymentEventId: expect.any(String) },
+				status: "PENDING",
+			}),
+		]);
+		for (const outbox of replayOutbox) {
+			expect(outbox.payload).toEqual({ paymentEventId: outbox.aggregateId });
+			expect(outbox.dedupeKey).toBe(`payment-event-correlation-replay:${outbox.aggregateId}`);
+		}
+		await expect(
+			client.paymentEvent.findMany({
+				where: { id: { in: [unrelatedIdentity.id, unrelatedFailure.id, unrelatedProvider.id] } },
+				orderBy: { id: "asc" },
+				select: { status: true },
+			}),
+		).resolves.toEqual([
+			{ status: "DEAD_LETTER" },
+			{ status: "DEAD_LETTER" },
+			{ status: "DEAD_LETTER" },
+		]);
+		await expect(
+			client.outboxEvent.count({
+				where: {
+					aggregateId: { in: [unrelatedIdentity.id, unrelatedFailure.id, unrelatedProvider.id] },
+				},
+			}),
+		).resolves.toBe(0);
+
+		const replayResults: Array<{ outcome: string; grantsCreated: number }> = [];
+		for (const outbox of replayOutbox) {
+			await deliverOutboxEvent(
+				{
+					id: outbox.id,
+					eventType: outbox.eventType,
+					aggregateId: outbox.aggregateId,
+					payload: outbox.payload,
+					leaseToken: `test-lease-${outbox.id}`,
+					attempts: 1,
+				},
+				{
+					async trigger(taskId, payload) {
+						expect(taskId).toBe("media-process-payment-event");
+						if (typeof payload.paymentEventId !== "string") {
+							throw new Error("PAYMENT_EVENT_ID_MISSING_FROM_OUTBOX");
+						}
+						replayResults.push(
+							await processProviderPaymentEvent(
+								{ paymentEventId: payload.paymentEventId },
+								client,
+								{ attempt: 1, maxAttempts: 8 },
+							),
+						);
+					},
+					async resolveDispatchRoute() {
+						return null;
+					},
+				},
+			);
+		}
+		expect(replayResults.map(({ grantsCreated }) => grantsCreated).sort((a, b) => a - b)).toEqual([
+			0, 1,
+		]);
 
 		const renewalPaymentId = `SALE-RENEWAL-${RUN_ID}`;
 		const renewal = await createSaleEvent(client, {
@@ -303,6 +469,7 @@ describe("PayPal subscription payment recovery", () => {
 			data: {
 				provider: "paypal",
 				providerEventId: activationEventId,
+				providerSubscriptionId: annualSubscriptionId,
 				verifiedAt: new Date("2028-02-29T00:01:00.000Z"),
 				envelope: {
 					id: activationEventId,
@@ -392,6 +559,7 @@ async function createSaleEvent(
 		data: {
 			provider: "paypal",
 			providerEventId: input.eventId,
+			providerSubscriptionId: input.providerSubscriptionId ?? providerSubscriptionId,
 			verifiedAt: new Date(input.occurredAt),
 			envelope: {
 				id: input.eventId,

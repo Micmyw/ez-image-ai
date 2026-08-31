@@ -56,4 +56,27 @@ describe("provider-aware payment schema parity", () => {
 			expect(config.indexes.some((index) => index.config.unique)).toBe(true);
 		}
 	});
+
+	it("keeps checkout session and provider order identities separate in every Drizzle variant", () => {
+		const configs = [
+			getPostgresTableConfig(postgresCheckoutIntent),
+			getMySqlTableConfig(mySqlCheckoutIntent),
+			getSqliteTableConfig(sqliteCheckoutIntent),
+		];
+
+		for (const config of configs) {
+			expect(config.columns.map((column) => column.name)).toEqual(
+				expect.arrayContaining(["providerSessionId", "providerOrderId"]),
+			);
+			expect(
+				config.indexes.some((index) => {
+					if (!index.config.unique) return false;
+					const columns = index.config.columns.map((column) =>
+						"name" in column ? column.name : null,
+					);
+					return columns[0] === "provider" && columns[1] === "providerOrderId";
+				}),
+			).toBe(true);
+		}
+	});
 });

@@ -41,6 +41,7 @@ describe("shared payment webhook routing", () => {
 		const verifier = vi.fn().mockResolvedValue({
 			providerEventId: "delivery-1",
 			normalizedTransactionId: "payment-1",
+			providerSubscriptionId: "order-1",
 			envelope: { id: "delivery-1", data: { amount: "19.00" } },
 		});
 		const persist = vi.fn().mockResolvedValue({ replayed: false });
@@ -64,6 +65,7 @@ describe("shared payment webhook routing", () => {
 				provider: "waffo",
 				providerEventId: "delivery-1",
 				normalizedTransactionId: "payment-1",
+				providerSubscriptionId: "order-1",
 				envelope: { id: "delivery-1", data: { amount: "19.00" } },
 			}),
 		);

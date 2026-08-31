@@ -54,6 +54,10 @@
   subscription state without granting credits, and PayPal activation persists trusted billing
   timing without inventing a payment ID. Only verified Waffo payment IDs and PayPal sale IDs grant
   once, including stable month-end and leap-year renewal periods.
+- Made PayPal sale-first recovery durable by indexing the verified subscription identity and
+  atomically requeuing only correlation-missing events through the existing Outbox worker path.
+  Waffo now preserves its checkout session separately while the first verified webhook binds one
+  provider-scoped order, rejecting conflicting order races without duplicating subscriptions.
 
 ## 2026-08-29
 

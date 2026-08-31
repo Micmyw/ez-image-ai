@@ -37,9 +37,63 @@ export interface IngestPaymentEventInput {
 	provider: string;
 	providerEventId: string;
 	normalizedTransactionId?: string;
+	providerSubscriptionId?: string;
 	verifiedAt: Date;
 	receivedAt?: Date;
 	envelope: Prisma.InputJsonValue;
+}
+
+export const PAYMENT_PROVIDER_CORRELATION_MISSING = "PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISSING";
+
+export async function requeuePaymentEventsMissingCheckoutCorrelation(
+	input: { provider: string; providerSubscriptionId: string },
+	client: Prisma.TransactionClient,
+): Promise<{ requeued: number }> {
+	const candidates = await client.$queryRaw<Array<{ id: string }>>`
+		SELECT "id"
+		FROM "payment_event"
+		WHERE "provider" = ${input.provider}
+		  AND "providerSubscriptionId" = ${input.providerSubscriptionId}
+		  AND "status" IN ('FAILED', 'DEAD_LETTER')
+		  AND "lastErrorClass" = 'TRANSIENT'
+		  AND "failureReason" = ${PAYMENT_PROVIDER_CORRELATION_MISSING}
+		ORDER BY "receivedAt", "id"
+		FOR UPDATE SKIP LOCKED`;
+	let requeued = 0;
+	for (const candidate of candidates) {
+		const changed = await client.paymentEvent.updateMany({
+			where: {
+				id: candidate.id,
+				provider: input.provider,
+				providerSubscriptionId: input.providerSubscriptionId,
+				status: { in: ["FAILED", "DEAD_LETTER"] },
+				lastErrorClass: "TRANSIENT",
+				failureReason: PAYMENT_PROVIDER_CORRELATION_MISSING,
+			},
+			data: {
+				status: "FAILED",
+				attemptCount: 0,
+				processedAt: null,
+				processingToken: null,
+				processingLeasedUntil: null,
+			},
+		});
+		if (changed.count !== 1) continue;
+		const dedupeKey = `payment-event-correlation-replay:${candidate.id}`;
+		await client.outboxEvent.upsert({
+			where: { dedupeKey },
+			create: {
+				eventType: "PAYMENT_EVENT_RECEIVED",
+				aggregateType: "PAYMENT_EVENT",
+				aggregateId: candidate.id,
+				dedupeKey,
+				payload: { paymentEventId: candidate.id },
+			},
+			update: {},
+		});
+		requeued += 1;
+	}
+	return { requeued };
 }
 
 export async function ingestPaymentEvent(

@@ -330,6 +330,7 @@ export const paymentCheckoutIntent = mysqlTable(
 		interval: varchar("interval", { length: 16 }).notNull(),
 		idempotencyKey: varchar("idempotencyKey", { length: 255 }).notNull(),
 		providerSessionId: varchar("providerSessionId", { length: 255 }),
+		providerOrderId: varchar("providerOrderId", { length: 255 }),
 		providerCheckoutUrl: text("providerCheckoutUrl"),
 		activeScopeKey: varchar("activeScopeKey", { length: 768 }),
 		status: mysqlEnum("status", [
@@ -356,6 +357,10 @@ export const paymentCheckoutIntent = mysqlTable(
 		uniqueIndex("payment_checkout_intent_provider_session_uidx").on(
 			table.provider,
 			table.providerSessionId,
+		),
+		uniqueIndex("payment_checkout_intent_provider_order_uidx").on(
+			table.provider,
+			table.providerOrderId,
 		),
 		uniqueIndex("payment_checkout_intent_activeScopeKey_uidx").on(table.activeScopeKey),
 		index("payment_checkout_intent_owner_plan_status_idx").on(

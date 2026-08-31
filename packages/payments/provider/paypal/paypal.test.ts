@@ -117,7 +117,8 @@ describe("PayPal REST boundary", () => {
 	});
 
 	it("verifies the exact raw event through PayPal before returning it", async () => {
-		const rawBody = '{"id":"WH-1","event_type":"BILLING.SUBSCRIPTION.ACTIVATED"}';
+		const rawBody =
+			'{"id":"WH-1","event_type":"PAYMENT.SALE.COMPLETED","resource":{"id":"SALE-1","billing_agreement_id":"I-SUBSCRIPTION"}}';
 		const request = vi.fn<PayPalHttpBoundary["request"]>().mockResolvedValue({
 			status: 200,
 			body: { verification_status: "SUCCESS" },
@@ -140,8 +141,13 @@ describe("PayPal REST boundary", () => {
 
 		await expect(verifier(rawBody, headers)).resolves.toEqual({
 			providerEventId: "WH-1",
-			normalizedTransactionId: undefined,
-			envelope: { id: "WH-1", event_type: "BILLING.SUBSCRIPTION.ACTIVATED" },
+			normalizedTransactionId: "SALE-1",
+			providerSubscriptionId: "I-SUBSCRIPTION",
+			envelope: {
+				id: "WH-1",
+				event_type: "PAYMENT.SALE.COMPLETED",
+				resource: { id: "SALE-1", billing_agreement_id: "I-SUBSCRIPTION" },
+			},
 		});
 		expect(request).toHaveBeenCalledWith({
 			method: "POST",
@@ -159,7 +165,8 @@ describe("PayPal REST boundary", () => {
 				webhook_id: "WH-CONFIGURED",
 				webhook_event: {
 					id: "WH-1",
-					event_type: "BILLING.SUBSCRIPTION.ACTIVATED",
+					event_type: "PAYMENT.SALE.COMPLETED",
+					resource: { id: "SALE-1", billing_agreement_id: "I-SUBSCRIPTION" },
 				},
 			},
 		});

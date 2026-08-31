@@ -1,4 +1,10 @@
-import { createCreditGrant, type Prisma } from "@repo/database";
+import {
+	createCreditGrant,
+	isDatabaseUniqueConflict,
+	PAYMENT_PROVIDER_CORRELATION_MISSING,
+	requeuePaymentEventsMissingCheckoutCorrelation,
+	type Prisma,
+} from "@repo/database";
 
 import type {
 	ProviderBillingFact,
@@ -43,10 +49,11 @@ export async function applyProviderBillingFact(
 	const subscriptionExisted = Boolean(subscription);
 	if (!subscription) {
 		if (fact.payment && (!fact.payment.periodStart || !fact.payment.periodEnd)) {
-			throw new Error("PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISSING");
+			throw new Error(PAYMENT_PROVIDER_CORRELATION_MISSING);
 		}
-		assertCheckoutCorrelation(fact, checkoutIntent);
-		const providerCustomerId = requiredInitialCustomer(fact, checkoutIntent!);
+		if (!checkoutIntent) throw new Error(PAYMENT_PROVIDER_CORRELATION_MISSING);
+		const providerCustomerId = requiredInitialCustomer(fact, checkoutIntent);
+		await assertAndBindCheckoutCorrelation(fact, checkoutIntent, client);
 		await assertAndPersistCustomer(
 			fact.provider,
 			checkoutIntent!.ownerType,
@@ -131,7 +138,9 @@ export async function applyProviderBillingFact(
 			where: {
 				id: checkoutIntent.id,
 				provider: fact.provider,
-				providerSessionId: fact.providerSubscriptionId,
+				...(fact.provider === "waffo"
+					? { providerOrderId: fact.providerSubscriptionId }
+					: { providerSessionId: fact.providerSubscriptionId }),
 				status: "PROVIDER_PENDING",
 			},
 			data: { status: "COMPLETED", activeScopeKey: null },
@@ -154,25 +163,67 @@ export async function applyProviderBillingFact(
 				client,
 			)
 		: 0;
+	if (
+		fact.provider === "paypal" &&
+		fact.status === "ACTIVE" &&
+		fact.currentPeriod &&
+		!fact.payment
+	) {
+		await requeuePaymentEventsMissingCheckoutCorrelation(
+			{
+				provider: fact.provider,
+				providerSubscriptionId: fact.providerSubscriptionId,
+			},
+			client,
+		);
+	}
 	return { grantsCreated };
 }
 
-function assertCheckoutCorrelation(
+async function assertAndBindCheckoutCorrelation(
 	fact: ProviderBillingFact,
 	checkoutIntent:
 		| (Awaited<ReturnType<TransactionClient["paymentCheckoutIntent"]["findUnique"]>> & {
 				billingPlan?: unknown;
 		  })
 		| null,
-): void {
+	client: TransactionClient,
+): Promise<void> {
 	if (!checkoutIntent) {
-		throw new Error("PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISSING");
+		throw new Error(PAYMENT_PROVIDER_CORRELATION_MISSING);
 	}
 	if (checkoutIntent.provider !== fact.provider || checkoutIntent.status !== "PROVIDER_PENDING") {
 		throw new Error("PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISMATCH");
 	}
-	if (checkoutIntent.providerSessionId !== fact.providerSubscriptionId) {
+	if (
+		fact.provider === "paypal" &&
+		checkoutIntent.providerSessionId !== fact.providerSubscriptionId
+	) {
 		throw new Error("PAYMENT_PROVIDER_CHECKOUT_SESSION_MISMATCH");
+	}
+	if (fact.provider !== "waffo") return;
+	if (checkoutIntent.providerOrderId === fact.providerSubscriptionId) return;
+	if (checkoutIntent.providerOrderId !== null) {
+		throw new Error("PAYMENT_PROVIDER_CHECKOUT_ORDER_MISMATCH");
+	}
+	try {
+		const bound = await client.paymentCheckoutIntent.updateMany({
+			where: {
+				id: checkoutIntent.id,
+				provider: fact.provider,
+				ownerType: checkoutIntent.ownerType,
+				ownerId: checkoutIntent.ownerId,
+				status: "PROVIDER_PENDING",
+				providerOrderId: null,
+			},
+			data: { providerOrderId: fact.providerSubscriptionId },
+		});
+		if (bound.count !== 1) throw new Error("PAYMENT_PROVIDER_CHECKOUT_ORDER_MISMATCH");
+	} catch (error) {
+		if (isDatabaseUniqueConflict(error)) {
+			throw new Error("PAYMENT_PROVIDER_CHECKOUT_ORDER_CONFLICT");
+		}
+		throw error;
 	}
 }
 
@@ -239,6 +290,7 @@ function assertExistingSubscription(
 		ownerId: string;
 		billingPlanId: string;
 		providerSessionId: string | null;
+		providerOrderId: string | null;
 	} | null,
 ): void {
 	if (
@@ -252,7 +304,9 @@ function assertExistingSubscription(
 	if (
 		checkoutIntent &&
 		(checkoutIntent.provider !== fact.provider ||
-			checkoutIntent.providerSessionId !== fact.providerSubscriptionId ||
+			(fact.provider === "waffo"
+				? checkoutIntent.providerOrderId !== fact.providerSubscriptionId
+				: checkoutIntent.providerSessionId !== fact.providerSubscriptionId) ||
 			checkoutIntent.ownerType !== subscription.ownerType ||
 			checkoutIntent.ownerId !== subscription.ownerId ||
 			checkoutIntent.billingPlanId !== subscription.planId)
@@ -384,7 +438,7 @@ async function validatePayment(
 			!subscription.currentPeriodStart ||
 			!subscription.currentPeriodEnd
 		) {
-			throw new Error("PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISSING");
+			throw new Error(PAYMENT_PROVIDER_CORRELATION_MISSING);
 		}
 		if (
 			fact.occurredAt >= subscription.currentPeriodStart &&

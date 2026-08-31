@@ -350,6 +350,7 @@ export const paymentCheckoutIntent = sqliteTable(
 		interval: text("interval").notNull(),
 		idempotencyKey: text("idempotencyKey").notNull(),
 		providerSessionId: text("providerSessionId"),
+		providerOrderId: text("providerOrderId"),
 		providerCheckoutUrl: text("providerCheckoutUrl"),
 		activeScopeKey: text("activeScopeKey"),
 		status: text("status", {
@@ -383,6 +384,10 @@ export const paymentCheckoutIntent = sqliteTable(
 		uniqueIndex("payment_checkout_intent_provider_session_uidx").on(
 			table.provider,
 			table.providerSessionId,
+		),
+		uniqueIndex("payment_checkout_intent_provider_order_uidx").on(
+			table.provider,
+			table.providerOrderId,
 		),
 		uniqueIndex("payment_checkout_intent_activeScopeKey_uidx").on(table.activeScopeKey),
 		index("payment_checkout_intent_owner_plan_status_idx").on(

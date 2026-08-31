@@ -13,11 +13,16 @@ const DATABASE_URL = process.env.DATABASE_URL;
 const RUN_ID = crypto.randomUUID();
 const ownerId = `provider-lifecycle-owner-${RUN_ID}`;
 const planId = `provider-lifecycle-plan-${RUN_ID}`;
+const providerSessionId = `session-${RUN_ID}`;
 const providerSubscriptionId = `order-${RUN_ID}`;
+const raceOwnerId = `provider-lifecycle-race-owner-${RUN_ID}`;
+const racePlanId = `provider-lifecycle-race-plan-${RUN_ID}`;
+const raceSessionId = `race-session-${RUN_ID}`;
 
 describe("provider-neutral payment lifecycle", () => {
 	let client: PrismaClient;
 	let checkoutIntentId: string;
+	let raceCheckoutIntentId: string;
 
 	beforeAll(async () => {
 		client = new PrismaClient({
@@ -38,6 +43,28 @@ describe("provider-neutral payment lifecycle", () => {
 				id: planId,
 				provider: "waffo",
 				providerPriceId: "PROD_0123456789AbCdEfGhIjKl",
+				name: "creator",
+				creditsPerPeriod: 1_000n,
+				priceMicros: 19_000_000n,
+				currency: "USD",
+				metadata: { planId: "creator", interval: "month", version: 1 },
+			},
+		});
+		await client.user.create({
+			data: {
+				id: raceOwnerId,
+				name: "Provider Lifecycle Race Owner",
+				email: `${raceOwnerId}@example.test`,
+				emailVerified: true,
+				createdAt: new Date("2026-08-01T00:00:00Z"),
+				updatedAt: new Date("2026-08-01T00:00:00Z"),
+			},
+		});
+		await client.billingPlan.create({
+			data: {
+				id: racePlanId,
+				provider: "waffo",
+				providerPriceId: "PROD_0123456789QrStUvWxYzAb",
 				name: "creator",
 				creditsPerPeriod: 1_000n,
 				priceMicros: 19_000_000n,
@@ -68,8 +95,37 @@ describe("provider-neutral payment lifecycle", () => {
 			{
 				intentId: checkoutIntentId,
 				provider: "waffo",
-				providerSessionId: providerSubscriptionId,
+				providerSessionId,
 				providerCheckoutUrl: `https://pancake.waffo.ai/checkout/${RUN_ID}`,
+				expiresAt: new Date("2026-08-01T01:00:00.000Z"),
+			},
+			client,
+		);
+		const raceCheckout = await createPaymentCheckoutIntent(
+			{
+				provider: "waffo",
+				ownerType: "USER",
+				ownerId: raceOwnerId,
+				submittedByUserId: raceOwnerId,
+				billingPlanId: racePlanId,
+				planKey: "creator",
+				interval: "month",
+				idempotencyKey: `race-checkout-${RUN_ID}`,
+				now: new Date("2026-08-01T00:00:00Z"),
+			},
+			client,
+		);
+		raceCheckoutIntentId = raceCheckout.intent.id;
+		await markPaymentCheckoutIntentProviderCreating(
+			{ intentId: raceCheckoutIntentId, provider: "waffo" },
+			client,
+		);
+		await bindPaymentCheckoutIntentSession(
+			{
+				intentId: raceCheckoutIntentId,
+				provider: "waffo",
+				providerSessionId: raceSessionId,
+				providerCheckoutUrl: `https://pancake.waffo.ai/checkout/race-${RUN_ID}`,
 				expiresAt: new Date("2026-08-01T01:00:00.000Z"),
 			},
 			client,
@@ -88,34 +144,91 @@ describe("provider-neutral payment lifecycle", () => {
 				where: { targetType: "PAYMENT_EVENT", targetId: { in: paymentEventIds } },
 			});
 			await tx.paymentEvent.deleteMany({ where: { id: { in: paymentEventIds } } });
-			const subscription = await tx.subscription.findFirst({ where: { ownerId } });
-			const creditAccount = await tx.creditAccount.findFirst({
-				where: { ownerId },
+			const ownerIds = [ownerId, raceOwnerId];
+			const subscriptions = await tx.subscription.findMany({
+				where: { ownerId: { in: ownerIds } },
 				select: { id: true },
 			});
-			if (creditAccount) {
+			const creditAccounts = await tx.creditAccount.findMany({
+				where: { ownerId: { in: ownerIds } },
+				select: { id: true },
+			});
+			if (creditAccounts.length > 0) {
 				await tx.$executeRaw`ALTER TABLE "credit_ledger_entry" DISABLE TRIGGER "credit_ledger_entry_immutable"`;
 				try {
 					await tx.creditLedgerEntry.deleteMany({
-						where: { accountId: creditAccount.id },
+						where: { accountId: { in: creditAccounts.map(({ id }) => id) } },
 					});
 				} finally {
 					await tx.$executeRaw`ALTER TABLE "credit_ledger_entry" ENABLE TRIGGER "credit_ledger_entry_immutable"`;
 				}
-				await tx.creditLot.deleteMany({ where: { accountId: creditAccount.id } });
+				await tx.creditLot.deleteMany({
+					where: { accountId: { in: creditAccounts.map(({ id }) => id) } },
+				});
 			}
-			if (subscription) {
-				await tx.billingPeriod.deleteMany({ where: { subscriptionId: subscription.id } });
-				await tx.subscription.delete({ where: { id: subscription.id } });
+			if (subscriptions.length > 0) {
+				await tx.billingPeriod.deleteMany({
+					where: { subscriptionId: { in: subscriptions.map(({ id }) => id) } },
+				});
+				await tx.subscription.deleteMany({
+					where: { id: { in: subscriptions.map(({ id }) => id) } },
+				});
 			}
-			await tx.creditAccount.deleteMany({ where: { ownerId } });
-			await tx.purchase.deleteMany({ where: { userId: ownerId } });
-			await tx.paymentCustomer.deleteMany({ where: { ownerId } });
-			await tx.paymentCheckoutIntent.deleteMany({ where: { ownerId } });
-			await tx.billingPlan.deleteMany({ where: { id: planId } });
-			await tx.user.deleteMany({ where: { id: ownerId } });
+			await tx.creditAccount.deleteMany({ where: { ownerId: { in: ownerIds } } });
+			await tx.purchase.deleteMany({ where: { userId: { in: ownerIds } } });
+			await tx.paymentCustomer.deleteMany({ where: { ownerId: { in: ownerIds } } });
+			await tx.paymentCheckoutIntent.deleteMany({ where: { ownerId: { in: ownerIds } } });
+			await tx.billingPlan.deleteMany({ where: { id: { in: [planId, racePlanId] } } });
+			await tx.user.deleteMany({ where: { id: { in: ownerIds } } });
 		});
 		await client.$disconnect();
+	});
+
+	it("atomically binds only one of two concurrent Waffo orders to an unbound intent", async () => {
+		const orderIds = [`race-order-a-${RUN_ID}`, `race-order-b-${RUN_ID}`];
+		const events = await Promise.all(
+			orderIds.map((orderId, index) =>
+				client.paymentEvent.create({
+					data: {
+						provider: "waffo",
+						providerEventId: `race-activation-${index}-${RUN_ID}`,
+						providerSubscriptionId: orderId,
+						verifiedAt: new Date("2026-08-01T00:00:00Z"),
+						envelope: {
+							id: `race-activation-${index}-${RUN_ID}`,
+							eventType: "subscription.activated",
+							timestamp: "2026-08-01T00:00:00.000Z",
+							data: {
+								orderId,
+								orderMerchantExternalId: raceCheckoutIntentId,
+								merchantProvidedBuyerIdentity: `USER:${raceOwnerId}`,
+								amount: "19.000000",
+								currency: "USD",
+								currentPeriodStart: "2026-08-01T00:00:00.000Z",
+								currentPeriodEnd: "2026-09-01T00:00:00.000Z",
+							},
+						},
+					},
+				}),
+			),
+		);
+
+		const results = await Promise.all(
+			events.map((event) => processProviderPaymentEvent({ paymentEventId: event.id }, client)),
+		);
+		expect(results.map(({ outcome }) => outcome).sort()).toEqual(["DEAD_LETTER", "PROCESSED"]);
+		const intent = await client.paymentCheckoutIntent.findUniqueOrThrow({
+			where: { id: raceCheckoutIntentId },
+		});
+		expect(intent).toMatchObject({
+			providerSessionId: raceSessionId,
+			providerOrderId: expect.stringMatching(/^race-order-[ab]-/u),
+			status: "COMPLETED",
+		});
+		expect(orderIds).toContain(intent.providerOrderId);
+		await expect(
+			client.subscription.count({ where: { provider: "waffo", ownerId: raceOwnerId } }),
+		).resolves.toBe(1);
 	});
 
 	it("separates official Waffo activation from payment credit and rejects another order", async () => {
@@ -124,6 +237,7 @@ describe("provider-neutral payment lifecycle", () => {
 			data: {
 				provider: "waffo",
 				providerEventId: activationEventId,
+				providerSubscriptionId,
 				verifiedAt: new Date("2026-08-01T00:00:00Z"),
 				envelope: {
 					id: activationEventId,
@@ -145,6 +259,38 @@ describe("provider-neutral payment lifecycle", () => {
 		await expect(
 			processProviderPaymentEvent({ paymentEventId: activation.id }, client),
 		).resolves.toEqual({ outcome: "PROCESSED", grantsCreated: 0 });
+		const activationReplayId = `activation-replay-${RUN_ID}`;
+		const activationReplay = await client.paymentEvent.create({
+			data: {
+				provider: "waffo",
+				providerEventId: activationReplayId,
+				providerSubscriptionId,
+				verifiedAt: new Date("2026-08-01T00:00:30Z"),
+				envelope: {
+					id: activationReplayId,
+					eventType: "subscription.activated",
+					timestamp: "2026-08-01T00:00:30.000Z",
+					data: {
+						orderId: providerSubscriptionId,
+						orderMerchantExternalId: checkoutIntentId,
+						merchantProvidedBuyerIdentity: `USER:${ownerId}`,
+						amount: "19.000000",
+						currency: "USD",
+						currentPeriodStart: "2026-08-01T00:00:00.000Z",
+						currentPeriodEnd: "2026-09-01T00:00:00.000Z",
+					},
+				},
+			},
+		});
+		await expect(
+			processProviderPaymentEvent({ paymentEventId: activationReplay.id }, client),
+		).resolves.toEqual({ outcome: "PROCESSED", grantsCreated: 0 });
+		await expect(
+			processProviderPaymentEvent({ paymentEventId: activationReplay.id }, client),
+		).resolves.toEqual({ outcome: "SKIPPED", grantsCreated: 0 });
+		await expect(
+			client.subscription.count({ where: { provider: "waffo", ownerId } }),
+		).resolves.toBe(1);
 		await expect(
 			client.creditAccount.findUnique({
 				where: { ownerType_ownerId: { ownerType: "USER", ownerId } },
@@ -156,6 +302,7 @@ describe("provider-neutral payment lifecycle", () => {
 			data: {
 				provider: "waffo",
 				providerEventId: paymentEventId,
+				providerSubscriptionId,
 				verifiedAt: new Date("2026-08-01T00:01:00Z"),
 				envelope: {
 					id: paymentEventId,
@@ -186,6 +333,7 @@ describe("provider-neutral payment lifecycle", () => {
 			data: {
 				provider: "waffo",
 				providerEventId: maliciousEventId,
+				providerSubscriptionId: `different-order-${RUN_ID}`,
 				verifiedAt: new Date("2026-08-01T00:02:00Z"),
 				envelope: {
 					id: maliciousEventId,
@@ -219,7 +367,12 @@ describe("provider-neutral payment lifecycle", () => {
 
 		await expect(
 			client.paymentCheckoutIntent.findUnique({ where: { id: checkoutIntentId } }),
-		).resolves.toMatchObject({ status: "COMPLETED", activeScopeKey: null });
+		).resolves.toMatchObject({
+			status: "COMPLETED",
+			activeScopeKey: null,
+			providerSessionId,
+			providerOrderId: providerSubscriptionId,
+		});
 		await expect(
 			client.paymentEvent.findUnique({ where: { id: payment.id } }),
 		).resolves.toMatchObject({

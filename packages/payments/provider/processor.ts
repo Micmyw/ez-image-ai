@@ -1,4 +1,10 @@
-import { claimPaymentEvent, failPaymentEvent, runSerializable, type Prisma } from "@repo/database";
+import {
+	claimPaymentEvent,
+	failPaymentEvent,
+	PAYMENT_PROVIDER_CORRELATION_MISSING,
+	runSerializable,
+	type Prisma,
+} from "@repo/database";
 import { logger } from "@repo/logs";
 
 import { normalizeProviderBillingEvent } from "./lifecycle-normalization";
@@ -189,11 +195,12 @@ function nonStripeProvider(provider: string): NonStripeProvider {
 
 function classifyPaymentEventError(error: unknown): "TERMINAL" | "TRANSIENT" {
 	const message = error instanceof Error ? error.message : "";
-	if (message === "PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISSING") return "TRANSIENT";
+	if (message === PAYMENT_PROVIDER_CORRELATION_MISSING) return "TRANSIENT";
 	return /^(?:PAYMENT_PROVIDER|PAYPAL|WAFFO)_[A-Z0-9_]+$/.test(message) ? "TERMINAL" : "TRANSIENT";
 }
 
 function safeFailureReason(error: unknown, errorClass: "TERMINAL" | "TRANSIENT"): string {
 	const message = error instanceof Error ? error.message : "";
+	if (message === PAYMENT_PROVIDER_CORRELATION_MISSING) return message;
 	return errorClass === "TERMINAL" ? message : "PAYMENT_EVENT_RETRYABLE_FAILURE";
 }

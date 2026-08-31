@@ -3,6 +3,7 @@ import type { PaymentProviderName } from "../types";
 export interface VerifiedPaymentEvent {
 	providerEventId: string;
 	normalizedTransactionId?: string;
+	providerSubscriptionId?: string;
 	envelope: Record<string, unknown>;
 }
 
@@ -17,6 +18,7 @@ interface PaymentWebhookDependencies {
 		provider: PaymentProviderName;
 		providerEventId: string;
 		normalizedTransactionId?: string;
+		providerSubscriptionId?: string;
 		verifiedAt: Date;
 		receivedAt: Date;
 		envelope: Record<string, unknown>;
@@ -51,6 +53,7 @@ export function createPaymentWebhookHandler(dependencies: PaymentWebhookDependen
 				provider,
 				providerEventId: verified.providerEventId,
 				normalizedTransactionId: verified.normalizedTransactionId,
+				providerSubscriptionId: verified.providerSubscriptionId,
 				verifiedAt: now,
 				receivedAt: now,
 				envelope: verified.envelope,
