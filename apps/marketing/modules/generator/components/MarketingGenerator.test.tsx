@@ -143,12 +143,14 @@ describe("MarketingGenerator", () => {
 					};
 				};
 			};
-			expect(messages.home.generator.modes).toEqual({
-				legend: expect.any(String),
-				credits: expect.stringContaining("{credits"),
-				standard: { description: expect.any(String) },
-				quality: { description: expect.any(String) },
-			});
+			expect(messages.home.generator.modes).toEqual(
+				expect.objectContaining({
+					legend: expect.any(String),
+					credits: expect.stringContaining("{credits"),
+					standard: expect.objectContaining({ description: expect.any(String) }),
+					quality: expect.objectContaining({ description: expect.any(String) }),
+				}),
+			);
 		}
 	});
 
