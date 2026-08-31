@@ -2,6 +2,18 @@
 
 ## 2026-08-31
 
+### Multi-tier image editing
+
+- Added server-advertised Standard and Quality tier selection to the public landing editor, carrying
+  only the stable product key through the private guest draft, claim, and authenticated admission
+  flow. The responsive editor now supports drag/drop, preview, replacement, removal, deterministic
+  upload stages, retry preservation, and translated disabled-action guidance.
+- Added a strict server-only OpenRouter image adapter plus static worker routes for the exact
+  Sourceful fast/pro candidates. Both routes remain ineligible unless Provider enablement and the
+  separate certification gate are present; no Provider/model/cost details are exposed publicly.
+- Documented that real OpenRouter execution, cost/latency measurement, private-output verification,
+  human scoring, and production route certification remain `NOT_COMPLETED`.
+
 ### Unified public product
 
 - Moved the upload-first EzPic landing experience onto the SaaS `/` route so visitors can choose a

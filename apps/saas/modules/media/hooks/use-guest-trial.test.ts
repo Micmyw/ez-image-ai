@@ -362,9 +362,14 @@ describe("useGuestTrial", () => {
 
 		await trial.actions.submit("token-two");
 		trial = renderHook();
-		expect(api.submitGuestGeneration.mock.calls.map(([input]) => input.turnstileToken)).toEqual([
-			"token-one",
-			"token-two",
+		expect(
+			api.submitGuestGeneration.mock.calls.map(([input]) => ({
+				productKey: input.productKey,
+				turnstileToken: input.turnstileToken,
+			})),
+		).toEqual([
+			{ productKey: "image-fast", turnstileToken: "token-one" },
+			{ productKey: "image-fast", turnstileToken: "token-two" },
 		]);
 		expect(trial.view.state).toBe("waiting");
 	});

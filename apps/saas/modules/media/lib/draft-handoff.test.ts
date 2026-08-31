@@ -24,6 +24,17 @@ function request(
 	});
 }
 
+function paidAccountRequest() {
+	return new Request("https://app.example.com/draft/continue", {
+		method: "POST",
+		headers: {
+			Origin: "https://www.example.com",
+			"Content-Type": "application/x-www-form-urlencoded",
+		},
+		body: new URLSearchParams({ intent: "continue-account-draft", claimToken }),
+	});
+}
+
 describe("draft handoff POST", () => {
 	it("sets the scoped HttpOnly cookie and redirects through the configured SaaS origin", async () => {
 		const response = await createDraftHandoffResponse(
@@ -59,6 +70,22 @@ describe("draft handoff POST", () => {
 				isRegistered: false,
 			}),
 		).rejects.toThrow("FORBIDDEN_ORIGIN");
+	});
+
+	it("routes a paid-tier draft through login without creating an anonymous bootstrap", async () => {
+		const response = await createDraftHandoffResponse(paidAccountRequest(), {
+			marketingOrigin: "https://www.example.com",
+			saasOrigin: "https://app.example.com",
+			secure: true,
+			isRegistered: false,
+		});
+
+		const location = new URL(response.headers.get("location")!);
+		expect(location.pathname).toBe("/login");
+		expect(location.searchParams.get("redirectTo")).toBe("/draft/continue");
+		const cookies = response.headers.getSetCookie().join("\n");
+		expect(cookies).toContain(`media_draft_claim=${claimToken}`);
+		expect(cookies).not.toContain("media_guest_bootstrap");
 	});
 
 	it("restores consent and the anonymous funnel hash on the SaaS origin", async () => {

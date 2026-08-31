@@ -47,6 +47,7 @@ export interface GuestAdmissionBoundary {
 
 export interface SubmitGuestGenerationInput {
 	capabilityVersion: string;
+	productKey: string;
 	sourceAssetId: string;
 	prompt: string;
 	idempotencyKey: string;
@@ -261,6 +262,9 @@ export async function submitGuestGenerationForGuest(
 			"CAPABILITY",
 			error,
 		);
+	}
+	if (input.productKey !== loaded.config.productKey) {
+		throw new Error("GUEST_PRODUCT_UNAVAILABLE");
 	}
 	let verifiedTurnstile: VerifiedGuestTurnstileToken;
 	try {

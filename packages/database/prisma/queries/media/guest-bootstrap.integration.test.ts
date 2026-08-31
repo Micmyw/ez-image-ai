@@ -731,6 +731,7 @@ describe("guest bootstrap consumption", () => {
 							capabilityVersion: fixture.capabilityVersion,
 							promotionPeriod: fixture.promotionPeriod,
 							maximumOutstandingBootstraps,
+							productKey: "image-fast",
 							prompt: `Concurrent cap contender ${index}`,
 							expiresAt: new Date(fixture.now.getTime() + 30 * 60_000),
 							verification: fixture.verification,

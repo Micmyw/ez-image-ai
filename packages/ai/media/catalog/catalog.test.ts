@@ -29,7 +29,7 @@ describe("media product catalog", () => {
 						sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
 					},
 				}),
-			).toMatchObject({ credits, pricingVersion: "2026-08-25.1" });
+			).toMatchObject({ credits, pricingVersion: "2026-08-31.1" });
 			expect(() =>
 				quoteCatalogInput({
 					productKey,
@@ -73,6 +73,38 @@ describe("media product catalog", () => {
 		expect(serialized).not.toContain("providerModelId");
 		expect(serialized).not.toContain("providerCostMicros");
 		expect(serialized).not.toContain("weight");
+	});
+
+	it("registers the exact OpenRouter image candidates but requires the certification gate", () => {
+		expect(getCatalogEntry("image-fast").routes).toContainEqual({
+			provider: "openrouter",
+			providerModelId: "sourceful/riverflow-v2.5-fast",
+			providerCostMicros: 21_000,
+			weight: 100,
+		});
+		expect(getCatalogEntry("image-quality").routes).toContainEqual({
+			provider: "openrouter",
+			providerModelId: "sourceful/riverflow-v2.5-pro",
+			providerCostMicros: 170_000,
+			weight: 100,
+		});
+
+		const uncertified = configuredRouteGraphOptionsFromEnvironment({
+			MEDIA_GENERATION_ENABLED: "true",
+			MEDIA_ENABLED_PROVIDERS: "openrouter",
+			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "false",
+		});
+		expect(getPublicProductCatalog(uncertified).products).toEqual([]);
+
+		const certified = configuredRouteGraphOptionsFromEnvironment({
+			MEDIA_GENERATION_ENABLED: "true",
+			MEDIA_ENABLED_PROVIDERS: "openrouter",
+			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
+		});
+		expect(getPublicProductCatalog(certified).products.map((product) => product.key)).toEqual([
+			"image-fast",
+			"image-quality",
+		]);
 	});
 
 	it("publishes only the two named image editing modes", () => {

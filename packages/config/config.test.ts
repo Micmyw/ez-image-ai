@@ -97,6 +97,22 @@ describe("validateServerEnvironment", () => {
 		expect(() => validateServerEnvironment(input)).toThrow(/REPLICATE_API_TOKEN|FAL_API_KEY/);
 	});
 
+	it("parses OpenRouter as a server-only provider and requires its worker credential", () => {
+		const configured = {
+			...productionBase,
+			MEDIA_PROVIDER_ADAPTER: "openrouter",
+			MEDIA_ENABLED_PROVIDERS: "openrouter",
+			OPENROUTER_API_KEY: "openrouter-worker-secret",
+		};
+		expect(validateServerEnvironment(configured)).toMatchObject({
+			mediaProviderAdapter: "openrouter",
+			mediaEnabledProviders: ["openrouter"],
+		});
+		expect(() =>
+			validateServerEnvironment({ ...configured, OPENROUTER_API_KEY: undefined }),
+		).toThrow(/OPENROUTER_API_KEY/);
+	});
+
 	it("allows an API-only process to validate configured routes without worker provider credentials", () => {
 		const input: Record<string, string | undefined> = {
 			...productionBase,
@@ -218,8 +234,8 @@ describe("product configuration", () => {
 		const publicConfig = getPublicConfig();
 
 		expect(DEFAULT_PRODUCT_CONFIG.productKeys).toEqual(["image-fast", "image-quality"]);
-		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-08-25.1");
-		expect(DEFAULT_PRODUCT_CONFIG.pricingVersion).toBe("2026-08-25.1");
+		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-08-31.1");
+		expect(DEFAULT_PRODUCT_CONFIG.pricingVersion).toBe("2026-08-31.1");
 		expect(publicConfig.brand).toMatchObject({
 			siteName: "EzPic",
 			siteDescription: expect.stringMatching(/image edit/i),

@@ -3,7 +3,12 @@ import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import { FalProviderAdapter, GeminiProviderAdapter, ReplicateProviderAdapter } from "../providers";
+import {
+	FalProviderAdapter,
+	GeminiProviderAdapter,
+	OpenRouterProviderAdapter,
+	ReplicateProviderAdapter,
+} from "../providers";
 import type { ProviderExecutionInput } from "../types";
 import {
 	createImageEditBenchmarkPlan,
@@ -195,7 +200,9 @@ describe("image edit benchmark planning", () => {
 		expect(routes.map(imageEditBenchmarkRouteRef)).toEqual([
 			"image-fast:replicate:black-forest-labs/flux-schnell",
 			"image-fast:fal:fal-ai/flux/schnell",
+			"image-fast:openrouter:sourceful/riverflow-v2.5-fast",
 			"image-quality:gemini:gemini-2.5-flash-image",
+			"image-quality:openrouter:sourceful/riverflow-v2.5-pro",
 		]);
 		expect(
 			routes.every((route) => ["image-fast", "image-quality"].includes(route.productKey)),
@@ -228,11 +235,17 @@ describe("image edit benchmark planning", () => {
 		expect(plan).toMatchObject({
 			imageCount: 10,
 			taskCount: 30,
-			routeCount: 3,
-			plannedInvocations: 90,
-			maximumCatalogCostMicros: 435_000,
+			routeCount: 5,
+			plannedInvocations: 150,
+			maximumCatalogCostMicros: 6_165_000,
 		});
-		expect(plan.routes.map((route) => route.provider)).toEqual(["replicate", "fal", "gemini"]);
+		expect(plan.routes.map((route) => route.provider)).toEqual([
+			"replicate",
+			"fal",
+			"openrouter",
+			"gemini",
+			"openrouter",
+		]);
 	});
 
 	it("parses an explicit live budget and refuses zero, malformed, duplicate, or unknown arguments", () => {
@@ -459,7 +472,7 @@ describe("image edit benchmark scorecard and report", () => {
 		const serialized = serializeImageEditBenchmarkReport(report);
 
 		expect(report.status).toBe("DRY_RUN_ONLY");
-		expect(report.scorecard.routes).toHaveLength(3);
+		expect(report.scorecard.routes).toHaveLength(5);
 		for (const route of report.scorecard.routes) {
 			expect(route.successRate.status).toBe("NOT_COMPLETED");
 			expect(route.firstResultUsableRate.status).toBe("NOT_COMPLETED");
@@ -589,7 +602,7 @@ describe("image edit Provider request mapping fixtures", () => {
 				httpsTransferUrl: string;
 				inlineDataUrl: string;
 			};
-			expected: { replicate: unknown; fal: unknown; gemini: unknown };
+			expected: { replicate: unknown; fal: unknown; gemini: unknown; openrouter: unknown };
 		};
 		const captures: Record<string, unknown> = {};
 		const capturingFetch =
@@ -647,9 +660,18 @@ describe("image edit Provider request mapping fixtures", () => {
 			providerModelId: "gemini-2.5-flash-image",
 			input: inlineInput,
 		});
+		await new OpenRouterProviderAdapter({
+			apiKey: "test-only",
+			fetch: capturingFetch("openrouter", { data: [{ b64_json: "iVBORw0KGgo=" }] }),
+		}).submit({
+			attemptId: "attempt-openrouter",
+			providerModelId: "sourceful/riverflow-v2.5-fast",
+			input: httpsInput,
+		});
 
 		expect(captures.replicate).toEqual(fixture.expected.replicate);
 		expect(captures.fal).toEqual(fixture.expected.fal);
 		expect(captures.gemini).toEqual(fixture.expected.gemini);
+		expect(captures.openrouter).toEqual(fixture.expected.openrouter);
 	});
 });

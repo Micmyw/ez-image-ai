@@ -28,6 +28,7 @@ export interface ExecutableRouteGraphOptions {
 	enabledProviders: ReadonlySet<ProviderKey>;
 	generationEnabled?: boolean;
 	disabledProductKeys?: ReadonlySet<string>;
+	openRouterImageRoutesCertified?: boolean;
 }
 
 export interface ExecutableCatalogRouteGraphEntry<T extends { routes: readonly CatalogRoute[] }> {
@@ -42,7 +43,7 @@ export interface RouteGraphSnapshot {
 }
 
 const catalogRouteSchema = z.object({
-	provider: z.enum(["replicate", "fal", "kie", "gemini"]),
+	provider: z.enum(["replicate", "fal", "kie", "gemini", "openrouter"]),
 	providerModelId: z.string().min(1),
 	providerCostMicros: z.number().int().nonnegative(),
 	weight: z.number().finite().positive(),
@@ -79,6 +80,20 @@ export const STATIC_DISPATCH_ROUTE_MANIFEST = [
 		providerModelId: "gemini-2.5-flash-image",
 		taskId: "media-dispatch-image-gemini-gemini-2.5-flash-image",
 		queueName: "media-image-gemini-gemini-2.5-flash-image",
+	},
+	{
+		mediaKind: "image",
+		provider: "openrouter",
+		providerModelId: "sourceful/riverflow-v2.5-fast",
+		taskId: "media-dispatch-image-openrouter-sourceful_riverflow-v2.5-fast",
+		queueName: "media-image-openrouter-sourceful_riverflow-v2.5-fast",
+	},
+	{
+		mediaKind: "image",
+		provider: "openrouter",
+		providerModelId: "sourceful/riverflow-v2.5-pro",
+		taskId: "media-dispatch-image-openrouter-sourceful_riverflow-v2.5-pro",
+		queueName: "media-image-openrouter-sourceful_riverflow-v2.5-pro",
 	},
 	{
 		mediaKind: "video",
@@ -156,6 +171,7 @@ export function configuredRouteGraphOptionsFromEnvironment(
 		enabledProviders: configuredProviderKeysFromEnvironment(environment),
 		generationEnabled: environment.MEDIA_GENERATION_ENABLED === "true",
 		disabledProductKeys,
+		openRouterImageRoutesCertified: environment.MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED === "true",
 	};
 }
 
@@ -243,6 +259,7 @@ export function executableRouteGraph<
 		const routes = entry.routes.filter(
 			(route) =>
 				options.enabledProviders.has(route.provider) &&
+				(route.provider !== "openrouter" || options.openRouterImageRoutesCertified === true) &&
 				isStaticDispatchRoute(entry.mediaKind, route.provider, route.providerModelId),
 		);
 		return routes.length > 0 ? [{ entry, routes }] : [];
@@ -298,6 +315,8 @@ function providerHasWorkerCredential(
 			return Boolean(environment.KIE_API_KEY);
 		case "gemini":
 			return Boolean(environment.GEMINI_API_KEY);
+		case "openrouter":
+			return Boolean(environment.OPENROUTER_API_KEY);
 	}
 }
 

@@ -17,9 +17,10 @@ implemented, but no real Provider benchmark has been performed.
 | Standard Edit final route                                          | **NOT COMPLETED** |
 | Quality Edit final route                                           | **NOT COMPLETED** |
 
-The current `image-fast` and `image-quality` catalog routes are candidates inherited from the
-foundation. This report does not certify them for image editing, and PR 2 does not change their
-weights, Provider cost estimates, credits, catalog version, or pricing version.
+The current `image-fast` and `image-quality` catalog routes are candidates. This report does not
+certify them for image editing. The 2026-08-31 catalog/pricing version adds two server-only
+OpenRouter candidates and their conservative ceilings without changing the public credits or
+making either route production-eligible.
 
 ## Reproducible dry-run snapshot
 
@@ -34,13 +35,13 @@ required category, with three distinct synthetic task kinds each:
 
 The dry-run plan is:
 
-| Item                       |  Planned value | Evidence meaning                                        |
-| -------------------------- | -------------: | ------------------------------------------------------- |
-| Placeholder inputs         |             10 | Manifest shape only; no authorization claim             |
-| Edit tasks                 |             30 | Three tasks per placeholder input                       |
-| Current catalog candidates |              3 | Internal candidate tuples, not certified routes         |
-| Planned invocations        |             90 | 30 tasks multiplied by three candidates                 |
-| Maximum catalog estimate   | 435,000 micros | Uncertified catalog estimate, not actual or billed cost |
+| Item                       |    Planned value | Evidence meaning                                        |
+| -------------------------- | ---------------: | ------------------------------------------------------- |
+| Placeholder inputs         |               10 | Manifest shape only; no authorization claim             |
+| Edit tasks                 |               30 | Three tasks per placeholder input                       |
+| Current catalog candidates |                5 | Internal candidate tuples, not certified routes         |
+| Planned invocations        |              150 | 30 tasks multiplied by five candidates                  |
+| Maximum catalog estimate   | 6,165,000 micros | Uncertified catalog estimate, not actual or billed cost |
 
 Run it from the repository root:
 
@@ -65,7 +66,9 @@ Provider and model details below are server/operator-only. They are not part of 
 | ------------- | -------------------------------------------- | ---------------: | ----------------- | ------------------------------------------------------ |
 | Standard Edit | `replicate / black-forest-labs/flux-schnell` |     3,000 micros | **NOT COMPLETED** | **NOT COMPLETED** — no authorized run or human scoring |
 | Standard Edit | `fal / fal-ai/flux/schnell`                  |     3,500 micros | **NOT COMPLETED** | **NOT COMPLETED** — no authorized run or human scoring |
+| Standard Edit | `openrouter / sourceful/riverflow-v2.5-fast` |    21,000 micros | **NOT COMPLETED** | **NOT COMPLETED** — candidate is not route-certified   |
 | Quality Edit  | `gemini / gemini-2.5-flash-image`            |     8,000 micros | **NOT COMPLETED** | **NOT COMPLETED** — no authorized run or human scoring |
+| Quality Edit  | `openrouter / sourceful/riverflow-v2.5-pro`  |   170,000 micros | **NOT COMPLETED** | **NOT COMPLETED** — candidate is not route-certified   |
 
 Marketing names and the public API remain `Standard Edit` and `Quality Edit`. Both public products
 continue to accept only `image-to-image`, and the public catalog continues to omit Provider, model,
@@ -144,6 +147,11 @@ Real benchmarking remains blocked on all of the following:
 
 No credential was read or used for this report. No Provider call, real output, real cost, real
 latency, real success rate, or routing certification is claimed.
+
+In particular, the OpenRouter adapter and static worker registration have only deterministic local
+coverage. A real OpenRouter request through the existing private job/finalization path is
+`NOT_COMPLETED`; `MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED` must remain false until that evidence and
+the required human scorecard are complete for the exact candidate tuple.
 
 ## Rollback
 

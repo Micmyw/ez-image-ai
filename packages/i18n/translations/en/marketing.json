@@ -70,8 +70,10 @@
 			"subtitle": "Upload a source image, describe the edit, and start one private Standard edit in EzPic.",
 			"offer": "Try one Standard edit free",
 			"noSignUp": "No sign-up required",
+			"paidSignIn": "Sign-in and Creator or Studio required",
 			"oneOutput": "One output",
 			"freeQueue": "Free queue · one watermarked preview · available for up to 24 hours",
+			"qualityAccess": "Quality Edit continues after sign-in and requires a Creator or Studio account.",
 			"temporaryResult": "Your preview stays private and temporary.",
 			"temporarySessionDisclosure": "EzPic creates a temporary session for this trial, keeps guest media for up to 24 hours, and uses pseudonymous abuse signals for the policy period described in our Privacy Policy.",
 			"qualityCta": "Quality edit · Creator or Studio",
@@ -79,9 +81,28 @@
 			"characterCount": "{count, number} / {maximum, number}",
 			"states": {
 				"challenge": "Verify this guest upload",
+				"checking": "Checking edit availability…",
+				"ready": "Choose a tier, source image, and prompt to continue.",
+				"preparing": "Preparing your private upload…",
 				"loadingCapability": "Checking guest availability…",
 				"unavailable": "The guest Standard queue is not accepting new edits right now.",
-				"uploading": "Uploading private source image: {percentage, number}%"
+				"uploading": "Uploading private source image: {percentage, number}%",
+				"verifying": "Verifying your private source image…",
+				"handoff": "Opening your private draft…",
+				"failed": "This attempt stopped before handoff. Your image, prompt, and tier are still here."
+			},
+			"guidance": {
+				"checking": "Wait while edit availability is checked.",
+				"unavailable": "Editing is unavailable right now. Try again later.",
+				"product": "Choose an edit tier to continue.",
+				"source": "Add a source image to continue.",
+				"prompt": "Describe the edit you want to continue.",
+				"verification": "Complete the verification to continue."
+			},
+			"actions": {
+				"standard": "Try one Standard edit free",
+				"quality": "Continue with Quality Edit",
+				"retry": "Retry {product}"
 			},
 			"errors": {
 				"turnstile": "Complete the verification and try again.",
@@ -96,6 +117,7 @@
 			"steps": { "idea": "Upload", "control": "Describe", "create": "Review" },
 			"fileHint": "JPEG, PNG, or WebP up to {megabytes, number} MB",
 			"uploadLabel": "Drop an image here or choose a file",
+			"replaceImage": "Replace image",
 			"removeImage": "Remove image",
 			"suggestionsLabel": "Try a prompt",
 			"suggestions": {
@@ -105,13 +127,20 @@
 				"lighting": "Add warm late-afternoon window light"
 			},
 			"modes": {
-				"legend": "Edit mode",
+				"legend": "Edit tier",
 				"credits": "{credits, number} credits",
+				"selectionPending": "Choose a tier",
 				"standard": {
-					"description": "Everyday edits"
+					"label": "Standard Edit",
+					"badge": "Guest trial",
+					"description": "Fast everyday edits",
+					"access": "One guest edit"
 				},
 				"quality": {
-					"description": "More detail"
+					"label": "Quality Edit",
+					"badge": "Paid account",
+					"description": "Higher-fidelity edits",
+					"access": "Creator or Studio account required"
 				}
 			},
 			"loginNotice": "Real image generation starts after you sign in and confirm the credit cost.",

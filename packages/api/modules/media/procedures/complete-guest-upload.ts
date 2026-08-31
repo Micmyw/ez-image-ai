@@ -18,6 +18,7 @@ import {
 } from "../lib/draft-security";
 import {
 	assertGuestCapabilityVersion,
+	assertGuestProductAvailable,
 	hashGuestAbuseBinding,
 	hashGuestSecret,
 	loadGuestCapability,
@@ -39,6 +40,7 @@ export const completeGuestDraftUpload = publicProcedure
 				sessionId: z.string().min(1).max(128),
 				completionToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
 				capabilityVersion: z.string().min(1).max(128),
+				productKey: z.string().min(1).max(64),
 				sha256: z.string().regex(/^[a-f0-9]{64}$/),
 				prompt: promptSchema,
 			})
@@ -57,6 +59,8 @@ export const completeGuestDraftUpload = publicProcedure
 					status: z.literal("READY"),
 					claimToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
 					continueUrl: z.literal("/draft/continue"),
+					productKey: z.enum(["image-fast", "image-quality"]),
+					accessHint: z.enum(["guest-trial", "paid-account"]),
 				})
 				.strict(),
 		]),
@@ -74,6 +78,7 @@ export const completeGuestDraftUpload = publicProcedure
 			loaded.config,
 		);
 		assertGuestCapabilityVersion(input.capabilityVersion, loaded.snapshot.version);
+		const product = assertGuestProductAvailable(loaded.snapshot, input.productKey);
 		const completionTokenHash = hashGuestSecret(input.completionToken);
 		const completion = await loadGuestUploadCompletion(
 			{
@@ -123,6 +128,7 @@ export const completeGuestDraftUpload = publicProcedure
 					capabilityVersion: loaded.snapshot.version,
 					promotionPeriod: loaded.config.promotionPeriod,
 					maximumOutstandingBootstraps: loaded.config.limits.maximumOutstandingBootstraps,
+					productKey: product.key,
 					prompt: input.prompt,
 					expiresAt: new Date(Date.now() + loaded.config.bootstrapTtlMs),
 					verification: currentMediaAssetVerificationBoundary(),
@@ -138,5 +144,11 @@ export const completeGuestDraftUpload = publicProcedure
 			}
 			throw error;
 		}
-		return { status: "READY" as const, claimToken, continueUrl: "/draft/continue" as const };
+		return {
+			status: "READY" as const,
+			claimToken,
+			continueUrl: "/draft/continue" as const,
+			productKey: product.key,
+			accessHint: product.accessHint,
+		};
 	});

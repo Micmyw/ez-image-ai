@@ -1,6 +1,89 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { claimGenerationDraftTransaction, expireGenerationDrafts } from "./drafts";
+import {
+	claimGenerationDraftTransaction,
+	expireGenerationDrafts,
+	finalizeGuestDraftFromReadyUploadTransaction,
+} from "./drafts";
+
+describe("finalizeGuestDraftFromReadyUploadTransaction", () => {
+	it("persists the server-validated Quality product on the private draft", async () => {
+		const now = new Date("2026-08-31T00:00:00.000Z");
+		const validUntil = new Date("2026-09-01T00:00:00.000Z");
+		const checksum = "a".repeat(64);
+		const asset = {
+			id: "asset_1",
+			ownerId: "guest_owner",
+			status: "READY",
+			deletedAt: null,
+			kind: "INPUT",
+			checksum,
+			verificationGeneration: 1,
+			verificationAttemptCount: 1,
+			verificationProvider: "sightengine",
+			verificationProviderTaskId: "task_1",
+			verificationRuleVersion: "rule-v1",
+			verificationPolicyVersion: "policy-v1",
+			verificationValidUntil: validUntil,
+			moderationResults: [
+				{
+					status: "APPROVED",
+					assetChecksum: checksum,
+					verificationGeneration: 1,
+					attemptNumber: 1,
+					evidenceKind: "INPUT",
+					provider: "sightengine",
+					providerTaskId: "task_1",
+					ruleVersion: "rule-v1",
+					policyVersion: "policy-v1",
+					validUntil,
+				},
+			],
+			jobBindings: [],
+		};
+		const tx = {
+			$executeRaw: vi.fn(),
+			mediaUploadSession: {
+				findFirst: vi.fn().mockResolvedValue({ id: "session_1", assetId: asset.id, asset }),
+				updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+			},
+			generationDraft: {
+				create: vi.fn(async ({ data }) => ({ id: "draft_1", expiresAt: data.expiresAt })),
+			},
+			guestSessionBootstrap: {
+				count: vi.fn().mockResolvedValue(0),
+				create: vi.fn().mockResolvedValue({ id: "bootstrap_1" }),
+			},
+		};
+		const client = { $transaction: vi.fn((operation) => operation(tx)) };
+
+		await finalizeGuestDraftFromReadyUploadTransaction(
+			{
+				sessionId: "session_1",
+				completionTokenHash: "b".repeat(64),
+				consumedTokenHash: "c".repeat(64),
+				claimTokenHash: "d".repeat(64),
+				capabilityVersion: "guest-v1",
+				promotionPeriod: "launch",
+				maximumOutstandingBootstraps: 25,
+				productKey: "image-quality",
+				prompt: "Preserve the product details",
+				expiresAt: validUntil,
+				verification: {
+					provider: "sightengine",
+					ruleVersion: "rule-v1",
+					policyVersion: "policy-v1",
+					now,
+				},
+			} as never,
+			client as never,
+		);
+
+		expect(tx.generationDraft.create).toHaveBeenCalledWith({
+			data: expect.objectContaining({ productKey: "image-quality" }),
+		});
+	});
+});
 
 describe("claimGenerationDraftTransaction", () => {
 	it("atomically consumes one active token and transfers its temporary asset to the user", async () => {
@@ -26,7 +109,12 @@ describe("claimGenerationDraftTransaction", () => {
 		const client = { $transaction: vi.fn((operation) => operation(tx)) };
 
 		const claimed = await claimGenerationDraftTransaction(
-			{ claimTokenHash: "hash", userId: "user_1", now: new Date("2026-08-14T00:00:00Z") },
+			{
+				claimTokenHash: "hash",
+				userId: "user_1",
+				now: new Date("2026-08-14T00:00:00Z"),
+				allowedProductKeys: ["image-fast", "image-quality"],
+			},
 			client as never,
 		);
 
@@ -89,7 +177,12 @@ describe("claimGenerationDraftTransaction", () => {
 
 		await expect(
 			claimGenerationDraftTransaction(
-				{ claimTokenHash: "hash", userId: "user_1", now: new Date("2026-08-14T00:00:00Z") },
+				{
+					claimTokenHash: "hash",
+					userId: "user_1",
+					now: new Date("2026-08-14T00:00:00Z"),
+					allowedProductKeys: ["image-fast", "image-quality"],
+				},
 				client as never,
 			),
 		).rejects.toThrow("DRAFT_UNAVAILABLE");
@@ -126,7 +219,12 @@ describe("claimGenerationDraftTransaction", () => {
 
 		await expect(
 			claimGenerationDraftTransaction(
-				{ claimTokenHash: "hash", userId: "user_1", now: new Date("2026-08-14T00:00:00Z") },
+				{
+					claimTokenHash: "hash",
+					userId: "user_1",
+					now: new Date("2026-08-14T00:00:00Z"),
+					allowedProductKeys: ["image-fast", "image-quality"],
+				},
 				client as never,
 			),
 		).resolves.toEqual({
@@ -167,7 +265,12 @@ describe("claimGenerationDraftTransaction", () => {
 
 		await expect(
 			claimGenerationDraftTransaction(
-				{ claimTokenHash: "hash", userId: "user_1", now: new Date("2026-08-14T00:00:00Z") },
+				{
+					claimTokenHash: "hash",
+					userId: "user_1",
+					now: new Date("2026-08-14T00:00:00Z"),
+					allowedProductKeys: ["image-fast", "image-quality"],
+				},
 				client as never,
 			),
 		).resolves.toEqual({
@@ -195,11 +298,45 @@ describe("claimGenerationDraftTransaction", () => {
 
 		await expect(
 			claimGenerationDraftTransaction(
-				{ claimTokenHash: "hash", userId: "user_2", now: new Date("2026-08-14T00:00:00Z") },
+				{
+					claimTokenHash: "hash",
+					userId: "user_2",
+					now: new Date("2026-08-14T00:00:00Z"),
+					allowedProductKeys: ["image-fast", "image-quality"],
+				},
 				client as never,
 			),
 		).rejects.toThrow("DRAFT_UNAVAILABLE");
 		expect(tx.generationDraft.updateMany).not.toHaveBeenCalled();
+	});
+
+	it("filters the atomic claim by currently allowed stable product keys", async () => {
+		const tx = {
+			generationDraft: {
+				findFirst: vi.fn().mockResolvedValue(null),
+				updateMany: vi.fn(),
+			},
+		};
+		const client = { $transaction: vi.fn((operation) => operation(tx)) };
+
+		await expect(
+			claimGenerationDraftTransaction(
+				{
+					claimTokenHash: "hash",
+					userId: "user_1",
+					now: new Date("2026-08-14T00:00:00Z"),
+					allowedProductKeys: ["image-fast", "image-quality"],
+				},
+				client as never,
+			),
+		).rejects.toThrow("DRAFT_UNAVAILABLE");
+		expect(tx.generationDraft.findFirst).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({
+					productKey: { in: ["image-fast", "image-quality"] },
+				}),
+			}),
+		);
 	});
 });
 

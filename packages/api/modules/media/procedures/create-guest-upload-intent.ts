@@ -14,6 +14,7 @@ import { trustedGuestClientIdentity } from "../lib/draft-client-identity";
 import { resolveGuestPublicOrigin } from "../lib/draft-security";
 import {
 	assertGuestCapabilityVersion,
+	assertGuestProductAvailable,
 	hashGuestAbuseBinding,
 	hashGuestSecret,
 	loadGuestCapability,
@@ -39,6 +40,7 @@ export const createGuestDraftUploadIntent = publicProcedure
 		z
 			.object({
 				capabilityVersion: z.string().min(1).max(128),
+				productKey: z.string().min(1).max(64),
 				contentType: imageContentTypeSchema,
 				bytes: z
 					.number()
@@ -76,6 +78,7 @@ export const createGuestDraftUploadIntent = publicProcedure
 			loaded.config,
 		);
 		assertGuestCapabilityVersion(input.capabilityVersion, loaded.snapshot.version);
+		assertGuestProductAvailable(loaded.snapshot, input.productKey);
 		if (
 			input.bytes > loaded.config.maximumBytes ||
 			!loaded.config.mimeTypes.includes(input.contentType)

@@ -252,6 +252,32 @@ describe("EzPic production launch environment", () => {
 		).not.toThrow();
 	});
 
+	it("fails closed for every mismatched OpenRouter certification combination", () => {
+		const openRouterEnvironment = {
+			...productionEnvironment,
+			MEDIA_PROVIDER_ADAPTER: "openrouter",
+			MEDIA_ENABLED_PROVIDERS: "openrouter",
+			OPENROUTER_API_KEY: "openrouter-worker-secret-present-only",
+			REPLICATE_API_TOKEN: undefined,
+			GEMINI_API_KEY: undefined,
+		};
+		expect(() => validateEzPicLaunchEnvironment(openRouterEnvironment)).toThrow(
+			/MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED/,
+		);
+		expect(() =>
+			validateEzPicLaunchEnvironment({
+				...productionEnvironment,
+				MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
+			}),
+		).toThrow(/MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED.*MEDIA_ENABLED_PROVIDERS/);
+		expect(() =>
+			validateEzPicLaunchEnvironment({
+				...openRouterEnvironment,
+				MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
+			}),
+		).not.toThrow();
+	});
+
 	it.each([
 		["NEXT_PUBLIC_MARKETING_URL", "https://marketing.placeholder.invalid"],
 		["NEXT_PUBLIC_SAAS_URL", "http://127.0.0.1:3000"],

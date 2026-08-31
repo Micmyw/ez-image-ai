@@ -14,13 +14,17 @@ const guestCapabilitySnapshotSchema = z
 				maximumBytes: z.number().int().positive(),
 			})
 			.strict(),
-		product: z
-			.object({
-				key: z.literal("image-fast"),
-				label: z.literal("Standard Edit"),
-				credits: z.literal("4"),
-			})
-			.strict(),
+		products: z.array(
+			z
+				.object({
+					key: z.enum(["image-fast", "image-quality"]),
+					label: z.string().min(1),
+					description: z.string().min(1),
+					credits: z.enum(["4", "10"]),
+					accessHint: z.enum(["guest-trial", "paid-account"]),
+				})
+				.strict(),
+		),
 		queueEstimate: z.discriminatedUnion("kind", [
 			z.object({ kind: z.literal("capacity") }).strict(),
 			z
@@ -40,7 +44,7 @@ export const getGuestCapability = publicProcedure
 		path: "/media/guest-capability",
 		tags: ["Media"],
 		summary: "Get the fail-closed public guest trial capability",
-		description: "Returns only the versioned public Standard trial envelope.",
+		description: "Returns the versioned public image-editing tier envelope.",
 	})
 	.output(guestCapabilitySnapshotSchema)
 	.handler(async ({ context }) => {

@@ -30,6 +30,7 @@ export const submitGuestGeneration = guestMediaProcedure
 		z
 			.object({
 				capabilityVersion: z.string().min(1).max(128),
+				productKey: z.literal("image-fast"),
 				sourceAssetId: z.string().min(1).max(256),
 				prompt: promptSchema,
 				idempotencyKey: z.string().regex(/^\w[\w.-]{7,127}$/),

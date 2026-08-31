@@ -70,8 +70,10 @@
 			"subtitle": "Lade ein Quellbild hoch, beschreibe die Bearbeitung und starte eine private Standard-Bearbeitung in EzPic.",
 			"offer": "Eine Standard-Bearbeitung kostenlos testen",
 			"noSignUp": "Keine Registrierung erforderlich",
+			"paidSignIn": "Anmeldung und Creator oder Studio erforderlich",
 			"oneOutput": "Ein Ergebnis",
 			"freeQueue": "Kostenlose Warteschlange · eine Vorschau mit Wasserzeichen · bis zu 24 Stunden verfügbar",
+			"qualityAccess": "Quality Edit wird nach der Anmeldung fortgesetzt und erfordert ein Creator- oder Studio-Konto.",
 			"temporaryResult": "Deine Vorschau bleibt privat und vorübergehend.",
 			"temporarySessionDisclosure": "EzPic erstellt für diesen Test eine temporäre Sitzung, bewahrt Gastmedien bis zu 24 Stunden auf und nutzt pseudonyme Missbrauchssignale für den in unserer Datenschutzerklärung beschriebenen Zeitraum.",
 			"qualityCta": "Qualitätsbearbeitung · Creator oder Studio",
@@ -79,9 +81,28 @@
 			"characterCount": "{count, number} / {maximum, number}",
 			"states": {
 				"challenge": "Diesen Gast-Upload bestätigen",
+				"checking": "Verfügbarkeit der Bearbeitung wird geprüft…",
+				"ready": "Wähle Tarif, Quellbild und Prompt, um fortzufahren.",
+				"preparing": "Privater Upload wird vorbereitet…",
 				"loadingCapability": "Gastverfügbarkeit wird geprüft…",
 				"unavailable": "Die kostenlose Standard-Warteschlange nimmt derzeit keine neuen Bearbeitungen an.",
-				"uploading": "Privates Quellbild wird hochgeladen: {percentage, number}%"
+				"uploading": "Privates Quellbild wird hochgeladen: {percentage, number}%",
+				"verifying": "Privates Quellbild wird überprüft…",
+				"handoff": "Privater Entwurf wird geöffnet…",
+				"failed": "Dieser Versuch endete vor der Übergabe. Bild, Prompt und Tarif bleiben erhalten."
+			},
+			"guidance": {
+				"checking": "Warte, während die Verfügbarkeit geprüft wird.",
+				"unavailable": "Bearbeitungen sind derzeit nicht verfügbar. Versuche es später erneut.",
+				"product": "Wähle einen Bearbeitungstarif, um fortzufahren.",
+				"source": "Füge ein Quellbild hinzu, um fortzufahren.",
+				"prompt": "Beschreibe die gewünschte Bearbeitung, um fortzufahren.",
+				"verification": "Schließe die Überprüfung ab, um fortzufahren."
+			},
+			"actions": {
+				"standard": "Eine Standard-Bearbeitung kostenlos testen",
+				"quality": "Mit Quality Edit fortfahren",
+				"retry": "{product} erneut versuchen"
 			},
 			"errors": {
 				"turnstile": "Schließe die Überprüfung ab und versuche es erneut.",
@@ -96,6 +117,7 @@
 			"steps": { "idea": "Hochladen", "control": "Beschreiben", "create": "Prüfen" },
 			"fileHint": "JPEG, PNG oder WebP bis {megabytes, number} MB",
 			"uploadLabel": "Bild hier ablegen oder Datei auswählen",
+			"replaceImage": "Bild ersetzen",
 			"removeImage": "Bild entfernen",
 			"suggestionsLabel": "Prompt ausprobieren",
 			"suggestions": {
@@ -105,13 +127,20 @@
 				"lighting": "Füge warmes spätnachmittägliches Fensterlicht hinzu"
 			},
 			"modes": {
-				"legend": "Bearbeitungsmodus",
+				"legend": "Bearbeitungstarif",
 				"credits": "{credits, number} Credits",
+				"selectionPending": "Tarif auswählen",
 				"standard": {
-					"description": "Alltägliche Änderungen"
+					"label": "Standard Edit",
+					"badge": "Gast-Test",
+					"description": "Schnelle alltägliche Bearbeitungen",
+					"access": "Eine Gastbearbeitung"
 				},
 				"quality": {
-					"description": "Mehr Details"
+					"label": "Quality Edit",
+					"badge": "Bezahltes Konto",
+					"description": "Bearbeitungen mit höherer Detailtreue",
+					"access": "Creator- oder Studio-Konto erforderlich"
 				}
 			},
 			"loginNotice": "Die echte Bilderzeugung beginnt erst nach Anmeldung und Bestätigung der Credit-Kosten.",

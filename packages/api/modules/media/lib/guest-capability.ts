@@ -1,15 +1,26 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
+import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
 import { getGuestMediaConfig, type GuestMediaConfig } from "@repo/config/server";
 import { resolveGuestRuntimeConfigOverride } from "@repo/database";
 import { db } from "@repo/database/client";
+
+import { getCurrentExecutableEzPicProducts } from "./executable-route-graph";
+
+export interface GuestCapabilityProduct {
+	key: "image-fast" | "image-quality";
+	label: string;
+	description: string;
+	credits: "4" | "10";
+	accessHint: "guest-trial" | "paid-account";
+}
 
 export interface GuestCapabilitySnapshot {
 	version: string;
 	enabled: boolean;
 	reason: string | null;
 	upload: { mimeTypes: readonly string[]; maximumBytes: number };
-	product: { key: "image-fast"; label: "Standard Edit"; credits: "4" };
+	products: readonly GuestCapabilityProduct[];
 	queueEstimate:
 		| { kind: "range"; minimumSeconds: number; maximumSeconds: number }
 		| { kind: "capacity" };
@@ -31,17 +42,30 @@ export async function loadGuestCapability(
 	}
 	const config = getGuestMediaConfig(environment, runtimeOverride);
 	const runtimeVersion = runtimeOverride?.version ?? 0;
+	let products: readonly GuestCapabilityProduct[] = [];
+	try {
+		products = Object.freeze(
+			(
+				await getCurrentExecutableEzPicProducts(
+					db,
+					environment as Record<string, string | undefined>,
+				)
+			).map(toGuestCapabilityProduct),
+		);
+	} catch {
+		// Catalog/runtime availability is part of the fail-closed public capability.
+	}
 	return {
 		config,
 		snapshot: Object.freeze({
-			version: createGuestCapabilityVersion(runtimeVersion, config),
+			version: createGuestCapabilityVersion(runtimeVersion, config, products),
 			enabled: config.enabled,
 			reason: config.reason,
 			upload: Object.freeze({
 				mimeTypes: Object.freeze([...config.mimeTypes]),
 				maximumBytes: config.maximumBytes,
 			}),
-			product: Object.freeze({ key: "image-fast", label: "Standard Edit", credits: "4" }),
+			products,
 			// Queue timing belongs to the later admission worker. Until it supplies a
 			// bounded estimate, the public contract deliberately reports capacity only.
 			queueEstimate: Object.freeze({ kind: "capacity" as const }),
@@ -49,7 +73,11 @@ export async function loadGuestCapability(
 	};
 }
 
-function createGuestCapabilityVersion(runtimeVersion: number, config: GuestMediaConfig): string {
+function createGuestCapabilityVersion(
+	runtimeVersion: number,
+	config: GuestMediaConfig,
+	products: readonly GuestCapabilityProduct[],
+): string {
 	const canonicalSecurityVector = [
 		"guest-capability-v1",
 		runtimeVersion,
@@ -58,6 +86,9 @@ function createGuestCapabilityVersion(runtimeVersion: number, config: GuestMedia
 		config.promotionPeriod ?? "",
 		config.productKey,
 		config.sponsorCredits.toString(),
+		DEFAULT_PRODUCT_CONFIG.catalogVersion,
+		DEFAULT_PRODUCT_CONFIG.pricingVersion,
+		products,
 		config.maximumBytes,
 		[...config.mimeTypes].sort(),
 		config.retentionMs,
@@ -97,6 +128,38 @@ function createGuestCapabilityVersion(runtimeVersion: number, config: GuestMedia
 		.update(JSON.stringify(canonicalSecurityVector), "utf8")
 		.digest("hex");
 	return `guest-v${runtimeVersion}-${identity}`;
+}
+
+function toGuestCapabilityProduct(input: {
+	key: "image-fast" | "image-quality";
+	label: string;
+	description: string;
+	credits: number;
+}): GuestCapabilityProduct {
+	if (input.key === "image-fast" && input.credits === 4) {
+		return Object.freeze({
+			...input,
+			credits: "4" as const,
+			accessHint: "guest-trial" as const,
+		});
+	}
+	if (input.key === "image-quality" && input.credits === 10) {
+		return Object.freeze({
+			...input,
+			credits: "10" as const,
+			accessHint: "paid-account" as const,
+		});
+	}
+	throw new Error("GUEST_PRODUCT_CONFIGURATION_INVALID");
+}
+
+export function assertGuestProductAvailable(
+	snapshot: Pick<GuestCapabilitySnapshot, "products">,
+	productKey: string,
+): GuestCapabilityProduct {
+	const product = snapshot.products.find((candidate) => candidate.key === productKey);
+	if (!product) throw new Error("GUEST_PRODUCT_UNAVAILABLE");
+	return product;
 }
 
 function safePrivateIdentity(domain: string, value: string | null): string {

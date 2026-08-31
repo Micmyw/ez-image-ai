@@ -8,6 +8,7 @@ import { localMediaE2EChromiumLaunchOptions } from "./playwright-local-media";
 dotenv.config({ path: path.resolve(__dirname, "../../.env.local") });
 
 const saasBaseUrl = process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000";
+const saasPort = new URL(saasBaseUrl).port || (saasBaseUrl.startsWith("https:") ? "443" : "80");
 const localMediaE2ELaunchOptions = localMediaE2EChromiumLaunchOptions(process.env);
 const guestOnlySpecs = /(?:guest-trial|landing|originality)\.spec\.ts/;
 
@@ -75,8 +76,8 @@ export default defineConfig({
 	webServer: {
 		command:
 			process.env.E2E_USE_PRODUCTION_BUILD === "true"
-				? "pnpm --filter saas exec next build --webpack && pnpm --filter saas run start"
-				: "pnpm --filter saas exec next dev --webpack -p 3000",
+				? `pnpm --filter saas exec next build --webpack && pnpm --filter saas exec next start -p ${saasPort}`
+				: `pnpm --filter saas exec next dev --webpack -p ${saasPort}`,
 		url: `${saasBaseUrl}/login`,
 		reuseExistingServer: false,
 		stdout: "pipe",

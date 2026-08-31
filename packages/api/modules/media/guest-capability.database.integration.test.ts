@@ -51,6 +51,8 @@ describe("guest capability database drift fence", () => {
 		vi.stubEnv("NODE_ENV", "test");
 		vi.stubEnv("GUEST_MEDIA_ENABLED", "true");
 		vi.stubEnv("GUEST_PROMOTION_PERIOD", "promotion-a");
+		vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
+		vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "replicate");
 		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", abuseSecret);
 		vi.stubEnv("GUEST_ABUSE_HMAC_VERSION", abuseKeyVersion);
 		vi.stubEnv("NEXT_PUBLIC_MARKETING_URL", "https://marketing.test");
@@ -84,6 +86,7 @@ describe("guest capability database drift fence", () => {
 			createGuestDraftUploadIntent,
 			{
 				capabilityVersion: capabilityA.version,
+				productKey: "image-fast",
 				contentType: "image/png",
 				bytes: 8,
 				sha256: "a".repeat(64),
@@ -114,6 +117,7 @@ describe("guest capability database drift fence", () => {
 					sessionId: upload.sessionId,
 					completionToken: upload.completionToken,
 					capabilityVersion: capabilityA.version,
+					productKey: "image-fast",
 					sha256: "a".repeat(64),
 					prompt: "Replace the background",
 				},

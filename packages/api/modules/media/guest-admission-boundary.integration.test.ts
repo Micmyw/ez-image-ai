@@ -54,6 +54,7 @@ describe("guest admission real boundary", () => {
 		});
 		const input = {
 			capabilityVersion: "guest-v7",
+			productKey: "image-fast" as const,
 			sourceAssetId: fixture.assetId,
 			prompt: "Make the sky violet",
 			idempotencyKey: "guest-full-boundary-replay-0001",

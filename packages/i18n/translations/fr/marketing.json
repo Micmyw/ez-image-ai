@@ -70,8 +70,10 @@
 			"subtitle": "Importez une image source, décrivez la retouche et lancez une retouche Standard privée dans EzPic.",
 			"offer": "Essayez gratuitement une retouche Standard",
 			"noSignUp": "Aucune inscription requise",
+			"paidSignIn": "Connexion et forfait Creator ou Studio requis",
 			"oneOutput": "Un résultat",
 			"freeQueue": "File gratuite · un aperçu filigrané · disponible jusqu’à 24 heures",
+			"qualityAccess": "Quality Edit se poursuit après la connexion et nécessite un compte Creator ou Studio.",
 			"temporaryResult": "Votre aperçu reste privé et temporaire.",
 			"temporarySessionDisclosure": "EzPic crée une session temporaire pour cet essai, conserve les médias invités jusqu’à 24 heures et utilise des signaux pseudonymes contre les abus pendant la période décrite dans notre Politique de confidentialité.",
 			"qualityCta": "Retouche Quality · Creator ou Studio",
@@ -79,9 +81,28 @@
 			"characterCount": "{count, number} / {maximum, number}",
 			"states": {
 				"challenge": "Vérifier cet import invité",
+				"checking": "Vérification de la disponibilité des retouches…",
+				"ready": "Choisissez un niveau, une image source et un prompt pour continuer.",
+				"preparing": "Préparation de votre import privé…",
 				"loadingCapability": "Vérification de la disponibilité invitée…",
 				"unavailable": "La file Standard gratuite n’accepte pas de nouvelles retouches pour le moment.",
-				"uploading": "Import de l’image source privée : {percentage, number}%"
+				"uploading": "Import de l’image source privée : {percentage, number}%",
+				"verifying": "Vérification de votre image source privée…",
+				"handoff": "Ouverture de votre brouillon privé…",
+				"failed": "Cette tentative s’est arrêtée avant le transfert. Votre image, votre prompt et votre niveau sont conservés."
+			},
+			"guidance": {
+				"checking": "Patientez pendant la vérification de la disponibilité.",
+				"unavailable": "La retouche est indisponible pour le moment. Réessayez plus tard.",
+				"product": "Choisissez un niveau de retouche pour continuer.",
+				"source": "Ajoutez une image source pour continuer.",
+				"prompt": "Décrivez la retouche souhaitée pour continuer.",
+				"verification": "Terminez la vérification pour continuer."
+			},
+			"actions": {
+				"standard": "Essayez gratuitement une retouche Standard",
+				"quality": "Continuer avec Quality Edit",
+				"retry": "Réessayer {product}"
 			},
 			"errors": {
 				"turnstile": "Terminez la vérification puis réessayez.",
@@ -96,6 +117,7 @@
 			"steps": { "idea": "Importer", "control": "Décrire", "create": "Vérifier" },
 			"fileHint": "JPEG, PNG ou WebP jusqu’à {megabytes, number} Mo",
 			"uploadLabel": "Déposez une image ici ou choisissez un fichier",
+			"replaceImage": "Remplacer l’image",
 			"removeImage": "Retirer l’image",
 			"suggestionsLabel": "Essayez une instruction",
 			"suggestions": {
@@ -105,13 +127,20 @@
 				"lighting": "Ajoutez une lumière chaude de fin d’après-midi"
 			},
 			"modes": {
-				"legend": "Mode de retouche",
+				"legend": "Niveau de retouche",
 				"credits": "{credits, number} crédits",
+				"selectionPending": "Choisissez un niveau",
 				"standard": {
-					"description": "Retouches courantes"
+					"label": "Standard Edit",
+					"badge": "Essai invité",
+					"description": "Retouches courantes rapides",
+					"access": "Une retouche invitée"
 				},
 				"quality": {
-					"description": "Plus de détails"
+					"label": "Quality Edit",
+					"badge": "Compte payant",
+					"description": "Retouches de fidélité supérieure",
+					"access": "Compte Creator ou Studio requis"
 				}
 			},
 			"loginNotice": "La génération réelle commence après votre connexion et la confirmation du coût en crédits.",

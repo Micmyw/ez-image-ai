@@ -111,6 +111,21 @@ describe("guest admission pre-transaction boundary", () => {
 		expect(dependencies.createTransaction).not.toHaveBeenCalled();
 	});
 
+	it("rejects a forged or paid-only tier before moderation and persistence", async () => {
+		for (const productKey of ["image-quality", "video-fast"] as const) {
+			const dependencies = validDependencies();
+			await expect(
+				submitGuestGenerationForGuest(
+					validBoundary(),
+					{ ...validInput(), productKey } as never,
+					dependencies,
+				),
+			).rejects.toThrow("GUEST_PRODUCT_UNAVAILABLE");
+			expect(dependencies.moderatePrompt).not.toHaveBeenCalled();
+			expect(dependencies.createTransaction).not.toHaveBeenCalled();
+		}
+	});
+
 	it("passes only the fixed Standard quote and verified source into the atomic transaction", async () => {
 		const dependencies = validDependencies();
 
@@ -179,6 +194,7 @@ function validBoundary() {
 function validInput() {
 	return {
 		capabilityVersion: "guest-v7",
+		productKey: "image-fast" as const,
 		sourceAssetId: "asset-1",
 		prompt: "Make the sky violet",
 		idempotencyKey: "guest-submit-0001",

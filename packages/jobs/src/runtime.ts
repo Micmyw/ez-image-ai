@@ -4,6 +4,7 @@ import {
 	FalProviderAdapter,
 	GeminiProviderAdapter,
 	KieProviderAdapter,
+	OpenRouterProviderAdapter,
 	MEDIA_VERIFICATION_POLICY_VERSION,
 	MEDIA_VERIFICATION_RULE_VERSION,
 	MediaProviderRegistry,
@@ -163,6 +164,9 @@ function createLocallyExecutableProviderRegistry(
 		registry.register(new KieProviderAdapter({ apiKey: environment.KIE_API_KEY }));
 	if (registeredProviders.has("gemini") && environment.GEMINI_API_KEY) {
 		registry.register(new GeminiProviderAdapter({ apiKey: environment.GEMINI_API_KEY }));
+	}
+	if (registeredProviders.has("openrouter") && environment.OPENROUTER_API_KEY) {
+		registry.register(new OpenRouterProviderAdapter({ apiKey: environment.OPENROUTER_API_KEY }));
 	}
 	return registry;
 }

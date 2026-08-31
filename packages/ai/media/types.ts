@@ -1,6 +1,6 @@
 import type { MediaModelInput } from "./catalog/schemas";
 
-export type ProviderKey = "replicate" | "fal" | "kie" | "gemini";
+export type ProviderKey = "replicate" | "fal" | "kie" | "gemini" | "openrouter";
 export type ProviderTaskStatus =
 	| "UNKNOWN"
 	| "QUEUED"

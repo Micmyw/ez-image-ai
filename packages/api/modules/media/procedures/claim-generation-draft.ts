@@ -7,6 +7,7 @@ import {
 	getExpiredDraftClaimCookie,
 	hashDraftClaimToken,
 } from "../lib/draft-security";
+import { getCurrentExecutableEzPicProducts } from "../lib/executable-route-graph";
 
 export const claimGenerationDraft = protectedProcedure
 	.route({ method: "POST", path: "/media/drafts/claim", tags: ["Media"] })
@@ -14,10 +15,15 @@ export const claimGenerationDraft = protectedProcedure
 		const token = readCookie(context.headers.get("cookie"), DRAFT_CLAIM_COOKIE);
 		if (!token) throw new Error("DRAFT_UNAVAILABLE");
 		try {
+			const allowedProductKeys = (await getCurrentExecutableEzPicProducts()).map(
+				(product) => product.key,
+			);
+			if (allowedProductKeys.length === 0) throw new Error("DRAFT_UNAVAILABLE");
 			return await claimGenerationDraftTransaction(
 				{
 					claimTokenHash: hashDraftClaimToken(token),
 					userId: context.user.id,
+					allowedProductKeys,
 				},
 				db,
 			);

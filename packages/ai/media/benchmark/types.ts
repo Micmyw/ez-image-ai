@@ -132,7 +132,7 @@ const manifestSchema = z
 export const imageEditBenchmarkRouteSchema = z
 	.object({
 		productKey: z.enum(["image-fast", "image-quality"]),
-		provider: z.enum(["replicate", "fal", "kie", "gemini"]),
+		provider: z.enum(["replicate", "fal", "kie", "gemini", "openrouter"]),
 		providerModelId: z.string().trim().min(1).max(256),
 		catalogCostMicros: z.number().int().nonnegative().safe(),
 	})

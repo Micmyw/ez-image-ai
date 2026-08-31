@@ -5,6 +5,7 @@ export class MediaProviderError extends Error {
 		public readonly code:
 			| "HTTP_ERROR"
 			| "MALFORMED_PROVIDER_RESPONSE"
+			| "UNSUPPORTED_INPUT"
 			| "WEBHOOK_VERIFICATION_FAILED",
 		message: string,
 		public readonly retryable: boolean,

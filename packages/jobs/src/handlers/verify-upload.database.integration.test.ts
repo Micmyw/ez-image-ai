@@ -55,7 +55,11 @@ describe("claimed draft asset verification", () => {
 			);
 
 			await claimGenerationDraftTransaction(
-				{ claimTokenHash: tokenHash, userId: `user-${suffix}` },
+				{
+					claimTokenHash: tokenHash,
+					userId: `user-${suffix}`,
+					allowedProductKeys: ["image-fast", "image-quality"],
+				},
 				client,
 			);
 			const event = await client.outboxEvent.findUniqueOrThrow({

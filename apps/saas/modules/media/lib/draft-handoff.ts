@@ -7,6 +7,7 @@ import { EZPIC_ANALYTICS_SESSION_COOKIE } from "@repo/utils";
 import { NextResponse } from "next/server";
 
 export const DRAFT_HANDOFF_INTENT = "continue-marketing-draft";
+export const ACCOUNT_DRAFT_HANDOFF_INTENT = "continue-account-draft";
 
 interface DraftHandoffOptions {
 	marketingOrigin: string;
@@ -25,7 +26,10 @@ export async function createDraftHandoffResponse(
 		throw new Error("INVALID_DRAFT_HANDOFF");
 	}
 	const form = await request.formData();
-	if (form.get("intent") !== DRAFT_HANDOFF_INTENT) throw new Error("INVALID_DRAFT_HANDOFF");
+	const intent = form.get("intent");
+	if (intent !== DRAFT_HANDOFF_INTENT && intent !== ACCOUNT_DRAFT_HANDOFF_INTENT) {
+		throw new Error("INVALID_DRAFT_HANDOFF");
+	}
 	const claimToken = form.get("claimToken");
 	if (typeof claimToken !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(claimToken)) {
 		throw new Error("INVALID_DRAFT_HANDOFF");
@@ -40,7 +44,11 @@ export async function createDraftHandoffResponse(
 	) {
 		throw new Error("INVALID_DRAFT_HANDOFF");
 	}
-	const response = NextResponse.redirect(new URL("/draft/continue", options.saasOrigin), 303);
+	const destination =
+		intent === ACCOUNT_DRAFT_HANDOFF_INTENT && !options.isRegistered
+			? "/login?redirectTo=%2Fdraft%2Fcontinue"
+			: "/draft/continue";
+	const response = NextResponse.redirect(new URL(destination, options.saasOrigin), 303);
 	response.headers.set("Cache-Control", "no-store");
 	response.headers.set("Referrer-Policy", "no-referrer");
 	if (analyticsConsent === "true" && typeof anonymousSessionHash === "string") {
@@ -59,7 +67,7 @@ export async function createDraftHandoffResponse(
 		);
 	}
 	response.headers.append("Set-Cookie", getDraftClaimCookie(claimToken, options.secure));
-	if (!options.isRegistered) {
+	if (!options.isRegistered && intent === DRAFT_HANDOFF_INTENT) {
 		response.headers.append("Set-Cookie", getGuestBootstrapCookie(claimToken, options.secure));
 	}
 	return response;

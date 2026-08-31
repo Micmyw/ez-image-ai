@@ -4,7 +4,7 @@ This runbook is for the production AI image/video subscription foundation. Postg
 
 ## 1. Accounts and environment
 
-Prepare separate production and staging accounts/projects for PostgreSQL, Trigger.dev, Stripe, private S3/R2-compatible storage, Sentry, Sightengine, and every enabled provider (Replicate, Fal, Kie, Gemini). Restrict production access with SSO/MFA and least-privilege service identities.
+Prepare separate production and staging accounts/projects for PostgreSQL, Trigger.dev, Stripe, private S3/R2-compatible storage, Sentry, Sightengine, and every enabled provider (Replicate, Fal, Kie, Gemini, OpenRouter). Restrict production access with SSO/MFA and least-privilege service identities.
 
 Start from `.env.local.example`. Production must use `NODE_ENV=production`, non-mock
 `MEDIA_PROVIDER_ADAPTER`, `MEDIA_SAFETY_ADAPTER=sightengine`, strong Better Auth and Webhook
@@ -18,6 +18,9 @@ Feature gates:
 - `MEDIA_GENERATION_ENABLED`: global generation kill switch.
 - `LEGACY_AI_STREAM_ENABLED`: development-only compatibility route; production always rejects the legacy unmetered AI stream.
 - `MEDIA_MODERATION_ENABLED`: required before public/user-visible generated output.
+- `MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED`: server-only certification gate for the exact
+  registered OpenRouter image routes. Keep it `false` until the staging evidence below is complete;
+  an API key, enabled-provider entry, adapter test, or static Trigger task does not satisfy this gate.
 - `BILLING_ENABLED`: validated billing configuration only. It is not currently wired as an
   ingress, worker, queue, or schedule kill switch and must not be used to coordinate the F6
   cutover; pause those execution paths with the actual deployment and Trigger controls.
@@ -113,6 +116,21 @@ Set Sightengine credentials and enable moderation. Validate allow, reject/quaran
 Configure Sentry release/environment metadata, server and browser DSNs where applicable, a conservative trace sample rate, and alert routing. Confirm redaction excludes prompts, provider envelopes, authorization/cookie headers, secrets, raw signed URLs, and private object keys. Alerts should cover provider failures, queue latency, transfer failures, moderation errors, credit invariant failures, Outbox backlog/dead letters, reconciliation repairs, and elevated API errors.
 
 Certify each catalog route in staging before enabling it: schema/input support, idempotency behavior, provider acceptance certainty, status mapping, output MIME/size, Webhook authenticity/order, polling recovery, cancellation/cleanup, moderation, measured cost, latency, and error redaction. Record Provider/model ID, catalog/pricing version, test time, evidence, maximum cost, and rollback owner. Disable an uncertified route with runtime config rather than silently rerouting uncertain submissions.
+
+The registered OpenRouter image routes are candidates only:
+
+- `sourceful/riverflow-v2.5-fast` for `image-fast`, with a conservative 21,000-micros catalog
+  ceiling per output;
+- `sourceful/riverflow-v2.5-pro` for `image-quality`, with a conservative 170,000-micros catalog
+  ceiling per output.
+
+Their adapter, static dispatch manifest, and Trigger tasks do not certify Provider behavior or
+quality. Real OpenRouter execution, measured cost/latency, raster-output confirmation through the
+private transfer and moderation path, timeout/recovery evidence, and human quality scoring are
+`NOT_COMPLETED`. Until all evidence is recorded for the exact route tuples and catalog/pricing
+version, leave OpenRouter out of `MEDIA_ENABLED_PROVIDERS` and keep
+`MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED=false`. Never expose the model slugs, Provider identity,
+cost ceilings, key, or route state in the public capability or landing UI.
 
 ## 7. Smoke, load, and invariants
 

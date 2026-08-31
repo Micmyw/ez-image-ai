@@ -84,11 +84,21 @@ describe("submitGuestGeneration", () => {
 		).rejects.toMatchObject({ code: "UNAUTHORIZED" });
 		expect(submitGuestGenerationForGuest).not.toHaveBeenCalled();
 	});
+
+	it("rejects a paid product before entering guest admission", async () => {
+		await expect(
+			call(submitGuestGeneration, { ...validInput(), productKey: "image-quality" } as never, {
+				context: { headers: new Headers() },
+			}),
+		).rejects.toBeDefined();
+		expect(submitGuestGenerationForGuest).not.toHaveBeenCalled();
+	});
 });
 
 function validInput() {
 	return {
 		capabilityVersion: "guest-v7",
+		productKey: "image-fast" as const,
 		sourceAssetId: "asset-1",
 		prompt: "Make the sky violet",
 		idempotencyKey: "guest-submit-0001",

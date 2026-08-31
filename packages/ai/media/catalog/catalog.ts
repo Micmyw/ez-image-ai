@@ -41,6 +41,12 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 				providerCostMicros: 3_500,
 				weight: 20,
 			},
+			{
+				provider: "openrouter",
+				providerModelId: "sourceful/riverflow-v2.5-fast",
+				providerCostMicros: 21_000,
+				weight: 100,
+			},
 		],
 	},
 	"image-quality": {
@@ -55,6 +61,12 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 				provider: "gemini",
 				providerModelId: "gemini-2.5-flash-image",
 				providerCostMicros: 8_000,
+				weight: 100,
+			},
+			{
+				provider: "openrouter",
+				providerModelId: "sourceful/riverflow-v2.5-pro",
+				providerCostMicros: 170_000,
 				weight: 100,
 			},
 		],

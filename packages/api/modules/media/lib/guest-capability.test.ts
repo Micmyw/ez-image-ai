@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const databaseMocks = vi.hoisted(() => ({
 	createUpload: vi.fn(),
 	finalizeDraft: vi.fn(),
+	findRuntimeOverrides: vi.fn(),
 	loadCompletion: vi.fn(),
 	resolveOverride: vi.fn(),
 }));
@@ -23,7 +24,9 @@ vi.mock("@repo/database", () => ({
 	loadGuestUploadCompletion: databaseMocks.loadCompletion,
 	resolveGuestRuntimeConfigOverride: databaseMocks.resolveOverride,
 }));
-vi.mock("@repo/database/client", () => ({ db: {} }));
+vi.mock("@repo/database/client", () => ({
+	db: { runtimeConfigOverride: { findMany: databaseMocks.findRuntimeOverrides } },
+}));
 vi.mock("@repo/storage", () => ({
 	createFinalAssetObjectKey: vi.fn(
 		() => "users/guest_owner/assets/asset_1/versions/version_1/original.png",
@@ -47,6 +50,8 @@ import { assertGuestCapabilityVersion, loadGuestCapabilitySnapshot } from "./gue
 
 const enabledEnvironment = {
 	NODE_ENV: "development",
+	MEDIA_GENERATION_ENABLED: "true",
+	MEDIA_ENABLED_PROVIDERS: "replicate,gemini",
 	GUEST_MEDIA_ENABLED: "true",
 	GUEST_PROMOTION_PERIOD: "2026-launch",
 	BETTER_AUTH_SECRET: "test-secret",
@@ -69,21 +74,63 @@ describe("guest capability snapshot", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		databaseMocks.resolveOverride.mockResolvedValue(capabilityOverride);
+		databaseMocks.findRuntimeOverrides.mockResolvedValue([]);
 	});
 
 	it("requires both the environment gate and active literal-true database override", async () => {
-		await expect(loadGuestCapabilitySnapshot(enabledEnvironment)).resolves.toMatchObject({
+		const enabled = await loadGuestCapabilitySnapshot(enabledEnvironment);
+		expect(enabled).toMatchObject({
 			enabled: true,
 			reason: null,
 			upload: { maximumBytes: 10 * 1024 * 1024 },
-			product: { key: "image-fast", label: "Standard Edit", credits: "4" },
 		});
+		expect(enabled.products.map((product) => product.key)).toEqual(["image-fast", "image-quality"]);
 
 		databaseMocks.resolveOverride.mockResolvedValue(null);
 		await expect(loadGuestCapabilitySnapshot(enabledEnvironment)).resolves.toMatchObject({
 			enabled: false,
 			reason: "GUEST_RUNTIME_DISABLED",
 		});
+	});
+
+	it("advertises only executable stable image tiers with truthful access hints", async () => {
+		const snapshot = await loadGuestCapabilitySnapshot(enabledEnvironment);
+
+		expect(snapshot).toMatchObject({
+			products: [
+				{
+					key: "image-fast",
+					label: "Standard Edit",
+					credits: "4",
+					accessHint: "guest-trial",
+				},
+				{
+					key: "image-quality",
+					label: "Quality Edit",
+					credits: "10",
+					accessHint: "paid-account",
+				},
+			],
+		});
+		const fastOnly = await loadGuestCapabilitySnapshot({
+			...enabledEnvironment,
+			MEDIA_ENABLED_PROVIDERS: "replicate",
+		});
+		expect(fastOnly.products.map((product) => product.key)).toEqual(["image-fast"]);
+		expect(fastOnly.version).not.toBe(snapshot.version);
+		expect(JSON.stringify(snapshot)).not.toMatch(
+			/replicate|gemini|openrouter|providerModelId|providerCostMicros|weight/i,
+		);
+	});
+
+	it("removes a runtime-disabled tier from the same executable catalog used by quotes", async () => {
+		databaseMocks.findRuntimeOverrides.mockResolvedValue([
+			{ configKey: "media.model.image-quality.enabled" },
+		]);
+
+		const snapshot = await loadGuestCapabilitySnapshot(enabledEnvironment);
+
+		expect(snapshot.products.map((product) => product.key)).toEqual(["image-fast"]);
 	});
 
 	it("fails closed when the runtime source throws and exposes only the public contract", async () => {
@@ -102,7 +149,7 @@ describe("guest capability snapshot", () => {
 		);
 		expect(Object.keys(snapshot).sort()).toEqual([
 			"enabled",
-			"product",
+			"products",
 			"queueEstimate",
 			"reason",
 			"upload",
@@ -171,7 +218,7 @@ describe("guest capability snapshot", () => {
 		expect(serialized).not.toContain("private-turnstile-secret");
 		expect(Object.keys(snapshot).sort()).toEqual([
 			"enabled",
-			"product",
+			"products",
 			"queueEstimate",
 			"reason",
 			"upload",
@@ -188,12 +235,15 @@ describe("guest private upload handoff", () => {
 		vi.stubEnv("NODE_ENV", "development");
 		vi.stubEnv("GUEST_MEDIA_ENABLED", "true");
 		vi.stubEnv("GUEST_PROMOTION_PERIOD", "2026-launch");
+		vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
+		vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "replicate,gemini");
 		vi.stubEnv("BETTER_AUTH_SECRET", "test-secret");
 		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", enabledEnvironment.GUEST_ABUSE_HMAC_SECRET);
 		vi.stubEnv("GUEST_ABUSE_HMAC_VERSION", enabledEnvironment.GUEST_ABUSE_HMAC_VERSION);
 		vi.stubEnv("NEXT_PUBLIC_MARKETING_URL", "https://marketing.test");
 		vi.stubEnv("MEDIA_TRUSTED_PROXY_PROVIDER", "cloudflare");
 		databaseMocks.resolveOverride.mockResolvedValue(capabilityOverride);
+		databaseMocks.findRuntimeOverrides.mockResolvedValue([]);
 		capabilityVersion = (await loadGuestCapabilitySnapshot(process.env)).version;
 		turnstileMocks.verifyGuestTurnstileToken.mockResolvedValue({ tokenHash: "f".repeat(64) });
 		storageMocks.createSignedUpload.mockResolvedValue("https://storage.test/private-signed-put");
@@ -230,6 +280,7 @@ describe("guest private upload handoff", () => {
 			createGuestDraftUploadIntent,
 			{
 				capabilityVersion,
+				productKey: "image-fast",
 				contentType: "image/png",
 				bytes: 8,
 				sha256: "a".repeat(64),
@@ -297,6 +348,7 @@ describe("guest private upload handoff", () => {
 				createGuestDraftUploadIntent,
 				{
 					capabilityVersion,
+					productKey: "image-fast",
 					contentType: "image/png",
 					bytes: 8,
 					sha256: "a".repeat(64),
@@ -316,11 +368,69 @@ describe("guest private upload handoff", () => {
 		expect(storageMocks.createSignedUpload).not.toHaveBeenCalled();
 	});
 
+	it("rejects forged or currently unavailable product keys before allocating storage", async () => {
+		await expect(
+			call(
+				createGuestDraftUploadIntent,
+				{
+					capabilityVersion,
+					productKey: "video-fast" as never,
+					contentType: "image/png",
+					bytes: 8,
+					sha256: "a".repeat(64),
+					turnstileToken: "turnstile-proof",
+				},
+				{
+					context: {
+						headers: new Headers({
+							origin: "https://marketing.test",
+							"cf-connecting-ip": "203.0.113.9",
+						}),
+						responseHeaders: new Headers(),
+					},
+				},
+			),
+		).rejects.toThrow("GUEST_PRODUCT_UNAVAILABLE");
+		expect(storageMocks.createSignedUpload).not.toHaveBeenCalled();
+		expect(databaseMocks.createUpload).not.toHaveBeenCalled();
+	});
+
+	it("persists a selected Quality tier and returns its paid-account handoff hint", async () => {
+		const result = await call(
+			completeGuestDraftUpload,
+			{
+				sessionId: "session_1",
+				completionToken: "b".repeat(43),
+				capabilityVersion,
+				productKey: "image-quality",
+				sha256: "a".repeat(64),
+				prompt: "Preserve every product detail",
+			},
+			{
+				context: {
+					headers: new Headers({ origin: "https://marketing.test" }),
+					responseHeaders: new Headers(),
+				},
+			},
+		);
+
+		expect(databaseMocks.finalizeDraft).toHaveBeenCalledWith(
+			expect.objectContaining({ productKey: "image-quality" }),
+			expect.anything(),
+		);
+		expect(result).toMatchObject({
+			status: "READY",
+			productKey: "image-quality",
+			accessHint: "paid-account",
+		});
+	});
+
 	it("allocates a generation-compatible opaque asset ID for the guest source", async () => {
 		const result = await call(
 			createGuestDraftUploadIntent,
 			{
 				capabilityVersion,
+				productKey: "image-fast",
 				contentType: "image/png",
 				bytes: 8,
 				sha256: "a".repeat(64),
@@ -351,6 +461,7 @@ describe("guest private upload handoff", () => {
 				sessionId: "session_1",
 				completionToken: "b".repeat(43),
 				capabilityVersion,
+				productKey: "image-fast",
 				sha256: "a".repeat(64),
 				prompt: "Replace the background",
 			},
@@ -389,6 +500,8 @@ describe("guest private upload handoff", () => {
 			status: "READY",
 			claimToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
 			continueUrl: "/draft/continue",
+			productKey: "image-fast",
+			accessHint: "guest-trial",
 		});
 		if (result.status !== "READY") throw new Error("expected ready completion");
 		expect(result.claimToken).not.toBe("b".repeat(43));
@@ -423,6 +536,7 @@ describe("guest private upload handoff", () => {
 			sessionId: "session_1",
 			completionToken: "b".repeat(43),
 			capabilityVersion,
+			productKey: "image-fast" as const,
 			sha256: "a".repeat(64),
 			prompt: "Replace the background",
 		};
@@ -441,6 +555,8 @@ describe("guest private upload handoff", () => {
 			status: "READY",
 			claimToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
 			continueUrl: "/draft/continue",
+			productKey: "image-fast",
+			accessHint: "guest-trial",
 		});
 		expect(uploadMocks.completeOwnedUploadSession).toHaveBeenCalledOnce();
 		expect(storageMocks.headObject).toHaveBeenCalledOnce();
@@ -459,6 +575,7 @@ describe("guest private upload handoff", () => {
 					sessionId: "session_1",
 					completionToken: "b".repeat(43),
 					capabilityVersion,
+					productKey: "image-fast",
 					sha256: "a".repeat(64),
 					prompt: "Replace the background",
 				},

@@ -84,6 +84,38 @@ export const dispatchGeminiImageTask = task({
 	run: runDispatch(geminiImage),
 });
 
+const openRouterFastImage = requiredStaticDispatchRoute(
+	"image",
+	"openrouter",
+	"sourceful/riverflow-v2.5-fast",
+);
+export const dispatchOpenRouterFastImageTask = task({
+	id: openRouterFastImage.taskId,
+	queue: {
+		name: openRouterFastImage.queueName,
+		concurrencyLimit: concurrency("openrouter", "sourceful/riverflow-v2.5-fast", "image"),
+	},
+	maxDuration: 300,
+	retry: { maxAttempts: 1 },
+	run: runDispatch(openRouterFastImage),
+});
+
+const openRouterQualityImage = requiredStaticDispatchRoute(
+	"image",
+	"openrouter",
+	"sourceful/riverflow-v2.5-pro",
+);
+export const dispatchOpenRouterQualityImageTask = task({
+	id: openRouterQualityImage.taskId,
+	queue: {
+		name: openRouterQualityImage.queueName,
+		concurrencyLimit: concurrency("openrouter", "sourceful/riverflow-v2.5-pro", "image"),
+	},
+	maxDuration: 300,
+	retry: { maxAttempts: 1 },
+	run: runDispatch(openRouterQualityImage),
+});
+
 const falVideo = requiredStaticDispatchRoute("video", "fal", "fal-ai/fast-video");
 export const dispatchFalVideoTask = task({
 	id: falVideo.taskId,
@@ -112,6 +144,8 @@ export const declaredDispatchTaskIds = [
 	replicateImage.taskId,
 	falImage.taskId,
 	geminiImage.taskId,
+	openRouterFastImage.taskId,
+	openRouterQualityImage.taskId,
 	falVideo.taskId,
 	kieVideo.taskId,
 ] as const;

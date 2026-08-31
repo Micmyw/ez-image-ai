@@ -404,6 +404,8 @@ function providerCredentialName(provider: ProviderKey): string {
 			return "KIE_API_KEY";
 		case "gemini":
 			return "GEMINI_API_KEY";
+		case "openrouter":
+			return "OPENROUTER_API_KEY";
 	}
 }
 

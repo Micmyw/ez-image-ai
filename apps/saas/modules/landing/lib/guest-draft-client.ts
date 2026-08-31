@@ -4,12 +4,23 @@ export const LANDING_IMAGE_CONTENT_TYPES = ["image/jpeg", "image/png", "image/we
 
 export type LandingImageContentType = (typeof LANDING_IMAGE_CONTENT_TYPES)[number];
 
+export type GuestProductKey = "image-fast" | "image-quality";
+export type GuestProductAccessHint = "guest-trial" | "paid-account";
+
+export interface GuestCapabilityProduct {
+	key: GuestProductKey;
+	label: string;
+	description: string;
+	credits: "4" | "10";
+	accessHint: GuestProductAccessHint;
+}
+
 export interface GuestCapabilitySnapshot {
 	version: string;
 	enabled: boolean;
 	reason: string | null;
 	upload: { mimeTypes: readonly string[]; maximumBytes: number };
-	product: { key: "image-fast"; label: "Standard Edit"; credits: "4" };
+	products: readonly GuestCapabilityProduct[];
 	queueEstimate:
 		| { kind: "range"; minimumSeconds: number; maximumSeconds: number }
 		| { kind: "capacity" };
@@ -17,6 +28,7 @@ export interface GuestCapabilitySnapshot {
 
 interface GuestUploadIntentInput {
 	capabilityVersion: string;
+	productKey: GuestProductKey;
 	contentType: LandingImageContentType;
 	bytes: number;
 	sha256: string;
@@ -34,13 +46,17 @@ interface GuestUploadIntent {
 export interface GuestDraftHandoff {
 	action: "/draft/continue";
 	claimToken: string;
+	productKey: GuestProductKey;
+	accessHint: GuestProductAccessHint;
 }
 
 export interface GuestDraftUploadInput {
 	capabilityVersion: string;
+	productKey: GuestProductKey;
 	file: File;
 	prompt: string;
 	turnstileToken: string;
+	onStage?: (stage: "uploading" | "verifying") => void;
 	onProgress?: (progress: { loaded: number; total: number; percentage: number }) => void;
 }
 
@@ -86,16 +102,20 @@ export async function uploadGuestDraft(input: GuestDraftUploadInput): Promise<Gu
 	const sha256 = await sha256File(input.file);
 	const intent = await createGuestDraftUploadIntent({
 		capabilityVersion: input.capabilityVersion,
+		productKey: input.productKey,
 		contentType: input.file.type as LandingImageContentType,
 		bytes: input.file.size,
 		sha256,
 		turnstileToken: input.turnstileToken,
 	});
+	input.onStage?.("uploading");
 	await uploadGuestFile(intent.uploadUrl, input.file, input.onProgress);
+	input.onStage?.("verifying");
 	return completeGuestDraftUpload({
 		sessionId: intent.sessionId,
 		completionToken: intent.completionToken,
 		capabilityVersion: input.capabilityVersion,
+		productKey: input.productKey,
 		sha256,
 		prompt,
 	});
@@ -132,6 +152,7 @@ export async function completeGuestDraftUpload(
 		sessionId: string;
 		completionToken: string;
 		capabilityVersion: string;
+		productKey: GuestProductKey;
 		sha256: string;
 		prompt: string;
 	},
@@ -161,6 +182,8 @@ export async function completeGuestDraftUpload(
 			retryAfterMs?: unknown;
 			claimToken?: unknown;
 			continueUrl?: unknown;
+			productKey?: unknown;
+			accessHint?: unknown;
 		};
 		if (result.status === "PENDING") {
 			if (
@@ -179,11 +202,18 @@ export async function completeGuestDraftUpload(
 			result.status !== "READY" ||
 			typeof result.claimToken !== "string" ||
 			!/^[A-Za-z0-9_-]{43}$/.test(result.claimToken) ||
-			result.continueUrl !== "/draft/continue"
+			result.continueUrl !== "/draft/continue" ||
+			result.productKey !== input.productKey ||
+			!isProductAccessHintForKey(result.accessHint, input.productKey)
 		) {
 			throw new Error("GUEST_UPLOAD_COMPLETION_INVALID");
 		}
-		return { action: "/draft/continue", claimToken: result.claimToken };
+		return {
+			action: "/draft/continue",
+			claimToken: result.claimToken,
+			productKey: input.productKey,
+			accessHint: result.accessHint,
+		};
 	}
 	throw new Error("GUEST_UPLOAD_COMPLETION_TIMEOUT");
 }
@@ -196,7 +226,13 @@ export function submitGuestDraftHandoff(
 	form.method = "POST";
 	form.action = handoff.action;
 	form.style.display = "none";
-	form.append(hiddenField(documentRef, "intent", "continue-marketing-draft"));
+	form.append(
+		hiddenField(
+			documentRef,
+			"intent",
+			handoff.accessHint === "paid-account" ? "continue-account-draft" : "continue-marketing-draft",
+		),
+	);
 	form.append(hiddenField(documentRef, "claimToken", handoff.claimToken));
 	const cookie = documentRef.cookie ?? "";
 	if (hasGrowthAnalyticsConsent(cookie)) {
@@ -226,7 +262,7 @@ function parseGuestCapability(value: unknown): GuestCapabilitySnapshot {
 		throw new Error("GUEST_CAPABILITY_INVALID");
 	}
 	const upload = value.upload;
-	const product = value.product;
+	const products = value.products;
 	const queueEstimate = value.queueEstimate;
 	if (
 		typeof value.version !== "string" ||
@@ -238,11 +274,7 @@ function parseGuestCapability(value: unknown): GuestCapabilitySnapshot {
 		!hasExactGuestMimeTypes(upload.mimeTypes) ||
 		!Number.isSafeInteger(upload.maximumBytes) ||
 		Number(upload.maximumBytes) !== 10 * 1024 * 1024 ||
-		!isRecord(product) ||
-		!hasExactKeys(product, ["key", "label", "credits"]) ||
-		product.key !== "image-fast" ||
-		product.label !== "Standard Edit" ||
-		product.credits !== "4" ||
+		!validGuestProducts(products) ||
 		!validQueueEstimate(queueEstimate)
 	) {
 		throw new Error("GUEST_CAPABILITY_INVALID");
@@ -255,9 +287,43 @@ const CAPABILITY_KEYS = [
 	"enabled",
 	"reason",
 	"upload",
-	"product",
+	"products",
 	"queueEstimate",
 ] as const;
+
+function validGuestProducts(value: unknown): value is GuestCapabilityProduct[] {
+	if (!Array.isArray(value) || value.length > 2) return false;
+	const keys = new Set<string>();
+	for (const product of value) {
+		if (
+			!isRecord(product) ||
+			!hasExactKeys(product, ["key", "label", "description", "credits", "accessHint"]) ||
+			typeof product.label !== "string" ||
+			!product.label.trim() ||
+			typeof product.description !== "string" ||
+			!product.description.trim() ||
+			!isGuestProductKey(product.key) ||
+			!isProductAccessHintForKey(product.accessHint, product.key) ||
+			(product.key === "image-fast" ? product.credits !== "4" : product.credits !== "10") ||
+			keys.has(product.key)
+		) {
+			return false;
+		}
+		keys.add(product.key);
+	}
+	return true;
+}
+
+function isGuestProductKey(value: unknown): value is GuestProductKey {
+	return value === "image-fast" || value === "image-quality";
+}
+
+function isProductAccessHintForKey(
+	value: unknown,
+	productKey: GuestProductKey,
+): value is GuestProductAccessHint {
+	return productKey === "image-fast" ? value === "guest-trial" : value === "paid-account";
+}
 
 function hasExactGuestMimeTypes(value: unknown): boolean {
 	if (!Array.isArray(value) || value.length !== LANDING_IMAGE_CONTENT_TYPES.length) return false;

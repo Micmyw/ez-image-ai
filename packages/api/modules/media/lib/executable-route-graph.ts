@@ -1,4 +1,5 @@
 import {
+	getPublicProductCatalog,
 	executableRouteGraphOptionsFromEnvironment,
 	type ExecutableRouteGraphOptions,
 } from "@repo/ai";
@@ -7,6 +8,13 @@ import { db } from "@repo/database/client";
 import type { PrismaClient } from "@repo/database/generated-client";
 
 type RuntimeConfigDatabase = Pick<PrismaClient, "runtimeConfigOverride">;
+
+export interface ExecutableEzPicProduct {
+	key: "image-fast" | "image-quality";
+	label: string;
+	description: string;
+	credits: number;
+}
 
 const generationConfigKey = "media.generation.enabled";
 const productConfigKeys = DEFAULT_PRODUCT_CONFIG.productKeys.map(
@@ -40,4 +48,25 @@ export async function getCurrentExecutableRouteGraphOptions(
 			environmentGraph.generationEnabled && !disabledConfigKeys.has(generationConfigKey),
 		disabledProductKeys,
 	};
+}
+
+/** Returns only the stable, browser-safe EzPic entries from the quote/admission route graph. */
+export async function getCurrentExecutableEzPicProducts(
+	database: RuntimeConfigDatabase = db,
+	environment: Record<string, string | undefined> = process.env,
+): Promise<ExecutableEzPicProduct[]> {
+	const catalog = getPublicProductCatalog(
+		await getCurrentExecutableRouteGraphOptions(database, environment),
+	);
+	return catalog.products.flatMap((product) => {
+		if (product.key !== "image-fast" && product.key !== "image-quality") return [];
+		return [
+			{
+				key: product.key,
+				label: product.label,
+				description: product.description,
+				credits: product.credits,
+			},
+		];
+	});
 }

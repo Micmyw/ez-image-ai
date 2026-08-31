@@ -108,6 +108,7 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 		capabilityVersion: string;
 		promotionPeriod: string;
 		maximumOutstandingBootstraps: number;
+		productKey: "image-fast" | "image-quality";
 		prompt: string;
 		expiresAt: Date;
 		verification: {
@@ -119,6 +120,9 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 	},
 	client: MediaTransactionClient,
 ): Promise<{ id: string; expiresAt: Date }> {
+	if (input.productKey !== "image-fast" && input.productKey !== "image-quality") {
+		throw new Error("GUEST_PRODUCT_UNAVAILABLE");
+	}
 	return client.$transaction(async (tx) => {
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${input.completionTokenHash}, 0))`;
 		const session = await tx.mediaUploadSession.findFirst({
@@ -170,7 +174,7 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 				submittedByUserId: session.asset.ownerId,
 				claimTokenHash: input.claimTokenHash,
 				assetId: session.assetId,
-				productKey: "image-fast",
+				productKey: input.productKey,
 				inputSnapshot: { kind: "image-to-image", prompt: input.prompt },
 				expiresAt: input.expiresAt,
 			},
@@ -193,29 +197,47 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 }
 
 export async function claimGenerationDraftTransaction(
-	input: { claimTokenHash: string; userId: string; now?: Date },
+	input: {
+		claimTokenHash: string;
+		userId: string;
+		allowedProductKeys: readonly ("image-fast" | "image-quality")[];
+		now?: Date;
+	},
 	client: MediaTransactionClient,
 ): Promise<{ id: string; productKey: string | null; input: Record<string, unknown> }> {
 	return claimGenerationDraftWithPolicy(input, client, false);
 }
 
 export async function claimGuestGenerationDraftTransaction(
-	input: { claimTokenHash: string; userId: string; now?: Date },
+	input: {
+		claimTokenHash: string;
+		userId: string;
+		allowedProductKeys: readonly ("image-fast" | "image-quality")[];
+		now?: Date;
+	},
 	client: MediaTransactionClient,
 ): Promise<{ id: string; productKey: string | null; input: Record<string, unknown> }> {
 	return claimGenerationDraftWithPolicy(input, client, true);
 }
 
 async function claimGenerationDraftWithPolicy(
-	input: { claimTokenHash: string; userId: string; now?: Date },
+	input: {
+		claimTokenHash: string;
+		userId: string;
+		allowedProductKeys: readonly ("image-fast" | "image-quality")[];
+		now?: Date;
+	},
 	client: MediaTransactionClient,
 	requireGuestBootstrap: boolean,
 ): Promise<{ id: string; productKey: string | null; input: Record<string, unknown> }> {
+	const allowedProductKeys = [...new Set(input.allowedProductKeys)];
+	if (allowedProductKeys.length === 0) throw new Error("DRAFT_UNAVAILABLE");
 	return client.$transaction(async (tx) => {
 		const now = input.now ?? new Date();
 		const draft = await tx.generationDraft.findFirst({
 			where: {
 				claimTokenHash: input.claimTokenHash,
+				productKey: { in: allowedProductKeys },
 				expiresAt: { gt: now },
 				...(requireGuestBootstrap
 					? {
@@ -239,7 +261,12 @@ async function claimGenerationDraftWithPolicy(
 		if (draft.status === "SUBMITTED") return toClaimedGenerationDraft(draft);
 		if (draft.status !== "ACTIVE") throw new Error("DRAFT_UNAVAILABLE");
 		const changed = await tx.generationDraft.updateMany({
-			where: { id: draft.id, status: "ACTIVE", expiresAt: { gt: now } },
+			where: {
+				id: draft.id,
+				productKey: { in: allowedProductKeys },
+				status: "ACTIVE",
+				expiresAt: { gt: now },
+			},
 			data: {
 				ownerType: "USER",
 				ownerId: input.userId,
@@ -252,6 +279,7 @@ async function claimGenerationDraftWithPolicy(
 				where: {
 					id: draft.id,
 					claimTokenHash: input.claimTokenHash,
+					productKey: { in: allowedProductKeys },
 					status: "SUBMITTED",
 					ownerType: "USER",
 					ownerId: input.userId,

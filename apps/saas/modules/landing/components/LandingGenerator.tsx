@@ -16,16 +16,29 @@ import {
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Image from "next/image";
-import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
+import {
+	type ChangeEvent,
+	type DragEvent,
+	type FormEvent,
+	useEffect,
+	useRef,
+	useState,
+} from "react";
 
 import {
 	getGuestCapability,
 	type GuestCapabilitySnapshot,
+	type GuestProductKey,
 	LANDING_IMAGE_CONTENT_TYPES,
 	submitGuestDraftHandoff,
 	uploadGuestDraft,
 	validateLandingImageFile,
 } from "../lib/guest-draft-client";
+import {
+	landingDisabledReason,
+	type LandingGeneratorStage,
+	resolveLandingProductSelection,
+} from "../lib/landing-generator-workflow";
 import {
 	LANDING_PROMPT_SELECTED_EVENT,
 	type LandingPromptSelectedDetail,
@@ -41,13 +54,15 @@ export function LandingGenerator() {
 	const promptRef = useRef<HTMLTextAreaElement>(null);
 	const [capability, setCapability] = useState<GuestCapabilitySnapshot | null>(null);
 	const [capabilityFailed, setCapabilityFailed] = useState(false);
+	const [selectedProductKey, setSelectedProductKey] = useState<GuestProductKey | null>(null);
 	const [file, setFile] = useState<File | null>(null);
 	const [fileError, setFileError] = useState<string>();
 	const [previewUrl, setPreviewUrl] = useState<string>();
 	const [prompt, setPrompt] = useState("");
-	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [submitError, setSubmitError] = useState<"turnstile" | "upload">();
 	const [uploadPercentage, setUploadPercentage] = useState<number>();
+	const [stage, setStage] = useState<LandingGeneratorStage>("checking");
+	const [isDragging, setIsDragging] = useState(false);
 	const [turnstileToken, setTurnstileToken] = useState(
 		GUEST_TURNSTILE_SITE_KEY ? "" : LOCAL_TURNSTILE_EVIDENCE,
 	);
@@ -62,10 +77,17 @@ export function LandingGenerator() {
 		);
 		void getGuestCapability()
 			.then((snapshot) => {
-				if (active) setCapability(snapshot);
+				if (!active) return;
+				setCapability(snapshot);
+				setSelectedProductKey((current) =>
+					resolveLandingProductSelection(snapshot.products, current),
+				);
+				setStage("ready");
 			})
 			.catch(() => {
-				if (active) setCapabilityFailed(true);
+				if (!active) return;
+				setCapabilityFailed(true);
+				setStage("failed");
 			});
 		return () => {
 			active = false;
@@ -107,15 +129,27 @@ export function LandingGenerator() {
 	const maximumBytes = capability?.upload.maximumBytes ?? 10 * 1024 * 1024;
 	const maximumMegabytes = maximumBytes / 1024 / 1024;
 	const supportedMimeTypes = capability?.upload.mimeTypes ?? LANDING_IMAGE_CONTENT_TYPES;
-	const canSubmit = Boolean(capability?.enabled && file && prompt.trim() && turnstileToken);
+	const selectedProduct =
+		capability?.products.find((product) => product.key === selectedProductKey) ?? null;
+	const disabledReason = landingDisabledReason({
+		stage,
+		capabilityEnabled: Boolean(capability?.enabled),
+		productSelected: Boolean(selectedProduct),
+		hasSource: Boolean(file),
+		prompt,
+		turnstileReady: Boolean(turnstileToken),
+	});
+	const isBusy = disabledReason === "busy";
+	const canSubmit = disabledReason === null;
 
 	function beginUpload() {
 		const attemptKey = createAttemptKey();
 		uploadAttemptKey.current = attemptKey;
+		if (!selectedProductKey) return;
 		void trackBrowserGrowthEvent(
 			{
 				name: "source_upload_started",
-				properties: { productKey: "image-fast", status: "started" },
+				properties: { productKey: selectedProductKey, status: "started" },
 			},
 			{ dedupeKey: `source-upload-started:${attemptKey}` },
 		);
@@ -137,16 +171,16 @@ export function LandingGenerator() {
 				if (current) URL.revokeObjectURL(current);
 				return URL.createObjectURL(nextFile);
 			});
-			void trackBrowserGrowthEvent(
-				{
-					name: "source_upload_completed",
-					properties: { productKey: "image-fast", status: "completed" },
-				},
-				{ dedupeKey: `source-upload-completed:${attemptKey}` },
-			);
+			if (selectedProductKey) {
+				void trackBrowserGrowthEvent(
+					{
+						name: "source_upload_completed",
+						properties: { productKey: selectedProductKey, status: "completed" },
+					},
+					{ dedupeKey: `source-upload-completed:${attemptKey}` },
+				);
+			}
 		} catch (error) {
-			setFile(null);
-			setPreviewUrl(undefined);
 			setFileError(fileErrorMessage(error, t, maximumMegabytes));
 		}
 	}
@@ -157,6 +191,23 @@ export function LandingGenerator() {
 		event.target.value = "";
 	}
 
+	function handleDragOver(event: DragEvent<HTMLButtonElement>) {
+		event.preventDefault();
+		if (isBusy) return;
+		event.dataTransfer.dropEffect = "copy";
+		setIsDragging(true);
+	}
+
+	function handleDrop(event: DragEvent<HTMLButtonElement>) {
+		event.preventDefault();
+		setIsDragging(false);
+		if (isBusy) return;
+		const nextFile = event.dataTransfer.files.item(0);
+		if (!nextFile) return;
+		beginUpload();
+		chooseFile(nextFile);
+	}
+
 	function clearFile() {
 		setFile(null);
 		setFileError(undefined);
@@ -165,23 +216,27 @@ export function LandingGenerator() {
 			return undefined;
 		});
 		setUploadPercentage(undefined);
+		setSubmitError(undefined);
 		uploadAttemptKey.current = null;
 	}
 
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		if (!capability?.enabled || !prompt.trim()) return;
-		if (!file) {
+		if (disabledReason === "source") {
 			setFileError(t("fileErrors.required"));
 			return;
 		}
-		if (!turnstileToken) {
+		if (disabledReason === "verification") {
 			setSubmitError("turnstile");
 			return;
 		}
+		if (disabledReason || !capability?.enabled || !file || !selectedProduct || !turnstileToken) {
+			return;
+		}
 
-		setIsSubmitting(true);
+		setStage("preparing");
 		setSubmitError(undefined);
+		setUploadPercentage(undefined);
 		const attemptKey = createAttemptKey();
 		try {
 			validateLandingImageFile(file, capability.upload.maximumBytes);
@@ -189,25 +244,32 @@ export function LandingGenerator() {
 			if (GUEST_TURNSTILE_SITE_KEY) resetChallenge();
 			const handoff = await uploadGuestDraft({
 				capabilityVersion: capability.version,
+				productKey: selectedProduct.key,
 				file,
 				prompt,
 				turnstileToken: consumedTurnstileToken,
+				onStage: (nextStage) => {
+					setStage(nextStage);
+					if (nextStage === "uploading") setUploadPercentage(0);
+				},
 				onProgress: ({ percentage }) => setUploadPercentage(percentage),
 			});
+			setStage("handoff");
 			await trackBrowserGrowthEvent(
 				{
 					name: "marketing_draft_created",
-					properties: { productKey: "image-fast", status: "created" },
+					properties: { productKey: selectedProduct.key, status: "created" },
 				},
 				{ dedupeKey: `marketing-draft-created:${attemptKey}` },
 			);
 			await trackBrowserGrowthEvent(
 				{
 					name: "auth_handoff_started",
-					properties: { productKey: "image-fast", status: "started" },
+					properties: { productKey: selectedProduct.key, status: "started" },
 				},
 				{ dedupeKey: `auth-handoff-started:${attemptKey}` },
 			);
+			await nextAnimationFrame();
 			submitGuestDraftHandoff(handoff);
 		} catch (error) {
 			if (error instanceof Error && error.message.startsWith("SOURCE_IMAGE_")) {
@@ -215,7 +277,7 @@ export function LandingGenerator() {
 			} else {
 				setSubmitError("upload");
 			}
-			setIsSubmitting(false);
+			setStage("failed");
 			setUploadPercentage(undefined);
 		}
 	}
@@ -226,6 +288,18 @@ export function LandingGenerator() {
 	}
 
 	const suggestions = SUGGESTION_KEYS.map((key) => t(`suggestions.${key}`));
+	const selectedModeKey = selectedProductKey === "image-quality" ? "quality" : "standard";
+	const selectedProductLabel = selectedProduct ? t(`modes.${selectedModeKey}.label`) : "";
+	const actionLabel =
+		stage === "failed" && selectedProduct
+			? t("actions.retry", { product: selectedProductLabel })
+			: selectedProduct?.accessHint === "paid-account"
+				? t("actions.quality")
+				: t("actions.standard");
+	const stageLabel =
+		stage === "uploading"
+			? t("states.uploading", { percentage: uploadPercentage ?? 0 })
+			: t(`states.${stage}`);
 
 	return (
 		<div className="mt-8 border-white/10 p-3 backdrop-blur-xl sm:p-5 overflow-hidden rounded-[1.75rem] border bg-[#171321]/88 shadow-[0_40px_110px_-48px_rgba(0,0,0,0.95),0_24px_70px_-48px_rgba(108,77,255,0.9),inset_0_1px_0_rgba(255,255,255,0.08)]">
@@ -241,6 +315,7 @@ export function LandingGenerator() {
 									type="button"
 									className="min-h-11 gap-1 text-xs font-semibold text-slate-400 hover:text-white focus-visible:outline-violet-300 inline-flex items-center rounded-lg transition focus-visible:outline-2 focus-visible:outline-offset-2"
 									onClick={clearFile}
+									disabled={isBusy}
 								>
 									<XIcon className="size-3.5" aria-hidden="true" />
 									{t("removeImage")}
@@ -249,20 +324,38 @@ export function LandingGenerator() {
 						</div>
 						<button
 							type="button"
-							className="group min-h-48 border-violet-300/35 bg-black/20 p-4 hover:border-violet-300/65 hover:bg-violet-400/[0.08] focus-visible:outline-violet-300 relative flex w-full items-center justify-center overflow-hidden rounded-xl border border-dashed text-center transition focus-visible:outline-2 focus-visible:outline-offset-2"
+							className={`group min-h-48 bg-black/20 p-4 focus-visible:outline-violet-300 relative flex w-full items-center justify-center overflow-hidden rounded-xl border border-dashed text-center transition focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-wait ${
+								isDragging
+									? "border-violet-200 bg-violet-400/15"
+									: "border-violet-300/35 hover:border-violet-300/65 hover:bg-violet-400/[0.08]"
+							}`}
+							aria-label={file ? t("replaceImage") : t("uploadLabel")}
+							disabled={isBusy}
 							onClick={() => {
 								beginUpload();
 								inputRef.current?.click();
 							}}
+							onDragEnter={(event) => {
+								event.preventDefault();
+								if (!isBusy) setIsDragging(true);
+							}}
+							onDragOver={handleDragOver}
+							onDragLeave={() => setIsDragging(false)}
+							onDrop={handleDrop}
 						>
 							{previewUrl ? (
-								<Image
-									src={previewUrl}
-									alt={t("previewAlt", { fileName: file?.name ?? "" })}
-									fill
-									unoptimized
-									className="object-cover"
-								/>
+								<>
+									<Image
+										src={previewUrl}
+										alt={t("previewAlt", { fileName: file?.name ?? "" })}
+										fill
+										unoptimized
+										className="object-cover"
+									/>
+									<span className="inset-x-3 bottom-3 min-h-11 bg-slate-950/80 px-3 py-2 text-xs font-semibold text-white backdrop-blur-sm absolute flex items-center justify-center rounded-lg">
+										{t("replaceImage")}
+									</span>
+								</>
 							) : (
 								<span className="gap-2 flex flex-col items-center">
 									<span className="size-12 bg-violet-300/10 text-violet-200 ring-violet-300/20 group-hover:-translate-y-0.5 group-hover:bg-violet-300/15 grid place-items-center rounded-2xl ring-1 transition motion-reduce:transform-none">
@@ -282,6 +375,7 @@ export function LandingGenerator() {
 							accept={supportedMimeTypes.join(",")}
 							aria-label={t("reference")}
 							aria-invalid={Boolean(fileError)}
+							disabled={isBusy}
 							className="sr-only"
 							onChange={handleFileChange}
 						/>
@@ -308,6 +402,7 @@ export function LandingGenerator() {
 							required
 							maxLength={10_000}
 							value={prompt}
+							disabled={isBusy}
 							placeholder={t("placeholder")}
 							className="min-h-48 border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-violet-400 focus-visible:ring-violet-400 resize-y"
 							onChange={(event) => setPrompt(event.target.value)}
@@ -321,6 +416,7 @@ export function LandingGenerator() {
 									<button
 										key={suggestion}
 										type="button"
+										disabled={isBusy}
 										className="min-h-11 border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-slate-300 hover:border-violet-300/40 hover:bg-violet-300/10 hover:text-white focus-visible:outline-violet-300 rounded-full border text-left transition focus-visible:outline-2 focus-visible:outline-offset-2"
 										onClick={() => {
 											setPrompt(suggestion);
@@ -337,13 +433,61 @@ export function LandingGenerator() {
 						</div>
 					</section>
 
-					<aside className="border-violet-300/20 p-4 flex flex-col rounded-2xl border bg-[#211831]/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+					<aside className="border-violet-300/20 p-4 min-w-0 flex flex-col rounded-2xl border bg-[#211831]/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+						<fieldset disabled={isBusy}>
+							<legend className="text-sm font-semibold text-white">{t("modes.legend")}</legend>
+							<div className="mt-2 gap-2 sm:grid-cols-2 lg:grid-cols-1 grid">
+								{capability?.products.map((product) => {
+									const modeKey = product.key === "image-quality" ? "quality" : "standard";
+									const selected = product.key === selectedProductKey;
+									return (
+										<label
+											key={product.key}
+											className={`min-w-0 p-3 pl-9 focus-within:ring-violet-200 relative cursor-pointer rounded-xl border transition focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-[#211831] focus-within:outline-none ${
+												selected
+													? "border-violet-300 bg-violet-400/15"
+													: "border-white/10 bg-black/20 hover:border-violet-300/45"
+											}`}
+										>
+											<input
+												type="radio"
+												name="landing-product"
+												value={product.key}
+												checked={selected}
+												className="left-3 top-3.5 size-4 accent-violet-500 absolute z-10"
+												onChange={() => {
+													setSelectedProductKey(product.key);
+													setSubmitError(undefined);
+												}}
+											/>
+											<span className="gap-2 min-w-0 flex items-start justify-between">
+												<span className="text-sm font-bold text-white">
+													{t(`modes.${modeKey}.label`)}
+												</span>
+												<span className="font-semibold text-violet-100 bg-violet-300/10 px-2 py-1 shrink-0 rounded-full text-[0.68rem]">
+													{t(`modes.${modeKey}.badge`)}
+												</span>
+											</span>
+											<span className="mt-1 text-xs leading-5 text-slate-300 block">
+												{t(`modes.${modeKey}.description`)}
+											</span>
+											<span className="mt-2 gap-2 text-slate-400 flex items-center justify-between text-[0.7rem]">
+												<span>{t(`modes.${modeKey}.access`)}</span>
+												<span className="font-semibold text-slate-200 shrink-0">
+													{t("modes.credits", { credits: Number(product.credits) })}
+												</span>
+											</span>
+										</label>
+									);
+								})}
+							</div>
+						</fieldset>
 						<div className="min-h-11 gap-3 border-white/10 bg-black/20 px-3 py-2 flex items-center justify-between rounded-xl border">
 							<span className="gap-2 text-sm font-bold text-white flex items-center">
 								<span className="size-6 text-white grid place-items-center rounded-lg bg-[#6c4dff]">
 									<CheckIcon className="size-3.5" aria-hidden="true" />
 								</span>
-								{capability?.product.label ?? "Standard Edit"}
+								{selectedProductLabel || t("modes.selectionPending")}
 							</span>
 							<span className="text-xs font-semibold text-violet-200">{t("oneOutput")}</span>
 						</div>
@@ -353,7 +497,9 @@ export function LandingGenerator() {
 									className="mt-0.5 size-3.5 text-violet-300 shrink-0"
 									aria-hidden="true"
 								/>
-								{t("freeQueue")}
+								{selectedProduct?.accessHint === "paid-account"
+									? t("qualityAccess")
+									: t("freeQueue")}
 							</p>
 							<p className="gap-2 flex items-start">
 								<LockKeyholeIcon
@@ -386,24 +532,31 @@ export function LandingGenerator() {
 							variant="primary"
 							size="lg"
 							className="mt-5 min-h-12 text-white focus-visible:outline-violet-200 lg:mt-auto w-full bg-[#6c4dff] shadow-[0_14px_34px_-16px_rgba(108,77,255,0.95)] hover:bg-[#7d63ff]"
-							disabled={!canSubmit || isSubmitting}
-							loading={isSubmitting}
+							disabled={!canSubmit}
+							loading={isBusy}
+							aria-describedby="landing-action-guidance landing-stage-status"
 						>
-							{t("offer")}
+							{actionLabel}
 							<ArrowRightIcon className="ml-1 size-4" aria-hidden="true" />
 						</Button>
 						<p className="mt-2 gap-2 text-xs font-medium text-slate-300 flex items-center justify-center text-center">
 							<ImageIcon className="size-3.5 text-emerald-300" aria-hidden="true" />
-							{t("noSignUp")}
+							{selectedProduct?.accessHint === "paid-account" ? t("paidSignIn") : t("noSignUp")}
 						</p>
 					</aside>
 				</div>
 
-				{typeof uploadPercentage === "number" && (
-					<div className="mt-3" aria-live="polite">
-						<p className="text-sm font-medium text-slate-200">
-							{t("states.uploading", { percentage: uploadPercentage })}
-						</p>
+				<output
+					id="landing-stage-status"
+					data-test="landing-stage"
+					data-stage={stage}
+					className="mt-3 text-sm font-medium text-slate-200 block"
+					aria-live="polite"
+				>
+					{stageLabel}
+				</output>
+				{stage === "uploading" && typeof uploadPercentage === "number" && (
+					<div className="mt-2">
 						<div className="mt-2 h-1.5 bg-white/10 overflow-hidden rounded-full" aria-hidden="true">
 							<div
 								className="bg-violet-400 h-full rounded-full transition-[width] motion-reduce:transition-none"
@@ -411,6 +564,11 @@ export function LandingGenerator() {
 							/>
 						</div>
 					</div>
+				)}
+				{disabledReason && disabledReason !== "busy" && (
+					<p id="landing-action-guidance" className="mt-2 text-sm text-amber-200">
+						{t(`guidance.${disabledReason}`)}
+					</p>
 				)}
 
 				{(capabilityFailed || (capability && !capability.enabled)) && (
@@ -455,4 +613,8 @@ function createAttemptKey(): string {
 	return typeof crypto.randomUUID === "function"
 		? crypto.randomUUID()
 		: `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+async function nextAnimationFrame(): Promise<void> {
+	await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
 }

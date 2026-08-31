@@ -7,10 +7,17 @@ const booleanStringSchema = z
 
 const optionalSecretSchema = z.string().min(1).optional();
 
-export const mediaProviderKeySchema = z.enum(["replicate", "fal", "kie", "gemini"]);
+export const mediaProviderKeySchema = z.enum(["replicate", "fal", "kie", "gemini", "openrouter"]);
 export type MediaProviderKey = z.infer<typeof mediaProviderKeySchema>;
 
-const mediaProviderAdapterSchema = z.enum(["replicate", "fal", "kie", "gemini", "mock"]);
+const mediaProviderAdapterSchema = z.enum([
+	"replicate",
+	"fal",
+	"kie",
+	"gemini",
+	"openrouter",
+	"mock",
+]);
 
 const rawServerEnvironmentSchema = z.object({
 	NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
@@ -34,6 +41,7 @@ const rawServerEnvironmentSchema = z.object({
 	FAL_API_KEY: optionalSecretSchema,
 	KIE_API_KEY: optionalSecretSchema,
 	GEMINI_API_KEY: optionalSecretSchema,
+	OPENROUTER_API_KEY: optionalSecretSchema,
 	MEDIA_PROVIDER_ADAPTER: mediaProviderAdapterSchema.default("mock"),
 	MEDIA_ENABLED_PROVIDERS: z.string().optional(),
 	MEDIA_RECOVERY_PROVIDERS: z.string().optional(),
@@ -61,7 +69,7 @@ export interface ServerEnvironment {
 	mediaModerationEnabled: boolean;
 	billingEnabled: boolean;
 	errorMonitoringEnabled: boolean;
-	mediaProviderAdapter: "replicate" | "fal" | "kie" | "gemini" | "mock";
+	mediaProviderAdapter: "replicate" | "fal" | "kie" | "gemini" | "openrouter" | "mock";
 	mediaEnabledProviders: MediaProviderKey[];
 	mediaRecoveryProviders: MediaProviderKey[];
 	mediaSafetyAdapter: "sightengine" | "test";
@@ -83,6 +91,7 @@ export type ProviderSecrets =
 	| { provider: "fal"; apiKey: string | undefined }
 	| { provider: "kie"; apiKey: string | undefined }
 	| { provider: "gemini"; apiKey: string | undefined }
+	| { provider: "openrouter"; apiKey: string | undefined }
 	| { provider: "mock" };
 export interface ServerSecrets {
 	databaseUrl: string | undefined;
@@ -243,6 +252,7 @@ function requireEnabledProviderCredentials(
 		fal: "FAL_API_KEY",
 		kie: "KIE_API_KEY",
 		gemini: "GEMINI_API_KEY",
+		openrouter: "OPENROUTER_API_KEY",
 	} as const;
 	for (const provider of parseMediaEnabledProviders(input)) {
 		const key = credentialKeys[provider];
@@ -262,6 +272,8 @@ function selectedProviderSecrets(
 			return { provider: "kie", apiKey: input.KIE_API_KEY };
 		case "gemini":
 			return { provider: "gemini", apiKey: input.GEMINI_API_KEY };
+		case "openrouter":
+			return { provider: "openrouter", apiKey: input.OPENROUTER_API_KEY };
 		case "mock":
 			return { provider: "mock" };
 	}

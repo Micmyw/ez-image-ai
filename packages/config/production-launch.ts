@@ -139,6 +139,18 @@ export function validateEzPicLaunchEnvironment(
 	// Reuse the existing server/worker contract before applying EzPic release-specific gates.
 	const requireProviderCredentials = options.requireProviderCredentials ?? true;
 	const serverEnvironment = validateServerEnvironment(input, { requireProviderCredentials });
+	const openRouterEnabled = serverEnvironment.mediaEnabledProviders.includes("openrouter");
+	const openRouterCertified = optionalBoolean(input, "MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED");
+	if (openRouterEnabled && openRouterCertified !== true) {
+		throw new Error(
+			"MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED=true is required when OpenRouter is enabled",
+		);
+	}
+	if (!openRouterEnabled && openRouterCertified === true) {
+		throw new Error(
+			"MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED requires openrouter in MEDIA_ENABLED_PROVIDERS",
+		);
+	}
 
 	const generationEnabled = requiredBoolean(input, "MEDIA_GENERATION_ENABLED");
 	const standardEditEnabled = requiredBoolean(input, "MEDIA_STANDARD_EDIT_ENABLED");
@@ -173,6 +185,7 @@ export function validateEzPicLaunchEnvironment(
 			[
 				["replicate", "REPLICATE_API_TOKEN"],
 				["fal", "FAL_API_KEY"],
+				["openrouter", "OPENROUTER_API_KEY"],
 			],
 			requireProviderCredentials,
 		);
@@ -182,7 +195,10 @@ export function validateEzPicLaunchEnvironment(
 			input,
 			serverEnvironment.mediaEnabledProviders,
 			"MEDIA_QUALITY_EDIT_ENABLED",
-			[["gemini", "GEMINI_API_KEY"]],
+			[
+				["gemini", "GEMINI_API_KEY"],
+				["openrouter", "OPENROUTER_API_KEY"],
+			],
 			requireProviderCredentials,
 		);
 	}
@@ -306,6 +322,14 @@ export function isEzPicProductEnvironmentEnabled(
 			: input.MEDIA_QUALITY_EDIT_ENABLED !== "false";
 	}
 	return true;
+}
+
+function optionalBoolean(input: Record<string, unknown>, key: string): boolean | undefined {
+	const value = input[key];
+	if (value === undefined) return undefined;
+	if (value === "true") return true;
+	if (value === "false") return false;
+	throw new Error(`${key} must be true or false`);
 }
 
 function assertUniqueMatrixValues(values: string[], label: string, context: z.RefinementCtx): void {

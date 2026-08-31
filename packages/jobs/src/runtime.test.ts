@@ -88,6 +88,23 @@ describe("provider runtime registration", () => {
 		expect([...registry.keys()]).toEqual(["replicate", "fal", "kie", "gemini"]);
 	});
 
+	it("registers OpenRouter only when it is configured and locally credentialed", () => {
+		const registry = createProviderRegistry({
+			NODE_ENV: "production",
+			MEDIA_ENABLED_PROVIDERS: "openrouter",
+			OPENROUTER_API_KEY: "openrouter-worker-secret",
+		});
+
+		expect([...registry.keys()]).toEqual(["openrouter"]);
+		expect(registry.get("openrouter").provider).toBe("openrouter");
+		expect(() =>
+			createProviderRegistry({
+				NODE_ENV: "production",
+				MEDIA_ENABLED_PROVIDERS: "openrouter",
+			}),
+		).toThrow("PROVIDER_WORKER_CREDENTIAL_MISSING:openrouter");
+	});
+
 	it("registers only configured providers that have local credentials", () => {
 		const registry = createProviderRegistry({
 			MEDIA_ENABLED_PROVIDERS: "replicate",

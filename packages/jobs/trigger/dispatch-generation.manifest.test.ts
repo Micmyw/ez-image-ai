@@ -10,6 +10,8 @@ import {
 	dispatchFalVideoTask,
 	dispatchGeminiImageTask,
 	dispatchKieVideoTask,
+	dispatchOpenRouterFastImageTask,
+	dispatchOpenRouterQualityImageTask,
 	dispatchReplicateImageTask,
 } from "./dispatch-generation";
 
@@ -32,6 +34,15 @@ describe("declared Trigger generation tasks", () => {
 				maxAttempts: 5,
 				minTimeoutInMs: 1_000,
 				maxTimeoutInMs: 30_000,
+			});
+		}
+	});
+
+	it("gives synchronous OpenRouter image requests their own conservative long-running budget", () => {
+		for (const task of [dispatchOpenRouterFastImageTask, dispatchOpenRouterQualityImageTask]) {
+			expect((task as { maxDuration?: number }).maxDuration).toBe(300);
+			expect(retryPolicy(task)).toMatchObject({
+				maxAttempts: 1,
 			});
 		}
 	});

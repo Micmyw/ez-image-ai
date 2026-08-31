@@ -163,6 +163,7 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 		try {
 			const next = await orpcClient.media.submitGuestGeneration({
 				capabilityVersion,
+				productKey: "image-fast",
 				sourceAssetId: draft.sourceAssetId,
 				prompt: prompt.trim(),
 				idempotencyKey: createIdempotencyKey("guest-submit"),

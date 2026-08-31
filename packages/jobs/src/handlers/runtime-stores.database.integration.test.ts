@@ -3227,18 +3227,21 @@ async function seedPendingProviderJob() {
 	const seeded = await seedReservedJob("image-fast");
 	const store = createTestDispatchStore();
 	const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
+	if (!claim || claim.provider === "openrouter") {
+		throw new Error("EXPECTED_WEBHOOK_PROVIDER_CLAIM");
+	}
 	const providerTaskId = `provider-${crypto.randomUUID()}`;
-	await store.recordSubmission(claim!.attemptId, {
+	await store.recordSubmission(claim.attemptId, {
 		providerTaskId,
 		status: "QUEUED",
 		outcome: "accepted",
-		idempotency: { key: claim!.attemptId, providerSupported: true, replayed: false },
-		reconciliation: { submissionToken: claim!.attemptId },
+		idempotency: { key: claim.attemptId, providerSupported: true, replayed: false },
+		reconciliation: { submissionToken: claim.attemptId },
 	});
 	return {
 		jobId: seeded.jobId,
-		attemptId: claim!.attemptId,
-		provider: claim!.provider,
+		attemptId: claim.attemptId,
+		provider: claim.provider,
 		providerTaskId,
 	};
 }

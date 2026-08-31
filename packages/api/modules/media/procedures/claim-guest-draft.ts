@@ -7,6 +7,7 @@ import {
 	getExpiredDraftClaimCookie,
 	hashDraftClaimToken,
 } from "../lib/draft-security";
+import { getCurrentExecutableEzPicProducts } from "../lib/executable-route-graph";
 
 export const claimGuestDraft = guestMediaProcedure
 	.route({
@@ -20,8 +21,16 @@ export const claimGuestDraft = guestMediaProcedure
 		const token = readCookie(context.headers.get("cookie"), DRAFT_CLAIM_COOKIE);
 		if (!token) throw new Error("DRAFT_UNAVAILABLE");
 		try {
+			const allowedProductKeys = (await getCurrentExecutableEzPicProducts())
+				.filter((product) => product.key === "image-fast")
+				.map((product) => product.key);
+			if (allowedProductKeys.length === 0) throw new Error("DRAFT_UNAVAILABLE");
 			return await claimGuestGenerationDraftTransaction(
-				{ claimTokenHash: hashDraftClaimToken(token), userId: context.user.id },
+				{
+					claimTokenHash: hashDraftClaimToken(token),
+					userId: context.user.id,
+					allowedProductKeys,
+				},
 				db,
 			);
 		} finally {
