@@ -3,6 +3,7 @@ import { createDraftHandoffResponse } from "@media/lib/draft-handoff";
 import {
 	getExpiredDraftClaimCookie,
 	getExpiredGuestBootstrapCookie,
+	resolveGuestPublicOrigin,
 } from "@repo/api/modules/media/lib/draft-security";
 import { claimGenerationDraft } from "@repo/api/modules/media/procedures/claim-generation-draft";
 import { claimGuestDraft } from "@repo/api/modules/media/procedures/claim-guest-draft";
@@ -13,11 +14,15 @@ import { NextResponse } from "next/server";
 export async function POST(request: Request) {
 	const marketingOrigin = process.env.NEXT_PUBLIC_MARKETING_URL;
 	const saasOrigin = process.env.NEXT_PUBLIC_SAAS_URL;
-	if (!marketingOrigin || !saasOrigin) return new Response(null, { status: 403 });
+	if (!saasOrigin) return new Response(null, { status: 403 });
 	try {
+		const publicOrigin = resolveGuestPublicOrigin(request.headers.get("origin"), {
+			saasOrigin,
+			marketingOrigin,
+		});
 		const session = await getSession();
 		return await createDraftHandoffResponse(request, {
-			marketingOrigin,
+			marketingOrigin: publicOrigin,
 			saasOrigin,
 			secure: process.env.NODE_ENV === "production",
 			isRegistered: Boolean(session && !isAnonymousUser(session.user)),

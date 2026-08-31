@@ -5,6 +5,7 @@ import {
 	createDraftClaimToken,
 	getDraftClaimCookie,
 	hashDraftClaimToken,
+	resolveGuestPublicOrigin,
 } from "./draft-security";
 
 describe("draft claim security", () => {
@@ -28,6 +29,27 @@ describe("draft claim security", () => {
 		expect(() => assertMarketingOrigin(null, "https://studio.example.com")).toThrow(
 			"FORBIDDEN_ORIGIN",
 		);
+	});
+
+	it("accepts the unified SaaS origin while preserving the legacy marketing origin", () => {
+		expect(
+			resolveGuestPublicOrigin("https://app.example.com", {
+				saasOrigin: "https://app.example.com",
+				marketingOrigin: "https://www.example.com",
+			}),
+		).toBe("https://app.example.com");
+		expect(
+			resolveGuestPublicOrigin("https://www.example.com", {
+				saasOrigin: "https://app.example.com",
+				marketingOrigin: "https://www.example.com",
+			}),
+		).toBe("https://www.example.com");
+		expect(() =>
+			resolveGuestPublicOrigin("https://evil.example.com", {
+				saasOrigin: "https://app.example.com",
+				marketingOrigin: "https://www.example.com",
+			}),
+		).toThrow("FORBIDDEN_ORIGIN");
 	});
 
 	it("serializes a short-lived HttpOnly cookie without leaking the token to another path", () => {

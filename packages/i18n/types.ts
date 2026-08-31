@@ -38,4 +38,5 @@ export interface I18nConfig {
 export type SharedMessages = typeof sharedMessages;
 export type MarketingMessages = typeof marketingMessages & SharedMessages;
 export type SaasMessages = typeof saasMessages & SharedMessages;
+export type UnifiedAppMessages = MarketingMessages & SaasMessages;
 export type MailMessages = typeof mailMessages;

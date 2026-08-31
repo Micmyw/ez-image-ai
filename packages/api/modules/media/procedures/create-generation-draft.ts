@@ -10,9 +10,9 @@ import { z } from "zod";
 import { publicProcedure } from "../../../orpc/procedures";
 import { draftClientIdentity } from "../lib/draft-client-identity";
 import {
-	assertMarketingOrigin,
 	createDraftClaimToken,
 	hashDraftClaimToken,
+	resolveGuestPublicOrigin,
 } from "../lib/draft-security";
 
 const draftUploadSchema = z
@@ -47,9 +47,10 @@ export const createGenerationDraft = publicProcedure
 	.route({ method: "POST", path: "/media/drafts", tags: ["Media"] })
 	.input(marketingGenerationDraftInputSchema)
 	.handler(async ({ context, input }) => {
-		const marketingOrigin = process.env.NEXT_PUBLIC_MARKETING_URL;
-		if (!marketingOrigin) throw new Error("FORBIDDEN_ORIGIN");
-		assertMarketingOrigin(context.headers.get("origin"), marketingOrigin);
+		resolveGuestPublicOrigin(context.headers.get("origin"), {
+			saasOrigin: process.env.NEXT_PUBLIC_SAAS_URL,
+			marketingOrigin: process.env.NEXT_PUBLIC_MARKETING_URL,
+		});
 		const subjectHash = clientIpHash(context.headers, process.env);
 		await enforceDraftRateLimit(subjectHash, "marketing-draft");
 

@@ -9,11 +9,11 @@ describe("marketing storage connect source", () => {
 		);
 	});
 
-	it("rejects loopback storage for a production-like non-loopback marketing origin", () => {
+	it("rejects loopback storage for a separate marketing origin", () => {
 		expect(
 			resolveMarketingStorageConnectSource({
 				...localMediaE2EEnvironment(),
-				NEXT_PUBLIC_MARKETING_URL: "https://marketing.example",
+				NEXT_PUBLIC_MARKETING_URL: "http://localhost:3001",
 			}),
 		).toBeNull();
 	});
@@ -38,7 +38,7 @@ function localMediaE2EEnvironment(): Record<string, string | undefined> {
 		DATABASE_URL: databaseUrl,
 		TEST_DATABASE_URL: databaseUrl,
 		NEXT_PUBLIC_SAAS_URL: "http://localhost:3000",
-		NEXT_PUBLIC_MARKETING_URL: "http://localhost:3001",
+		NEXT_PUBLIC_MARKETING_URL: "http://localhost:3000",
 		MEDIA_PROVIDER_ADAPTER: "mock",
 		MEDIA_SAFETY_ADAPTER: "test",
 		MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true",

@@ -189,7 +189,11 @@ export function validateEzPicLaunchEnvironment(
 
 	const marketing = realHttpsOrigin(input, "NEXT_PUBLIC_MARKETING_URL");
 	const saas = realHttpsOrigin(input, "NEXT_PUBLIC_SAAS_URL");
-	if (marketing === saas) throw new Error("Marketing and SaaS origins must be distinct");
+	if (marketing !== saas) {
+		throw new Error(
+			"Public origins must match: NEXT_PUBLIC_MARKETING_URL and NEXT_PUBLIC_SAAS_URL",
+		);
+	}
 	realHttpsOrigin(input, "S3_ENDPOINT");
 	realHttpsOrigin(input, "NEXT_PUBLIC_POSTHOG_HOST");
 

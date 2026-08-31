@@ -9,13 +9,13 @@ foundation remains the implementation base.
 EzPic is a private, prompt-based AI image editor. A deployment can replace the working brand and
 public contact details without editing components or email templates:
 
-| Variable                       | Purpose                                                    |
-| ------------------------------ | ---------------------------------------------------------- |
-| `NEXT_PUBLIC_MARKETING_URL`    | Canonical marketing origin and cross-application links     |
-| `NEXT_PUBLIC_SAAS_URL`         | Authenticated application origin and sign-in/editing links |
-| `NEXT_PUBLIC_SUPPORT_EMAIL`    | Public support address; omitted when blank                 |
-| `NEXT_PUBLIC_SITE_NAME`        | Product name, defaulting to `EzPic`                        |
-| `NEXT_PUBLIC_SITE_DESCRIPTION` | Product metadata and descriptive copy                      |
+| Variable                       | Purpose                                                           |
+| ------------------------------ | ----------------------------------------------------------------- |
+| `NEXT_PUBLIC_SAAS_URL`         | Canonical origin for the public landing and authenticated product |
+| `NEXT_PUBLIC_MARKETING_URL`    | Legacy compatibility alias; production requires it to match SaaS  |
+| `NEXT_PUBLIC_SUPPORT_EMAIL`    | Public support address; omitted when blank                        |
+| `NEXT_PUBLIC_SITE_NAME`        | Product name, defaulting to `EzPic`                               |
+| `NEXT_PUBLIC_SITE_DESCRIPTION` | Product metadata and descriptive copy                             |
 
 Production deployments must provide their real origins and support address. Repository defaults
 use local development URLs or reserved invalid placeholders; no production domain or legal entity
@@ -47,37 +47,23 @@ not removed or replaced.
 
 Catalog and pricing contract version: `2026-08-25.1`.
 
-## Marketing homepage and anonymous draft boundary
+## Public homepage and anonymous trial boundary
 
-The marketing homepage is an upload-first image editor. A visitor must choose a JPEG, PNG, or WebP
-source image within the configured public image-size limit, enter a prompt, and select Standard
-Edit or Quality Edit. Prompt suggestions populate the prompt field only; they never submit a draft.
-The draft API derives the same byte limit from `DEFAULT_PRODUCT_CONFIG`, checks decoded payload
-bytes at the exact boundary, and rejects oversized requests before rate-limit, storage, or draft
-database writes.
+The SaaS `/` route is an upload-first image editor, not a redirect to login. A visitor chooses one
+JPEG, PNG, or WebP source image within the server-advertised limit, enters a prompt, and starts the
+metered guest Standard Edit. Prompt suggestions only populate the prompt field. Quality Edit,
+history, assets, subscriptions, and account settings remain authenticated enhancements.
 
-The anonymous request has one public shape:
+The browser obtains the guest capability and uses relative same-origin `/api` endpoints to create a
+bounded upload intent, PUT bytes directly to private signed storage, and complete the draft. Image
+bytes are not base64-encoded through the application server. The completion call can create only the
+short-lived guest draft and opaque claim token; it cannot choose a Provider/model, create an
+unmetered job, or bypass moderation, sponsored-risk, storage, and admission controls.
 
-```ts
-{
-	productKey: "image-fast" | "image-quality";
-	input: {
-		kind: "image-to-image";
-		prompt: string;
-	}
-	upload: {
-		contentType: "image/jpeg" | "image/png" | "image/webp";
-		base64: string;
-	}
-}
-```
-
-`POST /api/media/drafts` creates only the existing short-lived anonymous `GenerationDraft` and its
-private source asset. It does not create a quote, generation job, credit reservation, or Provider
-request. After draft creation, the browser sends the opaque claim token to the configured SaaS
-`/draft/continue` route in a hidden top-level POST form. The token and prompt are never added to a
-query string. Real generation starts only after sign-in, server-side quote review, and explicit
-confirmation in the authenticated editor.
+The claim token is sent to `/draft/continue` in a hidden top-level POST form and is never placed in a
+query string. The same SaaS service bootstraps a temporary anonymous session and continues to `/try`,
+where the existing guest generation path owns admission, job creation, moderation, result access,
+expiry, and optional account linking.
 
 ## Authenticated editor and one-edit lifecycle
 
@@ -106,12 +92,11 @@ comparison uses the exact job-bound input and only an approved job output; both 
 download are requested through short-lived owner-authorized signed URLs. No signed URL is sent to
 analytics or application logs.
 
-The homepage uses original repository-owned vector illustrations documented in
-`apps/marketing/public/examples/PROVENANCE.md`. They explain edit categories and the comparison UI;
-they are not represented as Provider output or evidence of model quality.
+The homepage uses repository-owned UI assets and icon components. It does not represent decorative
+examples as Provider output or model-quality evidence.
 
-The default-English homepage, pricing, privacy, and terms pages plus the consented editing funnel
-and read-only admin aggregate boundary are specified in
+The public homepage plus the consented editing funnel and read-only admin aggregate boundary are
+specified in
 [the growth, SEO, and operations contract](ezpic-growth-operations.md). Other locales and every
 authenticated route remain outside the search index.
 

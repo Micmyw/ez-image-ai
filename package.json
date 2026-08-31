@@ -2,10 +2,10 @@
 	"name": "supastarter-nextjs",
 	"private": true,
 	"scripts": {
-		"build": "dotenv -c -- turbo build",
-		"dev": "dotenv -c -- turbo dev --concurrency 15",
+		"build": "dotenv -c -- turbo build --filter=!marketing",
+		"dev": "dotenv -c -- turbo dev --filter=!marketing --concurrency 15",
 		"type-check": "dotenv -c -- turbo type-check",
-		"start": "dotenv -c -- turbo start",
+		"start": "dotenv -c -- turbo start --filter=!marketing",
 		"lint": "oxlint .",
 		"lint:fix": "oxlint --fix .",
 		"clean": "turbo clean",

@@ -67,7 +67,7 @@ function localMediaE2EEnvironment(): Record<string, string | undefined> {
 		DATABASE_URL: databaseUrl,
 		TEST_DATABASE_URL: databaseUrl,
 		NEXT_PUBLIC_SAAS_URL: "http://localhost:3000",
-		NEXT_PUBLIC_MARKETING_URL: "http://localhost:3001",
+		NEXT_PUBLIC_MARKETING_URL: "http://localhost:3000",
 		MEDIA_PROVIDER_ADAPTER: "mock",
 		MEDIA_SAFETY_ADAPTER: "test",
 		MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true",

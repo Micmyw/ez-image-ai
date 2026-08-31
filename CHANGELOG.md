@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-08-31
+
+### Unified public product
+
+- Moved the upload-first EzPic landing experience onto the SaaS `/` route so visitors can choose a
+  source image, write an edit prompt, and start the anonymous Standard trial without opening a
+  separate Marketing application. The authenticated account entry now lives at `/dashboard`.
+- Reused the existing private guest-upload, draft-claim, moderation, credit, storage, and anonymous
+  workspace paths from the public landing page through same-origin `/api` requests. Login remains an
+  enhancement for history, assets, paid plans, and account features rather than a homepage gate.
+- Changed local startup, production builds, mock browser CI, and guarded load plans to use one SaaS
+  origin. Production validation now requires the legacy `NEXT_PUBLIC_MARKETING_URL` compatibility
+  value to match `NEXT_PUBLIC_SAAS_URL`, and CI no longer builds or uploads evidence for a second
+  Marketing service.
+- Restored the repository-owned interactive Before/After comparison and added six original,
+  image-rich prompt recipes directly below the unified homepage tool. Selecting a case now copies
+  its localized edit prompt into the editor and returns focus there without reintroducing a
+  Marketing runtime or presenting inspiration images as EzPic model output.
+
 ## 2026-08-29
 
 ### Reliability and operations

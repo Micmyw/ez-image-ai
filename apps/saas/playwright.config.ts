@@ -8,9 +8,8 @@ import { localMediaE2EChromiumLaunchOptions } from "./playwright-local-media";
 dotenv.config({ path: path.resolve(__dirname, "../../.env.local") });
 
 const saasBaseUrl = process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000";
-const marketingBaseUrl = process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3001";
 const localMediaE2ELaunchOptions = localMediaE2EChromiumLaunchOptions(process.env);
-const guestOnlySpecs = /(?:guest-trial|originality)\.spec\.ts/;
+const guestOnlySpecs = /(?:guest-trial|landing|originality)\.spec\.ts/;
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -73,26 +72,14 @@ export default defineConfig({
 			},
 		},
 	],
-	webServer: [
-		{
-			command:
-				process.env.E2E_USE_PRODUCTION_BUILD === "true"
-					? "pnpm --filter saas exec next build --webpack && pnpm --filter saas run start"
-					: "pnpm --filter saas exec next dev --webpack -p 3000",
-			url: `${saasBaseUrl}/login`,
-			reuseExistingServer: false,
-			stdout: "pipe",
-			timeout: 180 * 1000,
-		},
-		{
-			command:
-				process.env.E2E_USE_PRODUCTION_BUILD === "true"
-					? "pnpm --filter marketing exec next build --webpack && pnpm --filter marketing exec next start -p 3001"
-					: "pnpm --filter marketing exec next dev --webpack -p 3001",
-			url: marketingBaseUrl,
-			reuseExistingServer: false,
-			stdout: "pipe",
-			timeout: 180 * 1000,
-		},
-	],
+	webServer: {
+		command:
+			process.env.E2E_USE_PRODUCTION_BUILD === "true"
+				? "pnpm --filter saas exec next build --webpack && pnpm --filter saas run start"
+				: "pnpm --filter saas exec next dev --webpack -p 3000",
+		url: `${saasBaseUrl}/login`,
+		reuseExistingServer: false,
+		stdout: "pipe",
+		timeout: 180 * 1000,
+	},
 });

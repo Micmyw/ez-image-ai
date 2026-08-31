@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
 
-export default async function AppStartPage() {
+export default function DashboardPage() {
 	redirect("/create");
 }

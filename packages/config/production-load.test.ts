@@ -4,7 +4,6 @@ import { EZPIC_LOAD_SCENARIOS, resolveEzPicProductionLoadPlan } from "./producti
 
 const localEnvironment = {
 	LOAD_BASE_URL: "http://127.0.0.1:3000",
-	LOAD_MARKETING_BASE_URL: "http://127.0.0.1:3001",
 	LOAD_PROFILE: "smoke",
 	LOAD_TEST_RUN_ID: "pr8-local-smoke",
 	LOAD_MAX_REQUESTS: "120",
@@ -21,11 +20,10 @@ const localEnvironment = {
 
 const confirmedRemoteEnvironment = {
 	...localEnvironment,
-	LOAD_BASE_URL: "https://staging-app.ezpic.example",
-	LOAD_MARKETING_BASE_URL: "https://staging.ezpic.example",
+	LOAD_BASE_URL: "https://staging.ezpic.example",
 	ALLOW_REMOTE_LOAD_TARGET: "true",
-	LOAD_REMOTE_TARGET_ALLOWLIST: "https://staging-app.ezpic.example,https://staging.ezpic.example",
-	LOAD_TARGET_CONFIRMATION: "https://staging-app.ezpic.example|https://staging.ezpic.example",
+	LOAD_REMOTE_TARGET_ALLOWLIST: "https://staging.ezpic.example",
+	LOAD_TARGET_CONFIRMATION: "https://staging.ezpic.example",
 	LOAD_TARGET_ENVIRONMENT: "staging",
 	LOAD_TARGET_ENVIRONMENT_CONFIRMATION: "staging",
 } as const;
@@ -66,6 +64,15 @@ describe("EzPic production-like load plan", () => {
 		expect(() =>
 			resolveEzPicProductionLoadPlan({ ...localEnvironment, LOAD_MAX_REQUESTS: "79" }),
 		).toThrow(/LOAD_MAX_REQUESTS.*80/);
+	});
+
+	it("rejects a separate marketing load origin", () => {
+		expect(() =>
+			resolveEzPicProductionLoadPlan({
+				...localEnvironment,
+				LOAD_MARKETING_BASE_URL: "http://127.0.0.1:3001",
+			}),
+		).toThrow(/origin.*match|same origin/i);
 	});
 
 	it.each(["LOAD_MAX_REQUESTS", "LOAD_MAX_EXPECTED_PROVIDER_COST_MICROS"] as const)(
@@ -139,22 +146,19 @@ describe("EzPic production-like load plan", () => {
 	it("rejects remote targets without opt-in, allowlist, exact confirmation, and staging identity", () => {
 		const remote = {
 			...localEnvironment,
-			LOAD_BASE_URL: "https://staging-app.ezpic.example",
-			LOAD_MARKETING_BASE_URL: "https://staging.ezpic.example",
+			LOAD_BASE_URL: "https://staging.ezpic.example",
 		};
 		for (const override of [
 			{},
 			{ ALLOW_REMOTE_LOAD_TARGET: "true" },
 			{
 				ALLOW_REMOTE_LOAD_TARGET: "true",
-				LOAD_REMOTE_TARGET_ALLOWLIST:
-					"https://staging-app.ezpic.example,https://staging.ezpic.example",
+				LOAD_REMOTE_TARGET_ALLOWLIST: "https://staging.ezpic.example",
 			},
 			{
 				ALLOW_REMOTE_LOAD_TARGET: "true",
-				LOAD_REMOTE_TARGET_ALLOWLIST:
-					"https://staging-app.ezpic.example,https://staging.ezpic.example",
-				LOAD_TARGET_CONFIRMATION: "https://staging-app.ezpic.example|https://staging.ezpic.example",
+				LOAD_REMOTE_TARGET_ALLOWLIST: "https://staging.ezpic.example",
+				LOAD_TARGET_CONFIRMATION: "https://staging.ezpic.example",
 			},
 		]) {
 			expect(() => resolveEzPicProductionLoadPlan({ ...remote, ...override })).toThrow();
@@ -165,12 +169,10 @@ describe("EzPic production-like load plan", () => {
 		expect(
 			resolveEzPicProductionLoadPlan({
 				...localEnvironment,
-				LOAD_BASE_URL: "https://staging-app.ezpic.example",
-				LOAD_MARKETING_BASE_URL: "https://staging.ezpic.example",
+				LOAD_BASE_URL: "https://staging.ezpic.example",
 				ALLOW_REMOTE_LOAD_TARGET: "true",
-				LOAD_REMOTE_TARGET_ALLOWLIST:
-					"https://staging-app.ezpic.example,https://staging.ezpic.example",
-				LOAD_TARGET_CONFIRMATION: "https://staging-app.ezpic.example|https://staging.ezpic.example",
+				LOAD_REMOTE_TARGET_ALLOWLIST: "https://staging.ezpic.example",
+				LOAD_TARGET_CONFIRMATION: "https://staging.ezpic.example",
 				LOAD_TARGET_ENVIRONMENT: "staging",
 				LOAD_TARGET_ENVIRONMENT_CONFIRMATION: "staging",
 			}),

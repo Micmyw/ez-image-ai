@@ -151,7 +151,6 @@ jobs:
         run: pnpm --filter @repo/database generate
       - run: pnpm db:migrate:deploy
       - run: pnpm --filter saas build
-      - run: pnpm --filter marketing build
 
   mock-e2e:
     name: Mock media E2E
@@ -243,16 +242,6 @@ jobs:
           path: |
             apps/saas/playwright-report/**
             apps/saas/test-results/**
-          if-no-files-found: error
-          retention-days: 30
-      - name: Upload marketing Playwright evidence
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: playwright-marketing
-          path: |
-            apps/marketing/playwright-report/**
-            apps/marketing/test-results/**
           if-no-files-found: error
           retention-days: 30
 

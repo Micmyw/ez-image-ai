@@ -15,7 +15,6 @@ export interface EzPicProductionLoadPlan {
 	remote: boolean;
 	targetEnvironment: "local" | "staging";
 	saasOrigin: string;
-	marketingOrigin: string;
 	maximumRequests: number;
 	maximumExpectedProviderCostMicros: bigint;
 	plannedRequests: number;
@@ -46,15 +45,13 @@ export function resolveEzPicProductionLoadPlan(
 	input: Record<string, string | undefined>,
 ): EzPicProductionLoadPlan {
 	const saas = loadOrigin(required(input, "LOAD_BASE_URL"), "LOAD_BASE_URL");
-	const marketing = loadOrigin(
-		required(input, "LOAD_MARKETING_BASE_URL"),
-		"LOAD_MARKETING_BASE_URL",
-	);
-	const saasLoopback = LOOPBACK_HOSTS.has(saas.hostname);
-	const marketingLoopback = LOOPBACK_HOSTS.has(marketing.hostname);
-	if (saasLoopback !== marketingLoopback) {
-		throw new Error("LOAD_BASE_URL and LOAD_MARKETING_BASE_URL must both be local or both remote");
+	const marketing = input.LOAD_MARKETING_BASE_URL
+		? loadOrigin(input.LOAD_MARKETING_BASE_URL, "LOAD_MARKETING_BASE_URL")
+		: saas;
+	if (marketing.origin !== saas.origin) {
+		throw new Error("Load origins must match; the landing page and SaaS share one origin");
 	}
+	const saasLoopback = LOOPBACK_HOSTS.has(saas.hostname);
 	const remote = !saasLoopback;
 	const maximumRequests = requiredPositiveInteger(input, "LOAD_MAX_REQUESTS", 1_000_000);
 	const maximumErrorRateBasisPoints = requiredPositiveInteger(
@@ -81,19 +78,18 @@ export function resolveEzPicProductionLoadPlan(
 	}
 	let targetEnvironment: "local" | "staging" = "local";
 	if (remote) {
-		if (saas.protocol !== "https:" || marketing.protocol !== "https:") {
+		if (saas.protocol !== "https:") {
 			throw new Error("Remote load targets must use HTTPS");
 		}
 		if (input.ALLOW_REMOTE_LOAD_TARGET !== "true") {
 			throw new Error("Remote load targets require ALLOW_REMOTE_LOAD_TARGET=true");
 		}
 		const allowlist = new Set(csv(input, "LOAD_REMOTE_TARGET_ALLOWLIST"));
-		for (const origin of [saas.origin, marketing.origin]) {
-			if (!allowlist.has(origin))
-				throw new Error(`Remote load target is not allowlisted: ${origin}`);
+		if (!allowlist.has(saas.origin)) {
+			throw new Error(`Remote load target is not allowlisted: ${saas.origin}`);
 		}
-		if (input.LOAD_TARGET_CONFIRMATION !== `${saas.origin}|${marketing.origin}`) {
-			throw new Error("LOAD_TARGET_CONFIRMATION must exactly match both remote origins");
+		if (input.LOAD_TARGET_CONFIRMATION !== saas.origin) {
+			throw new Error("LOAD_TARGET_CONFIRMATION must exactly match the remote origin");
 		}
 		if (
 			input.LOAD_TARGET_ENVIRONMENT !== "staging" ||
@@ -168,7 +164,6 @@ export function resolveEzPicProductionLoadPlan(
 		remote,
 		targetEnvironment,
 		saasOrigin: saas.origin,
-		marketingOrigin: marketing.origin,
 		maximumRequests,
 		maximumExpectedProviderCostMicros,
 		plannedRequests,

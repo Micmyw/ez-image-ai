@@ -7,29 +7,23 @@ store.
 
 ## Search indexing boundary
 
-`NEXT_PUBLIC_MARKETING_URL` is the only canonical origin. Production must configure a real HTTPS
-marketing origin; reserved `.invalid` hosts, credentials in the URL, and insecure non-loopback
-origins fail closed. Local loopback HTTP remains supported for tests.
+`NEXT_PUBLIC_SAAS_URL` is the canonical origin for both the public tool and authenticated product.
+The legacy `NEXT_PUBLIC_MARKETING_URL` compatibility value must match it in production. Reserved
+`.invalid` hosts, credentials in either URL, and insecure non-loopback origins fail closed. Local
+loopback HTTP remains supported for tests.
 
 Only the default-English versions of these paths are indexable:
 
-| Path       | Index policy    | Purpose                         |
-| ---------- | --------------- | ------------------------------- |
-| `/`        | `index, follow` | Image editor homepage           |
-| `/pricing` | `index, follow` | Canonical plan comparison       |
-| `/privacy` | `index, follow` | Product privacy and data limits |
-| `/terms`   | `index, follow` | Product usage terms             |
+| Path | Index policy    | Purpose               |
+| ---- | --------------- | --------------------- |
+| `/`  | `index, follow` | Image editor homepage |
 
-The sitemap contains exactly those four URLs. Other marketing routes and every non-English locale
-are `noindex, follow`. The SaaS application—including login, create, history, assets, edits,
-checkout, settings, and admin—is `noindex, nofollow`, and its robots route disallows crawling.
-Legacy `/legal/*` routes remain available for compatibility but inherit `noindex`.
+The sitemap contains exactly that public URL. Login, try, create, history, assets, edits, checkout,
+settings, and admin remain `noindex, nofollow`; robots disallows crawling those product routes.
 
-Homepage structured data contains `WebSite`, `Organization`, and `SoftwareApplication`. Paid
-`Offer` nodes are emitted only when the matching configured Stripe Price ID is valid; their amount
-and currency come from `PLAN_ENTITLEMENTS`. A missing or invalid Price ID produces no purchasable
-offer claim. The homepage Showcase uses only the original assets recorded in
-`apps/marketing/public/examples/PROVENANCE.md`.
+Homepage structured data identifies EzPic as a Web `SoftwareApplication`. The visible pricing
+section derives public plan amounts and credits from `PLAN_ENTITLEMENTS`; it never exposes Provider
+routes, model identifiers, credentials, or internal costs.
 
 Google Search Console verification is optional through
 `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`. A missing, malformed, placeholder, or replacement token is

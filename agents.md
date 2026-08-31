@@ -36,7 +36,8 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm dev` runs the workspace dev tasks through Turbo.
+`pnpm dev` runs the active workspace development tasks through Turbo and excludes the retained
+legacy `marketing` application. The public landing and authenticated product both run in `saas`.
 
 ### Root commands
 
@@ -51,17 +52,20 @@ pnpm dev
 | `pnpm test`                         | Run Vitest workspace tests     |
 | `pnpm clean`                        | Clear Turbo outputs            |
 
-Required gates:
+Validation is impact-based:
 
-1. After every meaningful change, run `pnpm format` and `pnpm lint`.
-2. Before every commit, run `pnpm type-check`.
-3. Run the relevant tests before considering the change complete.
+1. For small, low-risk changes, format, lint, type-check, and test only the changed files or the
+   directly affected workspace. Do not run root `pnpm test`, unrelated E2E suites, or a full build.
+2. Run full-workspace checks only for cross-workspace changes, high-risk behavior (auth, payments,
+   database, security, concurrency, or production infrastructure), release certification, explicit
+   CI parity, or when the user asks for them.
+3. If no focused test exists, run the nearest package-level check and report that limitation instead
+   of expanding automatically to the whole repository.
 
-The root test task runs Vitest in `apps/marketing`, `apps/saas`, and `packages/api`.
-Playwright tests are in `apps/marketing/tests` and `apps/saas/tests`. E2E scripts
-are per app: use `pnpm --filter marketing e2e`, `pnpm --filter marketing e2e:ci`,
-`pnpm --filter saas e2e`, or `pnpm --filter saas e2e:ci`. E2E requires a running
-application and database.
+The root test task runs Vitest in `apps/marketing`, `apps/saas`, and `packages/api` while legacy
+compatibility code remains. The active product Playwright tests are in `apps/saas/tests`; use
+`pnpm --filter saas e2e` or `pnpm --filter saas e2e:ci`. The media E2E harness starts only SaaS and
+requires a running database.
 
 ## Monorepo map
 
@@ -69,8 +73,8 @@ application and database.
 apps/
 ├── docs/          # Next.js/Fumadocs documentation
 ├── mail-preview/  # Email preview
-├── marketing/     # Public site, blog, and content
-└── saas/          # Authenticated product
+├── marketing/     # Retained legacy public/blog implementation; not a root runtime service
+└── saas/          # Unified public landing, guest trial, and authenticated product
 packages/
 ├── ai/
 ├── api/
@@ -227,17 +231,17 @@ dependencies to the workspace package that imports them.
 
 - Use conventional commits such as `feat:`, `fix:`, `docs:`, or `refactor:`.
 - Update `CHANGELOG.md` for consumer-impacting changes.
-- Update relevant docs under `apps/marketing/content` for user-facing behavior.
+- Update `apps/saas/modules/landing`, shared translations, and relevant product docs for public
+  landing behavior. Update legacy `apps/marketing/content` only when that retained content changes.
 - Update `AGENTS.md` when conventions, aliases, scripts, or app boundaries change.
 - Supastarter ships three starter kits. Keep changes generic and consider whether
   an equivalent update belongs in the Nuxt or TanStack Start kit.
 
 ## Before you're done
 
-- [ ] `pnpm format` passes
-- [ ] `pnpm lint` passes
-- [ ] `pnpm type-check` passes
-- [ ] Relevant tests pass
+- [ ] Formatting and linting pass for the affected files or workspace
+- [ ] Type checking passes for the affected workspace when TypeScript changed
+- [ ] Directly affected tests pass; full-workspace tests run only when the impact policy requires them
 - [ ] No `console.log` statements were added
 - [ ] No unjustified `any` types were added
 - [ ] User-facing strings have translations

@@ -299,7 +299,7 @@ describe("guest media configuration", () => {
 			DATABASE_URL: localDatabase,
 			TEST_DATABASE_URL: localDatabase,
 			NEXT_PUBLIC_SAAS_URL: "http://localhost:3000",
-			NEXT_PUBLIC_MARKETING_URL: "http://localhost:3001",
+			NEXT_PUBLIC_MARKETING_URL: "http://localhost:3000",
 		};
 
 		expect(getGuestMediaConfig(localProductionE2E, true)).toMatchObject({
@@ -310,6 +310,15 @@ describe("guest media configuration", () => {
 		});
 		expect(
 			getGuestMediaConfig({ ...localProductionE2E, TEST_DATABASE_URL: "" }, true),
+		).toMatchObject({
+			enabled: false,
+			reason: "GUEST_PRODUCTION_EVIDENCE_REQUIRED",
+		});
+		expect(
+			getGuestMediaConfig(
+				{ ...localProductionE2E, NEXT_PUBLIC_MARKETING_URL: "http://localhost:3001" },
+				true,
+			),
 		).toMatchObject({
 			enabled: false,
 			reason: "GUEST_PRODUCTION_EVIDENCE_REQUIRED",

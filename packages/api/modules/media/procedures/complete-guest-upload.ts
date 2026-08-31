@@ -12,9 +12,9 @@ import { z } from "zod";
 import { publicProcedure } from "../../../orpc/procedures";
 import { currentMediaAssetVerificationBoundary } from "../lib/asset-authorization";
 import {
-	assertMarketingOrigin,
 	createDraftClaimToken,
 	hashDraftClaimToken,
+	resolveGuestPublicOrigin,
 } from "../lib/draft-security";
 import {
 	assertGuestCapabilityVersion,
@@ -62,9 +62,10 @@ export const completeGuestDraftUpload = publicProcedure
 		]),
 	)
 	.handler(async ({ context, input }) => {
-		const marketingOrigin = process.env.NEXT_PUBLIC_MARKETING_URL;
-		if (!marketingOrigin) throw new Error("GUEST_CONFIGURATION_ERROR");
-		assertMarketingOrigin(context.headers.get("origin"), marketingOrigin);
+		const publicOrigin = resolveGuestPublicOrigin(context.headers.get("origin"), {
+			saasOrigin: process.env.NEXT_PUBLIC_SAAS_URL,
+			marketingOrigin: process.env.NEXT_PUBLIC_MARKETING_URL,
+		});
 		const loaded = await loadGuestCapability();
 		if (!loaded.config.enabled || !loaded.config.promotionPeriod) {
 			throw new Error("GUEST_CAPABILITY_DISABLED");
@@ -83,7 +84,7 @@ export const completeGuestDraftUpload = publicProcedure
 					abuseSecret,
 					abuseKeyVersion,
 					"guest-origin",
-					marketingOrigin,
+					publicOrigin,
 				),
 				expectedSha256: input.sha256,
 			},

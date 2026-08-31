@@ -26,16 +26,16 @@
 		"title": "Documentation"
 	},
 	"faq": {
-		"description": "Des réponses claires sur les forfaits, les crédits et votre espace de retouche d'image.",
+		"description": "Des réponses claires sur les retouches invitées, les images privées, les crédits et les mises à niveau du compte.",
 		"title": "Questions fréquemment posées",
 		"items": {
 			"realGeneration": {
-				"question": "La page d’accueil génère-t-elle déjà une image retouchée ?",
-				"answer": "Non. La page d’accueil enregistre seulement un brouillon. La génération réelle commence après la connexion, la vérification du coût en crédits et la confirmation."
+				"question": "Puis-je retoucher une image depuis la page d’accueil ?",
+				"answer": "Oui. Importez une image, décrivez le changement puis ouvrez un espace invité temporaire pour lancer une retouche Standard sans créer de compte."
 			},
 			"privateUploads": {
 				"question": "Les images importées sont-elles publiques ?",
-				"answer": "Non. Les sources et résultats sont des ressources privées liées au compte ; un brouillon anonyme de courte durée est utilisé avant la connexion."
+				"answer": "Non. Les images et résultats invités restent privés et temporaires ; les médias du compte restent limités à leur propriétaire."
 			},
 			"restrictions": {
 				"question": "Que signifie « No Restrictions » ici ?",
@@ -67,7 +67,7 @@
 		"generator": {
 			"eyebrow": "Planifiez votre retouche",
 			"title": "Décrivez le changement souhaité",
-			"subtitle": "Importez une image source, décrivez la retouche, puis continuez en toute sécurité dans votre éditeur d'images privé.",
+			"subtitle": "Importez une image source, décrivez la retouche et lancez une retouche Standard privée dans EzPic.",
 			"offer": "Essayez gratuitement une retouche Standard",
 			"noSignUp": "Aucune inscription requise",
 			"oneOutput": "Un résultat",
@@ -130,9 +130,9 @@
 		"imageEditorHero": {
 			"eyebrow": "Retouche par instruction, import d’abord",
 			"title": "Éditeur d’images IA avec instructions, sans les restrictions habituelles",
-			"subtitle": "Partez de votre image, décrivez précisément le changement et transmettez un brouillon privé à l’éditeur EzPic. Le coût en crédits est visible avant toute retouche réelle.",
+			"subtitle": "Importez votre image, décrivez précisément le changement et lancez une retouche Standard privée depuis cette page. Aucun autre service ni compte requis.",
 			"private": "Images source privées",
-			"draftOnly": "Aucun coût pour ce brouillon"
+			"draftOnly": "Une retouche Standard invitée"
 		},
 		"beforeAfter": {
 			"eyebrow": "Une source, un changement clair",
@@ -147,40 +147,50 @@
 			"showEdit": "Afficher la direction"
 		},
 		"showcase": {
-			"eyebrow": "Directions de retouche",
-			"title": "Cinq façons utiles de décrire un changement",
-			"description": "Conservez le sujet important et dirigez la partie à modifier avec une instruction naturelle.",
-			"provenanceNote": "Illustrations vectorielles EzPic originales. Elles montrent des catégories, pas la qualité de sortie d’un modèle.",
+			"eyebrow": "Recettes de prompts",
+			"title": "Partez d’un style. Rendez-le vraiment vôtre.",
+			"description": "Explorez des directions visuelles originales pour les intérieurs, produits, portraits, lumières, plats et illustrations. Chaque cas contient un prompt complet à réutiliser.",
+			"instruction": "Choisissez une carte pour envoyer son prompt complet dans l’éditeur.",
+			"usePrompt": "Utiliser ce prompt",
+			"promptAdded": "Prompt ajouté",
+			"usePromptLabel": "Utiliser le prompt {title}",
+			"provenanceNote": "Images originales créées avec la génération d’images OpenAI pour l’inspiration. Elles ne sont pas présentées comme des sorties du modèle EzPic ; les résultats réels dépendent de votre image source et de votre prompt.",
 			"items": {
-				"background": {
-					"tag": "Arrière-plan",
-					"title": "Remplacer un décor",
-					"description": "Placez un produit ou sujet dans un environnement plus adapté.",
-					"alt": "Bouteille sur des arrière-plans neutre et bleu côtier"
+				"mediterranean": {
+					"tag": "Intérieur",
+					"title": "Calme méditerranéen",
+					"prompt": "Transformez la pièce en refuge méditerranéen baigné de soleil, avec murs chaulés, mobilier en chêne chaud, textures de lin doux et touches d’olivier. Préservez l’angle de vue et l’architecture d’origine.",
+					"alt": "Salon méditerranéen ensoleillé aux murs chaulés et meubles en bois chaud"
 				},
-				"object": {
-					"tag": "Objet",
-					"title": "Retirer une distraction",
-					"description": "Signalez un objet indésirable tout en préservant les textures proches.",
-					"alt": "Bureau avec une tasse sélectionnée pour être retirée"
+				"cobalt": {
+					"tag": "Produit",
+					"title": "Cobalt sculptural",
+					"prompt": "Remplacez l’arrière-plan par un studio sculptural couleur sable, ajoutez une fine surface d’eau réfléchissante et éclairez le flacon cobalt avec un soleil directionnel net. Conservez sa forme et la zone d’étiquette.",
+					"alt": "Flacon en verre cobalt sur un socle sculptural couleur sable"
 				},
-				"color": {
+				"emerald": {
 					"tag": "Couleur et matière",
-					"title": "Changer la finition",
-					"description": "Décrivez une nouvelle couleur ou matière sans reconstruire toute l’image.",
-					"alt": "Veste passant d’un tissu bleu à un satin corail"
+					"title": "Émeraude sous la pluie",
+					"prompt": "Changez uniquement la veste pour un tissu technique vert émeraude profond au léger éclat satiné. Préservez la personne, la pose, les couches de vêtements, la rue mouillée et la lumière urbaine couverte.",
+					"alt": "Portrait de mode avec veste émeraude dans une rue mouillée par la pluie"
 				},
-				"lighting": {
+				"blueHour": {
 					"tag": "Éclairage",
-					"title": "Changer l’atmosphère",
-					"description": "Demandez des ombres plus froides, une lumière plus chaude ou un autre moment de la journée.",
-					"alt": "Plante passant d’une ombre froide à une lumière chaude"
+					"title": "Cinéma à l’heure bleue",
+					"prompt": "Rééclairez la scène à l’heure bleue profonde avec des fenêtres ambrées, de subtils reflets sur le sol mouillé et un grain cinéma discret. Préservez l’architecture, les détails du véhicule et le cadrage.",
+					"alt": "Motel côtier et cabriolet ancien éclairés à l’heure bleue"
 				},
-				"style": {
+				"citrus": {
+					"tag": "Cuisine",
+					"title": "Palette d’agrumes",
+					"prompt": "Transformez cette photo de dessert en composition éditoriale vive avec assiette en céramique lavande, lin corail, surface prune sombre et lumière de fenêtre sculptée. Gardez la tarte réaliste et très détaillée.",
+					"alt": "Tarte aux agrumes vive sur assiette lavande et lin corail"
+				},
+				"paperTrain": {
 					"tag": "Style",
-					"title": "Explorer un traitement visuel",
-					"description": "Décrivez une direction graphique tout en conservant la composition.",
-					"alt": "Scène architecturale en affiche géométrique colorée"
+					"title": "Alpes en papier découpé",
+					"prompt": "Réinterprétez la scène en papier découpé artisanal superposé, avec fibres visibles, ombres dimensionnelles précises, verts alpins, ciel cobalt et train rouge tomate. Préservez le tracé et la composition des montagnes.",
+					"alt": "Illustration en papier découpé d’un train rouge serpentant dans les Alpes"
 				}
 			}
 		},
@@ -245,20 +255,20 @@
 		},
 		"howItWorks": {
 			"eyebrow": "Fonctionnement",
-			"title": "Du brouillon d’accueil à la retouche confirmée",
-			"description": "La page publique prépare votre demande. L’éditeur authentifié contrôle chaque action facturée ou mesurée.",
+			"title": "De l’import au résultat privé",
+			"description": "La page d’accueil lance l’outil. Un espace invité temporaire gère la file et le résultat privé dans la même application EzPic.",
 			"steps": {
 				"draft": {
 					"title": "Importez et décrivez",
-					"description": "Choisissez une image compatible, saisissez une instruction et sélectionnez Standard ou Quality."
+					"description": "Choisissez une image source compatible et décrivez précisément le changement souhaité."
 				},
 				"signin": {
-					"title": "Connectez-vous et vérifiez",
-					"description": "Le brouillon privé continue par POST sécurisé. Vérifiez le mode et le coût."
+					"title": "Continuez comme invité",
+					"description": "Un transfert sécurisé sur la même origine ouvre votre espace temporaire sans connexion."
 				},
 				"generate": {
-					"title": "Confirmez la retouche réelle",
-					"description": "Seule votre confirmation explicite démarre le flux asynchrone existant."
+					"title": "Lancez et vérifiez la retouche",
+					"description": "Votre confirmation démarre le flux asynchrone et renvoie un aperçu privé filigrané."
 				}
 			}
 		},
@@ -284,7 +294,7 @@
 		"finalCta": {
 			"eyebrow": "Commencez par une image",
 			"title": "Décrivez la retouche que vous avez déjà en tête",
-			"description": "Créez le brouillon ici. La génération réelle commence après la connexion, la vérification des crédits et la confirmation.",
+			"description": "Importez l’image et décrivez le changement ici, puis lancez une retouche Standard privée en invité sans créer de compte.",
 			"button": "Retour à l’éditeur"
 		},
 		"hero": {

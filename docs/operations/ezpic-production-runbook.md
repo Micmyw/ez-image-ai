@@ -100,7 +100,7 @@ environment identifiers are never returned.
 7. Run the six-surface k6 plan. `pnpm load:ezpic` is dry-run only. Actual execution additionally needs
    `--execute` through `pnpm load:ezpic:execute`, exact `LOAD_EXECUTION_CONFIRMATION`, request/error/P95
    budgets, and zero Provider budget unless bounded staging Provider calls were separately confirmed.
-   A remote target must be HTTPS, allowlisted, exactly confirmed for both Marketing and SaaS origins,
+   A remote target must be HTTPS, allowlisted, exactly confirmed for the unified product origin,
    and identified twice as staging. Production is never an allowed remote load identity.
 8. Validate measured successful-edit cost, full-use Creator/Studio cost, and approved margin using
    `../product/ezpic-final-cost-model.md`. Catalog `providerCostMicros` values are reservation ceilings,

@@ -1,6 +1,7 @@
 import { toMerged } from "es-toolkit";
 
 import { config, type Locale } from "../config";
+import type { MarketingMessages, SaasMessages } from "../types";
 
 export type TranslationScope = "marketing" | "saas" | "mail";
 
@@ -35,4 +36,18 @@ export async function getMessagesForLocale<T = Record<string, unknown>>(
 	}
 
 	return messages;
+}
+
+export async function getUnifiedMessagesForLocale(
+	locale: Locale,
+): Promise<MarketingMessages & SaasMessages> {
+	const [marketingMessages, saasMessages] = await Promise.all([
+		getMessagesForLocale<MarketingMessages>(locale, "marketing"),
+		getMessagesForLocale<SaasMessages>(locale, "saas"),
+	]);
+
+	return toMerged(
+		marketingMessages as Record<string, unknown>,
+		saasMessages as Record<string, unknown>,
+	) as MarketingMessages & SaasMessages;
 }

@@ -63,7 +63,7 @@ export function setup() {
 
 export function marketing() {
 	const response = http.get(
-		`${plan.marketingOrigin}${safeEzPicLoadPath(__ENV.LOAD_MARKETING_PATH || "/")}`,
+		`${plan.saasOrigin}${safeEzPicLoadPath(__ENV.LOAD_MARKETING_PATH || "/")}`,
 		{
 			timeout: "15s",
 		},
@@ -216,25 +216,26 @@ function buildThresholds(input) {
 
 function assertPlan(environment) {
 	const saas = origin(environment.LOAD_BASE_URL, "LOAD_BASE_URL");
-	const marketingOrigin = origin(environment.LOAD_MARKETING_BASE_URL, "LOAD_MARKETING_BASE_URL");
+	const marketingOrigin = environment.LOAD_MARKETING_BASE_URL
+		? origin(environment.LOAD_MARKETING_BASE_URL, "LOAD_MARKETING_BASE_URL")
+		: saas;
+	if (saas.origin !== marketingOrigin.origin)
+		throw new Error("Load origins must match; the landing page and SaaS share one origin");
 	const saasLocal = isLoopback(saas);
-	const marketingLocal = isLoopback(marketingOrigin);
-	if (saasLocal !== marketingLocal)
-		throw new Error("Load origins must both be local or both remote");
 	const remote = !saasLocal;
 	if (remote) {
-		if (saas.protocol !== "https:" || marketingOrigin.protocol !== "https:") {
+		if (saas.protocol !== "https:") {
 			throw new Error("Remote load targets must use HTTPS");
 		}
 		if (environment.ALLOW_REMOTE_LOAD_TARGET !== "true") {
 			throw new Error("Remote load targets require ALLOW_REMOTE_LOAD_TARGET=true");
 		}
 		const allowlist = new Set(requiredCsv(environment.LOAD_REMOTE_TARGET_ALLOWLIST));
-		if (!allowlist.has(saas.origin) || !allowlist.has(marketingOrigin.origin)) {
-			throw new Error("Every remote load origin must be in LOAD_REMOTE_TARGET_ALLOWLIST");
+		if (!allowlist.has(saas.origin)) {
+			throw new Error("The remote load origin must be in LOAD_REMOTE_TARGET_ALLOWLIST");
 		}
-		if (environment.LOAD_TARGET_CONFIRMATION !== `${saas.origin}|${marketingOrigin.origin}`) {
-			throw new Error("LOAD_TARGET_CONFIRMATION must exactly match both remote origins");
+		if (environment.LOAD_TARGET_CONFIRMATION !== saas.origin) {
+			throw new Error("LOAD_TARGET_CONFIRMATION must exactly match the remote origin");
 		}
 		if (
 			environment.LOAD_TARGET_ENVIRONMENT !== "staging" ||
@@ -309,7 +310,6 @@ function assertPlan(environment) {
 		runId,
 		remote,
 		saasOrigin: saas.origin,
-		marketingOrigin: marketingOrigin.origin,
 		scenarios,
 		iterationsPerScenario,
 		plannedRequests,

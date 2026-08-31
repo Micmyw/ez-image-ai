@@ -32,6 +32,25 @@ export function assertMarketingOrigin(origin: string | null, configuredOrigin: s
 	}
 }
 
+export function resolveGuestPublicOrigin(
+	origin: string | null,
+	configured: {
+		saasOrigin?: string | null;
+		marketingOrigin?: string | null;
+	},
+): string {
+	for (const candidate of [configured.saasOrigin, configured.marketingOrigin]) {
+		if (!candidate) continue;
+		try {
+			assertMarketingOrigin(origin, candidate);
+			return new URL(candidate).origin;
+		} catch {
+			// Try the other explicitly configured public origin during the one-app migration.
+		}
+	}
+	throw new Error("FORBIDDEN_ORIGIN");
+}
+
 export function getDraftClaimCookie(token: string, secure: boolean): string {
 	return [
 		`${DRAFT_CLAIM_COOKIE}=${encodeURIComponent(token)}`,

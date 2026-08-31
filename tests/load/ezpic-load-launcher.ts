@@ -6,7 +6,6 @@ import { resolveEzPicProductionLoadPlan } from "../../packages/config/production
 const execute = process.argv.includes("--execute");
 const dryRunDefaults = {
 	LOAD_BASE_URL: "http://127.0.0.1:3000",
-	LOAD_MARKETING_BASE_URL: "http://127.0.0.1:3001",
 	LOAD_PROFILE: "smoke",
 	LOAD_TEST_RUN_ID: "pr8-local-dry-run",
 	LOAD_MAX_REQUESTS: "120",
@@ -31,8 +30,7 @@ console.log(
 		profile: plan.profile,
 		runId: plan.runId,
 		targetEnvironment: plan.targetEnvironment,
-		saasOrigin: plan.saasOrigin,
-		marketingOrigin: plan.marketingOrigin,
+		origin: plan.saasOrigin,
 		scenarios: plan.scenarios,
 		plannedRequests: plan.plannedRequests,
 		maximumRequests: plan.maximumRequests,

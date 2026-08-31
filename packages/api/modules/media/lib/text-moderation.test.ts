@@ -100,7 +100,7 @@ describe("generation text moderation", () => {
 		["loopback database", { DATABASE_URL: "postgresql://database.example/media_test" }],
 		["test database name", { DATABASE_URL: "postgresql://localhost/media" }],
 		["loopback SaaS origin", { NEXT_PUBLIC_SAAS_URL: "https://saas.example" }],
-		["distinct local origins", { NEXT_PUBLIC_MARKETING_URL: "http://localhost:3000" }],
+		["matching public origin", { NEXT_PUBLIC_MARKETING_URL: "http://localhost:3001" }],
 	] as const)("keeps production closed without a %s", (_boundary, overrides) => {
 		expect(() =>
 			createTextModerationAdapter({ ...localProductionE2EEnvironment(), ...overrides }),
@@ -127,7 +127,7 @@ function localProductionE2EEnvironment(): Record<string, string | undefined> {
 		DATABASE_URL: databaseUrl,
 		TEST_DATABASE_URL: databaseUrl,
 		NEXT_PUBLIC_SAAS_URL: "http://localhost:3000",
-		NEXT_PUBLIC_MARKETING_URL: "http://localhost:3001",
+		NEXT_PUBLIC_MARKETING_URL: "http://localhost:3000",
 		MEDIA_SAFETY_ADAPTER: "test",
 		MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true",
 	};

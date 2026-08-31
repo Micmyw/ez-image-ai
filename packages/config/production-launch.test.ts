@@ -15,7 +15,7 @@ const productionEnvironment = {
 	DATABASE_URL: "postgresql://runtime:secret@db.example.net/ezpic_production",
 	EZPIC_DATABASE_RESOURCE_ID: "postgres:ezpic-production",
 	NEXT_PUBLIC_MARKETING_URL: "https://www.ezpic.ai",
-	NEXT_PUBLIC_SAAS_URL: "https://app.ezpic.ai",
+	NEXT_PUBLIC_SAAS_URL: "https://www.ezpic.ai",
 	NEXT_PUBLIC_SUPPORT_EMAIL: "support@ezpic.ai",
 	NEXT_PUBLIC_SITE_NAME: "EzPic",
 	NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: "gsc-verification-token-123456",
@@ -119,6 +119,24 @@ describe("EzPic production launch environment", () => {
 		]) {
 			expect(serialized).not.toContain(secret);
 		}
+	});
+
+	it("accepts one canonical origin for the public tool and authenticated product", () => {
+		expect(() =>
+			validateEzPicLaunchEnvironment({
+				...productionEnvironment,
+				NEXT_PUBLIC_MARKETING_URL: productionEnvironment.NEXT_PUBLIC_SAAS_URL,
+			}),
+		).not.toThrow();
+	});
+
+	it("rejects a separate marketing service origin", () => {
+		expect(() =>
+			validateEzPicLaunchEnvironment({
+				...productionEnvironment,
+				NEXT_PUBLIC_MARKETING_URL: "https://marketing.ezpic.ai",
+			}),
+		).toThrow(/origin.*match|same origin/i);
 	});
 
 	it.each([

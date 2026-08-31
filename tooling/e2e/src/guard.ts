@@ -5,7 +5,6 @@ export interface LocalMediaE2EEnvironment {
 	databaseUrl: string;
 	runId: string;
 	saasOrigin: string;
-	marketingOrigin: string;
 }
 
 export function isLocalMediaE2E(
@@ -52,18 +51,10 @@ export function assertLocalMediaE2E(
 		);
 	}
 	const saas = assertLoopbackOrigin(environment.NEXT_PUBLIC_SAAS_URL, "NEXT_PUBLIC_SAAS_URL");
-	const marketing = assertLoopbackOrigin(
-		environment.NEXT_PUBLIC_MARKETING_URL,
-		"NEXT_PUBLIC_MARKETING_URL",
-	);
-	if (saas.origin === marketing.origin) {
-		throw new Error("LOCAL_MEDIA_E2E_REFUSED: SaaS and marketing origins must differ");
-	}
 	return {
 		databaseUrl: database.toString(),
 		runId: environment.E2E_RUN_ID,
 		saasOrigin: saas.origin,
-		marketingOrigin: marketing.origin,
 	};
 }
 

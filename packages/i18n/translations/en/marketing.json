@@ -26,7 +26,7 @@
 		"title": "Documentation"
 	},
 	"faq": {
-		"description": "Clear answers about drafts, private images, credits, and the sign-in boundary.",
+		"description": "Clear answers about guest edits, private images, credits, and account upgrades.",
 		"title": "Frequently asked questions",
 		"items": {
 			"refundPolicy": {
@@ -46,12 +46,12 @@
 				"answer": "Yes. The Free plan includes 25 monthly credits and access to Standard Edit."
 			},
 			"realGeneration": {
-				"question": "Does the homepage generate an edited image?",
-				"answer": "No. The homepage saves an image-edit draft. Real generation starts only after you sign in, review the credit cost, and confirm the edit."
+				"question": "Can I edit an image from the homepage?",
+				"answer": "Yes. Upload a source image, describe the change, and continue into a temporary guest workspace to start one Standard edit without creating an account."
 			},
 			"privateUploads": {
 				"question": "Are uploaded images public?",
-				"answer": "No. Source images and results are private account-scoped assets; a short-lived anonymous draft is used before sign-in."
+				"answer": "No. Guest source images and results stay private and temporary; registered account media remains owner-scoped."
 			},
 			"restrictions": {
 				"question": "What does “No Restrictions” mean here?",
@@ -67,7 +67,7 @@
 		"generator": {
 			"eyebrow": "Plan your edit",
 			"title": "Describe the change you want",
-			"subtitle": "Upload a source image, describe the edit, then continue securely in your private image editor.",
+			"subtitle": "Upload a source image, describe the edit, and start one private Standard edit in EzPic.",
 			"offer": "Try one Standard edit free",
 			"noSignUp": "No sign-up required",
 			"oneOutput": "One output",
@@ -130,9 +130,9 @@
 		"imageEditorHero": {
 			"eyebrow": "Upload-first prompt editing",
 			"title": "AI Image Editor With Prompts, Without the Usual Restrictions",
-			"subtitle": "Start with your image, say exactly what should change, and carry a private draft into the EzPic editor. You see the credit cost before any real edit begins.",
+			"subtitle": "Upload your image, say exactly what should change, and start one private Standard edit from this page. No separate app and no account required.",
 			"private": "Private source images",
-			"draftOnly": "No charge for this draft"
+			"draftOnly": "One guest Standard edit"
 		},
 		"beforeAfter": {
 			"eyebrow": "One source, one clear change",
@@ -147,40 +147,50 @@
 			"showEdit": "Show edit direction"
 		},
 		"showcase": {
-			"eyebrow": "Edit directions",
-			"title": "Five useful ways to describe a change",
-			"description": "Keep the subject you care about and direct the part that should change with a natural-language prompt.",
-			"provenanceNote": "Original EzPic vector illustrations. They demonstrate edit categories, not model output quality.",
+			"eyebrow": "Prompt recipes",
+			"title": "Start with a look. Make it unmistakably yours.",
+			"description": "Explore original visual directions for interiors, products, portraits, lighting, food, and illustration. Every case includes a complete prompt you can reuse.",
+			"instruction": "Choose a card to send its full prompt to the editor.",
+			"usePrompt": "Use this prompt",
+			"promptAdded": "Prompt added",
+			"usePromptLabel": "Use the {title} prompt",
+			"provenanceNote": "Original images created with OpenAI image generation for inspiration. They are not claimed as EzPic model outputs; actual results depend on your source image and prompt.",
 			"items": {
-				"background": {
-					"tag": "Background",
-					"title": "Replace a setting",
-					"description": "Move a product or subject into a setting that better fits the scene.",
-					"alt": "Illustration of a bottle across neutral and coastal backgrounds"
+				"mediterranean": {
+					"tag": "Interior",
+					"title": "Mediterranean quiet",
+					"prompt": "Transform the room into a sunlit Mediterranean retreat with limewashed walls, warm oak furniture, soft linen textures, and olive accents. Preserve the original camera angle and architecture.",
+					"alt": "Sunlit Mediterranean living room with limewashed walls and warm wood furniture"
 				},
-				"object": {
-					"tag": "Object",
-					"title": "Remove a distraction",
-					"description": "Point out an unwanted object while asking to preserve nearby textures.",
-					"alt": "Illustration of a desk with a cup selected for removal"
+				"cobalt": {
+					"tag": "Product",
+					"title": "Sculpted cobalt",
+					"prompt": "Replace the background with a sculptural sand-colored studio, add a shallow reflective water surface, and light the cobalt bottle with crisp directional sunlight. Keep the product shape and label area unchanged.",
+					"alt": "Cobalt glass bottle on a sculptural sand-colored pedestal"
 				},
-				"color": {
+				"emerald": {
 					"tag": "Color & material",
-					"title": "Change the finish",
-					"description": "Describe a new color or material without rebuilding the whole image.",
-					"alt": "Illustration of a jacket changing from blue fabric to coral satin"
+					"title": "Emerald in the rain",
+					"prompt": "Change only the jacket to deep emerald technical fabric with a soft satin sheen. Preserve the person, pose, clothing layers, wet street, and overcast city lighting.",
+					"alt": "Fashion portrait of a person in an emerald jacket on a rain-darkened street"
 				},
-				"lighting": {
+				"blueHour": {
 					"tag": "Lighting",
-					"title": "Shift the atmosphere",
-					"description": "Ask for cooler shadows, warmer light, or a different time-of-day mood.",
-					"alt": "Illustration of a plant moving from cool shadow into warm light"
+					"title": "Blue-hour cinema",
+					"prompt": "Relight the scene at deep blue hour with warm amber window glow, subtle wet-ground reflections, and restrained cinematic grain. Preserve all architecture, vehicle details, and framing.",
+					"alt": "Coastal motel and vintage convertible illuminated at blue hour"
 				},
-				"style": {
+				"citrus": {
+					"tag": "Food",
+					"title": "Citrus color story",
+					"prompt": "Turn this dessert photo into a vibrant editorial composition with a lavender ceramic plate, coral linen, a deep plum surface, and sculpted window light. Keep the tart realistic and sharply detailed.",
+					"alt": "Bright citrus tart on a lavender plate with coral linen"
+				},
+				"paperTrain": {
 					"tag": "Style",
-					"title": "Explore a visual treatment",
-					"description": "Describe a graphic direction while keeping the source composition recognizable.",
-					"alt": "Architectural scene rendered as a colorful geometric poster"
+					"title": "Paper-cut alpine",
+					"prompt": "Reimagine the scene as handcrafted layered paper-cut art with visible paper fibers, precise dimensional shadows, alpine greens, a cobalt sky, and a tomato-red train. Preserve the route and mountain composition.",
+					"alt": "Layered paper-cut illustration of a red train winding through alpine mountains"
 				}
 			}
 		},
@@ -245,20 +255,20 @@
 		},
 		"howItWorks": {
 			"eyebrow": "How it works",
-			"title": "From homepage draft to confirmed edit",
-			"description": "The public page prepares your request. The authenticated editor owns every paid or metered action.",
+			"title": "From upload to a private result",
+			"description": "The landing page starts the tool. A temporary guest workspace handles the queue and private result inside the same EzPic app.",
 			"steps": {
 				"draft": {
 					"title": "Upload and describe",
-					"description": "Choose a supported source image, enter a prompt, and select Standard or Quality."
+					"description": "Choose a supported source image and describe the exact change you want."
 				},
 				"signin": {
-					"title": "Sign in and review",
-					"description": "Your private draft continues by secure POST. Review the mode and credit cost in your account."
+					"title": "Continue as a guest",
+					"description": "A secure same-origin handoff opens your temporary guest workspace without requiring sign-in."
 				},
 				"generate": {
-					"title": "Confirm the real edit",
-					"description": "Only your explicit confirmation can start the existing asynchronous generation workflow."
+					"title": "Start and review the edit",
+					"description": "Your confirmation starts the existing asynchronous workflow and returns a private watermarked preview."
 				}
 			}
 		},
@@ -284,7 +294,7 @@
 		"finalCta": {
 			"eyebrow": "Start with one image",
 			"title": "Describe the edit you already have in mind",
-			"description": "Build the draft here. Real generation starts only after sign-in, credit review, and confirmation.",
+			"description": "Upload and describe the change here, then continue to one private Standard guest edit without creating an account.",
 			"button": "Back to the editor"
 		},
 		"hero": {

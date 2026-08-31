@@ -6,7 +6,12 @@ This runbook is for the production AI image/video subscription foundation. Postg
 
 Prepare separate production and staging accounts/projects for PostgreSQL, Trigger.dev, Stripe, private S3/R2-compatible storage, Sentry, Sightengine, and every enabled provider (Replicate, Fal, Kie, Gemini). Restrict production access with SSO/MFA and least-privilege service identities.
 
-Start from `.env.local.example`. Production must use `NODE_ENV=production`, non-mock `MEDIA_PROVIDER_ADAPTER`, `MEDIA_SAFETY_ADAPTER=sightengine`, strong Better Auth and Webhook secrets, and HTTPS SaaS/marketing origins. `MEDIA_BUCKET_NAME` is authoritative; `S3_BUCKET` is unsupported. Keep server secrets out of `NEXT_PUBLIC_*` values and the repository.
+Start from `.env.local.example`. Production must use `NODE_ENV=production`, non-mock
+`MEDIA_PROVIDER_ADAPTER`, `MEDIA_SAFETY_ADAPTER=sightengine`, strong Better Auth and Webhook
+secrets, and one HTTPS origin shared by the public landing and authenticated SaaS routes.
+`NEXT_PUBLIC_MARKETING_URL` remains a compatibility value and must match `NEXT_PUBLIC_SAAS_URL`.
+`MEDIA_BUCKET_NAME` is authoritative; `S3_BUCKET` is unsupported. Keep server secrets out of
+`NEXT_PUBLIC_*` values and the repository.
 
 Feature gates:
 
@@ -74,7 +79,15 @@ Confirm task registration for dispatch, provider event processing, generation re
 
 The media bucket must be private with public listing and anonymous object reads disabled. Grant the application only the required bucket/object actions: multipart create/upload/list/complete/abort, put/get/head/delete, and signed URL operations for the one media bucket/prefix. Deny other buckets and administrative operations.
 
-Configure CORS for exact SaaS and marketing origins, permitted `GET`, `HEAD`, and `PUT` methods, required request headers, and exposed `ETag`; do not use wildcard origins with credentials. Set deployment-wide `MEDIA_MAX_ACTIVE_UPLOAD_SESSIONS` and `MEDIA_MAX_STORAGE_BYTES` to the desired per-owner limits. Upload sessions reserve expected bytes before signing; every multipart part number and content length must match that reservation, and validation failure must enqueue abort/delete cleanup. Validate multipart upload, abort, signed preview/download expiry, streaming Provider transfer, soft delete followed by physical cleanup, quota release, and lifecycle cleanup of abandoned multipart uploads. Alerts must cover cleanup dead letters and unexpected storage growth.
+Configure CORS for the exact unified product origin, permitted `GET`, `HEAD`, and `PUT` methods,
+required request headers, and exposed `ETag`; do not use wildcard origins with credentials. Set
+deployment-wide `MEDIA_MAX_ACTIVE_UPLOAD_SESSIONS` and `MEDIA_MAX_STORAGE_BYTES` to the desired
+per-owner limits. Upload sessions reserve expected bytes before signing; every multipart part
+number and content length must match that reservation, and validation failure must enqueue
+abort/delete cleanup. Validate multipart upload, abort, signed preview/download expiry, streaming
+Provider transfer, soft delete followed by physical cleanup, quota release, and lifecycle cleanup
+of abandoned multipart uploads. Alerts must cover cleanup dead letters and unexpected storage
+growth.
 
 ## 5. Stripe and credit lifecycle
 

@@ -11,7 +11,7 @@ import { z } from "zod";
 
 import { publicProcedure } from "../../../orpc/procedures";
 import { trustedGuestClientIdentity } from "../lib/draft-client-identity";
-import { assertMarketingOrigin } from "../lib/draft-security";
+import { resolveGuestPublicOrigin } from "../lib/draft-security";
 import {
 	assertGuestCapabilityVersion,
 	hashGuestAbuseBinding,
@@ -62,9 +62,10 @@ export const createGuestDraftUploadIntent = publicProcedure
 			.strict(),
 	)
 	.handler(async ({ context, input }) => {
-		const marketingOrigin = process.env.NEXT_PUBLIC_MARKETING_URL;
-		if (!marketingOrigin) throw new Error("GUEST_CONFIGURATION_ERROR");
-		assertMarketingOrigin(context.headers.get("origin"), marketingOrigin);
+		const publicOrigin = resolveGuestPublicOrigin(context.headers.get("origin"), {
+			saasOrigin: process.env.NEXT_PUBLIC_SAAS_URL,
+			marketingOrigin: process.env.NEXT_PUBLIC_MARKETING_URL,
+		});
 		const identity = trustedGuestClientIdentity(context.headers, process.env);
 		if (!identity) throw new Error("GUEST_TRUSTED_CLIENT_REQUIRED");
 		const loaded = await loadGuestCapability();
@@ -82,7 +83,7 @@ export const createGuestDraftUploadIntent = publicProcedure
 			throw new Error("GUEST_UPLOAD_UNSUPPORTED");
 		}
 
-		const hostname = new URL(marketingOrigin).hostname;
+		const hostname = new URL(publicOrigin).hostname;
 		const now = new Date();
 		const verify = loaded.config.turnstile.required
 			? cloudflareTurnstileVerifier(requiredTurnstileSecret(loaded.config.turnstile.secretKey))
@@ -137,7 +138,7 @@ export const createGuestDraftUploadIntent = publicProcedure
 					abuseSecret,
 					abuseKeyVersion,
 					"guest-origin",
-					marketingOrigin,
+					publicOrigin,
 				),
 				expectedSha256: input.sha256,
 				deleteAfter,

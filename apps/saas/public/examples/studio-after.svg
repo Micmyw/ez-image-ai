@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 800" role="img" aria-labelledby="title desc">
+  <title id="title">Color-lit reading studio</title>
+  <desc id="desc">Edited vector illustration of the same chair, table, lamp, and window with a vivid evening atmosphere.</desc>
+  <defs>
+    <linearGradient id="wall" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#312e81"/>
+      <stop offset=".58" stop-color="#4338ca"/>
+      <stop offset="1" stop-color="#155e75"/>
+    </linearGradient>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop stop-color="#0f172a"/>
+      <stop offset=".65" stop-color="#312e81"/>
+      <stop offset="1" stop-color="#fb7185"/>
+    </linearGradient>
+    <radialGradient id="glow">
+      <stop stop-color="#67e8f9" stop-opacity=".5"/>
+      <stop offset="1" stop-color="#67e8f9" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1200" height="800" fill="url(#wall)"/>
+  <circle cx="344" cy="210" r="340" fill="url(#glow)"/>
+  <path d="M0 605h1200v195H0z" fill="#172554"/>
+  <path d="M0 645h1200" stroke="#38bdf8" stroke-opacity=".24" stroke-width="3"/>
+  <rect x="720" y="88" width="350" height="410" rx="8" fill="#dbeafe"/>
+  <rect x="744" y="112" width="302" height="362" fill="url(#sky)"/>
+  <circle cx="992" cy="166" r="28" fill="#fef3c7"/>
+  <circle cx="927" cy="148" r="4" fill="#fff"/><circle cx="803" cy="184" r="3" fill="#fff"/><circle cx="858" cy="137" r="3" fill="#fff"/>
+  <path d="M895 112v362M744 292h302" stroke="#dbeafe" stroke-width="16"/>
+  <path d="M744 412c78-65 146-69 218-18 29 21 57 31 84 30v50H744z" fill="#0f766e" opacity=".85"/>
+  <ellipse cx="481" cy="674" rx="298" ry="58" fill="#020617" opacity=".48"/>
+  <path d="M330 355c0-65 53-118 118-118h70c65 0 118 53 118 118v201c0 53-43 96-96 96H426c-53 0-96-43-96-96z" fill="#ec4899"/>
+  <path d="M358 378c0-49 40-89 89-89h67c49 0 89 40 89 89v135c0 36-29 65-65 65H423c-36 0-65-29-65-65z" fill="#f472b6"/>
+  <path d="M382 604l-24 104M577 604l25 104" stroke="#111827" stroke-width="18" stroke-linecap="round"/>
+  <rect x="671" y="510" width="222" height="28" rx="14" fill="#67e8f9"/>
+  <path d="M700 538l-24 158M865 538l23 158" stroke="#164e63" stroke-width="14" stroke-linecap="round"/>
+  <path d="M744 510v-84" stroke="#a5f3fc" stroke-width="10"/>
+  <path d="M704 427h80l-21-56h-38z" fill="#fde68a"/>
+  <path d="M744 371V250" stroke="#a5f3fc" stroke-width="9"/>
+  <path d="M680 252h128l-34-88h-60z" fill="#fef3c7"/>
+  <circle cx="744" cy="252" r="10" fill="#fff7d6"/>
+  <rect x="773" y="456" width="43" height="54" rx="18" fill="#fb7185"/>
+  <path d="M794 458c-28-62-62-74-89-66 31 12 50 37 58 74M795 453c13-63 50-84 82-85-26 20-39 48-44 88" fill="none" stroke="#5eead4" stroke-width="12" stroke-linecap="round"/>
+</svg>

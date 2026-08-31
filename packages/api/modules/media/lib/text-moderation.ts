@@ -106,7 +106,7 @@ function isLocalProductionBuildE2E(environment: Record<string, string | undefine
 			/test|testing/i.test(database.pathname) &&
 			isLocalHttpOrigin(saas) &&
 			isLocalHttpOrigin(marketing) &&
-			saas.origin !== marketing.origin
+			saas.origin === marketing.origin
 		);
 	} catch {
 		return false;

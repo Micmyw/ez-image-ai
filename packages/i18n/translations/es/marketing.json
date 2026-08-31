@@ -26,16 +26,16 @@
 		"title": "Documentación"
 	},
 	"faq": {
-		"description": "Respuestas claras sobre planes, créditos y tu espacio de edición de imágenes.",
+		"description": "Respuestas claras sobre ediciones de invitado, imágenes privadas, créditos y mejoras de cuenta.",
 		"title": "Preguntas frecuentes",
 		"items": {
 			"realGeneration": {
-				"question": "¿La página de inicio genera una imagen editada?",
-				"answer": "No. La página de inicio solo guarda un borrador. La generación real comienza después de iniciar sesión, revisar el coste en créditos y confirmar."
+				"question": "¿Puedo editar una imagen desde la página de inicio?",
+				"answer": "Sí. Sube una imagen, describe el cambio y entra en un espacio temporal de invitado para iniciar una edición Standard sin crear una cuenta."
 			},
 			"privateUploads": {
 				"question": "¿Las imágenes subidas son públicas?",
-				"answer": "No. Las fuentes y los resultados son recursos privados de la cuenta; antes de iniciar sesión se usa un borrador anónimo de corta duración."
+				"answer": "No. Las imágenes y resultados de invitados permanecen privados y temporales; los archivos de cuenta siguen vinculados a su propietario."
 			},
 			"restrictions": {
 				"question": "¿Qué significa aquí “No Restrictions”?",
@@ -67,7 +67,7 @@
 		"generator": {
 			"eyebrow": "Planifica tu edición",
 			"title": "Describe el cambio que quieres",
-			"subtitle": "Sube una imagen de origen, describe la edición y continúa de forma segura en tu editor de imágenes privado.",
+			"subtitle": "Sube una imagen de origen, describe la edición e inicia una edición Standard privada en EzPic.",
 			"offer": "Prueba gratis una edición Standard",
 			"noSignUp": "No hace falta registrarse",
 			"oneOutput": "Un resultado",
@@ -130,9 +130,9 @@
 		"imageEditorHero": {
 			"eyebrow": "Edición por instrucciones con subida primero",
 			"title": "Editor de imágenes con IA mediante instrucciones, sin las restricciones habituales",
-			"subtitle": "Empieza con tu imagen, explica qué debe cambiar y lleva un borrador privado al editor de EzPic. Verás el coste en créditos antes de cualquier edición real.",
+			"subtitle": "Sube tu imagen, explica qué debe cambiar e inicia una edición Standard privada desde esta página. Sin otra aplicación ni cuenta obligatoria.",
 			"private": "Imágenes de origen privadas",
-			"draftOnly": "Este borrador no tiene coste"
+			"draftOnly": "Una edición Standard de invitado"
 		},
 		"beforeAfter": {
 			"eyebrow": "Una fuente, un cambio claro",
@@ -147,40 +147,50 @@
 			"showEdit": "Mostrar dirección"
 		},
 		"showcase": {
-			"eyebrow": "Direcciones de edición",
-			"title": "Cinco formas útiles de describir un cambio",
-			"description": "Conserva el sujeto importante y dirige la parte que debe cambiar con lenguaje natural.",
-			"provenanceNote": "Ilustraciones vectoriales originales de EzPic. Muestran categorías, no la calidad de salida de un modelo.",
+			"eyebrow": "Recetas de prompts",
+			"title": "Parte de un look. Hazlo inconfundiblemente tuyo.",
+			"description": "Explora direcciones visuales originales para interiores, productos, retratos, iluminación, comida e ilustración. Cada caso incluye un prompt completo para reutilizar.",
+			"instruction": "Elige una tarjeta para enviar su prompt completo al editor.",
+			"usePrompt": "Usar este prompt",
+			"promptAdded": "Prompt añadido",
+			"usePromptLabel": "Usar el prompt {title}",
+			"provenanceNote": "Imágenes originales creadas con generación de imágenes de OpenAI como inspiración. No se presentan como resultados del modelo de EzPic; los resultados reales dependen de tu imagen y tu prompt.",
 			"items": {
-				"background": {
-					"tag": "Fondo",
-					"title": "Sustituye un entorno",
-					"description": "Mueve un producto o sujeto a un entorno que encaje mejor.",
-					"alt": "Botella sobre fondos neutro y azul costero"
+				"mediterranean": {
+					"tag": "Interior",
+					"title": "Calma mediterránea",
+					"prompt": "Transforma la habitación en un refugio mediterráneo soleado con paredes encaladas, muebles de roble cálido, tejidos de lino suaves y acentos de olivo. Conserva el ángulo de cámara y la arquitectura originales.",
+					"alt": "Salón mediterráneo soleado con paredes encaladas y muebles de madera cálida"
 				},
-				"object": {
-					"tag": "Objeto",
-					"title": "Quita una distracción",
-					"description": "Señala un objeto no deseado y pide conservar las texturas cercanas.",
-					"alt": "Escritorio con una taza seleccionada para eliminar"
+				"cobalt": {
+					"tag": "Producto",
+					"title": "Cobalto escultórico",
+					"prompt": "Sustituye el fondo por un estudio escultórico color arena, añade una superficie de agua poco profunda y reflectante e ilumina la botella cobalto con luz solar direccional. Mantén intactos la forma y el área de etiqueta.",
+					"alt": "Botella de vidrio cobalto sobre un pedestal escultórico color arena"
 				},
-				"color": {
+				"emerald": {
 					"tag": "Color y material",
-					"title": "Cambia el acabado",
-					"description": "Describe un color o material nuevo sin reconstruir toda la imagen.",
-					"alt": "Chaqueta que cambia de tela azul a satén coral"
+					"title": "Esmeralda bajo la lluvia",
+					"prompt": "Cambia solo la chaqueta por un tejido técnico verde esmeralda intenso con brillo satinado suave. Conserva la persona, la pose, las capas de ropa, la calle mojada y la luz urbana nublada.",
+					"alt": "Retrato de moda con chaqueta esmeralda en una calle mojada por la lluvia"
 				},
-				"lighting": {
+				"blueHour": {
 					"tag": "Iluminación",
-					"title": "Cambia la atmósfera",
-					"description": "Pide sombras más frías, luz más cálida u otra hora del día.",
-					"alt": "Planta que pasa de sombra fría a luz cálida"
+					"title": "Cine en hora azul",
+					"prompt": "Reilumina la escena en plena hora azul con brillo ámbar en las ventanas, reflejos sutiles sobre el suelo mojado y grano cinematográfico contenido. Conserva la arquitectura, el vehículo y el encuadre.",
+					"alt": "Motel costero y descapotable clásico iluminados en la hora azul"
 				},
-				"style": {
+				"citrus": {
+					"tag": "Comida",
+					"title": "Historia de color cítrica",
+					"prompt": "Convierte esta foto de postre en una composición editorial vibrante con plato de cerámica lavanda, lino coral, superficie ciruela oscura y luz de ventana esculpida. Mantén la tarta realista y muy detallada.",
+					"alt": "Tarta cítrica brillante en plato lavanda con lino coral"
+				},
+				"paperTrain": {
 					"tag": "Estilo",
-					"title": "Explora un tratamiento visual",
-					"description": "Describe una dirección gráfica conservando la composición.",
-					"alt": "Escena arquitectónica como cartel geométrico colorido"
+					"title": "Alpes de papel recortado",
+					"prompt": "Reimagina la escena como arte de papel recortado en capas, con fibras visibles, sombras dimensionales precisas, verdes alpinos, cielo cobalto y tren rojo tomate. Conserva la ruta y la composición de las montañas.",
+					"alt": "Ilustración de papel recortado con un tren rojo entre montañas alpinas"
 				}
 			}
 		},
@@ -245,20 +255,20 @@
 		},
 		"howItWorks": {
 			"eyebrow": "Cómo funciona",
-			"title": "Del borrador de inicio a la edición confirmada",
-			"description": "La página pública prepara la solicitud. El editor autenticado controla cada acción con coste o medición.",
+			"title": "De la subida al resultado privado",
+			"description": "La página de inicio abre la herramienta. Un espacio temporal de invitado gestiona la cola y el resultado privado en la misma aplicación EzPic.",
 			"steps": {
 				"draft": {
 					"title": "Sube y describe",
-					"description": "Elige una imagen compatible, introduce una instrucción y selecciona Standard o Quality."
+					"description": "Elige una imagen de origen compatible y describe con precisión el cambio que quieres."
 				},
 				"signin": {
-					"title": "Inicia sesión y revisa",
-					"description": "El borrador privado continúa mediante POST seguro. Revisa el modo y el coste."
+					"title": "Continúa como invitado",
+					"description": "Una transferencia segura en el mismo origen abre tu espacio temporal sin pedir inicio de sesión."
 				},
 				"generate": {
-					"title": "Confirma la edición real",
-					"description": "Solo tu confirmación explícita inicia el flujo asíncrono existente."
+					"title": "Inicia y revisa la edición",
+					"description": "Tu confirmación inicia el flujo asíncrono y devuelve una vista previa privada con marca de agua."
 				}
 			}
 		},
@@ -284,7 +294,7 @@
 		"finalCta": {
 			"eyebrow": "Empieza con una imagen",
 			"title": "Describe la edición que ya tienes en mente",
-			"description": "Crea aquí el borrador. La generación real empieza después de iniciar sesión, revisar los créditos y confirmar.",
+			"description": "Sube la imagen y describe el cambio aquí; después inicia una edición Standard privada como invitado sin crear una cuenta.",
 			"button": "Volver al editor"
 		},
 		"hero": {

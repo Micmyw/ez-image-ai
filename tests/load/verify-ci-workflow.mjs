@@ -47,6 +47,7 @@ assertStepPrecedes(
 	"run: pnpm --filter @repo/database generate",
 	"run: pnpm --filter saas build",
 );
+assertNotMatch(builds, /run: pnpm --filter marketing build/);
 assertStepPrecedes(mockE2e, "run: pnpm --filter @repo/database generate", "run: pnpm e2e:media:ci");
 
 assertIncludes(mockE2e, "name: Start pinned MinIO service");
@@ -70,6 +71,7 @@ assertIncludes(mockE2e, "name: Run immutable upload MinIO regression");
 assertIncludes(mockE2e, "run: pnpm --filter @repo/storage test:minio");
 assertIncludes(mockE2e, "run: pnpm --filter saas exec playwright install --with-deps chromium");
 assertNotMatch(mockE2e, /run: pnpm --filter @repo\/e2e-media exec playwright install/);
+assertNotMatch(mockE2e, /playwright-marketing|apps\/marketing\/(?:playwright-report|test-results)/);
 
 function jobBlock(workflowText, jobName, nextJobName) {
 	const start = workflowText.indexOf(`  ${jobName}:\n`);

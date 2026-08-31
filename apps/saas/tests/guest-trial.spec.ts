@@ -1,7 +1,7 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import pg from "pg";
 
-const marketingUrl = process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3001";
+const saasUrl = process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000";
 const testDatabaseUrl = requiredEnvironment("TEST_DATABASE_URL");
 const runId = requiredEnvironment("E2E_RUN_ID");
 const pool = new pg.Pool({ connectionString: testDatabaseUrl });
@@ -80,8 +80,8 @@ test("anonymous Standard trial is private, accessible, responsive, and temporary
 });
 
 async function enterGuestWorkspace(page: Page, prompt: string): Promise<void> {
-	await page.context().addCookies([{ name: "consent", value: "true", url: marketingUrl }]);
-	await page.goto(marketingUrl);
+	await page.context().addCookies([{ name: "consent", value: "true", url: saasUrl }]);
+	await page.goto("/");
 	await page.getByLabel(/describe your edit/i).fill(prompt);
 	const chooserPromise = page.waitForEvent("filechooser");
 	await page.getByRole("button", { name: /drop an image here or choose a file/i }).click();

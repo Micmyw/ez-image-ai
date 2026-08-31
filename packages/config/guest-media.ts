@@ -350,7 +350,7 @@ export function isLocalProductionBuildE2EEnvironment(
 			/test|testing/i.test(database.pathname) &&
 			isLocalHttpOrigin(saas) &&
 			isLocalHttpOrigin(marketing) &&
-			saas.origin !== marketing.origin
+			saas.origin === marketing.origin
 		);
 	} catch {
 		return false;

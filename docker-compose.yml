@@ -28,7 +28,7 @@ services:
     environment:
       MINIO_ROOT_USER: minioadmin
       MINIO_ROOT_PASSWORD: minioadmin
-      MINIO_API_CORS_ALLOW_ORIGIN: "http://localhost:3000,http://localhost:3001"
+      MINIO_API_CORS_ALLOW_ORIGIN: "http://localhost:3000"
     ports:
       - "127.0.0.1:9000:9000" # S3 API
       - "127.0.0.1:9001:9001" # MinIO Console

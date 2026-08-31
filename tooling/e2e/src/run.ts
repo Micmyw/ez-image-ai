@@ -6,14 +6,15 @@ import { assertLocalMediaE2E } from "./guard";
 const workspaceRoot = process.cwd().replace(/[\\/]tooling[\\/]e2e$/, "");
 const runId =
 	process.env.E2E_RUN_ID ?? `${Date.now().toString(36)}-${randomBytes(3).toString("hex")}`;
+const saasOrigin = process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000";
 const environment = {
 	...process.env,
 	E2E_TEST_MEDIA_ADAPTERS: "true",
 	E2E_DRAFT_HANDOFF: "true",
 	E2E_RUN_ID: runId,
 	DATABASE_URL: process.env.TEST_DATABASE_URL,
-	NEXT_PUBLIC_SAAS_URL: process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000",
-	NEXT_PUBLIC_MARKETING_URL: process.env.NEXT_PUBLIC_MARKETING_URL ?? "http://localhost:3001",
+	NEXT_PUBLIC_SAAS_URL: saasOrigin,
+	NEXT_PUBLIC_MARKETING_URL: saasOrigin,
 	MEDIA_BUCKET_NAME: process.env.MEDIA_BUCKET_NAME ?? "media-private",
 	S3_ENDPOINT: process.env.S3_ENDPOINT ?? "http://127.0.0.1:9000",
 	S3_REGION: process.env.S3_REGION ?? "auto",
@@ -88,21 +89,9 @@ async function main(): Promise<void> {
 			"playwright",
 			"test",
 			"tests/guest-trial.spec.ts",
+			"tests/landing.spec.ts",
 			"tests/originality.spec.ts",
 			"--project=guest",
-			"--workers=1",
-		]);
-		await command([
-			"--filter",
-			"marketing",
-			"exec",
-			"playwright",
-			"test",
-			"tests/generator.spec.ts",
-			"tests/growth-analytics.spec.ts",
-			"tests/home.spec.ts",
-			"tests/originality.spec.ts",
-			"tests/seo.spec.ts",
 			"--workers=1",
 		]);
 	} finally {

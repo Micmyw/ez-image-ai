@@ -26,16 +26,16 @@
 		"title": "Dokumentation"
 	},
 	"faq": {
-		"description": "Klare Antworten zu Tarifen, Credits und deinem Arbeitsbereich für Bildbearbeitung.",
+		"description": "Klare Antworten zu Gastbearbeitungen, privaten Bildern, Credits und Konto-Upgrades.",
 		"title": "Häufig gestellte Fragen",
 		"items": {
 			"realGeneration": {
-				"question": "Erzeugt die Startseite bereits ein bearbeitetes Bild?",
-				"answer": "Nein. Die Startseite speichert nur einen Entwurf. Die echte Erzeugung beginnt erst nach Anmeldung, Prüfung der Credit-Kosten und Bestätigung."
+				"question": "Kann ich ein Bild direkt auf der Startseite bearbeiten?",
+				"answer": "Ja. Lade ein Quellbild hoch, beschreibe die Änderung und starte ohne Konto eine Standard-Bearbeitung im temporären Gastbereich."
 			},
 			"privateUploads": {
 				"question": "Sind hochgeladene Bilder öffentlich?",
-				"answer": "Nein. Quellbilder und Ergebnisse sind private, kontogebundene Assets; vor der Anmeldung wird ein kurzlebiger anonymer Entwurf verwendet."
+				"answer": "Nein. Quellbilder und Ergebnisse von Gästen bleiben privat und vorübergehend; Kontomedien bleiben dem Eigentümer zugeordnet."
 			},
 			"restrictions": {
 				"question": "Was bedeutet „No Restrictions“ hier?",
@@ -67,7 +67,7 @@
 		"generator": {
 			"eyebrow": "Bearbeitung planen",
 			"title": "Beschreibe die gewünschte Änderung",
-			"subtitle": "Lade ein Quellbild hoch, beschreibe die Bearbeitung und fahre sicher in deinem privaten Bildeditor fort.",
+			"subtitle": "Lade ein Quellbild hoch, beschreibe die Bearbeitung und starte eine private Standard-Bearbeitung in EzPic.",
 			"offer": "Eine Standard-Bearbeitung kostenlos testen",
 			"noSignUp": "Keine Registrierung erforderlich",
 			"oneOutput": "Ein Ergebnis",
@@ -130,9 +130,9 @@
 		"imageEditorHero": {
 			"eyebrow": "Prompt-Bearbeitung mit Upload zuerst",
 			"title": "KI-Bildeditor mit Prompts, ohne die üblichen Einschränkungen",
-			"subtitle": "Beginne mit deinem Bild, beschreibe die Änderung genau und übergib einen privaten Entwurf an den EzPic-Editor. Vor jeder echten Bearbeitung siehst du die Credit-Kosten.",
+			"subtitle": "Lade dein Bild hoch, beschreibe die Änderung und starte direkt auf dieser Seite eine private Standard-Bearbeitung. Kein separates Programm und kein Konto nötig.",
 			"private": "Private Quellbilder",
-			"draftOnly": "Keine Kosten für diesen Entwurf"
+			"draftOnly": "Eine Standard-Gastbearbeitung"
 		},
 		"beforeAfter": {
 			"eyebrow": "Eine Quelle, eine klare Änderung",
@@ -147,40 +147,50 @@
 			"showEdit": "Bearbeitungsrichtung zeigen"
 		},
 		"showcase": {
-			"eyebrow": "Bearbeitungsrichtungen",
-			"title": "Fünf nützliche Arten, eine Änderung zu beschreiben",
-			"description": "Bewahre das wichtige Motiv und beschreibe den Teil, der sich ändern soll, mit einem natürlichen Prompt.",
-			"provenanceNote": "Originale EzPic-Vektorillustrationen. Sie zeigen Kategorien, nicht die Ausgabequalität eines Modells.",
+			"eyebrow": "Prompt-Rezepte",
+			"title": "Beginne mit einem Look. Mach ihn unverwechselbar zu deinem.",
+			"description": "Entdecke eigenständige Bildideen für Räume, Produkte, Porträts, Licht, Food und Illustration. Jedes Beispiel enthält einen vollständigen Prompt zum Wiederverwenden.",
+			"instruction": "Wähle eine Karte, um ihren vollständigen Prompt in den Editor zu übernehmen.",
+			"usePrompt": "Prompt verwenden",
+			"promptAdded": "Prompt übernommen",
+			"usePromptLabel": "Prompt {title} verwenden",
+			"provenanceNote": "Originalbilder, die mit OpenAI-Bildgenerierung als Inspiration erstellt wurden. Sie werden nicht als EzPic-Modellausgaben dargestellt; tatsächliche Ergebnisse hängen von Quellbild und Prompt ab.",
 			"items": {
-				"background": {
-					"tag": "Hintergrund",
-					"title": "Umgebung ersetzen",
-					"description": "Setze Produkt oder Motiv in eine passendere Umgebung.",
-					"alt": "Flasche vor neutralem und küstenblauem Hintergrund"
+				"mediterranean": {
+					"tag": "Interieur",
+					"title": "Mediterrane Ruhe",
+					"prompt": "Verwandle den Raum in einen sonnigen mediterranen Rückzugsort mit gekalkten Wänden, warmen Eichenmöbeln, weichen Leinenstrukturen und Olivenakzenten. Behalte Kamerawinkel und Architektur bei.",
+					"alt": "Sonniges mediterranes Wohnzimmer mit gekalkten Wänden und warmen Holzmöbeln"
 				},
-				"object": {
-					"tag": "Objekt",
-					"title": "Ablenkung entfernen",
-					"description": "Markiere ein unerwünschtes Objekt und erhalte benachbarte Strukturen.",
-					"alt": "Schreibtisch mit zur Entfernung markierter Tasse"
+				"cobalt": {
+					"tag": "Produkt",
+					"title": "Skulpturales Kobalt",
+					"prompt": "Ersetze den Hintergrund durch ein skulpturales, sandfarbenes Studio, ergänze eine flache spiegelnde Wasserfläche und beleuchte die kobaltblaue Flasche mit klarem, gerichtetem Sonnenlicht. Form und Etikettbereich bleiben unverändert.",
+					"alt": "Kobaltblaue Glasflasche auf einem skulpturalen sandfarbenen Podest"
 				},
-				"color": {
+				"emerald": {
 					"tag": "Farbe & Material",
-					"title": "Oberfläche ändern",
-					"description": "Beschreibe eine neue Farbe oder ein Material, ohne das ganze Bild neu aufzubauen.",
-					"alt": "Jacke wechselt von blauem Stoff zu Korallsatin"
+					"title": "Smaragd im Regen",
+					"prompt": "Ändere nur die Jacke zu tief smaragdgrünem Funktionsstoff mit sanftem Satinglanz. Person, Pose, Kleidungsschichten, nasse Straße und bedecktes Stadtlicht bleiben erhalten.",
+					"alt": "Modeporträt einer Person in smaragdgrüner Jacke auf regennasser Straße"
 				},
-				"lighting": {
+				"blueHour": {
 					"tag": "Licht",
-					"title": "Atmosphäre verändern",
-					"description": "Bitte um kühlere Schatten, wärmeres Licht oder eine andere Tageszeit.",
-					"alt": "Pflanze wechselt von kühlem Schatten zu warmem Licht"
+					"title": "Kino zur blauen Stunde",
+					"prompt": "Beleuchte die Szene in tiefer blauer Stunde mit warmem Fensterlicht, dezenten Spiegelungen auf nassem Boden und zurückhaltendem Filmkorn. Architektur, Fahrzeugdetails und Bildausschnitt bleiben erhalten.",
+					"alt": "Küstenmotel und Oldtimer-Cabrio in der blauen Stunde"
 				},
-				"style": {
+				"citrus": {
+					"tag": "Food",
+					"title": "Zitrus-Farbgeschichte",
+					"prompt": "Verwandle dieses Dessertfoto in eine lebendige Editorial-Komposition mit lavendelfarbenem Keramikteller, korallfarbenem Leinen, tief pflaumenfarbener Fläche und modelliertem Fensterlicht. Die Tarte bleibt realistisch und detailreich.",
+					"alt": "Leuchtende Zitrustarte auf lavendelfarbenem Teller mit korallfarbenem Leinen"
+				},
+				"paperTrain": {
 					"tag": "Stil",
-					"title": "Visuelle Behandlung erkunden",
-					"description": "Beschreibe eine grafische Richtung und erhalte die Komposition.",
-					"alt": "Architekturszene als farbiges geometrisches Poster"
+					"title": "Alpen aus Papierschnitt",
+					"prompt": "Gestalte die Szene als handgefertigte, geschichtete Papierschnittkunst mit sichtbaren Papierfasern, präzisen räumlichen Schatten, alpinem Grün, kobaltblauem Himmel und tomatenrotem Zug. Strecke und Bergkomposition bleiben erhalten.",
+					"alt": "Geschichtete Papierschnittillustration eines roten Zugs in den Alpen"
 				}
 			}
 		},
@@ -245,20 +255,20 @@
 		},
 		"howItWorks": {
 			"eyebrow": "So funktioniert es",
-			"title": "Vom Startseitenentwurf zur bestätigten Bearbeitung",
-			"description": "Die öffentliche Seite bereitet deine Anfrage vor. Der angemeldete Editor steuert jede kostenpflichtige oder gemessene Aktion.",
+			"title": "Vom Upload zum privaten Ergebnis",
+			"description": "Die Startseite startet das Werkzeug. Ein temporärer Gastbereich übernimmt Warteschlange und privates Ergebnis in derselben EzPic-App.",
 			"steps": {
 				"draft": {
 					"title": "Hochladen und beschreiben",
-					"description": "Wähle ein unterstütztes Bild, gib einen Prompt ein und wähle Standard oder Quality."
+					"description": "Wähle ein unterstütztes Quellbild und beschreibe die gewünschte Änderung genau."
 				},
 				"signin": {
-					"title": "Anmelden und prüfen",
-					"description": "Der private Entwurf wird per sicherem POST fortgesetzt. Prüfe Modus und Credit-Kosten."
+					"title": "Als Gast fortfahren",
+					"description": "Eine sichere Übergabe auf derselben Origin öffnet deinen temporären Gastbereich ohne Anmeldung."
 				},
 				"generate": {
-					"title": "Echte Bearbeitung bestätigen",
-					"description": "Nur deine ausdrückliche Bestätigung startet den bestehenden asynchronen Ablauf."
+					"title": "Bearbeitung starten und prüfen",
+					"description": "Deine Bestätigung startet den asynchronen Ablauf und liefert eine private Vorschau mit Wasserzeichen."
 				}
 			}
 		},
@@ -284,7 +294,7 @@
 		"finalCta": {
 			"eyebrow": "Beginne mit einem Bild",
 			"title": "Beschreibe die Bearbeitung, die du schon im Kopf hast",
-			"description": "Erstelle hier den Entwurf. Die echte Erzeugung beginnt erst nach Anmeldung, Credit-Prüfung und Bestätigung.",
+			"description": "Lade dein Bild hier hoch und beschreibe die Änderung. Starte dann ohne Konto eine private Standard-Gastbearbeitung.",
 			"button": "Zurück zum Editor"
 		},
 		"hero": {

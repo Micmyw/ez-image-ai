@@ -69,18 +69,17 @@ configuration boundary, rollback, and external items that remain `NOT_COMPLETED`
 
 ## SEO, consented growth, and operations
 
-Only default-English `/`, `/pricing`, `/privacy`, and `/terms` are indexable. Canonicals and the
-sitemap derive from the configured production marketing origin; all localized marketing variants
-are `noindex, follow`, while every SaaS route is `noindex, nofollow`. Paid JSON-LD offers appear only
-when the matching configured Stripe Price is actually available and always reuse
-`PLAN_ENTITLEMENTS` amounts.
+The unified public `/` route is indexable and owns the canonical and sitemap entry. Login, guest
+workspace, creator, history, assets, checkout, settings, and admin routes remain
+`noindex, nofollow`. The legacy `NEXT_PUBLIC_MARKETING_URL` setting is a compatibility alias and
+must match `NEXT_PUBLIC_SAAS_URL` in production.
 
 The 18-step editing funnel uses one shared strict event schema and the existing cookie-consent
 choice. It rejects prompts, filenames, private/signed URLs, raw job or asset IDs, email, tokens,
 Provider/model/cost data, and raw responses before transport. The browser keeps the local
 `ezpic:growth-event` fixture and, only with consent and complete production configuration, sends the
-same minimized event to PostHog under a `sha256:` anonymous session identifier. Marketing hands that
-identifier to SaaS through POST rather than a URL. Real external ingestion is still
+same minimized event to PostHog under a `sha256:` anonymous session identifier. The public landing
+passes that identifier through a same-origin POST rather than a URL. Real external ingestion is still
 `NOT_COMPLETED`. Admins receive read-only aggregate media operations—success, latency, Provider cost,
 moderation, failure, credit settlement, repeat-edit, route, and kill-switch state—through the
 existing admin-only oRPC and PostgreSQL boundaries.
@@ -107,8 +106,8 @@ The committed environment matrix and 20-scenario staging record intentionally pr
 `pnpm launch:certify`; the command fails unless the exact deployment revision, every staging
 scenario, all isolated resource identifiers, kill switches, budgets, alerts, and external service
 contracts pass. `pnpm load:ezpic` only prints a bounded plan. Actual k6 execution additionally needs
-an exact run confirmation, and remote targets must be HTTPS, allowlisted, dual-origin-confirmed, and
-identified as staging.
+an exact run confirmation, and remote targets must be HTTPS, allowlisted, single-origin-confirmed,
+and identified as staging.
 
 See the [production runbook](docs/operations/ezpic-production-runbook.md),
 [launch checklist](docs/operations/ezpic-launch-checklist.md),
@@ -123,7 +122,7 @@ load, cost, and rollback evidence remains separately `NOT_COMPLETED`.
 - **Durable background work:** PostgreSQL is the only business source of truth. Job creation, input binding, credit reservation, and the initial Outbox event commit atomically. Trigger.dev is the first-release task engine, while polling, Webhooks, and reconciliation recover work from persisted state.
 - **Auditable credits and subscriptions:** immutable ledger entries, expiring credit lots, atomic reservation/charge/release, zero charge when no usable output exists, monthly grants for monthly and annual Stripe plans, cancellation, refunds, and refund debt are modeled explicitly.
 - **Private media pipeline:** direct single-part or multipart upload, aggregate per-owner storage and active-session quotas, exact part constraints, signed reads, streamed Provider transfer, moderation, quarantine, soft delete, and durable object cleanup avoid buffering large videos through Vercel.
-- **Reusable product surfaces:** authenticated creator, private edit-session/version history, job history/detail and asset library, plus an anonymous marketing draft handoff that transfers only after sign-in and one-time claim.
+- **Reusable product surfaces:** an upload-first public landing page, temporary anonymous Standard workspace, authenticated creator, private edit-session/version history, job history/detail, and asset library, all on one SaaS origin.
 - **Operational controls:** generation, moderation, billing, Provider/model and queue gates; redacted structured logs; Sentry hooks; protected diagnostics, replay, stage retry and uncertain-submission resolution; CI, Provider smoke budgets, load profiles, and invariant verification.
 
 ## Local development
@@ -137,7 +136,10 @@ pnpm db:migrate:deploy
 pnpm dev
 ```
 
-The SaaS app is at `http://localhost:3000`; marketing is at `http://localhost:3001`. Media objects use the private `MEDIA_BUCKET_NAME` bucket (`media-private` locally). Do not use the legacy `S3_BUCKET` variable.
+The complete product is at `http://localhost:3000`: `/` is the public upload-first tool and
+authenticated features stay in the same SaaS application. Port 3001 is not started. Media objects
+use the private `MEDIA_BUCKET_NAME` bucket (`media-private` locally). Do not use the legacy
+`S3_BUCKET` variable.
 
 ## Verification
 
@@ -156,10 +158,10 @@ pnpm load:type-check
 
 PostgreSQL integration commands require an explicit loopback `TEST_DATABASE_URL` whose database name contains `test` or `testing`; they never fall back to `DATABASE_URL`. Mock E2E fails when its database, test user, Chromium, or test adapters are missing.
 
-The local production-build browser harness covers the authenticated editing lifecycle, private edit
-sessions and branching, insufficient credits, Free-to-paid upgrade recovery, checkout return, and
-the marketing draft handoff. It also captures the consent-gated local funnel fixture and verifies
-the English-only SEO/canonical/sitemap boundary. It uses deterministic test Provider and moderation adapters, an
+The local production-build browser harness covers the public landing and same-origin guest handoff,
+authenticated editing lifecycle, private edit sessions and branching, insufficient credits,
+Free-to-paid upgrade recovery, checkout return, and the public SEO/canonical/sitemap boundary. It
+uses deterministic test Provider and moderation adapters, an
 isolated PostgreSQL database, and private local MinIO; this is evidence for the application workflow,
 not for Stripe, Provider, Trigger.dev, moderation, or cloud-storage connectivity. The production
 dependency audit currently has no high or critical advisories; low and moderate advisories remain
