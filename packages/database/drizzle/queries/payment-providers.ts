@@ -1,4 +1,4 @@
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import { db } from "../client";
 import { billingPlan, paymentCheckoutIntent, paymentCustomer } from "../schema/postgres";
@@ -14,7 +14,6 @@ export interface CreatePaymentCheckoutIntentInput extends PaymentOwner {
 	interval: "month" | "year";
 	idempotencyKey: string;
 	now?: Date;
-	expiresInSeconds?: number;
 }
 
 export async function getPaymentCustomer(provider: PaymentProviderName, owner: PaymentOwner) {
@@ -48,31 +47,59 @@ export async function upsertPaymentCustomer(
 
 export async function createPaymentCheckoutIntent(input: CreatePaymentCheckoutIntentInput) {
 	const now = input.now ?? new Date();
-	const expiresAt = new Date(now.getTime() + (input.expiresInSeconds ?? 30 * 60) * 1_000);
 	const activeScopeKey = paymentCheckoutActiveScope(input);
-	return db.transaction(
+	const idempotencyScopeKey = paymentCheckoutIdempotencyScope(input);
+	const result = await db.transaction(
 		async (tx) => {
+			await tx.execute(
+				sql`SELECT pg_advisory_xact_lock(hashtextextended(${idempotencyScopeKey}, 0))`,
+			);
 			await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${activeScopeKey}, 0))`);
 			const [replay] = await tx
 				.select()
 				.from(paymentCheckoutIntent)
 				.where(
 					and(
-						eq(paymentCheckoutIntent.provider, input.provider),
 						eq(paymentCheckoutIntent.ownerType, input.ownerType),
 						eq(paymentCheckoutIntent.ownerId, input.ownerId),
 						eq(paymentCheckoutIntent.idempotencyKey, input.idempotencyKey),
 					),
 				)
 				.limit(1);
-			if (replay) return { intent: replay, replayed: true };
+			if (replay) {
+				if (!matchesTrustedCheckoutCommand(replay, input)) {
+					throw new Error("PAYMENT_CHECKOUT_INTENT_IDEMPOTENCY_CONFLICT");
+				}
+				if (replay.status === "CREATED") return { intent: replay, replayed: true };
+				if (
+					replay.status === "PROVIDER_PENDING" &&
+					replay.providerSessionId &&
+					replay.providerCheckoutUrl
+				) {
+					if (replay.expiresAt && replay.expiresAt <= now) {
+						await tx
+							.update(paymentCheckoutIntent)
+							.set({ status: "EXPIRED", activeScopeKey: null, updatedAt: now })
+							.where(eq(paymentCheckoutIntent.id, replay.id));
+						return { unsafeReplay: true as const };
+					}
+					return { intent: replay, replayed: true };
+				}
+				throw new Error("PAYMENT_CHECKOUT_INTENT_REPLAY_UNSAFE");
+			}
 
 			const [active] = await tx
 				.select()
 				.from(paymentCheckoutIntent)
 				.where(eq(paymentCheckoutIntent.activeScopeKey, activeScopeKey))
 				.limit(1);
-			if (active && active.expiresAt <= now) {
+			if (
+				active?.status === "PROVIDER_PENDING" &&
+				active.providerSessionId &&
+				active.providerCheckoutUrl &&
+				active.expiresAt &&
+				active.expiresAt <= now
+			) {
 				await tx
 					.update(paymentCheckoutIntent)
 					.set({ status: "EXPIRED", activeScopeKey: null, updatedAt: now })
@@ -93,7 +120,7 @@ export async function createPaymentCheckoutIntent(input: CreatePaymentCheckoutIn
 					interval: input.interval,
 					idempotencyKey: input.idempotencyKey,
 					activeScopeKey,
-					expiresAt,
+					expiresAt: null,
 				})
 				.returning();
 			if (!intent) throw new Error("PAYMENT_CHECKOUT_INTENT_CREATE_FAILED");
@@ -101,27 +128,58 @@ export async function createPaymentCheckoutIntent(input: CreatePaymentCheckoutIn
 		},
 		{ isolationLevel: "serializable" },
 	);
+	if ("unsafeReplay" in result) {
+		throw new Error("PAYMENT_CHECKOUT_INTENT_REPLAY_UNSAFE");
+	}
+	return result;
+}
+
+export async function markPaymentCheckoutIntentProviderCreating(input: {
+	intentId: string;
+	provider: PaymentProviderName;
+}) {
+	const rows = await db
+		.update(paymentCheckoutIntent)
+		.set({ status: "PROVIDER_CREATING", updatedAt: new Date() })
+		.where(
+			and(
+				eq(paymentCheckoutIntent.id, input.intentId),
+				eq(paymentCheckoutIntent.provider, input.provider),
+				eq(paymentCheckoutIntent.status, "CREATED"),
+				isNull(paymentCheckoutIntent.providerSessionId),
+				isNull(paymentCheckoutIntent.providerCheckoutUrl),
+			),
+		)
+		.returning();
+	if (rows.length !== 1) {
+		throw new Error("PAYMENT_CHECKOUT_INTENT_PROVIDER_CREATE_CONFLICT");
+	}
+	return rows[0];
 }
 
 export async function bindPaymentCheckoutIntentSession(input: {
 	intentId: string;
 	provider: PaymentProviderName;
 	providerSessionId: string;
+	providerCheckoutUrl: string;
 	expiresAt?: Date | null;
 }) {
 	const rows = await db
 		.update(paymentCheckoutIntent)
 		.set({
 			providerSessionId: input.providerSessionId,
+			providerCheckoutUrl: input.providerCheckoutUrl,
 			status: "PROVIDER_PENDING",
 			updatedAt: new Date(),
-			...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
+			expiresAt: input.expiresAt ?? null,
 		})
 		.where(
 			and(
 				eq(paymentCheckoutIntent.id, input.intentId),
 				eq(paymentCheckoutIntent.provider, input.provider),
-				eq(paymentCheckoutIntent.status, "CREATED"),
+				eq(paymentCheckoutIntent.status, "PROVIDER_CREATING"),
+				isNull(paymentCheckoutIntent.providerSessionId),
+				isNull(paymentCheckoutIntent.providerCheckoutUrl),
 			),
 		)
 		.returning();
@@ -168,7 +226,7 @@ export async function completePaymentCheckoutIntent(input: {
 			and(
 				eq(paymentCheckoutIntent.id, input.intentId),
 				eq(paymentCheckoutIntent.provider, input.provider),
-				inArray(paymentCheckoutIntent.status, ["CREATED", "PROVIDER_PENDING"]),
+				eq(paymentCheckoutIntent.status, "PROVIDER_PENDING"),
 			),
 		)
 		.returning({ id: paymentCheckoutIntent.id });
@@ -181,7 +239,7 @@ export async function reviewPaymentCheckoutIntent(input: {
 }) {
 	const rows = await db
 		.update(paymentCheckoutIntent)
-		.set({ status: "REVIEW", activeScopeKey: null, updatedAt: new Date() })
+		.set({ status: "REVIEW", updatedAt: new Date() })
 		.where(
 			and(
 				eq(paymentCheckoutIntent.id, input.intentId),
@@ -194,4 +252,35 @@ export async function reviewPaymentCheckoutIntent(input: {
 
 function paymentCheckoutActiveScope(input: PaymentOwner & { planKey: string; interval: string }) {
 	return `${input.ownerType}:${input.ownerId}:${input.planKey}:${input.interval}`;
+}
+
+function paymentCheckoutIdempotencyScope(input: PaymentOwner & { idempotencyKey: string }) {
+	return `payment-checkout-idempotency:${JSON.stringify([
+		input.ownerType,
+		input.ownerId,
+		input.idempotencyKey,
+	])}`;
+}
+
+function matchesTrustedCheckoutCommand(
+	intent: {
+		provider: string;
+		ownerType: "USER" | "ORGANIZATION";
+		ownerId: string;
+		submittedByUserId: string;
+		billingPlanId: string;
+		planKey: string;
+		interval: string;
+	},
+	input: CreatePaymentCheckoutIntentInput,
+): boolean {
+	return (
+		intent.provider === input.provider &&
+		intent.ownerType === input.ownerType &&
+		intent.ownerId === input.ownerId &&
+		intent.submittedByUserId === input.submittedByUserId &&
+		intent.billingPlanId === input.billingPlanId &&
+		intent.planKey === input.planKey &&
+		intent.interval === input.interval
+	);
 }

@@ -350,13 +350,22 @@ export const paymentCheckoutIntent = sqliteTable(
 		interval: text("interval").notNull(),
 		idempotencyKey: text("idempotencyKey").notNull(),
 		providerSessionId: text("providerSessionId"),
+		providerCheckoutUrl: text("providerCheckoutUrl"),
 		activeScopeKey: text("activeScopeKey"),
 		status: text("status", {
-			enum: ["CREATED", "PROVIDER_PENDING", "COMPLETED", "EXPIRED", "CANCELED", "REVIEW"],
+			enum: [
+				"CREATED",
+				"PROVIDER_CREATING",
+				"PROVIDER_PENDING",
+				"COMPLETED",
+				"EXPIRED",
+				"CANCELED",
+				"REVIEW",
+			],
 		})
 			.default("CREATED")
 			.notNull(),
-		expiresAt: integer("expiresAt", { mode: "timestamp" }).notNull(),
+		expiresAt: integer("expiresAt", { mode: "timestamp" }),
 		createdAt: integer("createdAt", { mode: "timestamp" })
 			.notNull()
 			.default(sql`CURRENT_TIMESTAMP`),
@@ -366,8 +375,7 @@ export const paymentCheckoutIntent = sqliteTable(
 			.$onUpdate(() => new Date()),
 	},
 	(table) => [
-		uniqueIndex("payment_checkout_intent_provider_owner_idempotency_uidx").on(
-			table.provider,
+		uniqueIndex("payment_checkout_intent_owner_idempotency_uidx").on(
 			table.ownerType,
 			table.ownerId,
 			table.idempotencyKey,

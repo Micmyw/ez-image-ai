@@ -244,9 +244,22 @@ describe("validateServerEnvironment", () => {
 				WAFFO_MERCHANT_ID: "waffo-merchant",
 				WAFFO_PRIVATE_KEY: "waffo-private-key",
 				WAFFO_WEBHOOK_PUBLIC_KEY: "waffo-webhook-public-key",
-				WAFFO_PRODUCT_ID_CREATOR_MONTHLY: "PROD_CreatorMonthly",
+				WAFFO_PRODUCT_ID_CREATOR_MONTHLY: "PROD_0123456789AbCdEfGhIjKl",
 			}),
 		).not.toThrow();
+	});
+
+	it("rejects a Waffo product ID that fails the SDK Short ID contract", () => {
+		expect(() =>
+			validateServerEnvironment({
+				...productionBase,
+				WAFFO_ENVIRONMENT: "prod",
+				WAFFO_MERCHANT_ID: "waffo-merchant",
+				WAFFO_PRIVATE_KEY: "waffo-private-key",
+				WAFFO_WEBHOOK_PUBLIC_KEY: "waffo-webhook-public-key",
+				WAFFO_PRODUCT_ID_CREATOR_MONTHLY: "PROD_CreatorMonthly",
+			}),
+		).toThrow(/WAFFO_PRODUCT_ID_CREATOR_MONTHLY/);
 	});
 });
 

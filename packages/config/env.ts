@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const WAFFO_PRODUCT_ID_PATTERN = /^PROD_[0-9A-Za-z]{22}$/;
+
 const booleanStringSchema = z
 	.enum(["true", "false"])
 	.default("false")
@@ -10,10 +12,7 @@ const optionalPayPalPlanIdSchema = z
 	.string()
 	.regex(/^P-[A-Z0-9-]+$/)
 	.optional();
-const optionalWaffoProductIdSchema = z
-	.string()
-	.regex(/^PROD_[A-Za-z0-9]+$/)
-	.optional();
+const optionalWaffoProductIdSchema = z.string().regex(WAFFO_PRODUCT_ID_PATTERN).optional();
 
 export const mediaProviderKeySchema = z.enum(["replicate", "fal", "kie", "gemini", "openrouter"]);
 export type MediaProviderKey = z.infer<typeof mediaProviderKeySchema>;

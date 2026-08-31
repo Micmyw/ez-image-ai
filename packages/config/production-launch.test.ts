@@ -59,7 +59,7 @@ const productionEnvironment = {
 	WAFFO_MERCHANT_ID: "waffo-merchant-present-only",
 	WAFFO_PRIVATE_KEY: "waffo-private-key-present-only",
 	WAFFO_WEBHOOK_PUBLIC_KEY: "waffo-webhook-public-key-present-only",
-	WAFFO_PRODUCT_ID_CREATOR_MONTHLY: "PROD_CreatorMonthly",
+	WAFFO_PRODUCT_ID_CREATOR_MONTHLY: "PROD_0123456789AbCdEfGhIjKl",
 	PRICE_ID_CREATOR_MONTHLY: "price_CreatorMonthlyProduction",
 	PRICE_ID_CREATOR_YEARLY: "price_CreatorYearlyProduction",
 	PRICE_ID_STUDIO_MONTHLY: "price_StudioMonthlyProduction",
@@ -131,6 +131,15 @@ describe("EzPic production launch environment", () => {
 		]) {
 			expect(serialized).not.toContain(secret);
 		}
+	});
+
+	it("rejects launch configuration that Waffo checkout would reject locally", () => {
+		expect(() =>
+			validateEzPicLaunchEnvironment({
+				...productionEnvironment,
+				WAFFO_PRODUCT_ID_CREATOR_MONTHLY: "PROD_CreatorMonthly",
+			}),
+		).toThrow(/WAFFO_PRODUCT_ID_CREATOR_MONTHLY/);
 	});
 
 	it("accepts one canonical origin for the public tool and authenticated product", () => {

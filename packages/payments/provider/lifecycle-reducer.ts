@@ -1,9 +1,19 @@
 import { createCreditGrant, type Prisma } from "@repo/database";
 
-import type { ProviderBillingFact } from "./lifecycle-normalization";
+import type {
+	ProviderBillingFact,
+	ProviderBillingPeriodFact,
+	ProviderPaymentFact,
+} from "./lifecycle-normalization";
 import { createAnnualBillingPeriods, isExactBillingInterval } from "./stripe/events";
 
 type TransactionClient = Prisma.TransactionClient;
+type ResolvedProviderPayment = Omit<ProviderPaymentFact, "periodStart" | "periodEnd"> & {
+	periodStart: Date;
+	periodEnd: Date;
+	interval: "month" | "year";
+	allowsStaleEvent: boolean;
+};
 
 export async function applyProviderBillingFact(
 	fact: ProviderBillingFact,
@@ -30,7 +40,11 @@ export async function applyProviderBillingFact(
 		include: { plan: true, purchase: true },
 	});
 
+	const subscriptionExisted = Boolean(subscription);
 	if (!subscription) {
+		if (fact.payment && (!fact.payment.periodStart || !fact.payment.periodEnd)) {
+			throw new Error("PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISSING");
+		}
 		assertCheckoutCorrelation(fact, checkoutIntent);
 		const providerCustomerId = requiredInitialCustomer(fact, checkoutIntent!);
 		await assertAndPersistCustomer(
@@ -58,7 +72,6 @@ export async function applyProviderBillingFact(
 		});
 	} else {
 		assertExistingSubscription(fact, subscription, checkoutIntent);
-		assertEventOrdering(fact, subscription);
 		const providerCustomerId = fact.providerCustomerId ?? subscription.purchase!.customerId;
 		if (providerCustomerId !== subscription.purchase!.customerId) {
 			throw new Error("PAYMENT_PROVIDER_CUSTOMER_MISMATCH");
@@ -72,46 +85,66 @@ export async function applyProviderBillingFact(
 		);
 	}
 
-	const paymentPeriod = fact.payment ? validatePayment(fact, subscription.plan) : null;
-	const updated = await client.subscription.update({
-		where: { id: subscription.id },
-		data: {
-			status: fact.status,
-			cancelAtPeriodEnd: fact.cancelAtPeriodEnd,
-			lastProviderEventAt: fact.occurredAt,
-			lastProviderEventId: fact.providerEventId,
-			...(paymentPeriod
-				? {
-						currentPeriodStart: paymentPeriod.periodStart,
-						currentPeriodEnd: paymentPeriod.periodEnd,
-					}
-				: {}),
-			graceEndsAt:
-				fact.status === "PAST_DUE"
-					? subscription.currentPeriodEnd
-					: fact.status === "ACTIVE"
-						? null
-						: subscription.graceEndsAt,
-		},
-	});
-	await client.purchase.update({
-		where: { id: subscription.purchase!.id },
-		data: { status: fact.status.toLowerCase(), priceId: subscription.plan.providerPriceId },
-	});
+	const lifecyclePeriod = fact.currentPeriod
+		? validateLifecyclePeriod(fact.currentPeriod, subscription.plan.metadata)
+		: null;
+	const paymentPeriod = fact.payment ? await validatePayment(fact, subscription, client) : null;
+	const currentPeriod = paymentPeriod ?? lifecyclePeriod;
+	const preserveSubscriptionEvent =
+		subscriptionExisted &&
+		paymentPeriod?.allowsStaleEvent === true &&
+		isEventStale(fact, subscription);
+	if (subscriptionExisted && !preserveSubscriptionEvent) {
+		assertEventOrdering(fact, subscription);
+	}
+	const updated = preserveSubscriptionEvent
+		? subscription
+		: await client.subscription.update({
+				where: { id: subscription.id },
+				data: {
+					status: fact.status,
+					cancelAtPeriodEnd: fact.cancelAtPeriodEnd,
+					lastProviderEventAt: fact.occurredAt,
+					lastProviderEventId: fact.providerEventId,
+					...(currentPeriod
+						? {
+								currentPeriodStart: currentPeriod.periodStart,
+								currentPeriodEnd: currentPeriod.periodEnd,
+							}
+						: {}),
+					graceEndsAt:
+						fact.status === "PAST_DUE"
+							? subscription.currentPeriodEnd
+							: fact.status === "ACTIVE"
+								? null
+								: subscription.graceEndsAt,
+				},
+			});
+	if (!preserveSubscriptionEvent) {
+		await client.purchase.update({
+			where: { id: subscription.purchase!.id },
+			data: { status: fact.status.toLowerCase(), priceId: subscription.plan.providerPriceId },
+		});
+	}
 	if (checkoutIntent) {
-		await client.paymentCheckoutIntent.updateMany({
+		const completed = await client.paymentCheckoutIntent.updateMany({
 			where: {
 				id: checkoutIntent.id,
 				provider: fact.provider,
-				status: { in: ["CREATED", "PROVIDER_PENDING", "COMPLETED"] },
+				providerSessionId: fact.providerSubscriptionId,
+				status: "PROVIDER_PENDING",
 			},
 			data: { status: "COMPLETED", activeScopeKey: null },
 		});
+		if (!subscriptionExisted && completed.count !== 1) {
+			throw new Error("PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISMATCH");
+		}
 	}
 
-	const grantsCreated = fact.payment
+	const grantsCreated = paymentPeriod
 		? await applyProviderPayment(
 				fact,
+				paymentPeriod,
 				{
 					id: updated.id,
 					ownerType: updated.ownerType,
@@ -132,18 +165,13 @@ function assertCheckoutCorrelation(
 		  })
 		| null,
 ): void {
-	if (
-		!checkoutIntent ||
-		checkoutIntent.provider !== fact.provider ||
-		!(["CREATED", "PROVIDER_PENDING", "COMPLETED"] as string[]).includes(checkoutIntent.status)
-	) {
+	if (!checkoutIntent) {
 		throw new Error("PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISSING");
 	}
-	if (
-		fact.provider === "paypal" &&
-		checkoutIntent.providerSessionId &&
-		checkoutIntent.providerSessionId !== fact.providerSubscriptionId
-	) {
+	if (checkoutIntent.provider !== fact.provider || checkoutIntent.status !== "PROVIDER_PENDING") {
+		throw new Error("PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISMATCH");
+	}
+	if (checkoutIntent.providerSessionId !== fact.providerSubscriptionId) {
 		throw new Error("PAYMENT_PROVIDER_CHECKOUT_SESSION_MISMATCH");
 	}
 }
@@ -210,6 +238,7 @@ function assertExistingSubscription(
 		ownerType: "USER" | "ORGANIZATION";
 		ownerId: string;
 		billingPlanId: string;
+		providerSessionId: string | null;
 	} | null,
 ): void {
 	if (
@@ -223,6 +252,7 @@ function assertExistingSubscription(
 	if (
 		checkoutIntent &&
 		(checkoutIntent.provider !== fact.provider ||
+			checkoutIntent.providerSessionId !== fact.providerSubscriptionId ||
 			checkoutIntent.ownerType !== subscription.ownerType ||
 			checkoutIntent.ownerId !== subscription.ownerId ||
 			checkoutIntent.billingPlanId !== subscription.planId)
@@ -235,17 +265,24 @@ function assertEventOrdering(
 	fact: ProviderBillingFact,
 	subscription: { lastProviderEventAt: Date | null; lastProviderEventId: string | null },
 ): void {
-	if (!subscription.lastProviderEventAt) return;
+	if (isEventStale(fact, subscription)) {
+		throw new Error("PAYMENT_PROVIDER_EVENT_STALE");
+	}
+}
+
+function isEventStale(
+	fact: ProviderBillingFact,
+	subscription: { lastProviderEventAt: Date | null; lastProviderEventId: string | null },
+): boolean {
+	if (!subscription.lastProviderEventAt) return false;
 	const delta = fact.occurredAt.getTime() - subscription.lastProviderEventAt.getTime();
-	if (
+	return (
 		delta < 0 ||
 		(delta === 0 &&
 			subscription.lastProviderEventId !== null &&
 			fact.providerEventId !== subscription.lastProviderEventId &&
 			fact.providerEventId < subscription.lastProviderEventId)
-	) {
-		throw new Error("PAYMENT_PROVIDER_EVENT_STALE");
-	}
+	);
 }
 
 async function assertAndPersistCustomer(
@@ -268,37 +305,147 @@ async function assertAndPersistCustomer(
 	}
 }
 
-function validatePayment(
+async function validatePayment(
 	fact: ProviderBillingFact,
-	plan: {
-		priceMicros: bigint;
-		currency: string;
-		metadata: Prisma.JsonValue;
+	subscription: {
+		id: string;
+		currentPeriodStart: Date | null;
+		currentPeriodEnd: Date | null;
+		plan: {
+			priceMicros: bigint;
+			currency: string;
+			creditsPerPeriod: bigint;
+			metadata: Prisma.JsonValue;
+		};
 	},
-) {
+	client: TransactionClient,
+): Promise<ResolvedProviderPayment> {
 	const payment = fact.payment!;
-	if (payment.amountMicros !== plan.priceMicros) {
+	const providerPaymentId = `${fact.provider}:${payment.providerPaymentId}`;
+	await client.$queryRaw<Array<{ locked: string }>>`
+		SELECT pg_advisory_xact_lock(
+			hashtextextended(${`payment-provider-payment:${providerPaymentId}`}, 0)
+		)::text AS "locked"`;
+	const existingBindings = await client.billingPeriod.findMany({
+		where: { providerInvoicePaymentId: providerPaymentId },
+		orderBy: { startsAt: "asc" },
+	});
+	if (existingBindings.some((period) => period.subscriptionId !== subscription.id)) {
+		throw new Error("PAYMENT_PROVIDER_PAYMENT_BINDING_CONFLICT");
+	}
+
+	if (payment.amountMicros !== subscription.plan.priceMicros) {
 		throw new Error("PAYMENT_PROVIDER_AMOUNT_MISMATCH");
 	}
-	if (payment.currency !== plan.currency) {
+	if (payment.currency !== subscription.plan.currency) {
 		throw new Error("PAYMENT_PROVIDER_CURRENCY_MISMATCH");
 	}
-	const interval = jsonString(plan.metadata, "interval");
+	const interval = jsonString(subscription.plan.metadata, "interval");
+	if (interval !== "month" && interval !== "year") {
+		throw new Error("PAYMENT_PROVIDER_PERIOD_MISMATCH");
+	}
+
+	if (existingBindings.length > 0) {
+		const expectedCount = interval === "year" ? 12 : 1;
+		const first = existingBindings[0]!;
+		const last = existingBindings[existingBindings.length - 1]!;
+		if (
+			existingBindings.length !== expectedCount ||
+			existingBindings.some(
+				(period) =>
+					period.paidAmount !== payment.amountMicros ||
+					period.creditAmount !== subscription.plan.creditsPerPeriod,
+			) ||
+			(payment.periodStart && payment.periodStart.getTime() !== first.startsAt.getTime()) ||
+			(payment.periodEnd && payment.periodEnd.getTime() !== last.endsAt.getTime()) ||
+			!isExactBillingInterval({
+				interval,
+				startsAt: first.startsAt,
+				endsAt: last.endsAt,
+			})
+		) {
+			throw new Error("PAYMENT_PROVIDER_PAYMENT_BINDING_CONFLICT");
+		}
+		return {
+			...payment,
+			periodStart: first.startsAt,
+			periodEnd: last.endsAt,
+			interval,
+			allowsStaleEvent: true,
+		};
+	}
+
+	let periodStart = payment.periodStart;
+	let periodEnd = payment.periodEnd;
+	let allowsStaleEvent = false;
+	if (!periodStart && !periodEnd) {
+		if (
+			fact.provider !== "paypal" ||
+			!subscription.currentPeriodStart ||
+			!subscription.currentPeriodEnd
+		) {
+			throw new Error("PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISSING");
+		}
+		if (
+			fact.occurredAt >= subscription.currentPeriodStart &&
+			fact.occurredAt < subscription.currentPeriodEnd
+		) {
+			periodStart = subscription.currentPeriodStart;
+			periodEnd = subscription.currentPeriodEnd;
+			allowsStaleEvent = true;
+		} else {
+			periodStart = subscription.currentPeriodEnd;
+			periodEnd = nextPeriodEndFromTrustedBounds(
+				subscription.currentPeriodStart,
+				subscription.currentPeriodEnd,
+				interval,
+			);
+		}
+		if (fact.occurredAt < periodStart || fact.occurredAt >= periodEnd) {
+			throw new Error("PAYMENT_PROVIDER_PERIOD_MISMATCH");
+		}
+	} else if (!periodStart || !periodEnd) {
+		throw new Error("PAYMENT_PROVIDER_PERIOD_MISMATCH");
+	}
 	if (
-		(interval !== "month" && interval !== "year") ||
 		!isExactBillingInterval({
 			interval,
-			startsAt: payment.periodStart,
-			endsAt: payment.periodEnd,
+			startsAt: periodStart,
+			endsAt: periodEnd,
 		})
 	) {
 		throw new Error("PAYMENT_PROVIDER_PERIOD_MISMATCH");
 	}
-	return { ...payment, interval };
+	return {
+		...payment,
+		periodStart,
+		periodEnd,
+		interval,
+		allowsStaleEvent,
+	};
+}
+
+function validateLifecyclePeriod(
+	period: ProviderBillingPeriodFact,
+	metadata: Prisma.JsonValue,
+): ProviderBillingPeriodFact {
+	const interval = jsonString(metadata, "interval");
+	if (
+		(interval !== "month" && interval !== "year") ||
+		!isExactBillingInterval({
+			interval,
+			startsAt: period.periodStart,
+			endsAt: period.periodEnd,
+		})
+	) {
+		throw new Error("PAYMENT_PROVIDER_PERIOD_MISMATCH");
+	}
+	return period;
 }
 
 async function applyProviderPayment(
 	fact: ProviderBillingFact,
+	payment: ResolvedProviderPayment,
 	subscription: {
 		id: string;
 		ownerType: "USER" | "ORGANIZATION";
@@ -307,9 +454,8 @@ async function applyProviderPayment(
 	},
 	client: TransactionClient,
 ): Promise<number> {
-	const payment = fact.payment!;
 	const interval = jsonString(subscription.plan.metadata, "interval");
-	if (interval !== "month" && interval !== "year") {
+	if (interval !== payment.interval) {
 		throw new Error("PAYMENT_PROVIDER_PERIOD_MISMATCH");
 	}
 	const periods =
@@ -403,6 +549,32 @@ async function applyProviderPayment(
 		if (!existingGrant) grantsCreated += 1;
 	}
 	return grantsCreated;
+}
+
+function nextPeriodEndFromTrustedBounds(
+	currentStart: Date,
+	currentEnd: Date,
+	interval: "month" | "year",
+): Date {
+	if (currentEnd <= currentStart) throw new Error("PAYMENT_PROVIDER_PERIOD_MISMATCH");
+	const monthOffset = interval === "year" ? 12 : 1;
+	const anchorDay = Math.max(currentStart.getUTCDate(), currentEnd.getUTCDate());
+	const target = new Date(
+		Date.UTC(
+			currentEnd.getUTCFullYear(),
+			currentEnd.getUTCMonth() + monthOffset,
+			1,
+			currentEnd.getUTCHours(),
+			currentEnd.getUTCMinutes(),
+			currentEnd.getUTCSeconds(),
+			currentEnd.getUTCMilliseconds(),
+		),
+	);
+	const lastDay = new Date(
+		Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0),
+	).getUTCDate();
+	target.setUTCDate(Math.min(anchorDay, lastDay));
+	return target;
 }
 
 function jsonString(value: Prisma.JsonValue, key: string): string | null {

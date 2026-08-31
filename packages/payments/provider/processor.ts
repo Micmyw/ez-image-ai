@@ -189,6 +189,7 @@ function nonStripeProvider(provider: string): NonStripeProvider {
 
 function classifyPaymentEventError(error: unknown): "TERMINAL" | "TRANSIENT" {
 	const message = error instanceof Error ? error.message : "";
+	if (message === "PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISSING") return "TRANSIENT";
 	return /^(?:PAYMENT_PROVIDER|PAYPAL|WAFFO)_[A-Z0-9_]+$/.test(message) ? "TERMINAL" : "TRANSIENT";
 }
 

@@ -4,6 +4,11 @@ export interface ProviderPaymentFact {
 	providerPaymentId: string;
 	amountMicros: bigint;
 	currency: string;
+	periodStart: Date | null;
+	periodEnd: Date | null;
+}
+
+export interface ProviderBillingPeriodFact {
 	periodStart: Date;
 	periodEnd: Date;
 }
@@ -17,6 +22,7 @@ export interface ProviderBillingFact {
 	status: "ACTIVE" | "PAST_DUE" | "CANCELED" | "EXPIRED";
 	cancelAtPeriodEnd: boolean;
 	occurredAt: Date;
+	currentPeriod: ProviderBillingPeriodFact | null;
 	payment: ProviderPaymentFact | null;
 }
 
@@ -39,9 +45,12 @@ function normalizeWaffoEvent(value: unknown): ProviderBillingFact {
 	const providerSubscriptionId = requiredString(data.orderId, "WAFFO_SUBSCRIPTION_ID_MISSING");
 	const occurredAt = requiredDate(envelope.timestamp, "WAFFO_EVENT_TIME_INVALID");
 	const payment =
-		eventType === "subscription.activated" || eventType === "subscription.payment_succeeded"
-			? normalizeWaffoPayment(data)
-			: null;
+		eventType === "subscription.payment_succeeded" ? normalizeWaffoPayment(data) : null;
+	const currentPeriod = optionalPeriod(
+		data.currentPeriodStart,
+		data.currentPeriodEnd,
+		"WAFFO_PAYMENT_PERIOD_INVALID",
+	);
 	return {
 		provider: "waffo",
 		providerEventId,
@@ -51,6 +60,7 @@ function normalizeWaffoEvent(value: unknown): ProviderBillingFact {
 		status,
 		cancelAtPeriodEnd: eventType === "subscription.canceling" || status === "CANCELED",
 		occurredAt,
+		currentPeriod,
 		payment,
 	};
 }
@@ -98,6 +108,7 @@ function normalizePayPalEvent(value: unknown): ProviderBillingFact {
 			? requiredString(resource.billing_agreement_id, "PAYPAL_SUBSCRIPTION_ID_MISSING")
 			: requiredString(resource.id, "PAYPAL_SUBSCRIPTION_ID_MISSING");
 	const subscriber = optionalRecord(resource.subscriber);
+	const billingInfo = optionalRecord(resource.billing_info);
 	return {
 		provider: "paypal",
 		providerEventId: requiredString(envelope.id, "PAYPAL_EVENT_ID_MISSING"),
@@ -107,12 +118,11 @@ function normalizePayPalEvent(value: unknown): ProviderBillingFact {
 		status,
 		cancelAtPeriodEnd: eventType === "BILLING.SUBSCRIPTION.CANCELLED" || status === "CANCELED",
 		occurredAt: requiredDate(envelope.create_time, "PAYPAL_EVENT_TIME_INVALID"),
-		payment:
-			eventType === "PAYMENT.SALE.COMPLETED"
-				? normalizePayPalSale(resource)
-				: eventType === "BILLING.SUBSCRIPTION.ACTIVATED"
-					? normalizePayPalActivationPayment(resource)
-					: null,
+		currentPeriod:
+			eventType === "BILLING.SUBSCRIPTION.ACTIVATED"
+				? normalizePayPalActivationPeriod(billingInfo)
+				: null,
+		payment: eventType === "PAYMENT.SALE.COMPLETED" ? normalizePayPalSale(resource) : null,
 	};
 }
 
@@ -135,38 +145,33 @@ function paypalStatus(eventType: string): ProviderBillingFact["status"] {
 
 function normalizePayPalSale(resource: Record<string, unknown>): ProviderPaymentFact {
 	const amount = requiredRecord(resource.amount, "PAYPAL_PAYMENT_AMOUNT_INVALID");
-	const billingPeriod = requiredRecord(resource.billing_period, "PAYPAL_PAYMENT_PERIOD_INVALID");
+	const billingPeriod = optionalRecord(resource.billing_period);
 	return {
 		providerPaymentId: requiredString(resource.id, "PAYPAL_PAYMENT_ID_MISSING"),
 		amountMicros: decimalMicros(amount.total, "PAYPAL_PAYMENT_AMOUNT_INVALID"),
 		currency: currency(amount.currency, "PAYPAL_PAYMENT_CURRENCY_INVALID"),
-		periodStart: requiredDate(billingPeriod.start_time, "PAYPAL_PAYMENT_PERIOD_INVALID"),
-		periodEnd: requiredPeriodEnd(
-			billingPeriod.start_time,
-			billingPeriod.end_time,
-			"PAYPAL_PAYMENT_PERIOD_INVALID",
-		),
+		periodStart: billingPeriod
+			? requiredDate(billingPeriod.start_time, "PAYPAL_PAYMENT_PERIOD_INVALID")
+			: null,
+		periodEnd: billingPeriod
+			? requiredPeriodEnd(
+					billingPeriod.start_time,
+					billingPeriod.end_time,
+					"PAYPAL_PAYMENT_PERIOD_INVALID",
+				)
+			: null,
 	};
 }
 
-function normalizePayPalActivationPayment(
-	resource: Record<string, unknown>,
-): ProviderPaymentFact | null {
-	const billingInfo = optionalRecord(resource.billing_info);
+function normalizePayPalActivationPeriod(
+	billingInfo: Record<string, unknown> | null,
+): ProviderBillingPeriodFact | null {
 	const lastPayment = optionalRecord(billingInfo?.last_payment);
-	const amount = optionalRecord(lastPayment?.amount);
-	if (!lastPayment || !amount || !optionalString(lastPayment.id)) return null;
-	return {
-		providerPaymentId: requiredString(lastPayment.id, "PAYPAL_PAYMENT_ID_MISSING"),
-		amountMicros: decimalMicros(amount.value, "PAYPAL_PAYMENT_AMOUNT_INVALID"),
-		currency: currency(amount.currency_code, "PAYPAL_PAYMENT_CURRENCY_INVALID"),
-		periodStart: requiredDate(lastPayment.time, "PAYPAL_PAYMENT_PERIOD_INVALID"),
-		periodEnd: requiredPeriodEnd(
-			lastPayment.time,
-			billingInfo?.next_billing_time,
-			"PAYPAL_PAYMENT_PERIOD_INVALID",
-		),
-	};
+	return optionalPeriod(
+		lastPayment?.time,
+		billingInfo?.next_billing_time,
+		"PAYPAL_PAYMENT_PERIOD_INVALID",
+	);
 }
 
 function decimalMicros(value: unknown, code: string): bigint {
@@ -188,6 +193,18 @@ function requiredPeriodEnd(start: unknown, end: unknown, code: string): Date {
 	const endDate = requiredDate(end, code);
 	if (endDate <= startDate) throw new Error(code);
 	return endDate;
+}
+
+function optionalPeriod(
+	start: unknown,
+	end: unknown,
+	code: string,
+): ProviderBillingPeriodFact | null {
+	if (start === undefined && end === undefined) return null;
+	return {
+		periodStart: requiredDate(start, code),
+		periodEnd: requiredPeriodEnd(start, end, code),
+	};
 }
 
 function requiredDate(value: unknown, code: string): Date {

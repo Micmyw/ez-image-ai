@@ -10,7 +10,7 @@ import {
 
 const checkoutOptions: CreateCheckoutLinkOptions = {
 	type: "subscription",
-	priceId: "PROD_CREATOR_MONTHLY",
+	priceId: "PROD_0123456789AbCdEfGhIjKl",
 	currency: "USD",
 	billingPlanId: "billing-plan-1",
 	checkoutIntentId: "checkout-intent-1",
@@ -59,7 +59,7 @@ describe("Waffo Pancake SDK boundary", () => {
 			expiresAt: new Date("2026-08-31T01:00:00Z"),
 		});
 		expect(create).toHaveBeenCalledWith({
-			productId: "PROD_CREATOR_MONTHLY",
+			productId: "PROD_0123456789AbCdEfGhIjKl",
 			currency: "USD",
 			buyerIdentity: "USER:user-1",
 			buyerEmail: "owner@example.com",

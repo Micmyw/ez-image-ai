@@ -14,8 +14,9 @@ import { orpc } from "@shared/lib/orpc-query-utils";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowRightIcon, BadgePercentIcon, CheckIcon, StarIcon } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
+import { createCheckoutAttemptController, type CheckoutSelection } from "./checkout-attempt";
 import { PaymentProviderSelector } from "./PaymentProviderSelector";
 
 const plans = paymentsConfig.plans;
@@ -39,6 +40,7 @@ export function PricingTable({
 	const [loading, setLoading] = useState<PlanId | false>(false);
 	const [interval, setInterval] = useState<"month" | "year">("month");
 	const [checkoutUnavailable, setCheckoutUnavailable] = useState(false);
+	const checkoutAttempts = useRef(createCheckoutAttemptController(createGrowthAttemptKey));
 
 	const { planData } = usePlanData();
 
@@ -63,7 +65,8 @@ export function PricingTable({
 
 		setLoading(planId);
 		setCheckoutUnavailable(false);
-		const checkoutAttemptKey = createGrowthAttemptKey();
+		const selection: CheckoutSelection = { provider, planId, interval };
+		const checkoutAttemptKey = checkoutAttempts.current.begin(selection);
 
 		try {
 			const { checkoutLink } = await createCheckoutLinkMutation.mutateAsync({
@@ -74,6 +77,7 @@ export function PricingTable({
 			});
 
 			await saasGrowthFunnel.checkoutStarted(checkoutAttemptKey, planId);
+			checkoutAttempts.current.succeeded(selection);
 			window.location.href = checkoutLink;
 		} catch {
 			setCheckoutUnavailable(true);

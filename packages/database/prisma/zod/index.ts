@@ -234,7 +234,7 @@ export type PaymentCustomerScalarFieldEnum = z.infer<typeof PaymentCustomerScala
 
 // File: PaymentCheckoutIntentScalarFieldEnum.schema.ts
 
-export const PaymentCheckoutIntentScalarFieldEnumSchema = z.enum(['id', 'provider', 'ownerType', 'ownerId', 'submittedByUserId', 'billingPlanId', 'planKey', 'interval', 'idempotencyKey', 'providerSessionId', 'activeScopeKey', 'status', 'expiresAt', 'createdAt', 'updatedAt'])
+export const PaymentCheckoutIntentScalarFieldEnumSchema = z.enum(['id', 'provider', 'ownerType', 'ownerId', 'submittedByUserId', 'billingPlanId', 'planKey', 'interval', 'idempotencyKey', 'providerSessionId', 'providerCheckoutUrl', 'activeScopeKey', 'status', 'expiresAt', 'createdAt', 'updatedAt'])
 
 export type PaymentCheckoutIntentScalarFieldEnum = z.infer<typeof PaymentCheckoutIntentScalarFieldEnumSchema>;
 
@@ -486,7 +486,7 @@ export type SubscriptionStatus = z.infer<typeof SubscriptionStatusSchema>;
 
 // File: PaymentCheckoutIntentStatus.schema.ts
 
-export const PaymentCheckoutIntentStatusSchema = z.enum(['CREATED', 'PROVIDER_PENDING', 'COMPLETED', 'EXPIRED', 'CANCELED', 'REVIEW'])
+export const PaymentCheckoutIntentStatusSchema = z.enum(['CREATED', 'PROVIDER_CREATING', 'PROVIDER_PENDING', 'COMPLETED', 'EXPIRED', 'CANCELED', 'REVIEW'])
 
 export type PaymentCheckoutIntentStatus = z.infer<typeof PaymentCheckoutIntentStatusSchema>;
 
@@ -1347,9 +1347,10 @@ export const PaymentCheckoutIntentSchema = z.object({
   interval: z.string(),
   idempotencyKey: z.string(),
   providerSessionId: z.string().nullish(),
+  providerCheckoutUrl: z.string().nullish(),
   activeScopeKey: z.string().nullish(),
   status: PaymentCheckoutIntentStatusSchema.default("CREATED"),
-  expiresAt: z.date(),
+  expiresAt: z.date().nullish(),
   createdAt: z.date(),
   updatedAt: z.date(),
 });

@@ -1,3 +1,5 @@
+import { WAFFO_PRODUCT_ID_PATTERN } from "@repo/config";
+
 import type { PaymentProviderName, PlanPrice } from "../types";
 import { findPriceByPlanId, type PlanId, type RecurringInterval } from "./plans";
 
@@ -25,7 +27,7 @@ const providerPriceMappings: ProviderPriceMappingEntry[] = (["creator", "studio"
 const providerIdPatterns: Record<PaymentProviderName, RegExp> = {
 	stripe: /^price_[A-Za-z0-9_]+$/,
 	paypal: /^P-[A-Z0-9-]+$/,
-	waffo: /^PROD_[A-Za-z0-9]+$/,
+	waffo: WAFFO_PRODUCT_ID_PATTERN,
 };
 
 export function getProviderPriceIdByPlanId(

@@ -330,9 +330,11 @@ export const paymentCheckoutIntent = mysqlTable(
 		interval: varchar("interval", { length: 16 }).notNull(),
 		idempotencyKey: varchar("idempotencyKey", { length: 255 }).notNull(),
 		providerSessionId: varchar("providerSessionId", { length: 255 }),
+		providerCheckoutUrl: text("providerCheckoutUrl"),
 		activeScopeKey: varchar("activeScopeKey", { length: 768 }),
 		status: mysqlEnum("status", [
 			"CREATED",
+			"PROVIDER_CREATING",
 			"PROVIDER_PENDING",
 			"COMPLETED",
 			"EXPIRED",
@@ -341,13 +343,12 @@ export const paymentCheckoutIntent = mysqlTable(
 		])
 			.default("CREATED")
 			.notNull(),
-		expiresAt: timestamp("expiresAt").notNull(),
+		expiresAt: timestamp("expiresAt"),
 		createdAt: timestamp("createdAt").defaultNow().notNull(),
 		updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 	},
 	(table) => [
-		uniqueIndex("payment_checkout_intent_provider_owner_idempotency_uidx").on(
-			table.provider,
+		uniqueIndex("payment_checkout_intent_owner_idempotency_uidx").on(
 			table.ownerType,
 			table.ownerId,
 			table.idempotencyKey,

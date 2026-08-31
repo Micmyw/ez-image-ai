@@ -7,13 +7,19 @@ const {
 	createCheckoutIntent,
 	findBillingPlan,
 	getPaymentCustomer,
+	markCheckoutIntentProviderCreating,
+	paymentsConfig,
 	providerCheckout,
+	verifyOrganizationBillingManagement,
 } = vi.hoisted(() => ({
 	bindCheckoutIntent: vi.fn(),
 	createCheckoutIntent: vi.fn(),
 	findBillingPlan: vi.fn(),
 	getPaymentCustomer: vi.fn(),
+	markCheckoutIntentProviderCreating: vi.fn(),
+	paymentsConfig: { billingAttachedTo: "user" as "user" | "organization" },
 	providerCheckout: vi.fn(),
+	verifyOrganizationBillingManagement: vi.fn(),
 }));
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
@@ -21,17 +27,22 @@ vi.mock("@repo/database", () => ({
 	bindPaymentCheckoutIntentSession: bindCheckoutIntent,
 	createPaymentCheckoutIntent: createCheckoutIntent,
 	getPaymentCustomer,
+	markPaymentCheckoutIntentProviderCreating: markCheckoutIntentProviderCreating,
 }));
 vi.mock("@repo/database/client", () => ({
 	db: { billingPlan: { findUnique: findBillingPlan } },
 }));
 vi.mock("@repo/logs", () => ({ logger: { error: vi.fn() } }));
+vi.mock("@repo/payments/config", () => ({ config: paymentsConfig }));
 vi.mock("@repo/payments", () => ({
 	findPriceByPlanId: vi.fn(),
 	getPaymentProvider: vi.fn(),
 	getProviderPriceIdByPlanId: vi.fn(),
 	isPaymentProviderConfigured: vi.fn(),
 	paymentProviderNames: ["stripe", "paypal", "waffo"],
+}));
+vi.mock("../../organizations/lib/membership", () => ({
+	verifyOrganizationBillingManagement,
 }));
 
 import { auth } from "@repo/auth";
@@ -100,6 +111,7 @@ const billingPlan = {
 describe("createCheckoutLink", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		paymentsConfig.billingAttachedTo = "user";
 		process.env.NEXT_PUBLIC_SAAS_URL = "https://app.ezpic.test";
 		vi.mocked(auth.api.getSession).mockResolvedValue(authenticatedSession);
 		vi.mocked(isPaymentProviderConfigured).mockReturnValue(true);
@@ -108,8 +120,17 @@ describe("createCheckoutLink", () => {
 		findBillingPlan.mockResolvedValue(billingPlan);
 		getPaymentCustomer.mockResolvedValue(null);
 		createCheckoutIntent.mockResolvedValue({
-			intent: { id: "checkout-intent-1", providerSessionId: null },
+			intent: {
+				id: "checkout-intent-1",
+				status: "CREATED",
+				providerSessionId: null,
+				providerCheckoutUrl: null,
+			},
 			replayed: false,
+		});
+		markCheckoutIntentProviderCreating.mockResolvedValue({
+			id: "checkout-intent-1",
+			status: "PROVIDER_CREATING",
 		});
 		providerCheckout.mockResolvedValue({
 			checkoutUrl: "https://www.sandbox.paypal.com/approve",
@@ -197,20 +218,33 @@ describe("createCheckoutLink", () => {
 					"https://app.ezpic.test/checkout-return?expectedPlanId=creator&returnTo=%2Fcreate%3Fupgrade%3Dcomplete",
 			}),
 		);
+		expect(markCheckoutIntentProviderCreating).toHaveBeenCalledWith(
+			{ intentId: "checkout-intent-1", provider: "paypal" },
+			expect.anything(),
+		);
+		expect(markCheckoutIntentProviderCreating.mock.invocationCallOrder[0]).toBeLessThan(
+			providerCheckout.mock.invocationCallOrder[0]!,
+		);
 		expect(bindCheckoutIntent).toHaveBeenCalledWith(
 			{
 				intentId: "checkout-intent-1",
 				provider: "paypal",
 				providerSessionId: "I-SUBSCRIPTION",
+				providerCheckoutUrl: "https://www.sandbox.paypal.com/approve",
 				expiresAt: null,
 			},
 			expect.anything(),
 		);
 	});
 
-	it("reuses a provider-bound intent only when the replay returns the same session", async () => {
+	it("returns a persisted provider-bound checkout without invoking the provider again", async () => {
 		createCheckoutIntent.mockResolvedValue({
-			intent: { id: "checkout-intent-1", providerSessionId: "I-SUBSCRIPTION" },
+			intent: {
+				id: "checkout-intent-1",
+				status: "PROVIDER_PENDING",
+				providerSessionId: "I-SUBSCRIPTION",
+				providerCheckoutUrl: "https://www.sandbox.paypal.com/persisted-approval",
+			},
 			replayed: true,
 		});
 
@@ -225,7 +259,116 @@ describe("createCheckoutLink", () => {
 				},
 				{ context: { headers: new Headers() } },
 			),
-		).resolves.toEqual({ checkoutLink: "https://www.sandbox.paypal.com/approve" });
+		).resolves.toEqual({
+			checkoutLink: "https://www.sandbox.paypal.com/persisted-approval",
+		});
+		expect(markCheckoutIntentProviderCreating).not.toHaveBeenCalled();
+		expect(providerCheckout).not.toHaveBeenCalled();
 		expect(bindCheckoutIntent).not.toHaveBeenCalled();
+	});
+
+	it.each(["PROVIDER_CREATING", "COMPLETED", "CANCELED", "EXPIRED", "REVIEW"])(
+		"rejects an exact %s replay before provider access",
+		async (status) => {
+			createCheckoutIntent.mockResolvedValue({
+				intent: {
+					id: "checkout-intent-1",
+					status,
+					providerSessionId: null,
+					providerCheckoutUrl: null,
+				},
+				replayed: true,
+			});
+
+			await expect(
+				call(
+					createCheckoutLink,
+					{
+						provider: "paypal",
+						planId: "creator",
+						interval: "month",
+						idempotencyKey: "checkout-operation-0001",
+					},
+					{ context: { headers: new Headers() } },
+				),
+			).rejects.toMatchObject({ code: "CONFLICT" });
+			expect(markCheckoutIntentProviderCreating).not.toHaveBeenCalled();
+			expect(providerCheckout).not.toHaveBeenCalled();
+		},
+	);
+
+	it("derives organization ownership from the trusted active session", async () => {
+		paymentsConfig.billingAttachedTo = "organization";
+		vi.mocked(auth.api.getSession).mockResolvedValue({
+			...authenticatedSession,
+			session: {
+				...authenticatedSession.session,
+				activeOrganizationId: "organization-1",
+			},
+		});
+		verifyOrganizationBillingManagement.mockResolvedValue({
+			organization: { id: "organization-1" },
+			role: "owner",
+		});
+
+		await call(
+			createCheckoutLink,
+			{
+				provider: "paypal",
+				planId: "creator",
+				interval: "month",
+				idempotencyKey: "checkout-operation-0001",
+			},
+			{ context: { headers: new Headers() } },
+		);
+
+		expect(verifyOrganizationBillingManagement).toHaveBeenCalledWith("organization-1", "user-1");
+		expect(createCheckoutIntent).toHaveBeenCalledWith(
+			expect.objectContaining({ ownerType: "ORGANIZATION", ownerId: "organization-1" }),
+			expect.anything(),
+		);
+		expect(providerCheckout).toHaveBeenCalledWith(
+			expect.objectContaining({
+				ownerType: "ORGANIZATION",
+				ownerId: "organization-1",
+				organizationId: "organization-1",
+			}),
+		);
+		expect(getPaymentCustomer).toHaveBeenCalledWith(
+			"paypal",
+			{ ownerType: "ORGANIZATION", ownerId: "organization-1" },
+			expect.anything(),
+		);
+	});
+
+	it.each([
+		[
+			"without an active organization",
+			null,
+			{ organization: { id: "organization-1" }, role: "owner" },
+		],
+		["without billing-owner permission", "organization-1", null],
+	] as const)("fails closed %s", async (_label, activeOrganizationId, membership) => {
+		paymentsConfig.billingAttachedTo = "organization";
+		vi.mocked(auth.api.getSession).mockResolvedValue({
+			...authenticatedSession,
+			session: { ...authenticatedSession.session, activeOrganizationId },
+		});
+		verifyOrganizationBillingManagement.mockResolvedValue(membership);
+
+		await expect(
+			call(
+				createCheckoutLink,
+				{
+					provider: "paypal",
+					planId: "creator",
+					interval: "month",
+					idempotencyKey: "checkout-operation-0001",
+				},
+				{ context: { headers: new Headers() } },
+			),
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+		expect(createCheckoutIntent).not.toHaveBeenCalled();
+		expect(providerCheckout).not.toHaveBeenCalled();
 	});
 });

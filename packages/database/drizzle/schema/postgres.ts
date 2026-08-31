@@ -28,6 +28,7 @@ export const subscriptionStatusEnum = pgEnum("SubscriptionStatus", [
 
 export const paymentCheckoutIntentStatusEnum = pgEnum("PaymentCheckoutIntentStatus", [
 	"CREATED",
+	"PROVIDER_CREATING",
 	"PROVIDER_PENDING",
 	"COMPLETED",
 	"EXPIRED",
@@ -378,15 +379,15 @@ export const paymentCheckoutIntent = pgTable(
 		interval: text("interval").notNull(),
 		idempotencyKey: text("idempotencyKey").notNull(),
 		providerSessionId: text("providerSessionId"),
+		providerCheckoutUrl: text("providerCheckoutUrl"),
 		activeScopeKey: text("activeScopeKey"),
 		status: paymentCheckoutIntentStatusEnum("status").default("CREATED").notNull(),
-		expiresAt: timestamp("expiresAt", { withTimezone: true }).notNull(),
+		expiresAt: timestamp("expiresAt", { withTimezone: true }),
 		createdAt: timestamp("createdAt", { withTimezone: true }).defaultNow().notNull(),
 		updatedAt: timestamp("updatedAt", { withTimezone: true }).defaultNow().notNull(),
 	},
 	(table) => [
-		uniqueIndex("payment_checkout_intent_provider_owner_idempotency_uidx").on(
-			table.provider,
+		uniqueIndex("payment_checkout_intent_owner_idempotency_uidx").on(
 			table.ownerType,
 			table.ownerId,
 			table.idempotencyKey,

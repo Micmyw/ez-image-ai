@@ -374,6 +374,7 @@ enum BillingPeriodStatus {
 
 enum PaymentCheckoutIntentStatus {
   CREATED
+  PROVIDER_CREATING
   PROVIDER_PENDING
   COMPLETED
   EXPIRED
@@ -1112,24 +1113,25 @@ model PaymentCustomer {
 }
 
 model PaymentCheckoutIntent {
-  id                String                      @id @default(cuid())
-  provider          String
-  ownerType         OwnerType
-  ownerId           String
-  submittedByUserId String
-  billingPlanId     String
-  billingPlan       BillingPlan                 @relation(fields: [billingPlanId], references: [id], onDelete: Restrict)
-  planKey           String
-  interval          String
-  idempotencyKey    String
-  providerSessionId String?
-  activeScopeKey    String?                     @unique
-  status            PaymentCheckoutIntentStatus @default(CREATED)
-  expiresAt         DateTime                    @db.Timestamptz(3)
-  createdAt         DateTime                    @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime                    @updatedAt @db.Timestamptz(3)
+  id                  String                      @id @default(cuid())
+  provider            String
+  ownerType           OwnerType
+  ownerId             String
+  submittedByUserId   String
+  billingPlanId       String
+  billingPlan         BillingPlan                 @relation(fields: [billingPlanId], references: [id], onDelete: Restrict)
+  planKey             String
+  interval            String
+  idempotencyKey      String
+  providerSessionId   String?
+  providerCheckoutUrl String?
+  activeScopeKey      String?                     @unique
+  status              PaymentCheckoutIntentStatus @default(CREATED)
+  expiresAt           DateTime?                   @db.Timestamptz(3)
+  createdAt           DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                    @updatedAt @db.Timestamptz(3)
 
-  @@unique([provider, ownerType, ownerId, idempotencyKey])
+  @@unique([ownerType, ownerId, idempotencyKey])
   @@unique([provider, providerSessionId])
   @@index([ownerType, ownerId, planKey, interval, status])
   @@index([expiresAt, status])

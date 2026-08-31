@@ -46,6 +46,14 @@
   provider credential groups, and the example environment documents all server-only provider IDs.
   Real PayPal and Waffo sandbox checkout/webhook certification remains `NOT_COMPLETED` pending
   external credentials and dashboard evidence.
+- Hardened checkout replay around a persisted provider URL and an explicit uncertain
+  `PROVIDER_CREATING` state. Idempotency keys are unique across payment methods for one billing
+  owner without colliding across owners, and only provider-confirmed expiry can release an active
+  checkout for replacement.
+- Aligned non-Stripe credit grants with official webhook identities: Waffo activation changes
+  subscription state without granting credits, and PayPal activation persists trusted billing
+  timing without inventing a payment ID. Only verified Waffo payment IDs and PayPal sale IDs grant
+  once, including stable month-end and leap-year renewal periods.
 
 ## 2026-08-29
 

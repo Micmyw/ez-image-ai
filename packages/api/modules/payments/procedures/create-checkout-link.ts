@@ -3,6 +3,7 @@ import {
 	bindPaymentCheckoutIntentSession,
 	createPaymentCheckoutIntent,
 	getPaymentCustomer,
+	markPaymentCheckoutIntentProviderCreating,
 } from "@repo/database";
 import { db } from "@repo/database/client";
 import { logger } from "@repo/logs";
@@ -13,11 +14,13 @@ import {
 	isPaymentProviderConfigured,
 	paymentProviderNames,
 } from "@repo/payments";
+import { config as paymentsConfig } from "@repo/payments/config";
 import { getBaseUrl } from "@repo/utils";
 import { z } from "zod";
 
 import { localeMiddleware } from "../../../orpc/middleware/locale-middleware";
 import { protectedProcedure } from "../../../orpc/procedures";
+import { verifyOrganizationBillingManagement } from "../../organizations/lib/membership";
 import { isExactBillingPlanSnapshot } from "../provider-availability";
 
 export const checkoutInputSchema = z
@@ -43,7 +46,7 @@ export const createCheckoutLink = protectedProcedure
 	})
 	.input(checkoutInputSchema)
 	.output(z.object({ checkoutLink: z.url() }))
-	.handler(async ({ input, context: { user } }) => {
+	.handler(async ({ input, context: { session, user } }) => {
 		const { provider, planId, interval, idempotencyKey } = input;
 		if (!isPaymentProviderConfigured(provider)) throw new ORPCError("NOT_FOUND");
 
@@ -70,7 +73,7 @@ export const createCheckoutLink = protectedProcedure
 			throw new ORPCError("NOT_FOUND");
 		}
 
-		const owner = { ownerType: "USER" as const, ownerId: user.id };
+		const owner = await resolveCheckoutOwner(user.id, session.activeOrganizationId);
 		const customer = await getPaymentCustomer(provider, owner, db);
 		let checkoutIntent;
 		try {
@@ -87,9 +90,29 @@ export const createCheckoutLink = protectedProcedure
 				db,
 			);
 		} catch (error) {
-			if (error instanceof Error && error.message === "PAYMENT_CHECKOUT_INTENT_CONFLICT") {
+			if (isCheckoutIntentConflict(error)) {
 				throw new ORPCError("CONFLICT");
 			}
+			throw new ORPCError("INTERNAL_SERVER_ERROR");
+		}
+		if (
+			checkoutIntent.replayed &&
+			checkoutIntent.intent.status === "PROVIDER_PENDING" &&
+			checkoutIntent.intent.providerSessionId &&
+			checkoutIntent.intent.providerCheckoutUrl
+		) {
+			return { checkoutLink: checkoutIntent.intent.providerCheckoutUrl };
+		}
+		if (checkoutIntent.intent.status !== "CREATED") {
+			throw new ORPCError("CONFLICT");
+		}
+		try {
+			await markPaymentCheckoutIntentProviderCreating(
+				{ intentId: checkoutIntent.intent.id, provider },
+				db,
+			);
+		} catch (error) {
+			if (isCheckoutIntentConflict(error)) throw new ORPCError("CONFLICT");
 			throw new ORPCError("INTERNAL_SERVER_ERROR");
 		}
 
@@ -104,7 +127,9 @@ export const createCheckoutLink = protectedProcedure
 				planKey: planId,
 				...owner,
 				submittedByUserId: user.id,
-				userId: user.id,
+				...(owner.ownerType === "USER"
+					? { userId: owner.ownerId }
+					: { organizationId: owner.ownerId }),
 				email: user.email,
 				name: user.name ?? "",
 				redirectUrl: checkoutReturnUrl(planId),
@@ -122,6 +147,7 @@ export const createCheckoutLink = protectedProcedure
 						intentId: checkoutIntent.intent.id,
 						provider,
 						providerSessionId: checkout.providerSessionId,
+						providerCheckoutUrl: checkout.checkoutUrl,
 						expiresAt: checkout.expiresAt,
 					},
 					db,
@@ -142,6 +168,33 @@ function checkoutReturnUrl(planId: "creator" | "studio"): string {
 	url.searchParams.set("expectedPlanId", planId);
 	url.searchParams.set("returnTo", "/create?upgrade=complete");
 	return url.toString();
+}
+
+async function resolveCheckoutOwner(
+	userId: string,
+	activeOrganizationId: string | null | undefined,
+) {
+	if (paymentsConfig.billingAttachedTo === "user") {
+		return { ownerType: "USER" as const, ownerId: userId };
+	}
+	if (!activeOrganizationId) throw new ORPCError("FORBIDDEN");
+	const membership = await verifyOrganizationBillingManagement(activeOrganizationId, userId);
+	if (!membership || membership.organization.id !== activeOrganizationId) {
+		throw new ORPCError("FORBIDDEN");
+	}
+	return { ownerType: "ORGANIZATION" as const, ownerId: activeOrganizationId };
+}
+
+function isCheckoutIntentConflict(error: unknown): boolean {
+	return (
+		error instanceof Error &&
+		[
+			"PAYMENT_CHECKOUT_INTENT_CONFLICT",
+			"PAYMENT_CHECKOUT_INTENT_IDEMPOTENCY_CONFLICT",
+			"PAYMENT_CHECKOUT_INTENT_REPLAY_UNSAFE",
+			"PAYMENT_CHECKOUT_INTENT_PROVIDER_CREATE_CONFLICT",
+		].includes(error.message)
+	);
 }
 
 function checkoutErrorClass(error: unknown): string {

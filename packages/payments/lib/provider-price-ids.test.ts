@@ -30,7 +30,7 @@ describe("provider-scoped price mappings", () => {
 
 	it("keeps identical provider identifiers isolated by provider", () => {
 		process.env.PRICE_ID_CREATOR_MONTHLY = "price_same123";
-		process.env.WAFFO_PRODUCT_ID_CREATOR_MONTHLY = "PROD_same123";
+		process.env.WAFFO_PRODUCT_ID_CREATOR_MONTHLY = "PROD_0123456789AbCdEfGhIjKl";
 
 		expect(
 			getProviderPriceIdByPlanId("stripe", "creator", {
@@ -43,9 +43,21 @@ describe("provider-scoped price mappings", () => {
 				type: "subscription",
 				interval: "month",
 			}),
-		).toBe("PROD_same123");
-		expect(getPlanIdByProviderPriceId("stripe", "PROD_same123")).toBeNull();
-		expect(getPlanIdByProviderPriceId("waffo", "PROD_same123")).toBe("creator");
+		).toBe("PROD_0123456789AbCdEfGhIjKl");
+		expect(getPlanIdByProviderPriceId("stripe", "PROD_0123456789AbCdEfGhIjKl")).toBeNull();
+		expect(getPlanIdByProviderPriceId("waffo", "PROD_0123456789AbCdEfGhIjKl")).toBe("creator");
+	});
+
+	it("rejects Waffo product identifiers that the SDK will reject before checkout", () => {
+		process.env.WAFFO_PRODUCT_ID_CREATOR_MONTHLY = "PROD_CreatorMonthly";
+
+		expect(
+			getProviderPriceIdByPlanId("waffo", "creator", {
+				type: "subscription",
+				interval: "month",
+			}),
+		).toBeNull();
+		expect(getPlanIdByProviderPriceId("waffo", "PROD_CreatorMonthly")).toBeNull();
 	});
 
 	it("fails closed for malformed provider identifiers and absent annual Waffo metadata", () => {

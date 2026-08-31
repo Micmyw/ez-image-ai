@@ -12,7 +12,6 @@ export interface CreatePaymentCheckoutIntentInput extends PaymentOwner {
 	interval: "month" | "year";
 	idempotencyKey: string;
 	now?: Date;
-	expiresInSeconds?: number;
 }
 
 export async function getPaymentCustomer(
@@ -53,26 +52,55 @@ export async function createPaymentCheckoutIntent(
 	client: MediaTransactionClient,
 ) {
 	const now = input.now ?? new Date();
-	const expiresAt = new Date(now.getTime() + (input.expiresInSeconds ?? 30 * 60) * 1_000);
 	const activeScopeKey = paymentCheckoutActiveScope(input);
-	return runSerializable(client, async (tx) => {
+	const idempotencyScopeKey = paymentCheckoutIdempotencyScope(input);
+	const result = await runSerializable(client, async (tx) => {
+		await tx.$queryRaw<Array<{ locked: string }>>`
+			SELECT pg_advisory_xact_lock(
+				hashtextextended(${idempotencyScopeKey}, 0)
+			)::text AS "locked"`;
 		await tx.$queryRaw<Array<{ locked: string }>>`
 			SELECT pg_advisory_xact_lock(hashtextextended(${activeScopeKey}, 0))::text AS "locked"`;
 
 		const replay = await tx.paymentCheckoutIntent.findUnique({
 			where: {
-				provider_ownerType_ownerId_idempotencyKey: {
-					provider: input.provider,
+				ownerType_ownerId_idempotencyKey: {
 					ownerType: input.ownerType,
 					ownerId: input.ownerId,
 					idempotencyKey: input.idempotencyKey,
 				},
 			},
 		});
-		if (replay) return { intent: replay, replayed: true };
+		if (replay) {
+			if (!matchesTrustedCheckoutCommand(replay, input)) {
+				throw new Error("PAYMENT_CHECKOUT_INTENT_IDEMPOTENCY_CONFLICT");
+			}
+			if (replay.status === "CREATED") return { intent: replay, replayed: true };
+			if (
+				replay.status === "PROVIDER_PENDING" &&
+				replay.providerSessionId &&
+				replay.providerCheckoutUrl
+			) {
+				if (replay.expiresAt && replay.expiresAt <= now) {
+					await tx.paymentCheckoutIntent.update({
+						where: { id: replay.id },
+						data: { status: "EXPIRED", activeScopeKey: null },
+					});
+					return { unsafeReplay: true as const };
+				}
+				return { intent: replay, replayed: true };
+			}
+			throw new Error("PAYMENT_CHECKOUT_INTENT_REPLAY_UNSAFE");
+		}
 
 		const active = await tx.paymentCheckoutIntent.findUnique({ where: { activeScopeKey } });
-		if (active && active.expiresAt <= now) {
+		if (
+			active?.status === "PROVIDER_PENDING" &&
+			active.providerSessionId &&
+			active.providerCheckoutUrl &&
+			active.expiresAt &&
+			active.expiresAt <= now
+		) {
 			await tx.paymentCheckoutIntent.update({
 				where: { id: active.id },
 				data: { status: "EXPIRED", activeScopeKey: null },
@@ -92,20 +120,19 @@ export async function createPaymentCheckoutIntent(
 				interval: input.interval,
 				idempotencyKey: input.idempotencyKey,
 				activeScopeKey,
-				expiresAt,
+				expiresAt: null,
 			},
 		});
 		return { intent, replayed: false };
 	});
+	if ("unsafeReplay" in result) {
+		throw new Error("PAYMENT_CHECKOUT_INTENT_REPLAY_UNSAFE");
+	}
+	return result;
 }
 
-export async function bindPaymentCheckoutIntentSession(
-	input: {
-		intentId: string;
-		provider: PaymentProviderName;
-		providerSessionId: string;
-		expiresAt?: Date | null;
-	},
+export async function markPaymentCheckoutIntentProviderCreating(
+	input: { intentId: string; provider: PaymentProviderName },
 	client: Prisma.TransactionClient,
 ) {
 	const updated = await client.paymentCheckoutIntent.updateMany({
@@ -114,11 +141,39 @@ export async function bindPaymentCheckoutIntentSession(
 			provider: input.provider,
 			status: "CREATED",
 			providerSessionId: null,
+			providerCheckoutUrl: null,
+		},
+		data: { status: "PROVIDER_CREATING" },
+	});
+	if (updated.count !== 1) {
+		throw new Error("PAYMENT_CHECKOUT_INTENT_PROVIDER_CREATE_CONFLICT");
+	}
+	return client.paymentCheckoutIntent.findUniqueOrThrow({ where: { id: input.intentId } });
+}
+
+export async function bindPaymentCheckoutIntentSession(
+	input: {
+		intentId: string;
+		provider: PaymentProviderName;
+		providerSessionId: string;
+		providerCheckoutUrl: string;
+		expiresAt?: Date | null;
+	},
+	client: Prisma.TransactionClient,
+) {
+	const updated = await client.paymentCheckoutIntent.updateMany({
+		where: {
+			id: input.intentId,
+			provider: input.provider,
+			status: "PROVIDER_CREATING",
+			providerSessionId: null,
+			providerCheckoutUrl: null,
 		},
 		data: {
 			providerSessionId: input.providerSessionId,
+			providerCheckoutUrl: input.providerCheckoutUrl,
 			status: "PROVIDER_PENDING",
-			...(input.expiresAt ? { expiresAt: input.expiresAt } : {}),
+			expiresAt: input.expiresAt ?? null,
 		},
 	});
 	if (updated.count !== 1) throw new Error("PAYMENT_CHECKOUT_INTENT_BINDING_CONFLICT");
@@ -151,7 +206,7 @@ export async function completePaymentCheckoutIntent(
 		where: {
 			id: input.intentId,
 			provider: input.provider,
-			status: { in: ["CREATED", "PROVIDER_PENDING"] },
+			status: "PROVIDER_PENDING",
 		},
 		data: { status: "COMPLETED", activeScopeKey: null },
 	});
@@ -163,10 +218,41 @@ export async function reviewPaymentCheckoutIntent(
 ) {
 	return client.paymentCheckoutIntent.updateMany({
 		where: { id: input.intentId, provider: input.provider },
-		data: { status: "REVIEW", activeScopeKey: null },
+		data: { status: "REVIEW" },
 	});
 }
 
 function paymentCheckoutActiveScope(input: PaymentOwner & { planKey: string; interval: string }) {
 	return `${input.ownerType}:${input.ownerId}:${input.planKey}:${input.interval}`;
+}
+
+function paymentCheckoutIdempotencyScope(input: PaymentOwner & { idempotencyKey: string }) {
+	return `payment-checkout-idempotency:${JSON.stringify([
+		input.ownerType,
+		input.ownerId,
+		input.idempotencyKey,
+	])}`;
+}
+
+function matchesTrustedCheckoutCommand(
+	intent: {
+		provider: string;
+		ownerType: "USER" | "ORGANIZATION";
+		ownerId: string;
+		submittedByUserId: string;
+		billingPlanId: string;
+		planKey: string;
+		interval: string;
+	},
+	input: CreatePaymentCheckoutIntentInput,
+): boolean {
+	return (
+		intent.provider === input.provider &&
+		intent.ownerType === input.ownerType &&
+		intent.ownerId === input.ownerId &&
+		intent.submittedByUserId === input.submittedByUserId &&
+		intent.billingPlanId === input.billingPlanId &&
+		intent.planKey === input.planKey &&
+		intent.interval === input.interval
+	);
 }
