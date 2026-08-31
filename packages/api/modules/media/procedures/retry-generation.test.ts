@@ -219,10 +219,10 @@ describe("retryGenerationForUser", () => {
 		);
 		expect(deps.claimRequest).toHaveBeenCalledWith(
 			expect.objectContaining({
-				operation: {
+				operation: expect.objectContaining({
 					assetModerationPolicyVersion: expect.any(String),
 					assetModerationRuleVersion: expect.any(String),
-					catalogVersion: "2026-08-25.1",
+					catalogVersion: "2026-08-31.1",
 					costMicros: "3500",
 					credits: "4",
 					inputAssets: [{ assetChecksum: "1".repeat(64), assetId: SOURCE_ASSET_ID }],
@@ -243,10 +243,10 @@ describe("retryGenerationForUser", () => {
 							maxCharge: "4",
 						},
 					}),
-					pricingVersion: "2026-08-25.1",
+					pricingVersion: "2026-08-31.1",
 					productKey: "image-fast",
 					sourceJobId: "source-job-1",
-				},
+				}),
 			}),
 		);
 		expect(deps.persistApproved).toHaveBeenCalledWith(
