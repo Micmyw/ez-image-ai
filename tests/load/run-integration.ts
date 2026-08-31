@@ -82,6 +82,7 @@ run(
 	],
 	true,
 	testDatabaseUrl,
+	runtimeDatabaseAlias(testDatabaseUrl),
 );
 run(
 	["--filter", "@repo/api", "exec", "vitest", "run", ...isolatedApiDatabaseTests],

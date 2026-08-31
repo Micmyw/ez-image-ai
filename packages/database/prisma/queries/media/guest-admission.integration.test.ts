@@ -14,6 +14,14 @@ const DATABASE_URL = process.env.DATABASE_URL;
 
 let client: PrismaClient;
 
+const guestAdmissionTestDay = new Date();
+guestAdmissionTestDay.setUTCDate(guestAdmissionTestDay.getUTCDate() + 1);
+guestAdmissionTestDay.setUTCHours(3, 0, 0, 0);
+
+function guestAdmissionTestTime(minutesAfterThreeUtc: number): Date {
+	return new Date(guestAdmissionTestDay.getTime() + minutesAfterThreeUtc * 60_000);
+}
+
 describe("guest generation admission", () => {
 	beforeAll(async () => {
 		client = new PrismaClient({
@@ -262,7 +270,7 @@ describe("guest generation admission", () => {
 	});
 
 	it("isolates generation IP and subnet evidence by promotion while sharing global capacity", async () => {
-		const now = new Date("2026-08-29T03:10:00.000Z");
+		const now = guestAdmissionTestTime(10);
 		const sharedIpHash = hashFixture("promotion-isolation-ip");
 		const sharedSubnetHash = hashFixture("promotion-isolation-subnet");
 		const first = await createGuestFixture("promotion-isolation-a", now, "promotion-a");
@@ -353,7 +361,7 @@ describe("guest generation admission", () => {
 	});
 
 	it("keeps generation global capacity cross-promotion without leaking a rejected graph", async () => {
-		const now = new Date("2026-08-29T03:20:00.000Z");
+		const now = guestAdmissionTestTime(20);
 		const first = await createGuestFixture("global-capacity-a", now, "global-promotion-a");
 		const rejected = await createGuestFixture("global-capacity-b", now, "global-promotion-b");
 
@@ -392,7 +400,7 @@ describe("guest generation admission", () => {
 	});
 
 	it("admits exactly N concurrent global requests across promotions", async () => {
-		const now = new Date("2026-08-29T03:25:00.000Z");
+		const now = guestAdmissionTestTime(25);
 		const fixtures = await Promise.all(
 			Array.from({ length: 8 }, (_, index) =>
 				createGuestFixture(`global-concurrent-${index}`, now, `global-concurrent-${index}`),
@@ -430,7 +438,7 @@ describe("guest generation admission", () => {
 	});
 
 	it("returns one stable domain rejection for concurrent admissions sharing a session", async () => {
-		const now = new Date("2026-08-29T03:30:00.000Z");
+		const now = guestAdmissionTestTime(30);
 		const promotionPeriod = "shared-session-promotion";
 		const sharedSessionHash = hashFixture("shared-session");
 		const fixtures = await Promise.all([
@@ -561,7 +569,7 @@ describe("guest generation admission", () => {
 	});
 
 	it("lets queue age reach exactly 600 seconds and rejects the next minute before depth 25", async () => {
-		const now = new Date("2026-08-29T04:00:00.000Z");
+		const now = guestAdmissionTestTime(60);
 		const promotionPeriod = `queue-age-${randomUUID()}`;
 		for (let index = 0; index < 11; index += 1) {
 			const fixture = await createGuestFixture(`queue-age-${index}`, now, promotionPeriod);
@@ -595,7 +603,7 @@ describe("guest generation admission", () => {
 	});
 
 	it("admits exactly 25 queued jobs with controlled capacity and rejects depth N plus one", async () => {
-		const now = new Date("2026-08-29T04:20:00.000Z");
+		const now = guestAdmissionTestTime(80);
 		const promotionPeriod = `queue-depth-${randomUUID()}`;
 		for (let index = 0; index < 25; index += 1) {
 			const fixture = await createGuestFixture(`queue-depth-${index}`, now, promotionPeriod);
@@ -637,7 +645,7 @@ describe("guest generation admission", () => {
 	] as const)(
 		"enforces the literal %s limit at N plus one with no rejected business graph",
 		async (_label, limitName, limit, expectedCode, sharedField) => {
-			const now = new Date("2026-08-29T04:40:00.000Z");
+			const now = guestAdmissionTestTime(100);
 			const promotionPeriod = `promotion-${limitName}-${randomUUID()}`;
 			const sharedHash = hashFixture(`shared:${limitName}`);
 			const isolationOverrides = {

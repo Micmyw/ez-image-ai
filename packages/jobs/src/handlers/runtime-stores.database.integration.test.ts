@@ -2117,8 +2117,10 @@ describe("production media runtime stores", () => {
 
 	it("does not charge a bound READY output after its moderation evidence expires", async () => {
 		const seeded = await seedFinalizingJob();
-		await seedBoundOutputAsset(seeded.jobId, "READY", 100);
-		await new Promise((resolve) => setTimeout(resolve, 150));
+		const output = await seedBoundOutputAsset(seeded.jobId, "READY", 1_000);
+		await new Promise((resolve) =>
+			setTimeout(resolve, Math.max(0, output.verificationValidUntil.getTime() - Date.now()) + 25),
+		);
 
 		const outcome = await settleGeneration(
 			{ jobId: seeded.jobId, version: seeded.version },
