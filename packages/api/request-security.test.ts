@@ -13,6 +13,7 @@ vi.mock("@repo/jobs", () => ({
 }));
 vi.mock("@repo/storage", () => ({ checkStorageMetadataAccess: vi.fn() }));
 vi.mock("@repo/payments", () => ({
+	paymentProviderNames: ["stripe", "paypal", "waffo"] as const,
 	webhookHandler: vi.fn(() => new Response(null, { status: 204 })),
 }));
 vi.mock("@trigger.dev/sdk", () => ({ tasks: { trigger: vi.fn() } }));
