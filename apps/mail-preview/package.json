@@ -10,7 +10,7 @@
 	},
 	"dependencies": {
 		"react": "catalog:",
-		"react-email": "^6.9.1"
+		"react-email": "^6.9.3"
 	},
 	"devDependencies": {
 		"@repo/tsconfig": "workspace:*",
