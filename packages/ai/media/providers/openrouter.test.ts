@@ -51,7 +51,12 @@ describe("OpenRouterProviderAdapter", () => {
 			model: "sourceful/riverflow-v2.5-fast",
 			prompt: "Keep the subject and replace the background",
 			n: 1,
-			input_references: ["https://private.example.test/signed-input"],
+			input_references: [
+				{
+					type: "image_url",
+					image_url: { url: "https://private.example.test/signed-input" },
+				},
+			],
 		});
 		expect(submission).toMatchObject({
 			providerTaskId: "attempt-1",
@@ -77,6 +82,25 @@ describe("OpenRouterProviderAdapter", () => {
 		});
 	});
 
+	it("accepts official response metadata around one canonical raster result", async () => {
+		const response = {
+			created: 1_725_000_000,
+			usage: { total_tokens: 42 },
+			data: [{ b64_json: PNG_BASE64, media_type: "image/png" }],
+		};
+		const adapter = new OpenRouterProviderAdapter({
+			apiKey: "server-openrouter-key",
+			fetch: fixtureFetch({ body: response }),
+		});
+
+		const submission = await adapter.submit(validSubmitInput());
+
+		expect(submission).toMatchObject({ status: "SUCCEEDED", outcome: "accepted" });
+		expect(await adapter.normalizeResult(submission.snapshot!)).toMatchObject({
+			outputs: [{ kind: "inline-base64", mimeType: "image/png", data: PNG_BASE64 }],
+		});
+	});
+
 	it.each([
 		[429, "uncertain"],
 		[503, "uncertain"],
@@ -97,7 +121,20 @@ describe("OpenRouterProviderAdapter", () => {
 	it.each([
 		["multiple outputs", { data: [{ b64_json: PNG_BASE64 }, { b64_json: PNG_BASE64 }] }],
 		["remote output", { data: [{ url: "https://public.example.test/result.png" }] }],
-		["non-raster bytes", { data: [{ b64_json: Buffer.from("not an image").toString("base64") }] }],
+		["malformed base64", { data: [{ b64_json: "not-valid-base64%%%" }] }],
+		[
+			"metadata for non-raster bytes",
+			{
+				created: 1_725_000_000,
+				usage: { total_tokens: 42 },
+				data: [
+					{
+						b64_json: Buffer.from("not an image").toString("base64"),
+						media_type: "image/png",
+					},
+				],
+			},
+		],
 		["missing output", { data: [] }],
 	] as const)("keeps a 2xx %s response uncertain", async (_label, body) => {
 		const adapter = new OpenRouterProviderAdapter({

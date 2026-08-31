@@ -32,7 +32,12 @@
 			"model": "sourceful/riverflow-v2.5-fast",
 			"prompt": "Preserve the subject and replace the background",
 			"n": 1,
-			"input_references": ["https://private-transfer.test/source.png"]
+			"input_references": [
+				{
+					"type": "image_url",
+					"image_url": { "url": "https://private-transfer.test/source.png" }
+				}
+			]
 		}
 	}
 }

@@ -247,6 +247,7 @@ export async function resolveDatabaseDispatchRoute(
 	const resolution = quotedExecutableRoutes(
 		job,
 		options.enabledProviders ?? configuredProviderKeysFromEnvironment(environment),
+		environment,
 	);
 	if (resolution.kind === "UNAVAILABLE") {
 		await database.$transaction((tx) =>
@@ -559,7 +560,7 @@ export function createDatabaseDispatchStore(
 						return null;
 					}
 				}
-				const resolution = quotedExecutableRoutes(job, enabledProviders);
+				const resolution = quotedExecutableRoutes(job, enabledProviders, environment);
 				if (resolution.kind === "UNAVAILABLE") {
 					await markQuotedRouteUnavailable(tx, {
 						jobId: job.id,
@@ -974,7 +975,7 @@ export function createDatabaseDispatchStore(
 						completedAt: new Date(),
 					},
 				});
-				const resolution = quotedExecutableRoutes(attempt.job, enabledProviders);
+				const resolution = quotedExecutableRoutes(attempt.job, enabledProviders, environment);
 				const attemptedRoutes = new Set(
 					attempt.job.attempts.map((item) => `${item.provider}:${item.providerModelId}`),
 				);
@@ -4085,6 +4086,7 @@ function quotedExecutableRoutes(
 		quote?: { costMicros: bigint };
 	},
 	enabledProviders: ReadonlySet<ProviderKey>,
+	environment: Record<string, string | undefined>,
 ): QuotedRouteResolution {
 	const pricingSnapshot = objectRecord(job.pricingSnapshot);
 	const entry = getCatalogEntry(job.productKey as ProductModelKey);
@@ -4125,6 +4127,7 @@ function quotedExecutableRoutes(
 		const routes = routeGraph.allowedRoutes.filter(
 			(route) =>
 				enabledProviders.has(route.provider) &&
+				isRuntimeRouteCertified(entry.mediaKind, route.provider, environment) &&
 				isStaticDispatchRoute(entry.mediaKind, route.provider, route.providerModelId) &&
 				entry.routes.some(
 					(candidate) =>
@@ -4153,6 +4156,7 @@ function quotedExecutableRoutes(
 			: entry.routes.filter(
 					(route) =>
 						enabledProviders.has(route.provider) &&
+						isRuntimeRouteCertified(entry.mediaKind, route.provider, environment) &&
 						isStaticDispatchRoute(entry.mediaKind, route.provider, route.providerModelId) &&
 						BigInt(route.providerCostMicros) <= maximumCost,
 				);
@@ -4169,6 +4173,18 @@ function quotedExecutableRoutes(
 				code: "LEGACY_QUOTE_ROUTE_UNAVAILABLE",
 				diagnosticRoute: entry.routes[0],
 			};
+}
+
+function isRuntimeRouteCertified(
+	mediaKind: "image" | "video",
+	provider: ProviderKey,
+	environment: Record<string, string | undefined>,
+): boolean {
+	return (
+		mediaKind !== "image" ||
+		provider !== "openrouter" ||
+		environment.MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED === "true"
+	);
 }
 
 async function markQuotedRouteUnavailable(

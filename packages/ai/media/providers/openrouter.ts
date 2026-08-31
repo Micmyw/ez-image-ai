@@ -16,9 +16,9 @@ const DEFAULT_OPENROUTER_URL = "https://openrouter.ai";
 export const OPENROUTER_IMAGE_REQUEST_TIMEOUT_MS = 240_000;
 const openRouterImageResponseSchema = z
 	.object({
-		data: z.array(z.object({ b64_json: z.string().min(1) }).strict()),
+		data: z.array(z.object({ b64_json: z.string().min(1) }).passthrough()),
 	})
-	.strict();
+	.passthrough();
 
 export interface OpenRouterProviderOptions extends HttpClientOptions {
 	apiKey: string;
@@ -50,7 +50,12 @@ export class OpenRouterProviderAdapter implements MediaProviderAdapter {
 					model: input.providerModelId,
 					prompt: input.input.prompt,
 					n: 1,
-					input_references: [input.input.sourceAsset.transferUrl],
+					input_references: [
+						{
+							type: "image_url",
+							image_url: { url: input.input.sourceAsset.transferUrl },
+						},
+					],
 				}),
 			},
 			{
