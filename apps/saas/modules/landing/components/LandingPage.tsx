@@ -1,4 +1,4 @@
-import { getPublicConfig, PLAN_ENTITLEMENTS } from "@repo/config/client";
+import { getPlanUsageEstimate, getPublicConfig, PLAN_ENTITLEMENTS } from "@repo/config/client";
 import { Logo } from "@repo/ui/components/logo";
 import {
 	ArrowRightIcon,
@@ -186,6 +186,7 @@ export async function LandingPage() {
 								const entitlement = PLAN_ENTITLEMENTS.find((plan) => plan.id === planId);
 								if (!entitlement) return null;
 								const monthlyPrice = entitlement.prices.find((price) => price.interval === "month");
+								const usage = getPlanUsageEstimate(entitlement.id);
 								const translatedFeatures = Object.values(
 									t.raw(`pricing.products.${planId}.features`) as Record<string, string>,
 								);
@@ -220,6 +221,27 @@ export async function LandingPage() {
 													{t("pricing.monthlyCredits", {
 														credits: entitlement.monthlyCredits,
 													})}
+												</li>
+												<li className="gap-2 flex">
+													<BadgeCheckIcon
+														className="mt-0.5 size-4 text-emerald-300 shrink-0"
+														aria-hidden="true"
+													/>
+													{usage.qualityEdits === null
+														? t("pricing.monthlyStandardAllowance", {
+																standard: usage.standardEdits,
+															})
+														: t("pricing.monthlyEditAllowance", {
+																standard: usage.standardEdits,
+																quality: usage.qualityEdits,
+															})}
+												</li>
+												<li className="gap-2 flex">
+													<BadgeCheckIcon
+														className="mt-0.5 size-4 text-emerald-300 shrink-0"
+														aria-hidden="true"
+													/>
+													{t("pricing.creditExpiry")}
 												</li>
 												{translatedFeatures.slice(0, 3).map((feature) => (
 													<li key={feature} className="gap-2 flex">

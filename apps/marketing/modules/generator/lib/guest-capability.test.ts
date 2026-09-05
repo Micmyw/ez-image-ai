@@ -11,7 +11,7 @@ describe("marketing guest capability client", () => {
 			enabled: true,
 			reason: null,
 			upload: { mimeTypes: ["image/jpeg", "image/png", "image/webp"], maximumBytes: 10_485_760 },
-			product: { key: "image-fast", label: "Standard Edit", credits: "4" },
+			product: { key: "image-fast", label: "Standard Edit", credits: "5" },
 			queueEstimate: { kind: "capacity" },
 		};
 		const fetchMock = vi.fn().mockResolvedValue(Response.json(snapshot));
@@ -39,7 +39,7 @@ describe("marketing guest capability client", () => {
 						enabled: true,
 						reason: null,
 						upload: { mimeTypes, maximumBytes },
-						product: { key: "image-fast", label: "Standard Edit", credits: "4" },
+						product: { key: "image-fast", label: "Standard Edit", credits: "5" },
 						queueEstimate: { kind: "capacity" },
 					}),
 				),
@@ -50,4 +50,27 @@ describe("marketing guest capability client", () => {
 			);
 		},
 	);
+
+	it("rejects a numeric credit value instead of accepting a protocol type drift", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn().mockResolvedValue(
+				Response.json({
+					version: "guest-v17",
+					enabled: true,
+					reason: null,
+					upload: {
+						mimeTypes: ["image/jpeg", "image/png", "image/webp"],
+						maximumBytes: 10_485_760,
+					},
+					product: { key: "image-fast", label: "Standard Edit", credits: 5 },
+					queueEstimate: { kind: "capacity" },
+				}),
+			),
+		);
+
+		await expect(getGuestCapability("https://app.test")).rejects.toThrow(
+			"GUEST_CAPABILITY_INVALID",
+		);
+	});
 });

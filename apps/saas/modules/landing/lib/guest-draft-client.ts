@@ -1,3 +1,4 @@
+import { PRODUCT_CREDIT_COSTS } from "@repo/config/client";
 import { hasGrowthAnalyticsConsent, readGrowthAnalyticsSessionHash } from "@repo/utils";
 
 export const LANDING_IMAGE_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -11,7 +12,7 @@ export interface GuestCapabilityProduct {
 	key: GuestProductKey;
 	label: string;
 	description: string;
-	credits: "4" | "10";
+	credits: `${(typeof PRODUCT_CREDIT_COSTS)[GuestProductKey]}`;
 	accessHint: GuestProductAccessHint;
 }
 
@@ -304,7 +305,7 @@ function validGuestProducts(value: unknown): value is GuestCapabilityProduct[] {
 			!product.description.trim() ||
 			!isGuestProductKey(product.key) ||
 			!isProductAccessHintForKey(product.accessHint, product.key) ||
-			(product.key === "image-fast" ? product.credits !== "4" : product.credits !== "10") ||
+			product.credits !== PRODUCT_CREDIT_COSTS[product.key].toString() ||
 			keys.has(product.key)
 		) {
 			return false;

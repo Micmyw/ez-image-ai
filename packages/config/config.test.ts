@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	DEFAULT_PRODUCT_CONFIG,
+	getPlanUsageEstimate,
 	getPublicConfig,
 	parseProductConfig,
 	PLAN_ENTITLEMENTS,
@@ -280,8 +281,8 @@ describe("product configuration", () => {
 		const publicConfig = getPublicConfig();
 
 		expect(DEFAULT_PRODUCT_CONFIG.productKeys).toEqual(["image-fast", "image-quality"]);
-		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-08-31.1");
-		expect(DEFAULT_PRODUCT_CONFIG.pricingVersion).toBe("2026-08-31.1");
+		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-09-05.1");
+		expect(DEFAULT_PRODUCT_CONFIG.pricingVersion).toBe("2026-09-05.1");
 		expect(publicConfig.brand).toMatchObject({
 			siteName: "EzPic",
 			siteDescription: expect.stringMatching(/image edit/i),
@@ -323,7 +324,7 @@ describe("product configuration", () => {
 			},
 			{
 				id: "creator",
-				monthlyCredits: 1_000,
+				monthlyCredits: 700,
 				maximumConcurrentJobs: 3,
 				maximumInputBytes: 20 * 1024 * 1024,
 				allowedProducts: ["image-fast", "image-quality"],
@@ -334,7 +335,7 @@ describe("product configuration", () => {
 			},
 			{
 				id: "studio",
-				monthlyCredits: 5_000,
+				monthlyCredits: 3_000,
 				maximumConcurrentJobs: 10,
 				maximumInputBytes: 20 * 1024 * 1024,
 				allowedProducts: ["image-fast", "image-quality"],
@@ -344,6 +345,18 @@ describe("product configuration", () => {
 				],
 			},
 		]);
+	});
+
+	it("publishes honest monthly edit estimates for each plan", () => {
+		expect(getPlanUsageEstimate("free")).toEqual({ standardEdits: 5, qualityEdits: null });
+		expect(getPlanUsageEstimate("creator")).toEqual({
+			standardEdits: 140,
+			qualityEdits: 17,
+		});
+		expect(getPlanUsageEstimate("studio")).toEqual({
+			standardEdits: 600,
+			qualityEdits: 75,
+		});
 	});
 
 	it("schema-validates identifiers, versions, flags, limits, and public URLs", () => {

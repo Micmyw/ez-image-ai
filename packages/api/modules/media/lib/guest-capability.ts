@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
-import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
+import { DEFAULT_PRODUCT_CONFIG, PRODUCT_CREDIT_COSTS } from "@repo/config";
 import { getGuestMediaConfig, type GuestMediaConfig } from "@repo/config/server";
 import { resolveGuestRuntimeConfigOverride } from "@repo/database";
 import { db } from "@repo/database/client";
@@ -11,7 +11,7 @@ export interface GuestCapabilityProduct {
 	key: "image-fast" | "image-quality";
 	label: string;
 	description: string;
-	credits: "4" | "10";
+	credits: `${(typeof PRODUCT_CREDIT_COSTS)["image-fast" | "image-quality"]}`;
 	accessHint: "guest-trial" | "paid-account";
 }
 
@@ -136,17 +136,17 @@ function toGuestCapabilityProduct(input: {
 	description: string;
 	credits: number;
 }): GuestCapabilityProduct {
-	if (input.key === "image-fast" && input.credits === 4) {
+	if (input.key === "image-fast" && input.credits === PRODUCT_CREDIT_COSTS["image-fast"]) {
 		return Object.freeze({
 			...input,
-			credits: "4" as const,
+			credits: input.credits.toString() as GuestCapabilityProduct["credits"],
 			accessHint: "guest-trial" as const,
 		});
 	}
-	if (input.key === "image-quality" && input.credits === 10) {
+	if (input.key === "image-quality" && input.credits === PRODUCT_CREDIT_COSTS["image-quality"]) {
 		return Object.freeze({
 			...input,
-			credits: "10" as const,
+			credits: input.credits.toString() as GuestCapabilityProduct["credits"],
 			accessHint: "paid-account" as const,
 		});
 	}

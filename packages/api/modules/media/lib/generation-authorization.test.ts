@@ -1,5 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("@repo/database/client", () => ({ db: {} }));
+
 import {
 	assertGenerationAllowed,
 	isCatalogModelEnabled,
@@ -142,8 +144,8 @@ describe("generation authorization", () => {
 		const input = {
 			userId: "user-1",
 			productKey: "image-fast" as const,
-			credits: 4n,
-			costMicros: 3_000n,
+			credits: 5n,
+			costMicros: 23_000n,
 			input: IMAGE_EDIT_INPUT,
 		};
 		const dependencies = {
@@ -157,8 +159,9 @@ describe("generation authorization", () => {
 				{
 					...input,
 					routeGraphOptions: {
-						enabledProviders: new Set(["replicate"]),
+						enabledProviders: new Set(["openrouter"]),
 						generationEnabled: true,
+						openRouterImageRoutesCertified: true,
 					},
 				},
 				dependencies,

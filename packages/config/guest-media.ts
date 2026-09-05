@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 
+import { PRODUCT_CREDIT_COSTS } from "./product";
+
 export const GUEST_MEDIA_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
+export const GUEST_MEDIA_SPONSOR_CREDITS = BigInt(PRODUCT_CREDIT_COSTS["image-fast"]);
 
 export type GuestMediaDisabledReason =
 	| "GUEST_ENVIRONMENT_INVALID"
@@ -80,7 +83,7 @@ export interface GuestMediaConfig {
 
 const FIXED_GUEST_MEDIA_CONFIG = {
 	productKey: "image-fast",
-	sponsorCredits: BigInt(4),
+	sponsorCredits: GUEST_MEDIA_SPONSOR_CREDITS,
 	maximumBytes: 10 * 1024 * 1024,
 	mimeTypes: GUEST_MEDIA_MIME_TYPES,
 	retentionMs: 24 * 60 * 60 * 1_000,

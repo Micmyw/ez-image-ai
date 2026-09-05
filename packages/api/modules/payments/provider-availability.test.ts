@@ -1,7 +1,19 @@
-import { getPlanEntitlement } from "@repo/config";
+import { DEFAULT_PRODUCT_CONFIG, getPlanEntitlement } from "@repo/config";
 import { describe, expect, it, vi } from "vitest";
 
-import { resolveProviderAvailability } from "./provider-availability";
+import { isExactBillingPlanSnapshot, resolveProviderAvailability } from "./provider-availability";
+
+interface BillingPlanDrift {
+	version?: number;
+	metadataVersion?: number;
+	pricingVersion?: string;
+}
+
+const billingPlanDrifts: Array<[string, BillingPlanDrift]> = [
+	["a mutated row version", { version: 2 }],
+	["a mismatched metadata version", { metadataVersion: 2 }],
+	["a stale pricing version", { pricingVersion: "2026-08-25.1" }],
+];
 
 describe("payment provider availability", () => {
 	it("advertises only fully configured providers with an exact BillingPlan snapshot", async () => {
@@ -14,11 +26,17 @@ describe("payment provider availability", () => {
 					provider: "paypal",
 					providerPriceId: "P-CREATOR-MONTHLY",
 					active: true,
+					version: 1,
 					name: "creator",
 					creditsPerPeriod: BigInt(entitlement.monthlyCredits),
 					priceMicros: BigInt(Math.round(monthly.amount * 1_000_000)),
 					currency: monthly.currency,
-					metadata: { planId: "creator", interval: "month", version: 1 },
+					metadata: {
+						planId: "creator",
+						interval: "month",
+						version: 1,
+						pricingVersion: DEFAULT_PRODUCT_CONFIG.pricingVersion,
+					},
 				};
 			}
 			return {
@@ -26,11 +44,17 @@ describe("payment provider availability", () => {
 				provider,
 				providerPriceId: "price_creator_monthly",
 				active: true,
+				version: 1,
 				name: "creator",
 				creditsPerPeriod: 999n,
 				priceMicros: BigInt(Math.round(monthly.amount * 1_000_000)),
 				currency: monthly.currency,
-				metadata: { planId: "creator", interval: "month", version: 1 },
+				metadata: {
+					planId: "creator",
+					interval: "month",
+					version: 1,
+					pricingVersion: DEFAULT_PRODUCT_CONFIG.pricingVersion,
+				},
 			};
 		});
 
@@ -72,5 +96,34 @@ describe("payment provider availability", () => {
 			),
 		).resolves.toEqual([]);
 		expect(findBillingPlan).not.toHaveBeenCalled();
+	});
+
+	it.each(billingPlanDrifts)("rejects %s even when price and credits match", (_label, drift) => {
+		const entitlement = getPlanEntitlement("creator");
+		const monthly = entitlement.prices.find((price) => price.interval === "month")!;
+		const exact = {
+			id: "paypal-current-plan",
+			provider: "paypal",
+			providerPriceId: "P-CREATOR-MONTHLY",
+			active: true,
+			version: drift.version ?? 1,
+			name: "creator",
+			creditsPerPeriod: BigInt(entitlement.monthlyCredits),
+			priceMicros: BigInt(Math.round(monthly.amount * 1_000_000)),
+			currency: monthly.currency,
+			metadata: {
+				planId: "creator",
+				interval: "month",
+				version: drift.metadataVersion ?? 1,
+				pricingVersion: drift.pricingVersion ?? DEFAULT_PRODUCT_CONFIG.pricingVersion,
+			},
+		};
+
+		expect(
+			isExactBillingPlanSnapshot(exact, "paypal", exact.providerPriceId, {
+				planId: "creator",
+				interval: "month",
+			}),
+		).toBe(false);
 	});
 });

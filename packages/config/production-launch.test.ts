@@ -31,10 +31,10 @@ const productionEnvironment = {
 	E2E_TEST_MEDIA_ADAPTERS: "false",
 	E2E_DRAFT_HANDOFF: "false",
 	LOAD_TESTING_ENABLED: "false",
-	MEDIA_PROVIDER_ADAPTER: "replicate",
-	MEDIA_ENABLED_PROVIDERS: "replicate,gemini",
-	REPLICATE_API_TOKEN: "provider-secret-present-only",
-	GEMINI_API_KEY: "quality-secret-present-only",
+	MEDIA_PROVIDER_ADAPTER: "openrouter",
+	MEDIA_ENABLED_PROVIDERS: "openrouter",
+	MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
+	OPENROUTER_API_KEY: "openrouter-worker-secret-present-only",
 	MEDIA_SAFETY_ADAPTER: "sightengine",
 	MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "false",
 	SIGHTENGINE_API_USER: "moderation-user-present-only",
@@ -120,8 +120,7 @@ describe("EzPic production launch environment", () => {
 		);
 		for (const secret of [
 			"server-secret-present-only-and-long-enough-123",
-			"provider-secret-present-only",
-			"quality-secret-present-only",
+			"openrouter-worker-secret-present-only",
 			"storage-secret-present-only",
 			"stripe-secret-present-only",
 			"stripe-webhook-secret-present-only",
@@ -164,7 +163,7 @@ describe("EzPic production launch environment", () => {
 		["a mock Provider", { MEDIA_ENABLED_PROVIDERS: undefined, MEDIA_PROVIDER_ADAPTER: "mock" }],
 		[
 			"a masked mock Provider",
-			{ MEDIA_ENABLED_PROVIDERS: "replicate,gemini", MEDIA_PROVIDER_ADAPTER: "mock" },
+			{ MEDIA_ENABLED_PROVIDERS: "openrouter", MEDIA_PROVIDER_ADAPTER: "mock" },
 		],
 		["the test moderation adapter", { MEDIA_SAFETY_ADAPTER: "test" }],
 		["test browser adapters", { E2E_TEST_MEDIA_ADAPTERS: "true" }],
@@ -192,9 +191,12 @@ describe("EzPic production launch environment", () => {
 				MEDIA_GENERATION_ENABLED: "false",
 				MEDIA_STANDARD_EDIT_ENABLED: "true",
 				MEDIA_QUALITY_EDIT_ENABLED: "false",
-				MEDIA_ENABLED_PROVIDERS: "gemini",
+				MEDIA_PROVIDER_ADAPTER: "fal",
+				MEDIA_ENABLED_PROVIDERS: "fal",
+				MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "false",
+				FAL_API_KEY: "fal-worker-secret-present-only",
 			},
-			/MEDIA_ENABLED_PROVIDERS.*replicate/i,
+			/MEDIA_ENABLED_PROVIDERS.*openrouter/i,
 		],
 		[
 			"Standard credential",
@@ -202,10 +204,10 @@ describe("EzPic production launch environment", () => {
 				MEDIA_GENERATION_ENABLED: "false",
 				MEDIA_STANDARD_EDIT_ENABLED: "true",
 				MEDIA_QUALITY_EDIT_ENABLED: "false",
-				MEDIA_ENABLED_PROVIDERS: "replicate",
-				REPLICATE_API_TOKEN: undefined,
+				MEDIA_ENABLED_PROVIDERS: "openrouter",
+				OPENROUTER_API_KEY: undefined,
 			},
-			/REPLICATE_API_TOKEN/,
+			/OPENROUTER_API_KEY/,
 		],
 		[
 			"Quality route",
@@ -213,9 +215,12 @@ describe("EzPic production launch environment", () => {
 				MEDIA_GENERATION_ENABLED: "false",
 				MEDIA_STANDARD_EDIT_ENABLED: "true",
 				MEDIA_QUALITY_EDIT_ENABLED: "true",
-				MEDIA_ENABLED_PROVIDERS: "replicate",
+				MEDIA_PROVIDER_ADAPTER: "fal",
+				MEDIA_ENABLED_PROVIDERS: "fal",
+				MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "false",
+				FAL_API_KEY: "fal-worker-secret-present-only",
 			},
-			/MEDIA_ENABLED_PROVIDERS.*gemini/i,
+			/MEDIA_ENABLED_PROVIDERS.*openrouter/i,
 		],
 		[
 			"Quality credential",
@@ -223,10 +228,10 @@ describe("EzPic production launch environment", () => {
 				MEDIA_GENERATION_ENABLED: "false",
 				MEDIA_STANDARD_EDIT_ENABLED: "true",
 				MEDIA_QUALITY_EDIT_ENABLED: "true",
-				MEDIA_ENABLED_PROVIDERS: "replicate,gemini",
-				GEMINI_API_KEY: undefined,
+				MEDIA_ENABLED_PROVIDERS: "openrouter",
+				OPENROUTER_API_KEY: undefined,
 			},
-			/GEMINI_API_KEY/,
+			/OPENROUTER_API_KEY/,
 		],
 	] as const)("fails closed when the enabled %s is unavailable", (_label, override, error) => {
 		expect(() => validateEzPicLaunchEnvironment({ ...productionEnvironment, ...override })).toThrow(
@@ -245,7 +250,7 @@ describe("EzPic production launch environment", () => {
 		).not.toThrow();
 	});
 
-	it("accepts the existing Fal route as a certified Standard Provider", () => {
+	it("rejects the retired Fal image route for Standard", () => {
 		expect(() =>
 			validateEzPicLaunchEnvironment({
 				...productionEnvironment,
@@ -254,10 +259,10 @@ describe("EzPic production launch environment", () => {
 				MEDIA_QUALITY_EDIT_ENABLED: "false",
 				MEDIA_PROVIDER_ADAPTER: "fal",
 				MEDIA_ENABLED_PROVIDERS: "fal",
-				REPLICATE_API_TOKEN: undefined,
+				MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "false",
 				FAL_API_KEY: "fal-worker-secret-present-only",
 			}),
-		).not.toThrow();
+		).toThrow(/MEDIA_ENABLED_PROVIDERS.*openrouter/i);
 	});
 
 	it("lets an API readiness process validate routes without holding worker credentials", () => {
@@ -265,8 +270,7 @@ describe("EzPic production launch environment", () => {
 			validateEzPicLaunchEnvironment(
 				{
 					...productionEnvironment,
-					REPLICATE_API_TOKEN: undefined,
-					GEMINI_API_KEY: undefined,
+					OPENROUTER_API_KEY: undefined,
 				},
 				{ requireProviderCredentials: false },
 			),
@@ -276,11 +280,7 @@ describe("EzPic production launch environment", () => {
 	it("fails closed for every mismatched OpenRouter certification combination", () => {
 		const openRouterEnvironment = {
 			...productionEnvironment,
-			MEDIA_PROVIDER_ADAPTER: "openrouter",
-			MEDIA_ENABLED_PROVIDERS: "openrouter",
-			OPENROUTER_API_KEY: "openrouter-worker-secret-present-only",
-			REPLICATE_API_TOKEN: undefined,
-			GEMINI_API_KEY: undefined,
+			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: undefined,
 		};
 		expect(() => validateEzPicLaunchEnvironment(openRouterEnvironment)).toThrow(
 			/MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED/,
@@ -288,13 +288,15 @@ describe("EzPic production launch environment", () => {
 		expect(() =>
 			validateEzPicLaunchEnvironment({
 				...productionEnvironment,
+				MEDIA_PROVIDER_ADAPTER: "fal",
+				MEDIA_ENABLED_PROVIDERS: "fal",
+				FAL_API_KEY: "fal-worker-secret-present-only",
 				MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
 			}),
 		).toThrow(/MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED.*MEDIA_ENABLED_PROVIDERS/);
 		expect(() =>
 			validateEzPicLaunchEnvironment({
-				...openRouterEnvironment,
-				MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
+				...productionEnvironment,
 			}),
 		).not.toThrow();
 	});
@@ -350,8 +352,7 @@ describe("EzPic production launch environment", () => {
 			"TRIGGER_PROJECT_REF",
 			"TRIGGER_SECRET_KEY",
 			"MEDIA_BUCKET_NAME",
-			"REPLICATE_API_TOKEN",
-			"GEMINI_API_KEY",
+			"OPENROUTER_API_KEY",
 			"SIGHTENGINE_API_SECRET",
 			"STRIPE_WEBHOOK_SECRET",
 			"PAYPAL_CLIENT_SECRET",

@@ -6,7 +6,7 @@ import {
 	unavailableMarketingCheckout,
 } from "@home/lib/pricing";
 import { LocaleLink } from "@i18n/routing";
-import { getPublicConfig, PLAN_ENTITLEMENTS } from "@repo/config/client";
+import { getPlanUsageEstimate, getPublicConfig, PLAN_ENTITLEMENTS } from "@repo/config/client";
 import { cn } from "@repo/ui";
 import { Button } from "@repo/ui/components/button";
 import { Tabs, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
@@ -60,17 +60,27 @@ export function PricingSection({
 			}>;
 			to: string;
 		}> = [];
-		const entitlementFeatures = (entitlement: (typeof PLAN_ENTITLEMENTS)[number]) => [
-			t("pricing.monthlyCredits", { credits: entitlement.monthlyCredits }),
-			t("pricing.concurrentEdits", { count: entitlement.maximumConcurrentJobs }),
-			t("pricing.maximumInputSize", {
-				megabytes: Math.round(
-					Math.min(entitlement.maximumInputBytes, publicProductConfig.uploadLimits.imageBytes) /
-						1024 /
-						1024,
-				),
-			}),
-		];
+		const entitlementFeatures = (entitlement: (typeof PLAN_ENTITLEMENTS)[number]) => {
+			const usage = getPlanUsageEstimate(entitlement.id);
+			return [
+				t("pricing.monthlyCredits", { credits: entitlement.monthlyCredits }),
+				usage.qualityEdits === null
+					? t("pricing.monthlyStandardAllowance", { standard: usage.standardEdits })
+					: t("pricing.monthlyEditAllowance", {
+							standard: usage.standardEdits,
+							quality: usage.qualityEdits,
+						}),
+				t("pricing.creditExpiry"),
+				t("pricing.concurrentEdits", { count: entitlement.maximumConcurrentJobs }),
+				t("pricing.maximumInputSize", {
+					megabytes: Math.round(
+						Math.min(entitlement.maximumInputBytes, publicProductConfig.uploadLimits.imageBytes) /
+							1024 /
+							1024,
+					),
+				}),
+			];
+		};
 
 		{
 			const entitlement = PLAN_ENTITLEMENTS.find((item) => item.id === "free");

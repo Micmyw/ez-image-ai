@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import { PrismaPg } from "@prisma/adapter-pg";
+import { GUEST_MEDIA_SPONSOR_CREDITS } from "@repo/config/server";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
@@ -499,14 +500,16 @@ function admissionInput(fixture: LinkFixture, idempotencyKey: string) {
 		productKey: "image-fast",
 		catalogVersion: "catalog-v1",
 		pricingVersion: "pricing-v1",
-		credits: 4n,
+		credits: GUEST_MEDIA_SPONSOR_CREDITS,
 		costMicros: 3500n,
 		inputSnapshot: {
 			kind: "image-to-image",
 			prompt: "Make the sky violet",
 			sourceAssetId: fixture.assetId,
 		},
-		pricingSnapshot: { settlementPolicy: { maxCharge: "4" } },
+		pricingSnapshot: {
+			settlementPolicy: { maxCharge: GUEST_MEDIA_SPONSOR_CREDITS.toString() },
+		},
 		expiresAt: new Date(fixture.now.getTime() + 10 * 60_000),
 	};
 	return {
@@ -539,7 +542,7 @@ function admissionInput(fixture: LinkFixture, idempotencyKey: string) {
 		maximumRequestsPerMinute: 100,
 		maximumRequestsPerIpPerHour: 100,
 		riskBudgetMicros: 350_000n,
-		sponsorCredits: 4n,
+		sponsorCredits: GUEST_MEDIA_SPONSOR_CREDITS,
 		assetModeration: {
 			provider: "test",
 			ruleVersion: "media-safety-rule-v1",

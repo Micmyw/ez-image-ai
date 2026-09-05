@@ -4,11 +4,14 @@
 		"checkoutUnavailable": "Paid checkout is temporarily unavailable. Try again later or contact support.",
 		"contactSales": "Contact sales",
 		"concurrentEdits": "{count, plural, one {# concurrent edit} other {# concurrent edits}}",
+		"creditExpiry": "Credits refresh monthly and unused credits do not roll over.",
 		"description": "Choose an image-editing plan with clear credits and job limits.",
 		"getStarted": "Get started",
 		"maximumInputSize": "Source images up to {megabytes, number} MB",
 		"month": "{count, plural, one {month} other {{count} months}}",
 		"monthlyCredits": "{credits, number} credits per month",
+		"monthlyEditAllowance": "Up to {standard, number} Standard or {quality, number} Quality edits per month",
+		"monthlyStandardAllowance": "Up to {standard, number} Standard edits per month",
 		"monthly": "Monthly",
 		"products": {
 			"creator": {

@@ -64,8 +64,8 @@ import { ImageDropzone } from "../../image-editor/components/ImageDropzone";
 import { MarketingGenerator } from "./MarketingGenerator";
 
 const modes = {
-	"image-fast": { credits: 4, label: "Standard Edit" },
-	"image-quality": { credits: 10, label: "Quality Edit" },
+	"image-fast": { credits: 5, label: "Standard Edit" },
+	"image-quality": { credits: 40, label: "Quality Edit" },
 } as const;
 const capability = {
 	version: "guest-v12",
@@ -75,7 +75,7 @@ const capability = {
 		mimeTypes: ["image/jpeg", "image/png", "image/webp"],
 		maximumBytes: 10 * 1024 * 1024,
 	},
-	product: { key: "image-fast", label: "Standard Edit", credits: "4" },
+	product: { key: "image-fast", label: "Standard Edit", credits: "5" },
 	queueEstimate: { kind: "capacity" as const },
 } as const;
 

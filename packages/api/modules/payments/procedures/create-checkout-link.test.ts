@@ -1,5 +1,6 @@
 import { call } from "@orpc/server";
 import type { Session } from "@repo/auth";
+import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
@@ -93,7 +94,7 @@ const monthlyPrice = {
 	interval: "month" as const,
 	amount: 19,
 	currency: "USD",
-	monthlyCredits: 1_000,
+	monthlyCredits: 700,
 };
 
 const billingPlan = {
@@ -101,11 +102,17 @@ const billingPlan = {
 	provider: "paypal",
 	providerPriceId: "P-CREATOR-MONTHLY",
 	active: true,
+	version: 1,
 	name: "creator",
-	creditsPerPeriod: 1_000n,
+	creditsPerPeriod: 700n,
 	priceMicros: 19_000_000n,
 	currency: "USD",
-	metadata: { planId: "creator", interval: "month", version: 1 },
+	metadata: {
+		planId: "creator",
+		interval: "month",
+		version: 1,
+		pricingVersion: DEFAULT_PRODUCT_CONFIG.pricingVersion,
+	},
 };
 
 describe("createCheckoutLink", () => {
@@ -164,6 +171,28 @@ describe("createCheckoutLink", () => {
 
 	it("fails closed before persistence or provider access when configuration is incomplete", async () => {
 		vi.mocked(isPaymentProviderConfigured).mockReturnValue(false);
+
+		await expect(
+			call(
+				createCheckoutLink,
+				{
+					provider: "paypal",
+					planId: "creator",
+					interval: "month",
+					idempotencyKey: "checkout-operation-0001",
+				},
+				{ context: { headers: new Headers() } },
+			),
+		).rejects.toMatchObject({ code: "NOT_FOUND" });
+		expect(createCheckoutIntent).not.toHaveBeenCalled();
+		expect(providerCheckout).not.toHaveBeenCalled();
+	});
+
+	it("fails closed before persistence or provider access for a stale pricing snapshot", async () => {
+		findBillingPlan.mockResolvedValue({
+			...billingPlan,
+			metadata: { ...billingPlan.metadata, pricingVersion: "2026-08-25.1" },
+		});
 
 		await expect(
 			call(

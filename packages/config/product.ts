@@ -8,6 +8,12 @@ export const PRODUCT_MODEL_KEYS = [
 	"video-quality",
 ] as const;
 export const EZPIC_PRODUCT_KEYS = ["image-fast", "image-quality"] as const;
+export const PRODUCT_CREDIT_COSTS = {
+	"image-fast": 5,
+	"image-quality": 40,
+	"video-fast": 25,
+	"video-quality": 60,
+} as const satisfies Record<(typeof PRODUCT_MODEL_KEYS)[number], number>;
 
 export const planIdSchema = z.enum(PLAN_IDS);
 export const productModelKeySchema = z.enum(PRODUCT_MODEL_KEYS);
@@ -72,8 +78,8 @@ export type PricingVersion = z.infer<typeof pricingVersionSchema>;
 export const DEFAULT_PRODUCT_CONFIG = productConfigSchema.parse({
 	planIds: PLAN_IDS,
 	productKeys: EZPIC_PRODUCT_KEYS,
-	catalogVersion: "2026-08-31.1",
-	pricingVersion: "2026-08-31.1",
+	catalogVersion: "2026-09-05.1",
+	pricingVersion: "2026-09-05.1",
 	brand: {
 		siteName: "EzPic",
 		siteDescription: "Private prompt-based AI image editing with transparent credits.",

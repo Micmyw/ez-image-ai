@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { call } from "@orpc/server";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
+import { GUEST_MEDIA_SPONSOR_CREDITS } from "@repo/config/server";
 import { createGuestGenerationTransaction } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
@@ -142,9 +143,11 @@ function configureAdmissionDependencies(
 		productKey: "image-fast",
 		catalogVersion: "catalog-v1",
 		pricingVersion: "pricing-v1",
-		credits: 4n,
+		credits: GUEST_MEDIA_SPONSOR_CREDITS,
 		costMicros: 3500n,
-		pricingSnapshot: { settlementPolicy: { maxCharge: "4" } },
+		pricingSnapshot: {
+			settlementPolicy: { maxCharge: GUEST_MEDIA_SPONSOR_CREDITS.toString() },
+		},
 	});
 	Object.assign(guestAdmissionDependencies, {
 		now: () => fixture.now,
@@ -155,7 +158,7 @@ function configureAdmissionDependencies(
 				enabled: true,
 				promotionPeriod: fixture.promotionPeriod,
 				productKey: "image-fast",
-				sponsorCredits: 4n,
+				sponsorCredits: GUEST_MEDIA_SPONSOR_CREDITS,
 				maximumBytes: 10 * 1024 * 1024,
 				mimeTypes: ["image/jpeg", "image/png", "image/webp"],
 				retentionMs: 24 * 60 * 60_000,

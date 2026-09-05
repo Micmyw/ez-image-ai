@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { PLAN_IDS, planIdSchema, productModelKeySchema } from "./product";
+import { PLAN_IDS, PRODUCT_CREDIT_COSTS, planIdSchema, productModelKeySchema } from "./product";
 
 export const planEntitlementSchema = z.object({
 	id: planIdSchema,
@@ -33,7 +33,7 @@ export const PLAN_ENTITLEMENTS = z
 		},
 		{
 			id: "creator",
-			monthlyCredits: 1_000,
+			monthlyCredits: 700,
 			maximumConcurrentJobs: 3,
 			maximumInputBytes: 20 * 1024 * 1024,
 			allowedProducts: ["image-fast", "image-quality"],
@@ -44,7 +44,7 @@ export const PLAN_ENTITLEMENTS = z
 		},
 		{
 			id: "studio",
-			monthlyCredits: 5_000,
+			monthlyCredits: 3_000,
 			maximumConcurrentJobs: 10,
 			maximumInputBytes: 20 * 1024 * 1024,
 			allowedProducts: ["image-fast", "image-quality"],
@@ -59,6 +59,19 @@ export function getPlanEntitlement(planId: PlanEntitlement["id"]): PlanEntitleme
 	const entitlement = PLAN_ENTITLEMENTS.find((plan) => plan.id === planId);
 	if (!entitlement) throw new Error(`Unknown plan entitlement: ${planId}`);
 	return entitlement;
+}
+
+export function getPlanUsageEstimate(planId: PlanEntitlement["id"]): {
+	standardEdits: number;
+	qualityEdits: number | null;
+} {
+	const entitlement = getPlanEntitlement(planId);
+	return {
+		standardEdits: Math.floor(entitlement.monthlyCredits / PRODUCT_CREDIT_COSTS["image-fast"]),
+		qualityEdits: entitlement.allowedProducts.includes("image-quality")
+			? Math.floor(entitlement.monthlyCredits / PRODUCT_CREDIT_COSTS["image-quality"])
+			: null,
+	};
 }
 
 export function resolvePlanEntitlement(

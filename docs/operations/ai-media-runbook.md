@@ -115,6 +115,15 @@ as routing authority. Availability also requires an active `BillingPlan` whose p
 interval, price, currency, and credits exactly match the canonical EzPic entitlement. Missing or
 invalid configuration omits that provider for that plan instead of allowing a late checkout failure.
 
+Treat every `BillingPlan` as an immutable provider-price snapshot. Its database `version` and
+`metadata.version` must both be `1`, and `metadata.pricingVersion` must equal the deployed product
+pricing version. When price or credits change, create a new provider price/plan/product ID and a new
+`BillingPlan` row; never update or upsert the old row's identity, economics, version, or metadata in
+place. The unique provider/price-ID key then prevents accidental reuse, while the old row remains
+available for existing subscriptions and historical Webhook recovery. Until every enabled provider,
+plan, and interval has a newly provisioned ID and matching snapshot for `2026-09-05.1`, paid checkout
+is intentionally unavailable and production BillingPlan synchronization remains `NOT_COMPLETED`.
+
 PayPal and Waffo have no assumed owner-scoped customer portal. Their authenticated billing action is
 provider-routed cancellation. The worker routes by the provider persisted on `PaymentEvent`, keeps
 Stripe on its existing reconciliation/refund path, and applies PayPal/Waffo facts only after checkout
@@ -165,7 +174,9 @@ cost ceilings, key, or route state in the public capability or landing UI.
 
 ## 7. Smoke, load, and invariants
 
-PR CI never calls paid providers. Run `.github/workflows/provider-smoke.yml` in the protected `provider-smoke` environment. Its route allowlist, invocation cap, and expected-cost cap are mandatory and checked before network calls. Scheduled smoke is disabled in practice until all three protected schedule variables are set. The workflow attempts cancellation cleanup; synchronous successful outputs may still require provider-console retention cleanup according to provider policy.
+PR CI never calls paid providers. The protected `.github/workflows/provider-smoke.yml` currently validates only the configuration for the two image-edit routes: `image-fast:openrouter` (23,000 USD micros planning cost) and `image-quality:openrouter` (180,000 USD micros). Both values assume OpenRouter credits are purchased in batches of at least $20; the public 5.5% purchase fee has a $0.80 minimum, so a smaller purchase invalidates these budgets until that fixed fee is allocated explicitly. Both routes are declared as `image-to-image`; the smoke will not silently fall back to text-to-image. Its route allowlist, invocation cap, and expected-cost cap remain mandatory, and scheduled validation requires all four protected schedule variables.
+
+Direct live image smoke is `NOT_COMPLETED` and fails before an adapter or network call even if `PROVIDER_SMOKE_CONFIRM_LIVE=true`. Calling OpenRouter directly from this harness would bypass owner-scoped assets, remote URL policy, input/output moderation, private storage, persisted attempts, credit settlement, and uncertain-submission recovery. A future live certification executor must bind an authorized private asset to the existing quote-to-finalization pipeline and preserve those controls. Until that executor exists, the committed environment and workflow keep `PROVIDER_SMOKE_CONFIRM_LIVE=false`; a passing dry run proves only route and budget configuration, not a live OpenRouter route.
 
 Load tests require a dedicated staging-equivalent environment, mock Provider modes, disposable accounts, and an isolated PostgreSQL database. Supported modes are fast success, long-running, duplicate Webhook, dropped Webhook, uncertain submission, slow transfer, moderation rejection, and Provider failure.
 

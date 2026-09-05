@@ -4,11 +4,14 @@
 		"checkoutUnavailable": "Der Bezahlvorgang ist vorübergehend nicht verfügbar. Versuchen Sie es später erneut oder kontaktieren Sie den Support.",
 		"contactSales": "Vertrieb kontaktieren",
 		"concurrentEdits": "{count, plural, one {# gleichzeitige Bearbeitung} other {# gleichzeitige Bearbeitungen}}",
+		"creditExpiry": "Credits werden monatlich erneuert; ungenutzte Credits werden nicht übertragen.",
 		"description": "Wähle einen Bildbearbeitungstarif mit klaren Credits und Auftragslimits.",
 		"getStarted": "Jetzt loslegen",
 		"maximumInputSize": "Quellbilder bis {megabytes, number} MB",
 		"month": "Monat",
 		"monthlyCredits": "{credits, number} Credits pro Monat",
+		"monthlyEditAllowance": "Bis zu {standard, number} Standard- oder {quality, number} Qualitätsbearbeitungen pro Monat",
+		"monthlyStandardAllowance": "Bis zu {standard, number} Standardbearbeitungen pro Monat",
 		"monthly": "Monatlich",
 		"products": {
 			"creator": {

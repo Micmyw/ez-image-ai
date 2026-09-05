@@ -77,7 +77,7 @@ const capability = {
 		mimeTypes: ["image/jpeg", "image/png", "image/webp"],
 		maximumBytes: 10 * 1024 * 1024,
 	},
-	product: { key: "image-fast", label: "Standard Edit", credits: "4" },
+	product: { key: "image-fast", label: "Standard Edit", credits: "5" },
 	queueEstimate: { kind: "capacity" as const },
 } as const;
 

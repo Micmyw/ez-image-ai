@@ -29,8 +29,8 @@ two image-editing products:
 
 | Internal key    | Public label  | Media kind | Accepted input   | Credits |
 | --------------- | ------------- | ---------- | ---------------- | ------: |
-| `image-fast`    | Standard Edit | image      | `image-to-image` |       4 |
-| `image-quality` | Quality Edit  | image      | `image-to-image` |      10 |
+| `image-fast`    | Standard Edit | image      | `image-to-image` |       5 |
+| `image-quality` | Quality Edit  | image      | `image-to-image` |      40 |
 
 Both products require a private source asset ID and a prompt. `text-to-image` is rejected during
 server-side quoting. Public catalog responses contain fields needed to render the editor, but never
@@ -45,7 +45,11 @@ credit template; they do not own product labels or credit amounts.
 interfaces. Their existing Provider, worker, storage, moderation, job, and historical-data paths are
 not removed or replaced.
 
-Catalog and pricing contract version: `2026-08-25.1`.
+New image quotes use only the server-side OpenRouter Riverflow fast/pro candidate routes. Historical
+Provider adapters and dispatch metadata remain private compatibility paths for already-frozen work;
+they are not selectable by the browser and are not candidates for new image quotes.
+
+Catalog and pricing contract version: `2026-09-05.1`.
 
 ## Public homepage and anonymous trial boundary
 
@@ -143,15 +147,20 @@ accept only a result Job whose session and parent match that checkpoint; a detac
 
 ## Plans
 
-PR 6 freezes the public package contract below. `PLAN_ENTITLEMENTS` supplies these values to both
-pricing surfaces and every runtime authorization path; Stripe configuration derives its monetary
-prices from the same entries rather than repeating entitlement numbers.
+PR 6 introduced the public package contract below. `PLAN_ENTITLEMENTS` supplies these values to both
+pricing surfaces and every runtime authorization path; payment-provider configuration derives its
+monetary prices from the same entries rather than repeating entitlement numbers.
 
 | Plan    | Monthly credits | Concurrent edits | Allowed products                                      | Max image input | Price                |
 | ------- | --------------: | ---------------: | ----------------------------------------------------- | --------------: | -------------------- |
 | Free    |              25 |                1 | Standard Edit (`image-fast`)                          |           10 MB | $0                   |
-| Creator |           1,000 |                3 | Standard (`image-fast`) and Quality (`image-quality`) |           20 MB | $19/month, $190/year |
-| Studio  |           5,000 |               10 | Standard (`image-fast`) and Quality (`image-quality`) |           20 MB | $79/month, $790/year |
+| Creator |             700 |                3 | Standard (`image-fast`) and Quality (`image-quality`) |           20 MB | $19/month, $190/year |
+| Studio  |           3,000 |               10 | Standard (`image-fast`) and Quality (`image-quality`) |           20 MB | $79/month, $790/year |
+
+Monthly credits are granted once per internal monthly credit period. Annual billing changes only
+the payment cadence: Creator still receives 700 credits and Studio still receives 3,000 credits per
+month rather than an annual lump sum. Unused plan credits expire with their monthly period and do
+not roll over.
 
 The API enforces product access, active-job concurrency, and input byte size at exact boundaries and
 fails closed under concurrent confirmation. Privacy, private assets, edit sessions/history, and the
@@ -165,21 +174,25 @@ ACTIVE paid subscriptions and still-valid PAST_DUE grace periods, so concurrent 
 and legacy paid state cannot create a second or inappropriate Free grant. The browser and checkout
 return never issue credits.
 
-Creator and Studio Price IDs come only from the four server environment variables documented
-in `.env.local.example`. A missing or malformed ID removes that checkout selection server-side and
-the paid CTA reports temporary unavailability before any Stripe call. A matching active
-`BillingPlan` snapshot must agree with the canonical plan identity, monthly credits, interval price,
-and currency; drift also fails closed without rewriting history. Checkout return waits for the
-server-owned Webhook projection and restores the saved editor draft/session only after the expected
-plan is ACTIVE or still inside its recorded PAST_DUE grace. Annual billing continues to create the
-existing monthly internal credit periods;
-Webhook replay, cancellation, partial/full refund, refund Debt, and failed-job releases keep the
-existing immutable-ledger semantics. Customer Portal access remains subject to the existing user or
-organization owner authorization rules.
+Creator and Studio provider price, plan, or product IDs come only from the server environment
+variables documented in `.env.local.example`. A missing or malformed ID removes that checkout
+selection server-side and the paid CTA reports temporary unavailability before any Provider call. A
+matching active `BillingPlan` snapshot must agree with the canonical plan identity, monthly credits,
+interval price, currency, immutable row/metadata version `1`, and the deployed pricing version; drift
+also fails closed without rewriting history. Because subscriptions reference the snapshot and each
+provider/ID pair is unique, every pricing revision must create a new Provider ID and a new
+`BillingPlan` row rather than updating the previous row's identity, economics, version, or metadata.
+Checkout return waits for the server-owned Webhook projection and restores the saved editor
+draft/session only after the expected plan is ACTIVE or still inside its recorded PAST_DUE grace.
+Annual billing continues to create the existing monthly internal credit periods without carrying
+unused credits into the next period; Webhook replay, cancellation, partial/full refund, refund Debt,
+and failed-job releases keep the existing immutable-ledger semantics. Customer Portal access remains
+subject to the existing user or organization owner authorization rules.
 
-The monetary amounts above are configuration, not a production margin certification. PR 2 contains
-no measured or billed Provider cost and did not certify Standard or Quality routes. The calculation
-method, evidence status, production prerequisites, and rollback are recorded in
+The monetary amounts above are configuration, not a production margin certification. Published
+Provider prices support the current assumptions, but no real billed Provider execution has
+certified Standard or Quality routes. The calculation method, evidence status, production
+prerequisites, and rollback are recorded in
 [`ezpic-pricing-and-margin.md`](./ezpic-pricing-and-margin.md).
 
 ## Navigation and indexing
@@ -204,8 +217,9 @@ application disallows crawling and uses noindex metadata.
   asynchronous job path.
 - Client and public catalog contracts cannot select or inspect Providers, model IDs, credentials,
   route costs, signed URLs, or arbitrary remote URLs.
-- This PR preserves existing credit amounts and Stripe pricing. It does not claim live Provider
-  quality, cost, or generation verification.
+- This pricing revision changes the canonical edit costs and monthly credit allowances while
+  preserving the configured monetary prices. It does not claim live Provider quality, billed cost,
+  generation verification, or production BillingPlan synchronization.
 
 ## Migration and rollback
 

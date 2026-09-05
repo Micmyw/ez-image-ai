@@ -1,9 +1,15 @@
+import { PRODUCT_CREDIT_COSTS } from "@repo/config/client";
+
 export interface GuestCapabilitySnapshot {
 	version: string;
 	enabled: boolean;
 	reason: string | null;
 	upload: { mimeTypes: readonly string[]; maximumBytes: number };
-	product: { key: "image-fast"; label: "Standard Edit"; credits: "4" };
+	product: {
+		key: "image-fast";
+		label: "Standard Edit";
+		credits: `${(typeof PRODUCT_CREDIT_COSTS)["image-fast"]}`;
+	};
 	queueEstimate:
 		| { kind: "range"; minimumSeconds: number; maximumSeconds: number }
 		| { kind: "capacity" };
@@ -41,7 +47,7 @@ function parseGuestCapability(value: unknown): GuestCapabilitySnapshot {
 		!hasExactKeys(product, ["key", "label", "credits"]) ||
 		product.key !== "image-fast" ||
 		product.label !== "Standard Edit" ||
-		product.credits !== "4" ||
+		product.credits !== PRODUCT_CREDIT_COSTS["image-fast"].toString() ||
 		!validQueueEstimate(queueEstimate)
 	) {
 		throw new Error("GUEST_CAPABILITY_INVALID");

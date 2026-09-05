@@ -27,6 +27,11 @@ vi.mock("next-intl", () => ({
 		return Object.assign(
 			(key: string, values?: Record<string, number>) => {
 				if (key === "pricing.monthlyCredits") return `Localized credits ${values?.credits}`;
+				if (key === "pricing.monthlyEditAllowance")
+					return `Localized edits ${values?.standard}/${values?.quality}`;
+				if (key === "pricing.monthlyStandardAllowance")
+					return `Localized Standard edits ${values?.standard}`;
+				if (key === "pricing.creditExpiry") return "Localized monthly expiry";
 				if (key === "pricing.concurrentEdits") return `Localized concurrency ${values?.count}`;
 				if (key === "pricing.maximumInputSize") return `Localized size ${values?.megabytes}`;
 				return messages[key] ?? key;
@@ -56,9 +61,17 @@ describe("EzPic pricing section", () => {
 		expect(markup).toContain(">Studio<");
 		expect(markup).not.toContain(">Enterprise<");
 		expect(markup.match(/data-test="price-table-plan"/g)).toHaveLength(3);
-		for (const credits of [25, 1_000, 5_000]) {
+		for (const credits of [25, 700, 3_000]) {
 			expect(markup).toContain(`Localized credits ${credits}`);
 		}
+		for (const allowance of [
+			"Localized Standard edits 5",
+			"Localized edits 140/17",
+			"Localized edits 600/75",
+		]) {
+			expect(markup).toContain(allowance);
+		}
+		expect(markup.match(/Localized monthly expiry/g)).toHaveLength(3);
 		for (const concurrency of [1, 3, 10]) {
 			expect(markup).toContain(`Localized concurrency ${concurrency}`);
 		}

@@ -4,21 +4,21 @@ on:
   workflow_dispatch:
     inputs:
       route_allowlist:
-        description: Certified tier:provider routes, comma separated
+        description: Current OpenRouter image-edit tier:provider routes, comma separated
         required: true
-        default: image-fast:replicate
+        default: image-fast:openrouter,image-quality:openrouter
       enabled_tiers:
         description: Enabled catalog tiers, comma separated
         required: true
-        default: image-fast
+        default: image-fast,image-quality
       max_invocations:
         description: Hard maximum provider submissions
         required: true
-        default: "1"
+        default: "2"
       max_expected_cost_micros:
         description: Hard maximum expected cost in USD micros
         required: true
-        default: "10000"
+        default: "203000"
   schedule:
     - cron: "17 6 * * 1"
 
@@ -39,8 +39,8 @@ jobs:
       PROVIDER_SMOKE_ENABLED_TIERS: ${{ github.event.inputs.enabled_tiers || vars.PROVIDER_SMOKE_SCHEDULE_ENABLED_TIERS }}
       PROVIDER_SMOKE_MAX_INVOCATIONS: ${{ github.event.inputs.max_invocations || vars.PROVIDER_SMOKE_SCHEDULE_MAX_INVOCATIONS }}
       PROVIDER_SMOKE_MAX_EXPECTED_COST_MICROS: ${{ github.event.inputs.max_expected_cost_micros || vars.PROVIDER_SMOKE_SCHEDULE_MAX_EXPECTED_COST_MICROS }}
-      PROVIDER_SMOKE_PROMPT: A small blue circle on a plain white background
-      PROVIDER_SMOKE_CONFIRM_LIVE: "true"
+      PROVIDER_SMOKE_PROMPT: Preserve the subject and change the background to blue
+      PROVIDER_SMOKE_CONFIRM_LIVE: "false"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -49,10 +49,5 @@ jobs:
           cache: pnpm
       - uses: pnpm/action-setup@v4
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      - name: Budget-gated provider smoke and cleanup
-        env:
-          REPLICATE_API_TOKEN: ${{ secrets.REPLICATE_API_TOKEN }}
-          FAL_API_KEY: ${{ secrets.FAL_API_KEY }}
-          KIE_API_KEY: ${{ secrets.KIE_API_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      - name: Validate OpenRouter image smoke configuration
         run: pnpm provider:smoke

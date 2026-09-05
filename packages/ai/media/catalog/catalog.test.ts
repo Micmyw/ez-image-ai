@@ -17,8 +17,8 @@ import {
 describe("media product catalog", () => {
 	it("quotes both public products only for image-to-image edits", () => {
 		for (const [productKey, credits] of [
-			["image-fast", 4],
-			["image-quality", 10],
+			["image-fast", 5],
+			["image-quality", 40],
 		] as const) {
 			expect(
 				quoteCatalogInput({
@@ -29,7 +29,7 @@ describe("media product catalog", () => {
 						sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
 					},
 				}),
-			).toMatchObject({ credits, pricingVersion: "2026-08-31.1" });
+			).toMatchObject({ credits, pricingVersion: "2026-09-05.1" });
 			expect(() =>
 				quoteCatalogInput({
 					productKey,
@@ -63,31 +63,36 @@ describe("media product catalog", () => {
 	it("keeps provider routing and costs server-only", () => {
 		const internal = getCatalogEntry("image-fast");
 		const publicCatalog = getPublicProductCatalog({
-			enabledProviders: new Set(["replicate", "fal", "gemini", "kie"]),
+			enabledProviders: new Set(["openrouter"]),
 			generationEnabled: true,
+			openRouterImageRoutesCertified: true,
 		});
 		const serialized = JSON.stringify(publicCatalog);
 
-		expect(internal.routes[0]).toMatchObject({ provider: "replicate" });
-		expect(serialized).not.toContain("replicate");
+		expect(internal.routes[0]).toMatchObject({ provider: "openrouter" });
+		expect(serialized).not.toContain("openrouter");
 		expect(serialized).not.toContain("providerModelId");
 		expect(serialized).not.toContain("providerCostMicros");
 		expect(serialized).not.toContain("weight");
 	});
 
 	it("registers the exact OpenRouter image candidates but requires the certification gate", () => {
-		expect(getCatalogEntry("image-fast").routes).toContainEqual({
-			provider: "openrouter",
-			providerModelId: "sourceful/riverflow-v2.5-fast",
-			providerCostMicros: 21_000,
-			weight: 100,
-		});
-		expect(getCatalogEntry("image-quality").routes).toContainEqual({
-			provider: "openrouter",
-			providerModelId: "sourceful/riverflow-v2.5-pro",
-			providerCostMicros: 170_000,
-			weight: 100,
-		});
+		expect(getCatalogEntry("image-fast").routes).toEqual([
+			{
+				provider: "openrouter",
+				providerModelId: "sourceful/riverflow-v2.5-fast",
+				providerCostMicros: 23_000,
+				weight: 100,
+			},
+		]);
+		expect(getCatalogEntry("image-quality").routes).toEqual([
+			{
+				provider: "openrouter",
+				providerModelId: "sourceful/riverflow-v2.5-pro",
+				providerCostMicros: 180_000,
+				weight: 100,
+			},
+		]);
 
 		const uncertified = configuredRouteGraphOptionsFromEnvironment({
 			MEDIA_GENERATION_ENABLED: "true",
@@ -109,8 +114,9 @@ describe("media product catalog", () => {
 
 	it("publishes only the two named image editing modes", () => {
 		const products = getPublicProductCatalog({
-			enabledProviders: new Set(["replicate", "fal", "gemini", "kie"]),
+			enabledProviders: new Set(["openrouter"]),
 			generationEnabled: true,
+			openRouterImageRoutesCertified: true,
 		}).products;
 
 		expect(products).toEqual([
@@ -119,7 +125,7 @@ describe("media product catalog", () => {
 				label: "Standard Edit",
 				mediaKind: "image",
 				inputKinds: ["image-to-image"],
-				credits: 4,
+				credits: 5,
 				fields: expect.arrayContaining([
 					expect.objectContaining({ key: "sourceAssetId", required: true }),
 				]),
@@ -129,7 +135,7 @@ describe("media product catalog", () => {
 				label: "Quality Edit",
 				mediaKind: "image",
 				inputKinds: ["image-to-image"],
-				credits: 10,
+				credits: 40,
 				fields: expect.arrayContaining([
 					expect.objectContaining({ key: "sourceAssetId", required: true }),
 				]),
@@ -179,24 +185,27 @@ describe("media product catalog", () => {
 	it("keeps configured routes visible to the API without worker credentials", () => {
 		const environment = {
 			NODE_ENV: "test",
-			MEDIA_ENABLED_PROVIDERS: "replicate",
+			MEDIA_GENERATION_ENABLED: "true",
+			MEDIA_ENABLED_PROVIDERS: "openrouter",
+			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
 			FAL_API_KEY: "worker-only-secret",
 		};
 		const configured = configuredProviderKeysFromEnvironment(environment);
 		const local = locallyExecutableProviderKeysFromEnvironment(environment);
 
-		expect(configured).toEqual(new Set(["replicate"]));
+		expect(configured).toEqual(new Set(["openrouter"]));
 		expect(local).toEqual(new Set());
 		expect(
-			getPublicProductCatalog({ enabledProviders: configured, generationEnabled: true }).products,
+			getPublicProductCatalog(configuredRouteGraphOptionsFromEnvironment(environment)).products,
 		).toContainEqual(expect.objectContaining({ key: "image-fast" }));
 	});
 
 	it("removes disabled products from the executable public graph", () => {
 		const catalog = getPublicProductCatalog({
-			enabledProviders: new Set(["replicate", "fal"]),
+			enabledProviders: new Set(["openrouter"]),
 			generationEnabled: true,
 			disabledProductKeys: new Set(["image-fast"]),
+			openRouterImageRoutesCertified: true,
 		});
 
 		expect(catalog.products.map((product) => product.key)).not.toContain("image-fast");
@@ -205,7 +214,8 @@ describe("media product catalog", () => {
 	it("layers the Standard and Quality launch switches onto the executable route graph", () => {
 		const options = configuredRouteGraphOptionsFromEnvironment({
 			MEDIA_GENERATION_ENABLED: "true",
-			MEDIA_ENABLED_PROVIDERS: "replicate,gemini",
+			MEDIA_ENABLED_PROVIDERS: "openrouter",
+			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
 			MEDIA_STANDARD_EDIT_ENABLED: "true",
 			MEDIA_QUALITY_EDIT_ENABLED: "false",
 		});

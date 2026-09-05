@@ -80,9 +80,9 @@ describe("guest generation admission", () => {
 			currentJobId: jobId,
 			eligibility: "IN_FLIGHT",
 			riskState: "HELD",
-			sponsorCredits: 4n,
+			sponsorCredits: 5n,
 		});
-		expect(account).toMatchObject({ spendableCredits: 0n, reservedCredits: 4n });
+		expect(account).toMatchObject({ spendableCredits: 0n, reservedCredits: 5n });
 		await expect(
 			client.outboxEvent.findFirstOrThrow({
 				where: { aggregateId: jobId, eventType: "GUEST_GENERATION_ELIGIBLE" },
@@ -192,7 +192,7 @@ describe("guest generation admission", () => {
 		expect(diagnostics.guest.watermark.failed).toBe(0);
 		expect(diagnostics.guest.admission.deniedByReason).toEqual([]);
 		expect(diagnostics.guest.admission.accepted).toBe(1);
-		expect(diagnostics.guest.risk.heldMicros).toBe("3500");
+		expect(diagnostics.guest.risk.heldMicros).toBe("23000");
 	});
 
 	it("doubles the queue estimate at 75 percent risk and rejects at 90 percent", async () => {
@@ -815,8 +815,8 @@ describe("guest generation admission", () => {
 			failureCode: "GUEST_QUEUE_EXPIRED",
 			terminalAt: replacementNow,
 		});
-		expect(reservation).toMatchObject({ status: "RELEASED", releasedAmount: 4n });
-		expect(riskBudget).toMatchObject({ reservedMicros: 3_500n });
+		expect(reservation).toMatchObject({ status: "RELEASED", releasedAmount: 5n });
+		expect(riskBudget).toMatchObject({ reservedMicros: 23_000n });
 		expect(jobCount).toBe(1);
 		expect(attemptCount).toBe(0);
 	});
@@ -824,7 +824,7 @@ describe("guest generation admission", () => {
 	it.each([
 		["catalog version", { catalogVersion: "catalog-v2" }],
 		["pricing version", { pricingVersion: "pricing-v2" }],
-		["sponsor credits", { credits: 5n }],
+		["sponsor credits", { credits: 6n }],
 		["maximum route cost", { costMicros: 4500n }],
 		["route graph", { pricingSnapshot: { routeGraph: { graphFingerprint: "changed-at-commit" } } }],
 	] as const)(
@@ -1226,14 +1226,14 @@ function guestAdmissionInput(
 		productKey: "image-fast",
 		catalogVersion: "catalog-v1",
 		pricingVersion: "pricing-v1",
-		credits: 4n,
-		costMicros: 3500n,
+		credits: 5n,
+		costMicros: 23_000n,
 		inputSnapshot: {
 			kind: "image-to-image",
 			prompt: "Make the sky violet",
 			sourceAssetId: fixture.assetId,
 		},
-		pricingSnapshot: { settlementPolicy: { maxCharge: "4" } },
+		pricingSnapshot: { settlementPolicy: { maxCharge: "5" } },
 		expiresAt: new Date(fixture.now.getTime() + 10 * 60_000),
 	};
 	return {
@@ -1277,8 +1277,8 @@ function guestAdmissionInput(
 		maximumGlobalRequestsPerHour: overrides.maximumGlobalRequestsPerHour ?? 100,
 		maximumGlobalRequestsPerDay: overrides.maximumGlobalRequestsPerDay ?? 100,
 		abuseEvidenceTtlMs: overrides.abuseEvidenceTtlMs ?? 30 * 24 * 60 * 60_000,
-		riskBudgetMicros: overrides.riskBudgetMicros ?? 350_000n,
-		sponsorCredits: 4n,
+		riskBudgetMicros: overrides.riskBudgetMicros ?? 2_300_000n,
+		sponsorCredits: 5n,
 		assetModeration: {
 			provider: "test",
 			ruleVersion: "media-safety-rule-v1",

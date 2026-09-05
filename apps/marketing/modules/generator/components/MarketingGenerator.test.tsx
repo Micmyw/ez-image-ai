@@ -40,9 +40,9 @@ vi.mock("next-intl", () => ({
 				characterCount: "0 / 10,000",
 				"modes.legend": "Edit mode",
 				"modes.standard.title": "Standard Edit",
-				"modes.standard.credits": "4 credits",
+				"modes.standard.credits": "5 credits",
 				"modes.quality.title": "Quality Edit",
-				"modes.quality.credits": "10 credits",
+				"modes.quality.credits": "40 credits",
 				loginNotice: "Real image generation starts after you sign in and confirm the credit cost.",
 				fileHint: `JPEG, PNG, or WebP up to ${megabytes} MB`,
 			}[key] ?? (key === "modes.credits" ? `${credits} credits` : key)
@@ -91,7 +91,7 @@ const enabledCapability = {
 		mimeTypes: ["image/jpeg", "image/png", "image/webp"],
 		maximumBytes: 10 * 1024 * 1024,
 	},
-	product: { key: "image-fast", label: "Standard Edit", credits: "4" },
+	product: { key: "image-fast", label: "Standard Edit", credits: "5" },
 	queueEstimate: { kind: "capacity" as const },
 } as const;
 

@@ -7,7 +7,8 @@ import { getCurrentExecutableRouteGraphOptions } from "./executable-route-graph"
 
 const ENVIRONMENT = {
 	MEDIA_GENERATION_ENABLED: "true",
-	MEDIA_ENABLED_PROVIDERS: "replicate,fal",
+	MEDIA_ENABLED_PROVIDERS: "openrouter,fal",
+	MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
 };
 
 describe("current executable media route graph", () => {

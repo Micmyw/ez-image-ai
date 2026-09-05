@@ -4124,16 +4124,13 @@ function quotedExecutableRoutes(
 				diagnosticRoute: routeGraph.allowedRoutes[0],
 			};
 		}
+		// A valid frozen graph may outlive current catalog membership. The static manifest remains
+		// the execution allowlist, while the current catalog is authoritative only for new quotes.
 		const routes = routeGraph.allowedRoutes.filter(
 			(route) =>
 				enabledProviders.has(route.provider) &&
 				isRuntimeRouteCertified(entry.mediaKind, route.provider, environment) &&
-				isStaticDispatchRoute(entry.mediaKind, route.provider, route.providerModelId) &&
-				entry.routes.some(
-					(candidate) =>
-						candidate.provider === route.provider &&
-						candidate.providerModelId === route.providerModelId,
-				),
+				isStaticDispatchRoute(entry.mediaKind, route.provider, route.providerModelId),
 		);
 		return routes.length > 0
 			? {
@@ -4356,9 +4353,9 @@ async function guestDispatchChecksPass(
 		job.productKey !== "image-fast" ||
 		job.guestTrialId !== trial.id ||
 		job.ownerId !== trial.ownerId ||
-		job.creditsReserved !== 4n ||
+		job.creditsReserved <= 0n ||
+		job.creditsReserved !== trial.sponsorCredits ||
 		job.quote.costMicros !== trial.frozenQuotedRiskMicros ||
-		trial.sponsorCredits !== 4n ||
 		trial.currentJobId !== job.id ||
 		trial.consumedJobId !== null ||
 		trial.eligibility !== "IN_FLIGHT" ||

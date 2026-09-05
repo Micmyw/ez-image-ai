@@ -39,8 +39,8 @@ describe("EditorUpgradeDialog", () => {
 		expect(visibleText).toContain("image, instruction, and edit session");
 		expect(visibleText).toContain("Creator");
 		expect(visibleText).toContain("Studio");
-		expect(visibleText).toContain("Creator 1000/3/20");
-		expect(visibleText).toContain("Studio 5000/10/20");
+		expect(visibleText).toContain("Creator 700/3/20");
+		expect(visibleText).toContain("Studio 3000/10/20");
 		expect(visibleText).toContain("Choose a plan");
 		expect(visibleText).not.toMatch(/image-quality|provider|model|video/i);
 	});

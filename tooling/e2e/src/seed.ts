@@ -254,12 +254,16 @@ async function ensureCreatorSubscription(
 			provider: "e2e",
 			providerPriceId: "e2e-creator",
 			name: "creator",
-			creditsPerPeriod: 1_000n,
+			creditsPerPeriod: 700n,
 			priceMicros: 0n,
 			currency: "USD",
 			metadata: { planId: "creator", source: "local-media-e2e" },
 		},
-		update: { active: true, metadata: { planId: "creator", source: "local-media-e2e" } },
+		update: {
+			active: true,
+			creditsPerPeriod: 700n,
+			metadata: { planId: "creator", source: "local-media-e2e" },
+		},
 	});
 	const providerSubscriptionId =
 		fixture === "funded" ? `e2e:${runId}:creator` : `e2e:${runId}:creator:empty`;

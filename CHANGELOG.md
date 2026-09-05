@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-09-05
+
+### Pricing and image-route assumptions
+
+- Set Standard Edit to 5 credits and Quality Edit to 40 credits. Free remains 25 monthly credits;
+  Creator now receives 700 monthly credits for $19/month or $190/year, and Studio receives 3,000
+  monthly credits for $79/month or $790/year.
+- Kept annual subscriptions on monthly internal credit periods. Annual billing changes the payment
+  cadence only: credits are issued monthly, and unused credits expire instead of rolling over.
+- Restricted new Standard and Quality image quote candidates to the server-side OpenRouter
+  Riverflow V2.5 fast/pro routes while preserving stable public product keys and keeping Provider,
+  model, credential, and cost details out of browser contracts.
+- Real Provider execution, billed cost/latency measurement, private-output verification, and
+  production route certification remain `NOT_COMPLETED`.
+- Synchronization and verification of production `BillingPlan` snapshots and provider-dashboard
+  product/price identities for Stripe, PayPal, and Waffo remain `NOT_COMPLETED`.
+
 ## 2026-08-31
 
 ### Multi-tier image editing

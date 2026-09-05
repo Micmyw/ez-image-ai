@@ -4,6 +4,7 @@ import {
 	type MediaModelInput,
 	type ModerationDecision,
 } from "@repo/ai";
+import { GUEST_MEDIA_SPONSOR_CREDITS } from "@repo/config/server";
 import {
 	createGuestGenerationTransaction,
 	fingerprintGenerationQuoteSecurityPayload,
@@ -332,7 +333,7 @@ export async function submitGuestGenerationForGuest(
 	if (
 		quote.productKey !== loaded.config.productKey ||
 		quote.credits !== loaded.config.sponsorCredits ||
-		quote.credits !== 4n ||
+		quote.credits !== GUEST_MEDIA_SPONSOR_CREDITS ||
 		quote.costMicros <= 0n
 	) {
 		return rejectGuestAdmission(

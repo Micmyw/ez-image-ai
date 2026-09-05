@@ -87,7 +87,7 @@ function generationState() {
 						key: "image-fast",
 						label: "Catalog Standard Edit",
 						description: "Catalog everyday edits",
-						credits: 4,
+						credits: 5,
 						fields: [
 							{ type: "text", key: "prompt", label: "Catalog prompt" },
 							{
@@ -101,7 +101,7 @@ function generationState() {
 						key: "image-quality",
 						label: "Catalog Quality Edit",
 						description: "Catalog detailed edits",
-						credits: 10,
+						credits: 40,
 						fields: [],
 					},
 				],
@@ -215,7 +215,7 @@ describe("GenerationForm product copy", () => {
 			/>,
 		);
 
-		expect(markup).toContain("10 credits needed");
+		expect(markup).toContain("40 credits needed");
 		expect(markup).toContain("0 credits available");
 		expect(markup).toContain("Upgrade");
 		expect(markup).not.toContain('href="/settings/billing"');

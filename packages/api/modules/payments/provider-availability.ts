@@ -1,4 +1,4 @@
-import { getPlanEntitlement, resolvePlanEntitlement } from "@repo/config";
+import { DEFAULT_PRODUCT_CONFIG, getPlanEntitlement, resolvePlanEntitlement } from "@repo/config";
 import { findPriceByPlanId, paymentProviderNames, resolvePaymentProvider } from "@repo/payments";
 import type { PaymentProviderName } from "@repo/payments/types";
 
@@ -7,11 +7,16 @@ export interface PaymentAvailabilitySelection {
 	interval: "month" | "year";
 }
 
+// BillingPlan rows are immutable snapshots. A newly provisioned provider price gets a new row at
+// version 1; any row mutation or older pricing cohort must remain unavailable to new checkout.
+const BILLING_PLAN_SNAPSHOT_VERSION = 1;
+
 interface BillingPlanSnapshot {
 	id: string;
 	provider: string;
 	providerPriceId: string;
 	active: boolean;
+	version: number;
 	name: string;
 	creditsPerPeriod: bigint;
 	priceMicros: bigint;
@@ -73,12 +78,22 @@ export function isExactBillingPlanSnapshot(
 	return (
 		billingPlan.provider === provider &&
 		billingPlan.providerPriceId === providerPriceId &&
+		billingPlan.version === BILLING_PLAN_SNAPSHOT_VERSION &&
+		metadataInteger(billingPlan.metadata, "version") === billingPlan.version &&
+		metadataString(billingPlan.metadata, "pricingVersion") ===
+			DEFAULT_PRODUCT_CONFIG.pricingVersion &&
 		resolvedPlanId === selection.planId &&
 		metadataString(billingPlan.metadata, "interval") === selection.interval &&
 		billingPlan.creditsPerPeriod === BigInt(entitlement.monthlyCredits) &&
 		billingPlan.priceMicros === BigInt(Math.round(price.amount * 1_000_000)) &&
 		billingPlan.currency === price.currency
 	);
+}
+
+function metadataInteger(value: unknown, key: string): number | null {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+	const candidate = (value as Record<string, unknown>)[key];
+	return typeof candidate === "number" && Number.isInteger(candidate) ? candidate : null;
 }
 
 function metadataString(value: unknown, key: string): string | null {

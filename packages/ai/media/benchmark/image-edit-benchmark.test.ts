@@ -198,10 +198,7 @@ describe("image edit benchmark planning", () => {
 		expect(options).toMatchObject({ mode: "dry-run", confirmSpend: false });
 		expect(options.maxBudgetMicros).toBeUndefined();
 		expect(routes.map(imageEditBenchmarkRouteRef)).toEqual([
-			"image-fast:replicate:black-forest-labs/flux-schnell",
-			"image-fast:fal:fal-ai/flux/schnell",
 			"image-fast:openrouter:sourceful/riverflow-v2.5-fast",
-			"image-quality:gemini:gemini-2.5-flash-image",
 			"image-quality:openrouter:sourceful/riverflow-v2.5-pro",
 		]);
 		expect(
@@ -211,19 +208,19 @@ describe("image edit benchmark planning", () => {
 
 	it("selects exact Provider/model tuples and rejects anything outside the current catalog", () => {
 		const selected = resolveImageEditBenchmarkRoutes([
-			"image-quality:gemini:gemini-2.5-flash-image",
+			"image-quality:openrouter:sourceful/riverflow-v2.5-pro",
 		]);
 
 		expect(selected).toEqual([
 			expect.objectContaining({
 				productKey: "image-quality",
-				provider: "gemini",
-				providerModelId: "gemini-2.5-flash-image",
+				provider: "openrouter",
+				providerModelId: "sourceful/riverflow-v2.5-pro",
 			}),
 		]);
-		expect(() => resolveImageEditBenchmarkRoutes(["image-fast:replicate:unlisted-model"])).toThrow(
-			/not a current image-edit catalog route/i,
-		);
+		expect(() =>
+			resolveImageEditBenchmarkRoutes(["image-fast:replicate:black-forest-labs/flux-schnell"]),
+		).toThrow(/not a current image-edit catalog route/i);
 		expect(() => resolveImageEditBenchmarkRoutes(["video-fast:fal:fal-ai/fast-video"])).toThrow(
 			/not a current image-edit catalog route/i,
 		);
@@ -235,17 +232,11 @@ describe("image edit benchmark planning", () => {
 		expect(plan).toMatchObject({
 			imageCount: 10,
 			taskCount: 30,
-			routeCount: 5,
-			plannedInvocations: 150,
-			maximumCatalogCostMicros: 6_165_000,
+			routeCount: 2,
+			plannedInvocations: 60,
+			maximumCatalogCostMicros: 6_090_000,
 		});
-		expect(plan.routes.map((route) => route.provider)).toEqual([
-			"replicate",
-			"fal",
-			"openrouter",
-			"gemini",
-			"openrouter",
-		]);
+		expect(plan.routes.map((route) => route.provider)).toEqual(["openrouter", "openrouter"]);
 	});
 
 	it("parses an explicit live budget and refuses zero, malformed, duplicate, or unknown arguments", () => {
@@ -255,16 +246,16 @@ describe("image edit benchmark planning", () => {
 					"--live",
 					"--confirm-spend",
 					"--max-budget-micros",
-					"90000",
-					"--route=image-fast:replicate:black-forest-labs/flux-schnell",
+					"690000",
+					"--route=image-fast:openrouter:sourceful/riverflow-v2.5-fast",
 				],
 				{},
 			),
 		).toMatchObject({
 			mode: "live",
 			confirmSpend: true,
-			maxBudgetMicros: 90_000,
-			routeSelectors: ["image-fast:replicate:black-forest-labs/flux-schnell"],
+			maxBudgetMicros: 690_000,
+			routeSelectors: ["image-fast:openrouter:sourceful/riverflow-v2.5-fast"],
 		});
 		expect(() =>
 			parseImageEditBenchmarkCliArguments(["--live", "--max-budget-micros=0"], {}),
@@ -292,33 +283,33 @@ describe("image edit benchmark spend and privacy gates", () => {
 		const base = {
 			manifest,
 			mode: "live" as const,
-			routeSelectors: ["image-fast:replicate:black-forest-labs/flux-schnell"],
+			routeSelectors: ["image-fast:openrouter:sourceful/riverflow-v2.5-fast"],
 		};
 
 		await expect(
 			runImageEditBenchmark(
-				{ ...base, maxBudgetMicros: 90_000 },
-				{ executeCase, environment: { REPLICATE_API_TOKEN: "test-only" } },
+				{ ...base, maxBudgetMicros: 690_000 },
+				{ executeCase, environment: { OPENROUTER_API_KEY: "test-only" } },
 			),
 		).rejects.toThrow(/--confirm-spend/i);
 		await expect(
 			runImageEditBenchmark(
 				{ ...base, confirmSpend: true },
-				{ executeCase, environment: { REPLICATE_API_TOKEN: "test-only" } },
+				{ executeCase, environment: { OPENROUTER_API_KEY: "test-only" } },
 			),
 		).rejects.toThrow(/positive --max-budget-micros/i);
 		await expect(
 			runImageEditBenchmark(
-				{ ...base, confirmSpend: true, maxBudgetMicros: 89_999 },
-				{ executeCase, environment: { REPLICATE_API_TOKEN: "test-only" } },
+				{ ...base, confirmSpend: true, maxBudgetMicros: 689_999 },
+				{ executeCase, environment: { OPENROUTER_API_KEY: "test-only" } },
 			),
 		).rejects.toThrow(/exceeds.*budget/i);
 		await expect(
 			runImageEditBenchmark(
-				{ ...base, confirmSpend: true, maxBudgetMicros: 90_000 },
+				{ ...base, confirmSpend: true, maxBudgetMicros: 690_000 },
 				{ executeCase, environment: {} },
 			),
-		).rejects.toThrow(/REPLICATE_API_TOKEN.*before any Provider call/i);
+		).rejects.toThrow(/OPENROUTER_API_KEY.*before any Provider call/i);
 
 		expect(calls).toBe(0);
 	});
@@ -336,8 +327,8 @@ describe("image edit benchmark spend and privacy gates", () => {
 					manifest: await fixtureManifest(),
 					mode: "live",
 					confirmSpend: true,
-					maxBudgetMicros: 90_000,
-					routeSelectors: ["image-fast:replicate:black-forest-labs/flux-schnell"],
+					maxBudgetMicros: 690_000,
+					routeSelectors: ["image-fast:openrouter:sourceful/riverflow-v2.5-fast"],
 				},
 				{ executeCase, environment: {} },
 			),
@@ -352,10 +343,10 @@ describe("image edit benchmark spend and privacy gates", () => {
 					manifest: await authorizedManifest(),
 					mode: "live",
 					confirmSpend: true,
-					maxBudgetMicros: 90_000,
-					routeSelectors: ["image-fast:replicate:black-forest-labs/flux-schnell"],
+					maxBudgetMicros: 690_000,
+					routeSelectors: ["image-fast:openrouter:sourceful/riverflow-v2.5-fast"],
 				},
-				{ environment: { REPLICATE_API_TOKEN: "test-only" } },
+				{ environment: { OPENROUTER_API_KEY: "test-only" } },
 			),
 		).rejects.toThrow(/private production pipeline executor/i);
 	});
@@ -371,22 +362,22 @@ describe("image edit benchmark spend and privacy gates", () => {
 				manifest: await authorizedManifest(),
 				mode: "live",
 				confirmSpend: true,
-				maxBudgetMicros: 90_000,
-				routeSelectors: ["image-fast:replicate:black-forest-labs/flux-schnell"],
+				maxBudgetMicros: 690_000,
+				routeSelectors: ["image-fast:openrouter:sourceful/riverflow-v2.5-fast"],
 			},
 			{
 				executeCase,
-				environment: { REPLICATE_API_TOKEN: "test-only" },
+				environment: { OPENROUTER_API_KEY: "test-only" },
 				now: () => new Date("2026-08-25T00:00:00.000Z"),
 			},
 		);
 
 		expect(seen).toHaveLength(30);
-		expect(new Set(seen.map((input) => input.route.provider))).toEqual(new Set(["replicate"]));
+		expect(new Set(seen.map((input) => input.route.provider))).toEqual(new Set(["openrouter"]));
 		expect(seen.every((input) => input.sourceAssetId.startsWith("asset_benchmark"))).toBe(true);
 		expect(report).toMatchObject({
 			status: "EXECUTION_RECORDED_NOT_CERTIFIED",
-			plan: { plannedInvocations: 30, maximumCatalogCostMicros: 90_000 },
+			plan: { plannedInvocations: 30, maximumCatalogCostMicros: 690_000 },
 		});
 	});
 
@@ -394,7 +385,7 @@ describe("image edit benchmark spend and privacy gates", () => {
 		let calls = 0;
 		const executeCase: ImageEditBenchmarkExecutor = async () => {
 			calls += 1;
-			return safeResult({ providerCostMicros: 4_000 });
+			return safeResult({ providerCostMicros: 24_000 });
 		};
 
 		await expect(
@@ -403,12 +394,12 @@ describe("image edit benchmark spend and privacy gates", () => {
 					manifest: await authorizedManifest(),
 					mode: "live",
 					confirmSpend: true,
-					maxBudgetMicros: 90_000,
-					routeSelectors: ["image-fast:replicate:black-forest-labs/flux-schnell"],
+					maxBudgetMicros: 690_000,
+					routeSelectors: ["image-fast:openrouter:sourceful/riverflow-v2.5-fast"],
 				},
 				{
 					executeCase,
-					environment: { REPLICATE_API_TOKEN: "test-only" },
+					environment: { OPENROUTER_API_KEY: "test-only" },
 				},
 			),
 		).rejects.toThrow(/remaining catalog cost ceiling.*before the next Provider call/i);
@@ -428,12 +419,12 @@ describe("image edit benchmark spend and privacy gates", () => {
 					manifest: await authorizedManifest(),
 					mode: "live",
 					confirmSpend: true,
-					maxBudgetMicros: 90_000,
-					routeSelectors: ["image-fast:replicate:black-forest-labs/flux-schnell"],
+					maxBudgetMicros: 690_000,
+					routeSelectors: ["image-fast:openrouter:sourceful/riverflow-v2.5-fast"],
 				},
 				{
 					executeCase,
-					environment: { REPLICATE_API_TOKEN: "test-only" },
+					environment: { OPENROUTER_API_KEY: "test-only" },
 				},
 			),
 		).rejects.toThrow(/observed Provider cost is unavailable.*no further calls/i);
@@ -450,12 +441,12 @@ describe("image edit benchmark spend and privacy gates", () => {
 					manifest: await authorizedManifest(),
 					mode: "live",
 					confirmSpend: true,
-					maxBudgetMicros: 90_000,
-					routeSelectors: ["image-fast:replicate:black-forest-labs/flux-schnell"],
+					maxBudgetMicros: 690_000,
+					routeSelectors: ["image-fast:openrouter:sourceful/riverflow-v2.5-fast"],
 				},
 				{
 					executeCase,
-					environment: { REPLICATE_API_TOKEN: "test-only" },
+					environment: { OPENROUTER_API_KEY: "test-only" },
 				},
 			),
 		).rejects.toThrow(/private transfer.*moderation/i);
@@ -472,7 +463,7 @@ describe("image edit benchmark scorecard and report", () => {
 		const serialized = serializeImageEditBenchmarkReport(report);
 
 		expect(report.status).toBe("DRY_RUN_ONLY");
-		expect(report.scorecard.routes).toHaveLength(5);
+		expect(report.scorecard.routes).toHaveLength(2);
 		for (const route of report.scorecard.routes) {
 			expect(route.successRate.status).toBe("NOT_COMPLETED");
 			expect(route.firstResultUsableRate.status).toBe("NOT_COMPLETED");
@@ -492,7 +483,7 @@ describe("image edit benchmark scorecard and report", () => {
 
 	it("aggregates complete route observations with hand-derived rates, percentiles, costs, and scores", () => {
 		const route = resolveImageEditBenchmarkRoutes([
-			"image-fast:replicate:black-forest-labs/flux-schnell",
+			"image-fast:openrouter:sourceful/riverflow-v2.5-fast",
 		])[0]!;
 		const observations: ImageEditBenchmarkObservation[] = [100, 200, 300, 400].map(
 			(latencyMs, index) =>
@@ -595,7 +586,7 @@ describe("image edit benchmark scorecard and report", () => {
 });
 
 describe("image edit Provider request mapping fixtures", () => {
-	it("maps private image-to-image inputs for every current image Provider without accepting a client URL", async () => {
+	it("keeps retained adapter mappings server-owned without treating every adapter as a catalog route", async () => {
 		const fixture = (await readJson(mappingFixturePath)) as {
 			source: {
 				assetId: string;

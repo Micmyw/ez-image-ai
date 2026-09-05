@@ -1,5 +1,6 @@
 import {
 	createRouteGraphSnapshot,
+	getCatalogEntry,
 	MEDIA_VERIFICATION_POLICY_VERSION,
 	MEDIA_VERIFICATION_RULE_VERSION,
 	type CatalogRoute,
@@ -28,6 +29,20 @@ const REPLICATE_FAST_ROUTE = {
 	providerModelId: "black-forest-labs/flux-schnell",
 	providerCostMicros: 3_000,
 	weight: 80,
+} as const satisfies CatalogRoute;
+
+const FAL_FAST_ROUTE = {
+	provider: "fal",
+	providerModelId: "fal-ai/flux/schnell",
+	providerCostMicros: 3_500,
+	weight: 20,
+} as const satisfies CatalogRoute;
+
+const GEMINI_QUALITY_ROUTE = {
+	provider: "gemini",
+	providerModelId: "gemini-2.5-flash-image",
+	providerCostMicros: 8_000,
+	weight: 100,
 } as const satisfies CatalogRoute;
 
 describe("provider runtime registration", () => {
@@ -165,6 +180,34 @@ describe("provider runtime registration", () => {
 				enabledProviders: new Set(["replicate"]),
 			}),
 		).resolves.toMatchObject({ provider: "replicate" });
+	});
+
+	it("executes retired image routes only from immutable quote snapshots", async () => {
+		expect(getCatalogEntry("image-fast").routes.map((route) => route.provider)).toEqual([
+			"openrouter",
+		]);
+		expect(getCatalogEntry("image-quality").routes.map((route) => route.provider)).toEqual([
+			"openrouter",
+		]);
+
+		for (const [productKey, route] of [
+			["image-fast", REPLICATE_FAST_ROUTE],
+			["image-fast", FAL_FAST_ROUTE],
+			["image-quality", GEMINI_QUALITY_ROUTE],
+		] as const) {
+			await expect(
+				resolveDatabaseDispatchRoute(`job_${route.provider}`, {
+					database: routeResolutionDatabase(
+						frozenRouteJob(`job_${route.provider}`, [route], productKey),
+					) as never,
+					environment: { MEDIA_GENERATION_ENABLED: "true" },
+					enabledProviders: new Set([route.provider]),
+				}),
+			).resolves.toMatchObject({
+				provider: route.provider,
+				providerModelId: route.providerModelId,
+			});
+		}
 	});
 
 	it("rechecks OpenRouter certification for every claim on an existing worker store", async () => {
@@ -393,7 +436,11 @@ describe("provider runtime registration", () => {
 	});
 });
 
-function frozenRouteJob(id: string, routes: readonly CatalogRoute[]) {
+function frozenRouteJob(
+	id: string,
+	routes: readonly CatalogRoute[],
+	productKey: "image-fast" | "image-quality" = "image-fast",
+) {
 	const catalogVersion = "2026-08-31";
 	const pricingVersion = "2026-08-31";
 	return {
@@ -402,7 +449,7 @@ function frozenRouteJob(id: string, routes: readonly CatalogRoute[]) {
 		version: 1,
 		status: "DISPATCH_QUEUED",
 		serviceClass: "STANDARD",
-		productKey: "image-fast",
+		productKey,
 		catalogVersion,
 		pricingVersion,
 		inputSnapshot: {
@@ -412,7 +459,7 @@ function frozenRouteJob(id: string, routes: readonly CatalogRoute[]) {
 		},
 		pricingSnapshot: {
 			routeGraph: createRouteGraphSnapshot({
-				productKey: "image-fast",
+				productKey,
 				catalogVersion,
 				pricingVersion,
 				routes,

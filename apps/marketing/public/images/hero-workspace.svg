@@ -40,7 +40,7 @@
   <rect x="1140" y="505" width="320" height="64" rx="18" fill="#ede9ff"/>
   <text x="1164" y="545" fill="#4d438c" font-family="Arial, sans-serif" font-size="20" font-weight="600">Standard Edit</text>
   <rect x="1140" y="600" width="145" height="44" rx="22" fill="#f0edff"/>
-  <text x="1170" y="629" fill="#5c51ae" font-family="Arial, sans-serif" font-size="18">4 credits</text>
+  <text x="1170" y="629" fill="#5c51ae" font-family="Arial, sans-serif" font-size="18">5 credits</text>
   <rect x="1140" y="678" width="320" height="62" rx="31" fill="#6d5dfc"/>
   <text x="1246" y="717" fill="#fff" font-family="Arial, sans-serif" font-size="20" font-weight="700">Review edit</text>
 </svg>

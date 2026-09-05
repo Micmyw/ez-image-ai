@@ -51,7 +51,8 @@ import { assertGuestCapabilityVersion, loadGuestCapabilitySnapshot } from "./gue
 const enabledEnvironment = {
 	NODE_ENV: "development",
 	MEDIA_GENERATION_ENABLED: "true",
-	MEDIA_ENABLED_PROVIDERS: "replicate,gemini",
+	MEDIA_ENABLED_PROVIDERS: "openrouter",
+	MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
 	GUEST_MEDIA_ENABLED: "true",
 	GUEST_PROMOTION_PERIOD: "2026-launch",
 	BETTER_AUTH_SECRET: "test-secret",
@@ -101,23 +102,23 @@ describe("guest capability snapshot", () => {
 				{
 					key: "image-fast",
 					label: "Standard Edit",
-					credits: "4",
+					credits: "5",
 					accessHint: "guest-trial",
 				},
 				{
 					key: "image-quality",
 					label: "Quality Edit",
-					credits: "10",
+					credits: "40",
 					accessHint: "paid-account",
 				},
 			],
 		});
-		const fastOnly = await loadGuestCapabilitySnapshot({
+		const unavailable = await loadGuestCapabilitySnapshot({
 			...enabledEnvironment,
-			MEDIA_ENABLED_PROVIDERS: "replicate",
+			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "false",
 		});
-		expect(fastOnly.products.map((product) => product.key)).toEqual(["image-fast"]);
-		expect(fastOnly.version).not.toBe(snapshot.version);
+		expect(unavailable.products).toEqual([]);
+		expect(unavailable.version).not.toBe(snapshot.version);
 		expect(JSON.stringify(snapshot)).not.toMatch(
 			/replicate|gemini|openrouter|providerModelId|providerCostMicros|weight/i,
 		);
@@ -236,7 +237,8 @@ describe("guest private upload handoff", () => {
 		vi.stubEnv("GUEST_MEDIA_ENABLED", "true");
 		vi.stubEnv("GUEST_PROMOTION_PERIOD", "2026-launch");
 		vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
-		vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "replicate,gemini");
+		vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "openrouter");
+		vi.stubEnv("MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED", "true");
 		vi.stubEnv("BETTER_AUTH_SECRET", "test-secret");
 		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", enabledEnvironment.GUEST_ABUSE_HMAC_SECRET);
 		vi.stubEnv("GUEST_ABUSE_HMAC_VERSION", enabledEnvironment.GUEST_ABUSE_HMAC_VERSION);

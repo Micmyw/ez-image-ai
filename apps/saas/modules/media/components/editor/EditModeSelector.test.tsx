@@ -29,8 +29,8 @@ describe("EditModeSelector", () => {
 				onChange={vi.fn()}
 				onUpgrade={vi.fn()}
 				products={[
-					{ key: "image-fast", credits: 4 },
-					{ key: "image-quality", credits: 10 },
+					{ key: "image-fast", credits: 5 },
+					{ key: "image-quality", credits: 40 },
 				]}
 				allowedProductKeys={["image-fast"]}
 			/>,

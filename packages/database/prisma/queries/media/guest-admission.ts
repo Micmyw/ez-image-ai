@@ -1,3 +1,5 @@
+import { PRODUCT_CREDIT_COSTS } from "@repo/config";
+
 import type { Prisma } from "../../generated/client";
 import { hasCurrentApprovedMediaAssetEvidence } from "./assets";
 import { createCreditGrant, reserveCreditsInTransaction } from "./credits";
@@ -12,6 +14,7 @@ import type { CreateModeratedGenerationQuoteInput, MediaTransactionClient } from
 import { isDatabaseUniqueConflict, runReadCommitted } from "./types";
 
 export const GUEST_GENERATION_ELIGIBLE_EVENT = "GUEST_GENERATION_ELIGIBLE";
+const CURRENT_GUEST_SPONSOR_CREDITS = BigInt(PRODUCT_CREDIT_COSTS["image-fast"]);
 
 export type GuestJobStage =
 	| "WAITING"
@@ -448,7 +451,7 @@ async function assertCanonicalGuestQuote(
 		canonical.productKey !== "image-fast" ||
 		canonical.catalogVersion !== input.quote.catalogVersion ||
 		canonical.pricingVersion !== input.quote.pricingVersion ||
-		canonical.credits !== 4n ||
+		canonical.credits !== CURRENT_GUEST_SPONSOR_CREDITS ||
 		canonical.credits !== input.sponsorCredits ||
 		canonical.credits !== input.quote.credits ||
 		canonical.costMicros <= 0n ||
@@ -1147,7 +1150,7 @@ function validateAdmissionInput(input: CreateGuestGenerationTransactionInput): v
 			input.sourceAssetChecksum,
 			input.turnstile.tokenHash,
 		].every((value) => /^[a-f0-9]{64}$/.test(value)) ||
-		input.sponsorCredits !== 4n ||
+		input.sponsorCredits !== CURRENT_GUEST_SPONSOR_CREDITS ||
 		input.quote.credits !== input.sponsorCredits ||
 		input.quote.productKey !== "image-fast" ||
 		input.quote.ownerType !== "USER" ||

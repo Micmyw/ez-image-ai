@@ -182,11 +182,7 @@ export function validateEzPicLaunchEnvironment(
 			input,
 			serverEnvironment.mediaEnabledProviders,
 			"MEDIA_STANDARD_EDIT_ENABLED",
-			[
-				["replicate", "REPLICATE_API_TOKEN"],
-				["fal", "FAL_API_KEY"],
-				["openrouter", "OPENROUTER_API_KEY"],
-			],
+			[["openrouter", "OPENROUTER_API_KEY"]],
 			requireProviderCredentials,
 		);
 	}
@@ -195,10 +191,7 @@ export function validateEzPicLaunchEnvironment(
 			input,
 			serverEnvironment.mediaEnabledProviders,
 			"MEDIA_QUALITY_EDIT_ENABLED",
-			[
-				["gemini", "GEMINI_API_KEY"],
-				["openrouter", "OPENROUTER_API_KEY"],
-			],
+			[["openrouter", "OPENROUTER_API_KEY"]],
 			requireProviderCredentials,
 		);
 	}

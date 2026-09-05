@@ -10,14 +10,14 @@ const products = [
 		key: "image-fast" as const,
 		label: "Standard Edit",
 		description: "Everyday edits",
-		credits: "4" as const,
+		credits: "5" as const,
 		accessHint: "guest-trial" as const,
 	},
 	{
 		key: "image-quality" as const,
 		label: "Quality Edit",
 		description: "Higher fidelity",
-		credits: "10" as const,
+		credits: "40" as const,
 		accessHint: "paid-account" as const,
 	},
 ];

@@ -22,14 +22,14 @@ describe("same-origin landing guest client", () => {
 						key: "image-fast",
 						label: "Standard Edit",
 						description: "Everyday private edits",
-						credits: "4",
+						credits: "5",
 						accessHint: "guest-trial",
 					},
 					{
 						key: "image-quality",
 						label: "Quality Edit",
 						description: "Higher fidelity private edits",
-						credits: "10",
+						credits: "40",
 						accessHint: "paid-account",
 					},
 				],
@@ -44,6 +44,34 @@ describe("same-origin landing guest client", () => {
 		expect(fetcher).toHaveBeenCalledWith(
 			"/api/media/guest-capability",
 			expect.objectContaining({ credentials: "same-origin" }),
+		);
+	});
+
+	it("rejects non-canonical credit values in the public capability", async () => {
+		const fetcher = vi.fn(async () =>
+			Response.json({
+				version: "capability-v1",
+				enabled: true,
+				reason: null,
+				upload: {
+					mimeTypes: ["image/jpeg", "image/png", "image/webp"],
+					maximumBytes: 10 * 1024 * 1024,
+				},
+				products: [
+					{
+						key: "image-fast",
+						label: "Standard Edit",
+						description: "Everyday private edits",
+						credits: 5,
+						accessHint: "guest-trial",
+					},
+				],
+				queueEstimate: { kind: "capacity" },
+			}),
+		);
+
+		await expect(getGuestCapability(fetcher as typeof fetch)).rejects.toThrow(
+			"GUEST_CAPABILITY_INVALID",
 		);
 	});
 

@@ -9,7 +9,7 @@ describe("guest admission pre-transaction boundary", () => {
 		["capability", { capabilityEnabled: false }, "GUEST_CAPABILITY_DISABLED", "CAPABILITY"],
 		["Turnstile", { turnstileError: "TURNSTILE_INVALID" }, "TURNSTILE_INVALID", "TURNSTILE"],
 		["input", { assetOverride: { byteSize: 10_485_761n } }, "GUEST_INPUT_UNAVAILABLE", "INPUT"],
-		["quote", { quoteCredits: 5n }, "GUEST_PRICE_CHANGED", "QUOTE"],
+		["quote", { quoteCredits: 4n }, "GUEST_PRICE_CHANGED", "QUOTE"],
 		["content", { moderationDecision: "REJECT" }, "TEXT_MODERATION_REJECT", "CONTENT"],
 	] as const)(
 		"bounds %s denial evidence with the configured TTL",
@@ -30,15 +30,15 @@ describe("guest admission pre-transaction boundary", () => {
 	);
 
 	it.each([
-		["oversized source", { byteSize: 10_485_761n }, "GUEST_INPUT_UNAVAILABLE", 4n, "INPUT"],
+		["oversized source", { byteSize: 10_485_761n }, "GUEST_INPUT_UNAVAILABLE", 5n, "INPUT"],
 		[
 			"stale source",
 			{ verificationValidUntil: new Date("2026-08-27T23:59:59.999Z") },
 			"GUEST_INPUT_UNAVAILABLE",
-			4n,
+			5n,
 			"INPUT",
 		],
-		["wrong product price", {}, "GUEST_PRICE_CHANGED", 5n, "QUOTE"],
+		["wrong product price", {}, "GUEST_PRICE_CHANGED", 4n, "QUOTE"],
 	] as const)(
 		"creates no business graph for %s",
 		async (_label, assetOverride, errorCode, quoteCredits, denialReason) => {
@@ -166,7 +166,7 @@ describe("guest admission pre-transaction boundary", () => {
 				sourceAssetId: "asset-1",
 				sourceAssetChecksum: "a".repeat(64),
 				turnstile: expect.objectContaining({ tokenHash: "f".repeat(64) }),
-				sponsorCredits: 4n,
+				sponsorCredits: 5n,
 				abuseEvidenceTtlMs: 30 * 24 * 60 * 60_000,
 				maximumRequestsPerIpPerDay: 3,
 				maximumRequestsPerSubnetPerDay: 20,
@@ -174,7 +174,7 @@ describe("guest admission pre-transaction boundary", () => {
 				maximumGlobalRequestsPerDay: 100,
 				quote: expect.objectContaining({
 					productKey: "image-fast",
-					credits: 4n,
+					credits: 5n,
 					moderation: expect.objectContaining({ decision: "ALLOW" }),
 				}),
 			}),
@@ -221,7 +221,7 @@ function validDependencies(options?: {
 				enabled: options?.capabilityEnabled ?? true,
 				promotionPeriod: "launch-2026-08",
 				productKey: "image-fast",
-				sponsorCredits: 4n,
+				sponsorCredits: 5n,
 				maximumBytes: 10 * 1024 * 1024,
 				mimeTypes: ["image/jpeg", "image/png", "image/webp"],
 				retentionMs: 24 * 60 * 60_000,
@@ -283,8 +283,8 @@ function validDependencies(options?: {
 			productKey: "image-fast",
 			catalogVersion: "catalog-v1",
 			pricingVersion: "pricing-v1",
-			credits: options?.quoteCredits ?? 4n,
-			costMicros: 3500n,
+			credits: options?.quoteCredits ?? 5n,
+			costMicros: 23_000n,
 			pricingSnapshot: {},
 		})),
 		moderatePrompt: vi.fn(async () => ({

@@ -1,4 +1,4 @@
-import { DEFAULT_PRODUCT_CONFIG, type ProductModelKey } from "@repo/config";
+import { DEFAULT_PRODUCT_CONFIG, PRODUCT_CREDIT_COSTS, type ProductModelKey } from "@repo/config";
 import { z } from "zod";
 
 import {
@@ -27,24 +27,12 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 		description: "Private prompt-based image editing for everyday changes",
 		mediaKind: "image",
 		inputKinds: ["image-to-image"],
-		credits: 4,
+		credits: PRODUCT_CREDIT_COSTS["image-fast"],
 		routes: [
-			{
-				provider: "replicate",
-				providerModelId: "black-forest-labs/flux-schnell",
-				providerCostMicros: 3_000,
-				weight: 80,
-			},
-			{
-				provider: "fal",
-				providerModelId: "fal-ai/flux/schnell",
-				providerCostMicros: 3_500,
-				weight: 20,
-			},
 			{
 				provider: "openrouter",
 				providerModelId: "sourceful/riverflow-v2.5-fast",
-				providerCostMicros: 21_000,
+				providerCostMicros: 23_000,
 				weight: 100,
 			},
 		],
@@ -55,18 +43,12 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 		description: "Higher-fidelity private image editing for detailed changes",
 		mediaKind: "image",
 		inputKinds: ["image-to-image"],
-		credits: 10,
+		credits: PRODUCT_CREDIT_COSTS["image-quality"],
 		routes: [
-			{
-				provider: "gemini",
-				providerModelId: "gemini-2.5-flash-image",
-				providerCostMicros: 8_000,
-				weight: 100,
-			},
 			{
 				provider: "openrouter",
 				providerModelId: "sourceful/riverflow-v2.5-pro",
-				providerCostMicros: 170_000,
+				providerCostMicros: 180_000,
 				weight: 100,
 			},
 		],
@@ -77,7 +59,7 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 		description: "Short video generation",
 		mediaKind: "video",
 		inputKinds: ["text-to-video", "image-to-video"],
-		credits: 25,
+		credits: PRODUCT_CREDIT_COSTS["video-fast"],
 		routes: [
 			{
 				provider: "fal",
@@ -93,7 +75,7 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 		description: "High fidelity video generation",
 		mediaKind: "video",
 		inputKinds: ["text-to-video", "image-to-video"],
-		credits: 60,
+		credits: PRODUCT_CREDIT_COSTS["video-quality"],
 		routes: [
 			{
 				provider: "kie",

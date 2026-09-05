@@ -4,11 +4,14 @@
 		"checkoutUnavailable": "El pago está temporalmente no disponible. Inténtalo más tarde o contacta con soporte.",
 		"contactSales": "Contactar ventas",
 		"concurrentEdits": "{count, plural, one {# edición simultánea} other {# ediciones simultáneas}}",
+		"creditExpiry": "Los créditos se renuevan cada mes y los no utilizados no se acumulan.",
 		"description": "Elige un plan de edición de imágenes con créditos y límites de trabajos claros.",
 		"getStarted": "Comenzar",
 		"maximumInputSize": "Imágenes de origen de hasta {megabytes, number} MB",
 		"month": "{count, plural, one {mes} other {{count} meses}}",
 		"monthlyCredits": "{credits, number} créditos al mes",
+		"monthlyEditAllowance": "Hasta {standard, number} ediciones Standard o {quality, number} Quality al mes",
+		"monthlyStandardAllowance": "Hasta {standard, number} ediciones Standard al mes",
 		"monthly": "Mensual",
 		"products": {
 			"creator": {

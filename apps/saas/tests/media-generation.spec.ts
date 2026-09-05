@@ -98,7 +98,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await page.goto(`/edits/${rootVersion.editSessionId}`);
 		await expect(page.getByText(rootPrompt)).toBeVisible();
 		await expect(page.getByText(/standard edit/i)).toBeVisible();
-		await expect(page.getByText(/4 credits/i)).toBeVisible();
+		await expect(page.getByText(/5 credits/i)).toBeVisible();
 		const rootCard = page.getByRole("listitem").filter({ hasText: rootPrompt });
 		await rootCard.getByRole("link", { name: /edit again/i }).click();
 		await expect(page).toHaveURL(

@@ -4,11 +4,14 @@
 		"checkoutUnavailable": "Le paiement est temporairement indisponible. Réessayez plus tard ou contactez le support.",
 		"contactSales": "Contacter les ventes",
 		"concurrentEdits": "{count, plural, one {# retouche simultanée} other {# retouches simultanées}}",
+		"creditExpiry": "Les crédits sont renouvelés chaque mois et les crédits inutilisés ne sont pas reportés.",
 		"description": "Choisissez un forfait de retouche d'image avec des crédits et des limites de tâches clairs.",
 		"getStarted": "Commencer",
 		"maximumInputSize": "Images source jusqu'à {megabytes, number} MB",
 		"month": "{count, plural, one {mois} other {{count} mois}}",
 		"monthlyCredits": "{credits, number} crédits par mois",
+		"monthlyEditAllowance": "Jusqu'à {standard, number} retouches Standard ou {quality, number} retouches Quality par mois",
+		"monthlyStandardAllowance": "Jusqu'à {standard, number} retouches Standard par mois",
 		"monthly": "Mensuel",
 		"products": {
 			"creator": {

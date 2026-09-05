@@ -2,6 +2,7 @@ export * from "./env";
 export * from "./fingerprint";
 export {
 	getGuestMediaConfig,
+	GUEST_MEDIA_SPONSOR_CREDITS,
 	guestAbuseHmacKeyIdentity,
 	isLocalProductionBuildE2EEnvironment,
 	type GuestAdmissionLimits,

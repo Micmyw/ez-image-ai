@@ -26,10 +26,14 @@ describe("createGenerationForUser", () => {
 					sourceAssetId: SOURCE_ASSET_ID,
 				},
 			},
-			{ enabledProviders: new Set(["replicate"]), generationEnabled: true },
+			{
+				enabledProviders: new Set(["openrouter"]),
+				generationEnabled: true,
+				openRouterImageRoutesCertified: true,
+			},
 		);
 		const createGenerationJob = vi.fn(async () => ({
-			job: { id: "job-1", status: "RESERVED", version: 0, creditsReserved: 4n },
+			job: { id: "job-1", status: "RESERVED", version: 0, creditsReserved: 5n },
 			replayed: false,
 		}));
 
@@ -56,8 +60,9 @@ describe("createGenerationForUser", () => {
 					pricingSnapshot: quote.pricingSnapshot,
 				}),
 				getRouteGraphOptions: async () => ({
-					enabledProviders: new Set(["replicate"]),
+					enabledProviders: new Set(["openrouter"]),
 					generationEnabled: true,
+					openRouterImageRoutesCertified: true,
 				}),
 				assertAllowed: vi.fn(async () => undefined),
 				createGenerationJob,
@@ -84,10 +89,14 @@ describe("createGenerationForUser", () => {
 					sourceAssetId: SOURCE_ASSET_ID,
 				},
 			},
-			{ enabledProviders: new Set(["replicate"]), generationEnabled: true },
+			{
+				enabledProviders: new Set(["openrouter"]),
+				generationEnabled: true,
+				openRouterImageRoutesCertified: true,
+			},
 		);
 		const createGenerationJob = vi.fn(async () => ({
-			job: { id: "job-2", status: "RESERVED", version: 0, creditsReserved: 4n },
+			job: { id: "job-2", status: "RESERVED", version: 0, creditsReserved: 5n },
 			replayed: false,
 		}));
 
@@ -119,8 +128,9 @@ describe("createGenerationForUser", () => {
 					pricingSnapshot: quote.pricingSnapshot,
 				}),
 				getRouteGraphOptions: async () => ({
-					enabledProviders: new Set(["replicate"]),
+					enabledProviders: new Set(["openrouter"]),
 					generationEnabled: true,
+					openRouterImageRoutesCertified: true,
 				}),
 				assertAllowed: vi.fn(async () => undefined),
 				createGenerationJob,
@@ -150,7 +160,11 @@ describe("createGenerationForUser", () => {
 					sourceAssetId: SOURCE_ASSET_ID,
 				},
 			},
-			{ enabledProviders: new Set(["replicate"]), generationEnabled: true },
+			{
+				enabledProviders: new Set(["openrouter"]),
+				generationEnabled: true,
+				openRouterImageRoutesCertified: true,
+			},
 		);
 		const createGenerationJob = vi.fn();
 
@@ -187,8 +201,9 @@ describe("createGenerationForUser", () => {
 						pricingSnapshot: quote.pricingSnapshot,
 					}),
 					getRouteGraphOptions: async () => ({
-						enabledProviders: new Set(["replicate"]),
+						enabledProviders: new Set(["openrouter"]),
 						generationEnabled: true,
+						openRouterImageRoutesCertified: true,
 					}),
 					assertAllowed: vi.fn(async () => undefined),
 					createGenerationJob,
@@ -209,7 +224,11 @@ describe("createGenerationForUser", () => {
 					sourceAssetId: SOURCE_ASSET_ID,
 				},
 			},
-			{ enabledProviders: new Set(["replicate"]), generationEnabled: true },
+			{
+				enabledProviders: new Set(["openrouter"]),
+				generationEnabled: true,
+				openRouterImageRoutesCertified: true,
+			},
 		);
 		const createGenerationJob = vi.fn();
 
@@ -241,8 +260,9 @@ describe("createGenerationForUser", () => {
 						pricingSnapshot: quote.pricingSnapshot,
 					}),
 					getRouteGraphOptions: async () => ({
-						enabledProviders: new Set(["replicate"]),
+						enabledProviders: new Set(["openrouter"]),
 						generationEnabled: true,
+						openRouterImageRoutesCertified: true,
 					}),
 					assertAllowed: vi.fn(async () => undefined),
 					createGenerationJob,
@@ -263,7 +283,11 @@ describe("createGenerationForUser", () => {
 					sourceAssetId: SOURCE_ASSET_ID,
 				},
 			},
-			{ enabledProviders: new Set(["replicate"]), generationEnabled: true },
+			{
+				enabledProviders: new Set(["openrouter"]),
+				generationEnabled: true,
+				openRouterImageRoutesCertified: true,
+			},
 		);
 		const createGenerationJob = vi.fn();
 
@@ -312,7 +336,11 @@ describe("createGenerationForUser", () => {
 					sourceAssetId: SOURCE_ASSET_ID,
 				},
 			},
-			{ enabledProviders: new Set(["gemini"]), generationEnabled: true },
+			{
+				enabledProviders: new Set(["openrouter"]),
+				generationEnabled: true,
+				openRouterImageRoutesCertified: true,
+			},
 		);
 		const createGenerationJob = vi.fn();
 
@@ -339,8 +367,9 @@ describe("createGenerationForUser", () => {
 						pricingSnapshot: quote.pricingSnapshot,
 					}),
 					getRouteGraphOptions: async () => ({
-						enabledProviders: new Set(["gemini"]),
+						enabledProviders: new Set(["openrouter"]),
 						generationEnabled: true,
+						openRouterImageRoutesCertified: true,
 					}),
 					assertAllowed: vi.fn(async () => undefined),
 					createGenerationJob,

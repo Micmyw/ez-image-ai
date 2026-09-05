@@ -30,7 +30,7 @@ describe("image edit benchmark CLI", () => {
 		expect(JSON.parse(stdout)).toMatchObject({
 			status: "DRY_RUN_ONLY",
 			certification: { status: "NOT_COMPLETED" },
-			plan: { imageCount: 10, taskCount: 30, plannedInvocations: 150 },
+			plan: { imageCount: 10, taskCount: 30, plannedInvocations: 60 },
 		});
 	});
 

@@ -56,7 +56,7 @@ describe("guest media configuration", () => {
 			reason: null,
 			promotionPeriod: "2026-launch",
 			productKey: "image-fast",
-			sponsorCredits: 4n,
+			sponsorCredits: 5n,
 			maximumBytes: 10 * 1024 * 1024,
 			mimeTypes: ["image/jpeg", "image/png", "image/webp"],
 			retentionMs: 24 * 60 * 60 * 1_000,

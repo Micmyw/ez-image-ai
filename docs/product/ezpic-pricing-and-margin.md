@@ -1,142 +1,177 @@
 # EzPic pricing and margin record
 
-## Status and evidence boundary
+## Decision snapshot
 
-PR 6 implements the local plan, checkout, entitlement, and credit contracts. It does not certify a
-production sale or gross margin. PR 2 committed a safe dry-run benchmark plan and inherited catalog
-estimates, but it recorded no authorized Provider execution, billed Provider cost, success rate, or
-final Standard/Quality route. Catalog estimates and local fixtures are not production cost evidence.
+Pricing version `2026-09-05.1` converts the current public Provider price research into a
+conservative launch contract. The plan values below are product decisions and local application
+contracts. They are not evidence of a billed Provider run, a production payment, or an approved
+production launch.
 
-| Evidence or decision                                     | Status            |
-| -------------------------------------------------------- | ----------------- |
-| Local plan and entitlement contract                      | **COMPLETED**     |
-| Local Stripe lifecycle fixtures and idempotency checks   | **COMPLETED**     |
-| Authorized image-edit benchmark inputs and human scoring | **NOT_COMPLETED** |
-| Measured/billed Standard Edit variable cost              | **NOT_COMPLETED** |
-| Measured/billed Quality Edit variable cost               | **NOT_COMPLETED** |
-| Full-use Creator and Studio gross-margin approval        | **NOT_COMPLETED** |
-| Stripe test-mode Product/Price/Webhook certification     | **NOT_COMPLETED** |
-| Stripe live Product/Price/Webhook certification          | **NOT_COMPLETED** |
-| Matching production BillingPlan snapshot provisioning    | **NOT_COMPLETED** |
-| Legal seller identity and approved refund policy         | **NOT_COMPLETED** |
-| Real Provider and Trigger.dev execution                  | **NOT_COMPLETED** |
-| Cloud private storage and production moderation          | **NOT_COMPLETED** |
-| Deployment and live verification                         | **NOT_COMPLETED** |
+| Evidence or decision                                       | Status            |
+| ---------------------------------------------------------- | ----------------- |
+| Public Provider price research dated 2026-09-05            | **COMPLETED**     |
+| Local plan, quote, entitlement, and monthly-grant contract | **COMPLETED**     |
+| OpenRouter top-up minimum-fee allocation                   | **NOT_COMPLETED** |
+| Real Provider execution and route certification            | **NOT_COMPLETED** |
+| Reconciled Provider billing and measured success rate      | **NOT_COMPLETED** |
+| Production payment-provider checkout/webhook certification | **NOT_COMPLETED** |
+| Matching production `BillingPlan` snapshots                | **NOT_COMPLETED** |
+| Legal seller identity, refund, tax, and dispute policy     | **NOT_COMPLETED** |
+| Deployment and live verification                           | **NOT_COMPLETED** |
 
-No secret, Provider credential, or production Price ID is recorded here.
+No secret, Provider credential, production Price ID, or customer information is recorded here.
 
-## Frozen package contract
+## Package contract
 
-`packages/config/plans.ts` is the single source for credits, concurrency, products, input size, and
-major-unit USD prices. Both pricing UIs and runtime authorization consume that contract.
+`packages/config/plans.ts` remains the source of truth for the plan allowances and prices. Credits
+are issued once per internal monthly billing period, expire at that period boundary, and do not roll
+over. An annual purchase still creates twelve monthly grant periods; neither checkout nor the browser
+grants the full annual allowance at once.
 
-| Plan    | Monthly credits | Concurrent edits | Products                       | Max input | Monthly price | Annual price |
-| ------- | --------------: | ---------------: | ------------------------------ | --------: | ------------: | -----------: |
-| Free    |              25 |                1 | Standard Edit                  |     10 MB |            $0 |           $0 |
-| Creator |           1,000 |                3 | Standard Edit and Quality Edit |     20 MB |           $19 |         $190 |
-| Studio  |           5,000 |               10 | Standard Edit and Quality Edit |     20 MB |           $79 |         $790 |
+| Plan    | Credits/month | Concurrent edits | Products                       | Max input | Monthly | Annual | Approximate monthly usage  |
+| ------- | ------------: | ---------------: | ------------------------------ | --------: | ------: | -----: | -------------------------- |
+| Free    |            25 |                1 | Standard Edit                  |     10 MB |      $0 |     $0 | 5 Standard                 |
+| Creator |           700 |                3 | Standard Edit and Quality Edit |     20 MB |     $19 |   $190 | 140 Standard or 17 Quality |
+| Studio  |         3,000 |               10 | Standard Edit and Quality Edit |     20 MB |     $79 |   $790 | 600 Standard or 75 Quality |
 
-Standard Edit currently quotes 4 credits and Quality Edit quotes 10 credits from the existing media
-catalog. Annual purchases grant the same monthly credits through twelve existing internal monthly
-periods; they do not grant the full annual amount from the browser or checkout-return page.
+Standard Edit costs 5 credits and Quality Edit costs 40 credits. The Quality-only Creator count
+leaves 20 credits; the table intentionally reports whole completed edits rather than a fractional
+claim. Mixed usage consumes the same shared monthly balance.
 
-All plans receive private assets and private edit sessions/history. Paid plans sell only their
-additional monthly credits, Quality access, concurrency, and input-size allowance. No plan promises
-priority queueing, unbounded history, bulk editing, an API, or use without metering and moderation.
+All plans continue to use private assets, owner-scoped access, metering, moderation, durable jobs,
+and the existing credit ledger. The browser submits only stable product keys. Provider identity,
+model ID, routing weights, credentials, raw payloads, and dollar costs remain server-only.
 
-## Full-use margin method
+## Current executable catalog and price guard
 
-The production decision must use measured all-in variable cost per successfully settled edit, not
-the PR 2 placeholder manifest or an unverified catalog estimate. For each route, measure at least:
+Only the following two routes remain in the executable image catalog. Both are still fail-closed
+behind `MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED`; public price research does not satisfy that
+production certification gate.
 
-- Provider charges, including failed/retried calls that remain billable;
-- output moderation and any input re-verification cost;
-- private object storage, transfer, and request cost attributable to the edit;
-- task/worker and other usage-priced infrastructure;
-- payment processing, refunds, disputes, taxes, and currency effects where applicable.
+| Product       | Server-only route                              | Public price observed        | Internal planning ceiling | Credits |
+| ------------- | ---------------------------------------------- | ---------------------------- | ------------------------: | ------: |
+| Standard Edit | `sourceful/riverflow-v2.5-fast` via OpenRouter | 1K $0.019; 2K $0.021         |           $0.023 per edit |       5 |
+| Quality Edit  | `sourceful/riverflow-v2.5-pro` via OpenRouter  | 1K $0.13; 2K $0.15; 4K $0.17 |           $0.180 per edit |      40 |
 
-Let `C_standard` and `C_quality` be those measured all-in costs, in one currency, and let `S` and `Q`
-be the counts of settled Standard and Quality edits. For monthly credit allowance `K`, calculate the
-worst permitted full-use mix:
+OpenRouter's public FAQ says the credit-purchase fee is 5.5% and the minimum fee is $0.80 per top-up.
+Operations must top up at least $14.55 for the percentage fee to dominate; the recommended minimum
+top-up is $20. Under that rule, `$0.021 * 1.055 = $0.022155` and
+`$0.17 * 1.055 = $0.17935`. The rounded $0.023/$0.180 values are catalog usage/quote ceilings, not
+unconditional all-cash cost caps. They exclude arbitrary allocation of the per-top-up minimum. Until
+real top-ups and settled-edit volumes are reconciled, minimum-fee allocation remains
+**NOT_COMPLETED**.
+
+The rejected alternatives and their compatibility findings are recorded in
+`image-edit-model-benchmark.md`. In particular, a low public generation price is not sufficient when
+the Provider endpoint cannot satisfy EzPic's private image-edit input/output contract.
+
+## Raphael public comparison
+
+Raphael's public pricing page was used as a product-pattern comparison, not as evidence of Raphael's
+internal cost or a target EzPic subsidy level.
+
+| Raphael plan | Public monthly price | Public credits | Public annual display |
+| ------------ | -------------------: | -------------: | --------------------- |
+| Pro          |                  $20 |          2,000 | 50% annual discount   |
+| Ultimate     |                  $40 |          5,000 | 50% annual discount   |
+| Max          |                  $80 |         10,000 | 50% annual discount   |
+
+Raphael communicates that credit consumption varies by model. Its public page did not establish a
+reliable subscription-credit rollover rule during this review, so rollover is **NOT_CONFIRMED**.
+EzPic therefore states its own no-rollover rule explicitly. EzPic also does not copy apparent
+zero-credit routes or cross-model subsidy assumptions: every executable EzPic job remains metered,
+and the 8:1 Quality-to-Standard credit ratio reflects the observed maximum Provider prices.
+
+## Conservative full-use economics
+
+These estimates deliberately use public list prices plus conservative assumptions, not a Provider
+invoice. The assumptions are:
+
+- payment processing: 4.5% of collected revenue plus $0.30 per charge;
+- refund/chargeback risk reserve: 1.5% of collected revenue;
+- Provider variation buffer: 15% on the public output price plus OpenRouter's 5.5% PAYG fee, assuming
+  each OpenRouter credit purchase is at least $20 so the $0.80 minimum fee does not raise the rate;
+- task/runtime allocation: $0.005 per Standard edit and $0.010 per Quality edit;
+- one payment charge per monthly purchase and one payment charge per annual purchase.
+
+This produces planning costs of approximately `$0.030479` per Standard edit and `$0.216253` per
+Quality edit:
 
 ```text
-full_use_variable_cost(K) = max(S * C_standard + Q * C_quality)
-subject to 4 * S + 10 * Q <= K, with S and Q non-negative integers
-
-For Free, the product entitlement adds Q = 0.
-
-allocated_monthly_revenue = monthly price, or annual price / 12
-gross_margin = (allocated_monthly_revenue - full_use_variable_cost - other monthly variable cost)
-               / allocated_monthly_revenue
+Standard = $0.021 * 1.055 * 1.15 + $0.005
+Quality  = $0.170 * 1.055 * 1.15 + $0.010
+top_up_fee(T) = max(0.055 * T, $0.80)
 ```
 
-At the frozen credits, the single-mode usage ceilings are:
+The `1.055` multiplier is valid only when top-up `T` is at least $14.55; the operating policy uses
+$20. If that policy is not followed or evidenced, the actual `top_up_fee(T)` must be allocated across
+the edits funded by the purchase and every margin must be recalculated before approval.
 
-| Plan    | Standard-only ceiling | Quality-only ceiling |
-| ------- | --------------------: | -------------------: |
-| Free    |               6 edits |         Not entitled |
-| Creator |             250 edits |            100 edits |
-| Studio  |           1,250 edits |            500 edits |
+Standard has the higher planning cost per credit, so an all-Standard month is the worst permitted
+full-use mix under these assumptions.
 
-Unused remainder credits are not a cost assumption. Mixed usage must be evaluated with the integer
-constraint above, and the higher measured cost-per-credit route determines the worst case. Creator
-annual revenue allocates to `$190 / 12` per internal month and Studio annual revenue to `$790 / 12`;
-these expressions are calculation inputs, not approved margin results.
+| Plan / cadence                     | Net monthly revenue after stated payment/refund assumptions | Worst full-use variable cost | Conservative full-use gross margin |
+| ---------------------------------- | ----------------------------------------------------------: | ---------------------------: | ---------------------------------: |
+| Creator monthly                    |                                                     $17.560 |                       $4.267 |                              75.7% |
+| Creator annual, monthly allocation |                                                     $14.858 |                       $4.267 |                              71.3% |
+| Studio monthly                     |                                                     $73.960 |                      $18.287 |                              75.3% |
+| Studio annual, monthly allocation  |                                                     $61.858 |                      $18.287 |                              70.4% |
 
-Because both measured route costs are `NOT_COMPLETED`, no numeric gross-margin percentage or safe
-production threshold is claimed. If real evidence requires a package adjustment, update the plan
-catalog, per-edit credits, pricing version, pricing copy, this record, and their tests together before
-enabling public sales.
+Annual net revenue is calculated after applying the percentage reserves and one $0.30 fee to the
+annual charge, then dividing by 12. Taxes, regional price differences, currency conversion, dispute
+fees, abnormal retry rates, storage/transfer outliers, and real success-rate effects are not measured
+here. The percentages are planning margins, not certified production margins.
 
-## Billing, credits, and configuration
+## Billing, credits, and synchronization gate
 
-Stripe Product/Price IDs come only from these server environment variables:
+Each enabled payment provider must resolve its own server-only product/price identifiers for the exact
+plan and cadence. Do not hard-code or expose them as `NEXT_PUBLIC_*`. Checkout must fail closed when
+an identifier is missing, malformed, belongs to the wrong environment, or disagrees with the active
+`BillingPlan` snapshot.
 
-- `PRICE_ID_CREATOR_MONTHLY`
-- `PRICE_ID_CREATOR_YEARLY`
-- `PRICE_ID_STUDIO_MONTHLY`
-- `PRICE_ID_STUDIO_YEARLY`
+Before enabling sales for pricing version `2026-09-05.1`, provision and verify a `BillingPlan` row for
+every offered plan/cadence/provider combination as required by the existing payment projection. Its
+plan identity, 700/3,000 monthly credit allowance, interval price, currency, and pricing version must
+match the application contract. Updating UI copy without synchronizing the application catalog,
+database snapshots, webhook projection, and tests is not an acceptable rollout.
 
-They must be genuine Stripe IDs for the target test or live account. Missing or malformed values fail
-closed before database or Stripe checkout work and show paid checkout as temporarily unavailable.
-Do not use a fabricated production ID and do not expose any of these values as `NEXT_PUBLIC_*`.
-Each ID also needs an active `BillingPlan` row whose plan identity, monthly credits,
-interval price, and currency exactly match `PLAN_ENTITLEMENTS`; checkout fails closed on any drift
-instead of mutating that historical snapshot.
-
-Checkout return polls the server-owned Webhook projection and grants no credits. Payment-event replay,
-monthly renewal, annual monthly grants, cancellation, partial/full refunds, refund Debt, and failed-job
-release continue through the existing Purchase, Subscription, Billing Period, Credit Lot, Reservation,
-Ledger, Outbox, and reconciliation paths.
-
-Free credits use the existing `createCreditGrant` command inside a serializable transaction. The
-stable UTC-month reference key is `free-plan:user:<userId>:<YYYY-MM>`, the lot expires at the next UTC
-month boundary, and ACTIVE or still-valid PAST_DUE paid subscriptions suppress the grant. The same
-reference and ledger uniqueness make concurrent requests and replay idempotent.
+Checkout return grants no credits. Payment events, monthly renewal, annual monthly grants,
+cancellation, partial/full refunds, debt, failed-job release, and replay remain in the existing
+Purchase, Subscription, Billing Period, Credit Lot, Reservation, Ledger, Outbox, and reconciliation
+paths. Free grants remain UTC-month scoped and idempotent and also expire at the next UTC month
+boundary.
 
 ## Production completion gate
 
-Before public paid checkout is enabled, record all of the following without copying secrets into the
-repository:
+Before public paid checkout and the OpenRouter routes are enabled, record all of the following without
+copying secrets into the repository:
 
-1. authorized PR 2 live benchmark evidence and final Standard/Quality route selection;
-2. billed all-in variable cost and the full-use calculation for monthly and annual Creator/Studio;
-3. an approved margin threshold and sign-off on the frozen package values;
-4. real Stripe test Product/Price IDs, matching `BillingPlan` snapshots, plus checkout,
-   renewal, annual monthly grant, cancellation, payment failure/recovery, replay, partial/full
-   refund, and Portal evidence;
-5. separately approved live Stripe IDs, legal seller identity, refund policy, and tax handling;
-6. real Provider, Trigger.dev, private cloud storage, production moderation, alerting, deployment, and
-   live verification evidence.
+1. real Standard and Quality runs through the existing private job/finalization path, with the exact
+   route tuple and pricing version;
+2. human image-edit scoring, success/failure/uncertain counts, latency, retries, and billed cost;
+3. evidence of OpenRouter credit purchases of at least $20, plus reconciliation of Provider billing,
+   actual top-up fees, minimum-fee allocation, and the non-Provider allocations against this
+   worksheet;
+4. test and live checkout/webhook lifecycle evidence for every enabled payment provider;
+5. synchronized production `BillingPlan` snapshots, legal seller/refund/tax decisions, alerting,
+   moderation, storage, deployment, and live verification.
 
-Until then, local PostgreSQL/MinIO, mock Provider/moderation, synthetic Stripe fixtures, and
-production-build Playwright remain local application evidence only.
+Until those items are complete, production Provider execution and the claimed live margin remain
+**NOT_COMPLETED**.
+
+## Sources
+
+Public pages accessed 2026-09-05:
+
+- OpenRouter Riverflow Fast: <https://openrouter.ai/sourceful/riverflow-v2.5-fast>
+- OpenRouter Riverflow Pro: <https://openrouter.ai/sourceful/riverflow-v2.5-pro>
+- OpenRouter FAQ / credit-purchase fee: <https://openrouter.ai/docs/faq>
+- Raphael pricing: <https://raphael.app/pricing>
 
 ## Rollback
 
-PR 6 adds no ledger table, billing-cycle table, or other database schema. Roll back the application
-commit and remove the four Price ID variables from the affected deployment. Disable paid checkout
-and new generation before application rollback if the deployment has processed real events; allow
-existing payment/outbox workers to drain under the operations runbook rather than deleting Purchase,
-Subscription, Billing Period, Lot, Ledger, Reservation, or Debt records. Existing subscriptions and
-immutable financial history remain authoritative and require the normal reconciliation/refund paths.
+The pricing change adds no new ledger or billing-cycle table. Disable new checkout and generation
+before rolling the application contract back if real events have been processed. Preserve immutable
+Purchase, Subscription, Billing Period, Lot, Ledger, Reservation, and Debt history and use the normal
+reconciliation/refund paths. A rollback must restore plan configuration, quote credits/cost ceilings,
+pricing version, localized copy, `BillingPlan` snapshots, and tests as one compatible set.
