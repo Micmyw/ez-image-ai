@@ -28,6 +28,7 @@ const draft = {
 			kind: "image-to-image" as const,
 			prompt: "Keep the subject and replace the background",
 			sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+			aspectRatio: "16:9" as const,
 		},
 	},
 	parentJobId: "job-parent-1",
@@ -74,6 +75,19 @@ describe("editor upgrade navigation", () => {
 		}
 	});
 
+	it("builds an Ultimate checkout return without exposing editor state", () => {
+		const checkoutReturnUrl = buildCheckoutReturnUrl({
+			origin: "https://app.example.com",
+			planId: "ultimate",
+			returnTo: "/create?upgrade=complete",
+		});
+
+		expect(checkoutReturnUrl).toBe(
+			"https://app.example.com/checkout-return?expectedPlanId=ultimate&returnTo=%2Fcreate%3Fupgrade%3Dcomplete",
+		);
+		expect(checkoutReturnUrl).not.toContain(draft.draft.input.prompt);
+	});
+
 	it.each(["ACTIVE", "PAST_DUE"])("returns to the editor after webhook status %s", (status) => {
 		expect(checkoutReturnDestination(status, "/create?upgrade=complete")).toBe(
 			"/create?upgrade=complete",
@@ -90,6 +104,7 @@ describe("editor upgrade navigation", () => {
 		expect(shouldRedirectFromChoosePlan(undefined)).toBe(false);
 		expect(shouldRedirectFromChoosePlan("free")).toBe(false);
 		expect(shouldRedirectFromChoosePlan("creator")).toBe(true);
+		expect(shouldRedirectFromChoosePlan("ultimate")).toBe(true);
 		expect(shouldRedirectFromChoosePlan("studio")).toBe(true);
 	});
 
@@ -97,6 +112,7 @@ describe("editor upgrade navigation", () => {
 		expect(activePlanChoosePlanDestination("creator", "/create?upgrade=complete")).toBe(
 			"/create?upgrade=complete",
 		);
+		expect(activePlanChoosePlanDestination("ultimate", "/history")).toBe("/history");
 		expect(activePlanChoosePlanDestination("studio", undefined)).toBe("/");
 		expect(activePlanChoosePlanDestination("free", "/create?upgrade=complete")).toBeNull();
 		expect(activePlanChoosePlanDestination("creator", "https://attacker.example/create")).toBe(

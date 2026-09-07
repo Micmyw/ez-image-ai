@@ -8,6 +8,7 @@ import {
 	PLAN_ENTITLEMENTS,
 } from "./index";
 import {
+	getStripeLegacyLifecycleStatus,
 	getConfigurationFingerprint,
 	maximumMediaStorageBytes,
 	validateServerEnvironment,
@@ -28,6 +29,10 @@ const productionBase = {
 	TRIGGER_SECRET_KEY: "tr_prod_secret",
 	STRIPE_SECRET_KEY: "sk_live_secret",
 	STRIPE_WEBHOOK_SECRET: "whsec_secret",
+	PAYPAL_ENVIRONMENT: "live",
+	PAYPAL_CLIENT_ID: "paypal-client",
+	PAYPAL_CLIENT_SECRET: "paypal-secret",
+	PAYPAL_WEBHOOK_ID: "WH-paypal-webhook",
 	SENTRY_DSN: "https://public@example.ingest.sentry.io/1",
 	SIGHTENGINE_API_USER: "api-user",
 	SIGHTENGINE_API_SECRET: "api-secret",
@@ -37,11 +42,76 @@ const productionBase = {
 } as const;
 
 describe("validateServerEnvironment", () => {
+	it("enables billing with complete PayPal checkout configuration and no Stripe secrets", () => {
+		const input: Record<string, string | undefined> = {
+			...productionBase,
+			PAYPAL_ENVIRONMENT: "live",
+			PAYPAL_CLIENT_ID: "paypal-client",
+			PAYPAL_CLIENT_SECRET: "paypal-secret",
+			PAYPAL_WEBHOOK_ID: "WH-paypal-webhook",
+		};
+		delete input.STRIPE_SECRET_KEY;
+		delete input.STRIPE_WEBHOOK_SECRET;
+
+		expect(validateServerEnvironment(input)).toMatchObject({
+			billingEnabled: true,
+			checkoutPaymentProviders: ["paypal"],
+			stripeLegacyLifecycleEnabled: false,
+		});
+	});
+
+	it("enables billing with complete Waffo checkout configuration and no Stripe secrets", () => {
+		const input: Record<string, string | undefined> = {
+			...productionBase,
+			WAFFO_ENVIRONMENT: "prod",
+			WAFFO_STORE_ID: "STO_0123456789AbCdEfGhIjKl",
+			WAFFO_MERCHANT_ID: "waffo-merchant",
+			WAFFO_PRIVATE_KEY: "waffo-private-key",
+			WAFFO_WEBHOOK_PUBLIC_KEY: "waffo-webhook-public-key",
+		};
+		delete input.STRIPE_SECRET_KEY;
+		delete input.STRIPE_WEBHOOK_SECRET;
+		delete input.PAYPAL_ENVIRONMENT;
+		delete input.PAYPAL_CLIENT_ID;
+		delete input.PAYPAL_CLIENT_SECRET;
+		delete input.PAYPAL_WEBHOOK_ID;
+
+		expect(validateServerEnvironment(input)).toMatchObject({
+			billingEnabled: true,
+			checkoutPaymentProviders: ["waffo"],
+			stripeLegacyLifecycleEnabled: false,
+		});
+	});
+
+	it("requires at least one complete PayPal or Waffo checkout configuration when billing is enabled", () => {
+		const input: Record<string, string | undefined> = { ...productionBase };
+		delete input.STRIPE_SECRET_KEY;
+		delete input.STRIPE_WEBHOOK_SECRET;
+		delete input.PAYPAL_ENVIRONMENT;
+		delete input.PAYPAL_CLIENT_ID;
+		delete input.PAYPAL_CLIENT_SECRET;
+		delete input.PAYPAL_WEBHOOK_ID;
+
+		expect(() => validateServerEnvironment(input)).toThrow(/PAYPAL_OR_WAFFO_PAYMENT_CONFIGURATION/);
+	});
+
+	it("enables legacy Stripe lifecycle only for a complete secret pair", () => {
+		expect(getStripeLegacyLifecycleStatus({})).toBe("DISABLED");
+		expect(getStripeLegacyLifecycleStatus({ STRIPE_SECRET_KEY: "stripe-secret" })).toBe(
+			"INCOMPLETE",
+		);
+		expect(
+			getStripeLegacyLifecycleStatus({
+				STRIPE_SECRET_KEY: "stripe-secret",
+				STRIPE_WEBHOOK_SECRET: "stripe-webhook-secret",
+			}),
+		).toBe("CONFIGURED");
+	});
+
 	it.each([
 		["DATABASE_URL", ["DATABASE_URL"]],
 		["S3/R2", ["S3_ENDPOINT"]],
 		["Trigger.dev", ["TRIGGER_SECRET_KEY"]],
-		["Stripe", ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]],
 		["Sentry", ["SENTRY_DSN"]],
 		["Sightengine", ["SIGHTENGINE_API_USER", "SIGHTENGINE_API_SECRET"]],
 	])("requires %s credentials for enabled production features", (label, keys) => {
@@ -52,6 +122,16 @@ describe("validateServerEnvironment", () => {
 
 		expect(() => validateServerEnvironment(input), label).toThrow(new RegExp(keys.join("|")));
 	});
+
+	it.each(["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"])(
+		"rejects incomplete legacy Stripe lifecycle configuration missing %s",
+		(key) => {
+			const input: Record<string, string | undefined> = { ...productionBase };
+			delete input[key];
+
+			expect(() => validateServerEnvironment(input)).toThrow(new RegExp(key));
+		},
+	);
 
 	it("allows explicit mock adapters in test mode", () => {
 		expect(
@@ -220,7 +300,12 @@ describe("validateServerEnvironment", () => {
 	it.each([
 		[
 			"PayPal",
-			{ PAYPAL_ENVIRONMENT: "live", PAYPAL_CLIENT_ID: "paypal-client" },
+			{
+				PAYPAL_ENVIRONMENT: "live",
+				PAYPAL_CLIENT_ID: "paypal-client",
+				PAYPAL_CLIENT_SECRET: undefined,
+				PAYPAL_WEBHOOK_ID: undefined,
+			},
 			/PAYPAL_CLIENT_SECRET|PAYPAL_WEBHOOK_ID/,
 		],
 		[
@@ -245,9 +330,23 @@ describe("validateServerEnvironment", () => {
 				WAFFO_MERCHANT_ID: "waffo-merchant",
 				WAFFO_PRIVATE_KEY: "waffo-private-key",
 				WAFFO_WEBHOOK_PUBLIC_KEY: "waffo-webhook-public-key",
+				WAFFO_STORE_ID: "STO_0123456789AbCdEfGhIjKl",
 				WAFFO_PRODUCT_ID_CREATOR_MONTHLY: "PROD_0123456789AbCdEfGhIjKl",
 			}),
 		).not.toThrow();
+	});
+
+	it("requires a server-owned store id whenever Waffo payments are configured", () => {
+		expect(() =>
+			validateServerEnvironment({
+				...productionBase,
+				WAFFO_ENVIRONMENT: "prod",
+				WAFFO_MERCHANT_ID: "waffo-merchant",
+				WAFFO_PRIVATE_KEY: "waffo-private-key",
+				WAFFO_WEBHOOK_PUBLIC_KEY: "waffo-webhook-public-key",
+				WAFFO_PRODUCT_ID_CREATOR_MONTHLY: "PROD_0123456789AbCdEfGhIjKl",
+			}),
+		).toThrow(/WAFFO_STORE_ID/);
 	});
 
 	it("rejects a Waffo product ID that fails the SDK Short ID contract", () => {
@@ -281,17 +380,14 @@ describe("product configuration", () => {
 		const publicConfig = getPublicConfig();
 
 		expect(DEFAULT_PRODUCT_CONFIG.productKeys).toEqual(["image-fast", "image-quality"]);
-		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-09-05.1");
+		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-09-05.2");
 		expect(DEFAULT_PRODUCT_CONFIG.pricingVersion).toBe("2026-09-05.1");
 		expect(publicConfig.brand).toMatchObject({
 			siteName: "EzPic",
 			siteDescription: expect.stringMatching(/image edit/i),
 			supportEmail: null,
 		});
-		expect(Object.values(publicConfig.publicUrls)).toEqual([
-			"https://marketing.placeholder.invalid",
-			"https://app.placeholder.invalid",
-		]);
+		expect(publicConfig).not.toHaveProperty("publicUrls");
 	});
 
 	it("publishes the complete EzPic plan contract from one server-owned catalog", () => {
@@ -334,6 +430,17 @@ describe("product configuration", () => {
 				],
 			},
 			{
+				id: "ultimate",
+				monthlyCredits: 1_800,
+				maximumConcurrentJobs: 6,
+				maximumInputBytes: 20 * 1024 * 1024,
+				allowedProducts: ["image-fast", "image-quality"],
+				prices: [
+					{ interval: "month", amount: 49, currency: "USD" },
+					{ interval: "year", amount: 490, currency: "USD" },
+				],
+			},
+			{
 				id: "studio",
 				monthlyCredits: 3_000,
 				maximumConcurrentJobs: 10,
@@ -353,13 +460,17 @@ describe("product configuration", () => {
 			standardEdits: 140,
 			qualityEdits: 17,
 		});
+		expect(getPlanUsageEstimate("ultimate")).toEqual({
+			standardEdits: 360,
+			qualityEdits: 45,
+		});
 		expect(getPlanUsageEstimate("studio")).toEqual({
 			standardEdits: 600,
 			qualityEdits: 75,
 		});
 	});
 
-	it("schema-validates identifiers, versions, flags, limits, and public URLs", () => {
+	it("schema-validates identifiers, versions, flags, and limits", () => {
 		expect(() =>
 			parseProductConfig({
 				planIds: ["Not A Slug"],
@@ -368,7 +479,6 @@ describe("product configuration", () => {
 				pricingVersion: "v1",
 				features: { mediaGeneration: "yes" },
 				uploadLimits: { imageBytes: -1, videoBytes: 0 },
-				publicUrls: { marketing: "javascript:alert(1)", saas: "not-a-url" },
 			}),
 		).toThrow();
 	});

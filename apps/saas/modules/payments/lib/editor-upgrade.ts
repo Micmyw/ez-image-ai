@@ -1,6 +1,8 @@
+import { IMAGE_ASPECT_RATIOS } from "@repo/config/client";
 import { z } from "zod";
 
 import type { EditorDraftInput } from "../../media/lib/editor-recovery";
+import type { PlanId } from "../types";
 
 export const EDITOR_UPGRADE_STORAGE_KEY = "ezpic.editor-upgrade.v1";
 
@@ -19,6 +21,7 @@ const storedEditorUpgradeDraftSchema = z
 						kind: z.literal("image-to-image"),
 						prompt: z.string().max(10_000),
 						sourceAssetId: z.string().max(128),
+						aspectRatio: z.enum(IMAGE_ASPECT_RATIOS).default("auto"),
 					})
 					.strict(),
 			})
@@ -73,7 +76,7 @@ export function checkoutReturnDestination(
 }
 
 export function shouldRedirectFromChoosePlan(activePlanId: string | undefined): boolean {
-	return activePlanId === "creator" || activePlanId === "studio";
+	return activePlanId === "creator" || activePlanId === "ultimate" || activePlanId === "studio";
 }
 
 export function activePlanChoosePlanDestination(
@@ -86,7 +89,7 @@ export function activePlanChoosePlanDestination(
 
 export function buildCheckoutReturnUrl(input: {
 	origin: string;
-	planId: "creator" | "studio";
+	planId: PlanId;
 	returnTo: string;
 	organizationId?: string;
 }): string {

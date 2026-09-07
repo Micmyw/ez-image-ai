@@ -45,12 +45,6 @@ export function resolveEzPicProductionLoadPlan(
 	input: Record<string, string | undefined>,
 ): EzPicProductionLoadPlan {
 	const saas = loadOrigin(required(input, "LOAD_BASE_URL"), "LOAD_BASE_URL");
-	const marketing = input.LOAD_MARKETING_BASE_URL
-		? loadOrigin(input.LOAD_MARKETING_BASE_URL, "LOAD_MARKETING_BASE_URL")
-		: saas;
-	if (marketing.origin !== saas.origin) {
-		throw new Error("Load origins must match; the landing page and SaaS share one origin");
-	}
 	const saasLoopback = LOOPBACK_HOSTS.has(saas.hostname);
 	const remote = !saasLoopback;
 	const maximumRequests = requiredPositiveInteger(input, "LOAD_MAX_REQUESTS", 1_000_000);

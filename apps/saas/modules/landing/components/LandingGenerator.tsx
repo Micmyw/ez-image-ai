@@ -1,5 +1,7 @@
 "use client";
 
+import { ImageOutputSettings } from "@media/components/ImageOutputSettings";
+import type { ImageAspectRatio } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
@@ -7,8 +9,10 @@ import { Turnstile } from "@repo/ui/components/turnstile";
 import { trackBrowserGrowthEvent } from "@repo/utils";
 import {
 	ArrowRightIcon,
+	ArrowUpIcon,
 	CheckIcon,
-	ImageIcon,
+	ChevronDownIcon,
+	ImagePlusIcon,
 	LockKeyholeIcon,
 	SparklesIcon,
 	UploadCloudIcon,
@@ -37,6 +41,7 @@ import {
 import {
 	landingDisabledReason,
 	type LandingGeneratorStage,
+	resolveLandingAspectRatioSelection,
 	resolveLandingProductSelection,
 } from "../lib/landing-generator-workflow";
 import {
@@ -46,23 +51,29 @@ import {
 
 const GUEST_TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY ?? null;
 const LOCAL_TURNSTILE_EVIDENCE = "local-guest-upload";
-const SUGGESTION_KEYS = ["background", "object", "color", "lighting"] as const;
 
 export function LandingGenerator() {
 	const t = useTranslations("home.generator");
+	const generatorRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const promptRef = useRef<HTMLTextAreaElement>(null);
+	const floatingPromptRef = useRef<HTMLTextAreaElement>(null);
+	const floatingExpandRef = useRef<HTMLButtonElement>(null);
+	const floatingDockRef = useRef<HTMLElement>(null);
 	const [capability, setCapability] = useState<GuestCapabilitySnapshot | null>(null);
-	const [capabilityFailed, setCapabilityFailed] = useState(false);
+	const [capabilityRequestKey, setCapabilityRequestKey] = useState(0);
 	const [selectedProductKey, setSelectedProductKey] = useState<GuestProductKey | null>(null);
 	const [file, setFile] = useState<File | null>(null);
 	const [fileError, setFileError] = useState<string>();
 	const [previewUrl, setPreviewUrl] = useState<string>();
 	const [prompt, setPrompt] = useState("");
+	const [aspectRatio, setAspectRatio] = useState<ImageAspectRatio>("auto");
 	const [submitError, setSubmitError] = useState<"turnstile" | "upload">();
 	const [uploadPercentage, setUploadPercentage] = useState<number>();
 	const [stage, setStage] = useState<LandingGeneratorStage>("checking");
 	const [isDragging, setIsDragging] = useState(false);
+	const [isDockVisible, setIsDockVisible] = useState(false);
+	const [isDockExpanded, setIsDockExpanded] = useState(false);
 	const [turnstileToken, setTurnstileToken] = useState(
 		GUEST_TURNSTILE_SITE_KEY ? "" : LOCAL_TURNSTILE_EVIDENCE,
 	);
@@ -71,6 +82,7 @@ export function LandingGenerator() {
 
 	useEffect(() => {
 		let active = true;
+		setStage("checking");
 		void trackBrowserGrowthEvent(
 			{ name: "landing_viewed", properties: { status: "viewed" } },
 			{ dedupeKey: "landing" },
@@ -86,13 +98,58 @@ export function LandingGenerator() {
 			})
 			.catch(() => {
 				if (!active) return;
-				setCapabilityFailed(true);
+				setCapability(null);
+				setSelectedProductKey(null);
 				setStage("failed");
 			});
 		return () => {
 			active = false;
 		};
+	}, [capabilityRequestKey]);
+
+	useEffect(() => {
+		const generator = generatorRef.current;
+		if (!generator) return;
+
+		const observer = new IntersectionObserver(
+			([entry]) => {
+				if (!entry) return;
+				const hasPassedEditor = !entry.isIntersecting && entry.boundingClientRect.bottom <= 72;
+				const dockContainsFocus =
+					floatingDockRef.current?.contains(document.activeElement) ?? false;
+				setIsDockVisible(hasPassedEditor);
+				if (!hasPassedEditor) {
+					setIsDockExpanded(false);
+					if (dockContainsFocus) {
+						requestAnimationFrame(() => promptRef.current?.focus({ preventScroll: true }));
+					}
+				}
+			},
+			{ rootMargin: "-72px 0px 0px", threshold: 0 },
+		);
+		observer.observe(generator);
+
+		return () => observer.disconnect();
 	}, []);
+
+	useEffect(() => {
+		if (!isDockExpanded) return;
+
+		const frame = requestAnimationFrame(() => {
+			floatingPromptRef.current?.focus({ preventScroll: true });
+		});
+		function collapseOnEscape(event: KeyboardEvent) {
+			if (event.key !== "Escape") return;
+			setIsDockExpanded(false);
+			requestAnimationFrame(() => floatingExpandRef.current?.focus());
+		}
+		document.addEventListener("keydown", collapseOnEscape);
+
+		return () => {
+			cancelAnimationFrame(frame);
+			document.removeEventListener("keydown", collapseOnEscape);
+		};
+	}, [isDockExpanded]);
 
 	useEffect(() => {
 		function selectExamplePrompt(event: Event) {
@@ -131,9 +188,15 @@ export function LandingGenerator() {
 	const supportedMimeTypes = capability?.upload.mimeTypes ?? LANDING_IMAGE_CONTENT_TYPES;
 	const selectedProduct =
 		capability?.products.find((product) => product.key === selectedProductKey) ?? null;
+	const capabilityUsable = Boolean(capability?.enabled && capability.products.length > 0);
+	useEffect(() => {
+		setAspectRatio(
+			(current) => resolveLandingAspectRatioSelection(selectedProduct, current) ?? "auto",
+		);
+	}, [selectedProduct]);
 	const disabledReason = landingDisabledReason({
 		stage,
-		capabilityEnabled: Boolean(capability?.enabled),
+		capabilityEnabled: capabilityUsable,
 		productSelected: Boolean(selectedProduct),
 		hasSource: Boolean(file),
 		prompt,
@@ -141,6 +204,13 @@ export function LandingGenerator() {
 	});
 	const isBusy = disabledReason === "busy";
 	const canSubmit = disabledReason === null;
+	const canRetryCapability = stage === "failed" && capability === null;
+
+	function retryCapability() {
+		setSubmitError(undefined);
+		setStage("checking");
+		setCapabilityRequestKey((current) => current + 1);
+	}
 
 	function beginUpload() {
 		const attemptKey = createAttemptKey();
@@ -247,6 +317,7 @@ export function LandingGenerator() {
 				productKey: selectedProduct.key,
 				file,
 				prompt,
+				aspectRatio,
 				turnstileToken: consumedTurnstileToken,
 				onStage: (nextStage) => {
 					setStage(nextStage);
@@ -287,11 +358,11 @@ export function LandingGenerator() {
 		setTurnstileResetKey((value) => value + 1);
 	}
 
-	const suggestions = SUGGESTION_KEYS.map((key) => t(`suggestions.${key}`));
 	const selectedModeKey = selectedProductKey === "image-quality" ? "quality" : "standard";
 	const selectedProductLabel = selectedProduct ? t(`modes.${selectedModeKey}.label`) : "";
-	const actionLabel =
-		stage === "failed" && selectedProduct
+	const actionLabel = canRetryCapability
+		? t("actions.retryAvailability")
+		: stage === "failed" && selectedProduct
 			? t("actions.retry", { product: selectedProductLabel })
 			: selectedProduct?.accessHint === "paid-account"
 				? t("actions.quality")
@@ -300,153 +371,156 @@ export function LandingGenerator() {
 		stage === "uploading"
 			? t("states.uploading", { percentage: uploadPercentage ?? 0 })
 			: t(`states.${stage}`);
+	const statusLabel =
+		disabledReason && disabledReason !== "busy" ? t(`guidance.${disabledReason}`) : stageLabel;
+	const showCharacterCount = prompt.length >= 9_000;
 
 	return (
-		<div className="mt-8 border-white/10 p-3 backdrop-blur-xl sm:p-5 overflow-hidden rounded-[1.75rem] border bg-[#171321]/88 shadow-[0_40px_110px_-48px_rgba(0,0,0,0.95),0_24px_70px_-48px_rgba(108,77,255,0.9),inset_0_1px_0_rgba(255,255,255,0.08)]">
-			<form onSubmit={(event) => void submit(event)}>
-				<div className="gap-4 lg:grid-cols-[minmax(16rem,0.8fr)_minmax(22rem,1.25fr)_minmax(15rem,0.7fr)] grid">
-					<section className="border-white/10 bg-white/[0.045] p-4 rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-						<div className="mb-2 gap-3 flex items-center justify-between">
-							<label htmlFor="landing-source-image" className="text-sm font-semibold text-white">
+		<>
+			<div
+				ref={generatorRef}
+				data-test="landing-generator"
+				className="mt-6 p-3 sm:p-4 relative isolate mx-auto max-w-[76rem] overflow-hidden rounded-[1.75rem] border border-[#b79cff]/20 bg-[#2b2137] shadow-[0_34px_100px_-48px_rgba(0,0,0,0.95),0_28px_70px_-50px_rgba(169,139,255,0.72),inset_0_1px_0_rgba(255,255,255,0.07)]"
+			>
+				<div
+					className="inset-0 pointer-events-none absolute bg-[radial-gradient(circle_at_88%_-40%,rgba(183,156,255,0.18),transparent_24rem)]"
+					aria-hidden="true"
+				/>
+				<div
+					className="top-0 right-16 left-16 pointer-events-none absolute h-px bg-gradient-to-r from-transparent via-[#c9b9ff]/55 to-transparent"
+					aria-hidden="true"
+				/>
+				<form className="relative" onSubmit={(event) => void submit(event)}>
+					<div className="gap-1.5 sm:gap-2 sm:grid-cols-[7.5rem_minmax(0,1fr)] md:grid-cols-[8.5rem_minmax(0,1fr)] bg-black/10 p-1.5 grid grid-cols-[4.75rem_minmax(0,1fr)] rounded-[1.3rem]">
+						<section data-test="landing-source-panel" className="min-w-0 relative">
+							<label htmlFor="landing-source-image" className="sr-only">
 								{t("reference")}
 							</label>
 							{file && (
 								<button
 									type="button"
-									className="min-h-11 gap-1 text-xs font-semibold text-slate-400 hover:text-white focus-visible:outline-violet-300 inline-flex items-center rounded-lg transition focus-visible:outline-2 focus-visible:outline-offset-2"
+									className="top-2 right-2 size-11 bg-black/65 text-white backdrop-blur hover:bg-black/85 absolute z-20 grid place-items-center rounded-full transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b79cff]"
 									onClick={clearFile}
 									disabled={isBusy}
+									aria-label={t("removeImage")}
 								>
-									<XIcon className="size-3.5" aria-hidden="true" />
-									{t("removeImage")}
+									<XIcon className="size-4" aria-hidden="true" />
 								</button>
 							)}
-						</div>
-						<button
-							type="button"
-							className={`group min-h-48 bg-black/20 p-4 focus-visible:outline-violet-300 relative flex w-full items-center justify-center overflow-hidden rounded-xl border border-dashed text-center transition focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-wait ${
-								isDragging
-									? "border-violet-200 bg-violet-400/15"
-									: "border-violet-300/35 hover:border-violet-300/65 hover:bg-violet-400/[0.08]"
-							}`}
-							aria-label={file ? t("replaceImage") : t("uploadLabel")}
-							disabled={isBusy}
-							onClick={() => {
-								beginUpload();
-								inputRef.current?.click();
-							}}
-							onDragEnter={(event) => {
-								event.preventDefault();
-								if (!isBusy) setIsDragging(true);
-							}}
-							onDragOver={handleDragOver}
-							onDragLeave={() => setIsDragging(false)}
-							onDrop={handleDrop}
-						>
-							{previewUrl ? (
-								<>
-									<Image
-										src={previewUrl}
-										alt={t("previewAlt", { fileName: file?.name ?? "" })}
-										fill
-										unoptimized
-										className="object-cover"
-									/>
-									<span className="inset-x-3 bottom-3 min-h-11 bg-slate-950/80 px-3 py-2 text-xs font-semibold text-white backdrop-blur-sm absolute flex items-center justify-center rounded-lg">
-										{t("replaceImage")}
+							<button
+								type="button"
+								className={`group min-h-36 p-3 md:min-h-[9.5rem] bg-white/[0.025] relative flex w-full items-center justify-center overflow-hidden rounded-[1rem] border border-dashed text-center transition duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b79cff] disabled:cursor-wait motion-reduce:transition-none ${
+									isDragging
+										? "border-violet-200 bg-violet-400/12"
+										: "border-white/20 hover:bg-white/[0.035] hover:border-[#c9b9ff]/70"
+								}`}
+								aria-label={file ? t("replaceImage") : t("uploadLabel")}
+								disabled={isBusy}
+								onClick={() => {
+									beginUpload();
+									inputRef.current?.click();
+								}}
+								onDragEnter={(event) => {
+									event.preventDefault();
+									if (!isBusy) setIsDragging(true);
+								}}
+								onDragOver={handleDragOver}
+								onDragLeave={() => setIsDragging(false)}
+								onDrop={handleDrop}
+							>
+								{previewUrl ? (
+									<>
+										<Image
+											src={previewUrl}
+											alt={t("previewAlt", { fileName: file?.name ?? "" })}
+											fill
+											unoptimized
+											className="object-cover transition duration-500 group-hover:scale-105 motion-reduce:transition-none"
+										/>
+										<span className="inset-x-2 bottom-2 bg-black/65 px-3 py-2 text-xs font-semibold text-white backdrop-blur absolute rounded-lg">
+											{t("replaceImage")}
+										</span>
+									</>
+								) : (
+									<span className="gap-2.5 flex flex-col items-center">
+										<span className="size-11 group-hover:-translate-y-1 grid place-items-center rounded-xl bg-[#a98bff]/12 text-[#c9b9ff] ring-1 ring-[#a98bff]/25 transition motion-reduce:transform-none">
+											<UploadCloudIcon className="size-5" aria-hidden="true" />
+										</span>
+										<span className="max-w-24 text-sm font-semibold leading-5 text-white">
+											{t("reference")}
+										</span>
+										<span className="max-w-36 leading-4 md:block hidden text-[0.68rem] text-[#94889f]">
+											{t("fileHint", { megabytes: maximumMegabytes })}
+										</span>
 									</span>
-								</>
-							) : (
-								<span className="gap-2 flex flex-col items-center">
-									<span className="size-12 bg-violet-300/10 text-violet-200 ring-violet-300/20 group-hover:-translate-y-0.5 group-hover:bg-violet-300/15 grid place-items-center rounded-2xl ring-1 transition motion-reduce:transform-none">
-										<UploadCloudIcon className="size-5" aria-hidden="true" />
-									</span>
-									<span className="text-sm font-semibold text-white">{t("uploadLabel")}</span>
-									<span className="text-xs text-slate-400">
-										{t("fileHint", { megabytes: maximumMegabytes })}
-									</span>
-								</span>
+								)}
+							</button>
+							<input
+								ref={inputRef}
+								id="landing-source-image"
+								type="file"
+								accept={supportedMimeTypes.join(",")}
+								aria-label={t("reference")}
+								aria-invalid={Boolean(fileError)}
+								disabled={isBusy}
+								className="sr-only"
+								onChange={handleFileChange}
+							/>
+							{fileError && (
+								<p className="mt-2 text-sm text-red-300" role="alert">
+									{fileError}
+								</p>
 							)}
-						</button>
-						<input
-							ref={inputRef}
-							id="landing-source-image"
-							type="file"
-							accept={supportedMimeTypes.join(",")}
-							aria-label={t("reference")}
-							aria-invalid={Boolean(fileError)}
-							disabled={isBusy}
-							className="sr-only"
-							onChange={handleFileChange}
-						/>
-						{fileError && (
-							<p className="mt-2 text-sm text-red-300" role="alert">
-								{fileError}
-							</p>
-						)}
-					</section>
+						</section>
 
-					<section className="border-white/10 bg-white/[0.045] p-4 rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]">
-						<div className="mb-2 gap-3 flex items-end justify-between">
-							<label htmlFor="landing-edit-prompt" className="text-sm font-semibold text-white">
+						<section
+							data-test="landing-prompt-panel"
+							className="min-w-0 focus-within:bg-white/[0.025] relative overflow-hidden rounded-[1rem] transition-colors focus-within:ring-1 focus-within:ring-[#b79cff]/30 focus-within:ring-inset motion-reduce:transition-none"
+						>
+							<label htmlFor="landing-edit-prompt" className="sr-only">
 								{t("prompt")}
 							</label>
-							<span className="text-xs text-slate-400 tabular-nums">
-								{t("characterCount", { count: prompt.length, maximum: 10_000 })}
-							</span>
-						</div>
-						<Textarea
-							ref={promptRef}
-							id="landing-edit-prompt"
-							rows={7}
-							required
-							maxLength={10_000}
-							value={prompt}
-							disabled={isBusy}
-							placeholder={t("placeholder")}
-							className="min-h-48 border-white/10 bg-black/20 text-white placeholder:text-slate-500 focus-visible:border-violet-400 focus-visible:ring-violet-400 resize-y"
-							onChange={(event) => setPrompt(event.target.value)}
-						/>
-						<div className="mt-3">
-							<p className="mb-2 text-xs font-semibold text-slate-400 tracking-[0.12em] uppercase">
-								{t("suggestionsLabel")}
-							</p>
-							<div className="gap-2 flex flex-wrap">
-								{suggestions.map((suggestion) => (
-									<button
-										key={suggestion}
-										type="button"
-										disabled={isBusy}
-										className="min-h-11 border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-slate-300 hover:border-violet-300/40 hover:bg-violet-300/10 hover:text-white focus-visible:outline-violet-300 rounded-full border text-left transition focus-visible:outline-2 focus-visible:outline-offset-2"
-										onClick={() => {
-											setPrompt(suggestion);
-											void trackBrowserGrowthEvent(
-												{ name: "example_prompt_selected", properties: { status: "selected" } },
-												{ dedupeKey: "example-prompt" },
-											);
-										}}
-									>
-										{suggestion}
-									</button>
-								))}
-							</div>
-						</div>
-					</section>
+							<Textarea
+								ref={promptRef}
+								id="landing-edit-prompt"
+								rows={4}
+								required
+								maxLength={10_000}
+								value={prompt}
+								disabled={isBusy}
+								placeholder={t("placeholder")}
+								className="min-h-36 p-4 pb-9 sm:p-5 sm:pb-9 md:min-h-[9.5rem] text-base leading-7 resize-none border-0 bg-transparent text-[#f6f2fb] shadow-none placeholder:text-[#a99db2] focus-visible:ring-0"
+								onChange={(event) => setPrompt(event.target.value)}
+							/>
+							{showCharacterCount ? (
+								<span className="right-4 bottom-3 absolute text-[0.68rem] text-[#8f8399] tabular-nums">
+									{t("characterCount", { count: prompt.length, maximum: 10_000 })}
+								</span>
+							) : null}
+						</section>
+					</div>
 
-					<aside className="border-violet-300/20 p-4 min-w-0 flex flex-col rounded-2xl border bg-[#211831]/80 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
-						<fieldset disabled={isBusy}>
-							<legend className="text-sm font-semibold text-white">{t("modes.legend")}</legend>
-							<div className="mt-2 gap-2 sm:grid-cols-2 lg:grid-cols-1 grid">
+					<div
+						data-test="landing-controls-panel"
+						className="mt-2 gap-2 px-1 flex flex-wrap items-center"
+					>
+						<fieldset
+							data-test="landing-tier-panel"
+							disabled={isBusy}
+							className={capability?.products.length ? "min-w-0" : "hidden"}
+						>
+							<legend className="sr-only">{t("modes.legend")}</legend>
+							<div className="gap-1 bg-black/15 p-1 flex flex-wrap rounded-xl">
 								{capability?.products.map((product) => {
 									const modeKey = product.key === "image-quality" ? "quality" : "standard";
 									const selected = product.key === selectedProductKey;
 									return (
 										<label
 											key={product.key}
-											className={`min-w-0 p-3 pl-9 focus-within:ring-violet-200 relative cursor-pointer rounded-xl border transition focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-offset-[#211831] focus-within:outline-none ${
+											className={`min-h-10 gap-2 px-3 text-xs font-semibold relative flex cursor-pointer items-center rounded-lg transition focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#b79cff] ${
 												selected
-													? "border-violet-300 bg-violet-400/15"
-													: "border-white/10 bg-black/20 hover:border-violet-300/45"
+													? "text-white shadow-sm bg-[#4b3a70]"
+													: "hover:bg-white/[0.055] hover:text-white text-[#b7acbf]"
 											}`}
 										>
 											<input
@@ -454,144 +528,379 @@ export function LandingGenerator() {
 												name="landing-product"
 												value={product.key}
 												checked={selected}
-												className="left-3 top-3.5 size-4 accent-violet-500 absolute z-10"
+												className="inset-0 absolute z-10 h-full w-full cursor-pointer opacity-0"
 												onChange={() => {
 													setSelectedProductKey(product.key);
 													setSubmitError(undefined);
 												}}
 											/>
-											<span className="gap-2 min-w-0 flex items-start justify-between">
-												<span className="text-sm font-bold text-white">
-													{t(`modes.${modeKey}.label`)}
-												</span>
-												<span className="font-semibold text-violet-100 bg-violet-300/10 px-2 py-1 shrink-0 rounded-full text-[0.68rem]">
-													{t(`modes.${modeKey}.badge`)}
-												</span>
-											</span>
-											<span className="mt-1 text-xs leading-5 text-slate-300 block">
-												{t(`modes.${modeKey}.description`)}
-											</span>
-											<span className="mt-2 gap-2 text-slate-400 flex items-center justify-between text-[0.7rem]">
-												<span>{t(`modes.${modeKey}.access`)}</span>
-												<span className="font-semibold text-slate-200 shrink-0">
-													{t("modes.credits", { credits: Number(product.credits) })}
-												</span>
+											{selected && <CheckIcon className="size-3.5" aria-hidden="true" />}
+											<span>{t(`modes.${modeKey}.label`)}</span>
+											<span className="text-[0.64rem] opacity-70">
+												{t("modes.credits", { credits: Number(product.credits) })}
 											</span>
 										</label>
 									);
 								})}
 							</div>
 						</fieldset>
-						<div className="min-h-11 gap-3 border-white/10 bg-black/20 px-3 py-2 flex items-center justify-between rounded-xl border">
-							<span className="gap-2 text-sm font-bold text-white flex items-center">
-								<span className="size-6 text-white grid place-items-center rounded-lg bg-[#6c4dff]">
-									<CheckIcon className="size-3.5" aria-hidden="true" />
-								</span>
-								{selectedProductLabel || t("modes.selectionPending")}
-							</span>
-							<span className="text-xs font-semibold text-violet-200">{t("oneOutput")}</span>
-						</div>
-						<div className="mt-4 space-y-2 text-xs leading-5 text-slate-300">
-							<p className="gap-2 flex items-start">
-								<SparklesIcon
-									className="mt-0.5 size-3.5 text-violet-300 shrink-0"
-									aria-hidden="true"
-								/>
-								{selectedProduct?.accessHint === "paid-account"
-									? t("qualityAccess")
-									: t("freeQueue")}
-							</p>
-							<p className="gap-2 flex items-start">
-								<LockKeyholeIcon
-									className="mt-0.5 size-3.5 text-emerald-300 shrink-0"
-									aria-hidden="true"
-								/>
-								{t("temporaryResult")}
-							</p>
-						</div>
-						{GUEST_TURNSTILE_SITE_KEY && (
-							<Turnstile
-								siteKey={GUEST_TURNSTILE_SITE_KEY}
-								action="guest_upload"
-								ariaLabel={t("states.challenge")}
-								className="mt-4"
-								resetKey={turnstileResetKey}
-								onToken={(token) => {
+
+						<div className="sm:w-[17.5rem] w-full">
+							<ImageOutputSettings
+								idPrefix="landing"
+								aspectRatios={selectedProduct?.aspectRatios ?? []}
+								value={aspectRatio}
+								onChange={(nextAspectRatio) => {
+									setAspectRatio(nextAspectRatio);
 									setSubmitError(undefined);
-									setTurnstileToken(token);
 								}}
-								onError={() => {
-									setSubmitError("turnstile");
-									resetChallenge();
+								modeLabel={selectedProductLabel || t("modes.selectionPending")}
+								disabled={isBusy}
+								tone="dark"
+								labels={{
+									title: t("settings.title"),
+									trigger: t("settings.trigger"),
+									aspectRatio: t("settings.aspectRatio"),
+									automatic: t("settings.automatic"),
+									outputNumber: t("settings.outputNumber"),
+									oneOutput: t("settings.oneOutput"),
+									resolution: t("settings.resolution"),
+									quality: t("settings.quality"),
+									modeControlsQuality: t("settings.modeControlsQuality"),
 								}}
-								onExpire={resetChallenge}
 							/>
-						)}
+						</div>
+
 						<Button
-							type="submit"
+							type={canRetryCapability ? "button" : "submit"}
 							variant="primary"
 							size="lg"
-							className="mt-5 min-h-12 text-white focus-visible:outline-violet-200 lg:mt-auto w-full bg-[#6c4dff] shadow-[0_14px_34px_-16px_rgba(108,77,255,0.95)] hover:bg-[#7d63ff]"
-							disabled={!canSubmit}
+							className="min-h-11 px-5 text-white focus-visible:outline-violet-200 sm:ml-auto sm:w-auto w-full bg-[#6c4dff] shadow-[0_14px_34px_-16px_rgba(108,77,255,0.9)] hover:bg-[#7d63ff]"
+							disabled={canRetryCapability ? false : !canSubmit}
 							loading={isBusy}
-							aria-describedby="landing-action-guidance landing-stage-status"
+							aria-describedby="landing-stage-status"
+							onClick={canRetryCapability ? retryCapability : undefined}
 						>
 							{actionLabel}
 							<ArrowRightIcon className="ml-1 size-4" aria-hidden="true" />
 						</Button>
-						<p className="mt-2 gap-2 text-xs font-medium text-slate-300 flex items-center justify-center text-center">
-							<ImageIcon className="size-3.5 text-emerald-300" aria-hidden="true" />
-							{selectedProduct?.accessHint === "paid-account" ? t("paidSignIn") : t("noSignUp")}
-						</p>
-					</aside>
-				</div>
+					</div>
 
-				<output
-					id="landing-stage-status"
-					data-test="landing-stage"
-					data-stage={stage}
-					className="mt-3 text-sm font-medium text-slate-200 block"
-					aria-live="polite"
-				>
-					{stageLabel}
-				</output>
-				{stage === "uploading" && typeof uploadPercentage === "number" && (
-					<div className="mt-2">
-						<div className="mt-2 h-1.5 bg-white/10 overflow-hidden rounded-full" aria-hidden="true">
+					<div className="mt-2 gap-x-5 gap-y-1 px-1 sm:flex-row sm:items-center text-xs leading-5 flex flex-col text-[#b2a7bc]">
+						<output
+							id="landing-stage-status"
+							data-test="landing-stage"
+							data-stage={stage}
+							className={canSubmit ? "sr-only" : "font-semibold text-[#ddd4e4]"}
+							aria-live="polite"
+						>
+							{statusLabel}
+						</output>
+						{selectedProduct && capabilityUsable && (
+							<span className="gap-1.5 inline-flex items-center">
+								<SparklesIcon className="size-3.5 text-[#b79cff]" aria-hidden="true" />
+								{selectedProduct.accessHint === "paid-account"
+									? t("qualityAccess")
+									: t("freeQueue")}
+							</span>
+						)}
+						<span className="gap-1.5 sm:ml-auto inline-flex items-center">
+							<LockKeyholeIcon className="size-3.5 text-emerald-300" aria-hidden="true" />
+							{t("temporaryResult")}
+						</span>
+					</div>
+
+					{stage === "uploading" && typeof uploadPercentage === "number" && (
+						<div className="mt-3 h-1.5 bg-white/10 overflow-hidden rounded-full" aria-hidden="true">
 							<div
 								className="bg-violet-400 h-full rounded-full transition-[width] motion-reduce:transition-none"
 								style={{ width: `${uploadPercentage}%` }}
 							/>
 						</div>
-					</div>
-				)}
-				{disabledReason && disabledReason !== "busy" && (
-					<p id="landing-action-guidance" className="mt-2 text-sm text-amber-200">
-						{t(`guidance.${disabledReason}`)}
-					</p>
-				)}
+					)}
+					{GUEST_TURNSTILE_SITE_KEY && !isDockVisible && (
+						<Turnstile
+							siteKey={GUEST_TURNSTILE_SITE_KEY}
+							action="guest_upload"
+							ariaLabel={t("states.challenge")}
+							className="mt-3"
+							resetKey={turnstileResetKey}
+							onToken={(token) => {
+								setSubmitError(undefined);
+								setTurnstileToken(token);
+							}}
+							onError={() => {
+								setSubmitError("turnstile");
+								resetChallenge();
+							}}
+							onExpire={resetChallenge}
+						/>
+					)}
+					{submitError && (
+						<Alert
+							className="mt-2 px-1 py-1 text-red-200 border-0 bg-transparent"
+							variant="error"
+							role="alert"
+						>
+							<AlertDescription>{t(`errors.${submitError}`)}</AlertDescription>
+						</Alert>
+					)}
+				</form>
+			</div>
 
-				{(capabilityFailed || (capability && !capability.enabled)) && (
-					<Alert className="mt-3 border-white/10 bg-white/[0.05] text-slate-200" aria-live="polite">
-						<AlertDescription>{t("states.unavailable")}</AlertDescription>
-					</Alert>
-				)}
-				{!capability && !capabilityFailed && (
-					<output className="mt-3 text-sm text-slate-300 block">
-						{t("states.loadingCapability")}
-					</output>
-				)}
-				{submitError && (
-					<Alert
-						className="mt-3 border-red-400/25 bg-red-950/60 text-red-200"
-						variant="error"
-						role="alert"
+			{isDockVisible && (
+				<aside
+					ref={floatingDockRef}
+					data-test="floating-editor-dock"
+					aria-label={t("floating.label")}
+					className="right-2 left-2 sm:right-4 sm:left-4 animate-in fade-in slide-in-from-bottom-4 pointer-events-none fixed z-[70] duration-300 motion-reduce:animate-none"
+					style={{ bottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+				>
+					<div
+						className={`backdrop-blur-2xl pointer-events-auto mx-auto overflow-hidden rounded-[1.45rem] border border-[#b79cff]/30 bg-[#2b2137]/96 shadow-[0_28px_90px_-28px_rgba(0,0,0,0.95),0_18px_54px_-28px_rgba(169,139,255,0.9)] transition-[max-width] duration-300 motion-reduce:transition-none ${isDockExpanded ? "max-w-[60rem]" : "max-w-[52rem]"}`}
 					>
-						<AlertDescription>{t(`errors.${submitError}`)}</AlertDescription>
-					</Alert>
-				)}
-			</form>
-		</div>
+						{isDockExpanded ? (
+							<form
+								id="floating-editor-panel"
+								data-test="floating-editor-expanded"
+								aria-label={t("floating.label")}
+								className="p-3 sm:p-4 max-h-[calc(100dvh-1rem)] overflow-y-auto overscroll-contain"
+								onSubmit={(event) => void submit(event)}
+							>
+								<div className="mb-3 flex items-center justify-between">
+									<p className="text-sm font-semibold text-white">{t("floating.label")}</p>
+									<button
+										type="button"
+										className="size-11 hover:bg-white/[0.06] hover:text-white grid place-items-center rounded-full text-[#b7acbf] transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b79cff]"
+										onClick={() => {
+											setIsDockExpanded(false);
+											requestAnimationFrame(() => floatingExpandRef.current?.focus());
+										}}
+										aria-label={t("floating.collapse")}
+									>
+										<ChevronDownIcon className="size-5" aria-hidden="true" />
+									</button>
+								</div>
+
+								<div className="gap-3 sm:grid-cols-[8rem_minmax(0,1fr)] grid grid-cols-[4.75rem_minmax(0,1fr)]">
+									<button
+										type="button"
+										className="group min-h-28 sm:min-h-32 border-white/20 bg-black/10 hover:bg-white/[0.035] relative flex items-center justify-center overflow-hidden rounded-xl border border-dashed text-center transition hover:border-[#c9b9ff]/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b79cff] motion-reduce:transition-none"
+										onClick={() => {
+											beginUpload();
+											inputRef.current?.click();
+										}}
+										onDragEnter={(event) => {
+											event.preventDefault();
+											if (!isBusy) setIsDragging(true);
+										}}
+										onDragOver={handleDragOver}
+										onDragLeave={() => setIsDragging(false)}
+										onDrop={handleDrop}
+										disabled={isBusy}
+										aria-label={file ? t("replaceImage") : t("floating.upload")}
+									>
+										{previewUrl ? (
+											<Image
+												src={previewUrl}
+												alt={t("previewAlt", { fileName: file?.name ?? "" })}
+												fill
+												unoptimized
+												className="object-cover"
+											/>
+										) : (
+											<span className="gap-2 text-xs font-semibold flex flex-col items-center text-[#c9b9ff]">
+												<ImagePlusIcon className="size-5" aria-hidden="true" />
+												{t("floating.upload")}
+											</span>
+										)}
+									</button>
+
+									<div className="min-w-0 relative overflow-hidden rounded-xl focus-within:ring-1 focus-within:ring-[#b79cff]/30 focus-within:ring-inset">
+										<label htmlFor="floating-edit-prompt" className="sr-only">
+											{t("prompt")}
+										</label>
+										<Textarea
+											ref={floatingPromptRef}
+											id="floating-edit-prompt"
+											rows={4}
+											required
+											maxLength={10_000}
+											value={prompt}
+											disabled={isBusy}
+											placeholder={t("placeholder")}
+											className="min-h-28 p-4 sm:min-h-32 text-base leading-6 text-white resize-none border-0 bg-transparent shadow-none placeholder:text-[#a99db2] focus-visible:ring-0"
+											onChange={(event) => setPrompt(event.target.value)}
+										/>
+									</div>
+								</div>
+
+								<div className="mt-2 gap-2 flex flex-wrap items-center">
+									<fieldset
+										disabled={isBusy}
+										className={capability?.products.length ? undefined : "hidden"}
+									>
+										<legend className="sr-only">{t("modes.legend")}</legend>
+										<div className="gap-1 p-1 bg-black/15 flex rounded-xl">
+											{capability?.products.map((product) => {
+												const modeKey = product.key === "image-quality" ? "quality" : "standard";
+												const selected = product.key === selectedProductKey;
+												return (
+													<label
+														key={product.key}
+														className={`min-h-10 px-3 text-xs font-semibold relative flex cursor-pointer items-center rounded-lg transition focus-within:outline-2 focus-within:outline-[#b79cff] ${
+															selected
+																? "text-white bg-[#4b3a70]"
+																: "hover:text-white text-[#b7acbf]"
+														}`}
+													>
+														<input
+															type="radio"
+															name="floating-product"
+															value={product.key}
+															checked={selected}
+															className="inset-0 absolute z-10 h-full w-full cursor-pointer opacity-0"
+															onChange={() => {
+																setSelectedProductKey(product.key);
+																setSubmitError(undefined);
+															}}
+														/>
+														{t(`modes.${modeKey}.label`)}
+													</label>
+												);
+											})}
+										</div>
+									</fieldset>
+
+									<div className="sm:w-[17.5rem] w-full">
+										<ImageOutputSettings
+											idPrefix="floating"
+											aspectRatios={selectedProduct?.aspectRatios ?? []}
+											value={aspectRatio}
+											onChange={(nextAspectRatio) => {
+												setAspectRatio(nextAspectRatio);
+												setSubmitError(undefined);
+											}}
+											modeLabel={selectedProductLabel || t("modes.selectionPending")}
+											disabled={isBusy}
+											tone="dark"
+											labels={{
+												title: t("settings.title"),
+												trigger: t("settings.trigger"),
+												aspectRatio: t("settings.aspectRatio"),
+												automatic: t("settings.automatic"),
+												outputNumber: t("settings.outputNumber"),
+												oneOutput: t("settings.oneOutput"),
+												resolution: t("settings.resolution"),
+												quality: t("settings.quality"),
+												modeControlsQuality: t("settings.modeControlsQuality"),
+											}}
+										/>
+									</div>
+
+									<Button
+										type={canRetryCapability ? "button" : "submit"}
+										variant="primary"
+										size="lg"
+										className="min-h-11 px-5 text-white sm:ml-auto sm:w-auto w-full bg-[#6c4dff] hover:bg-[#7d63ff]"
+										disabled={canRetryCapability ? false : !canSubmit}
+										loading={isBusy}
+										aria-describedby="floating-stage-status"
+										onClick={canRetryCapability ? retryCapability : undefined}
+									>
+										{actionLabel}
+										<ArrowRightIcon className="ml-1 size-4" aria-hidden="true" />
+									</Button>
+								</div>
+
+								<div className="mt-2 gap-x-4 gap-y-1 text-xs sm:flex-row flex flex-col text-[#b7acbf]">
+									<span id="floating-stage-status" className="font-semibold text-[#ddd4e4]">
+										{statusLabel}
+									</span>
+									<span className="sm:ml-auto">
+										{file ? t("floating.imageReady") : t("floating.upload")}
+									</span>
+								</div>
+								{GUEST_TURNSTILE_SITE_KEY && (
+									<Turnstile
+										siteKey={GUEST_TURNSTILE_SITE_KEY}
+										action="guest_upload"
+										ariaLabel={t("states.challenge")}
+										className="mt-3"
+										resetKey={turnstileResetKey}
+										onToken={(token) => {
+											setSubmitError(undefined);
+											setTurnstileToken(token);
+										}}
+										onError={() => {
+											setSubmitError("turnstile");
+											resetChallenge();
+										}}
+										onExpire={resetChallenge}
+									/>
+								)}
+								{fileError && (
+									<p className="mt-2 text-sm text-red-300" role="alert">
+										{fileError}
+									</p>
+								)}
+								{submitError && (
+									<Alert
+										className="mt-2 px-1 py-1 text-red-200 border-0 bg-transparent"
+										variant="error"
+										role="alert"
+									>
+										<AlertDescription>{t(`errors.${submitError}`)}</AlertDescription>
+									</Alert>
+								)}
+							</form>
+						) : (
+							<div data-test="floating-editor-collapsed" className="gap-2 p-2 flex items-center">
+								<button
+									type="button"
+									className="size-12 border-white/10 relative grid shrink-0 place-items-center overflow-hidden rounded-xl border bg-[#1b1425] text-[#c9b9ff] transition hover:border-[#b79cff]/50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b79cff]"
+									disabled={isBusy}
+									onClick={() => {
+										beginUpload();
+										inputRef.current?.click();
+									}}
+									aria-label={t("floating.upload")}
+								>
+									{previewUrl ? (
+										<Image src={previewUrl} alt="" fill unoptimized className="object-cover" />
+									) : (
+										<ImagePlusIcon className="size-5" aria-hidden="true" />
+									)}
+								</button>
+								<button
+									ref={floatingExpandRef}
+									type="button"
+									className="min-h-12 min-w-0 px-2 text-sm font-medium hover:text-white flex-1 truncate rounded-lg text-left text-[#f0eaf5] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b79cff]"
+									onClick={() => setIsDockExpanded(true)}
+									aria-label={t("floating.open")}
+									aria-expanded={isDockExpanded}
+									aria-controls="floating-editor-panel"
+								>
+									<span className={prompt ? "text-[#f0eaf5]" : "text-[#8f8399]"}>
+										{prompt || t("placeholder")}
+									</span>
+								</button>
+								<button
+									type="button"
+									className="size-12 text-white focus-visible:outline-violet-200 grid shrink-0 place-items-center rounded-full bg-[#6c4dff] shadow-[0_12px_28px_-12px_rgba(108,77,255,0.95)] transition hover:bg-[#7d63ff] focus-visible:outline-2 focus-visible:outline-offset-2"
+									onClick={() => setIsDockExpanded(true)}
+									aria-label={t("floating.expand")}
+									aria-expanded={isDockExpanded}
+									aria-controls="floating-editor-panel"
+								>
+									<ArrowUpIcon className="size-5" aria-hidden="true" />
+								</button>
+							</div>
+						)}
+					</div>
+				</aside>
+			)}
+		</>
 	);
 }
 

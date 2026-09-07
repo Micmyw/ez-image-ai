@@ -21,6 +21,12 @@ const generatedAssets = [
 	"examples/case-blue-hour.webp",
 	"examples/case-citrus-editorial.webp",
 	"examples/case-paper-train.webp",
+	"examples/case-lunar-greenhouse.webp",
+	"examples/case-porcelain-tide.webp",
+	"examples/case-tangerine-camera.webp",
+	"examples/case-velvet-fox.webp",
+	"examples/case-origami-koi.webp",
+	"examples/case-desert-pool.webp",
 ] as const;
 
 describe("landing visual example assets", () => {

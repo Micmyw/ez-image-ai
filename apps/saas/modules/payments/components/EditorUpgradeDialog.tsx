@@ -25,6 +25,7 @@ export function EditorUpgradeDialog({
 }) {
 	const t = useTranslations("media.upgradeDialog");
 	const creator = planValues("creator");
+	const ultimate = planValues("ultimate");
 	const studio = planValues("studio");
 
 	return (
@@ -36,6 +37,7 @@ export function EditorUpgradeDialog({
 				</DialogHeader>
 				<ul className="gap-2 text-sm grid">
 					<li>{t("creator", creator)}</li>
+					<li>{t("ultimate", ultimate)}</li>
 					<li>{t("studio", studio)}</li>
 				</ul>
 				{storageUnavailable && (
@@ -56,7 +58,7 @@ export function EditorUpgradeDialog({
 	);
 }
 
-function planValues(planId: "creator" | "studio") {
+function planValues(planId: "creator" | "ultimate" | "studio") {
 	const entitlement = getPlanEntitlement(planId);
 	return {
 		credits: entitlement.monthlyCredits,

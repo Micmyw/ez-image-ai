@@ -12,16 +12,19 @@ Use for application and mail UI strings. Do not translate database identifiers, 
 ## Procedure
 
 1. Choose the scope:
-   - `shared.json` for cross-app messages
-   - `saas.json` for authenticated/auth UI
-   - `marketing.json` for the public site
+   - `shared.json` for cross-package messages
+   - `saas.json` for public, authenticated, and auth UI
    - `mail.json` for email templates
 2. Add the same nested key and compatible interpolation/plural shape to every locale under `packages/i18n/translations/{en,de,es,fr}`. `getMessagesForLocale` in `packages/i18n/lib/get-messages.ts` merges `shared.json` into app scopes and falls back to English, but fallback is not a reason to omit translations.
-3. In client components, call `useTranslations()` or `useTranslations("...")`. SaaS Server Components normally call `getTranslations("namespace")` because `apps/saas/modules/i18n/request.ts` supplies request locale. Marketing `[locale]` routes pass `getTranslations({ locale, namespace })`.
-4. For marketing routes, await `params`, call `setRequestLocale(locale)`, and use `LocaleLink`, `localeRedirect`, `useLocalePathname`, or `useLocaleRouter` from `apps/marketing/modules/i18n/routing.ts`.
+3. In client components, call `useTranslations()` or `useTranslations("...")`. SaaS Server
+   Components normally call `getTranslations("namespace")` because
+   `apps/saas/modules/i18n/request.ts` supplies the locale-cookie selection.
+4. Public SaaS routes use unprefixed same-origin paths; do not add a generic root locale segment
+   because it conflicts with organization slugs.
 5. For email, use `createTranslator` with the template namespace and keep a `subject` key. `packages/mail/lib/i18n.ts` wraps `@repo/i18n`; `packages/mail/lib/templates.ts` consumes that helper.
 6. To add a locale, update `packages/i18n/config.ts`, add all four JSON files, verify locale cookies/routing, and add localized content variants where required.
-7. Remember that English JSON drives `SharedMessages`, `SaasMessages`, `MarketingMessages`, and `MailMessages` in `packages/i18n/types.ts`, wired into each app's `intl.d.ts`. Type-check catches invalid keys in code, but it does not prove `de`, `es`, and `fr` parity.
+7. Remember that English JSON drives the active shared, SaaS, and mail message types. Type-check
+   catches invalid keys in code, but it does not prove `de`, `es`, and `fr` parity.
 8. Check every locale/scope for missing leaf keys:
 
    ```bash
@@ -29,7 +32,7 @@ Use for application and mail UI strings. Do not translate database identifiers, 
    import { readFile } from "node:fs/promises";
 
    const locales = ["en", "de", "es", "fr"];
-   const scopes = ["shared", "saas", "marketing", "mail"];
+   const scopes = ["shared", "saas", "mail"];
    const flattenKeys = (value, prefix = "") =>
      Object.entries(value).flatMap(([key, child]) => {
        const path = prefix ? `${prefix}.${key}` : key;
@@ -69,7 +72,8 @@ Use for application and mail UI strings. Do not translate database identifiers, 
 
 ## Canonical reference
 
-`apps/marketing/app/[locale]/contact/page.tsx` uses server translations and `setRequestLocale`; `apps/saas/modules/settings/components/NotificationPreferencesForm.tsx` uses a client namespace.
+`apps/saas/app/(public)/contact/page.tsx` uses the SaaS request locale, while
+`apps/saas/modules/settings/components/NotificationPreferencesForm.tsx` uses a client namespace.
 
 ## Done
 
@@ -79,6 +83,6 @@ All four locale files in the affected scope have structurally compatible keys, i
 
 - Adding a key only to `en`.
 - Mixing mail strings into `saas.json`.
-- Hard-coding locale-aware links with `next/link` in marketing content.
+- Adding locale prefixes that collide with organization slugs.
 - Passing one namespace's key shape to another locale file.
-- Using the marketing `{ locale, namespace }` pattern blindly in SaaS or omitting explicit locale in a marketing route.
+- Using a removed split-application locale pattern instead of the SaaS locale cookie.

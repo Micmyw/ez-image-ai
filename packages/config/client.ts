@@ -4,5 +4,19 @@ export {
 	PLAN_ENTITLEMENTS,
 	resolvePlanEntitlement,
 } from "./plans";
-export { EZPIC_PRODUCT_KEYS, PRODUCT_CREDIT_COSTS, PRODUCT_MODEL_KEYS } from "./product";
+export {
+	CREDIT_PACK_KEYS,
+	creditPackKeySchema,
+	getPublicCreditPack,
+	PUBLIC_CREDIT_PACKS,
+	type CreditPackKey,
+	type PublicCreditPack,
+} from "./credit-packs";
+export {
+	EZPIC_PRODUCT_KEYS,
+	IMAGE_ASPECT_RATIOS,
+	PRODUCT_CREDIT_COSTS,
+	PRODUCT_MODEL_KEYS,
+	type ImageAspectRatio,
+} from "./product";
 export { getPublicConfig, type PublicConfig } from "./public";

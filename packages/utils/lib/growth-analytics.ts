@@ -32,7 +32,7 @@ export const growthAnalyticsEventNameSchema = z.enum(EZPIC_GROWTH_EVENT_NAMES);
 
 export const growthAnalyticsPropertiesSchema = z
 	.object({
-		plan: z.enum(["free", "creator", "studio"]).optional(),
+		plan: z.enum(["free", "creator", "ultimate", "studio"]).optional(),
 		productKey: z.enum(["image-fast", "image-quality"]).optional(),
 		status: z
 			.enum([
@@ -303,7 +303,7 @@ function productionAnalyticsHost(value: string): URL {
 }
 
 type EzPicProductKey = "image-fast" | "image-quality";
-type EzPicPaidPlan = "creator" | "studio";
+type EzPicPaidPlan = "creator" | "ultimate" | "studio";
 type TrackGrowthEvent = (
 	event: GrowthAnalyticsEvent,
 	options?: { dedupeKey?: string },

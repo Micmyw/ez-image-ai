@@ -43,6 +43,7 @@ describe("getGuestEligibility claimed draft recovery", () => {
 			claimedDraft: {
 				sourceAssetId: "guest-source-1",
 				prompt: "Replace the background with a violet studio",
+				aspectRatio: "16:9",
 			},
 		});
 		expect(JSON.stringify(result)).not.toMatch(
@@ -126,6 +127,7 @@ function validBootstrap(
 			inputSnapshot: {
 				kind: "image-to-image",
 				prompt: "Replace the background with a violet studio",
+				aspectRatio: "16:9",
 			},
 		},
 	};

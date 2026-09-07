@@ -66,7 +66,7 @@ export type InvitationScalarFieldEnum = z.infer<typeof InvitationScalarFieldEnum
 
 // File: PurchaseScalarFieldEnum.schema.ts
 
-export const PurchaseScalarFieldEnumSchema = z.enum(['id', 'organizationId', 'userId', 'type', 'provider', 'customerId', 'subscriptionId', 'priceId', 'status', 'createdAt', 'updatedAt'])
+export const PurchaseScalarFieldEnumSchema = z.enum(['id', 'organizationId', 'userId', 'type', 'productKind', 'provider', 'customerId', 'subscriptionId', 'priceId', 'status', 'createdAt', 'updatedAt'])
 
 export type PurchaseScalarFieldEnum = z.infer<typeof PurchaseScalarFieldEnumSchema>;
 
@@ -216,7 +216,7 @@ export type GuestRiskBudgetBucketScalarFieldEnum = z.infer<typeof GuestRiskBudge
 
 // File: BillingPlanScalarFieldEnum.schema.ts
 
-export const BillingPlanScalarFieldEnumSchema = z.enum(['id', 'provider', 'providerPriceId', 'name', 'creditsPerPeriod', 'priceMicros', 'currency', 'active', 'version', 'metadata', 'createdAt', 'updatedAt'])
+export const BillingPlanScalarFieldEnumSchema = z.enum(['id', 'provider', 'providerPriceId', 'productKind', 'name', 'creditsPerPeriod', 'priceMicros', 'currency', 'active', 'version', 'metadata', 'createdAt', 'updatedAt'])
 
 export type BillingPlanScalarFieldEnum = z.infer<typeof BillingPlanScalarFieldEnumSchema>;
 
@@ -234,9 +234,27 @@ export type PaymentCustomerScalarFieldEnum = z.infer<typeof PaymentCustomerScala
 
 // File: PaymentCheckoutIntentScalarFieldEnum.schema.ts
 
-export const PaymentCheckoutIntentScalarFieldEnumSchema = z.enum(['id', 'provider', 'ownerType', 'ownerId', 'submittedByUserId', 'billingPlanId', 'planKey', 'interval', 'idempotencyKey', 'providerSessionId', 'providerOrderId', 'providerCheckoutUrl', 'activeScopeKey', 'status', 'expiresAt', 'createdAt', 'updatedAt'])
+export const PaymentCheckoutIntentScalarFieldEnumSchema = z.enum(['id', 'provider', 'ownerType', 'ownerId', 'submittedByUserId', 'productKind', 'billingPlanId', 'planKey', 'interval', 'idempotencyKey', 'providerSessionId', 'providerOrderId', 'providerCheckoutUrl', 'activeScopeKey', 'creditPackCatalogVersion', 'creditPackPricingVersion', 'creditPackSubscriberEligibilityVersion', 'creditPackBaseCredits', 'creditPackBonusCredits', 'creditPackTotalCredits', 'creditPackExpiryMonths', 'creditPackSubscriberBonusEligible', 'creditPackSubscriberSubscriptionId', 'creditPackSubscriberPlanKey', 'creditPackEligibilityEvaluatedAt', 'status', 'expiresAt', 'createdAt', 'updatedAt'])
 
 export type PaymentCheckoutIntentScalarFieldEnum = z.infer<typeof PaymentCheckoutIntentScalarFieldEnumSchema>;
+
+// File: PaymentCheckoutIntentIdempotencyAliasScalarFieldEnum.schema.ts
+
+export const PaymentCheckoutIntentIdempotencyAliasScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'idempotencyKey', 'checkoutIntentId', 'createdAt'])
+
+export type PaymentCheckoutIntentIdempotencyAliasScalarFieldEnum = z.infer<typeof PaymentCheckoutIntentIdempotencyAliasScalarFieldEnumSchema>;
+
+// File: CreditPackFulfillmentScalarFieldEnum.schema.ts
+
+export const CreditPackFulfillmentScalarFieldEnumSchema = z.enum(['id', 'purchaseId', 'checkoutIntentId', 'billingPlanId', 'ownerType', 'ownerId', 'provider', 'providerOrderId', 'providerPaymentId', 'paidAmountMicros', 'currency', 'baseCredits', 'bonusCredits', 'grantedCredits', 'refundedAmountMicros', 'refundedCredits', 'grantReferenceKey', 'paidAt', 'expiresAt', 'status', 'fulfilledAt', 'updatedAt'])
+
+export type CreditPackFulfillmentScalarFieldEnum = z.infer<typeof CreditPackFulfillmentScalarFieldEnumSchema>;
+
+// File: CreditPackAdjustmentScalarFieldEnum.schema.ts
+
+export const CreditPackAdjustmentScalarFieldEnumSchema = z.enum(['id', 'fulfillmentId', 'provider', 'providerAdjustmentId', 'amountMicros', 'currency', 'status', 'providerCreatedAt', 'lastProviderChangeAt', 'lastProviderChangeId', 'finalizedCredits', 'creditsFinalizedAt', 'refundReferenceKey', 'createdAt', 'updatedAt'])
+
+export type CreditPackAdjustmentScalarFieldEnum = z.infer<typeof CreditPackAdjustmentScalarFieldEnumSchema>;
 
 // File: BillingPeriodScalarFieldEnum.schema.ts
 
@@ -364,6 +382,12 @@ export const PurchaseTypeSchema = z.enum(['SUBSCRIPTION', 'ONE_TIME'])
 
 export type PurchaseType = z.infer<typeof PurchaseTypeSchema>;
 
+// File: PaymentProductKind.schema.ts
+
+export const PaymentProductKindSchema = z.enum(['PLAN', 'CREDIT_PACK'])
+
+export type PaymentProductKind = z.infer<typeof PaymentProductKindSchema>;
+
 // File: OwnerType.schema.ts
 
 export const OwnerTypeSchema = z.enum(['USER', 'ORGANIZATION'])
@@ -489,6 +513,18 @@ export type SubscriptionStatus = z.infer<typeof SubscriptionStatusSchema>;
 export const PaymentCheckoutIntentStatusSchema = z.enum(['CREATED', 'PROVIDER_CREATING', 'PROVIDER_PENDING', 'COMPLETED', 'EXPIRED', 'CANCELED', 'REVIEW'])
 
 export type PaymentCheckoutIntentStatus = z.infer<typeof PaymentCheckoutIntentStatusSchema>;
+
+// File: CreditPackFulfillmentStatus.schema.ts
+
+export const CreditPackFulfillmentStatusSchema = z.enum(['FULFILLED', 'PARTIALLY_REFUNDED', 'REFUNDED'])
+
+export type CreditPackFulfillmentStatus = z.infer<typeof CreditPackFulfillmentStatusSchema>;
+
+// File: CreditPackAdjustmentStatus.schema.ts
+
+export const CreditPackAdjustmentStatusSchema = z.enum(['PENDING', 'REQUIRES_ACTION', 'SUCCEEDED', 'FAILED', 'CANCELED'])
+
+export type CreditPackAdjustmentStatus = z.infer<typeof CreditPackAdjustmentStatusSchema>;
 
 // File: BillingPeriodStatus.schema.ts
 
@@ -708,6 +744,7 @@ export const PurchaseSchema = z.object({
   organizationId: z.string().nullish(),
   userId: z.string().nullish(),
   type: PurchaseTypeSchema,
+  productKind: PaymentProductKindSchema.default("PLAN"),
   provider: z.string().default("stripe"),
   customerId: z.string(),
   subscriptionId: z.string().nullish(),
@@ -1164,7 +1201,7 @@ export const GuestMediaTrialSchema = z.object({
   ownerId: z.string().nullish(),
   promotionPeriod: z.string(),
   eligibility: GuestTrialEligibilitySchema.default("AVAILABLE"),
-  sponsorCredits: z.bigint().default(BigInt("4")),
+  sponsorCredits: z.bigint().default(BigInt("5")),
   sourceDraftId: z.string().nullish(),
   sourceBootstrapId: z.string().nullish(),
   sourceAssetId: z.string().nullish(),
@@ -1277,6 +1314,7 @@ export const BillingPlanSchema = z.object({
   id: z.string(),
   provider: z.string(),
   providerPriceId: z.string(),
+  productKind: PaymentProductKindSchema.default("PLAN"),
   name: z.string(),
   creditsPerPeriod: z.bigint(),
   priceMicros: z.bigint(),
@@ -1342,6 +1380,7 @@ export const PaymentCheckoutIntentSchema = z.object({
   ownerType: OwnerTypeSchema,
   ownerId: z.string(),
   submittedByUserId: z.string(),
+  productKind: PaymentProductKindSchema.default("PLAN"),
   billingPlanId: z.string(),
   planKey: z.string(),
   interval: z.string(),
@@ -1350,6 +1389,17 @@ export const PaymentCheckoutIntentSchema = z.object({
   providerOrderId: z.string().nullish(),
   providerCheckoutUrl: z.string().nullish(),
   activeScopeKey: z.string().nullish(),
+  creditPackCatalogVersion: z.string().nullish(),
+  creditPackPricingVersion: z.string().nullish(),
+  creditPackSubscriberEligibilityVersion: z.string().nullish(),
+  creditPackBaseCredits: z.bigint().nullish(),
+  creditPackBonusCredits: z.bigint().nullish(),
+  creditPackTotalCredits: z.bigint().nullish(),
+  creditPackExpiryMonths: z.number().int().nullish(),
+  creditPackSubscriberBonusEligible: z.boolean().nullish(),
+  creditPackSubscriberSubscriptionId: z.string().nullish(),
+  creditPackSubscriberPlanKey: z.string().nullish(),
+  creditPackEligibilityEvaluatedAt: z.date().nullish(),
   status: PaymentCheckoutIntentStatusSchema.default("CREATED"),
   expiresAt: z.date().nullish(),
   createdAt: z.date(),
@@ -1357,6 +1407,73 @@ export const PaymentCheckoutIntentSchema = z.object({
 });
 
 export type PaymentCheckoutIntentType = z.infer<typeof PaymentCheckoutIntentSchema>;
+
+
+// File: PaymentCheckoutIntentIdempotencyAlias.schema.ts
+
+export const PaymentCheckoutIntentIdempotencyAliasSchema = z.object({
+  id: z.string(),
+  ownerType: OwnerTypeSchema,
+  ownerId: z.string(),
+  idempotencyKey: z.string(),
+  checkoutIntentId: z.string(),
+  createdAt: z.date(),
+});
+
+export type PaymentCheckoutIntentIdempotencyAliasType = z.infer<typeof PaymentCheckoutIntentIdempotencyAliasSchema>;
+
+
+// File: CreditPackFulfillment.schema.ts
+
+export const CreditPackFulfillmentSchema = z.object({
+  id: z.string(),
+  purchaseId: z.string().nullish(),
+  checkoutIntentId: z.string(),
+  billingPlanId: z.string(),
+  ownerType: OwnerTypeSchema,
+  ownerId: z.string(),
+  provider: z.string(),
+  providerOrderId: z.string(),
+  providerPaymentId: z.string(),
+  paidAmountMicros: z.bigint(),
+  currency: z.string(),
+  baseCredits: z.bigint(),
+  bonusCredits: z.bigint(),
+  grantedCredits: z.bigint(),
+  refundedAmountMicros: z.bigint().default(BigInt("0")),
+  refundedCredits: z.bigint().default(BigInt("0")),
+  grantReferenceKey: z.string(),
+  paidAt: z.date(),
+  expiresAt: z.date(),
+  status: CreditPackFulfillmentStatusSchema.default("FULFILLED"),
+  fulfilledAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export type CreditPackFulfillmentType = z.infer<typeof CreditPackFulfillmentSchema>;
+
+
+// File: CreditPackAdjustment.schema.ts
+
+export const CreditPackAdjustmentSchema = z.object({
+  id: z.string(),
+  fulfillmentId: z.string(),
+  provider: z.string(),
+  providerAdjustmentId: z.string(),
+  amountMicros: z.bigint(),
+  currency: z.string(),
+  status: CreditPackAdjustmentStatusSchema,
+  providerCreatedAt: z.date(),
+  lastProviderChangeAt: z.date(),
+  lastProviderChangeId: z.string(),
+  finalizedCredits: z.bigint().default(BigInt("0")),
+  creditsFinalizedAt: z.date().nullish(),
+  refundReferenceKey: z.string().nullish(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export type CreditPackAdjustmentType = z.infer<typeof CreditPackAdjustmentSchema>;
 
 
 // File: BillingPeriod.schema.ts

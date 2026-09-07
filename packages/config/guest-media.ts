@@ -345,15 +345,10 @@ export function isLocalProductionBuildE2EEnvironment(
 	try {
 		const database = new URL(databaseUrl);
 		const saas = new URL(normalizedNonEmptyString(environment.NEXT_PUBLIC_SAAS_URL) ?? "");
-		const marketing = new URL(
-			normalizedNonEmptyString(environment.NEXT_PUBLIC_MARKETING_URL) ?? "",
-		);
 		return (
 			isLoopbackHost(database.hostname) &&
 			/test|testing/i.test(database.pathname) &&
-			isLocalHttpOrigin(saas) &&
-			isLocalHttpOrigin(marketing) &&
-			saas.origin === marketing.origin
+			isLocalHttpOrigin(saas)
 		);
 	} catch {
 		return false;

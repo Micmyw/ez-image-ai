@@ -1,6 +1,7 @@
 import {
 	MEDIA_VERIFICATION_POLICY_VERSION,
 	MEDIA_VERIFICATION_RULE_VERSION,
+	type ImageAspectRatio,
 	type MediaModelInput,
 	type ModerationDecision,
 } from "@repo/ai";
@@ -51,6 +52,7 @@ export interface SubmitGuestGenerationInput {
 	productKey: string;
 	sourceAssetId: string;
 	prompt: string;
+	aspectRatio?: ImageAspectRatio;
 	idempotencyKey: string;
 	deviceId: string;
 	turnstileToken: string;
@@ -143,7 +145,12 @@ interface GuestAdmissionDependencies {
 	}): Promise<GuestSourceBootstrap | null>;
 	buildQuote(input: {
 		productKey: "image-fast";
-		input: { kind: "image-to-image"; prompt: string; sourceAssetId: string };
+		input: {
+			kind: "image-to-image";
+			prompt: string;
+			sourceAssetId: string;
+			aspectRatio: ImageAspectRatio;
+		};
 	}): GuestQuote;
 	moderatePrompt(input: { text: string; ruleVersion: string }): Promise<ModerationDecision>;
 	moderationProvider?: TextModerationEvidence["provider"];
@@ -328,6 +335,7 @@ export async function submitGuestGenerationForGuest(
 		kind: "image-to-image" as const,
 		prompt: input.prompt.trim(),
 		sourceAssetId: source.id,
+		aspectRatio: input.aspectRatio ?? "auto",
 	};
 	const quote = dependencies.buildQuote({ productKey: "image-fast", input: modelInput });
 	if (
@@ -404,6 +412,7 @@ export async function submitGuestGenerationForGuest(
 			source.id,
 			source.checksum,
 			modelInput.prompt,
+			modelInput.aspectRatio,
 			quote.catalogVersion,
 			quote.pricingVersion,
 		].join("\n"),

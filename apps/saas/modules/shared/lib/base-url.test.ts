@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { getBaseUrl } from "./base-url";
+import * as baseUrlExports from "./base-url";
+
+const { getBaseUrl } = baseUrlExports;
+const baseUrlModule = baseUrlExports as typeof baseUrlExports & {
+	parseGoogleSiteVerification?: (value: string | undefined) => string | undefined;
+};
 
 describe("getBaseUrl (saas)", () => {
 	const originalEnv = process.env;
@@ -39,5 +44,25 @@ describe("getBaseUrl (saas)", () => {
 		process.env.NEXT_PUBLIC_SAAS_URL = "https://app.example.com";
 		process.env.NEXT_PUBLIC_VERCEL_URL = "my-app.vercel.app";
 		expect(getBaseUrl()).toBe("https://app.example.com");
+	});
+
+	it("accepts only a real Google site verification token", () => {
+		expect(baseUrlModule.parseGoogleSiteVerification).toBeTypeOf("function");
+		if (!baseUrlModule.parseGoogleSiteVerification) return;
+
+		for (const value of [
+			undefined,
+			"",
+			"replace-me",
+			"placeholder",
+			"google-site-verification=replace_me",
+			"short",
+			"token with spaces",
+		]) {
+			expect(baseUrlModule.parseGoogleSiteVerification(value)).toBeUndefined();
+		}
+		expect(
+			baseUrlModule.parseGoogleSiteVerification("0123456789abcdefghijklmnopqrstuvwxyz_ABCD-EFGH"),
+		).toBe("0123456789abcdefghijklmnopqrstuvwxyz_ABCD-EFGH");
 	});
 });

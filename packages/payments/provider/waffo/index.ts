@@ -5,6 +5,7 @@ import {
 	cancelWaffoSubscription,
 	createWaffoCheckoutLink,
 	createWaffoWebhookVerifier,
+	recoverWaffoCheckout,
 	type WaffoSdkBoundary,
 } from "./waffo";
 
@@ -27,6 +28,7 @@ export function createWaffoProvider(
 	client?: WaffoSdkBoundary,
 ): PaymentProvider {
 	const configuredClient = client ?? createWaffoClient(environment);
+	const storeId = requiredValue(environment.WAFFO_STORE_ID);
 	return {
 		name: "waffo",
 		capabilities: {
@@ -37,6 +39,7 @@ export function createWaffoProvider(
 			webhooks: true,
 		},
 		createCheckout: (options) => createWaffoCheckoutLink(configuredClient, options),
+		recoverCheckout: (options) => recoverWaffoCheckout(configuredClient, storeId, options),
 		cancelSubscription: (id) => cancelWaffoSubscription(configuredClient, id),
 	};
 }
@@ -46,7 +49,12 @@ export function createConfiguredWaffoWebhookVerifier(
 	client?: WaffoSdkBoundary,
 ) {
 	const waffoEnvironment = getWaffoEnvironment(environment);
-	return createWaffoWebhookVerifier(client ?? createWaffoClient(environment), waffoEnvironment);
+	const storeId = requiredValue(environment.WAFFO_STORE_ID);
+	return createWaffoWebhookVerifier(
+		client ?? createWaffoClient(environment),
+		waffoEnvironment,
+		storeId,
+	);
 }
 
 function getWaffoEnvironment(environment: Record<string, string | undefined>): WaffoEnvironment {

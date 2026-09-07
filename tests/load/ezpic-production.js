@@ -216,11 +216,6 @@ function buildThresholds(input) {
 
 function assertPlan(environment) {
 	const saas = origin(environment.LOAD_BASE_URL, "LOAD_BASE_URL");
-	const marketingOrigin = environment.LOAD_MARKETING_BASE_URL
-		? origin(environment.LOAD_MARKETING_BASE_URL, "LOAD_MARKETING_BASE_URL")
-		: saas;
-	if (saas.origin !== marketingOrigin.origin)
-		throw new Error("Load origins must match; the landing page and SaaS share one origin");
 	const saasLocal = isLoopback(saas);
 	const remote = !saasLocal;
 	if (remote) {

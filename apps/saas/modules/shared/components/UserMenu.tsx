@@ -25,7 +25,6 @@ export function UserMenu({ showUserName }: { showUserName?: boolean }) {
 	const t = useTranslations();
 	const { user } = useSession();
 	const isMobile = useIsMobile();
-	const marketingUrl = config.marketingUrl;
 
 	const onLogout = async () => {
 		await authClient.signOut({
@@ -115,37 +114,25 @@ export function UserMenu({ showUserName }: { showUserName?: boolean }) {
 					)}
 				/>
 
-				{config.docsUrl && (
-					<DropdownMenuItem
-						nativeButton={false}
-						render={(props) => (
-							<a
-								{...props}
-								href={config.docsUrl}
-								className={cn(props.className, "flex items-center")}
-							>
-								<BookIcon className="mr-2 size-4" />
-								{t("app.userMenu.documentation")}
-							</a>
-						)}
-					/>
-				)}
+				<DropdownMenuItem
+					nativeButton={false}
+					render={(props) => (
+						<Link {...props} href="/docs" className={cn(props.className, "flex items-center")}>
+							<BookIcon className="mr-2 size-4" />
+							{t("app.userMenu.documentation")}
+						</Link>
+					)}
+				/>
 
-				{marketingUrl && (
-					<DropdownMenuItem
-						nativeButton={false}
-						render={(props) => (
-							<Link
-								{...props}
-								href={marketingUrl}
-								className={cn(props.className, "flex items-center")}
-							>
-								<HomeIcon className="mr-2 size-4" />
-								{t("app.userMenu.home")}
-							</Link>
-						)}
-					/>
-				)}
+				<DropdownMenuItem
+					nativeButton={false}
+					render={(props) => (
+						<Link {...props} href="/" className={cn(props.className, "flex items-center")}>
+							<HomeIcon className="mr-2 size-4" />
+							{t("app.userMenu.home")}
+						</Link>
+					)}
+				/>
 
 				<DropdownMenuItem onClick={onLogout}>
 					<LogOutIcon className="mr-2 size-4" />

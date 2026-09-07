@@ -49,7 +49,6 @@ export const createGenerationDraft = publicProcedure
 	.handler(async ({ context, input }) => {
 		resolveGuestPublicOrigin(context.headers.get("origin"), {
 			saasOrigin: process.env.NEXT_PUBLIC_SAAS_URL,
-			marketingOrigin: process.env.NEXT_PUBLIC_MARKETING_URL,
 		});
 		const subjectHash = clientIpHash(context.headers, process.env);
 		await enforceDraftRateLimit(subjectHash, "marketing-draft");

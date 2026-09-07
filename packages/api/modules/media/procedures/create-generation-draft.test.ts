@@ -36,7 +36,7 @@ const validDraft = {
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	vi.stubEnv("NEXT_PUBLIC_MARKETING_URL", "https://marketing.test");
+	vi.stubEnv("NEXT_PUBLIC_SAAS_URL", "https://app.test");
 	vi.stubEnv("BETTER_AUTH_SECRET", "test-draft-secret");
 	databaseMocks.queryRaw.mockResolvedValue([{ allowed: true }] as never);
 	vi.mocked(createAssetObjectKey).mockReturnValue("drafts/draft_1/asset_1/original.png");
@@ -83,7 +83,7 @@ describe("marketing generation draft input", () => {
 		const maximumBytes = DEFAULT_PRODUCT_CONFIG.uploadLimits.imageBytes;
 		const context = {
 			context: {
-				headers: new Headers({ origin: "https://marketing.test" }),
+				headers: new Headers({ origin: "https://app.test" }),
 				responseHeaders: new Headers(),
 			},
 		};

@@ -1,11 +1,22 @@
 {
 	"pricing": {
+		"annualSummary": "Jährlich {total} abgerechnet · {savings} ({percent}%) gegenüber 12 Monatszahlungen sparen",
+		"annualTotal": "Jährlich {total} abgerechnet",
+		"aspectRatios": "Hochformat, Quadrat und Querformat",
+		"baseCredits": "Basis-Credits: {credits}",
+		"buyWith": "Mit {provider} kaufen",
+		"capabilitiesLabel": "Bearbeitungsfunktionen",
 		"choosePlan": "Plan auswählen",
 		"checkoutUnavailable": "Der Bezahlvorgang ist vorübergehend nicht verfügbar. Versuchen Sie es später erneut oder kontaktieren Sie den Support.",
 		"contactSales": "Vertrieb kontaktieren",
 		"concurrentEdits": "{count, plural, one {# gleichzeitige Bearbeitung} other {# gleichzeitige Bearbeitungen}}",
 		"creditExpiry": "Credits werden monatlich erneuert; ungenutzte Credits werden nicht übertragen.",
+		"creditPackCheckoutUnavailable": "Diese Zahlungsoption ist derzeit nicht verfügbar.",
+		"creditPacks": "Credit-Pakete",
+		"creditPackTitle": "{credits} Credits",
+		"creditPackValidity": "{months, plural, one {# Monat gültig} other {# Monate gültig}}",
 		"description": "Wähle einen Bildbearbeitungstarif mit klaren Credits und Auftragslimits.",
+		"editHistory": "Privater Bearbeitungsverlauf",
 		"getStarted": "Jetzt loslegen",
 		"maximumInputSize": "Quellbilder bis {megabytes, number} MB",
 		"month": "Monat",
@@ -13,15 +24,18 @@
 		"monthlyEditAllowance": "Bis zu {standard, number} Standard- oder {quality, number} Qualitätsbearbeitungen pro Monat",
 		"monthlyStandardAllowance": "Bis zu {standard, number} Standardbearbeitungen pro Monat",
 		"monthly": "Monatlich",
+		"oneTime": "einmalig",
+		"paymentOptionsLoading": "Zahlungsoptionen werden geprüft…",
+		"privateAssets": "Private Assets",
 		"products": {
 			"creator": {
-				"description": "Für einzelne Kreative mit regelmäßigen Bildbearbeitungen.",
+				"description": "Für Kreative, die regelmäßige Bildideen in fertige Assets verwandeln.",
 				"features": {
 					"editLevels": "Zugriff auf Standard Edit und Quality Edit",
 					"privateAssets": "Private Quellbilder und bearbeitete Assets",
 					"editHistory": "Private Bearbeitungssitzungen und Verlauf"
 				},
-				"title": "Creator"
+				"title": "Pro"
 			},
 			"enterprise": {
 				"description": "Maßgeschneiderter Plan für deine Anforderungen",
@@ -48,20 +62,38 @@
 				},
 				"title": "Lifetime"
 			},
-			"studio": {
-				"description": "Für umfangreichere Arbeitsabläufe zur Bildbearbeitung.",
+			"ultimate": {
+				"description": "Für wachsende Workflows, die mehr Bearbeitungen und Spielraum brauchen.",
 				"features": {
 					"editLevels": "Zugriff auf Standard Edit und Quality Edit",
 					"privateAssets": "Private Quellbilder und bearbeitete Assets",
 					"editHistory": "Private Bearbeitungssitzungen und Verlauf"
 				},
-				"title": "Studio"
+				"title": "Ultimate"
+			},
+			"studio": {
+				"description": "Für Teams mit hohem Volumen und anspruchsvolle Produktionsläufe.",
+				"features": {
+					"editLevels": "Zugriff auf Standard Edit und Quality Edit",
+					"privateAssets": "Private Quellbilder und bearbeitete Assets",
+					"editHistory": "Private Bearbeitungssitzungen und Verlauf"
+				},
+				"title": "Max"
 			}
 		},
+		"pricingFaqTitle": "FAQ zu Preisen",
+		"pricingFaqDescription": "Antworten zu Credits, Jahreszahlung, Kündigungen und Erstattungen.",
 		"purchase": "Kaufen",
 		"recommended": "Empfohlen",
+		"qualityEdit": "Quality Edit",
+		"standardEdit": "Standard Edit",
 		"subscribe": "Abonnieren",
+		"subscriberBonus": "Abonnenten erhalten +{percent}% Credits zum gleichen Preis",
+		"subscriberBonusAmount": "Abo-Bonus: {credits}",
+		"subscriberReceives": "Abonnenten erhalten {credits} Credits",
 		"title": "Preise",
+		"tierAccessStandard": "Zugriff auf Standard Edit",
+		"tierAccessAll": "Zugriff auf Standard Edit und Quality Edit",
 		"trialPeriod": "{days} {days, plural, one {Tag} other {Tage}} kostenlose Testphase",
 		"year": "Jahr",
 		"yearly": "Jährlich",

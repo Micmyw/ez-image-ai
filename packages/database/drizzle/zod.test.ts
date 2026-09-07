@@ -13,6 +13,7 @@ const purchase = {
 	organizationId: null,
 	userId: null,
 	type: "SUBSCRIPTION",
+	productKind: "PLAN",
 	provider: "stripe",
 	customerId: "cus_1",
 	subscriptionId: null,

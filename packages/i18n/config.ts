@@ -25,3 +25,7 @@ export const config = {
 } as const satisfies I18nConfig;
 
 export type Locale = keyof typeof config.locales;
+
+export function isLocale(value: unknown): value is Locale {
+	return typeof value === "string" && Object.prototype.hasOwnProperty.call(config.locales, value);
+}

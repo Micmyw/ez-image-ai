@@ -33,8 +33,8 @@ type SaasGrowthAnalyticsModule = {
 		editAgainStarted: (key: string, productKey: "image-fast" | "image-quality") => Promise<string>;
 		editSessionOpened: (key: string) => Promise<string>;
 		upgradePromptViewed: (productKey: "image-fast" | "image-quality") => Promise<string>;
-		checkoutStarted: (key: string, plan: "creator" | "studio") => Promise<string>;
-		subscriptionActivated: (plan: "creator" | "studio") => Promise<string>;
+		checkoutStarted: (key: string, plan: "creator" | "ultimate" | "studio") => Promise<string>;
+		subscriptionActivated: (plan: "creator" | "ultimate" | "studio") => Promise<string>;
 		guestGenerationAdmitted: (key: string) => Promise<string>;
 		guestResultReady: (key: string) => Promise<string>;
 		guestResultViewed: (key: string) => Promise<string>;
@@ -65,7 +65,7 @@ describe("authenticated EzPic growth funnel", () => {
 		await funnel.editAgainStarted("job-1", "image-quality");
 		await funnel.editSessionOpened("session-1");
 		await funnel.upgradePromptViewed("image-quality");
-		await funnel.checkoutStarted("checkout-attempt-1", "creator");
+		await funnel.checkoutStarted("checkout-attempt-1", "ultimate");
 		await funnel.subscriptionActivated("studio");
 		await funnel.guestGenerationAdmitted("guest-job-1");
 		await funnel.guestResultReady("guest-job-1");
@@ -122,7 +122,7 @@ describe("authenticated EzPic growth funnel", () => {
 				name: "upgrade_prompt_viewed",
 				properties: { productKey: "image-quality", status: "viewed" },
 			},
-			{ name: "checkout_started", properties: { plan: "creator", status: "started" } },
+			{ name: "checkout_started", properties: { plan: "ultimate", status: "started" } },
 			{
 				name: "subscription_activated",
 				properties: { plan: "studio", status: "activated" },
@@ -138,6 +138,15 @@ describe("authenticated EzPic growth funnel", () => {
 			},
 			{ name: "guest_result_grant_completed", properties: { status: "completed" } },
 		]);
+	});
+
+	it("accepts Ultimate as a public-safe subscription analytics plan", () => {
+		expect(
+			utils.growthAnalyticsEventSchema.safeParse({
+				name: "checkout_started",
+				properties: { plan: "ultimate", status: "started" },
+			}).success,
+		).toBe(true);
 	});
 
 	it("uses raw domain identifiers only as internal dedupe keys", async () => {

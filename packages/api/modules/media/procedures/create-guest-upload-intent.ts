@@ -66,7 +66,6 @@ export const createGuestDraftUploadIntent = publicProcedure
 	.handler(async ({ context, input }) => {
 		const publicOrigin = resolveGuestPublicOrigin(context.headers.get("origin"), {
 			saasOrigin: process.env.NEXT_PUBLIC_SAAS_URL,
-			marketingOrigin: process.env.NEXT_PUBLIC_MARKETING_URL,
 		});
 		const identity = trustedGuestClientIdentity(context.headers, process.env);
 		if (!identity) throw new Error("GUEST_TRUSTED_CLIENT_REQUIRED");

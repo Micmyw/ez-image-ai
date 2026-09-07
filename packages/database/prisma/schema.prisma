@@ -196,21 +196,28 @@ enum PurchaseType {
   ONE_TIME
 }
 
+enum PaymentProductKind {
+  PLAN
+  CREDIT_PACK
+}
+
 model Purchase {
-  id                String        @id @default(cuid())
-  organization      Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  organizationId    String?
-  user              User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId            String?
-  type              PurchaseType
-  provider          String        @default("stripe")
-  customerId        String
-  subscriptionId    String?
-  priceId           String
-  status            String?
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  mediaSubscription Subscription?
+  id                    String                 @id @default(cuid())
+  organization          Organization?          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  organizationId        String?
+  user                  User?                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                String?
+  type                  PurchaseType
+  productKind           PaymentProductKind     @default(PLAN)
+  provider              String                 @default("stripe")
+  customerId            String
+  subscriptionId        String?
+  priceId               String
+  status                String?
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+  mediaSubscription     Subscription?
+  creditPackFulfillment CreditPackFulfillment?
 
   @@unique([provider, subscriptionId])
   @@index([subscriptionId])
@@ -382,6 +389,20 @@ enum PaymentCheckoutIntentStatus {
   REVIEW
 }
 
+enum CreditPackFulfillmentStatus {
+  FULFILLED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+
+enum CreditPackAdjustmentStatus {
+  PENDING
+  REQUIRES_ACTION
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
 enum StripeRefundStatus {
   PENDING
   REQUIRES_ACTION
@@ -514,9 +535,9 @@ model ImageEditSession {
 }
 
 model GenerationAttempt {
-  id                     String                  @id @default(cuid())
+  id                     String                             @id @default(cuid())
   jobId                  String
-  job                    GenerationJob           @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  job                    GenerationJob                      @relation(fields: [jobId], references: [id], onDelete: Cascade)
   attemptNumber          Int
   provider               String
   providerModelId        String
@@ -524,26 +545,26 @@ model GenerationAttempt {
   providerStatusUrl      String?
   providerResultUrl      String?
   submissionToken        String?
-  status                 GenerationAttemptStatus @default(CREATED)
+  status                 GenerationAttemptStatus            @default(CREATED)
   providerCostMicros     BigInt?
   progress               Int?
-  lastProviderEventAt    DateTime?               @db.Timestamptz(3)
-  lastProviderOccurredAt DateTime?               @db.Timestamptz(3)
-  lastProviderReceivedAt DateTime?               @db.Timestamptz(3)
+  lastProviderEventAt    DateTime?                          @db.Timestamptz(3)
+  lastProviderOccurredAt DateTime?                          @db.Timestamptz(3)
+  lastProviderReceivedAt DateTime?                          @db.Timestamptz(3)
   lastProviderSequence   BigInt?
-  uncertainSubmission    Boolean                 @default(false)
-  reconciliationCount    Int                     @default(0)
-  nextReconcileAt        DateTime?               @db.Timestamptz(3)
-  reconcileLeaseToken    String?                 @unique
-  reconcileLeasedUntil   DateTime?               @db.Timestamptz(3)
+  uncertainSubmission    Boolean                            @default(false)
+  reconciliationCount    Int                                @default(0)
+  nextReconcileAt        DateTime?                          @db.Timestamptz(3)
+  reconcileLeaseToken    String?                            @unique
+  reconcileLeasedUntil   DateTime?                          @db.Timestamptz(3)
   requestSnapshot        Json
   responseSnapshot       Json?
   errorSnapshot          Json?
   transferEnvelope       GenerationAttemptTransferEnvelope?
-  createdAt              DateTime                @default(now()) @db.Timestamptz(3)
-  updatedAt              DateTime                @updatedAt @db.Timestamptz(3)
-  submittedAt            DateTime?               @db.Timestamptz(3)
-  completedAt            DateTime?               @db.Timestamptz(3)
+  createdAt              DateTime                           @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                           @updatedAt @db.Timestamptz(3)
+  submittedAt            DateTime?                          @db.Timestamptz(3)
+  completedAt            DateTime?                          @db.Timestamptz(3)
 
   @@unique([jobId, attemptNumber])
   @@unique([provider, providerTaskId])
@@ -888,23 +909,23 @@ model OutboxEvent {
 }
 
 model GuestSessionBootstrap {
-  id              String           @id @default(cuid())
-  ownerId         String?
-  owner           User?            @relation("GuestBootstrapOwner", fields: [ownerId], references: [id], onDelete: Cascade)
-  promotionPeriod String
-  claimHash       String           @unique
-  idempotencyKey  String           @unique
-  claimedDraftId  String?          @unique
-  claimedDraft    GenerationDraft? @relation(fields: [claimedDraftId], references: [id], onDelete: SetNull)
-  sourceAssetId   String?          @unique
-  sourceAsset     MediaAsset?      @relation("GuestBootstrapSourceAsset", fields: [sourceAssetId], references: [id], onDelete: SetNull)
-  principalLeaseToken     String?  @unique
-  principalLeaseExpiresAt DateTime? @db.Timestamptz(3)
-  version         Int              @default(0)
-  createdAt       DateTime         @default(now()) @db.Timestamptz(3)
-  expiresAt       DateTime         @db.Timestamptz(3)
-  completedAt     DateTime?        @db.Timestamptz(3)
-  guestMediaTrial GuestMediaTrial? @relation("GuestTrialSourceBootstrap")
+  id                      String           @id @default(cuid())
+  ownerId                 String?
+  owner                   User?            @relation("GuestBootstrapOwner", fields: [ownerId], references: [id], onDelete: Cascade)
+  promotionPeriod         String
+  claimHash               String           @unique
+  idempotencyKey          String           @unique
+  claimedDraftId          String?          @unique
+  claimedDraft            GenerationDraft? @relation(fields: [claimedDraftId], references: [id], onDelete: SetNull)
+  sourceAssetId           String?          @unique
+  sourceAsset             MediaAsset?      @relation("GuestBootstrapSourceAsset", fields: [sourceAssetId], references: [id], onDelete: SetNull)
+  principalLeaseToken     String?          @unique
+  principalLeaseExpiresAt DateTime?        @db.Timestamptz(3)
+  version                 Int              @default(0)
+  createdAt               DateTime         @default(now()) @db.Timestamptz(3)
+  expiresAt               DateTime         @db.Timestamptz(3)
+  completedAt             DateTime?        @db.Timestamptz(3)
+  guestMediaTrial         GuestMediaTrial? @relation("GuestTrialSourceBootstrap")
 
   @@unique([ownerId, promotionPeriod])
   @@index([expiresAt])
@@ -913,47 +934,47 @@ model GuestSessionBootstrap {
 }
 
 model GuestMediaTrial {
-  id                       String                @id @default(cuid())
-  ownerId                  String?
-  owner                    User?                 @relation("GuestTrialOwner", fields: [ownerId], references: [id], onDelete: SetNull)
-  promotionPeriod          String
-  eligibility              GuestTrialEligibility @default(AVAILABLE)
-  sponsorCredits           BigInt                @default(4)
-  sourceDraftId            String?               @unique
-  sourceDraft              GenerationDraft?      @relation("GuestTrialSourceDraft", fields: [sourceDraftId], references: [id], onDelete: SetNull)
-  sourceBootstrapId        String?               @unique
-  sourceBootstrap          GuestSessionBootstrap? @relation("GuestTrialSourceBootstrap", fields: [sourceBootstrapId], references: [id], onDelete: SetNull)
-  sourceAssetId            String?
-  sourceAsset              MediaAsset?           @relation("GuestTrialSourceAsset", fields: [sourceAssetId], references: [id], onDelete: SetNull)
-  sourceSessionHash        String?
-  deviceHash               String?
-  ipHash                   String?
-  subnetHash               String?
-  capabilityVersion        String
-  idempotencyFingerprint   String?               @unique
-  abuseEvidenceExpiresAt   DateTime              @db.Timestamptz(3)
-  abuseEvidenceDeletedAt   DateTime?             @db.Timestamptz(3)
-  replacementCount         Int                   @default(0)
-  frozenQuotedRiskMicros   BigInt
-  riskState                GuestRiskState        @default(HELD)
-  projectedDispatchAt      DateTime              @db.Timestamptz(3)
-  estimateExpiresAt        DateTime              @db.Timestamptz(3)
-  currentJobId             String?               @unique
-  currentJob               GenerationJob?        @relation("GuestTrialCurrentJob", fields: [currentJobId], references: [id], onDelete: SetNull)
-  consumedJobId            String?               @unique
-  consumedJob              GenerationJob?        @relation("GuestTrialConsumedJob", fields: [consumedJobId], references: [id], onDelete: Restrict)
-  cleanupOutboxEventId     String?               @unique
-  cleanupOutboxEvent       OutboxEvent?          @relation("GuestTrialCleanupOutbox", fields: [cleanupOutboxEventId], references: [id], onDelete: SetNull)
-  jobs                     GenerationJob[]       @relation("GuestTrialJobs")
-  linkIntents              GuestLinkIntent[]
-  resultAccessGrants       GuestResultAccessGrant[]
-  createdAt                DateTime              @default(now()) @db.Timestamptz(3)
-  updatedAt                DateTime              @updatedAt @db.Timestamptz(3)
-  linkedAt                 DateTime?             @db.Timestamptz(3)
-  providerBoundaryAt       DateTime?             @db.Timestamptz(3)
-  terminalAt               DateTime?             @db.Timestamptz(3)
-  consumedAt               DateTime?             @db.Timestamptz(3)
-  expiresAt                DateTime              @db.Timestamptz(3)
+  id                     String                   @id @default(cuid())
+  ownerId                String?
+  owner                  User?                    @relation("GuestTrialOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  promotionPeriod        String
+  eligibility            GuestTrialEligibility    @default(AVAILABLE)
+  sponsorCredits         BigInt                   @default(5)
+  sourceDraftId          String?                  @unique
+  sourceDraft            GenerationDraft?         @relation("GuestTrialSourceDraft", fields: [sourceDraftId], references: [id], onDelete: SetNull)
+  sourceBootstrapId      String?                  @unique
+  sourceBootstrap        GuestSessionBootstrap?   @relation("GuestTrialSourceBootstrap", fields: [sourceBootstrapId], references: [id], onDelete: SetNull)
+  sourceAssetId          String?
+  sourceAsset            MediaAsset?              @relation("GuestTrialSourceAsset", fields: [sourceAssetId], references: [id], onDelete: SetNull)
+  sourceSessionHash      String?
+  deviceHash             String?
+  ipHash                 String?
+  subnetHash             String?
+  capabilityVersion      String
+  idempotencyFingerprint String?                  @unique
+  abuseEvidenceExpiresAt DateTime                 @db.Timestamptz(3)
+  abuseEvidenceDeletedAt DateTime?                @db.Timestamptz(3)
+  replacementCount       Int                      @default(0)
+  frozenQuotedRiskMicros BigInt
+  riskState              GuestRiskState           @default(HELD)
+  projectedDispatchAt    DateTime                 @db.Timestamptz(3)
+  estimateExpiresAt      DateTime                 @db.Timestamptz(3)
+  currentJobId           String?                  @unique
+  currentJob             GenerationJob?           @relation("GuestTrialCurrentJob", fields: [currentJobId], references: [id], onDelete: SetNull)
+  consumedJobId          String?                  @unique
+  consumedJob            GenerationJob?           @relation("GuestTrialConsumedJob", fields: [consumedJobId], references: [id], onDelete: Restrict)
+  cleanupOutboxEventId   String?                  @unique
+  cleanupOutboxEvent     OutboxEvent?             @relation("GuestTrialCleanupOutbox", fields: [cleanupOutboxEventId], references: [id], onDelete: SetNull)
+  jobs                   GenerationJob[]          @relation("GuestTrialJobs")
+  linkIntents            GuestLinkIntent[]
+  resultAccessGrants     GuestResultAccessGrant[]
+  createdAt              DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                 @updatedAt @db.Timestamptz(3)
+  linkedAt               DateTime?                @db.Timestamptz(3)
+  providerBoundaryAt     DateTime?                @db.Timestamptz(3)
+  terminalAt             DateTime?                @db.Timestamptz(3)
+  consumedAt             DateTime?                @db.Timestamptz(3)
+  expiresAt              DateTime                 @db.Timestamptz(3)
 
   @@unique([ownerId, promotionPeriod])
   @@unique([promotionPeriod, sourceSessionHash])
@@ -965,25 +986,25 @@ model GuestMediaTrial {
 }
 
 model GuestLinkIntent {
-  id                 String           @id @default(cuid())
-  trialId            String?          @unique
-  trial              GuestMediaTrial? @relation(fields: [trialId], references: [id], onDelete: Restrict)
-  claimedDraftId     String?          @unique
-  claimedDraft       GenerationDraft? @relation("GuestLinkClaimedDraft", fields: [claimedDraftId], references: [id], onDelete: Restrict)
-  anonymousOwnerId   String
-  anonymousOwner     User             @relation("GuestLinkAnonymousOwner", fields: [anonymousOwnerId], references: [id], onDelete: Restrict)
-  promotionPeriod    String
-  sourceSessionHash  String
-  deviceHash         String
-  returnPath         String
-  state              GuestLinkState   @default(NONE)
-  tokenHash          String           @unique
-  idempotencyKey     String           @unique
-  registeredUserId   String?
-  registeredUser     User?            @relation("GuestLinkRegisteredUser", fields: [registeredUserId], references: [id], onDelete: Restrict)
-  createdAt          DateTime         @default(now()) @db.Timestamptz(3)
-  expiresAt          DateTime         @db.Timestamptz(3)
-  linkedAt           DateTime?        @db.Timestamptz(3)
+  id                String           @id @default(cuid())
+  trialId           String?          @unique
+  trial             GuestMediaTrial? @relation(fields: [trialId], references: [id], onDelete: Restrict)
+  claimedDraftId    String?          @unique
+  claimedDraft      GenerationDraft? @relation("GuestLinkClaimedDraft", fields: [claimedDraftId], references: [id], onDelete: Restrict)
+  anonymousOwnerId  String
+  anonymousOwner    User             @relation("GuestLinkAnonymousOwner", fields: [anonymousOwnerId], references: [id], onDelete: Restrict)
+  promotionPeriod   String
+  sourceSessionHash String
+  deviceHash        String
+  returnPath        String
+  state             GuestLinkState   @default(NONE)
+  tokenHash         String           @unique
+  idempotencyKey    String           @unique
+  registeredUserId  String?
+  registeredUser    User?            @relation("GuestLinkRegisteredUser", fields: [registeredUserId], references: [id], onDelete: Restrict)
+  createdAt         DateTime         @default(now()) @db.Timestamptz(3)
+  expiresAt         DateTime         @db.Timestamptz(3)
+  linkedAt          DateTime?        @db.Timestamptz(3)
 
   @@unique([anonymousOwnerId, promotionPeriod])
   @@index([trialId, state, createdAt])
@@ -1047,20 +1068,22 @@ model GuestRiskBudgetBucket {
 }
 
 model BillingPlan {
-  id               String         @id @default(cuid())
-  provider         String
-  providerPriceId  String
-  name             String
-  creditsPerPeriod BigInt
-  priceMicros      BigInt
-  currency         String
-  active           Boolean        @default(true)
-  version          Int            @default(1)
-  metadata         Json
-  createdAt        DateTime       @default(now()) @db.Timestamptz(3)
-  updatedAt        DateTime       @updatedAt @db.Timestamptz(3)
-  subscriptions    Subscription[]
-  checkoutIntents  PaymentCheckoutIntent[]
+  id                     String                  @id @default(cuid())
+  provider               String
+  providerPriceId        String
+  productKind            PaymentProductKind      @default(PLAN)
+  name                   String
+  creditsPerPeriod       BigInt
+  priceMicros            BigInt
+  currency               String
+  active                 Boolean                 @default(true)
+  version                Int                     @default(1)
+  metadata               Json
+  createdAt              DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                @updatedAt @db.Timestamptz(3)
+  subscriptions          Subscription[]
+  checkoutIntents        PaymentCheckoutIntent[]
+  creditPackFulfillments CreditPackFulfillment[]
 
   @@unique([provider, providerPriceId])
   @@map("billing_plan")
@@ -1091,8 +1114,8 @@ model Subscription {
   updatedAt                        DateTime           @updatedAt @db.Timestamptz(3)
   periods                          BillingPeriod[]
 
-  @@index([ownerType, ownerId, status])
   @@unique([provider, providerSubscriptionId])
+  @@index([ownerType, ownerId, status])
   @@index([provider, status, createdAt])
   @@index([provider, lastReconciliationAppliedSweepId, status], map: "subscription_provider_reconcile_sweep_status_idx")
   @@map("subscription")
@@ -1113,24 +1136,38 @@ model PaymentCustomer {
 }
 
 model PaymentCheckoutIntent {
-  id                  String                      @id @default(cuid())
-  provider            String
-  ownerType           OwnerType
-  ownerId             String
-  submittedByUserId   String
-  billingPlanId       String
-  billingPlan         BillingPlan                 @relation(fields: [billingPlanId], references: [id], onDelete: Restrict)
-  planKey             String
-  interval            String
-  idempotencyKey      String
-  providerSessionId   String?
-  providerOrderId     String?
-  providerCheckoutUrl String?
-  activeScopeKey      String?                     @unique
-  status              PaymentCheckoutIntentStatus @default(CREATED)
-  expiresAt           DateTime?                   @db.Timestamptz(3)
-  createdAt           DateTime                    @default(now()) @db.Timestamptz(3)
-  updatedAt           DateTime                    @updatedAt @db.Timestamptz(3)
+  id                                     String                      @id @default(cuid())
+  provider                               String
+  ownerType                              OwnerType
+  ownerId                                String
+  submittedByUserId                      String
+  productKind                            PaymentProductKind          @default(PLAN)
+  billingPlanId                          String
+  billingPlan                            BillingPlan                 @relation(fields: [billingPlanId], references: [id], onDelete: Restrict)
+  planKey                                String
+  interval                               String
+  idempotencyKey                         String
+  providerSessionId                      String?
+  providerOrderId                        String?
+  providerCheckoutUrl                    String?
+  activeScopeKey                         String?                     @unique
+  creditPackCatalogVersion               String?
+  creditPackPricingVersion               String?
+  creditPackSubscriberEligibilityVersion String?
+  creditPackBaseCredits                  BigInt?
+  creditPackBonusCredits                 BigInt?
+  creditPackTotalCredits                 BigInt?
+  creditPackExpiryMonths                 Int?
+  creditPackSubscriberBonusEligible      Boolean?
+  creditPackSubscriberSubscriptionId     String?
+  creditPackSubscriberPlanKey            String?
+  creditPackEligibilityEvaluatedAt       DateTime?                   @db.Timestamptz(3)
+  status                                 PaymentCheckoutIntentStatus @default(CREATED)
+  expiresAt                              DateTime?                   @db.Timestamptz(3)
+  createdAt                              DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt                              DateTime                    @updatedAt @db.Timestamptz(3)
+  creditPackFulfillment                  CreditPackFulfillment?
+  idempotencyAliases                     PaymentCheckoutIntentIdempotencyAlias[]
 
   @@unique([ownerType, ownerId, idempotencyKey])
   @@unique([provider, providerSessionId])
@@ -1138,6 +1175,80 @@ model PaymentCheckoutIntent {
   @@index([ownerType, ownerId, planKey, interval, status])
   @@index([expiresAt, status])
   @@map("payment_checkout_intent")
+}
+
+model PaymentCheckoutIntentIdempotencyAlias {
+  id               String                @id @default(cuid())
+  ownerType        OwnerType
+  ownerId          String
+  idempotencyKey   String
+  checkoutIntentId String
+  checkoutIntent   PaymentCheckoutIntent @relation(fields: [checkoutIntentId], references: [id], onDelete: Cascade)
+  createdAt        DateTime              @default(now()) @db.Timestamptz(3)
+
+  @@unique([ownerType, ownerId, idempotencyKey])
+  @@index([checkoutIntentId])
+  @@map("payment_checkout_intent_idempotency_alias")
+}
+
+model CreditPackFulfillment {
+  id                   String                      @id @default(cuid())
+  purchaseId           String?                     @unique
+  purchase             Purchase?                   @relation(fields: [purchaseId], references: [id], onDelete: SetNull)
+  checkoutIntentId     String                      @unique
+  checkoutIntent       PaymentCheckoutIntent       @relation(fields: [checkoutIntentId], references: [id], onDelete: Restrict)
+  billingPlanId        String
+  billingPlan          BillingPlan                 @relation(fields: [billingPlanId], references: [id], onDelete: Restrict)
+  ownerType            OwnerType
+  ownerId              String
+  provider             String
+  providerOrderId      String
+  providerPaymentId    String
+  paidAmountMicros     BigInt
+  currency             String
+  baseCredits          BigInt
+  bonusCredits         BigInt
+  grantedCredits       BigInt
+  refundedAmountMicros BigInt                      @default(0)
+  refundedCredits      BigInt                      @default(0)
+  grantReferenceKey    String                      @unique
+  paidAt               DateTime                    @db.Timestamptz(3)
+  expiresAt            DateTime                    @db.Timestamptz(3)
+  status               CreditPackFulfillmentStatus @default(FULFILLED)
+  fulfilledAt          DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime                    @updatedAt @db.Timestamptz(3)
+  adjustments          CreditPackAdjustment[]
+
+  @@unique([provider, providerPaymentId])
+  @@unique([provider, providerOrderId])
+  @@index([ownerType, ownerId, fulfilledAt, id])
+  @@index([status, fulfilledAt])
+  @@index([expiresAt])
+  @@map("credit_pack_fulfillment")
+}
+
+model CreditPackAdjustment {
+  id                   String                     @id @default(cuid())
+  fulfillmentId        String
+  fulfillment          CreditPackFulfillment      @relation(fields: [fulfillmentId], references: [id], onDelete: Restrict)
+  provider             String
+  providerAdjustmentId String
+  amountMicros         BigInt
+  currency             String
+  status               CreditPackAdjustmentStatus
+  providerCreatedAt    DateTime                   @db.Timestamptz(3)
+  lastProviderChangeAt DateTime                   @db.Timestamptz(3)
+  lastProviderChangeId String
+  finalizedCredits     BigInt                     @default(0)
+  creditsFinalizedAt   DateTime?                  @db.Timestamptz(3)
+  refundReferenceKey   String?                    @unique
+  createdAt            DateTime                   @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime                   @updatedAt @db.Timestamptz(3)
+
+  @@unique([provider, providerAdjustmentId])
+  @@index([fulfillmentId, status])
+  @@index([status, creditsFinalizedAt])
+  @@map("credit_pack_adjustment")
 }
 
 model BillingPeriod {
@@ -1381,8 +1492,8 @@ model GenerationDraft {
   updatedAt         DateTime               @updatedAt @db.Timestamptz(3)
   expiresAt         DateTime               @db.Timestamptz(3)
   guestBootstrap    GuestSessionBootstrap?
-  guestMediaTrial   GuestMediaTrial?        @relation("GuestTrialSourceDraft")
-  guestLinkIntent   GuestLinkIntent?        @relation("GuestLinkClaimedDraft")
+  guestMediaTrial   GuestMediaTrial?       @relation("GuestTrialSourceDraft")
+  guestLinkIntent   GuestLinkIntent?       @relation("GuestLinkClaimedDraft")
 
   @@index([ownerType, ownerId, updatedAt, id])
   @@index([status, expiresAt])

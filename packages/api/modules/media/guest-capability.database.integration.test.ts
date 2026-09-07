@@ -33,6 +33,7 @@ const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const DATABASE_URL = process.env.DATABASE_URL;
 const abuseSecret = "database-drift-independent-abuse-secret-32-bytes";
 const abuseKeyVersion = "launch-key-v1";
+const saasOrigin = "https://saas.test";
 
 let client: PrismaClient;
 
@@ -52,10 +53,12 @@ describe("guest capability database drift fence", () => {
 		vi.stubEnv("GUEST_MEDIA_ENABLED", "true");
 		vi.stubEnv("GUEST_PROMOTION_PERIOD", "promotion-a");
 		vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
-		vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "replicate");
+		vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "openrouter");
+		vi.stubEnv("MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED", "true");
+		vi.stubEnv("MEDIA_STANDARD_EDIT_ENABLED", "true");
 		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", abuseSecret);
 		vi.stubEnv("GUEST_ABUSE_HMAC_VERSION", abuseKeyVersion);
-		vi.stubEnv("NEXT_PUBLIC_MARKETING_URL", "https://marketing.test");
+		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", saasOrigin);
 		vi.stubEnv("MEDIA_TRUSTED_PROXY_PROVIDER", "cloudflare");
 		await client.runtimeConfigOverride.create({
 			data: {
@@ -95,7 +98,7 @@ describe("guest capability database drift fence", () => {
 			{
 				context: {
 					headers: new Headers({
-						origin: "https://marketing.test",
+						origin: saasOrigin,
 						"cf-connecting-ip": "203.0.113.9",
 					}),
 					responseHeaders: new Headers(),
@@ -123,7 +126,7 @@ describe("guest capability database drift fence", () => {
 				},
 				{
 					context: {
-						headers: new Headers({ origin: "https://marketing.test" }),
+						headers: new Headers({ origin: saasOrigin }),
 						responseHeaders: new Headers(),
 					},
 				},

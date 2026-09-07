@@ -222,7 +222,7 @@ describe("retryGenerationForUser", () => {
 				operation: expect.objectContaining({
 					assetModerationPolicyVersion: expect.any(String),
 					assetModerationRuleVersion: expect.any(String),
-					catalogVersion: "2026-09-05.1",
+					catalogVersion: "2026-09-05.2",
 					costMicros: "23000",
 					credits: "5",
 					inputAssets: [{ assetChecksum: "1".repeat(64), assetId: SOURCE_ASSET_ID }],

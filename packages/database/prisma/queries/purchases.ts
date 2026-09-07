@@ -3,6 +3,24 @@ import type { z } from "zod";
 import { db } from "../client";
 import type { PurchaseSchema } from "../zod";
 
+const billingPlanForPurchase = {
+	mediaSubscription: {
+		select: {
+			ownerType: true,
+			ownerId: true,
+			provider: true,
+			plan: {
+				select: {
+					provider: true,
+					priceMicros: true,
+					currency: true,
+					metadata: true,
+				},
+			},
+		},
+	},
+} as const;
+
 export async function getPurchaseById(id: string) {
 	return db.purchase.findUnique({
 		where: { id },
@@ -14,6 +32,7 @@ export async function getPurchasesByOrganizationId(organizationId: string) {
 		where: {
 			organizationId,
 		},
+		include: billingPlanForPurchase,
 	});
 }
 
@@ -22,6 +41,7 @@ export async function getPurchasesByUserId(userId: string) {
 		where: {
 			userId,
 		},
+		include: billingPlanForPurchase,
 	});
 }
 
@@ -35,12 +55,20 @@ export async function getPurchaseBySubscriptionId(subscriptionId: string, provid
 }
 
 export async function createPurchase(
-	purchase: Omit<z.infer<typeof PurchaseSchema>, "id" | "createdAt" | "updatedAt" | "provider"> & {
+	purchase: Omit<
+		z.infer<typeof PurchaseSchema>,
+		"id" | "createdAt" | "updatedAt" | "provider" | "productKind"
+	> & {
 		provider?: string;
+		productKind?: "PLAN" | "CREDIT_PACK";
 	},
 ) {
 	const created = await db.purchase.create({
-		data: { ...purchase, provider: purchase.provider ?? "stripe" },
+		data: {
+			...purchase,
+			provider: purchase.provider ?? "stripe",
+			productKind: purchase.productKind ?? "PLAN",
+		},
 	});
 
 	return getPurchaseById(created.id);

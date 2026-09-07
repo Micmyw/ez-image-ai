@@ -1,0 +1,25 @@
+---
+title: Image editing
+description: Understand EzPic editing modes, generation jobs, result comparison, downloads, and edit-again flow.
+---
+
+EzPic submits image changes as generation jobs. The client sends a stable product key; Provider
+routing, model identifiers, credentials, and cost details remain on the server.
+
+## Editing modes
+
+The workspace can expose Fast and Quality editing modes when they are available for the current
+account. Availability and input limits come from the server, so the interface does not promise a mode
+that the service has disabled.
+
+## Job status
+
+After submission, the result panel reports the current stage and progress. A job can finish
+successfully, fail, or be canceled only when the server reports that cancellation is allowed.
+
+## Results
+
+A successful image edit provides a before-and-after comparison. Download requests use an
+owner-scoped, short-lived access URL rather than exposing storage credentials or a permanent public
+object URL. The **Edit again** action can carry the result into a new editing job while preserving the
+eligible parent relationship.

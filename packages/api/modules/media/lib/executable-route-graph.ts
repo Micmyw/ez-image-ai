@@ -3,7 +3,7 @@ import {
 	executableRouteGraphOptionsFromEnvironment,
 	type ExecutableRouteGraphOptions,
 } from "@repo/ai";
-import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
+import { DEFAULT_PRODUCT_CONFIG, IMAGE_ASPECT_RATIOS, type ImageAspectRatio } from "@repo/config";
 import { db } from "@repo/database/client";
 import type { PrismaClient } from "@repo/database/generated-client";
 
@@ -14,6 +14,7 @@ export interface ExecutableEzPicProduct {
 	label: string;
 	description: string;
 	credits: number;
+	aspectRatios: readonly ImageAspectRatio[];
 }
 
 const generationConfigKey = "media.generation.enabled";
@@ -60,13 +61,31 @@ export async function getCurrentExecutableEzPicProducts(
 	);
 	return catalog.products.flatMap((product) => {
 		if (product.key !== "image-fast" && product.key !== "image-quality") return [];
+		const aspectRatioField = product.fields.find(
+			(field) => field.type === "aspect-ratio" && field.key === "aspectRatio",
+		);
+		const aspectRatios = aspectRatioField?.options?.flatMap(({ value }) =>
+			isImageAspectRatio(value) ? [value] : [],
+		);
+		if (
+			!aspectRatios ||
+			aspectRatios.length !== IMAGE_ASPECT_RATIOS.length ||
+			!IMAGE_ASPECT_RATIOS.every((value, index) => aspectRatios[index] === value)
+		) {
+			return [];
+		}
 		return [
 			{
 				key: product.key,
 				label: product.label,
 				description: product.description,
 				credits: product.credits,
+				aspectRatios: Object.freeze(aspectRatios),
 			},
 		];
 	});
+}
+
+function isImageAspectRatio(value: string): value is ImageAspectRatio {
+	return IMAGE_ASPECT_RATIOS.includes(value as ImageAspectRatio);
 }

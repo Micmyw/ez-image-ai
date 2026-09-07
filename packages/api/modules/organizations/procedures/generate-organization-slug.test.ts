@@ -46,6 +46,15 @@ describe("generateOrganizationSlug", () => {
 		expect(result.slug).toBe("existing-org-abc12");
 	});
 
+	it("never returns the reserved docs route slug", async () => {
+		vi.mocked(getOrganizationBySlug).mockResolvedValueOnce(null);
+
+		const result = await call(generateOrganizationSlug, { name: "Docs" }, ctx);
+
+		expect(result.slug).toBe("docs-abc12");
+		expect(getOrganizationBySlug).toHaveBeenCalledWith("docs-abc12");
+	});
+
 	it("throws INTERNAL_SERVER_ERROR when no available slug is found after 3 attempts", async () => {
 		const existingOrg = { id: "org-1", name: "Taken Org" };
 		vi.mocked(getOrganizationBySlug).mockResolvedValue(existingOrg as never);

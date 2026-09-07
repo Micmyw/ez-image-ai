@@ -3,11 +3,15 @@
 import Cookies from "js-cookie";
 import { createContext, useState } from "react";
 
+export type ConsentStatus = "accepted" | "declined" | "undecided";
+
 export const ConsentContext = createContext<{
+	consentStatus: ConsentStatus;
 	userHasConsented: boolean;
 	allowCookies: () => void;
 	declineCookies: () => void;
 }>({
+	consentStatus: "undecided",
 	userHasConsented: false,
 	allowCookies: () => {},
 	declineCookies: () => {},
@@ -15,25 +19,32 @@ export const ConsentContext = createContext<{
 
 export function ConsentProvider({
 	children,
-	initialConsent,
+	initialConsentStatus = "undecided",
 }: {
 	children: React.ReactNode;
-	initialConsent?: boolean;
+	initialConsentStatus?: ConsentStatus;
 }) {
-	const [userHasConsented, setUserHasConsented] = useState(!!initialConsent);
+	const [consentStatus, setConsentStatus] = useState<ConsentStatus>(initialConsentStatus);
 
 	const allowCookies = () => {
 		Cookies.set("consent", "true", { expires: 30 });
-		setUserHasConsented(true);
+		setConsentStatus("accepted");
 	};
 
 	const declineCookies = () => {
 		Cookies.set("consent", "false", { expires: 30 });
-		setUserHasConsented(false);
+		setConsentStatus("declined");
 	};
 
 	return (
-		<ConsentContext.Provider value={{ userHasConsented, allowCookies, declineCookies }}>
+		<ConsentContext.Provider
+			value={{
+				consentStatus,
+				userHasConsented: consentStatus === "accepted",
+				allowCookies,
+				declineCookies,
+			}}
+		>
 			{children}
 		</ConsentContext.Provider>
 	);

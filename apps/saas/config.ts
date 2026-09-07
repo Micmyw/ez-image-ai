@@ -9,8 +9,6 @@ export const config = {
 	appName: process.env.NEXT_PUBLIC_SITE_NAME?.trim() || publicProductConfig.brand.siteName,
 	appDescription:
 		process.env.NEXT_PUBLIC_SITE_DESCRIPTION?.trim() || publicProductConfig.brand.siteDescription,
-	docsUrl: process.env.NEXT_PUBLIC_DOCS_URL as string | undefined,
-	marketingUrl: process.env.NEXT_PUBLIC_MARKETING_URL as string | undefined,
 	saasUrl: process.env.NEXT_PUBLIC_SAAS_URL as string | undefined,
 	...(supportEmail ? { supportEmail } : {}),
 	enabledThemes: ["light", "dark"],

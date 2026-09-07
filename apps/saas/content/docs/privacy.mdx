@@ -1,0 +1,21 @@
+---
+title: Privacy and private media
+description: Understand how EzPic limits access to uploaded sources, generated results, and account-owned media.
+---
+
+EzPic treats uploaded source images and generated results as private media assets. Business state is
+stored in EzPic's database; an AI Provider, queue, browser, or storage service does not become the
+source of truth for job ownership.
+
+## Access control
+
+Media access is scoped to the owning user or organization. Preview and download requests return
+short-lived access URLs only after the server verifies ownership. Provider credentials, model routing,
+raw Provider payloads, and storage credentials are not exposed to the browser.
+
+## What you should upload
+
+Upload only material you are authorized to use and avoid including information that is unnecessary
+for the requested edit. Content can be rejected by the product's moderation and admission controls.
+
+For the public policy governing the service, read the [EzPic Privacy Policy](/privacy).

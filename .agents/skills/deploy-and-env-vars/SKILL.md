@@ -1,7 +1,6 @@
 ---
 name: deploy-and-env-vars
 description: Use when configuring deployment targets, domains, or environment variables for this monorepo.
-triggers: ["user"]
 ---
 
 # Deploy and manage environment variables
@@ -12,14 +11,11 @@ Use only on explicit user request because deployment and remote env changes muta
 
 ## Procedure
 
-1. Confirm the target app (`saas`, `marketing`, or `docs`), Vercel project, environment (`development`, `preview`, or `production`), branch, and requested mutation before running a write command.
+1. Confirm the SaaS deployment target, Vercel project, environment (`development`, `preview`, or
+   `production`), branch, and requested mutation before running a write command.
 2. Inventory required variables from `.env.local.example` and actual `process.env` usage. Server secrets stay unprefixed; only browser-readable values use `NEXT_PUBLIC_`.
-3. At minimum, configure app URLs consistently:
-   - `NEXT_PUBLIC_SAAS_URL`
-   - `NEXT_PUBLIC_MARKETING_URL`
-   - `NEXT_PUBLIC_DOCS_URL`
-     Auth callbacks, CORS, payment redirect validation, and notification links depend on the SaaS URL.
-     Local app ports are SaaS `3000`, marketing `3001`, and docs `3002`. `.env.local.example` currently lists the docs URL on `3001`; do not propagate that stale local value into a deployment.
+3. Configure `NEXT_PUBLIC_SAAS_URL` as the single canonical public origin. Auth callbacks, CORS,
+   payment redirect validation, public content, Docs, and notification links all depend on it.
 4. Configure only enabled integrations: `DATABASE_URL`, `BETTER_AUTH_SECRET`, mail provider values, active payment provider values and price IDs, storage values, and AI keys. `DIRECT_URL` appears in `.env.local.example` but current runtime/Prisma config does not read it; do not treat it as required without adding a real consumer.
 5. Use authenticated Vercel CLI commands only after confirming scope:
    ```bash
@@ -33,8 +29,11 @@ Use only on explicit user request because deployment and remote env changes muta
    ```bash
    pnpm build
    ```
-   This is a multi-app Turborepo with no tracked `vercel.json`; verify project root/build settings rather than assuming one deployment serves every app.
-7. For the SaaS deployment, check `/api/health` (it returns `OK`), auth origin/callback behavior, CORS, and the enabled webhook endpoint `POST /api/webhooks/payments`. Marketing/docs have no equivalent health route; smoke-test their real pages instead. Record deployment URLs without exposing secrets.
+   Root build targets the SaaS workspace and its dependencies. There is no tracked `vercel.json`;
+   verify the SaaS project root/build settings.
+7. Check `/api/health` (it returns `OK`), `/`, `/docs`, auth origin/callback behavior, CORS, and the
+   enabled webhook endpoint `POST /api/webhooks/payments`. Record deployment URLs without exposing
+   secrets.
 
 ## Canonical reference
 
@@ -42,12 +41,13 @@ Use only on explicit user request because deployment and remote env changes muta
 
 ## Done
 
-The intended app/environment/root directory is linked, its required env names and cross-app URLs are correct, `pnpm build` succeeds, app-appropriate smoke checks and enabled integrations pass, and no secret value appears in source or logs.
+The intended SaaS environment/root directory is linked, its required env names and canonical origin
+are correct, `pnpm build` succeeds, smoke checks and enabled integrations pass, and no secret value
+appears in source or logs.
 
 ## Common mistakes
 
-- Deploying all apps as one project without checking monorepo roots.
+- Linking the Vercel project to the wrong monorepo root.
 - Marking provider secrets `NEXT_PUBLIC_`.
-- Setting only one app URL and breaking auth/CORS/redirects.
-- Copying the stale local docs port from `.env.local.example` instead of using port `3002`.
+- Reintroducing separate public-content or Docs origins.
 - Assuming `.env.local` is uploaded automatically.

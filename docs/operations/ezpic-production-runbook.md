@@ -5,9 +5,10 @@
 This runbook prepares EzPic for a controlled launch; it does not authorize or perform deployment.
 Production must **fail closed** whenever a required integration, kill switch, daily cost budget,
 alert, environment identity, or evidence record is absent. PostgreSQL remains the business source of
-truth. Trigger.dev, AI Providers, private S3/R2, the moderation service, Stripe, Sentry, PostHog,
-Google Search Console (GSC), and the mail Provider are delivery or observation systems, never a
-second job, credit, storage, payment, or analytics state store.
+truth. Trigger.dev, AI Providers, private S3/R2, the moderation service, PayPal, Waffo, optional
+legacy Stripe maintenance, Sentry, PostHog, Google Search Console (GSC), and the mail Provider are
+delivery or observation systems, never a second job, credit, storage, payment, or analytics state
+store.
 
 No credential, token, cookie, signed URL, raw Provider payload, prompt, or private object key belongs
 in this runbook or its evidence files. Record only non-secret environment/project names, origins,
@@ -28,7 +29,8 @@ The matrix must prove that all four environments use distinct:
 
 - environment identities and PostgreSQL databases;
 - private media buckets and least-privilege storage identities;
-- Stripe accounts/modes or Webhook scopes and Webhook verification material;
+- PayPal and Waffo accounts/modes and Webhook verification material;
+- optional legacy Stripe Webhook scopes only in environments that maintain historical subscriptions;
 - Trigger.dev environments;
 - PostHog projects, Sentry environments, and mail Provider scopes.
 
@@ -46,7 +48,8 @@ the legacy unmetered stream. Secrets stay only in the hosting platform and worke
 | Standard Edit Provider | Internal route certification reference, Provider endpoint/model identifier kept server-side, billed cost, p50/p95, failure/recovery evidence | `NOT_COMPLETED` |
 | Quality Edit Provider  | Separate route certification reference, billed cost, p50/p95, moderation and rollback evidence                                               | `NOT_COMPLETED` |
 | Moderation             | Service environment name, policy/rule versions, prompt/input/output result references, alert and failure evidence                            | `NOT_COMPLETED` |
-| Stripe                 | Test/live scope names, Product/Price evidence, Webhook endpoint name, lifecycle and reconciliation artifacts                                 | `NOT_COMPLETED` |
+| PayPal                 | Sandbox/live scope, Pro/Ultimate/Max plan IDs, all four Credit Pack product IDs, Webhook, lifecycle and reconciliation artifacts             | `NOT_COMPLETED` |
+| Waffo                  | Test/prod store and merchant scopes, Pro/Ultimate/Max and all four Credit Pack product IDs, Webhook, lifecycle and reconciliation artifacts  | `NOT_COMPLETED` |
 | Sentry                 | Project/environment name, release, alert rule IDs and destination receipt                                                                    | `NOT_COMPLETED` |
 | PostHog and GSC        | Project/property identifiers, consent evidence, ingestion references, domain verification and sitemap submission                             | `NOT_COMPLETED` |
 | Mail Provider          | Provider/environment name, verified sender domain, delivery and bounce references                                                            | `NOT_COMPLETED` |
@@ -55,9 +58,12 @@ the legacy unmetered stream. Secrets stay only in the hosting platform and worke
 
 Start from `.env.local.example`; populate the target only through its protected environment manager.
 The deploy-time contract checks secret-bearing variables for presence but never returns their values.
-It also requires real credential-free HTTPS origins, non-placeholder deployment/resource IDs, genuine
-server-side Stripe Price IDs, a configured GSC property, PostHog project, mail sender, kill switches,
-daily Provider budget, and alert thresholds.
+It also requires real credential-free HTTPS origins, non-placeholder deployment/resource IDs, at
+least one complete PayPal or Waffo checkout configuration, a configured GSC property, PostHog
+project, mail sender, kill switches, daily Provider budget, and alert thresholds. Stripe is omitted
+when both lifecycle secrets are absent. Exactly one Stripe secret fails closed; a complete pair
+activates historical lifecycle maintenance and requires its isolated Webhook scope. Stripe Price IDs
+remain optional legacy metadata and never enable new checkout.
 
 Run offline structure validation from a checkout of the exact candidate revision:
 
@@ -102,9 +108,11 @@ environment identifiers are never returned.
    budgets, and zero Provider budget unless bounded staging Provider calls were separately confirmed.
    A remote target must be HTTPS, allowlisted, exactly confirmed for the unified product origin,
    and identified twice as staging. Production is never an allowed remote load identity.
-8. Validate measured successful-edit cost, full-use Creator/Studio cost, and approved margin using
-   `../product/ezpic-final-cost-model.md`. Catalog `providerCostMicros` values are reservation ceilings,
-   not billed production evidence.
+8. Validate measured successful-edit cost, full-use Pro/Ultimate/Max and Credit Pack cost, and
+   approved margin using `../product/ezpic-final-cost-model.md`. Verify all four Credit Packs grant
+   their exact base credits, freeze the active-subscriber decision, grant exactly +20% when eligible,
+   and expire after six UTC calendar months. Catalog `providerCostMicros` values are reservation
+   ceilings, not billed production evidence.
 9. Obtain release, privacy, billing, and incident-response approval. Run `pnpm launch:certify` against
    the protected artifacts. Do not proceed unless it returns `PASS`.
 10. Deploy production with `MEDIA_GENERATION_ENABLED=false`, `MEDIA_STANDARD_EDIT_ENABLED=false`, and
@@ -137,11 +145,11 @@ release an uncertain Provider acceptance, or bypass normal recovery.
 ## Analytics, search, and privacy gate
 
 PostHog delivery requires explicit analytics consent and a `sha256:` anonymous session identifier.
-Marketing hands the anonymous identifier to SaaS in a POST body only; it is never placed in a URL.
-The browser sender omits credentials and rejects prompts, email addresses, private IDs, URLs, object
-keys, Provider/model/cost data, and other sensitive properties. A local browser fixture proves only
-the application contract. Record real Marketing and SaaS ingestion events in the same PostHog
-project before marking the funnel `PASS`.
+The Landing and authenticated product surfaces share that anonymous identifier within the unified
+SaaS origin; it is never placed in a URL. The browser sender omits credentials and rejects prompts,
+email addresses, private IDs, URLs, object keys, Provider/model/cost data, and other sensitive
+properties. A local browser fixture proves only the application contract. Record real Landing and
+authenticated SaaS ingestion events in the same PostHog project before marking the funnel `PASS`.
 
 Separately verify the exact production canonical origin, four-URL sitemap, robots behavior, GSC
 domain property, verification token, sitemap submission, and live crawl evidence. Placeholder origins
@@ -159,7 +167,8 @@ For the first **24–72 hours**:
 
 - record traffic cohort and configuration revision at every change;
 - compare Quote cost, Provider-reported/billed cost, settled credits, success rate, and p50/p95;
-- review Sentry, Trigger.dev, Provider, moderation, Stripe, storage, PostHog, and mail dashboards;
+- review Sentry, Trigger.dev, AI Provider, moderation, PayPal/Waffo, storage, PostHog, and mail
+  dashboards; review Stripe only where legacy lifecycle maintenance is enabled;
 - stop expansion on any unexplained financial, privacy, idempotency, moderation, or data-integrity
   deviation;
 - expand only Standard traffic in small steps; enable Quality separately after its own review;

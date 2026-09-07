@@ -68,6 +68,7 @@ describe("finalizeGuestDraftFromReadyUploadTransaction", () => {
 				maximumOutstandingBootstraps: 25,
 				productKey: "image-quality",
 				prompt: "Preserve the product details",
+				aspectRatio: "16:9",
 				expiresAt: validUntil,
 				verification: {
 					provider: "sightengine",
@@ -80,7 +81,14 @@ describe("finalizeGuestDraftFromReadyUploadTransaction", () => {
 		);
 
 		expect(tx.generationDraft.create).toHaveBeenCalledWith({
-			data: expect.objectContaining({ productKey: "image-quality" }),
+			data: expect.objectContaining({
+				productKey: "image-quality",
+				inputSnapshot: {
+					kind: "image-to-image",
+					prompt: "Preserve the product details",
+					aspectRatio: "16:9",
+				},
+			}),
 		});
 	});
 });

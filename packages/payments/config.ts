@@ -8,6 +8,10 @@ const PRICE_ENVIRONMENT_KEYS = {
 		month: "PRICE_ID_CREATOR_MONTHLY",
 		year: "PRICE_ID_CREATOR_YEARLY",
 	},
+	ultimate: {
+		month: "PRICE_ID_ULTIMATE_MONTHLY",
+		year: "PRICE_ID_ULTIMATE_YEARLY",
+	},
 	studio: {
 		month: "PRICE_ID_STUDIO_MONTHLY",
 		year: "PRICE_ID_STUDIO_YEARLY",
@@ -19,7 +23,7 @@ function stripePriceId(value: string | undefined): string | undefined {
 	return candidate && STRIPE_PRICE_ID.test(candidate) ? candidate : undefined;
 }
 
-function subscriptionPrices(planId: "creator" | "studio") {
+function subscriptionPrices(planId: "creator" | "ultimate" | "studio") {
 	const entitlement = getPlanEntitlement(planId);
 	return entitlement.prices.map((price) => ({
 		type: "subscription" as const,
@@ -33,8 +37,11 @@ export const config: PaymentsConfig = {
 	requireActiveSubscription: false,
 	plans: {
 		creator: {
-			recommended: true,
 			prices: subscriptionPrices("creator"),
+		},
+		ultimate: {
+			recommended: true,
+			prices: subscriptionPrices("ultimate"),
 		},
 		studio: {
 			prices: subscriptionPrices("studio"),

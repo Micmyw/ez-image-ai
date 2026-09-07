@@ -148,7 +148,8 @@ describe("guest generation admission", () => {
 			guestAdmissionInput(oldFixture, {
 				idempotencyKey: "guest-old-promotion",
 				maximumGlobalQueueDepth: 1,
-				riskBudgetMicros: 4_000n,
+				// One 23k quote fits; two would breach this limit if promotion risk leaked.
+				riskBudgetMicros: 30_000n,
 			}),
 		);
 		await client.generationJob.update({

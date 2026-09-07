@@ -1,3 +1,3 @@
-import type { config } from "@repo/payments/config";
+import type { PlanId as ProductPlanId } from "@repo/config";
 
-export type PlanId = keyof typeof config.plans;
+export type PlanId = Exclude<ProductPlanId, "free">;

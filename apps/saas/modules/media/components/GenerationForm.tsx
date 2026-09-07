@@ -4,7 +4,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { CreditBalanceSummary } from "@payments/components/CreditBalanceSummary";
 import { EditorUpgradeDialog } from "@payments/components/EditorUpgradeDialog";
 import { createChoosePlanPath, writeEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
-import { getPlanEntitlement } from "@repo/config/client";
+import {
+	getPlanEntitlement,
+	IMAGE_ASPECT_RATIOS,
+	type ImageAspectRatio,
+} from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
 import { useRouter } from "@shared/hooks/router";
@@ -26,6 +30,7 @@ import {
 import { EditModeSelector } from "./editor/EditModeSelector";
 import { ImageSourcePanel } from "./editor/ImageSourcePanel";
 import { PromptPanel } from "./editor/PromptPanel";
+import { ImageOutputSettings } from "./ImageOutputSettings";
 
 export function GenerationForm({
 	onCreated,
@@ -56,10 +61,15 @@ export function GenerationForm({
 			productKey: initialDraft?.productKey ?? "image-fast",
 			prompt: initialDraft?.input.prompt ?? "",
 			sourceAssetId: initialDraft?.input.sourceAssetId ?? "",
+			aspectRatio: initialDraft?.input.aspectRatio ?? "auto",
 		},
 	});
 	const values = form.watch();
 	const product = products.find((candidate) => candidate.key === values.productKey);
+	const supportedAspectRatios =
+		product?.fields
+			.find((field) => field.type === "aspect-ratio" && field.key === "aspectRatio")
+			?.options?.flatMap(({ value }) => (isImageAspectRatio(value) ? [value] : [])) ?? [];
 	const input = useMemo(() => {
 		if (!product || !sourceReady || !values.prompt.trim() || !values.sourceAssetId) return null;
 		try {
@@ -67,11 +77,12 @@ export function GenerationForm({
 				kind: "image-to-image",
 				prompt: values.prompt,
 				sourceAssetId: values.sourceAssetId,
+				aspectRatio: values.aspectRatio,
 			});
 		} catch {
 			return null;
 		}
-	}, [product, sourceReady, values.prompt, values.sourceAssetId]);
+	}, [product, sourceReady, values.aspectRatio, values.prompt, values.sourceAssetId]);
 	const error = generation.createQuote.error ?? generation.createGeneration.error;
 	const errorKey = getEditorErrorKey(error);
 	const suggestions = ["background", "object", "lighting", "style"].map((key) =>
@@ -105,6 +116,11 @@ export function GenerationForm({
 		if (selection.upgradeRequired) setUpgradeOpen(true);
 	}
 
+	function updateAspectRatio(aspectRatio: ImageAspectRatio) {
+		form.setValue("aspectRatio", aspectRatio, { shouldDirty: true, shouldValidate: true });
+		generation.beginNewAction();
+	}
+
 	function continueToUpgrade() {
 		const current = form.getValues();
 		const saved = writeEditorUpgradeDraft(window.sessionStorage, {
@@ -114,6 +130,7 @@ export function GenerationForm({
 					kind: "image-to-image",
 					prompt: current.prompt,
 					sourceAssetId: current.sourceAssetId,
+					aspectRatio: current.aspectRatio,
 				},
 			},
 			parentJobId: parentJobId ?? null,
@@ -170,6 +187,25 @@ export function GenerationForm({
 				suggestions={suggestions}
 				value={values.prompt}
 				onChange={updatePrompt}
+			/>
+			<ImageOutputSettings
+				idPrefix="editor"
+				aspectRatios={supportedAspectRatios}
+				value={values.aspectRatio}
+				onChange={updateAspectRatio}
+				modeLabel={t(`products.${values.productKey}.label`)}
+				tone="light"
+				labels={{
+					title: t("outputSettings.title"),
+					trigger: t("outputSettings.trigger"),
+					aspectRatio: t("outputSettings.aspectRatio"),
+					automatic: t("outputSettings.automatic"),
+					outputNumber: t("outputSettings.outputNumber"),
+					oneOutput: t("outputSettings.oneOutput"),
+					resolution: t("outputSettings.resolution"),
+					quality: t("outputSettings.quality"),
+					modeControlsQuality: t("outputSettings.modeControlsQuality"),
+				}}
 			/>
 			<EditModeSelector
 				value={values.productKey}
@@ -262,4 +298,8 @@ export function GenerationForm({
 			/>
 		</form>
 	);
+}
+
+function isImageAspectRatio(value: string): value is ImageAspectRatio {
+	return IMAGE_ASPECT_RATIOS.includes(value as ImageAspectRatio);
 }

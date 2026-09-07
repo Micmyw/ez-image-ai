@@ -35,7 +35,11 @@ export default async function CheckoutReturnPage({
 		redirect("/login");
 	}
 	const safeReturnTo = sanitizeEditorReturnPath(returnTo);
-	if (expectedPlanId !== "creator" && expectedPlanId !== "studio") {
+	if (
+		expectedPlanId !== "creator" &&
+		expectedPlanId !== "ultimate" &&
+		expectedPlanId !== "studio"
+	) {
 		redirect(createChoosePlanPath(safeReturnTo));
 	}
 

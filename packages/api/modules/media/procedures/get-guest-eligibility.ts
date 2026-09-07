@@ -1,3 +1,4 @@
+import { imageAspectRatioSchema } from "@repo/ai";
 import { db } from "@repo/database/client";
 import { z } from "zod";
 
@@ -20,7 +21,11 @@ export const getGuestEligibility = guestMediaProcedure
 				reason: z.enum(["AVAILABLE", "EXISTING_TRIAL", "LINK_IN_PROGRESS", "DISABLED"]),
 				existingJobId: z.string().min(1).nullable(),
 				claimedDraft: z
-					.object({ sourceAssetId: z.string().min(1), prompt: z.string().min(1) })
+					.object({
+						sourceAssetId: z.string().min(1),
+						prompt: z.string().min(1),
+						aspectRatio: imageAspectRatioSchema,
+					})
 					.strict()
 					.nullable(),
 			})
@@ -128,7 +133,11 @@ function resolveClaimedDraft(
 	} | null,
 	ownerId: string,
 	now: Date,
-): { sourceAssetId: string; prompt: string } | null {
+): {
+	sourceAssetId: string;
+	prompt: string;
+	aspectRatio: z.infer<typeof imageAspectRatioSchema>;
+} | null {
 	const draft = bootstrap?.claimedDraft;
 	if (
 		!bootstrap ||
@@ -151,7 +160,10 @@ function resolveClaimedDraft(
 		return null;
 	}
 	const prompt = draft.inputSnapshot.prompt.trim();
-	return prompt ? { sourceAssetId: bootstrap.sourceAssetId, prompt } : null;
+	const aspectRatio = imageAspectRatioSchema.safeParse(draft.inputSnapshot.aspectRatio ?? "auto");
+	return prompt && aspectRatio.success
+		? { sourceAssetId: bootstrap.sourceAssetId, prompt, aspectRatio: aspectRatio.data }
+		: null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

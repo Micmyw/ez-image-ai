@@ -299,7 +299,6 @@ describe("guest media configuration", () => {
 			DATABASE_URL: localDatabase,
 			TEST_DATABASE_URL: localDatabase,
 			NEXT_PUBLIC_SAAS_URL: "http://localhost:3000",
-			NEXT_PUBLIC_MARKETING_URL: "http://localhost:3000",
 		};
 
 		expect(getGuestMediaConfig(localProductionE2E, true)).toMatchObject({
@@ -316,7 +315,7 @@ describe("guest media configuration", () => {
 		});
 		expect(
 			getGuestMediaConfig(
-				{ ...localProductionE2E, NEXT_PUBLIC_MARKETING_URL: "http://localhost:3001" },
+				{ ...localProductionE2E, NEXT_PUBLIC_SAAS_URL: "https://saas.example" },
 				true,
 			),
 		).toMatchObject({

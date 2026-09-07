@@ -1,4 +1,4 @@
-import { WAFFO_PRODUCT_ID_PATTERN } from "@repo/config";
+import { CREDIT_PACK_KEYS, type CreditPackKey, WAFFO_PRODUCT_ID_PATTERN } from "@repo/config";
 
 import type { PaymentProviderName, PlanPrice } from "../types";
 import { findPriceByPlanId, type PlanId, type RecurringInterval } from "./plans";
@@ -11,17 +11,28 @@ interface ProviderPriceMappingEntry {
 	environmentKey: string;
 }
 
-const providerPriceMappings: ProviderPriceMappingEntry[] = (["creator", "studio"] as const).flatMap(
-	(planId) =>
-		(["month", "year"] as const).flatMap((interval) =>
-			(["stripe", "paypal", "waffo"] as const).map((provider) => ({
-				provider,
-				planId,
-				type: "subscription" as const,
-				interval,
-				environmentKey: providerEnvironmentKey(provider, planId, interval),
-			})),
-		),
+const providerPriceMappings: ProviderPriceMappingEntry[] = (
+	["creator", "ultimate", "studio"] as const
+).flatMap((planId) =>
+	(["month", "year"] as const).flatMap((interval) =>
+		(["stripe", "paypal", "waffo"] as const).map((provider) => ({
+			provider,
+			planId,
+			type: "subscription" as const,
+			interval,
+			environmentKey: providerEnvironmentKey(provider, planId, interval),
+		})),
+	),
+);
+
+type CreditPackProvider = Extract<PaymentProviderName, "paypal" | "waffo">;
+
+const creditPackProductMappings = CREDIT_PACK_KEYS.flatMap((packKey) =>
+	(["paypal", "waffo"] as const).map((provider) => ({
+		provider,
+		packKey,
+		environmentKey: creditPackEnvironmentKey(provider, packKey),
+	})),
 );
 
 const providerIdPatterns: Record<PaymentProviderName, RegExp> = {
@@ -29,6 +40,23 @@ const providerIdPatterns: Record<PaymentProviderName, RegExp> = {
 	paypal: /^P-[A-Z0-9-]+$/,
 	waffo: WAFFO_PRODUCT_ID_PATTERN,
 };
+
+const creditPackProductIdPatterns: Record<CreditPackProvider, RegExp> = {
+	paypal: /^PROD-[A-Z0-9-]+$/,
+	waffo: WAFFO_PRODUCT_ID_PATTERN,
+};
+
+export function getCreditPackProviderProductId(
+	provider: PaymentProviderName,
+	packKey: CreditPackKey,
+): string | null {
+	if (provider === "stripe") return null;
+	const mapping = creditPackProductMappings.find(
+		(candidate) => candidate.provider === provider && candidate.packKey === packKey,
+	);
+	const candidate = mapping ? process.env[mapping.environmentKey]?.trim() : undefined;
+	return candidate && creditPackProductIdPatterns[provider].test(candidate) ? candidate : null;
+}
 
 export function getProviderPriceIdByPlanId(
 	provider: PaymentProviderName,
@@ -110,7 +138,7 @@ function findMapping(provider: PaymentProviderName, priceId: string) {
 
 function providerEnvironmentKey(
 	provider: PaymentProviderName,
-	planId: "creator" | "studio",
+	planId: "creator" | "ultimate" | "studio",
 	interval: RecurringInterval,
 ): string {
 	const prefix =
@@ -120,4 +148,9 @@ function providerEnvironmentKey(
 				? "PAYPAL_PLAN_ID"
 				: "WAFFO_PRODUCT_ID";
 	return `${prefix}_${planId.toUpperCase()}_${interval === "month" ? "MONTHLY" : "YEARLY"}`;
+}
+
+function creditPackEnvironmentKey(provider: CreditPackProvider, packKey: CreditPackKey): string {
+	const credits = packKey.slice("credits-".length);
+	return `${provider === "paypal" ? "PAYPAL_PRODUCT_ID" : "WAFFO_PRODUCT_ID"}_CREDITS_${credits}`;
 }

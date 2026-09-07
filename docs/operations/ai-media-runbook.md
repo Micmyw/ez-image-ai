@@ -1,17 +1,16 @@
 # AI media operator runbook
 
-This runbook is for the production AI image/video subscription foundation. PostgreSQL is the business source of truth. Trigger.dev, Stripe, providers, S3/R2, Sightengine, and Sentry are external systems whose successful local mock tests do not prove live connectivity.
+This runbook is for the production AI image/video subscription foundation. PostgreSQL is the business source of truth. Trigger.dev, PayPal, Waffo, optional legacy Stripe maintenance, AI providers, S3/R2, Sightengine, and Sentry are external systems whose successful local mock tests do not prove live connectivity.
 
 ## 1. Accounts and environment
 
-Prepare separate production and staging accounts/projects for PostgreSQL, Trigger.dev, Stripe, private S3/R2-compatible storage, Sentry, Sightengine, and every enabled provider (Replicate, Fal, Kie, Gemini, OpenRouter). Restrict production access with SSO/MFA and least-privilege service identities.
+Prepare separate production and staging accounts/projects for PostgreSQL, Trigger.dev, PayPal, Waffo, private S3/R2-compatible storage, Sentry, Sightengine, and every enabled AI provider (Replicate, Fal, Kie, Gemini, OpenRouter). Prepare Stripe scopes only where historical Stripe subscriptions require maintenance. Restrict production access with SSO/MFA and least-privilege service identities.
 
 Start from `.env.local.example`. Production must use `NODE_ENV=production`, non-mock
 `MEDIA_PROVIDER_ADAPTER`, `MEDIA_SAFETY_ADAPTER=sightengine`, strong Better Auth and Webhook
 secrets, and one HTTPS origin shared by the public landing and authenticated SaaS routes.
-`NEXT_PUBLIC_MARKETING_URL` remains a compatibility value and must match `NEXT_PUBLIC_SAAS_URL`.
-`MEDIA_BUCKET_NAME` is authoritative; `S3_BUCKET` is unsupported. Keep server secrets out of
-`NEXT_PUBLIC_*` values and the repository.
+`NEXT_PUBLIC_SAAS_URL` is the only canonical public origin. `MEDIA_BUCKET_NAME` is authoritative;
+`S3_BUCKET` is unsupported. Keep server secrets out of `NEXT_PUBLIC_*` values and the repository.
 
 Feature gates:
 
@@ -94,20 +93,34 @@ growth.
 
 ## 5. Payment providers and credit lifecycle
 
-Create monthly/yearly Creator and Studio prices and set all four price IDs. Configure the Webhook endpoint with only required events and store its signing secret. Validate signatures against the raw body. The Webhook request only persists the PaymentEvent and Outbox record; workers perform mutation.
-
-Test in Stripe test mode: checkout return, monthly renew, annual purchase split into 12 internal periods, plan A to B to A, payment failure/recovery, cancellation, partial refund, full refund, future period voiding, and refund debt after consumed credits. Reconcile Stripe subscriptions on schedule. Never directly edit credit balances; use immutable ledger commands and reference keys.
-
-PayPal and Waffo Pancake are optional, server-advertised checkout providers. Configure the provider
-as one complete group; a partial production group fails launch validation:
+New subscription and credit-pack checkout uses PayPal and Waffo Pancake only. Configure at least one
+provider as a complete group when billing is enabled; a partial production group fails launch
+validation:
 
 - PayPal: `PAYPAL_ENVIRONMENT`, `PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, and
-  `PAYPAL_WEBHOOK_ID`, plus the applicable `PAYPAL_PLAN_ID_{CREATOR|STUDIO}_{MONTHLY|YEARLY}`
-  values.
-- Waffo: `WAFFO_ENVIRONMENT`, `WAFFO_MERCHANT_ID`, `WAFFO_PRIVATE_KEY`, and
+  `PAYPAL_WEBHOOK_ID`, plus the applicable
+  `PAYPAL_PLAN_ID_{CREATOR|ULTIMATE|STUDIO}_{MONTHLY|YEARLY}` values and
+  `PAYPAL_PRODUCT_ID_CREDITS_{1500|3000|5000|8000}`.
+- Waffo: `WAFFO_ENVIRONMENT`, `WAFFO_STORE_ID`, `WAFFO_MERCHANT_ID`, `WAFFO_PRIVATE_KEY`, and
   `WAFFO_WEBHOOK_PUBLIC_KEY`, plus the applicable
-  `WAFFO_PRODUCT_ID_{CREATOR|STUDIO}_{MONTHLY|YEARLY}` values. Do not advertise annual checkout
-  unless the annual product and exact annual `BillingPlan` snapshot both exist.
+  `WAFFO_PRODUCT_ID_{CREATOR|ULTIMATE|STUDIO}_{MONTHLY|YEARLY}` values and
+  `WAFFO_PRODUCT_ID_CREDITS_{1500|3000|5000|8000}`. Do not advertise checkout unless the product
+  and exact `BillingPlan` snapshot both exist.
+
+The public subscription names are Pro, Ultimate, and Max; their stable internal keys remain
+`creator`, `ultimate`, and `studio`. Verify monthly and annual fulfillment for all three. For every
+Credit Pack, verify the base grant, the frozen active-subscriber eligibility decision, the exact
++20% subscriber grant, six-UTC-calendar-month expiry, replay idempotency, and that a subscription
+change after intent creation cannot alter the frozen bonus. Certify refund/debt behavior separately
+for each provider rather than treating PayPal and Waffo as equivalent.
+
+Stripe is legacy-maintenance only and is never advertised for new checkout. If historical Stripe
+subscriptions exist, retain both `STRIPE_SECRET_KEY` and `STRIPE_WEBHOOK_SECRET`, the isolated
+Webhook scope, and test renewal, payment failure/recovery, cancellation, refund, portal, and
+reconciliation behavior. With both Stripe secrets absent, scheduled reconciliation skips Stripe
+calls and continues local PayPal/Waffo deadline processing. Exactly one configured Stripe secret is
+an invalid drift state that fails closed without mutating provider or deadline state. Never directly
+edit credit balances; use immutable ledger commands and reference keys.
 
 All payment dashboards must deliver to `POST /api/webhooks/payments`. Routing uses exactly one
 provider signature header and raw-body verification; never add a provider name to the request body
@@ -127,16 +140,26 @@ is intentionally unavailable and production BillingPlan synchronization remains 
 PayPal and Waffo have no assumed owner-scoped customer portal. Their authenticated billing action is
 provider-routed cancellation. The worker routes by the provider persisted on `PaymentEvent`, keeps
 Stripe on its existing reconciliation/refund path, and applies PayPal/Waffo facts only after checkout
-correlation, owner, customer, amount, currency, period, and event-order checks. Unsupported or
-ambiguous refund events are terminal review/dead-letter cases and must not grant or revoke credits.
-Investigate the provider record and persisted envelope before an audited replay; do not convert them
-into Stripe refund records or edit the immutable ledger.
+correlation, owner, customer, amount, currency, period, and event-order checks.
+
+For a PayPal Credit Pack, verified refund lifecycle facts can automatically apply the idempotent delta
+to a cumulative proportional reversal target, including Debt when the affected credits were already
+consumed. Unsupported or ambiguous PayPal refund facts remain terminal review/dead-letter cases and
+must not mutate credits. For Waffo, both `refund.succeeded` and `refund.failed` currently fail closed
+into manual `REVIEW`; no Credit Ledger, Purchase, Fulfillment, or adjustment mutation occurs
+automatically. Investigate the provider record and persisted envelope before an audited replay; do
+not convert either provider's facts into Stripe refund records or edit the immutable ledger.
 
 Before enabling either provider in production, certify checkout, verified webhook delivery, replay,
-renewal, failure/recovery, cancellation, out-of-order delivery, and unsupported-refund review in its
-real sandbox/test account. Record dashboard endpoint IDs and evidence outside this repository without
-copying secrets. PayPal and Waffo real sandbox certification is `NOT_COMPLETED` until those external
-credentials and accounts are supplied and the evidence is captured.
+renewal, failure/recovery, cancellation, and out-of-order delivery in its real sandbox/test account.
+For PayPal, also certify cumulative partial/full Credit Pack refunds, Debt, and replay idempotency.
+For Waffo, first certify the real refund payload fields, signature/authentication, correlation, event
+ordering, and idempotency while preserving the current manual `REVIEW`/no-mutation result. Production
+automatic Waffo Credit Pack refunds remain `NOT_COMPLETED` until that evidence exists and a separate
+automatic lifecycle is implemented and certified. Record dashboard endpoint IDs and evidence outside
+this repository without copying secrets. PayPal and Waffo real sandbox certification is
+`NOT_COMPLETED` until those external credentials and accounts are supplied and the evidence is
+captured.
 
 The F6 Stripe refund/reconciliation migration is a coordinated stop-the-world cutover for the old billing code. Use this order:
 
@@ -159,9 +182,9 @@ Certify each catalog route in staging before enabling it: schema/input support, 
 
 The registered OpenRouter image routes are candidates only:
 
-- `sourceful/riverflow-v2.5-fast` for `image-fast`, with a conservative 21,000-micros catalog
+- `sourceful/riverflow-v2.5-fast` for `image-fast`, with a conservative 23,000-micros catalog
   ceiling per output;
-- `sourceful/riverflow-v2.5-pro` for `image-quality`, with a conservative 170,000-micros catalog
+- `sourceful/riverflow-v2.5-pro` for `image-quality`, with a conservative 180,000-micros catalog
   ceiling per output.
 
 Their adapter, static dispatch manifest, and Trigger tasks do not certify Provider behavior or
@@ -322,7 +345,8 @@ Immediately rotate any secret suspected of exposure. Search logs/artifacts and P
 The deterministic production-build browser suite currently passes 11 SaaS checks and five
 marketing checks with no skips, including root edit-session creation, a second edit, and a branch
 from an older successful version. Live readiness remains blocked until credentials/accounts exist
-and recorded checks pass for Trigger deploy, Stripe Webhook delivery, each enabled Provider,
-Sightengine, private S3/R2 streaming/multipart, Sentry ingestion/alerts, and staging load. Local
+and recorded checks pass for Trigger deploy, each enabled payment Webhook, each enabled AI Provider,
+Sightengine, private S3/R2 streaming/multipart, Sentry ingestion/alerts, and staging load. Stripe
+Webhook evidence is required only where historical Stripe subscriptions are maintained. Local
 browser tests, mocks, contracts, PostgreSQL integration tests, production builds, and a dry-run
 Provider smoke must be reported separately from those live checks.

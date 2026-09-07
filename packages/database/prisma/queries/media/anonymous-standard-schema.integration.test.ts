@@ -308,6 +308,68 @@ describe("anonymous Standard trial persistent schema contract", () => {
 		}
 	});
 
+	it("defaults omitted trial sponsor credits to five", async () => {
+		const trialId = `sponsor-default-${randomUUID()}`;
+		await client.query("BEGIN");
+		try {
+			const inserted = await client.query<{ sponsorCredits: string }>(
+				`INSERT INTO "guest_media_trial" (
+					"id", "promotionPeriod", "capabilityVersion", "abuseEvidenceExpiresAt",
+					"frozenQuotedRiskMicros", "projectedDispatchAt", "estimateExpiresAt", "updatedAt", "expiresAt"
+				) VALUES ($1, $2, 'v1', now() + interval '30 days', 3500,
+					now() + interval '5 minutes', now() + interval '10 minutes', now(), now() + interval '1 day')
+				RETURNING "sponsorCredits"`,
+				[trialId, trialId],
+			);
+
+			expect(inserted.rows).toEqual([{ sponsorCredits: "5" }]);
+		} finally {
+			await client.query("ROLLBACK");
+		}
+	});
+
+	it("preserves historical four-credit sponsor grants", async () => {
+		const trialId = `sponsor-legacy-${randomUUID()}`;
+		await client.query("BEGIN");
+		try {
+			const inserted = await client.query<{ sponsorCredits: string }>(
+				`INSERT INTO "guest_media_trial" (
+						"id", "promotionPeriod", "sponsorCredits", "capabilityVersion", "abuseEvidenceExpiresAt",
+						"frozenQuotedRiskMicros", "projectedDispatchAt", "estimateExpiresAt", "updatedAt", "expiresAt"
+					) VALUES ($1, $2, 4, 'v1', now() + interval '30 days', 3500,
+						now() + interval '5 minutes', now() + interval '10 minutes', now(), now() + interval '1 day')
+				RETURNING "sponsorCredits"`,
+				[trialId, trialId],
+			);
+
+			expect(inserted.rows).toEqual([{ sponsorCredits: "4" }]);
+		} finally {
+			await client.query("ROLLBACK");
+		}
+	});
+
+	it("rejects unsupported sponsor credit grants", async () => {
+		const trialId = `sponsor-invalid-${randomUUID()}`;
+		await client.query("BEGIN");
+		try {
+			await expect(
+				client.query(
+					`INSERT INTO "guest_media_trial" (
+						"id", "promotionPeriod", "sponsorCredits", "capabilityVersion", "abuseEvidenceExpiresAt",
+						"frozenQuotedRiskMicros", "projectedDispatchAt", "estimateExpiresAt", "updatedAt", "expiresAt"
+					) VALUES ($1, $2, 6, 'v1', now() + interval '30 days', 3500,
+						now() + interval '5 minutes', now() + interval '10 minutes', now(), now() + interval '1 day')`,
+					[trialId, trialId],
+				),
+			).rejects.toMatchObject({
+				code: "23514",
+				constraint: "guest_media_trial_sponsor_credits_check",
+			});
+		} finally {
+			await client.query("ROLLBACK");
+		}
+	});
+
 	it("retains the critical guest-domain checks", async () => {
 		const checks = await client.query<{ constraintName: string; definition: string }>(`
 			SELECT
@@ -336,9 +398,10 @@ describe("anonymous Standard trial persistent schema contract", () => {
 		expect(byConstraint.get("guest_session_bootstrap_bound_lease_clear_check")).toContain(
 			'"principalLeaseToken" IS NULL',
 		);
-		expect(byConstraint.get("guest_media_trial_sponsor_credits_check")).toContain(
-			'"sponsorCredits" = 4',
-		);
+		const sponsorCreditsCheck = byConstraint.get("guest_media_trial_sponsor_credits_check");
+		expect(sponsorCreditsCheck).toContain('"sponsorCredits"');
+		expect(sponsorCreditsCheck).toMatch(/\b4\b/);
+		expect(sponsorCreditsCheck).toMatch(/\b5\b/);
 		expect(byConstraint.get("guest_media_trial_job_separation_check")).toContain(
 			'"currentJobId" <> "consumedJobId"',
 		);

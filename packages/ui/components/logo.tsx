@@ -19,22 +19,16 @@ export function Logo({
 				aria-hidden={decorative || undefined}
 			>
 				{!decorative && <title>{`${label} image editor mark`}</title>}
-				<rect x="3" y="3" width="26" height="26" rx="8" fill="currentColor" opacity="0.14" />
+				<path d="M4 16V9a5 5 0 0 1 5-5h11v4H9.5A1.5 1.5 0 0 0 8 9.5V16H4Z" fill="currentColor" />
 				<path
-					d="m8.5 22 5.25-5.5 4.1 4.1 2.65-2.65 3 3"
-					fill="none"
-					stroke="currentColor"
-					strokeLinecap="round"
-					strokeLinejoin="round"
-					strokeWidth="2.25"
+					d="M28 16v7a5 5 0 0 1-5 5H12v-4h10.5a1.5 1.5 0 0 0 1.5-1.5V16h4Z"
+					fill="currentColor"
 				/>
-				<circle cx="11" cy="11" r="2" fill="currentColor" />
+				<path d="m4 18.75 4-4V19H4Z" fill="currentColor" opacity="0.55" />
+				<path d="m28 13.25-4 4V13h4Z" fill="currentColor" opacity="0.55" />
 				<path
-					d="M22 7v6M19 10h6"
-					fill="none"
-					stroke="currentColor"
-					strokeLinecap="round"
-					strokeWidth="2"
+					d="M24.75 2.75c.4 2.35 1.65 3.6 4 4-2.35.4-3.6 1.65-4 4-.4-2.35-1.65-3.6-4-4 2.35-.4 3.6-1.65 4-4Z"
+					fill="#fdba74"
 				/>
 			</svg>
 			{withLabel && <span className="ml-3 text-lg md:block hidden">{label}</span>}

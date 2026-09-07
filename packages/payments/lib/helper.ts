@@ -25,6 +25,10 @@ const noManagementCapabilities = {
 };
 
 function resolvePurchasePlan(purchase: ResolvedPurchase) {
+	if (purchase.productKind !== "PLAN") {
+		return null;
+	}
+
 	if (purchase.planId && purchase.planPrice) {
 		return {
 			planId: purchase.planId,
@@ -42,6 +46,10 @@ function resolvePurchasePlan(purchase: ResolvedPurchase) {
 }
 
 function resolvePurchasePlanId(purchase: ResolvedPurchase) {
+	if (purchase.productKind !== "PLAN") {
+		return null;
+	}
+
 	if (purchase.planId) {
 		return purchase.planId;
 	}
@@ -52,6 +60,7 @@ function resolvePurchasePlanId(purchase: ResolvedPurchase) {
 function getActivePlanFromPurchases(purchases?: ResolvedPurchase[]) {
 	const subscriptionPurchase = purchases?.find(
 		(purchase) =>
+			purchase.productKind === "PLAN" &&
 			purchase.type === "SUBSCRIPTION" &&
 			["active", "trialing", "past_due"].includes(purchase.status?.toLowerCase() ?? "active"),
 	);
@@ -72,7 +81,9 @@ function getActivePlanFromPurchases(purchases?: ResolvedPurchase[]) {
 		};
 	}
 
-	const oneTimePurchase = purchases?.find((purchase) => purchase.type === "ONE_TIME");
+	const oneTimePurchase = purchases?.find(
+		(purchase) => purchase.productKind === "PLAN" && purchase.type === "ONE_TIME",
+	);
 
 	if (oneTimePurchase) {
 		const resolvedPrice = resolvePurchasePlan(oneTimePurchase);

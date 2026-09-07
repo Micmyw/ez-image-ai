@@ -1,11 +1,16 @@
 // @ts-expect-error - PrismaPlugin is not typed
 import { PrismaPlugin } from "@prisma/nextjs-monorepo-workaround-plugin";
+import { createMDX } from "fumadocs-mdx/next";
 import type { NextConfig } from "next";
 import nextIntlPlugin from "next-intl/plugin";
 
 import { resolveStorageConnectOrigin } from "./storage-connect-origin";
 
 const withNextIntl = nextIntlPlugin("./modules/i18n/request.ts");
+const withMDX = createMDX({
+	configPath: "source.config.ts",
+	outDir: ".source",
+});
 
 const isProduction = process.env.NODE_ENV === "production";
 const storageConnectSource = resolveStorageConnectOrigin(process.env.S3_ENDPOINT, {
@@ -55,10 +60,36 @@ const nextConfig: NextConfig = {
 		],
 	},
 	async headers() {
-		return [{ source: "/(.*)", headers: securityHeaders }];
+		return [
+			{ source: "/(.*)", headers: securityHeaders },
+			{
+				source: "/docs/:path*",
+				headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],
+			},
+		];
 	},
 	async redirects() {
 		return [
+			{
+				source: "/legal/privacy-policy",
+				destination: "/privacy",
+				permanent: true,
+			},
+			{
+				source: "/legal/terms",
+				destination: "/terms",
+				permanent: true,
+			},
+			{
+				source: "/:locale(de|es|fr)",
+				destination: "/",
+				permanent: true,
+			},
+			{
+				source: "/:locale(de|es|fr)/:path*",
+				destination: "/:path*",
+				permanent: true,
+			},
 			{
 				source: "/settings",
 				destination: "/settings/general",
@@ -91,4 +122,4 @@ const nextConfig: NextConfig = {
 	},
 };
 
-export default withNextIntl(nextConfig);
+export default withMDX(withNextIntl(nextConfig));

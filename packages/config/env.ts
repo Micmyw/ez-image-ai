@@ -12,6 +12,10 @@ const optionalPayPalPlanIdSchema = z
 	.string()
 	.regex(/^P-[A-Z0-9-]+$/)
 	.optional();
+const optionalPayPalProductIdSchema = z
+	.string()
+	.regex(/^PROD-[A-Z0-9-]+$/)
+	.optional();
 const optionalWaffoProductIdSchema = z.string().regex(WAFFO_PRODUCT_ID_PATTERN).optional();
 
 export const mediaProviderKeySchema = z.enum(["replicate", "fal", "kie", "gemini", "openrouter"]);
@@ -47,16 +51,29 @@ const rawServerEnvironmentSchema = z.object({
 	PAYPAL_WEBHOOK_ID: optionalSecretSchema,
 	PAYPAL_PLAN_ID_CREATOR_MONTHLY: optionalPayPalPlanIdSchema,
 	PAYPAL_PLAN_ID_CREATOR_YEARLY: optionalPayPalPlanIdSchema,
+	PAYPAL_PLAN_ID_ULTIMATE_MONTHLY: optionalPayPalPlanIdSchema,
+	PAYPAL_PLAN_ID_ULTIMATE_YEARLY: optionalPayPalPlanIdSchema,
 	PAYPAL_PLAN_ID_STUDIO_MONTHLY: optionalPayPalPlanIdSchema,
 	PAYPAL_PLAN_ID_STUDIO_YEARLY: optionalPayPalPlanIdSchema,
+	PAYPAL_PRODUCT_ID_CREDITS_1500: optionalPayPalProductIdSchema,
+	PAYPAL_PRODUCT_ID_CREDITS_3000: optionalPayPalProductIdSchema,
+	PAYPAL_PRODUCT_ID_CREDITS_5000: optionalPayPalProductIdSchema,
+	PAYPAL_PRODUCT_ID_CREDITS_8000: optionalPayPalProductIdSchema,
 	WAFFO_ENVIRONMENT: z.enum(["test", "prod"]).optional(),
+	WAFFO_STORE_ID: optionalSecretSchema,
 	WAFFO_MERCHANT_ID: optionalSecretSchema,
 	WAFFO_PRIVATE_KEY: optionalSecretSchema,
 	WAFFO_WEBHOOK_PUBLIC_KEY: optionalSecretSchema,
 	WAFFO_PRODUCT_ID_CREATOR_MONTHLY: optionalWaffoProductIdSchema,
 	WAFFO_PRODUCT_ID_CREATOR_YEARLY: optionalWaffoProductIdSchema,
+	WAFFO_PRODUCT_ID_ULTIMATE_MONTHLY: optionalWaffoProductIdSchema,
+	WAFFO_PRODUCT_ID_ULTIMATE_YEARLY: optionalWaffoProductIdSchema,
 	WAFFO_PRODUCT_ID_STUDIO_MONTHLY: optionalWaffoProductIdSchema,
 	WAFFO_PRODUCT_ID_STUDIO_YEARLY: optionalWaffoProductIdSchema,
+	WAFFO_PRODUCT_ID_CREDITS_1500: optionalWaffoProductIdSchema,
+	WAFFO_PRODUCT_ID_CREDITS_3000: optionalWaffoProductIdSchema,
+	WAFFO_PRODUCT_ID_CREDITS_5000: optionalWaffoProductIdSchema,
+	WAFFO_PRODUCT_ID_CREDITS_8000: optionalWaffoProductIdSchema,
 	SENTRY_DSN: z.url().optional(),
 	SIGHTENGINE_API_USER: optionalSecretSchema,
 	SIGHTENGINE_API_SECRET: optionalSecretSchema,
@@ -91,6 +108,8 @@ export interface ServerEnvironment {
 	mediaGenerationEnabled: boolean;
 	mediaModerationEnabled: boolean;
 	billingEnabled: boolean;
+	checkoutPaymentProviders: CheckoutPaymentProvider[];
+	stripeLegacyLifecycleEnabled: boolean;
 	errorMonitoringEnabled: boolean;
 	mediaProviderAdapter: "replicate" | "fal" | "kie" | "gemini" | "openrouter" | "mock";
 	mediaEnabledProviders: MediaProviderKey[];
@@ -134,12 +153,45 @@ export interface ValidateServerEnvironmentOptions {
 	requireProviderCredentials?: boolean;
 }
 
+export type CheckoutPaymentProvider = "paypal" | "waffo";
+export type StripeLegacyLifecycleStatus = "DISABLED" | "INCOMPLETE" | "CONFIGURED";
+
+const PAYPAL_REQUIRED_CONFIGURATION_KEYS = [
+	"PAYPAL_ENVIRONMENT",
+	"PAYPAL_CLIENT_ID",
+	"PAYPAL_CLIENT_SECRET",
+	"PAYPAL_WEBHOOK_ID",
+] as const;
+
+const WAFFO_REQUIRED_CONFIGURATION_KEYS = [
+	"WAFFO_ENVIRONMENT",
+	"WAFFO_STORE_ID",
+	"WAFFO_MERCHANT_ID",
+	"WAFFO_PRIVATE_KEY",
+	"WAFFO_WEBHOOK_PUBLIC_KEY",
+] as const;
+
+const STRIPE_LEGACY_LIFECYCLE_KEYS = ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"] as const;
+
+export function getStripeLegacyLifecycleStatus(input: {
+	STRIPE_SECRET_KEY?: unknown;
+	STRIPE_WEBHOOK_SECRET?: unknown;
+}): StripeLegacyLifecycleStatus {
+	const configuredCount = STRIPE_LEGACY_LIFECYCLE_KEYS.filter((key) =>
+		hasConfiguredValue(input[key]),
+	).length;
+	if (configuredCount === 0) return "DISABLED";
+	return configuredCount === STRIPE_LEGACY_LIFECYCLE_KEYS.length ? "CONFIGURED" : "INCOMPLETE";
+}
+
 export function validateServerEnvironment(
 	input: Record<string, unknown>,
 	options: ValidateServerEnvironmentOptions = {},
 ): ServerEnvironment {
 	const parsed = rawServerEnvironmentSchema.parse(input);
 	const issues: string[] = [];
+	const checkoutPaymentProviders = getCheckoutPaymentProviders(parsed);
+	const stripeLegacyLifecycleStatus = getStripeLegacyLifecycleStatus(parsed);
 	if (parsed.MEDIA_SAFETY_ADAPTER === "test" && !parsed.MEDIA_ALLOW_TEST_SAFETY_ADAPTER) {
 		issues.push("MEDIA_ALLOW_TEST_SAFETY_ADAPTER");
 	}
@@ -169,8 +221,11 @@ export function validateServerEnvironment(
 			}
 		}
 
-		if (parsed.BILLING_ENABLED) {
-			requireValues(parsed, issues, ["STRIPE_SECRET_KEY", "STRIPE_WEBHOOK_SECRET"]);
+		if (parsed.BILLING_ENABLED && checkoutPaymentProviders.length === 0) {
+			issues.push("PAYPAL_OR_WAFFO_PAYMENT_CONFIGURATION");
+		}
+		if (stripeLegacyLifecycleStatus === "INCOMPLETE") {
+			requireValues(parsed, issues, [...STRIPE_LEGACY_LIFECYCLE_KEYS]);
 		}
 		validateOptionalPaymentProviders(parsed, issues);
 
@@ -192,6 +247,8 @@ export function validateServerEnvironment(
 		mediaGenerationEnabled: parsed.MEDIA_GENERATION_ENABLED,
 		mediaModerationEnabled: parsed.MEDIA_MODERATION_ENABLED,
 		billingEnabled: parsed.BILLING_ENABLED,
+		checkoutPaymentProviders,
+		stripeLegacyLifecycleEnabled: stripeLegacyLifecycleStatus === "CONFIGURED",
 		errorMonitoringEnabled: parsed.ERROR_MONITORING_ENABLED,
 		mediaProviderAdapter: parsed.MEDIA_PROVIDER_ADAPTER,
 		mediaEnabledProviders: parseMediaEnabledProviders(parsed),
@@ -228,25 +285,50 @@ function validateOptionalPaymentProviders(
 	requireCompleteProviderGroup(
 		input,
 		issues,
-		["PAYPAL_ENVIRONMENT", "PAYPAL_CLIENT_ID", "PAYPAL_CLIENT_SECRET", "PAYPAL_WEBHOOK_ID"],
+		[...PAYPAL_REQUIRED_CONFIGURATION_KEYS],
 		[
 			"PAYPAL_PLAN_ID_CREATOR_MONTHLY",
 			"PAYPAL_PLAN_ID_CREATOR_YEARLY",
+			"PAYPAL_PLAN_ID_ULTIMATE_MONTHLY",
+			"PAYPAL_PLAN_ID_ULTIMATE_YEARLY",
 			"PAYPAL_PLAN_ID_STUDIO_MONTHLY",
 			"PAYPAL_PLAN_ID_STUDIO_YEARLY",
+			"PAYPAL_PRODUCT_ID_CREDITS_1500",
+			"PAYPAL_PRODUCT_ID_CREDITS_3000",
+			"PAYPAL_PRODUCT_ID_CREDITS_5000",
+			"PAYPAL_PRODUCT_ID_CREDITS_8000",
 		],
 	);
 	requireCompleteProviderGroup(
 		input,
 		issues,
-		["WAFFO_ENVIRONMENT", "WAFFO_MERCHANT_ID", "WAFFO_PRIVATE_KEY", "WAFFO_WEBHOOK_PUBLIC_KEY"],
+		[...WAFFO_REQUIRED_CONFIGURATION_KEYS],
 		[
 			"WAFFO_PRODUCT_ID_CREATOR_MONTHLY",
 			"WAFFO_PRODUCT_ID_CREATOR_YEARLY",
+			"WAFFO_PRODUCT_ID_ULTIMATE_MONTHLY",
+			"WAFFO_PRODUCT_ID_ULTIMATE_YEARLY",
 			"WAFFO_PRODUCT_ID_STUDIO_MONTHLY",
 			"WAFFO_PRODUCT_ID_STUDIO_YEARLY",
+			"WAFFO_PRODUCT_ID_CREDITS_1500",
+			"WAFFO_PRODUCT_ID_CREDITS_3000",
+			"WAFFO_PRODUCT_ID_CREDITS_5000",
+			"WAFFO_PRODUCT_ID_CREDITS_8000",
 		],
 	);
+}
+
+function getCheckoutPaymentProviders(
+	input: z.infer<typeof rawServerEnvironmentSchema>,
+): CheckoutPaymentProvider[] {
+	const providers: CheckoutPaymentProvider[] = [];
+	if (PAYPAL_REQUIRED_CONFIGURATION_KEYS.every((key) => hasConfiguredValue(input[key]))) {
+		providers.push("paypal");
+	}
+	if (WAFFO_REQUIRED_CONFIGURATION_KEYS.every((key) => hasConfiguredValue(input[key]))) {
+		providers.push("waffo");
+	}
+	return providers;
 }
 
 function requireCompleteProviderGroup(
@@ -255,7 +337,7 @@ function requireCompleteProviderGroup(
 	requiredKeys: Array<keyof z.infer<typeof rawServerEnvironmentSchema>>,
 	priceKeys: Array<keyof z.infer<typeof rawServerEnvironmentSchema>>,
 ): void {
-	if (![...requiredKeys, ...priceKeys].some((key) => Boolean(input[key]))) return;
+	if (![...requiredKeys, ...priceKeys].some((key) => hasConfiguredValue(input[key]))) return;
 	requireValues(input, issues, requiredKeys);
 }
 
@@ -347,8 +429,14 @@ function requireValues(
 	keys: Array<keyof z.infer<typeof rawServerEnvironmentSchema>>,
 ): void {
 	for (const key of keys) {
-		if (!input[key]) {
+		if (!hasConfiguredValue(input[key])) {
 			issues.push(String(key));
 		}
 	}
+}
+
+function hasConfiguredValue(value: unknown): boolean {
+	return typeof value === "string"
+		? value.trim().length > 0
+		: value !== undefined && value !== null;
 }

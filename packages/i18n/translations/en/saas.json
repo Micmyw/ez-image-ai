@@ -1,4 +1,11 @@
 {
+	"publicContent": {
+		"contact": {
+			"description": "Contact {appName} through the configured support email.",
+			"emailCta": "Email the EzPic support team at:",
+			"unavailable": "Support email is not configured. Please try again after the operator publishes a support address."
+		}
+	},
 	"admin": {
 		"menu": {
 			"media": "Media operations",
@@ -328,6 +335,7 @@
 			"createAnAccount": "Create an account",
 			"dontHaveAnAccount": "Don't have an account yet?",
 			"forgotPassword": "Forgot password?",
+			"hidePassword": "Hide password",
 			"hints": {
 				"invalidCredentials": "The email or password you entered are invalid. Please try again.",
 				"linkSent": {
@@ -336,6 +344,7 @@
 				}
 			},
 			"loginWithPasskey": "Login with passkey",
+			"showPassword": "Show password",
 			"modes": {
 				"magicLink": "Magic link",
 				"password": "Password"
@@ -846,16 +855,27 @@
 			"products": {
 				"image-fast": {
 					"label": "Standard Edit",
-					"description": "Private prompt-based image editing for everyday changes."
+					"description": "Private prompt-based image editing at the Standard tier."
 				},
 				"image-quality": {
 					"label": "Quality Edit",
-					"description": "Higher-fidelity private image editing for detailed changes."
+					"description": "Private prompt-based image editing at the Quality tier."
 				}
 			},
 			"fields": {
 				"prompt": "Edit instruction",
 				"sourceAssetId": "Source image"
+			},
+			"outputSettings": {
+				"title": "Output settings",
+				"trigger": "Open output settings",
+				"aspectRatio": "Aspect ratio",
+				"automatic": "Automatic",
+				"outputNumber": "Output number",
+				"oneOutput": "This model returns one image",
+				"resolution": "Resolution",
+				"quality": "Quality",
+				"modeControlsQuality": "Controlled by edit level"
 			},
 			"promptHint": "Describe only the change you want. Your source image remains private.",
 			"suggestions": {
@@ -963,8 +983,9 @@
 		"upgradeDialog": {
 			"title": "Unlock Quality Edit",
 			"description": "Keep your source image, instruction, Quality Edit selection, and edit session while you compare paid plans.",
-			"creator": "Creator: {credits, number} credits per month, {concurrency, number} concurrent edits, source images up to {megabytes, number} MB.",
-			"studio": "Studio: {credits, number} credits per month, {concurrency, number} concurrent edits, source images up to {megabytes, number} MB.",
+			"creator": "Pro: {credits, number} credits per month, {concurrency, number} concurrent edits, source images up to {megabytes, number} MB.",
+			"ultimate": "Ultimate: {credits, number} credits per month, {concurrency, number} concurrent edits, source images up to {megabytes, number} MB.",
+			"studio": "Max: {credits, number} credits per month, {concurrency, number} concurrent edits, source images up to {megabytes, number} MB.",
 			"storageUnavailable": "This browser could not save the editor draft. Keep this tab open and try again.",
 			"cancel": "Not now",
 			"continue": "Choose a plan"
@@ -982,9 +1003,9 @@
 			"mode": {
 				"label": "Edit mode",
 				"standard": "Standard Edit",
-				"standardDescription": "Fast private editing for everyday changes.",
+				"standardDescription": "Private image editing at the Standard tier.",
 				"quality": "Quality Edit",
-				"qualityDescription": "Higher-fidelity private editing for detailed changes.",
+				"qualityDescription": "Private image editing at the Quality tier.",
 				"credits": "{credits} credits",
 				"qualityUnavailable": "Upgrade to use Quality Edit. Your image and instruction will stay in place.",
 				"upgrade": "View upgrade options"
@@ -1144,5 +1165,16 @@
 		"title": "Processing your purchase",
 		"description": "Please wait while we confirm your payment.",
 		"loading": "Confirming your purchase, please wait..."
+	},
+	"creditPackCheckoutReturn": {
+		"title": "Adding your credits",
+		"description": "Your credit balance will update after payment confirmation.",
+		"loading": "Confirming your credit purchase…",
+		"completed": "Credits added. Opening the editor…",
+		"review": "This payment needs review before credits can be added.",
+		"notCompleted": "This checkout was not completed.",
+		"error": "We could not confirm this payment. No credits were added.",
+		"tryAgain": "View credit packs",
+		"returnToEditor": "Return to editor"
 	}
 }

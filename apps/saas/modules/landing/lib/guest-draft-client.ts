@@ -1,4 +1,8 @@
-import { PRODUCT_CREDIT_COSTS } from "@repo/config/client";
+import {
+	IMAGE_ASPECT_RATIOS,
+	PRODUCT_CREDIT_COSTS,
+	type ImageAspectRatio,
+} from "@repo/config/client";
 import { hasGrowthAnalyticsConsent, readGrowthAnalyticsSessionHash } from "@repo/utils";
 
 export const LANDING_IMAGE_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -14,6 +18,7 @@ export interface GuestCapabilityProduct {
 	description: string;
 	credits: `${(typeof PRODUCT_CREDIT_COSTS)[GuestProductKey]}`;
 	accessHint: GuestProductAccessHint;
+	aspectRatios: readonly ImageAspectRatio[];
 }
 
 export interface GuestCapabilitySnapshot {
@@ -56,6 +61,7 @@ export interface GuestDraftUploadInput {
 	productKey: GuestProductKey;
 	file: File;
 	prompt: string;
+	aspectRatio: ImageAspectRatio;
 	turnstileToken: string;
 	onStage?: (stage: "uploading" | "verifying") => void;
 	onProgress?: (progress: { loaded: number; total: number; percentage: number }) => void;
@@ -119,6 +125,7 @@ export async function uploadGuestDraft(input: GuestDraftUploadInput): Promise<Gu
 		productKey: input.productKey,
 		sha256,
 		prompt,
+		aspectRatio: input.aspectRatio,
 	});
 }
 
@@ -156,6 +163,7 @@ export async function completeGuestDraftUpload(
 		productKey: GuestProductKey;
 		sha256: string;
 		prompt: string;
+		aspectRatio?: ImageAspectRatio;
 	},
 	options: {
 		maximumAttempts?: number;
@@ -169,7 +177,7 @@ export async function completeGuestDraftUpload(
 	}
 	const wait = options.wait ?? delay;
 	const fetcher = options.fetcher ?? fetch;
-	const body = JSON.stringify(input);
+	const body = JSON.stringify({ ...input, aspectRatio: input.aspectRatio ?? "auto" });
 	for (let attempt = 1; attempt <= maximumAttempts; attempt += 1) {
 		const response = await fetcher("/api/media/guest-drafts/upload-completions", {
 			method: "POST",
@@ -298,13 +306,21 @@ function validGuestProducts(value: unknown): value is GuestCapabilityProduct[] {
 	for (const product of value) {
 		if (
 			!isRecord(product) ||
-			!hasExactKeys(product, ["key", "label", "description", "credits", "accessHint"]) ||
+			!hasExactKeys(product, [
+				"key",
+				"label",
+				"description",
+				"credits",
+				"accessHint",
+				"aspectRatios",
+			]) ||
 			typeof product.label !== "string" ||
 			!product.label.trim() ||
 			typeof product.description !== "string" ||
 			!product.description.trim() ||
 			!isGuestProductKey(product.key) ||
 			!isProductAccessHintForKey(product.accessHint, product.key) ||
+			!hasExactImageAspectRatios(product.aspectRatios) ||
 			product.credits !== PRODUCT_CREDIT_COSTS[product.key].toString() ||
 			keys.has(product.key)
 		) {
@@ -313,6 +329,14 @@ function validGuestProducts(value: unknown): value is GuestCapabilityProduct[] {
 		keys.add(product.key);
 	}
 	return true;
+}
+
+function hasExactImageAspectRatios(value: unknown): value is ImageAspectRatio[] {
+	return (
+		Array.isArray(value) &&
+		value.length === IMAGE_ASPECT_RATIOS.length &&
+		IMAGE_ASPECT_RATIOS.every((aspectRatio, index) => value[index] === aspectRatio)
+	);
 }
 
 function isGuestProductKey(value: unknown): value is GuestProductKey {

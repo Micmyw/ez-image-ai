@@ -6,12 +6,16 @@ import { describe, expect, it } from "vitest";
 const appDirectory = import.meta.dirname;
 
 describe("SaaS brand assets", () => {
-	it("ships an EzPic SVG favicon instead of the template icon", () => {
-		const iconPath = path.join(appDirectory, "icon.svg");
+	it("ships the generated EzPic PNG favicon instead of the template icon", () => {
+		const iconPath = path.join(appDirectory, "icon.png");
+		const icon = readFileSync(iconPath);
 
 		expect(existsSync(iconPath)).toBe(true);
-		expect(existsSync(path.join(appDirectory, "icon.png"))).toBe(false);
-		expect(readFileSync(iconPath, "utf8")).toMatch(/EzPic image editor mark/i);
+		expect(existsSync(path.join(appDirectory, "icon.svg"))).toBe(false);
+		expect(icon.subarray(0, 8)).toEqual(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+		expect(icon.readUInt32BE(16)).toBe(512);
+		expect(icon.readUInt32BE(20)).toBe(512);
+		expect(icon.byteLength).toBeLessThan(100_000);
 	});
 
 	it("publishes an EzPic Open Graph image route", async () => {

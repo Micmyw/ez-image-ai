@@ -3,6 +3,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 const PRICE_ENV_KEYS = [
 	"PRICE_ID_CREATOR_MONTHLY",
 	"PRICE_ID_CREATOR_YEARLY",
+	"PRICE_ID_ULTIMATE_MONTHLY",
+	"PRICE_ID_ULTIMATE_YEARLY",
 	"PRICE_ID_STUDIO_MONTHLY",
 	"PRICE_ID_STUDIO_YEARLY",
 ] as const;
@@ -27,6 +29,8 @@ describe("EzPic Stripe plan configuration", () => {
 	it("maps only environment-backed Stripe Price IDs onto the canonical prices", async () => {
 		process.env.PRICE_ID_CREATOR_MONTHLY = "price_CreatorMonthly123";
 		process.env.PRICE_ID_CREATOR_YEARLY = "price_CreatorYearly123";
+		process.env.PRICE_ID_ULTIMATE_MONTHLY = "price_UltimateMonthly123";
+		process.env.PRICE_ID_ULTIMATE_YEARLY = "price_UltimateYearly123";
 		process.env.PRICE_ID_STUDIO_MONTHLY = "price_StudioMonthly123";
 		process.env.PRICE_ID_STUDIO_YEARLY = "price_StudioYearly123";
 		const { config } = await import("../../config");
@@ -36,6 +40,12 @@ describe("EzPic Stripe plan configuration", () => {
 				prices: [
 					{ interval: "month", amount: 19, priceId: "price_CreatorMonthly123" },
 					{ interval: "year", amount: 190, priceId: "price_CreatorYearly123" },
+				],
+			},
+			ultimate: {
+				prices: [
+					{ interval: "month", amount: 49, priceId: "price_UltimateMonthly123" },
+					{ interval: "year", amount: 490, priceId: "price_UltimateYearly123" },
 				],
 			},
 			studio: {

@@ -351,7 +351,7 @@ describe("guest media read and grant boundary", () => {
 				ownerId: guestId,
 				promotionPeriod: `period-${suffix}`,
 				eligibility: "CONSUMED",
-				sponsorCredits: 4n,
+				sponsorCredits: 5n,
 				sourceAssetId: inputAssetId,
 				sourceSessionHash,
 				deviceHash,

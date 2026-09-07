@@ -1,11 +1,22 @@
 {
 	"pricing": {
+		"annualSummary": "Facturé {total} par an · économisez {savings} ({percent}%) par rapport à 12 paiements mensuels",
+		"annualTotal": "Facturé {total} par an",
+		"aspectRatios": "Formats portrait, carré et paysage",
+		"baseCredits": "Crédits de base : {credits}",
+		"buyWith": "Acheter avec {provider}",
+		"capabilitiesLabel": "Fonctions de retouche",
 		"choosePlan": "Choisir un forfait",
 		"checkoutUnavailable": "Le paiement est temporairement indisponible. Réessayez plus tard ou contactez le support.",
 		"contactSales": "Contacter les ventes",
 		"concurrentEdits": "{count, plural, one {# retouche simultanée} other {# retouches simultanées}}",
 		"creditExpiry": "Les crédits sont renouvelés chaque mois et les crédits inutilisés ne sont pas reportés.",
+		"creditPackCheckoutUnavailable": "Cette option de paiement n’est pas disponible pour le moment.",
+		"creditPacks": "Packs de crédits",
+		"creditPackTitle": "{credits} crédits",
+		"creditPackValidity": "Valables pendant {months, plural, one {# mois} other {# mois}}",
 		"description": "Choisissez un forfait de retouche d'image avec des crédits et des limites de tâches clairs.",
+		"editHistory": "Historique de retouche privé",
 		"getStarted": "Commencer",
 		"maximumInputSize": "Images source jusqu'à {megabytes, number} MB",
 		"month": "{count, plural, one {mois} other {{count} mois}}",
@@ -13,15 +24,18 @@
 		"monthlyEditAllowance": "Jusqu'à {standard, number} retouches Standard ou {quality, number} retouches Quality par mois",
 		"monthlyStandardAllowance": "Jusqu'à {standard, number} retouches Standard par mois",
 		"monthly": "Mensuel",
+		"oneTime": "paiement unique",
+		"paymentOptionsLoading": "Vérification des options de paiement…",
+		"privateAssets": "Ressources privées",
 		"products": {
 			"creator": {
-				"description": "Pour les créateurs qui retouchent régulièrement des images.",
+				"description": "Pour les créateurs qui transforment leurs idées visuelles en ressources finalisées.",
 				"features": {
 					"editLevels": "Accès à Standard Edit et Quality Edit",
 					"privateAssets": "Images source et ressources retouchées privées",
 					"editHistory": "Sessions et historique de retouche privés"
 				},
-				"title": "Creator"
+				"title": "Pro"
 			},
 			"enterprise": {
 				"description": "Forfait personnalisé adapté à vos besoins",
@@ -48,20 +62,38 @@
 				},
 				"title": "À vie"
 			},
-			"studio": {
-				"description": "Pour les flux de retouche d'image à plus grand volume.",
+			"ultimate": {
+				"description": "Pour les flux en croissance qui demandent plus de retouches et de souplesse.",
 				"features": {
 					"editLevels": "Accès à Standard Edit et Quality Edit",
 					"privateAssets": "Images source et ressources retouchées privées",
 					"editHistory": "Sessions et historique de retouche privés"
 				},
-				"title": "Studio"
+				"title": "Ultimate"
+			},
+			"studio": {
+				"description": "Pour les équipes à fort volume et les productions exigeantes.",
+				"features": {
+					"editLevels": "Accès à Standard Edit et Quality Edit",
+					"privateAssets": "Images source et ressources retouchées privées",
+					"editHistory": "Sessions et historique de retouche privés"
+				},
+				"title": "Max"
 			}
 		},
+		"pricingFaqTitle": "FAQ sur les tarifs",
+		"pricingFaqDescription": "Réponses sur les crédits, la facturation annuelle, les résiliations et les remboursements.",
 		"purchase": "Acheter",
 		"recommended": "Recommandé",
+		"qualityEdit": "Quality Edit",
+		"standardEdit": "Standard Edit",
 		"subscribe": "S'abonner",
+		"subscriberBonus": "Les abonnés reçoivent +{percent}% de crédits au même prix",
+		"subscriberBonusAmount": "Bonus abonné : {credits}",
+		"subscriberReceives": "Les abonnés reçoivent {credits} crédits",
 		"title": "Tarifs",
+		"tierAccessStandard": "Accès à Standard Edit",
+		"tierAccessAll": "Accès à Standard Edit et Quality Edit",
 		"trialPeriod": "{days} {days, plural, one {jour} other {jours}} d'essai gratuit",
 		"year": "{count, plural, one {an} other {{count} ans}}",
 		"yearly": "Annuel",

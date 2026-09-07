@@ -60,7 +60,9 @@ async function applyPaidInvoiceFact(
 	});
 	// BillingPlan rows are immutable price/entitlement snapshots. An inactive row is still
 	// required to recover a historical invoice after the subscription has moved to another plan.
-	if (!invoicePlan) throw new Error("STRIPE_INVOICE_PLAN_UNMAPPED");
+	if (!invoicePlan || invoicePlan.productKind !== "PLAN") {
+		throw new Error("STRIPE_INVOICE_PLAN_UNMAPPED");
+	}
 	const intervalValue = jsonString(invoicePlan.metadata, "interval");
 	if (intervalValue !== "month" && intervalValue !== "year") {
 		throw new Error("STRIPE_INVOICE_PLAN_INTERVAL_INVALID");
@@ -538,7 +540,7 @@ async function applySubscriptionFact(
 				providerSubscriptionId: fact.providerSubscriptionId,
 			},
 		},
-		include: { purchase: true },
+		include: { plan: true, purchase: true },
 	});
 	if (!existing) {
 		await createBoundSubscription(fact, client);
@@ -547,13 +549,18 @@ async function applySubscriptionFact(
 	if (existing.provider !== "stripe") {
 		throw new Error("STRIPE_SUBSCRIPTION_PROVIDER_CONFLICT");
 	}
+	if (existing.plan.productKind !== "PLAN") {
+		throw new Error("STRIPE_SUBSCRIPTION_PLAN_UNMAPPED");
+	}
 	if (
 		!existing.purchase ||
 		existing.purchase.type !== "SUBSCRIPTION" ||
+		existing.purchase.productKind !== "PLAN" ||
 		existing.purchase.subscriptionId !== fact.providerSubscriptionId
 	) {
 		throw new Error("STRIPE_SUBSCRIPTION_PURCHASE_BINDING_INVALID");
 	}
+	await assertScheduledStripePlan(existing.scheduledPlanId, client);
 	if (existing.purchase.customerId !== fact.customerId) {
 		throw new Error("STRIPE_SUBSCRIPTION_CUSTOMER_CONFLICT");
 	}
@@ -577,7 +584,9 @@ async function applySubscriptionFact(
 			provider_providerPriceId: { provider: "stripe", providerPriceId: fact.priceId },
 		},
 	});
-	if (!newPlan) throw new Error("STRIPE_SUBSCRIPTION_PLAN_UNMAPPED");
+	if (!newPlan || newPlan.productKind !== "PLAN") {
+		throw new Error("STRIPE_SUBSCRIPTION_PLAN_UNMAPPED");
+	}
 	const allowExpiredRecovery =
 		existing.status === "EXPIRED" && existing.graceEndsAt !== null && !existing.cancelAtPeriodEnd;
 	if (
@@ -632,6 +641,7 @@ async function createBoundSubscription(
 	if (
 		!plan ||
 		plan.provider !== "stripe" ||
+		plan.productKind !== "PLAN" ||
 		plan.providerPriceId !== fact.priceId ||
 		jsonString(plan.metadata, "planId") !== binding.planKey
 	) {
@@ -659,6 +669,7 @@ async function createBoundSubscription(
 	if (
 		existingPurchase &&
 		(existingPurchase.type !== "SUBSCRIPTION" ||
+			existingPurchase.productKind !== "PLAN" ||
 			existingPurchase.subscriptionId !== fact.providerSubscriptionId ||
 			existingPurchase.customerId !== fact.customerId ||
 			existingPurchase.priceId !== fact.priceId ||
@@ -681,6 +692,7 @@ async function createBoundSubscription(
 					organizationId: binding.ownerType === "ORGANIZATION" ? binding.ownerId : null,
 					userId: binding.ownerType === "USER" ? binding.ownerId : null,
 					type: "SUBSCRIPTION",
+					productKind: "PLAN",
 					customerId: fact.customerId,
 					subscriptionId: fact.providerSubscriptionId,
 					priceId: fact.priceId,
@@ -774,6 +786,7 @@ async function assertInvoiceSubscriptionCompatibility(
 		purchase: {
 			id: string;
 			type: "SUBSCRIPTION" | "ONE_TIME";
+			productKind: "PLAN" | "CREDIT_PACK";
 			subscriptionId: string | null;
 			customerId: string;
 			userId: string | null;
@@ -786,6 +799,7 @@ async function assertInvoiceSubscriptionCompatibility(
 	if (
 		!subscription.purchase ||
 		subscription.purchase.type !== "SUBSCRIPTION" ||
+		subscription.purchase.productKind !== "PLAN" ||
 		subscription.purchase.subscriptionId !== subscription.providerSubscriptionId
 	) {
 		throw new Error("STRIPE_SUBSCRIPTION_PURCHASE_BINDING_INVALID");
@@ -966,7 +980,27 @@ async function exactlyOneSubscription(providerSubscriptionId: string, client: Tr
 	});
 	if (matches.length === 0) throw new Error("STRIPE_SUBSCRIPTION_BINDING_PENDING");
 	if (matches.length > 1) throw new Error("STRIPE_SUBSCRIPTION_BINDING_AMBIGUOUS");
-	return matches[0]!;
+	const subscription = matches[0]!;
+	if (subscription.plan.productKind !== "PLAN") {
+		throw new Error("STRIPE_SUBSCRIPTION_PLAN_UNMAPPED");
+	}
+	await assertScheduledStripePlan(subscription.scheduledPlanId, client);
+	return subscription;
+}
+
+async function assertScheduledStripePlan(
+	scheduledPlanId: string | null,
+	client: TransactionClient,
+): Promise<void> {
+	if (!scheduledPlanId) return;
+	const scheduledPlan = await client.billingPlan.findUnique({ where: { id: scheduledPlanId } });
+	if (
+		!scheduledPlan ||
+		scheduledPlan.provider !== "stripe" ||
+		scheduledPlan.productKind !== "PLAN"
+	) {
+		throw new Error("STRIPE_SUBSCRIPTION_PLAN_UNMAPPED");
+	}
 }
 
 async function ensureCreditAccount(

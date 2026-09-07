@@ -33,7 +33,6 @@ describe("API request security", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		process.env.NEXT_PUBLIC_SAAS_URL = "https://app.example.com";
-		process.env.NEXT_PUBLIC_MARKETING_URL = "https://www.example.com";
 		vi.mocked(db.$queryRaw).mockResolvedValue([] as never);
 		vi.mocked(checkStorageMetadataAccess).mockResolvedValue(undefined);
 		vi.mocked(auth.api.getSession).mockResolvedValue(null);
@@ -56,7 +55,7 @@ describe("API request security", () => {
 		const response = await app.request("/api/media/drafts", {
 			method: "POST",
 			headers: {
-				origin: "https://www.example.com",
+				origin: "https://app.example.com",
 				"content-type": "application/json",
 				"content-length": "10485761",
 			},

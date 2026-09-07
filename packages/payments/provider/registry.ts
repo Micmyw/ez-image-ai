@@ -6,7 +6,7 @@ import {
 
 const capabilities = {
 	stripe: {
-		checkout: true,
+		checkout: false,
 		portal: true,
 		cancellation: true,
 		seatUpdates: true,
@@ -69,6 +69,7 @@ export function isPaymentProviderConfigured(
 			"WAFFO_MERCHANT_ID",
 			"WAFFO_PRIVATE_KEY",
 			"WAFFO_WEBHOOK_PUBLIC_KEY",
+			"WAFFO_STORE_ID",
 		]) &&
 		(environment.WAFFO_ENVIRONMENT === "test" || environment.WAFFO_ENVIRONMENT === "prod")
 	);

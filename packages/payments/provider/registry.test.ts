@@ -40,7 +40,7 @@ describe("payment provider registry", () => {
 
 	it("advertises only capabilities each provider actually implements", () => {
 		expect(resolvePaymentProvider("stripe")?.capabilities).toEqual({
-			checkout: true,
+			checkout: false,
 			portal: true,
 			cancellation: true,
 			seatUpdates: true,
@@ -76,9 +76,11 @@ describe("payment provider registry", () => {
 			WAFFO_MERCHANT_ID: "MER_merchant",
 			WAFFO_PRIVATE_KEY: "-----BEGIN PRIVATE KEY-----\nkey\n-----END PRIVATE KEY-----",
 			WAFFO_WEBHOOK_PUBLIC_KEY: "-----BEGIN PUBLIC KEY-----\nkey\n-----END PUBLIC KEY-----",
+			WAFFO_STORE_ID: "STO_store",
 			WAFFO_ENVIRONMENT: "test",
 		};
 		expect(isPaymentProviderConfigured("waffo", waffo)).toBe(true);
 		expect(isPaymentProviderConfigured("waffo", { ...waffo, WAFFO_PRIVATE_KEY: "" })).toBe(false);
+		expect(isPaymentProviderConfigured("waffo", { ...waffo, WAFFO_STORE_ID: "" })).toBe(false);
 	});
 });

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeProviderBillingEvent } from "./lifecycle-normalization";
+import {
+	normalizeProviderBillingEvent,
+	normalizeProviderPaymentEvent,
+} from "./lifecycle-normalization";
 
 describe("PayPal and Waffo lifecycle normalization", () => {
 	it("normalizes the official Waffo activation shape without inventing a payment", () => {
@@ -131,6 +134,59 @@ describe("PayPal and Waffo lifecycle normalization", () => {
 		});
 	});
 
+	it.each([
+		["BILLING.SUBSCRIPTION.ACTIVATED", "ACTIVE"],
+		["BILLING.SUBSCRIPTION.PAYMENT.FAILED", "PAST_DUE"],
+		["BILLING.SUBSCRIPTION.SUSPENDED", "PAST_DUE"],
+		["BILLING.SUBSCRIPTION.CANCELLED", "CANCELED"],
+		["BILLING.SUBSCRIPTION.EXPIRED", "EXPIRED"],
+	] as const)(
+		"anchors %s to the lifecycle event time rather than the subscription creation time",
+		(eventType, status) => {
+			const normalized = normalizeProviderBillingEvent("paypal", {
+				id: `WH-${eventType}`,
+				event_type: eventType,
+				create_time: "2026-09-07T10:00:00Z",
+				resource: {
+					id: "I-SUBSCRIPTION",
+					create_time: "2026-01-31T00:00:00Z",
+				},
+			});
+
+			expect(normalized.status).toBe(status);
+			expect(normalized.occurredAt).toEqual(new Date("2026-09-07T10:00:00Z"));
+		},
+	);
+
+	it("rejects a PayPal subscription lifecycle event without its event time", () => {
+		expect(() =>
+			normalizeProviderBillingEvent("paypal", {
+				id: "WH-PAYPAL-CANCELLED-WITHOUT-EVENT-TIME",
+				event_type: "BILLING.SUBSCRIPTION.CANCELLED",
+				resource: {
+					id: "I-SUBSCRIPTION",
+					create_time: "2026-01-31T00:00:00Z",
+				},
+			}),
+		).toThrow("PAYPAL_EVENT_TIME_INVALID");
+	});
+
+	it("anchors a PayPal sale to the transaction time rather than delayed webhook delivery", () => {
+		const normalized = normalizeProviderBillingEvent("paypal", {
+			id: "WH-PAYPAL-SALE-DELAYED",
+			event_type: "PAYMENT.SALE.COMPLETED",
+			create_time: "2026-09-07T10:00:00Z",
+			resource: {
+				id: "PAYPAL-SALE-DELAYED",
+				billing_agreement_id: "I-SUBSCRIPTION",
+				create_time: "2026-09-06T01:02:03Z",
+				amount: { total: "19.00", currency: "USD" },
+			},
+		});
+
+		expect(normalized.occurredAt).toEqual(new Date("2026-09-06T01:02:03Z"));
+	});
+
 	it("normalizes a PayPal cancellation as a status-only lifecycle fact", () => {
 		expect(
 			normalizeProviderBillingEvent("paypal", {
@@ -169,5 +225,181 @@ describe("PayPal and Waffo lifecycle normalization", () => {
 				event_type: "CATALOG.PRODUCT.CREATED",
 			}),
 		).toThrow("PAYMENT_PROVIDER_EVENT_UNSUPPORTED");
+	});
+
+	it("normalizes Waffo one-time completion with the checkout, order, and payment identities", () => {
+		expect(
+			normalizeProviderPaymentEvent("waffo", {
+				id: "delivery-pack-1",
+				eventId: "business-event-1",
+				eventType: "order.completed",
+				timestamp: "2026-09-06T01:02:03Z",
+				data: {
+					orderId: "ORDER-1",
+					orderMerchantExternalId: "checkout-intent-pack-1",
+					merchantProvidedBuyerIdentity: "USER:user-1",
+					amount: "59.00",
+					currency: "USD",
+					paymentId: "PAYMENT-1",
+					paymentStatus: "succeeded",
+				},
+			}),
+		).toEqual({
+			kind: "CREDIT_PACK_PAID",
+			fact: {
+				provider: "waffo",
+				providerEventId: "delivery-pack-1",
+				checkoutIntentId: "checkout-intent-pack-1",
+				providerOrderId: "ORDER-1",
+				providerPaymentId: "PAYMENT-1",
+				providerCustomerId: "USER:user-1",
+				amountMicros: 59_000_000n,
+				currency: "USD",
+				occurredAt: new Date("2026-09-06T01:02:03Z"),
+			},
+		});
+	});
+
+	it("rejects a Waffo order completion without an explicit succeeded payment", () => {
+		expect(() =>
+			normalizeProviderPaymentEvent("waffo", {
+				id: "delivery-pack-missing-payment-status",
+				eventType: "order.completed",
+				timestamp: "2026-09-06T01:02:03Z",
+				data: {
+					orderId: "ORDER-1",
+					orderMerchantExternalId: "checkout-intent-pack-1",
+					merchantProvidedBuyerIdentity: "USER:user-1",
+					amount: "59.00",
+					currency: "USD",
+					paymentId: "PAYMENT-1",
+				},
+			}),
+		).toThrow("WAFFO_PAYMENT_STATUS_INVALID");
+	});
+
+	it("normalizes PayPal capture completion without confusing the order and capture IDs", () => {
+		expect(
+			normalizeProviderPaymentEvent("paypal", {
+				id: "WH-CAPTURE-1",
+				event_type: "PAYMENT.CAPTURE.COMPLETED",
+				create_time: "2026-09-06T01:02:03Z",
+				resource: {
+					id: "CAPTURE-1",
+					status: "COMPLETED",
+					final_capture: true,
+					custom_id: "checkout-intent-pack-1",
+					payer_id: "PAYER-1",
+					amount: { currency_code: "USD", value: "59.00" },
+					supplementary_data: { related_ids: { order_id: "ORDER-1" } },
+				},
+			}),
+		).toEqual({
+			kind: "CREDIT_PACK_PAID",
+			fact: {
+				provider: "paypal",
+				providerEventId: "WH-CAPTURE-1",
+				checkoutIntentId: "checkout-intent-pack-1",
+				providerOrderId: "ORDER-1",
+				providerPaymentId: "CAPTURE-1",
+				providerCustomerId: "PAYER-1",
+				amountMicros: 59_000_000n,
+				currency: "USD",
+				occurredAt: new Date("2026-09-06T01:02:03Z"),
+			},
+		});
+	});
+
+	it("anchors PayPal credit expiry to the capture time rather than webhook delivery time", () => {
+		const normalized = normalizeProviderPaymentEvent("paypal", {
+			id: "WH-CAPTURE-DELAYED",
+			event_type: "PAYMENT.CAPTURE.COMPLETED",
+			create_time: "2026-09-07T10:00:00Z",
+			resource: {
+				id: "CAPTURE-DELAYED",
+				status: "COMPLETED",
+				final_capture: true,
+				create_time: "2026-09-06T01:02:03Z",
+				custom_id: "checkout-intent-pack-1",
+				amount: { currency_code: "USD", value: "59.00" },
+				supplementary_data: { related_ids: { order_id: "ORDER-1" } },
+			},
+		});
+
+		expect(normalized.fact.occurredAt).toEqual(new Date("2026-09-06T01:02:03Z"));
+	});
+
+	it("normalizes a completed PayPal refund only when it carries an original capture identity", () => {
+		expect(
+			normalizeProviderPaymentEvent("paypal", {
+				id: "WH-REFUND-1",
+				event_type: "PAYMENT.CAPTURE.REFUNDED",
+				create_time: "2026-09-07T01:02:03Z",
+				resource: {
+					id: "REFUND-1",
+					status: "COMPLETED",
+					amount: { currency_code: "USD", value: "29.50" },
+					links: [
+						{
+							rel: "up",
+							href: "https://api-m.paypal.com/v2/payments/captures/CAPTURE-1",
+							method: "GET",
+						},
+					],
+				},
+			}),
+		).toEqual({
+			kind: "CREDIT_PACK_REFUNDED",
+			fact: {
+				provider: "paypal",
+				providerEventId: "WH-REFUND-1",
+				providerRefundId: "REFUND-1",
+				providerPaymentId: "CAPTURE-1",
+				amountMicros: 29_500_000n,
+				currency: "USD",
+				occurredAt: new Date("2026-09-07T01:02:03Z"),
+			},
+		});
+	});
+
+	it("anchors a PayPal refund to the provider resource time rather than delayed webhook delivery", () => {
+		const normalized = normalizeProviderPaymentEvent("paypal", {
+			id: "WH-REFUND-DELAYED",
+			event_type: "PAYMENT.CAPTURE.REFUNDED",
+			create_time: "2026-09-08T10:00:00Z",
+			resource: {
+				id: "REFUND-DELAYED",
+				status: "COMPLETED",
+				create_time: "2026-09-07T01:02:03Z",
+				amount: { currency_code: "USD", value: "0.01" },
+				links: [
+					{
+						rel: "up",
+						href: "https://api-m.paypal.com/v2/payments/captures/CAPTURE-DELAYED",
+						method: "GET",
+					},
+				],
+			},
+		});
+
+		expect(normalized.fact.occurredAt).toEqual(new Date("2026-09-07T01:02:03Z"));
+	});
+
+	it("keeps Waffo refunds in review because its webhook omits authoritative refund identity and amount semantics", () => {
+		expect(() =>
+			normalizeProviderPaymentEvent("waffo", {
+				id: "delivery-refund",
+				eventId: "business-event-refund",
+				eventType: "refund.succeeded",
+				timestamp: "2026-09-07T01:02:03Z",
+				data: {
+					orderId: "ORDER-1",
+					orderMerchantExternalId: "checkout-intent-pack-1",
+					amount: "59.00",
+					currency: "USD",
+					refundStatus: "succeeded",
+				},
+			}),
+		).toThrow("PAYMENT_PROVIDER_REFUND_REVIEW_REQUIRED");
 	});
 });

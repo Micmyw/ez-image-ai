@@ -1,6 +1,6 @@
 import { randomBytes } from "node:crypto";
 
-import { promptSchema } from "@repo/ai";
+import { imageAspectRatioSchema, promptSchema } from "@repo/ai";
 import {
 	finalizeGuestDraftFromReadyUploadTransaction,
 	loadGuestUploadCompletion,
@@ -43,6 +43,7 @@ export const completeGuestDraftUpload = publicProcedure
 				productKey: z.string().min(1).max(64),
 				sha256: z.string().regex(/^[a-f0-9]{64}$/),
 				prompt: promptSchema,
+				aspectRatio: imageAspectRatioSchema.default("auto"),
 			})
 			.strict(),
 	)
@@ -68,7 +69,6 @@ export const completeGuestDraftUpload = publicProcedure
 	.handler(async ({ context, input }) => {
 		const publicOrigin = resolveGuestPublicOrigin(context.headers.get("origin"), {
 			saasOrigin: process.env.NEXT_PUBLIC_SAAS_URL,
-			marketingOrigin: process.env.NEXT_PUBLIC_MARKETING_URL,
 		});
 		const loaded = await loadGuestCapability();
 		if (!loaded.config.enabled || !loaded.config.promotionPeriod) {
@@ -130,6 +130,7 @@ export const completeGuestDraftUpload = publicProcedure
 					maximumOutstandingBootstraps: loaded.config.limits.maximumOutstandingBootstraps,
 					productKey: product.key,
 					prompt: input.prompt,
+					aspectRatio: input.aspectRatio,
 					expiresAt: new Date(Date.now() + loaded.config.bootstrapTtlMs),
 					verification: currentMediaAssetVerificationBoundary(),
 				},

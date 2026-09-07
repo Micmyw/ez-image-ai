@@ -4,7 +4,55 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { scanPublicUiRoots } from "./verify-public-ui-originality.mjs";
+import {
+	assertSaasOnlyScannerConfiguration,
+	scanPublicUiRoots,
+} from "./verify-public-ui-originality.mjs";
+
+void test("keeps scanner roots inside the unified SaaS application", () => {
+	assert.doesNotThrow(() => assertSaasOnlyScannerConfiguration());
+});
+
+void test("rejects scanner configuration when required public routes are removed", () => {
+	assert.throws(
+		() =>
+			assertSaasOnlyScannerConfiguration(
+				[
+					{
+						id: "home",
+						buildRoot: path.resolve("apps/saas/.next"),
+						manifest: path.join("server", "app", "page_client-reference-manifest.js"),
+						appPathKey: "/page",
+						representativePath: "/",
+						scanArtifacts: true,
+						outputRoutes: [],
+					},
+				],
+				[path.resolve("apps/saas/public")],
+			),
+		/missing required public route coverage/i,
+	);
+});
+
+void test("rejects Provider disclosure in deployed public-root artifacts", async () => {
+	const root = await mkdtemp(path.join(tmpdir(), "ezpic-public-provider-disclosure-"));
+	try {
+		await writeFile(path.join(root, "PROVENANCE.md"), "Generated with OpenAI", "utf8");
+
+		const findings = await scanPublicUiRoots([root]);
+
+		assert.ok(
+			findings.some(
+				(finding) =>
+					finding.kind === "provider-disclosure" &&
+					path.basename(finding.file) === "PROVENANCE.md" &&
+					finding.value === "OpenAI",
+			),
+		);
+	} finally {
+		await rm(root, { recursive: true, force: true });
+	}
+});
 
 void test("scans nested deployed Markdown and SVG while excluding binary artifacts", async () => {
 	const root = await mkdtemp(path.join(tmpdir(), "ezpic-public-originality-"));

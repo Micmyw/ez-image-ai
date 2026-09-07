@@ -24,6 +24,7 @@ describe("same-origin landing guest client", () => {
 						description: "Everyday private edits",
 						credits: "5",
 						accessHint: "guest-trial",
+						aspectRatios: ["auto", "1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9"],
 					},
 					{
 						key: "image-quality",
@@ -31,6 +32,7 @@ describe("same-origin landing guest client", () => {
 						description: "Higher fidelity private edits",
 						credits: "40",
 						accessHint: "paid-account",
+						aspectRatios: ["auto", "1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9"],
 					},
 				],
 				queueEstimate: { kind: "capacity" },
@@ -40,6 +42,7 @@ describe("same-origin landing guest client", () => {
 		const result = await getGuestCapability(fetcher as typeof fetch);
 
 		expect(result.products.map((product) => product.key)).toEqual(["image-fast", "image-quality"]);
+		expect(result.products[0]?.aspectRatios).toContain("16:9");
 		expect(JSON.stringify(result)).not.toMatch(/provider|modelId|costMicros|weight/i);
 		expect(fetcher).toHaveBeenCalledWith(
 			"/api/media/guest-capability",
@@ -64,6 +67,7 @@ describe("same-origin landing guest client", () => {
 						description: "Everyday private edits",
 						credits: 5,
 						accessHint: "guest-trial",
+						aspectRatios: ["auto", "1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9"],
 					},
 				],
 				queueEstimate: { kind: "capacity" },

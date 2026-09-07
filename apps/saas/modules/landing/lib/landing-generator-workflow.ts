@@ -1,3 +1,5 @@
+import type { ImageAspectRatio } from "@repo/config/client";
+
 import type { GuestCapabilityProduct, GuestProductKey } from "./guest-draft-client";
 
 export type LandingGeneratorStage =
@@ -31,6 +33,15 @@ export function resolveLandingProductSelection(
 		products.at(0)?.key ??
 		null
 	);
+}
+
+export function resolveLandingAspectRatioSelection(
+	product: GuestCapabilityProduct | null,
+	selectedAspectRatio: ImageAspectRatio,
+): ImageAspectRatio | null {
+	if (!product) return null;
+	if (product.aspectRatios.includes(selectedAspectRatio)) return selectedAspectRatio;
+	return product.aspectRatios.includes("auto") ? "auto" : (product.aspectRatios[0] ?? null);
 }
 
 export function landingDisabledReason(input: {

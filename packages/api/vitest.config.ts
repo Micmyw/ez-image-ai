@@ -6,6 +6,7 @@ export default defineConfig({
 		environment: "node",
 		env: {
 			DATABASE_URL:
+				process.env.DATABASE_URL ??
 				process.env.TEST_DATABASE_URL ??
 				"postgresql://foundation_test:foundation_test@127.0.0.1:55432/ezpic_provider_test",
 			MEDIA_GENERATION_ENABLED: "true",

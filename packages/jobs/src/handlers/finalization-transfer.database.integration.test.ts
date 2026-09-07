@@ -3,6 +3,7 @@ import {
 	MEDIA_VERIFICATION_POLICY_VERSION,
 	MEDIA_VERIFICATION_RULE_VERSION,
 	TestMediaSafetyAdapter,
+	createRouteGraphSnapshot,
 	type ProviderOutput,
 } from "@repo/ai";
 import {
@@ -696,7 +697,10 @@ async function seedFinalizingJob(outputs: ProviderOutput[]) {
 			prompt: "output transfer test",
 			sourceAssetId: inputAsset.id,
 		},
-		pricingSnapshot: { credits: "10" },
+		pricingSnapshot: {
+			credits: "10",
+			routeGraph: legacyImageQualityRouteGraph(),
+		},
 		expiresAt: new Date(Date.now() + 60_000),
 	} as const;
 	const quote = await createModeratedGenerationQuoteTransaction(
@@ -751,6 +755,32 @@ async function seedFinalizingJob(outputs: ProviderOutput[]) {
 	);
 	const job = await client.generationJob.findUniqueOrThrow({ where: { id: created.job.id } });
 	return { jobId: job.id, ownerId, version: job.version };
+}
+
+function legacyImageQualityRouteGraph() {
+	const snapshot = createRouteGraphSnapshot({
+		productKey: "image-quality",
+		catalogVersion: "2026-08-13.1",
+		pricingVersion: "2026-08-13.1",
+		routes: [
+			{
+				provider: "gemini",
+				providerModelId: "gemini-2.5-flash-image",
+				providerCostMicros: 8_000,
+				weight: 100,
+			},
+		],
+	});
+	return {
+		allowedRoutes: snapshot.allowedRoutes.map((route) => ({
+			provider: route.provider,
+			providerModelId: route.providerModelId,
+			providerCostMicros: route.providerCostMicros,
+			weight: route.weight,
+		})),
+		graphFingerprint: snapshot.graphFingerprint,
+		maximumRouteCostMicros: snapshot.maximumRouteCostMicros,
+	};
 }
 
 async function markSeededJobAsGuest(

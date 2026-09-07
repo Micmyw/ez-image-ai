@@ -1,5 +1,6 @@
 "use client";
 
+import type { ImageAspectRatio } from "@repo/config/client";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpcClient } from "@shared/lib/orpc-client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -19,13 +20,17 @@ type GuestInitialLoad =
 	| {
 			kind: "draft";
 			capabilityVersion: string;
-			draft: { sourceAssetId: string; prompt: string };
+			draft: { sourceAssetId: string; prompt: string; aspectRatio: ImageAspectRatio };
 	  }
 	| { kind: "unavailable"; capabilityVersion: string };
 
 export function useGuestTrial({ registered = false }: { registered?: boolean } = {}) {
 	const [capabilityVersion, setCapabilityVersion] = useState<string>();
-	const [draft, setDraft] = useState<{ sourceAssetId: string; prompt: string }>();
+	const [draft, setDraft] = useState<{
+		sourceAssetId: string;
+		prompt: string;
+		aspectRatio: ImageAspectRatio;
+	}>();
 	const [prompt, setPrompt] = useState("");
 	const [snapshot, setSnapshot] = useState<GuestTrialSnapshot | null>(null);
 	const [errorKey, setErrorKey] = useState<GuestErrorKey>();
@@ -166,6 +171,7 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 				productKey: "image-fast",
 				sourceAssetId: draft.sourceAssetId,
 				prompt: prompt.trim(),
+				aspectRatio: draft.aspectRatio,
 				idempotencyKey: createIdempotencyKey("guest-submit"),
 				deviceId: await getGuestDeviceId(),
 				turnstileToken,

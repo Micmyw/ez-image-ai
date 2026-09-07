@@ -24,7 +24,7 @@ describe("EzPic PR 8 launch artifacts", () => {
 		["docs/operations/ezpic-rollback.md", ["Standard Edit", "Quality Edit", "Outbox", "rollback"]],
 		[
 			"docs/product/ezpic-final-cost-model.md",
-			["providerCostMicros", "Creator", "Studio", "NOT_COMPLETED"],
+			["providerCostMicros", "Pro", "Ultimate", "Max", "Credit Pack", "NOT_COMPLETED"],
 		],
 	] as const)("keeps %s as an executable launch contract", (relativePath, requiredText) => {
 		const content = readFileSync(resolve(repositoryRoot, relativePath), "utf8");
@@ -118,6 +118,23 @@ describe("EzPic PR 8 launch artifacts", () => {
 			"EZPIC_SENTRY_ENVIRONMENT",
 			"EZPIC_MAIL_PROVIDER_ID",
 			"EZPIC_GSC_PROPERTY",
+			"NEXT_PUBLIC_SUPPORT_EMAIL",
+			"GUEST_MEDIA_ENABLED",
+			"GUEST_PROMOTION_PERIOD",
+			"GUEST_ABUSE_HMAC_VERSION",
+			"GUEST_ABUSE_HMAC_SECRET",
+			"NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY",
+			"GUEST_TURNSTILE_SECRET_KEY",
+			"MEDIA_TRUSTED_PROXY_PROVIDER",
+			"GUEST_RISK_BUDGET_MICROS",
+			"GUEST_BILLED_STANDARD_COST_EVIDENCE_ID",
+			"GUEST_BILLED_STANDARD_COST_MICROS",
+			"GUEST_PROVIDER_HARD_BUDGET_EVIDENCE_ID",
+			"GUEST_HARD_BUDGET_MICROS",
+			"GUEST_PRIVACY_DISCLOSURE_EVIDENCE_ID",
+			"GUEST_CLEANUP_READINESS_EVIDENCE_ID",
+			"GUEST_PRODUCTION_CONFIGURATION_EVIDENCE_ID",
+			"GUEST_RUNTIME_OVERRIDE_EVIDENCE_ID",
 			"MEDIA_STANDARD_EDIT_ENABLED",
 			"MEDIA_QUALITY_EDIT_ENABLED",
 			"MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS",
@@ -146,6 +163,12 @@ describe("EzPic PR 8 launch artifacts", () => {
 		]) {
 			expect(example).toContain(`${key}=`);
 		}
+	});
+
+	it("lets each Next.js command select its own NODE_ENV", () => {
+		const example = readFileSync(resolve(repositoryRoot, ".env.local.example"), "utf8");
+
+		expect(example).not.toMatch(/^\s*NODE_ENV\s*=/m);
 	});
 
 	it("keeps the canonical CI database in the exact CI-only integration allowlists", () => {

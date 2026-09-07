@@ -88,20 +88,18 @@ function NavMenuList({
 			<ul className={listClassName}>
 				{menuItems.map((menuItem) => {
 					const parentClasses = cn(
-						"gap-3 px-3 py-2 text-sm flex w-full items-center rounded-lg whitespace-nowrap transition-colors",
+						"min-h-11 gap-3 px-3 py-2 text-sm flex w-full items-center rounded-xl whitespace-nowrap transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b79cff]",
 						{
-							"font-semibold bg-muted": menuItem.isActive,
-							"hover:bg-accent/50": !menuItem.isActive,
+							"font-semibold text-white bg-[#6c4dff] shadow-[0_12px_28px_-14px_rgba(108,77,255,0.9)]":
+								menuItem.isActive,
+							"hover:bg-white/[0.065] hover:text-white text-[#c5b9d2]": !menuItem.isActive,
 							"md:justify-center md:px-2": isCollapsedEffective,
 						},
 					);
 
 					const parentIcon = (
 						<menuItem.icon
-							className={cn(
-								"size-5 shrink-0",
-								menuItem.isActive ? "text-foreground" : "text-muted-foreground opacity-60",
-							)}
+							className={cn("size-5 shrink-0", menuItem.isActive ? "text-white" : "text-[#91849c]")}
 						/>
 					);
 
@@ -176,7 +174,7 @@ function NavMenuList({
 																	className={cn(
 																		props.className,
 																		"flex w-full cursor-pointer items-center",
-																		subActive && "font-semibold",
+																		subActive && "font-semibold text-[#5b43d6] dark:text-[#c9b9ff]",
 																	)}
 																>
 																	{subItem.label}
@@ -198,8 +196,8 @@ function NavMenuList({
 									{parentIcon}
 									<span
 										className={cn({
-											"text-foreground": menuItem.isActive,
-											"text-muted-foreground": !menuItem.isActive,
+											"text-white": menuItem.isActive,
+											"text-[#c5b9d2]": !menuItem.isActive,
 										})}
 									>
 										{menuItem.label}
@@ -209,7 +207,7 @@ function NavMenuList({
 									<div className="mt-1 relative">
 										{/* Vertical guide: aligned with parent icon center; starts below parent row (no overlap with icon) */}
 										<div
-											className="top-0 bottom-0 left-5.5 absolute w-px -translate-x-1/2 bg-border/60"
+											className="top-0 bottom-0 left-5.5 bg-white/10 absolute w-px -translate-x-1/2"
 											aria-hidden
 										/>
 										<ul className="gap-0.5 pl-9 flex flex-col">
@@ -221,8 +219,8 @@ function NavMenuList({
 															href={subItem.href}
 															onClick={onLinkClick}
 															className={cn(
-																"py-1.5 pl-2 pr-3 text-sm flex w-full items-center rounded-md text-muted-foreground transition-colors hover:bg-accent/50",
-																subActive && "font-semibold text-foreground",
+																"min-h-9 py-1.5 pl-2 pr-3 text-sm hover:bg-white/[0.055] hover:text-white flex w-full items-center rounded-lg text-[#9f93aa] transition-colors focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#b79cff]",
+																subActive && "font-semibold text-[#ded4e7]",
 															)}
 															prefetch
 														>
@@ -244,8 +242,8 @@ function NavMenuList({
 							{!isCollapsedEffective && (
 								<span
 									className={cn({
-										"text-foreground": menuItem.isActive,
-										"text-muted-foreground": !menuItem.isActive,
+										"text-white": menuItem.isActive,
+										"text-[#c5b9d2]": !menuItem.isActive,
 									})}
 								>
 									{menuItem.label}
@@ -436,7 +434,7 @@ export function NavBar() {
 	return (
 		<nav
 			className={cn(
-				"md:fixed md:top-0 md:left-0 md:h-full md:w-[280px] w-full",
+				"border-white/[0.06] md:fixed md:left-0 md:top-0 md:h-full md:w-[280px] md:border-b-0 relative z-40 w-full border-b bg-[#120d1a] text-[#f6f2fb]",
 				isCollapsedEffective && "md:w-[80px]",
 			)}
 		>
@@ -473,7 +471,7 @@ export function NavBar() {
 									/>
 									<SheetContent
 										side="left"
-										className="p-0 pt-14 sm:max-w-[280px] flex h-full w-[min(100vw,280px)] flex-col overflow-hidden border-r"
+										className="border-white/10 p-0 pt-14 sm:max-w-[280px] flex h-full w-[min(100vw,280px)] flex-col overflow-hidden border-r bg-[#120d1a] text-[#f6f2fb]"
 									>
 										<SheetHeader className="sr-only">
 											<SheetTitle>{t("app.menu.navigationTitle")}</SheetTitle>
@@ -490,12 +488,19 @@ export function NavBar() {
 										</div>
 									</SheetContent>
 								</Sheet>
-								<Link href="/" className="block shrink-0">
-									<Logo label={config.appName} withLabel={!isCollapsedEffective} />
+								<Link
+									href="/"
+									className="block shrink-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#b79cff]"
+								>
+									<Logo
+										className="text-white [&_svg]:text-[#b79cff]"
+										label={config.appName}
+										withLabel={!isCollapsedEffective}
+									/>
 								</Link>
 							</div>
 
-							<NotificationCenter className="md:flex hidden shrink-0" />
+							<NotificationCenter className="border-white/10 bg-white/[0.04] hover:bg-white/[0.08] md:flex hidden shrink-0 text-[#d8cfe1] [&_svg]:text-[#c5b9d2]" />
 						</div>
 
 						{authConfig.organizations.enable && !authConfig.organizations.hideOrganization && (
@@ -518,7 +523,7 @@ export function NavBar() {
 					</div>
 
 					<div className="mr-0 gap-2 md:hidden ml-auto flex items-center justify-end">
-						<NotificationCenter className="shrink-0" />
+						<NotificationCenter className="border-white/10 bg-white/[0.04] hover:bg-white/[0.08] shrink-0 text-[#d8cfe1] [&_svg]:text-[#c5b9d2]" />
 						<UserMenu />
 					</div>
 				</div>
@@ -574,8 +579,8 @@ export function NavBar() {
 					className={cn(
 						"h-7 w-7 absolute top-1/2 left-1/2 inline-flex -translate-x-1/2 -translate-y-1/2",
 						"items-center justify-center",
-						"rounded-full border border-border bg-background text-muted-foreground",
-						"shadow-sm",
+						"rounded-full border border-[#b79cff]/25 bg-[#241a31] text-[#c9b9ff]",
+						"shadow-[0_10px_28px_-14px_rgba(108,77,255,0.9)]",
 						"pointer-events-none",
 						"opacity-0 transition-opacity",
 						"group-hover:opacity-100",

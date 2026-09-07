@@ -8,6 +8,8 @@ const OpenRouterProviderAdapter = (
 			apiKey: string;
 			baseUrl?: string;
 			fetch?: typeof fetch;
+			maxInlineImageBytes?: number;
+			maxResponseBytes?: number;
 			timeoutMs?: number;
 		}) => import("./provider-adapter").MediaProviderAdapter;
 	}
@@ -31,6 +33,7 @@ describe("OpenRouterProviderAdapter", () => {
 			input: {
 				kind: "image-to-image",
 				prompt: "Keep the subject and replace the background",
+				aspectRatio: "16:9",
 				sourceAsset: {
 					assetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
 					transferUrl: "https://private.example.test/signed-input",
@@ -50,6 +53,7 @@ describe("OpenRouterProviderAdapter", () => {
 		expect(JSON.parse(requestBody as string)).toEqual({
 			model: "sourceful/riverflow-v2.5-fast",
 			prompt: "Keep the subject and replace the background",
+			aspect_ratio: "16:9",
 			n: 1,
 			input_references: [
 				{
@@ -101,6 +105,21 @@ describe("OpenRouterProviderAdapter", () => {
 		});
 	});
 
+	it("keeps a raster result above the decoded inline-image limit uncertain", async () => {
+		const adapter = new OpenRouterProviderAdapter({
+			apiKey: "server-openrouter-key",
+			fetch: fixtureFetch({ body: { data: [{ b64_json: PNG_BASE64 }] } }),
+			maxInlineImageBytes: 8,
+		});
+
+		await expect(adapter.submit(validSubmitInput())).resolves.toMatchObject({
+			status: "SUCCEEDED",
+			outcome: "uncertain",
+			uncertainty: { classification: "malformed_2xx", phase: "post_send" },
+			idempotency: { providerSupported: false, replayed: false },
+		});
+	});
+
 	it.each([
 		[429, "uncertain"],
 		[503, "uncertain"],
@@ -117,6 +136,43 @@ describe("OpenRouterProviderAdapter", () => {
 			idempotency: { providerSupported: false, replayed: false },
 		});
 	});
+
+	it.each([429, 503])(
+		"preserves HTTP %s when its oversized error response is discarded",
+		async (status) => {
+			const privateResponseBody = JSON.stringify({
+				error: { message: "private provider diagnostics must not leak" },
+			});
+			const adapter = new OpenRouterProviderAdapter({
+				apiKey: "server-openrouter-key",
+				fetch: (async () =>
+					new Response(privateResponseBody, {
+						status,
+						headers: { "content-length": "1024" },
+					})) as typeof fetch,
+				maxResponseBytes: 32,
+			});
+
+			const submission = await adapter.submit(validSubmitInput());
+
+			expect(submission).toMatchObject({
+				status: "FAILED",
+				outcome: "uncertain",
+				failure: {
+					code: `HTTP_${status}`,
+					message: `Provider rejected submission with HTTP ${status}`,
+					retryable: false,
+				},
+				uncertainty: {
+					classification: "ambiguous_http",
+					phase: "post_send",
+					statusCode: status,
+				},
+				idempotency: { providerSupported: false, replayed: false },
+			});
+			expect(submission.failure?.message).not.toContain("private provider diagnostics");
+		},
+	);
 
 	it.each([
 		["multiple outputs", { data: [{ b64_json: PNG_BASE64 }, { b64_json: PNG_BASE64 }] }],

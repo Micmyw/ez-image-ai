@@ -1,11 +1,22 @@
 {
 	"pricing": {
+		"annualSummary": "Billed {total} yearly · save {savings} ({percent}%) vs 12 monthly payments",
+		"annualTotal": "Billed {total} yearly",
+		"aspectRatios": "Portrait, square, and landscape ratios",
+		"baseCredits": "Base credits: {credits}",
+		"buyWith": "Buy with {provider}",
+		"capabilitiesLabel": "Editing capabilities",
 		"choosePlan": "Choose plan",
 		"checkoutUnavailable": "Paid checkout is temporarily unavailable. Try again later or contact support.",
 		"contactSales": "Contact sales",
 		"concurrentEdits": "{count, plural, one {# concurrent edit} other {# concurrent edits}}",
 		"creditExpiry": "Credits refresh monthly and unused credits do not roll over.",
+		"creditPackCheckoutUnavailable": "This payment option is unavailable right now.",
+		"creditPacks": "Credit Packs",
+		"creditPackTitle": "{credits} Credits",
+		"creditPackValidity": "Valid for {months, plural, one {# month} other {# months}}",
 		"description": "Choose an image-editing plan with clear credits and job limits.",
+		"editHistory": "Private edit history",
 		"getStarted": "Get started",
 		"maximumInputSize": "Source images up to {megabytes, number} MB",
 		"month": "{count, plural, one {month} other {{count} months}}",
@@ -13,15 +24,18 @@
 		"monthlyEditAllowance": "Up to {standard, number} Standard or {quality, number} Quality edits per month",
 		"monthlyStandardAllowance": "Up to {standard, number} Standard edits per month",
 		"monthly": "Monthly",
+		"oneTime": "one-time",
+		"paymentOptionsLoading": "Checking payment options…",
+		"privateAssets": "Private assets",
 		"products": {
 			"creator": {
-				"description": "For individual creators running regular image edits.",
+				"description": "For individual creators turning regular image ideas into finished assets.",
 				"features": {
 					"editLevels": "Standard Edit and Quality Edit access",
 					"privateAssets": "Private source images and edited assets",
 					"editHistory": "Private edit sessions and history"
 				},
-				"title": "Creator"
+				"title": "Pro"
 			},
 			"enterprise": {
 				"description": "Custom plan tailored to your requirements",
@@ -48,20 +62,38 @@
 				},
 				"title": "Lifetime"
 			},
-			"studio": {
-				"description": "For higher-volume image-editing workflows.",
+			"ultimate": {
+				"description": "For growing workflows that need more edits and room to move.",
 				"features": {
 					"editLevels": "Standard Edit and Quality Edit access",
 					"privateAssets": "Private source images and edited assets",
 					"editHistory": "Private edit sessions and history"
 				},
-				"title": "Studio"
+				"title": "Ultimate"
+			},
+			"studio": {
+				"description": "For high-volume teams and demanding production runs.",
+				"features": {
+					"editLevels": "Standard Edit and Quality Edit access",
+					"privateAssets": "Private source images and edited assets",
+					"editHistory": "Private edit sessions and history"
+				},
+				"title": "Max"
 			}
 		},
+		"pricingFaqTitle": "Pricing FAQ",
+		"pricingFaqDescription": "Answers about credits, annual billing, cancellations, and refunds.",
 		"purchase": "Purchase",
 		"recommended": "Recommended",
+		"qualityEdit": "Quality Edit",
+		"standardEdit": "Standard Edit",
 		"subscribe": "Subscribe",
+		"subscriberBonus": "Subscribers get +{percent}% credits at the same price",
+		"subscriberBonusAmount": "Subscriber bonus: {credits}",
+		"subscriberReceives": "Subscribers receive {credits} credits",
 		"title": "Pricing",
+		"tierAccessStandard": "Standard Edit access",
+		"tierAccessAll": "Standard Edit and Quality Edit access",
 		"trialPeriod": "{days} {days, plural, one {day} other {days}} free trial",
 		"year": "{count, plural, one {year} other {{count} years}}",
 		"yearly": "Yearly",

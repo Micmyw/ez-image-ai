@@ -1,8 +1,13 @@
 import path from "node:path";
 
+import { fumadocsMdx } from "fumadocs-mdx/vite";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+	plugins: fumadocsMdx({
+		configPath: "source.config.ts",
+		outDir: ".source",
+	}),
 	esbuild: {
 		jsx: "automatic",
 	},
@@ -14,6 +19,8 @@ export default defineConfig({
 	resolve: {
 		alias: {
 			"@config": path.resolve(import.meta.dirname, "./config"),
+			"@docs": path.resolve(import.meta.dirname, "./modules/docs"),
+			"@docs-source": path.resolve(import.meta.dirname, "./.source"),
 			"@shared": path.resolve(import.meta.dirname, "./modules/shared"),
 			"@auth": path.resolve(import.meta.dirname, "./modules/auth"),
 			"@organizations": path.resolve(import.meta.dirname, "./modules/organizations"),

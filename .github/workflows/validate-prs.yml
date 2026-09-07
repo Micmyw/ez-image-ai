@@ -1,6 +1,8 @@
 name: Validate PRs
 
 on:
+  push:
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -18,7 +20,6 @@ env:
   BETTER_AUTH_SECRET: "better-auth-e2e-secret-1234567890"
   RESEND_API_KEY: "resend-api-key-1234567890"
   NEXT_PUBLIC_SAAS_URL: http://localhost:3000
-  NEXT_PUBLIC_MARKETING_URL: http://localhost:3001
   MEDIA_BUCKET_NAME: media-private
   MEDIA_PROVIDER_ADAPTER: mock
   MEDIA_SAFETY_ADAPTER: test

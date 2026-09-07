@@ -8,6 +8,7 @@ import {
 	MEDIA_VERIFICATION_RULE_VERSION,
 	ReplicateProviderAdapter,
 	TestMediaSafetyAdapter,
+	createRouteGraphSnapshot,
 	type ProviderKey,
 } from "@repo/ai";
 import {
@@ -44,6 +45,8 @@ import { verifyUpload } from "./verify-upload";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const TEST_EXECUTABLE_PROVIDERS = new Set<ProviderKey>(["replicate", "fal", "kie", "gemini"]);
+const LEGACY_CATALOG_VERSION = "2026-08-13.1";
+const LEGACY_PRICING_VERSION = "2026-08-13.1";
 let client: PrismaClient;
 
 function createTestDispatchStore(options: Omit<DispatchRuntimeOptions, "enabledProviders"> = {}) {
@@ -584,32 +587,36 @@ describe("production media runtime stores", () => {
 
 		const dispatching = store.claimDispatch({ jobId: seeded.jobId, version: 0 });
 		await reached;
-		await new Promise((resolve) =>
-			setTimeout(resolve, Math.max(0, seeded.verificationValidUntil.getTime() - Date.now()) + 25),
-		);
-		let verificationFinished = false;
-		let verificationError: unknown;
-		const verifying = verifyUpload(
-			{ assetId: seeded.assetId },
-			createOutputVerificationDependencies("ALLOW", (error) => {
-				verificationError = error;
-			}),
-		).then(() => {
-			verificationFinished = true;
-		});
-		await new Promise((resolve) => setTimeout(resolve, 50));
-		expect(verificationFinished).toBe(false);
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(new Date(seeded.verificationValidUntil.getTime() + 25));
+		try {
+			let verificationFinished = false;
+			let verificationError: unknown;
+			const verifying = verifyUpload(
+				{ assetId: seeded.assetId },
+				createOutputVerificationDependencies("ALLOW", (error) => {
+					verificationError = error;
+				}),
+			).then(() => {
+				verificationFinished = true;
+			});
+			await new Promise((resolve) => setTimeout(resolve, 50));
+			expect(verificationFinished).toBe(false);
 
-		releaseAuthorization();
-		await expect(dispatching).resolves.not.toBeNull();
-		await verifying;
-		expect(verificationError).toBeUndefined();
-		await expect(
-			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
-		).resolves.toMatchObject({ status: "SUBMITTING", version: 1 });
-		await expect(
-			client.mediaAsset.findUniqueOrThrow({ where: { id: seeded.assetId } }),
-		).resolves.toMatchObject({ status: "READY", verificationGeneration: 2 });
+			releaseAuthorization();
+			await expect(dispatching).resolves.not.toBeNull();
+			await verifying;
+			expect(verificationError).toBeUndefined();
+			await expect(
+				client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+			).resolves.toMatchObject({ status: "SUBMITTING", version: 1 });
+			await expect(
+				client.mediaAsset.findUniqueOrThrow({ where: { id: seeded.assetId } }),
+			).resolves.toMatchObject({ status: "READY", verificationGeneration: 2 });
+		} finally {
+			releaseAuthorization();
+			vi.useRealTimers();
+		}
 	});
 
 	it.each([429, 503])(
@@ -2118,21 +2125,23 @@ describe("production media runtime stores", () => {
 	it("does not charge a bound READY output after its moderation evidence expires", async () => {
 		const seeded = await seedFinalizingJob();
 		const output = await seedBoundOutputAsset(seeded.jobId, "READY", 1_000);
-		await new Promise((resolve) =>
-			setTimeout(resolve, Math.max(0, output.verificationValidUntil.getTime() - Date.now()) + 25),
-		);
-
-		const outcome = await settleGeneration(
-			{ jobId: seeded.jobId, version: seeded.version },
-			{ store: createDatabaseSettlementStore(client) },
-		);
-		expect(outcome.outcome).toBe("SKIPPED");
-		await expect(
-			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
-		).resolves.toMatchObject({ status: "FINALIZING" });
-		await expect(
-			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
-		).resolves.toMatchObject({ status: "ACTIVE", settledAmount: 0n, releasedAmount: 0n });
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(new Date(output.verificationValidUntil.getTime() + 25));
+		try {
+			const outcome = await settleGeneration(
+				{ jobId: seeded.jobId, version: seeded.version },
+				{ store: createDatabaseSettlementStore(client) },
+			);
+			expect(outcome.outcome).toBe("SKIPPED");
+			await expect(
+				client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+			).resolves.toMatchObject({ status: "FINALIZING" });
+			await expect(
+				client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+			).resolves.toMatchObject({ status: "ACTIVE", settledAmount: 0n, releasedAmount: 0n });
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("does not zero-settle a legacy-quarantined output before mandatory reverification", async () => {
@@ -2180,9 +2189,8 @@ describe("production media runtime stores", () => {
 		const store = createDatabaseSettlementStore(client);
 		const claim = await store.claimSettlement({ jobId: seeded.jobId, version: seeded.version });
 		expect(claim).not.toBeNull();
-		await new Promise((resolve) =>
-			setTimeout(resolve, Math.max(0, output.verificationValidUntil.getTime() - Date.now()) + 25),
-		);
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(new Date(output.verificationValidUntil.getTime() + 25));
 
 		let moderationReached!: () => void;
 		let releaseModeration!: () => void;
@@ -2199,39 +2207,44 @@ describe("production media runtime stores", () => {
 				return super.moderateImage(input);
 			}
 		}
-		const verifying = verifyUpload(
-			{ assetId: output.assetId },
-			createOutputVerificationDependencies(
-				"REJECT",
-				undefined,
-				new BlockingRejectSafetyAdapter("REJECT"),
-			),
-		);
-		await reached;
-		await store.settle(claim!);
-		await expect(
-			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
-		).resolves.toMatchObject({ status: "ACTIVE", settledAmount: 0n, releasedAmount: 0n });
-		await expect(
-			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
-		).resolves.toMatchObject({ status: "FINALIZING" });
+		try {
+			const verifying = verifyUpload(
+				{ assetId: output.assetId },
+				createOutputVerificationDependencies(
+					"REJECT",
+					undefined,
+					new BlockingRejectSafetyAdapter("REJECT"),
+				),
+			);
+			await reached;
+			await store.settle(claim!);
+			await expect(
+				client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+			).resolves.toMatchObject({ status: "ACTIVE", settledAmount: 0n, releasedAmount: 0n });
+			await expect(
+				client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+			).resolves.toMatchObject({ status: "FINALIZING" });
 
-		releaseModeration();
-		await verifying;
-		const finalizing = await client.generationJob.findUniqueOrThrow({
-			where: { id: seeded.jobId },
-		});
-		await settleGeneration({ jobId: seeded.jobId, version: finalizing.version }, { store });
-		await expect(
-			client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
-		).resolves.toMatchObject({
-			status: "SETTLED",
-			settledAmount: 0n,
-			releasedAmount: seeded.credits,
-		});
-		await expect(
-			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
-		).resolves.toMatchObject({ status: "FAILED", failureCode: "NO_USABLE_OUTPUT" });
+			releaseModeration();
+			await verifying;
+			const finalizing = await client.generationJob.findUniqueOrThrow({
+				where: { id: seeded.jobId },
+			});
+			await settleGeneration({ jobId: seeded.jobId, version: finalizing.version }, { store });
+			await expect(
+				client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+			).resolves.toMatchObject({
+				status: "SETTLED",
+				settledAmount: 0n,
+				releasedAmount: seeded.credits,
+			});
+			await expect(
+				client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+			).resolves.toMatchObject({ status: "FAILED", failureCode: "NO_USABLE_OUTPUT" });
+		} finally {
+			releaseModeration();
+			vi.useRealTimers();
+		}
 	});
 
 	it("claims one webhook worker and keeps the first terminal response canonical", async () => {
@@ -2783,12 +2796,15 @@ async function seedReservedJob(
 		ownerId,
 		submittedByUserId: ownerId,
 		productKey,
-		catalogVersion: "2026-08-13.1",
-		pricingVersion: "2026-08-13.1",
+		catalogVersion: LEGACY_CATALOG_VERSION,
+		pricingVersion: LEGACY_PRICING_VERSION,
 		credits,
 		costMicros,
 		inputSnapshot,
-		pricingSnapshot: options?.pricingSnapshot ?? { credits: credits.toString() },
+		pricingSnapshot: {
+			...(options?.pricingSnapshot ?? { credits: credits.toString() }),
+			routeGraph: legacyRouteGraph(productKey),
+		},
 		expiresAt: new Date(Date.now() + 60_000),
 	} as const;
 	const { createModeratedGenerationQuoteTransaction, fingerprintGenerationQuoteSecurityPayload } =
@@ -2880,7 +2896,10 @@ async function seedReservedImageEditJob(validForMs = 60_000) {
 	const suffix = crypto.randomUUID();
 	const ownerId = `task4-runtime-edit-${suffix}`;
 	const checksum = "a".repeat(64);
-	const verificationValidUntil = new Date(Date.now() + validForMs);
+	const [databaseClock] = await client.$queryRaw<Array<{ now: Date }>>`
+		SELECT CURRENT_TIMESTAMP AS "now"`;
+	if (!databaseClock) throw new Error("DATABASE_CLOCK_UNAVAILABLE");
+	const verificationValidUntil = new Date(databaseClock.now.getTime() + validForMs);
 	const assetId = `asset_${suffix}`;
 	const asset = await client.mediaAsset.create({
 		data: {
@@ -2930,12 +2949,15 @@ async function seedReservedImageEditJob(validForMs = 60_000) {
 		ownerId,
 		submittedByUserId: ownerId,
 		productKey: "image-fast",
-		catalogVersion: "2026-08-13.1",
-		pricingVersion: "2026-08-13.1",
+		catalogVersion: LEGACY_CATALOG_VERSION,
+		pricingVersion: LEGACY_PRICING_VERSION,
 		credits: 4n,
 		costMicros: 3_500n,
 		inputSnapshot: { kind: "image-to-image", prompt: "test", sourceAssetId: asset.id },
-		pricingSnapshot: { credits: "4" },
+		pricingSnapshot: {
+			credits: "4",
+			routeGraph: legacyRouteGraph("image-fast"),
+		},
 		expiresAt: new Date(Date.now() + 60_000),
 	} as const;
 	const { createModeratedGenerationQuoteTransaction, fingerprintGenerationQuoteSecurityPayload } =
@@ -3095,7 +3117,10 @@ async function seedBoundOutputAsset(
 	const job = await client.generationJob.findUniqueOrThrow({ where: { id: jobId } });
 	const suffix = crypto.randomUUID();
 	const checksum = "c".repeat(64);
-	const verificationValidUntil = new Date(Date.now() + validForMs);
+	const [databaseClock] = await client.$queryRaw<Array<{ now: Date }>>`
+		SELECT CURRENT_TIMESTAMP AS "now"`;
+	if (!databaseClock) throw new Error("DATABASE_CLOCK_UNAVAILABLE");
+	const verificationValidUntil = new Date(databaseClock.now.getTime() + validForMs);
 	const asset = await client.mediaAsset.create({
 		data: {
 			ownerType: job.ownerType,
@@ -3282,6 +3307,58 @@ function normalizedResult(outputKey: string) {
 		failure: null,
 		retryable: false,
 		providerCharged: true,
+	};
+}
+
+function legacyRouteGraph(productKey: "image-fast" | "image-quality" | "video-fast") {
+	const routes =
+		productKey === "image-fast"
+			? [
+					{
+						provider: "replicate" as const,
+						providerModelId: "black-forest-labs/flux-schnell",
+						providerCostMicros: 3_000,
+						weight: 80,
+					},
+					{
+						provider: "fal" as const,
+						providerModelId: "fal-ai/flux/schnell",
+						providerCostMicros: 3_500,
+						weight: 20,
+					},
+				]
+			: productKey === "image-quality"
+				? [
+						{
+							provider: "gemini" as const,
+							providerModelId: "gemini-2.5-flash-image",
+							providerCostMicros: 8_000,
+							weight: 100,
+						},
+					]
+				: [
+						{
+							provider: "fal" as const,
+							providerModelId: "fal-ai/fast-video",
+							providerCostMicros: 100_000,
+							weight: 100,
+						},
+					];
+	const snapshot = createRouteGraphSnapshot({
+		productKey,
+		catalogVersion: LEGACY_CATALOG_VERSION,
+		pricingVersion: LEGACY_PRICING_VERSION,
+		routes,
+	});
+	return {
+		allowedRoutes: snapshot.allowedRoutes.map((route) => ({
+			provider: route.provider,
+			providerModelId: route.providerModelId,
+			providerCostMicros: route.providerCostMicros,
+			weight: route.weight,
+		})),
+		graphFingerprint: snapshot.graphFingerprint,
+		maximumRouteCostMicros: snapshot.maximumRouteCostMicros,
 	};
 }
 

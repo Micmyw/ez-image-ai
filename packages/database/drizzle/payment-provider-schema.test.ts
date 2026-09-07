@@ -5,18 +5,21 @@ import { describe, expect, it } from "vitest";
 
 import {
 	paymentCheckoutIntent as mySqlCheckoutIntent,
+	paymentCheckoutIntentIdempotencyAlias as mySqlCheckoutIntentAlias,
 	paymentCustomer as mySqlPaymentCustomer,
 	purchase as mySqlPurchase,
 	subscription as mySqlSubscription,
 } from "./schema/mysql";
 import {
 	paymentCheckoutIntent as postgresCheckoutIntent,
+	paymentCheckoutIntentIdempotencyAlias as postgresCheckoutIntentAlias,
 	paymentCustomer as postgresPaymentCustomer,
 	purchase as postgresPurchase,
 	subscription as postgresSubscription,
 } from "./schema/postgres";
 import {
 	paymentCheckoutIntent as sqliteCheckoutIntent,
+	paymentCheckoutIntentIdempotencyAlias as sqliteCheckoutIntentAlias,
 	paymentCustomer as sqlitePaymentCustomer,
 	purchase as sqlitePurchase,
 	subscription as sqliteSubscription,
@@ -77,6 +80,30 @@ describe("provider-aware payment schema parity", () => {
 					return columns[0] === "provider" && columns[1] === "providerOrderId";
 				}),
 			).toBe(true);
+		}
+	});
+
+	it("persists owner-scoped idempotency aliases with cascading checkout ownership", () => {
+		const configs = [
+			getPostgresTableConfig(postgresCheckoutIntentAlias),
+			getMySqlTableConfig(mySqlCheckoutIntentAlias),
+			getSqliteTableConfig(sqliteCheckoutIntentAlias),
+		];
+
+		for (const config of configs) {
+			expect(config.columns.map((column) => column.name)).toEqual(
+				expect.arrayContaining(["ownerType", "ownerId", "idempotencyKey", "checkoutIntentId"]),
+			);
+			expect(
+				config.indexes.some((index) => {
+					if (!index.config.unique) return false;
+					const columns = index.config.columns.map((column) =>
+						"name" in column ? column.name : null,
+					);
+					return columns.join(":") === "ownerType:ownerId:idempotencyKey";
+				}),
+			).toBe(true);
+			expect(config.foreignKeys.some((foreignKey) => foreignKey.onDelete === "cascade")).toBe(true);
 		}
 	});
 });

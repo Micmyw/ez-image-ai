@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	landingDisabledReason,
+	resolveLandingAspectRatioSelection,
 	resolveLandingProductSelection,
 } from "./landing-generator-workflow";
 
@@ -12,6 +13,7 @@ const products = [
 		description: "Everyday edits",
 		credits: "5" as const,
 		accessHint: "guest-trial" as const,
+		aspectRatios: ["auto", "1:1", "16:9", "9:16"] as const,
 	},
 	{
 		key: "image-quality" as const,
@@ -19,6 +21,7 @@ const products = [
 		description: "Higher fidelity",
 		credits: "40" as const,
 		accessHint: "paid-account" as const,
+		aspectRatios: ["auto", "1:1", "16:9", "9:16"] as const,
 	},
 ];
 
@@ -28,6 +31,17 @@ describe("landing generator workflow", () => {
 		expect(resolveLandingProductSelection(products, null)).toBe("image-fast");
 		expect(resolveLandingProductSelection(products.slice(1), "image-fast")).toBe("image-quality");
 		expect(resolveLandingProductSelection([], "image-fast")).toBeNull();
+	});
+
+	it("keeps a supported aspect ratio and falls back to Automatic for a changed tier", () => {
+		expect(resolveLandingAspectRatioSelection(products[0]!, "16:9")).toBe("16:9");
+		expect(
+			resolveLandingAspectRatioSelection(
+				{ ...products[1]!, aspectRatios: ["auto", "1:1", "9:16"] as const },
+				"16:9",
+			),
+		).toBe("auto");
+		expect(resolveLandingAspectRatioSelection(null, "16:9")).toBeNull();
 	});
 
 	it("names the first missing condition and never enables a busy workflow", () => {

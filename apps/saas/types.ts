@@ -13,15 +13,6 @@ export interface SaasConfig {
 	/** Public support address. Omitted until an operator configures one. */
 	supportEmail?: string;
 	/**
-	 * Absolute URL for the documentation site. When omitted, documentation links
-	 * are hidden from the SaaS UI.
-	 */
-	docsUrl?: string;
-	/**
-	 * Absolute URL for the public marketing site used by shared navigation links.
-	 */
-	marketingUrl?: string;
-	/**
 	 * Theme options exposed in the theme switcher for this app.
 	 */
 	enabledThemes: readonly Theme[];

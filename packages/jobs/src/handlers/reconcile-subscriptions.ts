@@ -1,3 +1,4 @@
+import { getStripeLegacyLifecycleStatus } from "@repo/config/server";
 import { db } from "@repo/database/client";
 import { createStripeBillingSource, getStripeClient, reconcileStripeBilling } from "@repo/payments";
 
@@ -18,6 +19,32 @@ export async function reconcileSubscriptions(
 		scheduleContinuation?: (continuation: StripeReconciliationContinuation) => Promise<void>;
 	} = {},
 ) {
+	const stripeLegacyLifecycleStatus = getStripeLegacyLifecycleStatus({
+		STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+		STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+	});
+	if (stripeLegacyLifecycleStatus === "INCOMPLETE") {
+		throw new Error("STRIPE_LEGACY_LIFECYCLE_INCOMPLETE");
+	}
+	if (stripeLegacyLifecycleStatus === "DISABLED") {
+		const deadlines = await reconcileSubscriptionsWithClient(
+			{
+				...(input.now ? { now: input.now } : {}),
+				...(input.limit === undefined ? {} : { limit: input.limit }),
+				providerNames: ["paypal", "waffo"],
+			},
+			db,
+		);
+		return {
+			reconciliation: {
+				skipped: true,
+				reason: `STRIPE_LEGACY_LIFECYCLE_${stripeLegacyLifecycleStatus}`,
+			},
+			deadlines,
+			continuation: null,
+		};
+	}
+
 	const source = createStripeBillingSource(getStripeClient());
 	const reconciliation = await reconcileStripeBilling(
 		{

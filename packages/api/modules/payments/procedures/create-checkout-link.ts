@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import {
 	bindPaymentCheckoutIntentSession,
 	createPaymentCheckoutIntent,
+	getPaymentCheckoutIntentForOwnerByIdempotencyKey,
 	getPaymentCustomer,
 	markPaymentCheckoutIntentProviderCreating,
 } from "@repo/database";
@@ -12,7 +13,6 @@ import {
 	getPaymentProvider,
 	getProviderPriceIdByPlanId,
 	isPaymentProviderConfigured,
-	paymentProviderNames,
 } from "@repo/payments";
 import { config as paymentsConfig } from "@repo/payments/config";
 import { getBaseUrl } from "@repo/utils";
@@ -22,11 +22,12 @@ import { localeMiddleware } from "../../../orpc/middleware/locale-middleware";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { verifyOrganizationBillingManagement } from "../../organizations/lib/membership";
 import { isExactBillingPlanSnapshot } from "../provider-availability";
+import { recoverProviderCreatingCheckout } from "./checkout-recovery";
 
 export const checkoutInputSchema = z
 	.object({
-		provider: z.enum(paymentProviderNames),
-		planId: z.enum(["creator", "studio"]),
+		provider: z.enum(["paypal", "waffo"]),
+		planId: z.enum(["creator", "ultimate", "studio"]),
 		interval: z.enum(["month", "year"]),
 		idempotencyKey: z
 			.string()
@@ -76,24 +77,37 @@ export const createCheckoutLink = protectedProcedure
 		const owner = await resolveCheckoutOwner(user.id, session.activeOrganizationId);
 		const customer = await getPaymentCustomer(provider, owner, db);
 		let checkoutIntent;
-		try {
-			checkoutIntent = await createPaymentCheckoutIntent(
-				{
-					provider,
-					...owner,
-					submittedByUserId: user.id,
-					billingPlanId: billingPlan.id,
-					planKey: planId,
-					interval,
-					idempotencyKey,
-				},
-				db,
-			);
-		} catch (error) {
-			if (isCheckoutIntentConflict(error)) {
+		let trustedBillingPlan = billingPlan;
+		const existingIntent = await getPaymentCheckoutIntentForOwnerByIdempotencyKey(
+			{ ...owner, idempotencyKey },
+			db,
+		);
+		if (existingIntent) {
+			if (!isTrustedSubscriptionIntent(existingIntent, provider, planId, interval, user.id)) {
 				throw new ORPCError("CONFLICT");
 			}
-			throw new ORPCError("INTERNAL_SERVER_ERROR");
+			checkoutIntent = { intent: existingIntent, replayed: true };
+			trustedBillingPlan = existingIntent.billingPlan;
+		} else {
+			try {
+				checkoutIntent = await createPaymentCheckoutIntent(
+					{
+						provider,
+						...owner,
+						submittedByUserId: user.id,
+						billingPlanId: billingPlan.id,
+						planKey: planId,
+						interval,
+						idempotencyKey,
+					},
+					db,
+				);
+			} catch (error) {
+				if (isCheckoutIntentConflict(error)) {
+					throw new ORPCError("CONFLICT");
+				}
+				throw new ORPCError("INTERNAL_SERVER_ERROR");
+			}
 		}
 		if (
 			checkoutIntent.replayed &&
@@ -103,8 +117,55 @@ export const createCheckoutLink = protectedProcedure
 		) {
 			return { checkoutLink: checkoutIntent.intent.providerCheckoutUrl };
 		}
-		if (checkoutIntent.intent.status !== "CREATED") {
+		if (
+			checkoutIntent.intent.status !== "CREATED" &&
+			checkoutIntent.intent.status !== "PROVIDER_CREATING"
+		) {
 			throw new ORPCError("CONFLICT");
+		}
+		const checkoutOptions = {
+			type: "subscription" as const,
+			priceId: trustedBillingPlan.providerPriceId,
+			currency: trustedBillingPlan.currency,
+			billingPlanId: checkoutIntent.intent.billingPlanId,
+			checkoutIntentId: checkoutIntent.intent.id,
+			idempotencyKey: checkoutIntent.intent.idempotencyKey,
+			planKey: checkoutIntent.intent.planKey,
+			...owner,
+			submittedByUserId: user.id,
+			...(owner.ownerType === "USER"
+				? { userId: owner.ownerId }
+				: { organizationId: owner.ownerId }),
+			email: user.email,
+			name: user.name ?? "",
+			redirectUrl: checkoutReturnUrl(planId),
+			customerId: customer?.providerCustomerId,
+			trialPeriodDays: "trialPeriodDays" in price ? price.trialPeriodDays : undefined,
+		};
+		if (checkoutIntent.intent.status === "PROVIDER_CREATING") {
+			try {
+				const recovery = await recoverProviderCreatingCheckout(
+					{
+						provider: providerDefinition,
+						owner,
+						intent: checkoutIntent.intent,
+						checkoutOptions,
+						now: new Date(),
+					},
+					db,
+				);
+				if (recovery.kind === "RECOVERED") {
+					return { checkoutLink: recovery.checkout.checkoutUrl };
+				}
+				if (recovery.kind === "REVIEW") throw new ORPCError("CONFLICT");
+			} catch (error) {
+				if (error instanceof ORPCError) throw error;
+				logger.error(
+					{ provider, errorClass: checkoutErrorClass(error) },
+					"Payment checkout recovery failed",
+				);
+				throw new ORPCError("INTERNAL_SERVER_ERROR");
+			}
 		}
 		try {
 			await markPaymentCheckoutIntentProviderCreating(
@@ -117,25 +178,7 @@ export const createCheckoutLink = protectedProcedure
 		}
 
 		try {
-			const checkout = await providerDefinition.createCheckout({
-				type: "subscription",
-				priceId: providerPriceId,
-				currency: price.currency,
-				billingPlanId: billingPlan.id,
-				checkoutIntentId: checkoutIntent.intent.id,
-				idempotencyKey,
-				planKey: planId,
-				...owner,
-				submittedByUserId: user.id,
-				...(owner.ownerType === "USER"
-					? { userId: owner.ownerId }
-					: { organizationId: owner.ownerId }),
-				email: user.email,
-				name: user.name ?? "",
-				redirectUrl: checkoutReturnUrl(planId),
-				customerId: customer?.providerCustomerId,
-				trialPeriodDays: "trialPeriodDays" in price ? price.trialPeriodDays : undefined,
-			});
+			const checkout = await providerDefinition.createCheckout(checkoutOptions);
 
 			if (checkoutIntent.intent.providerSessionId) {
 				if (checkoutIntent.intent.providerSessionId !== checkout.providerSessionId) {
@@ -163,7 +206,7 @@ export const createCheckoutLink = protectedProcedure
 		}
 	});
 
-function checkoutReturnUrl(planId: "creator" | "studio"): string {
+function checkoutReturnUrl(planId: "creator" | "ultimate" | "studio"): string {
 	const url = new URL("/checkout-return", getBaseUrl(process.env.NEXT_PUBLIC_SAAS_URL, 3000));
 	url.searchParams.set("expectedPlanId", planId);
 	url.searchParams.set("returnTo", "/create?upgrade=complete");
@@ -183,6 +226,26 @@ async function resolveCheckoutOwner(
 		throw new ORPCError("FORBIDDEN");
 	}
 	return { ownerType: "ORGANIZATION" as const, ownerId: activeOrganizationId };
+}
+
+function isTrustedSubscriptionIntent(
+	intent: NonNullable<Awaited<ReturnType<typeof getPaymentCheckoutIntentForOwnerByIdempotencyKey>>>,
+	provider: "paypal" | "waffo",
+	planId: "creator" | "ultimate" | "studio",
+	interval: "month" | "year",
+	submittedByUserId: string,
+): boolean {
+	return (
+		intent.provider === provider &&
+		intent.submittedByUserId === submittedByUserId &&
+		intent.productKind === "PLAN" &&
+		intent.planKey === planId &&
+		intent.interval === interval &&
+		intent.billingPlanId === intent.billingPlan.id &&
+		intent.billingPlan.provider === provider &&
+		intent.billingPlan.productKind === "PLAN" &&
+		intent.billingPlan.name === planId
+	);
 }
 
 function isCheckoutIntentConflict(error: unknown): boolean {

@@ -110,6 +110,7 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 		maximumOutstandingBootstraps: number;
 		productKey: "image-fast" | "image-quality";
 		prompt: string;
+		aspectRatio?: "auto" | "1:1" | "4:3" | "3:4" | "3:2" | "2:3" | "16:9" | "9:16" | "21:9";
 		expiresAt: Date;
 		verification: {
 			provider: string;
@@ -175,7 +176,11 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 				claimTokenHash: input.claimTokenHash,
 				assetId: session.assetId,
 				productKey: input.productKey,
-				inputSnapshot: { kind: "image-to-image", prompt: input.prompt },
+				inputSnapshot: {
+					kind: "image-to-image",
+					prompt: input.prompt,
+					aspectRatio: input.aspectRatio ?? "auto",
+				},
 				expiresAt: input.expiresAt,
 			},
 		});

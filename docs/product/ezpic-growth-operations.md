@@ -8,18 +8,21 @@ store.
 ## Search indexing boundary
 
 `NEXT_PUBLIC_SAAS_URL` is the canonical origin for both the public tool and authenticated product.
-The legacy `NEXT_PUBLIC_MARKETING_URL` compatibility value must match it in production. Reserved
-`.invalid` hosts, credentials in either URL, and insecure non-loopback origins fail closed. Local
-loopback HTTP remains supported for tests.
+Reserved `.invalid` hosts, credentials in the URL, and insecure non-loopback origins fail closed.
+Local loopback HTTP remains supported for tests.
 
 Only the default-English versions of these paths are indexable:
 
-| Path | Index policy    | Purpose               |
-| ---- | --------------- | --------------------- |
-| `/`  | `index, follow` | Image editor homepage |
+| Path       | Index policy    | Purpose               |
+| ---------- | --------------- | --------------------- |
+| `/`        | `index, follow` | Image editor homepage |
+| `/pricing` | `index, follow` | Public plan details   |
+| `/privacy` | `index, follow` | Privacy policy        |
+| `/terms`   | `index, follow` | Terms of service      |
 
-The sitemap contains exactly that public URL. Login, try, create, history, assets, edits, checkout,
-settings, and admin remain `noindex, nofollow`; robots disallows crawling those product routes.
+The sitemap contains exactly those four public URLs. Blog, Changelog, Contact, and Docs use
+`noindex, follow`; login, try, create, history, assets, edits, checkout, settings, and admin remain
+`noindex, nofollow`, and robots disallows crawling those product routes.
 
 Homepage structured data identifies EzPic as a Web `SoftwareApplication`. The visible pricing
 section derives public plan amounts and credits from `PLAN_ENTITLEMENTS`; it never exposes Provider
@@ -106,6 +109,7 @@ business rows.
 
 Local verification uses Vitest, an isolated PostgreSQL test database, local browser `CustomEvent`
 fixtures, test Provider/moderation adapters, and production-build Playwright. It does not certify
-real GSC verification, external analytics ingestion, Provider or Trigger.dev execution, Stripe,
-cloud storage, production moderation, deployment, or live SEO/event delivery. Those items remain
-`NOT_COMPLETED` until separately evidenced without exposing credentials.
+real GSC verification, external analytics ingestion, Provider or Trigger.dev execution, PayPal or
+Waffo, optional historical Stripe maintenance, cloud storage, production moderation, deployment, or
+live SEO/event delivery. Those items remain `NOT_COMPLETED` until separately evidenced without
+exposing credentials.

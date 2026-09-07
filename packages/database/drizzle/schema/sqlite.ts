@@ -204,6 +204,9 @@ export const purchase = sqliteTable(
 			onDelete: "cascade",
 		}),
 		type: text({ enum: ["SUBSCRIPTION", "ONE_TIME"] }).notNull(),
+		productKind: text("productKind", { enum: ["PLAN", "CREDIT_PACK"] })
+			.default("PLAN")
+			.notNull(),
 		provider: text("provider").default("stripe").notNull(),
 		customerId: text("customerId").notNull(),
 		subscriptionId: text("subscriptionId"),
@@ -221,6 +224,10 @@ export const purchase = sqliteTable(
 			"purchase_exactly_one_owner",
 			sql`(${table.organizationId} IS NOT NULL) <> (${table.userId} IS NOT NULL)`,
 		),
+		check(
+			"purchase_credit_pack_shape",
+			sql`${table.productKind} = 'PLAN' OR (${table.provider} IN ('paypal', 'waffo') AND ${table.type} = 'ONE_TIME' AND ${table.subscriptionId} IS NULL)`,
+		),
 	],
 );
 
@@ -232,6 +239,9 @@ export const billingPlan = sqliteTable(
 			.primaryKey(),
 		provider: text("provider").notNull(),
 		providerPriceId: text("providerPriceId").notNull(),
+		productKind: text("productKind", { enum: ["PLAN", "CREDIT_PACK"] })
+			.default("PLAN")
+			.notNull(),
 		name: text("name").notNull(),
 		creditsPerPeriod: sqliteBigInt("creditsPerPeriod").notNull(),
 		priceMicros: sqliteBigInt("priceMicros").notNull(),
@@ -251,6 +261,10 @@ export const billingPlan = sqliteTable(
 		uniqueIndex("billing_plan_provider_providerPriceId_uidx").on(
 			table.provider,
 			table.providerPriceId,
+		),
+		check(
+			"billing_plan_credit_pack_provider",
+			sql`${table.productKind} = 'PLAN' OR ${table.provider} IN ('paypal', 'waffo')`,
 		),
 	],
 );
@@ -343,6 +357,9 @@ export const paymentCheckoutIntent = sqliteTable(
 		ownerType: text("ownerType", { enum: ["USER", "ORGANIZATION"] }).notNull(),
 		ownerId: text("ownerId").notNull(),
 		submittedByUserId: text("submittedByUserId").notNull(),
+		productKind: text("productKind", { enum: ["PLAN", "CREDIT_PACK"] })
+			.default("PLAN")
+			.notNull(),
 		billingPlanId: text("billingPlanId")
 			.notNull()
 			.references(() => billingPlan.id, { onDelete: "restrict" }),
@@ -353,6 +370,21 @@ export const paymentCheckoutIntent = sqliteTable(
 		providerOrderId: text("providerOrderId"),
 		providerCheckoutUrl: text("providerCheckoutUrl"),
 		activeScopeKey: text("activeScopeKey"),
+		creditPackCatalogVersion: text("creditPackCatalogVersion"),
+		creditPackPricingVersion: text("creditPackPricingVersion"),
+		creditPackSubscriberEligibilityVersion: text("creditPackSubscriberEligibilityVersion"),
+		creditPackBaseCredits: sqliteBigInt("creditPackBaseCredits"),
+		creditPackBonusCredits: sqliteBigInt("creditPackBonusCredits"),
+		creditPackTotalCredits: sqliteBigInt("creditPackTotalCredits"),
+		creditPackExpiryMonths: integer("creditPackExpiryMonths"),
+		creditPackSubscriberBonusEligible: integer("creditPackSubscriberBonusEligible", {
+			mode: "boolean",
+		}),
+		creditPackSubscriberSubscriptionId: text("creditPackSubscriberSubscriptionId"),
+		creditPackSubscriberPlanKey: text("creditPackSubscriberPlanKey"),
+		creditPackEligibilityEvaluatedAt: integer("creditPackEligibilityEvaluatedAt", {
+			mode: "timestamp",
+		}),
 		status: text("status", {
 			enum: [
 				"CREATED",
@@ -398,6 +430,151 @@ export const paymentCheckoutIntent = sqliteTable(
 			table.status,
 		),
 		index("payment_checkout_intent_expiry_status_idx").on(table.expiresAt, table.status),
+		check(
+			"payment_checkout_intent_credit_pack_snapshot",
+			sql`(${table.productKind} = 'PLAN' AND ${table.creditPackCatalogVersion} IS NULL AND ${table.creditPackPricingVersion} IS NULL AND ${table.creditPackSubscriberEligibilityVersion} IS NULL AND ${table.creditPackBaseCredits} IS NULL AND ${table.creditPackBonusCredits} IS NULL AND ${table.creditPackTotalCredits} IS NULL AND ${table.creditPackExpiryMonths} IS NULL AND ${table.creditPackSubscriberBonusEligible} IS NULL AND ${table.creditPackSubscriberSubscriptionId} IS NULL AND ${table.creditPackSubscriberPlanKey} IS NULL AND ${table.creditPackEligibilityEvaluatedAt} IS NULL) OR (${table.productKind} = 'CREDIT_PACK' AND ${table.provider} IN ('paypal', 'waffo') AND ${table.interval} = 'one-time' AND NULLIF(${table.creditPackCatalogVersion}, '') IS NOT NULL AND NULLIF(${table.creditPackPricingVersion}, '') IS NOT NULL AND NULLIF(${table.creditPackSubscriberEligibilityVersion}, '') IS NOT NULL AND ${table.creditPackBaseCredits} > 0 AND ${table.creditPackBonusCredits} >= 0 AND ${table.creditPackTotalCredits} = ${table.creditPackBaseCredits} + ${table.creditPackBonusCredits} AND ${table.creditPackExpiryMonths} = 6 AND ${table.creditPackSubscriberBonusEligible} IS NOT NULL AND ${table.creditPackEligibilityEvaluatedAt} IS NOT NULL AND ((${table.creditPackSubscriberBonusEligible} = 0 AND ${table.creditPackBonusCredits} = 0 AND ${table.creditPackSubscriberSubscriptionId} IS NULL AND ${table.creditPackSubscriberPlanKey} IS NULL) OR (${table.creditPackSubscriberBonusEligible} = 1 AND ${table.creditPackBonusCredits} > 0 AND NULLIF(${table.creditPackSubscriberSubscriptionId}, '') IS NOT NULL AND NULLIF(${table.creditPackSubscriberPlanKey}, '') IS NOT NULL)))`,
+		),
+	],
+);
+
+export const paymentCheckoutIntentIdempotencyAlias = sqliteTable(
+	"payment_checkout_intent_idempotency_alias",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		ownerType: text("ownerType", { enum: ["USER", "ORGANIZATION"] }).notNull(),
+		ownerId: text("ownerId").notNull(),
+		idempotencyKey: text("idempotencyKey").notNull(),
+		checkoutIntentId: text("checkoutIntentId")
+			.notNull()
+			.references(() => paymentCheckoutIntent.id, { onDelete: "cascade" }),
+		createdAt: integer("createdAt", { mode: "timestamp" })
+			.notNull()
+			.default(sql`CURRENT_TIMESTAMP`),
+	},
+	(table) => [
+		uniqueIndex("payment_checkout_intent_alias_owner_idempotency_uidx").on(
+			table.ownerType,
+			table.ownerId,
+			table.idempotencyKey,
+		),
+		index("payment_checkout_intent_alias_checkoutIntentId_idx").on(table.checkoutIntentId),
+	],
+);
+
+export const creditPackFulfillment = sqliteTable(
+	"credit_pack_fulfillment",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		purchaseId: text("purchaseId").references(() => purchase.id, { onDelete: "set null" }),
+		checkoutIntentId: text("checkoutIntentId")
+			.notNull()
+			.references(() => paymentCheckoutIntent.id, { onDelete: "restrict" }),
+		billingPlanId: text("billingPlanId")
+			.notNull()
+			.references(() => billingPlan.id, { onDelete: "restrict" }),
+		ownerType: text("ownerType", { enum: ["USER", "ORGANIZATION"] }).notNull(),
+		ownerId: text("ownerId").notNull(),
+		provider: text("provider").notNull(),
+		providerOrderId: text("providerOrderId").notNull(),
+		providerPaymentId: text("providerPaymentId").notNull(),
+		paidAmountMicros: sqliteBigInt("paidAmountMicros").notNull(),
+		currency: text("currency").notNull(),
+		baseCredits: sqliteBigInt("baseCredits").notNull(),
+		bonusCredits: sqliteBigInt("bonusCredits").notNull(),
+		grantedCredits: sqliteBigInt("grantedCredits").notNull(),
+		refundedAmountMicros: sqliteBigInt("refundedAmountMicros").default(0n).notNull(),
+		refundedCredits: sqliteBigInt("refundedCredits").default(0n).notNull(),
+		grantReferenceKey: text("grantReferenceKey").notNull(),
+		paidAt: integer("paidAt", { mode: "timestamp" }).notNull(),
+		expiresAt: integer("expiresAt", { mode: "timestamp" }).notNull(),
+		status: text("status", { enum: ["FULFILLED", "PARTIALLY_REFUNDED", "REFUNDED"] })
+			.default("FULFILLED")
+			.notNull(),
+		fulfilledAt: integer("fulfilledAt", { mode: "timestamp" })
+			.notNull()
+			.default(sql`CURRENT_TIMESTAMP`),
+		updatedAt: integer("updatedAt", { mode: "timestamp" })
+			.notNull()
+			.default(sql`CURRENT_TIMESTAMP`)
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		uniqueIndex("credit_pack_fulfillment_purchaseId_uidx").on(table.purchaseId),
+		uniqueIndex("credit_pack_fulfillment_checkoutIntentId_uidx").on(table.checkoutIntentId),
+		uniqueIndex("credit_pack_fulfillment_provider_payment_uidx").on(
+			table.provider,
+			table.providerPaymentId,
+		),
+		uniqueIndex("credit_pack_fulfillment_grantReferenceKey_uidx").on(table.grantReferenceKey),
+		uniqueIndex("credit_pack_fulfillment_provider_order_uidx").on(
+			table.provider,
+			table.providerOrderId,
+		),
+		index("credit_pack_fulfillment_owner_fulfilled_idx").on(
+			table.ownerType,
+			table.ownerId,
+			table.fulfilledAt,
+			table.id,
+		),
+		index("credit_pack_fulfillment_status_fulfilled_idx").on(table.status, table.fulfilledAt),
+		index("credit_pack_fulfillment_expiresAt_idx").on(table.expiresAt),
+		check(
+			"credit_pack_fulfillment_values",
+			sql`${table.provider} IN ('paypal', 'waffo') AND ${table.paidAmountMicros} > 0 AND ${table.baseCredits} > 0 AND ${table.bonusCredits} >= 0 AND ${table.grantedCredits} = ${table.baseCredits} + ${table.bonusCredits} AND ${table.refundedAmountMicros} >= 0 AND ${table.refundedAmountMicros} <= ${table.paidAmountMicros} AND ${table.refundedCredits} >= 0 AND ${table.refundedCredits} <= ${table.grantedCredits} AND ${table.expiresAt} > ${table.paidAt}`,
+		),
+		check(
+			"credit_pack_fulfillment_status_totals",
+			sql`(${table.status} = 'FULFILLED' AND ${table.refundedAmountMicros} = 0) OR (${table.status} = 'PARTIALLY_REFUNDED' AND ${table.refundedAmountMicros} > 0 AND ${table.refundedAmountMicros} < ${table.paidAmountMicros}) OR (${table.status} = 'REFUNDED' AND ${table.refundedAmountMicros} = ${table.paidAmountMicros})`,
+		),
+	],
+);
+
+export const creditPackAdjustment = sqliteTable(
+	"credit_pack_adjustment",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		fulfillmentId: text("fulfillmentId")
+			.notNull()
+			.references(() => creditPackFulfillment.id, { onDelete: "restrict" }),
+		provider: text("provider").notNull(),
+		providerAdjustmentId: text("providerAdjustmentId").notNull(),
+		amountMicros: sqliteBigInt("amountMicros").notNull(),
+		currency: text("currency").notNull(),
+		status: text("status", {
+			enum: ["PENDING", "REQUIRES_ACTION", "SUCCEEDED", "FAILED", "CANCELED"],
+		}).notNull(),
+		providerCreatedAt: integer("providerCreatedAt", { mode: "timestamp" }).notNull(),
+		lastProviderChangeAt: integer("lastProviderChangeAt", { mode: "timestamp" }).notNull(),
+		lastProviderChangeId: text("lastProviderChangeId").notNull(),
+		finalizedCredits: sqliteBigInt("finalizedCredits").default(0n).notNull(),
+		creditsFinalizedAt: integer("creditsFinalizedAt", { mode: "timestamp" }),
+		refundReferenceKey: text("refundReferenceKey"),
+		createdAt: integer("createdAt", { mode: "timestamp" })
+			.notNull()
+			.default(sql`CURRENT_TIMESTAMP`),
+		updatedAt: integer("updatedAt", { mode: "timestamp" })
+			.notNull()
+			.default(sql`CURRENT_TIMESTAMP`)
+			.$onUpdate(() => new Date()),
+	},
+	(table) => [
+		uniqueIndex("credit_pack_adjustment_provider_id_uidx").on(
+			table.provider,
+			table.providerAdjustmentId,
+		),
+		uniqueIndex("credit_pack_adjustment_refundReferenceKey_uidx").on(table.refundReferenceKey),
+		index("credit_pack_adjustment_fulfillment_status_idx").on(table.fulfillmentId, table.status),
+		index("credit_pack_adjustment_status_finalized_idx").on(table.status, table.creditsFinalizedAt),
+		check(
+			"credit_pack_adjustment_values",
+			sql`${table.provider} IN ('paypal', 'waffo') AND ${table.amountMicros} > 0 AND ${table.finalizedCredits} >= 0 AND ((${table.status} = 'SUCCEEDED' AND ((${table.creditsFinalizedAt} IS NULL AND ${table.finalizedCredits} = 0 AND ${table.refundReferenceKey} IS NULL) OR (${table.creditsFinalizedAt} IS NOT NULL AND ${table.refundReferenceKey} IS NOT NULL))) OR (${table.status} <> 'SUCCEEDED' AND ${table.creditsFinalizedAt} IS NULL AND ${table.finalizedCredits} = 0 AND ${table.refundReferenceKey} IS NULL))`,
+		),
 	],
 );
 
@@ -525,6 +702,55 @@ export const purchaseRelations = relations(purchase, ({ one }) => ({
 	user: one(user, {
 		fields: [purchase.userId],
 		references: [user.id],
+	}),
+	creditPackFulfillment: one(creditPackFulfillment),
+}));
+
+export const billingPlanRelations = relations(billingPlan, ({ many }) => ({
+	subscriptions: many(subscription),
+	checkoutIntents: many(paymentCheckoutIntent),
+	creditPackFulfillments: many(creditPackFulfillment),
+}));
+
+export const paymentCheckoutIntentRelations = relations(paymentCheckoutIntent, ({ one, many }) => ({
+	billingPlan: one(billingPlan, {
+		fields: [paymentCheckoutIntent.billingPlanId],
+		references: [billingPlan.id],
+	}),
+	creditPackFulfillment: one(creditPackFulfillment),
+	idempotencyAliases: many(paymentCheckoutIntentIdempotencyAlias),
+}));
+
+export const paymentCheckoutIntentIdempotencyAliasRelations = relations(
+	paymentCheckoutIntentIdempotencyAlias,
+	({ one }) => ({
+		checkoutIntent: one(paymentCheckoutIntent, {
+			fields: [paymentCheckoutIntentIdempotencyAlias.checkoutIntentId],
+			references: [paymentCheckoutIntent.id],
+		}),
+	}),
+);
+
+export const creditPackFulfillmentRelations = relations(creditPackFulfillment, ({ one, many }) => ({
+	purchase: one(purchase, {
+		fields: [creditPackFulfillment.purchaseId],
+		references: [purchase.id],
+	}),
+	checkoutIntent: one(paymentCheckoutIntent, {
+		fields: [creditPackFulfillment.checkoutIntentId],
+		references: [paymentCheckoutIntent.id],
+	}),
+	billingPlan: one(billingPlan, {
+		fields: [creditPackFulfillment.billingPlanId],
+		references: [billingPlan.id],
+	}),
+	adjustments: many(creditPackAdjustment),
+}));
+
+export const creditPackAdjustmentRelations = relations(creditPackAdjustment, ({ one }) => ({
+	fulfillment: one(creditPackFulfillment, {
+		fields: [creditPackAdjustment.fulfillmentId],
+		references: [creditPackFulfillment.id],
 	}),
 }));
 

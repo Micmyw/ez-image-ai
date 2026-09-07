@@ -5,6 +5,8 @@
 		"plugins": [{ "name": "next" }],
 		"paths": {
 			"@config": ["./config"],
+			"@docs/*": ["./modules/docs/*"],
+			"@docs-source/*": ["./.source/*"],
 			"@organizations/*": ["./modules/organizations/*"],
 			"@auth/*": ["./modules/auth/*"],
 			"@settings/*": ["./modules/settings/*"],

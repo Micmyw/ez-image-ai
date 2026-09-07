@@ -7,40 +7,67 @@ conservative launch contract. The plan values below are product decisions and lo
 contracts. They are not evidence of a billed Provider run, a production payment, or an approved
 production launch.
 
-| Evidence or decision                                       | Status            |
-| ---------------------------------------------------------- | ----------------- |
-| Public Provider price research dated 2026-09-05            | **COMPLETED**     |
-| Local plan, quote, entitlement, and monthly-grant contract | **COMPLETED**     |
-| OpenRouter top-up minimum-fee allocation                   | **NOT_COMPLETED** |
-| Real Provider execution and route certification            | **NOT_COMPLETED** |
-| Reconciled Provider billing and measured success rate      | **NOT_COMPLETED** |
-| Production payment-provider checkout/webhook certification | **NOT_COMPLETED** |
-| Matching production `BillingPlan` snapshots                | **NOT_COMPLETED** |
-| Legal seller identity, refund, tax, and dispute policy     | **NOT_COMPLETED** |
-| Deployment and live verification                           | **NOT_COMPLETED** |
+| Evidence or decision                                            | Status            |
+| --------------------------------------------------------------- | ----------------- |
+| Public Provider price research dated 2026-09-05                 | **COMPLETED**     |
+| Local plan, Credit Pack, quote, entitlement, and grant contract | **COMPLETED**     |
+| OpenRouter top-up minimum-fee allocation                        | **NOT_COMPLETED** |
+| Real Provider execution and route certification                 | **NOT_COMPLETED** |
+| Reconciled Provider billing and measured success rate           | **NOT_COMPLETED** |
+| Production payment-provider checkout/webhook certification      | **NOT_COMPLETED** |
+| Matching production `BillingPlan` snapshots                     | **NOT_COMPLETED** |
+| Legal seller identity, refund, tax, and dispute policy          | **NOT_COMPLETED** |
+| Deployment and live verification                                | **NOT_COMPLETED** |
 
 No secret, Provider credential, production Price ID, or customer information is recorded here.
 
-## Package contract
+## Subscription package contract
 
 `packages/config/plans.ts` remains the source of truth for the plan allowances and prices. Credits
 are issued once per internal monthly billing period, expire at that period boundary, and do not roll
 over. An annual purchase still creates twelve monthly grant periods; neither checkout nor the browser
 grants the full annual allowance at once.
 
-| Plan    | Credits/month | Concurrent edits | Products                       | Max input | Monthly | Annual | Approximate monthly usage  |
-| ------- | ------------: | ---------------: | ------------------------------ | --------: | ------: | -----: | -------------------------- |
-| Free    |            25 |                1 | Standard Edit                  |     10 MB |      $0 |     $0 | 5 Standard                 |
-| Creator |           700 |                3 | Standard Edit and Quality Edit |     20 MB |     $19 |   $190 | 140 Standard or 17 Quality |
-| Studio  |         3,000 |               10 | Standard Edit and Quality Edit |     20 MB |     $79 |   $790 | 600 Standard or 75 Quality |
+| Public plan (internal key) | Credits/month | Concurrent edits | Products                       | Max input | Monthly | Annual | Approximate monthly usage  |
+| -------------------------- | ------------: | ---------------: | ------------------------------ | --------: | ------: | -----: | -------------------------- |
+| Free (`free`, internal)    |            25 |                1 | Standard Edit                  |     10 MB |      $0 |     $0 | 5 Standard                 |
+| Pro (`creator`)            |           700 |                3 | Standard Edit and Quality Edit |     20 MB |     $19 |   $190 | 140 Standard or 17 Quality |
+| Ultimate (`ultimate`)      |         1,800 |                6 | Standard Edit and Quality Edit |     20 MB |     $49 |   $490 | 360 Standard or 45 Quality |
+| Max (`studio`)             |         3,000 |               10 | Standard Edit and Quality Edit |     20 MB |     $79 |   $790 | 600 Standard or 75 Quality |
 
-Standard Edit costs 5 credits and Quality Edit costs 40 credits. The Quality-only Creator count
-leaves 20 credits; the table intentionally reports whole completed edits rather than a fractional
-claim. Mixed usage consumes the same shared monthly balance.
+Standard Edit costs 5 credits and Quality Edit costs 40 credits. The Quality-only Pro count leaves
+20 credits; the table intentionally reports whole completed edits rather than a fractional claim.
+Mixed usage consumes the same shared monthly balance. Public pricing opens on annual billing, hides
+Free, and displays `-17%`: each $190/$490/$790 annual price is exactly ten monthly payments, a
+16.67% saving against twelve monthly payments rounded to the nearest whole percent.
 
 All plans continue to use private assets, owner-scoped access, metering, moderation, durable jobs,
 and the existing credit ledger. The browser submits only stable product keys. Provider identity,
 model ID, routing weights, credentials, raw payloads, and dollar costs remain server-only.
+
+## Credit Pack contract
+
+`packages/config/credit-packs.ts` is the public source of truth for one-time Credit Packs. Credits
+expire six UTC calendar months after the verified purchase timestamp. An effective paid subscriber
+receives the listed 20% bonus; eligibility, plan identity, price, credits, and expiry are frozen when
+the first checkout intent is created, so a replay or later subscription change cannot alter the
+purchase.
+
+|  Pack | Price | Base credits | Paid-subscriber credits | Subscriber bonus | Validity |
+| ----: | ----: | -----------: | ----------------------: | ---------------: | -------: |
+| 1,500 |   $59 |        1,500 |                   1,800 |             +20% | 6 months |
+| 3,000 |  $109 |        3,000 |                   3,600 |             +20% | 6 months |
+| 5,000 |  $169 |        5,000 |                   6,000 |             +20% | 6 months |
+| 8,000 |  $259 |        8,000 |                   9,600 |             +20% | 6 months |
+
+Credit Packs use a distinct `CREDIT_PACK` product kind and never create or replace a subscription.
+Verified payment events are persisted first; the reducer grants one expiring lot through the same
+immutable credit ledger. Duplicate capture/Webhook delivery cannot grant twice. For PayPal, verified
+refund lifecycle facts can automatically move the frozen grant to its cumulative proportional
+reversal target; only the delta is applied idempotently, a full refund targets the full grant, and
+already-consumed credits become account debt instead of rewriting history. Waffo
+`refund.succeeded` and `refund.failed` currently fail closed into manual `REVIEW`; they do not
+automatically mutate the Credit Ledger, Purchase, Fulfillment, or adjustment records.
 
 ## Current executable catalog and price guard
 
@@ -110,36 +137,60 @@ the edits funded by the purchase and every margin must be recalculated before ap
 Standard has the higher planning cost per credit, so an all-Standard month is the worst permitted
 full-use mix under these assumptions.
 
-| Plan / cadence                     | Net monthly revenue after stated payment/refund assumptions | Worst full-use variable cost | Conservative full-use gross margin |
-| ---------------------------------- | ----------------------------------------------------------: | ---------------------------: | ---------------------------------: |
-| Creator monthly                    |                                                     $17.560 |                       $4.267 |                              75.7% |
-| Creator annual, monthly allocation |                                                     $14.858 |                       $4.267 |                              71.3% |
-| Studio monthly                     |                                                     $73.960 |                      $18.287 |                              75.3% |
-| Studio annual, monthly allocation  |                                                     $61.858 |                      $18.287 |                              70.4% |
+| Plan / cadence                      | Net monthly revenue after stated payment/refund assumptions | Worst full-use variable cost | Conservative full-use gross margin |
+| ----------------------------------- | ----------------------------------------------------------: | ---------------------------: | ---------------------------------: |
+| Pro monthly                         |                                                     $17.560 |                       $4.267 |                              75.7% |
+| Pro annual, monthly allocation      |                                                     $14.858 |                       $4.267 |                              71.3% |
+| Ultimate monthly                    |                                                     $45.760 |                      $10.972 |                              76.0% |
+| Ultimate annual, monthly allocation |                                                     $38.358 |                      $10.972 |                              71.4% |
+| Max monthly                         |                                                     $73.960 |                      $18.287 |                              75.3% |
+| Max annual, monthly allocation      |                                                     $61.858 |                      $18.287 |                              70.4% |
 
 Annual net revenue is calculated after applying the percentage reserves and one $0.30 fee to the
 annual charge, then dividing by 12. Taxes, regional price differences, currency conversion, dispute
 fees, abnormal retry rates, storage/transfer outliers, and real success-rate effects are not measured
 here. The percentages are planning margins, not certified production margins.
 
+For Credit Packs, the server-only planning quote uses the all-Standard worst-case cost per credit:
+`$0.030478250 / 5 = $0.006095650`, rounded up to `$0.006096`. Applying the same payment and refund
+assumptions produces the following full-use planning margins. The subscriber column includes every
+20% bonus credit and is therefore the more conservative case.
+
+|         Pack | Net revenue | Base-credit cost / margin | Subscriber-credit cost / margin |
+| -----------: | ----------: | ------------------------: | ------------------------------: |
+|  1,500 / $59 |     $55.160 |            $9.144 / 83.4% |                 $10.973 / 80.1% |
+| 3,000 / $109 |    $102.160 |           $18.288 / 82.1% |                 $21.946 / 78.5% |
+| 5,000 / $169 |    $158.560 |           $30.480 / 80.8% |                 $36.576 / 76.9% |
+| 8,000 / $259 |    $243.160 |           $48.768 / 79.9% |                 $58.522 / 75.9% |
+
+These Credit Pack percentages remain planning figures. They do not include measured taxes, regional
+pricing, dispute fees, abnormal retries, or live PayPal/Waffo fee schedules.
+
 ## Billing, credits, and synchronization gate
 
-Each enabled payment provider must resolve its own server-only product/price identifiers for the exact
-plan and cadence. Do not hard-code or expose them as `NEXT_PUBLIC_*`. Checkout must fail closed when
-an identifier is missing, malformed, belongs to the wrong environment, or disagrees with the active
-`BillingPlan` snapshot.
+New subscription and Credit Pack checkout supports only PayPal and Waffo. Each enabled provider must
+resolve its own server-only plan/product identifiers for the exact selection. Do not hard-code or
+expose them as `NEXT_PUBLIC_*`. Checkout must fail closed when an identifier is missing, malformed,
+belongs to the wrong environment, or disagrees with the active `BillingPlan` snapshot.
 
-Before enabling sales for pricing version `2026-09-05.1`, provision and verify a `BillingPlan` row for
-every offered plan/cadence/provider combination as required by the existing payment projection. Its
-plan identity, 700/3,000 monthly credit allowance, interval price, currency, and pricing version must
-match the application contract. Updating UI copy without synchronizing the application catalog,
-database snapshots, webhook projection, and tests is not an acceptable rollout.
+Before enabling sales for subscription pricing version `2026-09-05.1`, provision and verify a
+`PLAN` `BillingPlan` row for every offered plan/cadence/provider combination. Its plan identity,
+700/1,800/3,000 monthly credit allowance, interval price, currency, and pricing version must match
+the application contract. Each Credit Pack needs a separate `CREDIT_PACK` snapshot matching catalog
+and pricing version `2026-09-06.1`, base credits, price, currency, and six-month expiry. Updating UI
+copy without synchronizing the application catalog, database snapshots, Webhook projection, and
+tests is not an acceptable rollout.
 
-Checkout return grants no credits. Payment events, monthly renewal, annual monthly grants,
-cancellation, partial/full refunds, debt, failed-job release, and replay remain in the existing
-Purchase, Subscription, Billing Period, Credit Lot, Reservation, Ledger, Outbox, and reconciliation
-paths. Free grants remain UTC-month scoped and idempotent and also expire at the next UTC month
-boundary.
+Stripe is not available for any new checkout. Stripe configuration remains optional solely for
+historical subscription Webhooks, portal/cancellation, refund repair, and reconciliation. A runtime
+with no historical Stripe configuration must skip that reconciliation safely; a partial legacy
+configuration fails closed.
+
+Checkout return grants no credits. Subscription payment events, monthly renewal, annual monthly
+grants, cancellation, refunds, debt, failed-job release, and replay remain in the existing Purchase,
+Subscription, Billing Period, Credit Lot, Reservation, Ledger, Outbox, and reconciliation paths.
+Credit Pack refunds follow the provider-specific PayPal/Waffo boundary above. Free grants remain
+UTC-month scoped and idempotent and also expire at the next UTC month boundary.
 
 ## Production completion gate
 
@@ -152,7 +203,10 @@ copying secrets into the repository:
 3. evidence of OpenRouter credit purchases of at least $20, plus reconciliation of Provider billing,
    actual top-up fees, minimum-fee allocation, and the non-Provider allocations against this
    worksheet;
-4. test and live checkout/webhook lifecycle evidence for every enabled payment provider;
+4. test and live checkout/Webhook evidence for PayPal and Waffo, PayPal Credit Pack refund-lifecycle
+   evidence, and Waffo automatic-refund evidence only after real sandbox payload fields and an
+   authenticated, idempotent lifecycle are certified; plus historical Stripe maintenance evidence
+   only if that legacy integration remains configured;
 5. synchronized production `BillingPlan` snapshots, legal seller/refund/tax decisions, alerting,
    moderation, storage, deployment, and live verification.
 
@@ -170,8 +224,9 @@ Public pages accessed 2026-09-05:
 
 ## Rollback
 
-The pricing change adds no new ledger or billing-cycle table. Disable new checkout and generation
-before rolling the application contract back if real events have been processed. Preserve immutable
-Purchase, Subscription, Billing Period, Lot, Ledger, Reservation, and Debt history and use the normal
-reconciliation/refund paths. A rollback must restore plan configuration, quote credits/cost ceilings,
-pricing version, localized copy, `BillingPlan` snapshots, and tests as one compatible set.
+Disable new checkout and generation before rolling the application contract back if real events have
+been processed. Preserve the additive Credit Pack schema and immutable Checkout Intent, Fulfillment,
+Adjustment, Purchase, Subscription, Billing Period, Lot, Ledger, Reservation, and Debt history; use
+the normal reconciliation/refund paths and prefer a forward repair. A rollback must restore plan and
+Credit Pack configuration, quote credits/cost ceilings, pricing versions, localized copy,
+`BillingPlan` snapshots, and tests as one compatible set.

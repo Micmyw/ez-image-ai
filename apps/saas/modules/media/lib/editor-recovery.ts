@@ -1,4 +1,8 @@
-import { resolvePlanEntitlement } from "@repo/config/client";
+import {
+	IMAGE_ASPECT_RATIOS,
+	resolvePlanEntitlement,
+	type ImageAspectRatio,
+} from "@repo/config/client";
 
 import { buildGenerationInput } from "./form-schema";
 
@@ -16,6 +20,7 @@ export interface EditorDraftInput {
 		kind: "image-to-image";
 		prompt: string;
 		sourceAssetId: string;
+		aspectRatio?: ImageAspectRatio;
 	};
 }
 
@@ -91,10 +96,18 @@ export function resolveEditorRecovery(input: {
 		) {
 			return unavailableRecovery();
 		}
+		const candidateAspectRatio = input.candidate.input.aspectRatio ?? "auto";
+		if (
+			typeof candidateAspectRatio !== "string" ||
+			!IMAGE_ASPECT_RATIOS.includes(candidateAspectRatio as ImageAspectRatio)
+		) {
+			return unavailableRecovery();
+		}
 		generationInput = {
 			kind: "image-to-image" as const,
 			prompt: "",
 			sourceAssetId: input.candidate.input.sourceAssetId,
+			aspectRatio: candidateAspectRatio as ImageAspectRatio,
 		};
 	} else {
 		try {

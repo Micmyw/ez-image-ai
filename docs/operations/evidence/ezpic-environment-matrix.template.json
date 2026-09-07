@@ -7,7 +7,6 @@
 			"resources": {
 				"database": "NOT_COMPLETED/development/database",
 				"mediaBucket": "NOT_COMPLETED/development/media-bucket",
-				"stripeWebhookScope": "NOT_COMPLETED/development/stripe-webhook",
 				"triggerEnvironment": "NOT_COMPLETED/development/trigger",
 				"posthogProject": "NOT_COMPLETED/development/posthog",
 				"sentryEnvironment": "NOT_COMPLETED/development/sentry",
@@ -20,7 +19,6 @@
 			"resources": {
 				"database": "NOT_COMPLETED/test/database",
 				"mediaBucket": "NOT_COMPLETED/test/media-bucket",
-				"stripeWebhookScope": "NOT_COMPLETED/test/stripe-webhook",
 				"triggerEnvironment": "NOT_COMPLETED/test/trigger",
 				"posthogProject": "NOT_COMPLETED/test/posthog",
 				"sentryEnvironment": "NOT_COMPLETED/test/sentry",
@@ -33,7 +31,6 @@
 			"resources": {
 				"database": "NOT_COMPLETED/staging/database",
 				"mediaBucket": "NOT_COMPLETED/staging/media-bucket",
-				"stripeWebhookScope": "NOT_COMPLETED/staging/stripe-webhook",
 				"triggerEnvironment": "NOT_COMPLETED/staging/trigger",
 				"posthogProject": "NOT_COMPLETED/staging/posthog",
 				"sentryEnvironment": "NOT_COMPLETED/staging/sentry",
@@ -46,7 +43,6 @@
 			"resources": {
 				"database": "NOT_COMPLETED/production/database",
 				"mediaBucket": "NOT_COMPLETED/production/media-bucket",
-				"stripeWebhookScope": "NOT_COMPLETED/production/stripe-webhook",
 				"triggerEnvironment": "NOT_COMPLETED/production/trigger",
 				"posthogProject": "NOT_COMPLETED/production/posthog",
 				"sentryEnvironment": "NOT_COMPLETED/production/sentry",

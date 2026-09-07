@@ -1014,7 +1014,7 @@ async function createTrialEvidenceRow(input: {
 		ownerId: input.ownerId,
 		promotionPeriod: input.promotionPeriod,
 		eligibility: input.eligibility ?? "AVAILABLE",
-		sponsorCredits: "4",
+		sponsorCredits: "5",
 		sourceAssetId: input.sourceAssetId,
 		sourceSessionHash: createHashValue(`${id}:session`),
 		deviceHash: createHashValue(`${id}:device`),

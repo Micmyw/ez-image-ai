@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
 	createStripeBillingSource,
 	db,
+	getStripeLegacyLifecycleStatus,
 	getStripeClient,
 	reconcileStripeBilling,
 	reconcileSubscriptionsWithClient,
@@ -11,6 +12,7 @@ const {
 } = vi.hoisted(() => ({
 	createStripeBillingSource: vi.fn(),
 	db: { id: "database" },
+	getStripeLegacyLifecycleStatus: vi.fn(),
 	getStripeClient: vi.fn(),
 	reconcileStripeBilling: vi.fn(),
 	reconcileSubscriptionsWithClient: vi.fn(),
@@ -19,6 +21,7 @@ const {
 }));
 
 vi.mock("@repo/database/client", () => ({ db }));
+vi.mock("@repo/config/server", () => ({ getStripeLegacyLifecycleStatus }));
 vi.mock("@repo/payments", () => ({
 	createStripeBillingSource,
 	getStripeClient,
@@ -31,9 +34,42 @@ import { reconcileSubscriptions } from "./reconcile-subscriptions";
 describe("Stripe subscription reconciliation handler", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		getStripeLegacyLifecycleStatus.mockReturnValue("CONFIGURED");
 		getStripeClient.mockReturnValue(stripe);
 		createStripeBillingSource.mockReturnValue(source);
 		reconcileSubscriptionsWithClient.mockResolvedValue({ expired: 2 });
+	});
+
+	it("skips Stripe calls only when legacy lifecycle is disabled while reconciling PayPal/Waffo deadlines", async () => {
+		getStripeLegacyLifecycleStatus.mockReturnValue("DISABLED");
+
+		await expect(reconcileSubscriptions({ limit: 25 })).resolves.toMatchObject({
+			reconciliation: {
+				skipped: true,
+				reason: "STRIPE_LEGACY_LIFECYCLE_DISABLED",
+			},
+			deadlines: { expired: 2 },
+			continuation: null,
+		});
+		expect(getStripeClient).not.toHaveBeenCalled();
+		expect(createStripeBillingSource).not.toHaveBeenCalled();
+		expect(reconcileStripeBilling).not.toHaveBeenCalled();
+		expect(reconcileSubscriptionsWithClient).toHaveBeenCalledWith(
+			{ limit: 25, providerNames: ["paypal", "waffo"] },
+			db,
+		);
+	});
+
+	it("fails closed without touching provider or deadline state when Stripe lifecycle is incomplete", async () => {
+		getStripeLegacyLifecycleStatus.mockReturnValue("INCOMPLETE");
+
+		await expect(reconcileSubscriptions({ limit: 25 })).rejects.toThrow(
+			"STRIPE_LEGACY_LIFECYCLE_INCOMPLETE",
+		);
+		expect(getStripeClient).not.toHaveBeenCalled();
+		expect(createStripeBillingSource).not.toHaveBeenCalled();
+		expect(reconcileStripeBilling).not.toHaveBeenCalled();
+		expect(reconcileSubscriptionsWithClient).not.toHaveBeenCalled();
 	});
 
 	it("calls the real billing source and closes local deadlines only after a complete sweep", async () => {

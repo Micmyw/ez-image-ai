@@ -1,3 +1,4 @@
+import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
 import { z } from "zod";
 
 import { MediaProviderError } from "../errors";
@@ -14,6 +15,9 @@ import type { MediaProviderAdapter } from "./provider-adapter";
 
 const DEFAULT_OPENROUTER_URL = "https://openrouter.ai";
 export const OPENROUTER_IMAGE_REQUEST_TIMEOUT_MS = 240_000;
+const OPENROUTER_MAX_INLINE_IMAGE_BYTES = DEFAULT_PRODUCT_CONFIG.uploadLimits.imageBytes;
+const OPENROUTER_MAX_RESPONSE_BYTES =
+	4 * Math.ceil(OPENROUTER_MAX_INLINE_IMAGE_BYTES / 3) + 1024 * 1024;
 const openRouterImageResponseSchema = z
 	.object({
 		data: z.array(z.object({ b64_json: z.string().min(1) }).passthrough()),
@@ -23,6 +27,7 @@ const openRouterImageResponseSchema = z
 export interface OpenRouterProviderOptions extends HttpClientOptions {
 	apiKey: string;
 	baseUrl?: string;
+	maxInlineImageBytes?: number;
 }
 
 export class OpenRouterProviderAdapter implements MediaProviderAdapter {
@@ -38,31 +43,59 @@ export class OpenRouterProviderAdapter implements MediaProviderAdapter {
 				false,
 			);
 		}
-		const { ok, status, data } = await fetchJson(
-			`${this.options.baseUrl ?? DEFAULT_OPENROUTER_URL}/api/v1/images`,
-			{
-				method: "POST",
-				headers: {
-					Authorization: `Bearer ${this.options.apiKey}`,
-					"Content-Type": "application/json",
+		let responseStatus: number | undefined;
+		const providerFetch = this.options.fetch ?? fetch;
+		let response: Awaited<ReturnType<typeof fetchJson>>;
+		try {
+			response = await fetchJson(
+				`${this.options.baseUrl ?? DEFAULT_OPENROUTER_URL}/api/v1/images`,
+				{
+					method: "POST",
+					headers: {
+						Authorization: `Bearer ${this.options.apiKey}`,
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({
+						model: input.providerModelId,
+						prompt: input.input.prompt,
+						aspect_ratio: input.input.aspectRatio ?? "auto",
+						n: 1,
+						input_references: [
+							{
+								type: "image_url",
+								image_url: { url: input.input.sourceAsset.transferUrl },
+							},
+						],
+					}),
 				},
-				body: JSON.stringify({
-					model: input.providerModelId,
-					prompt: input.input.prompt,
-					n: 1,
-					input_references: [
-						{
-							type: "image_url",
-							image_url: { url: input.input.sourceAsset.transferUrl },
-						},
-					],
-				}),
-			},
-			{
-				...this.options,
-				timeoutMs: this.options.timeoutMs ?? OPENROUTER_IMAGE_REQUEST_TIMEOUT_MS,
-			},
-		);
+				{
+					...this.options,
+					fetch: (async (url, init) => {
+						const providerResponse = await providerFetch(url, init);
+						responseStatus = providerResponse.status;
+						return providerResponse;
+					}) as typeof fetch,
+					maxResponseBytes: this.options.maxResponseBytes ?? OPENROUTER_MAX_RESPONSE_BYTES,
+					timeoutMs: this.options.timeoutMs ?? OPENROUTER_IMAGE_REQUEST_TIMEOUT_MS,
+				},
+			);
+		} catch (error) {
+			if (
+				error instanceof MediaProviderError &&
+				error.code === "MALFORMED_PROVIDER_RESPONSE" &&
+				responseStatus !== undefined &&
+				(responseStatus < 200 || responseStatus >= 300)
+			) {
+				return rejectedHttpSubmission({
+					status: responseStatus,
+					data: null,
+					attemptId: input.attemptId,
+					providerIdempotencySupported: false,
+				});
+			}
+			throw error;
+		}
+		const { ok, status, data } = response;
 		if (!ok) {
 			return rejectedHttpSubmission({
 				status,
@@ -72,7 +105,10 @@ export class OpenRouterProviderAdapter implements MediaProviderAdapter {
 			});
 		}
 
-		const parsed = parseSingleRasterOutput(data);
+		const parsed = parseSingleRasterOutput(
+			data,
+			this.options.maxInlineImageBytes ?? OPENROUTER_MAX_INLINE_IMAGE_BYTES,
+		);
 		if (!parsed) return malformedSubmission(input.attemptId);
 		const snapshot: ProviderTaskSnapshot = {
 			providerTaskId: input.attemptId,
@@ -95,7 +131,10 @@ export class OpenRouterProviderAdapter implements MediaProviderAdapter {
 	}
 
 	async normalizeResult(snapshot: ProviderTaskSnapshot): Promise<NormalizedResult> {
-		const output = parseSingleRasterOutput(snapshot.raw);
+		const output = parseSingleRasterOutput(
+			snapshot.raw,
+			this.options.maxInlineImageBytes ?? OPENROUTER_MAX_INLINE_IMAGE_BYTES,
+		);
 		if (!output) {
 			throw new MediaProviderError(
 				"MALFORMED_PROVIDER_RESPONSE",
@@ -131,19 +170,34 @@ function malformedSubmission(attemptId: string): ProviderSubmission {
 
 function parseSingleRasterOutput(
 	value: unknown,
+	maxInlineImageBytes: number,
 ): { data: string; mimeType: "image/jpeg" | "image/png" | "image/webp" } | null {
 	const parsed = openRouterImageResponseSchema.safeParse(value);
 	if (!parsed.success || parsed.data.data.length !== 1) return null;
 	const data = parsed.data.data[0]!.b64_json;
-	if (!isCanonicalBase64(data)) return null;
+	if (!isCanonicalBase64(data, maxInlineImageBytes)) return null;
 	const bytes = Buffer.from(data, "base64");
 	const mimeType = rasterMimeType(bytes);
 	return mimeType ? { data, mimeType } : null;
 }
 
-function isCanonicalBase64(value: string): boolean {
-	if (!value || value.length % 4 !== 0 || !/^[A-Za-z0-9+/]+={0,2}$/.test(value)) return false;
+function isCanonicalBase64(value: string, maxDecodedBytes: number): boolean {
+	if (
+		!value ||
+		value.length % 4 !== 0 ||
+		!Number.isSafeInteger(maxDecodedBytes) ||
+		maxDecodedBytes <= 0 ||
+		decodedBase64ByteLength(value) > maxDecodedBytes ||
+		!/^[A-Za-z0-9+/]+={0,2}$/.test(value)
+	) {
+		return false;
+	}
 	return Buffer.from(value, "base64").toString("base64") === value;
+}
+
+function decodedBase64ByteLength(value: string): number {
+	const padding = value.endsWith("==") ? 2 : value.endsWith("=") ? 1 : 0;
+	return (value.length / 4) * 3 - padding;
 }
 
 function rasterMimeType(bytes: Uint8Array): "image/jpeg" | "image/png" | "image/webp" | null {

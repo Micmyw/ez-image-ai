@@ -141,6 +141,7 @@ describe("listPurchases", () => {
 			{
 				id: "purchase-paypal",
 				provider: "paypal",
+				productKind: "PLAN",
 				priceId: "P-CREATOR-MONTHLY",
 				type: "SUBSCRIPTION",
 				customerId: "paypal-customer",
@@ -178,6 +179,215 @@ describe("listPurchases", () => {
 				portal: false,
 				cancellation: true,
 				seatUpdates: false,
+			},
+		});
+	});
+
+	it("does not project a credit-pack purchase as a plan entitlement", async () => {
+		vi.mocked(getPurchasesByUserId).mockResolvedValueOnce([
+			{
+				id: "purchase-credit-pack",
+				provider: "paypal",
+				productKind: "CREDIT_PACK",
+				priceId: "PROD-CREDITS-1500",
+				type: "ONE_TIME",
+				customerId: "paypal-customer",
+				subscriptionId: null,
+				organizationId: null,
+				userId: "user-1",
+				status: "completed",
+				createdAt: new Date("2026-09-06T00:00:00Z"),
+				updatedAt: new Date("2026-09-06T00:00:00Z"),
+				mediaSubscription: null,
+			},
+		] as never);
+		getPlanIdByProviderPriceId.mockReturnValue("creator");
+		getPlanPriceByProviderPriceId.mockReturnValue({
+			planId: "creator",
+			price: { type: "subscription", interval: "month", amount: 19, currency: "USD" },
+		});
+
+		const result = await call(listPurchases, {}, { context: { headers: new Headers() } });
+
+		expect(result[0]).toMatchObject({ planId: null, planPrice: null });
+		expect(getPlanIdByProviderPriceId).not.toHaveBeenCalled();
+		expect(getPlanPriceByProviderPriceId).not.toHaveBeenCalled();
+	});
+
+	it("keeps a historical subscription's persisted plan after its provider price ID rotates", async () => {
+		vi.mocked(getPurchasesByUserId).mockResolvedValueOnce([
+			{
+				id: "purchase-historical",
+				provider: "stripe",
+				productKind: "PLAN",
+				priceId: "price_creator_monthly_retired",
+				type: "SUBSCRIPTION",
+				customerId: "stripe-customer",
+				subscriptionId: "sub-historical",
+				organizationId: null,
+				userId: "user-1",
+				status: "active",
+				createdAt: new Date("2026-08-31T00:00:00Z"),
+				updatedAt: new Date("2026-08-31T00:00:00Z"),
+				mediaSubscription: {
+					ownerType: "USER",
+					ownerId: "user-1",
+					provider: "stripe",
+					plan: {
+						provider: "stripe",
+						priceMicros: 17_000_000n,
+						currency: "USD",
+						metadata: {
+							planId: "creator",
+							interval: "month",
+						},
+					},
+				},
+			},
+		] as never);
+		getPlanIdByProviderPriceId.mockReturnValue(null);
+		getPlanPriceByProviderPriceId.mockReturnValue(null);
+
+		const result = await call(listPurchases, {}, { context: { headers: new Headers() } });
+
+		expect(result[0]).toMatchObject({
+			provider: "stripe",
+			planId: "creator",
+			planPrice: {
+				type: "subscription",
+				interval: "month",
+				amount: 17,
+				currency: "USD",
+			},
+		});
+	});
+
+	it("does not recover a persisted plan from a different owner", async () => {
+		vi.mocked(getPurchasesByUserId).mockResolvedValueOnce([
+			{
+				id: "purchase-wrong-owner",
+				provider: "stripe",
+				productKind: "PLAN",
+				priceId: "price_creator_monthly_retired",
+				type: "SUBSCRIPTION",
+				customerId: "stripe-customer",
+				subscriptionId: "sub-wrong-owner",
+				organizationId: null,
+				userId: "user-1",
+				status: "active",
+				createdAt: new Date("2026-08-31T00:00:00Z"),
+				updatedAt: new Date("2026-08-31T00:00:00Z"),
+				mediaSubscription: {
+					ownerType: "USER",
+					ownerId: "user-2",
+					provider: "stripe",
+					plan: {
+						provider: "stripe",
+						priceMicros: 17_000_000n,
+						currency: "USD",
+						metadata: { planId: "creator", interval: "month" },
+					},
+				},
+			},
+		] as never);
+		getPlanIdByProviderPriceId.mockReturnValue(null);
+		getPlanPriceByProviderPriceId.mockReturnValue(null);
+
+		const result = await call(listPurchases, {}, { context: { headers: new Headers() } });
+
+		expect(result[0]).toMatchObject({
+			provider: "stripe",
+			planId: null,
+			planPrice: null,
+		});
+	});
+
+	it("does not recover a persisted plan from a different provider", async () => {
+		vi.mocked(getPurchasesByUserId).mockResolvedValueOnce([
+			{
+				id: "purchase-wrong-provider",
+				provider: "stripe",
+				productKind: "PLAN",
+				priceId: "price_creator_monthly_retired",
+				type: "SUBSCRIPTION",
+				customerId: "stripe-customer",
+				subscriptionId: "sub-wrong-provider",
+				organizationId: null,
+				userId: "user-1",
+				status: "active",
+				createdAt: new Date("2026-08-31T00:00:00Z"),
+				updatedAt: new Date("2026-08-31T00:00:00Z"),
+				mediaSubscription: {
+					ownerType: "USER",
+					ownerId: "user-1",
+					provider: "paypal",
+					plan: {
+						provider: "paypal",
+						priceMicros: 17_000_000n,
+						currency: "USD",
+						metadata: { planId: "creator", interval: "month" },
+					},
+				},
+			},
+		] as never);
+		getPlanIdByProviderPriceId.mockReturnValue(null);
+		getPlanPriceByProviderPriceId.mockReturnValue(null);
+
+		const result = await call(listPurchases, {}, { context: { headers: new Headers() } });
+
+		expect(result[0]).toMatchObject({
+			provider: "stripe",
+			planId: null,
+			planPrice: null,
+		});
+	});
+
+	it("keeps an organization's historical plan after its provider price ID rotates", async () => {
+		vi.mocked(getOrganizationMembership).mockResolvedValueOnce(organizationMembership);
+		vi.mocked(getPurchasesByOrganizationId).mockResolvedValueOnce([
+			{
+				id: "purchase-organization-historical",
+				provider: "stripe",
+				productKind: "PLAN",
+				priceId: "price_studio_annual_retired",
+				type: "SUBSCRIPTION",
+				customerId: "stripe-customer",
+				subscriptionId: "sub-organization-historical",
+				organizationId: "organization-1",
+				userId: null,
+				status: "active",
+				createdAt: new Date("2026-08-31T00:00:00Z"),
+				updatedAt: new Date("2026-08-31T00:00:00Z"),
+				mediaSubscription: {
+					ownerType: "ORGANIZATION",
+					ownerId: "organization-1",
+					provider: "stripe",
+					plan: {
+						provider: "stripe",
+						priceMicros: 790_000_000n,
+						currency: "USD",
+						metadata: { planId: "studio", interval: "year" },
+					},
+				},
+			},
+		] as never);
+		getPlanIdByProviderPriceId.mockReturnValue(null);
+		getPlanPriceByProviderPriceId.mockReturnValue(null);
+
+		const result = await call(
+			listPurchases,
+			{ organizationId: "organization-1" },
+			{ context: { headers: new Headers() } },
+		);
+
+		expect(result[0]).toMatchObject({
+			provider: "stripe",
+			planId: "studio",
+			planPrice: {
+				type: "subscription",
+				interval: "year",
+				amount: 790,
+				currency: "USD",
 			},
 		});
 	});

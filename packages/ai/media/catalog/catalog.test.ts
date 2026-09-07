@@ -27,9 +27,14 @@ describe("media product catalog", () => {
 						kind: "image-to-image",
 						prompt: "Preserve the subject and replace the background",
 						sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+						aspectRatio: "16:9",
 					},
 				}),
-			).toMatchObject({ credits, pricingVersion: "2026-09-05.1" });
+			).toMatchObject({
+				credits,
+				catalogVersion: "2026-09-05.2",
+				pricingVersion: "2026-09-05.1",
+			});
 			expect(() =>
 				quoteCatalogInput({
 					productKey,
@@ -58,6 +63,48 @@ describe("media product catalog", () => {
 				},
 			}),
 		).toMatchObject({ credits: 25 });
+	});
+
+	it("publishes only the aspect ratios shared by both image editing routes", () => {
+		const products = getPublicProductCatalog({
+			enabledProviders: new Set(["openrouter"]),
+			generationEnabled: true,
+			openRouterImageRoutesCertified: true,
+		}).products;
+
+		for (const product of products) {
+			expect(product.fields).toContainEqual({
+				type: "aspect-ratio",
+				key: "aspectRatio",
+				label: "Aspect ratio",
+				required: true,
+				options: [
+					{ value: "auto", label: "Automatic" },
+					{ value: "1:1", label: "1:1" },
+					{ value: "4:3", label: "4:3" },
+					{ value: "3:4", label: "3:4" },
+					{ value: "3:2", label: "3:2" },
+					{ value: "2:3", label: "2:3" },
+					{ value: "16:9", label: "16:9" },
+					{ value: "9:16", label: "9:16" },
+					{ value: "21:9", label: "21:9" },
+				],
+			});
+		}
+	});
+
+	it("rejects image edit aspect ratios outside the shared route contract", () => {
+		expect(() =>
+			quoteCatalogInput({
+				productKey: "image-fast",
+				input: {
+					kind: "image-to-image",
+					prompt: "Use a square-ish crop",
+					sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+					aspectRatio: "5:4",
+				},
+			}),
+		).toThrow();
 	});
 
 	it("keeps provider routing and costs server-only", () => {
@@ -142,9 +189,14 @@ describe("media product catalog", () => {
 			}),
 		]);
 		expect(products.map((product) => product.fields.map((field) => field.key))).toEqual([
-			["prompt", "sourceAssetId"],
-			["prompt", "sourceAssetId"],
+			["prompt", "sourceAssetId", "aspectRatio"],
+			["prompt", "sourceAssetId", "aspectRatio"],
 		]);
+		expect(products.map((product) => product.description)).toEqual([
+			"Private prompt-based image editing at the Standard tier",
+			"Private prompt-based image editing at the Quality tier",
+		]);
+		expect(JSON.stringify(products)).not.toMatch(/fast everyday|higher[- ]fidelity/i);
 	});
 
 	it("rejects a malformed durable text input that smuggles a source asset", () => {

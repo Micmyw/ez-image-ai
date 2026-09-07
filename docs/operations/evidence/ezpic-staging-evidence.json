@@ -50,32 +50,32 @@
 		{
 			"id": "checkout",
 			"status": "NOT_COMPLETED",
-			"evidence": "Needs Stripe test-mode Product/Price environment name, Checkout reference, verified Webhook event, Outbox processing, Purchase projection, and no browser-side credit grant."
+			"evidence": "Needs PayPal and Waffo test-environment Pro, Ultimate, and Max plan IDs plus all four Credit Pack product IDs, Checkout references, verified Webhook events, Outbox processing, Purchase projections, and proof that the browser grants no credits."
 		},
 		{
 			"id": "monthly-credits",
 			"status": "NOT_COMPLETED",
-			"evidence": "Needs a Stripe test-mode monthly renewal reference and idempotent Billing Period, Credit Lot, Ledger, Subscription, and Outbox evidence."
+			"evidence": "Needs PayPal/Waffo monthly renewal evidence for Pro, Ultimate, and Max plus Credit Pack evidence for the exact base grant, frozen active-subscriber eligibility, exact +20% bonus, six-UTC-calendar-month expiry, idempotent replay, Credit Lot, Ledger, Purchase, Subscription, and Outbox state."
 		},
 		{
 			"id": "annual-monthly-credits",
 			"status": "NOT_COMPLETED",
-			"evidence": "Needs a Stripe test-mode annual purchase and two internal monthly grant references proving credits are not granted as one browser-side annual lump sum."
+			"evidence": "Needs PayPal/Waffo annual Pro, Ultimate, and Max purchases and two internal monthly grant references proving credits are not granted as one browser-side annual lump sum."
 		},
 		{
 			"id": "subscription-cancellation",
 			"status": "NOT_COMPLETED",
-			"evidence": "Needs Stripe test-mode cancellation and Portal references plus the server-owned Subscription projection and effective-period entitlement evidence."
+			"evidence": "Needs PayPal/Waffo cancellation references plus the server-owned Subscription projection and effective-period entitlement evidence; include legacy Stripe portal evidence only where historical Stripe subscriptions are maintained."
 		},
 		{
 			"id": "refund-and-debt",
 			"status": "NOT_COMPLETED",
-			"evidence": "Needs partial and full Stripe test refunds, immutable refund ledger references, insufficient-balance Debt evidence, repayment behavior, and idempotent replay."
+			"evidence": "Needs partial and full PayPal/Waffo test refunds for subscriptions and Credit Packs, immutable refund ledger references, insufficient-balance Debt evidence, repayment behavior, and idempotent replay."
 		},
 		{
 			"id": "webhook-replay",
 			"status": "NOT_COMPLETED",
-			"evidence": "Needs repeated delivery of the same verified Stripe and Provider staging events with stable raw-event, Outbox, projection, and ledger identities."
+			"evidence": "Needs repeated delivery of the same verified PayPal and Waffo staging events with stable raw-event, Outbox, projection, and ledger identities; include Stripe only where legacy lifecycle maintenance is enabled."
 		},
 		{
 			"id": "reconciliation-recovery",

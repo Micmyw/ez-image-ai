@@ -67,13 +67,102 @@ export const listPurchases = protectedProcedure
 			? await getPurchasesByOrganizationId(organizationId)
 			: await getPurchasesByUserId(user.id);
 
-		return purchases.map((purchase) => ({
-			...purchase,
-			planId: getPlanIdByProviderPriceId(purchase.provider, purchase.priceId),
-			planPrice: getPlanPriceByProviderPriceId(purchase.provider, purchase.priceId)?.price ?? null,
-			providerCapabilities: managementCapabilities(purchase.provider),
-		}));
+		return purchases.map((purchase) => {
+			const { mediaSubscription: _mediaSubscription, ...publicPurchase } = purchase;
+			const isPlanPurchase = purchase.productKind === "PLAN";
+			const persistedPlan = isPlanPurchase ? resolvePersistedSubscriptionPlan(purchase) : null;
+
+			return {
+				...publicPurchase,
+				planId: isPlanPurchase
+					? (persistedPlan?.planId ??
+						getPlanIdByProviderPriceId(purchase.provider, purchase.priceId))
+					: null,
+				planPrice: isPlanPurchase
+					? (persistedPlan?.price ??
+						getPlanPriceByProviderPriceId(purchase.provider, purchase.priceId)?.price ??
+						null)
+					: null,
+				providerCapabilities: managementCapabilities(purchase.provider),
+			};
+		});
 	});
+
+interface PurchaseWithSubscriptionPlan {
+	type: string;
+	productKind: "PLAN" | "CREDIT_PACK";
+	provider: string;
+	userId: string | null;
+	organizationId: string | null;
+	mediaSubscription: {
+		ownerType: "USER" | "ORGANIZATION";
+		ownerId: string;
+		provider: string;
+		plan: {
+			provider: string;
+			priceMicros: bigint;
+			currency: string;
+			metadata: unknown;
+		};
+	} | null;
+}
+
+function resolvePersistedSubscriptionPlan(purchase: PurchaseWithSubscriptionPlan): {
+	planId: "creator" | "ultimate" | "studio";
+	price: {
+		type: "subscription";
+		interval: "month" | "year";
+		amount: number;
+		currency: string;
+	};
+} | null {
+	if (purchase.productKind !== "PLAN" || purchase.type !== "SUBSCRIPTION") return null;
+	const subscription = purchase.mediaSubscription;
+	const owner =
+		purchase.userId && !purchase.organizationId
+			? { type: "USER", id: purchase.userId }
+			: purchase.organizationId && !purchase.userId
+				? { type: "ORGANIZATION", id: purchase.organizationId }
+				: null;
+
+	if (
+		!subscription ||
+		!owner ||
+		subscription.ownerType !== owner.type ||
+		subscription.ownerId !== owner.id ||
+		subscription.provider !== purchase.provider ||
+		subscription.plan.provider !== purchase.provider
+	) {
+		return null;
+	}
+
+	const planId = metadataString(subscription.plan.metadata, "planId");
+	const interval = metadataString(subscription.plan.metadata, "interval");
+	const priceMicros = Number(subscription.plan.priceMicros);
+	if (
+		(planId !== "creator" && planId !== "ultimate" && planId !== "studio") ||
+		(interval !== "month" && interval !== "year") ||
+		!Number.isSafeInteger(priceMicros)
+	) {
+		return null;
+	}
+
+	return {
+		planId,
+		price: {
+			type: "subscription" as const,
+			interval,
+			amount: priceMicros / 1_000_000,
+			currency: subscription.plan.currency,
+		},
+	};
+}
+
+function metadataString(value: unknown, key: string): string | null {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+	const candidate = (value as Record<string, unknown>)[key];
+	return typeof candidate === "string" ? candidate : null;
+}
 
 function managementCapabilities(provider: string) {
 	const capabilities = resolvePaymentProvider(provider)?.capabilities;

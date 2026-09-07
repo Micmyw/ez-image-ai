@@ -27,6 +27,7 @@ import {
 } from "./lib/anonymous-boundary";
 import { updateSeatsInOrganizationSubscription } from "./lib/organization";
 import { cancelOrganizationSubscriptionsBeforeDeletion } from "./lib/organization-deletion";
+import { validateOrganizationSlugBeforeCreate } from "./lib/organization-slug";
 import { invitationOnlyPlugin } from "./plugins/invitation-only";
 
 const getLocaleFromRequest = (request?: Request) => {
@@ -247,6 +248,8 @@ export const auth = betterAuth({
 		}),
 		organization({
 			organizationHooks: {
+				beforeCreateOrganization: validateOrganizationSlugBeforeCreate,
+				beforeUpdateOrganization: validateOrganizationSlugBeforeCreate,
 				beforeDeleteOrganization: async ({ organization, user }) => {
 					await cancelOrganizationSubscriptionsBeforeDeletion(
 						{

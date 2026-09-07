@@ -58,10 +58,10 @@ describe("controlled media load database path", () => {
 		});
 		expect(job).toMatchObject({
 			ownerId: OWNER_ID,
-			creditsReserved: 4n,
+			creditsReserved: 5n,
 			inputSnapshot: { kind: "image-to-image" },
 			quote: { ownerId: OWNER_ID, productKey: "image-fast" },
-			reservation: { amount: 4n, status: "ACTIVE" },
+			reservation: { amount: 5n, status: "ACTIVE" },
 			assets: [
 				expect.objectContaining({
 					role: "INPUT",
@@ -83,6 +83,19 @@ describe("controlled media load database path", () => {
 		expect((job.inputSnapshot as { sourceAssetId?: string }).sourceAssetId).toBe(
 			job.assets[0]?.assetId,
 		);
+		expect(job.quote.pricingSnapshot).toMatchObject({
+			routeGraph: {
+				graphFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+				maximumRouteCostMicros: 23_000,
+				allowedRoutes: [
+					{
+						provider: "openrouter",
+						providerModelId: "sourceful/riverflow-v2.5-fast",
+						providerCostMicros: 23_000,
+					},
+				],
+			},
+		});
 		expect(outbox.map((event) => event.eventType)).toEqual(["JOB_CREATED", "GENERATION_FINALIZE"]);
 		expect(
 			await client.creditLedgerEntry.count({

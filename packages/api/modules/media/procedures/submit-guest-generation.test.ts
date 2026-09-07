@@ -101,6 +101,7 @@ function validInput() {
 		productKey: "image-fast" as const,
 		sourceAssetId: "asset-1",
 		prompt: "Make the sky violet",
+		aspectRatio: "16:9" as const,
 		idempotencyKey: "guest-submit-0001",
 		deviceId: "d4fbf8d2-945a-4f2c-8359-f179f6c734de",
 		turnstileToken: "turnstile-token",

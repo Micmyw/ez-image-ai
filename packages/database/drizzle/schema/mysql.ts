@@ -199,6 +199,7 @@ export const purchase = mysqlTable(
 			onDelete: "cascade",
 		}),
 		type: purchaseTypeEnum.notNull(),
+		productKind: mysqlEnum("productKind", ["PLAN", "CREDIT_PACK"]).default("PLAN").notNull(),
 		provider: text("provider").default("stripe").notNull(),
 		customerId: text("customerId").notNull(),
 		subscriptionId: text("subscriptionId"),
@@ -214,6 +215,10 @@ export const purchase = mysqlTable(
 			"purchase_exactly_one_owner",
 			sql`(${table.organizationId} IS NOT NULL) <> (${table.userId} IS NOT NULL)`,
 		),
+		check(
+			"purchase_credit_pack_shape",
+			sql`${table.productKind} = 'PLAN' OR (${table.provider} IN ('paypal', 'waffo') AND ${table.type} = 'ONE_TIME' AND ${table.subscriptionId} IS NULL)`,
+		),
 	],
 );
 
@@ -225,6 +230,7 @@ export const billingPlan = mysqlTable(
 			.primaryKey(),
 		provider: varchar("provider", { length: 64 }).notNull(),
 		providerPriceId: varchar("providerPriceId", { length: 255 }).notNull(),
+		productKind: mysqlEnum("productKind", ["PLAN", "CREDIT_PACK"]).default("PLAN").notNull(),
 		name: text("name").notNull(),
 		creditsPerPeriod: bigint("creditsPerPeriod", { mode: "bigint" }).notNull(),
 		priceMicros: bigint("priceMicros", { mode: "bigint" }).notNull(),
@@ -239,6 +245,10 @@ export const billingPlan = mysqlTable(
 		uniqueIndex("billing_plan_provider_providerPriceId_uidx").on(
 			table.provider,
 			table.providerPriceId,
+		),
+		check(
+			"billing_plan_credit_pack_provider",
+			sql`${table.productKind} = 'PLAN' OR ${table.provider} IN ('paypal', 'waffo')`,
 		),
 	],
 );
@@ -323,6 +333,7 @@ export const paymentCheckoutIntent = mysqlTable(
 		ownerType: mysqlEnum("ownerType", ["USER", "ORGANIZATION"]).notNull(),
 		ownerId: varchar("ownerId", { length: 255 }).notNull(),
 		submittedByUserId: varchar("submittedByUserId", { length: 255 }).notNull(),
+		productKind: mysqlEnum("productKind", ["PLAN", "CREDIT_PACK"]).default("PLAN").notNull(),
 		billingPlanId: varchar("billingPlanId", { length: 255 })
 			.notNull()
 			.references(() => billingPlan.id, { onDelete: "restrict" }),
@@ -333,6 +344,21 @@ export const paymentCheckoutIntent = mysqlTable(
 		providerOrderId: varchar("providerOrderId", { length: 255 }),
 		providerCheckoutUrl: text("providerCheckoutUrl"),
 		activeScopeKey: varchar("activeScopeKey", { length: 768 }),
+		creditPackCatalogVersion: varchar("creditPackCatalogVersion", { length: 255 }),
+		creditPackPricingVersion: varchar("creditPackPricingVersion", { length: 255 }),
+		creditPackSubscriberEligibilityVersion: varchar("creditPackSubscriberEligibilityVersion", {
+			length: 255,
+		}),
+		creditPackBaseCredits: bigint("creditPackBaseCredits", { mode: "bigint" }),
+		creditPackBonusCredits: bigint("creditPackBonusCredits", { mode: "bigint" }),
+		creditPackTotalCredits: bigint("creditPackTotalCredits", { mode: "bigint" }),
+		creditPackExpiryMonths: int("creditPackExpiryMonths"),
+		creditPackSubscriberBonusEligible: boolean("creditPackSubscriberBonusEligible"),
+		creditPackSubscriberSubscriptionId: varchar("creditPackSubscriberSubscriptionId", {
+			length: 255,
+		}),
+		creditPackSubscriberPlanKey: varchar("creditPackSubscriberPlanKey", { length: 64 }),
+		creditPackEligibilityEvaluatedAt: timestamp("creditPackEligibilityEvaluatedAt"),
 		status: mysqlEnum("status", [
 			"CREATED",
 			"PROVIDER_CREATING",
@@ -371,6 +397,145 @@ export const paymentCheckoutIntent = mysqlTable(
 			table.status,
 		),
 		index("payment_checkout_intent_expiry_status_idx").on(table.expiresAt, table.status),
+		check(
+			"payment_checkout_intent_credit_pack_snapshot",
+			sql`(${table.productKind} = 'PLAN' AND ${table.creditPackCatalogVersion} IS NULL AND ${table.creditPackPricingVersion} IS NULL AND ${table.creditPackSubscriberEligibilityVersion} IS NULL AND ${table.creditPackBaseCredits} IS NULL AND ${table.creditPackBonusCredits} IS NULL AND ${table.creditPackTotalCredits} IS NULL AND ${table.creditPackExpiryMonths} IS NULL AND ${table.creditPackSubscriberBonusEligible} IS NULL AND ${table.creditPackSubscriberSubscriptionId} IS NULL AND ${table.creditPackSubscriberPlanKey} IS NULL AND ${table.creditPackEligibilityEvaluatedAt} IS NULL) OR (${table.productKind} = 'CREDIT_PACK' AND ${table.provider} IN ('paypal', 'waffo') AND ${table.interval} = 'one-time' AND NULLIF(${table.creditPackCatalogVersion}, '') IS NOT NULL AND NULLIF(${table.creditPackPricingVersion}, '') IS NOT NULL AND NULLIF(${table.creditPackSubscriberEligibilityVersion}, '') IS NOT NULL AND ${table.creditPackBaseCredits} > 0 AND ${table.creditPackBonusCredits} >= 0 AND ${table.creditPackTotalCredits} = ${table.creditPackBaseCredits} + ${table.creditPackBonusCredits} AND ${table.creditPackExpiryMonths} = 6 AND ${table.creditPackSubscriberBonusEligible} IS NOT NULL AND ${table.creditPackEligibilityEvaluatedAt} IS NOT NULL AND ((${table.creditPackSubscriberBonusEligible} = false AND ${table.creditPackBonusCredits} = 0 AND ${table.creditPackSubscriberSubscriptionId} IS NULL AND ${table.creditPackSubscriberPlanKey} IS NULL) OR (${table.creditPackSubscriberBonusEligible} = true AND ${table.creditPackBonusCredits} > 0 AND NULLIF(${table.creditPackSubscriberSubscriptionId}, '') IS NOT NULL AND NULLIF(${table.creditPackSubscriberPlanKey}, '') IS NOT NULL)))`,
+		),
+	],
+);
+
+export const paymentCheckoutIntentIdempotencyAlias = mysqlTable(
+	"payment_checkout_intent_idempotency_alias",
+	{
+		id: varchar("id", { length: 255 })
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		ownerType: mysqlEnum("ownerType", ["USER", "ORGANIZATION"]).notNull(),
+		ownerId: varchar("ownerId", { length: 255 }).notNull(),
+		idempotencyKey: varchar("idempotencyKey", { length: 255 }).notNull(),
+		checkoutIntentId: varchar("checkoutIntentId", { length: 255 })
+			.notNull()
+			.references(() => paymentCheckoutIntent.id, { onDelete: "cascade" }),
+		createdAt: timestamp("createdAt").defaultNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("payment_checkout_intent_alias_owner_idempotency_uidx").on(
+			table.ownerType,
+			table.ownerId,
+			table.idempotencyKey,
+		),
+		index("payment_checkout_intent_alias_checkoutIntentId_idx").on(table.checkoutIntentId),
+	],
+);
+
+export const creditPackFulfillment = mysqlTable(
+	"credit_pack_fulfillment",
+	{
+		id: varchar("id", { length: 255 })
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		purchaseId: varchar("purchaseId", { length: 255 }).references(() => purchase.id, {
+			onDelete: "set null",
+		}),
+		checkoutIntentId: varchar("checkoutIntentId", { length: 255 })
+			.notNull()
+			.references(() => paymentCheckoutIntent.id, { onDelete: "restrict" }),
+		billingPlanId: varchar("billingPlanId", { length: 255 })
+			.notNull()
+			.references(() => billingPlan.id, { onDelete: "restrict" }),
+		ownerType: mysqlEnum("ownerType", ["USER", "ORGANIZATION"]).notNull(),
+		ownerId: varchar("ownerId", { length: 255 }).notNull(),
+		provider: varchar("provider", { length: 64 }).notNull(),
+		providerOrderId: varchar("providerOrderId", { length: 255 }).notNull(),
+		providerPaymentId: varchar("providerPaymentId", { length: 255 }).notNull(),
+		paidAmountMicros: bigint("paidAmountMicros", { mode: "bigint" }).notNull(),
+		currency: varchar("currency", { length: 16 }).notNull(),
+		baseCredits: bigint("baseCredits", { mode: "bigint" }).notNull(),
+		bonusCredits: bigint("bonusCredits", { mode: "bigint" }).notNull(),
+		grantedCredits: bigint("grantedCredits", { mode: "bigint" }).notNull(),
+		refundedAmountMicros: bigint("refundedAmountMicros", { mode: "bigint" }).default(0n).notNull(),
+		refundedCredits: bigint("refundedCredits", { mode: "bigint" }).default(0n).notNull(),
+		grantReferenceKey: varchar("grantReferenceKey", { length: 255 }).notNull(),
+		paidAt: timestamp("paidAt").notNull(),
+		expiresAt: timestamp("expiresAt").notNull(),
+		status: mysqlEnum("status", ["FULFILLED", "PARTIALLY_REFUNDED", "REFUNDED"])
+			.default("FULFILLED")
+			.notNull(),
+		fulfilledAt: timestamp("fulfilledAt").defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("credit_pack_fulfillment_purchaseId_uidx").on(table.purchaseId),
+		uniqueIndex("credit_pack_fulfillment_checkoutIntentId_uidx").on(table.checkoutIntentId),
+		uniqueIndex("credit_pack_fulfillment_provider_payment_uidx").on(
+			table.provider,
+			table.providerPaymentId,
+		),
+		uniqueIndex("credit_pack_fulfillment_grantReferenceKey_uidx").on(table.grantReferenceKey),
+		uniqueIndex("credit_pack_fulfillment_provider_order_uidx").on(
+			table.provider,
+			table.providerOrderId,
+		),
+		index("credit_pack_fulfillment_owner_fulfilled_idx").on(
+			table.ownerType,
+			table.ownerId,
+			table.fulfilledAt,
+			table.id,
+		),
+		index("credit_pack_fulfillment_status_fulfilled_idx").on(table.status, table.fulfilledAt),
+		index("credit_pack_fulfillment_expiresAt_idx").on(table.expiresAt),
+		check(
+			"credit_pack_fulfillment_values",
+			sql`${table.provider} IN ('paypal', 'waffo') AND ${table.paidAmountMicros} > 0 AND ${table.baseCredits} > 0 AND ${table.bonusCredits} >= 0 AND ${table.grantedCredits} = ${table.baseCredits} + ${table.bonusCredits} AND ${table.refundedAmountMicros} >= 0 AND ${table.refundedAmountMicros} <= ${table.paidAmountMicros} AND ${table.refundedCredits} >= 0 AND ${table.refundedCredits} <= ${table.grantedCredits} AND ${table.expiresAt} > ${table.paidAt}`,
+		),
+		check(
+			"credit_pack_fulfillment_status_totals",
+			sql`(${table.status} = 'FULFILLED' AND ${table.refundedAmountMicros} = 0) OR (${table.status} = 'PARTIALLY_REFUNDED' AND ${table.refundedAmountMicros} > 0 AND ${table.refundedAmountMicros} < ${table.paidAmountMicros}) OR (${table.status} = 'REFUNDED' AND ${table.refundedAmountMicros} = ${table.paidAmountMicros})`,
+		),
+	],
+);
+
+export const creditPackAdjustment = mysqlTable(
+	"credit_pack_adjustment",
+	{
+		id: varchar("id", { length: 255 })
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		fulfillmentId: varchar("fulfillmentId", { length: 255 })
+			.notNull()
+			.references(() => creditPackFulfillment.id, { onDelete: "restrict" }),
+		provider: varchar("provider", { length: 64 }).notNull(),
+		providerAdjustmentId: varchar("providerAdjustmentId", { length: 255 }).notNull(),
+		amountMicros: bigint("amountMicros", { mode: "bigint" }).notNull(),
+		currency: varchar("currency", { length: 16 }).notNull(),
+		status: mysqlEnum("status", [
+			"PENDING",
+			"REQUIRES_ACTION",
+			"SUCCEEDED",
+			"FAILED",
+			"CANCELED",
+		]).notNull(),
+		providerCreatedAt: timestamp("providerCreatedAt").notNull(),
+		lastProviderChangeAt: timestamp("lastProviderChangeAt").notNull(),
+		lastProviderChangeId: varchar("lastProviderChangeId", { length: 255 }).notNull(),
+		finalizedCredits: bigint("finalizedCredits", { mode: "bigint" }).default(0n).notNull(),
+		creditsFinalizedAt: timestamp("creditsFinalizedAt"),
+		refundReferenceKey: varchar("refundReferenceKey", { length: 255 }),
+		createdAt: timestamp("createdAt").defaultNow().notNull(),
+		updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
+	},
+	(table) => [
+		uniqueIndex("credit_pack_adjustment_provider_id_uidx").on(
+			table.provider,
+			table.providerAdjustmentId,
+		),
+		uniqueIndex("credit_pack_adjustment_refundReferenceKey_uidx").on(table.refundReferenceKey),
+		index("credit_pack_adjustment_fulfillment_status_idx").on(table.fulfillmentId, table.status),
+		index("credit_pack_adjustment_status_finalized_idx").on(table.status, table.creditsFinalizedAt),
+		check(
+			"credit_pack_adjustment_values",
+			sql`${table.provider} IN ('paypal', 'waffo') AND ${table.amountMicros} > 0 AND ${table.finalizedCredits} >= 0 AND ((${table.status} = 'SUCCEEDED' AND ((${table.creditsFinalizedAt} IS NULL AND ${table.finalizedCredits} = 0 AND ${table.refundReferenceKey} IS NULL) OR (${table.creditsFinalizedAt} IS NOT NULL AND ${table.refundReferenceKey} IS NOT NULL))) OR (${table.status} <> 'SUCCEEDED' AND ${table.creditsFinalizedAt} IS NULL AND ${table.finalizedCredits} = 0 AND ${table.refundReferenceKey} IS NULL))`,
+		),
 	],
 );
 
@@ -488,6 +653,55 @@ export const purchaseRelations = relations(purchase, ({ one }) => ({
 	user: one(user, {
 		fields: [purchase.userId],
 		references: [user.id],
+	}),
+	creditPackFulfillment: one(creditPackFulfillment),
+}));
+
+export const billingPlanRelations = relations(billingPlan, ({ many }) => ({
+	subscriptions: many(subscription),
+	checkoutIntents: many(paymentCheckoutIntent),
+	creditPackFulfillments: many(creditPackFulfillment),
+}));
+
+export const paymentCheckoutIntentRelations = relations(paymentCheckoutIntent, ({ one, many }) => ({
+	billingPlan: one(billingPlan, {
+		fields: [paymentCheckoutIntent.billingPlanId],
+		references: [billingPlan.id],
+	}),
+	creditPackFulfillment: one(creditPackFulfillment),
+	idempotencyAliases: many(paymentCheckoutIntentIdempotencyAlias),
+}));
+
+export const paymentCheckoutIntentIdempotencyAliasRelations = relations(
+	paymentCheckoutIntentIdempotencyAlias,
+	({ one }) => ({
+		checkoutIntent: one(paymentCheckoutIntent, {
+			fields: [paymentCheckoutIntentIdempotencyAlias.checkoutIntentId],
+			references: [paymentCheckoutIntent.id],
+		}),
+	}),
+);
+
+export const creditPackFulfillmentRelations = relations(creditPackFulfillment, ({ one, many }) => ({
+	purchase: one(purchase, {
+		fields: [creditPackFulfillment.purchaseId],
+		references: [purchase.id],
+	}),
+	checkoutIntent: one(paymentCheckoutIntent, {
+		fields: [creditPackFulfillment.checkoutIntentId],
+		references: [paymentCheckoutIntent.id],
+	}),
+	billingPlan: one(billingPlan, {
+		fields: [creditPackFulfillment.billingPlanId],
+		references: [billingPlan.id],
+	}),
+	adjustments: many(creditPackAdjustment),
+}));
+
+export const creditPackAdjustmentRelations = relations(creditPackAdjustment, ({ one }) => ({
+	fulfillment: one(creditPackFulfillment, {
+		fields: [creditPackAdjustment.fulfillmentId],
+		references: [creditPackFulfillment.id],
 	}),
 }));
 

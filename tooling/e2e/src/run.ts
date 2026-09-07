@@ -14,7 +14,6 @@ const environment = {
 	E2E_RUN_ID: runId,
 	DATABASE_URL: process.env.TEST_DATABASE_URL,
 	NEXT_PUBLIC_SAAS_URL: saasOrigin,
-	NEXT_PUBLIC_MARKETING_URL: saasOrigin,
 	MEDIA_BUCKET_NAME: process.env.MEDIA_BUCKET_NAME ?? "media-private",
 	S3_ENDPOINT: process.env.S3_ENDPOINT ?? "http://127.0.0.1:9000",
 	S3_REGION: process.env.S3_REGION ?? "auto",

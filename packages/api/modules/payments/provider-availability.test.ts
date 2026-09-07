@@ -1,7 +1,13 @@
 import { DEFAULT_PRODUCT_CONFIG, getPlanEntitlement } from "@repo/config";
+import { createCreditPackCheckoutSnapshot } from "@repo/config/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { isExactBillingPlanSnapshot, resolveProviderAvailability } from "./provider-availability";
+import {
+	isExactBillingPlanSnapshot,
+	isExactCreditPackBillingPlanSnapshot,
+	resolveCreditPackProviderAvailability,
+	resolveProviderAvailability,
+} from "./provider-availability";
 
 interface BillingPlanDrift {
 	version?: number;
@@ -25,6 +31,7 @@ describe("payment provider availability", () => {
 					id: "paypal-plan",
 					provider: "paypal",
 					providerPriceId: "P-CREATOR-MONTHLY",
+					productKind: "PLAN" as const,
 					active: true,
 					version: 1,
 					name: "creator",
@@ -43,6 +50,7 @@ describe("payment provider availability", () => {
 				id: "stripe-drifted",
 				provider,
 				providerPriceId: "price_creator_monthly",
+				productKind: "PLAN" as const,
 				active: true,
 				version: 1,
 				name: "creator",
@@ -80,6 +88,7 @@ describe("payment provider availability", () => {
 				},
 			},
 		]);
+		expect(findBillingPlan).not.toHaveBeenCalledWith("stripe", expect.any(String));
 		expect(findBillingPlan).not.toHaveBeenCalledWith("waffo", expect.any(String));
 	});
 
@@ -105,6 +114,7 @@ describe("payment provider availability", () => {
 			id: "paypal-current-plan",
 			provider: "paypal",
 			providerPriceId: "P-CREATOR-MONTHLY",
+			productKind: "PLAN" as const,
 			active: true,
 			version: drift.version ?? 1,
 			name: "creator",
@@ -124,6 +134,86 @@ describe("payment provider availability", () => {
 				planId: "creator",
 				interval: "month",
 			}),
+		).toBe(false);
+	});
+
+	it("advertises credit packs through PayPal and Waffo only when the exact product snapshot exists", async () => {
+		const snapshot = createCreditPackCheckoutSnapshot("credits-1500", false);
+		const findBillingPlan = vi.fn(async (provider: string, providerProductId: string) => ({
+			id: `${provider}-pack-plan`,
+			provider,
+			providerPriceId: providerProductId,
+			productKind: "CREDIT_PACK" as const,
+			active: provider === "paypal",
+			version: 1,
+			name: snapshot.packKey,
+			creditsPerPeriod: BigInt(snapshot.baseCredits),
+			priceMicros: BigInt(snapshot.priceMicros),
+			currency: snapshot.currency,
+			metadata: {
+				productKind: "CREDIT_PACK",
+				packKey: snapshot.packKey,
+				catalogVersion: snapshot.catalogVersion,
+				pricingVersion: snapshot.pricingVersion,
+				version: 1,
+				expiryMonths: snapshot.expiryMonths,
+			},
+		}));
+
+		await expect(
+			resolveCreditPackProviderAvailability(
+				{ packKey: "credits-1500" },
+				{
+					isConfigured: () => true,
+					getProviderProductId: (provider) =>
+						provider === "paypal" ? "PROD-CREDITS-1500" : "PROD_0123456789QrStUvWxYzAb",
+					findBillingPlan,
+				},
+			),
+		).resolves.toEqual([
+			{
+				name: "paypal",
+				capabilities: {
+					checkout: true,
+					portal: false,
+					cancellation: true,
+					seatUpdates: false,
+					webhooks: true,
+				},
+			},
+		]);
+		expect(findBillingPlan).toHaveBeenCalledTimes(2);
+		expect(findBillingPlan).not.toHaveBeenCalledWith("stripe", expect.any(String));
+	});
+
+	it("rejects a plan-shaped BillingPlan from credit-pack checkout", () => {
+		const snapshot = createCreditPackCheckoutSnapshot("credits-3000", false);
+		expect(
+			isExactCreditPackBillingPlanSnapshot(
+				{
+					id: "wrong-kind",
+					provider: "paypal",
+					providerPriceId: "PROD-CREDITS-3000",
+					productKind: "PLAN",
+					active: true,
+					version: 1,
+					name: snapshot.packKey,
+					creditsPerPeriod: BigInt(snapshot.baseCredits),
+					priceMicros: BigInt(snapshot.priceMicros),
+					currency: snapshot.currency,
+					metadata: {
+						productKind: "CREDIT_PACK",
+						packKey: snapshot.packKey,
+						catalogVersion: snapshot.catalogVersion,
+						pricingVersion: snapshot.pricingVersion,
+						version: 1,
+						expiryMonths: snapshot.expiryMonths,
+					},
+				},
+				"paypal",
+				"PROD-CREDITS-3000",
+				{ packKey: "credits-3000" },
+			),
 		).toBe(false);
 	});
 });

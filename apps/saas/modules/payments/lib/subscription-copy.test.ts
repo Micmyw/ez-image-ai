@@ -16,6 +16,7 @@ const SAAS_KEYS = [
 	"media.upgradeDialog.title",
 	"media.upgradeDialog.description",
 	"media.upgradeDialog.creator",
+	"media.upgradeDialog.ultimate",
 	"media.upgradeDialog.studio",
 	"media.upgradeDialog.storageUnavailable",
 	"media.upgradeDialog.cancel",
@@ -35,7 +36,7 @@ describe("subscription copy", () => {
 		}
 		expect(readKey(saas, "media.uploader.limit")).toContain("{megabytes");
 		expect(readKey(shared, "pricing.checkoutUnavailable")).toEqual(expect.any(String));
-		for (const planId of ["free", "creator", "studio"] as const) {
+		for (const planId of ["free", "creator", "ultimate", "studio"] as const) {
 			expect(readKey(shared, `pricing.products.${planId}.features.privateAssets`)).toEqual(
 				expect.any(String),
 			);

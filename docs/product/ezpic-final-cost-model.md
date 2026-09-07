@@ -2,14 +2,15 @@
 
 ## Decision status
 
-Pricing version `2026-09-05.1` is a conservative planning model based on official public prices
-observed on 2026-09-05. It is not a Provider bill, a real execution benchmark, or production margin
+Subscription pricing version `2026-09-05.1` and Credit Pack catalog/pricing/eligibility version
+`2026-09-06.1` use a conservative planning model based on official public prices observed on
+2026-09-05. They are not a Provider bill, a real execution benchmark, or production margin
 certification.
 
 | Decision input                                                              | Status          |
 | --------------------------------------------------------------------------- | --------------- |
 | Current Provider/model public price research                                | `COMPLETED`     |
-| Local cost ceilings, plan values, and credit weights                        | `COMPLETED`     |
+| Local cost ceilings, plan/Credit Pack values, and credit weights            | `COMPLETED`     |
 | OpenRouter top-up minimum-fee allocation                                    | `NOT_COMPLETED` |
 | Standard Edit real billed all-in successful cost                            | `NOT_COMPLETED` |
 | Quality Edit real billed all-in successful cost                             | `NOT_COMPLETED` |
@@ -46,16 +47,34 @@ budget enforcement; it is not a replacement for reconciling the separate credit-
 Both routes remain non-executable in production until the exact tuples pass the existing
 `MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED` gate. Public price research alone is not certification.
 
-## Package inputs
+## Subscription package inputs
 
 Credits are granted per internal month and do not roll over. Annual purchases receive the same
 monthly grant through twelve billing periods.
 
-| Plan    | Credits/month | Standard credits/edit | Quality credits/edit | Monthly price | Annual price | Whole-edit monthly ceiling |
-| ------- | ------------: | --------------------: | -------------------: | ------------: | -----------: | -------------------------- |
-| Free    |            25 |                     5 |         Not entitled |            $0 |           $0 | 5 Standard                 |
-| Creator |           700 |                     5 |                   40 |           $19 |         $190 | 140 Standard or 17 Quality |
-| Studio  |         3,000 |                     5 |                   40 |           $79 |         $790 | 600 Standard or 75 Quality |
+| Public plan (internal key) | Credits/month | Standard credits/edit | Quality credits/edit | Monthly price | Annual price | Whole-edit monthly ceiling |
+| -------------------------- | ------------: | --------------------: | -------------------: | ------------: | -----------: | -------------------------- |
+| Free (`free`, internal)    |            25 |                     5 |         Not entitled |            $0 |           $0 | 5 Standard                 |
+| Pro (`creator`)            |           700 |                     5 |                   40 |           $19 |         $190 | 140 Standard or 17 Quality |
+| Ultimate (`ultimate`)      |         1,800 |                     5 |                   40 |           $49 |         $490 | 360 Standard or 45 Quality |
+| Max (`studio`)             |         3,000 |                     5 |                   40 |           $79 |         $790 | 600 Standard or 75 Quality |
+
+Public pricing opens on annual billing and hides Free. Annual prices equal ten monthly payments, so
+the exact saving against twelve monthly payments is 16.67%; the UI truthfully displays the rounded
+`-17%` value.
+
+## Credit Pack inputs
+
+Credit Packs are one-time purchases separate from subscriptions. Each grant expires six UTC calendar
+months after its verified purchase timestamp. Paid-subscriber eligibility and the 20% bonus are
+frozen on the first checkout intent and cannot change on replay.
+
+|  Pack | Price | Base credits | Paid-subscriber credits | Subscriber bonus | Validity |
+| ----: | ----: | -----------: | ----------------------: | ---------------: | -------: |
+| 1,500 |   $59 |        1,500 |                   1,800 |             +20% | 6 months |
+| 3,000 |  $109 |        3,000 |                   3,600 |             +20% | 6 months |
+| 5,000 |  $169 |        5,000 |                   6,000 |             +20% | 6 months |
+| 8,000 |  $259 |        8,000 |                   9,600 |             +20% | 6 months |
 
 Raphael's public comparison was Pro $20/2,000 credits, Ultimate $40/5,000 credits, and Max
 $80/10,000 credits, with a displayed 50% annual discount and model-dependent credit consumption.
@@ -98,15 +117,32 @@ planning_margin = (net_monthly_revenue - full_use_variable_cost)
 Standard's planning cost per credit is greater than Quality's, so all-Standard usage is the worst
 permitted full-use mix under these assumptions.
 
-| Plan / cadence                     | Net monthly revenue | Full-use cost | Planning gross margin |
-| ---------------------------------- | ------------------: | ------------: | --------------------: |
-| Creator monthly                    |             $17.560 |        $4.267 |                 75.7% |
-| Creator annual, monthly allocation |             $14.858 |        $4.267 |                 71.3% |
-| Studio monthly                     |             $73.960 |       $18.287 |                 75.3% |
-| Studio annual, monthly allocation  |             $61.858 |       $18.287 |                 70.4% |
+| Plan / cadence                      | Net monthly revenue | Full-use cost | Planning gross margin |
+| ----------------------------------- | ------------------: | ------------: | --------------------: |
+| Pro monthly                         |             $17.560 |        $4.267 |                 75.7% |
+| Pro annual, monthly allocation      |             $14.858 |        $4.267 |                 71.3% |
+| Ultimate monthly                    |             $45.760 |       $10.972 |                 76.0% |
+| Ultimate annual, monthly allocation |             $38.358 |       $10.972 |                 71.4% |
+| Max monthly                         |             $73.960 |       $18.287 |                 75.3% |
+| Max annual, monthly allocation      |             $61.858 |       $18.287 |                 70.4% |
 
 These percentages are the worst full-use result within this worksheet, not production-approved gross
 margin. Real billed attempts, failures, refunds, tax, and infrastructure allocations may change them.
+
+The server-only Credit Pack quote uses the highest planning cost per credit: Standard full-use cost
+`$0.030478250 / 5 = $0.006095650`, rounded up to `$0.006096` (6,096 USD micros). The table applies
+that cost to every credit, including the full subscriber bonus, and applies the same 4.5% payment,
+$0.30 charge, and 1.5% refund-reserve assumptions to revenue.
+
+|         Pack | Net revenue | Base-credit cost / margin | Subscriber-credit cost / margin |
+| -----------: | ----------: | ------------------------: | ------------------------------: |
+|  1,500 / $59 |     $55.160 |            $9.144 / 83.4% |                 $10.973 / 80.1% |
+| 3,000 / $109 |    $102.160 |           $18.288 / 82.1% |                 $21.946 / 78.5% |
+| 5,000 / $169 |    $158.560 |           $30.480 / 80.8% |                 $36.576 / 76.9% |
+| 8,000 / $259 |    $243.160 |           $48.768 / 79.9% |                 $58.522 / 75.9% |
+
+These are planning margins, not live PayPal/Waffo fee evidence. Taxes, regional pricing, disputes,
+abnormal retries, storage/transfer outliers, and real success-rate effects remain unmeasured.
 
 ## Production measurement unit
 
@@ -152,10 +188,16 @@ The per-job and user/day cost caps and positive global daily Provider budget rem
 not margin evidence. Job creation must continue to reserve credits and cost atomically through the
 existing PostgreSQL, job, Outbox, private storage, moderation, and immutable ledger paths.
 
-Every plan/cadence offered by an enabled payment provider needs a matching production `BillingPlan`
-snapshot. Plan identity, monthly credits, interval amount, currency, payment-provider mapping, and
-pricing version must agree before checkout; drift fails closed. Change plan config, localized pricing
-copy, cost/credit catalog, database snapshots, webhook projections, and tests together.
+New checkout supports only PayPal and Waffo. Every offered plan/cadence needs a matching `PLAN`
+`BillingPlan`; every offered Credit Pack needs a distinct `CREDIT_PACK` snapshot. Plan identity,
+monthly credits, interval amount, Pack catalog/pricing version, base credits, six-month expiry,
+currency, and provider mapping must agree before checkout; drift fails closed. Change plan/Pack
+config, localized pricing copy, cost/credit catalog, database snapshots, Webhook projections, and
+tests together.
+
+Stripe is excluded from new subscription and Credit Pack checkout. Optional Stripe configuration is
+retained only for historical Webhook, portal/cancellation, refund-repair, and reconciliation paths;
+when no historical Stripe lifecycle is configured, scheduled reconciliation must skip it safely.
 
 Operations must also preserve evidence that each OpenRouter credit purchase is at least $20. If that
 floor is not followed, production margin certification fails closed until finance allocates the $0.80
@@ -175,10 +217,12 @@ Official/public pages accessed 2026-09-05:
 
 ## Rollback and review
 
-Route and pricing changes use a new version; historical Quote, job, credit, purchase, subscription,
-and billing snapshots remain immutable. Disable Quality first, then Standard or global generation as
-required by `../operations/ezpic-rollback.md`. Continue reconciliation through existing paths and
-never replace domain state with a spreadsheet or Provider dashboard.
+Route, subscription pricing, and Credit Pack changes use explicit versions; historical Quote, Job,
+Checkout Intent, Fulfillment, Adjustment, credit, Purchase, Subscription, and billing snapshots
+remain immutable. Disable new checkout before rolling back the sales surface. Disable Quality first,
+then Standard or global generation as required by `../operations/ezpic-rollback.md`. Continue
+reconciliation through existing paths and never replace domain state with a spreadsheet or Provider
+dashboard.
 
 Recalculate after any route, Provider price, payment fee, moderation policy, storage region, plan,
 credit price, tax/refund policy, or material success-rate change, and at least weekly during the

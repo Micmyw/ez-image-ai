@@ -19,7 +19,6 @@ import { createProviderWebhookVerifierRegistry } from "@repo/jobs";
 import { getLogContext, logger, withLogContext } from "@repo/logs";
 import { webhookHandler as paymentsWebhookHandler } from "@repo/payments";
 import { checkStorageMetadataAccess } from "@repo/storage";
-import { getBaseUrl } from "@repo/utils";
 import { tasks } from "@trigger.dev/sdk";
 import { Hono, type Context, type Next } from "hono";
 import { cors } from "hono/cors";
@@ -127,16 +126,8 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 			// Cors middleware
 			.use(
 				cors({
-					origin: (origin, context) => {
-						const saasOrigin = getBaseUrl(process.env.NEXT_PUBLIC_SAAS_URL, 3000);
-						const marketingOrigin = process.env.NEXT_PUBLIC_MARKETING_URL;
-						if (
-							isMarketingMediaPath(context.req.path) &&
-							marketingOrigin &&
-							origin === marketingOrigin
-						) {
-							return marketingOrigin;
-						}
+					origin: (origin) => {
+						const saasOrigin = resolveExplicitCorsOrigin(process.env.NEXT_PUBLIC_SAAS_URL);
 						return origin === saasOrigin ? saasOrigin : null;
 					},
 					allowHeaders: ["Content-Type", "Authorization"],
@@ -528,13 +519,24 @@ function requestUrlFlag(request: Request, name: string): string | null {
 	}
 }
 
-function isMarketingMediaPath(path: string): boolean {
-	return [
-		"/media/drafts",
-		"/media/guest-capability",
-		"/media/guest-drafts/upload-intents",
-		"/media/guest-drafts/upload-completions",
-	].some((suffix) => path.endsWith(suffix));
+function resolveExplicitCorsOrigin(value: string | undefined): string | null {
+	if (!value || value.trim() !== value) return null;
+	try {
+		const parsed = new URL(value);
+		if (
+			(parsed.protocol !== "https:" && parsed.protocol !== "http:") ||
+			parsed.username ||
+			parsed.password ||
+			parsed.pathname !== "/" ||
+			parsed.search ||
+			parsed.hash
+		) {
+			return null;
+		}
+		return parsed.origin;
+	} catch {
+		return null;
+	}
 }
 
 function assertTriggerConfiguration(): void {

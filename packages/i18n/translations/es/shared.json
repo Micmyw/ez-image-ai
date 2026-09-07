@@ -1,11 +1,22 @@
 {
 	"pricing": {
+		"annualSummary": "Facturación anual de {total} · ahorra {savings} ({percent}%) frente a 12 pagos mensuales",
+		"annualTotal": "Facturación anual de {total}",
+		"aspectRatios": "Formatos vertical, cuadrado y horizontal",
+		"baseCredits": "Créditos base: {credits}",
+		"buyWith": "Comprar con {provider}",
+		"capabilitiesLabel": "Funciones de edición",
 		"choosePlan": "Elegir plan",
 		"checkoutUnavailable": "El pago está temporalmente no disponible. Inténtalo más tarde o contacta con soporte.",
 		"contactSales": "Contactar ventas",
 		"concurrentEdits": "{count, plural, one {# edición simultánea} other {# ediciones simultáneas}}",
 		"creditExpiry": "Los créditos se renuevan cada mes y los no utilizados no se acumulan.",
+		"creditPackCheckoutUnavailable": "Esta opción de pago no está disponible ahora mismo.",
+		"creditPacks": "Paquetes de créditos",
+		"creditPackTitle": "{credits} créditos",
+		"creditPackValidity": "Válidos durante {months, plural, one {# mes} other {# meses}}",
 		"description": "Elige un plan de edición de imágenes con créditos y límites de trabajos claros.",
+		"editHistory": "Historial de edición privado",
 		"getStarted": "Comenzar",
 		"maximumInputSize": "Imágenes de origen de hasta {megabytes, number} MB",
 		"month": "{count, plural, one {mes} other {{count} meses}}",
@@ -13,15 +24,18 @@
 		"monthlyEditAllowance": "Hasta {standard, number} ediciones Standard o {quality, number} Quality al mes",
 		"monthlyStandardAllowance": "Hasta {standard, number} ediciones Standard al mes",
 		"monthly": "Mensual",
+		"oneTime": "pago único",
+		"paymentOptionsLoading": "Comprobando las opciones de pago…",
+		"privateAssets": "Recursos privados",
 		"products": {
 			"creator": {
-				"description": "Para creadores que realizan ediciones de imágenes con regularidad.",
+				"description": "Para creadores que convierten ideas visuales habituales en recursos terminados.",
 				"features": {
 					"editLevels": "Acceso a Standard Edit y Quality Edit",
 					"privateAssets": "Imágenes de origen y recursos editados privados",
 					"editHistory": "Sesiones e historial de edición privados"
 				},
-				"title": "Creator"
+				"title": "Pro"
 			},
 			"enterprise": {
 				"description": "Plan personalizado según tus necesidades",
@@ -48,20 +62,38 @@
 				},
 				"title": "De por vida"
 			},
-			"studio": {
-				"description": "Para flujos de edición de imágenes de mayor volumen.",
+			"ultimate": {
+				"description": "Para flujos en crecimiento que necesitan más ediciones y margen de trabajo.",
 				"features": {
 					"editLevels": "Acceso a Standard Edit y Quality Edit",
 					"privateAssets": "Imágenes de origen y recursos editados privados",
 					"editHistory": "Sesiones e historial de edición privados"
 				},
-				"title": "Studio"
+				"title": "Ultimate"
+			},
+			"studio": {
+				"description": "Para equipos con gran volumen y producciones exigentes.",
+				"features": {
+					"editLevels": "Acceso a Standard Edit y Quality Edit",
+					"privateAssets": "Imágenes de origen y recursos editados privados",
+					"editHistory": "Sesiones e historial de edición privados"
+				},
+				"title": "Max"
 			}
 		},
+		"pricingFaqTitle": "Preguntas frecuentes sobre precios",
+		"pricingFaqDescription": "Respuestas sobre créditos, facturación anual, cancelaciones y reembolsos.",
 		"purchase": "Comprar",
 		"recommended": "Recomendado",
+		"qualityEdit": "Quality Edit",
+		"standardEdit": "Standard Edit",
 		"subscribe": "Suscribirse",
+		"subscriberBonus": "Los suscriptores reciben un +{percent}% de créditos al mismo precio",
+		"subscriberBonusAmount": "Bonificación de suscriptor: {credits}",
+		"subscriberReceives": "Los suscriptores reciben {credits} créditos",
 		"title": "Precios",
+		"tierAccessStandard": "Acceso a Standard Edit",
+		"tierAccessAll": "Acceso a Standard Edit y Quality Edit",
 		"trialPeriod": "{days} {days, plural, one {día} other {días}} de prueba gratis",
 		"year": "{count, plural, one {año} other {{count} años}}",
 		"yearly": "Anual",

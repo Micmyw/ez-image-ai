@@ -16,7 +16,7 @@ test.describe("subscription upgrade checkout recovery", () => {
 		await pool.query(
 			`UPDATE subscription
 			 SET status='EXPIRED', "graceEndsAt"=NULL, "updatedAt"=now()
-			 WHERE "providerSubscriptionId"=$1`,
+			 WHERE provider='e2e' AND "providerSubscriptionId"=$1`,
 			[subscriptionId],
 		);
 	});
@@ -25,7 +25,7 @@ test.describe("subscription upgrade checkout recovery", () => {
 		await pool.query(
 			`UPDATE subscription
 			 SET status='EXPIRED', "graceEndsAt"=NULL, "updatedAt"=now()
-			 WHERE "providerSubscriptionId"=$1`,
+			 WHERE provider='e2e' AND "providerSubscriptionId"=$1`,
 			[subscriptionId],
 		);
 	});
@@ -40,11 +40,10 @@ test.describe("subscription upgrade checkout recovery", () => {
 		const before = await checkoutFixtureCounts(user.id);
 		await page.goto("/choose-plan?returnTo=%2Fcreate");
 		const creator = page.locator('[data-test="price-table-plan"]').filter({ hasText: "Creator" });
-		await creator.getByRole("button", { name: /choose plan/i }).click();
-
 		await expect(
-			page.getByRole("alert").filter({ hasText: /paid checkout is temporarily unavailable/i }),
+			creator.getByRole("alert").filter({ hasText: /no payment method is currently available/i }),
 		).toBeVisible();
+		await expect(creator.getByRole("button", { name: /choose plan/i })).toBeDisabled();
 		await expect.poll(() => checkoutFixtureCounts(user.id)).toEqual(before);
 		expect(growthEvents.map(({ name }) => name)).not.toContain("checkout_started");
 	});
@@ -122,7 +121,7 @@ async function activateCreatorFixture(userId: string): Promise<void> {
 		 ) VALUES (
 			$1, 'USER', $2, 'e2e', $3, $4, 'ACTIVE', now(), now() + interval '1 month', now(), now()
 		 )
-		 ON CONFLICT ("providerSubscriptionId") DO UPDATE SET
+		 ON CONFLICT (provider, "providerSubscriptionId") DO UPDATE SET
 			"ownerId"=EXCLUDED."ownerId", "planId"=EXCLUDED."planId", status='ACTIVE',
 			"currentPeriodStart"=EXCLUDED."currentPeriodStart",
 			"currentPeriodEnd"=EXCLUDED."currentPeriodEnd", "graceEndsAt"=NULL, "updatedAt"=now()`,

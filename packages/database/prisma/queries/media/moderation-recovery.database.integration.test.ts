@@ -520,43 +520,50 @@ describe("media verification evidence invariants", () => {
 		const suffix = crypto.randomUUID();
 		const ownerId = `moderation-expiry-owner-${suffix}`;
 		const checksum = "f".repeat(64);
-		const validUntil = new Date(Date.now() + 1_000);
-		const asset = await client.mediaAsset.create({
-			data: {
-				ownerType: "USER",
-				ownerId,
-				kind: "INPUT",
-				status: "VERIFYING",
-				objectKey: `users/${ownerId}/assets/${suffix}/expiring.png`,
-				mimeType: "image/png",
-				byteSize: 16n,
-				checksum,
-				verificationGeneration: 1,
-				verificationAttemptCount: 1,
-				verificationProvider: "test",
-				verificationRuleVersion: "asset-rule-v1",
-				verificationPolicyVersion: "policy-v1",
-				verificationValidUntil: validUntil,
-			},
+		const { asset, validUntil } = await client.$transaction(async (tx) => {
+			const [databaseClock] = await tx.$queryRaw<Array<{ now: Date }>>`
+				SELECT CURRENT_TIMESTAMP AS "now"`;
+			if (!databaseClock) throw new Error("DATABASE_CLOCK_UNAVAILABLE");
+			const validUntil = new Date(databaseClock.now.getTime() + 1_000);
+			const asset = await tx.mediaAsset.create({
+				data: {
+					ownerType: "USER",
+					ownerId,
+					kind: "INPUT",
+					status: "VERIFYING",
+					objectKey: `users/${ownerId}/assets/${suffix}/expiring.png`,
+					mimeType: "image/png",
+					byteSize: 16n,
+					checksum,
+					verificationGeneration: 1,
+					verificationAttemptCount: 1,
+					verificationProvider: "test",
+					verificationRuleVersion: "asset-rule-v1",
+					verificationPolicyVersion: "policy-v1",
+					verificationValidUntil: validUntil,
+				},
+			});
+			await tx.assetModerationResult.create({
+				data: {
+					assetId: asset.id,
+					assetChecksum: checksum,
+					verificationGeneration: 1,
+					attemptNumber: 1,
+					evidenceKind: "INPUT",
+					provider: "test",
+					ruleVersion: "asset-rule-v1",
+					policyVersion: "policy-v1",
+					status: "APPROVED",
+					validUntil,
+					reasonCode: "TEST_ALLOW",
+					categories: {},
+					rawEnvelope: { decision: "ALLOW" },
+				},
+			});
+			await new Promise((resolve) => setTimeout(resolve, 1_050));
+			await tx.mediaAsset.update({ where: { id: asset.id }, data: { status: "READY" } });
+			return { asset, validUntil };
 		});
-		await client.assetModerationResult.create({
-			data: {
-				assetId: asset.id,
-				assetChecksum: checksum,
-				verificationGeneration: 1,
-				attemptNumber: 1,
-				evidenceKind: "INPUT",
-				provider: "test",
-				ruleVersion: "asset-rule-v1",
-				policyVersion: "policy-v1",
-				status: "APPROVED",
-				validUntil,
-				reasonCode: "TEST_ALLOW",
-				categories: {},
-				rawEnvelope: { decision: "ALLOW" },
-			},
-		});
-		await client.mediaAsset.update({ where: { id: asset.id }, data: { status: "READY" } });
 		const account = await client.creditAccount.create({
 			data: { ownerType: "USER", ownerId },
 		});
@@ -579,7 +586,7 @@ describe("media verification evidence invariants", () => {
 			costMicros: 100n,
 			inputSnapshot: { kind: "image-to-image", prompt: "expired evidence" },
 			pricingSnapshot: {},
-			expiresAt: new Date(Date.now() + 60_000),
+			expiresAt: new Date(validUntil.getTime() + 60_000),
 		};
 		const quote = await createModeratedGenerationQuoteTransaction(
 			{
@@ -594,10 +601,6 @@ describe("media verification evidence invariants", () => {
 			},
 			client,
 		);
-		await new Promise((resolve) =>
-			setTimeout(resolve, Math.max(0, validUntil.getTime() - Date.now() + 50)),
-		);
-
 		await expect(
 			createGenerationJobTransaction(
 				{

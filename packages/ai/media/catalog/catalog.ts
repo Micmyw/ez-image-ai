@@ -24,7 +24,7 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 	"image-fast": {
 		key: "image-fast",
 		label: "Standard Edit",
-		description: "Private prompt-based image editing for everyday changes",
+		description: "Private prompt-based image editing at the Standard tier",
 		mediaKind: "image",
 		inputKinds: ["image-to-image"],
 		credits: PRODUCT_CREDIT_COSTS["image-fast"],
@@ -40,7 +40,7 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 	"image-quality": {
 		key: "image-quality",
 		label: "Quality Edit",
-		description: "Higher-fidelity private image editing for detailed changes",
+		description: "Private prompt-based image editing at the Quality tier",
 		mediaKind: "image",
 		inputKinds: ["image-to-image"],
 		credits: PRODUCT_CREDIT_COSTS["image-quality"],

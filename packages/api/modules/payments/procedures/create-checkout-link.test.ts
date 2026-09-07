@@ -5,30 +5,47 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
 	bindCheckoutIntent,
+	bindCheckoutIntentOrder,
 	createCheckoutIntent,
 	findBillingPlan,
+	getPaymentCheckoutIntentForOwner,
+	getPaymentCheckoutIntentForOwnerByIdempotencyKey,
 	getPaymentCustomer,
 	markCheckoutIntentProviderCreating,
 	paymentsConfig,
 	providerCheckout,
+	providerRecoverCheckout,
+	resetCheckoutIntentProviderCreating,
+	transitionCheckoutIntentToReview,
 	verifyOrganizationBillingManagement,
 } = vi.hoisted(() => ({
 	bindCheckoutIntent: vi.fn(),
+	bindCheckoutIntentOrder: vi.fn(),
 	createCheckoutIntent: vi.fn(),
 	findBillingPlan: vi.fn(),
+	getPaymentCheckoutIntentForOwner: vi.fn(),
+	getPaymentCheckoutIntentForOwnerByIdempotencyKey: vi.fn(),
 	getPaymentCustomer: vi.fn(),
 	markCheckoutIntentProviderCreating: vi.fn(),
 	paymentsConfig: { billingAttachedTo: "user" as "user" | "organization" },
 	providerCheckout: vi.fn(),
+	providerRecoverCheckout: vi.fn(),
+	resetCheckoutIntentProviderCreating: vi.fn(),
+	transitionCheckoutIntentToReview: vi.fn(),
 	verifyOrganizationBillingManagement: vi.fn(),
 }));
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database", () => ({
+	bindPaymentCheckoutIntentOrder: bindCheckoutIntentOrder,
 	bindPaymentCheckoutIntentSession: bindCheckoutIntent,
 	createPaymentCheckoutIntent: createCheckoutIntent,
+	getPaymentCheckoutIntentForOwner,
+	getPaymentCheckoutIntentForOwnerByIdempotencyKey,
 	getPaymentCustomer,
 	markPaymentCheckoutIntentProviderCreating: markCheckoutIntentProviderCreating,
+	resetPaymentCheckoutIntentProviderCreating: resetCheckoutIntentProviderCreating,
+	transitionPaymentCheckoutIntentToReview: transitionCheckoutIntentToReview,
 }));
 vi.mock("@repo/database/client", () => ({
 	db: { billingPlan: { findUnique: findBillingPlan } },
@@ -101,6 +118,7 @@ const billingPlan = {
 	id: "billing-plan-paypal-creator-month",
 	provider: "paypal",
 	providerPriceId: "P-CREATOR-MONTHLY",
+	productKind: "PLAN" as const,
 	active: true,
 	version: 1,
 	name: "creator",
@@ -126,9 +144,11 @@ describe("createCheckoutLink", () => {
 		vi.mocked(getProviderPriceIdByPlanId).mockReturnValue("P-CREATOR-MONTHLY");
 		findBillingPlan.mockResolvedValue(billingPlan);
 		getPaymentCustomer.mockResolvedValue(null);
+		getPaymentCheckoutIntentForOwnerByIdempotencyKey.mockResolvedValue(null);
 		createCheckoutIntent.mockResolvedValue({
 			intent: {
 				id: "checkout-intent-1",
+				idempotencyKey: "checkout-operation-0001",
 				status: "CREATED",
 				providerSessionId: null,
 				providerCheckoutUrl: null,
@@ -144,6 +164,9 @@ describe("createCheckoutLink", () => {
 			providerSessionId: "I-SUBSCRIPTION",
 			expiresAt: null,
 		});
+		providerRecoverCheckout.mockResolvedValue({ status: "UNKNOWN" });
+		resetCheckoutIntentProviderCreating.mockResolvedValue({ count: 1 });
+		transitionCheckoutIntentToReview.mockResolvedValue({ count: 1 });
 		vi.mocked(getPaymentProvider).mockReturnValue({
 			name: "paypal",
 			capabilities: {
@@ -154,6 +177,7 @@ describe("createCheckoutLink", () => {
 				webhooks: true,
 			},
 			createCheckout: providerCheckout,
+			recoverCheckout: providerRecoverCheckout,
 		});
 	});
 
@@ -167,6 +191,51 @@ describe("createCheckoutLink", () => {
 				providerPriceId: "P-ATTACKER-CONTROLLED",
 			}),
 		).toMatchObject({ success: false });
+	});
+
+	it("rejects Stripe while preserving PayPal and Waffo subscription checkout", async () => {
+		expect(
+			checkoutInputSchema.safeParse({
+				provider: "stripe",
+				planId: "creator",
+				interval: "month",
+				idempotencyKey: "checkout-operation-stripe-0001",
+			}),
+		).toMatchObject({ success: false });
+		expect(
+			checkoutInputSchema.safeParse({
+				provider: "waffo",
+				planId: "ultimate",
+				interval: "year",
+				idempotencyKey: "checkout-operation-waffo-0001",
+			}),
+		).toMatchObject({ success: true });
+
+		await expect(
+			call(
+				createCheckoutLink,
+				{
+					provider: "stripe",
+					planId: "creator",
+					interval: "month",
+					idempotencyKey: "checkout-operation-stripe-0001",
+				} as never,
+				{ context: { headers: new Headers() } },
+			),
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(findBillingPlan).not.toHaveBeenCalled();
+		expect(providerCheckout).not.toHaveBeenCalled();
+	});
+
+	it("accepts the Ultimate subscription tier", () => {
+		expect(
+			checkoutInputSchema.safeParse({
+				provider: "paypal",
+				planId: "ultimate",
+				interval: "year",
+				idempotencyKey: "checkout-operation-ultimate-0001",
+			}),
+		).toMatchObject({ success: true });
 	});
 
 	it("fails closed before persistence or provider access when configuration is incomplete", async () => {
@@ -211,13 +280,23 @@ describe("createCheckoutLink", () => {
 	});
 
 	it("creates and binds an internal checkout intent before returning the provider URL", async () => {
+		createCheckoutIntent.mockResolvedValue({
+			intent: {
+				id: "checkout-intent-1",
+				idempotencyKey: "checkout-operation-canonical-0001",
+				status: "CREATED",
+				providerSessionId: null,
+				providerCheckoutUrl: null,
+			},
+			replayed: true,
+		});
 		const result = await call(
 			createCheckoutLink,
 			{
 				provider: "paypal",
 				planId: "creator",
 				interval: "month",
-				idempotencyKey: "checkout-operation-0001",
+				idempotencyKey: "checkout-operation-alias-0002",
 			},
 			{ context: { headers: new Headers() } },
 		);
@@ -232,7 +311,7 @@ describe("createCheckoutLink", () => {
 				billingPlanId: billingPlan.id,
 				planKey: "creator",
 				interval: "month",
-				idempotencyKey: "checkout-operation-0001",
+				idempotencyKey: "checkout-operation-alias-0002",
 			},
 			expect.anything(),
 		);
@@ -241,6 +320,7 @@ describe("createCheckoutLink", () => {
 				priceId: "P-CREATOR-MONTHLY",
 				currency: "USD",
 				checkoutIntentId: "checkout-intent-1",
+				idempotencyKey: "checkout-operation-canonical-0001",
 				ownerType: "USER",
 				ownerId: "user-1",
 				redirectUrl:
@@ -294,6 +374,64 @@ describe("createCheckoutLink", () => {
 		expect(markCheckoutIntentProviderCreating).not.toHaveBeenCalled();
 		expect(providerCheckout).not.toHaveBeenCalled();
 		expect(bindCheckoutIntent).not.toHaveBeenCalled();
+	});
+
+	it("recovers a subscription checkout left in PROVIDER_CREATING without creating a duplicate", async () => {
+		const historicalBillingPlan = {
+			...billingPlan,
+			id: "billing-plan-historical",
+			providerPriceId: "P-CREATOR-HISTORICAL",
+		};
+		getPaymentCheckoutIntentForOwnerByIdempotencyKey.mockResolvedValue({
+			id: "checkout-intent-1",
+			idempotencyKey: "checkout-operation-canonical-0001",
+			provider: "paypal",
+			ownerType: "USER",
+			ownerId: "user-1",
+			submittedByUserId: "user-1",
+			productKind: "PLAN",
+			billingPlanId: historicalBillingPlan.id,
+			planKey: "creator",
+			interval: "month",
+			status: "PROVIDER_CREATING",
+			providerSessionId: null,
+			providerCheckoutUrl: null,
+			updatedAt: new Date("2026-09-06T08:29:00.000Z"),
+			billingPlan: historicalBillingPlan,
+		});
+		providerRecoverCheckout.mockResolvedValue({
+			status: "FOUND",
+			checkout: {
+				checkoutUrl: "https://www.sandbox.paypal.com/recovered-subscription",
+				providerSessionId: "I-RECOVERED-SUBSCRIPTION",
+				expiresAt: null,
+			},
+		});
+
+		await expect(
+			call(
+				createCheckoutLink,
+				{
+					provider: "paypal",
+					planId: "creator",
+					interval: "month",
+					idempotencyKey: "checkout-operation-alias-0002",
+				},
+				{ context: { headers: new Headers() } },
+			),
+		).resolves.toEqual({
+			checkoutLink: "https://www.sandbox.paypal.com/recovered-subscription",
+		});
+		expect(providerRecoverCheckout).toHaveBeenCalledWith(
+			expect.objectContaining({
+				checkoutIntentId: "checkout-intent-1",
+				idempotencyKey: "checkout-operation-canonical-0001",
+				priceId: "P-CREATOR-HISTORICAL",
+				providerCreatingAt: new Date("2026-09-06T08:29:00.000Z"),
+			}),
+		);
+		expect(providerCheckout).not.toHaveBeenCalled();
+		expect(markCheckoutIntentProviderCreating).not.toHaveBeenCalled();
 	});
 
 	it.each(["PROVIDER_CREATING", "COMPLETED", "CANCELED", "EXPIRED", "REVIEW"])(

@@ -51,7 +51,6 @@ const commands: Array<{ args: string[]; database: boolean }> = [
 		database: true,
 	},
 	{ args: ["--filter", "saas", "test"], database: true },
-	{ args: ["--filter", "marketing", "test"], database: false },
 ];
 
 for (const command of commands) run(command.args, command.database);

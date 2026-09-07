@@ -1,12 +1,15 @@
+import { IMAGE_ASPECT_RATIOS } from "@repo/config";
 import { z } from "zod";
 
 export const promptSchema = z.string().trim().min(1).max(10_000);
 export const mediaAssetIdSchema = z.string().regex(/^asset_[A-Za-z0-9_-]{16,64}$/);
+export const imageAspectRatioSchema = z.enum(IMAGE_ASPECT_RATIOS);
 
 export const mediaModelInputSchema = z.discriminatedUnion("kind", [
 	z.object({
 		kind: z.literal("text-to-image"),
 		prompt: promptSchema,
+		aspectRatio: imageAspectRatioSchema.optional(),
 		width: z.number().int().min(256).max(2048).optional(),
 		height: z.number().int().min(256).max(2048).optional(),
 	}),
@@ -14,6 +17,7 @@ export const mediaModelInputSchema = z.discriminatedUnion("kind", [
 		kind: z.literal("image-to-image"),
 		prompt: promptSchema,
 		sourceAssetId: mediaAssetIdSchema,
+		aspectRatio: imageAspectRatioSchema.optional(),
 		strength: z.number().min(0).max(1).optional(),
 	}),
 	z.object({
@@ -30,3 +34,4 @@ export const mediaModelInputSchema = z.discriminatedUnion("kind", [
 ]);
 
 export type MediaModelInput = z.infer<typeof mediaModelInputSchema>;
+export type ImageAspectRatio = z.infer<typeof imageAspectRatioSchema>;

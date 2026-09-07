@@ -15,6 +15,15 @@ import type {
 } from "./types";
 import { isDatabaseUniqueConflict, runSerializable } from "./types";
 
+async function getDatabaseNow(
+	client: MediaTransactionClient | Prisma.TransactionClient,
+): Promise<Date> {
+	const [clock] = await client.$queryRaw<Array<{ now: Date }>>`
+		SELECT CURRENT_TIMESTAMP AS "now"`;
+	if (!clock) throw new Error("DATABASE_CLOCK_UNAVAILABLE");
+	return clock.now;
+}
+
 export async function getCommittedDailyGenerationCost(
 	input: { ownerType: "USER" | "ORGANIZATION"; ownerId: string; now?: Date },
 	client: MediaTransactionClient | Prisma.TransactionClient,
@@ -105,6 +114,7 @@ export async function createGenerationJobTransaction(
 
 	try {
 		return await runSerializable(client, async (tx) => {
+			const operationNow = await getDatabaseNow(tx);
 			if (input.maximumConcurrentJobs !== undefined) {
 				if (
 					!Number.isSafeInteger(input.maximumConcurrentJobs) ||
@@ -123,7 +133,7 @@ export async function createGenerationJobTransaction(
 			) {
 				throw new Error("Quote not found for owner");
 			}
-			if (quote.expiresAt <= new Date()) throw new Error("Quote expired");
+			if (quote.expiresAt <= operationNow) throw new Error("Quote expired");
 			if (quote.credits <= 0n) throw new Error("Quote credits are invalid");
 			if (
 				quote.moderationDecision !== "ALLOW" ||
@@ -168,7 +178,7 @@ export async function createGenerationJobTransaction(
 			}
 			if (input.maximumDailyCostMicros !== undefined) {
 				const committed = await getCommittedDailyGenerationCost(
-					{ ownerType: input.ownerType, ownerId: input.ownerId },
+					{ ownerType: input.ownerType, ownerId: input.ownerId, now: operationNow },
 					tx,
 				);
 				if (committed + quote.costMicros > input.maximumDailyCostMicros) {
@@ -179,7 +189,7 @@ export async function createGenerationJobTransaction(
 				if (input.maximumGlobalDailyCostMicros <= 0n) {
 					throw new Error("Global daily Provider budget must be positive");
 				}
-				const budgetNow = new Date();
+				const budgetNow = operationNow;
 				const utcDay = budgetNow.toISOString().slice(0, 10);
 				await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media:global-daily-provider-budget:${utcDay}`}, 0))`;
 				const globallyCommitted = await getCommittedGlobalDailyGenerationCost(
@@ -214,7 +224,6 @@ export async function createGenerationJobTransaction(
 			) {
 				throw new Error("Every input asset must be READY and owned by the user");
 			}
-			const now = new Date();
 			const moderationEvidence = inputAssets.length
 				? await tx.assetModerationResult.findMany({
 						where: {
@@ -237,7 +246,7 @@ export async function createGenerationJobTransaction(
 					const evidence = latestEvidenceByAssetId.get(asset.id);
 					return (
 						asset.verificationValidUntil === null ||
-						asset.verificationValidUntil <= now ||
+						asset.verificationValidUntil <= operationNow ||
 						evidence?.status !== "APPROVED" ||
 						evidence.attemptNumber !== asset.verificationAttemptCount ||
 						evidence.assetChecksum !== asset.checksum ||
@@ -248,7 +257,7 @@ export async function createGenerationJobTransaction(
 						evidence.policyVersion !== asset.verificationPolicyVersion ||
 						evidence.validUntil === null ||
 						evidence.validUntil.getTime() !== asset.verificationValidUntil.getTime() ||
-						evidence.validUntil <= now
+						evidence.validUntil <= operationNow
 					);
 				})
 			) {

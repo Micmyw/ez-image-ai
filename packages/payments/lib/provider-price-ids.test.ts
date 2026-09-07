@@ -1,13 +1,22 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { getPlanIdByProviderPriceId, getProviderPriceIdByPlanId } from "./provider-price-ids";
+import {
+	getCreditPackProviderProductId,
+	getPlanIdByProviderPriceId,
+	getProviderPriceIdByPlanId,
+} from "./provider-price-ids";
 
 const PROVIDER_ENV_KEYS = [
 	"PRICE_ID_CREATOR_MONTHLY",
+	"PRICE_ID_ULTIMATE_MONTHLY",
+	"PAYPAL_PLAN_ID_ULTIMATE_MONTHLY",
+	"WAFFO_PRODUCT_ID_ULTIMATE_MONTHLY",
 	"PAYPAL_PLAN_ID_CREATOR_MONTHLY",
 	"PAYPAL_PLAN_ID_CREATOR_YEARLY",
 	"WAFFO_PRODUCT_ID_CREATOR_MONTHLY",
 	"WAFFO_PRODUCT_ID_CREATOR_YEARLY",
+	"PAYPAL_PRODUCT_ID_CREDITS_1500",
+	"WAFFO_PRODUCT_ID_CREDITS_1500",
 ] as const;
 
 describe("provider-scoped price mappings", () => {
@@ -82,5 +91,41 @@ describe("provider-scoped price mappings", () => {
 				interval: "year",
 			}),
 		).toBeNull();
+	});
+
+	it("maps Ultimate subscriptions for all existing subscription providers", () => {
+		process.env.PRICE_ID_ULTIMATE_MONTHLY = "price_UltimateMonthly123";
+		process.env.PAYPAL_PLAN_ID_ULTIMATE_MONTHLY = "P-ULTIMATE-MONTHLY";
+		process.env.WAFFO_PRODUCT_ID_ULTIMATE_MONTHLY = "PROD_0123456789QrStUvWxYzAb";
+
+		expect(
+			getProviderPriceIdByPlanId("stripe", "ultimate", {
+				type: "subscription",
+				interval: "month",
+			}),
+		).toBe("price_UltimateMonthly123");
+		expect(
+			getProviderPriceIdByPlanId("paypal", "ultimate", {
+				type: "subscription",
+				interval: "month",
+			}),
+		).toBe("P-ULTIMATE-MONTHLY");
+		expect(
+			getProviderPriceIdByPlanId("waffo", "ultimate", {
+				type: "subscription",
+				interval: "month",
+			}),
+		).toBe("PROD_0123456789QrStUvWxYzAb");
+	});
+
+	it("maps credit packs only for PayPal and Waffo and rejects Stripe", () => {
+		process.env.PAYPAL_PRODUCT_ID_CREDITS_1500 = "PROD-CREDITS-1500";
+		process.env.WAFFO_PRODUCT_ID_CREDITS_1500 = "PROD_0123456789QrStUvWxYzAb";
+
+		expect(getCreditPackProviderProductId("paypal", "credits-1500")).toBe("PROD-CREDITS-1500");
+		expect(getCreditPackProviderProductId("waffo", "credits-1500")).toBe(
+			"PROD_0123456789QrStUvWxYzAb",
+		);
+		expect(getCreditPackProviderProductId("stripe", "credits-1500")).toBeNull();
 	});
 });

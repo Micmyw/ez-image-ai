@@ -1,4 +1,11 @@
 {
+	"publicContent": {
+		"contact": {
+			"description": "Contacta con {appName} mediante el correo de soporte configurado.",
+			"emailCta": "Envía un correo al equipo de soporte de EzPic a:",
+			"unavailable": "No hay un correo de soporte configurado. Inténtalo de nuevo cuando el operador publique una dirección de soporte."
+		}
+	},
 	"admin": {
 		"menu": {
 			"media": "Operaciones multimedia",
@@ -332,6 +339,7 @@
 			"createAnAccount": "Crear una cuenta",
 			"dontHaveAnAccount": "¿Aún no tienes una cuenta?",
 			"forgotPassword": "¿Olvidaste tu contraseña?",
+			"hidePassword": "Ocultar contraseña",
 			"hints": {
 				"invalidCredentials": "El correo o la contraseña que ingresaste no son válidos. Por favor, inténtalo de nuevo.",
 				"linkSent": {
@@ -340,6 +348,7 @@
 				}
 			},
 			"loginWithPasskey": "Iniciar sesión con passkey",
+			"showPassword": "Mostrar contraseña",
 			"modes": {
 				"magicLink": "Enlace mágico",
 				"password": "Contraseña"
@@ -850,16 +859,27 @@
 			"products": {
 				"image-fast": {
 					"label": "Standard Edit",
-					"description": "Edición privada mediante instrucciones para cambios cotidianos."
+					"description": "Edición privada mediante instrucciones en el nivel Standard."
 				},
 				"image-quality": {
 					"label": "Quality Edit",
-					"description": "Edición privada de mayor fidelidad para cambios detallados."
+					"description": "Edición privada mediante instrucciones en el nivel Quality."
 				}
 			},
 			"fields": {
 				"prompt": "Instrucción de edición",
 				"sourceAssetId": "Imagen de origen"
+			},
+			"outputSettings": {
+				"title": "Ajustes de salida",
+				"trigger": "Abrir ajustes de salida",
+				"aspectRatio": "Relación de aspecto",
+				"automatic": "Automática",
+				"outputNumber": "Número de resultados",
+				"oneOutput": "Este modelo devuelve una imagen",
+				"resolution": "Resolución",
+				"quality": "Calidad",
+				"modeControlsQuality": "La controla el nivel de edición"
 			},
 			"promptHint": "Describe solo el cambio que quieres. La imagen de origen permanece privada.",
 			"suggestions": {
@@ -967,8 +987,9 @@
 		"upgradeDialog": {
 			"title": "Desbloquea Quality Edit",
 			"description": "Conserva la imagen, la instrucción, la selección Quality Edit y la sesión de edición mientras comparas planes de pago.",
-			"creator": "Creator: {credits, number} créditos al mes, {concurrency, number} ediciones simultáneas e imágenes de hasta {megabytes, number} MB.",
-			"studio": "Studio: {credits, number} créditos al mes, {concurrency, number} ediciones simultáneas e imágenes de hasta {megabytes, number} MB.",
+			"creator": "Pro: {credits, number} créditos al mes, {concurrency, number} ediciones simultáneas e imágenes de hasta {megabytes, number} MB.",
+			"ultimate": "Ultimate: {credits, number} créditos al mes, {concurrency, number} ediciones simultáneas e imágenes de hasta {megabytes, number} MB.",
+			"studio": "Max: {credits, number} créditos al mes, {concurrency, number} ediciones simultáneas e imágenes de hasta {megabytes, number} MB.",
 			"storageUnavailable": "El navegador no pudo guardar el borrador. Mantén esta pestaña abierta e inténtalo de nuevo.",
 			"cancel": "Ahora no",
 			"continue": "Elegir un plan"
@@ -986,9 +1007,9 @@
 			"mode": {
 				"label": "Modo de edición",
 				"standard": "Standard Edit",
-				"standardDescription": "Edición privada rápida para cambios cotidianos.",
+				"standardDescription": "Edición privada de imágenes en el nivel Standard.",
 				"quality": "Quality Edit",
-				"qualityDescription": "Edición privada de mayor fidelidad para cambios detallados.",
+				"qualityDescription": "Edición privada de imágenes en el nivel Quality.",
 				"credits": "{credits} créditos",
 				"qualityUnavailable": "Mejora el plan para usar Quality Edit. La imagen y la instrucción se conservarán.",
 				"upgrade": "Ver opciones de mejora"
@@ -1148,5 +1169,16 @@
 		"title": "Procesando tu compra",
 		"description": "Por favor espera mientras confirmamos tu pago.",
 		"loading": "Confirmando tu compra, por favor espera..."
+	},
+	"creditPackCheckoutReturn": {
+		"title": "Añadiendo tus créditos",
+		"description": "Tu saldo de créditos se actualizará cuando se confirme el pago.",
+		"loading": "Confirmando tu compra de créditos…",
+		"completed": "Créditos añadidos. Abriendo el editor…",
+		"review": "Este pago necesita revisión antes de añadir los créditos.",
+		"notCompleted": "Este proceso de pago no se completó.",
+		"error": "No pudimos confirmar este pago. No se añadieron créditos.",
+		"tryAgain": "Ver paquetes de créditos",
+		"returnToEditor": "Volver al editor"
 	}
 }

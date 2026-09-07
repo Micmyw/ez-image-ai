@@ -7,18 +7,30 @@ interface ReconcileSubscriptionsClient {
 }
 
 export async function reconcileSubscriptionsWithClient(
-	input: { now?: Date; limit?: number; reconciliationSweepId?: string },
+	input: {
+		now?: Date;
+		limit?: number;
+		reconciliationSweepId?: string;
+		providerNames?: Array<"stripe" | "paypal" | "waffo">;
+	},
 	client: ReconcileSubscriptionsClient,
 ) {
 	const now = input.now ?? new Date();
+	const providerFilter = input.reconciliationSweepId
+		? "stripe"
+		: input.providerNames?.length
+			? { in: input.providerNames }
+			: undefined;
 	const expired = await client.subscription.updateMany({
 		where: {
 			...(input.reconciliationSweepId
 				? {
-						provider: "stripe",
+						provider: providerFilter,
 						lastReconciliationAppliedSweepId: input.reconciliationSweepId,
 					}
-				: {}),
+				: providerFilter
+					? { provider: providerFilter }
+					: {}),
 			OR: [
 				{ status: "CANCELED", currentPeriodEnd: { lte: now } },
 				{ status: "PAST_DUE", graceEndsAt: { lte: now } },
@@ -33,7 +45,7 @@ export async function reconcileSubscriptionsWithClient(
 			status: { not: "expired" },
 			mediaSubscription: {
 				is: {
-					provider: "stripe",
+					provider: providerFilter ?? "stripe",
 					status: "EXPIRED",
 				},
 			},
@@ -42,7 +54,11 @@ export async function reconcileSubscriptionsWithClient(
 		limit: input.limit ?? 100,
 	});
 	await client.billingPeriod.updateMany({
-		where: { status: "ACTIVE", endsAt: { lte: now } },
+		where: {
+			status: "ACTIVE",
+			endsAt: { lte: now },
+			...(providerFilter ? { subscription: { provider: providerFilter } } : {}),
+		},
 		data: { status: "CLOSED" },
 		limit: input.limit ?? 100,
 	});

@@ -175,10 +175,31 @@ describe("guest admission pre-transaction boundary", () => {
 				quote: expect.objectContaining({
 					productKey: "image-fast",
 					credits: 5n,
+					inputSnapshot: expect.objectContaining({ aspectRatio: "16:9" }),
 					moderation: expect.objectContaining({ decision: "ALLOW" }),
 				}),
 			}),
 		);
+	});
+
+	it("binds aspect ratio changes into the guest idempotency fingerprint", async () => {
+		const wide = validDependencies();
+		const portrait = validDependencies();
+
+		await submitGuestGenerationForGuest(validBoundary(), validInput(), wide);
+		await submitGuestGenerationForGuest(
+			validBoundary(),
+			{ ...validInput(), aspectRatio: "9:16" },
+			portrait,
+		);
+
+		const wideInput = wide.createTransaction.mock.calls[0]?.[0] as
+			| { idempotencyFingerprint: string }
+			| undefined;
+		const portraitInput = portrait.createTransaction.mock.calls[0]?.[0] as
+			| { idempotencyFingerprint: string }
+			| undefined;
+		expect(wideInput?.idempotencyFingerprint).not.toBe(portraitInput?.idempotencyFingerprint);
 	});
 });
 
@@ -197,6 +218,7 @@ function validInput() {
 		productKey: "image-fast" as const,
 		sourceAssetId: "asset-1",
 		prompt: "Make the sky violet",
+		aspectRatio: "16:9" as const,
 		idempotencyKey: "guest-submit-0001",
 		deviceId: "d4fbf8d2-945a-4f2c-8359-f179f6c734de",
 		turnstileToken: "turnstile-token",
@@ -293,7 +315,7 @@ function validDependencies(options?: {
 			ruleVersion: "text-safety-2026-08-14.1",
 			reasonCode: options?.moderationDecision ?? "ALLOW",
 		})),
-		createTransaction: vi.fn(async () => {
+		createTransaction: vi.fn(async (_input: unknown) => {
 			if (options?.createError) throw new Error(options.createError);
 			return {
 				jobId: "job-1",

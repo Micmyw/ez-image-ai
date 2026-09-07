@@ -1,5 +1,6 @@
 "use client";
 
+import type { PlanId } from "@payments/types";
 import { Spinner } from "@repo/ui/components/spinner";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpc } from "@shared/lib/orpc-query-utils";
@@ -19,7 +20,7 @@ export function CheckoutReturnContent({
 	returnTo,
 }: {
 	organizationId?: string;
-	expectedPlanId: "creator" | "studio";
+	expectedPlanId: PlanId;
 	returnTo: string;
 }) {
 	const t = useTranslations("checkoutReturn");

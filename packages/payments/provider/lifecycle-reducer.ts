@@ -36,6 +36,7 @@ export async function applyProviderBillingFact(
 				include: { billingPlan: true },
 			})
 		: null;
+	if (checkoutIntent) assertSubscriptionCheckoutProductKind(checkoutIntent);
 	let subscription = await client.subscription.findUnique({
 		where: {
 			provider_providerSubscriptionId: {
@@ -77,6 +78,7 @@ export async function applyProviderBillingFact(
 			},
 			include: { plan: true, purchase: true },
 		});
+		assertSubscriptionProductKind(subscription);
 	} else {
 		assertExistingSubscription(fact, subscription, checkoutIntent);
 		const providerCustomerId = fact.providerCustomerId ?? subscription.purchase!.customerId;
@@ -138,6 +140,7 @@ export async function applyProviderBillingFact(
 			where: {
 				id: checkoutIntent.id,
 				provider: fact.provider,
+				productKind: "PLAN",
 				...(fact.provider === "waffo"
 					? { providerOrderId: fact.providerSubscriptionId }
 					: { providerSessionId: fact.providerSubscriptionId }),
@@ -211,6 +214,7 @@ async function assertAndBindCheckoutCorrelation(
 			where: {
 				id: checkoutIntent.id,
 				provider: fact.provider,
+				productKind: "PLAN",
 				ownerType: checkoutIntent.ownerType,
 				ownerId: checkoutIntent.ownerId,
 				status: "PROVIDER_PENDING",
@@ -265,6 +269,7 @@ async function createBoundPurchase(
 		data: {
 			provider: fact.provider,
 			type: "SUBSCRIPTION",
+			productKind: "PLAN",
 			customerId: providerCustomerId,
 			subscriptionId: fact.providerSubscriptionId,
 			priceId: checkoutIntent.billingPlan.providerPriceId,
@@ -282,7 +287,13 @@ function assertExistingSubscription(
 		ownerType: "USER" | "ORGANIZATION";
 		ownerId: string;
 		planId: string;
-		purchase: { provider: string; subscriptionId: string | null; customerId: string } | null;
+		plan: { productKind: "PLAN" | "CREDIT_PACK" };
+		purchase: {
+			provider: string;
+			subscriptionId: string | null;
+			customerId: string;
+			productKind: "PLAN" | "CREDIT_PACK";
+		} | null;
 	},
 	checkoutIntent: {
 		provider: string;
@@ -293,6 +304,7 @@ function assertExistingSubscription(
 		providerOrderId: string | null;
 	} | null,
 ): void {
+	assertSubscriptionProductKind(subscription);
 	if (
 		subscription.provider !== fact.provider ||
 		!subscription.purchase ||
@@ -312,6 +324,30 @@ function assertExistingSubscription(
 			checkoutIntent.billingPlanId !== subscription.planId)
 	) {
 		throw new Error("PAYMENT_PROVIDER_CHECKOUT_CORRELATION_MISMATCH");
+	}
+}
+
+function assertSubscriptionCheckoutProductKind(checkoutIntent: {
+	productKind: "PLAN" | "CREDIT_PACK";
+	billingPlan?: { productKind: "PLAN" | "CREDIT_PACK" };
+}): void {
+	if (checkoutIntent.productKind !== "PLAN") {
+		throw new Error("PAYMENT_PROVIDER_CHECKOUT_PRODUCT_KIND_INVALID");
+	}
+	if (!checkoutIntent.billingPlan || checkoutIntent.billingPlan.productKind !== "PLAN") {
+		throw new Error("PAYMENT_PROVIDER_BILLING_PLAN_PRODUCT_KIND_INVALID");
+	}
+}
+
+function assertSubscriptionProductKind(subscription: {
+	plan: { productKind: "PLAN" | "CREDIT_PACK" };
+	purchase: { productKind: "PLAN" | "CREDIT_PACK" } | null;
+}): void {
+	if (subscription.plan.productKind !== "PLAN") {
+		throw new Error("PAYMENT_PROVIDER_SUBSCRIPTION_PLAN_PRODUCT_KIND_INVALID");
+	}
+	if (!subscription.purchase || subscription.purchase.productKind !== "PLAN") {
+		throw new Error("PAYMENT_PROVIDER_SUBSCRIPTION_BINDING_INVALID");
 	}
 }
 

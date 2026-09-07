@@ -26,40 +26,60 @@
 		"title": "Documentation"
 	},
 	"faq": {
-		"description": "Clear answers about guest edits, private images, credits, and account upgrades.",
+		"description": "Clear answers about guest availability, edit tiers, credits, private media, billing, and responsible use.",
 		"title": "Frequently asked questions",
 		"items": {
-			"refundPolicy": {
-				"question": "How are refunds handled?",
-				"answer": "Refund eligibility depends on the applicable payment terms. Contact support with your billing details for review."
+			"guestAvailability": {
+				"question": "When is the guest edit available?",
+				"answer": "When the sponsored guest queue is available, a visitor can start one Standard Edit without an account. The result is watermarked, private, and available for up to 24 hours."
 			},
-			"cancelSubscription": {
-				"question": "How do I cancel my subscription?",
-				"answer": "You can cancel your subscription by visiting the billing page."
+			"guestVsFree": {
+				"question": "What is the difference between Guest and Free?",
+				"answer": "Guest is a conditional, one-time sponsored Standard Edit with a watermarked result kept for up to 24 hours. A registered Free account receives 25 credits each month: Standard Edit costs 5 credits, so that is up to five Standard edits, with no Quality Edit access."
 			},
-			"changePlan": {
-				"question": "Can I change my plan?",
-				"answer": "Yes, you can change your plan at any time by visiting the billing page."
+			"editTiers": {
+				"question": "How do Standard Edit and Quality Edit differ?",
+				"answer": "Standard Edit costs 5 credits and Quality Edit costs 40 credits. Each confirmed edit produces one output. Quality Edit requires a Creator or Studio plan."
 			},
-			"freeTrial": {
-				"question": "Is there a free plan?",
-				"answer": "Yes. The Free plan includes 25 monthly credits and access to Standard Edit."
+			"creditReservation": {
+				"question": "When are credits used?",
+				"answer": "For account edits, credits are reserved when you confirm the job. The immutable credit ledger charges or returns them when the job reaches its final state; if service acceptance is uncertain, the reservation stays in place until recovery settles the same attempt."
 			},
-			"realGeneration": {
-				"question": "Can I edit an image from the homepage?",
-				"answer": "Yes. Upload a source image, describe the change, and continue into a temporary guest workspace to start one Standard edit without creating an account."
+			"failedEdits": {
+				"question": "What happens to credits when an edit fails?",
+				"answer": "When a job reaches a confirmed failed final state, the ledger returns its reserved credits. An attempt with uncertain service acceptance is not treated as failed and keeps the reservation until recovery resolves it."
 			},
 			"privateUploads": {
 				"question": "Are uploaded images public?",
-				"answer": "No. Guest source images and results stay private and temporary; registered account media remains owner-scoped."
-			},
-			"restrictions": {
-				"question": "What does “No Restrictions” mean here?",
-				"answer": "It means natural-language prompts, fewer template-only steps, private uploads, and transparent credits. Standard safety, legal, provider, and usage limits still apply."
+				"answer": "No. Guest and account inputs and outputs are private, not posted to a public gallery. The configured retention target for account inputs and outputs is 30 days. EzPic may send only the minimum content needed to configured infrastructure and image-processing services."
 			},
 			"formats": {
-				"question": "Which source-image formats can I upload?",
-				"answer": "The homepage accepts JPEG, PNG, and WebP images up to the file-size limit shown beside the uploader."
+				"question": "What images can I upload?",
+				"answer": "JPEG, PNG, and WebP are supported. Guest uploads are limited to 10 MB; account limits are shown on the pricing page."
+			},
+			"outputBehavior": {
+				"question": "Will every result be unique and exact?",
+				"answer": "No. Results can contain defects or resemble other images. EzPic does not guarantee uniqueness, fitness for a particular purpose, or freedom from third-party rights."
+			},
+			"stableTiers": {
+				"question": "Why does EzPic show tier names instead of model names?",
+				"answer": "The product exposes stable names—Standard Edit and Quality Edit. Service routing is controlled on the server and may change without changing the public tier contract."
+			},
+			"annualBilling": {
+				"question": "How does annual billing affect credits?",
+				"answer": "Creator is $190 per year and Studio is $790 per year. Credits are still issued monthly—700 for Creator and 3,000 for Studio—and unused credits do not roll over."
+			},
+			"cancelSubscription": {
+				"question": "How do I cancel my subscription?",
+				"answer": "Open Billing to manage cancellation. When access changes depends on the actual status and end date reported for your subscription."
+			},
+			"refundPolicy": {
+				"question": "How are refunds handled?",
+				"answer": "Refund eligibility depends on the payment terms, transaction status, and applicable law. Contact support for review; EzPic does not promise a refund where one does not apply."
+			},
+			"commercialUse": {
+				"question": "Can I use edited images commercially?",
+				"answer": "Before commercial use, you must have the rights to every input and independently check the applicable terms, law, and third-party rights. Guest results are temporary and watermarked; EzPic does not claim that any output is automatically cleared for commercial use."
 			}
 		}
 	},
@@ -67,9 +87,9 @@
 		"generator": {
 			"eyebrow": "Plan your edit",
 			"title": "Describe the change you want",
-			"subtitle": "Upload a source image, describe the edit, and start one private Standard edit in EzPic.",
+			"subtitle": "Upload a source image and describe the edit. When the guest queue is available, you can start one private Standard Edit in EzPic.",
 			"offer": "Try one Standard edit free",
-			"noSignUp": "No sign-up required",
+			"noSignUp": "No sign-up when the guest queue is available",
 			"paidSignIn": "Sign-in and Creator or Studio required",
 			"oneOutput": "One output",
 			"freeQueue": "Free queue · one watermarked preview · available for up to 24 hours",
@@ -79,6 +99,17 @@
 			"qualityCta": "Quality edit · Creator or Studio",
 			"retryChallenge": "Retry verification",
 			"characterCount": "{count, number} / {maximum, number}",
+			"settings": {
+				"title": "Output settings",
+				"trigger": "Open output settings",
+				"aspectRatio": "Aspect ratio",
+				"automatic": "Automatic",
+				"outputNumber": "Output number",
+				"oneOutput": "Each confirmed edit returns one image",
+				"resolution": "Resolution",
+				"quality": "Quality",
+				"modeControlsQuality": "Controlled by edit level"
+			},
 			"states": {
 				"challenge": "Verify this guest upload",
 				"checking": "Checking edit availability…",
@@ -102,7 +133,8 @@
 			"actions": {
 				"standard": "Try one Standard edit free",
 				"quality": "Continue with Quality Edit",
-				"retry": "Retry {product}"
+				"retry": "Retry {product}",
+				"retryAvailability": "Check edit availability again"
 			},
 			"errors": {
 				"turnstile": "Complete the verification and try again.",
@@ -110,9 +142,9 @@
 			},
 			"prompt": "Describe your edit",
 			"reference": "Source image",
-			"placeholder": "Replace the background with a softly lit studio wall while keeping the subject unchanged…",
+			"placeholder": "Describe what you want to change…",
 			"continue": "Continue to Edit",
-			"privacy": "Your draft is saved privately for up to one hour. No image is edited until you sign in and confirm.",
+			"privacy": "Guest source images and results stay private and temporary for up to 24 hours. Account media follows the retention described in our Privacy Policy.",
 			"error": "We could not save this edit draft. Please try again shortly.",
 			"steps": { "idea": "Upload", "control": "Describe", "create": "Review" },
 			"fileHint": "JPEG, PNG, or WebP up to {megabytes, number} MB",
@@ -133,21 +165,29 @@
 				"standard": {
 					"label": "Standard Edit",
 					"badge": "Guest trial",
-					"description": "Fast everyday edits",
+					"description": "Source-image editing with one output",
 					"access": "One guest edit"
 				},
 				"quality": {
 					"label": "Quality Edit",
 					"badge": "Paid account",
-					"description": "Higher-fidelity edits",
+					"description": "Source-image editing with one output",
 					"access": "Creator or Studio account required"
 				}
 			},
-			"loginNotice": "Real image generation starts after you sign in and confirm the credit cost.",
+			"loginNotice": "Guest Standard edits can start without sign-in when the guest queue is available; account edits require confirmation of the credit amount.",
 			"previewCaption": "Source preview",
 			"previewPlaceholderAlt": "Original EzPic vector illustration of a neutral reading studio",
 			"previewAlt": "Preview of {fileName}",
 			"privateLabel": "Private draft",
+			"floating": {
+				"label": "Quick editor",
+				"open": "Open the quick editor",
+				"expand": "Expand quick editor",
+				"collapse": "Collapse quick editor",
+				"upload": "Add a reference image",
+				"imageReady": "Reference image ready"
+			},
 			"fileErrors": {
 				"required": "Choose a source image before continuing.",
 				"empty": "Choose a non-empty source image.",
@@ -156,10 +196,65 @@
 				"read": "We could not read that image. Choose another file."
 			}
 		},
+		"creatorWorkflows": {
+			"eyebrow": "Illustrative creator stories",
+			"title": "Creative work, moving in different directions",
+			"description": "Meet six composite creator profiles and the focused image-editing briefs they could bring to EzPic.",
+			"pause": "Pause movement",
+			"resume": "Resume movement",
+			"listLabel": "Illustrative creator story cards",
+			"columnLabel": "Creator story column {number, number} of {total, number}",
+			"directionLabel": "Sample edit brief",
+			"disclaimer": "These composite profiles illustrate possible EzPic workflows. They are not customer testimonials, published case studies, or promised results.",
+			"cards": {
+				"ecommerce": {
+					"name": "Mina I.",
+					"role": "Independent shop owner",
+					"title": "Build a campaign scene from a clean packshot",
+					"description": "Mina keeps the product silhouette and label area clear while exploring a warmer seasonal environment.",
+					"direction": "Studio packshot → warm holiday storefront"
+				},
+				"brand": {
+					"name": "Theo H.",
+					"role": "Brand designer",
+					"title": "Extend one visual system across a launch",
+					"description": "Theo carries an approved palette, materials, and lighting into a coordinated follow-up layout.",
+					"direction": "Key visual → coordinated launch asset"
+				},
+				"social": {
+					"name": "Lena E.",
+					"role": "Social content creator",
+					"title": "Reframe one idea for a vertical feed",
+					"description": "Lena keeps the subject clear, reserves calm space for copy, and adapts the composition to 9:16.",
+					"direction": "Landscape source → 9:16 social composition"
+				},
+				"realEstate": {
+					"name": "Ravi A.",
+					"role": "Property marketer",
+					"title": "Polish a room without changing its structure",
+					"description": "Ravi balances the light and reduces visual clutter while keeping the room geometry intact.",
+					"direction": "Listing photo → clear editorial view"
+				},
+				"portrait": {
+					"name": "Noor O.",
+					"role": "Portrait photographer",
+					"title": "Explore styling while preserving identity",
+					"description": "Noor explores wardrobe color and background mood without changing the subject's defining features.",
+					"direction": "Neutral portrait → art-directed series"
+				},
+				"conceptArt": {
+					"name": "Iris R.",
+					"role": "Concept artist",
+					"title": "Test a material language on the same composition",
+					"description": "Iris reimagines a rough scene in folded paper, porcelain, or cinematic paint while keeping its structure.",
+					"direction": "Rough composition → focused material study"
+				}
+			}
+		},
 		"imageEditorHero": {
 			"eyebrow": "Upload-first prompt editing",
-			"title": "AI Image Editor With Prompts, Without the Usual Restrictions",
-			"subtitle": "Upload your image, say exactly what should change, and start one private Standard edit from this page. No separate app and no account required.",
+			"title": "AI Image Editor <accent>With Prompts</accent>",
+			"subtitle": "Upload your image and describe the change. When the guest queue is available, you can start one private Standard Edit from this page without an account.",
 			"private": "Private source images",
 			"draftOnly": "One guest Standard edit"
 		},
@@ -167,7 +262,7 @@
 			"eyebrow": "One source, one clear change",
 			"title": "Compare the direction before you commit",
 			"description": "Drag the divider to inspect an original vector scene and its hand-authored edit direction. The same comparison pattern is used to make source and result easy to distinguish.",
-			"disclaimer": "This illustration demonstrates the interface; it is not a Provider quality claim.",
+			"disclaimer": "This illustration demonstrates the interface; it is not a quality guarantee.",
 			"before": "Original",
 			"after": "Edit direction",
 			"beforeAlt": "Original vector illustration of a neutral reading studio",
@@ -183,7 +278,7 @@
 			"usePrompt": "Use this prompt",
 			"promptAdded": "Prompt added",
 			"usePromptLabel": "Use the {title} prompt",
-			"provenanceNote": "Original images created with OpenAI image generation for inspiration. They are not claimed as EzPic model outputs; actual results depend on your source image and prompt.",
+			"provenanceNote": "Original images created separately for visual inspiration. They are not presented as EzPic outputs; actual results depend on your source image and prompt.",
 			"items": {
 				"mediterranean": {
 					"tag": "Interior",
@@ -220,6 +315,42 @@
 					"title": "Paper-cut alpine",
 					"prompt": "Reimagine the scene as handcrafted layered paper-cut art with visible paper fibers, precise dimensional shadows, alpine greens, a cobalt sky, and a tomato-red train. Preserve the route and mountain composition.",
 					"alt": "Layered paper-cut illustration of a red train winding through alpine mountains"
+				},
+				"lunarGreenhouse": {
+					"tag": "Atmosphere",
+					"title": "Midnight glasshouse",
+					"prompt": "Relight the greenhouse under deep moonlight with translucent violet leaves, sparse bioluminescent flowers, and a trace of cool mist. Preserve the glass architecture, central path, and plant layout.",
+					"alt": "Moonlit glasshouse filled with violet bioluminescent plants"
+				},
+				"porcelainTide": {
+					"tag": "Material",
+					"title": "Porcelain tide",
+					"prompt": "Transform the ocean scene into hand-painted blue-and-white porcelain with fine crackle, sparing gold repair seams, and sculpted ceramic foam. Preserve the wave arc, lighthouse, and cliff composition.",
+					"alt": "Blue-and-white porcelain wave curling around a miniature lighthouse"
+				},
+				"tangerineCamera": {
+					"tag": "Product",
+					"title": "Tangerine instant",
+					"prompt": "Recolor the camera in saturated tangerine with brushed aluminum controls, set it on a translucent lavender plinth, and add crisp studio light. Preserve the product silhouette, lens, and control layout.",
+					"alt": "Unbranded tangerine instant camera on a lavender acrylic plinth"
+				},
+				"velvetFox": {
+					"tag": "Subject",
+					"title": "Velvet fox",
+					"prompt": "Place the fox on a sculptural violet velvet chair against a deep plum studio backdrop, with soft editorial light and warm rim highlights. Preserve natural anatomy, fur detail, and the alert expression.",
+					"alt": "Red fox seated naturally on a violet velvet chair"
+				},
+				"origamiKoi": {
+					"tag": "Style",
+					"title": "Paper koi",
+					"prompt": "Reimagine exactly two koi as translucent folded-paper sculptures gliding through a dark teal underwater garden. Keep the opposing curves, sparse plants, overhead light, and open negative space.",
+					"alt": "Two translucent folded-paper koi swimming through dark teal water"
+				},
+				"desertPool": {
+					"tag": "Lighting",
+					"title": "Desert first light",
+					"prompt": "Relight the pool scene at first light with a dusty rose sky, long soft shadows, and turquoise reflections. Preserve the modernist house, pool geometry, mountains, and lone lounge chair.",
+					"alt": "Modern desert home and turquoise pool at a dusty rose sunrise"
 				}
 			}
 		},
@@ -258,7 +389,7 @@
 			"eyebrow": "Plain-language control",
 			"title": "What “No Restrictions” actually means",
 			"description": "EzPic reduces workflow friction without pretending that responsible boundaries disappear.",
-			"limits": "Standard safety, legal, provider, and usage limits still apply.",
+			"limits": "Standard safety, legal, product, and usage limits still apply.",
 			"items": {
 				"prompts": {
 					"title": "Natural-language prompts",
@@ -270,15 +401,15 @@
 				},
 				"privacy": {
 					"title": "Private uploads",
-					"description": "Source images and results stay in private, account-scoped storage."
+					"description": "Guest and account source images and results stay private."
 				},
 				"credits": {
 					"title": "Transparent credits",
-					"description": "Review the credit cost before confirming real generation."
+					"description": "Guest edits use the sponsored queue; account edits show the credit amount before confirmation."
 				},
 				"steps": {
 					"title": "Fewer unnecessary steps",
-					"description": "Create the draft here, then sign in once to continue securely."
+					"description": "When the guest queue is available, continue without an account; account features require sign-in."
 				}
 			}
 		},
@@ -304,15 +435,15 @@
 		"trust": {
 			"eyebrow": "Clear boundaries",
 			"title": "Private by default, metered by design",
-			"description": "The homepage collects only the source and instruction needed for a short-lived draft. It does not create a quote, job, credit reservation, or Provider request.",
+			"description": "When the sponsored guest queue is available, the homepage can start one sponsored Standard Edit. Account edits still require a quote and confirmation before credits are reserved.",
 			"items": {
 				"privacy": {
 					"title": "Private media",
-					"description": "Inputs and outputs remain private account assets rather than a public gallery."
+					"description": "Guest and account inputs and outputs remain private rather than appearing in a public gallery."
 				},
 				"credits": {
-					"title": "Cost before action",
-					"description": "Real generation waits for sign-in, a server quote, and your confirmation."
+					"title": "Controlled usage",
+					"description": "Guest Standard edits use the sponsored queue; account edits show the credit amount and wait for your confirmation."
 				},
 				"safety": {
 					"title": "Normal safeguards",
@@ -323,7 +454,7 @@
 		"finalCta": {
 			"eyebrow": "Start with one image",
 			"title": "Describe the edit you already have in mind",
-			"description": "Upload and describe the change here, then continue to one private Standard guest edit without creating an account.",
+			"description": "Upload and describe the change here. When the guest queue is available, continue to one private Standard guest edit without creating an account.",
 			"button": "Back to the editor"
 		},
 		"hero": {

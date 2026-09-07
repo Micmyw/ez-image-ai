@@ -4,7 +4,6 @@ import {
 	getCatalogEntry,
 	MEDIA_VERIFICATION_POLICY_VERSION,
 	MEDIA_VERIFICATION_RULE_VERSION,
-	quoteCatalogInput,
 	type MediaProviderAdapter,
 	type NormalizedResult,
 	type ProviderKey,
@@ -19,6 +18,7 @@ import { createDatabaseDispatchStore, dispatchGeneration } from "@repo/jobs";
 import type { Context } from "hono";
 import { z } from "zod";
 
+import { buildMediaQuote } from "../media/lib/quote";
 import { maximumMediaStorageBytes } from "../media/lib/storage-limits";
 
 const LOAD_BODY_LIMIT_BYTES = 4 * 1024;
@@ -229,9 +229,16 @@ export async function executeMediaLoadRequest(
 		sourceAssetId: inputAsset.id,
 	};
 	const productKey = "image-fast" as const;
-	const quoted = quoteCatalogInput({ productKey, input: modelInput });
 	const route = getCatalogEntry(productKey).routes[0];
 	if (!route) throw new Error("LOAD_CATALOG_ROUTE_MISSING");
+	const quoted = buildMediaQuote(
+		{ productKey, input: modelInput },
+		{
+			enabledProviders: new Set([route.provider]),
+			generationEnabled: true,
+			openRouterImageRoutesCertified: true,
+		},
+	);
 	const quoteId = `loadq_${createHash("sha256").update(input.idempotencyKey).digest("hex").slice(0, 32)}`;
 	const expiresAt = new Date(Date.now() + 60 * 60_000);
 	const quoteSecurityPayload = {
@@ -241,10 +248,10 @@ export async function executeMediaLoadRequest(
 		productKey,
 		catalogVersion: quoted.catalogVersion,
 		pricingVersion: quoted.pricingVersion,
-		credits: BigInt(quoted.credits),
-		costMicros: BigInt(route.providerCostMicros),
+		credits: quoted.credits,
+		costMicros: quoted.costMicros,
 		inputSnapshot: modelInput,
-		pricingSnapshot: { credits: quoted.credits, source: "controlled-load-test" },
+		pricingSnapshot: { ...quoted.pricingSnapshot, source: "controlled-load-test" },
 		expiresAt,
 	};
 	const quote = await db.generationQuote.upsert({

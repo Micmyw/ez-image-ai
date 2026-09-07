@@ -9,7 +9,7 @@ import type {
 	WebhookHandler,
 } from "../../types";
 import { cancelStripeSubscription } from "./cancellation";
-import { createStripeCheckout, createStripeCheckoutLink } from "./checkout";
+import { rejectStripeCheckout } from "./checkout";
 import { createStripeWebhookHandler } from "./webhook";
 
 let stripeClient: Stripe | null = null;
@@ -31,7 +31,8 @@ export function getStripeClient() {
 }
 
 export const createCheckoutLink: CreateCheckoutLink = async (options) => {
-	return createStripeCheckoutLink(getStripeClient(), options);
+	void options;
+	return rejectStripeCheckout();
 };
 
 export const createCustomerPortalLink: CreateCustomerPortalLink = async ({
@@ -75,13 +76,16 @@ export function createStripeProvider(): PaymentProvider {
 	return {
 		name: "stripe",
 		capabilities: {
-			checkout: true,
+			checkout: false,
 			portal: true,
 			cancellation: true,
 			seatUpdates: true,
 			webhooks: true,
 		},
-		createCheckout: (options) => createStripeCheckout(getStripeClient(), options),
+		createCheckout: (options) => {
+			void options;
+			return rejectStripeCheckout();
+		},
 		createPortal: createCustomerPortalLink,
 		cancelSubscription,
 		setSubscriptionSeats,

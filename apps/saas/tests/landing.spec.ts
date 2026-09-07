@@ -15,16 +15,18 @@ const capability = {
 		{
 			key: "image-fast",
 			label: "Standard Edit",
-			description: "Fast everyday edits",
+			description: "Private prompt-based image editing at the Standard tier",
 			credits: "5",
 			accessHint: "guest-trial",
+			aspectRatios: ["auto", "1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9"],
 		},
 		{
 			key: "image-quality",
 			label: "Quality Edit",
-			description: "Higher-fidelity edits",
+			description: "Private prompt-based image editing at the Quality tier",
 			credits: "40",
 			accessHint: "paid-account",
+			aspectRatios: ["auto", "1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9"],
 		},
 	],
 	queueEstimate: { kind: "capacity" },
@@ -62,15 +64,50 @@ test("the landing generator reports capability checking before it becomes ready"
 	await expect(stage(page, "ready")).toBeVisible();
 });
 
-test("the public root exposes the image editor before authentication", async ({ page }) => {
-	const separateServiceRequests: string[] = [];
-	page.on("request", (request) => {
-		const url = new URL(request.url());
-		if (["localhost", "127.0.0.1"].includes(url.hostname) && url.port === "3001") {
-			separateServiceRequests.push(request.url());
+test("a failed capability check can be retried without reloading the page", async ({ page }) => {
+	let attempts = 0;
+	await page.route("**/api/media/guest-capability", async (route) => {
+		attempts += 1;
+		if (attempts === 1) {
+			await route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
+			return;
 		}
+		await route.fulfill({ contentType: "application/json", body: JSON.stringify(capability) });
 	});
 
+	await page.goto("/");
+	await expect(stage(page, "failed")).toBeVisible();
+	const retryName = /check edit availability again/i;
+	await expect(
+		page.locator('[data-test="landing-generator"]').getByRole("button", { name: retryName }),
+	).toBeEnabled();
+
+	await page.locator("#examples").scrollIntoViewIfNeeded();
+	const dock = page.locator('[data-test="floating-editor-dock"]');
+	await dock.getByRole("button", { name: /open the quick editor/i }).click();
+	const floatingRetry = dock.getByRole("button", { name: retryName });
+	await expect(floatingRetry).toBeEnabled();
+	await floatingRetry.click();
+	await expect(stage(page, "ready")).toBeVisible();
+	expect(attempts).toBe(2);
+});
+
+test("an inconsistent enabled capability without products fails closed", async ({ page }) => {
+	await page.route("**/api/media/guest-capability", async (route) => {
+		await route.fulfill({
+			contentType: "application/json",
+			body: JSON.stringify({ ...capability, products: [] }),
+		});
+	});
+
+	await page.goto("/");
+	await expect(stage(page, "ready")).toBeVisible();
+	await expect(page.getByText(/editing is unavailable right now/i)).toBeVisible();
+	await expect(page.getByRole("group", { name: /edit tier/i })).toHaveCount(0);
+	await expect(page.getByRole("button", { name: /try one standard edit free/i })).toBeDisabled();
+});
+
+test("the public root exposes the image editor before authentication", async ({ page }) => {
 	await page.goto("/");
 
 	await expect(page).toHaveURL(/\/$/);
@@ -100,11 +137,56 @@ test("the public root exposes the image editor before authentication", async ({ 
 		await page
 			.locator("main section[id]")
 			.evaluateAll((sections) => sections.map((section) => section.id)),
-	).toEqual(["image-editor", "before-after", "examples", "how-it-works", "pricing", "faq"]);
+	).toEqual([
+		"image-editor",
+		"before-after",
+		"examples",
+		"creator-workflows",
+		"how-it-works",
+		"pricing",
+		"faq",
+	]);
+	const storyWall = page.locator('[data-test="user-story-wall"]');
+	await expect(storyWall).toContainText(/six composite creator profiles/i);
+	await expect(storyWall.locator("#creator-workflows-disclaimer")).toContainText(
+		/not customer testimonials, published case studies, or promised results/i,
+	);
 	await expect(page.locator("body")).not.toContainText(
 		/raphael|openrouter|sourceful|riverflow|providerModelId|providerCostMicros/i,
 	);
-	expect(separateServiceRequests).toEqual([]);
+});
+
+test("the editor follows the user as a compact dock and expands without losing input", async ({
+	page,
+}) => {
+	await page.goto("/");
+	await expect(stage(page, "ready")).toBeVisible();
+
+	const dock = page.locator('[data-test="floating-editor-dock"]');
+	await expect(dock).toHaveCount(0);
+
+	await page.locator("#examples").scrollIntoViewIfNeeded();
+	await expect(dock).toBeVisible();
+	await expect(dock.locator('[data-test="floating-editor-expanded"]')).toHaveCount(0);
+
+	await dock.getByRole("button", { name: /open the quick editor/i }).click();
+	await expect(dock.locator('[data-test="floating-editor-expanded"]')).toBeVisible();
+
+	const floatingPrompt = dock.getByLabel(/describe your edit/i);
+	await floatingPrompt.fill("Turn the background into a quiet lilac studio");
+	await expect(page.getByLabel(/describe your edit/i).first()).toHaveValue(
+		"Turn the background into a quiet lilac studio",
+	);
+
+	await page.keyboard.press("Escape");
+	await expect(dock.locator('[data-test="floating-editor-expanded"]')).toHaveCount(0);
+	await expect(dock.getByRole("button", { name: /open the quick editor/i })).toBeFocused();
+
+	await dock.getByRole("button", { name: /open the quick editor/i }).click();
+	await expect(floatingPrompt).toBeFocused();
+	await page.locator('[data-test="landing-generator"]').scrollIntoViewIfNeeded();
+	await expect(dock).toHaveCount(0);
+	await expect(page.getByLabel(/describe your edit/i).first()).toBeFocused();
 });
 
 test("the landing generator supports tier choice plus drop, replace, and removal", async ({
@@ -121,7 +203,18 @@ test("the landing generator supports tier choice plus drop, replace, and removal
 
 	await quality.check();
 	await expect(quality).toBeChecked();
-	await expect(page.getByText(/creator or studio account required/i)).toBeVisible();
+	await expect(
+		page.getByText(
+			/quality edit continues after sign-in and requires a creator or studio account/i,
+		),
+	).toBeVisible();
+	await page.getByRole("button", { name: /open output settings/i }).click();
+	const automaticAspectRatio = page.getByRole("radio", { name: "Automatic", exact: true });
+	const landscapeAspectRatio = page.getByRole("radio", { name: "16:9", exact: true });
+	await expect(automaticAspectRatio).toBeChecked();
+	await page.getByText("16:9", { exact: true }).click();
+	await expect(landscapeAspectRatio).toBeChecked();
+	await page.keyboard.press("Escape");
 
 	const dropZone = page.getByRole("button", {
 		name: /drop an image here or choose a file/i,
@@ -155,7 +248,6 @@ test("the selected tier crosses each private-upload stage without leaking routin
 	const intentGate = deferred<void>();
 	const uploadGate = deferred<void>();
 	const verificationGate = deferred<void>();
-	const handoffGate = deferred<void>();
 	const intentRequested = deferred<void>();
 	const uploadRequested = deferred<void>();
 	const verificationRequested = deferred<void>();
@@ -203,12 +295,14 @@ test("the selected tier crosses each private-upload stage without leaking routin
 	await page.route("**/draft/continue", async (route) => {
 		handoffBody = route.request().postData() ?? "";
 		handoffRequested.resolve();
-		await handoffGate.promise;
-		await route.fulfill({ contentType: "text/html", body: "<main>handoff complete</main>" });
+		await route.fulfill({ status: 204 });
 	});
 
 	await page.goto("/");
 	await page.getByRole("radio", { name: /quality edit/i }).check();
+	await page.getByRole("button", { name: /open output settings/i }).click();
+	await page.getByText("16:9", { exact: true }).click();
+	await page.keyboard.press("Escape");
 	await page.getByLabel(/source image/i).setInputFiles(pngFile("quality-source.png"));
 	await page.getByLabel(/describe your edit/i).fill("Preserve the product details");
 	await page.getByRole("button", { name: /continue with quality edit/i }).click();
@@ -224,17 +318,15 @@ test("the selected tier crosses each private-upload stage without leaking routin
 
 	await verificationRequested.promise;
 	await expect(stage(page, "verifying")).toBeVisible();
-	expect(completionBody).toMatchObject({ productKey: "image-quality" });
+	expect(completionBody).toMatchObject({ productKey: "image-quality", aspectRatio: "16:9" });
 	await expect(page.locator("body")).not.toContainText(
 		/openrouter|sourceful|riverflow|providerModelId|providerCostMicros/i,
 	);
-	const handoffVisible = expect(stage(page, "handoff")).toBeVisible();
 	verificationGate.resolve();
 
-	await handoffVisible;
 	await handoffRequested.promise;
+	await expect(stage(page, "handoff")).toBeVisible();
 	expect(handoffBody).toContain("intent=continue-account-draft");
-	handoffGate.resolve();
 });
 
 test("a retryable failure preserves the image, prompt, and selected tier", async ({ page }) => {
@@ -285,8 +377,8 @@ test("the landing page proves edits with an interactive comparison and visual ex
 	await expect(comparison).toHaveValue("36");
 
 	const examples = page.locator("#examples article");
-	await expect(examples).toHaveCount(6);
-	await expect(page.locator("#examples img")).toHaveCount(6);
+	await expect(examples).toHaveCount(12);
+	await expect(page.locator("#examples img")).toHaveCount(12);
 	expect(
 		await page
 			.locator("#examples img")
@@ -299,6 +391,35 @@ test("the landing page proves edits with an interactive comparison and visual ex
 	await page.getByRole("button", { name: /use the mediterranean quiet prompt/i }).click();
 	await expect(prompt).toHaveValue(/sunlit mediterranean retreat/i);
 	await expect(prompt).toBeFocused();
+});
+
+test("creator workflows become static when reduced motion is requested", async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: "reduce" });
+	await page.goto("/");
+
+	const workflows = page.locator("#creator-workflows");
+	await expect(workflows.locator(".creator-workflows-track").first()).toHaveCSS(
+		"animation-name",
+		"none",
+	);
+	await expect(workflows.locator(".creator-workflows-duplicate").first()).toBeHidden();
+	await expect(workflows.locator('button[aria-controls="creator-workflows-motion"]')).toBeHidden();
+});
+
+test("creator workflow movement can be paused and resumed", async ({ page }) => {
+	await page.goto("/");
+
+	const workflows = page.locator("#creator-workflows");
+	const track = workflows.locator(".creator-workflows-track--one");
+	const pauseButton = workflows.getByRole("button", { name: /pause movement/i });
+	await workflows.scrollIntoViewIfNeeded();
+	await expect(track).toHaveCSS("animation-play-state", "running");
+
+	await pauseButton.click();
+	await expect(track).toHaveCSS("animation-play-state", "paused");
+	const resumeButton = workflows.getByRole("button", { name: /resume movement/i });
+	await resumeButton.click();
+	await expect(track).toHaveCSS("animation-play-state", "running");
 });
 
 function pngFile(name: string) {
@@ -353,22 +474,30 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 			page.getByRole("button", { name: /drop an image here or choose a file/i }),
 		).toBeVisible();
 		await expect(page.getByRole("button", { name: /try one standard edit free/i })).toBeVisible();
+		if (viewport.width < 768) {
+			await expect(page.locator('[data-test="mobile-section-nav"]')).toBeVisible();
+			await expect(page.getByText("5 credits", { exact: true }).first()).toBeVisible();
+		}
 		const [sourceRect, promptRect, tierRect] = await Promise.all([
 			box(page.getByRole("button", { name: /drop an image here or choose a file/i })),
 			box(page.getByLabel(/describe your edit/i)),
 			box(page.getByRole("group", { name: /edit tier/i })),
 		]);
-		if (viewport.width >= 1024) {
-			expect(sourceRect.x).toBeLessThan(promptRect.x);
-			expect(promptRect.x).toBeLessThan(tierRect.x);
-		} else {
-			expect(sourceRect.y).toBeLessThan(promptRect.y);
-			expect(promptRect.y).toBeLessThan(tierRect.y);
-		}
+		expect(sourceRect.x).toBeLessThan(promptRect.x);
+		expect(Math.abs(sourceRect.y - promptRect.y)).toBeLessThan(2);
+		expect(
+			Math.max(sourceRect.y + sourceRect.height, promptRect.y + promptRect.height),
+		).toBeLessThan(tierRect.y);
 		expect(
 			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
 			`${viewport.width}px horizontal overflow`,
 		).toBe(true);
+		const [firstExample, secondExample] = await Promise.all([
+			box(page.locator("#examples article").nth(0)),
+			box(page.locator("#examples article").nth(1)),
+		]);
+		expect(firstExample.x).toBeLessThan(secondExample.x);
+		expect(Math.abs(firstExample.y - secondExample.y)).toBeLessThan(2);
 		await page.getByRole("radio", { name: /quality edit/i }).check();
 		await page.getByLabel(/source image/i).setInputFiles(pngFile(`source-${viewport.width}.png`));
 		await page.getByLabel(/describe your edit/i).fill("Keep the subject sharp");
@@ -378,6 +507,16 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 			contentType: "image/png",
 		});
 	}
+});
+
+test("the before-and-after control has a visible keyboard focus treatment", async ({ page }) => {
+	await page.goto("/");
+	const slider = page.getByRole("slider", { name: /compare original and edited illustration/i });
+	await slider.focus();
+	await expect(slider).toBeFocused();
+	const frame = page.locator('[data-test="before-after-frame"]');
+	await expect(frame).toBeVisible();
+	expect(await frame.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe("none");
 });
 
 async function box(locator: Locator) {

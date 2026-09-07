@@ -19,8 +19,9 @@ vi.mock("next-intl", () => ({
 		({
 			title: "Unlock Quality Edit",
 			description: "Your image, instruction, and edit session will stay in place.",
-			creator: `Creator ${values?.credits}/${values?.concurrency}/${values?.megabytes}`,
-			studio: `Studio ${values?.credits}/${values?.concurrency}/${values?.megabytes}`,
+			creator: `Pro ${values?.credits}/${values?.concurrency}/${values?.megabytes}`,
+			ultimate: `Ultimate ${values?.credits}/${values?.concurrency}/${values?.megabytes}`,
+			studio: `Max ${values?.credits}/${values?.concurrency}/${values?.megabytes}`,
 			cancel: "Not now",
 			continue: "Choose a plan",
 		})[key] ?? key,
@@ -37,10 +38,12 @@ describe("EditorUpgradeDialog", () => {
 
 		expect(visibleText).toContain("Unlock Quality Edit");
 		expect(visibleText).toContain("image, instruction, and edit session");
-		expect(visibleText).toContain("Creator");
-		expect(visibleText).toContain("Studio");
-		expect(visibleText).toContain("Creator 700/3/20");
-		expect(visibleText).toContain("Studio 3000/10/20");
+		expect(visibleText).toContain("Pro");
+		expect(visibleText).toContain("Ultimate");
+		expect(visibleText).toContain("Max");
+		expect(visibleText).toContain("Pro 700/3/20");
+		expect(visibleText).toContain("Ultimate 1800/6/20");
+		expect(visibleText).toContain("Max 3000/10/20");
 		expect(visibleText).toContain("Choose a plan");
 		expect(visibleText).not.toMatch(/image-quality|provider|model|video/i);
 	});

@@ -11,7 +11,7 @@ Use only when existing workspace code cannot satisfy the requirement. Do not add
 
 ## Procedure
 
-1. Identify the package that imports the dependency and its exact package name from `package.json` (`saas`, `marketing`, `@repo/api`, and so on).
+1. Identify the package that imports the dependency and its exact package name from `package.json` (`saas`, `@repo/api`, `@repo/ui`, and so on).
 2. Search the singular `catalog:` map in `pnpm-workspace.yaml` and workspace manifests for current use. Reuse `catalog:` for shared external packages and `workspace:*` for `@repo/*`.
 3. Add the latest suitable release with pnpm to the importing workspace:
    ```bash

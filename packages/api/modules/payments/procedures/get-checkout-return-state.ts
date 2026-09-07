@@ -15,7 +15,7 @@ export const getCheckoutReturnState = protectedProcedure
 	.input(
 		z.object({
 			organizationId: z.string().optional(),
-			expectedPlanId: z.enum(["creator", "studio"]),
+			expectedPlanId: z.enum(["creator", "ultimate", "studio"]),
 		}),
 	)
 	.handler(async ({ input, context: { user } }) => {
@@ -45,7 +45,7 @@ export function resolveCheckoutReturnState(
 		periods: Array<{ endsAt: Date }>;
 		currentPeriodEnd: Date | null;
 	} | null,
-	expectedPlanId: "creator" | "studio",
+	expectedPlanId: "creator" | "ultimate" | "studio",
 	now = new Date(),
 ) {
 	const planId = subscription

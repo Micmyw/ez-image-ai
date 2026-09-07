@@ -1,4 +1,11 @@
 {
+	"publicContent": {
+		"contact": {
+			"description": "Contactez {appName} à l’adresse e-mail d’assistance configurée.",
+			"emailCta": "Écrivez à l’équipe d’assistance EzPic à l’adresse :",
+			"unavailable": "Aucune adresse e-mail d’assistance n’est configurée. Réessayez lorsque l’opérateur aura publié une adresse d’assistance."
+		}
+	},
 	"admin": {
 		"menu": {
 			"media": "Opérations média",
@@ -332,6 +339,7 @@
 			"createAnAccount": "Créer un compte",
 			"dontHaveAnAccount": "Vous n'avez pas encore de compte ?",
 			"forgotPassword": "Mot de passe oublié ?",
+			"hidePassword": "Masquer le mot de passe",
 			"hints": {
 				"invalidCredentials": "L'e-mail ou le mot de passe que vous avez saisi sont invalides. Veuillez réessayer.",
 				"linkSent": {
@@ -340,6 +348,7 @@
 				}
 			},
 			"loginWithPasskey": "Connexion avec passkey",
+			"showPassword": "Afficher le mot de passe",
 			"modes": {
 				"magicLink": "Lien magique",
 				"password": "Mot de passe"
@@ -850,16 +859,27 @@
 			"products": {
 				"image-fast": {
 					"label": "Standard Edit",
-					"description": "Retouche privée guidée par instruction pour les changements courants."
+					"description": "Retouche privée guidée par instruction au niveau Standard."
 				},
 				"image-quality": {
 					"label": "Quality Edit",
-					"description": "Retouche privée haute fidélité pour les changements détaillés."
+					"description": "Retouche privée guidée par instruction au niveau Quality."
 				}
 			},
 			"fields": {
 				"prompt": "Instruction de retouche",
 				"sourceAssetId": "Image source"
+			},
+			"outputSettings": {
+				"title": "Réglages de sortie",
+				"trigger": "Ouvrir les réglages de sortie",
+				"aspectRatio": "Format d’image",
+				"automatic": "Automatique",
+				"outputNumber": "Nombre de résultats",
+				"oneOutput": "Ce modèle renvoie une image",
+				"resolution": "Résolution",
+				"quality": "Qualité",
+				"modeControlsQuality": "Définie par le niveau de retouche"
 			},
 			"promptHint": "Décrivez uniquement la modification voulue. Votre image source reste privée.",
 			"suggestions": {
@@ -967,8 +987,9 @@
 		"upgradeDialog": {
 			"title": "Débloquer Quality Edit",
 			"description": "Conservez l’image, l’instruction, la sélection Quality Edit et la session de retouche pendant que vous comparez les forfaits payants.",
-			"creator": "Creator : {credits, number} crédits par mois, {concurrency, number} retouches simultanées et images jusqu’à {megabytes, number} MB.",
-			"studio": "Studio : {credits, number} crédits par mois, {concurrency, number} retouches simultanées et images jusqu’à {megabytes, number} MB.",
+			"creator": "Pro : {credits, number} crédits par mois, {concurrency, number} retouches simultanées et images jusqu’à {megabytes, number} MB.",
+			"ultimate": "Ultimate : {credits, number} crédits par mois, {concurrency, number} retouches simultanées et images jusqu’à {megabytes, number} MB.",
+			"studio": "Max : {credits, number} crédits par mois, {concurrency, number} retouches simultanées et images jusqu’à {megabytes, number} MB.",
 			"storageUnavailable": "Le navigateur n’a pas pu enregistrer le brouillon. Gardez cet onglet ouvert et réessayez.",
 			"cancel": "Pas maintenant",
 			"continue": "Choisir un forfait"
@@ -986,9 +1007,9 @@
 			"mode": {
 				"label": "Mode de retouche",
 				"standard": "Standard Edit",
-				"standardDescription": "Retouche privée rapide pour les modifications courantes.",
+				"standardDescription": "Retouche d’image privée au niveau Standard.",
 				"quality": "Quality Edit",
-				"qualityDescription": "Retouche privée haute fidélité pour les changements détaillés.",
+				"qualityDescription": "Retouche d’image privée au niveau Quality.",
 				"credits": "{credits} crédits",
 				"qualityUnavailable": "Passez à une offre supérieure pour Quality Edit. L’image et l’instruction seront conservées.",
 				"upgrade": "Voir les options"
@@ -1148,5 +1169,16 @@
 		"title": "Traitement de votre achat",
 		"description": "Veuillez patienter pendant que nous confirmons votre paiement.",
 		"loading": "Confirmation de votre achat en cours, veuillez patienter..."
+	},
+	"creditPackCheckoutReturn": {
+		"title": "Ajout de vos crédits",
+		"description": "Votre solde de crédits sera mis à jour après confirmation du paiement.",
+		"loading": "Confirmation de votre achat de crédits…",
+		"completed": "Crédits ajoutés. Ouverture de l’éditeur…",
+		"review": "Ce paiement doit être vérifié avant l’ajout des crédits.",
+		"notCompleted": "Ce paiement n’a pas été finalisé.",
+		"error": "Nous n’avons pas pu confirmer ce paiement. Aucun crédit n’a été ajouté.",
+		"tryAgain": "Voir les packs de crédits",
+		"returnToEditor": "Retour à l’éditeur"
 	}
 }

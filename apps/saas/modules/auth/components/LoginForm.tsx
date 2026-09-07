@@ -21,6 +21,7 @@ import {
 	EyeOffIcon,
 	KeyIcon,
 	MailboxIcon,
+	SparklesIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
@@ -136,9 +137,17 @@ export function LoginForm() {
 	const signinMode = form.watch("mode");
 
 	return (
-		<div>
-			<h1 className="font-bold text-xl md:text-2xl text-center">{t("auth.login.title")}</h1>
-			<p className="mt-1 mb-6 text-center text-foreground/60">{t("auth.login.subtitle")}</p>
+		<div data-auth-form="login">
+			<div className="mb-4 gap-2 text-xs font-bold flex items-center tracking-[0.16em] text-[#b79cff] uppercase">
+				<SparklesIcon className="size-4" aria-hidden="true" />
+				<span>{t("media.create.eyebrow")}</span>
+			</div>
+			<h1 className="text-2xl font-semibold text-white md:text-3xl text-left tracking-[-0.03em]">
+				{t("auth.login.title")}
+			</h1>
+			<p className="mb-7 mt-2 text-sm leading-6 text-left text-[#b7acbf]">
+				{t("auth.login.subtitle")}
+			</p>
 
 			{form.formState.isSubmitSuccessful && signinMode === "magic-link" ? (
 				<Alert variant="success">
@@ -156,6 +165,7 @@ export function LoginForm() {
 								<LoginModeSwitch
 									activeMode={signinMode}
 									onChange={(mode) => form.setValue("mode", mode as typeof signinMode)}
+									variant="auth"
 								/>
 							)}
 
@@ -173,7 +183,11 @@ export function LoginForm() {
 									<FormItem>
 										<FormLabel>{t("auth.signup.email")}</FormLabel>
 										<FormControl>
-											<Input {...field} autoComplete="email" />
+											<Input
+												{...field}
+												autoComplete="email"
+												className="h-12 border-white/10 px-4 text-white rounded-xl bg-[#171020] shadow-none focus-visible:border-[#b79cff] focus-visible:ring-[#b79cff]/35 aria-invalid:border-destructive aria-invalid:ring-destructive/25"
+											/>
 										</FormControl>
 									</FormItem>
 								)}
@@ -190,14 +204,17 @@ export function LoginForm() {
 												<div className="relative">
 													<Input
 														type={showPassword ? "text" : "password"}
-														className="pr-10"
+														className="h-12 border-white/10 px-4 pr-12 text-white rounded-xl bg-[#171020] shadow-none focus-visible:border-[#b79cff] focus-visible:ring-[#b79cff]/35 aria-invalid:border-destructive aria-invalid:ring-destructive/25"
 														{...field}
 														autoComplete="current-password"
 													/>
 													<button
 														type="button"
 														onClick={() => setShowPassword(!showPassword)}
-														className="inset-y-0 right-0 pr-4 text-xl absolute flex items-center text-primary"
+														className="inset-y-0 right-0 min-h-11 min-w-11 hover:text-white absolute flex items-center justify-center rounded-r-xl text-[#b79cff] transition focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-[#b79cff]"
+														aria-label={t(
+															showPassword ? "auth.login.hidePassword" : "auth.login.showPassword",
+														)}
 													>
 														{showPassword ? (
 															<EyeOffIcon className="size-4" />
@@ -209,7 +226,7 @@ export function LoginForm() {
 											</FormControl>
 											<Link
 												href="/forgot-password"
-												className="top-0 right-0 text-xs absolute text-foreground/60"
+												className="right-0 top-0 rounded text-xs font-medium hover:text-white absolute text-[#a99db2] transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b79cff]"
 											>
 												{t("auth.login.forgotPassword")}
 											</Link>
@@ -219,7 +236,7 @@ export function LoginForm() {
 							)}
 
 							<Button
-								className="w-full"
+								className="min-h-12 text-white w-full rounded-xl bg-[#6c4dff] shadow-[0_15px_36px_-16px_rgba(108,77,255,0.95)] hover:bg-[#7d63ff] focus-visible:ring-[#b79cff] focus-visible:ring-offset-[#21182c]"
 								type="submit"
 								variant="primary"
 								loading={form.formState.isSubmitting}
@@ -234,24 +251,29 @@ export function LoginForm() {
 					{(authConfig.enablePasskeys ||
 						(authConfig.enableSignup && authConfig.enableSocialLogin)) && (
 						<>
-							<div className="my-6 h-4 relative">
-								<hr className="top-2 relative" />
-								<p className="top-0 h-4 px-2 font-medium text-sm leading-tight absolute left-1/2 mx-auto inline-block -translate-x-1/2 bg-background text-center text-foreground/60">
+							<div className="my-6 gap-3 flex items-center">
+								<hr className="border-white/10 flex-1" />
+								<p className="text-xs font-medium shrink-0 text-[#91869b]">
 									{t("auth.login.continueWith")}
 								</p>
+								<hr className="border-white/10 flex-1" />
 							</div>
 
 							<div className="gap-2 sm:grid-cols-2 grid grid-cols-1 items-stretch">
 								{authConfig.enableSignup &&
 									authConfig.enableSocialLogin &&
 									Object.keys(oAuthProviders).map((providerId) => (
-										<SocialSigninButton key={providerId} provider={providerId as OAuthProvider} />
+										<SocialSigninButton
+											key={providerId}
+											provider={providerId as OAuthProvider}
+											className="min-h-11 border-white/10 bg-white/[0.065] text-white hover:bg-white/[0.11] rounded-xl border focus-visible:ring-[#b79cff] focus-visible:ring-offset-[#21182c]"
+										/>
 									))}
 
 								{authConfig.enablePasskeys && (
 									<Button
 										variant="secondary"
-										className="sm:col-span-2 w-full"
+										className="min-h-11 border-white/[0.08] hover:bg-white/[0.05] hover:text-white sm:col-span-2 w-full rounded-xl border bg-transparent text-[#c9becf] focus-visible:ring-[#b79cff] focus-visible:ring-offset-[#21182c]"
 										onClick={() => signInWithPasskey()}
 									>
 										<KeyIcon className="mr-1.5 size-4 text-primary" />
@@ -263,9 +285,12 @@ export function LoginForm() {
 					)}
 
 					{authConfig.enableSignup && (
-						<div className="mt-6 text-sm text-center">
-							<span className="text-foreground/60">{t("auth.login.dontHaveAnAccount")} </span>
-							<Link href={withQuery("/signup", Object.fromEntries(searchParams.entries()))}>
+						<div className="mt-7 text-sm text-center">
+							<span className="text-[#9f93aa]">{t("auth.login.dontHaveAnAccount")} </span>
+							<Link
+								href={withQuery("/signup", Object.fromEntries(searchParams.entries()))}
+								className="rounded font-semibold hover:text-white text-[#c9b9ff] transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b79cff]"
+							>
 								{t("auth.login.createAnAccount")}
 								<ArrowRightIcon className="ml-1 size-4 inline align-middle" />
 							</Link>

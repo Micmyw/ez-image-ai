@@ -1,6 +1,95 @@
 # Changelog
 
+## 2026-09-06
+
+### Authentication and workspace continuity
+
+- Reframed sign-in and the shared unauthenticated shell in EzPic's purple-black tool-first visual
+  language, keeping a source-to-result editor preview visible beside the focused authentication card
+  on desktop and reducing cleanly to one card on mobile.
+- Carried the same identity into the authenticated workspace with a dedicated dark editor sidebar
+  and raised content surface, while preserving every password, magic-link, social, passkey, redirect,
+  and private-media behavior. Password visibility controls now have localized accessible names.
+
+### Public pricing cadence
+
+- Replaced duplicate public pricing cards with one shared Monthly/Yearly switch for the homepage and
+  `/pricing`. Annual mode now derives its monthly equivalent, exact annual total, cash savings, and
+  rounded discount from the configured plan catalog instead of mixing both cadences in one price.
+
+### Landing conversion experience
+
+- Unified the public page background and condensed the Hero editor into one differentiated tool
+  surface, with a compact launcher that appears after the primary editor leaves view and expands
+  back into the complete shared workflow.
+- Reworked the inspiration gallery around tall 9:16 artwork with stronger hover/focus reveals, and
+  added three continuously rising, reduced-motion-safe customer-story columns without inventing
+  aggregate customer counts.
+
+### Pro, Ultimate, Max, and Credit Packs
+
+- Made annual billing the default public and authenticated selection, hid Free from public pricing,
+  and exposed Pro (`creator`) at $19/$190 with 700 monthly credits, Ultimate (`ultimate`) at $49/$490
+  with 1,800, and Max (`studio`) at $79/$790 with 3,000. All annual prices equal ten monthly payments,
+  so the UI derives and displays the truthful rounded `-17%` saving.
+- Added four one-time Credit Packs: 1,500/$59, 3,000/$109, 5,000/$169, and 8,000/$259. Effective paid
+  subscribers receive a checkout-frozen 20% bonus; grants expire after six UTC calendar months.
+- Added owner-scoped, idempotent Credit Pack checkout, verified-event fulfillment, PayPal capture,
+  status return, and PayPal-only automatic cumulative proportional credit reversal with immutable
+  debt behavior for already-consumed refunded credits. Subscription and Credit Pack persistence
+  remain isolated by product kind.
+- Kept Waffo Credit Pack `refund.succeeded` and `refund.failed` fail-closed in manual `REVIEW`; they
+  do not automatically mutate the Credit Ledger, Purchase, Fulfillment, or adjustment records.
+- Based Credit Pack planning margins on the conservative all-Standard cost of 6,096 USD micros per
+  credit. Under the documented payment/refund assumptions, subscriber-bonus full-use margins range
+  from 75.9% to 80.1%; these are planning figures, not live payment or Provider evidence.
+
+### New-purchase payment boundary
+
+- Limited all new subscription and Credit Pack availability, UI choices, and API inputs to PayPal
+  and Waffo. Stripe no longer advertises or creates new checkout and remains only for historical
+  Webhooks, portal/cancellation, refund repair, and reconciliation.
+- Made Stripe configuration optional for deployments with no historical Stripe lifecycle. Partial
+  legacy configuration fails closed, while absent configuration safely skips Stripe reconciliation
+  without skipping PayPal/Waffo deadline maintenance.
+- Real PayPal/Waffo sandbox or live checkout, capture, Webhook, and dashboard-product certification
+  remains `NOT_COMPLETED` pending external credentials and account evidence. PayPal automatic Credit
+  Pack reversal still needs real lifecycle evidence; Waffo production automatic Credit Pack refunds
+  are separately `NOT_COMPLETED` pending real sandbox payload fields and authenticated, idempotent
+  lifecycle certification.
+
 ## 2026-09-05
+
+### Launch-readiness hardening
+
+- Aligned homepage and pricing facts across all supported locales, including factual FAQs, annual
+  totals and savings, tier access, input limits, concurrency, monthly credit grants, and the
+  conditional availability of the guest Standard Edit queue.
+- Made guest capability discovery fail closed when no executable product is available, added an
+  in-place availability retry, strengthened keyboard focus and prompt contrast, and bounded Provider
+  JSON and base64 image responses before decoding or buffering them.
+- Preserved historical billing-plan resolution after provider price-ID rotation, aligned guest
+  sponsor defaults and database constraints to 5 credits, and patched production dependency audit
+  findings in `fast-uri` and `mysql2`.
+- Production Provider, storage, moderation, payment, email, monitoring, legal-entity, staged-scenario,
+  deployment, and post-launch checks remain `NOT_COMPLETED`; these local changes do not certify a
+  production launch.
+
+### SaaS-only public content and Docs
+
+- Moved the factual public Blog, Changelog, Contact, legal pages, and Fumadocs routes under the
+  unified SaaS origin, with same-origin metadata, redirects, sitemap ownership, and footer links.
+- Retired the standalone public-content and Docs applications plus their origin, workspace, CI,
+  Playwright, load, and originality-scanner wiring. Root `dev`, `build`, and `start` now target SaaS
+  and its task dependencies; Mail Preview remains an explicitly started development utility.
+
+### Visual identity and inspiration gallery
+
+- Expanded the unified SaaS homepage from six to twelve original OpenAI-generated inspiration
+  images in a denser responsive prompt gallery, with localized reusable edit prompts and documented
+  asset provenance.
+- Replaced the template-style picture glyph with an original crop-frame and editing-spark mark for
+  the app favicon and shared product logo.
 
 ### Pricing and image-route assumptions
 

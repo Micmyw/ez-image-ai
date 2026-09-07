@@ -12,7 +12,6 @@ public contact details without editing components or email templates:
 | Variable                       | Purpose                                                           |
 | ------------------------------ | ----------------------------------------------------------------- |
 | `NEXT_PUBLIC_SAAS_URL`         | Canonical origin for the public landing and authenticated product |
-| `NEXT_PUBLIC_MARKETING_URL`    | Legacy compatibility alias; production requires it to match SaaS  |
 | `NEXT_PUBLIC_SUPPORT_EMAIL`    | Public support address; omitted when blank                        |
 | `NEXT_PUBLIC_SITE_NAME`        | Product name, defaulting to `EzPic`                               |
 | `NEXT_PUBLIC_SITE_DESCRIPTION` | Product metadata and descriptive copy                             |
@@ -36,9 +35,9 @@ Both products require a private source asset ID and a prompt. `text-to-image` is
 server-side quoting. Public catalog responses contain fields needed to render the editor, but never
 Provider names, model IDs, credentials, route costs, or raw Provider payloads.
 
-The marketing server selects each public label and credit amount from that canonical media catalog
-and passes only those two display fields to the client form. Locale messages supply a value-only
-credit template; they do not own product labels or credit amounts.
+The unified SaaS runtime selects each public label and credit amount from that canonical media
+catalog and passes only those two display fields to the client form. Locale messages supply a
+value-only credit template; they do not own product labels or credit amounts.
 
 `video-fast` and `video-quality` remain internal catalog entries. They are excluded from
 `DEFAULT_PRODUCT_CONFIG.productKeys`, public catalog responses, plans, navigation, and EzPic user
@@ -49,7 +48,9 @@ New image quotes use only the server-side OpenRouter Riverflow fast/pro candidat
 Provider adapters and dispatch metadata remain private compatibility paths for already-frozen work;
 they are not selectable by the browser and are not candidates for new image quotes.
 
-Catalog and pricing contract version: `2026-09-05.1`.
+Catalog contract version: `2026-09-05.2`. Subscription pricing contract version:
+`2026-09-05.1`. Credit Pack catalog, pricing, and subscriber-eligibility contract version:
+`2026-09-06.1`.
 
 ## Public homepage and anonymous trial boundary
 
@@ -151,16 +152,18 @@ PR 6 introduced the public package contract below. `PLAN_ENTITLEMENTS` supplies 
 pricing surfaces and every runtime authorization path; payment-provider configuration derives its
 monetary prices from the same entries rather than repeating entitlement numbers.
 
-| Plan    | Monthly credits | Concurrent edits | Allowed products                                      | Max image input | Price                |
-| ------- | --------------: | ---------------: | ----------------------------------------------------- | --------------: | -------------------- |
-| Free    |              25 |                1 | Standard Edit (`image-fast`)                          |           10 MB | $0                   |
-| Creator |             700 |                3 | Standard (`image-fast`) and Quality (`image-quality`) |           20 MB | $19/month, $190/year |
-| Studio  |           3,000 |               10 | Standard (`image-fast`) and Quality (`image-quality`) |           20 MB | $79/month, $790/year |
+| Public plan (internal key) | Monthly credits | Concurrent edits | Allowed products                                      | Max image input | Price                |
+| -------------------------- | --------------: | ---------------: | ----------------------------------------------------- | --------------: | -------------------- |
+| Free (`free`, internal)    |              25 |                1 | Standard Edit (`image-fast`)                          |           10 MB | $0                   |
+| Pro (`creator`)            |             700 |                3 | Standard (`image-fast`) and Quality (`image-quality`) |           20 MB | $19/month, $190/year |
+| Ultimate (`ultimate`)      |           1,800 |                6 | Standard (`image-fast`) and Quality (`image-quality`) |           20 MB | $49/month, $490/year |
+| Max (`studio`)             |           3,000 |               10 | Standard (`image-fast`) and Quality (`image-quality`) |           20 MB | $79/month, $790/year |
 
 Monthly credits are granted once per internal monthly credit period. Annual billing changes only
-the payment cadence: Creator still receives 700 credits and Studio still receives 3,000 credits per
-month rather than an annual lump sum. Unused plan credits expire with their monthly period and do
-not roll over.
+the payment cadence: Pro, Ultimate, and Max receive 700, 1,800, and 3,000 credits per month rather
+than an annual lump sum. Unused plan credits expire with their monthly period and do not roll over.
+Public pricing opens on annual billing, hides Free, and shows the rounded `-17%` saving produced by
+annual prices equal to ten monthly payments.
 
 The API enforces product access, active-job concurrency, and input byte size at exact boundaries and
 fails closed under concurrent confirmation. Privacy, private assets, edit sessions/history, and the
@@ -174,7 +177,7 @@ ACTIVE paid subscriptions and still-valid PAST_DUE grace periods, so concurrent 
 and legacy paid state cannot create a second or inappropriate Free grant. The browser and checkout
 return never issue credits.
 
-Creator and Studio provider price, plan, or product IDs come only from the server environment
+Pro, Ultimate, and Max provider plan or product IDs come only from the server environment
 variables documented in `.env.local.example`. A missing or malformed ID removes that checkout
 selection server-side and the paid CTA reports temporary unavailability before any Provider call. A
 matching active `BillingPlan` snapshot must agree with the canonical plan identity, monthly credits,
@@ -185,9 +188,40 @@ provider/ID pair is unique, every pricing revision must create a new Provider ID
 Checkout return waits for the server-owned Webhook projection and restores the saved editor
 draft/session only after the expected plan is ACTIVE or still inside its recorded PAST_DUE grace.
 Annual billing continues to create the existing monthly internal credit periods without carrying
-unused credits into the next period; Webhook replay, cancellation, partial/full refund, refund Debt,
-and failed-job releases keep the existing immutable-ledger semantics. Customer Portal access remains
-subject to the existing user or organization owner authorization rules.
+unused credits into the next period; subscription Webhook replay, cancellation, partial/full refund,
+refund Debt, and failed-job releases keep the existing immutable-ledger semantics. Customer Portal
+access remains subject to the existing user or organization owner authorization rules.
+
+New subscription checkout is limited to PayPal and Waffo. Stripe is not advertised or accepted for
+new purchases; it remains optional only for historical Stripe Webhooks, portal/cancellation,
+refund-repair, and reconciliation. When no complete historical Stripe configuration exists, the
+Stripe reconciliation branch safely skips while PayPal/Waffo deadline maintenance continues.
+
+## Credit Packs
+
+The public one-time catalog is separate from subscriptions:
+
+|  Pack | Price | Base credits | Paid-subscriber credits | Subscriber bonus | Validity |
+| ----: | ----: | -----------: | ----------------------: | ---------------: | -------: |
+| 1,500 |   $59 |        1,500 |                   1,800 |             +20% | 6 months |
+| 3,000 |  $109 |        3,000 |                   3,600 |             +20% | 6 months |
+| 5,000 |  $169 |        5,000 |                   6,000 |             +20% | 6 months |
+| 8,000 |  $259 |        8,000 |                   9,600 |             +20% | 6 months |
+
+Credit Pack checkout accepts only PayPal and Waffo. The first owner-scoped Checkout Intent freezes
+pack identity, exact amount/currency, base credits, effective paid-subscriber eligibility, 20% bonus,
+catalog/pricing/eligibility versions, and six-calendar-month expiry policy. A replay with the same
+idempotency key reuses that snapshot instead of re-evaluating price or subscriber state.
+
+Capture and Webhooks persist a verified `PaymentEvent` and Outbox work before fulfillment. The
+reducer creates exactly one expiring credit grant and one fulfillment per provider payment; duplicate
+or concurrent delivery cannot grant twice. Verified PayPal refund lifecycle facts can automatically
+apply the delta to a cumulative proportional reversal target; a full refund targets the full frozen
+grant, and already-consumed credits become Debt through the existing immutable ledger. Waffo
+`refund.succeeded` and `refund.failed` currently stop in manual `REVIEW` and do not automatically
+mutate the Credit Ledger, Purchase, Fulfillment, or adjustment records. Waffo production automatic
+Credit Pack refunds remain `NOT_COMPLETED` pending real sandbox payload fields and authenticated,
+idempotent lifecycle certification. A Credit Pack never changes the active subscription.
 
 The monetary amounts above are configuration, not a production margin certification. Published
 Provider prices support the current assumptions, but no real billed Provider execution has
@@ -197,16 +231,16 @@ prerequisites, and rollback are recorded in
 
 ## Navigation and indexing
 
-Marketing navigation is limited to Examples, How It Works, Pricing, FAQ, Sign In, and Start
-Editing. Pricing is an English homepage section in PR 1, not a new standalone route. Authenticated
-navigation is limited to Create, Edits, History, Assets, Billing, and Settings. Existing chatbot and
-video implementation code may remain, but those entries are hidden from EzPic navigation.
+Public navigation exposes Examples, How It Works, Pricing, FAQ, Privacy, Terms, Blog, Changelog,
+Contact, Docs, Sign In, and Start Editing on the unified SaaS origin. Authenticated navigation is
+limited to Create, Edits, History, Assets, Billing, and Settings. Existing chatbot and video
+implementation code may remain, but those entries are hidden from EzPic navigation.
 
-English is the only indexable product language at launch. The marketing sitemap includes the
-default-English homepage and the existing approved Privacy and Terms pages. German, Spanish, and
-French infrastructure remains available for later review, but those locale URLs use
-`noindex, follow`, are absent from the sitemap, and have no visible locale switch. The complete SaaS
-application disallows crawling and uses noindex metadata.
+The same-origin sitemap contains exactly `/`, `/pricing`, `/privacy`, and `/terms`. Blog,
+Changelog, Contact, and Docs use `noindex, follow` until their content is approved for indexing.
+Login, guest workspace, create, history, assets, edits, checkout, settings, and admin stay
+`noindex, nofollow`. Legacy locale-prefixed public URLs permanently redirect to their unprefixed
+paths; display language continues to come from the locale cookie.
 
 ## Security, privacy, and cost impact
 
@@ -241,7 +275,8 @@ that would discard version history. No ledger rewrite is part of rollout or roll
 
 The original PR 1 scope did not include the homepage editor; PR 3 adds the anonymous draft and
 original illustrative Before/After experience described above, PR 4 adds the authenticated
-single-edit lifecycle, and PR 5 adds private branchable edit sessions. The current product still
-excludes anonymous real generation, collaboration, comments, public sharing, layers/canvas, masks,
-batch editing, a public generation API, verified Provider quality claims, Stripe repricing, public
-gallery/community features, and any second job, credit, Provider, or storage system.
+single-edit lifecycle, and PR 5 adds private branchable edit sessions. The current product includes
+the controlled guest Standard trial described above, but still excludes collaboration, comments,
+public sharing, layers/canvas, masks, batch editing, a public generation API, verified Provider
+quality claims, Stripe repricing, public gallery/community features, and any second job, credit,
+Provider, or storage system.

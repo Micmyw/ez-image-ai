@@ -3,7 +3,7 @@
 import { usePlanData } from "@payments/hooks/plan-data";
 import type { PlanId } from "@payments/types";
 import { config as paymentsConfig } from "@repo/payments/config";
-import type { PaidPlan, PaymentProviderName } from "@repo/payments/types";
+import type { PaidPlan } from "@repo/payments/types";
 import { cn } from "@repo/ui";
 import { Button } from "@repo/ui/components/button";
 import { Tabs, TabsList, TabsTrigger } from "@repo/ui/components/tabs";
@@ -16,7 +16,13 @@ import { ArrowRightIcon, BadgePercentIcon, CheckIcon, StarIcon } from "lucide-re
 import { useFormatter, useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 
-import { createCheckoutAttemptController, type CheckoutSelection } from "./checkout-attempt";
+import {
+	createCheckoutAttemptController,
+	filterSubscriptionCheckoutProviders,
+	isSubscriptionCheckoutProvider,
+	type CheckoutSelection,
+	type SubscriptionCheckoutProvider,
+} from "./checkout-attempt";
 import { PaymentProviderSelector } from "./PaymentProviderSelector";
 
 const plans = paymentsConfig.plans;
@@ -38,7 +44,7 @@ export function PricingTable({
 	const router = useRouter();
 	const localeCurrency = useLocaleCurrency();
 	const [loading, setLoading] = useState<PlanId | false>(false);
-	const [interval, setInterval] = useState<"month" | "year">("month");
+	const [interval, setInterval] = useState<"month" | "year">("year");
 	const [checkoutUnavailable, setCheckoutUnavailable] = useState(false);
 	const checkoutAttempts = useRef(createCheckoutAttemptController(createGrowthAttemptKey));
 
@@ -51,14 +57,14 @@ export function PricingTable({
 	const onSelectPlan = async (
 		planId: PlanId,
 		interval: "month" | "year",
-		provider: PaymentProviderName,
+		provider: SubscriptionCheckoutProvider,
 	) => {
 		if (!(userId || organizationId)) {
 			router.push("/signup");
 			return;
 		}
 
-		if (planId !== "creator" && planId !== "studio") {
+		if (planId !== "creator" && planId !== "ultimate" && planId !== "studio") {
 			setCheckoutUnavailable(true);
 			return;
 		}
@@ -229,7 +235,7 @@ export function PricingTable({
 									)}
 
 									{price?.type === "subscription" &&
-									(planId === "creator" || planId === "studio") ? (
+									(planId === "creator" || planId === "ultimate" || planId === "studio") ? (
 										<CheckoutControls
 											planId={planId}
 											interval={price.interval}
@@ -266,25 +272,29 @@ function CheckoutControls({
 	loading,
 	onCheckout,
 }: {
-	planId: "creator" | "studio";
+	planId: PlanId;
 	interval: "month" | "year";
 	recommended: boolean;
 	authenticated: boolean;
 	loading: boolean;
-	onCheckout: (provider: PaymentProviderName) => void;
+	onCheckout: (provider: SubscriptionCheckoutProvider) => void;
 }) {
 	const t = useTranslations();
-	const [selectedProvider, setSelectedProvider] = useState<PaymentProviderName | null>(null);
+	const [selectedProvider, setSelectedProvider] = useState<SubscriptionCheckoutProvider | null>(
+		null,
+	);
 	const availability = useQuery(
 		orpc.payments.getProviderAvailability.queryOptions({ input: { planId, interval } }),
 	);
-	const providers =
+	const providers = filterSubscriptionCheckoutProviders(
 		availability.data?.providers
 			.filter(({ capabilities }) => capabilities.checkout)
-			.map(({ name }) => name) ?? [];
-	const provider = providers.includes(selectedProvider as PaymentProviderName)
-		? selectedProvider
-		: (providers[0] ?? null);
+			.map(({ name }) => name) ?? [],
+	);
+	const provider =
+		selectedProvider && providers.includes(selectedProvider)
+			? selectedProvider
+			: (providers[0] ?? null);
 	const unavailable = availability.isError || (!availability.isPending && providers.length === 0);
 
 	return (
@@ -294,7 +304,11 @@ function CheckoutControls({
 					name={`${planId}-${interval}-provider`}
 					providers={providers}
 					value={provider}
-					onValueChange={setSelectedProvider}
+					onValueChange={(nextProvider) => {
+						if (isSubscriptionCheckoutProvider(nextProvider)) {
+							setSelectedProvider(nextProvider);
+						}
+					}}
 					disabled={loading}
 				/>
 			)}

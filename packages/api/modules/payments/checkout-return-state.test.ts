@@ -74,6 +74,23 @@ describe("checkout return webhook state", () => {
 		).toEqual({ status: "ACTIVE", planId: "creator", paidThrough });
 	});
 
+	it("accepts an effective Ultimate subscription", () => {
+		const paidThrough = new Date("2026-09-25T00:00:00.000Z");
+		expect(
+			resolveCheckoutReturnState(
+				{
+					status: "ACTIVE",
+					graceEndsAt: null,
+					plan: { metadata: { planId: "ultimate" }, name: "ultimate" },
+					periods: [{ endsAt: paidThrough }],
+					currentPeriodEnd: null,
+				},
+				"ultimate",
+				now,
+			),
+		).toEqual({ status: "ACTIVE", planId: "ultimate", paidThrough });
+	});
+
 	it.each([new Date("2026-08-25T06:00:00.000Z"), new Date("2026-08-25T05:59:59.999Z"), null])(
 		"keeps waiting when a PAST_DUE grace is not effective: %s",
 		(graceEndsAt) => {

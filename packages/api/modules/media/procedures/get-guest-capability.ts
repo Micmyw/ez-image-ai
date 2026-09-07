@@ -1,3 +1,5 @@
+import { imageAspectRatioSchema } from "@repo/ai";
+import { PRODUCT_CREDIT_COSTS } from "@repo/config";
 import { z } from "zod";
 
 import { publicProcedure } from "../../../orpc/procedures";
@@ -20,8 +22,12 @@ const guestCapabilitySnapshotSchema = z
 					key: z.enum(["image-fast", "image-quality"]),
 					label: z.string().min(1),
 					description: z.string().min(1),
-					credits: z.enum(["4", "10"]),
+					credits: z.enum([
+						PRODUCT_CREDIT_COSTS["image-fast"].toString() as "5",
+						PRODUCT_CREDIT_COSTS["image-quality"].toString() as "40",
+					]),
 					accessHint: z.enum(["guest-trial", "paid-account"]),
+					aspectRatios: z.array(imageAspectRatioSchema).min(1),
 				})
 				.strict(),
 		),

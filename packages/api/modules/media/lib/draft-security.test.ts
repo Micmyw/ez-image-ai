@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
-	assertMarketingOrigin,
+	assertExactOrigin,
 	createDraftClaimToken,
 	getDraftClaimCookie,
 	hashDraftClaimToken,
@@ -19,37 +19,38 @@ describe("draft claim security", () => {
 		expect(hashDraftClaimToken(first)).not.toContain(first);
 	});
 
-	it("accepts exactly the configured marketing origin", () => {
+	it("accepts exactly the configured public origin", () => {
 		expect(() =>
-			assertMarketingOrigin("https://studio.example.com", "https://studio.example.com"),
+			assertExactOrigin("https://studio.example.com", "https://studio.example.com"),
 		).not.toThrow();
-		expect(() =>
-			assertMarketingOrigin("https://evil.example", "https://studio.example.com"),
-		).toThrow("FORBIDDEN_ORIGIN");
-		expect(() => assertMarketingOrigin(null, "https://studio.example.com")).toThrow(
+		expect(() => assertExactOrigin("https://evil.example", "https://studio.example.com")).toThrow(
 			"FORBIDDEN_ORIGIN",
 		);
+		expect(() => assertExactOrigin(null, "https://studio.example.com")).toThrow("FORBIDDEN_ORIGIN");
 	});
 
-	it("accepts the unified SaaS origin while preserving the legacy marketing origin", () => {
+	it("accepts only the configured SaaS origin", () => {
 		expect(
 			resolveGuestPublicOrigin("https://app.example.com", {
 				saasOrigin: "https://app.example.com",
-				marketingOrigin: "https://www.example.com",
 			}),
 		).toBe("https://app.example.com");
-		expect(
+		expect(() =>
 			resolveGuestPublicOrigin("https://www.example.com", {
 				saasOrigin: "https://app.example.com",
-				marketingOrigin: "https://www.example.com",
 			}),
-		).toBe("https://www.example.com");
+		).toThrow("FORBIDDEN_ORIGIN");
 		expect(() =>
 			resolveGuestPublicOrigin("https://evil.example.com", {
 				saasOrigin: "https://app.example.com",
-				marketingOrigin: "https://www.example.com",
 			}),
 		).toThrow("FORBIDDEN_ORIGIN");
+		expect(() => resolveGuestPublicOrigin(null, { saasOrigin: "https://app.example.com" })).toThrow(
+			"FORBIDDEN_ORIGIN",
+		);
+		expect(() => resolveGuestPublicOrigin("not an origin", { saasOrigin: "not a URL" })).toThrow(
+			"FORBIDDEN_ORIGIN",
+		);
 	});
 
 	it("serializes a short-lived HttpOnly cookie without leaking the token to another path", () => {

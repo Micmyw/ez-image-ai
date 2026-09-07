@@ -58,7 +58,6 @@ const enabledEnvironment = {
 	BETTER_AUTH_SECRET: "test-secret",
 	GUEST_ABUSE_HMAC_SECRET: "independent-guest-abuse-secret-at-least-32-bytes",
 	GUEST_ABUSE_HMAC_VERSION: "launch-key-v1",
-	NEXT_PUBLIC_MARKETING_URL: "https://marketing.test",
 	MEDIA_TRUSTED_PROXY_PROVIDER: "cloudflare",
 };
 const capabilityOverride = {
@@ -104,12 +103,14 @@ describe("guest capability snapshot", () => {
 					label: "Standard Edit",
 					credits: "5",
 					accessHint: "guest-trial",
+					aspectRatios: ["auto", "1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9"],
 				},
 				{
 					key: "image-quality",
 					label: "Quality Edit",
 					credits: "40",
 					accessHint: "paid-account",
+					aspectRatios: ["auto", "1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9"],
 				},
 			],
 		});
@@ -117,7 +118,11 @@ describe("guest capability snapshot", () => {
 			...enabledEnvironment,
 			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "false",
 		});
-		expect(unavailable.products).toEqual([]);
+		expect(unavailable).toMatchObject({
+			enabled: false,
+			reason: "GUEST_PRODUCTS_UNAVAILABLE",
+			products: [],
+		});
 		expect(unavailable.version).not.toBe(snapshot.version);
 		expect(JSON.stringify(snapshot)).not.toMatch(
 			/replicate|gemini|openrouter|providerModelId|providerCostMicros|weight/i,
@@ -234,6 +239,7 @@ describe("guest private upload handoff", () => {
 	beforeEach(async () => {
 		vi.clearAllMocks();
 		vi.stubEnv("NODE_ENV", "development");
+		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", "https://saas.test");
 		vi.stubEnv("GUEST_MEDIA_ENABLED", "true");
 		vi.stubEnv("GUEST_PROMOTION_PERIOD", "2026-launch");
 		vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
@@ -242,7 +248,6 @@ describe("guest private upload handoff", () => {
 		vi.stubEnv("BETTER_AUTH_SECRET", "test-secret");
 		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", enabledEnvironment.GUEST_ABUSE_HMAC_SECRET);
 		vi.stubEnv("GUEST_ABUSE_HMAC_VERSION", enabledEnvironment.GUEST_ABUSE_HMAC_VERSION);
-		vi.stubEnv("NEXT_PUBLIC_MARKETING_URL", "https://marketing.test");
 		vi.stubEnv("MEDIA_TRUSTED_PROXY_PROVIDER", "cloudflare");
 		databaseMocks.resolveOverride.mockResolvedValue(capabilityOverride);
 		databaseMocks.findRuntimeOverrides.mockResolvedValue([]);
@@ -291,7 +296,7 @@ describe("guest private upload handoff", () => {
 			{
 				context: {
 					headers: new Headers({
-						origin: "https://marketing.test",
+						origin: "https://saas.test",
 						"cf-connecting-ip": "203.0.113.9",
 					}),
 					responseHeaders: new Headers(),
@@ -319,7 +324,7 @@ describe("guest private upload handoff", () => {
 					enabledEnvironment.GUEST_ABUSE_HMAC_SECRET,
 					enabledEnvironment.GUEST_ABUSE_HMAC_VERSION,
 					"guest-origin",
-					"https://marketing.test",
+					"https://saas.test",
 				),
 				ipHash: testGuestAbuseBinding(
 					enabledEnvironment.GUEST_ABUSE_HMAC_SECRET,
@@ -359,7 +364,7 @@ describe("guest private upload handoff", () => {
 				{
 					context: {
 						headers: new Headers({
-							origin: "https://marketing.test",
+							origin: "https://saas.test",
 							"cf-connecting-ip": "203.0.113.9",
 						}),
 						responseHeaders: new Headers(),
@@ -385,7 +390,7 @@ describe("guest private upload handoff", () => {
 				{
 					context: {
 						headers: new Headers({
-							origin: "https://marketing.test",
+							origin: "https://saas.test",
 							"cf-connecting-ip": "203.0.113.9",
 						}),
 						responseHeaders: new Headers(),
@@ -407,17 +412,18 @@ describe("guest private upload handoff", () => {
 				productKey: "image-quality",
 				sha256: "a".repeat(64),
 				prompt: "Preserve every product detail",
+				aspectRatio: "16:9",
 			},
 			{
 				context: {
-					headers: new Headers({ origin: "https://marketing.test" }),
+					headers: new Headers({ origin: "https://saas.test" }),
 					responseHeaders: new Headers(),
 				},
 			},
 		);
 
 		expect(databaseMocks.finalizeDraft).toHaveBeenCalledWith(
-			expect.objectContaining({ productKey: "image-quality" }),
+			expect.objectContaining({ productKey: "image-quality", aspectRatio: "16:9" }),
 			expect.anything(),
 		);
 		expect(result).toMatchObject({
@@ -441,7 +447,7 @@ describe("guest private upload handoff", () => {
 			{
 				context: {
 					headers: new Headers({
-						origin: "https://marketing.test",
+						origin: "https://saas.test",
 						"cf-connecting-ip": "203.0.113.9",
 					}),
 					responseHeaders: new Headers(),
@@ -469,7 +475,7 @@ describe("guest private upload handoff", () => {
 			},
 			{
 				context: {
-					headers: new Headers({ origin: "https://marketing.test" }),
+					headers: new Headers({ origin: "https://saas.test" }),
 					responseHeaders: new Headers(),
 				},
 			},
@@ -489,7 +495,7 @@ describe("guest private upload handoff", () => {
 					enabledEnvironment.GUEST_ABUSE_HMAC_SECRET,
 					enabledEnvironment.GUEST_ABUSE_HMAC_VERSION,
 					"guest-origin",
-					"https://marketing.test",
+					"https://saas.test",
 				),
 			}),
 			expect.anything(),
@@ -544,7 +550,7 @@ describe("guest private upload handoff", () => {
 		};
 		const context = {
 			context: {
-				headers: new Headers({ origin: "https://marketing.test" }),
+				headers: new Headers({ origin: "https://saas.test" }),
 				responseHeaders: new Headers(),
 			},
 		};
@@ -583,7 +589,7 @@ describe("guest private upload handoff", () => {
 				},
 				{
 					context: {
-						headers: new Headers({ origin: "https://marketing.test" }),
+						headers: new Headers({ origin: "https://saas.test" }),
 						responseHeaders: new Headers(),
 					},
 				},

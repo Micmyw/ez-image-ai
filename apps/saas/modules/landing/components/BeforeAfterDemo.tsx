@@ -13,10 +13,10 @@ export function BeforeAfterDemo() {
 		<section
 			id="before-after"
 			aria-labelledby="before-after-title"
-			className="py-14 text-white sm:py-20 relative overflow-hidden border-b border-[#2c2440] bg-[#100d1b]"
+			className="py-20 text-white sm:py-28 relative overflow-hidden"
 		>
 			<div
-				className="-right-48 bg-orange-400/10 blur-3xl pointer-events-none absolute bottom-[-18rem] size-[34rem] rounded-full"
+				className="-right-48 bg-orange-400/[0.07] blur-3xl pointer-events-none absolute bottom-[-18rem] size-[34rem] rounded-full"
 				aria-hidden="true"
 			/>
 			<div className="container">
@@ -51,7 +51,10 @@ export function BeforeAfterDemo() {
 						</div>
 					</div>
 
-					<div className="border-white/10 p-2 sm:p-3 relative overflow-hidden rounded-[2rem] border bg-[#211a31] shadow-[0_34px_90px_-44px_rgba(108,77,255,0.75)]">
+					<div
+						data-test="before-after-frame"
+						className="border-white/10 p-2 sm:p-3 backdrop-blur-sm focus-within:ring-violet-300 relative overflow-hidden rounded-[2rem] border bg-[#211a31]/88 shadow-[0_34px_90px_-44px_rgba(108,77,255,0.75)] transition-shadow focus-within:ring-2 focus-within:ring-offset-4 focus-within:ring-offset-[#100a19]"
+					>
 						<div className="relative aspect-[3/2] overflow-hidden rounded-[1.55rem]">
 							<Image
 								src="/examples/studio-before.svg"

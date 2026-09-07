@@ -126,7 +126,7 @@ async function seedFailedGuestJob() {
 			ownerId,
 			promotionPeriod: `retry-${suffix}`,
 			eligibility: "CONSUMED",
-			sponsorCredits: 4n,
+			sponsorCredits: 5n,
 			sourceAssetId: assetId,
 			sourceSessionHash: hash(`session:${suffix}`),
 			deviceHash: hash(`device:${suffix}`),

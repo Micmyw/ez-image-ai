@@ -14,7 +14,6 @@ const productionEnvironment = {
 	DEPLOYMENT_VERSION: "98287b05a8b4881cbf9c1b415738c52cda086ee5",
 	DATABASE_URL: "postgresql://runtime:secret@db.example.net/ezpic_production",
 	EZPIC_DATABASE_RESOURCE_ID: "postgres:ezpic-production",
-	NEXT_PUBLIC_MARKETING_URL: "https://www.ezpic.ai",
 	NEXT_PUBLIC_SAAS_URL: "https://www.ezpic.ai",
 	NEXT_PUBLIC_SUPPORT_EMAIL: "support@ezpic.ai",
 	NEXT_PUBLIC_SITE_NAME: "EzPic",
@@ -56,6 +55,7 @@ const productionEnvironment = {
 	PAYPAL_WEBHOOK_ID: "WH-paypal-webhook",
 	PAYPAL_PLAN_ID_CREATOR_MONTHLY: "P-CREATOR-MONTHLY",
 	WAFFO_ENVIRONMENT: "prod",
+	WAFFO_STORE_ID: "STO_0123456789AbCdEfGhIjKl",
 	WAFFO_MERCHANT_ID: "waffo-merchant-present-only",
 	WAFFO_PRIVATE_KEY: "waffo-private-key-present-only",
 	WAFFO_WEBHOOK_PUBLIC_KEY: "waffo-webhook-public-key-present-only",
@@ -102,6 +102,33 @@ function environmentMatrix() {
 }
 
 describe("EzPic production launch environment", () => {
+	it("accepts PayPal/Waffo production billing without Stripe lifecycle configuration", () => {
+		const input: Record<string, string | undefined> = { ...productionEnvironment };
+		for (const key of [
+			"STRIPE_SECRET_KEY",
+			"STRIPE_WEBHOOK_SECRET",
+			"PRICE_ID_CREATOR_MONTHLY",
+			"PRICE_ID_CREATOR_YEARLY",
+			"PRICE_ID_STUDIO_MONTHLY",
+			"PRICE_ID_STUDIO_YEARLY",
+			"EZPIC_STRIPE_WEBHOOK_SCOPE_ID",
+		]) {
+			delete input[key];
+		}
+
+		const result = validateEzPicLaunchEnvironment(input);
+		expect(result.resources).not.toHaveProperty("stripeWebhookScope");
+	});
+
+	it("requires a Stripe Webhook scope only when legacy Stripe lifecycle is configured", () => {
+		expect(() =>
+			validateEzPicLaunchEnvironment({
+				...productionEnvironment,
+				EZPIC_STRIPE_WEBHOOK_SCOPE_ID: undefined,
+			}),
+		).toThrow(/EZPIC_STRIPE_WEBHOOK_SCOPE_ID/);
+	});
+
 	it("accepts a complete production configuration without returning secret values", () => {
 		const result = validateEzPicLaunchEnvironment(productionEnvironment);
 
@@ -141,22 +168,45 @@ describe("EzPic production launch environment", () => {
 		).toThrow(/WAFFO_PRODUCT_ID_CREATOR_MONTHLY/);
 	});
 
-	it("accepts one canonical origin for the public tool and authenticated product", () => {
+	it("rejects sandbox payment environments in a production launch", () => {
 		expect(() =>
 			validateEzPicLaunchEnvironment({
 				...productionEnvironment,
-				NEXT_PUBLIC_MARKETING_URL: productionEnvironment.NEXT_PUBLIC_SAAS_URL,
+				PAYPAL_ENVIRONMENT: "sandbox",
 			}),
-		).not.toThrow();
+		).toThrow(/PAYPAL_ENVIRONMENT.*live/i);
+		expect(() =>
+			validateEzPicLaunchEnvironment({
+				...productionEnvironment,
+				WAFFO_ENVIRONMENT: "test",
+			}),
+		).toThrow(/WAFFO_ENVIRONMENT.*prod/i);
 	});
 
-	it("rejects a separate marketing service origin", () => {
+	it.each([undefined, "", "support@localhost.invalid", "replace-me@example.com"])(
+		"requires a real public support email (%s)",
+		(value) => {
+			expect(() =>
+				validateEzPicLaunchEnvironment({
+					...productionEnvironment,
+					NEXT_PUBLIC_SUPPORT_EMAIL: value,
+				}),
+			).toThrow(/NEXT_PUBLIC_SUPPORT_EMAIL/);
+		},
+	);
+
+	it("accepts the SaaS origin as the only canonical public origin", () => {
+		expect(() => validateEzPicLaunchEnvironment(productionEnvironment)).not.toThrow();
+	});
+
+	it("does not reactivate a retired public-origin compatibility value", () => {
+		const retiredOriginKey = ["NEXT", "PUBLIC", "MARKETING", "URL"].join("_");
 		expect(() =>
 			validateEzPicLaunchEnvironment({
 				...productionEnvironment,
-				NEXT_PUBLIC_MARKETING_URL: "https://marketing.ezpic.ai",
+				[retiredOriginKey]: "https://legacy.placeholder.invalid",
 			}),
-		).toThrow(/origin.*match|same origin/i);
+		).not.toThrow();
 	});
 
 	it.each([
@@ -302,7 +352,6 @@ describe("EzPic production launch environment", () => {
 	});
 
 	it.each([
-		["NEXT_PUBLIC_MARKETING_URL", "https://marketing.placeholder.invalid"],
 		["NEXT_PUBLIC_SAAS_URL", "http://127.0.0.1:3000"],
 		["NEXT_PUBLIC_SAAS_URL", "https://app.ezpic.ai/unexpected-path"],
 		["S3_ENDPOINT", "http://127.0.0.1:59000"],
@@ -380,6 +429,15 @@ describe("EzPic production launch environment", () => {
 });
 
 describe("EzPic environment isolation matrix", () => {
+	it("allows environments that do not provision a legacy Stripe Webhook scope", () => {
+		const matrix = environmentMatrix();
+		for (const manifest of matrix.environments) {
+			delete (manifest.resources as Partial<typeof manifest.resources>).stripeWebhookScope;
+		}
+
+		expect(() => validateEzPicEnvironmentMatrix(matrix)).not.toThrow();
+	});
+
 	it("requires one distinct dev, test, staging, and production resource set", () => {
 		const matrix = validateEzPicEnvironmentMatrix(environmentMatrix());
 		expect(matrix.environments).toHaveLength(4);

@@ -24,10 +24,9 @@ Use for failures in `.github/workflows/validate-prs.yml`. Do not change tests, w
    pnpm lint
    pnpm format:check
    pnpm type-check
-   pnpm --filter @repo/api --filter saas --filter marketing test
+   pnpm --filter @repo/api --filter saas test
    pnpm --filter @repo/database generate
    pnpm --filter saas e2e:ci
-   pnpm --filter marketing e2e:ci
    ```
    Run only the commands for the failed job after installation. CI's E2E install step uses `pnpm --filter database generate`; the unambiguous local package name is `@repo/database`.
 4. Match CI environment requirements: `DATABASE_URL`, a test `BETTER_AUTH_SECRET`, and `RESEND_API_KEY` are workflow env values. Do not print secret values.
@@ -49,4 +48,4 @@ Document the failing job and error, root cause, changed files, and successful lo
 - Assuming CI runs root `pnpm test`; its unit job uses three explicit filters.
 - Fixing a secondary timeout while ignoring an earlier server build error.
 - Logging or copying secret values into an issue or test fixture.
-- Looking for a marketing report in CI artifacts; the current upload step includes only SaaS.
+- Looking for separate public-content or Docs reports; CI uploads the unified SaaS artifacts.

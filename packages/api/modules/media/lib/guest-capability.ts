@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
-import { DEFAULT_PRODUCT_CONFIG, PRODUCT_CREDIT_COSTS } from "@repo/config";
+import { DEFAULT_PRODUCT_CONFIG, PRODUCT_CREDIT_COSTS, type ImageAspectRatio } from "@repo/config";
 import { getGuestMediaConfig, type GuestMediaConfig } from "@repo/config/server";
 import { resolveGuestRuntimeConfigOverride } from "@repo/database";
 import { db } from "@repo/database/client";
@@ -13,6 +13,7 @@ export interface GuestCapabilityProduct {
 	description: string;
 	credits: `${(typeof PRODUCT_CREDIT_COSTS)["image-fast" | "image-quality"]}`;
 	accessHint: "guest-trial" | "paid-account";
+	aspectRatios: readonly ImageAspectRatio[];
 }
 
 export interface GuestCapabilitySnapshot {
@@ -55,12 +56,16 @@ export async function loadGuestCapability(
 	} catch {
 		// Catalog/runtime availability is part of the fail-closed public capability.
 	}
+	const hasExecutableProducts = products.length > 0;
+	const enabled = config.enabled && hasExecutableProducts;
+	const reason =
+		config.enabled && !hasExecutableProducts ? "GUEST_PRODUCTS_UNAVAILABLE" : config.reason;
 	return {
 		config,
 		snapshot: Object.freeze({
 			version: createGuestCapabilityVersion(runtimeVersion, config, products),
-			enabled: config.enabled,
-			reason: config.reason,
+			enabled,
+			reason,
 			upload: Object.freeze({
 				mimeTypes: Object.freeze([...config.mimeTypes]),
 				maximumBytes: config.maximumBytes,
@@ -135,12 +140,14 @@ function toGuestCapabilityProduct(input: {
 	label: string;
 	description: string;
 	credits: number;
+	aspectRatios: readonly ImageAspectRatio[];
 }): GuestCapabilityProduct {
 	if (input.key === "image-fast" && input.credits === PRODUCT_CREDIT_COSTS["image-fast"]) {
 		return Object.freeze({
 			...input,
 			credits: input.credits.toString() as GuestCapabilityProduct["credits"],
 			accessHint: "guest-trial" as const,
+			aspectRatios: Object.freeze([...input.aspectRatios]),
 		});
 	}
 	if (input.key === "image-quality" && input.credits === PRODUCT_CREDIT_COSTS["image-quality"]) {
@@ -148,6 +155,7 @@ function toGuestCapabilityProduct(input: {
 			...input,
 			credits: input.credits.toString() as GuestCapabilityProduct["credits"],
 			accessHint: "paid-account" as const,
+			aspectRatios: Object.freeze([...input.aspectRatios]),
 		});
 	}
 	throw new Error("GUEST_PRODUCT_CONFIGURATION_INVALID");

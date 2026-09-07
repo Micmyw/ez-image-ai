@@ -5,6 +5,31 @@ import { deliverOutboxEvent } from "./deliver-outbox-event";
 import { dispatchOutbox } from "./dispatch-outbox";
 
 describe("outbox delivery routes", () => {
+	it.each(["CREDIT_PACK_FULFILLED", "CREDIT_PACK_ADJUSTED"])(
+		"acknowledges the durable %s domain record without dispatching another payment job",
+		async (eventType) => {
+			const trigger = vi.fn(async () => undefined);
+			const triggerAndWait = vi.fn(async () => undefined);
+			const resolveDispatchRoute = vi.fn(async () => null);
+
+			await deliverOutboxEvent(
+				{
+					id: `event-${eventType}`,
+					eventType,
+					aggregateId: "credit-pack-record-1",
+					payload: {},
+					leaseToken: "lease-1",
+					attempts: 1,
+				},
+				{ trigger, triggerAndWait, resolveDispatchRoute },
+			);
+
+			expect(trigger).not.toHaveBeenCalled();
+			expect(triggerAndWait).not.toHaveBeenCalled();
+			expect(resolveDispatchRoute).not.toHaveBeenCalled();
+		},
+	);
+
 	it("routes guest eligibility through the durable admission worker and waits for its result", async () => {
 		const trigger = vi.fn(async () => undefined);
 		const triggerAndWait = vi.fn(async () => undefined);

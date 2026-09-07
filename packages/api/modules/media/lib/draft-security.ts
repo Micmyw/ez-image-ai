@@ -17,7 +17,7 @@ export function draftTokenHashesMatch(token: string, expectedHash: string): bool
 	return expected.length === actual.length && timingSafeEqual(actual, expected);
 }
 
-export function assertMarketingOrigin(origin: string | null, configuredOrigin: string): void {
+export function assertExactOrigin(origin: string | null, configuredOrigin: string): void {
 	let actual: URL;
 	let expected: URL;
 	try {
@@ -34,21 +34,11 @@ export function assertMarketingOrigin(origin: string | null, configuredOrigin: s
 
 export function resolveGuestPublicOrigin(
 	origin: string | null,
-	configured: {
-		saasOrigin?: string | null;
-		marketingOrigin?: string | null;
-	},
+	configured: { saasOrigin?: string | null },
 ): string {
-	for (const candidate of [configured.saasOrigin, configured.marketingOrigin]) {
-		if (!candidate) continue;
-		try {
-			assertMarketingOrigin(origin, candidate);
-			return new URL(candidate).origin;
-		} catch {
-			// Try the other explicitly configured public origin during the one-app migration.
-		}
-	}
-	throw new Error("FORBIDDEN_ORIGIN");
+	if (!configured.saasOrigin) throw new Error("FORBIDDEN_ORIGIN");
+	assertExactOrigin(origin, configured.saasOrigin);
+	return new URL(configured.saasOrigin).origin;
 }
 
 export function getDraftClaimCookie(token: string, secure: boolean): string {

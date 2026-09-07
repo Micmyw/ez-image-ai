@@ -21,7 +21,9 @@ Use for installation, local PostgreSQL, optional MinIO, generated Prisma artifac
    cp .env.local.example .env.local
    export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/supastarter"
    ```
-   Put the same `DATABASE_URL` in `.env.local`, along with a strong local `BETTER_AUTH_SECRET`, SaaS `3000`, marketing `3001`, and docs `3002`. Keep `DATABASE_URL` exported while running direct database package scripts: their explicit `.env` flag does not read `.env.local` by itself. Correct the example's stale `NEXT_PUBLIC_DOCS_URL` value, which currently points to `3001`.
+   Put the same `DATABASE_URL` in `.env.local`, along with a strong local `BETTER_AUTH_SECRET` and
+   `NEXT_PUBLIC_SAAS_URL=http://localhost:3000`. Keep `DATABASE_URL` exported while running direct
+   database package scripts: their explicit `.env` flag does not read `.env.local` by itself.
 3. Start PostgreSQL 16 and verify its health:
    ```bash
    docker compose up -d postgres
@@ -37,7 +39,8 @@ Use for installation, local PostgreSQL, optional MinIO, generated Prisma artifac
    ```bash
    pnpm dev
    ```
-   SaaS, marketing, docs, and mail preview use ports 3000, 3001, 3002, and 3003.
+   The root command starts only SaaS and its task dependencies. Public content and Docs are served
+   by SaaS below the same origin. Start Mail Preview explicitly only when email-template work needs it.
 6. If storage is needed, start `minio` and `minio-setup`, then use the MinIO values documented in `.env.local.example`:
    ```bash
    docker compose up -d minio minio-setup
@@ -50,7 +53,8 @@ Use for installation, local PostgreSQL, optional MinIO, generated Prisma artifac
 
 ## Done
 
-From a clean checkout, dependencies install, Prisma generation/push succeeds, required containers are healthy, SaaS `/api/health` returns `OK`, and every requested app resolves on its configured port.
+From a clean checkout, dependencies install, Prisma generation/push succeeds, required containers
+are healthy, and SaaS `/api/health`, `/`, and `/docs` resolve on the configured origin.
 
 ## Common mistakes
 
@@ -58,5 +62,4 @@ From a clean checkout, dependencies install, Prisma generation/push succeeds, re
 - Expecting direct database scripts to discover `.env.local` without exporting `DATABASE_URL`.
 - Starting MinIO for work that only needs PostgreSQL.
 - Skipping Prisma generation after install or schema changes.
-- Replacing local app URLs with one shared port.
-- Keeping the example docs URL on marketing port `3001` and linking to the wrong app.
+- Adding separate public-content or Docs origins instead of using `NEXT_PUBLIC_SAAS_URL`.

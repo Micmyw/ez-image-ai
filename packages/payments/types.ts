@@ -109,6 +109,10 @@ export interface CreateCheckoutLinkOptions {
 	type: "subscription" | "one-time";
 	priceId: string;
 	currency: string;
+	/** Exact server-owned amount for one-time checkout, in millionths of a currency unit. */
+	amountMicros?: bigint;
+	/** Server-owned checkout line description. */
+	description?: string;
 	billingPlanId: string;
 	checkoutIntentId: string;
 	idempotencyKey: string;
@@ -135,9 +139,37 @@ export interface CreatedCheckout {
 	expiresAt: Date | null;
 }
 
+export interface RecoverCheckoutOptions extends CreateCheckoutLinkOptions {
+	/** Local time immediately before the uncertain provider create was attempted. */
+	providerCreatingAt: Date;
+	/** Server-owned recovery decision time, supplied explicitly for deterministic policy checks. */
+	now: Date;
+}
+
+export type CheckoutRecoveryResult =
+	| { status: "FOUND"; checkout: CreatedCheckout; providerOrderId?: string }
+	| { status: "FOUND_UNRESUMABLE"; providerOrderId: string }
+	| { status: "NOT_FOUND" }
+	| { status: "UNKNOWN" };
+
+export interface CapturedCheckoutEvent {
+	providerEventId: string;
+	normalizedTransactionId: string;
+	envelope: Record<string, unknown>;
+}
+
+export interface CaptureCheckoutOptions {
+	providerOrderId: string;
+	idempotencyKey: string;
+}
+
 export type CreateProviderCheckout = (
 	params: CreateCheckoutLinkOptions,
 ) => Promise<CreatedCheckout>;
+
+export type RecoverProviderCheckout = (
+	params: RecoverCheckoutOptions,
+) => Promise<CheckoutRecoveryResult>;
 
 export type CreateCustomerPortalLink = (params: {
 	subscriptionId?: string;
@@ -155,6 +187,8 @@ export type PaymentProvider = {
 	name: PaymentProviderName;
 	capabilities: PaymentProviderCapabilities;
 	createCheckout: CreateProviderCheckout;
+	recoverCheckout?: RecoverProviderCheckout;
+	captureCheckout?: (params: CaptureCheckoutOptions) => Promise<CapturedCheckoutEvent>;
 	createPortal?: CreateCustomerPortalLink;
 	cancelSubscription?: CancelSubscription;
 	setSubscriptionSeats?: SetSubscriptionSeats;

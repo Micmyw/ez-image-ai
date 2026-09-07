@@ -12,17 +12,15 @@ import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 export async function POST(request: Request) {
-	const marketingOrigin = process.env.NEXT_PUBLIC_MARKETING_URL;
 	const saasOrigin = process.env.NEXT_PUBLIC_SAAS_URL;
 	if (!saasOrigin) return new Response(null, { status: 403 });
 	try {
 		const publicOrigin = resolveGuestPublicOrigin(request.headers.get("origin"), {
 			saasOrigin,
-			marketingOrigin,
 		});
 		const session = await getSession();
 		return await createDraftHandoffResponse(request, {
-			marketingOrigin: publicOrigin,
+			publicOrigin,
 			saasOrigin,
 			secure: process.env.NODE_ENV === "production",
 			isRegistered: Boolean(session && !isAnonymousUser(session.user)),

@@ -26,40 +26,60 @@
 		"title": "Dokumentation"
 	},
 	"faq": {
-		"description": "Klare Antworten zu Gastbearbeitungen, privaten Bildern, Credits und Konto-Upgrades.",
+		"description": "Klare Antworten zu Gastverfügbarkeit, Bearbeitungstarifen, Credits, privaten Medien, Abrechnung und verantwortungsvoller Nutzung.",
 		"title": "Häufig gestellte Fragen",
 		"items": {
-			"realGeneration": {
-				"question": "Kann ich ein Bild direkt auf der Startseite bearbeiten?",
-				"answer": "Ja. Lade ein Quellbild hoch, beschreibe die Änderung und starte ohne Konto eine Standard-Bearbeitung im temporären Gastbereich."
+			"guestAvailability": {
+				"question": "Wann ist die Gastbearbeitung verfügbar?",
+				"answer": "Wenn die gesponserte Gast-Warteschlange verfügbar ist, kann eine Person ohne Konto eine Standard Edit starten. Das Ergebnis ist mit einem Wasserzeichen versehen, privat und bis zu 24 Stunden verfügbar."
+			},
+			"guestVsFree": {
+				"question": "Worin unterscheiden sich Gastzugang und Free?",
+				"answer": "Der Gastzugang bietet bedingt eine einmalige gesponserte Standard Edit mit Wasserzeichen, die bis zu 24 Stunden aufbewahrt wird. Ein registriertes Free-Konto erhält monatlich 25 Credits: Standard Edit kostet 5 Credits, also sind bis zu fünf Standard Edits möglich; Quality Edit ist nicht enthalten."
+			},
+			"editTiers": {
+				"question": "Was ist der Unterschied zwischen Standard Edit und Quality Edit?",
+				"answer": "Standard Edit kostet 5 Credits, Quality Edit 40 Credits. Jede bestätigte Bearbeitung erzeugt ein Ergebnis. Quality Edit erfordert Creator oder Studio."
+			},
+			"creditReservation": {
+				"question": "Wann werden Credits verwendet?",
+				"answer": "Bei Kontobearbeitungen werden die Credits reserviert, wenn du den Auftrag bestätigst. Das unveränderliche Credit-Ledger belastet oder erstattet sie im endgültigen Auftragsstatus. Ist die Annahme durch den Dienst ungewiss, bleibt die Reservierung bestehen, bis die Wiederherstellung denselben Versuch geklärt hat."
+			},
+			"failedEdits": {
+				"question": "Was passiert mit Credits, wenn eine Bearbeitung fehlschlägt?",
+				"answer": "Erreicht ein Auftrag einen bestätigten endgültigen Fehlerstatus, gibt das Ledger die reservierten Credits zurück. Ein Versuch mit ungewisser Dienstannahme gilt nicht als fehlgeschlagen; die Reservierung bleibt bestehen, bis die Wiederherstellung ihn klärt."
 			},
 			"privateUploads": {
 				"question": "Sind hochgeladene Bilder öffentlich?",
-				"answer": "Nein. Quellbilder und Ergebnisse von Gästen bleiben privat und vorübergehend; Kontomedien bleiben dem Eigentümer zugeordnet."
-			},
-			"restrictions": {
-				"question": "Was bedeutet „No Restrictions“ hier?",
-				"answer": "Gemeint sind natürlichsprachige Prompts, weniger vorlagengebundene Schritte, private Uploads und transparente Credits. Übliche Sicherheits-, Rechts-, Provider- und Nutzungslimits gelten weiterhin."
+				"answer": "Nein. Eingaben und Ergebnisse von Gästen und Konten bleiben privat und werden nicht in einer öffentlichen Galerie veröffentlicht. Das konfigurierte Aufbewahrungsziel für Ein- und Ausgaben von Konten beträgt 30 Tage. EzPic kann nur die für die Verarbeitung erforderlichen Mindestinhalte an konfigurierte Infrastruktur- und Bildverarbeitungsdienste übermitteln."
 			},
 			"formats": {
-				"question": "Welche Bildformate kann ich hochladen?",
-				"answer": "Die Startseite akzeptiert JPEG-, PNG- und WebP-Bilder bis zu dem am Upload angegebenen Dateilimit."
+				"question": "Welche Bilder kann ich hochladen?",
+				"answer": "JPEG, PNG und WebP werden unterstützt. Gast-Uploads sind auf 10 MB begrenzt; Kontolimits stehen auf der Preisseite."
 			},
-			"refundPolicy": {
-				"question": "Wie werden Rückerstattungen behandelt?",
-				"answer": "Ob eine Rückerstattung möglich ist, richtet sich nach den geltenden Zahlungsbedingungen. Wende dich mit deinen Rechnungsdaten an den Support."
+			"outputBehavior": {
+				"question": "Sind alle Ergebnisse einzigartig und exakt?",
+				"answer": "Nein. Ergebnisse können Fehler enthalten oder anderen Bildern ähneln. EzPic garantiert weder Einzigartigkeit noch Eignung für einen bestimmten Zweck oder Freiheit von Rechten Dritter."
+			},
+			"stableTiers": {
+				"question": "Warum zeigt EzPic Tarifnamen statt Modellnamen?",
+				"answer": "Das Produkt zeigt die stabilen Namen Standard Edit und Quality Edit. Die Dienstroute wird serverseitig gesteuert und kann sich ändern, ohne den öffentlichen Tarifvertrag zu ändern."
+			},
+			"annualBilling": {
+				"question": "Wie wirkt sich die Jahreszahlung auf die Credits aus?",
+				"answer": "Creator kostet 190 $ pro Jahr, Studio 790 $ pro Jahr. Die Credits werden trotzdem monatlich vergeben—700 für Creator und 3.000 für Studio—und nicht genutzte Credits werden nicht übertragen."
 			},
 			"cancelSubscription": {
-				"question": "Wie kann ich mein Abonnement kündigen?",
-				"answer": "Du kannst dein Abonnement auf der Rechnungsseite kündigen."
+				"question": "Wie kündige ich mein Abonnement?",
+				"answer": "Öffne Billing, um die Kündigung zu verwalten. Wann sich dein Zugang ändert, hängt vom tatsächlichen Status und Enddatum deines Abonnements ab."
 			},
-			"changePlan": {
-				"question": "Kann ich meinen Plan ändern?",
-				"answer": "Ja, du kannst deinen Plan jederzeit auf der Rechnungsseite ändern."
+			"refundPolicy": {
+				"question": "Wie werden Erstattungen gehandhabt?",
+				"answer": "Die Erstattungsberechtigung richtet sich nach den Zahlungsbedingungen, dem Transaktionsstatus und dem geltenden Recht. Wende dich zur Prüfung an den Support; EzPic verspricht keine Erstattung, wenn kein Anspruch besteht."
 			},
-			"freeTrial": {
-				"question": "Gibt es einen kostenlosen Tarif?",
-				"answer": "Ja. Der Free-Tarif enthält 25 monatliche Credits und Zugriff auf Standard Edit."
+			"commercialUse": {
+				"question": "Darf ich bearbeitete Bilder kommerziell nutzen?",
+				"answer": "Vor einer kommerziellen Nutzung musst du die Rechte an allen Eingaben besitzen und die geltenden Bedingungen, Gesetze und Rechte Dritter selbst prüfen. Gast-Ergebnisse sind vorübergehend und mit einem Wasserzeichen versehen; EzPic behauptet nicht, dass Ausgaben automatisch für die kommerzielle Nutzung freigegeben sind."
 			}
 		}
 	},
@@ -67,9 +87,9 @@
 		"generator": {
 			"eyebrow": "Bearbeitung planen",
 			"title": "Beschreibe die gewünschte Änderung",
-			"subtitle": "Lade ein Quellbild hoch, beschreibe die Bearbeitung und starte eine private Standard-Bearbeitung in EzPic.",
+			"subtitle": "Lade ein Quellbild hoch und beschreibe die Bearbeitung. Wenn die Gast-Warteschlange verfügbar ist, kannst du eine private Standard Edit in EzPic starten.",
 			"offer": "Eine Standard-Bearbeitung kostenlos testen",
-			"noSignUp": "Keine Registrierung erforderlich",
+			"noSignUp": "Keine Registrierung, wenn die Gast-Warteschlange verfügbar ist",
 			"paidSignIn": "Anmeldung und Creator oder Studio erforderlich",
 			"oneOutput": "Ein Ergebnis",
 			"freeQueue": "Kostenlose Warteschlange · eine Vorschau mit Wasserzeichen · bis zu 24 Stunden verfügbar",
@@ -79,6 +99,17 @@
 			"qualityCta": "Qualitätsbearbeitung · Creator oder Studio",
 			"retryChallenge": "Überprüfung erneut versuchen",
 			"characterCount": "{count, number} / {maximum, number}",
+			"settings": {
+				"title": "Ausgabe-Einstellungen",
+				"trigger": "Ausgabe-Einstellungen öffnen",
+				"aspectRatio": "Seitenverhältnis",
+				"automatic": "Automatisch",
+				"outputNumber": "Anzahl der Ergebnisse",
+				"oneOutput": "Jede bestätigte Bearbeitung liefert ein Bild",
+				"resolution": "Auflösung",
+				"quality": "Qualität",
+				"modeControlsQuality": "Wird durch die Bearbeitungsstufe bestimmt"
+			},
 			"states": {
 				"challenge": "Diesen Gast-Upload bestätigen",
 				"checking": "Verfügbarkeit der Bearbeitung wird geprüft…",
@@ -102,7 +133,8 @@
 			"actions": {
 				"standard": "Eine Standard-Bearbeitung kostenlos testen",
 				"quality": "Mit Quality Edit fortfahren",
-				"retry": "{product} erneut versuchen"
+				"retry": "{product} erneut versuchen",
+				"retryAvailability": "Bearbeitungsverfügbarkeit erneut prüfen"
 			},
 			"errors": {
 				"turnstile": "Schließe die Überprüfung ab und versuche es erneut.",
@@ -110,9 +142,9 @@
 			},
 			"prompt": "Bearbeitung beschreiben",
 			"reference": "Quellbild",
-			"placeholder": "Ersetze den Hintergrund durch eine weich beleuchtete Studiowand und lasse das Motiv unverändert…",
+			"placeholder": "Beschreibe, was du ändern möchtest…",
 			"continue": "Mit der Bearbeitung fortfahren",
-			"privacy": "Dein Entwurf wird bis zu einer Stunde privat gespeichert. Kein Bild wird bearbeitet, bevor du dich anmeldest und bestätigst.",
+			"privacy": "Quellbilder und Ergebnisse von Gästen bleiben privat und werden bis zu 24 Stunden vorübergehend gespeichert. Für Kontomedien gilt die Aufbewahrung aus unserer Datenschutzerklärung.",
 			"error": "Der Bearbeitungsentwurf konnte nicht gespeichert werden. Bitte versuche es später erneut.",
 			"steps": { "idea": "Hochladen", "control": "Beschreiben", "create": "Prüfen" },
 			"fileHint": "JPEG, PNG oder WebP bis {megabytes, number} MB",
@@ -133,21 +165,29 @@
 				"standard": {
 					"label": "Standard Edit",
 					"badge": "Gast-Test",
-					"description": "Schnelle alltägliche Bearbeitungen",
+					"description": "Quellbildbearbeitung mit einem Ergebnis",
 					"access": "Eine Gastbearbeitung"
 				},
 				"quality": {
 					"label": "Quality Edit",
 					"badge": "Bezahltes Konto",
-					"description": "Bearbeitungen mit höherer Detailtreue",
+					"description": "Quellbildbearbeitung mit einem Ergebnis",
 					"access": "Creator- oder Studio-Konto erforderlich"
 				}
 			},
-			"loginNotice": "Die echte Bilderzeugung beginnt erst nach Anmeldung und Bestätigung der Credit-Kosten.",
+			"loginNotice": "Standard-Gastbearbeitungen können ohne Anmeldung starten, wenn die Gast-Warteschlange verfügbar ist; Kontobearbeitungen erfordern die Bestätigung des Credit-Betrags.",
 			"previewCaption": "Quellvorschau",
 			"previewPlaceholderAlt": "Originale EzPic-Vektorillustration eines neutralen Lesezimmers",
 			"previewAlt": "Vorschau von {fileName}",
 			"privateLabel": "Privater Entwurf",
+			"floating": {
+				"label": "Schnell-Editor",
+				"open": "Schnell-Editor öffnen",
+				"expand": "Schnell-Editor erweitern",
+				"collapse": "Schnell-Editor einklappen",
+				"upload": "Referenzbild hinzufügen",
+				"imageReady": "Referenzbild bereit"
+			},
 			"fileErrors": {
 				"required": "Wähle vor dem Fortfahren ein Quellbild.",
 				"empty": "Wähle ein nicht leeres Quellbild.",
@@ -156,10 +196,65 @@
 				"read": "Dieses Bild konnte nicht gelesen werden. Wähle eine andere Datei."
 			}
 		},
+		"creatorWorkflows": {
+			"eyebrow": "Illustrative Creator-Storys",
+			"title": "Kreative Arbeit in viele Richtungen",
+			"description": "Lerne sechs zusammengesetzte Creator-Profile und die fokussierten Bildbearbeitungsaufträge kennen, die sie zu EzPic mitbringen könnten.",
+			"pause": "Bewegung anhalten",
+			"resume": "Bewegung fortsetzen",
+			"listLabel": "Illustrative Creator-Story-Karten",
+			"columnLabel": "Creator-Story-Spalte {number, number} von {total, number}",
+			"directionLabel": "Beispielauftrag",
+			"disclaimer": "Diese zusammengesetzten Profile zeigen mögliche EzPic-Workflows. Sie sind keine Kundenstimmen, veröffentlichten Fallstudien oder zugesicherten Ergebnisse.",
+			"cards": {
+				"ecommerce": {
+					"name": "Mina I.",
+					"role": "Inhaberin eines unabhängigen Shops",
+					"title": "Aus einem klaren Packshot eine Kampagnenszene entwickeln",
+					"description": "Produktsilhouette und Etikettbereich bewahren und zugleich eine saisonale Umgebung erkunden.",
+					"direction": "Studio-Packshot → warme Festtagskulisse"
+				},
+				"brand": {
+					"name": "Theo H.",
+					"role": "Branddesigner",
+					"title": "Ein visuelles System auf einen ganzen Launch übertragen",
+					"description": "Eine freigegebene Palette, Materialien und Lichtstimmung in ein abgestimmtes Layout weiterführen.",
+					"direction": "Key Visual → abgestimmtes Launch-Motiv"
+				},
+				"social": {
+					"name": "Lena E.",
+					"role": "Social-Media-Creatorin",
+					"title": "Eine Idee für den vertikalen Feed neu rahmen",
+					"description": "Das Motiv klar halten, ruhige Fläche für Text lassen und die Komposition auf 9:16 anpassen.",
+					"direction": "Querformat-Quelle → 9:16-Social-Komposition"
+				},
+				"realEstate": {
+					"name": "Ravi A.",
+					"role": "Immobilienmarketer",
+					"title": "Einen Raum verfeinern, ohne seine Struktur zu verändern",
+					"description": "Licht ausgleichen und visuelle Unruhe reduzieren, während die Raumgeometrie erhalten bleibt.",
+					"direction": "Inseratsfoto → klare redaktionelle Ansicht"
+				},
+				"portrait": {
+					"name": "Noor O.",
+					"role": "Porträtfotografin",
+					"title": "Styling erkunden und die Identität bewahren",
+					"description": "Kleidungsfarbe und Hintergrundstimmung ändern, ohne prägende Merkmale der Person anzutasten.",
+					"direction": "Neutrales Porträt → inszenierte Bildserie"
+				},
+				"conceptArt": {
+					"name": "Iris R.",
+					"role": "Konzeptkünstlerin",
+					"title": "Eine Materialsprache an derselben Komposition testen",
+					"description": "Eine grobe Szene als Faltpapier, Porzellan oder filmische Malerei neu interpretieren.",
+					"direction": "Grobe Komposition → fokussierte Materialstudie"
+				}
+			}
+		},
 		"imageEditorHero": {
 			"eyebrow": "Prompt-Bearbeitung mit Upload zuerst",
-			"title": "KI-Bildeditor mit Prompts, ohne die üblichen Einschränkungen",
-			"subtitle": "Lade dein Bild hoch, beschreibe die Änderung und starte direkt auf dieser Seite eine private Standard-Bearbeitung. Kein separates Programm und kein Konto nötig.",
+			"title": "KI-Bildeditor <accent>mit Prompts</accent>",
+			"subtitle": "Lade dein Bild hoch und beschreibe die Änderung. Wenn die Gast-Warteschlange verfügbar ist, kannst du direkt auf dieser Seite ohne Konto eine private Standard Edit starten.",
 			"private": "Private Quellbilder",
 			"draftOnly": "Eine Standard-Gastbearbeitung"
 		},
@@ -167,7 +262,7 @@
 			"eyebrow": "Eine Quelle, eine klare Änderung",
 			"title": "Vergleiche die Richtung vor der Bestätigung",
 			"description": "Ziehe den Regler, um eine originale Vektorszene mit ihrer handgezeichneten Bearbeitungsrichtung zu vergleichen.",
-			"disclaimer": "Diese Illustration zeigt die Oberfläche und ist kein Qualitätsversprechen eines Providers.",
+			"disclaimer": "Diese Illustration zeigt die Oberfläche und ist kein Qualitätsversprechen.",
 			"before": "Original",
 			"after": "Bearbeitungsrichtung",
 			"beforeAlt": "Originale Vektorillustration eines neutralen Lesezimmers",
@@ -183,7 +278,7 @@
 			"usePrompt": "Prompt verwenden",
 			"promptAdded": "Prompt übernommen",
 			"usePromptLabel": "Prompt {title} verwenden",
-			"provenanceNote": "Originalbilder, die mit OpenAI-Bildgenerierung als Inspiration erstellt wurden. Sie werden nicht als EzPic-Modellausgaben dargestellt; tatsächliche Ergebnisse hängen von Quellbild und Prompt ab.",
+			"provenanceNote": "Originalbilder, die separat als visuelle Inspiration erstellt wurden. Sie werden nicht als EzPic-Ergebnisse dargestellt; tatsächliche Ergebnisse hängen von Quellbild und Prompt ab.",
 			"items": {
 				"mediterranean": {
 					"tag": "Interieur",
@@ -220,6 +315,42 @@
 					"title": "Alpen aus Papierschnitt",
 					"prompt": "Gestalte die Szene als handgefertigte, geschichtete Papierschnittkunst mit sichtbaren Papierfasern, präzisen räumlichen Schatten, alpinem Grün, kobaltblauem Himmel und tomatenrotem Zug. Strecke und Bergkomposition bleiben erhalten.",
 					"alt": "Geschichtete Papierschnittillustration eines roten Zugs in den Alpen"
+				},
+				"lunarGreenhouse": {
+					"tag": "Atmosphäre",
+					"title": "Glashaus um Mitternacht",
+					"prompt": "Beleuchte das Gewächshaus mit tiefem Mondlicht, durchscheinenden violetten Blättern, vereinzelten biolumineszenten Blüten und einer Spur kühlen Nebels. Bewahre Glasarchitektur, Mittelweg und Pflanzenanordnung.",
+					"alt": "Mondbeschienenes Glashaus mit violett leuchtenden Pflanzen"
+				},
+				"porcelainTide": {
+					"tag": "Material",
+					"title": "Porzellanbrandung",
+					"prompt": "Verwandle die Meereslandschaft in handbemaltes blau-weißes Porzellan mit feinen Craquelé-Rissen, wenigen goldenen Reparaturlinien und modelliertem Keramikschaum. Bewahre Wellenbogen, Leuchtturm und Klippenkomposition.",
+					"alt": "Blau-weiße Porzellanwelle, die sich um einen Miniaturleuchtturm windet"
+				},
+				"tangerineCamera": {
+					"tag": "Produkt",
+					"title": "Mandarinenfarbene Sofortbildkamera",
+					"prompt": "Färbe die Kamera in sattes Mandarinenorange mit Bedienelementen aus gebürstetem Aluminium, platziere sie auf einem transparenten lavendelfarbenen Sockel und ergänze klares Studiolicht. Bewahre Silhouette, Objektiv und Anordnung der Bedienelemente.",
+					"alt": "Markenlose mandarinenfarbene Sofortbildkamera auf einem lavendelfarbenen Acrylsockel"
+				},
+				"velvetFox": {
+					"tag": "Motiv",
+					"title": "Fuchs auf Samt",
+					"prompt": "Setze den Fuchs auf einen skulpturalen violetten Samtsessel vor tief pflaumenfarbenem Studiohintergrund und beleuchte ihn weich mit warmem Kantenlicht. Bewahre natürliche Anatomie, Felldetails und den aufmerksamen Ausdruck.",
+					"alt": "Rotfuchs, der natürlich auf einem violetten Samtsessel sitzt"
+				},
+				"origamiKoi": {
+					"tag": "Stil",
+					"title": "Koi aus Papier",
+					"prompt": "Gestalte genau zwei Koi als durchscheinende, gefaltete Papierskulpturen in einem dunkelgrünen Unterwassergarten. Behalte ihre gegenläufigen Kurven, die wenigen Pflanzen, das Licht von oben und die offene Fläche bei.",
+					"alt": "Zwei durchscheinende Koi aus gefaltetem Papier in dunkelgrünem Wasser"
+				},
+				"desertPool": {
+					"tag": "Licht",
+					"title": "Erstes Licht in der Wüste",
+					"prompt": "Beleuchte die Poolszene im ersten Morgenlicht mit staubrosa Himmel, langen weichen Schatten und türkisfarbenen Spiegelungen. Bewahre das modernistische Haus, die Poolgeometrie, die Berge und den einzelnen Liegestuhl.",
+					"alt": "Modernes Wüstenhaus mit türkisfarbenem Pool bei staubrosa Sonnenaufgang"
 				}
 			}
 		},
@@ -258,7 +389,7 @@
 			"eyebrow": "Kontrolle in Alltagssprache",
 			"title": "Was „No Restrictions“ wirklich bedeutet",
 			"description": "EzPic reduziert Reibung, ohne verantwortungsvolle Grenzen zu verschweigen.",
-			"limits": "Übliche Sicherheits-, Rechts-, Provider- und Nutzungslimits gelten weiterhin.",
+			"limits": "Übliche Sicherheits-, Rechts-, Produkt- und Nutzungslimits gelten weiterhin.",
 			"items": {
 				"prompts": {
 					"title": "Natürlichsprachige Prompts",
@@ -270,15 +401,15 @@
 				},
 				"privacy": {
 					"title": "Private Uploads",
-					"description": "Quellbilder und Ergebnisse bleiben in privatem, kontogebundenem Speicher."
+					"description": "Quellbilder und Ergebnisse von Gästen und Konten bleiben privat."
 				},
 				"credits": {
 					"title": "Transparente Credits",
-					"description": "Prüfe die Credit-Kosten vor der echten Erzeugung."
+					"description": "Gastbearbeitungen verwenden die gesponserte Warteschlange; bei Kontobearbeitungen wird der Credit-Betrag vor der Bestätigung angezeigt."
 				},
 				"steps": {
 					"title": "Weniger unnötige Schritte",
-					"description": "Erstelle hier den Entwurf und melde dich einmal sicher an."
+					"description": "Wenn die Gast-Warteschlange verfügbar ist, kannst du ohne Konto fortfahren; Kontofunktionen erfordern eine Anmeldung."
 				}
 			}
 		},
@@ -304,15 +435,15 @@
 		"trust": {
 			"eyebrow": "Klare Grenzen",
 			"title": "Standardmäßig privat, transparent gemessen",
-			"description": "Die Startseite erfasst nur Quelle und Anweisung für einen kurzlebigen Entwurf. Sie erstellt weder Angebot, Auftrag, Credit-Reservierung noch Provider-Anfrage.",
+			"description": "Wenn die gesponserte Gast-Warteschlange verfügbar ist, kann die Startseite eine gesponserte Standard Edit starten. Bei Kontobearbeitungen werden Credits weiterhin erst nach Angebot und Bestätigung reserviert.",
 			"items": {
 				"privacy": {
 					"title": "Private Medien",
-					"description": "Eingaben und Ausgaben bleiben private Konto-Assets statt einer öffentlichen Galerie."
+					"description": "Eingaben und Ausgaben von Gästen und Konten bleiben privat und erscheinen nicht in einer öffentlichen Galerie."
 				},
 				"credits": {
-					"title": "Kosten vor Aktion",
-					"description": "Die echte Erzeugung wartet auf Anmeldung, Serverangebot und Bestätigung."
+					"title": "Kontrollierte Nutzung",
+					"description": "Standard-Gastbearbeitungen verwenden die gesponserte Warteschlange; Kontobearbeitungen zeigen den Credit-Betrag und warten auf deine Bestätigung."
 				},
 				"safety": {
 					"title": "Normale Schutzmaßnahmen",
@@ -323,7 +454,7 @@
 		"finalCta": {
 			"eyebrow": "Beginne mit einem Bild",
 			"title": "Beschreibe die Bearbeitung, die du schon im Kopf hast",
-			"description": "Lade dein Bild hier hoch und beschreibe die Änderung. Starte dann ohne Konto eine private Standard-Gastbearbeitung.",
+			"description": "Lade dein Bild hier hoch und beschreibe die Änderung. Wenn die Gast-Warteschlange verfügbar ist, kannst du ohne Konto eine private Standard-Gastbearbeitung starten.",
 			"button": "Zurück zum Editor"
 		},
 		"hero": {

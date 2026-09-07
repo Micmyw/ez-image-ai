@@ -4,21 +4,12 @@ import { Button } from "@repo/ui/components/button";
 import { useCookieConsent } from "@shared/hooks/cookie-consent";
 import { CookieIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useEffect, useState } from "react";
 
 export function ConsentBanner() {
 	const t = useTranslations("common.consent");
-	const { userHasConsented, allowCookies, declineCookies } = useCookieConsent();
-	const [mounted, setMounted] = useState(false);
-	useEffect(() => {
-		setMounted(true);
-	}, []);
+	const { consentStatus, allowCookies, declineCookies } = useCookieConsent();
 
-	if (!mounted) {
-		return null;
-	}
-
-	if (userHasConsented) {
+	if (consentStatus !== "undecided") {
 		return null;
 	}
 

@@ -1,4 +1,4 @@
-import { promptSchema } from "@repo/ai";
+import { imageAspectRatioSchema, promptSchema } from "@repo/ai";
 import { z } from "zod";
 
 import { guestMediaProcedure } from "../guest-procedure";
@@ -33,6 +33,7 @@ export const submitGuestGeneration = guestMediaProcedure
 				productKey: z.literal("image-fast"),
 				sourceAssetId: z.string().min(1).max(256),
 				prompt: promptSchema,
+				aspectRatio: imageAspectRatioSchema.default("auto"),
 				idempotencyKey: z.string().regex(/^\w[\w.-]{7,127}$/),
 				deviceId: z.string().uuid(),
 				turnstileToken: z.string().min(1).max(2_048),

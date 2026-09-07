@@ -1,9 +1,11 @@
 import type { PaymentProvider } from "../../types";
 import {
 	cancelPayPalSubscription,
+	capturePayPalCheckoutOrder,
 	createPayPalCheckoutLink,
 	createPayPalWebhookVerifier,
 	getPayPalAccessToken,
+	recoverPayPalCheckout,
 	type PayPalHttpBoundary,
 } from "./paypal";
 
@@ -59,6 +61,18 @@ export function createPayPalProvider(
 		async createCheckout(options) {
 			const accessToken = await authorizePayPal(http, configuration);
 			return createPayPalCheckoutLink(
+				http,
+				{ accessToken, baseUrl: configuration.baseUrl },
+				options,
+			);
+		},
+		async recoverCheckout(options) {
+			const accessToken = await authorizePayPal(http, configuration);
+			return recoverPayPalCheckout(http, { accessToken, baseUrl: configuration.baseUrl }, options);
+		},
+		async captureCheckout(options) {
+			const accessToken = await authorizePayPal(http, configuration);
+			return capturePayPalCheckoutOrder(
 				http,
 				{ accessToken, baseUrl: configuration.baseUrl },
 				options,

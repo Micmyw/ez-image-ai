@@ -6,7 +6,7 @@ import {
 } from "@repo/ai";
 import { claimGenerationDraftTransaction, createGenerationDraftTransaction } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createDatabaseVerifyUploadDependencies } from "../runtime";
 import { verifyUpload } from "./verify-upload";
@@ -586,7 +586,10 @@ describe("claimed draft asset verification", () => {
 		const suffix = crypto.randomUUID();
 		const assetId = `verification_stale_ready_${suffix.replaceAll("-", "")}`;
 		const checksum = "9".repeat(64);
-		const validUntil = new Date(Date.now() + 750);
+		const [databaseClock] = await client.$queryRaw<Array<{ now: Date }>>`
+			SELECT CURRENT_TIMESTAMP AS "now"`;
+		if (!databaseClock) throw new Error("DATABASE_CLOCK_UNAVAILABLE");
+		const validUntil = new Date(databaseClock.now.getTime() + 750);
 		await client.mediaAsset.create({
 			data: {
 				id: assetId,
@@ -625,31 +628,35 @@ describe("claimed draft asset verification", () => {
 			},
 		});
 		await client.mediaAsset.update({ where: { id: assetId }, data: { status: "READY" } });
-		await new Promise((resolve) => setTimeout(resolve, 800));
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(new Date(validUntil.getTime() + 25));
+		try {
+			const dependencies = createDatabaseVerifyUploadDependencies(client, {
+				headObject: async () => ({
+					contentLength: 16,
+					contentType: "image/png",
+					etag: '"etag"',
+					metadata: {},
+				}),
+				readMediaHeader: async () => PNG_HEADER,
+				createSignedReadUrl: async () => "https://private.example/stale.png",
+				safety: new TestMediaSafetyAdapter("ALLOW"),
+				moderationProvider: "test",
+			});
+			await verifyUpload({ assetId }, dependencies);
 
-		const dependencies = createDatabaseVerifyUploadDependencies(client, {
-			headObject: async () => ({
-				contentLength: 16,
-				contentType: "image/png",
-				etag: '"etag"',
-				metadata: {},
-			}),
-			readMediaHeader: async () => PNG_HEADER,
-			createSignedReadUrl: async () => "https://private.example/stale.png",
-			safety: new TestMediaSafetyAdapter("ALLOW"),
-			moderationProvider: "test",
-		});
-		await verifyUpload({ assetId }, dependencies);
-
-		await expect(
-			client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
-		).resolves.toMatchObject({
-			status: "READY",
-			verificationGeneration: 2,
-			verificationAttemptCount: 1,
-			verificationValidUntil: expect.any(Date),
-		});
-		await expect(client.assetModerationResult.count({ where: { assetId } })).resolves.toBe(2);
+			await expect(
+				client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
+			).resolves.toMatchObject({
+				status: "READY",
+				verificationGeneration: 2,
+				verificationAttemptCount: 1,
+				verificationValidUntil: expect.any(Date),
+			});
+			await expect(client.assetModerationResult.count({ where: { assetId } })).resolves.toBe(2);
+		} finally {
+			vi.useRealTimers();
+		}
 	});
 
 	it("leases verification so concurrent workers call moderation only once", async () => {

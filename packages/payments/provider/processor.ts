@@ -7,7 +7,8 @@ import {
 } from "@repo/database";
 import { logger } from "@repo/logs";
 
-import { normalizeProviderBillingEvent } from "./lifecycle-normalization";
+import { applyCreditPackPaymentFact, applyCreditPackRefundFact } from "./credit-pack-reducer";
+import { normalizeProviderPaymentEvent } from "./lifecycle-normalization";
 import { applyProviderBillingFact } from "./lifecycle-reducer";
 import type { PaymentEventAttempt } from "./stripe/processor";
 
@@ -69,6 +70,17 @@ export async function processClaimedProviderPaymentEvent(
 ): Promise<ProcessResult> {
 	const initialFenceTime = input.now ?? new Date();
 	let durableAttemptCount = 0;
+	let creditPackReviewCandidate:
+		| {
+				provider: NonStripeProvider;
+				checkoutIntentId: string;
+				providerOrderId: string;
+				providerCustomerId: string | null;
+		  }
+		| undefined;
+	let creditPackRefundCorrelationCandidate:
+		| { provider: "paypal"; providerPaymentId: string }
+		| undefined;
 	try {
 		const event = await client.paymentEvent.findUnique({
 			where: { id: input.paymentEventId },
@@ -92,7 +104,21 @@ export async function processClaimedProviderPaymentEvent(
 		}
 		durableAttemptCount = event.attemptCount;
 		const provider = nonStripeProvider(event.provider);
-		const fact = normalizeProviderBillingEvent(provider, event.envelope);
+		const normalized = normalizeProviderPaymentEvent(provider, event.envelope);
+		if (normalized.kind === "CREDIT_PACK_PAID" && normalized.fact.checkoutIntentId) {
+			creditPackReviewCandidate = {
+				provider: normalized.fact.provider,
+				checkoutIntentId: normalized.fact.checkoutIntentId,
+				providerOrderId: normalized.fact.providerOrderId,
+				providerCustomerId: normalized.fact.providerCustomerId,
+			};
+		}
+		if (normalized.kind === "CREDIT_PACK_REFUNDED" && normalized.fact.provider === "paypal") {
+			creditPackRefundCorrelationCandidate = {
+				provider: normalized.fact.provider,
+				providerPaymentId: normalized.fact.providerPaymentId,
+			};
+		}
 		const transactionFenceTime = input.now ?? new Date();
 
 		return await runSerializable(client, async (tx) => {
@@ -116,7 +142,18 @@ export async function processClaimedProviderPaymentEvent(
 				throw new PaymentEventFenceError();
 			}
 
-			const result = await applyProviderBillingFact(fact, tx);
+			const result =
+				normalized.kind === "SUBSCRIPTION"
+					? await applyProviderBillingFact(normalized.fact, tx)
+					: normalized.kind === "CREDIT_PACK_PAID"
+						? await applyCreditPackPaymentFact(normalized.fact, tx, {
+								paymentEventId: input.paymentEventId,
+								now: transactionFenceTime,
+							})
+						: await applyCreditPackRefundFact(normalized.fact, tx, {
+								paymentEventId: input.paymentEventId,
+								now: transactionFenceTime,
+							});
 			await finishPaymentEvent(input, transactionFenceTime, tx);
 			return { outcome: "PROCESSED" as const, grantsCreated: result.grantsCreated };
 		});
@@ -153,6 +190,10 @@ export async function processClaimedProviderPaymentEvent(
 				triggerAttempt: attempt.attempt,
 				triggerRunId: attempt.triggerRunId,
 				deadLetter,
+				...(deadLetter && creditPackReviewCandidate ? { creditPackReviewCandidate } : {}),
+				...(reason === PAYMENT_PROVIDER_CORRELATION_MISSING && creditPackRefundCorrelationCandidate
+					? { creditPackRefundCorrelationCandidate }
+					: {}),
 			},
 			client,
 		);
@@ -196,7 +237,9 @@ function nonStripeProvider(provider: string): NonStripeProvider {
 function classifyPaymentEventError(error: unknown): "TERMINAL" | "TRANSIENT" {
 	const message = error instanceof Error ? error.message : "";
 	if (message === PAYMENT_PROVIDER_CORRELATION_MISSING) return "TRANSIENT";
-	return /^(?:PAYMENT_PROVIDER|PAYPAL|WAFFO)_[A-Z0-9_]+$/.test(message) ? "TERMINAL" : "TRANSIENT";
+	return /^(?:PAYMENT_PROVIDER|PAYPAL|WAFFO|CREDIT_PACK)_[A-Z0-9_]+$/.test(message)
+		? "TERMINAL"
+		: "TRANSIENT";
 }
 
 function safeFailureReason(error: unknown, errorClass: "TERMINAL" | "TRANSIENT"): string {

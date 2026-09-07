@@ -1,5 +1,5 @@
 import {
-	assertMarketingOrigin,
+	assertExactOrigin,
 	getDraftClaimCookie,
 	getGuestBootstrapCookie,
 } from "@repo/api/modules/media/lib/draft-security";
@@ -10,7 +10,7 @@ export const DRAFT_HANDOFF_INTENT = "continue-marketing-draft";
 export const ACCOUNT_DRAFT_HANDOFF_INTENT = "continue-account-draft";
 
 interface DraftHandoffOptions {
-	marketingOrigin: string;
+	publicOrigin: string;
 	saasOrigin: string;
 	secure: boolean;
 	isRegistered: boolean;
@@ -20,7 +20,7 @@ export async function createDraftHandoffResponse(
 	request: Request,
 	options: DraftHandoffOptions,
 ): Promise<NextResponse> {
-	assertMarketingOrigin(request.headers.get("origin"), options.marketingOrigin);
+	assertExactOrigin(request.headers.get("origin"), options.publicOrigin);
 	const contentType = request.headers.get("content-type")?.toLowerCase() ?? "";
 	if (!contentType.startsWith("application/x-www-form-urlencoded")) {
 		throw new Error("INVALID_DRAFT_HANDOFF");

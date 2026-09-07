@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { isForbiddenOrganizationSlug } from "@repo/auth/lib/organization-slug";
 import { getOrganizationBySlug } from "@repo/database";
 import slugify from "@sindresorhus/slugify";
 import { nanoid } from "nanoid";
@@ -29,11 +30,13 @@ export const generateOrganizationSlug = publicProcedure
 			lowercase: true,
 		});
 
-		let slug = baseSlug;
+		let slug = isForbiddenOrganizationSlug(baseSlug) ? `${baseSlug}-${nanoid(5)}` : baseSlug;
 		let hasAvailableSlug = false;
 
 		for (let attemptIndex = 0; attemptIndex < 3; attemptIndex++) {
-			const existing = await getOrganizationBySlug(slug);
+			const existing = isForbiddenOrganizationSlug(slug)
+				? { id: "reserved" }
+				: await getOrganizationBySlug(slug);
 
 			if (!existing) {
 				hasAvailableSlug = true;

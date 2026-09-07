@@ -26,40 +26,60 @@
 		"title": "Documentation"
 	},
 	"faq": {
-		"description": "Des réponses claires sur les retouches invitées, les images privées, les crédits et les mises à niveau du compte.",
+		"description": "Des réponses claires sur la disponibilité invitée, les niveaux de retouche, les crédits, les médias privés, la facturation et l’usage responsable.",
 		"title": "Questions fréquemment posées",
 		"items": {
-			"realGeneration": {
-				"question": "Puis-je retoucher une image depuis la page d’accueil ?",
-				"answer": "Oui. Importez une image, décrivez le changement puis ouvrez un espace invité temporaire pour lancer une retouche Standard sans créer de compte."
+			"guestAvailability": {
+				"question": "Quand la retouche invitée est-elle disponible ?",
+				"answer": "Lorsque la file invitée sponsorisée est disponible, une personne peut lancer une Standard Edit sans compte. Le résultat est privé, filigrané et disponible pendant 24 heures maximum."
+			},
+			"guestVsFree": {
+				"question": "Quelle est la différence entre l’accès invité et Free ?",
+				"answer": "L’accès invité offre, sous réserve de disponibilité, une seule Standard Edit sponsorisée, filigranée et conservée jusqu’à 24 heures. Un compte Free inscrit reçoit 25 crédits par mois : Standard Edit coûte 5 crédits, soit jusqu’à cinq Standard Edits, sans accès à Quality Edit."
+			},
+			"editTiers": {
+				"question": "Quelle est la différence entre Standard Edit et Quality Edit ?",
+				"answer": "Standard Edit coûte 5 crédits et Quality Edit 40 crédits. Chaque retouche confirmée produit un résultat. Quality Edit nécessite Creator ou Studio."
+			},
+			"creditReservation": {
+				"question": "Quand les crédits sont-ils utilisés ?",
+				"answer": "Pour une retouche de compte, les crédits sont réservés lorsque vous confirmez la tâche. Le registre de crédits immuable les débite ou les restitue une fois la tâche dans son état final ; si l’acceptation par le service est incertaine, la réservation reste en place jusqu’à ce que la récupération règle cette même tentative."
+			},
+			"failedEdits": {
+				"question": "Que deviennent les crédits si une retouche échoue ?",
+				"answer": "Lorsqu’une tâche atteint un état final d’échec confirmé, le registre restitue les crédits réservés. Une tentative dont l’acceptation par le service est incertaine n’est pas considérée comme échouée et conserve sa réservation jusqu’à sa résolution."
 			},
 			"privateUploads": {
 				"question": "Les images importées sont-elles publiques ?",
-				"answer": "Non. Les images et résultats invités restent privés et temporaires ; les médias du compte restent limités à leur propriétaire."
-			},
-			"restrictions": {
-				"question": "Que signifie « No Restrictions » ici ?",
-				"answer": "Cela signifie des instructions naturelles, moins d’étapes limitées aux modèles, des imports privés et des crédits transparents. Les limites habituelles de sécurité, légales, du fournisseur et d’usage s’appliquent toujours."
+				"answer": "Non. Les entrées et résultats invités ou liés à un compte restent privés et ne sont pas publiés dans une galerie. La cible de conservation configurée pour les entrées et sorties de compte est de 30 jours. EzPic peut transmettre uniquement le contenu minimal nécessaire aux services d’infrastructure et de traitement d’image configurés."
 			},
 			"formats": {
-				"question": "Quels formats d’image puis-je importer ?",
-				"answer": "La page d’accueil accepte les images JPEG, PNG et WebP jusqu’à la limite affichée près de l’import."
+				"question": "Quelles images puis-je importer ?",
+				"answer": "Les formats JPEG, PNG et WebP sont acceptés. Les imports invités sont limités à 10 Mo ; les limites des comptes figurent sur la page Tarifs."
 			},
-			"refundPolicy": {
-				"question": "Comment les remboursements sont-ils traités ?",
-				"answer": "L'éligibilité dépend des conditions de paiement applicables. Contactez le support avec vos informations de facturation pour examen."
+			"outputBehavior": {
+				"question": "Chaque résultat est-il unique et exact ?",
+				"answer": "Non. Les résultats peuvent présenter des défauts ou ressembler à d’autres images. EzPic ne garantit ni leur unicité, ni leur adaptation à un usage particulier, ni l’absence de droits de tiers."
+			},
+			"stableTiers": {
+				"question": "Pourquoi EzPic affiche-t-il des niveaux plutôt que des noms de modèles ?",
+				"answer": "Le produit affiche des noms stables : Standard Edit et Quality Edit. Le routage du service est contrôlé côté serveur et peut changer sans modifier le contrat public du niveau."
+			},
+			"annualBilling": {
+				"question": "Comment la facturation annuelle affecte-t-elle les crédits ?",
+				"answer": "Creator coûte 190 $ par an et Studio 790 $ par an. Les crédits sont tout de même attribués chaque mois—700 pour Creator et 3 000 pour Studio—et les crédits inutilisés ne sont pas reportés."
 			},
 			"cancelSubscription": {
-				"question": "Comment annuler mon abonnement ?",
-				"answer": "Vous pouvez annuler votre abonnement en visitant la page de facturation."
+				"question": "Comment résilier mon abonnement ?",
+				"answer": "Ouvrez Billing pour gérer la résiliation. Le moment où votre accès change dépend de l’état réel et de la date de fin de votre abonnement."
 			},
-			"changePlan": {
-				"question": "Puis-je changer de forfait ?",
-				"answer": "Oui, vous pouvez changer de forfait à tout moment en visitant la page de facturation."
+			"refundPolicy": {
+				"question": "Comment les remboursements sont-ils gérés ?",
+				"answer": "L’éligibilité dépend des conditions de paiement, du statut de la transaction et du droit applicable. Contactez le support pour examen ; EzPic ne promet pas de remboursement lorsqu’il ne s’applique pas."
 			},
-			"freeTrial": {
-				"question": "Existe-t-il un forfait gratuit ?",
-				"answer": "Oui. Le forfait Gratuit comprend 25 crédits mensuels et l'accès à Standard Edit."
+			"commercialUse": {
+				"question": "Puis-je utiliser les images retouchées à des fins commerciales ?",
+				"answer": "Avant toute utilisation commerciale, vous devez détenir les droits sur toutes les entrées et vérifier vous-même les conditions, la loi et les droits de tiers applicables. Les résultats invités sont temporaires et filigranés ; EzPic n’affirme pas qu’une sortie est automatiquement autorisée pour un usage commercial."
 			}
 		}
 	},
@@ -67,9 +87,9 @@
 		"generator": {
 			"eyebrow": "Planifiez votre retouche",
 			"title": "Décrivez le changement souhaité",
-			"subtitle": "Importez une image source, décrivez la retouche et lancez une retouche Standard privée dans EzPic.",
+			"subtitle": "Importez une image source et décrivez la retouche. Lorsque la file invitée est disponible, vous pouvez lancer une Standard Edit privée dans EzPic.",
 			"offer": "Essayez gratuitement une retouche Standard",
-			"noSignUp": "Aucune inscription requise",
+			"noSignUp": "Sans inscription lorsque la file invitée est disponible",
 			"paidSignIn": "Connexion et forfait Creator ou Studio requis",
 			"oneOutput": "Un résultat",
 			"freeQueue": "File gratuite · un aperçu filigrané · disponible jusqu’à 24 heures",
@@ -79,6 +99,17 @@
 			"qualityCta": "Retouche Quality · Creator ou Studio",
 			"retryChallenge": "Réessayer la vérification",
 			"characterCount": "{count, number} / {maximum, number}",
+			"settings": {
+				"title": "Réglages de sortie",
+				"trigger": "Ouvrir les réglages de sortie",
+				"aspectRatio": "Format d’image",
+				"automatic": "Automatique",
+				"outputNumber": "Nombre de résultats",
+				"oneOutput": "Chaque retouche confirmée renvoie une image",
+				"resolution": "Résolution",
+				"quality": "Qualité",
+				"modeControlsQuality": "Définie par le niveau de retouche"
+			},
 			"states": {
 				"challenge": "Vérifier cet import invité",
 				"checking": "Vérification de la disponibilité des retouches…",
@@ -102,7 +133,8 @@
 			"actions": {
 				"standard": "Essayez gratuitement une retouche Standard",
 				"quality": "Continuer avec Quality Edit",
-				"retry": "Réessayer {product}"
+				"retry": "Réessayer {product}",
+				"retryAvailability": "Vérifier à nouveau la disponibilité"
 			},
 			"errors": {
 				"turnstile": "Terminez la vérification puis réessayez.",
@@ -110,9 +142,9 @@
 			},
 			"prompt": "Décrivez votre retouche",
 			"reference": "Image source",
-			"placeholder": "Remplacez l'arrière-plan par un mur de studio doucement éclairé tout en conservant le sujet…",
+			"placeholder": "Décrivez ce que vous voulez modifier…",
 			"continue": "Continuer la retouche",
-			"privacy": "Votre brouillon est conservé de façon privée pendant une heure maximum. Aucune image n'est retouchée avant votre connexion et votre confirmation.",
+			"privacy": "Les images source et résultats invités restent privés et temporaires pendant 24 heures maximum. Les médias du compte suivent la conservation décrite dans notre Politique de confidentialité.",
 			"error": "Nous n'avons pas pu enregistrer ce brouillon de retouche. Veuillez réessayer dans quelques instants.",
 			"steps": { "idea": "Importer", "control": "Décrire", "create": "Vérifier" },
 			"fileHint": "JPEG, PNG ou WebP jusqu’à {megabytes, number} Mo",
@@ -133,21 +165,29 @@
 				"standard": {
 					"label": "Standard Edit",
 					"badge": "Essai invité",
-					"description": "Retouches courantes rapides",
+					"description": "Retouche d’une image source avec un résultat",
 					"access": "Une retouche invitée"
 				},
 				"quality": {
 					"label": "Quality Edit",
 					"badge": "Compte payant",
-					"description": "Retouches de fidélité supérieure",
+					"description": "Retouche d’une image source avec un résultat",
 					"access": "Compte Creator ou Studio requis"
 				}
 			},
-			"loginNotice": "La génération réelle commence après votre connexion et la confirmation du coût en crédits.",
+			"loginNotice": "Les Standard Edits invitées peuvent démarrer sans connexion lorsque la file est disponible ; les retouches de compte exigent la confirmation du montant en crédits.",
 			"previewCaption": "Aperçu de la source",
 			"previewPlaceholderAlt": "Illustration vectorielle EzPic originale d’un salon de lecture neutre",
 			"previewAlt": "Aperçu de {fileName}",
 			"privateLabel": "Brouillon privé",
+			"floating": {
+				"label": "Éditeur rapide",
+				"open": "Ouvrir l’éditeur rapide",
+				"expand": "Agrandir l’éditeur rapide",
+				"collapse": "Réduire l’éditeur rapide",
+				"upload": "Ajouter une image de référence",
+				"imageReady": "Image de référence prête"
+			},
 			"fileErrors": {
 				"required": "Choisissez une image source avant de continuer.",
 				"empty": "Choisissez une image source non vide.",
@@ -156,10 +196,65 @@
 				"read": "Cette image n’a pas pu être lue. Choisissez un autre fichier."
 			}
 		},
+		"creatorWorkflows": {
+			"eyebrow": "Histoires de créateurs illustratives",
+			"title": "Un travail créatif qui suit plusieurs directions",
+			"description": "Découvrez six profils composites et les consignes de retouche précises qu’ils pourraient confier à EzPic.",
+			"pause": "Mettre le mouvement en pause",
+			"resume": "Reprendre le mouvement",
+			"listLabel": "Cartes d’histoires de créateurs illustratives",
+			"columnLabel": "Colonne d’histoires {number, number} sur {total, number}",
+			"directionLabel": "Consigne d’exemple",
+			"disclaimer": "Ces profils composites illustrent des usages possibles d’EzPic. Il ne s’agit pas de témoignages clients, d’études de cas publiées ni de résultats garantis.",
+			"cards": {
+				"ecommerce": {
+					"name": "Mina I.",
+					"role": "Propriétaire d’une boutique indépendante",
+					"title": "Créer une scène de campagne à partir d’un packshot épuré",
+					"description": "Préservez la silhouette du produit et la zone d’étiquette tout en explorant un décor saisonnier.",
+					"direction": "Packshot studio → vitrine de fêtes chaleureuse"
+				},
+				"brand": {
+					"name": "Theo H.",
+					"role": "Designer de marque",
+					"title": "Déployer un même système visuel sur tout un lancement",
+					"description": "Prolongez une palette, des matières et une lumière validées dans une composition coordonnée.",
+					"direction": "Visuel principal → ressource de lancement coordonnée"
+				},
+				"social": {
+					"name": "Lena E.",
+					"role": "Créatrice de contenu social",
+					"title": "Recadrer une idée pour un fil vertical",
+					"description": "Gardez le sujet lisible, réservez un espace calme au texte et adaptez la composition au format 9:16.",
+					"direction": "Source horizontale → composition sociale 9:16"
+				},
+				"realEstate": {
+					"name": "Ravi A.",
+					"role": "Spécialiste du marketing immobilier",
+					"title": "Soigner une pièce sans modifier sa structure",
+					"description": "Équilibrez la lumière et réduisez l’encombrement visuel tout en préservant la géométrie de la pièce.",
+					"direction": "Photo d’annonce → vue éditoriale claire"
+				},
+				"portrait": {
+					"name": "Noor O.",
+					"role": "Photographe portraitiste",
+					"title": "Explorer le stylisme en préservant l’identité",
+					"description": "Changez la couleur de la tenue et l’ambiance du fond sans altérer les traits distinctifs de la personne.",
+					"direction": "Portrait neutre → série avec direction artistique"
+				},
+				"conceptArt": {
+					"name": "Iris R.",
+					"role": "Artiste conceptuelle",
+					"title": "Tester un langage de matière sur la même composition",
+					"description": "Réinterprétez une scène préparatoire en papier plié, porcelaine ou peinture cinématographique.",
+					"direction": "Composition préparatoire → étude de matière ciblée"
+				}
+			}
+		},
 		"imageEditorHero": {
 			"eyebrow": "Retouche par instruction, import d’abord",
-			"title": "Éditeur d’images IA avec instructions, sans les restrictions habituelles",
-			"subtitle": "Importez votre image, décrivez précisément le changement et lancez une retouche Standard privée depuis cette page. Aucun autre service ni compte requis.",
+			"title": "Éditeur d’images IA <accent>avec instructions</accent>",
+			"subtitle": "Importez votre image et décrivez le changement. Lorsque la file invitée est disponible, vous pouvez lancer depuis cette page une Standard Edit privée sans compte.",
 			"private": "Images source privées",
 			"draftOnly": "Une retouche Standard invitée"
 		},
@@ -167,7 +262,7 @@
 			"eyebrow": "Une source, un changement clair",
 			"title": "Comparez la direction avant de confirmer",
 			"description": "Faites glisser le séparateur pour comparer une scène vectorielle originale et sa direction de retouche dessinée à la main.",
-			"disclaimer": "Cette illustration présente l’interface ; elle ne promet pas la qualité d’un fournisseur.",
+			"disclaimer": "Cette illustration présente l’interface ; elle ne garantit pas la qualité.",
 			"before": "Original",
 			"after": "Direction de retouche",
 			"beforeAlt": "Illustration vectorielle originale d’un salon de lecture neutre",
@@ -183,7 +278,7 @@
 			"usePrompt": "Utiliser ce prompt",
 			"promptAdded": "Prompt ajouté",
 			"usePromptLabel": "Utiliser le prompt {title}",
-			"provenanceNote": "Images originales créées avec la génération d’images OpenAI pour l’inspiration. Elles ne sont pas présentées comme des sorties du modèle EzPic ; les résultats réels dépendent de votre image source et de votre prompt.",
+			"provenanceNote": "Images originales créées séparément à titre d’inspiration visuelle. Elles ne sont pas présentées comme des résultats EzPic ; les résultats réels dépendent de votre image source et de votre prompt.",
 			"items": {
 				"mediterranean": {
 					"tag": "Intérieur",
@@ -220,6 +315,42 @@
 					"title": "Alpes en papier découpé",
 					"prompt": "Réinterprétez la scène en papier découpé artisanal superposé, avec fibres visibles, ombres dimensionnelles précises, verts alpins, ciel cobalt et train rouge tomate. Préservez le tracé et la composition des montagnes.",
 					"alt": "Illustration en papier découpé d’un train rouge serpentant dans les Alpes"
+				},
+				"lunarGreenhouse": {
+					"tag": "Atmosphère",
+					"title": "Verrière de minuit",
+					"prompt": "Rééclairez la serre sous un clair de lune profond, avec feuilles violettes translucides, quelques fleurs bioluminescentes et une fine brume froide. Préservez l’architecture vitrée, l’allée centrale et la disposition des plantes.",
+					"alt": "Verrière au clair de lune remplie de plantes violettes bioluminescentes"
+				},
+				"porcelainTide": {
+					"tag": "Matière",
+					"title": "Marée de porcelaine",
+					"prompt": "Transformez le paysage marin en porcelaine bleue et blanche peinte à la main, avec fines craquelures, rares réparations dorées et écume sculptée en céramique. Préservez l’arc de la vague, le phare et la composition des falaises.",
+					"alt": "Vague en porcelaine bleue et blanche entourant un phare miniature"
+				},
+				"tangerineCamera": {
+					"tag": "Produit",
+					"title": "Instantané mandarine",
+					"prompt": "Recolorez l’appareil en mandarine saturée avec commandes en aluminium brossé, posez-le sur un socle acrylique lavande translucide et ajoutez une lumière de studio nette. Préservez la silhouette, l’objectif et la disposition des commandes.",
+					"alt": "Appareil instantané mandarine sans marque sur un socle acrylique lavande"
+				},
+				"velvetFox": {
+					"tag": "Sujet",
+					"title": "Renard de velours",
+					"prompt": "Placez le renard sur un fauteuil sculptural en velours violet devant un fond de studio prune profond, avec une lumière éditoriale douce et un liseré chaud. Préservez l’anatomie naturelle, le détail du pelage et l’expression attentive.",
+					"alt": "Renard roux assis naturellement sur un fauteuil en velours violet"
+				},
+				"origamiKoi": {
+					"tag": "Style",
+					"title": "Carpes de papier",
+					"prompt": "Réinterprétez exactement deux carpes koï en sculptures translucides de papier plié glissant dans un jardin sous-marin bleu-vert sombre. Conservez les courbes opposées, les plantes clairsemées, la lumière zénithale et l’espace dégagé.",
+					"alt": "Deux carpes koï translucides en papier plié nageant dans une eau bleu-vert sombre"
+				},
+				"desertPool": {
+					"tag": "Lumière",
+					"title": "Première lumière du désert",
+					"prompt": "Rééclairez la piscine aux premières lueurs du jour, avec ciel rose poudré, longues ombres douces et reflets turquoise. Préservez la maison moderniste, la géométrie du bassin, les montagnes et l’unique chaise longue.",
+					"alt": "Maison moderniste du désert et piscine turquoise sous un lever de soleil rose poudré"
 				}
 			}
 		},
@@ -258,7 +389,7 @@
 			"eyebrow": "Contrôle en langage naturel",
 			"title": "Ce que « No Restrictions » signifie vraiment",
 			"description": "EzPic réduit les frictions sans prétendre que les limites responsables disparaissent.",
-			"limits": "Les limites habituelles de sécurité, légales, du fournisseur et d’usage s’appliquent toujours.",
+			"limits": "Les limites habituelles de sécurité, légales, du produit et d’usage s’appliquent toujours.",
 			"items": {
 				"prompts": {
 					"title": "Instructions naturelles",
@@ -270,15 +401,15 @@
 				},
 				"privacy": {
 					"title": "Imports privés",
-					"description": "Sources et résultats restent dans un stockage privé lié au compte."
+					"description": "Les images source et résultats invités ou liés à un compte restent privés."
 				},
 				"credits": {
 					"title": "Crédits transparents",
-					"description": "Vérifiez le coût avant de confirmer la génération réelle."
+					"description": "Les retouches invitées utilisent la file sponsorisée ; les retouches de compte affichent le montant en crédits avant confirmation."
 				},
 				"steps": {
 					"title": "Moins d’étapes inutiles",
-					"description": "Créez le brouillon ici puis connectez-vous une seule fois."
+					"description": "Lorsque la file invitée est disponible, continuez sans compte ; les fonctions de compte nécessitent une connexion."
 				}
 			}
 		},
@@ -304,15 +435,15 @@
 		"trust": {
 			"eyebrow": "Limites claires",
 			"title": "Privé par défaut, mesuré clairement",
-			"description": "La page d’accueil collecte seulement la source et l’instruction d’un brouillon bref. Elle ne crée ni devis, tâche, réservation de crédits ni demande au fournisseur.",
+			"description": "Lorsque la file invitée sponsorisée est disponible, la page d’accueil peut lancer une Standard Edit sponsorisée. Les retouches de compte exigent toujours un devis et une confirmation avant la réservation des crédits.",
 			"items": {
 				"privacy": {
 					"title": "Médias privés",
-					"description": "Entrées et sorties restent des ressources privées du compte."
+					"description": "Les entrées et sorties invitées ou liées à un compte restent privées et n’apparaissent pas dans une galerie publique."
 				},
 				"credits": {
-					"title": "Coût avant action",
-					"description": "La génération réelle attend la connexion, le devis serveur et votre confirmation."
+					"title": "Usage contrôlé",
+					"description": "Les Standard Edits invitées utilisent la file sponsorisée ; les retouches de compte affichent le montant en crédits et attendent votre confirmation."
 				},
 				"safety": {
 					"title": "Protections normales",
@@ -323,7 +454,7 @@
 		"finalCta": {
 			"eyebrow": "Commencez par une image",
 			"title": "Décrivez la retouche que vous avez déjà en tête",
-			"description": "Importez l’image et décrivez le changement ici, puis lancez une retouche Standard privée en invité sans créer de compte.",
+			"description": "Importez l’image et décrivez le changement ici. Lorsque la file invitée est disponible, lancez une Standard Edit privée sans créer de compte.",
 			"button": "Retour à l’éditeur"
 		},
 		"hero": {

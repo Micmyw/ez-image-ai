@@ -1,4 +1,4 @@
-import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
+import { DEFAULT_PRODUCT_CONFIG, IMAGE_ASPECT_RATIOS } from "@repo/config";
 
 import { createExecutableRouteGraph } from "./catalog";
 import {
@@ -21,6 +21,7 @@ export interface PublicCatalogEntry {
 		min?: number;
 		max?: number;
 		step?: number;
+		options?: Array<{ value: string; label: string }>;
 	}>;
 }
 export function getPublicProductCatalog(
@@ -64,8 +65,19 @@ function publicFields(
 					},
 				]
 			: []),
-		...(mediaKind === "image" && inputKinds.includes("text-to-image")
-			? [{ type: "aspect-ratio" as const, key: "aspectRatio", label: "Format" }]
+		...(mediaKind === "image" && inputKinds.some((kind) => kind.endsWith("-to-image"))
+			? [
+					{
+						type: "aspect-ratio" as const,
+						key: "aspectRatio",
+						label: "Aspect ratio",
+						required: true,
+						options: IMAGE_ASPECT_RATIOS.map((value) => ({
+							value,
+							label: value === "auto" ? "Automatic" : value,
+						})),
+					},
+				]
 			: mediaKind === "video"
 				? [
 						{

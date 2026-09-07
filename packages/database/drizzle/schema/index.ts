@@ -25,3 +25,30 @@ export const PaymentCheckoutIntentStatus = {
 
 export type PaymentCheckoutIntentStatus =
 	(typeof PaymentCheckoutIntentStatus)[keyof typeof PaymentCheckoutIntentStatus];
+
+export const PaymentProductKind = {
+	PLAN: "PLAN",
+	CREDIT_PACK: "CREDIT_PACK",
+} as const;
+
+export type PaymentProductKind = (typeof PaymentProductKind)[keyof typeof PaymentProductKind];
+
+export const CreditPackFulfillmentStatus = {
+	FULFILLED: "FULFILLED",
+	PARTIALLY_REFUNDED: "PARTIALLY_REFUNDED",
+	REFUNDED: "REFUNDED",
+} as const;
+
+export type CreditPackFulfillmentStatus =
+	(typeof CreditPackFulfillmentStatus)[keyof typeof CreditPackFulfillmentStatus];
+
+export const CreditPackAdjustmentStatus = {
+	PENDING: "PENDING",
+	REQUIRES_ACTION: "REQUIRES_ACTION",
+	SUCCEEDED: "SUCCEEDED",
+	FAILED: "FAILED",
+	CANCELED: "CANCELED",
+} as const;
+
+export type CreditPackAdjustmentStatus =
+	(typeof CreditPackAdjustmentStatus)[keyof typeof CreditPackAdjustmentStatus];

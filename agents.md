@@ -36,8 +36,9 @@ pnpm install
 pnpm dev
 ```
 
-`pnpm dev` runs the active workspace development tasks through Turbo and excludes the retained
-legacy `marketing` application. The public landing and authenticated product both run in `saas`.
+`pnpm dev`, `pnpm build`, and `pnpm start` target only `saas` and its task dependencies. The public
+landing, public content, `/docs`, guest workspace, and authenticated product all run in `saas`.
+Start `apps/mail-preview` explicitly when email-preview development is needed.
 
 ### Root commands
 
@@ -62,18 +63,15 @@ Validation is impact-based:
 3. If no focused test exists, run the nearest package-level check and report that limitation instead
    of expanding automatically to the whole repository.
 
-The root test task runs Vitest in `apps/marketing`, `apps/saas`, and `packages/api` while legacy
-compatibility code remains. The active product Playwright tests are in `apps/saas/tests`; use
-`pnpm --filter saas e2e` or `pnpm --filter saas e2e:ci`. The media E2E harness starts only SaaS and
-requires a running database.
+The root test task runs workspace Vitest tasks. Active product Playwright tests are all in
+`apps/saas/tests`; use `pnpm --filter saas e2e` or `pnpm --filter saas e2e:ci`. The media E2E
+harness starts only SaaS and requires a running database.
 
 ## Monorepo map
 
 ```text
 apps/
-├── docs/          # Next.js/Fumadocs documentation
 ├── mail-preview/  # Email preview
-├── marketing/     # Retained legacy public/blog implementation; not a root runtime service
 └── saas/          # Unified public landing, guest trial, and authenticated product
 packages/
 ├── ai/
@@ -107,6 +105,8 @@ Only app-local aliases are configured in the app `tsconfig.json` files.
 | Alias              | Target                      |
 | ------------------ | --------------------------- |
 | `@config`          | `./config`                  |
+| `@docs/*`          | `./modules/docs/*`          |
+| `@docs-source/*`   | `./.source/*`               |
 | `@auth/*`          | `./modules/auth/*`          |
 | `@organizations/*` | `./modules/organizations/*` |
 | `@settings/*`      | `./modules/settings/*`      |
@@ -114,22 +114,9 @@ Only app-local aliases are configured in the app `tsconfig.json` files.
 | `@i18n/*`          | `./modules/i18n/*`          |
 | `@admin/*`         | `./modules/admin/*`         |
 | `@ai/*`            | `./modules/ai/*`            |
+| `@media/*`         | `./modules/media/*`         |
 | `@onboarding/*`    | `./modules/onboarding/*`    |
 | `@shared/*`        | `./modules/shared/*`        |
-
-### `apps/marketing/tsconfig.json`
-
-| Alias                 | Target                             |
-| --------------------- | ---------------------------------- |
-| `@config`             | `./config`                         |
-| `@analytics`          | `./modules/analytics`              |
-| `@home/*`             | `./modules/home/*`                 |
-| `@blog/*`             | `./modules/blog/*`                 |
-| `@i18n/*`             | `./modules/i18n/*`                 |
-| `@changelog/*`        | `./modules/changelog/*`            |
-| `@legal/*`            | `./modules/legal/*`                |
-| `@shared/*`           | `./modules/shared/*`               |
-| `content-collections` | `./.content-collections/generated` |
 
 ## API & data layer
 
@@ -185,8 +172,7 @@ Canonical auth examples:
 
 - Use components from `@repo/ui/components`; Base UI primitives are wrapped there.
   Compose with the `render` prop (Base UI); there is no Radix `asChild`.
-- Use React Hook Form with Zod. Follow
-  `apps/marketing/modules/home/components/ContactForm.tsx`.
+- Use React Hook Form with Zod. Follow `apps/saas/modules/auth/components/LoginForm.tsx`.
 - Use `next-intl` `useTranslations()` in client components and the server helpers
   from `next-intl/server`. Follow `apps/saas/modules/i18n/request.ts`.
 - Locale configuration and cookie name are in `packages/i18n/config.ts`.
@@ -231,8 +217,8 @@ dependencies to the workspace package that imports them.
 
 - Use conventional commits such as `feat:`, `fix:`, `docs:`, or `refactor:`.
 - Update `CHANGELOG.md` for consumer-impacting changes.
-- Update `apps/saas/modules/landing`, shared translations, and relevant product docs for public
-  landing behavior. Update legacy `apps/marketing/content` only when that retained content changes.
+- Update `apps/saas/modules/landing`, `apps/saas/content`, shared translations, and relevant product
+  docs for public landing, content, or Docs behavior.
 - Update `AGENTS.md` when conventions, aliases, scripts, or app boundaries change.
 - Supastarter ships three starter kits. Keep changes generic and consider whether
   an equivalent update belongs in the Nuxt or TanStack Start kit.

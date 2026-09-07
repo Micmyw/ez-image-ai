@@ -231,8 +231,9 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		)[0];
 		expect(cleanup?.status).toBe("PENDING");
 		expect(cleanup!.availableAt.getTime()).toBeGreaterThan(cleanup!.createdAt.getTime());
-		await pool.query(`UPDATE outbox_event SET "availableAt"=now() WHERE "dedupeKey"=$1`, [
+		await pool.query(`UPDATE outbox_event SET "availableAt"=$2 WHERE "dedupeKey"=$1`, [
 			cleanupDedupeKey,
+			new Date(),
 		]);
 		await expect
 			.poll(async () =>
@@ -300,7 +301,14 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		expect(reservation.settledAmount).toBe("0");
 		expect(reservation.releasedAmount).toBe(job.creditsReserved);
 		await expect(page.getByRole("heading", { name: /could not finish/i })).toBeVisible();
-		await expect(page.getByText(/all 4 of 4 reserved credits were returned/i)).toBeVisible();
+		await expect(
+			page.getByText(
+				new RegExp(
+					`all ${job.creditsReserved} of ${job.creditsReserved} reserved credits were returned`,
+					"i",
+				),
+			),
+		).toBeVisible();
 		await expect
 			.poll(() => growthEvents.map(({ name }) => name))
 			.toContain("editor_generation_failed");
@@ -347,6 +355,8 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	}, testInfo) => {
 		const prompt = marker("cancel-pending", "Cancel this generation", testInfo.retry);
 		const jobId = await createScenario(page, prompt);
+		const job = (await jobsForPrompt((await userByEmail(fundedEmail)).id, prompt))[0]!;
+		expect(job.id).toBe(jobId);
 		await expect
 			.poll(() => providerCancellationReadiness(jobId), { timeout: 30_000 })
 			.toBe("PROVIDER_PENDING:SUBMITTED:false:task-bound");
@@ -371,9 +381,16 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 					? `${reservation.status}:${reservation.settledAmount}:${reservation.releasedAmount}`
 					: "missing";
 			})
-			.toBe("SETTLED:0:4");
+			.toBe(`SETTLED:0:${job.creditsReserved}`);
 		await expect(page.getByRole("heading", { name: /edit was canceled/i })).toBeVisible();
-		await expect(page.getByText(/all 4 of 4 reserved credits were returned/i)).toBeVisible();
+		await expect(
+			page.getByText(
+				new RegExp(
+					`all ${job.creditsReserved} of ${job.creditsReserved} reserved credits were returned`,
+					"i",
+				),
+			),
+		).toBeVisible();
 	});
 
 	test("reuse binds the seeded READY asset into the new job", async ({ page }, testInfo) => {

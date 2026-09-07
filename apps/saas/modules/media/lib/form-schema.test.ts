@@ -28,14 +28,27 @@ describe("generation form schema", () => {
 				kind: "image-to-image",
 				prompt: "  Replace the background  ",
 				sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+				aspectRatio: "16:9",
 				strength: 0.7,
 			}),
 		).toEqual({
 			kind: "image-to-image",
 			prompt: "Replace the background",
 			sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+			aspectRatio: "16:9",
 			strength: 0.7,
 		});
+	});
+
+	it("rejects an image edit ratio that neither active route supports", () => {
+		expect(() =>
+			buildGenerationInput({
+				kind: "image-to-image",
+				prompt: "Use a tall crop",
+				sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+				aspectRatio: "4:5",
+			}),
+		).toThrow();
 	});
 
 	it.each(["text-to-image", "text-to-video", "image-to-video"] as const)(
@@ -58,8 +71,9 @@ describe("generation form schema", () => {
 					productKey,
 					prompt: "  Studio portrait  ",
 					sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+					aspectRatio: "auto",
 				}),
-			).toMatchObject({ productKey, prompt: "Studio portrait" });
+			).toMatchObject({ productKey, prompt: "Studio portrait", aspectRatio: "auto" });
 		}
 
 		expect(() =>

@@ -5,7 +5,7 @@ import { createDraftHandoffResponse, DRAFT_HANDOFF_INTENT } from "./draft-handof
 const claimToken = "c".repeat(43);
 
 function request(
-	origin = "https://www.example.com",
+	origin = "https://app.example.com",
 	requestUrl = "https://app.example.com/draft/continue",
 	analytics?: { consent: boolean; anonymousSessionHash: string },
 ) {
@@ -28,7 +28,7 @@ function paidAccountRequest() {
 	return new Request("https://app.example.com/draft/continue", {
 		method: "POST",
 		headers: {
-			Origin: "https://www.example.com",
+			Origin: "https://app.example.com",
 			"Content-Type": "application/x-www-form-urlencoded",
 		},
 		body: new URLSearchParams({ intent: "continue-account-draft", claimToken }),
@@ -38,9 +38,9 @@ function paidAccountRequest() {
 describe("draft handoff POST", () => {
 	it("sets the scoped HttpOnly cookie and redirects through the configured SaaS origin", async () => {
 		const response = await createDraftHandoffResponse(
-			request("https://www.example.com", "https://internal.example/draft/continue"),
+			request("https://app.example.com", "https://internal.example/draft/continue"),
 			{
-				marketingOrigin: "https://www.example.com",
+				publicOrigin: "https://app.example.com",
 				saasOrigin: "https://app.example.com",
 				secure: true,
 				isRegistered: false,
@@ -64,7 +64,7 @@ describe("draft handoff POST", () => {
 	it("rejects a malicious origin before setting a cookie", async () => {
 		await expect(
 			createDraftHandoffResponse(request("https://evil.example"), {
-				marketingOrigin: "https://www.example.com",
+				publicOrigin: "https://app.example.com",
 				saasOrigin: "https://app.example.com",
 				secure: true,
 				isRegistered: false,
@@ -74,7 +74,7 @@ describe("draft handoff POST", () => {
 
 	it("routes a paid-tier draft through login without creating an anonymous bootstrap", async () => {
 		const response = await createDraftHandoffResponse(paidAccountRequest(), {
-			marketingOrigin: "https://www.example.com",
+			publicOrigin: "https://app.example.com",
 			saasOrigin: "https://app.example.com",
 			secure: true,
 			isRegistered: false,
@@ -92,12 +92,12 @@ describe("draft handoff POST", () => {
 		const anonymousSessionHash =
 			"sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 		const response = await createDraftHandoffResponse(
-			request("https://www.example.com", "https://app.example.com/draft/continue", {
+			request("https://app.example.com", "https://app.example.com/draft/continue", {
 				consent: true,
 				anonymousSessionHash,
 			}),
 			{
-				marketingOrigin: "https://www.example.com",
+				publicOrigin: "https://app.example.com",
 				saasOrigin: "https://app.example.com",
 				secure: true,
 				isRegistered: false,
@@ -115,15 +115,15 @@ describe("draft handoff POST", () => {
 		expect(cookies).not.toContain("HttpOnly; Path=/; Max-Age=2592000");
 	});
 
-	it("rejects malformed cross-app analytics identity", async () => {
+	it("rejects malformed consented analytics identity", async () => {
 		await expect(
 			createDraftHandoffResponse(
-				request("https://www.example.com", "https://app.example.com/draft/continue", {
+				request("https://app.example.com", "https://app.example.com/draft/continue", {
 					consent: true,
 					anonymousSessionHash: "raw-user-id",
 				}),
 				{
-					marketingOrigin: "https://www.example.com",
+					publicOrigin: "https://app.example.com",
 					saasOrigin: "https://app.example.com",
 					secure: true,
 					isRegistered: false,

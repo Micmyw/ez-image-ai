@@ -1,4 +1,11 @@
 {
+	"publicContent": {
+		"contact": {
+			"description": "Kontaktieren Sie {appName} über die konfigurierte Support-E-Mail-Adresse.",
+			"emailCta": "Senden Sie dem EzPic-Support eine E-Mail an:",
+			"unavailable": "Es ist keine Support-E-Mail-Adresse konfiguriert. Bitte versuchen Sie es erneut, nachdem der Betreiber eine Support-Adresse veröffentlicht hat."
+		}
+	},
 	"admin": {
 		"menu": {
 			"media": "Medienbetrieb",
@@ -332,6 +339,7 @@
 			"createAnAccount": "Ein Konto erstellen",
 			"dontHaveAnAccount": "Du hast noch kein Konto?",
 			"forgotPassword": "Passwort vergessen?",
+			"hidePassword": "Passwort ausblenden",
 			"hints": {
 				"invalidCredentials": "Die von dir eingegebenen Anmeldeinformationen sind ungültig. \nBitte versuche es erneut.",
 				"linkSent": {
@@ -340,6 +348,7 @@
 				}
 			},
 			"loginWithPasskey": "Anmeldung mit Passkey",
+			"showPassword": "Passwort anzeigen",
 			"modes": {
 				"magicLink": "Magischer Link",
 				"password": "Passwort"
@@ -850,16 +859,27 @@
 			"products": {
 				"image-fast": {
 					"label": "Standard Edit",
-					"description": "Private promptbasierte Bildbearbeitung für alltägliche Änderungen."
+					"description": "Private promptbasierte Bildbearbeitung in der Standard-Stufe."
 				},
 				"image-quality": {
 					"label": "Quality Edit",
-					"description": "Private Bildbearbeitung mit höherer Detailtreue."
+					"description": "Private promptbasierte Bildbearbeitung in der Quality-Stufe."
 				}
 			},
 			"fields": {
 				"prompt": "Bearbeitungsanweisung",
 				"sourceAssetId": "Quellbild"
+			},
+			"outputSettings": {
+				"title": "Ausgabe-Einstellungen",
+				"trigger": "Ausgabe-Einstellungen öffnen",
+				"aspectRatio": "Seitenverhältnis",
+				"automatic": "Automatisch",
+				"outputNumber": "Anzahl der Ergebnisse",
+				"oneOutput": "Dieses Modell liefert ein Bild",
+				"resolution": "Auflösung",
+				"quality": "Qualität",
+				"modeControlsQuality": "Wird durch die Bearbeitungsstufe bestimmt"
 			},
 			"promptHint": "Beschreiben Sie nur die gewünschte Änderung. Ihr Quellbild bleibt privat.",
 			"suggestions": {
@@ -967,8 +987,9 @@
 		"upgradeDialog": {
 			"title": "Quality Edit freischalten",
 			"description": "Quellbild, Anweisung, Quality-Edit-Auswahl und Bearbeitungssitzung bleiben erhalten, während Sie Tarife vergleichen.",
-			"creator": "Creator: {credits, number} Credits pro Monat, {concurrency, number} gleichzeitige Bearbeitungen, Quellbilder bis {megabytes, number} MB.",
-			"studio": "Studio: {credits, number} Credits pro Monat, {concurrency, number} gleichzeitige Bearbeitungen, Quellbilder bis {megabytes, number} MB.",
+			"creator": "Pro: {credits, number} Credits pro Monat, {concurrency, number} gleichzeitige Bearbeitungen, Quellbilder bis {megabytes, number} MB.",
+			"ultimate": "Ultimate: {credits, number} Credits pro Monat, {concurrency, number} gleichzeitige Bearbeitungen, Quellbilder bis {megabytes, number} MB.",
+			"studio": "Max: {credits, number} Credits pro Monat, {concurrency, number} gleichzeitige Bearbeitungen, Quellbilder bis {megabytes, number} MB.",
 			"storageUnavailable": "Dieser Browser konnte den Bearbeitungsentwurf nicht speichern. Lassen Sie diesen Tab geöffnet und versuchen Sie es erneut.",
 			"cancel": "Nicht jetzt",
 			"continue": "Tarif auswählen"
@@ -986,9 +1007,9 @@
 			"mode": {
 				"label": "Bearbeitungsmodus",
 				"standard": "Standard Edit",
-				"standardDescription": "Schnelle private Bearbeitung für alltägliche Änderungen.",
+				"standardDescription": "Private Bildbearbeitung in der Standard-Stufe.",
 				"quality": "Quality Edit",
-				"qualityDescription": "Private Bearbeitung mit höherer Detailtreue.",
+				"qualityDescription": "Private Bildbearbeitung in der Quality-Stufe.",
 				"credits": "{credits} Credits",
 				"qualityUnavailable": "Für Quality Edit ist ein Upgrade nötig. Bild und Anweisung bleiben erhalten.",
 				"upgrade": "Upgrade-Optionen anzeigen"
@@ -1148,5 +1169,16 @@
 		"title": "Kauf wird verarbeitet",
 		"description": "Bitte warten Sie, während wir Ihre Zahlung bestätigen.",
 		"loading": "Ihr Kauf wird bestätigt, bitte warten..."
+	},
+	"creditPackCheckoutReturn": {
+		"title": "Credits werden hinzugefügt",
+		"description": "Ihr Credit-Guthaben wird nach der Zahlungsbestätigung aktualisiert.",
+		"loading": "Ihr Credit-Kauf wird bestätigt…",
+		"completed": "Credits hinzugefügt. Der Editor wird geöffnet…",
+		"review": "Diese Zahlung muss geprüft werden, bevor Credits hinzugefügt werden können.",
+		"notCompleted": "Dieser Bezahlvorgang wurde nicht abgeschlossen.",
+		"error": "Wir konnten diese Zahlung nicht bestätigen. Es wurden keine Credits hinzugefügt.",
+		"tryAgain": "Credit-Pakete ansehen",
+		"returnToEditor": "Zurück zum Editor"
 	}
 }

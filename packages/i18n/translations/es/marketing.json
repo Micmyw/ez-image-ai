@@ -26,40 +26,60 @@
 		"title": "Documentación"
 	},
 	"faq": {
-		"description": "Respuestas claras sobre ediciones de invitado, imágenes privadas, créditos y mejoras de cuenta.",
+		"description": "Respuestas claras sobre disponibilidad para invitados, niveles de edición, créditos, medios privados, facturación y uso responsable.",
 		"title": "Preguntas frecuentes",
 		"items": {
-			"realGeneration": {
-				"question": "¿Puedo editar una imagen desde la página de inicio?",
-				"answer": "Sí. Sube una imagen, describe el cambio y entra en un espacio temporal de invitado para iniciar una edición Standard sin crear una cuenta."
+			"guestAvailability": {
+				"question": "¿Cuándo está disponible la edición como invitado?",
+				"answer": "Cuando la cola patrocinada para invitados está disponible, una persona puede iniciar una edición Standard sin cuenta. El resultado lleva marca de agua, es privado y permanece disponible hasta 24 horas."
+			},
+			"guestVsFree": {
+				"question": "¿Qué diferencia hay entre Invitado y Free?",
+				"answer": "Invitado ofrece de forma condicionada una única edición Standard patrocinada, con marca de agua y disponible hasta 24 horas. Una cuenta Free registrada recibe 25 créditos al mes: Standard Edit cuesta 5 créditos, así que permite hasta cinco ediciones Standard; no incluye Quality Edit."
+			},
+			"editTiers": {
+				"question": "¿En qué se diferencian Standard Edit y Quality Edit?",
+				"answer": "Standard Edit cuesta 5 créditos y Quality Edit, 40. Cada edición confirmada genera un resultado. Quality Edit requiere Creator o Studio."
+			},
+			"creditReservation": {
+				"question": "¿Cuándo se utilizan los créditos?",
+				"answer": "En las ediciones de cuenta, los créditos se reservan cuando confirmas el trabajo. El registro inmutable de créditos los cobra o devuelve cuando el trabajo alcanza su estado final; si no está claro que el servicio aceptó el intento, la reserva se mantiene hasta que la recuperación lo resuelva."
+			},
+			"failedEdits": {
+				"question": "¿Qué ocurre con los créditos si falla una edición?",
+				"answer": "Cuando un trabajo alcanza un estado final de fallo confirmado, el registro devuelve los créditos reservados. Un intento cuya aceptación por el servicio sea incierta no se trata como fallido y mantiene la reserva hasta que la recuperación lo resuelva."
 			},
 			"privateUploads": {
 				"question": "¿Las imágenes subidas son públicas?",
-				"answer": "No. Las imágenes y resultados de invitados permanecen privados y temporales; los archivos de cuenta siguen vinculados a su propietario."
-			},
-			"restrictions": {
-				"question": "¿Qué significa aquí “No Restrictions”?",
-				"answer": "Significa instrucciones naturales, menos pasos basados solo en plantillas, subidas privadas y créditos transparentes. Siguen aplicándose los límites normales de seguridad, legales, del proveedor y de uso."
+				"answer": "No. Las entradas y los resultados de invitados y cuentas son privados y no se publican en una galería. El objetivo de conservación configurado para entradas y resultados de cuenta es de 30 días. EzPic puede enviar solo el contenido mínimo necesario a los servicios de infraestructura y procesamiento de imágenes configurados."
 			},
 			"formats": {
-				"question": "¿Qué formatos de imagen puedo subir?",
-				"answer": "La página de inicio acepta JPEG, PNG y WebP hasta el límite de tamaño indicado junto al cargador."
+				"question": "¿Qué imágenes puedo subir?",
+				"answer": "Se admiten JPEG, PNG y WebP. Las subidas de invitado tienen un límite de 10 MB; los límites de cuenta se muestran en la página de precios."
 			},
-			"refundPolicy": {
-				"question": "¿Cómo se gestionan los reembolsos?",
-				"answer": "La elegibilidad depende de las condiciones de pago aplicables. Contacta con soporte e incluye tus datos de facturación para su revisión."
+			"outputBehavior": {
+				"question": "¿Todos los resultados son únicos y exactos?",
+				"answer": "No. Los resultados pueden contener defectos o parecerse a otras imágenes. EzPic no garantiza que sean únicos, adecuados para un fin concreto ni libres de derechos de terceros."
+			},
+			"stableTiers": {
+				"question": "¿Por qué EzPic muestra niveles en vez de nombres de modelos?",
+				"answer": "El producto muestra nombres estables: Standard Edit y Quality Edit. El enrutamiento del servicio se controla en el servidor y puede cambiar sin alterar el contrato público del nivel."
+			},
+			"annualBilling": {
+				"question": "¿Cómo afecta la facturación anual a los créditos?",
+				"answer": "Creator cuesta $190 al año y Studio, $790 al año. Los créditos se siguen otorgando cada mes—700 para Creator y 3.000 para Studio—y los no utilizados no se acumulan."
 			},
 			"cancelSubscription": {
 				"question": "¿Cómo cancelo mi suscripción?",
-				"answer": "Puedes cancelar tu suscripción visitando la página de facturación."
+				"answer": "Abre Billing para gestionar la cancelación. El momento en que cambia el acceso depende del estado real y de la fecha de finalización de tu suscripción."
 			},
-			"changePlan": {
-				"question": "¿Puedo cambiar mi plan?",
-				"answer": "Sí, puedes cambiar tu plan en cualquier momento visitando la página de facturación."
+			"refundPolicy": {
+				"question": "¿Cómo se gestionan los reembolsos?",
+				"answer": "La elegibilidad depende de las condiciones de pago, el estado de la transacción y la legislación aplicable. Contacta con soporte para que lo revise; EzPic no promete un reembolso cuando no corresponda."
 			},
-			"freeTrial": {
-				"question": "¿Hay un plan gratuito?",
-				"answer": "Sí. El plan Gratis incluye 25 créditos mensuales y acceso a Standard Edit."
+			"commercialUse": {
+				"question": "¿Puedo usar comercialmente las imágenes editadas?",
+				"answer": "Antes del uso comercial, debes tener los derechos sobre todas las entradas y comprobar por tu cuenta las condiciones, la legislación y los derechos de terceros aplicables. Los resultados de invitado son temporales y llevan marca de agua; EzPic no afirma que ninguna salida quede autorizada automáticamente para uso comercial."
 			}
 		}
 	},
@@ -67,9 +87,9 @@
 		"generator": {
 			"eyebrow": "Planifica tu edición",
 			"title": "Describe el cambio que quieres",
-			"subtitle": "Sube una imagen de origen, describe la edición e inicia una edición Standard privada en EzPic.",
+			"subtitle": "Sube una imagen de origen y describe la edición. Cuando la cola de invitados esté disponible, podrás iniciar una edición Standard privada en EzPic.",
 			"offer": "Prueba gratis una edición Standard",
-			"noSignUp": "No hace falta registrarse",
+			"noSignUp": "Sin registro cuando la cola de invitados esté disponible",
 			"paidSignIn": "Se requiere iniciar sesión y un plan Creator o Studio",
 			"oneOutput": "Un resultado",
 			"freeQueue": "Cola gratuita · una vista previa con marca de agua · disponible hasta 24 horas",
@@ -79,6 +99,17 @@
 			"qualityCta": "Edición Quality · Creator o Studio",
 			"retryChallenge": "Reintentar la verificación",
 			"characterCount": "{count, number} / {maximum, number}",
+			"settings": {
+				"title": "Ajustes de salida",
+				"trigger": "Abrir ajustes de salida",
+				"aspectRatio": "Relación de aspecto",
+				"automatic": "Automática",
+				"outputNumber": "Número de resultados",
+				"oneOutput": "Cada edición confirmada devuelve una imagen",
+				"resolution": "Resolución",
+				"quality": "Calidad",
+				"modeControlsQuality": "La controla el nivel de edición"
+			},
 			"states": {
 				"challenge": "Verifica esta carga de invitado",
 				"checking": "Comprobando la disponibilidad de edición…",
@@ -102,7 +133,8 @@
 			"actions": {
 				"standard": "Prueba gratis una edición Standard",
 				"quality": "Continuar con Quality Edit",
-				"retry": "Reintentar {product}"
+				"retry": "Reintentar {product}",
+				"retryAvailability": "Volver a comprobar la disponibilidad"
 			},
 			"errors": {
 				"turnstile": "Completa la verificación y vuelve a intentarlo.",
@@ -110,9 +142,9 @@
 			},
 			"prompt": "Describe tu edición",
 			"reference": "Imagen de origen",
-			"placeholder": "Sustituye el fondo por una pared de estudio con luz suave y conserva el sujeto sin cambios…",
+			"placeholder": "Describe qué quieres cambiar…",
 			"continue": "Continuar con la edición",
-			"privacy": "Tu borrador se guarda de forma privada durante un máximo de una hora. No se edita ninguna imagen hasta que inicies sesión y confirmes.",
+			"privacy": "Las imágenes de origen y los resultados de invitados son privados y temporales durante un máximo de 24 horas. Los medios de cuenta siguen la conservación descrita en nuestra Política de privacidad.",
 			"error": "No pudimos guardar este borrador de edición. Inténtalo de nuevo en unos minutos.",
 			"steps": { "idea": "Subir", "control": "Describir", "create": "Revisar" },
 			"fileHint": "JPEG, PNG o WebP de hasta {megabytes, number} MB",
@@ -133,21 +165,29 @@
 				"standard": {
 					"label": "Standard Edit",
 					"badge": "Prueba de invitado",
-					"description": "Ediciones cotidianas rápidas",
+					"description": "Edición de imagen de origen con un resultado",
 					"access": "Una edición como invitado"
 				},
 				"quality": {
 					"label": "Quality Edit",
 					"badge": "Cuenta de pago",
-					"description": "Ediciones de mayor fidelidad",
+					"description": "Edición de imagen de origen con un resultado",
 					"access": "Se requiere una cuenta Creator o Studio"
 				}
 			},
-			"loginNotice": "La generación real comienza después de iniciar sesión y confirmar el coste en créditos.",
+			"loginNotice": "Las ediciones Standard de invitado pueden iniciarse sin sesión cuando la cola esté disponible; las ediciones de cuenta requieren confirmar la cantidad de créditos.",
 			"previewCaption": "Vista previa de origen",
 			"previewPlaceholderAlt": "Ilustración vectorial original de EzPic de una sala de lectura neutra",
 			"previewAlt": "Vista previa de {fileName}",
 			"privateLabel": "Borrador privado",
+			"floating": {
+				"label": "Editor rápido",
+				"open": "Abrir el editor rápido",
+				"expand": "Ampliar el editor rápido",
+				"collapse": "Contraer el editor rápido",
+				"upload": "Añadir una imagen de referencia",
+				"imageReady": "Imagen de referencia lista"
+			},
 			"fileErrors": {
 				"required": "Elige una imagen de origen antes de continuar.",
 				"empty": "Elige una imagen de origen que no esté vacía.",
@@ -156,10 +196,65 @@
 				"read": "No pudimos leer esa imagen. Elige otro archivo."
 			}
 		},
+		"creatorWorkflows": {
+			"eyebrow": "Historias ilustrativas de creadores",
+			"title": "Trabajo creativo que avanza en distintas direcciones",
+			"description": "Conoce seis perfiles compuestos y las instrucciones de edición concretas que podrían llevar a EzPic.",
+			"pause": "Pausar el movimiento",
+			"resume": "Reanudar el movimiento",
+			"listLabel": "Tarjetas ilustrativas de historias de creadores",
+			"columnLabel": "Columna de historias {number, number} de {total, number}",
+			"directionLabel": "Instrucción de ejemplo",
+			"disclaimer": "Estos perfiles compuestos ilustran posibles flujos de EzPic. No son testimonios de clientes, casos publicados ni resultados garantizados.",
+			"cards": {
+				"ecommerce": {
+					"name": "Mina I.",
+					"role": "Propietaria de una tienda independiente",
+					"title": "Crear una escena de campaña a partir de un packshot limpio",
+					"description": "Conserva la silueta del producto y el área de la etiqueta mientras exploras un entorno de temporada.",
+					"direction": "Packshot de estudio → escaparate festivo cálido"
+				},
+				"brand": {
+					"name": "Theo H.",
+					"role": "Diseñador de marca",
+					"title": "Extender un sistema visual a todo un lanzamiento",
+					"description": "Lleva una paleta, materiales e iluminación aprobados a una composición coordinada.",
+					"direction": "Imagen principal → recurso coordinado de lanzamiento"
+				},
+				"social": {
+					"name": "Lena E.",
+					"role": "Creadora de contenido social",
+					"title": "Reencuadrar una idea para un feed vertical",
+					"description": "Mantén el sujeto claro, reserva un espacio limpio para el texto y adapta la composición a 9:16.",
+					"direction": "Fuente horizontal → composición social 9:16"
+				},
+				"realEstate": {
+					"name": "Ravi A.",
+					"role": "Especialista en marketing inmobiliario",
+					"title": "Pulir una estancia sin cambiar su estructura",
+					"description": "Equilibra la luz y reduce el ruido visual manteniendo intacta la geometría del espacio.",
+					"direction": "Foto de anuncio → vista editorial clara"
+				},
+				"portrait": {
+					"name": "Noor O.",
+					"role": "Fotógrafa de retrato",
+					"title": "Explorar el estilismo preservando la identidad",
+					"description": "Cambia el color del vestuario y el ambiente del fondo sin alterar los rasgos distintivos de la persona.",
+					"direction": "Retrato neutro → serie con dirección artística"
+				},
+				"conceptArt": {
+					"name": "Iris R.",
+					"role": "Artista conceptual",
+					"title": "Probar un lenguaje material sobre la misma composición",
+					"description": "Reinterpreta una escena preliminar en papel plegado, porcelana o pintura cinematográfica.",
+					"direction": "Composición preliminar → estudio de material enfocado"
+				}
+			}
+		},
 		"imageEditorHero": {
 			"eyebrow": "Edición por instrucciones con subida primero",
-			"title": "Editor de imágenes con IA mediante instrucciones, sin las restricciones habituales",
-			"subtitle": "Sube tu imagen, explica qué debe cambiar e inicia una edición Standard privada desde esta página. Sin otra aplicación ni cuenta obligatoria.",
+			"title": "Editor de imágenes con IA <accent>mediante instrucciones</accent>",
+			"subtitle": "Sube tu imagen y describe el cambio. Cuando la cola de invitados esté disponible, podrás iniciar desde esta página una edición Standard privada sin cuenta.",
 			"private": "Imágenes de origen privadas",
 			"draftOnly": "Una edición Standard de invitado"
 		},
@@ -167,7 +262,7 @@
 			"eyebrow": "Una fuente, un cambio claro",
 			"title": "Compara la dirección antes de confirmar",
 			"description": "Arrastra el divisor para revisar una escena vectorial original y su dirección de edición creada a mano.",
-			"disclaimer": "Esta ilustración muestra la interfaz; no es una promesa de calidad de un proveedor.",
+			"disclaimer": "Esta ilustración muestra la interfaz; no es una garantía de calidad.",
 			"before": "Original",
 			"after": "Dirección de edición",
 			"beforeAlt": "Ilustración vectorial original de una sala de lectura neutra",
@@ -183,7 +278,7 @@
 			"usePrompt": "Usar este prompt",
 			"promptAdded": "Prompt añadido",
 			"usePromptLabel": "Usar el prompt {title}",
-			"provenanceNote": "Imágenes originales creadas con generación de imágenes de OpenAI como inspiración. No se presentan como resultados del modelo de EzPic; los resultados reales dependen de tu imagen y tu prompt.",
+			"provenanceNote": "Imágenes originales creadas por separado como inspiración visual. No se presentan como resultados de EzPic; los resultados reales dependen de tu imagen y tu prompt.",
 			"items": {
 				"mediterranean": {
 					"tag": "Interior",
@@ -220,6 +315,42 @@
 					"title": "Alpes de papel recortado",
 					"prompt": "Reimagina la escena como arte de papel recortado en capas, con fibras visibles, sombras dimensionales precisas, verdes alpinos, cielo cobalto y tren rojo tomate. Conserva la ruta y la composición de las montañas.",
 					"alt": "Ilustración de papel recortado con un tren rojo entre montañas alpinas"
+				},
+				"lunarGreenhouse": {
+					"tag": "Atmósfera",
+					"title": "Invernadero de medianoche",
+					"prompt": "Reilumina el invernadero bajo una luna profunda con hojas violetas translúcidas, flores bioluminiscentes dispersas y una bruma fría sutil. Conserva la arquitectura de cristal, el sendero central y la disposición de las plantas.",
+					"alt": "Invernadero iluminado por la luna con plantas violetas bioluminiscentes"
+				},
+				"porcelainTide": {
+					"tag": "Material",
+					"title": "Marea de porcelana",
+					"prompt": "Transforma el paisaje marino en porcelana azul y blanca pintada a mano, con craquelado fino, pocas vetas doradas de reparación y espuma de cerámica esculpida. Conserva el arco de la ola, el faro y la composición de los acantilados.",
+					"alt": "Ola de porcelana azul y blanca alrededor de un faro en miniatura"
+				},
+				"tangerineCamera": {
+					"tag": "Producto",
+					"title": "Instantánea mandarina",
+					"prompt": "Cambia la cámara a un color mandarina intenso con controles de aluminio cepillado, colócala sobre un pedestal acrílico lavanda translúcido y añade una luz de estudio nítida. Conserva la silueta, el objetivo y la disposición de los controles.",
+					"alt": "Cámara instantánea mandarina sin marca sobre un pedestal acrílico lavanda"
+				},
+				"velvetFox": {
+					"tag": "Sujeto",
+					"title": "Zorro de terciopelo",
+					"prompt": "Coloca al zorro en un sillón escultórico de terciopelo violeta ante un fondo de estudio ciruela oscuro, con luz editorial suave y reflejos cálidos de contorno. Conserva la anatomía natural, el detalle del pelaje y la expresión alerta.",
+					"alt": "Zorro rojo sentado de forma natural en un sillón de terciopelo violeta"
+				},
+				"origamiKoi": {
+					"tag": "Estilo",
+					"title": "Koi de papel",
+					"prompt": "Reimagina exactamente dos koi como esculturas translúcidas de papel plegado que se deslizan por un jardín submarino verde azulado oscuro. Mantén las curvas opuestas, las plantas dispersas, la luz cenital y el espacio abierto.",
+					"alt": "Dos koi translúcidos de papel plegado nadando en agua verde azulada oscura"
+				},
+				"desertPool": {
+					"tag": "Iluminación",
+					"title": "Primera luz del desierto",
+					"prompt": "Reilumina la piscina con la primera luz del día, un cielo rosa empolvado, sombras largas y suaves y reflejos turquesa. Conserva la casa modernista, la geometría de la piscina, las montañas y la única tumbona.",
+					"alt": "Casa moderna del desierto y piscina turquesa bajo un amanecer rosa empolvado"
 				}
 			}
 		},
@@ -258,7 +389,7 @@
 			"eyebrow": "Control en lenguaje natural",
 			"title": "Qué significa realmente “No Restrictions”",
 			"description": "EzPic reduce la fricción sin fingir que desaparecen los límites responsables.",
-			"limits": "Siguen aplicándose los límites normales de seguridad, legales, del proveedor y de uso.",
+			"limits": "Siguen aplicándose los límites normales de seguridad, legales, del producto y de uso.",
 			"items": {
 				"prompts": {
 					"title": "Instrucciones naturales",
@@ -270,15 +401,15 @@
 				},
 				"privacy": {
 					"title": "Subidas privadas",
-					"description": "Fuentes y resultados permanecen en almacenamiento privado de la cuenta."
+					"description": "Las imágenes de origen y los resultados de invitados y cuentas permanecen privados."
 				},
 				"credits": {
 					"title": "Créditos transparentes",
-					"description": "Revisa el coste antes de confirmar la generación real."
+					"description": "Las ediciones de invitado usan la cola patrocinada; las ediciones de cuenta muestran la cantidad de créditos antes de la confirmación."
 				},
 				"steps": {
 					"title": "Menos pasos innecesarios",
-					"description": "Crea aquí el borrador e inicia sesión una sola vez para continuar."
+					"description": "Cuando la cola de invitados esté disponible, continúa sin cuenta; las funciones de cuenta requieren iniciar sesión."
 				}
 			}
 		},
@@ -304,15 +435,15 @@
 		"trust": {
 			"eyebrow": "Límites claros",
 			"title": "Privado por defecto, medido con claridad",
-			"description": "La página de inicio recoge solo la fuente y la instrucción para un borrador breve. No crea cotización, trabajo, reserva de créditos ni solicitud al proveedor.",
+			"description": "Cuando la cola patrocinada para invitados está disponible, la página de inicio puede iniciar una edición Standard patrocinada. Las ediciones de cuenta siguen requiriendo cotización y confirmación antes de reservar créditos.",
 			"items": {
 				"privacy": {
 					"title": "Medios privados",
-					"description": "Entradas y salidas siguen siendo recursos privados de la cuenta."
+					"description": "Las entradas y salidas de invitados y cuentas permanecen privadas y no aparecen en una galería pública."
 				},
 				"credits": {
-					"title": "Coste antes de actuar",
-					"description": "La generación real espera el inicio de sesión, la cotización del servidor y tu confirmación."
+					"title": "Uso controlado",
+					"description": "Las ediciones Standard de invitado usan la cola patrocinada; las ediciones de cuenta muestran la cantidad de créditos y esperan tu confirmación."
 				},
 				"safety": {
 					"title": "Protecciones normales",
@@ -323,7 +454,7 @@
 		"finalCta": {
 			"eyebrow": "Empieza con una imagen",
 			"title": "Describe la edición que ya tienes en mente",
-			"description": "Sube la imagen y describe el cambio aquí; después inicia una edición Standard privada como invitado sin crear una cuenta.",
+			"description": "Sube la imagen y describe el cambio aquí. Cuando la cola de invitados esté disponible, continúa con una edición Standard privada sin crear una cuenta.",
 			"button": "Volver al editor"
 		},
 		"hero": {

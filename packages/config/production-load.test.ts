@@ -66,13 +66,14 @@ describe("EzPic production-like load plan", () => {
 		).toThrow(/LOAD_MAX_REQUESTS.*80/);
 	});
 
-	it("rejects a separate marketing load origin", () => {
-		expect(() =>
+	it("derives the landing scenario from LOAD_BASE_URL and ignores the retired split-origin input", () => {
+		const retiredLandingOriginKey = ["LOAD", "MARKETING", "BASE", "URL"].join("_");
+		expect(
 			resolveEzPicProductionLoadPlan({
 				...localEnvironment,
-				LOAD_MARKETING_BASE_URL: "http://127.0.0.1:3001",
+				[retiredLandingOriginKey]: "http://127.0.0.1:3999",
 			}),
-		).toThrow(/origin.*match|same origin/i);
+		).toMatchObject({ saasOrigin: "http://127.0.0.1:3000" });
 	});
 
 	it.each(["LOAD_MAX_REQUESTS", "LOAD_MAX_EXPECTED_PROVIDER_COST_MICROS"] as const)(

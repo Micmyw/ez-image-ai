@@ -1,6 +1,8 @@
 export * from "./client";
 export type { Prisma } from "./generated/client";
 export {
+	CreditPackAdjustmentStatus,
+	CreditPackFulfillmentStatus,
 	CreditLedgerEntryType,
 	CreditReservationStatus,
 	GenerationAttemptStatus,
@@ -11,6 +13,7 @@ export {
 	NotificationType,
 	OutboxEventStatus,
 	OwnerType,
+	PaymentProductKind,
 } from "./generated/client";
 export * from "./queries";
 export * from "./zod";

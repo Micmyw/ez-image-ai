@@ -47,6 +47,14 @@ describe("SaaS plan data", () => {
 			"Localized size 20",
 			"Localized pricing.products.creator.features.contract",
 		]);
+		expect(planData?.ultimate?.features.slice(0, 6)).toEqual([
+			"Localized credits 1800",
+			"Localized edits 360/45",
+			"Localized monthly expiry",
+			"Localized concurrency 6",
+			"Localized size 20",
+			"Localized pricing.products.ultimate.features.contract",
+		]);
 		expect(planData?.studio?.features.slice(0, 6)).toEqual([
 			"Localized credits 3000",
 			"Localized edits 600/75",

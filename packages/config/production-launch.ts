@@ -18,7 +18,7 @@ const environmentManifestSchema = z
 			.object({
 				database: resourceIdSchema,
 				mediaBucket: resourceIdSchema,
-				stripeWebhookScope: resourceIdSchema,
+				stripeWebhookScope: resourceIdSchema.optional(),
 				triggerEnvironment: resourceIdSchema,
 				posthogProject: resourceIdSchema,
 				sentryEnvironment: resourceIdSchema,
@@ -55,7 +55,6 @@ const environmentMatrixSchema = z
 		for (const resource of [
 			"database",
 			"mediaBucket",
-			"stripeWebhookScope",
 			"triggerEnvironment",
 			"posthogProject",
 			"sentryEnvironment",
@@ -67,6 +66,13 @@ const environmentMatrixSchema = z
 				context,
 			);
 		}
+		assertUniqueMatrixValues(
+			matrix.environments.flatMap((item) =>
+				item.resources.stripeWebhookScope ? [item.resources.stripeWebhookScope] : [],
+			),
+			"stripeWebhookScope",
+			context,
+		);
 	});
 
 export type EzPicEnvironmentMatrix = z.infer<typeof environmentMatrixSchema>;
@@ -75,11 +81,11 @@ export interface EzPicLaunchEnvironment {
 	environment: "staging" | "production";
 	environmentId: string;
 	deploymentVersion: string;
-	origins: { marketing: string; saas: string };
+	origins: { saas: string };
 	resources: {
 		database: string;
 		mediaBucket: string;
-		stripeWebhookScope: string;
+		stripeWebhookScope?: string;
 		triggerEnvironment: string;
 		posthogProject: string;
 		sentryEnvironment: string;
@@ -113,7 +119,10 @@ export function assertEzPicEnvironmentMatrixConfigured(matrix: EzPicEnvironmentM
 			environmentId: manifest.environmentId,
 			...manifest.resources,
 		})) {
-			if (/placeholder|replace|example|not[-_./]?completed|not[-_./]?configured/i.test(value)) {
+			if (
+				value !== undefined &&
+				/placeholder|replace|example|not[-_./]?completed|not[-_./]?configured/i.test(value)
+			) {
 				throw new Error(`NOT_COMPLETED: ${manifest.environment} ${resource} is a placeholder`);
 			}
 		}
@@ -139,6 +148,20 @@ export function validateEzPicLaunchEnvironment(
 	// Reuse the existing server/worker contract before applying EzPic release-specific gates.
 	const requireProviderCredentials = options.requireProviderCredentials ?? true;
 	const serverEnvironment = validateServerEnvironment(input, { requireProviderCredentials });
+	if (
+		environment === "production" &&
+		serverEnvironment.checkoutPaymentProviders.includes("paypal") &&
+		input.PAYPAL_ENVIRONMENT !== "live"
+	) {
+		throw new Error("PAYPAL_ENVIRONMENT must be live in production");
+	}
+	if (
+		environment === "production" &&
+		serverEnvironment.checkoutPaymentProviders.includes("waffo") &&
+		input.WAFFO_ENVIRONMENT !== "prod"
+	) {
+		throw new Error("WAFFO_ENVIRONMENT must be prod in production");
+	}
 	const openRouterEnabled = serverEnvironment.mediaEnabledProviders.includes("openrouter");
 	const openRouterCertified = optionalBoolean(input, "MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED");
 	if (openRouterEnabled && openRouterCertified !== true) {
@@ -196,13 +219,7 @@ export function validateEzPicLaunchEnvironment(
 		);
 	}
 
-	const marketing = realHttpsOrigin(input, "NEXT_PUBLIC_MARKETING_URL");
 	const saas = realHttpsOrigin(input, "NEXT_PUBLIC_SAAS_URL");
-	if (marketing !== saas) {
-		throw new Error(
-			"Public origins must match: NEXT_PUBLIC_MARKETING_URL and NEXT_PUBLIC_SAAS_URL",
-		);
-	}
 	realHttpsOrigin(input, "S3_ENDPOINT");
 	realHttpsOrigin(input, "NEXT_PUBLIC_POSTHOG_HOST");
 
@@ -215,24 +232,12 @@ export function validateEzPicLaunchEnvironment(
 		"S3_SECRET_ACCESS_KEY",
 		"TRIGGER_PROJECT_REF",
 		"TRIGGER_SECRET_KEY",
-		"STRIPE_SECRET_KEY",
-		"STRIPE_WEBHOOK_SECRET",
 		"SENTRY_DSN",
 		"SIGHTENGINE_API_USER",
 		"SIGHTENGINE_API_SECRET",
 		"RESEND_API_KEY",
 	] as const) {
 		requiredString(input, key);
-	}
-	for (const key of [
-		"PRICE_ID_CREATOR_MONTHLY",
-		"PRICE_ID_CREATOR_YEARLY",
-		"PRICE_ID_STUDIO_MONTHLY",
-		"PRICE_ID_STUDIO_YEARLY",
-	] as const) {
-		if (!/^price_[A-Za-z0-9_]+$/.test(requiredString(input, key))) {
-			throw new Error(`${key} must be a real Stripe price_ identifier`);
-		}
 	}
 	if (!/^phc_[A-Za-z0-9_-]{10,}$/.test(requiredString(input, "NEXT_PUBLIC_POSTHOG_KEY"))) {
 		throw new Error("NEXT_PUBLIC_POSTHOG_KEY must be a configured public project key");
@@ -242,6 +247,7 @@ export function validateEzPicLaunchEnvironment(
 		"NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION",
 	);
 	assertNonPlaceholderToken(requiredString(input, "EZPIC_GSC_PROPERTY"), "EZPIC_GSC_PROPERTY");
+	assertProductionSupportEmail(requiredString(input, "NEXT_PUBLIC_SUPPORT_EMAIL"));
 	assertProductionMailFrom(requiredString(input, "MAIL_FROM"));
 
 	const deploymentVersion = requiredString(input, "DEPLOYMENT_VERSION");
@@ -255,11 +261,15 @@ export function validateEzPicLaunchEnvironment(
 		environment,
 		environmentId: requiredResourceId(input, "EZPIC_ENVIRONMENT_ID"),
 		deploymentVersion,
-		origins: { marketing, saas },
+		origins: { saas },
 		resources: {
 			database: requiredResourceId(input, "EZPIC_DATABASE_RESOURCE_ID"),
 			mediaBucket: requiredResourceId(input, "EZPIC_MEDIA_BUCKET_RESOURCE_ID"),
-			stripeWebhookScope: requiredResourceId(input, "EZPIC_STRIPE_WEBHOOK_SCOPE_ID"),
+			...(serverEnvironment.stripeLegacyLifecycleEnabled
+				? {
+						stripeWebhookScope: requiredResourceId(input, "EZPIC_STRIPE_WEBHOOK_SCOPE_ID"),
+					}
+				: {}),
 			triggerEnvironment: requiredResourceId(input, "EZPIC_TRIGGER_ENVIRONMENT_ID"),
 			posthogProject: requiredResourceId(input, "EZPIC_POSTHOG_PROJECT_ID"),
 			sentryEnvironment: requiredResourceId(input, "EZPIC_SENTRY_ENVIRONMENT"),
@@ -283,6 +293,20 @@ export function validateEzPicLaunchEnvironment(
 			},
 		},
 	};
+}
+
+function assertProductionSupportEmail(value: string): void {
+	const parsed = z.email().safeParse(value);
+	const domain = value.slice(value.lastIndexOf("@") + 1).toLowerCase();
+	if (
+		!parsed.success ||
+		/placeholder|replace[-_]?me/i.test(value) ||
+		domain === "localhost" ||
+		domain.endsWith(".invalid") ||
+		["example.com", "example.net", "example.org"].includes(domain)
+	) {
+		throw new Error("NEXT_PUBLIC_SUPPORT_EMAIL must be a real public support address");
+	}
 }
 
 export function mediaDailyProviderCostBudgetMicros(

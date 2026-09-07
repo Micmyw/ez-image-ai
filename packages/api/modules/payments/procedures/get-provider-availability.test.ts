@@ -95,4 +95,68 @@ describe("getProviderAvailability", () => {
 			],
 		});
 	});
+
+	it("never advertises Stripe for a new subscription checkout", async () => {
+		resolveProviderAvailability.mockImplementation(async () => {
+			return [
+				{
+					name: "stripe",
+					capabilities: {
+						checkout: true,
+						portal: true,
+						cancellation: true,
+						seatUpdates: true,
+						webhooks: true,
+					},
+				},
+				{
+					name: "paypal",
+					capabilities: {
+						checkout: true,
+						portal: false,
+						cancellation: true,
+						seatUpdates: false,
+						webhooks: true,
+					},
+				},
+			];
+		});
+
+		await expect(
+			call(
+				getProviderAvailability,
+				{ planId: "creator", interval: "year" },
+				{ context: { headers: new Headers() } },
+			),
+		).resolves.toEqual({
+			providers: [
+				{
+					name: "paypal",
+					capabilities: {
+						checkout: true,
+						portal: false,
+						cancellation: true,
+						seatUpdates: false,
+						webhooks: true,
+					},
+				},
+			],
+		});
+	});
+
+	it("accepts the Ultimate subscription tier", async () => {
+		resolveProviderAvailability.mockResolvedValue([]);
+
+		await expect(
+			call(
+				getProviderAvailability,
+				{ planId: "ultimate", interval: "year" },
+				{ context: { headers: new Headers() } },
+			),
+		).resolves.toEqual({ providers: [] });
+		expect(resolveProviderAvailability).toHaveBeenCalledWith(
+			{ planId: "ultimate", interval: "year" },
+			expect.any(Object),
+		);
+	});
 });

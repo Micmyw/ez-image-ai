@@ -13,6 +13,16 @@ afterEach(() => {
 });
 
 describe("public EzPic identity consumers", () => {
+	it("does not project static application origins into public product configuration", async () => {
+		const { DEFAULT_PRODUCT_CONFIG, getPublicConfig } = await import("./index");
+
+		expect(DEFAULT_PRODUCT_CONFIG).not.toHaveProperty("publicUrls");
+		expect(getPublicConfig()).not.toHaveProperty("publicUrls");
+		expect(JSON.stringify(getPublicConfig())).not.toMatch(
+			/marketing\.placeholder|app\.placeholder/,
+		);
+	});
+
 	it("uses the configured site name in email and OpenAPI surfaces", async () => {
 		process.env.NEXT_PUBLIC_SITE_NAME = "Configured Editor";
 
@@ -32,13 +42,18 @@ describe("public EzPic identity consumers", () => {
 		);
 
 		for (const key of [
-			"NEXT_PUBLIC_MARKETING_URL",
 			"NEXT_PUBLIC_SAAS_URL",
 			"NEXT_PUBLIC_SUPPORT_EMAIL",
 			"NEXT_PUBLIC_SITE_NAME",
 			"NEXT_PUBLIC_SITE_DESCRIPTION",
 		]) {
 			expect(exampleEnvironment).toContain(`${key}=`);
+		}
+		for (const segments of [
+			["NEXT", "PUBLIC", "MARKETING", "URL"],
+			["NEXT", "PUBLIC", "DOCS", "URL"],
+		]) {
+			expect(exampleEnvironment).not.toContain(`${segments.join("_")}=`);
 		}
 		expect(exampleEnvironment).not.toMatch(/supastarter|example\.com/i);
 	});

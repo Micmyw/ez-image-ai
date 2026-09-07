@@ -3,6 +3,43 @@ import { describe, expect, it, vi } from "vitest";
 import { reconcileSubscriptionsWithClient } from "./reconcile-subscriptions-core";
 
 describe("subscription deadline reconciliation", () => {
+	it("scopes local deadline cleanup to PayPal and Waffo when Stripe lifecycle is disabled", async () => {
+		const subscriptionUpdate = vi.fn().mockResolvedValue({ count: 2 });
+		const purchaseUpdate = vi.fn().mockResolvedValue({ count: 2 });
+		const periodUpdate = vi.fn().mockResolvedValue({ count: 1 });
+		const now = new Date("2026-09-01T00:00:00.000Z");
+		await reconcileSubscriptionsWithClient({ now, providerNames: ["paypal", "waffo"] }, {
+			subscription: { updateMany: subscriptionUpdate as never },
+			purchase: { updateMany: purchaseUpdate as never },
+			billingPeriod: { updateMany: periodUpdate as never },
+		} as never);
+
+		expect(subscriptionUpdate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({ provider: { in: ["paypal", "waffo"] } }),
+			}),
+		);
+		expect(purchaseUpdate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({
+					mediaSubscription: {
+						is: {
+							provider: { in: ["paypal", "waffo"] },
+							status: "EXPIRED",
+						},
+					},
+				}),
+			}),
+		);
+		expect(periodUpdate).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({
+					subscription: { provider: { in: ["paypal", "waffo"] } },
+				}),
+			}),
+		);
+	});
+
 	it("expires cancellation at paid-through and past due at explicit grace deadline", async () => {
 		const subscriptionUpdate = vi.fn().mockResolvedValue({ count: 2 });
 		const purchaseUpdate = vi.fn().mockResolvedValue({ count: 2 });

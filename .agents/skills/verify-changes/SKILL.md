@@ -24,16 +24,16 @@ Use for the final repository gates and for selecting focused tests. Do not use t
    The ignored custom Prisma client under `packages/database/prisma/generated` is absent in a clean checkout. Run `pnpm --filter @repo/database generate` before direct package tests/scripts that load `@repo/database`, after schema changes, and before local E2E. Root `pnpm dev`, `pnpm build`, and `pnpm type-check` already reach the database `generate` task through `turbo.json`; do not add redundant generation to every command.
 3. Run focused Vitest tests first. The exact CI unit command is:
    ```bash
-   pnpm --filter @repo/api --filter saas --filter marketing test
+   pnpm --filter @repo/api --filter saas test
    ```
    Narrow to one workspace when appropriate, for example `pnpm --filter @repo/api test`.
 4. Run the matching Playwright suite when routes, rendering, auth, navigation, forms, or another browser-visible flow changed. Each config starts an isolated webpack development server by default; set `E2E_USE_PRODUCTION_BUILD=true` to build and start production mode:
    ```bash
    pnpm --filter saas e2e:ci
-   pnpm --filter marketing e2e:ci
    ```
-   Foundation media changes should also run `pnpm e2e:media:ci`, which seeds isolated users/assets, runs the local Outbox pump, and executes the SaaS media and marketing handoff suites without real Provider calls.
-   Tests are under `apps/saas/tests` and `apps/marketing/tests`.
+   Foundation media changes should also run `pnpm e2e:media:ci`, which seeds isolated users/assets,
+   runs the local Outbox pump, and executes the unified SaaS media and draft-handoff suites without
+   real Provider calls. Product E2E tests are under `apps/saas/tests`.
    E2E may be skipped for docs-only, server-only, unit-only, or non-behavioral changes when no browser contract is affected; state that reason in the handoff. CI still runs both suites for every PR.
 5. Run CI-parity read-only gates:
    ```bash
@@ -43,7 +43,9 @@ Use for the final repository gates and for selecting focused tests. Do not use t
    ```
    If they fail, use `pnpm lint:fix` and/or `pnpm format`, review the edits, then rerun the read-only gates.
 6. Reinspect `git diff` after any fix command. Confirm no secrets, generated client artifacts, `console.log`, unjustified `any`, or unrelated edits were introduced.
-7. Compare failures with `.github/workflows/validate-prs.yml`; its jobs cover quality/contracts, PostgreSQL integration, production builds, mock media E2E with MinIO, and supply-chain checks. The mock E2E job uploads separate SaaS and marketing reports plus test results.
+7. Compare failures with `.github/workflows/validate-prs.yml`; its jobs cover quality/contracts,
+   PostgreSQL integration, the SaaS production build, mock media E2E with MinIO, and supply-chain
+   checks. The mock E2E job uploads the SaaS report and test results.
 
 ## Canonical reference
 

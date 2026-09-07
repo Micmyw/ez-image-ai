@@ -11,7 +11,8 @@ Use for deterministic logic and server handlers that can be exercised without a 
 
 ## Procedure
 
-1. Co-locate a `*.test.ts` or `*.test.tsx` file with the implementation. Existing suites run in `packages/api`, `apps/saas`, and `apps/marketing`.
+1. Co-locate a `*.test.ts` or `*.test.tsx` file with the implementation. Product and API suites run
+   in `apps/saas` and `packages/api`.
 2. Follow the nearest `vitest.config.ts`; SaaS aliases such as `@auth` and `@organizations` are configured there, while API tests use package imports.
 3. Mock external boundaries with `vi.mock` before importing mocked bindings and the subject. Reset mocks in `beforeEach` when return values or call counts can leak. Keep validation, authorization, success, and failure cases explicit.
 4. For protected oRPC procedures, mock Better Auth plus database/provider boundaries, then call the procedure with the real oRPC context shape shown below. The middleware builds `context.user`/`context.session` from `auth.api.getSession`; do not inject a fake user directly into the base context. For failures, use `await expect(call(...)).rejects.toMatchObject({ code: "FORBIDDEN" })`. Import `ORPCError` from `@orpc/server` only when asserting the error class.
@@ -42,11 +43,10 @@ const result = await call(procedure, input, {
    ```bash
    pnpm --filter @repo/api test
    pnpm --filter saas test
-   pnpm --filter marketing test
    ```
-   The exact PR unit command is:
+   The repository unit-contract command is:
    ```bash
-   pnpm --filter @repo/api --filter saas --filter marketing test
+   pnpm test:unit:contracts
    ```
 6. Run `pnpm format`, `pnpm lint`, and `pnpm type-check`.
 

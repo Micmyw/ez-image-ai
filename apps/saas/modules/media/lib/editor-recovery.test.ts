@@ -32,6 +32,7 @@ describe("resolveEditorRecovery", () => {
 						kind: "image-to-image",
 						prompt: "  Replace the sky with a soft sunset  ",
 						sourceAssetId: SOURCE_ASSET_ID,
+						aspectRatio: "16:9",
 					},
 				},
 				sourceAsset: {
@@ -49,6 +50,7 @@ describe("resolveEditorRecovery", () => {
 					kind: "image-to-image",
 					prompt: "Replace the sky with a soft sunset",
 					sourceAssetId: SOURCE_ASSET_ID,
+					aspectRatio: "16:9",
 				},
 			},
 			restoreState: "ready",
@@ -114,6 +116,7 @@ describe("resolveEditorRecovery", () => {
 						kind: "image-to-image",
 						prompt: "",
 						sourceAssetId: SOURCE_ASSET_ID,
+						aspectRatio: "auto",
 					},
 				},
 				restoreState,

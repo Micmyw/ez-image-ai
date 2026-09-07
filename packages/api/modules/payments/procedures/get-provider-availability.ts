@@ -1,9 +1,5 @@
 import { db } from "@repo/database/client";
-import {
-	getProviderPriceIdByPlanId,
-	isPaymentProviderConfigured,
-	paymentProviderNames,
-} from "@repo/payments";
+import { getProviderPriceIdByPlanId, isPaymentProviderConfigured } from "@repo/payments";
 import { z } from "zod";
 
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -22,12 +18,13 @@ export const getProviderAvailability = protectedProcedure
 		method: "GET",
 		path: "/payments/provider-availability",
 		tags: ["Payments"],
-		summary: "List server-authorized payment providers",
+		summary: "List server-authorized subscription payment providers",
+		description: "Lists available PayPal and Waffo subscription checkout options",
 	})
 	.input(
 		z
 			.object({
-				planId: z.enum(["creator", "studio"]),
+				planId: z.enum(["creator", "ultimate", "studio"]),
 				interval: z.enum(["month", "year"]),
 			})
 			.strict(),
@@ -36,14 +33,14 @@ export const getProviderAvailability = protectedProcedure
 		z.object({
 			providers: z.array(
 				z.object({
-					name: z.enum(paymentProviderNames),
+					name: z.enum(["paypal", "waffo"]),
 					capabilities: capabilitiesSchema,
 				}),
 			),
 		}),
 	)
-	.handler(async ({ input }) => ({
-		providers: await resolveProviderAvailability(input, {
+	.handler(async ({ input }) => {
+		const providers = await resolveProviderAvailability(input, {
 			isConfigured: (provider) => isPaymentProviderConfigured(provider),
 			getProviderPriceId: (provider) =>
 				getProviderPriceIdByPlanId(provider, input.planId, {
@@ -54,5 +51,11 @@ export const getProviderAvailability = protectedProcedure
 				db.billingPlan.findUnique({
 					where: { provider_providerPriceId: { provider, providerPriceId } },
 				}),
-		}),
-	}));
+		});
+		return {
+			providers: providers.flatMap((provider) => {
+				if (provider.name !== "paypal" && provider.name !== "waffo") return [];
+				return [{ name: provider.name, capabilities: provider.capabilities }];
+			}),
+		};
+	});

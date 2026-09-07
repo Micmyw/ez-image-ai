@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const publicProductEnvironmentKeys = [
-	"NEXT_PUBLIC_MARKETING_URL",
 	"NEXT_PUBLIC_SAAS_URL",
 	"NEXT_PUBLIC_SUPPORT_EMAIL",
 	"NEXT_PUBLIC_SITE_NAME",
@@ -23,7 +22,6 @@ afterEach(() => {
 
 describe("SaaS product configuration", () => {
 	it("uses the complete environment-backed public EzPic identity", async () => {
-		process.env.NEXT_PUBLIC_MARKETING_URL = "https://www.configured.test";
 		process.env.NEXT_PUBLIC_SAAS_URL = "https://app.configured.test";
 		process.env.NEXT_PUBLIC_SUPPORT_EMAIL = "help@configured.test";
 		process.env.NEXT_PUBLIC_SITE_NAME = "Configured Editor";
@@ -34,10 +32,11 @@ describe("SaaS product configuration", () => {
 		expect(config).toMatchObject({
 			appName: "Configured Editor",
 			appDescription: "Configured image editing description",
-			marketingUrl: "https://www.configured.test",
 			saasUrl: "https://app.configured.test",
 			supportEmail: "help@configured.test",
 		});
+		expect(config).not.toHaveProperty("marketingUrl");
+		expect(config).not.toHaveProperty("docsUrl");
 	});
 
 	it("falls back to the neutral EzPic product identity", async () => {

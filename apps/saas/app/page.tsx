@@ -1,7 +1,9 @@
 import { getBaseUrl } from "@shared/lib/base-url";
 import type { Metadata } from "next";
+import { getTranslations } from "next-intl/server";
 
 import { LandingPage } from "../modules/landing/components/LandingPage";
+import { HOME_FAQ_KEYS } from "../modules/landing/lib/faq";
 
 const title = "EzPic AI Image Editor — Edit Images With a Prompt";
 const description =
@@ -21,16 +23,31 @@ export const metadata: Metadata = {
 	twitter: { card: "summary_large_image", title, description },
 };
 
-export default function HomePage() {
+export default async function HomePage() {
+	const t = await getTranslations();
 	const structuredData = {
 		"@context": "https://schema.org",
-		"@type": "SoftwareApplication",
-		name: "EzPic",
-		applicationCategory: "MultimediaApplication",
-		operatingSystem: "Web",
-		description,
-		url: new URL("/", getBaseUrl()).href,
-		offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+		"@graph": [
+			{
+				"@type": "SoftwareApplication",
+				name: "EzPic",
+				applicationCategory: "MultimediaApplication",
+				operatingSystem: "Web",
+				description,
+				url: new URL("/", getBaseUrl()).href,
+			},
+			{
+				"@type": "FAQPage",
+				mainEntity: HOME_FAQ_KEYS.map((key) => ({
+					"@type": "Question",
+					name: t(`faq.items.${key}.question`),
+					acceptedAnswer: {
+						"@type": "Answer",
+						text: t(`faq.items.${key}.answer`),
+					},
+				})),
+			},
+		],
 	};
 
 	return (

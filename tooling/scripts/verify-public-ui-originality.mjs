@@ -11,6 +11,7 @@ const forbiddenExpression = [
 	["internal-task-field", /providerTaskId/i],
 	["internal-route-brand", /fal-ai|replicate\.com/i],
 ];
+const providerDisclosureExpression = /\bOpenAI\b/i;
 const publicTextExtensions = new Set([
 	".css",
 	".csv",
@@ -19,9 +20,11 @@ const publicTextExtensions = new Set([
 	".json",
 	".map",
 	".md",
+	".mdx",
 	".mjs",
 	".rsc",
 	".svg",
+	".ts",
 	".txt",
 	".webmanifest",
 	".xml",
@@ -37,31 +40,195 @@ const browserArtifactReference =
 	/["']((?:(?:\.{1,2}\/)|(?:\/_next\/)?static\/)[^"']+\.(?:css|js|mjs))["']/g;
 const ownedHosts = new Set(["ezpic.ai", "www.ezpic.ai", "app.ezpic.ai", "localhost", "127.0.0.1"]);
 const approvedPublicResourceHosts = new Set(["challenges.cloudflare.com"]);
+const saasBuildRoot = path.resolve("apps/saas/.next");
 const builtPublicRoutes = [
-	{
-		buildRoot: path.resolve("apps/marketing/.next"),
-		manifest: path.join("server", "app", "[locale]", "(home)", "page_client-reference-manifest.js"),
-		appPathKey: "/[locale]/(home)/page",
-		outputRoutes: [],
-	},
-	{
-		buildRoot: path.resolve("apps/saas/.next"),
-		manifest: path.join("server", "app", "(guest)", "try", "page_client-reference-manifest.js"),
-		appPathKey: "/(guest)/try/page",
-		outputRoutes: ["try"],
-	},
+	publicBuildRoute("home", ["page_client-reference-manifest.js"], "/page", "/"),
+	publicBuildRoute(
+		"try",
+		["(guest)", "try", "page_client-reference-manifest.js"],
+		"/(guest)/try/page",
+		"/try",
+		["try"],
+	),
+	publicBuildRoute(
+		"pricing",
+		["(public)", "pricing", "page_client-reference-manifest.js"],
+		"/(public)/pricing/page",
+		"/pricing",
+		["pricing"],
+	),
+	publicBuildRoute(
+		"privacy",
+		["(public)", "privacy", "page_client-reference-manifest.js"],
+		"/(public)/privacy/page",
+		"/privacy",
+		["privacy"],
+	),
+	publicBuildRoute(
+		"terms",
+		["(public)", "terms", "page_client-reference-manifest.js"],
+		"/(public)/terms/page",
+		"/terms",
+		["terms"],
+	),
+	publicBuildRoute(
+		"blog-index",
+		["(public)", "blog", "page_client-reference-manifest.js"],
+		"/(public)/blog/page",
+		"/blog",
+		["blog"],
+	),
+	publicBuildRoute(
+		"blog-article",
+		["(public)", "blog", "[...path]", "page_client-reference-manifest.js"],
+		"/(public)/blog/[...path]/page",
+		"/blog/private-image-editing-workflow",
+		["blog/private-image-editing-workflow"],
+	),
+	publicBuildRoute(
+		"changelog",
+		["(public)", "changelog", "page_client-reference-manifest.js"],
+		"/(public)/changelog/page",
+		"/changelog",
+		["changelog"],
+	),
+	publicBuildRoute(
+		"contact",
+		["(public)", "contact", "page_client-reference-manifest.js"],
+		"/(public)/contact/page",
+		"/contact",
+		["contact"],
+	),
+	publicBuildRoute(
+		"docs-index",
+		["docs", "[[...slug]]", "page_client-reference-manifest.js"],
+		"/docs/[[...slug]]/page",
+		"/docs",
+		["docs"],
+	),
+	publicBuildRoute(
+		"docs-page",
+		["docs", "[[...slug]]", "page_client-reference-manifest.js"],
+		"/docs/[[...slug]]/page",
+		"/docs/quick-start",
+		["docs/quick-start"],
+	),
+	publicBuildRoute(
+		"docs-search",
+		["docs", "api", "search", "route_client-reference-manifest.js"],
+		"/docs/api/search/route",
+		"/docs/api/search?query=image",
+	),
+	publicBuildRoute(
+		"docs-llms-index",
+		["docs", "llms.txt", "route_client-reference-manifest.js"],
+		"/docs/llms.txt/route",
+		"/docs/llms.txt",
+	),
+	publicBuildRoute(
+		"docs-llms-full",
+		["docs", "llms-full.txt", "route_client-reference-manifest.js"],
+		"/docs/llms-full.txt/route",
+		"/docs/llms-full.txt",
+	),
+	publicBuildRoute(
+		"docs-llms-page",
+		["docs", "llms.mdx", "[[...slug]]", "route_client-reference-manifest.js"],
+		"/docs/llms.mdx/[[...slug]]/route",
+		"/docs/llms.mdx/quick-start",
+	),
+	publicBuildRoute(
+		"docs-og",
+		["docs", "og", "[...slug]", "route_client-reference-manifest.js"],
+		"/docs/og/[...slug]/route",
+		"/docs/og/quick-start/image.png",
+		[],
+		false,
+	),
 ];
-const deployedPublicRoots = [
-	path.resolve("apps/marketing/public"),
-	path.resolve("apps/saas/public"),
-];
+const deployedPublicRoots = [path.resolve("apps/saas/public")];
+const publicContentRoots = [path.resolve("apps/saas/content")];
+const requiredPublicRouteCoverage = new Map([
+	["home", ["/page", "/", true]],
+	["try", ["/(guest)/try/page", "/try", true]],
+	["pricing", ["/(public)/pricing/page", "/pricing", true]],
+	["privacy", ["/(public)/privacy/page", "/privacy", true]],
+	["terms", ["/(public)/terms/page", "/terms", true]],
+	["blog-index", ["/(public)/blog/page", "/blog", true]],
+	["blog-article", ["/(public)/blog/[...path]/page", "/blog/private-image-editing-workflow", true]],
+	["changelog", ["/(public)/changelog/page", "/changelog", true]],
+	["contact", ["/(public)/contact/page", "/contact", true]],
+	["docs-index", ["/docs/[[...slug]]/page", "/docs", true]],
+	["docs-page", ["/docs/[[...slug]]/page", "/docs/quick-start", true]],
+	["docs-search", ["/docs/api/search/route", "/docs/api/search?query=image", true]],
+	["docs-llms-index", ["/docs/llms.txt/route", "/docs/llms.txt", true]],
+	["docs-llms-full", ["/docs/llms-full.txt/route", "/docs/llms-full.txt", true]],
+	["docs-llms-page", ["/docs/llms.mdx/[[...slug]]/route", "/docs/llms.mdx/quick-start", true]],
+	["docs-og", ["/docs/og/[...slug]/route", "/docs/og/quick-start/image.png", false]],
+]);
+
+function publicBuildRoute(
+	id,
+	manifestSegments,
+	appPathKey,
+	representativePath,
+	outputRoutes = [],
+	scanArtifacts = true,
+) {
+	return {
+		id,
+		buildRoot: saasBuildRoot,
+		manifest: path.join("server", "app", ...manifestSegments),
+		appPathKey,
+		representativePath,
+		outputRoutes,
+		scanArtifacts,
+	};
+}
+
+export function assertSaasOnlyScannerConfiguration(
+	routes = builtPublicRoutes,
+	roots = deployedPublicRoots,
+	contentRoots = publicContentRoots,
+) {
+	const expectedBuildRoot = path.resolve("apps", "saas", ".next");
+	const expectedPublicRoot = path.resolve("apps", "saas", "public");
+	const expectedContentRoot = path.resolve("apps", "saas", "content");
+	if (!routes.length || routes.some(({ buildRoot }) => buildRoot !== expectedBuildRoot)) {
+		throw new Error("Public UI originality scanner must use only the SaaS build root");
+	}
+	const routeById = new Map();
+	for (const route of routes) {
+		if (!route.id || routeById.has(route.id)) {
+			throw new Error(`Public UI originality scanner has an invalid route id: ${route.id ?? ""}`);
+		}
+		routeById.set(route.id, route);
+	}
+	for (const [id, [appPathKey, representativePath, scanArtifacts]] of requiredPublicRouteCoverage) {
+		const route = routeById.get(id);
+		if (!route) throw new Error(`Missing required public route coverage: ${id}`);
+		if (
+			route.appPathKey !== appPathKey ||
+			route.representativePath !== representativePath ||
+			route.scanArtifacts !== scanArtifacts
+		) {
+			throw new Error(`Invalid required public route coverage: ${id}`);
+		}
+	}
+	if (roots.length !== 1 || roots[0] !== expectedPublicRoot) {
+		throw new Error("Public UI originality scanner must use only the SaaS public root");
+	}
+	if (contentRoots.length !== 1 || contentRoots[0] !== expectedContentRoot) {
+		throw new Error("Public UI originality scanner must include only the SaaS public content root");
+	}
+}
 
 export async function scanPublicUiRoots(roots) {
 	const files = [];
 	for (const root of roots) {
 		files.push(...(await publicArtifactFiles(root)));
 	}
-	return scanPublicUiFiles(files);
+	return [...(await scanPublicUiFiles(files)), ...(await scanProviderDisclosureFiles(files))];
 }
 
 async function scanPublicUiFiles(files) {
@@ -81,6 +248,16 @@ async function scanPublicUiFiles(files) {
 				}
 			}
 		}
+	}
+	return findings;
+}
+
+async function scanProviderDisclosureFiles(files) {
+	const findings = [];
+	for (const file of [...new Set(files)].sort((left, right) => left.localeCompare(right))) {
+		const content = await readFile(file, "utf8");
+		const match = providerDisclosureExpression.exec(content);
+		if (match) findings.push({ file, kind: "provider-disclosure", value: match[0] });
 	}
 	return findings;
 }
@@ -160,11 +337,13 @@ async function publicRouteArtifactFiles(
 		}
 		browserSeeds.add(absolute);
 	}
-	if (!browserSeeds.size)
+	if (!browserSeeds.size && !appPathKey?.endsWith("/route"))
 		throw new Error(
 			`Public route manifest contained no browser artifacts: ${manifestRelativePath}`,
 		);
-	const files = await recursivelyReferencedBrowserFiles([...browserSeeds], buildRoot);
+	const files = browserSeeds.size
+		? await recursivelyReferencedBrowserFiles([...browserSeeds], buildRoot)
+		: new Set();
 	if (appPathKey) {
 		const appPaths = JSON.parse(
 			await readFile(path.join(buildRoot, "server", "app-paths-manifest.json"), "utf8"),
@@ -239,6 +418,7 @@ async function fileExists(file) {
 }
 
 async function selfTest() {
+	assertSaasOnlyScannerConfiguration();
 	const root = await mkdtemp(path.join(tmpdir(), "ezpic-originality-test-"));
 	try {
 		const good = path.join(root, "good");
@@ -364,28 +544,50 @@ async function main() {
 		.filter(Boolean);
 	let roots = explicitRoots;
 	let files;
+	let providerDisclosureFiles;
 	if (explicitRoots.length) {
 		files = (await Promise.all(explicitRoots.map(publicArtifactFiles))).flat();
+		providerDisclosureFiles = files;
 	} else {
-		await Promise.all(builtPublicRoutes.map(({ buildRoot }) => assertProductionBuild(buildRoot)));
+		assertSaasOnlyScannerConfiguration();
+		await Promise.all(
+			[...new Set(builtPublicRoutes.map(({ buildRoot }) => buildRoot))].map(assertProductionBuild),
+		);
 		const existingPublicRoots = [];
 		for (const root of deployedPublicRoots) {
 			if (await fileExists(root)) existingPublicRoots.push(root);
 		}
+		const existingPublicContentRoots = [];
+		for (const root of publicContentRoots) {
+			if (await fileExists(root)) existingPublicContentRoots.push(root);
+		}
 		const builtFiles = (
 			await Promise.all(
-				builtPublicRoutes.map(({ buildRoot, manifest, appPathKey, outputRoutes }) =>
-					publicRouteArtifactFiles(buildRoot, manifest, { appPathKey, outputRoutes }),
+				builtPublicRoutes.map(
+					async ({ buildRoot, manifest, appPathKey, outputRoutes, scanArtifacts }) => {
+						const routeFiles = await publicRouteArtifactFiles(buildRoot, manifest, {
+							appPathKey,
+							outputRoutes,
+						});
+						return scanArtifacts ? routeFiles : [];
+					},
 				),
 			)
 		).flat();
 		const rawPublicFiles = (
 			await Promise.all(existingPublicRoots.map((root) => publicArtifactFiles(root)))
 		).flat();
-		files = [...builtFiles, ...rawPublicFiles];
-		roots = [...builtPublicRoutes.map(({ buildRoot }) => buildRoot), ...existingPublicRoots];
+		const rawPublicContentFiles = (
+			await Promise.all(existingPublicContentRoots.map((root) => publicArtifactFiles(root)))
+		).flat();
+		files = [...new Set([...builtFiles, ...rawPublicFiles, ...rawPublicContentFiles])];
+		providerDisclosureFiles = rawPublicFiles;
+		roots = [saasBuildRoot, ...existingPublicRoots, ...existingPublicContentRoots];
 	}
-	const findings = await scanPublicUiFiles(files);
+	const findings = [
+		...(await scanPublicUiFiles(files)),
+		...(await scanProviderDisclosureFiles(providerDisclosureFiles)),
+	];
 	if (findings.length) {
 		for (const finding of findings) {
 			process.stderr.write(`${finding.kind}: ${finding.file}: ${finding.value}\n`);
@@ -393,7 +595,7 @@ async function main() {
 		throw new Error(`Public UI originality verification failed with ${findings.length} finding(s)`);
 	}
 	process.stdout.write(
-		`Public UI originality verification: PASS (${files.length} public route artifacts across ${roots.length} built roots)\n`,
+		`Public UI originality verification: PASS (${files.length} public route/content artifacts across ${roots.length} roots)\n`,
 	);
 }
 

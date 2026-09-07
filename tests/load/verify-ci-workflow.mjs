@@ -2,6 +2,15 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 const workflow = readFileSync(resolve(process.cwd(), ".github/workflows/validate-prs.yml"), "utf8");
+const providerSmokeWorkflow = readFileSync(
+	resolve(process.cwd(), ".github/workflows/provider-smoke.yml"),
+	"utf8",
+);
+const rootPackage = JSON.parse(readFileSync(resolve(process.cwd(), "package.json"), "utf8"));
+const unitContracts = readFileSync(
+	resolve(process.cwd(), "tests/load/run-unit-contracts.ts"),
+	"utf8",
+);
 const integrationRunner = readFileSync(
 	resolve(process.cwd(), "tests/load/run-integration.ts"),
 	"utf8",
@@ -30,8 +39,11 @@ assertJobsDatabaseIntegrationCoverage(
 	jobsPackage.scripts?.["test:integration"],
 	integrationRunner,
 );
+assertSaasOnlyRepository(rootPackage.scripts, workflow, unitContracts);
 assertNotMatch(builds, /^ {6}DATABASE_URL:\s*\$\{\{\s*env\./m);
 assertPnpmSetupPrecedesNodeCache(workflow);
+assertPnpmSetupPrecedesNodeCache(providerSmokeWorkflow);
+assertIncludes(workflow, "  push:\n    branches: [main]");
 assertStepPrecedes(
 	quality,
 	"run: pnpm --filter @repo/database generate",
@@ -47,7 +59,6 @@ assertStepPrecedes(
 	"run: pnpm --filter @repo/database generate",
 	"run: pnpm --filter saas build",
 );
-assertNotMatch(builds, /run: pnpm --filter marketing build/);
 assertStepPrecedes(mockE2e, "run: pnpm --filter @repo/database generate", "run: pnpm e2e:media:ci");
 
 assertIncludes(mockE2e, "name: Start pinned MinIO service");
@@ -71,7 +82,25 @@ assertIncludes(mockE2e, "name: Run immutable upload MinIO regression");
 assertIncludes(mockE2e, "run: pnpm --filter @repo/storage test:minio");
 assertIncludes(mockE2e, "run: pnpm --filter saas exec playwright install --with-deps chromium");
 assertNotMatch(mockE2e, /run: pnpm --filter @repo\/e2e-media exec playwright install/);
-assertNotMatch(mockE2e, /playwright-marketing|apps\/marketing\/(?:playwright-report|test-results)/);
+assertNotMatch(mockE2e, /playwright-(?:docs|marketing)|apps\/(?:docs|marketing)\//);
+
+function assertSaasOnlyRepository(scripts, workflowText, unitContractSource) {
+	for (const task of ["dev", "build", "start"]) {
+		assertIncludes(scripts?.[task] ?? "", `turbo ${task} --filter=saas...`);
+	}
+	for (const segments of [
+		["NEXT", "PUBLIC", "MARKETING", "URL"],
+		["NEXT", "PUBLIC", "DOCS", "URL"],
+	]) {
+		assertNotMatch(workflowText, new RegExp(segments.join("_")));
+	}
+	for (const legacyApp of ["marketing", "docs"]) {
+		if (existsSync(resolve(process.cwd(), "apps", legacyApp))) {
+			throw new Error(`retired application directory remains: ${legacyApp}`);
+		}
+		assertNotMatch(unitContractSource, new RegExp(`--filter["',\\s]+${legacyApp}`));
+	}
+}
 
 function jobBlock(workflowText, jobName, nextJobName) {
 	const start = workflowText.indexOf(`  ${jobName}:\n`);

@@ -27,6 +27,11 @@ export async function deliverOutboxEvent(
 			return dependencies.trigger("media-process-payment-event", {
 				paymentEventId: requiredString(payload.paymentEventId),
 			});
+		case "CREDIT_PACK_FULFILLED":
+		case "CREDIT_PACK_ADJUSTED":
+			// These are durable domain records for audit and future notifications. The
+			// payment event that created them has already completed all credit mutations.
+			return;
 		case "JOB_CREATED":
 		case "GENERATION_DISPATCH": {
 			const route = await dependencies.resolveDispatchRoute(event.aggregateId);

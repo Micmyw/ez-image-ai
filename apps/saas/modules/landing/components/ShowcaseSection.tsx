@@ -14,13 +14,27 @@ const SHOWCASE_ITEMS = [
 	{
 		key: "mediterranean",
 		image: "/examples/case-mediterranean-room.webp",
-		aspect: "aspect-[4/3]",
 	},
-	{ key: "cobalt", image: "/examples/case-cobalt-product.webp", aspect: "aspect-[4/5]" },
-	{ key: "emerald", image: "/examples/case-emerald-fashion.webp", aspect: "aspect-[4/5]" },
-	{ key: "blueHour", image: "/examples/case-blue-hour.webp", aspect: "aspect-[3/2]" },
-	{ key: "citrus", image: "/examples/case-citrus-editorial.webp", aspect: "aspect-[4/5]" },
-	{ key: "paperTrain", image: "/examples/case-paper-train.webp", aspect: "aspect-[4/5]" },
+	{
+		key: "lunarGreenhouse",
+		image: "/examples/case-lunar-greenhouse.webp",
+	},
+	{ key: "cobalt", image: "/examples/case-cobalt-product.webp" },
+	{ key: "origamiKoi", image: "/examples/case-origami-koi.webp" },
+	{ key: "emerald", image: "/examples/case-emerald-fashion.webp" },
+	{
+		key: "tangerineCamera",
+		image: "/examples/case-tangerine-camera.webp",
+	},
+	{ key: "blueHour", image: "/examples/case-blue-hour.webp" },
+	{
+		key: "porcelainTide",
+		image: "/examples/case-porcelain-tide.webp",
+	},
+	{ key: "citrus", image: "/examples/case-citrus-editorial.webp" },
+	{ key: "velvetFox", image: "/examples/case-velvet-fox.webp" },
+	{ key: "paperTrain", image: "/examples/case-paper-train.webp" },
+	{ key: "desertPool", image: "/examples/case-desert-pool.webp" },
 ] as const;
 
 export function ShowcaseSection() {
@@ -41,16 +55,8 @@ export function ShowcaseSection() {
 		<section
 			id="examples"
 			aria-labelledby="examples-title"
-			className="scroll-mt-20 py-14 text-white sm:py-20 relative overflow-hidden border-y border-[#2c2440] bg-[#171321]"
+			className="scroll-mt-20 py-14 text-white sm:py-20 relative overflow-hidden bg-transparent"
 		>
-			<div
-				className="-top-40 -right-32 bg-violet-600/25 blur-3xl pointer-events-none absolute size-[32rem] rounded-full"
-				aria-hidden="true"
-			/>
-			<div
-				className="-bottom-52 -left-40 bg-orange-500/15 blur-3xl pointer-events-none absolute size-[32rem] rounded-full"
-				aria-hidden="true"
-			/>
 			<div className="relative container">
 				<div className="gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.55fr)] lg:text-left grid items-end text-center">
 					<div>
@@ -76,51 +82,62 @@ export function ShowcaseSection() {
 					</div>
 				</div>
 
-				<div className="mt-10 gap-4 sm:columns-2 lg:columns-3 columns-1">
+				<div className="mt-10 gap-3 sm:gap-4 lg:gap-5 md:grid-cols-3 xl:grid-cols-4 grid grid-cols-2">
 					{SHOWCASE_ITEMS.map((item) => (
 						<article
 							key={item.key}
-							className="group mb-4 border-white/10 bg-white/5 shadow-2xl shadow-black/20 break-inside-avoid overflow-hidden rounded-[1.75rem] border"
+							className={`group bg-white/[0.035] hover:border-violet-300/70 focus-within:border-violet-300/80 focus-within:ring-violet-300/90 motion-safe:ease-out motion-safe:hover:-translate-y-2 motion-safe:focus-within:-translate-y-2 relative overflow-hidden rounded-[1.35rem] border shadow-[0_18px_50px_-28px_rgba(0,0,0,0.85)] focus-within:shadow-[0_30px_80px_-22px_rgba(124,58,237,0.72)] focus-within:ring-2 focus-within:ring-offset-4 focus-within:ring-offset-[#16101f] hover:shadow-[0_30px_80px_-22px_rgba(124,58,237,0.72)] motion-safe:transition-[transform,box-shadow,border-color] motion-safe:duration-500 motion-safe:focus-within:scale-[1.015] motion-safe:hover:scale-[1.015] ${
+								selectedKey === item.key
+									? "border-violet-300/90 ring-violet-300/60 ring-1"
+									: "border-white/10"
+							}`}
 						>
 							<button
 								type="button"
 								aria-label={t("usePromptLabel", { title: t(`items.${item.key}.title`) })}
-								className="focus-visible:outline-orange-300 relative block w-full overflow-hidden text-left focus-visible:outline-2 focus-visible:outline-offset-4"
+								aria-pressed={selectedKey === item.key}
+								className="relative block w-full overflow-hidden text-left focus-visible:outline-none"
 								onClick={() => usePrompt(item.key)}
 							>
-								<div className={`bg-slate-800 relative overflow-hidden ${item.aspect}`}>
+								<div className="bg-slate-800 relative aspect-[9/16] overflow-hidden">
 									<Image
 										src={item.image}
 										alt={t(`items.${item.key}.alt`)}
 										fill
-										className="object-cover transition duration-700 group-hover:scale-[1.035] group-focus-visible:scale-[1.035] motion-reduce:transition-none"
-										sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+										className="motion-safe:ease-out object-cover motion-safe:transition-transform motion-safe:duration-700 motion-safe:group-focus-within:scale-[1.09] motion-safe:group-hover:scale-[1.09]"
+										sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
 									/>
-									<div
-										className="inset-0 from-black via-black/10 absolute bg-gradient-to-t to-transparent"
-										aria-hidden="true"
-									/>
-									<span className="top-4 left-4 border-white/25 bg-black/30 px-2.5 py-1 font-bold text-white backdrop-blur-md absolute rounded-full border text-[0.65rem] tracking-[0.12em] uppercase">
-										{t(`items.${item.key}.tag`)}
-									</span>
-									<div className="right-0 bottom-0 left-0 p-5 sm:p-6 absolute">
-										<h3 className="text-xl font-bold text-white tracking-[-0.025em]">
-											{t(`items.${item.key}.title`)}
-										</h3>
-										<p className="mt-2 text-sm leading-5 text-white/75 line-clamp-2">
-											{t(`items.${item.key}.prompt`)}
-										</p>
-										<span className="mt-4 gap-2 text-sm font-bold text-white inline-flex items-center">
-											{selectedKey === item.key ? (
-												<CheckIcon className="size-4 text-emerald-300" aria-hidden="true" />
-											) : (
-												<ArrowUpRightIcon
-													className="size-4 text-orange-200 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform motion-reduce:transform-none"
-													aria-hidden="true"
-												/>
-											)}
-											{selectedKey === item.key ? t("promptAdded") : t("usePrompt")}
+									<div className="inset-0 motion-safe:ease-out pointer-events-none absolute opacity-100 group-focus-within:opacity-100 group-hover:opacity-100 motion-safe:transition-opacity motion-safe:duration-300 [@media(hover:hover)]:opacity-0">
+										<div
+											className="inset-0 absolute bg-gradient-to-t from-[#120d1c]/95 via-[#120d1c]/25 to-transparent"
+											aria-hidden="true"
+										/>
+										<span className="top-4 left-4 border-white/25 bg-black/35 px-2.5 py-1 font-bold text-white backdrop-blur-md absolute rounded-full border text-[0.65rem] tracking-[0.12em] uppercase">
+											{t(`items.${item.key}.tag`)}
 										</span>
+										<span className="inset-3 absolute opacity-80" aria-hidden="true">
+											<span className="top-0 left-0 size-4 border-violet-200 absolute border-t border-l" />
+											<span className="right-0 bottom-0 size-4 border-violet-200 absolute border-r border-b" />
+										</span>
+										<div className="right-0 bottom-0 left-0 p-4 sm:p-5 absolute">
+											<h3 className="text-lg font-bold text-white tracking-[-0.025em]">
+												{t(`items.${item.key}.title`)}
+											</h3>
+											<p className="mt-2 text-sm leading-5 text-white/80 line-clamp-3">
+												{t(`items.${item.key}.prompt`)}
+											</p>
+											<span className="mt-4 gap-2 text-sm font-bold text-white inline-flex items-center">
+												{selectedKey === item.key ? (
+													<CheckIcon className="size-4 text-emerald-300" aria-hidden="true" />
+												) : (
+													<ArrowUpRightIcon
+														className="size-4 text-violet-200 motion-safe:group-hover:translate-x-0.5 motion-safe:group-hover:-translate-y-0.5 motion-safe:transition-transform"
+														aria-hidden="true"
+													/>
+												)}
+												{selectedKey === item.key ? t("promptAdded") : t("usePrompt")}
+											</span>
+										</div>
 									</div>
 								</div>
 							</button>

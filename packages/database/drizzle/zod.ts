@@ -4,6 +4,8 @@ import { z } from "zod";
 import {
 	account,
 	billingPlan,
+	creditPackAdjustment,
+	creditPackFulfillment,
 	invitation,
 	member,
 	notification,
@@ -47,6 +49,16 @@ export const PurchaseUpdateSchema = createUpdateSchema(purchase, {
 	id: z.string(),
 });
 export const BillingPlanSchema = createSelectSchema(billingPlan);
+export const CreditPackFulfillmentSchema = createSelectSchema(creditPackFulfillment);
+export const CreditPackFulfillmentInsertSchema = createInsertSchema(creditPackFulfillment);
+export const CreditPackFulfillmentUpdateSchema = createUpdateSchema(creditPackFulfillment, {
+	id: z.string(),
+});
+export const CreditPackAdjustmentSchema = createSelectSchema(creditPackAdjustment);
+export const CreditPackAdjustmentInsertSchema = createInsertSchema(creditPackAdjustment);
+export const CreditPackAdjustmentUpdateSchema = createUpdateSchema(creditPackAdjustment, {
+	id: z.string(),
+});
 export const SubscriptionSchema = createSelectSchema(subscription);
 export const PaymentCustomerSchema = createSelectSchema(paymentCustomer);
 export const PaymentCustomerInsertSchema = createInsertSchema(paymentCustomer);

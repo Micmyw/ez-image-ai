@@ -100,13 +100,10 @@ function isLocalProductionBuildE2E(environment: Record<string, string | undefine
 	try {
 		const database = new URL(environment.DATABASE_URL);
 		const saas = new URL(environment.NEXT_PUBLIC_SAAS_URL ?? "");
-		const marketing = new URL(environment.NEXT_PUBLIC_MARKETING_URL ?? "");
 		return (
 			isLoopbackHost(database.hostname) &&
 			/test|testing/i.test(database.pathname) &&
-			isLocalHttpOrigin(saas) &&
-			isLocalHttpOrigin(marketing) &&
-			saas.origin === marketing.origin
+			isLocalHttpOrigin(saas)
 		);
 	} catch {
 		return false;

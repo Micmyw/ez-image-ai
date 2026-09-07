@@ -43,6 +43,17 @@ export const PLAN_ENTITLEMENTS = z
 			],
 		},
 		{
+			id: "ultimate",
+			monthlyCredits: 1_800,
+			maximumConcurrentJobs: 6,
+			maximumInputBytes: 20 * 1024 * 1024,
+			allowedProducts: ["image-fast", "image-quality"],
+			prices: [
+				{ interval: "month", amount: 49, currency: "USD" },
+				{ interval: "year", amount: 490, currency: "USD" },
+			],
+		},
+		{
 			id: "studio",
 			monthlyCredits: 3_000,
 			maximumConcurrentJobs: 10,
@@ -82,9 +93,21 @@ export function resolvePlanEntitlement(
 		metadata && typeof metadata === "object" && !Array.isArray(metadata)
 			? (metadata as Record<string, unknown>).planId
 			: undefined;
-	const planId = [metadataPlanId, planName?.trim().toLowerCase()].find(
-		(value): value is PlanEntitlement["id"] =>
-			value === "free" || value === "creator" || value === "studio",
-	);
+	const parsedMetadataPlanId = planIdSchema.safeParse(metadataPlanId);
+	const normalizedPlanName = planName?.trim().toLowerCase();
+	const planId = parsedMetadataPlanId.success
+		? parsedMetadataPlanId.data
+		: normalizedPlanName
+			? PUBLIC_PLAN_NAME_ALIASES[normalizedPlanName]
+			: undefined;
 	return getPlanEntitlement(planId ?? "free");
 }
+
+const PUBLIC_PLAN_NAME_ALIASES: Readonly<Record<string, PlanEntitlement["id"]>> = {
+	free: "free",
+	creator: "creator",
+	pro: "creator",
+	ultimate: "ultimate",
+	studio: "studio",
+	max: "studio",
+};
