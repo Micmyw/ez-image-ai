@@ -59,8 +59,12 @@ describe("controlled media load database path", () => {
 		expect(job).toMatchObject({
 			ownerId: OWNER_ID,
 			creditsReserved: 5n,
-			inputSnapshot: { kind: "image-to-image" },
-			quote: { ownerId: OWNER_ID, productKey: "image-fast" },
+			inputSnapshot: {
+				kind: "image-to-image",
+				skuKey: "nano-banana-2-lite-1k",
+				aspectRatio: "auto",
+			},
+			quote: { ownerId: OWNER_ID, productKey: "image-nano-banana-2-lite" },
 			reservation: { amount: 5n, status: "ACTIVE" },
 			assets: [
 				expect.objectContaining({
@@ -84,14 +88,15 @@ describe("controlled media load database path", () => {
 			job.assets[0]?.assetId,
 		);
 		expect(job.quote.pricingSnapshot).toMatchObject({
+			skuKey: "nano-banana-2-lite-1k",
 			routeGraph: {
 				graphFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
-				maximumRouteCostMicros: 23_000,
+				maximumRouteCostMicros: 20_000,
 				allowedRoutes: [
 					{
-						provider: "openrouter",
-						providerModelId: "sourceful/riverflow-v2.5-fast",
-						providerCostMicros: 23_000,
+						provider: "kie",
+						providerModelId: "nano-banana-2-lite",
+						providerCostMicros: 20_000,
 					},
 				],
 			},

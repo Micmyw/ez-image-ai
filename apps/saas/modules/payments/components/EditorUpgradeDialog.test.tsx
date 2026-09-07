@@ -17,8 +17,9 @@ vi.mock("@repo/ui/components/button", () => ({
 vi.mock("next-intl", () => ({
 	useTranslations: () => (key: string, values?: Record<string, number>) =>
 		({
-			title: "Unlock Quality Edit",
-			description: "Your image, instruction, and edit session will stay in place.",
+			title: "Unlock more image models",
+			description:
+				"Your image, instruction, selected model and SKU, and edit session will stay in place.",
 			creator: `Pro ${values?.credits}/${values?.concurrency}/${values?.megabytes}`,
 			ultimate: `Ultimate ${values?.credits}/${values?.concurrency}/${values?.megabytes}`,
 			studio: `Max ${values?.credits}/${values?.concurrency}/${values?.megabytes}`,
@@ -36,8 +37,8 @@ describe("EditorUpgradeDialog", () => {
 		);
 		const visibleText = markup.replaceAll(/<[^>]+>/g, " ");
 
-		expect(visibleText).toContain("Unlock Quality Edit");
-		expect(visibleText).toContain("image, instruction, and edit session");
+		expect(visibleText).toContain("Unlock more image models");
+		expect(visibleText).toContain("image, instruction, selected model and SKU, and edit session");
 		expect(visibleText).toContain("Pro");
 		expect(visibleText).toContain("Ultimate");
 		expect(visibleText).toContain("Max");
@@ -45,6 +46,6 @@ describe("EditorUpgradeDialog", () => {
 		expect(visibleText).toContain("Ultimate 1800/6/20");
 		expect(visibleText).toContain("Max 3000/10/20");
 		expect(visibleText).toContain("Choose a plan");
-		expect(visibleText).not.toMatch(/image-quality|provider|model|video/i);
+		expect(visibleText).not.toMatch(/image-quality|provider|video/i);
 	});
 });

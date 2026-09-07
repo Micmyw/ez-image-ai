@@ -632,8 +632,13 @@ describe("media verification evidence invariants", () => {
 		await createGenerationDraftTransaction(
 			{
 				claimTokenHash: suffix.replaceAll("-", "").padEnd(64, "0").slice(0, 64),
-				productKey: "image-fast",
-				input: { kind: "image-to-image", prompt: "draft" },
+				productKey: "image-nano-banana-2-lite",
+				input: {
+					kind: "image-to-image",
+					prompt: "draft",
+					skuKey: "nano-banana-2-lite-1k",
+					aspectRatio: "auto",
+				},
 				expiresAt: new Date(Date.now() + 60_000),
 				asset: {
 					id: assetId,

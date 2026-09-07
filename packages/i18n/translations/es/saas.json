@@ -54,9 +54,7 @@
 				"enabled": "Activo",
 				"disabled": "Inactivo",
 				"filters": {
-					"product": "Modo de edición",
-					"provider": "Proveedor",
-					"model": "Modelo",
+					"product": "Modelo de imagen",
 					"status": "Estado del trabajo",
 					"from": "Desde",
 					"to": "Hasta"
@@ -65,7 +63,6 @@
 					"jobs": "Trabajos",
 					"successRate": "Tasa de éxito",
 					"latency": "Latencia p50 / p95",
-					"cost": "Coste medio del proveedor (micros)",
 					"moderation": "Rechazos de moderación",
 					"repeat": "Tasa de segunda edición",
 					"credits": "Reservados / cobrados / liberados",
@@ -74,10 +71,9 @@
 				"controls": { "title": "Controles efectivos", "global": "Interruptor de generación" },
 				"failures": { "title": "Códigos de error" },
 				"routes": {
-					"title": "Desglose de rutas",
-					"product": "Modo de edición",
-					"provider": "Proveedor",
-					"model": "Modelo",
+					"title": "Desglose por SKU",
+					"product": "Modelo de imagen",
+					"sku": "SKU",
 					"status": "Estado",
 					"jobs": "Trabajos"
 				}
@@ -853,18 +849,68 @@
 		"create": {
 			"eyebrow": "Editor de imágenes",
 			"title": "Edita una imagen de origen con una instrucción",
-			"subtitle": "Sube una imagen de origen, describe el cambio, elige un nivel de edición y revisa la reserva de créditos.",
+			"subtitle": "Sube una imagen de origen, describe el cambio, elige un modelo de imagen y sus ajustes de salida, y revisa la reserva de créditos.",
 			"draftRestored": "Tu borrador de edición guardado está listo para continuar.",
-			"product": "Calidad de edición",
+			"product": "Modelo de imagen",
 			"products": {
-				"image-fast": {
-					"label": "Standard Edit",
-					"description": "Edición privada mediante instrucciones en el nivel Standard."
+				"image-nano-banana-2-lite": {
+					"label": "Nano Banana 2 Lite",
+					"description": "Ediciones rápidas en 1K con amplia compatibilidad de relaciones de aspecto."
 				},
-				"image-quality": {
-					"label": "Quality Edit",
-					"description": "Edición privada mediante instrucciones en el nivel Quality."
+				"image-nano-banana": {
+					"label": "Nano Banana",
+					"description": "Ediciones equilibradas con un perfil de salida predeterminado propio."
+				},
+				"image-nano-banana-2": {
+					"label": "Nano Banana 2",
+					"description": "Ediciones flexibles con opciones independientes de 1K, 2K y 4K."
+				},
+				"image-nano-banana-pro": {
+					"label": "Nano Banana Pro",
+					"description": "Ediciones de alta calidad con opciones independientes de 1K, 2K y 4K."
+				},
+				"image-gpt-image-1-5": {
+					"label": "GPT Image 1.5",
+					"description": "Ediciones con opciones independientes de calidad Media y Alta."
+				},
+				"image-gpt-image-2": {
+					"label": "GPT Image 2",
+					"description": "Ediciones detalladas con opciones independientes de 1K, 2K y 4K."
+				},
+				"image-seedream-4-5": {
+					"label": "Seedream 4.5",
+					"description": "Ediciones con opciones independientes de 2K Básica y 4K Alta."
+				},
+				"image-seedream-5-lite": {
+					"label": "Seedream 5 Lite",
+					"description": "Ediciones con opciones independientes de 2K Básica, 3K Alta y 4K Ultra."
+				},
+				"image-seedream-5-pro": {
+					"label": "Seedream 5 Pro",
+					"description": "Ediciones con opciones independientes de 1K Básica y 2K Alta."
 				}
+			},
+			"skus": {
+				"nano-banana-2-lite-1k": { "label": "1K" },
+				"nano-banana-default": { "label": "Predeterminada" },
+				"nano-banana-2-1k": { "label": "1K" },
+				"nano-banana-2-2k": { "label": "2K" },
+				"nano-banana-2-4k": { "label": "4K" },
+				"nano-banana-pro-1k": { "label": "1K" },
+				"nano-banana-pro-2k": { "label": "2K" },
+				"nano-banana-pro-4k": { "label": "4K" },
+				"gpt-image-1-5-medium": { "label": "Media" },
+				"gpt-image-1-5-high": { "label": "Alta" },
+				"gpt-image-2-1k": { "label": "1K" },
+				"gpt-image-2-2k": { "label": "2K" },
+				"gpt-image-2-4k": { "label": "4K" },
+				"seedream-4-5-basic-2k": { "label": "2K · Básica" },
+				"seedream-4-5-high-4k": { "label": "4K · Alta" },
+				"seedream-5-lite-basic-2k": { "label": "2K · Básica" },
+				"seedream-5-lite-high-3k": { "label": "3K · Alta" },
+				"seedream-5-lite-ultra-4k": { "label": "4K · Ultra" },
+				"seedream-5-pro-basic-1k": { "label": "1K · Básica" },
+				"seedream-5-pro-high-2k": { "label": "2K · Alta" }
 			},
 			"fields": {
 				"prompt": "Instrucción de edición",
@@ -879,7 +925,25 @@
 				"oneOutput": "Este modelo devuelve una imagen",
 				"resolution": "Resolución",
 				"quality": "Calidad",
-				"modeControlsQuality": "La controla el nivel de edición"
+				"outputFormat": "Formato de salida",
+				"background": "Fondo",
+				"modeControlsQuality": "La controlan el modelo y el SKU seleccionados",
+				"credits": "EzPic Credits",
+				"optionLabels": {
+					"1k": "1K",
+					"2k": "2K",
+					"3k": "3K",
+					"4k": "4K",
+					"basic": "Básica",
+					"medium": "Media",
+					"high": "Alta",
+					"ultra": "Ultra",
+					"png": "PNG",
+					"jpeg": "JPEG",
+					"auto": "Automático",
+					"opaque": "Opaco",
+					"transparent": "Transparente"
+				}
 			},
 			"promptHint": "Describe solo el cambio que quieres. La imagen de origen permanece privada.",
 			"suggestions": {
@@ -911,14 +975,14 @@
 				"private": "Archivos privados vinculados al propietario"
 			},
 			"restore": {
-				"qualityUpgradeRequired": "Se restauraron la imagen, la instrucción y la selección Quality Edit. Elige Creator o Studio para continuar con Quality Edit.",
-				"upgradeComplete": "Tu plan de pago está activo y se restauraron la imagen, la instrucción, el modo y la sesión de edición.",
+				"qualityUpgradeRequired": "Se restauraron la imagen, la instrucción y el modelo de imagen seleccionado. Elige Pro, Ultimate o Max para continuar con ese modelo.",
+				"upgradeComplete": "Tu plan de pago está activo y se restauraron la imagen, la instrucción, los ajustes del modelo y la sesión de edición.",
 				"verifying": "Se restauró el borrador. La imagen privada aún está completando su revisión de seguridad; Revisar se activará cuando esté lista.",
 				"unavailable": "La edición guardada caducó o su imagen ya no está disponible. No se creó ningún trabajo ni reserva de créditos."
 			},
 			"errors": {
 				"insufficientCredits": "No tienes créditos suficientes para esta edición. No se creó ningún trabajo ni reserva.",
-				"qualityUnavailable": "Quality Edit no está incluido en tu plan. Elige Standard Edit o revisa tu plan.",
+				"qualityUnavailable": "Este modelo de imagen no está incluido en tu plan. Elige Nano Banana 2 Lite o revisa tu plan.",
 				"assetNotReady": "La imagen de origen no está lista. Espera la revisión privada o elige otra imagen.",
 				"quoteExpired": "El presupuesto caducó o cambió el precio. Vuelve a revisar la edición antes de confirmar.",
 				"contentNotAllowed": "La instrucción no superó la revisión de seguridad. No se creó ningún trabajo ni reserva.",
@@ -928,21 +992,21 @@
 			}
 		},
 		"guest": {
-			"eyebrow": "Prueba Standard para invitados",
+			"eyebrow": "Prueba Nano Banana 2 Lite para invitados",
 			"title": "Haz una edición de imagen privada",
 			"subtitle": "Tu origen y tu instrucción están listos. Entra en la cola gratuita para obtener una vista previa temporal con marca de agua.",
 			"sourceReady": "Origen privado listo",
 			"sourceHandoff": "Transferido de forma privada para esta edición",
 			"promptLabel": "Instrucción de edición",
 			"characterCount": "{count, number} / {maximum, number}",
-			"standard": "Edición Standard",
+			"standard": "Nano Banana 2 Lite · 1K",
 			"oneOutput": "Un resultado",
 			"freeQueue": "Cola gratuita",
 			"temporary": "Con marca de agua · disponible hasta 24 horas",
 			"temporaryCompact": "Con marca de agua · temporal",
-			"submit": "Iniciar mi edición Standard",
+			"submit": "Iniciar mi edición Nano Banana",
 			"challenge": "Verifica esta edición de invitado",
-			"qualityCta": "Edición Quality · Creator o Studio",
+			"qualityCta": "Más modelos de imagen · plan de pago",
 			"retryChallenge": "Reintentar la verificación",
 			"retryPreview": "Reintentar la vista previa privada",
 			"viewStatus": "Ver estado",
@@ -985,8 +1049,8 @@
 			}
 		},
 		"upgradeDialog": {
-			"title": "Desbloquea Quality Edit",
-			"description": "Conserva la imagen, la instrucción, la selección Quality Edit y la sesión de edición mientras comparas planes de pago.",
+			"title": "Desbloquea más modelos de imagen",
+			"description": "Conserva la imagen, la instrucción, el modelo y SKU seleccionados y la sesión de edición mientras comparas planes de pago.",
 			"creator": "Pro: {credits, number} créditos al mes, {concurrency, number} ediciones simultáneas e imágenes de hasta {megabytes, number} MB.",
 			"ultimate": "Ultimate: {credits, number} créditos al mes, {concurrency, number} ediciones simultáneas e imágenes de hasta {megabytes, number} MB.",
 			"studio": "Max: {credits, number} créditos al mes, {concurrency, number} ediciones simultáneas e imágenes de hasta {megabytes, number} MB.",
@@ -1005,13 +1069,13 @@
 				"remove": "Quitar imagen"
 			},
 			"mode": {
-				"label": "Modo de edición",
-				"standard": "Standard Edit",
-				"standardDescription": "Edición privada de imágenes en el nivel Standard.",
-				"quality": "Quality Edit",
-				"qualityDescription": "Edición privada de imágenes en el nivel Quality.",
-				"credits": "{credits} créditos",
-				"qualityUnavailable": "Mejora el plan para usar Quality Edit. La imagen y la instrucción se conservarán.",
+				"label": "Modelo de imagen",
+				"standard": "Nano Banana 2 Lite",
+				"standardDescription": "Edición privada de imágenes en 1K.",
+				"quality": "Más modelos de imagen",
+				"qualityDescription": "Edición privada de imágenes con ajustes de salida específicos del modelo.",
+				"credits": "{credits} EzPic Credits",
+				"qualityUnavailable": "Mejora el plan para usar este modelo de imagen. La imagen, la instrucción y los ajustes de salida se conservarán.",
 				"upgrade": "Ver opciones de mejora"
 			}
 		},
@@ -1087,6 +1151,7 @@
 			"assetDeleted": "Recurso eliminado",
 			"outputUnavailable": "Resultado no disponible",
 			"thumbnailAlt": "Miniatura privada del resultado",
+			"legacyProduct": "Edición anterior",
 			"renameLabel": "Título de la sesión",
 			"renamePlaceholder": "Pon nombre a esta edición",
 			"rename": "Cambiar nombre",
@@ -1106,6 +1171,7 @@
 			},
 			"outputs": "{count, plural, one {# resultado} other {# resultados}}",
 			"reserved": "Reservados",
+			"legacyProduct": "Edición anterior",
 			"empty": "No hay creaciones para este filtro.",
 			"more": "Cargar más"
 		},

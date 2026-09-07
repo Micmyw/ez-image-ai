@@ -1,3 +1,4 @@
+import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildMediaQuote } from "../lib/quote";
@@ -11,18 +12,30 @@ vi.mock("@trigger.dev/sdk", () => ({ tasks: { trigger: vi.fn() } }));
 import { createGenerationForUser } from "./create-generation";
 
 const SOURCE_ASSET_ID = "asset_01J5ABCD1234EFGH5678JKLMNP";
+const KIE_ROUTE_OPTIONS = {
+	enabledProviders: new Set(["kie" as const]),
+	generationEnabled: true,
+	kieImageCertifiedCatalogVersions: new Set([DEFAULT_PRODUCT_CONFIG.catalogVersion]),
+};
+
+const NANO_INPUT = {
+	kind: "image-to-image" as const,
+	prompt: "A studio product photo",
+	sourceAssetId: SOURCE_ASSET_ID,
+	skuKey: "nano-banana-2-lite-1k" as const,
+	aspectRatio: "auto" as const,
+};
 
 afterEach(() => vi.unstubAllEnvs());
 
 describe("createGenerationForUser", () => {
-	it("binds a first confirmed image edit as a root session transaction", async () => {
-		vi.stubEnv("MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS", "250000000");
-		const quote = buildMediaQuote(
+	it("rejects a retired OpenRouter product quote before reserving credits", async () => {
+		const legacyQuote = buildMediaQuote(
 			{
 				productKey: "image-fast",
 				input: {
 					kind: "image-to-image",
-					prompt: "A studio product photo",
+					prompt: "Legacy edit",
 					sourceAssetId: SOURCE_ASSET_ID,
 				},
 			},
@@ -31,6 +44,53 @@ describe("createGenerationForUser", () => {
 				generationEnabled: true,
 				openRouterImageRoutesCertified: true,
 			},
+		);
+		const createGenerationJob = vi.fn();
+
+		await expect(
+			createGenerationForUser(
+				"user-1",
+				{ quoteId: "quote-legacy", idempotencyKey: "idempotency-legacy" },
+				{
+					now: () => new Date("2026-09-07T00:00:00.000Z"),
+					loadEntitlement: vi.fn(async () => ({ maximumConcurrentJobs: 3 })),
+					findQuote: async () => ({
+						id: "quote-legacy",
+						productKey: legacyQuote.productKey,
+						catalogVersion: legacyQuote.catalogVersion,
+						pricingVersion: legacyQuote.pricingVersion,
+						expiresAt: new Date("2026-09-07T00:10:00.000Z"),
+						credits: legacyQuote.credits,
+						costMicros: legacyQuote.costMicros,
+						inputSnapshot: {
+							kind: "image-to-image",
+							prompt: "Legacy edit",
+							sourceAssetId: SOURCE_ASSET_ID,
+						},
+						pricingSnapshot: legacyQuote.pricingSnapshot,
+					}),
+					getRouteGraphOptions: async () => ({
+						enabledProviders: new Set(["openrouter"]),
+						generationEnabled: true,
+						openRouterImageRoutesCertified: true,
+					}),
+					assertAllowed: vi.fn(async () => undefined),
+					createGenerationJob,
+				},
+			),
+		).rejects.toThrow("PRICE_CHANGED");
+
+		expect(createGenerationJob).not.toHaveBeenCalled();
+	});
+
+	it("binds a first confirmed image edit as a root session transaction", async () => {
+		vi.stubEnv("MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS", "250000000");
+		const quote = buildMediaQuote(
+			{
+				productKey: "image-nano-banana-2-lite",
+				input: NANO_INPUT,
+			},
+			KIE_ROUTE_OPTIONS,
 		);
 		const createGenerationJob = vi.fn(async () => ({
 			job: { id: "job-1", status: "RESERVED", version: 0, creditsReserved: 5n },
@@ -52,18 +112,12 @@ describe("createGenerationForUser", () => {
 					credits: quote.credits,
 					costMicros: quote.costMicros,
 					inputSnapshot: {
-						kind: "image-to-image",
-						prompt: "A studio product photo",
-						sourceAssetId: SOURCE_ASSET_ID,
+						...NANO_INPUT,
 						editContext: { kind: "ROOT", rootAssetId: SOURCE_ASSET_ID },
 					},
 					pricingSnapshot: quote.pricingSnapshot,
 				}),
-				getRouteGraphOptions: async () => ({
-					enabledProviders: new Set(["openrouter"]),
-					generationEnabled: true,
-					openRouterImageRoutesCertified: true,
-				}),
+				getRouteGraphOptions: async () => KIE_ROUTE_OPTIONS,
 				assertAllowed: vi.fn(async () => undefined),
 				createGenerationJob,
 			},
@@ -82,18 +136,13 @@ describe("createGenerationForUser", () => {
 	it("uses the child parent and session frozen in the quote when confirmation omits the echo", async () => {
 		const quote = buildMediaQuote(
 			{
-				productKey: "image-fast",
+				productKey: "image-nano-banana-2-lite",
 				input: {
-					kind: "image-to-image",
+					...NANO_INPUT,
 					prompt: "A second edit",
-					sourceAssetId: SOURCE_ASSET_ID,
 				},
 			},
-			{
-				enabledProviders: new Set(["openrouter"]),
-				generationEnabled: true,
-				openRouterImageRoutesCertified: true,
-			},
+			KIE_ROUTE_OPTIONS,
 		);
 		const createGenerationJob = vi.fn(async () => ({
 			job: { id: "job-2", status: "RESERVED", version: 0, creditsReserved: 5n },
@@ -115,9 +164,8 @@ describe("createGenerationForUser", () => {
 					credits: quote.credits,
 					costMicros: quote.costMicros,
 					inputSnapshot: {
-						kind: "image-to-image",
+						...NANO_INPUT,
 						prompt: "A second edit",
-						sourceAssetId: SOURCE_ASSET_ID,
 						editContext: {
 							kind: "CHILD",
 							parentJobId: "job-parent",
@@ -127,11 +175,7 @@ describe("createGenerationForUser", () => {
 					},
 					pricingSnapshot: quote.pricingSnapshot,
 				}),
-				getRouteGraphOptions: async () => ({
-					enabledProviders: new Set(["openrouter"]),
-					generationEnabled: true,
-					openRouterImageRoutesCertified: true,
-				}),
+				getRouteGraphOptions: async () => KIE_ROUTE_OPTIONS,
 				assertAllowed: vi.fn(async () => undefined),
 				createGenerationJob,
 			},
@@ -153,18 +197,13 @@ describe("createGenerationForUser", () => {
 	it("rejects a confirmation that replaces the child parent frozen in the quote", async () => {
 		const quote = buildMediaQuote(
 			{
-				productKey: "image-fast",
+				productKey: "image-nano-banana-2-lite",
 				input: {
-					kind: "image-to-image",
+					...NANO_INPUT,
 					prompt: "A second edit",
-					sourceAssetId: SOURCE_ASSET_ID,
 				},
 			},
-			{
-				enabledProviders: new Set(["openrouter"]),
-				generationEnabled: true,
-				openRouterImageRoutesCertified: true,
-			},
+			KIE_ROUTE_OPTIONS,
 		);
 		const createGenerationJob = vi.fn();
 
@@ -188,9 +227,8 @@ describe("createGenerationForUser", () => {
 						credits: quote.credits,
 						costMicros: quote.costMicros,
 						inputSnapshot: {
-							kind: "image-to-image",
+							...NANO_INPUT,
 							prompt: "A second edit",
-							sourceAssetId: SOURCE_ASSET_ID,
 							editContext: {
 								kind: "CHILD",
 								parentJobId: "job-parent",
@@ -200,11 +238,7 @@ describe("createGenerationForUser", () => {
 						},
 						pricingSnapshot: quote.pricingSnapshot,
 					}),
-					getRouteGraphOptions: async () => ({
-						enabledProviders: new Set(["openrouter"]),
-						generationEnabled: true,
-						openRouterImageRoutesCertified: true,
-					}),
+					getRouteGraphOptions: async () => KIE_ROUTE_OPTIONS,
 					assertAllowed: vi.fn(async () => undefined),
 					createGenerationJob,
 				},
@@ -217,18 +251,10 @@ describe("createGenerationForUser", () => {
 	it("rejects a parent injected while confirming a root quote", async () => {
 		const quote = buildMediaQuote(
 			{
-				productKey: "image-fast",
-				input: {
-					kind: "image-to-image",
-					prompt: "A studio product photo",
-					sourceAssetId: SOURCE_ASSET_ID,
-				},
+				productKey: "image-nano-banana-2-lite",
+				input: NANO_INPUT,
 			},
-			{
-				enabledProviders: new Set(["openrouter"]),
-				generationEnabled: true,
-				openRouterImageRoutesCertified: true,
-			},
+			KIE_ROUTE_OPTIONS,
 		);
 		const createGenerationJob = vi.fn();
 
@@ -252,18 +278,12 @@ describe("createGenerationForUser", () => {
 						credits: quote.credits,
 						costMicros: quote.costMicros,
 						inputSnapshot: {
-							kind: "image-to-image",
-							prompt: "A studio product photo",
-							sourceAssetId: SOURCE_ASSET_ID,
+							...NANO_INPUT,
 							editContext: { kind: "ROOT", rootAssetId: SOURCE_ASSET_ID },
 						},
 						pricingSnapshot: quote.pricingSnapshot,
 					}),
-					getRouteGraphOptions: async () => ({
-						enabledProviders: new Set(["openrouter"]),
-						generationEnabled: true,
-						openRouterImageRoutesCertified: true,
-					}),
+					getRouteGraphOptions: async () => KIE_ROUTE_OPTIONS,
 					assertAllowed: vi.fn(async () => undefined),
 					createGenerationJob,
 				},
@@ -276,18 +296,10 @@ describe("createGenerationForUser", () => {
 	it("requires a requote before reserving credits when the frozen route graph is no longer executable", async () => {
 		const quote = buildMediaQuote(
 			{
-				productKey: "image-fast",
-				input: {
-					kind: "image-to-image",
-					prompt: "A studio product photo",
-					sourceAssetId: SOURCE_ASSET_ID,
-				},
+				productKey: "image-nano-banana-2-lite",
+				input: NANO_INPUT,
 			},
-			{
-				enabledProviders: new Set(["openrouter"]),
-				generationEnabled: true,
-				openRouterImageRoutesCertified: true,
-			},
+			KIE_ROUTE_OPTIONS,
 		);
 		const createGenerationJob = vi.fn();
 
@@ -307,9 +319,7 @@ describe("createGenerationForUser", () => {
 						credits: quote.credits,
 						costMicros: quote.costMicros,
 						inputSnapshot: {
-							kind: "image-to-image",
-							prompt: "A studio product photo",
-							sourceAssetId: SOURCE_ASSET_ID,
+							...NANO_INPUT,
 						},
 						pricingSnapshot: quote.pricingSnapshot,
 					}),
@@ -326,21 +336,19 @@ describe("createGenerationForUser", () => {
 		expect(createGenerationJob).not.toHaveBeenCalled();
 	});
 
-	it("requires a requote before reserving credits for a stale quality-edit catalog", async () => {
+	it("requires a requote before reserving credits for a stale GPT Image 2 catalog", async () => {
 		const quote = buildMediaQuote(
 			{
-				productKey: "image-quality",
+				productKey: "image-gpt-image-2",
 				input: {
 					kind: "image-to-image",
 					prompt: "A studio product photo",
 					sourceAssetId: SOURCE_ASSET_ID,
+					skuKey: "gpt-image-2-2k",
+					aspectRatio: "1:1",
 				},
 			},
-			{
-				enabledProviders: new Set(["openrouter"]),
-				generationEnabled: true,
-				openRouterImageRoutesCertified: true,
-			},
+			KIE_ROUTE_OPTIONS,
 		);
 		const createGenerationJob = vi.fn();
 
@@ -363,14 +371,12 @@ describe("createGenerationForUser", () => {
 							kind: "image-to-image",
 							prompt: "A studio product photo",
 							sourceAssetId: SOURCE_ASSET_ID,
+							skuKey: "gpt-image-2-2k",
+							aspectRatio: "1:1",
 						},
 						pricingSnapshot: quote.pricingSnapshot,
 					}),
-					getRouteGraphOptions: async () => ({
-						enabledProviders: new Set(["openrouter"]),
-						generationEnabled: true,
-						openRouterImageRoutesCertified: true,
-					}),
+					getRouteGraphOptions: async () => KIE_ROUTE_OPTIONS,
 					assertAllowed: vi.fn(async () => undefined),
 					createGenerationJob,
 				},

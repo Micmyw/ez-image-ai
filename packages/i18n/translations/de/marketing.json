@@ -26,20 +26,20 @@
 		"title": "Dokumentation"
 	},
 	"faq": {
-		"description": "Klare Antworten zu Gastverfügbarkeit, Bearbeitungstarifen, Credits, privaten Medien, Abrechnung und verantwortungsvoller Nutzung.",
+		"description": "Klare Antworten zu Gastverfügbarkeit, Bildmodellen, EzPic Credits, privaten Medien, Abrechnung und verantwortungsvoller Nutzung.",
 		"title": "Häufig gestellte Fragen",
 		"items": {
 			"guestAvailability": {
 				"question": "Wann ist die Gastbearbeitung verfügbar?",
-				"answer": "Wenn die gesponserte Gast-Warteschlange verfügbar ist, kann eine Person ohne Konto eine Standard Edit starten. Das Ergebnis ist mit einem Wasserzeichen versehen, privat und bis zu 24 Stunden verfügbar."
+				"answer": "Wenn die gesponserte Gast-Warteschlange verfügbar ist, kann eine Person ohne Konto eine Nano Banana 2 Lite-1K-Bearbeitung starten. Das Ergebnis ist mit einem Wasserzeichen versehen, privat und bis zu 24 Stunden verfügbar."
 			},
 			"guestVsFree": {
 				"question": "Worin unterscheiden sich Gastzugang und Free?",
-				"answer": "Der Gastzugang bietet bedingt eine einmalige gesponserte Standard Edit mit Wasserzeichen, die bis zu 24 Stunden aufbewahrt wird. Ein registriertes Free-Konto erhält monatlich 25 Credits: Standard Edit kostet 5 Credits, also sind bis zu fünf Standard Edits möglich; Quality Edit ist nicht enthalten."
+				"answer": "Der Gastzugang bietet bedingt eine einmalige gesponserte Nano Banana 2 Lite-1K-Bearbeitung mit Wasserzeichen, die bis zu 24 Stunden aufbewahrt wird. Ein registriertes Free-Konto erhält monatlich 25 EzPic Credits; Nano Banana 2 Lite 1K kostet 5, also sind bis zu fünf Bearbeitungen möglich. GPT Image 2 und Seedream 5 Pro erfordern einen kostenpflichtigen Tarif."
 			},
 			"editTiers": {
-				"question": "Was ist der Unterschied zwischen Standard Edit und Quality Edit?",
-				"answer": "Standard Edit kostet 5 Credits, Quality Edit 40 Credits. Jede bestätigte Bearbeitung erzeugt ein Ergebnis. Quality Edit erfordert Creator oder Studio."
+				"question": "Welche Bildmodelle und Ausgabeeinstellungen sind verfügbar?",
+				"answer": "Nano Banana 2 Lite 1K verwendet 5 EzPic Credits. GPT Image 2 verwendet 7 bei 1K, 11 bei 2K oder 17 bei 4K. Seedream 5 Pro verwendet 8 für Basic 1K oder 15 für High 2K. Jede bestätigte Bearbeitung erzeugt ein Ergebnis."
 			},
 			"creditReservation": {
 				"question": "Wann werden Credits verwendet?",
@@ -62,12 +62,12 @@
 				"answer": "Nein. Ergebnisse können Fehler enthalten oder anderen Bildern ähneln. EzPic garantiert weder Einzigartigkeit noch Eignung für einen bestimmten Zweck oder Freiheit von Rechten Dritter."
 			},
 			"stableTiers": {
-				"question": "Warum zeigt EzPic Tarifnamen statt Modellnamen?",
-				"answer": "Das Produkt zeigt die stabilen Namen Standard Edit und Quality Edit. Die Dienstroute wird serverseitig gesteuert und kann sich ändern, ohne den öffentlichen Tarifvertrag zu ändern."
+				"question": "Warum verwenden Bildmodelle unterschiedliche EzPic-Credit-Beträge?",
+				"answer": "Jedes Bildmodell hat eine eigene Matrix zulässiger Ausgabeeinstellungen und einen eigenen EzPic-Credit-Betrag. EzPic zeigt Produktname, unterstützte Einstellungen und genaue Belastung; private Dienstrouten und Betriebskosten bleiben auf dem Server."
 			},
 			"annualBilling": {
 				"question": "Wie wirkt sich die Jahreszahlung auf die Credits aus?",
-				"answer": "Creator kostet 190 $ pro Jahr, Studio 790 $ pro Jahr. Die Credits werden trotzdem monatlich vergeben—700 für Creator und 3.000 für Studio—und nicht genutzte Credits werden nicht übertragen."
+				"answer": "Pro kostet 190 $ pro Jahr, Ultimate 490 $ und Max 790 $. EzPic Credits werden trotzdem monatlich vergeben—700 für Pro, 1.800 für Ultimate und 3.000 für Max—und nicht genutzte Credits werden nicht übertragen."
 			},
 			"cancelSubscription": {
 				"question": "Wie kündige ich mein Abonnement?",
@@ -87,16 +87,16 @@
 		"generator": {
 			"eyebrow": "Bearbeitung planen",
 			"title": "Beschreibe die gewünschte Änderung",
-			"subtitle": "Lade ein Quellbild hoch und beschreibe die Bearbeitung. Wenn die Gast-Warteschlange verfügbar ist, kannst du eine private Standard Edit in EzPic starten.",
-			"offer": "Eine Standard-Bearbeitung kostenlos testen",
+			"subtitle": "Lade ein Quellbild hoch und beschreibe die Bearbeitung. Wenn die Gast-Warteschlange verfügbar ist, kannst du eine private Nano Banana 2 Lite-1K-Bearbeitung in EzPic starten.",
+			"offer": "Nano Banana 2 Lite 1K kostenlos testen",
 			"noSignUp": "Keine Registrierung, wenn die Gast-Warteschlange verfügbar ist",
-			"paidSignIn": "Anmeldung und Creator oder Studio erforderlich",
+			"paidSignIn": "Anmeldung und kostenpflichtiger Tarif erforderlich",
 			"oneOutput": "Ein Ergebnis",
 			"freeQueue": "Kostenlose Warteschlange · eine Vorschau mit Wasserzeichen · bis zu 24 Stunden verfügbar",
-			"qualityAccess": "Quality Edit wird nach der Anmeldung fortgesetzt und erfordert ein Creator- oder Studio-Konto.",
+			"qualityAccess": "GPT Image 2 und Seedream 5 Pro werden nach der Anmeldung fortgesetzt und erfordern Pro, Ultimate oder Max.",
 			"temporaryResult": "Deine Vorschau bleibt privat und vorübergehend.",
 			"temporarySessionDisclosure": "EzPic erstellt für diesen Test eine temporäre Sitzung, bewahrt Gastmedien bis zu 24 Stunden auf und nutzt pseudonyme Missbrauchssignale für den in unserer Datenschutzerklärung beschriebenen Zeitraum.",
-			"qualityCta": "Qualitätsbearbeitung · Creator oder Studio",
+			"qualityCta": "Weitere Bildmodelle · kostenpflichtiger Tarif",
 			"retryChallenge": "Überprüfung erneut versuchen",
 			"characterCount": "{count, number} / {maximum, number}",
 			"settings": {
@@ -108,31 +108,49 @@
 				"oneOutput": "Jede bestätigte Bearbeitung liefert ein Bild",
 				"resolution": "Auflösung",
 				"quality": "Qualität",
-				"modeControlsQuality": "Wird durch die Bearbeitungsstufe bestimmt"
+				"outputFormat": "Ausgabeformat",
+				"background": "Hintergrund",
+				"modeControlsQuality": "Wird durch das gewählte Modell und die SKU bestimmt",
+				"credits": "EzPic Credits",
+				"optionLabels": {
+					"1k": "1K",
+					"2k": "2K",
+					"3k": "3K",
+					"4k": "4K",
+					"basic": "Standard",
+					"medium": "Mittel",
+					"high": "Hoch",
+					"ultra": "Ultra",
+					"png": "PNG",
+					"jpeg": "JPEG",
+					"auto": "Automatisch",
+					"opaque": "Deckend",
+					"transparent": "Transparent"
+				}
 			},
 			"states": {
 				"challenge": "Diesen Gast-Upload bestätigen",
 				"checking": "Verfügbarkeit der Bearbeitung wird geprüft…",
-				"ready": "Wähle Tarif, Quellbild und Prompt, um fortzufahren.",
+				"ready": "Wähle Bildmodell, Quellbild und Prompt, um fortzufahren.",
 				"preparing": "Privater Upload wird vorbereitet…",
 				"loadingCapability": "Gastverfügbarkeit wird geprüft…",
-				"unavailable": "Die kostenlose Standard-Warteschlange nimmt derzeit keine neuen Bearbeitungen an.",
+				"unavailable": "Die Nano-Banana-Gast-Warteschlange nimmt derzeit keine neuen Bearbeitungen an.",
 				"uploading": "Privates Quellbild wird hochgeladen: {percentage, number}%",
 				"verifying": "Privates Quellbild wird überprüft…",
 				"handoff": "Privater Entwurf wird geöffnet…",
-				"failed": "Dieser Versuch endete vor der Übergabe. Bild, Prompt und Tarif bleiben erhalten."
+				"failed": "Dieser Versuch endete vor der Übergabe. Bild, Prompt und Modellauswahl bleiben erhalten."
 			},
 			"guidance": {
 				"checking": "Warte, während die Verfügbarkeit geprüft wird.",
 				"unavailable": "Bearbeitungen sind derzeit nicht verfügbar. Versuche es später erneut.",
-				"product": "Wähle einen Bearbeitungstarif, um fortzufahren.",
+				"product": "Wähle ein Bildmodell, um fortzufahren.",
 				"source": "Füge ein Quellbild hinzu, um fortzufahren.",
 				"prompt": "Beschreibe die gewünschte Bearbeitung, um fortzufahren.",
 				"verification": "Schließe die Überprüfung ab, um fortzufahren."
 			},
 			"actions": {
-				"standard": "Eine Standard-Bearbeitung kostenlos testen",
-				"quality": "Mit Quality Edit fortfahren",
+				"standard": "Nano Banana 2 Lite 1K kostenlos testen",
+				"quality": "Mit einem kostenpflichtigen Bildmodell fortfahren",
 				"retry": "{product} erneut versuchen",
 				"retryAvailability": "Bearbeitungsverfügbarkeit erneut prüfen"
 			},
@@ -159,23 +177,23 @@
 				"lighting": "Füge warmes spätnachmittägliches Fensterlicht hinzu"
 			},
 			"modes": {
-				"legend": "Bearbeitungstarif",
+				"legend": "Bildmodell",
 				"credits": "{credits, number} Credits",
-				"selectionPending": "Tarif auswählen",
+				"selectionPending": "Modell auswählen",
 				"standard": {
-					"label": "Standard Edit",
+					"label": "Nano Banana 2 Lite",
 					"badge": "Gast-Test",
-					"description": "Quellbildbearbeitung mit einem Ergebnis",
-					"access": "Eine Gastbearbeitung"
+					"description": "1K-Quellbildbearbeitung mit einem Ergebnis",
+					"access": "Eine gesponserte Gastbearbeitung"
 				},
 				"quality": {
-					"label": "Quality Edit",
+					"label": "Weitere Bildmodelle",
 					"badge": "Bezahltes Konto",
-					"description": "Quellbildbearbeitung mit einem Ergebnis",
-					"access": "Creator- oder Studio-Konto erforderlich"
+					"description": "Jedes Modell behält eigene verifizierte Ausgabeeinstellungen und einen eigenen EzPic-Credit-Betrag",
+					"access": "Pro, Ultimate oder Max erforderlich"
 				}
 			},
-			"loginNotice": "Standard-Gastbearbeitungen können ohne Anmeldung starten, wenn die Gast-Warteschlange verfügbar ist; Kontobearbeitungen erfordern die Bestätigung des Credit-Betrags.",
+			"loginNotice": "Nano Banana 2 Lite-1K-Gastbearbeitungen können ohne Anmeldung starten, wenn die Gast-Warteschlange verfügbar ist; Kontobearbeitungen zeigen vor der Bestätigung den genauen EzPic-Credit-Betrag.",
 			"previewCaption": "Quellvorschau",
 			"previewPlaceholderAlt": "Originale EzPic-Vektorillustration eines neutralen Lesezimmers",
 			"previewAlt": "Vorschau von {fileName}",
@@ -254,9 +272,9 @@
 		"imageEditorHero": {
 			"eyebrow": "Prompt-Bearbeitung mit Upload zuerst",
 			"title": "KI-Bildeditor <accent>mit Prompts</accent>",
-			"subtitle": "Lade dein Bild hoch und beschreibe die Änderung. Wenn die Gast-Warteschlange verfügbar ist, kannst du direkt auf dieser Seite ohne Konto eine private Standard Edit starten.",
+			"subtitle": "Lade dein Bild hoch und beschreibe die Änderung. Wenn die Gast-Warteschlange verfügbar ist, kannst du direkt auf dieser Seite ohne Konto eine private Nano Banana 2 Lite-1K-Bearbeitung starten.",
 			"private": "Private Quellbilder",
-			"draftOnly": "Eine Standard-Gastbearbeitung"
+			"draftOnly": "Eine Nano Banana 2 Lite-Gastbearbeitung"
 		},
 		"beforeAfter": {
 			"eyebrow": "Eine Quelle, eine klare Änderung",
@@ -435,7 +453,7 @@
 		"trust": {
 			"eyebrow": "Klare Grenzen",
 			"title": "Standardmäßig privat, transparent gemessen",
-			"description": "Wenn die gesponserte Gast-Warteschlange verfügbar ist, kann die Startseite eine gesponserte Standard Edit starten. Bei Kontobearbeitungen werden Credits weiterhin erst nach Angebot und Bestätigung reserviert.",
+			"description": "Wenn die gesponserte Gast-Warteschlange verfügbar ist, kann die Startseite eine gesponserte Nano Banana 2 Lite-1K-Bearbeitung starten. Bei Kontobearbeitungen werden EzPic Credits weiterhin erst nach Angebot und Bestätigung reserviert.",
 			"items": {
 				"privacy": {
 					"title": "Private Medien",
@@ -443,7 +461,7 @@
 				},
 				"credits": {
 					"title": "Kontrollierte Nutzung",
-					"description": "Standard-Gastbearbeitungen verwenden die gesponserte Warteschlange; Kontobearbeitungen zeigen den Credit-Betrag und warten auf deine Bestätigung."
+					"description": "Nano-Banana-Gastbearbeitungen verwenden die gesponserte Warteschlange; Kontobearbeitungen zeigen den genauen EzPic-Credit-Betrag und warten auf deine Bestätigung."
 				},
 				"safety": {
 					"title": "Normale Schutzmaßnahmen",
@@ -454,7 +472,7 @@
 		"finalCta": {
 			"eyebrow": "Beginne mit einem Bild",
 			"title": "Beschreibe die Bearbeitung, die du schon im Kopf hast",
-			"description": "Lade dein Bild hier hoch und beschreibe die Änderung. Wenn die Gast-Warteschlange verfügbar ist, kannst du ohne Konto eine private Standard-Gastbearbeitung starten.",
+			"description": "Lade dein Bild hier hoch und beschreibe die Änderung. Wenn die Gast-Warteschlange verfügbar ist, kannst du ohne Konto eine private Nano Banana 2 Lite-1K-Gastbearbeitung starten.",
 			"button": "Zurück zum Editor"
 		},
 		"hero": {
@@ -470,7 +488,7 @@
 		"features": {
 			"badge": "Ablauf für Bildbearbeitung",
 			"title": "Vom Quellbild zur kontrollierten Bearbeitung",
-			"description": "EzPic bündelt Bearbeitungsprompt, Qualitätswahl, Credits und private Assets in einem fokussierten Arbeitsbereich.",
+			"description": "EzPic bündelt Bearbeitungsprompt, modellspezifische Ausgabeeinstellungen, EzPic Credits und private Assets in einem fokussierten Arbeitsbereich.",
 			"feature1": {
 				"title": "Gezielte Bearbeitungen",
 				"subtitle": "Beschreibe die Änderung, statt das Bild neu aufzubauen.",
@@ -484,8 +502,8 @@
 					"description": "Der Editor stellt reine Text-zu-Bild-Erzeugung nie als EzPic-Produkt dar."
 				},
 				"benefit3": {
-					"title": "Zwei Bearbeitungsstufen",
-					"description": "Wähle Standard Edit oder Quality Edit, wenn dein Tarif dies erlaubt."
+					"title": "Modellspezifische Einstellungen",
+					"description": "Wähle aus den in EzPic verfügbaren Bildmodellen; jedes behält eigene verifizierte Ausgabeeinstellungen und einen eigenen EzPic-Credit-Betrag."
 				}
 			},
 			"feature2": {

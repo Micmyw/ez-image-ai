@@ -58,17 +58,23 @@ const checkpointQuote = {
 	ownerType: "USER" as const,
 	ownerId: "user-1",
 	submittedByUserId: "user-1",
-	productKey: "image-fast",
-	catalogVersion: "2026-08-25.1",
-	pricingVersion: "2026-08-25.1",
-	credits: 4n,
-	costMicros: 3_000n,
+	productKey: "image-nano-banana-2-lite",
+	catalogVersion: "2026-09-07.2",
+	pricingVersion: "2026-09-07.2",
+	credits: 5n,
+	costMicros: 20_000n,
 	inputSnapshot: {
 		kind: "image-to-image",
 		prompt: "A current prompt",
 		sourceAssetId: SOURCE_ASSET_ID,
+		skuKey: "nano-banana-2-lite-1k",
+		aspectRatio: "auto",
 	},
-	pricingSnapshot: { credits: 4, maximumJobCostMicros: 5_000_000 },
+	pricingSnapshot: {
+		credits: 5,
+		maximumJobCostMicros: 5_000_000,
+		skuKey: "nano-banana-2-lite-1k",
+	},
 	expiresAt: new Date("2026-08-23T00:10:00.000Z"),
 	moderationDecision: "ALLOW",
 	moderationProvider: "test",
@@ -79,18 +85,24 @@ const checkpointQuote = {
 
 const retryOperation = {
 	sourceJobId: "source-job-1",
-	productKey: "image-fast",
+	productKey: "image-nano-banana-2-lite",
 	normalizedInput: {
 		kind: "image-to-image" as const,
 		prompt: "A current prompt",
 		sourceAssetId: SOURCE_ASSET_ID,
+		skuKey: "nano-banana-2-lite-1k" as const,
+		aspectRatio: "auto" as const,
 	},
 	inputAssets: [{ assetId: SOURCE_ASSET_ID, assetChecksum: "1".repeat(64) }],
-	catalogVersion: "2026-08-25.1",
-	pricingVersion: "2026-08-25.1",
-	credits: "4",
-	costMicros: "3000",
-	pricingSnapshot: { credits: 4, maximumJobCostMicros: 5_000_000 },
+	catalogVersion: "2026-09-07.2",
+	pricingVersion: "2026-09-07.2",
+	credits: "5",
+	costMicros: "20000",
+	pricingSnapshot: {
+		credits: 5,
+		maximumJobCostMicros: 5_000_000,
+		skuKey: "nano-banana-2-lite-1k",
+	},
 	moderationProvider: "test",
 	moderationRuleVersion: "text-safety-2026-08-14.1",
 	assetModerationRuleVersion: "media-safety-2026-08-23.1",
@@ -143,6 +155,157 @@ function dependencies(
 }
 
 describe("retryGenerationForUser", () => {
+	it.each([
+		{
+			legacyProductKey: "image-fast",
+			legacyAspectRatio: undefined,
+			productKey: "image-nano-banana-2-lite",
+			skuKey: "nano-banana-2-lite-1k",
+			aspectRatio: "auto",
+			credits: "5",
+			costMicros: "20000",
+		},
+		{
+			legacyProductKey: "image-quality",
+			legacyAspectRatio: "auto",
+			productKey: "image-gpt-image-2",
+			skuKey: "gpt-image-2-2k",
+			aspectRatio: "1:1",
+			credits: "11",
+			costMicros: "50000",
+		},
+	] as const)(
+		"migrates a historical $legacyProductKey retry to its legal Kie SKU",
+		async ({
+			legacyProductKey,
+			legacyAspectRatio,
+			productKey,
+			skuKey,
+			aspectRatio,
+			credits,
+			costMicros,
+		}) => {
+			vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");
+			vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
+			vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", "2026-09-07.2");
+			const claimRequest = vi.fn(
+				async (claimInput: Parameters<RetryGenerationDependencies["claimRequest"]>[0]) => ({
+					outcome: "CLAIMED" as const,
+					requestId: `request-${legacyProductKey}`,
+					leaseToken: `lease-${legacyProductKey}`,
+					operation: claimInput.operation,
+				}),
+			);
+			const deps = dependencies({
+				findSource: vi.fn(async () => ({
+					...source,
+					productKey: legacyProductKey,
+					quote: {
+						...source.quote,
+						inputSnapshot: {
+							...source.quote.inputSnapshot,
+							...(legacyAspectRatio ? { aspectRatio: legacyAspectRatio } : {}),
+						},
+					},
+				})),
+				claimRequest,
+			});
+
+			await retryGenerationForUser(
+				"user-1",
+				{ jobId: "source-job-1", idempotencyKey: `retry-${legacyProductKey}` },
+				deps,
+			);
+
+			expect(claimRequest.mock.calls[0]?.[0].operation).toMatchObject({
+				productKey,
+				credits,
+				costMicros,
+				normalizedInput: {
+					kind: "image-to-image",
+					prompt: "A current prompt",
+					sourceAssetId: SOURCE_ASSET_ID,
+					skuKey,
+					aspectRatio,
+				},
+				pricingSnapshot: expect.objectContaining({ skuKey }),
+			});
+		},
+	);
+
+	it("preserves the exact legal SKU and aspect ratio for a current Kie retry", async () => {
+		vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");
+		vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
+		vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", "2026-09-07.2");
+		const claimRequest = vi.fn(
+			async (claimInput: Parameters<RetryGenerationDependencies["claimRequest"]>[0]) => ({
+				outcome: "CLAIMED" as const,
+				requestId: "request-current-gpt-4k",
+				leaseToken: "lease-current-gpt-4k",
+				operation: claimInput.operation,
+			}),
+		);
+		const deps = dependencies({
+			findSource: vi.fn(async () => ({
+				...source,
+				productKey: "image-gpt-image-2",
+				quote: {
+					...source.quote,
+					inputSnapshot: {
+						...source.quote.inputSnapshot,
+						skuKey: "gpt-image-2-4k",
+						aspectRatio: "16:9",
+					},
+				},
+			})),
+			claimRequest,
+		});
+
+		await retryGenerationForUser(
+			"user-1",
+			{ jobId: "source-job-1", idempotencyKey: "retry-current-gpt-4k" },
+			deps,
+		);
+
+		expect(claimRequest.mock.calls[0]?.[0].operation).toMatchObject({
+			productKey: "image-gpt-image-2",
+			credits: "17",
+			costMicros: "80000",
+			normalizedInput: expect.objectContaining({
+				skuKey: "gpt-image-2-4k",
+				aspectRatio: "16:9",
+			}),
+			pricingSnapshot: expect.objectContaining({ skuKey: "gpt-image-2-4k" }),
+		});
+	});
+
+	it("removes only private edit context and rejects any other persisted input field", async () => {
+		const claimRequest = vi.fn();
+		const deps = dependencies({
+			findSource: vi.fn(async () => ({
+				...source,
+				quote: {
+					...source.quote,
+					inputSnapshot: {
+						...source.quote.inputSnapshot,
+						editContext: { kind: "ROOT", rootAssetId: SOURCE_ASSET_ID },
+						providerModelId: "must-not-be-trusted",
+					},
+				},
+			})),
+			claimRequest,
+		});
+
+		await expect(
+			retryGenerationForUser(
+				"user-1",
+				{ jobId: "source-job-1", idempotencyKey: "retry-forged-input-field" },
+				deps,
+			),
+		).rejects.toThrow(/unrecognized key/i);
+		expect(claimRequest).not.toHaveBeenCalled();
+	});
+
 	it("rejects a guest-service source before creating retry state or dispatching work", async () => {
 		const deps = dependencies({
 			findSource: vi.fn(async () => ({ ...source, serviceClass: "GUEST_SLOW" as const })),
@@ -222,29 +385,35 @@ describe("retryGenerationForUser", () => {
 				operation: expect.objectContaining({
 					assetModerationPolicyVersion: expect.any(String),
 					assetModerationRuleVersion: expect.any(String),
-					catalogVersion: "2026-09-05.2",
-					costMicros: "23000",
+					catalogVersion: "2026-09-07.2",
+					costMicros: "20000",
 					credits: "5",
 					inputAssets: [{ assetChecksum: "1".repeat(64), assetId: SOURCE_ASSET_ID }],
 					moderationProvider: "test",
 					moderationRuleVersion: expect.stringMatching(/^text-safety-/),
 					normalizedInput: {
+						aspectRatio: "auto",
 						kind: "image-to-image",
 						prompt: "A current prompt",
+						skuKey: "nano-banana-2-lite-1k",
 						sourceAssetId: SOURCE_ASSET_ID,
 					},
 					pricingSnapshot: expect.objectContaining({
 						credits: 5,
 						maximumJobCostMicros: 5_000_000,
-						routeGraph: expect.objectContaining({ maximumRouteCostMicros: 23_000 }),
+						routeGraph: expect.objectContaining({
+							allowedRoutes: [expect.objectContaining({ provider: "kie" })],
+							maximumRouteCostMicros: 20_000,
+						}),
 						settlementPolicy: {
 							unitCredits: "5",
 							requestedOutputCount: 1,
 							maxCharge: "5",
 						},
+						skuKey: "nano-banana-2-lite-1k",
 					}),
-					pricingVersion: "2026-09-05.1",
-					productKey: "image-fast",
+					pricingVersion: "2026-09-07.2",
+					productKey: "image-nano-banana-2-lite",
 					sourceJobId: "source-job-1",
 				}),
 			}),
@@ -400,7 +569,56 @@ describe("retryGenerationForUser", () => {
 		expect(deps.createJob).toHaveBeenCalledWith(expect.objectContaining({ edit: editContext }));
 	});
 
-	it("resumes a durable approved quote checkpoint without calling moderation again", async () => {
+	it.each(["image-fast", "image-quality"] as const)(
+		"fails a durable legacy %s checkpoint before authorization or job creation",
+		async (legacyProductKey) => {
+			const deps = dependencies({
+				findSource: vi.fn(async () => {
+					throw new Error("current source must not run for a durable resume");
+				}),
+				resumeRequest: vi.fn(async () => ({
+					outcome: "CLAIMED" as const,
+					requestId: `request-${legacyProductKey}`,
+					leaseToken: `lease-${legacyProductKey}`,
+					operation: {
+						...retryOperation,
+						productKey: legacyProductKey,
+						catalogVersion: "2026-08-25.1",
+						pricingVersion: "2026-08-25.1",
+						credits: legacyProductKey === "image-fast" ? "4" : "10",
+						costMicros: legacyProductKey === "image-fast" ? "3000" : "8000",
+						normalizedInput: {
+							kind: "image-to-image" as const,
+							prompt: "A current prompt",
+							sourceAssetId: SOURCE_ASSET_ID,
+						},
+					},
+					quoteId: "quote-legacy",
+				})),
+			});
+
+			await expect(
+				retryGenerationForUser(
+					"user-1",
+					{ jobId: "source-job-1", idempotencyKey: `retry-${legacyProductKey}` },
+					deps,
+				),
+			).rejects.toThrow("PRICE_CHANGED");
+			expect(deps.findSource).not.toHaveBeenCalled();
+			expect(deps.assertAllowed).not.toHaveBeenCalled();
+			expect(deps.findCheckpointQuote).not.toHaveBeenCalled();
+			expect(deps.createJob).not.toHaveBeenCalled();
+			expect(deps.dispatch).not.toHaveBeenCalled();
+			expect(deps.failRequest).toHaveBeenCalledWith(
+				expect.objectContaining({
+					requestId: `request-${legacyProductKey}`,
+					errorCode: "PRICE_CHANGED",
+				}),
+			);
+		},
+	);
+
+	it("resumes a current EzPic durable approved quote checkpoint without moderation", async () => {
 		const deps = dependencies({
 			findSource: vi.fn(async () => {
 				throw new Error("current source and catalog must not run for a durable resume");

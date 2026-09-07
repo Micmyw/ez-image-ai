@@ -1,16 +1,44 @@
 ---
 title: Image editing
-description: Understand EzPic editing modes, generation jobs, result comparison, downloads, and edit-again flow.
+description: Understand EzPic image products, output settings, EzPic Credits, generation jobs, result comparison, downloads, and edit-again flow.
 ---
 
 EzPic submits image changes as generation jobs. The client sends a stable product key; Provider
 routing, model identifiers, credentials, and cost details remain on the server.
 
-## Editing modes
+## Image products and EzPic Credits
 
-The workspace can expose Fast and Quality editing modes when they are available for the current
-account. Availability and input limits come from the server, so the interface does not promise a mode
-that the service has disabled.
+The workspace shows only image products and output settings available for the current account. Each
+valid combination is a server-defined SKU with an exact EzPic Credit charge:
+
+| Image product      | Output setting | EzPic Credits |
+| ------------------ | -------------- | ------------: |
+| Nano Banana 2 Lite | 1K             |             5 |
+| Nano Banana 2      | 1K             |             9 |
+| Nano Banana 2      | 2K             |            13 |
+| Nano Banana 2      | 4K             |            19 |
+| Nano Banana Pro    | 1K             |            19 |
+| Nano Banana Pro    | 2K             |            19 |
+| Nano Banana Pro    | 4K             |            25 |
+| Nano Banana        | Default        |             5 |
+| GPT Image 2        | 1K             |             7 |
+| GPT Image 2        | 2K             |            11 |
+| GPT Image 2        | 4K             |            17 |
+| GPT Image 1.5      | Medium         |             5 |
+| GPT Image 1.5      | High           |            23 |
+| Seedream 5 Pro     | Basic · 1K     |             8 |
+| Seedream 5 Pro     | High · 2K      |            15 |
+| Seedream 5 Lite    | Basic · 2K     |             7 |
+| Seedream 5 Lite    | High · 3K      |             7 |
+| Seedream 5 Lite    | Ultra · 4K     |             7 |
+| Seedream 4.5       | Basic · 2K     |             8 |
+| Seedream 4.5       | High · 4K      |             8 |
+
+Availability, aspect ratios, and input limits come from the server, so the interface does not promise
+a product or setting that the service has disabled. Each product has its own valid setting matrix;
+the interface does not combine a quality or resolution from one product with another. One confirmed
+edit produces one image. Output format and background controls, where a product supports them, do
+not change the EzPic Credit charge and do not create additional SKU combinations.
 
 ## Job status
 

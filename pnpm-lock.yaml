@@ -1017,6 +1017,9 @@ importers:
 
   packages/utils:
     dependencies:
+      '@repo/config':
+        specifier: workspace:*
+        version: link:../config
       zod:
         specifier: 'catalog:'
         version: 4.4.3
@@ -1039,6 +1042,9 @@ importers:
       '@repo/auth':
         specifier: workspace:*
         version: link:../../packages/auth
+      '@repo/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       '@repo/database':
         specifier: workspace:*
         version: link:../../packages/database

@@ -20,13 +20,16 @@ export function usePlanData() {
 			const usage = getPlanUsageEstimate(entitlement.id);
 			technicalFeatures = [
 				t("pricing.monthlyCredits", { credits: entitlement.monthlyCredits }),
-				usage.qualityEdits === null
-					? t("pricing.monthlyStandardAllowance", {
-							standard: usage.standardEdits,
+				usage.minimumImageEdits === usage.maximumImageEdits
+					? t("pricing.monthlyFixedImageAllowance", {
+							count: usage.maximumImageEdits,
+							credits: usage.minimumCreditsPerImage,
 						})
-					: t("pricing.monthlyEditAllowance", {
-							standard: usage.standardEdits,
-							quality: usage.qualityEdits,
+					: t("pricing.monthlyImageAllowance", {
+							minimum: usage.minimumImageEdits,
+							maximum: usage.maximumImageEdits,
+							minimumCredits: usage.minimumCreditsPerImage,
+							maximumCredits: usage.maximumCreditsPerImage,
 						}),
 				t("pricing.creditExpiry"),
 				t("pricing.concurrentEdits", { count: entitlement.maximumConcurrentJobs }),

@@ -1,4 +1,4 @@
-import { imageAspectRatioSchema } from "@repo/ai";
+import { getCatalogEntry, getCatalogImageSpecCell, imageAspectRatioSchema } from "@repo/ai";
 import { db } from "@repo/database/client";
 import { z } from "zod";
 
@@ -10,7 +10,7 @@ export const getGuestEligibility = guestMediaProcedure
 		method: "GET",
 		path: "/media/guest-eligibility",
 		tags: ["Media"],
-		summary: "Get guest Standard admission eligibility",
+		summary: "Get guest image admission eligibility",
 		description: "Returns only the current promotion admission fence for this anonymous owner.",
 	})
 	.output(
@@ -24,6 +24,7 @@ export const getGuestEligibility = guestMediaProcedure
 					.object({
 						sourceAssetId: z.string().min(1),
 						prompt: z.string().min(1),
+						skuKey: z.literal("nano-banana-2-lite-1k"),
 						aspectRatio: imageAspectRatioSchema,
 					})
 					.strict()
@@ -74,7 +75,9 @@ export const getGuestEligibility = guestMediaProcedure
 							ownerId: context.user.id,
 							submittedByUserId: context.user.id,
 							status: "SUBMITTED",
-							productKey: "image-fast",
+							productKey: {
+								in: ["image-nano-banana-2-lite", "image-fast"],
+							},
 							expiresAt: { gt: now },
 						},
 					},
@@ -136,6 +139,7 @@ function resolveClaimedDraft(
 ): {
 	sourceAssetId: string;
 	prompt: string;
+	skuKey: "nano-banana-2-lite-1k";
 	aspectRatio: z.infer<typeof imageAspectRatioSchema>;
 } | null {
 	const draft = bootstrap?.claimedDraft;
@@ -150,7 +154,7 @@ function resolveClaimedDraft(
 		draft.ownerId !== ownerId ||
 		draft.submittedByUserId !== ownerId ||
 		draft.status !== "SUBMITTED" ||
-		draft.productKey !== "image-fast" ||
+		!["image-nano-banana-2-lite", "image-fast"].includes(draft.productKey ?? "") ||
 		draft.assetId !== bootstrap.sourceAssetId ||
 		draft.expiresAt <= now ||
 		!isRecord(draft.inputSnapshot) ||
@@ -161,9 +165,26 @@ function resolveClaimedDraft(
 	}
 	const prompt = draft.inputSnapshot.prompt.trim();
 	const aspectRatio = imageAspectRatioSchema.safeParse(draft.inputSnapshot.aspectRatio ?? "auto");
-	return prompt && aspectRatio.success
-		? { sourceAssetId: bootstrap.sourceAssetId, prompt, aspectRatio: aspectRatio.data }
-		: null;
+	if (!prompt || !aspectRatio.success) return null;
+	if (
+		draft.productKey === "image-nano-banana-2-lite" &&
+		draft.inputSnapshot.skuKey !== "nano-banana-2-lite-1k"
+	) {
+		return null;
+	}
+	const sku = getCatalogImageSpecCell(
+		getCatalogEntry("image-nano-banana-2-lite"),
+		"nano-banana-2-lite-1k",
+	);
+	if (!sku?.aspectRatios.includes(aspectRatio.data)) {
+		return null;
+	}
+	return {
+		sourceAssetId: bootstrap.sourceAssetId,
+		prompt,
+		skuKey: "nano-banana-2-lite-1k",
+		aspectRatio: aspectRatio.data,
+	};
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

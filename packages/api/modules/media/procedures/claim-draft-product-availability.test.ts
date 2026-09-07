@@ -22,6 +22,17 @@ import { claimGenerationDraft } from "./claim-generation-draft";
 import { claimGuestDraft } from "./claim-guest-draft";
 
 const claimToken = "c".repeat(43);
+const executableProductKeys = [
+	"image-nano-banana-2-lite",
+	"image-nano-banana",
+	"image-nano-banana-2",
+	"image-nano-banana-pro",
+	"image-gpt-image-1-5",
+	"image-gpt-image-2",
+	"image-seedream-4-5",
+	"image-seedream-5-lite",
+	"image-seedream-5-pro",
+] as const;
 const context = {
 	context: {
 		headers: new Headers({ cookie: `media_draft_claim=${claimToken}` }),
@@ -32,25 +43,22 @@ const context = {
 describe("draft claim product availability", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		mocks.loadProducts.mockResolvedValue([
-			{ key: "image-fast", accessHint: "guest-trial" },
-			{ key: "image-quality", accessHint: "paid-account" },
-		]);
+		mocks.loadProducts.mockResolvedValue(executableProductKeys.map((key) => ({ key })));
 		mocks.claimRegistered.mockImplementation(async (input) => {
-			if (input.allowedProductKeys.join(",") !== "image-fast,image-quality") {
+			if (input.allowedProductKeys.join(",") !== executableProductKeys.join(",")) {
 				throw new Error("DRAFT_PRODUCT_POLICY_MISSING");
 			}
-			return { id: "draft_registered", productKey: "image-quality", input: {} };
+			return { id: "draft_registered", productKey: "image-gpt-image-2", input: {} };
 		});
 		mocks.claimGuest.mockImplementation(async (input) => {
-			if (input.allowedProductKeys.join(",") !== "image-fast") {
+			if (input.allowedProductKeys.join(",") !== executableProductKeys.join(",")) {
 				throw new Error("DRAFT_PRODUCT_POLICY_MISSING");
 			}
-			return { id: "draft_guest", productKey: "image-fast", input: {} };
+			return { id: "draft_guest", productKey: "image-seedream-5-pro", input: {} };
 		});
 	});
 
-	it("allows a registered account to claim either currently executable image tier", async () => {
+	it("allows a registered account to claim every currently executable image product", async () => {
 		mocks.getSession.mockResolvedValue({
 			session: { id: "session_registered" },
 			user: { id: "user_registered", isAnonymous: false },
@@ -58,11 +66,11 @@ describe("draft claim product availability", () => {
 
 		await expect(call(claimGenerationDraft, undefined, context)).resolves.toMatchObject({
 			id: "draft_registered",
-			productKey: "image-quality",
+			productKey: "image-gpt-image-2",
 		});
 	});
 
-	it("allows an anonymous guest to claim only the executable guest-trial tier", async () => {
+	it("lets an anonymous guest claim any executable draft before entitlement decides upgrade", async () => {
 		mocks.getSession.mockResolvedValue({
 			session: { id: "session_guest" },
 			user: { id: "user_guest", isAnonymous: true },
@@ -70,7 +78,7 @@ describe("draft claim product availability", () => {
 
 		await expect(call(claimGuestDraft, undefined, context)).resolves.toMatchObject({
 			id: "draft_guest",
-			productKey: "image-fast",
+			productKey: "image-seedream-5-pro",
 		});
 	});
 });

@@ -84,31 +84,21 @@ describe("media administration authorization and safe DTOs", () => {
 			generatedAt: "2026-08-14T00:00:00.000Z",
 			queue: { depth: 4, oldestAgeSeconds: 12, stalledJobs: 1, needsReconciliation: 2 },
 			outbox: { pending: 2, deadLetter: 0, oldestAgeSeconds: 5 },
-			providers: [
-				{ provider: "replicate", succeeded: 3, failed: 1, running: 0, costMicros: "700" },
-			],
+			generation: { succeeded: 3, failed: 1, running: 0 },
 			storage: { readyAssets: 3, readyBytes: "1200", reservedBytes: "10" },
 			credits: { spendable: "40", reserved: "5", debt: "0", settled: "20" },
-			finance: {
-				revenueMicros: "1000",
-				refundedMicros: "100",
-				providerCostMicros: "700",
-				marginMicros: "200",
-			},
 			events: {
-				providerFailed: 0,
+				generationFailed: 0,
 				payment: {
 					failed: {
 						count: 1,
 						items: [
 							{
 								id: "payment_failed_1",
-								providerEventId: "evt_failed_1",
 								status: "FAILED",
 								attemptCount: 2,
 								lastTriggerAttempt: 2,
 								lastAttemptAt: "2026-08-14T00:00:00.000Z",
-								lastTriggerRunId: "trigger_run_1",
 								lastErrorClass: "TRANSIENT",
 							},
 						],
@@ -116,6 +106,11 @@ describe("media administration authorization and safe DTOs", () => {
 					deadLetter: { count: 0, items: [] },
 					ignored: { count: 0, items: [] },
 				},
+			},
+			stripeReconciliation: {
+				checkpoint: null,
+				issues: { openCount: 0, items: [] },
+				historicalRefunds: { needsReviewCount: 0, missingLifecycleCount: 0, items: [] },
 			},
 			overrides: [],
 			guest: {
@@ -130,10 +125,6 @@ describe("media administration authorization and safe DTOs", () => {
 					expiredBeforeDispatch: 1,
 				},
 				risk: {
-					budgetMicros: "100000",
-					heldMicros: "20000",
-					committedMicros: "60000",
-					releasedMicros: "10000",
 					utilizationPercent: 80,
 					state: "SLOW",
 				},
@@ -143,9 +134,9 @@ describe("media administration authorization and safe DTOs", () => {
 					rejected: 0,
 					uncertain: 1,
 					uncertainOlderThanTenMinutes: 1,
-					reportedCostCovered: 2,
-					reportedCostMissing: 1,
-					billedSpendMismatch: 0,
+					billingEvidencePresent: 2,
+					billingEvidenceMissing: 1,
+					billingMismatch: 0,
 				},
 				moderation: { approved: 2, rejected: 1, errors: 0, errorRate: 0 },
 				watermark: { succeeded: 2, failed: 0 },
@@ -179,8 +170,22 @@ describe("media administration authorization and safe DTOs", () => {
 			},
 		);
 		const serialized = JSON.stringify(result);
+		expect(Object.keys(result).sort()).toEqual(
+			[
+				"generatedAt",
+				"queue",
+				"outbox",
+				"generation",
+				"storage",
+				"credits",
+				"events",
+				"stripeReconciliation",
+				"overrides",
+				"guest",
+			].sort(),
+		);
 		expect(serialized).not.toMatch(
-			/prompt|rawPayload|requestBody|responseBody|envelope|secret|signature|signedUrl|objectKey|sourceUrl|token|url/i,
+			/prompt|rawPayload|requestBody|responseBody|envelope|secret|signature|signedUrl|objectKey|sourceUrl|token|url|"providers?":|providerEventId|providerObjectId|providerRefundId|providerCost|costMicros|marginMicros|providerModelId|providerTaskId/i,
 		);
 		expect(serialized).not.toContain("fixture-secret-do-not-return");
 		expect(result.queue.depth).toBe(4);
@@ -196,10 +201,6 @@ describe("media administration authorization and safe DTOs", () => {
 				expiredBeforeDispatch: 1,
 			},
 			risk: {
-				budgetMicros: "100000",
-				heldMicros: "20000",
-				committedMicros: "60000",
-				releasedMicros: "10000",
 				utilizationPercent: 80,
 				state: "SLOW",
 			},
@@ -209,9 +210,9 @@ describe("media administration authorization and safe DTOs", () => {
 				rejected: 0,
 				uncertain: 1,
 				uncertainOlderThanTenMinutes: 1,
-				reportedCostCovered: 2,
-				reportedCostMissing: 1,
-				billedSpendMismatch: 0,
+				billingEvidencePresent: 2,
+				billingEvidenceMissing: 1,
+				billingMismatch: 0,
 			},
 			moderation: { approved: 2, rejected: 1, errors: 0, errorRate: 0 },
 			watermark: { succeeded: 2, failed: 0 },
@@ -232,12 +233,10 @@ describe("media administration authorization and safe DTOs", () => {
 		expect(result.events.payment.failed.items).toEqual([
 			{
 				id: "payment_failed_1",
-				providerEventId: "evt_failed_1",
 				status: "FAILED",
 				attemptCount: 2,
 				lastTriggerAttempt: 2,
 				lastAttemptAt: "2026-08-14T00:00:00.000Z",
-				lastTriggerRunId: "trigger_run_1",
 				lastErrorClass: "TRANSIENT",
 			},
 		]);
@@ -255,7 +254,12 @@ describe("media administration authorization and safe DTOs", () => {
 					jobId: "job_1",
 					reservationId: "reservation_1",
 				},
-				route: { provider: "fal", providerModelId: "fal-ai/flux/schnell" },
+				selection: {
+					productKey: "image-nano-banana-2-lite",
+					skuKey: "nano-banana-2-lite-1k",
+					aspectRatio: "auto",
+				},
+				route: { provider: "kie", providerModelId: "private-model" },
 				status: { attempt: "NEEDS_RECONCILIATION", job: "NEEDS_RECONCILIATION" },
 				timestamps: {
 					createdAt: "2026-08-23T00:00:00.000Z",
@@ -279,12 +283,25 @@ describe("media administration authorization and safe DTOs", () => {
 		expect(listAdminUncertainGenerationAttempts).toHaveBeenCalledWith(
 			{ limit: 20 },
 			expect.anything(),
+			expect.arrayContaining([
+				expect.objectContaining({
+					productKey: "image-gpt-image-2",
+					skuCells: expect.arrayContaining([expect.objectContaining({ skuKey: "gpt-image-2-1k" })]),
+				}),
+			]),
 		);
+		expect(
+			JSON.stringify(vi.mocked(listAdminUncertainGenerationAttempts).mock.calls[0]?.[2]),
+		).not.toMatch(/provider|modelId|cost|credential|secret/i);
 		expect(result).toEqual({
 			items: [
 				{
 					ids: { attemptId: "attempt_1", jobId: "job_1", reservationId: "reservation_1" },
-					route: { provider: "fal", providerModelId: "fal-ai/flux/schnell" },
+					selection: {
+						productKey: "image-nano-banana-2-lite",
+						skuKey: "nano-banana-2-lite-1k",
+						aspectRatio: "auto",
+					},
 					status: { attempt: "NEEDS_RECONCILIATION", job: "NEEDS_RECONCILIATION" },
 					timestamps: {
 						createdAt: "2026-08-23T00:00:00.000Z",
@@ -301,7 +318,7 @@ describe("media administration authorization and safe DTOs", () => {
 			],
 		});
 		expect(JSON.stringify(result)).not.toMatch(
-			/providerTaskId|providerStatusUrl|responseSnapshot|signature|token|secret/i,
+			/"route":|"provider":|providerModelId|providerTaskId|providerStatusUrl|responseSnapshot|signature|token|secret|costMicros|marginMicros/i,
 		);
 	});
 

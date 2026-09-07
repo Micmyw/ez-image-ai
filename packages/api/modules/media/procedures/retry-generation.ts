@@ -1,10 +1,21 @@
 import {
+	getCatalogEntry,
+	getCatalogImageSpecCell,
 	mediaModelInputSchema,
 	MEDIA_VERIFICATION_POLICY_VERSION,
 	MEDIA_VERIFICATION_RULE_VERSION,
+	type MediaModelInput,
 	type ModerationDecision,
 } from "@repo/ai";
-import { DEFAULT_PRODUCT_CONFIG, productModelKeySchema, type PlanEntitlement } from "@repo/config";
+import {
+	DEFAULT_PRODUCT_CONFIG,
+	EZPIC_PRODUCT_KEYS,
+	productModelKeySchema,
+	type ImageAspectRatio,
+	type ImageSkuKey,
+	type PlanEntitlement,
+	type ProductModelKey,
+} from "@repo/config";
 import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
 import {
 	claimGenerationRetryRequest,
@@ -169,8 +180,14 @@ export async function retryGenerationForUser(
 	if (!claim) {
 		const source = await dependencies.findSource({ userId, jobId: input.jobId });
 		if (!source || source.serviceClass !== "STANDARD") throw new Error("NOT_FOUND");
-		const productKey = productModelKeySchema.parse(source.productKey);
-		const normalizedInput = mediaModelInputSchema.parse(source.quote.inputSnapshot);
+		const sourceProductKey = productModelKeySchema.parse(source.productKey);
+		const sourceInput = mediaModelInputSchema.parse(
+			retrySourceInputSnapshot(source.quote.inputSnapshot),
+		);
+		const { productKey, input: normalizedInput } = migrateLegacyImageRetry(
+			sourceProductKey,
+			sourceInput,
+		);
 		const editContext = retryEditContextForSource(userId, source, normalizedInput);
 		const currentQuote = buildMediaQuote({ productKey, input: normalizedInput });
 		selection = dependencies.createAdapter();
@@ -217,6 +234,9 @@ export async function retryGenerationForUser(
 	let jobCreated = false;
 	let jobCreationStarted = false;
 	try {
+		if (!EZPIC_PRODUCT_KEYS.some((candidate) => candidate === productKey)) {
+			throw new Error("PRICE_CHANGED");
+		}
 		await dependencies.assertAllowed({
 			userId,
 			productKey,
@@ -341,6 +361,56 @@ export async function retryGenerationForUser(
 		}
 		throw error;
 	}
+}
+
+const LEGACY_IMAGE_RETRY_TARGETS = {
+	"image-fast": {
+		productKey: "image-nano-banana-2-lite",
+		skuKey: "nano-banana-2-lite-1k",
+		defaultAspectRatio: "auto",
+	},
+	"image-quality": {
+		productKey: "image-gpt-image-2",
+		skuKey: "gpt-image-2-2k",
+		defaultAspectRatio: "1:1",
+	},
+} as const satisfies Record<
+	"image-fast" | "image-quality",
+	{
+		productKey: ProductModelKey;
+		skuKey: ImageSkuKey;
+		defaultAspectRatio: ImageAspectRatio;
+	}
+>;
+
+function retrySourceInputSnapshot(inputSnapshot: unknown): unknown {
+	if (!isRecord(inputSnapshot) || !("editContext" in inputSnapshot)) return inputSnapshot;
+	const { editContext: _editContext, ...modelInput } = inputSnapshot;
+	return modelInput;
+}
+
+function migrateLegacyImageRetry(
+	productKey: ProductModelKey,
+	input: MediaModelInput,
+): { productKey: ProductModelKey; input: MediaModelInput } {
+	const target =
+		productKey === "image-fast" || productKey === "image-quality"
+			? LEGACY_IMAGE_RETRY_TARGETS[productKey]
+			: undefined;
+	if (!target) return { productKey, input };
+	if (input.kind !== "image-to-image") throw new Error("NOT_FOUND");
+
+	const targetCell = getCatalogImageSpecCell(getCatalogEntry(target.productKey), target.skuKey);
+	if (!targetCell) throw new Error("MODEL_DISABLED");
+	const requestedAspectRatio = input.aspectRatio;
+	const aspectRatio =
+		requestedAspectRatio && targetCell.aspectRatios.includes(requestedAspectRatio)
+			? requestedAspectRatio
+			: target.defaultAspectRatio;
+	return {
+		productKey: target.productKey,
+		input: { ...input, skuKey: target.skuKey, aspectRatio },
+	};
 }
 
 function retryEditContextForSource(

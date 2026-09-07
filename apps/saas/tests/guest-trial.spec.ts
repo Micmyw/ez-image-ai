@@ -10,7 +10,7 @@ const png = Buffer.from(
 	"base64",
 );
 
-test("anonymous Standard trial is private, accessible, responsive, and temporary", async ({
+test("anonymous Nano Banana 2 Lite trial is private, accessible, responsive, and temporary", async ({
 	page,
 }, testInfo) => {
 	test.setTimeout(120_000);
@@ -38,13 +38,13 @@ test("anonymous Standard trial is private, accessible, responsive, and temporary
 		}
 		await route.continue();
 	});
-	await page.getByRole("button", { name: /standard edit/i }).click();
+	await page.getByRole("button", { name: /start my nano banana edit/i }).click();
 	const alert = page.getByRole("alert");
 	await expect(alert).toBeVisible();
 	await expect(alert.locator("xpath=..")).toBeFocused();
 	await page.unroute("**/api/**");
 
-	await page.getByRole("button", { name: /standard edit/i }).click();
+	await page.getByRole("button", { name: /start my nano banana edit/i }).click();
 	const viewStatus = page.getByRole("button", { name: /view status/i });
 	await expect(viewStatus).toBeVisible({ timeout: 30_000 });
 	await assertGuestReducedMotion(page);
@@ -88,10 +88,10 @@ async function enterGuestWorkspace(page: Page, prompt: string): Promise<void> {
 	await (
 		await chooserPromise
 	).setFiles({ name: "guest-source.png", mimeType: "image/png", buffer: png });
-	await page.getByRole("button", { name: /try one standard edit free/i }).click();
+	await page.getByRole("button", { name: /try nano banana 2 lite 1k free/i }).click();
 	await expect(page).toHaveURL(/\/try(?:\?|$)/, { timeout: 30_000 });
 	await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
-	await expect(page.getByRole("button", { name: /standard edit/i })).toBeVisible();
+	await expect(page.getByRole("button", { name: /start my nano banana edit/i })).toBeVisible();
 }
 
 async function assertGuestLayouts(page: Page, widths: number[]): Promise<void> {
@@ -130,8 +130,8 @@ async function assertFourHundredPercentReflow(page: Page): Promise<void> {
 		expect(geometry.pageWidth, "400% page overflow").toBeLessThanOrEqual(geometry.viewport + 1);
 		for (const target of [
 			page.getByLabel(/edit instruction/i),
-			page.getByRole("button", { name: /quality edit/i }),
-			page.getByRole("button", { name: /standard edit/i }),
+			page.getByRole("button", { name: /more image models/i }),
+			page.getByRole("button", { name: /start my nano banana edit/i }),
 			page.locator("#guest-result-region"),
 		]) {
 			await target.scrollIntoViewIfNeeded();
@@ -151,7 +151,7 @@ async function assertGuestAccessibility(page: Page): Promise<void> {
 	await page.setViewportSize({ width: 390, height: 844 });
 	await expect(page.getByLabel(/edit instruction/i)).toBeVisible();
 	await expect(page.locator("#guest-status-region")).toHaveAttribute("aria-live", "polite");
-	const primary = page.getByRole("button", { name: /standard edit/i });
+	const primary = page.getByRole("button", { name: /start my nano banana edit/i });
 	const primaryBox = await primary.boundingBox();
 	expect(primaryBox?.height ?? 0).toBeGreaterThanOrEqual(48);
 	for (const control of await page
@@ -169,15 +169,15 @@ async function assertGuestAccessibility(page: Page): Promise<void> {
 		expect(box.width, "interactive target width").toBeGreaterThanOrEqual(44);
 		expect(box.height, "interactive target height").toBeGreaterThanOrEqual(44);
 	}
-	const selectedStandard = page.locator('[data-test="guest-standard-selection"]');
+	const selectedStandard = page.locator('[data-test="guest-product-selection"]');
 	await expect(selectedStandard).toHaveAttribute("aria-current", "true");
 	await expect(selectedStandard.locator("svg")).toBeVisible();
 	await page.getByLabel(/edit instruction/i).focus();
 	await page.keyboard.press("Tab");
-	await expect(page.getByRole("button", { name: /quality edit/i })).toBeFocused();
+	await expect(page.getByRole("button", { name: /more image models/i })).toBeFocused();
 	await page.keyboard.press("Tab");
 	await expect(primary).toBeFocused();
-	await expect(page.getByText(/standard edit/i).first()).toBeVisible();
+	await expect(page.getByText(/nano banana 2 lite/i).first()).toBeVisible();
 }
 
 async function assertGuestReducedMotion(page: Page): Promise<void> {
@@ -195,7 +195,9 @@ async function assertGuestReducedMotion(page: Page): Promise<void> {
 
 async function assertGuestOriginality(page: Page): Promise<void> {
 	const publicText = await page.locator("body").innerText();
-	expect(publicText).not.toMatch(/raphael|seedream|providerModelId|providerCostMicros/i);
+	expect(publicText).not.toMatch(
+		/raphael|providerModelId|providerCostMicros|providerTaskId|KIE_API_KEY|OPENROUTER_API_KEY|api\.kie\.ai|openrouter(?:\.ai)?|gpt-image-2-image-to-image|seedream\/5-pro-image-to-image/i,
+	);
 	await expect(page.getByText(/history|edit again/i)).toHaveCount(0);
 }
 

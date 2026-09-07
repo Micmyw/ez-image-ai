@@ -1,3 +1,5 @@
+import { EZPIC_PRODUCT_KEYS, LEGACY_EZPIC_PRODUCT_KEYS } from "@repo/config";
+
 import type { Prisma } from "../../generated/client";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { reserveCreditsInTransaction } from "./credits";
@@ -600,7 +602,9 @@ function imageEditSourceAssetId(inputSnapshot: Prisma.JsonValue): string | null 
 }
 
 function isImageEditProduct(productKey: string): boolean {
-	return productKey === "image-fast" || productKey === "image-quality";
+	return [...EZPIC_PRODUCT_KEYS, ...LEGACY_EZPIC_PRODUCT_KEYS].some(
+		(candidate) => candidate === productKey,
+	);
 }
 
 export interface TransitionGenerationJobInput {

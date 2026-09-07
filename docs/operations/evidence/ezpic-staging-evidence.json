@@ -10,12 +10,12 @@
 		{
 			"id": "standard-success",
 			"status": "NOT_COMPLETED",
-			"evidence": "Needs the staging Standard route identifier, Trigger.dev run reference, PostgreSQL job/reservation evidence, private output metadata, and billed Provider cost."
+			"evidence": "Legacy scenario ID retained by the evidence schema. Needs a paid Kie nano-banana-2-lite-1k staging run with Trigger.dev reference, PostgreSQL job/reservation evidence, approved output host/MIME/dimensions, private output metadata, and reconciled billed cost."
 		},
 		{
 			"id": "quality-success",
 			"status": "NOT_COMPLETED",
-			"evidence": "Needs the separately enabled staging Quality route identifier, Trigger.dev run reference, private approved output evidence, latency, and billed Provider cost."
+			"evidence": "Legacy scenario ID retained by the evidence schema. Needs one paid Kie run for each of the 20 legal product/SKU cells in catalog and pricing version 2026-09-07.2, with Trigger.dev references, approved private outputs, quality review, latency, recovery, and reconciled billed cost."
 		},
 		{
 			"id": "provider-failure-credit-release",
@@ -90,7 +90,7 @@
 		{
 			"id": "global-product-kill-switch",
 			"status": "NOT_COMPLETED",
-			"evidence": "Needs staging evidence for global disable, Standard-only enable, independent Quality disable, late worker admission rejection, and audited runtime override rollback."
+			"evidence": "Needs staging evidence for global disable; independent disable for all nine public Kie image products; active 2026-09-07.2 catalog-version enforcement; OpenRouter recovery-only behavior with zero new submissions; late worker admission rejection; and audited runtime override rollback."
 		},
 		{
 			"id": "sentry-alert",

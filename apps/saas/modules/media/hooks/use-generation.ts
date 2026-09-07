@@ -6,7 +6,7 @@ import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tansta
 import { useRef, useState } from "react";
 
 import { createEditorActionController } from "../lib/editor-action";
-import type { EditorProductKey } from "../lib/editor-recovery";
+import { isEditorProductKey, type EditorProductKey } from "../lib/editor-recovery";
 import type { GenerationInput } from "../lib/form-schema";
 
 export function useGeneration({ parentJobId }: { parentJobId?: string | null } = {}) {
@@ -15,7 +15,7 @@ export function useGeneration({ parentJobId }: { parentJobId?: string | null } =
 	action.current ??= createEditorActionController();
 	const [quote, setQuote] = useState<{
 		id: string;
-		productKey: "image-fast" | "image-quality";
+		productKey: EditorProductKey;
 		credits: string;
 		expiresAt: string;
 	} | null>(null);
@@ -29,10 +29,7 @@ export function useGeneration({ parentJobId }: { parentJobId?: string | null } =
 		queryFn: () => orpcClient.media.getCreditAccount(),
 	});
 	const createQuote = useMutation({
-		mutationFn: async (input: {
-			productKey: "image-fast" | "image-quality";
-			input: GenerationInput;
-		}) => {
+		mutationFn: async (input: { productKey: EditorProductKey; input: GenerationInput }) => {
 			const request = action.current!.beginQuoteRequest();
 			const value = await orpcClient.media.createQuote({
 				...input,
@@ -77,7 +74,7 @@ export async function refreshGenerationQueries(
 	]);
 }
 
-function requireEditorProductKey(productKey: string): EditorProductKey {
-	if (productKey === "image-fast" || productKey === "image-quality") return productKey;
+export function requireEditorProductKey(productKey: string): EditorProductKey {
+	if (isEditorProductKey(productKey)) return productKey;
 	throw new Error("PRODUCT_UNAVAILABLE");
 }

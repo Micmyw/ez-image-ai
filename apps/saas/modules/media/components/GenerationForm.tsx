@@ -4,11 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { CreditBalanceSummary } from "@payments/components/CreditBalanceSummary";
 import { EditorUpgradeDialog } from "@payments/components/EditorUpgradeDialog";
 import { createChoosePlanPath, writeEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
-import {
-	getPlanEntitlement,
-	IMAGE_ASPECT_RATIOS,
-	type ImageAspectRatio,
-} from "@repo/config/client";
+import { EZPIC_PRODUCT_KEYS, getPlanEntitlement, type ImageAspectRatio } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
 import { useRouter } from "@shared/hooks/router";
@@ -21,12 +17,24 @@ import { useForm } from "react-hook-form";
 import { useGeneration } from "../hooks/use-generation";
 import { resolveEditorProductSelection } from "../lib/editor-entitlement";
 import { getEditorErrorKey } from "../lib/editor-error";
-import type { EditorDraftInput, EditorProductKey } from "../lib/editor-recovery";
+import {
+	isEditorProductKey,
+	type EditorDraftInput,
+	type EditorProductKey,
+} from "../lib/editor-recovery";
 import {
 	buildGenerationInput,
 	type GenerationFormValues,
 	generationFormValuesSchema,
 } from "../lib/form-schema";
+import {
+	getDefaultImageSpecCell,
+	getImageSpecCell,
+	type ImageSpecControlKey,
+	publicImageAspectRatios,
+	resolveImageSpecControlValues,
+	type PublicImageSpecCell,
+} from "../lib/image-sku-selection";
 import { EditModeSelector } from "./editor/EditModeSelector";
 import { ImageSourcePanel } from "./editor/ImageSourcePanel";
 import { PromptPanel } from "./editor/PromptPanel";
@@ -35,7 +43,7 @@ import { ImageOutputSettings } from "./ImageOutputSettings";
 export function GenerationForm({
 	onCreated,
 	initialDraft,
-	allowedProductKeys = ["image-fast", "image-quality"],
+	allowedProductKeys = [...EZPIC_PRODUCT_KEYS],
 	initialSourceReady = false,
 	parentJobId,
 }: {
@@ -48,41 +56,90 @@ export function GenerationForm({
 	const t = useTranslations("media.create");
 	const router = useRouter();
 	const generation = useGeneration({ parentJobId });
-	const products = generation.catalog.data?.products ?? [];
+	const products = (generation.catalog.data?.products ?? []).map((product) =>
+		isEditorProductKey(product.key)
+			? {
+					...product,
+					label: t(`products.${product.key}.label`),
+					description: t(`products.${product.key}.description`),
+					...(product.skuMatrix
+						? {
+								skuMatrix: {
+									...product.skuMatrix,
+									cells: product.skuMatrix.cells.map((cell) => ({
+										...cell,
+										label: t(`skus.${cell.skuKey}.label`),
+									})),
+								},
+							}
+						: {}),
+				}
+			: product,
+	);
 	const [sourceReady, setSourceReady] = useState(initialSourceReady);
 	const [upgradeOpen, setUpgradeOpen] = useState(
-		initialDraft?.productKey === "image-quality" && !allowedProductKeys.includes("image-quality"),
+		Boolean(initialDraft && !allowedProductKeys.includes(initialDraft.productKey)),
 	);
 	const [upgradeStorageUnavailable, setUpgradeStorageUnavailable] = useState(false);
 	const form = useForm<GenerationFormValues>({
 		resolver: zodResolver(generationFormValuesSchema),
 		mode: "onChange",
 		defaultValues: {
-			productKey: initialDraft?.productKey ?? "image-fast",
+			productKey: initialDraft?.productKey ?? "image-nano-banana-2-lite",
+			skuKey: initialDraft?.input.skuKey ?? "nano-banana-2-lite-1k",
 			prompt: initialDraft?.input.prompt ?? "",
 			sourceAssetId: initialDraft?.input.sourceAssetId ?? "",
 			aspectRatio: initialDraft?.input.aspectRatio ?? "auto",
+			outputFormat: initialDraft?.input.outputFormat,
+			background: initialDraft?.input.background,
 		},
 	});
 	const values = form.watch();
 	const product = products.find((candidate) => candidate.key === values.productKey);
-	const supportedAspectRatios =
-		product?.fields
-			.find((field) => field.type === "aspect-ratio" && field.key === "aspectRatio")
-			?.options?.flatMap(({ value }) => (isImageAspectRatio(value) ? [value] : [])) ?? [];
+	const selectedCell = getImageSpecCell(product?.skuMatrix, values.skuKey);
+	const supportedAspectRatios = publicImageAspectRatios(selectedCell);
+	const controlValues = useMemo(
+		() =>
+			resolveImageSpecControlValues(selectedCell, {
+				outputFormat: values.outputFormat,
+				background: values.background,
+			}),
+		[selectedCell, values.background, values.outputFormat],
+	);
 	const input = useMemo(() => {
-		if (!product || !sourceReady || !values.prompt.trim() || !values.sourceAssetId) return null;
+		if (
+			!product ||
+			!selectedCell ||
+			!supportedAspectRatios.includes(values.aspectRatio) ||
+			!sourceReady ||
+			!values.prompt.trim() ||
+			!values.sourceAssetId
+		) {
+			return null;
+		}
 		try {
 			return buildGenerationInput({
 				kind: "image-to-image",
 				prompt: values.prompt,
 				sourceAssetId: values.sourceAssetId,
+				skuKey: values.skuKey,
 				aspectRatio: values.aspectRatio,
+				...controlValues,
 			});
 		} catch {
 			return null;
 		}
-	}, [product, sourceReady, values.aspectRatio, values.prompt, values.sourceAssetId]);
+	}, [
+		product,
+		selectedCell,
+		controlValues,
+		sourceReady,
+		supportedAspectRatios,
+		values.aspectRatio,
+		values.prompt,
+		values.skuKey,
+		values.sourceAssetId,
+	]);
 	const error = generation.createQuote.error ?? generation.createGeneration.error;
 	const errorKey = getEditorErrorKey(error);
 	const suggestions = ["background", "object", "lighting", "style"].map((key) =>
@@ -106,14 +163,64 @@ export function GenerationForm({
 		generation.beginNewAction();
 	}
 
+	function replaceControlValues(cell: PublicImageSpecCell) {
+		const next = resolveImageSpecControlValues(cell, {});
+		form.unregister(["outputFormat", "background"]);
+		if (next.outputFormat) {
+			form.setValue("outputFormat", next.outputFormat, {
+				shouldDirty: true,
+				shouldValidate: true,
+			});
+		}
+		if (next.background) {
+			form.setValue("background", next.background, {
+				shouldDirty: true,
+				shouldValidate: true,
+			});
+		}
+	}
+
 	function updateProduct(productKey: EditorProductKey) {
 		const selection = resolveEditorProductSelection(productKey, allowedProductKeys);
+		const nextProduct = products.find((candidate) => candidate.key === productKey);
+		const defaultCell = getDefaultImageSpecCell(nextProduct?.skuMatrix);
+		if (!defaultCell) return;
 		form.setValue("productKey", selection.productKey, {
 			shouldDirty: true,
 			shouldValidate: true,
 		});
+		form.setValue("skuKey", defaultCell.skuKey as GenerationFormValues["skuKey"], {
+			shouldDirty: true,
+			shouldValidate: true,
+		});
+		replaceControlValues(defaultCell);
+		const nextAspectRatio = publicImageAspectRatios(defaultCell)[0];
+		if (nextAspectRatio) {
+			form.setValue("aspectRatio", nextAspectRatio, {
+				shouldDirty: true,
+				shouldValidate: true,
+			});
+		}
 		generation.beginNewAction();
 		if (selection.upgradeRequired) setUpgradeOpen(true);
+	}
+
+	function updateSku(skuKey: string) {
+		const cell = getImageSpecCell(product?.skuMatrix, skuKey);
+		if (!cell) return;
+		form.setValue("skuKey", cell.skuKey as GenerationFormValues["skuKey"], {
+			shouldDirty: true,
+			shouldValidate: true,
+		});
+		replaceControlValues(cell);
+		const ratios = publicImageAspectRatios(cell);
+		if (!ratios.includes(values.aspectRatio) && ratios[0]) {
+			form.setValue("aspectRatio", ratios[0], {
+				shouldDirty: true,
+				shouldValidate: true,
+			});
+		}
+		generation.beginNewAction();
 	}
 
 	function updateAspectRatio(aspectRatio: ImageAspectRatio) {
@@ -121,8 +228,32 @@ export function GenerationForm({
 		generation.beginNewAction();
 	}
 
+	function updateControl(key: ImageSpecControlKey, value: string) {
+		const next = resolveImageSpecControlValues(selectedCell, { ...controlValues, [key]: value });
+		if (key === "outputFormat" && next.outputFormat === value) {
+			form.setValue("outputFormat", next.outputFormat, {
+				shouldDirty: true,
+				shouldValidate: true,
+			});
+		} else if (key === "background" && next.background === value) {
+			form.setValue("background", next.background, {
+				shouldDirty: true,
+				shouldValidate: true,
+			});
+		} else {
+			return;
+		}
+		generation.beginNewAction();
+	}
+
 	function continueToUpgrade() {
 		const current = form.getValues();
+		const currentProduct = products.find((candidate) => candidate.key === current.productKey);
+		const currentCell = getImageSpecCell(currentProduct?.skuMatrix, current.skuKey);
+		const currentControls = resolveImageSpecControlValues(currentCell, {
+			outputFormat: current.outputFormat,
+			background: current.background,
+		});
 		const saved = writeEditorUpgradeDraft(window.sessionStorage, {
 			draft: {
 				productKey: current.productKey,
@@ -130,7 +261,9 @@ export function GenerationForm({
 					kind: "image-to-image",
 					prompt: current.prompt,
 					sourceAssetId: current.sourceAssetId,
+					skuKey: current.skuKey,
 					aspectRatio: current.aspectRatio,
+					...currentControls,
 				},
 			},
 			parentJobId: parentJobId ?? null,
@@ -193,7 +326,12 @@ export function GenerationForm({
 				aspectRatios={supportedAspectRatios}
 				value={values.aspectRatio}
 				onChange={updateAspectRatio}
-				modeLabel={t(`products.${values.productKey}.label`)}
+				modeLabel={product?.label ?? values.productKey}
+				skuMatrix={product?.skuMatrix}
+				skuKey={values.skuKey}
+				onSkuChange={updateSku}
+				controlValues={controlValues}
+				onControlChange={updateControl}
 				tone="light"
 				labels={{
 					title: t("outputSettings.title"),
@@ -204,7 +342,25 @@ export function GenerationForm({
 					oneOutput: t("outputSettings.oneOutput"),
 					resolution: t("outputSettings.resolution"),
 					quality: t("outputSettings.quality"),
+					outputFormat: t("outputSettings.outputFormat"),
+					background: t("outputSettings.background"),
 					modeControlsQuality: t("outputSettings.modeControlsQuality"),
+					credits: t("outputSettings.credits"),
+					optionLabels: {
+						"1k": t("outputSettings.optionLabels.1k"),
+						"2k": t("outputSettings.optionLabels.2k"),
+						"3k": t("outputSettings.optionLabels.3k"),
+						"4k": t("outputSettings.optionLabels.4k"),
+						basic: t("outputSettings.optionLabels.basic"),
+						medium: t("outputSettings.optionLabels.medium"),
+						high: t("outputSettings.optionLabels.high"),
+						ultra: t("outputSettings.optionLabels.ultra"),
+						png: t("outputSettings.optionLabels.png"),
+						jpeg: t("outputSettings.optionLabels.jpeg"),
+						auto: t("outputSettings.optionLabels.auto"),
+						opaque: t("outputSettings.optionLabels.opaque"),
+						transparent: t("outputSettings.optionLabels.transparent"),
+					},
 				}}
 			/>
 			<EditModeSelector
@@ -219,7 +375,7 @@ export function GenerationForm({
 					<p className="font-medium">{t("quoteReady")}</p>
 					<p className="mt-1 text-sm text-muted-foreground">
 						{t("quoteMode", {
-							mode: t(`products.${generation.quote.productKey}.label`),
+							mode: product?.label ?? generation.quote.productKey,
 							credits: generation.quote.credits,
 						})}
 					</p>
@@ -263,7 +419,7 @@ export function GenerationForm({
 						{t(`errors.${errorKey}`)}
 						{errorKey === "insufficientCredits" && product && (
 							<CreditBalanceSummary
-								requiredCredits={product.credits}
+								requiredCredits={selectedCell?.credits ?? product.credits}
 								availableCredits={generation.creditAccount.data?.spendableCredits ?? "0"}
 								onUpgrade={continueToUpgrade}
 							/>
@@ -298,8 +454,4 @@ export function GenerationForm({
 			/>
 		</form>
 	);
-}
-
-function isImageAspectRatio(value: string): value is ImageAspectRatio {
-	return IMAGE_ASPECT_RATIOS.includes(value as ImageAspectRatio);
 }

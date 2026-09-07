@@ -1,5 +1,26 @@
 # Changelog
 
+## 2026-09-07
+
+### Image SKU pricing and model matrices
+
+- Replaced new Standard/Quality submissions with nine stable public image products. The previous
+  route remains server-side only to retrieve or reconcile already-frozen historical attempts.
+- Kept one `EzPic Credit` wallet and added 20 legal per-model SKU charges across Nano Banana 2 Lite,
+  Nano Banana 2, Nano Banana Pro, Nano Banana, GPT Image 2, GPT Image 1.5, Seedream 5 Pro,
+  Seedream 5 Lite, and Seedream 4.5. GPT Image 2 1K is included, and legal charges range from 5 to
+  25 Credits.
+- Added independent rectangular resolution, quality, and aspect-ratio matrices for each model. The
+  server validates product, SKU, and aspect ratio together and freezes the exact Credits, cost, and
+  route in the quote; the browser never receives Provider/model/cost/credential details.
+- Fixed the first release at one output per request. The sponsored anonymous trial is fixed to Nano
+  Banana 2 Lite 1K and five Credits; paid plans can use all nine products, yielding approximately
+  28–140, 72–360, and 120–600 images per monthly allowance depending on SKU.
+- Added product-level production gates and a catalog-version-scoped production certification gate. Real
+  paid execution, output-host confirmation, billed-cost reconciliation, quality review, and
+  production certification remain `NOT_COMPLETED`; the retired route benchmark is not valid current
+  catalog evidence.
+
 ## 2026-09-06
 
 ### Authentication and workspace continuity

@@ -9,11 +9,13 @@ describe("editor workspace state", () => {
 				jobId: "job-1",
 				parentJobId: "job-parent",
 				initialDraft: {
-					productKey: "image-quality",
+					productKey: "image-gpt-image-2",
 					input: {
 						kind: "image-to-image",
 						prompt: "Keep the subject",
 						sourceAssetId: "asset-1",
+						skuKey: "gpt-image-2-4k",
+						aspectRatio: "16:9",
 					},
 				},
 				formKey: 2,

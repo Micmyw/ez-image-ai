@@ -2,56 +2,92 @@
 
 ## Decision snapshot
 
-Pricing version `2026-09-05.1` converts the current public Provider price research into a
-conservative launch contract. The plan values below are product decisions and local application
-contracts. They are not evidence of a billed Provider run, a production payment, or an approved
-production launch.
+Image pricing version `2026-09-07.2` uses one `EzPic Credit` balance and 20 legal image-edit SKU
+cells across nine products. The plan and Credit Pack amounts below are product decisions and local
+application contracts. Kie public prices are planning inputs only; no paid Kie execution,
+reconciled bill, or production margin has been certified.
 
-| Evidence or decision                                            | Status            |
-| --------------------------------------------------------------- | ----------------- |
-| Public Provider price research dated 2026-09-05                 | **COMPLETED**     |
-| Local plan, Credit Pack, quote, entitlement, and grant contract | **COMPLETED**     |
-| OpenRouter top-up minimum-fee allocation                        | **NOT_COMPLETED** |
-| Real Provider execution and route certification                 | **NOT_COMPLETED** |
-| Reconciled Provider billing and measured success rate           | **NOT_COMPLETED** |
-| Production payment-provider checkout/webhook certification      | **NOT_COMPLETED** |
-| Matching production `BillingPlan` snapshots                     | **NOT_COMPLETED** |
-| Legal seller identity, refund, tax, and dispute policy          | **NOT_COMPLETED** |
-| Deployment and live verification                                | **NOT_COMPLETED** |
+| Evidence or decision                                       | Status            |
+| ---------------------------------------------------------- | ----------------- |
+| Kie public SKU price/parameter research dated 2026-09-07   | **COMPLETED**     |
+| Local SKU, quote, plan, Credit Pack, and grant contract    | **COMPLETED**     |
+| Real paid Kie execution across all 20 SKU cells            | **NOT_COMPLETED** |
+| Reconciled Kie billing and measured success rate           | **NOT_COMPLETED** |
+| Kie output-host and private transfer certification         | **NOT_COMPLETED** |
+| Production payment-provider checkout/Webhook certification | **NOT_COMPLETED** |
+| Matching production `BillingPlan` snapshots                | **NOT_COMPLETED** |
+| Legal seller identity, refund, tax, and dispute policy     | **NOT_COMPLETED** |
+| Deployment and live verification                           | **NOT_COMPLETED** |
 
-No secret, Provider credential, production Price ID, or customer information is recorded here.
+No secret, Provider credential, production payment ID, private media reference, or customer
+information is recorded here.
 
 ## Subscription package contract
 
-`packages/config/plans.ts` remains the source of truth for the plan allowances and prices. Credits
-are issued once per internal monthly billing period, expire at that period boundary, and do not roll
-over. An annual purchase still creates twelve monthly grant periods; neither checkout nor the browser
-grants the full annual allowance at once.
+`packages/config/plans.ts` is the source of truth. Credits are issued once per internal monthly
+billing period, expire at that period boundary, and do not roll over. Annual billing still creates
+twelve monthly grant periods.
 
-| Public plan (internal key) | Credits/month | Concurrent edits | Products                       | Max input | Monthly | Annual | Approximate monthly usage  |
-| -------------------------- | ------------: | ---------------: | ------------------------------ | --------: | ------: | -----: | -------------------------- |
-| Free (`free`, internal)    |            25 |                1 | Standard Edit                  |     10 MB |      $0 |     $0 | 5 Standard                 |
-| Pro (`creator`)            |           700 |                3 | Standard Edit and Quality Edit |     20 MB |     $19 |   $190 | 140 Standard or 17 Quality |
-| Ultimate (`ultimate`)      |         1,800 |                6 | Standard Edit and Quality Edit |     20 MB |     $49 |   $490 | 360 Standard or 45 Quality |
-| Max (`studio`)             |         3,000 |               10 | Standard Edit and Quality Edit |     20 MB |     $79 |   $790 | 600 Standard or 75 Quality |
+| Public plan (internal key) | Credits/month | Concurrent edits | Products                    | Max input | Monthly | Annual | Approximate images/month |
+| -------------------------- | ------------: | ---------------: | --------------------------- | --------: | ------: | -----: | -----------------------: |
+| Free (`free`, internal)    |            25 |                1 | Nano Banana 2 Lite          |     10 MB |      $0 |     $0 |           5 at 5 Credits |
+| Pro (`creator`)            |           700 |                3 | All 9 public image products |     20 MB |     $19 |   $190 |                   28–140 |
+| Ultimate (`ultimate`)      |         1,800 |                6 | All 9 public image products |     20 MB |     $49 |   $490 |                   72–360 |
+| Max (`studio`)             |         3,000 |               10 | All 9 public image products |     20 MB |     $79 |   $790 |                  120–600 |
 
-Standard Edit costs 5 credits and Quality Edit costs 40 credits. The Quality-only Pro count leaves
-20 credits; the table intentionally reports whole completed edits rather than a fractional claim.
-Mixed usage consumes the same shared monthly balance. Public pricing opens on annual billing, hides
-Free, and displays `-17%`: each $190/$490/$790 annual price is exactly ten monthly payments, a
-16.67% saving against twelve monthly payments rounded to the nearest whole percent.
+The paid-plan ranges divide the allowance by the current maximum twenty-five-credit and minimum
+five-credit SKU and count only whole outputs. Mixed usage draws from the same EzPic Credit balance.
+The UI displays the exact SKU charge before confirmation; it does not advertise one universal
+per-image charge. Annual prices equal ten monthly payments, so the public rounded discount is
+`-17%`.
 
-All plans continue to use private assets, owner-scoped access, metering, moderation, durable jobs,
-and the existing credit ledger. The browser submits only stable product keys. Provider identity,
-model ID, routing weights, credentials, raw payloads, and dollar costs remain server-only.
+All plans retain owner-scoped private assets, metering, moderation, durable jobs, and the immutable
+credit ledger. The browser submits stable product/SKU keys and supported parameters only. Provider
+identity, raw model ID, routing weights, credentials, raw payloads, and dollar costs remain
+server-only.
+
+## Legal image SKU table
+
+Each model owns an independent rectangular parameter matrix. A resolution or quality choice from
+one model is never reused to construct another model's request.
+
+| Product            | SKU                        | Resolution | Quality | Kie public cost | EzPic Credits |
+| ------------------ | -------------------------- | ---------- | ------- | --------------: | ------------: |
+| Nano Banana 2 Lite | `nano-banana-2-lite-1k`    | 1K         | —       |         $0.0200 |             5 |
+| Nano Banana        | `nano-banana-default`      | —          | —       |         $0.0200 |             5 |
+| Nano Banana 2      | `nano-banana-2-1k`         | 1K         | —       |         $0.0400 |             9 |
+| Nano Banana 2      | `nano-banana-2-2k`         | 2K         | —       |         $0.0600 |            13 |
+| Nano Banana 2      | `nano-banana-2-4k`         | 4K         | —       |         $0.0900 |            19 |
+| Nano Banana Pro    | `nano-banana-pro-1k`       | 1K         | —       |         $0.0900 |            19 |
+| Nano Banana Pro    | `nano-banana-pro-2k`       | 2K         | —       |         $0.0900 |            19 |
+| Nano Banana Pro    | `nano-banana-pro-4k`       | 4K         | —       |         $0.1200 |            25 |
+| GPT Image 1.5      | `gpt-image-1-5-medium`     | —          | Medium  |         $0.0200 |             5 |
+| GPT Image 1.5      | `gpt-image-1-5-high`       | —          | High    |         $0.1100 |            23 |
+| GPT Image 2        | `gpt-image-2-1k`           | 1K         | —       |         $0.0300 |             7 |
+| GPT Image 2        | `gpt-image-2-2k`           | 2K         | —       |         $0.0500 |            11 |
+| GPT Image 2        | `gpt-image-2-4k`           | 4K         | —       |         $0.0800 |            17 |
+| Seedream 4.5       | `seedream-4-5-basic-2k`    | 2K         | Basic   |         $0.0325 |             8 |
+| Seedream 4.5       | `seedream-4-5-high-4k`     | 4K         | High    |         $0.0325 |             8 |
+| Seedream 5 Lite    | `seedream-5-lite-basic-2k` | 2K         | Basic   |         $0.0275 |             7 |
+| Seedream 5 Lite    | `seedream-5-lite-high-3k`  | 3K         | High    |         $0.0275 |             7 |
+| Seedream 5 Lite    | `seedream-5-lite-ultra-4k` | 4K         | Ultra   |         $0.0275 |             7 |
+| Seedream 5 Pro     | `seedream-5-pro-basic-1k`  | 1K         | Basic   |         $0.0350 |             8 |
+| Seedream 5 Pro     | `seedream-5-pro-high-2k`   | 2K         | High    |         $0.0700 |            15 |
+
+The first release always requests one output and binds exactly one owned source image. Kie's
+Seedream 5 Pro price makes the first input image free and adds $0.0025 for each input after the
+first; therefore the current one-source cells keep the base prices above. Any future multi-reference
+flow must freeze `referenceCount` and `max(0, referenceCount - 1) * $0.0025` in the quote rather than
+silently absorbing that variable cost. The server validates the exact product/SKU/aspect-ratio tuple
+and freezes the corresponding credit and cost values in the quote. Output format and background are
+product-local request controls, not billing dimensions; choosing them does not create another SKU or
+change the EzPic Credit amount.
 
 ## Credit Pack contract
 
-`packages/config/credit-packs.ts` is the public source of truth for one-time Credit Packs. Credits
-expire six UTC calendar months after the verified purchase timestamp. An effective paid subscriber
-receives the listed 20% bonus; eligibility, plan identity, price, credits, and expiry are frozen when
-the first checkout intent is created, so a replay or later subscription change cannot alter the
-purchase.
+`packages/config/credit-packs.ts` and its server-only snapshot are the source of truth for one-time
+Credit Packs. Credits expire six UTC calendar months after the verified purchase timestamp. The
+first checkout intent freezes paid-subscriber eligibility and the 20% bonus.
 
 |  Pack | Price | Base credits | Paid-subscriber credits | Subscriber bonus | Validity |
 | ----: | ----: | -----------: | ----------------------: | ---------------: | -------: |
@@ -60,173 +96,144 @@ purchase.
 | 5,000 |  $169 |        5,000 |                   6,000 |             +20% | 6 months |
 | 8,000 |  $259 |        8,000 |                   9,600 |             +20% | 6 months |
 
-Credit Packs use a distinct `CREDIT_PACK` product kind and never create or replace a subscription.
-Verified payment events are persisted first; the reducer grants one expiring lot through the same
-immutable credit ledger. Duplicate capture/Webhook delivery cannot grant twice. For PayPal, verified
-refund lifecycle facts can automatically move the frozen grant to its cumulative proportional
-reversal target; only the delta is applied idempotently, a full refund targets the full grant, and
-already-consumed credits become account debt instead of rewriting history. Waffo
-`refund.succeeded` and `refund.failed` currently fail closed into manual `REVIEW`; they do not
-automatically mutate the Credit Ledger, Purchase, Fulfillment, or adjustment records.
+Credit Packs never create or replace a subscription. Verified payment events are persisted first;
+the reducer grants one expiring lot through the same immutable ledger. Duplicate capture/Webhook
+delivery cannot grant twice. PayPal cumulative partial/full reversals apply only the idempotent delta
+to the frozen grant and turn already-consumed refunded credits into Debt. Waffo refund success or
+failure remains fail-closed in manual `REVIEW` and does not automatically mutate credit history.
 
-## Current executable catalog and price guard
+## Kie price guard and Provider boundary
 
-Only the following two routes remain in the executable image catalog. Both are still fail-closed
-behind `MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED`; public price research does not satisfy that
-production certification gate.
+The server-only catalog freezes the Kie planning ceiling shown by each of the 20 SKU rows above, from
+20,000 through 120,000 USD micros. These values match the reviewed public request prices but do not
+prove what a real task will bill. All 20 remain non-certified until paid private execution and
+billing reconciliation are recorded for catalog version `2026-09-07.2`.
 
-| Product       | Server-only route                              | Public price observed        | Internal planning ceiling | Credits |
-| ------------- | ---------------------------------------------- | ---------------------------- | ------------------------: | ------: |
-| Standard Edit | `sourceful/riverflow-v2.5-fast` via OpenRouter | 1K $0.019; 2K $0.021         |           $0.023 per edit |       5 |
-| Quality Edit  | `sourceful/riverflow-v2.5-pro` via OpenRouter  | 1K $0.13; 2K $0.15; 4K $0.17 |           $0.180 per edit |      40 |
+New image submissions require `kie` in `MEDIA_ENABLED_PROVIDERS`, a worker-side `KIE_API_KEY`, the
+relevant per-product flag, and the active catalog version in
+`MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS`. A configured key or passing adapter test is not
+certification.
 
-OpenRouter's public FAQ says the credit-purchase fee is 5.5% and the minimum fee is $0.80 per top-up.
-Operations must top up at least $14.55 for the percentage fee to dominate; the recommended minimum
-top-up is $20. Under that rule, `$0.021 * 1.055 = $0.022155` and
-`$0.17 * 1.055 = $0.17935`. The rounded $0.023/$0.180 values are catalog usage/quote ceilings, not
-unconditional all-cash cost caps. They exclude arbitrary allocation of the per-top-up minimum. Until
-real top-ups and settled-edit volumes are reconciled, minimum-fee allocation remains
-**NOT_COMPLETED**.
-
-The rejected alternatives and their compatibility findings are recorded in
-`image-edit-model-benchmark.md`. In particular, a low public generation price is not sufficient when
-the Provider endpoint cannot satisfy EzPic's private image-edit input/output contract.
+OpenRouter Standard/Quality routes are retired from new EzPic generation. `image-fast` and
+`image-quality` remain only for already-frozen historical job recovery; an operator may retain
+OpenRouter in `MEDIA_RECOVERY_PROVIDERS` without placing it in `MEDIA_ENABLED_PROVIDERS`. The legacy
+`image-edit-model-benchmark.md` cannot satisfy any Kie certification or pricing gate.
 
 ## Raphael public comparison
 
-Raphael's public pricing page was used as a product-pattern comparison, not as evidence of Raphael's
-internal cost or a target EzPic subsidy level.
-
-| Raphael plan | Public monthly price | Public credits | Public annual display |
-| ------------ | -------------------: | -------------: | --------------------- |
-| Pro          |                  $20 |          2,000 | 50% annual discount   |
-| Ultimate     |                  $40 |          5,000 | 50% annual discount   |
-| Max          |                  $80 |         10,000 | 50% annual discount   |
-
-Raphael communicates that credit consumption varies by model. Its public page did not establish a
-reliable subscription-credit rollover rule during this review, so rollover is **NOT_CONFIRMED**.
-EzPic therefore states its own no-rollover rule explicitly. EzPic also does not copy apparent
-zero-credit routes or cross-model subsidy assumptions: every executable EzPic job remains metered,
-and the 8:1 Quality-to-Standard credit ratio reflects the observed maximum Provider prices.
+Raphael's public pricing page was used as a product-pattern comparison, not as evidence of its
+internal cost or as a target EzPic subsidy level. Raphael communicates that credit use varies by
+model; EzPic applies the same understandable wallet concept to its own explicitly listed SKU
+charges. EzPic does not infer Raphael's Provider costs, rollover rule, or apparent zero-credit
+routes.
 
 ## Conservative full-use economics
 
-These estimates deliberately use public list prices plus conservative assumptions, not a Provider
-invoice. The assumptions are:
+These estimates use public Kie list prices plus conservative assumptions, not a Provider invoice:
 
 - payment processing: 4.5% of collected revenue plus $0.30 per charge;
 - refund/chargeback risk reserve: 1.5% of collected revenue;
-- Provider variation buffer: 15% on the public output price plus OpenRouter's 5.5% PAYG fee, assuming
-  each OpenRouter credit purchase is at least $20 so the $0.80 minimum fee does not raise the rate;
-- task/runtime allocation: $0.005 per Standard edit and $0.010 per Quality edit;
-- one payment charge per monthly purchase and one payment charge per annual purchase.
+- Provider variation buffer: 15% over each Kie public SKU price;
+- EzPic runtime/storage reserve: $0.005 for an explicit 1K cell and $0.010 for 2K/3K/4K or a cell
+  without an explicit resolution;
+- one payment charge per monthly purchase and one per annual purchase.
 
-This produces planning costs of approximately `$0.030479` per Standard edit and `$0.216253` per
-Quality edit:
+| SKU                        | Buffered Kie cost plus EzPic reserve | Planned cost/Credit |
+| -------------------------- | -----------------------------------: | ------------------: |
+| `nano-banana-2-lite-1k`    |                            $0.028000 |           $0.005600 |
+| `nano-banana-default`      |                            $0.033000 |           $0.006600 |
+| `nano-banana-2-1k`         |                            $0.051000 |           $0.005667 |
+| `nano-banana-2-2k`         |                            $0.079000 |           $0.006077 |
+| `nano-banana-2-4k`         |                            $0.113500 |           $0.005974 |
+| `nano-banana-pro-1k`       |                            $0.108500 |           $0.005711 |
+| `nano-banana-pro-2k`       |                            $0.113500 |           $0.005974 |
+| `nano-banana-pro-4k`       |                            $0.148000 |           $0.005920 |
+| `gpt-image-1-5-medium`     |                            $0.033000 |           $0.006600 |
+| `gpt-image-1-5-high`       |                            $0.136500 |           $0.005935 |
+| `gpt-image-2-1k`           |                            $0.039500 |           $0.005643 |
+| `gpt-image-2-2k`           |                            $0.067500 |           $0.006136 |
+| `gpt-image-2-4k`           |                            $0.102000 |           $0.006000 |
+| `seedream-4-5-basic-2k`    |                            $0.047375 |           $0.005922 |
+| `seedream-4-5-high-4k`     |                            $0.047375 |           $0.005922 |
+| `seedream-5-lite-basic-2k` |                            $0.041625 |           $0.005946 |
+| `seedream-5-lite-high-3k`  |                            $0.041625 |           $0.005946 |
+| `seedream-5-lite-ultra-4k` |                            $0.041625 |           $0.005946 |
+| `seedream-5-pro-basic-1k`  |                            $0.045250 |           $0.005656 |
+| `seedream-5-pro-high-2k`   |                            $0.090500 |           $0.006033 |
 
-```text
-Standard = $0.021 * 1.055 * 1.15 + $0.005
-Quality  = $0.170 * 1.055 * 1.15 + $0.010
-top_up_fee(T) = max(0.055 * T, $0.80)
-```
+Nano Banana Default and GPT Image 1.5 Medium tie for the highest conservative planning cost per
+EzPic Credit at `$0.006600`. The higher reserve is intentional because neither cell exposes a
+resolution parameter; treating either as 1K would understate an unverified workload.
 
-The `1.055` multiplier is valid only when top-up `T` is at least $14.55; the operating policy uses
-$20. If that policy is not followed or evidenced, the actual `top_up_fee(T)` must be allocated across
-the edits funded by the purchase and every margin must be recalculated before approval.
+The 15% buffer is a finance-planning reserve only. It is not added to the browser-visible EzPic
+Credit amount or silently written into a quote; the quote freezes the catalog cost, and a different
+reconciled Kie charge requires operator review.
 
-Standard has the higher planning cost per credit, so an all-Standard month is the worst permitted
-full-use mix under these assumptions.
-
-| Plan / cadence                      | Net monthly revenue after stated payment/refund assumptions | Worst full-use variable cost | Conservative full-use gross margin |
-| ----------------------------------- | ----------------------------------------------------------: | ---------------------------: | ---------------------------------: |
-| Pro monthly                         |                                                     $17.560 |                       $4.267 |                              75.7% |
-| Pro annual, monthly allocation      |                                                     $14.858 |                       $4.267 |                              71.3% |
-| Ultimate monthly                    |                                                     $45.760 |                      $10.972 |                              76.0% |
-| Ultimate annual, monthly allocation |                                                     $38.358 |                      $10.972 |                              71.4% |
-| Max monthly                         |                                                     $73.960 |                      $18.287 |                              75.3% |
-| Max annual, monthly allocation      |                                                     $61.858 |                      $18.287 |                              70.4% |
-
-Annual net revenue is calculated after applying the percentage reserves and one $0.30 fee to the
-annual charge, then dividing by 12. Taxes, regional price differences, currency conversion, dispute
-fees, abnormal retry rates, storage/transfer outliers, and real success-rate effects are not measured
-here. The percentages are planning margins, not certified production margins.
-
-For Credit Packs, the server-only planning quote uses the all-Standard worst-case cost per credit:
-`$0.030478250 / 5 = $0.006095650`, rounded up to `$0.006096`. Applying the same payment and refund
-assumptions produces the following full-use planning margins. The subscriber column includes every
-20% bonus credit and is therefore the more conservative case.
+| Plan / cadence                      | Net monthly revenue after assumptions | Worst full-use variable cost | Planning gross margin |
+| ----------------------------------- | ------------------------------------: | ---------------------------: | --------------------: |
+| Pro monthly                         |                               $17.560 |                       $4.620 |                 73.7% |
+| Pro annual, monthly allocation      |                               $14.858 |                       $4.620 |                 68.9% |
+| Ultimate monthly                    |                               $45.760 |                      $11.880 |                 74.0% |
+| Ultimate annual, monthly allocation |                               $38.358 |                      $11.880 |                 69.0% |
+| Max monthly                         |                               $73.960 |                      $19.800 |                 73.2% |
+| Max annual, monthly allocation      |                               $61.858 |                      $19.800 |                 68.0% |
 
 |         Pack | Net revenue | Base-credit cost / margin | Subscriber-credit cost / margin |
 | -----------: | ----------: | ------------------------: | ------------------------------: |
-|  1,500 / $59 |     $55.160 |            $9.144 / 83.4% |                 $10.973 / 80.1% |
-| 3,000 / $109 |    $102.160 |           $18.288 / 82.1% |                 $21.946 / 78.5% |
-| 5,000 / $169 |    $158.560 |           $30.480 / 80.8% |                 $36.576 / 76.9% |
-| 8,000 / $259 |    $243.160 |           $48.768 / 79.9% |                 $58.522 / 75.9% |
+|  1,500 / $59 |     $55.160 |            $9.900 / 82.1% |                 $11.880 / 78.5% |
+| 3,000 / $109 |    $102.160 |           $19.800 / 80.6% |                 $23.760 / 76.7% |
+| 5,000 / $169 |    $158.560 |           $33.000 / 79.2% |                 $39.600 / 75.0% |
+| 8,000 / $259 |    $243.160 |           $52.800 / 78.3% |                 $63.360 / 73.9% |
 
-These Credit Pack percentages remain planning figures. They do not include measured taxes, regional
-pricing, dispute fees, abnormal retries, or live PayPal/Waffo fee schedules.
+These are planning margins, not live Kie, PayPal, or Waffo evidence. Taxes, currency conversion,
+regional pricing, disputes, retries, storage/transfer outliers, and real success rate remain
+unmeasured.
 
 ## Billing, credits, and synchronization gate
 
-New subscription and Credit Pack checkout supports only PayPal and Waffo. Each enabled provider must
-resolve its own server-only plan/product identifiers for the exact selection. Do not hard-code or
-expose them as `NEXT_PUBLIC_*`. Checkout must fail closed when an identifier is missing, malformed,
-belongs to the wrong environment, or disagrees with the active `BillingPlan` snapshot.
+New subscription and Credit Pack checkout supports only PayPal and Waffo. Each offered plan/cadence
+and Pack needs a matching immutable server-side product identifier and `BillingPlan` or Pack
+snapshot. Missing, malformed, cross-environment, or economically mismatched configuration fails
+closed. Checkout return grants no credits; verified events and Outbox workers own every grant,
+renewal, cancellation, refund, Debt, release, and replay.
 
-Before enabling sales for subscription pricing version `2026-09-05.1`, provision and verify a
-`PLAN` `BillingPlan` row for every offered plan/cadence/provider combination. Its plan identity,
-700/1,800/3,000 monthly credit allowance, interval price, currency, and pricing version must match
-the application contract. Each Credit Pack needs a separate `CREDIT_PACK` snapshot matching catalog
-and pricing version `2026-09-06.1`, base credits, price, currency, and six-month expiry. Updating UI
-copy without synchronizing the application catalog, database snapshots, Webhook projection, and
-tests is not an acceptable rollout.
-
-Stripe is not available for any new checkout. Stripe configuration remains optional solely for
-historical subscription Webhooks, portal/cancellation, refund repair, and reconciliation. A runtime
-with no historical Stripe configuration must skip that reconciliation safely; a partial legacy
-configuration fails closed.
-
-Checkout return grants no credits. Subscription payment events, monthly renewal, annual monthly
-grants, cancellation, refunds, debt, failed-job release, and replay remain in the existing Purchase,
-Subscription, Billing Period, Credit Lot, Reservation, Ledger, Outbox, and reconciliation paths.
-Credit Pack refunds follow the provider-specific PayPal/Waffo boundary above. Free grants remain
-UTC-month scoped and idempotent and also expire at the next UTC month boundary.
+Subscription pricing uses image pricing version `2026-09-07.2`; Credit Pack catalog/pricing/
+eligibility remains `2026-09-06.1`. Update public copy, catalog, server snapshots, Webhook projection,
+and tests together. Stripe remains optional only for historical lifecycle maintenance and is not
+available for new checkout.
 
 ## Production completion gate
 
-Before public paid checkout and the OpenRouter routes are enabled, record all of the following without
-copying secrets into the repository:
+Before public paid generation is enabled, record without copying secrets:
 
-1. real Standard and Quality runs through the existing private job/finalization path, with the exact
-   route tuple and pricing version;
-2. human image-edit scoring, success/failure/uncertain counts, latency, retries, and billed cost;
-3. evidence of OpenRouter credit purchases of at least $20, plus reconciliation of Provider billing,
-   actual top-up fees, minimum-fee allocation, and the non-Provider allocations against this
-   worksheet;
-4. test and live checkout/Webhook evidence for PayPal and Waffo, PayPal Credit Pack refund-lifecycle
-   evidence, and Waffo automatic-refund evidence only after real sandbox payload fields and an
-   authenticated, idempotent lifecycle are certified; plus historical Stripe maintenance evidence
-   only if that legacy integration remains configured;
-5. synchronized production `BillingPlan` snapshots, legal seller/refund/tax decisions, alerting,
-   moderation, storage, deployment, and live verification.
+1. paid runs for all 20 Kie SKU cells through quote, reservation, Outbox, private transfer, output
+   moderation, and settlement;
+2. exact output count/MIME/dimensions, valid output host, human quality scores, success/failure/
+   uncertain counts, p50/p95 latency, and same-attempt recovery;
+3. reconciled Kie task consumption and billing against each frozen SKU cost ceiling;
+4. test and live checkout/Webhook evidence for PayPal and Waffo, including the documented refund
+   boundaries, and legacy Stripe evidence only if that lifecycle remains configured;
+5. synchronized production snapshots, legal seller/refund/tax decisions, alerting, moderation,
+   storage, deployment, rollback, and live verification.
 
-Until those items are complete, production Provider execution and the claimed live margin remain
-**NOT_COMPLETED**.
+Real paid Kie verification is currently **NOT_COMPLETED**. No OpenRouter benchmark, local mock, unit
+test, or dry-run smoke may be substituted for those 20 cell-specific artifacts.
 
 ## Sources
 
-Public pages accessed 2026-09-05:
-
-- OpenRouter Riverflow Fast: <https://openrouter.ai/sourceful/riverflow-v2.5-fast>
-- OpenRouter Riverflow Pro: <https://openrouter.ai/sourceful/riverflow-v2.5-pro>
-- OpenRouter FAQ / credit-purchase fee: <https://openrouter.ai/docs/faq>
-- Raphael pricing: <https://raphael.app/pricing>
+- Kie pricing: <https://kie.ai/zh-CN/pricing>
+- Nano Banana 2 Lite: <https://docs.kie.ai/market/google/nano-banana-2-lite.md>
+- GPT Image 2 image-to-image: <https://docs.kie.ai/market/gpt/gpt-image-2-image-to-image.md>
+- Seedream 5 Pro image-to-image: <https://docs.kie.ai/market/seedream/5-pro-image-to-image.md>
+- Kie task detail: <https://docs.kie.ai/market/common/get-task-detail.md>
+- Raphael pricing reference: <https://raphael.app/pricing>
 
 ## Rollback
 
-Disable new checkout and generation before rolling the application contract back if real events have
-been processed. Preserve the additive Credit Pack schema and immutable Checkout Intent, Fulfillment,
-Adjustment, Purchase, Subscription, Billing Period, Lot, Ledger, Reservation, and Debt history; use
-the normal reconciliation/refund paths and prefer a forward repair. A rollback must restore plan and
-Credit Pack configuration, quote credits/cost ceilings, pricing versions, localized copy,
-`BillingPlan` snapshots, and tests as one compatible set.
+Disable new checkout when economics or entitlement is affected and disable the affected Kie product
+before global generation when the incident is isolated. Preserve immutable Quote, attempt,
+reservation, Ledger, Checkout Intent, Fulfillment, Purchase, Subscription, and billing history.
+Restore product/SKU matrices, cost and credit values, catalog/pricing versions, plan/Pack
+configuration, localized copy, database snapshots, and tests as one compatible set. Keep any
+required OpenRouter historical recovery path available until its already-accepted backlog is
+durably drained.

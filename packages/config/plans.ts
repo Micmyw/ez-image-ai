@@ -1,6 +1,14 @@
 import { z } from "zod";
 
-import { PLAN_IDS, PRODUCT_CREDIT_COSTS, planIdSchema, productModelKeySchema } from "./product";
+import {
+	EZPIC_PRODUCT_KEYS,
+	IMAGE_SKU_CREDIT_COSTS,
+	IMAGE_SKU_KEYS_BY_PRODUCT,
+	PLAN_IDS,
+	planIdSchema,
+	productModelKeySchema,
+	type ProductModelKey,
+} from "./product";
 
 export const planEntitlementSchema = z.object({
 	id: planIdSchema,
@@ -28,7 +36,7 @@ export const PLAN_ENTITLEMENTS = z
 			monthlyCredits: 25,
 			maximumConcurrentJobs: 1,
 			maximumInputBytes: 10 * 1024 * 1024,
-			allowedProducts: ["image-fast"],
+			allowedProducts: ["image-nano-banana-2-lite"],
 			prices: [],
 		},
 		{
@@ -36,7 +44,7 @@ export const PLAN_ENTITLEMENTS = z
 			monthlyCredits: 700,
 			maximumConcurrentJobs: 3,
 			maximumInputBytes: 20 * 1024 * 1024,
-			allowedProducts: ["image-fast", "image-quality"],
+			allowedProducts: [...EZPIC_PRODUCT_KEYS],
 			prices: [
 				{ interval: "month", amount: 19, currency: "USD" },
 				{ interval: "year", amount: 190, currency: "USD" },
@@ -47,7 +55,7 @@ export const PLAN_ENTITLEMENTS = z
 			monthlyCredits: 1_800,
 			maximumConcurrentJobs: 6,
 			maximumInputBytes: 20 * 1024 * 1024,
-			allowedProducts: ["image-fast", "image-quality"],
+			allowedProducts: [...EZPIC_PRODUCT_KEYS],
 			prices: [
 				{ interval: "month", amount: 49, currency: "USD" },
 				{ interval: "year", amount: 490, currency: "USD" },
@@ -58,7 +66,7 @@ export const PLAN_ENTITLEMENTS = z
 			monthlyCredits: 3_000,
 			maximumConcurrentJobs: 10,
 			maximumInputBytes: 20 * 1024 * 1024,
-			allowedProducts: ["image-fast", "image-quality"],
+			allowedProducts: [...EZPIC_PRODUCT_KEYS],
 			prices: [
 				{ interval: "month", amount: 79, currency: "USD" },
 				{ interval: "year", amount: 790, currency: "USD" },
@@ -73,16 +81,29 @@ export function getPlanEntitlement(planId: PlanEntitlement["id"]): PlanEntitleme
 }
 
 export function getPlanUsageEstimate(planId: PlanEntitlement["id"]): {
-	standardEdits: number;
-	qualityEdits: number | null;
+	minimumImageEdits: number;
+	maximumImageEdits: number;
+	minimumCreditsPerImage: number;
+	maximumCreditsPerImage: number;
 } {
 	const entitlement = getPlanEntitlement(planId);
+	const creditCosts = entitlement.allowedProducts.flatMap(imageSkuCreditCostsForProduct);
+	if (creditCosts.length === 0) {
+		throw new Error(`Plan ${planId} does not include an image SKU`);
+	}
+	const minimumCreditsPerImage = Math.min(...creditCosts);
+	const maximumCreditsPerImage = Math.max(...creditCosts);
 	return {
-		standardEdits: Math.floor(entitlement.monthlyCredits / PRODUCT_CREDIT_COSTS["image-fast"]),
-		qualityEdits: entitlement.allowedProducts.includes("image-quality")
-			? Math.floor(entitlement.monthlyCredits / PRODUCT_CREDIT_COSTS["image-quality"])
-			: null,
+		minimumImageEdits: Math.floor(entitlement.monthlyCredits / maximumCreditsPerImage),
+		maximumImageEdits: Math.floor(entitlement.monthlyCredits / minimumCreditsPerImage),
+		minimumCreditsPerImage,
+		maximumCreditsPerImage,
 	};
+}
+
+function imageSkuCreditCostsForProduct(productKey: ProductModelKey): number[] {
+	const skuKeys = IMAGE_SKU_KEYS_BY_PRODUCT[productKey as keyof typeof IMAGE_SKU_KEYS_BY_PRODUCT];
+	return skuKeys?.map((skuKey) => IMAGE_SKU_CREDIT_COSTS[skuKey]) ?? [];
 }
 
 export function resolvePlanEntitlement(

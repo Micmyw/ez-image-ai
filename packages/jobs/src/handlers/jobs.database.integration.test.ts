@@ -1,4 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
+import { createRouteGraphSnapshot } from "@repo/ai";
 import {
 	createCreditGrant,
 	createGenerationJobTransaction,
@@ -88,13 +89,23 @@ describe("database-backed media generation", () => {
 			ownerType: "USER",
 			ownerId,
 			submittedByUserId: ownerId,
-			productKey: "image-fast",
-			catalogVersion: "2026-08-13.1",
-			pricingVersion: "2026-08-13.1",
-			credits: 4n,
-			costMicros: 3_000n,
-			inputSnapshot: { kind: "text-to-image", prompt: "test" },
-			pricingSnapshot: { credits: 4 },
+			productKey: "image-nano-banana-2-lite",
+			catalogVersion: "2026-09-07.1",
+			pricingVersion: "2026-09-07.1",
+			credits: 5n,
+			costMicros: 20_000n,
+			inputSnapshot: {
+				kind: "image-to-image",
+				prompt: "test",
+				sourceAssetId: inputAsset.id,
+				skuKey: "nano-banana-2-lite-1k",
+				aspectRatio: "auto",
+			},
+			pricingSnapshot: {
+				credits: "5",
+				skuKey: "nano-banana-2-lite-1k",
+				routeGraph: kieNanoBanana2LiteRouteGraph(),
+			},
 			expiresAt: new Date(Date.now() + 60_000),
 		} as const;
 		const quote = await createModeratedGenerationQuoteTransaction(
@@ -125,9 +136,9 @@ describe("database-backed media generation", () => {
 		const duplicate = await createGenerationJobTransaction(creation, client);
 		expect(first.job.id).toBe(duplicate.job.id);
 
-		const dispatchStore = createDispatchStore(first.job.id);
+		const dispatchStore = createDispatchStore(first.job.id, inputAsset.id);
 		const mockProvider = {
-			provider: "replicate" as const,
+			provider: "kie" as const,
 			submit: vi.fn(async () => ({
 				providerTaskId: `provider-${suffix}`,
 				status: "QUEUED" as const,
@@ -140,12 +151,12 @@ describe("database-backed media generation", () => {
 				outputs: [
 					{
 						kind: "remote-url" as const,
-						url: "https://replicate.delivery/mock.png",
+						url: "https://tempfile.aiquickdraw.com/mock.png",
 						trust: "untrusted-transfer-candidate" as const,
 					},
 				],
 				progress: 100,
-				providerCostMicros: 3_000,
+				providerCostMicros: 20_000,
 				failure: null,
 				retryable: false,
 				providerCharged: true,
@@ -162,7 +173,7 @@ describe("database-backed media generation", () => {
 		expect(mockProvider.submit).toHaveBeenCalledTimes(1);
 
 		const eventInput = {
-			provider: "replicate",
+			provider: "kie",
 			providerEventId: `webhook-${suffix}`,
 			providerTaskId: `provider-${suffix}`,
 			verifiedAt: new Date(),
@@ -247,7 +258,7 @@ describe("database-backed media generation", () => {
 	});
 });
 
-function createDispatchStore(jobId: string): DispatchStore {
+function createDispatchStore(jobId: string, sourceAssetId: string): DispatchStore {
 	return {
 		async claimDispatch() {
 			return client.$transaction(async (tx) => {
@@ -257,8 +268,8 @@ function createDispatchStore(jobId: string): DispatchStore {
 					data: {
 						jobId,
 						attemptNumber: 1,
-						provider: "replicate",
-						providerModelId: "test-model",
+						provider: "kie",
+						providerModelId: "nano-banana-2-lite",
 						requestSnapshot: {},
 					},
 				});
@@ -267,11 +278,20 @@ function createDispatchStore(jobId: string): DispatchStore {
 					attemptId: attempt.id,
 					attemptNumber: attempt.attemptNumber,
 					serviceClass: "STANDARD",
-					provider: "replicate",
-					providerModelId: "test-model",
+					provider: "kie",
+					providerModelId: "nano-banana-2-lite",
 					mediaKind: "image",
-					queueKey: "replicate:test-model",
-					input: { kind: "text-to-image", prompt: "test" },
+					queueKey: "kie:nano-banana-2-lite",
+					input: {
+						kind: "image-to-image",
+						prompt: "test",
+						sourceAsset: {
+							assetId: sourceAssetId,
+							transferUrl: "https://private.example.test/signed-input",
+						},
+						skuKey: "nano-banana-2-lite-1k",
+						aspectRatio: "auto",
+					},
 				};
 			});
 		},
@@ -302,7 +322,7 @@ function createProviderEventStore(eventId: string): ProviderEventStore {
 			return {
 				eventId,
 				attemptId: attempt.id,
-				provider: "replicate",
+				provider: "kie",
 				receivedAt: event.receivedAt,
 				processingToken: "test-lease",
 				snapshot: {
@@ -394,7 +414,7 @@ function createSettlementStore(jobId: string): SettlementStore {
 				reservedCredits: job.creditsReserved,
 				chargeCredits: job.creditsReserved,
 				readyOutputCount: job.assets.length,
-				providerCostMicros: 3_000n,
+				providerCostMicros: 20_000n,
 			};
 		},
 		async settle(claim) {
@@ -408,6 +428,32 @@ function createSettlementStore(jobId: string): SettlementStore {
 			);
 			await client.generationJob.update({ where: { id: jobId }, data: { status: "SUCCEEDED" } });
 		},
+	};
+}
+
+function kieNanoBanana2LiteRouteGraph() {
+	const snapshot = createRouteGraphSnapshot({
+		productKey: "image-nano-banana-2-lite",
+		catalogVersion: "2026-09-07.1",
+		pricingVersion: "2026-09-07.1",
+		routes: [
+			{
+				provider: "kie",
+				providerModelId: "nano-banana-2-lite",
+				providerCostMicros: 20_000,
+				weight: 100,
+			},
+		],
+	});
+	return {
+		allowedRoutes: snapshot.allowedRoutes.map((route) => ({
+			provider: route.provider,
+			providerModelId: route.providerModelId,
+			providerCostMicros: route.providerCostMicros,
+			weight: route.weight,
+		})),
+		graphFingerprint: snapshot.graphFingerprint,
+		maximumRouteCostMicros: snapshot.maximumRouteCostMicros,
 	};
 }
 

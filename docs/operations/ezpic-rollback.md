@@ -27,16 +27,37 @@ Begin rollback or traffic shutdown for any unexplained:
 
 1. Activate an audited `media.generation.enabled=false` runtime override. This is the fastest global
    stop for new generation and is rechecked before worker dispatch.
-2. For a Quality-only incident, activate `media.model.image-quality.enabled=false`; keep Standard Edit
-   only if financial, privacy, moderation, and shared infrastructure remain healthy.
-3. For a Standard-only incident, activate `media.model.image-fast.enabled=false`. If Quality depends
-   on shared or uncertain infrastructure, disable Quality Edit too.
-4. Set deployment flags `MEDIA_GENERATION_ENABLED=false`, `MEDIA_STANDARD_EDIT_ENABLED=false`, and
-   `MEDIA_QUALITY_EDIT_ENABLED=false` in the next controlled configuration revision. An environment
-   flag set to false cannot be overridden back on by PostgreSQL.
+2. For a product-isolated incident, activate exactly one matching runtime override:
+   `media.model.image-nano-banana-2-lite.enabled=false`,
+   `media.model.image-nano-banana.enabled=false`,
+   `media.model.image-nano-banana-2.enabled=false`,
+   `media.model.image-nano-banana-pro.enabled=false`,
+   `media.model.image-gpt-image-1-5.enabled=false`,
+   `media.model.image-gpt-image-2.enabled=false`,
+   `media.model.image-seedream-4-5.enabled=false`,
+   `media.model.image-seedream-5-lite.enabled=false`, or
+   `media.model.image-seedream-5-pro.enabled=false`. A product flag disables every SKU in that
+   model-specific matrix; there is no shared resolution/quality switch.
+3. If the affected Kie behavior, output host, billing, moderation, or shared infrastructure cannot be
+   isolated safely, activate the remaining product overrides too instead of silently rerouting a
+   frozen SKU to another model.
+4. Set deployment flag `MEDIA_GENERATION_ENABLED=false` and all nine product gates false in the next
+   controlled configuration revision: `MEDIA_NANO_BANANA_2_LITE_ENABLED`,
+   `MEDIA_NANO_BANANA_ENABLED`, `MEDIA_NANO_BANANA_2_ENABLED`,
+   `MEDIA_NANO_BANANA_PRO_ENABLED`, `MEDIA_GPT_IMAGE_1_5_ENABLED`,
+   `MEDIA_GPT_IMAGE_2_ENABLED`, `MEDIA_SEEDREAM_4_5_ENABLED`,
+   `MEDIA_SEEDREAM_5_LITE_ENABLED`, and `MEDIA_SEEDREAM_5_PRO_ENABLED`. An environment flag set to
+   false cannot be overridden back on by PostgreSQL.
 5. Disable new paid checkout if the incident affects prices, Webhooks, credits, refunds, legal terms,
    or entitlement. Do not cancel existing subscriptions or fabricate refunds.
 6. Freeze traffic expansion and notify the incident, Provider, billing, privacy, and operations owners.
+
+Removing `kie` from `MEDIA_ENABLED_PROVIDERS` blocks future Kie submissions only after the matching
+application and worker configuration is deployed. Before that cutover, retain `kie` in
+`MEDIA_RECOVERY_PROVIDERS` so accepted or uncertain Kie attempts remain retrievable. Likewise, do
+not remove OpenRouter from `MEDIA_RECOVERY_PROVIDERS` while an
+already-frozen historical attempt still needs same-attempt recovery; OpenRouter remains forbidden in
+the new-submission list.
 
 The global daily Provider budget is an admission ceiling, not a recovery tool. Lowering it blocks new
 jobs but must not release a reservation for an uncertain accepted attempt.
@@ -79,10 +100,12 @@ PaymentEvents, storage transfers, moderation states, and invariant results befor
 Restore service only after the cause and durable state are understood:
 
 1. remove or roll back the specific audited runtime override;
-2. enable Standard Edit for a small cohort and retain the daily Provider budget;
-3. observe errors, p50/p95, moderation, Outbox, settlement, billed cost, Stripe, storage, and alerts;
-4. expand Standard traffic gradually;
-5. enable Quality Edit independently only after its own certification and approval;
+2. confirm the active catalog version is independently certified for every SKU under the product
+   being restored;
+3. enable the selected one of the nine public image products for a small cohort and retain the daily
+   Provider budget;
+4. observe errors, p50/p95, moderation, Outbox, settlement, billed Kie cost, storage, and alerts;
+5. expand that product gradually; enable another model only after its own SKU evidence and approval;
 6. restart the 24–72 hour monitoring window after any material rollback or re-enable action.
 
 ## Rollback verification record

@@ -2,20 +2,80 @@ import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/database/client", () => ({ db: {} }));
 
+import { createQuoteInputSchema } from "../types";
 import { createQuoteForUser } from "./create-quote";
 
 const SOURCE_ASSET_ID = "asset_01J5ABCD1234EFGH5678JKLMNP";
 
 const INPUT = {
-	productKey: "image-fast" as const,
+	productKey: "image-nano-banana-2-lite" as const,
 	input: {
 		kind: "image-to-image" as const,
 		prompt: "private prompt",
 		sourceAssetId: SOURCE_ASSET_ID,
+		skuKey: "nano-banana-2-lite-1k" as const,
+		aspectRatio: "auto" as const,
 	},
 };
 
 describe("createQuoteForUser", () => {
+	it.each([
+		["image-nano-banana-2-lite", "nano-banana-2-lite-1k", "auto"],
+		["image-gpt-image-2", "gpt-image-2-1k", "1:1"],
+		["image-gpt-image-2", "gpt-image-2-2k", "1:1"],
+		["image-gpt-image-2", "gpt-image-2-4k", "4:5"],
+		["image-seedream-5-pro", "seedream-5-pro-basic-1k", "16:9"],
+		["image-seedream-5-pro", "seedream-5-pro-high-2k", "16:9"],
+	] as const)("accepts the legal %s / %s selection", (productKey, skuKey, aspectRatio) => {
+		expect(
+			createQuoteInputSchema.safeParse({
+				productKey,
+				input: {
+					kind: "image-to-image",
+					prompt: "private prompt",
+					sourceAssetId: SOURCE_ASSET_ID,
+					skuKey,
+					aspectRatio,
+				},
+			}).success,
+		).toBe(true);
+	});
+
+	it("rejects retired OpenRouter products at the public quote boundary", () => {
+		expect(
+			createQuoteInputSchema.safeParse({
+				productKey: "image-fast",
+				input: {
+					kind: "image-to-image",
+					prompt: "private prompt",
+					sourceAssetId: SOURCE_ASSET_ID,
+				},
+			}).success,
+		).toBe(false);
+	});
+
+	it.each([
+		["a SKU owned by another product", "image-nano-banana-2-lite", "gpt-image-2-4k", "1:1"],
+		["a missing SKU", "image-gpt-image-2", undefined, "1:1"],
+		["an unsupported aspect ratio", "image-gpt-image-2", "gpt-image-2-4k", "1:1"],
+	] as const)(
+		"rejects %s at the public quote boundary",
+		(_label, productKey, skuKey, aspectRatio) => {
+			expect(
+				createQuoteInputSchema.safeParse({
+					productKey,
+					input: {
+						kind: "image-to-image",
+						prompt: "private prompt",
+						sourceAssetId: SOURCE_ASSET_ID,
+						...(skuKey ? { skuKey } : {}),
+						aspectRatio,
+					},
+				}).success,
+			).toBe(false);
+		},
+	);
+
 	it("validates the selected parent output and runs fresh text moderation for Edit Again", async () => {
 		const persistApproved = vi.fn(async (quote) => ({ id: "quote_child", ...quote }));
 		const moderateText = vi.fn(async ({ ruleVersion }) => ({
@@ -120,7 +180,7 @@ describe("createQuoteForUser", () => {
 		);
 	});
 
-	it("rejects quality text-to-image input before moderation or persistence", async () => {
+	it("rejects image-model text-to-image input before moderation or persistence", async () => {
 		const createAdapter = vi.fn();
 		const persistApproved = vi.fn();
 		const assertAllowed = vi.fn();
@@ -129,7 +189,7 @@ describe("createQuoteForUser", () => {
 			createQuoteForUser(
 				"user_1",
 				{
-					productKey: "image-quality",
+					productKey: "image-gpt-image-2",
 					input: {
 						kind: "text-to-image",
 						prompt: "Create a studio product photo",
@@ -143,7 +203,7 @@ describe("createQuoteForUser", () => {
 					recordDenied: vi.fn(),
 				},
 			),
-		).rejects.toThrow("Input text-to-image is not supported by image-quality");
+		).rejects.toThrow("Input text-to-image is not supported by image-gpt-image-2");
 
 		expect(assertAllowed).not.toHaveBeenCalled();
 		expect(createAdapter).not.toHaveBeenCalled();

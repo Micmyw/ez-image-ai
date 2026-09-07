@@ -32,7 +32,7 @@ describe("getGuestEligibility claimed draft recovery", () => {
 		databaseMocks.guestSessionBootstrap.findFirst.mockResolvedValue(validBootstrap());
 	});
 
-	it("returns only the owner-scoped Standard source id and prompt", async () => {
+	it("returns only the owner-scoped guest source, prompt, SKU, and aspect ratio", async () => {
 		const result = await call(getGuestEligibility, undefined, {
 			context: { headers: new Headers() },
 		});
@@ -43,12 +43,29 @@ describe("getGuestEligibility claimed draft recovery", () => {
 			claimedDraft: {
 				sourceAssetId: "guest-source-1",
 				prompt: "Replace the background with a violet studio",
+				skuKey: "nano-banana-2-lite-1k",
 				aspectRatio: "16:9",
 			},
 		});
 		expect(JSON.stringify(result)).not.toMatch(
 			/claimHash|claimToken|objectKey|signed|raw|provider/i,
 		);
+	});
+
+	it("projects a legacy Standard draft onto the fixed Nano Banana 2 Lite guest SKU", async () => {
+		databaseMocks.guestSessionBootstrap.findFirst.mockResolvedValue(
+			validBootstrap({ productKey: "image-fast", skuKey: null }),
+		);
+
+		await expect(
+			call(getGuestEligibility, undefined, { context: { headers: new Headers() } }),
+		).resolves.toMatchObject({
+			claimedDraft: {
+				sourceAssetId: "guest-source-1",
+				skuKey: "nano-banana-2-lite-1k",
+				aspectRatio: "16:9",
+			},
+		});
 	});
 
 	it("returns the consumed job so a completed guest result can recover after reload", async () => {
@@ -72,7 +89,11 @@ describe("getGuestEligibility claimed draft recovery", () => {
 		["expired bootstrap", { bootstrapExpiresAt: "2026-08-27T00:00:00.000Z" }],
 		["incomplete bootstrap", { completedAt: null }],
 		["draft not submitted", { status: "ACTIVE" }],
-		["wrong product", { productKey: "image-quality" }],
+		["legacy paid product", { productKey: "image-quality" }],
+		["current paid product", { productKey: "image-gpt-image-2" }],
+		["wrong current SKU", { skuKey: "gpt-image-2-2k" }],
+		["missing current SKU", { skuKey: null }],
+		["aspect ratio outside the Nano matrix", { aspectRatio: "2:1" }],
 		["source mismatch", { assetId: "guest-source-other" }],
 		["expired draft", { draftExpiresAt: "2026-08-27T00:00:00.000Z" }],
 	] as const)("does not expose an invalid claimed draft: %s", async (_case, override) => {
@@ -104,6 +125,8 @@ function validBootstrap(
 		completedAt: string | null;
 		status: string;
 		productKey: string;
+		skuKey: string | null;
+		aspectRatio: string;
 		assetId: string;
 		draftExpiresAt: string;
 	}> = {},
@@ -121,13 +144,14 @@ function validBootstrap(
 			ownerId: override.ownerId ?? "guest-1",
 			submittedByUserId: override.submittedByUserId ?? "guest-1",
 			status: override.status ?? "SUBMITTED",
-			productKey: override.productKey ?? "image-fast",
+			productKey: override.productKey ?? "image-nano-banana-2-lite",
 			assetId: override.assetId ?? "guest-source-1",
 			expiresAt: new Date(override.draftExpiresAt ?? "2099-08-29T00:00:00.000Z"),
 			inputSnapshot: {
 				kind: "image-to-image",
 				prompt: "Replace the background with a violet studio",
-				aspectRatio: "16:9",
+				...(override.skuKey === null ? {} : { skuKey: override.skuKey ?? "nano-banana-2-lite-1k" }),
+				aspectRatio: override.aspectRatio ?? "16:9",
 			},
 		},
 	};

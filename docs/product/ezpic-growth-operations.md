@@ -56,10 +56,11 @@ The shared Zod contract permits exactly these events:
 17. `checkout_started`
 18. `subscription_activated`
 
-Event properties are strict and may contain only an enumerated plan, the public `image-fast` or
-`image-quality` product key, an enumerated status, a credits bucket, a latency bucket, or a
-SHA-256-labelled anonymous session hash. Internal identifiers may be used only in the in-memory
-dedupe key and are never included in the event detail.
+Event properties are strict and may contain only an enumerated plan; one of the nine public image
+product keys defined by `EZPIC_PRODUCT_KEYS`; an enumerated status; a credits bucket; a latency
+bucket; or a SHA-256-labelled anonymous session hash.
+SKU keys and resolution/quality selections are not event properties. Internal identifiers may be
+used only in the in-memory dedupe key and never reveal Provider/model/cost data.
 
 Both schema validation and the dispatcher reject prompts, filenames, asset/object/signed URLs, raw
 job IDs, email addresses, cookies, tokens, Provider names, model IDs, Provider cost, and raw
@@ -76,7 +77,7 @@ and dedupe semantics.
 
 The existing admin media surface includes a read-only growth operations panel backed by an
 `adminProcedure` and aggregate queries over the existing PostgreSQL media tables. It accepts only
-Standard/Quality product, Provider, model, status, and half-open date-range filters. It accepts no
+public product, server-only Provider/model, status, and half-open date-range filters. It accepts no
 owner, tenant, prompt, asset, URL, or raw job input.
 
 The response reports aggregate job/success/failure counts, success rate, successful-attempt p50 and

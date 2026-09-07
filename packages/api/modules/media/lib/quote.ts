@@ -2,6 +2,7 @@ import {
 	createExecutableRouteGraph,
 	createRouteGraphSnapshot,
 	executableRouteGraphOptionsFromEnvironment,
+	getCatalogImageSpecCell,
 	parseRouteGraphSnapshot,
 	quoteCatalogInput,
 	type ExecutableRouteGraphOptions,
@@ -18,7 +19,10 @@ export function buildMediaQuote(
 	const quote = quoteCatalogInput(input);
 	const entry = createExecutableRouteGraph(routeGraphOptions).getEntry(input.productKey);
 	if (!entry) throw new Error("PROVIDER_UNAVAILABLE");
-	const maximumRouteCostMicros = Math.max(...entry.routes.map((route) => route.providerCostMicros));
+	const selectedCell = getCatalogImageSpecCell(entry, quote.skuKey);
+	const routes = selectedCell?.routes ?? entry.routes;
+	if (quote.skuKey && !selectedCell) throw new Error("PROVIDER_UNAVAILABLE");
+	const maximumRouteCostMicros = Math.max(...routes.map((route) => route.providerCostMicros));
 	if (maximumRouteCostMicros > DEFAULT_PRODUCT_CONFIG.budgets.maximumJobCostMicros) {
 		throw new Error("PROVIDER_UNAVAILABLE");
 	}
@@ -26,7 +30,7 @@ export function buildMediaQuote(
 		productKey: quote.productKey,
 		catalogVersion: quote.catalogVersion,
 		pricingVersion: quote.pricingVersion,
-		routes: entry.routes,
+		routes,
 	});
 	const routeGraphSnapshot: Prisma.InputJsonObject = {
 		allowedRoutes: routeGraph.allowedRoutes.map((route) => ({
@@ -39,6 +43,7 @@ export function buildMediaQuote(
 		maximumRouteCostMicros: routeGraph.maximumRouteCostMicros,
 	};
 	const pricingSnapshot: Prisma.InputJsonObject = {
+		...(quote.skuKey ? { skuKey: quote.skuKey } : {}),
 		credits: quote.credits,
 		maximumJobCostMicros: DEFAULT_PRODUCT_CONFIG.budgets.maximumJobCostMicros,
 		routeGraph: routeGraphSnapshot,

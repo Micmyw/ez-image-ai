@@ -1,5 +1,5 @@
 import type { ExecutableRouteGraphOptions, MediaModelInput, ModerationDecision } from "@repo/ai";
-import type { ProductModelKey } from "@repo/config";
+import { EZPIC_PRODUCT_KEYS } from "@repo/config";
 import { findEligibleImageEditParentForOwner } from "@repo/database";
 import { db } from "@repo/database/client";
 import {
@@ -49,6 +49,8 @@ interface CreateQuoteDependencies {
 	recordDenied(evidence: TextModerationEvidence): Promise<void> | void;
 }
 
+type CurrentEzPicProductKey = (typeof EZPIC_PRODUCT_KEYS)[number];
+
 const defaultDependencies: CreateQuoteDependencies = {
 	now: () => new Date(),
 	assertAllowed: (input) => assertGenerationAllowed(input),
@@ -80,7 +82,7 @@ const defaultDependencies: CreateQuoteDependencies = {
 
 export async function createQuoteForUser(
 	userId: string,
-	input: { productKey: ProductModelKey; input: MediaModelInput; parentJobId?: string },
+	input: { productKey: CurrentEzPicProductKey; input: MediaModelInput; parentJobId?: string },
 	dependencies: CreateQuoteDependencies = defaultDependencies,
 ) {
 	const editContext = await freezeImageEditContext(userId, input, dependencies);
@@ -118,7 +120,7 @@ export async function createQuoteForUser(
 
 async function freezeImageEditContext(
 	userId: string,
-	input: { productKey: ProductModelKey; input: MediaModelInput; parentJobId?: string },
+	input: { productKey: CurrentEzPicProductKey; input: MediaModelInput; parentJobId?: string },
 	dependencies: CreateQuoteDependencies,
 ) {
 	const sourceAssetId = imageEditSourceAssetId(input.input);
@@ -147,8 +149,8 @@ function imageEditSourceAssetId(input: MediaModelInput): string | null {
 	return input.kind === "image-to-image" ? input.sourceAssetId : null;
 }
 
-function isImageEditProduct(productKey: ProductModelKey): boolean {
-	return productKey === "image-fast" || productKey === "image-quality";
+function isImageEditProduct(productKey: CurrentEzPicProductKey): boolean {
+	return EZPIC_PRODUCT_KEYS.includes(productKey);
 }
 
 export const createQuote = protectedProcedure

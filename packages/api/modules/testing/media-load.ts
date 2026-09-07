@@ -1,4 +1,5 @@
 import { createHash, timingSafeEqual } from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 
 import {
 	getCatalogEntry,
@@ -227,8 +228,10 @@ export async function executeMediaLoadRequest(
 		kind: "image-to-image" as const,
 		prompt: `Controlled load fixture [${input.mode}]`,
 		sourceAssetId: inputAsset.id,
+		skuKey: "nano-banana-2-lite-1k" as const,
+		aspectRatio: "auto" as const,
 	};
-	const productKey = "image-fast" as const;
+	const productKey = "image-nano-banana-2-lite" as const;
 	const route = getCatalogEntry(productKey).routes[0];
 	if (!route) throw new Error("LOAD_CATALOG_ROUTE_MISSING");
 	const quoted = buildMediaQuote(
@@ -236,7 +239,7 @@ export async function executeMediaLoadRequest(
 		{
 			enabledProviders: new Set([route.provider]),
 			generationEnabled: true,
-			openRouterImageRoutesCertified: true,
+			kieImageCertifiedCatalogVersions: new Set([DEFAULT_PRODUCT_CONFIG.catalogVersion]),
 		},
 	);
 	const quoteId = `loadq_${createHash("sha256").update(input.idempotencyKey).digest("hex").slice(0, 32)}`;
@@ -270,7 +273,7 @@ export async function executeMediaLoadRequest(
 	if (
 		quote.ownerId !== configuration.ownerId ||
 		quote.productKey !== productKey ||
-		JSON.stringify(quote.inputSnapshot) !== JSON.stringify(modelInput)
+		!isDeepStrictEqual(quote.inputSnapshot, modelInput)
 	) {
 		throw new LoadTestConflictError(
 			"The idempotency key was already used with another load command",

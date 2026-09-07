@@ -6,33 +6,37 @@ type Track = (
 	options?: { dedupeKey?: string },
 ) => Promise<"blocked" | "duplicate" | "failed" | "rejected" | "sent">;
 
+type EzPicProductKey =
+	| "image-nano-banana-2-lite"
+	| "image-nano-banana"
+	| "image-nano-banana-2"
+	| "image-nano-banana-pro"
+	| "image-gpt-image-1-5"
+	| "image-gpt-image-2"
+	| "image-seedream-4-5"
+	| "image-seedream-5-lite"
+	| "image-seedream-5-pro";
+
 type SaasGrowthAnalyticsModule = {
 	createSaasGrowthFunnel: (track: Track) => {
-		draftClaimed: (key: string, productKey: "image-fast" | "image-quality") => Promise<string>;
-		quoteCreated: (
-			key: string,
-			productKey: "image-fast" | "image-quality",
-			credits: number,
-		) => Promise<string>;
-		generationConfirmed: (
-			key: string,
-			productKey: "image-fast" | "image-quality",
-		) => Promise<string>;
+		draftClaimed: (key: string, productKey: EzPicProductKey) => Promise<string>;
+		quoteCreated: (key: string, productKey: EzPicProductKey, credits: number) => Promise<string>;
+		generationConfirmed: (key: string, productKey: EzPicProductKey) => Promise<string>;
 		generationSucceeded: (
 			key: string,
-			productKey: "image-fast" | "image-quality",
+			productKey: EzPicProductKey,
 			latencyMs: number,
 		) => Promise<string>;
 		generationFailed: (
 			key: string,
-			productKey: "image-fast" | "image-quality",
+			productKey: EzPicProductKey,
 			latencyMs: number,
 		) => Promise<string>;
-		resultCompared: (key: string, productKey: "image-fast" | "image-quality") => Promise<string>;
-		resultDownloaded: (key: string, productKey: "image-fast" | "image-quality") => Promise<string>;
-		editAgainStarted: (key: string, productKey: "image-fast" | "image-quality") => Promise<string>;
+		resultCompared: (key: string, productKey: EzPicProductKey) => Promise<string>;
+		resultDownloaded: (key: string, productKey: EzPicProductKey) => Promise<string>;
+		editAgainStarted: (key: string, productKey: EzPicProductKey) => Promise<string>;
 		editSessionOpened: (key: string) => Promise<string>;
-		upgradePromptViewed: (productKey: "image-fast" | "image-quality") => Promise<string>;
+		upgradePromptViewed: (productKey: EzPicProductKey) => Promise<string>;
 		checkoutStarted: (key: string, plan: "creator" | "ultimate" | "studio") => Promise<string>;
 		subscriptionActivated: (plan: "creator" | "ultimate" | "studio") => Promise<string>;
 		guestGenerationAdmitted: (key: string) => Promise<string>;
@@ -55,16 +59,16 @@ describe("authenticated EzPic growth funnel", () => {
 
 		const track = vi.fn<Track>().mockResolvedValue("sent");
 		const funnel = createFunnel(track);
-		await funnel.draftClaimed("draft-1", "image-fast");
-		await funnel.quoteCreated("quote-1", "image-quality", 10);
-		await funnel.generationConfirmed("quote-1", "image-quality");
-		await funnel.generationSucceeded("job-1", "image-quality", 16_000);
-		await funnel.generationFailed("job-2", "image-fast", 4_500);
-		await funnel.resultCompared("asset-1", "image-quality");
-		await funnel.resultDownloaded("asset-1", "image-quality");
-		await funnel.editAgainStarted("job-1", "image-quality");
+		await funnel.draftClaimed("draft-1", "image-nano-banana-2-lite");
+		await funnel.quoteCreated("quote-1", "image-gpt-image-2", 17);
+		await funnel.generationConfirmed("quote-1", "image-gpt-image-2");
+		await funnel.generationSucceeded("job-1", "image-gpt-image-2", 16_000);
+		await funnel.generationFailed("job-2", "image-seedream-5-pro", 4_500);
+		await funnel.resultCompared("asset-1", "image-gpt-image-2");
+		await funnel.resultDownloaded("asset-1", "image-gpt-image-2");
+		await funnel.editAgainStarted("job-1", "image-gpt-image-2");
 		await funnel.editSessionOpened("session-1");
-		await funnel.upgradePromptViewed("image-quality");
+		await funnel.upgradePromptViewed("image-seedream-5-pro");
 		await funnel.checkoutStarted("checkout-attempt-1", "ultimate");
 		await funnel.subscriptionActivated("studio");
 		await funnel.guestGenerationAdmitted("guest-job-1");
@@ -76,24 +80,27 @@ describe("authenticated EzPic growth funnel", () => {
 		await funnel.guestResultGrantCompleted("guest-job-1");
 
 		expect(track.mock.calls.map(([event]) => event)).toEqual([
-			{ name: "draft_claimed", properties: { productKey: "image-fast", status: "claimed" } },
+			{
+				name: "draft_claimed",
+				properties: { productKey: "image-nano-banana-2-lite", status: "claimed" },
+			},
 			{
 				name: "editor_quote_created",
 				properties: {
 					creditsBucket: "10-24",
-					productKey: "image-quality",
+					productKey: "image-gpt-image-2",
 					status: "created",
 				},
 			},
 			{
 				name: "editor_generation_confirmed",
-				properties: { productKey: "image-quality", status: "confirmed" },
+				properties: { productKey: "image-gpt-image-2", status: "confirmed" },
 			},
 			{
 				name: "editor_generation_succeeded",
 				properties: {
 					latencyBucket: "15-59s",
-					productKey: "image-quality",
+					productKey: "image-gpt-image-2",
 					status: "succeeded",
 				},
 			},
@@ -101,26 +108,26 @@ describe("authenticated EzPic growth funnel", () => {
 				name: "editor_generation_failed",
 				properties: {
 					latencyBucket: "1-4s",
-					productKey: "image-fast",
+					productKey: "image-seedream-5-pro",
 					status: "failed",
 				},
 			},
 			{
 				name: "result_compared",
-				properties: { productKey: "image-quality", status: "compared" },
+				properties: { productKey: "image-gpt-image-2", status: "compared" },
 			},
 			{
 				name: "result_downloaded",
-				properties: { productKey: "image-quality", status: "downloaded" },
+				properties: { productKey: "image-gpt-image-2", status: "downloaded" },
 			},
 			{
 				name: "edit_again_started",
-				properties: { productKey: "image-quality", status: "started" },
+				properties: { productKey: "image-gpt-image-2", status: "started" },
 			},
 			{ name: "edit_session_opened", properties: { status: "opened" } },
 			{
 				name: "upgrade_prompt_viewed",
-				properties: { productKey: "image-quality", status: "viewed" },
+				properties: { productKey: "image-seedream-5-pro", status: "viewed" },
 			},
 			{ name: "checkout_started", properties: { plan: "ultimate", status: "started" } },
 			{
@@ -149,6 +156,37 @@ describe("authenticated EzPic growth funnel", () => {
 		).toBe(true);
 	});
 
+	it.each([
+		"image-nano-banana-2-lite",
+		"image-nano-banana",
+		"image-nano-banana-2",
+		"image-nano-banana-pro",
+		"image-gpt-image-1-5",
+		"image-gpt-image-2",
+		"image-seedream-4-5",
+		"image-seedream-5-lite",
+		"image-seedream-5-pro",
+	])("accepts the public-safe EzPic product key %s", (productKey) => {
+		expect(
+			utils.growthAnalyticsEventSchema.safeParse({
+				name: "editor_generation_confirmed",
+				properties: { productKey, status: "confirmed" },
+			}).success,
+		).toBe(true);
+	});
+
+	it.each(["image-fast", "image-quality", "video-fast", "kie", "gpt-image-2-image-to-image"])(
+		"rejects retired or private routing key %s",
+		(productKey) => {
+			expect(
+				utils.growthAnalyticsEventSchema.safeParse({
+					name: "editor_generation_confirmed",
+					properties: { productKey, status: "confirmed" },
+				}).success,
+			).toBe(false);
+		},
+	);
+
 	it("uses raw domain identifiers only as internal dedupe keys", async () => {
 		const createFunnel = growthAnalytics.createSaasGrowthFunnel;
 		expect(createFunnel).toBeTypeOf("function");
@@ -156,8 +194,8 @@ describe("authenticated EzPic growth funnel", () => {
 
 		const track = vi.fn<Track>().mockResolvedValue("sent");
 		const funnel = createFunnel(track);
-		await funnel.generationSucceeded("raw-job-id", "image-fast", 800);
-		await funnel.resultDownloaded("private-asset-id", "image-fast");
+		await funnel.generationSucceeded("raw-job-id", "image-nano-banana-2-lite", 800);
+		await funnel.resultDownloaded("private-asset-id", "image-nano-banana-2-lite");
 		await funnel.guestResultGrantCompleted("private-guest-job-id");
 
 		for (const [event] of track.mock.calls) {

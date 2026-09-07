@@ -1,7 +1,15 @@
 "use client";
 
-import { ImageOutputSettings } from "@media/components/ImageOutputSettings";
-import type { ImageAspectRatio } from "@repo/config/client";
+import {
+	ImageOutputSettings,
+	type ImageOutputSettingsLabels,
+} from "@media/components/ImageOutputSettings";
+import {
+	type ImageSpecControlKey,
+	type ImageSpecControlValues,
+	resolveImageSpecControlValues,
+} from "@media/lib/image-sku-selection";
+import type { ImageAspectRatio, ImageSkuKey } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
@@ -25,6 +33,7 @@ import {
 	type DragEvent,
 	type FormEvent,
 	useEffect,
+	useMemo,
 	useRef,
 	useState,
 } from "react";
@@ -39,10 +48,12 @@ import {
 	validateLandingImageFile,
 } from "../lib/guest-draft-client";
 import {
+	localizeLandingProducts,
 	landingDisabledReason,
 	type LandingGeneratorStage,
 	resolveLandingAspectRatioSelection,
 	resolveLandingProductSelection,
+	resolveLandingSkuSelection,
 } from "../lib/landing-generator-workflow";
 import {
 	LANDING_PROMPT_SELECTED_EVENT,
@@ -54,6 +65,7 @@ const LOCAL_TURNSTILE_EVIDENCE = "local-guest-upload";
 
 export function LandingGenerator() {
 	const t = useTranslations("home.generator");
+	const tCreate = useTranslations("media.create");
 	const generatorRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const promptRef = useRef<HTMLTextAreaElement>(null);
@@ -63,11 +75,13 @@ export function LandingGenerator() {
 	const [capability, setCapability] = useState<GuestCapabilitySnapshot | null>(null);
 	const [capabilityRequestKey, setCapabilityRequestKey] = useState(0);
 	const [selectedProductKey, setSelectedProductKey] = useState<GuestProductKey | null>(null);
+	const [selectedSkuKey, setSelectedSkuKey] = useState<ImageSkuKey | null>(null);
 	const [file, setFile] = useState<File | null>(null);
 	const [fileError, setFileError] = useState<string>();
 	const [previewUrl, setPreviewUrl] = useState<string>();
 	const [prompt, setPrompt] = useState("");
 	const [aspectRatio, setAspectRatio] = useState<ImageAspectRatio>("auto");
+	const [controlValues, setControlValues] = useState<ImageSpecControlValues>({});
 	const [submitError, setSubmitError] = useState<"turnstile" | "upload">();
 	const [uploadPercentage, setUploadPercentage] = useState<number>();
 	const [stage, setStage] = useState<LandingGeneratorStage>("checking");
@@ -186,18 +200,41 @@ export function LandingGenerator() {
 	const maximumBytes = capability?.upload.maximumBytes ?? 10 * 1024 * 1024;
 	const maximumMegabytes = maximumBytes / 1024 / 1024;
 	const supportedMimeTypes = capability?.upload.mimeTypes ?? LANDING_IMAGE_CONTENT_TYPES;
+	const localizedProducts = useMemo(
+		() =>
+			localizeLandingProducts(capability?.products ?? [], {
+				productLabel: (productKey) => tCreate(`products.${productKey}.label`),
+				productDescription: (productKey) => tCreate(`products.${productKey}.description`),
+				skuLabel: (skuKey) => tCreate(`skus.${skuKey}.label`),
+			}),
+		[capability?.products, tCreate],
+	);
 	const selectedProduct =
-		capability?.products.find((product) => product.key === selectedProductKey) ?? null;
+		localizedProducts.find((product) => product.key === selectedProductKey) ?? null;
+	const selectedSku =
+		selectedProduct?.skuMatrix.cells.find((cell) => cell.skuKey === selectedSkuKey) ?? null;
 	const capabilityUsable = Boolean(capability?.enabled && capability.products.length > 0);
 	useEffect(() => {
-		setAspectRatio(
-			(current) => resolveLandingAspectRatioSelection(selectedProduct, current) ?? "auto",
-		);
+		setSelectedSkuKey((current) => resolveLandingSkuSelection(selectedProduct, current));
 	}, [selectedProduct]);
+	useEffect(() => {
+		setAspectRatio(
+			(current) =>
+				resolveLandingAspectRatioSelection(
+					selectedProduct && selectedSku
+						? { ...selectedProduct, aspectRatios: selectedSku.aspectRatios }
+						: null,
+					current,
+				) ?? "auto",
+		);
+	}, [selectedProduct, selectedSku]);
+	useEffect(() => {
+		setControlValues(resolveImageSpecControlValues(selectedSku, {}));
+	}, [selectedSku]);
 	const disabledReason = landingDisabledReason({
 		stage,
 		capabilityEnabled: capabilityUsable,
-		productSelected: Boolean(selectedProduct),
+		productSelected: Boolean(selectedProduct && selectedSku),
 		hasSource: Boolean(file),
 		prompt,
 		turnstileReady: Boolean(turnstileToken),
@@ -290,6 +327,30 @@ export function LandingGenerator() {
 		uploadAttemptKey.current = null;
 	}
 
+	function changeSku(nextSkuKey: string) {
+		if (!selectedProduct) return;
+		const nextSku = selectedProduct.skuMatrix.cells.find((cell) => cell.skuKey === nextSkuKey);
+		if (!nextSku) return;
+		setSelectedSkuKey(nextSku.skuKey);
+		setControlValues(resolveImageSpecControlValues(nextSku, {}));
+		setAspectRatio(
+			(current) =>
+				resolveLandingAspectRatioSelection(
+					{ ...selectedProduct, aspectRatios: nextSku.aspectRatios },
+					current,
+				) ?? "auto",
+		);
+		setSubmitError(undefined);
+	}
+
+	function changeControl(key: ImageSpecControlKey, value: string) {
+		setControlValues((current) => {
+			const next = resolveImageSpecControlValues(selectedSku, { ...current, [key]: value });
+			return next[key] === value ? next : current;
+		});
+		setSubmitError(undefined);
+	}
+
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
 		if (disabledReason === "source") {
@@ -300,7 +361,14 @@ export function LandingGenerator() {
 			setSubmitError("turnstile");
 			return;
 		}
-		if (disabledReason || !capability?.enabled || !file || !selectedProduct || !turnstileToken) {
+		if (
+			disabledReason ||
+			!capability?.enabled ||
+			!file ||
+			!selectedProduct ||
+			!selectedSku ||
+			!turnstileToken
+		) {
 			return;
 		}
 
@@ -315,9 +383,11 @@ export function LandingGenerator() {
 			const handoff = await uploadGuestDraft({
 				capabilityVersion: capability.version,
 				productKey: selectedProduct.key,
+				skuKey: selectedSku.skuKey,
 				file,
 				prompt,
 				aspectRatio,
+				...controlValues,
 				turnstileToken: consumedTurnstileToken,
 				onStage: (nextStage) => {
 					setStage(nextStage);
@@ -358,8 +428,7 @@ export function LandingGenerator() {
 		setTurnstileResetKey((value) => value + 1);
 	}
 
-	const selectedModeKey = selectedProductKey === "image-quality" ? "quality" : "standard";
-	const selectedProductLabel = selectedProduct ? t(`modes.${selectedModeKey}.label`) : "";
+	const selectedProductLabel = selectedProduct?.label ?? "";
 	const actionLabel = canRetryCapability
 		? t("actions.retryAvailability")
 		: stage === "failed" && selectedProduct
@@ -374,6 +443,35 @@ export function LandingGenerator() {
 	const statusLabel =
 		disabledReason && disabledReason !== "busy" ? t(`guidance.${disabledReason}`) : stageLabel;
 	const showCharacterCount = prompt.length >= 9_000;
+	const outputSettingsLabels = {
+		title: t("settings.title"),
+		trigger: t("settings.trigger"),
+		aspectRatio: t("settings.aspectRatio"),
+		automatic: t("settings.automatic"),
+		outputNumber: t("settings.outputNumber"),
+		oneOutput: t("settings.oneOutput"),
+		resolution: t("settings.resolution"),
+		quality: t("settings.quality"),
+		outputFormat: t("settings.outputFormat"),
+		background: t("settings.background"),
+		modeControlsQuality: t("settings.modeControlsQuality"),
+		credits: t("settings.credits"),
+		optionLabels: {
+			"1k": t("settings.optionLabels.1k"),
+			"2k": t("settings.optionLabels.2k"),
+			"3k": t("settings.optionLabels.3k"),
+			"4k": t("settings.optionLabels.4k"),
+			basic: t("settings.optionLabels.basic"),
+			medium: t("settings.optionLabels.medium"),
+			high: t("settings.optionLabels.high"),
+			ultra: t("settings.optionLabels.ultra"),
+			png: t("settings.optionLabels.png"),
+			jpeg: t("settings.optionLabels.jpeg"),
+			auto: t("settings.optionLabels.auto"),
+			opaque: t("settings.optionLabels.opaque"),
+			transparent: t("settings.optionLabels.transparent"),
+		},
+	} satisfies ImageOutputSettingsLabels;
 
 	return (
 		<>
@@ -511,8 +609,7 @@ export function LandingGenerator() {
 						>
 							<legend className="sr-only">{t("modes.legend")}</legend>
 							<div className="gap-1 bg-black/15 p-1 flex flex-wrap rounded-xl">
-								{capability?.products.map((product) => {
-									const modeKey = product.key === "image-quality" ? "quality" : "standard";
+								{localizedProducts.map((product) => {
 									const selected = product.key === selectedProductKey;
 									return (
 										<label
@@ -535,9 +632,13 @@ export function LandingGenerator() {
 												}}
 											/>
 											{selected && <CheckIcon className="size-3.5" aria-hidden="true" />}
-											<span>{t(`modes.${modeKey}.label`)}</span>
+											<span title={product.description}>{product.label}</span>
 											<span className="text-[0.64rem] opacity-70">
-												{t("modes.credits", { credits: Number(product.credits) })}
+												{t("modes.credits", {
+													credits: Number(
+														selected && selectedSku ? selectedSku.credits : product.credits,
+													),
+												})}
 											</span>
 										</label>
 									);
@@ -548,26 +649,21 @@ export function LandingGenerator() {
 						<div className="sm:w-[17.5rem] w-full">
 							<ImageOutputSettings
 								idPrefix="landing"
-								aspectRatios={selectedProduct?.aspectRatios ?? []}
+								aspectRatios={selectedSku?.aspectRatios ?? []}
 								value={aspectRatio}
 								onChange={(nextAspectRatio) => {
 									setAspectRatio(nextAspectRatio);
 									setSubmitError(undefined);
 								}}
 								modeLabel={selectedProductLabel || t("modes.selectionPending")}
+								skuMatrix={selectedProduct?.skuMatrix}
+								skuKey={selectedSkuKey ?? undefined}
+								onSkuChange={changeSku}
+								controlValues={controlValues}
+								onControlChange={changeControl}
 								disabled={isBusy}
 								tone="dark"
-								labels={{
-									title: t("settings.title"),
-									trigger: t("settings.trigger"),
-									aspectRatio: t("settings.aspectRatio"),
-									automatic: t("settings.automatic"),
-									outputNumber: t("settings.outputNumber"),
-									oneOutput: t("settings.oneOutput"),
-									resolution: t("settings.resolution"),
-									quality: t("settings.quality"),
-									modeControlsQuality: t("settings.modeControlsQuality"),
-								}}
+								labels={outputSettingsLabels}
 							/>
 						</div>
 
@@ -741,9 +837,8 @@ export function LandingGenerator() {
 										className={capability?.products.length ? undefined : "hidden"}
 									>
 										<legend className="sr-only">{t("modes.legend")}</legend>
-										<div className="gap-1 p-1 bg-black/15 flex rounded-xl">
-											{capability?.products.map((product) => {
-												const modeKey = product.key === "image-quality" ? "quality" : "standard";
+										<div className="gap-1 p-1 bg-black/15 max-h-32 flex flex-wrap overflow-y-auto rounded-xl">
+											{localizedProducts.map((product) => {
 												const selected = product.key === selectedProductKey;
 												return (
 													<label
@@ -765,7 +860,7 @@ export function LandingGenerator() {
 																setSubmitError(undefined);
 															}}
 														/>
-														{t(`modes.${modeKey}.label`)}
+														<span title={product.description}>{product.label}</span>
 													</label>
 												);
 											})}
@@ -775,26 +870,21 @@ export function LandingGenerator() {
 									<div className="sm:w-[17.5rem] w-full">
 										<ImageOutputSettings
 											idPrefix="floating"
-											aspectRatios={selectedProduct?.aspectRatios ?? []}
+											aspectRatios={selectedSku?.aspectRatios ?? []}
 											value={aspectRatio}
 											onChange={(nextAspectRatio) => {
 												setAspectRatio(nextAspectRatio);
 												setSubmitError(undefined);
 											}}
 											modeLabel={selectedProductLabel || t("modes.selectionPending")}
+											skuMatrix={selectedProduct?.skuMatrix}
+											skuKey={selectedSkuKey ?? undefined}
+											onSkuChange={changeSku}
+											controlValues={controlValues}
+											onControlChange={changeControl}
 											disabled={isBusy}
 											tone="dark"
-											labels={{
-												title: t("settings.title"),
-												trigger: t("settings.trigger"),
-												aspectRatio: t("settings.aspectRatio"),
-												automatic: t("settings.automatic"),
-												outputNumber: t("settings.outputNumber"),
-												oneOutput: t("settings.oneOutput"),
-												resolution: t("settings.resolution"),
-												quality: t("settings.quality"),
-												modeControlsQuality: t("settings.modeControlsQuality"),
-											}}
+											labels={outputSettingsLabels}
 										/>
 									</div>
 

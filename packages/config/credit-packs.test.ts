@@ -105,18 +105,18 @@ describe("credit pack catalog", () => {
 		const quote = Reflect.get(serverConfig, "CREDIT_PACK_COST_QUOTE");
 		const estimateMargin = exportedFunction(serverConfig, "estimateCreditPackProviderMargin");
 		expect(quote).toEqual({
-			usdMicrosPerCredit: 6_096,
-			basis: "conservative-standard-full-use",
+			usdMicrosPerCredit: 6_600,
+			basis: "conservative-kie-sku-full-use",
 		});
 		expect(estimateMargin("credits-1500", false)).toMatchObject({
 			totalCredits: 1_500,
-			estimatedCostMicros: 9_144_000,
-			estimatedMarginBasisPoints: 8_450,
+			estimatedCostMicros: 9_900_000,
+			estimatedMarginBasisPoints: 8_322,
 		});
 		expect(estimateMargin("credits-8000", true)).toMatchObject({
 			totalCredits: 9_600,
-			estimatedCostMicros: 58_521_600,
-			estimatedMarginBasisPoints: 7_740,
+			estimatedCostMicros: 63_360_000,
+			estimatedMarginBasisPoints: 7_554,
 		});
 	});
 });

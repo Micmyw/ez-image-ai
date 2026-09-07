@@ -1,10 +1,10 @@
 # EzPic
 
-EzPic is a focused, private prompt-based AI image editor. Its public product offers Standard Edit
-and Quality Edit as upload-first, image-to-image workflows while retaining the existing AI media
+EzPic is a focused, private prompt-based AI image editor. Its upload-first workflow offers nine
+server-advertised image products and 20 product-specific SKU cells, with one shared EzPic Credit
+balance and an exact charge shown before confirmation. It retains the existing AI media
 foundation for jobs, credits, storage, moderation, Providers, payments, and administration. Brand,
-origins, and support details are deployment configuration rather than hardcoded production
-identity.
+origins, and support details are deployment configuration rather than hardcoded production identity.
 
 The repository is production-oriented, but a checkout is not live-certified until its own cloud
 accounts, credentials, quotas, Webhooks, alerts, and staging load have been verified. See the
@@ -14,16 +14,17 @@ boundary and PR 1 exclusions.
 ## Authenticated editor workflow
 
 The `/create` workspace restores an eligible claimed draft, prior job, or owned asset; requires an
-owned, READY private source image and a non-empty prompt; and exposes only Standard Edit and Quality
-Edit. Review creates a server-side quote without reserving credits. Explicit confirmation uses one
-stable idempotency key to atomically create the existing job, input binding, credit reservation, and
-Outbox event.
+owned, READY private source image and a non-empty prompt; and exposes only the image products and
+settings returned by the server. Review creates a server-side quote without reserving credits.
+Explicit confirmation uses one stable idempotency key to atomically create the existing job, input
+binding, credit reservation, and Outbox event.
 
 The result panel follows the job across refreshes, presents safe success, failure, moderation,
 cancellation, and credit-settlement states, and compares the job-bound input with only an approved
 output. Previews and downloads use short-lived owner-authorized URLs. When the current plan does not
-include Quality Edit, the editor keeps the private source image, prompt, Quality selection, and edit
-session context and opens the plan comparison; it never silently submits a Standard Edit instead.
+include the selected image product, the editor keeps the private source image, prompt, product,
+output settings, and edit-session context and opens the plan comparison; it never silently submits a
+cheaper product instead.
 
 The first confirmed edit also creates a lightweight private edit session inside that same job,
 input-binding, reservation, and Outbox transaction. `/edits` lists the signed-in user's sessions,
@@ -41,12 +42,15 @@ result that lost that private binding.
 `PLAN_ENTITLEMENTS` is the single source for the pricing UI and runtime product, concurrency, and
 input-size authorization:
 
-| Plan     | Monthly credits | Concurrent edits | Products                       | Max input | Price                |
-| -------- | --------------: | ---------------: | ------------------------------ | --------: | -------------------- |
-| Free     |              25 |                1 | Standard Edit                  |     10 MB | $0                   |
-| Pro      |             700 |                3 | Standard Edit and Quality Edit |     20 MB | $19/month, $190/year |
-| Ultimate |           1,800 |                6 | Standard Edit and Quality Edit |     20 MB | $49/month, $490/year |
-| Max      |           3,000 |               10 | Standard Edit and Quality Edit |     20 MB | $79/month, $790/year |
+| Plan     | Monthly credits | Concurrent edits | Products                    | Max input | Price                | Images/month |
+| -------- | --------------: | ---------------: | --------------------------- | --------: | -------------------- | -----------: |
+| Free     |              25 |                1 | Nano Banana 2 Lite          |     10 MB | $0                   |            5 |
+| Pro      |             700 |                3 | All 9 public image products |     20 MB | $19/month, $190/year |       28–140 |
+| Ultimate |           1,800 |                6 | All 9 public image products |     20 MB | $49/month, $490/year |       72–360 |
+| Max      |           3,000 |               10 | All 9 public image products |     20 MB | $79/month, $790/year |      120–600 |
+
+Paid-plan ranges use the current 5–25 EzPic Credit charge per legal SKU cell. Output format and
+background controls do not change that charge.
 
 Free credits are granted only by the server through the existing immutable Credit Account, Lot,
 and Ledger path, once per UTC calendar month with a stable reference key. An ACTIVE paid
@@ -109,9 +113,9 @@ items.
 
 ## Production launch certification
 
-PR 8 adds fail-closed staging/production configuration, independent Standard and Quality launch
-flags, an atomic global UTC-day Provider cost ceiling, production readiness integration, an offline
-evidence validator, and a guarded six-surface k6 plan. It prepares a launch but does not deploy one.
+PR 8 adds fail-closed staging/production configuration, independent image-product launch flags, an
+atomic global UTC-day Provider cost ceiling, production readiness integration, an offline evidence
+validator, and a guarded six-surface k6 plan. It prepares a launch but does not deploy one.
 
 ```bash
 pnpm launch:evidence:validate
@@ -138,11 +142,11 @@ mail, deployment, DNS/SSL, alert arrival, load, cost, and rollback evidence rema
 
 ## Inherited foundation capabilities
 
-- **Stable product catalog and Provider abstraction:** clients submit public product keys and validated parameters; server-only routes moderate prompts and map approved requests to Replicate, Fal, Kie, or Gemini adapters. Provider names, model IDs, credentials, raw errors, and arbitrary result URLs stay off the public contract.
+- **Stable product catalog and Provider abstraction:** clients submit public product keys and validated parameters; server-only routes moderate prompts and map approved requests to private Provider adapters. Provider names, model IDs, credentials, raw errors, and arbitrary result URLs stay off the public contract.
 - **Durable background work:** PostgreSQL is the only business source of truth. Job creation, input binding, credit reservation, and the initial Outbox event commit atomically. Trigger.dev is the first-release task engine, while polling, Webhooks, and reconciliation recover work from persisted state.
 - **Auditable credits and subscriptions:** immutable ledger entries, expiring credit lots, atomic reservation/charge/release, zero charge when no usable output exists, monthly grants for monthly and annual paid plans, cancellation, refunds, and refund debt are modeled explicitly.
 - **Private media pipeline:** direct single-part or multipart upload, aggregate per-owner storage and active-session quotas, exact part constraints, signed reads, streamed Provider transfer, moderation, quarantine, soft delete, and durable object cleanup avoid buffering large videos through Vercel.
-- **Reusable product surfaces:** an upload-first public landing page, temporary anonymous Standard workspace, authenticated creator, private edit-session/version history, job history/detail, and asset library, all on one SaaS origin.
+- **Reusable product surfaces:** an upload-first public landing page, temporary sponsored guest workspace, authenticated creator, private edit-session/version history, job history/detail, and asset library, all on one SaaS origin.
 - **Operational controls:** generation, moderation, billing, Provider/model and queue gates; redacted structured logs; Sentry hooks; protected diagnostics, replay, stage retry and uncertain-submission resolution; CI, Provider smoke budgets, load profiles, and invariant verification.
 
 ## Local development
@@ -197,7 +201,10 @@ pnpm verify:invariants
 
 The guarded local route smoke is implemented and has passed against the isolated test database; its post-run invariant checks remained at zero violations. This workstation does not have k6 installed, so no real k6 result is claimed. The five-minute peak, 30-minute steady, and active-1000 profiles still require a dedicated staging-equivalent deployment and have not been certified from this checkout.
 
-Real Provider smoke tests are excluded from PR CI. The protected `Provider smoke` workflow validates its configured route allowlist, maximum invocation count, and maximum expected cost before a Provider call; no image-edit certification or live result is implied by local mocks or a dry run.
+Real Provider smoke tests are excluded from PR CI. The protected `Provider smoke` workflow validates
+all 20 product/SKU cells, its maximum invocation count, and its protected aggregate planning ceiling
+before a Provider call; no image-edit certification or live result is implied by local mocks or a dry
+run.
 
 The image-edit benchmark command is safe by default:
 

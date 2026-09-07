@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 
+import { EZPIC_PRODUCT_KEYS, LEGACY_EZPIC_PRODUCT_KEYS } from "@repo/config";
+
 import type { Prisma } from "../../generated/client";
 import {
 	createModeratedGenerationQuote,
@@ -638,7 +640,9 @@ function assertValidRetryOperation(operation: GenerationRetryOperation): void {
 function validRetryEditContext(operation: GenerationRetryOperation): boolean {
 	if (!operation.editContext) return true;
 	if (
-		(operation.productKey !== "image-fast" && operation.productKey !== "image-quality") ||
+		![...EZPIC_PRODUCT_KEYS, ...LEGACY_EZPIC_PRODUCT_KEYS].some(
+			(candidate) => candidate === operation.productKey,
+		) ||
 		!isJsonObject(operation.normalizedInput) ||
 		operation.normalizedInput.kind !== "image-to-image" ||
 		typeof operation.normalizedInput.sourceAssetId !== "string" ||

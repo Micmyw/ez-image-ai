@@ -1,24 +1,53 @@
 import {
+	EZPIC_PRODUCT_KEYS,
 	IMAGE_ASPECT_RATIOS,
+	IMAGE_BACKGROUNDS,
+	IMAGE_OUTPUT_FORMATS,
+	IMAGE_SKU_CREDIT_COSTS,
+	IMAGE_SKU_KEYS_BY_PRODUCT,
+	IMAGE_SKU_KEYS,
 	PRODUCT_CREDIT_COSTS,
 	type ImageAspectRatio,
+	type ImageBackground,
+	type ImageOutputFormat,
+	type ImageSkuKey,
 } from "@repo/config/client";
 import { hasGrowthAnalyticsConsent, readGrowthAnalyticsSessionHash } from "@repo/utils";
+
+import type { PublicImageSpecControl } from "../../media/lib/image-sku-selection";
 
 export const LANDING_IMAGE_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
 
 export type LandingImageContentType = (typeof LANDING_IMAGE_CONTENT_TYPES)[number];
 
-export type GuestProductKey = "image-fast" | "image-quality";
+export type GuestProductKey = (typeof EZPIC_PRODUCT_KEYS)[number];
 export type GuestProductAccessHint = "guest-trial" | "paid-account";
+
+export interface GuestCapabilitySkuMatrix {
+	defaultSkuKey: ImageSkuKey;
+	dimensions: ReadonlyArray<{
+		key: "resolution" | "quality";
+		label: string;
+		options: ReadonlyArray<{ key: string; label: string }>;
+	}>;
+	cells: ReadonlyArray<{
+		skuKey: ImageSkuKey;
+		label: string;
+		parameterValues: Partial<Record<"resolution" | "quality", string>>;
+		credits: number;
+		aspectRatios: readonly ImageAspectRatio[];
+		controls: readonly PublicImageSpecControl[];
+	}>;
+}
 
 export interface GuestCapabilityProduct {
 	key: GuestProductKey;
 	label: string;
 	description: string;
-	credits: `${(typeof PRODUCT_CREDIT_COSTS)[GuestProductKey]}`;
+	credits: `${number}`;
 	accessHint: GuestProductAccessHint;
 	aspectRatios: readonly ImageAspectRatio[];
+	skuMatrix: GuestCapabilitySkuMatrix;
 }
 
 export interface GuestCapabilitySnapshot {
@@ -53,15 +82,19 @@ export interface GuestDraftHandoff {
 	action: "/draft/continue";
 	claimToken: string;
 	productKey: GuestProductKey;
+	skuKey: ImageSkuKey;
 	accessHint: GuestProductAccessHint;
 }
 
 export interface GuestDraftUploadInput {
 	capabilityVersion: string;
 	productKey: GuestProductKey;
+	skuKey: ImageSkuKey;
 	file: File;
 	prompt: string;
 	aspectRatio: ImageAspectRatio;
+	outputFormat?: ImageOutputFormat;
+	background?: ImageBackground;
 	turnstileToken: string;
 	onStage?: (stage: "uploading" | "verifying") => void;
 	onProgress?: (progress: { loaded: number; total: number; percentage: number }) => void;
@@ -123,9 +156,12 @@ export async function uploadGuestDraft(input: GuestDraftUploadInput): Promise<Gu
 		completionToken: intent.completionToken,
 		capabilityVersion: input.capabilityVersion,
 		productKey: input.productKey,
+		skuKey: input.skuKey,
 		sha256,
 		prompt,
 		aspectRatio: input.aspectRatio,
+		...(input.outputFormat ? { outputFormat: input.outputFormat } : {}),
+		...(input.background ? { background: input.background } : {}),
 	});
 }
 
@@ -161,9 +197,12 @@ export async function completeGuestDraftUpload(
 		completionToken: string;
 		capabilityVersion: string;
 		productKey: GuestProductKey;
+		skuKey: ImageSkuKey;
 		sha256: string;
 		prompt: string;
 		aspectRatio?: ImageAspectRatio;
+		outputFormat?: ImageOutputFormat;
+		background?: ImageBackground;
 	},
 	options: {
 		maximumAttempts?: number;
@@ -192,6 +231,7 @@ export async function completeGuestDraftUpload(
 			claimToken?: unknown;
 			continueUrl?: unknown;
 			productKey?: unknown;
+			skuKey?: unknown;
 			accessHint?: unknown;
 		};
 		if (result.status === "PENDING") {
@@ -213,6 +253,7 @@ export async function completeGuestDraftUpload(
 			!/^[A-Za-z0-9_-]{43}$/.test(result.claimToken) ||
 			result.continueUrl !== "/draft/continue" ||
 			result.productKey !== input.productKey ||
+			result.skuKey !== input.skuKey ||
 			!isProductAccessHintForKey(result.accessHint, input.productKey)
 		) {
 			throw new Error("GUEST_UPLOAD_COMPLETION_INVALID");
@@ -221,6 +262,7 @@ export async function completeGuestDraftUpload(
 			action: "/draft/continue",
 			claimToken: result.claimToken,
 			productKey: input.productKey,
+			skuKey: input.skuKey,
 			accessHint: result.accessHint,
 		};
 	}
@@ -301,8 +343,9 @@ const CAPABILITY_KEYS = [
 ] as const;
 
 function validGuestProducts(value: unknown): value is GuestCapabilityProduct[] {
-	if (!Array.isArray(value) || value.length > 2) return false;
+	if (!Array.isArray(value) || value.length > EZPIC_PRODUCT_KEYS.length) return false;
 	const keys = new Set<string>();
+	const skuKeys = new Set<string>();
 	for (const product of value) {
 		if (
 			!isRecord(product) ||
@@ -313,6 +356,7 @@ function validGuestProducts(value: unknown): value is GuestCapabilityProduct[] {
 				"credits",
 				"accessHint",
 				"aspectRatios",
+				"skuMatrix",
 			]) ||
 			typeof product.label !== "string" ||
 			!product.label.trim() ||
@@ -320,9 +364,23 @@ function validGuestProducts(value: unknown): value is GuestCapabilityProduct[] {
 			!product.description.trim() ||
 			!isGuestProductKey(product.key) ||
 			!isProductAccessHintForKey(product.accessHint, product.key) ||
-			!hasExactImageAspectRatios(product.aspectRatios) ||
+			!hasValidImageAspectRatios(product.aspectRatios) ||
 			product.credits !== PRODUCT_CREDIT_COSTS[product.key].toString() ||
 			keys.has(product.key)
+		) {
+			return false;
+		}
+		if (!validGuestSkuMatrix(product.skuMatrix, product.key)) return false;
+		const skuMatrix = product.skuMatrix;
+		for (const cell of skuMatrix.cells) {
+			if (skuKeys.has(cell.skuKey)) return false;
+			skuKeys.add(cell.skuKey);
+		}
+		const defaultCell = skuMatrix.cells.find((cell) => cell.skuKey === skuMatrix.defaultSkuKey);
+		if (
+			!defaultCell ||
+			defaultCell.credits.toString() !== product.credits ||
+			!sameAspectRatios(defaultCell.aspectRatios, product.aspectRatios)
 		) {
 			return false;
 		}
@@ -331,23 +389,186 @@ function validGuestProducts(value: unknown): value is GuestCapabilityProduct[] {
 	return true;
 }
 
-function hasExactImageAspectRatios(value: unknown): value is ImageAspectRatio[] {
+function validGuestSkuMatrix(
+	value: unknown,
+	productKey: GuestProductKey,
+): value is GuestCapabilitySkuMatrix {
+	if (!isRecord(value) || !hasExactKeys(value, ["defaultSkuKey", "dimensions", "cells"])) {
+		return false;
+	}
+	const { cells, defaultSkuKey, dimensions } = value;
+	if (
+		!isProductSkuKey(productKey, defaultSkuKey) ||
+		!Array.isArray(dimensions) ||
+		dimensions.length > 2 ||
+		!Array.isArray(cells) ||
+		cells.length < 1
+	) {
+		return false;
+	}
+	const dimensionKeys = new Set<string>();
+	for (const dimension of dimensions) {
+		if (
+			!isRecord(dimension) ||
+			!hasExactKeys(dimension, ["key", "label", "options"]) ||
+			!(dimension.key === "resolution" || dimension.key === "quality") ||
+			dimensionKeys.has(dimension.key) ||
+			typeof dimension.label !== "string" ||
+			!dimension.label.trim() ||
+			!Array.isArray(dimension.options) ||
+			dimension.options.length < 1
+		) {
+			return false;
+		}
+		const options = dimension.options;
+		if (
+			!options.every(
+				(option) =>
+					isRecord(option) &&
+					hasExactKeys(option, ["key", "label"]) &&
+					typeof option.key === "string" &&
+					Boolean(option.key.trim()) &&
+					typeof option.label === "string" &&
+					Boolean(option.label.trim()),
+			)
+		) {
+			return false;
+		}
+		dimensionKeys.add(dimension.key);
+	}
+	const skuKeys = new Set<string>();
+	for (const cell of cells) {
+		if (
+			!isRecord(cell) ||
+			!hasExactKeys(cell, [
+				"skuKey",
+				"label",
+				"parameterValues",
+				"credits",
+				"aspectRatios",
+				"controls",
+			]) ||
+			!isProductSkuKey(productKey, cell.skuKey) ||
+			skuKeys.has(cell.skuKey) ||
+			typeof cell.label !== "string" ||
+			!cell.label.trim() ||
+			!Number.isSafeInteger(cell.credits) ||
+			cell.credits !== IMAGE_SKU_CREDIT_COSTS[cell.skuKey] ||
+			!isRecord(cell.parameterValues) ||
+			!hasValidImageAspectRatios(cell.aspectRatios) ||
+			!hasValidImageSpecControls(cell.controls)
+		) {
+			return false;
+		}
+		const parameterValues = cell.parameterValues;
+		if (
+			!hasExactKeys(parameterValues, [...dimensionKeys]) ||
+			![...dimensionKeys].every((key) => {
+				const dimension = dimensions.find(
+					(candidate) => isRecord(candidate) && candidate.key === key,
+				);
+				const selectedValue = parameterValues[key];
+				return (
+					typeof selectedValue === "string" &&
+					isRecord(dimension) &&
+					Array.isArray(dimension.options) &&
+					dimension.options.some((option) => isRecord(option) && option.key === selectedValue)
+				);
+			})
+		) {
+			return false;
+		}
+		skuKeys.add(cell.skuKey);
+	}
+	return skuKeys.has(defaultSkuKey);
+}
+
+function hasValidImageSpecControls(value: unknown): value is PublicImageSpecControl[] {
+	if (!Array.isArray(value) || value.length > 2) return false;
+	const controlKeys = new Set<string>();
+	for (const control of value) {
+		if (
+			!isRecord(control) ||
+			!hasExactKeys(control, ["key", "label", "defaultValue", "options"]) ||
+			!(control.key === "outputFormat" || control.key === "background") ||
+			controlKeys.has(control.key) ||
+			typeof control.label !== "string" ||
+			!control.label.trim() ||
+			typeof control.defaultValue !== "string" ||
+			!Array.isArray(control.options) ||
+			control.options.length < 1
+		) {
+			return false;
+		}
+		const optionKeys = new Set<string>();
+		for (const option of control.options) {
+			if (
+				!isRecord(option) ||
+				!hasExactKeys(option, ["key", "label"]) ||
+				typeof option.key !== "string" ||
+				!isAllowedImageSpecControlOption(control.key, option.key) ||
+				optionKeys.has(option.key) ||
+				typeof option.label !== "string" ||
+				!option.label.trim()
+			) {
+				return false;
+			}
+			optionKeys.add(option.key);
+		}
+		if (!optionKeys.has(control.defaultValue)) return false;
+		controlKeys.add(control.key);
+	}
+	return true;
+}
+
+function isAllowedImageSpecControlOption(
+	controlKey: PublicImageSpecControl["key"],
+	value: string,
+): boolean {
+	return controlKey === "outputFormat"
+		? IMAGE_OUTPUT_FORMATS.includes(value as ImageOutputFormat)
+		: IMAGE_BACKGROUNDS.includes(value as ImageBackground);
+}
+
+function hasValidImageAspectRatios(value: unknown): value is ImageAspectRatio[] {
 	return (
 		Array.isArray(value) &&
-		value.length === IMAGE_ASPECT_RATIOS.length &&
-		IMAGE_ASPECT_RATIOS.every((aspectRatio, index) => value[index] === aspectRatio)
+		value.length > 0 &&
+		new Set(value).size === value.length &&
+		value.every(
+			(aspectRatio) =>
+				typeof aspectRatio === "string" &&
+				IMAGE_ASPECT_RATIOS.includes(aspectRatio as ImageAspectRatio),
+		)
 	);
 }
 
+function sameAspectRatios(left: readonly unknown[], right: readonly unknown[]): boolean {
+	return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
 function isGuestProductKey(value: unknown): value is GuestProductKey {
-	return value === "image-fast" || value === "image-quality";
+	return EZPIC_PRODUCT_KEYS.includes(value as GuestProductKey);
+}
+
+function isImageSkuKey(value: unknown): value is ImageSkuKey {
+	return typeof value === "string" && IMAGE_SKU_KEYS.includes(value as ImageSkuKey);
+}
+
+function isProductSkuKey(productKey: GuestProductKey, value: unknown): value is ImageSkuKey {
+	return (
+		isImageSkuKey(value) &&
+		(IMAGE_SKU_KEYS_BY_PRODUCT[productKey] as readonly ImageSkuKey[]).includes(value)
+	);
 }
 
 function isProductAccessHintForKey(
 	value: unknown,
 	productKey: GuestProductKey,
 ): value is GuestProductAccessHint {
-	return productKey === "image-fast" ? value === "guest-trial" : value === "paid-account";
+	return productKey === "image-nano-banana-2-lite"
+		? value === "guest-trial"
+		: value === "paid-account";
 }
 
 function hasExactGuestMimeTypes(value: unknown): boolean {

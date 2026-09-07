@@ -15,6 +15,14 @@ const IMAGE_EDIT_INPUT = {
 	sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
 };
 
+const FREE_IMAGE_PRODUCT = "image-nano-banana-2-lite" as const;
+const PAID_IMAGE_PRODUCT = "image-nano-banana-2" as const;
+const KIE_IMAGE_ROUTE_GRAPH = {
+	enabledProviders: new Set(["kie" as const]),
+	generationEnabled: true,
+	kieImageCertifiedCatalogVersions: new Set(["2026-09-07.2"]),
+};
+
 const BASE_SNAPSHOT: GenerationAccessSnapshot = {
 	generationEnabled: true,
 	modelDisabled: false,
@@ -42,9 +50,9 @@ describe("generation authorization", () => {
 		await assertGenerationAllowed(
 			{
 				userId: "user-1",
-				productKey: "image-fast",
-				credits: 4n,
-				costMicros: 3_000n,
+				productKey: FREE_IMAGE_PRODUCT,
+				credits: 5n,
+				costMicros: 20_000n,
 				input: IMAGE_EDIT_INPUT,
 			},
 			{
@@ -78,9 +86,9 @@ describe("generation authorization", () => {
 			const assertion = assertGenerationAllowed(
 				{
 					userId: "user-1",
-					productKey: "image-fast",
-					credits: 4n,
-					costMicros: 3_000n,
+					productKey: FREE_IMAGE_PRODUCT,
+					credits: 5n,
+					costMicros: 20_000n,
 					input: IMAGE_EDIT_INPUT,
 				},
 				{
@@ -126,9 +134,9 @@ describe("generation authorization", () => {
 			assertGenerationAllowed(
 				{
 					userId: "user-1",
-					productKey: "image-quality",
-					credits: 10n,
-					costMicros: 8_000n,
+					productKey: PAID_IMAGE_PRODUCT,
+					credits: 9n,
+					costMicros: 40_000n,
 					input: IMAGE_EDIT_INPUT,
 				},
 				{
@@ -143,9 +151,9 @@ describe("generation authorization", () => {
 	it("uses the route graph supplied by quote/create admission instead of recomputing local process routing", async () => {
 		const input = {
 			userId: "user-1",
-			productKey: "image-fast" as const,
+			productKey: FREE_IMAGE_PRODUCT,
 			credits: 5n,
-			costMicros: 23_000n,
+			costMicros: 20_000n,
 			input: IMAGE_EDIT_INPUT,
 		};
 		const dependencies = {
@@ -158,11 +166,7 @@ describe("generation authorization", () => {
 			assertGenerationAllowed(
 				{
 					...input,
-					routeGraphOptions: {
-						enabledProviders: new Set(["openrouter"]),
-						generationEnabled: true,
-						openRouterImageRoutesCertified: true,
-					},
+					routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
 				},
 				dependencies,
 			),
@@ -183,9 +187,9 @@ describe("generation authorization", () => {
 			assertGenerationAllowed(
 				{
 					userId: "user-1",
-					productKey: "image-fast",
-					credits: 4n,
-					costMicros: 3_000n,
+					productKey: FREE_IMAGE_PRODUCT,
+					credits: 5n,
+					costMicros: 20_000n,
 					input: IMAGE_EDIT_INPUT,
 				},
 				{
@@ -204,9 +208,9 @@ describe("generation authorization", () => {
 			assertGenerationAllowed(
 				{
 					userId: "user-1",
-					productKey: "image-fast",
-					credits: 4n,
-					costMicros: 3_000n,
+					productKey: FREE_IMAGE_PRODUCT,
+					credits: 5n,
+					costMicros: 20_000n,
 					input: IMAGE_EDIT_INPUT,
 				},
 				{
@@ -224,9 +228,9 @@ describe("generation authorization", () => {
 			assertGenerationAllowed(
 				{
 					userId: "user-1",
-					productKey: "image-fast",
-					credits: 4n,
-					costMicros: 3_000n,
+					productKey: FREE_IMAGE_PRODUCT,
+					credits: 5n,
+					costMicros: 20_000n,
 					input: IMAGE_EDIT_INPUT,
 				},
 				{
@@ -244,9 +248,9 @@ describe("generation authorization", () => {
 			assertGenerationAllowed(
 				{
 					userId: "user-1",
-					productKey: "image-fast",
-					credits: 4n,
-					costMicros: 3_000n,
+					productKey: FREE_IMAGE_PRODUCT,
+					credits: 5n,
+					costMicros: 20_000n,
 					input: IMAGE_EDIT_INPUT,
 					catalogVersion: "2025-01-01.1",
 					pricingVersion: "2025-01-01.1",
@@ -263,9 +267,9 @@ describe("generation authorization", () => {
 	it("keeps quote checks prospective but leaves create daily-budget admission to its transaction", async () => {
 		const input = {
 			userId: "user-1",
-			productKey: "image-fast" as const,
-			credits: 4n,
-			costMicros: 60n,
+			productKey: FREE_IMAGE_PRODUCT,
+			credits: 5n,
+			costMicros: 20_000n,
 			input: IMAGE_EDIT_INPUT,
 		};
 		const dependencies = {

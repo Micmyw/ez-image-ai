@@ -7,7 +7,13 @@ describe("admin media product selector", () => {
 		const source = readFileSync(new URL("./MediaOperations.tsx", import.meta.url), "utf8");
 
 		expect(source).toContain("EZPIC_PRODUCT_KEYS");
+		expect(source).toContain('"image-nano-banana-2-lite"');
+		expect(source).toContain("products(`${key}.label`)");
 		expect(source).not.toContain("PRODUCT_MODEL_KEYS");
+		expect(source).not.toMatch(/image-fast|image-quality|Standard Edit|Quality Edit/);
+		expect(source).not.toMatch(
+			/\.providers\b|\.finance\b|providerEventId|providerModelId|providerTaskId|providerCostMicros|costMicros|marginMicros|>Provider</,
+		);
 	});
 
 	it("localizes guest control, state, and reason codes instead of rendering raw diagnostics", async () => {

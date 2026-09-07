@@ -1,6 +1,26 @@
-import { DEFAULT_PRODUCT_CONFIG, PRODUCT_CREDIT_COSTS, type ProductModelKey } from "@repo/config";
+import {
+	DEFAULT_PRODUCT_CONFIG,
+	PRODUCT_CREDIT_COSTS,
+	productModelKeySchema,
+	type ImageSkuKey,
+	type ProductModelKey,
+} from "@repo/config";
 import { z } from "zod";
 
+import {
+	getImageSpecCell,
+	GPT_IMAGE_1_5_MATRIX,
+	GPT_IMAGE_2_MATRIX,
+	type ImageSpecCell,
+	type ImageSpecMatrix,
+	NANO_BANANA_2_MATRIX,
+	NANO_BANANA_2_LITE_MATRIX,
+	NANO_BANANA_MATRIX,
+	NANO_BANANA_PRO_MATRIX,
+	SEEDREAM_4_5_MATRIX,
+	SEEDREAM_5_LITE_MATRIX,
+	SEEDREAM_5_PRO_MATRIX,
+} from "./image-spec-matrices";
 import {
 	executableRouteGraph,
 	type CatalogRoute,
@@ -18,6 +38,11 @@ export interface CatalogEntry {
 	inputKinds: MediaModelInput["kind"][];
 	credits: number;
 	routes: readonly CatalogRoute[];
+	imageSpecMatrix?: ImageSpecMatrix;
+}
+
+function matrixRoutes(matrix: ImageSpecMatrix): readonly CatalogRoute[] {
+	return matrix.cells.flatMap((cell) => cell.routes);
 }
 
 const CATALOG: Record<ProductModelKey, CatalogEntry> = {
@@ -52,6 +77,96 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 				weight: 100,
 			},
 		],
+	},
+	"image-nano-banana-2-lite": {
+		key: "image-nano-banana-2-lite",
+		label: "Nano Banana 2 Lite",
+		description: "Fast, credit-efficient image editing with a fixed 1K output",
+		mediaKind: "image",
+		inputKinds: ["image-to-image"],
+		credits: PRODUCT_CREDIT_COSTS["image-nano-banana-2-lite"],
+		routes: matrixRoutes(NANO_BANANA_2_LITE_MATRIX),
+		imageSpecMatrix: NANO_BANANA_2_LITE_MATRIX,
+	},
+	"image-nano-banana": {
+		key: "image-nano-banana",
+		label: "Nano Banana",
+		description: "Credit-efficient image editing with a focused standard output",
+		mediaKind: "image",
+		inputKinds: ["image-to-image"],
+		credits: PRODUCT_CREDIT_COSTS["image-nano-banana"],
+		routes: matrixRoutes(NANO_BANANA_MATRIX),
+		imageSpecMatrix: NANO_BANANA_MATRIX,
+	},
+	"image-nano-banana-2": {
+		key: "image-nano-banana-2",
+		label: "Nano Banana 2",
+		description: "Flexible image editing with independent 1K, 2K, and 4K output options",
+		mediaKind: "image",
+		inputKinds: ["image-to-image"],
+		credits: PRODUCT_CREDIT_COSTS["image-nano-banana-2"],
+		routes: matrixRoutes(NANO_BANANA_2_MATRIX),
+		imageSpecMatrix: NANO_BANANA_2_MATRIX,
+	},
+	"image-nano-banana-pro": {
+		key: "image-nano-banana-pro",
+		label: "Nano Banana Pro",
+		description: "Premium image editing with model-specific 1K, 2K, and 4K outputs",
+		mediaKind: "image",
+		inputKinds: ["image-to-image"],
+		credits: PRODUCT_CREDIT_COSTS["image-nano-banana-pro"],
+		routes: matrixRoutes(NANO_BANANA_PRO_MATRIX),
+		imageSpecMatrix: NANO_BANANA_PRO_MATRIX,
+	},
+	"image-gpt-image-1-5": {
+		key: "image-gpt-image-1-5",
+		label: "GPT Image 1.5",
+		description: "Image editing with independent Medium and High quality options",
+		mediaKind: "image",
+		inputKinds: ["image-to-image"],
+		credits: PRODUCT_CREDIT_COSTS["image-gpt-image-1-5"],
+		routes: matrixRoutes(GPT_IMAGE_1_5_MATRIX),
+		imageSpecMatrix: GPT_IMAGE_1_5_MATRIX,
+	},
+	"image-gpt-image-2": {
+		key: "image-gpt-image-2",
+		label: "GPT Image 2",
+		description: "Detailed image editing with independent 1K, 2K, and 4K output options",
+		mediaKind: "image",
+		inputKinds: ["image-to-image"],
+		credits: PRODUCT_CREDIT_COSTS["image-gpt-image-2"],
+		routes: matrixRoutes(GPT_IMAGE_2_MATRIX),
+		imageSpecMatrix: GPT_IMAGE_2_MATRIX,
+	},
+	"image-seedream-4-5": {
+		key: "image-seedream-4-5",
+		label: "Seedream 4.5",
+		description: "Image editing with independent Basic 2K and High 4K options",
+		mediaKind: "image",
+		inputKinds: ["image-to-image"],
+		credits: PRODUCT_CREDIT_COSTS["image-seedream-4-5"],
+		routes: matrixRoutes(SEEDREAM_4_5_MATRIX),
+		imageSpecMatrix: SEEDREAM_4_5_MATRIX,
+	},
+	"image-seedream-5-lite": {
+		key: "image-seedream-5-lite",
+		label: "Seedream 5 Lite",
+		description: "Image editing with independent Basic 2K, High 3K, and Ultra 4K options",
+		mediaKind: "image",
+		inputKinds: ["image-to-image"],
+		credits: PRODUCT_CREDIT_COSTS["image-seedream-5-lite"],
+		routes: matrixRoutes(SEEDREAM_5_LITE_MATRIX),
+		imageSpecMatrix: SEEDREAM_5_LITE_MATRIX,
+	},
+	"image-seedream-5-pro": {
+		key: "image-seedream-5-pro",
+		label: "Seedream 5 Pro",
+		description: "Image editing with independent Basic 1K and High 2K options",
+		mediaKind: "image",
+		inputKinds: ["image-to-image"],
+		credits: PRODUCT_CREDIT_COSTS["image-seedream-5-pro"],
+		routes: matrixRoutes(SEEDREAM_5_PRO_MATRIX),
+		imageSpecMatrix: SEEDREAM_5_PRO_MATRIX,
 	},
 	"video-fast": {
 		key: "video-fast",
@@ -88,7 +203,7 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 };
 
 const quoteInputSchema = z.object({
-	productKey: z.enum(["image-fast", "image-quality", "video-fast", "video-quality"]),
+	productKey: productModelKeySchema,
 	input: mediaModelInputSchema,
 });
 
@@ -125,11 +240,12 @@ export function createExecutableRouteGraph(options: ExecutableRouteGraphOptions)
 	entries: Array<CatalogEntry & { routes: readonly CatalogRoute[] }>;
 	getEntry(key: ProductModelKey): (CatalogEntry & { routes: readonly CatalogRoute[] }) | undefined;
 } {
-	const entries = executableRouteGraph(Object.values(CATALOG), options).map(
-		({ entry, routes }) => ({
-			...entry,
-			routes,
-		}),
+	const entries = executableRouteGraph(Object.values(CATALOG), options).flatMap(
+		({ entry, routes }) => {
+			const imageSpecMatrix = executableImageSpecMatrix(entry.imageSpecMatrix, routes);
+			if (entry.imageSpecMatrix && !imageSpecMatrix?.cells.length) return [];
+			return [{ ...entry, routes, ...(imageSpecMatrix ? { imageSpecMatrix } : {}) }];
+		},
 	);
 	return {
 		entries,
@@ -138,6 +254,7 @@ export function createExecutableRouteGraph(options: ExecutableRouteGraphOptions)
 }
 export function quoteCatalogInput(input: unknown): {
 	productKey: ProductModelKey;
+	skuKey?: ImageSkuKey;
 	credits: number;
 	catalogVersion: string;
 	pricingVersion: string;
@@ -146,6 +263,14 @@ export function quoteCatalogInput(input: unknown): {
 	const entry = getCatalogEntry(parsed.productKey);
 	if (!isCatalogInputSupported(entry, parsed.input))
 		throw new Error(`Input ${parsed.input.kind} is not supported by ${parsed.productKey}`);
+	const cell = selectedImageSpecCell(entry, parsed.input);
+	if (entry.imageSpecMatrix && !cell) {
+		throw new Error(`Invalid SKU for ${parsed.productKey}`);
+	}
+	if (cell) {
+		assertImageSpecAspectRatio(cell, parsed.input);
+		assertImageSpecControls(cell, parsed.input);
+	}
 	if (
 		parsed.productKey === "video-quality" &&
 		"durationSeconds" in parsed.input &&
@@ -156,8 +281,76 @@ export function quoteCatalogInput(input: unknown): {
 	}
 	return {
 		productKey: parsed.productKey,
-		credits: entry.credits,
+		...(cell ? { skuKey: cell.skuKey } : {}),
+		credits: cell?.credits ?? entry.credits,
 		catalogVersion: DEFAULT_PRODUCT_CONFIG.catalogVersion,
 		pricingVersion: DEFAULT_PRODUCT_CONFIG.pricingVersion,
 	};
+}
+
+export function getCatalogImageSpecCell(
+	entry: Pick<CatalogEntry, "imageSpecMatrix">,
+	skuKey: string | undefined,
+): ImageSpecCell | undefined {
+	return entry.imageSpecMatrix ? getImageSpecCell(entry.imageSpecMatrix, skuKey) : undefined;
+}
+
+function selectedImageSpecCell(
+	entry: CatalogEntry,
+	input: MediaModelInput,
+): ImageSpecCell | undefined {
+	if (!entry.imageSpecMatrix || input.kind !== "image-to-image") return undefined;
+	return getImageSpecCell(entry.imageSpecMatrix, input.skuKey);
+}
+
+function assertImageSpecAspectRatio(cell: ImageSpecCell, input: MediaModelInput): void {
+	if (
+		input.kind !== "image-to-image" ||
+		!input.aspectRatio ||
+		!cell.aspectRatios.includes(input.aspectRatio)
+	) {
+		throw new Error(`Invalid aspect ratio for SKU ${cell.skuKey}`);
+	}
+}
+
+function assertImageSpecControls(cell: ImageSpecCell, input: MediaModelInput): void {
+	if (input.kind !== "image-to-image") return;
+	if (input.strength !== undefined) {
+		throw new Error(`Invalid strength for SKU ${cell.skuKey}`);
+	}
+	for (const [key, value, label] of [
+		["outputFormat", input.outputFormat, "output format"],
+		["background", input.background, "background"],
+	] as const) {
+		if (value === undefined) continue;
+		const control = cell.controls?.find((candidate) => candidate.key === key);
+		if (!control?.options.some((option) => option.key === value)) {
+			throw new Error(`Invalid ${label} for SKU ${cell.skuKey}`);
+		}
+	}
+}
+
+function executableImageSpecMatrix(
+	matrix: ImageSpecMatrix | undefined,
+	executableRoutes: readonly CatalogRoute[],
+): ImageSpecMatrix | undefined {
+	if (!matrix) return undefined;
+	return {
+		...matrix,
+		cells: matrix.cells.flatMap((cell) => {
+			const routes = cell.routes.filter((route) =>
+				executableRoutes.some((candidate) => sameCatalogRoute(route, candidate)),
+			);
+			return routes.length ? [{ ...cell, routes }] : [];
+		}),
+	};
+}
+
+function sameCatalogRoute(left: CatalogRoute, right: CatalogRoute): boolean {
+	return (
+		left.provider === right.provider &&
+		left.providerModelId === right.providerModelId &&
+		left.providerCostMicros === right.providerCostMicros &&
+		left.weight === right.weight
+	);
 }

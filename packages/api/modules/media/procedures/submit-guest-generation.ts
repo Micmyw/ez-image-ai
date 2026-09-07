@@ -23,14 +23,15 @@ export const submitGuestGeneration = guestMediaProcedure
 		method: "POST",
 		path: "/media/guest-generations",
 		tags: ["Media"],
-		summary: "Submit one sponsored guest Standard edit",
+		summary: "Submit one sponsored guest Nano Banana 2 Lite edit",
 		description: "Atomically admits one bounded guest edit without immediate execution.",
 	})
 	.input(
 		z
 			.object({
 				capabilityVersion: z.string().min(1).max(128),
-				productKey: z.literal("image-fast"),
+				productKey: z.literal("image-nano-banana-2-lite"),
+				skuKey: z.literal("nano-banana-2-lite-1k"),
 				sourceAssetId: z.string().min(1).max(256),
 				prompt: promptSchema,
 				aspectRatio: imageAspectRatioSchema.default("auto"),

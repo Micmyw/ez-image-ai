@@ -17,14 +17,25 @@ import {
 } from ".";
 import { PrismaClient, type Prisma } from "../../generated/client";
 
+const ADMIN_TEST_IMAGE_PRODUCTS = [
+	{
+		productKey: "image-nano-banana-2-lite" as const,
+		publicName: "Nano Banana 2 Lite",
+		skuCells: [
+			{
+				skuKey: "nano-banana-2-lite-1k" as const,
+				aspectRatios: ["auto"] as const,
+			},
+		],
+	},
+] as const;
+
 interface SafePaymentEventDiagnostic {
 	id: string;
-	providerEventId: string;
 	status: "FAILED" | "DEAD_LETTER" | "IGNORED";
 	attemptCount: number;
 	lastTriggerAttempt: number | null;
 	lastAttemptAt: string | null;
-	lastTriggerRunId: string | null;
 	lastErrorClass: string | null;
 }
 
@@ -37,7 +48,7 @@ interface PaymentDiagnostics {
 	};
 	stripeReconciliation: {
 		checkpoint: null | {
-			provider: string;
+			id: string;
 			status: string;
 			stage: string;
 			pages: number;
@@ -52,9 +63,9 @@ interface PaymentDiagnostics {
 		issues: {
 			openCount: number;
 			items: Array<{
+				id: string;
 				code: string;
 				entityType: string;
-				providerObjectId: string;
 				stage: string;
 				occurrences: number;
 				firstSeenAt: string;
@@ -65,7 +76,7 @@ interface PaymentDiagnostics {
 			needsReviewCount: number;
 			missingLifecycleCount: number;
 			items: Array<{
-				providerRefundId: string;
+				refundId: string | null;
 				reason:
 					| "MISSING_LIFECYCLE"
 					| "NON_SUCCEEDED_LIFECYCLE"
@@ -758,10 +769,10 @@ describe("admin media database operations", () => {
 		const diagnostics = await getAdminMediaDiagnostics(client);
 		const serialized = JSON.stringify(diagnostics);
 		expect(serialized).not.toMatch(
-			/prompt|rawPayload|requestBody|responseBody|envelope|signature|signedUrl|objectKey|sourceUrl|token|url/i,
+			/prompt|rawPayload|requestBody|responseBody|envelope|signature|signedUrl|objectKey|sourceUrl|token|url|"providers?":|providerEventId|providerObjectId|providerRefundId|providerCost|costMicros|marginMicros|providerModelId|providerTaskId/i,
 		);
 		expect(diagnostics).toHaveProperty("queue.depth");
-		expect(diagnostics).toHaveProperty("finance.marginMicros");
+		expect(diagnostics).toHaveProperty("generation.failed");
 	});
 
 	it("separates safe payment-event diagnostics by processing status", async () => {
@@ -797,12 +808,10 @@ describe("admin media database operations", () => {
 				expect(bucket.count).toBeGreaterThan(0);
 				expect(bucket.items).toContainEqual({
 					id: event.id,
-					providerEventId: event.providerEventId,
 					status: event.status,
 					attemptCount: event.attemptCount,
 					lastTriggerAttempt: event.lastTriggerAttempt,
 					lastAttemptAt: lastAttemptAt.toISOString(),
-					lastTriggerRunId: event.lastTriggerRunId,
 					lastErrorClass: event.lastErrorClass,
 				});
 			}
@@ -833,7 +842,11 @@ describe("admin media database operations", () => {
 			},
 		});
 
-		const diagnostics = await listAdminUncertainGenerationAttempts({ limit: 100 }, client);
+		const diagnostics = await listAdminUncertainGenerationAttempts(
+			{ limit: 100 },
+			client,
+			ADMIN_TEST_IMAGE_PRODUCTS,
+		);
 		const item = diagnostics.find((diagnostic) => diagnostic.ids.attemptId === fixture.attemptId);
 
 		expect(item).toEqual({
@@ -842,7 +855,11 @@ describe("admin media database operations", () => {
 				jobId: fixture.jobId,
 				reservationId: fixture.reservationId,
 			},
-			route: { provider: "fal", providerModelId: "test-model" },
+			selection: {
+				productKey: "image-nano-banana-2-lite",
+				skuKey: "nano-banana-2-lite-1k",
+				aspectRatio: "auto",
+			},
 			status: { attempt: "NEEDS_RECONCILIATION", job: "NEEDS_RECONCILIATION" },
 			timestamps: {
 				createdAt: expect.any(String),
@@ -857,17 +874,28 @@ describe("admin media database operations", () => {
 			reasonCode: "SUBMISSION_UNCERTAIN_NEEDS_RECONCILIATION",
 		});
 		expect(JSON.stringify(item)).not.toMatch(
-			/providerTaskId|providerStatusUrl|providerResultUrl|submissionToken|requestSnapshot|responseSnapshot|errorSnapshot|prompt|rawPayload|signature|token|secret/i,
+			/"route":|"provider":|providerModelId|providerTaskId|providerStatusUrl|providerResultUrl|providerCostMicros|costMicros|marginMicros|submissionToken|requestSnapshot|responseSnapshot|errorSnapshot|prompt|rawPayload|signature|token|secret/i,
 		);
 
 		await client.generationJob.update({
 			where: { id: fixture.jobId },
 			data: { failureCode: "UNSAFE_REASON_WITH_SECRET" },
 		});
-		const [redacted] = (await listAdminUncertainGenerationAttempts({ limit: 100 }, client)).filter(
-			(diagnostic) => diagnostic.ids.attemptId === fixture.attemptId,
-		);
+		const [redacted] = (
+			await listAdminUncertainGenerationAttempts({ limit: 100 }, client, ADMIN_TEST_IMAGE_PRODUCTS)
+		).filter((diagnostic) => diagnostic.ids.attemptId === fixture.attemptId);
 		expect(redacted?.reasonCode).toBe("SUBMISSION_UNCERTAIN");
+
+		await client.generationJob.update({
+			where: { id: fixture.jobId },
+			data: {
+				inputSnapshot: { skuKey: "nano-banana-2-lite-1k", aspectRatio: "not-supported" },
+			},
+		});
+		const [invalidSelection] = (
+			await listAdminUncertainGenerationAttempts({ limit: 100 }, client, ADMIN_TEST_IMAGE_PRODUCTS)
+		).filter((diagnostic) => diagnostic.ids.attemptId === fixture.attemptId);
+		expect(invalidSelection?.selection).toBeNull();
 	});
 
 	it("returns only allowlisted Stripe reconciliation diagnostics", async () => {
@@ -940,7 +968,7 @@ describe("admin media database operations", () => {
 			const diagnostics = (await getAdminMediaDiagnostics(client)) as unknown as PaymentDiagnostics;
 			const reconciliation = diagnostics.stripeReconciliation;
 			expect(reconciliation.checkpoint).toEqual({
-				provider: "stripe",
+				id: checkpointId,
 				status: "RUNNING",
 				stage: "INVOICES",
 				pages: 7,
@@ -959,15 +987,7 @@ describe("admin media database operations", () => {
 			expect(reconciliation.issues.items).toHaveLength(25);
 			for (const issue of reconciliation.issues.items) {
 				expect(Object.keys(issue).sort()).toEqual(
-					[
-						"code",
-						"entityType",
-						"firstSeenAt",
-						"lastSeenAt",
-						"occurrences",
-						"providerObjectId",
-						"stage",
-					].sort(),
+					["id", "code", "entityType", "firstSeenAt", "lastSeenAt", "occurrences", "stage"].sort(),
 				);
 			}
 			const serialized = JSON.stringify(reconciliation);
@@ -975,6 +995,7 @@ describe("admin media database operations", () => {
 			expect(serialized).not.toContain(secretLeaseToken);
 			expect(serialized).not.toContain(secretDetails);
 			expect(serialized).not.toContain('"details"');
+			expect(serialized).not.toMatch(/providerObjectId|providerRefundId|providerEventId/);
 		} finally {
 			await client.stripeReconciliationIssue.deleteMany({ where: { sweepId } });
 			if (previous) {
@@ -1120,6 +1141,17 @@ describe("admin media database operations", () => {
 				},
 			],
 		});
+		const refundRows = await client.stripeRefund.findMany({
+			where: {
+				providerRefundId: {
+					in: [trackedRefundId, consistentRefundId, unfinalizedRefundId, mismatchedRefundId],
+				},
+			},
+			select: { id: true, providerRefundId: true },
+		});
+		const refundIdByExternalId = new Map(
+			refundRows.map((refund) => [refund.providerRefundId, refund.id]),
+		);
 
 		const diagnostics = (await getAdminMediaDiagnostics(client)) as unknown as PaymentDiagnostics;
 		const historical = diagnostics.stripeReconciliation.historicalRefunds;
@@ -1127,7 +1159,7 @@ describe("admin media database operations", () => {
 		expect(historical.missingLifecycleCount).toBeGreaterThanOrEqual(1);
 		expect(historical.items.length).toBeLessThanOrEqual(25);
 		expect(historical.items).toContainEqual({
-			providerRefundId: missingRefundId,
+			refundId: null,
 			reason: "MISSING_LIFECYCLE",
 			lifecycleStatus: null,
 			ledgerEntryCount: 2,
@@ -1138,7 +1170,7 @@ describe("admin media database operations", () => {
 			lastLedgerAt: lastLedgerAt.toISOString(),
 		});
 		expect(historical.items).toContainEqual({
-			providerRefundId: trackedRefundId,
+			refundId: refundIdByExternalId.get(trackedRefundId),
 			reason: "NON_SUCCEEDED_LIFECYCLE",
 			lifecycleStatus: "FAILED",
 			ledgerEntryCount: 1,
@@ -1148,11 +1180,13 @@ describe("admin media database operations", () => {
 			firstLedgerAt: new Date(lastLedgerAt.getTime() + 1_000).toISOString(),
 			lastLedgerAt: new Date(lastLedgerAt.getTime() + 1_000).toISOString(),
 		});
-		expect(historical.items.some((item) => item.providerRefundId === consistentRefundId)).toBe(
-			false,
-		);
+		expect(
+			historical.items.some(
+				(item) => item.refundId === refundIdByExternalId.get(consistentRefundId),
+			),
+		).toBe(false);
 		expect(historical.items).toContainEqual({
-			providerRefundId: unfinalizedRefundId,
+			refundId: refundIdByExternalId.get(unfinalizedRefundId),
 			reason: "FINALIZATION_MISSING",
 			lifecycleStatus: "SUCCEEDED",
 			ledgerEntryCount: 1,
@@ -1163,7 +1197,7 @@ describe("admin media database operations", () => {
 			lastLedgerAt: new Date(lastLedgerAt.getTime() + 3_000).toISOString(),
 		});
 		expect(historical.items).toContainEqual({
-			providerRefundId: mismatchedRefundId,
+			refundId: refundIdByExternalId.get(mismatchedRefundId),
 			reason: "CREDIT_TOTAL_MISMATCH",
 			lifecycleStatus: "SUCCEEDED",
 			ledgerEntryCount: 1,
@@ -1202,7 +1236,7 @@ describe("admin media database operations", () => {
 				createdAt: new Date(Date.now() + 60_000),
 			},
 		});
-		await client.stripeRefund.create({
+		const refund = await client.stripeRefund.create({
 			data: {
 				provider: "stripe",
 				providerRefundId,
@@ -1221,153 +1255,62 @@ describe("admin media database operations", () => {
 		const diagnostics = (await getAdminMediaDiagnostics(client)) as unknown as PaymentDiagnostics;
 		expect(
 			diagnostics.stripeReconciliation.historicalRefunds.items.some(
-				(item) => item.providerRefundId === providerRefundId,
+				(item) => item.refundId === refund.id,
 			),
 		).toBe(false);
 	});
 
-	it("uses normalized billing rows instead of raw envelopes for finance diagnostics", async () => {
+	it("returns generation status counts without route or cost details", async () => {
 		const suffix = crypto.randomUUID();
 		const before = await getAdminMediaDiagnostics(client);
-		const old = new Date("2026-01-01T00:00:00Z");
-		await client.paymentEvent.createMany({
-			data: [
-				{
-					provider: "stripe",
-					providerEventId: `invoice-${suffix}`,
-					verifiedAt: old,
-					receivedAt: old,
-					processedAt: new Date(),
-					status: "PROCESSED" as const,
-					envelope: { type: "invoice.paid", data: { object: { amount_paid: 999 } } },
-				},
-				{
-					provider: "stripe",
-					providerEventId: `refund-${suffix}`,
-					verifiedAt: old,
-					receivedAt: old,
-					processedAt: new Date(),
-					status: "PROCESSED" as const,
-					envelope: { type: "refund.created", data: { object: { amount: 888 } } },
-				},
-				{
-					provider: "stripe",
-					providerEventId: `charge-refund-${suffix}`,
-					verifiedAt: old,
-					receivedAt: old,
-					processedAt: new Date(),
-					status: "PROCESSED" as const,
-					envelope: {
-						type: "charge.refund.updated",
-						data: { object: { amount: 777 } },
-					},
-				},
-			],
-		});
-		const plan = await client.billingPlan.create({
-			data: {
-				provider: "stripe",
-				providerPriceId: `finance-price-${suffix}`,
-				name: "finance fixture",
-				creditsPerPeriod: 10n,
-				priceMicros: 1_000_000n,
-				currency: "USD",
-				metadata: { planId: "finance", interval: "month" },
-			},
-		});
-		const subscription = await client.subscription.create({
-			data: {
-				ownerType: "USER",
-				ownerId: `finance-owner-${suffix}`,
-				provider: "stripe",
-				providerSubscriptionId: `finance-subscription-${suffix}`,
-				planId: plan.id,
-				status: "ACTIVE",
-			},
-		});
-		await client.billingPeriod.create({
-			data: {
-				subscriptionId: subscription.id,
-				startsAt: new Date(),
-				endsAt: new Date(Date.now() + 28 * 24 * 60 * 60_000),
-				status: "ACTIVE",
-				creditAmount: 10n,
-				providerInvoiceId: `finance-invoice-${suffix}`,
-				providerInvoicePaymentId: `finance-payment-${suffix}`,
-				providerChargeId: `finance-charge-${suffix}`,
-				paidAmount: 100n,
-			},
-		});
-		await client.stripeRefund.create({
-			data: {
-				provider: "stripe",
-				providerRefundId: `finance-refund-${suffix}`,
-				providerChargeId: `finance-charge-${suffix}`,
-				amount: 40n,
-				currency: "USD",
-				status: "SUCCEEDED",
-				providerCreatedAt: new Date(),
-				lastProviderChangeAt: new Date(),
-				lastProviderChangeId: `finance-change-${suffix}`,
-				finalizedCredits: 4n,
-				creditsFinalizedAt: new Date(),
-			},
-		});
 		const quote = await client.generationQuote.create({
 			data: {
 				ownerType: "USER",
-				ownerId: `finance-owner-${suffix}`,
-				submittedByUserId: `finance-owner-${suffix}`,
-				productKey: "image-fast",
+				ownerId: `safe-diagnostic-owner-${suffix}`,
+				submittedByUserId: `safe-diagnostic-owner-${suffix}`,
+				productKey: "image-nano-banana-2-lite",
 				catalogVersion: "test-v1",
 				pricingVersion: "test-v1",
-				credits: 1n,
-				costMicros: 0n,
-				inputSnapshot: {},
-				pricingSnapshot: {},
-				createdAt: old,
+				credits: 5n,
+				costMicros: 20_000n,
+				inputSnapshot: { skuKey: "nano-banana-2-lite-1k", aspectRatio: "auto" },
+				pricingSnapshot: { privateInternalCost: 20_000 },
 				expiresAt: new Date(Date.now() + 60_000),
 			},
 		});
 		const job = await client.generationJob.create({
 			data: {
 				ownerType: "USER",
-				ownerId: `finance-owner-${suffix}`,
-				submittedByUserId: `finance-owner-${suffix}`,
+				ownerId: `safe-diagnostic-owner-${suffix}`,
+				submittedByUserId: `safe-diagnostic-owner-${suffix}`,
 				quoteId: quote.id,
-				idempotencyKey: `finance-job-${suffix}`,
-				productKey: "image-fast",
+				idempotencyKey: `safe-diagnostic-job-${suffix}`,
+				productKey: "image-nano-banana-2-lite",
 				catalogVersion: "test-v1",
 				pricingVersion: "test-v1",
-				creditsReserved: 1n,
-				inputSnapshot: {},
-				pricingSnapshot: {},
-				createdAt: old,
+				creditsReserved: 5n,
+				inputSnapshot: { skuKey: "nano-banana-2-lite-1k", aspectRatio: "auto" },
+				pricingSnapshot: { privateInternalCost: 20_000 },
 			},
 		});
 		await client.generationAttempt.create({
 			data: {
 				jobId: job.id,
 				attemptNumber: 1,
-				provider: "replicate",
-				providerModelId: "test-model",
+				provider: "kie",
+				providerModelId: "private-model-must-not-leak",
 				requestSnapshot: {},
 				status: "SUCCEEDED",
 				providerCostMicros: 125_000n,
-				createdAt: old,
+				createdAt: new Date(),
 				completedAt: new Date(),
 			},
 		});
 		const after = await getAdminMediaDiagnostics(client);
-		expect(BigInt(after.finance.revenueMicros) - BigInt(before.finance.revenueMicros)).toBe(
-			1_000_000n,
+		expect(after.generation.succeeded - before.generation.succeeded).toBe(1);
+		expect(JSON.stringify(after)).not.toMatch(
+			/private-model-must-not-leak|privateInternalCost|"providers?":|providerModelId|providerCostMicros|costMicros|marginMicros/,
 		);
-		expect(BigInt(after.finance.refundedMicros) - BigInt(before.finance.refundedMicros)).toBe(
-			400_000n,
-		);
-		expect(
-			BigInt(after.finance.providerCostMicros) - BigInt(before.finance.providerCostMicros),
-		).toBe(125_000n);
 	});
 });
 
@@ -1396,12 +1339,12 @@ async function seedUncertainAttempt(
 		ownerType: "USER",
 		ownerId,
 		submittedByUserId: ownerId,
-		productKey: "image-fast",
+		productKey: "image-nano-banana-2-lite",
 		catalogVersion: "test-v1",
 		pricingVersion: "test-v1",
 		credits: 4n,
 		costMicros: 1_000n,
-		inputSnapshot: {},
+		inputSnapshot: { skuKey: "nano-banana-2-lite-1k", aspectRatio: "auto" },
 		pricingSnapshot: {},
 		expiresAt: new Date(Date.now() + 60_000),
 	} as const;

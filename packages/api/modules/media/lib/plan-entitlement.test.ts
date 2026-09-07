@@ -26,7 +26,17 @@ describe("loadUserPlanEntitlement", () => {
 			id: "creator",
 			maximumConcurrentJobs: 3,
 			maximumInputBytes: 20 * 1024 * 1024,
-			allowedProducts: ["image-fast", "image-quality"],
+			allowedProducts: [
+				"image-nano-banana-2-lite",
+				"image-nano-banana",
+				"image-nano-banana-2",
+				"image-nano-banana-pro",
+				"image-gpt-image-1-5",
+				"image-gpt-image-2",
+				"image-seedream-4-5",
+				"image-seedream-5-lite",
+				"image-seedream-5-pro",
+			],
 		});
 		expect(database.findEffectiveSubscription).toHaveBeenCalledWith(
 			{ ownerType: "USER", ownerId: "user-1", now },
@@ -41,7 +51,7 @@ describe("loadUserPlanEntitlement", () => {
 			id: "free",
 			maximumConcurrentJobs: 1,
 			maximumInputBytes: 10 * 1024 * 1024,
-			allowedProducts: ["image-fast"],
+			allowedProducts: ["image-nano-banana-2-lite"],
 		});
 	});
 });

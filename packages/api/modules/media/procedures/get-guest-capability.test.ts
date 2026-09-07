@@ -20,20 +20,78 @@ describe("getGuestCapability", () => {
 			},
 			products: [
 				{
-					key: "image-fast",
-					label: "Standard Edit",
+					key: "image-nano-banana-2-lite",
+					label: "Nano Banana 2 Lite",
 					description: "Everyday private edits",
 					credits: "5",
 					accessHint: "guest-trial",
-					aspectRatios: ["auto", "1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9"],
+					aspectRatios: ["auto", "1:1", "16:9"],
+					skuMatrix: {
+						defaultSkuKey: "nano-banana-2-lite-1k",
+						dimensions: [
+							{ key: "resolution", label: "Resolution", options: [{ key: "1k", label: "1K" }] },
+						],
+						cells: [
+							{
+								skuKey: "nano-banana-2-lite-1k",
+								label: "1K",
+								parameterValues: { resolution: "1k" },
+								credits: 5,
+								aspectRatios: ["auto", "1:1", "16:9"],
+								controls: [],
+							},
+						],
+					},
 				},
 				{
-					key: "image-quality",
-					label: "Quality Edit",
+					key: "image-gpt-image-2",
+					label: "GPT Image 2",
 					description: "Higher fidelity private edits",
-					credits: "40",
+					credits: "7",
 					accessHint: "paid-account",
-					aspectRatios: ["auto", "1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9"],
+					aspectRatios: ["auto", "1:1", "16:9"],
+					skuMatrix: {
+						defaultSkuKey: "gpt-image-2-1k",
+						dimensions: [
+							{
+								key: "resolution",
+								label: "Resolution",
+								options: [
+									{ key: "1k", label: "1K" },
+									{ key: "4k", label: "4K" },
+								],
+							},
+						],
+						cells: [
+							{
+								skuKey: "gpt-image-2-1k",
+								label: "1K",
+								parameterValues: { resolution: "1k" },
+								credits: 7,
+								aspectRatios: ["auto", "1:1", "16:9"],
+								controls: [
+									{
+										key: "background",
+										label: "Background",
+										defaultValue: "opaque",
+										options: [
+											{ key: "auto", label: "Auto" },
+											{ key: "opaque", label: "Opaque" },
+											{ key: "transparent", label: "Transparent" },
+										],
+									},
+								],
+							},
+							{
+								skuKey: "gpt-image-2-4k",
+								label: "4K",
+								parameterValues: { resolution: "4k" },
+								credits: 17,
+								aspectRatios: ["16:9"],
+								controls: [],
+							},
+						],
+					},
 				},
 			],
 			queueEstimate: { kind: "capacity" },
@@ -46,8 +104,15 @@ describe("getGuestCapability", () => {
 			context: { headers: new Headers(), responseHeaders },
 		});
 
-		expect(result.products.map((product) => product.credits)).toEqual(["5", "40"]);
+		expect(result.products.map((product) => product.credits)).toEqual(["5", "7"]);
 		expect(result.products[0]?.aspectRatios).toContain("16:9");
+		expect(result.products[1]?.skuMatrix.cells[0]?.controls).toEqual([
+			expect.objectContaining({
+				key: "background",
+				defaultValue: "opaque",
+			}),
+		]);
+		expect(JSON.stringify(result)).not.toMatch(/provider|modelId|costMicros/i);
 		expect(responseHeaders.get("Cache-Control")).toBe("no-store");
 	});
 });

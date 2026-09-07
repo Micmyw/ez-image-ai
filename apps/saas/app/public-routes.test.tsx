@@ -12,7 +12,12 @@ vi.mock("@shared/lib/base-url", () => ({
 }));
 
 vi.mock("@repo/config/client", () => ({
-	getPlanUsageEstimate: () => ({ qualityEdits: 1, standardEdits: 10 }),
+	getPlanUsageEstimate: () => ({
+		minimumImageEdits: 4,
+		maximumImageEdits: 10,
+		minimumCreditsPerImage: 5,
+		maximumCreditsPerImage: 17,
+	}),
 	getPublicConfig: () => ({
 		brand: {
 			siteDescription: "Private AI image editing",
@@ -322,8 +327,8 @@ describe("consolidated public route contract", () => {
 		for (const messageKey of [
 			"pricing.concurrentEdits",
 			"pricing.maximumInputSize",
-			"pricing.standardEdit",
-			"pricing.qualityEdit",
+			"pricing.nanoModel",
+			"pricing.allImageModels",
 			"pricing.privateAssets",
 			"pricing.editHistory",
 			"pricing.aspectRatios",

@@ -17,33 +17,42 @@ import {
 	resolveDatabaseDispatchRoute,
 } from "./runtime";
 
-const OPENROUTER_FAST_ROUTE = {
+const LEGACY_OPENROUTER_FAST_ROUTE = {
 	provider: "openrouter",
 	providerModelId: "sourceful/riverflow-v2.5-fast",
 	providerCostMicros: 21_000,
 	weight: 100,
 } as const satisfies CatalogRoute;
 
-const REPLICATE_FAST_ROUTE = {
+const LEGACY_REPLICATE_FAST_ROUTE = {
 	provider: "replicate",
 	providerModelId: "black-forest-labs/flux-schnell",
 	providerCostMicros: 3_000,
 	weight: 80,
 } as const satisfies CatalogRoute;
 
-const FAL_FAST_ROUTE = {
+const LEGACY_FAL_FAST_ROUTE = {
 	provider: "fal",
 	providerModelId: "fal-ai/flux/schnell",
 	providerCostMicros: 3_500,
 	weight: 20,
 } as const satisfies CatalogRoute;
 
-const GEMINI_QUALITY_ROUTE = {
+const LEGACY_GEMINI_QUALITY_ROUTE = {
 	provider: "gemini",
 	providerModelId: "gemini-2.5-flash-image",
 	providerCostMicros: 8_000,
 	weight: 100,
 } as const satisfies CatalogRoute;
+
+const KIE_NANO_BANANA_2_LITE_ROUTE = {
+	provider: "kie",
+	providerModelId: "nano-banana-2-lite",
+	providerCostMicros: 20_000,
+	weight: 100,
+} as const satisfies CatalogRoute;
+
+const KIE_IMAGE_CATALOG_VERSION = "2026-09-07.2";
 
 describe("provider runtime registration", () => {
 	it("physically deletes expired guest objects after database read authorization is already closed", async () => {
@@ -124,62 +133,99 @@ describe("provider runtime registration", () => {
 		expect([...registry.keys()]).toEqual(["replicate", "fal", "kie", "gemini"]);
 	});
 
-	it("registers OpenRouter only when it is configured and locally credentialed", () => {
-		const registry = createProviderRegistry({
+	it("ignores enabled OpenRouter for submissions and registers it only for explicit recovery", () => {
+		const environment = {
 			NODE_ENV: "production",
-			MEDIA_ENABLED_PROVIDERS: "openrouter",
+			MEDIA_ENABLED_PROVIDERS: "kie,openrouter",
+			MEDIA_RECOVERY_PROVIDERS: "openrouter",
+			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
+			KIE_API_KEY: "kie-worker-secret",
 			OPENROUTER_API_KEY: "openrouter-worker-secret",
-		});
+		};
 
-		expect([...registry.keys()]).toEqual(["openrouter"]);
-		expect(registry.get("openrouter").provider).toBe("openrouter");
+		expect([...createProviderRegistry(environment).keys()]).toEqual(["kie"]);
+		expect([...createReconciliationProviderRegistry(environment).keys()]).toEqual([
+			"kie",
+			"openrouter",
+		]);
+		expect([
+			...createProviderRegistry(environment, { includeRecoveryProviders: true }).keys(),
+		]).toEqual(["kie", "openrouter"]);
 		expect(() =>
-			createProviderRegistry({
-				NODE_ENV: "production",
-				MEDIA_ENABLED_PROVIDERS: "openrouter",
-			}),
+			createProviderRegistry(
+				{
+					NODE_ENV: "production",
+					MEDIA_ENABLED_PROVIDERS: "kie",
+					MEDIA_RECOVERY_PROVIDERS: "openrouter",
+					KIE_API_KEY: "kie-worker-secret",
+				},
+				{ includeRecoveryProviders: true },
+			),
 		).toThrow("PROVIDER_WORKER_CREDENTIAL_MISSING:openrouter");
 	});
 
-	it("rechecks OpenRouter certification for each frozen route resolution without affecting Replicate", async () => {
+	it("does not let enabled OpenRouter leak into a recovery-capable registry", () => {
+		const environment = {
+			NODE_ENV: "production",
+			MEDIA_ENABLED_PROVIDERS: "openrouter",
+			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
+			OPENROUTER_API_KEY: "openrouter-worker-secret",
+		};
+
+		expect([...createProviderRegistry(environment).keys()]).toEqual([]);
+		expect([
+			...createProviderRegistry(environment, { includeRecoveryProviders: true }).keys(),
+		]).toEqual([]);
+		expect([...createReconciliationProviderRegistry(environment).keys()]).toEqual([]);
+	});
+
+	it("never resolves a legacy OpenRouter frozen route for submission", async () => {
 		const environment: Record<string, string | undefined> = {
 			MEDIA_GENERATION_ENABLED: "true",
-			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "false",
+			MEDIA_ENABLED_PROVIDERS: "openrouter",
+			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
 		};
 		const openRouterDatabase = routeResolutionDatabase(
-			frozenRouteJob("job_openrouter", [OPENROUTER_FAST_ROUTE]),
+			frozenRouteJob("job_openrouter", [LEGACY_OPENROUTER_FAST_ROUTE]),
 		);
 
 		await expect(
 			resolveDatabaseDispatchRoute("job_openrouter", {
 				database: openRouterDatabase as never,
 				environment,
-				enabledProviders: new Set(["openrouter"]),
+			}),
+		).resolves.toBeNull();
+	});
+
+	it("requires the exact frozen catalog version for every Kie image dispatch", async () => {
+		const environment: Record<string, string | undefined> = {
+			MEDIA_GENERATION_ENABLED: "true",
+			MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
+			MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "2026-09-07.0",
+		};
+		const database = routeResolutionDatabase(
+			frozenRouteJob("job_kie_nano", [KIE_NANO_BANANA_2_LITE_ROUTE], "image-nano-banana-2-lite"),
+		);
+
+		await expect(
+			resolveDatabaseDispatchRoute("job_kie_nano", {
+				database: database as never,
+				environment,
+				enabledProviders: new Set(["kie"]),
 			}),
 		).resolves.toBeNull();
 
-		environment.MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED = "true";
+		environment.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS = `2026-09-07.0, ${KIE_IMAGE_CATALOG_VERSION}`;
 		await expect(
-			resolveDatabaseDispatchRoute("job_openrouter", {
-				database: openRouterDatabase as never,
+			resolveDatabaseDispatchRoute("job_kie_nano", {
+				database: database as never,
 				environment,
-				enabledProviders: new Set(["openrouter"]),
+				enabledProviders: new Set(["kie"]),
 			}),
 		).resolves.toMatchObject({
-			provider: "openrouter",
-			providerModelId: OPENROUTER_FAST_ROUTE.providerModelId,
+			provider: "kie",
+			providerModelId: KIE_NANO_BANANA_2_LITE_ROUTE.providerModelId,
 		});
-
-		environment.MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED = "false";
-		await expect(
-			resolveDatabaseDispatchRoute("job_replicate", {
-				database: routeResolutionDatabase(
-					frozenRouteJob("job_replicate", [REPLICATE_FAST_ROUTE]),
-				) as never,
-				environment,
-				enabledProviders: new Set(["replicate"]),
-			}),
-		).resolves.toMatchObject({ provider: "replicate" });
 	});
 
 	it("executes retired image routes only from immutable quote snapshots", async () => {
@@ -191,9 +237,9 @@ describe("provider runtime registration", () => {
 		]);
 
 		for (const [productKey, route] of [
-			["image-fast", REPLICATE_FAST_ROUTE],
-			["image-fast", FAL_FAST_ROUTE],
-			["image-quality", GEMINI_QUALITY_ROUTE],
+			["image-fast", LEGACY_REPLICATE_FAST_ROUTE],
+			["image-fast", LEGACY_FAL_FAST_ROUTE],
+			["image-quality", LEGACY_GEMINI_QUALITY_ROUTE],
 		] as const) {
 			await expect(
 				resolveDatabaseDispatchRoute(`job_${route.provider}`, {
@@ -210,39 +256,31 @@ describe("provider runtime registration", () => {
 		}
 	});
 
-	it("rechecks OpenRouter certification for every claim on an existing worker store", async () => {
+	it("never claims a legacy OpenRouter route for submission", async () => {
 		const environment: Record<string, string | undefined> = {
 			MEDIA_GENERATION_ENABLED: "true",
-			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "false",
+			MEDIA_ENABLED_PROVIDERS: "openrouter",
+			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
+			OPENROUTER_API_KEY: "openrouter-worker-secret",
 		};
-		const database = dispatchDatabase(frozenRouteJob("job_openrouter", [OPENROUTER_FAST_ROUTE]));
+		const database = dispatchDatabase(
+			frozenRouteJob("job_openrouter", [LEGACY_OPENROUTER_FAST_ROUTE]),
+		);
 		const store = createDatabaseDispatchStore(database as never, {
 			environment,
-			enabledProviders: new Set(["openrouter"]),
 			createSignedReadUrl: async () => "https://private.example.test/signed-input",
 		});
 
 		await expect(store.claimDispatch({ jobId: "job_openrouter", version: 1 })).resolves.toBeNull();
-
-		environment.MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED = "true";
-		await expect(
-			store.claimDispatch({ jobId: "job_openrouter", version: 1 }),
-		).resolves.toMatchObject({
-			provider: "openrouter",
-			providerModelId: OPENROUTER_FAST_ROUTE.providerModelId,
-		});
-
-		environment.MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED = "false";
-		await expect(store.claimDispatch({ jobId: "job_openrouter", version: 1 })).resolves.toBeNull();
 	});
 
-	it("rechecks OpenRouter certification before retry route reselection", async () => {
+	it("never reselects OpenRouter after a rejected provider submission", async () => {
 		const environment: Record<string, string | undefined> = {
 			MEDIA_GENERATION_ENABLED: "true",
-			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "false",
+			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
 		};
 		const database = retryDatabase(
-			frozenRouteJob("job_retry", [REPLICATE_FAST_ROUTE, OPENROUTER_FAST_ROUTE]),
+			frozenRouteJob("job_retry", [LEGACY_REPLICATE_FAST_ROUTE, LEGACY_OPENROUTER_FAST_ROUTE]),
 		);
 		const store = createDatabaseDispatchStore(database as never, {
 			environment,
@@ -251,14 +289,10 @@ describe("provider runtime registration", () => {
 
 		await store.recordRejectedSubmission("attempt_false", retryableFailure());
 		expect(database.transaction.generationAttempt.create).not.toHaveBeenCalled();
-
-		environment.MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED = "true";
-		await store.recordRejectedSubmission("attempt_true", retryableFailure());
-		expect(database.transaction.generationAttempt.create).toHaveBeenCalledWith({
-			data: expect.objectContaining({
-				provider: "openrouter",
-				providerModelId: OPENROUTER_FAST_ROUTE.providerModelId,
-			}),
+		expect(database.transaction.outboxEvent.upsert).toHaveBeenCalledWith({
+			where: { dedupeKey: "generation-settle:job_retry" },
+			create: expect.objectContaining({ eventType: "GENERATION_SETTLE" }),
+			update: {},
 		});
 	});
 
@@ -319,10 +353,10 @@ describe("provider runtime registration", () => {
 					id: "job_1",
 					version: 7,
 					status: "DISPATCH_QUEUED",
-					productKey: "image-fast",
+					productKey: "image-nano-banana-2-lite",
 					attempts: [],
 					assets: [],
-					quote: { costMicros: 1n },
+					quote: { costMicros: 20_000n },
 				})),
 				updateMany: vi.fn(async () => ({ count: 1 })),
 			},
@@ -336,7 +370,7 @@ describe("provider runtime registration", () => {
 			} as never,
 			{
 				environment: { MEDIA_GENERATION_ENABLED: "true" },
-				enabledProviders: new Set(["replicate"]),
+				enabledProviders: new Set(["kie"]),
 			},
 		);
 
@@ -358,18 +392,18 @@ describe("provider runtime registration", () => {
 		);
 	});
 
-	it("blocks a queued Quality edit when the production launch switch is disabled", async () => {
+	it("blocks a queued GPT Image 2 job when its production launch switch is disabled", async () => {
 		const transaction = {
 			$executeRaw: vi.fn(async () => 0),
 			generationJob: {
 				findFirst: vi.fn(async () => ({
-					id: "job_quality",
+					id: "job_gpt_image_2",
 					version: 4,
 					status: "DISPATCH_QUEUED",
-					productKey: "image-quality",
+					productKey: "image-gpt-image-2",
 					attempts: [],
 					assets: [],
-					quote: { costMicros: 8_000n },
+					quote: { costMicros: 50_000n },
 				})),
 				updateMany: vi.fn(async () => ({ count: 1 })),
 			},
@@ -384,30 +418,32 @@ describe("provider runtime registration", () => {
 			{
 				environment: {
 					MEDIA_GENERATION_ENABLED: "true",
-					MEDIA_QUALITY_EDIT_ENABLED: "false",
+					MEDIA_GPT_IMAGE_2_ENABLED: "false",
 				},
-				enabledProviders: new Set(["gemini"]),
+				enabledProviders: new Set(["kie"]),
 			},
 		);
 
-		await expect(store.claimDispatch({ jobId: "job_quality", version: 4 })).rejects.toMatchObject({
+		await expect(
+			store.claimDispatch({ jobId: "job_gpt_image_2", version: 4 }),
+		).rejects.toMatchObject({
 			code: "MEDIA_GENERATION_DISABLED",
 		});
 		expect(transaction.generationJob.updateMany).toHaveBeenCalledOnce();
 	});
 
-	it("blocks a queued Standard edit when production omits its launch switch", async () => {
+	it("blocks a queued Nano Banana 2 Lite job when production omits its launch switch", async () => {
 		const transaction = {
 			$executeRaw: vi.fn(async () => 0),
 			generationJob: {
 				findFirst: vi.fn(async () => ({
-					id: "job_standard",
+					id: "job_nano_banana_2_lite",
 					version: 5,
 					status: "DISPATCH_QUEUED",
-					productKey: "image-fast",
+					productKey: "image-nano-banana-2-lite",
 					attempts: [],
 					assets: [],
-					quote: { costMicros: 4_000n },
+					quote: { costMicros: 20_000n },
 				})),
 				updateMany: vi.fn(async () => ({ count: 1 })),
 			},
@@ -425,24 +461,28 @@ describe("provider runtime registration", () => {
 					EZPIC_DEPLOYMENT_ENVIRONMENT: "production",
 					MEDIA_GENERATION_ENABLED: "true",
 				},
-				enabledProviders: new Set(["replicate"]),
+				enabledProviders: new Set(["kie"]),
 			},
 		);
 
-		await expect(store.claimDispatch({ jobId: "job_standard", version: 5 })).rejects.toMatchObject({
+		await expect(
+			store.claimDispatch({ jobId: "job_nano_banana_2_lite", version: 5 }),
+		).rejects.toMatchObject({
 			code: "MEDIA_GENERATION_DISABLED",
 		});
 		expect(transaction.generationJob.updateMany).toHaveBeenCalledOnce();
 	});
 });
 
+// Defaults model immutable pre-Kie snapshots; Kie coverage must opt into a current product key.
 function frozenRouteJob(
 	id: string,
 	routes: readonly CatalogRoute[],
-	productKey: "image-fast" | "image-quality" = "image-fast",
+	productKey: "image-fast" | "image-quality" | "image-nano-banana-2-lite" = "image-fast",
 ) {
-	const catalogVersion = "2026-08-31";
-	const pricingVersion = "2026-08-31";
+	const catalogVersion =
+		productKey === "image-nano-banana-2-lite" ? KIE_IMAGE_CATALOG_VERSION : "2026-08-31";
+	const pricingVersion = catalogVersion;
 	return {
 		id,
 		ownerId: "user_1",
@@ -452,11 +492,20 @@ function frozenRouteJob(
 		productKey,
 		catalogVersion,
 		pricingVersion,
-		inputSnapshot: {
-			kind: "image-to-image",
-			prompt: "Keep the subject",
-			sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
-		},
+		inputSnapshot:
+			productKey === "image-nano-banana-2-lite"
+				? {
+						kind: "image-to-image",
+						prompt: "Keep the subject",
+						sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+						skuKey: "nano-banana-2-lite-1k",
+						aspectRatio: "auto",
+					}
+				: {
+						kind: "image-to-image",
+						prompt: "Keep the subject",
+						sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+					},
 		pricingSnapshot: {
 			routeGraph: createRouteGraphSnapshot({
 				productKey,
@@ -562,7 +611,7 @@ function retryDatabase(job: ReturnType<typeof frozenRouteJob>) {
 		jobId: job.id,
 		attemptNumber: 1,
 		provider: "replicate",
-		providerModelId: REPLICATE_FAST_ROUTE.providerModelId,
+		providerModelId: LEGACY_REPLICATE_FAST_ROUTE.providerModelId,
 		status: "SUBMITTING",
 		errorSnapshot: {},
 	};

@@ -3,8 +3,11 @@ import { CreatorWorkspace } from "@media/components/CreatorWorkspace";
 import {
 	hasEditorRecoveryRequest,
 	resolveEditorAllowedProductKeys,
-	resolveEditorRecovery,
 } from "@media/lib/editor-recovery";
+import {
+	buildEditAgainRecoveryCandidate,
+	resolveEditorRecovery,
+} from "@media/lib/editor-recovery.server";
 import {
 	findEffectivePaidSubscription,
 	findEligibleImageEditParentForOwner,
@@ -64,14 +67,18 @@ export default async function CreatePage({
 				: null;
 			if (!filters.parentJob || parent) {
 				parentJobId = parent?.parentJobId ?? null;
-				candidate = {
-					productKey: "image-fast",
-					input: {
-						kind: "image-to-image",
-						prompt: "",
-						sourceAssetId: filters.asset,
-					},
-				};
+				candidate = parent
+					? buildEditAgainRecoveryCandidate(parent, filters.asset)
+					: {
+							productKey: "image-nano-banana-2-lite",
+							input: {
+								kind: "image-to-image",
+								prompt: "",
+								sourceAssetId: filters.asset,
+								skuKey: "nano-banana-2-lite-1k",
+								aspectRatio: "auto",
+							},
+						};
 			} else {
 				sourceAsset = null;
 			}

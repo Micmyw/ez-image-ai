@@ -96,10 +96,8 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		expect(rootVersion.parentJobId).toBeNull();
 
 		await page.goto(`/edits/${rootVersion.editSessionId}`);
-		await expect(page.getByText(rootPrompt)).toBeVisible();
-		await expect(page.getByText(/standard edit/i)).toBeVisible();
-		await expect(page.getByText(/5 credits/i)).toBeVisible();
 		const rootCard = page.getByRole("listitem").filter({ hasText: rootPrompt });
+		await expect(rootCard).toContainText(/Nano Banana 2 Lite · 1K · Automatic · 5 credits/i);
 		await rootCard.getByRole("link", { name: /edit again/i }).click();
 		await expect(page).toHaveURL(
 			new RegExp(`/create\\?asset=${rootVersion.outputAssetId}&parentJob=${rootJob.id}`),
@@ -420,18 +418,33 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		expect(binding?.assetId).toBe(asset.id);
 	});
 
-	test("mobile editor keeps the required source, prompt, modes, and review action keyboard accessible", async ({
+	test("mobile editor keeps the required source, prompt, model and SKU controls, and review action keyboard accessible", async ({
 		page,
 	}) => {
 		await page.setViewportSize({ width: 390, height: 844 });
 		await openCreator(page, marker("mobile", "Warm the evening light", 0), fundedEmail);
 
 		await expect(page.getByRole("img", { name: /selected source image/i })).toBeVisible();
-		await expect(page.getByRole("radiogroup", { name: /edit mode/i })).toBeVisible();
-		const quality = page.getByRole("radio", { name: /quality edit/i });
-		await quality.focus();
+		await expect(page.getByRole("radiogroup", { name: /image model/i })).toBeVisible();
+		const seedream = page.getByRole("radio", { name: "Seedream 5 Pro", exact: true });
+		await seedream.focus();
 		await page.keyboard.press("Space");
-		await expect(quality).toBeChecked();
+		await expect(seedream).toBeChecked();
+
+		const outputSettings = page.getByRole("button", { name: /open output settings/i });
+		await outputSettings.focus();
+		await page.keyboard.press("Enter");
+		const high = page
+			.getByRole("group", { name: /quality/i })
+			.getByRole("button", { name: "High", exact: true });
+		await high.focus();
+		await page.keyboard.press("Space");
+		await expect(high).toHaveAttribute("aria-pressed", "true");
+		await expect(
+			page
+				.getByRole("group", { name: /resolution/i })
+				.getByRole("button", { name: "2K", exact: true }),
+		).toHaveAttribute("aria-pressed", "true");
 		await expect(page.getByRole("button", { name: /review credits/i })).toBeEnabled();
 		expect(
 			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),

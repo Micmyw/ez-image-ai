@@ -1,3 +1,4 @@
+import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -15,10 +16,13 @@ import {
 } from "./routing";
 
 describe("media product catalog", () => {
-	it("quotes both public products only for image-to-image edits", () => {
-		for (const [productKey, credits] of [
-			["image-fast", 5],
-			["image-quality", 40],
+	it("quotes every current image SKU only for image-to-image edits", () => {
+		for (const [productKey, skuKey, aspectRatio, credits] of [
+			["image-nano-banana-2-lite", "nano-banana-2-lite-1k", "auto", 5],
+			["image-gpt-image-2", "gpt-image-2-2k", "1:1", 11],
+			["image-gpt-image-2", "gpt-image-2-4k", "4:5", 17],
+			["image-seedream-5-pro", "seedream-5-pro-basic-1k", "1:1", 8],
+			["image-seedream-5-pro", "seedream-5-pro-high-2k", "16:9", 15],
 		] as const) {
 			expect(
 				quoteCatalogInput({
@@ -27,13 +31,15 @@ describe("media product catalog", () => {
 						kind: "image-to-image",
 						prompt: "Preserve the subject and replace the background",
 						sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
-						aspectRatio: "16:9",
+						skuKey,
+						aspectRatio,
 					},
 				}),
 			).toMatchObject({
+				skuKey,
 				credits,
-				catalogVersion: "2026-09-05.2",
-				pricingVersion: "2026-09-05.1",
+				catalogVersion: DEFAULT_PRODUCT_CONFIG.catalogVersion,
+				pricingVersion: DEFAULT_PRODUCT_CONFIG.pricingVersion,
 			});
 			expect(() =>
 				quoteCatalogInput({
@@ -65,143 +71,187 @@ describe("media product catalog", () => {
 		).toMatchObject({ credits: 25 });
 	});
 
-	it("publishes only the aspect ratios shared by both image editing routes", () => {
+	it("publishes each model's independent SKU and aspect-ratio matrix", () => {
 		const products = getPublicProductCatalog({
-			enabledProviders: new Set(["openrouter"]),
+			enabledProviders: new Set(["kie"]),
 			generationEnabled: true,
-			openRouterImageRoutesCertified: true,
+			kieImageCertifiedCatalogVersions: new Set([DEFAULT_PRODUCT_CONFIG.catalogVersion]),
 		}).products;
 
-		for (const product of products) {
-			expect(product.fields).toContainEqual({
-				type: "aspect-ratio",
-				key: "aspectRatio",
-				label: "Aspect ratio",
-				required: true,
-				options: [
-					{ value: "auto", label: "Automatic" },
-					{ value: "1:1", label: "1:1" },
-					{ value: "4:3", label: "4:3" },
-					{ value: "3:4", label: "3:4" },
-					{ value: "3:2", label: "3:2" },
-					{ value: "2:3", label: "2:3" },
-					{ value: "16:9", label: "16:9" },
-					{ value: "9:16", label: "9:16" },
-					{ value: "21:9", label: "21:9" },
-				],
-			});
-		}
+		const nano = products.find((product) => product.key === "image-nano-banana-2-lite")!;
+		const gpt = products.find((product) => product.key === "image-gpt-image-2")!;
+		const seedream = products.find((product) => product.key === "image-seedream-5-pro")!;
+
+		expect(nano.skuMatrix).toMatchObject({
+			defaultSkuKey: "nano-banana-2-lite-1k",
+			dimensions: [{ key: "resolution", options: [{ key: "1k", label: "1K" }] }],
+			cells: [{ skuKey: "nano-banana-2-lite-1k", credits: 5 }],
+		});
+		expect(nano.skuMatrix?.cells[0]?.aspectRatios).toContain("auto");
+		expect(nano.skuMatrix?.cells[0]?.aspectRatios).toContain("1:8");
+
+		expect(gpt.skuMatrix).toMatchObject({
+			defaultSkuKey: "gpt-image-2-1k",
+			dimensions: [
+				{
+					key: "resolution",
+					options: [
+						{ key: "1k", label: "1K" },
+						{ key: "2k", label: "2K" },
+						{ key: "4k", label: "4K" },
+					],
+				},
+			],
+			cells: [
+				{ skuKey: "gpt-image-2-1k", credits: 7 },
+				{ skuKey: "gpt-image-2-2k", credits: 11 },
+				{ skuKey: "gpt-image-2-4k", credits: 17 },
+			],
+		});
+		expect(gpt.skuMatrix?.cells[0]?.aspectRatios).toContain("1:1");
+		expect(gpt.skuMatrix?.cells[0]?.controls).toContainEqual(
+			expect.objectContaining({ key: "background", defaultValue: "opaque" }),
+		);
+		expect(gpt.skuMatrix?.cells[2]?.aspectRatios).not.toContain("1:1");
+
+		expect(seedream.skuMatrix).toMatchObject({
+			defaultSkuKey: "seedream-5-pro-basic-1k",
+			dimensions: [{ key: "resolution" }, { key: "quality" }],
+			cells: [
+				{ skuKey: "seedream-5-pro-basic-1k", credits: 8 },
+				{ skuKey: "seedream-5-pro-high-2k", credits: 15 },
+			],
+		});
+		expect(seedream.skuMatrix).not.toEqual(gpt.skuMatrix);
 	});
 
-	it("rejects image edit aspect ratios outside the shared route contract", () => {
+	it("rejects an aspect ratio that is invalid for the selected SKU", () => {
 		expect(() =>
 			quoteCatalogInput({
-				productKey: "image-fast",
+				productKey: "image-gpt-image-2",
 				input: {
 					kind: "image-to-image",
-					prompt: "Use a square-ish crop",
+					prompt: "Use a square crop",
 					sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
-					aspectRatio: "5:4",
+					skuKey: "gpt-image-2-4k",
+					aspectRatio: "1:1",
 				},
 			}),
 		).toThrow();
 	});
 
 	it("keeps provider routing and costs server-only", () => {
-		const internal = getCatalogEntry("image-fast");
+		const internal = getCatalogEntry("image-nano-banana-2-lite");
 		const publicCatalog = getPublicProductCatalog({
-			enabledProviders: new Set(["openrouter"]),
+			enabledProviders: new Set(["kie"]),
 			generationEnabled: true,
-			openRouterImageRoutesCertified: true,
+			kieImageCertifiedCatalogVersions: new Set([DEFAULT_PRODUCT_CONFIG.catalogVersion]),
 		});
 		const serialized = JSON.stringify(publicCatalog);
 
-		expect(internal.routes[0]).toMatchObject({ provider: "openrouter" });
-		expect(serialized).not.toContain("openrouter");
+		expect(internal.routes[0]).toMatchObject({ provider: "kie" });
+		expect(serialized).not.toContain("kie");
 		expect(serialized).not.toContain("providerModelId");
 		expect(serialized).not.toContain("providerCostMicros");
 		expect(serialized).not.toContain("weight");
 	});
 
-	it("registers the exact OpenRouter image candidates but requires the certification gate", () => {
-		expect(getCatalogEntry("image-fast").routes).toEqual([
+	it("registers the exact Kie image routes but requires the catalog-version gate", () => {
+		expect(getCatalogEntry("image-nano-banana-2-lite").routes).toEqual([
 			{
-				provider: "openrouter",
-				providerModelId: "sourceful/riverflow-v2.5-fast",
-				providerCostMicros: 23_000,
+				provider: "kie",
+				providerModelId: "nano-banana-2-lite",
+				providerCostMicros: 20_000,
 				weight: 100,
 			},
 		]);
-		expect(getCatalogEntry("image-quality").routes).toEqual([
+		expect(getCatalogEntry("image-gpt-image-2").routes).toEqual([
 			{
-				provider: "openrouter",
-				providerModelId: "sourceful/riverflow-v2.5-pro",
-				providerCostMicros: 180_000,
+				provider: "kie",
+				providerModelId: "gpt-image-2-image-to-image",
+				providerCostMicros: 30_000,
 				weight: 100,
 			},
+			{
+				provider: "kie",
+				providerModelId: "gpt-image-2-image-to-image",
+				providerCostMicros: 50_000,
+				weight: 100,
+			},
+			{
+				provider: "kie",
+				providerModelId: "gpt-image-2-image-to-image",
+				providerCostMicros: 80_000,
+				weight: 100,
+			},
+		]);
+		expect(getCatalogEntry("image-seedream-5-pro").routes).toEqual([
+			expect.objectContaining({ provider: "kie", providerCostMicros: 35_000 }),
+			expect.objectContaining({ provider: "kie", providerCostMicros: 70_000 }),
 		]);
 
 		const uncertified = configuredRouteGraphOptionsFromEnvironment({
 			MEDIA_GENERATION_ENABLED: "true",
-			MEDIA_ENABLED_PROVIDERS: "openrouter",
-			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "false",
+			MEDIA_ENABLED_PROVIDERS: "kie",
 		});
 		expect(getPublicProductCatalog(uncertified).products).toEqual([]);
 
 		const certified = configuredRouteGraphOptionsFromEnvironment({
 			MEDIA_GENERATION_ENABLED: "true",
-			MEDIA_ENABLED_PROVIDERS: "openrouter",
-			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
+			MEDIA_ENABLED_PROVIDERS: "kie",
+			MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: DEFAULT_PRODUCT_CONFIG.catalogVersion,
 		});
 		expect(getPublicProductCatalog(certified).products.map((product) => product.key)).toEqual([
-			"image-fast",
-			"image-quality",
+			"image-nano-banana-2-lite",
+			"image-nano-banana",
+			"image-nano-banana-2",
+			"image-nano-banana-pro",
+			"image-gpt-image-1-5",
+			"image-gpt-image-2",
+			"image-seedream-4-5",
+			"image-seedream-5-lite",
+			"image-seedream-5-pro",
 		]);
 	});
 
-	it("publishes only the two named image editing modes", () => {
+	it("publishes all nine current image products and their twenty legal SKUs", () => {
 		const products = getPublicProductCatalog({
-			enabledProviders: new Set(["openrouter"]),
+			enabledProviders: new Set(["kie"]),
 			generationEnabled: true,
-			openRouterImageRoutesCertified: true,
+			kieImageCertifiedCatalogVersions: new Set([DEFAULT_PRODUCT_CONFIG.catalogVersion]),
 		}).products;
 
-		expect(products).toEqual([
-			expect.objectContaining({
-				key: "image-fast",
-				label: "Standard Edit",
-				mediaKind: "image",
-				inputKinds: ["image-to-image"],
-				credits: 5,
-				fields: expect.arrayContaining([
-					expect.objectContaining({ key: "sourceAssetId", required: true }),
-				]),
-			}),
-			expect.objectContaining({
-				key: "image-quality",
-				label: "Quality Edit",
-				mediaKind: "image",
-				inputKinds: ["image-to-image"],
-				credits: 40,
-				fields: expect.arrayContaining([
-					expect.objectContaining({ key: "sourceAssetId", required: true }),
-				]),
-			}),
+		expect(products.map((product) => product.key)).toEqual([
+			"image-nano-banana-2-lite",
+			"image-nano-banana",
+			"image-nano-banana-2",
+			"image-nano-banana-pro",
+			"image-gpt-image-1-5",
+			"image-gpt-image-2",
+			"image-seedream-4-5",
+			"image-seedream-5-lite",
+			"image-seedream-5-pro",
 		]);
-		expect(products.map((product) => product.fields.map((field) => field.key))).toEqual([
-			["prompt", "sourceAssetId", "aspectRatio"],
-			["prompt", "sourceAssetId", "aspectRatio"],
-		]);
-		expect(products.map((product) => product.description)).toEqual([
-			"Private prompt-based image editing at the Standard tier",
-			"Private prompt-based image editing at the Quality tier",
-		]);
-		expect(JSON.stringify(products)).not.toMatch(/fast everyday|higher[- ]fidelity/i);
+		expect(products.flatMap((product) => product.skuMatrix?.cells ?? [])).toHaveLength(20);
+		for (const product of products) {
+			expect(product).toEqual(
+				expect.objectContaining({
+					mediaKind: "image",
+					inputKinds: ["image-to-image"],
+					fields: expect.arrayContaining([
+						expect.objectContaining({ key: "sourceAssetId", required: true }),
+					]),
+				}),
+			);
+		}
+		expect(JSON.stringify(products)).not.toMatch(
+			/image-fast|image-quality|providerCost|openrouter/i,
+		);
 	});
 
 	it("rejects a malformed durable text input that smuggles a source asset", () => {
 		expect(
-			isCatalogInputSupported(getCatalogEntry("image-quality"), {
+			isCatalogInputSupported(getCatalogEntry("image-gpt-image-2"), {
 				kind: "text-to-image",
 				prompt: "Preserve the source composition",
 				sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
@@ -238,46 +288,54 @@ describe("media product catalog", () => {
 		const environment = {
 			NODE_ENV: "test",
 			MEDIA_GENERATION_ENABLED: "true",
-			MEDIA_ENABLED_PROVIDERS: "openrouter",
-			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
+			MEDIA_ENABLED_PROVIDERS: "kie",
+			MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: DEFAULT_PRODUCT_CONFIG.catalogVersion,
 			FAL_API_KEY: "worker-only-secret",
 		};
 		const configured = configuredProviderKeysFromEnvironment(environment);
 		const local = locallyExecutableProviderKeysFromEnvironment(environment);
 
-		expect(configured).toEqual(new Set(["openrouter"]));
+		expect(configured).toEqual(new Set(["kie"]));
 		expect(local).toEqual(new Set());
 		expect(
 			getPublicProductCatalog(configuredRouteGraphOptionsFromEnvironment(environment)).products,
-		).toContainEqual(expect.objectContaining({ key: "image-fast" }));
+		).toContainEqual(expect.objectContaining({ key: "image-nano-banana-2-lite" }));
 	});
 
 	it("removes disabled products from the executable public graph", () => {
 		const catalog = getPublicProductCatalog({
-			enabledProviders: new Set(["openrouter"]),
+			enabledProviders: new Set(["kie"]),
 			generationEnabled: true,
-			disabledProductKeys: new Set(["image-fast"]),
-			openRouterImageRoutesCertified: true,
+			disabledProductKeys: new Set(["image-gpt-image-2"]),
+			kieImageCertifiedCatalogVersions: new Set([DEFAULT_PRODUCT_CONFIG.catalogVersion]),
 		});
 
-		expect(catalog.products.map((product) => product.key)).not.toContain("image-fast");
+		expect(catalog.products.map((product) => product.key)).not.toContain("image-gpt-image-2");
 	});
 
-	it("layers the Standard and Quality launch switches onto the executable route graph", () => {
+	it("layers each Kie image product switch onto the executable route graph", () => {
 		const options = configuredRouteGraphOptionsFromEnvironment({
 			MEDIA_GENERATION_ENABLED: "true",
-			MEDIA_ENABLED_PROVIDERS: "openrouter",
-			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
-			MEDIA_STANDARD_EDIT_ENABLED: "true",
-			MEDIA_QUALITY_EDIT_ENABLED: "false",
+			MEDIA_ENABLED_PROVIDERS: "kie",
+			MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: DEFAULT_PRODUCT_CONFIG.catalogVersion,
+			MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
+			MEDIA_GPT_IMAGE_2_ENABLED: "false",
+			MEDIA_SEEDREAM_5_PRO_ENABLED: "true",
 		});
-		expect(options.disabledProductKeys).toEqual(new Set(["image-quality"]));
+		expect(options.disabledProductKeys).toEqual(new Set(["image-gpt-image-2"]));
 		expect(getPublicProductCatalog(options).products.map((product) => product.key)).toEqual([
-			"image-fast",
+			"image-nano-banana-2-lite",
+			"image-nano-banana",
+			"image-nano-banana-2",
+			"image-nano-banana-pro",
+			"image-gpt-image-1-5",
+			"image-seedream-4-5",
+			"image-seedream-5-lite",
+			"image-seedream-5-pro",
 		]);
 	});
 
-	it("fails closed when production omits the Standard and Quality launch switches", () => {
+	it("fails closed when production omits all nine Kie product switches", () => {
 		const options = configuredRouteGraphOptionsFromEnvironment({
 			NODE_ENV: "production",
 			EZPIC_DEPLOYMENT_ENVIRONMENT: "production",
@@ -285,7 +343,19 @@ describe("media product catalog", () => {
 			MEDIA_ENABLED_PROVIDERS: "replicate,gemini",
 		});
 
-		expect(options.disabledProductKeys).toEqual(new Set(["image-fast", "image-quality"]));
+		expect(options.disabledProductKeys).toEqual(
+			new Set([
+				"image-nano-banana-2-lite",
+				"image-nano-banana",
+				"image-nano-banana-2",
+				"image-nano-banana-pro",
+				"image-gpt-image-1-5",
+				"image-gpt-image-2",
+				"image-seedream-4-5",
+				"image-seedream-5-lite",
+				"image-seedream-5-pro",
+			]),
+		);
 		expect(getPublicProductCatalog(options).products).toEqual([]);
 	});
 

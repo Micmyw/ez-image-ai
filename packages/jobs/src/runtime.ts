@@ -110,13 +110,33 @@ export interface ProviderRegistryOptions {
 	includeRecoveryProviders?: boolean;
 }
 
+function submissionProviderKeysFromEnvironment(
+	environment: Record<string, string | undefined>,
+): ReadonlySet<ProviderKey> {
+	return new Set<ProviderKey>(
+		[...configuredProviderKeysFromEnvironment(environment)].filter(
+			(provider) => provider !== "openrouter",
+		),
+	);
+}
+
+function recoveryProviderKeysWithExplicitOpenRouter(
+	environment: Record<string, string | undefined>,
+): ReadonlySet<ProviderKey> {
+	return new Set<ProviderKey>(
+		[...recoveryProviderKeysFromEnvironment(environment)].filter(
+			(provider) => provider !== "openrouter" || environment.MEDIA_RECOVERY_PROVIDERS !== undefined,
+		),
+	);
+}
+
 export function createProviderRegistry(
 	environment = process.env,
 	options: ProviderRegistryOptions = {},
 ): ProviderRegistry {
-	const configuredProviders = configuredProviderKeysFromEnvironment(environment);
+	const configuredProviders = submissionProviderKeysFromEnvironment(environment);
 	const requestedProviders = options.includeRecoveryProviders
-		? new Set([...configuredProviders, ...recoveryProviderKeysFromEnvironment(environment)])
+		? new Set([...configuredProviders, ...recoveryProviderKeysWithExplicitOpenRouter(environment)])
 		: configuredProviders;
 	const registeredProviders = locallyExecutableProviderKeysFromEnvironment(
 		environment,
@@ -135,8 +155,8 @@ export function createProviderRegistry(
 
 export function createReconciliationProviderRegistry(environment = process.env): ProviderRegistry {
 	const requestedProviders = new Set([
-		...configuredProviderKeysFromEnvironment(environment),
-		...recoveryProviderKeysFromEnvironment(environment),
+		...submissionProviderKeysFromEnvironment(environment),
+		...recoveryProviderKeysWithExplicitOpenRouter(environment),
 	]);
 	const registeredProviders = locallyExecutableProviderKeysFromEnvironment(
 		environment,
@@ -176,7 +196,7 @@ export function createProviderWebhookVerifierRegistry(
 ): ReadonlyMap<ProviderKey, Pick<MediaProviderAdapter, "verifyWebhook">> {
 	const providers = new Set([
 		...configuredProviderKeysFromEnvironment(environment),
-		...recoveryProviderKeysFromEnvironment(environment),
+		...recoveryProviderKeysWithExplicitOpenRouter(environment),
 	]);
 	const verifiers = new Map<ProviderKey, Pick<MediaProviderAdapter, "verifyWebhook">>();
 	if (providers.has("replicate") && environment.REPLICATE_WEBHOOK_SECRET) {
@@ -789,6 +809,7 @@ export function createDatabaseDispatchStore(
 				const submissionToken = boundedString(submission.reconciliation.submissionToken, 256);
 				const reconciliationEndpoints = safeReconciliationEndpoints(
 					attempt.provider,
+					providerTaskId,
 					submission.reconciliation,
 				);
 				await tx.generationAttempt.update({
@@ -890,6 +911,7 @@ export function createDatabaseDispatchStore(
 				const submissionToken = boundedString(submission.reconciliation.submissionToken, 256);
 				const reconciliationEndpoints = safeReconciliationEndpoints(
 					attempt.provider,
+					providerTaskId,
 					submission.reconciliation,
 				);
 				const envelope = createOutputTransferEnvelope(
@@ -4088,6 +4110,9 @@ function quotedExecutableRoutes(
 	enabledProviders: ReadonlySet<ProviderKey>,
 	environment: Record<string, string | undefined>,
 ): QuotedRouteResolution {
+	const submissionProviders = new Set<ProviderKey>(
+		[...enabledProviders].filter((provider) => provider !== "openrouter"),
+	);
 	const pricingSnapshot = objectRecord(job.pricingSnapshot);
 	const entry = getCatalogEntry(job.productKey as ProductModelKey);
 	if (!entry) {
@@ -4128,8 +4153,8 @@ function quotedExecutableRoutes(
 		// the execution allowlist, while the current catalog is authoritative only for new quotes.
 		const routes = routeGraph.allowedRoutes.filter(
 			(route) =>
-				enabledProviders.has(route.provider) &&
-				isRuntimeRouteCertified(entry.mediaKind, route.provider, environment) &&
+				submissionProviders.has(route.provider) &&
+				isRuntimeRouteCertified(entry.mediaKind, route.provider, job.catalogVersion, environment) &&
 				isStaticDispatchRoute(entry.mediaKind, route.provider, route.providerModelId),
 		);
 		return routes.length > 0
@@ -4152,8 +4177,13 @@ function quotedExecutableRoutes(
 			? []
 			: entry.routes.filter(
 					(route) =>
-						enabledProviders.has(route.provider) &&
-						isRuntimeRouteCertified(entry.mediaKind, route.provider, environment) &&
+						submissionProviders.has(route.provider) &&
+						isRuntimeRouteCertified(
+							entry.mediaKind,
+							route.provider,
+							job.catalogVersion,
+							environment,
+						) &&
 						isStaticDispatchRoute(entry.mediaKind, route.provider, route.providerModelId) &&
 						BigInt(route.providerCostMicros) <= maximumCost,
 				);
@@ -4175,13 +4205,20 @@ function quotedExecutableRoutes(
 function isRuntimeRouteCertified(
 	mediaKind: "image" | "video",
 	provider: ProviderKey,
+	catalogVersion: string,
 	environment: Record<string, string | undefined>,
 ): boolean {
-	return (
-		mediaKind !== "image" ||
-		provider !== "openrouter" ||
-		environment.MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED === "true"
-	);
+	if (mediaKind !== "image") return true;
+	if (provider === "openrouter") {
+		return environment.MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED === "true";
+	}
+	if (provider === "kie") {
+		return (environment.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS ?? "")
+			.split(",")
+			.map((value) => value.trim())
+			.includes(catalogVersion);
+	}
+	return true;
 }
 
 async function markQuotedRouteUnavailable(
@@ -4347,10 +4384,11 @@ async function guestDispatchChecksPass(
 	environment: Record<string, string | undefined>,
 	now: Date,
 ): Promise<boolean> {
+	const config = getGuestMediaConfig(environment, true);
 	if (
 		job.serviceClass !== "GUEST_SLOW" ||
 		job.status !== "DISPATCH_QUEUED" ||
-		job.productKey !== "image-fast" ||
+		job.productKey !== config.productKey ||
 		job.guestTrialId !== trial.id ||
 		job.ownerId !== trial.ownerId ||
 		job.creditsReserved <= 0n ||
@@ -4368,7 +4406,6 @@ async function guestDispatchChecksPass(
 	) {
 		return false;
 	}
-	const config = getGuestMediaConfig(environment, true);
 	const risk = await tx.guestRiskBudgetBucket.findUnique({
 		where: {
 			promotionPeriod_subjectHash: {
@@ -4809,7 +4846,7 @@ function safeUncertainRecoveryEvidence(
 	evidence: UncertainSubmissionEvidence,
 ): Prisma.GenerationAttemptUpdateInput {
 	const providerTaskId = boundedString(evidence.providerTaskId, 512);
-	const reconciliationEndpoints = safeReconciliationEndpoints(provider, evidence);
+	const reconciliationEndpoints = safeReconciliationEndpoints(provider, providerTaskId, evidence);
 	const submissionToken = boundedString(evidence.submissionToken, 256);
 	return {
 		...(providerTaskId ? { providerTaskId } : {}),
@@ -4891,24 +4928,34 @@ function boundedString(value: string | undefined, maximumLength: number): string
 
 function safeReconciliationEndpoints(
 	provider: string,
+	providerTaskId: string | undefined,
 	endpoints: { statusUrl?: string; resultUrl?: string },
 ): { providerStatusUrl: string | null; providerResultUrl: string | null } {
 	return {
-		providerStatusUrl: safeProviderEndpoint(provider, endpoints.statusUrl) ?? null,
-		providerResultUrl: safeProviderEndpoint(provider, endpoints.resultUrl) ?? null,
+		providerStatusUrl:
+			safeProviderEndpoint(provider, "status", endpoints.statusUrl, providerTaskId) ?? null,
+		providerResultUrl:
+			safeProviderEndpoint(provider, "result", endpoints.resultUrl, providerTaskId) ?? null,
 	};
 }
 
-function safeProviderEndpoint(provider: string, value: string | undefined): string | undefined {
-	// Fal is the only adapter that returns and later consumes provider-provided endpoints.
-	// The remaining adapters reconstruct their official API URL from the task ID instead.
-	if (provider !== "fal") return undefined;
+function safeProviderEndpoint(
+	provider: string,
+	kind: "status" | "result",
+	value: string | undefined,
+	providerTaskId: string | undefined,
+): string | undefined {
 	const bounded = boundedString(value, 1_024);
-	if (
-		!bounded ||
-		bounded !== bounded.trim() ||
-		rawUrlAuthority(bounded)?.toLowerCase() !== "queue.fal.run"
-	) {
+	if (!bounded || bounded !== bounded.trim()) return undefined;
+	if (provider === "kie") {
+		if (kind !== "status" || !providerTaskId) return undefined;
+		const expected = `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(providerTaskId)}`;
+		return bounded === expected ? expected : undefined;
+	}
+	// Fal returns provider endpoints for both polling and result retrieval. Other adapters
+	// reconstruct their official API URL from the task ID and must not persist a remote URL.
+	if (provider !== "fal") return undefined;
+	if (rawUrlAuthority(bounded)?.toLowerCase() !== "queue.fal.run") {
 		return undefined;
 	}
 	let endpoint: URL;

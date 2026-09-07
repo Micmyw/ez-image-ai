@@ -111,8 +111,8 @@ describe("guest admission pre-transaction boundary", () => {
 		expect(dependencies.createTransaction).not.toHaveBeenCalled();
 	});
 
-	it("rejects a forged or paid-only tier before moderation and persistence", async () => {
-		for (const productKey of ["image-quality", "video-fast"] as const) {
+	it("rejects a forged, legacy, or paid-only tier before moderation and persistence", async () => {
+		for (const productKey of ["image-fast", "image-gpt-image-2", "video-fast"] as const) {
 			const dependencies = validDependencies();
 			await expect(
 				submitGuestGenerationForGuest(
@@ -126,7 +126,20 @@ describe("guest admission pre-transaction boundary", () => {
 		}
 	});
 
-	it("passes only the fixed Standard quote and verified source into the atomic transaction", async () => {
+	it("rejects a non-guest SKU before moderation and persistence", async () => {
+		const dependencies = validDependencies();
+		await expect(
+			submitGuestGenerationForGuest(
+				validBoundary(),
+				{ ...validInput(), skuKey: "gpt-image-2-2k" } as never,
+				dependencies,
+			),
+		).rejects.toThrow("GUEST_PRODUCT_UNAVAILABLE");
+		expect(dependencies.moderatePrompt).not.toHaveBeenCalled();
+		expect(dependencies.createTransaction).not.toHaveBeenCalled();
+	});
+
+	it("passes only the fixed Nano Banana 2 Lite 1K quote and verified source into the atomic transaction", async () => {
 		const dependencies = validDependencies();
 
 		await expect(
@@ -173,9 +186,12 @@ describe("guest admission pre-transaction boundary", () => {
 				maximumGlobalRequestsPerHour: 30,
 				maximumGlobalRequestsPerDay: 100,
 				quote: expect.objectContaining({
-					productKey: "image-fast",
+					productKey: "image-nano-banana-2-lite",
 					credits: 5n,
-					inputSnapshot: expect.objectContaining({ aspectRatio: "16:9" }),
+					inputSnapshot: expect.objectContaining({
+						skuKey: "nano-banana-2-lite-1k",
+						aspectRatio: "16:9",
+					}),
 					moderation: expect.objectContaining({ decision: "ALLOW" }),
 				}),
 			}),
@@ -215,7 +231,8 @@ function validBoundary() {
 function validInput() {
 	return {
 		capabilityVersion: "guest-v7",
-		productKey: "image-fast" as const,
+		productKey: "image-nano-banana-2-lite" as const,
+		skuKey: "nano-banana-2-lite-1k" as const,
 		sourceAssetId: "asset-1",
 		prompt: "Make the sky violet",
 		aspectRatio: "16:9" as const,
@@ -242,7 +259,8 @@ function validDependencies(options?: {
 			config: {
 				enabled: options?.capabilityEnabled ?? true,
 				promotionPeriod: "launch-2026-08",
-				productKey: "image-fast",
+				productKey: "image-nano-banana-2-lite",
+				skuKey: "nano-banana-2-lite-1k",
 				sponsorCredits: 5n,
 				maximumBytes: 10 * 1024 * 1024,
 				mimeTypes: ["image/jpeg", "image/png", "image/webp"],
@@ -302,7 +320,7 @@ function validDependencies(options?: {
 			sourceAssetId: "asset-1",
 		})),
 		buildQuote: vi.fn(() => ({
-			productKey: "image-fast",
+			productKey: "image-nano-banana-2-lite",
 			catalogVersion: "catalog-v1",
 			pricingVersion: "pricing-v1",
 			credits: options?.quoteCredits ?? 5n,

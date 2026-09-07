@@ -66,8 +66,9 @@ describe("EditorResultPanel", () => {
 
 	it.each([
 		["a legacy product", "video-fast", "video/mp4", "video/mp4"],
-		["a non-image input binding", "image-fast", "video/mp4", "image/png"],
-		["a non-image output binding", "image-quality", "image/png", "video/mp4"],
+		["a retired product", "image-fast", "image/png", "image/png"],
+		["a non-image input binding", "image-gpt-image-2", "video/mp4", "image/png"],
+		["a non-image output binding", "image-seedream-5-pro", "image/png", "video/mp4"],
 	])(
 		"keeps %s in a generic read-only unavailable state",
 		(_case, productKey, inputMimeType, outputMimeType) => {
@@ -84,7 +85,7 @@ describe("EditorResultPanel", () => {
 			expect(visibleText).toContain("This edit is unavailable");
 			expect(visibleText).toContain("View details");
 			expect(visibleText).not.toMatch(/download|edit again|cancel|new edit/i);
-			expect(visibleText).not.toMatch(/video|image-fast|image-quality|provider|model/i);
+			expect(visibleText).not.toMatch(/video|image-fast|image-quality|provider|model|kie/i);
 			expect(markup).toContain('href="/history/job-legacy"');
 			expect(mocks.useQuery).not.toHaveBeenCalled();
 		},
@@ -107,6 +108,20 @@ describe("EditorResultPanel", () => {
 		expect(mocks.useQuery).not.toHaveBeenCalled();
 	});
 
+	it("does not open a current product result when its public SKU selection is unvalidated", () => {
+		mocks.jobQuery = {
+			data: imageJob({ skuKey: "private-route-model", aspectRatio: "16:9" }),
+			isError: false,
+			error: null,
+			refetch: vi.fn(),
+		};
+
+		const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-invalid" onNew={vi.fn()} />);
+		const visibleText = markup.replaceAll(/<[^>]+>/g, " ");
+		expect(visibleText).toContain("This edit is unavailable");
+		expect(visibleText).not.toMatch(/private-route-model|download|edit again/i);
+	});
+
 	it("continues a successful version with its exact output and parent job", () => {
 		const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
 
@@ -116,19 +131,25 @@ describe("EditorResultPanel", () => {
 });
 
 function imageJob({
-	productKey = "image-fast",
+	productKey = "image-gpt-image-2",
 	inputMimeType = "image/png",
 	outputMimeType = "image/png",
 	canCancel = false,
+	skuKey = "gpt-image-2-4k",
+	aspectRatio = "16:9",
 }: {
 	productKey?: string;
 	inputMimeType?: string;
 	outputMimeType?: string;
 	canCancel?: boolean;
+	skuKey?: string | null;
+	aspectRatio?: string | null;
 } = {}) {
 	return {
 		id: "job-1",
 		productKey,
+		skuKey,
+		aspectRatio,
 		status: "SUCCEEDED",
 		progress: null,
 		creditsReserved: "4",

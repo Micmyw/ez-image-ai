@@ -1,6 +1,14 @@
 import { randomBytes } from "node:crypto";
 
-import { imageAspectRatioSchema, promptSchema } from "@repo/ai";
+import { promptSchema } from "@repo/ai";
+import {
+	EZPIC_PRODUCT_KEYS,
+	imageAspectRatioSchema,
+	imageBackgroundSchema,
+	imageOutputFormatSchema,
+	imageSkuKeySchema,
+	parseImageSelection,
+} from "@repo/config";
 import {
 	finalizeGuestDraftFromReadyUploadTransaction,
 	loadGuestUploadCompletion,
@@ -41,9 +49,12 @@ export const completeGuestDraftUpload = publicProcedure
 				completionToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
 				capabilityVersion: z.string().min(1).max(128),
 				productKey: z.string().min(1).max(64),
+				skuKey: imageSkuKeySchema,
 				sha256: z.string().regex(/^[a-f0-9]{64}$/),
 				prompt: promptSchema,
 				aspectRatio: imageAspectRatioSchema.default("auto"),
+				outputFormat: imageOutputFormatSchema.optional(),
+				background: imageBackgroundSchema.optional(),
 			})
 			.strict(),
 	)
@@ -60,7 +71,8 @@ export const completeGuestDraftUpload = publicProcedure
 					status: z.literal("READY"),
 					claimToken: z.string().regex(/^[A-Za-z0-9_-]{43}$/),
 					continueUrl: z.literal("/draft/continue"),
-					productKey: z.enum(["image-fast", "image-quality"]),
+					productKey: z.enum(EZPIC_PRODUCT_KEYS),
+					skuKey: imageSkuKeySchema,
 					accessHint: z.enum(["guest-trial", "paid-account"]),
 				})
 				.strict(),
@@ -79,6 +91,19 @@ export const completeGuestDraftUpload = publicProcedure
 		);
 		assertGuestCapabilityVersion(input.capabilityVersion, loaded.snapshot.version);
 		const product = assertGuestProductAvailable(loaded.snapshot, input.productKey);
+		const selection = parseImageSelection(product.key, input);
+		const sku = selection
+			? product.skuMatrix.cells.find((cell) => cell.skuKey === selection.skuKey)
+			: undefined;
+		if (
+			!selection ||
+			!sku ||
+			!sku.aspectRatios.includes(selection.aspectRatio) ||
+			!runtimeControlAvailable(sku.controls, "outputFormat", selection.outputFormat) ||
+			!runtimeControlAvailable(sku.controls, "background", selection.background)
+		) {
+			throw new Error("GUEST_PRODUCT_UNAVAILABLE");
+		}
 		const completionTokenHash = hashGuestSecret(input.completionToken);
 		const completion = await loadGuestUploadCompletion(
 			{
@@ -129,8 +154,11 @@ export const completeGuestDraftUpload = publicProcedure
 					promotionPeriod: loaded.config.promotionPeriod,
 					maximumOutstandingBootstraps: loaded.config.limits.maximumOutstandingBootstraps,
 					productKey: product.key,
+					skuKey: selection.skuKey,
 					prompt: input.prompt,
-					aspectRatio: input.aspectRatio,
+					aspectRatio: selection.aspectRatio,
+					...(selection.outputFormat === undefined ? {} : { outputFormat: selection.outputFormat }),
+					...(selection.background === undefined ? {} : { background: selection.background }),
 					expiresAt: new Date(Date.now() + loaded.config.bootstrapTtlMs),
 					verification: currentMediaAssetVerificationBoundary(),
 				},
@@ -150,6 +178,22 @@ export const completeGuestDraftUpload = publicProcedure
 			claimToken,
 			continueUrl: "/draft/continue" as const,
 			productKey: product.key,
+			skuKey: selection.skuKey,
 			accessHint: product.accessHint,
 		};
 	});
+
+function runtimeControlAvailable(
+	controls: ReadonlyArray<{ key: string; options: ReadonlyArray<{ key: string }> }>,
+	key: "outputFormat" | "background",
+	value: string | undefined,
+): boolean {
+	return (
+		value === undefined ||
+		Boolean(
+			controls
+				.find((control) => control.key === key)
+				?.options.some((option) => option.key === value),
+		)
+	);
+}

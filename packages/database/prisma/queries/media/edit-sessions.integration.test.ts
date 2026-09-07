@@ -72,6 +72,31 @@ describe("image edit session PostgreSQL transaction", () => {
 		expect(await client.creditLedgerEntry.count()).toBe(ledgerBeforeFailure);
 	});
 
+	it("creates a root edit job for a current Kie product without dropping its exact SKU", async () => {
+		const fixture = await createRootFixture(client, {
+			credits: 20n,
+			productKey: "image-gpt-image-2",
+			skuKey: "gpt-image-2-4k",
+			aspectRatio: "16:9",
+		});
+
+		const created = await createRootEdit(client, fixture);
+		const storedJob = await client.generationJob.findUniqueOrThrow({
+			where: { id: created.job.id },
+			select: { productKey: true, inputSnapshot: true, editSessionId: true },
+		});
+
+		expect(storedJob).toMatchObject({
+			productKey: "image-gpt-image-2",
+			inputSnapshot: {
+				kind: "image-to-image",
+				skuKey: "gpt-image-2-4k",
+				aspectRatio: "16:9",
+			},
+		});
+		expect(storedJob.editSessionId).toEqual(expect.any(String));
+	});
+
 	it("hides a foreign root and distinguishes an owned asset that is not ready", async () => {
 		const caller = await createRootFixture(client, { credits: 20n });
 		const foreign = await createReadyImageAsset(client, `foreign-${crypto.randomUUID()}`, "INPUT");
@@ -496,7 +521,12 @@ interface ChildFixture {
 
 async function createRootFixture(
 	client: PrismaClient,
-	input: { credits: bigint },
+	input: {
+		credits: bigint;
+		productKey?: string;
+		skuKey?: string;
+		aspectRatio?: string;
+	},
 ): Promise<RootFixture> {
 	const suffix = crypto.randomUUID();
 	const ownerId = `pr5-root-${suffix}`;
@@ -512,7 +542,11 @@ async function createRootFixture(
 		);
 	}
 	const asset = await createReadyImageAsset(client, ownerId, "INPUT");
-	const quote = await createApprovedQuote(client, ownerId, asset.id);
+	const quote = await createApprovedQuote(client, ownerId, asset.id, undefined, undefined, {
+		productKey: input.productKey,
+		skuKey: input.skuKey,
+		aspectRatio: input.aspectRatio,
+	});
 	return {
 		ownerId,
 		assetId: asset.id,
@@ -618,12 +652,13 @@ async function createApprovedQuote(
 				editSessionId: string;
 				rootAssetId: string;
 		  },
+	options: { productKey?: string; skuKey?: string; aspectRatio?: string } = {},
 ) {
 	const input = {
 		ownerType: "USER" as const,
 		ownerId,
 		submittedByUserId: ownerId,
-		productKey: "image-fast",
+		productKey: options.productKey ?? "image-fast",
 		catalogVersion: "pr5-catalog-v1",
 		pricingVersion: "pr5-pricing-v1",
 		credits: 4n,
@@ -632,6 +667,8 @@ async function createApprovedQuote(
 			kind: "image-to-image",
 			prompt,
 			sourceAssetId,
+			...(options.skuKey ? { skuKey: options.skuKey } : {}),
+			...(options.aspectRatio ? { aspectRatio: options.aspectRatio } : {}),
 			...(editContext ? { editContext } : {}),
 		},
 		pricingSnapshot: {},

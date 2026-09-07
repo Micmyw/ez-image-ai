@@ -1,10 +1,9 @@
-# Anonymous Standard trial operations
+# Anonymous Nano Banana 2 Lite trial operations
 
-This runbook covers the sponsored anonymous Standard Edit trial. PostgreSQL remains the business
-source of truth for the temporary principal, trial, credits, job, attempts, result grant, private
-assets, cleanup, and audit trail. Trigger.dev, storage, moderation, Turnstile, analytics, and the
-configured image service deliver or observe work; they do not own guest eligibility or financial
-state.
+This runbook covers the sponsored anonymous Nano Banana 2 Lite 1K trial. PostgreSQL remains the
+business source of truth for the temporary principal, trial, EzPic Credits, job, attempts, result
+grant, private assets, cleanup, and audit trail. Trigger.dev, storage, moderation, Turnstile,
+analytics, and Kie deliver or observe work; they do not own guest eligibility or financial state.
 
 The feature remains production-off until `pnpm launch:certify` passes against protected evidence for
 the exact deployment revision. Local PostgreSQL, deterministic adapters, screenshots, builds, dry
@@ -20,13 +19,19 @@ Before enabling admission, prove all of the following for the exact production r
 
 - the environment guest gate and audited `media.guestGeneration.enabled` runtime override are both
   enabled;
-- only Standard Edit is admitted and its current four-credit quote matches the sponsor grant;
+- only product `image-nano-banana-2-lite` and SKU `nano-banana-2-lite-1k` are admitted, the output
+  count is one, the aspect ratio belongs to that SKU's own matrix, and the five-credit quote matches
+  the sponsor grant;
 - the trusted-proxy policy rejects direct origin bypass;
 - the independent versioned abuse HMAC configuration and promotion-period identifier are present;
 - Turnstile site, secret, hostname, and `guest_generate` action evidence is current;
 - every rate limit, queue limit/TTL, 24-hour media retention, and sponsored-risk budget is positive
   and fail-closed;
-- measured billed Standard cost is recorded and the internal risk ceiling covers that observation;
+- measured billed Kie cost for `nano-banana-2-lite-1k` is recorded through
+  `GUEST_BILLED_SKU_COST_EVIDENCE_ID`, `GUEST_BILLED_SKU_COST_MICROS`,
+  `GUEST_BILLED_SKU_PRODUCT_KEY=image-nano-banana-2-lite`, and
+  `GUEST_BILLED_SKU_KEY=nano-banana-2-lite-1k`, and the internal risk ceiling covers that
+  observation;
 - an external account hard budget and spend alert have operator evidence;
 - private upload/promotion, moderation, Outbox delivery, admission/cleanup tasks, watermarking,
   signed access, alert delivery, privacy disclosure, and deletion readiness have passed.
@@ -112,8 +117,8 @@ The safety evaluator applies these exact boundaries:
 
 A missing or invalid sponsored-risk budget is an exhausted configuration and fails closed. An
 automatic action may create only an audited `media.guestGeneration.enabled=false` override. It must
-not disable registered Standard/Quality work, rewrite jobs or attempts, release uncertain
-reservations, or mutate external account limits.
+not disable registered Kie products, rewrite jobs or attempts, release uncertain reservations, or
+mutate external account limits.
 
 ## Kill switches
 
@@ -121,8 +126,8 @@ Apply the narrowest sufficient switch, in this order:
 
 1. `media.guestGeneration.enabled=false` stops new guest admission. Undispatched guest work is
    drained through the normal expiry/release path; submitted or uncertain work remains recoverable.
-2. `media.model.image-fast.enabled=false` stops new Standard routing for both guest and registered
-   traffic. Use only when Standard itself is unsafe.
+2. `media.model.image-nano-banana-2-lite.enabled=false` stops new Nano Banana 2 Lite routing for both
+   guest and registered traffic. Use only when this product itself is unsafe.
 3. `media.generation.enabled=false` or `MEDIA_GENERATION_ENABLED=false` stops all new generation.
 4. The image-service account hard budget is the final external spend boundary. Keep read/reconcile
    access available after it trips.
@@ -170,11 +175,14 @@ the guest cohort gradually and record a fresh aggregate snapshot after each chan
 Keep these items `NOT_COMPLETED` until they are verified against the live external system and exact
 deployed revision:
 
-- billed Standard cost and the matching internal risk ceiling;
+- billed Kie Nano Banana 2 Lite 1K cost and the matching internal risk ceiling;
 - external hard-budget and spend-alert configuration;
 - production Turnstile, trusted-proxy, storage, moderation, task, watermark, and cleanup evidence;
 - deployed privacy content and runtime configuration;
 - production alert receipt, guest enablement, and live end-to-end trial evidence.
+
+Real paid Kie guest execution is currently `NOT_COMPLETED`. A local mock, dry-run provider smoke, or
+retired OpenRouter benchmark cannot certify this trial.
 
 `pnpm launch:certify` must continue to fail while any required item is incomplete. A forged `PASS`
 record that omits a guest gate is invalid and must be rejected by the certification schema.

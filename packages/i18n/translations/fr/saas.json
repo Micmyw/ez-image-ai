@@ -54,9 +54,7 @@
 				"enabled": "Actif",
 				"disabled": "Inactif",
 				"filters": {
-					"product": "Mode de retouche",
-					"provider": "Fournisseur",
-					"model": "Modèle",
+					"product": "Modèle d’image",
 					"status": "État de la tâche",
 					"from": "Depuis",
 					"to": "Jusqu’à"
@@ -65,7 +63,6 @@
 					"jobs": "Tâches",
 					"successRate": "Taux de réussite",
 					"latency": "Latence p50 / p95",
-					"cost": "Coût moyen fournisseur (micros)",
 					"moderation": "Rejets de modération",
 					"repeat": "Taux de seconde retouche",
 					"credits": "Réservés / débités / libérés",
@@ -74,10 +71,9 @@
 				"controls": { "title": "Contrôles effectifs", "global": "Interrupteur de génération" },
 				"failures": { "title": "Codes d’échec" },
 				"routes": {
-					"title": "Répartition des routes",
-					"product": "Mode de retouche",
-					"provider": "Fournisseur",
-					"model": "Modèle",
+					"title": "Répartition par SKU",
+					"product": "Modèle d’image",
+					"sku": "SKU",
 					"status": "État",
 					"jobs": "Tâches"
 				}
@@ -853,18 +849,68 @@
 		"create": {
 			"eyebrow": "Éditeur d'images",
 			"title": "Retouchez une image source avec une instruction",
-			"subtitle": "Importez une image source, décrivez le changement, choisissez un niveau de retouche et vérifiez la réservation de crédits.",
+			"subtitle": "Importez une image source, décrivez le changement, choisissez un modèle d’image et ses réglages de sortie, puis vérifiez la réservation de crédits.",
 			"draftRestored": "Votre brouillon de retouche enregistré est prêt à être poursuivi.",
-			"product": "Qualité de retouche",
+			"product": "Modèle d’image",
 			"products": {
-				"image-fast": {
-					"label": "Standard Edit",
-					"description": "Retouche privée guidée par instruction au niveau Standard."
+				"image-nano-banana-2-lite": {
+					"label": "Nano Banana 2 Lite",
+					"description": "Retouches rapides en 1K avec une large prise en charge des formats."
 				},
-				"image-quality": {
-					"label": "Quality Edit",
-					"description": "Retouche privée guidée par instruction au niveau Quality."
+				"image-nano-banana": {
+					"label": "Nano Banana",
+					"description": "Retouches équilibrées avec un profil de sortie par défaut dédié."
+				},
+				"image-nano-banana-2": {
+					"label": "Nano Banana 2",
+					"description": "Retouches flexibles avec des options 1K, 2K et 4K indépendantes."
+				},
+				"image-nano-banana-pro": {
+					"label": "Nano Banana Pro",
+					"description": "Retouches haut de gamme avec des options 1K, 2K et 4K indépendantes."
+				},
+				"image-gpt-image-1-5": {
+					"label": "GPT Image 1.5",
+					"description": "Retouches avec des options de qualité Moyenne et Élevée indépendantes."
+				},
+				"image-gpt-image-2": {
+					"label": "GPT Image 2",
+					"description": "Retouches détaillées avec des options 1K, 2K et 4K indépendantes."
+				},
+				"image-seedream-4-5": {
+					"label": "Seedream 4.5",
+					"description": "Retouches avec des options indépendantes 2K Standard et 4K Élevée."
+				},
+				"image-seedream-5-lite": {
+					"label": "Seedream 5 Lite",
+					"description": "Retouches avec des options indépendantes 2K Standard, 3K Élevée et 4K Ultra."
+				},
+				"image-seedream-5-pro": {
+					"label": "Seedream 5 Pro",
+					"description": "Retouches avec des options indépendantes 1K Standard et 2K Élevée."
 				}
+			},
+			"skus": {
+				"nano-banana-2-lite-1k": { "label": "1K" },
+				"nano-banana-default": { "label": "Par défaut" },
+				"nano-banana-2-1k": { "label": "1K" },
+				"nano-banana-2-2k": { "label": "2K" },
+				"nano-banana-2-4k": { "label": "4K" },
+				"nano-banana-pro-1k": { "label": "1K" },
+				"nano-banana-pro-2k": { "label": "2K" },
+				"nano-banana-pro-4k": { "label": "4K" },
+				"gpt-image-1-5-medium": { "label": "Moyenne" },
+				"gpt-image-1-5-high": { "label": "Élevée" },
+				"gpt-image-2-1k": { "label": "1K" },
+				"gpt-image-2-2k": { "label": "2K" },
+				"gpt-image-2-4k": { "label": "4K" },
+				"seedream-4-5-basic-2k": { "label": "2K · Standard" },
+				"seedream-4-5-high-4k": { "label": "4K · Élevée" },
+				"seedream-5-lite-basic-2k": { "label": "2K · Standard" },
+				"seedream-5-lite-high-3k": { "label": "3K · Élevée" },
+				"seedream-5-lite-ultra-4k": { "label": "4K · Ultra" },
+				"seedream-5-pro-basic-1k": { "label": "1K · Standard" },
+				"seedream-5-pro-high-2k": { "label": "2K · Élevée" }
 			},
 			"fields": {
 				"prompt": "Instruction de retouche",
@@ -879,7 +925,25 @@
 				"oneOutput": "Ce modèle renvoie une image",
 				"resolution": "Résolution",
 				"quality": "Qualité",
-				"modeControlsQuality": "Définie par le niveau de retouche"
+				"outputFormat": "Format de sortie",
+				"background": "Arrière-plan",
+				"modeControlsQuality": "Définie par le modèle et la SKU sélectionnés",
+				"credits": "EzPic Credits",
+				"optionLabels": {
+					"1k": "1K",
+					"2k": "2K",
+					"3k": "3K",
+					"4k": "4K",
+					"basic": "Standard",
+					"medium": "Moyenne",
+					"high": "Élevée",
+					"ultra": "Ultra",
+					"png": "PNG",
+					"jpeg": "JPEG",
+					"auto": "Automatique",
+					"opaque": "Opaque",
+					"transparent": "Transparent"
+				}
 			},
 			"promptHint": "Décrivez uniquement la modification voulue. Votre image source reste privée.",
 			"suggestions": {
@@ -911,14 +975,14 @@
 				"private": "Médias privés liés au propriétaire"
 			},
 			"restore": {
-				"qualityUpgradeRequired": "L’image, l’instruction et la sélection Quality Edit ont été restaurées. Choisissez Creator ou Studio pour continuer avec Quality Edit.",
-				"upgradeComplete": "Votre forfait payant est actif. L’image, l’instruction, le mode et la session de retouche ont été restaurés.",
+				"qualityUpgradeRequired": "L’image, l’instruction et le modèle d’image sélectionné ont été restaurés. Choisissez Pro, Ultimate ou Max pour continuer avec ce modèle.",
+				"upgradeComplete": "Votre forfait payant est actif. L’image, l’instruction, les réglages du modèle et la session de retouche ont été restaurés.",
 				"verifying": "Le brouillon a été restauré. L’image privée termine encore son contrôle de sécurité ; Vérifier sera activé ensuite.",
 				"unavailable": "Cette retouche enregistrée a expiré ou son image source n’est plus disponible. Aucune tâche ni réservation de crédits n’a été créée."
 			},
 			"errors": {
 				"insufficientCredits": "Vous n’avez pas assez de crédits pour cette retouche. Aucune tâche ni réservation n’a été créée.",
-				"qualityUnavailable": "Quality Edit n’est pas inclus dans votre offre. Choisissez Standard Edit ou consultez votre offre.",
+				"qualityUnavailable": "Ce modèle d’image n’est pas inclus dans votre offre. Choisissez Nano Banana 2 Lite ou consultez votre offre.",
 				"assetNotReady": "L’image source n’est pas prête. Attendez son contrôle privé ou choisissez une autre image.",
 				"quoteExpired": "Ce devis a expiré ou le prix a changé. Vérifiez de nouveau la retouche avant de confirmer.",
 				"contentNotAllowed": "L’instruction n’a pas réussi le contrôle de sécurité. Aucune tâche ni réservation n’a été créée.",
@@ -928,21 +992,21 @@
 			}
 		},
 		"guest": {
-			"eyebrow": "Essai Standard invité",
+			"eyebrow": "Essai Nano Banana 2 Lite invité",
 			"title": "Réalisez une retouche d’image privée",
 			"subtitle": "Votre source et votre instruction sont prêtes. Rejoignez la file gratuite pour un aperçu temporaire filigrané.",
 			"sourceReady": "Source privée prête",
 			"sourceHandoff": "Transférée en privé pour cette retouche",
 			"promptLabel": "Instruction de retouche",
 			"characterCount": "{count, number} / {maximum, number}",
-			"standard": "Retouche Standard",
+			"standard": "Nano Banana 2 Lite · 1K",
 			"oneOutput": "Un résultat",
 			"freeQueue": "File gratuite",
 			"temporary": "Filigrané · disponible jusqu’à 24 heures",
 			"temporaryCompact": "Filigrané · temporaire",
-			"submit": "Lancer ma retouche Standard",
+			"submit": "Lancer ma retouche Nano Banana",
 			"challenge": "Vérifier cette retouche invitée",
-			"qualityCta": "Retouche Quality · Creator ou Studio",
+			"qualityCta": "Plus de modèles d’image · forfait payant",
 			"retryChallenge": "Réessayer la vérification",
 			"retryPreview": "Réessayer l’aperçu privé",
 			"viewStatus": "Voir le statut",
@@ -985,8 +1049,8 @@
 			}
 		},
 		"upgradeDialog": {
-			"title": "Débloquer Quality Edit",
-			"description": "Conservez l’image, l’instruction, la sélection Quality Edit et la session de retouche pendant que vous comparez les forfaits payants.",
+			"title": "Débloquer plus de modèles d’image",
+			"description": "Conservez l’image, l’instruction, le modèle et la SKU sélectionnés ainsi que la session de retouche pendant que vous comparez les forfaits payants.",
 			"creator": "Pro : {credits, number} crédits par mois, {concurrency, number} retouches simultanées et images jusqu’à {megabytes, number} MB.",
 			"ultimate": "Ultimate : {credits, number} crédits par mois, {concurrency, number} retouches simultanées et images jusqu’à {megabytes, number} MB.",
 			"studio": "Max : {credits, number} crédits par mois, {concurrency, number} retouches simultanées et images jusqu’à {megabytes, number} MB.",
@@ -1005,13 +1069,13 @@
 				"remove": "Retirer l’image"
 			},
 			"mode": {
-				"label": "Mode de retouche",
-				"standard": "Standard Edit",
-				"standardDescription": "Retouche d’image privée au niveau Standard.",
-				"quality": "Quality Edit",
-				"qualityDescription": "Retouche d’image privée au niveau Quality.",
-				"credits": "{credits} crédits",
-				"qualityUnavailable": "Passez à une offre supérieure pour Quality Edit. L’image et l’instruction seront conservées.",
+				"label": "Modèle d’image",
+				"standard": "Nano Banana 2 Lite",
+				"standardDescription": "Retouche d’image privée en 1K.",
+				"quality": "Plus de modèles d’image",
+				"qualityDescription": "Retouche d’image privée avec des réglages de sortie propres au modèle.",
+				"credits": "{credits} EzPic Credits",
+				"qualityUnavailable": "Passez à une offre supérieure pour utiliser ce modèle d’image. L’image, l’instruction et les réglages de sortie seront conservés.",
 				"upgrade": "Voir les options"
 			}
 		},
@@ -1087,6 +1151,7 @@
 			"assetDeleted": "Média supprimé",
 			"outputUnavailable": "Résultat indisponible",
 			"thumbnailAlt": "Miniature privée du résultat",
+			"legacyProduct": "Retouche antérieure",
 			"renameLabel": "Titre de la session",
 			"renamePlaceholder": "Nommer cette retouche",
 			"rename": "Renommer",
@@ -1106,6 +1171,7 @@
 			},
 			"outputs": "{count, plural, one {# résultat} other {# résultats}}",
 			"reserved": "Réservés",
+			"legacyProduct": "Retouche antérieure",
 			"empty": "Aucune création ne correspond à ce filtre.",
 			"more": "Charger plus"
 		},

@@ -111,15 +111,20 @@ export function PublicPricingPlans({
 						const annualPricing = calculateAnnualPlanPricing(entitlement.prices);
 						const showAnnualPrice = view === "year" && annualBilling !== null;
 						const usage = getPlanUsageEstimate(entitlement.id);
-						const hasQualityAccess = entitlement.allowedProducts.includes("image-quality");
+						const hasAllImageModels = entitlement.allowedProducts.length > 1;
 						const recommended = planId === "ultimate";
 						const benefits = [
 							t("pricing.monthlyCredits", { credits: entitlement.monthlyCredits }),
-							usage.qualityEdits === null
-								? t("pricing.monthlyStandardAllowance", { standard: usage.standardEdits })
-								: t("pricing.monthlyEditAllowance", {
-										standard: usage.standardEdits,
-										quality: usage.qualityEdits,
+							usage.minimumImageEdits === usage.maximumImageEdits
+								? t("pricing.monthlyFixedImageAllowance", {
+										count: usage.maximumImageEdits,
+										credits: usage.minimumCreditsPerImage,
+									})
+								: t("pricing.monthlyImageAllowance", {
+										minimum: usage.minimumImageEdits,
+										maximum: usage.maximumImageEdits,
+										minimumCredits: usage.minimumCreditsPerImage,
+										maximumCredits: usage.maximumCreditsPerImage,
 									}),
 							t("pricing.concurrentEdits", { count: entitlement.maximumConcurrentJobs }),
 							t("pricing.maximumInputSize", {
@@ -226,7 +231,7 @@ export function PublicPricingPlans({
 										<ArrowRightIcon className="ml-2 size-4" aria-hidden="true" />
 									</Link>
 
-									<CapabilityRail hasQualityAccess={hasQualityAccess} />
+									<CapabilityRail hasAllImageModels={hasAllImageModels} />
 
 									<ul className="border-white/8 mt-5 space-y-2.5 pt-5 text-sm leading-5 border-t text-[#d8cfdd]">
 										{benefits.map((benefit) => (
@@ -329,14 +334,14 @@ export function PublicPricingPlans({
 	);
 }
 
-function CapabilityRail({ hasQualityAccess }: { hasQualityAccess: boolean }) {
+function CapabilityRail({ hasAllImageModels }: { hasAllImageModels: boolean }) {
 	const t = useTranslations();
 	const capabilities: Array<{
 		icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
 		label: string;
 	}> = [
-		{ icon: WandSparklesIcon, label: t("pricing.standardEdit") },
-		...(hasQualityAccess ? [{ icon: SparklesIcon, label: t("pricing.qualityEdit") }] : []),
+		{ icon: WandSparklesIcon, label: t("pricing.nanoModel") },
+		...(hasAllImageModels ? [{ icon: SparklesIcon, label: t("pricing.allImageModels") }] : []),
 		{ icon: LockKeyholeIcon, label: t("pricing.privateAssets") },
 		{ icon: HistoryIcon, label: t("pricing.editHistory") },
 		{ icon: CropIcon, label: t("pricing.aspectRatios") },

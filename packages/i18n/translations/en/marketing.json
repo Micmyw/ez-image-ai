@@ -26,20 +26,20 @@
 		"title": "Documentation"
 	},
 	"faq": {
-		"description": "Clear answers about guest availability, edit tiers, credits, private media, billing, and responsible use.",
+		"description": "Clear answers about guest availability, image models, EzPic Credits, private media, billing, and responsible use.",
 		"title": "Frequently asked questions",
 		"items": {
 			"guestAvailability": {
 				"question": "When is the guest edit available?",
-				"answer": "When the sponsored guest queue is available, a visitor can start one Standard Edit without an account. The result is watermarked, private, and available for up to 24 hours."
+				"answer": "When the sponsored guest queue is available, a visitor can start one Nano Banana 2 Lite 1K edit without an account. The result is watermarked, private, and available for up to 24 hours."
 			},
 			"guestVsFree": {
 				"question": "What is the difference between Guest and Free?",
-				"answer": "Guest is a conditional, one-time sponsored Standard Edit with a watermarked result kept for up to 24 hours. A registered Free account receives 25 credits each month: Standard Edit costs 5 credits, so that is up to five Standard edits, with no Quality Edit access."
+				"answer": "Guest is a conditional, one-time sponsored Nano Banana 2 Lite 1K edit with a watermarked result kept for up to 24 hours. A registered Free account receives 25 EzPic Credits each month; Nano Banana 2 Lite 1K costs 5, so that is up to five edits. GPT Image 2 and Seedream 5 Pro require a paid plan."
 			},
 			"editTiers": {
-				"question": "How do Standard Edit and Quality Edit differ?",
-				"answer": "Standard Edit costs 5 credits and Quality Edit costs 40 credits. Each confirmed edit produces one output. Quality Edit requires a Creator or Studio plan."
+				"question": "Which image models and output settings are available?",
+				"answer": "Nano Banana 2 Lite 1K uses 5 EzPic Credits. GPT Image 2 uses 7 at 1K, 11 at 2K, or 17 at 4K. Seedream 5 Pro uses 8 for Basic 1K or 15 for High 2K. Each confirmed edit produces one output."
 			},
 			"creditReservation": {
 				"question": "When are credits used?",
@@ -62,12 +62,12 @@
 				"answer": "No. Results can contain defects or resemble other images. EzPic does not guarantee uniqueness, fitness for a particular purpose, or freedom from third-party rights."
 			},
 			"stableTiers": {
-				"question": "Why does EzPic show tier names instead of model names?",
-				"answer": "The product exposes stable names—Standard Edit and Quality Edit. Service routing is controlled on the server and may change without changing the public tier contract."
+				"question": "Why do image models use different EzPic Credit amounts?",
+				"answer": "Each image model has its own legal output-setting matrix and EzPic Credit amount. EzPic shows the product name, supported settings, and exact charge; private service routing and operating costs stay on the server."
 			},
 			"annualBilling": {
 				"question": "How does annual billing affect credits?",
-				"answer": "Creator is $190 per year and Studio is $790 per year. Credits are still issued monthly—700 for Creator and 3,000 for Studio—and unused credits do not roll over."
+				"answer": "Pro is $190 per year, Ultimate is $490, and Max is $790. EzPic Credits are still issued monthly—700 for Pro, 1,800 for Ultimate, and 3,000 for Max—and unused credits do not roll over."
 			},
 			"cancelSubscription": {
 				"question": "How do I cancel my subscription?",
@@ -87,16 +87,16 @@
 		"generator": {
 			"eyebrow": "Plan your edit",
 			"title": "Describe the change you want",
-			"subtitle": "Upload a source image and describe the edit. When the guest queue is available, you can start one private Standard Edit in EzPic.",
-			"offer": "Try one Standard edit free",
+			"subtitle": "Upload a source image and describe the edit. When the guest queue is available, you can start one private Nano Banana 2 Lite 1K edit in EzPic.",
+			"offer": "Try Nano Banana 2 Lite 1K free",
 			"noSignUp": "No sign-up when the guest queue is available",
-			"paidSignIn": "Sign-in and Creator or Studio required",
+			"paidSignIn": "Sign-in and a paid plan required",
 			"oneOutput": "One output",
 			"freeQueue": "Free queue · one watermarked preview · available for up to 24 hours",
-			"qualityAccess": "Quality Edit continues after sign-in and requires a Creator or Studio account.",
+			"qualityAccess": "GPT Image 2 and Seedream 5 Pro continue after sign-in and require a Pro, Ultimate, or Max plan.",
 			"temporaryResult": "Your preview stays private and temporary.",
 			"temporarySessionDisclosure": "EzPic creates a temporary session for this trial, keeps guest media for up to 24 hours, and uses pseudonymous abuse signals for the policy period described in our Privacy Policy.",
-			"qualityCta": "Quality edit · Creator or Studio",
+			"qualityCta": "More image models · paid plan",
 			"retryChallenge": "Retry verification",
 			"characterCount": "{count, number} / {maximum, number}",
 			"settings": {
@@ -108,31 +108,49 @@
 				"oneOutput": "Each confirmed edit returns one image",
 				"resolution": "Resolution",
 				"quality": "Quality",
-				"modeControlsQuality": "Controlled by edit level"
+				"outputFormat": "Output format",
+				"background": "Background",
+				"modeControlsQuality": "Controlled by the selected model and SKU",
+				"credits": "EzPic Credits",
+				"optionLabels": {
+					"1k": "1K",
+					"2k": "2K",
+					"3k": "3K",
+					"4k": "4K",
+					"basic": "Basic",
+					"medium": "Medium",
+					"high": "High",
+					"ultra": "Ultra",
+					"png": "PNG",
+					"jpeg": "JPEG",
+					"auto": "Automatic",
+					"opaque": "Opaque",
+					"transparent": "Transparent"
+				}
 			},
 			"states": {
 				"challenge": "Verify this guest upload",
 				"checking": "Checking edit availability…",
-				"ready": "Choose a tier, source image, and prompt to continue.",
+				"ready": "Choose an image model, source image, and prompt to continue.",
 				"preparing": "Preparing your private upload…",
 				"loadingCapability": "Checking guest availability…",
-				"unavailable": "The guest Standard queue is not accepting new edits right now.",
+				"unavailable": "The guest Nano Banana queue is not accepting new edits right now.",
 				"uploading": "Uploading private source image: {percentage, number}%",
 				"verifying": "Verifying your private source image…",
 				"handoff": "Opening your private draft…",
-				"failed": "This attempt stopped before handoff. Your image, prompt, and tier are still here."
+				"failed": "This attempt stopped before handoff. Your image, prompt, and model selection are still here."
 			},
 			"guidance": {
 				"checking": "Wait while edit availability is checked.",
 				"unavailable": "Editing is unavailable right now. Try again later.",
-				"product": "Choose an edit tier to continue.",
+				"product": "Choose an image model to continue.",
 				"source": "Add a source image to continue.",
 				"prompt": "Describe the edit you want to continue.",
 				"verification": "Complete the verification to continue."
 			},
 			"actions": {
-				"standard": "Try one Standard edit free",
-				"quality": "Continue with Quality Edit",
+				"standard": "Try Nano Banana 2 Lite 1K free",
+				"quality": "Continue with a paid image model",
 				"retry": "Retry {product}",
 				"retryAvailability": "Check edit availability again"
 			},
@@ -159,23 +177,23 @@
 				"lighting": "Add warm late-afternoon window light"
 			},
 			"modes": {
-				"legend": "Edit tier",
+				"legend": "Image model",
 				"credits": "{credits, number} credits",
-				"selectionPending": "Choose a tier",
+				"selectionPending": "Choose a model",
 				"standard": {
-					"label": "Standard Edit",
+					"label": "Nano Banana 2 Lite",
 					"badge": "Guest trial",
-					"description": "Source-image editing with one output",
-					"access": "One guest edit"
+					"description": "1K source-image editing with one output",
+					"access": "One sponsored guest edit"
 				},
 				"quality": {
-					"label": "Quality Edit",
+					"label": "More image models",
 					"badge": "Paid account",
-					"description": "Source-image editing with one output",
-					"access": "Creator or Studio account required"
+					"description": "Each model keeps its own verified output settings and EzPic Credit amount",
+					"access": "Pro, Ultimate, or Max plan required"
 				}
 			},
-			"loginNotice": "Guest Standard edits can start without sign-in when the guest queue is available; account edits require confirmation of the credit amount.",
+			"loginNotice": "Guest Nano Banana 2 Lite 1K edits can start without sign-in when the guest queue is available; account edits show the exact EzPic Credit amount before confirmation.",
 			"previewCaption": "Source preview",
 			"previewPlaceholderAlt": "Original EzPic vector illustration of a neutral reading studio",
 			"previewAlt": "Preview of {fileName}",
@@ -254,9 +272,9 @@
 		"imageEditorHero": {
 			"eyebrow": "Upload-first prompt editing",
 			"title": "AI Image Editor <accent>With Prompts</accent>",
-			"subtitle": "Upload your image and describe the change. When the guest queue is available, you can start one private Standard Edit from this page without an account.",
+			"subtitle": "Upload your image and describe the change. When the guest queue is available, you can start one private Nano Banana 2 Lite 1K edit from this page without an account.",
 			"private": "Private source images",
-			"draftOnly": "One guest Standard edit"
+			"draftOnly": "One guest Nano Banana 2 Lite edit"
 		},
 		"beforeAfter": {
 			"eyebrow": "One source, one clear change",
@@ -435,7 +453,7 @@
 		"trust": {
 			"eyebrow": "Clear boundaries",
 			"title": "Private by default, metered by design",
-			"description": "When the sponsored guest queue is available, the homepage can start one sponsored Standard Edit. Account edits still require a quote and confirmation before credits are reserved.",
+			"description": "When the sponsored guest queue is available, the homepage can start one sponsored Nano Banana 2 Lite 1K edit. Account edits still require a quote and confirmation before EzPic Credits are reserved.",
 			"items": {
 				"privacy": {
 					"title": "Private media",
@@ -443,7 +461,7 @@
 				},
 				"credits": {
 					"title": "Controlled usage",
-					"description": "Guest Standard edits use the sponsored queue; account edits show the credit amount and wait for your confirmation."
+					"description": "Guest Nano Banana edits use the sponsored queue; account edits show the exact EzPic Credit amount and wait for your confirmation."
 				},
 				"safety": {
 					"title": "Normal safeguards",
@@ -454,7 +472,7 @@
 		"finalCta": {
 			"eyebrow": "Start with one image",
 			"title": "Describe the edit you already have in mind",
-			"description": "Upload and describe the change here. When the guest queue is available, continue to one private Standard guest edit without creating an account.",
+			"description": "Upload and describe the change here. When the guest queue is available, continue to one private Nano Banana 2 Lite 1K guest edit without creating an account.",
 			"button": "Back to the editor"
 		},
 		"hero": {
@@ -470,7 +488,7 @@
 		"features": {
 			"badge": "Image-editing workflow",
 			"title": "From source image to controlled edit",
-			"description": "EzPic keeps the edit prompt, quality choice, credits, and private assets in one focused workspace.",
+			"description": "EzPic keeps the edit prompt, model-specific output settings, EzPic Credits, and private assets in one focused workspace.",
 			"feature1": {
 				"title": "Directed edits",
 				"subtitle": "Describe the change instead of rebuilding the image.",
@@ -484,8 +502,8 @@
 					"description": "Every public edit starts with an image."
 				},
 				"benefit3": {
-					"title": "Two edit levels",
-					"description": "Choose Standard Edit or Quality Edit when your plan allows it."
+					"title": "Model-specific settings",
+					"description": "Choose from EzPic’s available image models; each keeps its own verified output settings and EzPic Credit amount."
 				}
 			},
 			"feature2": {

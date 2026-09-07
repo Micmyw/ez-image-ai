@@ -1,9 +1,22 @@
 import { ORPCError } from "@orpc/server";
+import { getCatalogEntry, getCatalogImageSpecCell, imageAspectRatioSchema } from "@repo/ai";
+import {
+	EZPIC_PRODUCT_KEYS,
+	imageSkuKeySchema,
+	LEGACY_EZPIC_PRODUCT_KEYS,
+	productModelKeySchema,
+	type ImageAspectRatio,
+	type ImageSkuKey,
+} from "@repo/config";
 import { getImageEditSessionForOwner } from "@repo/database";
 import { db } from "@repo/database/client";
 
 import { protectedProcedure } from "../../../orpc/procedures";
 import { editSessionIdInputSchema, jsonBigInt } from "../types";
+
+type ImageEditProductKey =
+	| (typeof EZPIC_PRODUCT_KEYS)[number]
+	| (typeof LEGACY_EZPIC_PRODUCT_KEYS)[number];
 
 export const getEditSession = protectedProcedure
 	.route({ method: "GET", path: "/media/edit-sessions/{sessionId}", tags: ["Media"] })
@@ -49,15 +62,17 @@ function versionDto(
 	},
 	userId: string,
 ) {
-	const input = imageEditInput(job.inputSnapshot);
+	const input = imageEditInput(job.inputSnapshot, job.productKey);
 	const outputBinding = job.assets.find(({ role }) => role === "OUTPUT");
 	const output = outputState(outputBinding?.asset, userId);
 	return {
 		id: job.id,
 		parentJobId: job.parentJobId,
-		productKey: job.productKey as "image-fast" | "image-quality",
+		productKey: job.productKey as ImageEditProductKey,
 		prompt: input.prompt,
 		sourceAssetId: input.sourceAssetId,
+		skuKey: input.skuKey,
+		aspectRatio: input.aspectRatio,
 		credits: jsonBigInt(job.creditsReserved),
 		status: job.status,
 		createdAt: job.createdAt.toISOString(),
@@ -66,16 +81,36 @@ function versionDto(
 	};
 }
 
-function imageEditInput(value: unknown): { prompt: string; sourceAssetId: string | null } {
+function imageEditInput(
+	value: unknown,
+	rawProductKey: string,
+): {
+	prompt: string;
+	sourceAssetId: string | null;
+	skuKey: ImageSkuKey | null;
+	aspectRatio: ImageAspectRatio | null;
+} {
 	if (!value || typeof value !== "object" || Array.isArray(value)) {
-		return { prompt: "", sourceAssetId: null };
+		return { prompt: "", sourceAssetId: null, skuKey: null, aspectRatio: null };
 	}
 	const input = value as Record<string, unknown>;
+	if (input.kind !== "image-to-image") {
+		return { prompt: "", sourceAssetId: null, skuKey: null, aspectRatio: null };
+	}
+	const productKey = productModelKeySchema.safeParse(rawProductKey);
+	const skuKey = imageSkuKeySchema.safeParse(input.skuKey);
+	const aspectRatio = imageAspectRatioSchema.safeParse(input.aspectRatio);
+	const cell =
+		productKey.success && skuKey.success
+			? getCatalogImageSpecCell(getCatalogEntry(productKey.data), skuKey.data)
+			: undefined;
 	return {
-		prompt: input.kind === "image-to-image" && typeof input.prompt === "string" ? input.prompt : "",
-		sourceAssetId:
-			input.kind === "image-to-image" && typeof input.sourceAssetId === "string"
-				? input.sourceAssetId
+		prompt: typeof input.prompt === "string" ? input.prompt : "",
+		sourceAssetId: typeof input.sourceAssetId === "string" ? input.sourceAssetId : null,
+		skuKey: cell?.skuKey ?? null,
+		aspectRatio:
+			cell && aspectRatio.success && cell.aspectRatios.includes(aspectRatio.data)
+				? aspectRatio.data
 				: null,
 	};
 }

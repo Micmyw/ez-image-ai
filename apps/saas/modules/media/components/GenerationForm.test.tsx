@@ -40,20 +40,44 @@ vi.mock("@repo/ui/components/select", () => {
 		SelectValue: () => null,
 	};
 });
+vi.mock("@repo/ui/components/popover", () => ({
+	Popover: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+	PopoverContent: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+	PopoverTrigger: ({ render }: { render: React.ReactNode }) => render,
+}));
 vi.mock("next-intl", () => ({
 	useTranslations: () => (key: string, values?: Record<string, unknown>) =>
 		({
-			product: "Localized quality",
-			"products.image-fast.label": "Localized Standard Edit",
-			"products.image-fast.description": "Localized everyday edits",
-			"products.image-quality.label": "Localized Quality Edit",
-			"products.image-quality.description": "Localized detailed edits",
+			product: "Localized image model",
+			"products.image-nano-banana-2-lite.label": "Localized Nano Banana 2 Lite",
+			"products.image-nano-banana-2-lite.description": "Localized fast 1K edits",
+			"products.image-gpt-image-2.label": "Localized GPT Image 2",
+			"products.image-gpt-image-2.description": "Localized detailed 1K, 2K, and 4K edits",
+			"products.image-seedream-5-pro.label": "Localized Seedream 5 Pro",
+			"products.image-seedream-5-pro.description": "Localized Basic and High edits",
+			"skus.nano-banana-2-lite-1k.label": "Localized 1K",
+			"skus.gpt-image-2-1k.label": "Localized GPT 1K",
+			"skus.gpt-image-2-2k.label": "Localized 2K",
+			"skus.gpt-image-2-4k.label": "Localized 4K",
+			"skus.seedream-5-pro-basic-1k.label": "Localized 1K Basic",
+			"skus.seedream-5-pro-high-2k.label": "Localized 2K High",
 			"fields.prompt": "Localized edit instruction",
 			"fields.sourceAssetId": "Localized source image",
-			standard: "Localized Standard Edit",
-			standardDescription: "Localized everyday edits",
-			quality: "Localized Quality Edit",
-			qualityDescription: "Localized detailed edits",
+			"outputSettings.resolution": "Localized resolution",
+			"outputSettings.quality": "Localized quality",
+			"outputSettings.outputFormat": "Localized output format",
+			"outputSettings.background": "Localized background",
+			"outputSettings.credits": "EzPic Credits",
+			"outputSettings.optionLabels.1k": "Localized 1K",
+			"outputSettings.optionLabels.2k": "Localized 2K",
+			"outputSettings.optionLabels.4k": "Localized 4K",
+			"outputSettings.optionLabels.basic": "Localized Basic",
+			"outputSettings.optionLabels.high": "Localized High",
+			"outputSettings.optionLabels.png": "PNG",
+			"outputSettings.optionLabels.jpeg": "JPEG",
+			"outputSettings.optionLabels.auto": "Localized automatic",
+			"outputSettings.optionLabels.opaque": "Localized opaque",
+			"outputSettings.optionLabels.transparent": "Localized transparent",
 			credits:
 				typeof values?.credits === "number" || typeof values?.credits === "string"
 					? `${values.credits} localized credits`
@@ -78,16 +102,150 @@ vi.mock("next-intl", () => ({
 }));
 vi.mock("../hooks/use-generation", () => ({ useGeneration: mocks.useGeneration }));
 
+const nanoMatrix = {
+	defaultSkuKey: "nano-banana-2-lite-1k",
+	dimensions: [
+		{
+			key: "resolution" as const,
+			label: "Catalog resolution",
+			options: [{ key: "1k", label: "1K" }],
+		},
+	],
+	cells: [
+		{
+			skuKey: "nano-banana-2-lite-1k",
+			label: "Catalog Nano 1K",
+			parameterValues: { resolution: "1k" },
+			credits: 5,
+			aspectRatios: ["auto", "1:1", "16:9"],
+			controls: [],
+		},
+	],
+};
+
+const gptMatrix = {
+	defaultSkuKey: "gpt-image-2-1k",
+	dimensions: [
+		{
+			key: "resolution" as const,
+			label: "Catalog resolution",
+			options: [
+				{ key: "1k", label: "Catalog 1K" },
+				{ key: "2k", label: "2K" },
+				{ key: "4k", label: "4K" },
+			],
+		},
+	],
+	cells: [
+		{
+			skuKey: "gpt-image-2-1k",
+			label: "Catalog GPT 1K",
+			parameterValues: { resolution: "1k" },
+			credits: 7,
+			aspectRatios: ["1:1", "16:9"],
+			controls: [
+				{
+					key: "background" as const,
+					label: "Catalog background",
+					defaultValue: "opaque",
+					options: [
+						{ key: "auto", label: "Catalog automatic" },
+						{ key: "opaque", label: "Catalog opaque" },
+						{ key: "transparent", label: "Catalog transparent" },
+					],
+				},
+			],
+		},
+		{
+			skuKey: "gpt-image-2-2k",
+			label: "Catalog GPT 2K",
+			parameterValues: { resolution: "2k" },
+			credits: 11,
+			aspectRatios: ["1:1", "16:9"],
+			controls: [],
+		},
+		{
+			skuKey: "gpt-image-2-4k",
+			label: "Catalog GPT 4K",
+			parameterValues: { resolution: "4k" },
+			credits: 17,
+			aspectRatios: ["4:3", "16:9"],
+			controls: [],
+		},
+	],
+};
+
+const seedreamMatrix = {
+	defaultSkuKey: "seedream-5-pro-basic-1k",
+	dimensions: [
+		{
+			key: "resolution" as const,
+			label: "Catalog resolution",
+			options: [
+				{ key: "1k", label: "1K" },
+				{ key: "2k", label: "2K" },
+			],
+		},
+		{
+			key: "quality" as const,
+			label: "Catalog quality",
+			options: [
+				{ key: "basic", label: "Basic" },
+				{ key: "high", label: "High" },
+			],
+		},
+	],
+	cells: [
+		{
+			skuKey: "seedream-5-pro-basic-1k",
+			label: "Catalog Seedream Basic",
+			parameterValues: { resolution: "1k", quality: "basic" },
+			credits: 8,
+			aspectRatios: ["1:1", "9:16"],
+			controls: [
+				{
+					key: "outputFormat" as const,
+					label: "Catalog output format",
+					defaultValue: "png",
+					options: [
+						{ key: "png", label: "PNG" },
+						{ key: "jpeg", label: "JPEG" },
+					],
+				},
+			],
+		},
+		{
+			skuKey: "seedream-5-pro-high-2k",
+			label: "Catalog Seedream High",
+			parameterValues: { resolution: "2k", quality: "high" },
+			credits: 15,
+			aspectRatios: ["1:1", "9:16"],
+			controls: [
+				{
+					key: "outputFormat" as const,
+					label: "Catalog output format",
+					defaultValue: "png",
+					options: [
+						{ key: "png", label: "PNG" },
+						{ key: "jpeg", label: "JPEG" },
+					],
+				},
+			],
+		},
+	],
+};
+
 function generationState() {
 	return {
 		catalog: {
 			data: {
 				products: [
 					{
-						key: "image-fast",
-						label: "Catalog Standard Edit",
-						description: "Catalog everyday edits",
+						key: "image-nano-banana-2-lite",
+						label: "Catalog Nano Banana 2 Lite",
+						description: "Catalog fast 1K edits",
 						credits: 5,
+						skuMatrix: nanoMatrix,
 						fields: [
 							{ type: "text", key: "prompt", label: "Catalog prompt" },
 							{
@@ -98,10 +256,19 @@ function generationState() {
 						],
 					},
 					{
-						key: "image-quality",
-						label: "Catalog Quality Edit",
-						description: "Catalog detailed edits",
-						credits: 40,
+						key: "image-gpt-image-2",
+						label: "Catalog GPT Image 2",
+						description: "Catalog detailed 1K, 2K, and 4K edits",
+						credits: 7,
+						skuMatrix: gptMatrix,
+						fields: [],
+					},
+					{
+						key: "image-seedream-5-pro",
+						label: "Catalog Seedream 5 Pro",
+						description: "Catalog Basic and High edits",
+						credits: 8,
+						skuMatrix: seedreamMatrix,
 						fields: [],
 					},
 				],
@@ -145,15 +312,20 @@ describe("GenerationForm product copy", () => {
 		const markup = renderToStaticMarkup(<GenerationForm onCreated={vi.fn()} />);
 
 		for (const copy of [
-			"Localized Standard Edit",
-			"Localized Quality Edit",
-			"Localized everyday edits",
+			"Localized Nano Banana 2 Lite",
+			"Localized GPT Image 2",
+			"Localized Seedream 5 Pro",
+			"Localized fast 1K edits",
 			"Localized edit instruction",
 			"Localized source image",
 		]) {
 			expect(markup).toContain(copy);
 		}
-		expect(markup).not.toMatch(/Catalog (?:Standard|Quality|everyday|prompt|source)/);
+		const visibleText = markup.replaceAll(/<[^>]+>/g, " ");
+		expect(visibleText).not.toContain("Catalog");
+		expect(visibleText).not.toMatch(
+			/image-nano-banana-2-lite|image-gpt-image-2|image-seedream-5-pro|provider|gpt-image-2-image-to-image|kie/i,
+		);
 	});
 
 	it("enables Review when the restored source and instruction form a valid input", () => {
@@ -162,11 +334,13 @@ describe("GenerationForm product copy", () => {
 				onCreated={vi.fn()}
 				initialSourceReady
 				initialDraft={{
-					productKey: "image-fast",
+					productKey: "image-nano-banana-2-lite",
 					input: {
 						kind: "image-to-image",
 						prompt: "Replace the background with a quiet studio",
 						sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+						skuKey: "nano-banana-2-lite-1k",
+						aspectRatio: "auto",
 					},
 				}}
 			/>,
@@ -182,11 +356,13 @@ describe("GenerationForm product copy", () => {
 				parentJobId="job-parent"
 				initialSourceReady
 				initialDraft={{
-					productKey: "image-fast",
+					productKey: "image-nano-banana-2-lite",
 					input: {
 						kind: "image-to-image",
 						prompt: "Continue from this version",
 						sourceAssetId: "asset-output",
+						skuKey: "nano-banana-2-lite-1k",
+						aspectRatio: "auto",
 					},
 				}}
 			/>,
@@ -205,17 +381,19 @@ describe("GenerationForm product copy", () => {
 				onCreated={vi.fn()}
 				initialSourceReady
 				initialDraft={{
-					productKey: "image-quality",
+					productKey: "image-gpt-image-2",
 					input: {
 						kind: "image-to-image",
 						prompt: "Keep every editor field",
 						sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+						skuKey: "gpt-image-2-4k",
+						aspectRatio: "16:9",
 					},
 				}}
 			/>,
 		);
 
-		expect(markup).toContain("40 credits needed");
+		expect(markup).toContain("17 credits needed");
 		expect(markup).toContain("0 credits available");
 		expect(markup).toContain("Upgrade");
 		expect(markup).not.toContain('href="/settings/billing"');
@@ -233,23 +411,51 @@ describe("GenerationForm product copy", () => {
 		expect(markup).toContain('href="/history"');
 	});
 
-	it("opens the upgrade dialog for a restored Quality draft without changing its mode", () => {
+	it("opens the upgrade dialog for a restored paid-model draft without changing its selection", () => {
 		const markup = renderToStaticMarkup(
 			<GenerationForm
 				onCreated={vi.fn()}
-				allowedProductKeys={["image-fast"]}
+				allowedProductKeys={["image-nano-banana-2-lite"]}
 				initialDraft={{
-					productKey: "image-quality",
+					productKey: "image-gpt-image-2",
 					input: {
 						kind: "image-to-image",
 						prompt: "Keep this exact instruction",
 						sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+						skuKey: "gpt-image-2-4k",
+						aspectRatio: "16:9",
 					},
 				}}
 			/>,
 		);
 
 		expect(markup).toContain("Localized upgrade dialog");
-		expect(markup).toMatch(/<input[^>]*checked=""[^>]*value="image-quality"/);
+		const selected = markup.match(/<input[^>]*value="image-gpt-image-2"[^>]*>/)?.[0];
+		expect(selected).toContain('checked=""');
+		expect(markup).toContain("Localized 4K");
+	});
+
+	it("restores a legal cell control while keeping the SKU credit price unchanged", () => {
+		const markup = renderToStaticMarkup(
+			<GenerationForm
+				onCreated={vi.fn()}
+				initialSourceReady
+				initialDraft={{
+					productKey: "image-gpt-image-2",
+					input: {
+						kind: "image-to-image",
+						prompt: "Make the background transparent",
+						sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+						skuKey: "gpt-image-2-1k",
+						aspectRatio: "1:1",
+						background: "transparent",
+					},
+				}}
+			/>,
+		);
+
+		expect(markup).toContain("Localized background");
+		expect(markup).toMatch(/aria-pressed="true"[^>]*>Localized transparent<\/button>/);
+		expect(markup).toContain("Localized GPT 1K · 7 EzPic Credits");
 	});
 });

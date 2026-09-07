@@ -39,8 +39,13 @@ describe("claimed draft asset verification", () => {
 			const draft = await createGenerationDraftTransaction(
 				{
 					claimTokenHash: tokenHash,
-					productKey: "image-fast",
-					input: { kind: "text-to-image", prompt: "safe draft" },
+					productKey: "image-nano-banana-2-lite",
+					input: {
+						kind: "image-to-image",
+						prompt: "safe draft",
+						skuKey: "nano-banana-2-lite-1k",
+						aspectRatio: "auto",
+					},
 					expiresAt: new Date(Date.now() + 60_000),
 					asset: {
 						id: assetId,
@@ -58,7 +63,7 @@ describe("claimed draft asset verification", () => {
 				{
 					claimTokenHash: tokenHash,
 					userId: `user-${suffix}`,
-					allowedProductKeys: ["image-fast", "image-quality"],
+					allowedProductKeys: ["image-nano-banana-2-lite"],
 				},
 				client,
 			);

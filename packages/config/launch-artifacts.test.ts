@@ -21,7 +21,17 @@ describe("EzPic PR 8 launch artifacts", () => {
 			"docs/operations/ezpic-launch-checklist.md",
 			["PASS", "NOT_COMPLETED", "20 staging scenarios"],
 		],
-		["docs/operations/ezpic-rollback.md", ["Standard Edit", "Quality Edit", "Outbox", "rollback"]],
+		[
+			"docs/operations/ezpic-rollback.md",
+			[
+				"all nine product gates false",
+				"media.model.image-nano-banana",
+				"media.model.image-gpt-image-1-5",
+				"media.model.image-seedream-5-lite",
+				"Outbox",
+				"rollback",
+			],
+		],
 		[
 			"docs/product/ezpic-final-cost-model.md",
 			["providerCostMicros", "Pro", "Ultimate", "Max", "Credit Pack", "NOT_COMPLETED"],
@@ -127,16 +137,28 @@ describe("EzPic PR 8 launch artifacts", () => {
 			"GUEST_TURNSTILE_SECRET_KEY",
 			"MEDIA_TRUSTED_PROXY_PROVIDER",
 			"GUEST_RISK_BUDGET_MICROS",
-			"GUEST_BILLED_STANDARD_COST_EVIDENCE_ID",
-			"GUEST_BILLED_STANDARD_COST_MICROS",
+			"GUEST_BILLED_SKU_COST_EVIDENCE_ID",
+			"GUEST_BILLED_SKU_COST_MICROS",
+			"GUEST_BILLED_SKU_PRODUCT_KEY",
+			"GUEST_BILLED_SKU_KEY",
 			"GUEST_PROVIDER_HARD_BUDGET_EVIDENCE_ID",
 			"GUEST_HARD_BUDGET_MICROS",
 			"GUEST_PRIVACY_DISCLOSURE_EVIDENCE_ID",
 			"GUEST_CLEANUP_READINESS_EVIDENCE_ID",
 			"GUEST_PRODUCTION_CONFIGURATION_EVIDENCE_ID",
 			"GUEST_RUNTIME_OVERRIDE_EVIDENCE_ID",
-			"MEDIA_STANDARD_EDIT_ENABLED",
-			"MEDIA_QUALITY_EDIT_ENABLED",
+			"MEDIA_NANO_BANANA_2_LITE_ENABLED",
+			"MEDIA_NANO_BANANA_ENABLED",
+			"MEDIA_NANO_BANANA_2_ENABLED",
+			"MEDIA_NANO_BANANA_PRO_ENABLED",
+			"MEDIA_GPT_IMAGE_1_5_ENABLED",
+			"MEDIA_GPT_IMAGE_2_ENABLED",
+			"MEDIA_SEEDREAM_4_5_ENABLED",
+			"MEDIA_SEEDREAM_5_LITE_ENABLED",
+			"MEDIA_SEEDREAM_5_PRO_ENABLED",
+			"MEDIA_ENABLED_PROVIDERS",
+			"MEDIA_RECOVERY_PROVIDERS",
+			"MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS",
 			"MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS",
 			"MEDIA_ALERT_ERROR_RATE_BPS",
 			"MEDIA_ALERT_P95_LATENCY_MS",
@@ -163,6 +185,9 @@ describe("EzPic PR 8 launch artifacts", () => {
 		]) {
 			expect(example).toContain(`${key}=`);
 		}
+		expect(example).toContain("the current version is 2026-09-07.2");
+		expect(example).not.toContain("MEDIA_STANDARD_EDIT_ENABLED=");
+		expect(example).not.toContain("MEDIA_QUALITY_EDIT_ENABLED=");
 	});
 
 	it("lets each Next.js command select its own NODE_ENV", () => {

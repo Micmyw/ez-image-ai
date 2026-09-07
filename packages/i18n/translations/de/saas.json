@@ -54,9 +54,7 @@
 				"enabled": "Aktiv",
 				"disabled": "Inaktiv",
 				"filters": {
-					"product": "Bearbeitungsmodus",
-					"provider": "Provider",
-					"model": "Modell",
+					"product": "Bildmodell",
 					"status": "Auftragsstatus",
 					"from": "Von",
 					"to": "Bis"
@@ -65,7 +63,6 @@
 					"jobs": "Aufträge",
 					"successRate": "Erfolgsrate",
 					"latency": "p50-/p95-Latenz",
-					"cost": "Durchschnittliche Provider-Kosten (Mikro)",
 					"moderation": "Moderationsablehnungen",
 					"repeat": "Rate weiterer Bearbeitungen",
 					"credits": "Reserviert / belastet / freigegeben",
@@ -74,10 +71,9 @@
 				"controls": { "title": "Wirksame Schalter", "global": "Generierungsschalter" },
 				"failures": { "title": "Fehlercodes" },
 				"routes": {
-					"title": "Routenübersicht",
-					"product": "Bearbeitungsmodus",
-					"provider": "Provider",
-					"model": "Modell",
+					"title": "SKU-Übersicht",
+					"product": "Bildmodell",
+					"sku": "SKU",
 					"status": "Status",
 					"jobs": "Aufträge"
 				}
@@ -853,18 +849,68 @@
 		"create": {
 			"eyebrow": "Bildeditor",
 			"title": "Quellbild mit einem Prompt bearbeiten",
-			"subtitle": "Laden Sie ein Quellbild hoch, beschreiben Sie die Änderung, wählen Sie eine Bearbeitungsstufe und prüfen Sie die Credit-Reservierung.",
+			"subtitle": "Laden Sie ein Quellbild hoch, beschreiben Sie die Änderung, wählen Sie ein Bildmodell mit Ausgabeeinstellungen und prüfen Sie dann die Credit-Reservierung.",
 			"draftRestored": "Ihr gespeicherter Bearbeitungsentwurf kann jetzt fortgesetzt werden.",
-			"product": "Bearbeitungsqualität",
+			"product": "Bildmodell",
 			"products": {
-				"image-fast": {
-					"label": "Standard Edit",
-					"description": "Private promptbasierte Bildbearbeitung in der Standard-Stufe."
+				"image-nano-banana-2-lite": {
+					"label": "Nano Banana 2 Lite",
+					"description": "Schnelle 1K-Bildbearbeitung mit breiter Unterstützung für Seitenverhältnisse."
 				},
-				"image-quality": {
-					"label": "Quality Edit",
-					"description": "Private promptbasierte Bildbearbeitung in der Quality-Stufe."
+				"image-nano-banana": {
+					"label": "Nano Banana",
+					"description": "Ausgewogene Bildbearbeitung mit einem eigenen Standard-Ausgabeprofil."
+				},
+				"image-nano-banana-2": {
+					"label": "Nano Banana 2",
+					"description": "Flexible Bildbearbeitung mit separaten 1K-, 2K- und 4K-Optionen."
+				},
+				"image-nano-banana-pro": {
+					"label": "Nano Banana Pro",
+					"description": "Hochwertige Bildbearbeitung mit separaten 1K-, 2K- und 4K-Optionen."
+				},
+				"image-gpt-image-1-5": {
+					"label": "GPT Image 1.5",
+					"description": "Bildbearbeitung mit separaten Qualitätsoptionen Mittel und Hoch."
+				},
+				"image-gpt-image-2": {
+					"label": "GPT Image 2",
+					"description": "Detaillierte Bildbearbeitung mit separaten 1K-, 2K- und 4K-Optionen."
+				},
+				"image-seedream-4-5": {
+					"label": "Seedream 4.5",
+					"description": "Bildbearbeitung mit separaten Optionen für 2K Standard und 4K Hoch."
+				},
+				"image-seedream-5-lite": {
+					"label": "Seedream 5 Lite",
+					"description": "Bildbearbeitung mit separaten Optionen für 2K Standard, 3K Hoch und 4K Ultra."
+				},
+				"image-seedream-5-pro": {
+					"label": "Seedream 5 Pro",
+					"description": "Bildbearbeitung mit separaten Optionen für 1K Standard und 2K Hoch."
 				}
+			},
+			"skus": {
+				"nano-banana-2-lite-1k": { "label": "1K" },
+				"nano-banana-default": { "label": "Standard" },
+				"nano-banana-2-1k": { "label": "1K" },
+				"nano-banana-2-2k": { "label": "2K" },
+				"nano-banana-2-4k": { "label": "4K" },
+				"nano-banana-pro-1k": { "label": "1K" },
+				"nano-banana-pro-2k": { "label": "2K" },
+				"nano-banana-pro-4k": { "label": "4K" },
+				"gpt-image-1-5-medium": { "label": "Mittel" },
+				"gpt-image-1-5-high": { "label": "Hoch" },
+				"gpt-image-2-1k": { "label": "1K" },
+				"gpt-image-2-2k": { "label": "2K" },
+				"gpt-image-2-4k": { "label": "4K" },
+				"seedream-4-5-basic-2k": { "label": "2K · Standard" },
+				"seedream-4-5-high-4k": { "label": "4K · Hoch" },
+				"seedream-5-lite-basic-2k": { "label": "2K · Standard" },
+				"seedream-5-lite-high-3k": { "label": "3K · Hoch" },
+				"seedream-5-lite-ultra-4k": { "label": "4K · Ultra" },
+				"seedream-5-pro-basic-1k": { "label": "1K · Standard" },
+				"seedream-5-pro-high-2k": { "label": "2K · Hoch" }
 			},
 			"fields": {
 				"prompt": "Bearbeitungsanweisung",
@@ -879,7 +925,25 @@
 				"oneOutput": "Dieses Modell liefert ein Bild",
 				"resolution": "Auflösung",
 				"quality": "Qualität",
-				"modeControlsQuality": "Wird durch die Bearbeitungsstufe bestimmt"
+				"outputFormat": "Ausgabeformat",
+				"background": "Hintergrund",
+				"modeControlsQuality": "Wird durch das gewählte Modell und die SKU bestimmt",
+				"credits": "EzPic Credits",
+				"optionLabels": {
+					"1k": "1K",
+					"2k": "2K",
+					"3k": "3K",
+					"4k": "4K",
+					"basic": "Standard",
+					"medium": "Mittel",
+					"high": "Hoch",
+					"ultra": "Ultra",
+					"png": "PNG",
+					"jpeg": "JPEG",
+					"auto": "Automatisch",
+					"opaque": "Deckend",
+					"transparent": "Transparent"
+				}
 			},
 			"promptHint": "Beschreiben Sie nur die gewünschte Änderung. Ihr Quellbild bleibt privat.",
 			"suggestions": {
@@ -911,14 +975,14 @@
 				"private": "Eigentümergebundene private Medien"
 			},
 			"restore": {
-				"qualityUpgradeRequired": "Bild, Anweisung und die Auswahl Quality Edit wurden wiederhergestellt. Wählen Sie Creator oder Studio, um mit Quality Edit fortzufahren.",
-				"upgradeComplete": "Ihr bezahlter Tarif ist aktiv. Bild, Anweisung, Modus und Bearbeitungssitzung wurden wiederhergestellt.",
+				"qualityUpgradeRequired": "Bild, Anweisung und das gewählte Bildmodell wurden wiederhergestellt. Wählen Sie Pro, Ultimate oder Max, um mit diesem Modell fortzufahren.",
+				"upgradeComplete": "Ihr bezahlter Tarif ist aktiv. Bild, Anweisung, Modelleinstellungen und Bearbeitungssitzung wurden wiederhergestellt.",
 				"verifying": "Der Entwurf wurde wiederhergestellt. Die private Sicherheitsprüfung des Quellbilds läuft noch; danach wird Prüfen freigeschaltet.",
 				"unavailable": "Diese gespeicherte Bearbeitung ist abgelaufen oder das Quellbild ist nicht mehr verfügbar. Es wurden weder Auftrag noch Credit-Reservierung erstellt."
 			},
 			"errors": {
 				"insufficientCredits": "Für diese Bearbeitung sind nicht genügend Credits vorhanden. Es wurden weder Auftrag noch Reservierung erstellt.",
-				"qualityUnavailable": "Quality Edit ist in Ihrem Tarif nicht enthalten. Wählen Sie Standard Edit oder prüfen Sie Ihren Tarif.",
+				"qualityUnavailable": "Dieses Bildmodell ist in Ihrem Tarif nicht enthalten. Wählen Sie Nano Banana 2 Lite oder prüfen Sie Ihren Tarif.",
 				"assetNotReady": "Das Quellbild ist noch nicht bereit. Warten Sie auf die private Sicherheitsprüfung oder wählen Sie ein anderes Bild.",
 				"quoteExpired": "Dieses Angebot ist abgelaufen oder die Preise haben sich geändert. Prüfen Sie die Bearbeitung erneut.",
 				"contentNotAllowed": "Die Anweisung hat die Sicherheitsprüfung nicht bestanden. Es wurden weder Auftrag noch Reservierung erstellt.",
@@ -928,21 +992,21 @@
 			}
 		},
 		"guest": {
-			"eyebrow": "Gast-Test für Standard",
+			"eyebrow": "Gast-Test mit Nano Banana 2 Lite",
 			"title": "Eine private Bildbearbeitung erstellen",
 			"subtitle": "Quelle und Anweisung sind bereit. Nutze die kostenlose Warteschlange für eine temporäre Vorschau mit Wasserzeichen.",
 			"sourceReady": "Private Quelle bereit",
 			"sourceHandoff": "Privat für diese Bearbeitung übergeben",
 			"promptLabel": "Bearbeitungsanweisung",
 			"characterCount": "{count, number} / {maximum, number}",
-			"standard": "Standard-Bearbeitung",
+			"standard": "Nano Banana 2 Lite · 1K",
 			"oneOutput": "Ein Ergebnis",
 			"freeQueue": "Kostenlose Warteschlange",
 			"temporary": "Mit Wasserzeichen · bis zu 24 Stunden verfügbar",
 			"temporaryCompact": "Mit Wasserzeichen · temporär",
-			"submit": "Meine Standard-Bearbeitung starten",
+			"submit": "Meine Nano-Banana-Bearbeitung starten",
 			"challenge": "Diese Gastbearbeitung bestätigen",
-			"qualityCta": "Quality-Bearbeitung · Creator oder Studio",
+			"qualityCta": "Weitere Bildmodelle · kostenpflichtiger Tarif",
 			"retryChallenge": "Überprüfung erneut versuchen",
 			"retryPreview": "Private Vorschau erneut laden",
 			"viewStatus": "Status anzeigen",
@@ -985,8 +1049,8 @@
 			}
 		},
 		"upgradeDialog": {
-			"title": "Quality Edit freischalten",
-			"description": "Quellbild, Anweisung, Quality-Edit-Auswahl und Bearbeitungssitzung bleiben erhalten, während Sie Tarife vergleichen.",
+			"title": "Weitere Bildmodelle freischalten",
+			"description": "Quellbild, Anweisung, gewähltes Modell und SKU sowie die Bearbeitungssitzung bleiben erhalten, während Sie Tarife vergleichen.",
 			"creator": "Pro: {credits, number} Credits pro Monat, {concurrency, number} gleichzeitige Bearbeitungen, Quellbilder bis {megabytes, number} MB.",
 			"ultimate": "Ultimate: {credits, number} Credits pro Monat, {concurrency, number} gleichzeitige Bearbeitungen, Quellbilder bis {megabytes, number} MB.",
 			"studio": "Max: {credits, number} Credits pro Monat, {concurrency, number} gleichzeitige Bearbeitungen, Quellbilder bis {megabytes, number} MB.",
@@ -1005,13 +1069,13 @@
 				"remove": "Quellbild entfernen"
 			},
 			"mode": {
-				"label": "Bearbeitungsmodus",
-				"standard": "Standard Edit",
-				"standardDescription": "Private Bildbearbeitung in der Standard-Stufe.",
-				"quality": "Quality Edit",
-				"qualityDescription": "Private Bildbearbeitung in der Quality-Stufe.",
-				"credits": "{credits} Credits",
-				"qualityUnavailable": "Für Quality Edit ist ein Upgrade nötig. Bild und Anweisung bleiben erhalten.",
+				"label": "Bildmodell",
+				"standard": "Nano Banana 2 Lite",
+				"standardDescription": "Private 1K-Bildbearbeitung.",
+				"quality": "Weitere Bildmodelle",
+				"qualityDescription": "Private Bildbearbeitung mit modellspezifischen Ausgabeeinstellungen.",
+				"credits": "{credits} EzPic Credits",
+				"qualityUnavailable": "Für dieses Bildmodell ist ein Upgrade nötig. Bild, Anweisung und Ausgabeeinstellungen bleiben erhalten.",
 				"upgrade": "Upgrade-Optionen anzeigen"
 			}
 		},
@@ -1087,6 +1151,7 @@
 			"assetDeleted": "Bild gelöscht",
 			"outputUnavailable": "Ergebnis nicht verfügbar",
 			"thumbnailAlt": "Private Ergebnisvorschau",
+			"legacyProduct": "Frühere Bearbeitung",
 			"renameLabel": "Sitzungstitel",
 			"renamePlaceholder": "Bearbeitung benennen",
 			"rename": "Umbenennen",
@@ -1106,6 +1171,7 @@
 			},
 			"outputs": "{count, plural, one {# Ausgabe} other {# Ausgaben}}",
 			"reserved": "Reserviert",
+			"legacyProduct": "Frühere Bearbeitung",
 			"empty": "Keine Erstellungen für diesen Filter.",
 			"more": "Mehr laden"
 		},

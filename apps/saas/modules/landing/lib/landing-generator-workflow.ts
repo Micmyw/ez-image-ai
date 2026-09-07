@@ -1,4 +1,4 @@
-import type { ImageAspectRatio } from "@repo/config/client";
+import type { ImageAspectRatio, ImageSkuKey } from "@repo/config/client";
 
 import type { GuestCapabilityProduct, GuestProductKey } from "./guest-draft-client";
 
@@ -19,6 +19,28 @@ export type LandingDisabledReason =
 	| "prompt"
 	| "verification"
 	| "busy";
+
+export function localizeLandingProducts(
+	products: readonly GuestCapabilityProduct[],
+	labels: {
+		productLabel: (productKey: GuestProductKey) => string;
+		productDescription: (productKey: GuestProductKey) => string;
+		skuLabel: (skuKey: ImageSkuKey) => string;
+	},
+): GuestCapabilityProduct[] {
+	return products.map((product) => ({
+		...product,
+		label: labels.productLabel(product.key),
+		description: labels.productDescription(product.key),
+		skuMatrix: {
+			...product.skuMatrix,
+			cells: product.skuMatrix.cells.map((cell) => ({
+				...cell,
+				label: labels.skuLabel(cell.skuKey),
+			})),
+		},
+	}));
+}
 
 export function resolveLandingProductSelection(
 	products: readonly GuestCapabilityProduct[],
@@ -42,6 +64,22 @@ export function resolveLandingAspectRatioSelection(
 	if (!product) return null;
 	if (product.aspectRatios.includes(selectedAspectRatio)) return selectedAspectRatio;
 	return product.aspectRatios.includes("auto") ? "auto" : (product.aspectRatios[0] ?? null);
+}
+
+export function resolveLandingSkuSelection(
+	product: GuestCapabilityProduct | null,
+	selectedSkuKey: ImageSkuKey | null,
+): ImageSkuKey | null {
+	if (!product) return null;
+	if (selectedSkuKey && product.skuMatrix.cells.some((cell) => cell.skuKey === selectedSkuKey)) {
+		return selectedSkuKey;
+	}
+	return (
+		product.skuMatrix.cells.find((cell) => cell.skuKey === product.skuMatrix.defaultSkuKey)
+			?.skuKey ??
+		product.skuMatrix.cells[0]?.skuKey ??
+		null
+	);
 }
 
 export function landingDisabledReason(input: {

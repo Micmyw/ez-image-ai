@@ -1,5 +1,10 @@
 "use client";
 
+import {
+	IMAGE_ASPECT_RATIOS,
+	LEGACY_EZPIC_PRODUCT_KEYS,
+	type ImageAspectRatio,
+} from "@repo/config/client";
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
 import {
@@ -15,12 +20,15 @@ import { useRouter, useSearchParams } from "next/navigation";
 
 import { useJobHistory } from "../hooks/use-job-history";
 import { isEditorProductKey, type EditorProductKey } from "../lib/editor-recovery";
+import { isPublicImageSkuKey } from "../lib/image-sku-selection";
 import { getJobPresentation } from "../lib/job-status";
 
 export function JobHistory() {
 	const t = useTranslations("media.history");
 	const stages = useTranslations("media.status.stages");
 	const products = useTranslations("media.create.products");
+	const skus = useTranslations("media.create.skus");
+	const outputSettings = useTranslations("media.create.outputSettings");
 	const router = useRouter();
 	const searchParams = useSearchParams();
 	const status = searchParams.get("status") as
@@ -30,7 +38,7 @@ export function JobHistory() {
 		| "canceled"
 		| null;
 	const history = useJobHistory({ status: status ?? undefined });
-	const jobs = history.data?.pages.flatMap((page) => page.items).filter(hasEditorProductKey) ?? [];
+	const jobs = history.data?.pages.flatMap((page) => page.items).filter(hasImageHistoryKey) ?? [];
 
 	function setStatus(value: string) {
 		const next = new URLSearchParams(searchParams);
@@ -67,6 +75,11 @@ export function JobHistory() {
 			<div className="divide-y rounded-2xl border bg-background">
 				{jobs.map((job) => {
 					const stage = getJobPresentation({ status: job.status }).stage;
+					const currentProductKey = isEditorProductKey(job.productKey) ? job.productKey : null;
+					const skuKey =
+						currentProductKey && job.skuKey && isPublicImageSkuKey(job.skuKey) ? job.skuKey : null;
+					const aspectRatio =
+						currentProductKey && isImageAspectRatio(job.aspectRatio) ? job.aspectRatio : null;
 					return (
 						<Link
 							key={job.id}
@@ -75,9 +88,19 @@ export function JobHistory() {
 						>
 							<div>
 								<div className="gap-2 flex items-center">
-									<span className="font-medium">{products(`${job.productKey}.label`)}</span>
+									<span className="font-medium">
+										{currentProductKey
+											? products(`${currentProductKey}.label`)
+											: t("legacyProduct")}
+									</span>
 									<Badge status="info">{stages(stage)}</Badge>
 								</div>
+								{skuKey && aspectRatio && (
+									<p className="mt-1 text-sm text-muted-foreground">
+										{skus(`${skuKey}.label`)} ·{" "}
+										{aspectRatio === "auto" ? outputSettings("automatic") : aspectRatio}
+									</p>
+								)}
 								<p className="mt-1 text-xs text-muted-foreground">
 									{new Date(job.createdAt).toLocaleString()} ·{" "}
 									{t("outputs", { count: job.outputCount })}
@@ -109,8 +132,17 @@ export function JobHistory() {
 	);
 }
 
-function hasEditorProductKey<T extends { productKey: string }>(
+type HistoryImageProductKey = EditorProductKey | (typeof LEGACY_EZPIC_PRODUCT_KEYS)[number];
+
+function hasImageHistoryKey<T extends { productKey: string }>(
 	job: T,
-): job is T & { productKey: EditorProductKey } {
-	return isEditorProductKey(job.productKey);
+): job is T & { productKey: HistoryImageProductKey } {
+	return (
+		isEditorProductKey(job.productKey) ||
+		LEGACY_EZPIC_PRODUCT_KEYS.includes(job.productKey as (typeof LEGACY_EZPIC_PRODUCT_KEYS)[number])
+	);
+}
+
+function isImageAspectRatio(value: string | null | undefined): value is ImageAspectRatio {
+	return Boolean(value && IMAGE_ASPECT_RATIOS.includes(value as ImageAspectRatio));
 }

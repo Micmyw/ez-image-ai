@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
 	assertEzPicEnvironmentMatrixConfigured,
+	isEzPicProductEnvironmentEnabled,
 	mediaDailyProviderCostBudgetMicros,
 	validateEzPicEnvironmentMatrix,
 	validateEzPicLaunchEnvironment,
@@ -22,18 +23,27 @@ const productionEnvironment = {
 	BETTER_AUTH_SECRET: "server-secret-present-only-and-long-enough-123",
 	MEDIA_GENERATION_ENABLED: "true",
 	LEGACY_AI_STREAM_ENABLED: "false",
-	MEDIA_STANDARD_EDIT_ENABLED: "true",
-	MEDIA_QUALITY_EDIT_ENABLED: "false",
+	MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
+	MEDIA_NANO_BANANA_ENABLED: "false",
+	MEDIA_NANO_BANANA_2_ENABLED: "false",
+	MEDIA_NANO_BANANA_PRO_ENABLED: "false",
+	MEDIA_GPT_IMAGE_1_5_ENABLED: "false",
+	MEDIA_GPT_IMAGE_2_ENABLED: "false",
+	MEDIA_SEEDREAM_4_5_ENABLED: "false",
+	MEDIA_SEEDREAM_5_LITE_ENABLED: "false",
+	MEDIA_SEEDREAM_5_PRO_ENABLED: "false",
 	MEDIA_MODERATION_ENABLED: "true",
 	BILLING_ENABLED: "true",
 	ERROR_MONITORING_ENABLED: "true",
 	E2E_TEST_MEDIA_ADAPTERS: "false",
 	E2E_DRAFT_HANDOFF: "false",
 	LOAD_TESTING_ENABLED: "false",
-	MEDIA_PROVIDER_ADAPTER: "openrouter",
-	MEDIA_ENABLED_PROVIDERS: "openrouter",
-	MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
-	OPENROUTER_API_KEY: "openrouter-worker-secret-present-only",
+	MEDIA_PROVIDER_ADAPTER: "kie",
+	MEDIA_ENABLED_PROVIDERS: "kie",
+	MEDIA_RECOVERY_PROVIDERS: "kie",
+	MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "false",
+	MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "2026-09-07.2",
+	KIE_API_KEY: "kie-worker-secret-present-only",
 	MEDIA_SAFETY_ADAPTER: "sightengine",
 	MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "false",
 	SIGHTENGINE_API_USER: "moderation-user-present-only",
@@ -137,8 +147,15 @@ describe("EzPic production launch environment", () => {
 			environmentId: "ezpic-production",
 			controls: {
 				generationEnabled: true,
-				standardEditEnabled: true,
-				qualityEditEnabled: false,
+				nanoBanana2LiteEnabled: true,
+				nanoBananaEnabled: false,
+				nanoBanana2Enabled: false,
+				nanoBananaProEnabled: false,
+				gptImage15Enabled: false,
+				gptImage2Enabled: false,
+				seedream45Enabled: false,
+				seedream5LiteEnabled: false,
+				seedream5ProEnabled: false,
 				dailyProviderCostBudgetMicros: 250_000_000n,
 			},
 		});
@@ -147,7 +164,7 @@ describe("EzPic production launch environment", () => {
 		);
 		for (const secret of [
 			"server-secret-present-only-and-long-enough-123",
-			"openrouter-worker-secret-present-only",
+			"kie-worker-secret-present-only",
 			"storage-secret-present-only",
 			"stripe-secret-present-only",
 			"stripe-webhook-secret-present-only",
@@ -157,6 +174,31 @@ describe("EzPic production launch environment", () => {
 		]) {
 			expect(serialized).not.toContain(secret);
 		}
+	});
+
+	it.each([
+		["image-nano-banana-2-lite", "MEDIA_NANO_BANANA_2_LITE_ENABLED"],
+		["image-nano-banana", "MEDIA_NANO_BANANA_ENABLED"],
+		["image-nano-banana-2", "MEDIA_NANO_BANANA_2_ENABLED"],
+		["image-nano-banana-pro", "MEDIA_NANO_BANANA_PRO_ENABLED"],
+		["image-gpt-image-1-5", "MEDIA_GPT_IMAGE_1_5_ENABLED"],
+		["image-gpt-image-2", "MEDIA_GPT_IMAGE_2_ENABLED"],
+		["image-seedream-4-5", "MEDIA_SEEDREAM_4_5_ENABLED"],
+		["image-seedream-5-lite", "MEDIA_SEEDREAM_5_LITE_ENABLED"],
+		["image-seedream-5-pro", "MEDIA_SEEDREAM_5_PRO_ENABLED"],
+	] as const)("uses an independent fail-closed gate for %s", (productKey, environmentKey) => {
+		expect(
+			isEzPicProductEnvironmentEnabled(productKey, {
+				NODE_ENV: "production",
+				[environmentKey]: undefined,
+			}),
+		).toBe(false);
+		expect(
+			isEzPicProductEnvironmentEnabled(productKey, {
+				NODE_ENV: "production",
+				[environmentKey]: "true",
+			}),
+		).toBe(true);
 	});
 
 	it("rejects launch configuration that Waffo checkout would reject locally", () => {
@@ -211,10 +253,7 @@ describe("EzPic production launch environment", () => {
 
 	it.each([
 		["a mock Provider", { MEDIA_ENABLED_PROVIDERS: undefined, MEDIA_PROVIDER_ADAPTER: "mock" }],
-		[
-			"a masked mock Provider",
-			{ MEDIA_ENABLED_PROVIDERS: "openrouter", MEDIA_PROVIDER_ADAPTER: "mock" },
-		],
+		["a masked mock Provider", { MEDIA_ENABLED_PROVIDERS: "kie", MEDIA_PROVIDER_ADAPTER: "mock" }],
 		["the test moderation adapter", { MEDIA_SAFETY_ADAPTER: "test" }],
 		["test browser adapters", { E2E_TEST_MEDIA_ADAPTERS: "true" }],
 		["the legacy AI stream", { LEGACY_AI_STREAM_ENABLED: "true" }],
@@ -235,58 +274,67 @@ describe("EzPic production launch environment", () => {
 	);
 
 	it.each([
-		[
-			"Standard route",
-			{
+		"MEDIA_NANO_BANANA_2_LITE_ENABLED",
+		"MEDIA_NANO_BANANA_ENABLED",
+		"MEDIA_NANO_BANANA_2_ENABLED",
+		"MEDIA_NANO_BANANA_PRO_ENABLED",
+		"MEDIA_GPT_IMAGE_1_5_ENABLED",
+		"MEDIA_GPT_IMAGE_2_ENABLED",
+		"MEDIA_SEEDREAM_4_5_ENABLED",
+		"MEDIA_SEEDREAM_5_LITE_ENABLED",
+		"MEDIA_SEEDREAM_5_PRO_ENABLED",
+	] as const)("fails closed when %s has no Kie route", (control) => {
+		expect(() =>
+			validateEzPicLaunchEnvironment({
+				...productionEnvironment,
 				MEDIA_GENERATION_ENABLED: "false",
-				MEDIA_STANDARD_EDIT_ENABLED: "true",
-				MEDIA_QUALITY_EDIT_ENABLED: "false",
+				MEDIA_NANO_BANANA_2_LITE_ENABLED: "false",
+				MEDIA_NANO_BANANA_ENABLED: "false",
+				MEDIA_NANO_BANANA_2_ENABLED: "false",
+				MEDIA_NANO_BANANA_PRO_ENABLED: "false",
+				MEDIA_GPT_IMAGE_1_5_ENABLED: "false",
+				MEDIA_GPT_IMAGE_2_ENABLED: "false",
+				MEDIA_SEEDREAM_4_5_ENABLED: "false",
+				MEDIA_SEEDREAM_5_LITE_ENABLED: "false",
+				MEDIA_SEEDREAM_5_PRO_ENABLED: "false",
+				[control]: "true",
 				MEDIA_PROVIDER_ADAPTER: "fal",
 				MEDIA_ENABLED_PROVIDERS: "fal",
-				MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "false",
+				MEDIA_RECOVERY_PROVIDERS: "fal",
+				MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: undefined,
 				FAL_API_KEY: "fal-worker-secret-present-only",
-			},
-			/MEDIA_ENABLED_PROVIDERS.*openrouter/i,
-		],
-		[
-			"Standard credential",
-			{
+			}),
+		).toThrow(/MEDIA_ENABLED_PROVIDERS.*kie/i);
+	});
+
+	it.each([
+		"MEDIA_NANO_BANANA_2_LITE_ENABLED",
+		"MEDIA_NANO_BANANA_ENABLED",
+		"MEDIA_NANO_BANANA_2_ENABLED",
+		"MEDIA_NANO_BANANA_PRO_ENABLED",
+		"MEDIA_GPT_IMAGE_1_5_ENABLED",
+		"MEDIA_GPT_IMAGE_2_ENABLED",
+		"MEDIA_SEEDREAM_4_5_ENABLED",
+		"MEDIA_SEEDREAM_5_LITE_ENABLED",
+		"MEDIA_SEEDREAM_5_PRO_ENABLED",
+	] as const)("fails closed when %s has no Kie credential", (control) => {
+		expect(() =>
+			validateEzPicLaunchEnvironment({
+				...productionEnvironment,
 				MEDIA_GENERATION_ENABLED: "false",
-				MEDIA_STANDARD_EDIT_ENABLED: "true",
-				MEDIA_QUALITY_EDIT_ENABLED: "false",
-				MEDIA_ENABLED_PROVIDERS: "openrouter",
-				OPENROUTER_API_KEY: undefined,
-			},
-			/OPENROUTER_API_KEY/,
-		],
-		[
-			"Quality route",
-			{
-				MEDIA_GENERATION_ENABLED: "false",
-				MEDIA_STANDARD_EDIT_ENABLED: "true",
-				MEDIA_QUALITY_EDIT_ENABLED: "true",
-				MEDIA_PROVIDER_ADAPTER: "fal",
-				MEDIA_ENABLED_PROVIDERS: "fal",
-				MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "false",
-				FAL_API_KEY: "fal-worker-secret-present-only",
-			},
-			/MEDIA_ENABLED_PROVIDERS.*openrouter/i,
-		],
-		[
-			"Quality credential",
-			{
-				MEDIA_GENERATION_ENABLED: "false",
-				MEDIA_STANDARD_EDIT_ENABLED: "true",
-				MEDIA_QUALITY_EDIT_ENABLED: "true",
-				MEDIA_ENABLED_PROVIDERS: "openrouter",
-				OPENROUTER_API_KEY: undefined,
-			},
-			/OPENROUTER_API_KEY/,
-		],
-	] as const)("fails closed when the enabled %s is unavailable", (_label, override, error) => {
-		expect(() => validateEzPicLaunchEnvironment({ ...productionEnvironment, ...override })).toThrow(
-			error,
-		);
+				MEDIA_NANO_BANANA_2_LITE_ENABLED: "false",
+				MEDIA_NANO_BANANA_ENABLED: "false",
+				MEDIA_NANO_BANANA_2_ENABLED: "false",
+				MEDIA_NANO_BANANA_PRO_ENABLED: "false",
+				MEDIA_GPT_IMAGE_1_5_ENABLED: "false",
+				MEDIA_GPT_IMAGE_2_ENABLED: "false",
+				MEDIA_SEEDREAM_4_5_ENABLED: "false",
+				MEDIA_SEEDREAM_5_LITE_ENABLED: "false",
+				MEDIA_SEEDREAM_5_PRO_ENABLED: "false",
+				[control]: "true",
+				KIE_API_KEY: undefined,
+			}),
+		).toThrow(/KIE_API_KEY/);
 	});
 
 	it("accepts the controlled initial deployment with all generation switches off", () => {
@@ -294,25 +342,32 @@ describe("EzPic production launch environment", () => {
 			validateEzPicLaunchEnvironment({
 				...productionEnvironment,
 				MEDIA_GENERATION_ENABLED: "false",
-				MEDIA_STANDARD_EDIT_ENABLED: "false",
-				MEDIA_QUALITY_EDIT_ENABLED: "false",
+				MEDIA_NANO_BANANA_2_LITE_ENABLED: "false",
+				MEDIA_NANO_BANANA_ENABLED: "false",
+				MEDIA_NANO_BANANA_2_ENABLED: "false",
+				MEDIA_NANO_BANANA_PRO_ENABLED: "false",
+				MEDIA_GPT_IMAGE_1_5_ENABLED: "false",
+				MEDIA_GPT_IMAGE_2_ENABLED: "false",
+				MEDIA_SEEDREAM_4_5_ENABLED: "false",
+				MEDIA_SEEDREAM_5_LITE_ENABLED: "false",
+				MEDIA_SEEDREAM_5_PRO_ENABLED: "false",
 			}),
 		).not.toThrow();
 	});
 
-	it("rejects the retired Fal image route for Standard", () => {
+	it("does not allow legacy OpenRouter to serve a new Kie product", () => {
 		expect(() =>
 			validateEzPicLaunchEnvironment({
 				...productionEnvironment,
 				MEDIA_GENERATION_ENABLED: "false",
-				MEDIA_STANDARD_EDIT_ENABLED: "true",
-				MEDIA_QUALITY_EDIT_ENABLED: "false",
-				MEDIA_PROVIDER_ADAPTER: "fal",
-				MEDIA_ENABLED_PROVIDERS: "fal",
-				MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "false",
-				FAL_API_KEY: "fal-worker-secret-present-only",
+				MEDIA_PROVIDER_ADAPTER: "openrouter",
+				MEDIA_ENABLED_PROVIDERS: "openrouter",
+				MEDIA_RECOVERY_PROVIDERS: "openrouter",
+				MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
+				MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: undefined,
+				OPENROUTER_API_KEY: "openrouter-worker-secret-present-only",
 			}),
-		).toThrow(/MEDIA_ENABLED_PROVIDERS.*openrouter/i);
+		).toThrow(/OpenRouter.*recovery-only/i);
 	});
 
 	it("lets an API readiness process validate routes without holding worker credentials", () => {
@@ -320,33 +375,82 @@ describe("EzPic production launch environment", () => {
 			validateEzPicLaunchEnvironment(
 				{
 					...productionEnvironment,
-					OPENROUTER_API_KEY: undefined,
+					KIE_API_KEY: undefined,
 				},
 				{ requireProviderCredentials: false },
 			),
 		).not.toThrow();
 	});
 
-	it("fails closed for every mismatched OpenRouter certification combination", () => {
-		const openRouterEnvironment = {
-			...productionEnvironment,
-			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: undefined,
-		};
-		expect(() => validateEzPicLaunchEnvironment(openRouterEnvironment)).toThrow(
-			/MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED/,
-		);
+	it("allows certified OpenRouter recovery without enabling new OpenRouter submissions", () => {
 		expect(() =>
 			validateEzPicLaunchEnvironment({
 				...productionEnvironment,
-				MEDIA_PROVIDER_ADAPTER: "fal",
-				MEDIA_ENABLED_PROVIDERS: "fal",
-				FAL_API_KEY: "fal-worker-secret-present-only",
+				MEDIA_RECOVERY_PROVIDERS: "kie,openrouter",
+				MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
+				OPENROUTER_API_KEY: "openrouter-worker-secret-present-only",
+			}),
+		).not.toThrow();
+	});
+
+	it("requires the OpenRouter credential only in the recovery worker", () => {
+		const recoveryEnvironment = {
+			...productionEnvironment,
+			MEDIA_RECOVERY_PROVIDERS: "kie,openrouter",
+			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
+			OPENROUTER_API_KEY: undefined,
+		};
+
+		expect(() => validateEzPicLaunchEnvironment(recoveryEnvironment)).toThrow(/OPENROUTER_API_KEY/);
+		expect(() =>
+			validateEzPicLaunchEnvironment(recoveryEnvironment, {
+				requireProviderCredentials: false,
+			}),
+		).not.toThrow();
+	});
+
+	it("rejects OpenRouter from the new-submission provider set even when Kie is enabled", () => {
+		expect(() =>
+			validateEzPicLaunchEnvironment({
+				...productionEnvironment,
+				MEDIA_ENABLED_PROVIDERS: "kie,openrouter",
+				MEDIA_RECOVERY_PROVIDERS: "kie,openrouter",
+				MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
+				OPENROUTER_API_KEY: "openrouter-worker-secret-present-only",
+			}),
+		).toThrow(/OpenRouter.*recovery-only/i);
+	});
+
+	it("fails closed for every mismatched OpenRouter recovery certification", () => {
+		expect(() =>
+			validateEzPicLaunchEnvironment({
+				...productionEnvironment,
+				MEDIA_RECOVERY_PROVIDERS: "kie,openrouter",
+				MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: undefined,
+				OPENROUTER_API_KEY: "openrouter-worker-secret-present-only",
+			}),
+		).toThrow(/MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED/);
+		expect(() =>
+			validateEzPicLaunchEnvironment({
+				...productionEnvironment,
 				MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
 			}),
-		).toThrow(/MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED.*MEDIA_ENABLED_PROVIDERS/);
+		).toThrow(/MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED.*MEDIA_RECOVERY_PROVIDERS/);
+	});
+
+	it("requires the active Kie image catalog version and accepts older drain versions", () => {
+		for (const versions of [undefined, "2026-09-06.1", "2026-09-07.2,2026-09-07.2"] as const) {
+			expect(() =>
+				validateEzPicLaunchEnvironment({
+					...productionEnvironment,
+					MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: versions,
+				}),
+			).toThrow(/MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS/);
+		}
 		expect(() =>
 			validateEzPicLaunchEnvironment({
 				...productionEnvironment,
+				MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "2026-09-07.1,2026-09-07.2",
 			}),
 		).not.toThrow();
 	});
@@ -382,8 +486,15 @@ describe("EzPic production launch environment", () => {
 
 	it.each([
 		"MEDIA_GENERATION_ENABLED",
-		"MEDIA_STANDARD_EDIT_ENABLED",
-		"MEDIA_QUALITY_EDIT_ENABLED",
+		"MEDIA_NANO_BANANA_2_LITE_ENABLED",
+		"MEDIA_NANO_BANANA_ENABLED",
+		"MEDIA_NANO_BANANA_2_ENABLED",
+		"MEDIA_NANO_BANANA_PRO_ENABLED",
+		"MEDIA_GPT_IMAGE_1_5_ENABLED",
+		"MEDIA_GPT_IMAGE_2_ENABLED",
+		"MEDIA_SEEDREAM_4_5_ENABLED",
+		"MEDIA_SEEDREAM_5_LITE_ENABLED",
+		"MEDIA_SEEDREAM_5_PRO_ENABLED",
 		"MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS",
 		"MEDIA_ALERT_ERROR_RATE_BPS",
 		"MEDIA_ALERT_P95_LATENCY_MS",
@@ -401,7 +512,7 @@ describe("EzPic production launch environment", () => {
 			"TRIGGER_PROJECT_REF",
 			"TRIGGER_SECRET_KEY",
 			"MEDIA_BUCKET_NAME",
-			"OPENROUTER_API_KEY",
+			"KIE_API_KEY",
 			"SIGHTENGINE_API_SECRET",
 			"STRIPE_WEBHOOK_SECRET",
 			"PAYPAL_CLIENT_SECRET",

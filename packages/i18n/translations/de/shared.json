@@ -21,8 +21,8 @@
 		"maximumInputSize": "Quellbilder bis {megabytes, number} MB",
 		"month": "Monat",
 		"monthlyCredits": "{credits, number} Credits pro Monat",
-		"monthlyEditAllowance": "Bis zu {standard, number} Standard- oder {quality, number} Qualitätsbearbeitungen pro Monat",
-		"monthlyStandardAllowance": "Bis zu {standard, number} Standardbearbeitungen pro Monat",
+		"monthlyFixedImageAllowance": "Bis zu {count, number} Bilder pro Monat bei {credits, number} Credits pro Bild",
+		"monthlyImageAllowance": "Etwa {minimum, number}–{maximum, number} Bilder pro Monat bei {minimumCredits, number}–{maximumCredits, number} Credits pro Bild",
 		"monthly": "Monatlich",
 		"oneTime": "einmalig",
 		"paymentOptionsLoading": "Zahlungsoptionen werden geprüft…",
@@ -31,7 +31,7 @@
 			"creator": {
 				"description": "Für Kreative, die regelmäßige Bildideen in fertige Assets verwandeln.",
 				"features": {
-					"editLevels": "Zugriff auf Standard Edit und Quality Edit",
+					"editLevels": "Alle verfügbaren Bildmodelle und ihre modellspezifischen SKU-Optionen",
 					"privateAssets": "Private Quellbilder und bearbeitete Assets",
 					"editHistory": "Private Bearbeitungssitzungen und Verlauf"
 				},
@@ -46,9 +46,9 @@
 				"title": "Enterprise"
 			},
 			"free": {
-				"description": "Teste Standard Edit mit einem monatlichen Credit-Kontingent.",
+				"description": "Teste Nano Banana 2 Lite 1K mit einem monatlichen Credit-Kontingent.",
 				"features": {
-					"standardEdit": "Zugriff auf Standard Edit",
+					"standardEdit": "Zugriff auf Nano Banana 2 Lite 1K",
 					"privateAssets": "Private Quellbilder und bearbeitete Assets",
 					"editHistory": "Private Bearbeitungssitzungen und Verlauf"
 				},
@@ -65,7 +65,7 @@
 			"ultimate": {
 				"description": "Für wachsende Workflows, die mehr Bearbeitungen und Spielraum brauchen.",
 				"features": {
-					"editLevels": "Zugriff auf Standard Edit und Quality Edit",
+					"editLevels": "Alle verfügbaren Bildmodelle und ihre modellspezifischen SKU-Optionen",
 					"privateAssets": "Private Quellbilder und bearbeitete Assets",
 					"editHistory": "Private Bearbeitungssitzungen und Verlauf"
 				},
@@ -74,7 +74,7 @@
 			"studio": {
 				"description": "Für Teams mit hohem Volumen und anspruchsvolle Produktionsläufe.",
 				"features": {
-					"editLevels": "Zugriff auf Standard Edit und Quality Edit",
+					"editLevels": "Alle verfügbaren Bildmodelle und ihre modellspezifischen SKU-Optionen",
 					"privateAssets": "Private Quellbilder und bearbeitete Assets",
 					"editHistory": "Private Bearbeitungssitzungen und Verlauf"
 				},
@@ -85,15 +85,15 @@
 		"pricingFaqDescription": "Antworten zu Credits, Jahreszahlung, Kündigungen und Erstattungen.",
 		"purchase": "Kaufen",
 		"recommended": "Empfohlen",
-		"qualityEdit": "Quality Edit",
-		"standardEdit": "Standard Edit",
+		"allImageModels": "Alle verfügbaren Bildmodelle",
+		"nanoModel": "Nano Banana 2 Lite 1K",
 		"subscribe": "Abonnieren",
 		"subscriberBonus": "Abonnenten erhalten +{percent}% Credits zum gleichen Preis",
 		"subscriberBonusAmount": "Abo-Bonus: {credits}",
 		"subscriberReceives": "Abonnenten erhalten {credits} Credits",
 		"title": "Preise",
-		"tierAccessStandard": "Zugriff auf Standard Edit",
-		"tierAccessAll": "Zugriff auf Standard Edit und Quality Edit",
+		"tierAccessStandard": "Zugriff auf Nano Banana 2 Lite 1K",
+		"tierAccessAll": "Alle verfügbaren Bildmodelle und modellspezifischen SKU-Optionen",
 		"trialPeriod": "{days} {days, plural, one {Tag} other {Tage}} kostenlose Testphase",
 		"year": "Jahr",
 		"yearly": "Jährlich",

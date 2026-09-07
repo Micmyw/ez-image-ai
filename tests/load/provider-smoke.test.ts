@@ -10,59 +10,216 @@ import {
 } from "./provider-smoke";
 
 const baseEnvironment = {
-	PROVIDER_SMOKE_ALLOWLIST: "image-fast:openrouter,image-quality:openrouter",
-	PROVIDER_SMOKE_ENABLED_TIERS: "image-fast,image-quality",
-	PROVIDER_SMOKE_MAX_INVOCATIONS: "2",
-	PROVIDER_SMOKE_MAX_EXPECTED_COST_MICROS: "203000",
+	PROVIDER_SMOKE_ALLOWLIST:
+		"image-nano-banana-2-lite:nano-banana-2-lite-1k:kie,image-nano-banana:nano-banana-default:kie,image-nano-banana-2:nano-banana-2-1k:kie,image-nano-banana-2:nano-banana-2-2k:kie,image-nano-banana-2:nano-banana-2-4k:kie,image-nano-banana-pro:nano-banana-pro-1k:kie,image-nano-banana-pro:nano-banana-pro-2k:kie,image-nano-banana-pro:nano-banana-pro-4k:kie,image-gpt-image-1-5:gpt-image-1-5-medium:kie,image-gpt-image-1-5:gpt-image-1-5-high:kie,image-gpt-image-2:gpt-image-2-1k:kie,image-gpt-image-2:gpt-image-2-2k:kie,image-gpt-image-2:gpt-image-2-4k:kie,image-seedream-4-5:seedream-4-5-basic-2k:kie,image-seedream-4-5:seedream-4-5-high-4k:kie,image-seedream-5-lite:seedream-5-lite-basic-2k:kie,image-seedream-5-lite:seedream-5-lite-high-3k:kie,image-seedream-5-lite:seedream-5-lite-ultra-4k:kie,image-seedream-5-pro:seedream-5-pro-basic-1k:kie,image-seedream-5-pro:seedream-5-pro-high-2k:kie",
+	PROVIDER_SMOKE_ENABLED_SKUS:
+		"nano-banana-2-lite-1k,nano-banana-default,nano-banana-2-1k,nano-banana-2-2k,nano-banana-2-4k,nano-banana-pro-1k,nano-banana-pro-2k,nano-banana-pro-4k,gpt-image-1-5-medium,gpt-image-1-5-high,gpt-image-2-1k,gpt-image-2-2k,gpt-image-2-4k,seedream-4-5-basic-2k,seedream-4-5-high-4k,seedream-5-lite-basic-2k,seedream-5-lite-high-3k,seedream-5-lite-ultra-4k,seedream-5-pro-basic-1k,seedream-5-pro-high-2k",
+	PROVIDER_SMOKE_MAX_INVOCATIONS: "20",
+	PROVIDER_SMOKE_MAX_EXPECTED_COST_MICROS: "1072500",
 	PROVIDER_SMOKE_PROMPT: "Make the background blue",
 };
 
-void test("configures both current OpenRouter image-edit routes and stays dry by default", () => {
+void test("configures all 20 current Kie image SKU cells and stays dry by default", () => {
 	const configuration = parseProviderSmokeConfiguration(baseEnvironment);
 
 	assert.equal(configuration.confirmLive, false);
-	assert.equal(configuration.expectedCostMicros, 203_000);
+	assert.equal(configuration.expectedCostMicros, 1_072_500);
 	assert.deepEqual(
-		configuration.routes.map(({ provider, model, tier, expectedCostMicros, inputKind }) => ({
-			provider,
-			model,
-			tier,
-			expectedCostMicros,
-			inputKind,
-		})),
+		configuration.routes.map(
+			({ provider, model, productKey, skuKey, expectedCostMicros, inputKind }) => ({
+				provider,
+				model,
+				productKey,
+				skuKey,
+				expectedCostMicros,
+				inputKind,
+			}),
+		),
 		[
 			{
-				provider: "openrouter",
-				model: "sourceful/riverflow-v2.5-fast",
-				tier: "image-fast",
-				expectedCostMicros: 23_000,
+				provider: "kie",
+				model: "nano-banana-2-lite",
+				productKey: "image-nano-banana-2-lite",
+				skuKey: "nano-banana-2-lite-1k",
+				expectedCostMicros: 20_000,
 				inputKind: "image-to-image",
 			},
 			{
-				provider: "openrouter",
-				model: "sourceful/riverflow-v2.5-pro",
-				tier: "image-quality",
-				expectedCostMicros: 180_000,
+				provider: "kie",
+				model: "google/nano-banana-edit",
+				productKey: "image-nano-banana",
+				skuKey: "nano-banana-default",
+				expectedCostMicros: 20_000,
+				inputKind: "image-to-image",
+			},
+			{
+				provider: "kie",
+				model: "nano-banana-2",
+				productKey: "image-nano-banana-2",
+				skuKey: "nano-banana-2-1k",
+				expectedCostMicros: 40_000,
+				inputKind: "image-to-image",
+			},
+			{
+				provider: "kie",
+				model: "nano-banana-2",
+				productKey: "image-nano-banana-2",
+				skuKey: "nano-banana-2-2k",
+				expectedCostMicros: 60_000,
+				inputKind: "image-to-image",
+			},
+			{
+				provider: "kie",
+				model: "nano-banana-2",
+				productKey: "image-nano-banana-2",
+				skuKey: "nano-banana-2-4k",
+				expectedCostMicros: 90_000,
+				inputKind: "image-to-image",
+			},
+			{
+				provider: "kie",
+				model: "nano-banana-pro",
+				productKey: "image-nano-banana-pro",
+				skuKey: "nano-banana-pro-1k",
+				expectedCostMicros: 90_000,
+				inputKind: "image-to-image",
+			},
+			{
+				provider: "kie",
+				model: "nano-banana-pro",
+				productKey: "image-nano-banana-pro",
+				skuKey: "nano-banana-pro-2k",
+				expectedCostMicros: 90_000,
+				inputKind: "image-to-image",
+			},
+			{
+				provider: "kie",
+				model: "nano-banana-pro",
+				productKey: "image-nano-banana-pro",
+				skuKey: "nano-banana-pro-4k",
+				expectedCostMicros: 120_000,
+				inputKind: "image-to-image",
+			},
+			{
+				provider: "kie",
+				model: "gpt-image/1.5-image-to-image",
+				productKey: "image-gpt-image-1-5",
+				skuKey: "gpt-image-1-5-medium",
+				expectedCostMicros: 20_000,
+				inputKind: "image-to-image",
+			},
+			{
+				provider: "kie",
+				model: "gpt-image/1.5-image-to-image",
+				productKey: "image-gpt-image-1-5",
+				skuKey: "gpt-image-1-5-high",
+				expectedCostMicros: 110_000,
+				inputKind: "image-to-image",
+			},
+			{
+				provider: "kie",
+				model: "gpt-image-2-image-to-image",
+				productKey: "image-gpt-image-2",
+				skuKey: "gpt-image-2-1k",
+				expectedCostMicros: 30_000,
+				inputKind: "image-to-image",
+			},
+			{
+				provider: "kie",
+				model: "gpt-image-2-image-to-image",
+				productKey: "image-gpt-image-2",
+				skuKey: "gpt-image-2-2k",
+				expectedCostMicros: 50_000,
+				inputKind: "image-to-image",
+			},
+			{
+				provider: "kie",
+				model: "gpt-image-2-image-to-image",
+				productKey: "image-gpt-image-2",
+				skuKey: "gpt-image-2-4k",
+				expectedCostMicros: 80_000,
+				inputKind: "image-to-image",
+			},
+			{
+				provider: "kie",
+				model: "seedream/4.5-edit",
+				productKey: "image-seedream-4-5",
+				skuKey: "seedream-4-5-basic-2k",
+				expectedCostMicros: 32_500,
+				inputKind: "image-to-image",
+			},
+			{
+				provider: "kie",
+				model: "seedream/4.5-edit",
+				productKey: "image-seedream-4-5",
+				skuKey: "seedream-4-5-high-4k",
+				expectedCostMicros: 32_500,
+				inputKind: "image-to-image",
+			},
+			{
+				provider: "kie",
+				model: "seedream/5-lite-image-to-image",
+				productKey: "image-seedream-5-lite",
+				skuKey: "seedream-5-lite-basic-2k",
+				expectedCostMicros: 27_500,
+				inputKind: "image-to-image",
+			},
+			{
+				provider: "kie",
+				model: "seedream/5-lite-image-to-image",
+				productKey: "image-seedream-5-lite",
+				skuKey: "seedream-5-lite-high-3k",
+				expectedCostMicros: 27_500,
+				inputKind: "image-to-image",
+			},
+			{
+				provider: "kie",
+				model: "seedream/5-lite-image-to-image",
+				productKey: "image-seedream-5-lite",
+				skuKey: "seedream-5-lite-ultra-4k",
+				expectedCostMicros: 27_500,
+				inputKind: "image-to-image",
+			},
+			{
+				provider: "kie",
+				model: "seedream/5-pro-image-to-image",
+				productKey: "image-seedream-5-pro",
+				skuKey: "seedream-5-pro-basic-1k",
+				expectedCostMicros: 35_000,
+				inputKind: "image-to-image",
+			},
+			{
+				provider: "kie",
+				model: "seedream/5-pro-image-to-image",
+				productKey: "image-seedream-5-pro",
+				skuKey: "seedream-5-pro-high-2k",
+				expectedCostMicros: 70_000,
 				inputKind: "image-to-image",
 			},
 		],
 	);
 });
 
-void test("rejects retired image smoke routes", () => {
-	assert.throws(
-		() =>
-			parseProviderSmokeConfiguration({
-				...baseEnvironment,
-				PROVIDER_SMOKE_ALLOWLIST: "image-fast:replicate",
-				PROVIDER_SMOKE_ENABLED_TIERS: "image-fast",
-				PROVIDER_SMOKE_MAX_INVOCATIONS: "1",
-			}),
-		/Provider smoke route is not configured: image-fast:replicate/,
-	);
+void test("rejects routes outside the current Kie image catalog", () => {
+	for (const [route, skuKey] of [
+		["image-fast:openrouter", "image-fast"],
+		["video-fast:fal", "video-fast"],
+		["video-quality:kie", "video-quality"],
+	] as const) {
+		assert.throws(
+			() =>
+				parseProviderSmokeConfiguration({
+					...baseEnvironment,
+					PROVIDER_SMOKE_ALLOWLIST: route,
+					PROVIDER_SMOKE_ENABLED_SKUS: skuKey,
+					PROVIDER_SMOKE_MAX_INVOCATIONS: "1",
+				}),
+			new RegExp(`Provider smoke route is not configured: ${route}`),
+		);
+	}
 });
 
-void test("fails closed before creating an adapter for live OpenRouter image smoke", async () => {
+void test("fails closed before creating an adapter for live Kie image smoke", async () => {
 	const configuration = parseProviderSmokeConfiguration({
 		...baseEnvironment,
 		PROVIDER_SMOKE_CONFIRM_LIVE: "true",
@@ -89,16 +246,18 @@ void test("fails closed before creating an adapter for live OpenRouter image smo
 	);
 });
 
-void test("keeps the protected workflow OpenRouter-only and fail-closed by default", () => {
+void test("keeps the protected workflow Kie-SKU-only and fail-closed by default", () => {
 	const workflow = readFileSync(
 		resolve(process.cwd(), ".github/workflows/provider-smoke.yml"),
 		"utf8",
 	);
 
-	assert.match(workflow, /default: image-fast:openrouter,image-quality:openrouter/);
-	assert.match(workflow, /default: image-fast,image-quality/);
-	assert.match(workflow, /default: "2"/);
-	assert.match(workflow, /default: "203000"/);
+	assert.match(workflow, /nano-banana-2-lite-1k:kie/);
+	assert.match(workflow, /nano-banana-default:kie/);
+	assert.match(workflow, /seedream-5-lite-ultra-4k:kie/);
+	assert.match(workflow, /seedream-5-pro-high-2k:kie/);
+	assert.match(workflow, /default: "20"/);
+	assert.match(workflow, /default: "1072500"/);
 	assert.match(workflow, /PROVIDER_SMOKE_CONFIRM_LIVE: "false"/);
 	assert.doesNotMatch(
 		workflow,

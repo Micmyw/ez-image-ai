@@ -31,10 +31,6 @@ interface GuestDiagnostics {
 		expiredBeforeDispatch: number;
 	};
 	risk: {
-		budgetMicros: string;
-		heldMicros: string;
-		committedMicros: string;
-		releasedMicros: string;
 		utilizationPercent: number;
 		state: "OK" | "WARN" | "SLOW" | "CLOSED" | "EXHAUSTED";
 	};
@@ -44,9 +40,9 @@ interface GuestDiagnostics {
 		rejected: number;
 		uncertain: number;
 		uncertainOlderThanTenMinutes: number;
-		reportedCostCovered: number;
-		reportedCostMissing: number;
-		billedSpendMismatch: number;
+		billingEvidencePresent: number;
+		billingEvidenceMissing: number;
+		billingMismatch: number;
 	};
 	moderation: { approved: number; rejected: number; errors: number; errorRate: number | null };
 	watermark: { succeeded: number; failed: number };
@@ -71,12 +67,15 @@ function operationKey(): string {
 
 export function MediaOperations() {
 	const t = useTranslations("admin.media");
+	const products = useTranslations("media.create.products");
 	const queryClient = useQueryClient();
 	const [eventId, setEventId] = useState("");
 	const [eventKind, setEventKind] = useState<"PAYMENT" | "PROVIDER">("PAYMENT");
 	const [jobId, setJobId] = useState("");
 	const [stage, setStage] = useState<"DISPATCH" | "FINALIZE" | "SETTLE">("FINALIZE");
-	const [productKey, setProductKey] = useState<(typeof EZPIC_PRODUCT_KEYS)[number]>("image-fast");
+	const [productKey, setProductKey] = useState<(typeof EZPIC_PRODUCT_KEYS)[number]>(
+		"image-nano-banana-2-lite",
+	);
 	const [reason, setReason] = useState("");
 	const diagnostics = useQuery(
 		orpc.media.adminMediaDiagnostics.queryOptions({ refetchInterval: 15_000 }),
@@ -135,12 +134,6 @@ export function MediaOperations() {
 					alert={(data?.outbox.deadLetter ?? 0) > 0}
 				/>
 				<Metric
-					title={t("metrics.margin")}
-					value={data?.finance.marginMicros ?? "0"}
-					detail={t("metrics.micros")}
-					alert={BigInt(data?.finance.marginMicros ?? "0") < 0n}
-				/>
-				<Metric
 					title={t("metrics.storage")}
 					value={data?.storage.readyBytes ?? "0"}
 					detail={t("metrics.bytes")}
@@ -152,14 +145,9 @@ export function MediaOperations() {
 					alert={BigInt(data?.credits.debt ?? "0") > 0n}
 				/>
 				<Metric
-					title={t("metrics.providerFailures")}
-					value={data?.providers.reduce((total, item) => total + item.failed, 0) ?? 0}
-					alert={(data?.providers.reduce((total, item) => total + item.failed, 0) ?? 0) > 0}
-				/>
-				<Metric
 					title={t("metrics.eventFailures")}
-					value={(data?.events.providerFailed ?? 0) + paymentEventFailureCount}
-					alert={(data?.events.providerFailed ?? 0) + paymentEventFailureCount > 0}
+					value={(data?.events.generationFailed ?? 0) + paymentEventFailureCount}
+					alert={(data?.events.generationFailed ?? 0) + paymentEventFailureCount > 0}
 				/>
 			</div>
 
@@ -186,8 +174,8 @@ export function MediaOperations() {
 										<div key={item.id} className="pt-2 text-xs border-t">
 											<code className="break-all">{item.id}</code>
 											<p className="mt-1 break-all text-muted-foreground">
-												{item.providerEventId} · {item.attemptCount}/
-												{item.lastTriggerAttempt ?? "-"} · {item.lastErrorClass ?? "-"}
+												{item.attemptCount}/{item.lastTriggerAttempt ?? "-"} ·{" "}
+												{item.lastErrorClass ?? "-"}
 											</p>
 										</div>
 									))
@@ -211,7 +199,7 @@ export function MediaOperations() {
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="PAYMENT">Payment</SelectItem>
-								<SelectItem value="PROVIDER">Provider</SelectItem>
+								<SelectItem value="PROVIDER">Generation</SelectItem>
 							</SelectContent>
 						</Select>
 						<Input
@@ -273,7 +261,7 @@ export function MediaOperations() {
 							<SelectContent>
 								{EZPIC_PRODUCT_KEYS.map((key) => (
 									<SelectItem key={key} value={key}>
-										{key === "image-fast" ? "Standard Edit" : "Quality Edit"}
+										{products(`${key}.label`)}
 									</SelectItem>
 								))}
 							</SelectContent>
@@ -333,10 +321,12 @@ export function MediaOperations() {
 							className="gap-3 p-3 flex flex-wrap items-center justify-between rounded-md border"
 						>
 							<div>
-								<code className="text-sm">{item.configKey}</code>
-								<p className="text-xs text-muted-foreground">
-									v{item.version} · {item.reason}
-								</p>
+								<code className="text-sm">
+									{item.scope === "PRODUCT" && item.productKey
+										? products(`${item.productKey}.label`)
+										: item.scope}
+								</code>
+								<p className="text-xs text-muted-foreground">v{item.version}</p>
 							</div>
 							<Button
 								size="sm"
@@ -388,7 +378,7 @@ function GuestOperationsPanel({ data }: { data?: GuestDiagnostics }) {
 		(!data.controls.admissionOpen ||
 			data.watermark.failed > 0 ||
 			data.cleanup.overdueAssets > 0 ||
-			data.attempts.billedSpendMismatch > 0),
+			data.attempts.billingMismatch > 0),
 	);
 	return (
 		<Card className="p-6">
@@ -422,11 +412,6 @@ function GuestOperationsPanel({ data }: { data?: GuestDiagnostics }) {
 						<SummaryCard
 							title={t("metrics.risk")}
 							value={`${formatPercent(data.risk.utilizationPercent)} · ${diagnosticLabel("state", data.risk.state)}`}
-							detail={t("details.risk", {
-								held: data.risk.heldMicros,
-								committed: data.risk.committedMicros,
-								budget: data.risk.budgetMicros,
-							})}
 							alert={data.risk.state !== "OK"}
 						/>
 						<SummaryCard
@@ -443,12 +428,11 @@ function GuestOperationsPanel({ data }: { data?: GuestDiagnostics }) {
 							title={t("metrics.attempts")}
 							value={`${data.attempts.accepted} / ${data.attempts.rejected} / ${data.attempts.uncertain}`}
 							detail={t("details.attempts", {
-								covered: data.attempts.reportedCostCovered,
-								missing: data.attempts.reportedCostMissing,
+								covered: data.attempts.billingEvidencePresent,
+								missing: data.attempts.billingEvidenceMissing,
 							})}
 							alert={
-								data.attempts.uncertainOlderThanTenMinutes > 0 ||
-								data.attempts.billedSpendMismatch > 0
+								data.attempts.uncertainOlderThanTenMinutes > 0 || data.attempts.billingMismatch > 0
 							}
 						/>
 						<SummaryCard

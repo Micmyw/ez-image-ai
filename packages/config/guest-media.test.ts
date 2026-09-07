@@ -50,12 +50,12 @@ const productionRuntimeOverride = {
 };
 
 describe("guest media configuration", () => {
-	it("exposes the fixed Standard trial envelope in non-production", () => {
+	it("exposes the fixed Nano Banana 2 Lite trial envelope in non-production", () => {
 		expect(getGuestMediaConfig(developmentEnvironment, true)).toMatchObject({
 			enabled: true,
 			reason: null,
 			promotionPeriod: "2026-launch",
-			productKey: "image-fast",
+			productKey: "image-nano-banana-2-lite",
 			sponsorCredits: 5n,
 			maximumBytes: 10 * 1024 * 1024,
 			mimeTypes: ["image/jpeg", "image/png", "image/webp"],

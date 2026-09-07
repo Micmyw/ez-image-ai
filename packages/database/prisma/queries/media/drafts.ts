@@ -1,7 +1,28 @@
+import {
+	getImageProductSelectionContract,
+	getImageSkuSelectionContract,
+	isEzPicProductKey,
+	LEGACY_EZPIC_PRODUCT_KEYS,
+	parseImageSelection,
+	type EzPicProductKey,
+	type ImageAspectRatio,
+	type ImageBackground,
+	type ImageOutputFormat,
+	type ImageSkuKey,
+} from "@repo/config";
+
 import type { Prisma } from "../../generated/client";
 import { hasCurrentApprovedMediaAssetEvidence } from "./assets";
 import { createGuestSessionBootstrapWithClaimFence } from "./guest-bootstrap";
 import type { MediaTransactionClient } from "./types";
+
+type LegacyEzPicProductKey = (typeof LEGACY_EZPIC_PRODUCT_KEYS)[number];
+type StoredEzPicProductKey = EzPicProductKey | LegacyEzPicProductKey;
+
+const LEGACY_IMAGE_DRAFT_TARGETS = {
+	"image-fast": "image-nano-banana-2-lite",
+	"image-quality": "image-gpt-image-2",
+} as const satisfies Record<LegacyEzPicProductKey, EzPicProductKey>;
 
 interface CreateGenerationDraftInput {
 	claimTokenHash: string;
@@ -28,6 +49,8 @@ export async function createGenerationDraftTransaction(
 	input: CreateGenerationDraftInput,
 	client: MediaTransactionClient,
 ): Promise<{ id: string; expiresAt: Date }> {
+	const normalized = normalizeNewGenerationDraft(input.productKey, input.input);
+	if (!normalized) throw new Error("DRAFT_UNAVAILABLE");
 	return client.$transaction(async (tx) => {
 		if (input.abuseLimits) {
 			await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('marketing-draft-global'))`;
@@ -90,8 +113,8 @@ export async function createGenerationDraftTransaction(
 				submittedByUserId: ownerId,
 				claimTokenHash: input.claimTokenHash,
 				assetId: input.asset?.id,
-				productKey: input.productKey,
-				inputSnapshot: input.input,
+				productKey: normalized.productKey,
+				inputSnapshot: normalized.inputSnapshot,
 				expiresAt: input.expiresAt,
 			},
 		});
@@ -108,9 +131,12 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 		capabilityVersion: string;
 		promotionPeriod: string;
 		maximumOutstandingBootstraps: number;
-		productKey: "image-fast" | "image-quality";
+		productKey: EzPicProductKey;
+		skuKey: ImageSkuKey;
 		prompt: string;
-		aspectRatio?: "auto" | "1:1" | "4:3" | "3:4" | "3:2" | "2:3" | "16:9" | "9:16" | "21:9";
+		aspectRatio?: ImageAspectRatio;
+		outputFormat?: ImageOutputFormat;
+		background?: ImageBackground;
 		expiresAt: Date;
 		verification: {
 			provider: string;
@@ -121,7 +147,15 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 	},
 	client: MediaTransactionClient,
 ): Promise<{ id: string; expiresAt: Date }> {
-	if (input.productKey !== "image-fast" && input.productKey !== "image-quality") {
+	const normalized = normalizeNewGenerationDraft(input.productKey, {
+		kind: "image-to-image",
+		prompt: input.prompt,
+		skuKey: input.skuKey,
+		aspectRatio: input.aspectRatio ?? "auto",
+		...(input.outputFormat === undefined ? {} : { outputFormat: input.outputFormat }),
+		...(input.background === undefined ? {} : { background: input.background }),
+	});
+	if (!normalized) {
 		throw new Error("GUEST_PRODUCT_UNAVAILABLE");
 	}
 	return client.$transaction(async (tx) => {
@@ -175,12 +209,8 @@ export async function finalizeGuestDraftFromReadyUploadTransaction(
 				submittedByUserId: session.asset.ownerId,
 				claimTokenHash: input.claimTokenHash,
 				assetId: session.assetId,
-				productKey: input.productKey,
-				inputSnapshot: {
-					kind: "image-to-image",
-					prompt: input.prompt,
-					aspectRatio: input.aspectRatio ?? "auto",
-				},
+				productKey: normalized.productKey,
+				inputSnapshot: normalized.inputSnapshot,
 				expiresAt: input.expiresAt,
 			},
 		});
@@ -205,7 +235,7 @@ export async function claimGenerationDraftTransaction(
 	input: {
 		claimTokenHash: string;
 		userId: string;
-		allowedProductKeys: readonly ("image-fast" | "image-quality")[];
+		allowedProductKeys: readonly EzPicProductKey[];
 		now?: Date;
 	},
 	client: MediaTransactionClient,
@@ -217,7 +247,7 @@ export async function claimGuestGenerationDraftTransaction(
 	input: {
 		claimTokenHash: string;
 		userId: string;
-		allowedProductKeys: readonly ("image-fast" | "image-quality")[];
+		allowedProductKeys: readonly EzPicProductKey[];
 		now?: Date;
 	},
 	client: MediaTransactionClient,
@@ -229,7 +259,7 @@ async function claimGenerationDraftWithPolicy(
 	input: {
 		claimTokenHash: string;
 		userId: string;
-		allowedProductKeys: readonly ("image-fast" | "image-quality")[];
+		allowedProductKeys: readonly EzPicProductKey[];
 		now?: Date;
 	},
 	client: MediaTransactionClient,
@@ -237,12 +267,13 @@ async function claimGenerationDraftWithPolicy(
 ): Promise<{ id: string; productKey: string | null; input: Record<string, unknown> }> {
 	const allowedProductKeys = [...new Set(input.allowedProductKeys)];
 	if (allowedProductKeys.length === 0) throw new Error("DRAFT_UNAVAILABLE");
+	const storedProductKeys = expandStoredDraftProductKeys(allowedProductKeys);
 	return client.$transaction(async (tx) => {
 		const now = input.now ?? new Date();
 		const draft = await tx.generationDraft.findFirst({
 			where: {
 				claimTokenHash: input.claimTokenHash,
-				productKey: { in: allowedProductKeys },
+				productKey: { in: storedProductKeys },
 				expiresAt: { gt: now },
 				...(requireGuestBootstrap
 					? {
@@ -265,10 +296,12 @@ async function claimGenerationDraftWithPolicy(
 		if (!draft) throw new Error("DRAFT_UNAVAILABLE");
 		if (draft.status === "SUBMITTED") return toClaimedGenerationDraft(draft);
 		if (draft.status !== "ACTIVE") throw new Error("DRAFT_UNAVAILABLE");
+		const normalized = normalizeStoredGenerationDraft(draft);
+		if (!normalized) throw new Error("DRAFT_UNAVAILABLE");
 		const changed = await tx.generationDraft.updateMany({
 			where: {
 				id: draft.id,
-				productKey: { in: allowedProductKeys },
+				productKey: { in: storedProductKeys },
 				status: "ACTIVE",
 				expiresAt: { gt: now },
 			},
@@ -277,6 +310,8 @@ async function claimGenerationDraftWithPolicy(
 				ownerId: input.userId,
 				submittedByUserId: input.userId,
 				status: "SUBMITTED",
+				productKey: normalized.productKey,
+				inputSnapshot: normalized.inputSnapshot,
 			},
 		});
 		if (changed.count !== 1) {
@@ -284,7 +319,7 @@ async function claimGenerationDraftWithPolicy(
 				where: {
 					id: draft.id,
 					claimTokenHash: input.claimTokenHash,
-					productKey: { in: allowedProductKeys },
+					productKey: normalized.productKey,
 					status: "SUBMITTED",
 					ownerType: "USER",
 					ownerId: input.userId,
@@ -303,7 +338,7 @@ async function claimGenerationDraftWithPolicy(
 			},
 			tx,
 		);
-		return toClaimedGenerationDraft(draft);
+		return toClaimedNormalizedGenerationDraft(draft, normalized);
 	});
 }
 
@@ -332,6 +367,8 @@ export async function transferGuestGenerationDraftToRegisteredUserInTransaction(
 		},
 	});
 	if (!draft) throw new Error("DRAFT_UNAVAILABLE");
+	const normalized = normalizeStoredGenerationDraft(draft);
+	if (!normalized) throw new Error("DRAFT_UNAVAILABLE");
 	const transferred = await tx.generationDraft.updateMany({
 		where: {
 			id: draft.id,
@@ -344,6 +381,8 @@ export async function transferGuestGenerationDraftToRegisteredUserInTransaction(
 		data: {
 			ownerId: input.registeredUserId,
 			submittedByUserId: input.registeredUserId,
+			productKey: normalized.productKey,
+			inputSnapshot: normalized.inputSnapshot,
 		},
 	});
 	if (transferred.count !== 1) throw new Error("DRAFT_UNAVAILABLE");
@@ -355,7 +394,7 @@ export async function transferGuestGenerationDraftToRegisteredUserInTransaction(
 		},
 		tx,
 	);
-	return toClaimedGenerationDraft(draft);
+	return toClaimedNormalizedGenerationDraft(draft, normalized);
 }
 
 async function transferGenerationDraftAssetOwnership(
@@ -397,14 +436,122 @@ function toClaimedGenerationDraft(draft: {
 	inputSnapshot: Prisma.JsonValue;
 	assetId: string | null;
 }): { id: string; productKey: string | null; input: Record<string, unknown> } {
+	const normalized = normalizeStoredGenerationDraft(draft);
+	if (!normalized) throw new Error("DRAFT_UNAVAILABLE");
+	return toClaimedNormalizedGenerationDraft(draft, normalized);
+}
+
+function toClaimedNormalizedGenerationDraft(
+	draft: { id: string; assetId: string | null },
+	normalized: { productKey: EzPicProductKey; inputSnapshot: Prisma.InputJsonObject },
+): { id: string; productKey: string | null; input: Record<string, unknown> } {
 	return {
 		id: draft.id,
-		productKey: draft.productKey,
+		productKey: normalized.productKey,
 		input: {
-			...(draft.inputSnapshot as Record<string, unknown>),
+			...(normalized.inputSnapshot as Record<string, unknown>),
 			...(draft.assetId ? { sourceAssetId: draft.assetId } : {}),
 		},
 	};
+}
+
+function expandStoredDraftProductKeys(
+	allowedProductKeys: readonly EzPicProductKey[],
+): StoredEzPicProductKey[] {
+	const stored = new Set<StoredEzPicProductKey>(allowedProductKeys);
+	for (const legacyKey of LEGACY_EZPIC_PRODUCT_KEYS) {
+		if (allowedProductKeys.includes(LEGACY_IMAGE_DRAFT_TARGETS[legacyKey])) stored.add(legacyKey);
+	}
+	return [...stored];
+}
+
+const CURRENT_DRAFT_INPUT_KEYS = new Set([
+	"kind",
+	"prompt",
+	"skuKey",
+	"aspectRatio",
+	"outputFormat",
+	"background",
+]);
+
+function normalizeNewGenerationDraft(
+	productKey: string,
+	input: unknown,
+): { productKey: EzPicProductKey; inputSnapshot: Prisma.InputJsonObject } | null {
+	if (!isEzPicProductKey(productKey)) return null;
+	const inputSnapshot = normalizeImageDraftInput(productKey, input, true);
+	return inputSnapshot ? { productKey, inputSnapshot } : null;
+}
+
+function normalizeStoredGenerationDraft(draft: {
+	productKey: string | null;
+	inputSnapshot: Prisma.JsonValue;
+}): { productKey: EzPicProductKey; inputSnapshot: Prisma.InputJsonObject } | null {
+	if (!isStoredEzPicProductKey(draft.productKey) || !isJsonRecord(draft.inputSnapshot)) return null;
+	const productKey = isLegacyEzPicProductKey(draft.productKey)
+		? LEGACY_IMAGE_DRAFT_TARGETS[draft.productKey]
+		: draft.productKey;
+	if (isLegacyEzPicProductKey(draft.productKey)) {
+		const contract = getImageProductSelectionContract(productKey);
+		if (!contract) return null;
+		const defaultCell = getImageSkuSelectionContract(productKey, contract.defaultSkuKey);
+		if (!defaultCell) return null;
+		const legacyRatio =
+			typeof draft.inputSnapshot.aspectRatio === "string" &&
+			defaultCell.aspectRatios.includes(draft.inputSnapshot.aspectRatio as ImageAspectRatio)
+				? draft.inputSnapshot.aspectRatio
+				: contract.defaultAspectRatio;
+		const inputSnapshot = normalizeImageDraftInput(
+			productKey,
+			{
+				kind: draft.inputSnapshot.kind,
+				prompt: draft.inputSnapshot.prompt,
+				skuKey: contract.defaultSkuKey,
+				aspectRatio: legacyRatio,
+			},
+			false,
+		);
+		return inputSnapshot ? { productKey, inputSnapshot } : null;
+	}
+	const inputSnapshot = normalizeImageDraftInput(productKey, draft.inputSnapshot, false);
+	return inputSnapshot ? { productKey, inputSnapshot } : null;
+}
+
+function normalizeImageDraftInput(
+	productKey: EzPicProductKey,
+	value: unknown,
+	strict: boolean,
+): Prisma.InputJsonObject | null {
+	if (!isJsonRecord(value) || value.kind !== "image-to-image") return null;
+	if (strict && Object.keys(value).some((key) => !CURRENT_DRAFT_INPUT_KEYS.has(key))) return null;
+	if (typeof value.prompt !== "string") return null;
+	const prompt = value.prompt.trim();
+	if (prompt.length === 0 || prompt.length > 10_000) return null;
+	const selection = parseImageSelection(productKey, value);
+	if (!selection) return null;
+	return {
+		kind: "image-to-image",
+		prompt,
+		skuKey: selection.skuKey,
+		aspectRatio: selection.aspectRatio,
+		...(selection.outputFormat === undefined ? {} : { outputFormat: selection.outputFormat }),
+		...(selection.background === undefined ? {} : { background: selection.background }),
+	};
+}
+
+function isStoredEzPicProductKey(value: string | null): value is StoredEzPicProductKey {
+	return (
+		(typeof value === "string" && isEzPicProductKey(value)) ||
+		LEGACY_EZPIC_PRODUCT_KEYS.includes(value as LegacyEzPicProductKey)
+	);
+}
+
+function isLegacyEzPicProductKey(value: string): value is LegacyEzPicProductKey {
+	return LEGACY_EZPIC_PRODUCT_KEYS.includes(value as LegacyEzPicProductKey);
+}
+
+function isJsonRecord(value: unknown): value is Prisma.JsonObject {
+	return Boolean(value && typeof value === "object" && !Array.isArray(value));
 }
 
 export async function getClaimedGenerationDraft(
@@ -415,14 +562,7 @@ export async function getClaimedGenerationDraft(
 		where: { id: input.draftId, ownerType: "USER", ownerId: input.userId, status: "SUBMITTED" },
 	});
 	if (!draft) return null;
-	return {
-		id: draft.id,
-		productKey: draft.productKey,
-		input: {
-			...(draft.inputSnapshot as Record<string, unknown>),
-			...(draft.assetId ? { sourceAssetId: draft.assetId } : {}),
-		},
-	};
+	return toClaimedGenerationDraft(draft);
 }
 
 export async function expireGenerationDrafts(

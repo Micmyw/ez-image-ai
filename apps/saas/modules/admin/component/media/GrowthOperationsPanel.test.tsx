@@ -2,35 +2,42 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("next-intl", () => ({
-	useTranslations: () => (key: string, values?: Record<string, string | number>) =>
-		values ? `${key}:${JSON.stringify(values)}` : key,
+	useTranslations:
+		(namespace: string) => (key: string, values?: Record<string, string | number>) => {
+			if (namespace === "media.create.products") {
+				const products: Record<string, string> = {
+					"image-nano-banana-2-lite.label": "Nano Banana 2 Lite",
+					"image-gpt-image-2.label": "GPT Image 2",
+					"image-seedream-5-pro.label": "Seedream 5 Pro",
+				};
+				return products[key] ?? key;
+			}
+			return values ? `${key}:${JSON.stringify(values)}` : key;
+		},
 }));
 
 import { GrowthOperationsSummary } from "./GrowthOperationsPanel";
 
 describe("growth operations summary", () => {
-	it("renders only aggregate diagnostics and the two public EzPic product names", () => {
+	it("renders aggregate diagnostics for a representative public-product subset and stable SKUs", () => {
 		const markup = renderToStaticMarkup(
 			<GrowthOperationsSummary
 				data={{
-					generatedAt: "2026-08-25T00:00:00.000Z",
 					summary: {
 						jobs: 10,
 						succeeded: 8,
 						failed: 2,
 						successRate: 0.8,
 						latencyMs: { p50: 2_000, p95: 9_000 },
-						averageProviderCostMicros: "125000",
 						moderationRejectionRate: 0.1,
 						repeatEditRate: 0.25,
 					},
 					credits: { reserved: "100", charged: "80", released: "20" },
 					failureCodes: [{ code: "PROVIDER_FAILED", count: 2 }],
-					routes: [
+					skuBreakdown: [
 						{
-							productKey: "image-quality",
-							provider: "fal",
-							model: "fal-ai/quality-edit",
+							productKey: "image-gpt-image-2",
+							skuKey: "gpt-image-2-4k",
 							status: "SUCCEEDED",
 							jobs: 8,
 						},
@@ -38,8 +45,21 @@ describe("growth operations summary", () => {
 					controls: {
 						generationEnabled: true,
 						products: [
-							{ productKey: "image-fast", publicName: "Standard Edit", enabled: true },
-							{ productKey: "image-quality", publicName: "Quality Edit", enabled: false },
+							{
+								productKey: "image-nano-banana-2-lite",
+								publicName: "Nano Banana 2 Lite",
+								enabled: true,
+							},
+							{
+								productKey: "image-gpt-image-2",
+								publicName: "GPT Image 2",
+								enabled: false,
+							},
+							{
+								productKey: "image-seedream-5-pro",
+								publicName: "Seedream 5 Pro",
+								enabled: true,
+							},
 						],
 					},
 				}}
@@ -47,18 +67,19 @@ describe("growth operations summary", () => {
 		);
 
 		for (const value of [
-			"Standard Edit",
-			"Quality Edit",
+			"Nano Banana 2 Lite",
+			"GPT Image 2",
+			"Seedream 5 Pro",
+			"gpt-image-2-4k",
 			"PROVIDER_FAILED",
-			"fal",
-			"fal-ai/quality-edit",
-			"125000",
 			"100",
 			"80",
 			"20",
 		]) {
 			expect(markup).toContain(value);
 		}
-		expect(markup).not.toMatch(/video-fast|video-quality|prompt|signedUrl|jobId|objectKey/i);
+		expect(markup).not.toMatch(
+			/video-fast|video-quality|prompt|signedUrl|jobId|objectKey|provider-a|private-model-a|125000|kie/i,
+		);
 	});
 });

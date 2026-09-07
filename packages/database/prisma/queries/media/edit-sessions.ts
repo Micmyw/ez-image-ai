@@ -1,5 +1,9 @@
+import { EZPIC_PRODUCT_KEYS, LEGACY_EZPIC_PRODUCT_KEYS } from "@repo/config";
+
 import type { Prisma } from "../../generated/client";
 import type { MediaTransactionClient } from "./types";
+
+const IMAGE_EDIT_PRODUCT_KEYS = [...EZPIC_PRODUCT_KEYS, ...LEGACY_EZPIC_PRODUCT_KEYS];
 
 interface EditSessionOwnerInput {
 	ownerType: "USER" | "ORGANIZATION";
@@ -75,7 +79,7 @@ function publicImageEditJobWhere(input: EditSessionOwnerInput): Prisma.Generatio
 	return {
 		ownerType: input.ownerType,
 		ownerId: input.ownerId,
-		productKey: { in: ["image-fast", "image-quality"] },
+		productKey: { in: IMAGE_EDIT_PRODUCT_KEYS },
 		inputSnapshot: { path: ["kind"], equals: "image-to-image" },
 	};
 }
@@ -112,7 +116,7 @@ export async function findEligibleImageEditParentForOwner(
 			ownerType: input.ownerType,
 			ownerId: input.ownerId,
 			status: "SUCCEEDED",
-			productKey: { in: ["image-fast", "image-quality"] },
+			productKey: { in: IMAGE_EDIT_PRODUCT_KEYS },
 			editSession: {
 				ownerType: input.ownerType,
 				ownerId: input.ownerId,
@@ -120,6 +124,8 @@ export async function findEligibleImageEditParentForOwner(
 		},
 		select: {
 			editSessionId: true,
+			productKey: true,
+			inputSnapshot: true,
 			assets: {
 				where: { role: "OUTPUT", assetId: input.sourceAssetId },
 				select: {
@@ -158,5 +164,7 @@ export async function findEligibleImageEditParentForOwner(
 		editSessionId: parent.editSessionId,
 		parentJobId: input.parentJobId,
 		sourceAssetId: input.sourceAssetId,
+		productKey: parent.productKey,
+		inputSnapshot: parent.inputSnapshot,
 	};
 }

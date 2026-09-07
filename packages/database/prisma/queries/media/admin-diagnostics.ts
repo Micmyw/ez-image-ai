@@ -1,8 +1,17 @@
+import { EZPIC_PRODUCT_KEYS } from "@repo/config";
+
 import type {
 	CreditReservationStatus,
 	GenerationAttemptStatus,
 	GenerationJobStatus,
 } from "../../generated/client";
+import {
+	type AdminSafeImageProductDefinition,
+	type AdminSafeImageProductKey,
+	type AdminSafeImageSelection,
+	safeAdminImageSelection,
+	validateAdminSafeImageProductDefinitions,
+} from "./admin-safe-image-catalog";
 import { isGuestRuntimeConfigEnabledValue } from "./guest-bootstrap";
 import type { MediaTransactionClient } from "./types";
 
@@ -101,12 +110,10 @@ const STRIPE_RECONCILIATION_DIAGNOSTIC_LIMIT = 25;
 
 interface PaymentEventDiagnosticRow {
 	id: string;
-	providerEventId: string;
 	status: string;
 	attemptCount: number;
 	lastTriggerAttempt: number | null;
 	lastAttemptAt: Date | null;
-	lastTriggerRunId: string | null;
 	lastErrorClass: string | null;
 }
 
@@ -130,16 +137,15 @@ export interface ListAdminUncertainGenerationAttemptsInput {
 	limit?: number;
 }
 
+type EzPicProductKey = AdminSafeImageProductKey;
+
 export interface AdminUncertainGenerationAttemptDiagnostic {
 	ids: {
 		attemptId: string;
 		jobId: string;
 		reservationId: string | null;
 	};
-	route: {
-		provider: string;
-		providerModelId: string;
-	};
+	selection: AdminSafeImageSelection | null;
 	status: {
 		attempt: GenerationAttemptStatus;
 		job: GenerationJobStatus;
@@ -183,15 +189,37 @@ function safeUncertainReasonCode(
 		: "SUBMISSION_UNCERTAIN";
 }
 
+function safeRuntimeOverrideTarget(
+	configKey: string,
+):
+	| { scope: "GENERATION" | "GUEST"; productKey: null }
+	| { scope: "PRODUCT"; productKey: EzPicProductKey }
+	| null {
+	if (configKey === "media.generation.enabled") {
+		return { scope: "GENERATION", productKey: null };
+	}
+	if (configKey === GUEST_RUNTIME_CONFIG_KEY) return { scope: "GUEST", productKey: null };
+	const prefix = "media.model.";
+	const suffix = ".enabled";
+	if (!configKey.startsWith(prefix) || !configKey.endsWith(suffix)) return null;
+	const productKey = configKey.slice(prefix.length, -suffix.length);
+	return EZPIC_PRODUCT_KEYS.includes(productKey as EzPicProductKey)
+		? { scope: "PRODUCT", productKey: productKey as EzPicProductKey }
+		: null;
+}
+
 /**
  * Returns only the administrator-facing recovery metadata needed to triage uncertain attempts.
- * Provider task identifiers, endpoints, and snapshots deliberately never enter
- * the select projection.
+ * Provider routes, task identifiers, endpoints, costs, and attempt snapshots deliberately never
+ * enter the select projection. Product selections are returned only when they match the current
+ * public product-specific image matrix.
  */
 export async function listAdminUncertainGenerationAttempts(
 	input: ListAdminUncertainGenerationAttemptsInput,
 	client: MediaTransactionClient,
+	productDefinitions: readonly AdminSafeImageProductDefinition[],
 ): Promise<AdminUncertainGenerationAttemptDiagnostic[]> {
+	const products = validateAdminSafeImageProductDefinitions(productDefinitions);
 	const attempts = await client.generationAttempt.findMany({
 		where: {
 			OR: [
@@ -204,8 +232,6 @@ export async function listAdminUncertainGenerationAttempts(
 		},
 		select: {
 			id: true,
-			provider: true,
-			providerModelId: true,
 			status: true,
 			reconciliationCount: true,
 			createdAt: true,
@@ -217,6 +243,8 @@ export async function listAdminUncertainGenerationAttempts(
 			job: {
 				select: {
 					id: true,
+					productKey: true,
+					inputSnapshot: true,
 					status: true,
 					failureCode: true,
 					reservation: { select: { id: true, status: true } },
@@ -233,7 +261,7 @@ export async function listAdminUncertainGenerationAttempts(
 			jobId: attempt.job.id,
 			reservationId: attempt.job.reservation?.id ?? null,
 		},
-		route: { provider: attempt.provider, providerModelId: attempt.providerModelId },
+		selection: safeAdminImageSelection(products, attempt.job.productKey, attempt.job.inputSnapshot),
 		status: { attempt: attempt.status, job: attempt.job.status },
 		timestamps: {
 			createdAt: attempt.createdAt.toISOString(),
@@ -250,7 +278,7 @@ export async function listAdminUncertainGenerationAttempts(
 }
 
 interface StripeReconciliationCheckpointDiagnosticRow {
-	provider: string;
+	id: string;
 	status: string;
 	stage: string;
 	pages: number;
@@ -264,7 +292,7 @@ interface StripeReconciliationCheckpointDiagnosticRow {
 }
 
 interface HistoricalStripeRefundDiagnosticRow {
-	providerRefundId: string;
+	refundId: string | null;
 	reason:
 		| "MISSING_LIFECYCLE"
 		| "NON_SUCCEEDED_LIFECYCLE"
@@ -297,12 +325,11 @@ export async function getAdminMediaDiagnostics(
 		stalledJobs,
 		needsReconciliation,
 		outboxRows,
-		providers,
+		generationRows,
 		storageRows,
 		reservedStorage,
 		creditRows,
 		settledRows,
-		financeRows,
 		eventRows,
 		failedPaymentEvents,
 		deadLetterPaymentEvents,
@@ -331,19 +358,15 @@ export async function getAdminMediaDiagnostics(
 			FROM "outbox_event" WHERE "status" IN ('PENDING', 'LEASED', 'DEAD_LETTER') GROUP BY "status"`,
 		client.$queryRaw<
 			Array<{
-				provider: string;
 				succeeded: bigint;
 				failed: bigint;
 				running: bigint;
-				costMicros: bigint;
 			}>
 		>`
-			SELECT "provider",
-			 COUNT(*) FILTER (WHERE "status" = 'SUCCEEDED')::bigint AS succeeded,
+			SELECT COUNT(*) FILTER (WHERE "status" = 'SUCCEEDED')::bigint AS succeeded,
 			 COUNT(*) FILTER (WHERE "status" = 'FAILED')::bigint AS failed,
-			 COUNT(*) FILTER (WHERE "status" IN ('CREATED','SUBMISSION_UNCERTAIN','SUBMITTED','RUNNING'))::bigint AS running,
-			 COALESCE(SUM("providerCostMicros"), 0)::bigint AS "costMicros"
-			FROM "generation_attempt" WHERE "createdAt" >= ${dayStart} GROUP BY "provider" ORDER BY "provider"`,
+			 COUNT(*) FILTER (WHERE "status" IN ('CREATED','SUBMISSION_UNCERTAIN','SUBMITTED','RUNNING'))::bigint AS running
+			FROM "generation_attempt" WHERE "createdAt" >= ${dayStart}`,
 		client.$queryRaw<Array<{ readyAssets: bigint; readyBytes: bigint }>>`
 			SELECT COUNT(*)::bigint AS "readyAssets", COALESCE(SUM("byteSize"),0)::bigint AS "readyBytes"
 			FROM "media_asset" WHERE "status" = 'READY'`,
@@ -357,32 +380,15 @@ export async function getAdminMediaDiagnostics(
 			 COALESCE(SUM("creditDebt"),0)::bigint AS debt FROM "credit_account"`,
 		client.creditLedgerEntry.aggregate({ where: { type: "SETTLE" }, _sum: { amount: true } }),
 		client.$queryRaw<
-			Array<{ revenueMicros: bigint; refundedMicros: bigint; providerCostMicros: bigint }>
-		>`
-			SELECT
-			 COALESCE((SELECT SUM(invoice."paidAmount") * 10000
-				FROM (
-					SELECT "providerInvoiceId", MAX("paidAmount") AS "paidAmount"
-					FROM "billing_period"
-					WHERE "createdAt" >= ${dayStart} AND "providerInvoiceId" IS NOT NULL
-					GROUP BY "providerInvoiceId"
-				) invoice),0)::bigint AS "revenueMicros",
-			 COALESCE((SELECT SUM(refund."amount") * 10000
-				FROM "stripe_refund" refund
-				WHERE refund."status" = 'SUCCEEDED'
-				  AND refund."creditsFinalizedAt" >= ${dayStart}),0)::bigint AS "refundedMicros",
-			 COALESCE((SELECT SUM("providerCostMicros") FROM "generation_attempt"
-				WHERE "completedAt" >= ${dayStart}),0)::bigint AS "providerCostMicros"`,
-		client.$queryRaw<
 			Array<{
-				providerFailed: bigint;
+				generationFailed: bigint;
 				paymentFailed: bigint;
 				paymentDeadLetter: bigint;
 				paymentIgnored: bigint;
 			}>
 		>`
 			SELECT
-			 (SELECT COUNT(*) FROM "provider_webhook_event" WHERE "status" = 'FAILED')::bigint AS "providerFailed",
+			 (SELECT COUNT(*) FROM "provider_webhook_event" WHERE "status" = 'FAILED')::bigint AS "generationFailed",
 			 (SELECT COUNT(*) FROM "payment_event" WHERE "status" = 'FAILED')::bigint AS "paymentFailed",
 			 (SELECT COUNT(*) FROM "payment_event" WHERE "status" = 'DEAD_LETTER')::bigint AS "paymentDeadLetter",
 			 (SELECT COUNT(*) FROM "payment_event" WHERE "status" = 'IGNORED')::bigint AS "paymentIgnored"`,
@@ -405,8 +411,7 @@ export async function getAdminMediaDiagnostics(
 			take: PAYMENT_EVENT_DIAGNOSTIC_LIMIT,
 		}),
 		client.$queryRaw<Array<StripeReconciliationCheckpointDiagnosticRow>>`
-			SELECT "provider",
-			       "status"::text AS status,
+			SELECT "id", "status"::text AS status,
 			       "stage"::text AS stage,
 			       "pagesProcessed" AS pages,
 			       "failureCount" AS failures,
@@ -427,9 +432,9 @@ export async function getAdminMediaDiagnostics(
 		client.stripeReconciliationIssue.findMany({
 			where: { provider: "stripe", status: "OPEN" },
 			select: {
+				id: true,
 				code: true,
 				entityType: true,
-				providerObjectId: true,
 				stage: true,
 				occurrences: true,
 				firstSeenAt: true,
@@ -527,7 +532,7 @@ export async function getAdminMediaDiagnostics(
 				GROUP BY refund."providerRefundId", authority."id", authority."approvedCredits"
 				HAVING SUM(compensation."amount") = authority."approvedCredits"
 			)
-			SELECT legacy."providerRefundId",
+			SELECT refund."id" AS "refundId",
 			       CASE
 			         WHEN refund."id" IS NULL THEN 'MISSING_LIFECYCLE'
 			         WHEN refund."status" <> 'SUCCEEDED' THEN 'NON_SUCCEEDED_LIFECYCLE'
@@ -559,13 +564,21 @@ export async function getAdminMediaDiagnostics(
 			ORDER BY legacy."lastLedgerAt" DESC, legacy."providerRefundId" DESC
 			LIMIT ${STRIPE_RECONCILIATION_DIAGNOSTIC_LIMIT}`,
 		client.runtimeConfigOverride.findMany({
-			where: { active: true },
+			where: {
+				active: true,
+				configKey: {
+					in: [
+						"media.generation.enabled",
+						GUEST_RUNTIME_CONFIG_KEY,
+						...EZPIC_PRODUCT_KEYS.map((productKey) => `media.model.${productKey}.enabled`),
+					],
+				},
+			},
 			select: {
 				id: true,
 				configKey: true,
 				version: true,
 				value: true,
-				reason: true,
 				createdAt: true,
 			},
 			orderBy: { version: "desc" },
@@ -578,13 +591,9 @@ export async function getAdminMediaDiagnostics(
 	const oldestOutbox = Math.max(0, ...outboxRows.map((row) => row.oldestAgeSeconds ?? 0));
 	const storage = storageRows[0] ?? { readyAssets: 0n, readyBytes: 0n };
 	const credits = creditRows[0] ?? { spendable: 0n, reserved: 0n, debt: 0n };
-	const finance = financeRows[0] ?? {
-		revenueMicros: 0n,
-		refundedMicros: 0n,
-		providerCostMicros: 0n,
-	};
+	const generation = generationRows[0] ?? { succeeded: 0n, failed: 0n, running: 0n };
 	const events = eventRows[0] ?? {
-		providerFailed: 0n,
+		generationFailed: 0n,
 		paymentFailed: 0n,
 		paymentDeadLetter: 0n,
 		paymentIgnored: 0n,
@@ -594,7 +603,6 @@ export async function getAdminMediaDiagnostics(
 		needsReviewCount: 0n,
 		missingLifecycleCount: 0n,
 	};
-	const netRevenue = finance.revenueMicros - finance.refundedMicros;
 	const guest = await getAdminGuestDiagnostics(client, now, options);
 	return {
 		generatedAt: now.toISOString(),
@@ -609,13 +617,11 @@ export async function getAdminMediaDiagnostics(
 			deadLetter: Number(deadOutbox?.count ?? 0n),
 			oldestAgeSeconds: Math.round(oldestOutbox),
 		},
-		providers: providers.map((row) => ({
-			provider: row.provider,
-			succeeded: Number(row.succeeded),
-			failed: Number(row.failed),
-			running: Number(row.running),
-			costMicros: row.costMicros.toString(),
-		})),
+		generation: {
+			succeeded: Number(generation.succeeded),
+			failed: Number(generation.failed),
+			running: Number(generation.running),
+		},
 		storage: {
 			readyAssets: Number(storage.readyAssets),
 			readyBytes: storage.readyBytes.toString(),
@@ -627,14 +633,8 @@ export async function getAdminMediaDiagnostics(
 			debt: credits.debt.toString(),
 			settled: (settledRows._sum.amount ?? 0n).toString(),
 		},
-		finance: {
-			revenueMicros: finance.revenueMicros.toString(),
-			refundedMicros: finance.refundedMicros.toString(),
-			providerCostMicros: finance.providerCostMicros.toString(),
-			marginMicros: (netRevenue - finance.providerCostMicros).toString(),
-		},
 		events: {
-			providerFailed: Number(events.providerFailed),
+			generationFailed: Number(events.generationFailed),
 			payment: {
 				failed: paymentEventDiagnosticBucket(events.paymentFailed, failedPaymentEvents),
 				deadLetter: paymentEventDiagnosticBucket(events.paymentDeadLetter, deadLetterPaymentEvents),
@@ -644,7 +644,7 @@ export async function getAdminMediaDiagnostics(
 		stripeReconciliation: {
 			checkpoint: stripeReconciliationCheckpoint
 				? {
-						provider: stripeReconciliationCheckpoint.provider,
+						id: stripeReconciliationCheckpoint.id,
 						status: stripeReconciliationCheckpoint.status,
 						stage: stripeReconciliationCheckpoint.stage,
 						pages: stripeReconciliationCheckpoint.pages,
@@ -660,9 +660,9 @@ export async function getAdminMediaDiagnostics(
 			issues: {
 				openCount: openStripeReconciliationIssueCount,
 				items: openStripeReconciliationIssues.map((issue) => ({
+					id: issue.id,
 					code: safeStripeDiagnosticCode(issue.code) ?? "STRIPE_RECONCILIATION_ERROR_REDACTED",
 					entityType: issue.entityType,
-					providerObjectId: issue.providerObjectId,
 					stage: issue.stage,
 					occurrences: issue.occurrences,
 					firstSeenAt: issue.firstSeenAt.toISOString(),
@@ -673,7 +673,7 @@ export async function getAdminMediaDiagnostics(
 				needsReviewCount: Number(historicalStripeRefundCounts.needsReviewCount),
 				missingLifecycleCount: Number(historicalStripeRefundCounts.missingLifecycleCount),
 				items: historicalStripeRefundRows.map((refund) => ({
-					providerRefundId: refund.providerRefundId,
+					refundId: refund.refundId,
 					reason: refund.reason,
 					lifecycleStatus: refund.lifecycleStatus,
 					ledgerEntryCount: Number(refund.ledgerEntryCount),
@@ -685,14 +685,20 @@ export async function getAdminMediaDiagnostics(
 				})),
 			},
 		},
-		overrides: overrides.map((item) => ({
-			id: item.id,
-			configKey: item.configKey,
-			version: item.version,
-			enabled: item.value === true,
-			reason: item.reason,
-			createdAt: item.createdAt.toISOString(),
-		})),
+		overrides: overrides.flatMap((item) => {
+			const target = safeRuntimeOverrideTarget(item.configKey);
+			return target
+				? [
+						{
+							id: item.id,
+							...target,
+							version: item.version,
+							enabled: item.value === true,
+							createdAt: item.createdAt.toISOString(),
+						},
+					]
+				: [];
+		}),
 		guest,
 	};
 }
@@ -899,10 +905,6 @@ async function getAdminGuestDiagnostics(
 			expiredBeforeDispatch: Number(row.expiredBeforeDispatch),
 		},
 		risk: {
-			budgetMicros: (options.guestRiskBudgetMicros ?? 0n).toString(),
-			heldMicros: row.heldRiskMicros.toString(),
-			committedMicros: row.committedRiskMicros.toString(),
-			releasedMicros: row.releasedRiskMicros.toString(),
 			utilizationPercent: safety.utilizationPercent,
 			state: safety.riskState,
 		},
@@ -917,9 +919,9 @@ async function getAdminGuestDiagnostics(
 			rejected: Number(row.attemptRejected),
 			uncertain: Number(row.attemptUncertain),
 			uncertainOlderThanTenMinutes: Number(row.uncertainOlderThanTenMinutes),
-			reportedCostCovered: Number(row.reportedCostCovered),
-			reportedCostMissing: Number(row.reportedCostMissing),
-			billedSpendMismatch: Number(row.billedSpendMismatch),
+			billingEvidencePresent: Number(row.reportedCostCovered),
+			billingEvidenceMissing: Number(row.reportedCostMissing),
+			billingMismatch: Number(row.billedSpendMismatch),
 		},
 		moderation: {
 			approved: Number(row.moderationApproved),
@@ -1042,14 +1044,16 @@ function safeStripeDiagnosticCode(code: string | null): string | null {
 		: "STRIPE_RECONCILIATION_ERROR_REDACTED";
 }
 
+function safeOperationalCode(code: string | null): string | null {
+	return code === null || (code.length <= 128 && /^[A-Z][A-Z0-9_]*$/.test(code)) ? code : null;
+}
+
 const paymentEventDiagnosticSelect = {
 	id: true,
-	providerEventId: true,
 	status: true,
 	attemptCount: true,
 	lastTriggerAttempt: true,
 	lastAttemptAt: true,
-	lastTriggerRunId: true,
 	lastErrorClass: true,
 } as const;
 
@@ -1058,13 +1062,11 @@ function paymentEventDiagnosticBucket(count: bigint, items: PaymentEventDiagnost
 		count: Number(count),
 		items: items.map((item) => ({
 			id: item.id,
-			providerEventId: item.providerEventId,
 			status: item.status,
 			attemptCount: item.attemptCount,
 			lastTriggerAttempt: item.lastTriggerAttempt,
 			lastAttemptAt: item.lastAttemptAt?.toISOString() ?? null,
-			lastTriggerRunId: item.lastTriggerRunId,
-			lastErrorClass: item.lastErrorClass,
+			lastErrorClass: safeOperationalCode(item.lastErrorClass),
 		})),
 	};
 }

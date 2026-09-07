@@ -26,20 +26,20 @@
 		"title": "Documentation"
 	},
 	"faq": {
-		"description": "Des réponses claires sur la disponibilité invitée, les niveaux de retouche, les crédits, les médias privés, la facturation et l’usage responsable.",
+		"description": "Des réponses claires sur la disponibilité invitée, les modèles d’image, les EzPic Credits, les médias privés, la facturation et l’usage responsable.",
 		"title": "Questions fréquemment posées",
 		"items": {
 			"guestAvailability": {
 				"question": "Quand la retouche invitée est-elle disponible ?",
-				"answer": "Lorsque la file invitée sponsorisée est disponible, une personne peut lancer une Standard Edit sans compte. Le résultat est privé, filigrané et disponible pendant 24 heures maximum."
+				"answer": "Lorsque la file invitée sponsorisée est disponible, une personne peut lancer une retouche Nano Banana 2 Lite 1K sans compte. Le résultat est privé, filigrané et disponible pendant 24 heures maximum."
 			},
 			"guestVsFree": {
 				"question": "Quelle est la différence entre l’accès invité et Free ?",
-				"answer": "L’accès invité offre, sous réserve de disponibilité, une seule Standard Edit sponsorisée, filigranée et conservée jusqu’à 24 heures. Un compte Free inscrit reçoit 25 crédits par mois : Standard Edit coûte 5 crédits, soit jusqu’à cinq Standard Edits, sans accès à Quality Edit."
+				"answer": "L’accès invité offre, sous réserve de disponibilité, une seule retouche Nano Banana 2 Lite 1K sponsorisée, filigranée et conservée jusqu’à 24 heures. Un compte Free inscrit reçoit 25 EzPic Credits par mois ; Nano Banana 2 Lite 1K en utilise 5, soit jusqu’à cinq retouches. GPT Image 2 et Seedream 5 Pro nécessitent un forfait payant."
 			},
 			"editTiers": {
-				"question": "Quelle est la différence entre Standard Edit et Quality Edit ?",
-				"answer": "Standard Edit coûte 5 crédits et Quality Edit 40 crédits. Chaque retouche confirmée produit un résultat. Quality Edit nécessite Creator ou Studio."
+				"question": "Quels modèles d’image et réglages de sortie sont disponibles ?",
+				"answer": "Nano Banana 2 Lite 1K utilise 5 EzPic Credits. GPT Image 2 en utilise 7 en 1K, 11 en 2K ou 17 en 4K. Seedream 5 Pro en utilise 8 en Basic 1K ou 15 en High 2K. Chaque retouche confirmée produit un résultat."
 			},
 			"creditReservation": {
 				"question": "Quand les crédits sont-ils utilisés ?",
@@ -62,12 +62,12 @@
 				"answer": "Non. Les résultats peuvent présenter des défauts ou ressembler à d’autres images. EzPic ne garantit ni leur unicité, ni leur adaptation à un usage particulier, ni l’absence de droits de tiers."
 			},
 			"stableTiers": {
-				"question": "Pourquoi EzPic affiche-t-il des niveaux plutôt que des noms de modèles ?",
-				"answer": "Le produit affiche des noms stables : Standard Edit et Quality Edit. Le routage du service est contrôlé côté serveur et peut changer sans modifier le contrat public du niveau."
+				"question": "Pourquoi les modèles d’image utilisent-ils des montants différents d’EzPic Credits ?",
+				"answer": "Chaque modèle d’image possède sa propre matrice de réglages de sortie autorisés et son propre montant d’EzPic Credits. EzPic affiche le nom du produit, les réglages pris en charge et le débit exact ; le routage privé et les coûts d’exploitation restent sur le serveur."
 			},
 			"annualBilling": {
 				"question": "Comment la facturation annuelle affecte-t-elle les crédits ?",
-				"answer": "Creator coûte 190 $ par an et Studio 790 $ par an. Les crédits sont tout de même attribués chaque mois—700 pour Creator et 3 000 pour Studio—et les crédits inutilisés ne sont pas reportés."
+				"answer": "Pro coûte 190 $ par an, Ultimate 490 $ et Max 790 $. Les EzPic Credits sont tout de même attribués chaque mois—700 pour Pro, 1 800 pour Ultimate et 3 000 pour Max—et les crédits inutilisés ne sont pas reportés."
 			},
 			"cancelSubscription": {
 				"question": "Comment résilier mon abonnement ?",
@@ -87,16 +87,16 @@
 		"generator": {
 			"eyebrow": "Planifiez votre retouche",
 			"title": "Décrivez le changement souhaité",
-			"subtitle": "Importez une image source et décrivez la retouche. Lorsque la file invitée est disponible, vous pouvez lancer une Standard Edit privée dans EzPic.",
-			"offer": "Essayez gratuitement une retouche Standard",
+			"subtitle": "Importez une image source et décrivez la retouche. Lorsque la file invitée est disponible, vous pouvez lancer une retouche Nano Banana 2 Lite 1K privée dans EzPic.",
+			"offer": "Essayez Nano Banana 2 Lite 1K gratuitement",
 			"noSignUp": "Sans inscription lorsque la file invitée est disponible",
-			"paidSignIn": "Connexion et forfait Creator ou Studio requis",
+			"paidSignIn": "Connexion et forfait payant requis",
 			"oneOutput": "Un résultat",
 			"freeQueue": "File gratuite · un aperçu filigrané · disponible jusqu’à 24 heures",
-			"qualityAccess": "Quality Edit se poursuit après la connexion et nécessite un compte Creator ou Studio.",
+			"qualityAccess": "GPT Image 2 et Seedream 5 Pro se poursuivent après la connexion et nécessitent Pro, Ultimate ou Max.",
 			"temporaryResult": "Votre aperçu reste privé et temporaire.",
 			"temporarySessionDisclosure": "EzPic crée une session temporaire pour cet essai, conserve les médias invités jusqu’à 24 heures et utilise des signaux pseudonymes contre les abus pendant la période décrite dans notre Politique de confidentialité.",
-			"qualityCta": "Retouche Quality · Creator ou Studio",
+			"qualityCta": "Plus de modèles d’image · forfait payant",
 			"retryChallenge": "Réessayer la vérification",
 			"characterCount": "{count, number} / {maximum, number}",
 			"settings": {
@@ -108,31 +108,49 @@
 				"oneOutput": "Chaque retouche confirmée renvoie une image",
 				"resolution": "Résolution",
 				"quality": "Qualité",
-				"modeControlsQuality": "Définie par le niveau de retouche"
+				"outputFormat": "Format de sortie",
+				"background": "Arrière-plan",
+				"modeControlsQuality": "Définie par le modèle et la SKU sélectionnés",
+				"credits": "EzPic Credits",
+				"optionLabels": {
+					"1k": "1K",
+					"2k": "2K",
+					"3k": "3K",
+					"4k": "4K",
+					"basic": "Standard",
+					"medium": "Moyenne",
+					"high": "Élevée",
+					"ultra": "Ultra",
+					"png": "PNG",
+					"jpeg": "JPEG",
+					"auto": "Automatique",
+					"opaque": "Opaque",
+					"transparent": "Transparent"
+				}
 			},
 			"states": {
 				"challenge": "Vérifier cet import invité",
 				"checking": "Vérification de la disponibilité des retouches…",
-				"ready": "Choisissez un niveau, une image source et un prompt pour continuer.",
+				"ready": "Choisissez un modèle d’image, une image source et un prompt pour continuer.",
 				"preparing": "Préparation de votre import privé…",
 				"loadingCapability": "Vérification de la disponibilité invitée…",
-				"unavailable": "La file Standard gratuite n’accepte pas de nouvelles retouches pour le moment.",
+				"unavailable": "La file Nano Banana invitée n’accepte pas de nouvelles retouches pour le moment.",
 				"uploading": "Import de l’image source privée : {percentage, number}%",
 				"verifying": "Vérification de votre image source privée…",
 				"handoff": "Ouverture de votre brouillon privé…",
-				"failed": "Cette tentative s’est arrêtée avant le transfert. Votre image, votre prompt et votre niveau sont conservés."
+				"failed": "Cette tentative s’est arrêtée avant le transfert. Votre image, votre prompt et votre sélection de modèle sont conservés."
 			},
 			"guidance": {
 				"checking": "Patientez pendant la vérification de la disponibilité.",
 				"unavailable": "La retouche est indisponible pour le moment. Réessayez plus tard.",
-				"product": "Choisissez un niveau de retouche pour continuer.",
+				"product": "Choisissez un modèle d’image pour continuer.",
 				"source": "Ajoutez une image source pour continuer.",
 				"prompt": "Décrivez la retouche souhaitée pour continuer.",
 				"verification": "Terminez la vérification pour continuer."
 			},
 			"actions": {
-				"standard": "Essayez gratuitement une retouche Standard",
-				"quality": "Continuer avec Quality Edit",
+				"standard": "Essayez Nano Banana 2 Lite 1K gratuitement",
+				"quality": "Continuer avec un modèle d’image payant",
 				"retry": "Réessayer {product}",
 				"retryAvailability": "Vérifier à nouveau la disponibilité"
 			},
@@ -159,23 +177,23 @@
 				"lighting": "Ajoutez une lumière chaude de fin d’après-midi"
 			},
 			"modes": {
-				"legend": "Niveau de retouche",
+				"legend": "Modèle d’image",
 				"credits": "{credits, number} crédits",
-				"selectionPending": "Choisissez un niveau",
+				"selectionPending": "Choisissez un modèle",
 				"standard": {
-					"label": "Standard Edit",
+					"label": "Nano Banana 2 Lite",
 					"badge": "Essai invité",
-					"description": "Retouche d’une image source avec un résultat",
-					"access": "Une retouche invitée"
+					"description": "Retouche 1K d’une image source avec un résultat",
+					"access": "Une retouche invitée sponsorisée"
 				},
 				"quality": {
-					"label": "Quality Edit",
+					"label": "Plus de modèles d’image",
 					"badge": "Compte payant",
-					"description": "Retouche d’une image source avec un résultat",
-					"access": "Compte Creator ou Studio requis"
+					"description": "Chaque modèle conserve ses propres réglages de sortie vérifiés et son montant d’EzPic Credits",
+					"access": "Pro, Ultimate ou Max requis"
 				}
 			},
-			"loginNotice": "Les Standard Edits invitées peuvent démarrer sans connexion lorsque la file est disponible ; les retouches de compte exigent la confirmation du montant en crédits.",
+			"loginNotice": "Les retouches Nano Banana 2 Lite 1K invitées peuvent démarrer sans connexion lorsque la file est disponible ; les retouches de compte affichent le montant exact d’EzPic Credits avant confirmation.",
 			"previewCaption": "Aperçu de la source",
 			"previewPlaceholderAlt": "Illustration vectorielle EzPic originale d’un salon de lecture neutre",
 			"previewAlt": "Aperçu de {fileName}",
@@ -254,9 +272,9 @@
 		"imageEditorHero": {
 			"eyebrow": "Retouche par instruction, import d’abord",
 			"title": "Éditeur d’images IA <accent>avec instructions</accent>",
-			"subtitle": "Importez votre image et décrivez le changement. Lorsque la file invitée est disponible, vous pouvez lancer depuis cette page une Standard Edit privée sans compte.",
+			"subtitle": "Importez votre image et décrivez le changement. Lorsque la file invitée est disponible, vous pouvez lancer depuis cette page une retouche Nano Banana 2 Lite 1K privée sans compte.",
 			"private": "Images source privées",
-			"draftOnly": "Une retouche Standard invitée"
+			"draftOnly": "Une retouche Nano Banana 2 Lite invitée"
 		},
 		"beforeAfter": {
 			"eyebrow": "Une source, un changement clair",
@@ -435,7 +453,7 @@
 		"trust": {
 			"eyebrow": "Limites claires",
 			"title": "Privé par défaut, mesuré clairement",
-			"description": "Lorsque la file invitée sponsorisée est disponible, la page d’accueil peut lancer une Standard Edit sponsorisée. Les retouches de compte exigent toujours un devis et une confirmation avant la réservation des crédits.",
+			"description": "Lorsque la file invitée sponsorisée est disponible, la page d’accueil peut lancer une retouche Nano Banana 2 Lite 1K sponsorisée. Les retouches de compte exigent toujours un devis et une confirmation avant la réservation des EzPic Credits.",
 			"items": {
 				"privacy": {
 					"title": "Médias privés",
@@ -443,7 +461,7 @@
 				},
 				"credits": {
 					"title": "Usage contrôlé",
-					"description": "Les Standard Edits invitées utilisent la file sponsorisée ; les retouches de compte affichent le montant en crédits et attendent votre confirmation."
+					"description": "Les retouches Nano Banana invitées utilisent la file sponsorisée ; les retouches de compte affichent le montant exact d’EzPic Credits et attendent votre confirmation."
 				},
 				"safety": {
 					"title": "Protections normales",
@@ -454,7 +472,7 @@
 		"finalCta": {
 			"eyebrow": "Commencez par une image",
 			"title": "Décrivez la retouche que vous avez déjà en tête",
-			"description": "Importez l’image et décrivez le changement ici. Lorsque la file invitée est disponible, lancez une Standard Edit privée sans créer de compte.",
+			"description": "Importez l’image et décrivez le changement ici. Lorsque la file invitée est disponible, lancez une retouche Nano Banana 2 Lite 1K privée sans créer de compte.",
 			"button": "Retour à l’éditeur"
 		},
 		"hero": {
@@ -470,7 +488,7 @@
 		"features": {
 			"badge": "Flux de retouche d'image",
 			"title": "De l'image source à une retouche contrôlée",
-			"description": "EzPic regroupe l'instruction, le niveau de qualité, les crédits et les ressources privées dans un espace ciblé.",
+			"description": "EzPic regroupe l'instruction, les réglages de sortie propres au modèle, les EzPic Credits et les ressources privées dans un espace ciblé.",
 			"feature1": {
 				"title": "Retouches dirigées",
 				"subtitle": "Décrivez le changement au lieu de reconstruire l'image.",
@@ -484,8 +502,8 @@
 					"description": "L'éditeur ne présente jamais la génération à partir de texte seul comme un produit EzPic."
 				},
 				"benefit3": {
-					"title": "Deux niveaux de retouche",
-					"description": "Choisissez Standard Edit ou Quality Edit lorsque votre forfait le permet."
+					"title": "Réglages propres à chaque modèle",
+					"description": "Choisissez parmi les modèles d’image disponibles dans EzPic ; chacun conserve ses propres réglages de sortie vérifiés et son montant d’EzPic Credits."
 				}
 			},
 			"feature2": {

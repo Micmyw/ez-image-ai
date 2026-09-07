@@ -1,11 +1,13 @@
 "use client";
 
+import { IMAGE_ASPECT_RATIOS, type ImageAspectRatio } from "@repo/config/client";
 import { Badge } from "@repo/ui/components/badge";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 
 import { useJobHistory } from "../hooks/use-job-history";
 import { isEditorProductKey, type EditorProductKey } from "../lib/editor-recovery";
+import { isPublicImageSkuKey } from "../lib/image-sku-selection";
 import { getJobPresentation } from "../lib/job-status";
 
 export function RecentJobQueue({
@@ -17,6 +19,8 @@ export function RecentJobQueue({
 }) {
 	const t = useTranslations("media.status");
 	const products = useTranslations("media.create.products");
+	const skus = useTranslations("media.create.skus");
+	const outputSettings = useTranslations("media.create.outputSettings");
 	const history = useJobHistory({});
 	const jobs =
 		history.data?.pages
@@ -32,6 +36,8 @@ export function RecentJobQueue({
 			<div className="gap-2 flex min-w-max">
 				{jobs.map((job) => {
 					const stage = getJobPresentation({ status: job.status }).stage;
+					const skuKey = job.skuKey && isPublicImageSkuKey(job.skuKey) ? job.skuKey : null;
+					const aspectRatio = isImageAspectRatio(job.aspectRatio) ? job.aspectRatio : null;
 					return (
 						<button
 							key={job.id}
@@ -43,6 +49,12 @@ export function RecentJobQueue({
 								<span className="font-medium text-sm">{products(`${job.productKey}.label`)}</span>
 								<Badge status="info">{t(`stages.${stage}`)}</Badge>
 							</div>
+							{skuKey && aspectRatio && (
+								<span className="mt-1 text-xs block text-muted-foreground">
+									{skus(`${skuKey}.label`)} ·{" "}
+									{aspectRatio === "auto" ? outputSettings("automatic") : aspectRatio}
+								</span>
+							)}
 							<span className="mt-2 text-xs block text-muted-foreground">
 								{new Date(job.createdAt).toLocaleString()}
 							</span>
@@ -64,4 +76,8 @@ function hasEditorProductKey<T extends { productKey: string }>(
 	job: T,
 ): job is T & { productKey: EditorProductKey } {
 	return isEditorProductKey(job.productKey);
+}
+
+function isImageAspectRatio(value: string | null | undefined): value is ImageAspectRatio {
+	return Boolean(value && IMAGE_ASPECT_RATIOS.includes(value as ImageAspectRatio));
 }

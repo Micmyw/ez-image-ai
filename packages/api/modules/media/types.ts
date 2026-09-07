@@ -1,12 +1,23 @@
 import { mediaModelInputSchema } from "@repo/ai";
-import { productModelKeySchema } from "@repo/config";
+import { EZPIC_PRODUCT_KEYS, productModelKeySchema } from "@repo/config";
 import { z } from "zod";
 
-export const createQuoteInputSchema = z.object({
-	productKey: productModelKeySchema,
-	input: mediaModelInputSchema,
-	parentJobId: z.string().min(1).max(128).optional(),
-});
+import { isValidCurrentEzPicImageSelection } from "./lib/public-generation-input";
+
+export const createQuoteInputSchema = z
+	.object({
+		productKey: z.enum(EZPIC_PRODUCT_KEYS),
+		input: mediaModelInputSchema,
+		parentJobId: z.string().min(1).max(128).optional(),
+	})
+	.superRefine((value, context) => {
+		if (isValidCurrentEzPicImageSelection(value.productKey, value.input)) return;
+		context.addIssue({
+			code: "custom",
+			message: "Invalid image SKU selection",
+			path: ["input", "skuKey"],
+		});
+	});
 
 export const createGenerationInputSchema = z.object({
 	quoteId: z.string().min(1).max(128),

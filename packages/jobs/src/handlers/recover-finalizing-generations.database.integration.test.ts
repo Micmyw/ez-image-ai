@@ -1,4 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
+import { createRouteGraphSnapshot } from "@repo/ai";
 import { PrismaClient } from "@repo/database/generated-client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
@@ -310,21 +311,33 @@ interface SeedCandidateOptions {
 async function seedCandidate(options: SeedCandidateOptions = {}): Promise<{ jobId: string }> {
 	const suffix = crypto.randomUUID();
 	const ownerId = `${TEST_PREFIX}-${suffix}`;
+	const inputSnapshot = {
+		kind: "image-to-image",
+		prompt: "recovery test",
+		sourceAssetId: `asset_${suffix.replaceAll("-", "")}`,
+		skuKey: "nano-banana-2-lite-1k",
+		aspectRatio: "auto",
+	} as const;
+	const pricingSnapshot = {
+		credits: "5",
+		skuKey: "nano-banana-2-lite-1k",
+		routeGraph: kieNanoBanana2LiteRouteGraph(),
+	} as const;
 	const account = await client.creditAccount.create({
-		data: { ownerType: "USER", ownerId, reservedCredits: 4n },
+		data: { ownerType: "USER", ownerId, reservedCredits: 5n },
 	});
 	const quote = await client.generationQuote.create({
 		data: {
 			ownerType: "USER",
 			ownerId,
 			submittedByUserId: ownerId,
-			productKey: "image-fast",
-			catalogVersion: "finalization-recovery-test",
-			pricingVersion: "finalization-recovery-test",
-			credits: 4n,
-			costMicros: 1_000n,
-			inputSnapshot: { prompt: "recovery test" },
-			pricingSnapshot: { credits: 4 },
+			productKey: "image-nano-banana-2-lite",
+			catalogVersion: "2026-09-07.1",
+			pricingVersion: "2026-09-07.1",
+			credits: 5n,
+			costMicros: 20_000n,
+			inputSnapshot,
+			pricingSnapshot,
 			expiresAt: new Date(NOW.getTime() + 60_000),
 		},
 	});
@@ -335,12 +348,12 @@ async function seedCandidate(options: SeedCandidateOptions = {}): Promise<{ jobI
 			submittedByUserId: ownerId,
 			quoteId: quote.id,
 			idempotencyKey: `recovery-${suffix}`,
-			productKey: "image-fast",
-			catalogVersion: "finalization-recovery-test",
-			pricingVersion: "finalization-recovery-test",
-			creditsReserved: 4n,
-			inputSnapshot: { prompt: "recovery test" },
-			pricingSnapshot: { credits: 4 },
+			productKey: "image-nano-banana-2-lite",
+			catalogVersion: "2026-09-07.1",
+			pricingVersion: "2026-09-07.1",
+			creditsReserved: 5n,
+			inputSnapshot,
+			pricingSnapshot,
 			status: options.status ?? "FINALIZING",
 			finalizationRetryCount: options.finalizationRetryCount ?? 0,
 			finalizationErrorCode: options.finalizationErrorCode,
@@ -356,7 +369,7 @@ async function seedCandidate(options: SeedCandidateOptions = {}): Promise<{ jobI
 			data: {
 				accountId: account.id,
 				jobId: job.id,
-				amount: 4n,
+				amount: 5n,
 				status: options.reservationStatus ?? "ACTIVE",
 			},
 		});
@@ -366,8 +379,8 @@ async function seedCandidate(options: SeedCandidateOptions = {}): Promise<{ jobI
 			data: {
 				jobId: job.id,
 				attemptNumber: 1,
-				provider: "replicate",
-				providerModelId: "recovery-test-model",
+				provider: "kie",
+				providerModelId: "nano-banana-2-lite",
 				status: "SUCCEEDED",
 				requestSnapshot: {},
 				responseSnapshot: { outputs: [] },
@@ -382,6 +395,32 @@ async function seedCandidate(options: SeedCandidateOptions = {}): Promise<{ jobI
 		});
 	}
 	return { jobId: job.id };
+}
+
+function kieNanoBanana2LiteRouteGraph() {
+	const snapshot = createRouteGraphSnapshot({
+		productKey: "image-nano-banana-2-lite",
+		catalogVersion: "2026-09-07.1",
+		pricingVersion: "2026-09-07.1",
+		routes: [
+			{
+				provider: "kie",
+				providerModelId: "nano-banana-2-lite",
+				providerCostMicros: 20_000,
+				weight: 100,
+			},
+		],
+	});
+	return {
+		allowedRoutes: snapshot.allowedRoutes.map((route) => ({
+			provider: route.provider,
+			providerModelId: route.providerModelId,
+			providerCostMicros: route.providerCostMicros,
+			weight: route.weight,
+		})),
+		graphFingerprint: snapshot.graphFingerprint,
+		maximumRouteCostMicros: snapshot.maximumRouteCostMicros,
+	};
 }
 
 async function createOutbox(

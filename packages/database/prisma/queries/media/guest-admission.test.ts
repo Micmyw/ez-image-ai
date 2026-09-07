@@ -23,6 +23,20 @@ describe("guest admission credit contract", () => {
 		).rejects.toThrow("GUEST_PRICE_CHANGED");
 		expect(transaction).not.toHaveBeenCalled();
 	});
+
+	it("rejects a legacy OpenRouter guest quote before opening a transaction", async () => {
+		const transaction = vi.fn();
+		const input = guestInput(5n);
+
+		await expect(
+			createGuestGenerationTransaction(
+				{ ...input, quote: { ...input.quote, productKey: "image-fast" } },
+				clientWith(transaction),
+				vi.fn() as never,
+			),
+		).rejects.toThrow("GUEST_PRICE_CHANGED");
+		expect(transaction).not.toHaveBeenCalled();
+	});
 });
 
 function clientWith(transaction: ReturnType<typeof vi.fn>) {
@@ -76,12 +90,18 @@ function guestInput(sponsorCredits: bigint) {
 			ownerType: "USER",
 			ownerId,
 			submittedByUserId: ownerId,
-			productKey: "image-fast",
+			productKey: "image-nano-banana-2-lite",
 			catalogVersion: "catalog-v1",
 			pricingVersion: "pricing-v1",
 			credits: sponsorCredits,
 			costMicros: 23_000n,
-			inputSnapshot: {},
+			inputSnapshot: {
+				kind: "image-to-image",
+				prompt: "Make the sky violet",
+				sourceAssetId: "asset-1",
+				skuKey: "nano-banana-2-lite-1k",
+				aspectRatio: "16:9",
+			},
 			pricingSnapshot: {},
 			expiresAt: new Date(now.getTime() + 60_000),
 			moderation: {

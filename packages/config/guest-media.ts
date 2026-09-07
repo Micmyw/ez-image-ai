@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 
-import { PRODUCT_CREDIT_COSTS } from "./product";
+import { IMAGE_SKU_CREDIT_COSTS } from "./product";
 
 export const GUEST_MEDIA_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
-export const GUEST_MEDIA_SPONSOR_CREDITS = BigInt(PRODUCT_CREDIT_COSTS["image-fast"]);
+export const GUEST_MEDIA_SPONSOR_CREDITS = BigInt(IMAGE_SKU_CREDIT_COSTS["nano-banana-2-lite-1k"]);
 
 export type GuestMediaDisabledReason =
 	| "GUEST_ENVIRONMENT_INVALID"
@@ -49,7 +49,8 @@ export interface GuestMediaConfig {
 	enabled: boolean;
 	reason: GuestMediaDisabledReason | null;
 	promotionPeriod: string | null;
-	productKey: "image-fast";
+	productKey: "image-nano-banana-2-lite";
+	skuKey: "nano-banana-2-lite-1k";
 	sponsorCredits: bigint;
 	maximumBytes: number;
 	mimeTypes: typeof GUEST_MEDIA_MIME_TYPES;
@@ -82,7 +83,8 @@ export interface GuestMediaConfig {
 }
 
 const FIXED_GUEST_MEDIA_CONFIG = {
-	productKey: "image-fast",
+	productKey: "image-nano-banana-2-lite",
+	skuKey: "nano-banana-2-lite-1k",
 	sponsorCredits: GUEST_MEDIA_SPONSOR_CREDITS,
 	maximumBytes: 10 * 1024 * 1024,
 	mimeTypes: GUEST_MEDIA_MIME_TYPES,

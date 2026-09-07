@@ -1,5 +1,6 @@
 import { call } from "@orpc/server";
 import { PrismaPg } from "@prisma/adapter-pg";
+import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
 import { guestAbuseHmacKeyIdentity } from "@repo/config/server";
 import { PrismaClient } from "@repo/database/generated-client";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -53,9 +54,9 @@ describe("guest capability database drift fence", () => {
 		vi.stubEnv("GUEST_MEDIA_ENABLED", "true");
 		vi.stubEnv("GUEST_PROMOTION_PERIOD", "promotion-a");
 		vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
-		vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "openrouter");
-		vi.stubEnv("MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED", "true");
-		vi.stubEnv("MEDIA_STANDARD_EDIT_ENABLED", "true");
+		vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");
+		vi.stubEnv("MEDIA_NANO_BANANA_2_LITE_ENABLED", "true");
+		vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", DEFAULT_PRODUCT_CONFIG.catalogVersion);
 		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", abuseSecret);
 		vi.stubEnv("GUEST_ABUSE_HMAC_VERSION", abuseKeyVersion);
 		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", saasOrigin);
@@ -89,7 +90,7 @@ describe("guest capability database drift fence", () => {
 			createGuestDraftUploadIntent,
 			{
 				capabilityVersion: capabilityA.version,
-				productKey: "image-fast",
+				productKey: "image-nano-banana-2-lite",
 				contentType: "image/png",
 				bytes: 8,
 				sha256: "a".repeat(64),
@@ -120,9 +121,11 @@ describe("guest capability database drift fence", () => {
 					sessionId: upload.sessionId,
 					completionToken: upload.completionToken,
 					capabilityVersion: capabilityA.version,
-					productKey: "image-fast",
+					productKey: "image-nano-banana-2-lite",
+					skuKey: "nano-banana-2-lite-1k",
 					sha256: "a".repeat(64),
 					prompt: "Replace the background",
+					aspectRatio: "auto",
 				},
 				{
 					context: {

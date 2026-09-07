@@ -1,6 +1,8 @@
 import { createHash } from "node:crypto";
 
 import {
+	DEFAULT_PRODUCT_CONFIG,
+	EZPIC_PRODUCT_KEYS,
 	isEzPicProductEnvironmentEnabled,
 	parseMediaEnabledProviders,
 	parseMediaRecoveryProviders,
@@ -29,6 +31,7 @@ export interface ExecutableRouteGraphOptions {
 	generationEnabled?: boolean;
 	disabledProductKeys?: ReadonlySet<string>;
 	openRouterImageRoutesCertified?: boolean;
+	kieImageCertifiedCatalogVersions?: ReadonlySet<string>;
 }
 
 export interface ExecutableCatalogRouteGraphEntry<T extends { routes: readonly CatalogRoute[] }> {
@@ -94,6 +97,69 @@ export const STATIC_DISPATCH_ROUTE_MANIFEST = [
 		providerModelId: "sourceful/riverflow-v2.5-pro",
 		taskId: "media-dispatch-image-openrouter-sourceful_riverflow-v2.5-pro",
 		queueName: "media-image-openrouter-sourceful_riverflow-v2.5-pro",
+	},
+	{
+		mediaKind: "image",
+		provider: "kie",
+		providerModelId: "nano-banana-2-lite",
+		taskId: "media-dispatch-image-kie-nano-banana-2-lite",
+		queueName: "media-image-kie-nano-banana-2-lite",
+	},
+	{
+		mediaKind: "image",
+		provider: "kie",
+		providerModelId: "google/nano-banana-edit",
+		taskId: "media-dispatch-image-kie-google_nano-banana-edit",
+		queueName: "media-image-kie-google_nano-banana-edit",
+	},
+	{
+		mediaKind: "image",
+		provider: "kie",
+		providerModelId: "nano-banana-2",
+		taskId: "media-dispatch-image-kie-nano-banana-2",
+		queueName: "media-image-kie-nano-banana-2",
+	},
+	{
+		mediaKind: "image",
+		provider: "kie",
+		providerModelId: "nano-banana-pro",
+		taskId: "media-dispatch-image-kie-nano-banana-pro",
+		queueName: "media-image-kie-nano-banana-pro",
+	},
+	{
+		mediaKind: "image",
+		provider: "kie",
+		providerModelId: "gpt-image/1.5-image-to-image",
+		taskId: "media-dispatch-image-kie-gpt-image_1.5-image-to-image",
+		queueName: "media-image-kie-gpt-image_1.5-image-to-image",
+	},
+	{
+		mediaKind: "image",
+		provider: "kie",
+		providerModelId: "gpt-image-2-image-to-image",
+		taskId: "media-dispatch-image-kie-gpt-image-2-image-to-image",
+		queueName: "media-image-kie-gpt-image-2-image-to-image",
+	},
+	{
+		mediaKind: "image",
+		provider: "kie",
+		providerModelId: "seedream/4.5-edit",
+		taskId: "media-dispatch-image-kie-seedream_4.5-edit",
+		queueName: "media-image-kie-seedream_4.5-edit",
+	},
+	{
+		mediaKind: "image",
+		provider: "kie",
+		providerModelId: "seedream/5-lite-image-to-image",
+		taskId: "media-dispatch-image-kie-seedream_5-lite-image-to-image",
+		queueName: "media-image-kie-seedream_5-lite-image-to-image",
+	},
+	{
+		mediaKind: "image",
+		provider: "kie",
+		providerModelId: "seedream/5-pro-image-to-image",
+		taskId: "media-dispatch-image-kie-seedream_5-pro-image-to-image",
+		queueName: "media-image-kie-seedream_5-pro-image-to-image",
 	},
 	{
 		mediaKind: "video",
@@ -162,7 +228,7 @@ export function configuredRouteGraphOptionsFromEnvironment(
 	environment: Record<string, string | undefined> = process.env,
 ): ExecutableRouteGraphOptions {
 	const disabledProductKeys = new Set<string>();
-	for (const productKey of ["image-fast", "image-quality"] as const) {
+	for (const productKey of EZPIC_PRODUCT_KEYS) {
 		if (!isEzPicProductEnvironmentEnabled(productKey, environment)) {
 			disabledProductKeys.add(productKey);
 		}
@@ -172,6 +238,12 @@ export function configuredRouteGraphOptionsFromEnvironment(
 		generationEnabled: environment.MEDIA_GENERATION_ENABLED === "true",
 		disabledProductKeys,
 		openRouterImageRoutesCertified: environment.MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED === "true",
+		kieImageCertifiedCatalogVersions: new Set(
+			(environment.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS ?? "")
+				.split(",")
+				.map((value) => value.trim())
+				.filter(Boolean),
+		),
 	};
 }
 
@@ -260,6 +332,10 @@ export function executableRouteGraph<
 			(route) =>
 				options.enabledProviders.has(route.provider) &&
 				(route.provider !== "openrouter" || options.openRouterImageRoutesCertified === true) &&
+				(route.provider !== "kie" ||
+					entry.mediaKind !== "image" ||
+					options.kieImageCertifiedCatalogVersions?.has(DEFAULT_PRODUCT_CONFIG.catalogVersion) ===
+						true) &&
 				isStaticDispatchRoute(entry.mediaKind, route.provider, route.providerModelId),
 		);
 		return routes.length > 0 ? [{ entry, routes }] : [];

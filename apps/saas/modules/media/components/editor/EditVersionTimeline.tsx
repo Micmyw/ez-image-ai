@@ -1,5 +1,6 @@
 "use client";
 
+import { IMAGE_ASPECT_RATIOS, type ImageAspectRatio } from "@repo/config/client";
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
@@ -11,6 +12,7 @@ import { useEffect, useState } from "react";
 
 import { useEditSession } from "../../hooks/use-edit-session";
 import { isEditorProductKey } from "../../lib/editor-recovery";
+import { isPublicImageSkuKey } from "../../lib/image-sku-selection";
 import { getJobPresentation } from "../../lib/job-status";
 import { PromptHistory } from "./PromptHistory";
 
@@ -18,6 +20,8 @@ export function EditVersionTimeline({ sessionId }: { sessionId: string }) {
 	const t = useTranslations("media.edits");
 	const stages = useTranslations("media.status.stages");
 	const products = useTranslations("media.create.products");
+	const skus = useTranslations("media.create.skus");
+	const outputSettings = useTranslations("media.create.outputSettings");
 	const session = useEditSession(sessionId);
 	const [renaming, setRenaming] = useState(false);
 	const [title, setTitle] = useState("");
@@ -89,6 +93,17 @@ export function EditVersionTimeline({ sessionId }: { sessionId: string }) {
 				{session.data.versions.map((version, index) => {
 					const stage = getJobPresentation({ status: version.status }).stage;
 					const outputAssetId = version.output.assetId;
+					const currentProductKey = isEditorProductKey(version.productKey)
+						? version.productKey
+						: null;
+					const skuKey =
+						currentProductKey && version.skuKey && isPublicImageSkuKey(version.skuKey)
+							? version.skuKey
+							: null;
+					const aspectRatio =
+						currentProductKey && isImageAspectRatio(version.aspectRatio)
+							? version.aspectRatio
+							: null;
 					return (
 						<li
 							key={version.id}
@@ -101,12 +116,19 @@ export function EditVersionTimeline({ sessionId }: { sessionId: string }) {
 									<Badge status="info">{stages(stage)}</Badge>
 								</div>
 								<p className="mt-2 text-sm text-muted-foreground">
-									{products(`${version.productKey}.label`)} ·{" "}
+									{currentProductKey ? products(`${currentProductKey}.label`) : t("legacyProduct")}{" "}
+									·{" "}
+									{skuKey && aspectRatio && (
+										<>
+											{skus(`${skuKey}.label`)} ·{" "}
+											{aspectRatio === "auto" ? outputSettings("automatic") : aspectRatio} ·{" "}
+										</>
+									)}
 									{t("credits", { credits: version.credits })} ·{" "}
 									{new Date(version.createdAt).toLocaleString()}
 								</p>
 								<PromptHistory label={t("prompt")} prompt={version.prompt} />
-								{version.canEditAgain && outputAssetId && (
+								{currentProductKey && version.canEditAgain && outputAssetId && (
 									<Button
 										className="mt-5"
 										variant="secondary"
@@ -132,6 +154,10 @@ export function EditVersionTimeline({ sessionId }: { sessionId: string }) {
 			</ol>
 		</div>
 	);
+}
+
+function isImageAspectRatio(value: string | null | undefined): value is ImageAspectRatio {
+	return Boolean(value && IMAGE_ASPECT_RATIOS.includes(value as ImageAspectRatio));
 }
 
 function VersionThumbnail({

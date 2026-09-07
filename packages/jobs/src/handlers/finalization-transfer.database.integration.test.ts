@@ -6,6 +6,7 @@ import {
 	createRouteGraphSnapshot,
 	type ProviderOutput,
 } from "@repo/ai";
+import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
 import {
 	claimGenerationOutputTransferTransaction,
 	completeGenerationOutputTransferTransaction,
@@ -687,19 +688,22 @@ async function seedFinalizingJob(outputs: ProviderOutput[]) {
 		ownerType: "USER",
 		ownerId,
 		submittedByUserId: ownerId,
-		productKey: "image-quality",
-		catalogVersion: "2026-08-13.1",
-		pricingVersion: "2026-08-13.1",
-		credits: 10n,
-		costMicros: 8_000n,
+		productKey: "image-nano-banana-2-lite",
+		catalogVersion: DEFAULT_PRODUCT_CONFIG.catalogVersion,
+		pricingVersion: DEFAULT_PRODUCT_CONFIG.pricingVersion,
+		credits: 5n,
+		costMicros: 20_000n,
 		inputSnapshot: {
 			kind: "image-to-image",
 			prompt: "output transfer test",
 			sourceAssetId: inputAsset.id,
+			skuKey: "nano-banana-2-lite-1k",
+			aspectRatio: "auto",
 		},
 		pricingSnapshot: {
-			credits: "10",
-			routeGraph: legacyImageQualityRouteGraph(),
+			credits: "5",
+			skuKey: "nano-banana-2-lite-1k",
+			routeGraph: kieNanoBanana2LiteRouteGraph(),
 		},
 		expiresAt: new Date(Date.now() + 60_000),
 	} as const;
@@ -747,7 +751,7 @@ async function seedFinalizingJob(outputs: ProviderOutput[]) {
 		{
 			outputs,
 			progress: 100,
-			providerCostMicros: 8_000,
+			providerCostMicros: 20_000,
 			failure: null,
 			retryable: false,
 			providerCharged: true,
@@ -757,16 +761,16 @@ async function seedFinalizingJob(outputs: ProviderOutput[]) {
 	return { jobId: job.id, ownerId, version: job.version };
 }
 
-function legacyImageQualityRouteGraph() {
+function kieNanoBanana2LiteRouteGraph() {
 	const snapshot = createRouteGraphSnapshot({
-		productKey: "image-quality",
-		catalogVersion: "2026-08-13.1",
-		pricingVersion: "2026-08-13.1",
+		productKey: "image-nano-banana-2-lite",
+		catalogVersion: DEFAULT_PRODUCT_CONFIG.catalogVersion,
+		pricingVersion: DEFAULT_PRODUCT_CONFIG.pricingVersion,
 		routes: [
 			{
-				provider: "gemini",
-				providerModelId: "gemini-2.5-flash-image",
-				providerCostMicros: 8_000,
+				provider: "kie",
+				providerModelId: "nano-banana-2-lite",
+				providerCostMicros: 20_000,
 				weight: 100,
 			},
 		],
@@ -815,7 +819,7 @@ async function markSeededJobAsGuest(
 			capabilityVersion: "guest-finalization-test-v1",
 			idempotencyFingerprint: `fingerprint-${suffix}`,
 			abuseEvidenceExpiresAt: new Date(createdAt.getTime() + 30 * 24 * 60 * 60_000),
-			frozenQuotedRiskMicros: 8_000n,
+			frozenQuotedRiskMicros: 20_000n,
 			riskState: "COMMITTED",
 			projectedDispatchAt,
 			estimateExpiresAt,
@@ -830,7 +834,7 @@ async function markSeededJobAsGuest(
 	await client.generationJob.update({
 		where: { id: seeded.jobId },
 		data: {
-			productKey: "image-fast",
+			productKey: "image-nano-banana-2-lite",
 			serviceClass: "GUEST_SLOW",
 			guestTrialId: trial.id,
 		},

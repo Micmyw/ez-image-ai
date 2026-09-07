@@ -11,6 +11,7 @@ import {
 	createRouteGraphSnapshot,
 	type ProviderKey,
 } from "@repo/ai";
+import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
 import {
 	beginGuestLinkIntentTransaction,
 	completeGuestLinkIntentTransaction,
@@ -45,6 +46,8 @@ import { verifyUpload } from "./verify-upload";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const TEST_EXECUTABLE_PROVIDERS = new Set<ProviderKey>(["replicate", "fal", "kie", "gemini"]);
+// This suite intentionally replays immutable pre-Kie quote snapshots to protect historical job
+// recovery. New jobs are covered by the current Kie SKU fixtures in the focused runtime tests.
 const LEGACY_CATALOG_VERSION = "2026-08-13.1";
 const LEGACY_PRICING_VERSION = "2026-08-13.1";
 let client: PrismaClient;
@@ -182,11 +185,11 @@ describe("production media runtime stores", () => {
 			providerTaskId: `guest-provider-${crypto.randomUUID()}`,
 			status: "QUEUED" as const,
 			outcome: "accepted" as const,
-			idempotency: { key: guest.jobId, providerSupported: true, replayed: false },
+			idempotency: { key: guest.jobId, providerSupported: false, replayed: false },
 			reconciliation: { submissionToken: guest.jobId },
 		}));
 		const provider = {
-			provider: "replicate" as const,
+			provider: "kie" as const,
 			submit,
 			retrieve: vi.fn(),
 			normalizeResult: vi.fn(),
@@ -493,7 +496,7 @@ describe("production media runtime stores", () => {
 				}),
 				expect.objectContaining({
 					status: "RELEASED",
-					releasedAmount: 4n,
+					releasedAmount: 5n,
 				}),
 				expect.objectContaining({ reservedMicros: 0n }),
 				1,
@@ -990,6 +993,108 @@ describe("production media runtime stores", () => {
 			providerResultUrl: `https://queue.fal.run/${providerTaskId}/result`,
 			submissionToken: claim!.attemptId,
 		});
+	});
+
+	it("persists only the task-bound Kie common-job status URL", async () => {
+		const seeded = await seedReservedJob("image-fast");
+		const store = createTestDispatchStore();
+		const providerTaskId = `kie/task ${crypto.randomUUID()}`;
+		const statusUrl = `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(providerTaskId)}`;
+		const acceptedAttempt = await client.generationAttempt.create({
+			data: {
+				jobId: seeded.jobId,
+				attemptNumber: 1,
+				provider: "kie",
+				providerModelId: "nano-banana-2-lite",
+				requestSnapshot: { catalogRoute: "kie" },
+			},
+		});
+
+		await store.recordSubmission(acceptedAttempt.id, {
+			providerTaskId,
+			status: "QUEUED",
+			outcome: "accepted",
+			idempotency: { key: acceptedAttempt.id, providerSupported: false, replayed: false },
+			reconciliation: {
+				statusUrl,
+				resultUrl: statusUrl,
+				submissionToken: acceptedAttempt.id,
+			},
+		});
+
+		await expect(
+			client.generationAttempt.findUniqueOrThrow({ where: { id: acceptedAttempt.id } }),
+		).resolves.toMatchObject({
+			providerTaskId,
+			providerStatusUrl: statusUrl,
+			providerResultUrl: null,
+		});
+
+		const rejectedStatusUrls = [
+			[
+				"another host",
+				(taskId: string) =>
+					`https://attacker.test/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(taskId)}`,
+			],
+			[
+				"credentials",
+				(taskId: string) =>
+					`https://user:secret@api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(taskId)}`,
+			],
+			[
+				"a port",
+				(taskId: string) =>
+					`https://api.kie.ai:443/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(taskId)}`,
+			],
+			[
+				"the legacy Veo path",
+				(taskId: string) =>
+					`https://api.kie.ai/api/v1/veo/record-info?taskId=${encodeURIComponent(taskId)}`,
+			],
+			["another task ID", () => "https://api.kie.ai/api/v1/jobs/recordInfo?taskId=different-task"],
+			[
+				"an extra query parameter",
+				(taskId: string) =>
+					`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(taskId)}&redirect=https%3A%2F%2Fattacker.test`,
+			],
+			[
+				"a fragment",
+				(taskId: string) =>
+					`https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(taskId)}#secret`,
+			],
+			[
+				"surrounding whitespace",
+				(taskId: string) =>
+					` https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(taskId)}`,
+			],
+		] as const;
+
+		for (const [index, [reason, buildRejectedStatusUrl]] of rejectedStatusUrls.entries()) {
+			const rejectedProviderTaskId = `kie-rejected-${index}-${crypto.randomUUID()}`;
+			const rejectedAttempt = await client.generationAttempt.create({
+				data: {
+					jobId: seeded.jobId,
+					attemptNumber: index + 2,
+					provider: "kie",
+					providerModelId: "nano-banana-2-lite",
+					requestSnapshot: { catalogRoute: "kie", rejectedBecause: reason },
+				},
+			});
+			await store.recordSubmission(rejectedAttempt.id, {
+				providerTaskId: rejectedProviderTaskId,
+				status: "QUEUED",
+				outcome: "accepted",
+				idempotency: { key: rejectedAttempt.id, providerSupported: false, replayed: false },
+				reconciliation: {
+					statusUrl: buildRejectedStatusUrl(rejectedProviderTaskId),
+					submissionToken: rejectedAttempt.id,
+				},
+			});
+			const recorded = await client.generationAttempt.findUniqueOrThrow({
+				where: { id: rejectedAttempt.id },
+			});
+			expect(recorded.providerStatusUrl, reason).toBeNull();
+		}
 	});
 
 	it("does not expose the Gemini finalization outbox before normalized outputs commit", async () => {
@@ -2579,7 +2684,7 @@ describe("production media runtime stores", () => {
 });
 
 async function seedGuestDispatchJob() {
-	const seeded = await seedReservedJob("image-fast");
+	const seeded = await seedReservedJob("image-nano-banana-2-lite");
 	const job = await client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } });
 	const suffix = crypto.randomUUID();
 	const promotionPeriod = `task4-${suffix}`;
@@ -2600,7 +2705,7 @@ async function seedGuestDispatchJob() {
 		data: {
 			promotionPeriod,
 			subjectHash: "global",
-			reservedMicros: 3_500n,
+			reservedMicros: 20_000n,
 			consumedMicros: 0n,
 			hardLimitMicros: 250_000n,
 			expiresAt,
@@ -2613,7 +2718,7 @@ async function seedGuestDispatchJob() {
 			ownerId: job.ownerId,
 			promotionPeriod,
 			eligibility: "IN_FLIGHT",
-			sponsorCredits: 4n,
+			sponsorCredits: 5n,
 			sourceSessionHash,
 			deviceHash,
 			ipHash: `ip-${suffix}`,
@@ -2621,7 +2726,7 @@ async function seedGuestDispatchJob() {
 			capabilityVersion: "task4-guest-dispatch-v1",
 			idempotencyFingerprint: `fingerprint-${suffix}`,
 			abuseEvidenceExpiresAt: new Date(now.getTime() + 30 * 24 * 60 * 60_000),
-			frozenQuotedRiskMicros: 3_500n,
+			frozenQuotedRiskMicros: 20_000n,
 			riskState: "HELD",
 			projectedDispatchAt: now,
 			estimateExpiresAt: new Date(now.getTime() + 30_000),
@@ -2660,6 +2765,8 @@ async function seedGuestDispatchJob() {
 		environment: {
 			NODE_ENV: "test",
 			MEDIA_GENERATION_ENABLED: "true",
+			MEDIA_ENABLED_PROVIDERS: "kie",
+			MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: DEFAULT_PRODUCT_CONFIG.catalogVersion,
 			GUEST_MEDIA_ENABLED: "true",
 			GUEST_PROMOTION_PERIOD: promotionPeriod,
 			GUEST_RISK_BUDGET_MICROS: "250000",
@@ -2760,7 +2867,7 @@ async function cleanupGuestLinkDispatchFixture(fixture: GuestLinkDispatchFixture
 }
 
 async function seedReservedJob(
-	productKey: "image-fast" | "image-quality" | "video-fast",
+	productKey: "image-fast" | "image-quality" | "image-nano-banana-2-lite" | "video-fast",
 	options?: {
 		credits?: bigint;
 		pricingSnapshot?: {
@@ -2785,25 +2892,47 @@ async function seedReservedJob(
 	);
 	const inputSnapshot = productKey.startsWith("video")
 		? { kind: "text-to-video", prompt: "test" }
-		: { kind: "image-to-image", prompt: "test", sourceAssetId: inputAssetId! };
+		: productKey === "image-nano-banana-2-lite"
+			? {
+					kind: "image-to-image",
+					prompt: "test",
+					sourceAssetId: inputAssetId!,
+					skuKey: "nano-banana-2-lite-1k",
+					aspectRatio: "auto",
+				}
+			: { kind: "image-to-image", prompt: "test", sourceAssetId: inputAssetId! };
 	const credits =
 		options?.credits ??
-		(productKey.startsWith("video") ? 25n : productKey === "image-quality" ? 10n : 4n);
+		(productKey.startsWith("video")
+			? 25n
+			: productKey === "image-quality"
+				? 10n
+				: productKey === "image-nano-banana-2-lite"
+					? 5n
+					: 4n);
 	const costMicros =
-		productKey === "video-fast" ? 100_000n : productKey === "image-quality" ? 8_000n : 3_500n;
+		productKey === "video-fast"
+			? 100_000n
+			: productKey === "image-quality"
+				? 8_000n
+				: productKey === "image-nano-banana-2-lite"
+					? 20_000n
+					: 3_500n;
+	const currentProduct = productKey === "image-nano-banana-2-lite";
 	const quoteInput = {
 		ownerType: "USER",
 		ownerId,
 		submittedByUserId: ownerId,
 		productKey,
-		catalogVersion: LEGACY_CATALOG_VERSION,
-		pricingVersion: LEGACY_PRICING_VERSION,
+		catalogVersion: currentProduct ? DEFAULT_PRODUCT_CONFIG.catalogVersion : LEGACY_CATALOG_VERSION,
+		pricingVersion: currentProduct ? DEFAULT_PRODUCT_CONFIG.pricingVersion : LEGACY_PRICING_VERSION,
 		credits,
 		costMicros,
 		inputSnapshot,
 		pricingSnapshot: {
+			...(currentProduct ? { skuKey: "nano-banana-2-lite-1k" } : {}),
 			...(options?.pricingSnapshot ?? { credits: credits.toString() }),
-			routeGraph: legacyRouteGraph(productKey),
+			routeGraph: currentProduct ? currentNanoRouteGraph() : legacyRouteGraph(productKey),
 		},
 		expiresAt: new Date(Date.now() + 60_000),
 	} as const;
@@ -2845,6 +2974,27 @@ async function seedReservedJob(
 		reservationId: created.reservation.id,
 		accountId: account.id,
 		credits,
+	};
+}
+
+function currentNanoRouteGraph() {
+	const snapshot = createRouteGraphSnapshot({
+		productKey: "image-nano-banana-2-lite",
+		catalogVersion: DEFAULT_PRODUCT_CONFIG.catalogVersion,
+		pricingVersion: DEFAULT_PRODUCT_CONFIG.pricingVersion,
+		routes: [
+			{
+				provider: "kie",
+				providerModelId: "nano-banana-2-lite",
+				providerCostMicros: 20_000,
+				weight: 100,
+			},
+		],
+	});
+	return {
+		allowedRoutes: snapshot.allowedRoutes.map((route) => ({ ...route })),
+		graphFingerprint: snapshot.graphFingerprint,
+		maximumRouteCostMicros: snapshot.maximumRouteCostMicros,
 	};
 }
 

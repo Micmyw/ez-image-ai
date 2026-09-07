@@ -1,7 +1,15 @@
-import { IMAGE_ASPECT_RATIOS } from "@repo/config/client";
+import {
+	EZPIC_PRODUCT_KEYS,
+	IMAGE_ASPECT_RATIOS,
+	IMAGE_BACKGROUNDS,
+	IMAGE_OUTPUT_FORMATS,
+	IMAGE_SKU_KEYS_BY_PRODUCT,
+	IMAGE_SKU_KEYS,
+	LEGACY_EZPIC_PRODUCT_KEYS,
+} from "@repo/config/client";
 import { z } from "zod";
 
-import type { EditorDraftInput } from "../../media/lib/editor-recovery";
+import { isEditorProductKey, type EditorDraftInput } from "../../media/lib/editor-recovery";
 import type { PlanId } from "../types";
 
 export const EDITOR_UPGRADE_STORAGE_KEY = "ezpic.editor-upgrade.v1";
@@ -9,19 +17,24 @@ export const EDITOR_UPGRADE_STORAGE_KEY = "ezpic.editor-upgrade.v1";
 const EDITOR_UPGRADE_TTL_MS = 60 * 60_000;
 const MAXIMUM_STORED_DRAFT_BYTES = 24_000;
 
+const storedProductKeySchema = z.enum([...EZPIC_PRODUCT_KEYS, ...LEGACY_EZPIC_PRODUCT_KEYS]);
+
 const storedEditorUpgradeDraftSchema = z
 	.object({
 		version: z.literal(1),
 		savedAt: z.number().int().nonnegative(),
 		draft: z
 			.object({
-				productKey: z.enum(["image-fast", "image-quality"]),
+				productKey: storedProductKeySchema,
 				input: z
 					.object({
 						kind: z.literal("image-to-image"),
 						prompt: z.string().max(10_000),
-						sourceAssetId: z.string().max(128),
-						aspectRatio: z.enum(IMAGE_ASPECT_RATIOS).default("auto"),
+						sourceAssetId: z.string().min(1).max(128),
+						skuKey: z.enum(IMAGE_SKU_KEYS).optional(),
+						aspectRatio: z.enum(IMAGE_ASPECT_RATIOS).optional(),
+						outputFormat: z.enum(IMAGE_OUTPUT_FORMATS).optional(),
+						background: z.enum(IMAGE_BACKGROUNDS).optional(),
 					})
 					.strict(),
 			})
@@ -111,7 +124,9 @@ export function writeEditorUpgradeDraft(
 		...draft,
 	});
 	if (!parsed.success) return false;
-	const serialized = JSON.stringify(parsed.data);
+	const normalizedDraft = normalizeStoredEditorDraft(parsed.data.draft);
+	if (!normalizedDraft) return false;
+	const serialized = JSON.stringify({ ...parsed.data, draft: normalizedDraft });
 	if (serialized.length > MAXIMUM_STORED_DRAFT_BYTES) return false;
 	try {
 		storage.setItem(EDITOR_UPGRADE_STORAGE_KEY, serialized);
@@ -137,12 +152,61 @@ export function readEditorUpgradeDraft(
 		const parsed = storedEditorUpgradeDraftSchema.safeParse(JSON.parse(serialized));
 		if (!parsed.success || now - parsed.data.savedAt > EDITOR_UPGRADE_TTL_MS) return null;
 		if (parsed.data.savedAt > now + 5 * 60_000) return null;
+		const draft = normalizeStoredEditorDraft(parsed.data.draft);
+		if (!draft) return null;
 		return {
-			draft: parsed.data.draft,
+			draft,
 			parentJobId: parsed.data.parentJobId,
 			sourceReady: parsed.data.sourceReady,
 		};
 	} catch {
 		return null;
 	}
+}
+
+function normalizeStoredEditorDraft(
+	draft: z.output<typeof storedEditorUpgradeDraftSchema>["draft"],
+): EditorDraftInput | null {
+	const legacySelection =
+		draft.productKey === "image-fast"
+			? {
+					productKey: "image-nano-banana-2-lite" as const,
+					skuKey: "nano-banana-2-lite-1k" as const,
+					defaultAspectRatio: "auto" as const,
+				}
+			: draft.productKey === "image-quality"
+				? {
+						productKey: "image-gpt-image-2" as const,
+						skuKey: "gpt-image-2-2k" as const,
+						defaultAspectRatio: "1:1" as const,
+					}
+				: null;
+	const skuKey = legacySelection?.skuKey ?? draft.input.skuKey;
+	if (!skuKey) return null;
+	const productKey =
+		legacySelection?.productKey ?? (isEditorProductKey(draft.productKey) ? draft.productKey : null);
+	if (!productKey) return null;
+	if (!skuKeyMatchesProduct(productKey, skuKey)) return null;
+	const requestedAspectRatio = draft.input.aspectRatio ?? "auto";
+	const aspectRatio =
+		legacySelection && draft.productKey === "image-quality" && requestedAspectRatio === "auto"
+			? legacySelection.defaultAspectRatio
+			: requestedAspectRatio;
+
+	return {
+		productKey,
+		input: {
+			kind: "image-to-image",
+			prompt: draft.input.prompt,
+			sourceAssetId: draft.input.sourceAssetId,
+			skuKey,
+			aspectRatio,
+			...(draft.input.outputFormat ? { outputFormat: draft.input.outputFormat } : {}),
+			...(draft.input.background ? { background: draft.input.background } : {}),
+		},
+	};
+}
+
+function skuKeyMatchesProduct(productKey: EditorDraftInput["productKey"], skuKey: string): boolean {
+	return (IMAGE_SKU_KEYS_BY_PRODUCT[productKey] as readonly string[]).includes(skuKey);
 }

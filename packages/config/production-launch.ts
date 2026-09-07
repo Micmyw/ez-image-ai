@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { validateServerEnvironment } from "./env";
+import { catalogVersionSchema, DEFAULT_PRODUCT_CONFIG, EZPIC_PRODUCT_KEYS } from "./product";
 
 const environmentNameSchema = z.enum(["development", "test", "staging", "production"]);
 const resourceIdSchema = z
@@ -93,8 +94,15 @@ export interface EzPicLaunchEnvironment {
 	};
 	controls: {
 		generationEnabled: boolean;
-		standardEditEnabled: boolean;
-		qualityEditEnabled: boolean;
+		nanoBanana2LiteEnabled: boolean;
+		nanoBananaEnabled: boolean;
+		nanoBanana2Enabled: boolean;
+		nanoBananaProEnabled: boolean;
+		gptImage15Enabled: boolean;
+		gptImage2Enabled: boolean;
+		seedream45Enabled: boolean;
+		seedream5LiteEnabled: boolean;
+		seedream5ProEnabled: boolean;
 		dailyProviderCostBudgetMicros: bigint;
 		alerts: {
 			errorRateBasisPoints: number;
@@ -163,24 +171,44 @@ export function validateEzPicLaunchEnvironment(
 		throw new Error("WAFFO_ENVIRONMENT must be prod in production");
 	}
 	const openRouterEnabled = serverEnvironment.mediaEnabledProviders.includes("openrouter");
+	const openRouterRecoveryEnabled = serverEnvironment.mediaRecoveryProviders.includes("openrouter");
+	if (openRouterEnabled) {
+		throw new Error("OpenRouter is recovery-only and cannot appear in MEDIA_ENABLED_PROVIDERS");
+	}
+	const openRouterConfigured = openRouterRecoveryEnabled;
 	const openRouterCertified = optionalBoolean(input, "MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED");
-	if (openRouterEnabled && openRouterCertified !== true) {
+	if (openRouterConfigured && openRouterCertified !== true) {
 		throw new Error(
-			"MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED=true is required when OpenRouter is enabled",
+			"MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED=true is required when OpenRouter recovery is enabled",
 		);
 	}
-	if (!openRouterEnabled && openRouterCertified === true) {
+	if (!openRouterConfigured && openRouterCertified === true) {
 		throw new Error(
-			"MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED requires openrouter in MEDIA_ENABLED_PROVIDERS",
+			"MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED requires openrouter in MEDIA_RECOVERY_PROVIDERS",
 		);
+	}
+	if (
+		openRouterRecoveryEnabled &&
+		requireProviderCredentials &&
+		!(typeof input.OPENROUTER_API_KEY === "string" && input.OPENROUTER_API_KEY.trim())
+	) {
+		throw new Error("OpenRouter recovery requires OPENROUTER_API_KEY");
 	}
 
 	const generationEnabled = requiredBoolean(input, "MEDIA_GENERATION_ENABLED");
-	const standardEditEnabled = requiredBoolean(input, "MEDIA_STANDARD_EDIT_ENABLED");
-	const qualityEditEnabled = requiredBoolean(input, "MEDIA_QUALITY_EDIT_ENABLED");
-	if (qualityEditEnabled && !standardEditEnabled) {
-		throw new Error("MEDIA_QUALITY_EDIT_ENABLED requires MEDIA_STANDARD_EDIT_ENABLED=true");
-	}
+	const nanoBanana2LiteEnabled = requiredBoolean(input, "MEDIA_NANO_BANANA_2_LITE_ENABLED");
+	const nanoBananaEnabled = requiredBoolean(input, "MEDIA_NANO_BANANA_ENABLED");
+	const nanoBanana2Enabled = requiredBoolean(input, "MEDIA_NANO_BANANA_2_ENABLED");
+	const nanoBananaProEnabled = requiredBoolean(input, "MEDIA_NANO_BANANA_PRO_ENABLED");
+	const gptImage15Enabled = requiredBoolean(input, "MEDIA_GPT_IMAGE_1_5_ENABLED");
+	const gptImage2Enabled = requiredBoolean(input, "MEDIA_GPT_IMAGE_2_ENABLED");
+	const seedream45Enabled = requiredBoolean(input, "MEDIA_SEEDREAM_4_5_ENABLED");
+	const seedream5LiteEnabled = requiredBoolean(input, "MEDIA_SEEDREAM_5_LITE_ENABLED");
+	const seedream5ProEnabled = requiredBoolean(input, "MEDIA_SEEDREAM_5_PRO_ENABLED");
+	const kieImageCatalogVersions = optionalCatalogVersionSet(
+		input,
+		"MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS",
+	);
 	for (const key of [
 		"MEDIA_MODERATION_ENABLED",
 		"BILLING_ENABLED",
@@ -200,22 +228,39 @@ export function validateEzPicLaunchEnvironment(
 	if (serverEnvironment.mediaProviderAdapter === "mock") {
 		throw new Error("Production cannot use the mock Provider adapter");
 	}
-	if (standardEditEnabled) {
+	const enabledKieImageControls = [
+		["MEDIA_NANO_BANANA_2_LITE_ENABLED", nanoBanana2LiteEnabled],
+		["MEDIA_NANO_BANANA_ENABLED", nanoBananaEnabled],
+		["MEDIA_NANO_BANANA_2_ENABLED", nanoBanana2Enabled],
+		["MEDIA_NANO_BANANA_PRO_ENABLED", nanoBananaProEnabled],
+		["MEDIA_GPT_IMAGE_1_5_ENABLED", gptImage15Enabled],
+		["MEDIA_GPT_IMAGE_2_ENABLED", gptImage2Enabled],
+		["MEDIA_SEEDREAM_4_5_ENABLED", seedream45Enabled],
+		["MEDIA_SEEDREAM_5_LITE_ENABLED", seedream5LiteEnabled],
+		["MEDIA_SEEDREAM_5_PRO_ENABLED", seedream5ProEnabled],
+	] as const;
+	for (const [control, enabled] of enabledKieImageControls) {
+		if (!enabled) continue;
 		requireProductProvider(
 			input,
 			serverEnvironment.mediaEnabledProviders,
-			"MEDIA_STANDARD_EDIT_ENABLED",
-			[["openrouter", "OPENROUTER_API_KEY"]],
+			control,
+			[["kie", "KIE_API_KEY"]],
 			requireProviderCredentials,
 		);
+		if (!kieImageCatalogVersions.has(DEFAULT_PRODUCT_CONFIG.catalogVersion)) {
+			throw new Error(
+				`${control} requires MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS to include the active catalog version`,
+			);
+		}
 	}
-	if (qualityEditEnabled) {
-		requireProductProvider(
-			input,
-			serverEnvironment.mediaEnabledProviders,
-			"MEDIA_QUALITY_EDIT_ENABLED",
-			[["openrouter", "OPENROUTER_API_KEY"]],
-			requireProviderCredentials,
+	if (
+		kieImageCatalogVersions.size > 0 &&
+		!serverEnvironment.mediaEnabledProviders.includes("kie") &&
+		!serverEnvironment.mediaRecoveryProviders.includes("kie")
+	) {
+		throw new Error(
+			"MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS requires kie in MEDIA_ENABLED_PROVIDERS or MEDIA_RECOVERY_PROVIDERS",
 		);
 	}
 
@@ -277,8 +322,15 @@ export function validateEzPicLaunchEnvironment(
 		},
 		controls: {
 			generationEnabled,
-			standardEditEnabled,
-			qualityEditEnabled,
+			nanoBanana2LiteEnabled,
+			nanoBananaEnabled,
+			nanoBanana2Enabled,
+			nanoBananaProEnabled,
+			gptImage15Enabled,
+			gptImage2Enabled,
+			seedream45Enabled,
+			seedream5LiteEnabled,
+			seedream5ProEnabled,
 			dailyProviderCostBudgetMicros,
 			alerts: {
 				errorRateBasisPoints: requiredInteger(input, "MEDIA_ALERT_ERROR_RATE_BPS", 1, 10_000),
@@ -328,17 +380,42 @@ export function isEzPicProductEnvironmentEnabled(
 		input.NODE_ENV === "production" ||
 		input.EZPIC_DEPLOYMENT_ENVIRONMENT === "staging" ||
 		input.EZPIC_DEPLOYMENT_ENVIRONMENT === "production";
-	if (productKey === "image-fast") {
-		return failClosed
-			? input.MEDIA_STANDARD_EDIT_ENABLED === "true"
-			: input.MEDIA_STANDARD_EDIT_ENABLED !== "false";
-	}
-	if (productKey === "image-quality") {
-		return failClosed
-			? input.MEDIA_QUALITY_EDIT_ENABLED === "true"
-			: input.MEDIA_QUALITY_EDIT_ENABLED !== "false";
+	const environmentKey = EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS[productKey];
+	if (environmentKey) {
+		return failClosed ? input[environmentKey] === "true" : input[environmentKey] !== "false";
 	}
 	return true;
+}
+
+const EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS: Readonly<Record<string, string>> = Object.freeze({
+	"image-nano-banana-2-lite": "MEDIA_NANO_BANANA_2_LITE_ENABLED",
+	"image-nano-banana": "MEDIA_NANO_BANANA_ENABLED",
+	"image-nano-banana-2": "MEDIA_NANO_BANANA_2_ENABLED",
+	"image-nano-banana-pro": "MEDIA_NANO_BANANA_PRO_ENABLED",
+	"image-gpt-image-1-5": "MEDIA_GPT_IMAGE_1_5_ENABLED",
+	"image-gpt-image-2": "MEDIA_GPT_IMAGE_2_ENABLED",
+	"image-seedream-4-5": "MEDIA_SEEDREAM_4_5_ENABLED",
+	"image-seedream-5-lite": "MEDIA_SEEDREAM_5_LITE_ENABLED",
+	"image-seedream-5-pro": "MEDIA_SEEDREAM_5_PRO_ENABLED",
+} satisfies Record<(typeof EZPIC_PRODUCT_KEYS)[number], string>);
+
+function optionalCatalogVersionSet(input: Record<string, unknown>, key: string): Set<string> {
+	const raw = input[key];
+	if (raw === undefined) return new Set();
+	if (typeof raw !== "string") throw new Error(`${key} must be a comma-separated version list`);
+	const versions = raw
+		.split(",")
+		.map((value) => value.trim())
+		.filter(Boolean);
+	if (versions.length === 0 || new Set(versions).size !== versions.length) {
+		throw new Error(`${key} must contain unique catalog versions`);
+	}
+	for (const version of versions) {
+		if (!catalogVersionSchema.safeParse(version).success) {
+			throw new Error(`${key} contains an invalid catalog version`);
+		}
+	}
+	return new Set(versions);
 }
 
 function optionalBoolean(input: Record<string, unknown>, key: string): boolean | undefined {

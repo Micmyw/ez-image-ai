@@ -23,26 +23,25 @@ const translations: Record<string, string> = {
 	"pricing.month": "month",
 	"pricing.monthly": "Monthly",
 	"pricing.monthlyCredits": "{credits} credits per month",
-	"pricing.monthlyEditAllowance": "Up to {standard} Standard or {quality} Quality edits per month",
-	"pricing.monthlyStandardAllowance": "Up to {standard} Standard edits per month",
+	"pricing.monthlyFixedImageAllowance": "Up to {count} images per month at {credits} credits each",
+	"pricing.monthlyImageAllowance":
+		"About {minimum}–{maximum} images per month at {minimumCredits}–{maximumCredits} credits each",
 	"pricing.oneTime": "one-time",
 	"pricing.privateAssets": "Private assets",
 	"pricing.products.creator.description": "For individual creators.",
 	"pricing.products.creator.title": "Pro",
-	"pricing.products.free.description": "Try Standard Edit.",
+	"pricing.products.free.description": "Try the included 1K model.",
 	"pricing.products.free.title": "Free",
 	"pricing.products.studio.description": "For high-volume workflows.",
 	"pricing.products.studio.title": "Max",
 	"pricing.products.ultimate.description": "For growing creative workflows.",
 	"pricing.products.ultimate.title": "Ultimate",
-	"pricing.qualityEdit": "Quality Edit",
+	"pricing.allImageModels": "All available image models",
+	"pricing.nanoModel": "Nano Banana 2 Lite 1K",
 	"pricing.recommended": "Recommended",
-	"pricing.standardEdit": "Standard Edit",
 	"pricing.subscriberBonus": "Subscribers get +{percent}% credits at the same price",
 	"pricing.subscriberBonusAmount": "Subscriber bonus: {credits}",
 	"pricing.subscriberReceives": "Subscribers receive {credits} credits",
-	"pricing.tierAccessAll": "Standard Edit and Quality Edit access",
-	"pricing.tierAccessStandard": "Standard Edit access",
 	"pricing.yearly": "Yearly",
 };
 
@@ -80,7 +79,7 @@ vi.mock("@repo/config/client", () => ({
 	PLAN_ENTITLEMENTS: [
 		{
 			id: "free",
-			allowedProducts: ["image-standard"],
+			allowedProducts: ["image-nano-banana-2-lite"],
 			maximumConcurrentJobs: 1,
 			maximumInputBytes: 10 * 1024 * 1024,
 			monthlyCredits: 25,
@@ -88,7 +87,7 @@ vi.mock("@repo/config/client", () => ({
 		},
 		{
 			id: "creator",
-			allowedProducts: ["image-standard", "image-quality"],
+			allowedProducts: ["image-nano-banana-2-lite", "image-gpt-image-2", "image-seedream-5-pro"],
 			maximumConcurrentJobs: 3,
 			maximumInputBytes: 20 * 1024 * 1024,
 			monthlyCredits: 700,
@@ -99,7 +98,7 @@ vi.mock("@repo/config/client", () => ({
 		},
 		{
 			id: "ultimate",
-			allowedProducts: ["image-standard", "image-quality"],
+			allowedProducts: ["image-nano-banana-2-lite", "image-gpt-image-2", "image-seedream-5-pro"],
 			maximumConcurrentJobs: 6,
 			maximumInputBytes: 20 * 1024 * 1024,
 			monthlyCredits: 1800,
@@ -110,7 +109,7 @@ vi.mock("@repo/config/client", () => ({
 		},
 		{
 			id: "studio",
-			allowedProducts: ["image-standard", "image-quality"],
+			allowedProducts: ["image-nano-banana-2-lite", "image-gpt-image-2", "image-seedream-5-pro"],
 			maximumConcurrentJobs: 10,
 			maximumInputBytes: 20 * 1024 * 1024,
 			monthlyCredits: 3000,
@@ -156,10 +155,30 @@ vi.mock("@repo/config/client", () => ({
 	],
 	getPlanUsageEstimate: (planId: string) =>
 		({
-			free: { qualityEdits: null, standardEdits: 5 },
-			creator: { qualityEdits: 17, standardEdits: 140 },
-			ultimate: { qualityEdits: 45, standardEdits: 360 },
-			studio: { qualityEdits: 75, standardEdits: 600 },
+			free: {
+				minimumImageEdits: 5,
+				maximumImageEdits: 5,
+				minimumCreditsPerImage: 5,
+				maximumCreditsPerImage: 5,
+			},
+			creator: {
+				minimumImageEdits: 41,
+				maximumImageEdits: 140,
+				minimumCreditsPerImage: 5,
+				maximumCreditsPerImage: 17,
+			},
+			ultimate: {
+				minimumImageEdits: 105,
+				maximumImageEdits: 360,
+				minimumCreditsPerImage: 5,
+				maximumCreditsPerImage: 17,
+			},
+			studio: {
+				minimumImageEdits: 176,
+				maximumImageEdits: 600,
+				minimumCreditsPerImage: 5,
+				maximumCreditsPerImage: 17,
+			},
 		})[planId],
 }));
 
@@ -211,17 +230,19 @@ describe("PublicPricingPlans", () => {
 		expect(markup).toMatch(/data-plan-id="ultimate"[^>]*data-recommended="true"/);
 	});
 
-	it("shows product capabilities instead of provider or model branding", () => {
+	it("shows stable product capabilities without provider or cost details", () => {
 		const markup = renderToStaticMarkup(<PublicPricingPlans locale="en-US" />);
 		const visibleText = markup.replaceAll(/<[^>]+>/g, " ");
 
 		expect(visibleText).toContain("Editing capabilities");
-		expect(visibleText).toContain("Standard Edit");
-		expect(visibleText).toContain("Quality Edit");
+		expect(visibleText).toContain("Nano Banana 2 Lite 1K");
+		expect(visibleText).toContain("All available image models");
 		expect(visibleText).toContain("Private assets");
 		expect(visibleText).toContain("Private edit history");
 		expect(visibleText).toContain("Portrait, square, and landscape ratios");
-		expect(visibleText).not.toMatch(/GPT|Gemini|Seedream|Kling|Nano Banana|model/i);
+		expect(visibleText).not.toMatch(
+			/Standard Edit|Quality Edit|Kie|OpenRouter|providerModelId|providerCostMicros|gpt-image-2-image-to-image|seedream\/5-pro-image-to-image|\$0\.0/i,
+		);
 	});
 
 	it("renders all four one-time credit packs with the subscriber bonus and only PayPal or Waffo", () => {

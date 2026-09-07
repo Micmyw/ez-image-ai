@@ -1,5 +1,6 @@
 "use client";
 
+import { EZPIC_PRODUCT_KEYS } from "@repo/config/client";
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
 import { Card } from "@repo/ui/components/card";
@@ -30,43 +31,39 @@ const JOB_STATUSES = [
 ] as const;
 
 type JobStatus = (typeof JOB_STATUSES)[number];
-type ProductFilter = "all" | "image-fast" | "image-quality";
+type EzPicProductKey = (typeof EZPIC_PRODUCT_KEYS)[number];
+type ProductFilter = "all" | EzPicProductKey;
 
 interface OperationsFilters {
 	productKey: ProductFilter;
-	provider: string;
-	model: string;
 	status: "all" | JobStatus;
 	from: string;
 	to: string;
 }
 
 export interface GrowthOperationsData {
-	generatedAt: string;
 	summary: {
 		jobs: number;
 		succeeded: number;
 		failed: number;
 		successRate: number | null;
 		latencyMs: { p50: number | null; p95: number | null };
-		averageProviderCostMicros: string | null;
 		moderationRejectionRate: number | null;
 		repeatEditRate: number | null;
 	};
 	credits: { reserved: string; charged: string; released: string };
 	failureCodes: Array<{ code: string; count: number }>;
-	routes: Array<{
-		productKey: "image-fast" | "image-quality";
-		provider: string;
-		model: string;
+	skuBreakdown: Array<{
+		productKey: EzPicProductKey;
+		skuKey: string | null;
 		status: JobStatus;
 		jobs: number;
 	}>;
 	controls: {
 		generationEnabled: boolean;
 		products: Array<{
-			productKey: "image-fast" | "image-quality";
-			publicName: "Standard Edit" | "Quality Edit";
+			productKey: EzPicProductKey;
+			publicName: string;
 			enabled: boolean;
 		}>;
 	};
@@ -74,8 +71,6 @@ export interface GrowthOperationsData {
 
 const emptyFilters: OperationsFilters = {
 	productKey: "all",
-	provider: "",
-	model: "",
 	status: "all",
 	from: "",
 	to: "",
@@ -88,14 +83,10 @@ function dateTimeIso(value: string): string | undefined {
 }
 
 function queryInput(filters: OperationsFilters) {
-	const provider = filters.provider.trim();
-	const model = filters.model.trim();
 	const from = dateTimeIso(filters.from);
 	const to = dateTimeIso(filters.to);
 	return {
 		...(filters.productKey === "all" ? {} : { productKey: filters.productKey }),
-		...(provider ? { provider } : {}),
-		...(model ? { model } : {}),
 		...(filters.status === "all" ? {} : { status: filters.status }),
 		...(from ? { from } : {}),
 		...(to ? { to } : {}),
@@ -104,6 +95,7 @@ function queryInput(filters: OperationsFilters) {
 
 export function GrowthOperationsPanel() {
 	const t = useTranslations("admin.media.growth");
+	const products = useTranslations("media.create.products");
 	const [draft, setDraft] = useState<OperationsFilters>(emptyFilters);
 	const [filters, setFilters] = useState<OperationsFilters>(emptyFilters);
 	const operations = useQuery(
@@ -120,14 +112,9 @@ export function GrowthOperationsPanel() {
 					<h2 className="font-semibold text-xl">{t("title")}</h2>
 					<p className="mt-1 text-sm text-muted-foreground">{t("description")}</p>
 				</div>
-				{operations.data && (
-					<time className="text-xs text-muted-foreground" dateTime={operations.data.generatedAt}>
-						{new Date(operations.data.generatedAt).toLocaleString()}
-					</time>
-				)}
 			</div>
 
-			<div className="mt-5 gap-3 md:grid-cols-2 xl:grid-cols-6 grid">
+			<div className="mt-5 gap-3 md:grid-cols-2 xl:grid-cols-4 grid">
 				<label className="space-y-1 text-sm">
 					<span>{t("filters.product")}</span>
 					<Select
@@ -141,21 +128,14 @@ export function GrowthOperationsPanel() {
 						</SelectTrigger>
 						<SelectContent>
 							<SelectItem value="all">{t("all")}</SelectItem>
-							<SelectItem value="image-fast">Standard Edit</SelectItem>
-							<SelectItem value="image-quality">Quality Edit</SelectItem>
+							{EZPIC_PRODUCT_KEYS.map((productKey) => (
+								<SelectItem key={productKey} value={productKey}>
+									{products(`${productKey}.label`)}
+								</SelectItem>
+							))}
 						</SelectContent>
 					</Select>
 				</label>
-				<FilterInput
-					label={t("filters.provider")}
-					value={draft.provider}
-					onChange={(provider) => setDraft((current) => ({ ...current, provider }))}
-				/>
-				<FilterInput
-					label={t("filters.model")}
-					value={draft.model}
-					onChange={(model) => setDraft((current) => ({ ...current, model }))}
-				/>
 				<label className="space-y-1 text-sm">
 					<span>{t("filters.status")}</span>
 					<Select
@@ -207,6 +187,7 @@ export function GrowthOperationsPanel() {
 
 export function GrowthOperationsSummary({ data }: { data: GrowthOperationsData }) {
 	const t = useTranslations("admin.media.growth");
+	const products = useTranslations("media.create.products");
 	return (
 		<div className="mt-6 space-y-5">
 			<div className="gap-3 sm:grid-cols-2 xl:grid-cols-4 grid">
@@ -215,10 +196,6 @@ export function GrowthOperationsSummary({ data }: { data: GrowthOperationsData }
 				<SummaryMetric
 					title={t("metrics.latency")}
 					value={`${data.summary.latencyMs.p50 ?? "-"} / ${data.summary.latencyMs.p95 ?? "-"} ms`}
-				/>
-				<SummaryMetric
-					title={t("metrics.cost")}
-					value={data.summary.averageProviderCostMicros ?? "-"}
 				/>
 				<SummaryMetric
 					title={t("metrics.moderation")}
@@ -242,7 +219,7 @@ export function GrowthOperationsSummary({ data }: { data: GrowthOperationsData }
 					{data.controls.products.map((product) => (
 						<ControlBadge
 							key={product.productKey}
-							label={product.publicName}
+							label={products(`${product.productKey}.label`)}
 							enabled={product.enabled}
 						/>
 					))}
@@ -272,20 +249,16 @@ export function GrowthOperationsSummary({ data }: { data: GrowthOperationsData }
 							<thead className="bg-muted/60">
 								<tr>
 									<th className="p-3">{t("routes.product")}</th>
-									<th className="p-3">{t("routes.provider")}</th>
-									<th className="p-3">{t("routes.model")}</th>
+									<th className="p-3">{t("routes.sku")}</th>
 									<th className="p-3">{t("routes.status")}</th>
 									<th className="p-3">{t("routes.jobs")}</th>
 								</tr>
 							</thead>
 							<tbody className="divide-y">
-								{data.routes.map((route) => (
-									<tr key={`${route.productKey}:${route.provider}:${route.model}:${route.status}`}>
-										<td className="p-3">
-											{route.productKey === "image-fast" ? "Standard Edit" : "Quality Edit"}
-										</td>
-										<td className="p-3">{route.provider}</td>
-										<td className="p-3">{route.model}</td>
+								{data.skuBreakdown.map((route) => (
+									<tr key={`${route.productKey}:${route.skuKey ?? "legacy"}:${route.status}`}>
+										<td className="p-3">{products(`${route.productKey}.label`)}</td>
+										<td className="p-3">{route.skuKey ?? "-"}</td>
 										<td className="p-3">{route.status}</td>
 										<td className="p-3">{route.jobs}</td>
 									</tr>

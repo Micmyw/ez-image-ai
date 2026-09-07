@@ -193,7 +193,7 @@ describe("guest generation admission", () => {
 		expect(diagnostics.guest.watermark.failed).toBe(0);
 		expect(diagnostics.guest.admission.deniedByReason).toEqual([]);
 		expect(diagnostics.guest.admission.accepted).toBe(1);
-		expect(diagnostics.guest.risk.heldMicros).toBe("23000");
+		expect(diagnostics.guest.risk).toEqual({ utilizationPercent: 5.71, state: "OK" });
 	});
 
 	it("doubles the queue estimate at 75 percent risk and rejects at 90 percent", async () => {
@@ -817,7 +817,7 @@ describe("guest generation admission", () => {
 			terminalAt: replacementNow,
 		});
 		expect(reservation).toMatchObject({ status: "RELEASED", releasedAmount: 5n });
-		expect(riskBudget).toMatchObject({ reservedMicros: 23_000n });
+		expect(riskBudget).toMatchObject({ reservedMicros: 20_000n });
 		expect(jobCount).toBe(1);
 		expect(attemptCount).toBe(0);
 	});
@@ -1026,8 +1026,13 @@ describe("guest generation admission", () => {
 				submittedByUserId: ownerId,
 				claimTokenHash: hashFixture(`claim:${suffix}`),
 				assetId,
-				productKey: "image-fast",
-				inputSnapshot: { kind: "image-to-image", prompt: "Make the sky violet" },
+				productKey: "image-nano-banana-2-lite",
+				inputSnapshot: {
+					kind: "image-to-image",
+					prompt: "Make the sky violet",
+					skuKey: "nano-banana-2-lite-1k",
+					aspectRatio: "auto",
+				},
 				status: "SUBMITTED",
 				expiresAt: validUntil,
 			},
@@ -1224,15 +1229,16 @@ function guestAdmissionInput(
 		ownerType: "USER" as const,
 		ownerId: fixture.ownerId,
 		submittedByUserId: fixture.ownerId,
-		productKey: "image-fast",
-		catalogVersion: "catalog-v1",
-		pricingVersion: "pricing-v1",
+		productKey: "image-nano-banana-2-lite",
+		catalogVersion: "2026-09-07.2",
+		pricingVersion: "2026-09-07.2",
 		credits: 5n,
-		costMicros: 23_000n,
+		costMicros: 20_000n,
 		inputSnapshot: {
 			kind: "image-to-image",
 			prompt: "Make the sky violet",
 			sourceAssetId: fixture.assetId,
+			skuKey: "nano-banana-2-lite-1k",
 		},
 		pricingSnapshot: { settlementPolicy: { maxCharge: "5" } },
 		expiresAt: new Date(fixture.now.getTime() + 10 * 60_000),

@@ -63,16 +63,18 @@ describe("getEditSession", () => {
 				{
 					id: "job-child-failed",
 					parentJobId: "job-root",
-					productKey: "image-quality",
+					productKey: "image-gpt-image-2",
 					status: "FAILED",
-					creditsReserved: 8n,
+					creditsReserved: 11n,
 					inputSnapshot: {
 						kind: "image-to-image",
 						prompt: "Try a softer shadow",
+						aspectRatio: "16:9",
+						skuKey: "gpt-image-2-2k",
 						sourceAssetId: "asset-output-1",
 					},
 					createdAt: new Date("2026-08-25T00:02:00.000Z"),
-					reservation: { settledAmount: 0n, releasedAmount: 8n },
+					reservation: { settledAmount: 0n, releasedAmount: 11n },
 					assets: [
 						{
 							role: "OUTPUT",
@@ -114,9 +116,11 @@ describe("getEditSession", () => {
 				{
 					id: "job-child-failed",
 					parentJobId: "job-root",
-					productKey: "image-quality",
+					productKey: "image-gpt-image-2",
 					prompt: "Try a softer shadow",
-					credits: "8",
+					aspectRatio: "16:9",
+					skuKey: "gpt-image-2-2k",
+					credits: "11",
 					status: "FAILED",
 					output: { state: "DELETED", assetId: null },
 					canEditAgain: false,

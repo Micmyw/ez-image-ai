@@ -17,7 +17,7 @@ vi.mock("next-intl", () => ({
 				sourceHandoff: "Transferred privately for this edit",
 				promptLabel: "Edit instruction",
 				characterCount: `${count} / ${maximum}`,
-				standard: "Standard Edit",
+				standard: "Nano Banana 2 Lite · 1K",
 				oneOutput: "One output",
 				freeQueue: "Free queue",
 				temporary: "Watermarked · available for up to 24 hours",
@@ -33,7 +33,7 @@ vi.mock("next-intl", () => ({
 				download: "Download watermarked preview",
 				signIn: "Sign in",
 				createAccount: "Create account",
-				qualityCta: "Quality Edit · Creator or Studio",
+				qualityCta: "More image models · paid plan",
 				retryPreview: "Retry private preview",
 				retryChallenge: "Retry verification",
 				resultExpires: `Available until ${date}`,
@@ -103,7 +103,7 @@ describe("GuestTrialWorkspace", () => {
 		expect(markup).not.toMatch(/\d+%|queue position|history|edit again|cancel/i);
 	});
 
-	it("keeps Quality explanatory and sends its focusable action through fenced account transition", () => {
+	it("keeps paid models explanatory and sends the focusable action through fenced account transition", () => {
 		const beginLink = vi.fn();
 		mocks.useGuestTrial.mockReturnValue({
 			view: { state: "preparingSession" },
@@ -126,16 +126,16 @@ describe("GuestTrialWorkspace", () => {
 		const visibleText = markup.replaceAll(/<[^>]+>/g, " ");
 
 		const qualityButton = markup.match(
-			/<button[^>]*type="button"[^>]*aria-label="Quality Edit · Creator or Studio"[^>]*>(.*?)<\/button>/s,
+			/<button[^>]*type="button"[^>]*aria-label="More image models · paid plan"[^>]*>(.*?)<\/button>/s,
 		)?.[1];
 		expect(qualityButton).toBeDefined();
 		expect(qualityButton?.match(/<svg/g)).toHaveLength(2);
 		expect(markup).not.toMatch(/href="[^"]*(?:pricing|billing)/i);
 		expect(markup).not.toMatch(/type="radio"[^>]*Quality/i);
 		expect(markup).toMatch(
-			/data-test="guest-standard-selection"[^>]*aria-current="true"[^>]*>.*?<svg/s,
+			/data-test="guest-product-selection"[^>]*aria-current="true"[^>]*>.*?<svg/s,
 		);
-		expect(visibleText).toContain("Quality Edit · Creator or Studio");
+		expect(visibleText).toContain("More image models · paid plan");
 		for (const locale of ["en", "de", "es", "fr"]) {
 			const messages = JSON.parse(
 				readFileSync(

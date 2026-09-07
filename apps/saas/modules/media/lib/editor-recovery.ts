@@ -1,17 +1,18 @@
 import {
-	IMAGE_ASPECT_RATIOS,
+	EZPIC_PRODUCT_KEYS,
 	resolvePlanEntitlement,
 	type ImageAspectRatio,
+	type ImageBackground,
+	type ImageOutputFormat,
+	type ImageSkuKey,
 } from "@repo/config/client";
 
-import { buildGenerationInput } from "./form-schema";
-
-export type EditorProductKey = "image-fast" | "image-quality";
+export type EditorProductKey = (typeof EZPIC_PRODUCT_KEYS)[number];
 
 export function isEditorProductKey(
 	productKey: string | null | undefined,
 ): productKey is EditorProductKey {
-	return productKey === "image-fast" || productKey === "image-quality";
+	return EZPIC_PRODUCT_KEYS.includes(productKey as EditorProductKey);
 }
 
 export interface EditorDraftInput {
@@ -20,20 +21,11 @@ export interface EditorDraftInput {
 		kind: "image-to-image";
 		prompt: string;
 		sourceAssetId: string;
+		skuKey: ImageSkuKey;
 		aspectRatio?: ImageAspectRatio;
+		outputFormat?: ImageOutputFormat;
+		background?: ImageBackground;
 	};
-}
-
-interface RecoveryCandidate {
-	productKey: string | null;
-	input: Record<string, unknown>;
-}
-
-interface RecoverySourceAsset {
-	id: string;
-	status: string;
-	mimeType: string;
-	deletedAt: Date | null;
 }
 
 export type EditorRestoreState = "idle" | "ready" | "verifying" | "error";
@@ -66,71 +58,4 @@ export function resolveEditorAllowedProductKeys(
 	return resolvePlanEntitlement(metadata, planName).allowedProducts.filter(
 		(productKey): productKey is EditorProductKey => isEditorProductKey(productKey),
 	);
-}
-
-export function resolveEditorRecovery(input: {
-	requested: boolean;
-	candidate: RecoveryCandidate | null;
-	sourceAsset: RecoverySourceAsset | null;
-	allowedProductKeys: EditorProductKey[];
-}): EditorRecoveryResult {
-	if (!input.requested) return { initialDraft: null, restoreState: "idle", notice: null };
-	if (!input.candidate || !input.sourceAsset) return unavailableRecovery();
-	if (
-		input.sourceAsset.deletedAt ||
-		!input.sourceAsset.mimeType.startsWith("image/") ||
-		!(["READY", "VERIFYING"] as const).includes(input.sourceAsset.status as "READY" | "VERIFYING")
-	) {
-		return unavailableRecovery();
-	}
-	if (!isEditorProductKey(input.candidate.productKey)) {
-		return unavailableRecovery();
-	}
-
-	let generationInput;
-	if (input.candidate.input.prompt === "") {
-		if (
-			input.candidate.input.kind !== "image-to-image" ||
-			typeof input.candidate.input.sourceAssetId !== "string" ||
-			input.candidate.input.sourceAssetId.length === 0
-		) {
-			return unavailableRecovery();
-		}
-		const candidateAspectRatio = input.candidate.input.aspectRatio ?? "auto";
-		if (
-			typeof candidateAspectRatio !== "string" ||
-			!IMAGE_ASPECT_RATIOS.includes(candidateAspectRatio as ImageAspectRatio)
-		) {
-			return unavailableRecovery();
-		}
-		generationInput = {
-			kind: "image-to-image" as const,
-			prompt: "",
-			sourceAssetId: input.candidate.input.sourceAssetId,
-			aspectRatio: candidateAspectRatio as ImageAspectRatio,
-		};
-	} else {
-		try {
-			generationInput = buildGenerationInput(input.candidate.input);
-		} catch {
-			return unavailableRecovery();
-		}
-	}
-	if (generationInput.sourceAssetId !== input.sourceAsset.id) return unavailableRecovery();
-
-	const qualityUpgradeRequired =
-		input.candidate.productKey === "image-quality" &&
-		!input.allowedProductKeys.includes("image-quality");
-	return {
-		initialDraft: {
-			productKey: input.candidate.productKey,
-			input: generationInput,
-		},
-		restoreState: input.sourceAsset.status === "READY" ? "ready" : "verifying",
-		notice: qualityUpgradeRequired ? "quality-upgrade-required" : null,
-	};
-}
-
-function unavailableRecovery(): EditorRecoveryResult {
-	return { initialDraft: null, restoreState: "error", notice: "unavailable" };
 }

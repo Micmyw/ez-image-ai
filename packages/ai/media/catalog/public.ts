@@ -1,6 +1,7 @@
 import { DEFAULT_PRODUCT_CONFIG, IMAGE_ASPECT_RATIOS } from "@repo/config";
 
-import { createExecutableRouteGraph } from "./catalog";
+import { createExecutableRouteGraph, type CatalogEntry } from "./catalog";
+import type { ImageSpecControlKey, ImageSpecDimensionKey } from "./image-spec-matrices";
 import {
 	executableRouteGraphOptionsFromEnvironment,
 	type ExecutableRouteGraphOptions,
@@ -13,6 +14,27 @@ export interface PublicCatalogEntry {
 	mediaKind: "image" | "video";
 	inputKinds: string[];
 	credits: number;
+	skuMatrix?: {
+		defaultSkuKey: string;
+		dimensions: Array<{
+			key: ImageSpecDimensionKey;
+			label: string;
+			options: Array<{ key: string; label: string }>;
+		}>;
+		cells: Array<{
+			skuKey: string;
+			label: string;
+			parameterValues: Partial<Record<ImageSpecDimensionKey, string>>;
+			credits: number;
+			aspectRatios: string[];
+			controls: Array<{
+				key: ImageSpecControlKey;
+				label: string;
+				defaultValue: string;
+				options: Array<{ key: string; label: string }>;
+			}>;
+		}>;
+	};
 	fields: Array<{
 		type: "text" | "slider" | "aspect-ratio" | "image-asset";
 		key: string;
@@ -36,23 +58,46 @@ export function getPublicProductCatalog(
 		pricingVersion: DEFAULT_PRODUCT_CONFIG.pricingVersion,
 		products: createExecutableRouteGraph(options)
 			.entries.filter(({ key }) => DEFAULT_PRODUCT_CONFIG.productKeys.includes(key))
-			.map(({ key, label, description, mediaKind, inputKinds, credits }) => ({
-				key,
-				label,
-				description,
-				mediaKind,
-				inputKinds: [...inputKinds],
-				credits,
-				fields: publicFields(key, mediaKind, inputKinds),
+			.map((entry) => ({
+				key: entry.key,
+				label: entry.label,
+				description: entry.description,
+				mediaKind: entry.mediaKind,
+				inputKinds: [...entry.inputKinds],
+				credits: entry.credits,
+				...(entry.imageSpecMatrix
+					? {
+							skuMatrix: {
+								defaultSkuKey: entry.imageSpecMatrix.defaultSkuKey,
+								dimensions: entry.imageSpecMatrix.dimensions.map((dimension) => ({
+									key: dimension.key,
+									label: dimension.label,
+									options: dimension.options.map((option) => ({ ...option })),
+								})),
+								cells: entry.imageSpecMatrix.cells.map((cell) => ({
+									skuKey: cell.skuKey,
+									label: cell.label,
+									parameterValues: { ...cell.parameterValues },
+									credits: cell.credits,
+									aspectRatios: [...cell.aspectRatios],
+									controls: (cell.controls ?? []).map((control) => ({
+										...control,
+										options: control.options.map((option) => ({ ...option })),
+									})),
+								})),
+							},
+						}
+					: {}),
+				fields: publicFields(entry),
 			})),
 	};
 }
 
-function publicFields(
-	productKey: string,
-	mediaKind: "image" | "video",
-	inputKinds: string[],
-): PublicCatalogEntry["fields"] {
+function publicFields(entry: CatalogEntry): PublicCatalogEntry["fields"] {
+	const { key: productKey, mediaKind, inputKinds } = entry;
+	const imageAspectRatios = entry.imageSpecMatrix
+		? [...new Set(entry.imageSpecMatrix.cells.flatMap((cell) => cell.aspectRatios))]
+		: IMAGE_ASPECT_RATIOS;
 	return [
 		{ type: "text", key: "prompt", label: "Prompt", required: true },
 		...(inputKinds.some((kind) => kind.startsWith("image-to-"))
@@ -72,7 +117,7 @@ function publicFields(
 						key: "aspectRatio",
 						label: "Aspect ratio",
 						required: true,
-						options: IMAGE_ASPECT_RATIOS.map((value) => ({
+						options: imageAspectRatios.map((value) => ({
 							value,
 							label: value === "auto" ? "Automatic" : value,
 						})),

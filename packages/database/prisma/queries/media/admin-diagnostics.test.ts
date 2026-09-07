@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { evaluateGuestOperationalSafety } from "./admin-diagnostics";
+import {
+	evaluateGuestOperationalSafety,
+	listAdminUncertainGenerationAttempts,
+} from "./admin-diagnostics";
 
 const safeMetrics = {
 	heldRiskMicros: 0n,
@@ -82,5 +85,117 @@ describe("guest operational safety thresholds", () => {
 				value: false,
 			},
 		});
+	});
+});
+
+describe("uncertain generation attempt diagnostics", () => {
+	it("returns only a current matrix-validated product selection", async () => {
+		const productDefinitions = [
+			{
+				productKey: "image-gpt-image-2" as const,
+				publicName: "GPT Image 2",
+				skuCells: [
+					{
+						skuKey: "gpt-image-2-1k" as const,
+						aspectRatios: ["auto", "1:1"] as const,
+					},
+					{
+						skuKey: "gpt-image-2-4k" as const,
+						aspectRatios: ["5:4"] as const,
+					},
+				],
+			},
+		];
+		const timestamp = new Date("2026-09-07T00:00:00.000Z");
+		const findMany = vi.fn().mockResolvedValue([
+			{
+				id: "attempt-gpt-1k-valid",
+				status: "NEEDS_RECONCILIATION",
+				reconciliationCount: 1,
+				createdAt: timestamp,
+				updatedAt: timestamp,
+				submittedAt: null,
+				completedAt: null,
+				lastProviderEventAt: null,
+				nextReconcileAt: null,
+				job: {
+					id: "job-gpt-1k-valid",
+					productKey: "image-gpt-image-2",
+					inputSnapshot: { skuKey: "gpt-image-2-1k", aspectRatio: "auto" },
+					status: "NEEDS_RECONCILIATION",
+					failureCode: "SUBMISSION_UNCERTAIN_NEEDS_RECONCILIATION",
+					reservation: { id: "reservation-gpt-1k-valid", status: "ACTIVE" },
+				},
+			},
+			{
+				id: "attempt-valid",
+				status: "NEEDS_RECONCILIATION",
+				reconciliationCount: 2,
+				createdAt: timestamp,
+				updatedAt: timestamp,
+				submittedAt: null,
+				completedAt: null,
+				lastProviderEventAt: null,
+				nextReconcileAt: null,
+				job: {
+					id: "job-valid",
+					productKey: "image-gpt-image-2",
+					inputSnapshot: { skuKey: "gpt-image-2-4k", aspectRatio: "5:4" },
+					status: "NEEDS_RECONCILIATION",
+					failureCode: "SUBMISSION_UNCERTAIN_NEEDS_RECONCILIATION",
+					reservation: { id: "reservation-valid", status: "ACTIVE" },
+				},
+			},
+			{
+				id: "attempt-invalid",
+				status: "NEEDS_RECONCILIATION",
+				reconciliationCount: 0,
+				createdAt: timestamp,
+				updatedAt: timestamp,
+				submittedAt: null,
+				completedAt: null,
+				lastProviderEventAt: null,
+				nextReconcileAt: null,
+				job: {
+					id: "job-invalid",
+					productKey: "image-gpt-image-2",
+					inputSnapshot: { skuKey: "gpt-image-2-4k", aspectRatio: "1:1" },
+					status: "NEEDS_RECONCILIATION",
+					failureCode: "SUBMISSION_UNCERTAIN_NEEDS_RECONCILIATION",
+					reservation: null,
+				},
+			},
+		]);
+
+		const result = await listAdminUncertainGenerationAttempts(
+			{ limit: 20 },
+			{
+				generationAttempt: { findMany },
+			} as never,
+			productDefinitions,
+		);
+
+		expect(result.map((item) => item.selection)).toEqual([
+			{
+				productKey: "image-gpt-image-2",
+				skuKey: "gpt-image-2-1k",
+				aspectRatio: "auto",
+			},
+			{
+				productKey: "image-gpt-image-2",
+				skuKey: "gpt-image-2-4k",
+				aspectRatio: "5:4",
+			},
+			null,
+		]);
+		const query = findMany.mock.calls[0]?.[0];
+		expect(query.select).not.toHaveProperty("provider");
+		expect(query.select).not.toHaveProperty("providerModelId");
+		expect(query.select).not.toHaveProperty("providerTaskId");
+		expect(query.select).not.toHaveProperty("providerCostMicros");
+		expect(query.select.job.select).toMatchObject({ productKey: true, inputSnapshot: true });
+		expect(JSON.stringify(result)).not.toMatch(
+			/"route":|"provider":|providerModelId|providerTaskId|providerCostMicros|costMicros|marginMicros/i,
+		);
 	});
 });

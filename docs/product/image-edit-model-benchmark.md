@@ -1,172 +1,123 @@
-# EzPic image-edit model benchmark
+# Legacy OpenRouter image-edit benchmark (retired)
 
-## Status
+## Retirement status
 
-This report separates public price/schema research from real image-edit certification. Public model
-pages and current adapter/worker contracts were reviewed on 2026-09-05. No paid Provider call or
-human image review was performed.
+This file preserves the 2026-09-05 OpenRouter route research as historical context. It was retired
+from the active EzPic launch contract on 2026-09-07 when new image generation moved to the Kie SKU
+catalog.
 
-| Evidence or decision                                           | Status            |
-| -------------------------------------------------------------- | ----------------- |
-| Official/public pricing review                                 | **COMPLETED**     |
-| Current adapter/worker compatibility review                    | **COMPLETED**     |
-| OpenRouter top-up minimum-fee allocation                       | **NOT_COMPLETED** |
-| Authorized source images                                       | **NOT_COMPLETED** |
-| Real Provider executions                                       | **NOT_COMPLETED** |
-| First-result usability and human quality scoring               | **NOT_COMPLETED** |
-| Measured success rate, latency, retry rate, and billed cost    | **NOT_COMPLETED** |
-| OpenRouter Standard and Quality production route certification | **NOT_COMPLETED** |
+| Evidence or decision                                  | Status                      |
+| ----------------------------------------------------- | --------------------------- |
+| Historical OpenRouter public price/schema review      | **COMPLETED 2026-09-05**    |
+| Historical adapter/worker compatibility review        | **COMPLETED 2026-09-05**    |
+| Paid OpenRouter execution or production certification | **NOT_COMPLETED / RETIRED** |
+| Use for new EzPic image submissions                   | **RETIRED**                 |
+| Use as Kie SKU price, quality, or launch evidence     | **PROHIBITED**              |
+| Real paid Kie 20-cell certification                   | **NOT_COMPLETED**           |
 
-Pricing version `2026-09-05.1` retains only two executable catalog routes. They remain fail-closed
-behind `MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED`; a compatible request shape and a public price do
-not certify real private image-edit behavior.
+No paid Provider call or human image-quality review was performed for the old report. A historical
+request-shape test, dry run, static Trigger task, or public price never proved live OpenRouter
+behavior. It also says nothing about Kie's task API, output hosts, billing, latency, recovery, or
+image quality.
 
-## Research findings
+The old `image-fast` and `image-quality` keys and OpenRouter adapter remain server-side only so
+already-frozen historical jobs can be retrieved or reconciled. They are not public catalog products
+and are not candidates for a new quote. OpenRouter must stay out of `MEDIA_ENABLED_PROVIDERS`; use
+`MEDIA_RECOVERY_PROVIDERS` only while an auditable historical backlog still requires it.
 
-Provider/model details are server/operator-only and are not exposed in the public catalog or browser.
+## Historical findings — not current catalog
 
-| Provider/model                               |                                              Public cost observed | Image-edit contract result                                                                                                                                       | Catalog decision                                                          |
-| -------------------------------------------- | ----------------------------------------------------------------: | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| OpenRouter / `sourceful/riverflow-v2.5-fast` |                                              1K $0.019; 2K $0.021 | Current request/response path is locally compatible; real private execution and scoring remain unverified                                                        | Retained as Standard at a $0.023 planning ceiling; 5 credits              |
-| OpenRouter / `sourceful/riverflow-v2.5-pro`  |                                      1K $0.13; 2K $0.15; 4K $0.17 | Current request/response path is locally compatible; real private execution and scoring remain unverified                                                        | Retained as Quality at a $0.180 planning ceiling; 40 credits              |
-| Replicate / `black-forest-labs/flux-schnell` |                                                  $0.003 per image | Published/current schema is text-to-image and does not satisfy the required image-edit input contract                                                            | Removed from executable catalog                                           |
-| fal / `fal-ai/flux/schnell`                  |                                              $0.003 per megapixel | Root endpoint is text-to-image and does not satisfy the required image-edit input contract                                                                       | Removed from executable catalog                                           |
-| Gemini / `gemini-2.5-flash-image`            | Standard output about $0.039 plus roughly $0.00008-$0.00031 input | Model can edit images, but the current adapter accepts only a data URI while the worker supplies a private HTTPS URL; current execution contract is incompatible | Removed from executable catalog pending a safe adapter/worker integration |
+The following table records what the 2026-09-05 review concluded. These rows must not be copied into
+current pricing, capability, smoke, or certification artifacts.
 
-OpenRouter's public FAQ says the credit-purchase fee is 5.5% and the minimum fee is $0.80 per top-up.
-Operations must top up at least $14.55 for the percentage fee to dominate; the recommended minimum
-top-up is $20. Under that rule, the highest listed Fast and Pro tiers become $0.022155 and $0.17935.
-The rounded $0.023/$0.180 values are catalog usage/quote ceilings, not unconditional all-cash cost
-caps. They exclude arbitrary allocation of the per-top-up minimum. Until real top-ups and settled-edit
-volumes are reconciled, minimum-fee allocation remains **NOT_COMPLETED**.
+| Historical Provider/model                    | Public cost observed on 2026-09-05 | Historical conclusion                                                                         |
+| -------------------------------------------- | ---------------------------------: | --------------------------------------------------------------------------------------------- |
+| OpenRouter / `sourceful/riverflow-v2.5-fast` |               1K $0.019; 2K $0.021 | Request/response path appeared locally compatible; real private execution remained unverified |
+| OpenRouter / `sourceful/riverflow-v2.5-pro`  |       1K $0.13; 2K $0.15; 4K $0.17 | Request/response path appeared locally compatible; real private execution remained unverified |
+| Replicate / `black-forest-labs/flux-schnell` |                   $0.003 per image | Reviewed endpoint was text-to-image and did not satisfy the required edit contract            |
+| fal / `fal-ai/flux/schnell`                  |               $0.003 per megapixel | Reviewed root endpoint was text-to-image and did not satisfy the required edit contract       |
+| Gemini / `gemini-2.5-flash-image`            |      About $0.039 plus image input | The then-current adapter/worker private-URL contract was incompatible                         |
 
-For top-up amount `T`, the actual funding fee is `max(0.055 * T, $0.80)`. A benchmark cost report must
-either prove the at-least-$14.55 rule (and the recommended $20 operating policy) or allocate the
-actual fee across the edits funded by that purchase before any gross-margin approval.
+The OpenRouter $0.023/$0.180 planning ceilings, five/forty-credit weights, top-up assumptions, and
+Standard/Quality labels are retired. They remain only inside immutable historical Quotes/jobs and
+must not be used to price or certify a Kie task.
 
-The Replicate and fal findings are endpoint-contract decisions, not claims that those platforms have
-no image-edit product. The Gemini finding is an implementation mismatch, not a model capability
-rejection. None should be restored merely because its list price is lower: restoration requires an
-adapter that preserves private-asset authorization, SSRF/remote URL policy, streaming/size limits,
-moderation, durable attempt evidence, and uncertain-submission recovery.
+## Current Kie replacement contract
 
-## Reproducible dry-run snapshot
+The active image catalog/pricing version is `2026-09-07.2`. It contains nine public image products
+and 20 legal cells:
 
-The committed manifest contains no images. It defines ten placeholder input slots, two in each
-required category, with three distinct synthetic edit tasks each:
+| Public product     | Legal settings and EzPic Credits        |
+| ------------------ | --------------------------------------- |
+| Nano Banana 2 Lite | 1K = 5                                  |
+| Nano Banana        | Default = 5                             |
+| Nano Banana 2      | 1K = 9; 2K = 13; 4K = 19                |
+| Nano Banana Pro    | 1K = 19; 2K = 19; 4K = 25               |
+| GPT Image 1.5      | Medium = 5; High = 23                   |
+| GPT Image 2        | 1K = 7; 2K = 11; 4K = 17                |
+| Seedream 4.5       | Basic 2K = 8; High 4K = 8               |
+| Seedream 5 Lite    | Basic 2K = 7; High 3K = 7; Ultra 4K = 7 |
+| Seedream 5 Pro     | Basic 1K = 8; High 2K = 15              |
 
-- product on white background;
-- portrait;
-- indoor scene;
-- outdoor scene;
-- complex multi-object scene.
+GPT Image 2 1K is sold and must be included in certification. Each model owns its own
+resolution/quality/aspect-ratio matrix, and this release fixes output quantity and source-image
+count at one. Output format and background are non-billable product-local controls, not extra SKU
+cells. If multi-reference Seedream 5 Pro is introduced later, the quote must freeze the reference
+count and its provider-price increment rather than treating it as one of these base cells.
 
-With the two retained catalog routes, the dry-run plan is:
+Kie certification must use the normal private production path for each exact SKU: quote and frozen
+cost, prompt/input moderation, owner-scoped source asset, credit reservation, durable job and Outbox,
+Kie submission and same-attempt polling recovery, output-host policy, streamed private transfer,
+output moderation, settlement, and immutable ledger result. Required evidence includes terminal
+counts, output MIME/dimensions/count, human scoring, p50/p95 latency, retries, uncertain acceptance,
+and reconciled Kie billing.
 
-| Item                      |    Planned value | Evidence meaning                                                                                    |
-| ------------------------- | ---------------: | --------------------------------------------------------------------------------------------------- |
-| Placeholder inputs        |               10 | Manifest shape only; no authorization claim                                                         |
-| Edit tasks                |               30 | Three tasks per placeholder input                                                                   |
-| Executable catalog routes |                2 | Locally compatible, not production-certified                                                        |
-| Planned invocations       |               60 | 30 tasks multiplied by two routes                                                                   |
-| Maximum catalog estimate  | 6,090,000 micros | 30 x $0.023 plus 30 x $0.180; assumes the $20 minimum credit-purchase policy and is not billed cost |
+The Kie route gate is catalog-version scoped through
+`MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS`. Nothing in this retired file may satisfy that gate.
 
-Run it from the repository root:
+## Legacy command boundary
+
+The repository may retain the older command for reproducibility:
 
 ```bash
 pnpm provider:benchmark:image-edit
 ```
 
-The command defaults to dry-run and makes zero Provider calls. Its JSON report must keep real metrics
-and route certification `NOT_COMPLETED` until authorized evidence exists. An exact retained route can
-be planned explicitly without making a call:
+Its dry-run output is a legacy diagnostic only. Do not run it as Kie certification, do not enable an
+old OpenRouter submission route to make it pass, and do not attach its output to a Kie launch record.
+A Kie paid smoke must use the current 20-cell provider-smoke configuration and the existing private
+job/finalization path. Real paid Kie execution remains `NOT_COMPLETED` in this repository.
 
-```bash
-pnpm provider:benchmark:image-edit -- --route=image-fast:openrouter:sourceful/riverflow-v2.5-fast
-```
+## Privacy boundary
 
-## Live-run gates
-
-A live harness invocation must include all of the following before any Provider call is possible:
-
-1. `--live` and `--confirm-spend`;
-2. a positive safe-integer `--max-budget-micros` covering the complete selected-route ceiling;
-3. one or more exact current tuples selected with `--route`;
-4. a private manifest in which every source is an authorized private asset;
-5. the server-only credential for every selected Provider;
-6. an executor bound to the existing production job, moderation, storage, and finalization path;
-7. the exact route's production certification gate enabled only after the required evidence review.
-8. evidence that OpenRouter credits were purchased in batches of at least $20, or a replacement
-   budget that explicitly allocates the $0.80 minimum purchase fee.
-
-The core harness checks the plan before the first case and executes sequentially. Before each next
-call it combines observed cost with the remaining catalog ceiling and fails closed if that would
-exceed the explicit maximum. It stops after unknown or above-budget observed cost. This cannot undo a
-charge for the already-submitted call; it prevents an unbounded sequence of later calls.
-
-The checked-in CLI intentionally has no direct Provider executor. A direct call would bypass input
-authorization, remote URL/DNS policy, private transfer, output moderation, durable attempt evidence,
-and uncertain-submission recovery. Any authorized operator binding must reuse those paths.
-
-Example syntax only after the private executor and external prerequisites are supplied:
-
-```bash
-pnpm provider:benchmark:image-edit -- --live --confirm-spend --max-budget-micros=<positive-integer> --manifest=<private-manifest-path> --route=<product:provider:model>
-```
-
-## Scorecard contract
-
-Each executed case can record only sanitized observations:
-
-- Provider/model tuple and terminal result category;
-- first-result usability;
-- 1-5 subject-preservation, prompt-adherence, and visual-quality scores;
-- latency and billed Provider cost when reconciled;
-- output count, image MIME, and dimensions;
-- moderation/Provider rejection category and retry count;
-- proof that the output was stored privately and approved by output moderation.
-
-The aggregate scorecard computes coverage, success rate, first-result usability, p50/p95, cost totals,
-average human scores, MIME/dimension counts, rejection counts, and retries. The first-result usability
-denominator is the complete planned invocation count, including failures and rejections. Partial or
-unscored data remains `NOT_COMPLETED`. The harness never certifies Standard or Quality automatically;
-an authorized human must review complete private outputs for the exact tuple and pricing version.
-
-## Privacy and execution boundary
-
-Source images, prompts, authorization records, asset IDs, URLs/signed URLs, raw Provider payloads,
-credentials, and individual rating records stay private. The browser submits only `image-fast` or
-`image-quality`; it never receives Provider, model, cost, credential, or routing information. A live
-success is invalid unless output passed the existing remote URL policy, private transfer, and output
-moderation path.
-
-No Provider call, output, latency, success rate, billed cost, or route certification is claimed in
-this report. Production OpenRouter execution remains **NOT_COMPLETED** and
-`MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED` must remain false until the exact retained tuples have real
-private execution, billing reconciliation, and human scorecard evidence.
-
-## Raphael comparison boundary
-
-Raphael's public pricing page lists Pro $20/2,000 credits, Ultimate $40/5,000 credits, and Max
-$80/10,000 credits, with a displayed 50% annual discount and model-dependent credit consumption.
-Subscription-credit rollover was not confirmed. This is a UX/pricing reference only; EzPic does not
-infer Raphael's Provider costs or copy apparent zero-credit routes and cross-model subsidies.
+Source images, prompts, authorization records, asset IDs, signed URLs, raw Provider payloads,
+credentials, and individual rating records stay private. Public clients receive only stable product
+and SKU keys, supported parameters, and EzPic Credits. Provider/model/cost fields remain
+operator-only.
 
 ## Sources
 
-Official/public pages accessed 2026-09-05:
+Historical sources reviewed 2026-09-05:
 
 - OpenRouter Riverflow Fast: <https://openrouter.ai/sourceful/riverflow-v2.5-fast>
 - OpenRouter Riverflow Pro: <https://openrouter.ai/sourceful/riverflow-v2.5-pro>
-- OpenRouter FAQ / PAYG credit fee: <https://openrouter.ai/docs/faq>
+- OpenRouter FAQ: <https://openrouter.ai/docs/faq>
 - Replicate FLUX Schnell: <https://replicate.com/black-forest-labs/flux-schnell>
 - fal FLUX Schnell: <https://fal.ai/models/fal-ai/flux/schnell>
 - Google Gemini API pricing: <https://ai.google.dev/gemini-api/docs/pricing>
-- Raphael pricing: <https://raphael.app/pricing>
+
+Current Kie sources:
+
+- Kie pricing: <https://kie.ai/zh-CN/pricing>
+- Nano Banana 2 Lite: <https://docs.kie.ai/market/google/nano-banana-2-lite.md>
+- GPT Image 2 image-to-image: <https://docs.kie.ai/market/gpt/gpt-image-2-image-to-image.md>
+- Seedream 5 Pro image-to-image: <https://docs.kie.ai/market/seedream/5-pro-image-to-image.md>
+- Kie task detail: <https://docs.kie.ai/market/common/get-task-detail.md>
 
 ## Rollback
 
-There is no database migration in this research record. A pricing/catalog rollback must restore route
-membership, server-only cost ceilings, per-edit credits, pricing version, plan values, localized copy,
-`BillingPlan` snapshots, and tests as one compatible set. Existing Quote, job, credit, purchase,
-subscription, storage, and moderation history remains immutable.
+Retirement changes no immutable historical Quote, job, attempt, reservation, or Ledger row. A
+rollback must not reactivate OpenRouter for new submissions. Keep a retrieve-only recovery path only
+for already-accepted historical work, and remove it after the backlog is durably drained. Roll back
+the Kie catalog only as one compatible set of product/SKU matrices, credit/cost snapshots,
+catalog/pricing versions, plan visibility, runtime flags, translations, and tests.

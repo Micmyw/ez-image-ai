@@ -1,5 +1,6 @@
 "use client";
 
+import { IMAGE_ASPECT_RATIOS, type ImageAspectRatio } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
@@ -12,8 +13,9 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { useJob } from "../../hooks/use-job";
-import { isEditorProductKey } from "../../lib/editor-recovery";
+import { isEditorProductKey, type EditorProductKey } from "../../lib/editor-recovery";
 import { getSignedComparisonState, requestPrivateDownload } from "../../lib/editor-result";
+import { isPublicImageSkuKey } from "../../lib/image-sku-selection";
 import { getJobPresentation } from "../../lib/job-status";
 import { BeforeAfterSlider } from "./BeforeAfterSlider";
 
@@ -46,6 +48,9 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 	}
 	if (
 		!isEditorProductKey(job.data.productKey) ||
+		!job.data.skuKey ||
+		!isPublicImageSkuKey(job.data.skuKey) ||
+		!isImageAspectRatio(job.data.aspectRatio) ||
 		job.data.inputAssets.length === 0 ||
 		!job.data.inputAssets.every((asset) => asset.mimeType.startsWith("image/")) ||
 		!job.data.assets.every((asset) => asset.mimeType.startsWith("image/"))
@@ -155,6 +160,10 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 	);
 }
 
+function isImageAspectRatio(value: string | null | undefined): value is ImageAspectRatio {
+	return Boolean(value && IMAGE_ASPECT_RATIOS.includes(value as ImageAspectRatio));
+}
+
 function EditorUnavailableState({ detailsHref }: { detailsHref?: string }) {
 	const t = useTranslations("media.status");
 	return (
@@ -195,7 +204,7 @@ function SignedComparison({
 }: {
 	inputAssetId: string;
 	outputAssetId: string;
-	productKey: "image-fast" | "image-quality";
+	productKey: EditorProductKey;
 }) {
 	const t = useTranslations("media.status");
 	const input = useQuery({
@@ -244,7 +253,7 @@ function DownloadButton({
 	productKey,
 }: {
 	assetId: string;
-	productKey: "image-fast" | "image-quality";
+	productKey: EditorProductKey;
 }) {
 	const t = useTranslations("media.status");
 	const [downloading, setDownloading] = useState(false);

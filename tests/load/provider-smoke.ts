@@ -1,17 +1,26 @@
 import {
-	FalProviderAdapter,
 	KieProviderAdapter,
 	type MediaProviderAdapter,
 	type ProviderExecutionInput,
 } from "@repo/ai";
 
-type SmokeTier = "image-fast" | "image-quality" | "video-fast" | "video-quality";
-type SmokeProvider = "openrouter" | "fal" | "kie";
+type SmokeProductKey =
+	| "image-nano-banana-2-lite"
+	| "image-nano-banana"
+	| "image-nano-banana-2"
+	| "image-nano-banana-pro"
+	| "image-gpt-image-1-5"
+	| "image-gpt-image-2"
+	| "image-seedream-4-5"
+	| "image-seedream-5-lite"
+	| "image-seedream-5-pro";
+type SmokeProvider = "kie";
 
 export interface SmokeRoute {
 	provider: SmokeProvider;
 	model: string;
-	tier: SmokeTier;
+	productKey: SmokeProductKey;
+	skuKey: string;
 	expectedCostMicros: number;
 	inputKind: "image-to-image" | "text-to-video";
 	requiresCancellation: boolean;
@@ -34,37 +43,185 @@ export interface ProviderSmokeDependencies {
 }
 
 const ROUTES: Record<string, SmokeRoute> = {
-	"image-fast:openrouter": {
-		provider: "openrouter",
-		model: "sourceful/riverflow-v2.5-fast",
-		tier: "image-fast",
-		expectedCostMicros: 23_000,
-		inputKind: "image-to-image",
-		requiresCancellation: false,
-	},
-	"image-quality:openrouter": {
-		provider: "openrouter",
-		model: "sourceful/riverflow-v2.5-pro",
-		tier: "image-quality",
-		expectedCostMicros: 180_000,
-		inputKind: "image-to-image",
-		requiresCancellation: false,
-	},
-	"video-fast:fal": {
-		provider: "fal",
-		model: "fal-ai/fast-video",
-		tier: "video-fast",
-		expectedCostMicros: 100_000,
-		inputKind: "text-to-video",
-		requiresCancellation: true,
-	},
-	"video-quality:kie": {
+	"image-nano-banana-2-lite:nano-banana-2-lite-1k:kie": {
 		provider: "kie",
-		model: "kie/video-quality",
-		tier: "video-quality",
-		expectedCostMicros: 300_000,
-		inputKind: "text-to-video",
-		requiresCancellation: true,
+		model: "nano-banana-2-lite",
+		productKey: "image-nano-banana-2-lite",
+		skuKey: "nano-banana-2-lite-1k",
+		expectedCostMicros: 20_000,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
+	},
+	"image-nano-banana:nano-banana-default:kie": {
+		provider: "kie",
+		model: "google/nano-banana-edit",
+		productKey: "image-nano-banana",
+		skuKey: "nano-banana-default",
+		expectedCostMicros: 20_000,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
+	},
+	"image-nano-banana-2:nano-banana-2-1k:kie": {
+		provider: "kie",
+		model: "nano-banana-2",
+		productKey: "image-nano-banana-2",
+		skuKey: "nano-banana-2-1k",
+		expectedCostMicros: 40_000,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
+	},
+	"image-nano-banana-2:nano-banana-2-2k:kie": {
+		provider: "kie",
+		model: "nano-banana-2",
+		productKey: "image-nano-banana-2",
+		skuKey: "nano-banana-2-2k",
+		expectedCostMicros: 60_000,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
+	},
+	"image-nano-banana-2:nano-banana-2-4k:kie": {
+		provider: "kie",
+		model: "nano-banana-2",
+		productKey: "image-nano-banana-2",
+		skuKey: "nano-banana-2-4k",
+		expectedCostMicros: 90_000,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
+	},
+	"image-nano-banana-pro:nano-banana-pro-1k:kie": {
+		provider: "kie",
+		model: "nano-banana-pro",
+		productKey: "image-nano-banana-pro",
+		skuKey: "nano-banana-pro-1k",
+		expectedCostMicros: 90_000,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
+	},
+	"image-nano-banana-pro:nano-banana-pro-2k:kie": {
+		provider: "kie",
+		model: "nano-banana-pro",
+		productKey: "image-nano-banana-pro",
+		skuKey: "nano-banana-pro-2k",
+		expectedCostMicros: 90_000,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
+	},
+	"image-nano-banana-pro:nano-banana-pro-4k:kie": {
+		provider: "kie",
+		model: "nano-banana-pro",
+		productKey: "image-nano-banana-pro",
+		skuKey: "nano-banana-pro-4k",
+		expectedCostMicros: 120_000,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
+	},
+	"image-gpt-image-1-5:gpt-image-1-5-medium:kie": {
+		provider: "kie",
+		model: "gpt-image/1.5-image-to-image",
+		productKey: "image-gpt-image-1-5",
+		skuKey: "gpt-image-1-5-medium",
+		expectedCostMicros: 20_000,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
+	},
+	"image-gpt-image-1-5:gpt-image-1-5-high:kie": {
+		provider: "kie",
+		model: "gpt-image/1.5-image-to-image",
+		productKey: "image-gpt-image-1-5",
+		skuKey: "gpt-image-1-5-high",
+		expectedCostMicros: 110_000,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
+	},
+	"image-gpt-image-2:gpt-image-2-1k:kie": {
+		provider: "kie",
+		model: "gpt-image-2-image-to-image",
+		productKey: "image-gpt-image-2",
+		skuKey: "gpt-image-2-1k",
+		expectedCostMicros: 30_000,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
+	},
+	"image-gpt-image-2:gpt-image-2-2k:kie": {
+		provider: "kie",
+		model: "gpt-image-2-image-to-image",
+		productKey: "image-gpt-image-2",
+		skuKey: "gpt-image-2-2k",
+		expectedCostMicros: 50_000,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
+	},
+	"image-gpt-image-2:gpt-image-2-4k:kie": {
+		provider: "kie",
+		model: "gpt-image-2-image-to-image",
+		productKey: "image-gpt-image-2",
+		skuKey: "gpt-image-2-4k",
+		expectedCostMicros: 80_000,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
+	},
+	"image-seedream-4-5:seedream-4-5-basic-2k:kie": {
+		provider: "kie",
+		model: "seedream/4.5-edit",
+		productKey: "image-seedream-4-5",
+		skuKey: "seedream-4-5-basic-2k",
+		expectedCostMicros: 32_500,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
+	},
+	"image-seedream-4-5:seedream-4-5-high-4k:kie": {
+		provider: "kie",
+		model: "seedream/4.5-edit",
+		productKey: "image-seedream-4-5",
+		skuKey: "seedream-4-5-high-4k",
+		expectedCostMicros: 32_500,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
+	},
+	"image-seedream-5-lite:seedream-5-lite-basic-2k:kie": {
+		provider: "kie",
+		model: "seedream/5-lite-image-to-image",
+		productKey: "image-seedream-5-lite",
+		skuKey: "seedream-5-lite-basic-2k",
+		expectedCostMicros: 27_500,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
+	},
+	"image-seedream-5-lite:seedream-5-lite-high-3k:kie": {
+		provider: "kie",
+		model: "seedream/5-lite-image-to-image",
+		productKey: "image-seedream-5-lite",
+		skuKey: "seedream-5-lite-high-3k",
+		expectedCostMicros: 27_500,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
+	},
+	"image-seedream-5-lite:seedream-5-lite-ultra-4k:kie": {
+		provider: "kie",
+		model: "seedream/5-lite-image-to-image",
+		productKey: "image-seedream-5-lite",
+		skuKey: "seedream-5-lite-ultra-4k",
+		expectedCostMicros: 27_500,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
+	},
+	"image-seedream-5-pro:seedream-5-pro-basic-1k:kie": {
+		provider: "kie",
+		model: "seedream/5-pro-image-to-image",
+		productKey: "image-seedream-5-pro",
+		skuKey: "seedream-5-pro-basic-1k",
+		expectedCostMicros: 35_000,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
+	},
+	"image-seedream-5-pro:seedream-5-pro-high-2k:kie": {
+		provider: "kie",
+		model: "seedream/5-pro-image-to-image",
+		productKey: "image-seedream-5-pro",
+		skuKey: "seedream-5-pro-high-2k",
+		expectedCostMicros: 70_000,
+		inputKind: "image-to-image",
+		requiresCancellation: false,
 	},
 };
 
@@ -72,7 +229,7 @@ export function parseProviderSmokeConfiguration(
 	environment: ProviderSmokeEnvironment,
 ): ProviderSmokeConfiguration {
 	const allowlist = requiredCsv(environment, "PROVIDER_SMOKE_ALLOWLIST");
-	const enabledTiers = requiredCsv(environment, "PROVIDER_SMOKE_ENABLED_TIERS");
+	const enabledSkus = requiredCsv(environment, "PROVIDER_SMOKE_ENABLED_SKUS");
 	const maxInvocations = requiredPositiveInteger(environment, "PROVIDER_SMOKE_MAX_INVOCATIONS");
 	const maxExpectedCostMicros = requiredPositiveInteger(
 		environment,
@@ -87,15 +244,15 @@ export function parseProviderSmokeConfiguration(
 		if (!route) throw new Error(`Provider smoke route is not configured: ${key}`);
 		return route;
 	});
-	for (const tier of enabledTiers) {
-		const matches = routes.filter((route) => route.tier === tier);
+	for (const skuKey of enabledSkus) {
+		const matches = routes.filter((route) => route.skuKey === skuKey);
 		if (matches.length !== 1) {
-			throw new Error(`Enabled tier ${tier} must have exactly one configured smoke route`);
+			throw new Error(`Enabled SKU ${skuKey} must have exactly one configured smoke route`);
 		}
 	}
 	for (const route of routes) {
-		if (!enabledTiers.includes(route.tier)) {
-			throw new Error(`Allowlisted route tier is not enabled: ${route.tier}`);
+		if (!enabledSkus.includes(route.skuKey)) {
+			throw new Error(`Allowlisted route SKU is not enabled: ${route.skuKey}`);
 		}
 	}
 	const expectedCostMicros = routes.reduce((sum, route) => sum + route.expectedCostMicros, 0);
@@ -145,7 +302,7 @@ export async function runProviderSmoke(
 	for (const { route, adapter } of executions) {
 		if (route.requiresCancellation && !adapter.cancel) {
 			throw new Error(
-				`Live smoke for ${route.tier}:${route.provider} is disabled until automatic provider cleanup is implemented`,
+				`Live smoke for ${route.productKey}/${route.skuKey}:${route.provider} is disabled until automatic provider cleanup is implemented`,
 			);
 		}
 	}
@@ -185,7 +342,7 @@ export async function runProviderSmoke(
 				});
 			}
 			console.log(
-				`${route.tier}:${route.provider} accepted with status ${submission.status} and task ${submission.providerTaskId ?? "synchronous"}`,
+				`${route.productKey}/${route.skuKey}:${route.provider} accepted with status ${submission.status} and task ${submission.providerTaskId ?? "synchronous"}`,
 			);
 		}
 	} catch (error) {
@@ -210,12 +367,6 @@ function createAdapter(
 	environment: ProviderSmokeEnvironment,
 ): MediaProviderAdapter {
 	switch (provider) {
-		case "openrouter":
-			throw new Error(
-				"NOT_COMPLETED: direct OpenRouter image smoke is disabled; use the private generation and finalization pipeline",
-			);
-		case "fal":
-			return new FalProviderAdapter({ apiKey: requiredValue(environment, "FAL_API_KEY") });
 		case "kie":
 			return new KieProviderAdapter({ apiKey: requiredValue(environment, "KIE_API_KEY") });
 	}

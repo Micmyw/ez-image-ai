@@ -26,20 +26,20 @@
 		"title": "Documentación"
 	},
 	"faq": {
-		"description": "Respuestas claras sobre disponibilidad para invitados, niveles de edición, créditos, medios privados, facturación y uso responsable.",
+		"description": "Respuestas claras sobre disponibilidad para invitados, modelos de imagen, EzPic Credits, medios privados, facturación y uso responsable.",
 		"title": "Preguntas frecuentes",
 		"items": {
 			"guestAvailability": {
 				"question": "¿Cuándo está disponible la edición como invitado?",
-				"answer": "Cuando la cola patrocinada para invitados está disponible, una persona puede iniciar una edición Standard sin cuenta. El resultado lleva marca de agua, es privado y permanece disponible hasta 24 horas."
+				"answer": "Cuando la cola patrocinada para invitados está disponible, una persona puede iniciar una edición Nano Banana 2 Lite 1K sin cuenta. El resultado lleva marca de agua, es privado y permanece disponible hasta 24 horas."
 			},
 			"guestVsFree": {
 				"question": "¿Qué diferencia hay entre Invitado y Free?",
-				"answer": "Invitado ofrece de forma condicionada una única edición Standard patrocinada, con marca de agua y disponible hasta 24 horas. Una cuenta Free registrada recibe 25 créditos al mes: Standard Edit cuesta 5 créditos, así que permite hasta cinco ediciones Standard; no incluye Quality Edit."
+				"answer": "Invitado ofrece de forma condicionada una única edición Nano Banana 2 Lite 1K patrocinada, con marca de agua y disponible hasta 24 horas. Una cuenta Free registrada recibe 25 EzPic Credits al mes; Nano Banana 2 Lite 1K cuesta 5, así que permite hasta cinco ediciones. GPT Image 2 y Seedream 5 Pro requieren un plan de pago."
 			},
 			"editTiers": {
-				"question": "¿En qué se diferencian Standard Edit y Quality Edit?",
-				"answer": "Standard Edit cuesta 5 créditos y Quality Edit, 40. Cada edición confirmada genera un resultado. Quality Edit requiere Creator o Studio."
+				"question": "¿Qué modelos de imagen y ajustes de salida están disponibles?",
+				"answer": "Nano Banana 2 Lite 1K usa 5 EzPic Credits. GPT Image 2 usa 7 en 1K, 11 en 2K o 17 en 4K. Seedream 5 Pro usa 8 para Basic 1K o 15 para High 2K. Cada edición confirmada genera un resultado."
 			},
 			"creditReservation": {
 				"question": "¿Cuándo se utilizan los créditos?",
@@ -62,12 +62,12 @@
 				"answer": "No. Los resultados pueden contener defectos o parecerse a otras imágenes. EzPic no garantiza que sean únicos, adecuados para un fin concreto ni libres de derechos de terceros."
 			},
 			"stableTiers": {
-				"question": "¿Por qué EzPic muestra niveles en vez de nombres de modelos?",
-				"answer": "El producto muestra nombres estables: Standard Edit y Quality Edit. El enrutamiento del servicio se controla en el servidor y puede cambiar sin alterar el contrato público del nivel."
+				"question": "¿Por qué los modelos de imagen usan distintas cantidades de EzPic Credits?",
+				"answer": "Cada modelo de imagen tiene su propia matriz de ajustes de salida válidos y su propia cantidad de EzPic Credits. EzPic muestra el nombre del producto, los ajustes admitidos y el cargo exacto; el enrutamiento privado y los costes operativos permanecen en el servidor."
 			},
 			"annualBilling": {
 				"question": "¿Cómo afecta la facturación anual a los créditos?",
-				"answer": "Creator cuesta $190 al año y Studio, $790 al año. Los créditos se siguen otorgando cada mes—700 para Creator y 3.000 para Studio—y los no utilizados no se acumulan."
+				"answer": "Pro cuesta $190 al año, Ultimate $490 y Max $790. Los EzPic Credits se siguen otorgando cada mes—700 para Pro, 1.800 para Ultimate y 3.000 para Max—y los no utilizados no se acumulan."
 			},
 			"cancelSubscription": {
 				"question": "¿Cómo cancelo mi suscripción?",
@@ -87,16 +87,16 @@
 		"generator": {
 			"eyebrow": "Planifica tu edición",
 			"title": "Describe el cambio que quieres",
-			"subtitle": "Sube una imagen de origen y describe la edición. Cuando la cola de invitados esté disponible, podrás iniciar una edición Standard privada en EzPic.",
-			"offer": "Prueba gratis una edición Standard",
+			"subtitle": "Sube una imagen de origen y describe la edición. Cuando la cola de invitados esté disponible, podrás iniciar una edición Nano Banana 2 Lite 1K privada en EzPic.",
+			"offer": "Prueba Nano Banana 2 Lite 1K gratis",
 			"noSignUp": "Sin registro cuando la cola de invitados esté disponible",
-			"paidSignIn": "Se requiere iniciar sesión y un plan Creator o Studio",
+			"paidSignIn": "Se requiere iniciar sesión y un plan de pago",
 			"oneOutput": "Un resultado",
 			"freeQueue": "Cola gratuita · una vista previa con marca de agua · disponible hasta 24 horas",
-			"qualityAccess": "Quality Edit continúa después de iniciar sesión y requiere una cuenta Creator o Studio.",
+			"qualityAccess": "GPT Image 2 y Seedream 5 Pro continúan después de iniciar sesión y requieren Pro, Ultimate o Max.",
 			"temporaryResult": "Tu vista previa permanece privada y temporal.",
 			"temporarySessionDisclosure": "EzPic crea una sesión temporal para esta prueba, conserva los archivos del invitado hasta 24 horas y usa señales seudónimas contra abusos durante el periodo descrito en nuestra Política de privacidad.",
-			"qualityCta": "Edición Quality · Creator o Studio",
+			"qualityCta": "Más modelos de imagen · plan de pago",
 			"retryChallenge": "Reintentar la verificación",
 			"characterCount": "{count, number} / {maximum, number}",
 			"settings": {
@@ -108,31 +108,49 @@
 				"oneOutput": "Cada edición confirmada devuelve una imagen",
 				"resolution": "Resolución",
 				"quality": "Calidad",
-				"modeControlsQuality": "La controla el nivel de edición"
+				"outputFormat": "Formato de salida",
+				"background": "Fondo",
+				"modeControlsQuality": "La controlan el modelo y el SKU seleccionados",
+				"credits": "EzPic Credits",
+				"optionLabels": {
+					"1k": "1K",
+					"2k": "2K",
+					"3k": "3K",
+					"4k": "4K",
+					"basic": "Básica",
+					"medium": "Media",
+					"high": "Alta",
+					"ultra": "Ultra",
+					"png": "PNG",
+					"jpeg": "JPEG",
+					"auto": "Automático",
+					"opaque": "Opaco",
+					"transparent": "Transparente"
+				}
 			},
 			"states": {
 				"challenge": "Verifica esta carga de invitado",
 				"checking": "Comprobando la disponibilidad de edición…",
-				"ready": "Elige un nivel, una imagen de origen y un prompt para continuar.",
+				"ready": "Elige un modelo de imagen, una imagen de origen y un prompt para continuar.",
 				"preparing": "Preparando tu carga privada…",
 				"loadingCapability": "Comprobando la disponibilidad para invitados…",
-				"unavailable": "La cola Standard gratuita no acepta nuevas ediciones en este momento.",
+				"unavailable": "La cola Nano Banana para invitados no acepta nuevas ediciones en este momento.",
 				"uploading": "Subiendo la imagen de origen privada: {percentage, number}%",
 				"verifying": "Verificando tu imagen de origen privada…",
 				"handoff": "Abriendo tu borrador privado…",
-				"failed": "Este intento se detuvo antes de la transferencia. Tu imagen, prompt y nivel siguen aquí."
+				"failed": "Este intento se detuvo antes de la transferencia. Tu imagen, prompt y selección de modelo siguen aquí."
 			},
 			"guidance": {
 				"checking": "Espera mientras se comprueba la disponibilidad.",
 				"unavailable": "La edición no está disponible ahora. Inténtalo más tarde.",
-				"product": "Elige un nivel de edición para continuar.",
+				"product": "Elige un modelo de imagen para continuar.",
 				"source": "Añade una imagen de origen para continuar.",
 				"prompt": "Describe la edición que quieres para continuar.",
 				"verification": "Completa la verificación para continuar."
 			},
 			"actions": {
-				"standard": "Prueba gratis una edición Standard",
-				"quality": "Continuar con Quality Edit",
+				"standard": "Prueba Nano Banana 2 Lite 1K gratis",
+				"quality": "Continuar con un modelo de imagen de pago",
 				"retry": "Reintentar {product}",
 				"retryAvailability": "Volver a comprobar la disponibilidad"
 			},
@@ -159,23 +177,23 @@
 				"lighting": "Añade luz cálida de ventana al final de la tarde"
 			},
 			"modes": {
-				"legend": "Nivel de edición",
+				"legend": "Modelo de imagen",
 				"credits": "{credits, number} créditos",
-				"selectionPending": "Elige un nivel",
+				"selectionPending": "Elige un modelo",
 				"standard": {
-					"label": "Standard Edit",
+					"label": "Nano Banana 2 Lite",
 					"badge": "Prueba de invitado",
-					"description": "Edición de imagen de origen con un resultado",
-					"access": "Una edición como invitado"
+					"description": "Edición 1K de imagen de origen con un resultado",
+					"access": "Una edición patrocinada como invitado"
 				},
 				"quality": {
-					"label": "Quality Edit",
+					"label": "Más modelos de imagen",
 					"badge": "Cuenta de pago",
-					"description": "Edición de imagen de origen con un resultado",
-					"access": "Se requiere una cuenta Creator o Studio"
+					"description": "Cada modelo conserva sus propios ajustes de salida verificados y su cantidad de EzPic Credits",
+					"access": "Se requiere Pro, Ultimate o Max"
 				}
 			},
-			"loginNotice": "Las ediciones Standard de invitado pueden iniciarse sin sesión cuando la cola esté disponible; las ediciones de cuenta requieren confirmar la cantidad de créditos.",
+			"loginNotice": "Las ediciones Nano Banana 2 Lite 1K de invitado pueden iniciarse sin sesión cuando la cola esté disponible; las ediciones de cuenta muestran la cantidad exacta de EzPic Credits antes de la confirmación.",
 			"previewCaption": "Vista previa de origen",
 			"previewPlaceholderAlt": "Ilustración vectorial original de EzPic de una sala de lectura neutra",
 			"previewAlt": "Vista previa de {fileName}",
@@ -254,9 +272,9 @@
 		"imageEditorHero": {
 			"eyebrow": "Edición por instrucciones con subida primero",
 			"title": "Editor de imágenes con IA <accent>mediante instrucciones</accent>",
-			"subtitle": "Sube tu imagen y describe el cambio. Cuando la cola de invitados esté disponible, podrás iniciar desde esta página una edición Standard privada sin cuenta.",
+			"subtitle": "Sube tu imagen y describe el cambio. Cuando la cola de invitados esté disponible, podrás iniciar desde esta página una edición Nano Banana 2 Lite 1K privada sin cuenta.",
 			"private": "Imágenes de origen privadas",
-			"draftOnly": "Una edición Standard de invitado"
+			"draftOnly": "Una edición Nano Banana 2 Lite de invitado"
 		},
 		"beforeAfter": {
 			"eyebrow": "Una fuente, un cambio claro",
@@ -435,7 +453,7 @@
 		"trust": {
 			"eyebrow": "Límites claros",
 			"title": "Privado por defecto, medido con claridad",
-			"description": "Cuando la cola patrocinada para invitados está disponible, la página de inicio puede iniciar una edición Standard patrocinada. Las ediciones de cuenta siguen requiriendo cotización y confirmación antes de reservar créditos.",
+			"description": "Cuando la cola patrocinada para invitados está disponible, la página de inicio puede iniciar una edición Nano Banana 2 Lite 1K patrocinada. Las ediciones de cuenta siguen requiriendo cotización y confirmación antes de reservar EzPic Credits.",
 			"items": {
 				"privacy": {
 					"title": "Medios privados",
@@ -443,7 +461,7 @@
 				},
 				"credits": {
 					"title": "Uso controlado",
-					"description": "Las ediciones Standard de invitado usan la cola patrocinada; las ediciones de cuenta muestran la cantidad de créditos y esperan tu confirmación."
+					"description": "Las ediciones Nano Banana de invitado usan la cola patrocinada; las ediciones de cuenta muestran la cantidad exacta de EzPic Credits y esperan tu confirmación."
 				},
 				"safety": {
 					"title": "Protecciones normales",
@@ -454,7 +472,7 @@
 		"finalCta": {
 			"eyebrow": "Empieza con una imagen",
 			"title": "Describe la edición que ya tienes en mente",
-			"description": "Sube la imagen y describe el cambio aquí. Cuando la cola de invitados esté disponible, continúa con una edición Standard privada sin crear una cuenta.",
+			"description": "Sube la imagen y describe el cambio aquí. Cuando la cola de invitados esté disponible, continúa con una edición Nano Banana 2 Lite 1K privada sin crear una cuenta.",
 			"button": "Volver al editor"
 		},
 		"hero": {
@@ -470,7 +488,7 @@
 		"features": {
 			"badge": "Flujo de edición de imágenes",
 			"title": "De la imagen de origen a una edición controlada",
-			"description": "EzPic reúne la instrucción, la calidad, los créditos y los recursos privados en un espacio de trabajo enfocado.",
+			"description": "EzPic reúne la instrucción, los ajustes de salida específicos del modelo, los EzPic Credits y los recursos privados en un espacio de trabajo enfocado.",
 			"feature1": {
 				"title": "Ediciones dirigidas",
 				"subtitle": "Describe el cambio en vez de reconstruir la imagen.",
@@ -484,8 +502,8 @@
 					"description": "El editor nunca presenta la generación solo desde texto como producto EzPic."
 				},
 				"benefit3": {
-					"title": "Dos niveles de edición",
-					"description": "Elige Standard Edit o Quality Edit cuando tu plan lo permita."
+					"title": "Ajustes específicos por modelo",
+					"description": "Elige entre los modelos de imagen disponibles en EzPic; cada uno conserva sus propios ajustes de salida verificados y su cantidad de EzPic Credits."
 				}
 			},
 			"feature2": {

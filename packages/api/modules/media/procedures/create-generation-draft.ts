@@ -1,7 +1,15 @@
 import { createHash, randomUUID } from "node:crypto";
 
-import { promptSchema } from "@repo/ai";
-import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
+import { promptSchema, quoteCatalogInput } from "@repo/ai";
+import {
+	DEFAULT_PRODUCT_CONFIG,
+	EZPIC_PRODUCT_KEYS,
+	imageAspectRatioSchema,
+	imageBackgroundSchema,
+	imageOutputFormatSchema,
+	imageSkuKeySchema,
+	isValidImageSelection,
+} from "@repo/config";
 import { createGenerationDraftTransaction } from "@repo/database";
 import { db } from "@repo/database/client";
 import { createAssetObjectKey, deleteObject, putPrivateMediaObject } from "@repo/storage";
@@ -32,16 +40,28 @@ const draftUploadSchema = z
 
 export const marketingGenerationDraftInputSchema = z
 	.object({
-		productKey: z.enum(["image-fast", "image-quality"]),
+		productKey: z.enum(EZPIC_PRODUCT_KEYS),
 		input: z
 			.object({
 				kind: z.literal("image-to-image"),
 				prompt: promptSchema,
+				skuKey: imageSkuKeySchema,
+				aspectRatio: imageAspectRatioSchema,
+				outputFormat: imageOutputFormatSchema.optional(),
+				background: imageBackgroundSchema.optional(),
 			})
 			.strict(),
 		upload: draftUploadSchema,
 	})
-	.strict();
+	.strict()
+	.superRefine((value, context) => {
+		if (isValidImageSelection(value.productKey, value.input)) return;
+		context.addIssue({
+			code: "custom",
+			message: "Invalid image SKU selection",
+			path: ["input", "skuKey"],
+		});
+	});
 
 export const createGenerationDraft = publicProcedure
 	.route({ method: "POST", path: "/media/drafts", tags: ["Media"] })
@@ -55,6 +75,10 @@ export const createGenerationDraft = publicProcedure
 
 		const token = createDraftClaimToken();
 		const assetId = `asset_${randomUUID().replaceAll("-", "")}`;
+		quoteCatalogInput({
+			productKey: input.productKey,
+			input: { ...input.input, sourceAssetId: assetId },
+		});
 		const objectKey = createAssetObjectKey(
 			`draft_${randomUUID().replaceAll("-", "")}`,
 			assetId,

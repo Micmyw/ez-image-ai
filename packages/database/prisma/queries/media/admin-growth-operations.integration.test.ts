@@ -6,9 +6,14 @@ import { PrismaClient } from "../../generated/client";
 
 type GrowthOperationsQuery = (
 	input: {
-		productKey?: "image-fast" | "image-quality";
-		provider?: string;
-		model?: string;
+		productKey?: "image-nano-banana-2-lite" | "image-gpt-image-2" | "image-seedream-5-pro";
+		skuKey?:
+			| "nano-banana-2-lite-1k"
+			| "gpt-image-2-1k"
+			| "gpt-image-2-2k"
+			| "gpt-image-2-4k"
+			| "seedream-5-pro-basic-1k"
+			| "seedream-5-pro-high-2k";
 		status?:
 			| "RESERVED"
 			| "DISPATCH_QUEUED"
@@ -25,32 +30,37 @@ type GrowthOperationsQuery = (
 		generationEnabled: boolean;
 	},
 	client: PrismaClient,
+	productDefinitions: readonly mediaQueries.AdminSafeImageProductDefinition[],
 ) => Promise<{
-	generatedAt: string;
 	summary: {
 		jobs: number;
 		succeeded: number;
 		failed: number;
 		successRate: number | null;
 		latencyMs: { p50: number | null; p95: number | null };
-		averageProviderCostMicros: string | null;
 		moderationRejectionRate: number | null;
 		repeatEditRate: number | null;
 	};
 	credits: { reserved: string; charged: string; released: string };
 	failureCodes: Array<{ code: string; count: number }>;
-	routes: Array<{
-		productKey: "image-fast" | "image-quality";
-		provider: string;
-		model: string;
+	skuBreakdown: Array<{
+		productKey: "image-nano-banana-2-lite" | "image-gpt-image-2" | "image-seedream-5-pro";
+		skuKey:
+			| "nano-banana-2-lite-1k"
+			| "gpt-image-2-1k"
+			| "gpt-image-2-2k"
+			| "gpt-image-2-4k"
+			| "seedream-5-pro-basic-1k"
+			| "seedream-5-pro-high-2k"
+			| null;
 		status: string;
 		jobs: number;
 	}>;
 	controls: {
 		generationEnabled: boolean;
 		products: Array<{
-			productKey: "image-fast" | "image-quality";
-			publicName: "Standard Edit" | "Quality Edit";
+			productKey: "image-nano-banana-2-lite" | "image-gpt-image-2" | "image-seedream-5-pro";
+			publicName: "Nano Banana 2 Lite" | "GPT Image 2" | "Seedream 5 Pro";
 			enabled: boolean;
 		}>;
 	};
@@ -59,6 +69,39 @@ type GrowthOperationsQuery = (
 const getAdminGrowthOperations = (
 	mediaQueries as typeof mediaQueries & { getAdminGrowthOperations?: GrowthOperationsQuery }
 ).getAdminGrowthOperations;
+
+const ADMIN_TEST_IMAGE_PRODUCTS = [
+	{
+		productKey: "image-nano-banana-2-lite" as const,
+		publicName: "Nano Banana 2 Lite",
+		skuCells: [
+			{
+				skuKey: "nano-banana-2-lite-1k" as const,
+				aspectRatios: ["auto", "16:9"] as const,
+			},
+		],
+	},
+	{
+		productKey: "image-gpt-image-2" as const,
+		publicName: "GPT Image 2",
+		skuCells: [
+			{
+				skuKey: "gpt-image-2-4k" as const,
+				aspectRatios: ["4:5"] as const,
+			},
+		],
+	},
+	{
+		productKey: "image-seedream-5-pro" as const,
+		publicName: "Seedream 5 Pro",
+		skuCells: [
+			{
+				skuKey: "seedream-5-pro-high-2k" as const,
+				aspectRatios: ["1:1"] as const,
+			},
+		],
+	},
+] as const;
 
 const approvedGrowthTestDatabases = new Set([
 	"ezpic_pr7_growth_operations_test",
@@ -115,11 +158,15 @@ describe("admin growth operations aggregate query", () => {
 		}
 	});
 
-	it("aggregates success, latency, cost, moderation, credits, repeat edits, and controls", async () => {
+	it("aggregates success, latency, moderation, credits, SKU usage, repeat edits, and controls", async () => {
 		expect(getAdminGrowthOperations).toBeTypeOf("function");
 		if (!getAdminGrowthOperations || !client) return;
 
-		const result = await getAdminGrowthOperations({ from, to, generationEnabled: true }, client);
+		const result = await getAdminGrowthOperations(
+			{ from, to, generationEnabled: true },
+			client,
+			ADMIN_TEST_IMAGE_PRODUCTS,
+		);
 
 		expect(result.summary).toEqual({
 			jobs: 4,
@@ -127,43 +174,56 @@ describe("admin growth operations aggregate query", () => {
 			failed: 1,
 			successRate: 0.6667,
 			latencyMs: { p50: 5_000, p95: 7_700 },
-			averageProviderCostMicros: "166667",
 			moderationRejectionRate: 0.3333,
 			repeatEditRate: 0.5,
 		});
-		expect(result.credits).toEqual({ reserved: "60", charged: "30", released: "20" });
+		expect(result.credits).toEqual({ reserved: "42", charged: "22", released: "15" });
 		expect(result.failureCodes).toEqual([{ code: "PROVIDER_FAILED", count: 1 }]);
 		expect(result.controls).toEqual({
 			generationEnabled: true,
 			products: [
-				{ productKey: "image-fast", publicName: "Standard Edit", enabled: true },
-				{ productKey: "image-quality", publicName: "Quality Edit", enabled: false },
+				{
+					productKey: "image-nano-banana-2-lite",
+					publicName: "Nano Banana 2 Lite",
+					enabled: true,
+				},
+				{
+					productKey: "image-gpt-image-2",
+					publicName: "GPT Image 2",
+					enabled: false,
+				},
+				{
+					productKey: "image-seedream-5-pro",
+					publicName: "Seedream 5 Pro",
+					enabled: true,
+				},
 			],
 		});
-		expect(result.routes).toEqual(
+		expect(result.skuBreakdown).toEqual(
 			expect.arrayContaining([
 				expect.objectContaining({
-					productKey: "image-fast",
-					provider: "fal",
-					model: "model-standard",
+					productKey: "image-nano-banana-2-lite",
+					skuKey: "nano-banana-2-lite-1k",
 					status: "SUCCEEDED",
 					jobs: 1,
 				}),
 				expect.objectContaining({
-					productKey: "image-quality",
-					provider: "fal",
-					model: "model-quality",
+					productKey: "image-seedream-5-pro",
+					skuKey: "seedream-5-pro-high-2k",
 					status: "FAILED",
 					jobs: 1,
 				}),
 			]),
 		);
+		expect(Object.keys(result).sort()).toEqual(
+			["summary", "credits", "failureCodes", "skuBreakdown", "controls"].sort(),
+		);
 		expect(JSON.stringify(result)).not.toMatch(
-			/prompt|objectKey|signedUrl|sourceUrl|providerTaskId|requestSnapshot|responseSnapshot|rawEnvelope|ownerId|jobId/i,
+			/prompt|objectKey|signedUrl|sourceUrl|"provider"|providerModelId|providerCostMicros|requestSnapshot|responseSnapshot|rawEnvelope|ownerId|jobId/i,
 		);
 	});
 
-	it("applies product, provider, model, status, and date filters to the same aggregate boundary", async () => {
+	it("applies product, SKU, status, and date filters to the same aggregate boundary", async () => {
 		expect(getAdminGrowthOperations).toBeTypeOf("function");
 		if (!getAdminGrowthOperations || !client) return;
 
@@ -172,12 +232,12 @@ describe("admin growth operations aggregate query", () => {
 				from,
 				to,
 				generationEnabled: true,
-				productKey: "image-quality",
-				provider: "fal",
-				model: "model-quality",
+				productKey: "image-seedream-5-pro",
+				skuKey: "seedream-5-pro-high-2k",
 				status: "FAILED",
 			},
 			client,
+			ADMIN_TEST_IMAGE_PRODUCTS,
 		);
 
 		expect(result.summary).toMatchObject({
@@ -185,18 +245,35 @@ describe("admin growth operations aggregate query", () => {
 			succeeded: 0,
 			failed: 1,
 			successRate: 0,
-			averageProviderCostMicros: "100000",
 		});
 		expect(result.failureCodes).toEqual([{ code: "PROVIDER_FAILED", count: 1 }]);
-		expect(result.routes).toEqual([
+		expect(result.skuBreakdown).toEqual([
 			{
-				productKey: "image-quality",
-				provider: "fal",
-				model: "model-quality",
+				productKey: "image-seedream-5-pro",
+				skuKey: "seedream-5-pro-high-2k",
 				status: "FAILED",
 				jobs: 1,
 			},
 		]);
+	});
+
+	it("rejects a SKU paired with a different product before querying", async () => {
+		expect(getAdminGrowthOperations).toBeTypeOf("function");
+		if (!getAdminGrowthOperations || !client) return;
+
+		await expect(
+			getAdminGrowthOperations(
+				{
+					from,
+					to,
+					generationEnabled: true,
+					productKey: "image-gpt-image-2",
+					skuKey: "seedream-5-pro-high-2k",
+				},
+				client,
+				ADMIN_TEST_IMAGE_PRODUCTS,
+			),
+		).rejects.toThrow("skuKey is not valid for productKey");
 	});
 
 	it("coalesces a non-code failure value without returning its raw text", async () => {
@@ -209,7 +286,11 @@ describe("admin growth operations aggregate query", () => {
 		});
 
 		try {
-			const result = await getAdminGrowthOperations({ from, to, generationEnabled: true }, client);
+			const result = await getAdminGrowthOperations(
+				{ from, to, generationEnabled: true },
+				client,
+				ADMIN_TEST_IMAGE_PRODUCTS,
+			);
 
 			expect(result.failureCodes).toContainEqual({ code: "UNCLASSIFIED_FAILURE", count: 1 });
 			expect(JSON.stringify(result)).not.toContain(unsafeFailure);
@@ -222,6 +303,32 @@ describe("admin growth operations aggregate query", () => {
 	});
 
 	async function seedFixtures(database: PrismaClient) {
+		const fixtureSelections = [
+			{
+				productKey: "image-nano-banana-2-lite",
+				skuKey: "nano-banana-2-lite-1k",
+				aspectRatio: "auto",
+				credits: 5n,
+			},
+			{
+				productKey: "image-gpt-image-2",
+				skuKey: "gpt-image-2-4k",
+				aspectRatio: "4:5",
+				credits: 17n,
+			},
+			{
+				productKey: "image-seedream-5-pro",
+				skuKey: "seedream-5-pro-high-2k",
+				aspectRatio: "1:1",
+				credits: 15n,
+			},
+			{
+				productKey: "image-nano-banana-2-lite",
+				skuKey: "nano-banana-2-lite-1k",
+				aspectRatio: "16:9",
+				credits: 5n,
+			},
+		] as const;
 		await database.creditAccount.create({
 			data: {
 				id: accountId,
@@ -238,18 +345,23 @@ describe("admin growth operations aggregate query", () => {
 			],
 		});
 		for (const [index, quoteId] of quoteIds.entries()) {
+			const selection = fixtureSelections[index]!;
 			await database.generationQuote.create({
 				data: {
 					id: quoteId,
 					ownerType: "USER",
 					ownerId,
 					submittedByUserId: ownerId,
-					productKey: index === 0 || index === 3 ? "image-fast" : "image-quality",
+					productKey: selection.productKey,
 					catalogVersion: "2099-01-01",
 					pricingVersion: "2099-01-01",
-					credits: index === 0 || index === 3 ? 10n : 20n,
+					credits: selection.credits,
 					costMicros: 0n,
-					inputSnapshot: { prompt: `private-${suffix}-${index}` },
+					inputSnapshot: {
+						prompt: `private-${suffix}-${index}`,
+						skuKey: selection.skuKey,
+						aspectRatio: selection.aspectRatio,
+					},
 					pricingSnapshot: { internal: true },
 					moderationDecision: "ALLOW",
 					moderationProvider: "test",
@@ -263,6 +375,7 @@ describe("admin growth operations aggregate query", () => {
 		}
 		const statuses = ["SUCCEEDED", "SUCCEEDED", "FAILED", "PROVIDER_RUNNING"] as const;
 		for (const [index, jobId] of jobIds.entries()) {
+			const selection = fixtureSelections[index]!;
 			const createdAt = new Date(`2099-01-0${index + 2}T10:00:00.000Z`);
 			await database.generationJob.create({
 				data: {
@@ -272,11 +385,15 @@ describe("admin growth operations aggregate query", () => {
 					submittedByUserId: ownerId,
 					quoteId: quoteIds[index]!,
 					idempotencyKey: `growth-job-${suffix}-${index}`,
-					productKey: index === 0 || index === 3 ? "image-fast" : "image-quality",
+					productKey: selection.productKey,
 					catalogVersion: "2099-01-01",
 					pricingVersion: "2099-01-01",
-					creditsReserved: index === 0 || index === 3 ? 10n : 20n,
-					inputSnapshot: { privatePrompt: `must-not-return-${index}` },
+					creditsReserved: selection.credits,
+					inputSnapshot: {
+						privatePrompt: `must-not-return-${index}`,
+						skuKey: selection.skuKey,
+						aspectRatio: selection.aspectRatio,
+					},
 					pricingSnapshot: { internalCost: 999 },
 					status: statuses[index]!,
 					failureCode: index === 2 ? "PROVIDER_FAILED" : null,
@@ -301,6 +418,7 @@ describe("admin growth operations aggregate query", () => {
 			{ provider: "fal", model: "model-standard", status: "RUNNING", cost: null, ms: null },
 		] as const;
 		for (const [index, attempt] of attemptData.entries()) {
+			const selection = fixtureSelections[index]!;
 			const submittedAt = new Date(`2099-01-0${index + 2}T10:00:01.000Z`);
 			await database.generationAttempt.create({
 				data: {
@@ -324,9 +442,9 @@ describe("admin growth operations aggregate query", () => {
 					id: `growth-reservation-${index}-${suffix}`,
 					accountId,
 					jobId: jobIds[index]!,
-					amount: index === 0 || index === 3 ? 10n : 20n,
-					settledAmount: index < 2 ? (index === 0 ? 10n : 20n) : 0n,
-					releasedAmount: index === 2 ? 20n : 0n,
+					amount: selection.credits,
+					settledAmount: index < 2 ? selection.credits : 0n,
+					releasedAmount: index === 2 ? selection.credits : 0n,
 					status: index < 2 ? "SETTLED" : index === 2 ? "RELEASED" : "ACTIVE",
 					createdAt: submittedAt,
 				},
@@ -377,7 +495,7 @@ describe("admin growth operations aggregate query", () => {
 		await database.runtimeConfigOverride.create({
 			data: {
 				id: `growth-override-${suffix}`,
-				configKey: "media.model.image-quality.enabled",
+				configKey: "media.model.image-gpt-image-2.enabled",
 				version: 2_000_000_000,
 				value: false,
 				active: true,

@@ -4,21 +4,21 @@ on:
   workflow_dispatch:
     inputs:
       route_allowlist:
-        description: Current OpenRouter image-edit tier:provider routes, comma separated
+        description: Current Kie image product:SKU:provider routes, comma separated
         required: true
-        default: image-fast:openrouter,image-quality:openrouter
-      enabled_tiers:
-        description: Enabled catalog tiers, comma separated
+        default: image-nano-banana-2-lite:nano-banana-2-lite-1k:kie,image-nano-banana:nano-banana-default:kie,image-nano-banana-2:nano-banana-2-1k:kie,image-nano-banana-2:nano-banana-2-2k:kie,image-nano-banana-2:nano-banana-2-4k:kie,image-nano-banana-pro:nano-banana-pro-1k:kie,image-nano-banana-pro:nano-banana-pro-2k:kie,image-nano-banana-pro:nano-banana-pro-4k:kie,image-gpt-image-1-5:gpt-image-1-5-medium:kie,image-gpt-image-1-5:gpt-image-1-5-high:kie,image-gpt-image-2:gpt-image-2-1k:kie,image-gpt-image-2:gpt-image-2-2k:kie,image-gpt-image-2:gpt-image-2-4k:kie,image-seedream-4-5:seedream-4-5-basic-2k:kie,image-seedream-4-5:seedream-4-5-high-4k:kie,image-seedream-5-lite:seedream-5-lite-basic-2k:kie,image-seedream-5-lite:seedream-5-lite-high-3k:kie,image-seedream-5-lite:seedream-5-lite-ultra-4k:kie,image-seedream-5-pro:seedream-5-pro-basic-1k:kie,image-seedream-5-pro:seedream-5-pro-high-2k:kie
+      enabled_skus:
+        description: Enabled image SKUs, comma separated
         required: true
-        default: image-fast,image-quality
+        default: nano-banana-2-lite-1k,nano-banana-default,nano-banana-2-1k,nano-banana-2-2k,nano-banana-2-4k,nano-banana-pro-1k,nano-banana-pro-2k,nano-banana-pro-4k,gpt-image-1-5-medium,gpt-image-1-5-high,gpt-image-2-1k,gpt-image-2-2k,gpt-image-2-4k,seedream-4-5-basic-2k,seedream-4-5-high-4k,seedream-5-lite-basic-2k,seedream-5-lite-high-3k,seedream-5-lite-ultra-4k,seedream-5-pro-basic-1k,seedream-5-pro-high-2k
       max_invocations:
         description: Hard maximum provider submissions
         required: true
-        default: "2"
+        default: "20"
       max_expected_cost_micros:
         description: Hard maximum expected cost in USD micros
         required: true
-        default: "203000"
+        default: "1072500"
   schedule:
     - cron: "17 6 * * 1"
 
@@ -36,7 +36,7 @@ jobs:
     environment: provider-smoke
     env:
       PROVIDER_SMOKE_ALLOWLIST: ${{ github.event.inputs.route_allowlist || vars.PROVIDER_SMOKE_SCHEDULE_ALLOWLIST }}
-      PROVIDER_SMOKE_ENABLED_TIERS: ${{ github.event.inputs.enabled_tiers || vars.PROVIDER_SMOKE_SCHEDULE_ENABLED_TIERS }}
+      PROVIDER_SMOKE_ENABLED_SKUS: ${{ github.event.inputs.enabled_skus || vars.PROVIDER_SMOKE_SCHEDULE_ENABLED_SKUS }}
       PROVIDER_SMOKE_MAX_INVOCATIONS: ${{ github.event.inputs.max_invocations || vars.PROVIDER_SMOKE_SCHEDULE_MAX_INVOCATIONS }}
       PROVIDER_SMOKE_MAX_EXPECTED_COST_MICROS: ${{ github.event.inputs.max_expected_cost_micros || vars.PROVIDER_SMOKE_SCHEDULE_MAX_EXPECTED_COST_MICROS }}
       PROVIDER_SMOKE_PROMPT: Preserve the subject and change the background to blue
@@ -49,5 +49,5 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      - name: Validate OpenRouter image smoke configuration
+      - name: Validate Kie image SKU smoke configuration
         run: pnpm provider:smoke

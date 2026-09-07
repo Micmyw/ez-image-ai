@@ -5,13 +5,13 @@ export const termsDocuments = [
 		title: "Terms of Service",
 		description:
 			"Terms for EzPic accounts, image-editing workflows, credits, subscriptions, content, and acceptable use.",
-		body: `_Last updated: September 5, 2026_
+		body: `_Last updated: September 7, 2026_
 
 These terms govern use of EzPic's public image editor and account-based image-editing service. A production operator identity, governing law, and jurisdiction-specific notices must be supplied before deployment where required. By using the service, you agree to the version presented when you use it.
 
 ## Accounts and the editing workflow
 
-You may prepare a short-lived draft from the public page without an account. When the anonymous Standard trial is enabled, continuing can create a temporary anonymous user and session for one sponsored, private, watermarked result. The trial does not create a subscription or payment charge. Quality Edit, saved history, assets, paid plans, and other account features require the access shown by the product.
+You may prepare a short-lived draft from the public page without an account. When the sponsored Nano Banana 2 Lite 1K guest trial is enabled, continuing can create a temporary anonymous user and session for one private, watermarked result. The trial does not create a subscription or payment charge. Other image products, saved history, assets, paid plans, and other account features require the access shown by the product.
 
 Outside an available anonymous trial, real generation requires an account, an owned source image, a current server quote, sufficient credits, and explicit confirmation. Keep account credentials secure and provide accurate account and billing information.
 
@@ -19,7 +19,7 @@ Outside an available anonymous trial, real generation requires an account, an ow
 
 EzPic shows the credit cost before an account-based edit is confirmed. Credits are reserved when a generation job is created, charged according to the completed job state, and released when the ledger rules require release. Credits are a product usage unit, not cash, stored value, or a transferable financial instrument.
 
-Free, Creator, and Studio entitlements and current subscription prices are shown on the Pricing page. A paid checkout is available only when the corresponding payment configuration is active. Recurring subscriptions continue for their stated interval until canceled. Cancellation and plan-management controls are available from the billing area, subject to applicable processing periods.
+Free, Pro, Ultimate, and Max entitlements and current subscription prices are shown on the Pricing page. A paid checkout is available only when the corresponding payment configuration is active. Recurring subscriptions continue for their stated interval until canceled. Cancellation and plan-management controls are available from the billing area, subject to applicable processing periods.
 
 Refund eligibility depends on the applicable payment terms, transaction state, and governing law. Contact support with the relevant billing details for review. EzPic does not promise a refund where one is not required or authorized.
 

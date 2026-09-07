@@ -20,44 +20,72 @@ Production deployments must provide their real origins and support address. Repo
 use local development URLs or reserved invalid placeholders; no production domain or legal entity
 is embedded in the product code.
 
-## Public and internal product keys
+## Public products, one wallet, and legal SKUs
 
-The internal catalog retains all four stable foundation keys so historical jobs and lower-level
-Provider/worker code remain compatible. EzPic's public configuration and catalog expose only the
-two image-editing products:
+EzPic exposes nine image-edit products backed by one `EzPic Credit` balance. Credit use is selected
+by the exact legal SKU, not by a universal per-image rate:
 
-| Internal key    | Public label  | Media kind | Accepted input   | Credits |
-| --------------- | ------------- | ---------- | ---------------- | ------: |
-| `image-fast`    | Standard Edit | image      | `image-to-image` |       5 |
-| `image-quality` | Quality Edit  | image      | `image-to-image` |      40 |
+| Public product key         | Legal SKU                  | Parameters | EzPic Credits |
+| -------------------------- | -------------------------- | ---------- | ------------: |
+| `image-nano-banana-2-lite` | `nano-banana-2-lite-1k`    | 1K         |             5 |
+| `image-nano-banana`        | `nano-banana-default`      | Default    |             5 |
+| `image-nano-banana-2`      | `nano-banana-2-1k`         | 1K         |             9 |
+| `image-nano-banana-2`      | `nano-banana-2-2k`         | 2K         |            13 |
+| `image-nano-banana-2`      | `nano-banana-2-4k`         | 4K         |            19 |
+| `image-nano-banana-pro`    | `nano-banana-pro-1k`       | 1K         |            19 |
+| `image-nano-banana-pro`    | `nano-banana-pro-2k`       | 2K         |            19 |
+| `image-nano-banana-pro`    | `nano-banana-pro-4k`       | 4K         |            25 |
+| `image-gpt-image-1-5`      | `gpt-image-1-5-medium`     | Medium     |             5 |
+| `image-gpt-image-1-5`      | `gpt-image-1-5-high`       | High       |            23 |
+| `image-gpt-image-2`        | `gpt-image-2-1k`           | 1K         |             7 |
+| `image-gpt-image-2`        | `gpt-image-2-2k`           | 2K         |            11 |
+| `image-gpt-image-2`        | `gpt-image-2-4k`           | 4K         |            17 |
+| `image-seedream-4-5`       | `seedream-4-5-basic-2k`    | Basic, 2K  |             8 |
+| `image-seedream-4-5`       | `seedream-4-5-high-4k`     | High, 4K   |             8 |
+| `image-seedream-5-lite`    | `seedream-5-lite-basic-2k` | Basic, 2K  |             7 |
+| `image-seedream-5-lite`    | `seedream-5-lite-high-3k`  | High, 3K   |             7 |
+| `image-seedream-5-lite`    | `seedream-5-lite-ultra-4k` | Ultra, 4K  |             7 |
+| `image-seedream-5-pro`     | `seedream-5-pro-basic-1k`  | Basic, 1K  |             8 |
+| `image-seedream-5-pro`     | `seedream-5-pro-high-2k`   | High, 2K   |            15 |
 
-Both products require a private source asset ID and a prompt. `text-to-image` is rejected during
-server-side quoting. Public catalog responses contain fields needed to render the editor, but never
-Provider names, model IDs, credentials, route costs, or raw Provider payloads.
+Every row accepts `image-to-image`, requires an owned private source asset and prompt, and produces
+one image. GPT Image 2 1K is a supported seven-credit SKU. `text-to-image`, multi-output quantity, a
+SKU from another product, and an unsupported product/SKU/aspect-ratio combination are rejected
+during server-side quoting.
 
-The unified SaaS runtime selects each public label and credit amount from that canonical media
-catalog and passes only those two display fields to the client form. Locale messages supply a
-value-only credit template; they do not own product labels or credit amounts.
+Each product owns an independent rectangular parameter matrix. Fixed, resolution-only, and
+quality-plus-resolution products do not share a global option table. Their aspect-ratio lists also
+remain independent. The client renders only the legal cells returned for the selected public
+product instead of constructing combinations from shared quality or resolution arrays. Supported
+output format and background controls are non-billable product-local request options; they do not
+create SKU cells or alter the quoted EzPic Credit amount.
 
-`video-fast` and `video-quality` remain internal catalog entries. They are excluded from
-`DEFAULT_PRODUCT_CONFIG.productKeys`, public catalog responses, plans, navigation, and EzPic user
-interfaces. Their existing Provider, worker, storage, moderation, job, and historical-data paths are
-not removed or replaced.
+Public catalog responses contain product labels, SKU labels, legal parameter cells, aspect ratios,
+and EzPic Credit amounts needed by the editor. They never contain Kie identity, raw model IDs,
+credentials, route costs, routing weights, or raw Provider payloads. The quote freezes the selected
+SKU, credits, server-only cost, catalog/pricing version, and route graph before reservation.
 
-New image quotes use only the server-side OpenRouter Riverflow fast/pro candidate routes. Historical
-Provider adapters and dispatch metadata remain private compatibility paths for already-frozen work;
-they are not selectable by the browser and are not candidates for new image quotes.
+`image-fast` and `image-quality` are legacy EzPic keys retained only to interpret historical records
+and recover already-accepted attempts. A new retry is migrated to a legal Kie product/SKU instead of
+submitting the legacy route again. The legacy keys are absent from the public product configuration,
+plans, and new quote candidates. OpenRouter is not used for new image submissions; its adapter may
+remain worker-only to retrieve or reconcile historical attempts.
 
-Catalog contract version: `2026-09-05.2`. Subscription pricing contract version:
-`2026-09-05.1`. Credit Pack catalog, pricing, and subscriber-eligibility contract version:
-`2026-09-06.1`.
+`video-fast` and `video-quality` remain internal catalog entries and stay outside EzPic public
+configuration, plans, navigation, SEO, and UI.
+
+Image catalog and pricing contract version: `2026-09-07.2`. Credit Pack catalog, pricing, and
+subscriber-eligibility contract version: `2026-09-06.1`.
 
 ## Public homepage and anonymous trial boundary
 
 The SaaS `/` route is an upload-first image editor, not a redirect to login. A visitor chooses one
 JPEG, PNG, or WebP source image within the server-advertised limit, enters a prompt, and starts the
-metered guest Standard Edit. Prompt suggestions only populate the prompt field. Quality Edit,
-history, assets, subscriptions, and account settings remain authenticated enhancements.
+sponsored Nano Banana 2 Lite 1K trial. That guest path is fixed to product
+`image-nano-banana-2-lite`, SKU `nano-banana-2-lite-1k`, one output, and five sponsored EzPic
+Credits; it cannot select any of the other eight image products. Prompt suggestions only populate
+the prompt field. The complete nine-product matrix, history, assets, subscriptions, and account
+settings remain authenticated enhancements.
 
 The browser obtains the guest capability and uses relative same-origin `/api` endpoints to create a
 bounded upload intent, PUT bytes directly to private signed storage, and complete the draft. Image
@@ -72,23 +100,27 @@ expiry, and optional account linking.
 
 ## Authenticated editor and one-edit lifecycle
 
-The authenticated `/create` workspace accepts only `image-fast` and `image-quality` image edits.
-Its source asset must belong to the signed-in user, be an undeleted READY image, and remain readable
-under current moderation evidence. The prompt is required and limited to the same 10,000-character
-boundary in the client form and server input schema.
+The authenticated `/create` workspace accepts the nine public image product keys and only their 20
+legal SKU cells. Its source asset must belong to the signed-in user, be an undeleted READY
+image, and remain readable under current moderation evidence. The prompt is required and limited to
+the same 10,000-character boundary in the client form and server input schema.
 
-Review creates only the existing server-owned `GenerationQuote` and shows its mode, credit amount,
-and expiry. Changing the source, prompt, or mode invalidates that quote. Confirm then uses a stable
-per-quote idempotency key and the existing transaction to bind the frozen input snapshot, reserve
-credits, create the job, and write its initial Outbox event. Clients never submit Provider/model
-routes, prices, credit amounts, signed URLs, or arbitrary remote inputs.
+Review creates only the existing server-owned `GenerationQuote` and shows the product, SKU
+parameters, EzPic Credit amount, and expiry. Changing the source, prompt, model, resolution, quality,
+or aspect ratio invalidates that quote. Confirm then uses a stable per-quote idempotency key and the
+existing transaction to bind the frozen input snapshot, reserve credits, create the job, and write
+its initial Outbox event. Clients never submit Provider/model routes, prices, credit amounts, signed
+URLs, or arbitrary remote inputs.
 
-Claimed drafts, `reuseJob`, and asset reuse restore the source image, prompt, and edit mode. When the
-current plan does not permit Quality Edit, recovery preserves the image, prompt, Quality selection,
-and eligible edit-session context, then opens the upgrade path. It never silently downgrades or
-submits Standard Edit. The API independently rejects the unavailable product even if a client
-bypasses the interface. Expired, missing, cross-owner, deleted, and otherwise invalid recovery
-inputs show an explicit error without creating a quote, job, or reservation.
+Claimed drafts, `reuseJob`, and asset reuse restore the source image, prompt, product, SKU, aspect
+ratio, and eligible edit-session context. A legacy `image-fast` retry is normalized to Nano Banana 2
+Lite 1K with `auto`; a legacy `image-quality` retry is normalized to GPT Image 2 2K with `1:1`.
+Other stale or mismatched draft cells are normalized only to a legal server-defined matrix cell and
+never turned into an arbitrary Provider request. When the current plan does not permit the restored
+product, recovery preserves the edit context and opens the upgrade path rather than silently
+downgrading. The API independently rejects unavailable products. Expired, missing, cross-owner,
+deleted, and otherwise invalid inputs show an explicit error without creating a quote, job, or
+reservation.
 
 Job state is recoverable from the URL after refresh. The result panel reports safe progress and
 reserved/charged/released credit summaries, delegates cancellation eligibility to the server state
@@ -118,11 +150,11 @@ sessions or backfilled.
 operations always scope by `ownerType=USER` and the current user ID; cross-owner session, job, or
 asset references use a generic not-found/forbidden response without confirming whether the target
 exists. Session listing uses a stable `(updatedAt, id)` cursor. The timeline exposes only the real
-prompt, Standard Edit or Quality Edit label, credits, status, timestamps, and owner-authorized
-private thumbnail. It does not expose Provider/model/cost data, object keys, signed URLs, or raw
-snapshots. Failed versions remain for audit but cannot be edited again. A deleted output remains in
-the timeline as `Asset deleted`; deleting it does not cascade into jobs, quotes, the ledger, or the
-session.
+prompt, stable public product label, SKU/parameter label, EzPic Credits, status, timestamps, and
+owner-authorized private thumbnail. It does not expose Provider/model/cost data, object keys,
+signed URLs, or raw snapshots. Failed versions remain for audit but cannot be edited again. A
+deleted output remains in the timeline as `Asset deleted`; deleting it does not cascade into jobs,
+quotes, the ledger, or the session.
 
 **Edit Again** accepts only a SUCCEEDED image-edit job in the current user's session whose exact
 OUTPUT binding is undeleted, READY, image MIME, and covered by the latest approved moderation
@@ -152,12 +184,12 @@ PR 6 introduced the public package contract below. `PLAN_ENTITLEMENTS` supplies 
 pricing surfaces and every runtime authorization path; payment-provider configuration derives its
 monetary prices from the same entries rather than repeating entitlement numbers.
 
-| Public plan (internal key) | Monthly credits | Concurrent edits | Allowed products                                      | Max image input | Price                |
-| -------------------------- | --------------: | ---------------: | ----------------------------------------------------- | --------------: | -------------------- |
-| Free (`free`, internal)    |              25 |                1 | Standard Edit (`image-fast`)                          |           10 MB | $0                   |
-| Pro (`creator`)            |             700 |                3 | Standard (`image-fast`) and Quality (`image-quality`) |           20 MB | $19/month, $190/year |
-| Ultimate (`ultimate`)      |           1,800 |                6 | Standard (`image-fast`) and Quality (`image-quality`) |           20 MB | $49/month, $490/year |
-| Max (`studio`)             |           3,000 |               10 | Standard (`image-fast`) and Quality (`image-quality`) |           20 MB | $79/month, $790/year |
+| Public plan (internal key) | Monthly credits | Concurrent edits | Allowed products            | Max image input | Price                |
+| -------------------------- | --------------: | ---------------: | --------------------------- | --------------: | -------------------- |
+| Free (`free`, internal)    |              25 |                1 | Nano Banana 2 Lite          |           10 MB | $0                   |
+| Pro (`creator`)            |             700 |                3 | All 9 public image products |           20 MB | $19/month, $190/year |
+| Ultimate (`ultimate`)      |           1,800 |                6 | All 9 public image products |           20 MB | $49/month, $490/year |
+| Max (`studio`)             |           3,000 |               10 | All 9 public image products |           20 MB | $79/month, $790/year |
 
 Monthly credits are granted once per internal monthly credit period. Annual billing changes only
 the payment cadence: Pro, Ultimate, and Max receive 700, 1,800, and 3,000 credits per month rather
@@ -223,10 +255,10 @@ mutate the Credit Ledger, Purchase, Fulfillment, or adjustment records. Waffo pr
 Credit Pack refunds remain `NOT_COMPLETED` pending real sandbox payload fields and authenticated,
 idempotent lifecycle certification. A Credit Pack never changes the active subscription.
 
-The monetary amounts above are configuration, not a production margin certification. Published
-Provider prices support the current assumptions, but no real billed Provider execution has
-certified Standard or Quality routes. The calculation method, evidence status, production
-prerequisites, and rollback are recorded in
+The monetary amounts above are configuration, not a production margin certification. Reviewed Kie
+public prices support the current planning inputs, but no real paid execution has certified any of
+the 20 SKU cells. The calculation method, evidence status, production prerequisites, and rollback are
+recorded in
 [`ezpic-pricing-and-margin.md`](./ezpic-pricing-and-margin.md).
 
 ## Navigation and indexing
@@ -251,9 +283,9 @@ paths; display language continues to come from the locale cookie.
   asynchronous job path.
 - Client and public catalog contracts cannot select or inspect Providers, model IDs, credentials,
   route costs, signed URLs, or arbitrary remote URLs.
-- This pricing revision changes the canonical edit costs and monthly credit allowances while
-  preserving the configured monetary prices. It does not claim live Provider quality, billed cost,
-  generation verification, or production BillingPlan synchronization.
+- This pricing revision changes the canonical product/SKU matrix and per-SKU edit costs while
+  preserving the configured plan monetary prices and allowances. It does not claim live Kie
+  quality, billed cost, generation verification, or production `BillingPlan` synchronization.
 
 ## Migration and rollback
 
@@ -276,7 +308,7 @@ that would discard version history. No ledger rewrite is part of rollout or roll
 The original PR 1 scope did not include the homepage editor; PR 3 adds the anonymous draft and
 original illustrative Before/After experience described above, PR 4 adds the authenticated
 single-edit lifecycle, and PR 5 adds private branchable edit sessions. The current product includes
-the controlled guest Standard trial described above, but still excludes collaboration, comments,
-public sharing, layers/canvas, masks, batch editing, a public generation API, verified Provider
+the controlled guest Nano Banana 2 Lite 1K trial described above, but still excludes collaboration,
+comments, public sharing, layers/canvas, masks, batch editing, a public generation API, verified Provider
 quality claims, Stripe repricing, public gallery/community features, and any second job, credit,
 Provider, or storage system.

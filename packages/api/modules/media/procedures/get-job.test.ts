@@ -30,17 +30,21 @@ const baseJob = {
 	id: "job-1",
 	status: "SUCCEEDED",
 	version: 3,
-	creditsReserved: 4n,
-	productKey: "image-fast",
+	creditsReserved: 17n,
+	productKey: "image-gpt-image-2",
 	inputSnapshot: {
 		kind: "image-to-image",
 		prompt: "Private prompt",
 		sourceAssetId: "asset-input",
+		skuKey: "gpt-image-2-4k",
+		aspectRatio: "4:5",
+		providerModelId: "must-not-leak",
+		providerCostMicros: 80_000,
 	},
 	failureCode: null,
 	createdAt: new Date("2026-08-25T00:00:00.000Z"),
 	updatedAt: new Date("2026-08-25T00:01:00.000Z"),
-	reservation: { settledAmount: 4n, releasedAmount: 0n },
+	reservation: { settledAmount: 17n, releasedAmount: 0n },
 	_count: { attempts: 0 },
 	attempts: [{ progress: 100, status: "SUCCEEDED", uncertainSubmission: false }],
 	assets: [
@@ -65,7 +69,19 @@ describe("getJob", () => {
 
 		expect(result.inputAssets.map(({ id }) => id)).toEqual(["asset-input"]);
 		expect(result.assets.map(({ id }) => id)).toEqual(["asset-output"]);
-		expect(result).toMatchObject({ canCancel: false, failureReason: null });
+		expect(result).toMatchObject({
+			canCancel: false,
+			failureReason: null,
+			skuKey: "gpt-image-2-4k",
+			aspectRatio: "4:5",
+			input: {
+				kind: "image-to-image",
+				prompt: "Private prompt",
+				sourceAssetId: "asset-input",
+				skuKey: "gpt-image-2-4k",
+				aspectRatio: "4:5",
+			},
+		});
 		expect(JSON.stringify(result)).not.toMatch(/signed|https?:|provider|model/i);
 		expect(mocks.findFirst).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -112,7 +128,7 @@ describe("getJob", () => {
 		mocks.findFirst.mockResolvedValue({
 			...baseJob,
 			status: "FAILED",
-			reservation: { settledAmount: 0n, releasedAmount: 4n },
+			reservation: { settledAmount: 0n, releasedAmount: 17n },
 			assets: [
 				{ role: "INPUT", position: 0, asset: asset("asset-input") },
 				{
@@ -168,5 +184,26 @@ describe("getJob", () => {
 		expect(result.inputAssets).toEqual([]);
 		expect(result.assets).toEqual([]);
 		expect(JSON.stringify(result)).not.toContain("asset-foreign");
+	});
+
+	it("does not present a legacy job as a current Kie SKU", async () => {
+		mocks.findFirst.mockResolvedValue({
+			...baseJob,
+			productKey: "image-fast",
+			inputSnapshot: {
+				kind: "image-to-image",
+				prompt: "Legacy prompt",
+				sourceAssetId: "asset-input",
+				aspectRatio: "16:9",
+			},
+		} as never);
+
+		await expect(
+			call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } }),
+		).resolves.toMatchObject({
+			productKey: "image-fast",
+			skuKey: null,
+			aspectRatio: null,
+		});
 	});
 });

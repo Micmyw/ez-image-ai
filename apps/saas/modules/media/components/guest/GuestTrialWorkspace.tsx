@@ -114,7 +114,7 @@ export function GuestTrialWorkspace({ registered = false }: { registered?: boole
 							</div>
 							<div className="space-y-2 border-violet-200 bg-violet-50/70 p-3 rounded-xl border">
 								<div
-									data-test="guest-standard-selection"
+									data-test="guest-product-selection"
 									aria-current="true"
 									className="min-h-11 gap-3 bg-white px-3 py-2 flex items-center justify-between rounded-xl"
 								>

@@ -5,6 +5,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/pop
 import { ChevronDownIcon, ImageIcon, ScanIcon, SlidersHorizontalIcon } from "lucide-react";
 import { useId } from "react";
 
+import {
+	getImageSpecCell,
+	type ImageSpecControlKey,
+	type ImageSpecControlValues,
+	type PublicImageSpecMatrix,
+	selectImageSkuForDimension,
+} from "../lib/image-sku-selection";
+
 export interface ImageOutputSettingsLabels {
 	title: string;
 	trigger: string;
@@ -14,7 +22,11 @@ export interface ImageOutputSettingsLabels {
 	oneOutput: string;
 	resolution: string;
 	quality: string;
+	outputFormat: string;
+	background: string;
 	modeControlsQuality: string;
+	credits?: string;
+	optionLabels?: Readonly<Record<string, string>>;
 }
 
 export function ImageOutputSettings({
@@ -23,6 +35,11 @@ export function ImageOutputSettings({
 	value,
 	onChange,
 	modeLabel,
+	skuMatrix,
+	skuKey,
+	onSkuChange,
+	controlValues = {},
+	onControlChange,
 	labels,
 	disabled = false,
 	tone = "dark",
@@ -32,6 +49,11 @@ export function ImageOutputSettings({
 	value: ImageAspectRatio;
 	onChange: (value: ImageAspectRatio) => void;
 	modeLabel: string;
+	skuMatrix?: PublicImageSpecMatrix;
+	skuKey?: string;
+	onSkuChange?: (skuKey: string) => void;
+	controlValues?: ImageSpecControlValues;
+	onControlChange?: (key: ImageSpecControlKey, value: string) => void;
 	labels: ImageOutputSettingsLabels;
 	disabled?: boolean;
 	tone?: "dark" | "light";
@@ -39,6 +61,7 @@ export function ImageOutputSettings({
 	const generatedId = useId();
 	const groupName = `${idPrefix}-${generatedId}-aspect-ratio`;
 	const currentLabel = value === "auto" ? labels.automatic : value;
+	const selectedCell = getImageSpecCell(skuMatrix, skuKey);
 	const dark = tone === "dark";
 
 	return (
@@ -66,7 +89,10 @@ export function ImageOutputSettings({
 							{currentLabel}
 						</span>
 						<span className="gap-1.5 flex items-center max-[359px]:hidden">
-							<ImageIcon className="size-3.5" aria-hidden="true" />1
+							<ImageIcon className="size-3.5" aria-hidden="true" />
+							{selectedCell
+								? `${selectedCell.label} · ${selectedCell.credits} ${labels.credits ?? "Credits"}`
+								: "1"}
 						</span>
 						{!dark && <span className="sm:inline ml-auto hidden">{labels.automatic}</span>}
 						<ChevronDownIcon
@@ -127,6 +153,88 @@ export function ImageOutputSettings({
 					</div>
 				</fieldset>
 
+				{skuMatrix?.dimensions.map((dimension) => (
+					<fieldset key={dimension.key} className="mt-4">
+						<legend
+							className={`text-xs font-semibold ${dark ? "text-[#c5b9d2]" : "text-muted-foreground"}`}
+						>
+							{labels[dimension.key]}
+						</legend>
+						<div className="mt-2 gap-2 grid grid-cols-2">
+							{dimension.options.map((option) => {
+								const selected = selectedCell?.parameterValues[dimension.key] === option.key;
+								const available = skuMatrix.cells.some(
+									(cell) => cell.parameterValues[dimension.key] === option.key,
+								);
+								return (
+									<button
+										key={option.key}
+										type="button"
+										aria-pressed={selected}
+										disabled={disabled || !available || !onSkuChange}
+										className={`min-h-10 px-3 text-xs font-semibold focus-visible:outline-violet-300 rounded-lg border transition focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-45 ${
+											selected
+												? dark
+													? "text-white border-[#b79cff]/70 bg-[#4b3a70]"
+													: "border-primary/50 bg-primary/10 text-foreground"
+												: dark
+													? "border-white/10 bg-[#1e1729] text-[#c5b9d2] hover:border-[#b79cff]/40"
+													: "border-foreground/10 bg-background text-muted-foreground hover:border-primary/30"
+										}`}
+										onClick={() => {
+											if (!skuKey) return;
+											const next = selectImageSkuForDimension(
+												skuMatrix,
+												skuKey,
+												dimension.key,
+												option.key,
+											);
+											if (next) onSkuChange?.(next.skuKey);
+										}}
+									>
+										{labels.optionLabels?.[option.key] ?? option.label}
+									</button>
+								);
+							})}
+						</div>
+					</fieldset>
+				))}
+
+				{(selectedCell?.controls ?? []).map((control) => (
+					<fieldset key={control.key} className="mt-4">
+						<legend
+							className={`text-xs font-semibold ${dark ? "text-[#c5b9d2]" : "text-muted-foreground"}`}
+						>
+							{labels[control.key]}
+						</legend>
+						<div className="mt-2 gap-2 grid grid-cols-2">
+							{control.options.map((option) => {
+								const selected = controlValues[control.key] === option.key;
+								return (
+									<button
+										key={option.key}
+										type="button"
+										aria-pressed={selected}
+										disabled={disabled || !onControlChange}
+										className={`min-h-10 px-3 text-xs font-semibold focus-visible:outline-violet-300 rounded-lg border transition focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-45 ${
+											selected
+												? dark
+													? "text-white border-[#b79cff]/70 bg-[#4b3a70]"
+													: "border-primary/50 bg-primary/10 text-foreground"
+												: dark
+													? "border-white/10 bg-[#1e1729] text-[#c5b9d2] hover:border-[#b79cff]/40"
+													: "border-foreground/10 bg-background text-muted-foreground hover:border-primary/30"
+										}`}
+										onClick={() => onControlChange?.(control.key, option.key)}
+									>
+										{labels.optionLabels?.[option.key] ?? option.label}
+									</button>
+								);
+							})}
+						</div>
+					</fieldset>
+				))}
+
 				<dl
 					className={`mt-4 gap-2 pt-3 grid grid-cols-3 border-t ${dark ? "border-white/10" : "border-foreground/10"}`}
 				>
@@ -136,13 +244,26 @@ export function ImageOutputSettings({
 						hint={labels.oneOutput}
 						dark={dark}
 					/>
-					<ReadOnlySetting label={labels.resolution} value={labels.automatic} dark={dark} />
-					<ReadOnlySetting
-						label={labels.quality}
-						value={modeLabel}
-						hint={labels.modeControlsQuality}
-						dark={dark}
-					/>
+					{selectedCell ? (
+						<>
+							<ReadOnlySetting label={modeLabel} value={selectedCell.label} dark={dark} />
+							<ReadOnlySetting
+								label={labels.credits ?? "Credits"}
+								value={String(selectedCell.credits)}
+								dark={dark}
+							/>
+						</>
+					) : (
+						<>
+							<ReadOnlySetting label={labels.resolution} value={labels.automatic} dark={dark} />
+							<ReadOnlySetting
+								label={labels.quality}
+								value={modeLabel}
+								hint={labels.modeControlsQuality}
+								dark={dark}
+							/>
+						</>
+					)}
 				</dl>
 			</PopoverContent>
 		</Popover>

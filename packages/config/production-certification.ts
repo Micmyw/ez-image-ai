@@ -1,4 +1,5 @@
 import { parseEzPicLaunchEvidence, type EzPicLaunchEvidence } from "./launch-evidence";
+import { IMAGE_SKU_KEYS_BY_PRODUCT, type ImageSkuKey } from "./product";
 import {
 	assertEzPicEnvironmentMatrixConfigured,
 	validateEzPicEnvironmentMatrix,
@@ -12,7 +13,7 @@ export type EzPicCertificationCheckId =
 	| "environment-isolation"
 	| "staging-scenarios"
 	| "deployment-revision"
-	| "guest-billed-standard-cost"
+	| "guest-billed-sku-cost"
 	| "guest-provider-hard-budget"
 	| "guest-privacy-cleanup"
 	| "guest-production-configuration";
@@ -21,6 +22,8 @@ export interface EzPicCertificationCheck {
 	id: EzPicCertificationCheckId;
 	status: EzPicCertificationStatus;
 	evidence: string;
+	productKey?: keyof typeof IMAGE_SKU_KEYS_BY_PRODUCT;
+	skuKey?: ImageSkuKey;
 }
 
 export interface EzPicProductionCertification {
@@ -34,7 +37,7 @@ const REQUIRED_CERTIFICATION_CHECK_IDS = [
 	"environment-isolation",
 	"staging-scenarios",
 	"deployment-revision",
-	"guest-billed-standard-cost",
+	"guest-billed-sku-cost",
 	"guest-provider-hard-budget",
 	"guest-privacy-cleanup",
 	"guest-production-configuration",
@@ -111,12 +114,7 @@ export function buildEzPicProductionCertification(input: {
 	}
 
 	checks.push(
-		guestEvidenceCheck(
-			"guest-billed-standard-cost",
-			input.environment,
-			["GUEST_BILLED_STANDARD_COST_EVIDENCE_ID", "GUEST_BILLED_STANDARD_COST_MICROS"],
-			"Real billed Standard cost evidence is not recorded.",
-		),
+		guestBilledSkuCostCheck(input.environment),
 		guestEvidenceCheck(
 			"guest-provider-hard-budget",
 			input.environment,
@@ -137,6 +135,39 @@ export function buildEzPicProductionCertification(input: {
 		status: checks.every((check) => check.status === "PASS") ? "PASS" : "NOT_COMPLETED",
 		checks,
 	};
+}
+
+function guestBilledSkuCostCheck(environment: Record<string, unknown>): EzPicCertificationCheck {
+	const evidenceId = certificationEvidenceId(environment.GUEST_BILLED_SKU_COST_EVIDENCE_ID);
+	const billedCostMicros = positiveIntegerString(environment.GUEST_BILLED_SKU_COST_MICROS);
+	const productKey = environment.GUEST_BILLED_SKU_PRODUCT_KEY;
+	const skuKey = environment.GUEST_BILLED_SKU_KEY;
+	const legalProductSkuPair =
+		typeof productKey === "string" &&
+		Object.prototype.hasOwnProperty.call(IMAGE_SKU_KEYS_BY_PRODUCT, productKey) &&
+		typeof skuKey === "string" &&
+		(
+			IMAGE_SKU_KEYS_BY_PRODUCT[
+				productKey as keyof typeof IMAGE_SKU_KEYS_BY_PRODUCT
+			] as readonly string[]
+		).includes(skuKey);
+	const expectedGuestSku =
+		productKey === "image-nano-banana-2-lite" && skuKey === "nano-banana-2-lite-1k";
+
+	return evidenceId && billedCostMicros && legalProductSkuPair && expectedGuestSku
+		? {
+				id: "guest-billed-sku-cost",
+				status: "PASS",
+				evidence: evidenceId,
+				productKey,
+				skuKey,
+			}
+		: {
+				id: "guest-billed-sku-cost",
+				status: "NOT_COMPLETED",
+				evidence:
+					"Real billed guest SKU cost evidence is not recorded for the active guest product.",
+			};
 }
 
 function guestEvidenceCheck(

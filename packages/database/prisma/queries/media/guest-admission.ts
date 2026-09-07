@@ -1,4 +1,4 @@
-import { PRODUCT_CREDIT_COSTS } from "@repo/config";
+import { IMAGE_SKU_CREDIT_COSTS } from "@repo/config";
 
 import type { Prisma } from "../../generated/client";
 import { hasCurrentApprovedMediaAssetEvidence } from "./assets";
@@ -14,7 +14,11 @@ import type { CreateModeratedGenerationQuoteInput, MediaTransactionClient } from
 import { isDatabaseUniqueConflict, runReadCommitted } from "./types";
 
 export const GUEST_GENERATION_ELIGIBLE_EVENT = "GUEST_GENERATION_ELIGIBLE";
-const CURRENT_GUEST_SPONSOR_CREDITS = BigInt(PRODUCT_CREDIT_COSTS["image-fast"]);
+const CURRENT_GUEST_PRODUCT_KEY = "image-nano-banana-2-lite" as const;
+const CURRENT_GUEST_SKU_KEY = "nano-banana-2-lite-1k" as const;
+const LEGACY_GUEST_PRODUCT_KEY = "image-fast" as const;
+const GUEST_JOB_PRODUCT_KEYS = [CURRENT_GUEST_PRODUCT_KEY, LEGACY_GUEST_PRODUCT_KEY] as const;
+const CURRENT_GUEST_SPONSOR_CREDITS = BigInt(IMAGE_SKU_CREDIT_COSTS[CURRENT_GUEST_SKU_KEY]);
 
 export type GuestJobStage =
 	| "WAITING"
@@ -101,7 +105,7 @@ export interface CanonicalGuestGenerationQuote {
 }
 
 export type ResolveCanonicalGuestGenerationQuote = (input: {
-	productKey: "image-fast";
+	productKey: typeof CURRENT_GUEST_PRODUCT_KEY;
 	inputSnapshot: Prisma.InputJsonValue;
 }) => CanonicalGuestGenerationQuote | Promise<CanonicalGuestGenerationQuote>;
 
@@ -432,7 +436,7 @@ async function assertCanonicalGuestQuote(
 	let canonical: CanonicalGuestGenerationQuote;
 	try {
 		canonical = await resolveCanonicalQuote({
-			productKey: "image-fast",
+			productKey: CURRENT_GUEST_PRODUCT_KEY,
 			inputSnapshot: input.quote.inputSnapshot,
 		});
 	} catch {
@@ -448,7 +452,7 @@ async function assertCanonicalGuestQuote(
 		pricingSnapshot: canonical.pricingSnapshot,
 	};
 	if (
-		canonical.productKey !== "image-fast" ||
+		canonical.productKey !== CURRENT_GUEST_PRODUCT_KEY ||
 		canonical.catalogVersion !== input.quote.catalogVersion ||
 		canonical.pricingVersion !== input.quote.pricingVersion ||
 		canonical.credits !== CURRENT_GUEST_SPONSOR_CREDITS ||
@@ -481,7 +485,7 @@ export async function getGuestJobSnapshot(
 			id: input.jobId,
 			ownerType: "USER",
 			ownerId: input.ownerId,
-			productKey: "image-fast",
+			productKey: { in: [...GUEST_JOB_PRODUCT_KEYS] },
 			serviceClass: "GUEST_SLOW",
 			guestTrialId: { not: null },
 		},
@@ -556,7 +560,10 @@ export async function getRegisteredGuestJobSnapshot(
 			guestJobId: input.jobId,
 			expiresAt: { gt: input.now },
 			trial: { expiresAt: { gt: input.now } },
-			guestJob: { serviceClass: "GUEST_SLOW", productKey: "image-fast" },
+			guestJob: {
+				serviceClass: "GUEST_SLOW",
+				productKey: { in: [...GUEST_JOB_PRODUCT_KEYS] },
+			},
 		},
 		include: { trial: true, guestJob: { select: { guestTrialId: true } } },
 	});
@@ -597,7 +604,7 @@ export async function getGuestOwnedResultAssetForAccess(
 			job: {
 				ownerType: "USER",
 				ownerId: input.ownerId,
-				productKey: "image-fast",
+				productKey: { in: [...GUEST_JOB_PRODUCT_KEYS] },
 				serviceClass: "GUEST_SLOW",
 				status: "SUCCEEDED",
 				guestTrial: { is: { ownerId: input.ownerId, expiresAt: { gt: input.now } } },
@@ -641,7 +648,7 @@ export async function getRegisteredGuestResultAssetForAccess(
 			...(input.jobId ? { guestJobId: input.jobId } : {}),
 			trial: { expiresAt: { gt: input.now } },
 			guestJob: {
-				productKey: "image-fast",
+				productKey: { in: [...GUEST_JOB_PRODUCT_KEYS] },
 				serviceClass: "GUEST_SLOW",
 				status: "SUCCEEDED",
 				assets: { some: { assetId: input.assetId, role: "OUTPUT" } },
@@ -796,7 +803,7 @@ async function findGuestAdmissionReplay(
 		trial.ownerId !== input.ownerId ||
 		trial.promotionPeriod !== input.promotionPeriod ||
 		trial.idempotencyFingerprint !== input.idempotencyFingerprint ||
-		existing.productKey !== "image-fast" ||
+		existing.productKey !== CURRENT_GUEST_PRODUCT_KEY ||
 		existing.serviceClass !== "GUEST_SLOW" ||
 		existing.quote.inputFingerprint !== input.quote.moderation.inputFingerprint ||
 		binding?.assetId !== input.sourceAssetId ||
@@ -1152,7 +1159,8 @@ function validateAdmissionInput(input: CreateGuestGenerationTransactionInput): v
 		].every((value) => /^[a-f0-9]{64}$/.test(value)) ||
 		input.sponsorCredits !== CURRENT_GUEST_SPONSOR_CREDITS ||
 		input.quote.credits !== input.sponsorCredits ||
-		input.quote.productKey !== "image-fast" ||
+		input.quote.productKey !== CURRENT_GUEST_PRODUCT_KEY ||
+		!isCurrentGuestQuoteInput(input.quote.inputSnapshot) ||
 		input.quote.ownerType !== "USER" ||
 		input.quote.ownerId !== input.ownerId ||
 		input.quote.submittedByUserId !== input.ownerId
@@ -1192,6 +1200,12 @@ function validateAdmissionInput(input: CreateGuestGenerationTransactionInput): v
 	) {
 		throw new Error("GUEST_CONFIGURATION_ERROR");
 	}
+}
+
+function isCurrentGuestQuoteInput(value: Prisma.InputJsonValue): boolean {
+	if (typeof value !== "object" || value === null || Array.isArray(value)) return false;
+	const input = value as Record<string, unknown>;
+	return input.kind === "image-to-image" && input.skuKey === CURRENT_GUEST_SKU_KEY;
 }
 
 function guestStage(status: string, expiresAt: Date, now: Date): GuestJobStage {

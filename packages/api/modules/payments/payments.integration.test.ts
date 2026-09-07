@@ -1094,7 +1094,7 @@ describe("Stripe subscription credit lifecycle", () => {
 		const diagnosticsBefore = await getAdminMediaDiagnostics(client);
 		expect(
 			diagnosticsBefore.stripeReconciliation.historicalRefunds.items.some(
-				(item) => item.providerRefundId === fixture.legacyRefundId,
+				(item) => item.refundId === fixture.refundLifecycleId,
 			),
 		).toBe(true);
 		const approvalKey = `approval-${crypto.randomUUID()}`;
@@ -1114,7 +1114,7 @@ describe("Stripe subscription credit lifecycle", () => {
 		const diagnosticsApproved = await getAdminMediaDiagnostics(client);
 		expect(
 			diagnosticsApproved.stripeReconciliation.historicalRefunds.items.some(
-				(item) => item.providerRefundId === fixture.legacyRefundId,
+				(item) => item.refundId === fixture.refundLifecycleId,
 			),
 		).toBe(true);
 		await applyApprovedLegacyStripeRefundRepair(
@@ -1130,7 +1130,7 @@ describe("Stripe subscription credit lifecycle", () => {
 		const diagnosticsAfter = await getAdminMediaDiagnostics(client);
 		expect(
 			diagnosticsAfter.stripeReconciliation.historicalRefunds.items.some(
-				(item) => item.providerRefundId === fixture.legacyRefundId,
+				(item) => item.refundId === fixture.refundLifecycleId,
 			),
 		).toBe(false);
 
@@ -1965,7 +1965,7 @@ describe("Stripe subscription credit lifecycle", () => {
 		const finalizedDiagnostics = await getAdminMediaDiagnostics(client);
 		expect(
 			finalizedDiagnostics.stripeReconciliation.historicalRefunds.items.some(
-				(item) => item.providerRefundId === fixture.legacyRefundId,
+				(item) => item.refundId === fixture.refundLifecycleId,
 			),
 		).toBe(false);
 		await client.stripeRefund.update({
@@ -1975,7 +1975,7 @@ describe("Stripe subscription credit lifecycle", () => {
 		const mismatchedDiagnostics = await getAdminMediaDiagnostics(client);
 		expect(mismatchedDiagnostics.stripeReconciliation.historicalRefunds.items).toContainEqual(
 			expect.objectContaining({
-				providerRefundId: fixture.legacyRefundId,
+				refundId: fixture.refundLifecycleId,
 				reason: "CREDIT_TOTAL_MISMATCH",
 			}),
 		);

@@ -3,7 +3,7 @@ import {
 	MEDIA_VERIFICATION_RULE_VERSION,
 	type ExecutableRouteGraphOptions,
 } from "@repo/ai";
-import { DEFAULT_PRODUCT_CONFIG, type PlanEntitlement } from "@repo/config";
+import { DEFAULT_PRODUCT_CONFIG, EZPIC_PRODUCT_KEYS, type PlanEntitlement } from "@repo/config";
 import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
 import { createGenerationJobTransaction } from "@repo/database";
 import { db } from "@repo/database/client";
@@ -134,6 +134,9 @@ export async function createGenerationForUser(
 	) {
 		throw new Error("PRICE_CHANGED");
 	}
+	if (!EZPIC_PRODUCT_KEYS.includes(quote.productKey as (typeof EZPIC_PRODUCT_KEYS)[number])) {
+		throw new Error("PRICE_CHANGED");
+	}
 	const routeGraphOptions = await dependencies.getRouteGraphOptions();
 	assertFrozenQuoteRouteGraphIsCurrent(
 		{
@@ -184,7 +187,7 @@ function imageEditBinding(
 	parentJobIdEcho: string | undefined,
 ) {
 	if (
-		(productKey !== "image-fast" && productKey !== "image-quality") ||
+		!EZPIC_PRODUCT_KEYS.some((candidate) => candidate === productKey) ||
 		inputSnapshot.kind !== "image-to-image" ||
 		typeof inputSnapshot.sourceAssetId !== "string"
 	) {

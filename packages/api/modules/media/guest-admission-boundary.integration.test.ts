@@ -55,9 +55,11 @@ describe("guest admission real boundary", () => {
 		});
 		const input = {
 			capabilityVersion: "guest-v7",
-			productKey: "image-fast" as const,
+			productKey: "image-nano-banana-2-lite" as const,
+			skuKey: "nano-banana-2-lite-1k" as const,
 			sourceAssetId: fixture.assetId,
 			prompt: "Make the sky violet",
+			aspectRatio: "auto" as const,
 			idempotencyKey: "guest-full-boundary-replay-0001",
 			deviceId: "d4fbf8d2-945a-4f2c-8359-f179f6c734de",
 			turnstileToken: "one-time-turnstile-token",
@@ -140,12 +142,13 @@ function configureAdmissionDependencies(
 	verifySiteverify: (request: SiteverifyRequest) => Promise<SiteverifyEvidence>,
 ): void {
 	const resolveQuote = () => ({
-		productKey: "image-fast",
+		productKey: "image-nano-banana-2-lite",
 		catalogVersion: "catalog-v1",
 		pricingVersion: "pricing-v1",
 		credits: GUEST_MEDIA_SPONSOR_CREDITS,
-		costMicros: 3500n,
+		costMicros: 20_000n,
 		pricingSnapshot: {
+			skuKey: "nano-banana-2-lite-1k",
 			settlementPolicy: { maxCharge: GUEST_MEDIA_SPONSOR_CREDITS.toString() },
 		},
 	});
@@ -157,7 +160,8 @@ function configureAdmissionDependencies(
 			config: {
 				enabled: true,
 				promotionPeriod: fixture.promotionPeriod,
-				productKey: "image-fast",
+				productKey: "image-nano-banana-2-lite",
+				skuKey: "nano-banana-2-lite-1k",
 				sponsorCredits: GUEST_MEDIA_SPONSOR_CREDITS,
 				maximumBytes: 10 * 1024 * 1024,
 				mimeTypes: ["image/jpeg", "image/png", "image/webp"],
@@ -307,8 +311,13 @@ async function createGuestFixture(label: string): Promise<GuestFixture> {
 			submittedByUserId: ownerId,
 			claimTokenHash: sha256(`claim:${suffix}`),
 			assetId,
-			productKey: "image-fast",
-			inputSnapshot: { kind: "image-to-image", prompt: "Make the sky violet" },
+			productKey: "image-nano-banana-2-lite",
+			inputSnapshot: {
+				kind: "image-to-image",
+				prompt: "Make the sky violet",
+				skuKey: "nano-banana-2-lite-1k",
+				aspectRatio: "auto",
+			},
 			status: "SUBMITTED",
 			expiresAt: validUntil,
 		},

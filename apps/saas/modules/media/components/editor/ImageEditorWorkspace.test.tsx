@@ -29,7 +29,11 @@ describe("ImageEditorWorkspace responsive composition", () => {
 	it("keeps the editor/result split and places recent registered edits after the primary workspace", () => {
 		const markup = renderToStaticMarkup(
 			<ImageEditorWorkspace
-				allowedProductKeys={["image-fast", "image-quality"]}
+				allowedProductKeys={[
+					"image-nano-banana-2-lite",
+					"image-gpt-image-2",
+					"image-seedream-5-pro",
+				]}
 				restoreState="idle"
 				restoreNotice={null}
 			/>,

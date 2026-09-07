@@ -170,6 +170,7 @@ describe("generation retry request idempotency", () => {
 		expect(storedJob).toMatchObject({
 			editSessionId: fixture.editSessionId,
 			parentJobId: null,
+			productKey: "image-nano-banana-2-lite",
 		});
 		expect(storedJob.inputSnapshot).toEqual(fixture.operation.normalizedInput);
 		expect(await client.imageEditSession.count({ where: { ownerId: fixture.ownerId } })).toBe(1);
@@ -512,14 +513,18 @@ async function createRootEditRetryFixture(client: PrismaClient) {
 	if (!sourceJob.editSessionId) throw new Error("Root retry source has no edit session");
 	const operation = {
 		sourceJobId: source.job.id,
-		productKey: "image-fast",
-		normalizedInput,
+		productKey: "image-nano-banana-2-lite",
+		normalizedInput: {
+			...normalizedInput,
+			aspectRatio: "auto",
+			skuKey: "nano-banana-2-lite-1k",
+		},
 		inputAssets: [{ assetId: asset.id, assetChecksum: asset.checksum! }],
-		catalogVersion: "2026-08-23.1",
-		pricingVersion: "2026-08-23.1",
-		credits: "4",
-		costMicros: "3000",
-		pricingSnapshot: { credits: 4 },
+		catalogVersion: "2026-09-07.1",
+		pricingVersion: "2026-09-07.1",
+		credits: "5",
+		costMicros: "20000",
+		pricingSnapshot: { credits: 5, skuKey: "nano-banana-2-lite-1k" },
 		moderationProvider: "test",
 		moderationRuleVersion: TEXT_RULE,
 		assetModerationRuleVersion: ASSET_RULE,

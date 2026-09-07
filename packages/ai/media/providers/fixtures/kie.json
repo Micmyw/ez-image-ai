@@ -1,5 +1,89 @@
 {
 	"accepted": { "code": 200, "msg": "success", "data": { "taskId": "kie-1" } },
+	"imageWaiting": {
+		"code": 200,
+		"msg": "success",
+		"data": {
+			"taskId": "kie-image-1",
+			"state": "waiting",
+			"resultJson": null,
+			"failCode": null,
+			"failMsg": null,
+			"creditsConsumed": 0
+		}
+	},
+	"imageQueuing": {
+		"code": 200,
+		"msg": "success",
+		"data": {
+			"taskId": "kie-image-1",
+			"state": "queuing",
+			"resultJson": null,
+			"failCode": null,
+			"failMsg": null,
+			"creditsConsumed": 0
+		}
+	},
+	"imageGenerating": {
+		"code": 200,
+		"msg": "success",
+		"data": {
+			"taskId": "kie-image-1",
+			"state": "generating",
+			"resultJson": null,
+			"failCode": null,
+			"failMsg": null,
+			"creditsConsumed": 0
+		}
+	},
+	"imageSucceeded": {
+		"code": 200,
+		"msg": "success",
+		"data": {
+			"taskId": "kie-image-1",
+			"state": "success",
+			"resultJson": "{\"resultUrls\":[\"https://cdn.test/image-1.png\"]}",
+			"failCode": null,
+			"failMsg": null,
+			"creditsConsumed": 16
+		}
+	},
+	"imageSucceededWithMultipleOutputs": {
+		"code": 200,
+		"msg": "success",
+		"data": {
+			"taskId": "kie-image-1",
+			"state": "success",
+			"resultJson": "{\"resultUrls\":[\"https://cdn.test/image-1.png\",\"https://cdn.test/image-2.png\"]}",
+			"failCode": null,
+			"failMsg": null,
+			"creditsConsumed": 16
+		}
+	},
+	"imageFailed": {
+		"code": 200,
+		"msg": "success",
+		"data": {
+			"taskId": "kie-image-1",
+			"state": "fail",
+			"resultJson": null,
+			"failCode": "PROVIDER_BUSY",
+			"failMsg": "temporarily unavailable",
+			"creditsConsumed": 0
+		}
+	},
+	"imageFailedCodeOnly": {
+		"code": 200,
+		"msg": "success",
+		"data": {
+			"taskId": "kie-image-1",
+			"state": "fail",
+			"resultJson": null,
+			"failCode": "CONTENT_POLICY_REJECTED",
+			"failMsg": null,
+			"creditsConsumed": 0
+		}
+	},
 	"queued": { "data": { "taskId": "kie-1", "state": "waiting" } },
 	"running": { "code": 200, "data": { "taskId": "kie-1", "successFlag": 0 } },
 	"succeeded": {

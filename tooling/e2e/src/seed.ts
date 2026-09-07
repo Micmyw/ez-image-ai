@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
 import { auth } from "@repo/auth";
+import { EZPIC_PRODUCT_KEYS } from "@repo/config";
 import {
 	createCreditGrant,
 	createUser,
@@ -20,6 +21,8 @@ export async function seedLocalMediaE2E(): Promise<void> {
 	await resetAbandonedMarketingDraftFixtures();
 	const mediaModelOverrideKeys = [
 		"media.generation.enabled",
+		...EZPIC_PRODUCT_KEYS.map((productKey) => `media.model.${productKey}.enabled`),
+		// Historical cleanup only: legacy jobs can still exist, but new E2E jobs never select them.
 		"media.model.image-fast.enabled",
 		"media.model.image-quality.enabled",
 		"media.model.video-fast.enabled",

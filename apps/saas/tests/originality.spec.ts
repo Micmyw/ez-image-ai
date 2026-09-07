@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const forbiddenPublicArtifactPattern =
-	/raphael(?:\.app)?|seedream|providerModelId|providerCostMicros|providerTaskId|fal-ai|replicate\.com/i;
+	/raphael(?:\.app)?|providerModelId|providerCostMicros|providerTaskId|KIE_API_KEY|OPENROUTER_API_KEY|api\.kie\.ai|openrouter(?:\.ai)?|gpt-image-2-image-to-image|seedream\/5-pro-image-to-image|fal-ai|replicate\.com/i;
 
 test("public SaaS shell resources contain no competitor or internal route expression", async ({
 	page,

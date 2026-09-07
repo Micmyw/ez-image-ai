@@ -5,10 +5,10 @@ export const CREDIT_PACK_PRICING_VERSION = "2026-09-06.1";
 export const CREDIT_PACK_SUBSCRIBER_ELIGIBILITY_VERSION = "2026-09-06.1";
 
 export const CREDIT_PACK_COST_QUOTE = Object.freeze({
-	// All-Standard usage is the current highest conservative cost per credit:
-	// ($0.021 * 1.055 * 1.15 + $0.005) / 5 credits, rounded up.
-	usdMicrosPerCredit: 6_096,
-	basis: "conservative-standard-full-use",
+	// Nano Banana Default and GPT Image 1.5 Medium tie for the highest conservative cost per credit:
+	// ($0.020 Kie price * 1.15 + $0.010 EzPic runtime/storage reserve) / 5 credits.
+	usdMicrosPerCredit: 6_600,
+	basis: "conservative-kie-sku-full-use",
 } as const);
 
 export interface CreditPackCheckoutSnapshot {

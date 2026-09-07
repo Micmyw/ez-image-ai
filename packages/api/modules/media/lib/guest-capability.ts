@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
-import { DEFAULT_PRODUCT_CONFIG, PRODUCT_CREDIT_COSTS, type ImageAspectRatio } from "@repo/config";
+import { DEFAULT_PRODUCT_CONFIG, EZPIC_PRODUCT_KEYS, type ImageAspectRatio } from "@repo/config";
 import { getGuestMediaConfig, type GuestMediaConfig } from "@repo/config/server";
 import { resolveGuestRuntimeConfigOverride } from "@repo/database";
 import { db } from "@repo/database/client";
@@ -8,12 +8,13 @@ import { db } from "@repo/database/client";
 import { getCurrentExecutableEzPicProducts } from "./executable-route-graph";
 
 export interface GuestCapabilityProduct {
-	key: "image-fast" | "image-quality";
+	key: (typeof EZPIC_PRODUCT_KEYS)[number];
 	label: string;
 	description: string;
-	credits: `${(typeof PRODUCT_CREDIT_COSTS)["image-fast" | "image-quality"]}`;
+	credits: `${number}`;
 	accessHint: "guest-trial" | "paid-account";
 	aspectRatios: readonly ImageAspectRatio[];
+	skuMatrix: Awaited<ReturnType<typeof getCurrentExecutableEzPicProducts>>[number]["skuMatrix"];
 }
 
 export interface GuestCapabilitySnapshot {
@@ -51,7 +52,7 @@ export async function loadGuestCapability(
 					db,
 					environment as Record<string, string | undefined>,
 				)
-			).map(toGuestCapabilityProduct),
+			).map((product) => toGuestCapabilityProduct(product, config)),
 		);
 	} catch {
 		// Catalog/runtime availability is part of the fail-closed public capability.
@@ -90,6 +91,7 @@ function createGuestCapabilityVersion(
 		config.reason ?? "",
 		config.promotionPeriod ?? "",
 		config.productKey,
+		config.skuKey,
 		config.sponsorCredits.toString(),
 		DEFAULT_PRODUCT_CONFIG.catalogVersion,
 		DEFAULT_PRODUCT_CONFIG.pricingVersion,
@@ -135,30 +137,37 @@ function createGuestCapabilityVersion(
 	return `guest-v${runtimeVersion}-${identity}`;
 }
 
-function toGuestCapabilityProduct(input: {
-	key: "image-fast" | "image-quality";
-	label: string;
-	description: string;
-	credits: number;
-	aspectRatios: readonly ImageAspectRatio[];
-}): GuestCapabilityProduct {
-	if (input.key === "image-fast" && input.credits === PRODUCT_CREDIT_COSTS["image-fast"]) {
-		return Object.freeze({
-			...input,
-			credits: input.credits.toString() as GuestCapabilityProduct["credits"],
-			accessHint: "guest-trial" as const,
-			aspectRatios: Object.freeze([...input.aspectRatios]),
-		});
+function toGuestCapabilityProduct(
+	input: {
+		key: (typeof EZPIC_PRODUCT_KEYS)[number];
+		label: string;
+		description: string;
+		credits: number;
+		aspectRatios: readonly ImageAspectRatio[];
+		skuMatrix: GuestCapabilityProduct["skuMatrix"];
+	},
+	config: GuestMediaConfig,
+): GuestCapabilityProduct {
+	const defaultCell = input.skuMatrix.cells.find(
+		(cell) => cell.skuKey === input.skuMatrix.defaultSkuKey,
+	);
+	if (!defaultCell || defaultCell.credits !== input.credits) {
+		throw new Error("GUEST_PRODUCT_CONFIGURATION_INVALID");
 	}
-	if (input.key === "image-quality" && input.credits === PRODUCT_CREDIT_COSTS["image-quality"]) {
-		return Object.freeze({
-			...input,
-			credits: input.credits.toString() as GuestCapabilityProduct["credits"],
-			accessHint: "paid-account" as const,
-			aspectRatios: Object.freeze([...input.aspectRatios]),
-		});
+	const guestProduct = input.key === config.productKey;
+	if (
+		guestProduct &&
+		(input.skuMatrix.defaultSkuKey !== config.skuKey ||
+			BigInt(defaultCell.credits) !== config.sponsorCredits)
+	) {
+		throw new Error("GUEST_PRODUCT_CONFIGURATION_INVALID");
 	}
-	throw new Error("GUEST_PRODUCT_CONFIGURATION_INVALID");
+	return Object.freeze({
+		...input,
+		credits: input.credits.toString() as GuestCapabilityProduct["credits"],
+		accessHint: guestProduct ? ("guest-trial" as const) : ("paid-account" as const),
+		aspectRatios: Object.freeze([...input.aspectRatios]),
+	});
 }
 
 export function assertGuestProductAvailable(

@@ -85,9 +85,18 @@ describe("submitGuestGeneration", () => {
 		expect(submitGuestGenerationForGuest).not.toHaveBeenCalled();
 	});
 
-	it("rejects a paid product before entering guest admission", async () => {
+	it("rejects a legacy or paid product before entering guest admission", async () => {
 		await expect(
-			call(submitGuestGeneration, { ...validInput(), productKey: "image-quality" } as never, {
+			call(submitGuestGeneration, { ...validInput(), productKey: "image-fast" } as never, {
+				context: { headers: new Headers() },
+			}),
+		).rejects.toBeDefined();
+		expect(submitGuestGenerationForGuest).not.toHaveBeenCalled();
+	});
+
+	it("rejects any SKU except the fixed Nano Banana 2 Lite 1K offer", async () => {
+		await expect(
+			call(submitGuestGeneration, { ...validInput(), skuKey: "gpt-image-2-2k" } as never, {
 				context: { headers: new Headers() },
 			}),
 		).rejects.toBeDefined();
@@ -98,7 +107,8 @@ describe("submitGuestGeneration", () => {
 function validInput() {
 	return {
 		capabilityVersion: "guest-v7",
-		productKey: "image-fast" as const,
+		productKey: "image-nano-banana-2-lite" as const,
+		skuKey: "nano-banana-2-lite-1k" as const,
 		sourceAssetId: "asset-1",
 		prompt: "Make the sky violet",
 		aspectRatio: "16:9" as const,

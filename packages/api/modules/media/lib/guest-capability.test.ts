@@ -51,8 +51,9 @@ import { assertGuestCapabilityVersion, loadGuestCapabilitySnapshot } from "./gue
 const enabledEnvironment = {
 	NODE_ENV: "development",
 	MEDIA_GENERATION_ENABLED: "true",
-	MEDIA_ENABLED_PROVIDERS: "openrouter",
-	MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "true",
+	MEDIA_ENABLED_PROVIDERS: "kie",
+	MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "2026-09-07.2",
+	KIE_API_KEY: "test-kie-key",
 	GUEST_MEDIA_ENABLED: "true",
 	GUEST_PROMOTION_PERIOD: "2026-launch",
 	BETTER_AUTH_SECRET: "test-secret",
@@ -70,6 +71,154 @@ const capabilityOverride = {
 		.digest("hex"),
 };
 
+const expectedPublicProductSummaries = [
+	{
+		key: "image-nano-banana-2-lite",
+		label: "Nano Banana 2 Lite",
+		credits: "5",
+		accessHint: "guest-trial",
+		defaultSkuKey: "nano-banana-2-lite-1k",
+		skus: [["nano-banana-2-lite-1k", 5]],
+	},
+	{
+		key: "image-nano-banana",
+		label: "Nano Banana",
+		credits: "5",
+		accessHint: "paid-account",
+		defaultSkuKey: "nano-banana-default",
+		skus: [["nano-banana-default", 5]],
+	},
+	{
+		key: "image-nano-banana-2",
+		label: "Nano Banana 2",
+		credits: "9",
+		accessHint: "paid-account",
+		defaultSkuKey: "nano-banana-2-1k",
+		skus: [
+			["nano-banana-2-1k", 9],
+			["nano-banana-2-2k", 13],
+			["nano-banana-2-4k", 19],
+		],
+	},
+	{
+		key: "image-nano-banana-pro",
+		label: "Nano Banana Pro",
+		credits: "19",
+		accessHint: "paid-account",
+		defaultSkuKey: "nano-banana-pro-1k",
+		skus: [
+			["nano-banana-pro-1k", 19],
+			["nano-banana-pro-2k", 19],
+			["nano-banana-pro-4k", 25],
+		],
+	},
+	{
+		key: "image-gpt-image-1-5",
+		label: "GPT Image 1.5",
+		credits: "5",
+		accessHint: "paid-account",
+		defaultSkuKey: "gpt-image-1-5-medium",
+		skus: [
+			["gpt-image-1-5-medium", 5],
+			["gpt-image-1-5-high", 23],
+		],
+	},
+	{
+		key: "image-gpt-image-2",
+		label: "GPT Image 2",
+		credits: "7",
+		accessHint: "paid-account",
+		defaultSkuKey: "gpt-image-2-1k",
+		skus: [
+			["gpt-image-2-1k", 7],
+			["gpt-image-2-2k", 11],
+			["gpt-image-2-4k", 17],
+		],
+	},
+	{
+		key: "image-seedream-4-5",
+		label: "Seedream 4.5",
+		credits: "8",
+		accessHint: "paid-account",
+		defaultSkuKey: "seedream-4-5-basic-2k",
+		skus: [
+			["seedream-4-5-basic-2k", 8],
+			["seedream-4-5-high-4k", 8],
+		],
+	},
+	{
+		key: "image-seedream-5-lite",
+		label: "Seedream 5 Lite",
+		credits: "7",
+		accessHint: "paid-account",
+		defaultSkuKey: "seedream-5-lite-basic-2k",
+		skus: [
+			["seedream-5-lite-basic-2k", 7],
+			["seedream-5-lite-high-3k", 7],
+			["seedream-5-lite-ultra-4k", 7],
+		],
+	},
+	{
+		key: "image-seedream-5-pro",
+		label: "Seedream 5 Pro",
+		credits: "8",
+		accessHint: "paid-account",
+		defaultSkuKey: "seedream-5-pro-basic-1k",
+		skus: [
+			["seedream-5-pro-basic-1k", 8],
+			["seedream-5-pro-high-2k", 15],
+		],
+	},
+] as const;
+
+const prohibitedCapabilityFields = [
+	"abuseHmac",
+	"apiKey",
+	"bucketName",
+	"costEvidenceId",
+	"costMicros",
+	"hardBudgetMicros",
+	"keyIdentity",
+	"modelId",
+	"provider",
+	"providerCostMicros",
+	"providerModelId",
+	"routes",
+	"secretKey",
+	"siteKey",
+	"storageObjectKey",
+	"trustedProxyPolicy",
+	"weight",
+] as const;
+
+function collectCapabilityKeys(value: unknown): string[] {
+	if (Array.isArray(value)) return value.flatMap(collectCapabilityKeys);
+	if (!value || typeof value !== "object") return [];
+	return Object.entries(value).flatMap(([key, nested]) => [key, ...collectCapabilityKeys(nested)]);
+}
+
+function collectCapabilityStrings(value: unknown): string[] {
+	if (typeof value === "string") return [value];
+	if (Array.isArray(value)) return value.flatMap(collectCapabilityStrings);
+	if (!value || typeof value !== "object") return [];
+	return Object.values(value).flatMap(collectCapabilityStrings);
+}
+
+function expectNoPrivateCapabilityData(
+	value: unknown,
+	privateValues: readonly string[] = [],
+): void {
+	const keys = collectCapabilityKeys(value);
+	const strings = collectCapabilityStrings(value).map((entry) => entry.toLowerCase());
+	const serialized = JSON.stringify(value);
+
+	for (const field of prohibitedCapabilityFields) expect(keys).not.toContain(field);
+	for (const provider of ["kie", "openrouter", "replicate", "gemini"]) {
+		expect(strings).not.toContain(provider);
+	}
+	for (const privateValue of privateValues) expect(serialized).not.toContain(privateValue);
+}
+
 describe("guest capability snapshot", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
@@ -84,7 +233,9 @@ describe("guest capability snapshot", () => {
 			reason: null,
 			upload: { maximumBytes: 10 * 1024 * 1024 },
 		});
-		expect(enabled.products.map((product) => product.key)).toEqual(["image-fast", "image-quality"]);
+		expect(enabled.products.map((product) => product.key)).toEqual(
+			expectedPublicProductSummaries.map((product) => product.key),
+		);
 
 		databaseMocks.resolveOverride.mockResolvedValue(null);
 		await expect(loadGuestCapabilitySnapshot(enabledEnvironment)).resolves.toMatchObject({
@@ -96,27 +247,20 @@ describe("guest capability snapshot", () => {
 	it("advertises only executable stable image tiers with truthful access hints", async () => {
 		const snapshot = await loadGuestCapabilitySnapshot(enabledEnvironment);
 
-		expect(snapshot).toMatchObject({
-			products: [
-				{
-					key: "image-fast",
-					label: "Standard Edit",
-					credits: "5",
-					accessHint: "guest-trial",
-					aspectRatios: ["auto", "1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9"],
-				},
-				{
-					key: "image-quality",
-					label: "Quality Edit",
-					credits: "40",
-					accessHint: "paid-account",
-					aspectRatios: ["auto", "1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9"],
-				},
-			],
-		});
+		expect(
+			snapshot.products.map((product) => ({
+				key: product.key,
+				label: product.label,
+				credits: product.credits,
+				accessHint: product.accessHint,
+				defaultSkuKey: product.skuMatrix.defaultSkuKey,
+				skus: product.skuMatrix.cells.map((cell) => [cell.skuKey, cell.credits]),
+			})),
+		).toEqual(expectedPublicProductSummaries);
+		expect(snapshot.products.flatMap((product) => product.skuMatrix.cells)).toHaveLength(20);
 		const unavailable = await loadGuestCapabilitySnapshot({
 			...enabledEnvironment,
-			MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "false",
+			MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "",
 		});
 		expect(unavailable).toMatchObject({
 			enabled: false,
@@ -124,19 +268,26 @@ describe("guest capability snapshot", () => {
 			products: [],
 		});
 		expect(unavailable.version).not.toBe(snapshot.version);
-		expect(JSON.stringify(snapshot)).not.toMatch(
-			/replicate|gemini|openrouter|providerModelId|providerCostMicros|weight/i,
-		);
+		expectNoPrivateCapabilityData(snapshot, [enabledEnvironment.KIE_API_KEY]);
 	});
 
 	it("removes a runtime-disabled tier from the same executable catalog used by quotes", async () => {
 		databaseMocks.findRuntimeOverrides.mockResolvedValue([
-			{ configKey: "media.model.image-quality.enabled" },
+			{ configKey: "media.model.image-gpt-image-2.enabled" },
 		]);
 
 		const snapshot = await loadGuestCapabilitySnapshot(enabledEnvironment);
 
-		expect(snapshot.products.map((product) => product.key)).toEqual(["image-fast"]);
+		expect(snapshot.products.map((product) => product.key)).toEqual([
+			"image-nano-banana-2-lite",
+			"image-nano-banana",
+			"image-nano-banana-2",
+			"image-nano-banana-pro",
+			"image-gpt-image-1-5",
+			"image-seedream-4-5",
+			"image-seedream-5-lite",
+			"image-seedream-5-pro",
+		]);
 	});
 
 	it("fails closed when the runtime source throws and exposes only the public contract", async () => {
@@ -147,12 +298,15 @@ describe("guest capability snapshot", () => {
 			GUEST_HARD_BUDGET_MICROS: "1000000",
 			GUEST_COST_EVIDENCE_ID: "private-provider-evidence",
 		});
-		const serialized = JSON.stringify(snapshot);
-
 		expect(snapshot.enabled).toBe(false);
-		expect(serialized).not.toMatch(
-			/turnstile|secret|budget|provider|model|cost|storageObject|bucketName|hmac|proxy/i,
-		);
+		expectNoPrivateCapabilityData(snapshot, [
+			enabledEnvironment.KIE_API_KEY,
+			enabledEnvironment.GUEST_ABUSE_HMAC_SECRET,
+			capabilityOverride.abuseHmacKeyIdentity,
+			"private-turnstile-secret",
+			"private-provider-evidence",
+			"1000000",
+		]);
 		expect(Object.keys(snapshot).sort()).toEqual([
 			"enabled",
 			"products",
@@ -243,8 +397,9 @@ describe("guest private upload handoff", () => {
 		vi.stubEnv("GUEST_MEDIA_ENABLED", "true");
 		vi.stubEnv("GUEST_PROMOTION_PERIOD", "2026-launch");
 		vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
-		vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "openrouter");
-		vi.stubEnv("MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED", "true");
+		vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");
+		vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", "2026-09-07.2");
+		vi.stubEnv("KIE_API_KEY", "test-kie-key");
 		vi.stubEnv("BETTER_AUTH_SECRET", "test-secret");
 		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", enabledEnvironment.GUEST_ABUSE_HMAC_SECRET);
 		vi.stubEnv("GUEST_ABUSE_HMAC_VERSION", enabledEnvironment.GUEST_ABUSE_HMAC_VERSION);
@@ -287,7 +442,7 @@ describe("guest private upload handoff", () => {
 			createGuestDraftUploadIntent,
 			{
 				capabilityVersion,
-				productKey: "image-fast",
+				productKey: "image-nano-banana-2-lite",
 				contentType: "image/png",
 				bytes: 8,
 				sha256: "a".repeat(64),
@@ -355,7 +510,7 @@ describe("guest private upload handoff", () => {
 				createGuestDraftUploadIntent,
 				{
 					capabilityVersion,
-					productKey: "image-fast",
+					productKey: "image-nano-banana-2-lite",
 					contentType: "image/png",
 					bytes: 8,
 					sha256: "a".repeat(64),
@@ -402,17 +557,19 @@ describe("guest private upload handoff", () => {
 		expect(databaseMocks.createUpload).not.toHaveBeenCalled();
 	});
 
-	it("persists a selected Quality tier and returns its paid-account handoff hint", async () => {
+	it("persists a selected GPT Image SKU plus its non-billing cell control", async () => {
 		const result = await call(
 			completeGuestDraftUpload,
 			{
 				sessionId: "session_1",
 				completionToken: "b".repeat(43),
 				capabilityVersion,
-				productKey: "image-quality",
+				productKey: "image-gpt-image-2",
+				skuKey: "gpt-image-2-1k",
 				sha256: "a".repeat(64),
 				prompt: "Preserve every product detail",
-				aspectRatio: "16:9",
+				aspectRatio: "5:4",
+				background: "transparent",
 			},
 			{
 				context: {
@@ -423,14 +580,47 @@ describe("guest private upload handoff", () => {
 		);
 
 		expect(databaseMocks.finalizeDraft).toHaveBeenCalledWith(
-			expect.objectContaining({ productKey: "image-quality", aspectRatio: "16:9" }),
+			expect.objectContaining({
+				productKey: "image-gpt-image-2",
+				skuKey: "gpt-image-2-1k",
+				aspectRatio: "5:4",
+				background: "transparent",
+			}),
 			expect.anything(),
 		);
 		expect(result).toMatchObject({
 			status: "READY",
-			productKey: "image-quality",
+			productKey: "image-gpt-image-2",
+			skuKey: "gpt-image-2-1k",
 			accessHint: "paid-account",
 		});
+	});
+
+	it("rejects a non-billing control that the selected cell does not expose", async () => {
+		await expect(
+			call(
+				completeGuestDraftUpload,
+				{
+					sessionId: "session_1",
+					completionToken: "b".repeat(43),
+					capabilityVersion,
+					productKey: "image-gpt-image-2",
+					skuKey: "gpt-image-2-2k",
+					sha256: "a".repeat(64),
+					prompt: "Preserve every product detail",
+					aspectRatio: "1:1",
+					background: "transparent",
+				},
+				{
+					context: {
+						headers: new Headers({ origin: "https://saas.test" }),
+						responseHeaders: new Headers(),
+					},
+				},
+			),
+		).rejects.toThrow("GUEST_PRODUCT_UNAVAILABLE");
+		expect(databaseMocks.loadCompletion).not.toHaveBeenCalled();
+		expect(databaseMocks.finalizeDraft).not.toHaveBeenCalled();
 	});
 
 	it("allocates a generation-compatible opaque asset ID for the guest source", async () => {
@@ -438,7 +628,7 @@ describe("guest private upload handoff", () => {
 			createGuestDraftUploadIntent,
 			{
 				capabilityVersion,
-				productKey: "image-fast",
+				productKey: "image-nano-banana-2-lite",
 				contentType: "image/png",
 				bytes: 8,
 				sha256: "a".repeat(64),
@@ -469,7 +659,8 @@ describe("guest private upload handoff", () => {
 				sessionId: "session_1",
 				completionToken: "b".repeat(43),
 				capabilityVersion,
-				productKey: "image-fast",
+				productKey: "image-nano-banana-2-lite",
+				skuKey: "nano-banana-2-lite-1k",
 				sha256: "a".repeat(64),
 				prompt: "Replace the background",
 			},
@@ -508,7 +699,8 @@ describe("guest private upload handoff", () => {
 			status: "READY",
 			claimToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
 			continueUrl: "/draft/continue",
-			productKey: "image-fast",
+			productKey: "image-nano-banana-2-lite",
+			skuKey: "nano-banana-2-lite-1k",
 			accessHint: "guest-trial",
 		});
 		if (result.status !== "READY") throw new Error("expected ready completion");
@@ -544,7 +736,8 @@ describe("guest private upload handoff", () => {
 			sessionId: "session_1",
 			completionToken: "b".repeat(43),
 			capabilityVersion,
-			productKey: "image-fast" as const,
+			productKey: "image-nano-banana-2-lite" as const,
+			skuKey: "nano-banana-2-lite-1k" as const,
 			sha256: "a".repeat(64),
 			prompt: "Replace the background",
 		};
@@ -563,7 +756,8 @@ describe("guest private upload handoff", () => {
 			status: "READY",
 			claimToken: expect.stringMatching(/^[A-Za-z0-9_-]{43}$/),
 			continueUrl: "/draft/continue",
-			productKey: "image-fast",
+			productKey: "image-nano-banana-2-lite",
+			skuKey: "nano-banana-2-lite-1k",
 			accessHint: "guest-trial",
 		});
 		expect(uploadMocks.completeOwnedUploadSession).toHaveBeenCalledOnce();
@@ -583,7 +777,8 @@ describe("guest private upload handoff", () => {
 					sessionId: "session_1",
 					completionToken: "b".repeat(43),
 					capabilityVersion,
-					productKey: "image-fast",
+					productKey: "image-nano-banana-2-lite",
+					skuKey: "nano-banana-2-lite-1k",
 					sha256: "a".repeat(64),
 					prompt: "Replace the background",
 				},

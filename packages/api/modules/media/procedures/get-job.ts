@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { db } from "@repo/database/client";
 
 import { protectedProcedure } from "../../../orpc/procedures";
+import { publicImageGenerationInput } from "../lib/public-generation-input";
 import { jobIdInputSchema, jsonBigInt } from "../types";
 
 export const getJob = protectedProcedure
@@ -90,6 +91,7 @@ export const getJob = protectedProcedure
 			!attempt?.uncertainSubmission &&
 			attempt?.status !== "SUBMISSION_UNCERTAIN" &&
 			attempt?.status !== "NEEDS_RECONCILIATION";
+		const publicInput = publicImageGenerationInput(job.productKey, job.inputSnapshot);
 		return {
 			id: job.id,
 			status: job.status,
@@ -98,7 +100,9 @@ export const getJob = protectedProcedure
 			creditsCharged: jsonBigInt(job.reservation?.settledAmount ?? 0n),
 			creditsReleased: jsonBigInt(job.reservation?.releasedAmount ?? 0n),
 			productKey: job.productKey,
-			input: job.inputSnapshot,
+			input: publicInput,
+			skuKey: publicInput?.skuKey ?? null,
+			aspectRatio: publicInput?.aspectRatio ?? null,
 			progress: attempt?.progress ?? null,
 			failureCode: job.failureCode,
 			failureReason: moderationRejected

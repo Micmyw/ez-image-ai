@@ -1,4 +1,4 @@
-import { getPlanEntitlement } from "@repo/config";
+import { getPlanEntitlement } from "@repo/config/client";
 
 import type { PaymentsConfig } from "./types";
 

@@ -39,7 +39,10 @@ test.describe("subscription upgrade checkout recovery", () => {
 		const user = await userByEmail(freeEmail);
 		const before = await checkoutFixtureCounts(user.id);
 		await page.goto("/choose-plan?returnTo=%2Fcreate");
-		const creator = page.locator('[data-test="price-table-plan"]').filter({ hasText: "Creator" });
+		const creator = page.locator('[data-test="price-table-plan"]').filter({
+			has: page.getByRole("heading", { name: "Pro", exact: true }),
+		});
+		await expect(creator).toHaveCount(1);
 		await expect(
 			creator.getByRole("alert").filter({ hasText: /no payment method is currently available/i }),
 		).toBeVisible();
@@ -58,11 +61,13 @@ test.describe("subscription upgrade checkout recovery", () => {
 
 		await page.goto(`/create?asset=${source.id}`);
 		await page.getByLabel(/edit instruction/i).fill(prompt);
-		const quality = page.getByRole("radio", { name: /quality edit/i });
-		await quality.click();
-		const dialog = page.getByRole("dialog", { name: /unlock quality edit/i });
-		await expect(dialog).toContainText(/image, instruction, quality edit selection/i);
-		await expect(page.locator('input[name="editor-mode"][value="image-quality"]')).toBeChecked();
+		const gptImage = page.getByRole("radio", { name: /gpt image 2/i });
+		await gptImage.click();
+		const dialog = page.getByRole("dialog", { name: /unlock more image models/i });
+		await expect(dialog).toContainText(/source image, instruction, selected model and sku/i);
+		await expect(
+			page.locator('input[name="editor-mode"][value="image-gpt-image-2"]'),
+		).toBeChecked();
 		await dialog.getByRole("button", { name: /choose a plan/i }).click();
 
 		await expect(page).toHaveURL(/\/choose-plan\?returnTo=/);
@@ -93,7 +98,7 @@ test.describe("subscription upgrade checkout recovery", () => {
 		await expect(page).toHaveURL(/\/create(?:\?upgrade=complete)?$/, { timeout: 15_000 });
 		await expect(page.getByText(/your paid plan is active/i)).toBeVisible();
 		await expect(page.getByLabel(/edit instruction/i)).toHaveValue(prompt);
-		await expect(page.getByRole("radio", { name: /quality edit/i })).toBeChecked();
+		await expect(page.getByRole("radio", { name: /gpt image 2/i })).toBeChecked();
 		await expect(page.getByRole("img", { name: /selected source image/i })).toBeVisible();
 		await expect
 			.poll(() =>

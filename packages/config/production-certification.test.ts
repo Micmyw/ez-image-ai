@@ -54,7 +54,7 @@ describe("EzPic production certification", () => {
 				.filter((check) => check.id.startsWith("guest-"))
 				.map(({ id, status }) => ({ id, status })),
 		).toEqual([
-			{ id: "guest-billed-standard-cost", status: "NOT_COMPLETED" },
+			{ id: "guest-billed-sku-cost", status: "NOT_COMPLETED" },
 			{ id: "guest-provider-hard-budget", status: "NOT_COMPLETED" },
 			{ id: "guest-privacy-cleanup", status: "NOT_COMPLETED" },
 			{ id: "guest-production-configuration", status: "NOT_COMPLETED" },
@@ -78,7 +78,7 @@ describe("EzPic production certification", () => {
 			"environment-isolation",
 			"staging-scenarios",
 			"deployment-revision",
-			"guest-billed-standard-cost",
+			"guest-billed-sku-cost",
 			"guest-provider-hard-budget",
 			"guest-privacy-cleanup",
 			"guest-production-configuration",
@@ -87,6 +87,54 @@ describe("EzPic production certification", () => {
 		expect(JSON.stringify(report)).not.toContain("do-not-leak");
 		expect(() => assertEzPicProductionCertificationComplete(report)).toThrow(/NOT_COMPLETED/);
 	});
+
+	it("binds guest billed-cost evidence to the exact legal public product and SKU", () => {
+		const report = buildEzPicProductionCertification({
+			environment: {
+				GUEST_BILLED_SKU_COST_EVIDENCE_ID: "guest-cost-run-2026-09-07",
+				GUEST_BILLED_SKU_COST_MICROS: "20000",
+				GUEST_BILLED_SKU_PRODUCT_KEY: "image-nano-banana-2-lite",
+				GUEST_BILLED_SKU_KEY: "nano-banana-2-lite-1k",
+			},
+			matrix: placeholderMatrix(),
+			evidence: incompleteEvidence(),
+		});
+
+		expect(report.checks.find((check) => check.id === "guest-billed-sku-cost")).toMatchObject({
+			id: "guest-billed-sku-cost",
+			status: "PASS",
+			evidence: "guest-cost-run-2026-09-07",
+			productKey: "image-nano-banana-2-lite",
+			skuKey: "nano-banana-2-lite-1k",
+		});
+		expect(JSON.stringify(report)).not.toContain("20000");
+	});
+
+	it.each([
+		["image-nano-banana-2-lite", "gpt-image-2-1k"],
+		["image-gpt-image-2", "gpt-image-2-1k"],
+		["image-fast", "nano-banana-2-lite-1k"],
+		["image-nano-banana-2-lite", "not-a-real-sku"],
+	] as const)(
+		"rejects mismatched or non-public guest cost evidence %s/%s",
+		(productKey, skuKey) => {
+			const report = buildEzPicProductionCertification({
+				environment: {
+					GUEST_BILLED_SKU_COST_EVIDENCE_ID: "guest-cost-run-2026-09-07",
+					GUEST_BILLED_SKU_COST_MICROS: "20000",
+					GUEST_BILLED_SKU_PRODUCT_KEY: productKey,
+					GUEST_BILLED_SKU_KEY: skuKey,
+				},
+				matrix: placeholderMatrix(),
+				evidence: incompleteEvidence(),
+			});
+
+			expect(report.checks.find((check) => check.id === "guest-billed-sku-cost")).toMatchObject({
+				id: "guest-billed-sku-cost",
+				status: "NOT_COMPLETED",
+			});
+		},
+	);
 
 	it("accepts only a report whose checks all passed", () => {
 		const report: EzPicProductionCertification = {
@@ -97,7 +145,7 @@ describe("EzPic production certification", () => {
 				{ id: "environment-isolation", status: "PASS", evidence: "validated" },
 				{ id: "staging-scenarios", status: "PASS", evidence: "validated" },
 				{ id: "deployment-revision", status: "PASS", evidence: "validated" },
-				{ id: "guest-billed-standard-cost", status: "PASS", evidence: "validated" },
+				{ id: "guest-billed-sku-cost", status: "PASS", evidence: "validated" },
 				{ id: "guest-provider-hard-budget", status: "PASS", evidence: "validated" },
 				{ id: "guest-privacy-cleanup", status: "PASS", evidence: "validated" },
 				{ id: "guest-production-configuration", status: "PASS", evidence: "validated" },
@@ -115,7 +163,7 @@ describe("EzPic production certification", () => {
 				{ id: "environment-isolation", status: "PASS", evidence: "validated" },
 				{ id: "staging-scenarios", status: "PASS", evidence: "validated" },
 				{ id: "deployment-revision", status: "PASS", evidence: "validated" },
-				{ id: "guest-billed-standard-cost", status: "PASS", evidence: "validated" },
+				{ id: "guest-billed-sku-cost", status: "PASS", evidence: "validated" },
 				{ id: "guest-provider-hard-budget", status: "PASS", evidence: "validated" },
 				{ id: "guest-privacy-cleanup", status: "PASS", evidence: "validated" },
 			],

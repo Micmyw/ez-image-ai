@@ -2,19 +2,26 @@ import {
 	getPublicProductCatalog,
 	executableRouteGraphOptionsFromEnvironment,
 	type ExecutableRouteGraphOptions,
+	type PublicCatalogEntry,
 } from "@repo/ai";
-import { DEFAULT_PRODUCT_CONFIG, IMAGE_ASPECT_RATIOS, type ImageAspectRatio } from "@repo/config";
+import {
+	DEFAULT_PRODUCT_CONFIG,
+	EZPIC_PRODUCT_KEYS,
+	IMAGE_ASPECT_RATIOS,
+	type ImageAspectRatio,
+} from "@repo/config";
 import { db } from "@repo/database/client";
 import type { PrismaClient } from "@repo/database/generated-client";
 
 type RuntimeConfigDatabase = Pick<PrismaClient, "runtimeConfigOverride">;
 
 export interface ExecutableEzPicProduct {
-	key: "image-fast" | "image-quality";
+	key: (typeof EZPIC_PRODUCT_KEYS)[number];
 	label: string;
 	description: string;
 	credits: number;
 	aspectRatios: readonly ImageAspectRatio[];
+	skuMatrix: NonNullable<PublicCatalogEntry["skuMatrix"]>;
 }
 
 const generationConfigKey = "media.generation.enabled";
@@ -60,20 +67,15 @@ export async function getCurrentExecutableEzPicProducts(
 		await getCurrentExecutableRouteGraphOptions(database, environment),
 	);
 	return catalog.products.flatMap((product) => {
-		if (product.key !== "image-fast" && product.key !== "image-quality") return [];
-		const aspectRatioField = product.fields.find(
-			(field) => field.type === "aspect-ratio" && field.key === "aspectRatio",
+		if (!isEzPicProductKey(product.key) || !product.skuMatrix) return [];
+		const defaultCell = product.skuMatrix.cells.find(
+			(cell) => cell.skuKey === product.skuMatrix?.defaultSkuKey,
 		);
-		const aspectRatios = aspectRatioField?.options?.flatMap(({ value }) =>
+		if (!defaultCell) return [];
+		const aspectRatios = defaultCell.aspectRatios.flatMap((value) =>
 			isImageAspectRatio(value) ? [value] : [],
 		);
-		if (
-			!aspectRatios ||
-			aspectRatios.length !== IMAGE_ASPECT_RATIOS.length ||
-			!IMAGE_ASPECT_RATIOS.every((value, index) => aspectRatios[index] === value)
-		) {
-			return [];
-		}
+		if (aspectRatios.length !== defaultCell.aspectRatios.length) return [];
 		return [
 			{
 				key: product.key,
@@ -81,9 +83,14 @@ export async function getCurrentExecutableEzPicProducts(
 				description: product.description,
 				credits: product.credits,
 				aspectRatios: Object.freeze(aspectRatios),
+				skuMatrix: product.skuMatrix,
 			},
 		];
 	});
+}
+
+function isEzPicProductKey(value: string): value is (typeof EZPIC_PRODUCT_KEYS)[number] {
+	return EZPIC_PRODUCT_KEYS.includes(value as (typeof EZPIC_PRODUCT_KEYS)[number]);
 }
 
 function isImageAspectRatio(value: string): value is ImageAspectRatio {

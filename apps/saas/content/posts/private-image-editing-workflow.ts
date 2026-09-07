@@ -8,7 +8,7 @@ export const blogDocuments = [
 		publishedAt: "2026-09-05",
 		tags: ["image editing", "privacy", "workflow"],
 		published: true,
-		body: `EzPic is built around editing a source image rather than generating from a prompt alone. The public page lets you choose a supported image, describe the change, and select the edit tier before continuing.
+		body: `EzPic is built around editing a source image rather than generating from a prompt alone. The public page lets you choose a supported image, describe the change, and select an available image product and output setting before continuing.
 
 ## Start with a supported source image
 
@@ -18,9 +18,9 @@ The public editor accepts JPEG, PNG, and WebP input. It checks the active server
 
 When you continue, the browser requests a short-lived upload intent, sends the source image to the authorized private destination, and asks the server to verify the upload. The browser carries only a stable public product key; Provider routes, model identifiers, credentials, and cost details remain server-side.
 
-## Continue with the access the tier requires
+## Continue with the access the product requires
 
-When the upload is ready, EzPic posts the claim to the same-origin continuation route. An available anonymous Standard trial can continue with a temporary anonymous owner. Quality Edit and account features follow the sign-in and entitlement path shown in the product.
+When the upload is ready, EzPic posts the claim to the same-origin continuation route. An available Nano Banana 2 Lite 1K guest trial can continue with a temporary anonymous owner. GPT Image 2, Seedream 5 Pro, and other account features follow the sign-in and entitlement path shown in the product.
 
 ## Keep the job and result account-scoped
 

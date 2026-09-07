@@ -9,6 +9,9 @@ import {
 	dispatchFalImageTask,
 	dispatchFalVideoTask,
 	dispatchGeminiImageTask,
+	dispatchKieGptImage2ImageTask,
+	dispatchKieNanoBanana2LiteImageTask,
+	dispatchKieSeedream5ProImageTask,
 	dispatchKieVideoTask,
 	dispatchOpenRouterFastImageTask,
 	dispatchOpenRouterQualityImageTask,
@@ -38,7 +41,18 @@ describe("declared Trigger generation tasks", () => {
 		}
 	});
 
-	it("gives synchronous OpenRouter image requests their own conservative long-running budget", () => {
+	it("never automatically retries a Kie image submission POST", () => {
+		for (const task of [
+			dispatchKieNanoBanana2LiteImageTask,
+			dispatchKieGptImage2ImageTask,
+			dispatchKieSeedream5ProImageTask,
+		]) {
+			expect((task as { maxDuration?: number }).maxDuration).toBe(60);
+			expect(retryPolicy(task)).toMatchObject({ maxAttempts: 1 });
+		}
+	});
+
+	it("keeps hidden legacy OpenRouter tasks on their conservative long-running budget", () => {
 		for (const task of [dispatchOpenRouterFastImageTask, dispatchOpenRouterQualityImageTask]) {
 			expect((task as { maxDuration?: number }).maxDuration).toBe(300);
 			expect(retryPolicy(task)).toMatchObject({

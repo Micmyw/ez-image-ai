@@ -1,12 +1,16 @@
+import { EZPIC_PRODUCT_KEYS } from "@repo/config/client";
 import { describe, expect, it } from "vitest";
 
-import {
-	hasEditorRecoveryRequest,
-	resolveEditorAllowedProductKeys,
-	resolveEditorRecovery,
-} from "./editor-recovery";
+import { hasEditorRecoveryRequest, resolveEditorAllowedProductKeys } from "./editor-recovery";
+import { buildEditAgainRecoveryCandidate, resolveEditorRecovery } from "./editor-recovery.server";
 
 const SOURCE_ASSET_ID = "asset_01J5ABCD1234EFGH5678JKLMNP";
+const sourceAsset = {
+	id: SOURCE_ASSET_ID,
+	status: "READY",
+	mimeType: "image/png",
+	deletedAt: null,
+};
 
 describe("resolveEditorRecovery", () => {
 	it("treats a parent-only branch URL as a recovery request that must fail closed", () => {
@@ -14,42 +18,40 @@ describe("resolveEditorRecovery", () => {
 		expect(hasEditorRecoveryRequest({}, null)).toBe(false);
 	});
 
-	it("derives editor entitlements from the durable active billing plan and defaults safely", () => {
+	it("derives current Kie-backed product entitlements from the durable billing plan", () => {
 		expect(resolveEditorAllowedProductKeys({ planId: "creator" }, "ignored")).toEqual([
-			"image-fast",
-			"image-quality",
+			...EZPIC_PRODUCT_KEYS,
 		]);
-		expect(resolveEditorAllowedProductKeys({}, "unknown-plan")).toEqual(["image-fast"]);
+		expect(resolveEditorAllowedProductKeys({}, "unknown-plan")).toEqual([
+			"image-nano-banana-2-lite",
+		]);
 	});
 
-	it("preserves an unavailable Quality selection with its image and prompt for upgrade", () => {
+	it("preserves a matrix-valid paid selection for upgrade", () => {
 		expect(
 			resolveEditorRecovery({
 				requested: true,
 				candidate: {
-					productKey: "image-quality",
+					productKey: "image-gpt-image-2",
 					input: {
 						kind: "image-to-image",
 						prompt: "  Replace the sky with a soft sunset  ",
 						sourceAssetId: SOURCE_ASSET_ID,
+						skuKey: "gpt-image-2-4k",
 						aspectRatio: "16:9",
 					},
 				},
-				sourceAsset: {
-					id: SOURCE_ASSET_ID,
-					status: "READY",
-					mimeType: "image/png",
-					deletedAt: null,
-				},
-				allowedProductKeys: ["image-fast"],
+				sourceAsset,
+				allowedProductKeys: ["image-nano-banana-2-lite"],
 			}),
 		).toEqual({
 			initialDraft: {
-				productKey: "image-quality",
+				productKey: "image-gpt-image-2",
 				input: {
 					kind: "image-to-image",
 					prompt: "Replace the sky with a soft sunset",
 					sourceAssetId: SOURCE_ASSET_ID,
+					skuKey: "gpt-image-2-4k",
 					aspectRatio: "16:9",
 				},
 			},
@@ -58,69 +60,257 @@ describe("resolveEditorRecovery", () => {
 		});
 	});
 
-	it("keeps a claimed source while private verification is still finishing", () => {
+	it("preserves Nano Banana JPEG when recovering a claimed or reused draft", () => {
 		expect(
 			resolveEditorRecovery({
 				requested: true,
 				candidate: {
-					productKey: "image-fast",
+					productKey: "image-nano-banana",
+					input: {
+						kind: "image-to-image",
+						prompt: "  Keep the composition  ",
+						sourceAssetId: SOURCE_ASSET_ID,
+						skuKey: "nano-banana-default",
+						aspectRatio: "4:3",
+						outputFormat: "jpeg",
+						background: "transparent",
+						provider: "kie",
+						providerModelId: "must-not-copy",
+						providerCostMicros: 20_000,
+						credentials: "must-not-copy",
+						unknownSetting: "must-not-copy",
+					},
+				},
+				sourceAsset,
+				allowedProductKeys: ["image-nano-banana"],
+			}),
+		).toEqual({
+			initialDraft: {
+				productKey: "image-nano-banana",
+				input: {
+					kind: "image-to-image",
+					prompt: "Keep the composition",
+					sourceAssetId: SOURCE_ASSET_ID,
+					skuKey: "nano-banana-default",
+					aspectRatio: "4:3",
+					outputFormat: "jpeg",
+				},
+			},
+			restoreState: "ready",
+			notice: null,
+		});
+	});
+
+	it("preserves GPT Image 2 1K transparent background through Edit again recovery", () => {
+		const candidate = buildEditAgainRecoveryCandidate(
+			{
+				productKey: "image-gpt-image-2",
+				inputSnapshot: {
+					kind: "image-to-image",
+					prompt: "Previous prompt",
+					sourceAssetId: "asset-previous",
+					skuKey: "gpt-image-2-1k",
+					aspectRatio: "1:1",
+					background: "transparent",
+					provider: "kie",
+					providerModelId: "must-not-copy",
+					providerCostMicros: 30_000,
+					credentials: "must-not-copy",
+					unknownSetting: "must-not-copy",
+				},
+			},
+			SOURCE_ASSET_ID,
+		);
+
+		expect(candidate).toEqual({
+			productKey: "image-gpt-image-2",
+			input: {
+				kind: "image-to-image",
+				prompt: "",
+				sourceAssetId: SOURCE_ASSET_ID,
+				skuKey: "gpt-image-2-1k",
+				aspectRatio: "1:1",
+				background: "transparent",
+			},
+		});
+		expect(
+			resolveEditorRecovery({
+				requested: true,
+				candidate,
+				sourceAsset,
+				allowedProductKeys: ["image-gpt-image-2"],
+			}),
+		).toMatchObject({
+			initialDraft: {
+				productKey: "image-gpt-image-2",
+				input: {
+					prompt: "",
+					skuKey: "gpt-image-2-1k",
+					aspectRatio: "1:1",
+					background: "transparent",
+				},
+			},
+			notice: null,
+		});
+	});
+
+	it("keeps a matrix-valid source while private verification is finishing", () => {
+		expect(
+			resolveEditorRecovery({
+				requested: true,
+				candidate: {
+					productKey: "image-nano-banana-2-lite",
 					input: {
 						kind: "image-to-image",
 						prompt: "Keep the subject and change the background",
 						sourceAssetId: SOURCE_ASSET_ID,
+						skuKey: "nano-banana-2-lite-1k",
+						aspectRatio: "auto",
 					},
 				},
-				sourceAsset: {
-					id: SOURCE_ASSET_ID,
-					status: "VERIFYING",
-					mimeType: "image/webp",
-					deletedAt: null,
-				},
-				allowedProductKeys: ["image-fast", "image-quality"],
+				sourceAsset: { ...sourceAsset, status: "VERIFYING", mimeType: "image/webp" },
+				allowedProductKeys: ["image-nano-banana-2-lite"],
 			}),
 		).toMatchObject({
 			restoreState: "verifying",
-			initialDraft: { input: { sourceAssetId: SOURCE_ASSET_ID } },
+			initialDraft: {
+				productKey: "image-nano-banana-2-lite",
+				input: { sourceAssetId: SOURCE_ASSET_ID, skuKey: "nano-banana-2-lite-1k" },
+			},
+		});
+	});
+
+	it("restores an empty-prompt edit-again candidate without losing its SKU", () => {
+		const candidate = buildEditAgainRecoveryCandidate(
+			{
+				productKey: "image-seedream-5-pro",
+				inputSnapshot: {
+					kind: "image-to-image",
+					prompt: "Previous prompt",
+					sourceAssetId: "asset-previous",
+					skuKey: "seedream-5-pro-high-2k",
+					aspectRatio: "9:16",
+					providerModelId: "must-not-copy",
+				},
+			},
+			SOURCE_ASSET_ID,
+		);
+
+		expect(candidate).toEqual({
+			productKey: "image-seedream-5-pro",
+			input: {
+				kind: "image-to-image",
+				prompt: "",
+				sourceAssetId: SOURCE_ASSET_ID,
+				skuKey: "seedream-5-pro-high-2k",
+				aspectRatio: "9:16",
+			},
+		});
+		expect(
+			resolveEditorRecovery({
+				requested: true,
+				candidate,
+				sourceAsset,
+				allowedProductKeys: ["image-seedream-5-pro"],
+			}),
+		).toMatchObject({
+			initialDraft: {
+				productKey: "image-seedream-5-pro",
+				input: {
+					prompt: "",
+					skuKey: "seedream-5-pro-high-2k",
+					aspectRatio: "9:16",
+				},
+			},
+			notice: null,
 		});
 	});
 
 	it.each([
-		["READY", "ready"],
-		["VERIFYING", "verifying"],
+		[
+			"a SKU from another product",
+			{
+				productKey: "image-nano-banana-2-lite",
+				input: {
+					kind: "image-to-image",
+					prompt: "x",
+					sourceAssetId: SOURCE_ASSET_ID,
+					skuKey: "gpt-image-2-2k",
+					aspectRatio: "1:1",
+				},
+			},
+		],
+		[
+			"an aspect ratio outside the selected SKU matrix",
+			{
+				productKey: "image-gpt-image-2",
+				input: {
+					kind: "image-to-image",
+					prompt: "x",
+					sourceAssetId: SOURCE_ASSET_ID,
+					skuKey: "gpt-image-2-4k",
+					aspectRatio: "1:1",
+				},
+			},
+		],
+	] as const)("rejects %s", (_label, candidate) => {
+		expect(
+			resolveEditorRecovery({
+				requested: true,
+				candidate,
+				sourceAsset,
+				allowedProductKeys: [
+					"image-nano-banana-2-lite",
+					"image-gpt-image-2",
+					"image-seedream-5-pro",
+				],
+			}),
+		).toEqual({ initialDraft: null, restoreState: "error", notice: "unavailable" });
+	});
+
+	it.each([
+		[
+			"image-fast",
+			"16:9",
+			["image-nano-banana-2-lite"] as const,
+			"image-nano-banana-2-lite",
+			"nano-banana-2-lite-1k",
+			"16:9",
+			null,
+		],
+		[
+			"image-quality",
+			"auto",
+			["image-nano-banana-2-lite"] as const,
+			"image-gpt-image-2",
+			"gpt-image-2-2k",
+			"1:1",
+			"quality-upgrade-required",
+		],
 	] as const)(
-		"restores a %s source with an empty prompt so the user can write a new instruction",
-		(status, restoreState) => {
+		"migrates legacy %s recovery into a legal current selection",
+		(productKey, aspectRatio, allowedProductKeys, targetProduct, skuKey, targetRatio, notice) => {
 			expect(
 				resolveEditorRecovery({
 					requested: true,
 					candidate: {
-						productKey: "image-fast",
+						productKey,
 						input: {
 							kind: "image-to-image",
-							prompt: "",
+							prompt: "Legacy prompt",
 							sourceAssetId: SOURCE_ASSET_ID,
+							aspectRatio,
 						},
 					},
-					sourceAsset: {
-						id: SOURCE_ASSET_ID,
-						status,
-						mimeType: "image/png",
-						deletedAt: null,
-					},
-					allowedProductKeys: ["image-fast", "image-quality"],
+					sourceAsset,
+					allowedProductKeys: [...allowedProductKeys],
 				}),
-			).toEqual({
+			).toMatchObject({
 				initialDraft: {
-					productKey: "image-fast",
-					input: {
-						kind: "image-to-image",
-						prompt: "",
-						sourceAssetId: SOURCE_ASSET_ID,
-						aspectRatio: "auto",
-					},
+					productKey: targetProduct,
+					input: { skuKey, aspectRatio: targetRatio },
 				},
-				restoreState,
-				notice: null,
+				notice,
 			});
 		},
 	);
@@ -130,19 +320,16 @@ describe("resolveEditorRecovery", () => {
 		[
 			"deleted image",
 			{
-				productKey: "image-fast",
+				productKey: "image-nano-banana-2-lite",
 				input: {
 					kind: "image-to-image",
 					prompt: "Change the light",
 					sourceAssetId: SOURCE_ASSET_ID,
+					skuKey: "nano-banana-2-lite-1k",
+					aspectRatio: "auto",
 				},
 			},
-			{
-				id: SOURCE_ASSET_ID,
-				status: "DELETED",
-				mimeType: "image/png",
-				deletedAt: new Date("2026-08-25T00:00:00.000Z"),
-			},
+			{ ...sourceAsset, status: "DELETED", deletedAt: new Date("2026-08-25") },
 		],
 		[
 			"non-editor input",
@@ -150,26 +337,18 @@ describe("resolveEditorRecovery", () => {
 				productKey: "video-fast",
 				input: { kind: "image-to-video", prompt: "Animate it", sourceAssetId: SOURCE_ASSET_ID },
 			},
-			{
-				id: SOURCE_ASSET_ID,
-				status: "READY",
-				mimeType: "image/png",
-				deletedAt: null,
-			},
+			sourceAsset,
 		],
-	] as const)(
-		"reports an explicit error for %s without constructing an empty edit",
-		(_case, candidate, sourceAsset) => {
-			expect(
-				resolveEditorRecovery({
-					requested: true,
-					candidate,
-					sourceAsset,
-					allowedProductKeys: ["image-fast"],
-				}),
-			).toEqual({ initialDraft: null, restoreState: "error", notice: "unavailable" });
-		},
-	);
+	] as const)("reports an explicit error for %s", (_case, candidate, asset) => {
+		expect(
+			resolveEditorRecovery({
+				requested: true,
+				candidate,
+				sourceAsset: asset,
+				allowedProductKeys: ["image-nano-banana-2-lite"],
+			}),
+		).toEqual({ initialDraft: null, restoreState: "error", notice: "unavailable" });
+	});
 
 	it("keeps an ordinary visit empty without showing a recovery error", () => {
 		expect(
@@ -177,7 +356,7 @@ describe("resolveEditorRecovery", () => {
 				requested: false,
 				candidate: null,
 				sourceAsset: null,
-				allowedProductKeys: ["image-fast"],
+				allowedProductKeys: ["image-nano-banana-2-lite"],
 			}),
 		).toEqual({ initialDraft: null, restoreState: "idle", notice: null });
 	});

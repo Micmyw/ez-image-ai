@@ -49,7 +49,8 @@ export interface GuestAdmissionBoundary {
 
 export interface SubmitGuestGenerationInput {
 	capabilityVersion: string;
-	productKey: string;
+	productKey: "image-nano-banana-2-lite";
+	skuKey: "nano-banana-2-lite-1k";
 	sourceAssetId: string;
 	prompt: string;
 	aspectRatio?: ImageAspectRatio;
@@ -91,6 +92,7 @@ interface GuestAdmissionConfig {
 	enabled: boolean;
 	promotionPeriod: string | null;
 	productKey: string;
+	skuKey: string;
 	sponsorCredits: bigint;
 	maximumBytes: number;
 	mimeTypes: readonly string[];
@@ -144,11 +146,12 @@ interface GuestAdmissionDependencies {
 		now: Date;
 	}): Promise<GuestSourceBootstrap | null>;
 	buildQuote(input: {
-		productKey: "image-fast";
+		productKey: "image-nano-banana-2-lite";
 		input: {
 			kind: "image-to-image";
 			prompt: string;
 			sourceAssetId: string;
+			skuKey: "nano-banana-2-lite-1k";
 			aspectRatio: ImageAspectRatio;
 		};
 	}): GuestQuote;
@@ -271,7 +274,7 @@ export async function submitGuestGenerationForGuest(
 			error,
 		);
 	}
-	if (input.productKey !== loaded.config.productKey) {
+	if (input.productKey !== loaded.config.productKey || input.skuKey !== loaded.config.skuKey) {
 		throw new Error("GUEST_PRODUCT_UNAVAILABLE");
 	}
 	let verifiedTurnstile: VerifiedGuestTurnstileToken;
@@ -335,9 +338,13 @@ export async function submitGuestGenerationForGuest(
 		kind: "image-to-image" as const,
 		prompt: input.prompt.trim(),
 		sourceAssetId: source.id,
+		skuKey: "nano-banana-2-lite-1k" as const,
 		aspectRatio: input.aspectRatio ?? "auto",
 	};
-	const quote = dependencies.buildQuote({ productKey: "image-fast", input: modelInput });
+	const quote = dependencies.buildQuote({
+		productKey: "image-nano-banana-2-lite",
+		input: modelInput,
+	});
 	if (
 		quote.productKey !== loaded.config.productKey ||
 		quote.credits !== loaded.config.sponsorCredits ||
@@ -360,7 +367,7 @@ export async function submitGuestGenerationForGuest(
 		ownerType: "USER" as const,
 		ownerId: boundary.ownerId,
 		submittedByUserId: boundary.ownerId,
-		productKey: "image-fast",
+		productKey: "image-nano-banana-2-lite",
 		catalogVersion: quote.catalogVersion,
 		pricingVersion: quote.pricingVersion,
 		credits: quote.credits,
@@ -412,6 +419,7 @@ export async function submitGuestGenerationForGuest(
 			source.id,
 			source.checksum,
 			modelInput.prompt,
+			modelInput.skuKey,
 			modelInput.aspectRatio,
 			quote.catalogVersion,
 			quote.pricingVersion,

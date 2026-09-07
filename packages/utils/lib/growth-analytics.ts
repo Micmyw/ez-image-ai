@@ -1,3 +1,4 @@
+import { EZPIC_PRODUCT_KEYS } from "@repo/config/client";
 import { z } from "zod";
 
 export const EZPIC_GROWTH_EVENT_NAMES = [
@@ -30,10 +31,12 @@ export const EZPIC_GROWTH_EVENT_NAMES = [
 
 export const growthAnalyticsEventNameSchema = z.enum(EZPIC_GROWTH_EVENT_NAMES);
 
+export const EZPIC_ANALYTICS_PRODUCT_KEYS = EZPIC_PRODUCT_KEYS;
+
 export const growthAnalyticsPropertiesSchema = z
 	.object({
 		plan: z.enum(["free", "creator", "ultimate", "studio"]).optional(),
-		productKey: z.enum(["image-fast", "image-quality"]).optional(),
+		productKey: z.enum(EZPIC_ANALYTICS_PRODUCT_KEYS).optional(),
 		status: z
 			.enum([
 				"viewed",
@@ -302,7 +305,7 @@ function productionAnalyticsHost(value: string): URL {
 	return new URL(url.origin);
 }
 
-type EzPicProductKey = "image-fast" | "image-quality";
+type EzPicProductKey = (typeof EZPIC_ANALYTICS_PRODUCT_KEYS)[number];
 type EzPicPaidPlan = "creator" | "ultimate" | "studio";
 type TrackGrowthEvent = (
 	event: GrowthAnalyticsEvent,

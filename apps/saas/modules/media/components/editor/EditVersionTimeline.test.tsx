@@ -32,10 +32,15 @@ vi.mock("next-intl", () => ({
 			"media.edits.assetDeleted": "Asset deleted",
 			"media.edits.outputUnavailable": "Output unavailable",
 			"media.edits.thumbnailAlt": "Private result thumbnail",
+			"media.edits.legacyProduct": "Legacy edit",
 			"media.status.stages.ready": "Completed",
 			"media.status.stages.failed": "Failed",
-			"media.create.products.image-fast.label": "Standard Edit",
-			"media.create.products.image-quality.label": "Quality Edit",
+			"media.create.products.image-nano-banana-2-lite.label": "Nano Banana 2 Lite",
+			"media.create.products.image-gpt-image-2.label": "GPT Image 2",
+			"media.create.products.image-seedream-5-pro.label": "Seedream 5 Pro",
+			"media.create.skus.nano-banana-2-lite-1k.label": "1K",
+			"media.create.skus.gpt-image-2-4k.label": "4K",
+			"media.create.skus.seedream-5-pro-high-2k.label": "2K · High",
 		};
 		return translations[`${namespace}.${key}`] ?? key;
 	},
@@ -63,10 +68,12 @@ describe("EditVersionTimeline", () => {
 					{
 						id: "job-root",
 						parentJobId: null,
-						productKey: "image-fast",
+						productKey: "image-gpt-image-2",
 						prompt: "Warm the background",
 						sourceAssetId: "asset-root",
-						credits: "4",
+						skuKey: "gpt-image-2-4k",
+						aspectRatio: "16:9",
+						credits: "17",
 						status: "SUCCEEDED",
 						createdAt: "2026-08-25T00:01:00.000Z",
 						output: { state: "READY", assetId: "asset-output-root" },
@@ -75,14 +82,30 @@ describe("EditVersionTimeline", () => {
 					{
 						id: "job-branch-failed",
 						parentJobId: "job-root",
-						productKey: "image-quality",
+						productKey: "image-seedream-5-pro",
 						prompt: "Softer shadow",
 						sourceAssetId: "asset-output-root",
-						credits: "10",
+						skuKey: "seedream-5-pro-high-2k",
+						aspectRatio: "9:16",
+						credits: "15",
 						status: "FAILED",
 						createdAt: "2026-08-25T00:02:00.000Z",
 						output: { state: "DELETED", assetId: null },
 						canEditAgain: false,
+					},
+					{
+						id: "job-legacy",
+						parentJobId: null,
+						productKey: "image-quality",
+						prompt: "Historical prompt",
+						sourceAssetId: "asset-legacy-source",
+						skuKey: "gpt-image-2-2k",
+						aspectRatio: "1:1",
+						credits: "40",
+						status: "SUCCEEDED",
+						createdAt: "2026-08-24T00:01:00.000Z",
+						output: { state: "READY", assetId: "asset-legacy-output" },
+						canEditAgain: true,
 					},
 				],
 			},
@@ -92,17 +115,23 @@ describe("EditVersionTimeline", () => {
 		});
 	});
 
-	it("shows real prompts, public modes, credits, statuses, private thumbnails, and eligible branches", () => {
+	it("shows public model-specific SKU selections while keeping legacy versions read-only", () => {
 		const markup = renderToStaticMarkup(<EditVersionTimeline sessionId="session-1" />);
 		const visible = markup.replaceAll(/<[^>]+>/g, " ");
 
 		for (const copy of [
 			"Warm the background",
 			"Softer shadow",
-			"Standard Edit",
-			"Quality Edit",
-			"4 credits",
-			"10 credits",
+			"Historical prompt",
+			"GPT Image 2",
+			"4K",
+			"16:9",
+			"Seedream 5 Pro",
+			"2K · High",
+			"9:16",
+			"Legacy edit",
+			"17 credits",
+			"15 credits",
 			"Completed",
 			"Failed",
 			"Asset deleted",
@@ -111,7 +140,8 @@ describe("EditVersionTimeline", () => {
 		}
 		expect(markup).toContain('href="/create?asset=asset-output-root&amp;parentJob=job-root"');
 		expect(markup).not.toContain("parentJob=job-branch-failed");
+		expect(markup).not.toContain("parentJob=job-legacy");
 		expect(markup).toContain('src="https://private.invalid/short-lived"');
-		expect(visible).not.toMatch(/provider|model|video|text-to-image|cost/i);
+		expect(visible).not.toMatch(/provider|video|text-to-image|cost|kie|image-quality/i);
 	});
 });

@@ -4,7 +4,7 @@ This runbook is for the production AI image/video subscription foundation. Postg
 
 ## 1. Accounts and environment
 
-Prepare separate production and staging accounts/projects for PostgreSQL, Trigger.dev, PayPal, Waffo, private S3/R2-compatible storage, Sentry, Sightengine, and every enabled AI provider (Replicate, Fal, Kie, Gemini, OpenRouter). Prepare Stripe scopes only where historical Stripe subscriptions require maintenance. Restrict production access with SSO/MFA and least-privilege service identities.
+Prepare separate production and staging accounts/projects for PostgreSQL, Trigger.dev, PayPal, Waffo, private S3/R2-compatible storage, Sentry, Sightengine, and every enabled AI provider. Current EzPic image submissions use Kie only. OpenRouter may be configured as a worker-only recovery provider while already-frozen historical image attempts are drained, but it must not be enabled for new submissions. Prepare Stripe scopes only where historical Stripe subscriptions require maintenance. Restrict production access with SSO/MFA and least-privilege service identities.
 
 Start from `.env.local.example`. Production must use `NODE_ENV=production`, non-mock
 `MEDIA_PROVIDER_ADAPTER`, `MEDIA_SAFETY_ADAPTER=sightengine`, strong Better Auth and Webhook
@@ -17,9 +17,17 @@ Feature gates:
 - `MEDIA_GENERATION_ENABLED`: global generation kill switch.
 - `LEGACY_AI_STREAM_ENABLED`: development-only compatibility route; production always rejects the legacy unmetered AI stream.
 - `MEDIA_MODERATION_ENABLED`: required before public/user-visible generated output.
-- `MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED`: server-only certification gate for the exact
-  registered OpenRouter image routes. Keep it `false` until the staging evidence below is complete;
-  an API key, enabled-provider entry, adapter test, or static Trigger task does not satisfy this gate.
+- `MEDIA_NANO_BANANA_2_LITE_ENABLED`, `MEDIA_NANO_BANANA_ENABLED`,
+  `MEDIA_NANO_BANANA_2_ENABLED`, `MEDIA_NANO_BANANA_PRO_ENABLED`,
+  `MEDIA_GPT_IMAGE_1_5_ENABLED`, `MEDIA_GPT_IMAGE_2_ENABLED`,
+  `MEDIA_SEEDREAM_4_5_ENABLED`, `MEDIA_SEEDREAM_5_LITE_ENABLED`, and
+  `MEDIA_SEEDREAM_5_PRO_ENABLED`: independent gates for the nine public Kie image products.
+- `MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS`: server-only, catalog-version-scoped Kie gate. Add
+  the active version only after all legal SKU cells under every enabled product have paid private
+  execution, billing, output-host, moderation, recovery, and rollback evidence.
+- `MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED`: legacy recovery gate required only while OpenRouter is
+  configured for already-frozen historical attempts. It does not make OpenRouter eligible for a new
+  quote and cannot certify Kie.
 - `BILLING_ENABLED`: validated billing configuration only. It is not currently wired as an
   ingress, worker, queue, or schedule kill switch and must not be used to coordinate the F6
   cutover; pause those execution paths with the actual deployment and Trigger controls.
@@ -134,7 +142,7 @@ pricing version. When price or credits change, create a new provider price/plan/
 `BillingPlan` row; never update or upsert the old row's identity, economics, version, or metadata in
 place. The unique provider/price-ID key then prevents accidental reuse, while the old row remains
 available for existing subscriptions and historical Webhook recovery. Until every enabled provider,
-plan, and interval has a newly provisioned ID and matching snapshot for `2026-09-05.1`, paid checkout
+plan, and interval has a newly provisioned ID and matching snapshot for `2026-09-07.2`, paid checkout
 is intentionally unavailable and production BillingPlan synchronization remains `NOT_COMPLETED`.
 
 PayPal and Waffo have no assumed owner-scoped customer portal. Their authenticated billing action is
@@ -180,26 +188,63 @@ Configure Sentry release/environment metadata, server and browser DSNs where app
 
 Certify each catalog route in staging before enabling it: schema/input support, idempotency behavior, provider acceptance certainty, status mapping, output MIME/size, Webhook authenticity/order, polling recovery, cancellation/cleanup, moderation, measured cost, latency, and error redaction. Record Provider/model ID, catalog/pricing version, test time, evidence, maximum cost, and rollback owner. Disable an uncertified route with runtime config rather than silently rerouting uncertain submissions.
 
-The registered OpenRouter image routes are candidates only:
+The current Kie image catalog and pricing version `2026-09-07.2` has 20 exact SKU cells:
 
-- `sourceful/riverflow-v2.5-fast` for `image-fast`, with a conservative 23,000-micros catalog
-  ceiling per output;
-- `sourceful/riverflow-v2.5-pro` for `image-quality`, with a conservative 180,000-micros catalog
-  ceiling per output.
+| Product            | SKU                        | Catalog ceiling | EzPic Credits |
+| ------------------ | -------------------------- | --------------: | ------------: |
+| Nano Banana 2 Lite | `nano-banana-2-lite-1k`    |          $0.020 |             5 |
+| Nano Banana        | `nano-banana-default`      |          $0.020 |             5 |
+| Nano Banana 2      | `nano-banana-2-1k`         |          $0.040 |             9 |
+| Nano Banana 2      | `nano-banana-2-2k`         |          $0.060 |            13 |
+| Nano Banana 2      | `nano-banana-2-4k`         |          $0.090 |            19 |
+| Nano Banana Pro    | `nano-banana-pro-1k`       |          $0.090 |            19 |
+| Nano Banana Pro    | `nano-banana-pro-2k`       |          $0.090 |            19 |
+| Nano Banana Pro    | `nano-banana-pro-4k`       |          $0.120 |            25 |
+| GPT Image 1.5      | `gpt-image-1-5-medium`     |          $0.020 |             5 |
+| GPT Image 1.5      | `gpt-image-1-5-high`       |          $0.110 |            23 |
+| GPT Image 2        | `gpt-image-2-1k`           |          $0.030 |             7 |
+| GPT Image 2        | `gpt-image-2-2k`           |          $0.050 |            11 |
+| GPT Image 2        | `gpt-image-2-4k`           |          $0.080 |            17 |
+| Seedream 4.5       | `seedream-4-5-basic-2k`    |         $0.0325 |             8 |
+| Seedream 4.5       | `seedream-4-5-high-4k`     |         $0.0325 |             8 |
+| Seedream 5 Lite    | `seedream-5-lite-basic-2k` |         $0.0275 |             7 |
+| Seedream 5 Lite    | `seedream-5-lite-high-3k`  |         $0.0275 |             7 |
+| Seedream 5 Lite    | `seedream-5-lite-ultra-4k` |         $0.0275 |             7 |
+| Seedream 5 Pro     | `seedream-5-pro-basic-1k`  |          $0.035 |             8 |
+| Seedream 5 Pro     | `seedream-5-pro-high-2k`   |          $0.070 |            15 |
 
-Their adapter, static dispatch manifest, and Trigger tasks do not certify Provider behavior or
-quality. Real OpenRouter execution, measured cost/latency, raster-output confirmation through the
-private transfer and moderation path, timeout/recovery evidence, and human quality scoring are
-`NOT_COMPLETED`. Until all evidence is recorded for the exact route tuples and catalog/pricing
-version, leave OpenRouter out of `MEDIA_ENABLED_PROVIDERS` and keep
-`MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED=false`. Never expose the model slugs, Provider identity,
-cost ceilings, key, or route state in the public capability or landing UI.
+Every product owns its own resolution/quality/aspect-ratio matrix; GPT Image 2 1K is a supported
+paid cell. Output format and background are product-local request controls and do not change the
+EzPic Credit charge. Do not use one model's successful task to approve another cell. The Kie adapter
+creates image tasks through `/api/v1/jobs/createTask` and polls the server-derived
+`/api/v1/jobs/recordInfo` URL. A successful local adapter contract or static Trigger task does not
+certify Provider behavior, output hosting, quality, or billed cost.
+
+Real paid Kie execution for all 20 SKU cells is `NOT_COMPLETED`. Leave the corresponding product flags
+off and omit the active version from `MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS` until private
+execution, cost/latency, single-output confirmation, output-host allowlist, moderation,
+same-attempt recovery, and human quality evidence are reviewed. Never expose raw Kie model IDs,
+Provider identity, cost ceilings, key, status URLs, or route state in the public capability or UI.
+
+The old OpenRouter Standard/Quality benchmark is retired and cannot provide Kie evidence. Keep
+OpenRouter out of `MEDIA_ENABLED_PROVIDERS`. If historical attempts still need retrieval, put it
+only in `MEDIA_RECOVERY_PROVIDERS`, retain the worker credential and legacy certification gate, and
+remove that recovery configuration after the backlog is durably drained.
 
 ## 7. Smoke, load, and invariants
 
-PR CI never calls paid providers. The protected `.github/workflows/provider-smoke.yml` currently validates only the configuration for the two image-edit routes: `image-fast:openrouter` (23,000 USD micros planning cost) and `image-quality:openrouter` (180,000 USD micros). Both values assume OpenRouter credits are purchased in batches of at least $20; the public 5.5% purchase fee has a $0.80 minimum, so a smaller purchase invalidates these budgets until that fixed fee is allocated explicitly. Both routes are declared as `image-to-image`; the smoke will not silently fall back to text-to-image. Its route allowlist, invocation cap, and expected-cost cap remain mandatory, and scheduled validation requires all four protected schedule variables.
+PR CI never calls paid providers. The protected `.github/workflows/provider-smoke.yml` validates all
+20 Kie product/SKU cells, caps the allowlist at 20 invocations, and caps their aggregate catalog
+Provider-cost ceiling at 1,072,500 USD micros. Every row is `image-to-image`, requests one output, and must match its
+exact product/SKU matrix. Its route allowlist, invocation cap, expected-cost cap, and protected
+schedule variables remain mandatory.
 
-Direct live image smoke is `NOT_COMPLETED` and fails before an adapter or network call even if `PROVIDER_SMOKE_CONFIRM_LIVE=true`. Calling OpenRouter directly from this harness would bypass owner-scoped assets, remote URL policy, input/output moderation, private storage, persisted attempts, credit settlement, and uncertain-submission recovery. A future live certification executor must bind an authorized private asset to the existing quote-to-finalization pipeline and preserve those controls. Until that executor exists, the committed environment and workflow keep `PROVIDER_SMOKE_CONFIRM_LIVE=false`; a passing dry run proves only route and budget configuration, not a live OpenRouter route.
+Direct paid Kie image smoke is `NOT_COMPLETED`. A valid live certification executor must bind an
+authorized private asset to the existing quote-to-finalization pipeline; a direct Kie API call that
+bypasses owner scope, remote URL policy, moderation, private storage, persisted attempts, EzPic
+Credit settlement, and uncertain-submission recovery is invalid evidence. Keep
+`PROVIDER_SMOKE_CONFIRM_LIVE=false` until the explicit protected run is authorized. A passing dry run
+proves only SKU, route, and budget configuration, not a live Kie route.
 
 Load tests require a dedicated staging-equivalent environment, mock Provider modes, disposable accounts, and an isolated PostgreSQL database. Supported modes are fast success, long-running, duplicate Webhook, dropped Webhook, uncertain submission, slow transfer, moderation rejection, and Provider failure.
 

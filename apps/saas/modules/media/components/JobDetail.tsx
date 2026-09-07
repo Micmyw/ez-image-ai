@@ -1,5 +1,6 @@
 "use client";
 
+import { IMAGE_ASPECT_RATIOS, type ImageAspectRatio } from "@repo/config/client";
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
 import { orpcClient } from "@shared/lib/orpc-client";
@@ -9,18 +10,28 @@ import { useRouter } from "next/navigation";
 
 import { useJob } from "../hooks/use-job";
 import { isEditorProductKey } from "../lib/editor-recovery";
+import { isPublicImageSkuKey } from "../lib/image-sku-selection";
 import { getJobPresentation } from "../lib/job-status";
 
 export function JobDetail({ jobId }: { jobId: string }) {
 	const t = useTranslations("media.detail");
 	const stages = useTranslations("media.status.stages");
 	const products = useTranslations("media.create.products");
+	const skus = useTranslations("media.create.skus");
+	const outputSettings = useTranslations("media.create.outputSettings");
 	const router = useRouter();
 	const job = useJob(jobId);
 	if (job.isError && !job.data) return <JobDetailUnavailable />;
 	if (!job.data) return <div aria-busy="true">{t("loading")}</div>;
 	const presentation = getJobPresentation({ status: job.data.status, progress: job.data.progress });
 	const editorProductKey = isEditorProductKey(job.data.productKey) ? job.data.productKey : null;
+	const skuKey =
+		editorProductKey && job.data.skuKey && isPublicImageSkuKey(job.data.skuKey)
+			? job.data.skuKey
+			: null;
+	const aspectRatio =
+		editorProductKey && isImageAspectRatio(job.data.aspectRatio) ? job.data.aspectRatio : null;
+	const canReuse = Boolean(editorProductKey && skuKey && aspectRatio);
 	async function retry() {
 		const result = await orpcClient.media.retryGeneration({
 			jobId,
@@ -39,6 +50,12 @@ export function JobDetail({ jobId }: { jobId: string }) {
 						<h1 className="text-2xl font-medium">
 							{editorProductKey ? products(`${editorProductKey}.label`) : t("legacyProduct")}
 						</h1>
+						{skuKey && aspectRatio && (
+							<p className="mt-1 text-sm text-muted-foreground">
+								{skus(`${skuKey}.label`)} ·{" "}
+								{aspectRatio === "auto" ? outputSettings("automatic") : aspectRatio}
+							</p>
+						)}
 						<p className="text-xs text-muted-foreground">{job.data.id}</p>
 					</div>
 					<Badge status="info">{stages(presentation.stage)}</Badge>
@@ -61,7 +78,7 @@ export function JobDetail({ jobId }: { jobId: string }) {
 					<p className="mt-5 p-4 text-sm rounded-xl bg-destructive/10">{t("safeFailure")}</p>
 				)}
 				<div className="mt-6 gap-2 flex flex-wrap">
-					{editorProductKey && (
+					{canReuse && (
 						<Button
 							variant="primary"
 							render={(props) => <Link {...props} href={`/create?reuseJob=${jobId}`} />}
@@ -69,7 +86,7 @@ export function JobDetail({ jobId }: { jobId: string }) {
 							{t("reuse")}
 						</Button>
 					)}
-					{editorProductKey && presentation.stage === "failed" && (
+					{canReuse && presentation.stage === "failed" && (
 						<Button variant="secondary" onClick={() => void retry()}>
 							{t("retry")}
 						</Button>
@@ -78,6 +95,10 @@ export function JobDetail({ jobId }: { jobId: string }) {
 			</div>
 		</div>
 	);
+}
+
+function isImageAspectRatio(value: string | null | undefined): value is ImageAspectRatio {
+	return Boolean(value && IMAGE_ASPECT_RATIOS.includes(value as ImageAspectRatio));
 }
 
 function JobDetailUnavailable() {

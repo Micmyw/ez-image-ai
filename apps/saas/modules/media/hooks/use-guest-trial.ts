@@ -20,7 +20,12 @@ type GuestInitialLoad =
 	| {
 			kind: "draft";
 			capabilityVersion: string;
-			draft: { sourceAssetId: string; prompt: string; aspectRatio: ImageAspectRatio };
+			draft: {
+				sourceAssetId: string;
+				prompt: string;
+				skuKey: "nano-banana-2-lite-1k";
+				aspectRatio: ImageAspectRatio;
+			};
 	  }
 	| { kind: "unavailable"; capabilityVersion: string };
 
@@ -29,6 +34,7 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 	const [draft, setDraft] = useState<{
 		sourceAssetId: string;
 		prompt: string;
+		skuKey: "nano-banana-2-lite-1k";
 		aspectRatio: ImageAspectRatio;
 	}>();
 	const [prompt, setPrompt] = useState("");
@@ -168,7 +174,8 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 		try {
 			const next = await orpcClient.media.submitGuestGeneration({
 				capabilityVersion,
-				productKey: "image-fast",
+				productKey: "image-nano-banana-2-lite",
+				skuKey: draft.skuKey,
 				sourceAssetId: draft.sourceAssetId,
 				prompt: prompt.trim(),
 				aspectRatio: draft.aspectRatio,

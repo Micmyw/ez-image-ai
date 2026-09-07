@@ -13,20 +13,200 @@ const capability = {
 	},
 	products: [
 		{
-			key: "image-fast",
-			label: "Standard Edit",
-			description: "Private prompt-based image editing at the Standard tier",
+			key: "image-nano-banana-2-lite",
+			label: "Nano Banana 2 Lite",
+			description: "Fast private 1K image editing",
 			credits: "5",
 			accessHint: "guest-trial",
 			aspectRatios: ["auto", "1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9"],
+			skuMatrix: {
+				defaultSkuKey: "nano-banana-2-lite-1k",
+				dimensions: [
+					{ key: "resolution", label: "Resolution", options: [{ key: "1k", label: "1K" }] },
+				],
+				cells: [
+					{
+						skuKey: "nano-banana-2-lite-1k",
+						label: "1K",
+						parameterValues: { resolution: "1k" },
+						credits: 5,
+						aspectRatios: ["auto", "1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9"],
+						controls: [],
+					},
+				],
+			},
 		},
 		{
-			key: "image-quality",
-			label: "Quality Edit",
-			description: "Private prompt-based image editing at the Quality tier",
-			credits: "40",
+			key: "image-gpt-image-2",
+			label: "GPT Image 2",
+			description: "Detailed private image editing with 1K, 2K, and 4K options",
+			credits: "7",
 			accessHint: "paid-account",
-			aspectRatios: ["auto", "1:1", "4:3", "3:4", "3:2", "2:3", "16:9", "9:16", "21:9"],
+			aspectRatios: [
+				"auto",
+				"1:1",
+				"3:2",
+				"2:3",
+				"4:3",
+				"3:4",
+				"5:4",
+				"4:5",
+				"16:9",
+				"9:16",
+				"2:1",
+				"1:2",
+				"3:1",
+				"1:3",
+				"21:9",
+				"9:21",
+			],
+			skuMatrix: {
+				defaultSkuKey: "gpt-image-2-1k",
+				dimensions: [
+					{
+						key: "resolution",
+						label: "Resolution",
+						options: [
+							{ key: "1k", label: "1K" },
+							{ key: "2k", label: "2K" },
+							{ key: "4k", label: "4K" },
+						],
+					},
+				],
+				cells: [
+					{
+						skuKey: "gpt-image-2-1k",
+						label: "1K",
+						parameterValues: { resolution: "1k" },
+						credits: 7,
+						aspectRatios: [
+							"auto",
+							"1:1",
+							"3:2",
+							"2:3",
+							"4:3",
+							"3:4",
+							"5:4",
+							"4:5",
+							"16:9",
+							"9:16",
+							"2:1",
+							"1:2",
+							"3:1",
+							"1:3",
+							"21:9",
+							"9:21",
+						],
+						controls: [
+							{
+								key: "background",
+								label: "Background",
+								defaultValue: "opaque",
+								options: [
+									{ key: "auto", label: "Automatic" },
+									{ key: "opaque", label: "Opaque" },
+									{ key: "transparent", label: "Transparent" },
+								],
+							},
+						],
+					},
+					{
+						skuKey: "gpt-image-2-2k",
+						label: "2K",
+						parameterValues: { resolution: "2k" },
+						credits: 11,
+						aspectRatios: ["1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16", "2:1", "1:2", "21:9"],
+						controls: [],
+					},
+					{
+						skuKey: "gpt-image-2-4k",
+						label: "4K",
+						parameterValues: { resolution: "4k" },
+						credits: 17,
+						aspectRatios: [
+							"3:2",
+							"2:3",
+							"4:3",
+							"3:4",
+							"4:5",
+							"5:4",
+							"16:9",
+							"9:16",
+							"2:1",
+							"1:2",
+							"21:9",
+						],
+						controls: [],
+					},
+				],
+			},
+		},
+		{
+			key: "image-seedream-5-pro",
+			label: "Seedream 5 Pro",
+			description: "Private image editing with Basic and High options",
+			credits: "8",
+			accessHint: "paid-account",
+			aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
+			skuMatrix: {
+				defaultSkuKey: "seedream-5-pro-basic-1k",
+				dimensions: [
+					{
+						key: "resolution",
+						label: "Resolution",
+						options: [
+							{ key: "1k", label: "1K" },
+							{ key: "2k", label: "2K" },
+						],
+					},
+					{
+						key: "quality",
+						label: "Quality",
+						options: [
+							{ key: "basic", label: "Basic" },
+							{ key: "high", label: "High" },
+						],
+					},
+				],
+				cells: [
+					{
+						skuKey: "seedream-5-pro-basic-1k",
+						label: "1K · Basic",
+						parameterValues: { resolution: "1k", quality: "basic" },
+						credits: 8,
+						aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
+						controls: [
+							{
+								key: "outputFormat",
+								label: "Output format",
+								defaultValue: "png",
+								options: [
+									{ key: "png", label: "PNG" },
+									{ key: "jpeg", label: "JPEG" },
+								],
+							},
+						],
+					},
+					{
+						skuKey: "seedream-5-pro-high-2k",
+						label: "2K · High",
+						parameterValues: { resolution: "2k", quality: "high" },
+						credits: 15,
+						aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
+						controls: [
+							{
+								key: "outputFormat",
+								label: "Output format",
+								defaultValue: "png",
+								options: [
+									{ key: "png", label: "PNG" },
+									{ key: "jpeg", label: "JPEG" },
+								],
+							},
+						],
+					},
+				],
+			},
 		},
 	],
 	queueEstimate: { kind: "capacity" },
@@ -57,7 +237,9 @@ test("the landing generator reports capability checking before it becomes ready"
 	try {
 		await expect(stage(page, "checking")).toBeVisible();
 		await expect(page.getByText(/wait while edit availability is checked/i)).toBeVisible();
-		await expect(page.getByRole("button", { name: /try one standard edit free/i })).toBeDisabled();
+		await expect(
+			page.getByRole("button", { name: /try nano banana 2 lite 1k free/i }),
+		).toBeDisabled();
 	} finally {
 		capabilityGate.resolve();
 	}
@@ -103,8 +285,10 @@ test("an inconsistent enabled capability without products fails closed", async (
 	await page.goto("/");
 	await expect(stage(page, "ready")).toBeVisible();
 	await expect(page.getByText(/editing is unavailable right now/i)).toBeVisible();
-	await expect(page.getByRole("group", { name: /edit tier/i })).toHaveCount(0);
-	await expect(page.getByRole("button", { name: /try one standard edit free/i })).toBeDisabled();
+	await expect(page.getByRole("group", { name: /image model/i })).toHaveCount(0);
+	await expect(
+		page.getByRole("button", { name: /try nano banana 2 lite 1k free/i }),
+	).toBeDisabled();
 });
 
 test("the public root exposes the image editor before authentication", async ({ page }) => {
@@ -126,9 +310,10 @@ test("the public root exposes the image editor before authentication", async ({ 
 		page.getByRole("button", { name: /drop an image here or choose a file/i }),
 	).toBeVisible();
 	await expect(page.getByLabel(/describe your edit/i)).toBeVisible();
-	await expect(page.getByRole("radio", { name: /standard edit/i })).toBeChecked();
-	await expect(page.getByRole("radio", { name: /quality edit/i })).not.toBeChecked();
-	await expect(page.getByRole("button", { name: /try one standard edit free/i })).toBeVisible();
+	await expect(page.getByRole("radio", { name: /nano banana 2 lite/i })).toBeChecked();
+	await expect(page.getByRole("radio", { name: /gpt image 2/i })).not.toBeChecked();
+	await expect(page.getByRole("radio", { name: /seedream 5 pro/i })).not.toBeChecked();
+	await expect(page.getByRole("button", { name: /try nano banana 2 lite 1k free/i })).toBeVisible();
 	await expect(page.getByRole("banner").getByRole("link", { name: /sign in/i })).toHaveAttribute(
 		"href",
 		"/login",
@@ -152,7 +337,7 @@ test("the public root exposes the image editor before authentication", async ({ 
 		/not customer testimonials, published case studies, or promised results/i,
 	);
 	await expect(page.locator("body")).not.toContainText(
-		/raphael|openrouter|sourceful|riverflow|providerModelId|providerCostMicros/i,
+		/raphael|openrouter|sourceful|riverflow|providerModelId|providerCostMicros|providerTaskId|KIE_API_KEY|api\.kie\.ai/i,
 	);
 });
 
@@ -189,32 +374,39 @@ test("the editor follows the user as a compact dock and expands without losing i
 	await expect(page.getByLabel(/describe your edit/i).first()).toBeFocused();
 });
 
-test("the landing generator supports tier choice plus drop, replace, and removal", async ({
+test("the landing generator supports model and SKU choice plus drop, replace, and removal", async ({
 	page,
 }) => {
 	await page.goto("/");
 
-	const standard = page.getByRole("radio", { name: /standard edit/i });
-	const quality = page.getByRole("radio", { name: /quality edit/i });
-	const action = page.getByRole("button", { name: /try one standard edit free/i });
-	await expect(standard).toBeChecked();
+	const nano = page.getByRole("radio", { name: /nano banana 2 lite/i });
+	const gpt = page.getByRole("radio", { name: /gpt image 2/i });
+	const action = page.getByRole("button", { name: /try nano banana 2 lite 1k free/i });
+	await expect(nano).toBeChecked();
 	await expect(action).toBeDisabled();
 	await expect(page.getByText(/add a source image to continue/i)).toBeVisible();
 
-	await quality.check();
-	await expect(quality).toBeChecked();
+	await gpt.check();
+	await expect(gpt).toBeChecked();
 	await expect(
-		page.getByText(
-			/quality edit continues after sign-in and requires a creator or studio account/i,
-		),
+		page.getByText(/gpt image 2 and seedream 5 pro continue after sign-in and require a pro/i),
 	).toBeVisible();
 	await page.getByRole("button", { name: /open output settings/i }).click();
 	const automaticAspectRatio = page.getByRole("radio", { name: "Automatic", exact: true });
 	const landscapeAspectRatio = page.getByRole("radio", { name: "16:9", exact: true });
 	await expect(automaticAspectRatio).toBeChecked();
+	await expect(page.getByRole("button", { name: "1K", exact: true })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	await page.getByRole("button", { name: "4K", exact: true }).click();
+	await expect(page.getByText("17", { exact: true })).toBeVisible();
 	await page.getByText("16:9", { exact: true }).click();
 	await expect(landscapeAspectRatio).toBeChecked();
 	await page.keyboard.press("Escape");
+	await expect(page.getByRole("button", { name: /open output settings/i })).toContainText(
+		"4K · 17",
+	);
 
 	const dropZone = page.getByRole("button", {
 		name: /drop an image here or choose a file/i,
@@ -230,19 +422,21 @@ test("the landing generator supports tier choice plus drop, replace, and removal
 	await expect(page.getByRole("button", { name: /replace image/i })).toBeVisible();
 
 	await page.getByLabel(/describe your edit/i).fill("Keep the subject and replace the background");
-	await expect(page.getByRole("button", { name: /continue with quality edit/i })).toBeEnabled();
+	await expect(
+		page.getByRole("button", { name: /continue with a paid image model/i }),
+	).toBeEnabled();
 
 	await page.getByRole("button", { name: /remove image/i }).click();
 	await expect(page.getByRole("img", { name: /preview of replacement-source\.png/i })).toHaveCount(
 		0,
 	);
-	await expect(quality).toBeChecked();
+	await expect(gpt).toBeChecked();
 	await expect(page.getByLabel(/describe your edit/i)).toHaveValue(
 		"Keep the subject and replace the background",
 	);
 });
 
-test("the selected tier crosses each private-upload stage without leaking routing details", async ({
+test("the selected model and SKU cross each private-upload stage without leaking routing details", async ({
 	page,
 }) => {
 	const intentGate = deferred<void>();
@@ -287,7 +481,8 @@ test("the selected tier crosses each private-upload stage without leaking routin
 				status: "READY",
 				claimToken: "d".repeat(43),
 				continueUrl: "/draft/continue",
-				productKey: "image-quality",
+				productKey: "image-gpt-image-2",
+				skuKey: "gpt-image-2-4k",
 				accessHint: "paid-account",
 			}),
 		});
@@ -299,17 +494,21 @@ test("the selected tier crosses each private-upload stage without leaking routin
 	});
 
 	await page.goto("/");
-	await page.getByRole("radio", { name: /quality edit/i }).check();
+	await page.getByRole("radio", { name: /gpt image 2/i }).check();
 	await page.getByRole("button", { name: /open output settings/i }).click();
+	await expect(page.getByText("Background", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: "Transparent", exact: true }).click();
+	await page.getByRole("button", { name: "4K", exact: true }).click();
+	await expect(page.getByText("Background", { exact: true })).toHaveCount(0);
 	await page.getByText("16:9", { exact: true }).click();
 	await page.keyboard.press("Escape");
-	await page.getByLabel(/source image/i).setInputFiles(pngFile("quality-source.png"));
+	await page.getByLabel(/source image/i).setInputFiles(pngFile("gpt-source.png"));
 	await page.getByLabel(/describe your edit/i).fill("Preserve the product details");
-	await page.getByRole("button", { name: /continue with quality edit/i }).click();
+	await page.getByRole("button", { name: /continue with a paid image model/i }).click();
 
 	await intentRequested.promise;
 	await expect(stage(page, "preparing")).toBeVisible();
-	expect(intentBody).toMatchObject({ productKey: "image-quality" });
+	expect(intentBody).toMatchObject({ productKey: "image-gpt-image-2" });
 	intentGate.resolve();
 
 	await uploadRequested.promise;
@@ -318,9 +517,14 @@ test("the selected tier crosses each private-upload stage without leaking routin
 
 	await verificationRequested.promise;
 	await expect(stage(page, "verifying")).toBeVisible();
-	expect(completionBody).toMatchObject({ productKey: "image-quality", aspectRatio: "16:9" });
+	expect(completionBody).toMatchObject({
+		productKey: "image-gpt-image-2",
+		skuKey: "gpt-image-2-4k",
+		aspectRatio: "16:9",
+	});
+	expect(completionBody).not.toHaveProperty("background");
 	await expect(page.locator("body")).not.toContainText(
-		/openrouter|sourceful|riverflow|providerModelId|providerCostMicros/i,
+		/openrouter|sourceful|riverflow|providerModelId|providerCostMicros|providerTaskId|KIE_API_KEY|api\.kie\.ai/i,
 	);
 	verificationGate.resolve();
 
@@ -329,7 +533,7 @@ test("the selected tier crosses each private-upload stage without leaking routin
 	expect(handoffBody).toContain("intent=continue-account-draft");
 });
 
-test("a retryable failure preserves the image, prompt, and selected tier", async ({ page }) => {
+test("a retryable failure preserves the image, prompt, and selected model", async ({ page }) => {
 	let attempts = 0;
 	const secondAttempt = deferred<Record<string, unknown>>();
 	await page.route("**/api/media/guest-drafts/upload-intents", async (route) => {
@@ -343,19 +547,19 @@ test("a retryable failure preserves the image, prompt, and selected tier", async
 	});
 
 	await page.goto("/");
-	const quality = page.getByRole("radio", { name: /quality edit/i });
+	const gpt = page.getByRole("radio", { name: /gpt image 2/i });
 	const prompt = page.getByLabel(/describe your edit/i);
-	await quality.check();
+	await gpt.check();
 	await page.getByLabel(/source image/i).setInputFiles(pngFile("retry-source.png"));
 	await prompt.fill("Keep this prompt through the retry");
-	await page.getByRole("button", { name: /continue with quality edit/i }).click();
+	await page.getByRole("button", { name: /continue with a paid image model/i }).click();
 
 	await expect(stage(page, "failed")).toBeVisible();
 	await expect(page.getByRole("img", { name: /preview of retry-source\.png/i })).toBeVisible();
 	await expect(prompt).toHaveValue("Keep this prompt through the retry");
-	await expect(quality).toBeChecked();
-	await page.getByRole("button", { name: /retry quality edit/i }).click();
-	await expect(secondAttempt.promise).resolves.toMatchObject({ productKey: "image-quality" });
+	await expect(gpt).toBeChecked();
+	await page.getByRole("button", { name: /retry gpt image 2/i }).click();
+	await expect(secondAttempt.promise).resolves.toMatchObject({ productKey: "image-gpt-image-2" });
 });
 
 test("the landing page proves edits with an interactive comparison and visual examples", async ({
@@ -473,7 +677,9 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 		await expect(
 			page.getByRole("button", { name: /drop an image here or choose a file/i }),
 		).toBeVisible();
-		await expect(page.getByRole("button", { name: /try one standard edit free/i })).toBeVisible();
+		await expect(
+			page.getByRole("button", { name: /try nano banana 2 lite 1k free/i }),
+		).toBeVisible();
 		if (viewport.width < 768) {
 			await expect(page.locator('[data-test="mobile-section-nav"]')).toBeVisible();
 			await expect(page.getByText("5 credits", { exact: true }).first()).toBeVisible();
@@ -481,7 +687,7 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 		const [sourceRect, promptRect, tierRect] = await Promise.all([
 			box(page.getByRole("button", { name: /drop an image here or choose a file/i })),
 			box(page.getByLabel(/describe your edit/i)),
-			box(page.getByRole("group", { name: /edit tier/i })),
+			box(page.getByRole("group", { name: /image model/i })),
 		]);
 		expect(sourceRect.x).toBeLessThan(promptRect.x);
 		expect(Math.abs(sourceRect.y - promptRect.y)).toBeLessThan(2);
@@ -498,10 +704,12 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 		]);
 		expect(firstExample.x).toBeLessThan(secondExample.x);
 		expect(Math.abs(firstExample.y - secondExample.y)).toBeLessThan(2);
-		await page.getByRole("radio", { name: /quality edit/i }).check();
+		await page.getByRole("radio", { name: /gpt image 2/i }).check();
 		await page.getByLabel(/source image/i).setInputFiles(pngFile(`source-${viewport.width}.png`));
 		await page.getByLabel(/describe your edit/i).fill("Keep the subject sharp");
-		await expect(page.getByRole("button", { name: /continue with quality edit/i })).toBeEnabled();
+		await expect(
+			page.getByRole("button", { name: /continue with a paid image model/i }),
+		).toBeEnabled();
 		await testInfo.attach(`landing-${viewport.width}`, {
 			body: await page.screenshot({ fullPage: true }),
 			contentType: "image/png",

@@ -40,19 +40,27 @@ the legacy unmetered stream. Secrets stay only in the hosting platform and worke
 
 ## Non-secret external inventory
 
-| Boundary               | Record before certification                                                                                                                  | Current status  |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- | --------------- |
-| PostgreSQL             | Environment name, database resource ID, PostgreSQL version, migration revision, backup and isolated restore artifact                         | `NOT_COMPLETED` |
-| Trigger.dev Cloud      | Project/environment name, deployed task revision, queue list, redacted run and replay references                                             | `NOT_COMPLETED` |
-| Private S3/R2          | HTTPS endpoint origin, bucket resource ID, region, IAM policy review, CORS/lifecycle version, multipart and signed-URL evidence              | `NOT_COMPLETED` |
-| Standard Edit Provider | Internal route certification reference, Provider endpoint/model identifier kept server-side, billed cost, p50/p95, failure/recovery evidence | `NOT_COMPLETED` |
-| Quality Edit Provider  | Separate route certification reference, billed cost, p50/p95, moderation and rollback evidence                                               | `NOT_COMPLETED` |
-| Moderation             | Service environment name, policy/rule versions, prompt/input/output result references, alert and failure evidence                            | `NOT_COMPLETED` |
-| PayPal                 | Sandbox/live scope, Pro/Ultimate/Max plan IDs, all four Credit Pack product IDs, Webhook, lifecycle and reconciliation artifacts             | `NOT_COMPLETED` |
-| Waffo                  | Test/prod store and merchant scopes, Pro/Ultimate/Max and all four Credit Pack product IDs, Webhook, lifecycle and reconciliation artifacts  | `NOT_COMPLETED` |
-| Sentry                 | Project/environment name, release, alert rule IDs and destination receipt                                                                    | `NOT_COMPLETED` |
-| PostHog and GSC        | Project/property identifiers, consent evidence, ingestion references, domain verification and sitemap submission                             | `NOT_COMPLETED` |
-| Mail Provider          | Provider/environment name, verified sender domain, delivery and bounce references                                                            | `NOT_COMPLETED` |
+| Boundary                | Record before certification                                                                                                                      | Current status  |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- |
+| PostgreSQL              | Environment name, database resource ID, PostgreSQL version, migration revision, backup and isolated restore artifact                             | `NOT_COMPLETED` |
+| Trigger.dev Cloud       | Project/environment name, deployed Kie task revision, queue list, redacted run and replay references                                             | `NOT_COMPLETED` |
+| Private S3/R2           | HTTPS endpoint origin, bucket resource ID, region, IAM policy review, CORS/lifecycle version, multipart and signed-URL evidence                  | `NOT_COMPLETED` |
+| Kie Nano Banana 2 Lite  | `nano-banana-2-lite-1k` paid run, billed cost, output host/MIME/dimensions, p50/p95, failure/recovery and rollback evidence                      | `NOT_COMPLETED` |
+| Kie Nano Banana         | `nano-banana-default` paid run with the same complete evidence set                                                                               | `NOT_COMPLETED` |
+| Kie Nano Banana 2       | Separate 1K, 2K, and 4K SKU artifacts with the same complete evidence set                                                                        | `NOT_COMPLETED` |
+| Kie Nano Banana Pro     | Separate 1K, 2K, and 4K SKU artifacts with the same complete evidence set                                                                        | `NOT_COMPLETED` |
+| Kie GPT Image 1.5       | Separate Medium and High SKU artifacts with the same complete evidence set                                                                       | `NOT_COMPLETED` |
+| Kie GPT Image 2         | Separate 1K, 2K, and 4K SKU artifacts with the same complete evidence set                                                                        | `NOT_COMPLETED` |
+| Kie Seedream 4.5        | Separate Basic 2K and High 4K SKU artifacts with the same complete evidence set                                                                  | `NOT_COMPLETED` |
+| Kie Seedream 5 Lite     | Separate Basic 2K, High 3K, and Ultra 4K SKU artifacts with the same complete evidence set                                                       | `NOT_COMPLETED` |
+| Kie Seedream 5 Pro      | Separate Basic 1K and High 2K SKU artifacts with the same complete evidence set                                                                  | `NOT_COMPLETED` |
+| Legacy OpenRouter drain | Backlog count, recovery-only configuration, credential/certification status, same-attempt reconciliation, zero new submissions, retirement owner | `NOT_COMPLETED` |
+| Moderation              | Service environment name, policy/rule versions, prompt/input/output result references, alert and failure evidence                                | `NOT_COMPLETED` |
+| PayPal                  | Sandbox/live scope, Pro/Ultimate/Max plan IDs, all four Credit Pack product IDs, Webhook, lifecycle and reconciliation artifacts                 | `NOT_COMPLETED` |
+| Waffo                   | Test/prod store and merchant scopes, Pro/Ultimate/Max and all four Credit Pack product IDs, Webhook, lifecycle and reconciliation artifacts      | `NOT_COMPLETED` |
+| Sentry                  | Project/environment name, release, alert rule IDs and destination receipt                                                                        | `NOT_COMPLETED` |
+| PostHog and GSC         | Project/property identifiers, consent evidence, ingestion references, domain verification and sitemap submission                                 | `NOT_COMPLETED` |
+| Mail Provider           | Provider/environment name, verified sender domain, delivery and bounce references                                                                | `NOT_COMPLETED` |
 
 ## Configuration and preflight
 
@@ -64,6 +72,15 @@ project, mail sender, kill switches, daily Provider budget, and alert thresholds
 when both lifecycle secrets are absent. Exactly one Stripe secret fails closed; a complete pair
 activates historical lifecycle maintenance and requires its isolated Webhook scope. Stripe Price IDs
 remain optional legacy metadata and never enable new checkout.
+
+For new images, configure `MEDIA_ENABLED_PROVIDERS=kie` and provide `KIE_API_KEY` only to the
+server/worker boundary that submits or retrieves tasks. Set
+`MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS` to a comma-separated list that includes the exact active
+catalog version only after all 20 SKU cells are certified. Add a hostname to `KIE_OUTPUT_HOSTS`
+only after it is observed and approved; real paid confirmation of every Kie result host is still
+`NOT_COMPLETED`. If legacy OpenRouter work remains, list `openrouter` only under
+`MEDIA_RECOVERY_PROVIDERS`; the current launch validator also requires its recovery credential and
+`MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED=true` while that path is configured.
 
 Run offline structure validation from a checkout of the exact candidate revision:
 
@@ -99,10 +116,11 @@ environment identifiers are never returned.
    registration, Webhook verification, reconciliation, cleanup, and alert delivery.
 5. Execute all 20 staging scenarios in `evidence/ezpic-staging-evidence.json`. Replace a scenario with
    `PASS` only when its evidence refers to the exact deployed revision and target environment.
-6. Run the existing Provider smoke and image-edit benchmark through their bounded, explicitly
-   authorized modes. A dry run stays `NOT_COMPLETED`; real edits must continue through quote,
-   moderation, reservation, GenerationJob, Outbox, private storage, Provider routing, finalization,
-   output moderation, and idempotent settlement.
+6. Validate all 20 current Kie product/SKU smoke entries. A dry run proves only route/SKU/budget
+   configuration and stays `NOT_COMPLETED`. A paid smoke is valid only when it continues through
+   quote, moderation, reservation, GenerationJob, Outbox, private storage, Kie submission and
+   polling, finalization, output moderation, and idempotent settlement. The retired OpenRouter
+   `image-edit-model-benchmark.md` is legacy history and cannot be attached as Kie evidence.
 7. Run the six-surface k6 plan. `pnpm load:ezpic` is dry-run only. Actual execution additionally needs
    `--execute` through `pnpm load:ezpic:execute`, exact `LOAD_EXECUTION_CONFIRMATION`, request/error/P95
    budgets, and zero Provider budget unless bounded staging Provider calls were separately confirmed.
@@ -115,25 +133,42 @@ environment identifiers are never returned.
    ceilings, not billed production evidence.
 9. Obtain release, privacy, billing, and incident-response approval. Run `pnpm launch:certify` against
    the protected artifacts. Do not proceed unless it returns `PASS`.
-10. Deploy production with `MEDIA_GENERATION_ENABLED=false`, `MEDIA_STANDARD_EDIT_ENABLED=false`, and
-    `MEDIA_QUALITY_EDIT_ENABLED=false`. Verify readiness, migrations, task revision, storage metadata,
-    Webhook endpoints, observability, canonical/sitemap/robots, SSL, and DNS before enabling traffic.
-11. Enable Standard Edit first with a conservative traffic cohort and daily Provider cost budget.
-    Quality Edit has a separate flag and stays off until its independent evidence and approval pass.
+10. Deploy production with `MEDIA_GENERATION_ENABLED=false` and all nine product gates false:
+    `MEDIA_NANO_BANANA_2_LITE_ENABLED`, `MEDIA_NANO_BANANA_ENABLED`,
+    `MEDIA_NANO_BANANA_2_ENABLED`, `MEDIA_NANO_BANANA_PRO_ENABLED`,
+    `MEDIA_GPT_IMAGE_1_5_ENABLED`, `MEDIA_GPT_IMAGE_2_ENABLED`,
+    `MEDIA_SEEDREAM_4_5_ENABLED`, `MEDIA_SEEDREAM_5_LITE_ENABLED`, and
+    `MEDIA_SEEDREAM_5_PRO_ENABLED`. Put `kie` in `MEDIA_ENABLED_PROVIDERS`; keep OpenRouter out of
+    that list. If an already-accepted legacy backlog exists, put OpenRouter only in
+    `MEDIA_RECOVERY_PROVIDERS` and retain its worker-only recovery credential/gate. Verify readiness,
+    migrations, task revision, storage metadata, Webhook endpoints, observability,
+    canonical/sitemap/robots, SSL, and DNS before enabling traffic.
+11. After all 20 exact SKU artifacts are approved and active catalog version `2026-09-07.2` is
+    present in `MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS`, enable Nano Banana 2 Lite for a small
+    cohort. Enable each of the other eight products independently only after every SKU under that
+    product has its own evidence and rollback owner.
 
-Guest real generation remains disabled. Public names are Standard Edit and Quality Edit; internal
-keys remain `image-fast` and `image-quality`. Video products remain outside the EzPic public catalog,
-plans, navigation, SEO, and UI.
+Guest real generation remains disabled until the separate anonymous-trial gate passes. When enabled,
+it is fixed to Nano Banana 2 Lite 1K at five sponsored EzPic Credits. Paid plans share one EzPic
+Credit balance across all nine public products and 20 legal SKU cells. Output format and background
+are non-billable controls and do not create extra SKU cells. Video products remain outside
+the EzPic public catalog, plans, navigation, SEO, and UI.
 
 ## Kill switches and cost admission
 
 New work requires all applicable layers to allow it:
 
 - `MEDIA_GENERATION_ENABLED=true` and no active `media.generation.enabled=false` runtime override;
-- `MEDIA_STANDARD_EDIT_ENABLED=true` for Standard Edit;
-- `MEDIA_QUALITY_EDIT_ENABLED=true` for Quality Edit, which also requires Standard enabled;
-- no active `media.model.image-fast.enabled=false` or `media.model.image-quality.enabled=false`
-  runtime override;
+- the selected product's matching environment gate is true: one of
+  `MEDIA_NANO_BANANA_2_LITE_ENABLED`, `MEDIA_NANO_BANANA_ENABLED`,
+  `MEDIA_NANO_BANANA_2_ENABLED`, `MEDIA_NANO_BANANA_PRO_ENABLED`,
+  `MEDIA_GPT_IMAGE_1_5_ENABLED`, `MEDIA_GPT_IMAGE_2_ENABLED`,
+  `MEDIA_SEEDREAM_4_5_ENABLED`, `MEDIA_SEEDREAM_5_LITE_ENABLED`, or
+  `MEDIA_SEEDREAM_5_PRO_ENABLED`;
+- no active `media.model.<selected-product-key>.enabled=false` runtime override for the selected
+  product;
+- `kie` in `MEDIA_ENABLED_PROVIDERS`, `KIE_API_KEY` in the worker environment, and active catalog
+  version `2026-09-07.2` in `MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS`;
 - a positive `MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS`.
 
 The API checks the global UTC-day spend prospectively, and the job-creation transaction takes a
@@ -157,7 +192,7 @@ or an absent GSC/PostHog configuration fail closed.
 
 ## Alerts and 24–72 hour watch
 
-Before Standard traffic, prove alert delivery for the configured error-rate, p95 latency, and
+Before Kie image traffic, prove alert delivery for the configured error-rate, p95 latency, and
 moderation-rejection thresholds. Also monitor Provider failures, uncertain submissions, queue delay,
 Outbox pending/dead-letter age, transfer/finalization failures, reconciliation repairs, storage
 cleanup, payment events, credit invariants, global daily Provider cost, consented funnel delivery,
@@ -171,7 +206,8 @@ For the first **24–72 hours**:
   dashboards; review Stripe only where legacy lifecycle maintenance is enabled;
 - stop expansion on any unexplained financial, privacy, idempotency, moderation, or data-integrity
   deviation;
-- expand only Standard traffic in small steps; enable Quality separately after its own review;
+- expand each product in small steps and never use one model's evidence to enable another model or
+  untested resolution/quality SKU;
 - attach a redacted daily snapshot and operator decision to the launch record.
 
 Follow `ezpic-rollback.md` on a threshold breach. Use `ai-media-runbook.md` for detailed replay,

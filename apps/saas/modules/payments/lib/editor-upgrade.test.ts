@@ -23,11 +23,12 @@ function memoryStorage() {
 
 const draft = {
 	draft: {
-		productKey: "image-quality" as const,
+		productKey: "image-gpt-image-2" as const,
 		input: {
 			kind: "image-to-image" as const,
 			prompt: "Keep the subject and replace the background",
 			sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+			skuKey: "gpt-image-2-4k" as const,
 			aspectRatio: "16:9" as const,
 		},
 	},
@@ -122,12 +123,128 @@ describe("editor upgrade navigation", () => {
 });
 
 describe("editor upgrade draft storage", () => {
-	it("round-trips a bounded draft and consumes it once", () => {
+	it("round-trips the exact legal product SKU and aspect ratio, then consumes it once", () => {
 		const storage = memoryStorage();
 		expect(writeEditorUpgradeDraft(storage, draft, 1_800_000_000_000)).toBe(true);
 		expect(readEditorUpgradeDraft(storage, 1_800_000_030_000)).toEqual(draft);
 		expect(readEditorUpgradeDraft(storage, 1_800_000_030_001)).toBeNull();
 	});
+
+	it("round-trips the GPT Image 2 1K launch SKU with its independent aspect ratios", () => {
+		const storage = memoryStorage();
+		const oneKilopixelDraft = {
+			...draft,
+			draft: {
+				...draft.draft,
+				input: {
+					...draft.draft.input,
+					skuKey: "gpt-image-2-1k" as const,
+					aspectRatio: "9:21" as const,
+					background: "transparent" as const,
+				},
+			},
+		};
+
+		expect(writeEditorUpgradeDraft(storage, oneKilopixelDraft, 1_800_000_000_000)).toBe(true);
+		expect(readEditorUpgradeDraft(storage, 1_800_000_030_000)).toEqual(oneKilopixelDraft);
+	});
+
+	it("round-trips a newly configured product without a copied browser SKU matrix", () => {
+		const storage = memoryStorage();
+		const expandedCatalogDraft = {
+			...draft,
+			draft: {
+				...draft.draft,
+				productKey: "image-seedream-5-lite" as const,
+				input: {
+					...draft.draft.input,
+					skuKey: "seedream-5-lite-ultra-4k" as const,
+					aspectRatio: "16:9" as const,
+					outputFormat: "jpeg" as const,
+				},
+			},
+		};
+
+		expect(writeEditorUpgradeDraft(storage, expandedCatalogDraft, 1_800_000_000_000)).toBe(true);
+		expect(readEditorUpgradeDraft(storage, 1_800_000_030_000)).toEqual(expandedCatalogDraft);
+	});
+
+	it("rejects a cross-product SKU or an unknown public aspect ratio", () => {
+		const crossProduct = memoryStorage();
+		expect(
+			writeEditorUpgradeDraft(
+				crossProduct,
+				{
+					...draft,
+					draft: {
+						...draft.draft,
+						input: { ...draft.draft.input, skuKey: "nano-banana-2-lite-1k" },
+					},
+				},
+				1_800_000_000_000,
+			),
+		).toBe(false);
+
+		const invalidRatio = memoryStorage();
+		expect(
+			writeEditorUpgradeDraft(
+				invalidRatio,
+				{
+					...draft,
+					draft: {
+						...draft.draft,
+						input: { ...draft.draft.input, aspectRatio: "5:7" as "1:1" },
+					},
+				},
+				1_800_000_000_000,
+			),
+		).toBe(false);
+		expect(crossProduct.values.size).toBe(0);
+		expect(invalidRatio.values.size).toBe(0);
+	});
+
+	it.each([
+		["image-fast", "16:9", "image-nano-banana-2-lite", "nano-banana-2-lite-1k", "16:9"],
+		["image-quality", "auto", "image-gpt-image-2", "gpt-image-2-2k", "1:1"],
+	] as const)(
+		"normalizes a legacy %s upgrade draft onto a legal Kie-era SKU",
+		(legacyProductKey, legacyAspectRatio, productKey, skuKey, aspectRatio) => {
+			const storage = memoryStorage();
+			storage.setItem(
+				"ezpic.editor-upgrade.v1",
+				JSON.stringify({
+					version: 1,
+					savedAt: 1_800_000_000_000,
+					draft: {
+						productKey: legacyProductKey,
+						input: {
+							kind: "image-to-image",
+							prompt: draft.draft.input.prompt,
+							sourceAssetId: draft.draft.input.sourceAssetId,
+							aspectRatio: legacyAspectRatio,
+						},
+					},
+					parentJobId: draft.parentJobId,
+					sourceReady: true,
+				}),
+			);
+
+			expect(readEditorUpgradeDraft(storage, 1_800_000_030_000)).toEqual({
+				draft: {
+					productKey,
+					input: {
+						kind: "image-to-image",
+						prompt: draft.draft.input.prompt,
+						sourceAssetId: draft.draft.input.sourceAssetId,
+						skuKey,
+						aspectRatio,
+					},
+				},
+				parentJobId: draft.parentJobId,
+				sourceReady: true,
+			});
+		},
+	);
 
 	it("fails closed for expired or malformed browser state", () => {
 		const expired = memoryStorage();

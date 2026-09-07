@@ -3,7 +3,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/config/client", () => ({
-	getPlanUsageEstimate: () => ({ qualityEdits: 1, standardEdits: 10 }),
+	getPlanUsageEstimate: () => ({
+		minimumImageEdits: 4,
+		maximumImageEdits: 10,
+		minimumCreditsPerImage: 5,
+		maximumCreditsPerImage: 17,
+	}),
 	getPublicConfig: () => ({ brand: { siteName: "EzPic" } }),
 	PLAN_ENTITLEMENTS: [
 		{

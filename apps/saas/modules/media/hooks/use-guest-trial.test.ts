@@ -185,7 +185,12 @@ describe("useGuestTrial", () => {
 
 		eligibility.resolve(eligibleDraft());
 		const trial = await settleAndRender();
-		expect(trial.draft).toEqual({ sourceAssetId: "source-1", prompt: "Keep the subject" });
+		expect(trial.draft).toEqual({
+			sourceAssetId: "source-1",
+			prompt: "Keep the subject",
+			skuKey: "nano-banana-2-lite-1k",
+			aspectRatio: "auto",
+		});
 		expect(trial.prompt).toBe("Keep the subject");
 	});
 
@@ -365,11 +370,20 @@ describe("useGuestTrial", () => {
 		expect(
 			api.submitGuestGeneration.mock.calls.map(([input]) => ({
 				productKey: input.productKey,
+				skuKey: input.skuKey,
 				turnstileToken: input.turnstileToken,
 			})),
 		).toEqual([
-			{ productKey: "image-fast", turnstileToken: "token-one" },
-			{ productKey: "image-fast", turnstileToken: "token-two" },
+			{
+				productKey: "image-nano-banana-2-lite",
+				skuKey: "nano-banana-2-lite-1k",
+				turnstileToken: "token-one",
+			},
+			{
+				productKey: "image-nano-banana-2-lite",
+				skuKey: "nano-banana-2-lite-1k",
+				turnstileToken: "token-two",
+			},
 		]);
 		expect(trial.view.state).toBe("waiting");
 	});
@@ -397,7 +411,12 @@ function eligibleDraft() {
 		reason: "AVAILABLE",
 		capabilityVersion: "guest-v12",
 		existingJobId: null,
-		claimedDraft: { sourceAssetId: "source-1", prompt: "Keep the subject" },
+		claimedDraft: {
+			sourceAssetId: "source-1",
+			prompt: "Keep the subject",
+			skuKey: "nano-banana-2-lite-1k" as const,
+			aspectRatio: "auto" as const,
+		},
 	};
 }
 

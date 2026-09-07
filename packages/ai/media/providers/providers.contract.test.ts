@@ -614,7 +614,7 @@ describe("provider adapter contract", () => {
 		const captured: Array<{ url: string; init?: RequestInit }> = [];
 		const kie = new KieProviderAdapter({
 			apiKey: "key",
-			fetch: capturingFetch({ data: { taskId: "kie-1", state: "waiting" } }, captured),
+			fetch: capturingFetch({ code: 200, data: { taskId: "kie-1", state: "waiting" } }, captured),
 		});
 		await expect(
 			kie.submit({

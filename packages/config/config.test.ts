@@ -379,9 +379,19 @@ describe("product configuration", () => {
 	it("publishes the EzPic image-editing product contract without template branding", () => {
 		const publicConfig = getPublicConfig();
 
-		expect(DEFAULT_PRODUCT_CONFIG.productKeys).toEqual(["image-fast", "image-quality"]);
-		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-09-05.2");
-		expect(DEFAULT_PRODUCT_CONFIG.pricingVersion).toBe("2026-09-05.1");
+		expect(DEFAULT_PRODUCT_CONFIG.productKeys).toEqual([
+			"image-nano-banana-2-lite",
+			"image-nano-banana",
+			"image-nano-banana-2",
+			"image-nano-banana-pro",
+			"image-gpt-image-1-5",
+			"image-gpt-image-2",
+			"image-seedream-4-5",
+			"image-seedream-5-lite",
+			"image-seedream-5-pro",
+		]);
+		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-09-07.2");
+		expect(DEFAULT_PRODUCT_CONFIG.pricingVersion).toBe("2026-09-07.2");
 		expect(publicConfig.brand).toMatchObject({
 			siteName: "EzPic",
 			siteDescription: expect.stringMatching(/image edit/i),
@@ -415,7 +425,7 @@ describe("product configuration", () => {
 				monthlyCredits: 25,
 				maximumConcurrentJobs: 1,
 				maximumInputBytes: 10 * 1024 * 1024,
-				allowedProducts: ["image-fast"],
+				allowedProducts: ["image-nano-banana-2-lite"],
 				prices: [],
 			},
 			{
@@ -423,7 +433,17 @@ describe("product configuration", () => {
 				monthlyCredits: 700,
 				maximumConcurrentJobs: 3,
 				maximumInputBytes: 20 * 1024 * 1024,
-				allowedProducts: ["image-fast", "image-quality"],
+				allowedProducts: [
+					"image-nano-banana-2-lite",
+					"image-nano-banana",
+					"image-nano-banana-2",
+					"image-nano-banana-pro",
+					"image-gpt-image-1-5",
+					"image-gpt-image-2",
+					"image-seedream-4-5",
+					"image-seedream-5-lite",
+					"image-seedream-5-pro",
+				],
 				prices: [
 					{ interval: "month", amount: 19, currency: "USD" },
 					{ interval: "year", amount: 190, currency: "USD" },
@@ -434,7 +454,17 @@ describe("product configuration", () => {
 				monthlyCredits: 1_800,
 				maximumConcurrentJobs: 6,
 				maximumInputBytes: 20 * 1024 * 1024,
-				allowedProducts: ["image-fast", "image-quality"],
+				allowedProducts: [
+					"image-nano-banana-2-lite",
+					"image-nano-banana",
+					"image-nano-banana-2",
+					"image-nano-banana-pro",
+					"image-gpt-image-1-5",
+					"image-gpt-image-2",
+					"image-seedream-4-5",
+					"image-seedream-5-lite",
+					"image-seedream-5-pro",
+				],
 				prices: [
 					{ interval: "month", amount: 49, currency: "USD" },
 					{ interval: "year", amount: 490, currency: "USD" },
@@ -445,7 +475,17 @@ describe("product configuration", () => {
 				monthlyCredits: 3_000,
 				maximumConcurrentJobs: 10,
 				maximumInputBytes: 20 * 1024 * 1024,
-				allowedProducts: ["image-fast", "image-quality"],
+				allowedProducts: [
+					"image-nano-banana-2-lite",
+					"image-nano-banana",
+					"image-nano-banana-2",
+					"image-nano-banana-pro",
+					"image-gpt-image-1-5",
+					"image-gpt-image-2",
+					"image-seedream-4-5",
+					"image-seedream-5-lite",
+					"image-seedream-5-pro",
+				],
 				prices: [
 					{ interval: "month", amount: 79, currency: "USD" },
 					{ interval: "year", amount: 790, currency: "USD" },
@@ -455,18 +495,29 @@ describe("product configuration", () => {
 	});
 
 	it("publishes honest monthly edit estimates for each plan", () => {
-		expect(getPlanUsageEstimate("free")).toEqual({ standardEdits: 5, qualityEdits: null });
+		expect(getPlanUsageEstimate("free")).toEqual({
+			minimumImageEdits: 5,
+			maximumImageEdits: 5,
+			minimumCreditsPerImage: 5,
+			maximumCreditsPerImage: 5,
+		});
 		expect(getPlanUsageEstimate("creator")).toEqual({
-			standardEdits: 140,
-			qualityEdits: 17,
+			minimumImageEdits: 28,
+			maximumImageEdits: 140,
+			minimumCreditsPerImage: 5,
+			maximumCreditsPerImage: 25,
 		});
 		expect(getPlanUsageEstimate("ultimate")).toEqual({
-			standardEdits: 360,
-			qualityEdits: 45,
+			minimumImageEdits: 72,
+			maximumImageEdits: 360,
+			minimumCreditsPerImage: 5,
+			maximumCreditsPerImage: 25,
 		});
 		expect(getPlanUsageEstimate("studio")).toEqual({
-			standardEdits: 600,
-			qualityEdits: 75,
+			minimumImageEdits: 120,
+			maximumImageEdits: 600,
+			minimumCreditsPerImage: 5,
+			maximumCreditsPerImage: 25,
 		});
 	});
 

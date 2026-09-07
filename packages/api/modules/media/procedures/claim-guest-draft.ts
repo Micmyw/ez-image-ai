@@ -21,9 +21,9 @@ export const claimGuestDraft = guestMediaProcedure
 		const token = readCookie(context.headers.get("cookie"), DRAFT_CLAIM_COOKIE);
 		if (!token) throw new Error("DRAFT_UNAVAILABLE");
 		try {
-			const allowedProductKeys = (await getCurrentExecutableEzPicProducts())
-				.filter((product) => product.key === "image-fast")
-				.map((product) => product.key);
+			const allowedProductKeys = (await getCurrentExecutableEzPicProducts()).map(
+				(product) => product.key,
+			);
 			if (allowedProductKeys.length === 0) throw new Error("DRAFT_UNAVAILABLE");
 			return await claimGuestGenerationDraftTransaction(
 				{

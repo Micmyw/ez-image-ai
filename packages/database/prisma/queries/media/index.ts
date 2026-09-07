@@ -2,6 +2,7 @@ export * from "./assets";
 export * from "./asset-binding-locks";
 export * from "./admin-diagnostics";
 export * from "./admin-growth-operations";
+export * from "./admin-safe-image-catalog";
 export * from "./admin-operations";
 export * from "./attempts";
 export * from "./billing";
