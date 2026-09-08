@@ -15,7 +15,7 @@ describe("EzPic PR 8 launch artifacts", () => {
 	it.each([
 		[
 			"docs/operations/ezpic-production-runbook.md",
-			["fail closed", "PostgreSQL", "Trigger.dev", "24–72"],
+			["fail closed", "PostgreSQL", "Cloudflare Workflows", "24–72"],
 		],
 		[
 			"docs/operations/ezpic-launch-checklist.md",
@@ -123,7 +123,7 @@ describe("EzPic PR 8 launch artifacts", () => {
 			"EZPIC_DATABASE_RESOURCE_ID",
 			"EZPIC_MEDIA_BUCKET_RESOURCE_ID",
 			"EZPIC_STRIPE_WEBHOOK_SCOPE_ID",
-			"EZPIC_TRIGGER_ENVIRONMENT_ID",
+			"EZPIC_WORKFLOWS_ENVIRONMENT_ID",
 			"EZPIC_POSTHOG_PROJECT_ID",
 			"EZPIC_SENTRY_ENVIRONMENT",
 			"EZPIC_MAIL_PROVIDER_ID",

@@ -8,6 +8,7 @@ import {
 import { claimGenerationDraft } from "@repo/api/modules/media/procedures/claim-generation-draft";
 import { claimGuestDraft } from "@repo/api/modules/media/procedures/claim-guest-draft";
 import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
+import { getBaseUrl } from "@shared/lib/base-url";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
@@ -30,9 +31,10 @@ export async function POST(request: Request) {
 	}
 }
 
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
 	const session = await getSession();
 	if (!session) return anonymousBootstrapPostResponse();
+	const saasOrigin = getBaseUrl();
 	const responseHeaders = new Headers();
 	try {
 		const draft = await (
@@ -41,7 +43,7 @@ export async function GET(request: Request) {
 			context: { headers: await headers(), responseHeaders },
 		})({});
 		const target = isAnonymousUser(session.user) ? "/try" : "/create";
-		const response = NextResponse.redirect(new URL(target, request.url));
+		const response = NextResponse.redirect(new URL(target, saasOrigin));
 		for (const [name, value] of responseHeaders) response.headers.append(name, value);
 		if (!isAnonymousUser(session.user)) {
 			response.cookies.set("media_claimed_draft", draft.id, {
@@ -58,7 +60,7 @@ export async function GET(request: Request) {
 		const target = isAnonymousUser(session.user)
 			? "/try?draftError=unavailable"
 			: "/create?draftError=unavailable";
-		const response = NextResponse.redirect(new URL(target, request.url));
+		const response = NextResponse.redirect(new URL(target, saasOrigin));
 		expireHandoffCookies(response);
 		return response;
 	}

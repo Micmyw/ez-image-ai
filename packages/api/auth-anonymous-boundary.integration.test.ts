@@ -38,7 +38,7 @@ vi.mock("@repo/payments", () => ({
 	paymentProviderNames: ["stripe", "paypal", "waffo"] as const,
 	webhookHandler: vi.fn(),
 }));
-vi.mock("@trigger.dev/sdk", () => ({ tasks: { trigger: vi.fn() } }));
+vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn() }));
 
 import { auth } from "@repo/auth";
 import { getGuestMediaConfig } from "@repo/config/server";
@@ -253,6 +253,72 @@ describe("anonymous Better Auth wildcard boundary", () => {
 			expect.anything(),
 		);
 	});
+
+	it.each([
+		{ origin: "http://127.0.0.1:3100", nodeEnv: "test" },
+		{ origin: "https://app.test", nodeEnv: "production" },
+	] as const)(
+		"redirects a proven handoff to canonical $origin instead of its internal URL",
+		async ({ origin, nodeEnv }) => {
+			vi.stubEnv("NODE_ENV", nodeEnv);
+			vi.stubEnv("GUEST_PROMOTION_PERIOD", "2026-launch");
+			vi.stubEnv("NEXT_PUBLIC_SAAS_URL", origin);
+			vi.stubEnv("BETTER_AUTH_SECRET", "test-secret");
+			vi.stubEnv("MEDIA_TRUSTED_PROXY_PROVIDER", "cloudflare");
+			databaseMocks.hasDurableGuestBootstrapProof.mockResolvedValue(true);
+			databaseMocks.resolveGuestRuntimeConfigOverride.mockResolvedValue({ enabled: true });
+			databaseClientMocks.user.findFirst.mockResolvedValue({ id: "guest-user" });
+			databaseMocks.consumeGuestBootstrap.mockImplementation(
+				async (
+					input,
+					createPrincipal: (input: {
+						email: string;
+					}) => Promise<{ userId: string; value: Response }>,
+				) => {
+					expect(input).toMatchObject({ expectedOrigin: origin, origin });
+					const principal = await createPrincipal({ email: "guest@anonymous.invalid" });
+					return { outcome: "CREATED", value: principal.value };
+				},
+			);
+			const sessionCookie =
+				"better-auth.session_token=guest-session; Path=/; HttpOnly; SameSite=Lax";
+			vi.mocked(auth.handler).mockResolvedValue(
+				Response.json({ user: { id: "guest-user" } }, { headers: { "set-cookie": sessionCookie } }),
+			);
+
+			const response = await app.request(
+				"http://localhost:3100/api/auth/sign-in/anonymous?handoff=1",
+				{
+					method: "POST",
+					headers: {
+						origin,
+						host: new URL(origin).host,
+						"cf-connecting-ip": "203.0.113.10",
+						cookie: `media_guest_bootstrap=${"a".repeat(43)}`,
+					},
+				},
+			);
+
+			expect(response.status).toBe(303);
+			expect(response.headers.get("location")).toBe(`${origin}/draft/continue`);
+			expect(response.headers.get("cache-control")).toBe("no-store");
+			expect(response.headers.get("referrer-policy")).toBe("no-referrer");
+			const cookies = response.headers.getSetCookie();
+			expect(cookies).toContain(sessionCookie);
+			expect(cookies).toEqual(
+				expect.arrayContaining([
+					expect.stringContaining("media_guest_bootstrap=;"),
+					expect.stringContaining("Max-Age=0"),
+				]),
+			);
+			if (nodeEnv === "production") {
+				expect(cookies.find((cookie) => cookie.startsWith("media_guest_bootstrap="))).toContain(
+					"Secure",
+				);
+			}
+			expect(await response.text()).toBe("");
+		},
+	);
 
 	it("waits for lease cleanup and maps a non-OK Better Auth response without leaking it", async () => {
 		vi.stubEnv("GUEST_PROMOTION_PERIOD", "2026-launch");

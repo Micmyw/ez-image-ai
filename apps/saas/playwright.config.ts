@@ -9,6 +9,7 @@ dotenv.config({ path: path.resolve(__dirname, "../../.env.local") });
 
 const saasBaseUrl = process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000";
 const saasPort = new URL(saasBaseUrl).port || (saasBaseUrl.startsWith("https:") ? "443" : "80");
+const saasHostname = new URL(saasBaseUrl).hostname.replace(/^\[|\]$/g, "");
 const localMediaE2ELaunchOptions = localMediaE2EChromiumLaunchOptions(process.env);
 const guestOnlySpecs = /(?:guest-trial|landing|originality)\.spec\.ts/;
 
@@ -25,6 +26,7 @@ export default defineConfig({
 	outputDir: "test-results",
 	use: {
 		baseURL: saasBaseUrl,
+		launchOptions: localMediaE2ELaunchOptions,
 		trace: "on-first-retry",
 		video: {
 			mode: "retain-on-failure",
@@ -69,15 +71,14 @@ export default defineConfig({
 			use: {
 				...devices["Desktop Chrome"],
 				storageState: undefined,
-				launchOptions: localMediaE2ELaunchOptions,
 			},
 		},
 	],
 	webServer: {
 		command:
 			process.env.E2E_USE_PRODUCTION_BUILD === "true"
-				? `pnpm --filter saas exec next build --webpack && pnpm --filter saas exec next start -p ${saasPort}`
-				: `pnpm --filter saas exec next dev --webpack -p ${saasPort}`,
+				? `pnpm --filter saas exec next build --webpack && pnpm --filter saas exec next start -H ${saasHostname} -p ${saasPort}`
+				: `pnpm --filter saas exec next dev --webpack -H ${saasHostname} -p ${saasPort}`,
 		url: `${saasBaseUrl}/login`,
 		reuseExistingServer: false,
 		stdout: "pipe",

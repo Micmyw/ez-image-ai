@@ -1,4 +1,5 @@
 import { call } from "@orpc/server";
+import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/auth", () => ({
@@ -77,8 +78,8 @@ describe("listAssets", () => {
 				mimeTypePrefix: "image/",
 				verification: expect.objectContaining({
 					provider: "sightengine",
-					ruleVersion: "media-safety-2026-08-23.1",
-					policyVersion: "media-policy-2026-08-23.1",
+					ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+					policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 				}),
 			}),
 		);

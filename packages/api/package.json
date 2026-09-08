@@ -28,7 +28,6 @@
 		"@repo/storage": "workspace:*",
 		"@repo/utils": "workspace:*",
 		"@sindresorhus/slugify": "catalog:",
-		"@trigger.dev/sdk": "catalog:",
 		"hono": "catalog:",
 		"nanoid": "catalog:",
 		"zod": "catalog:"

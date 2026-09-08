@@ -65,6 +65,32 @@ export async function completeOutboxEvent(
 	});
 }
 
+export async function deferOutboxEvent(
+	input: { id: string; workerId: string; leaseToken: string; retryAt: Date; now?: Date },
+	client: MediaTransactionClient,
+): Promise<{ applied: boolean }> {
+	const applied = await client.outboxEvent.updateMany({
+		where: {
+			id: input.id,
+			status: "LEASED",
+			leaseOwner: input.workerId,
+			leaseToken: input.leaseToken,
+			leasedUntil: { gt: input.now ?? new Date() },
+			attempts: { gt: 0 },
+		},
+		data: {
+			status: "PENDING",
+			availableAt: input.retryAt,
+			// Polling an accepted Workflow is the same delivery, not a failed retry.
+			attempts: { decrement: 1 },
+			leaseOwner: null,
+			leaseToken: null,
+			leasedUntil: null,
+		},
+	});
+	return { applied: applied.count === 1 };
+}
+
 export async function releaseOutboxEvent(
 	input: {
 		id: string;

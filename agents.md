@@ -8,6 +8,7 @@ Explicit user instructions win; if a documented command fails, report it rather 
 
 - Next.js App Router, React, TypeScript, Node.js 22+, and pnpm workspaces
 - Turborepo, oRPC, Hono, Better Auth, Prisma, and Drizzle
+- Cloudflare Workflows for durable orchestration and on-demand Cloudflare Containers for Node jobs
 - Tailwind CSS, Shadcn-style components, and Base UI (`@base-ui/react`)
 - React Hook Form, Zod 4, TanStack Query, next-intl, Vitest, Playwright, Oxlint, and Oxfmt
 
@@ -72,6 +73,8 @@ harness starts only SaaS and requires a running database.
 ```text
 apps/
 ├── mail-preview/  # Email preview
+├── workflows/     # Cloudflare dispatch, durable waits, maintenance and container lifecycle
+├── jobs-runtime/  # Private Node executor image for existing @repo/jobs handlers
 └── saas/          # Unified public landing, guest trial, and authenticated product
 packages/
 ├── ai/
@@ -185,7 +188,7 @@ and aliases belong in the relevant app config/tsconfig rather than a package.
 
 ### AI media foundation invariants
 
-- Treat PostgreSQL as the only business source of truth. Trigger.dev, Stripe,
+- Treat PostgreSQL as the only business source of truth. Cloudflare Workflows/Containers, Stripe,
   browsers, storage, moderation, and AI providers deliver work or events but do
   not own domain state.
 - Create a generation job, bind inputs, reserve credits, and write its initial
@@ -205,7 +208,26 @@ and aliases belong in the relevant app config/tsconfig rather than a package.
   subscription, billing-period, ledger, cancellation, refund, and debt changes.
   Organization billing actions require owner authorization.
 - Do not describe local mocks, MinIO/PostgreSQL, dry-run smoke tests, or local
-  Trigger checks as live external verification.
+  Workflows/container builds as live external verification.
+
+### Background jobs
+
+- Submit API work through `dispatchJob` from `@repo/jobs/orchestration/client`. The server-only
+  `WORKFLOWS_DISPATCH_URL` includes `/internal/dispatch`; production requires HTTPS. Share a random
+  `WORKFLOWS_DISPATCH_SECRET` of at least 32 characters between SaaS and the Worker.
+- `apps/workflows` owns durable dispatch, retry/sleep and scheduled maintenance. The on-demand
+  `apps/jobs-runtime` container executes the existing Node handlers with Prisma, Sharp, file-type,
+  streams and Provider/payment/storage adapters. Keep business transitions in `packages/jobs`
+  and `packages/database`; Workflow state and instance IDs are delivery metadata.
+- Keep database, Provider, payment, storage and moderation credentials in the Worker secret
+  `JOBS_RUNTIME_ENV` (JSON string values) injected at container startup. Never bake them into the
+  image or expose them through public Worker vars. Apply migrations before deployment, not at boot.
+- `pnpm workflows:type-check` validates the orchestration and Node boundary;
+  `pnpm workflows:build:ci` builds deployment artifacts without Cloudflare or Trigger credentials.
+  Docker is required for container image build/local container execution. These checks do not
+  deploy the Worker or certify its live cron, recovery, Container shutdown or external integrations.
+- Preserve the current PostgreSQL leases, immutable ledger, Outbox recovery and uncertainty gates.
+  See `docs/operations/cloudflare-workflows-runbook.md` for cutover, drain and rollback.
 
 ## Dependencies & supply chain
 

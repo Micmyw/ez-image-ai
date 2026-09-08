@@ -10,12 +10,12 @@
 		{
 			"id": "standard-success",
 			"status": "NOT_COMPLETED",
-			"evidence": "Legacy scenario ID retained by the evidence schema. Needs a paid Kie nano-banana-2-lite-1k staging run with Trigger.dev reference, PostgreSQL job/reservation evidence, approved output host/MIME/dimensions, private output metadata, and reconciled billed cost."
+			"evidence": "Legacy scenario ID retained by the evidence schema. Needs a paid Kie nano-banana-2-lite-1k staging run with Cloudflare Workflows reference, PostgreSQL job/reservation evidence, approved output host/MIME/dimensions, private output metadata, and reconciled billed cost."
 		},
 		{
 			"id": "quality-success",
 			"status": "NOT_COMPLETED",
-			"evidence": "Legacy scenario ID retained by the evidence schema. Needs one paid Kie run for each of the 20 legal product/SKU cells in catalog and pricing version 2026-09-07.2, with Trigger.dev references, approved private outputs, quality review, latency, recovery, and reconciled billed cost."
+			"evidence": "Legacy scenario ID retained by the evidence schema. Needs one paid Kie run for each of the 20 legal product/SKU cells in catalog and pricing version 2026-09-07.2, with Cloudflare Workflows references, approved private outputs, quality review, latency, recovery, and reconciled billed cost."
 		},
 		{
 			"id": "provider-failure-credit-release",

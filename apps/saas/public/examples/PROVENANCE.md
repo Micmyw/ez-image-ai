@@ -21,6 +21,11 @@ outputs, customer work, or evidence of EzPic model quality. The landing page rep
 The original generated PNG files remain in the task's Codex generated-image directory; the product
 uses only the optimized WebP derivatives below:
 
+As of 2026-09-08, the gallery renders each WebP at its intrinsic width-to-height ratio in a responsive
+masonry layout. Keep these dimensions in sync with `ShowcaseSection.tsx` when replacing an asset;
+do not crop existing landscape or square compositions to fill a portrait card. The twelve existing
+assets are unchanged by this display adjustment.
+
 - `case-mediterranean-room.webp`: sunlit Mediterranean living room; editorial interior photography;
   limewash, warm oak, linen, olive and terracotta; wide room view; no people, text, logos, or watermark.
 - `case-cobalt-product.webp`: unbranded cobalt perfume bottle on sculptural sand plaster and shallow

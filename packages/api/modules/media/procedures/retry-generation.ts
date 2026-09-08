@@ -34,8 +34,8 @@ import {
 import { db } from "@repo/database/client";
 import type { CreateModeratedGenerationQuoteInput } from "@repo/database/media-quotes";
 import { resolveDatabaseDispatchRoute } from "@repo/jobs";
+import { dispatchJob } from "@repo/jobs/orchestration/client";
 import { logger } from "@repo/logs";
-import { tasks } from "@trigger.dev/sdk";
 import { z } from "zod";
 
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -157,7 +157,7 @@ const defaultDependencies: RetryGenerationDependencies = {
 			{ ...input, serviceClass: "STANDARD" },
 			{
 				resolveRoute: resolveDatabaseDispatchRoute,
-				trigger: (taskId, payload) => tasks.trigger(taskId, payload).then(() => undefined),
+				dispatch: dispatchJob,
 				warn: (message, details) => logger.warn(message, details),
 			},
 		),

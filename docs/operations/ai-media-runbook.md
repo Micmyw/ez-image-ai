@@ -1,10 +1,13 @@
 # AI media operator runbook
 
-This runbook is for the production AI image/video subscription foundation. PostgreSQL is the business source of truth. Trigger.dev, PayPal, Waffo, optional legacy Stripe maintenance, AI providers, S3/R2, Sightengine, and Sentry are external systems whose successful local mock tests do not prove live connectivity.
+For active result polling and additional AI Providers, see
+[Generation orchestration and additional Providers](./provider-generation-orchestration.md).
+
+This runbook is for the production AI image/video subscription foundation. PostgreSQL is the business source of truth. Cloudflare Workflows, PayPal, Waffo, optional legacy Stripe maintenance, AI providers, S3/R2, Sightengine, and Sentry are external systems whose successful local mock tests do not prove live connectivity.
 
 ## 1. Accounts and environment
 
-Prepare separate production and staging accounts/projects for PostgreSQL, Trigger.dev, PayPal, Waffo, private S3/R2-compatible storage, Sentry, Sightengine, and every enabled AI provider. Current EzPic image submissions use Kie only. OpenRouter may be configured as a worker-only recovery provider while already-frozen historical image attempts are drained, but it must not be enabled for new submissions. Prepare Stripe scopes only where historical Stripe subscriptions require maintenance. Restrict production access with SSO/MFA and least-privilege service identities.
+Prepare separate production and staging accounts/projects for PostgreSQL, Cloudflare Workflows, PayPal, Waffo, private S3/R2-compatible storage, Sentry, Sightengine, and every enabled AI provider. Current EzPic image submissions use Kie only. OpenRouter may be configured as a worker-only recovery provider while already-frozen historical image attempts are drained, but it must not be enabled for new submissions. Prepare Stripe scopes only where historical Stripe subscriptions require maintenance. Restrict production access with SSO/MFA and least-privilege service identities.
 
 Start from `.env.local.example`. Production must use `NODE_ENV=production`, non-mock
 `MEDIA_PROVIDER_ADAPTER`, `MEDIA_SAFETY_ADAPTER=sightengine`, strong Better Auth and Webhook
@@ -30,7 +33,7 @@ Feature gates:
   quote and cannot certify Kie.
 - `BILLING_ENABLED`: validated billing configuration only. It is not currently wired as an
   ingress, worker, queue, or schedule kill switch and must not be used to coordinate the F6
-  cutover; pause those execution paths with the actual deployment and Trigger controls.
+  cutover; pause those execution paths with the actual deployment and scheduler controls.
 - `ERROR_MONITORING_ENABLED`: Sentry emission.
 - `MEDIA_*_QUEUE_LIMIT` and provider/model limits: shed load without changing stored jobs.
 
@@ -72,18 +75,29 @@ session/parent, and the private context must not appear in the Job/Provider inpu
 
 Rollback application code by redeploying the previous immutable image. Prefer forward database repairs; do not reverse a migration that could discard business data. If a schema change is incompatible, disable generation/billing, restore into a new database, validate, and atomically switch the application connection under an approved incident plan.
 
-## 3. Trigger.dev deployment
+## 3. Cloudflare Workflows and Node container deployment
 
-Create separate Trigger projects/environments and configure `TRIGGER_PROJECT_REF` plus the protected `TRIGGER_SECRET_KEY`. CI's local Trigger build requires its own protected personal access token; it never uses a provider key.
+Follow the [Cloudflare execution runbook](./cloudflare-workflows-runbook.md) for isolated Worker,
+Workflow and Container resources, secret injection, deployment, previous-scheduler drain and
+rollback. SaaS dispatch uses `WORKFLOWS_DISPATCH_URL` (full `/internal/dispatch` URL) and the shared
+`WORKFLOWS_DISPATCH_SECRET`; `EZPIC_WORKFLOWS_ENVIRONMENT_ID` identifies the isolated target.
+Store the existing Node runtime environment in the Worker secret `JOBS_RUNTIME_ENV`.
 
-Deploy to staging first:
+Build and validate the candidate before staging deployment:
 
 ```bash
-pnpm trigger:type-check
-pnpm exec trigger deploy --env staging
+pnpm workflows:type-check
+pnpm workflows:build:ci
 ```
 
-Confirm task registration for dispatch, provider event processing, generation reconciliation/finalization/settlement, payment event processing, billing grants, subscription reconciliation, upload verification, object cleanup, and outbox delivery. Trigger delivery IDs are operational hints, not domain state; PostgreSQL jobs, attempts, events, reservations, and Outbox rows remain authoritative. Submit one mock staging job, watch it settle, then promote/deploy the same commit to production. If tasks stop consuming, disable new generation, inspect Outbox lag/dead letters and Trigger run errors, then replay only persisted events.
+Docker is required for the Node image build. The CI artifact checks require no Cloudflare or
+Trigger credentials and do not deploy. Confirm the executor manifest covers dispatch, provider
+events, polling, reconciliation/finalization/settlement, payment events, grants, subscriptions,
+upload verification, cleanup and Outbox delivery. Workflow IDs are operational hints; PostgreSQL
+jobs, attempts, events, reservations and Outbox rows remain authoritative. Verify staging delivery,
+Container idle stop/restart, maintenance, external integrations and rollback against the matching
+Worker and Node image revision before promotion. If consumption stops, disable new generation,
+inspect Outbox lag/dead letters and Workflow/Container errors, then replay only persisted events.
 
 ## 4. Private S3/R2 storage
 
@@ -171,9 +185,9 @@ captured.
 
 The F6 Stripe refund/reconciliation migration is a coordinated stop-the-world cutover for the old billing code. Use this order:
 
-1. Stop the old Stripe Webhook endpoint/ingress and return a retryable non-success response so Stripe retains deliveries. Pause the old payment-event Trigger queue plus the billing-grant and subscription-reconciliation schedules using the deployed ingress and Trigger environment controls, then wait for every in-flight old worker invocation and processing lease to drain. Do not rely on `BILLING_ENABLED`; it does not stop those paths.
+1. Stop the old Stripe Webhook endpoint/ingress and return a retryable non-success response so Stripe retains deliveries. Pause the old payment-event delivery plus the billing-grant and subscription-reconciliation schedules using the deployed ingress and scheduler environment controls, then wait for every in-flight old worker invocation and processing lease to drain. Do not rely on `BILLING_ENABLED`; it does not stop those paths.
 2. Take and verify the database backup, then apply the reviewed migrations through `20260823018000_stripe_refund_repair_authority` (including the 160 reconciliation schema and 170 continuation sequence). Do not allow the old code to run after the transaction-level uniqueness change is applied.
-3. Deploy the new application and Trigger task code, verify the schema/raw invariants, the authority/receipt immutability triggers, and task registration, and keep external Stripe delivery paused until those checks pass. Before the first new reconciliation sweep, capture the complete read-only historical-refund diagnostic and open incident records for every reported refund ID. Reconciliation should replace `MISSING_LIFECYCLE` with the current lifecycle classification; non-succeeded or inconsistent legacy refunds must remain visible until reviewed.
+3. Deploy the new application and Workflow and Node executor code, verify the schema/raw invariants, the authority/receipt immutability triggers, and task registration, and keep external Stripe delivery paused until those checks pass. Before the first new reconciliation sweep, capture the complete read-only historical-refund diagnostic and open incident records for every reported refund ID. Reconciliation should replace `MISSING_LIFECYCLE` with the current lifecycle classification; non-succeeded or inconsistent legacy refunds must remain visible until reviewed.
 4. Resume the new workers and Webhook ingress, drain persisted/retried PaymentEvents, and immediately run a bounded Stripe reconciliation sweep. Confirm the checkpoint completes, inspect open needs-review issues, follow the captured historical-refund cases through the forward-repair workflow below, and monitor at least one full reconciliation interval.
 
 If the old Webhook/worker processes cannot be proven stopped, abort the migration. Letting old `refund.created` handling overlap the new schema can revoke credits for a non-terminal refund.
@@ -182,7 +196,14 @@ Refund debt means previously consumed credits were refunded externally. Keep the
 
 ## 6. Moderation, Sentry, and model certification
 
-Set Sightengine credentials and enable moderation. Validate allow, reject/quarantine, review/error, and timeout behavior using non-sensitive fixtures. Outputs without an approved moderation result must not become usable assets.
+Configure `MEDIA_SAFETY_ADAPTER=sightengine`, `MEDIA_ALLOW_TEST_SAFETY_ADAPTER=false`, and both
+Sightengine credentials in the SaaS server and Node job containers. Follow the
+[Sightengine moderation contract](./sightengine-moderation.md) for the English text and static-image
+models, decision thresholds, version rollout, evidence, and bounded live verification. Validate
+allow, reject/quarantine, review/error, and timeout behavior using non-sensitive fixtures. Outputs
+without current approved moderation evidence must not become usable assets. Approved static images
+now retain their approval without daily rechecks while content and rules stay unchanged. Compatible
+existing approvals migrate through an auditable metadata-only transition without another API call.
 
 Configure Sentry release/environment metadata, server and browser DSNs where applicable, a conservative trace sample rate, and alert routing. Confirm redaction excludes prompts, provider envelopes, authorization/cookie headers, secrets, raw signed URLs, and private object keys. Alerts should cover provider failures, queue latency, transfer failures, moderation errors, credit invariant failures, Outbox backlog/dead letters, reconciliation repairs, and elevated API errors.
 
@@ -217,7 +238,7 @@ Every product owns its own resolution/quality/aspect-ratio matrix; GPT Image 2 1
 paid cell. Output format and background are product-local request controls and do not change the
 EzPic Credit charge. Do not use one model's successful task to approve another cell. The Kie adapter
 creates image tasks through `/api/v1/jobs/createTask` and polls the server-derived
-`/api/v1/jobs/recordInfo` URL. A successful local adapter contract or static Trigger task does not
+`/api/v1/jobs/recordInfo` URL. A successful local adapter contract or Workflow artifact does not
 certify Provider behavior, output hosting, quality, or billed cost.
 
 Real paid Kie execution for all 20 SKU cells is `NOT_COMPLETED`. Leave the corresponding product flags
@@ -381,7 +402,7 @@ Immediately rotate any secret suspected of exposure. Search logs/artifacts and P
 
 1. Declare severity, incident lead, affected environment, first bad deployment, and correlation IDs.
 2. Protect money/data first: disable billing or generation as needed; reduce queue limits for overload.
-3. Check API error rate and latency, PostgreSQL health/locks, Trigger queues/runs, Outbox backlog/dead letters, provider status/cost, transfer throughput, moderation, and storage.
+3. Check API error rate and latency, PostgreSQL health/locks, Workflow instances and Container executions, Outbox backlog/dead letters, provider status/cost, transfer throughput, moderation, and storage.
 4. Distinguish delayed work from lost work using PostgreSQL job/event/outbox records. Do not infer success from Provider dashboards alone.
 5. Prefer bounded replay/reconciliation and runtime kill switches. Roll back app code only to a schema-compatible release.
 6. Verify recovery with fresh requests, worker drain, invariants, and external dashboards. Monitor at least one full reconciliation interval.
@@ -390,7 +411,7 @@ Immediately rotate any secret suspected of exposure. Search logs/artifacts and P
 The deterministic production-build browser suite currently passes 11 SaaS checks and five
 marketing checks with no skips, including root edit-session creation, a second edit, and a branch
 from an older successful version. Live readiness remains blocked until credentials/accounts exist
-and recorded checks pass for Trigger deploy, each enabled payment Webhook, each enabled AI Provider,
+and recorded checks pass for Workflow/Container deploy, each enabled payment Webhook, each enabled AI Provider,
 Sightengine, private S3/R2 streaming/multipart, Sentry ingestion/alerts, and staging load. Stripe
 Webhook evidence is required only where historical Stripe subscriptions are maintained. Local
 browser tests, mocks, contracts, PostgreSQL integration tests, production builds, and a dry-run

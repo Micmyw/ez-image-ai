@@ -2,7 +2,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/auth", () => ({ auth: { handler: vi.fn(), api: { getSession: vi.fn() } } }));
-vi.mock("@repo/config/server", () => ({
+vi.mock("@repo/config/server", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@repo/config/server")>()),
 	validateEzPicLaunchEnvironment: vi.fn(),
 	validateServerEnvironment: vi.fn(),
 }));
@@ -16,7 +17,7 @@ vi.mock("@repo/payments", () => ({
 	paymentProviderNames: ["stripe", "paypal", "waffo"] as const,
 	webhookHandler: vi.fn(() => new Response(null, { status: 204 })),
 }));
-vi.mock("@trigger.dev/sdk", () => ({ tasks: { trigger: vi.fn() } }));
+vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn() }));
 
 import { auth } from "@repo/auth";
 import { validateEzPicLaunchEnvironment } from "@repo/config/server";
@@ -39,6 +40,58 @@ describe("API request security", () => {
 	});
 
 	afterEach(() => vi.unstubAllEnvs());
+
+	it("reports Workflows readiness without any Trigger configuration", async () => {
+		vi.stubEnv("NODE_ENV", "test");
+		vi.stubEnv("TRIGGER_PROJECT_REF", undefined);
+		vi.stubEnv("TRIGGER_SECRET_KEY", undefined);
+		vi.stubEnv("WORKFLOWS_DISPATCH_URL", "https://jobs.ezpic.ai/internal/dispatch");
+		vi.stubEnv("WORKFLOWS_DISPATCH_SECRET", "workflows-dispatch-test-secret-32-characters");
+		vi.mocked(auth.api.getSession).mockResolvedValueOnce({ user: { role: "admin" } } as never);
+
+		const response = await app.request("/api/ready");
+		const payload = await response.json();
+
+		expect(response.status).toBe(200);
+		expect(payload).toMatchObject({
+			status: "ready",
+			checks: expect.arrayContaining([{ name: "workflows", ok: true }]),
+		});
+		expect(JSON.stringify(payload)).not.toContain("workflows-dispatch-test-secret");
+	});
+
+	it.each([
+		{ url: undefined, secret: "workflows-dispatch-test-secret-32-characters" },
+		{
+			url: "http://jobs.ezpic.ai/internal/dispatch",
+			secret: "workflows-dispatch-test-secret-32-characters",
+		},
+		{
+			url: "https://jobs.ezpic.ai/internal/dispatch?private=value",
+			secret: "workflows-dispatch-test-secret-32-characters",
+		},
+		{ url: "https://jobs.ezpic.ai/internal/dispatch", secret: "short-private-secret" },
+	])(
+		"fails Workflows readiness safely for invalid production configuration",
+		async ({ url, secret }) => {
+			vi.stubEnv("NODE_ENV", "production");
+			vi.stubEnv("WORKFLOWS_DISPATCH_URL", url);
+			vi.stubEnv("WORKFLOWS_DISPATCH_SECRET", secret);
+			vi.mocked(auth.api.getSession).mockResolvedValueOnce({ user: { role: "admin" } } as never);
+
+			const response = await app.request("/api/ready");
+			const payload = await response.json();
+
+			expect(response.status).toBe(503);
+			expect(payload).toMatchObject({
+				status: "not_ready",
+				checks: expect.arrayContaining([
+					{ name: "workflows", ok: false, error: "Readiness check failed" },
+				]),
+			});
+			expect(JSON.stringify(payload)).not.toMatch(/jobs\.ezpic\.ai|private|WORKFLOWS_/);
+		},
+	);
 
 	it("rejects oversized ordinary API bodies before parsing", async () => {
 		const response = await app.request("/api/rpc/media/quote", {
@@ -111,8 +164,8 @@ describe("API request security", () => {
 
 	it("includes the EzPic launch contract in production readiness and fails closed", async () => {
 		vi.stubEnv("NODE_ENV", "production");
-		vi.stubEnv("TRIGGER_PROJECT_REF", "proj_route_wiring_test");
-		vi.stubEnv("TRIGGER_SECRET_KEY", "present-for-route-wiring-test");
+		vi.stubEnv("WORKFLOWS_DISPATCH_URL", "https://jobs.ezpic.ai/internal/dispatch");
+		vi.stubEnv("WORKFLOWS_DISPATCH_SECRET", "workflows-dispatch-test-secret-32-characters");
 		vi.mocked(validateEzPicLaunchEnvironment).mockImplementationOnce(() => {
 			throw new Error("MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS is required");
 		});
@@ -128,8 +181,8 @@ describe("API request security", () => {
 
 	it("never returns a dependency error value from admin readiness", async () => {
 		vi.stubEnv("NODE_ENV", "test");
-		vi.stubEnv("TRIGGER_PROJECT_REF", "proj_readiness_redaction_test");
-		vi.stubEnv("TRIGGER_SECRET_KEY", "present-for-readiness-redaction-test");
+		vi.stubEnv("WORKFLOWS_DISPATCH_URL", "https://jobs.ezpic.ai/internal/dispatch");
+		vi.stubEnv("WORKFLOWS_DISPATCH_SECRET", "workflows-dispatch-test-secret-32-characters");
 		vi.mocked(db.$queryRaw).mockRejectedValueOnce(
 			new Error(
 				"connection failed for postgresql://operator:database-password@private.example/production",
@@ -151,8 +204,8 @@ describe("API request security", () => {
 
 	it("does not infer safe readiness diagnostics from dependency-provided uppercase values", async () => {
 		vi.stubEnv("NODE_ENV", "test");
-		vi.stubEnv("TRIGGER_PROJECT_REF", "proj_readiness_identifier_test");
-		vi.stubEnv("TRIGGER_SECRET_KEY", "present-for-readiness-identifier-test");
+		vi.stubEnv("WORKFLOWS_DISPATCH_URL", "https://jobs.ezpic.ai/internal/dispatch");
+		vi.stubEnv("WORKFLOWS_DISPATCH_SECRET", "workflows-dispatch-test-secret-32-characters");
 		vi.mocked(db.$queryRaw).mockRejectedValueOnce(
 			new Error("dependency rejected MEDIA_PRIVATE_SECRET_VALUE_123"),
 		);

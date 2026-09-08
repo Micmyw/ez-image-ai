@@ -7,7 +7,7 @@
 			"resources": {
 				"database": "NOT_COMPLETED/development/database",
 				"mediaBucket": "NOT_COMPLETED/development/media-bucket",
-				"triggerEnvironment": "NOT_COMPLETED/development/trigger",
+				"workflowEnvironment": "NOT_COMPLETED/development/workflows",
 				"posthogProject": "NOT_COMPLETED/development/posthog",
 				"sentryEnvironment": "NOT_COMPLETED/development/sentry",
 				"mailProvider": "NOT_COMPLETED/development/mail"
@@ -19,7 +19,7 @@
 			"resources": {
 				"database": "NOT_COMPLETED/test/database",
 				"mediaBucket": "NOT_COMPLETED/test/media-bucket",
-				"triggerEnvironment": "NOT_COMPLETED/test/trigger",
+				"workflowEnvironment": "NOT_COMPLETED/test/workflows",
 				"posthogProject": "NOT_COMPLETED/test/posthog",
 				"sentryEnvironment": "NOT_COMPLETED/test/sentry",
 				"mailProvider": "NOT_COMPLETED/test/mail"
@@ -31,7 +31,7 @@
 			"resources": {
 				"database": "NOT_COMPLETED/staging/database",
 				"mediaBucket": "NOT_COMPLETED/staging/media-bucket",
-				"triggerEnvironment": "NOT_COMPLETED/staging/trigger",
+				"workflowEnvironment": "NOT_COMPLETED/staging/workflows",
 				"posthogProject": "NOT_COMPLETED/staging/posthog",
 				"sentryEnvironment": "NOT_COMPLETED/staging/sentry",
 				"mailProvider": "NOT_COMPLETED/staging/mail"
@@ -43,7 +43,7 @@
 			"resources": {
 				"database": "NOT_COMPLETED/production/database",
 				"mediaBucket": "NOT_COMPLETED/production/media-bucket",
-				"triggerEnvironment": "NOT_COMPLETED/production/trigger",
+				"workflowEnvironment": "NOT_COMPLETED/production/workflows",
 				"posthogProject": "NOT_COMPLETED/production/posthog",
 				"sentryEnvironment": "NOT_COMPLETED/production/sentry",
 				"mailProvider": "NOT_COMPLETED/production/mail"

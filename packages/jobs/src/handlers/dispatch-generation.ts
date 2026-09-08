@@ -51,6 +51,13 @@ export async function dispatchGeneration(
 			await dependencies.store.recordSynchronousCompletion(claim.attemptId, submission, result);
 		} else {
 			await dependencies.store.recordSubmission(claim.attemptId, submission);
+			// Acceptance is already durable. Scheduler failure must never turn it into
+			// submission uncertainty or trigger another Provider submission.
+			try {
+				await dependencies.schedulePolling?.(claim.attemptId);
+			} catch {
+				// Scheduled reconciliation can recover the same persisted attempt.
+			}
 		}
 		return { outcome: "SUBMITTED" };
 	} catch (error) {

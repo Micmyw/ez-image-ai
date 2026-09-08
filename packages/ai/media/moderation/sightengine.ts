@@ -1,6 +1,13 @@
 import { z } from "zod";
 
 import { fetchJson, type HttpClientOptions } from "../providers/http";
+import {
+	assessSightengineImage,
+	assessSightengineText,
+	SIGHTENGINE_IMAGE_MODELS,
+	SIGHTENGINE_TEXT_MODELS,
+	sightengineSuccessSchema,
+} from "./sightengine-policy";
 import type {
 	MediaSafetyAdapter,
 	ModerateAssetInput,
@@ -11,20 +18,9 @@ import type {
 	SubmitVideoInput,
 } from "./types";
 
-const sightengineSchema = z
-	.object({
-		status: z.string(),
-		nudity: z.object({ sexual_activity: z.number().optional() }).optional(),
-		weapon: z.number().optional(),
-		data: z
-			.object({
-				id: z.string().optional(),
-				status: z.string().optional(),
-				nudity: z.object({ sexual_activity: z.number().optional() }).optional(),
-			})
-			.optional(),
-	})
-	.passthrough();
+const videoSchema = sightengineSuccessSchema.extend({
+	data: z.object({ id: z.string().min(1).optional(), status: z.string().optional() }).passthrough(),
+});
 export interface SightengineOptions extends HttpClientOptions {
 	apiUser: string;
 	apiSecret: string;
@@ -34,25 +30,44 @@ export class SightengineSafetyAdapter implements MediaSafetyAdapter {
 	constructor(private readonly options: SightengineOptions) {}
 	async moderateText(input: ModerateTextInput): Promise<ModerationDecision> {
 		try {
-			const data = await this.call("/text/check.json", { text: input.text });
-			return scoreDecision(
-				Math.max(data.nudity?.sexual_activity ?? 0, data.weapon ?? 0),
-				input.ruleVersion,
-			);
+			if (!input.text.trim() || input.text.length > 10_000) {
+				return decision("ERROR", "MODERATION_INVALID_INPUT", input.ruleVersion);
+			}
+			// This release supports English. Other scripts must not silently pass an
+			// English-only classifier. Latin script is not a full language detector.
+			const letters = input.text.normalize("NFKC").match(/\p{Letter}/gu) ?? [];
+			if (letters.some((letter) => !/\p{Script_Extensions=Latin}/u.test(letter))) {
+				return decision("REVIEW", "UNSUPPORTED_TEXT_LANGUAGE", input.ruleVersion);
+			}
+			const data = await this.call("/text/check.json", {
+				text: input.text,
+				mode: "ml",
+				lang: "en",
+				models: SIGHTENGINE_TEXT_MODELS.join(","),
+			});
+			return assessSightengineText(data, input.ruleVersion);
 		} catch {
 			return decision("ERROR", "MODERATION_UNAVAILABLE", input.ruleVersion);
 		}
 	}
 	async moderateImage(input: ModerateAssetInput): Promise<ModerationDecision> {
 		try {
-			const data = await this.call("/check.json", { url: input.assetUrl });
-			return scoreDecision(data.nudity?.sexual_activity ?? 0, input.ruleVersion);
+			const data = await this.call("/check.json", {
+				url: input.assetUrl,
+				models: SIGHTENGINE_IMAGE_MODELS.join(","),
+			});
+			return assessSightengineImage(data, input.ruleVersion);
 		} catch {
 			return decision("ERROR", "MODERATION_UNAVAILABLE", input.ruleVersion);
 		}
 	}
 	async submitVideo(input: SubmitVideoInput): Promise<ModerationSubmission> {
-		const data = await this.call("/video/check.json", { stream_url: input.assetUrl });
+		const data = videoSchema.parse(
+			await this.call("/video/check.json", {
+				stream_url: input.assetUrl,
+				models: SIGHTENGINE_IMAGE_MODELS.join(","),
+			}),
+		);
 		const id = data.data?.id;
 		if (!id) throw new Error("Sightengine video submission was malformed");
 		return {
@@ -67,18 +82,29 @@ export class SightengineSafetyAdapter implements MediaSafetyAdapter {
 		};
 	}
 	async retrieveVideo(input: RetrieveModerationInput): Promise<ModerationDecision> {
-		const data = await this.call(
-			`/video/byid/${encodeURIComponent(input.moderationTaskId)}.json`,
-			{},
-		);
-		if (data.data?.status !== "finished")
-			return decision("REVIEW", "VIDEO_PROCESSING", input.ruleVersion);
-		return scoreDecision(data.data.nudity?.sexual_activity ?? 0, input.ruleVersion);
+		try {
+			const data = videoSchema.parse(
+				await this.call(`/video/byid/${encodeURIComponent(input.moderationTaskId)}.json`, {}),
+			);
+			if (data.data?.status !== "finished")
+				return decision("REVIEW", "VIDEO_PROCESSING", input.ruleVersion);
+			// Legacy video retrieval is not certified by the static-image integration.
+			// Never approve its historical incomplete nudity-only result shape.
+			return assessSightengineImage(
+				{ ...data.data, status: "success", request: data.request },
+				input.ruleVersion,
+			);
+		} catch {
+			return decision("ERROR", "MODERATION_UNAVAILABLE", input.ruleVersion);
+		}
 	}
 	private async call(
 		path: string,
 		body: Record<string, string>,
-	): Promise<z.infer<typeof sightengineSchema>> {
+	): Promise<z.infer<typeof sightengineSuccessSchema>> {
+		if (!this.options.apiUser.trim() || !this.options.apiSecret.trim()) {
+			throw new Error("Sightengine credentials are missing");
+		}
 		const params = new URLSearchParams({
 			...body,
 			api_user: this.options.apiUser,
@@ -91,16 +117,11 @@ export class SightengineSafetyAdapter implements MediaSafetyAdapter {
 				headers: { "Content-Type": "application/x-www-form-urlencoded" },
 				body: params,
 			},
-			this.options,
+			{ maxResponseBytes: 1024 * 1024, ...this.options },
 		);
 		if (!ok) throw new Error("Sightengine request failed");
-		return sightengineSchema.parse(data);
+		return sightengineSuccessSchema.parse(data);
 	}
-}
-function scoreDecision(score: number, version: string): ModerationDecision {
-	if (score >= 0.85) return decision("REJECT", "SEXUAL_CONTENT", version);
-	if (score >= 0.4) return decision("REVIEW", "AMBIGUOUS_SEXUAL_CONTENT", version);
-	return decision("ALLOW", "NO_POLICY_MATCH", version);
 }
 function decision(
 	value: ModerationDecision["decision"],

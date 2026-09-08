@@ -26,7 +26,8 @@ const productionBase = {
 	MEDIA_BUCKET_NAME: "media-private",
 	S3_ACCESS_KEY_ID: "access",
 	S3_SECRET_ACCESS_KEY: "secret",
-	TRIGGER_SECRET_KEY: "tr_prod_secret",
+	WORKFLOWS_DISPATCH_URL: "https://jobs.ezpic.ai/internal/dispatch",
+	WORKFLOWS_DISPATCH_SECRET: "workflows-dispatch-test-secret-32-characters",
 	STRIPE_SECRET_KEY: "sk_live_secret",
 	STRIPE_WEBHOOK_SECRET: "whsec_secret",
 	PAYPAL_ENVIRONMENT: "live",
@@ -42,6 +43,40 @@ const productionBase = {
 } as const;
 
 describe("validateServerEnvironment", () => {
+	it("accepts authenticated Workflows dispatch without legacy Trigger credentials", () => {
+		expect(() =>
+			validateServerEnvironment({
+				...productionBase,
+				TRIGGER_SECRET_KEY: undefined,
+				WORKFLOWS_DISPATCH_URL: "https://jobs.ezpic.ai/internal/dispatch",
+				WORKFLOWS_DISPATCH_SECRET: "workflows-dispatch-test-secret-32-characters",
+			}),
+		).not.toThrow();
+	});
+
+	it.each([
+		["WORKFLOWS_DISPATCH_URL", undefined],
+		["WORKFLOWS_DISPATCH_URL", "http://jobs.ezpic.ai/internal/dispatch"],
+		["WORKFLOWS_DISPATCH_URL", "https://jobs.ezpic.ai/"],
+		["WORKFLOWS_DISPATCH_URL", "https://user:private@jobs.ezpic.ai/internal/dispatch"],
+		["WORKFLOWS_DISPATCH_URL", "https://jobs.ezpic.ai/internal/dispatch?secret=private"],
+		["WORKFLOWS_DISPATCH_SECRET", undefined],
+		["WORKFLOWS_DISPATCH_SECRET", "too-short"],
+	] as const)(
+		"fails closed for invalid Workflows configuration %s=%s even with legacy credentials",
+		(key, value) => {
+			expect(() =>
+				validateServerEnvironment({
+					...productionBase,
+					WORKFLOWS_DISPATCH_URL: "https://jobs.ezpic.ai/internal/dispatch",
+					WORKFLOWS_DISPATCH_SECRET: "workflows-dispatch-test-secret-32-characters",
+					TRIGGER_SECRET_KEY: "legacy-credentials-must-not-bypass-validation",
+					[key]: value,
+				}),
+			).toThrow(new RegExp(key));
+		},
+	);
+
 	it("enables billing with complete PayPal checkout configuration and no Stripe secrets", () => {
 		const input: Record<string, string | undefined> = {
 			...productionBase,
@@ -111,7 +146,7 @@ describe("validateServerEnvironment", () => {
 	it.each([
 		["DATABASE_URL", ["DATABASE_URL"]],
 		["S3/R2", ["S3_ENDPOINT"]],
-		["Trigger.dev", ["TRIGGER_SECRET_KEY"]],
+		["Cloudflare Workflows", ["WORKFLOWS_DISPATCH_URL", "WORKFLOWS_DISPATCH_SECRET"]],
 		["Sentry", ["SENTRY_DSN"]],
 		["Sightengine", ["SIGHTENGINE_API_USER", "SIGHTENGINE_API_SECRET"]],
 	])("requires %s credentials for enabled production features", (label, keys) => {

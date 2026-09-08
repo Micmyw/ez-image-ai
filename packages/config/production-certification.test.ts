@@ -30,7 +30,7 @@ function placeholderMatrix() {
 					database: `not-completed/${environment}/database`,
 					mediaBucket: `not-completed/${environment}/bucket`,
 					stripeWebhookScope: `not-completed/${environment}/stripe-webhook`,
-					triggerEnvironment: `not-completed/${environment}/trigger`,
+					workflowEnvironment: `not-completed/${environment}/workflows`,
 					posthogProject: `not-completed/${environment}/posthog`,
 					sentryEnvironment: `not-completed/${environment}/sentry`,
 					mailProvider: `not-completed/${environment}/mail`,

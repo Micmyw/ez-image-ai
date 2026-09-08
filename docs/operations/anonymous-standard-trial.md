@@ -2,7 +2,7 @@
 
 This runbook covers the sponsored anonymous Nano Banana 2 Lite 1K trial. PostgreSQL remains the
 business source of truth for the temporary principal, trial, EzPic Credits, job, attempts, result
-grant, private assets, cleanup, and audit trail. Trigger.dev, storage, moderation, Turnstile,
+grant, private assets, cleanup, and audit trail. Cloudflare Workflows, storage, moderation, Turnstile,
 analytics, and Kie deliver or observe work; they do not own guest eligibility or financial state.
 
 The feature remains production-off until `pnpm launch:certify` passes against protected evidence for

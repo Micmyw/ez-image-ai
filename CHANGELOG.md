@@ -1,5 +1,62 @@
 # Changelog
 
+## 2026-09-08
+
+### Cloudflare Workflows with on-demand Node execution
+
+- Replaced active Trigger.dev dispatch with authenticated Cloudflare Workflows, durable polling
+  waits and scheduled maintenance, backed by an on-demand Cloudflare Container for the existing
+  Node/Prisma/Sharp execution path.
+- Kept PostgreSQL jobs, attempts, leases, reservations, immutable credit mutations and Outbox
+  recovery authoritative. Immediate dispatch failure still leaves committed work recoverable.
+- Added fail-closed Workflows URL/secret checks, isolated launch environment identifiers and
+  unconditional CI type/artifact gates without Trigger account credentials.
+- Kept anonymous login and draft continuation redirects on the configured SaaS origin when
+  the server's internal request URL differs, preserving the existing same-origin form policy.
+- Documented protected runtime secret injection, Docker builds, scheduler drain, Container idle
+  shutdown, separate compute charges and compatible rollback. Live cloud deployment and external
+  integration certification remain separate from local checks.
+
+### Reuse unchanged image approvals
+
+- Removed daily expiry for newly approved static images. New uploads and generated outputs still
+  require their first moderation pass; private access, revocation, and rule/provider checks remain.
+- Reuse matching approvals from the completed September 8 image rules through an atomic,
+  auditable evidence transition without calling Sightengine again. Old evidence remains unchanged.
+  Missing, rejected, mismatched, or incompatible historical evidence cannot use this transition.
+- Kept bounded recovery for failed checks and revalidation for actual rule/provider changes;
+  this does not disable the recovery scheduler or its infrastructure cost.
+
+### Complete Sightengine text and image decisions
+
+- Corrected English text moderation to request the ML models explicitly and parse their actual
+  text categories. Unsupported scripts no longer silently reach an English-only classifier.
+- Added explicit input/output image profiles for nudity, weapons, graphic content, violence,
+  and self-harm. Missing model results, malformed scores, API business errors, and timeouts
+  fail closed; only ALLOW can authorize quotes or private assets.
+- Persisted allowlisted request/model/operation/score evidence in private quote audits and image
+  verification records, with bumped text/image policy versions. Existing checksum, lease,
+  recovery, and credit-settlement boundaries remain in force.
+- Documented thresholds, evidence lifetime, and remaining live-service
+  verification. This does not certify video moderation or age/consent detection.
+
+### Original image proportions in the inspiration gallery
+
+- Restored the twelve example images to their original aspect ratios in a responsive masonry
+  layout, so landscape, square, and portrait compositions remain complete.
+- Kept prompt selection and hover/focus reveals, with captions below images on touch devices and
+  narrow screens.
+- Smoothed gallery hover and keyboard-focus enlargement to 5% over 1.2 seconds, with a gentle
+  lift and animated return that respects reduced-motion preferences.
+
+### Timely generation result polling
+
+- Added Provider-independent durable polling that queries accepted asynchronous image tasks
+  promptly, backs off pending observations, and shares database leases with scheduled recovery.
+- Kept uncertain submissions, private transfer, moderation, and credit settlement on existing
+  paths. Polling scheduler failures cannot resubmit or reclassify accepted work.
+- Documented additional Provider integration, frozen-attempt recovery and external verification.
+
 ## 2026-09-07
 
 ### Image SKU pricing and model matrices

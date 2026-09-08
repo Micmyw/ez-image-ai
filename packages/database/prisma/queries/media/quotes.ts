@@ -73,6 +73,7 @@ export async function createModeratedGenerationQuote(
 				ruleVersion: input.moderation.ruleVersion,
 				reasonCode: input.moderation.reasonCode,
 				inputFingerprint: input.moderation.inputFingerprint,
+				...(input.moderation.evidence ? { evidence: input.moderation.evidence } : {}),
 			},
 			metadata: {},
 		},

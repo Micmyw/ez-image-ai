@@ -6,7 +6,7 @@ describe("provider webhook ingestion", () => {
 	it("verifies raw bytes before persisting and does not depend on delivery", async () => {
 		const persist = vi.fn(async () => ({ replayed: false, eventId: "stored-1" }));
 		const deliver = vi.fn(async () => {
-			throw new Error("Trigger unavailable");
+			throw new Error("Workflows unavailable");
 		});
 		const handler = createProviderWebhookHandler({
 			getVerifier: () => ({

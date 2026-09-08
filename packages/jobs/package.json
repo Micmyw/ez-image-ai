@@ -2,6 +2,10 @@
 	"name": "@repo/jobs",
 	"version": "0.0.0",
 	"main": "./index.ts",
+	"exports": {
+		".": "./index.ts",
+		"./orchestration/*": "./src/orchestration/*.ts"
+	},
 	"scripts": {
 		"test": "vitest run --config vitest.config.ts --exclude \"**/*.database.integration.test.ts\"",
 		"test:integration": "vitest run src/handlers/finalization-transfer.database.integration.test.ts src/handlers/jobs.database.integration.test.ts src/handlers/recover-finalizing-generations.database.integration.test.ts src/handlers/runtime-stores.database.integration.test.ts src/handlers/verify-upload.database.integration.test.ts --config vitest.config.ts",
@@ -13,8 +17,7 @@
 		"@repo/config": "workspace:*",
 		"@repo/database": "workspace:*",
 		"@repo/payments": "workspace:*",
-		"@repo/storage": "workspace:*",
-		"@trigger.dev/sdk": "catalog:"
+		"@repo/storage": "workspace:*"
 	},
 	"devDependencies": {
 		"@repo/tsconfig": "workspace:*",

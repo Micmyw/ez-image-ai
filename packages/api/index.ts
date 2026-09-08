@@ -4,6 +4,7 @@ import { auth } from "@repo/auth";
 import { isAnonymousUser, runAnonymousBootstrapIdentity } from "@repo/auth/lib/anonymous-boundary";
 import {
 	type GuestMediaRuntimeOverride,
+	assertWorkflowsConfiguration,
 	getGuestMediaConfig,
 	validateEzPicLaunchEnvironment,
 	validateServerEnvironment,
@@ -16,10 +17,10 @@ import {
 } from "@repo/database";
 import { db } from "@repo/database/client";
 import { createProviderWebhookVerifierRegistry } from "@repo/jobs";
+import { dispatchJob } from "@repo/jobs/orchestration/client";
 import { getLogContext, logger, withLogContext } from "@repo/logs";
 import { webhookHandler as paymentsWebhookHandler } from "@repo/payments";
 import { checkStorageMetadataAccess } from "@repo/storage";
-import { tasks } from "@trigger.dev/sdk";
 import { Hono, type Context, type Next } from "hono";
 import { cors } from "hono/cors";
 import { logger as honoLogger } from "hono/logger";
@@ -82,7 +83,9 @@ const providerWebhookHandler = createProviderWebhookHandler({
 		return { replayed: result.replayed, eventId: result.event.id };
 	},
 	deliver: (payload) =>
-		tasks.trigger("media-process-provider-webhook", payload).then(() => undefined),
+		dispatchJob("media-process-provider-webhook", payload, {
+			idempotencyKey: `provider-event:${payload.providerWebhookEventId}`,
+		}),
 });
 
 export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
@@ -202,7 +205,7 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 					),
 					db.$queryRaw`SELECT 1 AS "ready"`,
 					checkStorageMetadataAccess(),
-					Promise.resolve().then(() => assertTriggerConfiguration()),
+					Promise.resolve().then(() => assertWorkflowsConfiguration(process.env)),
 					Promise.resolve().then(() => assertEzPicLaunchReadinessEnvironment()),
 				]);
 				const ready = checks.every((check) => check.status === "fulfilled");
@@ -213,7 +216,7 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 						status: ready ? "ready" : "not_ready",
 						...(isAdmin
 							? {
-									checks: ["configuration", "database", "storage", "trigger", "launch"].map(
+									checks: ["configuration", "database", "storage", "workflows", "launch"].map(
 										(name, index) => ({
 											name,
 											ok: checks[index]?.status === "fulfilled",
@@ -426,7 +429,7 @@ async function handleDurableGuestAnonymousSignIn(request: Request): Promise<Resp
 			);
 		}
 		return requestUrlFlag(request, "handoff") === "1"
-			? guestHandoffRedirect(result.value, request)
+			? guestHandoffRedirect(result.value, saasOrigin)
 			: withExpiredGuestBootstrapCookie(result.value);
 	} catch (error) {
 		if (error instanceof GuestAuthHandlerResponseError) {
@@ -466,9 +469,9 @@ class GuestAuthHandlerResponseError extends Error {
 	}
 }
 
-function guestHandoffRedirect(authResponse: Response, request: Request): Response {
+function guestHandoffRedirect(authResponse: Response, saasOrigin: string): Response {
 	const headers = new Headers({
-		Location: new URL("/draft/continue", request.url).toString(),
+		Location: new URL("/draft/continue", saasOrigin).toString(),
 		"Cache-Control": "no-store",
 		"Referrer-Policy": "no-referrer",
 	});
@@ -537,11 +540,6 @@ function resolveExplicitCorsOrigin(value: string | undefined): string | null {
 	} catch {
 		return null;
 	}
-}
-
-function assertTriggerConfiguration(): void {
-	if (!process.env.TRIGGER_SECRET_KEY) throw new Error("Trigger credentials are missing");
-	if (!process.env.TRIGGER_PROJECT_REF) throw new Error("Trigger project reference is missing");
 }
 
 function assertEzPicLaunchReadinessEnvironment(): void {

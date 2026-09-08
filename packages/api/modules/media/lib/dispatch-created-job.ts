@@ -11,9 +11,10 @@ interface CreatedJobDispatchDependencies {
 		provider: ProviderKey;
 		providerModelId: string;
 	} | null>;
-	trigger(
+	dispatch(
 		taskId: string,
 		payload: { jobId: string; version: number; provider: ProviderKey; providerModelId: string },
+		options: { idempotencyKey: string },
 	): Promise<void>;
 	warn?(message: string, context: Record<string, unknown>): void;
 }
@@ -29,12 +30,16 @@ export async function dispatchCreatedJobBestEffort(
 	try {
 		const route = await dependencies.resolveRoute(input.jobId);
 		if (!route) throw new Error("Generation dispatch route is unavailable");
-		await dependencies.trigger(route.taskId, {
-			jobId: input.jobId,
-			version: input.version,
-			provider: route.provider,
-			providerModelId: route.providerModelId,
-		});
+		await dependencies.dispatch(
+			route.taskId,
+			{
+				jobId: input.jobId,
+				version: input.version,
+				provider: route.provider,
+				providerModelId: route.providerModelId,
+			},
+			{ idempotencyKey: `generation:${input.jobId}:${input.version}` },
+		);
 		return { delivered: true };
 	} catch (error) {
 		dependencies.warn?.("Immediate generation dispatch failed; outbox recovery remains pending", {

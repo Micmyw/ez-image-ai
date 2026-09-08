@@ -37,10 +37,9 @@ allowBuilds:
   prisma: true
   prisma-zod-generator: true
   sharp: true
+  workerd: true
 
 catalog:
-  "@trigger.dev/sdk": 4.5.10
-  trigger.dev: 4.5.10
   "@ai-sdk/anthropic": ^4.0.21
   "@ai-sdk/openai": ^4.0.27
   "@ai-sdk/react": ^4.0.51

@@ -1,0 +1,58 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "ezpic-workflows",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-09-08",
+	"compatibility_flags": ["nodejs_compat"],
+	"workers_dev": true,
+	"preview_urls": false,
+	"observability": { "enabled": true },
+	"limits": { "cpu_ms": 30000 },
+	"triggers": { "crons": ["* * * * *"] },
+	"workflows": [{ "name": "ezpic-jobs", "binding": "JOBS", "class_name": "JobsWorkflow" }],
+	"containers": [
+		{
+			"class_name": "JobsContainer",
+			"image": "../jobs-runtime/Dockerfile",
+			"image_build_context": "../..",
+			"instance_type": "basic",
+			"max_instances": 1
+		}
+	],
+	"durable_objects": { "bindings": [{ "name": "JOBS_RUNTIME", "class_name": "JobsContainer" }] },
+	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["JobsContainer"] }],
+	"env": {
+		"staging": {
+			"name": "ezpic-workflows-staging",
+			"workflows": [
+				{ "name": "ezpic-jobs-staging", "binding": "JOBS", "class_name": "JobsWorkflow" }
+			],
+			"containers": [
+				{
+					"class_name": "JobsContainer",
+					"image": "../jobs-runtime/Dockerfile",
+					"image_build_context": "../..",
+					"instance_type": "basic",
+					"max_instances": 1
+				}
+			],
+			"durable_objects": { "bindings": [{ "name": "JOBS_RUNTIME", "class_name": "JobsContainer" }] }
+		},
+		"production": {
+			"name": "ezpic-workflows-production",
+			"workflows": [
+				{ "name": "ezpic-jobs-production", "binding": "JOBS", "class_name": "JobsWorkflow" }
+			],
+			"containers": [
+				{
+					"class_name": "JobsContainer",
+					"image": "../jobs-runtime/Dockerfile",
+					"image_build_context": "../..",
+					"instance_type": "basic",
+					"max_instances": 1
+				}
+			],
+			"durable_objects": { "bindings": [{ "name": "JOBS_RUNTIME", "class_name": "JobsContainer" }] }
+		}
+	}
+}

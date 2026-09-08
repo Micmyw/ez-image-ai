@@ -8,7 +8,7 @@ import {
 	type CreateModeratedGenerationQuoteInput,
 } from "@repo/database/media-quotes";
 
-export const TEXT_MODERATION_RULE_VERSION = "text-safety-2026-08-14.1";
+export const TEXT_MODERATION_RULE_VERSION = "text-safety-2026-09-08.1";
 
 export interface TextModerationEvidence extends ModerationDecision {
 	provider: "sightengine" | "test";

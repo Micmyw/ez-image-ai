@@ -2,6 +2,7 @@ import { z } from "zod";
 
 import { validateServerEnvironment } from "./env";
 import { catalogVersionSchema, DEFAULT_PRODUCT_CONFIG, EZPIC_PRODUCT_KEYS } from "./product";
+import { assertWorkflowsConfiguration } from "./workflows";
 
 const environmentNameSchema = z.enum(["development", "test", "staging", "production"]);
 const resourceIdSchema = z
@@ -20,7 +21,7 @@ const environmentManifestSchema = z
 				database: resourceIdSchema,
 				mediaBucket: resourceIdSchema,
 				stripeWebhookScope: resourceIdSchema.optional(),
-				triggerEnvironment: resourceIdSchema,
+				workflowEnvironment: resourceIdSchema,
 				posthogProject: resourceIdSchema,
 				sentryEnvironment: resourceIdSchema,
 				mailProvider: resourceIdSchema,
@@ -56,7 +57,7 @@ const environmentMatrixSchema = z
 		for (const resource of [
 			"database",
 			"mediaBucket",
-			"triggerEnvironment",
+			"workflowEnvironment",
 			"posthogProject",
 			"sentryEnvironment",
 			"mailProvider",
@@ -87,7 +88,7 @@ export interface EzPicLaunchEnvironment {
 		database: string;
 		mediaBucket: string;
 		stripeWebhookScope?: string;
-		triggerEnvironment: string;
+		workflowEnvironment: string;
 		posthogProject: string;
 		sentryEnvironment: string;
 		mailProvider: string;
@@ -267,6 +268,7 @@ export function validateEzPicLaunchEnvironment(
 	const saas = realHttpsOrigin(input, "NEXT_PUBLIC_SAAS_URL");
 	realHttpsOrigin(input, "S3_ENDPOINT");
 	realHttpsOrigin(input, "NEXT_PUBLIC_POSTHOG_HOST");
+	assertWorkflowsConfiguration({ ...input, NODE_ENV: "production" });
 
 	for (const key of [
 		"DATABASE_URL",
@@ -275,8 +277,6 @@ export function validateEzPicLaunchEnvironment(
 		"MEDIA_BUCKET_NAME",
 		"S3_ACCESS_KEY_ID",
 		"S3_SECRET_ACCESS_KEY",
-		"TRIGGER_PROJECT_REF",
-		"TRIGGER_SECRET_KEY",
 		"SENTRY_DSN",
 		"SIGHTENGINE_API_USER",
 		"SIGHTENGINE_API_SECRET",
@@ -315,7 +315,7 @@ export function validateEzPicLaunchEnvironment(
 						stripeWebhookScope: requiredResourceId(input, "EZPIC_STRIPE_WEBHOOK_SCOPE_ID"),
 					}
 				: {}),
-			triggerEnvironment: requiredResourceId(input, "EZPIC_TRIGGER_ENVIRONMENT_ID"),
+			workflowEnvironment: requiredResourceId(input, "EZPIC_WORKFLOWS_ENVIRONMENT_ID"),
 			posthogProject: requiredResourceId(input, "EZPIC_POSTHOG_PROJECT_ID"),
 			sentryEnvironment: requiredResourceId(input, "EZPIC_SENTRY_ENVIRONMENT"),
 			mailProvider: requiredResourceId(input, "EZPIC_MAIL_PROVIDER_ID"),

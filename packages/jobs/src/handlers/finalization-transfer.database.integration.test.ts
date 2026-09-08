@@ -386,7 +386,12 @@ describe("generation output transfer runtime", () => {
 		if (!claim) throw new Error("Expected guest finalization claim");
 
 		const transformedChecksum = "e".repeat(64);
-		const cleanStagingDeletedAt = new Date();
+		// Completion uses the database clock. Keep fixture evidence on the same clock
+		// so host/Container skew cannot masquerade as a future watermark timestamp.
+		const [databaseClock] = await client.$queryRaw<Array<{ now: Date }>>`
+			SELECT clock_timestamp() AS "now"`;
+		if (!databaseClock) throw new Error("Expected the database clock");
+		const cleanStagingDeletedAt = databaseClock.now;
 		const promote = vi.fn(async (_input: Parameters<typeof promoteStagedObject>[0]) => ({
 			bytes: PNG_BODY.byteLength,
 			sha256: PNG_CHECKSUM,

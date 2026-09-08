@@ -5,6 +5,7 @@ import {
 	SightengineSafetyAdapter,
 	TestMediaSafetyAdapter,
 } from "./index";
+import { safeImageResponse, safeTextResponse } from "./sightengine.test-fixtures";
 
 function fixtureFetch(...bodies: unknown[]): typeof fetch {
 	let index = 0;
@@ -13,16 +14,13 @@ function fixtureFetch(...bodies: unknown[]): typeof fetch {
 }
 
 describe("media safety contract", () => {
-	it("normalizes text, image, asynchronous video, review, and error decisions", async () => {
+	it("normalizes complete text and image decisions", async () => {
+		const rejectedImage = safeImageResponse();
+		rejectedImage.nudity.sexual_activity = 0.99;
 		const adapter = new SightengineSafetyAdapter({
 			apiUser: "user",
 			apiSecret: "secret",
-			fetch: fixtureFetch(
-				{ status: "success", nudity: { sexual_activity: 0.01 }, weapon: 0.01 },
-				{ status: "success", nudity: { sexual_activity: 0.99 } },
-				{ status: "success", data: { id: "video-1" } },
-				{ status: "success", data: { status: "finished", nudity: { sexual_activity: 0.6 } } },
-			),
+			fetch: fixtureFetch(safeTextResponse(), rejectedImage),
 		});
 
 		expect(
@@ -34,6 +32,18 @@ describe("media safety contract", () => {
 				ruleVersion: "safety-1",
 			}),
 		).toMatchObject({ decision: "REJECT", reasonCode: "SEXUAL_CONTENT" });
+	});
+
+	it("preserves legacy video submission identity without approving incomplete results", async () => {
+		const adapter = new SightengineSafetyAdapter({
+			apiUser: "user",
+			apiSecret: "secret",
+			fetch: fixtureFetch(
+				{ status: "success", data: { id: "video-1" } },
+				{ status: "success", data: { status: "processing" } },
+				{ status: "success", data: { status: "finished", nudity: { sexual_activity: 0.01 } } },
+			),
+		});
 		expect(
 			await adapter.submitVideo({
 				assetUrl: "https://cdn.test/video.mp4",
@@ -51,6 +61,9 @@ describe("media safety contract", () => {
 		expect(
 			await adapter.retrieveVideo({ moderationTaskId: "video-1", ruleVersion: "safety-1" }),
 		).toMatchObject({ decision: "REVIEW" });
+		expect(
+			await adapter.retrieveVideo({ moderationTaskId: "video-1", ruleVersion: "safety-1" }),
+		).toMatchObject({ decision: "ERROR" });
 	});
 
 	it("rejects the test adapter in production", () => {

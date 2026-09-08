@@ -40,6 +40,16 @@ assertJobsDatabaseIntegrationCoverage(
 	integrationRunner,
 );
 assertSaasOnlyRepository(rootPackage.scripts, workflow, unitContracts);
+for (const command of ["workflows:type-check", "workflows:build:ci"]) {
+	if (typeof rootPackage.scripts?.[command] !== "string") {
+		throw new Error(`Cloudflare orchestration command is missing: ${command}`);
+	}
+	assertUnconditionalStep(quality, `pnpm ${command}`);
+}
+assertNotMatch(quality, /TRIGGER_|pnpm trigger:/);
+for (const workspace of ["@repo/workflows", "@repo/jobs-runtime"]) {
+	assertIncludes(unitContracts, `"--filter", "${workspace}", "test"`);
+}
 assertNotMatch(builds, /^ {6}DATABASE_URL:\s*\$\{\{\s*env\./m);
 assertPnpmSetupPrecedesNodeCache(workflow);
 assertPnpmSetupPrecedesNodeCache(providerSmokeWorkflow);
@@ -115,6 +125,15 @@ function assertIncludes(value, expected) {
 	if (!value.includes(expected)) {
 		throw new Error(`repository validation contract is missing: ${expected}`);
 	}
+}
+
+function assertUnconditionalStep(job, command) {
+	const commandIndex = job.indexOf(`run: ${command}`);
+	if (commandIndex === -1) throw new Error(`workflow build gate is missing: ${command}`);
+	const start = job.lastIndexOf("\n      - ", commandIndex);
+	const end = job.indexOf("\n      - ", commandIndex);
+	const step = job.slice(start, end === -1 ? undefined : end);
+	assertNotMatch(step, /^\s+(?:if|continue-on-error):/m);
 }
 
 function assertJobsDatabaseIntegrationCoverage(testFiles, packageCommand, rootRunner) {

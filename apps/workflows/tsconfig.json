@@ -1,0 +1,9 @@
+{
+	"extends": "@repo/tsconfig/base.json",
+	"compilerOptions": {
+		"types": ["node", "@cloudflare/vitest-plugin/types"],
+		"lib": ["ES2022"],
+		"noEmit": true
+	},
+	"include": ["src/**/*.ts", "worker-configuration.d.ts", "env.d.ts", "vitest.config.ts"]
+}

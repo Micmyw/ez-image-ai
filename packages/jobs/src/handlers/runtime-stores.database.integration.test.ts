@@ -70,6 +70,68 @@ describe("production media runtime stores", () => {
 
 	afterAll(async () => client?.$disconnect());
 
+	it("active polling leases only the requested attempt and excludes a concurrent duplicate", async () => {
+		const target = await seedPendingProviderJob();
+		const other = await seedPendingProviderJob();
+		await client.generationAttempt.updateMany({
+			where: { id: { in: [target.attemptId, other.attemptId] } },
+			data: { nextReconcileAt: new Date(0) },
+		});
+		const store = createDatabaseReconciliationStore(client);
+		const now = new Date();
+		const claims = await Promise.all(
+			[1, 2].map(() =>
+				store.claimStale({ attemptId: target.attemptId, limit: 1, leaseSeconds: 60, now }),
+			),
+		);
+		expect(claims.flat().map((lease) => lease.attemptId)).toEqual([target.attemptId]);
+		const attempts = await client.generationAttempt.findMany({
+			where: { id: { in: [target.attemptId, other.attemptId] } },
+		});
+		expect(attempts.find((attempt) => attempt.id === target.attemptId)).toMatchObject({
+			reconciliationCount: 0,
+		});
+		expect(attempts.find((attempt) => attempt.id === other.attemptId)).toMatchObject({
+			reconcileLeaseToken: null,
+			reconciliationCount: 0,
+		});
+		expect((await store.getPollingState(target.attemptId))?.pollAt.getTime()).toBeGreaterThan(
+			now.getTime(),
+		);
+	});
+
+	it("active polling becomes due promptly and stops for terminal or manual-recovery jobs", async () => {
+		const started = Date.now();
+		const target = await seedPendingProviderJob();
+		const store = createDatabaseReconciliationStore(client);
+		const state = await store.getPollingState(target.attemptId);
+		expect(state?.pollAt.getTime()).toBeGreaterThanOrEqual(started + 10_000);
+		expect(state?.pollAt.getTime()).toBeLessThanOrEqual(Date.now() + 10_000);
+		await client.generationJob.update({
+			where: { id: target.jobId },
+			data: { status: "NEEDS_RECONCILIATION" },
+		});
+		expect(await store.getPollingState(target.attemptId)).toBeNull();
+		await client.generationAttempt.update({
+			where: { id: target.attemptId },
+			data: { status: "SUCCEEDED" },
+		});
+		expect(await store.getPollingState(target.attemptId)).toBeNull();
+	});
+
+	it("active polling refuses a blank scope and never retrieves uncertain work without a Provider task ID", async () => {
+		const target = await seedPendingProviderJob();
+		const store = createDatabaseReconciliationStore(client);
+		await expect(
+			store.claimStale({ attemptId: "", limit: 25, leaseSeconds: 60, now: new Date() }),
+		).rejects.toThrow("INVALID_GENERATION_ATTEMPT_ID");
+		await client.generationAttempt.update({
+			where: { id: target.attemptId },
+			data: { status: "SUBMISSION_UNCERTAIN", providerTaskId: null, uncertainSubmission: true },
+		});
+		expect(await store.getPollingState(target.attemptId)).toBeNull();
+	});
+
 	it("queues a catalog-approved route after a retryable rejected submission", async () => {
 		const seeded = await seedReservedJob("image-fast");
 		const store = createTestDispatchStore();
@@ -2288,7 +2350,7 @@ describe("production media runtime stores", () => {
 		).resolves.toMatchObject({ status: "SETTLED", settledAmount: seeded.credits });
 	});
 
-	it("revalidates output authorization atomically when reverification wins the settle race", async () => {
+	it("revalidates output authorization atomically when provider-change reverification wins the settle race", async () => {
 		const seeded = await seedFinalizingJob();
 		const output = await seedBoundOutputAsset(seeded.jobId, "READY", 1_000);
 		const store = createDatabaseSettlementStore(client);
@@ -2319,6 +2381,7 @@ describe("production media runtime stores", () => {
 					"REJECT",
 					undefined,
 					new BlockingRejectSafetyAdapter("REJECT"),
+					"changed-test-provider",
 				),
 			);
 			await reached;
@@ -3378,6 +3441,7 @@ function createOutputVerificationDependencies(
 	decision: "ALLOW" | "REJECT",
 	onVerificationError?: (error: unknown) => void,
 	safety: TestMediaSafetyAdapter = new TestMediaSafetyAdapter(decision),
+	moderationProvider = "test",
 ) {
 	return createDatabaseVerifyUploadDependencies(client, {
 		headObject: async () => ({
@@ -3395,7 +3459,7 @@ function createOutputVerificationDependencies(
 		}),
 		createSignedReadUrl: async () => "https://private.example/generated-output.png",
 		safety,
-		moderationProvider: "test",
+		moderationProvider,
 		onVerificationError,
 	});
 }

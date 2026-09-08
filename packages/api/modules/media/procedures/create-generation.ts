@@ -8,8 +8,8 @@ import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
 import { createGenerationJobTransaction } from "@repo/database";
 import { db } from "@repo/database/client";
 import { resolveDatabaseDispatchRoute } from "@repo/jobs";
+import { dispatchJob } from "@repo/jobs/orchestration/client";
 import { logger } from "@repo/logs";
-import { tasks } from "@trigger.dev/sdk";
 
 import { protectedProcedure } from "../../../orpc/procedures";
 import { dispatchCreatedJobBestEffort } from "../lib/dispatch-created-job";
@@ -37,7 +37,7 @@ export const createGeneration = protectedProcedure
 				},
 				{
 					resolveRoute: resolveDatabaseDispatchRoute,
-					trigger: (taskId, payload) => tasks.trigger(taskId, payload).then(() => undefined),
+					dispatch: dispatchJob,
 					warn: (message, details) => logger.warn(message, details),
 				},
 			);

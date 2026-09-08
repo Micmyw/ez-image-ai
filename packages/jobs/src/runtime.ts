@@ -41,6 +41,7 @@ import {
 	claimOutboxBatch,
 	completeGenerationOutputTransferTransaction,
 	completeOutboxEvent,
+	deferOutboxEvent,
 	deriveGuestQueueEstimate,
 	expireGuestJobBeforeProvider,
 	expireGuestMediaTransaction,
@@ -89,14 +90,19 @@ import {
 	type FinalizationStore,
 	type GuestAdmissionDependencies,
 	type GuestMediaExpiryDependencies,
+	type GenerationPollingStore,
 	type OutboxStore,
 	type ProviderCancellationStore,
 	type ProviderEventStore,
-	type ReconciliationStore,
 	type SettlementStore,
 	type UncertainSubmissionEvidence,
 } from "./contracts";
+import { generationPollingDelaySeconds } from "./generation-polling-policy";
 import type { StorageCleanupDependencies } from "./handlers/cleanup-storage-object";
+import {
+	canReuseApprovedImageEvidence,
+	IMAGE_APPROVAL_NO_TIME_EXPIRY,
+} from "./media-approval-lifetime";
 import {
 	createOutputTransferEnvelope,
 	providerOutputsFromTransferEnvelope,
@@ -833,7 +839,7 @@ export function createDatabaseDispatchStore(
 							: undefined,
 						uncertainSubmission: false,
 						errorSnapshot: {},
-						nextReconcileAt: terminal ? null : new Date(Date.now() + 30_000),
+						nextReconcileAt: terminal ? null : new Date(Date.now() + 10_000),
 					},
 				});
 				await tx.generationJob.updateMany({
@@ -1070,6 +1076,10 @@ export const databaseOutboxStore: OutboxStore = {
 		claimOutboxBatch({ workerId, limit, leaseSeconds }, db),
 	async complete(id, workerId, leaseToken) {
 		await completeOutboxEvent(id, workerId, leaseToken, db);
+	},
+	async defer(input) {
+		const result = await deferOutboxEvent(input, db);
+		if (!result.applied) throw new Error("OUTBOX_DEFER_LEASE_LOST");
 	},
 	async release(input) {
 		await releaseOutboxEvent({ ...input, error: input.errorCode, maxAttempts: 12 }, db);
@@ -1397,6 +1407,7 @@ async function appendVerificationEvidence(
 		status: "PENDING" | "APPROVED" | "REJECTED" | "REVIEW" | "ERROR";
 		reasonCode: string;
 		rawEnvelope: Prisma.InputJsonValue;
+		scores?: Record<string, number>;
 		validUntil?: Date | null;
 	},
 ): Promise<void> {
@@ -1425,7 +1436,10 @@ async function appendVerificationEvidence(
 			policyVersion: input.policyVersion,
 			status: input.status,
 			reasonCode: input.reasonCode,
-			categories: { reasonCode: input.reasonCode },
+			categories: {
+				reasonCode: input.reasonCode,
+				...(input.scores ? { scores: input.scores } : {}),
+			},
 			rawEnvelope: input.rawEnvelope,
 			validUntil: input.validUntil ?? null,
 		},
@@ -1537,6 +1551,76 @@ async function claimMediaVerification(
 		let asset = await tx.mediaAsset.findUnique({ where: { id: input.assetId } });
 		if (!asset) throw new Error("Media asset not found");
 		const now = new Date();
+		if (
+			asset.status === "READY" &&
+			asset.deletedAt === null &&
+			(asset.verificationPolicyVersion !== input.policyVersion ||
+				asset.verificationValidUntil?.toISOString() !== IMAGE_APPROVAL_NO_TIME_EXPIRY)
+		) {
+			const evidence = await tx.assetModerationResult.findFirst({
+				where: { assetId: asset.id },
+				orderBy: [
+					{ verificationGeneration: "desc" },
+					{ attemptNumber: "desc" },
+					{ createdAt: "desc" },
+					{ id: "desc" },
+				],
+			});
+			if (evidence && canReuseApprovedImageEvidence(asset, evidence, input)) {
+				const generation = asset.verificationGeneration + 1;
+				const validUntil = new Date(IMAGE_APPROVAL_NO_TIME_EXPIRY);
+				await appendVerificationEvidence(tx, {
+					assetId: asset.id,
+					assetChecksum: asset.checksum,
+					verificationGeneration: generation,
+					attemptNumber: 1,
+					evidenceKind: asset.kind,
+					provider: input.provider,
+					providerTaskId: asset.verificationProviderTaskId,
+					ruleVersion: input.ruleVersion,
+					policyVersion: input.policyVersion,
+					status: "APPROVED",
+					reasonCode: "CONTENT_AND_RULE_UNCHANGED",
+					validUntil,
+					rawEnvelope: {
+						decision: "ALLOW",
+						reusedEvidenceId: evidence.id,
+						sourceRuleVersion: evidence.ruleVersion,
+						sourcePolicyVersion: evidence.policyVersion,
+					},
+				});
+				await tx.mediaAsset.update({
+					where: { id: asset.id },
+					data: {
+						verificationGeneration: generation,
+						verificationAttemptCount: 1,
+						verificationPolicyVersion: input.policyVersion,
+						verificationValidUntil: validUntil,
+						verificationNextAttemptAt: null,
+						verificationDeadlineAt: null,
+					},
+				});
+				await tx.auditLog.create({
+					data: {
+						action: "MEDIA_ASSET_APPROVAL_REUSED",
+						targetType: "MEDIA_ASSET",
+						targetId: asset.id,
+						before: {
+							generation: asset.verificationGeneration,
+							policyVersion: asset.verificationPolicyVersion,
+						},
+						after: { generation, policyVersion: input.policyVersion },
+						metadata: { sourceEvidenceId: evidence.id, reason: "CONTENT_AND_RULE_UNCHANGED" },
+					},
+				});
+				await resolveJobsWaitingForMediaVerification(tx, {
+					assetId: asset.id,
+					verificationGeneration: generation,
+					approved: true,
+				});
+				return null;
+			}
+		}
 		const hasLegacyReverificationMarker =
 			asset.status === "VERIFYING" &&
 			Boolean(
@@ -1927,7 +2011,9 @@ async function completeMediaVerification(
 			input.decision === "ALLOW" ? "APPROVED" : input.decision === "REJECT" ? "REJECTED" : "REVIEW";
 		const verificationValidUntil =
 			input.decision === "ALLOW"
-				? new Date(now.getTime() + MEDIA_VERIFICATION_RETRY_POLICY.evidenceTtlMs)
+				? asset.mimeType.startsWith("image/")
+					? new Date(IMAGE_APPROVAL_NO_TIME_EXPIRY)
+					: new Date(now.getTime() + MEDIA_VERIFICATION_RETRY_POLICY.evidenceTtlMs)
 				: null;
 		await appendVerificationEvidence(tx, {
 			assetId: asset.id,
@@ -1941,7 +2027,11 @@ async function completeMediaVerification(
 			policyVersion: claim.policyVersion,
 			status,
 			reasonCode: input.reasonCode,
-			rawEnvelope: { decision: input.decision },
+			rawEnvelope: {
+				decision: input.decision,
+				...(input.evidence ? { evidence: input.evidence } : {}),
+			},
+			scores: input.evidence?.scores,
 			validUntil: verificationValidUntil,
 		});
 		await tx.mediaAsset.update({
@@ -3806,15 +3896,46 @@ export interface ReconciliationRuntimeOptions {
 export function createDatabaseReconciliationStore(
 	database: PrismaClient,
 	options: ReconciliationRuntimeOptions = {},
-): ReconciliationStore {
+): GenerationPollingStore {
 	return {
-		async claimStale({ limit, leaseSeconds, now }) {
+		async getPollingState(attemptId) {
+			if (!attemptId.trim()) throw new Error("INVALID_GENERATION_ATTEMPT_ID");
+			const attempt = await database.generationAttempt.findUnique({
+				where: { id: attemptId },
+				select: {
+					status: true,
+					providerTaskId: true,
+					nextReconcileAt: true,
+					reconcileLeasedUntil: true,
+					job: { select: { status: true } },
+				},
+			});
+			if (
+				!attempt?.providerTaskId ||
+				!["SUBMISSION_UNCERTAIN", "SUBMITTED", "RUNNING"].includes(attempt.status) ||
+				!["SUBMITTING", "PROVIDER_PENDING", "PROVIDER_RUNNING"].includes(attempt.job.status)
+			)
+				return null;
+			return {
+				pollAt: new Date(
+					Math.max(
+						attempt.nextReconcileAt?.getTime() ?? 0,
+						attempt.reconcileLeasedUntil?.getTime() ?? 0,
+					),
+				),
+			};
+		},
+		async claimStale({ limit, leaseSeconds, now, attemptId }) {
+			if (attemptId !== undefined && !attemptId.trim())
+				throw new Error("INVALID_GENERATION_ATTEMPT_ID");
 			const leasedUntil = new Date(now.getTime() + leaseSeconds * 1_000);
+			const scopedAttemptId = attemptId ?? null;
 			return database.$queryRaw`
 			WITH claimable AS (
 				SELECT "id" FROM "generation_attempt"
-			WHERE ("providerTaskId" IS NOT NULL OR "uncertainSubmission" = true)
+				WHERE ("providerTaskId" IS NOT NULL OR "uncertainSubmission" = true)
 			  AND "status" IN ('SUBMISSION_UNCERTAIN', 'SUBMITTED', 'RUNNING')
+				  AND (${scopedAttemptId}::text IS NULL OR "id" = ${scopedAttemptId})
 				  AND ("nextReconcileAt" IS NULL OR "nextReconcileAt" <= ${now})
 				  AND ("reconcileLeasedUntil" IS NULL OR "reconcileLeasedUntil" <= ${now})
 				ORDER BY "updatedAt", "id" FOR UPDATE SKIP LOCKED LIMIT ${limit}
@@ -3822,7 +3943,7 @@ export function createDatabaseReconciliationStore(
 			UPDATE "generation_attempt" attempt
 			SET "reconcileLeaseToken" = gen_random_uuid()::text,
 			    "reconcileLeasedUntil" = ${leasedUntil},
-			    "reconciliationCount" = attempt."reconciliationCount" + 1
+				    "reconciliationCount" = attempt."reconciliationCount" + ${attemptId === undefined ? 1 : 0}
 			FROM claimable WHERE attempt."id" = claimable."id"
 			RETURNING attempt."jobId", attempt."id" AS "attemptId", attempt."provider",
 			          attempt."providerTaskId", attempt."providerStatusUrl" AS "statusUrl",
@@ -3907,7 +4028,10 @@ export function createDatabaseReconciliationStore(
 						nextReconcileAt:
 							terminalFailure || snapshot.status === "SUCCEEDED"
 								? null
-								: new Date(Date.now() + 60_000),
+								: new Date(
+										Date.now() +
+											generationPollingDelaySeconds(attempt.submittedAt, new Date()) * 1_000,
+									),
 					},
 				});
 				if (changed.count !== 1) return;
@@ -4070,7 +4194,7 @@ export function createDatabaseReconciliationStore(
 		},
 	};
 }
-export const databaseReconciliationStore: ReconciliationStore =
+export const databaseReconciliationStore: GenerationPollingStore =
 	createDatabaseReconciliationStore(db);
 
 function deterministicFraction(value: string): number {

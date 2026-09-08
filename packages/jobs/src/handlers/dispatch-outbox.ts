@@ -1,4 +1,4 @@
-import type { OutboxDependencies } from "../contracts";
+import { OutboxDeliveryPendingError, type OutboxDependencies } from "../contracts";
 
 export async function dispatchOutbox(
 	input: { workerId: string; limit?: number; leaseSeconds?: number },
@@ -15,8 +15,18 @@ export async function dispatchOutbox(
 			await dependencies.deliver(event);
 			await dependencies.store.complete(event.id, input.workerId, event.leaseToken);
 			delivered += 1;
-		} catch {
+		} catch (error) {
 			const now = dependencies.now?.() ?? new Date();
+			if (error instanceof OutboxDeliveryPendingError) {
+				if (!dependencies.store.defer) throw error;
+				await dependencies.store.defer({
+					id: event.id,
+					workerId: input.workerId,
+					leaseToken: event.leaseToken,
+					retryAt: new Date(now.getTime() + 30_000),
+				});
+				continue;
+			}
 			const seconds = Math.min(3_600, 2 ** Math.min(event.attempts, 10));
 			await dependencies.store.release({
 				id: event.id,

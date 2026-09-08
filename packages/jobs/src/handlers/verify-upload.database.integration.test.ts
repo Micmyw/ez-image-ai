@@ -4,7 +4,11 @@ import {
 	MEDIA_VERIFICATION_RULE_VERSION,
 	TestMediaSafetyAdapter,
 } from "@repo/ai";
-import { claimGenerationDraftTransaction, createGenerationDraftTransaction } from "@repo/database";
+import {
+	claimGenerationDraftTransaction,
+	createGenerationDraftTransaction,
+	getOwnedMediaAssetReadState,
+} from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -29,6 +33,7 @@ describe("claimed draft asset verification", () => {
 	it.each([
 		["ALLOW", "READY", "APPROVED"],
 		["REJECT", "QUARANTINED", "REJECTED"],
+		["REVIEW", "QUARANTINED", "REVIEW"],
 	] as const)(
 		"carries a claimed draft through MEDIA_ASSET_VERIFY to %s moderation",
 		async (decision, expectedAssetStatus, expectedModerationStatus) => {
@@ -76,6 +81,19 @@ describe("claimed draft asset verification", () => {
 				payload: { assetId },
 			});
 
+			const moderationEvidence = {
+				requestId: "request_image_fixture",
+				models: ["nudity-2.1", "weapon", "gore-2.0", "violence", "self-harm"],
+				operations: 2,
+				scores: { "nudity.erotica": decision === "ALLOW" ? 0.01 : 0.9 },
+			};
+			const safety = new TestMediaSafetyAdapter(decision);
+			vi.spyOn(safety, "moderateImage").mockResolvedValue({
+				decision,
+				reasonCode: "FIXTURE_DECISION",
+				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				evidence: moderationEvidence,
+			});
 			const dependencies = createDatabaseVerifyUploadDependencies(client, {
 				headObject: async () => ({
 					contentLength: 16,
@@ -85,7 +103,7 @@ describe("claimed draft asset verification", () => {
 				}),
 				readMediaHeader: async () => PNG_HEADER,
 				createSignedReadUrl: async () => "https://private.example/signed.png",
-				safety: new TestMediaSafetyAdapter(decision),
+				safety,
 				moderationProvider: "test",
 			});
 			await verifyUpload({ assetId }, dependencies);
@@ -101,19 +119,118 @@ describe("claimed draft asset verification", () => {
 				where: { assetId, provider: "test" },
 				orderBy: { createdAt: "desc" },
 			});
-			expect(evidence).toMatchObject({ status: expectedModerationStatus });
+			expect(evidence).toMatchObject({
+				status: expectedModerationStatus,
+				assetChecksum: "e".repeat(64),
+				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				categories: { reasonCode: "FIXTURE_DECISION", scores: moderationEvidence.scores },
+				rawEnvelope: { decision, evidence: moderationEvidence },
+			});
+			expect(JSON.stringify(evidence.rawEnvelope)).not.toMatch(/signed\.png|safe draft/);
 			if (decision === "ALLOW") {
 				expect(verifiedAsset.verificationValidUntil).toBeInstanceOf(Date);
 				expect(evidence.validUntil?.getTime()).toBe(
 					verifiedAsset.verificationValidUntil?.getTime(),
 				);
 				expect(evidence.validUntil!.getTime()).toBeGreaterThan(Date.now());
+				await expect(
+					getOwnedMediaAssetReadState(
+						{
+							assetId,
+							ownerId: `user-${suffix}`,
+							verification: {
+								provider: "test",
+								ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+								policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+								now: new Date(Date.now() + 365 * 24 * 60 * 60_000),
+							},
+						},
+						client,
+					),
+				).resolves.toMatchObject({ readable: true });
 			} else {
 				expect(verifiedAsset.verificationValidUntil).toBeNull();
 				expect(evidence.validUntil).toBeNull();
 			}
 			await expect(client.assetModerationResult.count({ where: { assetId } })).resolves.toBe(1);
 			expect(draft.id).toBeTruthy();
+		},
+	);
+
+	it.each([
+		["ALLOW", "READY", "APPROVED"],
+		["REJECT", "QUARANTINED", "REJECTED"],
+		["REVIEW", "QUARANTINED", "REVIEW"],
+	] as const)(
+		"gates generated outputs on %s and retains output evidence",
+		async (decision, assetStatus, moderationStatus) => {
+			const suffix = crypto.randomUUID();
+			const asset = await client.mediaAsset.create({
+				data: {
+					ownerType: "USER",
+					ownerId: `output-owner-${suffix}`,
+					kind: "OUTPUT",
+					status: "VERIFYING",
+					objectKey: `outputs/${suffix}.png`,
+					mimeType: "image/png",
+					byteSize: 16n,
+					checksum: "d".repeat(64),
+					finalizedAt: new Date(),
+				},
+			});
+			const safety = new TestMediaSafetyAdapter(decision);
+			const evidence = {
+				requestId: "request_output_fixture",
+				models: ["nudity-2.1"],
+				operations: 1,
+				scores: { "nudity.erotica": decision === "ALLOW" ? 0.01 : 0.9 },
+			};
+			vi.spyOn(safety, "moderateImage").mockResolvedValue({
+				decision,
+				reasonCode: "FIXTURE_DECISION",
+				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				evidence,
+			});
+			const dependencies = createDatabaseVerifyUploadDependencies(client, {
+				safety,
+				moderationProvider: "test",
+				headObject: async () => ({
+					contentLength: 16,
+					contentType: "image/png",
+					etag: '"etag"',
+					metadata: {},
+				}),
+				readMediaHeader: async () => PNG_HEADER,
+				createSignedReadUrl: async () => "https://private.example/signed-output.png",
+			});
+			await verifyUpload({ assetId: asset.id }, dependencies);
+			await expect(
+				client.mediaAsset.findUniqueOrThrow({ where: { id: asset.id } }),
+			).resolves.toMatchObject({ status: assetStatus });
+			await expect(
+				getOwnedMediaAssetReadState(
+					{
+						assetId: asset.id,
+						ownerId: `output-owner-${suffix}`,
+						verification: {
+							provider: "test",
+							ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+							policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+							now: new Date(Date.now() + 365 * 24 * 60 * 60_000),
+						},
+					},
+					client,
+				),
+			).resolves.toMatchObject({ readable: decision === "ALLOW" });
+			await expect(
+				client.assetModerationResult.findFirstOrThrow({ where: { assetId: asset.id } }),
+			).resolves.toMatchObject({
+				evidenceKind: "OUTPUT",
+				status: moderationStatus,
+				assetChecksum: "d".repeat(64),
+				rawEnvelope: { decision, evidence },
+			});
 		},
 	);
 
@@ -587,82 +704,103 @@ describe("claimed draft asset verification", () => {
 		});
 	});
 
-	it("starts a new generation when READY evidence expires", async () => {
-		const suffix = crypto.randomUUID();
-		const assetId = `verification_stale_ready_${suffix.replaceAll("-", "")}`;
-		const checksum = "9".repeat(64);
-		const [databaseClock] = await client.$queryRaw<Array<{ now: Date }>>`
+	it.each(["media-policy-2026-09-08.1", "media-policy-2026-09-08.2"])(
+		"reuses expired matching image approval from %s without an API call",
+		async (sourcePolicyVersion) => {
+			const suffix = crypto.randomUUID();
+			const assetId = `verification_stale_ready_${suffix.replaceAll("-", "")}`;
+			const checksum = "9".repeat(64);
+			const [databaseClock] = await client.$queryRaw<Array<{ now: Date }>>`
 			SELECT CURRENT_TIMESTAMP AS "now"`;
-		if (!databaseClock) throw new Error("DATABASE_CLOCK_UNAVAILABLE");
-		const validUntil = new Date(databaseClock.now.getTime() + 750);
-		await client.mediaAsset.create({
-			data: {
-				id: assetId,
-				ownerType: "USER",
-				ownerId: `verification-owner-${suffix}`,
-				kind: "INPUT",
-				status: "VERIFYING",
-				objectKey: `users/verification-owner-${suffix}/assets/${assetId}/original.png`,
-				mimeType: "image/png",
-				byteSize: 16n,
-				checksum,
-				finalizedAt: new Date(),
-				verificationGeneration: 1,
-				verificationAttemptCount: 1,
-				verificationProvider: "test",
-				verificationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
-				verificationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
-				verificationValidUntil: validUntil,
-			},
-		});
-		await client.assetModerationResult.create({
-			data: {
-				assetId,
-				assetChecksum: checksum,
-				verificationGeneration: 1,
-				attemptNumber: 1,
-				evidenceKind: "INPUT",
-				provider: "test",
-				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
-				policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
-				status: "APPROVED",
-				reasonCode: "TEST_ALLOW",
-				categories: {},
-				rawEnvelope: { decision: "ALLOW" },
-				validUntil,
-			},
-		});
-		await client.mediaAsset.update({ where: { id: assetId }, data: { status: "READY" } });
-		vi.useFakeTimers({ toFake: ["Date"] });
-		vi.setSystemTime(new Date(validUntil.getTime() + 25));
-		try {
-			const dependencies = createDatabaseVerifyUploadDependencies(client, {
-				headObject: async () => ({
-					contentLength: 16,
-					contentType: "image/png",
-					etag: '"etag"',
-					metadata: {},
-				}),
-				readMediaHeader: async () => PNG_HEADER,
-				createSignedReadUrl: async () => "https://private.example/stale.png",
-				safety: new TestMediaSafetyAdapter("ALLOW"),
-				moderationProvider: "test",
+			if (!databaseClock) throw new Error("DATABASE_CLOCK_UNAVAILABLE");
+			const validUntil = new Date(databaseClock.now.getTime() + 750);
+			await client.mediaAsset.create({
+				data: {
+					id: assetId,
+					ownerType: "USER",
+					ownerId: `verification-owner-${suffix}`,
+					kind: "INPUT",
+					status: "VERIFYING",
+					objectKey: `users/verification-owner-${suffix}/assets/${assetId}/original.png`,
+					mimeType: "image/png",
+					byteSize: 16n,
+					checksum,
+					finalizedAt: new Date(),
+					verificationGeneration: 1,
+					verificationAttemptCount: 1,
+					verificationProvider: "test",
+					verificationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+					verificationPolicyVersion: sourcePolicyVersion,
+					verificationValidUntil: validUntil,
+				},
 			});
-			await verifyUpload({ assetId }, dependencies);
+			const originalEvidence = await client.assetModerationResult.create({
+				data: {
+					assetId,
+					assetChecksum: checksum,
+					verificationGeneration: 1,
+					attemptNumber: 1,
+					evidenceKind: "INPUT",
+					provider: "test",
+					ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+					policyVersion: sourcePolicyVersion,
+					status: "APPROVED",
+					reasonCode: "TEST_ALLOW",
+					categories: {},
+					rawEnvelope: { decision: "ALLOW" },
+					validUntil,
+				},
+			});
+			await client.mediaAsset.update({ where: { id: assetId }, data: { status: "READY" } });
+			vi.useFakeTimers({ toFake: ["Date"] });
+			vi.setSystemTime(new Date(validUntil.getTime() + 25));
+			try {
+				const safety = new TestMediaSafetyAdapter("ALLOW");
+				const moderateImage = vi.spyOn(safety, "moderateImage");
+				const dependencies = createDatabaseVerifyUploadDependencies(client, {
+					headObject: async () => ({
+						contentLength: 16,
+						contentType: "image/png",
+						etag: '"etag"',
+						metadata: {},
+					}),
+					readMediaHeader: async () => PNG_HEADER,
+					createSignedReadUrl: async () => "https://private.example/stale.png",
+					safety,
+					moderationProvider: "test",
+				});
+				await Promise.all([
+					verifyUpload({ assetId }, dependencies),
+					verifyUpload({ assetId }, dependencies),
+				]);
+				expect(moderateImage).not.toHaveBeenCalled();
 
-			await expect(
-				client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
-			).resolves.toMatchObject({
-				status: "READY",
-				verificationGeneration: 2,
-				verificationAttemptCount: 1,
-				verificationValidUntil: expect.any(Date),
-			});
-			await expect(client.assetModerationResult.count({ where: { assetId } })).resolves.toBe(2);
-		} finally {
-			vi.useRealTimers();
-		}
-	});
+				await expect(
+					client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
+				).resolves.toMatchObject({
+					status: "READY",
+					verificationGeneration: 2,
+					verificationAttemptCount: 1,
+					verificationValidUntil: expect.any(Date),
+					verificationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				});
+				await expect(client.assetModerationResult.count({ where: { assetId } })).resolves.toBe(2);
+				await expect(
+					client.assetModerationResult.findFirstOrThrow({
+						where: { assetId, verificationGeneration: 2 },
+					}),
+				).resolves.toMatchObject({
+					status: "APPROVED",
+					rawEnvelope: { reusedEvidenceId: originalEvidence.id },
+				});
+				await expect(
+					client.assetModerationResult.findUniqueOrThrow({ where: { id: originalEvidence.id } }),
+				).resolves.toMatchObject({ validUntil, policyVersion: sourcePolicyVersion });
+			} finally {
+				vi.useRealTimers();
+			}
+		},
+	);
 
 	it("leases verification so concurrent workers call moderation only once", async () => {
 		const suffix = crypto.randomUUID();

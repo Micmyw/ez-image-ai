@@ -1,14 +1,18 @@
 import type { ReconciliationDependencies } from "../contracts";
 
 export async function reconcileGenerations(
-	input: { limit?: number; leaseSeconds?: number },
+	input: { limit?: number; leaseSeconds?: number; attemptId?: string },
 	dependencies: ReconciliationDependencies,
 ): Promise<{ claimed: number; reconciled: number }> {
+	if (input.attemptId !== undefined && !input.attemptId.trim()) {
+		throw new Error("INVALID_GENERATION_ATTEMPT_ID");
+	}
 	const now = dependencies.now?.() ?? new Date();
 	const leases = await dependencies.store.claimStale({
-		limit: Math.min(Math.max(input.limit ?? 25, 1), 100),
+		limit: input.attemptId === undefined ? Math.min(Math.max(input.limit ?? 25, 1), 100) : 1,
 		leaseSeconds: Math.min(Math.max(input.leaseSeconds ?? 60, 10), 300),
 		now,
+		...(input.attemptId === undefined ? {} : { attemptId: input.attemptId }),
 	});
 	let reconciled = 0;
 	for (const lease of leases) {
@@ -43,6 +47,13 @@ export async function reconcileGenerations(
 			const result = await adapter.normalizeResult(snapshot);
 			await dependencies.store.recordReconciled(lease, snapshot, result);
 			reconciled += 1;
+			if (snapshot.status === "QUEUED" || snapshot.status === "RUNNING") {
+				try {
+					await dependencies.schedulePolling?.(lease.attemptId);
+				} catch {
+					// Polling admission is best effort; do not rewrite a persisted observation.
+				}
+			}
 		} catch {
 			const ageBand = Math.max(1, Math.floor(lease.staleAgeMinutes / 15));
 			const delayMinutes = Math.min(60, 2 ** Math.min(ageBand, 6));

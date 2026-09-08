@@ -52,23 +52,14 @@ jobs:
       - run: pnpm type-check
       - name: Unit and provider/moderation contracts
         run: pnpm test:unit:contracts
-      - name: Trigger task type gate
-        run: pnpm trigger:type-check
+      - name: Workflows and Node executor type gate
+        run: pnpm workflows:type-check
       - name: Load and invariant tool type/syntax gate
         run: pnpm load:type-check && pnpm load:syntax && pnpm load:ezpic:syntax
       - name: Validate the explicitly incomplete launch evidence templates
         run: pnpm launch:evidence:validate
-      - name: Trigger local deployment build
-        if: ${{ vars.TRIGGER_CI_LOCAL_BUILD == 'true' }}
-        env:
-          TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_CI_ACCESS_TOKEN }}
-          TRIGGER_PROJECT_REF: ${{ vars.TRIGGER_CI_PROJECT_REF }}
-        run: pnpm trigger:build:ci
-      - name: Require explicit Trigger build configuration
-        if: ${{ vars.TRIGGER_CI_LOCAL_BUILD != 'true' }}
-        run: |
-          echo "Set TRIGGER_CI_LOCAL_BUILD=true and protected credentials before using this merge gate."
-          exit 1
+      - name: Cloudflare Workflows and Node container artifact build
+        run: pnpm workflows:build:ci
 
   postgres:
     name: Fresh PostgreSQL migrations and integration tests

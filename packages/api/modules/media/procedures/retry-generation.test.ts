@@ -1,4 +1,5 @@
 /* oxlint-disable typescript/unbound-method -- assertions target dependency-injected Vitest mocks */
+import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/auth", () => ({
@@ -21,9 +22,10 @@ vi.mock("@repo/database/client", () => ({
 }));
 vi.mock("@repo/jobs", () => ({ resolveDatabaseDispatchRoute: vi.fn() }));
 vi.mock("@repo/logs", () => ({ logger: { warn: vi.fn() } }));
-vi.mock("@trigger.dev/sdk", () => ({ tasks: { trigger: vi.fn() } }));
+vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn() }));
 
 import { maximumMediaStorageBytes } from "../lib/storage-limits";
+import { TEXT_MODERATION_RULE_VERSION } from "../lib/text-moderation";
 import { retryGenerationForUser, type RetryGenerationDependencies } from "./retry-generation";
 
 const SOURCE_ASSET_ID = "asset_01J5ABCD1234EFGH5678JKLMNP";
@@ -78,7 +80,7 @@ const checkpointQuote = {
 	expiresAt: new Date("2026-08-23T00:10:00.000Z"),
 	moderationDecision: "ALLOW",
 	moderationProvider: "test",
-	moderationRuleVersion: "text-safety-2026-08-14.1",
+	moderationRuleVersion: TEXT_MODERATION_RULE_VERSION,
 	moderationReasonCode: "TEST_ALLOW",
 	inputFingerprint: "f".repeat(64),
 };
@@ -104,9 +106,9 @@ const retryOperation = {
 		skuKey: "nano-banana-2-lite-1k",
 	},
 	moderationProvider: "test",
-	moderationRuleVersion: "text-safety-2026-08-14.1",
-	assetModerationRuleVersion: "media-safety-2026-08-23.1",
-	assetModerationPolicyVersion: "media-policy-2026-08-23.1",
+	moderationRuleVersion: TEXT_MODERATION_RULE_VERSION,
+	assetModerationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+	assetModerationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 };
 
 function dependencies(

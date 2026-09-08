@@ -16,8 +16,8 @@
 		"test:integration": "tsx tests/load/run-integration.ts",
 		"db:migrate:deploy": "pnpm --filter @repo/database exec prisma migrate deploy",
 		"db:migrate:drift": "pnpm --filter @repo/database exec prisma migrate diff --from-schema prisma/schema.prisma --to-config-datasource --exit-code",
-		"trigger:type-check": "pnpm --filter @repo/jobs type-check",
-		"trigger:build:ci": "trigger deploy --dry-run --local-build --skip-update-check --skip-telemetry",
+		"workflows:type-check": "pnpm --filter @repo/jobs --filter @repo/workflows --filter @repo/jobs-runtime type-check",
+		"workflows:build:ci": "pnpm --filter @repo/workflows build",
 		"e2e:media:ci": "pnpm --filter @repo/e2e-media run e2e",
 		"provider:smoke": "tsx tests/load/provider-smoke.ts",
 		"load:media": "k6 run tests/load/media-generation.js",
@@ -47,7 +47,6 @@
 		"oxfmt": "catalog:",
 		"oxlint": "catalog:",
 		"oxlint-tsgolint": "^7.0.2001",
-		"trigger.dev": "catalog:",
 		"tsx": "catalog:",
 		"turbo": "^2.10.8",
 		"typescript": "catalog:"

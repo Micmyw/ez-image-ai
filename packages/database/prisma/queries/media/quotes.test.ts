@@ -21,6 +21,12 @@ const BASE_QUOTE = {
 
 describe("moderated generation quotes", () => {
 	it("atomically stores ALLOW evidence and a prompt-free audit record", async () => {
+		const evidence = {
+			requestId: "request_text_fixture",
+			models: ["general", "self-harm"],
+			operations: 2,
+			scores: { sexual: 0.01, "self-harm": 0.01 },
+		};
 		const tx = {
 			generationQuote: { create: vi.fn(async ({ data }) => ({ id: "quote_1", ...data })) },
 			auditLog: { create: vi.fn(async ({ data }) => data) },
@@ -35,6 +41,7 @@ describe("moderated generation quotes", () => {
 					ruleVersion: "text-safety-v1",
 					reasonCode: "NO_POLICY_MATCH",
 					inputFingerprint: fingerprintGenerationQuoteSecurityPayload(BASE_QUOTE),
+					evidence,
 				},
 			},
 			client as never,
@@ -49,6 +56,11 @@ describe("moderated generation quotes", () => {
 			}),
 		});
 		expect(JSON.stringify(tx.auditLog.create.mock.calls)).not.toContain("never audit this");
+		expect(tx.auditLog.create).toHaveBeenCalledWith({
+			data: expect.objectContaining({
+				after: expect.objectContaining({ evidence }),
+			}),
+		});
 	});
 
 	it("rejects evidence whose fingerprint does not cover the exact quote security payload", async () => {

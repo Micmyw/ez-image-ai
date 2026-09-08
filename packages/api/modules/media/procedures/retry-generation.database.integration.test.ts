@@ -7,9 +7,7 @@ import { createCreditGrant } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@trigger.dev/sdk", () => ({
-	tasks: { trigger: vi.fn(async () => ({ id: "retry-generation-integration-task" })) },
-}));
+vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn(async () => undefined) }));
 
 import { retryGenerationForUser } from "./retry-generation";
 

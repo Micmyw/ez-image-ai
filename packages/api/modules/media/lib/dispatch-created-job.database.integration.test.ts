@@ -38,8 +38,8 @@ describe("committed generation fast dispatch", () => {
 					provider: "replicate",
 					providerModelId: "black-forest-labs/flux-schnell",
 				}),
-				trigger: async () => {
-					throw new Error("Trigger unavailable");
+				dispatch: async () => {
+					throw new Error("Workflows unavailable");
 				},
 			},
 		);

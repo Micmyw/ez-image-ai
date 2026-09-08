@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { assertWorkflowsConfiguration } from "./workflows";
+
 export const WAFFO_PRODUCT_ID_PATTERN = /^PROD_[0-9A-Za-z]{22}$/;
 
 const booleanStringSchema = z
@@ -42,7 +44,8 @@ const rawServerEnvironmentSchema = z.object({
 	MEDIA_BUCKET_NAME: optionalSecretSchema,
 	S3_ACCESS_KEY_ID: optionalSecretSchema,
 	S3_SECRET_ACCESS_KEY: optionalSecretSchema,
-	TRIGGER_SECRET_KEY: optionalSecretSchema,
+	WORKFLOWS_DISPATCH_URL: optionalSecretSchema,
+	WORKFLOWS_DISPATCH_SECRET: optionalSecretSchema,
 	STRIPE_SECRET_KEY: optionalSecretSchema,
 	STRIPE_WEBHOOK_SECRET: optionalSecretSchema,
 	PAYPAL_ENVIRONMENT: z.enum(["sandbox", "live"]).optional(),
@@ -138,7 +141,8 @@ export type ProviderSecrets =
 export interface ServerSecrets {
 	databaseUrl: string | undefined;
 	storage: StorageSecrets;
-	triggerSecretKey: string | undefined;
+	workflowsDispatchUrl: string | undefined;
+	workflowsDispatchSecret: string | undefined;
 	stripeSecretKey: string | undefined;
 	stripeWebhookSecret: string | undefined;
 	sentryDsn: string | undefined;
@@ -204,6 +208,7 @@ export function validateServerEnvironment(
 		}
 
 		if (parsed.MEDIA_GENERATION_ENABLED) {
+			assertWorkflowsConfiguration(parsed);
 			requireValues(parsed, issues, [
 				"DATABASE_URL",
 				"S3_ENDPOINT",
@@ -211,7 +216,6 @@ export function validateServerEnvironment(
 				"MEDIA_BUCKET_NAME",
 				"S3_ACCESS_KEY_ID",
 				"S3_SECRET_ACCESS_KEY",
-				"TRIGGER_SECRET_KEY",
 			]);
 			if (parseMediaEnabledProviders(parsed).length === 0) {
 				issues.push("MEDIA_ENABLED_PROVIDERS");
@@ -266,7 +270,8 @@ export function validateServerEnvironment(
 				accessKeyId: parsed.S3_ACCESS_KEY_ID,
 				secretAccessKey: parsed.S3_SECRET_ACCESS_KEY,
 			}),
-			triggerSecretKey: parsed.TRIGGER_SECRET_KEY,
+			workflowsDispatchUrl: parsed.WORKFLOWS_DISPATCH_URL,
+			workflowsDispatchSecret: parsed.WORKFLOWS_DISPATCH_SECRET,
 			stripeSecretKey: parsed.STRIPE_SECRET_KEY,
 			stripeWebhookSecret: parsed.STRIPE_WEBHOOK_SECRET,
 			sentryDsn: parsed.SENTRY_DSN,

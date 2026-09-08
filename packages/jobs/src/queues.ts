@@ -61,4 +61,5 @@ function positiveInteger(value: string | undefined, fallback: number): number {
 	const parsed = Number(value);
 	return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
-import { staticDispatchRouteFor, type ProviderKey } from "@repo/ai";
+import { staticDispatchRouteFor } from "@repo/ai/media/catalog/dispatch-manifest";
+import type { ProviderKey } from "@repo/ai/media/types";

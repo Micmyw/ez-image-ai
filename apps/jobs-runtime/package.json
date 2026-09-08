@@ -1,0 +1,22 @@
+{
+	"name": "@repo/jobs-runtime",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"start": "tsx src/main.ts",
+		"type-check": "tsc --noEmit --incremental false",
+		"build": "tsc --noEmit --incremental false",
+		"test": "vitest run"
+	},
+	"dependencies": {
+		"@repo/database": "workspace:*",
+		"@repo/jobs": "workspace:*",
+		"tsx": "catalog:"
+	},
+	"devDependencies": {
+		"@repo/tsconfig": "workspace:*",
+		"@types/node": "catalog:",
+		"typescript": "catalog:",
+		"vitest": "catalog:"
+	}
+}

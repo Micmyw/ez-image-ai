@@ -591,6 +591,21 @@ test("the landing page proves edits with an interactive comparison and visual ex
 			),
 	).toBe(true);
 
+	expect(
+		await page
+			.locator("#examples img")
+			.evaluateAll((images) =>
+				images.every(
+					(image) =>
+						image instanceof HTMLImageElement &&
+						Math.abs(
+							image.clientHeight - (image.clientWidth * image.naturalHeight) / image.naturalWidth,
+						) < 2,
+				),
+			),
+		"example images preserve their original proportions",
+	).toBe(true);
+
 	const prompt = page.getByLabel(/describe your edit/i);
 	await page.getByRole("button", { name: /use the mediterranean quiet prompt/i }).click();
 	await expect(prompt).toHaveValue(/sunlit mediterranean retreat/i);
@@ -698,12 +713,12 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
 			`${viewport.width}px horizontal overflow`,
 		).toBe(true);
-		const [firstExample, secondExample] = await Promise.all([
-			box(page.locator("#examples article").nth(0)),
-			box(page.locator("#examples article").nth(1)),
-		]);
-		expect(firstExample.x).toBeLessThan(secondExample.x);
-		expect(Math.abs(firstExample.y - secondExample.y)).toBeLessThan(2);
+		const exampleColumns = await page
+			.locator("#examples article")
+			.evaluateAll((examples) => [
+				...new Set(examples.map((example) => Math.round(example.getBoundingClientRect().x))),
+			]);
+		expect(exampleColumns).toHaveLength(viewport.width >= 1280 ? 4 : 2);
 		await page.getByRole("radio", { name: /gpt image 2/i }).check();
 		await page.getByLabel(/source image/i).setInputFiles(pngFile(`source-${viewport.width}.png`));
 		await page.getByLabel(/describe your edit/i).fill("Keep the subject sharp");

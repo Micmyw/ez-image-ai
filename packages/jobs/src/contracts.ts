@@ -117,6 +117,7 @@ export interface DispatchDependencies {
 	store: DispatchStore;
 	getProvider(provider: ProviderKey): MediaProviderAdapter;
 	isGenerationEnabled?(): boolean;
+	schedulePolling?(attemptId: string): Promise<void>;
 }
 
 export interface ProviderEventClaim {
@@ -281,6 +282,7 @@ export interface ReconciliationStore {
 		limit: number;
 		leaseSeconds: number;
 		now: Date;
+		attemptId?: string;
 	}): Promise<ReconciliationLease[]>;
 	recordReconciled(
 		lease: ReconciliationLease,
@@ -299,6 +301,11 @@ export interface ReconciliationDependencies {
 	store: ReconciliationStore;
 	getProvider(provider: ProviderKey): MediaProviderAdapter | RetrieveOnlyMediaProviderAdapter;
 	now?: () => Date;
+	schedulePolling?(attemptId: string): Promise<void>;
+}
+
+export interface GenerationPollingStore extends ReconciliationStore {
+	getPollingState(attemptId: string): Promise<{ pollAt: Date } | null>;
 }
 
 export interface OutboxLease {
@@ -310,6 +317,16 @@ export interface OutboxLease {
 	attempts: number;
 }
 
+/** The durable executor has accepted work but has not yet confirmed completion. */
+export class OutboxDeliveryPendingError extends Error {
+	readonly code = "OUTBOX_DELIVERY_PENDING";
+
+	constructor() {
+		super("OUTBOX_DELIVERY_PENDING");
+		this.name = "OutboxDeliveryPendingError";
+	}
+}
+
 export interface OutboxStore {
 	claimBatch(input: {
 		workerId: string;
@@ -317,6 +334,7 @@ export interface OutboxStore {
 		leaseSeconds: number;
 	}): Promise<OutboxLease[]>;
 	complete(id: string, workerId: string, leaseToken: string): Promise<void>;
+	defer?(input: { id: string; workerId: string; leaseToken: string; retryAt: Date }): Promise<void>;
 	release(input: {
 		id: string;
 		workerId: string;

@@ -5,7 +5,7 @@
 This runbook prepares EzPic for a controlled launch; it does not authorize or perform deployment.
 Production must **fail closed** whenever a required integration, kill switch, daily cost budget,
 alert, environment identity, or evidence record is absent. PostgreSQL remains the business source of
-truth. Trigger.dev, AI Providers, private S3/R2, the moderation service, PayPal, Waffo, optional
+truth. Cloudflare Workflows, AI Providers, private S3/R2, the moderation service, PayPal, Waffo, optional
 legacy Stripe maintenance, Sentry, PostHog, Google Search Console (GSC), and the mail Provider are
 delivery or observation systems, never a second job, credit, storage, payment, or analytics state
 store.
@@ -19,6 +19,12 @@ The committed evidence template intentionally remains `NOT_COMPLETED`. Local tes
 MinIO, a local PostgreSQL database, dry-run benchmark output, and production builds do not certify a
 real external service.
 
+For the Cloudflare Workflows and on-demand Node Container boundary, protected runtime secrets,
+Docker builds, scheduler drain and rollback, follow the
+[Cloudflare execution runbook](./cloudflare-workflows-runbook.md). A completed Workflow is not a
+second business-state record; Container usage and scheduled maintenance require measured cost
+evidence beyond the Workers subscription.
+
 ## Required isolated environments
 
 Maintain one resource set for each of `development`, `test`, `staging`, and `production`. Replace the
@@ -31,7 +37,7 @@ The matrix must prove that all four environments use distinct:
 - private media buckets and least-privilege storage identities;
 - PayPal and Waffo accounts/modes and Webhook verification material;
 - optional legacy Stripe Webhook scopes only in environments that maintain historical subscriptions;
-- Trigger.dev environments;
+- Cloudflare Worker, Workflow and Container environments;
 - PostHog projects, Sentry environments, and mail Provider scopes.
 
 Staging and production run with `NODE_ENV=production`. Production rejects mock Provider routing,
@@ -40,27 +46,27 @@ the legacy unmetered stream. Secrets stay only in the hosting platform and worke
 
 ## Non-secret external inventory
 
-| Boundary                | Record before certification                                                                                                                      | Current status  |
-| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- |
-| PostgreSQL              | Environment name, database resource ID, PostgreSQL version, migration revision, backup and isolated restore artifact                             | `NOT_COMPLETED` |
-| Trigger.dev Cloud       | Project/environment name, deployed Kie task revision, queue list, redacted run and replay references                                             | `NOT_COMPLETED` |
-| Private S3/R2           | HTTPS endpoint origin, bucket resource ID, region, IAM policy review, CORS/lifecycle version, multipart and signed-URL evidence                  | `NOT_COMPLETED` |
-| Kie Nano Banana 2 Lite  | `nano-banana-2-lite-1k` paid run, billed cost, output host/MIME/dimensions, p50/p95, failure/recovery and rollback evidence                      | `NOT_COMPLETED` |
-| Kie Nano Banana         | `nano-banana-default` paid run with the same complete evidence set                                                                               | `NOT_COMPLETED` |
-| Kie Nano Banana 2       | Separate 1K, 2K, and 4K SKU artifacts with the same complete evidence set                                                                        | `NOT_COMPLETED` |
-| Kie Nano Banana Pro     | Separate 1K, 2K, and 4K SKU artifacts with the same complete evidence set                                                                        | `NOT_COMPLETED` |
-| Kie GPT Image 1.5       | Separate Medium and High SKU artifacts with the same complete evidence set                                                                       | `NOT_COMPLETED` |
-| Kie GPT Image 2         | Separate 1K, 2K, and 4K SKU artifacts with the same complete evidence set                                                                        | `NOT_COMPLETED` |
-| Kie Seedream 4.5        | Separate Basic 2K and High 4K SKU artifacts with the same complete evidence set                                                                  | `NOT_COMPLETED` |
-| Kie Seedream 5 Lite     | Separate Basic 2K, High 3K, and Ultra 4K SKU artifacts with the same complete evidence set                                                       | `NOT_COMPLETED` |
-| Kie Seedream 5 Pro      | Separate Basic 1K and High 2K SKU artifacts with the same complete evidence set                                                                  | `NOT_COMPLETED` |
-| Legacy OpenRouter drain | Backlog count, recovery-only configuration, credential/certification status, same-attempt reconciliation, zero new submissions, retirement owner | `NOT_COMPLETED` |
-| Moderation              | Service environment name, policy/rule versions, prompt/input/output result references, alert and failure evidence                                | `NOT_COMPLETED` |
-| PayPal                  | Sandbox/live scope, Pro/Ultimate/Max plan IDs, all four Credit Pack product IDs, Webhook, lifecycle and reconciliation artifacts                 | `NOT_COMPLETED` |
-| Waffo                   | Test/prod store and merchant scopes, Pro/Ultimate/Max and all four Credit Pack product IDs, Webhook, lifecycle and reconciliation artifacts      | `NOT_COMPLETED` |
-| Sentry                  | Project/environment name, release, alert rule IDs and destination receipt                                                                        | `NOT_COMPLETED` |
-| PostHog and GSC         | Project/property identifiers, consent evidence, ingestion references, domain verification and sitemap submission                                 | `NOT_COMPLETED` |
-| Mail Provider           | Provider/environment name, verified sender domain, delivery and bounce references                                                                | `NOT_COMPLETED` |
+| Boundary                        | Record before certification                                                                                                                                  | Current status  |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------- |
+| PostgreSQL                      | Environment name, database resource ID, PostgreSQL version, migration revision, backup and isolated restore artifact                                         | `NOT_COMPLETED` |
+| Cloudflare Workflows/Containers | Environment ID, Worker revision, Node image digest, executor manifest, durable wait/retry, cron recovery, idle stop/restart, redacted runs and measured cost | `NOT_COMPLETED` |
+| Private S3/R2                   | HTTPS endpoint origin, bucket resource ID, region, IAM policy review, CORS/lifecycle version, multipart and signed-URL evidence                              | `NOT_COMPLETED` |
+| Kie Nano Banana 2 Lite          | `nano-banana-2-lite-1k` paid run, billed cost, output host/MIME/dimensions, p50/p95, failure/recovery and rollback evidence                                  | `NOT_COMPLETED` |
+| Kie Nano Banana                 | `nano-banana-default` paid run with the same complete evidence set                                                                                           | `NOT_COMPLETED` |
+| Kie Nano Banana 2               | Separate 1K, 2K, and 4K SKU artifacts with the same complete evidence set                                                                                    | `NOT_COMPLETED` |
+| Kie Nano Banana Pro             | Separate 1K, 2K, and 4K SKU artifacts with the same complete evidence set                                                                                    | `NOT_COMPLETED` |
+| Kie GPT Image 1.5               | Separate Medium and High SKU artifacts with the same complete evidence set                                                                                   | `NOT_COMPLETED` |
+| Kie GPT Image 2                 | Separate 1K, 2K, and 4K SKU artifacts with the same complete evidence set                                                                                    | `NOT_COMPLETED` |
+| Kie Seedream 4.5                | Separate Basic 2K and High 4K SKU artifacts with the same complete evidence set                                                                              | `NOT_COMPLETED` |
+| Kie Seedream 5 Lite             | Separate Basic 2K, High 3K, and Ultra 4K SKU artifacts with the same complete evidence set                                                                   | `NOT_COMPLETED` |
+| Kie Seedream 5 Pro              | Separate Basic 1K and High 2K SKU artifacts with the same complete evidence set                                                                              | `NOT_COMPLETED` |
+| Legacy OpenRouter drain         | Backlog count, recovery-only configuration, credential/certification status, same-attempt reconciliation, zero new submissions, retirement owner             | `NOT_COMPLETED` |
+| Moderation                      | Service environment name, policy/rule versions, prompt/input/output result references, alert and failure evidence                                            | `NOT_COMPLETED` |
+| PayPal                          | Sandbox/live scope, Pro/Ultimate/Max plan IDs, all four Credit Pack product IDs, Webhook, lifecycle and reconciliation artifacts                             | `NOT_COMPLETED` |
+| Waffo                           | Test/prod store and merchant scopes, Pro/Ultimate/Max and all four Credit Pack product IDs, Webhook, lifecycle and reconciliation artifacts                  | `NOT_COMPLETED` |
+| Sentry                          | Project/environment name, release, alert rule IDs and destination receipt                                                                                    | `NOT_COMPLETED` |
+| PostHog and GSC                 | Project/property identifiers, consent evidence, ingestion references, domain verification and sitemap submission                                             | `NOT_COMPLETED` |
+| Mail Provider                   | Provider/environment name, verified sender domain, delivery and bounce references                                                                            | `NOT_COMPLETED` |
 
 ## Configuration and preflight
 
@@ -111,7 +117,7 @@ environment identifiers are never returned.
 2. Take a restorable PostgreSQL backup and restore it into an isolated target. Record versions,
    checksum reference, start/end time, and restore verification. Never test restore against production.
 3. Deploy the candidate to isolated staging with new generation and paid checkout disabled. Deploy
-   the matching Trigger.dev task revision; workers do not run migrations.
+   the matching Cloudflare Worker and Node container image revision; workers do not run migrations.
 4. Verify `/api/health`, `/api/ready`, database migration state, private bucket access, task
    registration, Webhook verification, reconciliation, cleanup, and alert delivery.
 5. Execute all 20 staging scenarios in `evidence/ezpic-staging-evidence.json`. Replace a scenario with
@@ -202,7 +208,7 @@ For the first **24–72 hours**:
 
 - record traffic cohort and configuration revision at every change;
 - compare Quote cost, Provider-reported/billed cost, settled credits, success rate, and p50/p95;
-- review Sentry, Trigger.dev, AI Provider, moderation, PayPal/Waffo, storage, PostHog, and mail
+- review Sentry, Cloudflare Workflows, AI Provider, moderation, PayPal/Waffo, storage, PostHog, and mail
   dashboards; review Stripe only where legacy lifecycle maintenance is enabled;
 - stop expansion on any unexplained financial, privacy, idempotency, moderation, or data-integrity
   deviation;

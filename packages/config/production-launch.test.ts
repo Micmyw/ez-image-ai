@@ -54,9 +54,9 @@ const productionEnvironment = {
 	S3_ACCESS_KEY_ID: "storage-key-present-only",
 	S3_SECRET_ACCESS_KEY: "storage-secret-present-only",
 	EZPIC_MEDIA_BUCKET_RESOURCE_ID: "r2:ezpic-production-private",
-	TRIGGER_PROJECT_REF: "proj_ezpic",
-	TRIGGER_SECRET_KEY: "trigger-secret-present-only",
-	EZPIC_TRIGGER_ENVIRONMENT_ID: "trigger:ezpic-production",
+	WORKFLOWS_DISPATCH_URL: "https://jobs.ezpic.ai/internal/dispatch",
+	WORKFLOWS_DISPATCH_SECRET: "workflows-dispatch-test-secret-32-characters",
+	EZPIC_WORKFLOWS_ENVIRONMENT_ID: "workflows:ezpic-production",
 	STRIPE_SECRET_KEY: "stripe-secret-present-only",
 	STRIPE_WEBHOOK_SECRET: "stripe-webhook-secret-present-only",
 	PAYPAL_ENVIRONMENT: "live",
@@ -101,7 +101,7 @@ function environmentMatrix() {
 					database: `postgres:ezpic-${environment}`,
 					mediaBucket: `r2:ezpic-${environment}`,
 					stripeWebhookScope: `stripe-webhook:ezpic-${environment}`,
-					triggerEnvironment: `trigger:ezpic-${environment}`,
+					workflowEnvironment: `workflows:ezpic-${environment}`,
 					posthogProject: `posthog:ezpic-${environment}`,
 					sentryEnvironment: `sentry:ezpic-${environment}`,
 					mailProvider: `mail:ezpic-${environment}`,
@@ -471,7 +471,7 @@ describe("EzPic production launch environment", () => {
 		"EZPIC_DATABASE_RESOURCE_ID",
 		"EZPIC_MEDIA_BUCKET_RESOURCE_ID",
 		"EZPIC_STRIPE_WEBHOOK_SCOPE_ID",
-		"EZPIC_TRIGGER_ENVIRONMENT_ID",
+		"EZPIC_WORKFLOWS_ENVIRONMENT_ID",
 		"EZPIC_POSTHOG_PROJECT_ID",
 		"EZPIC_SENTRY_ENVIRONMENT",
 		"EZPIC_MAIL_PROVIDER_ID",
@@ -509,8 +509,8 @@ describe("EzPic production launch environment", () => {
 	it("requires every external service contract without exposing its secret", () => {
 		for (const key of [
 			"DATABASE_URL",
-			"TRIGGER_PROJECT_REF",
-			"TRIGGER_SECRET_KEY",
+			"WORKFLOWS_DISPATCH_URL",
+			"WORKFLOWS_DISPATCH_SECRET",
 			"MEDIA_BUCKET_NAME",
 			"KIE_API_KEY",
 			"SIGHTENGINE_API_SECRET",
@@ -563,7 +563,7 @@ describe("EzPic environment isolation matrix", () => {
 		).toThrow(/NOT_COMPLETED.*database/i);
 	});
 
-	it.each(["database", "mediaBucket", "stripeWebhookScope", "triggerEnvironment"] as const)(
+	it.each(["database", "mediaBucket", "stripeWebhookScope", "workflowEnvironment"] as const)(
 		"rejects a shared %s",
 		(resource) => {
 			const matrix = environmentMatrix();

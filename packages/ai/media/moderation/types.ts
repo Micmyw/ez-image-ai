@@ -18,7 +18,15 @@ export interface ModerationDecision {
 	decision: ModerationDecisionType;
 	reasonCode: string;
 	ruleVersion: string;
+	/** Server-only allowlisted diagnostics; never raw provider payloads or input media. */
+	evidence?: ModerationEvidence;
 }
+export type ModerationEvidence = {
+	requestId: string;
+	models: string[];
+	operations: number;
+	scores: Record<string, number>;
+};
 export interface ModerationSubmission {
 	moderationTaskId: string;
 	status: "QUEUED" | "RUNNING";
@@ -35,5 +43,5 @@ export interface MediaSafetyAdapter {
 	submitVideo(input: SubmitVideoInput): Promise<ModerationSubmission>;
 	retrieveVideo(input: RetrieveModerationInput): Promise<ModerationDecision>;
 }
-export const MEDIA_VERIFICATION_RULE_VERSION = "media-safety-2026-08-23.1";
-export const MEDIA_VERIFICATION_POLICY_VERSION = "media-policy-2026-08-23.1";
+export const MEDIA_VERIFICATION_RULE_VERSION = "media-safety-2026-09-08.1";
+export const MEDIA_VERIFICATION_POLICY_VERSION = "media-policy-2026-09-08.2";

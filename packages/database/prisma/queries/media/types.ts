@@ -39,6 +39,7 @@ export interface CreateModeratedGenerationQuoteInput extends CreateGenerationQuo
 		ruleVersion: string;
 		reasonCode: string;
 		inputFingerprint: string;
+		evidence?: Prisma.InputJsonObject;
 	};
 }
 

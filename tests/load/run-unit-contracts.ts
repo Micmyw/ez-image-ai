@@ -17,6 +17,7 @@ const commands: Array<{ args: string[]; database: boolean }> = [
 			"vitest",
 			"run",
 			"prisma/queries/media/admin-diagnostics.test.ts",
+			"prisma/queries/media/outbox.test.ts",
 			"--configLoader",
 			"runner",
 		],
@@ -36,6 +37,8 @@ const commands: Array<{ args: string[]; database: boolean }> = [
 		database: false,
 	},
 	{ args: ["--filter", "@repo/jobs", "test"], database: false },
+	{ args: ["--filter", "@repo/workflows", "test"], database: false },
+	{ args: ["--filter", "@repo/jobs-runtime", "test"], database: false },
 	{ args: ["--filter", "@repo/e2e-media", "test:contracts"], database: false },
 	{ args: ["verify:ui-originality:self-test"], database: false },
 	{

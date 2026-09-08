@@ -1,0 +1,12 @@
+{
+	"name": "ezpic-workflows-test",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-09-08",
+	"compatibility_flags": ["nodejs_compat"],
+	"workflows": [{ "name": "ezpic-jobs-test", "binding": "JOBS", "class_name": "JobsWorkflow" }],
+	"vars": {
+		"WORKFLOWS_DISPATCH_SECRET": "test-only-32-character-shared-secret",
+		"WORKFLOWS_DISPATCH_URL": "https://jobs.example/internal/dispatch",
+		"JOBS_RUNTIME_ENV": "{}"
+	}
+}

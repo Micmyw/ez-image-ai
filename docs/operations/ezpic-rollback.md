@@ -86,10 +86,12 @@ PaymentEvents, storage transfers, moderation states, and invariant results befor
    compatible with every applied migration and every durable payload already written.
 2. Deploy the previously certified application revision by exact SHA. Do not rebase or rebuild an
    unrecorded tree.
-3. Deploy the matching Trigger.dev task revision. A web rollback with newer incompatible workers, or
-   the reverse, is not complete.
+3. Deploy the matching Cloudflare Worker and Node Container image revision. A web rollback with
+   incompatible workers is incomplete. For a rollback across the previous Trigger boundary, first
+   pause and drain the active scheduler and follow the
+   [Cloudflare cutover rollback procedure](./cloudflare-workflows-runbook.md).
 4. Keep all generation switches off. Verify `/api/health`, production `/api/ready`, migration state,
-   private storage metadata, Trigger task registration, Webhook verification, Sentry release, and mail.
+   private storage metadata, Workflow/Node task registration, Webhook verification, Sentry release, and mail.
 5. Run reconciliation and invariant checks. Confirm no duplicate job, attempt, settlement, refund,
    grant, cleanup, or event projection was introduced.
 6. Run bounded smoke against the rollback revision. Local/mock smoke is diagnostic only and cannot
@@ -110,15 +112,15 @@ Restore service only after the cause and durable state are understood:
 
 ## Rollback verification record
 
-| Evidence                                                       | Status          |
-| -------------------------------------------------------------- | --------------- |
-| Global and product kill switches exercised in isolated staging | `NOT_COMPLETED` |
-| Queue, Provider attempt, Webhook, and Outbox drain verified    | `NOT_COMPLETED` |
-| Credit/payment/storage/moderation invariants verified          | `NOT_COMPLETED` |
-| Previous web and Trigger revisions restored by exact SHA       | `NOT_COMPLETED` |
-| Production-like smoke and readiness passed                     | `NOT_COMPLETED` |
-| Alert delivery and monitoring restarted                        | `NOT_COMPLETED` |
-| Recovery time and operator approval recorded                   | `NOT_COMPLETED` |
+| Evidence                                                              | Status          |
+| --------------------------------------------------------------------- | --------------- |
+| Global and product kill switches exercised in isolated staging        | `NOT_COMPLETED` |
+| Queue, Provider attempt, Webhook, and Outbox drain verified           | `NOT_COMPLETED` |
+| Credit/payment/storage/moderation invariants verified                 | `NOT_COMPLETED` |
+| Previous web, Workflow and Node image revisions restored by exact SHA | `NOT_COMPLETED` |
+| Production-like smoke and readiness passed                            | `NOT_COMPLETED` |
+| Alert delivery and monitoring restarted                               | `NOT_COMPLETED` |
+| Recovery time and operator approval recorded                          | `NOT_COMPLETED` |
 
 Do not declare the rollback complete until every row is `PASS` for the drill or incident environment.
 Detailed recovery, refund/Debt, cleanup, backup, and rotation procedures remain in
