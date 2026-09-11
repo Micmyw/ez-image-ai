@@ -25,7 +25,8 @@ const contentSecurityPolicy = [
 	"form-action 'self'",
 	"frame-ancestors 'none'",
 	"object-src 'none'",
-	"script-src 'self' 'unsafe-inline'" + (isProduction ? "" : " 'unsafe-eval'"),
+	"script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms" +
+		(isProduction ? "" : " 'unsafe-eval'"),
 	"style-src 'self' 'unsafe-inline'",
 	"img-src 'self' blob: data: https:",
 	"media-src 'self' blob: https:",

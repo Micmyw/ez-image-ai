@@ -9,6 +9,8 @@
 
 ### Website analytics
 
+- Allowed Google Analytics and Microsoft Clarity script endpoints in the website content
+  security policy so the configured browser integrations can load in production.
 - Added automatically loaded Google Analytics and standard Microsoft Clarity integration.
   GA keeps query-free public-page measurement and disabled advertising signals. Clarity uses
   its project settings without app-level page exclusions, full-page masks or navigation stops.
