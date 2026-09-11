@@ -4,7 +4,6 @@
 	"main": "cloudflare-worker.ts",
 	"compatibility_date": "2026-09-10",
 	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
-	// next-themes serializes its initializer into standalone browser JavaScript.
 	"keep_names": false,
 	"workers_dev": false,
 	"preview_urls": false,
