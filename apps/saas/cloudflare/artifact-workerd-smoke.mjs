@@ -4,6 +4,7 @@ import { readdir, readFile } from "node:fs/promises";
 import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { runInNewContext } from "node:vm";
 
 const app = fileURLToPath(new URL("../", import.meta.url));
 const output = path.join(app, "dist/worker");
@@ -106,6 +107,33 @@ try {
 	assert.match(login.response.headers.get("content-type"), /text\/html/);
 	assert.match(login.response.headers.get("cache-control"), /private.*no-store/);
 	assert.match(asset.response.headers.get("cache-control"), /immutable/);
+	// next-themes serializes a server function into browser JavaScript. Execute
+	// the actual rendered script to catch bundler helpers escaping that function.
+	const themeScript = [...login.body.matchAll(/<script\b[^>]*>([\s\S]*?)<\/script>/g)]
+		.map((match) => match[1])
+		.find((script) => script.includes("localStorage.getItem") && script.includes("colorScheme"));
+	assert(themeScript, "Expected the inline theme initializer");
+	const classes = new Set(["light"]);
+	const style = { colorScheme: "light" };
+	runInNewContext(
+		themeScript,
+		{
+			document: {
+				documentElement: {
+					classList: {
+						remove: (...values) => values.forEach((value) => classes.delete(value)),
+						add: (...values) => values.forEach((value) => classes.add(value)),
+					},
+					style,
+				},
+			},
+			localStorage: { getItem: () => "dark" },
+			window: { matchMedia: () => ({ matches: false }) },
+		},
+		{ timeout: 1000 },
+	);
+	assert.deepEqual([...classes], ["dark"]);
+	assert.equal(style.colorScheme, "dark");
 	if (checkDatabase) {
 		// The public catalog queries runtimeConfigOverride through the Next server
 		// bundle. Concurrent requests also exercise the outer database context.
@@ -120,6 +148,7 @@ try {
 			startedInWorkerd: true,
 			liveness: true,
 			dynamicLoginPage: true,
+			inlineThemeInitialization: true,
 			staticAssetCaching: true,
 			concurrentLocalPostgresQueries: checkDatabase,
 			liveCloudflareVerified: false,

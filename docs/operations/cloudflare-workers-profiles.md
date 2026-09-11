@@ -63,6 +63,11 @@ update cannot change already-rendered public values. The build command strips Op
 embedded `.env` fallback before final bundling so server secrets only come from Worker secrets.
 Do not invoke the underlying OpenNext build CLI directly, bypassing that cleanup.
 
+Keep the website's `keep_names: false` Wrangler setting. `next-themes` serializes its
+initializer into standalone browser JavaScript; function-name instrumentation inserts a
+server-only helper into that script and breaks the initial light/dark theme. The artifact
+smoke test executes the rendered initializer and verifies a stored dark-theme preference.
+
 Use Linux/WSL or Linux CI for OpenNext artifact builds. Native Windows Next compilation works,
 but OpenNext's copied pnpm junctions can fail during final bundling. The existing standalone
 website rollback is preserved via `cloudflare:web:build:legacy` and `cloudflare:prepare:legacy`.

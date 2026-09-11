@@ -19,6 +19,8 @@
 
 ### Workers deployment profiles and image processing adapters
 
+- Fixed the initial light/dark theme script on Workers by disabling function-name
+  instrumentation, and added execution of the rendered script to the artifact smoke check.
 - Added a default `workers` profile for the Next.js website and existing background handlers,
   using OpenNext, Workflows, request-owned Hyperdrive/Prisma connections and Cloudflare Images.
 - Added an optional `hybrid` profile with the same Workers website and the existing jobs
