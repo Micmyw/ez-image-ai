@@ -548,7 +548,7 @@
 	},
 	"common": {
 		"consent": {
-			"message": "Choisissez si vous autorisez les cookies d'analyse facultatifs. Le stockage essentiel aux préférences et à la sécurité reste disponible.",
+			"message": "Google Analytics et Microsoft Clarity fonctionnent automatiquement. Choisissez si vous autorisez des analyses supplémentaires de l'utilisation du produit. Le stockage essentiel reste disponible.",
 			"decline": "Refuser les facultatifs",
 			"allow": "Autoriser les facultatifs"
 		},

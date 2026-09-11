@@ -1,4 +1,5 @@
-import { Prisma } from "../../generated/client";
+import { Prisma } from "#prisma-runtime-client";
+
 import {
 	assertCreditLedgerReplay,
 	createCreditLedgerMetadata,

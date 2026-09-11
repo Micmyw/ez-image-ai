@@ -1,21 +1,13 @@
-import { PrismaPg } from "@prisma/adapter-pg";
-
+import { getDatabaseClient } from "../../client";
 import type { Prisma } from "../../generated/client";
-import { PrismaClient } from "../../generated/client";
+import type { PrismaClient } from "../../generated/client";
 import type { GenerationJobStatusValue } from "./state-machine";
 
 export type MediaDatabaseClient = Prisma.TransactionClient;
 export type MediaTransactionClient = PrismaClient;
 
-let defaultClient: PrismaClient | undefined;
-
 export function getMediaDatabaseClient(client?: MediaDatabaseClient): MediaDatabaseClient {
-	if (client) return client;
-	if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is not set");
-	defaultClient ??= new PrismaClient({
-		adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
-	});
-	return defaultClient;
+	return client ?? getDatabaseClient();
 }
 
 export interface CreateGenerationQuoteInput {

@@ -1,0 +1,61 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "ezimageai-web-local",
+	"account_id": "44c8c5cb3ce2004d398ff271836bdd2e",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-09-10",
+	"compatibility_flags": ["nodejs_compat"],
+	"workers_dev": false,
+	"preview_urls": false,
+	"observability": { "enabled": true },
+	"vars": { "CANONICAL_ORIGIN": "http://localhost:8787" },
+	"containers": [
+		{
+			"class_name": "SaasContainer",
+			"image": "../saas/Dockerfile",
+			"image_build_context": "../..",
+			"instance_type": "basic",
+			"max_instances": 1,
+			"image_vars": { "NEXT_PUBLIC_SAAS_URL": "http://localhost:8787" }
+		}
+	],
+	"durable_objects": { "bindings": [{ "name": "SAAS", "class_name": "SaasContainer" }] },
+	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["SaasContainer"] }],
+	"env": {
+		"staging": {
+			"name": "ezimageai-web-staging",
+			"workers_dev": true,
+			"vars": { "CANONICAL_ORIGIN": "https://ezimageai-web-staging.15871497752myw.workers.dev" },
+			"containers": [
+				{
+					"class_name": "SaasContainer",
+					"image": "../saas/Dockerfile",
+					"image_build_context": "../..",
+					"instance_type": "basic",
+					"max_instances": 1,
+					"image_vars": {
+						"NEXT_PUBLIC_SAAS_URL": "https://ezimageai-web-staging.15871497752myw.workers.dev"
+					}
+				}
+			],
+			"durable_objects": { "bindings": [{ "name": "SAAS", "class_name": "SaasContainer" }] }
+		},
+		"production": {
+			"name": "ezimageai-web-production",
+			"workers_dev": false,
+			"routes": [{ "pattern": "ezimageai.com", "custom_domain": true }],
+			"vars": { "CANONICAL_ORIGIN": "https://ezimageai.com" },
+			"containers": [
+				{
+					"class_name": "SaasContainer",
+					"image": "../saas/Dockerfile",
+					"image_build_context": "../..",
+					"instance_type": "basic",
+					"max_instances": 1,
+					"image_vars": { "NEXT_PUBLIC_SAAS_URL": "https://ezimageai.com" }
+				}
+			],
+			"durable_objects": { "bindings": [{ "name": "SAAS", "class_name": "SaasContainer" }] }
+		}
+	}
+}

@@ -4,13 +4,53 @@ import { Readable } from "node:stream";
 import sharp from "sharp";
 import { describe, expect, it, vi } from "vitest";
 
-import {
-	GUEST_WATERMARK_VERSION,
-	createGuestWatermarkTransform,
-	createWatermarkStagedGuestImage,
-} from "./image-watermark";
+import { createGuestWatermarkTransform } from "../image-processing/sharp";
+import { GUEST_WATERMARK_VERSION, createWatermarkStagedGuestImage } from "./image-watermark";
 
 describe("guest image watermark", () => {
+	it("passes only portable dimensions and storage identity to the selected transformer", async () => {
+		let received: unknown;
+		const watermark = createWatermarkStagedGuestImage({
+			inspectImage: async () => ({ width: 640, height: 400 }),
+			transformAndStore: async (input) => {
+				received = input;
+				return { bytes: 10, sha256: "a".repeat(64) };
+			},
+			deleteObject: async () => undefined,
+		});
+		const input = {
+			staging: { bucket: "media" as const, key: "users/guest/staging/clean.png" },
+			final: { bucket: "media" as const, key: "users/guest/assets/output/original.png" },
+			contentType: "image/png" as const,
+			deleteAfter: new Date("2026-08-29T00:00:00.000Z"),
+		};
+		await watermark({ ...input, now: () => new Date("2026-08-28T00:00:00.000Z") });
+		expect(received).toEqual({ ...input, width: 640, height: 400 });
+	});
+
+	it("retains clean staging when transformation or final storage fails", async () => {
+		const deleted: string[] = [];
+		const watermark = createWatermarkStagedGuestImage({
+			inspectImage: async () => ({ width: 640, height: 400 }),
+			transformAndStore: async () => {
+				throw new Error("Images unavailable");
+			},
+			deleteObject: async (location) => {
+				deleted.push(location.key);
+			},
+		});
+		await expect(
+			watermark({
+				staging: { bucket: "media", key: "users/guest/staging/clean.png" },
+				final: { bucket: "media", key: "users/guest/assets/output/original.png" },
+				contentType: "image/png",
+				deleteAfter: new Date("2026-08-29T00:00:00.000Z"),
+				now: () => new Date("2026-08-28T00:00:00.000Z"),
+			}),
+		).rejects.toThrow("Images unavailable");
+		expect(deleted).toEqual([]);
+	});
+
 	it("renders deterministic transformed bytes with a proportional lower-right EzPic plate", async () => {
 		const source = await sharp({
 			create: { width: 640, height: 400, channels: 3, background: "#dbeafe" },

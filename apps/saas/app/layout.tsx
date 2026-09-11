@@ -4,6 +4,7 @@ import { ApiClientProvider } from "@shared/components/ApiClientProvider";
 import { ClientProviders } from "@shared/components/ClientProviders";
 import { ConsentBanner } from "@shared/components/ConsentBanner";
 import { ConsentProvider } from "@shared/components/ConsentProvider";
+import { SiteAnalytics } from "@shared/components/SiteAnalytics";
 import { getBaseUrl, parseGoogleSiteVerification } from "@shared/lib/base-url";
 import { parseConsentStatus } from "@shared/lib/consent";
 import type { Metadata } from "next";
@@ -53,6 +54,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 	return (
 		<html lang={locale} suppressHydrationWarning className={sansFont.variable}>
 			<body className={cn("min-h-screen bg-background text-foreground antialiased")}>
+				<SiteAnalytics />
 				<ConsentProvider initialConsentStatus={consentStatus}>
 					<NuqsAdapter>
 						<NextIntlClientProvider messages={messages}>

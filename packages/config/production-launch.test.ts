@@ -90,6 +90,17 @@ const productionEnvironment = {
 	MEDIA_ALERT_CHANNEL_ID: "ops:ezpic-production",
 } as const;
 
+it("validates a Workers launch with Hyperdrive and no database origin secret", () => {
+	expect(() =>
+		validateEzPicLaunchEnvironment({
+			...productionEnvironment,
+			DATABASE_URL: undefined,
+			EZPIC_RUNTIME: "workers",
+			EZPIC_DATABASE_BINDING: "hyperdrive",
+		}),
+	).not.toThrow();
+});
+
 function environmentMatrix() {
 	return {
 		version: 1,

@@ -1,0 +1,24 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "ezpic-workflows-workers-local",
+	"main": "src/workers.ts",
+	"compatibility_date": "2026-09-10",
+	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+	"workers_dev": true,
+	"preview_urls": false,
+	"observability": { "enabled": true },
+	"limits": { "cpu_ms": 30000 },
+	"triggers": { "crons": ["* * * * *"] },
+	"vars": {
+		"EZPIC_RUNTIME": "workers",
+		"EZPIC_DATABASE_BINDING": "hyperdrive",
+		"NODE_ENV": "production"
+	},
+	"images": { "binding": "IMAGES" },
+	"hyperdrive": [{ "binding": "HYPERDRIVE", "id": "00000000000000000000000000000000" }],
+	"workflows": [
+		{ "name": "ezpic-jobs-workers-local", "binding": "JOBS", "class_name": "JobsWorkflow" }
+	],
+	"durable_objects": { "bindings": [{ "name": "JOBS_EXECUTOR", "class_name": "WorkerJobs" }] },
+	"migrations": [{ "tag": "workers-executor-v1", "new_sqlite_classes": ["WorkerJobs"] }]
+}

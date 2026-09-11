@@ -1,3 +1,4 @@
+import "next/dist/server/node-environment-baseline";
 import {
 	getRedirectUrl,
 	unstable_getResponseFromNextConfig,

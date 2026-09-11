@@ -39,3 +39,8 @@ next-env.d.ts
 
 .content-collections
 .source
+
+# Cloudflare build artifacts
+.open-next/
+cloudflare-env.d.ts
+wrangler.*.generated.jsonc

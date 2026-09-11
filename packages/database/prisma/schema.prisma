@@ -8,6 +8,13 @@ generator client {
   engineType = "client"
 }
 
+generator workerClient {
+  provider   = "prisma-client"
+  output     = "./generated-worker"
+  engineType = "client"
+  runtime    = "workerd"
+}
+
 generator zod {
   provider = "prisma-zod-generator"
   output   = "./zod"

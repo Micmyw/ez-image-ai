@@ -1,0 +1,32 @@
+{
+	"$schema": "./node_modules/wrangler/config-schema.json",
+	"name": "ezimageai-web-local",
+	"main": "cloudflare-worker.ts",
+	"compatibility_date": "2026-09-10",
+	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+	"workers_dev": false,
+	"preview_urls": false,
+	"observability": { "enabled": true },
+	"assets": { "directory": ".open-next/assets", "binding": "ASSETS" },
+	"vars": {
+		"CANONICAL_ORIGIN": "http://localhost:8787",
+		"EZPIC_RUNTIME": "workers",
+		"EZPIC_DATABASE_BINDING": "hyperdrive",
+		"MEDIA_TRUSTED_PROXY_PROVIDER": "cloudflare"
+	},
+	"images": { "binding": "IMAGES" },
+	"hyperdrive": [{ "binding": "HYPERDRIVE", "id": "00000000000000000000000000000000" }],
+	"r2_buckets": [
+		{ "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "ezimageai-web-cache-local" }
+	],
+	"services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "ezimageai-web-local" }],
+	"durable_objects": {
+		"bindings": [
+			{ "name": "NEXT_CACHE_DO_QUEUE", "class_name": "DOQueueHandler" },
+			{ "name": "NEXT_TAG_CACHE_DO_SHARDED", "class_name": "DOShardedTagCache" }
+		]
+	},
+	"migrations": [
+		{ "tag": "workers-cache-v1", "new_sqlite_classes": ["DOQueueHandler", "DOShardedTagCache"] }
+	]
+}

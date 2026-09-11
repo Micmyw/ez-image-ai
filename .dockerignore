@@ -3,9 +3,11 @@
 .worktrees
 **/node_modules
 **/.next
+**/.open-next
 **/.turbo
 **/.wrangler
 **/dist
+**/dist-workers
 **/coverage
 **/test-results
 **/playwright-report
@@ -17,6 +19,7 @@
 **/*.log
 **/*.tsbuildinfo
 **/prisma/generated
+**/prisma/generated-worker
 **/prisma/zod
 **/.cache
 output

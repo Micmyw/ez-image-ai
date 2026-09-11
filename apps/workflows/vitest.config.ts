@@ -18,7 +18,20 @@ export default defineConfig({
 						remoteBindings: false,
 					}),
 				],
-				test: { name: "workerd", include: ["src/**/*.workerd.test.ts"], testTimeout: 30_000 },
+				test: { name: "workerd", include: ["src/workflow.workerd.test.ts"], testTimeout: 30_000 },
+			},
+			{
+				plugins: [
+					cloudflareTest({
+						wrangler: { configPath: "./wrangler.workers.test.jsonc" },
+						remoteBindings: false,
+					}),
+				],
+				test: {
+					name: "worker-executor",
+					include: ["src/executor.workerd.test.ts"],
+					testTimeout: 30_000,
+				},
 			},
 		],
 	},

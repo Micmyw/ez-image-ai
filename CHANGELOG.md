@@ -1,5 +1,48 @@
 # Changelog
 
+## 2026-09-11
+
+### Dependency security fixes
+
+- Updated Sharp to 0.35.4, including transitive image-processing dependencies, and Nodemailer
+  to 9.1.1 to resolve the high-severity findings in the release dependency audit.
+
+### Website analytics
+
+- Added automatically loaded Google Analytics and standard Microsoft Clarity integration.
+  GA keeps query-free public-page measurement and disabled advertising signals. Clarity uses
+  its project settings without app-level page exclusions, full-page masks or navigation stops.
+- Kept PostHog's existing consent-gated product-event transport, and clarified the consent
+  banner and privacy policy to reflect which analytics services the banner controls.
+- Added the Clarity public build variable for Workers and legacy Container deployments and
+  documented the free-plan setup, recording scope and remaining production verification.
+
+### Workers deployment profiles and image processing adapters
+
+- Added a default `workers` profile for the Next.js website and existing background handlers,
+  using OpenNext, Workflows, request-owned Hyperdrive/Prisma connections and Cloudflare Images.
+- Added an optional `hybrid` profile with the same Workers website and the existing jobs
+  Container/Sharp implementation. Separate job identities support an explicit drain/cutover;
+  timeouts never trigger automatic runtime fallback.
+- Preserved PostgreSQL credits, leases, Outbox, private R2 streams and conditional image writes.
+  Added a private image adapter boundary, Workers public-only media egress and admission control.
+- Removed build-time secret fallback from OpenNext artifacts, kept legacy website rollback
+  commands, and documented required bindings, image limits, build platform and live verification.
+- Added final-artifact Workers startup/database checks and a Linux image watermark check;
+  the hybrid image includes fonts so Sharp renders the EzPic lettering as well as its plate.
+
+## 2026-09-10
+
+### Cloudflare website hosting and Supabase provisioning
+
+- Added a canonical-domain Worker and a separate, non-root Next.js website Container, preserving
+  request bodies, cookies, streaming responses and the existing server authorization paths.
+- Added production/staging deployment preparation with public build argument allowlisting,
+  private runtime secret files and container-compatible verified Supabase TLS configuration.
+- Documented private R2 CORS, backend-only Supabase access, idle container costs and the remaining
+  live generation, mail, payment and launch certification requirements.
+- Added website forwarding/environment contracts and a CI website container artifact build.
+
 ## 2026-09-08
 
 ### Cloudflare Workflows with on-demand Node execution

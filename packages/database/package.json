@@ -3,12 +3,21 @@
 	"version": "0.0.0",
 	"main": "./index.ts",
 	"types": "./**/.tsx",
+	"imports": {
+		"#prisma-runtime-client": {
+			"workerd": "./prisma/generated-worker/client.ts",
+			"default": "./prisma/generated/client.ts"
+		}
+	},
 	"exports": {
 		".": "./index.ts",
 		"./client": "./prisma/client.ts",
 		"./media-assets": "./prisma/queries/media/assets.ts",
 		"./media-quotes": "./prisma/queries/media/quotes.ts",
-		"./generated-client": "./prisma/generated/client.ts"
+		"./generated-client": {
+			"workerd": "./prisma/generated-worker/client.ts",
+			"default": "./prisma/generated/client.ts"
+		}
 	},
 	"scripts": {
 		"clean": "git clean -xdf .cache .turbo dist node_modules",
@@ -17,7 +26,7 @@
 		"migrate": "dotenv -c -e ../../.env -- prisma migrate dev",
 		"studio": "dotenv -c -e ../../.env -- prisma studio",
 		"type-check": "tsc --noEmit",
-		"test": "vitest run prisma/queries/media/state-machine.test.ts prisma/queries/media/assets-transactions.test.ts prisma/queries/media/guest-admission.test.ts --configLoader runner",
+		"test": "vitest run prisma/client.test.ts prisma/queries/media/state-machine.test.ts prisma/queries/media/assets-transactions.test.ts prisma/queries/media/guest-admission.test.ts --configLoader runner",
 		"test:integration": "vitest run --config vitest.integration.config.ts --configLoader runner"
 	},
 	"dependencies": {

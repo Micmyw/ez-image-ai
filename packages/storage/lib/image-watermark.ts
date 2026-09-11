@@ -1,6 +1,4 @@
-import type { Sharp } from "sharp";
-import sharp from "sharp";
-
+import { assertGuestImageDimensions } from "../image-processing/geometry";
 import type { MediaContentType, MediaObjectLocation } from "../types";
 
 export const GUEST_WATERMARK_VERSION = "ezpic-guest-v1";
@@ -34,7 +32,8 @@ export interface GuestWatermarkStorageDependencies {
 		final: MediaObjectLocation;
 		contentType: GuestWatermarkInput["contentType"];
 		deleteAfter: Date;
-		createTransform(): Sharp;
+		width: number;
+		height: number;
 	}): Promise<GuestWatermarkStoredIdentity>;
 	deleteObject(location: MediaObjectLocation): Promise<void>;
 }
@@ -69,11 +68,7 @@ export function createWatermarkStagedGuestImage(
 			final: input.final,
 			contentType: input.contentType,
 			deleteAfter: input.deleteAfter,
-			createTransform: () =>
-				createGuestWatermarkTransform({
-					...dimensions,
-					contentType: input.contentType,
-				}),
+			...dimensions,
 		});
 		if (
 			!Number.isSafeInteger(stored.bytes) ||
@@ -89,54 +84,4 @@ export function createWatermarkStagedGuestImage(
 		}
 		return { ...stored, cleanStagingDeletedAt: input.now?.() ?? new Date() };
 	};
-}
-
-export function createGuestWatermarkTransform(input: {
-	width: number;
-	height: number;
-	contentType: GuestWatermarkInput["contentType"];
-}): Sharp {
-	assertGuestImageDimensions(input.width, input.height);
-	const shortest = Math.min(input.width, input.height);
-	const padding = Math.max(4, Math.round(shortest * 0.025));
-	const maximumPlateWidth = Math.max(1, input.width - padding * 2);
-	const plateWidth = Math.min(maximumPlateWidth, Math.max(72, Math.round(input.width * 0.24)));
-	const plateHeight = Math.min(
-		Math.max(1, input.height - padding * 2),
-		Math.max(26, Math.round(plateWidth * 0.3)),
-	);
-	const fontSize = Math.max(12, Math.round(plateHeight * 0.48));
-	const radius = Math.max(4, Math.round(plateHeight * 0.18));
-	const left = input.width - padding - plateWidth;
-	const top = input.height - padding - plateHeight;
-	const svg = Buffer.from(
-		`<svg width="${plateWidth}" height="${plateHeight}" xmlns="http://www.w3.org/2000/svg">
-			<rect width="${plateWidth}" height="${plateHeight}" rx="${radius}" fill="#111827" fill-opacity="0.72"/>
-			<text x="50%" y="52%" dominant-baseline="middle" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="${fontSize}" font-weight="700" letter-spacing="0.5">EzPic</text>
-		</svg>`,
-	);
-	const pipeline = sharp({ sequentialRead: true, failOn: "error" }).composite([
-		{ input: svg, left, top, blend: "over" },
-	]);
-	switch (input.contentType) {
-		case "image/jpeg":
-			return pipeline.jpeg({ quality: 90, chromaSubsampling: "4:4:4", mozjpeg: false });
-		case "image/png":
-			return pipeline.png({ compressionLevel: 9, adaptiveFiltering: false, palette: false });
-		case "image/webp":
-			return pipeline.webp({ quality: 90, alphaQuality: 100, smartSubsample: false });
-	}
-}
-
-function assertGuestImageDimensions(width: number, height: number): void {
-	if (
-		!Number.isSafeInteger(width) ||
-		!Number.isSafeInteger(height) ||
-		width < 64 ||
-		height < 64 ||
-		width > 16_384 ||
-		height > 16_384
-	) {
-		throw new GuestWatermarkError("GUEST_WATERMARK_DIMENSIONS_INVALID");
-	}
 }

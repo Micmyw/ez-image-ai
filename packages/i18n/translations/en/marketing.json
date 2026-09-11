@@ -548,7 +548,7 @@
 	},
 	"common": {
 		"consent": {
-			"message": "Choose whether to allow optional analytics cookies. Essential storage used for site preferences and security remains available.",
+			"message": "Google Analytics and Microsoft Clarity run automatically. Choose whether to allow additional product analytics. Essential storage remains available.",
 			"decline": "Decline optional",
 			"allow": "Allow optional"
 		},

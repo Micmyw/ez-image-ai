@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { validateServerEnvironment } from "./env";
+import { usesHyperdriveDatabase, validateServerEnvironment } from "./env";
 import { catalogVersionSchema, DEFAULT_PRODUCT_CONFIG, EZPIC_PRODUCT_KEYS } from "./product";
 import { assertWorkflowsConfiguration } from "./workflows";
 
@@ -271,7 +271,6 @@ export function validateEzPicLaunchEnvironment(
 	assertWorkflowsConfiguration({ ...input, NODE_ENV: "production" });
 
 	for (const key of [
-		"DATABASE_URL",
 		"BETTER_AUTH_SECRET",
 		"S3_REGION",
 		"MEDIA_BUCKET_NAME",
@@ -284,6 +283,7 @@ export function validateEzPicLaunchEnvironment(
 	] as const) {
 		requiredString(input, key);
 	}
+	if (!usesHyperdriveDatabase(input)) requiredString(input, "DATABASE_URL");
 	if (!/^phc_[A-Za-z0-9_-]{10,}$/.test(requiredString(input, "NEXT_PUBLIC_POSTHOG_KEY"))) {
 		throw new Error("NEXT_PUBLIC_POSTHOG_KEY must be a configured public project key");
 	}

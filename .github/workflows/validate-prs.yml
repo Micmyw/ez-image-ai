@@ -60,6 +60,27 @@ jobs:
         run: pnpm launch:evidence:validate
       - name: Cloudflare Workflows and Node container artifact build
         run: pnpm workflows:build:ci
+      - name: Verify Sharp and visible watermark lettering in the jobs image
+        run: >-
+          docker run --rm --network none --entrypoint node
+          ezpic-workflows-jobscontainer:worker --import tsx test-support/image-runtime-smoke.mjs
+      - name: Cloudflare Workers job executor artifact build
+        run: pnpm cloudflare:jobs:build
+      - name: Start the final jobs artifact in workerd
+        run: pnpm --filter @repo/workflows test:artifact:workerd
+      - name: Workers public-only media transport smoke
+        run: pnpm --filter @repo/storage test:remote-media:workerd
+      - name: Cloudflare website Workers artifact build
+        env:
+          NODE_ENV: production
+          MEDIA_PROVIDER_ADAPTER: replicate
+          MEDIA_SAFETY_ADAPTER: sightengine
+          MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "false"
+        run: pnpm cloudflare:web:build
+      - name: Bundle the final website Worker
+        run: pnpm --filter saas exec wrangler deploy --dry-run --outdir dist/worker
+      - name: Start the final website artifact in workerd
+        run: pnpm --filter saas test:artifact:workerd
 
   postgres:
     name: Fresh PostgreSQL migrations and integration tests
@@ -103,6 +124,10 @@ jobs:
         run: pnpm db:migrate:drift
       - name: Run PostgreSQL integration tests
         run: pnpm test:integration
+      - name: Build the final Workers jobs artifact for database verification
+        run: pnpm cloudflare:jobs:build
+      - name: Query disposable PostgreSQL through the final workerd artifact
+        run: pnpm --filter @repo/workflows test:artifact:workerd --database
       - name: Run controlled media load route smoke
         run: pnpm load:smoke
       - name: Verify data invariants

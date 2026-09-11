@@ -1,3 +1,5 @@
+import path from "node:path";
+
 // @ts-expect-error - PrismaPlugin is not typed
 import { PrismaPlugin } from "@prisma/nextjs-monorepo-workaround-plugin";
 import { createMDX } from "fumadocs-mdx/next";
@@ -13,6 +15,7 @@ const withMDX = createMDX({
 });
 
 const isProduction = process.env.NODE_ENV === "production";
+const isWorkersBuild = process.env.EZPIC_WORKERS_BUILD === "true";
 const storageConnectSource = resolveStorageConnectOrigin(process.env.S3_ENDPOINT, {
 	allowLoopbackHttp: !isProduction || process.env.E2E_TEST_MEDIA_ADAPTERS === "true",
 });
@@ -44,7 +47,13 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+	...(process.env.EZPIC_STANDALONE_BUILD === "true"
+		? { output: "standalone", outputFileTracingRoot: path.resolve(import.meta.dirname, "../..") }
+		: {}),
 	transpilePackages: ["@repo/api", "@repo/auth", "@repo/database", "@repo/logs", "@repo/ui"],
+	...(isWorkersBuild
+		? { serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pg"] }
+		: {}),
 	images: {
 		remotePatterns: [
 			{
@@ -110,9 +119,31 @@ const nextConfig: NextConfig = {
 	webpack: (config, { webpack, isServer }) => {
 		config.plugins.push(
 			new webpack.IgnorePlugin({
-				resourceRegExp: /^pg-native$|^cloudflare:sockets$/,
+				resourceRegExp: isWorkersBuild ? /^pg-native$/ : /^pg-native$|^cloudflare:sockets$/,
 			}),
 		);
+
+		if (isServer && isWorkersBuild) {
+			// Select worker-safe package implementations before Next bundles shared code.
+			config.resolve.conditionNames = ["workerd", ...(config.resolve.conditionNames ?? ["..."])];
+			// Keep Prisma's precompiled module import for OpenNext/Wrangler. Webpack's
+			// WASM loader would compile bytes at runtime, which Workers does not permit.
+			config.plugins.push(
+				new webpack.ExternalsPlugin(
+					"import",
+					(
+						{ context, request }: { context?: string; request?: string },
+						callback: (error?: Error, result?: string) => void,
+					) => {
+						if (context && request?.startsWith(".") && /\.wasm\?module$/.test(request)) {
+							callback(undefined, path.resolve(context, request));
+							return;
+						}
+						callback();
+					},
+				),
+			);
+		}
 
 		if (isServer) {
 			config.plugins.push(new PrismaPlugin());

@@ -1,0 +1,13 @@
+{
+	"name": "ezpic-worker-executor-test",
+	"main": "src/workers.ts",
+	"compatibility_date": "2026-09-10",
+	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+	"durable_objects": { "bindings": [{ "name": "JOBS_EXECUTOR", "class_name": "WorkerJobs" }] },
+	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["WorkerJobs"] }],
+	"vars": {
+		"EZPIC_RUNTIME": "workers",
+		"WORKFLOWS_DISPATCH_SECRET": "test-only-32-character-shared-secret",
+		"WORKFLOWS_DISPATCH_URL": "https://jobs.example/internal/dispatch"
+	}
+}

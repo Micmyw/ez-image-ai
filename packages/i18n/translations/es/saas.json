@@ -1206,7 +1206,7 @@
 	},
 	"common": {
 		"consent": {
-			"message": "Elige si permites cookies de análisis opcionales. El almacenamiento esencial para preferencias y seguridad sigue disponible.",
+			"message": "Google Analytics y Microsoft Clarity funcionan automáticamente. Elige si permites análisis adicionales del uso del producto. El almacenamiento esencial sigue disponible.",
 			"decline": "Rechazar opcionales",
 			"allow": "Permitir opcionales"
 		},

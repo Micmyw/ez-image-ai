@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { Readable } from "node:stream";
+import { Readable } from "node:stream";
 
 import {
 	AbortMultipartUploadCommand,
@@ -16,9 +16,9 @@ import {
 } from "@aws-sdk/client-s3";
 import { getSignedUrl as getS3SignedUrl } from "@aws-sdk/s3-request-presigner";
 import { logger } from "@repo/logs";
-import sharp from "sharp";
 
 import { config } from "../../config";
+import { getImageProcessor } from "../../image-processing/context";
 import {
 	GUEST_WATERMARK_VERSION,
 	createWatermarkStagedGuestImage,
@@ -535,20 +535,13 @@ async function inspectStagedGuestImage(
 			"Guest staging image metadata is invalid",
 		);
 	}
-	const source = result.Body as Readable;
-	const inspector = sharp({ sequentialRead: true, failOn: "error" });
-	source.pipe(inspector);
+	const source = result.Body.transformToWebStream();
 	try {
-		const metadata = await inspector.metadata();
-		if (!metadata.width || !metadata.height) {
-			throw new MediaValidationError(
-				"OUTPUT_MEDIA_TYPE_MISMATCH",
-				"Guest staging image dimensions are unavailable",
-			);
-		}
-		return { width: metadata.width, height: metadata.height };
+		return await getImageProcessor().inspect(source, contentType, {
+			contentLength: result.ContentLength,
+		});
 	} finally {
-		source.destroy();
+		if (!source.locked) await source.cancel().catch(() => undefined);
 	}
 }
 
@@ -557,7 +550,8 @@ async function transformAndStoreGuestImage(input: {
 	final: MediaObjectLocation;
 	contentType: Extract<MediaContentType, `image/${string}`>;
 	deleteAfter: Date;
-	createTransform(): import("sharp").Sharp;
+	width: number;
+	height: number;
 }): Promise<{ bytes: number; sha256: string; etag?: string; versionId?: string }> {
 	const sourceObject = await getS3Client().send(new GetObjectCommand(mediaLocation(input.staging)));
 	if (
@@ -572,21 +566,29 @@ async function transformAndStoreGuestImage(input: {
 			"Guest staging image identity is invalid",
 		);
 	}
-	const { uploadId } = await createMultipartUpload({
-		...input.final,
-		contentType: input.contentType,
-		metadata: {
-			watermark: GUEST_WATERMARK_VERSION,
-			"delete-after": input.deleteAfter.toISOString(),
-		},
-	});
 	let conditionalConflict = false;
-	const source = sourceObject.Body as Readable;
-	const transform = input.createTransform();
-	source.once("error", (error) => transform.destroy(error));
-	const transformed = source.pipe(transform);
+	const source = sourceObject.Body.transformToWebStream();
+	let transformed: Readable | undefined;
 	let copied;
 	try {
+		const output = await getImageProcessor().watermark(source, {
+			width: input.width,
+			height: input.height,
+			contentType: input.contentType,
+			contentLength: sourceObject.ContentLength,
+		});
+		// DOM and workerd declarations differ, but both supply the standard Web stream contract.
+		transformed = Readable.fromWeb(
+			output as unknown as import("node:stream/web").ReadableStream<Uint8Array>,
+		);
+		const { uploadId } = await createMultipartUpload({
+			...input.final,
+			contentType: input.contentType,
+			metadata: {
+				watermark: GUEST_WATERMARK_VERSION,
+				"delete-after": input.deleteAfter.toISOString(),
+			},
+		});
 		copied = await copyRemoteStreamToMultipart(transformed, {
 			maxBytes: getMediaByteLimit(input.contentType),
 			partSize: config.media.multipartPartSize,
@@ -611,7 +613,8 @@ async function transformAndStoreGuestImage(input: {
 			abort: () => abortMultipartUpload({ ...input.final, uploadId }),
 		});
 	} finally {
-		source.destroy();
+		transformed?.destroy();
+		if (!source.locked) await source.cancel().catch(() => undefined);
 	}
 	const stored = await inspectStoredMediaObject(
 		input.final,

@@ -1,6 +1,7 @@
 {
 	"$schema": "./node_modules/wrangler/config-schema.json",
 	"name": "ezpic-workflows",
+	"account_id": "44c8c5cb3ce2004d398ff271836bdd2e",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-09-08",
 	"compatibility_flags": ["nodejs_compat"],

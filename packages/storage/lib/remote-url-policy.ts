@@ -1,5 +1,8 @@
-import { promises as dns } from "node:dns";
 import { isIP, type LookupFunction } from "node:net";
+
+import { resolveRemoteHostname } from "#remote-media-node-transport";
+
+import { currentRemoteMediaTransport } from "./remote-media-runtime";
 
 export interface ResolvedAddress {
 	address: string;
@@ -164,7 +167,12 @@ export async function assertAllowedRemoteUrl(
 		);
 	}
 	const hostname = url.hostname.toLowerCase();
-	if (!options.allowedHosts.some((rule) => hostMatches(hostname, rule))) {
+	const transport = currentRemoteMediaTransport();
+	if (
+		!options.allowedHosts.some((rule) =>
+			transport?.exactHostsOnly ? hostname === rule.toLowerCase() : hostMatches(hostname, rule),
+		)
+	) {
 		throw new RemoteMediaPolicyError(
 			"OUTPUT_REMOTE_URL_HOST_NOT_ALLOWED",
 			"Remote URL host is not allowed",
@@ -176,14 +184,14 @@ export async function assertAllowedRemoteUrl(
 			"Remote URL must use an allowed provider hostname",
 		);
 	}
-	const resolver =
-		options.resolve ??
-		(async (name: string) => {
-			const records = await dns.lookup(name, { all: true, verbatim: true });
-			return records.map((record) => ({ address: record.address, family: record.family as 4 | 6 }));
-		});
+	const resolver = options.resolve ?? transport?.resolve ?? resolveRemoteHostname;
 	const addresses = await resolver(hostname);
-	if (addresses.length === 0 || addresses.some((entry) => isUnsafeAddress(entry.address))) {
+	if (
+		addresses.length === 0 ||
+		addresses.some(
+			(entry) => isIP(entry.address) !== entry.family || isUnsafeAddress(entry.address),
+		)
+	) {
 		throw new RemoteMediaPolicyError(
 			"OUTPUT_REMOTE_URL_PRIVATE_ADDRESS",
 			"Remote URL resolved to a private or reserved address",

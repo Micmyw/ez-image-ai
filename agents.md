@@ -8,7 +8,7 @@ Explicit user instructions win; if a documented command fails, report it rather 
 
 - Next.js App Router, React, TypeScript, Node.js 22+, and pnpm workspaces
 - Turborepo, oRPC, Hono, Better Auth, Prisma, and Drizzle
-- Cloudflare Workflows for durable orchestration and on-demand Cloudflare Containers for Node jobs
+- Cloudflare Workers/OpenNext and Workflows by default; optional Containers for hybrid Node jobs
 - Tailwind CSS, Shadcn-style components, and Base UI (`@base-ui/react`)
 - React Hook Form, Zod 4, TanStack Query, next-intl, Vitest, Playwright, Oxlint, and Oxfmt
 
@@ -73,7 +73,8 @@ harness starts only SaaS and requires a running database.
 ```text
 apps/
 ├── mail-preview/  # Email preview
-├── workflows/     # Cloudflare dispatch, durable waits, maintenance and container lifecycle
+├── web-host/      # Deployment profile preparation and legacy website Container rollback
+├── workflows/     # Durable dispatch/maintenance, Workers executor and optional Container lifecycle
 ├── jobs-runtime/  # Private Node executor image for existing @repo/jobs handlers
 └── saas/          # Unified public landing, guest trial, and authenticated product
 packages/
@@ -215,19 +216,46 @@ and aliases belong in the relevant app config/tsconfig rather than a package.
 - Submit API work through `dispatchJob` from `@repo/jobs/orchestration/client`. The server-only
   `WORKFLOWS_DISPATCH_URL` includes `/internal/dispatch`; production requires HTTPS. Share a random
   `WORKFLOWS_DISPATCH_SECRET` of at least 32 characters between SaaS and the Worker.
-- `apps/workflows` owns durable dispatch, retry/sleep and scheduled maintenance. The on-demand
-  `apps/jobs-runtime` container executes the existing Node handlers with Prisma, Sharp, file-type,
-  streams and Provider/payment/storage adapters. Keep business transitions in `packages/jobs`
-  and `packages/database`; Workflow state and instance IDs are delivery metadata.
-- Keep database, Provider, payment, storage and moderation credentials in the Worker secret
-  `JOBS_RUNTIME_ENV` (JSON string values) injected at container startup. Never bake them into the
-  image or expose them through public Worker vars. Apply migrations before deployment, not at boot.
+- `apps/workflows` owns durable dispatch, retry/sleep and scheduled maintenance. Default `workers`
+  uses the private `WorkerJobs` Durable Object to admit existing handlers, with request-owned
+  Hyperdrive/Prisma connections and Cloudflare Images. `hybrid` uses the `apps/jobs-runtime`
+  Node Container with Sharp. Business transitions stay in `packages/jobs` and `packages/database`.
+- Workers use flat secrets and injected runtime contexts; origin database credentials stay in
+  Hyperdrive (verified TLS, query caching disabled). Hybrid jobs use `JOBS_RUNTIME_ENV` JSON secrets
+  injected at Container startup. Never bake credentials into artifacts or public vars.
 - `pnpm workflows:type-check` validates the orchestration and Node boundary;
-  `pnpm workflows:build:ci` builds deployment artifacts without Cloudflare or Trigger credentials.
+  `pnpm cloudflare:jobs:build` builds Workers artifacts; `pnpm workflows:build:ci` builds hybrid
+  artifacts without Cloudflare credentials.
   Docker is required for container image build/local container execution. These checks do not
   deploy the Worker or certify its live cron, recovery, Container shutdown or external integrations.
 - Preserve the current PostgreSQL leases, immutable ledger, Outbox recovery and uncertainty gates.
-  See `docs/operations/cloudflare-workflows-runbook.md` for cutover, drain and rollback.
+  See `docs/operations/cloudflare-workers-profiles.md` for cutover, drain and rollback. Never
+  automatically fall back to a different runtime after an uncertain or timed-out execution.
+
+### Cloudflare website hosting
+
+- Both deployment profiles use `apps/saas/cloudflare-worker.ts` and OpenNext. Request contexts
+  remain alive through response streams and registered background work, then disconnect Prisma.
+  Image and remote-media adapters use `workerd` conditions to exclude native Sharp and Node HTTPS.
+  Both Worker configs require `global_fetch_strictly_public`; never use VPC fetch for media URLs.
+- Prisma generation produces separate Node and `runtime = "workerd"` clients. Runtime imports
+  inside the database package use `#prisma-runtime-client`; other packages use
+  `@repo/database/generated-client`. Keep direct generated-path imports type-only. Do not bundle
+  the Node Prisma runtime into Workers or hand-edit either generated client.
+- Verify the final jobs artifact with `pnpm --filter @repo/workflows test:artifact:workerd`;
+  add `--database` with a disposable loopback `TEST_DATABASE_URL` on port 55432 for a real query.
+  Source-level workerd tests and Wrangler dry builds alone do not verify final WASM loading.
+- Use `pnpm cloudflare:prepare production` to prepare ignored deployment configs and Worker secret
+  files from `.env.production.local`. Only allowlisted `NEXT_PUBLIC_` values become build arguments.
+  Test/load credentials are removed. Preparation does not certify enabled integrations or deploy.
+- `EZPIC_DEPLOYMENT_PROFILE` defaults to `workers`; `hybrid` changes background execution only.
+  `pnpm cloudflare:web:build` builds OpenNext and removes embedded env fallback. Use Linux/WSL for
+  final packaging; native Windows pnpm junctions can fail. Do not bypass the build wrapper.
+  `apps/web-host`, `apps/saas/Dockerfile` and `cloudflare:*:legacy` commands preserve rollback.
+  See `docs/operations/cloudflare-workers-profiles.md` for binding configuration and live checks.
+- Supabase provides PostgreSQL only; Better Auth and private R2 storage stay in place. Apply Prisma
+  migrations first, then `docs/operations/supabase-private-postgres.sql` as the project administrator
+  to restrict browser roles. Never weaken TLS: the containers carry the official public root CA.
 
 ## Dependencies & supply chain
 

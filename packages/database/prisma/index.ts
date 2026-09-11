@@ -14,6 +14,6 @@ export {
 	OutboxEventStatus,
 	OwnerType,
 	PaymentProductKind,
-} from "./generated/client";
+} from "#prisma-runtime-client";
 export * from "./queries";
 export * from "./zod";

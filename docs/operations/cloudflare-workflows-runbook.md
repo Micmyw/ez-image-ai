@@ -1,5 +1,10 @@
 # Cloudflare Workflows and Node job containers
 
+New low-cost deployments default to a Workers executor with Cloudflare Images. See
+[Workers deployment profiles](cloudflare-workers-profiles.md) for preparation, Hyperdrive,
+runtime limitations and drain/cutover. This runbook's Node Container executor is the `hybrid`
+profile; its leases, Outbox, recovery and signed dispatch remain the same in both profiles.
+
 ## Execution boundary
 
 SaaS commits the GenerationJob, input bindings, credit reservation and initial Outbox row before
@@ -7,8 +12,9 @@ calling the private Workflows dispatch endpoint. `apps/workflows` authenticates 
 starts durable execution, waits between polls and retries, and schedules maintenance.
 `apps/jobs-runtime` runs the existing `@repo/jobs` handlers in a Cloudflare Container with Node,
 Prisma, Sharp, file-type, streams and the existing Provider, payment, moderation and storage clients.
-This revision migrates background execution. Hosting the SaaS Next.js application on Workers
-requires its own application adapter and deployment verification.
+The website uses a separate Worker and Next.js Node Container described in the
+[website hosting runbook](./cloudflare-hosting-runbook.md). Both deployments require their own
+runtime secrets and live verification.
 
 PostgreSQL remains the only business source of truth. Workflow instance IDs and steps are delivery
 metadata. Duplicate Workflow admission must still pass the same PostgreSQL claim, lease token and

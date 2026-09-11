@@ -13,6 +13,8 @@ coverage
 
 # next.js
 .next/
+.open-next/
+dist-workers/
 out/
 build
 .swc/
@@ -35,6 +37,7 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+.env.staging.local
 
 # turbo
 .turbo

@@ -1,0 +1,18 @@
+{
+	"rules": [
+		{
+			"allowed": {
+				"origins": ["https://ezimageai.com"],
+				"methods": ["GET", "HEAD", "PUT"],
+				"headers": [
+					"content-type",
+					"content-md5",
+					"x-amz-checksum-crc32",
+					"x-amz-sdk-checksum-algorithm"
+				]
+			},
+			"exposeHeaders": ["ETag"],
+			"maxAgeSeconds": 3600
+		}
+	]
+}

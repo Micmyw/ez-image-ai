@@ -3,9 +3,20 @@
 	"version": "0.0.0",
 	"main": "./index.ts",
 	"types": "./**/.ts",
+	"imports": {
+		"#remote-media-node-transport": {
+			"workerd": "./lib/remote-media-node-unavailable.ts",
+			"default": "./lib/remote-media-node.ts"
+		},
+		"#image-processor-default": {
+			"workerd": "./image-processing/worker-default.ts",
+			"default": "./image-processing/sharp-default.ts"
+		}
+	},
 	"scripts": {
 		"clean": "git clean -xdf .cache .turbo dist node_modules",
 		"test": "vitest run --exclude \"**/*.integration.test.ts\"",
+		"test:remote-media:workerd": "node test-support/remote-media-workerd-smoke.mjs",
 		"test:minio": "vitest run provider/s3/immutable-upload.minio.integration.test.ts",
 		"test:integration": "pnpm run test:minio",
 		"type-check": "tsc --noEmit"

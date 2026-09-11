@@ -4,7 +4,8 @@
 	"ignorePatterns": [
 		"**/.content-collections/**",
 		"**/prisma/zod/index.ts",
-		"apps/workflows/worker-configuration.d.ts"
+		"apps/workflows/worker-configuration.d.ts",
+		"apps/web-host/worker-configuration.d.ts"
 	],
 	"options": {
 		"typeAware": true

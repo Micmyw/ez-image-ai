@@ -4,6 +4,9 @@
 	"private": true,
 	"scripts": {
 		"build": "next build",
+		"cloudflare:build": "node cloudflare/build.mjs",
+		"cloudflare:preview": "opennextjs-cloudflare preview",
+		"cloudflare:typegen": "wrangler types --env-interface CloudflareEnv --include-runtime false cloudflare-env.d.ts",
 		"clean": "git clean -xdf .cache .turbo dist node_modules .next .content-collections .source",
 		"dev": "next dev --port 3000",
 		"e2e": "pnpm exec playwright test --ui",
@@ -12,6 +15,7 @@
 		"generate": "fumadocs-mdx",
 		"postinstall": "fumadocs-mdx",
 		"test": "vitest run",
+		"test:artifact:workerd": "node cloudflare/artifact-workerd-smoke.mjs",
 		"test:watch": "vitest",
 		"test:coverage": "vitest run --coverage",
 		"type-check": "next typegen && fumadocs-mdx && tsc --noEmit --incremental false"
@@ -20,6 +24,7 @@
 		"@ai-sdk/react": "catalog:",
 		"@bprogress/next": "^3.2.12",
 		"@hookform/resolvers": "catalog:",
+		"@opennextjs/cloudflare": "catalog:",
 		"@orpc/client": "catalog:",
 		"@orpc/tanstack-query": "catalog:",
 		"@prisma/nextjs-monorepo-workaround-plugin": "catalog:",
@@ -82,6 +87,7 @@
 		"postcss": "catalog:",
 		"tailwindcss": "catalog:",
 		"typescript": "catalog:",
-		"vitest": "catalog:"
+		"vitest": "catalog:",
+		"wrangler": "catalog:"
 	}
 }

@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import * as https from "node:https";
 import type { Readable } from "node:stream";
+
+import { requestRemoteHttps } from "#remote-media-node-transport";
 
 import type { MediaContentType } from "../types";
 import {
@@ -9,6 +10,7 @@ import {
 	MediaValidationError,
 	type MediaKind,
 } from "./media-signatures";
+import { currentRemoteMediaTransport } from "./remote-media-runtime";
 import type { RemoteUrlPolicyOptions, ValidatedRemoteUrl } from "./remote-url-policy";
 import { assertAllowedRemoteUrl, RemoteMediaPolicyError } from "./remote-url-policy";
 
@@ -196,7 +198,8 @@ export async function requestRemoteMediaStream(
 	let current: string | URL = initialUrl;
 	for (let redirect = 0; redirect <= options.maxRedirects; redirect += 1) {
 		const validated = await assertAllowedRemoteUrl(current, options);
-		const response = await (options.request ?? requestPinnedHttps)(validated, options);
+		const request = options.request ?? currentRemoteMediaTransport()?.request ?? requestRemoteHttps;
+		const response = await request(validated, options);
 		if (response.status >= 300 && response.status < 400) {
 			response.stream.destroy();
 			const location = response.headers.location;
@@ -257,47 +260,4 @@ async function detectMediaTypeFromStream(
 	const contentType = assertDetectedMediaType(Buffer.concat(headerChunks));
 	assertMediaKind(contentType, expectedKind);
 	return contentType;
-}
-
-function requestPinnedHttps(
-	validated: ValidatedRemoteUrl,
-	options?: RemoteMediaRequestOptions,
-): Promise<RemoteStreamResponse> {
-	return new Promise((resolve, reject) => {
-		const controller = new AbortController();
-		const totalTimer = setTimeout(() => controller.abort(), options?.totalTimeoutMs ?? 600_000);
-		const request = https.request(
-			validated.url,
-			{
-				method: "GET",
-				lookup: validated.lookup,
-				signal: controller.signal,
-				timeout: options?.connectTimeoutMs ?? 5_000,
-				headers: { Accept: "image/*,video/*" },
-			},
-			(response) => {
-				const firstByteTimer = setTimeout(
-					() => response.destroy(new Error("Remote media first-byte timeout")),
-					options?.firstByteTimeoutMs ?? 10_000,
-				);
-				response.once("data", () => clearTimeout(firstByteTimer));
-				response.once("end", () => {
-					clearTimeout(firstByteTimer);
-					clearTimeout(totalTimer);
-				});
-				response.once("close", () => clearTimeout(totalTimer));
-				const headers: Record<string, string | undefined> = {};
-				for (const [name, value] of Object.entries(response.headers)) {
-					headers[name] = Array.isArray(value) ? value[0] : value;
-				}
-				resolve({ status: response.statusCode ?? 0, headers, stream: response });
-			},
-		);
-		request.once("timeout", () => request.destroy(new Error("Remote media connection timeout")));
-		request.once("error", (error) => {
-			clearTimeout(totalTimer);
-			reject(error);
-		});
-		request.end();
-	});
 }

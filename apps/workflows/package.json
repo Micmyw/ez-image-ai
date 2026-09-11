@@ -6,12 +6,16 @@
 		"type-check": "tsc --noEmit --incremental false",
 		"types": "wrangler types",
 		"build": "wrangler deploy --dry-run --outdir dist",
+		"build:workers": "wrangler deploy --config wrangler.workers.jsonc --dry-run --outdir dist-workers",
+		"test:artifact:workerd": "node test-support/artifact-workerd-smoke.mjs",
 		"dev": "wrangler dev",
 		"test": "vitest run"
 	},
 	"dependencies": {
-		"@cloudflare/containers": "0.3.7",
-		"@repo/jobs": "workspace:*"
+		"@cloudflare/containers": "catalog:",
+		"@repo/database": "workspace:*",
+		"@repo/jobs": "workspace:*",
+		"@repo/storage": "workspace:*"
 	},
 	"devDependencies": {
 		"@cloudflare/vitest-plugin": "1.1.4",
@@ -19,6 +23,6 @@
 		"@types/node": "catalog:",
 		"typescript": "catalog:",
 		"vitest": "catalog:",
-		"wrangler": "4.129.0"
+		"wrangler": "catalog:"
 	}
 }

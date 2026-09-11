@@ -1,6 +1,7 @@
 import { type ImageSkuKey } from "@repo/config";
 
-import { Prisma } from "../../generated/client";
+import { Prisma } from "#prisma-runtime-client";
+
 import type { GenerationJobStatus } from "../../generated/client";
 import {
 	type AdminSafeImageProductDefinition,

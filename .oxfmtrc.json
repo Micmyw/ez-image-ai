@@ -23,6 +23,7 @@
 	"sortPackageJson": true,
 	"ignorePatterns": [
 		"apps/workflows/worker-configuration.d.ts",
+		"apps/web-host/worker-configuration.d.ts",
 		"packages/database/prisma/zod/**.ts",
 		"tooling/tailwind/tailwind-animate.css",
 		"docs/product/2026-08-23-ezpic-ai-image-editor-spec.md",

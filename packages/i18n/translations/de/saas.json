@@ -1206,7 +1206,7 @@
 	},
 	"common": {
 		"consent": {
-			"message": "Entscheiden Sie, ob Sie optionale Analyse-Cookies zulassen. Notwendiger Speicher für Seiteneinstellungen und Sicherheit bleibt verfügbar.",
+			"message": "Google Analytics und Microsoft Clarity laufen automatisch. Entscheiden Sie, ob Sie zusätzliche Produktanalysen zulassen. Notwendiger Speicher bleibt verfügbar.",
 			"decline": "Optionale ablehnen",
 			"allow": "Optionale erlauben"
 		},

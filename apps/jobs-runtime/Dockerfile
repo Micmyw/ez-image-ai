@@ -1,5 +1,5 @@
 FROM node:22-bookworm-slim
-RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates openssl && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates openssl fontconfig fonts-dejavu-core && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@11.3.0 --activate
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -7,6 +7,7 @@ COPY packages ./packages
 COPY tooling ./tooling
 COPY apps/jobs-runtime ./apps/jobs-runtime
 COPY apps/workflows/package.json ./apps/workflows/package.json
+COPY apps/web-host/package.json ./apps/web-host/package.json
 COPY apps/saas/package.json ./apps/saas/package.json
 COPY apps/mail-preview/package.json ./apps/mail-preview/package.json
 RUN --mount=type=cache,id=ezpic-jobs-pnpm,target=/pnpm/store \

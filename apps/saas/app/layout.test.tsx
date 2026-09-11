@@ -19,6 +19,7 @@ vi.mock("@config", () => ({
 vi.mock("@repo/ui", () => ({ cn: (...values: string[]) => values.join(" "), Toaster: () => null }));
 vi.mock("@shared/components/ApiClientProvider", () => ({ ApiClientProvider: passthrough }));
 vi.mock("@shared/components/ClientProviders", () => ({ ClientProviders: passthrough }));
+vi.mock("@shared/components/SiteAnalytics", () => ({ SiteAnalytics: () => null }));
 vi.mock("@shared/components/ConsentBanner", () => ({
 	ConsentBanner: () => <aside data-test="consent-banner" />,
 }));
@@ -73,6 +74,7 @@ describe("SaaS root layout", () => {
 
 			expect(markup).toContain(`data-initial-consent="${expected}"`);
 			expect(markup).toContain('data-test="consent-banner"');
+			expect(markup).not.toContain("data-clarity-mask");
 		},
 	);
 

@@ -34,6 +34,8 @@ const mediaProviderAdapterSchema = z.enum([
 
 const rawServerEnvironmentSchema = z.object({
 	NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
+	EZPIC_RUNTIME: z.enum(["node", "workers"]).optional(),
+	EZPIC_DATABASE_BINDING: z.literal("hyperdrive").optional(),
 	MEDIA_GENERATION_ENABLED: booleanStringSchema,
 	MEDIA_MODERATION_ENABLED: booleanStringSchema,
 	BILLING_ENABLED: booleanStringSchema,
@@ -210,13 +212,13 @@ export function validateServerEnvironment(
 		if (parsed.MEDIA_GENERATION_ENABLED) {
 			assertWorkflowsConfiguration(parsed);
 			requireValues(parsed, issues, [
-				"DATABASE_URL",
 				"S3_ENDPOINT",
 				"S3_REGION",
 				"MEDIA_BUCKET_NAME",
 				"S3_ACCESS_KEY_ID",
 				"S3_SECRET_ACCESS_KEY",
 			]);
+			if (!usesHyperdriveDatabase(parsed)) requireValues(parsed, issues, ["DATABASE_URL"]);
 			if (parseMediaEnabledProviders(parsed).length === 0) {
 				issues.push("MEDIA_ENABLED_PROVIDERS");
 			}
@@ -281,6 +283,13 @@ export function validateServerEnvironment(
 			provider: selectedProviderSecrets(parsed),
 		}),
 	};
+}
+
+/** Runtime wrappers verify the actual binding before invoking any business code. */
+export function usesHyperdriveDatabase(environment: Record<string, unknown>): boolean {
+	return (
+		environment.EZPIC_RUNTIME === "workers" && environment.EZPIC_DATABASE_BINDING === "hyperdrive"
+	);
 }
 
 function validateOptionalPaymentProviders(

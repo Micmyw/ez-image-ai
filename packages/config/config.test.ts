@@ -43,6 +43,31 @@ const productionBase = {
 } as const;
 
 describe("validateServerEnvironment", () => {
+	it("accepts explicit Hyperdrive runtime configuration without an origin credential", () => {
+		expect(() =>
+			validateServerEnvironment({
+				...productionBase,
+				DATABASE_URL: undefined,
+				EZPIC_RUNTIME: "workers",
+				EZPIC_DATABASE_BINDING: "hyperdrive",
+			}),
+		).not.toThrow();
+		expect(() =>
+			validateServerEnvironment({
+				...productionBase,
+				DATABASE_URL: undefined,
+				EZPIC_RUNTIME: "workers",
+			}),
+		).toThrow(/DATABASE_URL/);
+		expect(() =>
+			validateServerEnvironment({
+				...productionBase,
+				DATABASE_URL: undefined,
+				EZPIC_RUNTIME: "node",
+				EZPIC_DATABASE_BINDING: "hyperdrive",
+			}),
+		).toThrow(/DATABASE_URL/);
+	});
 	it("accepts authenticated Workflows dispatch without legacy Trigger credentials", () => {
 		expect(() =>
 			validateServerEnvironment({

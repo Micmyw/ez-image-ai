@@ -38,6 +38,7 @@ const commands: Array<{ args: string[]; database: boolean }> = [
 	},
 	{ args: ["--filter", "@repo/jobs", "test"], database: false },
 	{ args: ["--filter", "@repo/workflows", "test"], database: false },
+	{ args: ["--filter", "@repo/web-host", "test"], database: false },
 	{ args: ["--filter", "@repo/jobs-runtime", "test"], database: false },
 	{ args: ["--filter", "@repo/e2e-media", "test:contracts"], database: false },
 	{ args: ["verify:ui-originality:self-test"], database: false },
