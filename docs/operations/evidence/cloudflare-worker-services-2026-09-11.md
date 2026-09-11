@@ -3,6 +3,10 @@
 This evidence covers the three services requested for the Workers deployment profile. It does
 not certify or perform the complete website/background runtime cutover.
 
+This is the provisioning snapshot from before cutover. The subsequent authorized
+[Workers deployment](cloudflare-workers-deployment-2026-09-11.md) completed on September 11;
+see [production status](../cloudflare-production-status.md) for the active application versions.
+
 Account: `44c8c5cb3ce2004d398ff271836bdd2e`.
 
 ## Resource state

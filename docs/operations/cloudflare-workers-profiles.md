@@ -4,6 +4,11 @@
 OpenNext on Workers, Workflows orchestrates tasks, and a private Durable Object executes the
 existing jobs handlers with Cloudflare Images. This profile has no Container resource.
 
+The production cutover completed on September 11, 2026. See
+[current production status](cloudflare-production-status.md) and the
+[deployment evidence](evidence/cloudflare-workers-deployment-2026-09-11.md) for the active
+versions and verification limits. Generation, guest generation and billing remain disabled.
+
 `EZPIC_DEPLOYMENT_PROFILE=hybrid` keeps the same Workers website and moves background execution
 to the existing jobs Container with Sharp. Both profiles use PostgreSQL as business truth and
 private R2 for assets. No schema migration was added by this runtime change.
@@ -75,6 +80,15 @@ website rollback is preserved via `cloudflare:web:build:legacy` and `cloudflare:
 Only after deployment is separately authorized, deploy the generated jobs config and then the
 website config with their corresponding `--secrets-file`. The generated configuration already
 selects a target; do not add `--env`. No preparation or build command deploys a service.
+
+When using Wrangler directly to deploy OpenNext, populate the build's initial remote R2 cache
+with `opennextjs-cloudflare populateCache remote --config <generated-website-config>` before
+serving that build. Run it from `apps/saas` with the same build output and prepared target.
+This is a remote cache write, not a website deployment. The cache utility also constructs a
+local platform proxy; if Hyperdrive local validation requires a connection string, use a
+process-local `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_HYPERDRIVE` such as
+`postgresql://build:build@127.0.0.1:1/build_only`. Cache population does not query PostgreSQL.
+Never copy the production origin password into a build environment or persisted local binding.
 
 ## Runtime and security boundaries
 
