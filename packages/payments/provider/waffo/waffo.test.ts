@@ -1,3 +1,5 @@
+import { generateKeyPairSync, sign } from "node:crypto";
+
 import { describe, expect, it, vi } from "vitest";
 
 import type { CreateCheckoutLinkOptions } from "../../types";
@@ -39,6 +41,43 @@ const creditPackCheckoutOptions: CreateCheckoutLinkOptions = {
 };
 
 describe("Waffo Pancake SDK boundary", () => {
+	it("keeps signed activation and cancellation for the same order distinct while replay stays stable", () => {
+		const { privateKey, publicKey } = generateKeyPairSync("rsa", {
+			modulusLength: 2048,
+			privateKeyEncoding: { type: "pkcs8", format: "pem" },
+			publicKeyEncoding: { type: "spki", format: "pem" },
+		});
+		const verifier = createConfiguredWaffoWebhookVerifier({
+			WAFFO_ENVIRONMENT: "test",
+			WAFFO_STORE_ID: "STO_0123456789AbCdEfGhIjKl",
+			WAFFO_MERCHANT_ID: "MER_0123456789AbCdEfGhIjKl",
+			WAFFO_PRIVATE_KEY: privateKey,
+			WAFFO_WEBHOOK_PUBLIC_KEY: publicKey,
+		});
+		const timestamp = Date.now();
+		const verifyEvent = (eventType: string) => {
+			const body = JSON.stringify({
+				id: "ORD_0123456789AbCdEfGhIjKl",
+				eventId: "ORD_0123456789AbCdEfGhIjKl",
+				eventType,
+				timestamp: new Date(timestamp).toISOString(),
+				mode: "test",
+				storeId: "STO_0123456789AbCdEfGhIjKl",
+				storeName: "EzPic Test",
+				data: { orderId: "ORD_0123456789AbCdEfGhIjKl" },
+			});
+			const signature = sign("sha256", Buffer.from(`${timestamp}.${body}`), privateKey).toString(
+				"base64",
+			);
+			return verifier(body, new Headers({ "x-waffo-signature": `t=${timestamp},v1=${signature}` }));
+		};
+
+		const activation = verifyEvent("subscription.activated");
+		const cancellation = verifyEvent("subscription.canceled");
+		expect(activation.providerEventId).not.toBe(cancellation.providerEventId);
+		expect(verifyEvent("subscription.activated").providerEventId).toBe(activation.providerEventId);
+	});
+
 	it("routes cancellation through the merchant order boundary", async () => {
 		const cancelSubscription = vi.fn().mockResolvedValue({
 			orderId: "ORD_subscription",
@@ -247,7 +286,7 @@ describe("Waffo Pancake SDK boundary", () => {
 		const verifier = createWaffoWebhookVerifier(client, "test", "store-1");
 
 		expect(verifier(rawBody, new Headers({ "x-waffo-signature": "signature-1" }))).toEqual({
-			providerEventId: "delivery-1",
+			providerEventId: "subscription.activated:event-1",
 			normalizedTransactionId: "event-1",
 			providerSubscriptionId: "order-1",
 			envelope: {

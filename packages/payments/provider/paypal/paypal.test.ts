@@ -205,14 +205,85 @@ describe("PayPal REST boundary", () => {
 		});
 	});
 
+	it("reads the original order creation time when a payer-action response omits it", async () => {
+		const request = vi
+			.fn<PayPalHttpBoundary["request"]>()
+			.mockResolvedValueOnce({
+				status: 201,
+				body: {
+					id: "ORDER-PAYER-ACTION",
+					status: "PAYER_ACTION_REQUIRED",
+					links: [{ rel: "payer-action", href: "https://www.sandbox.paypal.com/approve-order" }],
+				},
+			})
+			.mockResolvedValueOnce({
+				status: 200,
+				body: {
+					id: "ORDER-PAYER-ACTION",
+					create_time: "2026-09-06T01:02:03.000Z",
+				},
+			});
+
+		await expect(
+			createPayPalCheckoutLink(
+				{ request },
+				{ accessToken: "access-token", baseUrl: "https://api-m.sandbox.paypal.com" },
+				creditPackCheckoutOptions,
+			),
+		).resolves.toEqual({
+			checkoutUrl: "https://www.sandbox.paypal.com/approve-order",
+			providerSessionId: "ORDER-PAYER-ACTION",
+			expiresAt: new Date("2026-09-06T04:02:03.000Z"),
+		});
+		expect(request).toHaveBeenNthCalledWith(2, {
+			method: "GET",
+			url: "https://api-m.sandbox.paypal.com/v2/checkout/orders/ORDER-PAYER-ACTION",
+			headers: { Authorization: "Bearer access-token" },
+		});
+	});
+
+	it.each([
+		{ status: 200, body: { id: "OTHER-ORDER", create_time: "2026-09-06T01:02:03.000Z" } },
+		{ status: 200, body: { id: "ORDER-PAYER-ACTION" } },
+		{ status: 200, body: { id: "ORDER-PAYER-ACTION", create_time: "invalid" } },
+		{ status: 404, body: { id: "ORDER-PAYER-ACTION", create_time: "2026-09-06T01:02:03.000Z" } },
+	])("keeps an uncertain order unresolved when its details are invalid: %j", async (details) => {
+		const request = vi
+			.fn<PayPalHttpBoundary["request"]>()
+			.mockResolvedValueOnce({
+				status: 200,
+				body: {
+					id: "ORDER-PAYER-ACTION",
+					links: [{ rel: "payer-action", href: "https://www.sandbox.paypal.com/approve-order" }],
+				},
+			})
+			.mockResolvedValueOnce(details);
+
+		await expect(
+			recoverPayPalCheckout(
+				{ request },
+				{ accessToken: "access-token", baseUrl: "https://api-m.sandbox.paypal.com" },
+				{
+					...creditPackCheckoutOptions,
+					providerCreatingAt: new Date("2026-09-06T01:00:00.000Z"),
+					now: new Date("2026-09-06T02:00:00.000Z"),
+				},
+			),
+		).resolves.toEqual({ status: "UNKNOWN" });
+	});
+
 	it("recovers an uncertain checkout through the original PayPal idempotency key", async () => {
-		const request = vi.fn<PayPalHttpBoundary["request"]>().mockResolvedValue({
+		const request = vi.fn<PayPalHttpBoundary["request"]>();
+		request.mockResolvedValueOnce({
 			status: 200,
 			body: {
 				id: "ORDER-RECOVERED",
-				create_time: "2026-09-06T01:02:03.000Z",
 				links: [{ rel: "approve", href: "https://www.sandbox.paypal.com/recovered" }],
 			},
+		});
+		request.mockResolvedValueOnce({
+			status: 200,
+			body: { id: "ORDER-RECOVERED", create_time: "2026-09-06T01:02:03.000Z" },
 		});
 
 		await expect(

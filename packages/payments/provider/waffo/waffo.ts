@@ -5,6 +5,7 @@ import type {
 	RecoverCheckoutOptions,
 } from "../../types";
 import type { VerifiedPaymentEvent } from "../webhook";
+import { getWaffoEventId } from "./event-id";
 
 type WaffoEnvironment = "test" | "prod";
 
@@ -161,17 +162,17 @@ export function createWaffoWebhookVerifier(
 		const signature = headers.get("x-waffo-signature");
 		if (!signature) throw new Error("WAFFO_WEBHOOK_SIGNATURE_MISSING");
 		const verified = recordValue(client.webhooks.verify(rawBody, signature, { environment }));
-		const providerEventId = stringValue(verified?.id);
-		if (!verified || !providerEventId) throw new Error("WAFFO_WEBHOOK_EVENT_INVALID");
+		if (!verified || !stringValue(verified.id)) throw new Error("WAFFO_WEBHOOK_EVENT_INVALID");
 		if (verified.mode !== environment) {
 			throw new Error("WAFFO_WEBHOOK_MODE_MISMATCH");
 		}
 		if (verified.storeId !== storeId) {
 			throw new Error("WAFFO_WEBHOOK_STORE_MISMATCH");
 		}
+		if (!stringValue(verified.eventId)) throw new Error("WAFFO_WEBHOOK_EVENT_INVALID");
 		const data = recordValue(verified.data);
 		return {
-			providerEventId,
+			providerEventId: getWaffoEventId(verified),
 			normalizedTransactionId: stringValue(verified.eventId) ?? undefined,
 			providerSubscriptionId: stringValue(data?.orderId) ?? undefined,
 			envelope: verified,

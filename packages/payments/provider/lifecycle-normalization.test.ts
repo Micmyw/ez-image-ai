@@ -6,6 +6,54 @@ import {
 } from "./lifecycle-normalization";
 
 describe("PayPal and Waffo lifecycle normalization", () => {
+	it("accepts the documented Waffo payment receipt without inventing subscription dates", () => {
+		const normalized = normalizeProviderBillingEvent("waffo", {
+			id: "PAY_0123456789AbCdEfGhIjKl",
+			eventId: "PAY_0123456789AbCdEfGhIjKl",
+			eventType: "subscription.payment_succeeded",
+			timestamp: "2026-09-11T00:00:01Z",
+			mode: "test",
+			data: {
+				orderId: "ORD_0123456789AbCdEfGhIjKl",
+				merchantProvidedBuyerIdentity: "USER:user-1",
+				orderMerchantExternalId: "checkout-intent-1",
+				currency: "USD",
+				amount: "19.00",
+				paymentId: "PAY_0123456789AbCdEfGhIjKl",
+				paymentStatus: "succeeded",
+			},
+		});
+
+		expect(normalized.currentPeriod).toBeNull();
+		expect(normalized.payment).toEqual({
+			providerPaymentId: "PAY_0123456789AbCdEfGhIjKl",
+			amountMicros: 19_000_000n,
+			currency: "USD",
+			periodStart: null,
+			periodEnd: null,
+		});
+	});
+
+	it.each(["subscription.renewed", "subscription.recovered"])(
+		"accepts %s as a period update without issuing credits",
+		(eventType) => {
+			const normalized = normalizeProviderBillingEvent("waffo", {
+				id: "ORD_renewal",
+				eventId: "ORD_renewal-2026-10-11",
+				eventType,
+				timestamp: "2026-09-11T00:00:00Z",
+				data: {
+					orderId: "ORD_renewal",
+					currentPeriodStart: "2026-09-11T00:00:00Z",
+					currentPeriodEnd: "2026-10-11T00:00:00Z",
+				},
+			});
+			expect(normalized.status).toBe("ACTIVE");
+			expect(normalized.payment).toBeNull();
+			expect(normalized.currentPeriod?.periodEnd).toEqual(new Date("2026-10-11T00:00:00Z"));
+		},
+	);
+
 	it("normalizes the official Waffo activation shape without inventing a payment", () => {
 		expect(
 			normalizeProviderBillingEvent("waffo", {
@@ -26,7 +74,7 @@ describe("PayPal and Waffo lifecycle normalization", () => {
 			}),
 		).toEqual({
 			provider: "waffo",
-			providerEventId: "delivery-1",
+			providerEventId: "subscription.activated:business-event-1",
 			providerSubscriptionId: "ORD-SUBSCRIPTION",
 			checkoutIntentId: "checkout-intent-1",
 			providerCustomerId: "USER:user-1",
@@ -62,7 +110,7 @@ describe("PayPal and Waffo lifecycle normalization", () => {
 			}),
 		).toMatchObject({
 			provider: "waffo",
-			providerEventId: "delivery-2",
+			providerEventId: "subscription.payment_succeeded:business-event-2",
 			providerSubscriptionId: "ORD-SUBSCRIPTION",
 			payment: {
 				providerPaymentId: "PAYMENT-1",
@@ -248,7 +296,7 @@ describe("PayPal and Waffo lifecycle normalization", () => {
 			kind: "CREDIT_PACK_PAID",
 			fact: {
 				provider: "waffo",
-				providerEventId: "delivery-pack-1",
+				providerEventId: "order.completed:business-event-1",
 				checkoutIntentId: "checkout-intent-pack-1",
 				providerOrderId: "ORDER-1",
 				providerPaymentId: "PAYMENT-1",

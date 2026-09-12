@@ -139,16 +139,16 @@ describe("PayPal subscription payment recovery", () => {
 		await client.$disconnect();
 	});
 
-	it("recovers a sale-first delivery and grants each PayPal payment exactly once", async () => {
+	it("recovers a sale-first delivery with different billing hours and grants each payment once", async () => {
 		const firstSale = await createSaleEvent(client, {
 			eventId: `PAYPAL-SALE-FIRST-${RUN_ID}`,
 			paymentId: firstPaymentId,
-			occurredAt: "2026-01-31T00:00:00.000Z",
+			occurredAt: "2026-01-31T15:09:28.000Z",
 		});
 		const duplicateSale = await createSaleEvent(client, {
 			eventId: `PAYPAL-SALE-DUPLICATE-DELIVERY-${RUN_ID}`,
 			paymentId: firstPaymentId,
-			occurredAt: "2026-01-31T00:00:30.000Z",
+			occurredAt: "2026-01-31T15:09:58.000Z",
 		});
 
 		await expect(
@@ -227,21 +227,21 @@ describe("PayPal subscription payment recovery", () => {
 				provider: "paypal",
 				providerEventId: activationEventId,
 				providerSubscriptionId,
-				verifiedAt: new Date("2026-01-31T00:01:00.000Z"),
+				verifiedAt: new Date("2026-01-31T15:10:28.000Z"),
 				envelope: {
 					id: activationEventId,
 					event_type: "BILLING.SUBSCRIPTION.ACTIVATED",
-					create_time: "2026-01-31T00:01:00.000Z",
+					create_time: "2026-01-31T15:10:28.000Z",
 					resource: {
 						id: providerSubscriptionId,
 						custom_id: checkoutIntentId,
 						subscriber: { payer_id: `PAYER-${RUN_ID}` },
 						billing_info: {
 							last_payment: {
-								time: "2026-01-31T00:00:00.000Z",
+								time: "2026-01-31T15:09:28.000Z",
 								amount: { value: "19.00", currency_code: "USD" },
 							},
-							next_billing_time: "2026-02-28T00:00:00.000Z",
+							next_billing_time: "2026-02-28T10:00:00.000Z",
 						},
 					},
 				},
@@ -256,21 +256,21 @@ describe("PayPal subscription payment recovery", () => {
 				provider: "paypal",
 				providerEventId: replayActivationEventId,
 				providerSubscriptionId,
-				verifiedAt: new Date("2026-01-31T00:02:00.000Z"),
+				verifiedAt: new Date("2026-01-31T15:11:28.000Z"),
 				envelope: {
 					id: replayActivationEventId,
 					event_type: "BILLING.SUBSCRIPTION.ACTIVATED",
-					create_time: "2026-01-31T00:02:00.000Z",
+					create_time: "2026-01-31T15:11:28.000Z",
 					resource: {
 						id: providerSubscriptionId,
 						custom_id: checkoutIntentId,
 						subscriber: { payer_id: `PAYER-${RUN_ID}` },
 						billing_info: {
 							last_payment: {
-								time: "2026-01-31T00:00:00.000Z",
+								time: "2026-01-31T15:09:28.000Z",
 								amount: { value: "19.00", currency_code: "USD" },
 							},
-							next_billing_time: "2026-02-28T00:00:00.000Z",
+							next_billing_time: "2026-02-28T10:00:00.000Z",
 						},
 					},
 				},
@@ -370,7 +370,7 @@ describe("PayPal subscription payment recovery", () => {
 		const renewal = await createSaleEvent(client, {
 			eventId: `PAYPAL-SALE-RENEWAL-${RUN_ID}`,
 			paymentId: renewalPaymentId,
-			occurredAt: "2026-02-28T00:00:00.000Z",
+			occurredAt: "2026-02-28T10:00:00.000Z",
 		});
 		await expect(
 			processProviderPaymentEvent({ paymentEventId: renewal.id }, client),
@@ -390,13 +390,13 @@ describe("PayPal subscription payment recovery", () => {
 		});
 		expect(subscription.periods).toMatchObject([
 			{
-				startsAt: new Date("2026-01-31T00:00:00.000Z"),
-				endsAt: new Date("2026-02-28T00:00:00.000Z"),
+				startsAt: new Date("2026-01-31T15:09:28.000Z"),
+				endsAt: new Date("2026-02-28T10:00:00.000Z"),
 				providerInvoicePaymentId: `paypal:${firstPaymentId}`,
 			},
 			{
-				startsAt: new Date("2026-02-28T00:00:00.000Z"),
-				endsAt: new Date("2026-03-31T00:00:00.000Z"),
+				startsAt: new Date("2026-02-28T10:00:00.000Z"),
+				endsAt: new Date("2026-03-31T10:00:00.000Z"),
 				providerInvoicePaymentId: `paypal:${renewalPaymentId}`,
 			},
 		]);
@@ -412,7 +412,7 @@ describe("PayPal subscription payment recovery", () => {
 		).resolves.toBe(2);
 	});
 
-	it("derives leap-year annual renewals from persisted PayPal subscription timing", async () => {
+	it("preserves different billing hours through annual replay and leap-year renewal", async () => {
 		await client.user.create({
 			data: {
 				id: annualOwnerId,
@@ -470,21 +470,21 @@ describe("PayPal subscription payment recovery", () => {
 				provider: "paypal",
 				providerEventId: activationEventId,
 				providerSubscriptionId: annualSubscriptionId,
-				verifiedAt: new Date("2028-02-29T00:01:00.000Z"),
+				verifiedAt: new Date("2028-02-29T08:16:00.000Z"),
 				envelope: {
 					id: activationEventId,
 					event_type: "BILLING.SUBSCRIPTION.ACTIVATED",
-					create_time: "2028-02-29T00:01:00.000Z",
+					create_time: "2028-02-29T08:16:00.000Z",
 					resource: {
 						id: annualSubscriptionId,
 						custom_id: checkout.intent.id,
 						subscriber: { payer_id: `PAYER-ANNUAL-${RUN_ID}` },
 						billing_info: {
 							last_payment: {
-								time: "2028-02-29T00:00:00.000Z",
+								time: "2028-02-29T08:15:00.000Z",
 								amount: { value: "19.00", currency_code: "USD" },
 							},
-							next_billing_time: "2029-02-28T00:00:00.000Z",
+							next_billing_time: "2029-02-28T10:00:00.000Z",
 						},
 					},
 				},
@@ -498,7 +498,7 @@ describe("PayPal subscription payment recovery", () => {
 		const firstSale = await createSaleEvent(client, {
 			eventId: `PAYPAL-ANNUAL-SALE-FIRST-${RUN_ID}`,
 			paymentId: firstAnnualPaymentId,
-			occurredAt: "2028-02-29T00:00:00.000Z",
+			occurredAt: "2028-02-29T08:15:00.000Z",
 			providerSubscriptionId: annualSubscriptionId,
 		});
 		await expect(
@@ -506,10 +506,20 @@ describe("PayPal subscription payment recovery", () => {
 		).resolves.toEqual({ outcome: "PROCESSED", grantsCreated: 1 });
 
 		const renewalAnnualPaymentId = `SALE-ANNUAL-RENEWAL-${RUN_ID}`;
+		const duplicateAnnualSale = await createSaleEvent(client, {
+			eventId: `PAYPAL-ANNUAL-SALE-DUPLICATE-${RUN_ID}`,
+			paymentId: firstAnnualPaymentId,
+			occurredAt: "2028-02-29T08:15:30.000Z",
+			providerSubscriptionId: annualSubscriptionId,
+		});
+		await expect(
+			processProviderPaymentEvent({ paymentEventId: duplicateAnnualSale.id }, client),
+		).resolves.toEqual({ outcome: "PROCESSED", grantsCreated: 0 });
+
 		const renewal = await createSaleEvent(client, {
 			eventId: `PAYPAL-ANNUAL-SALE-RENEWAL-${RUN_ID}`,
 			paymentId: renewalAnnualPaymentId,
-			occurredAt: "2029-02-28T00:00:00.000Z",
+			occurredAt: "2029-02-28T10:00:00.000Z",
 			providerSubscriptionId: annualSubscriptionId,
 		});
 		await expect(
@@ -526,17 +536,17 @@ describe("PayPal subscription payment recovery", () => {
 		});
 		expect(firstPeriods).toHaveLength(12);
 		expect(firstPeriods[0]).toMatchObject({
-			startsAt: new Date("2028-02-29T00:00:00.000Z"),
+			startsAt: new Date("2028-02-29T08:15:00.000Z"),
 		});
 		expect(firstPeriods[firstPeriods.length - 1]).toMatchObject({
-			endsAt: new Date("2029-02-28T00:00:00.000Z"),
+			endsAt: new Date("2029-02-28T10:00:00.000Z"),
 		});
 		expect(renewalPeriods).toHaveLength(12);
 		expect(renewalPeriods[0]).toMatchObject({
-			startsAt: new Date("2029-02-28T00:00:00.000Z"),
+			startsAt: new Date("2029-02-28T10:00:00.000Z"),
 		});
 		expect(renewalPeriods[renewalPeriods.length - 1]).toMatchObject({
-			endsAt: new Date("2030-02-28T00:00:00.000Z"),
+			endsAt: new Date("2030-02-28T10:00:00.000Z"),
 		});
 		await expect(
 			client.creditLedgerEntry.count({

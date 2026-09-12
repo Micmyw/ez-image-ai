@@ -1,4 +1,5 @@
 import type { PaymentProviderName } from "../types";
+import { getWaffoEventId } from "./waffo/event-id";
 
 export interface ProviderPaymentFact {
 	providerPaymentId: string;
@@ -94,7 +95,7 @@ function normalizeWaffoEvent(value: unknown): ProviderBillingFact {
 	}
 	const status = waffoStatus(eventType);
 	const data = requiredRecord(envelope.data, "WAFFO_EVENT_DATA_MISSING");
-	const providerEventId = requiredString(envelope.id, "WAFFO_EVENT_ID_MISSING");
+	const providerEventId = getWaffoEventId(envelope);
 	const providerSubscriptionId = requiredString(data.orderId, "WAFFO_SUBSCRIPTION_ID_MISSING");
 	const occurredAt = requiredDate(envelope.timestamp, "WAFFO_EVENT_TIME_INVALID");
 	const payment =
@@ -119,16 +120,17 @@ function normalizeWaffoEvent(value: unknown): ProviderBillingFact {
 }
 
 function normalizeWaffoPayment(data: Record<string, unknown>): ProviderPaymentFact {
+	const period = optionalPeriod(
+		data.currentPeriodStart,
+		data.currentPeriodEnd,
+		"WAFFO_PAYMENT_PERIOD_INVALID",
+	);
 	return {
 		providerPaymentId: requiredString(data.paymentId, "WAFFO_PAYMENT_ID_MISSING"),
 		amountMicros: decimalMicros(data.amount, "WAFFO_PAYMENT_AMOUNT_INVALID"),
 		currency: currency(data.currency, "WAFFO_PAYMENT_CURRENCY_INVALID"),
-		periodStart: requiredDate(data.currentPeriodStart, "WAFFO_PAYMENT_PERIOD_INVALID"),
-		periodEnd: requiredPeriodEnd(
-			data.currentPeriodStart,
-			data.currentPeriodEnd,
-			"WAFFO_PAYMENT_PERIOD_INVALID",
-		),
+		periodStart: period?.periodStart ?? null,
+		periodEnd: period?.periodEnd ?? null,
 	};
 }
 
@@ -144,7 +146,7 @@ function normalizeWaffoCreditPackPayment(envelope: Record<string, unknown>): Cre
 	}
 	return {
 		provider: "waffo",
-		providerEventId: requiredString(envelope.id, "WAFFO_EVENT_ID_MISSING"),
+		providerEventId: getWaffoEventId(envelope),
 		checkoutIntentId: optionalString(data.orderMerchantExternalId),
 		providerOrderId: requiredString(data.orderId, "WAFFO_ORDER_ID_MISSING"),
 		providerPaymentId: requiredString(
@@ -161,6 +163,8 @@ function normalizeWaffoCreditPackPayment(envelope: Record<string, unknown>): Cre
 function waffoStatus(eventType: string): ProviderBillingFact["status"] {
 	switch (eventType) {
 		case "subscription.activated":
+		case "subscription.renewed":
+		case "subscription.recovered":
 		case "subscription.payment_succeeded":
 		case "subscription.uncanceled":
 		case "subscription.canceling":

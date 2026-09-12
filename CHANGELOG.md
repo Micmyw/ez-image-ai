@@ -2,6 +2,26 @@
 
 ## 2026-09-11
 
+### PayPal sandbox checkout
+
+- Validate PayPal billing periods by calendar date while retaining its original payment and
+  next-billing timestamps, so different billing hours do not block subscription credits.
+- Cover monthly and annual fulfillment, leap-year renewal, and duplicate payment delivery
+  with the different times of day observed in Sandbox.
+- Recover missing order creation timestamps from the same PayPal order's details so
+  successful credit-pack checkout and idempotent recovery retain the original expiry.
+- Reject mismatched or incomplete order details and document isolated sandbox configuration,
+  subscription plans, credit-pack mappings, and webhook lifecycle requirements.
+
+### Waffo test checkout and payment notifications
+
+- Deduplicate Waffo notifications by event type and business event ID so activation and
+  cancellation of the same order remain separate events.
+- Accept payment receipts without billing dates and wait for authenticated activation,
+  renewal, or recovery periods before granting credits. Delayed receipts preserve cancellation
+  state and reuse the existing durable retry and immutable ledger paths.
+- Added signed-envelope and database regressions plus a local Waffo sandbox setup guide.
+
 ### Dependency security fixes
 
 - Updated Sharp to 0.35.4, including transitive image-processing dependencies, and Nodemailer

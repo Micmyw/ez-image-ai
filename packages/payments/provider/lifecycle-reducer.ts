@@ -6,12 +6,13 @@ import {
 	type Prisma,
 } from "@repo/database";
 
+import { isProviderBillingInterval } from "./billing-periods";
 import type {
 	ProviderBillingFact,
 	ProviderBillingPeriodFact,
 	ProviderPaymentFact,
 } from "./lifecycle-normalization";
-import { createAnnualBillingPeriods, isExactBillingInterval } from "./stripe/events";
+import { createAnnualBillingPeriods } from "./stripe/events";
 
 type TransactionClient = Prisma.TransactionClient;
 type ResolvedProviderPayment = Omit<ProviderPaymentFact, "periodStart" | "periodEnd"> & {
@@ -95,14 +96,14 @@ export async function applyProviderBillingFact(
 	}
 
 	const lifecyclePeriod = fact.currentPeriod
-		? validateLifecyclePeriod(fact.currentPeriod, subscription.plan.metadata)
+		? validateLifecyclePeriod(fact.provider, fact.currentPeriod, subscription.plan.metadata)
 		: null;
 	const paymentPeriod = fact.payment ? await validatePayment(fact, subscription, client) : null;
 	const currentPeriod = paymentPeriod ?? lifecyclePeriod;
 	const preserveSubscriptionEvent =
 		subscriptionExisted &&
-		paymentPeriod?.allowsStaleEvent === true &&
-		isEventStale(fact, subscription);
+		((fact.provider === "waffo" && paymentPeriod !== null && fact.currentPeriod === null) ||
+			(paymentPeriod?.allowsStaleEvent === true && isEventStale(fact, subscription)));
 	if (subscriptionExisted && !preserveSubscriptionEvent) {
 		assertEventOrdering(fact, subscription);
 	}
@@ -166,12 +167,7 @@ export async function applyProviderBillingFact(
 				client,
 			)
 		: 0;
-	if (
-		fact.provider === "paypal" &&
-		fact.status === "ACTIVE" &&
-		fact.currentPeriod &&
-		!fact.payment
-	) {
+	if (fact.status === "ACTIVE" && fact.currentPeriod && !fact.payment) {
 		await requeuePaymentEventsMissingCheckoutCorrelation(
 			{
 				provider: fact.provider,
@@ -448,7 +444,7 @@ async function validatePayment(
 			) ||
 			(payment.periodStart && payment.periodStart.getTime() !== first.startsAt.getTime()) ||
 			(payment.periodEnd && payment.periodEnd.getTime() !== last.endsAt.getTime()) ||
-			!isExactBillingInterval({
+			!isProviderBillingInterval(fact.provider, {
 				interval,
 				startsAt: first.startsAt,
 				endsAt: last.endsAt,
@@ -469,11 +465,7 @@ async function validatePayment(
 	let periodEnd = payment.periodEnd;
 	let allowsStaleEvent = false;
 	if (!periodStart && !periodEnd) {
-		if (
-			fact.provider !== "paypal" ||
-			!subscription.currentPeriodStart ||
-			!subscription.currentPeriodEnd
-		) {
+		if (!subscription.currentPeriodStart || !subscription.currentPeriodEnd) {
 			throw new Error(PAYMENT_PROVIDER_CORRELATION_MISSING);
 		}
 		if (
@@ -483,6 +475,10 @@ async function validatePayment(
 			periodStart = subscription.currentPeriodStart;
 			periodEnd = subscription.currentPeriodEnd;
 			allowsStaleEvent = true;
+		} else if (fact.provider === "waffo") {
+			// Receipts have no billing dates. Wait for an authenticated activation,
+			// renewal or recovery event instead of inventing the next Waffo period.
+			throw new Error(PAYMENT_PROVIDER_CORRELATION_MISSING);
 		} else {
 			periodStart = subscription.currentPeriodEnd;
 			periodEnd = nextPeriodEndFromTrustedBounds(
@@ -498,7 +494,7 @@ async function validatePayment(
 		throw new Error("PAYMENT_PROVIDER_PERIOD_MISMATCH");
 	}
 	if (
-		!isExactBillingInterval({
+		!isProviderBillingInterval(fact.provider, {
 			interval,
 			startsAt: periodStart,
 			endsAt: periodEnd,
@@ -516,13 +512,14 @@ async function validatePayment(
 }
 
 function validateLifecyclePeriod(
+	provider: "paypal" | "waffo",
 	period: ProviderBillingPeriodFact,
 	metadata: Prisma.JsonValue,
 ): ProviderBillingPeriodFact {
 	const interval = jsonString(metadata, "interval");
 	if (
 		(interval !== "month" && interval !== "year") ||
-		!isExactBillingInterval({
+		!isProviderBillingInterval(provider, {
 			interval,
 			startsAt: period.periodStart,
 			endsAt: period.periodEnd,

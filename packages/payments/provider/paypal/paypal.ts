@@ -199,7 +199,6 @@ async function createPayPalOrderCheckoutLink(
 	});
 	const body = recordValue(response.body);
 	const providerSessionId = stringValue(body?.id);
-	const createdAt = new Date(stringValue(body?.create_time) ?? "");
 	const links = Array.isArray(body?.links) ? body.links : [];
 	const approval = links
 		.map(recordValue)
@@ -209,14 +208,26 @@ async function createPayPalOrderCheckoutLink(
 				Boolean(stringValue(link?.href)),
 		);
 	const checkoutUrl = stringValue(approval?.href);
-	if (
-		(response.status !== 200 && response.status !== 201) ||
-		!providerSessionId ||
-		!checkoutUrl ||
-		Number.isNaN(createdAt.getTime())
-	) {
+	if ((response.status !== 200 && response.status !== 201) || !providerSessionId || !checkoutUrl) {
 		throw new Error("PAYPAL_CHECKOUT_RESPONSE_INVALID");
 	}
+	let creationTime = body?.create_time;
+	if (creationTime === undefined || creationTime === null) {
+		// Payer-action responses can omit create_time even with return=representation.
+		// Read the same order so retries retain its original expiration deadline.
+		const detailsResponse = await http.request({
+			method: "GET",
+			url: `${configuration.baseUrl}/v2/checkout/orders/${encodeURIComponent(providerSessionId)}`,
+			headers: { Authorization: `Bearer ${configuration.accessToken}` },
+		});
+		const details = recordValue(detailsResponse.body);
+		if (detailsResponse.status !== 200 || stringValue(details?.id) !== providerSessionId) {
+			throw new Error("PAYPAL_CHECKOUT_RESPONSE_INVALID");
+		}
+		creationTime = details?.create_time;
+	}
+	const createdAt = new Date(stringValue(creationTime) ?? "");
+	if (Number.isNaN(createdAt.getTime())) throw new Error("PAYPAL_CHECKOUT_RESPONSE_INVALID");
 	return {
 		checkoutUrl,
 		providerSessionId,
