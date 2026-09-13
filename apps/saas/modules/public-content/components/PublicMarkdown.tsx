@@ -125,9 +125,22 @@ function collectList(
 
 function renderInline(text: string): ReactNode[] {
 	return text
-		.split(/(`[^`]+`|\*\*[^*]+\*\*|_[^_]+_)/g)
+		.split(/(\[[^\]]+\]\([^\s)]+\)|`[^`]+`|\*\*[^*]+\*\*|_[^_]+_)/g)
 		.filter(Boolean)
 		.map((part, index) => {
+			const link = /^\[([^\]]+)\]\((\/[^\s)]*)\)$/.exec(part);
+			// Public editorial content links to same-origin routes only.
+			if (link && !link[2]!.startsWith("//") && !link[2]!.includes("\\")) {
+				return (
+					<a
+						key={index}
+						href={link[2]}
+						className="text-violet-200 hover:text-white underline underline-offset-4"
+					>
+						{link[1]}
+					</a>
+				);
+			}
 			if (part.startsWith("`") && part.endsWith("`")) {
 				return <code key={index}>{part.slice(1, -1)}</code>;
 			}

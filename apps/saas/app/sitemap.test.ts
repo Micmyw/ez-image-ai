@@ -15,8 +15,25 @@ describe("consolidated SaaS sitemap", () => {
 		const entries = sitemap();
 		const urls = entries.map(({ url }) => new URL(url));
 
-		expect(urls.map(({ pathname }) => pathname)).toEqual(["/", "/pricing", "/privacy", "/terms"]);
+		expect(urls.map(({ pathname }) => pathname).sort()).toEqual(
+			[
+				"/",
+				"/pricing",
+				"/privacy",
+				"/terms",
+				"/blog",
+				"/blog/private-image-editing-workflow",
+				"/blog/ai-image-editing-prompts",
+				"/docs",
+				"/docs/quick-start",
+				"/docs/image-editing",
+				"/docs/credits",
+				"/docs/privacy",
+			].sort(),
+		);
 		expect(urls.every(({ origin }) => origin === "https://www.ezpic.test")).toBe(true);
 		expect(new Set(urls.map(({ href }) => href)).size).toBe(urls.length);
+		// Rebuilding must not manufacture a content modification date.
+		expect(entries.every((entry) => entry.lastModified === undefined)).toBe(true);
 	});
 });

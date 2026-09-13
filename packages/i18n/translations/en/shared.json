@@ -97,6 +97,8 @@
 		"trialPeriod": "{days} {days, plural, one {day} other {days}} free trial",
 		"year": "{count, plural, one {year} other {{count} years}}",
 		"yearly": "Yearly",
-		"perSeat": "seat"
+		"perSeat": "seat",
+		"subscriptionAlreadyExists": "You already have a subscription. Manage it in Billing. To switch plans or payment methods, cancel renewal and wait until the current subscription ends.",
+		"checkoutAlreadyPending": "A subscription checkout is already in progress. Complete the existing checkout before starting another. If its status is unclear, contact support."
 	}
 }

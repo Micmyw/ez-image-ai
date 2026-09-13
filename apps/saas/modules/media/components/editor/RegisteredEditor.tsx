@@ -16,14 +16,15 @@ import {
 import { db } from "@repo/database/client";
 import { cookies } from "next/headers";
 
-interface CreatePageFilters {
+export interface CreatePageFilters {
+	model?: string;
 	reuseJob?: string;
 	asset?: string;
 	draftError?: string;
 	parentJob?: string;
 }
 
-export default async function CreatePage({
+export async function RegisteredEditor({
 	searchParams,
 }: {
 	searchParams: Promise<CreatePageFilters>;

@@ -2,6 +2,7 @@
 
 import { getPublicConfig } from "@repo/config/client";
 import { Button } from "@repo/ui/components/button";
+import { UploadCloudIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { type ClipboardEvent, useCallback } from "react";
 import { useDropzone } from "react-dropzone";
@@ -27,14 +28,17 @@ export interface MediaUploaderProps {
 	onChange: (assetIds: string[]) => void;
 	multiple?: boolean;
 	maximumImageBytes?: number;
+	compact?: boolean;
 }
 
 export function MediaUploader({
 	onChange,
 	multiple = true,
 	maximumImageBytes = publicProductConfig.uploadLimits.imageBytes,
+	compact = false,
 }: MediaUploaderProps) {
 	const t = useTranslations("media.uploader");
+	const studio = useTranslations("studio");
 	const uploader = useMediaUpload(onChange);
 	const addFiles = uploader.addFiles;
 	const imageByteLimit = Math.min(maximumImageBytes, publicProductConfig.uploadLimits.imageBytes);
@@ -69,12 +73,21 @@ export function MediaUploader({
 			<div
 				{...getRootProps()}
 				onPaste={onPaste}
-				className="p-6 rounded-lg border border-dashed text-center focus-visible:ring-2 focus-visible:outline-none"
+				className={
+					compact
+						? "studio-upload min-h-32 p-3 text-xs rounded-xl border border-dashed text-center focus-visible:ring-2 focus-visible:outline-none"
+						: "p-6 rounded-lg border border-dashed text-center focus-visible:ring-2 focus-visible:outline-none"
+				}
 				aria-label={t("label")}
 			>
 				<input {...getInputProps()} />
-				<p>{isDragActive ? t("active") : t("idle")}</p>
-				<p className="text-sm text-muted-foreground">
+				{compact && <UploadCloudIcon className="mb-3 size-6 text-violet-300 mx-auto" aria-hidden />}
+				<p>{isDragActive ? t("active") : compact ? studio("upload") : t("idle")}</p>
+				<p
+					className={
+						compact ? "mt-2 text-[10px] text-muted-foreground" : "text-sm text-muted-foreground"
+					}
+				>
 					{t("limit", { megabytes: Math.round(imageByteLimit / 1024 / 1024) })}
 				</p>
 			</div>
@@ -89,7 +102,7 @@ export function MediaUploader({
 							<div className="min-w-0 flex-1">
 								<p className="truncate">{item.file.name}</p>
 								<p className="text-sm text-muted-foreground">
-									{item.status} · {item.progress}%
+									{t(`status.${item.status}`)} · {item.progress}%
 								</p>
 								{item.error && (
 									<p role="alert" className="text-sm text-destructive">

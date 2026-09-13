@@ -147,7 +147,7 @@ async function queueGuestAssetCleanup(
 					? { uploadSessionId: uploadSession.id, reservationStatus: "RELEASED" }
 					: asset.kind === "OUTPUT"
 						? { storageReservationReferenceKey: `generation-output:${asset.id}` }
-						: {}),
+						: { storageReservationReferenceKey: `media-draft:${asset.id}` }),
 			},
 		},
 		asset.id,
@@ -571,8 +571,31 @@ async function removeExpiredGuestPrincipals(
 	`;
 
 	await tx.guestResultAccessGrant.deleteMany({ where: { expiresAt: { lte: input.now } } });
-	await tx.guestLinkIntent.deleteMany({ where: { expiresAt: { lte: input.now } } });
-	await tx.guestSessionBootstrap.deleteMany({ where: { expiresAt: { lte: input.now } } });
+	// Expired markers remain the discovery path for anonymous owners excluded by
+	// live sessions, LIMIT, or SKIP LOCKED. Prune them only with that owner's batch.
+	const selectedOwnerIds = ownerCandidates.map(({ id }) => id);
+	await tx.guestLinkIntent.deleteMany({
+		where: {
+			expiresAt: { lte: input.now },
+			OR: [
+				{ anonymousOwnerId: { in: selectedOwnerIds } },
+				{ anonymousOwner: { isAnonymous: false } },
+			],
+		},
+	});
+	await tx.guestSessionBootstrap.deleteMany({
+		where: {
+			expiresAt: { lte: input.now },
+			OR: [
+				{ ownerId: { in: selectedOwnerIds } },
+				{ owner: { isAnonymous: false } },
+				{
+					ownerId: null,
+					OR: [{ principalLeaseExpiresAt: null }, { principalLeaseExpiresAt: { lte: input.now } }],
+				},
+			],
+		},
+	});
 	await tx.session.deleteMany({
 		where: { expiresAt: { lte: input.now }, user: { isAnonymous: true } },
 	});

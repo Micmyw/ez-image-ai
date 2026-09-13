@@ -1,65 +1,25 @@
 ---
 name: verify-changes
-description: Use when validating a repository change before handoff, commit, or pull-request review.
+description: Select focused tests or reproduce CI checks for this monorepo when a change spans packages or needs release verification.
 ---
 
 # Verify changes
 
-## Scope
+Use this command map when check selection is unclear. Small isolated edits need the affected tests and file/workspace checks; cross-workspace, high-risk, release, or requested CI-parity work uses the full relevant gates.
 
-Use for the final repository gates and for selecting focused tests. Do not use this as a substitute for testing the changed behavior while implementing it.
+## Select checks
 
-## Procedure
+- Inspect scope with `git status --short`, `git diff --stat`, and `git diff --check`.
+- Run focused Vitest tests in the owning workspace, for example `pnpm --filter @repo/api test <test-file>` or `pnpm --filter saas test <test-file>`. The current combined unit command is `pnpm --filter @repo/api --filter saas test`; `.github/workflows/validate-prs.yml` is authoritative for CI.
+- Use a focused Playwright spec when the changed route, rendering, auth, navigation, or form behavior needs browser coverage. Tests live in `apps/saas/tests`. Use the full owning-app path `pnpm --filter saas e2e:ci` when impact or release scope requires it. Pure docs/server/unit changes do not need an unrelated browser suite.
+- Playwright owns an isolated Webpack development server and does not reuse an existing one. Set `E2E_USE_PRODUCTION_BUILD=true` when production-bundle behavior is part of the evidence.
+- Foundation media workflow changes use `pnpm e2e:media:ci`: isolated users/assets, local Outbox pump, and unified SaaS media and draft-handoff suites, without real Provider calls. Keep the test database and private MinIO/S3 fixtures isolated from production.
+- Full read-only quality gates are `pnpm lint`, `pnpm format:check`, and `pnpm type-check`. For a local change, use affected file/workspace checks first. Fix failures caused by the change, review fix-command diffs, and rerun the failed checks.
 
-1. Inspect the change and map each touched area to its package:
-   ```bash
-   git status --short
-   git diff --stat
-   git diff --check
-   ```
-2. When proving clean-checkout behavior, use a fresh checkout/worktree and install exactly as CI does before relying on an existing `node_modules` or Turbo cache:
-   ```bash
-   pnpm install
-   ```
-   The ignored custom Prisma client under `packages/database/prisma/generated` is absent in a clean checkout. Run `pnpm --filter @repo/database generate` before direct package tests/scripts that load `@repo/database`, after schema changes, and before local E2E. Root `pnpm dev`, `pnpm build`, and `pnpm type-check` already reach the database `generate` task through `turbo.json`; do not add redundant generation to every command.
-3. Run focused Vitest tests first. The exact CI unit command is:
-   ```bash
-   pnpm --filter @repo/api --filter saas test
-   ```
-   Narrow to one workspace when appropriate, for example `pnpm --filter @repo/api test`.
-4. Run the matching Playwright suite when routes, rendering, auth, navigation, forms, or another browser-visible flow changed. Each config starts an isolated webpack development server by default; set `E2E_USE_PRODUCTION_BUILD=true` to build and start production mode:
-   ```bash
-   pnpm --filter saas e2e:ci
-   ```
-   Foundation media changes should also run `pnpm e2e:media:ci`, which seeds isolated users/assets,
-   runs the local Outbox pump, and executes the unified SaaS media and draft-handoff suites without
-   real Provider calls. Product E2E tests are under `apps/saas/tests`.
-   E2E may be skipped for docs-only, server-only, unit-only, or non-behavioral changes when no browser contract is affected; state that reason in the handoff. CI still runs both suites for every PR.
-5. Run CI-parity read-only gates:
-   ```bash
-   pnpm lint
-   pnpm format:check
-   pnpm type-check
-   ```
-   If they fail, use `pnpm lint:fix` and/or `pnpm format`, review the edits, then rerun the read-only gates.
-6. Reinspect `git diff` after any fix command. Confirm no secrets, generated client artifacts, `console.log`, unjustified `any`, or unrelated edits were introduced.
-7. Compare failures with `.github/workflows/validate-prs.yml`; its jobs cover quality/contracts,
-   PostgreSQL integration, the SaaS production build, mock media E2E with MinIO, and supply-chain
-   checks. The mock E2E job uploads the SaaS report and test results.
+## Clean checkout and failures
 
-## Canonical reference
+When clean-checkout evidence is required, install with `pnpm install`. The ignored `packages/database/prisma/generated` client needs `pnpm --filter @repo/database generate` before direct database consumers, after schema changes, and before local E2E. Root `pnpm dev`, `pnpm build`, and `pnpm type-check` already reach generation through Turbo; do not repeat it for each command.
 
-`packages/api/modules/organizations/procedures/generate-organization-slug.test.ts` demonstrates focused oRPC testing with Vitest; `apps/saas/tests/login.spec.ts` demonstrates accessible-role Playwright assertions.
+For missing clients, catalog/release-age failures, format mismatches, or wrong package filters, read [references/troubleshooting.md](references/troubleshooting.md). CI also owns PostgreSQL integration, production builds, media E2E with MinIO, supply-chain checks, and uploaded test artifacts; reproduce the failed job rather than assuming every local task needs all jobs.
 
-## Done
-
-Report every command and exit result, whether clean-checkout installation/generation was exercised, and any justified E2E skip. Verification requires focused tests, `pnpm lint`, `pnpm format:check`, and `pnpm type-check`, plus relevant E2E for changed browser flows.
-
-## Common mistakes and fixes
-
-| Failure                                                   | Cause                                                                                       | Fix                                                                                  |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ |
-| Missing `packages/database/prisma/generated/client`       | Clean checkout or changed Prisma schema has not generated the ignored client                | Run `pnpm --filter @repo/database generate`; never edit generated client/Zod output  |
-| `ERR_PNPM_NO_MATCHING_VERSION` or catalog install refusal | A catalog entry is wrong or the release is younger than `minimumReleaseAge: 1440`           | Correct/reuse `catalog:` or choose an eligible release; do not disable the age guard |
-| `pnpm format:check` reports Markdown/TS indentation       | Hand indentation differs from Oxfmt output, including tabs in formatted TypeScript examples | Run `pnpm format`, review the diff, then rerun `pnpm format:check`                   |
-| No root `e2e` script or wrong filter                      | E2E is app-local; CI unit uses exact workspace names                                        | Use the commands above, including `@repo/api` and `@repo/database`                   |
+Report checks run, actual results, and material gaps. Distinguish focused checks, full CI parity, clean-checkout evidence, and external service evidence. Once the relevant checks pass, broaden or repeat only for new changes, failures, or unresolved risk.

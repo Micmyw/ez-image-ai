@@ -16,6 +16,7 @@ export interface GuestRuntimeConfigOverride {
 	createdAt: Date;
 	abuseHmacKeyVersion: string | null;
 	abuseHmacKeyIdentity: string | null;
+	abuseHmacInitialActivation?: boolean;
 }
 
 export async function resolveGuestRuntimeConfigOverride(
@@ -32,12 +33,24 @@ export async function resolveGuestRuntimeConfigOverride(
 	});
 	if (!override || !isGuestRuntimeConfigEnabledValue(override.value)) return null;
 	const metadata = guestRuntimeConfigAbuseMetadata(override.value);
+	// Only the first persisted override can carry the initialization exception.
+	// A copied marker on a later rotation must still drain old-key evidence.
+	const initial = metadata?.abuseHmacInitialActivation
+		? await client.runtimeConfigOverride.findFirst({
+				where: { configKey: GUEST_RUNTIME_CONFIG_KEY },
+				orderBy: { version: "asc" },
+				select: { version: true },
+			})
+		: null;
 	return {
 		enabled: true,
 		version: override.version,
 		createdAt: override.createdAt,
 		abuseHmacKeyVersion: metadata?.abuseHmacKeyVersion ?? null,
 		abuseHmacKeyIdentity: metadata?.abuseHmacKeyIdentity ?? null,
+		...(metadata?.abuseHmacInitialActivation
+			? { abuseHmacInitialActivation: initial?.version === override.version }
+			: {}),
 	};
 }
 
@@ -48,6 +61,7 @@ export function isGuestRuntimeConfigEnabledValue(value: Prisma.JsonValue): boole
 function guestRuntimeConfigAbuseMetadata(value: Prisma.JsonValue): {
 	abuseHmacKeyVersion: string;
 	abuseHmacKeyIdentity: string;
+	abuseHmacInitialActivation: boolean;
 } | null {
 	if (!value || Array.isArray(value) || typeof value !== "object") return null;
 	const candidate = value as Prisma.JsonObject;
@@ -59,6 +73,7 @@ function guestRuntimeConfigAbuseMetadata(value: Prisma.JsonValue): {
 		? {
 				abuseHmacKeyVersion: candidate.abuseHmacKeyVersion,
 				abuseHmacKeyIdentity: candidate.abuseHmacKeyIdentity,
+				abuseHmacInitialActivation: candidate.abuseHmacInitialActivation === true,
 			}
 		: null;
 }

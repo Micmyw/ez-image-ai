@@ -32,11 +32,13 @@ export function PricingTable({
 	userId,
 	organizationId,
 	activePlanId,
+	subscriptionBlocked = false,
 }: {
 	className?: string;
 	userId?: string;
 	organizationId?: string;
 	activePlanId?: string;
+	subscriptionBlocked?: boolean;
 	returnTo?: string;
 }) {
 	const t = useTranslations();
@@ -46,6 +48,9 @@ export function PricingTable({
 	const [loading, setLoading] = useState<PlanId | false>(false);
 	const [interval, setInterval] = useState<"month" | "year">("year");
 	const [checkoutUnavailable, setCheckoutUnavailable] = useState(false);
+	const [checkoutConflict, setCheckoutConflict] = useState<"subscription" | "pending" | null>(null);
+	const checkoutInFlight = useRef(false);
+	const hasSubscription = subscriptionBlocked || Boolean(activePlanId && activePlanId !== "free");
 	const checkoutAttempts = useRef(createCheckoutAttemptController(createGrowthAttemptKey));
 
 	const { planData } = usePlanData();
@@ -59,6 +64,7 @@ export function PricingTable({
 		interval: "month" | "year",
 		provider: SubscriptionCheckoutProvider,
 	) => {
+		if (hasSubscription || checkoutInFlight.current) return;
 		if (!(userId || organizationId)) {
 			router.push("/signup");
 			return;
@@ -70,6 +76,8 @@ export function PricingTable({
 		}
 
 		setLoading(planId);
+		checkoutInFlight.current = true;
+		setCheckoutConflict(null);
 		setCheckoutUnavailable(false);
 		const selection: CheckoutSelection = { provider, planId, interval };
 		const checkoutAttemptKey = checkoutAttempts.current.begin(selection);
@@ -85,10 +93,16 @@ export function PricingTable({
 			await saasGrowthFunnel.checkoutStarted(checkoutAttemptKey, planId);
 			checkoutAttempts.current.succeeded(selection);
 			window.location.href = checkoutLink;
-		} catch {
-			setCheckoutUnavailable(true);
+		} catch (error) {
+			const conflict = error instanceof Error && "code" in error && error.code === "CONFLICT";
+			if (conflict)
+				setCheckoutConflict(
+					error.message === "PAYMENT_SUBSCRIPTION_ALREADY_EXISTS" ? "subscription" : "pending",
+				);
+			else setCheckoutUnavailable(true);
 		} finally {
 			setLoading(false);
+			checkoutInFlight.current = false;
 		}
 	};
 
@@ -99,9 +113,25 @@ export function PricingTable({
 			? (plan as PaidPlan).prices.some((price) => price.type === "subscription")
 			: false,
 	);
+	if (hasSubscription) {
+		return (
+			<output className="text-sm block text-muted-foreground">
+				{t("pricing.subscriptionAlreadyExists")}
+			</output>
+		);
+	}
 
 	return (
 		<div className={cn("@container", className)}>
+			{checkoutConflict && (
+				<p className="mb-4 text-sm text-center text-destructive" role="alert">
+					{t(
+						checkoutConflict === "subscription"
+							? "pricing.subscriptionAlreadyExists"
+							: "pricing.checkoutAlreadyPending",
+					)}
+				</p>
+			)}
 			{checkoutUnavailable && (
 				<p className="mb-4 text-sm text-center text-destructive" role="alert">
 					{t("pricing.checkoutUnavailable")}
@@ -242,6 +272,7 @@ export function PricingTable({
 											recommended={recommended}
 											authenticated={Boolean(userId || organizationId)}
 											loading={loading === planId}
+											disabled={Boolean(loading) || checkoutConflict === "subscription"}
 											onCheckout={(provider) => onSelectPlan(planId, price.interval, provider)}
 										/>
 									) : (
@@ -270,6 +301,7 @@ function CheckoutControls({
 	recommended,
 	authenticated,
 	loading,
+	disabled,
 	onCheckout,
 }: {
 	planId: PlanId;
@@ -277,6 +309,7 @@ function CheckoutControls({
 	recommended: boolean;
 	authenticated: boolean;
 	loading: boolean;
+	disabled: boolean;
 	onCheckout: (provider: SubscriptionCheckoutProvider) => void;
 }) {
 	const t = useTranslations();
@@ -309,7 +342,7 @@ function CheckoutControls({
 							setSelectedProvider(nextProvider);
 						}
 					}}
-					disabled={loading}
+					disabled={disabled}
 				/>
 			)}
 			{unavailable && (
@@ -322,7 +355,7 @@ function CheckoutControls({
 				variant={recommended ? "primary" : "secondary"}
 				onClick={() => provider && onCheckout(provider)}
 				loading={loading || availability.isPending}
-				disabled={!provider || unavailable}
+				disabled={disabled || !provider || unavailable}
 			>
 				{authenticated ? t("pricing.choosePlan") : t("pricing.getStarted")}
 				<ArrowRightIcon className="ml-2 size-4" />

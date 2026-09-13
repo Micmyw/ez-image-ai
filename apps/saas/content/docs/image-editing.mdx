@@ -1,53 +1,88 @@
 ---
+indexable: true
 title: Image editing
-description: Understand EzPic image products, output settings, EzPic Credits, generation jobs, result comparison, downloads, and edit-again flow.
+description: Compare EzPic image output options and credit amounts, then learn how to review, download, and edit a saved result again.
 ---
 
-EzPic submits image changes as generation jobs. The client sends a stable product key; Provider
-routing, model identifiers, credentials, and cost details remain on the server.
+EzPic edits an existing source image using a written instruction. Start with the
+[quick start](/docs/quick-start) if this is your first edit. The settings below help you choose an
+output before confirming its credit cost; they do not guarantee that every requested change will be exact.
 
 ## Image products and EzPic Credits
 
 The workspace shows only image products and output settings available for the current account. Each
-valid combination is a server-defined SKU with an exact EzPic Credit charge:
+available combination has an exact EzPic Credit charge. The catalog below describes configured options;
+the editor shows which are currently available to you:
 
-| Image product      | Output setting | EzPic Credits |
-| ------------------ | -------------- | ------------: |
-| Nano Banana 2 Lite | 1K             |             5 |
-| Nano Banana 2      | 1K             |             9 |
-| Nano Banana 2      | 2K             |            13 |
-| Nano Banana 2      | 4K             |            19 |
-| Nano Banana Pro    | 1K             |            19 |
-| Nano Banana Pro    | 2K             |            19 |
-| Nano Banana Pro    | 4K             |            25 |
-| Nano Banana        | Default        |             5 |
-| GPT Image 2        | 1K             |             7 |
-| GPT Image 2        | 2K             |            11 |
-| GPT Image 2        | 4K             |            17 |
-| GPT Image 1.5      | Medium         |             5 |
-| GPT Image 1.5      | High           |            23 |
-| Seedream 5 Pro     | Basic · 1K     |             8 |
-| Seedream 5 Pro     | High · 2K      |            15 |
-| Seedream 5 Lite    | Basic · 2K     |             7 |
-| Seedream 5 Lite    | High · 3K      |             7 |
-| Seedream 5 Lite    | Ultra · 4K     |             7 |
-| Seedream 4.5       | Basic · 2K     |             8 |
-| Seedream 4.5       | High · 4K      |             8 |
+| Image product          | Output setting | EzPic Credits |
+| ---------------------- | -------------- | ------------: |
+| Nano Banana 2 Lite     | 1K             |             5 |
+| Nano Banana 2          | 1K             |             9 |
+| Nano Banana 2          | 2K             |            13 |
+| Nano Banana 2          | 4K             |            19 |
+| Nano Banana Pro        | 1K             |            19 |
+| Nano Banana Pro        | 2K             |            22 |
+| Nano Banana Pro        | 4K             |            25 |
+| Nano Banana            | Default        |             5 |
+| GPT Image 2            | 1K             |             7 |
+| GPT Image 2            | 2K             |            11 |
+| GPT Image 2            | 4K             |            17 |
+| GPT Image 1.5          | Medium         |             5 |
+| GPT Image 1.5          | High           |            23 |
+| Seedream 5 Pro         | Basic · 1K     |             8 |
+| Seedream 5 Pro         | High · 2K      |            15 |
+| Seedream 5 Lite        | Basic · 2K     |             7 |
+| Seedream 5 Lite        | High · 3K      |            10 |
+| Seedream 5 Lite        | Ultra · 4K     |            14 |
+| Seedream 4.5           | Basic · 2K     |             8 |
+| Seedream 4.5           | High · 4K      |            12 |
+| GPT Image 2.5 Flare    | 1K             |             7 |
+| GPT Image 2.5 Flare    | 2K             |            11 |
+| GPT Image 2.5 Flare    | 4K             |            17 |
+| GPT Image 2.5 Sunburst | 1K             |             7 |
+| GPT Image 2.5 Sunburst | 2K             |            11 |
+| GPT Image 2.5 Sunburst | 4K             |            17 |
+| Seedream 4.0           | 1K             |             6 |
+| Seedream 4.0           | 2K             |             8 |
+| Seedream 4.0           | 4K             |            10 |
 
-Availability, aspect ratios, and input limits come from the server, so the interface does not promise
-a product or setting that the service has disabled. Each product has its own valid setting matrix;
-the interface does not combine a quality or resolution from one product with another. One confirmed
-edit produces one image. Output format and background controls, where a product supports them, do
-not change the EzPic Credit charge and do not create additional SKU combinations.
+The catalog includes twelve image models across Nano Banana, GPT Image, and Seedream.
+GPT Image 2.5 Flare and Sunburst offer 1K, 2K, and 4K outputs. Their 27:16, 16:27, 9:8, and 8:9
+ratios are available at 1K only. Seedream 4.0 accepts instructions up to 5,000 characters and
+produces one image per confirmed edit. Availability follows the editor's current model list.
+
+Each image product offers its own output settings, aspect ratios, and input limits. A setting offered
+for one product may not be available for another. A successful confirmed edit produces one image.
+Output format and background controls, where offered, do not change the displayed credit charge.
+
+Choose an aspect ratio to suit the destination, such as a square layout or a landscape image. Larger
+output sizes can be useful when more pixels are needed, but do not guarantee better prompt adherence.
+Check the total credit cost after changing settings and before confirming the edit.
 
 ## Job status
 
-After submission, the result panel reports the current stage and progress. A job can finish
+After submission, the result panel appears directly below the editor and reports the current stage
+and progress. There is no result placeholder before you select or start a job. You can browse examples
+or open account panels while the current job continues to update. A job can finish
 successfully, fail, or be canceled only when the server reports that cancellation is allowed.
 
 ## Results
 
-A successful image edit provides a before-and-after comparison. Download requests use an
-owner-scoped, short-lived access URL rather than exposing storage credentials or a permanent public
-object URL. The **Edit again** action can carry the result into a new editing job while preserving the
-eligible parent relationship.
+A successful image edit provides a before-and-after comparison. Inspect the parts you wanted to keep,
+as well as the area you changed. Downloads use temporary private access links; save a local copy if
+you need it beyond the retention period.
+
+The **Edit again** action on an eligible saved account result uses that image as the source for a new
+edit. It has a new credit charge. Guest previews stay watermarked and temporary and do not offer this
+saved-history workflow. See [Privacy and private media](/docs/privacy) for access and expiry details.
+
+## Choosing a model and output tier
+
+The homepage model menu groups the available models into Nano Banana, GPT Image, and Seedream.
+Each entry includes an icon, an editing-style description, supported resolution where applicable,
+and its starting Credit amount. The menu only lists models currently available to the service.
+
+The compact output bar opens the aspect ratio, resolution, quality, and supported format options.
+Each quality or resolution choice shows its Credit amount. Paired quality and resolution settings
+change together, and the selected amount appears on the continue button before you proceed.
+The short guidance and privacy notes sit below the homepage editor.

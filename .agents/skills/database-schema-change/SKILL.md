@@ -31,7 +31,7 @@ Use for persistent schema changes. Prisma/PostgreSQL is the active runtime, whil
    This runs `prisma migrate dev` and creates `packages/database/prisma/migrations` when the first migration is added. Review and commit the generated migration. Use `pnpm --filter @repo/database push` only for explicitly disposable local prototyping; it creates no migration history.
 7. Implement the same exported operation and observable semantics in both `packages/database/prisma/queries` and `packages/database/drizzle/queries`: tenant filters, selected/returned shape, ordering, limits, null behavior, update counts, and conflict behavior must agree. Export new modules through both `queries/index.ts` files.
 8. There are no Drizzle migration scripts in `packages/database/package.json`; do not invent `db:generate` or `db:migrate`.
-9. Run database/API tests, then `pnpm format`, `pnpm lint`, and `pnpm type-check`.
+9. Run database/API contract tests and affected formatting, lint, and type checks.
 
 ## Canonical reference
 
@@ -39,7 +39,7 @@ The notification models/enums in `packages/database/prisma/schema.prisma` are mi
 
 ## Done
 
-Prisma, PostgreSQL/MySQL/SQLite Drizzle definitions, enum constants, and both query implementations express the same domain contract; Prisma generation and the intended migration succeed; exports compile; relevant tests and repository gates pass.
+Prisma, PostgreSQL/MySQL/SQLite Drizzle definitions, enum constants, and both query implementations express the same domain contract; Prisma generation and the intended migration succeed; exports compile; relevant tests and affected checks pass.
 
 ## Common mistakes
 

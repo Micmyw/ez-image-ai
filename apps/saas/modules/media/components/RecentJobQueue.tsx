@@ -26,14 +26,11 @@ export function RecentJobQueue({
 		history.data?.pages
 			.flatMap((page) => page.items)
 			.filter(hasEditorProductKey)
-			.slice(0, 8) ?? [];
+			.slice(0, 3) ?? [];
 	if (!jobs.length) return null;
 	return (
-		<div
-			className="border-slate-200 p-3 pb-4 shadow-sm overflow-x-auto rounded-2xl border bg-background"
-			aria-label={t("recent")}
-		>
-			<div className="gap-2 flex min-w-max">
+		<div className="studio-recent" aria-label={t("recent")}>
+			<div className="min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-4 grid">
 				{jobs.map((job) => {
 					const stage = getJobPresentation({ status: job.status }).stage;
 					const skuKey = job.skuKey && isPublicImageSkuKey(job.skuKey) ? job.skuKey : null;
@@ -43,9 +40,9 @@ export function RecentJobQueue({
 							key={job.id}
 							type="button"
 							onClick={() => onSelect(job.id)}
-							className={`min-h-20 min-w-48 p-3 focus-visible:ring-violet-600 rounded-xl border text-left focus-visible:ring-2 focus-visible:outline-none ${selectedJobId === job.id ? "border-violet-500 bg-violet-50" : "bg-background"}`}
+							className={`min-h-20 min-w-0 p-3 focus-visible:ring-violet-300 rounded-xl border text-left focus-visible:ring-2 focus-visible:outline-none ${selectedJobId === job.id ? "border-violet-400 bg-violet-400/10" : "bg-background"}`}
 						>
-							<div className="gap-2 flex items-center justify-between">
+							<div className="gap-2 flex flex-wrap items-center justify-between">
 								<span className="font-medium text-sm">{products(`${job.productKey}.label`)}</span>
 								<Badge status="info">{t(`stages.${stage}`)}</Badge>
 							</div>
@@ -63,7 +60,7 @@ export function RecentJobQueue({
 				})}
 				<Link
 					href="/history"
-					className="min-w-32 px-4 text-sm flex items-center justify-center rounded-xl border"
+					className="min-h-14 px-4 text-sm flex items-center justify-center rounded-xl border"
 				>
 					{t("all")}
 				</Link>

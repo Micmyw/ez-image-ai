@@ -19,7 +19,7 @@ Use for provider SDK/API integration and webhook persistence. Do not change the 
 6. Reuse the existing endpoint `POST /api/webhooks/payments` in `packages/api/index.ts`; configure that URL in the provider dashboard rather than adding another route.
 7. Add a dependency only if the provider implementation truly needs one; use pnpm in `@repo/payments` and current catalog policy.
 8. Test signature rejection, supported event mappings, duplicate delivery/idempotency, subscription updates/deletes, organization/user metadata, and missing price IDs. The payments package currently has no `test` script, so add provider tests with an appropriate script if needed and always run the consuming `@repo/api` tests.
-9. Run relevant provider/API tests, `pnpm format`, `pnpm lint`, and `pnpm type-check`.
+9. Run provider/API contract tests and affected formatting, lint, and type checks.
 
 ## Canonical reference
 
@@ -27,7 +27,7 @@ Use for provider SDK/API integration and webhook persistence. Do not change the 
 
 ## Done
 
-Exactly one provider barrel is active, every exported contract resolves, checkout/portal URLs work, raw-body signature verification precedes idempotent persistence, required env names (including webhook secret) are documented, and provider/API tests plus gates pass.
+Exactly one provider barrel is active, every exported contract resolves, checkout/portal URLs work, raw-body signature verification precedes idempotent persistence, required env names (including webhook secret) are documented, and provider/API tests and affected checks pass.
 
 ## Common mistakes
 

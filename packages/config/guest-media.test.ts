@@ -50,6 +50,34 @@ const productionRuntimeOverride = {
 };
 
 describe("guest media configuration", () => {
+	it("allows an audited initial key immediately but never a future-dated activation", () => {
+		const initial = {
+			...productionRuntimeOverride,
+			createdAt: productionNow,
+			abuseHmacInitialActivation: true,
+		};
+		expect(getGuestMediaConfig(productionEnvironment, initial, productionNow).enabled).toBe(true);
+		expect(
+			getGuestMediaConfig(
+				productionEnvironment,
+				{
+					...initial,
+					createdAt: new Date(productionNow.getTime() + 1),
+				},
+				productionNow,
+			).enabled,
+		).toBe(false);
+		expect(
+			getGuestMediaConfig(
+				productionEnvironment,
+				{
+					...initial,
+					abuseHmacKeyIdentity: "0".repeat(64),
+				},
+				productionNow,
+			).enabled,
+		).toBe(false);
+	});
 	it("exposes the fixed Nano Banana 2 Lite trial envelope in non-production", () => {
 		expect(getGuestMediaConfig(developmentEnvironment, true)).toMatchObject({
 			enabled: true,

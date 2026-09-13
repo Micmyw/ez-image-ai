@@ -48,7 +48,7 @@ const result = await call(procedure, input, {
    ```bash
    pnpm test:unit:contracts
    ```
-6. Run `pnpm format`, `pnpm lint`, and `pnpm type-check`.
+6. Run affected formatting, lint, and type checks.
 
 ## Canonical reference
 
@@ -56,7 +56,7 @@ const result = await call(procedure, input, {
 
 ## Done
 
-The test controls auth and external boundaries, exercises the real procedure/middleware call path, demonstrates the regression or contract, passes in its owning workspace, and passes the exact repository unit command.
+The test controls auth and external boundaries, exercises the real procedure/middleware call path, demonstrates the regression or contract, passes in its owning workspace, and passes the relevant unit-contract checks.
 
 ## Common mistakes
 

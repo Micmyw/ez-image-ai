@@ -24,12 +24,7 @@ Use only when existing workspace code cannot satisfy the requirement. Do not add
    ```
 4. If the dependency is shared across workspaces, add its resolved range once to `pnpm-workspace.yaml` and use `"catalog:"` in each consumer manifest. Keep `minimumReleaseAge: 1440`; if the latest release is younger than 24 hours, use the latest eligible version rather than disabling the guard.
 5. Inspect `package.json` and `pnpm-lock.yaml`; reject unexpected transitive changes, duplicate major versions, install scripts, or packages added to the repository root without a root import.
-6. Run focused tests, then:
-   ```bash
-   pnpm format
-   pnpm lint
-   pnpm type-check
-   ```
+6. Run focused tests and affected formatting, lint, and type checks.
 
 ## Canonical reference
 

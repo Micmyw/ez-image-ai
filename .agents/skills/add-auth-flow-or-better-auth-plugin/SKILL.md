@@ -23,7 +23,7 @@ Use for sign-in, sign-up, verification, account security, OAuth, or Better Auth 
 6. Preserve locale-aware mail callbacks and subscription/organization hooks in `packages/auth/auth.ts`. Add templates/translations when the flow sends email.
 7. Route through the existing Hono auth mount: `packages/api/index.ts` handles `/api/auth/**`, and `apps/saas/app/api/[[...rest]]/route.ts` exposes it. Do not add another catch-all.
 8. Add unit coverage and update `apps/saas/tests/login.spec.ts` or another Playwright spec for user-visible flow changes.
-9. Run relevant tests, `pnpm format`, `pnpm lint`, and `pnpm type-check`.
+9. Run relevant tests and affected formatting, lint, and type checks.
 
 ## Canonical reference
 
@@ -31,7 +31,7 @@ Passkeys and two-factor auth pair server plugins in `packages/auth/auth.ts` with
 
 ## Done
 
-Server/client plugin capabilities match, all schema variants and generated output align, the existing Hono mount serves the flow, locale-aware mail and lifecycle hooks remain intact, config flags/translations control UI, and auth denial/success E2E plus gates pass.
+Server/client plugin capabilities match, all schema variants and generated output align, the existing Hono mount serves the flow, locale-aware mail and lifecycle hooks remain intact, config flags/translations control UI, and auth denial/success E2E and affected checks pass.
 
 ## Common mistakes
 

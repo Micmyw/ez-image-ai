@@ -2,6 +2,10 @@ import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("@shared/components/studio/StudioShell", () => ({
+	StudioShell: ({ children }: { children: ReactNode }) => <div>{children}</div>,
+}));
+
 vi.mock("@repo/config/client", () => ({
 	getPlanUsageEstimate: () => ({
 		minimumImageEdits: 4,

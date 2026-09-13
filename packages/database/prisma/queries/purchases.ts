@@ -6,9 +6,13 @@ import type { PurchaseSchema } from "../zod";
 const billingPlanForPurchase = {
 	mediaSubscription: {
 		select: {
+			id: true,
+			status: true,
 			ownerType: true,
 			ownerId: true,
 			provider: true,
+			cancelAtPeriodEnd: true,
+			currentPeriodEnd: true,
 			plan: {
 				select: {
 					provider: true,

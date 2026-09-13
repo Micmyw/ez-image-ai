@@ -97,6 +97,8 @@
 		"trialPeriod": "{days} {days, plural, one {jour} other {jours}} d'essai gratuit",
 		"year": "{count, plural, one {an} other {{count} ans}}",
 		"yearly": "Annuel",
-		"perSeat": "place"
+		"perSeat": "place",
+		"subscriptionAlreadyExists": "Vous avez déjà un abonnement. Gérez-le dans Facturation. Pour changer d’offre ou de moyen de paiement, annulez le renouvellement et attendez la fin de l’abonnement actuel.",
+		"checkoutAlreadyPending": "Une souscription est déjà en cours. Terminez le paiement existant avant d’en lancer un autre. Si son état est incertain, contactez l’assistance."
 	}
 }

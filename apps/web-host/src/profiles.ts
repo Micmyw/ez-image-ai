@@ -57,6 +57,10 @@ export function createProfileArtifacts(options: {
 		dispatch.hostname.split(".")[0] !== settings.jobsName
 	)
 		throw new Error(`WORKFLOWS_DISPATCH_PROFILE_MISMATCH: ${settings.jobsName}`);
+	const paymentWebhookOrigin = environment.PAYMENT_WEBHOOK_INGRESS_ORIGIN;
+	const websiteWorkersOrigin = `https://${settings.websiteName}.${dispatch.hostname.split(".").slice(1).join(".")}`;
+	if (paymentWebhookOrigin && paymentWebhookOrigin !== websiteWorkersOrigin)
+		throw new Error("INVALID_PAYMENT_WEBHOOK_INGRESS_ORIGIN");
 	const flatEnvironment = workersRuntimeEnvironment(environment);
 	const hyperdrive = [{ binding: "HYPERDRIVE", id: environment.CLOUDFLARE_HYPERDRIVE_ID }];
 	const account = environment.CLOUDFLARE_ACCOUNT_ID ?? options.jobsTemplate.account_id;
@@ -70,8 +74,9 @@ export function createProfileArtifacts(options: {
 			CANONICAL_ORIGIN: canonicalOrigin,
 			EZPIC_RUNTIME: "workers",
 			MEDIA_TRUSTED_PROXY_PROVIDER: "cloudflare",
+			...(paymentWebhookOrigin ? { PAYMENT_WEBHOOK_INGRESS_ORIGIN: paymentWebhookOrigin } : {}),
 		},
-		workers_dev: target === "staging",
+		workers_dev: target === "staging" || Boolean(paymentWebhookOrigin),
 		...(target === "production"
 			? { routes: [{ pattern: new URL(canonicalOrigin).hostname, custom_domain: true }] }
 			: {}),
@@ -150,10 +155,22 @@ export function profileSettings(profile: DeploymentProfile, target: "staging" | 
 }
 
 export function workersRuntimeEnvironment(environment: Record<string, string>) {
+	// Analytics IDs are compiled into the Next.js client; evidence paths are used
+	// only by offline tooling. Production cannot enable the local test endpoints.
+	const nonRuntimeVariables = new Set([
+		"NEXT_PUBLIC_GOOGLE_ANALYTICS_ID",
+		"NEXT_PUBLIC_CLARITY_PROJECT_ID",
+		"EZPIC_ENVIRONMENT_MATRIX_PATH",
+		"EZPIC_LAUNCH_EVIDENCE_PATH",
+		"E2E_TEST_MEDIA_ADAPTERS",
+		"E2E_DRAFT_HANDOFF",
+		"LOAD_TESTING_ENABLED",
+	]);
 	return {
 		...Object.fromEntries(
 			Object.entries(environment).filter(
 				([key]) =>
+					!nonRuntimeVariables.has(key) &&
 					!/^(?:DATABASE_URL$|DIRECT_URL$|NODE_EXTRA_CA_CERTS$|JOBS_RUNTIME_ENV$|WEB_RUNTIME_ENV$|CLOUDFLARE_|EZPIC_DEPLOYMENT_PROFILE$|EZPIC_WORKERS_BUILD$)/.test(
 						key,
 					),

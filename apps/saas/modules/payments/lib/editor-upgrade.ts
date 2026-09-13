@@ -30,7 +30,7 @@ const storedEditorUpgradeDraftSchema = z
 					.object({
 						kind: z.literal("image-to-image"),
 						prompt: z.string().max(10_000),
-						sourceAssetId: z.string().min(1).max(128),
+						sourceAssetId: z.string().max(128),
 						skuKey: z.enum(IMAGE_SKU_KEYS).optional(),
 						aspectRatio: z.enum(IMAGE_ASPECT_RATIOS).optional(),
 						outputFormat: z.enum(IMAGE_OUTPUT_FORMATS).optional(),
@@ -42,7 +42,8 @@ const storedEditorUpgradeDraftSchema = z
 		parentJobId: z.string().min(1).max(128).nullable(),
 		sourceReady: z.boolean(),
 	})
-	.strict();
+	.strict()
+	.refine((value) => !value.sourceReady || Boolean(value.draft.input.sourceAssetId));
 
 export interface EditorUpgradeDraft {
 	draft: EditorDraftInput;

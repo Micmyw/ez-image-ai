@@ -16,7 +16,7 @@ import {
 	type WorkflowStep,
 } from "cloudflare:workers";
 
-import { handleDispatch, type JobsParams } from "./dispatch";
+import { createWorkflowBindingDispatcher, handleDispatch, type JobsParams } from "./dispatch";
 import { createWorkerExecutionHandler } from "./execution";
 import {
 	runMaintenance,
@@ -45,7 +45,16 @@ export class WorkerJobs extends DurableObject<WorkersEnvironment> {
 			// A Worker has 128 MiB, shared by all its invocations. Serialize heavy
 			// transfers initially; the Node/Container executor retains its own cap.
 			maxActive: 1,
-			execute: (task, context) => this.scoped(() => executeTask(task, context)),
+			execute: (task, context) =>
+				this.scoped(() =>
+					executeTask(task, context, {
+						dispatch: createWorkflowBindingDispatcher({
+							url: this.env.WORKFLOWS_DISPATCH_URL,
+							secret: this.env.WORKFLOWS_DISPATCH_SECRET,
+							workflows: this.env.JOBS,
+						}),
+					}),
+				),
 			poll: (input) => this.scoped(() => executePollingTick(input)),
 		});
 		const execution = this.handler(request);

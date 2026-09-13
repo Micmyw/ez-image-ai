@@ -1,10 +1,12 @@
 "use client";
 
 import { cn } from "@repo/ui";
+import { usePathname } from "next/navigation";
 import type { PropsWithChildren } from "react";
 
 import { SidebarProvider, useSidebar } from "../lib/sidebar-context";
 import { NavBar } from "./NavBar";
+import { StudioShell } from "./studio/StudioShell";
 
 function AppContent({ children }: PropsWithChildren) {
 	const { isCollapsed } = useSidebar();
@@ -30,6 +32,14 @@ function AppContent({ children }: PropsWithChildren) {
 }
 
 export function AppWrapper({ children }: PropsWithChildren) {
+	const pathname = usePathname();
+	if (pathname === "/create") return children;
+	if (/^\/(dashboard|settings|history|assets|edits)(\/|$)/.test(pathname))
+		return (
+			<StudioShell>
+				<div className="studio-route py-8 container">{children}</div>
+			</StudioShell>
+		);
 	return (
 		<SidebarProvider>
 			<AppContent>{children}</AppContent>

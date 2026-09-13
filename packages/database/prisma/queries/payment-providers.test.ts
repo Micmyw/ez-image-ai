@@ -20,6 +20,8 @@ describe("createPaymentCheckoutIntent credit-pack snapshots", () => {
 		const create = vi.fn().mockResolvedValue(createdIntent);
 		const transaction = {
 			$queryRaw: vi.fn().mockResolvedValue([]),
+			subscription: { findFirst: vi.fn().mockResolvedValue(null) },
+			purchase: { findFirst: vi.fn().mockResolvedValue(null) },
 			paymentCheckoutIntent: { findUnique, create },
 			paymentCheckoutIntentIdempotencyAlias: {
 				findUnique: vi.fn().mockResolvedValue(null),
@@ -113,7 +115,10 @@ describe("createPaymentCheckoutIntent credit-pack snapshots", () => {
 		const create = vi.fn();
 		const transaction = {
 			$queryRaw: vi.fn().mockResolvedValue([]),
+			subscription: { findFirst: vi.fn().mockResolvedValue(null) },
+			purchase: { findFirst: vi.fn().mockResolvedValue(null) },
 			paymentCheckoutIntent: {
+				findFirst: vi.fn().mockResolvedValue(null),
 				findUnique: vi.fn().mockResolvedValue(frozenIntent),
 				create,
 			},
@@ -193,12 +198,66 @@ describe("createPaymentCheckoutIntent credit-pack snapshots", () => {
 });
 
 describe("createPaymentCheckoutIntent active scope compatibility", () => {
+	it.each(["subscription", "checkout"])(
+		"rejects another plan when the owner has a blocking %s",
+		async (blocking) => {
+			const create = vi.fn().mockResolvedValue({ id: "duplicate", status: "CREATED" });
+			const transaction = {
+				$queryRaw: vi.fn().mockResolvedValue([]),
+				subscription: {
+					findFirst: vi
+						.fn()
+						.mockResolvedValue(blocking === "subscription" ? { id: "existing" } : null),
+				},
+				purchase: { findFirst: vi.fn().mockResolvedValue(null) },
+				paymentCheckoutIntent: {
+					findUnique: vi.fn().mockResolvedValue(null),
+					findFirst: vi
+						.fn()
+						.mockResolvedValue(blocking === "checkout" ? { id: "pending-other-plan" } : null),
+					create,
+				},
+				paymentCheckoutIntentIdempotencyAlias: { findUnique: vi.fn().mockResolvedValue(null) },
+			};
+			const client = {
+				$transaction: vi.fn(async (operation: (tx: typeof transaction) => Promise<unknown>) =>
+					operation(transaction),
+				),
+			};
+			await expect(
+				createPaymentCheckoutIntent(
+					{
+						provider: "paypal",
+						ownerType: "USER",
+						ownerId: "user-1",
+						submittedByUserId: "user-1",
+						billingPlanId: "studio-year",
+						planKey: "studio",
+						interval: "year",
+						idempotencyKey: "new-attempt",
+					},
+					client as never,
+				),
+			).rejects.toThrow(
+				blocking === "subscription"
+					? "PAYMENT_SUBSCRIPTION_ALREADY_EXISTS"
+					: "PAYMENT_CHECKOUT_INTENT_CONFLICT",
+			);
+			expect(create).not.toHaveBeenCalled();
+		},
+	);
 	it("keeps PLAN writes on the legacy scope used by pre-product-kind deployments", async () => {
 		const createdIntent = { id: "intent-plan-1", status: "CREATED" };
 		const create = vi.fn().mockResolvedValue(createdIntent);
 		const transaction = {
 			$queryRaw: vi.fn().mockResolvedValue([]),
-			paymentCheckoutIntent: { findUnique: vi.fn().mockResolvedValue(null), create },
+			subscription: { findFirst: vi.fn().mockResolvedValue(null) },
+			purchase: { findFirst: vi.fn().mockResolvedValue(null) },
+			paymentCheckoutIntent: {
+				findFirst: vi.fn().mockResolvedValue(null),
+				findUnique: vi.fn().mockResolvedValue(null),
+				create,
+			},
 			paymentCheckoutIntentIdempotencyAlias: {
 				findUnique: vi.fn().mockResolvedValue(null),
 			},
@@ -270,7 +329,10 @@ describe("createPaymentCheckoutIntent active checkout reuse", () => {
 		const update = vi.fn();
 		const transaction = {
 			$queryRaw: vi.fn().mockResolvedValue([]),
+			subscription: { findFirst: vi.fn().mockResolvedValue(null) },
+			purchase: { findFirst: vi.fn().mockResolvedValue(null) },
 			paymentCheckoutIntent: {
+				findFirst: vi.fn().mockResolvedValue(null),
 				findUnique: vi.fn().mockResolvedValueOnce(null).mockResolvedValueOnce(active),
 				create,
 				update,
@@ -455,7 +517,9 @@ describe("createPaymentCheckoutIntent active checkout reuse", () => {
 		const findAlias = vi.fn().mockResolvedValue(aliasReplay);
 		const transaction = {
 			$queryRaw: vi.fn().mockResolvedValue([]),
-			paymentCheckoutIntent: { findUnique: findDirect },
+			subscription: { findFirst: vi.fn().mockResolvedValue(null) },
+			purchase: { findFirst: vi.fn().mockResolvedValue(null) },
+			paymentCheckoutIntent: { findFirst: vi.fn().mockResolvedValue(null), findUnique: findDirect },
 			paymentCheckoutIntentIdempotencyAlias: { findUnique: findAlias },
 		};
 		const client = {
@@ -493,7 +557,12 @@ describe("createPaymentCheckoutIntent active checkout reuse", () => {
 		const aliasedIntent = { ...pendingSubscription, ...override };
 		const transaction = {
 			$queryRaw: vi.fn().mockResolvedValue([]),
-			paymentCheckoutIntent: { findUnique: vi.fn().mockResolvedValue(null) },
+			subscription: { findFirst: vi.fn().mockResolvedValue(null) },
+			purchase: { findFirst: vi.fn().mockResolvedValue(null) },
+			paymentCheckoutIntent: {
+				findFirst: vi.fn().mockResolvedValue(null),
+				findUnique: vi.fn().mockResolvedValue(null),
+			},
 			paymentCheckoutIntentIdempotencyAlias: {
 				findUnique: vi.fn().mockResolvedValue({ checkoutIntent: aliasedIntent }),
 			},
@@ -520,7 +589,10 @@ describe("createPaymentCheckoutIntent active checkout reuse", () => {
 		const update = vi.fn().mockResolvedValue(staleIntent);
 		const transaction = {
 			$queryRaw: vi.fn().mockResolvedValue([]),
+			subscription: { findFirst: vi.fn().mockResolvedValue(null) },
+			purchase: { findFirst: vi.fn().mockResolvedValue(null) },
 			paymentCheckoutIntent: {
+				findFirst: vi.fn().mockResolvedValue(null),
 				findUnique: vi.fn().mockResolvedValue(null),
 				update,
 			},
@@ -553,7 +625,12 @@ describe("createPaymentCheckoutIntent active checkout reuse", () => {
 	it("fails closed when a key is bound both directly and through an alias", async () => {
 		const transaction = {
 			$queryRaw: vi.fn().mockResolvedValue([]),
-			paymentCheckoutIntent: { findUnique: vi.fn().mockResolvedValue(pendingSubscription) },
+			subscription: { findFirst: vi.fn().mockResolvedValue(null) },
+			purchase: { findFirst: vi.fn().mockResolvedValue(null) },
+			paymentCheckoutIntent: {
+				findFirst: vi.fn().mockResolvedValue(null),
+				findUnique: vi.fn().mockResolvedValue(pendingSubscription),
+			},
 			paymentCheckoutIntentIdempotencyAlias: {
 				findUnique: vi.fn().mockResolvedValue({ checkoutIntent: pendingSubscription }),
 			},
@@ -781,7 +858,10 @@ describe("credit-pack checkout intent correlation", () => {
 			getPaymentCheckoutIntentForOwnerByIdempotencyKey(
 				{ idempotencyKey: "pack-attempt-2", ownerType: "USER", ownerId: "user-1" },
 				{
-					paymentCheckoutIntent: { findUnique: directFind },
+					paymentCheckoutIntent: {
+						findFirst: vi.fn().mockResolvedValue(null),
+						findUnique: directFind,
+					},
 					paymentCheckoutIntentIdempotencyAlias: { findUnique: aliasFind },
 				} as never,
 			),
@@ -811,7 +891,10 @@ describe("credit-pack checkout intent correlation", () => {
 			getPaymentCheckoutIntentForOwnerByIdempotencyKey(
 				{ idempotencyKey: "cross-owner-alias", ownerType: "USER", ownerId: "user-1" },
 				{
-					paymentCheckoutIntent: { findUnique: vi.fn().mockResolvedValue(null) },
+					paymentCheckoutIntent: {
+						findFirst: vi.fn().mockResolvedValue(null),
+						findUnique: vi.fn().mockResolvedValue(null),
+					},
 					paymentCheckoutIntentIdempotencyAlias: {
 						findUnique: vi.fn().mockResolvedValue({
 							checkoutIntent: {

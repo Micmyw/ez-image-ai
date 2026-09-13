@@ -52,7 +52,7 @@ const enabledEnvironment = {
 	NODE_ENV: "development",
 	MEDIA_GENERATION_ENABLED: "true",
 	MEDIA_ENABLED_PROVIDERS: "kie",
-	MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "2026-09-07.2",
+	MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "2026-09-13.1",
 	KIE_API_KEY: "test-kie-key",
 	GUEST_MEDIA_ENABLED: "true",
 	GUEST_PROMOTION_PERIOD: "2026-launch",
@@ -108,7 +108,7 @@ const expectedPublicProductSummaries = [
 		defaultSkuKey: "nano-banana-pro-1k",
 		skus: [
 			["nano-banana-pro-1k", 19],
-			["nano-banana-pro-2k", 19],
+			["nano-banana-pro-2k", 22],
 			["nano-banana-pro-4k", 25],
 		],
 	},
@@ -143,7 +143,7 @@ const expectedPublicProductSummaries = [
 		defaultSkuKey: "seedream-4-5-basic-2k",
 		skus: [
 			["seedream-4-5-basic-2k", 8],
-			["seedream-4-5-high-4k", 8],
+			["seedream-4-5-high-4k", 12],
 		],
 	},
 	{
@@ -154,8 +154,8 @@ const expectedPublicProductSummaries = [
 		defaultSkuKey: "seedream-5-lite-basic-2k",
 		skus: [
 			["seedream-5-lite-basic-2k", 7],
-			["seedream-5-lite-high-3k", 7],
-			["seedream-5-lite-ultra-4k", 7],
+			["seedream-5-lite-high-3k", 10],
+			["seedream-5-lite-ultra-4k", 14],
 		],
 	},
 	{
@@ -268,6 +268,30 @@ describe("guest capability snapshot", () => {
 			products: [],
 		});
 		expect(unavailable.version).not.toBe(snapshot.version);
+		expectNoPrivateCapabilityData(snapshot, [enabledEnvironment.KIE_API_KEY]);
+	});
+
+	it("exposes enabled new models as paid account choices without changing the guest trial", async () => {
+		const snapshot = await loadGuestCapabilitySnapshot({
+			...enabledEnvironment,
+			MEDIA_GPT_IMAGE_2_5_FLARE_ENABLED: "true",
+			MEDIA_GPT_IMAGE_2_5_SUNBURST_ENABLED: "true",
+			MEDIA_SEEDREAM_4_ENABLED: "true",
+		});
+		expect(snapshot.products).toHaveLength(12);
+		expect(snapshot.products.flatMap((product) => product.skuMatrix.cells)).toHaveLength(29);
+		for (const key of [
+			"image-gpt-image-2-5-flare",
+			"image-gpt-image-2-5-sunburst",
+			"image-seedream-4",
+		]) {
+			expect(snapshot.products.find((product) => product.key === key)).toMatchObject({
+				accessHint: "paid-account",
+			});
+		}
+		expect(
+			snapshot.products.find((product) => product.key === "image-nano-banana-2-lite"),
+		).toMatchObject({ accessHint: "guest-trial", credits: "5" });
 		expectNoPrivateCapabilityData(snapshot, [enabledEnvironment.KIE_API_KEY]);
 	});
 
@@ -398,7 +422,7 @@ describe("guest private upload handoff", () => {
 		vi.stubEnv("GUEST_PROMOTION_PERIOD", "2026-launch");
 		vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
 		vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");
-		vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", "2026-09-07.2");
+		vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", "2026-09-13.1");
 		vi.stubEnv("KIE_API_KEY", "test-kie-key");
 		vi.stubEnv("BETTER_AUTH_SECRET", "test-secret");
 		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", enabledEnvironment.GUEST_ABUSE_HMAC_SECRET);

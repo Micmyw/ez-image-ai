@@ -1,5 +1,7 @@
 # EzPic
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 EzPic is a focused, private prompt-based AI image editor. Its upload-first workflow offers nine
 server-advertised image products and 20 product-specific SKU cells, with one shared EzPic Credit
 balance and an exact charge shown before confirmation. It retains the existing AI media
@@ -166,6 +168,29 @@ authenticated features and `/docs` stay in the same SaaS application. Root `dev`
 started development utility. Media objects use the private `MEDIA_BUCKET_NAME` bucket
 (`media-private` locally). Do not use the legacy `S3_BUCKET` variable.
 
+### Local build caches
+
+Git ignores `.turbo` and `.next`, and `.dockerignore` excludes them from container build
+contexts. Turbo build outputs exclude `.next/cache/**` and `.next/dev/**`, so development
+artifacts are not copied into each production-build cache entry. This prevents duplicate
+development caches; it does not remove existing archives or impose a disk-size limit.
+
+When local caches grow, stop development, build, and test processes for this checkout, then run
+these commands from the repository root:
+
+```bash
+pnpm cache:preview
+pnpm cache:clean
+```
+
+The first command lists candidates and their file sizes without deleting anything. The second
+removes only `.turbo/cache`, `apps/saas/.next/cache`, and `apps/saas/.next/dev/cache`, refusing
+linked directories, Git-tracked files, or a Next.js development/build lock. Git-tracked files,
+dependencies, worktrees, environment files, and production build outputs outside those cache
+directories are preserved. The next compilation rebuilds the caches and can take longer.
+Use these targeted commands for disk maintenance; `pnpm clean` also removes workspace dependencies
+and generated outputs. No scheduled cleanup is installed.
+
 ## Verification
 
 ```bash
@@ -226,3 +251,8 @@ Before calling a deployment live-ready, record successful staging checks for Tri
 ## Operations
 
 Use [docs/operations/ai-media-runbook.md](docs/operations/ai-media-runbook.md) for production accounts, environment validation, migration safety, Trigger deployment, storage IAM/CORS, payment Webhooks and legacy Stripe maintenance, moderation, Sentry, model certification, load verification, replay/reconciliation, refunds, backup/restore, rollback, secret rotation, and incident response.
+
+| 命令                 | 用途                                               |
+| -------------------- | -------------------------------------------------- |
+| `pnpm cache:preview` | 查看三个缓存目录的大小，不删除                     |
+| `pnpm cache:clean`   | 清理这三个目录，需先停止项目的开发、构建和测试进程 |

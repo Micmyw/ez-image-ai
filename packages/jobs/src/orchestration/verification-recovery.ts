@@ -14,6 +14,15 @@ export async function listVerificationRecoveryCandidates(
 	const assets = await database.mediaAsset.findMany({
 		where: {
 			deletedAt: null,
+			NOT: {
+				kind: "OUTPUT",
+				OR: [
+					{ outputTransferToken: { not: null } },
+					{ finalizedAt: null },
+					{ checksum: null },
+					{ byteSize: { lte: 0n } },
+				],
+			},
 			OR: [
 				{
 					status: "VERIFYING",

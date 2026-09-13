@@ -67,9 +67,8 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 							>
 								<ApiClientProvider>
 									<ClientProviders>
-										{children}
-
 										<ConsentBanner />
+										{children}
 										<Toaster position="top-right" />
 									</ClientProviders>
 								</ApiClientProvider>

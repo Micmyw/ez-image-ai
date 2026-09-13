@@ -128,3 +128,6 @@ catalog:
   uuid: ^14.0.1
   vitest: ^4.1.10
   zod: ^4.4.3
+
+patchedDependencies:
+  "@aws-sdk/xml-builder@3.972.40": patches/@aws-sdk__xml-builder@3.972.40.patch

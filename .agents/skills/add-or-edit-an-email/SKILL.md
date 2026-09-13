@@ -30,7 +30,7 @@ Use for transactional templates, provider-neutral send calls, and mail translati
    pnpm --filter mail-preview dev
    ```
    Verify HTML, plain-text rendering, subject, links, and long/localized content.
-8. Run `pnpm format`, `pnpm lint`, and `pnpm type-check`.
+8. Run affected formatting, lint, and type checks.
 
 ## Canonical reference
 
@@ -38,7 +38,7 @@ Use for transactional templates, provider-neutral send calls, and mail translati
 
 ## Done
 
-The key resolves to a component and same-named translation namespace, all four locales include compatible messages/subject, HTML and plain text preview correctly, links use real base URLs, the call site handles `sendEmail`'s boolean result as needed, and gates pass.
+The key resolves to a component and same-named translation namespace, all four locales include compatible messages/subject, HTML and plain text preview correctly, links use real base URLs, the call site handles `sendEmail`'s boolean result as needed, and affected checks pass.
 
 ## Common mistakes
 

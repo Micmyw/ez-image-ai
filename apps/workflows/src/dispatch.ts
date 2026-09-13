@@ -1,4 +1,5 @@
 import { readBoundedBody, verifyRequest, workflowInstanceId } from "@repo/jobs/orchestration/auth";
+import { createJobDispatcher } from "@repo/jobs/orchestration/client";
 import type { TaskRequest } from "@repo/jobs/orchestration/contracts";
 import { parseTaskRequest } from "@repo/jobs/orchestration/registry";
 
@@ -14,6 +15,21 @@ export interface WorkflowCreator {
 		}[],
 	): Promise<unknown>;
 	get(id: string): Promise<{ status(): Promise<{ status: string }>; restart(): Promise<void> }>;
+}
+
+export function createWorkflowBindingDispatcher(input: {
+	url: string;
+	secret: string;
+	workflows: WorkflowCreator;
+}) {
+	return createJobDispatcher({
+		url: input.url,
+		secret: input.secret,
+		// Use the Workflow binding for nested work instead of public self-fetch.
+		// Keep the signed ingress contract and durable replay checks on the binding.
+		fetch: async (request, init) =>
+			handleDispatch(new Request(request, init), input.secret, input.workflows),
+	});
 }
 
 export async function handleDispatch(

@@ -35,6 +35,66 @@ function fixture() {
 }
 
 describe("Outbox completion receipts", () => {
+	it.each([
+		"WORKFLOWS_DISPATCH_URL is invalid",
+		"WORKFLOWS_DISPATCH_SECRET must contain at least 32 characters",
+	])("maps known configuration failure to a safe diagnostic: %s", async (message) => {
+		const f = fixture();
+		await dispatchOutbox(
+			{ workerId: "worker-1" },
+			{
+				...f,
+				deliver: async () => {
+					throw new Error(message);
+				},
+			},
+		);
+		expect(f.store.release).toHaveBeenCalledWith(
+			expect.objectContaining({ errorCode: "WORKFLOWS_DISPATCH_CONFIG_INVALID" }),
+		);
+		expect(f.store.complete).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		"WORKFLOWS_DISPATCH_REJECTED",
+		"WORKFLOWS_DISPATCH_UNCONFIRMED",
+		"WORKFLOWS_DISPATCH_CONFIG_INVALID",
+	])("preserves the safe delivery diagnostic %s", async (code) => {
+		const f = fixture();
+		await dispatchOutbox(
+			{ workerId: "worker-1" },
+			{
+				...f,
+				deliver: async () => {
+					throw new Error(code);
+				},
+			},
+		);
+		expect(f.store.release).toHaveBeenCalledWith(expect.objectContaining({ errorCode: code }));
+		expect(f.store.complete).not.toHaveBeenCalled();
+	});
+
+	it.each([
+		new Error("https://secret.test/?token=do-not-persist"),
+		new Error("WORKFLOWS_DISPATCH_REJECTED token=secret"),
+		new Error("CUSTOM_UPPERCASE_SECRET"),
+		"sensitive string",
+	])("redacts unrecognized delivery errors", async (error) => {
+		const f = fixture();
+		await dispatchOutbox(
+			{ workerId: "worker-1" },
+			{
+				...f,
+				deliver: async () => {
+					throw error;
+				},
+			},
+		);
+		expect(f.store.release).toHaveBeenCalledWith(
+			expect.objectContaining({ errorCode: "DELIVERY_FAILED" }),
+		);
+	});
+
 	it("can query pending work repeatedly without ACK or spending the dead-letter attempt budget", async () => {
 		const f = fixture();
 		const deliver = vi

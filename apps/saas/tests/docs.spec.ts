@@ -15,10 +15,10 @@ test.use({ storageState: { cookies: [], origins: [] } });
 
 test.describe("same-origin documentation", () => {
 	for (const path of ["/docs", "/docs/quick-start"] as const) {
-		test(`${path} renders factual noindex documentation`, async ({ page }) => {
+		test(`${path} renders factual indexable documentation`, async ({ page }) => {
 			const response = await page.goto(path);
 			expect(response?.status()).toBe(200);
-			expect(response?.headers()["x-robots-tag"], path).toBe("noindex, follow");
+			expect(response?.headers()["x-robots-tag"], path).toBeUndefined();
 			expect(new URL(page.url()).pathname).toBe(path);
 			await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
 			const canonical = await page.locator('link[rel="canonical"]').getAttribute("href");
@@ -26,7 +26,8 @@ test.describe("same-origin documentation", () => {
 			expect(new URL(canonical!).origin).toBe(new URL(baseUrl).origin);
 			expect(new URL(canonical!).pathname).toBe(path);
 			const directives = await robotsDirectives(page);
-			expect(directives.has("noindex")).toBe(true);
+			expect(directives.has("noindex")).toBe(false);
+			expect(directives.has("index")).toBe(true);
 			expect(directives.has("follow")).toBe(true);
 			await expect(page.locator("main")).not.toContainText(/acme|lorem ipsum|my app/i);
 		});

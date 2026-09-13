@@ -12,13 +12,39 @@ import { SubscriptionStatusBadge } from "../../settings/components/SubscriptionS
 
 export function ActivePlan({ organizationId }: { organizationId?: string; seats?: number }) {
 	const t = useTranslations();
+	const { activePlan, activeSubscriptions } = usePurchases(organizationId);
+	const plans = activeSubscriptions.length ? activeSubscriptions : activePlan ? [activePlan] : [];
+	if (!plans.length) return null;
+	return (
+		<SettingsItem title={t("settings.billing.activePlan.title")}>
+			{activeSubscriptions.length > 1 && (
+				<output className="mb-4 text-sm text-amber-700 block">
+					{t("settings.billing.activePlan.multipleSubscriptions")}
+				</output>
+			)}
+			<div className="gap-4 grid">
+				{plans.map((plan) => (
+					<ActivePlanCard
+						key={"purchaseId" in plan ? plan.purchaseId : plan.id}
+						activePlan={plan}
+						organizationId={organizationId}
+					/>
+				))}
+			</div>
+		</SettingsItem>
+	);
+}
+
+function ActivePlanCard({
+	activePlan,
+	organizationId,
+}: {
+	activePlan: NonNullable<ReturnType<typeof usePurchases>["activePlan"]>;
+	organizationId?: string;
+}) {
+	const t = useTranslations();
 	const format = useFormatter();
 	const { planData } = usePlanData();
-	const { activePlan } = usePurchases(organizationId);
-
-	if (!activePlan) {
-		return null;
-	}
 
 	const activePlanData = planData[activePlan.id as keyof typeof planData];
 
@@ -27,76 +53,109 @@ export function ActivePlan({ organizationId }: { organizationId?: string; seats?
 	}
 
 	const price = "price" in activePlan ? activePlan.price : null;
+	const cancellationScheduled = activePlan.subscription?.cancelAtPeriodEnd === true;
+	const periodEnd = activePlan.subscription?.currentPeriodEnd;
 
 	return (
-		<SettingsItem title={t("settings.billing.activePlan.title")}>
-			<div className="p-4 rounded-lg border">
-				<div className="">
-					<div className="gap-2 flex items-center">
-						<BadgeCheckIcon className="size-6 text-primary" />
-						<h4 className="font-bold text-lg text-primary">
-							<span>{activePlanData.title}</span>
-						</h4>
-						{activePlan.status && <SubscriptionStatusBadge status={activePlan.status} />}
-					</div>
-
-					{!!activePlanData.features?.length && (
-						<ul className="mt-2 gap-2 text-sm grid list-none">
-							{activePlanData.features.map((feature, key) => (
-								<li key={key} className="flex items-center justify-start">
-									<CheckIcon className="mr-2 size-4 text-primary" />
-									<span>{feature}</span>
-								</li>
-							))}
-						</ul>
-					)}
-
-					{price && (
-						<strong
-							className="mt-2 font-medium text-2xl lg:text-3xl block"
-							data-test="price-table-plan-price"
-						>
-							{format.number(price.amount, {
-								style: "currency",
-								currency: price.currency,
-							})}
-							{"interval" in price && (
-								<span className="font-normal text-xs opacity-60">
-									{" / "}
-									{price.interval === "month"
-										? t("pricing.month", {
-												count: 1,
-											})
-										: t("pricing.year", {
-												count: 1,
-											})}
-								</span>
-							)}
-							{organizationId && "seatBased" in price && price.seatBased && (
-								<span className="font-normal text-xs opacity-60">
-									{" / "}
-									{t("pricing.perSeat")}
-								</span>
-							)}
-						</strong>
+		<div className="p-4 rounded-lg border">
+			<div className="">
+				<div className="gap-2 flex items-center">
+					<BadgeCheckIcon className="size-6 text-primary" />
+					<h4 className="font-bold text-lg text-primary">
+						<span>{activePlanData.title}</span>
+					</h4>
+					{activePlan.status && (
+						<SubscriptionStatusBadge
+							status={cancellationScheduled ? "canceling" : activePlan.status}
+						/>
 					)}
 				</div>
+				{"provider" in activePlan &&
+					(activePlan.provider === "paypal" ||
+						activePlan.provider === "waffo" ||
+						activePlan.provider === "stripe") && (
+						<p className="mt-2 text-sm text-muted-foreground">
+							{t("settings.billing.activePlan.paymentMethod", {
+								provider: t(`payments.providerSelector.providers.${activePlan.provider}`),
+							})}
+						</p>
+					)}
+				{"isEffectiveSubscription" in activePlan && activePlan.isEffectiveSubscription && (
+					<p className="mt-1 text-sm text-muted-foreground">
+						{t("settings.billing.activePlan.effectivePlan")}
+					</p>
+				)}
+				{!cancellationScheduled && periodEnd && (
+					<p className="mt-2 text-sm text-muted-foreground">
+						{t("settings.billing.activePlan.currentPeriodEnd", {
+							date: format.dateTime(periodEnd, { dateStyle: "medium" }),
+						})}
+					</p>
+				)}
+				{cancellationScheduled && periodEnd && (
+					<p className="mt-2 text-sm text-muted-foreground">
+						{t("settings.billing.activePlan.cancellationScheduled", {
+							date: format.dateTime(periodEnd, { dateStyle: "medium" }),
+						})}
+					</p>
+				)}
 
-				{"purchaseId" in activePlan && activePlan.purchaseId && (
-					<div className="mt-4 flex justify-end">
-						<div className="gap-2 md:flex-row flex w-full flex-col flex-wrap">
-							{activePlan.providerCapabilities.portal ? (
-								<CustomerPortalButton purchaseId={activePlan.purchaseId} />
-							) : activePlan.providerCapabilities.cancellation ? (
-								<CancelSubscriptionButton
-									purchaseId={activePlan.purchaseId}
-									organizationId={organizationId}
-								/>
-							) : null}
-						</div>
-					</div>
+				{!!activePlanData.features?.length && (
+					<ul className="mt-2 gap-2 text-sm grid list-none">
+						{activePlanData.features.map((feature, key) => (
+							<li key={key} className="flex items-center justify-start">
+								<CheckIcon className="mr-2 size-4 text-primary" />
+								<span>{feature}</span>
+							</li>
+						))}
+					</ul>
+				)}
+
+				{price && (
+					<strong
+						className="mt-2 font-medium text-2xl lg:text-3xl block"
+						data-test="price-table-plan-price"
+					>
+						{format.number(price.amount, {
+							style: "currency",
+							currency: price.currency,
+						})}
+						{"interval" in price && (
+							<span className="font-normal text-xs opacity-60">
+								{" / "}
+								{price.interval === "month"
+									? t("pricing.month", {
+											count: 1,
+										})
+									: t("pricing.year", {
+											count: 1,
+										})}
+							</span>
+						)}
+						{organizationId && "seatBased" in price && price.seatBased && (
+							<span className="font-normal text-xs opacity-60">
+								{" / "}
+								{t("pricing.perSeat")}
+							</span>
+						)}
+					</strong>
 				)}
 			</div>
-		</SettingsItem>
+
+			{"purchaseId" in activePlan && activePlan.purchaseId && (
+				<div className="mt-4 flex justify-end">
+					<div className="gap-2 md:flex-row flex w-full flex-col flex-wrap">
+						{activePlan.providerCapabilities.portal ? (
+							<CustomerPortalButton purchaseId={activePlan.purchaseId} />
+						) : activePlan.providerCapabilities.cancellation && !cancellationScheduled ? (
+							<CancelSubscriptionButton
+								purchaseId={activePlan.purchaseId}
+								organizationId={organizationId}
+							/>
+						) : null}
+					</div>
+				</div>
+			)}
+		</div>
 	);
 }

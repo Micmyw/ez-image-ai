@@ -63,11 +63,13 @@ const DropdownMenuContent = ({
 	sideOffset = 4,
 	side,
 	align,
+	positionMethod,
 	...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Popup> & {
 	sideOffset?: number;
 	side?: DropdownPositionerProps["side"];
 	align?: DropdownPositionerProps["align"];
+	positionMethod?: DropdownPositionerProps["positionMethod"];
 }) => (
 	<DropdownMenuPrimitive.Portal>
 		<DropdownMenuPrimitive.Positioner
@@ -75,6 +77,7 @@ const DropdownMenuContent = ({
 			sideOffset={sideOffset}
 			side={side}
 			align={align}
+			positionMethod={positionMethod}
 		>
 			<DropdownMenuPrimitive.Popup
 				className={cn(

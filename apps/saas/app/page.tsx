@@ -1,13 +1,19 @@
+import { getSession } from "@auth/lib/server";
+import {
+	RegisteredEditor,
+	type CreatePageFilters,
+} from "@media/components/editor/RegisteredEditor";
+import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
+import { MainAccountBoundary } from "@shared/components/MainAccountBoundary";
+import { RegisteredWorkspaceBoundary } from "@shared/components/RegisteredWorkspaceBoundary";
 import { getBaseUrl } from "@shared/lib/base-url";
 import type { Metadata } from "next";
-import { getTranslations } from "next-intl/server";
 
 import { LandingPage } from "../modules/landing/components/LandingPage";
-import { HOME_FAQ_KEYS } from "../modules/landing/lib/faq";
 
 const title = "EzPic AI Image Editor — Edit Images With a Prompt";
 const description =
-	"Upload an image, describe the change, and start a private AI edit directly from the EzPic landing page.";
+	"Prepare a private AI image edit with a source photo and a prompt. Explore editing examples, output options, and credits, then check current availability.";
 
 export const metadata: Metadata = {
 	title: { absolute: title },
@@ -23,31 +29,20 @@ export const metadata: Metadata = {
 	twitter: { card: "summary_large_image", title, description },
 };
 
-export default async function HomePage() {
-	const t = await getTranslations();
+export default async function HomePage({
+	searchParams = Promise.resolve({}),
+}: {
+	searchParams?: Promise<CreatePageFilters>;
+}) {
+	const session = await getSession();
+	const registered = Boolean(session && !isAnonymousUser(session.user));
 	const structuredData = {
 		"@context": "https://schema.org",
-		"@graph": [
-			{
-				"@type": "SoftwareApplication",
-				name: "EzPic",
-				applicationCategory: "MultimediaApplication",
-				operatingSystem: "Web",
-				description,
-				url: new URL("/", getBaseUrl()).href,
-			},
-			{
-				"@type": "FAQPage",
-				mainEntity: HOME_FAQ_KEYS.map((key) => ({
-					"@type": "Question",
-					name: t(`faq.items.${key}.question`),
-					acceptedAnswer: {
-						"@type": "Answer",
-						text: t(`faq.items.${key}.answer`),
-					},
-				})),
-			},
-		],
+		"@type": "WebSite",
+		name: "EzPic",
+		description,
+		url: new URL("/", getBaseUrl()).href,
+		inLanguage: "en",
 	};
 
 	return (
@@ -58,7 +53,15 @@ export default async function HomePage() {
 					__html: JSON.stringify(structuredData).replaceAll("<", "\\u003c"),
 				}}
 			/>
-			<LandingPage />
+			{registered ? (
+				<RegisteredWorkspaceBoundary>
+					<MainAccountBoundary>
+						<LandingPage editor={<RegisteredEditor searchParams={searchParams} />} />
+					</MainAccountBoundary>
+				</RegisteredWorkspaceBoundary>
+			) : (
+				<LandingPage />
+			)}
 		</>
 	);
 }

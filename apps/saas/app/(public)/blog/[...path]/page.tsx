@@ -24,7 +24,7 @@ export async function generateMetadata({ params }: { params: Promise<BlogPagePar
 		path: `/blog/${post.slug}`,
 		title: post.title,
 		description: post.description,
-		index: false,
+		index: true,
 	});
 }
 

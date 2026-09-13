@@ -44,9 +44,13 @@ describe("guest Turnstile verification", () => {
 		await expect(
 			verifyGuestTurnstileToken(input, { verify, consumeTokenHash }),
 		).resolves.toMatchObject({ tokenHash: expect.stringMatching(/^[a-f0-9]{64}$/) });
-		await expect(verifyGuestTurnstileToken(input, { verify, consumeTokenHash })).rejects.toThrow(
-			"TURNSTILE_REPLAYED",
-		);
+		await expect(
+			verifyGuestTurnstileToken(input, { verify, consumeTokenHash }),
+		).rejects.toMatchObject({
+			code: "FORBIDDEN",
+			status: 403,
+			message: "TURNSTILE_REPLAYED",
+		});
 	});
 
 	it.each([
@@ -75,7 +79,7 @@ describe("guest Turnstile verification", () => {
 				},
 				{ verify: vi.fn(async () => response), consumeTokenHash },
 			),
-		).rejects.toThrow(code);
+		).rejects.toMatchObject({ code: "FORBIDDEN", status: 403, message: code });
 		expect(consumeTokenHash).not.toHaveBeenCalled();
 	});
 

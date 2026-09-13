@@ -83,6 +83,13 @@ describe("ImageOutputSettings", () => {
 			/>,
 		);
 		const visibleText = markup.replaceAll(/<[^>]+>/g, " ");
+		const highOption =
+			markup.match(
+				/<button[^>]*data-sku-key="seedream-5-pro-high-2k"[^>]*>[\s\S]*?<\/button>/,
+			)?.[0] ?? "";
+		expect(highOption.replaceAll(/<[^>]+>/g, " ").replaceAll(/\s+/g, " ")).toContain(
+			"15 EzPic Credits",
+		);
 
 		for (const label of [
 			"Localized resolution",

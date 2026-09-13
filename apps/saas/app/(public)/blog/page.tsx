@@ -11,7 +11,7 @@ export async function generateMetadata() {
 		path: "/blog",
 		title: t("blog.title"),
 		description: t("blog.description"),
-		index: false,
+		index: true,
 	});
 }
 

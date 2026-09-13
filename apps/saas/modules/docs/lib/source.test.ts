@@ -100,26 +100,30 @@ describe("same-origin Docs source", () => {
 	it.each([
 		{ path: "/docs", slug: undefined },
 		{ path: "/docs/quick-start", slug: ["quick-start"] },
-	] as const)("exports explicit noindex metadata for $path", async ({ path, slug }) => {
-		const pageModule = await loadOptionalModule<DocsPageModule>(
-			"../../../app/docs/[[...slug]]/page",
-		);
-		expect(pageModule, "the nested SaaS Docs page module must exist").not.toBeNull();
-		if (!pageModule) return;
+	] as const)(
+		"exports indexable metadata for reviewed documentation at $path",
+		async ({ path, slug }) => {
+			const pageModule = await loadOptionalModule<DocsPageModule>(
+				"../../../app/docs/[[...slug]]/page",
+			);
+			expect(pageModule, "the nested SaaS Docs page module must exist").not.toBeNull();
+			if (!pageModule) return;
 
-		expect(pageModule.generateMetadata).toBeTypeOf("function");
-		if (!pageModule.generateMetadata) return;
-		const metadata = await pageModule.generateMetadata({
-			params: Promise.resolve({ slug }),
-		});
-		expect(canonicalUrl(metadata)).toBe(new URL(path, canonicalOrigin).href);
-		expect(metadata.title).toBeTruthy();
-		expect(String(metadata.description ?? "").trim()).not.toBe("");
-		expect(JSON.stringify(metadata)).not.toMatch(/acme|lorem ipsum|my app/i);
-		const directives = metadataRobotsDirectives(metadata);
-		expect(directives.has("noindex")).toBe(true);
-		expect(directives.has("follow")).toBe(true);
-	});
+			expect(pageModule.generateMetadata).toBeTypeOf("function");
+			if (!pageModule.generateMetadata) return;
+			const metadata = await pageModule.generateMetadata({
+				params: Promise.resolve({ slug }),
+			});
+			expect(canonicalUrl(metadata)).toBe(new URL(path, canonicalOrigin).href);
+			expect(metadata.title).toBeTruthy();
+			expect(String(metadata.description ?? "").trim()).not.toBe("");
+			expect(JSON.stringify(metadata)).not.toMatch(/acme|lorem ipsum|my app/i);
+			const directives = metadataRobotsDirectives(metadata);
+			expect(directives.has("index")).toBe(true);
+			expect(directives.has("noindex")).toBe(false);
+			expect(directives.has("follow")).toBe(true);
+		},
+	);
 });
 
 function canonicalUrl(metadata: Metadata): string | undefined {

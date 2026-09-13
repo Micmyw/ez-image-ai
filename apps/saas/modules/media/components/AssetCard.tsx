@@ -16,9 +16,10 @@ export interface AssetCardProps {
 		sourceJobId: string | null;
 	};
 	onDeleted: () => void;
+	onSelect?: (assetId: string) => void;
 }
 
-export function AssetCard({ asset, onDeleted }: AssetCardProps) {
+export function AssetCard({ asset, onDeleted, onSelect }: AssetCardProps) {
 	const t = useTranslations("media.assets");
 	const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 	async function access(disposition: "inline" | "attachment") {
@@ -56,17 +57,21 @@ export function AssetCard({ asset, onDeleted }: AssetCardProps) {
 					{new Date(asset.createdAt).toLocaleString()}
 				</p>
 				<div className="mt-4 gap-2 flex flex-wrap">
-					{asset.mimeType.startsWith("image/") && (
-						<Button
-							size="sm"
-							variant="primary"
-							render={(props) => (
-								<Link {...props} href={`/create?asset=${encodeURIComponent(asset.id)}`} />
-							)}
-						>
-							{t("reuse")}
-						</Button>
-					)}
+					{asset.mimeType.startsWith("image/") &&
+						(onSelect ? (
+							<Button size="sm" onClick={() => onSelect(asset.id)}>
+								{t("reuse")}
+							</Button>
+						) : (
+							<Button
+								size="sm"
+								render={(props) => (
+									<Link {...props} href={"/create?asset=" + encodeURIComponent(asset.id)} />
+								)}
+							>
+								{t("reuse")}
+							</Button>
+						))}
 					<Button size="sm" variant="secondary" onClick={() => void access("attachment")}>
 						{t("download")}
 					</Button>

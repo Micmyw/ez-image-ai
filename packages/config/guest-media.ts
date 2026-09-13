@@ -41,6 +41,7 @@ export interface GuestMediaRuntimeOverrideRecord {
 	createdAt: Date;
 	abuseHmacKeyVersion: string | null;
 	abuseHmacKeyIdentity: string | null;
+	abuseHmacInitialActivation?: boolean;
 }
 
 export type GuestMediaRuntimeOverride = true | GuestMediaRuntimeOverrideRecord | null | undefined;
@@ -252,7 +253,9 @@ function productionAbuseOverrideReady(input: {
 		input.keyIdentity &&
 		input.override.abuseHmacKeyVersion === input.keyVersion &&
 		input.override.abuseHmacKeyIdentity === input.keyIdentity &&
-		input.now.getTime() - input.override.createdAt.getTime() >= input.evidenceTtlMs,
+		input.now.getTime() >= input.override.createdAt.getTime() &&
+		(input.override.abuseHmacInitialActivation === true ||
+			input.now.getTime() - input.override.createdAt.getTime() >= input.evidenceTtlMs),
 	);
 }
 

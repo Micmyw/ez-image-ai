@@ -1,6 +1,6 @@
 {
 	"blog": {
-		"description": "Lisez des guides de retouche d'image et les nouveautés du produit EzPic.",
+		"description": "Des guides pratiques sur les consignes de retouche avec IA, les images privées et la vérification des résultats.",
 		"title": "Guides EzPic",
 		"back": "Retour au blog"
 	},
@@ -93,7 +93,7 @@
 			"paidSignIn": "Connexion et forfait payant requis",
 			"oneOutput": "Un résultat",
 			"freeQueue": "File gratuite · un aperçu filigrané · disponible jusqu’à 24 heures",
-			"qualityAccess": "GPT Image 2 et Seedream 5 Pro se poursuivent après la connexion et nécessitent Pro, Ultimate ou Max.",
+			"qualityAccess": "{model} nécessite une connexion et un forfait Pro, Ultimate ou Max.",
 			"temporaryResult": "Votre aperçu reste privé et temporaire.",
 			"temporarySessionDisclosure": "EzPic crée une session temporaire pour cet essai, conserve les médias invités jusqu’à 24 heures et utilise des signaux pseudonymes contre les abus pendant la période décrite dans notre Politique de confidentialité.",
 			"qualityCta": "Plus de modèles d’image · forfait payant",
@@ -126,7 +126,8 @@
 					"auto": "Automatique",
 					"opaque": "Opaque",
 					"transparent": "Transparent"
-				}
+				},
+				"coupledHint": "La qualité et la résolution sont liées pour ce modèle. Modifier l’une actualise les deux."
 			},
 			"states": {
 				"challenge": "Vérifier cet import invité",
@@ -142,17 +143,17 @@
 			},
 			"guidance": {
 				"checking": "Patientez pendant la vérification de la disponibilité.",
-				"unavailable": "La retouche est indisponible pour le moment. Réessayez plus tard.",
+				"unavailable": "La retouche est indisponible pour le moment. Préparez une consigne, lisez le guide ou vérifiez à nouveau.",
 				"product": "Choisissez un modèle d’image pour continuer.",
 				"source": "Ajoutez une image source pour continuer.",
 				"prompt": "Décrivez la retouche souhaitée pour continuer.",
 				"verification": "Terminez la vérification pour continuer."
 			},
 			"actions": {
-				"standard": "Essayez Nano Banana 2 Lite 1K gratuitement",
-				"quality": "Continuer avec un modèle d’image payant",
-				"retry": "Réessayer {product}",
-				"retryAvailability": "Vérifier à nouveau la disponibilité"
+				"standard": "Essayer gratuitement",
+				"quality": "Continuer",
+				"retry": "Réessayer",
+				"retryAvailability": "Vérifier la disponibilité"
 			},
 			"errors": {
 				"turnstile": "Terminez la vérification puis réessayez.",
@@ -164,7 +165,11 @@
 			"continue": "Continuer la retouche",
 			"privacy": "Les images source et résultats invités restent privés et temporaires pendant 24 heures maximum. Les médias du compte suivent la conservation décrite dans notre Politique de confidentialité.",
 			"error": "Nous n'avons pas pu enregistrer ce brouillon de retouche. Veuillez réessayer dans quelques instants.",
-			"steps": { "idea": "Importer", "control": "Décrire", "create": "Vérifier" },
+			"steps": {
+				"idea": "Importer",
+				"control": "Décrire",
+				"create": "Vérifier"
+			},
 			"fileHint": "JPEG, PNG ou WebP jusqu’à {megabytes, number} Mo",
 			"uploadLabel": "Déposez une image ici ou choisissez un fichier",
 			"replaceImage": "Remplacer l’image",
@@ -212,6 +217,10 @@
 				"type": "Choisissez une image JPEG, PNG ou WebP.",
 				"size": "Choisissez une image de {megabytes, number} Mo maximum.",
 				"read": "Cette image n’a pas pu être lue. Choisissez un autre fichier."
+			},
+			"help": {
+				"promptGuide": "Lire le guide des consignes",
+				"contact": "Contacter le support"
 			}
 		},
 		"creatorWorkflows": {
@@ -523,6 +532,11 @@
 					"description": "Revenez à l'historique des retouches et consultez l'état le plus récent."
 				}
 			}
+		},
+		"guides": {
+			"quickStart": "Commencer votre première retouche",
+			"prompts": "Rédiger une consigne plus précise",
+			"privacy": "Comprendre la retouche privée"
 		}
 	},
 	"newsletter": {

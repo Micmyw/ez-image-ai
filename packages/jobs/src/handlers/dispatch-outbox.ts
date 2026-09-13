@@ -1,5 +1,22 @@
 import { OutboxDeliveryPendingError, type OutboxDependencies } from "../contracts";
 
+const SAFE_DELIVERY_ERROR_CODES = new Set([
+	"WORKFLOWS_DISPATCH_REJECTED",
+	"WORKFLOWS_DISPATCH_UNCONFIRMED",
+	"WORKFLOWS_DISPATCH_CONFIG_INVALID",
+]);
+
+function deliveryErrorCode(error: unknown): string {
+	if (!(error instanceof Error)) return "DELIVERY_FAILED";
+	if (SAFE_DELIVERY_ERROR_CODES.has(error.message)) return error.message;
+	if (
+		error.message === "WORKFLOWS_DISPATCH_URL is invalid" ||
+		error.message === "WORKFLOWS_DISPATCH_SECRET must contain at least 32 characters"
+	)
+		return "WORKFLOWS_DISPATCH_CONFIG_INVALID";
+	return "DELIVERY_FAILED";
+}
+
 export async function dispatchOutbox(
 	input: { workerId: string; limit?: number; leaseSeconds?: number },
 	dependencies: OutboxDependencies,
@@ -32,7 +49,7 @@ export async function dispatchOutbox(
 				id: event.id,
 				workerId: input.workerId,
 				leaseToken: event.leaseToken,
-				errorCode: "DELIVERY_FAILED",
+				errorCode: deliveryErrorCode(error),
 				retryAt: new Date(now.getTime() + seconds * 1_000),
 			});
 		}

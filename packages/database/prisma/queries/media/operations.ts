@@ -41,6 +41,28 @@ export async function createRuntimeConfigOverride(
 ) {
 	return runSerializable(client, async (tx) => {
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('runtime_config_override_version'))`;
+		if (
+			input.configKey === "media.guestGeneration.enabled" &&
+			typeof input.value === "object" &&
+			input.value !== null &&
+			!Array.isArray(input.value) &&
+			"abuseHmacInitialActivation" in input.value &&
+			input.value.abuseHmacInitialActivation === true
+		) {
+			// Initial activation has no old HMAC evidence to drain. Establish that
+			// fact under the same serializable transaction as the audited override.
+			const counts = await Promise.all([
+				tx.runtimeConfigOverride.count({ where: { configKey: input.configKey } }),
+				tx.guestMediaTrial.count(),
+				tx.guestSessionBootstrap.count(),
+				tx.guestAbuseBucket.count(),
+				tx.guestRiskBudgetBucket.count(),
+				tx.guestLinkIntent.count(),
+				tx.guestResultAccessGrant.count(),
+			]);
+			if (counts.some((count) => count !== 0))
+				throw new Error("GUEST_INITIAL_ACTIVATION_NOT_AVAILABLE");
+		}
 		const [version] = await tx.$queryRaw<Array<{ nextVersion: number }>>`
 			SELECT COALESCE(MAX("version"), 0) + 1 AS "nextVersion"
 			FROM "runtime_config_override"`;

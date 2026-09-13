@@ -1,6 +1,6 @@
 ---
 name: add-translations
-description: Use when adding locale keys or supported locales, localizing app/mail content, or fixing a missing-translation type or runtime warning.
+description: "Use when adding locale keys or locales, translating app/mail content, or fixing missing-translation errors."
 ---
 
 # Add translations
@@ -22,53 +22,11 @@ Use for application and mail UI strings. Do not translate database identifiers, 
 4. Public SaaS routes use unprefixed same-origin paths; do not add a generic root locale segment
    because it conflicts with organization slugs.
 5. For email, use `createTranslator` with the template namespace and keep a `subject` key. `packages/mail/lib/i18n.ts` wraps `@repo/i18n`; `packages/mail/lib/templates.ts` consumes that helper.
-6. To add a locale, update `packages/i18n/config.ts`, add all four JSON files, verify locale cookies/routing, and add localized content variants where required.
+6. To add a locale, update `packages/i18n/config.ts`, add the active shared, SaaS, and mail JSON files, verify locale cookies/routing, and add localized content variants where required.
 7. Remember that English JSON drives the active shared, SaaS, and mail message types. Type-check
    catches invalid keys in code, but it does not prove `de`, `es`, and `fr` parity.
-8. Check every locale/scope for missing leaf keys:
-
-   ```bash
-   node --input-type=module <<'NODE'
-   import { readFile } from "node:fs/promises";
-
-   const locales = ["en", "de", "es", "fr"];
-   const scopes = ["shared", "saas", "mail"];
-   const flattenKeys = (value, prefix = "") =>
-     Object.entries(value).flatMap(([key, child]) => {
-       const path = prefix ? `${prefix}.${key}` : key;
-       return child && typeof child === "object" ? flattenKeys(child, path) : [path];
-     });
-   const missingKeys = [];
-
-   for (const scope of scopes) {
-     const english = JSON.parse(
-       await readFile(`packages/i18n/translations/en/${scope}.json`, "utf8"),
-     );
-     const expectedKeys = flattenKeys(english);
-     for (const locale of locales.slice(1)) {
-       const translated = JSON.parse(
-         await readFile(`packages/i18n/translations/${locale}/${scope}.json`, "utf8"),
-       );
-       const translatedKeys = new Set(flattenKeys(translated));
-       for (const key of expectedKeys) {
-         if (!translatedKeys.has(key)) missingKeys.push(`${locale}/${scope}: ${key}`);
-       }
-     }
-   }
-
-   if (missingKeys.length) {
-     console.error(missingKeys.join("\n"));
-     process.exitCode = 1;
-   }
-   NODE
-   ```
-
-9. Run affected app/mail type checks and:
-   ```bash
-   pnpm format
-   pnpm lint
-   pnpm type-check
-   ```
+8. Compare leaf keys and interpolation/plural shape across all four locales in the affected scope. Render changed messages in the default and one non-default locale. For a reusable parity example, read [references/locale-parity.md](references/locale-parity.md).
+9. Run affected app/mail type checks and formatting/lint checks.
 
 ## Canonical reference
 
@@ -77,7 +35,7 @@ Use for application and mail UI strings. Do not translate database identifiers, 
 
 ## Done
 
-All four locale files in the affected scope have structurally compatible keys, interpolation/plurals render in at least the default and one non-default locale, the app-appropriate server/client API is used, and gates pass.
+All four locale files in the affected scope have structurally compatible keys, interpolation/plurals render in at least the default and one non-default locale, the app-appropriate server/client API is used, and affected checks pass.
 
 ## Common mistakes
 

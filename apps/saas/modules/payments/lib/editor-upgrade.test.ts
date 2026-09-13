@@ -123,6 +123,21 @@ describe("editor upgrade navigation", () => {
 });
 
 describe("editor upgrade draft storage", () => {
+	it("retains a model and prompt when comparing plans before choosing a source image", () => {
+		const storage = memoryStorage();
+		const incompleteDraft = {
+			...draft,
+			sourceReady: false,
+			draft: {
+				...draft.draft,
+				input: { ...draft.draft.input, sourceAssetId: "" },
+			},
+		};
+		expect(writeEditorUpgradeDraft(storage, incompleteDraft, 1_800_000_000_000)).toBe(true);
+		expect(readEditorUpgradeDraft(storage, 1_800_000_030_000)).toEqual(incompleteDraft);
+		expect(writeEditorUpgradeDraft(storage, { ...incompleteDraft, sourceReady: true })).toBe(false);
+	});
+
 	it("round-trips the exact legal product SKU and aspect ratio, then consumes it once", () => {
 		const storage = memoryStorage();
 		expect(writeEditorUpgradeDraft(storage, draft, 1_800_000_000_000)).toBe(true);

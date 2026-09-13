@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
 
-export default function CatchAll() {
+export default function UnmatchedPage() {
 	notFound();
 }

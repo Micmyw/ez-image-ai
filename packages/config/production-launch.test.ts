@@ -42,7 +42,7 @@ const productionEnvironment = {
 	MEDIA_ENABLED_PROVIDERS: "kie",
 	MEDIA_RECOVERY_PROVIDERS: "kie",
 	MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "false",
-	MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "2026-09-07.2",
+	MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "2026-09-07.2,2026-09-13.1",
 	KIE_API_KEY: "kie-worker-secret-present-only",
 	MEDIA_SAFETY_ADAPTER: "sightengine",
 	MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "false",
@@ -461,7 +461,7 @@ describe("EzPic production launch environment", () => {
 		expect(() =>
 			validateEzPicLaunchEnvironment({
 				...productionEnvironment,
-				MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "2026-09-07.1,2026-09-07.2",
+				MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "2026-09-07.2,2026-09-13.1",
 			}),
 		).not.toThrow();
 	});

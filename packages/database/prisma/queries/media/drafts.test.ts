@@ -349,7 +349,16 @@ describe("claimGenerationDraftTransaction", () => {
 				}),
 				updateMany: vi.fn().mockResolvedValue({ count: 1 }),
 			},
-			mediaAsset: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
+			$executeRaw: vi.fn(),
+			mediaAsset: {
+				findFirst: vi.fn().mockResolvedValue({ id: "asset_1", byteSize: 128n, uploadSessions: [] }),
+				updateMany: vi.fn().mockResolvedValue({ count: 1 }),
+			},
+			storageUsageReservation: {
+				findUnique: vi.fn().mockResolvedValue(null),
+				aggregate: vi.fn().mockResolvedValue({ _sum: { bytes: 0n } }),
+				create: vi.fn(),
+			},
 			outboxEvent: { create: vi.fn().mockResolvedValue({ id: "event_1" }) },
 		};
 		const client = { $transaction: vi.fn((operation) => operation(tx)) };

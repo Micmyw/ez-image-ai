@@ -1,9 +1,9 @@
 {
 	"publicContent": {
 		"contact": {
-			"description": "Contact {appName} through the configured support email.",
-			"emailCta": "Email the EzPic support team at:",
-			"unavailable": "Support email is not configured. Please try again after the operator publishes a support address."
+			"description": "Contact {appName} for help with image editing, your account, billing, or privacy.",
+			"emailCta": "Email the EzPic operator at:",
+			"unavailable": "Email support is temporarily unavailable. Please check back later."
 		}
 	},
 	"admin": {
@@ -72,7 +72,9 @@
 					"title": "Effective controls",
 					"global": "Generation kill switch"
 				},
-				"failures": { "title": "Failure codes" },
+				"failures": {
+					"title": "Failure codes"
+				},
 				"routes": {
 					"title": "SKU breakdown",
 					"product": "Image model",
@@ -95,7 +97,10 @@
 					"runtime": "Guest runtime override",
 					"admission": "New guest admission"
 				},
-				"values": { "on": "Enabled", "off": "Disabled" },
+				"values": {
+					"on": "Enabled",
+					"off": "Disabled"
+				},
 				"states": {
 					"ok": "Normal",
 					"warn": "Warning",
@@ -171,13 +176,31 @@
 				"running": "Running operation...",
 				"success": "Operation completed",
 				"error": "Operation was rejected or failed",
-				"replay": { "title": "Replay persisted event", "action": "Replay event" },
-				"retry": { "title": "Retry safe job stage", "action": "Retry stage" },
-				"override": { "title": "Model availability", "disable": "Disable", "enable": "Enable" }
+				"replay": {
+					"title": "Replay persisted event",
+					"action": "Replay event"
+				},
+				"retry": {
+					"title": "Retry safe job stage",
+					"action": "Retry stage"
+				},
+				"override": {
+					"title": "Model availability",
+					"disable": "Disable",
+					"enable": "Enable"
+				}
 			},
-			"overrides": { "title": "Active runtime overrides", "rollback": "Roll back" },
-			"audit": { "title": "Recent media audit" },
-			"paymentEvents": { "title": "Payment event diagnostics", "empty": "No recent events" }
+			"overrides": {
+				"title": "Active runtime overrides",
+				"rollback": "Roll back"
+			},
+			"audit": {
+				"title": "Recent media audit"
+			},
+			"paymentEvents": {
+				"title": "Payment event diagnostics",
+				"empty": "No recent events"
+			}
 		},
 		"title": "Administration",
 		"users": {
@@ -391,6 +414,7 @@
 		"title": "Documentation"
 	},
 	"notFound": {
+		"goToHome": "Return to the homepage",
 		"code": "404",
 		"title": "Page not found",
 		"goToDashboard": "Go to dashboard",
@@ -617,7 +641,7 @@
 				"title": "Delete account"
 			},
 			"language": {
-				"description": "To change the language of the app for your account, select a language from the list and click save.",
+				"description": "Select your preferred account language. Changes are saved automatically.",
 				"notifications": {
 					"error": "Could not update language",
 					"success": "Language was updated successfully"
@@ -779,9 +803,16 @@
 					"past_due": "Past due",
 					"paused": "Paused",
 					"trialing": "Trialing",
-					"unpaid": "Unpaid"
+					"unpaid": "Unpaid",
+					"canceling": "Renewal canceled",
+					"pending": "Pending"
 				},
-				"title": "Your plan"
+				"title": "Your plan",
+				"cancellationScheduled": "Your plan remains available until {date}. It will not renew.",
+				"multipleSubscriptions": "More than one subscription is still open. Review each payment method below and cancel any renewal you no longer need.",
+				"paymentMethod": "Payment method: {provider}",
+				"effectivePlan": "This subscription currently determines your plan benefits.",
+				"currentPeriodEnd": "Current billing period ends on {date}."
 			},
 			"changePlan": {
 				"description": "Choose a plan to subscribe to.",
@@ -840,7 +871,14 @@
 			"pause": "Pause",
 			"resume": "Resume",
 			"retry": "Retry",
-			"remove": "Remove"
+			"remove": "Remove",
+			"status": {
+				"idle": "Waiting",
+				"uploading": "Uploading",
+				"paused": "Paused",
+				"uploaded": "Uploaded",
+				"error": "Upload failed"
+			}
 		},
 		"create": {
 			"eyebrow": "Image editor",
@@ -851,62 +889,141 @@
 			"products": {
 				"image-nano-banana-2-lite": {
 					"label": "Nano Banana 2 Lite",
-					"description": "Fast 1K image edits with broad aspect-ratio support."
+					"description": "Portraits and everyday retouching at 1K."
 				},
 				"image-nano-banana": {
 					"label": "Nano Banana",
-					"description": "Balanced image edits with a dedicated default output profile."
+					"description": "Natural-looking portraits and scene edits."
 				},
 				"image-nano-banana-2": {
 					"label": "Nano Banana 2",
-					"description": "Flexible image edits with independent 1K, 2K, and 4K options."
+					"description": "Product photos and creative edits, up to 4K."
 				},
 				"image-nano-banana-pro": {
 					"label": "Nano Banana Pro",
-					"description": "Premium image edits with independent 1K, 2K, and 4K options."
+					"description": "Fine textures and detailed compositions, up to 4K."
 				},
 				"image-gpt-image-1-5": {
 					"label": "GPT Image 1.5",
-					"description": "Image edits with independent Medium and High quality options."
+					"description": "Text-led designs and precise visual edits."
 				},
 				"image-gpt-image-2": {
 					"label": "GPT Image 2",
-					"description": "Detailed image edits with independent 1K, 2K, and 4K options."
+					"description": "Product imagery, text and detailed compositions."
 				},
 				"image-seedream-4-5": {
 					"label": "Seedream 4.5",
-					"description": "Image edits with independent 2K Basic and 4K High options."
+					"description": "Realistic scenes and styled portraits at 2K or 4K."
 				},
 				"image-seedream-5-lite": {
 					"label": "Seedream 5 Lite",
-					"description": "Image edits with independent 2K Basic, 3K High, and 4K Ultra options."
+					"description": "Cinematic scenes and expressive lighting, up to 4K."
 				},
 				"image-seedream-5-pro": {
 					"label": "Seedream 5 Pro",
-					"description": "Image edits with independent 1K Basic and 2K High options."
+					"description": "Polished product imagery and rich scene detail."
+				},
+				"image-gpt-image-2-5-flare": {
+					"label": "GPT Image 2.5 Flare",
+					"description": "Image editing for everyday visuals, reference fidelity, and natural detail."
+				},
+				"image-gpt-image-2-5-sunburst": {
+					"label": "GPT Image 2.5 Sunburst",
+					"description": "Image editing for campaign visuals and detailed creative control."
+				},
+				"image-seedream-4": {
+					"label": "Seedream 4.0",
+					"description": "Flexible image editing with 1K, 2K, and 4K output options."
 				}
 			},
 			"skus": {
-				"nano-banana-2-lite-1k": { "label": "1K" },
-				"nano-banana-default": { "label": "Default" },
-				"nano-banana-2-1k": { "label": "1K" },
-				"nano-banana-2-2k": { "label": "2K" },
-				"nano-banana-2-4k": { "label": "4K" },
-				"nano-banana-pro-1k": { "label": "1K" },
-				"nano-banana-pro-2k": { "label": "2K" },
-				"nano-banana-pro-4k": { "label": "4K" },
-				"gpt-image-1-5-medium": { "label": "Medium" },
-				"gpt-image-1-5-high": { "label": "High" },
-				"gpt-image-2-1k": { "label": "1K" },
-				"gpt-image-2-2k": { "label": "2K" },
-				"gpt-image-2-4k": { "label": "4K" },
-				"seedream-4-5-basic-2k": { "label": "2K · Basic" },
-				"seedream-4-5-high-4k": { "label": "4K · High" },
-				"seedream-5-lite-basic-2k": { "label": "2K · Basic" },
-				"seedream-5-lite-high-3k": { "label": "3K · High" },
-				"seedream-5-lite-ultra-4k": { "label": "4K · Ultra" },
-				"seedream-5-pro-basic-1k": { "label": "1K · Basic" },
-				"seedream-5-pro-high-2k": { "label": "2K · High" }
+				"nano-banana-2-lite-1k": {
+					"label": "1K"
+				},
+				"nano-banana-default": {
+					"label": "Default"
+				},
+				"nano-banana-2-1k": {
+					"label": "1K"
+				},
+				"nano-banana-2-2k": {
+					"label": "2K"
+				},
+				"nano-banana-2-4k": {
+					"label": "4K"
+				},
+				"nano-banana-pro-1k": {
+					"label": "1K"
+				},
+				"nano-banana-pro-2k": {
+					"label": "2K"
+				},
+				"nano-banana-pro-4k": {
+					"label": "4K"
+				},
+				"gpt-image-1-5-medium": {
+					"label": "Medium"
+				},
+				"gpt-image-1-5-high": {
+					"label": "High"
+				},
+				"gpt-image-2-1k": {
+					"label": "1K"
+				},
+				"gpt-image-2-2k": {
+					"label": "2K"
+				},
+				"gpt-image-2-4k": {
+					"label": "4K"
+				},
+				"seedream-4-5-basic-2k": {
+					"label": "2K · Basic"
+				},
+				"seedream-4-5-high-4k": {
+					"label": "4K · High"
+				},
+				"seedream-5-lite-basic-2k": {
+					"label": "2K · Basic"
+				},
+				"seedream-5-lite-high-3k": {
+					"label": "3K · High"
+				},
+				"seedream-5-lite-ultra-4k": {
+					"label": "4K · Ultra"
+				},
+				"seedream-5-pro-basic-1k": {
+					"label": "1K · Basic"
+				},
+				"seedream-5-pro-high-2k": {
+					"label": "2K · High"
+				},
+				"gpt-image-2-5-flare-1k": {
+					"label": "1K"
+				},
+				"gpt-image-2-5-flare-2k": {
+					"label": "2K"
+				},
+				"gpt-image-2-5-flare-4k": {
+					"label": "4K"
+				},
+				"gpt-image-2-5-sunburst-1k": {
+					"label": "1K"
+				},
+				"gpt-image-2-5-sunburst-2k": {
+					"label": "2K"
+				},
+				"gpt-image-2-5-sunburst-4k": {
+					"label": "4K"
+				},
+				"seedream-4-1k": {
+					"label": "1K"
+				},
+				"seedream-4-2k": {
+					"label": "2K"
+				},
+				"seedream-4-4k": {
+					"label": "4K"
+				}
 			},
 			"fields": {
 				"prompt": "Edit instruction",
@@ -985,6 +1102,23 @@
 				"concurrentLimit": "Your plan already has its maximum number of edits running. No new job or credit reservation was created.",
 				"inputTooLarge": "This source image is larger than your plan's input limit. Choose a smaller image or compare plans.",
 				"safeError": "We could not start this edit. Check the form or try again shortly."
+			},
+			"modelMenu": {
+				"title": "Image models",
+				"trigger": "Model: {model}",
+				"choose": "Choose a model",
+				"groups": "Model families",
+				"credits": "{credits, number} credits",
+				"fromCredits": "From {credits, number} credits",
+				"groupDescriptions": {
+					"nano": "Natural edits",
+					"gpt": "Text and fine detail",
+					"seedream": "Cinematic imagery"
+				},
+				"paidPlan": "Paid plan",
+				"viewPlans": "View plans",
+				"upToResolution": "Up to {resolution}",
+				"upgradeNotice": "{model} requires Pro, Ultimate, or Max. You can keep editing before choosing a plan."
 			}
 		},
 		"guest": {
@@ -1046,13 +1180,18 @@
 		},
 		"upgradeDialog": {
 			"title": "Unlock more image models",
-			"description": "Keep your source image, instruction, selected model and SKU, and edit session while you compare paid plans.",
-			"creator": "Pro: {credits, number} credits per month, {concurrency, number} concurrent edits, source images up to {megabytes, number} MB.",
-			"ultimate": "Ultimate: {credits, number} credits per month, {concurrency, number} concurrent edits, source images up to {megabytes, number} MB.",
-			"studio": "Max: {credits, number} credits per month, {concurrency, number} concurrent edits, source images up to {megabytes, number} MB.",
+			"description": "Your image, instruction, and model settings stay saved while you compare plans.",
 			"storageUnavailable": "This browser could not save the editor draft. Keep this tab open and try again.",
-			"cancel": "Not now",
-			"continue": "Choose a plan"
+			"cancel": "Keep editing",
+			"continue": "Choose a plan",
+			"modelDescription": "{model} is included in Pro, Ultimate, and Max. Choose the plan that fits your editing needs.",
+			"monthlyCredits": "{credits, number} credits/mo",
+			"planDetails": "{concurrency, number} edits at once · {megabytes, number} MB images",
+			"planNames": {
+				"creator": "Pro",
+				"ultimate": "Ultimate",
+				"studio": "Max"
+			}
 		},
 		"editor": {
 			"source": {
@@ -1187,7 +1326,11 @@
 		"assets": {
 			"title": "Asset library",
 			"subtitle": "Private source images and edited outputs.",
-			"filters": { "all": "All assets", "image": "Images", "video": "Videos" },
+			"filters": {
+				"all": "All assets",
+				"image": "Images",
+				"video": "Videos"
+			},
 			"previewAlt": "Private generated asset",
 			"preview": "Show preview",
 			"video": "Video",
@@ -1202,11 +1345,14 @@
 	},
 	"common": {
 		"consent": {
+			"label": "Optional product analytics",
 			"message": "Google Analytics and Microsoft Clarity run automatically. Choose whether to allow additional product analytics. Essential storage remains available.",
 			"decline": "Decline optional",
 			"allow": "Allow optional"
 		},
-		"footer": { "support": "Support" },
+		"footer": {
+			"support": "Support"
+		},
 		"confirmation": {
 			"cancel": "Cancel",
 			"confirm": "Confirm"
@@ -1242,5 +1388,63 @@
 		"error": "We could not confirm this payment. No credits were added.",
 		"tryAgain": "View credit packs",
 		"returnToEditor": "Return to editor"
+	},
+	"studio": {
+		"navigation": "Workspace navigation",
+		"pageNavigation": "Page navigation",
+		"create": "Create image",
+		"explore": "Inspiration",
+		"workspace": "Your workspace",
+		"history": "History",
+		"assets": "Assets",
+		"edits": "Edit chains",
+		"discover": "Discover",
+		"admin": "Administration",
+		"credits": "Credits & plan",
+		"creditBalance": "{credits} credits",
+		"openNavigation": "Open navigation",
+		"closeNavigation": "Close navigation",
+		"closePanel": "Close panel",
+		"panelHint": "Your edit stays here while you manage your account.",
+		"loading": "Loading…",
+		"error": "We couldn't load this. Please try again.",
+		"retry": "Try again",
+		"saved": "Draft saved for this tab",
+		"storageUnavailable": "This browser couldn't save your draft. Keep this tab open to retain your edit.",
+		"panels": {
+			"general": "Account settings",
+			"security": "Login & security",
+			"notifications": "Notifications",
+			"billing": "Credits & billing",
+			"history": "Your history",
+			"assets": "Your assets"
+		},
+		"dock": {
+			"label": "Continue your edit",
+			"return": "Return to editor",
+			"placeholder": "Continue creating",
+			"result": "View current result"
+		},
+		"subtitle": "Upload an image, describe a change, and make it yours.",
+		"private": "Your images stay private",
+		"upload": "Upload image",
+		"promptSuggestions": {
+			"background": "Change background",
+			"object": "Remove an object",
+			"lighting": "Adjust light",
+			"style": "Restyle image"
+		},
+		"tools": {
+			"imageTools": "AI Image Tools",
+			"models": "AI Models",
+			"imageToImage": "Image to Image",
+			"imageToImageDescription": "Edit a reference image with a prompt.",
+			"examples": "Editing Examples",
+			"examplesDescription": "Explore ideas and use a prompt in your editor.",
+			"loading": "Loading available models…",
+			"unavailable": "Models are currently unavailable. You can still prepare your edit.",
+			"modelUnavailable": "The requested model is unavailable. Choose an available model to continue.",
+			"title": "AI Image to Image Editor"
+		}
 	}
 }

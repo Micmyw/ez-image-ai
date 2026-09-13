@@ -9,6 +9,7 @@ node_modules
 coverage
 .playwright-cli/
 /output/playwright/
+/output/model-catalog-sync/
 /design-qa.md
 
 # next.js

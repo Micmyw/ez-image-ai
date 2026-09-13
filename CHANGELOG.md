@@ -1,5 +1,120 @@
 # Changelog
 
+## 2026-09-13
+
+### Expanded image models
+
+- Extend the image catalog to twelve models and twenty-nine output choices with GPT Image 2.5
+  Flare, GPT Image 2.5 Sunburst, and Seedream 4.0. Keep each model’s own output, aspect-ratio,
+  input-limit, and credit rules across navigation, editing, guest handoff, and paid plans.
+- Preserve original model brand colors, translate the added output labels, and allow the larger
+  menu to scroll on smaller screens. Keep model and output popovers inside the viewport while
+  browsing longer lists.
+- Keep new production model switches off by default. Catalog `2026-09-13.1` and pricing
+  `2026-09-13.2` extend the existing models without changing their charges or accepted jobs.
+
+### Unified homepage workspace
+
+- Keep the homepage free of a tool sidebar for both visitors and signed-in users, with top
+  navigation and a centered editor. AI Image Tools and AI Models lead into the shared `/create`
+  workspace, whose tool sidebar is available to guests and registered users.
+- Preselect the model from navigation links, preserve the prompt and source when changing models
+  within the workspace, and keep the selection in the URL for refresh and browser navigation.
+  Account settings, history, assets, and billing remain available only after registration.
+- Share the compact editor and inspiration content with `/create`. Display results only after a
+  job is selected, and retain registered users' existing recovery and account checks.
+- Open account settings, security, notifications, history, assets, and billing beside the editor.
+  Keep the editor, quote, and job polling mounted while these panels are open.
+- Retain a same-tab, account-scoped draft for up to one hour across account or payment navigation;
+  recheck source access and request a fresh quote after restoring it. Existing explicit source,
+  job reuse, guest handoff, and upgrade recovery continue to take precedence.
+- Add a floating return-to-editor bar with current job status, responsive navigation, and keyboard
+  controls for mobile panels. Inspiration changes only the prompt.
+- Fix account language changes saving the previous selection on the first change.
+
+### Image model menu and output pricing
+
+- Replace the homepage and quick editor model strips with a compact menu grouped by model family,
+  with distinct icons, editing-style descriptions, supported resolutions, and starting Credits.
+- Use the original yellow Nano Banana emoji and Seedream/OpenAI brand SVGs consistently in model
+  navigation, the editor selector, and upgrade prompts, retaining their original colors.
+- Keep paid-model selection inside the editor with an inline access notice and an explicit
+  **View plans** action. Use a compact upgrade dialog with a translucent backdrop, and preserve the
+  selected model and prompt when comparing plans before uploading an image.
+- Label paid models and clarify maximum-resolution badges as **Up to 2K/4K**.
+- Keep output controls and a short action on one desktop row; place homepage guidance and privacy
+  notes below the editor. Show each output tier’s Credits in settings and the selected paid amount
+  on the action button.
+- Increase Credits for higher Nano Banana Pro, Seedream 4.5, and Seedream 5 Lite output tiers.
+  Use pricing version `2026-09-13.1` while preserving provider costs, accepted job snapshots,
+  and existing quote, reservation, and settlement checks.
+
+## 2026-09-12
+
+### Generated image delivery
+
+- Detect provider image bytes before choosing an immutable output format, including JPEG results.
+- Keep incomplete output transfers out of moderation and its recovery batches so storage retries
+  cannot consume the moderation failure budget or prematurely release generation reservations.
+- Use the AWS SDK's DOM-independent XML parser for R2 responses in Workers, including multipart
+  upload initialization and completion.
+- Show scheduled subscription cancellations and the remaining access period in Billing, without
+  offering the same cancellation action again.
+- Refresh active edits in history until completion and label completed source uploads accurately.
+- Return an explicit access denial for invalid Turnstile evidence while preserving all verification checks.
+- Allow the exact Cloudflare Turnstile script and frame origin in the page security policy.
+- Show Turnstile only when visitor interaction is required, without reserving space after success.
+
+### Cloudflare sandbox payment configuration
+
+- Show every open billing subscription with its payment method and renewal controls; align the
+  displayed effective plan with server entitlements. Prevent duplicate subscription checkout across
+  payment methods, plans, and billing periods, including concurrent requests and historical retries.
+
+- Allow an explicitly configured website Workers origin to receive only payment webhook POSTs,
+  preserving signature bytes and the existing billing pipeline while rejecting other routes.
+- Configure PayPal Sandbox and Waffo Test on the existing production Workers at the operator's
+  request, including test webhooks, provider product mappings and 20 billing-plan snapshots.
+- Verify secret bindings, unchanged deployed code, public credit-pack availability and invalid
+  webhook rejection; keep complete online payment/fulfillment and Live/Prod certification pending.
+
+### Upload and guest storage security
+
+- Bind avatar upload signatures to a validated PNG byte count of at most 2,000,000 bytes and
+  preserve the cropped-avatar upload flow.
+- Enforce account storage quotas when claiming marketing drafts or linking guest draft assets,
+  transfer existing reservations once, and release stored bytes only after physical cleanup.
+- Aggregate guest denial evidence by server-derived owner identity and UTC day without extending
+  retention on each rejection. Preserve anonymous-owner discovery across delayed cleanup batches
+  and remove expired unbound bootstraps after any principal lease expires.
+- Retain only allowlisted Workflow delivery diagnostics while redacting arbitrary error details.
+
+### Public SEO and editing guidance
+
+- Show a checking or availability-retry action when public editing is unavailable, with prompt
+  guidance and support links, while preserving server availability and credit controls.
+- Publish a practical image-editing prompt guide and improve private-media and workflow help.
+  Index reviewed Blog and Docs pages, include them in the sitemap, and remove generated lastmod dates.
+- Keep public SEO pages in English while retaining account language preferences. Replace ineligible
+  application/FAQ rich-result markup with factual WebSite identity and preserve visible FAQs.
+- Upgrade safe canonical-host HTTP navigation to HTTPS and return a public 404 for unmatched routes.
+  Allow crawlers to read login/signup noindex tags without changing authentication.
+- Move the consent choices into normal page flow so they do not cover the mobile editor, render
+  editorial links as real same-origin anchors, and replace legal deployment placeholders with the
+  confirmed individual-operator contact description.
+
+### Documentation
+
+- Add a Simplified Chinese README with language links, local development and cache maintenance
+  instructions, payment guidance, and the current Cloudflare deployment references.
+
+### Local build cache maintenance
+
+- Exclude Next.js development outputs from Turbo build archives to avoid repeatedly storing
+  development caches alongside production builds.
+- Add preview and targeted cleanup commands for local Turbo and Next.js caches, preserving
+  dependencies and production outputs outside the cache directories.
+
 ## 2026-09-11
 
 ### PayPal sandbox checkout

@@ -1,14 +1,17 @@
 "use client";
 
+import { ImageModelSelector } from "@media/components/ImageModelSelector";
 import {
 	ImageOutputSettings,
 	type ImageOutputSettingsLabels,
 } from "@media/components/ImageOutputSettings";
+import { replaceImageModelInUrl, useModelNavigation } from "@media/hooks/use-model-navigation";
 import {
 	type ImageSpecControlKey,
 	type ImageSpecControlValues,
 	resolveImageSpecControlValues,
 } from "@media/lib/image-sku-selection";
+import { getImageProductSelectionContract } from "@repo/config/client";
 import type { ImageAspectRatio, ImageSkuKey } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
@@ -16,9 +19,8 @@ import { Textarea } from "@repo/ui/components/textarea";
 import { Turnstile } from "@repo/ui/components/turnstile";
 import { trackBrowserGrowthEvent } from "@repo/utils";
 import {
-	ArrowRightIcon,
+	CoinsIcon,
 	ArrowUpIcon,
-	CheckIcon,
 	ChevronDownIcon,
 	ImagePlusIcon,
 	LockKeyholeIcon,
@@ -66,6 +68,7 @@ const LOCAL_TURNSTILE_EVIDENCE = "local-guest-upload";
 export function LandingGenerator() {
 	const t = useTranslations("home.generator");
 	const tCreate = useTranslations("media.create");
+	const studio = useTranslations("studio");
 	const generatorRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const promptRef = useRef<HTMLTextAreaElement>(null);
@@ -153,7 +156,7 @@ export function LandingGenerator() {
 			floatingPromptRef.current?.focus({ preventScroll: true });
 		});
 		function collapseOnEscape(event: KeyboardEvent) {
-			if (event.key !== "Escape") return;
+			if (event.key !== "Escape" || event.defaultPrevented) return;
 			setIsDockExpanded(false);
 			requestAnimationFrame(() => floatingExpandRef.current?.focus());
 		}
@@ -211,6 +214,10 @@ export function LandingGenerator() {
 	);
 	const selectedProduct =
 		localizedProducts.find((product) => product.key === selectedProductKey) ?? null;
+	const modelOptions = localizedProducts.map((product) => ({
+		...product,
+		requiresUpgrade: product.accessHint === "paid-account",
+	}));
 	const selectedSku =
 		selectedProduct?.skuMatrix.cells.find((cell) => cell.skuKey === selectedSkuKey) ?? null;
 	const capabilityUsable = Boolean(capability?.enabled && capability.products.length > 0);
@@ -241,7 +248,19 @@ export function LandingGenerator() {
 	});
 	const isBusy = disabledReason === "busy";
 	const canSubmit = disabledReason === null;
-	const canRetryCapability = stage === "failed" && capability === null;
+	const modelNavigation = useModelNavigation({
+		products: localizedProducts,
+		value: selectedProductKey,
+		ready: Boolean(capability) && !isBusy,
+		onSelect: (key) => {
+			if (!isBusy) {
+				setSelectedProductKey(key);
+				setSubmitError(undefined);
+			}
+		},
+	});
+	const canRetryCapability =
+		(stage === "failed" && capability === null) || (stage === "ready" && !capabilityUsable);
 
 	function retryCapability() {
 		setSubmitError(undefined);
@@ -429,13 +448,16 @@ export function LandingGenerator() {
 	}
 
 	const selectedProductLabel = selectedProduct?.label ?? "";
-	const actionLabel = canRetryCapability
-		? t("actions.retryAvailability")
-		: stage === "failed" && selectedProduct
-			? t("actions.retry", { product: selectedProductLabel })
-			: selectedProduct?.accessHint === "paid-account"
-				? t("actions.quality")
-				: t("actions.standard");
+	const actionLabel =
+		stage === "checking"
+			? t("states.checking")
+			: canRetryCapability
+				? t("actions.retryAvailability")
+				: stage === "failed" && selectedProduct
+					? t("actions.retry")
+					: selectedProduct?.accessHint === "paid-account"
+						? t("actions.quality")
+						: t("actions.standard");
 	const stageLabel =
 		stage === "uploading"
 			? t("states.uploading", { percentage: uploadPercentage ?? 0 })
@@ -443,6 +465,20 @@ export function LandingGenerator() {
 	const statusLabel =
 		disabledReason && disabledReason !== "busy" ? t(`guidance.${disabledReason}`) : stageLabel;
 	const showCharacterCount = prompt.length >= 9_000;
+	const unavailableHelp =
+		!capabilityUsable && stage !== "checking" ? (
+			<div className="mt-3 gap-x-5 gap-y-2 text-sm text-violet-200 flex flex-wrap">
+				<a
+					href="/blog/ai-image-editing-prompts"
+					className="hover:text-white underline underline-offset-4"
+				>
+					{t("help.promptGuide")}
+				</a>
+				<a href="/contact" className="hover:text-white underline underline-offset-4">
+					{t("help.contact")}
+				</a>
+			</div>
+		) : null;
 	const outputSettingsLabels = {
 		title: t("settings.title"),
 		trigger: t("settings.trigger"),
@@ -456,6 +492,7 @@ export function LandingGenerator() {
 		background: t("settings.background"),
 		modeControlsQuality: t("settings.modeControlsQuality"),
 		credits: t("settings.credits"),
+		coupledHint: t("settings.coupledHint"),
 		optionLabels: {
 			"1k": t("settings.optionLabels.1k"),
 			"2k": t("settings.optionLabels.2k"),
@@ -489,6 +526,11 @@ export function LandingGenerator() {
 					aria-hidden="true"
 				/>
 				<form className="relative" onSubmit={(event) => void submit(event)}>
+					{modelNavigation.unavailable && (
+						<output className="mb-3 text-sm text-amber-200 block">
+							{studio("tools.modelUnavailable")}
+						</output>
+					)}
 					<div className="gap-1.5 sm:gap-2 sm:grid-cols-[7.5rem_minmax(0,1fr)] md:grid-cols-[8.5rem_minmax(0,1fr)] bg-black/10 p-1.5 grid grid-cols-[4.75rem_minmax(0,1fr)] rounded-[1.3rem]">
 						<section data-test="landing-source-panel" className="min-w-0 relative">
 							<label htmlFor="landing-source-image" className="sr-only">
@@ -583,7 +625,10 @@ export function LandingGenerator() {
 								id="landing-edit-prompt"
 								rows={4}
 								required
-								maxLength={10_000}
+								maxLength={
+									getImageProductSelectionContract(selectedProductKey ?? "")?.maximumPromptLength ??
+									10_000
+								}
 								value={prompt}
 								disabled={isBusy}
 								placeholder={t("placeholder")}
@@ -600,53 +645,24 @@ export function LandingGenerator() {
 
 					<div
 						data-test="landing-controls-panel"
-						className="mt-2 gap-2 px-1 flex flex-wrap items-center"
+						className="mt-4 gap-2 px-1 flex flex-wrap items-center"
 					>
-						<fieldset
-							data-test="landing-tier-panel"
-							disabled={isBusy}
-							className={capability?.products.length ? "min-w-0" : "hidden"}
-						>
-							<legend className="sr-only">{t("modes.legend")}</legend>
-							<div className="gap-1 bg-black/15 p-1 flex flex-wrap rounded-xl">
-								{localizedProducts.map((product) => {
-									const selected = product.key === selectedProductKey;
-									return (
-										<label
-											key={product.key}
-											className={`min-h-10 gap-2 px-3 text-xs font-semibold relative flex cursor-pointer items-center rounded-lg transition focus-within:outline-2 focus-within:outline-offset-2 focus-within:outline-[#b79cff] ${
-												selected
-													? "text-white shadow-sm bg-[#4b3a70]"
-													: "hover:bg-white/[0.055] hover:text-white text-[#b7acbf]"
-											}`}
-										>
-											<input
-												type="radio"
-												name="landing-product"
-												value={product.key}
-												checked={selected}
-												className="inset-0 absolute z-10 h-full w-full cursor-pointer opacity-0"
-												onChange={() => {
-													setSelectedProductKey(product.key);
-													setSubmitError(undefined);
-												}}
-											/>
-											{selected && <CheckIcon className="size-3.5" aria-hidden="true" />}
-											<span title={product.description}>{product.label}</span>
-											<span className="text-[0.64rem] opacity-70">
-												{t("modes.credits", {
-													credits: Number(
-														selected && selectedSku ? selectedSku.credits : product.credits,
-													),
-												})}
-											</span>
-										</label>
-									);
-								})}
-							</div>
-						</fieldset>
+						<ImageModelSelector
+							idPrefix="landing"
+							products={modelOptions}
+							value={selectedProductKey}
+							disabled={isBusy || !capabilityUsable}
+							onChange={(key) => {
+								const next = localizedProducts.find((product) => product.key === key);
+								if (!next) return;
+								setSelectedProductKey(next.key);
+								replaceImageModelInUrl(next.key);
+								setSelectedSkuKey(resolveLandingSkuSelection(next, null));
+								setSubmitError(undefined);
+							}}
+						/>
 
-						<div className="sm:w-[17.5rem] w-full">
+						<div className="min-w-0 max-w-full">
 							<ImageOutputSettings
 								idPrefix="landing"
 								aspectRatios={selectedSku?.aspectRatios ?? []}
@@ -671,41 +687,30 @@ export function LandingGenerator() {
 							type={canRetryCapability ? "button" : "submit"}
 							variant="primary"
 							size="lg"
-							className="min-h-11 px-5 text-white focus-visible:outline-violet-200 sm:ml-auto sm:w-auto w-full bg-[#6c4dff] shadow-[0_14px_34px_-16px_rgba(108,77,255,0.9)] hover:bg-[#7d63ff]"
+							data-test="landing-generate"
+							className="h-11 min-h-11 gap-2 px-4 text-sm text-white focus-visible:outline-violet-200 ml-auto rounded-lg bg-[#6c4dff] hover:bg-[#7d63ff]"
 							disabled={canRetryCapability ? false : !canSubmit}
 							loading={isBusy}
 							aria-describedby="landing-stage-status"
 							onClick={canRetryCapability ? retryCapability : undefined}
 						>
 							{actionLabel}
-							<ArrowRightIcon className="ml-1 size-4" aria-hidden="true" />
+							{selectedSku &&
+								selectedProduct?.accessHint === "paid-account" &&
+								!canRetryCapability && (
+									<span
+										data-test="generation-credit-amount"
+										className="gap-1 border-white/20 pl-2 text-xs inline-flex items-center border-l tabular-nums"
+										aria-label={t("modes.credits", { credits: selectedSku.credits })}
+									>
+										<CoinsIcon className="size-3.5" aria-hidden="true" />
+										{selectedSku.credits}
+									</span>
+								)}
 						</Button>
 					</div>
 
-					<div className="mt-2 gap-x-5 gap-y-1 px-1 sm:flex-row sm:items-center text-xs leading-5 flex flex-col text-[#b2a7bc]">
-						<output
-							id="landing-stage-status"
-							data-test="landing-stage"
-							data-stage={stage}
-							className={canSubmit ? "sr-only" : "font-semibold text-[#ddd4e4]"}
-							aria-live="polite"
-						>
-							{statusLabel}
-						</output>
-						{selectedProduct && capabilityUsable && (
-							<span className="gap-1.5 inline-flex items-center">
-								<SparklesIcon className="size-3.5 text-[#b79cff]" aria-hidden="true" />
-								{selectedProduct.accessHint === "paid-account"
-									? t("qualityAccess")
-									: t("freeQueue")}
-							</span>
-						)}
-						<span className="gap-1.5 sm:ml-auto inline-flex items-center">
-							<LockKeyholeIcon className="size-3.5 text-emerald-300" aria-hidden="true" />
-							{t("temporaryResult")}
-						</span>
-					</div>
-
+					{unavailableHelp}
 					{stage === "uploading" && typeof uploadPercentage === "number" && (
 						<div className="mt-3 h-1.5 bg-white/10 overflow-hidden rounded-full" aria-hidden="true">
 							<div
@@ -742,6 +747,33 @@ export function LandingGenerator() {
 						</Alert>
 					)}
 				</form>
+			</div>
+
+			<div
+				data-test="landing-generator-help"
+				className="mt-3 gap-x-5 gap-y-1 px-2 text-xs leading-5 mx-auto flex max-w-[76rem] flex-wrap items-center text-[#a99db2]"
+			>
+				<output
+					id="landing-stage-status"
+					data-test="landing-stage"
+					data-stage={stage}
+					className={canSubmit ? "sr-only" : "font-semibold text-[#ddd4e4]"}
+					aria-live="polite"
+				>
+					{statusLabel}
+				</output>
+				{selectedProduct && capabilityUsable && (
+					<span className="gap-1.5 inline-flex items-center">
+						<SparklesIcon className="size-3.5 text-[#b79cff]" aria-hidden="true" />
+						{selectedProduct.accessHint === "paid-account"
+							? t("qualityAccess", { model: selectedProduct.label })
+							: t("freeQueue")}
+					</span>
+				)}
+				<span className="gap-1.5 sm:ml-auto inline-flex items-center">
+					<LockKeyholeIcon className="size-3.5 text-emerald-300" aria-hidden="true" />
+					{t("temporaryResult")}
+				</span>
 			</div>
 
 			{isDockVisible && (
@@ -821,7 +853,10 @@ export function LandingGenerator() {
 											id="floating-edit-prompt"
 											rows={4}
 											required
-											maxLength={10_000}
+											maxLength={
+												getImageProductSelectionContract(selectedProductKey ?? "")
+													?.maximumPromptLength ?? 10_000
+											}
 											value={prompt}
 											disabled={isBusy}
 											placeholder={t("placeholder")}
@@ -832,42 +867,22 @@ export function LandingGenerator() {
 								</div>
 
 								<div className="mt-2 gap-2 flex flex-wrap items-center">
-									<fieldset
-										disabled={isBusy}
-										className={capability?.products.length ? undefined : "hidden"}
-									>
-										<legend className="sr-only">{t("modes.legend")}</legend>
-										<div className="gap-1 p-1 bg-black/15 max-h-32 flex flex-wrap overflow-y-auto rounded-xl">
-											{localizedProducts.map((product) => {
-												const selected = product.key === selectedProductKey;
-												return (
-													<label
-														key={product.key}
-														className={`min-h-10 px-3 text-xs font-semibold relative flex cursor-pointer items-center rounded-lg transition focus-within:outline-2 focus-within:outline-[#b79cff] ${
-															selected
-																? "text-white bg-[#4b3a70]"
-																: "hover:text-white text-[#b7acbf]"
-														}`}
-													>
-														<input
-															type="radio"
-															name="floating-product"
-															value={product.key}
-															checked={selected}
-															className="inset-0 absolute z-10 h-full w-full cursor-pointer opacity-0"
-															onChange={() => {
-																setSelectedProductKey(product.key);
-																setSubmitError(undefined);
-															}}
-														/>
-														<span title={product.description}>{product.label}</span>
-													</label>
-												);
-											})}
-										</div>
-									</fieldset>
+									<ImageModelSelector
+										idPrefix="floating"
+										products={modelOptions}
+										value={selectedProductKey}
+										disabled={isBusy || !capabilityUsable}
+										onChange={(key) => {
+											const next = localizedProducts.find((product) => product.key === key);
+											if (!next) return;
+											setSelectedProductKey(next.key);
+											replaceImageModelInUrl(next.key);
+											setSelectedSkuKey(resolveLandingSkuSelection(next, null));
+											setSubmitError(undefined);
+										}}
+									/>
 
-									<div className="sm:w-[17.5rem] w-full">
+									<div className="min-w-0 max-w-full">
 										<ImageOutputSettings
 											idPrefix="floating"
 											aspectRatios={selectedSku?.aspectRatios ?? []}
@@ -892,14 +907,26 @@ export function LandingGenerator() {
 										type={canRetryCapability ? "button" : "submit"}
 										variant="primary"
 										size="lg"
-										className="min-h-11 px-5 text-white sm:ml-auto sm:w-auto w-full bg-[#6c4dff] hover:bg-[#7d63ff]"
+										data-test="floating-generate"
+										className="h-11 min-h-11 gap-2 px-4 text-sm text-white ml-auto rounded-lg bg-[#6c4dff] hover:bg-[#7d63ff]"
 										disabled={canRetryCapability ? false : !canSubmit}
 										loading={isBusy}
 										aria-describedby="floating-stage-status"
 										onClick={canRetryCapability ? retryCapability : undefined}
 									>
 										{actionLabel}
-										<ArrowRightIcon className="ml-1 size-4" aria-hidden="true" />
+										{selectedSku &&
+											selectedProduct?.accessHint === "paid-account" &&
+											!canRetryCapability && (
+												<span
+													data-test="generation-credit-amount"
+													className="gap-1 border-white/20 pl-2 text-xs inline-flex items-center border-l tabular-nums"
+													aria-label={t("modes.credits", { credits: selectedSku.credits })}
+												>
+													<CoinsIcon className="size-3.5" aria-hidden="true" />
+													{selectedSku.credits}
+												</span>
+											)}
 									</Button>
 								</div>
 
@@ -911,6 +938,7 @@ export function LandingGenerator() {
 										{file ? t("floating.imageReady") : t("floating.upload")}
 									</span>
 								</div>
+								{unavailableHelp}
 								{GUEST_TURNSTILE_SITE_KEY && (
 									<Turnstile
 										siteKey={GUEST_TURNSTILE_SITE_KEY}

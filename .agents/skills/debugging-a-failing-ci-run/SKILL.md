@@ -32,7 +32,7 @@ Use for failures in `.github/workflows/validate-prs.yml`. Do not change tests, w
 4. Match CI environment requirements: `DATABASE_URL`, a test `BETTER_AUTH_SECRET`, and `RESEND_API_KEY` are workflow env values. Do not print secret values.
 5. Reduce the reproduction to the failing file or test, then trace the earliest application error rather than later cascade errors or artifact-upload noise.
 6. Fix the root cause and add or update a regression test when the failure exposed missing coverage.
-7. Re-run the exact failed command, then `pnpm format`, `pnpm lint`, `pnpm type-check`, and relevant tests.
+7. Re-run the exact failed command and checks for the changed behavior; expand only when the fix affects another job.
 
 ## Canonical reference
 

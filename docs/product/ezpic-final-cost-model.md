@@ -2,7 +2,7 @@
 
 ## Decision status
 
-Image catalog and pricing version `2026-09-07.2` replaces the retired OpenRouter Standard/Quality
+Image catalog version `2026-09-07.2` and pricing version `2026-09-13.1` replace the retired OpenRouter Standard/Quality
 offer with one `EzPic Credit` balance and 20 Kie-backed image-edit SKU cells across nine products.
 The SKU prices below are the Kie public prices used by the current server-only catalog; they are
 planning inputs, not a Kie invoice, a paid execution benchmark, or production margin certification.
@@ -38,7 +38,7 @@ receives Kie identity, raw Kie model IDs, credentials, routing weights, or dolla
 | `image-nano-banana-2`      | `nano-banana-2-2k`         | 2K                |         $0.0600 |            13 |
 | `image-nano-banana-2`      | `nano-banana-2-4k`         | 4K                |         $0.0900 |            19 |
 | `image-nano-banana-pro`    | `nano-banana-pro-1k`       | 1K                |         $0.0900 |            19 |
-| `image-nano-banana-pro`    | `nano-banana-pro-2k`       | 2K                |         $0.0900 |            19 |
+| `image-nano-banana-pro`    | `nano-banana-pro-2k`       | 2K                |         $0.0900 |            22 |
 | `image-nano-banana-pro`    | `nano-banana-pro-4k`       | 4K                |         $0.1200 |            25 |
 | `image-gpt-image-1-5`      | `gpt-image-1-5-medium`     | Medium            |         $0.0200 |             5 |
 | `image-gpt-image-1-5`      | `gpt-image-1-5-high`       | High              |         $0.1100 |            23 |
@@ -46,10 +46,10 @@ receives Kie identity, raw Kie model IDs, credentials, routing weights, or dolla
 | `image-gpt-image-2`        | `gpt-image-2-2k`           | 2K                |         $0.0500 |            11 |
 | `image-gpt-image-2`        | `gpt-image-2-4k`           | 4K                |         $0.0800 |            17 |
 | `image-seedream-4-5`       | `seedream-4-5-basic-2k`    | Basic, 2K         |         $0.0325 |             8 |
-| `image-seedream-4-5`       | `seedream-4-5-high-4k`     | High, 4K          |         $0.0325 |             8 |
+| `image-seedream-4-5`       | `seedream-4-5-high-4k`     | High, 4K          |         $0.0325 |            12 |
 | `image-seedream-5-lite`    | `seedream-5-lite-basic-2k` | Basic, 2K         |         $0.0275 |             7 |
-| `image-seedream-5-lite`    | `seedream-5-lite-high-3k`  | High, 3K          |         $0.0275 |             7 |
-| `image-seedream-5-lite`    | `seedream-5-lite-ultra-4k` | Ultra, 4K         |         $0.0275 |             7 |
+| `image-seedream-5-lite`    | `seedream-5-lite-high-3k`  | High, 3K          |         $0.0275 |            10 |
+| `image-seedream-5-lite`    | `seedream-5-lite-ultra-4k` | Ultra, 4K         |         $0.0275 |            14 |
 | `image-seedream-5-pro`     | `seedream-5-pro-basic-1k`  | Basic, 1K         |         $0.0350 |             8 |
 | `image-seedream-5-pro`     | `seedream-5-pro-high-2k`   | High, 2K          |         $0.0700 |            15 |
 
@@ -154,7 +154,7 @@ payment_and_refund_net(annual allocation) =
 | `nano-banana-2-2k`         |    $0.079000 |                 $0.006077 |
 | `nano-banana-2-4k`         |    $0.113500 |                 $0.005974 |
 | `nano-banana-pro-1k`       |    $0.108500 |                 $0.005711 |
-| `nano-banana-pro-2k`       |    $0.113500 |                 $0.005974 |
+| `nano-banana-pro-2k`       |    $0.113500 |                 $0.005159 |
 | `nano-banana-pro-4k`       |    $0.148000 |                 $0.005920 |
 | `gpt-image-1-5-medium`     |    $0.033000 |                 $0.006600 |
 | `gpt-image-1-5-high`       |    $0.136500 |                 $0.005935 |
@@ -162,10 +162,10 @@ payment_and_refund_net(annual allocation) =
 | `gpt-image-2-2k`           |    $0.067500 |                 $0.006136 |
 | `gpt-image-2-4k`           |    $0.102000 |                 $0.006000 |
 | `seedream-4-5-basic-2k`    |    $0.047375 |                 $0.005922 |
-| `seedream-4-5-high-4k`     |    $0.047375 |                 $0.005922 |
+| `seedream-4-5-high-4k`     |    $0.047375 |                 $0.003948 |
 | `seedream-5-lite-basic-2k` |    $0.041625 |                 $0.005946 |
-| `seedream-5-lite-high-3k`  |    $0.041625 |                 $0.005946 |
-| `seedream-5-lite-ultra-4k` |    $0.041625 |                 $0.005946 |
+| `seedream-5-lite-high-3k`  |    $0.041625 |                 $0.004163 |
+| `seedream-5-lite-ultra-4k` |    $0.041625 |                 $0.002973 |
 | `seedream-5-pro-basic-1k`  |    $0.045250 |                 $0.005656 |
 | `seedream-5-pro-high-2k`   |    $0.090500 |                 $0.006033 |
 

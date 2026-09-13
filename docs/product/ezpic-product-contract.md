@@ -22,38 +22,52 @@ is embedded in the product code.
 
 ## Public products, one wallet, and legal SKUs
 
-EzPic exposes nine image-edit products backed by one `EzPic Credit` balance. Credit use is selected
+EzPic exposes twelve image-edit products backed by one `EzPic Credit` balance. Credit use is selected
 by the exact legal SKU, not by a universal per-image rate:
 
-| Public product key         | Legal SKU                  | Parameters | EzPic Credits |
-| -------------------------- | -------------------------- | ---------- | ------------: |
-| `image-nano-banana-2-lite` | `nano-banana-2-lite-1k`    | 1K         |             5 |
-| `image-nano-banana`        | `nano-banana-default`      | Default    |             5 |
-| `image-nano-banana-2`      | `nano-banana-2-1k`         | 1K         |             9 |
-| `image-nano-banana-2`      | `nano-banana-2-2k`         | 2K         |            13 |
-| `image-nano-banana-2`      | `nano-banana-2-4k`         | 4K         |            19 |
-| `image-nano-banana-pro`    | `nano-banana-pro-1k`       | 1K         |            19 |
-| `image-nano-banana-pro`    | `nano-banana-pro-2k`       | 2K         |            19 |
-| `image-nano-banana-pro`    | `nano-banana-pro-4k`       | 4K         |            25 |
-| `image-gpt-image-1-5`      | `gpt-image-1-5-medium`     | Medium     |             5 |
-| `image-gpt-image-1-5`      | `gpt-image-1-5-high`       | High       |            23 |
-| `image-gpt-image-2`        | `gpt-image-2-1k`           | 1K         |             7 |
-| `image-gpt-image-2`        | `gpt-image-2-2k`           | 2K         |            11 |
-| `image-gpt-image-2`        | `gpt-image-2-4k`           | 4K         |            17 |
-| `image-seedream-4-5`       | `seedream-4-5-basic-2k`    | Basic, 2K  |             8 |
-| `image-seedream-4-5`       | `seedream-4-5-high-4k`     | High, 4K   |             8 |
-| `image-seedream-5-lite`    | `seedream-5-lite-basic-2k` | Basic, 2K  |             7 |
-| `image-seedream-5-lite`    | `seedream-5-lite-high-3k`  | High, 3K   |             7 |
-| `image-seedream-5-lite`    | `seedream-5-lite-ultra-4k` | Ultra, 4K  |             7 |
-| `image-seedream-5-pro`     | `seedream-5-pro-basic-1k`  | Basic, 1K  |             8 |
-| `image-seedream-5-pro`     | `seedream-5-pro-high-2k`   | High, 2K   |            15 |
+| Public product key             | Legal SKU                   | Parameters | EzPic Credits |
+| ------------------------------ | --------------------------- | ---------- | ------------: |
+| `image-nano-banana-2-lite`     | `nano-banana-2-lite-1k`     | 1K         |             5 |
+| `image-nano-banana`            | `nano-banana-default`       | Default    |             5 |
+| `image-nano-banana-2`          | `nano-banana-2-1k`          | 1K         |             9 |
+| `image-nano-banana-2`          | `nano-banana-2-2k`          | 2K         |            13 |
+| `image-nano-banana-2`          | `nano-banana-2-4k`          | 4K         |            19 |
+| `image-nano-banana-pro`        | `nano-banana-pro-1k`        | 1K         |            19 |
+| `image-nano-banana-pro`        | `nano-banana-pro-2k`        | 2K         |            22 |
+| `image-nano-banana-pro`        | `nano-banana-pro-4k`        | 4K         |            25 |
+| `image-gpt-image-1-5`          | `gpt-image-1-5-medium`      | Medium     |             5 |
+| `image-gpt-image-1-5`          | `gpt-image-1-5-high`        | High       |            23 |
+| `image-gpt-image-2`            | `gpt-image-2-1k`            | 1K         |             7 |
+| `image-gpt-image-2`            | `gpt-image-2-2k`            | 2K         |            11 |
+| `image-gpt-image-2`            | `gpt-image-2-4k`            | 4K         |            17 |
+| `image-seedream-4-5`           | `seedream-4-5-basic-2k`     | Basic, 2K  |             8 |
+| `image-seedream-4-5`           | `seedream-4-5-high-4k`      | High, 4K   |            12 |
+| `image-seedream-5-lite`        | `seedream-5-lite-basic-2k`  | Basic, 2K  |             7 |
+| `image-seedream-5-lite`        | `seedream-5-lite-high-3k`   | High, 3K   |            10 |
+| `image-seedream-5-lite`        | `seedream-5-lite-ultra-4k`  | Ultra, 4K  |            14 |
+| `image-seedream-5-pro`         | `seedream-5-pro-basic-1k`   | Basic, 1K  |             8 |
+| `image-seedream-5-pro`         | `seedream-5-pro-high-2k`    | High, 2K   |            15 |
+| `image-gpt-image-2-5-flare`    | `gpt-image-2-5-flare-1k`    | 1K         |             7 |
+| `image-gpt-image-2-5-flare`    | `gpt-image-2-5-flare-2k`    | 2K         |            11 |
+| `image-gpt-image-2-5-flare`    | `gpt-image-2-5-flare-4k`    | 4K         |            17 |
+| `image-gpt-image-2-5-sunburst` | `gpt-image-2-5-sunburst-1k` | 1K         |             7 |
+| `image-gpt-image-2-5-sunburst` | `gpt-image-2-5-sunburst-2k` | 2K         |            11 |
+| `image-gpt-image-2-5-sunburst` | `gpt-image-2-5-sunburst-4k` | 4K         |            17 |
+| `image-seedream-4`             | `seedream-4-1k`             | 1K         |             6 |
+| `image-seedream-4`             | `seedream-4-2k`             | 2K         |             8 |
+| `image-seedream-4`             | `seedream-4-4k`             | 4K         |            10 |
+
+The current catalog contains twelve products and twenty-nine priced output cells. GPT Image 2.5
+Flare and Sunburst support their four additional aspect ratios only at 1K. Seedream 4.0 is limited
+to a 5,000-character prompt and an explicit one-image request. New model flags default off unless
+explicitly enabled; adding products does not certify any production route or change existing prices.
 
 Every row accepts `image-to-image`, requires an owned private source asset and prompt, and produces
 one image. GPT Image 2 1K is a supported seven-credit SKU. `text-to-image`, multi-output quantity, a
 SKU from another product, and an unsupported product/SKU/aspect-ratio combination are rejected
 during server-side quoting.
 
-Each product owns an independent rectangular parameter matrix. Fixed, resolution-only, and
+Each product owns an model-specific parameter matrix. Fixed, resolution-only, and
 quality-plus-resolution products do not share a global option table. Their aspect-ratio lists also
 remain independent. The client renders only the legal cells returned for the selected public
 product instead of constructing combinations from shared quality or resolution arrays. Supported
@@ -74,7 +88,7 @@ remain worker-only to retrieve or reconcile historical attempts.
 `video-fast` and `video-quality` remain internal catalog entries and stay outside EzPic public
 configuration, plans, navigation, SEO, and UI.
 
-Image catalog and pricing contract version: `2026-09-07.2`. Credit Pack catalog, pricing, and
+Image catalog version: `2026-09-13.1`; image pricing version: `2026-09-13.2`. Credit Pack catalog, pricing, and
 subscriber-eligibility contract version: `2026-09-06.1`.
 
 ## Public homepage and anonymous trial boundary
@@ -83,9 +97,10 @@ The SaaS `/` route is an upload-first image editor, not a redirect to login. A v
 JPEG, PNG, or WebP source image within the server-advertised limit, enters a prompt, and starts the
 sponsored Nano Banana 2 Lite 1K trial. That guest path is fixed to product
 `image-nano-banana-2-lite`, SKU `nano-banana-2-lite-1k`, one output, and five sponsored EzPic
-Credits; it cannot select any of the other eight image products. Prompt suggestions only populate
-the prompt field. The complete nine-product matrix, history, assets, subscriptions, and account
-settings remain authenticated enhancements.
+Credits. Visitors can browse and select all twelve models; choosing a paid model preserves the
+selection and opens the sign-in or upgrade flow before generation. Prompt suggestions only populate
+the prompt field. Generation access still follows the server's plan entitlements, while history,
+assets, subscriptions, and account settings require authentication.
 
 The browser obtains the guest capability and uses relative same-origin `/api` endpoints to create a
 bounded upload intent, PUT bytes directly to private signed storage, and complete the draft. Image
@@ -100,7 +115,7 @@ expiry, and optional account linking.
 
 ## Authenticated editor and one-edit lifecycle
 
-The authenticated `/create` workspace accepts the nine public image product keys and only their 20
+The registered editor in the public `/create` workspace accepts the twelve public image product keys and only their 29
 legal SKU cells. Its source asset must belong to the signed-in user, be an undeleted READY
 image, and remain readable under current moderation evidence. The prompt is required and limited to
 the same 10,000-character boundary in the client form and server input schema.
@@ -184,12 +199,12 @@ PR 6 introduced the public package contract below. `PLAN_ENTITLEMENTS` supplies 
 pricing surfaces and every runtime authorization path; payment-provider configuration derives its
 monetary prices from the same entries rather than repeating entitlement numbers.
 
-| Public plan (internal key) | Monthly credits | Concurrent edits | Allowed products            | Max image input | Price                |
-| -------------------------- | --------------: | ---------------: | --------------------------- | --------------: | -------------------- |
-| Free (`free`, internal)    |              25 |                1 | Nano Banana 2 Lite          |           10 MB | $0                   |
-| Pro (`creator`)            |             700 |                3 | All 9 public image products |           20 MB | $19/month, $190/year |
-| Ultimate (`ultimate`)      |           1,800 |                6 | All 9 public image products |           20 MB | $49/month, $490/year |
-| Max (`studio`)             |           3,000 |               10 | All 9 public image products |           20 MB | $79/month, $790/year |
+| Public plan (internal key) | Monthly credits | Concurrent edits | Allowed products             | Max image input | Price                |
+| -------------------------- | --------------: | ---------------: | ---------------------------- | --------------: | -------------------- |
+| Free (`free`, internal)    |              25 |                1 | Nano Banana 2 Lite           |           10 MB | $0                   |
+| Pro (`creator`)            |             700 |                3 | All 12 public image products |           20 MB | $19/month, $190/year |
+| Ultimate (`ultimate`)      |           1,800 |                6 | All 12 public image products |           20 MB | $49/month, $490/year |
+| Max (`studio`)             |           3,000 |               10 | All 12 public image products |           20 MB | $79/month, $790/year |
 
 Monthly credits are granted once per internal monthly credit period. Annual billing changes only
 the payment cadence: Pro, Ultimate, and Max receive 700, 1,800, and 3,000 credits per month rather
@@ -257,7 +272,7 @@ idempotent lifecycle certification. A Credit Pack never changes the active subsc
 
 The monetary amounts above are configuration, not a production margin certification. Reviewed Kie
 public prices support the current planning inputs, but no real paid execution has certified any of
-the 20 SKU cells. The calculation method, evidence status, production prerequisites, and rollback are
+the 29 SKU cells. The calculation method, evidence status, production prerequisites, and rollback are
 recorded in
 [`ezpic-pricing-and-margin.md`](./ezpic-pricing-and-margin.md).
 
@@ -312,3 +327,32 @@ the controlled guest Nano Banana 2 Lite 1K trial described above, but still excl
 comments, public sharing, layers/canvas, masks, batch editing, a public generation API, verified Provider
 quality claims, Stripe repricing, public gallery/community features, and any second job, credit,
 Provider, or storage system.
+
+## Unified creation surface
+
+The homepage renders the guest editor for visitors and anonymous trial sessions, and the existing
+registered editor inside account/onboarding/organization/subscription boundaries for registered users.
+The homepage always uses top navigation without a tool sidebar. AI Image Tools and AI Models link
+to the public `/create` workspace for both guests and registered users. Model links carry only a
+stable public product key in `?model=`, and the editor selects it only when the current server catalog
+offers it. Switching models within the workspace preserves the prompt and source, invalidates an old
+quote, and updates compatible output choices. Unavailable model links show a notice.
+Model family icons use the same original-color assets in navigation, selectors, and upgrade prompts.
+For registered users, selecting or restoring a model outside the current entitlement shows an inline
+access notice and a **View plans** action; it does not automatically open a dialog. The explicit action
+opens a compact dialog with a translucent backdrop. Closing it returns focus to the action and keeps
+the editor state. Comparing plans may save an incomplete draft without a source asset, but such a
+draft cannot claim source readiness. Generation remains subject to server-owned plan and asset checks.
+The tool sidebar is visible to visitors on `/create`; account controls and private history remain
+registered-only. The registered editor retains its owner-scoped recovery and account boundaries and
+shares the homepage editor styling and content. Returning home closes the mobile navigation drawer
+and releases its scroll and focus restrictions.
+Settings, security, notifications, billing, assets, and history open in local side panels on creation
+routes. They keep the main editor mounted. Source selection changes the source only; inspiration
+changes the prompt only and invalidates any old quote. A current job renders beneath the editor.
+
+Account drafts stored in sessionStorage are scoped to the account, expire after one hour, contain
+only public form values and asset/job identifiers, and are removed on logout. They never contain
+signed media URLs, provider credentials, or a reusable quote. Explicit server recovery and upgrade
+return flows have priority over a local draft; restored source readiness is checked again. Browser
+storage failure is visible and does not prevent editing in the current page.

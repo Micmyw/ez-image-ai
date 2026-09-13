@@ -5,9 +5,9 @@ export const privacyPolicyDocuments = [
 		title: "Privacy Policy",
 		description:
 			"How EzPic handles account data, private image-editing media, analytics consent, and retention.",
-		body: `_Last updated: September 11, 2026_
+		body: `_Last updated: September 12, 2026_
 
-This policy explains how EzPic handles information when you use the public image editor, prepare a short-lived draft, use an available Nano Banana 2 Lite 1K guest trial, create an account, or use the signed-in editor. It describes the product behavior implemented today. A production operator identity and jurisdiction-specific contact notice must be supplied before deployment where applicable.
+This policy explains how EzPic handles information when you use the public image editor, prepare a short-lived draft, use an available Nano Banana 2 Lite 1K guest trial, create an account, or use the signed-in editor. EzPic is an independently operated service run by an individual. Its operator is responsible for the information handled by the service and can be reached through the [Contact page](/contact) for privacy questions and requests.
 
 ## Information EzPic handles
 
@@ -45,7 +45,7 @@ Billing, credit-ledger, security, audit, and legal records may require different
 
 ## Your choices
 
-You may accept or decline optional PostHog product analytics. Available account, subscription, and media controls can be used to review or delete eligible data. For an access, correction, deletion, portability, restriction, or privacy question, use the configured support channel. The response depends on applicable law and on records EzPic must retain for security, billing, or legal reasons.
+You may accept or decline optional PostHog product analytics. Available account, subscription, and media controls can be used to review or delete eligible data. For an access, correction, deletion, portability, restriction, or privacy question, [contact the operator](/contact). The response depends on applicable law and on records EzPic must retain for security, billing, or legal reasons.
 
 ## Security and changes
 
@@ -57,9 +57,9 @@ EzPic uses owner checks, private storage, short-lived access, moderation, idempo
 		title: "Datenschutzerklärung",
 		description:
 			"Wie EzPic Kontodaten, private Medien zur Bildbearbeitung, Analyse-Einwilligung und Aufbewahrung behandelt.",
-		body: `_Zuletzt aktualisiert: 11. September 2026_
+		body: `_Zuletzt aktualisiert: 12. September 2026_
 
-Diese Erklärung beschreibt, wie EzPic Informationen verarbeitet, wenn Sie den öffentlichen Bildeditor nutzen, einen kurzlebigen Entwurf vorbereiten, einen verfügbaren Nano-Banana-2-Lite-1K-Gasttest verwenden, ein Konto erstellen oder den angemeldeten Editor nutzen. Vor einer Bereitstellung müssen gegebenenfalls die Identität des Betreibers und landesspezifische Kontakthinweise ergänzt werden.
+Diese Erklärung beschreibt, wie EzPic Informationen verarbeitet, wenn Sie den öffentlichen Bildeditor nutzen, einen kurzlebigen Entwurf vorbereiten, einen verfügbaren Nano-Banana-2-Lite-1K-Gasttest verwenden, ein Konto erstellen oder den angemeldeten Editor nutzen. EzPic wird unabhängig von einer Einzelperson betrieben. Der Betreiber ist für die vom Dienst verarbeiteten Informationen verantwortlich und über die [Kontaktseite](/contact) für Datenschutzfragen und Anfragen erreichbar.
 
 ## Verarbeitete Informationen
 
@@ -97,7 +97,7 @@ Abrechnungs-, Credit-, Sicherheits-, Audit- und Rechtsdaten können wegen finanz
 
 ## Ihre Wahlmöglichkeiten
 
-Sie können optionale PostHog-Produktanalysen annehmen oder ablehnen. Verfügbare Konto-, Abonnement- und Medienfunktionen können zur Prüfung oder Löschung berechtigter Daten genutzt werden. Für Fragen zu Auskunft, Berichtigung, Löschung, Übertragbarkeit, Einschränkung oder Datenschutz verwenden Sie den konfigurierten Supportkanal.
+Sie können optionale PostHog-Produktanalysen annehmen oder ablehnen. Verfügbare Konto-, Abonnement- und Medienfunktionen können zur Prüfung oder Löschung berechtigter Daten genutzt werden. Für Fragen zu Auskunft, Berichtigung, Löschung, Übertragbarkeit, Einschränkung oder Datenschutz [kontaktieren Sie den Betreiber](/contact).
 
 ## Sicherheit und Änderungen
 

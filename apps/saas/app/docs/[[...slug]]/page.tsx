@@ -49,7 +49,7 @@ export async function generateMetadata(props: PageProps<"/docs/[[...slug]]">): P
 		title: page.data.title,
 		description: page.data.description,
 		alternates: { canonical },
-		robots: { index: false, follow: true },
+		robots: { index: page.data.indexable, follow: true },
 		openGraph: {
 			title: page.data.title,
 			description: page.data.description,

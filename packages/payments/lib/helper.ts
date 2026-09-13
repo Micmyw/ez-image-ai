@@ -11,6 +11,8 @@ type PurchaseWithoutTimestamps = Omit<z.infer<typeof PurchaseSchema>, "createdAt
 export interface ResolvedPurchase extends PurchaseWithoutTimestamps {
 	planId?: PlanId | null;
 	planPrice?: PlanPrice | null;
+	isEffectiveSubscription?: boolean;
+	subscription?: { cancelAtPeriodEnd: boolean; currentPeriodEnd: Date | null } | null;
 	providerCapabilities?: {
 		portal: boolean;
 		cancellation: boolean;
@@ -57,29 +59,54 @@ function resolvePurchasePlanId(purchase: ResolvedPurchase) {
 	return getPlanIdByProviderPriceId(purchase.provider, purchase.priceId);
 }
 
-function getActivePlanFromPurchases(purchases?: ResolvedPurchase[]) {
-	const subscriptionPurchase = purchases?.find(
-		(purchase) =>
-			purchase.productKind === "PLAN" &&
-			purchase.type === "SUBSCRIPTION" &&
-			["active", "trialing", "past_due"].includes(purchase.status?.toLowerCase() ?? "active"),
+function isBlockingSubscription(purchase: ResolvedPurchase) {
+	return (
+		purchase.productKind === "PLAN" &&
+		purchase.type === "SUBSCRIPTION" &&
+		!["canceled", "cancelled", "expired", "incomplete_expired"].includes(
+			purchase.status?.toLowerCase() ?? "active",
+		)
 	);
+}
 
-	if (subscriptionPurchase) {
-		const resolvedPrice = resolvePurchasePlan(subscriptionPurchase);
+function getSubscriptionPlans(purchases: ResolvedPurchase[]) {
+	return purchases
+		.filter(isBlockingSubscription)
+		.flatMap((purchase) => {
+			const resolvedPrice = resolvePurchasePlan(purchase);
+			if (!resolvedPrice || !(resolvedPrice.planId in config.plans)) return [];
+			return [
+				{
+					id: resolvedPrice.planId,
+					price: resolvedPrice.price,
+					status: purchase.status || "active",
+					purchaseId: purchase.id,
+					provider: purchase.provider,
+					isEffectiveSubscription: purchase.isEffectiveSubscription,
+					subscription: purchase.subscription ?? null,
+					providerCapabilities: purchase.providerCapabilities ?? noManagementCapabilities,
+				},
+			];
+		})
+		.sort(
+			(left, right) =>
+				Number(right.isEffectiveSubscription === true) -
+				Number(left.isEffectiveSubscription === true),
+		);
+}
 
-		if (!resolvedPrice || !(resolvedPrice.planId in config.plans)) {
-			return null;
-		}
-
-		return {
-			id: resolvedPrice.planId,
-			price: resolvedPrice.price,
-			status: subscriptionPurchase.status || "active",
-			purchaseId: subscriptionPurchase.id,
-			providerCapabilities: subscriptionPurchase.providerCapabilities ?? noManagementCapabilities,
-		};
-	}
+function getActivePlanFromPurchases(
+	purchases: ResolvedPurchase[],
+	subscriptions: ReturnType<typeof getSubscriptionPlans>,
+) {
+	const activeSubscription =
+		subscriptions.find((plan) => plan.isEffectiveSubscription === true) ??
+		subscriptions.find(
+			(plan) =>
+				plan.isEffectiveSubscription === undefined &&
+				["active", "trialing", "past_due"].includes(plan.status.toLowerCase()),
+		);
+	if (activeSubscription) return activeSubscription;
 
 	const oneTimePurchase = purchases?.find(
 		(purchase) => purchase.productKind === "PLAN" && purchase.type === "ONE_TIME",
@@ -97,6 +124,7 @@ function getActivePlanFromPurchases(purchases?: ResolvedPurchase[]) {
 			price: resolvedPrice.price,
 			status: "active",
 			purchaseId: oneTimePurchase.id,
+			subscription: null,
 			providerCapabilities: oneTimePurchase.providerCapabilities ?? noManagementCapabilities,
 		};
 	}
@@ -105,6 +133,7 @@ function getActivePlanFromPurchases(purchases?: ResolvedPurchase[]) {
 		return {
 			id: "free" as PlanId,
 			price: undefined,
+			subscription: null,
 			status: "active",
 		};
 	}
@@ -113,7 +142,9 @@ function getActivePlanFromPurchases(purchases?: ResolvedPurchase[]) {
 }
 
 export function createPurchasesHelper(purchases: ResolvedPurchase[]) {
-	const activePlan = getActivePlanFromPurchases(purchases);
+	const activeSubscriptions = getSubscriptionPlans(purchases);
+	const activePlan = getActivePlanFromPurchases(purchases, activeSubscriptions);
+	const hasBlockingSubscription = purchases.some(isBlockingSubscription);
 
 	const hasSubscription = (planIds?: PlanId[] | PlanId) => {
 		return (
@@ -126,5 +157,5 @@ export function createPurchasesHelper(purchases: ResolvedPurchase[]) {
 		return !!purchases?.some((purchase) => resolvePurchasePlanId(purchase) === planId);
 	};
 
-	return { activePlan, hasSubscription, hasPurchase };
+	return { activePlan, activeSubscriptions, hasBlockingSubscription, hasSubscription, hasPurchase };
 }

@@ -2,32 +2,40 @@ export const blogDocuments = [
 	{
 		slug: "private-image-editing-workflow",
 		locale: "en",
-		title: "How EzPic Keeps an Image Edit Private",
+		title: "Private AI Image Editing: Uploads, Access, and Retention",
 		description:
-			"A factual walkthrough of EzPic's source-image upload, guest draft, account handoff, and private result flow.",
+			"Understand who can access an EzPic edit, how guest and account media differ, when files expire, and what to check before uploading a photo.",
 		publishedAt: "2026-09-05",
 		tags: ["image editing", "privacy", "workflow"],
 		published: true,
-		body: `EzPic is built around editing a source image rather than generating from a prompt alone. The public page lets you choose a supported image, describe the change, and select an available image product and output setting before continuing.
+		body: `A private image edit limits who can open the uploaded source and finished result. In EzPic, those files belong to the account or temporary guest session that created the edit; they are not automatically added to a public gallery. Private access does not mean that no processing service receives your image.
 
-## Start with a supported source image
+## Before uploading a source
 
-The public editor accepts JPEG, PNG, and WebP input. It checks the active server capability before presenting an available edit path, and the server remains responsible for enforcing the current byte limit and product access.
+Choose a JPEG, PNG, or WebP image you have permission to edit. Check the upload limit shown in the [editor](/#image-editor) and crop away unrelated personal information before uploading. For a portrait, also consider the subject's permission and the intended use of the result.
 
-## Upload through a private draft
+EzPic uses hosting, storage, safety checks, and image-processing services to handle an edit. Do not treat the word "private" as a promise of offline processing or as a reason to upload material you are not comfortable having processed. The [Privacy Policy](/privacy) describes the data handling and analytics behavior.
 
-When you continue, the browser requests a short-lived upload intent, sends the source image to the authorized private destination, and asks the server to verify the upload. The browser carries only a stable public product key; Provider routes, model identifiers, credentials, and cost details remain server-side.
+## Guest edits are temporary
 
-## Continue with the access the product requires
+When the Nano Banana 2 Lite 1K guest trial is available, it uses a temporary session and returns one watermarked preview. Guest source images and results expire within 24 hours of the trial job being created. A public-page draft expires within one hour if you do not continue.
 
-When the upload is ready, EzPic posts the claim to the same-origin continuation route. An available Nano Banana 2 Lite 1K guest trial can continue with a temporary anonymous owner. GPT Image 2, Seedream 5 Pro, and other account features follow the sign-in and entitlement path shown in the product.
+Download a result you want to keep before its expiry. If you sign in or register from an active trial, the linked result keeps its original watermark and expiry. It does not become a saved History item or gain an **Edit again** action.
 
-## Keep the job and result account-scoped
+## Account media has a different lifecycle
 
-For account-based editing, the server creates a quote before confirmation. A confirmed job reserves credits through the existing ledger and runs asynchronously. Source images and approved results are private assets, and browser access uses short-lived URLs after ownership checks.
+Account-based editing requires the source image to belong to your account and shows a credit quote before confirmation. The current retention settings target 30 days for registered input and output media and 7 days for failed-job cleanup. Keep your own copy of work you need for longer. Billing and security records can have different retention periods.
+
+When you open or download a result, EzPic checks ownership and issues a temporary access link. Do not forward that link: someone holding a valid signed link may be able to use it until it expires. Share a downloaded image through a channel you control if you intend to publish it.
+
+## Deletion and support
+
+Use the available account and media controls to delete eligible content. Deletion prevents new access links and schedules storage cleanup; backup copies can take longer to age out. For access or deletion questions, [contact support](/contact) from the email associated with your account. Describe the affected feature without including passwords, session cookies, or signed media links.
 
 ## Review every result
 
-Image edits can contain artifacts or unexpected changes. Compare the result with the source and verify that it is suitable before publishing or relying on it.`,
+Compare the result with the source before publishing. Check faces, text, logos, edges, and any details the instruction asked to preserve. Private storage does not establish commercial rights or guarantee an error-free image.
+
+Read the [quick start](/docs/quick-start) for the editing steps, the [prompt guide](/blog/ai-image-editing-prompts) for clearer instructions, or [credits documentation](/docs/credits) to understand charges and recovery.`,
 	},
 ] as const;

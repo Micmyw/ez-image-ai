@@ -1,9 +1,9 @@
 {
 	"publicContent": {
 		"contact": {
-			"description": "Contacta con {appName} mediante el correo de soporte configurado.",
-			"emailCta": "Envía un correo al equipo de soporte de EzPic a:",
-			"unavailable": "No hay un correo de soporte configurado. Inténtalo de nuevo cuando el operador publique una dirección de soporte."
+			"description": "Contacta con {appName} para recibir ayuda con la edición de imágenes, tu cuenta, la facturación o la privacidad.",
+			"emailCta": "Escribe al operador de EzPic:",
+			"unavailable": "El soporte por correo no está disponible temporalmente. Vuelve a consultar más tarde."
 		}
 	},
 	"admin": {
@@ -68,8 +68,13 @@
 					"credits": "Reservados / cobrados / liberados",
 					"terminal": "Correctos / fallidos"
 				},
-				"controls": { "title": "Controles efectivos", "global": "Interruptor de generación" },
-				"failures": { "title": "Códigos de error" },
+				"controls": {
+					"title": "Controles efectivos",
+					"global": "Interruptor de generación"
+				},
+				"failures": {
+					"title": "Códigos de error"
+				},
 				"routes": {
 					"title": "Desglose por SKU",
 					"product": "Modelo de imagen",
@@ -92,7 +97,10 @@
 					"runtime": "Control de ejecución de invitados",
 					"admission": "Nueva admisión de invitados"
 				},
-				"values": { "on": "Activado", "off": "Desactivado" },
+				"values": {
+					"on": "Activado",
+					"off": "Desactivado"
+				},
 				"states": {
 					"ok": "Normal",
 					"warn": "Advertencia",
@@ -168,16 +176,27 @@
 				"running": "Ejecutando...",
 				"success": "Operación completada",
 				"error": "Operación rechazada o fallida",
-				"replay": { "title": "Repetir evento persistido", "action": "Repetir evento" },
-				"retry": { "title": "Reintentar etapa segura", "action": "Reintentar etapa" },
+				"replay": {
+					"title": "Repetir evento persistido",
+					"action": "Repetir evento"
+				},
+				"retry": {
+					"title": "Reintentar etapa segura",
+					"action": "Reintentar etapa"
+				},
 				"override": {
 					"title": "Disponibilidad del modelo",
 					"disable": "Desactivar",
 					"enable": "Activar"
 				}
 			},
-			"overrides": { "title": "Cambios activos", "rollback": "Revertir" },
-			"audit": { "title": "Auditoría multimedia reciente" },
+			"overrides": {
+				"title": "Cambios activos",
+				"rollback": "Revertir"
+			},
+			"audit": {
+				"title": "Auditoría multimedia reciente"
+			},
 			"paymentEvents": {
 				"title": "Diagnóstico de eventos de pago",
 				"empty": "No hay eventos recientes"
@@ -395,6 +414,7 @@
 		"title": "Documentación"
 	},
 	"notFound": {
+		"goToHome": "Volver a la página de inicio",
 		"code": "404",
 		"title": "Página no encontrada",
 		"goToDashboard": "Ir al panel",
@@ -621,7 +641,7 @@
 				"title": "Eliminar cuenta"
 			},
 			"language": {
-				"description": "Para cambiar el idioma de la aplicación para tu cuenta, selecciona un idioma de la lista y haz clic en guardar.",
+				"description": "Selecciona el idioma de tu cuenta. Los cambios se guardan automáticamente.",
 				"notifications": {
 					"error": "No se pudo actualizar el idioma",
 					"success": "El idioma se actualizó correctamente"
@@ -783,9 +803,16 @@
 					"past_due": "Vencido",
 					"paused": "Pausado",
 					"trialing": "Prueba",
-					"unpaid": "Impagado"
+					"unpaid": "Impagado",
+					"canceling": "Renovación cancelada",
+					"pending": "Pendiente"
 				},
-				"title": "Tu plan"
+				"title": "Tu plan",
+				"cancellationScheduled": "Tu plan seguirá disponible hasta el {date}. No se renovará.",
+				"multipleSubscriptions": "Hay más de una suscripción abierta. Revisa los métodos de pago y cancela las renovaciones que ya no necesites.",
+				"paymentMethod": "Método de pago: {provider}",
+				"effectivePlan": "Esta suscripción determina actualmente los beneficios de tu plan.",
+				"currentPeriodEnd": "El período de facturación actual termina el {date}."
 			},
 			"changePlan": {
 				"description": "Elige un plan al que suscribirte.",
@@ -844,7 +871,14 @@
 			"pause": "Pausar",
 			"resume": "Reanudar",
 			"retry": "Reintentar",
-			"remove": "Eliminar"
+			"remove": "Eliminar",
+			"status": {
+				"idle": "En espera",
+				"uploading": "Subiendo",
+				"paused": "En pausa",
+				"uploaded": "Subido",
+				"error": "Error de carga"
+			}
 		},
 		"create": {
 			"eyebrow": "Editor de imágenes",
@@ -855,62 +889,141 @@
 			"products": {
 				"image-nano-banana-2-lite": {
 					"label": "Nano Banana 2 Lite",
-					"description": "Ediciones rápidas en 1K con amplia compatibilidad de relaciones de aspecto."
+					"description": "Retratos y retoques cotidianos en 1K."
 				},
 				"image-nano-banana": {
 					"label": "Nano Banana",
-					"description": "Ediciones equilibradas con un perfil de salida predeterminado propio."
+					"description": "Retratos naturales y edición de escenas."
 				},
 				"image-nano-banana-2": {
 					"label": "Nano Banana 2",
-					"description": "Ediciones flexibles con opciones independientes de 1K, 2K y 4K."
+					"description": "Fotos de productos y ediciones creativas hasta 4K."
 				},
 				"image-nano-banana-pro": {
 					"label": "Nano Banana Pro",
-					"description": "Ediciones de alta calidad con opciones independientes de 1K, 2K y 4K."
+					"description": "Texturas finas y composiciones detalladas hasta 4K."
 				},
 				"image-gpt-image-1-5": {
 					"label": "GPT Image 1.5",
-					"description": "Ediciones con opciones independientes de calidad Media y Alta."
+					"description": "Diseños con texto y ediciones visuales precisas."
 				},
 				"image-gpt-image-2": {
 					"label": "GPT Image 2",
-					"description": "Ediciones detalladas con opciones independientes de 1K, 2K y 4K."
+					"description": "Imágenes de productos, texto y composiciones detalladas."
 				},
 				"image-seedream-4-5": {
 					"label": "Seedream 4.5",
-					"description": "Ediciones con opciones independientes de 2K Básica y 4K Alta."
+					"description": "Escenas realistas y retratos estilizados en 2K o 4K."
 				},
 				"image-seedream-5-lite": {
 					"label": "Seedream 5 Lite",
-					"description": "Ediciones con opciones independientes de 2K Básica, 3K Alta y 4K Ultra."
+					"description": "Escenas cinematográficas e iluminación expresiva hasta 4K."
 				},
 				"image-seedream-5-pro": {
 					"label": "Seedream 5 Pro",
-					"description": "Ediciones con opciones independientes de 1K Básica y 2K Alta."
+					"description": "Imágenes de productos cuidadas y escenas con gran detalle."
+				},
+				"image-gpt-image-2-5-flare": {
+					"label": "GPT Image 2.5 Flare",
+					"description": "Edición de imágenes cotidianas con fidelidad a la referencia y detalles naturales."
+				},
+				"image-gpt-image-2-5-sunburst": {
+					"label": "GPT Image 2.5 Sunburst",
+					"description": "Edición para campañas visuales y un control creativo preciso."
+				},
+				"image-seedream-4": {
+					"label": "Seedream 4.0",
+					"description": "Edición flexible de imágenes con salidas de 1K, 2K y 4K."
 				}
 			},
 			"skus": {
-				"nano-banana-2-lite-1k": { "label": "1K" },
-				"nano-banana-default": { "label": "Predeterminada" },
-				"nano-banana-2-1k": { "label": "1K" },
-				"nano-banana-2-2k": { "label": "2K" },
-				"nano-banana-2-4k": { "label": "4K" },
-				"nano-banana-pro-1k": { "label": "1K" },
-				"nano-banana-pro-2k": { "label": "2K" },
-				"nano-banana-pro-4k": { "label": "4K" },
-				"gpt-image-1-5-medium": { "label": "Media" },
-				"gpt-image-1-5-high": { "label": "Alta" },
-				"gpt-image-2-1k": { "label": "1K" },
-				"gpt-image-2-2k": { "label": "2K" },
-				"gpt-image-2-4k": { "label": "4K" },
-				"seedream-4-5-basic-2k": { "label": "2K · Básica" },
-				"seedream-4-5-high-4k": { "label": "4K · Alta" },
-				"seedream-5-lite-basic-2k": { "label": "2K · Básica" },
-				"seedream-5-lite-high-3k": { "label": "3K · Alta" },
-				"seedream-5-lite-ultra-4k": { "label": "4K · Ultra" },
-				"seedream-5-pro-basic-1k": { "label": "1K · Básica" },
-				"seedream-5-pro-high-2k": { "label": "2K · Alta" }
+				"nano-banana-2-lite-1k": {
+					"label": "1K"
+				},
+				"nano-banana-default": {
+					"label": "Predeterminada"
+				},
+				"nano-banana-2-1k": {
+					"label": "1K"
+				},
+				"nano-banana-2-2k": {
+					"label": "2K"
+				},
+				"nano-banana-2-4k": {
+					"label": "4K"
+				},
+				"nano-banana-pro-1k": {
+					"label": "1K"
+				},
+				"nano-banana-pro-2k": {
+					"label": "2K"
+				},
+				"nano-banana-pro-4k": {
+					"label": "4K"
+				},
+				"gpt-image-1-5-medium": {
+					"label": "Media"
+				},
+				"gpt-image-1-5-high": {
+					"label": "Alta"
+				},
+				"gpt-image-2-1k": {
+					"label": "1K"
+				},
+				"gpt-image-2-2k": {
+					"label": "2K"
+				},
+				"gpt-image-2-4k": {
+					"label": "4K"
+				},
+				"seedream-4-5-basic-2k": {
+					"label": "2K · Básica"
+				},
+				"seedream-4-5-high-4k": {
+					"label": "4K · Alta"
+				},
+				"seedream-5-lite-basic-2k": {
+					"label": "2K · Básica"
+				},
+				"seedream-5-lite-high-3k": {
+					"label": "3K · Alta"
+				},
+				"seedream-5-lite-ultra-4k": {
+					"label": "4K · Ultra"
+				},
+				"seedream-5-pro-basic-1k": {
+					"label": "1K · Básica"
+				},
+				"seedream-5-pro-high-2k": {
+					"label": "2K · Alta"
+				},
+				"gpt-image-2-5-flare-1k": {
+					"label": "1K"
+				},
+				"gpt-image-2-5-flare-2k": {
+					"label": "2K"
+				},
+				"gpt-image-2-5-flare-4k": {
+					"label": "4K"
+				},
+				"gpt-image-2-5-sunburst-1k": {
+					"label": "1K"
+				},
+				"gpt-image-2-5-sunburst-2k": {
+					"label": "2K"
+				},
+				"gpt-image-2-5-sunburst-4k": {
+					"label": "4K"
+				},
+				"seedream-4-1k": {
+					"label": "1K"
+				},
+				"seedream-4-2k": {
+					"label": "2K"
+				},
+				"seedream-4-4k": {
+					"label": "4K"
+				}
 			},
 			"fields": {
 				"prompt": "Instrucción de edición",
@@ -989,6 +1102,23 @@
 				"concurrentLimit": "Tu plan ya tiene el máximo de ediciones en curso. No se creó ningún trabajo ni reserva de créditos.",
 				"inputTooLarge": "Esta imagen supera el límite de entrada de tu plan. Elige una imagen más pequeña o compara planes.",
 				"safeError": "No pudimos iniciar la edición. Comprueba el formulario o inténtalo de nuevo en unos minutos."
+			},
+			"modelMenu": {
+				"title": "Modelos de imagen",
+				"trigger": "Modelo: {model}",
+				"choose": "Elegir modelo",
+				"groups": "Familias de modelos",
+				"credits": "{credits, number} créditos",
+				"fromCredits": "Desde {credits, number} créditos",
+				"groupDescriptions": {
+					"nano": "Ediciones naturales",
+					"gpt": "Texto y detalle fino",
+					"seedream": "Imágenes de cine"
+				},
+				"paidPlan": "Plan de pago",
+				"viewPlans": "Ver planes",
+				"upToResolution": "Hasta {resolution}",
+				"upgradeNotice": "{model} requiere Pro, Ultimate o Max. Puedes seguir editando antes de elegir un plan."
 			}
 		},
 		"guest": {
@@ -1050,13 +1180,18 @@
 		},
 		"upgradeDialog": {
 			"title": "Desbloquea más modelos de imagen",
-			"description": "Conserva la imagen, la instrucción, el modelo y SKU seleccionados y la sesión de edición mientras comparas planes de pago.",
-			"creator": "Pro: {credits, number} créditos al mes, {concurrency, number} ediciones simultáneas e imágenes de hasta {megabytes, number} MB.",
-			"ultimate": "Ultimate: {credits, number} créditos al mes, {concurrency, number} ediciones simultáneas e imágenes de hasta {megabytes, number} MB.",
-			"studio": "Max: {credits, number} créditos al mes, {concurrency, number} ediciones simultáneas e imágenes de hasta {megabytes, number} MB.",
+			"description": "Tu imagen, instrucción y ajustes del modelo se conservan mientras comparas planes.",
 			"storageUnavailable": "El navegador no pudo guardar el borrador. Mantén esta pestaña abierta e inténtalo de nuevo.",
-			"cancel": "Ahora no",
-			"continue": "Elegir un plan"
+			"cancel": "Seguir editando",
+			"continue": "Elegir un plan",
+			"modelDescription": "{model} está incluido en Pro, Ultimate y Max. Elige el plan que se adapte a tus necesidades de edición.",
+			"monthlyCredits": "{credits, number} créditos/mes",
+			"planDetails": "{concurrency, number} ediciones a la vez · imágenes de hasta {megabytes, number} MB",
+			"planNames": {
+				"creator": "Pro",
+				"ultimate": "Ultimate",
+				"studio": "Max"
+			}
 		},
 		"editor": {
 			"source": {
@@ -1191,7 +1326,11 @@
 		"assets": {
 			"title": "Biblioteca de recursos",
 			"subtitle": "Imágenes de origen y resultados editados privados.",
-			"filters": { "all": "Todos", "image": "Imágenes", "video": "Vídeos" },
+			"filters": {
+				"all": "Todos",
+				"image": "Imágenes",
+				"video": "Vídeos"
+			},
 			"previewAlt": "Recurso generado privado",
 			"preview": "Mostrar vista previa",
 			"video": "Vídeo",
@@ -1206,11 +1345,14 @@
 	},
 	"common": {
 		"consent": {
+			"label": "Analítica de producto opcional",
 			"message": "Google Analytics y Microsoft Clarity funcionan automáticamente. Elige si permites análisis adicionales del uso del producto. El almacenamiento esencial sigue disponible.",
 			"decline": "Rechazar opcionales",
 			"allow": "Permitir opcionales"
 		},
-		"footer": { "support": "Soporte" },
+		"footer": {
+			"support": "Soporte"
+		},
 		"confirmation": {
 			"cancel": "Cancelar",
 			"confirm": "Confirmar"
@@ -1246,5 +1388,63 @@
 		"error": "No pudimos confirmar este pago. No se añadieron créditos.",
 		"tryAgain": "Ver paquetes de créditos",
 		"returnToEditor": "Volver al editor"
+	},
+	"studio": {
+		"navigation": "Navegación del espacio de trabajo",
+		"pageNavigation": "Navegación de la página",
+		"create": "Crear imagen",
+		"explore": "Inspiración",
+		"workspace": "Tu espacio de trabajo",
+		"history": "Historial",
+		"assets": "Archivos",
+		"edits": "Cadenas de edición",
+		"discover": "Descubrir",
+		"admin": "Administración",
+		"credits": "Créditos y plan",
+		"creditBalance": "{credits} créditos",
+		"openNavigation": "Abrir navegación",
+		"closeNavigation": "Cerrar navegación",
+		"closePanel": "Cerrar panel",
+		"panelHint": "Tu edición se conserva mientras gestionas tu cuenta.",
+		"loading": "Cargando…",
+		"error": "No se pudo cargar. Inténtalo de nuevo.",
+		"retry": "Reintentar",
+		"saved": "Borrador guardado en esta pestaña",
+		"storageUnavailable": "No se pudo guardar el borrador. Mantén esta pestaña abierta para conservar tu edición.",
+		"panels": {
+			"general": "Ajustes de cuenta",
+			"security": "Acceso y seguridad",
+			"notifications": "Notificaciones",
+			"billing": "Créditos y facturación",
+			"history": "Tu historial",
+			"assets": "Tus archivos"
+		},
+		"dock": {
+			"label": "Continúa tu edición",
+			"return": "Volver al editor",
+			"placeholder": "Sigue creando",
+			"result": "Ver resultado actual"
+		},
+		"subtitle": "Sube una imagen, describe un cambio y dale tu toque.",
+		"private": "Tus imágenes siguen siendo privadas",
+		"upload": "Subir imagen",
+		"promptSuggestions": {
+			"background": "Cambiar fondo",
+			"object": "Quitar un objeto",
+			"lighting": "Ajustar luz",
+			"style": "Cambiar estilo"
+		},
+		"tools": {
+			"imageTools": "Herramientas de imagen IA",
+			"models": "Modelos de IA",
+			"imageToImage": "Imagen a imagen",
+			"imageToImageDescription": "Edita una imagen de referencia con una instrucción.",
+			"examples": "Ejemplos de edición",
+			"examplesDescription": "Explora ideas y usa una instrucción en el editor.",
+			"loading": "Cargando modelos disponibles…",
+			"unavailable": "Los modelos no están disponibles ahora. Puedes seguir preparando tu edición.",
+			"modelUnavailable": "El modelo solicitado no está disponible. Elige uno disponible para continuar.",
+			"title": "Editor de imagen a imagen con IA"
+		}
 	}
 }

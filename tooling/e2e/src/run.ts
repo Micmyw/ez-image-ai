@@ -88,6 +88,7 @@ async function main(): Promise<void> {
 			"playwright",
 			"test",
 			"tests/media-generation.spec.ts",
+			"tests/avatar-upload.spec.ts",
 			"tests/subscription-upgrade.spec.ts",
 			"tests/seo.spec.ts",
 			"--workers=1",

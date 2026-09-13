@@ -90,6 +90,7 @@ export async function createPaymentCheckoutIntent(input: CreatePaymentCheckoutIn
 	const idempotencyScopeKey = paymentCheckoutIdempotencyScope(input);
 	const result = await db.transaction(
 		async (tx) => {
+			if (productKind === "PLAN") await lockSubscriptionCheckoutOwner(input, tx);
 			await tx.execute(
 				sql`SELECT pg_advisory_xact_lock(hashtextextended(${idempotencyScopeKey}, 0))`,
 			);
@@ -128,6 +129,11 @@ export async function createPaymentCheckoutIntent(input: CreatePaymentCheckoutIn
 				if (!matchesTrustedCheckoutCommand(replay, input)) {
 					throw new Error("PAYMENT_CHECKOUT_INTENT_IDEMPOTENCY_CONFLICT");
 				}
+				if (productKind === "PLAN")
+					await assertSubscriptionCheckoutAllowed(
+						{ ...input, checkoutIntentId: replay.id, now },
+						tx,
+					);
 				if (replay.status === "CREATED") return { intent: replay, replayed: true };
 				if (
 					replay.status === "PROVIDER_PENDING" &&
@@ -151,6 +157,11 @@ export async function createPaymentCheckoutIntent(input: CreatePaymentCheckoutIn
 				.from(paymentCheckoutIntent)
 				.where(eq(paymentCheckoutIntent.activeScopeKey, activeScopeKey))
 				.limit(1);
+			if (productKind === "PLAN")
+				await assertSubscriptionCheckoutAllowed(
+					{ ...input, checkoutIntentId: active?.id, now },
+					tx,
+				);
 			if (
 				active?.status === "PROVIDER_PENDING" &&
 				active.providerSessionId &&
@@ -205,6 +216,56 @@ export async function createPaymentCheckoutIntent(input: CreatePaymentCheckoutIn
 		throw new Error("PAYMENT_CHECKOUT_INTENT_REPLAY_UNSAFE");
 	}
 	return result;
+}
+
+type SubscriptionCheckoutAdmission = PaymentOwner & { checkoutIntentId?: string; now?: Date };
+type CheckoutTransaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
+export async function assertPaymentSubscriptionCheckoutAllowed(
+	input: SubscriptionCheckoutAdmission,
+) {
+	return db.transaction(
+		async (tx) => {
+			await lockSubscriptionCheckoutOwner(input, tx);
+			await assertSubscriptionCheckoutAllowed(input, tx);
+		},
+		{ isolationLevel: "serializable" },
+	);
+}
+
+async function lockSubscriptionCheckoutOwner(owner: PaymentOwner, tx: CheckoutTransaction) {
+	const scope = `payment-subscription:${JSON.stringify([owner.ownerType, owner.ownerId])}`;
+	await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${scope}, 0))`);
+}
+
+async function assertSubscriptionCheckoutAllowed(
+	input: SubscriptionCheckoutAdmission,
+	tx: CheckoutTransaction,
+) {
+	const now = input.now ?? new Date();
+	const existing = await tx.execute(sql`
+		SELECT id FROM subscription
+		WHERE "ownerType" = ${input.ownerType} AND "ownerId" = ${input.ownerId}
+		AND (status IN ('PENDING', 'ACTIVE', 'PAST_DUE') OR (status = 'CANCELED' AND "currentPeriodEnd" > ${now}))
+		LIMIT 1`);
+	if (existing.rows.length) throw new Error("PAYMENT_SUBSCRIPTION_ALREADY_EXISTS");
+	const legacy = await tx.execute(sql`
+		SELECT p.id FROM purchase p
+		WHERE ${input.ownerType === "USER" ? sql`p."userId" = ${input.ownerId} AND p."organizationId" IS NULL` : sql`p."organizationId" = ${input.ownerId} AND p."userId" IS NULL`}
+		AND p.type = 'SUBSCRIPTION' AND p."productKind" = 'PLAN'
+		AND (p.status IS NULL OR lower(p.status) NOT IN ('canceled', 'cancelled', 'expired', 'incomplete_expired'))
+		AND NOT EXISTS (SELECT 1 FROM subscription s WHERE s."purchaseId" = p.id)
+		LIMIT 1`);
+	if (legacy.rows.length) throw new Error("PAYMENT_SUBSCRIPTION_ALREADY_EXISTS");
+	const pending = await tx.execute(sql`
+		SELECT id FROM payment_checkout_intent
+		WHERE "ownerType" = ${input.ownerType} AND "ownerId" = ${input.ownerId} AND "productKind" = 'PLAN'
+		${input.checkoutIntentId ? sql`AND id <> ${input.checkoutIntentId}` : sql``}
+		AND status IN ('CREATED', 'PROVIDER_CREATING', 'PROVIDER_PENDING', 'REVIEW')
+		AND (status <> 'PROVIDER_PENDING' OR "expiresAt" IS NULL OR "expiresAt" > ${now}
+			OR "providerSessionId" IS NULL OR "providerCheckoutUrl" IS NULL)
+		LIMIT 1`);
+	if (pending.rows.length) throw new Error("PAYMENT_CHECKOUT_INTENT_CONFLICT");
 }
 
 export async function markPaymentCheckoutIntentProviderCreating(input: {

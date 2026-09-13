@@ -3,6 +3,26 @@ import type { ReactElement, ReactNode } from "react";
 import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+const sessionMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
+vi.mock("@auth/lib/server", () => ({ getSession: sessionMock }));
+vi.mock("@shared/components/studio/StudioShell", () => ({
+	StudioShell: ({ children }: { children: ReactNode }) => (
+		<div data-studio-shell="">{children}</div>
+	),
+}));
+vi.mock("@shared/components/RegisteredWorkspaceBoundary", () => ({
+	RegisteredWorkspaceBoundary: ({ children }: { children: ReactNode }) => (
+		<div data-registered-boundary="">{children}</div>
+	),
+}));
+vi.mock("@shared/components/MainAccountBoundary", () => ({
+	MainAccountBoundary: ({ children }: { children: ReactNode }) => (
+		<div data-account-gates="">{children}</div>
+	),
+}));
+vi.mock("@media/components/editor/RegisteredEditor", () => ({
+	RegisteredEditor: () => <div data-test="registered-generator" />,
+}));
 const { canonicalOrigin } = vi.hoisted(() => ({
 	canonicalOrigin: "https://www.ezpic.test",
 }));
@@ -155,6 +175,7 @@ import { config as authConfig } from "../../../packages/auth/config";
 import { LandingPage } from "../modules/landing/components/LandingPage";
 import { HOME_FAQ_KEYS, PRICING_FAQ_KEYS } from "../modules/landing/lib/faq";
 import PricingPage from "./(public)/pricing/page";
+import CreatePage, { metadata as createMetadata } from "./create/page";
 import HomePage from "./page";
 
 type PublicPageModule = {
@@ -187,7 +208,7 @@ const publicRoutes = [
 	{ modulePath: "./(public)/pricing/page", path: "/pricing", robots: "index" },
 	{ modulePath: "./(public)/privacy/page", path: "/privacy", robots: "index" },
 	{ modulePath: "./(public)/terms/page", path: "/terms", robots: "index" },
-	{ modulePath: "./(public)/blog/page", path: "/blog", robots: "noindex" },
+	{ modulePath: "./(public)/blog/page", path: "/blog", robots: "index" },
 	{ modulePath: "./(public)/changelog/page", path: "/changelog", robots: "noindex" },
 	{ modulePath: "./(public)/contact/page", path: "/contact", robots: "noindex" },
 ] as const;
@@ -246,7 +267,7 @@ describe("consolidated public route contract", () => {
 		const metadata = await resolveMetadata(pageModule, props);
 		expect(metadata, `${path} must own explicit metadata`).toBeDefined();
 		if (!metadata) return;
-		expectMetadata(metadata, path, "noindex");
+		expectMetadata(metadata, path, "index");
 
 		const markup = renderToStaticMarkup(await pageModule.default(props));
 		expect(markup.match(/<h1(?:\s|>)/g) ?? []).toHaveLength(1);
@@ -294,8 +315,8 @@ describe("consolidated public route contract", () => {
 		}
 	});
 
-	it("keeps the visible homepage FAQ aligned with FAQPage structured data", async () => {
-		const stream = await renderToReadableStream(await HomePage());
+	it("identifies the website without unsupported rich-result claims and keeps the FAQ visible", async () => {
+		const stream = await renderToReadableStream(await HomePage({}));
 		const markup = await new Response(stream).text();
 		const structuredData = [
 			...markup.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g),
@@ -306,14 +327,16 @@ describe("consolidated public route contract", () => {
 					? (entry["@graph"] as Array<Record<string, unknown>>)
 					: [entry],
 			);
-		const faqPage = structuredData.find((entry) => entry["@type"] === "FAQPage");
-		const entities = faqPage?.mainEntity as
-			| Array<{ name: string; acceptedAnswer: { text: string } }>
-			| undefined;
-
-		expect(HOME_FAQ_KEYS.length).toBeGreaterThanOrEqual(10);
-		expect(entities).toHaveLength(HOME_FAQ_KEYS.length);
-		expect(new Set(entities?.map((entry) => entry.name)).size).toBe(HOME_FAQ_KEYS.length);
+		expect(structuredData).toEqual([
+			expect.objectContaining({
+				"@type": "WebSite",
+				name: "EzPic",
+				url: `${canonicalOrigin}/`,
+			}),
+		]);
+		expect(JSON.stringify(structuredData)).not.toMatch(
+			/SoftwareApplication|FAQPage|aggregateRating/,
+		);
 		for (const key of HOME_FAQ_KEYS) {
 			expect(markup).toContain(`faq.items.${key}.question`);
 			expect(markup).toContain(`faq.items.${key}.answer`);
@@ -440,3 +463,45 @@ function createTranslator() {
 	translate.rich = (key: string) => translate(key);
 	return translate;
 }
+
+describe("homepage workspace session selection", () => {
+	it.each([null, { user: { id: "trial", isAnonymous: true } }])(
+		"opens the creation page without authentication for %j",
+		async (session) => {
+			expectMetadata(createMetadata, "/create", "noindex");
+			sessionMock.mockResolvedValueOnce(session);
+			const stream = await renderToReadableStream(await CreatePage({}));
+			const html = await new Response(stream).text();
+			expect(html).toContain('data-test="landing-generator"');
+			expect(html).not.toContain("data-registered-boundary");
+			expect(html).not.toContain('href="/settings');
+		},
+	);
+	it("keeps registered creation inside the existing account gates", async () => {
+		sessionMock.mockResolvedValueOnce({ user: { id: "registered", isAnonymous: false } });
+		const stream = await renderToReadableStream(
+			await CreatePage({ searchParams: Promise.resolve({ model: "image-seedream-5-pro" }) }),
+		);
+		const html = await new Response(stream).text();
+		expect(html).toContain('data-test="registered-generator"');
+		expect(html).toContain("data-account-gates");
+		expect(html).toContain("data-registered-boundary");
+	});
+	it("keeps the guest editor for Better Auth anonymous trial sessions", async () => {
+		sessionMock.mockResolvedValueOnce({ user: { id: "trial", isAnonymous: true } });
+		const stream = await renderToReadableStream(await HomePage({}));
+		const html = await new Response(stream).text();
+		expect(html).toContain('data-test="landing-generator"');
+		expect(html).not.toContain("data-registered-boundary");
+	});
+	it("renders the registered editor inside the existing account gates and retains public examples", async () => {
+		sessionMock.mockResolvedValueOnce({ user: { id: "registered", isAnonymous: false } });
+		const stream = await renderToReadableStream(await HomePage({}));
+		const html = await new Response(stream).text();
+		expect(html).toContain('data-test="registered-generator"');
+		expect(html).toContain("data-account-gates");
+		expect(html).toContain("data-registered-boundary");
+		expect(html).toContain('id="examples"');
+		expect(html).not.toContain('data-test="landing-generator"');
+	});
+});

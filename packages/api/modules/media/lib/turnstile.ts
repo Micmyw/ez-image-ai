@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { ORPCError } from "@orpc/server";
 import { consumeGuestTurnstileTokenHash } from "@repo/database";
 import { db } from "@repo/database/client";
 
@@ -52,7 +53,7 @@ export async function verifyGuestTurnstileToken(
 			expiresAt: verified.expiresAt,
 		}))
 	) {
-		throw new Error("TURNSTILE_REPLAYED");
+		throw new ORPCError("FORBIDDEN", { message: "TURNSTILE_REPLAYED" });
 	}
 	return verified;
 }
@@ -61,18 +62,22 @@ export async function verifyGuestTurnstileEvidence(
 	input: GuestTurnstileInput,
 	dependencies: Pick<GuestTurnstileDependencies, "verify">,
 ): Promise<VerifiedGuestTurnstileToken> {
-	if (!input.token || input.token.length > 2_048) throw new Error("TURNSTILE_REJECTED");
+	if (!input.token || input.token.length > 2_048) {
+		throw new ORPCError("FORBIDDEN", { message: "TURNSTILE_REJECTED" });
+	}
 	const tokenHash = createHash("sha256").update(input.token, "utf8").digest("hex");
 	const evidence = await dependencies.verify({
 		token: input.token,
 		clientIp: input.clientIp,
 		idempotencyKey: turnstileIdempotencyKey(tokenHash),
 	});
-	if (!evidence.success) throw new Error("TURNSTILE_REJECTED");
+	if (!evidence.success) throw new ORPCError("FORBIDDEN", { message: "TURNSTILE_REJECTED" });
 	if (evidence.hostname?.toLowerCase() !== input.hostname.toLowerCase()) {
-		throw new Error("TURNSTILE_HOSTNAME_MISMATCH");
+		throw new ORPCError("FORBIDDEN", { message: "TURNSTILE_HOSTNAME_MISMATCH" });
 	}
-	if (evidence.action !== input.action) throw new Error("TURNSTILE_ACTION_MISMATCH");
+	if (evidence.action !== input.action) {
+		throw new ORPCError("FORBIDDEN", { message: "TURNSTILE_ACTION_MISMATCH" });
+	}
 	const challengeTimestamp = new Date(evidence.challengeTimestamp ?? "");
 	const now = input.now ?? new Date();
 	const age = now.getTime() - challengeTimestamp.getTime();
@@ -81,7 +86,7 @@ export async function verifyGuestTurnstileEvidence(
 		age < -TURNSTILE_FUTURE_TOLERANCE_MS ||
 		age > TURNSTILE_MAX_AGE_MS
 	) {
-		throw new Error("TURNSTILE_EXPIRED");
+		throw new ORPCError("FORBIDDEN", { message: "TURNSTILE_EXPIRED" });
 	}
 	const expiresAt = new Date(challengeTimestamp.getTime() + TURNSTILE_MAX_AGE_MS);
 	return { tokenHash, challengeTimestamp, expiresAt };

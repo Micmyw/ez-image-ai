@@ -30,7 +30,7 @@ Use for plan IDs, subscription/one-time prices, trials, seats, and enterprise of
 
 Every purchasable type/interval maps to one provider ID, public and authenticated pricing render
 every locale/interval variant, checkout resolves the intended plan, ownership/seat/trial behavior
-is correct, and relevant tests/gates pass.
+is correct, and relevant tests and affected checks pass.
 
 ## Common mistakes
 

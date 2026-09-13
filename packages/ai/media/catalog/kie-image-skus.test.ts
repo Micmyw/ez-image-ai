@@ -8,6 +8,11 @@ import {
 	quoteCatalogInput,
 } from "./catalog";
 import {
+	GPT_IMAGE_2_5_FLARE_MATRIX,
+	GPT_IMAGE_2_5_SUNBURST_MATRIX,
+	SEEDREAM_4_MATRIX,
+} from "./expanded-image-spec-matrices";
+import {
 	GPT_IMAGE_1_5_MATRIX,
 	GPT_IMAGE_2_MATRIX,
 	type ImageSpecMatrix,
@@ -29,7 +34,7 @@ const expectedSkus = [
 	["image-nano-banana-2", "nano-banana-2-2k", 13],
 	["image-nano-banana-2", "nano-banana-2-4k", 19],
 	["image-nano-banana-pro", "nano-banana-pro-1k", 19],
-	["image-nano-banana-pro", "nano-banana-pro-2k", 19],
+	["image-nano-banana-pro", "nano-banana-pro-2k", 22],
 	["image-nano-banana-pro", "nano-banana-pro-4k", 25],
 	["image-gpt-image-1-5", "gpt-image-1-5-medium", 5, "1:1"],
 	["image-gpt-image-1-5", "gpt-image-1-5-high", 23, "1:1"],
@@ -37,10 +42,10 @@ const expectedSkus = [
 	["image-gpt-image-2", "gpt-image-2-2k", 11],
 	["image-gpt-image-2", "gpt-image-2-4k", 17],
 	["image-seedream-4-5", "seedream-4-5-basic-2k", 8],
-	["image-seedream-4-5", "seedream-4-5-high-4k", 8],
+	["image-seedream-4-5", "seedream-4-5-high-4k", 12],
 	["image-seedream-5-lite", "seedream-5-lite-basic-2k", 7],
-	["image-seedream-5-lite", "seedream-5-lite-high-3k", 7],
-	["image-seedream-5-lite", "seedream-5-lite-ultra-4k", 7],
+	["image-seedream-5-lite", "seedream-5-lite-high-3k", 10],
+	["image-seedream-5-lite", "seedream-5-lite-ultra-4k", 14],
 	["image-seedream-5-pro", "seedream-5-pro-basic-1k", 8],
 	["image-seedream-5-pro", "seedream-5-pro-high-2k", 15],
 ] as const;
@@ -52,6 +57,9 @@ const matricesByProduct: Record<EzPicProductKey, ImageSpecMatrix> = {
 	"image-nano-banana-pro": NANO_BANANA_PRO_MATRIX,
 	"image-gpt-image-1-5": GPT_IMAGE_1_5_MATRIX,
 	"image-gpt-image-2": GPT_IMAGE_2_MATRIX,
+	"image-gpt-image-2-5-flare": GPT_IMAGE_2_5_FLARE_MATRIX,
+	"image-gpt-image-2-5-sunburst": GPT_IMAGE_2_5_SUNBURST_MATRIX,
+	"image-seedream-4": SEEDREAM_4_MATRIX,
 	"image-seedream-4-5": SEEDREAM_4_5_MATRIX,
 	"image-seedream-5-lite": SEEDREAM_5_LITE_MATRIX,
 	"image-seedream-5-pro": SEEDREAM_5_PRO_MATRIX,
@@ -68,6 +76,23 @@ function imageInput(skuKey: string, aspectRatio = "16:9") {
 }
 
 describe("Kie image SKU catalog", () => {
+	it.each(Object.entries(matricesByProduct))(
+		"charges more for each higher output tier in %s",
+		(productKey, matrix) => {
+			const quotes = matrix.cells.map((cell) =>
+				quoteCatalogInput({
+					productKey: productKey as EzPicProductKey,
+					input: imageInput(cell.skuKey, cell.aspectRatios[0]),
+				}),
+			);
+			for (let index = 1; index < quotes.length; index++) {
+				expect(quotes[index]!.credits, matrix.cells[index]!.skuKey).toBeGreaterThan(
+					quotes[index - 1]!.credits,
+				);
+			}
+		},
+	);
+
 	it("keeps the server matrix aligned with the browser-safe product contract", () => {
 		for (const productKey of Object.keys(IMAGE_PRODUCT_SELECTION_CONTRACTS) as EzPicProductKey[]) {
 			const contract = IMAGE_PRODUCT_SELECTION_CONTRACTS[productKey];
@@ -89,13 +114,13 @@ describe("Kie image SKU catalog", () => {
 		}
 	});
 
-	it("derives every SKU credit price from its Kie route cost", () => {
+	it("keeps retail tier prices above the provider cost floor", () => {
 		for (const [productKey, matrix] of Object.entries(matricesByProduct)) {
 			for (const cell of matrix.cells) {
 				expect(cell.routes, `${productKey}/${cell.skuKey}`).toHaveLength(1);
 				const route = cell.routes[0]!;
 				expect(route.provider, `${productKey}/${cell.skuKey}`).toBe("kie");
-				expect(cell.credits, `${productKey}/${cell.skuKey}`).toBe(
+				expect(cell.credits, `${productKey}/${cell.skuKey}`).toBeGreaterThanOrEqual(
 					Math.ceil(route.providerCostMicros / 5_000) + 1,
 				);
 			}
@@ -110,8 +135,8 @@ describe("Kie image SKU catalog", () => {
 				productKey,
 				skuKey,
 				credits,
-				catalogVersion: "2026-09-07.2",
-				pricingVersion: "2026-09-07.2",
+				catalogVersion: "2026-09-13.1",
+				pricingVersion: "2026-09-13.2",
 			});
 		}
 	});
@@ -277,11 +302,11 @@ describe("Kie image SKU catalog", () => {
 		]);
 	});
 
-	it("publishes nine independent model matrices with twenty priced SKUs", () => {
+	it("publishes twelve independent model matrices with twenty-nine priced SKUs", () => {
 		const products = getPublicProductCatalog({
 			enabledProviders: new Set(["kie"]),
 			generationEnabled: true,
-			kieImageCertifiedCatalogVersions: new Set(["2026-09-07.2"]),
+			kieImageCertifiedCatalogVersions: new Set(["2026-09-13.1"]),
 		} as never).products;
 
 		expect(
@@ -320,7 +345,7 @@ describe("Kie image SKU catalog", () => {
 				dimensions: ["resolution"],
 				skus: [
 					["nano-banana-pro-1k", 19],
-					["nano-banana-pro-2k", 19],
+					["nano-banana-pro-2k", 22],
 					["nano-banana-pro-4k", 25],
 				],
 			},
@@ -344,12 +369,42 @@ describe("Kie image SKU catalog", () => {
 				],
 			},
 			{
+				key: "image-gpt-image-2-5-flare",
+				defaultSkuKey: "gpt-image-2-5-flare-1k",
+				dimensions: ["resolution"],
+				skus: [
+					["gpt-image-2-5-flare-1k", 7],
+					["gpt-image-2-5-flare-2k", 11],
+					["gpt-image-2-5-flare-4k", 17],
+				],
+			},
+			{
+				key: "image-gpt-image-2-5-sunburst",
+				defaultSkuKey: "gpt-image-2-5-sunburst-1k",
+				dimensions: ["resolution"],
+				skus: [
+					["gpt-image-2-5-sunburst-1k", 7],
+					["gpt-image-2-5-sunburst-2k", 11],
+					["gpt-image-2-5-sunburst-4k", 17],
+				],
+			},
+			{
+				key: "image-seedream-4",
+				defaultSkuKey: "seedream-4-1k",
+				dimensions: ["resolution"],
+				skus: [
+					["seedream-4-1k", 6],
+					["seedream-4-2k", 8],
+					["seedream-4-4k", 10],
+				],
+			},
+			{
 				key: "image-seedream-4-5",
 				defaultSkuKey: "seedream-4-5-basic-2k",
 				dimensions: ["resolution", "quality"],
 				skus: [
 					["seedream-4-5-basic-2k", 8],
-					["seedream-4-5-high-4k", 8],
+					["seedream-4-5-high-4k", 12],
 				],
 			},
 			{
@@ -358,8 +413,8 @@ describe("Kie image SKU catalog", () => {
 				dimensions: ["resolution", "quality"],
 				skus: [
 					["seedream-5-lite-basic-2k", 7],
-					["seedream-5-lite-high-3k", 7],
-					["seedream-5-lite-ultra-4k", 7],
+					["seedream-5-lite-high-3k", 10],
+					["seedream-5-lite-ultra-4k", 14],
 				],
 			},
 			{
@@ -372,14 +427,14 @@ describe("Kie image SKU catalog", () => {
 				],
 			},
 		]);
-		expect(products.flatMap((product) => product.skuMatrix?.cells ?? [])).toHaveLength(20);
+		expect(products.flatMap((product) => product.skuMatrix?.cells ?? [])).toHaveLength(29);
 	});
 
 	it("publishes only the non-priced controls supported by each selected SKU", () => {
 		const products = getPublicProductCatalog({
 			enabledProviders: new Set(["kie"]),
 			generationEnabled: true,
-			kieImageCertifiedCatalogVersions: new Set(["2026-09-07.2"]),
+			kieImageCertifiedCatalogVersions: new Set(["2026-09-13.1"]),
 		} as never).products;
 		const controlsBySku = Object.fromEntries(
 			products.flatMap((product) =>
@@ -498,7 +553,7 @@ describe("Kie image SKU catalog", () => {
 		const publicCatalog = getPublicProductCatalog({
 			enabledProviders: new Set(["kie"]),
 			generationEnabled: true,
-			kieImageCertifiedCatalogVersions: new Set(["2026-09-07.2"]),
+			kieImageCertifiedCatalogVersions: new Set(["2026-09-13.1"]),
 		} as never);
 		const serialized = JSON.stringify(publicCatalog);
 

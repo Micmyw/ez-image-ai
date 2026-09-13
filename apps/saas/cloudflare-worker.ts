@@ -13,6 +13,7 @@ import { runScopedWorkerRequest, type WorkerExecutionContext } from "./cloudflar
 
 interface WebsiteWorkerEnvironment {
 	CANONICAL_ORIGIN: string;
+	PAYMENT_WEBHOOK_INGRESS_ORIGIN?: string;
 	HYPERDRIVE: { connectionString: string };
 	IMAGES: CloudflareImagesBinding;
 }
@@ -31,26 +32,31 @@ export default {
 		environment: WebsiteWorkerEnvironment,
 		executionContext: WorkerExecutionContext,
 	): Promise<Response> {
-		return forwardToWebsite(request, environment.CANONICAL_ORIGIN, async (forwardedRequest) => {
-			if (!environment.HYPERDRIVE?.connectionString || !environment.IMAGES) {
-				throw new Error("WEBSITE_WORKER_BINDINGS_REQUIRED");
-			}
-			const processor = createCloudflareImagesProcessor(environment.IMAGES);
-			const client = createRuntimeDatabaseClient(environment.HYPERDRIVE.connectionString);
-			return runScopedWorkerRequest(
-				forwardedRequest,
-				environment,
-				executionContext,
-				{
-					run: (callback) =>
-						runWithDatabaseClient(client, () =>
-							runWithImageProcessor(processor, () => runWithCloudflareRemoteMedia(callback)),
-						),
-					dispose: () => client.$disconnect(),
-				},
-				(request, environment, context) => openNextWorker.fetch(request, environment, context),
-			);
-		});
+		return forwardToWebsite(
+			request,
+			environment.CANONICAL_ORIGIN,
+			async (forwardedRequest) => {
+				if (!environment.HYPERDRIVE?.connectionString || !environment.IMAGES) {
+					throw new Error("WEBSITE_WORKER_BINDINGS_REQUIRED");
+				}
+				const processor = createCloudflareImagesProcessor(environment.IMAGES);
+				const client = createRuntimeDatabaseClient(environment.HYPERDRIVE.connectionString);
+				return runScopedWorkerRequest(
+					forwardedRequest,
+					environment,
+					executionContext,
+					{
+						run: (callback) =>
+							runWithDatabaseClient(client, () =>
+								runWithImageProcessor(processor, () => runWithCloudflareRemoteMedia(callback)),
+							),
+						dispose: () => client.$disconnect(),
+					},
+					(request, environment, context) => openNextWorker.fetch(request, environment, context),
+				);
+			},
+			environment.PAYMENT_WEBHOOK_INGRESS_ORIGIN,
+		);
 	},
 };
 

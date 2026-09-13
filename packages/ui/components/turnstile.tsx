@@ -2,8 +2,6 @@
 
 import { useEffect, useRef } from "react";
 
-import { cn } from "../lib";
-
 const TURNSTILE_SCRIPT = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
 
 interface TurnstileApi {
@@ -12,6 +10,7 @@ interface TurnstileApi {
 		options: {
 			sitekey: string;
 			action: string;
+			appearance: "interaction-only";
 			callback: (token: string) => void;
 			"error-callback": () => void;
 			"expired-callback": () => void;
@@ -58,6 +57,7 @@ export function Turnstile({
 			widgetId = window.turnstile.render(containerRef.current, {
 				sitekey: siteKey,
 				action,
+				appearance: "interaction-only",
 				theme: "auto",
 				callback: (token) => callbacks.current.onToken(token),
 				"error-callback": () => callbacks.current.onError?.(),
@@ -100,7 +100,5 @@ export function Turnstile({
 		};
 	}, [action, resetKey, siteKey]);
 
-	return (
-		<div ref={containerRef} className={cn("min-h-[65px]", className)} aria-label={ariaLabel} />
-	);
+	return <div ref={containerRef} className={className} aria-label={ariaLabel} />;
 }

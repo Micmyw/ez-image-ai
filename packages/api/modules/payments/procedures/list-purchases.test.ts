@@ -22,11 +22,13 @@ vi.mock("@repo/database", async () => {
 
 	return {
 		PurchaseSchema: z.object({ provider: z.string() }),
+		findEffectivePaidSubscription: vi.fn(),
 		getOrganizationMembership: vi.fn(),
 		getPurchasesByOrganizationId: vi.fn(),
 		getPurchasesByUserId: vi.fn(),
 	};
 });
+vi.mock("@repo/database/client", () => ({ db: {} }));
 vi.mock("@repo/payments", () => ({
 	getPlanIdByProviderPriceId,
 	getPlanPriceByProviderPriceId,
@@ -35,6 +37,7 @@ vi.mock("@repo/payments", () => ({
 
 import { auth } from "@repo/auth";
 import {
+	findEffectivePaidSubscription,
 	getOrganizationMembership,
 	getPurchasesByOrganizationId,
 	getPurchasesByUserId,
@@ -95,7 +98,51 @@ const organizationMembership = {
 describe("listPurchases", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.mocked(findEffectivePaidSubscription).mockResolvedValue(null);
 		vi.mocked(auth.api.getSession).mockResolvedValue(authenticatedSession);
+	});
+
+	it("marks the canonical effective subscription without hiding other payment methods", async () => {
+		vi.mocked(findEffectivePaidSubscription).mockResolvedValue({
+			id: "current-subscription",
+		} as never);
+		vi.mocked(getPurchasesByUserId).mockResolvedValue(
+			[
+				{ id: "old-purchase", provider: "waffo", canonicalId: "old-subscription" },
+				{ id: "current-purchase", provider: "paypal", canonicalId: "current-subscription" },
+			].map(({ id, provider, canonicalId }) => ({
+				id,
+				provider,
+				productKind: "PLAN",
+				type: "SUBSCRIPTION",
+				userId: "user-1",
+				organizationId: null,
+				mediaSubscription: {
+					id: canonicalId,
+					status: "ACTIVE",
+					ownerType: "USER",
+					ownerId: "user-1",
+					provider,
+					cancelAtPeriodEnd: false,
+					currentPeriodEnd: null,
+					plan: {
+						provider,
+						priceMicros: 19_000_000n,
+						currency: "USD",
+						metadata: { planId: "creator", interval: "month" },
+					},
+				},
+			})) as never,
+		);
+		const result = await call(listPurchases, {}, { context: { headers: new Headers() } });
+		expect(result).toEqual([
+			expect.objectContaining({ provider: "waffo", isEffectiveSubscription: false }),
+			expect.objectContaining({ provider: "paypal", isEffectiveSubscription: true }),
+		]);
+		expect(findEffectivePaidSubscription).toHaveBeenCalledWith(
+			{ ownerType: "USER", ownerId: "user-1" },
+			expect.anything(),
+		);
 	});
 
 	it("rejects access to purchases for an organization the user does not belong to", async () => {
@@ -214,7 +261,7 @@ describe("listPurchases", () => {
 		expect(getPlanPriceByProviderPriceId).not.toHaveBeenCalled();
 	});
 
-	it("keeps a historical subscription's persisted plan after its provider price ID rotates", async () => {
+	it("keeps a historical subscription's persisted plan and scheduled cancellation after price rotation", async () => {
 		vi.mocked(getPurchasesByUserId).mockResolvedValueOnce([
 			{
 				id: "purchase-historical",
@@ -230,9 +277,13 @@ describe("listPurchases", () => {
 				createdAt: new Date("2026-08-31T00:00:00Z"),
 				updatedAt: new Date("2026-08-31T00:00:00Z"),
 				mediaSubscription: {
+					id: "canonical-historical",
+					status: "ACTIVE",
 					ownerType: "USER",
 					ownerId: "user-1",
 					provider: "stripe",
+					cancelAtPeriodEnd: true,
+					currentPeriodEnd: new Date("2026-10-12T00:00:00Z"),
 					plan: {
 						provider: "stripe",
 						priceMicros: 17_000_000n,
@@ -253,6 +304,10 @@ describe("listPurchases", () => {
 		expect(result[0]).toMatchObject({
 			provider: "stripe",
 			planId: "creator",
+			subscription: {
+				cancelAtPeriodEnd: true,
+				currentPeriodEnd: new Date("2026-10-12T00:00:00Z"),
+			},
 			planPrice: {
 				type: "subscription",
 				interval: "month",
@@ -278,6 +333,8 @@ describe("listPurchases", () => {
 				createdAt: new Date("2026-08-31T00:00:00Z"),
 				updatedAt: new Date("2026-08-31T00:00:00Z"),
 				mediaSubscription: {
+					id: "canonical-subscription",
+					status: "ACTIVE",
 					ownerType: "USER",
 					ownerId: "user-2",
 					provider: "stripe",
@@ -299,6 +356,7 @@ describe("listPurchases", () => {
 			provider: "stripe",
 			planId: null,
 			planPrice: null,
+			subscription: null,
 		});
 	});
 
@@ -318,6 +376,8 @@ describe("listPurchases", () => {
 				createdAt: new Date("2026-08-31T00:00:00Z"),
 				updatedAt: new Date("2026-08-31T00:00:00Z"),
 				mediaSubscription: {
+					id: "canonical-subscription",
+					status: "ACTIVE",
 					ownerType: "USER",
 					ownerId: "user-1",
 					provider: "paypal",
@@ -359,6 +419,8 @@ describe("listPurchases", () => {
 				createdAt: new Date("2026-08-31T00:00:00Z"),
 				updatedAt: new Date("2026-08-31T00:00:00Z"),
 				mediaSubscription: {
+					id: "canonical-subscription",
+					status: "ACTIVE",
 					ownerType: "ORGANIZATION",
 					ownerId: "organization-1",
 					provider: "stripe",

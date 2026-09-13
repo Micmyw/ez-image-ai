@@ -5,9 +5,9 @@ export const termsDocuments = [
 		title: "Terms of Service",
 		description:
 			"Terms for EzPic accounts, image-editing workflows, credits, subscriptions, content, and acceptable use.",
-		body: `_Last updated: September 7, 2026_
+		body: `_Last updated: September 12, 2026_
 
-These terms govern use of EzPic's public image editor and account-based image-editing service. A production operator identity, governing law, and jurisdiction-specific notices must be supplied before deployment where required. By using the service, you agree to the version presented when you use it.
+These terms govern use of EzPic's public image editor and account-based image-editing service. EzPic is an independently operated service run by an individual. In these terms, "EzPic" refers to the service and its operator. You can reach the operator through the [Contact page](/contact). By using the service, you agree to the version presented when you use it.
 
 ## Accounts and the editing workflow
 
@@ -19,7 +19,7 @@ Outside an available anonymous trial, real generation requires an account, an ow
 
 EzPic shows the credit cost before an account-based edit is confirmed. Credits are reserved when a generation job is created, charged according to the completed job state, and released when the ledger rules require release. Credits are a product usage unit, not cash, stored value, or a transferable financial instrument.
 
-Free, Pro, Ultimate, and Max entitlements and current subscription prices are shown on the Pricing page. A paid checkout is available only when the corresponding payment configuration is active. Recurring subscriptions continue for their stated interval until canceled. Cancellation and plan-management controls are available from the billing area, subject to applicable processing periods.
+Paid Pro, Ultimate, and Max plans and current subscription prices are shown on the [Pricing page](/pricing). Any free account allowance is shown in the account. A paid checkout is available only when that payment option is offered. Recurring subscriptions continue for their stated interval until canceled. Cancellation and plan-management controls are available from the billing area, subject to applicable processing periods.
 
 Refund eligibility depends on the applicable payment terms, transaction state, and governing law. Contact support with the relevant billing details for review. EzPic does not promise a refund where one is not required or authorized.
 
@@ -45,6 +45,6 @@ You may stop using the service and manage an active subscription through the ava
 
 ## Contact
 
-Use the configured support channel for terms, billing, or account questions. Do not send passwords, authentication tokens, cookies, or private signed media links in a support request.`,
+For terms, billing, or account questions, [contact the EzPic operator](/contact). Do not send passwords, authentication tokens, cookies, or private signed media links in a support request. Nothing in these terms excludes rights or protections that applicable law does not allow you to waive.`,
 	},
 ] as const;

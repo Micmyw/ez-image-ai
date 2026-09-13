@@ -26,7 +26,7 @@
 		"migrate": "dotenv -c -e ../../.env -- prisma migrate dev",
 		"studio": "dotenv -c -e ../../.env -- prisma studio",
 		"type-check": "tsc --noEmit",
-		"test": "vitest run prisma/client.test.ts prisma/queries/media/state-machine.test.ts prisma/queries/media/assets-transactions.test.ts prisma/queries/media/guest-admission.test.ts --configLoader runner",
+		"test": "vitest run prisma/client.test.ts prisma/queries/media/state-machine.test.ts prisma/queries/media/assets-transactions.test.ts prisma/queries/media/guest-admission.test.ts prisma/queries/media/guest-initial-activation.test.ts --configLoader runner",
 		"test:integration": "vitest run --config vitest.integration.config.ts --configLoader runner"
 	},
 	"dependencies": {

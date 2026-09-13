@@ -61,6 +61,7 @@ import type { PrismaClient } from "@repo/database/generated-client";
 import {
 	abortMultipartUpload,
 	assertMediaKind,
+	config as storageConfig,
 	createAssetObjectKey,
 	createStagingObjectKey,
 	createSignedReadUrl,
@@ -69,6 +70,7 @@ import {
 	detectMediaType,
 	headObject,
 	inspectPrivateMediaObject,
+	inspectRemoteMedia,
 	listMultipartUploads,
 	MediaValidationError,
 	promoteStagedObject,
@@ -1112,7 +1114,8 @@ export function createDatabaseStorageCleanupDependencies(
 			await database.$transaction(async (tx) => {
 				if (
 					input.storageReservationReferenceKey &&
-					input.storageReservationReferenceKey !== `generation-output:${input.assetId}`
+					input.storageReservationReferenceKey !== `generation-output:${input.assetId}` &&
+					input.storageReservationReferenceKey !== `media-draft:${input.assetId}`
 				) {
 					throw new Error("Generated output storage reservation reference is invalid");
 				}
@@ -1550,6 +1553,14 @@ async function claimMediaVerification(
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${input.assetId}`}, 0))`;
 		let asset = await tx.mediaAsset.findUnique({ where: { id: input.assetId } });
 		if (!asset) throw new Error("Media asset not found");
+		// Transfer recovery owns incomplete outputs. Moderation must not consume its
+		// retry budget or terminalize a placeholder while storage still owns it.
+		if (
+			asset.kind === "OUTPUT" &&
+			(asset.outputTransferToken || !asset.finalizedAt || !asset.checksum || asset.byteSize <= 0n)
+		) {
+			return null;
+		}
 		const now = new Date();
 		if (
 			asset.status === "READY" &&
@@ -3292,6 +3303,7 @@ export function createFinalizationDependencies(
 		database?: PrismaClient;
 		verification?: { verify(assetId: string): Promise<void> };
 		storage?: Partial<{
+			inspectRemoteMedia: typeof inspectRemoteMedia;
 			putPrivateMediaObject: typeof putPrivateMediaObject;
 			streamRemoteObjectToStorage: typeof streamRemoteObjectToStorage;
 			promoteStagedObject: typeof promoteStagedObject;
@@ -3309,6 +3321,7 @@ export function createFinalizationDependencies(
 			moderationProvider: environment.MEDIA_SAFETY_ADAPTER ?? "test",
 		});
 	const storage = {
+		inspectRemoteMedia,
 		putPrivateMediaObject,
 		streamRemoteObjectToStorage,
 		promoteStagedObject,
@@ -3336,7 +3349,16 @@ export function createFinalizationDependencies(
 							inlineBody = decoded.body;
 							return decoded.contentType;
 						})()
-					: expectedOutputMimeType(claim.mediaKind, candidate.output);
+					: (
+							await storage.inspectRemoteMedia(candidate.output.url, {
+								allowedHosts: providerCdnAllowlist(environment),
+								maxRedirects: storageConfig.media.remoteMaxRedirects,
+								connectTimeoutMs: storageConfig.media.remoteConnectTimeoutMs,
+								firstByteTimeoutMs: storageConfig.media.remoteFirstByteTimeoutMs,
+								totalTimeoutMs: storageConfig.media.remoteTotalTimeoutMs,
+								expectedKind: claim.mediaKind,
+							})
+						).contentType;
 			const assetId = `asset_${createHash("sha256")
 				.update(`${claim.jobId}:${candidate.key}`)
 				.digest("base64url")
@@ -5110,19 +5132,6 @@ function rawUrlAuthority(value: string): string | undefined {
 	return authorityEnd === -1
 		? value.slice(authorityStart)
 		: value.slice(authorityStart, authorityStart + authorityEnd);
-}
-
-function expectedOutputMimeType(
-	mediaKind: "image" | "video",
-	output: ProviderOutput,
-): "image/jpeg" | "image/png" | "image/webp" | "video/mp4" | "video/webm" | "video/quicktime" {
-	if (output.kind === "inline-base64") {
-		if (["image/jpeg", "image/png", "image/webp"].includes(output.mimeType)) {
-			return output.mimeType as "image/jpeg" | "image/png" | "image/webp";
-		}
-		throw new Error("Unsupported inline image type");
-	}
-	return mediaKind === "image" ? "image/png" : "video/mp4";
 }
 
 function createSafetyAdapter(environment: NodeJS.ProcessEnv) {

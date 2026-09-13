@@ -1,6 +1,6 @@
 {
 	"blog": {
-		"description": "Lies Anleitungen zur Bildbearbeitung und EzPic-Produktneuigkeiten.",
+		"description": "Praktische Anleitungen zu KI-Bildanweisungen, privaten Uploads und der Prüfung Ihrer Ergebnisse.",
 		"title": "EzPic-Anleitungen",
 		"back": "Zurück zum Blog"
 	},
@@ -93,7 +93,7 @@
 			"paidSignIn": "Anmeldung und kostenpflichtiger Tarif erforderlich",
 			"oneOutput": "Ein Ergebnis",
 			"freeQueue": "Kostenlose Warteschlange · eine Vorschau mit Wasserzeichen · bis zu 24 Stunden verfügbar",
-			"qualityAccess": "GPT Image 2 und Seedream 5 Pro werden nach der Anmeldung fortgesetzt und erfordern Pro, Ultimate oder Max.",
+			"qualityAccess": "{model} erfordert eine Anmeldung und einen Pro-, Ultimate- oder Max-Tarif.",
 			"temporaryResult": "Deine Vorschau bleibt privat und vorübergehend.",
 			"temporarySessionDisclosure": "EzPic erstellt für diesen Test eine temporäre Sitzung, bewahrt Gastmedien bis zu 24 Stunden auf und nutzt pseudonyme Missbrauchssignale für den in unserer Datenschutzerklärung beschriebenen Zeitraum.",
 			"qualityCta": "Weitere Bildmodelle · kostenpflichtiger Tarif",
@@ -126,7 +126,8 @@
 					"auto": "Automatisch",
 					"opaque": "Deckend",
 					"transparent": "Transparent"
-				}
+				},
+				"coupledHint": "Qualität und Auflösung sind bei diesem Modell gekoppelt. Eine Änderung aktualisiert beide."
 			},
 			"states": {
 				"challenge": "Diesen Gast-Upload bestätigen",
@@ -142,17 +143,17 @@
 			},
 			"guidance": {
 				"checking": "Warte, während die Verfügbarkeit geprüft wird.",
-				"unavailable": "Bearbeitungen sind derzeit nicht verfügbar. Versuche es später erneut.",
+				"unavailable": "Die Bildbearbeitung ist derzeit nicht verfügbar. Bereiten Sie eine Anweisung vor, lesen Sie die Anleitung oder prüfen Sie erneut.",
 				"product": "Wähle ein Bildmodell, um fortzufahren.",
 				"source": "Füge ein Quellbild hinzu, um fortzufahren.",
 				"prompt": "Beschreibe die gewünschte Bearbeitung, um fortzufahren.",
 				"verification": "Schließe die Überprüfung ab, um fortzufahren."
 			},
 			"actions": {
-				"standard": "Nano Banana 2 Lite 1K kostenlos testen",
-				"quality": "Mit einem kostenpflichtigen Bildmodell fortfahren",
-				"retry": "{product} erneut versuchen",
-				"retryAvailability": "Bearbeitungsverfügbarkeit erneut prüfen"
+				"standard": "Gratis testen",
+				"quality": "Weiter",
+				"retry": "Erneut versuchen",
+				"retryAvailability": "Verfügbarkeit prüfen"
 			},
 			"errors": {
 				"turnstile": "Schließe die Überprüfung ab und versuche es erneut.",
@@ -164,7 +165,11 @@
 			"continue": "Mit der Bearbeitung fortfahren",
 			"privacy": "Quellbilder und Ergebnisse von Gästen bleiben privat und werden bis zu 24 Stunden vorübergehend gespeichert. Für Kontomedien gilt die Aufbewahrung aus unserer Datenschutzerklärung.",
 			"error": "Der Bearbeitungsentwurf konnte nicht gespeichert werden. Bitte versuche es später erneut.",
-			"steps": { "idea": "Hochladen", "control": "Beschreiben", "create": "Prüfen" },
+			"steps": {
+				"idea": "Hochladen",
+				"control": "Beschreiben",
+				"create": "Prüfen"
+			},
 			"fileHint": "JPEG, PNG oder WebP bis {megabytes, number} MB",
 			"uploadLabel": "Bild hier ablegen oder Datei auswählen",
 			"replaceImage": "Bild ersetzen",
@@ -212,6 +217,10 @@
 				"type": "Wähle ein JPEG-, PNG- oder WebP-Bild.",
 				"size": "Wähle ein Bild mit höchstens {megabytes, number} MB.",
 				"read": "Dieses Bild konnte nicht gelesen werden. Wähle eine andere Datei."
+			},
+			"help": {
+				"promptGuide": "Prompt-Anleitung lesen",
+				"contact": "Support kontaktieren"
 			}
 		},
 		"creatorWorkflows": {
@@ -523,6 +532,11 @@
 					"description": "Kehre zum Bearbeitungsverlauf zurück und prüfe den neuesten Auftragsstatus."
 				}
 			}
+		},
+		"guides": {
+			"quickStart": "Erste Bearbeitung starten",
+			"prompts": "Eine klarere Bildanweisung schreiben",
+			"privacy": "Private Bildbearbeitung verstehen"
 		}
 	},
 	"newsletter": {

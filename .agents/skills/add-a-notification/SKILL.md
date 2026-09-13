@@ -23,7 +23,7 @@ Use for typed notification events delivered in-app and/or by email. Do not bypas
 6. Add a producer under `packages/notifications/src` and export it from `src/index.ts`. Call `createNotification({ userId, type, data, link })`; the generic email derives its subject from `data.headline` or `data.title` and optionally renders `data.message`.
 7. Trigger the producer only after the underlying transaction succeeds. Keep failures observable with `@repo/logs` when notification delivery must not roll back the primary action.
 8. Test preference suppression for `IN_APP` and `EMAIL`, persisted data, locale selection, and relative-link expansion through `resolveNotificationLink`.
-9. Run database/API/SaaS tests and repository gates.
+9. Run tests for the affected notification, database, API, and settings contracts.
 
 ## Canonical reference
 
@@ -31,7 +31,7 @@ Use for typed notification events delivered in-app and/or by email. Do not bypas
 
 ## Done
 
-The enum is synchronized across Prisma, all Drizzle variants, `NOTIFICATION_TYPES`, the catalog, Zod generation, settings UI, and every locale; migration/generation succeed; both query layers still implement the notification contract; channel-preference tests and gates pass.
+The enum is synchronized across Prisma, all Drizzle variants, `NOTIFICATION_TYPES`, the catalog, Zod generation, settings UI, and every locale; migration/generation succeed; both query layers still implement the notification contract; channel-preference tests and affected checks pass.
 
 ## Common mistakes
 

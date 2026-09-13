@@ -427,6 +427,103 @@ describe("guest absolute media retention", () => {
 		}
 	});
 
+	it("prunes expired bootstraps that never acquired an anonymous principal", async () => {
+		const now = new Date("2026-09-12T00:00:00Z");
+		const bootstrap = await client.guestSessionBootstrap.create({
+			data: {
+				promotionPeriod: "unbound-expiry",
+				claimHash: randomUUID(),
+				idempotencyKey: randomUUID(),
+				expiresAt: new Date(now.getTime() - 1),
+				createdAt: new Date(now.getTime() - 60_000),
+			},
+		});
+		await expireGuestMediaTransaction({ now, limit: 1 }, client);
+		await expect(
+			client.guestSessionBootstrap.findUnique({ where: { id: bootstrap.id } }),
+		).resolves.toBeNull();
+	});
+
+	it("preserves an unbound bootstrap's live principal lease until a later sweep", async () => {
+		const now = new Date("2026-09-12T00:00:00Z");
+		const bootstrap = await client.guestSessionBootstrap.create({
+			data: {
+				promotionPeriod: "unbound-active-lease",
+				claimHash: randomUUID(),
+				idempotencyKey: randomUUID(),
+				createdAt: new Date(now.getTime() - 60_000),
+				expiresAt: new Date(now.getTime() - 1),
+				principalLeaseToken: randomUUID(),
+				principalLeaseExpiresAt: new Date(now.getTime() + 30_000),
+			},
+		});
+		await expireGuestMediaTransaction({ now, limit: 1 }, client);
+		await expect(
+			client.guestSessionBootstrap.findUnique({ where: { id: bootstrap.id } }),
+		).resolves.toMatchObject({ id: bootstrap.id });
+		await expireGuestMediaTransaction({ now: new Date(now.getTime() + 30_001), limit: 1 }, client);
+		await expect(
+			client.guestSessionBootstrap.findUnique({ where: { id: bootstrap.id } }),
+		).resolves.toBeNull();
+	});
+
+	it("retains discovery until the live session expires on a later sweep", async () => {
+		const now = new Date("2026-09-12T00:00:00Z");
+		const ownerId = await createAnonymousOwner("live-then-expired");
+		await client.session.create({
+			data: {
+				id: randomUUID(),
+				token: randomUUID(),
+				userId: ownerId,
+				expiresAt: new Date(now.getTime() + 60_000),
+				createdAt: now,
+				updatedAt: now,
+			},
+		});
+		await createExpiredBootstrap(ownerId, now);
+		expect(
+			(await expireGuestMediaTransaction({ now, limit: 1 }, client)).removedAnonymousUsers,
+		).toBe(0);
+		expect(
+			(
+				await expireGuestMediaTransaction(
+					{ now: new Date(now.getTime() + 60_001), limit: 1 },
+					client,
+				)
+			).removedAnonymousUsers,
+		).toBe(1);
+		await expect(client.user.count({ where: { id: ownerId } })).resolves.toBe(0);
+	});
+
+	it("keeps unselected principals discoverable across bounded cleanup batches", async () => {
+		const now = new Date("2026-09-12T00:00:00Z");
+		const owners = await Promise.all(
+			["batch-one", "batch-two", "batch-three"].map(createAnonymousOwner),
+		);
+		for (const ownerId of owners) await createExpiredBootstrap(ownerId, now);
+		for (let index = 0; index < owners.length; index++) {
+			expect(
+				(await expireGuestMediaTransaction({ now, limit: 1 }, client)).removedAnonymousUsers,
+			).toBe(1);
+		}
+		await expect(client.user.count({ where: { id: { in: owners } } })).resolves.toBe(0);
+	});
+
+	it("keeps a skipped locked principal discoverable for a later sweep", async () => {
+		const now = new Date("2026-09-12T00:00:00Z");
+		const ownerId = await createAnonymousOwner("locked");
+		await createExpiredBootstrap(ownerId, now);
+		await client.$transaction(async (tx) => {
+			await tx.$queryRaw`SELECT "id" FROM "user" WHERE "id" = ${ownerId} FOR UPDATE`;
+			expect(
+				(await expireGuestMediaTransaction({ now, limit: 1 }, client)).removedAnonymousUsers,
+			).toBe(0);
+		});
+		expect(
+			(await expireGuestMediaTransaction({ now, limit: 1 }, client)).removedAnonymousUsers,
+		).toBe(1);
+	});
+
 	it("is idempotent under concurrent cleanup of one expired bootstrap-only principal", async () => {
 		const now = new Date("2026-08-28T12:00:00.000Z");
 		const ownerId = await createAnonymousOwner("concurrent");
@@ -454,6 +551,20 @@ describe("guest absolute media retention", () => {
 
 function createHashValue(value: string): string {
 	return Buffer.from(value).toString("hex").padEnd(64, "0").slice(0, 64);
+}
+
+async function createExpiredBootstrap(ownerId: string, now: Date): Promise<void> {
+	await client.guestSessionBootstrap.create({
+		data: {
+			ownerId,
+			promotionPeriod: "discovery-regression",
+			claimHash: randomUUID(),
+			idempotencyKey: randomUUID(),
+			createdAt: new Date(now.getTime() - 60_000),
+			expiresAt: new Date(now.getTime() - 1),
+			completedAt: new Date(now.getTime() - 30_000),
+		},
+	});
 }
 
 async function createAnonymousOwner(label: string): Promise<string> {

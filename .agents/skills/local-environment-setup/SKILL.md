@@ -16,7 +16,7 @@ Use for installation, local PostgreSQL, optional MinIO, generated Prisma artifac
    node --version
    pnpm --version
    ```
-2. Create the untracked local environment from `.env.local.example`:
+2. If `.env.local` is absent, create it from `.env.local.example`; preserve existing local values:
    ```bash
    cp .env.local.example .env.local
    export DATABASE_URL="postgresql://postgres:postgres@localhost:5432/supastarter"
@@ -29,7 +29,7 @@ Use for installation, local PostgreSQL, optional MinIO, generated Prisma artifac
    docker compose up -d postgres
    docker compose ps postgres
    ```
-4. Install workspaces and generate the Prisma client/Zod output. The custom client directory is Git-ignored, so a clean checkout needs generation before direct database consumers:
+4. Install workspaces and generate the Prisma client/Zod output. Use `push` only for a confirmed disposable local database; use committed migrations for durable databases. The custom client directory is Git-ignored, so a clean checkout needs generation before direct database consumers:
    ```bash
    pnpm install
    pnpm --filter @repo/database generate
@@ -58,7 +58,7 @@ are healthy, and SaaS `/api/health`, `/`, and `/docs` resolve on the configured 
 
 ## Common mistakes
 
-- Editing or committing `.env.local`.
+- Committing `.env.local` or overwriting existing local secrets.
 - Expecting direct database scripts to discover `.env.local` without exporting `DATABASE_URL`.
 - Starting MinIO for work that only needs PostgreSQL.
 - Skipping Prisma generation after install or schema changes.

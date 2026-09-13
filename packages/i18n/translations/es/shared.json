@@ -97,6 +97,8 @@
 		"trialPeriod": "{days} {days, plural, one {día} other {días}} de prueba gratis",
 		"year": "{count, plural, one {año} other {{count} años}}",
 		"yearly": "Anual",
-		"perSeat": "asiento"
+		"perSeat": "asiento",
+		"subscriptionAlreadyExists": "Ya tienes una suscripción. Gestiónala en Facturación. Para cambiar de plan o método de pago, cancela la renovación y espera a que termine la suscripción actual.",
+		"checkoutAlreadyPending": "Ya hay un proceso de suscripción en curso. Completa el pago existente antes de iniciar otro. Si el estado no está claro, contacta con soporte."
 	}
 }

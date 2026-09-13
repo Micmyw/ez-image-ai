@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-const indexableRoutes = ["/", "/pricing", "/privacy", "/terms"] as const;
-const initiallyNoindexRoutes = ["/blog", "/changelog", "/contact"] as const;
+const indexableRoutes = ["/", "/pricing", "/privacy", "/terms", "/blog"] as const;
+const noindexRoutes = ["/changelog", "/contact", "/create"] as const;
 const requiredFooterRoutes = [
 	"/privacy",
 	"/terms",
@@ -29,8 +29,8 @@ test.describe("consolidated public routes", () => {
 		});
 	}
 
-	for (const path of initiallyNoindexRoutes) {
-		test(`${path} is public but initially excluded from indexing`, async ({ page }) => {
+	for (const path of noindexRoutes) {
+		test(`${path} is public but excluded from indexing`, async ({ page }) => {
 			await expectPublicPage(page, path, "noindex");
 		});
 	}
@@ -124,7 +124,7 @@ test.describe("consolidated public routes", () => {
 		await expect(articleLink).toBeVisible();
 		const href = await articleLink.getAttribute("href");
 		expect(href).toMatch(/^\/blog\/[a-z0-9][a-z0-9/-]*$/);
-		await expectPublicPage(page, href!, "noindex");
+		await expectPublicPage(page, href!, "index");
 		await expect(page.locator("main")).not.toContainText(
 			/acme|lorem ipsum|favorite things|awesome second post/i,
 		);
@@ -155,7 +155,7 @@ test.describe("consolidated public routes", () => {
 		expect(await response.text()).toMatch(/EzPic/i);
 	});
 
-	test("the locale cookie selects German Privacy and English fallback for Spanish Terms", async ({
+	test("public legal pages stay English regardless of the account locale cookie", async ({
 		browser,
 	}) => {
 		const context = await browser.newContext({
@@ -170,19 +170,17 @@ test.describe("consolidated public routes", () => {
 			const privacyResponse = await page.goto("/privacy");
 			expect(privacyResponse?.status()).toBe(200);
 			expect(new URL(page.url()).pathname).toBe("/privacy");
-			await expect(page.locator("html")).toHaveAttribute("lang", "de");
+			await expect(page.locator("html")).toHaveAttribute("lang", "en");
+			await expect(page.getByRole("heading", { level: 1, name: "Privacy Policy" })).toBeVisible();
 			await expect(
-				page.getByRole("heading", { level: 1, name: "Datenschutzerklärung" }),
-			).toBeVisible();
-			await expect(
-				page.getByRole("heading", { level: 2, name: "Private Medien und Zugriff" }),
+				page.getByRole("heading", { level: 2, name: "Private media and access" }),
 			).toBeVisible();
 
 			await context.addCookies([{ name: "NEXT_LOCALE", value: "es", url: cookieUrl }]);
 			const termsResponse = await page.goto("/terms");
 			expect(termsResponse?.status()).toBe(200);
 			expect(new URL(page.url()).pathname).toBe("/terms");
-			await expect(page.locator("html")).toHaveAttribute("lang", "es");
+			await expect(page.locator("html")).toHaveAttribute("lang", "en");
 			await expect(page.getByRole("heading", { level: 1, name: "Terms of Service" })).toBeVisible();
 			await expect(
 				page.getByRole("heading", { level: 2, name: "Accounts and the editing workflow" }),

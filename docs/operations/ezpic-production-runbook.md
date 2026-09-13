@@ -192,9 +192,14 @@ email addresses, private IDs, URLs, object keys, Provider/model/cost data, and o
 properties. A local browser fixture proves only the application contract. Record real Landing and
 authenticated SaaS ingestion events in the same PostHog project before marking the funnel `PASS`.
 
-Separately verify the exact production canonical origin, four-URL sitemap, robots behavior, GSC
+Separately verify the exact production canonical origin, approved public-page sitemap, robots behavior, GSC
 domain property, verification token, sitemap submission, and live crawl evidence. Placeholder origins
 or an absent GSC/PostHog configuration fail closed.
+
+The approved SEO policy is recorded in `docs/plans/2026-09-12-public-seo-remediation.md`:
+four core pages, the Blog index and published articles, and reviewed Docs marked `indexable: true`.
+Docs artifacts remain noindex. Verify normal and locale-cookie HTML, safe HTTP-to-HTTPS navigation,
+real unmatched-route 404s, public support links, and mobile consent placement after deploying it.
 
 ## Alerts and 24–72 hour watch
 

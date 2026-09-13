@@ -214,7 +214,7 @@ describe("media product catalog", () => {
 		]);
 	});
 
-	it("publishes all nine current image products and their twenty legal SKUs", () => {
+	it("publishes all twelve current image products and their twenty-nine legal SKUs", () => {
 		const products = getPublicProductCatalog({
 			enabledProviders: new Set(["kie"]),
 			generationEnabled: true,
@@ -228,11 +228,14 @@ describe("media product catalog", () => {
 			"image-nano-banana-pro",
 			"image-gpt-image-1-5",
 			"image-gpt-image-2",
+			"image-gpt-image-2-5-flare",
+			"image-gpt-image-2-5-sunburst",
+			"image-seedream-4",
 			"image-seedream-4-5",
 			"image-seedream-5-lite",
 			"image-seedream-5-pro",
 		]);
-		expect(products.flatMap((product) => product.skuMatrix?.cells ?? [])).toHaveLength(20);
+		expect(products.flatMap((product) => product.skuMatrix?.cells ?? [])).toHaveLength(29);
 		for (const product of products) {
 			expect(product).toEqual(
 				expect.objectContaining({
@@ -320,6 +323,9 @@ describe("media product catalog", () => {
 			MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: DEFAULT_PRODUCT_CONFIG.catalogVersion,
 			MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
 			MEDIA_GPT_IMAGE_2_ENABLED: "false",
+			MEDIA_GPT_IMAGE_2_5_FLARE_ENABLED: "true",
+			MEDIA_GPT_IMAGE_2_5_SUNBURST_ENABLED: "true",
+			MEDIA_SEEDREAM_4_ENABLED: "true",
 			MEDIA_SEEDREAM_5_PRO_ENABLED: "true",
 		});
 		expect(options.disabledProductKeys).toEqual(new Set(["image-gpt-image-2"]));
@@ -329,13 +335,16 @@ describe("media product catalog", () => {
 			"image-nano-banana-2",
 			"image-nano-banana-pro",
 			"image-gpt-image-1-5",
+			"image-gpt-image-2-5-flare",
+			"image-gpt-image-2-5-sunburst",
+			"image-seedream-4",
 			"image-seedream-4-5",
 			"image-seedream-5-lite",
 			"image-seedream-5-pro",
 		]);
 	});
 
-	it("fails closed when production omits all nine Kie product switches", () => {
+	it("fails closed when production omits all twelve Kie product switches", () => {
 		const options = configuredRouteGraphOptionsFromEnvironment({
 			NODE_ENV: "production",
 			EZPIC_DEPLOYMENT_ENVIRONMENT: "production",
@@ -351,6 +360,9 @@ describe("media product catalog", () => {
 				"image-nano-banana-pro",
 				"image-gpt-image-1-5",
 				"image-gpt-image-2",
+				"image-gpt-image-2-5-flare",
+				"image-gpt-image-2-5-sunburst",
+				"image-seedream-4",
 				"image-seedream-4-5",
 				"image-seedream-5-lite",
 				"image-seedream-5-pro",
@@ -359,7 +371,7 @@ describe("media product catalog", () => {
 		expect(getPublicProductCatalog(options).products).toEqual([]);
 	});
 
-	it("keeps the pre-launch defaults available in development and test", () => {
+	it("keeps existing defaults available and new models opt-in in development and test", () => {
 		for (const nodeEnvironment of ["development", "test"]) {
 			const options = configuredRouteGraphOptionsFromEnvironment({
 				NODE_ENV: nodeEnvironment,
@@ -367,7 +379,9 @@ describe("media product catalog", () => {
 				MEDIA_ENABLED_PROVIDERS: "replicate,gemini",
 			});
 
-			expect(options.disabledProductKeys, nodeEnvironment).toEqual(new Set());
+			expect(options.disabledProductKeys, nodeEnvironment).toEqual(
+				new Set(["image-gpt-image-2-5-flare", "image-gpt-image-2-5-sunburst", "image-seedream-4"]),
+			);
 		}
 	});
 

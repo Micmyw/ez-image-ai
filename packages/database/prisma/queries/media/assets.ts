@@ -2107,7 +2107,7 @@ export async function markMediaAssetDeletedTransaction(
 						? { uploadSessionId: uploadSession.id, reservationStatus: "RELEASED" }
 						: existing.kind === "OUTPUT"
 							? { storageReservationReferenceKey: `generation-output:${existing.id}` }
-							: {}),
+							: { storageReservationReferenceKey: `media-draft:${existing.id}` }),
 				},
 			},
 		});

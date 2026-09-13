@@ -11,13 +11,13 @@ function source(relativePath: string): string {
 
 describe("authenticated growth event entrypoints", () => {
 	it("wires draft claim, quote, confirmation, and terminal outcomes to existing editor state", () => {
-		const createPage = source("app/(authenticated)/(main)/(account)/create/page.tsx");
+		const registeredEditor = source("modules/media/components/editor/RegisteredEditor.tsx");
 		const workspace = source("modules/media/components/editor/ImageEditorWorkspace.tsx");
 		const generation = source("modules/media/hooks/use-generation.ts");
 		const form = source("modules/media/components/GenerationForm.tsx");
 		const result = source("modules/media/components/editor/EditorResultPanel.tsx");
 
-		expect(createPage).toContain("claimedDraft");
+		expect(registeredEditor).toContain("claimedDraft");
 		expect(workspace).toContain(".draftClaimed(");
 		expect(generation).toMatch(/acceptQuote[\s\S]*\.quoteCreated\(/);
 		expect(form).toContain(".generationConfirmed(");

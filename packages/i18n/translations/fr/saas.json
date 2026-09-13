@@ -1,9 +1,9 @@
 {
 	"publicContent": {
 		"contact": {
-			"description": "Contactez {appName} à l’adresse e-mail d’assistance configurée.",
-			"emailCta": "Écrivez à l’équipe d’assistance EzPic à l’adresse :",
-			"unavailable": "Aucune adresse e-mail d’assistance n’est configurée. Réessayez lorsque l’opérateur aura publié une adresse d’assistance."
+			"description": "Contactez {appName} pour obtenir de l’aide sur la retouche, votre compte, la facturation ou la confidentialité.",
+			"emailCta": "Écrivez à l’opérateur d’EzPic :",
+			"unavailable": "Le support par e-mail est temporairement indisponible. Veuillez revenir plus tard."
 		}
 	},
 	"admin": {
@@ -68,8 +68,13 @@
 					"credits": "Réservés / débités / libérés",
 					"terminal": "Réussies / échouées"
 				},
-				"controls": { "title": "Contrôles effectifs", "global": "Interrupteur de génération" },
-				"failures": { "title": "Codes d’échec" },
+				"controls": {
+					"title": "Contrôles effectifs",
+					"global": "Interrupteur de génération"
+				},
+				"failures": {
+					"title": "Codes d’échec"
+				},
 				"routes": {
 					"title": "Répartition par SKU",
 					"product": "Modèle d’image",
@@ -92,7 +97,10 @@
 					"runtime": "Contrôle d’exécution invité",
 					"admission": "Nouvelle admission invitée"
 				},
-				"values": { "on": "Activé", "off": "Désactivé" },
+				"values": {
+					"on": "Activé",
+					"off": "Désactivé"
+				},
 				"states": {
 					"ok": "Normal",
 					"warn": "Avertissement",
@@ -168,16 +176,27 @@
 				"running": "Opération en cours...",
 				"success": "Opération terminée",
 				"error": "Opération refusée ou échouée",
-				"replay": { "title": "Relancer un événement", "action": "Relancer" },
-				"retry": { "title": "Réessayer une étape sûre", "action": "Réessayer" },
+				"replay": {
+					"title": "Relancer un événement",
+					"action": "Relancer"
+				},
+				"retry": {
+					"title": "Réessayer une étape sûre",
+					"action": "Réessayer"
+				},
 				"override": {
 					"title": "Disponibilité du modèle",
 					"disable": "Désactiver",
 					"enable": "Activer"
 				}
 			},
-			"overrides": { "title": "Règles actives", "rollback": "Annuler" },
-			"audit": { "title": "Audit média récent" },
+			"overrides": {
+				"title": "Règles actives",
+				"rollback": "Annuler"
+			},
+			"audit": {
+				"title": "Audit média récent"
+			},
 			"paymentEvents": {
 				"title": "Diagnostic des événements de paiement",
 				"empty": "Aucun événement récent"
@@ -395,6 +414,7 @@
 		"title": "Documentation"
 	},
 	"notFound": {
+		"goToHome": "Revenir à l’accueil",
 		"code": "404",
 		"title": "Page non trouvée",
 		"goToDashboard": "Aller au tableau de bord",
@@ -621,7 +641,7 @@
 				"title": "Supprimer le compte"
 			},
 			"language": {
-				"description": "Pour changer la langue de l'application pour votre compte, sélectionnez une langue dans la liste et cliquez sur enregistrer.",
+				"description": "Sélectionnez la langue de votre compte. Les modifications sont enregistrées automatiquement.",
 				"notifications": {
 					"error": "Impossible de mettre à jour la langue",
 					"success": "La langue a été mise à jour avec succès"
@@ -783,9 +803,16 @@
 					"past_due": "En retard",
 					"paused": "En pause",
 					"trialing": "En essai",
-					"unpaid": "Impayé"
+					"unpaid": "Impayé",
+					"canceling": "Renouvellement annulé",
+					"pending": "En attente"
 				},
-				"title": "Votre forfait"
+				"title": "Votre forfait",
+				"cancellationScheduled": "Votre forfait reste disponible jusqu’au {date}. Il ne sera pas renouvelé.",
+				"multipleSubscriptions": "Plusieurs abonnements sont encore ouverts. Vérifiez les moyens de paiement ci-dessous et annulez les renouvellements inutiles.",
+				"paymentMethod": "Moyen de paiement : {provider}",
+				"effectivePlan": "Cet abonnement détermine actuellement les avantages de votre offre.",
+				"currentPeriodEnd": "La période de facturation actuelle se termine le {date}."
 			},
 			"changePlan": {
 				"description": "Choisissez un forfait auquel vous abonner.",
@@ -844,7 +871,14 @@
 			"pause": "Mettre en pause",
 			"resume": "Reprendre",
 			"retry": "Réessayer",
-			"remove": "Supprimer"
+			"remove": "Supprimer",
+			"status": {
+				"idle": "En attente",
+				"uploading": "Envoi en cours",
+				"paused": "En pause",
+				"uploaded": "Envoyé",
+				"error": "Échec de l’envoi"
+			}
 		},
 		"create": {
 			"eyebrow": "Éditeur d'images",
@@ -855,62 +889,141 @@
 			"products": {
 				"image-nano-banana-2-lite": {
 					"label": "Nano Banana 2 Lite",
-					"description": "Retouches rapides en 1K avec une large prise en charge des formats."
+					"description": "Portraits et retouches du quotidien en 1K."
 				},
 				"image-nano-banana": {
 					"label": "Nano Banana",
-					"description": "Retouches équilibrées avec un profil de sortie par défaut dédié."
+					"description": "Portraits naturels et retouches de scènes."
 				},
 				"image-nano-banana-2": {
 					"label": "Nano Banana 2",
-					"description": "Retouches flexibles avec des options 1K, 2K et 4K indépendantes."
+					"description": "Photos de produits et retouches créatives jusqu’en 4K."
 				},
 				"image-nano-banana-pro": {
 					"label": "Nano Banana Pro",
-					"description": "Retouches haut de gamme avec des options 1K, 2K et 4K indépendantes."
+					"description": "Textures fines et compositions détaillées jusqu’en 4K."
 				},
 				"image-gpt-image-1-5": {
 					"label": "GPT Image 1.5",
-					"description": "Retouches avec des options de qualité Moyenne et Élevée indépendantes."
+					"description": "Créations avec du texte et retouches visuelles précises."
 				},
 				"image-gpt-image-2": {
 					"label": "GPT Image 2",
-					"description": "Retouches détaillées avec des options 1K, 2K et 4K indépendantes."
+					"description": "Images de produits, texte et compositions détaillées."
 				},
 				"image-seedream-4-5": {
 					"label": "Seedream 4.5",
-					"description": "Retouches avec des options indépendantes 2K Standard et 4K Élevée."
+					"description": "Scènes réalistes et portraits stylisés en 2K ou 4K."
 				},
 				"image-seedream-5-lite": {
 					"label": "Seedream 5 Lite",
-					"description": "Retouches avec des options indépendantes 2K Standard, 3K Élevée et 4K Ultra."
+					"description": "Scènes cinématographiques et éclairage expressif jusqu’en 4K."
 				},
 				"image-seedream-5-pro": {
 					"label": "Seedream 5 Pro",
-					"description": "Retouches avec des options indépendantes 1K Standard et 2K Élevée."
+					"description": "Images de produits soignées et scènes riches en détails."
+				},
+				"image-gpt-image-2-5-flare": {
+					"label": "GPT Image 2.5 Flare",
+					"description": "Retouche pour les visuels du quotidien, fidèle aux références et aux détails naturels."
+				},
+				"image-gpt-image-2-5-sunburst": {
+					"label": "GPT Image 2.5 Sunburst",
+					"description": "Retouche pour les campagnes visuelles avec un contrôle créatif précis."
+				},
+				"image-seedream-4": {
+					"label": "Seedream 4.0",
+					"description": "Retouche flexible avec des sorties en 1K, 2K et 4K."
 				}
 			},
 			"skus": {
-				"nano-banana-2-lite-1k": { "label": "1K" },
-				"nano-banana-default": { "label": "Par défaut" },
-				"nano-banana-2-1k": { "label": "1K" },
-				"nano-banana-2-2k": { "label": "2K" },
-				"nano-banana-2-4k": { "label": "4K" },
-				"nano-banana-pro-1k": { "label": "1K" },
-				"nano-banana-pro-2k": { "label": "2K" },
-				"nano-banana-pro-4k": { "label": "4K" },
-				"gpt-image-1-5-medium": { "label": "Moyenne" },
-				"gpt-image-1-5-high": { "label": "Élevée" },
-				"gpt-image-2-1k": { "label": "1K" },
-				"gpt-image-2-2k": { "label": "2K" },
-				"gpt-image-2-4k": { "label": "4K" },
-				"seedream-4-5-basic-2k": { "label": "2K · Standard" },
-				"seedream-4-5-high-4k": { "label": "4K · Élevée" },
-				"seedream-5-lite-basic-2k": { "label": "2K · Standard" },
-				"seedream-5-lite-high-3k": { "label": "3K · Élevée" },
-				"seedream-5-lite-ultra-4k": { "label": "4K · Ultra" },
-				"seedream-5-pro-basic-1k": { "label": "1K · Standard" },
-				"seedream-5-pro-high-2k": { "label": "2K · Élevée" }
+				"nano-banana-2-lite-1k": {
+					"label": "1K"
+				},
+				"nano-banana-default": {
+					"label": "Par défaut"
+				},
+				"nano-banana-2-1k": {
+					"label": "1K"
+				},
+				"nano-banana-2-2k": {
+					"label": "2K"
+				},
+				"nano-banana-2-4k": {
+					"label": "4K"
+				},
+				"nano-banana-pro-1k": {
+					"label": "1K"
+				},
+				"nano-banana-pro-2k": {
+					"label": "2K"
+				},
+				"nano-banana-pro-4k": {
+					"label": "4K"
+				},
+				"gpt-image-1-5-medium": {
+					"label": "Moyenne"
+				},
+				"gpt-image-1-5-high": {
+					"label": "Élevée"
+				},
+				"gpt-image-2-1k": {
+					"label": "1K"
+				},
+				"gpt-image-2-2k": {
+					"label": "2K"
+				},
+				"gpt-image-2-4k": {
+					"label": "4K"
+				},
+				"seedream-4-5-basic-2k": {
+					"label": "2K · Standard"
+				},
+				"seedream-4-5-high-4k": {
+					"label": "4K · Élevée"
+				},
+				"seedream-5-lite-basic-2k": {
+					"label": "2K · Standard"
+				},
+				"seedream-5-lite-high-3k": {
+					"label": "3K · Élevée"
+				},
+				"seedream-5-lite-ultra-4k": {
+					"label": "4K · Ultra"
+				},
+				"seedream-5-pro-basic-1k": {
+					"label": "1K · Standard"
+				},
+				"seedream-5-pro-high-2k": {
+					"label": "2K · Élevée"
+				},
+				"gpt-image-2-5-flare-1k": {
+					"label": "1K"
+				},
+				"gpt-image-2-5-flare-2k": {
+					"label": "2K"
+				},
+				"gpt-image-2-5-flare-4k": {
+					"label": "4K"
+				},
+				"gpt-image-2-5-sunburst-1k": {
+					"label": "1K"
+				},
+				"gpt-image-2-5-sunburst-2k": {
+					"label": "2K"
+				},
+				"gpt-image-2-5-sunburst-4k": {
+					"label": "4K"
+				},
+				"seedream-4-1k": {
+					"label": "1K"
+				},
+				"seedream-4-2k": {
+					"label": "2K"
+				},
+				"seedream-4-4k": {
+					"label": "4K"
+				}
 			},
 			"fields": {
 				"prompt": "Instruction de retouche",
@@ -989,6 +1102,23 @@
 				"concurrentLimit": "Votre forfait a déjà atteint son maximum de retouches en cours. Aucune nouvelle tâche ni réservation de crédits n’a été créée.",
 				"inputTooLarge": "Cette image dépasse la limite d’entrée de votre forfait. Choisissez une image plus petite ou comparez les forfaits.",
 				"safeError": "La retouche n’a pas pu démarrer. Vérifiez le formulaire ou réessayez dans quelques instants."
+			},
+			"modelMenu": {
+				"title": "Modèles d’image",
+				"trigger": "Modèle : {model}",
+				"choose": "Choisir un modèle",
+				"groups": "Familles de modèles",
+				"credits": "{credits, number} crédits",
+				"fromCredits": "Dès {credits, number} crédits",
+				"groupDescriptions": {
+					"nano": "Retouches naturelles",
+					"gpt": "Texte et détails fins",
+					"seedream": "Images de cinéma"
+				},
+				"paidPlan": "Forfait payant",
+				"viewPlans": "Voir les forfaits",
+				"upToResolution": "Jusqu’à {resolution}",
+				"upgradeNotice": "{model} nécessite Pro, Ultimate ou Max. Vous pouvez continuer à modifier avant de choisir un forfait."
 			}
 		},
 		"guest": {
@@ -1050,13 +1180,18 @@
 		},
 		"upgradeDialog": {
 			"title": "Débloquer plus de modèles d’image",
-			"description": "Conservez l’image, l’instruction, le modèle et la SKU sélectionnés ainsi que la session de retouche pendant que vous comparez les forfaits payants.",
-			"creator": "Pro : {credits, number} crédits par mois, {concurrency, number} retouches simultanées et images jusqu’à {megabytes, number} MB.",
-			"ultimate": "Ultimate : {credits, number} crédits par mois, {concurrency, number} retouches simultanées et images jusqu’à {megabytes, number} MB.",
-			"studio": "Max : {credits, number} crédits par mois, {concurrency, number} retouches simultanées et images jusqu’à {megabytes, number} MB.",
+			"description": "Votre image, votre instruction et les réglages du modèle sont conservés pendant la comparaison des forfaits.",
 			"storageUnavailable": "Le navigateur n’a pas pu enregistrer le brouillon. Gardez cet onglet ouvert et réessayez.",
-			"cancel": "Pas maintenant",
-			"continue": "Choisir un forfait"
+			"cancel": "Continuer la retouche",
+			"continue": "Choisir un forfait",
+			"modelDescription": "{model} est inclus dans Pro, Ultimate et Max. Choisissez le forfait adapté à vos besoins de retouche.",
+			"monthlyCredits": "{credits, number} crédits/mois",
+			"planDetails": "{concurrency, number} retouches simultanées · images jusqu’à {megabytes, number} Mo",
+			"planNames": {
+				"creator": "Pro",
+				"ultimate": "Ultimate",
+				"studio": "Max"
+			}
 		},
 		"editor": {
 			"source": {
@@ -1191,7 +1326,11 @@
 		"assets": {
 			"title": "Bibliothèque de médias",
 			"subtitle": "Images source et résultats retouchés privés.",
-			"filters": { "all": "Tous les médias", "image": "Images", "video": "Vidéos" },
+			"filters": {
+				"all": "Tous les médias",
+				"image": "Images",
+				"video": "Vidéos"
+			},
 			"previewAlt": "Média généré privé",
 			"preview": "Afficher l'aperçu",
 			"video": "Vidéo",
@@ -1206,11 +1345,14 @@
 	},
 	"common": {
 		"consent": {
+			"label": "Analyses produit facultatives",
 			"message": "Google Analytics et Microsoft Clarity fonctionnent automatiquement. Choisissez si vous autorisez des analyses supplémentaires de l'utilisation du produit. Le stockage essentiel reste disponible.",
 			"decline": "Refuser les facultatifs",
 			"allow": "Autoriser les facultatifs"
 		},
-		"footer": { "support": "Support" },
+		"footer": {
+			"support": "Support"
+		},
 		"confirmation": {
 			"cancel": "Annuler",
 			"confirm": "Confirmer"
@@ -1246,5 +1388,63 @@
 		"error": "Nous n’avons pas pu confirmer ce paiement. Aucun crédit n’a été ajouté.",
 		"tryAgain": "Voir les packs de crédits",
 		"returnToEditor": "Retour à l’éditeur"
+	},
+	"studio": {
+		"navigation": "Navigation de l’espace de travail",
+		"pageNavigation": "Navigation de la page",
+		"create": "Créer une image",
+		"explore": "Inspiration",
+		"workspace": "Votre espace de travail",
+		"history": "Historique",
+		"assets": "Fichiers",
+		"edits": "Chaînes de retouches",
+		"discover": "Découvrir",
+		"admin": "Administration",
+		"credits": "Crédits et forfait",
+		"creditBalance": "{credits} crédits",
+		"openNavigation": "Ouvrir la navigation",
+		"closeNavigation": "Fermer la navigation",
+		"closePanel": "Fermer le panneau",
+		"panelHint": "Votre retouche est conservée pendant la gestion de votre compte.",
+		"loading": "Chargement…",
+		"error": "Le chargement a échoué. Veuillez réessayer.",
+		"retry": "Réessayer",
+		"saved": "Brouillon enregistré pour cet onglet",
+		"storageUnavailable": "Le brouillon n’a pas pu être enregistré. Gardez cet onglet ouvert pour conserver votre retouche.",
+		"panels": {
+			"general": "Paramètres du compte",
+			"security": "Connexion et sécurité",
+			"notifications": "Notifications",
+			"billing": "Crédits et facturation",
+			"history": "Votre historique",
+			"assets": "Vos fichiers"
+		},
+		"dock": {
+			"label": "Continuer votre retouche",
+			"return": "Revenir à l’éditeur",
+			"placeholder": "Continuez à créer",
+			"result": "Voir le résultat actuel"
+		},
+		"subtitle": "Importez une image, décrivez une modification et personnalisez-la.",
+		"private": "Vos images restent privées",
+		"upload": "Importer une image",
+		"promptSuggestions": {
+			"background": "Changer le fond",
+			"object": "Retirer un objet",
+			"lighting": "Ajuster la lumière",
+			"style": "Changer le style"
+		},
+		"tools": {
+			"imageTools": "Outils image IA",
+			"models": "Modèles IA",
+			"imageToImage": "Image vers image",
+			"imageToImageDescription": "Modifiez une image de référence à partir d’une instruction.",
+			"examples": "Exemples de retouche",
+			"examplesDescription": "Explorez des idées et utilisez une instruction dans l’éditeur.",
+			"loading": "Chargement des modèles disponibles…",
+			"unavailable": "Les modèles sont momentanément indisponibles. Vous pouvez préparer votre retouche.",
+			"modelUnavailable": "Le modèle demandé est indisponible. Choisissez un modèle disponible pour continuer.",
+			"title": "Éditeur image vers image IA"
+		}
 	}
 }

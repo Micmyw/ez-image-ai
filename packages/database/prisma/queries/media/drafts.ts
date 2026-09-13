@@ -10,10 +10,13 @@ import {
 	type ImageOutputFormat,
 	type ImageSkuKey,
 } from "@repo/config";
+import { maximumMediaStorageBytes } from "@repo/config/server";
 
 import type { Prisma } from "../../generated/client";
+import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { hasCurrentApprovedMediaAssetEvidence } from "./assets";
 import { createGuestSessionBootstrapWithClaimFence } from "./guest-bootstrap";
+import { lockOwnerStorageUsage } from "./storage-usage-locks";
 import type { MediaTransactionClient } from "./types";
 
 type LegacyEzPicProductKey = (typeof LEGACY_EZPIC_PRODUCT_KEYS)[number];
@@ -402,6 +405,68 @@ async function transferGenerationDraftAssetOwnership(
 	tx: Prisma.TransactionClient,
 ): Promise<void> {
 	if (!input.assetId) return;
+	// Use the same owner locks as upload and generation admission. Keep lock order
+	// stable when guest linking moves an existing reservation between owners.
+	for (const ownerId of [...new Set([input.previousOwnerId, input.nextOwnerId])].sort()) {
+		await lockOwnerStorageUsage({ ownerType: "USER", ownerId }, tx);
+	}
+	await lockMediaAssetGenerationBindings([input.assetId], tx);
+	const asset = await tx.mediaAsset.findFirst({
+		where: {
+			id: input.assetId,
+			ownerType: "USER",
+			ownerId: input.previousOwnerId,
+			kind: "INPUT",
+			status: { in: ["VERIFYING", "READY"] },
+			deletedAt: null,
+		},
+		include: { uploadSessions: { select: { id: true }, orderBy: { createdAt: "asc" }, take: 1 } },
+	});
+	if (!asset || asset.byteSize <= 0n) throw new Error("DRAFT_UNAVAILABLE");
+	const uploadSession = asset.uploadSessions[0];
+	const referenceKey = uploadSession
+		? `media-upload:${uploadSession.id}`
+		: `media-draft:${asset.id}`;
+	const reservation = await tx.storageUsageReservation.findUnique({ where: { referenceKey } });
+	if (
+		reservation &&
+		(reservation.ownerType !== "USER" ||
+			reservation.ownerId !== input.previousOwnerId ||
+			!["ACTIVE", "COMMITTED"].includes(reservation.status) ||
+			reservation.bytes < asset.byteSize)
+	)
+		throw new Error("DRAFT_UNAVAILABLE");
+	const reserved = await tx.storageUsageReservation.aggregate({
+		where: {
+			ownerType: "USER",
+			ownerId: input.nextOwnerId,
+			status: { in: ["ACTIVE", "COMMITTED"] },
+		},
+		_sum: { bytes: true },
+	});
+	const additionalBytes =
+		reservation?.ownerId === input.nextOwnerId ? 0n : (reservation?.bytes ?? asset.byteSize);
+	if ((reserved._sum.bytes ?? 0n) + additionalBytes > maximumMediaStorageBytes()) {
+		throw new Error("STORAGE_QUOTA_EXCEEDED");
+	}
+	if (reservation) {
+		await tx.storageUsageReservation.update({
+			where: { id: reservation.id },
+			data: { ownerId: input.nextOwnerId },
+		});
+	} else {
+		await tx.storageUsageReservation.create({
+			data: {
+				ownerType: "USER",
+				ownerId: input.nextOwnerId,
+				bytes: asset.byteSize,
+				referenceKey,
+				// Draft bytes already exist; only confirmed physical cleanup releases them.
+				status: "COMMITTED",
+				expiresAt: new Date(),
+			},
+		});
+	}
 	const transferredVerifying = await tx.mediaAsset.updateMany({
 		where: { id: input.assetId, ownerId: input.previousOwnerId, status: "VERIFYING" },
 		data: { ownerType: "USER", ownerId: input.nextOwnerId },

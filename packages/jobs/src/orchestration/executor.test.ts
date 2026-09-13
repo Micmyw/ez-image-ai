@@ -227,8 +227,8 @@ describe("Node task executor", () => {
 		expect(mocks.payment).not.toHaveBeenCalled();
 	});
 
-	it("preserves all 16 pinned dispatch routes and lets the DB authorize submission", async () => {
-		expect(STATIC_DISPATCH_ROUTE_MANIFEST).toHaveLength(16);
+	it("preserves all 19 pinned dispatch routes and lets the DB authorize submission", async () => {
+		expect(STATIC_DISPATCH_ROUTE_MANIFEST).toHaveLength(19);
 		for (const route of STATIC_DISPATCH_ROUTE_MANIFEST) {
 			expect(
 				await executeTask(
@@ -527,7 +527,7 @@ describe("Node task executor", () => {
 		).toEqual({ recovered: 1 });
 		expect(mocks.findAssets).toHaveBeenCalledWith(
 			expect.objectContaining({
-				where: {
+				where: expect.objectContaining({
 					deletedAt: null,
 					OR: [
 						{
@@ -555,7 +555,7 @@ describe("Node task executor", () => {
 						},
 						{ status: "QUARANTINED", verificationLastErrorCode: "LEGACY_EVIDENCE_UNTRUSTED" },
 					],
-				},
+				}),
 				orderBy: [{ updatedAt: "asc" }, { id: "asc" }],
 				take: 25,
 			}),

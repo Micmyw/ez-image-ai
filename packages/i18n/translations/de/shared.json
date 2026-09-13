@@ -97,6 +97,8 @@
 		"trialPeriod": "{days} {days, plural, one {Tag} other {Tage}} kostenlose Testphase",
 		"year": "Jahr",
 		"yearly": "Jährlich",
-		"perSeat": "Sitz"
+		"perSeat": "Sitz",
+		"subscriptionAlreadyExists": "Du hast bereits ein Abonnement. Verwalte es unter Abrechnung. Um Tarif oder Zahlungsmethode zu wechseln, kündige die Verlängerung und warte bis zum Ende des aktuellen Abonnements.",
+		"checkoutAlreadyPending": "Ein Abonnement-Checkout läuft bereits. Schließe ihn ab, bevor du einen weiteren startest. Bei unklarem Status kontaktiere den Support."
 	}
 }

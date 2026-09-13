@@ -51,6 +51,8 @@ export interface CreateGuestGenerationTransactionInput {
 	subnetHash: string;
 	idempotencyKey: string;
 	idempotencyFingerprint: string;
+	/** Server-derived owner identity, independent of caller-controlled request keys. */
+	denialSubjectHash: string;
 	turnstile: {
 		tokenHash: string;
 		challengeTimestamp: Date;
@@ -155,8 +157,9 @@ export async function recordGuestAdmissionDenial(
 	) {
 		throw new Error("GUEST_DENIAL_INPUT_INVALID");
 	}
-	const windowStart = new Date(0);
-	const windowEnd = new Date(1);
+	const windowMs = 24 * 60 * 60_000;
+	const windowStart = new Date(Math.floor(input.now.getTime() / windowMs) * windowMs);
+	const windowEnd = new Date(windowStart.getTime() + windowMs);
 	const expiresAt = new Date(input.now.getTime() + input.evidenceTtlMs);
 	await client.guestAbuseBucket.upsert({
 		where: {
@@ -174,7 +177,8 @@ export async function recordGuestAdmissionDenial(
 			rejectionCount: 1n,
 			expiresAt,
 		},
-		update: { expiresAt },
+		// Aggregate repeated denials without extending the original retention deadline.
+		update: { rejectionCount: { increment: 1n } },
 	});
 }
 
@@ -418,7 +422,7 @@ export async function createGuestGenerationTransaction(
 				{
 					promotionPeriod: input.promotionPeriod,
 					reason: denialReason,
-					subjectHash: input.idempotencyFingerprint,
+					subjectHash: input.denialSubjectHash,
 					now: input.now,
 					evidenceTtlMs: input.abuseEvidenceTtlMs,
 				},
@@ -1154,6 +1158,7 @@ function validateAdmissionInput(input: CreateGuestGenerationTransactionInput): v
 			input.ipHash,
 			input.subnetHash,
 			input.idempotencyFingerprint,
+			input.denialSubjectHash,
 			input.sourceAssetChecksum,
 			input.turnstile.tokenHash,
 		].every((value) => /^[a-f0-9]{64}$/.test(value)) ||

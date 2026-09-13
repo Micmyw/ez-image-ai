@@ -1,12 +1,24 @@
+import { source } from "@docs/lib/source";
 import { getBaseUrl } from "@shared/lib/base-url";
 import type { MetadataRoute } from "next";
 
+import { getPublishedBlogPostPaths } from "../modules/public-content/lib/content";
+
 export default function sitemap(): MetadataRoute.Sitemap {
 	const baseUrl = getBaseUrl();
-	return ["/", "/pricing", "/privacy", "/terms"].map((path, index) => ({
+	const paths = [
+		"/",
+		"/pricing",
+		"/privacy",
+		"/terms",
+		"/blog",
+		...getPublishedBlogPostPaths().map((slug) => `/blog/${slug}`),
+		...source
+			.getPages()
+			.filter((page) => page.data.indexable)
+			.map((page) => page.url),
+	];
+	return paths.map((path) => ({
 		url: new URL(path, baseUrl).href,
-		lastModified: new Date(),
-		changeFrequency: "weekly",
-		priority: index === 0 ? 1 : 0.7,
 	}));
 }

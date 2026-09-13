@@ -31,6 +31,7 @@ import {
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 const globalStorage = vi.hoisted(() => ({
+	inspectRemoteMedia: vi.fn(async () => ({ contentType: "image/png" as const })),
 	putPrivateMediaObject: vi.fn(async () => {
 		throw new Error("GLOBAL_STORAGE_USED");
 	}),

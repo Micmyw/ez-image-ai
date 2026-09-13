@@ -12,6 +12,7 @@ const saasPort = new URL(saasBaseUrl).port || (saasBaseUrl.startsWith("https:") 
 const saasHostname = new URL(saasBaseUrl).hostname.replace(/^\[|\]$/g, "");
 const localMediaE2ELaunchOptions = localMediaE2EChromiumLaunchOptions(process.env);
 const guestOnlySpecs = /(?:guest-trial|landing|originality)\.spec\.ts/;
+const publicOnlySpecs = /(?:public-routes|public-seo|docs)\.spec\.ts/;
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -38,7 +39,7 @@ export default defineConfig({
 		{
 			name: "funded",
 			dependencies: ["setup"],
-			testIgnore: guestOnlySpecs,
+			testIgnore: [guestOnlySpecs, publicOnlySpecs],
 			grepInvert: /insufficient credits|subscription upgrade/,
 			use: {
 				...devices["Desktop Chrome"],
@@ -48,7 +49,7 @@ export default defineConfig({
 		{
 			name: "empty",
 			dependencies: ["setup"],
-			testIgnore: guestOnlySpecs,
+			testIgnore: [guestOnlySpecs, publicOnlySpecs],
 			grep: /insufficient credits/,
 			use: {
 				...devices["Desktop Chrome"],
@@ -58,11 +59,19 @@ export default defineConfig({
 		{
 			name: "free",
 			dependencies: ["setup"],
-			testIgnore: guestOnlySpecs,
+			testIgnore: [guestOnlySpecs, publicOnlySpecs],
 			grep: /subscription upgrade/,
 			use: {
 				...devices["Desktop Chrome"],
 				storageState: "playwright/.auth/free.json",
+			},
+		},
+		{
+			name: "public",
+			testMatch: publicOnlySpecs,
+			use: {
+				...devices["Desktop Chrome"],
+				storageState: { cookies: [], origins: [] },
 			},
 		},
 		{

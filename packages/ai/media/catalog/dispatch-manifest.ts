@@ -93,6 +93,27 @@ export const STATIC_DISPATCH_ROUTE_MANIFEST = [
 	{
 		mediaKind: "image",
 		provider: "kie",
+		providerModelId: "gpt-image-2-5-flare-image-to-image",
+		taskId: "media-dispatch-image-kie-gpt-image-2-5-flare-image-to-image",
+		queueName: "media-image-kie-gpt-image-2-5-flare-image-to-image",
+	},
+	{
+		mediaKind: "image",
+		provider: "kie",
+		providerModelId: "gpt-image-2-5-sunburst-image-to-image",
+		taskId: "media-dispatch-image-kie-gpt-image-2-5-sunburst-image-to-image",
+		queueName: "media-image-kie-gpt-image-2-5-sunburst-image-to-image",
+	},
+	{
+		mediaKind: "image",
+		provider: "kie",
+		providerModelId: "bytedance/seedream-v4-edit",
+		taskId: "media-dispatch-image-kie-bytedance_seedream-v4-edit",
+		queueName: "media-image-kie-bytedance_seedream-v4-edit",
+	},
+	{
+		mediaKind: "image",
+		provider: "kie",
 		providerModelId: "seedream/4.5-edit",
 		taskId: "media-dispatch-image-kie-seedream_4.5-edit",
 		queueName: "media-image-kie-seedream_4.5-edit",

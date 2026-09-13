@@ -33,7 +33,10 @@ vi.mock("@repo/database/client", () => ({ db: databaseClientMocks }));
 vi.mock("@repo/jobs", () => ({
 	createProviderWebhookVerifierRegistry: () => ({ get: vi.fn(() => null) }),
 }));
-vi.mock("@repo/storage", () => ({ checkStorageMetadataAccess: vi.fn() }));
+vi.mock("@repo/storage", () => ({
+	checkStorageMetadataAccess: vi.fn(),
+	MAX_AVATAR_UPLOAD_BYTES: 2_000_000,
+}));
 vi.mock("@repo/payments", () => ({
 	paymentProviderNames: ["stripe", "paypal", "waffo"] as const,
 	webhookHandler: vi.fn(),

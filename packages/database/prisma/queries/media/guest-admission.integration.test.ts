@@ -5,7 +5,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
 import { getAdminMediaDiagnostics } from "./admin-diagnostics";
-import { createGuestGenerationTransaction } from "./guest-admission";
+import { createGuestGenerationTransaction, recordGuestAdmissionDenial } from "./guest-admission";
 import { expireGuestJobBeforeProvider } from "./guest-retention";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
 
@@ -230,7 +230,7 @@ describe("guest generation admission", () => {
 		).rejects.toThrow("GUEST_RISK_CAPACITY");
 	});
 
-	it("persists one idempotent global-rate denial after the business transaction rolls back", async () => {
+	it("aggregates global-rate denials after the business transaction rolls back", async () => {
 		const evidenceTtlMs = 17 * 24 * 60 * 60_000;
 		const first = await createGuestFixture("rate-first");
 		await createGuestAdmission(
@@ -254,20 +254,90 @@ describe("guest generation admission", () => {
 				where: { scope: `guest-denial:${denied.promotionPeriod}:GLOBAL_RATE_LIMIT` },
 				_sum: { rejectionCount: true },
 			}),
-		).resolves.toMatchObject({ _sum: { rejectionCount: 1n } });
+		).resolves.toMatchObject({ _sum: { rejectionCount: 2n } });
 		await expect(
 			client.guestAbuseBucket.findUniqueOrThrow({
 				where: {
 					scope_subjectHash_windowStart: {
 						scope: `guest-denial:${denied.promotionPeriod}:GLOBAL_RATE_LIMIT`,
-						subjectHash: input.idempotencyFingerprint,
-						windowStart: new Date(0),
+						subjectHash: input.denialSubjectHash,
+						windowStart: new Date(Math.floor(input.now.getTime() / 86_400_000) * 86_400_000),
 					},
 				},
 			}),
 		).resolves.toMatchObject({
 			expiresAt: new Date(input.now.getTime() + evidenceTtlMs),
 		});
+	});
+
+	it("aggregates concurrent daily denial counts without sliding retention or mixing owners", async () => {
+		const now = new Date("2026-09-12T03:00:00.000Z");
+		const input = {
+			promotionPeriod: "denial-window-control",
+			reason: "QUEUE_CAPACITY" as const,
+			subjectHash: hashFixture("stable-owner-a"),
+			now,
+			evidenceTtlMs: 30 * 24 * 60 * 60_000,
+		};
+		await recordGuestAdmissionDenial(input, client);
+		await concurrentBarrier(8, () =>
+			recordGuestAdmissionDenial(
+				{
+					...input,
+					now: new Date(now.getTime() + 60 * 60_000),
+				},
+				client,
+			),
+		);
+		const row = await client.guestAbuseBucket.findFirstOrThrow({
+			where: {
+				scope: `guest-denial:${input.promotionPeriod}:QUEUE_CAPACITY`,
+			},
+		});
+		expect(row).toMatchObject({
+			rejectionCount: 9n,
+			windowStart: new Date("2026-09-12T00:00:00.000Z"),
+			windowEnd: new Date("2026-09-13T00:00:00.000Z"),
+			expiresAt: new Date(now.getTime() + input.evidenceTtlMs),
+		});
+		await recordGuestAdmissionDenial(
+			{ ...input, now: new Date(now.getTime() + 86_400_000) },
+			client,
+		);
+		await recordGuestAdmissionDenial(
+			{ ...input, subjectHash: hashFixture("stable-owner-b") },
+			client,
+		);
+		await expect(client.guestAbuseBucket.count()).resolves.toBe(3);
+	});
+
+	it("aggregates post-transaction denials despite rotating idempotency fingerprints", async () => {
+		const accepted = await createGuestFixture("denial-capacity");
+		await createGuestAdmission(
+			guestAdmissionInput(accepted, {
+				idempotencyKey: "denial-capacity-control",
+				maximumGlobalQueueDepth: 1,
+			}),
+		);
+		const fixture = await createGuestFixture("denial-cardinality");
+		for (let index = 0; index < 8; index++) {
+			await expect(
+				createGuestAdmission(
+					guestAdmissionInput(fixture, {
+						idempotencyKey: `denied-${index}`,
+						maximumGlobalQueueDepth: 1,
+					}),
+				),
+			).rejects.toThrow("GUEST_QUEUE_CAPACITY");
+		}
+		const denials = await client.guestAbuseBucket.findMany({
+			where: { scope: `guest-denial:${fixture.promotionPeriod}:QUEUE_CAPACITY` },
+		});
+		expect(denials).toHaveLength(1);
+		expect(denials[0]?.rejectionCount).toBe(8n);
+		await expect(countGuestBusinessGraph(fixture.ownerId)).resolves.toEqual(
+			emptyGuestBusinessGraph(),
+		);
 	});
 
 	it("isolates generation IP and subnet evidence by promotion while sharing global capacity", async () => {
@@ -1253,6 +1323,7 @@ function guestAdmissionInput(
 		subnetHash: overrides.subnetHash ?? hashFixture(`subnet:${fixture.ownerId}`),
 		idempotencyKey: overrides.idempotencyKey,
 		idempotencyFingerprint: hashFixture(`admission:${overrides.idempotencyKey}`),
+		denialSubjectHash: hashFixture(`denial-owner:${fixture.ownerId}`),
 		turnstile: {
 			tokenHash: hashFixture(`turnstile:${overrides.idempotencyKey}`),
 			challengeTimestamp: fixture.now,

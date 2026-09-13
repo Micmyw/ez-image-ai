@@ -1,6 +1,7 @@
 import { publicChangelogEntries } from "../../../content/changelog/releases";
 import { privacyPolicyDocuments } from "../../../content/legal/privacy-policy";
 import { termsDocuments } from "../../../content/legal/terms";
+import { promptEditingDocuments } from "../../../content/posts/ai-image-editing-prompts";
 import { blogDocuments } from "../../../content/posts/private-image-editing-workflow";
 
 export type LegalPage = {
@@ -29,7 +30,7 @@ export type PublicChangelogEntry = {
 };
 
 const legalDocuments: readonly LegalPage[] = [...privacyPolicyDocuments, ...termsDocuments];
-const posts: readonly BlogPost[] = blogDocuments;
+const posts: readonly BlogPost[] = [...blogDocuments, ...promptEditingDocuments];
 
 export function getLegalPageByPath(path: string, options: { locale: string }): LegalPage | null {
 	return selectLocalizedDocument(legalDocuments, "path", path, options.locale);

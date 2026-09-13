@@ -528,6 +528,7 @@ function admissionInput(fixture: LinkFixture, idempotencyKey: string) {
 		subnetHash: hashFixture(`subnet:${fixture.ownerId}`),
 		idempotencyKey,
 		idempotencyFingerprint: hashFixture(`admission:${idempotencyKey}`),
+		denialSubjectHash: hashFixture(`denial-owner:${fixture.ownerId}`),
 		turnstile: {
 			tokenHash: hashFixture(`turnstile:${idempotencyKey}`),
 			challengeTimestamp: fixture.now,

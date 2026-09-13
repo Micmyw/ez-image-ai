@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import {
+	assertPaymentSubscriptionCheckoutAllowed,
 	bindPaymentCheckoutIntentSession,
 	createPaymentCheckoutIntent,
 	getPaymentCheckoutIntentForOwnerByIdempotencyKey,
@@ -86,6 +87,19 @@ export const createCheckoutLink = protectedProcedure
 			if (!isTrustedSubscriptionIntent(existingIntent, provider, planId, interval, user.id)) {
 				throw new ORPCError("CONFLICT");
 			}
+			try {
+				await assertPaymentSubscriptionCheckoutAllowed(
+					{ ...owner, checkoutIntentId: existingIntent.id },
+					db,
+				);
+			} catch (error) {
+				if (isCheckoutIntentConflict(error))
+					throw new ORPCError("CONFLICT", { message: (error as Error).message });
+				throw new ORPCError("INTERNAL_SERVER_ERROR");
+			}
+			if (existingIntent.expiresAt && existingIntent.expiresAt <= new Date()) {
+				throw new ORPCError("CONFLICT", { message: "PAYMENT_CHECKOUT_INTENT_REPLAY_UNSAFE" });
+			}
 			checkoutIntent = { intent: existingIntent, replayed: true };
 			trustedBillingPlan = existingIntent.billingPlan;
 		} else {
@@ -104,7 +118,7 @@ export const createCheckoutLink = protectedProcedure
 				);
 			} catch (error) {
 				if (isCheckoutIntentConflict(error)) {
-					throw new ORPCError("CONFLICT");
+					throw new ORPCError("CONFLICT", { message: (error as Error).message });
 				}
 				throw new ORPCError("INTERNAL_SERVER_ERROR");
 			}
@@ -252,6 +266,7 @@ function isCheckoutIntentConflict(error: unknown): boolean {
 	return (
 		error instanceof Error &&
 		[
+			"PAYMENT_SUBSCRIPTION_ALREADY_EXISTS",
 			"PAYMENT_CHECKOUT_INTENT_CONFLICT",
 			"PAYMENT_CHECKOUT_INTENT_IDEMPOTENCY_CONFLICT",
 			"PAYMENT_CHECKOUT_INTENT_REPLAY_UNSAFE",

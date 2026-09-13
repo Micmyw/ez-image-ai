@@ -1,26 +1,29 @@
-# EzPic production setup status — 2026-09-11
+# EzPic production setup status — 2026-09-12
 
 The Workers production deployment is live at [ezimageai.com](https://ezimageai.com).
-Cloudflare state was checked at **11:46 UTC on September 11, 2026**. The website uses
+Payment configuration and active Worker versions were checked at **06:12 UTC on September 12, 2026**. The website uses
 OpenNext on Workers; background jobs use Workers and Workflows. Both legacy Containers
 are inactive and their old maintenance schedule is absent.
 
-**Generation, guest generation and billing remain disabled.** The public website and
-infrastructure are deployed; complete account login, real generation and paid checkout
-are not certified. `/api/ready` correctly returns HTTP 503 with `not_ready`.
+**Generation and guest generation remain disabled. Billing is enabled for sandbox payments.**
+At the operator's explicit request, the existing production Workers use PayPal `sandbox`
+and Waffo `test`, with test products and billing snapshots in the existing database.
+Both providers have a test webhook at `https://ezimageai.com/api/webhooks/payments`.
+This is not live-payment certification: a complete online sandbox payment and credit-fulfillment
+test remains `NOT_COMPLETED`, and `/api/ready` still returns HTTP 503.
 
 ## Active deployment
 
 | Component            | Current state                                                                                                                            |
 | -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | Public website       | `ezimageai-site-production`, canonical domain `ezimageai.com`                                                                            |
-| Website version      | `b11eaeb2-2b9c-409c-abfd-6ce57eef4492`, active at 100%                                                                                   |
-| Website build/source | `f8980809152d59d10cd5e31e9fe0ad481be49667`                                                                                               |
+| Website version      | `c2f19eb5-cdf5-43d8-9d2b-137af0e00215`, active at 100%                                                                                   |
+| Website build/source | `b6dcd4281c5bc78cd5b27e5bf2a4d29a3e44346b`; September 12 secret update preserved the deployed code                                       |
 | Background Worker    | `ezpic-workflows-workers-production`                                                                                                     |
-| Background version   | `371f4238-1b37-40b5-828b-91bae3f38167`, active at 100%                                                                                   |
-| Background source    | `728c72cac691b0ff952ba5d49d3b7e3fac33a5ac`; later fixes affect website packaging/CSP only                                                |
+| Background version   | `71c349df-fc3f-49c7-8365-45aa1ff79d08`, active at 100%                                                                                   |
+| Background source    | `b6dcd4281c5bc78cd5b27e5bf2a4d29a3e44346b`; September 12 secret update preserved the deployed code                                       |
 | Workflow             | `ezpic-jobs-workers-production`; minute maintenance enabled                                                                              |
-| Workflow execution   | 38 completed, 0 failed, 0 queued/running/waiting at the snapshot                                                                         |
+| Workflow execution   | The five most recent instances were complete at the September 12 06:12 UTC check                                                         |
 | Hyperdrive           | `ezimageai-postgres-production`, ID `100be79adc9a492a9f1d9fbc4e780651`; verified origin TLS, query caching disabled, connection limit 10 |
 | Images               | Bound to website and Workers jobs; live image transformation verified                                                                    |
 | Website cache        | Private `ezimageai-web-cache-production`; 18 initial cache entries populated for the final build                                         |
@@ -31,7 +34,7 @@ media. No new Images storage subscription was purchased. The prepared `workers` 
 contains no Container resources. The optional `hybrid` profile retains the existing Sharp
 jobs runtime for a future controlled switch.
 
-## Verified for this deployment
+## Verified at the September 11 cutover
 
 - The exact website source passed all five jobs in [main CI run 34594183611](https://github.com/Micmyw/ez-image-ai/actions/runs/34594183611): quality/contracts/artifact builds, PostgreSQL integration, production build, mock E2E, and dependency/secret scan.
 - Fresh Linux OpenNext packaging, final workerd artifact smoke checks and secret scanning passed. Runtime secrets and build-only auth/mail placeholders are absent from the final artifacts; the embedded environment fallback is empty.
@@ -65,17 +68,19 @@ retaining rollback resources does not certify a rollback under production load.
 
 ## Remaining before full product launch
 
-| Area                 | Remaining verification or configuration                                                                                                                           |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Google/GitHub login  | Complete real account authorization, token exchange and an application session; verify provider publishing/audience settings                                      |
-| Mail/support         | Verify application verification/reset-email delivery and support forwarding receipt; no email was sent by this deployment                                         |
-| Generation           | Exercise private upload → quote/reservation → dispatch → provider → moderation → private storage/settlement, including failure recovery and catalog/cost evidence |
-| Payments             | Configure the selected provider and plans; verify checkout, signed webhooks, replay and refunds before enabling billing                                           |
-| Guest trial          | Verify Turnstile, abuse controls, sponsor budget and privacy/cleanup before enabling guest generation                                                             |
-| Monitoring/analytics | Verify deployed exception capture, alert receipt and Sentry/GA4/Clarity/PostHog dashboard visibility; PostHog retains its consent gate                            |
-| Operations           | Complete load, recovery and rollback evidence plus launch-validator inputs, support/GSC and budget/alert thresholds                                               |
+| Area                 | Remaining verification or configuration                                                                                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Google/GitHub login  | Complete real account authorization, token exchange and an application session; verify provider publishing/audience settings                                                               |
+| Mail/support         | Verify application verification/reset-email delivery and support forwarding receipt; no email was sent by this deployment                                                                  |
+| Generation           | Exercise private upload → quote/reservation → dispatch → provider → moderation → private storage/settlement, including failure recovery and catalog/cost evidence                          |
+| Payments             | Sandbox credentials, products and snapshots are configured; verify complete online checkout/fulfillment, replay and refunds, then provision Live/Prod configuration before real collection |
+| Guest trial          | Verify Turnstile, abuse controls, sponsor budget and privacy/cleanup before enabling guest generation                                                                                      |
+| Monitoring/analytics | Verify deployed exception capture, alert receipt and Sentry/GA4/Clarity/PostHog dashboard visibility; PostHog retains its consent gate                                                     |
+| Operations           | Complete load, recovery and rollback evidence plus launch-validator inputs, support/GSC and budget/alert thresholds                                                                        |
 
-`MEDIA_GENERATION_ENABLED=false`, `GUEST_MEDIA_ENABLED=false` and `BILLING_ENABLED=false`
-were preserved throughout deployment. No paid generation, account creation, checkout or email
-was submitted by these checks. Infrastructure deployment is complete; the remaining product
-launch checks above are `NOT_COMPLETED`.
+The September 11 cutover preserved `MEDIA_GENERATION_ENABLED=false`, `GUEST_MEDIA_ENABLED=false`
+and `BILLING_ENABLED=false`. The September 12 payment configuration changed billing to `true`
+for PayPal Sandbox and Waffo Test; the two generation controls remain `false`. Its database
+changes added only 20 billing-plan snapshots, with no customer or credit-ledger mutations.
+No account creation, checkout, paid generation or email was submitted by the configuration checks.
+Infrastructure deployment is complete; the remaining product launch checks above are `NOT_COMPLETED`.

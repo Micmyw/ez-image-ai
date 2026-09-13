@@ -2,9 +2,20 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ useGeneration: vi.fn() }));
+const mocks = vi.hoisted(() => ({ useGeneration: vi.fn(), modelOptions: vi.fn() }));
+vi.mock("./editor/RegisteredEditorDock", () => ({ RegisteredEditorDock: () => null }));
+vi.mock("./ImageModelSelector", async (importOriginal) => {
+	const { ImageModelSelector } = await importOriginal<typeof import("./ImageModelSelector")>();
+	return {
+		ImageModelSelector: (props: React.ComponentProps<typeof ImageModelSelector>) => {
+			mocks.modelOptions(props);
+			return <ImageModelSelector {...props} />;
+		},
+	};
+});
 
 vi.mock("@shared/hooks/router", () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
 vi.mock("@payments/components/EditorUpgradeDialog", () => ({
 	EditorUpgradeDialog: ({ open }: { open: boolean }) =>
 		open ? <span>Localized upgrade dialog</span> : null,
@@ -313,14 +324,18 @@ describe("GenerationForm product copy", () => {
 
 		for (const copy of [
 			"Localized Nano Banana 2 Lite",
-			"Localized GPT Image 2",
-			"Localized Seedream 5 Pro",
 			"Localized fast 1K edits",
 			"Localized edit instruction",
 			"Localized source image",
 		]) {
 			expect(markup).toContain(copy);
 		}
+		expect(mocks.modelOptions.mock.calls.at(-1)?.[0].products).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ label: "Localized GPT Image 2" }),
+				expect.objectContaining({ label: "Localized Seedream 5 Pro" }),
+			]),
+		);
 		const visibleText = markup.replaceAll(/<[^>]+>/g, " ");
 		expect(visibleText).not.toContain("Catalog");
 		expect(visibleText).not.toMatch(
@@ -411,7 +426,7 @@ describe("GenerationForm product copy", () => {
 		expect(markup).toContain('href="/history"');
 	});
 
-	it("opens the upgrade dialog for a restored paid-model draft without changing its selection", () => {
+	it("restores a paid-model draft with an inline upgrade notice instead of opening a dialog", () => {
 		const markup = renderToStaticMarkup(
 			<GenerationForm
 				onCreated={vi.fn()}
@@ -429,9 +444,12 @@ describe("GenerationForm product copy", () => {
 			/>,
 		);
 
-		expect(markup).toContain("Localized upgrade dialog");
-		const selected = markup.match(/<input[^>]*value="image-gpt-image-2"[^>]*>/)?.[0];
-		expect(selected).toContain('checked=""');
+		expect(markup).not.toContain("Localized upgrade dialog");
+		expect(markup).toContain('data-test="editor-model-access-notice"');
+		const selected = markup.match(
+			/<button[^>]*data-test="editor-model-image-gpt-image-2"[^>]*>/,
+		)?.[0];
+		expect(selected).toContain('aria-pressed="true"');
 		expect(markup).toContain("Localized 4K");
 	});
 

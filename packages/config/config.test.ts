@@ -446,12 +446,15 @@ describe("product configuration", () => {
 			"image-nano-banana-pro",
 			"image-gpt-image-1-5",
 			"image-gpt-image-2",
+			"image-gpt-image-2-5-flare",
+			"image-gpt-image-2-5-sunburst",
+			"image-seedream-4",
 			"image-seedream-4-5",
 			"image-seedream-5-lite",
 			"image-seedream-5-pro",
 		]);
-		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-09-07.2");
-		expect(DEFAULT_PRODUCT_CONFIG.pricingVersion).toBe("2026-09-07.2");
+		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-09-13.1");
+		expect(DEFAULT_PRODUCT_CONFIG.pricingVersion).toBe("2026-09-13.2");
 		expect(publicConfig.brand).toMatchObject({
 			siteName: "EzPic",
 			siteDescription: expect.stringMatching(/image edit/i),
@@ -500,6 +503,9 @@ describe("product configuration", () => {
 					"image-nano-banana-pro",
 					"image-gpt-image-1-5",
 					"image-gpt-image-2",
+					"image-gpt-image-2-5-flare",
+					"image-gpt-image-2-5-sunburst",
+					"image-seedream-4",
 					"image-seedream-4-5",
 					"image-seedream-5-lite",
 					"image-seedream-5-pro",
@@ -521,6 +527,9 @@ describe("product configuration", () => {
 					"image-nano-banana-pro",
 					"image-gpt-image-1-5",
 					"image-gpt-image-2",
+					"image-gpt-image-2-5-flare",
+					"image-gpt-image-2-5-sunburst",
+					"image-seedream-4",
 					"image-seedream-4-5",
 					"image-seedream-5-lite",
 					"image-seedream-5-pro",
@@ -542,6 +551,9 @@ describe("product configuration", () => {
 					"image-nano-banana-pro",
 					"image-gpt-image-1-5",
 					"image-gpt-image-2",
+					"image-gpt-image-2-5-flare",
+					"image-gpt-image-2-5-sunburst",
+					"image-seedream-4",
 					"image-seedream-4-5",
 					"image-seedream-5-lite",
 					"image-seedream-5-pro",

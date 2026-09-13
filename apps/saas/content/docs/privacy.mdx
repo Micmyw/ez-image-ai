@@ -1,21 +1,34 @@
 ---
+indexable: true
 title: Privacy and private media
 description: Understand how EzPic limits access to uploaded sources, generated results, and account-owned media.
 ---
 
-EzPic treats uploaded source images and generated results as private media assets. Business state is
-stored in EzPic's database; an AI Provider, queue, browser, or storage service does not become the
-source of truth for job ownership.
+EzPic keeps source images and generated results private to their account or temporary guest session.
+It does not automatically publish your edits to a gallery. The service still sends the information
+needed to hosting, storage, moderation, and image-processing services to complete your request.
 
 ## Access control
 
-Media access is scoped to the owning user or organization. Preview and download requests return
-short-lived access URLs only after the server verifies ownership. Provider credentials, model routing,
-raw Provider payloads, and storage credentials are not exposed to the browser.
+Preview and download requests require ownership checks and return short-lived access links. Treat a
+signed link as private: someone who receives it may be able to use it until it expires. Download a
+copy and choose your own sharing channel when you intend to publish a result.
+
+## How long media is kept
+
+- Public drafts expire within one hour.
+- Guest-trial media expires within 24 hours of the job being created. Guest previews are watermarked.
+- Registered input and output media currently targets 30 days of retention, with 7 days for failed-job cleanup.
+
+Guest results keep their original expiry when linked to a new account. Deleting an eligible asset
+prevents new access links and schedules file cleanup. Billing, security, and backup records may have
+different retention periods.
 
 ## What you should upload
 
 Upload only material you are authorized to use and avoid including information that is unnecessary
 for the requested edit. Content can be rejected by the product's moderation and admission controls.
 
-For the public policy governing the service, read the [EzPic Privacy Policy](/privacy).
+Read the [private editing guide](/blog/private-image-editing-workflow) for a practical walkthrough,
+the [Privacy Policy](/privacy) for the full data and analytics policy, or [contact support](/contact)
+for an access or deletion request.

@@ -505,19 +505,22 @@ describe("provider-aware payment persistence", () => {
 			},
 			client,
 		);
-		const direct = await createPaymentCheckoutIntent(
-			{
-				provider: "waffo",
-				ownerType: "USER",
-				ownerId,
-				submittedByUserId: ownerId,
-				billingPlanId: plan.id,
-				planKey: "studio",
-				interval: "year",
-				idempotencyKey: directKey,
-			},
-			client,
-		);
+		// Seed historical corruption directly: normal admission now prevents a
+		// second open subscription checkout from creating this ambiguous state.
+		const direct = {
+			intent: await client.paymentCheckoutIntent.create({
+				data: {
+					provider: "waffo",
+					ownerType: "USER",
+					ownerId,
+					submittedByUserId: ownerId,
+					billingPlanId: plan.id,
+					planKey: "studio",
+					interval: "year",
+					idempotencyKey: directKey,
+				},
+			}),
+		};
 		fixtureIds.intents.push(first.intent.id, direct.intent.id);
 		await client.paymentCheckoutIntentIdempotencyAlias.create({
 			data: {

@@ -5,7 +5,7 @@
 	"tasks": {
 		"build": {
 			"dependsOn": ["^generate", "^build"],
-			"outputs": ["dist/**", ".next/**", "!.next/cache/**"]
+			"outputs": ["dist/**", ".next/**", "!.next/cache/**", "!.next/dev/**"]
 		},
 		"type-check": {
 			"dependsOn": ["^generate", "generate"]

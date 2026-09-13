@@ -8,7 +8,9 @@ export function SubscriptionStatusBadge({ status }: { status: string; className?
 	const t = useTranslations();
 
 	const badgeLabels: Record<string, string> = {
+		pending: t("settings.billing.activePlan.status.pending"),
 		active: t("settings.billing.activePlan.status.active"),
+		canceling: t("settings.billing.activePlan.status.canceling"),
 		canceled: t("settings.billing.activePlan.status.canceled"),
 		expired: t("settings.billing.activePlan.status.expired"),
 		incomplete: t("settings.billing.activePlan.status.incomplete"),
@@ -19,7 +21,9 @@ export function SubscriptionStatusBadge({ status }: { status: string; className?
 	};
 
 	const badgeColors: Record<string, BadgeProps["status"]> = {
+		pending: "warning",
 		active: "success",
+		canceling: "warning",
 		canceled: "error",
 		expired: "error",
 		incomplete: "warning",

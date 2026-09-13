@@ -241,8 +241,14 @@ function buildKieImageRequest(input: ProviderSubmitInput): Record<string, unknow
 	const skuKey = input.input.skuKey;
 	if (!skuKey) throw unsupportedKieInput();
 	const spec: KieImageRequestSpec = KIE_IMAGE_REQUEST_SPECS[skuKey];
-	if (spec.providerModelId !== input.providerModelId) throw unsupportedKieInput();
-	const parameters: Record<string, string | boolean> = { ...spec.parameters };
+	if (!spec || spec.providerModelId !== input.providerModelId) throw unsupportedKieInput();
+	if (spec.maximumPromptLength && input.input.prompt.length > spec.maximumPromptLength)
+		throw unsupportedKieInput();
+	if (spec.imageSizes && !spec.imageSizes[aspectRatio]) throw unsupportedKieInput();
+	const ratioParameters = spec.imageSizes
+		? { image_size: spec.imageSizes[aspectRatio] }
+		: { aspect_ratio: aspectRatio };
+	const parameters: Record<string, string | boolean | number> = { ...spec.parameters };
 	if (input.input.outputFormat !== undefined) {
 		const outputFormat = spec.outputFormats?.[input.input.outputFormat];
 		if (!outputFormat) throw unsupportedKieInput();
@@ -258,7 +264,7 @@ function buildKieImageRequest(input: ProviderSubmitInput): Record<string, unknow
 		input: {
 			[spec.sourceField]: [input.input.sourceAsset.transferUrl],
 			prompt: input.input.prompt,
-			aspect_ratio: aspectRatio,
+			...ratioParameters,
 			...parameters,
 		},
 	};
@@ -267,10 +273,23 @@ function buildKieImageRequest(input: ProviderSubmitInput): Record<string, unknow
 interface KieImageRequestSpec {
 	providerModelId: string;
 	sourceField: "image_urls" | "image_input" | "input_urls";
-	parameters: Readonly<Record<string, string | boolean>>;
+	parameters: Readonly<Record<string, string | boolean | number>>;
+	imageSizes?: Readonly<Record<string, string>>;
+	maximumPromptLength?: number;
 	outputFormats?: Readonly<Partial<Record<ImageOutputFormat, string>>>;
 	backgrounds?: Readonly<Partial<Record<ImageBackground, string>>>;
 }
+
+const SEEDREAM_4_IMAGE_SIZES: Readonly<Record<string, string>> = {
+	"1:1": "square_hd",
+	"4:3": "landscape_4_3",
+	"3:4": "portrait_4_3",
+	"16:9": "landscape_16_9",
+	"9:16": "portrait_16_9",
+	"2:3": "portrait_3_2",
+	"3:2": "landscape_3_2",
+	"21:9": "landscape_21_9",
+};
 
 const KIE_IMAGE_REQUEST_SPECS = {
 	"nano-banana-2-lite-1k": {
@@ -345,6 +364,63 @@ const KIE_IMAGE_REQUEST_SPECS = {
 		providerModelId: "gpt-image-2-image-to-image",
 		sourceField: "input_urls",
 		parameters: { resolution: "4K" },
+	},
+	"gpt-image-2-5-flare-1k": {
+		providerModelId: "gpt-image-2-5-flare-image-to-image",
+		sourceField: "input_urls",
+		parameters: { resolution: "1K", background: "opaque" },
+		backgrounds: { auto: "auto", opaque: "opaque", transparent: "transparent" },
+	},
+	"gpt-image-2-5-flare-2k": {
+		providerModelId: "gpt-image-2-5-flare-image-to-image",
+		sourceField: "input_urls",
+		parameters: { resolution: "2K", background: "opaque" },
+		backgrounds: { auto: "auto", opaque: "opaque", transparent: "transparent" },
+	},
+	"gpt-image-2-5-flare-4k": {
+		providerModelId: "gpt-image-2-5-flare-image-to-image",
+		sourceField: "input_urls",
+		parameters: { resolution: "4K", background: "opaque" },
+		backgrounds: { auto: "auto", opaque: "opaque", transparent: "transparent" },
+	},
+	"gpt-image-2-5-sunburst-1k": {
+		providerModelId: "gpt-image-2-5-sunburst-image-to-image",
+		sourceField: "input_urls",
+		parameters: { resolution: "1K", background: "opaque" },
+		backgrounds: { auto: "auto", opaque: "opaque", transparent: "transparent" },
+	},
+	"gpt-image-2-5-sunburst-2k": {
+		providerModelId: "gpt-image-2-5-sunburst-image-to-image",
+		sourceField: "input_urls",
+		parameters: { resolution: "2K", background: "opaque" },
+		backgrounds: { auto: "auto", opaque: "opaque", transparent: "transparent" },
+	},
+	"gpt-image-2-5-sunburst-4k": {
+		providerModelId: "gpt-image-2-5-sunburst-image-to-image",
+		sourceField: "input_urls",
+		parameters: { resolution: "4K", background: "opaque" },
+		backgrounds: { auto: "auto", opaque: "opaque", transparent: "transparent" },
+	},
+	"seedream-4-1k": {
+		providerModelId: "bytedance/seedream-v4-edit",
+		sourceField: "image_urls",
+		parameters: { image_resolution: "1K", max_images: 1, nsfw_checker: true },
+		imageSizes: SEEDREAM_4_IMAGE_SIZES,
+		maximumPromptLength: 5000,
+	},
+	"seedream-4-2k": {
+		providerModelId: "bytedance/seedream-v4-edit",
+		sourceField: "image_urls",
+		parameters: { image_resolution: "2K", max_images: 1, nsfw_checker: true },
+		imageSizes: SEEDREAM_4_IMAGE_SIZES,
+		maximumPromptLength: 5000,
+	},
+	"seedream-4-4k": {
+		providerModelId: "bytedance/seedream-v4-edit",
+		sourceField: "image_urls",
+		parameters: { image_resolution: "4K", max_images: 1, nsfw_checker: true },
+		imageSizes: SEEDREAM_4_IMAGE_SIZES,
+		maximumPromptLength: 5000,
 	},
 	"seedream-4-5-basic-2k": {
 		providerModelId: "seedream/4.5-edit",

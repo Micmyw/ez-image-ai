@@ -1,7 +1,8 @@
 import { signRequest } from "@repo/jobs/orchestration/auth";
+import { OutboxDeliveryPendingError } from "@repo/jobs/orchestration/contracts";
 import { describe, expect, it, vi } from "vitest";
 
-import { handleDispatch, type WorkflowCreator } from "./dispatch";
+import { createWorkflowBindingDispatcher, handleDispatch, type WorkflowCreator } from "./dispatch";
 
 const secret = "test-only-32-character-shared-secret";
 async function signed(
@@ -27,6 +28,43 @@ function binding(status = "queued") {
 }
 
 describe("Workflow ingress", () => {
+	it("dispatches nested jobs through the binding and waits for durable completion on replay", async () => {
+		const publicFetch = vi
+			.spyOn(globalThis, "fetch")
+			.mockRejectedValue(new Error("SELF_FETCH_BLOCKED"));
+		try {
+			const workflows = binding();
+			const dispatch = createWorkflowBindingDispatcher({
+				url: "https://jobs.example/internal/dispatch",
+				secret,
+				workflows,
+			});
+			const options = { idempotencyKey: "outbox:payment-1", requireCompletion: true };
+			await expect(
+				dispatch("media-process-payment-event", { paymentEventId: "payment-1" }, options),
+			).rejects.toBeInstanceOf(OutboxDeliveryPendingError);
+			workflows.get.mockResolvedValue({
+				status: vi.fn().mockResolvedValue({ status: "complete" }),
+				restart: workflows.restart,
+			});
+			await expect(
+				dispatch("media-process-payment-event", { paymentEventId: "payment-1" }, options),
+			).resolves.toBeUndefined();
+			expect(workflows.createBatch.mock.calls[0]?.[0][0].id).toBe(
+				workflows.createBatch.mock.calls[1]?.[0][0].id,
+			);
+			expect(workflows.createBatch.mock.calls[0]?.[0][0].params).toEqual({
+				kind: "task",
+				request: {
+					taskId: "media-process-payment-event",
+					payload: { paymentEventId: "payment-1" },
+				},
+			});
+			expect(publicFetch).not.toHaveBeenCalled();
+		} finally {
+			publicFetch.mockRestore();
+		}
+	});
 	it("rejects unauthenticated and arbitrary task dispatch", async () => {
 		const workflows = binding();
 		expect(

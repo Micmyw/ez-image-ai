@@ -96,8 +96,8 @@ export type GetSignedUploadUrlHandler = (
 	path: string,
 	options: {
 		bucket: keyof StorageBucketNamesConfig;
-		contentType?: "image/jpeg" | "image/png";
-		contentLength?: number;
+		contentType: "image/jpeg" | "image/png";
+		contentLength: number;
 	},
 ) => Promise<string>;
 

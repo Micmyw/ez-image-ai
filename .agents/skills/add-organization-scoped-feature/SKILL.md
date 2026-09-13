@@ -18,7 +18,7 @@ Use when records, routes, billing, or actions belong to an organization. Do not 
 5. In oRPC handlers, derive the user from `context.user` and verify `organizationId` with `verifyOrganizationMembership` or `verifyOrganizationBillingManagement` from `packages/api/modules/organizations/lib/membership.ts`.
 6. Scope every database read, update, and delete by the verified organization. Never fetch by record ID and authorize only after returning or mutating it.
 7. Add organization navigation in `apps/saas/modules/shared/components/NavBar.tsx` using its `basePath`; gate admin-only links with `isOrganizationAdmin`.
-8. Test member denial, cross-organization denial, allowed roles, and missing organizations. Run API/SaaS tests and repository gates.
+8. Test member denial, cross-organization denial, allowed roles, and missing organizations. Run affected API/SaaS tests and checks.
 
 ## Canonical reference
 
@@ -26,7 +26,7 @@ Use when records, routes, billing, or actions belong to an organization. Do not 
 
 ## Done
 
-The route layout rejects inaccessible slugs, every server operation verifies membership/role before data access, both query layers scope all reads/writes by organization, navigation uses `basePath`, cross-tenant tests fail closed, and repository gates pass.
+The route layout rejects inaccessible slugs, every server operation verifies membership/role before data access, both query layers scope all reads/writes by organization, navigation uses `basePath`, cross-tenant tests fail closed, and affected checks pass.
 
 ## Common mistakes
 

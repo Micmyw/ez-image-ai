@@ -33,10 +33,14 @@ export function PublicPricingPlans({
 	className,
 	headingLevel = 2,
 	locale,
+	actionHref = "/signup",
+	actionLabel,
 }: {
 	className?: string;
 	headingLevel?: 2 | 3;
 	locale: string;
+	actionHref?: string;
+	actionLabel?: string;
 }) {
 	const t = useTranslations();
 	const [view, setView] = useState<PricingView>("year");
@@ -220,14 +224,14 @@ export function PublicPricingPlans({
 									</div>
 
 									<Link
-										href="/signup"
+										href={actionHref}
 										className={`mt-3 min-h-11 px-5 text-sm font-semibold focus-visible:outline-violet-200 inline-flex w-full items-center justify-center rounded-xl border transition focus-visible:outline-2 focus-visible:outline-offset-2 ${
 											recommended
 												? "text-white border-transparent bg-[#7453ff] shadow-[0_14px_32px_-18px_rgba(116,83,255,1)] hover:bg-[#8267ff]"
 												: "border-white/12 bg-white/[0.055] text-white hover:bg-white/[0.09] hover:border-[#a98bff]/35"
 										}`}
 									>
-										{t("pricing.getStarted")}
+										{actionLabel ?? t("pricing.getStarted")}
 										<ArrowRightIcon className="ml-2 size-4" aria-hidden="true" />
 									</Link>
 

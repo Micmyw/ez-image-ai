@@ -61,13 +61,14 @@ test.describe("subscription upgrade checkout recovery", () => {
 
 		await page.goto(`/create?asset=${source.id}`);
 		await page.getByLabel(/edit instruction/i).fill(prompt);
-		const gptImage = page.getByRole("radio", { name: /gpt image 2/i });
-		await gptImage.click();
+		await page.locator('[data-test="editor-model-trigger"]').click();
+		await page.getByRole("button", { name: "GPT Image", exact: true }).click();
+		await page.locator('[data-test="editor-model-image-gpt-image-2"]').click();
 		const dialog = page.getByRole("dialog", { name: /unlock more image models/i });
-		await expect(dialog).toContainText(/source image, instruction, selected model and sku/i);
-		await expect(
-			page.locator('input[name="editor-mode"][value="image-gpt-image-2"]'),
-		).toBeChecked();
+		await expect(dialog).toBeHidden();
+		await page.locator('[data-test="editor-model-upgrade"]').click();
+		await expect(dialog).toContainText(/image, instruction, and model settings stay saved/i);
+		await expect(page.locator('[data-test="editor-model-trigger"]')).toContainText("GPT Image 2");
 		await dialog.getByRole("button", { name: /choose a plan/i }).click();
 
 		await expect(page).toHaveURL(/\/choose-plan\?returnTo=/);
@@ -98,7 +99,7 @@ test.describe("subscription upgrade checkout recovery", () => {
 		await expect(page).toHaveURL(/\/create(?:\?upgrade=complete)?$/, { timeout: 15_000 });
 		await expect(page.getByText(/your paid plan is active/i)).toBeVisible();
 		await expect(page.getByLabel(/edit instruction/i)).toHaveValue(prompt);
-		await expect(page.getByRole("radio", { name: /gpt image 2/i })).toBeChecked();
+		await expect(page.locator('[data-test="editor-model-trigger"]')).toContainText("GPT Image 2");
 		await expect(page.getByRole("img", { name: /selected source image/i })).toBeVisible();
 		await expect
 			.poll(() =>

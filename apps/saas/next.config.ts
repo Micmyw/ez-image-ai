@@ -25,8 +25,9 @@ const contentSecurityPolicy = [
 	"form-action 'self'",
 	"frame-ancestors 'none'",
 	"object-src 'none'",
-	"script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms" +
+	"script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://challenges.cloudflare.com" +
 		(isProduction ? "" : " 'unsafe-eval'"),
+	"frame-src https://challenges.cloudflare.com",
 	"style-src 'self' 'unsafe-inline'",
 	"img-src 'self' blob: data: https:",
 	"media-src 'self' blob: https:",
@@ -72,10 +73,16 @@ const nextConfig: NextConfig = {
 	async headers() {
 		return [
 			{ source: "/(.*)", headers: securityHeaders },
-			{
-				source: "/docs/:path*",
+			...[
+				"/docs/api/:path*",
+				"/docs/og/:path*",
+				"/docs/llms.txt",
+				"/docs/llms-full.txt",
+				"/docs/llms.mdx/:path*",
+			].map((source) => ({
+				source,
 				headers: [{ key: "X-Robots-Tag", value: "noindex, follow" }],
-			},
+			})),
 		];
 	},
 	async redirects() {

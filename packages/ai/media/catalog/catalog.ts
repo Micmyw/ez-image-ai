@@ -1,5 +1,6 @@
 import {
 	DEFAULT_PRODUCT_CONFIG,
+	getImageProductSelectionContract,
 	PRODUCT_CREDIT_COSTS,
 	productModelKeySchema,
 	type ImageSkuKey,
@@ -7,6 +8,11 @@ import {
 } from "@repo/config";
 import { z } from "zod";
 
+import {
+	GPT_IMAGE_2_5_FLARE_MATRIX,
+	GPT_IMAGE_2_5_SUNBURST_MATRIX,
+	SEEDREAM_4_MATRIX,
+} from "./expanded-image-spec-matrices";
 import {
 	getImageSpecCell,
 	GPT_IMAGE_1_5_MATRIX,
@@ -138,6 +144,36 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 		routes: matrixRoutes(GPT_IMAGE_2_MATRIX),
 		imageSpecMatrix: GPT_IMAGE_2_MATRIX,
 	},
+	"image-gpt-image-2-5-flare": {
+		key: "image-gpt-image-2-5-flare",
+		label: "GPT Image 2.5 Flare",
+		description: "Image editing for everyday visuals, reference fidelity, and natural detail.",
+		mediaKind: "image",
+		inputKinds: ["image-to-image"],
+		credits: PRODUCT_CREDIT_COSTS["image-gpt-image-2-5-flare"],
+		routes: matrixRoutes(GPT_IMAGE_2_5_FLARE_MATRIX),
+		imageSpecMatrix: GPT_IMAGE_2_5_FLARE_MATRIX,
+	},
+	"image-gpt-image-2-5-sunburst": {
+		key: "image-gpt-image-2-5-sunburst",
+		label: "GPT Image 2.5 Sunburst",
+		description: "Image editing for campaign visuals and detailed creative control.",
+		mediaKind: "image",
+		inputKinds: ["image-to-image"],
+		credits: PRODUCT_CREDIT_COSTS["image-gpt-image-2-5-sunburst"],
+		routes: matrixRoutes(GPT_IMAGE_2_5_SUNBURST_MATRIX),
+		imageSpecMatrix: GPT_IMAGE_2_5_SUNBURST_MATRIX,
+	},
+	"image-seedream-4": {
+		key: "image-seedream-4",
+		label: "Seedream 4.0",
+		description: "Flexible image editing with 1K, 2K, and 4K output options.",
+		mediaKind: "image",
+		inputKinds: ["image-to-image"],
+		credits: PRODUCT_CREDIT_COSTS["image-seedream-4"],
+		routes: matrixRoutes(SEEDREAM_4_MATRIX),
+		imageSpecMatrix: SEEDREAM_4_MATRIX,
+	},
 	"image-seedream-4-5": {
 		key: "image-seedream-4-5",
 		label: "Seedream 4.5",
@@ -261,6 +297,11 @@ export function quoteCatalogInput(input: unknown): {
 } {
 	const parsed = quoteInputSchema.parse(input);
 	const entry = getCatalogEntry(parsed.productKey);
+	const maximumPromptLength = getImageProductSelectionContract(
+		parsed.productKey,
+	)?.maximumPromptLength;
+	if (maximumPromptLength && parsed.input.prompt.length > maximumPromptLength)
+		throw new Error(`Prompt exceeds ${maximumPromptLength} characters`);
 	if (!isCatalogInputSupported(entry, parsed.input))
 		throw new Error(`Input ${parsed.input.kind} is not supported by ${parsed.productKey}`);
 	const cell = selectedImageSpecCell(entry, parsed.input);

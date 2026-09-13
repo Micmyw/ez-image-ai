@@ -4,18 +4,24 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { CreditBalanceSummary } from "@payments/components/CreditBalanceSummary";
 import { EditorUpgradeDialog } from "@payments/components/EditorUpgradeDialog";
 import { createChoosePlanPath, writeEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
+import { getImageProductSelectionContract } from "@repo/config/client";
 import { EZPIC_PRODUCT_KEYS, getPlanEntitlement, type ImageAspectRatio } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
+import { STUDIO_ASSET_SELECTED_EVENT } from "@shared/components/studio/studio-context";
 import { useRouter } from "@shared/hooks/router";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 
+import {
+	LANDING_PROMPT_SELECTED_EVENT,
+	type LandingPromptSelectedDetail,
+} from "../../landing/lib/prompt-selection";
 import { useGeneration } from "../hooks/use-generation";
-import { resolveEditorProductSelection } from "../lib/editor-entitlement";
+import { replaceImageModelInUrl, useModelNavigation } from "../hooks/use-model-navigation";
 import { getEditorErrorKey } from "../lib/editor-error";
 import {
 	isEditorProductKey,
@@ -35,25 +41,33 @@ import {
 	resolveImageSpecControlValues,
 	type PublicImageSpecCell,
 } from "../lib/image-sku-selection";
-import { EditModeSelector } from "./editor/EditModeSelector";
 import { ImageSourcePanel } from "./editor/ImageSourcePanel";
 import { PromptPanel } from "./editor/PromptPanel";
+import { RegisteredEditorDock } from "./editor/RegisteredEditorDock";
+import { ImageModelSelector } from "./ImageModelSelector";
 import { ImageOutputSettings } from "./ImageOutputSettings";
 
 export function GenerationForm({
 	onCreated,
+	onDraftChange,
+	onSourceChanged,
+	jobId = null,
 	initialDraft,
 	allowedProductKeys = [...EZPIC_PRODUCT_KEYS],
 	initialSourceReady = false,
 	parentJobId,
 }: {
 	onCreated: (jobId: string) => void;
+	onDraftChange?: (values: GenerationFormValues) => void;
+	onSourceChanged?: () => void;
+	jobId?: string | null;
 	initialDraft?: EditorDraftInput | null;
 	allowedProductKeys?: EditorProductKey[];
 	initialSourceReady?: boolean;
 	parentJobId?: string | null;
 }) {
 	const t = useTranslations("media.create");
+	const studio = useTranslations("studio");
 	const router = useRouter();
 	const generation = useGeneration({ parentJobId });
 	const products = (generation.catalog.data?.products ?? []).map((product) =>
@@ -77,9 +91,7 @@ export function GenerationForm({
 			: product,
 	);
 	const [sourceReady, setSourceReady] = useState(initialSourceReady);
-	const [upgradeOpen, setUpgradeOpen] = useState(
-		Boolean(initialDraft && !allowedProductKeys.includes(initialDraft.productKey)),
-	);
+	const [upgradeOpen, setUpgradeOpen] = useState(false);
 	const [upgradeStorageUnavailable, setUpgradeStorageUnavailable] = useState(false);
 	const form = useForm<GenerationFormValues>({
 		resolver: zodResolver(generationFormValuesSchema),
@@ -96,6 +108,7 @@ export function GenerationForm({
 	});
 	const values = form.watch();
 	const product = products.find((candidate) => candidate.key === values.productKey);
+	const upgradeRequired = Boolean(product && !allowedProductKeys.includes(values.productKey));
 	const selectedCell = getImageSpecCell(product?.skuMatrix, values.skuKey);
 	const supportedAspectRatios = publicImageAspectRatios(selectedCell);
 	const controlValues = useMemo(
@@ -150,18 +163,55 @@ export function GenerationForm({
 		if (upgradeOpen) void saasGrowthFunnel.upgradePromptViewed(values.productKey);
 	}, [upgradeOpen, values.productKey]);
 
-	function updatePrompt(prompt: string) {
-		form.setValue("prompt", prompt, { shouldDirty: true, shouldValidate: true });
-		generation.beginNewAction();
-	}
+	const beginNewAction = generation.beginNewAction;
+	const updatePrompt = useCallback(
+		(prompt: string) => {
+			form.setValue("prompt", prompt, { shouldDirty: true, shouldValidate: true });
+			beginNewAction();
+		},
+		[form, beginNewAction],
+	);
 
-	function updateSourceAsset(sourceAssetId: string) {
-		form.setValue("sourceAssetId", sourceAssetId, {
-			shouldDirty: true,
-			shouldValidate: true,
-		});
-		generation.beginNewAction();
-	}
+	const updateSourceAsset = useCallback(
+		(sourceAssetId: string) => {
+			if (sourceAssetId === form.getValues("sourceAssetId")) return;
+			setSourceReady(false);
+			onSourceChanged?.();
+			form.setValue("sourceAssetId", sourceAssetId, {
+				shouldDirty: true,
+				shouldValidate: true,
+			});
+			beginNewAction();
+		},
+		[form, beginNewAction, onSourceChanged],
+	);
+
+	useEffect(() => {
+		function selectPrompt(event: Event) {
+			const detail = (event as CustomEvent<LandingPromptSelectedDetail>).detail;
+			if (typeof detail?.prompt === "string" && detail.prompt.trim())
+				updatePrompt(detail.prompt.slice(0, 10000));
+		}
+		function selectAsset(event: Event) {
+			const detail = (event as CustomEvent<{ assetId?: string }>).detail;
+			if (typeof detail?.assetId === "string" && detail.assetId) {
+				updateSourceAsset(detail.assetId);
+			}
+		}
+		window.addEventListener(LANDING_PROMPT_SELECTED_EVENT, selectPrompt);
+		window.addEventListener(STUDIO_ASSET_SELECTED_EVENT, selectAsset);
+		return () => {
+			window.removeEventListener(LANDING_PROMPT_SELECTED_EVENT, selectPrompt);
+			window.removeEventListener(STUDIO_ASSET_SELECTED_EVENT, selectAsset);
+		};
+	}, [updatePrompt, updateSourceAsset]);
+
+	useEffect(() => {
+		if (!onDraftChange) return;
+		onDraftChange(form.getValues());
+		const subscription = form.watch(() => onDraftChange(form.getValues()));
+		return () => subscription.unsubscribe();
+	}, [form, onDraftChange]);
 
 	function replaceControlValues(cell: PublicImageSpecCell) {
 		const next = resolveImageSpecControlValues(cell, {});
@@ -181,11 +231,10 @@ export function GenerationForm({
 	}
 
 	function updateProduct(productKey: EditorProductKey) {
-		const selection = resolveEditorProductSelection(productKey, allowedProductKeys);
 		const nextProduct = products.find((candidate) => candidate.key === productKey);
 		const defaultCell = getDefaultImageSpecCell(nextProduct?.skuMatrix);
 		if (!defaultCell) return;
-		form.setValue("productKey", selection.productKey, {
+		form.setValue("productKey", productKey, {
 			shouldDirty: true,
 			shouldValidate: true,
 		});
@@ -202,8 +251,13 @@ export function GenerationForm({
 			});
 		}
 		generation.beginNewAction();
-		if (selection.upgradeRequired) setUpgradeOpen(true);
 	}
+	const modelNavigation = useModelNavigation({
+		products,
+		value: values.productKey,
+		ready: Boolean(generation.catalog.data) && !generation.createGeneration.isPending,
+		onSelect: updateProduct,
+	});
 
 	function updateSku(skuKey: string) {
 		const cell = getImageSpecCell(product?.skuMatrix, skuKey);
@@ -292,7 +346,9 @@ export function GenerationForm({
 	return (
 		<form
 			data-task-order="source-prompt-service-action"
-			className="space-y-6"
+			className="studio-composer"
+			data-test="registered-generator"
+			id="registered-generator"
 			onSubmit={form.handleSubmit((validated) => {
 				if (!allowedProductKeys.includes(validated.productKey)) {
 					setUpgradeOpen(true);
@@ -301,77 +357,143 @@ export function GenerationForm({
 				if (input) generation.createQuote.mutate({ productKey: validated.productKey, input });
 			})}
 		>
-			<ImageSourcePanel
-				sourceAssetId={values.sourceAssetId}
-				maximumImageBytes={
-					generation.creditAccount.data?.maximumInputBytes ??
-					getPlanEntitlement("free").maximumInputBytes
-				}
-				onReadyChange={setSourceReady}
-				onChange={(assetId) => {
-					setSourceReady(false);
-					updateSourceAsset(assetId);
-				}}
-			/>
-			<PromptPanel
-				label={t("fields.prompt")}
-				hint={t("promptHint")}
-				suggestionsLabel={t("suggestions.label")}
-				suggestions={suggestions}
-				value={values.prompt}
-				onChange={updatePrompt}
-			/>
-			<ImageOutputSettings
-				idPrefix="editor"
-				aspectRatios={supportedAspectRatios}
-				value={values.aspectRatio}
-				onChange={updateAspectRatio}
-				modeLabel={product?.label ?? values.productKey}
-				skuMatrix={product?.skuMatrix}
-				skuKey={values.skuKey}
-				onSkuChange={updateSku}
-				controlValues={controlValues}
-				onControlChange={updateControl}
-				tone="light"
-				labels={{
-					title: t("outputSettings.title"),
-					trigger: t("outputSettings.trigger"),
-					aspectRatio: t("outputSettings.aspectRatio"),
-					automatic: t("outputSettings.automatic"),
-					outputNumber: t("outputSettings.outputNumber"),
-					oneOutput: t("outputSettings.oneOutput"),
-					resolution: t("outputSettings.resolution"),
-					quality: t("outputSettings.quality"),
-					outputFormat: t("outputSettings.outputFormat"),
-					background: t("outputSettings.background"),
-					modeControlsQuality: t("outputSettings.modeControlsQuality"),
-					credits: t("outputSettings.credits"),
-					optionLabels: {
-						"1k": t("outputSettings.optionLabels.1k"),
-						"2k": t("outputSettings.optionLabels.2k"),
-						"3k": t("outputSettings.optionLabels.3k"),
-						"4k": t("outputSettings.optionLabels.4k"),
-						basic: t("outputSettings.optionLabels.basic"),
-						medium: t("outputSettings.optionLabels.medium"),
-						high: t("outputSettings.optionLabels.high"),
-						ultra: t("outputSettings.optionLabels.ultra"),
-						png: t("outputSettings.optionLabels.png"),
-						jpeg: t("outputSettings.optionLabels.jpeg"),
-						auto: t("outputSettings.optionLabels.auto"),
-						opaque: t("outputSettings.optionLabels.opaque"),
-						transparent: t("outputSettings.optionLabels.transparent"),
-					},
-				}}
-			/>
-			<EditModeSelector
-				value={values.productKey}
-				onChange={updateProduct}
-				onUpgrade={continueToUpgrade}
-				products={products}
-				allowedProductKeys={allowedProductKeys}
-			/>
+			<div className="studio-composer-heading">
+				<span>{t("workspace.editor")}</span>
+				<span className="text-xs text-muted-foreground">{studio("private")}</span>
+			</div>
+			{modelNavigation.unavailable && (
+				<output className="mb-3 text-sm text-amber-200 block">
+					{studio("tools.modelUnavailable")}
+				</output>
+			)}
+			<div className="studio-composer-inputs">
+				<ImageSourcePanel
+					compact
+					sourceAssetId={values.sourceAssetId}
+					maximumImageBytes={
+						generation.creditAccount.data?.maximumInputBytes ??
+						getPlanEntitlement("free").maximumInputBytes
+					}
+					onReadyChange={setSourceReady}
+					onChange={updateSourceAsset}
+				/>
+				<PromptPanel
+					maxLength={getImageProductSelectionContract(values.productKey)?.maximumPromptLength}
+					label={t("fields.prompt")}
+					hint={t("promptHint")}
+					suggestionsLabel={t("suggestions.label")}
+					suggestions={suggestions}
+					suggestionLabels={["background", "object", "lighting", "style"].map((key) =>
+						studio(`promptSuggestions.${key}`),
+					)}
+					value={values.prompt}
+					onChange={updatePrompt}
+				/>
+			</div>
+			<div className="studio-composer-controls">
+				<ImageModelSelector
+					idPrefix="editor"
+					products={products.flatMap((candidate) =>
+						candidate.skuMatrix
+							? [
+									{
+										...candidate,
+										skuMatrix: candidate.skuMatrix,
+										requiresUpgrade:
+											isEditorProductKey(candidate.key) &&
+											!allowedProductKeys.includes(candidate.key),
+									},
+								]
+							: [],
+					)}
+					value={values.productKey}
+					onChange={(key) => {
+						if (isEditorProductKey(key)) {
+							updateProduct(key);
+							replaceImageModelInUrl(key);
+						}
+					}}
+					disabled={generation.createGeneration.isPending}
+				/>
+				<ImageOutputSettings
+					idPrefix="editor"
+					aspectRatios={supportedAspectRatios}
+					value={values.aspectRatio}
+					onChange={updateAspectRatio}
+					modeLabel={product?.label ?? values.productKey}
+					skuMatrix={product?.skuMatrix}
+					skuKey={values.skuKey}
+					onSkuChange={updateSku}
+					controlValues={controlValues}
+					onControlChange={updateControl}
+					tone="dark"
+					labels={{
+						title: t("outputSettings.title"),
+						trigger: t("outputSettings.trigger"),
+						aspectRatio: t("outputSettings.aspectRatio"),
+						automatic: t("outputSettings.automatic"),
+						outputNumber: t("outputSettings.outputNumber"),
+						oneOutput: t("outputSettings.oneOutput"),
+						resolution: t("outputSettings.resolution"),
+						quality: t("outputSettings.quality"),
+						outputFormat: t("outputSettings.outputFormat"),
+						background: t("outputSettings.background"),
+						modeControlsQuality: t("outputSettings.modeControlsQuality"),
+						credits: t("outputSettings.credits"),
+						optionLabels: {
+							"1k": t("outputSettings.optionLabels.1k"),
+							"2k": t("outputSettings.optionLabels.2k"),
+							"3k": t("outputSettings.optionLabels.3k"),
+							"4k": t("outputSettings.optionLabels.4k"),
+							basic: t("outputSettings.optionLabels.basic"),
+							medium: t("outputSettings.optionLabels.medium"),
+							high: t("outputSettings.optionLabels.high"),
+							ultra: t("outputSettings.optionLabels.ultra"),
+							png: t("outputSettings.optionLabels.png"),
+							jpeg: t("outputSettings.optionLabels.jpeg"),
+							auto: t("outputSettings.optionLabels.auto"),
+							opaque: t("outputSettings.optionLabels.opaque"),
+							transparent: t("outputSettings.optionLabels.transparent"),
+						},
+					}}
+				/>
+				{upgradeRequired ? (
+					<Button
+						type="button"
+						variant="primary"
+						className="studio-submit"
+						data-test="editor-model-upgrade"
+						disabled={generation.createGeneration.isPending}
+						onClick={() => setUpgradeOpen(true)}
+					>
+						{t("modelMenu.viewPlans")}
+					</Button>
+				) : (
+					!generation.quote && (
+						<Button
+							type="submit"
+							variant="primary"
+							className="studio-submit"
+							disabled={
+								!input || generation.createQuote.isPending || generation.createGeneration.isPending
+							}
+							loading={generation.createQuote.isPending}
+						>
+							{t("review")}
+						</Button>
+					)
+				)}
+			</div>
+			{upgradeRequired && product && (
+				<output
+					data-test="editor-model-access-notice"
+					className="mt-3 text-xs leading-5 text-violet-200 block"
+				>
+					{t("modelMenu.upgradeNotice", { model: product.label })}
+				</output>
+			)}
 			{generation.quote ? (
-				<div className="p-4 rounded-xl border bg-muted/40" aria-live="polite">
+				<div className="studio-quote p-4 rounded-xl border bg-muted/40" aria-live="polite">
 					<p className="font-medium">{t("quoteReady")}</p>
 					<p className="mt-1 text-sm text-muted-foreground">
 						{t("quoteMode", {
@@ -402,17 +524,7 @@ export function GenerationForm({
 						</Button>
 					</div>
 				</div>
-			) : (
-				<Button
-					type="submit"
-					variant="primary"
-					className="min-h-12 bg-indigo-600 hover:bg-indigo-700 w-full"
-					disabled={!input}
-					loading={generation.createQuote.isPending}
-				>
-					{t("review")}
-				</Button>
-			)}
+			) : null}
 			{error && (
 				<Alert variant="error">
 					<AlertDescription>
@@ -444,6 +556,8 @@ export function GenerationForm({
 				</Alert>
 			)}
 			<EditorUpgradeDialog
+				modelLabel={product?.label}
+				modelProductKey={values.productKey}
 				open={upgradeOpen}
 				onOpenChange={(open) => {
 					setUpgradeOpen(open);
@@ -452,6 +566,7 @@ export function GenerationForm({
 				onContinue={continueToUpgrade}
 				storageUnavailable={upgradeStorageUnavailable}
 			/>
+			<RegisteredEditorDock prompt={values.prompt} jobId={jobId} />
 		</form>
 	);
 }

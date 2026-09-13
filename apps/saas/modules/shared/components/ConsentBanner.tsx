@@ -14,12 +14,16 @@ export function ConsentBanner() {
 	}
 
 	return (
-		<div className="left-4 bottom-4 max-w-md fixed z-50">
-			<div className="gap-4 p-4 shadow-xl flex rounded-2xl border bg-card text-card-foreground">
-				<CookieIcon className="size-6 text-5xl mt-1 block shrink-0 text-primary/60" />
-				<div>
-					<p className="text-sm leading-normal">{t("message")}</p>
-					<div className="mt-4 gap-2 flex">
+		<section
+			data-consent-banner=""
+			aria-label={t("label")}
+			className="border-b bg-card text-card-foreground"
+		>
+			<div className="gap-3 py-3 container flex items-start">
+				<CookieIcon className="mt-1 size-5 shrink-0 text-primary/60" aria-hidden="true" />
+				<div className="min-w-0 gap-3 sm:flex-row sm:items-center sm:gap-6 flex flex-1 flex-col">
+					<p className="text-sm leading-normal flex-1">{t("message")}</p>
+					<div className="gap-2 sm:shrink-0 flex flex-wrap">
 						<Button variant="secondary" className="flex-1" onClick={() => declineCookies()}>
 							{t("decline")}
 						</Button>
@@ -29,6 +33,6 @@ export function ConsentBanner() {
 					</div>
 				</div>
 			</div>
-		</div>
+		</section>
 	);
 }

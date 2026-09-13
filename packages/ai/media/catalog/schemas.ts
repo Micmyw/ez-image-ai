@@ -7,7 +7,13 @@ import {
 import { z } from "zod";
 
 export const promptSchema = z.string().trim().min(1).max(10_000);
-export const mediaAssetIdSchema = z.string().regex(/^asset_[A-Za-z0-9_-]{16,64}$/);
+// Upload sessions use UUIDs, Prisma-created outputs use CUIDs, and older
+// fixtures/assets retain their prefix. Ownership is checked against the DB.
+export const mediaAssetIdSchema = z.union([
+	z.uuid(),
+	z.string().regex(/^c[a-z0-9]{24}$/),
+	z.string().regex(/^asset_[A-Za-z0-9_-]{16,64}$/),
+]);
 export const imageAspectRatioSchema = z.enum(IMAGE_ASPECT_RATIOS);
 export const imageOutputFormatSchema = z.enum(IMAGE_OUTPUT_FORMATS);
 export const imageBackgroundSchema = z.enum(IMAGE_BACKGROUNDS);

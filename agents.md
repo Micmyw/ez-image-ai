@@ -1,286 +1,48 @@
-# AGENTS.md
+# EzPic
 
-This file applies to the whole `supastarter-nextjs` repository.
-Mirror existing conventions and prefer nearby canonical implementations.
-Explicit user instructions win; if a documented command fails, report it rather than inventing a workaround.
+`apps/saas` serves the public landing/content/docs, guest workspace, and authenticated product on one origin. `pnpm dev`, `pnpm build`, and `pnpm start` target SaaS and its dependencies. Run `apps/mail-preview` explicitly when needed.
 
-## Stack
+## Setup and verification
 
-- Next.js App Router, React, TypeScript, Node.js 22+, and pnpm workspaces
-- Turborepo, oRPC, Hono, Better Auth, Prisma, and Drizzle
-- Cloudflare Workers/OpenNext and Workflows by default; optional Containers for hybrid Node jobs
-- Tailwind CSS, Shadcn-style components, and Base UI (`@base-ui/react`)
-- React Hook Form, Zod 4, TanStack Query, next-intl, Vitest, Playwright, Oxlint, and Oxfmt
+Copy `.env.local.example` to `.env.local`; local boot uses the example app URLs, `BETTER_AUTH_SECRET`, and `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/supastarter`. Start PostgreSQL 16 with `docker compose up -d postgres`; MinIO is optional for storage work. Install with `pnpm install`.
 
-## Setup & verification
+Small, low-risk changes use format/lint/type/test checks for affected files or workspaces only. Full-workspace validation is for cross-workspace or high-risk behavior, release certification, CI parity, or an explicit request. If no focused test exists, use the nearest package check and state its limit. Do not automatically expand to root tests, unrelated E2E, or a full build.
 
-### Environment
+Root checks: `pnpm format`, `pnpm format:check`, `pnpm lint`, `pnpm type-check`, `pnpm test`, `pnpm build`. Active Playwright tests live in `apps/saas/tests`: `pnpm --filter saas e2e` / `e2e:ci`; media E2E starts only SaaS and requires a running database. `pnpm cache:preview` previews scoped build-cache cleanup; `pnpm cache:clean` performs its scope/lock checks. `pnpm clean` also removes dependencies.
 
-Copy `.env.local.example` to `.env.local`. For local boot, set `DATABASE_URL` to
-`postgresql://postgres:postgres@localhost:5432/supastarter`, set `BETTER_AUTH_SECRET`,
-and keep the local app URLs from the example. OAuth, mail, payments, storage, and AI
-variables are only needed when using those integrations.
+## Repository conventions
 
-Start the local services with:
+- Node.js 22+, pnpm/Turbo, Next.js App Router, oRPC/Hono, Better Auth, Prisma/Drizzle, Base UI, next-intl, Oxlint/Oxfmt.
+- `@repo/*` names are workspace package exports, not TS/Next/Vite path aliases. App-local aliases are defined by each app's `tsconfig.json`.
+- Database access stays in `packages/database`; Prisma owns schema/migrations and Drizzle implements queries. Edit `packages/database/prisma/schema.prisma`; never edit generated Prisma clients or `prisma/zod/index.ts`. Use `pnpm --filter @repo/database <script>` with `generate`, `push`, `migrate`, or `studio`; choose the intended operation and database.
+- oRPC procedures belong in `packages/api/modules`, using the appropriate public/protected/admin procedure, Zod input, and middleware. Follow the organizations procedures. SaaS clients use `modules/shared/lib/orpc-query-utils.ts` with TanStack Query.
+- Auth uses `getSession` / `useSession` from the existing auth module; scope tenant data through active-organization helpers. Auth changes preserve audit hooks, locale behavior, and relevant mail templates.
+- UI uses `@repo/ui/components` and Base UI's `render` prop, not Radix `asChild`. Reuse React Hook Form + Zod and `next-intl`; locale/cookie configuration is in `packages/i18n/config.ts`.
+- Notifications use `packages/notifications/src/create-notification.ts`; keep the DB enum, types/catalog, and i18n labels aligned.
+- Keep secrets in ignored `.env.local`, server variables unprefixed, and browser variables `NEXT_PUBLIC_`. Do not move server data access into client components.
+- Keep `pnpm-workspace.yaml`'s `minimumReleaseAge: 1440`; prefer `catalog:` versions and add dependencies to the importing package.
 
-```bash
-docker compose up -d postgres
-```
+## AI media invariants
 
-The `postgres` service is PostgreSQL 16 on port 5432. The compose file also defines
-MinIO (`minio` and `minio-setup`) for S3-compatible storage when storage features are used.
+- PostgreSQL alone owns business state; orchestration, Stripe, providers, storage, moderation, and browsers deliver work/events.
+- Create job, input bindings, credit reservation, and initial Outbox event in one transaction. Later ledger mutations remain immutable and idempotent with stable reference keys.
+- Clients submit stable public product keys only. Provider routes/model IDs/credentials/prices/raw payloads and arbitrary remote URLs remain server-only.
+- Inputs and outputs remain private `MediaAsset` records. Enforce byte, multipart, session, and aggregate storage limits before writes; stream large transfers.
+- Uncertain provider acceptance keeps credits reserved and prevents cancellation or automatic failover until recovery or an audited administrator decision settles the same attempt.
+- Enforce `MEDIA_GENERATION_ENABLED` during authorization; production rejects legacy unmetered streaming and mock/test adapters.
+- Verify and persist raw Stripe webhook events with Outbox first. Workers own subscriptions, periods, ledger, cancellations, refunds, and debt. Organization billing actions require owner authorization.
+- Local mocks, local services, dry runs, and local orchestration builds are not evidence of live external integration.
 
-### Install and run
+## Public routing
 
-```bash
-pnpm install
-pnpm dev
-```
+Public SEO URLs are unprefixed English routes. `apps/saas/proxy.ts` supplies their request locale; account routes keep the locale cookie. New public HTML routes belong in its matcher. Reviewed published Blog posts and Docs marked `indexable: true` enter the sitemap. Changelog, Contact, and Docs API/Markdown/image artifacts stay noindex. Public unknown paths use root 404; single-segment organization URLs stay protected.
 
-`pnpm dev`, `pnpm build`, and `pnpm start` target only `saas` and its task dependencies. The public
-landing, public content, `/docs`, guest workspace, and authenticated product all run in `saas`.
-Start `apps/mail-preview` explicitly when email-preview development is needed.
+The Playwright `public` project skips database auth setup. Run SaaS Vitest, Next/Fumadocs generation, and browser checks sequentially because they share generated `.source`.
 
-### Root commands
+## Cloudflare execution and hosting
 
-| Command                             | Purpose                        |
-| ----------------------------------- | ------------------------------ |
-| `pnpm dev`                          | Start development tasks        |
-| `pnpm build`                        | Build the workspace            |
-| `pnpm start`                        | Start built applications       |
-| `pnpm lint` / `pnpm lint:fix`       | Check / fix Oxlint issues      |
-| `pnpm format` / `pnpm format:check` | Write / check Oxfmt formatting |
-| `pnpm type-check`                   | Run workspace type checks      |
-| `pnpm test`                         | Run Vitest workspace tests     |
-| `pnpm clean`                        | Clear Turbo outputs            |
+Default `workers` uses OpenNext for the site and Workflows/WorkerJobs for jobs; `hybrid` changes background execution to the private Node container only. `dispatchJob` from `@repo/jobs/orchestration/client` is the API submission path. Business transitions stay in `packages/jobs` and `packages/database`; preserve PostgreSQL leases, immutable ledger, Outbox recovery, and uncertainty gates. Never fail over runtimes automatically after uncertain/timed-out execution.
 
-Validation is impact-based:
+For jobs, database runtime imports, packaging, or deployment, use [Cloudflare runtime constraints](docs/agent-reference/cloudflare-runtime.md) and [profile cutover/drain/rollback operations](docs/operations/cloudflare-workers-profiles.md). Builds/preparation do not deploy or certify live cron, recovery, shutdown, or external integrations.
 
-1. For small, low-risk changes, format, lint, type-check, and test only the changed files or the
-   directly affected workspace. Do not run root `pnpm test`, unrelated E2E suites, or a full build.
-2. Run full-workspace checks only for cross-workspace changes, high-risk behavior (auth, payments,
-   database, security, concurrency, or production infrastructure), release certification, explicit
-   CI parity, or when the user asks for them.
-3. If no focused test exists, run the nearest package-level check and report that limitation instead
-   of expanding automatically to the whole repository.
-
-The root test task runs workspace Vitest tasks. Active product Playwright tests are all in
-`apps/saas/tests`; use `pnpm --filter saas e2e` or `pnpm --filter saas e2e:ci`. The media E2E
-harness starts only SaaS and requires a running database.
-
-## Monorepo map
-
-```text
-apps/
-├── mail-preview/  # Email preview
-├── web-host/      # Deployment profile preparation and legacy website Container rollback
-├── workflows/     # Durable dispatch/maintenance, Workers executor and optional Container lifecycle
-├── jobs-runtime/  # Private Node executor image for existing @repo/jobs handlers
-└── saas/          # Unified public landing, guest trial, and authenticated product
-packages/
-├── ai/
-├── api/
-├── auth/
-├── database/
-├── i18n/
-├── logs/
-├── mail/
-├── notifications/
-├── payments/
-├── storage/
-├── ui/
-└── utils/
-tooling/
-├── scripts/
-├── tailwind/
-└── typescript/
-```
-
-## Imports & path aliases
-
-`@repo/*` and `@repo/ui/*` are pnpm workspace package names. They are not
-TypeScript, Vite, or Next path mappings. Use package exports such as
-`@repo/auth`, `@repo/database`, and `@repo/ui/components/button`.
-
-Only app-local aliases are configured in the app `tsconfig.json` files.
-
-### `apps/saas/tsconfig.json`
-
-| Alias              | Target                      |
-| ------------------ | --------------------------- |
-| `@config`          | `./config`                  |
-| `@docs/*`          | `./modules/docs/*`          |
-| `@docs-source/*`   | `./.source/*`               |
-| `@auth/*`          | `./modules/auth/*`          |
-| `@organizations/*` | `./modules/organizations/*` |
-| `@settings/*`      | `./modules/settings/*`      |
-| `@payments/*`      | `./modules/payments/*`      |
-| `@i18n/*`          | `./modules/i18n/*`          |
-| `@admin/*`         | `./modules/admin/*`         |
-| `@ai/*`            | `./modules/ai/*`            |
-| `@media/*`         | `./modules/media/*`         |
-| `@onboarding/*`    | `./modules/onboarding/*`    |
-| `@shared/*`        | `./modules/shared/*`        |
-
-## API & data layer
-
-oRPC modules live under `packages/api/modules`. Procedures use `publicProcedure`,
-`protectedProcedure`, or `adminProcedure`, with route metadata, Zod input validation,
-middleware, and a handler. Follow `packages/api/modules/organizations/procedures/`.
-
-Keep database access in `packages/database`. Prisma owns the schema and migrations;
-Drizzle is used for query implementations. The database package scripts are:
-
-```bash
-pnpm --filter @repo/database generate
-pnpm --filter @repo/database push
-pnpm --filter @repo/database migrate
-pnpm --filter @repo/database studio
-```
-
-Edit `packages/database/prisma/schema.prisma` for Prisma schema changes, then use
-the appropriate database command. Do not hand-edit generated Prisma client output
-or `packages/database/prisma/zod/index.ts`.
-
-### Notifications
-
-Create server-side notifications with `createNotification` from
-`packages/notifications/src/create-notification.ts`. Types and kinds live in
-`packages/notifications/src/types.ts`, and the settings catalog lives in
-`packages/notifications/src/catalog.ts`; keep the database enum, catalog, and i18n labels in sync.
-
-For client data fetching, use the oRPC helpers in
-`apps/saas/modules/shared/lib/orpc-query-utils.ts` with TanStack Query.
-
-## Framework patterns
-
-- Use Server Components by default; add `"use client"` only for browser APIs or interaction.
-- Keep client boundaries small and keep server-only data access on the server.
-- Follow the auth/layout patterns in `apps/saas/app/(authenticated)/layout.tsx`.
-- Follow the oRPC procedure pattern in `packages/api/modules/organizations/procedures/`.
-
-## Auth & multi-tenancy
-
-- Server sessions use `getSession` from `@auth/lib/server`.
-- Client session state uses `useSession` from `@auth/hooks/use-session`.
-- Scope organization data with the active organization helpers under
-  `apps/saas/modules/organizations`.
-- When changing auth flows, update relevant templates under `packages/mail/emails`,
-  preserve audit hooks, and verify locale handling.
-
-Canonical auth examples:
-`apps/saas/modules/auth/components/LoginForm.tsx` and
-`apps/saas/modules/auth/lib/server.ts`.
-
-## UI, forms, and i18n
-
-- Use components from `@repo/ui/components`; Base UI primitives are wrapped there.
-  Compose with the `render` prop (Base UI); there is no Radix `asChild`.
-- Use React Hook Form with Zod. Follow `apps/saas/modules/auth/components/LoginForm.tsx`.
-- Use `next-intl` `useTranslations()` in client components and the server helpers
-  from `next-intl/server`. Follow `apps/saas/modules/i18n/request.ts`.
-- Locale configuration and cookie name are in `packages/i18n/config.ts`.
-
-## Config & environment variables
-
-Keep server-only variables unprefixed. Browser-visible variables use `NEXT_PUBLIC_`.
-Use `.env.local` for local secrets and never commit it. App runtime configuration
-and aliases belong in the relevant app config/tsconfig rather than a package.
-
-### AI media foundation invariants
-
-- Treat PostgreSQL as the only business source of truth. Cloudflare Workflows/Containers, Stripe,
-  browsers, storage, moderation, and AI providers deliver work or events but do
-  not own domain state.
-- Create a generation job, bind inputs, reserve credits, and write its initial
-  Outbox event in one transaction. Keep later credit mutations immutable,
-  idempotent, and tied to stable reference keys.
-- Submit only stable public product keys from clients. Provider routes, model
-  IDs, credentials, prices, raw payloads, and arbitrary remote URLs stay server-only.
-- Keep inputs and outputs as private `MediaAsset` records. Enforce byte,
-  multipart, session, and aggregate storage limits before writes, and stream
-  large transfers instead of buffering them in application memory.
-- If provider acceptance is uncertain, keep credits reserved and prohibit
-  cancellation or automatic failover until recovery or an audited administrator
-  decision settles the same attempt.
-- Enforce `MEDIA_GENERATION_ENABLED` during generation authorization. Production
-  must reject the legacy unmetered AI stream and all mock/test adapters.
-- Verify and persist raw Stripe webhook events with Outbox first. Workers own
-  subscription, billing-period, ledger, cancellation, refund, and debt changes.
-  Organization billing actions require owner authorization.
-- Do not describe local mocks, MinIO/PostgreSQL, dry-run smoke tests, or local
-  Workflows/container builds as live external verification.
-
-### Background jobs
-
-- Submit API work through `dispatchJob` from `@repo/jobs/orchestration/client`. The server-only
-  `WORKFLOWS_DISPATCH_URL` includes `/internal/dispatch`; production requires HTTPS. Share a random
-  `WORKFLOWS_DISPATCH_SECRET` of at least 32 characters between SaaS and the Worker.
-- `apps/workflows` owns durable dispatch, retry/sleep and scheduled maintenance. Default `workers`
-  uses the private `WorkerJobs` Durable Object to admit existing handlers, with request-owned
-  Hyperdrive/Prisma connections and Cloudflare Images. `hybrid` uses the `apps/jobs-runtime`
-  Node Container with Sharp. Business transitions stay in `packages/jobs` and `packages/database`.
-- Workers use flat secrets and injected runtime contexts; origin database credentials stay in
-  Hyperdrive (verified TLS, query caching disabled). Hybrid jobs use `JOBS_RUNTIME_ENV` JSON secrets
-  injected at Container startup. Never bake credentials into artifacts or public vars.
-- `pnpm workflows:type-check` validates the orchestration and Node boundary;
-  `pnpm cloudflare:jobs:build` builds Workers artifacts; `pnpm workflows:build:ci` builds hybrid
-  artifacts without Cloudflare credentials.
-  Docker is required for container image build/local container execution. These checks do not
-  deploy the Worker or certify its live cron, recovery, Container shutdown or external integrations.
-- Preserve the current PostgreSQL leases, immutable ledger, Outbox recovery and uncertainty gates.
-  See `docs/operations/cloudflare-workers-profiles.md` for cutover, drain and rollback. Never
-  automatically fall back to a different runtime after an uncertain or timed-out execution.
-
-### Cloudflare website hosting
-
-- Both deployment profiles use `apps/saas/cloudflare-worker.ts` and OpenNext. Request contexts
-  remain alive through response streams and registered background work, then disconnect Prisma.
-  Image and remote-media adapters use `workerd` conditions to exclude native Sharp and Node HTTPS.
-  Both Worker configs require `global_fetch_strictly_public`; never use VPC fetch for media URLs.
-- Prisma generation produces separate Node and `runtime = "workerd"` clients. Runtime imports
-  inside the database package use `#prisma-runtime-client`; other packages use
-  `@repo/database/generated-client`. Keep direct generated-path imports type-only. Do not bundle
-  the Node Prisma runtime into Workers or hand-edit either generated client.
-- Verify the final jobs artifact with `pnpm --filter @repo/workflows test:artifact:workerd`;
-  add `--database` with a disposable loopback `TEST_DATABASE_URL` on port 55432 for a real query.
-  Source-level workerd tests and Wrangler dry builds alone do not verify final WASM loading.
-- Use `pnpm cloudflare:prepare production` to prepare ignored deployment configs and Worker secret
-  files from `.env.production.local`. Only allowlisted `NEXT_PUBLIC_` values become build arguments.
-  Test/load credentials are removed. Preparation does not certify enabled integrations or deploy.
-- `EZPIC_DEPLOYMENT_PROFILE` defaults to `workers`; `hybrid` changes background execution only.
-  `pnpm cloudflare:web:build` builds OpenNext and removes embedded env fallback. Use Linux/WSL for
-  final packaging; native Windows pnpm junctions can fail. Do not bypass the build wrapper.
-  `apps/web-host`, `apps/saas/Dockerfile` and `cloudflare:*:legacy` commands preserve rollback.
-  See `docs/operations/cloudflare-workers-profiles.md` for binding configuration and live checks.
-- Supabase provides PostgreSQL only; Better Auth and private R2 storage stay in place. Apply Prisma
-  migrations first, then `docs/operations/supabase-private-postgres.sql` as the project administrator
-  to restrict browser roles. Never weaken TLS: the containers carry the official public root CA.
-
-## Dependencies & supply chain
-
-`pnpm-workspace.yaml` sets `minimumReleaseAge: 1440`; installing a release younger
-than 24 hours can fail. Use existing `catalog:` versions where available and add
-dependencies to the workspace package that imports them.
-
-## Change management
-
-- Use conventional commits such as `feat:`, `fix:`, `docs:`, or `refactor:`.
-- Update `CHANGELOG.md` for consumer-impacting changes.
-- Update `apps/saas/modules/landing`, `apps/saas/content`, shared translations, and relevant product
-  docs for public landing, content, or Docs behavior.
-- Update `AGENTS.md` when conventions, aliases, scripts, or app boundaries change.
-- Supastarter ships three starter kits. Keep changes generic and consider whether
-  an equivalent update belongs in the Nuxt or TanStack Start kit.
-
-## Before you're done
-
-- [ ] Formatting and linting pass for the affected files or workspace
-- [ ] Type checking passes for the affected workspace when TypeScript changed
-- [ ] Directly affected tests pass; full-workspace tests run only when the impact policy requires them
-- [ ] No `console.log` statements were added
-- [ ] No unjustified `any` types were added
-- [ ] User-facing strings have translations
-- [ ] Relevant docs and `CHANGELOG.md` are updated
-
-More documentation: https://supastarter.dev/docs/nextjs
+Consumer-facing changes update `CHANGELOG.md`, relevant `apps/saas/modules/landing`, `apps/saas/content`, product docs, and translations. Use conventional commits and update this entry when app/runtime boundaries change.

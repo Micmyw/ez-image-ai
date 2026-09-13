@@ -44,7 +44,7 @@ must not be used to price or certify a Kie task.
 
 ## Current Kie replacement contract
 
-The active image catalog/pricing version is `2026-09-07.2`. It contains nine public image products
+The active image catalog version is `2026-09-07.2`; image pricing uses `2026-09-13.1`. It contains nine public image products
 and 20 legal cells:
 
 | Public product     | Legal settings and EzPic Credits        |

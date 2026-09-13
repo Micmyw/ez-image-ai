@@ -19,8 +19,8 @@ Use for a feature that owns multiple components, hooks, or server interactions. 
 4. Add server operations under `packages/api/modules/<feature>` and register its router in `packages/api/orpc/router.ts`. Put persistence behind matching exports in both `packages/database/prisma/queries` and `packages/database/drizzle/queries` when the feature adds data access.
 5. Fetch client data with `orpc` from `apps/saas/modules/shared/lib/orpc-query-utils.ts` and TanStack Query. Prefetch in a Server Component only when initial rendering benefits.
 6. Add translated labels to every `packages/i18n/translations/*/saas.json`. Add navigation in `apps/saas/modules/shared/components/NavBar.tsx`; for a new account-level top slug, add it to `config.organizations.forbiddenOrganizationSlugs` in `packages/auth/config.ts`.
-7. Add focused Vitest coverage and Playwright coverage for the critical user journey.
-8. Run focused tests, `pnpm format`, `pnpm lint`, and `pnpm type-check`.
+7. Add focused Vitest coverage; use Playwright where the changed critical journey needs browser coverage.
+8. Run focused tests and affected formatting, lint, and type checks.
 
 ## Canonical reference
 
@@ -28,7 +28,7 @@ The AI feature spans `apps/saas/modules/ai/components/AiChat.tsx`, `apps/saas/ap
 
 ## Done
 
-Account/organization URLs resolve through the intended route group, server access and both query layers enforce the chosen scope, root router/navigation/reserved slug/i18n wiring is complete, and critical unit/E2E tests plus gates pass.
+Account/organization URLs resolve through the intended route group, server access and both query layers enforce the chosen scope, root router/navigation/reserved slug/i18n wiring is complete, and critical unit/E2E tests and affected checks pass.
 
 ## Common mistakes
 

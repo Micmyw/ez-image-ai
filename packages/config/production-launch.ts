@@ -101,6 +101,9 @@ export interface EzPicLaunchEnvironment {
 		nanoBananaProEnabled: boolean;
 		gptImage15Enabled: boolean;
 		gptImage2Enabled: boolean;
+		gptImage25FlareEnabled: boolean;
+		gptImage25SunburstEnabled: boolean;
+		seedream4Enabled: boolean;
 		seedream45Enabled: boolean;
 		seedream5LiteEnabled: boolean;
 		seedream5ProEnabled: boolean;
@@ -203,6 +206,11 @@ export function validateEzPicLaunchEnvironment(
 	const nanoBananaProEnabled = requiredBoolean(input, "MEDIA_NANO_BANANA_PRO_ENABLED");
 	const gptImage15Enabled = requiredBoolean(input, "MEDIA_GPT_IMAGE_1_5_ENABLED");
 	const gptImage2Enabled = requiredBoolean(input, "MEDIA_GPT_IMAGE_2_ENABLED");
+	const gptImage25FlareEnabled =
+		optionalBoolean(input, "MEDIA_GPT_IMAGE_2_5_FLARE_ENABLED") ?? false;
+	const gptImage25SunburstEnabled =
+		optionalBoolean(input, "MEDIA_GPT_IMAGE_2_5_SUNBURST_ENABLED") ?? false;
+	const seedream4Enabled = optionalBoolean(input, "MEDIA_SEEDREAM_4_ENABLED") ?? false;
 	const seedream45Enabled = requiredBoolean(input, "MEDIA_SEEDREAM_4_5_ENABLED");
 	const seedream5LiteEnabled = requiredBoolean(input, "MEDIA_SEEDREAM_5_LITE_ENABLED");
 	const seedream5ProEnabled = requiredBoolean(input, "MEDIA_SEEDREAM_5_PRO_ENABLED");
@@ -236,6 +244,9 @@ export function validateEzPicLaunchEnvironment(
 		["MEDIA_NANO_BANANA_PRO_ENABLED", nanoBananaProEnabled],
 		["MEDIA_GPT_IMAGE_1_5_ENABLED", gptImage15Enabled],
 		["MEDIA_GPT_IMAGE_2_ENABLED", gptImage2Enabled],
+		["MEDIA_GPT_IMAGE_2_5_FLARE_ENABLED", gptImage25FlareEnabled],
+		["MEDIA_GPT_IMAGE_2_5_SUNBURST_ENABLED", gptImage25SunburstEnabled],
+		["MEDIA_SEEDREAM_4_ENABLED", seedream4Enabled],
 		["MEDIA_SEEDREAM_4_5_ENABLED", seedream45Enabled],
 		["MEDIA_SEEDREAM_5_LITE_ENABLED", seedream5LiteEnabled],
 		["MEDIA_SEEDREAM_5_PRO_ENABLED", seedream5ProEnabled],
@@ -328,6 +339,9 @@ export function validateEzPicLaunchEnvironment(
 			nanoBananaProEnabled,
 			gptImage15Enabled,
 			gptImage2Enabled,
+			gptImage25FlareEnabled,
+			gptImage25SunburstEnabled,
+			seedream4Enabled,
 			seedream45Enabled,
 			seedream5LiteEnabled,
 			seedream5ProEnabled,
@@ -382,7 +396,12 @@ export function isEzPicProductEnvironmentEnabled(
 		input.EZPIC_DEPLOYMENT_ENVIRONMENT === "production";
 	const environmentKey = EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS[productKey];
 	if (environmentKey) {
-		return failClosed ? input[environmentKey] === "true" : input[environmentKey] !== "false";
+		return failClosed ||
+			["image-gpt-image-2-5-flare", "image-gpt-image-2-5-sunburst", "image-seedream-4"].includes(
+				productKey,
+			)
+			? input[environmentKey] === "true"
+			: input[environmentKey] !== "false";
 	}
 	return true;
 }
@@ -394,6 +413,9 @@ const EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS: Readonly<Record<string, string>> = O
 	"image-nano-banana-pro": "MEDIA_NANO_BANANA_PRO_ENABLED",
 	"image-gpt-image-1-5": "MEDIA_GPT_IMAGE_1_5_ENABLED",
 	"image-gpt-image-2": "MEDIA_GPT_IMAGE_2_ENABLED",
+	"image-gpt-image-2-5-flare": "MEDIA_GPT_IMAGE_2_5_FLARE_ENABLED",
+	"image-gpt-image-2-5-sunburst": "MEDIA_GPT_IMAGE_2_5_SUNBURST_ENABLED",
+	"image-seedream-4": "MEDIA_SEEDREAM_4_ENABLED",
 	"image-seedream-4-5": "MEDIA_SEEDREAM_4_5_ENABLED",
 	"image-seedream-5-lite": "MEDIA_SEEDREAM_5_LITE_ENABLED",
 	"image-seedream-5-pro": "MEDIA_SEEDREAM_5_PRO_ENABLED",

@@ -1,9 +1,9 @@
 {
 	"publicContent": {
 		"contact": {
-			"description": "Kontaktieren Sie {appName} über die konfigurierte Support-E-Mail-Adresse.",
-			"emailCta": "Senden Sie dem EzPic-Support eine E-Mail an:",
-			"unavailable": "Es ist keine Support-E-Mail-Adresse konfiguriert. Bitte versuchen Sie es erneut, nachdem der Betreiber eine Support-Adresse veröffentlicht hat."
+			"description": "Kontaktieren Sie {appName} bei Fragen zu Bildbearbeitung, Konto, Abrechnung oder Datenschutz.",
+			"emailCta": "Schreiben Sie dem EzPic-Betreiber an:",
+			"unavailable": "Der E-Mail-Support ist vorübergehend nicht verfügbar. Bitte schauen Sie später noch einmal vorbei."
 		}
 	},
 	"admin": {
@@ -68,8 +68,13 @@
 					"credits": "Reserviert / belastet / freigegeben",
 					"terminal": "Erfolgreich / fehlgeschlagen"
 				},
-				"controls": { "title": "Wirksame Schalter", "global": "Generierungsschalter" },
-				"failures": { "title": "Fehlercodes" },
+				"controls": {
+					"title": "Wirksame Schalter",
+					"global": "Generierungsschalter"
+				},
+				"failures": {
+					"title": "Fehlercodes"
+				},
 				"routes": {
 					"title": "SKU-Übersicht",
 					"product": "Bildmodell",
@@ -92,7 +97,10 @@
 					"runtime": "Gast-Laufzeitschalter",
 					"admission": "Neue Gastzulassung"
 				},
-				"values": { "on": "Aktiviert", "off": "Deaktiviert" },
+				"values": {
+					"on": "Aktiviert",
+					"off": "Deaktiviert"
+				},
 				"states": {
 					"ok": "Normal",
 					"warn": "Warnung",
@@ -168,16 +176,27 @@
 				"running": "Aktion läuft...",
 				"success": "Aktion abgeschlossen",
 				"error": "Aktion abgelehnt oder fehlgeschlagen",
-				"replay": { "title": "Ereignis erneut abspielen", "action": "Ereignis abspielen" },
-				"retry": { "title": "Sichere Phase wiederholen", "action": "Phase wiederholen" },
+				"replay": {
+					"title": "Ereignis erneut abspielen",
+					"action": "Ereignis abspielen"
+				},
+				"retry": {
+					"title": "Sichere Phase wiederholen",
+					"action": "Phase wiederholen"
+				},
 				"override": {
 					"title": "Modellverfügbarkeit",
 					"disable": "Deaktivieren",
 					"enable": "Aktivieren"
 				}
 			},
-			"overrides": { "title": "Aktive Laufzeitregeln", "rollback": "Zurücksetzen" },
-			"audit": { "title": "Aktuelles Medienprotokoll" },
+			"overrides": {
+				"title": "Aktive Laufzeitregeln",
+				"rollback": "Zurücksetzen"
+			},
+			"audit": {
+				"title": "Aktuelles Medienprotokoll"
+			},
 			"paymentEvents": {
 				"title": "Zahlungsereignisdiagnose",
 				"empty": "Keine aktuellen Ereignisse"
@@ -395,6 +414,7 @@
 		"title": "Dokumentation"
 	},
 	"notFound": {
+		"goToHome": "Zur Startseite",
 		"code": "404",
 		"title": "Seite nicht gefunden",
 		"goToDashboard": "Zum Dashboard gehen",
@@ -621,7 +641,7 @@
 				"title": "Konto löschen"
 			},
 			"language": {
-				"description": "Um die Sprache der App für dein Konto zu ändern, wähle eine Sprache aus der Liste aus und klicke auf Speichern.",
+				"description": "Wähle deine bevorzugte Kontosprache. Änderungen werden automatisch gespeichert.",
 				"notifications": {
 					"error": "Sprache konnte nicht aktualisiert werden",
 					"success": "Sprache wurde erfolgreich aktualisiert"
@@ -783,9 +803,16 @@
 					"past_due": "Überfällig",
 					"paused": "Pausiert",
 					"trialing": "Testversion",
-					"unpaid": "Unbezahlt"
+					"unpaid": "Unbezahlt",
+					"canceling": "Verlängerung gekündigt",
+					"pending": "Ausstehend"
 				},
-				"title": "Dein Plan"
+				"title": "Dein Plan",
+				"cancellationScheduled": "Dein Tarif bleibt bis zum {date} verfügbar und wird nicht verlängert.",
+				"multipleSubscriptions": "Mehrere Abonnements sind noch offen. Prüfe die Zahlungsmethoden unten und kündige nicht mehr benötigte Verlängerungen.",
+				"paymentMethod": "Zahlungsmethode: {provider}",
+				"effectivePlan": "Dieses Abonnement bestimmt derzeit deine Tarifvorteile.",
+				"currentPeriodEnd": "Der aktuelle Abrechnungszeitraum endet am {date}."
 			},
 			"changePlan": {
 				"description": "Wähle einen Plan aus, den du abonnieren möchtest.",
@@ -844,7 +871,14 @@
 			"pause": "Pausieren",
 			"resume": "Fortsetzen",
 			"retry": "Erneut versuchen",
-			"remove": "Entfernen"
+			"remove": "Entfernen",
+			"status": {
+				"idle": "Wartet",
+				"uploading": "Wird hochgeladen",
+				"paused": "Pausiert",
+				"uploaded": "Hochgeladen",
+				"error": "Upload fehlgeschlagen"
+			}
 		},
 		"create": {
 			"eyebrow": "Bildeditor",
@@ -855,62 +889,141 @@
 			"products": {
 				"image-nano-banana-2-lite": {
 					"label": "Nano Banana 2 Lite",
-					"description": "Schnelle 1K-Bildbearbeitung mit breiter Unterstützung für Seitenverhältnisse."
+					"description": "Porträts und alltägliche Retuschen in 1K."
 				},
 				"image-nano-banana": {
 					"label": "Nano Banana",
-					"description": "Ausgewogene Bildbearbeitung mit einem eigenen Standard-Ausgabeprofil."
+					"description": "Natürlich wirkende Porträts und Szenenbearbeitung."
 				},
 				"image-nano-banana-2": {
 					"label": "Nano Banana 2",
-					"description": "Flexible Bildbearbeitung mit separaten 1K-, 2K- und 4K-Optionen."
+					"description": "Produktfotos und kreative Bearbeitung bis 4K."
 				},
 				"image-nano-banana-pro": {
 					"label": "Nano Banana Pro",
-					"description": "Hochwertige Bildbearbeitung mit separaten 1K-, 2K- und 4K-Optionen."
+					"description": "Feine Texturen und detailreiche Kompositionen bis 4K."
 				},
 				"image-gpt-image-1-5": {
 					"label": "GPT Image 1.5",
-					"description": "Bildbearbeitung mit separaten Qualitätsoptionen Mittel und Hoch."
+					"description": "Textbasierte Designs und präzise Bildbearbeitung."
 				},
 				"image-gpt-image-2": {
 					"label": "GPT Image 2",
-					"description": "Detaillierte Bildbearbeitung mit separaten 1K-, 2K- und 4K-Optionen."
+					"description": "Produktbilder, Text und detailreiche Kompositionen."
 				},
 				"image-seedream-4-5": {
 					"label": "Seedream 4.5",
-					"description": "Bildbearbeitung mit separaten Optionen für 2K Standard und 4K Hoch."
+					"description": "Realistische Szenen und stilisierte Porträts in 2K oder 4K."
 				},
 				"image-seedream-5-lite": {
 					"label": "Seedream 5 Lite",
-					"description": "Bildbearbeitung mit separaten Optionen für 2K Standard, 3K Hoch und 4K Ultra."
+					"description": "Filmische Szenen und ausdrucksstarkes Licht bis 4K."
 				},
 				"image-seedream-5-pro": {
 					"label": "Seedream 5 Pro",
-					"description": "Bildbearbeitung mit separaten Optionen für 1K Standard und 2K Hoch."
+					"description": "Ausgearbeitete Produktbilder und detailreiche Szenen."
+				},
+				"image-gpt-image-2-5-flare": {
+					"label": "GPT Image 2.5 Flare",
+					"description": "Bildbearbeitung für Alltagsmotive, Referenztreue und natürliche Details."
+				},
+				"image-gpt-image-2-5-sunburst": {
+					"label": "GPT Image 2.5 Sunburst",
+					"description": "Bildbearbeitung für Kampagnenmotive und präzise kreative Kontrolle."
+				},
+				"image-seedream-4": {
+					"label": "Seedream 4.0",
+					"description": "Flexible Bildbearbeitung mit 1K-, 2K- und 4K-Ausgabe."
 				}
 			},
 			"skus": {
-				"nano-banana-2-lite-1k": { "label": "1K" },
-				"nano-banana-default": { "label": "Standard" },
-				"nano-banana-2-1k": { "label": "1K" },
-				"nano-banana-2-2k": { "label": "2K" },
-				"nano-banana-2-4k": { "label": "4K" },
-				"nano-banana-pro-1k": { "label": "1K" },
-				"nano-banana-pro-2k": { "label": "2K" },
-				"nano-banana-pro-4k": { "label": "4K" },
-				"gpt-image-1-5-medium": { "label": "Mittel" },
-				"gpt-image-1-5-high": { "label": "Hoch" },
-				"gpt-image-2-1k": { "label": "1K" },
-				"gpt-image-2-2k": { "label": "2K" },
-				"gpt-image-2-4k": { "label": "4K" },
-				"seedream-4-5-basic-2k": { "label": "2K · Standard" },
-				"seedream-4-5-high-4k": { "label": "4K · Hoch" },
-				"seedream-5-lite-basic-2k": { "label": "2K · Standard" },
-				"seedream-5-lite-high-3k": { "label": "3K · Hoch" },
-				"seedream-5-lite-ultra-4k": { "label": "4K · Ultra" },
-				"seedream-5-pro-basic-1k": { "label": "1K · Standard" },
-				"seedream-5-pro-high-2k": { "label": "2K · Hoch" }
+				"nano-banana-2-lite-1k": {
+					"label": "1K"
+				},
+				"nano-banana-default": {
+					"label": "Standard"
+				},
+				"nano-banana-2-1k": {
+					"label": "1K"
+				},
+				"nano-banana-2-2k": {
+					"label": "2K"
+				},
+				"nano-banana-2-4k": {
+					"label": "4K"
+				},
+				"nano-banana-pro-1k": {
+					"label": "1K"
+				},
+				"nano-banana-pro-2k": {
+					"label": "2K"
+				},
+				"nano-banana-pro-4k": {
+					"label": "4K"
+				},
+				"gpt-image-1-5-medium": {
+					"label": "Mittel"
+				},
+				"gpt-image-1-5-high": {
+					"label": "Hoch"
+				},
+				"gpt-image-2-1k": {
+					"label": "1K"
+				},
+				"gpt-image-2-2k": {
+					"label": "2K"
+				},
+				"gpt-image-2-4k": {
+					"label": "4K"
+				},
+				"seedream-4-5-basic-2k": {
+					"label": "2K · Standard"
+				},
+				"seedream-4-5-high-4k": {
+					"label": "4K · Hoch"
+				},
+				"seedream-5-lite-basic-2k": {
+					"label": "2K · Standard"
+				},
+				"seedream-5-lite-high-3k": {
+					"label": "3K · Hoch"
+				},
+				"seedream-5-lite-ultra-4k": {
+					"label": "4K · Ultra"
+				},
+				"seedream-5-pro-basic-1k": {
+					"label": "1K · Standard"
+				},
+				"seedream-5-pro-high-2k": {
+					"label": "2K · Hoch"
+				},
+				"gpt-image-2-5-flare-1k": {
+					"label": "1K"
+				},
+				"gpt-image-2-5-flare-2k": {
+					"label": "2K"
+				},
+				"gpt-image-2-5-flare-4k": {
+					"label": "4K"
+				},
+				"gpt-image-2-5-sunburst-1k": {
+					"label": "1K"
+				},
+				"gpt-image-2-5-sunburst-2k": {
+					"label": "2K"
+				},
+				"gpt-image-2-5-sunburst-4k": {
+					"label": "4K"
+				},
+				"seedream-4-1k": {
+					"label": "1K"
+				},
+				"seedream-4-2k": {
+					"label": "2K"
+				},
+				"seedream-4-4k": {
+					"label": "4K"
+				}
 			},
 			"fields": {
 				"prompt": "Bearbeitungsanweisung",
@@ -989,6 +1102,23 @@
 				"concurrentLimit": "In Ihrem Tarif läuft bereits die maximale Anzahl an Bearbeitungen. Es wurden weder neuer Auftrag noch Credit-Reservierung erstellt.",
 				"inputTooLarge": "Dieses Quellbild überschreitet das Eingabelimit Ihres Tarifs. Wählen Sie ein kleineres Bild oder vergleichen Sie Tarife.",
 				"safeError": "Die Bearbeitung konnte nicht gestartet werden. Prüfen Sie das Formular oder versuchen Sie es später erneut."
+			},
+			"modelMenu": {
+				"title": "Bildmodelle",
+				"trigger": "Modell: {model}",
+				"choose": "Modell wählen",
+				"groups": "Modellfamilien",
+				"credits": "{credits, number} Credits",
+				"fromCredits": "Ab {credits, number} Credits",
+				"groupDescriptions": {
+					"nano": "Natürliche Bearbeitung",
+					"gpt": "Text und feine Details",
+					"seedream": "Filmische Bildwelten"
+				},
+				"paidPlan": "Bezahlter Tarif",
+				"viewPlans": "Tarife ansehen",
+				"upToResolution": "Bis zu {resolution}",
+				"upgradeNotice": "{model} erfordert Pro, Ultimate oder Max. Du kannst weiterbearbeiten, bevor du einen Tarif wählst."
 			}
 		},
 		"guest": {
@@ -1050,13 +1180,18 @@
 		},
 		"upgradeDialog": {
 			"title": "Weitere Bildmodelle freischalten",
-			"description": "Quellbild, Anweisung, gewähltes Modell und SKU sowie die Bearbeitungssitzung bleiben erhalten, während Sie Tarife vergleichen.",
-			"creator": "Pro: {credits, number} Credits pro Monat, {concurrency, number} gleichzeitige Bearbeitungen, Quellbilder bis {megabytes, number} MB.",
-			"ultimate": "Ultimate: {credits, number} Credits pro Monat, {concurrency, number} gleichzeitige Bearbeitungen, Quellbilder bis {megabytes, number} MB.",
-			"studio": "Max: {credits, number} Credits pro Monat, {concurrency, number} gleichzeitige Bearbeitungen, Quellbilder bis {megabytes, number} MB.",
+			"description": "Dein Bild, deine Anweisung und deine Modelleinstellungen bleiben beim Tarifvergleich gespeichert.",
 			"storageUnavailable": "Dieser Browser konnte den Bearbeitungsentwurf nicht speichern. Lassen Sie diesen Tab geöffnet und versuchen Sie es erneut.",
-			"cancel": "Nicht jetzt",
-			"continue": "Tarif auswählen"
+			"cancel": "Weiterbearbeiten",
+			"continue": "Tarif auswählen",
+			"modelDescription": "{model} ist in Pro, Ultimate und Max enthalten. Wähle den passenden Tarif für deine Bildbearbeitung.",
+			"monthlyCredits": "{credits, number} Credits/Monat",
+			"planDetails": "{concurrency, number} Bearbeitungen gleichzeitig · Bilder bis {megabytes, number} MB",
+			"planNames": {
+				"creator": "Pro",
+				"ultimate": "Ultimate",
+				"studio": "Max"
+			}
 		},
 		"editor": {
 			"source": {
@@ -1191,7 +1326,11 @@
 		"assets": {
 			"title": "Medienbibliothek",
 			"subtitle": "Private Quellbilder und bearbeitete Ergebnisse.",
-			"filters": { "all": "Alle Medien", "image": "Bilder", "video": "Videos" },
+			"filters": {
+				"all": "Alle Medien",
+				"image": "Bilder",
+				"video": "Videos"
+			},
 			"previewAlt": "Privates generiertes Medium",
 			"preview": "Vorschau anzeigen",
 			"video": "Video",
@@ -1206,11 +1345,14 @@
 	},
 	"common": {
 		"consent": {
+			"label": "Optionale Produktanalysen",
 			"message": "Google Analytics und Microsoft Clarity laufen automatisch. Entscheiden Sie, ob Sie zusätzliche Produktanalysen zulassen. Notwendiger Speicher bleibt verfügbar.",
 			"decline": "Optionale ablehnen",
 			"allow": "Optionale erlauben"
 		},
-		"footer": { "support": "Support" },
+		"footer": {
+			"support": "Support"
+		},
 		"confirmation": {
 			"cancel": "Abbrechen",
 			"confirm": "Bestätigen"
@@ -1246,5 +1388,63 @@
 		"error": "Wir konnten diese Zahlung nicht bestätigen. Es wurden keine Credits hinzugefügt.",
 		"tryAgain": "Credit-Pakete ansehen",
 		"returnToEditor": "Zurück zum Editor"
+	},
+	"studio": {
+		"navigation": "Arbeitsbereich-Navigation",
+		"pageNavigation": "Seitennavigation",
+		"create": "Bild erstellen",
+		"explore": "Inspiration",
+		"workspace": "Dein Arbeitsbereich",
+		"history": "Verlauf",
+		"assets": "Medien",
+		"edits": "Bearbeitungsverläufe",
+		"discover": "Entdecken",
+		"admin": "Verwaltung",
+		"credits": "Credits & Tarif",
+		"creditBalance": "{credits} Credits",
+		"openNavigation": "Navigation öffnen",
+		"closeNavigation": "Navigation schließen",
+		"closePanel": "Panel schließen",
+		"panelHint": "Deine Bearbeitung bleibt erhalten, während du dein Konto verwaltest.",
+		"loading": "Wird geladen…",
+		"error": "Laden fehlgeschlagen. Bitte versuche es erneut.",
+		"retry": "Erneut versuchen",
+		"saved": "Entwurf für diesen Tab gespeichert",
+		"storageUnavailable": "Der Entwurf konnte nicht gespeichert werden. Lass diesen Tab geöffnet, um deine Bearbeitung zu behalten.",
+		"panels": {
+			"general": "Kontoeinstellungen",
+			"security": "Anmeldung & Sicherheit",
+			"notifications": "Benachrichtigungen",
+			"billing": "Credits & Abrechnung",
+			"history": "Dein Verlauf",
+			"assets": "Deine Medien"
+		},
+		"dock": {
+			"label": "Bearbeitung fortsetzen",
+			"return": "Zum Editor",
+			"placeholder": "Weiter gestalten",
+			"result": "Aktuelles Ergebnis ansehen"
+		},
+		"subtitle": "Lade ein Bild hoch, beschreibe eine Änderung und gestalte es nach deinen Wünschen.",
+		"private": "Deine Bilder bleiben privat",
+		"upload": "Bild hochladen",
+		"promptSuggestions": {
+			"background": "Hintergrund ändern",
+			"object": "Objekt entfernen",
+			"lighting": "Licht anpassen",
+			"style": "Stil ändern"
+		},
+		"tools": {
+			"imageTools": "KI-Bildtools",
+			"models": "KI-Modelle",
+			"imageToImage": "Bild zu Bild",
+			"imageToImageDescription": "Bearbeite ein Referenzbild mit einer Textanweisung.",
+			"examples": "Bearbeitungsbeispiele",
+			"examplesDescription": "Entdecke Ideen und übernimm eine Anweisung in den Editor.",
+			"loading": "Verfügbare Modelle werden geladen…",
+			"unavailable": "Modelle sind derzeit nicht verfügbar. Du kannst deine Bearbeitung weiter vorbereiten.",
+			"modelUnavailable": "Das angeforderte Modell ist nicht verfügbar. Wähle ein verfügbares Modell aus.",
+			"title": "KI-Bild-zu-Bild-Editor"
+		}
 	}
 }

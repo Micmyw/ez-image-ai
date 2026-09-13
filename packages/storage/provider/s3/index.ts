@@ -17,7 +17,7 @@ import {
 import { getSignedUrl as getS3SignedUrl } from "@aws-sdk/s3-request-presigner";
 import { logger } from "@repo/logs";
 
-import { config } from "../../config";
+import { config, MAX_AVATAR_UPLOAD_BYTES } from "../../config";
 import { getImageProcessor } from "../../image-processing/context";
 import {
 	GUEST_WATERMARK_VERSION,
@@ -700,8 +700,16 @@ function assertPartNumber(partNumber: number): void {
 // Avatar compatibility. New media flows use the private object APIs above.
 export const getSignedUploadUrl: GetSignedUploadUrlHandler = async (
 	path,
-	{ bucket, contentType = "image/jpeg", contentLength },
+	{ bucket, contentType, contentLength },
 ) => {
+	if (
+		!Number.isSafeInteger(contentLength) ||
+		contentLength <= 0 ||
+		contentLength > MAX_AVATAR_UPLOAD_BYTES ||
+		!(["image/png", "image/jpeg"] as const).some((type) => type === contentType)
+	) {
+		throw new Error("Invalid avatar upload declaration");
+	}
 	try {
 		return await getS3SignedUrl(
 			getS3Client(),
@@ -711,7 +719,7 @@ export const getSignedUploadUrl: GetSignedUploadUrlHandler = async (
 				ContentType: contentType,
 				ContentLength: contentLength,
 			}),
-			{ expiresIn: 60 },
+			{ expiresIn: 60, signableHeaders: new Set(["content-type", "content-length"]) },
 		);
 	} catch (error) {
 		logger.error(error);

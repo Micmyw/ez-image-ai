@@ -1,5 +1,7 @@
 import type { StorageConfig } from "./types";
 
+export const MAX_AVATAR_UPLOAD_BYTES = 2_000_000;
+
 export const config = {
 	bucketNames: {
 		avatars: process.env.NEXT_PUBLIC_AVATARS_BUCKET_NAME ?? "avatars",

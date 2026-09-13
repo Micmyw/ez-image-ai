@@ -189,7 +189,7 @@ describe("retryGenerationForUser", () => {
 		}) => {
 			vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");
 			vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
-			vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", "2026-09-07.2");
+			vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", "2026-09-13.1");
 			const claimRequest = vi.fn(
 				async (claimInput: Parameters<RetryGenerationDependencies["claimRequest"]>[0]) => ({
 					outcome: "CLAIMED" as const,
@@ -238,7 +238,7 @@ describe("retryGenerationForUser", () => {
 	it("preserves the exact legal SKU and aspect ratio for a current Kie retry", async () => {
 		vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");
 		vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
-		vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", "2026-09-07.2");
+		vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", "2026-09-13.1");
 		const claimRequest = vi.fn(
 			async (claimInput: Parameters<RetryGenerationDependencies["claimRequest"]>[0]) => ({
 				outcome: "CLAIMED" as const,
@@ -387,7 +387,7 @@ describe("retryGenerationForUser", () => {
 				operation: expect.objectContaining({
 					assetModerationPolicyVersion: expect.any(String),
 					assetModerationRuleVersion: expect.any(String),
-					catalogVersion: "2026-09-07.2",
+					catalogVersion: "2026-09-13.1",
 					costMicros: "20000",
 					credits: "5",
 					inputAssets: [{ assetChecksum: "1".repeat(64), assetId: SOURCE_ASSET_ID }],
@@ -414,7 +414,7 @@ describe("retryGenerationForUser", () => {
 						},
 						skuKey: "nano-banana-2-lite-1k",
 					}),
-					pricingVersion: "2026-09-07.2",
+					pricingVersion: "2026-09-13.2",
 					productKey: "image-nano-banana-2-lite",
 					sourceJobId: "source-job-1",
 				}),

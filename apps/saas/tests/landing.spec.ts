@@ -221,6 +221,73 @@ test.beforeEach(async ({ page }) => {
 	});
 });
 
+for (const width of [1440, 390]) {
+	test(`tool navigation opens a guest workspace and preserves edits while selecting models at ${width}px`, async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width, height: 1000 });
+		await page.route("**/api/rpc/media/getPublicCatalog**", (route) =>
+			route.fulfill({
+				contentType: "application/json",
+				body: JSON.stringify({
+					json: {
+						catalogVersion: "2026-09-07.2",
+						pricingVersion: "2026-09-13.1",
+						products: capability.products,
+					},
+				}),
+			}),
+		);
+		await page.goto("/");
+		await expect(page.locator(".studio-sidebar")).toHaveCount(0);
+		await page.locator('[data-test="studio-models-menu"]').click();
+		const menu = page.locator(".studio-navigation-popover");
+		await menu.locator('a[href="/create?model=image-gpt-image-2"]').click();
+		await expect(page).toHaveURL(/\/create\?model=image-gpt-image-2$/);
+		await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText("GPT Image 2");
+		await expect(page.locator('a[href^="/settings"]')).toHaveCount(0);
+		await expect(page.locator('a[href="/history"]')).toHaveCount(0);
+		await page
+			.locator("#landing-edit-prompt")
+			.fill("Keep this prompt and source while changing models.");
+		await page.locator("#landing-source-image").setInputFiles({
+			name: "navigation-source.png",
+			mimeType: "image/png",
+			buffer: Buffer.from(ONE_PIXEL_PNG, "base64"),
+		});
+		const sourcePreview = page.getByRole("img", { name: /preview of navigation-source\.png/i });
+		await expect(sourcePreview).toBeVisible();
+		const sourcePreviewUrl = await sourcePreview.getAttribute("src");
+		if (width < 768)
+			await page.getByRole("button", { name: "Open navigation", exact: true }).click();
+		await expect(page.locator(".studio-sidebar")).toBeVisible();
+		await page.locator('.studio-sidebar a[href="/create?model=image-nano-banana-2-lite"]').click();
+		await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText(
+			"Nano Banana 2 Lite",
+		);
+		await expect(page.locator("#landing-edit-prompt")).toHaveValue(
+			"Keep this prompt and source while changing models.",
+		);
+		await expect(sourcePreview).toBeVisible();
+		await expect(sourcePreview).toHaveAttribute("src", sourcePreviewUrl!);
+		if (width < 768) await expect(page.locator(".studio-sidebar")).toBeHidden();
+		await page.goBack();
+		await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText("GPT Image 2");
+		await page.reload();
+		await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText("GPT Image 2");
+		expect(
+			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+		).toBe(true);
+		await page.goto("/create?model=unknown-model");
+		await expect(
+			page.getByText("The requested model is unavailable. Choose an available model to continue."),
+		).toBeVisible();
+		const settings = await page.request.get("/settings/general", { maxRedirects: 0 });
+		expect(settings.status()).toBe(307);
+		expect(settings.headers().location).toContain("/login");
+	});
+}
+
 test("the landing generator reports capability checking before it becomes ready", async ({
 	page,
 }) => {
@@ -237,9 +304,7 @@ test("the landing generator reports capability checking before it becomes ready"
 	try {
 		await expect(stage(page, "checking")).toBeVisible();
 		await expect(page.getByText(/wait while edit availability is checked/i)).toBeVisible();
-		await expect(
-			page.getByRole("button", { name: /try nano banana 2 lite 1k free/i }),
-		).toBeDisabled();
+		await expect(page.getByRole("button", { name: /checking edit availability/i })).toBeDisabled();
 	} finally {
 		capabilityGate.resolve();
 	}
@@ -248,9 +313,10 @@ test("the landing generator reports capability checking before it becomes ready"
 
 test("a failed capability check can be retried without reloading the page", async ({ page }) => {
 	let attempts = 0;
+	let allowCapability = false;
 	await page.route("**/api/media/guest-capability", async (route) => {
 		attempts += 1;
-		if (attempts === 1) {
+		if (!allowCapability) {
 			await route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
 			return;
 		}
@@ -259,7 +325,7 @@ test("a failed capability check can be retried without reloading the page", asyn
 
 	await page.goto("/");
 	await expect(stage(page, "failed")).toBeVisible();
-	const retryName = /check edit availability again/i;
+	const retryName = /check availability/i;
 	await expect(
 		page.locator('[data-test="landing-generator"]').getByRole("button", { name: retryName }),
 	).toBeEnabled();
@@ -269,9 +335,11 @@ test("a failed capability check can be retried without reloading the page", asyn
 	await dock.getByRole("button", { name: /open the quick editor/i }).click();
 	const floatingRetry = dock.getByRole("button", { name: retryName });
 	await expect(floatingRetry).toBeEnabled();
+	const beforeRetry = attempts;
+	allowCapability = true;
 	await floatingRetry.click();
 	await expect(stage(page, "ready")).toBeVisible();
-	expect(attempts).toBe(2);
+	expect(attempts).toBe(beforeRetry + 1);
 });
 
 test("an inconsistent enabled capability without products fails closed", async ({ page }) => {
@@ -286,9 +354,8 @@ test("an inconsistent enabled capability without products fails closed", async (
 	await expect(stage(page, "ready")).toBeVisible();
 	await expect(page.getByText(/editing is unavailable right now/i)).toBeVisible();
 	await expect(page.getByRole("group", { name: /image model/i })).toHaveCount(0);
-	await expect(
-		page.getByRole("button", { name: /try nano banana 2 lite 1k free/i }),
-	).toBeDisabled();
+	await expect(page.getByRole("button", { name: /check availability/i })).toBeEnabled();
+	await expect(page.getByRole("button", { name: /try free/i })).toHaveCount(0);
 });
 
 test("the public root exposes the image editor before authentication", async ({ page }) => {
@@ -310,10 +377,12 @@ test("the public root exposes the image editor before authentication", async ({ 
 		page.getByRole("button", { name: /drop an image here or choose a file/i }),
 	).toBeVisible();
 	await expect(page.getByLabel(/describe your edit/i)).toBeVisible();
-	await expect(page.getByRole("radio", { name: /nano banana 2 lite/i })).toBeChecked();
-	await expect(page.getByRole("radio", { name: /gpt image 2/i })).not.toBeChecked();
-	await expect(page.getByRole("radio", { name: /seedream 5 pro/i })).not.toBeChecked();
-	await expect(page.getByRole("button", { name: /try nano banana 2 lite 1k free/i })).toBeVisible();
+	await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText(
+		"Nano Banana 2 Lite",
+	);
+	await expect(page.locator('[data-test="landing-model-image-gpt-image-2"]')).toHaveCount(0);
+	await expect(page.locator('[data-test="landing-model-image-seedream-5-pro"]')).toHaveCount(0);
+	await expect(page.getByRole("button", { name: /try free/i })).toBeVisible();
 	await expect(page.getByRole("banner").getByRole("link", { name: /sign in/i })).toHaveAttribute(
 		"href",
 		"/login",
@@ -379,17 +448,17 @@ test("the landing generator supports model and SKU choice plus drop, replace, an
 }) => {
 	await page.goto("/");
 
-	const nano = page.getByRole("radio", { name: /nano banana 2 lite/i });
-	const gpt = page.getByRole("radio", { name: /gpt image 2/i });
-	const action = page.getByRole("button", { name: /try nano banana 2 lite 1k free/i });
-	await expect(nano).toBeChecked();
+	const nano = page.locator('[data-test="landing-model-trigger"]');
+	const gpt = page.locator('[data-test="landing-model-trigger"]');
+	const action = page.getByRole("button", { name: /try free/i });
+	await expect(nano).toContainText("Nano Banana 2 Lite");
 	await expect(action).toBeDisabled();
 	await expect(page.getByText(/add a source image to continue/i)).toBeVisible();
 
-	await gpt.check();
-	await expect(gpt).toBeChecked();
+	await selectModel(page, "GPT Image", "image-gpt-image-2");
+	await expect(gpt).toContainText("GPT Image 2");
 	await expect(
-		page.getByText(/gpt image 2 and seedream 5 pro continue after sign-in and require a pro/i),
+		page.getByText(/gpt image 2 requires sign-in and a pro, ultimate, or max plan/i),
 	).toBeVisible();
 	await page.getByRole("button", { name: /open output settings/i }).click();
 	const automaticAspectRatio = page.getByRole("radio", { name: "Automatic", exact: true });
@@ -404,9 +473,7 @@ test("the landing generator supports model and SKU choice plus drop, replace, an
 	await page.getByText("16:9", { exact: true }).click();
 	await expect(landscapeAspectRatio).toBeChecked();
 	await page.keyboard.press("Escape");
-	await expect(page.getByRole("button", { name: /open output settings/i })).toContainText(
-		"4K · 17",
-	);
+	await expect(page.getByRole("button", { name: /open output settings/i })).toContainText("4K");
 
 	const dropZone = page.getByRole("button", {
 		name: /drop an image here or choose a file/i,
@@ -422,15 +489,13 @@ test("the landing generator supports model and SKU choice plus drop, replace, an
 	await expect(page.getByRole("button", { name: /replace image/i })).toBeVisible();
 
 	await page.getByLabel(/describe your edit/i).fill("Keep the subject and replace the background");
-	await expect(
-		page.getByRole("button", { name: /continue with a paid image model/i }),
-	).toBeEnabled();
+	await expect(page.getByRole("button", { name: /continue/i })).toBeEnabled();
 
 	await page.getByRole("button", { name: /remove image/i }).click();
 	await expect(page.getByRole("img", { name: /preview of replacement-source\.png/i })).toHaveCount(
 		0,
 	);
-	await expect(gpt).toBeChecked();
+	await expect(gpt).toContainText("GPT Image 2");
 	await expect(page.getByLabel(/describe your edit/i)).toHaveValue(
 		"Keep the subject and replace the background",
 	);
@@ -494,7 +559,7 @@ test("the selected model and SKU cross each private-upload stage without leaking
 	});
 
 	await page.goto("/");
-	await page.getByRole("radio", { name: /gpt image 2/i }).check();
+	await selectModel(page, "GPT Image", "image-gpt-image-2");
 	await page.getByRole("button", { name: /open output settings/i }).click();
 	await expect(page.getByText("Background", { exact: true })).toBeVisible();
 	await page.getByRole("button", { name: "Transparent", exact: true }).click();
@@ -504,7 +569,7 @@ test("the selected model and SKU cross each private-upload stage without leaking
 	await page.keyboard.press("Escape");
 	await page.getByLabel(/source image/i).setInputFiles(pngFile("gpt-source.png"));
 	await page.getByLabel(/describe your edit/i).fill("Preserve the product details");
-	await page.getByRole("button", { name: /continue with a paid image model/i }).click();
+	await page.getByRole("button", { name: /continue/i }).click();
 
 	await intentRequested.promise;
 	await expect(stage(page, "preparing")).toBeVisible();
@@ -547,18 +612,18 @@ test("a retryable failure preserves the image, prompt, and selected model", asyn
 	});
 
 	await page.goto("/");
-	const gpt = page.getByRole("radio", { name: /gpt image 2/i });
+	const gpt = page.locator('[data-test="landing-model-trigger"]');
 	const prompt = page.getByLabel(/describe your edit/i);
-	await gpt.check();
+	await selectModel(page, "GPT Image", "image-gpt-image-2");
 	await page.getByLabel(/source image/i).setInputFiles(pngFile("retry-source.png"));
 	await prompt.fill("Keep this prompt through the retry");
-	await page.getByRole("button", { name: /continue with a paid image model/i }).click();
+	await page.getByRole("button", { name: /continue/i }).click();
 
 	await expect(stage(page, "failed")).toBeVisible();
 	await expect(page.getByRole("img", { name: /preview of retry-source\.png/i })).toBeVisible();
 	await expect(prompt).toHaveValue("Keep this prompt through the retry");
-	await expect(gpt).toBeChecked();
-	await page.getByRole("button", { name: /retry gpt image 2/i }).click();
+	await expect(gpt).toContainText("GPT Image 2");
+	await page.getByRole("button", { name: /retry/i }).click();
 	await expect(secondAttempt.promise).resolves.toMatchObject({ productKey: "image-gpt-image-2" });
 });
 
@@ -692,18 +757,25 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 		await expect(
 			page.getByRole("button", { name: /drop an image here or choose a file/i }),
 		).toBeVisible();
-		await expect(
-			page.getByRole("button", { name: /try nano banana 2 lite 1k free/i }),
-		).toBeVisible();
+		await expect(page.getByRole("button", { name: /try free/i })).toBeVisible();
 		if (viewport.width < 768) {
 			await expect(page.locator('[data-test="mobile-section-nav"]')).toBeVisible();
-			await expect(page.getByText("5 credits", { exact: true }).first()).toBeVisible();
+			await expect(page.locator('[data-test="landing-model-trigger"]')).toBeVisible();
 		}
 		const [sourceRect, promptRect, tierRect] = await Promise.all([
 			box(page.getByRole("button", { name: /drop an image here or choose a file/i })),
 			box(page.getByLabel(/describe your edit/i)),
-			box(page.getByRole("group", { name: /image model/i })),
+			box(page.locator('[data-test="landing-model-trigger"]')),
 		]);
+		const controls = await box(page.locator('[data-test="landing-controls-panel"]'));
+		const action = await box(page.locator('[data-test="landing-generate"]'));
+		const composer = await box(page.locator('[data-test="landing-generator"]'));
+		const help = await box(page.locator('[data-test="landing-generator-help"]'));
+		expect(help.y).toBeGreaterThanOrEqual(composer.y + composer.height);
+		if (viewport.width >= 768) {
+			expect(Math.abs(tierRect.y - action.y)).toBeLessThan(2);
+			expect(controls.height).toBeLessThanOrEqual(50);
+		}
 		expect(sourceRect.x).toBeLessThan(promptRect.x);
 		expect(Math.abs(sourceRect.y - promptRect.y)).toBeLessThan(2);
 		expect(
@@ -719,14 +791,14 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 				...new Set(examples.map((example) => Math.round(example.getBoundingClientRect().x))),
 			]);
 		expect(exampleColumns).toHaveLength(viewport.width >= 1280 ? 4 : 2);
-		await page.getByRole("radio", { name: /gpt image 2/i }).check();
+		await selectModel(page, "GPT Image", "image-gpt-image-2");
 		await page.getByLabel(/source image/i).setInputFiles(pngFile(`source-${viewport.width}.png`));
 		await page.getByLabel(/describe your edit/i).fill("Keep the subject sharp");
-		await expect(
-			page.getByRole("button", { name: /continue with a paid image model/i }),
-		).toBeEnabled();
+		await expect(page.getByRole("button", { name: /continue/i })).toBeEnabled();
 		await testInfo.attach(`landing-${viewport.width}`, {
-			body: await page.screenshot({ fullPage: true }),
+			body: await page
+				.locator("#image-editor")
+				.screenshot({ path: testInfo.outputPath(`generator-${viewport.width}.png`) }),
 			contentType: "image/png",
 		});
 	}
@@ -748,3 +820,71 @@ async function box(locator: Locator) {
 		return { x, y, width, height };
 	});
 }
+
+async function selectModel(page: Page, family: string, productKey: string, prefix = "landing") {
+	await page.locator(`[data-test="${prefix}-model-trigger"]`).click();
+	await page
+		.getByRole("dialog", { name: "Image models", exact: true })
+		.getByRole("group", { name: "Model families", exact: true })
+		.getByRole("button", { name: new RegExp(family, "i") })
+		.click();
+	await page.locator(`[data-test="${prefix}-model-${productKey}"]`).click();
+}
+
+test("model families expose descriptions and quality changes update the quoted credits", async ({
+	page,
+}, testInfo) => {
+	await page.setViewportSize({ width: 1440, height: 1100 });
+	await page.goto("/");
+	await page.locator('[data-test="landing-model-trigger"]').click();
+	const menu = page.getByRole("dialog", { name: "Image models", exact: true });
+	await expect(menu).toBeVisible();
+	await expect(menu.getByRole("button", { name: /Nano Banana 2 Lite/ })).toContainText(
+		"Portraits and everyday retouching",
+	);
+	await menu.getByRole("button", { name: /Seedream/ }).click();
+	await expect(menu.getByRole("button", { name: /Seedream 5 Pro/ })).toContainText(
+		"From 8 credits",
+	);
+	await testInfo.attach("model-menu", {
+		body: await page.screenshot({
+			path: testInfo.outputPath("model-menu.png"),
+			animations: "disabled",
+		}),
+		contentType: "image/png",
+	});
+	await page.locator('[data-test="landing-model-image-seedream-5-pro"]').click();
+	await page.getByRole("button", { name: "Open output settings", exact: true }).click();
+	await page.getByRole("button", { name: "High", exact: true }).click();
+	await expect(page.getByRole("button", { name: "2K", exact: true })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	await expect(page.locator('[data-test="landing-settings-credits"]')).toContainText(
+		"2K · High · 15",
+	);
+	await expect(page.locator('[data-test="landing-generate"]')).toContainText("15");
+	await testInfo.attach("quality-pricing", {
+		body: await page.screenshot({
+			path: testInfo.outputPath("quality-pricing.png"),
+			animations: "disabled",
+		}),
+		contentType: "image/png",
+	});
+	await page.getByRole("button", { name: "Basic", exact: true }).click();
+	await expect(page.getByRole("button", { name: "1K", exact: true })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	await expect(page.locator('[data-test="landing-generate"]')).toContainText("8");
+	await page.keyboard.press("Escape");
+	await page.locator("#faq").scrollIntoViewIfNeeded();
+	const dock = page.locator('[data-test="floating-editor-dock"]');
+	await dock.getByRole("button", { name: /open the quick editor/i }).click();
+	await selectModel(page, "GPT Image", "image-gpt-image-2", "floating");
+	await dock.getByRole("button", { name: "Open output settings", exact: true }).click();
+	await page.getByRole("button", { name: "4K", exact: true }).click();
+	await expect(dock.locator('[data-test="floating-generate"]')).toContainText("17");
+	await page.keyboard.press("Escape");
+	await expect(dock.locator('[data-test="floating-editor-expanded"]')).toBeVisible();
+});

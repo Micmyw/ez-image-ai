@@ -30,7 +30,9 @@ export function createJobDispatcher(config: { url: string; secret: string; fetch
 			body,
 			headers: await signRequest(config.secret, "POST", url.pathname, body),
 			signal: AbortSignal.timeout(15_000),
-			redirect: "error",
+			// workerd supports manual/follow only. Reject every non-202 response
+			// below without following a redirect or forwarding signed credentials.
+			redirect: "manual",
 		});
 		// Acceptance means Workflows persisted the instance. A 2xx proxy page or
 		// malformed response must not acknowledge an Outbox event.

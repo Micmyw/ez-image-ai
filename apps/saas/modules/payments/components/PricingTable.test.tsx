@@ -106,6 +106,12 @@ vi.mock("./PaymentProviderSelector", () => ({
 import { PricingTable } from "./PricingTable";
 
 describe("PricingTable", () => {
+	it("shows subscription management instead of a second paid checkout for subscribers", () => {
+		const markup = renderToStaticMarkup(<PricingTable userId="user-1" activePlanId="ultimate" />);
+		expect(markup).toContain("pricing.subscriptionAlreadyExists");
+		expect(markup).not.toContain("data-provider-selector");
+		expect(markup).not.toContain("pricing.choosePlan");
+	});
 	beforeEach(() => {
 		testState.availabilityInputs.length = 0;
 	});

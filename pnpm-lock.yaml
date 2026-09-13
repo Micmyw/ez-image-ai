@@ -256,6 +256,9 @@ overrides:
   vite@>=7.0.0 <7.3.5: 7.3.5
   ws@>=8.0.0 <8.21.0: 8.21.0
 
+patchedDependencies:
+  '@aws-sdk/xml-builder@3.972.40': 57ced060b9c50aa773f70940940b9225e9b15e5c459f56a4075f16981ac60549
+
 importers:
 
   .:
@@ -9343,7 +9346,7 @@ snapshots:
   '@aws-sdk/core@3.977.9':
     dependencies:
       '@aws-sdk/types': 3.974.5
-      '@aws-sdk/xml-builder': 3.972.40
+      '@aws-sdk/xml-builder': 3.972.40(patch_hash=57ced060b9c50aa773f70940940b9225e9b15e5c459f56a4075f16981ac60549)
       '@aws/lambda-invoke-store': 0.3.0
       '@smithy/core': 3.33.3
       '@smithy/signature-v4': 5.6.12
@@ -9354,7 +9357,7 @@ snapshots:
   '@aws-sdk/core@3.978.0':
     dependencies:
       '@aws-sdk/types': 3.974.5
-      '@aws-sdk/xml-builder': 3.972.40
+      '@aws-sdk/xml-builder': 3.972.40(patch_hash=57ced060b9c50aa773f70940940b9225e9b15e5c459f56a4075f16981ac60549)
       '@aws/lambda-invoke-store': 0.3.0
       '@smithy/core': 3.33.3
       '@smithy/signature-v4': 5.6.12
@@ -9613,7 +9616,7 @@ snapshots:
       '@aws-sdk/core': 3.978.0
       tslib: 2.8.1
 
-  '@aws-sdk/xml-builder@3.972.40':
+  '@aws-sdk/xml-builder@3.972.40(patch_hash=57ced060b9c50aa773f70940940b9225e9b15e5c459f56a4075f16981ac60549)':
     dependencies:
       '@smithy/types': 4.17.2
       tslib: 2.8.1

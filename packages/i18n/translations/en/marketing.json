@@ -1,6 +1,6 @@
 {
 	"blog": {
-		"description": "Read image-editing guides and EzPic product updates.",
+		"description": "Practical guides to AI image editing prompts, private uploads, and reviewing your results.",
 		"title": "EzPic guides",
 		"back": "Back to blog"
 	},
@@ -93,7 +93,7 @@
 			"paidSignIn": "Sign-in and a paid plan required",
 			"oneOutput": "One output",
 			"freeQueue": "Free queue · one watermarked preview · available for up to 24 hours",
-			"qualityAccess": "GPT Image 2 and Seedream 5 Pro continue after sign-in and require a Pro, Ultimate, or Max plan.",
+			"qualityAccess": "{model} requires sign-in and a Pro, Ultimate, or Max plan.",
 			"temporaryResult": "Your preview stays private and temporary.",
 			"temporarySessionDisclosure": "EzPic creates a temporary session for this trial, keeps guest media for up to 24 hours, and uses pseudonymous abuse signals for the policy period described in our Privacy Policy.",
 			"qualityCta": "More image models · paid plan",
@@ -126,7 +126,8 @@
 					"auto": "Automatic",
 					"opaque": "Opaque",
 					"transparent": "Transparent"
-				}
+				},
+				"coupledHint": "Quality and resolution are paired for this model. Changing one updates both."
 			},
 			"states": {
 				"challenge": "Verify this guest upload",
@@ -142,17 +143,17 @@
 			},
 			"guidance": {
 				"checking": "Wait while edit availability is checked.",
-				"unavailable": "Editing is unavailable right now. Try again later.",
+				"unavailable": "Editing is unavailable right now. Prepare a prompt, read the guide, or check again.",
 				"product": "Choose an image model to continue.",
 				"source": "Add a source image to continue.",
 				"prompt": "Describe the edit you want to continue.",
 				"verification": "Complete the verification to continue."
 			},
 			"actions": {
-				"standard": "Try Nano Banana 2 Lite 1K free",
-				"quality": "Continue with a paid image model",
-				"retry": "Retry {product}",
-				"retryAvailability": "Check edit availability again"
+				"standard": "Try free",
+				"quality": "Continue",
+				"retry": "Retry",
+				"retryAvailability": "Check availability"
 			},
 			"errors": {
 				"turnstile": "Complete the verification and try again.",
@@ -164,7 +165,11 @@
 			"continue": "Continue to Edit",
 			"privacy": "Guest source images and results stay private and temporary for up to 24 hours. Account media follows the retention described in our Privacy Policy.",
 			"error": "We could not save this edit draft. Please try again shortly.",
-			"steps": { "idea": "Upload", "control": "Describe", "create": "Review" },
+			"steps": {
+				"idea": "Upload",
+				"control": "Describe",
+				"create": "Review"
+			},
 			"fileHint": "JPEG, PNG, or WebP up to {megabytes, number} MB",
 			"uploadLabel": "Drop an image here or choose a file",
 			"replaceImage": "Replace image",
@@ -212,6 +217,10 @@
 				"type": "Choose a JPEG, PNG, or WebP image.",
 				"size": "Choose an image that is {megabytes, number} MB or smaller.",
 				"read": "We could not read that image. Choose another file."
+			},
+			"help": {
+				"promptGuide": "Read the prompt guide",
+				"contact": "Contact support"
 			}
 		},
 		"creatorWorkflows": {
@@ -523,6 +532,11 @@
 					"description": "Return to edit history and inspect the latest job state."
 				}
 			}
+		},
+		"guides": {
+			"quickStart": "Start your first edit",
+			"prompts": "Write a clearer editing prompt",
+			"privacy": "Understand private image editing"
 		}
 	},
 	"newsletter": {

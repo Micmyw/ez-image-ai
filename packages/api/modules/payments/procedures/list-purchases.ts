@@ -1,5 +1,11 @@
 import { ORPCError } from "@orpc/server";
-import { getPurchasesByOrganizationId, getPurchasesByUserId, PurchaseSchema } from "@repo/database";
+import {
+	findEffectivePaidSubscription,
+	getPurchasesByOrganizationId,
+	getPurchasesByUserId,
+	PurchaseSchema,
+} from "@repo/database";
+import { db } from "@repo/database/client";
 import {
 	getPlanIdByProviderPriceId,
 	getPlanPriceByProviderPriceId,
@@ -27,6 +33,10 @@ export const listPurchases = protectedProcedure
 		z.array(
 			PurchaseSchema.extend({
 				planId: z.string().nullable(),
+				isEffectiveSubscription: z.boolean().optional(),
+				subscription: z
+					.object({ cancelAtPeriodEnd: z.boolean(), currentPeriodEnd: z.date().nullable() })
+					.nullable(),
 				providerCapabilities: z.object({
 					portal: z.boolean(),
 					cancellation: z.boolean(),
@@ -66,6 +76,13 @@ export const listPurchases = protectedProcedure
 		const purchases = organizationId
 			? await getPurchasesByOrganizationId(organizationId)
 			: await getPurchasesByUserId(user.id);
+		const effective = await findEffectivePaidSubscription(
+			{
+				ownerType: organizationId ? "ORGANIZATION" : "USER",
+				ownerId: organizationId ?? user.id,
+			},
+			db,
+		);
 
 		return purchases.map((purchase) => {
 			const { mediaSubscription: _mediaSubscription, ...publicPurchase } = purchase;
@@ -74,6 +91,13 @@ export const listPurchases = protectedProcedure
 
 			return {
 				...publicPurchase,
+				...(persistedPlan
+					? {
+							status: purchase.mediaSubscription!.status.toLowerCase(),
+							isEffectiveSubscription: purchase.mediaSubscription!.id === effective?.id,
+						}
+					: {}),
+				subscription: persistedPlan?.subscription ?? null,
 				planId: isPlanPurchase
 					? (persistedPlan?.planId ??
 						getPlanIdByProviderPriceId(purchase.provider, purchase.priceId))
@@ -98,6 +122,8 @@ interface PurchaseWithSubscriptionPlan {
 		ownerType: "USER" | "ORGANIZATION";
 		ownerId: string;
 		provider: string;
+		cancelAtPeriodEnd: boolean;
+		currentPeriodEnd: Date | null;
 		plan: {
 			provider: string;
 			priceMicros: bigint;
@@ -109,6 +135,7 @@ interface PurchaseWithSubscriptionPlan {
 
 function resolvePersistedSubscriptionPlan(purchase: PurchaseWithSubscriptionPlan): {
 	planId: "creator" | "ultimate" | "studio";
+	subscription: { cancelAtPeriodEnd: boolean; currentPeriodEnd: Date | null };
 	price: {
 		type: "subscription";
 		interval: "month" | "year";
@@ -149,6 +176,10 @@ function resolvePersistedSubscriptionPlan(purchase: PurchaseWithSubscriptionPlan
 
 	return {
 		planId,
+		subscription: {
+			cancelAtPeriodEnd: subscription.cancelAtPeriodEnd ?? false,
+			currentPeriodEnd: subscription.currentPeriodEnd ?? null,
+		},
 		price: {
 			type: "subscription" as const,
 			interval,

@@ -12,7 +12,7 @@ describe("Kie image SKU quotes", () => {
 		["image-nano-banana-2", "nano-banana-2-2k", 13n, 60_000n],
 		["image-nano-banana-2", "nano-banana-2-4k", 19n, 90_000n],
 		["image-nano-banana-pro", "nano-banana-pro-1k", 19n, 90_000n],
-		["image-nano-banana-pro", "nano-banana-pro-2k", 19n, 90_000n],
+		["image-nano-banana-pro", "nano-banana-pro-2k", 22n, 90_000n],
 		["image-nano-banana-pro", "nano-banana-pro-4k", 25n, 120_000n],
 		["image-gpt-image-1-5", "gpt-image-1-5-medium", 5n, 20_000n],
 		["image-gpt-image-1-5", "gpt-image-1-5-high", 23n, 110_000n],
@@ -20,10 +20,10 @@ describe("Kie image SKU quotes", () => {
 		["image-gpt-image-2", "gpt-image-2-2k", 11n, 50_000n],
 		["image-gpt-image-2", "gpt-image-2-4k", 17n, 80_000n],
 		["image-seedream-4-5", "seedream-4-5-basic-2k", 8n, 32_500n],
-		["image-seedream-4-5", "seedream-4-5-high-4k", 8n, 32_500n],
+		["image-seedream-4-5", "seedream-4-5-high-4k", 12n, 32_500n],
 		["image-seedream-5-lite", "seedream-5-lite-basic-2k", 7n, 27_500n],
-		["image-seedream-5-lite", "seedream-5-lite-high-3k", 7n, 27_500n],
-		["image-seedream-5-lite", "seedream-5-lite-ultra-4k", 7n, 27_500n],
+		["image-seedream-5-lite", "seedream-5-lite-high-3k", 10n, 27_500n],
+		["image-seedream-5-lite", "seedream-5-lite-ultra-4k", 14n, 27_500n],
 		["image-seedream-5-pro", "seedream-5-pro-basic-1k", 8n, 35_000n],
 		["image-seedream-5-pro", "seedream-5-pro-high-2k", 15n, 70_000n],
 	] as const)(
@@ -43,7 +43,7 @@ describe("Kie image SKU quotes", () => {
 				{
 					enabledProviders: new Set(["kie"]),
 					generationEnabled: true,
-					kieImageCertifiedCatalogVersions: new Set(["2026-09-07.2"]),
+					kieImageCertifiedCatalogVersions: new Set(["2026-09-13.1"]),
 				} as never,
 			);
 

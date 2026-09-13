@@ -30,3 +30,4 @@ export {
 	type ImageSkuKey,
 } from "./product";
 export { getPublicConfig, type PublicConfig } from "./public";
+export { getImageProductSelectionContract } from "./image-product-contract";

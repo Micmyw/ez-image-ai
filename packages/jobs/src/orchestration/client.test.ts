@@ -5,6 +5,23 @@ import { OutboxDeliveryPendingError } from "./contracts";
 const id = `job-${"a".repeat(64)}`;
 
 describe("Outbox completion receipts", () => {
+	it("rejects redirects without forwarding dispatch credentials", async () => {
+		const fetcher = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(
+				new Response(null, { status: 302, headers: { location: "https://other.example" } }),
+			);
+		const dispatch = createJobDispatcher({
+			url: "https://jobs.example/internal/dispatch",
+			secret: "test-only-32-character-shared-secret",
+			fetch: fetcher,
+		});
+		await expect(dispatch("media-verify-upload", { assetId: "a" })).rejects.toThrow(
+			"WORKFLOWS_DISPATCH_REJECTED",
+		);
+		expect(fetcher.mock.calls[0]?.[1]?.redirect).toBe("manual");
+		expect(fetcher).toHaveBeenCalledOnce();
+	});
 	it("keeps accepted work pending until the same Workflow completes", async () => {
 		const fetcher = vi
 			.fn<typeof fetch>()

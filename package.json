@@ -9,6 +9,8 @@
 		"lint": "oxlint .",
 		"lint:fix": "oxlint --fix .",
 		"clean": "turbo clean",
+		"cache:preview": "node tooling/scripts/local-build-cache.mjs",
+		"cache:clean": "node tooling/scripts/local-build-cache.mjs --clean",
 		"test": "dotenv -c -- turbo test",
 		"format": "oxfmt .",
 		"format:check": "oxfmt --check .",

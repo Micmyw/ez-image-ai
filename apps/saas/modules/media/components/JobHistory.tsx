@@ -17,13 +17,18 @@ import {
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
 
 import { useJobHistory } from "../hooks/use-job-history";
 import { isEditorProductKey, type EditorProductKey } from "../lib/editor-recovery";
 import { isPublicImageSkuKey } from "../lib/image-sku-selection";
 import { getJobPresentation } from "../lib/job-status";
 
-export function JobHistory() {
+export function JobHistory({
+	embedded = false,
+	onSelect,
+}: { embedded?: boolean; onSelect?: (jobId: string) => void } = {}) {
+	const studio = useTranslations("studio");
 	const t = useTranslations("media.history");
 	const stages = useTranslations("media.status.stages");
 	const products = useTranslations("media.create.products");
@@ -31,16 +36,18 @@ export function JobHistory() {
 	const outputSettings = useTranslations("media.create.outputSettings");
 	const router = useRouter();
 	const searchParams = useSearchParams();
-	const status = searchParams.get("status") as
-		| "active"
-		| "succeeded"
-		| "failed"
-		| "canceled"
-		| null;
+	const [panelStatus, setPanelStatus] = useState("all");
+	const status = (
+		embedded ? (panelStatus === "all" ? null : panelStatus) : searchParams.get("status")
+	) as "active" | "succeeded" | "failed" | "canceled" | null;
 	const history = useJobHistory({ status: status ?? undefined });
 	const jobs = history.data?.pages.flatMap((page) => page.items).filter(hasImageHistoryKey) ?? [];
 
 	function setStatus(value: string) {
+		if (embedded) {
+			setPanelStatus(value);
+			return;
+		}
 		const next = new URLSearchParams(searchParams);
 		if (value === "all") next.delete("status");
 		else next.set("status", value);
@@ -49,9 +56,22 @@ export function JobHistory() {
 
 	return (
 		<div>
+			{history.isLoading && (
+				<output className="mb-4 text-sm block text-muted-foreground">{studio("loading")}</output>
+			)}
+			{history.isError && (
+				<div role="alert" className="mb-4 p-4 rounded-xl border">
+					<p className="text-sm">{studio("error")}</p>
+					<Button className="mt-3" variant="secondary" onClick={() => void history.refetch()}>
+						{studio("retry")}
+					</Button>
+				</div>
+			)}
 			<div className="mb-6 gap-4 sm:flex-row sm:items-end flex flex-col justify-between">
 				<div>
-					<h1 className="text-3xl font-medium">{t("title")}</h1>
+					<h1 hidden={embedded} className="text-3xl font-medium">
+						{t("title")}
+					</h1>
 					<p className="mt-1 text-muted-foreground">{t("subtitle")}</p>
 				</div>
 				<Select
@@ -84,6 +104,15 @@ export function JobHistory() {
 						<Link
 							key={job.id}
 							href={`/history/${job.id}`}
+							onClick={
+								onSelect
+									? (event) => {
+											if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
+											event.preventDefault();
+											onSelect(job.id);
+										}
+									: undefined
+							}
 							className="gap-3 p-4 sm:grid-cols-[1fr_auto_auto] sm:items-center grid transition-colors hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset"
 						>
 							<div>
@@ -114,7 +143,7 @@ export function JobHistory() {
 						</Link>
 					);
 				})}
-				{!jobs.length && !history.isLoading && (
+				{!jobs.length && !history.isLoading && !history.isError && (
 					<p className="p-8 text-center text-muted-foreground">{t("empty")}</p>
 				)}
 			</div>

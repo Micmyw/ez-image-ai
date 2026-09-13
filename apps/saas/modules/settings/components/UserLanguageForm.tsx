@@ -25,25 +25,25 @@ export function UserLanguageForm() {
 	const [locale, setLocale] = useState<Locale | undefined>(currentLocale as Locale);
 
 	const updateLocaleMutation = useMutation({
-		mutationFn: async () => {
-			if (!locale) {
+		mutationFn: async (nextLocale: Locale) => {
+			if (!nextLocale) {
 				return;
 			}
 
-			await authClient.updateUser({
-				locale,
-			});
-			await updateLocale(locale);
+			const { error } = await authClient.updateUser({ locale: nextLocale });
+			if (error) throw error;
+			await updateLocale(nextLocale);
 			router.refresh();
 		},
 	});
 
-	const saveLocale = async () => {
+	const saveLocale = async (nextLocale: Locale) => {
 		try {
-			await updateLocaleMutation.mutateAsync();
+			await updateLocaleMutation.mutateAsync(nextLocale);
 
 			toastSuccess(t("settings.account.language.notifications.success"));
 		} catch {
+			setLocale(currentLocale as Locale);
 			toastError(t("settings.account.language.notifications.error"));
 		}
 	};
@@ -66,8 +66,9 @@ export function UserLanguageForm() {
 				value={locale}
 				items={localeItems}
 				onValueChange={(value) => {
+					if (!value || !(value in i18nConfig.locales)) return;
 					setLocale(value as Locale);
-					void saveLocale();
+					void saveLocale(value as Locale);
 				}}
 				disabled={updateLocaleMutation.isPending}
 			>

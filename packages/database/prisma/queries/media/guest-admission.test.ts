@@ -60,6 +60,7 @@ function guestInput(sponsorCredits: bigint) {
 		subnetHash: hash,
 		idempotencyKey: "guest-test-1",
 		idempotencyFingerprint: hash,
+		denialSubjectHash: hash,
 		turnstile: {
 			tokenHash: hash,
 			challengeTimestamp: now,

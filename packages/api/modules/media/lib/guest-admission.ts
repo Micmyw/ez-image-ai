@@ -445,6 +445,7 @@ export async function submitGuestGenerationForGuest(
 		),
 		idempotencyKey: input.idempotencyKey,
 		idempotencyFingerprint,
+		denialSubjectHash: guestDenialSubjectHash(boundary.ownerId, abuseHmac),
 		turnstile: verifiedTurnstile,
 		sourceDraftId: bootstrap.claimedDraftId,
 		sourceBootstrapId: bootstrap.id,
@@ -511,7 +512,7 @@ export async function submitGuestGenerationForGuest(
 async function rejectGuestAdmission(
 	dependencies: GuestAdmissionDependencies,
 	boundary: GuestAdmissionBoundary,
-	input: SubmitGuestGenerationInput,
+	_input: SubmitGuestGenerationInput,
 	abuseHmac: { secretKey: string; keyVersion: string },
 	promotionPeriod: string | null,
 	evidenceTtlMs: number,
@@ -520,17 +521,24 @@ async function rejectGuestAdmission(
 	error: unknown,
 ): Promise<never> {
 	if (promotionPeriod) {
-		const subjectHash = hashGuestAbuseBinding(
-			abuseHmac.secretKey,
-			abuseHmac.keyVersion,
-			"guest-denial-idempotency",
-			`${boundary.ownerId}\n${input.idempotencyKey}`,
-		);
+		const subjectHash = guestDenialSubjectHash(boundary.ownerId, abuseHmac);
 		await dependencies
 			.recordDenial({ promotionPeriod, reason, subjectHash, now, evidenceTtlMs })
 			.catch(() => undefined);
 	}
 	throw error instanceof Error ? error : new Error("GUEST_ADMISSION_REJECTED");
+}
+
+function guestDenialSubjectHash(
+	ownerId: string,
+	abuseHmac: { secretKey: string; keyVersion: string },
+): string {
+	return hashGuestAbuseBinding(
+		abuseHmac.secretKey,
+		abuseHmac.keyVersion,
+		"guest-denial-owner",
+		ownerId,
+	);
 }
 
 function transactionDenialReason(error: unknown): GuestAdmissionDenialReason | null {

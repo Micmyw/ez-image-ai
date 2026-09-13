@@ -7,7 +7,13 @@ existing jobs handlers with Cloudflare Images. This profile has no Container res
 The production cutover completed on September 11, 2026. See
 [current production status](cloudflare-production-status.md) and the
 [deployment evidence](evidence/cloudflare-workers-deployment-2026-09-11.md) for the active
-versions and verification limits. Generation, guest generation and billing remain disabled.
+versions and verification limits at cutover. The operator enabled PayPal Sandbox and Waffo Test
+on the existing production Workers on September 12. Use `.env.production.local` and the active
+Worker deployment to confirm current controls before changing billing to live collection.
+
+If a payment provider cannot reach the custom domain, `PAYMENT_WEBHOOK_INGRESS_ORIGIN` may name
+the same website Worker's exact HTTPS `workers.dev` origin. Preparation enables that address;
+only `POST /api/webhooks/payments` is forwarded to the existing verifier. Other routes stay closed.
 
 `EZPIC_DEPLOYMENT_PROFILE=hybrid` keeps the same Workers website and moves background execution
 to the existing jobs Container with Sharp. Both profiles use PostgreSQL as business truth and

@@ -11,7 +11,7 @@ import {
 	type PersistedUploadState,
 } from "../lib/upload-state";
 
-export type MediaUploadStatus = "idle" | "uploading" | "paused" | "verifying" | "error";
+export type MediaUploadStatus = "idle" | "uploading" | "paused" | "uploaded" | "error";
 
 export interface MediaUploadItem {
 	file: File;
@@ -84,7 +84,7 @@ export function useMediaUpload(onChange?: (assetIds: string[]) => void) {
 					});
 					if (!response.ok) throw new Error("The image upload failed");
 					await orpcClient.media.completeUploadSession({ sessionId: session.sessionId });
-					update(fingerprint, { status: "verifying", progress: 100, assetId: session.assetId });
+					update(fingerprint, { status: "uploaded", progress: 100, assetId: session.assetId });
 					return;
 				}
 				const partSize = "partSize" in session ? session.partSize : 8 * 1024 * 1024;
@@ -123,7 +123,7 @@ export function useMediaUpload(onChange?: (assetIds: string[]) => void) {
 					parts: state.completedParts,
 				});
 				localStorage.removeItem(`${STORAGE_PREFIX}${fingerprint}`);
-				update(fingerprint, { status: "verifying", progress: 100, assetId: state.assetId });
+				update(fingerprint, { status: "uploaded", progress: 100, assetId: state.assetId });
 			} catch (error) {
 				const paused = controller.signal.aborted;
 				update(fingerprint, {

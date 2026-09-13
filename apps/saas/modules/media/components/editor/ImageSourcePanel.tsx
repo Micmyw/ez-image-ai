@@ -14,11 +14,13 @@ export function ImageSourcePanel({
 	onChange,
 	onReadyChange,
 	maximumImageBytes,
+	compact = false,
 }: {
 	sourceAssetId: string;
 	onChange: (assetId: string) => void;
 	onReadyChange: (ready: boolean) => void;
 	maximumImageBytes?: number;
+	compact?: boolean;
 }) {
 	const t = useTranslations("media.editor.source");
 	const preview = useQuery({
@@ -37,9 +39,15 @@ export function ImageSourcePanel({
 	}, [onReadyChange, preview.data, preview.isError, sourceAssetId]);
 
 	return (
-		<div className="space-y-3 border-slate-200 bg-slate-50/60 p-4 rounded-xl border">
+		<div
+			className={
+				compact
+					? "studio-source min-w-0 space-y-2"
+					: "space-y-3 border-slate-200 bg-slate-50/60 p-4 rounded-xl border"
+			}
+		>
 			<div className="gap-3 flex flex-wrap items-center justify-between">
-				<h2 className="font-medium text-sm">{t("title")}</h2>
+				<h2 className={compact ? "sr-only" : "font-medium text-sm"}>{t("title")}</h2>
 				<Button
 					type="button"
 					size="sm"
@@ -50,13 +58,19 @@ export function ImageSourcePanel({
 				</Button>
 			</div>
 			{sourceAssetId && (
-				<div className="gap-3 border-violet-200 bg-white p-3 sm:grid-cols-[7rem_1fr] grid items-center rounded-xl border">
+				<div
+					className={
+						compact
+							? "space-y-2"
+							: "gap-3 border-violet-200 bg-white p-3 sm:grid-cols-[7rem_1fr] grid items-center rounded-xl border"
+					}
+				>
 					<div className="aspect-square overflow-hidden rounded-lg bg-muted">
 						{preview.data ? (
 							<img
 								src={preview.data.url}
 								alt={t("selectedAlt")}
-								className="size-full object-cover"
+								className="size-full object-contain"
 							/>
 						) : (
 							<div
@@ -68,8 +82,10 @@ export function ImageSourcePanel({
 						)}
 					</div>
 					<div>
-						<p className="font-medium text-sm">{preview.data ? t("ready") : t("preparing")}</p>
-						<p className="mt-1 text-xs text-muted-foreground">{t("private")}</p>
+						<p className={compact ? "sr-only" : "font-medium text-sm"}>
+							{preview.data ? t("ready") : t("preparing")}
+						</p>
+						{!compact && <p className="mt-1 text-xs text-muted-foreground">{t("private")}</p>}
 						<Button
 							type="button"
 							size="sm"
@@ -82,12 +98,15 @@ export function ImageSourcePanel({
 					</div>
 				</div>
 			)}
-			<MediaUploader
-				multiple={false}
-				maximumImageBytes={maximumImageBytes}
-				value={sourceAssetId ? [sourceAssetId] : []}
-				onChange={(assetIds) => onChange(assetIds[0] ?? "")}
-			/>
+			<div hidden={compact && Boolean(sourceAssetId)}>
+				<MediaUploader
+					compact={compact}
+					multiple={false}
+					maximumImageBytes={maximumImageBytes}
+					value={sourceAssetId ? [sourceAssetId] : []}
+					onChange={(assetIds) => onChange(assetIds[0] ?? "")}
+				/>
+			</div>
 		</div>
 	);
 }

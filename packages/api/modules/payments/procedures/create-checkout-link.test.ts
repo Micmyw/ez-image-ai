@@ -37,6 +37,7 @@ const {
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database", () => ({
+	assertPaymentSubscriptionCheckoutAllowed: vi.fn(),
 	bindPaymentCheckoutIntentOrder: bindCheckoutIntentOrder,
 	bindPaymentCheckoutIntentSession: bindCheckoutIntent,
 	createPaymentCheckoutIntent: createCheckoutIntent,
@@ -64,6 +65,7 @@ vi.mock("../../organizations/lib/membership", () => ({
 }));
 
 import { auth } from "@repo/auth";
+import { assertPaymentSubscriptionCheckoutAllowed } from "@repo/database";
 import {
 	findPriceByPlanId,
 	getPaymentProvider,
@@ -136,6 +138,7 @@ const billingPlan = {
 describe("createCheckoutLink", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.mocked(assertPaymentSubscriptionCheckoutAllowed).mockResolvedValue(undefined);
 		paymentsConfig.billingAttachedTo = "user";
 		process.env.NEXT_PUBLIC_SAAS_URL = "https://app.ezpic.test";
 		vi.mocked(auth.api.getSession).mockResolvedValue(authenticatedSession);
@@ -192,6 +195,42 @@ describe("createCheckoutLink", () => {
 			}),
 		).toMatchObject({ success: false });
 	});
+
+	it.each(["PROVIDER_PENDING", "PROVIDER_CREATING"])(
+		"checks subscription admission before replaying %s",
+		async (status) => {
+			getPaymentCheckoutIntentForOwnerByIdempotencyKey.mockResolvedValue({
+				id: "old-intent",
+				provider: "paypal",
+				submittedByUserId: "user-1",
+				productKind: "PLAN",
+				planKey: "creator",
+				interval: "month",
+				billingPlanId: billingPlan.id,
+				billingPlan,
+				status,
+				providerSessionId: "I-OLD",
+				providerCheckoutUrl: "https://www.sandbox.paypal.com/old",
+			});
+			vi.mocked(assertPaymentSubscriptionCheckoutAllowed).mockRejectedValue(
+				new Error("PAYMENT_SUBSCRIPTION_ALREADY_EXISTS"),
+			);
+			await expect(
+				call(
+					createCheckoutLink,
+					{
+						provider: "paypal",
+						planId: "creator",
+						interval: "month",
+						idempotencyKey: "retry-existing-123",
+					},
+					{ context: { headers: new Headers() } },
+				),
+			).rejects.toMatchObject({ code: "CONFLICT", message: "PAYMENT_SUBSCRIPTION_ALREADY_EXISTS" });
+			expect(providerCheckout).not.toHaveBeenCalled();
+			expect(providerRecoverCheckout).not.toHaveBeenCalled();
+		},
+	);
 
 	it("rejects Stripe while preserving PayPal and Waffo subscription checkout", async () => {
 		expect(

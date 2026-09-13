@@ -21,7 +21,7 @@ Use for reusable primitives shared by apps. Do not move feature-specific composi
    ```bash
    pnpm --filter @repo/ui shadcn-ui
    ```
-8. Run `pnpm --filter @repo/ui type-check`, affected tests, `pnpm format`, `pnpm lint`, and `pnpm type-check`.
+8. Run `pnpm --filter @repo/ui type-check`, affected consumer tests, and formatting/lint checks for the changed files.
 
 ## Canonical reference
 

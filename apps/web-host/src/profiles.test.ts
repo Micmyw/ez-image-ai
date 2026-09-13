@@ -45,6 +45,32 @@ describe("deployment profiles", () => {
 			KIE_API_KEY: "runtime-secret",
 		});
 	});
+	it("keeps build, offline evidence, and local test settings out of limited Worker bindings", () => {
+		const environment = workersRuntimeEnvironment({
+			NEXT_PUBLIC_GOOGLE_ANALYTICS_ID: "G-BUILD-ONLY",
+			NEXT_PUBLIC_CLARITY_PROJECT_ID: "build-only",
+			EZPIC_ENVIRONMENT_MATRIX_PATH: "offline-matrix.json",
+			EZPIC_LAUNCH_EVIDENCE_PATH: "offline-evidence.json",
+			E2E_TEST_MEDIA_ADAPTERS: "false",
+			E2E_DRAFT_HANDOFF: "false",
+			LOAD_TESTING_ENABLED: "false",
+			NEXT_PUBLIC_SAAS_URL: "https://ezimageai.com",
+			NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY: "public-turnstile-key",
+			GUEST_TURNSTILE_SECRET_KEY: "private-turnstile-key",
+			PAYPAL_ENVIRONMENT: "sandbox",
+			WAFFO_ENVIRONMENT: "test",
+		});
+		expect(environment).toEqual({
+			NODE_ENV: "production",
+			EZPIC_RUNTIME: "workers",
+			EZPIC_DATABASE_BINDING: "hyperdrive",
+			NEXT_PUBLIC_SAAS_URL: "https://ezimageai.com",
+			NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY: "public-turnstile-key",
+			GUEST_TURNSTILE_SECRET_KEY: "private-turnstile-key",
+			PAYPAL_ENVIRONMENT: "sandbox",
+			WAFFO_ENVIRONMENT: "test",
+		});
+	});
 });
 
 const root = path.resolve(import.meta.dirname, "../../..");
@@ -73,6 +99,25 @@ function artifacts(profile: "workers" | "hybrid", overrides: Record<string, stri
 }
 
 describe("prepared deployment artifacts", () => {
+	it("enables the website workers.dev address only for an explicitly configured callback origin", () => {
+		const webhookOrigin = "https://ezimageai-site-production.account.workers.dev";
+		expect(artifacts("workers").website.workers_dev).toBe(false);
+		const value = artifacts("workers", { PAYMENT_WEBHOOK_INGRESS_ORIGIN: webhookOrigin });
+		expect(value.website.workers_dev).toBe(true);
+		expect(value.website.vars).toMatchObject({ PAYMENT_WEBHOOK_INGRESS_ORIGIN: webhookOrigin });
+		expect(value["website.secrets"]).not.toHaveProperty("PAYMENT_WEBHOOK_INGRESS_ORIGIN");
+	});
+	it.each([
+		"http://ezimageai-site-production.account.workers.dev",
+		"https://ezimageai-site-production.other-account.workers.dev",
+		"https://another.account.workers.dev",
+		"https://ezimageai-site-production.account.workers.dev/api/webhooks/payments",
+		"https://ezimageai-site-production.account.workers.dev?unexpected=1",
+	])("rejects a callback origin outside this website and Workers account: %s", (webhookOrigin) => {
+		expect(() => artifacts("workers", { PAYMENT_WEBHOOK_INGRESS_ORIGIN: webhookOrigin })).toThrow(
+			"INVALID_PAYMENT_WEBHOOK_INGRESS_ORIGIN",
+		);
+	});
 	it("builds the default pair without Containers and without public secrets", () => {
 		const value = artifacts("workers");
 		for (const config of [value.website, value.workflows]) {

@@ -2,9 +2,32 @@ import { createHmac } from "node:crypto";
 
 import { describe, expect, it, vi } from "vitest";
 
-import { submitGuestGenerationForGuest } from "./guest-admission";
+import { submitGuestGenerationForGuest, type guestAdmissionDependencies } from "./guest-admission";
 
 describe("guest admission pre-transaction boundary", () => {
+	it.each([
+		{ capabilityEnabled: false },
+		{ turnstileError: "TURNSTILE_INVALID" },
+		{ createError: "GUEST_QUEUE_CAPACITY" },
+	])("cannot multiply denial subjects by changing request keys: %j", async (options) => {
+		const dependencies = validDependencies(options);
+		for (let index = 0; index < 12; index++) {
+			await expect(
+				submitGuestGenerationForGuest(
+					validBoundary(),
+					{
+						...validInput(),
+						idempotencyKey: `denied-random-key-${index}`,
+					},
+					dependencies,
+				),
+			).rejects.toThrow();
+		}
+		const records = dependencies.recordDenial.mock.calls.map(([record]) => record);
+		expect(records).toHaveLength(12);
+		expect(new Set(records.map((record) => record.subjectHash)).size).toBe(1);
+	});
+
 	it.each([
 		["capability", { capabilityEnabled: false }, "GUEST_CAPABILITY_DISABLED", "CAPABILITY"],
 		["Turnstile", { turnstileError: "TURNSTILE_INVALID" }, "TURNSTILE_INVALID", "TURNSTILE"],
@@ -348,7 +371,9 @@ function validDependencies(options?: {
 				linkReady: true,
 			};
 		}),
-		recordDenial: vi.fn(async () => undefined),
+		recordDenial: vi
+			.fn<(typeof guestAdmissionDependencies)["recordDenial"]>()
+			.mockResolvedValue(undefined),
 	};
 }
 

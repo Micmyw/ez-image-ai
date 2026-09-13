@@ -28,6 +28,7 @@ export interface ImageSkuSelectionContract {
 }
 
 export interface ImageProductSelectionContract {
+	maximumPromptLength?: number;
 	defaultSkuKey: ImageSkuKey;
 	defaultAspectRatio: ImageAspectRatio;
 	cells: readonly ImageSkuSelectionContract[];
@@ -220,6 +221,110 @@ export const IMAGE_PRODUCT_SELECTION_CONTRACTS: Readonly<
 					"1:2",
 					"21:9",
 				],
+				controls: [],
+			},
+		],
+	},
+	"image-gpt-image-2-5-flare": {
+		defaultSkuKey: "gpt-image-2-5-flare-1k",
+		defaultAspectRatio: "auto",
+		cells: [
+			{
+				skuKey: "gpt-image-2-5-flare-1k",
+				aspectRatios: [
+					"auto",
+					"1:1",
+					"3:2",
+					"2:3",
+					"4:3",
+					"3:4",
+					"16:9",
+					"9:16",
+					"21:9",
+					"27:16",
+					"16:27",
+					"9:8",
+					"8:9",
+				],
+				controls: [
+					{ key: "background", defaultValue: "opaque", options: ["auto", "opaque", "transparent"] },
+				],
+			},
+			{
+				skuKey: "gpt-image-2-5-flare-2k",
+				aspectRatios: ["auto", "1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16", "21:9"],
+				controls: [
+					{ key: "background", defaultValue: "opaque", options: ["auto", "opaque", "transparent"] },
+				],
+			},
+			{
+				skuKey: "gpt-image-2-5-flare-4k",
+				aspectRatios: ["auto", "1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16", "21:9"],
+				controls: [
+					{ key: "background", defaultValue: "opaque", options: ["auto", "opaque", "transparent"] },
+				],
+			},
+		],
+	},
+	"image-gpt-image-2-5-sunburst": {
+		defaultSkuKey: "gpt-image-2-5-sunburst-1k",
+		defaultAspectRatio: "auto",
+		cells: [
+			{
+				skuKey: "gpt-image-2-5-sunburst-1k",
+				aspectRatios: [
+					"auto",
+					"1:1",
+					"3:2",
+					"2:3",
+					"4:3",
+					"3:4",
+					"16:9",
+					"9:16",
+					"21:9",
+					"27:16",
+					"16:27",
+					"9:8",
+					"8:9",
+				],
+				controls: [
+					{ key: "background", defaultValue: "opaque", options: ["auto", "opaque", "transparent"] },
+				],
+			},
+			{
+				skuKey: "gpt-image-2-5-sunburst-2k",
+				aspectRatios: ["auto", "1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16", "21:9"],
+				controls: [
+					{ key: "background", defaultValue: "opaque", options: ["auto", "opaque", "transparent"] },
+				],
+			},
+			{
+				skuKey: "gpt-image-2-5-sunburst-4k",
+				aspectRatios: ["auto", "1:1", "3:2", "2:3", "4:3", "3:4", "16:9", "9:16", "21:9"],
+				controls: [
+					{ key: "background", defaultValue: "opaque", options: ["auto", "opaque", "transparent"] },
+				],
+			},
+		],
+	},
+	"image-seedream-4": {
+		maximumPromptLength: 5000,
+		defaultSkuKey: "seedream-4-1k",
+		defaultAspectRatio: "1:1",
+		cells: [
+			{
+				skuKey: "seedream-4-1k",
+				aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
+				controls: [],
+			},
+			{
+				skuKey: "seedream-4-2k",
+				aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
+				controls: [],
+			},
+			{
+				skuKey: "seedream-4-4k",
+				aspectRatios: ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
 				controls: [],
 			},
 		],

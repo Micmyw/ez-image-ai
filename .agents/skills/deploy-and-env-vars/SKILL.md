@@ -7,17 +7,17 @@ description: Use when configuring deployment targets, domains, or environment va
 
 ## Scope
 
-Use only on explicit user request because deployment and remote env changes mutate external state. Do not deploy, link projects, add domains, or write remote secrets during ordinary implementation or verification.
+Prepare local deployment/config changes within the requested task. Deployment, project linking, domains, and remote secret writes require user authorization for that target; reuse authorization already supplied in the session.
 
 ## Procedure
 
-1. Confirm the SaaS deployment target, Vercel project, environment (`development`, `preview`, or
+1. Identify the SaaS deployment target, Vercel project, environment (`development`, `preview`, or
    `production`), branch, and requested mutation before running a write command.
 2. Inventory required variables from `.env.local.example` and actual `process.env` usage. Server secrets stay unprefixed; only browser-readable values use `NEXT_PUBLIC_`.
 3. Configure `NEXT_PUBLIC_SAAS_URL` as the single canonical public origin. Auth callbacks, CORS,
    payment redirect validation, public content, Docs, and notification links all depend on it.
 4. Configure only enabled integrations: `DATABASE_URL`, `BETTER_AUTH_SECRET`, mail provider values, active payment provider values and price IDs, storage values, and AI keys. `DIRECT_URL` appears in `.env.local.example` but current runtime/Prisma config does not read it; do not treat it as required without adding a real consumer.
-5. Use authenticated Vercel CLI commands only after confirming scope:
+5. For authorized external changes, use authenticated Vercel CLI commands:
    ```bash
    vercel link
    vercel env add <NAME> <environment>

@@ -3,10 +3,32 @@ export async function forwardToWebsite(
 	request: Request,
 	canonicalOrigin: string,
 	fetchWebsite: (request: Request) => Promise<Response>,
+	paymentWebhookOrigin?: string,
 ): Promise<Response> {
 	try {
 		const canonical = new URL(canonicalOrigin);
-		if (new URL(request.url).origin !== canonical.origin) {
+		const incoming = new URL(request.url);
+		const alternateWebhook =
+			Boolean(paymentWebhookOrigin) &&
+			canonical.protocol === "https:" &&
+			incoming.protocol === "https:" &&
+			incoming.origin === paymentWebhookOrigin &&
+			request.method === "POST" &&
+			incoming.pathname === "/api/webhooks/payments" &&
+			!incoming.search;
+		if (
+			canonical.protocol === "https:" &&
+			incoming.protocol === "http:" &&
+			incoming.host === canonical.host &&
+			(request.method === "GET" || request.method === "HEAD")
+		) {
+			incoming.protocol = "https:";
+			return new Response(null, {
+				status: 308,
+				headers: { location: incoming.href, "cache-control": "no-store" },
+			});
+		}
+		if (incoming.origin !== canonical.origin && !alternateWebhook) {
 			return new Response("Misdirected request", {
 				status: 421,
 				headers: { "cache-control": "no-store" },
@@ -20,7 +42,10 @@ export async function forwardToWebsite(
 		headers.set("x-forwarded-proto", canonical.protocol.slice(0, -1));
 		const clientIp = request.headers.get("cf-connecting-ip");
 		if (clientIp) headers.set("x-forwarded-for", clientIp);
-		return await fetchWebsite(new Request(request, { headers }));
+		const forwarded = alternateWebhook
+			? new Request(new URL("/api/webhooks/payments", canonical), request)
+			: request;
+		return await fetchWebsite(new Request(forwarded, { headers }));
 	} catch {
 		return new Response("Service unavailable", {
 			status: 503,

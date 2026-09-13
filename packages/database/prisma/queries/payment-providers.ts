@@ -88,6 +88,7 @@ export async function createPaymentCheckoutIntent(
 	const activeScopeKey = paymentCheckoutActiveScope(input);
 	const idempotencyScopeKey = paymentCheckoutIdempotencyScope(input);
 	const result = await runSerializable(client, async (tx) => {
+		if (productKind === "PLAN") await lockSubscriptionCheckoutOwner(input, tx);
 		await tx.$queryRaw<Array<{ locked: string }>>`
 			SELECT pg_advisory_xact_lock(
 				hashtextextended(${idempotencyScopeKey}, 0)
@@ -122,6 +123,9 @@ export async function createPaymentCheckoutIntent(
 			if (!matchesTrustedCheckoutCommand(replay, input)) {
 				throw new Error("PAYMENT_CHECKOUT_INTENT_IDEMPOTENCY_CONFLICT");
 			}
+			if (productKind === "PLAN") {
+				await assertSubscriptionCheckoutAllowed({ ...input, checkoutIntentId: replay.id, now }, tx);
+			}
 			if (replay.status === "CREATED") return { intent: replay, replayed: true };
 			if (
 				replay.status === "PROVIDER_PENDING" &&
@@ -141,6 +145,9 @@ export async function createPaymentCheckoutIntent(
 		}
 
 		const active = await tx.paymentCheckoutIntent.findUnique({ where: { activeScopeKey } });
+		if (productKind === "PLAN") {
+			await assertSubscriptionCheckoutAllowed({ ...input, checkoutIntentId: active?.id, now }, tx);
+		}
 		if (
 			active?.status === "PROVIDER_PENDING" &&
 			active.providerSessionId &&
@@ -193,6 +200,91 @@ export async function createPaymentCheckoutIntent(
 		throw new Error("PAYMENT_CHECKOUT_INTENT_REPLAY_UNSAFE");
 	}
 	return result;
+}
+
+type SubscriptionCheckoutAdmission = PaymentOwner & { checkoutIntentId?: string; now?: Date };
+
+// Also used before returning or recovering an existing provider checkout. That
+// path must not bypass account-wide admission just because it has an old key.
+export async function assertPaymentSubscriptionCheckoutAllowed(
+	input: SubscriptionCheckoutAdmission,
+	client: MediaTransactionClient,
+) {
+	return runSerializable(client, async (tx) => {
+		await lockSubscriptionCheckoutOwner(input, tx);
+		await assertSubscriptionCheckoutAllowed(input, tx);
+	});
+}
+
+async function lockSubscriptionCheckoutOwner(owner: PaymentOwner, tx: Prisma.TransactionClient) {
+	const scope = `payment-subscription:${JSON.stringify([owner.ownerType, owner.ownerId])}`;
+	await tx.$queryRaw<Array<{ locked: string }>>`
+		SELECT pg_advisory_xact_lock(hashtextextended(${scope}, 0))::text AS "locked"`;
+}
+
+async function assertSubscriptionCheckoutAllowed(
+	input: SubscriptionCheckoutAdmission,
+	tx: Prisma.TransactionClient,
+) {
+	const now = input.now ?? new Date();
+	const subscription = await tx.subscription.findFirst({
+		where: {
+			ownerType: input.ownerType,
+			ownerId: input.ownerId,
+			OR: [
+				{ status: { in: ["PENDING", "ACTIVE", "PAST_DUE"] } },
+				{ status: "CANCELED", currentPeriodEnd: { gt: now } },
+			],
+		},
+		select: { id: true },
+	});
+	// Older providers may have a purchase before the canonical subscription row.
+	const legacyPurchase = subscription
+		? null
+		: await tx.purchase.findFirst({
+				where: {
+					...(input.ownerType === "USER"
+						? { userId: input.ownerId, organizationId: null }
+						: { organizationId: input.ownerId, userId: null }),
+					type: "SUBSCRIPTION",
+					productKind: "PLAN",
+					mediaSubscription: null,
+					OR: [
+						{ status: null },
+						{
+							NOT: {
+								status: {
+									in: ["canceled", "cancelled", "expired", "incomplete_expired"],
+									mode: "insensitive",
+								},
+							},
+						},
+					],
+				},
+				select: { id: true },
+			});
+	if (subscription || legacyPurchase) throw new Error("PAYMENT_SUBSCRIPTION_ALREADY_EXISTS");
+
+	const checkout = await tx.paymentCheckoutIntent.findFirst({
+		where: {
+			ownerType: input.ownerType,
+			ownerId: input.ownerId,
+			productKind: "PLAN",
+			...(input.checkoutIntentId ? { id: { not: input.checkoutIntentId } } : {}),
+			status: { in: ["CREATED", "PROVIDER_CREATING", "PROVIDER_PENDING", "REVIEW"] },
+			// Only a provider-bound pending session with an explicit provider expiry
+			// may stop blocking. Local timeouts cannot settle uncertain acceptance.
+			OR: [
+				{ status: { not: "PROVIDER_PENDING" } },
+				{ expiresAt: null },
+				{ expiresAt: { gt: now } },
+				{ providerSessionId: null },
+				{ providerCheckoutUrl: null },
+			],
+		},
+		select: { id: true },
+	});
+	if (checkout) throw new Error("PAYMENT_CHECKOUT_INTENT_CONFLICT");
 }
 
 export async function markPaymentCheckoutIntentProviderCreating(

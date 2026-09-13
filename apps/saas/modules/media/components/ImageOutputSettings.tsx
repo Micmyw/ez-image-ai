@@ -26,6 +26,7 @@ export interface ImageOutputSettingsLabels {
 	background: string;
 	modeControlsQuality: string;
 	credits?: string;
+	coupledHint?: string;
 	optionLabels?: Readonly<Record<string, string>>;
 }
 
@@ -59,10 +60,16 @@ export function ImageOutputSettings({
 	tone?: "dark" | "light";
 }) {
 	const generatedId = useId();
-	const groupName = `${idPrefix}-${generatedId}-aspect-ratio`;
-	const currentLabel = value === "auto" ? labels.automatic : value;
 	const selectedCell = getImageSpecCell(skuMatrix, skuKey);
 	const dark = tone === "dark";
+	const muted = dark ? "text-[#b2a7bc]" : "text-muted-foreground";
+	const optionStyle = (selected: boolean) =>
+		`min-h-11 min-w-0 rounded-lg px-2 py-1 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-300 disabled:cursor-not-allowed disabled:opacity-45 ${selected ? (dark ? "bg-[#4b3a70] text-white" : "bg-primary/10 text-foreground ring-1 ring-primary/50") : dark ? "text-[#c5b9d2] hover:bg-white/5" : "text-muted-foreground hover:bg-muted"}`;
+	const coupled =
+		skuMatrix &&
+		skuMatrix.dimensions.length > 1 &&
+		skuMatrix.cells.length <
+			skuMatrix.dimensions.reduce((count, dimension) => count * dimension.options.length, 1);
 
 	return (
 		<Popover>
@@ -71,235 +78,168 @@ export function ImageOutputSettings({
 					<button
 						type="button"
 						data-test={`${idPrefix}-output-settings-trigger`}
-						className={`min-h-11 gap-1.5 sm:gap-2 px-3 text-xs font-semibold focus-visible:outline-violet-300 flex w-full items-center rounded-xl border text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${
-							dark
-								? "border-white/10 bg-[#1e1729] text-[#c5b9d2] hover:border-[#b79cff]/45 hover:bg-[#251c32]"
-								: "border-foreground/10 bg-muted/45 text-muted-foreground hover:border-primary/35 hover:bg-muted"
-						}`}
+						className={`min-h-11 gap-2 px-3 text-xs font-semibold focus-visible:outline-violet-300 inline-flex max-w-full items-center rounded-lg border whitespace-nowrap transition focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${dark ? "border-white/10 bg-white/[0.055] hover:bg-white/10 text-[#c5b9d2]" : "border-foreground/10 bg-muted/45 text-muted-foreground hover:bg-muted"}`}
 						disabled={disabled || aspectRatios.length === 0}
 						aria-label={labels.trigger}
 					>
-						<SlidersHorizontalIcon className="size-4 shrink-0 text-[#b79cff]" aria-hidden="true" />
-						<span className={`whitespace-nowrap ${dark ? "text-[#f2ecfa]" : "text-foreground"}`}>
-							{labels.title}
-						</span>
-						<span className="h-4 w-px bg-current opacity-15" aria-hidden="true" />
-						<span className="gap-1.5 flex items-center">
+						<span className="gap-1.5 flex shrink-0 items-center">
 							<ScanIcon className="size-3.5" aria-hidden="true" />
-							{currentLabel}
+							<span className={value === "auto" ? "sr-only" : ""}>
+								{value === "auto" ? labels.automatic : value}
+							</span>
 						</span>
-						<span className="gap-1.5 flex items-center max-[359px]:hidden">
-							<ImageIcon className="size-3.5" aria-hidden="true" />
-							{selectedCell
-								? `${selectedCell.label} · ${selectedCell.credits} ${labels.credits ?? "Credits"}`
-								: "1"}
+						<span className="gap-1.5 pl-2 flex items-center border-l border-current/15 max-[359px]:hidden">
+							<ImageIcon className="size-3.5" aria-hidden="true" />1
 						</span>
-						{!dark && <span className="sm:inline ml-auto hidden">{labels.automatic}</span>}
-						<ChevronDownIcon
-							className={`size-4 shrink-0 opacity-70 ${dark ? "ml-auto" : ""}`}
-							aria-hidden="true"
-						/>
+						{skuMatrix?.dimensions.map((dimension) => {
+							const option = dimension.options.find(
+								(candidate) => candidate.key === selectedCell?.parameterValues[dimension.key],
+							);
+							return option ? (
+								<span key={dimension.key} className="pl-2 border-l border-current/15">
+									{labels.optionLabels?.[option.key] ?? option.label}
+								</span>
+							) : null;
+						})}
+						<ChevronDownIcon className="size-3.5 shrink-0 opacity-70" aria-hidden="true" />
 					</button>
 				}
 			/>
 			<PopoverContent
 				align="start"
-				side="bottom"
+				side="top"
+				sticky
 				sideOffset={8}
-				className={`p-3 sm:p-4 max-h-[var(--available-height)] w-[min(28rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-2xl shadow-[0_28px_70px_-24px_rgba(0,0,0,0.8)] ${
-					dark
-						? "border-white/10 bg-[#2a2037] text-[#f2ecfa]"
-						: "border-foreground/10 bg-popover text-popover-foreground"
-				}`}
+				positionerClassName="z-[80]"
+				aria-label={labels.title}
+				className={`p-3 sm:p-4 max-h-[var(--available-height)] w-[min(28rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-2xl shadow-[0_24px_64px_-16px_rgba(0,0,0,0.65)] ${dark ? "border-white/10 bg-[#2a2037] text-[#f2ecfa]" : "border-foreground/10 bg-popover text-popover-foreground"}`}
 			>
 				<div className="gap-2 flex items-center">
 					<SlidersHorizontalIcon className="size-4 text-[#b79cff]" aria-hidden="true" />
 					<h3 className="text-sm font-semibold">{labels.title}</h3>
 				</div>
-				<fieldset className="mt-4">
-					<legend
-						className={`text-xs font-semibold ${dark ? "text-[#c5b9d2]" : "text-muted-foreground"}`}
-					>
-						{labels.aspectRatio}
-					</legend>
-					<div className="mt-2 gap-2 sm:grid-cols-5 grid grid-cols-3">
+				<fieldset className="mt-4" disabled={disabled}>
+					<legend className={`text-xs font-semibold ${muted}`}>{labels.aspectRatio}</legend>
+					<div className="mt-2 gap-1 sm:grid-cols-6 grid grid-cols-4">
 						{aspectRatios.map((aspectRatio) => {
 							const selected = aspectRatio === value;
+							const [width, height] =
+								aspectRatio === "auto" ? [1, 1] : aspectRatio.split(":").map(Number);
 							return (
 								<label
 									key={aspectRatio}
-									className={`min-h-10 px-2 text-xs font-semibold focus-within:outline-violet-300 flex cursor-pointer items-center justify-center rounded-lg border transition focus-within:outline-2 focus-within:outline-offset-2 ${
-										selected
-											? dark
-												? "text-white border-[#b79cff]/70 bg-[#4b3a70]"
-												: "border-primary/50 bg-primary/10 text-foreground"
-											: dark
-												? "border-white/10 bg-[#1e1729] text-[#c5b9d2] hover:border-[#b79cff]/40"
-												: "border-foreground/10 bg-background text-muted-foreground hover:border-primary/30"
-									}`}
+									className={`${optionStyle(selected)} min-h-14 gap-1 focus-within:outline-violet-300 relative flex cursor-pointer flex-col items-center justify-center focus-within:outline-2`}
 								>
 									<input
 										type="radio"
-										name={groupName}
+										name={`${idPrefix}-${generatedId}-aspect-ratio`}
 										value={aspectRatio}
 										checked={selected}
+										disabled={disabled}
 										className="sr-only"
 										onChange={() => onChange(aspectRatio)}
 									/>
-									{aspectRatio === "auto" ? labels.automatic : aspectRatio}
+									<span className="h-6 grid place-items-center" aria-hidden="true">
+										{aspectRatio === "auto" ? (
+											<ScanIcon className="size-4" />
+										) : (
+											<span
+												className="block rounded-[3px] border-[1.5px] border-current opacity-70"
+												style={{
+													width: Math.min(22, (16 * width!) / height!),
+													height: Math.min(22, (16 * height!) / width!),
+												}}
+											/>
+										)}
+									</span>
+									<span className="text-[0.65rem]">
+										{aspectRatio === "auto" ? labels.automatic : aspectRatio}
+									</span>
 								</label>
 							);
 						})}
 					</div>
 				</fieldset>
-
 				{skuMatrix?.dimensions.map((dimension) => (
 					<fieldset key={dimension.key} className="mt-4">
-						<legend
-							className={`text-xs font-semibold ${dark ? "text-[#c5b9d2]" : "text-muted-foreground"}`}
+						<legend className={`text-xs font-semibold ${muted}`}>{labels[dimension.key]}</legend>
+						<div
+							className={`mt-2 gap-1 p-1 grid auto-cols-fr grid-flow-col rounded-xl ${dark ? "bg-black/10" : "bg-muted/40"}`}
 						>
-							{labels[dimension.key]}
-						</legend>
-						<div className="mt-2 gap-2 grid grid-cols-2">
 							{dimension.options.map((option) => {
+								const nextCell = skuKey
+									? selectImageSkuForDimension(skuMatrix, skuKey, dimension.key, option.key)
+									: null;
 								const selected = selectedCell?.parameterValues[dimension.key] === option.key;
-								const available = skuMatrix.cells.some(
-									(cell) => cell.parameterValues[dimension.key] === option.key,
-								);
 								return (
 									<button
 										key={option.key}
 										type="button"
+										aria-label={labels.optionLabels?.[option.key] ?? option.label}
 										aria-pressed={selected}
-										disabled={disabled || !available || !onSkuChange}
-										className={`min-h-10 px-3 text-xs font-semibold focus-visible:outline-violet-300 rounded-lg border transition focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-45 ${
-											selected
-												? dark
-													? "text-white border-[#b79cff]/70 bg-[#4b3a70]"
-													: "border-primary/50 bg-primary/10 text-foreground"
-												: dark
-													? "border-white/10 bg-[#1e1729] text-[#c5b9d2] hover:border-[#b79cff]/40"
-													: "border-foreground/10 bg-background text-muted-foreground hover:border-primary/30"
-										}`}
+										data-sku-key={nextCell?.skuKey}
+										disabled={disabled || !nextCell || !onSkuChange}
+										className={optionStyle(selected)}
 										onClick={() => {
-											if (!skuKey) return;
-											const next = selectImageSkuForDimension(
-												skuMatrix,
-												skuKey,
-												dimension.key,
-												option.key,
-											);
-											if (next) onSkuChange?.(next.skuKey);
+											if (nextCell) onSkuChange?.(nextCell.skuKey);
 										}}
 									>
-										{labels.optionLabels?.[option.key] ?? option.label}
+										<span className="py-1 block">
+											{labels.optionLabels?.[option.key] ?? option.label}
+										</span>
+										{nextCell && (
+											<span className="pb-1 font-normal block text-[0.6rem] opacity-75">
+												{nextCell.credits} {labels.credits ?? "Credits"}
+											</span>
+										)}
 									</button>
 								);
 							})}
 						</div>
 					</fieldset>
 				))}
-
+				{coupled && labels.coupledHint && (
+					<p className={`mt-3 text-xs leading-5 ${muted}`}>{labels.coupledHint}</p>
+				)}
 				{(selectedCell?.controls ?? []).map((control) => (
 					<fieldset key={control.key} className="mt-4">
-						<legend
-							className={`text-xs font-semibold ${dark ? "text-[#c5b9d2]" : "text-muted-foreground"}`}
+						<legend className={`text-xs font-semibold ${muted}`}>{labels[control.key]}</legend>
+						<div
+							className={`mt-2 gap-1 p-1 grid auto-cols-fr grid-flow-col rounded-xl ${dark ? "bg-black/10" : "bg-muted/40"}`}
 						>
-							{labels[control.key]}
-						</legend>
-						<div className="mt-2 gap-2 grid grid-cols-2">
-							{control.options.map((option) => {
-								const selected = controlValues[control.key] === option.key;
-								return (
-									<button
-										key={option.key}
-										type="button"
-										aria-pressed={selected}
-										disabled={disabled || !onControlChange}
-										className={`min-h-10 px-3 text-xs font-semibold focus-visible:outline-violet-300 rounded-lg border transition focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-45 ${
-											selected
-												? dark
-													? "text-white border-[#b79cff]/70 bg-[#4b3a70]"
-													: "border-primary/50 bg-primary/10 text-foreground"
-												: dark
-													? "border-white/10 bg-[#1e1729] text-[#c5b9d2] hover:border-[#b79cff]/40"
-													: "border-foreground/10 bg-background text-muted-foreground hover:border-primary/30"
-										}`}
-										onClick={() => onControlChange?.(control.key, option.key)}
-									>
-										{labels.optionLabels?.[option.key] ?? option.label}
-									</button>
-								);
-							})}
+							{control.options.map((option) => (
+								<button
+									key={option.key}
+									type="button"
+									aria-pressed={controlValues[control.key] === option.key}
+									disabled={disabled || !onControlChange}
+									className={optionStyle(controlValues[control.key] === option.key)}
+									onClick={() => onControlChange?.(control.key, option.key)}
+								>
+									{labels.optionLabels?.[option.key] ?? option.label}
+								</button>
+							))}
 						</div>
 					</fieldset>
 				))}
-
-				<dl
-					className={`mt-4 gap-2 pt-3 grid grid-cols-3 border-t ${dark ? "border-white/10" : "border-foreground/10"}`}
+				<div
+					className={`mt-4 gap-2 pt-3 text-xs flex flex-wrap items-center justify-between border-t ${dark ? "border-white/10" : "border-foreground/10"}`}
 				>
-					<ReadOnlySetting
-						label={labels.outputNumber}
-						value="1"
-						hint={labels.oneOutput}
-						dark={dark}
-					/>
-					{selectedCell ? (
-						<>
-							<ReadOnlySetting label={modeLabel} value={selectedCell.label} dark={dark} />
-							<ReadOnlySetting
-								label={labels.credits ?? "Credits"}
-								value={String(selectedCell.credits)}
-								dark={dark}
-							/>
-						</>
-					) : (
-						<>
-							<ReadOnlySetting label={labels.resolution} value={labels.automatic} dark={dark} />
-							<ReadOnlySetting
-								label={labels.quality}
-								value={modeLabel}
-								hint={labels.modeControlsQuality}
-								dark={dark}
-							/>
-						</>
-					)}
-				</dl>
+					<span className={`gap-1.5 flex items-center ${muted}`} title={labels.oneOutput}>
+						<ImageIcon className="size-3.5" aria-hidden="true" />
+						{labels.outputNumber}: 1
+					</span>
+					<output
+						aria-live="polite"
+						className="font-semibold"
+						data-test={`${idPrefix}-settings-credits`}
+					>
+						{selectedCell
+							? `${selectedCell.label} · ${selectedCell.credits} ${labels.credits ?? "Credits"}`
+							: modeLabel}
+					</output>
+				</div>
 			</PopoverContent>
 		</Popover>
-	);
-}
-
-function ReadOnlySetting({
-	label,
-	value,
-	hint,
-	dark,
-}: {
-	label: string;
-	value: string;
-	hint?: string;
-	dark: boolean;
-}) {
-	return (
-		<div className={`min-w-0 p-3 rounded-xl ${dark ? "bg-[#1e1729]" : "bg-muted/45"}`}>
-			<dt
-				className={`font-semibold text-[0.68rem] ${dark ? "text-[#978aa5]" : "text-muted-foreground"}`}
-			>
-				{label}
-			</dt>
-			<dd
-				className={`mt-1 sm:text-sm font-semibold leading-4 text-[0.7rem] ${dark ? "text-[#f2ecfa]" : "text-foreground"}`}
-			>
-				{value}
-			</dd>
-			{hint ? (
-				<p
-					className={`mt-1 leading-4 sm:block hidden text-[0.65rem] ${dark ? "text-[#978aa5]" : "text-muted-foreground"}`}
-				>
-					{hint}
-				</p>
-			) : null}
-		</div>
 	);
 }

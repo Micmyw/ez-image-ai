@@ -20,7 +20,7 @@ analysis. Do not invent a local path for documentation owned by another reposito
    synchronized with current code.
 3. Update the nearest `meta.json` `pages` array so Fumadocs navigation exposes a new page. Add a directory `meta.json` for a new section.
 4. Link to symbols and paths that exist in this repository. For provider dashboards or external deployment steps, identify the external system and required handoff without fabricating credentials or repository locations.
-5. Generate/type-check docs:
+5. For MDX structure, component, navigation, or build integration changes, use the relevant generation/type/build checks below. For copy-only edits, verify the changed source and rendered page:
    ```bash
    pnpm --filter saas generate
    pnpm --filter saas type-check

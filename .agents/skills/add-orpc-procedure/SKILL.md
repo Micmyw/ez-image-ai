@@ -19,12 +19,9 @@ Use for typed RPC/OpenAPI application endpoints. Do not add a Next.js route hand
 6. Export the procedure from `packages/api/modules/<module>/router.ts`. For a new module, add its router to `packages/api/orpc/router.ts`.
 7. Consume the typed procedure through `orpc` from `apps/saas/modules/shared/lib/orpc-query-utils.ts` with `useQuery(orpc.<module>.<name>.queryOptions(...))` or `useMutation(orpc.<module>.<name>.mutationOptions(...))`. Do not duplicate a shared Zod schema in the app.
 8. Add a co-located `*.test.ts` using `call` from `@orpc/server` and `{ context: { headers: new Headers() } }`. For protected/admin procedures, mock `auth.api.getSession` so the real middleware creates user/session context; cover validation, auth/tenant checks, success, and mapped `ORPCError` codes.
-9. Run:
+9. Run the affected API tests, then formatting/lint and type checks for the changed workspaces:
    ```bash
-   pnpm --filter @repo/api test
-   pnpm format
-   pnpm lint
-   pnpm type-check
+   pnpm --filter @repo/api test <test-file>
    ```
 
 ## Canonical reference
@@ -33,7 +30,7 @@ Use for typed RPC/OpenAPI application endpoints. Do not add a Next.js route hand
 
 ## Done
 
-The module/root routers expose the procedure, its OpenAPI method/path and Zod input/output agree with runtime values, persistence stays behind `@repo/database`, auth/tenant denial is tested through middleware, and API tests/gates pass.
+The module/root routers expose the procedure, its OpenAPI method/path and Zod input/output agree with runtime values, persistence stays behind `@repo/database`, auth/tenant denial is tested through middleware, and API tests and affected checks pass.
 
 ## Common mistakes
 
