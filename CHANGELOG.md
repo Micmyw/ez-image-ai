@@ -2,6 +2,15 @@
 
 ## 2026-09-15
 
+### Mobile first-visit performance
+
+- Deliver initial styles with the HTML to avoid three blocking stylesheet requests on the
+  homepage. Documentation styles remain scoped to documentation routes.
+- Load account menus, notifications, and the full signed-in editor only when needed. Guest
+  pages keep the lightweight generator; the signed-in editor retains server rendering.
+- Queue analytics visits immediately and load the GA4 and Clarity tags after page load and a
+  paint opportunity. Bound the wait to two seconds without adding consent or interaction gates.
+
 ### Homepage loading
 
 - Reduce initial JavaScript with selective UI imports and load documentation styles only on

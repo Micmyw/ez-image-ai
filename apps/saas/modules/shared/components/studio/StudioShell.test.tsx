@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
+import { renderToReadableStream } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const state = vi.hoisted(() => ({
@@ -15,11 +15,15 @@ vi.mock("next/navigation", () => ({
 	useSearchParams: () => new URLSearchParams(),
 }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
-vi.mock("next/dynamic", () => ({ default: () => () => null }));
+// Next's App Router aliases next/dynamic to this implementation during a build.
+vi.mock("next/dynamic", async () => ({
+	default: (await import("next/dist/shared/lib/app-dynamic")).default,
+}));
 vi.mock("@shared/hooks/use-media-query", () => ({ useIsMobile: () => false }));
 vi.mock("@organizations/components/OrganizationSelect", () => ({ OrganzationSelect: () => null }));
 vi.mock("../UserMenu", () => ({ UserMenu: () => <button>Account menu</button> }));
 vi.mock("../NotificationCenter", () => ({ NotificationCenter: () => null }));
+vi.mock("../NavBar", () => ({ NavBar: () => <nav>Account navigation</nav> }));
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@tanstack/react-query")>()),
 	useQuery: () => ({ data: null }),
@@ -27,14 +31,17 @@ vi.mock("@tanstack/react-query", async (importOriginal) => ({
 vi.mock("@shared/lib/orpc-client", () => ({ orpcClient: {} }));
 vi.mock("@repo/ui/components/logo", () => ({ Logo: () => <span>EzPic</span> }));
 
+import { AppWrapper } from "../AppWrapper";
 import { StudioShell } from "./StudioShell";
 
-const renderShell = () =>
-	renderToStaticMarkup(
+const renderShell = async () => {
+	const stream = await renderToReadableStream(
 		<StudioShell>
 			<main>Editor and inspiration</main>
 		</StudioShell>,
 	);
+	return new Response(stream).text();
+};
 
 describe("homepage and signed-in tool navigation", () => {
 	beforeEach(() => {
@@ -42,8 +49,8 @@ describe("homepage and signed-in tool navigation", () => {
 		state.user = null;
 	});
 
-	it("renders the visitor homepage without a tool sidebar or drawer toggle", () => {
-		const markup = renderShell();
+	it("renders the visitor homepage without a tool sidebar or drawer toggle", async () => {
+		const markup = await renderShell();
 		expect(markup).not.toContain('class="studio-sidebar"');
 		expect(markup).not.toContain('aria-label="openNavigation"');
 		expect(markup).toContain('data-workspace="false"');
@@ -51,30 +58,41 @@ describe("homepage and signed-in tool navigation", () => {
 		expect(markup).toContain('href="/login"');
 	});
 
-	it("keeps the signed-in homepage without a sidebar and exposes the create entry", () => {
+	it("keeps the signed-in homepage without a sidebar and exposes the create entry", async () => {
 		state.user = { id: "owner" };
-		const markup = renderShell();
+		const markup = await renderShell();
 		expect(markup).not.toContain('class="studio-sidebar"');
 		expect(markup).toContain('href="/create"');
 		expect(markup).toContain("Account menu");
 	});
 
-	it("shows the tool sidebar on the registered create page and links the logo home", () => {
+	it("shows the tool sidebar on the registered create page and links the logo home", async () => {
 		state.pathname = "/create";
 		state.user = { id: "owner" };
-		const markup = renderShell();
+		const markup = await renderShell();
 		expect(markup).toContain('class="studio-sidebar"');
 		expect(markup).toContain('data-workspace="true"');
 		expect(markup).toContain('aria-label="EzPic" href="/"');
 		expect(markup).toContain('href="/history"');
 	});
+	it("server-renders account navigation through the shared error-page wrapper", async () => {
+		state.pathname = "/admin/users";
+		const stream = await renderToReadableStream(
+			<AppWrapper>
+				<main>Account content</main>
+			</AppWrapper>,
+		);
+		const markup = await new Response(stream).text();
+		expect(markup).toContain("Account navigation");
+		expect(markup).toContain("Account content");
+	});
 
 	it.each([null, { id: "guest", isAnonymous: true }])(
 		"opens the same tool sidebar for a visitor without account controls (%j)",
-		(user) => {
+		async (user) => {
 			state.pathname = "/create";
 			state.user = user;
-			const markup = renderShell();
+			const markup = await renderShell();
 			expect(markup).toContain('class="studio-sidebar"');
 			expect(markup).toContain('href="/login');
 			expect(markup).not.toContain("Account menu");

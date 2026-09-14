@@ -311,7 +311,38 @@ for (const width of [1440, 390]) {
 	});
 }
 
-test("the production homepage excludes charts and documentation styles", async ({
+test("account controls load when the browser receives a signed-in session", async ({ page }) => {
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.route("**/api/auth/get-session**", (route) =>
+		route.fulfill({
+			contentType: "application/json",
+			body: JSON.stringify({
+				user: {
+					id: "mobile-ui-owner",
+					name: "Mobile UI test",
+					email: "mobile-ui@example.test",
+					emailVerified: true,
+					isAnonymous: false,
+				},
+				session: { id: "mobile-ui-session", userId: "mobile-ui-owner" },
+			}),
+		}),
+	);
+	await page.route("**/api/rpc/notifications/unreadCount**", (route) =>
+		route.fulfill({
+			contentType: "application/json",
+			body: JSON.stringify({ json: { count: 0 } }),
+		}),
+	);
+	await page.goto("/");
+	await page.getByRole("button", { name: "User menu", exact: true }).click();
+	await expect(page.getByRole("menu")).toContainText("mobile-ui@example.test");
+	await expect(page.getByRole("menuitem", { name: "Account settings", exact: true })).toBeVisible();
+	await page.keyboard.press("Escape");
+	await expect(page.getByRole("button", { name: "User menu", exact: true })).toBeFocused();
+});
+
+test("the production homepage excludes account tools, charts, and documentation styles", async ({
 	page,
 	request,
 }, testInfo) => {
@@ -331,6 +362,9 @@ test("the production homepage excludes charts and documentation styles", async (
 			styles: [...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')].map(
 				(link) => link.href,
 			),
+			inlineStyles: [...document.querySelectorAll("style[data-href]")].map(
+				(style) => style.textContent ?? "",
+			),
 		};
 	});
 	const readResources = (urls: string[]) =>
@@ -342,7 +376,17 @@ test("the production homepage excludes charts and documentation styles", async (
 			}),
 		);
 	const scripts = await readResources(resources.scripts);
-	const styles = await readResources(resources.styles);
+	const styles = [...(await readResources(resources.styles)), ...resources.inlineStyles];
+	expect(resources.styles, "First visits must not wait for separate stylesheets").toHaveLength(0);
+	expect(resources.inlineStyles.length, "Next must inline the initial styles").toBeGreaterThan(0);
+	for (const marker of ["current-editor-result", "notifications.markAllRead"]) {
+		expect
+			.soft(
+				scripts.some((source) => source.includes(marker)),
+				`Visitors must not download signed-in tools (${marker})`,
+			)
+			.toBe(false);
+	}
 	expect(
 		scripts.some((source) => source.includes("recharts")),
 		"Homepage must not load the chart library",
@@ -362,7 +406,8 @@ test("the production homepage excludes charts and documentation styles", async (
 		firstPartyScripts: scripts.length,
 		javascriptBytes: scripts.reduce((total, source) => total + Buffer.byteLength(source), 0),
 		javascriptGzipBytes: scripts.reduce((total, source) => total + gzipSync(source).length, 0),
-		stylesheets: styles.length,
+		stylesheets: resources.styles.length,
+		inlineStylesheets: resources.inlineStyles.length,
 		cssBytes: styles.reduce((total, source) => total + Buffer.byteLength(source), 0),
 		cssGzipBytes: styles.reduce((total, source) => total + gzipSync(source).length, 0),
 	};

@@ -1,5 +1,14 @@
 export const publicChangelogEntries = [
 	{
+		date: "2026-09-15",
+		title: "Lighter homepage on mobile",
+		changes: [
+			"Deliver page styles with the homepage to show its content sooner on slower connections.",
+			"Reduced the code downloaded for a first visit while keeping the image generator ready to use.",
+			"Load account tools when signed in, with the full editor and account navigation still available.",
+		],
+	},
+	{
 		date: "2026-08-31",
 		title: "Unified public image editor",
 		changes: [

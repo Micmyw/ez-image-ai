@@ -1,6 +1,7 @@
 # Website analytics
 
-Last checked: September 11, 2026.
+Browser loading behavior updated: September 15, 2026. Vendor verification below retains its
+original dates and scope.
 
 ## Configuration
 
@@ -32,6 +33,11 @@ of configuring analytics.
 - GA4 and Clarity load automatically once per document when their IDs are configured. They do
   not read the consent cookie or wait for the banner. The app does not send synthetic consent
   grants to either vendor; vendor-side settings and behavior still apply.
+- Startup installs the GA4 page-view queue and navigation tracking immediately. Vendor script
+  downloads wait for page load, a paint opportunity, and browser idle time, with a two-second
+  fallback from initialization. An early page exit attempts startup too. Public visits queued
+  during the wait keep their sanitized URLs; an exit before a vendor loads cannot guarantee
+  delivery, and Clarity replay starts when its tag loads.
 - GA4 tracks public page views, including public SPA navigation, using URLs with query strings
   and fragments removed. Referrers are reduced to origins, titles use the static product name,
   advertising signals are disabled, and the Google disable flag is set on private routes.

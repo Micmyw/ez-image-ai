@@ -2,7 +2,6 @@
 
 import { SessionProvider } from "@auth/components/SessionProvider";
 import { useSession } from "@auth/hooks/use-session";
-import { OrganzationSelect } from "@organizations/components/OrganizationSelect";
 import { config as authConfig } from "@repo/auth/config";
 import { Button } from "@repo/ui/components/button";
 import { Logo } from "@repo/ui/components/logo";
@@ -26,8 +25,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type MouseEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
-import { NotificationCenter } from "../NotificationCenter";
-import { UserMenu } from "../UserMenu";
 import { StudioContext, studioPanelForPath, type StudioPanel } from "./studio-context";
 import { StudioPanelBoundary } from "./StudioPanelBoundary";
 import { StudioToolNavigation } from "./StudioToolNavigation";
@@ -35,6 +32,13 @@ import { StudioToolNavigation } from "./StudioToolNavigation";
 import "./studio.css";
 
 const StudioPanels = dynamic(() => import("./StudioPanels").then((module) => module.StudioPanels));
+const OrganzationSelect = dynamic(() =>
+	import("@organizations/components/OrganizationSelect").then((module) => module.OrganzationSelect),
+);
+const NotificationCenter = dynamic(() =>
+	import("../NotificationCenter").then((module) => module.NotificationCenter),
+);
+const UserMenu = dynamic(() => import("../UserMenu").then((module) => module.UserMenu));
 
 export function StudioShell({ children }: { children: ReactNode }) {
 	return (

@@ -7,6 +7,11 @@ function harness(initialUrl = "https://ezimageai.com/", cookie = "") {
 	const scripts: Array<{ src: string }> = [];
 	const gtag = vi.fn();
 	const clarity = vi.fn();
+	const events = new EventTarget();
+	const frames = new Map<number, FrameRequestCallback>();
+	const idleCallbacks = new Map<number, IdleRequestCallback>();
+	const timers = new Map<number, () => void>();
+	let callbackId = 0;
 	const move = (_data: unknown, _title: string, destination?: string | URL | null) => {
 		if (destination != null) url = new URL(destination, url);
 	};
@@ -15,6 +20,7 @@ function harness(initialUrl = "https://ezimageai.com/", cookie = "") {
 			return url;
 		},
 		document: {
+			readyState: "loading",
 			cookie,
 			referrer: "https://www.google.com/",
 			createElement: () => ({ src: "" }),
@@ -23,7 +29,50 @@ function harness(initialUrl = "https://ezimageai.com/", cookie = "") {
 		history: { pushState: move, replaceState: move },
 		gtag,
 		clarity,
-		addEventListener: vi.fn(),
+		addEventListener: vi.fn(events.addEventListener.bind(events)),
+		removeEventListener: events.removeEventListener.bind(events),
+		requestAnimationFrame: (callback: FrameRequestCallback) => {
+			frames.set(++callbackId, callback);
+			return callbackId;
+		},
+		cancelAnimationFrame: (id: number) => frames.delete(id),
+		requestIdleCallback: (callback: IdleRequestCallback) => {
+			idleCallbacks.set(++callbackId, callback);
+			return callbackId;
+		},
+		cancelIdleCallback: (id: number) => idleCallbacks.delete(id),
+		setTimeout: (callback: () => void) => {
+			timers.set(++callbackId, callback);
+			return callbackId;
+		},
+		clearTimeout: (id: number) => timers.delete(id),
+	};
+	const paint = () => {
+		for (const [id, callback] of [...frames]) {
+			frames.delete(id);
+			callback(16);
+		}
+	};
+	const idle = () => {
+		for (const [id, callback] of [...idleCallbacks]) {
+			idleCallbacks.delete(id);
+			callback({ didTimeout: false, timeRemaining: () => 10 });
+		}
+	};
+	const loaded = () => {
+		browser.document.readyState = "complete";
+		events.dispatchEvent(new Event("load"));
+	};
+	const finishLoading = () => {
+		loaded();
+		paint();
+		idle();
+	};
+	const runTimers = () => {
+		for (const [id, callback] of [...timers]) {
+			timers.delete(id);
+			callback();
+		}
 	};
 	const start = () =>
 		startSiteAnalytics({
@@ -31,15 +80,88 @@ function harness(initialUrl = "https://ezimageai.com/", cookie = "") {
 			googleAnalyticsId: "G-TEST123456",
 			clarityProjectId: "testproject1",
 		});
-	return { browser, scripts, gtag, clarity, start };
+	return {
+		browser,
+		scripts,
+		gtag,
+		clarity,
+		start,
+		loaded,
+		paint,
+		idle,
+		finishLoading,
+		runTimers,
+		events,
+	};
 }
 
 describe("automatic website analytics", () => {
+	it("queues the initial visit immediately and loads vendors after load, paint, and idle", () => {
+		const app = harness("https://ezimageai.com/?token=private-token");
+		app.start();
+		expect(app.scripts).toHaveLength(0);
+		expect(app.gtag).toHaveBeenCalledWith(
+			"event",
+			"page_view",
+			expect.objectContaining({
+				page_location: "https://ezimageai.com/",
+			}),
+		);
+		app.browser.history.pushState({}, "", "/pricing");
+		expect(app.gtag.mock.calls.filter(([command]) => command === "event")).toHaveLength(2);
+		app.loaded();
+		expect(app.scripts).toHaveLength(0);
+		app.paint();
+		expect(app.scripts).toHaveLength(0);
+		app.idle();
+		expect(app.scripts).toHaveLength(2);
+		expect(JSON.stringify(app.gtag.mock.calls)).not.toContain("private-token");
+	});
+	it("loads after paint when hydration starts on an already loaded page", () => {
+		const app = harness();
+		app.loaded();
+		app.start();
+		expect(app.scripts).toHaveLength(0);
+		app.paint();
+		app.idle();
+		expect(app.scripts).toHaveLength(2);
+	});
+	it("uses a timer when idle callbacks are unavailable", () => {
+		const app = harness();
+		Reflect.deleteProperty(app.browser, "requestIdleCallback");
+		app.start();
+		app.loaded();
+		app.paint();
+		expect(app.scripts).toHaveLength(0);
+		app.runTimers();
+		expect(app.scripts).toHaveLength(2);
+	});
+	it("bounds the wait when load or animation frames stall", () => {
+		const app = harness();
+		app.start();
+		expect(app.scripts).toHaveLength(0);
+		app.runTimers();
+		expect(app.scripts).toHaveLength(2);
+		app.finishLoading();
+		app.start();
+		expect(app.scripts).toHaveLength(2);
+	});
+	it("attempts startup before an early page exit without loading twice", () => {
+		const app = harness();
+		app.start();
+		expect(app.scripts).toHaveLength(0);
+		app.events.dispatchEvent(new Event("pagehide"));
+		expect(app.scripts).toHaveLength(2);
+		app.finishLoading();
+		app.runTimers();
+		expect(app.scripts).toHaveLength(2);
+	});
 	it.each(["", "consent=false", "consent=true"])(
 		"loads both services without waiting for consent (%s)",
 		(cookie) => {
 			const app = harness("https://ezimageai.com/", cookie);
 			app.start();
+			app.finishLoading();
 			expect(app.scripts.map(({ src }) => src)).toEqual([
 				"https://www.googletagmanager.com/gtag/js?id=G-TEST123456",
 				"https://www.clarity.ms/tag/testproject1",
@@ -58,6 +180,7 @@ describe("automatic website analytics", () => {
 		const app = harness(`https://ezimageai.com${pathname}`, "consent=false");
 		app.browser.document.referrer = "https://ezimageai.com/login?token=test";
 		app.start();
+		app.finishLoading();
 		expect(app.scripts.map(({ src }) => src)).toContain("https://www.clarity.ms/tag/testproject1");
 	});
 	it("keeps replay running across page navigation, including private routes", () => {
@@ -65,6 +188,7 @@ describe("automatic website analytics", () => {
 		app.start();
 		app.browser.history.pushState({}, "", "/history/private-job?token=test");
 		app.browser.history.replaceState({}, "", "/pricing");
+		app.finishLoading();
 		expect(app.clarity).not.toHaveBeenCalledWith("stop");
 		expect(app.browser.addEventListener.mock.calls.map(([name]) => name)).not.toContain("click");
 		expect(app.browser.addEventListener.mock.calls.map(([name]) => name)).not.toContain("submit");
@@ -93,6 +217,7 @@ describe("automatic website analytics", () => {
 		app.browser.history.replaceState({}, "", "/");
 		app.browser.history.pushState({}, "", "/pricing");
 		app.browser.history.replaceState({}, "", "/pricing");
+		app.finishLoading();
 		expect(app.scripts).toHaveLength(2);
 		expect(app.gtag.mock.calls.filter(([command]) => command === "event")).toHaveLength(2);
 	});

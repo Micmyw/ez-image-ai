@@ -55,6 +55,8 @@ const nextConfig: NextConfig = {
 	transpilePackages: ["@repo/api", "@repo/auth", "@repo/database", "@repo/logs", "@repo/ui"],
 	experimental: {
 		optimizePackageImports: ["@repo/ui"],
+		// Avoid blocking stylesheet round trips on first visits over mobile networks.
+		inlineCss: true,
 	},
 	...(isWorkersBuild
 		? { serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pg"] }

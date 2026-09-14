@@ -1,12 +1,16 @@
 "use client";
 
 import { cn } from "@repo/ui";
+import dynamic from "next/dynamic";
 import { usePathname } from "next/navigation";
 import type { PropsWithChildren } from "react";
 
 import { SidebarProvider, useSidebar } from "../lib/sidebar-context";
-import { NavBar } from "./NavBar";
 import { StudioShell } from "./studio/StudioShell";
+
+// This wrapper is referenced by the authenticated 404 boundary, which Next also
+// registers on public routes. Only load its account navigation when rendered.
+const NavBar = dynamic(() => import("./NavBar").then((module) => module.NavBar));
 
 function AppContent({ children }: PropsWithChildren) {
 	const { isCollapsed } = useSidebar();

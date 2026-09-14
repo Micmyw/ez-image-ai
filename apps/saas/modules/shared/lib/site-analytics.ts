@@ -38,6 +38,45 @@ function referrerOrigin(referrer: string): string {
 	}
 }
 
+function scheduleTagLoading(browser: Window, load: () => void): void {
+	let started = false;
+	let scheduled = false;
+	let frame: number | undefined;
+	let idle: number | undefined;
+	let timer: number | undefined;
+	const start = () => {
+		if (started) return;
+		started = true;
+		browser.clearTimeout(deadline);
+		if (frame !== undefined) browser.cancelAnimationFrame(frame);
+		if (idle !== undefined) browser.cancelIdleCallback(idle);
+		if (timer !== undefined) browser.clearTimeout(timer);
+		browser.removeEventListener("load", afterLoad);
+		browser.removeEventListener("pagehide", start);
+		load();
+	};
+	const afterLoad = () => {
+		if (started || scheduled) return;
+		scheduled = true;
+		// rAF runs before paint. Idle work (or a following task) gives the page a
+		// chance to paint before either vendor starts downloading and executing.
+		frame = browser.requestAnimationFrame(() => {
+			frame = undefined;
+			if (typeof browser.requestIdleCallback === "function") {
+				idle = browser.requestIdleCallback(start, { timeout: 1000 });
+			} else {
+				timer = browser.setTimeout(start, 0);
+			}
+		});
+	};
+	// A slow resource or a background tab must not postpone automatic analytics
+	// indefinitely. An early page exit also attempts startup with the queued visit.
+	const deadline = browser.setTimeout(start, 2000);
+	browser.addEventListener("pagehide", start, { once: true });
+	if (browser.document.readyState === "complete") afterLoad();
+	else browser.addEventListener("load", afterLoad, { once: true });
+}
+
 export function startSiteAnalytics(options: SiteAnalyticsOptions): void {
 	const browser = options.browser as AnalyticsWindow;
 	if (initializedDocuments.has(browser)) return;
@@ -50,6 +89,7 @@ export function startSiteAnalytics(options: SiteAnalyticsOptions): void {
 		: undefined;
 	if (!gaId && !clarityId) return;
 	initializedDocuments.add(browser);
+	const scriptSources: string[] = [];
 	const appendScript = (src: string) => {
 		const script = document.createElement("script");
 		script.async = true;
@@ -99,7 +139,7 @@ export function startSiteAnalytics(options: SiteAnalyticsOptions): void {
 			allow_google_signals: false,
 			allow_ad_personalization_signals: false,
 		});
-		appendScript(`https://www.googletagmanager.com/gtag/js?id=${gaId}`);
+		scriptSources.push(`https://www.googletagmanager.com/gtag/js?id=${gaId}`);
 		// GA retains its existing public-page scope; Clarity owns its normal SPA lifecycle.
 		const history = browser.history;
 		const wrapHistory = (original: History["pushState"]): History["pushState"] =>
@@ -118,7 +158,10 @@ export function startSiteAnalytics(options: SiteAnalyticsOptions): void {
 		browser.clarity ??= (...args: unknown[]) => {
 			(browser.clarity!.q ??= []).push(args);
 		};
-		appendScript(`https://www.clarity.ms/tag/${clarityId}`);
+		scriptSources.push(`https://www.clarity.ms/tag/${clarityId}`);
 	}
+	// Install queues and navigation tracking now, then load the vendors after the
+	// initial rendering work. Public visits during this wait retain their own URL.
+	scheduleTagLoading(browser, () => scriptSources.forEach(appendScript));
 	// Tags live for the document lifetime, so React remounts must not reload or stop them.
 }
