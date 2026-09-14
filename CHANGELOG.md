@@ -13,6 +13,13 @@
   through the site's Content Security Policy.
 - Preserve documentation typography and let its article use the full available width on mobile.
 
+### Model artwork presentation
+
+- Display related-model cover images at their original proportions, including on small screens,
+  and keep the full image visible when hovering over a card.
+- Frame each model's main artwork and caption together, with balanced spacing beside the creative
+  guidance and no empty bars beside portrait images.
+
 ### Faster model artwork delivery
 
 - Serve the twenty-five model artworks in pre-generated responsive sizes on the homepage,

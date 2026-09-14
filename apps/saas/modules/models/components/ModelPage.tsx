@@ -72,7 +72,10 @@ export async function ModelPage({
 				<section className="model-story" aria-labelledby="model-story-title">
 					<figure className="model-artwork">
 						<ModelArtwork artwork={model.artwork} sizes="(max-width: 760px) 100vw, 45vw" />
-						<figcaption>Creative inspiration · Original EzPic concept artwork</figcaption>
+						<figcaption>
+							<span className="model-artwork-label">Creative inspiration</span>
+							<span>Original EzPic concept artwork</span>
+						</figcaption>
 					</figure>
 					<div className="model-story-copy">
 						<p className="model-eyebrow">Explore the possibilities</p>
