@@ -7,7 +7,6 @@ import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
 import { MainAccountBoundary } from "@shared/components/MainAccountBoundary";
 import { RegisteredWorkspaceBoundary } from "@shared/components/RegisteredWorkspaceBoundary";
 import { StudioShell } from "@shared/components/studio/StudioShell";
-import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -15,6 +14,7 @@ import { LandingGenerator } from "../../landing/components/LandingGenerator";
 import { PublicFooterLinks } from "../../public-content/components/PublicFooterLinks";
 import { INSPIRATION, MODEL_PAGES, modelPath, type ModelPageContent } from "../lib/model-pages";
 import { InspirationPrompt } from "./InspirationPrompt";
+import { ModelArtwork } from "./ModelArtwork";
 
 import "../models.css";
 
@@ -27,9 +27,8 @@ export async function ModelPage({
 }) {
 	const session = await getSession();
 	const registered = session && !isAnonymousUser(session.user);
-	const art = INSPIRATION[model.artwork];
 	const example = INSPIRATION[model.exampleArtwork];
-	const before = model.beforeArtwork ? INSPIRATION[model.beforeArtwork] : undefined;
+	const before = model.beforeArtwork;
 	const related = [
 		...MODEL_PAGES.filter((candidate) => candidate.family === model.family),
 		...MODEL_PAGES.filter((candidate) => candidate.family !== model.family),
@@ -72,13 +71,7 @@ export async function ModelPage({
 				</section>
 				<section className="model-story" aria-labelledby="model-story-title">
 					<figure className="model-artwork">
-						<Image
-							src={`/images/models/${model.artwork}.webp`}
-							alt={art.alt}
-							width={art.width}
-							height={art.height}
-							sizes="(max-width: 760px) 100vw, 45vw"
-						/>
+						<ModelArtwork artwork={model.artwork} sizes="(max-width: 760px) 100vw, 45vw" />
 						<figcaption>Creative inspiration · Original EzPic concept artwork</figcaption>
 					</figure>
 					<div className="model-story-copy">
@@ -99,13 +92,7 @@ export async function ModelPage({
 					<div className="model-example-media">
 						{before && (
 							<figure>
-								<Image
-									src={`/images/models/${model.beforeArtwork}.webp`}
-									alt={before.alt}
-									width={before.width}
-									height={before.height}
-									sizes="(max-width: 760px) 90vw, 42vw"
-								/>
+								<ModelArtwork artwork={before} sizes="(max-width: 760px) 90vw, 42vw" />
 								<figcaption>
 									<span>Line art</span>
 									<a href={`/images/models/${model.beforeArtwork}.webp`} download>
@@ -115,13 +102,7 @@ export async function ModelPage({
 							</figure>
 						)}
 						<figure>
-							<Image
-								src={`/images/models/${model.exampleArtwork}.webp`}
-								alt={example.alt}
-								width={example.width}
-								height={example.height}
-								sizes="(max-width: 760px) 90vw, 42vw"
-							/>
+							<ModelArtwork artwork={model.exampleArtwork} sizes="(max-width: 760px) 90vw, 42vw" />
 							<figcaption>{before ? "Color study" : "Original EzPic concept"}</figcaption>
 						</figure>
 					</div>
@@ -199,12 +180,9 @@ export async function ModelPage({
 								key={candidate.key}
 								href={modelPath(candidate.key)}
 							>
-								<Image
-									src={`/images/models/${candidate.artwork}.webp`}
-									alt={INSPIRATION[candidate.artwork].alt}
-									width={INSPIRATION[candidate.artwork].width}
-									height={INSPIRATION[candidate.artwork].height}
-									sizes="(max-width: 760px) 90vw, 28vw"
+								<ModelArtwork
+									artwork={candidate.artwork}
+									sizes="(max-width: 760px) 110px, (max-width: 1500px) 28vw, 455px"
 								/>
 								<div>
 									<span>{candidate.family}</span>

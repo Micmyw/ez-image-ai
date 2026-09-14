@@ -2,6 +2,16 @@
 	"createdAt": "2026-09-14",
 	"generator": "OpenAI image generation tool in Codex",
 	"usage": "Original creative inspiration for model pages. These assets are not verified outputs or benchmarks of the named models.",
+	"delivery": {
+		"strategy": "Pre-generated WebP srcset served directly through Cloudflare Workers Static Assets, without runtime image transformations.",
+		"generateCommand": "pnpm --filter saas artwork:generate",
+		"manifest": "apps/saas/modules/models/lib/model-artwork-variants.json",
+		"publicDirectory": "apps/saas/public/images/models/variants",
+		"candidateWidths": [320, 480, 640, 960, 1280],
+		"fullSize": "Includes the original width and original bytes. Smaller variants preserve proportions without cropping or enlargement.",
+		"cache": "Content hashes in filenames allow one-year immutable caching through apps/saas/public/_headers.",
+		"maintenance": "After changing an original or its dimensions, update this manifest, run the generation command, and commit the generated manifest and assets. Retain old variants so cached pages keep working."
+	},
 	"references": [
 		"https://raphael.app/",
 		"https://raphael.app/gpt-image-2-5",

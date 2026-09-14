@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-09-15
+
+### Faster model artwork delivery
+
+- Serve the twenty-five model artworks in pre-generated responsive sizes on the homepage,
+  model directory, individual model pages, and related cards. Browsers select a static WebP
+  file without calling the runtime image optimizer.
+- Cache content-versioned artwork files for one year. New image content receives a new URL,
+  while original image dimensions and downloadable reference artwork are preserved.
+
 ## 2026-09-14
 
 ### Distinct model artwork

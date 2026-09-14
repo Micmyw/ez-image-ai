@@ -1,8 +1,8 @@
 import { StudioShell } from "@shared/components/studio/StudioShell";
-import Image from "next/image";
 import Link from "next/link";
 
-import { INSPIRATION, MODEL_PAGES, modelPath } from "../../../modules/models/lib/model-pages";
+import { ModelArtwork } from "../../../modules/models/components/ModelArtwork";
+import { MODEL_PAGES, modelPath } from "../../../modules/models/lib/model-pages";
 import { PublicFooterLinks } from "../../../modules/public-content/components/PublicFooterLinks";
 import { createPublicPageMetadata } from "../../../modules/public-content/lib/metadata";
 
@@ -59,12 +59,9 @@ export default function ModelsPage() {
 							{MODEL_PAGES.filter((model) => model.family === family).map((model) => (
 								<Link href={modelPath(model.key)} className="model-directory-card" key={model.key}>
 									<div className="model-directory-image">
-										<Image
-											src={`/images/models/${model.artwork}.webp`}
-											alt={INSPIRATION[model.artwork].alt}
-											width={1024}
-											height={1536}
-											sizes="(max-width: 640px) 90vw, (max-width: 1100px) 45vw, 22vw"
+										<ModelArtwork
+											artwork={model.artwork}
+											sizes="(max-width: 380px) calc(100vw - 28px), (max-width: 760px) calc((100vw - 54px) / 2), (max-width: 1100px) calc((100vw - 78px) / 2), (max-width: 1500px) calc((100vw - 150px) / 4), 338px"
 										/>
 									</div>
 									<div className="model-directory-card-copy">

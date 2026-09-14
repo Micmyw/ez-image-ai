@@ -1,7 +1,7 @@
-import Image from "next/image";
 import Link from "next/link";
 
-import { INSPIRATION, MODEL_PAGES, modelPath } from "../lib/model-pages";
+import { MODEL_PAGES, modelPath } from "../lib/model-pages";
+import { ModelArtwork } from "./ModelArtwork";
 
 const featured = ["image-gpt-image-2", "image-nano-banana-pro", "image-seedream-5-lite"];
 
@@ -41,11 +41,8 @@ export function ExploreModels() {
 							className="group min-w-0 focus-visible:outline-violet-300 block rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4"
 						>
 							<div className="bg-white/5 overflow-hidden rounded-xl">
-								<Image
-									src={`/images/models/${model.artwork}.webp`}
-									alt={INSPIRATION[model.artwork].alt}
-									width={1024}
-									height={1536}
+								<ModelArtwork
+									artwork={model.artwork}
 									sizes="(max-width: 768px) 90vw, 30vw"
 									className="aspect-[4/3] w-full object-cover transition-transform duration-300 group-hover:scale-[1.025] motion-reduce:transition-none"
 								/>
