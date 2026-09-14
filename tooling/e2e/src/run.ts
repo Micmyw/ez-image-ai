@@ -1,8 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 
-import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
-
 import { assertLocalMediaE2E } from "./guard";
 
 const workspaceRoot = process.cwd().replace(/[\\/]tooling[\\/]e2e$/, "");
@@ -47,7 +45,6 @@ const environment = {
 	MEDIA_PROVIDER_ADAPTER: "mock",
 	MEDIA_ENABLED_PROVIDERS: "kie",
 	MEDIA_RECOVERY_PROVIDERS: "",
-	MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: DEFAULT_PRODUCT_CONFIG.catalogVersion,
 	MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: undefined,
 	OPENROUTER_API_KEY: undefined,
 	MEDIA_SAFETY_ADAPTER: "test",

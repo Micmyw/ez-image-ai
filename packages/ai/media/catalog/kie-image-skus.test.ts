@@ -306,7 +306,6 @@ describe("Kie image SKU catalog", () => {
 		const products = getPublicProductCatalog({
 			enabledProviders: new Set(["kie"]),
 			generationEnabled: true,
-			kieImageCertifiedCatalogVersions: new Set(["2026-09-14.1"]),
 		} as never).products;
 
 		expect(
@@ -434,7 +433,6 @@ describe("Kie image SKU catalog", () => {
 		const products = getPublicProductCatalog({
 			enabledProviders: new Set(["kie"]),
 			generationEnabled: true,
-			kieImageCertifiedCatalogVersions: new Set(["2026-09-14.1"]),
 		} as never).products;
 		const controlsBySku = Object.fromEntries(
 			products.flatMap((product) =>
@@ -553,7 +551,6 @@ describe("Kie image SKU catalog", () => {
 		const publicCatalog = getPublicProductCatalog({
 			enabledProviders: new Set(["kie"]),
 			generationEnabled: true,
-			kieImageCertifiedCatalogVersions: new Set(["2026-09-14.1"]),
 		} as never);
 		const serialized = JSON.stringify(publicCatalog);
 

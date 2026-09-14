@@ -1,6 +1,5 @@
 import { spawnSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
@@ -19,10 +18,6 @@ const prepared = path.join(root, ".wrangler/deploy/production/workers");
 const command = process.argv[2];
 const target = process.argv[3];
 if (target !== "website" && target !== "jobs") throw new Error("EXPECTED_WEBSITE_OR_JOBS_TARGET");
-// @repo/config is a CommonJS workspace package; the CLI runs as native ESM under tsx.
-const { DEFAULT_PRODUCT_CONFIG } = createRequire(import.meta.url)(
-	"@repo/config",
-) as typeof import("@repo/config");
 
 function parseEnvironment(source: string): Record<string, string> {
 	return Object.fromEntries(
@@ -51,7 +46,7 @@ if (command === "build") {
 	const source = readCloudflareBuildEnvironment(process.env);
 	const input = parseEnvironment(source);
 	const environment = deploymentEnvironment(input, "https://ezimageai.com");
-	assertAutomaticReleaseEnvironment(environment, DEFAULT_PRODUCT_CONFIG.catalogVersion);
+	assertAutomaticReleaseEnvironment(environment);
 	migrationDatabaseUrl(input, root);
 	const sha = releaseSha();
 	await mkdir(path.dirname(inputFile), { recursive: true });
@@ -109,7 +104,7 @@ if (command === "build") {
 	const sha = releaseSha();
 	const environment = await readEnvironment();
 	if (environment.DEPLOYMENT_VERSION !== sha) throw new Error("BUILD_COMMIT_MISMATCH");
-	assertAutomaticReleaseEnvironment(environment, DEFAULT_PRODUCT_CONFIG.catalogVersion);
+	assertAutomaticReleaseEnvironment(environment);
 	const configName = target === "website" ? "website" : "workflows";
 	const configPath = path.join(prepared, `${configName}.json`);
 	const config = JSON.parse(await readFile(configPath, "utf8"));

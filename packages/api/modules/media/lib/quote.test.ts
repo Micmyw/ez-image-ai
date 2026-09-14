@@ -1,5 +1,5 @@
 import { getCatalogEntry } from "@repo/ai";
-import { DEFAULT_PRODUCT_CONFIG, type ProductModelKey } from "@repo/config";
+import type { ProductModelKey } from "@repo/config";
 import { describe, expect, it } from "vitest";
 
 import officialContracts from "../../../../ai/media/providers/fixtures/kie-official-image-contracts-2026-09-14.json";
@@ -19,7 +19,6 @@ const NANO_QUOTE_INPUT = {
 const KIE_ROUTE_OPTIONS = {
 	enabledProviders: new Set(["kie" as const]),
 	generationEnabled: true,
-	kieImageCertifiedCatalogVersions: new Set([DEFAULT_PRODUCT_CONFIG.catalogVersion]),
 };
 
 describe("buildMediaQuote", () => {
@@ -76,9 +75,7 @@ describe("buildMediaQuote", () => {
 
 	it("locks the quote to the routes enabled by the shared API configuration", () => {
 		const previous = process.env.MEDIA_ENABLED_PROVIDERS;
-		const previousCertification = process.env.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS;
 		process.env.MEDIA_ENABLED_PROVIDERS = "kie";
-		process.env.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS = DEFAULT_PRODUCT_CONFIG.catalogVersion;
 		try {
 			const quote = buildMediaQuote(NANO_QUOTE_INPUT);
 
@@ -99,27 +96,19 @@ describe("buildMediaQuote", () => {
 		} finally {
 			if (previous === undefined) delete process.env.MEDIA_ENABLED_PROVIDERS;
 			else process.env.MEDIA_ENABLED_PROVIDERS = previous;
-			if (previousCertification === undefined)
-				delete process.env.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS;
-			else process.env.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS = previousCertification;
 		}
 	});
 
 	it("quotes a configured provider without requiring the API process to hold its worker credential", () => {
 		const previousEnabledProviders = process.env.MEDIA_ENABLED_PROVIDERS;
-		const previousCertification = process.env.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS;
 		const previousKieKey = process.env.KIE_API_KEY;
 		process.env.MEDIA_ENABLED_PROVIDERS = "kie";
-		process.env.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS = DEFAULT_PRODUCT_CONFIG.catalogVersion;
 		delete process.env.KIE_API_KEY;
 		try {
 			expect(buildMediaQuote(NANO_QUOTE_INPUT)).toMatchObject({ costMicros: 20_000n });
 		} finally {
 			if (previousEnabledProviders === undefined) delete process.env.MEDIA_ENABLED_PROVIDERS;
 			else process.env.MEDIA_ENABLED_PROVIDERS = previousEnabledProviders;
-			if (previousCertification === undefined)
-				delete process.env.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS;
-			else process.env.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS = previousCertification;
 			if (previousKieKey === undefined) delete process.env.KIE_API_KEY;
 			else process.env.KIE_API_KEY = previousKieKey;
 		}

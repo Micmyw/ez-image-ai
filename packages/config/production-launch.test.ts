@@ -449,14 +449,14 @@ describe("EzPic production launch environment", () => {
 		).toThrow(/MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED.*MEDIA_RECOVERY_PROVIDERS/);
 	});
 
-	it("requires the active Kie image catalog version and accepts older drain versions", () => {
-		for (const versions of [undefined, "2026-09-06.1", "2026-09-07.2,2026-09-07.2"] as const) {
+	it("does not require or interpret the retired Kie image certification setting", () => {
+		for (const versions of [undefined, "", "2026-09-06.1", "obsolete-value"] as const) {
 			expect(() =>
 				validateEzPicLaunchEnvironment({
 					...productionEnvironment,
 					MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: versions,
 				}),
-			).toThrow(/MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS/);
+			).not.toThrow();
 		}
 		expect(() =>
 			validateEzPicLaunchEnvironment({

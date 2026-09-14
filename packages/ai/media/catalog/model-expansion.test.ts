@@ -1,5 +1,4 @@
 import {
-	DEFAULT_PRODUCT_CONFIG,
 	IMAGE_PRODUCT_SELECTION_CONTRACTS,
 	type ImageSkuKey,
 	type ProductModelKey,
@@ -42,7 +41,6 @@ describe("expanded image model catalog", () => {
 		const catalog = getPublicProductCatalog({
 			generationEnabled: true,
 			enabledProviders: new Set(["kie"]),
-			kieImageCertifiedCatalogVersions: new Set([DEFAULT_PRODUCT_CONFIG.catalogVersion]),
 		});
 		expect(catalog.products).toHaveLength(12);
 		for (const [key] of newModels)
@@ -173,7 +171,6 @@ describe("expanded image model catalog", () => {
 			NODE_ENV: "production",
 			MEDIA_GENERATION_ENABLED: "true",
 			MEDIA_ENABLED_PROVIDERS: "kie",
-			MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: DEFAULT_PRODUCT_CONFIG.catalogVersion,
 		};
 		const closed = getPublicProductCatalog(configuredRouteGraphOptionsFromEnvironment(environment));
 		for (const [key] of newModels)

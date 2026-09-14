@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import {
 	EZPIC_PRODUCT_KEYS,
 	isEzPicProductEnvironmentEnabled,
-	isKieImageProductCertified,
 	parseMediaEnabledProviders,
 	parseMediaRecoveryProviders,
 } from "@repo/config";
@@ -29,7 +28,6 @@ export interface ExecutableRouteGraphOptions {
 	generationEnabled?: boolean;
 	disabledProductKeys?: ReadonlySet<string>;
 	openRouterImageRoutesCertified?: boolean;
-	kieImageCertifiedCatalogVersions?: ReadonlySet<string>;
 }
 
 export interface ExecutableCatalogRouteGraphEntry<T extends { routes: readonly CatalogRoute[] }> {
@@ -103,12 +101,6 @@ export function configuredRouteGraphOptionsFromEnvironment(
 		generationEnabled: environment.MEDIA_GENERATION_ENABLED === "true",
 		disabledProductKeys,
 		openRouterImageRoutesCertified: environment.MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED === "true",
-		kieImageCertifiedCatalogVersions: new Set(
-			(environment.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS ?? "")
-				.split(",")
-				.map((value) => value.trim())
-				.filter(Boolean),
-		),
 	};
 }
 
@@ -189,9 +181,6 @@ export function executableRouteGraph<
 			(route) =>
 				options.enabledProviders.has(route.provider) &&
 				(route.provider !== "openrouter" || options.openRouterImageRoutesCertified === true) &&
-				(route.provider !== "kie" ||
-					entry.mediaKind !== "image" ||
-					isKieImageProductCertified(entry.key, options.kieImageCertifiedCatalogVersions)) &&
 				isStaticDispatchRoute(entry.mediaKind, route.provider, route.providerModelId),
 		);
 		return routes.length > 0 ? [{ entry, routes }] : [];

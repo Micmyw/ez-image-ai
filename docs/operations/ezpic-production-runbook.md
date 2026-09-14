@@ -80,9 +80,9 @@ activates historical lifecycle maintenance and requires its isolated Webhook sco
 remain optional legacy metadata and never enable new checkout.
 
 For new images, configure `MEDIA_ENABLED_PROVIDERS=kie` and provide `KIE_API_KEY` only to the
-server/worker boundary that submits or retrieves tasks. Set
-`MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS` to a comma-separated list that includes the exact active
-catalog version only after all 20 SKU cells are certified. Add a hostname to `KIE_OUTPUT_HOSTS`
+server/worker boundary that submits or retrieves tasks. Catalog certification versions are no
+longer required: `MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS` is ignored by deployment and runtime.
+Use the generation and model switches to control availability. Add a hostname to `KIE_OUTPUT_HOSTS`
 only after it is observed and approved; real paid confirmation of every Kie result host is still
 `NOT_COMPLETED`. If legacy OpenRouter work remains, list `openrouter` only under
 `MEDIA_RECOVERY_PROVIDERS`; the current launch validator also requires its recovery credential and
@@ -149,10 +149,9 @@ environment identifiers are never returned.
     `MEDIA_RECOVERY_PROVIDERS` and retain its worker-only recovery credential/gate. Verify readiness,
     migrations, task revision, storage metadata, Webhook endpoints, observability,
     canonical/sitemap/robots, SSL, and DNS before enabling traffic.
-11. After all 20 exact SKU artifacts are approved and active catalog version `2026-09-07.2` is
-    present in `MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS`, enable Nano Banana 2 Lite for a small
-    cohort. Enable each of the other eight products independently only after every SKU under that
-    product has its own evidence and rollback owner.
+11. Use each model's independent switch to control its rollout. Record provider quality, cost,
+    and recovery observations for enabled models. Catalog publication and dispatch do not require
+    an additional certification version setting.
 
 Guest real generation remains disabled until the separate anonymous-trial gate passes. When enabled,
 it is fixed to Nano Banana 2 Lite 1K at five sponsored EzPic Credits. Paid plans share one EzPic
@@ -173,8 +172,7 @@ New work requires all applicable layers to allow it:
   `MEDIA_SEEDREAM_5_PRO_ENABLED`;
 - no active `media.model.<selected-product-key>.enabled=false` runtime override for the selected
   product;
-- `kie` in `MEDIA_ENABLED_PROVIDERS`, `KIE_API_KEY` in the worker environment, and active catalog
-  version `2026-09-07.2` in `MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS`;
+- `kie` in `MEDIA_ENABLED_PROVIDERS` and `KIE_API_KEY` in the worker environment;
 - a positive `MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS`.
 
 The API checks the global UTC-day spend prospectively, and the job-creation transaction takes a

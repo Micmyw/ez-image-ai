@@ -1,4 +1,3 @@
-import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { buildMediaQuote } from "../lib/quote";
@@ -15,7 +14,6 @@ const SOURCE_ASSET_ID = "asset_01J5ABCD1234EFGH5678JKLMNP";
 const KIE_ROUTE_OPTIONS = {
 	enabledProviders: new Set(["kie" as const]),
 	generationEnabled: true,
-	kieImageCertifiedCatalogVersions: new Set([DEFAULT_PRODUCT_CONFIG.catalogVersion]),
 };
 
 const NANO_INPUT = {

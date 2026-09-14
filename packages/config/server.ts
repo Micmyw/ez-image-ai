@@ -18,4 +18,3 @@ export * from "./production-launch";
 export * from "./production-load";
 export * from "./storage-connect-origin";
 export * from "./workflows";
-export * from "./kie-image-certification";

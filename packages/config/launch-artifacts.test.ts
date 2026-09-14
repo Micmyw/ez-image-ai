@@ -158,7 +158,6 @@ describe("EzPic PR 8 launch artifacts", () => {
 			"MEDIA_SEEDREAM_5_PRO_ENABLED",
 			"MEDIA_ENABLED_PROVIDERS",
 			"MEDIA_RECOVERY_PROVIDERS",
-			"MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS",
 			"MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS",
 			"MEDIA_ALERT_ERROR_RATE_BPS",
 			"MEDIA_ALERT_P95_LATENCY_MS",
@@ -185,7 +184,7 @@ describe("EzPic PR 8 launch artifacts", () => {
 		]) {
 			expect(example).toContain(`${key}=`);
 		}
-		expect(example).toContain("the current version is 2026-09-14.1");
+		expect(example).not.toContain("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS=");
 		expect(example).not.toContain("MEDIA_STANDARD_EDIT_ENABLED=");
 		expect(example).not.toContain("MEDIA_QUALITY_EDIT_ENABLED=");
 	});

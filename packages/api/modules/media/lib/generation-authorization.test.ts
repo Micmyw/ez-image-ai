@@ -20,7 +20,6 @@ const PAID_IMAGE_PRODUCT = "image-nano-banana-2" as const;
 const KIE_IMAGE_ROUTE_GRAPH = {
 	enabledProviders: new Set(["kie" as const]),
 	generationEnabled: true,
-	kieImageCertifiedCatalogVersions: new Set(["2026-09-14.1"]),
 };
 
 const BASE_SNAPSHOT: GenerationAccessSnapshot = {

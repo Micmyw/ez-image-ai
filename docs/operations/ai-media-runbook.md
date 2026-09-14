@@ -23,15 +23,14 @@ Feature gates:
 - `MEDIA_NANO_BANANA_2_LITE_ENABLED`, `MEDIA_NANO_BANANA_ENABLED`,
   `MEDIA_NANO_BANANA_2_ENABLED`, `MEDIA_NANO_BANANA_PRO_ENABLED`,
   `MEDIA_GPT_IMAGE_1_5_ENABLED`, `MEDIA_GPT_IMAGE_2_ENABLED`,
+  `MEDIA_GPT_IMAGE_2_5_FLARE_ENABLED`, `MEDIA_GPT_IMAGE_2_5_SUNBURST_ENABLED`,
+  `MEDIA_SEEDREAM_4_ENABLED`,
   `MEDIA_SEEDREAM_4_5_ENABLED`, `MEDIA_SEEDREAM_5_LITE_ENABLED`, and
-  `MEDIA_SEEDREAM_5_PRO_ENABLED`: independent gates for the nine public Kie image products.
-- `MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS`: server-only, catalog-version-scoped Kie gate. Add
-  the active version only after all legal SKU cells under every enabled product have paid private
-  execution, billing, output-host, moderation, recovery, and rollback evidence.
-  The explicitly reviewed `2026-09-07.2` → `2026-09-13.1` compatibility rule preserves only
-  the four previously enabled, unchanged provider contracts documented in
-  [the September 14 review](evidence/kie-catalog-compatibility-2026-09-14.md). It adds no
-  certification version and does not authorize new products or future catalog versions.
+  `MEDIA_SEEDREAM_5_PRO_ENABLED`: independent gates for the twelve public Kie image products.
+- `MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS` is retired and ignored. Since September 14,
+  catalog updates no longer require certification configuration in deployment, catalog access,
+  production configuration validation, or frozen-job dispatch. Existing environment values may
+  remain during deployment; generation/model switches and configured provider routes control availability.
 - `MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED`: legacy recovery gate required only while OpenRouter is
   configured for already-frozen historical attempts. It does not make OpenRouter eligible for a new
   quote and cannot certify Kie.
@@ -211,7 +210,12 @@ existing approvals migrate through an auditable metadata-only transition without
 
 Configure Sentry release/environment metadata, server and browser DSNs where applicable, a conservative trace sample rate, and alert routing. Confirm redaction excludes prompts, provider envelopes, authorization/cookie headers, secrets, raw signed URLs, and private object keys. Alerts should cover provider failures, queue latency, transfer failures, moderation errors, credit invariant failures, Outbox backlog/dead letters, reconciliation repairs, and elevated API errors.
 
-Certify each catalog route in staging before enabling it: schema/input support, idempotency behavior, provider acceptance certainty, status mapping, output MIME/size, Webhook authenticity/order, polling recovery, cancellation/cleanup, moderation, measured cost, latency, and error redaction. Record Provider/model ID, catalog/pricing version, test time, evidence, maximum cost, and rollback owner. Disable an uncertified route with runtime config rather than silently rerouting uncertain submissions.
+Use bounded staging checks to assess changed provider behavior: schema/input support, idempotency,
+provider acceptance certainty, status mapping, output MIME/size, Webhook authenticity/order,
+polling recovery, cancellation/cleanup, moderation, measured cost, latency, and error redaction.
+Record the route, catalog/pricing version, time, results, and maximum cost. These operational
+records are independent of publishing a catalog version. Model/runtime switches can disable an
+unhealthy route; uncertain submissions still require recovery of the same attempt.
 
 The current Kie image catalog and pricing version `2026-09-07.2` has 20 exact SKU cells:
 
@@ -245,10 +249,10 @@ creates image tasks through `/api/v1/jobs/createTask` and polls the server-deriv
 `/api/v1/jobs/recordInfo` URL. A successful local adapter contract or Workflow artifact does not
 certify Provider behavior, output hosting, quality, or billed cost.
 
-Real paid Kie execution for all 20 SKU cells is `NOT_COMPLETED`. Leave the corresponding product flags
-off and omit the active version from `MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS` until private
-execution, cost/latency, single-output confirmation, output-host allowlist, moderation,
-same-attempt recovery, and human quality evidence are reviewed. Never expose raw Kie model IDs,
+The original full-SKU paid verification record remains `NOT_COMPLETED`; removing the release gate
+does not turn local checks into live provider evidence. Track private execution, cost/latency,
+single-output behavior, output hosts, moderation, recovery, and quality as operational evidence.
+Never expose raw Kie model IDs,
 Provider identity, cost ceilings, key, status URLs, or route state in the public capability or UI.
 
 The old OpenRouter Standard/Quality benchmark is retired and cannot provide Kie evidence. Keep

@@ -1,5 +1,4 @@
 import { createExecutableRouteGraph } from "@repo/ai";
-import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/database/client", () => ({ db: {} }));
@@ -9,7 +8,6 @@ import { getCurrentExecutableRouteGraphOptions } from "./executable-route-graph"
 const ENVIRONMENT = {
 	MEDIA_GENERATION_ENABLED: "true",
 	MEDIA_ENABLED_PROVIDERS: "kie,fal",
-	MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: DEFAULT_PRODUCT_CONFIG.catalogVersion,
 };
 
 describe("current executable media route graph", () => {

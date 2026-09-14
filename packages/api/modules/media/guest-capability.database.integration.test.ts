@@ -1,6 +1,5 @@
 import { call } from "@orpc/server";
 import { PrismaPg } from "@prisma/adapter-pg";
-import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
 import { guestAbuseHmacKeyIdentity } from "@repo/config/server";
 import { PrismaClient } from "@repo/database/generated-client";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -56,7 +55,6 @@ describe("guest capability database drift fence", () => {
 		vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
 		vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");
 		vi.stubEnv("MEDIA_NANO_BANANA_2_LITE_ENABLED", "true");
-		vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", DEFAULT_PRODUCT_CONFIG.catalogVersion);
 		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", abuseSecret);
 		vi.stubEnv("GUEST_ABUSE_HMAC_VERSION", abuseKeyVersion);
 		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", saasOrigin);

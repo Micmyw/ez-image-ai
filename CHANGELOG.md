@@ -2,6 +2,15 @@
 
 ## 2026-09-14
 
+### Model availability and deployment
+
+- Remove the catalog certification version requirement from Cloudflare deployment, production
+  configuration validation, model availability, and job dispatch. Catalog updates no longer
+  require a separate certification environment variable.
+- Keep generation and model switches, configured providers, worker credentials, frozen quote
+  routes, moderation, credit accounting, and recovery controls. Catalog versions still identify
+  quotes and historical jobs; existing certification environment values are ignored.
+
 ### Model pages and text-to-image creation
 
 - Add `/models` and twelve individual model pages with a preselected generator, model-specific
@@ -18,9 +27,8 @@
 - Keep login inputs disabled until the form is ready and prevent native GET submission of
   credentials. Allow image previews from the configured local storage origin during development.
 - Advance the image catalog to `2026-09-14.1` while retaining pricing `2026-09-13.2`.
-  The new catalog requires its own provider certification; older image-edit certifications do
-  not authorize the additional text-to-image routes. Local contract and mock-provider checks
-  do not certify live quality, billing, or production availability.
+  The initial certification gate was subsequently removed as described above. Local contract and
+  mock-provider checks do not certify live quality or provider billing.
 
 ### Image model API validation
 
@@ -38,7 +46,8 @@
 - Add Cloudflare Git build/deploy commands for the existing website and jobs Workers, with
   production configuration checks and verification of each published version.
 - Preserve the four existing production models across the reviewed catalog expansion, while
-  keeping new models behind their own enablement and certification checks.
+  keeping model enablement controls. The initial certification compatibility check was subsequently
+  replaced by the model availability policy described above.
 - Preserve stored output format and transfer state before inspecting a provider URL, so expired
   result URLs cannot interrupt recovery of existing or exhausted output transfers.
 - Include dependency patches in both container build contexts and keep isolated browser tests

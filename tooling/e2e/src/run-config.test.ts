@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-void test("pins new local image jobs to the certified Kie SKU catalog", () => {
+void test("pins new local image jobs to the configured Kie SKU catalog", () => {
 	const runner = readFileSync(new URL("./run.ts", import.meta.url), "utf8");
 	const seed = readFileSync(new URL("./seed.ts", import.meta.url), "utf8");
 
@@ -17,11 +17,11 @@ void test("pins new local image jobs to the certified Kie SKU catalog", () => {
 		'MEDIA_SEEDREAM_5_LITE_ENABLED: "true"',
 		'MEDIA_SEEDREAM_5_PRO_ENABLED: "true"',
 		'MEDIA_ENABLED_PROVIDERS: "kie"',
-		"MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: DEFAULT_PRODUCT_CONFIG.catalogVersion",
 	]) {
 		assert.ok(runner.includes(setting), `runner must contain ${setting}`);
 	}
 	assert.doesNotMatch(runner, /MEDIA_(?:STANDARD|QUALITY)_EDIT_ENABLED:\s*"true"/);
+	assert.doesNotMatch(runner, /MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS/);
 	assert.match(runner, /MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED:\s*undefined/);
 	assert.match(runner, /OPENROUTER_API_KEY:\s*undefined/);
 

@@ -75,7 +75,6 @@ describe("media product catalog", () => {
 		const products = getPublicProductCatalog({
 			enabledProviders: new Set(["kie"]),
 			generationEnabled: true,
-			kieImageCertifiedCatalogVersions: new Set([DEFAULT_PRODUCT_CONFIG.catalogVersion]),
 		}).products;
 
 		const nano = products.find((product) => product.key === "image-nano-banana-2-lite")!;
@@ -145,7 +144,6 @@ describe("media product catalog", () => {
 		const publicCatalog = getPublicProductCatalog({
 			enabledProviders: new Set(["kie"]),
 			generationEnabled: true,
-			kieImageCertifiedCatalogVersions: new Set([DEFAULT_PRODUCT_CONFIG.catalogVersion]),
 		});
 		const serialized = JSON.stringify(publicCatalog);
 
@@ -156,7 +154,7 @@ describe("media product catalog", () => {
 		expect(serialized).not.toContain("weight");
 	});
 
-	it("registers the exact Kie image routes but requires the catalog-version gate", () => {
+	it("registers the exact Kie image routes and advertises configured models", () => {
 		expect(getCatalogEntry("image-nano-banana-2-lite").routes).toEqual([
 			{
 				provider: "kie",
@@ -190,18 +188,11 @@ describe("media product catalog", () => {
 			expect.objectContaining({ provider: "kie", providerCostMicros: 70_000 }),
 		]);
 
-		const uncertified = configuredRouteGraphOptionsFromEnvironment({
+		const configured = configuredRouteGraphOptionsFromEnvironment({
 			MEDIA_GENERATION_ENABLED: "true",
 			MEDIA_ENABLED_PROVIDERS: "kie",
 		});
-		expect(getPublicProductCatalog(uncertified).products).toEqual([]);
-
-		const certified = configuredRouteGraphOptionsFromEnvironment({
-			MEDIA_GENERATION_ENABLED: "true",
-			MEDIA_ENABLED_PROVIDERS: "kie",
-			MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: DEFAULT_PRODUCT_CONFIG.catalogVersion,
-		});
-		expect(getPublicProductCatalog(certified).products.map((product) => product.key)).toEqual([
+		expect(getPublicProductCatalog(configured).products.map((product) => product.key)).toEqual([
 			"image-nano-banana-2-lite",
 			"image-nano-banana",
 			"image-nano-banana-2",
@@ -218,7 +209,6 @@ describe("media product catalog", () => {
 		const products = getPublicProductCatalog({
 			enabledProviders: new Set(["kie"]),
 			generationEnabled: true,
-			kieImageCertifiedCatalogVersions: new Set([DEFAULT_PRODUCT_CONFIG.catalogVersion]),
 		}).products;
 
 		expect(products.map((product) => product.key)).toEqual([
@@ -292,7 +282,6 @@ describe("media product catalog", () => {
 			NODE_ENV: "test",
 			MEDIA_GENERATION_ENABLED: "true",
 			MEDIA_ENABLED_PROVIDERS: "kie",
-			MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: DEFAULT_PRODUCT_CONFIG.catalogVersion,
 			FAL_API_KEY: "worker-only-secret",
 		};
 		const configured = configuredProviderKeysFromEnvironment(environment);
@@ -310,7 +299,6 @@ describe("media product catalog", () => {
 			enabledProviders: new Set(["kie"]),
 			generationEnabled: true,
 			disabledProductKeys: new Set(["image-gpt-image-2"]),
-			kieImageCertifiedCatalogVersions: new Set([DEFAULT_PRODUCT_CONFIG.catalogVersion]),
 		});
 
 		expect(catalog.products.map((product) => product.key)).not.toContain("image-gpt-image-2");
@@ -320,7 +308,6 @@ describe("media product catalog", () => {
 		const options = configuredRouteGraphOptionsFromEnvironment({
 			MEDIA_GENERATION_ENABLED: "true",
 			MEDIA_ENABLED_PROVIDERS: "kie",
-			MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: DEFAULT_PRODUCT_CONFIG.catalogVersion,
 			MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
 			MEDIA_GPT_IMAGE_2_ENABLED: "false",
 			MEDIA_GPT_IMAGE_2_5_FLARE_ENABLED: "true",

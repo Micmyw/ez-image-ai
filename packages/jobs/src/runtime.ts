@@ -4312,7 +4312,7 @@ function quotedExecutableRoutes(
 		const routes = routeGraph.allowedRoutes.filter(
 			(route) =>
 				submissionProviders.has(route.provider) &&
-				isRuntimeRouteCertified(entry.mediaKind, route.provider, job.catalogVersion, environment) &&
+				isRuntimeRouteCertified(entry.mediaKind, route.provider, environment) &&
 				isStaticDispatchRoute(entry.mediaKind, route.provider, route.providerModelId),
 		);
 		return routes.length > 0
@@ -4336,12 +4336,7 @@ function quotedExecutableRoutes(
 			: entry.routes.filter(
 					(route) =>
 						submissionProviders.has(route.provider) &&
-						isRuntimeRouteCertified(
-							entry.mediaKind,
-							route.provider,
-							job.catalogVersion,
-							environment,
-						) &&
+						isRuntimeRouteCertified(entry.mediaKind, route.provider, environment) &&
 						isStaticDispatchRoute(entry.mediaKind, route.provider, route.providerModelId) &&
 						BigInt(route.providerCostMicros) <= maximumCost,
 				);
@@ -4363,18 +4358,11 @@ function quotedExecutableRoutes(
 function isRuntimeRouteCertified(
 	mediaKind: "image" | "video",
 	provider: ProviderKey,
-	catalogVersion: string,
 	environment: Record<string, string | undefined>,
 ): boolean {
 	if (mediaKind !== "image") return true;
 	if (provider === "openrouter") {
 		return environment.MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED === "true";
-	}
-	if (provider === "kie") {
-		return (environment.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS ?? "")
-			.split(",")
-			.map((value) => value.trim())
-			.includes(catalogVersion);
 	}
 	return true;
 }

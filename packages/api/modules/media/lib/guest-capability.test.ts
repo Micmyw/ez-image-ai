@@ -258,9 +258,15 @@ describe("guest capability snapshot", () => {
 			})),
 		).toEqual(expectedPublicProductSummaries);
 		expect(snapshot.products.flatMap((product) => product.skuMatrix.cells)).toHaveLength(20);
+		expect(
+			await loadGuestCapabilitySnapshot({
+				...enabledEnvironment,
+				MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "",
+			}),
+		).toEqual(snapshot);
 		const unavailable = await loadGuestCapabilitySnapshot({
 			...enabledEnvironment,
-			MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "",
+			MEDIA_ENABLED_PROVIDERS: "",
 		});
 		expect(unavailable).toMatchObject({
 			enabled: false,

@@ -239,7 +239,6 @@ export async function executeMediaLoadRequest(
 		{
 			enabledProviders: new Set([route.provider]),
 			generationEnabled: true,
-			kieImageCertifiedCatalogVersions: new Set([DEFAULT_PRODUCT_CONFIG.catalogVersion]),
 		},
 	);
 	const quoteId = `loadq_${createHash("sha256").update(input.idempotencyKey).digest("hex").slice(0, 32)}`;

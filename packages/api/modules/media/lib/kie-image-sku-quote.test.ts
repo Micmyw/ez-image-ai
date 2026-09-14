@@ -43,7 +43,6 @@ describe("Kie image SKU quotes", () => {
 				{
 					enabledProviders: new Set(["kie"]),
 					generationEnabled: true,
-					kieImageCertifiedCatalogVersions: new Set(["2026-09-14.1"]),
 				} as never,
 			);
 

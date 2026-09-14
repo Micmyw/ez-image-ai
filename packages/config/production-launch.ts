@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { usesHyperdriveDatabase, validateServerEnvironment } from "./env";
-import { catalogVersionSchema, DEFAULT_PRODUCT_CONFIG, EZPIC_PRODUCT_KEYS } from "./product";
+import { EZPIC_PRODUCT_KEYS } from "./product";
 import { assertWorkflowsConfiguration } from "./workflows";
 
 const environmentNameSchema = z.enum(["development", "test", "staging", "production"]);
@@ -214,10 +214,6 @@ export function validateEzPicLaunchEnvironment(
 	const seedream45Enabled = requiredBoolean(input, "MEDIA_SEEDREAM_4_5_ENABLED");
 	const seedream5LiteEnabled = requiredBoolean(input, "MEDIA_SEEDREAM_5_LITE_ENABLED");
 	const seedream5ProEnabled = requiredBoolean(input, "MEDIA_SEEDREAM_5_PRO_ENABLED");
-	const kieImageCatalogVersions = optionalCatalogVersionSet(
-		input,
-		"MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS",
-	);
 	for (const key of [
 		"MEDIA_MODERATION_ENABLED",
 		"BILLING_ENABLED",
@@ -259,20 +255,6 @@ export function validateEzPicLaunchEnvironment(
 			control,
 			[["kie", "KIE_API_KEY"]],
 			requireProviderCredentials,
-		);
-		if (!kieImageCatalogVersions.has(DEFAULT_PRODUCT_CONFIG.catalogVersion)) {
-			throw new Error(
-				`${control} requires MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS to include the active catalog version`,
-			);
-		}
-	}
-	if (
-		kieImageCatalogVersions.size > 0 &&
-		!serverEnvironment.mediaEnabledProviders.includes("kie") &&
-		!serverEnvironment.mediaRecoveryProviders.includes("kie")
-	) {
-		throw new Error(
-			"MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS requires kie in MEDIA_ENABLED_PROVIDERS or MEDIA_RECOVERY_PROVIDERS",
 		);
 	}
 
@@ -420,25 +402,6 @@ const EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS: Readonly<Record<string, string>> = O
 	"image-seedream-5-lite": "MEDIA_SEEDREAM_5_LITE_ENABLED",
 	"image-seedream-5-pro": "MEDIA_SEEDREAM_5_PRO_ENABLED",
 } satisfies Record<(typeof EZPIC_PRODUCT_KEYS)[number], string>);
-
-function optionalCatalogVersionSet(input: Record<string, unknown>, key: string): Set<string> {
-	const raw = input[key];
-	if (raw === undefined) return new Set();
-	if (typeof raw !== "string") throw new Error(`${key} must be a comma-separated version list`);
-	const versions = raw
-		.split(",")
-		.map((value) => value.trim())
-		.filter(Boolean);
-	if (versions.length === 0 || new Set(versions).size !== versions.length) {
-		throw new Error(`${key} must contain unique catalog versions`);
-	}
-	for (const version of versions) {
-		if (!catalogVersionSchema.safeParse(version).success) {
-			throw new Error(`${key} contains an invalid catalog version`);
-		}
-	}
-	return new Set(versions);
-}
 
 function optionalBoolean(input: Record<string, unknown>, key: string): boolean | undefined {
 	const value = input[key];

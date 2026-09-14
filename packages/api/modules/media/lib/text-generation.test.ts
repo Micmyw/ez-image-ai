@@ -1,4 +1,3 @@
-import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
 import { describe, expect, it } from "vitest";
 
 import { createQuoteInputSchema } from "../types";
@@ -17,7 +16,6 @@ const request = {
 const options = {
 	enabledProviders: new Set(["kie" as const]),
 	generationEnabled: true,
-	kieImageCertifiedCatalogVersions: new Set([DEFAULT_PRODUCT_CONFIG.catalogVersion]),
 };
 
 describe("text generation uses the existing quote boundary", () => {

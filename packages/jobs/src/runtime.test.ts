@@ -197,36 +197,30 @@ describe("provider runtime registration", () => {
 		).resolves.toBeNull();
 	});
 
-	it("requires the exact frozen catalog version for every Kie image dispatch", async () => {
-		const environment: Record<string, string | undefined> = {
-			MEDIA_GENERATION_ENABLED: "true",
-			MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
-			MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "2026-09-07.0",
-		};
-		const database = routeResolutionDatabase(
-			frozenRouteJob("job_kie_nano", [KIE_NANO_BANANA_2_LITE_ROUTE], "image-nano-banana-2-lite"),
-		);
+	it.each([undefined, "", "2026-09-07.0"])(
+		"dispatches a frozen Kie route without catalog certification: %s",
+		async (versions) => {
+			const environment: Record<string, string | undefined> = {
+				MEDIA_GENERATION_ENABLED: "true",
+				MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
+				MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: versions,
+			};
+			const database = routeResolutionDatabase(
+				frozenRouteJob("job_kie_nano", [KIE_NANO_BANANA_2_LITE_ROUTE], "image-nano-banana-2-lite"),
+			);
 
-		await expect(
-			resolveDatabaseDispatchRoute("job_kie_nano", {
-				database: database as never,
-				environment,
-				enabledProviders: new Set(["kie"]),
-			}),
-		).resolves.toBeNull();
-
-		environment.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS = `2026-09-07.0, ${KIE_IMAGE_CATALOG_VERSION}`;
-		await expect(
-			resolveDatabaseDispatchRoute("job_kie_nano", {
-				database: database as never,
-				environment,
-				enabledProviders: new Set(["kie"]),
-			}),
-		).resolves.toMatchObject({
-			provider: "kie",
-			providerModelId: KIE_NANO_BANANA_2_LITE_ROUTE.providerModelId,
-		});
-	});
+			await expect(
+				resolveDatabaseDispatchRoute("job_kie_nano", {
+					database: database as never,
+					environment,
+					enabledProviders: new Set(["kie"]),
+				}),
+			).resolves.toMatchObject({
+				provider: "kie",
+				providerModelId: KIE_NANO_BANANA_2_LITE_ROUTE.providerModelId,
+			});
+		},
+	);
 
 	it("executes retired image routes only from immutable quote snapshots", async () => {
 		expect(getCatalogEntry("image-fast").routes.map((route) => route.provider)).toEqual([

@@ -1,7 +1,5 @@
 import { randomBytes, randomUUID } from "node:crypto";
 
-import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
-
 import { assertSafeDatabaseUrl } from "./assert-safe-target";
 
 const testDatabaseUrl = assertSafeDatabaseUrl(process.env.TEST_DATABASE_URL).toString();
@@ -13,7 +11,6 @@ process.env.DATABASE_URL = testDatabaseUrl;
 process.env.NODE_ENV = "test";
 process.env.MEDIA_GENERATION_ENABLED = "true";
 process.env.MEDIA_ENABLED_PROVIDERS = "kie";
-process.env.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS = DEFAULT_PRODUCT_CONFIG.catalogVersion;
 process.env.LOAD_TESTING_ENABLED = "false";
 process.env.LOAD_TEST_DATABASE_URL = testDatabaseUrl;
 process.env.LOAD_AUTH_TOKEN = token;

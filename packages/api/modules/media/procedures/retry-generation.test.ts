@@ -189,7 +189,6 @@ describe("retryGenerationForUser", () => {
 		}) => {
 			vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");
 			vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
-			vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", "2026-09-14.1");
 			const claimRequest = vi.fn(
 				async (claimInput: Parameters<RetryGenerationDependencies["claimRequest"]>[0]) => ({
 					outcome: "CLAIMED" as const,
@@ -240,7 +239,6 @@ describe("retryGenerationForUser", () => {
 		async (kind) => {
 			vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");
 			vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
-			vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", "2026-09-14.1");
 			const claimRequest = vi.fn(
 				async (claimInput: Parameters<RetryGenerationDependencies["claimRequest"]>[0]) => ({
 					outcome: "CLAIMED" as const,

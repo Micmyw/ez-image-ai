@@ -1,11 +1,5 @@
 import path from "node:path";
 
-import * as config from "@repo/config";
-
-// This file is also loaded by the native ESM Git-build CLI.
-const { EZPIC_PRODUCT_KEYS, isEzPicProductEnvironmentEnabled, isKieImageProductCertified } =
-	(Reflect.get(config, "default") ?? config) as typeof import("@repo/config");
-
 export function assertCloudflareGitCommit(
 	environment: Record<string, string | undefined>,
 	sha: string,
@@ -16,32 +10,9 @@ export function assertCloudflareGitCommit(
 		throw new Error("CLOUDFLARE_BUILD_COMMIT_MISMATCH");
 }
 
-export function assertAutomaticReleaseEnvironment(
-	environment: Record<string, string>,
-	catalogVersion: string,
-) {
+export function assertAutomaticReleaseEnvironment(environment: Record<string, string>) {
 	if ((environment.EZPIC_DEPLOYMENT_PROFILE ?? "workers") !== "workers") {
 		throw new Error("AUTOMATIC_DEPLOYMENT_REQUIRES_WORKERS_PROFILE");
-	}
-	const providers = new Set(
-		(environment.MEDIA_ENABLED_PROVIDERS ?? "").split(",").map((v) => v.trim()),
-	);
-	const versions = new Set(
-		(environment.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS ?? "").split(",").map((v) => v.trim()),
-	);
-	const uncertifiedProducts = EZPIC_PRODUCT_KEYS.filter(
-		(productKey) =>
-			isEzPicProductEnvironmentEnabled(productKey, environment) &&
-			!isKieImageProductCertified(productKey, versions, catalogVersion),
-	);
-	if (
-		environment.MEDIA_GENERATION_ENABLED === "true" &&
-		providers.has("kie") &&
-		uncertifiedProducts.length > 0
-	) {
-		throw new Error(
-			`PRODUCTION_CATALOG_NOT_CERTIFIED: enabled products ${uncertifiedProducts.join(", ")} require reviewed evidence for ${catalogVersion}; deployment did not change the gate.`,
-		);
 	}
 }
 

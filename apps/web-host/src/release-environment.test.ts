@@ -3,7 +3,6 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -13,8 +12,7 @@ import {
 } from "./release-environment";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const assertEnvironment = (environment: Record<string, string>) =>
-	assertAutomaticReleaseEnvironment(environment, DEFAULT_PRODUCT_CONFIG.catalogVersion);
+const assertEnvironment = assertAutomaticReleaseEnvironment;
 
 describe("automatic production release preflight", () => {
 	it("accepts the exact Cloudflare main build and rejects preview branches or a different checkout", () => {
@@ -41,40 +39,21 @@ describe("automatic production release preflight", () => {
 		MEDIA_SEEDREAM_5_LITE_ENABLED: "true",
 		MEDIA_SEEDREAM_5_PRO_ENABLED: "true",
 	};
-	it("preserves the reviewed models only within the historical September 13 catalog", () => {
+	it.each(["", "2026-09-07.2", "2026-09-13.1", "obsolete-value"])(
+		"does not block enabled models on a legacy catalog certificate: %s",
+		(versions) => {
+			const input = {
+				...existingProduction,
+				MEDIA_GPT_IMAGE_2_5_FLARE_ENABLED: "true",
+				MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: versions,
+			};
+			expect(() => assertEnvironment(input)).not.toThrow();
+			expect(input.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS).toBe(versions);
+		},
+	);
+	it("allows enabled generation without any catalog certification configuration", () => {
 		expect(() =>
-			assertAutomaticReleaseEnvironment(existingProduction, "2026-09-13.1"),
-		).not.toThrow();
-		expect(existingProduction.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS).toBe("2026-09-07.2");
-	});
-	it("requires fresh evidence for the current text-capable catalog even for previously reviewed models", () => {
-		for (const version of ["2026-09-07.2", "2026-09-13.1"]) {
-			expect(() =>
-				assertEnvironment({
-					...existingProduction,
-					MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: version,
-				}),
-			).toThrow(`require reviewed evidence for ${DEFAULT_PRODUCT_CONFIG.catalogVersion}`);
-		}
-	});
-	it("does not extend that prior approval to a newly enabled model or a future catalog", () => {
-		expect(() =>
-			assertEnvironment({ ...existingProduction, MEDIA_GPT_IMAGE_2_5_FLARE_ENABLED: "true" }),
-		).toThrow("PRODUCTION_CATALOG_NOT_CERTIFIED");
-		expect(() => assertAutomaticReleaseEnvironment(existingProduction, "2026-10-01.1")).toThrow(
-			"PRODUCTION_CATALOG_NOT_CERTIFIED",
-		);
-	});
-	it("blocks the stale production catalog before any Worker is changed", () => {
-		expect(() => assertEnvironment(environment)).toThrow("PRODUCTION_CATALOG_NOT_CERTIFIED");
-		expect(environment.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS).toBe("2026-09-07.2");
-	});
-	it("accepts a reviewed active version while retaining previous versions", () => {
-		expect(() =>
-			assertEnvironment({
-				...environment,
-				MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: `2026-09-07.2, ${DEFAULT_PRODUCT_CONFIG.catalogVersion}`,
-			}),
+			assertEnvironment({ MEDIA_GENERATION_ENABLED: "true", MEDIA_ENABLED_PROVIDERS: "kie" }),
 		).not.toThrow();
 	});
 	it("does not require activating generation to deploy a closed product", () => {
@@ -112,26 +91,30 @@ describe("automatic production release preflight", () => {
 		).toThrow("MIGRATION_STATUS_REQUIRES_VERIFIED_TLS");
 	});
 
-	it("executes the real ESM release CLI and stops a stale catalog before writing configuration", () => {
-		const result = spawnSync(
-			process.execPath,
-			["--import", "tsx", "apps/web-host/src/git-build.ts", "build", "website"],
-			{
-				cwd: root,
-				encoding: "utf8",
-				env: {
-					...process.env,
-					CLOUDFLARE_PRODUCTION_ENV:
-						"NEXT_PUBLIC_SAAS_URL=https://ezimageai.com\nMEDIA_GENERATION_ENABLED=true\nMEDIA_ENABLED_PROVIDERS=kie\nMEDIA_GPT_IMAGE_2_5_FLARE_ENABLED=true\nMEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS=2026-09-07.2\n",
+	it.each(["website", "jobs"])(
+		"runs the %s build past a stale catalog while retaining database validation",
+		(target) => {
+			const result = spawnSync(
+				process.execPath,
+				["--import", "tsx", "apps/web-host/src/git-build.ts", "build", target],
+				{
+					cwd: root,
+					encoding: "utf8",
+					env: {
+						...process.env,
+						CLOUDFLARE_PRODUCTION_ENV:
+							"NEXT_PUBLIC_SAAS_URL=https://ezimageai.com\nMEDIA_GENERATION_ENABLED=true\nMEDIA_ENABLED_PROVIDERS=kie\nMEDIA_GPT_IMAGE_2_5_FLARE_ENABLED=true\nMEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS=2026-09-07.2\n",
+					},
 				},
-			},
-		);
-		expect(result.status).not.toBe(0);
-		expect(result.stderr).toContain("PRODUCTION_CATALOG_NOT_CERTIFIED");
-		expect(result.stderr).not.toContain("SyntaxError");
-	});
+			);
+			expect(result.status).not.toBe(0);
+			expect(result.stderr).toContain("MIGRATION_STATUS_DATABASE_URL_REQUIRED");
+			expect(result.stderr).not.toContain("PRODUCTION_CATALOG_NOT_CERTIFIED");
+			expect(result.stderr).not.toContain("SyntaxError");
+		},
+	);
 
-	it("reassembles split build secrets before checking the production catalog", () => {
+	it("reassembles split build secrets and retains database validation without exposing secrets", () => {
 		const source =
 			"NEXT_PUBLIC_SAAS_URL=https://ezimageai.com\nMEDIA_GENERATION_ENABLED=true\nMEDIA_ENABLED_PROVIDERS=kie\nMEDIA_GPT_IMAGE_2_5_FLARE_ENABLED=true\nMEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS=2026-09-07.2\nPRIVATE_VALUE=" +
 			"do-not-print-production-secret".repeat(220) +
@@ -152,7 +135,7 @@ describe("automatic production release preflight", () => {
 			},
 		);
 		expect(result.status).not.toBe(0);
-		expect(result.stderr).toContain("PRODUCTION_CATALOG_NOT_CERTIFIED");
+		expect(result.stderr).toContain("MIGRATION_STATUS_DATABASE_URL_REQUIRED");
 		expect(result.stderr + result.stdout).not.toContain("do-not-print-production-secret");
 	});
 });
