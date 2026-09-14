@@ -8,3 +8,4 @@ export * from "./launch-evidence";
 export * from "./production-launch";
 export * from "./production-load";
 export * from "./production-certification";
+export * from "./kie-image-certification";

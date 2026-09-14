@@ -1,9 +1,9 @@
 import { createHash } from "node:crypto";
 
 import {
-	DEFAULT_PRODUCT_CONFIG,
 	EZPIC_PRODUCT_KEYS,
 	isEzPicProductEnvironmentEnabled,
+	isKieImageProductCertified,
 	parseMediaEnabledProviders,
 	parseMediaRecoveryProviders,
 } from "@repo/config";
@@ -191,8 +191,7 @@ export function executableRouteGraph<
 				(route.provider !== "openrouter" || options.openRouterImageRoutesCertified === true) &&
 				(route.provider !== "kie" ||
 					entry.mediaKind !== "image" ||
-					options.kieImageCertifiedCatalogVersions?.has(DEFAULT_PRODUCT_CONFIG.catalogVersion) ===
-						true) &&
+					isKieImageProductCertified(entry.key, options.kieImageCertifiedCatalogVersions)) &&
 				isStaticDispatchRoute(entry.mediaKind, route.provider, route.providerModelId),
 		);
 		return routes.length > 0 ? [{ entry, routes }] : [];

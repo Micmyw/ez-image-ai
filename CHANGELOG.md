@@ -6,6 +6,8 @@
 
 - Add Cloudflare Git build/deploy commands for the existing website and jobs Workers, with
   production configuration checks and verification of each published version.
+- Preserve the four existing production models across the reviewed catalog expansion, while
+  keeping new models behind their own enablement and certification checks.
 - Preserve stored output format and transfer state before inspecting a provider URL, so expired
   result URLs cannot interrupt recovery of existing or exhausted output transfers.
 - Include dependency patches in both container build contexts and keep isolated browser tests
@@ -24,7 +26,8 @@
   menu to scroll on smaller screens. Keep model and output popovers inside the viewport while
   browsing longer lists.
 - Keep new production model switches off by default. Catalog `2026-09-13.1` and pricing
-  `2026-09-13.2` extend the existing models without changing their charges or accepted jobs.
+  `2026-09-13.2` extend the existing models and output tiers while preserving accepted jobs'
+  original prices.
 
 ### Unified homepage workspace
 

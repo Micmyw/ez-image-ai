@@ -1,5 +1,11 @@
 import path from "node:path";
 
+import * as config from "@repo/config";
+
+// This file is also loaded by the native ESM Git-build CLI.
+const { EZPIC_PRODUCT_KEYS, isEzPicProductEnvironmentEnabled, isKieImageProductCertified } =
+	(Reflect.get(config, "default") ?? config) as typeof import("@repo/config");
+
 export function assertCloudflareGitCommit(
 	environment: Record<string, string | undefined>,
 	sha: string,
@@ -23,13 +29,18 @@ export function assertAutomaticReleaseEnvironment(
 	const versions = new Set(
 		(environment.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS ?? "").split(",").map((v) => v.trim()),
 	);
+	const uncertifiedProducts = EZPIC_PRODUCT_KEYS.filter(
+		(productKey) =>
+			isEzPicProductEnvironmentEnabled(productKey, environment) &&
+			!isKieImageProductCertified(productKey, versions, catalogVersion),
+	);
 	if (
 		environment.MEDIA_GENERATION_ENABLED === "true" &&
 		providers.has("kie") &&
-		!versions.has(catalogVersion)
+		uncertifiedProducts.length > 0
 	) {
 		throw new Error(
-			`PRODUCTION_CATALOG_NOT_CERTIFIED: MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS must include ${catalogVersion} after provider evidence is reviewed; deployment did not change the gate.`,
+			`PRODUCTION_CATALOG_NOT_CERTIFIED: enabled products ${uncertifiedProducts.join(", ")} require reviewed evidence for ${catalogVersion}; deployment did not change the gate.`,
 		);
 	}
 }

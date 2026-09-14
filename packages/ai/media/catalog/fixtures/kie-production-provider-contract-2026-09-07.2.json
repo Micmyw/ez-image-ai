@@ -1,0 +1,266 @@
+{
+	"sourceRevision": "000d7753b8957e1715fcdc8f13ee22f8dd89fba0",
+	"catalogVersion": "2026-09-07.2",
+	"products": [
+		{
+			"productKey": "image-nano-banana-2-lite",
+			"defaultSkuKey": "nano-banana-2-lite-1k",
+			"cells": [
+				{
+					"skuKey": "nano-banana-2-lite-1k",
+					"aspectRatios": [
+						"auto",
+						"1:1",
+						"1:4",
+						"1:8",
+						"2:3",
+						"3:2",
+						"3:4",
+						"4:1",
+						"4:3",
+						"4:5",
+						"5:4",
+						"8:1",
+						"9:16",
+						"16:9",
+						"21:9"
+					],
+					"controls": [],
+					"routes": [
+						{
+							"provider": "kie",
+							"providerModelId": "nano-banana-2-lite",
+							"providerCostMicros": 20000,
+							"weight": 100
+						}
+					],
+					"request": {
+						"providerModelId": "nano-banana-2-lite",
+						"sourceField": "image_urls",
+						"parameters": {}
+					}
+				}
+			]
+		},
+		{
+			"productKey": "image-seedream-4-5",
+			"defaultSkuKey": "seedream-4-5-basic-2k",
+			"cells": [
+				{
+					"skuKey": "seedream-4-5-basic-2k",
+					"aspectRatios": ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
+					"controls": [],
+					"routes": [
+						{
+							"provider": "kie",
+							"providerModelId": "seedream/4.5-edit",
+							"providerCostMicros": 32500,
+							"weight": 100
+						}
+					],
+					"request": {
+						"providerModelId": "seedream/4.5-edit",
+						"sourceField": "image_urls",
+						"parameters": {
+							"quality": "basic",
+							"nsfw_checker": true
+						}
+					}
+				},
+				{
+					"skuKey": "seedream-4-5-high-4k",
+					"aspectRatios": ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
+					"controls": [],
+					"routes": [
+						{
+							"provider": "kie",
+							"providerModelId": "seedream/4.5-edit",
+							"providerCostMicros": 32500,
+							"weight": 100
+						}
+					],
+					"request": {
+						"providerModelId": "seedream/4.5-edit",
+						"sourceField": "image_urls",
+						"parameters": {
+							"quality": "high",
+							"nsfw_checker": true
+						}
+					}
+				}
+			]
+		},
+		{
+			"productKey": "image-seedream-5-lite",
+			"defaultSkuKey": "seedream-5-lite-basic-2k",
+			"cells": [
+				{
+					"skuKey": "seedream-5-lite-basic-2k",
+					"aspectRatios": ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
+					"controls": [
+						{
+							"key": "outputFormat",
+							"defaultValue": "png",
+							"options": ["png", "jpeg"]
+						}
+					],
+					"routes": [
+						{
+							"provider": "kie",
+							"providerModelId": "seedream/5-lite-image-to-image",
+							"providerCostMicros": 27500,
+							"weight": 100
+						}
+					],
+					"request": {
+						"providerModelId": "seedream/5-lite-image-to-image",
+						"sourceField": "image_urls",
+						"parameters": {
+							"quality": "basic",
+							"output_format": "png",
+							"nsfw_checker": true
+						},
+						"outputFormats": {
+							"png": "png",
+							"jpeg": "jpeg"
+						}
+					}
+				},
+				{
+					"skuKey": "seedream-5-lite-high-3k",
+					"aspectRatios": ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
+					"controls": [
+						{
+							"key": "outputFormat",
+							"defaultValue": "png",
+							"options": ["png", "jpeg"]
+						}
+					],
+					"routes": [
+						{
+							"provider": "kie",
+							"providerModelId": "seedream/5-lite-image-to-image",
+							"providerCostMicros": 27500,
+							"weight": 100
+						}
+					],
+					"request": {
+						"providerModelId": "seedream/5-lite-image-to-image",
+						"sourceField": "image_urls",
+						"parameters": {
+							"quality": "high",
+							"output_format": "png",
+							"nsfw_checker": true
+						},
+						"outputFormats": {
+							"png": "png",
+							"jpeg": "jpeg"
+						}
+					}
+				},
+				{
+					"skuKey": "seedream-5-lite-ultra-4k",
+					"aspectRatios": ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
+					"controls": [
+						{
+							"key": "outputFormat",
+							"defaultValue": "png",
+							"options": ["png", "jpeg"]
+						}
+					],
+					"routes": [
+						{
+							"provider": "kie",
+							"providerModelId": "seedream/5-lite-image-to-image",
+							"providerCostMicros": 27500,
+							"weight": 100
+						}
+					],
+					"request": {
+						"providerModelId": "seedream/5-lite-image-to-image",
+						"sourceField": "image_urls",
+						"parameters": {
+							"quality": "ultra",
+							"output_format": "png",
+							"nsfw_checker": true
+						},
+						"outputFormats": {
+							"png": "png",
+							"jpeg": "jpeg"
+						}
+					}
+				}
+			]
+		},
+		{
+			"productKey": "image-seedream-5-pro",
+			"defaultSkuKey": "seedream-5-pro-basic-1k",
+			"cells": [
+				{
+					"skuKey": "seedream-5-pro-basic-1k",
+					"aspectRatios": ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
+					"controls": [
+						{
+							"key": "outputFormat",
+							"defaultValue": "png",
+							"options": ["png", "jpeg"]
+						}
+					],
+					"routes": [
+						{
+							"provider": "kie",
+							"providerModelId": "seedream/5-pro-image-to-image",
+							"providerCostMicros": 35000,
+							"weight": 100
+						}
+					],
+					"request": {
+						"providerModelId": "seedream/5-pro-image-to-image",
+						"sourceField": "image_urls",
+						"parameters": {
+							"quality": "basic",
+							"output_format": "png",
+							"nsfw_checker": true
+						},
+						"outputFormats": {
+							"png": "png",
+							"jpeg": "jpeg"
+						}
+					}
+				},
+				{
+					"skuKey": "seedream-5-pro-high-2k",
+					"aspectRatios": ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
+					"controls": [
+						{
+							"key": "outputFormat",
+							"defaultValue": "png",
+							"options": ["png", "jpeg"]
+						}
+					],
+					"routes": [
+						{
+							"provider": "kie",
+							"providerModelId": "seedream/5-pro-image-to-image",
+							"providerCostMicros": 70000,
+							"weight": 100
+						}
+					],
+					"request": {
+						"providerModelId": "seedream/5-pro-image-to-image",
+						"sourceField": "image_urls",
+						"parameters": {
+							"quality": "high",
+							"output_format": "png",
+							"nsfw_checker": true
+						},
+						"outputFormats": {
+							"png": "png",
+							"jpeg": "jpeg"
+						}
+					}
+				}
+			]
+		}
+	]
+}

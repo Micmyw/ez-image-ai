@@ -28,6 +28,10 @@ Feature gates:
 - `MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS`: server-only, catalog-version-scoped Kie gate. Add
   the active version only after all legal SKU cells under every enabled product have paid private
   execution, billing, output-host, moderation, recovery, and rollback evidence.
+  The explicitly reviewed `2026-09-07.2` → `2026-09-13.1` compatibility rule preserves only
+  the four previously enabled, unchanged provider contracts documented in
+  [the September 14 review](evidence/kie-catalog-compatibility-2026-09-14.md). It adds no
+  certification version and does not authorize new products or future catalog versions.
 - `MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED`: legacy recovery gate required only while OpenRouter is
   configured for already-frozen historical attempts. It does not make OpenRouter eligible for a new
   quote and cannot certify Kie.

@@ -33,6 +33,26 @@ describe("automatic production release preflight", () => {
 		MEDIA_ENABLED_PROVIDERS: "kie",
 		MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "2026-09-07.2",
 	};
+	const existingProduction = {
+		...environment,
+		NODE_ENV: "production",
+		MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
+		MEDIA_SEEDREAM_4_5_ENABLED: "true",
+		MEDIA_SEEDREAM_5_LITE_ENABLED: "true",
+		MEDIA_SEEDREAM_5_PRO_ENABLED: "true",
+	};
+	it("preserves the reviewed existing production models when only the catalog expands", () => {
+		expect(() => assertEnvironment(existingProduction)).not.toThrow();
+		expect(existingProduction.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS).toBe("2026-09-07.2");
+	});
+	it("does not extend that prior approval to a newly enabled model or a future catalog", () => {
+		expect(() =>
+			assertEnvironment({ ...existingProduction, MEDIA_GPT_IMAGE_2_5_FLARE_ENABLED: "true" }),
+		).toThrow("PRODUCTION_CATALOG_NOT_CERTIFIED");
+		expect(() => assertAutomaticReleaseEnvironment(existingProduction, "2026-10-01.1")).toThrow(
+			"PRODUCTION_CATALOG_NOT_CERTIFIED",
+		);
+	});
 	it("blocks the stale production catalog before any Worker is changed", () => {
 		expect(() => assertEnvironment(environment)).toThrow("PRODUCTION_CATALOG_NOT_CERTIFIED");
 		expect(environment.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS).toBe("2026-09-07.2");
@@ -90,7 +110,7 @@ describe("automatic production release preflight", () => {
 				env: {
 					...process.env,
 					CLOUDFLARE_PRODUCTION_ENV:
-						"NEXT_PUBLIC_SAAS_URL=https://ezimageai.com\nMEDIA_GENERATION_ENABLED=true\nMEDIA_ENABLED_PROVIDERS=kie\nMEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS=2026-09-07.2\n",
+						"NEXT_PUBLIC_SAAS_URL=https://ezimageai.com\nMEDIA_GENERATION_ENABLED=true\nMEDIA_ENABLED_PROVIDERS=kie\nMEDIA_GPT_IMAGE_2_5_FLARE_ENABLED=true\nMEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS=2026-09-07.2\n",
 				},
 			},
 		);
@@ -101,7 +121,7 @@ describe("automatic production release preflight", () => {
 
 	it("reassembles split build secrets before checking the production catalog", () => {
 		const source =
-			"NEXT_PUBLIC_SAAS_URL=https://ezimageai.com\nMEDIA_GENERATION_ENABLED=true\nMEDIA_ENABLED_PROVIDERS=kie\nMEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS=2026-09-07.2\nPRIVATE_VALUE=" +
+			"NEXT_PUBLIC_SAAS_URL=https://ezimageai.com\nMEDIA_GENERATION_ENABLED=true\nMEDIA_ENABLED_PROVIDERS=kie\nMEDIA_GPT_IMAGE_2_5_FLARE_ENABLED=true\nMEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS=2026-09-07.2\nPRIVATE_VALUE=" +
 			"do-not-print-production-secret".repeat(220) +
 			"\n";
 		const digest = createHash("sha256").update(source).digest("hex");

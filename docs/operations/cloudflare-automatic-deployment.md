@@ -89,16 +89,19 @@ Cloudflare 默认生成的令牌包含 Workers 脚本、Workers 路由、KV、R2
 如果一个成功、另一个失败，应修复错误后重试同一提交，并确保这段时间内网站和后台任务
 能够兼容。混合模式切换和回滚方式见[部署模式操作说明](cloudflare-workers-profiles.md)。
 
-## 五、当前首次发布的前置条件
+## 五、模型验收与发布前检查
 
-扩展后的模型目录版本是 `2026-09-13.1`。2026 年 9 月 14 日检查本地生产配置时，生图功能
-处于开启状态，但 `MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS` 仍为旧版本 `2026-09-07.2`。
-这种情况下，构建会在修改线上 Worker 之前报错 `PRODUCTION_CATALOG_NOT_CERTIFIED`，防止
-部署后没有可实际执行的模型。
+发布检查按实际启用的模型判断，与网站运行时使用相同规则。未满足验收条件的启用模型会在
+修改线上 Worker 之前报错 `PRODUCTION_CATALOG_NOT_CERTIFIED`，错误中列出对应产品。
 
-需要先按照[AI 生图运行手册](ai-media-runbook.md)核对已启用模型各项输出规格的真实执行、
-计费、输出来源、审核、恢复和回滚证据，再将当前目录版本加入生产环境的认证列表。
-构建命令不会自动认证新模型，也不会自动修改这些开关。本地模拟测试通过，不代表真实付费
-生图、支付履约、供应商计费或游客安全验证已经完成。
+目录 `2026-09-13.1` 对原有 Nano Banana 2 Lite、Seedream 4.5、Seedream 5 Lite 和
+Seedream 5 Pro 保留 `2026-09-07.2` 的既有生产启用范围。2026 年 9 月 14 日已重新核对
+这四个模型的真实成功任务、积分结算和全部 8 档输出的供应商参数；具体记录与未完成项目见
+[目录兼容性复核](evidence/kie-catalog-compatibility-2026-09-14.md)。生产认证列表无需改成
+新版本，新增或其他未复核模型不能使用这条兼容规则，后续目录版本也不会自动继承。
+
+新增模型仍需按照[AI 生图运行手册](ai-media-runbook.md)核对真实执行、计费、输出来源、
+审核、恢复和回滚证据。构建命令不会填写认证版本或修改功能开关。需要调整生产配置时，
+更新本地忽略文件、重新生成分段机密，并同步到两个服务的构建变量。
 
 官方参考：[Cloudflare Workers 构建配置](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)。
