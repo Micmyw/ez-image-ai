@@ -12,7 +12,7 @@ const saasPort = new URL(saasBaseUrl).port || (saasBaseUrl.startsWith("https:") 
 const saasHostname = new URL(saasBaseUrl).hostname.replace(/^\[|\]$/g, "");
 const localMediaE2ELaunchOptions = localMediaE2EChromiumLaunchOptions(process.env);
 const guestOnlySpecs = /(?:guest-trial|landing|originality)\.spec\.ts/;
-const publicOnlySpecs = /(?:public-routes|public-seo|docs)\.spec\.ts/;
+const publicOnlySpecs = /(?:public-routes|public-seo|models|docs)\.spec\.ts/;
 
 /**
  * See https://playwright.dev/docs/test-configuration.
@@ -29,6 +29,7 @@ export default defineConfig({
 		baseURL: saasBaseUrl,
 		launchOptions: localMediaE2ELaunchOptions,
 		trace: "on-first-retry",
+		screenshot: "only-on-failure",
 		video: {
 			mode: "retain-on-failure",
 			size: { width: 640, height: 480 },

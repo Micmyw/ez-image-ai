@@ -20,7 +20,7 @@ const PAID_IMAGE_PRODUCT = "image-nano-banana-2" as const;
 const KIE_IMAGE_ROUTE_GRAPH = {
 	enabledProviders: new Set(["kie" as const]),
 	generationEnabled: true,
-	kieImageCertifiedCatalogVersions: new Set(["2026-09-13.1"]),
+	kieImageCertifiedCatalogVersions: new Set(["2026-09-14.1"]),
 };
 
 const BASE_SNAPSHOT: GenerationAccessSnapshot = {
@@ -37,6 +37,43 @@ const BASE_SNAPSHOT: GenerationAccessSnapshot = {
 };
 
 describe("generation authorization", () => {
+	it("requires the same account credit checks for a source-free request", async () => {
+		const input = {
+			kind: "text-to-image" as const,
+			prompt: "A ceramic vase",
+			skuKey: "nano-banana-2-lite-1k" as const,
+			aspectRatio: "1:1" as const,
+		};
+		expect(isUsableGenerationSourceAsset(input, null)).toBe(true);
+		const request = {
+			userId: "user-1",
+			productKey: FREE_IMAGE_PRODUCT,
+			credits: 5n,
+			costMicros: 20_000n,
+			input,
+			routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
+		};
+		const dependencies = {
+			enforceRateLimit: vi.fn(),
+			isEnvironmentGenerationEnabled: () => true,
+			loadAccess: vi.fn(async () => ({
+				...BASE_SNAPSHOT,
+				sourceAssetBytes: null,
+				planId: "free" as const,
+			})),
+		};
+		await expect(assertGenerationAllowed(request, dependencies)).resolves.toBeUndefined();
+		dependencies.loadAccess.mockResolvedValue({
+			...BASE_SNAPSHOT,
+			sourceAssetBytes: null,
+			planId: "free",
+			spendableCredits: 0n,
+		});
+		await expect(assertGenerationAllowed(request, dependencies)).rejects.toThrow(
+			"INSUFFICIENT_CREDITS",
+		);
+		expect(dependencies.enforceRateLimit).toHaveBeenCalled();
+	});
 	it.each(["image-nano-banana", "image-gpt-image-1-5"] as const)(
 		"enforces %s's 10 MB provider input limit even on a 20 MB plan",
 		async (productKey) => {

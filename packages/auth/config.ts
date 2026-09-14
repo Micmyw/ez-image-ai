@@ -42,6 +42,7 @@ export const config = {
 			"llms.mdx",
 			"llms.txt",
 			"login",
+			"models",
 			"new-organization",
 			"og",
 			"onboarding",

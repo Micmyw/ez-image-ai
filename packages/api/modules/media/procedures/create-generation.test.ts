@@ -29,6 +29,68 @@ const NANO_INPUT = {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("createGenerationForUser", () => {
+	it("creates a text job through the existing reservation transaction without input assets or an edit session", async () => {
+		const input = {
+			kind: "text-to-image" as const,
+			prompt: "A ceramic vase",
+			skuKey: "gpt-image-2-1k" as const,
+			aspectRatio: "1:1" as const,
+		};
+		const quote = buildMediaQuote({ productKey: "image-gpt-image-2", input }, KIE_ROUTE_OPTIONS);
+		const createGenerationJob = vi.fn(async (_request: unknown) => ({
+			job: { id: "text-job", status: "RESERVED", version: 0, creditsReserved: 7n },
+			replayed: false,
+		}));
+		const assertAllowed = vi.fn(async () => undefined);
+		const dependencies = {
+			now: () => new Date("2026-09-14T00:00:00Z"),
+			findQuote: async () => ({
+				...quote,
+				id: "text-quote",
+				expiresAt: new Date("2026-09-14T00:10:00Z"),
+				inputSnapshot: input,
+			}),
+			getRouteGraphOptions: async () => KIE_ROUTE_OPTIONS,
+			loadEntitlement: async () => ({ maximumConcurrentJobs: 3 }),
+			assertAllowed,
+			createGenerationJob,
+		};
+		await createGenerationForUser(
+			"user-1",
+			{ quoteId: "text-quote", idempotencyKey: "text-request-1" },
+			dependencies,
+		);
+		expect(assertAllowed).toHaveBeenCalledWith(
+			expect.objectContaining({
+				userId: "user-1",
+				input,
+				credits: 7n,
+				enforceProspectiveDailyBudget: false,
+			}),
+		);
+		expect(createGenerationJob).toHaveBeenCalledWith(
+			expect.objectContaining({
+				quoteId: "text-quote",
+				inputAssetIds: [],
+				maximumConcurrentJobs: 3,
+				expectedModerationRuleVersion: expect.any(String),
+			}),
+		);
+		expect(createGenerationJob.mock.calls[0]?.[0]).not.toHaveProperty("edit");
+		createGenerationJob.mockClear();
+		await expect(
+			createGenerationForUser(
+				"user-1",
+				{
+					quoteId: "text-quote",
+					idempotencyKey: "text-request-2",
+					parentJobId: "unrelated-parent",
+				},
+				dependencies,
+			),
+		).rejects.toThrow("NOT_FOUND");
+		expect(createGenerationJob).not.toHaveBeenCalled();
+	});
 	it("rejects a retired OpenRouter product quote before reserving credits", async () => {
 		const legacyQuote = buildMediaQuote(
 			{

@@ -6,18 +6,21 @@ import {
 	type ImageOutputSettingsLabels,
 } from "@media/components/ImageOutputSettings";
 import { replaceImageModelInUrl, useModelNavigation } from "@media/hooks/use-model-navigation";
+import { isEditorProductKey } from "@media/lib/editor-recovery";
 import {
 	type ImageSpecControlKey,
 	type ImageSpecControlValues,
 	resolveImageSpecControlValues,
 } from "@media/lib/image-sku-selection";
-import { getImageProductSelectionContract } from "@repo/config/client";
+import { writeEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
+import { getImageProductSelectionContract, getPlanEntitlement } from "@repo/config/client";
 import type { ImageAspectRatio, ImageSkuKey } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { Turnstile } from "@repo/ui/components/turnstile";
 import { trackBrowserGrowthEvent } from "@repo/utils";
+import { orpcClient } from "@shared/lib/orpc-client";
 import {
 	CoinsIcon,
 	ArrowUpIcon,
@@ -43,6 +46,7 @@ import {
 import {
 	getGuestCapability,
 	type GuestCapabilitySnapshot,
+	type GuestCapabilityProduct,
 	type GuestProductKey,
 	LANDING_IMAGE_CONTENT_TYPES,
 	submitGuestDraftHandoff,
@@ -77,6 +81,8 @@ export function LandingGenerator() {
 	const floatingDockRef = useRef<HTMLElement>(null);
 	const [capability, setCapability] = useState<GuestCapabilitySnapshot | null>(null);
 	const [capabilityRequestKey, setCapabilityRequestKey] = useState(0);
+	const [textProducts, setTextProducts] = useState<GuestCapabilityProduct[]>([]);
+	const [textDraftError, setTextDraftError] = useState(false);
 	const [selectedProductKey, setSelectedProductKey] = useState<GuestProductKey | null>(null);
 	const [selectedSkuKey, setSelectedSkuKey] = useState<ImageSkuKey | null>(null);
 	const [file, setFile] = useState<File | null>(null);
@@ -104,21 +110,41 @@ export function LandingGenerator() {
 			{ name: "landing_viewed", properties: { status: "viewed" } },
 			{ dedupeKey: "landing" },
 		);
-		void getGuestCapability()
-			.then((snapshot) => {
+		void Promise.allSettled([getGuestCapability(), orpcClient.media.getPublicCatalog()]).then(
+			([guest, catalog]) => {
 				if (!active) return;
+				const snapshot = guest.status === "fulfilled" ? guest.value : null;
 				setCapability(snapshot);
+				const available: GuestCapabilityProduct[] =
+					catalog.status === "fulfilled"
+						? catalog.value.products.flatMap((product) =>
+								isEditorProductKey(product.key) &&
+								product.inputKinds.includes("text-to-image") &&
+								product.skuMatrix
+									? [
+											{
+												key: product.key,
+												label: product.label,
+												description: product.description,
+												credits: `${product.credits}` as `${number}`,
+												accessHint: "paid-account" as const,
+												aspectRatios: product.skuMatrix.cells.flatMap((cell) => cell.aspectRatios),
+												skuMatrix: product.skuMatrix,
+											},
+										]
+									: [],
+							)
+						: [];
+				setTextProducts(available);
 				setSelectedProductKey((current) =>
-					resolveLandingProductSelection(snapshot.products, current),
+					resolveLandingProductSelection(
+						available.length ? available : (snapshot?.products ?? []),
+						current,
+					),
 				);
-				setStage("ready");
-			})
-			.catch(() => {
-				if (!active) return;
-				setCapability(null);
-				setSelectedProductKey(null);
-				setStage("failed");
-			});
+				setStage(guest.status === "rejected" && catalog.status === "rejected" ? "failed" : "ready");
+			},
+		);
 		return () => {
 			active = false;
 		};
@@ -207,24 +233,35 @@ export function LandingGenerator() {
 	);
 	const maximumMegabytes = Math.round(maximumBytes / 1024 / 1024);
 	const supportedMimeTypes = capability?.upload.mimeTypes ?? LANDING_IMAGE_CONTENT_TYPES;
+	const availableProducts = useMemo(
+		() => (file ? (capability?.products ?? []) : textProducts),
+		[file, capability?.products, textProducts],
+	);
+	useEffect(() => {
+		setSelectedProductKey((current) => resolveLandingProductSelection(availableProducts, current));
+	}, [availableProducts]);
 	const localizedProducts = useMemo(
 		() =>
-			localizeLandingProducts(capability?.products ?? [], {
+			localizeLandingProducts(availableProducts, {
 				productLabel: (productKey) => tCreate(`products.${productKey}.label`),
 				productDescription: (productKey) => tCreate(`products.${productKey}.description`),
 				skuLabel: (skuKey) => tCreate(`skus.${skuKey}.label`),
 			}),
-		[capability?.products, tCreate],
+		[availableProducts, tCreate],
 	);
 	const selectedProduct =
 		localizedProducts.find((product) => product.key === selectedProductKey) ?? null;
 	const modelOptions = localizedProducts.map((product) => ({
 		...product,
-		requiresUpgrade: product.accessHint === "paid-account",
+		requiresUpgrade: file
+			? product.accessHint === "paid-account"
+			: !getPlanEntitlement("free").allowedProducts.includes(product.key),
 	}));
 	const selectedSku =
 		selectedProduct?.skuMatrix.cells.find((cell) => cell.skuKey === selectedSkuKey) ?? null;
-	const capabilityUsable = Boolean(capability?.enabled && capability.products.length > 0);
+	const capabilityUsable = file
+		? Boolean(capability?.enabled && capability.products.length > 0)
+		: textProducts.length > 0;
 	useEffect(() => {
 		setSelectedSkuKey((current) => resolveLandingSkuSelection(selectedProduct, current));
 	}, [selectedProduct]);
@@ -248,14 +285,15 @@ export function LandingGenerator() {
 		productSelected: Boolean(selectedProduct && selectedSku),
 		hasSource: Boolean(file),
 		prompt,
-		turnstileReady: Boolean(turnstileToken),
+		turnstileReady: !file || Boolean(turnstileToken),
+		requiresSource: false,
 	});
 	const isBusy = disabledReason === "busy";
 	const canSubmit = disabledReason === null;
 	const modelNavigation = useModelNavigation({
 		products: localizedProducts,
 		value: selectedProductKey,
-		ready: Boolean(capability) && !isBusy,
+		ready: stage !== "checking" && !isBusy,
 		onSelect: (key) => {
 			if (!isBusy) {
 				setSelectedProductKey(key);
@@ -376,6 +414,37 @@ export function LandingGenerator() {
 
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
+		if (!file) {
+			if (!canSubmit || !selectedProduct || !selectedSku) return;
+			try {
+				const saved = writeEditorUpgradeDraft(window.sessionStorage, {
+					draft: {
+						productKey: selectedProduct.key,
+						input: {
+							kind: "text-to-image",
+							prompt,
+							skuKey: selectedSku.skuKey,
+							aspectRatio,
+							...controlValues,
+						},
+					},
+					parentJobId: null,
+					sourceReady: false,
+				});
+				if (!saved) {
+					setTextDraftError(true);
+					return;
+				}
+				setTextDraftError(false);
+				setStage("handoff");
+				const redirectTo = `/create?resume=text&model=${encodeURIComponent(selectedProduct.key)}`;
+				window.location.assign(`/login?${new URLSearchParams({ redirectTo })}`);
+			} catch {
+				setTextDraftError(true);
+				setStage("ready");
+			}
+			return;
+		}
 		if (disabledReason === "source") {
 			setFileError(t("fileErrors.required"));
 			return;
@@ -459,15 +528,21 @@ export function LandingGenerator() {
 				? t("actions.retryAvailability")
 				: stage === "failed" && selectedProduct
 					? t("actions.retry")
-					: selectedProduct?.accessHint === "paid-account"
-						? t("actions.quality")
-						: t("actions.standard");
+					: !file
+						? studio("generation.signIn")
+						: selectedProduct?.accessHint === "paid-account"
+							? t("actions.quality")
+							: t("actions.standard");
 	const stageLabel =
 		stage === "uploading"
 			? t("states.uploading", { percentage: uploadPercentage ?? 0 })
 			: t(`states.${stage}`);
 	const statusLabel =
-		disabledReason && disabledReason !== "busy" ? t(`guidance.${disabledReason}`) : stageLabel;
+		!file && canSubmit
+			? studio("generation.textHint")
+			: disabledReason && disabledReason !== "busy"
+				? t(`guidance.${disabledReason}`)
+				: stageLabel;
 	const promptContract = selectedContract;
 	const maximumPromptLength = promptContract?.maximumPromptLength ?? 10_000;
 	const showCharacterCount = prompt.length >= maximumPromptLength * 0.9;
@@ -532,6 +607,11 @@ export function LandingGenerator() {
 					aria-hidden="true"
 				/>
 				<form className="relative" onSubmit={(event) => void submit(event)}>
+					{textDraftError && (
+						<output className="mb-3 text-sm text-amber-200 block">
+							{studio("storageUnavailable")}
+						</output>
+					)}
 					{modelNavigation.unavailable && (
 						<output className="mb-3 text-sm text-amber-200 block">
 							{studio("tools.modelUnavailable")}
@@ -700,7 +780,7 @@ export function LandingGenerator() {
 						>
 							{actionLabel}
 							{selectedSku &&
-								selectedProduct?.accessHint === "paid-account" &&
+								(!file || selectedProduct?.accessHint === "paid-account") &&
 								!canRetryCapability && (
 									<span
 										data-test="generation-credit-amount"
@@ -723,7 +803,7 @@ export function LandingGenerator() {
 							/>
 						</div>
 					)}
-					{GUEST_TURNSTILE_SITE_KEY && !isDockVisible && (
+					{file && GUEST_TURNSTILE_SITE_KEY && !isDockVisible && (
 						<Turnstile
 							siteKey={GUEST_TURNSTILE_SITE_KEY}
 							action="guest_upload"
@@ -769,14 +849,16 @@ export function LandingGenerator() {
 				{selectedProduct && capabilityUsable && (
 					<span className="gap-1.5 inline-flex items-center">
 						<SparklesIcon className="size-3.5 text-[#b79cff]" aria-hidden="true" />
-						{selectedProduct.accessHint === "paid-account"
-							? t("qualityAccess", { model: selectedProduct.label })
-							: t("freeQueue")}
+						{!file
+							? studio("generation.textHint")
+							: selectedProduct.accessHint === "paid-account"
+								? t("qualityAccess", { model: selectedProduct.label })
+								: t("freeQueue")}
 					</span>
 				)}
 				<span className="gap-1.5 sm:ml-auto inline-flex items-center">
 					<LockKeyholeIcon className="size-3.5 text-emerald-300" aria-hidden="true" />
-					{t("temporaryResult")}
+					{file ? t("temporaryResult") : studio("private")}
 				</span>
 			</div>
 
@@ -918,7 +1000,7 @@ export function LandingGenerator() {
 									>
 										{actionLabel}
 										{selectedSku &&
-											selectedProduct?.accessHint === "paid-account" &&
+											(!file || selectedProduct?.accessHint === "paid-account") &&
 											!canRetryCapability && (
 												<span
 													data-test="generation-credit-amount"
@@ -941,7 +1023,7 @@ export function LandingGenerator() {
 									</span>
 								</div>
 								{unavailableHelp}
-								{GUEST_TURNSTILE_SITE_KEY && (
+								{file && GUEST_TURNSTILE_SITE_KEY && (
 									<Turnstile
 										siteKey={GUEST_TURNSTILE_SITE_KEY}
 										action="guest_upload"

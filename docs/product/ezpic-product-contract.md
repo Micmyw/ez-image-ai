@@ -22,7 +22,7 @@ is embedded in the product code.
 
 ## Public products, one wallet, and legal SKUs
 
-EzPic exposes twelve image-edit products backed by one `EzPic Credit` balance. Credit use is selected
+EzPic exposes twelve image products backed by one `EzPic Credit` balance. Credit use is selected
 by the exact legal SKU, not by a universal per-image rate:
 
 | Public product key             | Legal SKU                   | Parameters | EzPic Credits |
@@ -62,10 +62,11 @@ Flare and Sunburst support their four additional aspect ratios only at 1K. Seedr
 to a 5,000-character prompt and an explicit one-image request. New model flags default off unless
 explicitly enabled; adding products does not certify any production route or change existing prices.
 
-Every row accepts `image-to-image`, requires an owned private source asset and prompt, and produces
-one image. GPT Image 2 1K is a supported seven-credit SKU. `text-to-image`, multi-output quantity, a
-SKU from another product, and an unsupported product/SKU/aspect-ratio combination are rejected
-during server-side quoting.
+Every row accepts `text-to-image` with a prompt or `image-to-image` with a prompt and owned private
+source asset, and produces one image. GPT Image 2 1K is a supported seven-credit SKU in either mode.
+Text inputs cannot include source assets, parent edits, strength, provider details, or arbitrary
+dimensions. Multi-output quantity, a SKU from another product, and unsupported product/SKU/aspect
+combinations are rejected during server-side quoting.
 
 Each product owns an model-specific parameter matrix. Fixed, resolution-only, and
 quality-plus-resolution products do not share a global option table. Their aspect-ratio lists also
@@ -88,14 +89,24 @@ remain worker-only to retrieve or reconcile historical attempts.
 `video-fast` and `video-quality` remain internal catalog entries and stay outside EzPic public
 configuration, plans, navigation, SEO, and UI.
 
-Image catalog version: `2026-09-13.1`; image pricing version: `2026-09-13.2`. Credit Pack catalog, pricing, and
+Image catalog version: `2026-09-14.1`; image pricing version: `2026-09-13.2`. Credit Pack catalog, pricing, and
 subscriber-eligibility contract version: `2026-09-06.1`.
+
+Text-mode quotes freeze the explicit server-owned text route while retaining the selected SKU's
+credit amount and configured cost ceiling. Official text API contracts are recorded in
+`packages/ai/media/providers/fixtures/kie-official-text-image-contracts-2026-09-14.json`.
+Historical image-edit certification compatibility ends at catalog `2026-09-13.1`; it does not
+certify the text-capable catalog. Enabling `2026-09-14.1` requires fresh external certification,
+including text-route acceptance and measured costs. The development and browser-test fixtures
+explicitly opt into the current catalog with a local provider and are not production evidence.
 
 ## Public homepage and anonymous trial boundary
 
-The SaaS `/` route is an upload-first image editor, not a redirect to login. A visitor chooses one
-JPEG, PNG, or WebP source image within the server-advertised limit, enters a prompt, and starts the
-sponsored Nano Banana 2 Lite 1K trial. That guest path is fixed to product
+The SaaS `/` route is a prompt-first image workspace with an optional reference. A source-free
+prompt uses the enabled public text catalog. Continuing saves a bounded one-hour same-tab draft
+and opens login; the prompt never enters the URL, and a fresh quote is required after sign-in.
+A visitor can also choose one JPEG, PNG, or WebP source within the server-advertised limit, enter
+an edit instruction, and start the sponsored Nano Banana 2 Lite 1K trial. That guest path is fixed to product
 `image-nano-banana-2-lite`, SKU `nano-banana-2-lite-1k`, one output, and five sponsored EzPic
 Credits. Visitors can browse and select all twelve models; choosing a paid model preserves the
 selection and opens the sign-in or upgrade flow before generation. Prompt suggestions only populate
@@ -115,10 +126,12 @@ expiry, and optional account linking.
 
 ## Authenticated editor and one-edit lifecycle
 
-The registered editor in the public `/create` workspace accepts the twelve public image product keys and only their 29
-legal SKU cells. Its source asset must belong to the signed-in user, be an undeleted READY
-image, and remain readable under current moderation evidence. The prompt is required and limited to
-the same 10,000-character boundary in the client form and server input schema.
+The registered editor on `/`, `/create`, and individual model pages accepts the twelve public
+image product keys and their 29 legal SKU cells. An empty reference means text-to-image. An image
+reference must belong to the signed-in user, be an undeleted READY image, and remain readable under
+current moderation evidence. A selected upload in progress, paused, or failed invalidates the quote
+and blocks submission until completed or explicitly removed. The prompt is required and follows
+the selected model's length limits within the common 10,000-character maximum.
 
 Review creates only the existing server-owned `GenerationQuote` and shows the product, SKU
 parameters, EzPic Credit amount, and expiry. Changing the source, prompt, model, resolution, quality,
@@ -143,6 +156,11 @@ machine, and covers success, ordinary failure, moderation rejection, and cancell
 comparison uses the exact job-bound input and only an approved job output; both previews and the
 download are requested through short-lived owner-authorized signed URLs. No signed URL is sent to
 analytics or application logs.
+
+A text job has no INPUT asset binding and no edit session or parent. Its result uses a single
+owner-authorized preview. **Edit again** uses its output as the source of a new image-edit session;
+the text job is not forged into an edit parent. Prompt reuse and retries retain the text input kind,
+model, SKU, aspect ratio, and supported output controls.
 
 The homepage uses repository-owned UI assets and icon components. It does not represent decorative
 examples as Provider output or model-quality evidence.
@@ -278,16 +296,18 @@ recorded in
 
 ## Navigation and indexing
 
-Public navigation exposes Examples, How It Works, Pricing, FAQ, Privacy, Terms, Blog, Changelog,
+Public navigation exposes Models, Examples, How It Works, Pricing, FAQ, Privacy, Terms, Blog, Changelog,
 Contact, Docs, Sign In, and Start Editing on the unified SaaS origin. Authenticated navigation is
 limited to Create, Edits, History, Assets, Billing, and Settings. Existing chatbot and video
 implementation code may remain, but those entries are hidden from EzPic navigation.
 
-The same-origin sitemap contains exactly `/`, `/pricing`, `/privacy`, and `/terms`. Blog,
-Changelog, Contact, and Docs use `noindex, follow` until their content is approved for indexing.
+The same-origin sitemap includes `/`, `/pricing`, `/privacy`, `/terms`, `/models`, twelve individual
+model pages, reviewed published Blog content, and Docs marked `indexable: true`.
+Changelog, Contact, and Docs artifacts remain noindex. Model pages have independent titles,
+descriptions, canonical URLs, and one H1; unknown model slugs return the root 404.
 Login, guest workspace, create, history, assets, edits, checkout, settings, and admin stay
 `noindex, nofollow`. Legacy locale-prefixed public URLs permanently redirect to their unprefixed
-paths; display language continues to come from the locale cookie.
+paths. Public HTML stays English; account pages retain the locale cookie.
 
 ## Security, privacy, and cost impact
 
@@ -332,9 +352,12 @@ Provider, or storage system.
 
 The homepage renders the guest editor for visitors and anonymous trial sessions, and the existing
 registered editor inside account/onboarding/organization/subscription boundaries for registered users.
-The homepage always uses top navigation without a tool sidebar. AI Image Tools and AI Models link
-to the public `/create` workspace for both guests and registered users. Model links carry only a
-stable public product key in `?model=`, and the editor selects it only when the current server catalog
+The homepage always uses top navigation without a tool sidebar. AI Image Tools links to `/create`;
+AI Models links to `/models/<public-slug>` and the `/models` collection. Individual model pages reuse
+the same generator, with unique creative guidance and six original illustrations whose provenance is
+recorded in `model-artwork.json`. Artwork is labeled as inspiration, not named-model output evidence.
+The creation sidebar keeps same-page model changes in `?model=`. Both forms of navigation use only a
+stable public product key, and the editor selects it only when the current server catalog
 offers it. Switching models within the workspace preserves the prompt and source, invalidates an old
 quote, and updates compatible output choices. Unavailable model links show a notice.
 Model family icons use the same original-color assets in navigation, selectors, and upgrade prompts.

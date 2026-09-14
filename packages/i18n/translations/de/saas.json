@@ -1201,7 +1201,8 @@
 				"preparing": "Quellbild wird vorbereitet…",
 				"ready": "Quellbild ist bereit",
 				"private": "Nur Sie können über einen kurzlebigen privaten Link auf dieses Bild zugreifen.",
-				"remove": "Quellbild entfernen"
+				"remove": "Quellbild entfernen",
+				"optionalHint": "Leer lassen, um ein Bild aus einem Textprompt zu erstellen."
 			},
 			"mode": {
 				"label": "Bildmodell",
@@ -1268,7 +1269,9 @@
 				"showResult": "Ergebnis anzeigen",
 				"before": "Original",
 				"after": "Ergebnis"
-			}
+			},
+			"generatedReady": "Dein Bild ist fertig",
+			"generatedAlt": "Generiertes Bild"
 		},
 		"edits": {
 			"title": "Bearbeitungssitzungen",
@@ -1425,9 +1428,9 @@
 			"placeholder": "Weiter gestalten",
 			"result": "Aktuelles Ergebnis ansehen"
 		},
-		"subtitle": "Lade ein Bild hoch, beschreibe eine Änderung und gestalte es nach deinen Wünschen.",
+		"subtitle": "Beschreibe ein Bild oder füge eine Referenz für deine Bearbeitung hinzu.",
 		"private": "Deine Bilder bleiben privat",
-		"upload": "Bild hochladen",
+		"upload": "Referenz hinzufügen (optional)",
 		"promptSuggestions": {
 			"background": "Hintergrund ändern",
 			"object": "Objekt entfernen",
@@ -1437,14 +1440,24 @@
 		"tools": {
 			"imageTools": "KI-Bildtools",
 			"models": "KI-Modelle",
-			"imageToImage": "Bild zu Bild",
-			"imageToImageDescription": "Bearbeite ein Referenzbild mit einer Textanweisung.",
+			"imageToImage": "KI-Bildgenerator",
+			"imageToImageDescription": "Erstelle Bilder aus Text oder bearbeite ein Referenzbild.",
 			"examples": "Bearbeitungsbeispiele",
 			"examplesDescription": "Entdecke Ideen und übernimm eine Anweisung in den Editor.",
 			"loading": "Verfügbare Modelle werden geladen…",
 			"unavailable": "Modelle sind derzeit nicht verfügbar. Du kannst deine Bearbeitung weiter vorbereiten.",
 			"modelUnavailable": "Das angeforderte Modell ist nicht verfügbar. Wähle ein verfügbares Modell aus.",
-			"title": "KI-Bild-zu-Bild-Editor"
+			"title": "KI-Bildgenerator und Editor"
+		},
+		"generation": {
+			"referencePending": "Schließe den Referenz-Upload ab, versuche ihn erneut oder entferne ihn für ein Bild aus Text.",
+			"textMode": "Text zu Bild",
+			"editMode": "Bild zu Bild",
+			"signIn": "Anmelden und generieren",
+			"textHint": "Beginne mit einem Prompt. Ein Referenzbild ist optional. Melde dich an, um Credits zu prüfen und zu generieren.",
+			"promptHint": "Beschreibe Motiv, Komposition, Licht und Stil. Füge bei Bedarf ein Referenzbild hinzu.",
+			"promptLabel": "Bild-Prompt",
+			"generate": "Bild generieren"
 		}
 	}
 }

@@ -68,7 +68,20 @@ export function resolveEditorRecovery(input: {
 	allowedProductKeys: EditorProductKey[];
 }): EditorRecoveryResult {
 	if (!input.requested) return { initialDraft: null, restoreState: "idle", notice: null };
-	if (!input.candidate || !input.sourceAsset) return unavailableRecovery();
+	if (!input.candidate) return unavailableRecovery();
+	if (input.candidate.input.kind === "text-to-image") {
+		const draft = normalizedDraft(input.candidate);
+		return draft
+			? {
+					initialDraft: draft,
+					restoreState: "ready",
+					notice: input.allowedProductKeys.includes(draft.productKey)
+						? null
+						: "quality-upgrade-required",
+				}
+			: unavailableRecovery();
+	}
+	if (!input.sourceAsset) return unavailableRecovery();
 	if (
 		input.sourceAsset.deletedAt ||
 		!input.sourceAsset.mimeType.startsWith("image/") ||
@@ -88,9 +101,15 @@ export function resolveEditorRecovery(input: {
 }
 
 function normalizedDraft(candidate: RecoveryCandidate): EditorDraftInput | null {
-	if (candidate.input.kind !== "image-to-image") return null;
+	if (candidate.input.kind !== "image-to-image" && candidate.input.kind !== "text-to-image")
+		return null;
 	const sourceAssetId = candidate.input.sourceAssetId;
-	if (typeof sourceAssetId !== "string" || sourceAssetId.length === 0) return null;
+	if (
+		candidate.input.kind === "image-to-image" &&
+		(typeof sourceAssetId !== "string" || sourceAssetId.length === 0)
+	)
+		return null;
+	if (candidate.input.kind === "text-to-image" && sourceAssetId !== undefined) return null;
 	const prompt = candidate.input.prompt;
 	if (typeof prompt !== "string" || prompt.length > 10_000) return null;
 
@@ -118,9 +137,9 @@ function normalizedDraft(candidate: RecoveryCandidate): EditorDraftInput | null 
 	return {
 		productKey,
 		input: {
-			kind: "image-to-image",
+			kind: candidate.input.kind,
 			prompt: prompt.trim(),
-			sourceAssetId,
+			...(typeof sourceAssetId === "string" ? { sourceAssetId } : {}),
 			skuKey: cell.skuKey,
 			aspectRatio,
 			...normalizedCellControls(candidate.input, cell.controls),

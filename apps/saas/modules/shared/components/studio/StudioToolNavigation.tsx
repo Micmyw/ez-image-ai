@@ -22,7 +22,9 @@ export function StudioToolNavigation({
 	const t = useTranslations("studio.tools");
 	const models = useTranslations("media.create.products");
 	const pathname = usePathname();
-	const selected = useSearchParams().get("model");
+	const selected =
+		useSearchParams().get("model") ??
+		(pathname.startsWith("/models/") ? `image-${pathname.slice("/models/".length)}` : null);
 	const [menu, setMenu] = useState<"tools" | "models" | null>(null);
 	const catalog = useQuery({
 		queryKey: ["media-catalog"],
@@ -67,7 +69,11 @@ export function StudioToolNavigation({
 		return (
 			<Link
 				key={product.key}
-				href={imageModelHref(product.key)}
+				href={
+					sidebar && pathname === "/create"
+						? `/create?model=${encodeURIComponent(product.key)}`
+						: imageModelHref(product.key)
+				}
 				scroll={false}
 				onClick={navigate}
 				className={
@@ -75,7 +81,7 @@ export function StudioToolNavigation({
 						? `studio-nav-link${selected === product.key ? " is-active" : ""}`
 						: "studio-menu-entry"
 				}
-				aria-current={pathname === "/create" && selected === product.key ? "page" : undefined}
+				aria-current={selected === product.key ? "page" : undefined}
 			>
 				<span className={sidebar ? "studio-nav-model-icon" : "studio-menu-model-icon"}>
 					<ImageModelIcon productKey={product.key} size={sidebar ? 18 : 24} />
@@ -99,7 +105,9 @@ export function StudioToolNavigation({
 			<div className="studio-tool-sidebar">
 				<p className="studio-nav-label">{t("imageTools")}</p>
 				{tools}
-				<p className="studio-nav-label">{t("models")}</p>
+				<Link href="/models" className="studio-nav-label">
+					{t("models")}
+				</Link>
 				{modelContent}
 			</div>
 		);
@@ -133,6 +141,11 @@ export function StudioToolNavigation({
 						<div className={kind === "models" ? "studio-model-grid" : undefined}>
 							{kind === "tools" ? tools : modelContent}
 						</div>
+						{kind === "models" && (
+							<Link href="/models" className="studio-menu-entry" onClick={navigate}>
+								{t("models")} <span aria-hidden>→</span>
+							</Link>
+						)}
 					</PopoverContent>
 				</Popover>
 			))}

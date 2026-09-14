@@ -2,6 +2,7 @@ import { source } from "@docs/lib/source";
 import { getBaseUrl } from "@shared/lib/base-url";
 import type { MetadataRoute } from "next";
 
+import { MODEL_PAGES, modelPath } from "../modules/models/lib/model-pages";
 import { getPublishedBlogPostPaths } from "../modules/public-content/lib/content";
 
 export default function sitemap(): MetadataRoute.Sitemap {
@@ -12,6 +13,8 @@ export default function sitemap(): MetadataRoute.Sitemap {
 		"/privacy",
 		"/terms",
 		"/blog",
+		"/models",
+		...MODEL_PAGES.map((model) => modelPath(model.key)),
 		...getPublishedBlogPostPaths().map((slug) => `/blog/${slug}`),
 		...source
 			.getPages()

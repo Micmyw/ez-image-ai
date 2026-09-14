@@ -12,6 +12,7 @@ export const config = {
 	matcher: [
 		"/",
 		"/create",
+		"/models/:path*",
 		"/pricing",
 		"/privacy",
 		"/terms",

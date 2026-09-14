@@ -185,7 +185,7 @@ describe("EzPic PR 8 launch artifacts", () => {
 		]) {
 			expect(example).toContain(`${key}=`);
 		}
-		expect(example).toContain("the current version is 2026-09-13.1");
+		expect(example).toContain("the current version is 2026-09-14.1");
 		expect(example).not.toContain("MEDIA_STANDARD_EDIT_ENABLED=");
 		expect(example).not.toContain("MEDIA_QUALITY_EDIT_ENABLED=");
 	});

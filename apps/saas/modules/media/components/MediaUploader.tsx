@@ -4,7 +4,7 @@ import { getPublicConfig } from "@repo/config/client";
 import { Button } from "@repo/ui/components/button";
 import { UploadCloudIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { type ClipboardEvent, useCallback } from "react";
+import { type ClipboardEvent, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 
 import { useMediaUpload } from "../hooks/use-media-upload";
@@ -26,6 +26,7 @@ export function filterEzPicImageFiles(
 export interface MediaUploaderProps {
 	value?: string[];
 	onChange: (assetIds: string[]) => void;
+	onPendingChange?: (pending: boolean) => void;
 	multiple?: boolean;
 	maximumImageBytes?: number;
 	compact?: boolean;
@@ -33,6 +34,7 @@ export interface MediaUploaderProps {
 
 export function MediaUploader({
 	onChange,
+	onPendingChange,
 	multiple = true,
 	maximumImageBytes = publicProductConfig.uploadLimits.imageBytes,
 	compact = false,
@@ -41,13 +43,18 @@ export function MediaUploader({
 	const studio = useTranslations("studio");
 	const uploader = useMediaUpload(onChange);
 	const addFiles = uploader.addFiles;
+	const pending = uploader.items.some((item) => item.status !== "uploaded");
+	useEffect(() => onPendingChange?.(pending), [onPendingChange, pending]);
 	const imageByteLimit = Math.min(maximumImageBytes, publicProductConfig.uploadLimits.imageBytes);
 	const addImageFiles = useCallback(
 		(files: File[]) => {
 			const acceptedFiles = filterEzPicImageFiles(files, imageByteLimit);
-			if (acceptedFiles.length) addFiles(multiple ? acceptedFiles : acceptedFiles.slice(0, 1));
+			if (acceptedFiles.length) {
+				onPendingChange?.(true);
+				addFiles(multiple ? acceptedFiles : acceptedFiles.slice(0, 1));
+			}
 		},
-		[addFiles, imageByteLimit, multiple],
+		[addFiles, imageByteLimit, multiple, onPendingChange],
 	);
 	const { getInputProps, getRootProps, isDragActive } = useDropzone({
 		onDrop: addImageFiles,
@@ -95,37 +102,68 @@ export function MediaUploader({
 				{uploader.items.map((item) => {
 					const id = getFileFingerprint(item.file);
 					return (
-						<li key={id} className="gap-3 p-3 flex items-center rounded-md border">
-							{item.previewUrl && (
+						<li
+							key={id}
+							className={
+								compact
+									? "gap-2 p-2 grid grid-cols-2 rounded-md border"
+									: "gap-3 p-3 flex items-center rounded-md border"
+							}
+						>
+							{item.previewUrl && !compact && (
 								<img src={item.previewUrl} alt="" className="size-12 rounded object-cover" />
 							)}
-							<div className="min-w-0 flex-1">
+							<div className={compact ? "min-w-0 col-span-2" : "min-w-0 flex-1"}>
 								<p className="truncate">{item.file.name}</p>
 								<p className="text-sm text-muted-foreground">
 									{t(`status.${item.status}`)} · {item.progress}%
 								</p>
 								{item.error && (
-									<p role="alert" className="text-sm text-destructive">
+									<p role="alert" className="text-sm break-words text-destructive">
 										{item.error}
 									</p>
 								)}
 							</div>
 							{item.status === "uploading" && (
-								<Button type="button" variant="outline" onClick={() => uploader.pause(id)}>
+								<Button
+									size={compact ? "sm" : undefined}
+									className={compact ? "min-h-8 px-1 h-auto whitespace-normal" : undefined}
+									type="button"
+									variant="outline"
+									onClick={() => uploader.pause(id)}
+								>
 									{t("pause")}
 								</Button>
 							)}
 							{item.status === "paused" && (
-								<Button type="button" variant="outline" onClick={() => uploader.resume(id)}>
+								<Button
+									size={compact ? "sm" : undefined}
+									className={compact ? "min-h-8 px-1 h-auto whitespace-normal" : undefined}
+									type="button"
+									variant="outline"
+									onClick={() => uploader.resume(id)}
+								>
 									{t("resume")}
 								</Button>
 							)}
 							{item.status === "error" && (
-								<Button type="button" variant="outline" onClick={() => uploader.retry(id)}>
+								<Button
+									size={compact ? "sm" : undefined}
+									className={compact ? "min-h-8 px-1 h-auto whitespace-normal" : undefined}
+									type="button"
+									variant="outline"
+									onClick={() => uploader.retry(id)}
+								>
 									{t("retry")}
 								</Button>
 							)}
-							<Button type="button" variant="ghost" onClick={() => void uploader.remove(id)}>
+							<Button
+								size={compact ? "sm" : undefined}
+								className={compact ? "min-h-8 px-1 h-auto whitespace-normal" : undefined}
+								type="button"
+								variant="ghost"
+								onClick={() => void uploader.remove(id)}
+							>
 								{t("remove")}
 							</Button>
 						</li>

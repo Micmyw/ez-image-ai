@@ -15,7 +15,10 @@ vi.mock("./ImageModelSelector", async (importOriginal) => {
 });
 
 vi.mock("@shared/hooks/router", () => ({ useRouter: () => ({ push: vi.fn() }) }));
-vi.mock("next/navigation", () => ({ useSearchParams: () => new URLSearchParams() }));
+vi.mock("next/navigation", () => ({
+	useSearchParams: () => new URLSearchParams(),
+	usePathname: () => "/create",
+}));
 vi.mock("@payments/components/EditorUpgradeDialog", () => ({
 	EditorUpgradeDialog: ({ open }: { open: boolean }) =>
 		open ? <span>Localized upgrade dialog</span> : null,
@@ -73,6 +76,7 @@ vi.mock("next-intl", () => ({
 			"skus.seedream-5-pro-basic-1k.label": "Localized 1K Basic",
 			"skus.seedream-5-pro-high-2k.label": "Localized 2K High",
 			"fields.prompt": "Localized edit instruction",
+			"generation.promptLabel": "Localized image prompt",
 			"fields.sourceAssetId": "Localized source image",
 			"outputSettings.resolution": "Localized resolution",
 			"outputSettings.quality": "Localized quality",
@@ -325,7 +329,7 @@ describe("GenerationForm product copy", () => {
 		for (const copy of [
 			"Localized Nano Banana 2 Lite",
 			"Localized fast 1K edits",
-			"Localized edit instruction",
+			"Localized image prompt",
 			"Localized source image",
 		]) {
 			expect(markup).toContain(copy);

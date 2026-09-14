@@ -38,6 +38,7 @@ const TOP_LEVEL_STATIC_ROUTE_SEGMENTS = [
 	"llms.mdx",
 	"llms.txt",
 	"login",
+	"models",
 	"new-organization",
 	"og",
 	"onboarding",

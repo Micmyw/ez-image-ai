@@ -29,7 +29,7 @@ const contentSecurityPolicy = [
 		(isProduction ? "" : " 'unsafe-eval'"),
 	"frame-src https://challenges.cloudflare.com",
 	"style-src 'self' 'unsafe-inline'",
-	"img-src 'self' blob: data: https:",
+	`img-src 'self' blob: data: https:${storageConnectSource ? ` ${storageConnectSource}` : ""}`,
 	"media-src 'self' blob: https:",
 	"font-src 'self' data:",
 	`connect-src 'self' https:${storageConnectSource ? ` ${storageConnectSource}` : ""}${isProduction ? "" : " ws:"}`,

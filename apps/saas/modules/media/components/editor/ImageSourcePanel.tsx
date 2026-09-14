@@ -5,7 +5,7 @@ import { orpcClient } from "@shared/lib/orpc-client";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { MediaUploader } from "../MediaUploader";
 
@@ -13,16 +13,26 @@ export function ImageSourcePanel({
 	sourceAssetId,
 	onChange,
 	onReadyChange,
+	onPendingChange,
 	maximumImageBytes,
 	compact = false,
 }: {
 	sourceAssetId: string;
 	onChange: (assetId: string) => void;
 	onReadyChange: (ready: boolean) => void;
+	onPendingChange?: (pending: boolean) => void;
 	maximumImageBytes?: number;
 	compact?: boolean;
 }) {
 	const t = useTranslations("media.editor.source");
+	const [pending, setPending] = useState(false);
+	const updatePending = useCallback(
+		(next: boolean) => {
+			setPending(next);
+			onPendingChange?.(next);
+		},
+		[onPendingChange],
+	);
 	const preview = useQuery({
 		queryKey: ["media-asset-preview", sourceAssetId],
 		queryFn: () =>
@@ -98,13 +108,15 @@ export function ImageSourcePanel({
 					</div>
 				</div>
 			)}
-			<div hidden={compact && Boolean(sourceAssetId)}>
+			<div hidden={compact && Boolean(sourceAssetId) && !pending}>
 				<MediaUploader
+					key={sourceAssetId || "new-reference"}
 					compact={compact}
 					multiple={false}
 					maximumImageBytes={maximumImageBytes}
 					value={sourceAssetId ? [sourceAssetId] : []}
 					onChange={(assetIds) => onChange(assetIds[0] ?? "")}
+					onPendingChange={updatePending}
 				/>
 			</div>
 		</div>

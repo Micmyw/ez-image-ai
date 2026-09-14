@@ -18,9 +18,9 @@ export function isEditorProductKey(
 export interface EditorDraftInput {
 	productKey: EditorProductKey;
 	input: {
-		kind: "image-to-image";
+		kind: "image-to-image" | "text-to-image";
 		prompt: string;
-		sourceAssetId: string;
+		sourceAssetId?: string;
 		skuKey: ImageSkuKey;
 		aspectRatio?: ImageAspectRatio;
 		outputFormat?: ImageOutputFormat;

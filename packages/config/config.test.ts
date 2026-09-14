@@ -453,7 +453,7 @@ describe("product configuration", () => {
 			"image-seedream-5-lite",
 			"image-seedream-5-pro",
 		]);
-		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-09-13.1");
+		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-09-14.1");
 		expect(DEFAULT_PRODUCT_CONFIG.pricingVersion).toBe("2026-09-13.2");
 		expect(publicConfig.brand).toMatchObject({
 			siteName: "EzPic",

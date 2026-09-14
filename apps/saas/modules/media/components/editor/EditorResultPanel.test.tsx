@@ -128,6 +128,23 @@ describe("EditorResultPanel", () => {
 		expect(markup).toContain('href="/create?asset=asset-output&amp;parentJob=job-1"');
 		expect(markup).toContain("Edit again");
 	});
+
+	it("shows a text-generated image and starts a new reference edit without a nonexistent parent session", () => {
+		mocks.jobQuery = {
+			data: { ...imageJob(), input: { kind: "text-to-image" }, inputAssets: [] },
+			isError: false,
+		};
+		mocks.useQuery.mockReturnValue({
+			data: { url: "https://private.example.test/output" },
+			isError: false,
+		});
+		const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-text" onNew={vi.fn()} />);
+		expect(markup).toContain('src="https://private.example.test/output"');
+		expect(markup).toContain('href="/create?asset=asset-output&amp;model=image-gpt-image-2"');
+		expect(markup).toContain("Download");
+		expect(markup).not.toContain("This edit is unavailable");
+		expect(markup).not.toContain("parentJob=");
+	});
 });
 
 function imageJob({

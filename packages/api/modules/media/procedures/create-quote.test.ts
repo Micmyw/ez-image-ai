@@ -146,41 +146,56 @@ describe("createQuoteForUser", () => {
 		expect(persistApproved).not.toHaveBeenCalled();
 	});
 
-	it("persists a quote only after one ALLOW decision", async () => {
-		const persistApproved = vi.fn(async (quote) => ({ id: "quote_1", ...quote }));
-		const moderateText = vi.fn(async ({ ruleVersion }) => ({
-			decision: "ALLOW" as const,
-			reasonCode: "NO_POLICY_MATCH",
-			ruleVersion,
-		}));
-		const assertAllowed = vi.fn(async () => undefined);
-		await expect(
-			createQuoteForUser("user_1", INPUT, {
-				now: () => new Date("2026-08-14T00:00:00.000Z"),
-				assertAllowed,
-				createAdapter: () => ({ provider: "sightengine", adapter: { moderateText } }),
-				persistApproved,
-				recordDenied: vi.fn(),
-			}),
-		).resolves.toMatchObject({ id: "quote_1" });
-		expect(assertAllowed).toHaveBeenCalledOnce();
-		expect(moderateText).toHaveBeenCalledOnce();
-		expect(persistApproved).toHaveBeenCalledWith(
-			expect.objectContaining({
-				ownerId: "user_1",
-				inputSnapshot: {
-					...INPUT.input,
-					editContext: { kind: "ROOT", rootAssetId: SOURCE_ASSET_ID },
-				},
-				moderation: expect.objectContaining({
-					decision: "ALLOW",
-					inputFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+	it.each(["image-to-image", "text-to-image"] as const)(
+		"persists a %s quote only after one ALLOW decision",
+		async (kind) => {
+			const request =
+				kind === "image-to-image"
+					? INPUT
+					: {
+							...INPUT,
+							input: {
+								kind,
+								prompt: INPUT.input.prompt,
+								skuKey: INPUT.input.skuKey,
+								aspectRatio: INPUT.input.aspectRatio,
+							},
+						};
+			const persistApproved = vi.fn(async (quote) => ({ id: "quote_1", ...quote }));
+			const moderateText = vi.fn(async ({ ruleVersion }) => ({
+				decision: "ALLOW" as const,
+				reasonCode: "NO_POLICY_MATCH",
+				ruleVersion,
+			}));
+			const assertAllowed = vi.fn(async () => undefined);
+			await expect(
+				createQuoteForUser("user_1", request, {
+					now: () => new Date("2026-08-14T00:00:00.000Z"),
+					assertAllowed,
+					createAdapter: () => ({ provider: "sightengine", adapter: { moderateText } }),
+					persistApproved,
+					recordDenied: vi.fn(),
 				}),
-			}),
-		);
-	});
+			).resolves.toMatchObject({ id: "quote_1" });
+			expect(assertAllowed).toHaveBeenCalledOnce();
+			expect(moderateText).toHaveBeenCalledOnce();
+			expect(persistApproved).toHaveBeenCalledWith(
+				expect.objectContaining({
+					ownerId: "user_1",
+					inputSnapshot:
+						kind === "image-to-image"
+							? { ...INPUT.input, editContext: { kind: "ROOT", rootAssetId: SOURCE_ASSET_ID } }
+							: request.input,
+					moderation: expect.objectContaining({
+						decision: "ALLOW",
+						inputFingerprint: expect.stringMatching(/^[a-f0-9]{64}$/),
+					}),
+				}),
+			);
+		},
+	);
 
-	it("rejects image-model text-to-image input before moderation or persistence", async () => {
+	it("rejects a text-to-image request without a model-owned SKU before moderation or persistence", async () => {
 		const createAdapter = vi.fn();
 		const persistApproved = vi.fn();
 		const assertAllowed = vi.fn();
@@ -203,20 +218,36 @@ describe("createQuoteForUser", () => {
 					recordDenied: vi.fn(),
 				},
 			),
-		).rejects.toThrow("Input text-to-image is not supported by image-gpt-image-2");
+		).rejects.toThrow("Invalid SKU for image-gpt-image-2");
 
 		expect(assertAllowed).not.toHaveBeenCalled();
 		expect(createAdapter).not.toHaveBeenCalled();
 		expect(persistApproved).not.toHaveBeenCalled();
 	});
 
-	it.each(["REJECT", "REVIEW", "ERROR"] as const)(
-		"records prompt-free %s evidence and creates no quote",
-		async (decision) => {
+	it.each(
+		(["REJECT", "REVIEW", "ERROR"] as const).flatMap((decision) =>
+			(["image-to-image", "text-to-image"] as const).map((kind) => ({ decision, kind })),
+		),
+	)(
+		"records prompt-free $decision evidence for $kind and creates no quote",
+		async ({ decision, kind }) => {
+			const request =
+				kind === "image-to-image"
+					? INPUT
+					: {
+							...INPUT,
+							input: {
+								kind,
+								prompt: INPUT.input.prompt,
+								skuKey: INPUT.input.skuKey,
+								aspectRatio: INPUT.input.aspectRatio,
+							},
+						};
 			const persistApproved = vi.fn();
 			const recordDenied = vi.fn(async () => undefined);
 			await expect(
-				createQuoteForUser("user_1", INPUT, {
+				createQuoteForUser("user_1", request, {
 					now: () => new Date("2026-08-14T00:00:00.000Z"),
 					assertAllowed: vi.fn(async () => undefined),
 					createAdapter: () => ({

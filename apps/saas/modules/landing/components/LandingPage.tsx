@@ -7,6 +7,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { ExploreModels } from "../../models/components/ExploreModels";
 import { PublicFooterLinks } from "../../public-content/components/PublicFooterLinks";
 import { HOME_FAQ_KEYS } from "../lib/faq";
 import { BeforeAfterDemo } from "./BeforeAfterDemo";
@@ -43,6 +44,7 @@ export async function LandingPage({
 					</div>
 				</section>
 
+				<ExploreModels />
 				<ShowcaseSection />
 				<BeforeAfterDemo />
 				<CreatorWorkflowsSection />

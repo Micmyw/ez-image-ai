@@ -189,7 +189,7 @@ describe("retryGenerationForUser", () => {
 		}) => {
 			vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");
 			vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
-			vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", "2026-09-13.1");
+			vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", "2026-09-14.1");
 			const claimRequest = vi.fn(
 				async (claimInput: Parameters<RetryGenerationDependencies["claimRequest"]>[0]) => ({
 					outcome: "CLAIMED" as const,
@@ -235,51 +235,65 @@ describe("retryGenerationForUser", () => {
 		},
 	);
 
-	it("preserves the exact legal SKU and aspect ratio for a current Kie retry", async () => {
-		vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");
-		vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
-		vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", "2026-09-13.1");
-		const claimRequest = vi.fn(
-			async (claimInput: Parameters<RetryGenerationDependencies["claimRequest"]>[0]) => ({
-				outcome: "CLAIMED" as const,
-				requestId: "request-current-gpt-4k",
-				leaseToken: "lease-current-gpt-4k",
-				operation: claimInput.operation,
-			}),
-		);
-		const deps = dependencies({
-			findSource: vi.fn(async () => ({
-				...source,
-				productKey: "image-gpt-image-2",
-				quote: {
-					...source.quote,
-					inputSnapshot: {
-						...source.quote.inputSnapshot,
-						skuKey: "gpt-image-2-4k",
-						aspectRatio: "16:9",
+	it.each(["image-to-image", "text-to-image"] as const)(
+		"preserves the exact legal SKU and aspect ratio for a current Kie %s retry",
+		async (kind) => {
+			vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");
+			vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
+			vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", "2026-09-14.1");
+			const claimRequest = vi.fn(
+				async (claimInput: Parameters<RetryGenerationDependencies["claimRequest"]>[0]) => ({
+					outcome: "CLAIMED" as const,
+					requestId: "request-current-gpt-4k",
+					leaseToken: "lease-current-gpt-4k",
+					operation: claimInput.operation,
+				}),
+			);
+			const deps = dependencies({
+				findSource: vi.fn(async () => ({
+					...source,
+					productKey: "image-gpt-image-2",
+					assets: kind === "image-to-image" ? source.assets : [],
+					quote: {
+						...source.quote,
+						inputSnapshot: {
+							kind,
+							prompt: source.quote.inputSnapshot.prompt,
+							...(kind === "image-to-image" ? { sourceAssetId: SOURCE_ASSET_ID } : {}),
+							skuKey: "gpt-image-2-4k",
+							aspectRatio: "16:9",
+						},
 					},
-				},
-			})),
-			claimRequest,
-		});
+				})),
+				claimRequest,
+			});
 
-		await retryGenerationForUser(
-			"user-1",
-			{ jobId: "source-job-1", idempotencyKey: "retry-current-gpt-4k" },
-			deps,
-		);
+			await retryGenerationForUser(
+				"user-1",
+				{ jobId: "source-job-1", idempotencyKey: "retry-current-gpt-4k" },
+				deps,
+			);
 
-		expect(claimRequest.mock.calls[0]?.[0].operation).toMatchObject({
-			productKey: "image-gpt-image-2",
-			credits: "17",
-			costMicros: "80000",
-			normalizedInput: expect.objectContaining({
-				skuKey: "gpt-image-2-4k",
-				aspectRatio: "16:9",
-			}),
-			pricingSnapshot: expect.objectContaining({ skuKey: "gpt-image-2-4k" }),
-		});
-	});
+			expect(claimRequest.mock.calls[0]?.[0].operation).toMatchObject({
+				productKey: "image-gpt-image-2",
+				credits: "17",
+				costMicros: "80000",
+				normalizedInput: expect.objectContaining({
+					skuKey: "gpt-image-2-4k",
+					aspectRatio: "16:9",
+				}),
+				pricingSnapshot: expect.objectContaining({ skuKey: "gpt-image-2-4k" }),
+			});
+			if (kind === "text-to-image") {
+				expect(deps.createJob).toHaveBeenCalledWith(
+					expect.objectContaining({ inputAssetIds: [], expectedInputAssets: [] }),
+				);
+				expect(claimRequest.mock.calls[0]?.[0].operation.pricingSnapshot).toMatchObject({
+					routeGraph: { allowedRoutes: [{ providerModelId: "gpt-image-2-text-to-image" }] },
+				});
+			}
+		},
+	);
 
 	it("removes only private edit context and rejects any other persisted input field", async () => {
 		const claimRequest = vi.fn();
@@ -387,7 +401,7 @@ describe("retryGenerationForUser", () => {
 				operation: expect.objectContaining({
 					assetModerationPolicyVersion: expect.any(String),
 					assetModerationRuleVersion: expect.any(String),
-					catalogVersion: "2026-09-13.1",
+					catalogVersion: "2026-09-14.1",
 					costMicros: "20000",
 					credits: "5",
 					inputAssets: [{ assetChecksum: "1".repeat(64), assetId: SOURCE_ASSET_ID }],

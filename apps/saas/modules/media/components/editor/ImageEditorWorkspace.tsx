@@ -66,7 +66,7 @@ export function ImageEditorWorkspace({
 		const explicitRecovery = Boolean(
 			initialDraft ||
 			restoreState !== "idle" ||
-			["asset", "reuseJob", "parentJob", "draftError", "upgrade"].some((key) =>
+			["asset", "reuseJob", "parentJob", "draftError", "upgrade", "resume"].some((key) =>
 				searchParams.has(key),
 			),
 		);
@@ -77,7 +77,16 @@ export function ImageEditorWorkspace({
 					const { productKey, ...input } = saved.values;
 					setWorkspace((current) => ({
 						...current,
-						initialDraft: { productKey, input: { kind: "image-to-image", ...input } },
+						initialDraft: {
+							productKey,
+							input: {
+								...input,
+								kind: input.sourceAssetId ? "image-to-image" : "text-to-image",
+								...(input.sourceAssetId
+									? { sourceAssetId: input.sourceAssetId }
+									: { sourceAssetId: undefined }),
+							},
+						},
 						parentJobId: saved.parentJobId,
 						jobId: searchParams.get("job") ?? saved.jobId,
 						formKey: current.formKey + 1,
@@ -115,7 +124,7 @@ export function ImageEditorWorkspace({
 	}, [claimedDraft, claimedDraftEventKey, initialDraft]);
 
 	useEffect(() => {
-		if (searchParams.get("upgrade") !== "complete") return;
+		if (searchParams.get("upgrade") !== "complete" && searchParams.get("resume") !== "text") return;
 		const restored = readEditorUpgradeDraft(window.sessionStorage);
 		if (!restored) return;
 		setWorkspace((current) => ({
@@ -126,8 +135,13 @@ export function ImageEditorWorkspace({
 			recoveryVisible: true,
 		}));
 		setSourceReady(restored.sourceReady);
-		setUpgradeRestored(canConfirmEditorUpgrade(restored.draft.productKey, allowedProductKeys));
-		router.replace(pathname === "/" ? "/" : "/create", { scroll: false });
+		setUpgradeRestored(
+			searchParams.get("upgrade") === "complete" &&
+				canConfirmEditorUpgrade(restored.draft.productKey, allowedProductKeys),
+		);
+		router.replace(`${pathname}?model=${encodeURIComponent(restored.draft.productKey)}`, {
+			scroll: false,
+		});
 	}, [allowedProductKeys, pathname, router, searchParams]);
 
 	const unlinkSource = useCallback(() => {
@@ -139,7 +153,8 @@ export function ImageEditorWorkspace({
 		const next = new URLSearchParams(searchParams);
 		if (nextJobId) next.set("job", nextJobId);
 		else next.delete("job");
-		for (const key of ["asset", "reuseJob", "parentJob", "draftError", "upgrade"]) next.delete(key);
+		for (const key of ["asset", "reuseJob", "parentJob", "draftError", "upgrade", "resume"])
+			next.delete(key);
 		window.history.replaceState(null, "", pathname + (next.size ? "?" + next : ""));
 	}
 
@@ -147,7 +162,7 @@ export function ImageEditorWorkspace({
 		setWorkspace(beginNewEditorWorkspaceState);
 		setSourceReady(false);
 		setUpgradeRestored(false);
-		window.history.replaceState(null, "", pathname === "/" ? "/" : "/create");
+		window.history.replaceState(null, "", pathname);
 	}
 
 	return (

@@ -1201,7 +1201,8 @@
 				"preparing": "Preparing source image…",
 				"ready": "Source image ready",
 				"private": "Only you can access this image through a short-lived private link.",
-				"remove": "Remove source"
+				"remove": "Remove source",
+				"optionalHint": "Leave empty to create from a text prompt."
 			},
 			"mode": {
 				"label": "Image model",
@@ -1268,7 +1269,9 @@
 				"showResult": "Show result",
 				"before": "Original",
 				"after": "Result"
-			}
+			},
+			"generatedReady": "Your image is ready",
+			"generatedAlt": "Generated image"
 		},
 		"edits": {
 			"title": "Edit sessions",
@@ -1425,9 +1428,9 @@
 			"placeholder": "Continue creating",
 			"result": "View current result"
 		},
-		"subtitle": "Upload an image, describe a change, and make it yours.",
+		"subtitle": "Describe an image, or add a reference to make it your own.",
 		"private": "Your images stay private",
-		"upload": "Upload image",
+		"upload": "Add reference (optional)",
 		"promptSuggestions": {
 			"background": "Change background",
 			"object": "Remove an object",
@@ -1437,14 +1440,24 @@
 		"tools": {
 			"imageTools": "AI Image Tools",
 			"models": "AI Models",
-			"imageToImage": "Image to Image",
-			"imageToImageDescription": "Edit a reference image with a prompt.",
+			"imageToImage": "AI Image Generator",
+			"imageToImageDescription": "Create from a prompt or edit a reference image.",
 			"examples": "Editing Examples",
 			"examplesDescription": "Explore ideas and use a prompt in your editor.",
 			"loading": "Loading available models…",
 			"unavailable": "Models are currently unavailable. You can still prepare your edit.",
 			"modelUnavailable": "The requested model is unavailable. Choose an available model to continue.",
-			"title": "AI Image to Image Editor"
+			"title": "AI Image Generator & Editor"
+		},
+		"generation": {
+			"referencePending": "Finish uploading your reference, retry it, or remove it to generate from text.",
+			"textMode": "Text to image",
+			"editMode": "Image to image",
+			"signIn": "Sign in to generate",
+			"textHint": "Start with a prompt. A reference image is optional. Sign in to review credits and generate.",
+			"promptHint": "Describe your subject, composition, lighting, and style. Add a reference image when you want to edit or guide the result.",
+			"promptLabel": "Image prompt",
+			"generate": "Generate image"
 		}
 	}
 }

@@ -7,23 +7,28 @@ import {
 } from "./organization-slug";
 
 describe("organization slug boundary", () => {
-	it("recognizes the reserved docs route without changing existing reservations", () => {
+	it("recognizes public route slugs without changing existing reservations", () => {
+		expect(isForbiddenOrganizationSlug("models")).toBe(true);
+		expect(isForbiddenOrganizationSlug(" MODELS ")).toBe(true);
 		expect(isForbiddenOrganizationSlug("docs")).toBe(true);
 		expect(isForbiddenOrganizationSlug(" DOCS ")).toBe(true);
 		expect(isForbiddenOrganizationSlug("admin")).toBe(true);
 		expect(isForbiddenOrganizationSlug("design-team")).toBe(false);
 	});
 
-	it("rejects direct Better Auth organization creation for the docs slug", async () => {
-		const validation = validateOrganizationSlugBeforeCreate({
-			organization: { name: "Docs", slug: "docs" },
-		});
+	it.each(["docs", "models"])(
+		"rejects direct organization creation for the %s slug",
+		async (slug) => {
+			const validation = validateOrganizationSlugBeforeCreate({
+				organization: { name: slug, slug },
+			});
 
-		await expect(validation).rejects.toBeInstanceOf(APIError);
-		await expect(validation).rejects.toMatchObject({
-			status: "BAD_REQUEST",
-		});
-	});
+			await expect(validation).rejects.toBeInstanceOf(APIError);
+			await expect(validation).rejects.toMatchObject({
+				status: "BAD_REQUEST",
+			});
+		},
+	);
 
 	it("allows direct organization creation for a non-reserved slug", async () => {
 		await expect(

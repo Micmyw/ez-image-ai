@@ -60,7 +60,7 @@ test.describe("subscription upgrade checkout recovery", () => {
 		const prompt = `[e2e:subscription-upgrade] [run:${runId}] Keep the subject and soften the background`;
 
 		await page.goto(`/create?asset=${source.id}`);
-		await page.getByLabel(/edit instruction/i).fill(prompt);
+		await page.getByLabel(/edit instruction|image prompt/i).fill(prompt);
 		await page.locator('[data-test="editor-model-trigger"]').click();
 		await page.getByRole("button", { name: "GPT Image", exact: true }).click();
 		await page.locator('[data-test="editor-model-image-gpt-image-2"]').click();
@@ -98,7 +98,7 @@ test.describe("subscription upgrade checkout recovery", () => {
 
 		await expect(page).toHaveURL(/\/create(?:\?upgrade=complete)?$/, { timeout: 15_000 });
 		await expect(page.getByText(/your paid plan is active/i)).toBeVisible();
-		await expect(page.getByLabel(/edit instruction/i)).toHaveValue(prompt);
+		await expect(page.getByLabel(/edit instruction|image prompt/i)).toHaveValue(prompt);
 		await expect(page.locator('[data-test="editor-model-trigger"]')).toContainText("GPT Image 2");
 		await expect(page.getByRole("img", { name: /selected source image/i })).toBeVisible();
 		await expect

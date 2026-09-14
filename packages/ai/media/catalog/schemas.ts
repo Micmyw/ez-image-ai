@@ -19,13 +19,18 @@ export const imageOutputFormatSchema = z.enum(IMAGE_OUTPUT_FORMATS);
 export const imageBackgroundSchema = z.enum(IMAGE_BACKGROUNDS);
 
 export const mediaModelInputSchema = z.discriminatedUnion("kind", [
-	z.object({
-		kind: z.literal("text-to-image"),
-		prompt: promptSchema,
-		aspectRatio: imageAspectRatioSchema.optional(),
-		width: z.number().int().min(256).max(2048).optional(),
-		height: z.number().int().min(256).max(2048).optional(),
-	}),
+	z
+		.object({
+			kind: z.literal("text-to-image"),
+			prompt: promptSchema,
+			skuKey: imageSkuKeySchema.optional(),
+			aspectRatio: imageAspectRatioSchema.optional(),
+			outputFormat: imageOutputFormatSchema.optional(),
+			background: imageBackgroundSchema.optional(),
+			width: z.number().int().min(256).max(2048).optional(),
+			height: z.number().int().min(256).max(2048).optional(),
+		})
+		.strict(),
 	z
 		.object({
 			kind: z.literal("image-to-image"),

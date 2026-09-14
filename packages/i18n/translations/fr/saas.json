@@ -1201,7 +1201,8 @@
 				"preparing": "Préparation de l’image source…",
 				"ready": "Image source prête",
 				"private": "Vous seul pouvez accéder à cette image via un lien privé de courte durée.",
-				"remove": "Retirer l’image"
+				"remove": "Retirer l’image",
+				"optionalHint": "Laissez ce champ vide pour créer une image à partir de texte."
 			},
 			"mode": {
 				"label": "Modèle d’image",
@@ -1268,7 +1269,9 @@
 				"showResult": "Afficher le résultat",
 				"before": "Original",
 				"after": "Résultat"
-			}
+			},
+			"generatedReady": "Votre image est prête",
+			"generatedAlt": "Image générée"
 		},
 		"edits": {
 			"title": "Sessions de retouche",
@@ -1425,9 +1428,9 @@
 			"placeholder": "Continuez à créer",
 			"result": "Voir le résultat actuel"
 		},
-		"subtitle": "Importez une image, décrivez une modification et personnalisez-la.",
+		"subtitle": "Décrivez une image ou ajoutez une référence pour la personnaliser.",
 		"private": "Vos images restent privées",
-		"upload": "Importer une image",
+		"upload": "Ajouter une référence (facultatif)",
 		"promptSuggestions": {
 			"background": "Changer le fond",
 			"object": "Retirer un objet",
@@ -1437,14 +1440,24 @@
 		"tools": {
 			"imageTools": "Outils image IA",
 			"models": "Modèles IA",
-			"imageToImage": "Image vers image",
-			"imageToImageDescription": "Modifiez une image de référence à partir d’une instruction.",
+			"imageToImage": "Générateur d’images IA",
+			"imageToImageDescription": "Créez avec un prompt ou modifiez une image de référence.",
 			"examples": "Exemples de retouche",
 			"examplesDescription": "Explorez des idées et utilisez une instruction dans l’éditeur.",
 			"loading": "Chargement des modèles disponibles…",
 			"unavailable": "Les modèles sont momentanément indisponibles. Vous pouvez préparer votre retouche.",
 			"modelUnavailable": "Le modèle demandé est indisponible. Choisissez un modèle disponible pour continuer.",
-			"title": "Éditeur image vers image IA"
+			"title": "Générateur et éditeur d’images IA"
+		},
+		"generation": {
+			"referencePending": "Terminez l’envoi de la référence, réessayez ou retirez-la pour générer à partir du texte.",
+			"textMode": "Texte vers image",
+			"editMode": "Image vers image",
+			"signIn": "Se connecter pour générer",
+			"textHint": "Commencez par un prompt. Une image de référence est facultative. Connectez-vous pour consulter les crédits et générer.",
+			"promptHint": "Décrivez le sujet, la composition, la lumière et le style. Ajoutez une référence pour modifier ou guider le résultat.",
+			"promptLabel": "Prompt d’image",
+			"generate": "Générer l’image"
 		}
 	}
 }

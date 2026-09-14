@@ -52,7 +52,7 @@ const enabledEnvironment = {
 	NODE_ENV: "development",
 	MEDIA_GENERATION_ENABLED: "true",
 	MEDIA_ENABLED_PROVIDERS: "kie",
-	MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "2026-09-13.1",
+	MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "2026-09-14.1",
 	KIE_API_KEY: "test-kie-key",
 	GUEST_MEDIA_ENABLED: "true",
 	GUEST_PROMOTION_PERIOD: "2026-launch",
@@ -422,7 +422,7 @@ describe("guest private upload handoff", () => {
 		vi.stubEnv("GUEST_PROMOTION_PERIOD", "2026-launch");
 		vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
 		vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");
-		vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", "2026-09-13.1");
+		vi.stubEnv("MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS", "2026-09-14.1");
 		vi.stubEnv("KIE_API_KEY", "test-kie-key");
 		vi.stubEnv("BETTER_AUTH_SECRET", "test-secret");
 		vi.stubEnv("GUEST_ABUSE_HMAC_SECRET", enabledEnvironment.GUEST_ABUSE_HMAC_SECRET);

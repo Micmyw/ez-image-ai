@@ -1,11 +1,12 @@
 ---
 indexable: true
-title: Image editing
-description: Compare EzPic image output options and credit amounts, then learn how to review, download, and edit a saved result again.
+title: Image generation and editing
+description: Compare EzPic text-to-image and reference-editing output options, credits, and private result controls.
 ---
 
-EzPic edits an existing source image using a written instruction. Start with the
-[quick start](/docs/quick-start) if this is your first edit. The settings below help you choose an
+EzPic creates an image from a written prompt or edits an existing reference. Leave the reference
+empty for text to image, or add an image for image to image. Text generation requires sign-in.
+Start with the [quick start](/docs/quick-start) for your first image. The settings below help you choose an
 output before confirming its credit cost; they do not guarantee that every requested change will be exact.
 
 ## Image products and EzPic Credits
@@ -46,7 +47,9 @@ the editor shows which are currently available to you:
 | Seedream 4.0           | 2K             |             8 |
 | Seedream 4.0           | 4K             |            10 |
 
-The catalog includes twelve image models across Nano Banana, GPT Image, and Seedream.
+The [model collection](/models) includes twelve image models across Nano Banana, GPT Image, and Seedream.
+Each page has its own creative guidance and preselected workspace. Both input modes use the same
+listed credit amount for the selected output setting, subject to current availability.
 GPT Image 2.5 Flare and Sunburst offer 1K, 2K, and 4K outputs. Their 27:16, 16:27, 9:8, and 8:9
 ratios are available at 1K only. Seedream 4.0 accepts instructions up to 5,000 characters and
 produces one image per confirmed edit. Availability follows the editor's current model list.
@@ -83,6 +86,10 @@ successfully, fail, or be canceled only when the server reports that cancellatio
 A successful image edit provides a before-and-after comparison. Inspect the parts you wanted to keep,
 as well as the area you changed. Downloads use temporary private access links; save a local copy if
 you need it beyond the retention period.
+
+A text generation provides a single image preview. Use **Edit again** to turn that output into the
+reference for a new edit, or reuse its prompt from History to create another image without a source.
+Each new generation requires a fresh credit quote.
 
 The **Edit again** action on an eligible saved account result uses that image as the source for a new
 edit. It has a new credit charge. Guest previews stay watermarked and temporary and do not offer this

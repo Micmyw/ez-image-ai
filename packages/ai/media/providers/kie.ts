@@ -7,6 +7,7 @@ import {
 } from "@repo/config";
 import { z } from "zod";
 
+import { kieTextImageModel } from "../catalog/image-input-routes";
 import { MediaProviderError } from "../errors";
 import type {
 	NormalizedResult,
@@ -84,7 +85,8 @@ export class KieProviderAdapter implements MediaProviderAdapter {
 	constructor(private readonly options: KieProviderOptions) {}
 
 	async submit(input: ProviderSubmitInput): Promise<ProviderSubmission> {
-		const isImageJob = input.input.kind === "image-to-image";
+		const isImageJob =
+			input.input.kind === "image-to-image" || input.input.kind === "text-to-image";
 		const request = isImageJob
 			? {
 					path: "/api/v1/jobs/createTask",
@@ -247,19 +249,26 @@ const imageSelectionBySku = new Map(
 );
 
 function buildKieImageRequest(input: ProviderSubmitInput): Record<string, unknown> {
-	if (input.input.kind !== "image-to-image") throw unsupportedKieInput();
+	if (input.input.kind !== "image-to-image" && input.input.kind !== "text-to-image")
+		throw unsupportedKieInput();
 	const aspectRatio = input.input.aspectRatio;
 	if (!aspectRatio) throw unsupportedKieInput();
 	const skuKey = input.input.skuKey;
 	if (!skuKey) throw unsupportedKieInput();
 	const spec: KieImageRequestSpec = KIE_IMAGE_REQUEST_SPECS[skuKey];
-	if (!spec || spec.providerModelId !== input.providerModelId) throw unsupportedKieInput();
+	const isText = input.input.kind === "text-to-image";
+	if (
+		!spec ||
+		(isText ? kieTextImageModel(spec.providerModelId) : spec.providerModelId) !==
+			input.providerModelId
+	)
+		throw unsupportedKieInput();
 	const selection = imageSelectionBySku.get(skuKey);
 	if (!selection || !parseImageSelection(selection.productKey, input.input))
 		throw unsupportedKieInput();
 	const prompt = input.input.prompt.trim();
 	if (
-		input.input.strength !== undefined ||
+		("strength" in input.input && input.input.strength !== undefined) ||
 		prompt.length < (selection.contract.minimumPromptLength ?? 1) ||
 		prompt.length > (selection.contract.maximumPromptLength ?? 10_000)
 	)
@@ -282,7 +291,9 @@ function buildKieImageRequest(input: ProviderSubmitInput): Record<string, unknow
 	return {
 		model: input.providerModelId,
 		input: {
-			[spec.sourceField]: [input.input.sourceAsset.transferUrl],
+			...(input.input.kind === "image-to-image"
+				? { [spec.sourceField]: [input.input.sourceAsset.transferUrl] }
+				: {}),
 			prompt:
 				input.input.background === "transparent" && spec.transparentPromptSuffix
 					? `${prompt}\n\n${spec.transparentPromptSuffix}`

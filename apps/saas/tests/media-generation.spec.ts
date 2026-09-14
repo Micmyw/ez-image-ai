@@ -17,6 +17,105 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	test.describe.configure({ timeout: 90_000 });
 	test.afterAll(async () => pool.end());
 
+	test("text generation uses credits, has no input binding, and can become a reference edit", async ({
+		page,
+	}, testInfo) => {
+		const prompt = marker("text-image", "A ceramic vase in warm afternoon light", testInfo.retry);
+		page.on("requestfailed", (request) => {
+			if (request.resourceType() === "image")
+				testInfo.annotations.push({
+					type: "image-load",
+					description: `${new URL(request.url()).origin}: ${request.failure()?.errorText}`,
+				});
+		});
+		await page.goto("/models/gpt-image-2");
+		await expect(page.locator('[data-test="editor-model-trigger"]')).toContainText("GPT Image 2", {
+			timeout: 30_000,
+		});
+		await page.getByLabel(/edit instruction|image prompt/i).fill(prompt);
+		await page.getByRole("button", { name: /review credits/i }).click();
+		await page.getByRole("button", { name: /generate image/i }).dblclick();
+		const job = await waitForJob(prompt, "SUCCEEDED");
+		expect(
+			await count(`SELECT count(*) FROM generation_job_asset WHERE "jobId"=$1 AND role='INPUT'`, [
+				job.id,
+			]),
+		).toBe(0);
+		expect(await count(`SELECT count(*) FROM credit_reservation WHERE "jobId"=$1`, [job.id])).toBe(
+			1,
+		);
+		const stored = (
+			await rows<{
+				inputSnapshot: { kind: string };
+				editSessionId: string | null;
+				credits: string;
+			}>(
+				`SELECT j."inputSnapshot", j."editSessionId", r."settledAmount"::text AS credits FROM generation_job j JOIN credit_reservation r ON r."jobId"=j.id WHERE j.id=$1`,
+				[job.id],
+			)
+		)[0]!;
+		expect(stored.inputSnapshot.kind).toBe("text-to-image");
+		expect(stored.inputSnapshot).not.toHaveProperty("sourceAssetId");
+		expect(stored.editSessionId).toBeNull();
+		expect(stored.credits).toBe("7");
+		await expect(page.getByRole("img", { name: /generated image/i })).toBeVisible();
+		await expect
+			.poll(() =>
+				page
+					.getByRole("img", { name: /generated image/i })
+					.evaluate((image) => (image as HTMLImageElement).naturalWidth),
+			)
+			.toBeGreaterThan(0);
+		await expect(page.getByRole("slider", { name: /compare original/i })).toHaveCount(0);
+		const editAgain = page.getByRole("link", { name: /edit again/i });
+		await expect(editAgain).not.toHaveAttribute("href", /parentJob=/);
+		await page.screenshot({ path: testInfo.outputPath("text-result.png"), fullPage: false });
+		await editAgain.click();
+		await expect(page.getByRole("img", { name: /selected source image/i })).toBeVisible();
+		await page.goto(`/create?reuseJob=${job.id}`);
+		await expect(page.getByLabel(/edit instruction|image prompt/i)).toHaveValue(prompt);
+		await expect(page.getByRole("img", { name: /selected source image/i })).toHaveCount(0);
+		await expect(page.getByRole("button", { name: /review credits/i })).toBeEnabled();
+	});
+
+	test("a pending or failed reference upload cannot silently submit text generation", async ({
+		page,
+	}) => {
+		await page.goto("/create");
+		await page.getByLabel(/edit instruction|image prompt/i).fill("A ceramic vase in soft daylight");
+		const review = page.getByRole("button", { name: /review credits/i });
+		await expect(review).toBeEnabled({ timeout: 30_000 });
+		await review.click();
+		await expect(page.getByRole("button", { name: /generate image/i })).toBeEnabled();
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		await page.route("**/api/rpc/media/createUploadSession**", async (route) => {
+			await gate;
+			await route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
+		});
+		try {
+			await page.locator('[data-test="registered-generator"] input[type="file"]').setInputFiles({
+				name: "pending-reference.png",
+				mimeType: "image/png",
+				buffer: Buffer.from(
+					"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+					"base64",
+				),
+			});
+			await expect(page.getByText("pending-reference.png")).toBeAttached();
+			await expect(review).toBeDisabled();
+			await expect(page.getByRole("button", { name: /generate image/i })).toHaveCount(0);
+		} finally {
+			release();
+		}
+		await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
+		await expect(review).toBeDisabled();
+		await page.getByRole("button", { name: "Remove", exact: true }).click();
+		await expect(review).toBeEnabled();
+	});
+
 	test("successful edit is idempotent and shows the job-bound before, after, and private download", async ({
 		page,
 	}, testInfo) => {
@@ -104,7 +203,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		);
 
 		const childPrompt = marker("session-child", "Add a soft shadow", testInfo.retry);
-		await page.getByLabel(/edit instruction/i).fill(childPrompt);
+		await page.getByLabel(/edit instruction|image prompt/i).fill(childPrompt);
 		await page.getByRole("button", { name: /review credits/i }).click();
 		await page.getByRole("button", { name: /start edit/i }).click();
 		const childJob = await waitForJob(childPrompt, "SUCCEEDED");
@@ -116,7 +215,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await expect(page.getByText(childPrompt)).toBeVisible();
 		await rootCard.getByRole("link", { name: /edit again/i }).click();
 		const branchPrompt = marker("session-branch", "Try a cooler background", testInfo.retry);
-		await page.getByLabel(/edit instruction/i).fill(branchPrompt);
+		await page.getByLabel(/edit instruction|image prompt/i).fill(branchPrompt);
 		await page.getByRole("button", { name: /review credits/i }).click();
 		await page.getByRole("button", { name: /start edit/i }).click();
 		const branchJob = await waitForJob(branchPrompt, "SUCCEEDED");
@@ -406,7 +505,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await card.getByRole("link", { name: /reuse/i }).click();
 		await expect(page).toHaveURL(new RegExp(`/create\\?asset=${asset.id}`));
 		const prompt = marker("reuse", "Turn the reference into a watercolor scene", testInfo.retry);
-		await page.getByLabel(/edit instruction/i).fill(prompt);
+		await page.getByLabel(/edit instruction|image prompt/i).fill(prompt);
 		await page.getByRole("button", { name: /review credits/i }).click();
 		await expect(page.getByText(/ready to edit/i)).toBeVisible();
 		await page.getByRole("button", { name: /start edit/i }).click();
@@ -471,7 +570,7 @@ async function openCreator(page: import("@playwright/test").Page, prompt: string
 	)[0];
 	if (!source) throw new Error(`Seed source image missing for ${email}`);
 	await page.goto(`/create?asset=${source.id}`);
-	await page.getByLabel(/edit instruction/i).fill(prompt);
+	await page.getByLabel(/edit instruction|image prompt/i).fill(prompt);
 }
 
 async function createScenario(

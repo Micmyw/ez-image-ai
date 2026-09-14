@@ -234,7 +234,7 @@ export type PricingVersion = z.infer<typeof pricingVersionSchema>;
 export const DEFAULT_PRODUCT_CONFIG = productConfigSchema.parse({
 	planIds: PLAN_IDS,
 	productKeys: EZPIC_PRODUCT_KEYS,
-	catalogVersion: "2026-09-13.1",
+	catalogVersion: "2026-09-14.1",
 	pricingVersion: "2026-09-13.2",
 	brand: {
 		siteName: "EzPic",

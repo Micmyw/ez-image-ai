@@ -13,6 +13,7 @@ import {
 	GPT_IMAGE_2_5_SUNBURST_MATRIX,
 	SEEDREAM_4_MATRIX,
 } from "./expanded-image-spec-matrices";
+import { withTextImageRoutes } from "./image-input-routes";
 import {
 	getImageSpecCell,
 	GPT_IMAGE_1_5_MATRIX,
@@ -87,9 +88,9 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 	"image-nano-banana-2-lite": {
 		key: "image-nano-banana-2-lite",
 		label: "Nano Banana 2 Lite",
-		description: "Fast, credit-efficient image editing with a fixed 1K output",
+		description: "Image creation and reference editing with a fixed 1K output",
 		mediaKind: "image",
-		inputKinds: ["image-to-image"],
+		inputKinds: ["text-to-image", "image-to-image"],
 		credits: PRODUCT_CREDIT_COSTS["image-nano-banana-2-lite"],
 		routes: matrixRoutes(NANO_BANANA_2_LITE_MATRIX),
 		imageSpecMatrix: NANO_BANANA_2_LITE_MATRIX,
@@ -97,9 +98,9 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 	"image-nano-banana": {
 		key: "image-nano-banana",
 		label: "Nano Banana",
-		description: "Credit-efficient image editing with a focused standard output",
+		description: "Image creation and reference editing with a focused standard output",
 		mediaKind: "image",
-		inputKinds: ["image-to-image"],
+		inputKinds: ["text-to-image", "image-to-image"],
 		credits: PRODUCT_CREDIT_COSTS["image-nano-banana"],
 		routes: matrixRoutes(NANO_BANANA_MATRIX),
 		imageSpecMatrix: NANO_BANANA_MATRIX,
@@ -107,9 +108,9 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 	"image-nano-banana-2": {
 		key: "image-nano-banana-2",
 		label: "Nano Banana 2",
-		description: "Flexible image editing with independent 1K, 2K, and 4K output options",
+		description: "Image creation and reference editing with 1K, 2K, and 4K output options",
 		mediaKind: "image",
-		inputKinds: ["image-to-image"],
+		inputKinds: ["text-to-image", "image-to-image"],
 		credits: PRODUCT_CREDIT_COSTS["image-nano-banana-2"],
 		routes: matrixRoutes(NANO_BANANA_2_MATRIX),
 		imageSpecMatrix: NANO_BANANA_2_MATRIX,
@@ -117,9 +118,9 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 	"image-nano-banana-pro": {
 		key: "image-nano-banana-pro",
 		label: "Nano Banana Pro",
-		description: "Premium image editing with model-specific 1K, 2K, and 4K outputs",
+		description: "Product and image concepts with reference editing and 1K, 2K, and 4K outputs",
 		mediaKind: "image",
-		inputKinds: ["image-to-image"],
+		inputKinds: ["text-to-image", "image-to-image"],
 		credits: PRODUCT_CREDIT_COSTS["image-nano-banana-pro"],
 		routes: matrixRoutes(NANO_BANANA_PRO_MATRIX),
 		imageSpecMatrix: NANO_BANANA_PRO_MATRIX,
@@ -127,9 +128,9 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 	"image-gpt-image-1-5": {
 		key: "image-gpt-image-1-5",
 		label: "GPT Image 1.5",
-		description: "Image editing with independent Medium and High quality options",
+		description: "Image creation and reference editing with Medium and High quality options",
 		mediaKind: "image",
-		inputKinds: ["image-to-image"],
+		inputKinds: ["text-to-image", "image-to-image"],
 		credits: PRODUCT_CREDIT_COSTS["image-gpt-image-1-5"],
 		routes: matrixRoutes(GPT_IMAGE_1_5_MATRIX),
 		imageSpecMatrix: GPT_IMAGE_1_5_MATRIX,
@@ -137,9 +138,9 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 	"image-gpt-image-2": {
 		key: "image-gpt-image-2",
 		label: "GPT Image 2",
-		description: "Detailed image editing with independent 1K, 2K, and 4K output options",
+		description: "Detailed image briefs and reference edits with 1K, 2K, and 4K output options",
 		mediaKind: "image",
-		inputKinds: ["image-to-image"],
+		inputKinds: ["text-to-image", "image-to-image"],
 		credits: PRODUCT_CREDIT_COSTS["image-gpt-image-2"],
 		routes: matrixRoutes(GPT_IMAGE_2_MATRIX),
 		imageSpecMatrix: GPT_IMAGE_2_MATRIX,
@@ -147,9 +148,9 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 	"image-gpt-image-2-5-flare": {
 		key: "image-gpt-image-2-5-flare",
 		label: "GPT Image 2.5 Flare",
-		description: "Image editing for everyday visuals, reference fidelity, and natural detail.",
+		description: "Image creation and reference edits for everyday visuals and natural detail.",
 		mediaKind: "image",
-		inputKinds: ["image-to-image"],
+		inputKinds: ["text-to-image", "image-to-image"],
 		credits: PRODUCT_CREDIT_COSTS["image-gpt-image-2-5-flare"],
 		routes: matrixRoutes(GPT_IMAGE_2_5_FLARE_MATRIX),
 		imageSpecMatrix: GPT_IMAGE_2_5_FLARE_MATRIX,
@@ -157,9 +158,9 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 	"image-gpt-image-2-5-sunburst": {
 		key: "image-gpt-image-2-5-sunburst",
 		label: "GPT Image 2.5 Sunburst",
-		description: "Image editing for campaign visuals and detailed creative control.",
+		description: "Image creation and reference edits for campaign visuals and creative control.",
 		mediaKind: "image",
-		inputKinds: ["image-to-image"],
+		inputKinds: ["text-to-image", "image-to-image"],
 		credits: PRODUCT_CREDIT_COSTS["image-gpt-image-2-5-sunburst"],
 		routes: matrixRoutes(GPT_IMAGE_2_5_SUNBURST_MATRIX),
 		imageSpecMatrix: GPT_IMAGE_2_5_SUNBURST_MATRIX,
@@ -167,9 +168,9 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 	"image-seedream-4": {
 		key: "image-seedream-4",
 		label: "Seedream 4.0",
-		description: "Flexible image editing with 1K, 2K, and 4K output options.",
+		description: "Scene creation and reference edits with 1K, 2K, and 4K output options.",
 		mediaKind: "image",
-		inputKinds: ["image-to-image"],
+		inputKinds: ["text-to-image", "image-to-image"],
 		credits: PRODUCT_CREDIT_COSTS["image-seedream-4"],
 		routes: matrixRoutes(SEEDREAM_4_MATRIX),
 		imageSpecMatrix: SEEDREAM_4_MATRIX,
@@ -177,9 +178,9 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 	"image-seedream-4-5": {
 		key: "image-seedream-4-5",
 		label: "Seedream 4.5",
-		description: "Image editing with independent Basic 2K and High 4K options",
+		description: "Image creation and reference editing with Basic 2K and High 4K options",
 		mediaKind: "image",
-		inputKinds: ["image-to-image"],
+		inputKinds: ["text-to-image", "image-to-image"],
 		credits: PRODUCT_CREDIT_COSTS["image-seedream-4-5"],
 		routes: matrixRoutes(SEEDREAM_4_5_MATRIX),
 		imageSpecMatrix: SEEDREAM_4_5_MATRIX,
@@ -187,9 +188,9 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 	"image-seedream-5-lite": {
 		key: "image-seedream-5-lite",
 		label: "Seedream 5 Lite",
-		description: "Image editing with independent Basic 2K, High 3K, and Ultra 4K options",
+		description: "Scene creation and reference edits with Basic 2K, High 3K, and Ultra 4K options",
 		mediaKind: "image",
-		inputKinds: ["image-to-image"],
+		inputKinds: ["text-to-image", "image-to-image"],
 		credits: PRODUCT_CREDIT_COSTS["image-seedream-5-lite"],
 		routes: matrixRoutes(SEEDREAM_5_LITE_MATRIX),
 		imageSpecMatrix: SEEDREAM_5_LITE_MATRIX,
@@ -197,9 +198,9 @@ const CATALOG: Record<ProductModelKey, CatalogEntry> = {
 	"image-seedream-5-pro": {
 		key: "image-seedream-5-pro",
 		label: "Seedream 5 Pro",
-		description: "Image editing with independent Basic 1K and High 2K options",
+		description: "Image creation and reference editing with Basic 1K and High 2K options",
 		mediaKind: "image",
-		inputKinds: ["image-to-image"],
+		inputKinds: ["text-to-image", "image-to-image"],
 		credits: PRODUCT_CREDIT_COSTS["image-seedream-5-pro"],
 		routes: matrixRoutes(SEEDREAM_5_PRO_MATRIX),
 		imageSpecMatrix: SEEDREAM_5_PRO_MATRIX,
@@ -276,13 +277,18 @@ export function createExecutableRouteGraph(options: ExecutableRouteGraphOptions)
 	entries: Array<CatalogEntry & { routes: readonly CatalogRoute[] }>;
 	getEntry(key: ProductModelKey): (CatalogEntry & { routes: readonly CatalogRoute[] }) | undefined;
 } {
-	const entries = executableRouteGraph(Object.values(CATALOG), options).flatMap(
-		({ entry, routes }) => {
-			const imageSpecMatrix = executableImageSpecMatrix(entry.imageSpecMatrix, routes);
-			if (entry.imageSpecMatrix && !imageSpecMatrix?.cells.length) return [];
-			return [{ ...entry, routes, ...(imageSpecMatrix ? { imageSpecMatrix } : {}) }];
-		},
-	);
+	const entries = executableRouteGraph(
+		Object.values(CATALOG).map((entry) =>
+			entry.inputKinds.includes("text-to-image") && entry.imageSpecMatrix
+				? { ...entry, routes: withTextImageRoutes(entry.routes) }
+				: entry,
+		),
+		options,
+	).flatMap(({ entry, routes }) => {
+		const imageSpecMatrix = executableImageSpecMatrix(entry.imageSpecMatrix, routes);
+		if (entry.imageSpecMatrix && !imageSpecMatrix?.cells.length) return [];
+		return [{ ...entry, routes, ...(imageSpecMatrix ? { imageSpecMatrix } : {}) }];
+	});
 	return {
 		entries,
 		getEntry: (key) => entries.find((entry) => entry.key === key),
@@ -342,13 +348,14 @@ function selectedImageSpecCell(
 	entry: CatalogEntry,
 	input: MediaModelInput,
 ): ImageSpecCell | undefined {
-	if (!entry.imageSpecMatrix || input.kind !== "image-to-image") return undefined;
+	if (!entry.imageSpecMatrix || (input.kind !== "image-to-image" && input.kind !== "text-to-image"))
+		return undefined;
 	return getImageSpecCell(entry.imageSpecMatrix, input.skuKey);
 }
 
 function assertImageSpecAspectRatio(cell: ImageSpecCell, input: MediaModelInput): void {
 	if (
-		input.kind !== "image-to-image" ||
+		(input.kind !== "image-to-image" && input.kind !== "text-to-image") ||
 		!input.aspectRatio ||
 		!cell.aspectRatios.includes(input.aspectRatio)
 	) {
@@ -357,8 +364,8 @@ function assertImageSpecAspectRatio(cell: ImageSpecCell, input: MediaModelInput)
 }
 
 function assertImageSpecControls(cell: ImageSpecCell, input: MediaModelInput): void {
-	if (input.kind !== "image-to-image") return;
-	if (input.strength !== undefined) {
+	if (input.kind !== "image-to-image" && input.kind !== "text-to-image") return;
+	if ("strength" in input && input.strength !== undefined) {
 		throw new Error(`Invalid strength for SKU ${cell.skuKey}`);
 	}
 	for (const [key, value, label] of [

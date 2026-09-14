@@ -57,6 +57,8 @@ export function LoginForm() {
 	const { user, loaded: sessionLoaded } = useSession();
 
 	const [showPassword, setShowPassword] = useState(false);
+	const [hydrated, setHydrated] = useState(false);
+	useEffect(() => setHydrated(true), []);
 	const invitationId = searchParams.get("invitationId");
 	const email = searchParams.get("email");
 	const redirectTo = searchParams.get("redirectTo");
@@ -160,7 +162,7 @@ export function LoginForm() {
 					{invitationId && <OrganizationInvitationAlert className="mb-6" />}
 
 					<Form {...form}>
-						<form className="space-y-4" onSubmit={onSubmit}>
+						<form className="space-y-4" method="post" onSubmit={onSubmit}>
 							{authConfig.enableMagicLink && authConfig.enablePasswordLogin && (
 								<LoginModeSwitch
 									activeMode={signinMode}
@@ -186,6 +188,7 @@ export function LoginForm() {
 											<Input
 												{...field}
 												autoComplete="email"
+												disabled={!hydrated || form.formState.isSubmitting}
 												className="h-12 border-white/10 px-4 text-white rounded-xl bg-[#171020] shadow-none focus-visible:border-[#b79cff] focus-visible:ring-[#b79cff]/35 aria-invalid:border-destructive aria-invalid:ring-destructive/25"
 											/>
 										</FormControl>
@@ -207,6 +210,7 @@ export function LoginForm() {
 														className="h-12 border-white/10 px-4 pr-12 text-white rounded-xl bg-[#171020] shadow-none focus-visible:border-[#b79cff] focus-visible:ring-[#b79cff]/35 aria-invalid:border-destructive aria-invalid:ring-destructive/25"
 														{...field}
 														autoComplete="current-password"
+														disabled={!hydrated || form.formState.isSubmitting}
 													/>
 													<button
 														type="button"
@@ -240,6 +244,7 @@ export function LoginForm() {
 								type="submit"
 								variant="primary"
 								loading={form.formState.isSubmitting}
+								disabled={!hydrated || form.formState.isSubmitting}
 							>
 								{signinMode === "magic-link"
 									? t("auth.login.sendMagicLink")

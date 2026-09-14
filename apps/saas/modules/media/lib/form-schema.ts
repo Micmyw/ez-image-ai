@@ -22,7 +22,7 @@ export const generationFormValuesSchema = z.object({
 	productKey: z.enum(EZPIC_PRODUCT_KEYS),
 	skuKey: imageSkuKeySchema,
 	prompt: z.string().trim().min(1).max(10_000),
-	sourceAssetId: z.string().min(1),
+	sourceAssetId: z.string(),
 	aspectRatio: z.enum(IMAGE_ASPECT_RATIOS),
 	outputFormat: z.enum(IMAGE_OUTPUT_FORMATS).optional(),
 	background: z.enum(IMAGE_BACKGROUNDS).optional(),
@@ -30,7 +30,7 @@ export const generationFormValuesSchema = z.object({
 
 export type GenerationFormValues = z.infer<typeof generationFormValuesSchema>;
 
-const inputSchema = z
+const editInputSchema = z
 	.object({
 		kind: z.literal("image-to-image"),
 		prompt: z.string().trim().min(1).max(10_000),
@@ -42,6 +42,12 @@ const inputSchema = z
 		strength: z.number().min(0).max(1).optional(),
 	})
 	.strict();
+
+const textInputSchema = editInputSchema
+	.omit({ sourceAssetId: true, strength: true })
+	.extend({ kind: z.literal("text-to-image") })
+	.strict();
+const inputSchema = z.discriminatedUnion("kind", [editInputSchema, textInputSchema]);
 
 export type GenerationInput = z.infer<typeof inputSchema>;
 

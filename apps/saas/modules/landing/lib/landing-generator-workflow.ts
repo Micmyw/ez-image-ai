@@ -87,6 +87,7 @@ export function landingDisabledReason(input: {
 	capabilityEnabled: boolean;
 	productSelected: boolean;
 	hasSource: boolean;
+	requiresSource?: boolean;
 	prompt: string;
 	turnstileReady: boolean;
 }): LandingDisabledReason | null {
@@ -94,7 +95,7 @@ export function landingDisabledReason(input: {
 	if (["preparing", "uploading", "verifying", "handoff"].includes(input.stage)) return "busy";
 	if (!input.capabilityEnabled) return "unavailable";
 	if (!input.productSelected) return "product";
-	if (!input.hasSource) return "source";
+	if ((input.requiresSource ?? true) && !input.hasSource) return "source";
 	if (!input.prompt.trim()) return "prompt";
 	if (!input.turnstileReady) return "verification";
 	return null;

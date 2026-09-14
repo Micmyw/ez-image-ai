@@ -1201,7 +1201,8 @@
 				"preparing": "Preparando la imagen de origen…",
 				"ready": "Imagen de origen lista",
 				"private": "Solo tú puedes acceder a esta imagen mediante un enlace privado de corta duración.",
-				"remove": "Quitar imagen"
+				"remove": "Quitar imagen",
+				"optionalHint": "Déjalo vacío para crear una imagen a partir de texto."
 			},
 			"mode": {
 				"label": "Modelo de imagen",
@@ -1268,7 +1269,9 @@
 				"showResult": "Mostrar resultado",
 				"before": "Original",
 				"after": "Resultado"
-			}
+			},
+			"generatedReady": "Tu imagen está lista",
+			"generatedAlt": "Imagen generada"
 		},
 		"edits": {
 			"title": "Sesiones de edición",
@@ -1425,9 +1428,9 @@
 			"placeholder": "Sigue creando",
 			"result": "Ver resultado actual"
 		},
-		"subtitle": "Sube una imagen, describe un cambio y dale tu toque.",
+		"subtitle": "Describe una imagen o añade una referencia para personalizarla.",
 		"private": "Tus imágenes siguen siendo privadas",
-		"upload": "Subir imagen",
+		"upload": "Añadir referencia (opcional)",
 		"promptSuggestions": {
 			"background": "Cambiar fondo",
 			"object": "Quitar un objeto",
@@ -1437,14 +1440,24 @@
 		"tools": {
 			"imageTools": "Herramientas de imagen IA",
 			"models": "Modelos de IA",
-			"imageToImage": "Imagen a imagen",
-			"imageToImageDescription": "Edita una imagen de referencia con una instrucción.",
+			"imageToImage": "Generador de imágenes IA",
+			"imageToImageDescription": "Crea desde un prompt o edita una imagen de referencia.",
 			"examples": "Ejemplos de edición",
 			"examplesDescription": "Explora ideas y usa una instrucción en el editor.",
 			"loading": "Cargando modelos disponibles…",
 			"unavailable": "Los modelos no están disponibles ahora. Puedes seguir preparando tu edición.",
 			"modelUnavailable": "El modelo solicitado no está disponible. Elige uno disponible para continuar.",
-			"title": "Editor de imagen a imagen con IA"
+			"title": "Generador y editor de imágenes con IA"
+		},
+		"generation": {
+			"referencePending": "Termina de subir la referencia, reinténtalo o elimínala para generar desde texto.",
+			"textMode": "Texto a imagen",
+			"editMode": "Imagen a imagen",
+			"signIn": "Inicia sesión para generar",
+			"textHint": "Empieza con un prompt. La imagen de referencia es opcional. Inicia sesión para revisar los créditos y generar.",
+			"promptHint": "Describe el sujeto, la composición, la luz y el estilo. Añade una referencia para editar o guiar el resultado.",
+			"promptLabel": "Prompt de imagen",
+			"generate": "Generar imagen"
 		}
 	}
 }

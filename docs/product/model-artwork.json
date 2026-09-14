@@ -1,0 +1,44 @@
+{
+	"createdAt": "2026-09-14",
+	"generator": "OpenAI image generation tool in Codex",
+	"usage": "Original creative inspiration for model pages. These assets are not verified outputs or benchmarks of the named models.",
+	"references": ["https://raphael.app/", "https://raphael.app/gpt-image-2-5"],
+	"assets": [
+		{
+			"key": "gpt-poster",
+			"path": "apps/saas/public/images/models/gpt-poster.webp",
+			"originalFile": "exec-4d34d74c-9f2f-4a1c-a3f4-9e8af69b6124.png",
+			"prompt": "Use case: ads-marketing. Asset type: original creative-inspiration artwork for the EzPic model gallery, portrait 2:3. Create a finished art-directed contemporary travel poster, full bleed. A sun-washed architectural arch in cobalt blue frames a tiny white sailboat on an intensely turquoise Mediterranean sea, coral-red sun and warm cream paper texture. Strong geometric shadows, photographic stone texture mixed with sophisticated flat poster graphics. Exact headline near the top: \"SLOW DAYS\" in beautifully spaced, very large cream condensed sans serif lettering, perfectly spelled. Small caption at the bottom: \"BY THE SEA\". Typography and image form one coherent composition. Premium independent magazine aesthetic, crisp detail. No mockup frame, no watermark, no other logos or text."
+		},
+		{
+			"key": "nano-product",
+			"path": "apps/saas/public/images/models/nano-product.webp",
+			"originalFile": "exec-0b55e130-b243-4de4-b14c-bedc6e9f457c.png",
+			"prompt": "Use case: product-mockup. Asset type: original creative-inspiration artwork for EzPic, portrait 2:3. Photorealistic luxury studio campaign of sculptural silver over-ear headphones with deep forest-green ear cushions, resting diagonally on pale lime translucent acrylic blocks. Clean pistachio backdrop, a single hard diagonal shaft of warm sunlight, precise metal reflections, tactile fabric and brushed aluminum, elegant shadow geometry. Beautiful editorial still-life composition, ample breathing room around the headphones, slightly elevated camera, crisp but natural materials. No brand, no lettering, no watermark, no collage."
+		},
+		{
+			"key": "nano-portrait",
+			"path": "apps/saas/public/images/models/nano-portrait.webp",
+			"originalFile": "exec-9f46165d-c807-46ff-958c-2d86d6ab1f68.png",
+			"prompt": "Use case: photorealistic-natural. Asset type: original creative-inspiration artwork for EzPic, portrait 2:3. A candid editorial portrait of a fictional adult East Asian woman with a short dark bob, wearing a cobalt-blue wool coat and burnt-orange scarf on a quiet Paris street after rain. She glances back over her shoulder with a subtle smile; waist-up framing, natural pores and flyaway hair, soft cloudy daylight and warm light from a distant cafe, elegant shallow depth of field, authentic film grain. Sophisticated fashion magazine photography, lived-in city, muted background, expressive yet understated. No readable logos or text, no watermark."
+		},
+		{
+			"key": "gpt-campaign",
+			"path": "apps/saas/public/images/models/gpt-campaign.webp",
+			"originalFile": "exec-75aa5557-0b30-4ea7-b0dc-e0f9c3633062.png",
+			"prompt": "Use case: ads-marketing. Asset type: original creative-inspiration artwork for EzPic, portrait 2:3. Photorealistic premium botanical skincare still life: an unbranded frosted amber glass serum bottle with an ivory cap on a warm travertine plinth, curved green leaf, one cut blood orange, sparkling droplets and luminous caustics on terracotta plaster. Late-afternoon sun, precise refraction through glass, editorial art direction, warm cream, amber and deep green palette. Asymmetric composition, beautiful tactile surfaces, understated luxury. The bottle has no lettering. No text, logos, watermark or collage."
+		},
+		{
+			"key": "seedream-cinema",
+			"path": "apps/saas/public/images/models/seedream-cinema.webp",
+			"originalFile": "exec-22e701f3-2575-4fbf-a223-eaf24ed71f15.png",
+			"prompt": "Use case: stylized-concept. Asset type: original creative-inspiration artwork for EzPic, portrait 2:3. A cinematic wide establishing view of a lone traveler in a vivid red coat standing on a narrow stone path above a vast mist-filled fjord, towering dark basalt mountains, small waterfalls, a pale crescent moon and a distant shaft of golden dawn light touching the water. The human is tiny against immense layered scenery. Photorealistic environmental concept art, cool blue-gray atmosphere with restrained amber highlights, exceptional scale, textured rock and volumetric fog, cinematic contrast. No text, no logos, no watermark."
+		},
+		{
+			"key": "seedream-interior",
+			"path": "apps/saas/public/images/models/seedream-interior.webp",
+			"originalFile": "exec-22b0c701-3c24-4ab0-b2c2-9f10404e733c.png",
+			"prompt": "Use case: photorealistic-natural. Asset type: original creative-inspiration artwork for EzPic, portrait 2:3. An architectural editorial photograph of a serene sculptural living room with a curved oatmeal linen sofa, a low dark walnut table, a tall indoor olive tree, a single burnt-orange ceramic vase, and a huge circular window overlooking a hazy coastal landscape. Honey-colored plaster walls, warm afternoon sunlight and soft curved shadows, exquisite natural textures, tranquil yet imaginative spatial design. Wide interior composition with clear foreground and background depth, realistic proportions and material detail. No people, no text, no logos, no watermark."
+		}
+	]
+}

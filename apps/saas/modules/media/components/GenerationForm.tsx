@@ -13,7 +13,7 @@ import { useRouter } from "@shared/hooks/router";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 
 import {
@@ -69,7 +69,8 @@ export function GenerationForm({
 	const t = useTranslations("media.create");
 	const studio = useTranslations("studio");
 	const router = useRouter();
-	const generation = useGeneration({ parentJobId });
+	const [hasSource, setHasSource] = useState(Boolean(initialDraft?.input.sourceAssetId));
+	const generation = useGeneration({ parentJobId: hasSource ? parentJobId : null });
 	const products = (generation.catalog.data?.products ?? []).map((product) =>
 		isEditorProductKey(product.key)
 			? {
@@ -91,6 +92,8 @@ export function GenerationForm({
 			: product,
 	);
 	const [sourceReady, setSourceReady] = useState(initialSourceReady);
+	const [sourcePending, setSourcePending] = useState(false);
+	const sourcePendingRef = useRef(false);
 	const [upgradeOpen, setUpgradeOpen] = useState(false);
 	const [upgradeStorageUnavailable, setUpgradeStorageUnavailable] = useState(false);
 	const form = useForm<GenerationFormValues>({
@@ -123,18 +126,18 @@ export function GenerationForm({
 		if (
 			!product ||
 			!selectedCell ||
+			sourcePending ||
 			!supportedAspectRatios.includes(values.aspectRatio) ||
-			!sourceReady ||
-			!values.prompt.trim() ||
-			!values.sourceAssetId
+			(Boolean(values.sourceAssetId) && !sourceReady) ||
+			!values.prompt.trim()
 		) {
 			return null;
 		}
 		try {
 			return buildGenerationInput({
-				kind: "image-to-image",
+				kind: values.sourceAssetId ? "image-to-image" : "text-to-image",
 				prompt: values.prompt,
-				sourceAssetId: values.sourceAssetId,
+				...(values.sourceAssetId ? { sourceAssetId: values.sourceAssetId } : {}),
 				skuKey: values.skuKey,
 				aspectRatio: values.aspectRatio,
 				...controlValues,
@@ -147,6 +150,7 @@ export function GenerationForm({
 		selectedCell,
 		controlValues,
 		sourceReady,
+		sourcePending,
 		supportedAspectRatios,
 		values.aspectRatio,
 		values.prompt,
@@ -164,6 +168,15 @@ export function GenerationForm({
 	}, [upgradeOpen, values.productKey]);
 
 	const beginNewAction = generation.beginNewAction;
+	const updateSourcePending = useCallback(
+		(pending: boolean) => {
+			if (sourcePendingRef.current === pending) return;
+			sourcePendingRef.current = pending;
+			setSourcePending(pending);
+			if (pending) beginNewAction();
+		},
+		[beginNewAction],
+	);
 	const updatePrompt = useCallback(
 		(prompt: string) => {
 			form.setValue("prompt", prompt, { shouldDirty: true, shouldValidate: true });
@@ -176,6 +189,7 @@ export function GenerationForm({
 		(sourceAssetId: string) => {
 			if (sourceAssetId === form.getValues("sourceAssetId")) return;
 			setSourceReady(false);
+			setHasSource(Boolean(sourceAssetId));
 			onSourceChanged?.();
 			form.setValue("sourceAssetId", sourceAssetId, {
 				shouldDirty: true,
@@ -312,15 +326,15 @@ export function GenerationForm({
 			draft: {
 				productKey: current.productKey,
 				input: {
-					kind: "image-to-image",
+					kind: current.sourceAssetId ? "image-to-image" : "text-to-image",
 					prompt: current.prompt,
-					sourceAssetId: current.sourceAssetId,
+					...(current.sourceAssetId ? { sourceAssetId: current.sourceAssetId } : {}),
 					skuKey: current.skuKey,
 					aspectRatio: current.aspectRatio,
 					...currentControls,
 				},
 			},
-			parentJobId: parentJobId ?? null,
+			parentJobId: current.sourceAssetId ? (parentJobId ?? null) : null,
 			sourceReady,
 		});
 		if (!saved) {
@@ -333,7 +347,7 @@ export function GenerationForm({
 
 	async function confirmGeneration() {
 		try {
-			if (!generation.quote) return;
+			if (!generation.quote || !input || sourcePendingRef.current) return;
 			await saasGrowthFunnel.generationConfirmed(generation.quote.id, generation.quote.productKey);
 			const result = await generation.createGeneration.mutateAsync();
 			onCreated(result.job.id);
@@ -358,7 +372,9 @@ export function GenerationForm({
 			})}
 		>
 			<div className="studio-composer-heading">
-				<span>{t("workspace.editor")}</span>
+				<span>
+					{values.sourceAssetId ? studio("generation.editMode") : studio("generation.textMode")}
+				</span>
 				<span className="text-xs text-muted-foreground">{studio("private")}</span>
 			</div>
 			{modelNavigation.unavailable && (
@@ -377,12 +393,13 @@ export function GenerationForm({
 							Number.MAX_SAFE_INTEGER,
 					)}
 					onReadyChange={setSourceReady}
+					onPendingChange={updateSourcePending}
 					onChange={updateSourceAsset}
 				/>
 				<PromptPanel
 					maxLength={getImageProductSelectionContract(values.productKey)?.maximumPromptLength}
-					label={t("fields.prompt")}
-					hint={t("promptHint")}
+					label={values.sourceAssetId ? t("fields.prompt") : studio("generation.promptLabel")}
+					hint={studio("generation.promptHint")}
 					suggestionsLabel={t("suggestions.label")}
 					suggestions={suggestions}
 					suggestionLabels={["background", "object", "lighting", "style"].map((key) =>
@@ -486,6 +503,11 @@ export function GenerationForm({
 					)
 				)}
 			</div>
+			{sourcePending && (
+				<output className="mt-3 text-xs text-amber-200 block">
+					{studio("generation.referencePending")}
+				</output>
+			)}
 			{upgradeRequired && product && (
 				<output
 					data-test="editor-model-access-notice"
@@ -516,10 +538,10 @@ export function GenerationForm({
 							type="button"
 							variant="primary"
 							loading={generation.createGeneration.isPending}
-							disabled={generation.createGeneration.isPending}
+							disabled={!input || sourcePending || generation.createGeneration.isPending}
 							onClick={() => void confirmGeneration()}
 						>
-							{t("confirm")}
+							{values.sourceAssetId ? t("confirm") : studio("generation.generate")}
 						</Button>
 						<Button type="button" variant="ghost" onClick={generation.beginNewAction}>
 							{t("edit")}

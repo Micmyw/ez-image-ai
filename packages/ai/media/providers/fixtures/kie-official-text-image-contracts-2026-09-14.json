@@ -1,0 +1,489 @@
+{
+	"reviewedAt": "2026-09-14",
+	"submitUrl": "https://api.kie.ai/api/v1/jobs/createTask",
+	"statusUrl": "https://api.kie.ai/api/v1/jobs/recordInfo",
+	"products": [
+		{
+			"productKey": "image-nano-banana-2-lite",
+			"sourceUrl": "https://docs.kie.ai/market/google/nano-banana-2-lite.md",
+			"sourceSha256": "913192943908f0d3a5382423e589380e1a794f525f01696b795d8089cfa51dbc",
+			"providerModelId": "nano-banana-2-lite",
+			"required": ["prompt", "aspect_ratio"],
+			"properties": {
+				"image_urls": {
+					"type": "array",
+					"description": "Input image URL array. Optional parameter. Set to an empty array or omit it for pure text-to-image generation. Supports up to 10 images.\n\n- Please provide uploaded file URLs, not raw file content\n- Accepted types: `image/jpeg`, `image/png`, `image/webp`\n- Max size: 30.0MB",
+					"maxItems": 10,
+					"default": []
+				},
+				"prompt": {
+					"type": "string",
+					"description": "Text prompt used to generate the image. Required. Maximum length: 20000 characters.",
+					"maxLength": 20000
+				},
+				"aspect_ratio": {
+					"type": "string",
+					"description": "Generated image aspect ratio. Default value: `auto`. Use `auto` to let the system choose the aspect ratio automatically.",
+					"enum": [
+						"1:1",
+						"1:4",
+						"1:8",
+						"2:3",
+						"3:2",
+						"3:4",
+						"4:1",
+						"4:3",
+						"4:5",
+						"5:4",
+						"8:1",
+						"9:16",
+						"16:9",
+						"21:9",
+						"auto"
+					],
+					"default": "auto"
+				}
+			}
+		},
+		{
+			"productKey": "image-nano-banana",
+			"sourceUrl": "https://docs.kie.ai/market/google/nano-banana.md",
+			"sourceSha256": "b74ef2a37b2e93bd1f1c3e6a445f2a5d0de1d1b501f44af4d9803152d8bb9f6b",
+			"providerModelId": "google/nano-banana",
+			"required": ["prompt"],
+			"properties": {
+				"prompt": {
+					"type": "string",
+					"description": "The prompt for image generation (Max length: 5000 characters)",
+					"maxLength": 5000
+				},
+				"output_format": {
+					"type": "string",
+					"description": "Output format for the images",
+					"enum": ["png", "jpeg"],
+					"default": "png"
+				},
+				"aspect_ratio": {
+					"type": "string",
+					"description": "Radio description",
+					"enum": ["1:1", "9:16", "16:9", "3:4", "4:3", "3:2", "2:3", "5:4", "4:5", "21:9", "auto"],
+					"default": "1:1"
+				},
+				"image_size": {
+					"type": "string",
+					"description": "The aspect ratio of the generated image (this parameter has been replaced by aspect_ratio; please use the latest aspect_ratio parameter).",
+					"enum": ["1:1", "9:16", "16:9", "3:4", "4:3", "3:2", "2:3", "5:4", "4:5", "21:9", "auto"],
+					"default": "1:1",
+					"deprecated": true
+				},
+				"nsfw_checker": {
+					"type": "boolean",
+					"description": "Defaults to false. You can set it to false based on your needs. If set to false, our content filtering will be disabled, and all results will be returned directly by the model itself.\nNote: There is no guarantee that everything can be filtered out; if you are not satisfied with the results, you will need to make your own arrangements."
+				}
+			}
+		},
+		{
+			"productKey": "image-nano-banana-2",
+			"sourceUrl": "https://docs.kie.ai/market/google/nanobanana2.md",
+			"sourceSha256": "676f2e8bf8cf71e2e0410211cd301a8fb99d35c943815b2bba191641793afd21",
+			"providerModelId": "nano-banana-2",
+			"required": ["prompt"],
+			"properties": {
+				"prompt": {
+					"type": "string",
+					"description": "A text description of the image you want to generate (Max length: 20000 characters)",
+					"maxLength": 20000
+				},
+				"image_input": {
+					"type": "array",
+					"description": "Input images to transform or use as reference (supports up to 14 images) (File URL after upload, not file content; Accepted types: image/jpeg, image/png, image/webp; Max size: 30.0MB)",
+					"maxItems": 14
+				},
+				"aspect_ratio": {
+					"type": "string",
+					"description": "Aspect ratio of the generated image",
+					"enum": [
+						"1:1",
+						"2:3",
+						"3:2",
+						"1:4",
+						"4:1",
+						"3:4",
+						"4:3",
+						"4:5",
+						"5:4",
+						"1:8",
+						"8:1",
+						"9:16",
+						"16:9",
+						"21:9",
+						"auto"
+					],
+					"default": "auto"
+				},
+				"resolution": {
+					"type": "string",
+					"description": "Resolution of the generated image",
+					"enum": ["1K", "2K", "4K"],
+					"default": "1K"
+				},
+				"output_format": {
+					"type": "string",
+					"description": "Format of the output image",
+					"enum": ["png", "jpg"],
+					"default": "jpg"
+				}
+			}
+		},
+		{
+			"productKey": "image-nano-banana-pro",
+			"sourceUrl": "https://docs.kie.ai/market/google/pro-image-to-image.md",
+			"sourceSha256": "d45935bbe4ef40c5cd7baa892635b0f54e42766aec3e3413b5b5d16f2ef40560",
+			"providerModelId": "nano-banana-pro",
+			"required": ["prompt"],
+			"properties": {
+				"prompt": {
+					"type": "string",
+					"description": "A text description of the image you want to generate (Max length: 10000 characters)",
+					"maxLength": 10000
+				},
+				"image_input": {
+					"type": "array",
+					"description": "Input images to transform or use as reference (supports up to 8 images) (File URL after upload, not file content; Accepted types: image/jpeg, image/png, image/webp; Max size: 30.0MB)",
+					"maxItems": 8
+				},
+				"aspect_ratio": {
+					"type": "string",
+					"description": "Aspect ratio of the generated image",
+					"enum": ["1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9", "auto"],
+					"default": "1:1"
+				},
+				"resolution": {
+					"type": "string",
+					"description": "Resolution of the generated image",
+					"enum": ["1K", "2K", "4K"],
+					"default": "1K"
+				},
+				"output_format": {
+					"type": "string",
+					"description": "Format of the output image",
+					"enum": ["png", "jpg"],
+					"default": "png"
+				}
+			}
+		},
+		{
+			"productKey": "image-gpt-image-1-5",
+			"sourceUrl": "https://docs.kie.ai/market/gpt-image/1-5-text-to-image.md",
+			"sourceSha256": "245f39e40f419d553d560c15aa1af448c14399f75af5adddc97a15ab5a179cde",
+			"providerModelId": "gpt-image/1.5-text-to-image",
+			"required": ["prompt", "aspect_ratio", "quality"],
+			"properties": {
+				"prompt": {
+					"type": "string",
+					"description": "A text description of the image you want to generate"
+				},
+				"aspect_ratio": {
+					"type": "string",
+					"description": "Width-height ratio of the image, determining its visual form.",
+					"enum": ["1:1", "2:3", "3:2"],
+					"default": "1:1"
+				},
+				"quality": {
+					"type": "string",
+					"description": "Quality: medium=balanced, high=slow/detailed.",
+					"enum": ["medium", "high"],
+					"default": "medium"
+				}
+			}
+		},
+		{
+			"productKey": "image-gpt-image-2",
+			"sourceUrl": "https://docs.kie.ai/market/gpt/gpt-image-2-text-to-image.md",
+			"sourceSha256": "ef4fff1ef5e0a2195ab923e5826ce727d6b3ae58ca4b9a6d9694d5461530658c",
+			"providerModelId": "gpt-image-2-text-to-image",
+			"required": ["prompt"],
+			"properties": {
+				"prompt": {
+					"type": "string",
+					"description": "Text prompt. Required, maximum 20,000 characters.",
+					"minLength": 1,
+					"maxLength": 20000
+				},
+				"aspect_ratio": {
+					"type": "string",
+					"description": "The aspect ratio of the generated image is set to auto by default.\nNote: for 2K resolution, the following aspect ratios are not supported: 5:4, 4:5, 3:1, 1:3, and 9:21.\nfor 4K resolution, the following aspect ratios are not supported: 3:1, 1:3, and 9:21.",
+					"enum": [
+						"auto",
+						"1:1",
+						"3:2",
+						"2:3",
+						"4:3",
+						"3:4",
+						"5:4",
+						"4:5",
+						"16:9",
+						"9:16",
+						"2:1",
+						"1:2",
+						"3:1",
+						"1:3",
+						"21:9",
+						"9:21"
+					]
+				},
+				"resolution": {
+					"type": "string",
+					"description": "Image resolution: Note: Images with a 1:1 aspect ratio cannot be converted to 4K images. Images with the aspect ratio set to \"auto\" or without a specified aspect ratio parameter will only be converted to 1K images; otherwise, the task will fail to create.",
+					"enum": ["1K", "2K", "4K"]
+				},
+				"background": {
+					"type": "string",
+					"description": "Image background\nNote: This parameter is only supported when the resolution is 1K.",
+					"enum": ["transparent", "opaque", "auto"]
+				}
+			}
+		},
+		{
+			"productKey": "image-gpt-image-2-5-flare",
+			"sourceUrl": "https://docs.kie.ai/market/gpt/gpt-image-2-5-flare-text-to-image.md",
+			"sourceSha256": "ba0de0963b3c1028a3ffd1c10daa5e5531666427d401703e81f6c90c1870709b",
+			"providerModelId": "gpt-image-2-5-flare-text-to-image",
+			"required": ["prompt"],
+			"properties": {
+				"prompt": {
+					"type": "string",
+					"description": "Text prompt. Required, maximum 20,000 characters.",
+					"minLength": 1,
+					"maxLength": 20000
+				},
+				"aspect_ratio": {
+					"type": "string",
+					"description": "The aspect ratio of the generated image is set to auto by default. The 27:16, 16:27, 9:8 and 8:9 aspect ratios support 1K only. 2K and 4K are available for other aspect ratios.",
+					"enum": [
+						"auto",
+						"1:1",
+						"3:2",
+						"2:3",
+						"4:3",
+						"3:4",
+						"16:9",
+						"9:16",
+						"21:9",
+						"27:16",
+						"16:27",
+						"9:8",
+						"8:9"
+					]
+				},
+				"resolution": {
+					"type": "string",
+					"description": "Image resolution",
+					"enum": ["1K", "2K", "4K"]
+				},
+				"background": {
+					"type": "string",
+					"description": "For 2K/4K tasks, background=transparent must be paired with the prompt: describe an isolated subject with no backdrop, scenery or shadow, and for image-to-image explicitly ask to extract the subject and keep the background transparent.",
+					"enum": ["transparent", "opaque", "auto"]
+				}
+			}
+		},
+		{
+			"productKey": "image-gpt-image-2-5-sunburst",
+			"sourceUrl": "https://docs.kie.ai/market/gpt/gpt-image-2-5-sunburst-text-to-image.md",
+			"sourceSha256": "3f77bcd5b7667bbfcedf8517460165bd8e7643e7034276edb536f00d88651661",
+			"providerModelId": "gpt-image-2-5-sunburst-text-to-image",
+			"required": ["prompt"],
+			"properties": {
+				"prompt": {
+					"type": "string",
+					"description": "Text prompt. Required, maximum 20,000 characters.",
+					"minLength": 1,
+					"maxLength": 20000
+				},
+				"aspect_ratio": {
+					"type": "string",
+					"description": "The aspect ratio of the generated image is set to auto by default. The 27:16, 16:27, 9:8 and 8:9 aspect ratios support 1K only. 2K and 4K are available for other aspect ratios.",
+					"enum": [
+						"auto",
+						"1:1",
+						"3:2",
+						"2:3",
+						"4:3",
+						"3:4",
+						"16:9",
+						"9:16",
+						"21:9",
+						"27:16",
+						"16:27",
+						"9:8",
+						"8:9"
+					]
+				},
+				"resolution": {
+					"type": "string",
+					"description": "Image resolution",
+					"enum": ["1K", "2K", "4K"]
+				},
+				"background": {
+					"type": "string",
+					"description": "For 2K/4K tasks, background=transparent must be paired with the prompt: describe an isolated subject with no backdrop, scenery or shadow, and for image-to-image explicitly ask to extract the subject and keep the background transparent.",
+					"enum": ["transparent", "opaque", "auto"]
+				}
+			}
+		},
+		{
+			"productKey": "image-seedream-4",
+			"sourceUrl": "https://docs.kie.ai/market/seedream/seedream-v4-text-to-image.md",
+			"sourceSha256": "4a30726d638cdddee2176f5c19047e49529fbd97102c8591b53742c827289cba",
+			"providerModelId": "bytedance/seedream-v4-text-to-image",
+			"required": ["prompt"],
+			"properties": {
+				"prompt": {
+					"type": "string",
+					"description": "The text prompt used to generate the image (Max length: 5000 characters)",
+					"maxLength": 5000
+				},
+				"image_size": {
+					"type": "string",
+					"description": "The size of the generated image.",
+					"enum": [
+						"square",
+						"square_hd",
+						"portrait_4_3",
+						"portrait_3_2",
+						"portrait_16_9",
+						"landscape_4_3",
+						"landscape_3_2",
+						"landscape_16_9",
+						"landscape_21_9"
+					],
+					"default": "square_hd"
+				},
+				"image_resolution": {
+					"type": "string",
+					"description": "Final image resolution is determined by combining image_size (aspect ratio) and image_resolution (pixel scale). For example, choosing 4:3 + 4K gives 4096 \u00d7 3072px",
+					"enum": ["1K", "2K", "4K"],
+					"default": "1K"
+				},
+				"max_images": {
+					"type": "number",
+					"description": "Set this value (1\u20136) to cap how many images a single generation run can produce in one set\u2014because they\u2019re created in one shot rather than separate requests, you must also state the exact number you want in the prompt so both settings align. (Min: 1, Max: 6, Step: 1) (step: 1)",
+					"default": 1
+				},
+				"seed": {
+					"type": "integer",
+					"description": "Random seed to control the stochasticity of image generation"
+				},
+				"nsfw_checker": {
+					"type": "boolean",
+					"description": "Defaults to false. You can set it to false based on your needs. If set to false, our content filtering will be disabled, and all results will be returned directly by the model itself.\nNote: There is no guarantee that everything can be filtered out; if you are not satisfied with the results, you will need to make your own arrangements."
+				}
+			}
+		},
+		{
+			"productKey": "image-seedream-4-5",
+			"sourceUrl": "https://docs.kie.ai/market/seedream/4-5-text-to-image.md",
+			"sourceSha256": "f957bab806ccfef924ebc9733b0a4e6da43fbfc1af82a0e7c8fc83196de40505",
+			"providerModelId": "seedream/4.5-text-to-image",
+			"required": ["prompt", "aspect_ratio", "quality"],
+			"properties": {
+				"prompt": {
+					"type": "string",
+					"description": "A text description of the image you want to generate (Max length: 3000 characters)",
+					"maxLength": 3000
+				},
+				"aspect_ratio": {
+					"type": "string",
+					"description": "Width-height ratio of the image, determining its visual form.",
+					"enum": ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
+					"default": "1:1"
+				},
+				"quality": {
+					"type": "string",
+					"description": "Basic outputs 2K images, while High outputs 4K images.",
+					"enum": ["basic", "high"],
+					"default": "basic"
+				},
+				"nsfw_checker": {
+					"type": "boolean",
+					"description": "Defaults to false. You can set it to false based on your needs. If set to false, our content filtering will be disabled, and all results will be returned directly by the model itself.\nNote: There is no guarantee that everything can be filtered out; if you are not satisfied with the results, you will need to make your own arrangements."
+				}
+			}
+		},
+		{
+			"productKey": "image-seedream-5-lite",
+			"sourceUrl": "https://docs.kie.ai/market/seedream/5-lite-text-to-image.md",
+			"sourceSha256": "b6f119856f5bd482af8249f0c2ca8c7d8004895370161cba30923af5c0075160",
+			"providerModelId": "seedream/5-lite-text-to-image",
+			"required": ["prompt", "aspect_ratio", "quality"],
+			"properties": {
+				"prompt": {
+					"type": "string",
+					"description": "A text description of the image you want to generate (Max length: 3-3000 characters)",
+					"minLength": 3,
+					"maxLength": 3000
+				},
+				"aspect_ratio": {
+					"type": "string",
+					"description": "Width-height ratio of the image, determining its visual form.",
+					"enum": ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
+					"default": "1:1"
+				},
+				"quality": {
+					"type": "string",
+					"description": "Basic outputs 2K images, while High outputs 3K images, and Ultra outputs 4K images.",
+					"enum": ["basic", "high", "ultra"],
+					"default": "basic"
+				},
+				"output_format": {
+					"type": "string",
+					"description": "Format of the output image",
+					"enum": ["png", "jpeg"],
+					"default": "png"
+				},
+				"nsfw_checker": {
+					"type": "boolean",
+					"description": "Defaults to false. You can set it to false based on your needs. If set to false, our content filtering will be disabled, and all results will be returned directly by the model itself.\nNote: There is no guarantee that everything can be filtered out; if you are not satisfied with the results, you will need to make your own arrangements."
+				}
+			}
+		},
+		{
+			"productKey": "image-seedream-5-pro",
+			"sourceUrl": "https://docs.kie.ai/market/seedream/5-pro-text-to-image.md",
+			"sourceSha256": "98bbfb7d5c7c8ac05d2609f69274ca57089c6ce837988667f6c3468801c7bd92",
+			"providerModelId": "seedream/5-pro-text-to-image",
+			"required": ["prompt", "aspect_ratio", "quality"],
+			"properties": {
+				"prompt": {
+					"type": "string",
+					"description": "A text description of the image you want to generate (Max length: 3-5000 characters)",
+					"minLength": 3,
+					"maxLength": 5000
+				},
+				"aspect_ratio": {
+					"type": "string",
+					"description": "Width-height ratio of the image, determining its visual form.",
+					"enum": ["1:1", "4:3", "3:4", "16:9", "9:16", "2:3", "3:2", "21:9"],
+					"default": "1:1"
+				},
+				"quality": {
+					"type": "string",
+					"description": "Basic outputs 1K images, while High outputs 2K images.",
+					"enum": ["basic", "high"],
+					"default": "basic"
+				},
+				"output_format": {
+					"type": "string",
+					"description": "Format of the output image",
+					"enum": ["png", "jpeg"],
+					"default": "png"
+				},
+				"nsfw_checker": {
+					"type": "boolean",
+					"description": "Defaults to false. You can set it to false based on your needs. If set to false, our content filtering will be disabled, and all results will be returned directly by the model itself.\nNote: There is no guarantee that everything can be filtered out; if you are not satisfied with the results, you will need to make your own arrangements."
+				}
+			}
+		}
+	]
+}

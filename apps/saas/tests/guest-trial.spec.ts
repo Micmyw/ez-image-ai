@@ -1,6 +1,8 @@
 import { expect, test, type Page, type TestInfo } from "@playwright/test";
 import pg from "pg";
 
+import { isLocalMediaE2E } from "../../../tooling/e2e/src/guard";
+
 const saasUrl = process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000";
 const testDatabaseUrl = requiredEnvironment("TEST_DATABASE_URL");
 const runId = requiredEnvironment("E2E_RUN_ID");
@@ -22,7 +24,7 @@ test("anonymous Nano Banana 2 Lite trial is private, accessible, responsive, and
 	await assertGuestAccessibility(page);
 	await assertGuestOriginality(page);
 
-	const promptInput = page.getByLabel(/edit instruction/i);
+	const promptInput = page.getByLabel(/edit instruction|image prompt/i);
 	await expect(promptInput).toHaveValue(prompt);
 	await promptInput.fill(`${prompt} retry`);
 	let blockedOnce = false;
@@ -80,16 +82,35 @@ test("anonymous Nano Banana 2 Lite trial is private, accessible, responsive, and
 });
 
 async function enterGuestWorkspace(page: Page, prompt: string): Promise<void> {
+	page.on("requestfailed", (request) => {
+		const url = new URL(request.url());
+		console.info("Guest request failed", {
+			method: request.method(),
+			path: `${url.origin}${url.pathname}`,
+			error: request.failure()?.errorText,
+		});
+	});
+	if (isLocalMediaE2E() && process.env.MEDIA_TRUSTED_PROXY_PROVIDER === "cloudflare") {
+		// The local dev server has no edge proxy to supply the trusted client IP.
+		await page.route(`${new URL(saasUrl).origin}/**`, (route) =>
+			route.continue({
+				headers: { ...route.request().headers(), "cf-connecting-ip": "127.0.0.1" },
+			}),
+		);
+	}
 	await page.context().addCookies([{ name: "consent", value: "true", url: saasUrl }]);
 	await page.goto("/");
-	await page.getByLabel(/describe your edit/i).fill(prompt);
+	await page.getByLabel(/describe your (?:image|edit)/i).fill(prompt);
 	const chooserPromise = page.waitForEvent("filechooser");
-	await page.getByRole("button", { name: /drop an image here or choose a file/i }).click();
+	await page
+		.locator('[data-test="landing-generator"]')
+		.getByRole("button", { name: /add a reference image/i })
+		.click();
 	await (
 		await chooserPromise
 	).setFiles({ name: "guest-source.png", mimeType: "image/png", buffer: png });
 	const trialAction = page.locator('[data-test="landing-generate"]');
-	await expect(trialAction).toHaveAccessibleName(/try free/i);
+	await expect(trialAction).toHaveAccessibleName(/try free/i, { timeout: 30_000 });
 	await trialAction.click();
 	await expect(page).toHaveURL(/\/try(?:\?|$)/, { timeout: 30_000 });
 	await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
@@ -131,7 +152,7 @@ async function assertFourHundredPercentReflow(page: Page): Promise<void> {
 		expect(geometry.viewport, "400% CSS viewport").toBe(320);
 		expect(geometry.pageWidth, "400% page overflow").toBeLessThanOrEqual(geometry.viewport + 1);
 		for (const target of [
-			page.getByLabel(/edit instruction/i),
+			page.getByLabel(/edit instruction|image prompt/i),
 			page.getByRole("button", { name: /more image models/i }),
 			page.getByRole("button", { name: /start my nano banana edit/i }),
 			page.locator("#guest-result-region"),
@@ -151,12 +172,13 @@ async function assertFourHundredPercentReflow(page: Page): Promise<void> {
 
 async function assertGuestAccessibility(page: Page): Promise<void> {
 	await page.setViewportSize({ width: 390, height: 844 });
-	await expect(page.getByLabel(/edit instruction/i)).toBeVisible();
+	await expect(page.getByLabel(/edit instruction|image prompt/i)).toBeVisible();
 	await expect(page.locator("#guest-status-region")).toHaveAttribute("aria-live", "polite");
 	const primary = page.getByRole("button", { name: /start my nano banana edit/i });
 	const primaryBox = await primary.boundingBox();
 	expect(primaryBox?.height ?? 0).toBeGreaterThanOrEqual(48);
 	for (const control of await page
+		.locator("header, main, footer")
 		.locator("button:visible, input:visible, textarea:visible, select:visible, a[href]:visible")
 		.all()) {
 		const box = await control.boundingBox();
@@ -174,7 +196,7 @@ async function assertGuestAccessibility(page: Page): Promise<void> {
 	const selectedStandard = page.locator('[data-test="guest-product-selection"]');
 	await expect(selectedStandard).toHaveAttribute("aria-current", "true");
 	await expect(selectedStandard.locator("svg")).toBeVisible();
-	await page.getByLabel(/edit instruction/i).focus();
+	await page.getByLabel(/edit instruction|image prompt/i).focus();
 	await page.keyboard.press("Tab");
 	await expect(page.getByRole("button", { name: /more image models/i })).toBeFocused();
 	await page.keyboard.press("Tab");

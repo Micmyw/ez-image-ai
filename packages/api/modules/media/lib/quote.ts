@@ -5,6 +5,7 @@ import {
 	getCatalogImageSpecCell,
 	parseRouteGraphSnapshot,
 	quoteCatalogInput,
+	textImageRoutes,
 	type ExecutableRouteGraphOptions,
 	type MediaModelInput,
 } from "@repo/ai";
@@ -20,7 +21,18 @@ export function buildMediaQuote(
 	const entry = createExecutableRouteGraph(routeGraphOptions).getEntry(input.productKey);
 	if (!entry) throw new Error("PROVIDER_UNAVAILABLE");
 	const selectedCell = getCatalogImageSpecCell(entry, quote.skuKey);
-	const routes = selectedCell?.routes ?? entry.routes;
+	const selectedRoutes = selectedCell?.routes ?? entry.routes;
+	const routes =
+		input.input.kind === "text-to-image"
+			? textImageRoutes(selectedRoutes).filter((route) =>
+					entry.routes.some(
+						(current) =>
+							current.provider === route.provider &&
+							current.providerModelId === route.providerModelId,
+					),
+				)
+			: selectedRoutes;
+	if (!routes.length) throw new Error("PROVIDER_UNAVAILABLE");
 	if (quote.skuKey && !selectedCell) throw new Error("PROVIDER_UNAVAILABLE");
 	const maximumRouteCostMicros = Math.max(...routes.map((route) => route.providerCostMicros));
 	if (maximumRouteCostMicros > DEFAULT_PRODUCT_CONFIG.budgets.maximumJobCostMicros) {

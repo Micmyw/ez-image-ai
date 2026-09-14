@@ -46,13 +46,13 @@ describe("generateOrganizationSlug", () => {
 		expect(result.slug).toBe("existing-org-abc12");
 	});
 
-	it("never returns the reserved docs route slug", async () => {
+	it.each(["docs", "models"])("never returns the reserved %s route slug", async (slug) => {
 		vi.mocked(getOrganizationBySlug).mockResolvedValueOnce(null);
 
-		const result = await call(generateOrganizationSlug, { name: "Docs" }, ctx);
+		const result = await call(generateOrganizationSlug, { name: slug }, ctx);
 
-		expect(result.slug).toBe("docs-abc12");
-		expect(getOrganizationBySlug).toHaveBeenCalledWith("docs-abc12");
+		expect(result.slug).toBe(`${slug}-abc12`);
+		expect(getOrganizationBySlug).toHaveBeenCalledWith(`${slug}-abc12`);
 	});
 
 	it("throws INTERNAL_SERVER_ERROR when no available slug is found after 3 attempts", async () => {

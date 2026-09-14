@@ -2,6 +2,26 @@
 
 ## 2026-09-14
 
+### Model pages and text-to-image creation
+
+- Add `/models` and twelve individual model pages with a preselected generator, model-specific
+  creative guidance, prompts, FAQs, and related models. Include them in English public routing
+  and the sitemap, with a dedicated title and canonical URL for each page.
+- Add six original concept illustrations, labeled as creative inspiration rather than verified
+  outputs of the named models. Link the collection from the homepage and model navigation.
+- Support prompt-only image generation alongside reference-image edits. Sign-in preserves a
+  visitor's prompt and output settings in the same tab; account generation uses the existing
+  moderation, quote, credit reservation, Outbox, private storage, and settlement flow.
+- Show a single preview for text-generated images, support prompt reuse, and use **Edit again**
+  to begin a new reference edit from a generated result. Pending or failed reference uploads
+  block submission and invalidate any earlier quote until resolved or explicitly removed.
+- Keep login inputs disabled until the form is ready and prevent native GET submission of
+  credentials. Allow image previews from the configured local storage origin during development.
+- Advance the image catalog to `2026-09-14.1` while retaining pricing `2026-09-13.2`.
+  The new catalog requires its own provider certification; older image-edit certifications do
+  not authorize the additional text-to-image routes. Local contract and mock-provider checks
+  do not certify live quality, billing, or production availability.
+
 ### Image model API validation
 
 - Verify all twelve image models and twenty-nine output choices against their official image-edit

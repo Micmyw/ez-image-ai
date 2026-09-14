@@ -28,9 +28,9 @@ const storedEditorUpgradeDraftSchema = z
 				productKey: storedProductKeySchema,
 				input: z
 					.object({
-						kind: z.literal("image-to-image"),
+						kind: z.enum(["image-to-image", "text-to-image"]),
 						prompt: z.string().max(10_000),
-						sourceAssetId: z.string().max(128),
+						sourceAssetId: z.string().max(128).optional(),
 						skuKey: z.enum(IMAGE_SKU_KEYS).optional(),
 						aspectRatio: z.enum(IMAGE_ASPECT_RATIOS).optional(),
 						outputFormat: z.enum(IMAGE_OUTPUT_FORMATS).optional(),
@@ -43,7 +43,12 @@ const storedEditorUpgradeDraftSchema = z
 		sourceReady: z.boolean(),
 	})
 	.strict()
-	.refine((value) => !value.sourceReady || Boolean(value.draft.input.sourceAssetId));
+	.refine((value) =>
+		value.draft.input.kind === "text-to-image"
+			? value.draft.input.sourceAssetId === undefined && value.parentJobId === null
+			: value.draft.input.sourceAssetId !== undefined &&
+				(!value.sourceReady || Boolean(value.draft.input.sourceAssetId)),
+	);
 
 export interface EditorUpgradeDraft {
 	draft: EditorDraftInput;
@@ -197,9 +202,11 @@ function normalizeStoredEditorDraft(
 	return {
 		productKey,
 		input: {
-			kind: "image-to-image",
+			kind: draft.input.kind,
 			prompt: draft.input.prompt,
-			sourceAssetId: draft.input.sourceAssetId,
+			...(draft.input.sourceAssetId !== undefined
+				? { sourceAssetId: draft.input.sourceAssetId }
+				: {}),
 			skuKey,
 			aspectRatio,
 			...(draft.input.outputFormat ? { outputFormat: draft.input.outputFormat } : {}),

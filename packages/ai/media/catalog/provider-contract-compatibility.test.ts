@@ -43,7 +43,7 @@ describe("provider contracts covered by the prior production approval", () => {
 		it(`${product.productKey} retains its legal inputs, route costs and actual provider payloads`, async () => {
 			const entry = getCatalogEntry(product.productKey);
 			const matrix = entry.imageSpecMatrix!;
-			expect(entry.inputKinds).toEqual(["image-to-image"]);
+			expect(entry.inputKinds).toContain("image-to-image");
 			expect(matrix.defaultSkuKey).toBe(product.defaultSkuKey);
 			expect(matrix.cells.map((cell) => cell.skuKey)).toEqual(
 				product.cells.map((cell) => cell.skuKey),

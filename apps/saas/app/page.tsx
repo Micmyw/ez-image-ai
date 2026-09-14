@@ -11,9 +11,9 @@ import type { Metadata } from "next";
 
 import { LandingPage } from "../modules/landing/components/LandingPage";
 
-const title = "EzPic AI Image Editor — Edit Images With a Prompt";
+const title = "EzPic AI Image Generator & Editor — Create With a Prompt";
 const description =
-	"Prepare a private AI image edit with a source photo and a prompt. Explore editing examples, output options, and credits, then check current availability.";
+	"Create images from text or edit a reference with GPT Image, Nano Banana, and Seedream. Explore models and prompts, review credits, and keep your images private.";
 
 export const metadata: Metadata = {
 	title: { absolute: title },

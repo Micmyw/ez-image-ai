@@ -39,7 +39,7 @@
 			},
 			"editTiers": {
 				"question": "Which image models and output settings are available?",
-				"answer": "Nano Banana 2 Lite 1K uses 5 EzPic Credits. GPT Image 2 uses 7 at 1K, 11 at 2K, or 17 at 4K. Seedream 5 Pro uses 8 for Basic 1K or 15 for High 2K. Each confirmed edit produces one output."
+				"answer": "Explore GPT Image, Nano Banana, and Seedream models. Each model page includes creative directions and prompts. The workspace shows current availability, output settings, and credits before you confirm a generation. Each confirmed generation produces one image."
 			},
 			"creditReservation": {
 				"question": "When are credits used?",
@@ -54,8 +54,8 @@
 				"answer": "No. Guest and account inputs and outputs are private, not posted to a public gallery. The configured retention target for account inputs and outputs is 30 days. EzPic may send only the minimum content needed to configured infrastructure and image-processing services."
 			},
 			"formats": {
-				"question": "What images can I upload?",
-				"answer": "JPEG, PNG, and WebP are supported. Guest uploads are limited to 10 MB; account limits are shown on the pricing page."
+				"question": "Do I need to upload a reference image?",
+				"answer": "No. Sign in to generate from a text prompt with no reference. If you want to edit or guide an existing image, upload a JPEG, PNG, or WebP. Guest reference uploads are limited to 10 MB; account upload limits are shown on the pricing page."
 			},
 			"outputBehavior": {
 				"question": "Will every result be unique and exact?",
@@ -85,9 +85,9 @@
 	},
 	"home": {
 		"generator": {
-			"eyebrow": "Plan your edit",
-			"title": "Describe the change you want",
-			"subtitle": "Upload a source image and describe the edit. When the guest queue is available, you can start one private Nano Banana 2 Lite 1K edit in EzPic.",
+			"eyebrow": "Start creating",
+			"title": "Describe the image you have in mind",
+			"subtitle": "Start with a prompt, or add a reference image for an edit. Sign in to review credits and generate.",
 			"offer": "Try Nano Banana 2 Lite 1K free",
 			"noSignUp": "No sign-up when the guest queue is available",
 			"paidSignIn": "Sign-in and a paid plan required",
@@ -105,7 +105,7 @@
 				"aspectRatio": "Aspect ratio",
 				"automatic": "Automatic",
 				"outputNumber": "Output number",
-				"oneOutput": "Each confirmed edit returns one image",
+				"oneOutput": "Each confirmed generation returns one image",
 				"resolution": "Resolution",
 				"quality": "Quality",
 				"outputFormat": "Output format",
@@ -131,22 +131,22 @@
 			},
 			"states": {
 				"challenge": "Verify this guest upload",
-				"checking": "Checking edit availability…",
-				"ready": "Choose an image model, source image, and prompt to continue.",
+				"checking": "Checking model availability…",
+				"ready": "Choose a model and describe an image. A reference is optional.",
 				"preparing": "Preparing your private upload…",
 				"loadingCapability": "Checking guest availability…",
 				"unavailable": "The guest Nano Banana queue is not accepting new edits right now.",
 				"uploading": "Uploading private source image: {percentage, number}%",
 				"verifying": "Verifying your private source image…",
-				"handoff": "Opening your private draft…",
+				"handoff": "Opening your private workspace…",
 				"failed": "This attempt stopped before handoff. Your image, prompt, and model selection are still here."
 			},
 			"guidance": {
-				"checking": "Wait while edit availability is checked.",
-				"unavailable": "Editing is unavailable right now. Prepare a prompt, read the guide, or check again.",
+				"checking": "Wait while model availability is checked.",
+				"unavailable": "Generation is unavailable right now. Prepare a prompt, read the guide, or check again.",
 				"product": "Choose an image model to continue.",
 				"source": "Add a source image to continue.",
-				"prompt": "Describe the edit you want to continue.",
+				"prompt": "Describe the image you want to continue.",
 				"verification": "Complete the verification to continue."
 			},
 			"actions": {
@@ -159,9 +159,9 @@
 				"turnstile": "Complete the verification and try again.",
 				"upload": "We could not prepare this private guest edit. Try the upload again."
 			},
-			"prompt": "Describe your edit",
-			"reference": "Source image",
-			"placeholder": "Describe what you want to change…",
+			"prompt": "Describe your image",
+			"reference": "Reference image · optional",
+			"placeholder": "Describe your subject, scene, lighting, and style…",
 			"continue": "Continue to Edit",
 			"privacy": "Guest source images and results stay private and temporary for up to 24 hours. Account media follows the retention described in our Privacy Policy.",
 			"error": "We could not save this edit draft. Please try again shortly.",
@@ -171,7 +171,7 @@
 				"create": "Review"
 			},
 			"fileHint": "JPEG, PNG, or WebP up to {megabytes, number} MB",
-			"uploadLabel": "Drop an image here or choose a file",
+			"uploadLabel": "Add a reference image (optional)",
 			"replaceImage": "Replace image",
 			"removeImage": "Remove image",
 			"suggestionsLabel": "Try a prompt",
@@ -198,7 +198,7 @@
 					"access": "Pro, Ultimate, or Max plan required"
 				}
 			},
-			"loginNotice": "Guest Nano Banana 2 Lite 1K edits can start without sign-in when the guest queue is available; account edits show the exact EzPic Credit amount before confirmation.",
+			"loginNotice": "Sign in to generate from text and review your credit quote. With a reference image, the sponsored Nano Banana 2 Lite guest edit remains available when the guest queue is open.",
 			"previewCaption": "Source preview",
 			"previewPlaceholderAlt": "Original EzPic vector illustration of a neutral reading studio",
 			"previewAlt": "Preview of {fileName}",
@@ -279,11 +279,11 @@
 			}
 		},
 		"imageEditorHero": {
-			"eyebrow": "Upload-first prompt editing",
-			"title": "AI Image Editor <accent>With Prompts</accent>",
-			"subtitle": "Upload your image and describe the change. When the guest queue is available, you can start one private Nano Banana 2 Lite 1K edit from this page without an account.",
+			"eyebrow": "Create from an idea or a reference",
+			"title": "AI Image Generator <accent>& Editor</accent>",
+			"subtitle": "Describe an image and bring it to life. Explore GPT Image, Nano Banana, and Seedream in one private workspace, with an optional reference image.",
 			"private": "Private source images",
-			"draftOnly": "One guest Nano Banana 2 Lite edit"
+			"draftOnly": "Create from text or an image"
 		},
 		"beforeAfter": {
 			"eyebrow": "One source, one clear change",
@@ -442,20 +442,20 @@
 		},
 		"howItWorks": {
 			"eyebrow": "How it works",
-			"title": "From upload to a private result",
-			"description": "The landing page starts the tool. A temporary guest workspace handles the queue and private result inside the same EzPic app.",
+			"title": "From an idea to your next image",
+			"description": "Prepare a prompt, choose a model, and create in the same EzPic workspace. Add a reference when you want to guide or edit an existing image.",
 			"steps": {
 				"draft": {
-					"title": "Upload and describe",
-					"description": "Choose a supported source image and describe the exact change you want."
+					"title": "Describe your image",
+					"description": "Write a visual brief and choose a model. Add a reference image if you want to edit an existing picture."
 				},
 				"signin": {
-					"title": "Continue as a guest",
-					"description": "A secure same-origin handoff opens your temporary guest workspace without requiring sign-in."
+					"title": "Review your settings",
+					"description": "Sign in, choose output settings, and review the credit quote. Eligible reference edits can also use the sponsored guest trial."
 				},
 				"generate": {
-					"title": "Start and review the edit",
-					"description": "Your confirmation starts the existing asynchronous workflow and returns a private watermarked preview."
+					"title": "Generate and refine",
+					"description": "Confirm the quote, follow the job in your workspace, and use the result as a reference for your next idea."
 				}
 			}
 		},
@@ -479,9 +479,9 @@
 			}
 		},
 		"finalCta": {
-			"eyebrow": "Start with one image",
-			"title": "Describe the edit you already have in mind",
-			"description": "Upload and describe the change here. When the guest queue is available, continue to one private Nano Banana 2 Lite 1K guest edit without creating an account.",
+			"eyebrow": "Start with an idea",
+			"title": "What will you create next?",
+			"description": "Describe the image you have in mind. Explore a model, choose your settings, and keep creating in one private workspace.",
 			"button": "Back to the editor"
 		},
 		"hero": {

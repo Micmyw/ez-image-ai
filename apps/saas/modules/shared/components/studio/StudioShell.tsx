@@ -52,7 +52,7 @@ function StudioShellContent({ children }: { children: ReactNode }) {
 	const pathname = usePathname();
 	const showSidebar = pathname === "/create" || (registered && pathname !== "/");
 	const mobile = useIsMobile();
-	const editing = pathname === "/" || pathname === "/create";
+	const editing = pathname === "/" || pathname === "/create" || pathname.startsWith("/models/");
 	const [panel, setPanel] = useState<StudioPanel | null>(null);
 	const [navigationOpen, setNavigationOpen] = useState(false);
 	const navigationVisible = showSidebar && navigationOpen;
@@ -158,7 +158,8 @@ function StudioShellContent({ children }: { children: ReactNode }) {
 			document.removeEventListener("keydown", containFocus);
 		};
 	}, [mobile, panel, navigationVisible]);
-	const sectionHref = (hash: string) => (editing ? hash : "/" + hash);
+	const sectionHref = (hash: string) =>
+		pathname === "/" || pathname === "/create" ? hash : "/" + hash;
 	const sidebar = (
 		<>
 			<div className="studio-brand-row">

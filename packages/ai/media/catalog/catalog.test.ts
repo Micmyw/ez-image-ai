@@ -16,7 +16,7 @@ import {
 } from "./routing";
 
 describe("media product catalog", () => {
-	it("quotes every current image SKU only for image-to-image edits", () => {
+	it("quotes both image modes with the required model-owned SKU", () => {
 		for (const [productKey, skuKey, aspectRatio, credits] of [
 			["image-nano-banana-2-lite", "nano-banana-2-lite-1k", "auto", 5],
 			["image-gpt-image-2", "gpt-image-2-2k", "1:1", 11],
@@ -46,7 +46,7 @@ describe("media product catalog", () => {
 					productKey,
 					input: { kind: "text-to-image", prompt: "Generate without a source image" },
 				}),
-			).toThrow(`Input text-to-image is not supported by ${productKey}`);
+			).toThrow(`Invalid SKU for ${productKey}`);
 		}
 
 		expect(() =>
@@ -240,9 +240,9 @@ describe("media product catalog", () => {
 			expect(product).toEqual(
 				expect.objectContaining({
 					mediaKind: "image",
-					inputKinds: ["image-to-image"],
+					inputKinds: ["text-to-image", "image-to-image"],
 					fields: expect.arrayContaining([
-						expect.objectContaining({ key: "sourceAssetId", required: true }),
+						expect.objectContaining({ key: "sourceAssetId", required: false }),
 					]),
 				}),
 			);

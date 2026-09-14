@@ -1,4 +1,9 @@
-import { DEFAULT_PRODUCT_CONFIG, IMAGE_ASPECT_RATIOS } from "@repo/config";
+import {
+	DEFAULT_PRODUCT_CONFIG,
+	IMAGE_ASPECT_RATIOS,
+	type ImageAspectRatio,
+	type ImageSkuKey,
+} from "@repo/config";
 
 import { createExecutableRouteGraph, type CatalogEntry } from "./catalog";
 import type { ImageSpecControlKey, ImageSpecDimensionKey } from "./image-spec-matrices";
@@ -15,18 +20,18 @@ export interface PublicCatalogEntry {
 	inputKinds: string[];
 	credits: number;
 	skuMatrix?: {
-		defaultSkuKey: string;
+		defaultSkuKey: ImageSkuKey;
 		dimensions: Array<{
 			key: ImageSpecDimensionKey;
 			label: string;
 			options: Array<{ key: string; label: string }>;
 		}>;
 		cells: Array<{
-			skuKey: string;
+			skuKey: ImageSkuKey;
 			label: string;
 			parameterValues: Partial<Record<ImageSpecDimensionKey, string>>;
 			credits: number;
-			aspectRatios: string[];
+			aspectRatios: ImageAspectRatio[];
 			controls: Array<{
 				key: ImageSpecControlKey;
 				label: string;
@@ -106,7 +111,7 @@ function publicFields(entry: CatalogEntry): PublicCatalogEntry["fields"] {
 						type: "image-asset" as const,
 						key: "sourceAssetId",
 						label: "Source image",
-						required: true,
+						required: !inputKinds.includes("text-to-image"),
 					},
 				]
 			: []),

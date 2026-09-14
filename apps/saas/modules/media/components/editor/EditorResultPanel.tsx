@@ -51,7 +51,7 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 		!job.data.skuKey ||
 		!isPublicImageSkuKey(job.data.skuKey) ||
 		!isImageAspectRatio(job.data.aspectRatio) ||
-		job.data.inputAssets.length === 0 ||
+		(job.data.input?.kind !== "text-to-image" && job.data.inputAssets.length === 0) ||
 		!job.data.inputAssets.every((asset) => asset.mimeType.startsWith("image/")) ||
 		!job.data.assets.every((asset) => asset.mimeType.startsWith("image/"))
 	) {
@@ -86,7 +86,11 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 				<Badge status="info">{t(`stages.${presentation.stage}`)}</Badge>
 				<span className="text-xs text-muted-foreground">{job.data.id}</span>
 			</div>
-			<h2 className="mt-6 text-2xl font-medium">{t(`headings.${presentation.stage}`)}</h2>
+			<h2 className="mt-6 text-2xl font-medium">
+				{job.data.input?.kind === "text-to-image" && presentation.stage === "ready"
+					? t("generatedReady")
+					: t(`headings.${presentation.stage}`)}
+			</h2>
 			{presentation.progress !== null && (
 				<div className="mt-6">
 					<Progress
@@ -114,11 +118,20 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 					/>
 				</div>
 			)}
-			{job.data.status === "SUCCEEDED" && (!source || !output) && (
-				<Alert className="mt-5" variant="error">
-					<AlertDescription>{t("comparisonUnavailable")}</AlertDescription>
-				</Alert>
-			)}
+			{job.data.status === "SUCCEEDED" &&
+				!source &&
+				output &&
+				job.data.input?.kind === "text-to-image" && (
+					<div className="mt-6">
+						<SignedOutput assetId={output.id} />
+					</div>
+				)}
+			{job.data.status === "SUCCEEDED" &&
+				(!output || (!source && job.data.input?.kind !== "text-to-image")) && (
+					<Alert className="mt-5" variant="error">
+						<AlertDescription>{t("comparisonUnavailable")}</AlertDescription>
+					</Alert>
+				)}
 			{cancelError && (
 				<Alert className="mt-5" variant="error">
 					<AlertDescription>{t("cancelUnavailable")}</AlertDescription>
@@ -140,7 +153,11 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 							<a
 								{...props}
 								onClick={() => void saasGrowthFunnel.editAgainStarted(jobId, productKey)}
-								href={`/create?asset=${encodeURIComponent(output.id)}&parentJob=${encodeURIComponent(jobId)}`}
+								href={
+									job.data.input?.kind === "text-to-image"
+										? `/create?asset=${encodeURIComponent(output.id)}&model=${encodeURIComponent(productKey)}`
+										: `/create?asset=${encodeURIComponent(output.id)}&parentJob=${encodeURIComponent(jobId)}`
+								}
 							>
 								{props.children}
 							</a>
@@ -194,6 +211,29 @@ function EditorEmptyState() {
 			<h2 className="font-medium text-xl">{t("emptyTitle")}</h2>
 			<p className="mt-2 max-w-sm text-sm text-muted-foreground">{t("emptyDescription")}</p>
 		</div>
+	);
+}
+
+function SignedOutput({ assetId }: { assetId: string }) {
+	const t = useTranslations("media.status");
+	const output = useQuery({
+		queryKey: ["media-asset-preview", assetId],
+		queryFn: () => orpcClient.media.getAssetAccessUrl({ assetId, disposition: "inline" }),
+		staleTime: 4 * 60_000,
+	});
+	if (output.isError)
+		return (
+			<Alert variant="error">
+				<AlertDescription>{t("comparisonUnavailable")}</AlertDescription>
+			</Alert>
+		);
+	if (!output.data) return <p aria-busy="true">{t("loading")}</p>;
+	return (
+		<img
+			src={output.data.url}
+			alt={t("generatedAlt")}
+			className="mx-auto max-h-[42rem] w-full rounded-xl object-contain"
+		/>
 	);
 }
 
