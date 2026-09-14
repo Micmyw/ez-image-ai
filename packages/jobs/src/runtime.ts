@@ -61,6 +61,7 @@ import type { PrismaClient } from "@repo/database/generated-client";
 import {
 	abortMultipartUpload,
 	assertMediaKind,
+	isMediaContentType,
 	config as storageConfig,
 	createAssetObjectKey,
 	createStagingObjectKey,
@@ -3340,6 +3341,33 @@ export function createFinalizationDependencies(
 					retryable: false,
 				};
 			}
+			const assetId = `asset_${createHash("sha256")
+				.update(`${claim.jobId}:${candidate.key}`)
+				.digest("base64url")
+				.slice(0, 32)}`;
+			const sourceUrl = `provider-output:${candidate.key}`;
+			const placeholder = await database.mediaAsset.findUnique({ where: { id: assetId } });
+			const matchingPlaceholder =
+				placeholder?.ownerType === "USER" &&
+				placeholder.ownerId === claim.ownerId &&
+				placeholder.kind === "OUTPUT" &&
+				placeholder.sourceUrl === sourceUrl
+					? placeholder
+					: null;
+			if (matchingPlaceholder && isOutputTransferExhaustedPlaceholder(matchingPlaceholder)) {
+				throw {
+					code: OUTPUT_TRANSFER_EXHAUSTED_CODE,
+					stage: "TRANSFER",
+					retryable: false,
+				};
+			}
+			const storedMimeType = matchingPlaceholder?.mimeType;
+			if (storedMimeType !== undefined && !isMediaContentType(storedMimeType)) {
+				throw new MediaValidationError(
+					"OUTPUT_MEDIA_TYPE_UNSUPPORTED",
+					"Stored output media type is not supported",
+				);
+			}
 			let inlineBody: Buffer | null = null;
 			const mimeType =
 				candidate.output.kind === "inline-base64"
@@ -3349,7 +3377,8 @@ export function createFinalizationDependencies(
 							inlineBody = decoded.body;
 							return decoded.contentType;
 						})()
-					: (
+					: (storedMimeType ??
+						(
 							await storage.inspectRemoteMedia(candidate.output.url, {
 								allowedHosts: providerCdnAllowlist(environment),
 								maxRedirects: storageConfig.media.remoteMaxRedirects,
@@ -3358,26 +3387,9 @@ export function createFinalizationDependencies(
 								totalTimeoutMs: storageConfig.media.remoteTotalTimeoutMs,
 								expectedKind: claim.mediaKind,
 							})
-						).contentType;
-			const assetId = `asset_${createHash("sha256")
-				.update(`${claim.jobId}:${candidate.key}`)
-				.digest("base64url")
-				.slice(0, 32)}`;
+						).contentType);
+			assertMediaKind(mimeType, claim.mediaKind);
 			const objectKey = createAssetObjectKey(claim.ownerId, assetId, mimeType);
-			const sourceUrl = `provider-output:${candidate.key}`;
-			const placeholder = await database.mediaAsset.findUnique({ where: { id: assetId } });
-			if (
-				placeholder?.ownerType === "USER" &&
-				placeholder.ownerId === claim.ownerId &&
-				placeholder.sourceUrl === sourceUrl &&
-				isOutputTransferExhaustedPlaceholder(placeholder)
-			) {
-				throw {
-					code: OUTPUT_TRANSFER_EXHAUSTED_CODE,
-					stage: "TRANSFER",
-					retryable: false,
-				};
-			}
 			const transfer = await claimGenerationOutputTransferTransaction(
 				{
 					jobId: claim.jobId,

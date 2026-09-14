@@ -425,11 +425,17 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await openCreator(page, marker("mobile", "Warm the evening light", 0), fundedEmail);
 
 		await expect(page.getByRole("img", { name: /selected source image/i })).toBeVisible();
-		await expect(page.getByRole("radiogroup", { name: /image model/i })).toBeVisible();
-		const seedream = page.getByRole("radio", { name: "Seedream 5 Pro", exact: true });
+		const modelTrigger = page.locator('[data-test="editor-model-trigger"]');
+		await expect(modelTrigger).toBeEnabled();
+		await modelTrigger.focus();
+		await page.keyboard.press("Enter");
+		const seedreamFamily = page.getByRole("button", { name: "Seedream", exact: true });
+		await seedreamFamily.focus();
+		await page.keyboard.press("Enter");
+		const seedream = page.locator('[data-test="editor-model-image-seedream-5-pro"]');
 		await seedream.focus();
 		await page.keyboard.press("Space");
-		await expect(seedream).toBeChecked();
+		await expect(modelTrigger).toContainText("Seedream 5 Pro");
 
 		const outputSettings = page.getByRole("button", { name: /open output settings/i });
 		await outputSettings.focus();
@@ -445,6 +451,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 				.getByRole("group", { name: /resolution/i })
 				.getByRole("button", { name: "2K", exact: true }),
 		).toHaveAttribute("aria-pressed", "true");
+		await page.keyboard.press("Escape");
 		await expect(page.getByRole("button", { name: /review credits/i })).toBeEnabled();
 		expect(
 			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),

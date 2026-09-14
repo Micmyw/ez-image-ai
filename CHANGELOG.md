@@ -1,5 +1,16 @@
 # Changelog
 
+## 2026-09-14
+
+### Deployment and generation recovery
+
+- Add Cloudflare Git build/deploy commands for the existing website and jobs Workers, with
+  production configuration checks and verification of each published version.
+- Preserve stored output format and transfer state before inspecting a provider URL, so expired
+  result URLs cannot interrupt recovery of existing or exhausted output transfers.
+- Include dependency patches in both container build contexts and keep isolated browser tests
+  aligned with the current model catalog and keyboard-accessible model menu.
+
 ## 2026-09-13
 
 ### Expanded image models

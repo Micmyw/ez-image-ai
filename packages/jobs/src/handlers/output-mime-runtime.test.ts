@@ -23,6 +23,48 @@ describe("provider output format detection", () => {
 		});
 	});
 
+	it("uses the stored format for an active transfer without reading an expired provider URL", async () => {
+		boundary.claim.mockResolvedValue({ outcome: "IN_PROGRESS", asset: { id: "stored-output" } });
+		const inspect = vi.fn(async () => {
+			throw new Error("Provider URL expired");
+		});
+		const dependencies = createFinalizationDependencies(process.env, {
+			database: {
+				mediaAsset: {
+					findUnique: async () => ({
+						ownerType: "USER",
+						ownerId: "test-owner",
+						kind: "OUTPUT",
+						sourceUrl: "provider-output:candidate-1",
+						status: "VERIFYING",
+						mimeType: "image/jpeg",
+					}),
+				},
+			} as never,
+			store: { findPersistedCandidate: async () => null } as unknown as FinalizationStore,
+			safety: new TestMediaSafetyAdapter("ALLOW"),
+			storage: { inspectRemoteMedia: inspect },
+		});
+		await expect(
+			dependencies.persistCandidate(
+				{ jobId: "test-job", ownerId: "test-owner", mediaKind: "image" } as FinalizationClaim,
+				{
+					key: "candidate-1",
+					output: {
+						kind: "remote-url",
+						url: "https://replicate.delivery/expired.png",
+						trust: "untrusted-transfer-candidate",
+					},
+				},
+			),
+		).rejects.toMatchObject({ code: "OUTPUT_TRANSFER_IN_PROGRESS", retryable: true });
+		expect(inspect).not.toHaveBeenCalled();
+		expect(boundary.claim).toHaveBeenCalledWith(
+			expect.objectContaining({ mimeType: "image/jpeg" }),
+			expect.anything(),
+		);
+	});
+
 	it.each([
 		["JPEG", "ffd8ffe000104a46494600010100000100", "image/jpeg"],
 		["PNG", "89504e470d0a1a0a0000000d494844520000", "image/png"],

@@ -88,7 +88,9 @@ async function enterGuestWorkspace(page: Page, prompt: string): Promise<void> {
 	await (
 		await chooserPromise
 	).setFiles({ name: "guest-source.png", mimeType: "image/png", buffer: png });
-	await page.getByRole("button", { name: /try nano banana 2 lite 1k free/i }).click();
+	const trialAction = page.locator('[data-test="landing-generate"]');
+	await expect(trialAction).toHaveAccessibleName(/try free/i);
+	await trialAction.click();
 	await expect(page).toHaveURL(/\/try(?:\?|$)/, { timeout: 30_000 });
 	await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 	await expect(page.getByRole("button", { name: /start my nano banana edit/i })).toBeVisible();

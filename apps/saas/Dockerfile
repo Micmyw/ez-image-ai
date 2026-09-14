@@ -3,6 +3,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates
 RUN corepack enable && corepack prepare pnpm@11.3.0 --activate
 WORKDIR /app
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY patches ./patches
 COPY packages ./packages
 COPY tooling ./tooling
 COPY apps/saas ./apps/saas

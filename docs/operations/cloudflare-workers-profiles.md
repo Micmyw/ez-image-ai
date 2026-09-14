@@ -29,6 +29,10 @@ private R2 for assets. No schema migration was added by this runtime change.
 
 ## Configuration and preparation
 
+For Cloudflare Git builds triggered by `main` pushes, use the
+[automatic production deployment configuration](cloudflare-automatic-deployment.md). It connects
+the existing website and jobs Workers to the same repository and production branch.
+
 Keep target values in ignored `.env.production.local` or `.env.staging.local`. Set the profile,
 `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_HYPERDRIVE_ID`, and `CLOUDFLARE_WEB_CACHE_BUCKET`. The cache
 bucket must be separate from `MEDIA_BUCKET_NAME`. These identifiers do not provision resources.

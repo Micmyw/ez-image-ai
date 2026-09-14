@@ -549,6 +549,9 @@ importers:
       '@cloudflare/containers':
         specifier: 'catalog:'
         version: 0.3.7
+      '@repo/config':
+        specifier: workspace:*
+        version: link:../../packages/config
     devDependencies:
       '@repo/tsconfig':
         specifier: workspace:*

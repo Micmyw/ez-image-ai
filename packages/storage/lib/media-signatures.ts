@@ -43,6 +43,10 @@ function startsWith(bytes: Uint8Array, signature: number[]): boolean {
 	return signature.every((byte, index) => bytes[index] === byte);
 }
 
+export function isMediaContentType(value: string): value is MediaContentType {
+	return ALLOWED_MEDIA_TYPES.has(value as MediaContentType);
+}
+
 export function detectMediaType(bytes: Uint8Array): MediaContentType | null {
 	if (startsWith(bytes, [0xff, 0xd8, 0xff])) return "image/jpeg";
 	if (startsWith(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) return "image/png";

@@ -21,6 +21,8 @@
 		"workflows:type-check": "pnpm --filter @repo/jobs --filter @repo/workflows --filter @repo/jobs-runtime type-check",
 		"workflows:build:ci": "pnpm --filter @repo/workflows build",
 		"cloudflare:prepare": "tsx apps/web-host/src/prepare-profiles.ts",
+		"cloudflare:git:build": "tsx apps/web-host/src/git-build.ts build",
+		"cloudflare:git:deploy": "tsx apps/web-host/src/git-build.ts deploy",
 		"cloudflare:prepare:legacy": "tsx apps/web-host/src/prepare.ts",
 		"cloudflare:web:build": "pnpm --filter saas cloudflare:build",
 		"cloudflare:web:build:legacy": "pnpm --filter @repo/web-host build",

@@ -10,7 +10,8 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
-		"@cloudflare/containers": "catalog:"
+		"@cloudflare/containers": "catalog:",
+		"@repo/config": "workspace:*"
 	},
 	"devDependencies": {
 		"@repo/tsconfig": "workspace:*",
