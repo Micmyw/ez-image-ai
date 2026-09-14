@@ -96,7 +96,7 @@ test.describe("subscription upgrade checkout recovery", () => {
 		expect(await freeGrantCount(user.id)).toBe(grantCountBeforeReturn);
 		await activateCreatorFixture(user.id);
 
-		await expect(page).toHaveURL(/\/create(?:\?upgrade=complete)?$/, { timeout: 15_000 });
+		await expect(page).toHaveURL(/\/create\?model=image-gpt-image-2$/, { timeout: 15_000 });
 		await expect(page.getByText(/your paid plan is active/i)).toBeVisible();
 		await expect(page.getByLabel(/edit instruction|image prompt/i)).toHaveValue(prompt);
 		await expect(page.locator('[data-test="editor-model-trigger"]')).toContainText("GPT Image 2");
