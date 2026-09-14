@@ -78,7 +78,7 @@ Cloudflare 默认生成的令牌包含 Workers 脚本、Workers 路由、KV、R2
 - 生成 Node 和 Workers 使用的 Prisma 客户端，通过验证 TLS 的连接执行只读
   `prisma migrate status`。待执行的数据库迁移需要单独处理，构建过程不修改数据库结构。
 - 在 Linux 环境通过项目的 OpenNext 构建入口打包网站。网站构建子进程只接收允许公开的
-  配置，以及占位的数据库和认证值，不继承生产配置全文、任何机密分段或 Cloudflare API 令牌。
+  配置，以及占位的数据库、认证和邮件值，不继承生产配置全文、任何机密分段或 Cloudflare API 令牌。
   同时移除 OpenNext 内嵌的 dotenv 回退配置。
 - 网站发布前先填充远程 R2 缓存；使用生成的机密文件部署对应服务，并将当前提交 SHA 作为
   版本标签。
