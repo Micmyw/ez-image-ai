@@ -163,7 +163,9 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		);
 		await openCreator(page, prompt, emptyEmail);
 		await page.getByRole("button", { name: /review credits/i }).click();
-		await expect(page.getByRole("alert")).toBeVisible();
+		await expect(
+			page.locator('[data-test="registered-generator"]').getByRole("alert"),
+		).toBeVisible();
 		expect(await jobsForPrompt(user.id, prompt)).toHaveLength(0);
 		expect(
 			await count(
