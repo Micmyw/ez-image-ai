@@ -1,3 +1,5 @@
+import { gzipSync } from "node:zlib";
+
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
 const ONE_PIXEL_PNG =
@@ -308,6 +310,90 @@ for (const width of [1440, 390]) {
 		expect(settings.headers().location).toContain("/login");
 	});
 }
+
+test("the production homepage excludes charts and documentation styles", async ({
+	page,
+	request,
+}, testInfo) => {
+	test.skip(process.env.E2E_USE_PRODUCTION_BUILD !== "true", "Requires production bundles");
+	await page.setViewportSize({ width: 1350, height: 940 });
+	const response = await page.goto("/");
+	await expect(stage(page, "ready")).toBeVisible();
+	const resources = await page.evaluate(() => {
+		const scripts = new Set([...document.scripts].map((script) => script.src));
+		// Hydration can remove script tags after loading; keep those network resources too.
+		for (const entry of performance.getEntriesByType("resource")) {
+			const url = new URL(entry.name);
+			if (url.origin === location.origin && url.pathname.endsWith(".js")) scripts.add(url.href);
+		}
+		return {
+			scripts: [...scripts].filter((src) => src.startsWith(location.origin)),
+			styles: [...document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')].map(
+				(link) => link.href,
+			),
+		};
+	});
+	const readResources = (urls: string[]) =>
+		Promise.all(
+			urls.map(async (url) => {
+				const response = await request.get(url);
+				expect(response.ok(), url).toBe(true);
+				return response.text();
+			}),
+		);
+	const scripts = await readResources(resources.scripts);
+	const styles = await readResources(resources.styles);
+	expect(
+		scripts.some((source) => source.includes("recharts")),
+		"Homepage must not load the chart library",
+	).toBe(false);
+	expect(
+		styles.some((source) => source.includes("#nd-sidebar")),
+		"Documentation CSS belongs to /docs",
+	).toBe(false);
+	expect(response?.headers()["content-security-policy"]).toContain(
+		"https://static.cloudflareinsights.com",
+	);
+	await expect(page.locator('link[rel="preload"][as="image"][media]')).toHaveAttribute(
+		"media",
+		"(min-width: 768px)",
+	);
+	const summary = {
+		firstPartyScripts: scripts.length,
+		javascriptBytes: scripts.reduce((total, source) => total + Buffer.byteLength(source), 0),
+		javascriptGzipBytes: scripts.reduce((total, source) => total + gzipSync(source).length, 0),
+		stylesheets: styles.length,
+		cssBytes: styles.reduce((total, source) => total + Buffer.byteLength(source), 0),
+		cssGzipBytes: styles.reduce((total, source) => total + gzipSync(source).length, 0),
+	};
+	console.log("Homepage production resources:", JSON.stringify(summary));
+	await testInfo.attach("homepage-resources.json", {
+		body: JSON.stringify(summary, null, 2),
+		contentType: "application/json",
+	});
+	await page.evaluate(() => document.fonts.ready.then(() => undefined));
+	await page.screenshot({ path: testInfo.outputPath("homepage-desktop.png") });
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.screenshot({ path: testInfo.outputPath("homepage-mobile.png") });
+	await page.goto("/docs/quick-start");
+	await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+	await page.setViewportSize({ width: 1350, height: 940 });
+	await page.screenshot({ path: testInfo.outputPath("documentation-desktop.png") });
+});
+
+test("the homepage shares one model catalog request between navigation and editor", async ({
+	page,
+}) => {
+	let catalogRequests = 0;
+	page.on("request", (request) => {
+		if (request.url().includes("/api/rpc/media/getPublicCatalog")) catalogRequests += 1;
+	});
+	await page.goto("/");
+	await expect(stage(page, "ready")).toBeVisible();
+	await page.locator('[data-test="studio-models-menu"]').click();
+	await expect(page.locator(".studio-navigation-popover")).toBeVisible();
+	expect(catalogRequests).toBe(1);
+});
 
 test("the landing generator reports capability checking before it becomes ready", async ({
 	page,

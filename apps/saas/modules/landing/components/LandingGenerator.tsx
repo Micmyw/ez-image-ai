@@ -12,6 +12,7 @@ import {
 	type ImageSpecControlValues,
 	resolveImageSpecControlValues,
 } from "@media/lib/image-sku-selection";
+import { publicCatalogQueryOptions } from "@media/lib/public-catalog-query";
 import { writeEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
 import { getImageProductSelectionContract, getPlanEntitlement } from "@repo/config/client";
 import type { ImageAspectRatio, ImageSkuKey } from "@repo/config/client";
@@ -20,7 +21,7 @@ import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { Turnstile } from "@repo/ui/components/turnstile";
 import { trackBrowserGrowthEvent } from "@repo/utils";
-import { orpcClient } from "@shared/lib/orpc-client";
+import { useQueryClient } from "@tanstack/react-query";
 import {
 	CoinsIcon,
 	ArrowUpIcon,
@@ -70,6 +71,7 @@ const GUEST_TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KE
 const LOCAL_TURNSTILE_EVIDENCE = "local-guest-upload";
 
 export function LandingGenerator() {
+	const queryClient = useQueryClient();
 	const t = useTranslations("home.generator");
 	const tCreate = useTranslations("media.create");
 	const studio = useTranslations("studio");
@@ -110,45 +112,50 @@ export function LandingGenerator() {
 			{ name: "landing_viewed", properties: { status: "viewed" } },
 			{ dedupeKey: "landing" },
 		);
-		void Promise.allSettled([getGuestCapability(), orpcClient.media.getPublicCatalog()]).then(
-			([guest, catalog]) => {
-				if (!active) return;
-				const snapshot = guest.status === "fulfilled" ? guest.value : null;
-				setCapability(snapshot);
-				const available: GuestCapabilityProduct[] =
-					catalog.status === "fulfilled"
-						? catalog.value.products.flatMap((product) =>
-								isEditorProductKey(product.key) &&
-								product.inputKinds.includes("text-to-image") &&
-								product.skuMatrix
-									? [
-											{
-												key: product.key,
-												label: product.label,
-												description: product.description,
-												credits: `${product.credits}` as `${number}`,
-												accessHint: "paid-account" as const,
-												aspectRatios: product.skuMatrix.cells.flatMap((cell) => cell.aspectRatios),
-												skuMatrix: product.skuMatrix,
-											},
-										]
-									: [],
-							)
-						: [];
-				setTextProducts(available);
-				setSelectedProductKey((current) =>
-					resolveLandingProductSelection(
-						available.length ? available : (snapshot?.products ?? []),
-						current,
-					),
-				);
-				setStage(guest.status === "rejected" && catalog.status === "rejected" ? "failed" : "ready");
-			},
-		);
+		void Promise.allSettled([
+			getGuestCapability(),
+			queryClient.fetchQuery({
+				...publicCatalogQueryOptions,
+				// An explicit retry must recheck availability even when an earlier result was cached.
+				...(capabilityRequestKey > 0 ? { staleTime: 0 } : {}),
+			}),
+		]).then(([guest, catalog]) => {
+			if (!active) return;
+			const snapshot = guest.status === "fulfilled" ? guest.value : null;
+			setCapability(snapshot);
+			const available: GuestCapabilityProduct[] =
+				catalog.status === "fulfilled"
+					? catalog.value.products.flatMap((product) =>
+							isEditorProductKey(product.key) &&
+							product.inputKinds.includes("text-to-image") &&
+							product.skuMatrix
+								? [
+										{
+											key: product.key,
+											label: product.label,
+											description: product.description,
+											credits: `${product.credits}` as `${number}`,
+											accessHint: "paid-account" as const,
+											aspectRatios: product.skuMatrix.cells.flatMap((cell) => cell.aspectRatios),
+											skuMatrix: product.skuMatrix,
+										},
+									]
+								: [],
+						)
+					: [];
+			setTextProducts(available);
+			setSelectedProductKey((current) =>
+				resolveLandingProductSelection(
+					available.length ? available : (snapshot?.products ?? []),
+					current,
+				),
+			);
+			setStage(guest.status === "rejected" && catalog.status === "rejected" ? "failed" : "ready");
+		});
 		return () => {
 			active = false;
 		};
-	}, [capabilityRequestKey]);
+	}, [capabilityRequestKey, queryClient]);
 
 	useEffect(() => {
 		const generator = generatorRef.current;

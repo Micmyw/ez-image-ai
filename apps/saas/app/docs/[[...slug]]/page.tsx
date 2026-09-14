@@ -16,7 +16,7 @@ export default async function DocumentationPage(props: PageProps<"/docs/[[...slu
 	const MDX = page.data.body;
 
 	return (
-		<main>
+		<main className="contents">
 			<DocsPage toc={page.data.toc} full={page.data.full}>
 				<DocsTitle>{page.data.title}</DocsTitle>
 				<DocsDescription className="mb-0">{page.data.description}</DocsDescription>

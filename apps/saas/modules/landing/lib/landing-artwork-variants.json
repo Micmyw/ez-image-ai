@@ -1,0 +1,459 @@
+{
+	"/images/models/gpt-poster.webp": {
+		"sourceHash": "737e2f78cb5996e270a827bb44676d12de8dc96dd39d9141753d61cecf3bce4d",
+		"width": 1024,
+		"height": 768,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/gpt-poster-240.67e4719b3597fdbd.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/gpt-poster-384.fcf5ff0706fd9d3a.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/gpt-poster-480.3d0243286c63a565.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/gpt-poster-640.53d9f22a07557f8a.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/gpt-poster-768.3b557b7bb194209b.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/landing/variants/gpt-poster-960.cc2f70295195fc42.webp"
+			}
+		]
+	},
+	"/images/models/nano-product.webp": {
+		"sourceHash": "99ab4d3502cd140523362d36a88ed9850b326487202e643f435a06f516a350d7",
+		"width": 1024,
+		"height": 768,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/nano-product-240.72e1364358ec9b1a.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/nano-product-384.73ca339ce0abe60e.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/nano-product-480.0830e1665da3c09b.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/nano-product-640.e9a820ff3c4a4ece.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/nano-product-768.1093df7c6792bb3c.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/landing/variants/nano-product-960.af5439eac0053e87.webp"
+			}
+		]
+	},
+	"/images/models/seedream-cinema.webp": {
+		"sourceHash": "a1bda1f917f5a0e63bf62391a5d3d3859194d4950083d76de081b474918d0d02",
+		"width": 1024,
+		"height": 768,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/seedream-cinema-240.8b76b5e84618f7a0.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/seedream-cinema-384.870490ab5edcbd21.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/seedream-cinema-480.177733994bb073b1.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/seedream-cinema-640.8fc422bd99ff1ddf.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/seedream-cinema-768.86142194a7f4edf5.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/landing/variants/seedream-cinema-960.cab04a360978d300.webp"
+			}
+		]
+	},
+	"/examples/case-blue-hour.webp": {
+		"sourceHash": "3385f67461813eae83da4578ba93d06ccda55e0817212ad12673ead07b25bf56",
+		"width": 1200,
+		"height": 800,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/case-blue-hour-240.2f1fe0f5813a4b57.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/case-blue-hour-384.274dee0d10dd2b3e.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/case-blue-hour-480.700f28d7702fb1cb.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/case-blue-hour-640.58ba642b8d6a1776.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/case-blue-hour-768.a861d627b7096ac9.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/landing/variants/case-blue-hour-960.560cb130aaf2d9da.webp"
+			}
+		]
+	},
+	"/examples/case-citrus-editorial.webp": {
+		"sourceHash": "bec19d9e2f491347126419db66e754e8e74a311f3d4205b339841a7e43a379e3",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/case-citrus-editorial-240.c8bea679ea3f09bc.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/case-citrus-editorial-384.3931f2c22d795acc.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/case-citrus-editorial-480.e441312b5301d0aa.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/case-citrus-editorial-640.f1998ca77b8ed9bc.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/case-citrus-editorial-768.039106b7d36c213f.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/landing/variants/case-citrus-editorial-960.81296064827e4655.webp"
+			}
+		]
+	},
+	"/examples/case-cobalt-product.webp": {
+		"sourceHash": "919368955631306604eb17946913ddfab17d075ee90f579d8927ee15663de2dc",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/case-cobalt-product-240.5ca4e7569a14b00d.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/case-cobalt-product-384.096e934f69eb039b.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/case-cobalt-product-480.032a1bc8d6425d80.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/case-cobalt-product-640.cc81e23e5ce1ee78.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/case-cobalt-product-768.71023fb1b2f48bca.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/landing/variants/case-cobalt-product-960.f118af394a9a63ed.webp"
+			}
+		]
+	},
+	"/examples/case-desert-pool.webp": {
+		"sourceHash": "36c1b56204e8440f964fd614eeaf9d65a023035b371f28abb543a8da843d1f96",
+		"width": 1200,
+		"height": 800,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/case-desert-pool-240.1d3162158d71014c.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/case-desert-pool-384.7169cbc5ed3d88c9.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/case-desert-pool-480.d196d742405a35a3.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/case-desert-pool-640.c1efbcdb8167bc1e.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/case-desert-pool-768.8fac39151f1d4174.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/landing/variants/case-desert-pool-960.9a015616d29afdcb.webp"
+			}
+		]
+	},
+	"/examples/case-emerald-fashion.webp": {
+		"sourceHash": "0e260b3f5e7d80aca788c0d208eccc1ab99ad7c4302fa2f509de41da5e1af05e",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/case-emerald-fashion-240.c57baee2dce2d7cd.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/case-emerald-fashion-384.496113be0cba983e.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/case-emerald-fashion-480.d0239eb273703908.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/case-emerald-fashion-640.c2993cbf5cdf435d.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/case-emerald-fashion-768.9204a8dc5853bf97.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/landing/variants/case-emerald-fashion-960.776c101bd5d34e7a.webp"
+			}
+		]
+	},
+	"/examples/case-lunar-greenhouse.webp": {
+		"sourceHash": "20d852743cc8a04e1d0878503012c749292654addf9e03560a18ef0c78d9e688",
+		"width": 864,
+		"height": 1080,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/case-lunar-greenhouse-240.bc2bebe87b84a225.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/case-lunar-greenhouse-384.4bc413b239014a4f.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/case-lunar-greenhouse-480.fc95d5671f034b60.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/case-lunar-greenhouse-640.d5d2d55bfed479d3.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/case-lunar-greenhouse-768.5c2df8ad454b044d.webp"
+			}
+		]
+	},
+	"/examples/case-mediterranean-room.webp": {
+		"sourceHash": "16aec1d2f45aab2fe939e773cba6551b7d966f3d8c3f3697245ff2a52cdd6732",
+		"width": 1200,
+		"height": 900,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/case-mediterranean-room-240.2ee1b7d8ba1bf644.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/case-mediterranean-room-384.487b8716db2b7f3d.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/case-mediterranean-room-480.690ca109620c769e.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/case-mediterranean-room-640.0dfa86b6b86ace9d.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/case-mediterranean-room-768.9fd26c24ed47336d.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/landing/variants/case-mediterranean-room-960.5746aa7c4de00985.webp"
+			}
+		]
+	},
+	"/examples/case-origami-koi.webp": {
+		"sourceHash": "c356dfa3af192579f6c143e03203cefea0941a90b3b281f34617d86cffaa0bf8",
+		"width": 1200,
+		"height": 800,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/case-origami-koi-240.98eb2850b4fe81d2.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/case-origami-koi-384.437d75529577abcf.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/case-origami-koi-480.fc827b698dc04885.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/case-origami-koi-640.2b02ccc9c47b57be.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/case-origami-koi-768.3b8d971fd9fbd8c7.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/landing/variants/case-origami-koi-960.93e6f7626f54c508.webp"
+			}
+		]
+	},
+	"/examples/case-paper-train.webp": {
+		"sourceHash": "3af07edf68705c3142fcd141c65a440291cb6f01f69d2e7cb939eb271ccb156c",
+		"width": 900,
+		"height": 1350,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/case-paper-train-240.1e2c08b63b0cb27e.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/case-paper-train-384.78379c6724ef23d9.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/case-paper-train-480.86983745fa617f79.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/case-paper-train-640.f64cbce0987c4dca.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/case-paper-train-768.dac8cd85184be74a.webp"
+			}
+		]
+	},
+	"/examples/case-porcelain-tide.webp": {
+		"sourceHash": "2f0c2c775bda6a73e3421ab987700b0f17743324d9cbd0e1cf5d698ae2f39585",
+		"width": 960,
+		"height": 1200,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/case-porcelain-tide-240.a6e6e3d7b0294db5.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/case-porcelain-tide-384.5a8b1efedad03562.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/case-porcelain-tide-480.bec7fb9546c718a3.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/case-porcelain-tide-640.2610053d1e21fe80.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/case-porcelain-tide-768.89a16e080151d106.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/landing/variants/case-porcelain-tide-960.fd5f1fb2f5497ae1.webp"
+			}
+		]
+	},
+	"/examples/case-tangerine-camera.webp": {
+		"sourceHash": "e0d0f8d8f6a8ae2f7b5952db8ab643bb29934ce181e1ce00fb3b31219616f80b",
+		"width": 960,
+		"height": 960,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/case-tangerine-camera-240.e602354411917eaa.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/case-tangerine-camera-384.b35efa7586e3b27b.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/case-tangerine-camera-480.39b09b97d34b6ff8.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/case-tangerine-camera-640.06284468e54dcfbb.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/case-tangerine-camera-768.dd1187c82a73ec8c.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/landing/variants/case-tangerine-camera-960.c653ba6fbfc6d4fe.webp"
+			}
+		]
+	},
+	"/examples/case-velvet-fox.webp": {
+		"sourceHash": "ace71914d975da39a9449f9ecc6bb5803ad747ba194b8024dde8178ea23afa2a",
+		"width": 960,
+		"height": 1200,
+		"variants": [
+			{
+				"width": 240,
+				"src": "/images/landing/variants/case-velvet-fox-240.fd20850906b53407.webp"
+			},
+			{
+				"width": 384,
+				"src": "/images/landing/variants/case-velvet-fox-384.e13b38cd07d13f90.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/landing/variants/case-velvet-fox-480.81b82dc88f421d75.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/landing/variants/case-velvet-fox-640.fbb5bfa3115dbde3.webp"
+			},
+			{
+				"width": 768,
+				"src": "/images/landing/variants/case-velvet-fox-768.c9bf82f58bb78015.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/landing/variants/case-velvet-fox-960.e661cf3eb0f37f5e.webp"
+			}
+		]
+	}
+}

@@ -3,8 +3,8 @@
 import { ImageModelIcon } from "@media/components/ImageModelIcon";
 import { imageModelHref } from "@media/hooks/use-model-navigation";
 import { isEditorProductKey } from "@media/lib/editor-recovery";
+import { publicCatalogQueryOptions } from "@media/lib/public-catalog-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
-import { orpcClient } from "@shared/lib/orpc-client";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDownIcon, ImagesIcon, LayoutGridIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -26,11 +26,7 @@ export function StudioToolNavigation({
 		useSearchParams().get("model") ??
 		(pathname.startsWith("/models/") ? `image-${pathname.slice("/models/".length)}` : null);
 	const [menu, setMenu] = useState<"tools" | "models" | null>(null);
-	const catalog = useQuery({
-		queryKey: ["media-catalog"],
-		queryFn: () => orpcClient.media.getPublicCatalog(),
-		staleTime: 5 * 60_000,
-	});
+	const catalog = useQuery(publicCatalogQueryOptions);
 	const products = (catalog.data?.products ?? []).filter(
 		(product) => isEditorProductKey(product.key) && product.skuMatrix?.cells.length,
 	);

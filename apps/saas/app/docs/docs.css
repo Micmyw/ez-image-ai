@@ -1,0 +1,5 @@
+@reference "../globals.css";
+/* Emit Fumadocs' safelisted utilities only in the documentation stylesheet. */
+@import "tailwindcss/utilities.css" layer(utilities) source(none);
+@import "fumadocs-ui/css/shadcn.css";
+@import "fumadocs-ui/css/preset.css";

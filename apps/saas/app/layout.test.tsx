@@ -16,7 +16,8 @@ vi.mock("@config", () => ({
 		enabledThemes: ["light", "dark"],
 	},
 }));
-vi.mock("@repo/ui", () => ({ cn: (...values: string[]) => values.join(" "), Toaster: () => null }));
+vi.mock("@repo/ui/lib", () => ({ cn: (...values: string[]) => values.join(" ") }));
+vi.mock("@repo/ui/components/toast", () => ({ Toaster: () => null }));
 vi.mock("@shared/components/ApiClientProvider", () => ({ ApiClientProvider: passthrough }));
 vi.mock("@shared/components/ClientProviders", () => ({ ClientProviders: passthrough }));
 vi.mock("@shared/components/SiteAnalytics", () => ({ SiteAnalytics: () => null }));

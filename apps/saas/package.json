@@ -3,6 +3,7 @@
 	"version": "0.0.0",
 	"private": true,
 	"scripts": {
+		"artwork:landing": "node scripts/generate-landing-artwork.mjs",
 		"artwork:generate": "node scripts/generate-model-artwork.mjs",
 		"build": "next build",
 		"cloudflare:build": "node cloudflare/build.mjs",

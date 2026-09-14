@@ -20,7 +20,10 @@ vi.mock("@shared/hooks/use-media-query", () => ({ useIsMobile: () => false }));
 vi.mock("@organizations/components/OrganizationSelect", () => ({ OrganzationSelect: () => null }));
 vi.mock("../UserMenu", () => ({ UserMenu: () => <button>Account menu</button> }));
 vi.mock("../NotificationCenter", () => ({ NotificationCenter: () => null }));
-vi.mock("@tanstack/react-query", () => ({ useQuery: () => ({ data: null }) }));
+vi.mock("@tanstack/react-query", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@tanstack/react-query")>()),
+	useQuery: () => ({ data: null }),
+}));
 vi.mock("@shared/lib/orpc-client", () => ({ orpcClient: {} }));
 vi.mock("@repo/ui/components/logo", () => ({ Logo: () => <span>EzPic</span> }));
 

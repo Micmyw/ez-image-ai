@@ -25,7 +25,7 @@ const contentSecurityPolicy = [
 	"form-action 'self'",
 	"frame-ancestors 'none'",
 	"object-src 'none'",
-	"script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://challenges.cloudflare.com" +
+	"script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.clarity.ms https://scripts.clarity.ms https://static.cloudflareinsights.com https://challenges.cloudflare.com" +
 		(isProduction ? "" : " 'unsafe-eval'"),
 	"frame-src https://challenges.cloudflare.com",
 	"style-src 'self' 'unsafe-inline'",
@@ -53,6 +53,9 @@ const nextConfig: NextConfig = {
 		? { output: "standalone", outputFileTracingRoot: path.resolve(import.meta.dirname, "../..") }
 		: {}),
 	transpilePackages: ["@repo/api", "@repo/auth", "@repo/database", "@repo/logs", "@repo/ui"],
+	experimental: {
+		optimizePackageImports: ["@repo/ui"],
+	},
 	...(isWorkersBuild
 		? { serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "pg"] }
 		: {}),

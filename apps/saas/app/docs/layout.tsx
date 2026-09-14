@@ -1,7 +1,9 @@
 import { source } from "@docs/lib/source";
-import { Logo } from "@repo/ui";
+import { Logo } from "@repo/ui/components/logo";
 import { DocsLayout } from "fumadocs-ui/layouts/docs";
 import { RootProvider } from "fumadocs-ui/provider/next";
+
+import "./docs.css";
 
 export default function DocumentationLayout({ children }: LayoutProps<"/docs">) {
 	return (

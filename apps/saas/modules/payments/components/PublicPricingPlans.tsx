@@ -88,7 +88,7 @@ export function PublicPricingPlans({
 						>
 							{t("pricing.yearly")}
 							{sharedSavingsPercent !== null && (
-								<span className="px-1.5 py-0.5 sm:px-2 font-bold text-white rounded-full bg-[#f05f71] text-[0.68rem]">
+								<span className="px-1.5 py-0.5 sm:px-2 font-bold text-white rounded-full bg-[#b93b54] text-[0.68rem]">
 									-{sharedSavingsPercent}%
 								</span>
 							)}

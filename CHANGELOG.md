@@ -2,6 +2,17 @@
 
 ## 2026-09-15
 
+### Homepage loading
+
+- Reduce initial JavaScript with selective UI imports and load documentation styles only on
+  documentation routes. Navigation and the image editor share one model catalog request.
+- Serve homepage model cards as responsive 4:3 thumbnails and prompt examples as static,
+  content-versioned WebP files. Preload the desktop LCP candidate while retaining mobile lazy
+  loading; preserve original downloadable images and model-page artwork.
+- Improve the annual savings badge contrast and allow the existing Cloudflare analytics beacon
+  through the site's Content Security Policy.
+- Preserve documentation typography and let its article use the full available width on mobile.
+
 ### Faster model artwork delivery
 
 - Serve the twenty-five model artworks in pre-generated responsive sizes on the homepage,

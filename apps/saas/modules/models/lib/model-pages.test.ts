@@ -15,7 +15,9 @@ describe("model artwork", () => {
 	it("serves displayed artwork without a runtime image optimizer", () => {
 		const html = renderToStaticMarkup(createElement(ExploreModels));
 		expect(html).not.toContain("/_next/image");
-		expect(html).toContain('srcSet="/images/models/variants/');
+		expect(html).toContain('srcSet="/images/landing/variants/');
+		expect(html).toContain('media="(min-width: 768px)"');
+		expect(html.match(/width="1024" height="768"/g)).toHaveLength(3);
 		expect(html.match(/<img /g)).toHaveLength(3);
 	});
 

@@ -1,7 +1,8 @@
 import Link from "next/link";
 
+import { LandingArtwork } from "../../landing/components/LandingArtwork";
+import { INSPIRATION } from "../lib/model-artwork";
 import { MODEL_PAGES, modelPath } from "../lib/model-pages";
-import { ModelArtwork } from "./ModelArtwork";
 
 const featured = ["image-gpt-image-2", "image-nano-banana-pro", "image-seedream-5-lite"];
 
@@ -41,9 +42,11 @@ export function ExploreModels() {
 							className="group min-w-0 focus-visible:outline-violet-300 block rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4"
 						>
 							<div className="bg-white/5 overflow-hidden rounded-xl">
-								<ModelArtwork
-									artwork={model.artwork}
-									sizes="(max-width: 768px) 90vw, 30vw"
+								<LandingArtwork
+									src={`/images/models/${model.artwork}.webp`}
+									alt={INSPIRATION[model.artwork].alt}
+									sizes="(min-width: 1280px) 380px, (min-width: 768px) 30vw, calc(100vw - 32px)"
+									desktopPreload={model.key === "image-nano-banana-pro"}
 									className="aspect-[4/3] w-full object-cover transition-transform duration-300 group-hover:scale-[1.025] motion-reduce:transition-none"
 								/>
 							</div>

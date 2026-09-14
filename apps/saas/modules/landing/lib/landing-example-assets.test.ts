@@ -1,7 +1,11 @@
+import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
+import sharp from "sharp";
 import { describe, expect, it } from "vitest";
+
+import artworkVariants from "./landing-artwork-variants.json";
 
 const publicRoot = path.resolve(import.meta.dirname, "../../../public");
 const vectorAssets = [
@@ -30,6 +34,33 @@ const generatedAssets = [
 ] as const;
 
 describe("landing visual example assets", () => {
+	it("ships correctly sized, content-versioned thumbnails for every homepage image", async () => {
+		const expectedSources = [
+			...generatedAssets.map((src) => `/${src}`),
+			...["gpt-poster", "nano-product", "seedream-cinema"].map(
+				(key) => `/images/models/${key}.webp`,
+			),
+		];
+		expect(Object.keys(artworkVariants).sort()).toEqual(expectedSources.sort());
+		for (const [src, image] of Object.entries(artworkVariants)) {
+			const source = readFileSync(path.join(publicRoot, src));
+			expect(createHash("sha256").update(source).digest("hex"), src).toBe(image.sourceHash);
+			for (const variant of image.variants) {
+				const bytes = readFileSync(path.join(publicRoot, variant.src));
+				const metadata = await sharp(bytes).metadata();
+				expect(metadata.format, variant.src).toBe("webp");
+				expect(metadata.width, variant.src).toBe(variant.width);
+				expect(
+					Math.abs(metadata.height! - (variant.width * image.height) / image.width),
+				).toBeLessThanOrEqual(0.5);
+				expect(variant.src).toContain(
+					`.${createHash("sha256").update(bytes).digest("hex").slice(0, 16)}.webp`,
+				);
+				if (variant.width <= 384) expect(bytes.length, variant.src).toBeLessThan(40 * 1024);
+			}
+		}
+	});
+
 	it.each(vectorAssets)("ships %s with the unified SaaS application", (relativePath) => {
 		const assetPath = path.join(publicRoot, relativePath);
 		expect(existsSync(assetPath)).toBe(true);

@@ -1,5 +1,6 @@
 import { config } from "@config";
-import { cn, Toaster } from "@repo/ui";
+import { Toaster } from "@repo/ui/components/toast";
+import { cn } from "@repo/ui/lib";
 import { ApiClientProvider } from "@shared/components/ApiClientProvider";
 import { ClientProviders } from "@shared/components/ClientProviders";
 import { ConsentBanner } from "@shared/components/ConsentBanner";

@@ -2,13 +2,13 @@
 
 import { ArrowUpRightIcon, CheckIcon, MousePointerClickIcon, SparklesIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import Image from "next/image";
 import { useState } from "react";
 
 import {
 	LANDING_PROMPT_SELECTED_EVENT,
 	type LandingPromptSelectedDetail,
 } from "../lib/prompt-selection";
+import { LandingArtwork } from "./LandingArtwork";
 
 const SHOWCASE_ITEMS = [
 	{
@@ -108,11 +108,9 @@ export function ShowcaseSection() {
 								onClick={() => usePrompt(item.key)}
 							>
 								<div className="bg-slate-800 relative overflow-hidden">
-									<Image
+									<LandingArtwork
 										src={item.image}
 										alt={t(`items.${item.key}.alt`)}
-										width={item.width}
-										height={item.height}
 										className="block h-auto w-full"
 										sizes="(min-width: 1280px) 300px, (min-width: 768px) 33vw, 50vw"
 									/>

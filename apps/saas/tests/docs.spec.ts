@@ -33,6 +33,29 @@ test.describe("same-origin documentation", () => {
 		});
 	}
 
+	test("Docs keeps readable typography and layout at desktop and mobile widths", async ({
+		page,
+	}, testInfo) => {
+		await page.setViewportSize({ width: 1350, height: 940 });
+		await page.goto("/docs/quick-start");
+		await expect(page.getByRole("heading", { level: 1 })).toHaveCSS("font-size", "28px");
+		const sidebar = page.locator("#nd-sidebar");
+		await expect(sidebar).toBeVisible();
+		const sidebarBox = await sidebar.boundingBox();
+		const articleBox = await page.locator("#nd-page").boundingBox();
+		expect(sidebarBox!.width).toBeGreaterThan(200);
+		expect(articleBox!.width).toBeGreaterThan(500);
+		expect(articleBox!.x).toBeGreaterThanOrEqual(sidebarBox!.x + sidebarBox!.width - 1);
+		await page.screenshot({ path: testInfo.outputPath("documentation-desktop.png") });
+		await page.setViewportSize({ width: 390, height: 844 });
+		await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+		expect((await page.locator("#nd-page").boundingBox())!.width).toBeGreaterThan(350);
+		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+			390,
+		);
+		await page.screenshot({ path: testInfo.outputPath("documentation-mobile.png") });
+	});
+
 	test("Docs navigation and search results stay below /docs", async ({ page, request }) => {
 		await page.goto("/docs");
 		await expect(page.locator('a[href="/docs/quick-start"]').first()).toBeVisible();
