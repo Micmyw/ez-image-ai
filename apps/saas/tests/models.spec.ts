@@ -32,7 +32,7 @@ for (const model of MODEL_PAGES) {
 		});
 		await page.getByRole("button", { name: "Use this prompt" }).click();
 		await expect(page.locator("#landing-edit-prompt")).toHaveValue(
-			INSPIRATION[model.artwork].prompt,
+			INSPIRATION[model.exampleArtwork].prompt,
 		);
 		await expect(page.getByRole("button", { name: /sign in to generate/i }).first()).toBeEnabled();
 	});

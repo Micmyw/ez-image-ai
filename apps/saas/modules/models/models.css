@@ -137,7 +137,7 @@
 	margin: 0 0 9px;
 }
 .model-feature p,
-.model-prompt-section > div > p:not(.model-eyebrow),
+.model-example-intro > p:not(.model-eyebrow),
 .model-faq p {
 	font-size: 14px;
 	line-height: 1.85;
@@ -148,11 +148,56 @@
 	display: grid;
 	grid-template-columns: 1fr 1.2fr;
 	gap: 40px;
+	align-items: start;
 	padding: 52px 0 60px;
 	border-top: 1px solid #ffffff12;
 }
 .model-prompt-section h2 {
 	margin-bottom: 20px;
+}
+.model-example-media {
+	display: grid;
+	gap: 20px;
+	min-width: 0;
+}
+.model-example-media figure {
+	margin: 0;
+	min-width: 0;
+}
+.model-example-media img {
+	display: block;
+	width: 100%;
+	height: auto;
+	border-radius: 14px;
+	background: #151020;
+}
+.model-example-media figcaption {
+	display: flex;
+	justify-content: space-between;
+	gap: 16px;
+	margin-top: 12px;
+	font-size: 11px;
+	line-height: 1.6;
+	color: var(--model-muted);
+}
+.model-example-media figcaption a {
+	color: var(--model-accent);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+.model-example-content {
+	display: grid;
+	gap: 26px;
+	min-width: 0;
+}
+.model-prompt-comparison .model-example-media {
+	grid-column: 1 / -1;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.model-prompt-comparison .model-example-content {
+	grid-column: 1 / -1;
+	grid-template-columns: 1fr 1.2fr;
+	gap: 40px;
 }
 .model-prompt-card {
 	padding: 28px;
@@ -418,6 +463,11 @@
 	}
 	.model-artwork img {
 		max-height: 600px;
+	}
+	.model-prompt-comparison .model-example-media,
+	.model-prompt-comparison .model-example-content {
+		grid-template-columns: 1fr;
+		gap: 28px;
 	}
 	.model-story-copy h2 {
 		margin-bottom: 20px;

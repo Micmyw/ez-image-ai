@@ -2,43 +2,268 @@
 	"createdAt": "2026-09-14",
 	"generator": "OpenAI image generation tool in Codex",
 	"usage": "Original creative inspiration for model pages. These assets are not verified outputs or benchmarks of the named models.",
-	"references": ["https://raphael.app/", "https://raphael.app/gpt-image-2-5"],
+	"references": [
+		"https://raphael.app/",
+		"https://raphael.app/gpt-image-2-5",
+		"https://raphael.app/nano-banana-2",
+		"https://raphael.app/nano-banana",
+		"https://raphael.app/nano-banana-pro",
+		"https://raphael.app/seedream-4-5",
+		"https://raphael.app/seedream-5",
+		"https://raphael.app/seedream-5-pro"
+	],
 	"assets": [
 		{
 			"key": "gpt-poster",
 			"path": "apps/saas/public/images/models/gpt-poster.webp",
 			"originalFile": "exec-4d34d74c-9f2f-4a1c-a3f4-9e8af69b6124.png",
-			"prompt": "Use case: ads-marketing. Asset type: original creative-inspiration artwork for the EzPic model gallery, portrait 2:3. Create a finished art-directed contemporary travel poster, full bleed. A sun-washed architectural arch in cobalt blue frames a tiny white sailboat on an intensely turquoise Mediterranean sea, coral-red sun and warm cream paper texture. Strong geometric shadows, photographic stone texture mixed with sophisticated flat poster graphics. Exact headline near the top: \"SLOW DAYS\" in beautifully spaced, very large cream condensed sans serif lettering, perfectly spelled. Small caption at the bottom: \"BY THE SEA\". Typography and image form one coherent composition. Premium independent magazine aesthetic, crisp detail. No mockup frame, no watermark, no other logos or text."
+			"prompt": "Use case: ads-marketing. Asset type: original creative-inspiration artwork for the EzPic model gallery, portrait 2:3. Create a finished art-directed contemporary travel poster, full bleed. A sun-washed architectural arch in cobalt blue frames a tiny white sailboat on an intensely turquoise Mediterranean sea, coral-red sun and warm cream paper texture. Strong geometric shadows, photographic stone texture mixed with sophisticated flat poster graphics. Exact headline near the top: \"SLOW DAYS\" in beautifully spaced, very large cream condensed sans serif lettering, perfectly spelled. Small caption at the bottom: \"BY THE SEA\". Typography and image form one coherent composition. Premium independent magazine aesthetic, crisp detail. No mockup frame, no watermark, no other logos or text.",
+			"width": 1024,
+			"height": 1536,
+			"model": "image-gpt-image-2",
+			"role": "cover"
 		},
 		{
 			"key": "nano-product",
 			"path": "apps/saas/public/images/models/nano-product.webp",
 			"originalFile": "exec-0b55e130-b243-4de4-b14c-bedc6e9f457c.png",
-			"prompt": "Use case: product-mockup. Asset type: original creative-inspiration artwork for EzPic, portrait 2:3. Photorealistic luxury studio campaign of sculptural silver over-ear headphones with deep forest-green ear cushions, resting diagonally on pale lime translucent acrylic blocks. Clean pistachio backdrop, a single hard diagonal shaft of warm sunlight, precise metal reflections, tactile fabric and brushed aluminum, elegant shadow geometry. Beautiful editorial still-life composition, ample breathing room around the headphones, slightly elevated camera, crisp but natural materials. No brand, no lettering, no watermark, no collage."
+			"prompt": "Use case: product-mockup. Asset type: original creative-inspiration artwork for EzPic, portrait 2:3. Photorealistic luxury studio campaign of sculptural silver over-ear headphones with deep forest-green ear cushions, resting diagonally on pale lime translucent acrylic blocks. Clean pistachio backdrop, a single hard diagonal shaft of warm sunlight, precise metal reflections, tactile fabric and brushed aluminum, elegant shadow geometry. Beautiful editorial still-life composition, ample breathing room around the headphones, slightly elevated camera, crisp but natural materials. No brand, no lettering, no watermark, no collage.",
+			"width": 1024,
+			"height": 1536,
+			"model": "image-nano-banana-pro",
+			"role": "cover"
 		},
 		{
 			"key": "nano-portrait",
 			"path": "apps/saas/public/images/models/nano-portrait.webp",
 			"originalFile": "exec-9f46165d-c807-46ff-958c-2d86d6ab1f68.png",
-			"prompt": "Use case: photorealistic-natural. Asset type: original creative-inspiration artwork for EzPic, portrait 2:3. A candid editorial portrait of a fictional adult East Asian woman with a short dark bob, wearing a cobalt-blue wool coat and burnt-orange scarf on a quiet Paris street after rain. She glances back over her shoulder with a subtle smile; waist-up framing, natural pores and flyaway hair, soft cloudy daylight and warm light from a distant cafe, elegant shallow depth of field, authentic film grain. Sophisticated fashion magazine photography, lived-in city, muted background, expressive yet understated. No readable logos or text, no watermark."
+			"prompt": "Use case: photorealistic-natural. Asset type: original creative-inspiration artwork for EzPic, portrait 2:3. A candid editorial portrait of a fictional adult East Asian woman with a short dark bob, wearing a cobalt-blue wool coat and burnt-orange scarf on a quiet Paris street after rain. She glances back over her shoulder with a subtle smile; waist-up framing, natural pores and flyaway hair, soft cloudy daylight and warm light from a distant cafe, elegant shallow depth of field, authentic film grain. Sophisticated fashion magazine photography, lived-in city, muted background, expressive yet understated. No readable logos or text, no watermark.",
+			"width": 1024,
+			"height": 1536,
+			"model": "image-nano-banana-2-lite",
+			"role": "cover"
 		},
 		{
 			"key": "gpt-campaign",
 			"path": "apps/saas/public/images/models/gpt-campaign.webp",
 			"originalFile": "exec-75aa5557-0b30-4ea7-b0dc-e0f9c3633062.png",
-			"prompt": "Use case: ads-marketing. Asset type: original creative-inspiration artwork for EzPic, portrait 2:3. Photorealistic premium botanical skincare still life: an unbranded frosted amber glass serum bottle with an ivory cap on a warm travertine plinth, curved green leaf, one cut blood orange, sparkling droplets and luminous caustics on terracotta plaster. Late-afternoon sun, precise refraction through glass, editorial art direction, warm cream, amber and deep green palette. Asymmetric composition, beautiful tactile surfaces, understated luxury. The bottle has no lettering. No text, logos, watermark or collage."
+			"prompt": "Use case: ads-marketing. Asset type: original creative-inspiration artwork for EzPic, portrait 2:3. Photorealistic premium botanical skincare still life: an unbranded frosted amber glass serum bottle with an ivory cap on a warm travertine plinth, curved green leaf, one cut blood orange, sparkling droplets and luminous caustics on terracotta plaster. Late-afternoon sun, precise refraction through glass, editorial art direction, warm cream, amber and deep green palette. Asymmetric composition, beautiful tactile surfaces, understated luxury. The bottle has no lettering. No text, logos, watermark or collage.",
+			"width": 1024,
+			"height": 1536,
+			"model": "image-gpt-image-2-5-sunburst",
+			"role": "cover"
 		},
 		{
 			"key": "seedream-cinema",
 			"path": "apps/saas/public/images/models/seedream-cinema.webp",
 			"originalFile": "exec-22e701f3-2575-4fbf-a223-eaf24ed71f15.png",
-			"prompt": "Use case: stylized-concept. Asset type: original creative-inspiration artwork for EzPic, portrait 2:3. A cinematic wide establishing view of a lone traveler in a vivid red coat standing on a narrow stone path above a vast mist-filled fjord, towering dark basalt mountains, small waterfalls, a pale crescent moon and a distant shaft of golden dawn light touching the water. The human is tiny against immense layered scenery. Photorealistic environmental concept art, cool blue-gray atmosphere with restrained amber highlights, exceptional scale, textured rock and volumetric fog, cinematic contrast. No text, no logos, no watermark."
+			"prompt": "Use case: stylized-concept. Asset type: original creative-inspiration artwork for EzPic, portrait 2:3. A cinematic wide establishing view of a lone traveler in a vivid red coat standing on a narrow stone path above a vast mist-filled fjord, towering dark basalt mountains, small waterfalls, a pale crescent moon and a distant shaft of golden dawn light touching the water. The human is tiny against immense layered scenery. Photorealistic environmental concept art, cool blue-gray atmosphere with restrained amber highlights, exceptional scale, textured rock and volumetric fog, cinematic contrast. No text, no logos, no watermark.",
+			"width": 1024,
+			"height": 1536,
+			"model": "image-seedream-5-lite",
+			"role": "cover"
 		},
 		{
 			"key": "seedream-interior",
 			"path": "apps/saas/public/images/models/seedream-interior.webp",
 			"originalFile": "exec-22b0c701-3c24-4ab0-b2c2-9f10404e733c.png",
-			"prompt": "Use case: photorealistic-natural. Asset type: original creative-inspiration artwork for EzPic, portrait 2:3. An architectural editorial photograph of a serene sculptural living room with a curved oatmeal linen sofa, a low dark walnut table, a tall indoor olive tree, a single burnt-orange ceramic vase, and a huge circular window overlooking a hazy coastal landscape. Honey-colored plaster walls, warm afternoon sunlight and soft curved shadows, exquisite natural textures, tranquil yet imaginative spatial design. Wide interior composition with clear foreground and background depth, realistic proportions and material detail. No people, no text, no logos, no watermark."
+			"prompt": "Use case: photorealistic-natural. Asset type: original creative-inspiration artwork for EzPic, portrait 2:3. An architectural editorial photograph of a serene sculptural living room with a curved oatmeal linen sofa, a low dark walnut table, a tall indoor olive tree, a single burnt-orange ceramic vase, and a huge circular window overlooking a hazy coastal landscape. Honey-colored plaster walls, warm afternoon sunlight and soft curved shadows, exquisite natural textures, tranquil yet imaginative spatial design. Wide interior composition with clear foreground and background depth, realistic proportions and material detail. No people, no text, no logos, no watermark.",
+			"width": 1024,
+			"height": 1536,
+			"model": "image-seedream-4",
+			"role": "cover"
+		},
+		{
+			"key": "gpt-flare-studio",
+			"path": "apps/saas/public/images/models/gpt-flare-studio.webp",
+			"originalFile": "exec-09c6aa22-797c-4f3d-8880-163b18b448b5.png",
+			"model": "image-gpt-image-2-5-flare",
+			"role": "cover",
+			"width": 1024,
+			"height": 1536,
+			"prompt": "Use case: photorealistic-natural. Create one original editorial photograph for an AI image model gallery, portrait 2:3 composition, 1024x1536. An adult female ceramic artist with short curly auburn hair and freckles is seated beside a tall studio window, wearing a cream linen shirt with rolled sleeves and a muted terracotta apron, hands resting naturally around a small unfinished clay bowl. Morning side light, quiet workshop, shelves of softly blurred pottery, tactile skin and clay, warm ivory and clay-red palette, candid 50mm film photography, thoughtful direct gaze. Keep the head and upper body in the central 65 percent so both a portrait and a landscape card crop work. A single full-bleed photograph, no collage, no borders, no captions, no watermark, no logos."
+		},
+		{
+			"key": "gpt-15-paper-world",
+			"path": "apps/saas/public/images/models/gpt-15-paper-world.webp",
+			"originalFile": "exec-5ae41b5c-8291-4d63-8e15-ce9ae5961bd7.png",
+			"model": "image-gpt-image-1-5",
+			"role": "cover",
+			"width": 1024,
+			"height": 1536,
+			"prompt": "Use case: stylized-concept. One sophisticated sculptural paper-art scene: broad cobalt-blue paper ribbons loop around a matte coral sphere, an ivory folded staircase and one small golden paper bird. All objects physically crafted from thick subtly textured paper. Cream studio environment, directional shadows, minimalist geometric composition with deliberate scale and depth, tangibly handmade yet polished. Frame the full sculpture with generous breathing room; cobalt, coral and warm white. No lettering. Original creative-inspiration asset for EzPic. Portrait 2:3, 1024x1536; keep the main subject centered enough to remain readable in a landscape thumbnail crop. Single finished full-bleed image, no collage."
+		},
+		{
+			"key": "nano-bakery-fox",
+			"path": "apps/saas/public/images/models/nano-bakery-fox.webp",
+			"originalFile": "exec-ff0c8778-d952-479b-8212-80c903c7d27e.png",
+			"model": "image-nano-banana",
+			"role": "cover",
+			"width": 1024,
+			"height": 1536,
+			"prompt": "Use case: illustration-story. A charming original orange fox baker in a tiny lavender bakery, wearing a cream apron, carrying one oversized golden croissant with both paws. Three-dimensional stop-motion clay-and-felt aesthetic, velvety fur, tactile baked pastry, tiny flour dust on a counter, lavender tiled backdrop, soft warm studio light, joyful expression, simple rounded forms. Single coherent scene, full character visible centrally. No logos, readable signs or lettering. Original creative-inspiration asset for EzPic. Portrait 2:3, 1024x1536; keep the main subject centered enough to remain readable in a landscape thumbnail crop. Single finished full-bleed image, no collage."
+		},
+		{
+			"key": "nano-2-rooftop",
+			"path": "apps/saas/public/images/models/nano-2-rooftop.webp",
+			"originalFile": "exec-75c2715e-aa5a-4ecf-829c-a4b5e7b04780.png",
+			"model": "image-nano-banana-2",
+			"role": "cover",
+			"width": 1024,
+			"height": 1536,
+			"prompt": "Use case: illustration-story. A beautifully composed editorial illustration of an adult courier in a scarlet jacket standing with a bright yellow bicycle on a teal rooftop overlooking a sunlit imaginative city. A flock of white folded paper birds arcs through the sky. Dynamic perspective, rooftop plants, coral and mint architecture, crisp expressive ink outlines, elegant cel shading and subtle risograph grain. Single scene with coherent spatial depth, full person and bicycle readable, polished graphic-novel cover without any text or speech bubbles. Original creative-inspiration asset for EzPic. Portrait 2:3, 1024x1536; keep the main subject centered enough to remain readable in a landscape thumbnail crop. Single finished full-bleed image, no collage."
+		},
+		{
+			"key": "seedream-45-botanical",
+			"path": "apps/saas/public/images/models/seedream-45-botanical.webp",
+			"originalFile": "exec-ab2dcd9d-a7f4-437c-be58-2a6599b742bd.png",
+			"model": "image-seedream-4-5",
+			"role": "cover",
+			"width": 1024,
+			"height": 1536,
+			"prompt": "Use case: ads-marketing. A finished premium botanical exhibition poster, full bleed. Oversized beautifully typeset black condensed sans-serif headline exactly \"FIELD STUDY\" at the top, large sculptural dark-green monstera and delicate fern leaves below, one small vermilion circle, warm ivory textured paper. Precise editorial grid, botanical detail, asymmetric balance, large margins. Tiny bottom text exactly \"BOTANICAL FORMS / 2026\". This is the flat finished artwork, not a photographed frame. Avoid all other text, logos and watermarks. Original creative-inspiration asset for EzPic. Portrait 2:3, 1024x1536; keep the main subject centered enough to remain readable in a landscape thumbnail crop. Single finished full-bleed image, no collage."
+		},
+		{
+			"key": "seedream-5-pro-museum",
+			"path": "apps/saas/public/images/models/seedream-5-pro-museum.webp",
+			"originalFile": "exec-5e2d8fbf-9c89-4df6-8bde-6ef0d1707ba0.png",
+			"model": "image-seedream-5-pro",
+			"role": "cover",
+			"width": 1024,
+			"height": 1536,
+			"prompt": "Use case: photorealistic-natural. Architectural editorial photograph of an original sculptural museum made of pale rose concrete, with one immense circular opening and stepped rectangular wings beside a still reflecting pool. Blue hour sky fading to pale peach, a warm golden glow inside the opening, one small adult visitor in dark clothes providing scale, distant desert hills, realistic precise structure and reflections. Calm monumental composition, luxury architecture magazine, natural concrete texture. No signage, text or logos. Original creative-inspiration asset for EzPic. Portrait 2:3, 1024x1536; keep the main subject centered enough to remain readable in a landscape thumbnail crop. Single finished full-bleed image, no collage."
+		},
+		{
+			"key": "gpt-2-lime-packaging",
+			"path": "apps/saas/public/images/models/gpt-2-lime-packaging.webp",
+			"originalFile": "exec-a50ac166-db4e-45ac-bd3b-034efbe295fd.png",
+			"model": "image-gpt-image-2",
+			"role": "example",
+			"width": 1536,
+			"height": 1024,
+			"prompt": "Use case: product-mockup. A premium sparkling-water packaging campaign featuring a single satin mint-green beverage can with exact bold dark-green lettering \"AURA\" and smaller exact lettering \"LIME\". Cobalt-blue stepped plinths, one sliced lime, tiny condensation droplets, sharp sidelight, pale mint studio background, realistic aluminum and print texture. A coherent beautifully typeset label, clean product geometry, enough negative space, contemporary editorial product photograph. No other text, trademarks or watermark. Original creative-inspiration asset for EzPic. Landscape 3:2, 1536x1024. Single finished full-bleed image, no collage."
+		},
+		{
+			"key": "gpt-flare-market",
+			"path": "apps/saas/public/images/models/gpt-flare-market.webp",
+			"originalFile": "exec-fbfb1356-29c5-45d6-8603-ea496a44f3f9.png",
+			"model": "image-gpt-image-2-5-flare",
+			"role": "example",
+			"width": 1536,
+			"height": 1024,
+			"prompt": "Use case: photorealistic-natural. Candid editorial photograph of a fictional adult male chef with salt-and-pepper curls, in a light blue work shirt, carefully arranging ripe red heirloom tomatoes in a wooden crate at an outdoor farmers market. Half-body framing, fresh basil, weathered wood, soft early-morning sidelight and subtle film grain. An authentic relaxed fleeting moment with natural hands and skin, warm red and olive accents against pale blue. Unreadable distant stalls, no prominent signage, no text or watermark. Original creative-inspiration asset for EzPic. Landscape 3:2, 1536x1024. Single finished full-bleed image, no collage."
+		},
+		{
+			"key": "gpt-sunburst-fashion",
+			"path": "apps/saas/public/images/models/gpt-sunburst-fashion.webp",
+			"originalFile": "exec-a4068a84-f551-466f-8052-0701ef0f8525.png",
+			"model": "image-gpt-image-2-5-sunburst",
+			"role": "example",
+			"width": 1536,
+			"height": 1024,
+			"prompt": "Use case: ads-marketing. Premium fashion editorial photograph: an adult dark-skinned female model with closely cropped natural hair wears an elegant flowing scarlet dress on a broad curved white concrete terrace. Wind lifts a length of fabric into a clear sculptural shape. Warm low-angle sunshine, deep blue sky, crisp architectural shadows, refined material detail, composed confident pose. Full person in frame, wide campaign composition, real fabric and natural anatomy, no text, logos or watermark. Original creative-inspiration asset for EzPic. Landscape 3:2, 1536x1024. Single finished full-bleed image, no collage."
+		},
+		{
+			"key": "gpt-15-origami",
+			"path": "apps/saas/public/images/models/gpt-15-origami.webp",
+			"originalFile": "exec-e0bebb59-d27e-46b6-a3e5-16312a208126.png",
+			"model": "image-gpt-image-1-5",
+			"role": "example",
+			"width": 1536,
+			"height": 1024,
+			"prompt": "Use case: stylized-concept. A minimalist studio photograph of exactly three meticulously folded origami cranes, one vermilion, one cream and one ultramarine, on a pale peach seamless surface. Space them in a deliberate diagonal composition from foreground to background, one long clear side-light shadow per crane, tactile paper fibers and precise fold geometry. Sophisticated design magazine still life, generous negative space, quiet warm daylight. No added objects, lettering or watermark. Original creative-inspiration asset for EzPic. Landscape 3:2, 1536x1024. Single finished full-bleed image, no collage."
+		},
+		{
+			"key": "nano-lite-robot",
+			"path": "apps/saas/public/images/models/nano-lite-robot.webp",
+			"originalFile": "exec-fc704ea8-0e61-491f-a509-ea01b83d5cb5.png",
+			"model": "image-nano-banana-2-lite",
+			"role": "example",
+			"width": 1536,
+			"height": 1024,
+			"prompt": "Use case: stylized-concept. An irresistibly appealing original miniature mint-green rounded robot with two simple dark glass eyes and a knitted butter-yellow scarf, seated on a matte coral cylindrical pedestal beside a single white daisy. Small toy-like metal seams, soft clay render, subtle scuffs, pastel lavender studio backdrop, friendly relaxed posture and big readable silhouette. Entire character visible, clean centered composition with breathing room. No text, numbers, logos or watermark. Original creative-inspiration asset for EzPic. Landscape 3:2, 1536x1024. Single finished full-bleed image, no collage."
+		},
+		{
+			"key": "nano-watercolor-garden",
+			"path": "apps/saas/public/images/models/nano-watercolor-garden.webp",
+			"originalFile": "exec-122ce531-1000-46cd-9fc7-7643e160eac4.png",
+			"model": "image-nano-banana",
+			"role": "example",
+			"width": 1536,
+			"height": 1024,
+			"prompt": "Use case: illustration-story. Original children's-book watercolor illustration of a red panda botanist wearing small round glasses and a pale blue gardening apron, tending delicate cosmos flowers in a sunlit Victorian greenhouse. Warm terracotta pots, winding green vines, soft pink blossoms, rich expressive washes, visible cold-press paper texture, fine pencil accents. Gentle storybook personality, coherent paws and tools, imaginative yet elegant, full scene and character. No lettering, borders or watermark. Original creative-inspiration asset for EzPic. Landscape 3:2, 1536x1024. Single finished full-bleed image, no collage."
+		},
+		{
+			"key": "nano-2-coloring-before",
+			"path": "apps/saas/public/images/models/nano-2-coloring-before.webp",
+			"originalFile": "exec-3d72ca06-79d6-403d-ac6b-218cf2ae399b.png",
+			"model": "image-nano-banana-2",
+			"role": "reference",
+			"width": 1536,
+			"height": 1024,
+			"prompt": "Use case: illustration-story. Create one original black-and-white coloring-book line drawing, LANDSCAPE 3:2. A friendly snail mail carrier with a little satchel and a cap, holding an envelope, follows a curving stepping-stone path through a cozy mushroom village. Two large mushroom houses on either side, small circular windows, a tiny mailbox, three flowers, fluffy clouds, an arching fern in one corner. Expressive clean black ink outlines on pure white, closed shapes, medium-detail children's storybook drawing suitable for coloring, no gray shading, no hatching, no color, no text or captions, no border. Entire scene within the frame. Original creative-inspiration asset for EzPic. Landscape 3:2, 1536x1024. Single finished full-bleed image, no collage."
+		},
+		{
+			"key": "nano-2-coloring-after",
+			"path": "apps/saas/public/images/models/nano-2-coloring-after.webp",
+			"originalFile": "exec-04c247ba-ffa9-4b97-9b25-e3e14097a83a.png",
+			"model": "image-nano-banana-2",
+			"role": "example",
+			"width": 1536,
+			"height": 1024,
+			"editFrom": "nano-2-coloring-before",
+			"prompt": "Use case: style-transfer. Colorize the attached original black-and-white snail mail carrier drawing. Preserve EXACTLY the same characters, expression, envelope, cap, satchel, curving stone path, mushroom houses, every window, mailbox, flowers, clouds, fern, composition, black outlines and 3:2 image dimensions. Add rich but gentle storybook color: warm ochre snail shell, turquoise cap and satchel, coral-red mushroom caps with cream dots, honey-colored house stems, emerald foliage, soft lavender shadows and a pale sky-blue sky. Add restrained soft shading INSIDE the existing outlines only. Keep the drawing recognizable at a glance. No new objects, no lettering, no border, no watermark. Original creative-inspiration asset for EzPic. Landscape 3:2, 1536x1024. Single finished full-bleed image, no collage."
+		},
+		{
+			"key": "nano-pro-espresso",
+			"path": "apps/saas/public/images/models/nano-pro-espresso.webp",
+			"originalFile": "exec-fb78a211-a034-4d59-94d6-487c1a3e05d5.png",
+			"model": "image-nano-banana-pro",
+			"role": "example",
+			"width": 1536,
+			"height": 1024,
+			"prompt": "Use case: product-mockup. High-end editorial product photograph of an unbranded compact espresso machine with a warm ivory powder-coated body, brushed copper knobs and group head, a single handmade blue ceramic espresso cup below. Dark walnut counter, warm coffee-brown plaster background, fine steam, meticulous metal reflections, subtle stone texture, soft directional studio light. Three-quarter viewpoint, precise plausible product construction, enough breathing room, refined commercial art direction. No lettering, logo or watermark. Original creative-inspiration asset for EzPic. Landscape 3:2, 1536x1024. Single finished full-bleed image, no collage."
+		},
+		{
+			"key": "seedream-4-forest",
+			"path": "apps/saas/public/images/models/seedream-4-forest.webp",
+			"originalFile": "exec-88309090-0e3d-494b-8428-da5e159d55c3.png",
+			"model": "image-seedream-4",
+			"role": "example",
+			"width": 1536,
+			"height": 1024,
+			"prompt": "Use case: stylized-concept. A lush dreamlike forest environment: an elegant small stone arch bridge spans a narrow turquoise stream beneath immense emerald trees, giant luminous peach-colored flowers and fern leaves. A distant amber clearing guides the eye; intricate moss and bark textures, painterly environmental concept art with believable lighting and layered depth, tranquil imaginative world, no people. Compose broad readable shapes first, restrained emerald, peach and turquoise palette. No text, logos or watermark. Original creative-inspiration asset for EzPic. Landscape 3:2, 1536x1024. Single finished full-bleed image, no collage."
+		},
+		{
+			"key": "seedream-45-books",
+			"path": "apps/saas/public/images/models/seedream-45-books.webp",
+			"originalFile": "exec-470c5b80-7a9c-4b89-ac84-06591639fc1f.png",
+			"model": "image-seedream-4-5",
+			"role": "example",
+			"width": 1536,
+			"height": 1024,
+			"prompt": "Use case: product-mockup. Editorial still life of exactly three beautifully designed art books arranged on a warm white tabletop, one vermilion, one butter-yellow, one cobalt blue. Exact very large condensed black typography on their covers respectively: \"FORM\", \"COLOUR\", \"SPACE\". Each cover combines its one word with one simple ivory geometric shape, crisp modern print design and consistent typography. Two books lie flat and one leans slightly, all three titles completely legible. Natural side light, fine paper and book cloth texture, coordinated graphic identity. No extra text, logos or watermark. Original creative-inspiration asset for EzPic. Landscape 3:2, 1536x1024. Single finished full-bleed image, no collage."
+		},
+		{
+			"key": "seedream-5-lite-night",
+			"path": "apps/saas/public/images/models/seedream-5-lite-night.webp",
+			"originalFile": "exec-4a26c474-747b-4d2a-8335-215064fd68e8.png",
+			"model": "image-seedream-5-lite",
+			"role": "example",
+			"width": 1536,
+			"height": 1024,
+			"prompt": "Use case: photorealistic-natural. Cinematic photograph of a small yellow vintage tram moving slowly down a rain-soaked Lisbon street at blue hour. Deep indigo sky, warm orange window light reflected on cobblestones, a single distant adult pedestrian with a red umbrella, subtle mist and atmospheric depth, realistic rails and overhead wires, restrained film grain. Diagonal street composition, believable scale and documentary detail. Avoid readable advertising and prominent signage, no overlays or watermark. Original creative-inspiration asset for EzPic. Landscape 3:2, 1536x1024. Single finished full-bleed image, no collage."
+		},
+		{
+			"key": "seedream-5-pro-leather",
+			"path": "apps/saas/public/images/models/seedream-5-pro-leather.webp",
+			"originalFile": "exec-95baf71a-5290-4a56-b877-11a54e31fc28.png",
+			"model": "image-seedream-5-pro",
+			"role": "example",
+			"width": 1536,
+			"height": 1024,
+			"prompt": "Use case: product-mockup. A premium commercial still life of one unbranded sculptural cognac pebbled-leather travel bag, immaculate stitching, brushed silver hardware and a folded linen scarf, set on a cool pale-gray stone bench beneath a tall architectural arch. A precise shaft of late-afternoon sunlight brings out leather grain and folds; deep plum shadow and warm amber highlights. Elevated three-quarter composition, high-fidelity material textures, believable handle and zip construction. No logo, text or watermark. Original creative-inspiration asset for EzPic. Landscape 3:2, 1536x1024. Single finished full-bleed image, no collage."
 		}
-	]
+	],
+	"updatedAt": "2026-09-14"
 }

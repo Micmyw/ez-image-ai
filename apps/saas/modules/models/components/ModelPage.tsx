@@ -28,6 +28,8 @@ export async function ModelPage({
 	const session = await getSession();
 	const registered = session && !isAnonymousUser(session.user);
 	const art = INSPIRATION[model.artwork];
+	const example = INSPIRATION[model.exampleArtwork];
+	const before = model.beforeArtwork ? INSPIRATION[model.beforeArtwork] : undefined;
 	const related = [
 		...MODEL_PAGES.filter((candidate) => candidate.family === model.family),
 		...MODEL_PAGES.filter((candidate) => candidate.family !== model.family),
@@ -73,8 +75,8 @@ export async function ModelPage({
 						<Image
 							src={`/images/models/${model.artwork}.webp`}
 							alt={art.alt}
-							width={1024}
-							height={1536}
+							width={art.width}
+							height={art.height}
 							sizes="(max-width: 760px) 100vw, 45vw"
 						/>
 						<figcaption>Creative inspiration · Original EzPic concept artwork</figcaption>
@@ -90,16 +92,53 @@ export async function ModelPage({
 						))}
 					</div>
 				</section>
-				<section className="model-prompt-section" aria-labelledby="model-prompt-title">
-					<div>
-						<p className="model-eyebrow">A starting point, in your own words</p>
-						<h2 id="model-prompt-title">{art.title}</h2>
-						<p>{model.tip}</p>
+				<section
+					className={`model-prompt-section${before ? " model-prompt-comparison" : ""}`}
+					aria-labelledby="model-prompt-title"
+				>
+					<div className="model-example-media">
+						{before && (
+							<figure>
+								<Image
+									src={`/images/models/${model.beforeArtwork}.webp`}
+									alt={before.alt}
+									width={before.width}
+									height={before.height}
+									sizes="(max-width: 760px) 90vw, 42vw"
+								/>
+								<figcaption>
+									<span>Line art</span>
+									<a href={`/images/models/${model.beforeArtwork}.webp`} download>
+										Download line art <span aria-hidden="true">↓</span>
+									</a>
+								</figcaption>
+							</figure>
+						)}
+						<figure>
+							<Image
+								src={`/images/models/${model.exampleArtwork}.webp`}
+								alt={example.alt}
+								width={example.width}
+								height={example.height}
+								sizes="(max-width: 760px) 90vw, 42vw"
+							/>
+							<figcaption>{before ? "Color study" : "Original EzPic concept"}</figcaption>
+						</figure>
 					</div>
-					<div className="model-prompt-card">
-						<p className="model-eyebrow">Reference prompt</p>
-						<blockquote>{art.prompt}</blockquote>
-						<InspirationPrompt prompt={art.prompt} />
+					<div className="model-example-content">
+						<div className="model-example-intro">
+							<p className="model-eyebrow">A starting point, in your own words</p>
+							<h2 id="model-prompt-title">{example.title}</h2>
+							<p>{model.tip}</p>
+							{before && (
+								<p>Download the line art and add it as a reference to try a color edit.</p>
+							)}
+						</div>
+						<div className="model-prompt-card">
+							<p className="model-eyebrow">Reference prompt</p>
+							<blockquote>{example.prompt}</blockquote>
+							<InspirationPrompt prompt={example.prompt} />
+						</div>
 					</div>
 					<p className="model-artwork-note">
 						These original AI-generated concepts illustrate creative directions. They are not
@@ -163,8 +202,8 @@ export async function ModelPage({
 								<Image
 									src={`/images/models/${candidate.artwork}.webp`}
 									alt={INSPIRATION[candidate.artwork].alt}
-									width={1024}
-									height={1536}
+									width={INSPIRATION[candidate.artwork].width}
+									height={INSPIRATION[candidate.artwork].height}
 									sizes="(max-width: 760px) 90vw, 28vw"
 								/>
 								<div>

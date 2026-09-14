@@ -1,52 +1,9 @@
 import type { EZPIC_PRODUCT_KEYS } from "@repo/config/client";
 
-export type ModelProductKey = (typeof EZPIC_PRODUCT_KEYS)[number];
-export type InspirationKey =
-	| "gpt-poster"
-	| "nano-product"
-	| "nano-portrait"
-	| "gpt-campaign"
-	| "seedream-cinema"
-	| "seedream-interior";
+import type { InspirationKey } from "./model-artwork";
 
-export const INSPIRATION = {
-	"gpt-poster": {
-		title: "Make words part of the picture",
-		alt: "Slow Days travel poster with a cobalt arch and turquoise Mediterranean sea",
-		prompt:
-			'Design a contemporary travel poster. A cobalt-blue architectural arch frames a white sailboat on a turquoise sea. Add a coral sun, warm paper texture, and geometric shadows. Set the exact headline "SLOW DAYS" in large cream condensed lettering and "BY THE SEA" at the bottom. Keep the composition uncluttered.',
-	},
-	"nano-product": {
-		title: "A product, a material, a mood",
-		alt: "Silver headphones with green cushions on translucent lime acrylic blocks",
-		prompt:
-			"Photograph unbranded silver over-ear headphones with forest-green cushions on translucent lime acrylic blocks. Use a pistachio backdrop, one diagonal shaft of sunlight, precise metal reflections, and tactile fabric. Leave breathing room around the product. No text or logos.",
-	},
-	"nano-portrait": {
-		title: "A character with a point of view",
-		alt: "Fictional woman in a cobalt coat and orange scarf on a Paris street after rain",
-		prompt:
-			"Create a candid editorial portrait of a fictional adult woman with a short dark bob, cobalt-blue wool coat, and burnt-orange scarf on a quiet Paris street after rain. She looks back over her shoulder. Use natural skin texture, soft daylight, warm cafe lights, and subtle film grain. No logos.",
-	},
-	"gpt-campaign": {
-		title: "Give a campaign a visual language",
-		alt: "Amber serum bottle, blood orange, and green leaf in warm sunlight",
-		prompt:
-			"Create a botanical skincare campaign: an unbranded frosted amber serum bottle with an ivory cap on warm travertine, one curved green leaf, and a cut blood orange. Show tiny droplets and caustics on terracotta plaster. Use late-afternoon sunlight, realistic glass, and an asymmetric composition. No lettering.",
-	},
-	"seedream-cinema": {
-		title: "Tell a story with light and scale",
-		alt: "Tiny traveler in a red coat above a misty fjord and dark mountains",
-		prompt:
-			"Create a cinematic establishing shot of a lone traveler in a red coat on a stone path above a mist-filled fjord. Towering basalt mountains, small waterfalls, a pale crescent moon, and a shaft of golden dawn light on the water. Keep the person tiny against the landscape. Cool blue-gray atmosphere, textured rock, and volumetric fog. No text.",
-	},
-	"seedream-interior": {
-		title: "Build an atmosphere you can feel",
-		alt: "Sculptural living room with a curved linen sofa and circular coastal window",
-		prompt:
-			"Create an architectural editorial photograph of a serene living room: a curved oatmeal linen sofa, low walnut table, olive tree, burnt-orange vase, and large circular window overlooking the coast. Honey-colored plaster, warm afternoon sunlight, soft curved shadows, and natural material textures. Realistic proportions. No people or text.",
-	},
-} as const;
+export type ModelProductKey = (typeof EZPIC_PRODUCT_KEYS)[number];
+export { INSPIRATION } from "./model-artwork";
 
 export interface ModelPageContent {
 	key: ModelProductKey;
@@ -56,6 +13,8 @@ export interface ModelPageContent {
 	description: string;
 	tags: readonly string[];
 	artwork: InspirationKey;
+	exampleArtwork: InspirationKey;
+	beforeArtwork?: InspirationKey;
 	features: readonly { title: string; description: string }[];
 	tip: string;
 	review: string;
@@ -71,6 +30,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 			"Turn carefully written prompts into posters, product visuals, and richly composed scenes. Bring the subject, layout, and lettering into one creative brief.",
 		tags: ["Detailed prompts", "Poster design", "Product visuals"],
 		artwork: "gpt-poster",
+		exampleArtwork: "gpt-2-lime-packaging",
 		features: [
 			{
 				title: "Give every element a place",
@@ -100,7 +60,8 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 		description:
 			"Explore portraits, lifestyle imagery, and everyday creative concepts with a focus on natural detail and a clear visual brief.",
 		tags: ["Everyday creativity", "Natural detail", "Portrait concepts"],
-		artwork: "nano-portrait",
+		artwork: "gpt-flare-studio",
+		exampleArtwork: "gpt-flare-market",
 		features: [
 			{
 				title: "Find the scene in an everyday moment",
@@ -130,6 +91,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 			"Develop art-directed product scenes, editorial concepts, and campaign visuals with deliberate composition, color, and material choices.",
 		tags: ["Campaign concepts", "Art direction", "Material detail"],
 		artwork: "gpt-campaign",
+		exampleArtwork: "gpt-sunburst-fashion",
 		features: [
 			{
 				title: "Build a visual system",
@@ -159,7 +121,8 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 		description:
 			"Explore image concepts and reference-based changes with explicit instructions and a choice of Medium or High quality.",
 		tags: ["Instruction-led creation", "Medium / High", "Graphic concepts"],
-		artwork: "gpt-poster",
+		artwork: "gpt-15-paper-world",
+		exampleArtwork: "gpt-15-origami",
 		features: [
 			{
 				title: "Start with a compact brief",
@@ -190,6 +153,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 			"Explore social visuals, character concepts, and everyday image ideas with a straightforward 1K output setting.",
 		tags: ["1K output", "Social concepts", "Everyday ideas"],
 		artwork: "nano-portrait",
+		exampleArtwork: "nano-lite-robot",
 		features: [
 			{
 				title: "Keep the output choice simple",
@@ -218,8 +182,9 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 		lead: "One idea. Plenty of creative directions.",
 		description:
 			"Explore portraits, stylized artwork, and product concepts with natural-language prompts and optional reference images.",
-		tags: ["Portraits", "Style exploration", "Reference edits"],
-		artwork: "nano-portrait",
+		tags: ["Character concepts", "Style exploration", "Reference edits"],
+		artwork: "nano-bakery-fox",
+		exampleArtwork: "nano-watercolor-garden",
 		features: [
 			{
 				title: "Move between visual styles",
@@ -249,7 +214,9 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 		description:
 			"Shape portrait, product, and visual storytelling ideas with reference guidance and a choice of 1K, 2K, or 4K output.",
 		tags: ["1K / 2K / 4K", "Visual storytelling", "Style control"],
-		artwork: "nano-portrait",
+		artwork: "nano-2-rooftop",
+		exampleArtwork: "nano-2-coloring-after",
+		beforeArtwork: "nano-2-coloring-before",
 		features: [
 			{
 				title: "Set the story in a single frame",
@@ -280,6 +247,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 			"Explore polished product scenes, editorial still life, and detailed visual concepts with 1K, 2K, and 4K output options.",
 		tags: ["Product photography", "Material studies", "1K / 2K / 4K"],
 		artwork: "nano-product",
+		exampleArtwork: "nano-pro-espresso",
 		features: [
 			{
 				title: "Art-direct a product scene",
@@ -310,6 +278,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 			"Explore atmospheric scenes, illustration directions, and spatial concepts with flexible output sizes and a focused visual brief.",
 		tags: ["Scene design", "Color exploration", "1K / 2K / 4K"],
 		artwork: "seedream-interior",
+		exampleArtwork: "seedream-4-forest",
 		features: [
 			{
 				title: "Build the frame from big shapes",
@@ -335,21 +304,22 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 		key: "image-seedream-4-5",
 		name: "Seedream 4.5",
 		family: "Seedream",
-		lead: "Create a scene with room to breathe.",
+		lead: "Design a composition that holds together.",
 		description:
-			"Develop interiors, lifestyle scenes, and richly textured image concepts with Basic 2K and High 4K output choices.",
-		tags: ["Interior concepts", "Natural texture", "2K / 4K"],
-		artwork: "seedream-interior",
+			"Explore poster layouts, coordinated graphic concepts, and texture-rich visuals with Basic 2K and High 4K output choices.",
+		tags: ["Poster layouts", "Graphic collections", "2K / 4K"],
+		artwork: "seedream-45-botanical",
+		exampleArtwork: "seedream-45-books",
 		features: [
 			{
-				title: "Shape the atmosphere",
+				title: "Make lettering part of the layout",
 				description:
-					"Describe the light, the materials, and the sense of space. Warm plaster, linen, wood, and soft shadows can establish a very different direction from glass and cool evening light.",
+					"Put exact words in quotation marks and describe their size, position, and relationship to the image. A short headline and a clear hierarchy give a poster brief a useful starting point.",
 			},
 			{
-				title: "Give the composition depth",
+				title: "Carry a visual idea across a collection",
 				description:
-					"Name the foreground, the main subject, and what lies beyond it. These relationships help turn a collection of objects into a readable scene.",
+					"Choose a small palette, a type direction, and one recurring shape. Use that shared brief to explore a set of book covers, packaging concepts, or campaign images with a recognizable design language.",
 			},
 			{
 				title: "Choose between two output tiers",
@@ -357,9 +327,9 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 					"The editor pairs Basic with 2K and High with 4K for this model. Review the selected tier and its credits before generating.",
 			},
 		],
-		tip: "Describe the camera position and the direction of daylight before listing furnishings or decorative details.",
+		tip: "Keep exact lettering separate from layout instructions. Describe the palette, type hierarchy, and spacing before adding decorative details.",
 		review:
-			"Review perspective, repeated textures, and the geometry of windows, furniture, and hands.",
+			"Review spelling, type hierarchy, margins, and consistency across related images before using a design.",
 	},
 	{
 		key: "image-seedream-5-lite",
@@ -370,6 +340,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 			"Explore cinematic landscapes, dramatic lighting, and atmospheric scenes with Basic 2K, High 3K, and Ultra 4K choices.",
 		tags: ["Cinematic mood", "Dramatic light", "2K / 3K / 4K"],
 		artwork: "seedream-cinema",
+		exampleArtwork: "seedream-5-lite-night",
 		features: [
 			{
 				title: "Compose a cinematic moment",
@@ -399,7 +370,8 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 		description:
 			"Develop composed campaign scenes, architectural concepts, and visual narratives with Basic 1K or High 2K output.",
 		tags: ["Composed scenes", "Campaign imagery", "1K / 2K"],
-		artwork: "seedream-cinema",
+		artwork: "seedream-5-pro-museum",
+		exampleArtwork: "seedream-5-pro-leather",
 		features: [
 			{
 				title: "Direct the scene as a whole",

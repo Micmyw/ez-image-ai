@@ -2,6 +2,16 @@
 
 ## 2026-09-14
 
+### Distinct model artwork
+
+- Give all twelve model pages their own cover and a separate prompt example. Add nineteen
+  original images, bringing the collection to twenty-five distinct files across the directory,
+  individual pages, and related-model cards.
+- Show a downloadable line drawing beside its color study on Nano Banana 2. Preserve example
+  image proportions and stack the comparison on smaller screens.
+- Match example prompts to the displayed images and record the original artwork prompts and
+  sources in the model artwork manifest.
+
 ### Model availability and deployment
 
 - Remove the catalog certification version requirement from Cloudflare deployment, production
