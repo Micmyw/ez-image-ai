@@ -41,9 +41,21 @@ describe("automatic production release preflight", () => {
 		MEDIA_SEEDREAM_5_LITE_ENABLED: "true",
 		MEDIA_SEEDREAM_5_PRO_ENABLED: "true",
 	};
-	it("preserves the reviewed existing production models when only the catalog expands", () => {
-		expect(() => assertEnvironment(existingProduction)).not.toThrow();
+	it("preserves the reviewed models only within the historical September 13 catalog", () => {
+		expect(() =>
+			assertAutomaticReleaseEnvironment(existingProduction, "2026-09-13.1"),
+		).not.toThrow();
 		expect(existingProduction.MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS).toBe("2026-09-07.2");
+	});
+	it("requires fresh evidence for the current text-capable catalog even for previously reviewed models", () => {
+		for (const version of ["2026-09-07.2", "2026-09-13.1"]) {
+			expect(() =>
+				assertEnvironment({
+					...existingProduction,
+					MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: version,
+				}),
+			).toThrow(`require reviewed evidence for ${DEFAULT_PRODUCT_CONFIG.catalogVersion}`);
+		}
 	});
 	it("does not extend that prior approval to a newly enabled model or a future catalog", () => {
 		expect(() =>

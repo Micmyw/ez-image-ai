@@ -19,7 +19,8 @@ export default defineConfig({
 			MEDIA_SEEDREAM_5_PRO_ENABLED: "true",
 			MEDIA_ENABLED_PROVIDERS: "replicate,fal,kie,gemini",
 			MEDIA_RECOVERY_PROVIDERS: "openrouter",
-			MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "2026-09-07.2,2026-09-13.1",
+			// Test-only authorization: finalization fixtures use the active catalog.
+			MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "2026-09-07.2,2026-09-13.1,2026-09-14.1",
 			REPLICATE_API_TOKEN: "test-replicate-token",
 			FAL_API_KEY: "test-fal-key",
 			KIE_API_KEY: "test-kie-key",

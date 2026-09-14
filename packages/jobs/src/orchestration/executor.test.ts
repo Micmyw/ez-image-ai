@@ -227,8 +227,39 @@ describe("Node task executor", () => {
 		expect(mocks.payment).not.toHaveBeenCalled();
 	});
 
-	it("preserves all 19 pinned dispatch routes and lets the DB authorize submission", async () => {
-		expect(STATIC_DISPATCH_ROUTE_MANIFEST).toHaveLength(19);
+	it("preserves historical and text-image dispatch identities and lets the DB authorize submission", async () => {
+		expect(STATIC_DISPATCH_ROUTE_MANIFEST.map((route) => route.taskId).sort()).toEqual(
+			[
+				"media-dispatch-image-replicate-black-forest-labs_flux-schnell",
+				"media-dispatch-image-fal-fal-ai_flux-schnell",
+				"media-dispatch-image-gemini-gemini-2.5-flash-image",
+				"media-dispatch-image-openrouter-sourceful_riverflow-v2.5-fast",
+				"media-dispatch-image-openrouter-sourceful_riverflow-v2.5-pro",
+				"media-dispatch-image-kie-nano-banana-2-lite",
+				"media-dispatch-image-kie-google_nano-banana-edit",
+				"media-dispatch-image-kie-nano-banana-2",
+				"media-dispatch-image-kie-nano-banana-pro",
+				"media-dispatch-image-kie-gpt-image_1.5-image-to-image",
+				"media-dispatch-image-kie-gpt-image-2-image-to-image",
+				"media-dispatch-image-kie-gpt-image-2-5-flare-image-to-image",
+				"media-dispatch-image-kie-gpt-image-2-5-sunburst-image-to-image",
+				"media-dispatch-image-kie-bytedance_seedream-v4-edit",
+				"media-dispatch-image-kie-seedream_4.5-edit",
+				"media-dispatch-image-kie-seedream_5-lite-image-to-image",
+				"media-dispatch-image-kie-seedream_5-pro-image-to-image",
+				"media-dispatch-video-fal-fal-ai_fast-video",
+				"media-dispatch-video-kie-veo3",
+				"media-dispatch-image-kie-google_nano-banana",
+				"media-dispatch-image-kie-gpt-image_1.5-text-to-image",
+				"media-dispatch-image-kie-gpt-image-2-text-to-image",
+				"media-dispatch-image-kie-gpt-image-2-5-flare-text-to-image",
+				"media-dispatch-image-kie-gpt-image-2-5-sunburst-text-to-image",
+				"media-dispatch-image-kie-bytedance_seedream-v4-text-to-image",
+				"media-dispatch-image-kie-seedream_4.5-text-to-image",
+				"media-dispatch-image-kie-seedream_5-lite-text-to-image",
+				"media-dispatch-image-kie-seedream_5-pro-text-to-image",
+			].sort(),
+		);
 		for (const route of STATIC_DISPATCH_ROUTE_MANIFEST) {
 			expect(
 				await executeTask(
