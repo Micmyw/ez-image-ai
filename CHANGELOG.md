@@ -2,6 +2,15 @@
 
 ## 2026-09-14
 
+### Image model API validation
+
+- Verify all twelve image models and twenty-nine output choices against their official image-edit
+  API contracts, and check that quotes and worker requests retain the selected model and output.
+- Reject unsupported aspect ratios, controls, and model-specific prompt lengths before sending
+  a provider request. Match the homepage character counter to the selected model's limit.
+- Remove an undocumented Nano Banana request field and pair Sunburst 2K/4K transparent output
+  with the required subject-extraction instruction.
+
 ### Deployment and generation recovery
 
 - Add Cloudflare Git build/deploy commands for the existing website and jobs Workers, with

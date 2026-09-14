@@ -1,6 +1,8 @@
-import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
+import { getCatalogEntry } from "@repo/ai";
+import { DEFAULT_PRODUCT_CONFIG, type ProductModelKey } from "@repo/config";
 import { describe, expect, it } from "vitest";
 
+import officialContracts from "../../../../ai/media/providers/fixtures/kie-official-image-contracts-2026-09-14.json";
 import { assertFrozenQuoteRouteGraphIsCurrent, buildMediaQuote } from "./quote";
 
 const SOURCE_ASSET_ID = "asset_01J5ABCD1234EFGH5678JKLMNP";
@@ -21,6 +23,36 @@ const KIE_ROUTE_OPTIONS = {
 };
 
 describe("buildMediaQuote", () => {
+	it("freezes the exact documented Kie model and selected SKU for all 29 image outputs", () => {
+		let count = 0;
+		for (const official of officialContracts.products) {
+			const productKey = official.productKey as ProductModelKey;
+			for (const cell of getCatalogEntry(productKey).imageSpecMatrix!.cells) {
+				const quote = buildMediaQuote(
+					{
+						productKey,
+						input: {
+							...NANO_QUOTE_INPUT.input,
+							skuKey: cell.skuKey,
+							aspectRatio: cell.aspectRatios[0]!,
+						},
+					},
+					KIE_ROUTE_OPTIONS,
+				);
+				expect(quote.pricingSnapshot).toMatchObject({
+					skuKey: cell.skuKey,
+					credits: cell.credits,
+					routeGraph: {
+						allowedRoutes: [{ provider: "kie", providerModelId: official.providerModelId }],
+					},
+					settlementPolicy: { requestedOutputCount: 1, maxCharge: cell.credits.toString() },
+				});
+				count++;
+			}
+		}
+		expect(count).toBe(29);
+	});
+
 	it("persists a deterministic per-output settlement policy in the pricing snapshot", () => {
 		const quote = buildMediaQuote(NANO_QUOTE_INPUT, KIE_ROUTE_OPTIONS);
 

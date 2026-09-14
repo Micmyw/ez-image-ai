@@ -464,7 +464,9 @@ export function LandingGenerator() {
 			: t(`states.${stage}`);
 	const statusLabel =
 		disabledReason && disabledReason !== "busy" ? t(`guidance.${disabledReason}`) : stageLabel;
-	const showCharacterCount = prompt.length >= 9_000;
+	const promptContract = getImageProductSelectionContract(selectedProductKey ?? "");
+	const maximumPromptLength = promptContract?.maximumPromptLength ?? 10_000;
+	const showCharacterCount = prompt.length >= maximumPromptLength * 0.9;
 	const unavailableHelp =
 		!capabilityUsable && stage !== "checking" ? (
 			<div className="mt-3 gap-x-5 gap-y-2 text-sm text-violet-200 flex flex-wrap">
@@ -625,10 +627,8 @@ export function LandingGenerator() {
 								id="landing-edit-prompt"
 								rows={4}
 								required
-								maxLength={
-									getImageProductSelectionContract(selectedProductKey ?? "")?.maximumPromptLength ??
-									10_000
-								}
+								minLength={promptContract?.minimumPromptLength ?? 1}
+								maxLength={maximumPromptLength}
 								value={prompt}
 								disabled={isBusy}
 								placeholder={t("placeholder")}
@@ -637,7 +637,7 @@ export function LandingGenerator() {
 							/>
 							{showCharacterCount ? (
 								<span className="right-4 bottom-3 absolute text-[0.68rem] text-[#8f8399] tabular-nums">
-									{t("characterCount", { count: prompt.length, maximum: 10_000 })}
+									{t("characterCount", { count: prompt.length, maximum: maximumPromptLength })}
 								</span>
 							) : null}
 						</section>
@@ -853,10 +853,8 @@ export function LandingGenerator() {
 											id="floating-edit-prompt"
 											rows={4}
 											required
-											maxLength={
-												getImageProductSelectionContract(selectedProductKey ?? "")
-													?.maximumPromptLength ?? 10_000
-											}
+											minLength={promptContract?.minimumPromptLength ?? 1}
+											maxLength={maximumPromptLength}
 											value={prompt}
 											disabled={isBusy}
 											placeholder={t("placeholder")}

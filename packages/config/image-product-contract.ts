@@ -28,6 +28,7 @@ export interface ImageSkuSelectionContract {
 }
 
 export interface ImageProductSelectionContract {
+	minimumPromptLength?: number;
 	maximumPromptLength?: number;
 	defaultSkuKey: ImageSkuKey;
 	defaultAspectRatio: ImageAspectRatio;
@@ -53,6 +54,7 @@ export const IMAGE_PRODUCT_SELECTION_CONTRACTS: Readonly<
 	Record<EzPicProductKey, ImageProductSelectionContract>
 > = {
 	"image-nano-banana-2-lite": {
+		maximumPromptLength: 10_000,
 		defaultSkuKey: "nano-banana-2-lite-1k",
 		defaultAspectRatio: "auto",
 		cells: [
@@ -80,6 +82,7 @@ export const IMAGE_PRODUCT_SELECTION_CONTRACTS: Readonly<
 		],
 	},
 	"image-nano-banana": {
+		maximumPromptLength: 5000,
 		defaultSkuKey: "nano-banana-default",
 		defaultAspectRatio: "auto",
 		cells: [
@@ -103,6 +106,7 @@ export const IMAGE_PRODUCT_SELECTION_CONTRACTS: Readonly<
 		],
 	},
 	"image-nano-banana-2": {
+		maximumPromptLength: 10_000,
 		defaultSkuKey: "nano-banana-2-1k",
 		defaultAspectRatio: "auto",
 		cells: [
@@ -132,6 +136,7 @@ export const IMAGE_PRODUCT_SELECTION_CONTRACTS: Readonly<
 		],
 	},
 	"image-nano-banana-pro": {
+		maximumPromptLength: 10_000,
 		defaultSkuKey: "nano-banana-pro-1k",
 		defaultAspectRatio: "auto",
 		cells: [
@@ -159,6 +164,7 @@ export const IMAGE_PRODUCT_SELECTION_CONTRACTS: Readonly<
 		],
 	},
 	"image-gpt-image-1-5": {
+		maximumPromptLength: 10_000,
 		defaultSkuKey: "gpt-image-1-5-medium",
 		defaultAspectRatio: "1:1",
 		cells: [
@@ -170,6 +176,7 @@ export const IMAGE_PRODUCT_SELECTION_CONTRACTS: Readonly<
 		],
 	},
 	"image-gpt-image-2": {
+		maximumPromptLength: 10_000,
 		defaultSkuKey: "gpt-image-2-1k",
 		defaultAspectRatio: "auto",
 		cells: [
@@ -226,6 +233,7 @@ export const IMAGE_PRODUCT_SELECTION_CONTRACTS: Readonly<
 		],
 	},
 	"image-gpt-image-2-5-flare": {
+		maximumPromptLength: 10_000,
 		defaultSkuKey: "gpt-image-2-5-flare-1k",
 		defaultAspectRatio: "auto",
 		cells: [
@@ -267,6 +275,7 @@ export const IMAGE_PRODUCT_SELECTION_CONTRACTS: Readonly<
 		],
 	},
 	"image-gpt-image-2-5-sunburst": {
+		maximumPromptLength: 10_000,
 		defaultSkuKey: "gpt-image-2-5-sunburst-1k",
 		defaultAspectRatio: "auto",
 		cells: [
@@ -330,6 +339,7 @@ export const IMAGE_PRODUCT_SELECTION_CONTRACTS: Readonly<
 		],
 	},
 	"image-seedream-4-5": {
+		maximumPromptLength: 3000,
 		defaultSkuKey: "seedream-4-5-basic-2k",
 		defaultAspectRatio: "1:1",
 		cells: [
@@ -341,6 +351,8 @@ export const IMAGE_PRODUCT_SELECTION_CONTRACTS: Readonly<
 		],
 	},
 	"image-seedream-5-lite": {
+		minimumPromptLength: 3,
+		maximumPromptLength: 3000,
 		defaultSkuKey: "seedream-5-lite-basic-2k",
 		defaultAspectRatio: "1:1",
 		cells: [
@@ -354,6 +366,8 @@ export const IMAGE_PRODUCT_SELECTION_CONTRACTS: Readonly<
 		],
 	},
 	"image-seedream-5-pro": {
+		minimumPromptLength: 3,
+		maximumPromptLength: 5000,
 		defaultSkuKey: "seedream-5-pro-basic-1k",
 		defaultAspectRatio: "1:1",
 		cells: [

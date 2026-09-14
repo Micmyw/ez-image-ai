@@ -10,6 +10,7 @@ coverage
 .playwright-cli/
 /output/playwright/
 /output/model-catalog-sync/
+/output/kie-model-audit/
 /design-qa.md
 
 # next.js

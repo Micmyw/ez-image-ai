@@ -1,4 +1,10 @@
-import type { ImageBackground, ImageOutputFormat, ImageSkuKey } from "@repo/config";
+import {
+	IMAGE_PRODUCT_SELECTION_CONTRACTS,
+	parseImageSelection,
+	type ImageBackground,
+	type ImageOutputFormat,
+	type ImageSkuKey,
+} from "@repo/config";
 import { z } from "zod";
 
 import { MediaProviderError } from "../errors";
@@ -234,6 +240,12 @@ export class KieProviderAdapter implements MediaProviderAdapter {
 	}
 }
 
+const imageSelectionBySku = new Map(
+	Object.entries(IMAGE_PRODUCT_SELECTION_CONTRACTS).flatMap(([productKey, contract]) =>
+		contract.cells.map((cell) => [cell.skuKey, { productKey, contract }] as const),
+	),
+);
+
 function buildKieImageRequest(input: ProviderSubmitInput): Record<string, unknown> {
 	if (input.input.kind !== "image-to-image") throw unsupportedKieInput();
 	const aspectRatio = input.input.aspectRatio;
@@ -242,7 +254,15 @@ function buildKieImageRequest(input: ProviderSubmitInput): Record<string, unknow
 	if (!skuKey) throw unsupportedKieInput();
 	const spec: KieImageRequestSpec = KIE_IMAGE_REQUEST_SPECS[skuKey];
 	if (!spec || spec.providerModelId !== input.providerModelId) throw unsupportedKieInput();
-	if (spec.maximumPromptLength && input.input.prompt.length > spec.maximumPromptLength)
+	const selection = imageSelectionBySku.get(skuKey);
+	if (!selection || !parseImageSelection(selection.productKey, input.input))
+		throw unsupportedKieInput();
+	const prompt = input.input.prompt.trim();
+	if (
+		input.input.strength !== undefined ||
+		prompt.length < (selection.contract.minimumPromptLength ?? 1) ||
+		prompt.length > (selection.contract.maximumPromptLength ?? 10_000)
+	)
 		throw unsupportedKieInput();
 	if (spec.imageSizes && !spec.imageSizes[aspectRatio]) throw unsupportedKieInput();
 	const ratioParameters = spec.imageSizes
@@ -263,7 +283,10 @@ function buildKieImageRequest(input: ProviderSubmitInput): Record<string, unknow
 		model: input.providerModelId,
 		input: {
 			[spec.sourceField]: [input.input.sourceAsset.transferUrl],
-			prompt: input.input.prompt,
+			prompt:
+				input.input.background === "transparent" && spec.transparentPromptSuffix
+					? `${prompt}\n\n${spec.transparentPromptSuffix}`
+					: prompt,
 			...ratioParameters,
 			...parameters,
 		},
@@ -275,7 +298,7 @@ interface KieImageRequestSpec {
 	sourceField: "image_urls" | "image_input" | "input_urls";
 	parameters: Readonly<Record<string, string | boolean | number>>;
 	imageSizes?: Readonly<Record<string, string>>;
-	maximumPromptLength?: number;
+	transparentPromptSuffix?: string;
 	outputFormats?: Readonly<Partial<Record<ImageOutputFormat, string>>>;
 	backgrounds?: Readonly<Partial<Record<ImageBackground, string>>>;
 }
@@ -300,7 +323,7 @@ const KIE_IMAGE_REQUEST_SPECS = {
 	"nano-banana-default": {
 		providerModelId: "google/nano-banana-edit",
 		sourceField: "image_urls",
-		parameters: { output_format: "png", nsfw_checker: true },
+		parameters: { output_format: "png" },
 		outputFormats: { png: "png", jpeg: "jpeg" },
 	},
 	"nano-banana-2-1k": {
@@ -394,33 +417,34 @@ const KIE_IMAGE_REQUEST_SPECS = {
 		sourceField: "input_urls",
 		parameters: { resolution: "2K", background: "opaque" },
 		backgrounds: { auto: "auto", opaque: "opaque", transparent: "transparent" },
+		transparentPromptSuffix:
+			"Extract the subject and keep the background transparent. Show an isolated subject with no backdrop, scenery or shadow.",
 	},
 	"gpt-image-2-5-sunburst-4k": {
 		providerModelId: "gpt-image-2-5-sunburst-image-to-image",
 		sourceField: "input_urls",
 		parameters: { resolution: "4K", background: "opaque" },
 		backgrounds: { auto: "auto", opaque: "opaque", transparent: "transparent" },
+		transparentPromptSuffix:
+			"Extract the subject and keep the background transparent. Show an isolated subject with no backdrop, scenery or shadow.",
 	},
 	"seedream-4-1k": {
 		providerModelId: "bytedance/seedream-v4-edit",
 		sourceField: "image_urls",
 		parameters: { image_resolution: "1K", max_images: 1, nsfw_checker: true },
 		imageSizes: SEEDREAM_4_IMAGE_SIZES,
-		maximumPromptLength: 5000,
 	},
 	"seedream-4-2k": {
 		providerModelId: "bytedance/seedream-v4-edit",
 		sourceField: "image_urls",
 		parameters: { image_resolution: "2K", max_images: 1, nsfw_checker: true },
 		imageSizes: SEEDREAM_4_IMAGE_SIZES,
-		maximumPromptLength: 5000,
 	},
 	"seedream-4-4k": {
 		providerModelId: "bytedance/seedream-v4-edit",
 		sourceField: "image_urls",
 		parameters: { image_resolution: "4K", max_images: 1, nsfw_checker: true },
 		imageSizes: SEEDREAM_4_IMAGE_SIZES,
-		maximumPromptLength: 5000,
 	},
 	"seedream-4-5-basic-2k": {
 		providerModelId: "seedream/4.5-edit",

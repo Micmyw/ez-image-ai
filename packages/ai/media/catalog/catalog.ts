@@ -297,11 +297,13 @@ export function quoteCatalogInput(input: unknown): {
 } {
 	const parsed = quoteInputSchema.parse(input);
 	const entry = getCatalogEntry(parsed.productKey);
-	const maximumPromptLength = getImageProductSelectionContract(
-		parsed.productKey,
-	)?.maximumPromptLength;
+	const promptContract = getImageProductSelectionContract(parsed.productKey);
+	const maximumPromptLength = promptContract?.maximumPromptLength;
 	if (maximumPromptLength && parsed.input.prompt.length > maximumPromptLength)
 		throw new Error(`Prompt exceeds ${maximumPromptLength} characters`);
+	const minimumPromptLength = promptContract?.minimumPromptLength;
+	if (minimumPromptLength && parsed.input.prompt.length < minimumPromptLength)
+		throw new Error(`Prompt requires at least ${minimumPromptLength} characters`);
 	if (!isCatalogInputSupported(entry, parsed.input))
 		throw new Error(`Input ${parsed.input.kind} is not supported by ${parsed.productKey}`);
 	const cell = selectedImageSpecCell(entry, parsed.input);
