@@ -40,7 +40,23 @@
 | --------------------------- | -------- | --------------------------------------------------------------------------------- |
 | `NODE_VERSION`              | 普通变量 | `22`                                                                              |
 | `PNPM_VERSION`              | 普通变量 | `11.3.0`                                                                          |
-| `CLOUDFLARE_PRODUCTION_ENV` | 机密     | 经核对的生产环境配置全文，采用 dotenv 格式，以本地 `.env.production.local` 为来源 |
+| `CLOUDFLARE_PRODUCTION_ENV` | 机密     | 短配置可直接使用 dotenv 全文；长配置使用下述命令生成的分段校验信息 |
+| `CLOUDFLARE_PRODUCTION_ENV_PART_1` 至 `_PART_N` | 机密 | 长配置的各个分段，由下述命令生成 |
+
+Cloudflare 单个构建变量最多接受 5,000 字符。生产配置超过这个限制时，在仓库根目录执行：
+
+```powershell
+pnpm cloudflare:git:secrets
+```
+
+命令默认读取 `.env.production.local`，将待写入的变量映射保存到被 Git 忽略的
+`.wrangler/ci/build-variables.json`。也可以在命令后指定另一个经过核对的生产配置文件。
+生成的每段最多 4,500 字符，全部标记为机密；主变量保存分段数量和完整性校验值。
+构建会先还原原始 dotenv 内容并验证完整性，缺段或内容不匹配都会停止。
+
+自动配置时，将生成的 JSON 作为 Cloudflare 构建变量 API 的请求体，分别写入两个服务：
+`PATCH /accounts/{account_id}/builds/triggers/{trigger_uuid}/environment_variables`。
+该文件含生产密钥，不属于可公开的配置示例。准备命令只生成文件，不修改 Cloudflare。
 
 变量名称必须保持原样。生产环境配置含有密钥，只填入 Cloudflare 的机密输入框，不提交到
 Git，也不粘贴到聊天中。构建变量与服务运行时变量是两套设置，仓库中的部署命令会根据上述
@@ -62,7 +78,7 @@ Cloudflare 默认生成的令牌包含 Workers 脚本、Workers 路由、KV、R2
 - 生成 Node 和 Workers 使用的 Prisma 客户端，通过验证 TLS 的连接执行只读
   `prisma migrate status`。待执行的数据库迁移需要单独处理，构建过程不修改数据库结构。
 - 在 Linux 环境通过项目的 OpenNext 构建入口打包网站。网站构建子进程只接收允许公开的
-  配置，以及占位的数据库和认证值，不继承生产配置全文或 Cloudflare API 令牌。
+  配置，以及占位的数据库和认证值，不继承生产配置全文、任何机密分段或 Cloudflare API 令牌。
   同时移除 OpenNext 内嵌的 dotenv 回退配置。
 - 网站发布前先填充远程 R2 缓存；使用生成的机密文件部署对应服务，并将当前提交 SHA 作为
   版本标签。

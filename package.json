@@ -23,6 +23,7 @@
 		"cloudflare:prepare": "tsx apps/web-host/src/prepare-profiles.ts",
 		"cloudflare:git:build": "tsx apps/web-host/src/git-build.ts build",
 		"cloudflare:git:deploy": "tsx apps/web-host/src/git-build.ts deploy",
+		"cloudflare:git:secrets": "tsx apps/web-host/src/prepare-build-secrets.ts",
 		"cloudflare:prepare:legacy": "tsx apps/web-host/src/prepare.ts",
 		"cloudflare:web:build": "pnpm --filter saas cloudflare:build",
 		"cloudflare:web:build:legacy": "pnpm --filter @repo/web-host build",

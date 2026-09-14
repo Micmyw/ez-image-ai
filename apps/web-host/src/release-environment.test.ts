@@ -1,4 +1,5 @@
 import { spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -96,5 +97,30 @@ describe("automatic production release preflight", () => {
 		expect(result.status).not.toBe(0);
 		expect(result.stderr).toContain("PRODUCTION_CATALOG_NOT_CERTIFIED");
 		expect(result.stderr).not.toContain("SyntaxError");
+	});
+
+	it("reassembles split build secrets before checking the production catalog", () => {
+		const source =
+			"NEXT_PUBLIC_SAAS_URL=https://ezimageai.com\nMEDIA_GENERATION_ENABLED=true\nMEDIA_ENABLED_PROVIDERS=kie\nMEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS=2026-09-07.2\nPRIVATE_VALUE=" +
+			"do-not-print-production-secret".repeat(220) +
+			"\n";
+		const digest = createHash("sha256").update(source).digest("hex");
+		const result = spawnSync(
+			process.execPath,
+			["--import", "tsx", "apps/web-host/src/git-build.ts", "build", "website"],
+			{
+				cwd: root,
+				encoding: "utf8",
+				env: {
+					...process.env,
+					CLOUDFLARE_PRODUCTION_ENV: `parts:2:${digest}`,
+					CLOUDFLARE_PRODUCTION_ENV_PART_1: source.slice(0, 4000),
+					CLOUDFLARE_PRODUCTION_ENV_PART_2: source.slice(4000),
+				},
+			},
+		);
+		expect(result.status).not.toBe(0);
+		expect(result.stderr).toContain("PRODUCTION_CATALOG_NOT_CERTIFIED");
+		expect(result.stderr + result.stdout).not.toContain("do-not-print-production-secret");
 	});
 });

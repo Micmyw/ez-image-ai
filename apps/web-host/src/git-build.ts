@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 
+import { readCloudflareBuildEnvironment, withoutCloudflareBuildSecrets } from "./build-secrets";
 import { deploymentEnvironment, publicBuildVariables } from "./deployment";
 import {
 	assertAutomaticReleaseEnvironment,
@@ -35,7 +36,7 @@ function runPnpm(args: string[], environment: NodeJS.ProcessEnv = process.env) {
 	if (!process.env.npm_execpath) throw new Error("RUN_RELEASE_COMMAND_WITH_PNPM");
 	const result = spawnSync(process.execPath, [process.env.npm_execpath, ...args], {
 		cwd: root,
-		env: environment,
+		env: withoutCloudflareBuildSecrets(environment),
 		stdio: "inherit",
 	});
 	if (result.error) throw result.error;
@@ -47,8 +48,7 @@ async function readEnvironment() {
 }
 
 if (command === "build") {
-	const source = process.env.CLOUDFLARE_PRODUCTION_ENV;
-	if (!source) throw new Error("CLOUDFLARE_BUILD_SECRET_REQUIRED: CLOUDFLARE_PRODUCTION_ENV");
+	const source = readCloudflareBuildEnvironment(process.env);
 	const input = parseEnvironment(source);
 	const environment = deploymentEnvironment(input, "https://ezimageai.com");
 	assertAutomaticReleaseEnvironment(environment, DEFAULT_PRODUCT_CONFIG.catalogVersion);
