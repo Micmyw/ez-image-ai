@@ -269,6 +269,9 @@ importers:
       '@repo/ai':
         specifier: workspace:*
         version: link:packages/ai
+      '@repo/config':
+        specifier: workspace:*
+        version: link:packages/config
       '@repo/database':
         specifier: workspace:*
         version: link:packages/database

@@ -10,6 +10,8 @@
   result URLs cannot interrupt recovery of existing or exhausted output transfers.
 - Include dependency patches in both container build contexts and keep isolated browser tests
   aligned with the current model catalog and keyboard-accessible model menu.
+- Keep server environment schemas out of public payment UI bundles by sharing only the required
+  product identifier validation pattern.
 
 ## 2026-09-13
 

@@ -1,8 +1,9 @@
 import { z } from "zod";
 
+import { WAFFO_PRODUCT_ID_PATTERN } from "./payment-identifiers";
 import { assertWorkflowsConfiguration } from "./workflows";
 
-export const WAFFO_PRODUCT_ID_PATTERN = /^PROD_[0-9A-Za-z]{22}$/;
+export { WAFFO_PRODUCT_ID_PATTERN } from "./payment-identifiers";
 
 const booleanStringSchema = z
 	.enum(["true", "false"])

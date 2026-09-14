@@ -190,7 +190,7 @@ if (command === "build") {
 		});
 		if (response.status !== 200) throw new Error(`LIVE_HTTP_FAILED: ${route} ${response.status}`);
 		await response.arrayBuffer();
-		evidence.push(`${url}: HTTP 200`);
+		evidence.push(`${url.toString()}: HTTP 200`);
 	}
 	const summary = `Production deployment verified for ${sha}\n\n${evidence.map((line) => `- ${line}`).join("\n")}\n`;
 	console.log(summary);

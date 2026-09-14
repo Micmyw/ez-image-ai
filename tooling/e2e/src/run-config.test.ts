@@ -17,7 +17,7 @@ void test("pins new local image jobs to the certified Kie SKU catalog", () => {
 		'MEDIA_SEEDREAM_5_LITE_ENABLED: "true"',
 		'MEDIA_SEEDREAM_5_PRO_ENABLED: "true"',
 		'MEDIA_ENABLED_PROVIDERS: "kie"',
-		'MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "2026-09-07.2"',
+		"MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: DEFAULT_PRODUCT_CONFIG.catalogVersion",
 	]) {
 		assert.ok(runner.includes(setting), `runner must contain ${setting}`);
 	}

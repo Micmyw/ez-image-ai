@@ -47,6 +47,7 @@
 	"dependencies": {
 		"@prisma/adapter-pg": "catalog:",
 		"@repo/ai": "workspace:*",
+		"@repo/config": "workspace:*",
 		"@repo/database": "workspace:*"
 	},
 	"devDependencies": {

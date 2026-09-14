@@ -393,8 +393,8 @@ test("the public root exposes the image editor before authentication", async ({ 
 			.evaluateAll((sections) => sections.map((section) => section.id)),
 	).toEqual([
 		"image-editor",
-		"before-after",
 		"examples",
+		"before-after",
 		"creator-workflows",
 		"how-it-works",
 		"pricing",
@@ -759,7 +759,8 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 		).toBeVisible();
 		await expect(page.getByRole("button", { name: /try free/i })).toBeVisible();
 		if (viewport.width < 768) {
-			await expect(page.locator('[data-test="mobile-section-nav"]')).toBeVisible();
+			await expect(page.locator('[data-test="studio-tools-menu"]')).toBeVisible();
+			await expect(page.locator('[data-test="studio-models-menu"]')).toBeVisible();
 			await expect(page.locator('[data-test="landing-model-trigger"]')).toBeVisible();
 		}
 		const [sourceRect, promptRect, tierRect] = await Promise.all([

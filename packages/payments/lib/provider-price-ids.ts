@@ -1,4 +1,8 @@
-import { CREDIT_PACK_KEYS, type CreditPackKey, WAFFO_PRODUCT_ID_PATTERN } from "@repo/config";
+import {
+	CREDIT_PACK_KEYS,
+	type CreditPackKey,
+	WAFFO_PRODUCT_ID_PATTERN,
+} from "@repo/config/client";
 
 import type { PaymentProviderName, PlanPrice } from "../types";
 import { findPriceByPlanId, type PlanId, type RecurringInterval } from "./plans";
