@@ -123,7 +123,7 @@ export function createProfileArtifacts(options: {
 	const hybridEnvironment: Record<string, string> = { ...environment, EZPIC_RUNTIME: "node" };
 	for (const key of Object.keys(hybridEnvironment))
 		if (key.startsWith("CLOUDFLARE_")) delete hybridEnvironment[key];
-	return {
+	const artifacts = {
 		website,
 		"website.secrets": secretsWithoutVars(flatEnvironment, website),
 		workflows: jobs,
@@ -136,6 +136,14 @@ export function createProfileArtifacts(options: {
 						WORKFLOWS_DISPATCH_URL: environment.WORKFLOWS_DISPATCH_URL,
 					},
 	};
+	for (const name of ["website", "workflows"] as const) {
+		const vars = artifacts[name].vars as Record<string, unknown> | undefined;
+		const textBindings =
+			Object.keys(vars ?? {}).length + Object.keys(artifacts[`${name}.secrets`]).length;
+		if (textBindings > 128)
+			throw new Error(`WORKER_TEXT_BINDING_LIMIT: ${name} ${textBindings}/128`);
+	}
+	return artifacts;
 }
 
 function secretsWithoutVars(environment: Record<string, string>, config: Record<string, unknown>) {
@@ -155,11 +163,15 @@ export function profileSettings(profile: DeploymentProfile, target: "staging" | 
 }
 
 export function workersRuntimeEnvironment(environment: Record<string, string>) {
-	// Analytics IDs are compiled into the Next.js client; evidence paths are used
-	// only by offline tooling. Production cannot enable the local test endpoints.
+	// Analytics, branding, and avatar-bucket references use static NEXT_PUBLIC_ reads
+	// in the Next.js build. Keep their build values, but do not bind them a second time.
+	// Evidence paths are offline-only; production cannot enable local test endpoints.
 	const nonRuntimeVariables = new Set([
 		"NEXT_PUBLIC_GOOGLE_ANALYTICS_ID",
 		"NEXT_PUBLIC_CLARITY_PROJECT_ID",
+		"NEXT_PUBLIC_SITE_NAME",
+		"NEXT_PUBLIC_SITE_DESCRIPTION",
+		"NEXT_PUBLIC_AVATARS_BUCKET_NAME",
 		"EZPIC_ENVIRONMENT_MATRIX_PATH",
 		"EZPIC_LAUNCH_EVIDENCE_PATH",
 		"E2E_TEST_MEDIA_ADAPTERS",

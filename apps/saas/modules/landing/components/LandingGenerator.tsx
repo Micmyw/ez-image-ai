@@ -200,8 +200,12 @@ export function LandingGenerator() {
 		[previewUrl],
 	);
 
-	const maximumBytes = capability?.upload.maximumBytes ?? 10 * 1024 * 1024;
-	const maximumMegabytes = maximumBytes / 1024 / 1024;
+	const selectedContract = getImageProductSelectionContract(selectedProductKey ?? "");
+	const maximumBytes = Math.min(
+		capability?.upload.maximumBytes ?? 10 * 1024 * 1024,
+		selectedContract?.maximumInputBytes ?? Number.MAX_SAFE_INTEGER,
+	);
+	const maximumMegabytes = Math.round(maximumBytes / 1024 / 1024);
 	const supportedMimeTypes = capability?.upload.mimeTypes ?? LANDING_IMAGE_CONTENT_TYPES;
 	const localizedProducts = useMemo(
 		() =>
@@ -396,7 +400,7 @@ export function LandingGenerator() {
 		setUploadPercentage(undefined);
 		const attemptKey = createAttemptKey();
 		try {
-			validateLandingImageFile(file, capability.upload.maximumBytes);
+			validateLandingImageFile(file, maximumBytes);
 			const consumedTurnstileToken = turnstileToken;
 			if (GUEST_TURNSTILE_SITE_KEY) resetChallenge();
 			const handoff = await uploadGuestDraft({
@@ -464,7 +468,7 @@ export function LandingGenerator() {
 			: t(`states.${stage}`);
 	const statusLabel =
 		disabledReason && disabledReason !== "busy" ? t(`guidance.${disabledReason}`) : stageLabel;
-	const promptContract = getImageProductSelectionContract(selectedProductKey ?? "");
+	const promptContract = selectedContract;
 	const maximumPromptLength = promptContract?.maximumPromptLength ?? 10_000;
 	const showCharacterCount = prompt.length >= maximumPromptLength * 0.9;
 	const unavailableHelp =

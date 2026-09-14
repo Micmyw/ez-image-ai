@@ -10,6 +10,8 @@
   a provider request. Match the homepage character counter to the selected model's limit.
 - Remove an undocumented Nano Banana request field and pair Sunburst 2K/4K transparent output
   with the required subject-extraction instruction.
+- Respect the 10 MB model input limit for Nano Banana and GPT Image 1.5 across image selection
+  and generation authorization, even when the account permits larger uploads.
 
 ### Deployment and generation recovery
 
@@ -23,6 +25,8 @@
   aligned with the current model catalog and keyboard-accessible model menu.
 - Keep server environment schemas out of public payment UI bundles by sharing only the required
   product identifier validation pattern.
+- Keep values already compiled into the website out of repeated Worker bindings, and check
+  Cloudflare's 128-text-binding limit before uploading a release.
 
 ## 2026-09-13
 

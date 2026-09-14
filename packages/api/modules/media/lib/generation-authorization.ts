@@ -6,6 +6,7 @@ import {
 } from "@repo/ai";
 import {
 	DEFAULT_PRODUCT_CONFIG,
+	getImageProductSelectionContract,
 	PLAN_ENTITLEMENTS,
 	type PlanId,
 	type ProductModelKey,
@@ -178,10 +179,14 @@ export async function assertGenerationAllowed(
 		throw new Error("ENTITLEMENT_REQUIRED");
 	}
 	if (!access.sourceAssetReady) throw new Error("ASSET_NOT_READY");
+	const maximumInputBytes = Math.min(
+		entitlement.maximumInputBytes,
+		getImageProductSelectionContract(input.productKey)?.maximumInputBytes ??
+			entitlement.maximumInputBytes,
+	);
 	if (
 		"sourceAssetId" in input.input &&
-		(access.sourceAssetBytes === null ||
-			access.sourceAssetBytes > BigInt(entitlement.maximumInputBytes))
+		(access.sourceAssetBytes === null || access.sourceAssetBytes > BigInt(maximumInputBytes))
 	) {
 		throw new Error("INPUT_TOO_LARGE");
 	}

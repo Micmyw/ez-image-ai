@@ -37,6 +37,31 @@ const BASE_SNAPSHOT: GenerationAccessSnapshot = {
 };
 
 describe("generation authorization", () => {
+	it.each(["image-nano-banana", "image-gpt-image-1-5"] as const)(
+		"enforces %s's 10 MB provider input limit even on a 20 MB plan",
+		async (productKey) => {
+			const input = {
+				userId: "user-1",
+				productKey,
+				credits: 5n,
+				costMicros: 20_000n,
+				input: IMAGE_EDIT_INPUT,
+				routeGraphOptions: KIE_IMAGE_ROUTE_GRAPH,
+			};
+			const dependencies = {
+				enforceRateLimit: vi.fn(),
+				isEnvironmentGenerationEnabled: () => true,
+				loadAccess: vi.fn(async () => ({ ...BASE_SNAPSHOT, sourceAssetBytes: 10_000_001n })),
+			};
+			await expect(assertGenerationAllowed(input, dependencies)).rejects.toThrow("INPUT_TOO_LARGE");
+			dependencies.loadAccess.mockResolvedValue({
+				...BASE_SNAPSHOT,
+				sourceAssetBytes: 10_000_000n,
+			});
+			await expect(assertGenerationAllowed(input, dependencies)).resolves.toBeUndefined();
+		},
+	);
+
 	it("initializes the server-side Free grant before reading generation access", async () => {
 		const callOrder: string[] = [];
 		const ensureFreeCredits = vi.fn(async () => {

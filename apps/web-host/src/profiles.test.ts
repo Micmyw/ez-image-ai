@@ -49,6 +49,9 @@ describe("deployment profiles", () => {
 		const environment = workersRuntimeEnvironment({
 			NEXT_PUBLIC_GOOGLE_ANALYTICS_ID: "G-BUILD-ONLY",
 			NEXT_PUBLIC_CLARITY_PROJECT_ID: "build-only",
+			NEXT_PUBLIC_SITE_NAME: "compiled-app-name",
+			NEXT_PUBLIC_SITE_DESCRIPTION: "compiled-description",
+			NEXT_PUBLIC_AVATARS_BUCKET_NAME: "compiled-avatar-bucket",
 			EZPIC_ENVIRONMENT_MATRIX_PATH: "offline-matrix.json",
 			EZPIC_LAUNCH_EVIDENCE_PATH: "offline-evidence.json",
 			E2E_TEST_MEDIA_ADAPTERS: "false",
@@ -99,6 +102,12 @@ function artifacts(profile: "workers" | "hybrid", overrides: Record<string, stri
 }
 
 describe("prepared deployment artifacts", () => {
+	it("rejects more than 128 text bindings before uploading either Worker", () => {
+		const extras = Object.fromEntries(
+			Array.from({ length: 128 }, (_, index) => [`EXTRA_${index}`, "value"]),
+		);
+		expect(() => artifacts("workers", extras)).toThrow("WORKER_TEXT_BINDING_LIMIT");
+	});
 	it("enables the website workers.dev address only for an explicitly configured callback origin", () => {
 		const webhookOrigin = "https://ezimageai-site-production.account.workers.dev";
 		expect(artifacts("workers").website.workers_dev).toBe(false);

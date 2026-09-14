@@ -28,6 +28,7 @@ export interface ImageSkuSelectionContract {
 }
 
 export interface ImageProductSelectionContract {
+	maximumInputBytes?: number;
 	minimumPromptLength?: number;
 	maximumPromptLength?: number;
 	defaultSkuKey: ImageSkuKey;
@@ -82,6 +83,7 @@ export const IMAGE_PRODUCT_SELECTION_CONTRACTS: Readonly<
 		],
 	},
 	"image-nano-banana": {
+		maximumInputBytes: 10_000_000,
 		maximumPromptLength: 5000,
 		defaultSkuKey: "nano-banana-default",
 		defaultAspectRatio: "auto",
@@ -164,6 +166,7 @@ export const IMAGE_PRODUCT_SELECTION_CONTRACTS: Readonly<
 		],
 	},
 	"image-gpt-image-1-5": {
+		maximumInputBytes: 10_000_000,
 		maximumPromptLength: 10_000,
 		defaultSkuKey: "gpt-image-1-5-medium",
 		defaultAspectRatio: "1:1",

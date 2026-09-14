@@ -370,10 +370,12 @@ export function GenerationForm({
 				<ImageSourcePanel
 					compact
 					sourceAssetId={values.sourceAssetId}
-					maximumImageBytes={
+					maximumImageBytes={Math.min(
 						generation.creditAccount.data?.maximumInputBytes ??
-						getPlanEntitlement("free").maximumInputBytes
-					}
+							getPlanEntitlement("free").maximumInputBytes,
+						getImageProductSelectionContract(values.productKey)?.maximumInputBytes ??
+							Number.MAX_SAFE_INTEGER,
+					)}
 					onReadyChange={setSourceReady}
 					onChange={updateSourceAsset}
 				/>
