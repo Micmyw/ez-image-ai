@@ -4,8 +4,8 @@
 
 ### Mobile first-visit performance
 
-- Deliver initial styles with the HTML to avoid three blocking stylesheet requests on the
-  homepage. Documentation styles remain scoped to documentation routes.
+- Keep shared styles independently cacheable. Remove the global CSS inlining experiment after
+  production checks showed a larger HTML document and slower desktop visual completion.
 - Load account menus, notifications, and the full signed-in editor only when needed. Guest
   pages keep the lightweight generator; the signed-in editor retains server rendering.
 - Queue analytics visits immediately and load the GA4 and Clarity tags after page load and a

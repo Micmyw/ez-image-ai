@@ -19,13 +19,12 @@ Lighthouse's simulated metric.
 - Queue automatic GA4 page views immediately, then schedule vendor scripts after load, a paint
   opportunity, and idle time. A two-second deadline bounds the wait. See
   [website analytics](./website-analytics.md) for collection behavior and early-exit limitations.
-- Enable Next's experimental `inlineCss` option. Initial HTML includes its styles, avoiding extra
-  blocking requests. CSS content remains the same and documentation CSS stays on `/docs`.
-  This option applies globally: full-page revisits transfer the styles with HTML again rather
-  than relying solely on independently cached stylesheets. Next also serializes them in the
-  initial RSC payload. Recheck this tradeoff if styles or repeat-visit patterns change.
+- Keep shared CSS in independently cacheable stylesheets, and documentation CSS on `/docs`.
+  Next's global `inlineCss` experiment was removed after production checks showed much larger
+  HTML and slower desktop visual completion. It duplicates styles inside HTML and the initial
+  RSC payload; the localhost first-paint improvement did not justify that production tradeoff.
 
-## Local production evidence
+## Initial local inlining experiment (superseded)
 
 The production resource check combines initial script tags and actual network resources, so
 its script totals also include the legacy `nomodule` reference. Browser transfer figures below
@@ -49,8 +48,9 @@ analytics vendors were not configured in this local environment. The intermediat
 change measured LCP 2.336 seconds; the clear first-paint improvement came from stylesheet inlining.
 
 The extra HTML bytes are offset on a cold visit by fewer JavaScript bytes and stylesheet requests;
-cached repeat visits have a different cost profile. These results do not establish a new deployed
-PageSpeed score or Cloudflare Worker runtime certification.
+cached repeat visits have a different cost profile. These results did not establish a deployed
+PageSpeed score or Cloudflare Worker runtime certification. The CSS configuration in this
+historical comparison is no longer the final configuration.
 
 Verification passed: 26 focused Vitest tests, seven production Playwright scenarios covering
 mobile/desktop editing, model navigation, dynamically loaded account controls, public 404s, and
@@ -85,8 +85,33 @@ changed by only 88 bytes (664,562 to 664,650), and CSS and image content sizes d
 do not establish that the local, unpublished optimization regressed production performance.
 The new mobile report's dominant problem is main-thread blocking, not a worsening LCP.
 
-Keep the bundle and analytics improvements, and validate both device sizes on the same build.
-The production regression check includes an aggregate 520 KiB gzip budget for HTML, referenced
-JavaScript, and external CSS, counting inline CSS inside HTML only. This prevents an apparent
-stylesheet reduction from hiding a larger total payload. This deterministic check complements
-browser timings; it is not a PageSpeed score or an assurance about third-party execution time.
+## Production inlining check and correction
+
+After deployment of `da4fd05f29103dd60daeb566cfaf677737516591`, two independent PageSpeed runs
+reported mobile scores of 92 and 90, but desktop remained at 85. The reports are
+[e5nmowtr93](https://pagespeed.web.dev/analysis/https-ezimageai-com/e5nmowtr93?form_factor=desktop)
+and [0l4kjvvtnc](https://pagespeed.web.dev/analysis/https-ezimageai-com/0l4kjvvtnc?form_factor=desktop).
+A third requested link reused the second run's fetch time and results, so it is not an
+independent sample. CPU benchmark differences still limit score attribution.
+
+The desktop HTML grew from 341,878 to 655,085 decoded bytes. Its request completed at 4.40 and
+5.24 seconds in those runs, delaying resource discovery and observed first paint. Script transfer
+fell by approximately 70 KiB, and desktop script evaluation also improved; the larger document
+and worse Speed Index were the remaining concern. These observations motivated removing global
+CSS inlining while retaining the independent script and analytics changes.
+
+The production regression check now requires cacheable external CSS, a document below 64 KiB
+gzip, and an aggregate 520 KiB gzip budget for HTML, referenced JavaScript, and external CSS.
+Inline CSS is counted inside HTML only. The captured inlined production document failed the
+document budget at 109,117 gzip bytes before the correction. These deterministic checks
+complement browser timings; they are not PageSpeed scores or assurances about third-party
+execution time. Recheck the final deployed version on both devices.
+
+Final local production verification after removing inlining: 36 referenced first-party scripts,
+397,316 JavaScript gzip bytes, 338,897 decoded HTML bytes / 55,595 HTML gzip bytes, and three
+external stylesheets totaling 26,471 gzip bytes. The aggregate is 479,382 bytes (468 KiB),
+below both budgets. Seven focused production-browser scenarios passed, including desktop/mobile
+editing, account controls, model navigation, public 404s, and documentation styles. The production
+build includes TypeScript validation. The unchanged analytics and dynamic UI tests had already
+passed all 26 cases on the synchronized main baseline. These are local checks, not final online
+PageSpeed measurements.

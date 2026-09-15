@@ -379,8 +379,11 @@ test("the production homepage excludes account tools, charts, and documentation 
 	const externalStyles = await readResources(resources.styles);
 	const styles = [...externalStyles, ...resources.inlineStyles];
 	const html = (await response?.text()) ?? "";
-	expect(resources.styles, "First visits must not wait for separate stylesheets").toHaveLength(0);
-	expect(resources.inlineStyles.length, "Next must inline the initial styles").toBeGreaterThan(0);
+	expect(
+		resources.styles.length,
+		"Shared styles must remain independently cacheable",
+	).toBeGreaterThan(0);
+	expect(resources.inlineStyles, "Do not duplicate global CSS inside HTML and RSC").toHaveLength(0);
 	for (const marker of ["current-editor-result", "notifications.markAllRead"]) {
 		expect
 			.soft(
@@ -419,6 +422,9 @@ test("the production homepage excludes account tools, charts, and documentation 
 		summary.javascriptGzipBytes +
 		summary.htmlGzipBytes +
 		externalStyles.reduce((total, source) => total + gzipSync(source).length, 0);
+	expect(summary.htmlGzipBytes, "Keep the initial document below 64 KiB gzip").toBeLessThan(
+		64 * 1024,
+	);
 	// Count inline styles inside HTML only. Moving CSS into HTML must not conceal
 	// a transfer regression behind a smaller number of stylesheet requests.
 	expect(
