@@ -1,4 +1,5 @@
 export const HOME_FAQ_KEYS = [
+	"restrictions",
 	"guestAvailability",
 	"guestVsFree",
 	"editTiers",

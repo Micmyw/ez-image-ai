@@ -29,6 +29,10 @@
 		"description": "Des réponses claires sur la disponibilité invitée, les modèles d’image, les EzPic Credits, les médias privés, la facturation et l’usage responsable.",
 		"title": "Questions fréquemment posées",
 		"items": {
+			"restrictions": {
+				"question": "Que signifie « No Restrictions » sur EzPic ?",
+				"answer": "Il s’agit d’une retouche flexible par instructions plutôt que d’une liste fixe de modèles prédéfinis. Décrivez ce qu’il faut conserver et modifier, gardez vos images privées et vérifiez les crédits avant confirmation. Les contrôles de contenu, les obligations légales, les capacités du modèle et les limites du forfait restent applicables. Cela ne signifie ni génération sans modération ni génération gratuite illimitée."
+			},
 			"guestAvailability": {
 				"question": "Quand la retouche invitée est-elle disponible ?",
 				"answer": "Lorsque la file invitée sponsorisée est disponible, une personne peut lancer une retouche Nano Banana 2 Lite 1K sans compte. Le résultat est privé, filigrané et disponible pendant 24 heures maximum."
@@ -279,9 +283,9 @@
 			}
 		},
 		"imageEditorHero": {
-			"eyebrow": "Retouche par instruction, import d’abord",
-			"title": "Éditeur d’images IA <accent>avec instructions</accent>",
-			"subtitle": "Importez votre image et décrivez le changement. Lorsque la file invitée est disponible, vous pouvez lancer depuis cette page une retouche Nano Banana 2 Lite 1K privée sans compte.",
+			"eyebrow": "Retouche d’images par instructions",
+			"title": "Éditeur d’images IA <accent>sans modèles imposés</accent>",
+			"subtitle": "Importez une image et décrivez le changement souhaité.",
 			"private": "Images source privées",
 			"draftOnly": "Une retouche Nano Banana 2 Lite invitée"
 		},
@@ -415,7 +419,7 @@
 		"noRestrictions": {
 			"eyebrow": "Contrôle en langage naturel",
 			"title": "Ce que « No Restrictions » signifie vraiment",
-			"description": "EzPic réduit les frictions sans prétendre que les limites responsables disparaissent.",
+			"description": "« No Restrictions » signifie une retouche flexible par instructions, au-delà des modèles prédéfinis. Les limites de sécurité, légales, du modèle et d’utilisation restent applicables.",
 			"limits": "Les limites habituelles de sécurité, légales, du produit et d’usage s’appliquent toujours.",
 			"items": {
 				"prompts": {
@@ -479,9 +483,9 @@
 			}
 		},
 		"finalCta": {
-			"eyebrow": "Commencez par une image",
-			"title": "Décrivez la retouche que vous avez déjà en tête",
-			"description": "Importez l’image et décrivez le changement ici. Lorsque la file invitée est disponible, lancez une retouche Nano Banana 2 Lite 1K privée sans créer de compte.",
+			"eyebrow": "Commencez par votre image",
+			"title": "Que changeriez-vous dans votre image ?",
+			"description": "Ajoutez une référence, décrivez votre prochaine retouche et choisissez un modèle. Vérifiez les crédits avant de créer votre résultat privé.",
 			"button": "Retour à l’éditeur"
 		},
 		"hero": {

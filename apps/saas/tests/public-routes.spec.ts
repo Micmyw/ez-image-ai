@@ -25,7 +25,42 @@ test.use({ storageState: { cookies: [], origins: [] } });
 test.describe("consolidated public routes", () => {
 	for (const path of indexableRoutes) {
 		test(`${path} is an indexable same-origin page`, async ({ page }) => {
-			await expectPublicPage(page, path, "index");
+			if (path === "/") test.setTimeout(90_000);
+			const response = await expectPublicPage(page, path, "index");
+			if (path === "/") {
+				const html = await response!.text();
+				const initialHeading = html.match(/<h1(?:\s|>)[\s\S]*?<\/h1>/)?.[0] ?? "";
+				expect(initialHeading.replace(/<[^>]*>/g, "")).toMatch(/ai image editor no restrictions/i);
+				expect(html).toContain("flexible prompt editing");
+				expect(html).toContain("AI image editor with prompt no restrictions");
+				await expect(page).toHaveTitle(/AI Image Editor No Restrictions/);
+				await expect(page.locator('meta[name="description"]')).toHaveAttribute(
+					"content",
+					/ai image editor with prompt/i,
+				);
+				await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
+					"content",
+					await page.title(),
+				);
+				const explanation = page.locator("#faq details").filter({
+					hasText: "What does “AI image editor with prompt no restrictions” mean on EzPic?",
+				});
+				await explanation.locator("summary").click();
+				await expect(explanation.locator("p")).toBeVisible();
+				await expect(explanation).toContainText("model capabilities, and plan limits still apply");
+				for (const width of [1440, 390]) {
+					await page.setViewportSize({ width, height: 900 });
+					await page.getByRole("heading", { level: 1 }).scrollIntoViewIfNeeded();
+					const intro = page.locator("#image-editor h1 ~ p");
+					await expect(intro).toHaveCount(1);
+					await expect(intro).toHaveText("Upload an image and describe the change you want.");
+					await expect(intro).toBeVisible();
+					expect(
+						await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
+					).toBe(true);
+					await page.screenshot({ path: test.info().outputPath(`seo-home-${width}.png`) });
+				}
+			}
 		});
 	}
 
@@ -227,4 +262,5 @@ async function expectPublicPage(
 	expect(directives.has(indexing)).toBe(true);
 	expect(directives.has("follow")).toBe(true);
 	if (indexing === "index") expect(directives.has("noindex")).toBe(false);
+	return response;
 }

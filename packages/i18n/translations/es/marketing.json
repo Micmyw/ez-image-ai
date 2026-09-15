@@ -29,6 +29,10 @@
 		"description": "Respuestas claras sobre disponibilidad para invitados, modelos de imagen, EzPic Credits, medios privados, facturación y uso responsable.",
 		"title": "Preguntas frecuentes",
 		"items": {
+			"restrictions": {
+				"question": "¿Qué significa «No Restrictions» en EzPic?",
+				"answer": "Significa edición flexible mediante instrucciones en lugar de una lista fija de plantillas. Describe qué conservar y qué cambiar, mantén tus imágenes privadas y revisa los créditos antes de confirmar. Siguen vigentes los controles de contenido, los requisitos legales, las capacidades del modelo y los límites del plan. No significa generación sin censura ni generación gratuita ilimitada."
+			},
 			"guestAvailability": {
 				"question": "¿Cuándo está disponible la edición como invitado?",
 				"answer": "Cuando la cola patrocinada para invitados está disponible, una persona puede iniciar una edición Nano Banana 2 Lite 1K sin cuenta. El resultado lleva marca de agua, es privado y permanece disponible hasta 24 horas."
@@ -279,9 +283,9 @@
 			}
 		},
 		"imageEditorHero": {
-			"eyebrow": "Edición por instrucciones con subida primero",
-			"title": "Editor de imágenes con IA <accent>mediante instrucciones</accent>",
-			"subtitle": "Sube tu imagen y describe el cambio. Cuando la cola de invitados esté disponible, podrás iniciar desde esta página una edición Nano Banana 2 Lite 1K privada sin cuenta.",
+			"eyebrow": "Edición de imágenes mediante instrucciones",
+			"title": "Editor de imágenes con IA <accent>sin plantillas rígidas</accent>",
+			"subtitle": "Sube una imagen y describe el cambio que quieres.",
 			"private": "Imágenes de origen privadas",
 			"draftOnly": "Una edición Nano Banana 2 Lite de invitado"
 		},
@@ -415,7 +419,7 @@
 		"noRestrictions": {
 			"eyebrow": "Control en lenguaje natural",
 			"title": "Qué significa realmente “No Restrictions”",
-			"description": "EzPic reduce la fricción sin fingir que desaparecen los límites responsables.",
+			"description": "«No Restrictions» significa edición flexible mediante instrucciones, sin limitarte a plantillas fijas. Siguen vigentes los límites de seguridad, legales, del modelo y de uso.",
 			"limits": "Siguen aplicándose los límites normales de seguridad, legales, del producto y de uso.",
 			"items": {
 				"prompts": {
@@ -479,9 +483,9 @@
 			}
 		},
 		"finalCta": {
-			"eyebrow": "Empieza con una imagen",
-			"title": "Describe la edición que ya tienes en mente",
-			"description": "Sube la imagen y describe el cambio aquí. Cuando la cola de invitados esté disponible, continúa con una edición Nano Banana 2 Lite 1K privada sin crear una cuenta.",
+			"eyebrow": "Empieza con tu imagen",
+			"title": "¿Qué cambiarías en tu imagen?",
+			"description": "Añade una referencia, describe tu próxima edición y elige un modelo. Revisa los créditos antes de crear tu resultado privado.",
 			"button": "Volver al editor"
 		},
 		"hero": {

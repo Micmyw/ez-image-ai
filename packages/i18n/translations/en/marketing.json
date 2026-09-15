@@ -29,6 +29,10 @@
 		"description": "Clear answers about guest availability, image models, EzPic Credits, private media, billing, and responsible use.",
 		"title": "Frequently asked questions",
 		"items": {
+			"restrictions": {
+				"question": "What does “AI image editor with prompt no restrictions” mean on EzPic?",
+				"answer": "It means flexible prompt editing instead of a fixed template list. Describe what to preserve and what to change, keep your images private, and review credits before confirming. Content safety checks, legal requirements, model capabilities, and plan limits still apply; it does not mean uncensored or unlimited free generation."
+			},
 			"guestAvailability": {
 				"question": "When is the guest edit available?",
 				"answer": "When the sponsored guest queue is available, a visitor can start one Nano Banana 2 Lite 1K edit without an account. The result is watermarked, private, and available for up to 24 hours."
@@ -279,9 +283,9 @@
 			}
 		},
 		"imageEditorHero": {
-			"eyebrow": "Create from an idea or a reference",
-			"title": "AI Image Generator <accent>& Editor</accent>",
-			"subtitle": "Describe an image and bring it to life. Explore GPT Image, Nano Banana, and Seedream in one private workspace, with an optional reference image.",
+			"eyebrow": "Prompt-based image editing",
+			"title": "AI Image Editor <accent>No Restrictions</accent>",
+			"subtitle": "Upload an image and describe the change you want.",
 			"private": "Private source images",
 			"draftOnly": "Create from text or an image"
 		},
@@ -415,7 +419,7 @@
 		"noRestrictions": {
 			"eyebrow": "Plain-language control",
 			"title": "What “No Restrictions” actually means",
-			"description": "EzPic reduces workflow friction without pretending that responsible boundaries disappear.",
+			"description": "“No Restrictions” means flexible prompt editing beyond fixed templates. Content safety, legal, model, and usage limits still apply.",
 			"limits": "Standard safety, legal, product, and usage limits still apply.",
 			"items": {
 				"prompts": {
@@ -479,9 +483,9 @@
 			}
 		},
 		"finalCta": {
-			"eyebrow": "Start with an idea",
-			"title": "What will you create next?",
-			"description": "Describe the image you have in mind. Explore a model, choose your settings, and keep creating in one private workspace.",
+			"eyebrow": "Start with your image",
+			"title": "What would you change in your image?",
+			"description": "Add a reference, describe your next edit, and choose a model. Review the credit quote before creating your private result.",
 			"button": "Back to the editor"
 		},
 		"hero": {

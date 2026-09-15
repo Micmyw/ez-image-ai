@@ -44,6 +44,32 @@ Scope: address the 2026-09-12 live SEO audit in the current checkout. Preserve e
 - Formatting and linting were checked on the affected SEO files; the final browser test edits received a separate focused check.
 - Evidence, the 12-URL HTML inventory, browser logs and mobile screenshots are saved under the task's `seo-audit` artifact directory.
 
-## Delivery boundary
+## Delivery boundary — 2026-09-12
 
 Changes remain local and uncommitted. No push, deployment, production packaging, or real paid generation was performed. The current generation gates remain disabled. Live mail receipt, independent-network www/TLS behavior, deployment validation, Search Console indexing and field Core Web Vitals are **NOT_COMPLETED**. The support address is operator-confirmed; legal copy does not constitute verification of jurisdiction-specific obligations.
+
+## Homepage keyword restoration — 2026-09-16
+
+The user reconfirmed the original keyword contract after later iterations changed the homepage to
+"AI Image Generator & Editor". The homepage again targets `ai image editor no restrictions`, uses
+`ai image editor with prompt no restrictions` in an explanatory FAQ, and naturally includes
+`ai image editor with prompt` in the description. Title, H1, first-view copy and the closing action
+share the prompt-editing focus. Social metadata and WebSite description follow the same metadata.
+
+The hero contains the keyword H1 and one short instruction: "Upload an image and describe the change
+you want." The explanatory FAQ defines "No Restrictions" as flexible prompt editing beyond fixed
+templates; content safety, legal, model and usage limits continue to apply. Existing how-to steps
+and FAQs are preserved, as requested; one explanatory FAQ is added. Text-to-image, reference editing,
+models, pricing, authentication and generation gates are unchanged. Public URLs remain English.
+
+The hero regression now reads real translations instead of a hardcoded obsolete title. Before the
+copy repair, the affected checks failed on the actual Generator title and H1 (2 failed, 21 passed).
+The existing homepage browser check verifies initial HTML, the expandable FAQ explanation and the
+concise hero at desktop and mobile widths. The user authorized pushing and deploying the completed
+refinement; deployment and live verification remain separate from local checks and search rankings.
+
+Final verification: 23 affected unit tests passed; the focused homepage browser case passed with
+initial-HTML checks and inspected 1440px/390px screenshots. SaaS and i18n type checks, affected-file
+formatting and lint passed. All four locale bundles preserve the previous instructions and FAQs,
+add the same explanatory FAQ, and retain compatible accent markup; English and German messages
+also rendered through the real translation formatter. The temporary browser server exited.

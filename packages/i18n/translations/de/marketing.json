@@ -29,6 +29,10 @@
 		"description": "Klare Antworten zu Gastverfügbarkeit, Bildmodellen, EzPic Credits, privaten Medien, Abrechnung und verantwortungsvoller Nutzung.",
 		"title": "Häufig gestellte Fragen",
 		"items": {
+			"restrictions": {
+				"question": "Was bedeutet „No Restrictions“ bei EzPic?",
+				"answer": "Gemeint ist flexible Bearbeitung mit Prompts statt einer festen Vorlagenliste. Beschreibe, was erhalten bleiben und was sich ändern soll, halte deine Bilder privat und prüfe die Credits vor der Bestätigung. Inhaltsprüfungen, gesetzliche Anforderungen, Modellfähigkeiten und Tariflimits gelten weiterhin. Es bedeutet weder unzensierte noch unbegrenzt kostenlose Generierung."
+			},
 			"guestAvailability": {
 				"question": "Wann ist die Gastbearbeitung verfügbar?",
 				"answer": "Wenn die gesponserte Gast-Warteschlange verfügbar ist, kann eine Person ohne Konto eine Nano Banana 2 Lite-1K-Bearbeitung starten. Das Ergebnis ist mit einem Wasserzeichen versehen, privat und bis zu 24 Stunden verfügbar."
@@ -279,9 +283,9 @@
 			}
 		},
 		"imageEditorHero": {
-			"eyebrow": "Prompt-Bearbeitung mit Upload zuerst",
-			"title": "KI-Bildeditor <accent>mit Prompts</accent>",
-			"subtitle": "Lade dein Bild hoch und beschreibe die Änderung. Wenn die Gast-Warteschlange verfügbar ist, kannst du direkt auf dieser Seite ohne Konto eine private Nano Banana 2 Lite-1K-Bearbeitung starten.",
+			"eyebrow": "Bildbearbeitung mit Prompts",
+			"title": "KI-Bildeditor <accent>ohne starre Vorlagen</accent>",
+			"subtitle": "Lade ein Bild hoch und beschreibe die gewünschte Änderung.",
 			"private": "Private Quellbilder",
 			"draftOnly": "Eine Nano Banana 2 Lite-Gastbearbeitung"
 		},
@@ -415,7 +419,7 @@
 		"noRestrictions": {
 			"eyebrow": "Kontrolle in Alltagssprache",
 			"title": "Was „No Restrictions“ wirklich bedeutet",
-			"description": "EzPic reduziert Reibung, ohne verantwortungsvolle Grenzen zu verschweigen.",
+			"description": "„No Restrictions“ bedeutet flexible Bearbeitung mit Prompts statt starrer Vorlagen. Sicherheits-, Rechts-, Modell- und Nutzungslimits gelten weiterhin.",
 			"limits": "Übliche Sicherheits-, Rechts-, Produkt- und Nutzungslimits gelten weiterhin.",
 			"items": {
 				"prompts": {
@@ -479,9 +483,9 @@
 			}
 		},
 		"finalCta": {
-			"eyebrow": "Beginne mit einem Bild",
-			"title": "Beschreibe die Bearbeitung, die du schon im Kopf hast",
-			"description": "Lade dein Bild hier hoch und beschreibe die Änderung. Wenn die Gast-Warteschlange verfügbar ist, kannst du ohne Konto eine private Nano Banana 2 Lite-1K-Gastbearbeitung starten.",
+			"eyebrow": "Beginne mit deinem Bild",
+			"title": "Was möchtest du an deinem Bild ändern?",
+			"description": "Füge ein Referenzbild hinzu, beschreibe deine nächste Bearbeitung und wähle ein Modell. Prüfe die Credits, bevor du dein privates Ergebnis erstellst.",
 			"button": "Zurück zum Editor"
 		},
 		"hero": {

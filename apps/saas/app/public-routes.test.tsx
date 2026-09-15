@@ -231,6 +231,12 @@ describe("consolidated public route contract", () => {
 		expect(metadata, `${route.path} must own explicit metadata`).toBeDefined();
 		if (!metadata) return;
 		expectMetadata(metadata, route.path, route.robots);
+		if (route.path === "/") {
+			expect(JSON.stringify(metadata.title)).toMatch(/ai image editor no restrictions/i);
+			expect(metadata.description).toMatch(/ai image editor with prompt/i);
+			expect(metadata.openGraph?.title).toEqual((metadata.title as { absolute: string }).absolute);
+			expect(metadata.twitter?.title).toEqual(metadata.openGraph?.title);
+		}
 
 		const page = route.path === "/" ? await LandingPage() : await pageModule.default();
 		const markup = renderToStaticMarkup(page);

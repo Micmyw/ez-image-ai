@@ -2,6 +2,15 @@
 
 ## 2026-09-16
 
+### Homepage SEO
+
+- Restore the original prompt-editing keyword focus in the homepage title, H1, description,
+  social previews and closing action. Keep the hero introduction to one short sentence and explain
+  the meaning of "No Restrictions" in an additional FAQ. Preserve existing instructions, FAQs
+  and generation features.
+- Read the actual English translations in the hero regression check so unrelated feature copy
+  changes cannot silently replace the homepage keyword contract.
+
 ### Payment availability
 
 - Keep PayPal checkout available while Waffo's store approval is pending. Show Waffo automatically
