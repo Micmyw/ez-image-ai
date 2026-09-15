@@ -12,7 +12,7 @@ vi.mock("@repo/database/client", () => ({
 }));
 vi.mock("@repo/payments", () => ({
 	getProviderPriceIdByPlanId: vi.fn(),
-	isPaymentProviderConfigured: vi.fn(),
+	isPaymentProviderCheckoutAvailable: vi.fn(),
 	paymentProviderNames: ["stripe", "paypal", "waffo"],
 }));
 vi.mock("../provider-availability", () => ({ resolveProviderAvailability }));

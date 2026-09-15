@@ -16,6 +16,7 @@ import {
 	getCreditPackProviderProductId,
 	getPaymentProvider,
 	isPaymentProviderConfigured,
+	isPaymentProviderCheckoutAvailable,
 } from "@repo/payments";
 import { config as paymentsConfig } from "@repo/payments/config";
 import { getBaseUrl } from "@repo/utils";
@@ -55,6 +56,8 @@ export const createCreditPackCheckout = protectedProcedure
 		await assertBillingEnvironmentReady();
 		const { provider, packKey, idempotencyKey } = input;
 		if (!isPaymentProviderConfigured(provider)) throw new ORPCError("NOT_FOUND");
+		if (!(await isPaymentProviderCheckoutAvailable(provider, { fresh: true })))
+			throw new ORPCError("SERVICE_UNAVAILABLE", { message: "PAYMENT_PROVIDER_UNAVAILABLE" });
 
 		const providerDefinition = getPaymentProvider(provider);
 		if (!providerDefinition?.capabilities.checkout) throw new ORPCError("NOT_FOUND");

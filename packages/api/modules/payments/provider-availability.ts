@@ -44,7 +44,9 @@ interface BillingPlanSnapshot {
 }
 
 interface CreditPackAvailabilityDependencies {
-	isConfigured(provider: Extract<PaymentProviderName, "paypal" | "waffo">): boolean;
+	isCheckoutAvailable(
+		provider: Extract<PaymentProviderName, "paypal" | "waffo">,
+	): boolean | Promise<boolean>;
 	getProviderProductId(provider: Extract<PaymentProviderName, "paypal" | "waffo">): string | null;
 	findBillingPlan(
 		provider: Extract<PaymentProviderName, "paypal" | "waffo">,
@@ -53,7 +55,7 @@ interface CreditPackAvailabilityDependencies {
 }
 
 interface PaymentAvailabilityDependencies {
-	isConfigured(provider: CheckoutPaymentProviderName): boolean;
+	isCheckoutAvailable(provider: CheckoutPaymentProviderName): boolean | Promise<boolean>;
 	getProviderPriceId(provider: CheckoutPaymentProviderName): string | null;
 	findBillingPlan(
 		provider: CheckoutPaymentProviderName,
@@ -74,7 +76,7 @@ export async function resolveProviderAvailability(
 
 	const available = [];
 	for (const provider of checkoutPaymentProviderNames) {
-		if (!dependencies.isConfigured(provider)) continue;
+		if (!(await dependencies.isCheckoutAvailable(provider))) continue;
 		const providerPriceId = dependencies.getProviderPriceId(provider);
 		if (!providerPriceId) continue;
 		const billingPlan = await dependencies.findBillingPlan(provider, providerPriceId);
@@ -92,7 +94,7 @@ export async function resolveCreditPackProviderAvailability(
 	if (!isNewBillingEnabled()) return [];
 	const available = [];
 	for (const provider of checkoutPaymentProviderNames) {
-		if (!dependencies.isConfigured(provider)) continue;
+		if (!(await dependencies.isCheckoutAvailable(provider))) continue;
 		const providerProductId = dependencies.getProviderProductId(provider);
 		if (!providerProductId) continue;
 		const billingPlan = await dependencies.findBillingPlan(provider, providerProductId);

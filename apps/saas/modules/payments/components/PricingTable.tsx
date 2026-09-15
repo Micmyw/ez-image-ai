@@ -320,9 +320,11 @@ function CheckoutControls({
 	const [selectedProvider, setSelectedProvider] = useState<SubscriptionCheckoutProvider | null>(
 		null,
 	);
-	const availability = useQuery(
-		orpc.payments.getProviderAvailability.queryOptions({ input: { planId, interval } }),
-	);
+	const availability = useQuery({
+		...orpc.payments.getProviderAvailability.queryOptions({ input: { planId, interval } }),
+		staleTime: 30_000,
+		refetchInterval: 30_000,
+	});
 	const providers = filterSubscriptionCheckoutProviders(
 		availability.data?.providers
 			.filter(({ capabilities }) => capabilities.checkout)

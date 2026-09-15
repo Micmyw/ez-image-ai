@@ -4,12 +4,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const {
 	findBillingPlan,
 	getCreditPackProviderProductId,
-	isPaymentProviderConfigured,
+	isPaymentProviderCheckoutAvailable,
 	resolveCreditPackProviderAvailability,
 } = vi.hoisted(() => ({
 	findBillingPlan: vi.fn(),
 	getCreditPackProviderProductId: vi.fn(),
-	isPaymentProviderConfigured: vi.fn(),
+	isPaymentProviderCheckoutAvailable: vi.fn(),
 	resolveCreditPackProviderAvailability: vi.fn(),
 }));
 
@@ -19,7 +19,7 @@ vi.mock("@repo/database/client", () => ({
 }));
 vi.mock("@repo/payments", () => ({
 	getCreditPackProviderProductId,
-	isPaymentProviderConfigured,
+	isPaymentProviderCheckoutAvailable,
 }));
 vi.mock("../provider-availability", () => ({ resolveCreditPackProviderAvailability }));
 
@@ -34,14 +34,14 @@ describe("getCreditPackProviderAvailability", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
 		getCreditPackProviderProductId.mockReturnValue("PROD-CREDITS-1500");
-		isPaymentProviderConfigured.mockReturnValue(true);
+		isPaymentProviderCheckoutAvailable.mockResolvedValue(true);
 		findBillingPlan.mockResolvedValue(null);
 	});
 
 	it("is public and returns only the server-authorized PayPal and Waffo choices", async () => {
 		resolveCreditPackProviderAvailability.mockImplementation(async (selection, dependencies) => {
 			expect(selection).toEqual({ packKey: "credits-1500" });
-			expect(dependencies.isConfigured("paypal")).toBe(true);
+			expect(await dependencies.isCheckoutAvailable("paypal")).toBe(true);
 			expect(dependencies.getProviderProductId("paypal")).toBe("PROD-CREDITS-1500");
 			await expect(dependencies.findBillingPlan("paypal", "PROD-CREDITS-1500")).resolves.toBeNull();
 			return [

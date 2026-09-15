@@ -47,6 +47,7 @@ export {
 };
 export * from "./paypal";
 export * from "./credit-pack-reducer";
+export * from "./checkout-availability";
 export * from "./lifecycle-normalization";
 export * from "./lifecycle-reducer";
 export * from "./management";

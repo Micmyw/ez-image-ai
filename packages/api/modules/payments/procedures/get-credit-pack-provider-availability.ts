@@ -1,6 +1,6 @@
 import { creditPackKeySchema } from "@repo/config";
 import { db } from "@repo/database/client";
-import { getCreditPackProviderProductId, isPaymentProviderConfigured } from "@repo/payments";
+import { getCreditPackProviderProductId, isPaymentProviderCheckoutAvailable } from "@repo/payments";
 import { z } from "zod";
 
 import { publicProcedure } from "../../../orpc/procedures";
@@ -41,7 +41,7 @@ export const getCreditPackProviderAvailability = publicProcedure
 	)
 	.handler(async ({ input }) => {
 		const providers = await resolveCreditPackProviderAvailability(input, {
-			isConfigured: (provider) => isPaymentProviderConfigured(provider),
+			isCheckoutAvailable: (provider) => isPaymentProviderCheckoutAvailable(provider),
 			getProviderProductId: (provider) => getCreditPackProviderProductId(provider, input.packKey),
 			findBillingPlan: (provider, providerProductId) =>
 				db.billingPlan.findUnique({

@@ -60,6 +60,7 @@ vi.mock("@repo/payments", () => ({
 	getPaymentProvider: vi.fn(),
 	getProviderPriceIdByPlanId: vi.fn(),
 	isPaymentProviderConfigured: vi.fn(),
+	isPaymentProviderCheckoutAvailable: vi.fn(),
 	paymentProviderNames: ["stripe", "paypal", "waffo"],
 }));
 vi.mock("../../organizations/lib/membership", () => ({
@@ -73,6 +74,7 @@ import {
 	getPaymentProvider,
 	getProviderPriceIdByPlanId,
 	isPaymentProviderConfigured,
+	isPaymentProviderCheckoutAvailable,
 } from "@repo/payments";
 
 import { checkoutInputSchema, createCheckoutLink } from "./create-checkout-link";
@@ -146,6 +148,7 @@ describe("createCheckoutLink", () => {
 		process.env.NEXT_PUBLIC_SAAS_URL = "https://app.ezpic.test";
 		vi.mocked(auth.api.getSession).mockResolvedValue(authenticatedSession);
 		vi.mocked(isPaymentProviderConfigured).mockReturnValue(true);
+		vi.mocked(isPaymentProviderCheckoutAvailable).mockResolvedValue(true);
 		vi.mocked(findPriceByPlanId).mockReturnValue(monthlyPrice);
 		vi.mocked(getProviderPriceIdByPlanId).mockReturnValue("P-CREATOR-MONTHLY");
 		findBillingPlan.mockResolvedValue(billingPlan);
@@ -185,6 +188,29 @@ describe("createCheckoutLink", () => {
 			createCheckout: providerCheckout,
 			recoverCheckout: providerRecoverCheckout,
 		});
+	});
+
+	it("blocks an unapproved merchant before creating a subscription intent", async () => {
+		vi.mocked(isPaymentProviderCheckoutAvailable).mockResolvedValue(false);
+		findBillingPlan.mockResolvedValue({ ...billingPlan, provider: "waffo" });
+		await expect(
+			call(
+				createCheckoutLink,
+				{
+					provider: "waffo",
+					planId: "creator",
+					interval: "month",
+					idempotencyKey: "merchant-approval-required",
+				},
+				{ context: { headers: new Headers() } },
+			),
+		).rejects.toMatchObject({
+			code: "SERVICE_UNAVAILABLE",
+			message: "PAYMENT_PROVIDER_UNAVAILABLE",
+		});
+		expect(createCheckoutIntent).not.toHaveBeenCalled();
+		expect(providerCheckout).not.toHaveBeenCalled();
+		expect(isPaymentProviderCheckoutAvailable).toHaveBeenCalledWith("waffo", { fresh: true });
 	});
 
 	it("accepts only provider, planId, interval, and idempotencyKey", () => {

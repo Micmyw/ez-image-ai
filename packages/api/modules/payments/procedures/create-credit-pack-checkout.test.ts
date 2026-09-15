@@ -15,6 +15,7 @@ const {
 	getProviderProductId,
 	isExactCreditPackBillingPlanSnapshot,
 	isPaymentProviderConfigured,
+	isPaymentProviderCheckoutAvailable,
 	markCheckoutIntentProviderCreating,
 	paymentsConfig,
 	providerCheckout,
@@ -35,6 +36,7 @@ const {
 	getProviderProductId: vi.fn(),
 	isExactCreditPackBillingPlanSnapshot: vi.fn(),
 	isPaymentProviderConfigured: vi.fn(),
+	isPaymentProviderCheckoutAvailable: vi.fn(),
 	markCheckoutIntentProviderCreating: vi.fn(),
 	paymentsConfig: { billingAttachedTo: "user" as "user" | "organization" },
 	providerCheckout: vi.fn(),
@@ -65,6 +67,7 @@ vi.mock("@repo/payments", () => ({
 	getCreditPackProviderProductId: getProviderProductId,
 	getPaymentProvider,
 	isPaymentProviderConfigured,
+	isPaymentProviderCheckoutAvailable,
 }));
 vi.mock("@repo/payments/config", () => ({ config: paymentsConfig }));
 vi.mock("../provider-availability", () => ({ isExactCreditPackBillingPlanSnapshot }));
@@ -136,6 +139,7 @@ describe("createCreditPackCheckout", () => {
 		process.env.NEXT_PUBLIC_SAAS_URL = "https://app.ezpic.test";
 		vi.mocked(auth.api.getSession).mockResolvedValue(authenticatedSession);
 		isPaymentProviderConfigured.mockReturnValue(true);
+		isPaymentProviderCheckoutAvailable.mockResolvedValue(true);
 		getProviderProductId.mockReturnValue("PROD-CREDITS-1500");
 		findBillingPlan.mockResolvedValue(billingPlan);
 		isExactCreditPackBillingPlanSnapshot.mockReturnValue(true);
@@ -213,6 +217,30 @@ describe("createCreditPackCheckout", () => {
 		vi.useRealTimers();
 		vi.unstubAllEnvs();
 	});
+	it.each(["paypal", "waffo"] as const)(
+		"blocks an unapproved %s merchant before creating a credit-pack intent",
+		async (provider) => {
+			isPaymentProviderCheckoutAvailable.mockResolvedValue(false);
+			await expect(
+				call(
+					createCreditPackCheckout,
+					{
+						provider,
+						packKey: "credits-1500",
+						idempotencyKey: "merchant-approval-required",
+					},
+					{ context: { headers: new Headers() } },
+				),
+			).rejects.toMatchObject({
+				code: "SERVICE_UNAVAILABLE",
+				message: "PAYMENT_PROVIDER_UNAVAILABLE",
+			});
+			expect(createCheckoutIntent).not.toHaveBeenCalled();
+			expect(providerCheckout).not.toHaveBeenCalled();
+			expect(isPaymentProviderCheckoutAvailable).toHaveBeenCalledWith(provider, { fresh: true });
+		},
+	);
+
 	it("blocks a new credit-pack payment while billing is disabled", async () => {
 		vi.stubEnv("BILLING_ENABLED", "false");
 		await expect(

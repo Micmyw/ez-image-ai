@@ -2,6 +2,14 @@
 
 ## 2026-09-16
 
+### Payment availability
+
+- Keep PayPal checkout available while Waffo's store approval is pending. Show Waffo automatically
+  after its production store is active and permitted to collect payments, and refresh payment
+  choices while the pricing view is open.
+- Recheck Waffo's merchant status before creating subscription or Credit Pack checkout. Hide an
+  unavailable channel independently while preserving existing cancellation, refund and webhook flows.
+
 ### Content safety
 
 - Require both existing text moderation and the production payment partner's prompt scan before

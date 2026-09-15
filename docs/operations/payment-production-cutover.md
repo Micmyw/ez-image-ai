@@ -25,6 +25,26 @@ Use `PAYPAL_ENVIRONMENT=live` and/or `WAFFO_ENVIRONMENT=prod` with credentials, 
 and product IDs from those exact merchant environments. Disable the unused channel completely.
 Mixing a live channel and a sandbox channel in the same database is rejected for new purchases.
 
+### Independent provider launch
+
+Once authorized, `BILLING_ENABLED=true` enables new purchases through ready channels. PayPal uses
+its configured Live application and exact live plan snapshots. Waffo additionally reads the configured
+store through its authenticated production GraphQL API. Its store ID must match, `status` must be
+`active`, and both `prodEnabled` and `payinEnable` must be `true`. Pending approval, suspended pay-in,
+incomplete responses and API failures make only Waffo unavailable; PayPal remains available.
+
+Provider listings cache completed store observations for at most 30 seconds. Pricing controls refresh
+every 30 seconds while visible, so approval appears automatically without another secret change or
+deployment (normally within 60 seconds). Both subscription and Credit Pack creation bypass that cache
+and refresh merchant status before writing a checkout intent or requesting a provider session. A
+three-second store-read deadline bounds Waffo's effect on payment-option loading. Existing capture,
+cancellation, refunds, webhooks and reconciliation do not use this new-purchase availability check.
+
+Keep the production configuration consistent in the local production environment, both runtime
+Workers and both encrypted Git build environments. A successful configuration/checkout-link check
+does not certify real capture, credit fulfillment, refunds or the first recurring charge; record those
+observations separately and never submit a real-money test without an authorized budget.
+
 For each enabled channel, configure six subscription mappings (three plans, month/year) and four
 Credit Pack mappings. Verify the actual provider products have the expected USD prices, monthly or
 yearly interval, no unexpected trial/setup fee, and cancellation behavior. An ID's syntax and a local

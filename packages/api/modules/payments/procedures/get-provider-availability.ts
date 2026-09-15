@@ -1,5 +1,5 @@
 import { db } from "@repo/database/client";
-import { getProviderPriceIdByPlanId, isPaymentProviderConfigured } from "@repo/payments";
+import { getProviderPriceIdByPlanId, isPaymentProviderCheckoutAvailable } from "@repo/payments";
 import { z } from "zod";
 
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -41,7 +41,7 @@ export const getProviderAvailability = protectedProcedure
 	)
 	.handler(async ({ input }) => {
 		const providers = await resolveProviderAvailability(input, {
-			isConfigured: (provider) => isPaymentProviderConfigured(provider),
+			isCheckoutAvailable: (provider) => isPaymentProviderCheckoutAvailable(provider),
 			getProviderPriceId: (provider) =>
 				getProviderPriceIdByPlanId(provider, input.planId, {
 					type: "subscription",

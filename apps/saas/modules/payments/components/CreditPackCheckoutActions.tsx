@@ -36,6 +36,8 @@ export function CreditPackCheckoutActions({
 	const availability = useQuery({
 		...orpc.payments.getCreditPackProviderAvailability.queryOptions({ input: { packKey } }),
 		enabled: active,
+		staleTime: 30_000,
+		refetchInterval: 30_000,
 	});
 	const providers = filterCreditPackCheckoutProviders(
 		(availability.data?.providers ?? [])

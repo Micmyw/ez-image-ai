@@ -25,6 +25,58 @@ const billingPlanDrifts: Array<[string, BillingPlanDrift]> = [
 ];
 
 describe("payment provider availability", () => {
+	it.each(["subscription", "credit-pack"])(
+		"awaits merchant readiness for %s and opens Waffo after approval",
+		async (kind) => {
+			let approved = false;
+			const isCheckoutAvailable = vi.fn(
+				async (provider: string) => provider === "paypal" || approved,
+			);
+			const pack = createCreditPackCheckoutSnapshot("credits-1500", false);
+			const findBillingPlan = vi.fn(async (provider: string, providerPriceId: string) => ({
+				id: `${provider}-plan`,
+				provider,
+				providerPriceId,
+				active: true,
+				version: 1,
+				productKind: kind === "subscription" ? ("PLAN" as const) : ("CREDIT_PACK" as const),
+				name: kind === "subscription" ? "creator" : "credits-1500",
+				creditsPerPeriod: kind === "subscription" ? 700n : BigInt(pack.baseCredits),
+				priceMicros: kind === "subscription" ? 19_000_000n : BigInt(pack.priceMicros),
+				currency: "USD",
+				metadata:
+					kind === "subscription"
+						? {
+								planId: "creator",
+								interval: "month",
+								version: 1,
+								pricingVersion: DEFAULT_PRODUCT_CONFIG.pricingVersion,
+							}
+						: {
+								version: 1,
+								productKind: "CREDIT_PACK",
+								packKey: "credits-1500",
+								catalogVersion: pack.catalogVersion,
+								pricingVersion: pack.pricingVersion,
+								expiryMonths: pack.expiryMonths,
+							},
+			}));
+			const resolve = () =>
+				kind === "subscription"
+					? resolveProviderAvailability(
+							{ planId: "creator", interval: "month" },
+							{ isCheckoutAvailable, getProviderPriceId: () => "product", findBillingPlan },
+						)
+					: resolveCreditPackProviderAvailability(
+							{ packKey: "credits-1500" },
+							{ isCheckoutAvailable, getProviderProductId: () => "product", findBillingPlan },
+						);
+			expect((await resolve()).map((provider) => provider.name)).toEqual(["paypal"]);
+			approved = true;
+			expect((await resolve()).map((provider) => provider.name)).toEqual(["paypal", "waffo"]);
+		},
+	);
+
 	it("rejects an unmarked or sandbox plan snapshot when collecting live money", () => {
 		vi.stubEnv("PAYPAL_ENVIRONMENT", "live");
 		const plan = {
@@ -74,13 +126,17 @@ describe("payment provider availability", () => {
 		expect(
 			await resolveProviderAvailability(
 				{ planId: "creator", interval: "month" },
-				{ isConfigured: () => true, getProviderPriceId: () => "P-PLAN", findBillingPlan },
+				{ isCheckoutAvailable: () => true, getProviderPriceId: () => "P-PLAN", findBillingPlan },
 			),
 		).toEqual([]);
 		expect(
 			await resolveCreditPackProviderAvailability(
 				{ packKey: "credits-1500" },
-				{ isConfigured: () => true, getProviderProductId: () => "PROD-PACK", findBillingPlan },
+				{
+					isCheckoutAvailable: () => true,
+					getProviderProductId: () => "PROD-PACK",
+					findBillingPlan,
+				},
 			),
 		).toEqual([]);
 		expect(findBillingPlan).not.toHaveBeenCalled();
@@ -133,7 +189,7 @@ describe("payment provider availability", () => {
 			resolveProviderAvailability(
 				{ planId: "creator", interval: "month" },
 				{
-					isConfigured: (provider) => provider !== "waffo",
+					isCheckoutAvailable: (provider) => provider !== "waffo",
 					getProviderPriceId: (provider) =>
 						provider === "paypal" ? "P-CREATOR-MONTHLY" : "price_creator_monthly",
 					findBillingPlan,
@@ -161,7 +217,7 @@ describe("payment provider availability", () => {
 			resolveProviderAvailability(
 				{ planId: "studio", interval: "year" },
 				{
-					isConfigured: () => true,
+					isCheckoutAvailable: () => true,
 					getProviderPriceId: () => null,
 					findBillingPlan,
 				},
@@ -228,7 +284,7 @@ describe("payment provider availability", () => {
 			resolveCreditPackProviderAvailability(
 				{ packKey: "credits-1500" },
 				{
-					isConfigured: () => true,
+					isCheckoutAvailable: () => true,
 					getProviderProductId: (provider) =>
 						provider === "paypal" ? "PROD-CREDITS-1500" : "PROD_0123456789QrStUvWxYzAb",
 					findBillingPlan,
