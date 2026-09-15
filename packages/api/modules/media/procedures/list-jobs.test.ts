@@ -31,6 +31,19 @@ describe("listJobs", () => {
 		} as never);
 	});
 
+	it("keeps archived settlement amounts in history without replacing current settlements", async () => {
+		const original = job({ id: "archived-job", productKey: "image-fast", inputSnapshot: {} });
+		mocks.findMany.mockResolvedValue([
+			{ ...original, reservation: null, archivedCreditsCharged: 12n, archivedCreditsReleased: 5n },
+			{ ...original, id: "current-job", archivedCreditsCharged: 99n, archivedCreditsReleased: 99n },
+		] as never);
+		const result = await call(listJobs, {}, { context: { headers: new Headers() } });
+		expect(result.items).toMatchObject([
+			{ id: "archived-job", creditsCharged: "12", creditsReleased: "5" },
+			{ id: "current-job", creditsCharged: "17", creditsReleased: "0" },
+		]);
+	});
+
 	it("returns matrix-validated current selections and keeps legacy jobs unclassified", async () => {
 		mocks.findMany.mockResolvedValue([
 			job({

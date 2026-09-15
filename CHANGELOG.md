@@ -13,6 +13,8 @@
 
 ### Payments and subscription credits
 
+- Preserve the original credit charges and releases in generation history when an operator archives
+  a test billing dataset. Keep archived balances separate from production purchases and credits.
 - Keep monthly/yearly checkout blocked while renewal cancellation is unconfirmed, including
   after local access expires. Persist cancellation requests, retry provider failures, and confirm
   closure from authenticated provider evidence before allowing a payment-method switch.

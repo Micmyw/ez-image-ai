@@ -78,7 +78,7 @@ export type GenerationQuoteScalarFieldEnum = z.infer<typeof GenerationQuoteScala
 
 // File: GenerationJobScalarFieldEnum.schema.ts
 
-export const GenerationJobScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'submittedByUserId', 'quoteId', 'idempotencyKey', 'productKey', 'catalogVersion', 'pricingVersion', 'creditsReserved', 'inputSnapshot', 'pricingSnapshot', 'status', 'serviceClass', 'dispatchEligibleAt', 'guestTrialId', 'version', 'failureCode', 'failureMessage', 'finalizationStage', 'finalizationRetryCount', 'finalizationErrorCode', 'nextFinalizeAt', 'createdAt', 'updatedAt', 'terminalAt', 'editSessionId', 'parentJobId'])
+export const GenerationJobScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'submittedByUserId', 'quoteId', 'idempotencyKey', 'productKey', 'catalogVersion', 'pricingVersion', 'creditsReserved', 'archivedCreditsCharged', 'archivedCreditsReleased', 'inputSnapshot', 'pricingSnapshot', 'status', 'serviceClass', 'dispatchEligibleAt', 'guestTrialId', 'version', 'failureCode', 'failureMessage', 'finalizationStage', 'finalizationRetryCount', 'finalizationErrorCode', 'nextFinalizeAt', 'createdAt', 'updatedAt', 'terminalAt', 'editSessionId', 'parentJobId'])
 
 export type GenerationJobScalarFieldEnum = z.infer<typeof GenerationJobScalarFieldEnumSchema>;
 
@@ -807,6 +807,8 @@ export const GenerationJobSchema = z.object({
   catalogVersion: z.string(),
   pricingVersion: z.string(),
   creditsReserved: z.bigint(),
+  archivedCreditsCharged: z.bigint().nullish(),
+  archivedCreditsReleased: z.bigint().nullish(),
   inputSnapshot: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10"),
   pricingSnapshot: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10"),
   status: GenerationJobStatusSchema.default("RESERVED"),

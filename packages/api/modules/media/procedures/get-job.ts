@@ -97,8 +97,12 @@ export const getJob = protectedProcedure
 			status: job.status,
 			version: job.version,
 			creditsReserved: jsonBigInt(job.creditsReserved),
-			creditsCharged: jsonBigInt(job.reservation?.settledAmount ?? 0n),
-			creditsReleased: jsonBigInt(job.reservation?.releasedAmount ?? 0n),
+			creditsCharged: jsonBigInt(
+				job.reservation?.settledAmount ?? job.archivedCreditsCharged ?? 0n,
+			),
+			creditsReleased: jsonBigInt(
+				job.reservation?.releasedAmount ?? job.archivedCreditsReleased ?? 0n,
+			),
 			productKey: job.productKey,
 			input: publicInput,
 			skuKey: publicInput?.skuKey ?? null,

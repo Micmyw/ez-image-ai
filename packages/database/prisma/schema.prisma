@@ -473,47 +473,50 @@ model GenerationQuote {
 }
 
 model GenerationJob {
-  id                     String                   @id @default(cuid())
-  ownerType              OwnerType
-  ownerId                String
-  submittedByUserId      String
-  quoteId                String                   @unique
-  quote                  GenerationQuote          @relation(fields: [quoteId], references: [id], onDelete: Restrict)
-  idempotencyKey         String
-  productKey             String
-  catalogVersion         String
-  pricingVersion         String
-  creditsReserved        BigInt
-  inputSnapshot          Json
-  pricingSnapshot        Json
-  status                 GenerationJobStatus      @default(RESERVED)
-  serviceClass           GenerationServiceClass   @default(STANDARD)
-  dispatchEligibleAt     DateTime?                @db.Timestamptz(3)
-  guestTrialId           String?
-  guestTrial             GuestMediaTrial?         @relation("GuestTrialJobs", fields: [guestTrialId], references: [id], onDelete: SetNull)
-  currentForGuestTrial   GuestMediaTrial?         @relation("GuestTrialCurrentJob")
-  consumedForGuestTrial  GuestMediaTrial?         @relation("GuestTrialConsumedJob")
-  guestResultGrants      GuestResultAccessGrant[]
-  version                Int                      @default(0)
-  failureCode            String?
-  failureMessage         String?
-  finalizationStage      String?
-  finalizationRetryCount Int                      @default(0)
-  finalizationErrorCode  String?
-  nextFinalizeAt         DateTime?                @db.Timestamptz(3)
-  createdAt              DateTime                 @default(now()) @db.Timestamptz(3)
-  updatedAt              DateTime                 @updatedAt @db.Timestamptz(3)
-  terminalAt             DateTime?                @db.Timestamptz(3)
-  reservation            CreditReservation?
-  attempts               GenerationAttempt[]
-  assets                 GenerationJobAsset[]
-  retrySourceRequests    GenerationRetryRequest[] @relation("GenerationRetrySourceJob")
-  retryResultRequest     GenerationRetryRequest?  @relation("GenerationRetryResultJob")
-  editSessionId          String?
-  editSession            ImageEditSession?        @relation(fields: [editSessionId], references: [id], onDelete: SetNull)
-  parentJobId            String?
-  parentJob              GenerationJob?           @relation("ImageEditParent", fields: [parentJobId], references: [id], onDelete: SetNull)
-  childJobs              GenerationJob[]          @relation("ImageEditParent")
+  id                      String                   @id @default(cuid())
+  ownerType               OwnerType
+  ownerId                 String
+  submittedByUserId       String
+  quoteId                 String                   @unique
+  quote                   GenerationQuote          @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  idempotencyKey          String
+  productKey              String
+  catalogVersion          String
+  pricingVersion          String
+  creditsReserved         BigInt
+  /// Display-only settlement retained when the original test billing dataset is archived.
+  archivedCreditsCharged  BigInt?
+  archivedCreditsReleased BigInt?
+  inputSnapshot           Json
+  pricingSnapshot         Json
+  status                  GenerationJobStatus      @default(RESERVED)
+  serviceClass            GenerationServiceClass   @default(STANDARD)
+  dispatchEligibleAt      DateTime?                @db.Timestamptz(3)
+  guestTrialId            String?
+  guestTrial              GuestMediaTrial?         @relation("GuestTrialJobs", fields: [guestTrialId], references: [id], onDelete: SetNull)
+  currentForGuestTrial    GuestMediaTrial?         @relation("GuestTrialCurrentJob")
+  consumedForGuestTrial   GuestMediaTrial?         @relation("GuestTrialConsumedJob")
+  guestResultGrants       GuestResultAccessGrant[]
+  version                 Int                      @default(0)
+  failureCode             String?
+  failureMessage          String?
+  finalizationStage       String?
+  finalizationRetryCount  Int                      @default(0)
+  finalizationErrorCode   String?
+  nextFinalizeAt          DateTime?                @db.Timestamptz(3)
+  createdAt               DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime                 @updatedAt @db.Timestamptz(3)
+  terminalAt              DateTime?                @db.Timestamptz(3)
+  reservation             CreditReservation?
+  attempts                GenerationAttempt[]
+  assets                  GenerationJobAsset[]
+  retrySourceRequests     GenerationRetryRequest[] @relation("GenerationRetrySourceJob")
+  retryResultRequest      GenerationRetryRequest?  @relation("GenerationRetryResultJob")
+  editSessionId           String?
+  editSession             ImageEditSession?        @relation(fields: [editSessionId], references: [id], onDelete: SetNull)
+  parentJobId             String?
+  parentJob               GenerationJob?           @relation("ImageEditParent", fields: [parentJobId], references: [id], onDelete: SetNull)
+  childJobs               GenerationJob[]          @relation("ImageEditParent")
 
   @@unique([ownerType, ownerId, idempotencyKey])
   @@index([ownerType, ownerId, createdAt, id])

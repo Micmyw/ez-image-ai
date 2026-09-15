@@ -53,8 +53,12 @@ export const listJobs = protectedProcedure
 					skuKey: publicInput?.skuKey ?? null,
 					aspectRatio: publicInput?.aspectRatio ?? null,
 					creditsReserved: jsonBigInt(job.creditsReserved),
-					creditsCharged: jsonBigInt(job.reservation?.settledAmount ?? 0n),
-					creditsReleased: jsonBigInt(job.reservation?.releasedAmount ?? 0n),
+					creditsCharged: jsonBigInt(
+						job.reservation?.settledAmount ?? job.archivedCreditsCharged ?? 0n,
+					),
+					creditsReleased: jsonBigInt(
+						job.reservation?.releasedAmount ?? job.archivedCreditsReleased ?? 0n,
+					),
 					outputCount: job.assets.length,
 					createdAt: job.createdAt.toISOString(),
 				};

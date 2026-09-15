@@ -62,6 +62,18 @@ describe("getJob", () => {
 		} as never);
 	});
 
+	it("preserves terminal job charges after the test ledger is archived", async () => {
+		mocks.findFirst.mockResolvedValue({
+			...baseJob,
+			reservation: null,
+			archivedCreditsCharged: 12n,
+			archivedCreditsReleased: 5n,
+		} as never);
+		const result = await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } });
+		expect(result).toMatchObject({ creditsCharged: "12", creditsReleased: "5", canCancel: false });
+		expect(result.assets.map(({ id }) => id)).toEqual(["asset-output"]);
+	});
+
 	it("returns separately bound input and approved output assets without private URLs or provider data", async () => {
 		mocks.findFirst.mockResolvedValue(baseJob as never);
 
