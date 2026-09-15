@@ -185,6 +185,10 @@ async function main() {
 			where: { status: "EXPIRED", cancelAtPeriodEnd: false },
 		});
 		record("expired_renewal_states_resolved", renewalUnknown === 0, renewalUnknown);
+		const pendingTerminations = await db.subscription.count({
+			where: { refundTerminationRequestedAt: { not: null }, refundTerminatedAt: null },
+		});
+		record("refund_terminations_confirmed", pendingTerminations === 0, pendingTerminations);
 	}
 	for (const provider of providers) {
 		if (!process.argv.includes("--check-provider") || !isPaymentProviderConfigured(provider)) {

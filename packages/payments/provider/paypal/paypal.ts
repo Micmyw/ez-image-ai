@@ -5,6 +5,8 @@ import type {
 	CreatedCheckout,
 	RecoverCheckoutOptions,
 	CheckoutRecoveryResult,
+	InspectSubscriptionCancellationInput,
+	SubscriptionCancellationState,
 } from "../../types";
 import type { VerifiedPaymentEvent } from "../webhook";
 
@@ -79,6 +81,30 @@ export async function cancelPayPalSubscription(
 	if (response.status < 200 || response.status >= 300) {
 		throw new Error("PAYPAL_CANCEL_RESPONSE_INVALID");
 	}
+}
+
+export async function inspectPayPalSubscriptionCancellation(
+	http: PayPalHttpBoundary,
+	configuration: PayPalAuthorizedConfiguration,
+	input: InspectSubscriptionCancellationInput,
+): Promise<SubscriptionCancellationState> {
+	const response = await http.request({
+		method: "GET",
+		url: `${configuration.baseUrl}/v1/billing/subscriptions/${encodeURIComponent(input.subscriptionId)}`,
+		headers: { Authorization: `Bearer ${configuration.accessToken}` },
+	});
+	const body = recordValue(response.body);
+	if (
+		response.status !== 200 ||
+		body?.id !== input.subscriptionId ||
+		body?.custom_id !== input.checkoutIntentId ||
+		body?.plan_id !== input.priceId
+	)
+		return "UNKNOWN";
+	if (body.status === "CANCELLED" || body.status === "EXPIRED") return "DISABLED";
+	if (["ACTIVE", "SUSPENDED", "APPROVED", "APPROVAL_PENDING"].includes(String(body.status)))
+		return "RENEWING";
+	return "UNKNOWN";
 }
 
 export async function createPayPalCheckoutLink(

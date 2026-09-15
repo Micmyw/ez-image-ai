@@ -9,11 +9,12 @@ import {
 	calculateCreditPackRefundTargetCredits,
 } from "./credit-pack-reducer";
 import type { ProviderRefundFact } from "./lifecycle-normalization";
+import { requestRefundTerminationIfCurrent } from "./refund-termination";
 
 export async function applyProviderRefundFact(
 	fact: ProviderRefundFact,
 	client: Prisma.TransactionClient,
-	options: { now?: Date; paymentEventId?: string } = {},
+	options: { now?: Date; paymentEventId?: string; providerEnvironment?: string | null } = {},
 ): Promise<{ grantsCreated: number }> {
 	const pack = await client.creditPackFulfillment.findUnique({
 		where: {
@@ -84,7 +85,18 @@ export async function applyProviderRefundFact(
 			adjustment.kind !== kind
 		)
 			throw new Error("PAYMENT_PROVIDER_REFUND_BINDING_CONFLICT");
-		if (adjustment.creditsFinalizedAt) return { grantsCreated: 0 };
+		if (adjustment.creditsFinalizedAt) {
+			await requestRefundTerminationIfCurrent(
+				{
+					subscriptionId: subscription.id,
+					paymentKey,
+					providerEnvironment: options.providerEnvironment,
+					now: options.now ?? new Date(),
+				},
+				client,
+			);
+			return { grantsCreated: 0 };
+		}
 	} else {
 		adjustment = await client.subscriptionPaymentAdjustment.create({
 			data: {
@@ -175,6 +187,15 @@ export async function applyProviderRefundFact(
 		where: { id: adjustment.id },
 		data: { finalizedCredits, creditsFinalizedAt: options.now ?? new Date() },
 	});
+	await requestRefundTerminationIfCurrent(
+		{
+			subscriptionId: subscription.id,
+			paymentKey,
+			providerEnvironment: options.providerEnvironment,
+			now: options.now ?? new Date(),
+		},
+		client,
+	);
 	await client.auditLog.create({
 		data: {
 			action: "SUBSCRIPTION_PAYMENT_REFUND_APPLIED",

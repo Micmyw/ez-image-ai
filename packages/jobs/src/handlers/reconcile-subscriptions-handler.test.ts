@@ -24,6 +24,7 @@ vi.mock("@repo/database/client", () => ({ db }));
 vi.mock("@repo/config/server", () => ({ getStripeLegacyLifecycleStatus }));
 vi.mock("@repo/payments", () => ({
 	requeuePreviouslyUnsupportedRefunds: vi.fn().mockResolvedValue({ requeued: 0 }),
+	recoverRefundTerminations: vi.fn().mockResolvedValue({ inspectedRefunds: 0, requeued: 0 }),
 	isPaymentProviderConfigured: vi.fn(() => false),
 	getPaymentProvider: vi.fn(),
 	paymentReconciliationScope: vi.fn(),

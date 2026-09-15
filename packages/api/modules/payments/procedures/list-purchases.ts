@@ -35,7 +35,11 @@ export const listPurchases = protectedProcedure
 				planId: z.string().nullable(),
 				isEffectiveSubscription: z.boolean().optional(),
 				subscription: z
-					.object({ cancelAtPeriodEnd: z.boolean(), currentPeriodEnd: z.date().nullable() })
+					.object({
+						cancelAtPeriodEnd: z.boolean(),
+						currentPeriodEnd: z.date().nullable(),
+						refundTermination: z.enum(["PENDING", "RETRYING", "COMPLETED"]).nullable(),
+					})
 					.nullable(),
 				providerCapabilities: z.object({
 					portal: z.boolean(),
@@ -124,6 +128,9 @@ interface PurchaseWithSubscriptionPlan {
 		provider: string;
 		cancelAtPeriodEnd: boolean;
 		currentPeriodEnd: Date | null;
+		refundTerminationRequestedAt?: Date | null;
+		refundTerminatedAt?: Date | null;
+		refundTerminationError?: string | null;
 		plan: {
 			provider: string;
 			priceMicros: bigint;
@@ -135,7 +142,11 @@ interface PurchaseWithSubscriptionPlan {
 
 function resolvePersistedSubscriptionPlan(purchase: PurchaseWithSubscriptionPlan): {
 	planId: "creator" | "ultimate" | "studio";
-	subscription: { cancelAtPeriodEnd: boolean; currentPeriodEnd: Date | null };
+	subscription: {
+		cancelAtPeriodEnd: boolean;
+		currentPeriodEnd: Date | null;
+		refundTermination: "PENDING" | "RETRYING" | "COMPLETED" | null;
+	};
 	price: {
 		type: "subscription";
 		interval: "month" | "year";
@@ -179,6 +190,13 @@ function resolvePersistedSubscriptionPlan(purchase: PurchaseWithSubscriptionPlan
 		subscription: {
 			cancelAtPeriodEnd: subscription.cancelAtPeriodEnd ?? false,
 			currentPeriodEnd: subscription.currentPeriodEnd ?? null,
+			refundTermination: subscription.refundTerminatedAt
+				? "COMPLETED"
+				: subscription.refundTerminationRequestedAt
+					? subscription.refundTerminationError
+						? "RETRYING"
+						: "PENDING"
+					: null,
 		},
 		price: {
 			type: "subscription" as const,

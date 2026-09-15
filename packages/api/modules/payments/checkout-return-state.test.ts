@@ -24,6 +24,15 @@ function paidSubscription() {
 }
 
 describe("checkout return ownership and paid confirmation", () => {
+	it("cannot confirm an old subscription fenced by refund termination", () => {
+		expect(
+			resolveCheckoutReturnState(
+				{ ...paidSubscription(), refundTerminationRequestedAt: now },
+				"creator",
+				now,
+			),
+		).toEqual(pending);
+	});
 	it("rejects organization scope in the user-only first release", () => {
 		expect(() => assertCheckoutReturnOwnerScope("org-other")).toThrow(ORPCError);
 	});

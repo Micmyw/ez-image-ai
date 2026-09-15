@@ -13,6 +13,9 @@ const billingPlanForPurchase = {
 			provider: true,
 			cancelAtPeriodEnd: true,
 			currentPeriodEnd: true,
+			refundTerminationRequestedAt: true,
+			refundTerminatedAt: true,
+			refundTerminationError: true,
 			plan: {
 				select: {
 					provider: true,

@@ -11,6 +11,7 @@ Apply migrations before deploying code that reads the new fields:
 - `20260915010000_payment_reconciliation_checkpoint`
 - `20260915020000_payment_environment_provenance`
 - `20260915030000_credit_pack_reversal`
+- `20260915075642_subscription_refund_termination`
 
 They preserve the immutable credit ledger. Successful subscription refunds and Credit Pack reversals
 have stable adjustment IDs. Historical PaymentEvents intentionally retain an unknown environment;
@@ -83,6 +84,44 @@ Previously unsupported verified refund dead letters are requeued once through Ou
 payload satisfies the now-supported contract. Other dead letters and invalid amounts/identities keep
 their fences. Monitor failed events and checkpoint freshness; an enabled cron is not proof a sweep
 completed. PayPal/Waffo failures do not prevent independent legacy Stripe reconciliation.
+
+## Full refund termination and financial review
+
+The latest fully refunded PayPal/Waffo subscription payment queues
+`SUBSCRIPTION_REFUND_TERMINATION` in the same transaction as credit revocation/debt accounting.
+`media-terminate-refunded-subscription` inspects the original contract, requests cancellation when
+renewal is still enabled, and inspects again. A successful HTTP response alone is not confirmation.
+The verified refund's environment must match the configured merchant environment; unknown or
+mismatched provenance remains blocked for review and is never silently relabeled.
+
+PayPal `CANCELLED`/`EXPIRED` and Waffo `canceled`/`closed` confirm closure. Waffo SDK 0.19.1's
+`docs/api-reference.md` defines `canceling` as PSP cancellation initiated; it is still reactivatable.
+It therefore remains pending until the authenticated order query confirms closure. If the provider
+only finalizes closure at period end, that provider delay still applies; the app adds no extra wait.
+
+Pending termination removes paid access but blocks replacement subscription checkout. Confirmation
+records `refundTerminatedAt` without rewriting the historical paid-through dates. After confirmation,
+the owner can immediately buy a new monthly/yearly plan via either channel. Ordinary cancellation
+without a full refund keeps the paid period and the original admission deadline. Credit Packs remain
+repeatable, and new grants repay outstanding refund debt first.
+
+Outbox acknowledges only after finalization. Failed deliveries retry with backoff, and the hourly
+subscription sweep requeues exhausted or incorrectly acknowledged pending termination deliveries.
+Verified closure callbacks also wake inspection without overriding an active delivery lease.
+Monitor `refundTerminationError`, pending termination age, and Outbox dead letters. The preflight
+reports `refund_terminations_confirmed=false` while any termination is pending. A missing/mismatched
+contract or unknown environment requires operator investigation; never set confirmation fields by
+hand to open checkout. The same sweep upgrades previously processed latest full refunds on still-open
+subscriptions, using their persisted adjustment and verified environment without repeating credit
+mutations. Unknown historical environments stay pending for operator investigation.
+
+Termination fences both pending and completed old subscriptions. Old lifecycle/payment replays do
+not restore benefits. A new payment ID on such a subscription is retained as a verified PaymentEvent
+dead letter with `PAYMENT_PROVIDER_TERMINATED_SUBSCRIPTION_PAYMENT_REVIEW_REQUIRED` and an audit
+entry. Review that receipt in the original merchant environment, confirm the amount and actual
+charge, resolve renewal closure, and perform any authorized compensation/refund through the payment
+provider. Preserve the event and link the operator action in the audit trail. Do not grant credits,
+reactivate the old subscription, or mark the event processed merely to clear the launch check.
 
 ## Checkout recovery limitation
 

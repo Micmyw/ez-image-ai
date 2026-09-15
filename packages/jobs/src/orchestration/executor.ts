@@ -36,6 +36,7 @@ import {
 } from "../handlers/recover-finalizing-generations";
 import { recoverMediaVerifications } from "../handlers/recover-media-verifications";
 import { settleGeneration } from "../handlers/settle-generation";
+import { terminateSubscriptionAfterRefund } from "../handlers/terminate-refunded-subscription";
 import { verifyUpload } from "../handlers/verify-upload";
 import {
 	createDatabaseDispatchStore,
@@ -178,6 +179,8 @@ export async function executeTask(
 			return settleGeneration(parseTaskPayload(taskId, payload), {
 				store: databaseSettlementStore,
 			});
+		case "media-terminate-refunded-subscription":
+			return terminateSubscriptionAfterRefund(parseTaskPayload(taskId, payload));
 		case "media-process-payment-event":
 			return processPaymentEvent(parseTaskPayload(taskId, payload), {
 				attempt: context.attempt,

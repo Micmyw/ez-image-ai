@@ -157,6 +157,7 @@ export async function processClaimedProviderPaymentEvent(
 					: normalized.kind === "PAYMENT_REFUNDED"
 						? await applyProviderRefundFact(normalized.fact, tx, {
 								paymentEventId: input.paymentEventId,
+								providerEnvironment: event.providerEnvironment,
 								now: transactionFenceTime,
 							})
 						: normalized.kind === "SUBSCRIPTION"

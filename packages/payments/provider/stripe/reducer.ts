@@ -907,7 +907,11 @@ export async function grantDueBillingPeriods(
 			startsAt: { lte: now },
 			endsAt: { gt: now },
 			paidAmount: { gt: 0n },
-			subscription: { status: { in: ["ACTIVE", "CANCELED"] }, currentPeriodEnd: { gt: now } },
+			subscription: {
+				status: { in: ["ACTIVE", "CANCELED"] },
+				currentPeriodEnd: { gt: now },
+				refundTerminationRequestedAt: null,
+			},
 		},
 		select: { id: true },
 		orderBy: [{ startsAt: "asc" }, { id: "asc" }],
@@ -925,6 +929,7 @@ export async function grantDueBillingPeriods(
 			});
 			if (
 				!period ||
+				period.subscription.refundTerminationRequestedAt ||
 				period.status !== "PENDING" ||
 				period.startsAt > now ||
 				period.endsAt <= now ||

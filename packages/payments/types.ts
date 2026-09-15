@@ -181,6 +181,14 @@ export type SetSubscriptionSeats = (params: { id: string; seats: number }) => Pr
 
 export type CancelSubscription = (id: string) => Promise<void>;
 
+export interface InspectSubscriptionCancellationInput {
+	subscriptionId: string;
+	checkoutIntentId: string;
+	priceId: string;
+}
+
+export type SubscriptionCancellationState = "RENEWING" | "PENDING" | "DISABLED" | "UNKNOWN";
+
 export type WebhookHandler = (req: Request) => Promise<Response>;
 
 export type PaymentProvider = {
@@ -201,5 +209,8 @@ export type PaymentProvider = {
 	captureCheckout?: (params: CaptureCheckoutOptions) => Promise<CapturedCheckoutEvent>;
 	createPortal?: CreateCustomerPortalLink;
 	cancelSubscription?: CancelSubscription;
+	inspectSubscriptionCancellation?: (
+		input: InspectSubscriptionCancellationInput,
+	) => Promise<SubscriptionCancellationState>;
 	setSubscriptionSeats?: SetSubscriptionSeats;
 };

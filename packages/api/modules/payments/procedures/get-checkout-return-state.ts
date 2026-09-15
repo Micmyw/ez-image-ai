@@ -24,7 +24,7 @@ export const getCheckoutReturnState = protectedProcedure
 		const ownerId = user.id;
 		const now = new Date();
 		const subscription = await db.subscription.findFirst({
-			where: { ownerType, ownerId },
+			where: { ownerType, ownerId, refundTerminationRequestedAt: null },
 			include: {
 				plan: true,
 				periods: {
@@ -36,7 +36,7 @@ export const getCheckoutReturnState = protectedProcedure
 					orderBy: { startsAt: "desc" },
 				},
 			},
-			orderBy: { updatedAt: "desc" },
+			orderBy: [{ createdAt: "desc" }, { id: "desc" }],
 		});
 		return resolveCheckoutReturnState(subscription, input.expectedPlanId, now);
 	});
@@ -59,6 +59,7 @@ export function resolveCheckoutReturnState(
 		}>;
 		currentPeriodStart: Date | null;
 		currentPeriodEnd: Date | null;
+		refundTerminationRequestedAt?: Date | null;
 	} | null,
 	expectedPlanId: "creator" | "ultimate" | "studio",
 	now = new Date(),
@@ -78,6 +79,7 @@ export function resolveCheckoutReturnState(
 	);
 	const effective =
 		subscription &&
+		!subscription.refundTerminationRequestedAt &&
 		((["ACTIVE", "CANCELED"].includes(subscription.status) &&
 			subscription.currentPeriodStart &&
 			subscription.currentPeriodStart <= now &&

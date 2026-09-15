@@ -8,6 +8,7 @@ import {
 	createWaffoWebhookVerifier,
 	recoverWaffoCheckout,
 	inspectWaffoSubscriptionCheckout,
+	inspectWaffoSubscriptionCancellation,
 	type WaffoSdkBoundary,
 } from "./waffo";
 
@@ -57,6 +58,8 @@ export function createWaffoProvider(
 				window,
 			),
 		inspectCheckout: (input) => inspectWaffoSubscriptionCheckout(configuredClient, storeId, input),
+		inspectSubscriptionCancellation: (input) =>
+			inspectWaffoSubscriptionCancellation(configuredClient, storeId, input),
 	};
 }
 

@@ -23,6 +23,7 @@ export async function reconcileSubscriptionsWithClient(
 			: undefined;
 	const expired = await client.subscription.updateMany({
 		where: {
+			refundTerminationRequestedAt: null,
 			...(input.reconciliationSweepId
 				? {
 						provider: providerFilter,

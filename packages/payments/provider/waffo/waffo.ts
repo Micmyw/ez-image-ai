@@ -3,6 +3,8 @@ import type {
 	CreateCheckoutLinkOptions,
 	CreatedCheckout,
 	RecoverCheckoutOptions,
+	InspectSubscriptionCancellationInput,
+	SubscriptionCancellationState,
 } from "../../types";
 import type { VerifiedPaymentEvent } from "../webhook";
 import { getWaffoEventId } from "./event-id";
@@ -58,6 +60,39 @@ export async function cancelWaffoSubscription(
 ): Promise<void> {
 	if (!providerSubscriptionId.trim()) throw new Error("WAFFO_SUBSCRIPTION_ID_MISSING");
 	await client.orders.cancelSubscription({ orderId: providerSubscriptionId });
+}
+
+export async function inspectWaffoSubscriptionCancellation(
+	client: WaffoSdkBoundary,
+	storeId: string,
+	input: InspectSubscriptionCancellationInput,
+): Promise<SubscriptionCancellationState> {
+	if (!client.graphql || !storeId.trim()) return "UNKNOWN";
+	const result = await client.graphql.query<{ subscriptionOrders: unknown }>({
+		query: `query InspectCancellation($storeId: String!, $externalId: String!) { subscriptionOrders(storeId: $storeId, limit: 2, filter: { orderMerchantExternalId: { eq: $externalId } }) { id status orderMerchantExternalId } }`,
+		variables: { storeId, externalId: input.checkoutIntentId },
+	});
+	const orders = result.data?.subscriptionOrders;
+	if (
+		result.errors?.length ||
+		result.warnings?.length ||
+		!Array.isArray(orders) ||
+		orders.length !== 1
+	)
+		return "UNKNOWN";
+	const order = recordValue(orders[0]);
+	if (
+		order?.id !== input.subscriptionId ||
+		order.orderMerchantExternalId !== input.checkoutIntentId
+	)
+		return "UNKNOWN";
+	if (order.status === "canceled" || order.status === "closed") return "DISABLED";
+	// SDK 0.19.1 api-reference: canceling means PSP cancellation initiated,
+	// with confirmation arriving later. It is also still customer-reactivatable.
+	if (order.status === "canceling") return "PENDING";
+	if (["active", "trialing", "past_due", "pending"].includes(String(order.status)))
+		return "RENEWING";
+	return "UNKNOWN";
 }
 
 export async function createWaffoCheckoutLink(

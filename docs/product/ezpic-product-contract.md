@@ -257,6 +257,15 @@ unused credits into the next period; subscription Webhook replay, cancellation, 
 refund Debt, and failed-job releases keep the existing immutable-ledger semantics. Customer Portal
 access remains subject to the existing user or organization owner authorization rules.
 
+For PayPal/Waffo, a full refund of the latest funded subscription payment atomically revokes its
+credits/benefits and persists a renewal-cancellation request. Provider-confirmed closure completes
+termination and allows immediate monthly/yearly resubscription across channels, retaining immutable
+payment history and refund debt. Pending/failed/unproven cancellation continues to block checkout
+and is retried through Outbox and scheduled recovery. Old callbacks cannot revive a terminated
+subscription; an unexpected new charge requires durable financial review. Partial or historical
+payment refunds do not cancel a newer funded period. Ordinary cancellation retains prepaid benefits
+and blocks a replacement until period end. Credit Packs have no single-subscription restriction.
+
 New subscription checkout is limited to PayPal and Waffo. Stripe is not advertised or accepted for
 new purchases; it remains optional only for historical Stripe Webhooks, portal/cancellation,
 refund-repair, and reconciliation. When no complete historical Stripe configuration exists, the
@@ -282,11 +291,10 @@ Capture and Webhooks persist a verified `PaymentEvent` and Outbox work before fu
 reducer creates exactly one expiring credit grant and one fulfillment per provider payment; duplicate
 or concurrent delivery cannot grant twice. Verified PayPal refund lifecycle facts can automatically
 apply the delta to a cumulative proportional reversal target; a full refund targets the full frozen
-grant, and already-consumed credits become Debt through the existing immutable ledger. Waffo
-`refund.succeeded` and `refund.failed` currently stop in manual `REVIEW` and do not automatically
-mutate the Credit Ledger, Purchase, Fulfillment, or adjustment records. Waffo production automatic
-Credit Pack refunds remain `NOT_COMPLETED` pending real sandbox payload fields and authenticated,
-idempotent lifecycle certification. A Credit Pack never changes the active subscription.
+grant, and already-consumed credits become Debt through the existing immutable ledger. Verified
+Waffo `refund.succeeded` also applies cumulative credit recovery; `refund.failed` makes no refund
+mutation. Real merchant payment/refund certification remains separate from implementation and local
+tests. A Credit Pack never changes the active subscription.
 
 The monetary amounts above are configuration, not a production margin certification. Reviewed Kie
 public prices support the current planning inputs, but no real paid execution has certified any of

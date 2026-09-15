@@ -808,6 +808,9 @@
 					"pending": "Pendiente"
 				},
 				"title": "Tu plan",
+				"refundTerminationPending": "Tu pago se ha reembolsado por completo y los beneficios del plan han finalizado. Estamos confirmando la cancelación de la renovación antes de que puedas suscribirte de nuevo.",
+				"refundTerminationRetrying": "Los beneficios del plan reembolsado han finalizado. La cancelación de la renovación aún no está confirmada; seguiremos intentándolo. Podrás suscribirte de nuevo cuando se confirme.",
+				"refundTerminated": "Tu suscripción reembolsada ha finalizado y la cancelación de la renovación está confirmada. Ya puedes suscribirte de nuevo con cualquier método de pago disponible.",
 				"cancellationScheduled": "Tu plan seguirá disponible hasta el {date}. No se renovará.",
 				"multipleSubscriptions": "Hay más de una suscripción abierta. Revisa los métodos de pago y cancela las renovaciones que ya no necesites.",
 				"paymentMethod": "Método de pago: {provider}",

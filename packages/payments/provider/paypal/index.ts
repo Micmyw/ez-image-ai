@@ -8,6 +8,7 @@ import {
 	getPayPalAccessToken,
 	recoverPayPalCheckout,
 	inspectPayPalSubscriptionCheckout,
+	inspectPayPalSubscriptionCancellation,
 	type PayPalHttpBoundary,
 } from "./paypal";
 
@@ -96,6 +97,14 @@ export function createPayPalProvider(
 		async cancelSubscription(id) {
 			const accessToken = await authorizePayPal(http, configuration);
 			await cancelPayPalSubscription(http, { accessToken, baseUrl: configuration.baseUrl }, id);
+		},
+		async inspectSubscriptionCancellation(input) {
+			const accessToken = await authorizePayPal(http, configuration);
+			return inspectPayPalSubscriptionCancellation(
+				http,
+				{ accessToken, baseUrl: configuration.baseUrl },
+				input,
+			);
 		},
 	};
 }

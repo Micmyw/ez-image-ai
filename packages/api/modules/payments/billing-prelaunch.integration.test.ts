@@ -11,14 +11,19 @@ import {
 	releaseCredits,
 } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { reconcileProviderPaymentEvents } from "../../../payments/provider/event-reconciliation";
 import { normalizeProviderBillingEvent } from "../../../payments/provider/lifecycle-normalization";
 import { applyProviderBillingFact } from "../../../payments/provider/lifecycle-reducer";
 import { processProviderPaymentEvent } from "../../../payments/provider/processor";
 import { requeuePreviouslyUnsupportedRefunds } from "../../../payments/provider/refund-repair";
+import {
+	recoverRefundTerminations,
+	terminateRefundedSubscription,
+} from "../../../payments/provider/refund-termination";
 import { grantDueBillingPeriods } from "../../../payments/provider/stripe/reducer";
+import type { PaymentProvider } from "../../../payments/types";
 import { loadUserPlanEntitlement } from "../media/lib/plan-entitlement";
 
 const prefix = `billing-prelaunch-${crypto.randomUUID()}`;
@@ -65,6 +70,13 @@ describe("production payment business regressions", () => {
 			await tx.subscriptionPaymentAdjustment.deleteMany({
 				where: { subscription: { ownerId: { startsWith: prefix } } },
 			});
+			const subscriptions = await tx.subscription.findMany({
+				where: { ownerId: { startsWith: prefix } },
+				select: { id: true },
+			});
+			const subscriptionIds = subscriptions.map((s) => s.id);
+			await tx.outboxEvent.deleteMany({ where: { aggregateId: { in: subscriptionIds } } });
+			await tx.auditLog.deleteMany({ where: { targetId: { in: subscriptionIds } } });
 			await tx.subscription.deleteMany({ where: { ownerId: { startsWith: prefix } } });
 			await tx.purchase.deleteMany({ where: { userId: { startsWith: prefix } } });
 			await tx.paymentCheckoutIntent.deleteMany({ where: { ownerId: { startsWith: prefix } } });
@@ -116,6 +128,30 @@ describe("production payment business regressions", () => {
 		expect(await effective(fixture.ownerId)).toBeNull();
 	});
 	it.each(["month", "year"] as const)(
+		"queues renewal cancellation after the current %s payment is fully refunded",
+		async (interval) => {
+			const fixture = await prepare("paypal", interval);
+			await refund(fixture, "termination-request", interval === "year" ? "190.00" : "19.00");
+			const subscription = await client.subscription.findUniqueOrThrow({
+				where: {
+					provider_providerSubscriptionId: {
+						provider: "paypal",
+						providerSubscriptionId: fixture.fact.providerSubscriptionId,
+					},
+				},
+			});
+			expect(await effective(fixture.ownerId)).toBeNull();
+			expect(
+				await client.outboxEvent.count({
+					where: {
+						aggregateId: subscription.id,
+						eventType: "SUBSCRIPTION_REFUND_TERMINATION",
+					},
+				}),
+			).toBe(1);
+		},
+	);
+	it.each(["month", "year"] as const)(
 		"admits only one channel for concurrent purchases of the same %s plan",
 		async (interval) => {
 			const ownerId = `${prefix}-same-plan-${interval}`;
@@ -142,13 +178,17 @@ describe("production payment business regressions", () => {
 	);
 
 	it.each([
-		["paypal", "waffo", "month"],
-		["paypal", "waffo", "year"],
-		["waffo", "paypal", "month"],
-		["waffo", "paypal", "year"],
+		["paypal", "waffo", "month", "month"],
+		["paypal", "waffo", "year", "year"],
+		["waffo", "paypal", "month", "month"],
+		["waffo", "paypal", "year", "year"],
+		["paypal", "waffo", "month", "year"],
+		["paypal", "waffo", "year", "month"],
+		["waffo", "paypal", "month", "year"],
+		["waffo", "paypal", "year", "month"],
 	] as const)(
-		"fences a refunded %s subscription until closure and its original end, then grants %s %s once",
-		async (originalProvider, nextProvider, interval) => {
+		"terminates %s after refund, then grants %s immediately (%s to %s) once",
+		async (originalProvider, nextProvider, interval, nextInterval) => {
 			const original = await prepare(originalProvider, interval);
 			const attemptNext = () => prepare(nextProvider, interval, { ownerId: original.ownerId });
 			await expect(attemptNext()).rejects.toThrow("PAYMENT_SUBSCRIPTION_ALREADY_EXISTS");
@@ -178,10 +218,16 @@ describe("production payment business regressions", () => {
 				await client.paymentCheckoutIntent.count({ where: { ownerId: original.ownerId } }),
 			).toBe(1);
 
-			const replacement = await prepare(nextProvider, interval, {
+			const cancellation = await terminationDriver(original);
+			await cancellation.run();
+			expect(cancellation.cancel).toHaveBeenCalledExactlyOnceWith(
+				original.fact.providerSubscriptionId,
+			);
+			await cancellation.run();
+			expect(cancellation.cancel).toHaveBeenCalledTimes(1);
+			const replacement = await prepare(nextProvider, nextInterval, {
 				ownerId: original.ownerId,
-				checkoutAt: original.endsAt,
-				startsAt: original.endsAt,
+				startsAt: now,
 			});
 			await runSerializable(client, (tx) => applyProviderBillingFact(original.fact, tx));
 			await processProviderPaymentEvent({ paymentEventId: refundReceipt.id }, client);
@@ -194,7 +240,7 @@ describe("production payment business regressions", () => {
 					},
 				},
 			});
-			expect(await effective(original.ownerId, original.endsAt)).toMatchObject({
+			expect(await effective(original.ownerId)).toMatchObject({
 				id: replacementSubscription.id,
 				status: "ACTIVE",
 			});
@@ -218,6 +264,293 @@ describe("production payment business regressions", () => {
 			).toBe(true);
 		},
 	);
+
+	it.each(["PENDING", "UNKNOWN", "RENEWING"] as const)(
+		"keeps admission closed while cancellation is %s, then recovers",
+		async (state) => {
+			const fixture = await prepare("waffo", "month");
+			await refund(fixture, "full", "19.00");
+			const driver = await terminationDriver(fixture);
+			driver.inspect.mockReset().mockResolvedValue(state);
+			driver.cancel.mockRejectedValue(new Error("network failure with sensitive response"));
+			await expect(driver.run()).rejects.toThrow("REFUND_TERMINATION_CONFIRMATION_PENDING");
+			expect(
+				await client.subscription.findUniqueOrThrow({ where: { id: driver.subscriptionId } }),
+			).toMatchObject({
+				refundTerminatedAt: null,
+				refundTerminationError: "REFUND_TERMINATION_CONFIRMATION_PENDING",
+			});
+			await expect(
+				prepare("paypal", "year", { ownerId: fixture.ownerId, checkoutAt: fixture.endsAt }),
+			).rejects.toThrow("PAYMENT_SUBSCRIPTION_ALREADY_EXISTS");
+			await client.outboxEvent.update({
+				where: { dedupeKey: `refund-termination:${driver.subscriptionId}` },
+				data: { status: "DEAD_LETTER", attempts: 10 },
+			});
+			await recoverRefundTerminations(client);
+			await recoverRefundTerminations(client);
+			expect(
+				await client.outboxEvent.findUniqueOrThrow({
+					where: { dedupeKey: `refund-termination:${driver.subscriptionId}` },
+				}),
+			).toMatchObject({ status: "PENDING", attempts: 0 });
+			driver.inspect.mockResolvedValue("DISABLED");
+			await driver.run();
+			const replacement = await prepare("paypal", "year", { ownerId: fixture.ownerId });
+			expect(await effective(replacement.ownerId)).not.toBeNull();
+		},
+	);
+
+	it("upgrades a previously processed full refund without repeating ledger mutations", async () => {
+		const fixture = await prepare("paypal", "month");
+		await refund(fixture, "pre-upgrade-full", "19.00");
+		const driver = await terminationDriver(fixture);
+		await client.subscription.update({
+			where: { id: driver.subscriptionId },
+			data: {
+				refundTerminationRequestedAt: null,
+				refundTerminationPaymentId: null,
+				refundTerminationEnvironment: null,
+			},
+		});
+		await client.outboxEvent.delete({
+			where: { dedupeKey: `refund-termination:${driver.subscriptionId}` },
+		});
+		const account = await client.creditAccount.findUniqueOrThrow({
+			where: { ownerType_ownerId: { ownerType: "USER", ownerId: fixture.ownerId } },
+		});
+		const entriesBefore = await client.creditLedgerEntry.count({
+			where: { accountId: account.id },
+		});
+		await recoverRefundTerminations(client);
+		await recoverRefundTerminations(client);
+		expect(
+			await client.subscription.findUniqueOrThrow({ where: { id: driver.subscriptionId } }),
+		).toMatchObject({ refundTerminationEnvironment: "sandbox" });
+		expect(await client.outboxEvent.count({ where: { aggregateId: driver.subscriptionId } })).toBe(
+			1,
+		);
+		expect(await client.creditLedgerEntry.count({ where: { accountId: account.id } })).toBe(
+			entriesBefore,
+		);
+		await driver.run();
+		await prepare("waffo", "month", { ownerId: fixture.ownerId });
+	});
+
+	it("wakes cancellation inspection on a verified closure callback without prematurely opening checkout", async () => {
+		const fixture = await prepare("paypal", "month");
+		await refund(fixture, "full", "19.00");
+		const driver = await terminationDriver(fixture);
+		await client.outboxEvent.update({
+			where: { dedupeKey: `refund-termination:${driver.subscriptionId}` },
+			data: { status: "DEAD_LETTER", attempts: 10, availableAt: fixture.endsAt },
+		});
+		await runSerializable(client, (tx) =>
+			applyProviderBillingFact(
+				{
+					...fixture.fact,
+					payment: null,
+					status: "CANCELED",
+					cancelAtPeriodEnd: true,
+					occurredAt: now,
+					providerEventId: `${fixture.fact.providerEventId}-closure`,
+				},
+				tx,
+			),
+		);
+		expect(
+			await client.outboxEvent.findUniqueOrThrow({
+				where: { dedupeKey: `refund-termination:${driver.subscriptionId}` },
+			}),
+		).toMatchObject({ status: "PENDING", attempts: 0 });
+		await expect(prepare("waffo", "month", { ownerId: fixture.ownerId })).rejects.toThrow(
+			"PAYMENT_SUBSCRIPTION_ALREADY_EXISTS",
+		);
+		driver.inspect.mockReset().mockResolvedValue("DISABLED");
+		await driver.run();
+		await prepare("waffo", "month", { ownerId: fixture.ownerId });
+	});
+
+	it("settles a cancellation accepted before the HTTP response was lost", async () => {
+		const fixture = await prepare("paypal", "month");
+		await refund(fixture, "full", "19.00");
+		const driver = await terminationDriver(fixture);
+		driver.cancel.mockRejectedValue(new Error("timeout"));
+		await driver.run();
+		expect(
+			await client.subscription.findUniqueOrThrow({ where: { id: driver.subscriptionId } }),
+		).toMatchObject({ refundTerminatedAt: now });
+	});
+
+	it.each(["live", undefined])(
+		"does not call a provider in an unproven/mismatched environment (%s)",
+		async (environment) => {
+			const fixture = await prepare("paypal", "month");
+			await refund(fixture, "full", "19.00");
+			const driver = await terminationDriver(fixture, { PAYPAL_ENVIRONMENT: environment });
+			await expect(driver.run()).rejects.toThrow("REFUND_TERMINATION_ENVIRONMENT_MISMATCH");
+			expect(driver.inspect).not.toHaveBeenCalled();
+			expect(driver.cancel).not.toHaveBeenCalled();
+			await expect(prepare("waffo", "month", { ownerId: fixture.ownerId })).rejects.toThrow(
+				"PAYMENT_SUBSCRIPTION_ALREADY_EXISTS",
+			);
+		},
+	);
+
+	it("only admits one replacement across channels after confirmed termination", async () => {
+		const fixture = await prepare("paypal", "month");
+		await refund(fixture, "full", "19.00");
+		await (await terminationDriver(fixture)).run();
+		const results = await Promise.allSettled(
+			(["paypal", "waffo"] as const).map((provider) =>
+				prepare(provider, "year", { ownerId: fixture.ownerId, pay: false }),
+			),
+		);
+		expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+		expect(results.filter((r) => r.status === "rejected")).toHaveLength(1);
+	});
+
+	it.each(["paypal", "waffo"] as const)(
+		"%s only terminates for the latest fully refunded payment",
+		async (provider) => {
+			const first = await prepare(provider, "month", {
+				startsAt: addMonths(new Date(now.getTime() - 86400000), -1),
+			});
+			const renewed = {
+				...first,
+				fact: {
+					...first.fact,
+					providerEventId: `${first.fact.providerEventId}-renew`,
+					occurredAt: first.endsAt,
+					currentPeriod: { periodStart: first.endsAt, periodEnd: addMonths(first.endsAt, 1) },
+					payment: {
+						...first.fact.payment,
+						providerPaymentId: `${first.fact.payment.providerPaymentId}-renew`,
+						periodStart: first.endsAt,
+						periodEnd: addMonths(first.endsAt, 1),
+					},
+				},
+			};
+			await runSerializable(client, (tx) => applyProviderBillingFact(renewed.fact, tx));
+			await refund(first, "historical-full", "19.00");
+			await refund(renewed, "current-partial", "9.50");
+			const driver = await terminationDriver(first);
+			await driver.run();
+			expect(driver.inspect).not.toHaveBeenCalled();
+			expect(await effective(first.ownerId)).not.toBeNull();
+			expect(
+				await client.outboxEvent.count({ where: { aggregateId: driver.subscriptionId } }),
+			).toBe(0);
+			await refund(renewed, "current-remainder", "9.50");
+			await driver.run();
+			expect(await effective(first.ownerId)).toBeNull();
+			expect(
+				await client.outboxEvent.count({ where: { aggregateId: driver.subscriptionId } }),
+			).toBe(1);
+		},
+	);
+
+	it("confirms already canceled renewal after refund without sending another cancellation", async () => {
+		const fixture = await prepare("paypal", "month");
+		await runSerializable(client, (tx) =>
+			applyProviderBillingFact(
+				{
+					...fixture.fact,
+					payment: null,
+					providerEventId: `${fixture.fact.providerEventId}-cancel`,
+					occurredAt: now,
+					status: "CANCELED",
+					cancelAtPeriodEnd: true,
+				},
+				tx,
+			),
+		);
+		await expect(prepare("waffo", "month", { ownerId: fixture.ownerId })).rejects.toThrow(
+			"PAYMENT_SUBSCRIPTION_ALREADY_EXISTS",
+		);
+		await refund(fixture, "full", "19.00");
+		const driver = await terminationDriver(fixture);
+		driver.inspect.mockReset().mockResolvedValue("DISABLED");
+		await driver.run();
+		expect(driver.cancel).not.toHaveBeenCalled();
+		await prepare("waffo", "month", { ownerId: fixture.ownerId });
+	});
+
+	it("repays refunded consumption from the new subscription before making credits spendable", async () => {
+		const fixture = await prepare("paypal", "month");
+		const account = await client.creditAccount.findUniqueOrThrow({
+			where: { ownerType_ownerId: { ownerType: "USER", ownerId: fixture.ownerId } },
+		});
+		const spent = await reserve(fixture.ownerId, account.id, 500n);
+		await settleCredits(
+			{ reservationId: spent.id, amount: 500n, referenceKey: `${spent.id}:settle` },
+			client,
+		);
+		await refund(fixture, "full", "19.00");
+		expect(
+			await client.creditAccount.findUniqueOrThrow({ where: { id: account.id } }),
+		).toMatchObject({ creditDebt: 500n, spendableCredits: 0n });
+		await (await terminationDriver(fixture)).run();
+		await prepare("waffo", "month", { ownerId: fixture.ownerId });
+		expect(
+			await client.creditAccount.findUniqueOrThrow({ where: { id: account.id } }),
+		).toMatchObject({ creditDebt: 0n, spendableCredits: 200n });
+	});
+
+	it("retains unexpected money on a terminated subscription for review without reviving rights", async () => {
+		const fixture = await prepare("paypal", "month");
+		await refund(fixture, "full", "19.00");
+		const driver = await terminationDriver(fixture);
+		await driver.run();
+		await prepare("waffo", "year", { ownerId: fixture.ownerId });
+		const replacement = await effective(fixture.ownerId);
+		const eventId = `${prefix}-unexpected-payment`;
+		const { event } = await ingestPaymentEvent(
+			{
+				provider: "paypal",
+				providerEnvironment: "sandbox",
+				providerEventId: eventId,
+				verifiedAt: now,
+				envelope: {
+					id: eventId,
+					event_type: "PAYMENT.SALE.COMPLETED",
+					create_time: now.toISOString(),
+					resource: {
+						id: `${eventId}-sale`,
+						billing_agreement_id: fixture.fact.providerSubscriptionId,
+						state: "completed",
+						amount: { total: "19.00", currency: "USD" },
+					},
+				},
+			},
+			client,
+		);
+		expect(await processProviderPaymentEvent({ paymentEventId: event.id }, client)).toMatchObject({
+			outcome: "DEAD_LETTER",
+			grantsCreated: 0,
+		});
+		expect(await client.paymentEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({
+			failureReason: "PAYMENT_PROVIDER_TERMINATED_SUBSCRIPTION_PAYMENT_REVIEW_REQUIRED",
+			envelope: { resource: { id: `${eventId}-sale` } },
+		});
+		await runSerializable(client, (tx) =>
+			applyProviderBillingFact(
+				{
+					...fixture.fact,
+					payment: null,
+					providerEventId: `${fixture.fact.providerEventId}-reactivate`,
+					occurredAt: new Date(now.getTime() + 1000),
+				},
+				tx,
+			),
+		);
+		expect(
+			await client.subscription.findUniqueOrThrow({ where: { id: driver.subscriptionId } }),
+		).toMatchObject({ status: "CANCELED", refundTerminatedAt: now });
+		expect(replacement).not.toBeNull();
+		expect(replacement?.id).not.toBe(driver.subscriptionId);
+		expect(await effective(fixture.ownerId)).toEqual(replacement);
+	});
 
 	it.each(["paypal", "waffo"] as const)(
 		"%s does not restore paid access from an older payment after refund and a past-due callback",
@@ -603,6 +936,52 @@ describe("production payment business regressions", () => {
 	});
 });
 
+async function terminationDriver(
+	fixture: Awaited<ReturnType<typeof prepare>>,
+	environment: Record<string, string | undefined> = {
+		PAYPAL_ENVIRONMENT: "sandbox",
+		WAFFO_ENVIRONMENT: "test",
+	},
+) {
+	const subscription = await client.subscription.findUniqueOrThrow({
+		where: {
+			provider_providerSubscriptionId: {
+				provider: fixture.fact.provider,
+				providerSubscriptionId: fixture.fact.providerSubscriptionId,
+			},
+		},
+	});
+	const inspect = vi
+		.fn<NonNullable<PaymentProvider["inspectSubscriptionCancellation"]>>()
+		.mockResolvedValueOnce("RENEWING")
+		.mockResolvedValue("DISABLED");
+	const cancel = vi.fn<NonNullable<PaymentProvider["cancelSubscription"]>>().mockResolvedValue();
+	const adapter: PaymentProvider = {
+		name: fixture.fact.provider,
+		capabilities: {
+			checkout: true,
+			cancellation: true,
+			portal: false,
+			seatUpdates: false,
+			webhooks: true,
+		},
+		createCheckout: vi.fn(),
+		cancelSubscription: cancel,
+		inspectSubscriptionCancellation: inspect,
+	};
+	return {
+		subscriptionId: subscription.id,
+		inspect,
+		cancel,
+		run: () =>
+			terminateRefundedSubscription({ subscriptionId: subscription.id }, client, {
+				getProvider: () => adapter,
+				environment,
+				now: () => now,
+			}),
+	};
+}
+
 async function reserve(ownerId: string, accountId: string, amount: bigint) {
 	const quote = await client.generationQuote.create({
 		data: {
@@ -787,7 +1166,13 @@ async function refundEvent(
 				};
 	return (
 		await ingestPaymentEvent(
-			{ provider, providerEventId: eventId, verifiedAt: now, envelope },
+			{
+				provider,
+				providerEnvironment: provider === "paypal" ? "sandbox" : "test",
+				providerEventId: eventId,
+				verifiedAt: now,
+				envelope,
+			},
 			client,
 		)
 	).event;

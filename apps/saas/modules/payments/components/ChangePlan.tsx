@@ -14,7 +14,7 @@ export function ChangePlan({
 	activePlanId?: string;
 }) {
 	const t = useTranslations();
-	const { hasBlockingSubscription } = usePurchases(organizationId);
+	const { activePlan, hasBlockingSubscription } = usePurchases(organizationId);
 
 	return (
 		<SettingsItem
@@ -24,7 +24,7 @@ export function ChangePlan({
 			<PricingTable
 				organizationId={organizationId}
 				userId={userId}
-				activePlanId={activePlanId}
+				activePlanId={activePlan?.id ?? activePlanId}
 				subscriptionBlocked={hasBlockingSubscription}
 			/>
 		</SettingsItem>

@@ -144,6 +144,49 @@ describe("listPurchases", () => {
 			expect.anything(),
 		);
 	});
+	it.each(["PENDING", "RETRYING", "COMPLETED"] as const)(
+		"publishes %s refund termination without internal evidence or errors",
+		async (status) => {
+			vi.mocked(getPurchasesByUserId).mockResolvedValue([
+				{
+					id: "refund-purchase",
+					provider: "paypal",
+					productKind: "PLAN",
+					type: "SUBSCRIPTION",
+					userId: "user-1",
+					organizationId: null,
+					mediaSubscription: {
+						id: "refund-subscription",
+						status: "CANCELED",
+						provider: "paypal",
+						ownerType: "USER",
+						ownerId: "user-1",
+						cancelAtPeriodEnd: true,
+						currentPeriodEnd: new Date(),
+						refundTerminationRequestedAt: new Date(),
+						refundTerminatedAt: status === "COMPLETED" ? new Date() : null,
+						refundTerminationError: status === "RETRYING" ? "internal-response" : null,
+						refundTerminationPaymentId: "internal-payment",
+						refundTerminationEnvironment: "sandbox",
+						plan: {
+							provider: "paypal",
+							priceMicros: 19000000n,
+							currency: "USD",
+							metadata: { planId: "creator", interval: "month" },
+						},
+					},
+				},
+			] as never);
+			const result = await call(listPurchases, {}, { context: { headers: new Headers() } });
+			expect(result[0]).toMatchObject({
+				isEffectiveSubscription: false,
+				subscription: { refundTermination: status },
+			});
+			expect(JSON.stringify(result)).not.toMatch(
+				/internal-response|internal-payment|sandbox|mediaSubscription/,
+			);
+		},
+	);
 
 	it("rejects access to purchases for an organization the user does not belong to", async () => {
 		vi.mocked(getOrganizationMembership).mockResolvedValueOnce(null);

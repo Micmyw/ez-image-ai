@@ -12,11 +12,17 @@ import { SubscriptionStatusBadge } from "../../settings/components/SubscriptionS
 
 export function ActivePlan({ organizationId }: { organizationId?: string; seats?: number }) {
 	const t = useTranslations();
-	const { activePlan, activeSubscriptions } = usePurchases(organizationId);
+	const { activePlan, activeSubscriptions, purchases } = usePurchases(organizationId);
 	const plans = activeSubscriptions.length ? activeSubscriptions : activePlan ? [activePlan] : [];
 	if (!plans.length) return null;
 	return (
 		<SettingsItem title={t("settings.billing.activePlan.title")}>
+			{activeSubscriptions.length === 0 &&
+				purchases.some((p) => p.subscription?.refundTermination === "COMPLETED") && (
+					<output className="mb-4 text-sm block">
+						{t("settings.billing.activePlan.refundTerminated")}
+					</output>
+				)}
 			{activeSubscriptions.length > 1 && (
 				<output className="mb-4 text-sm text-amber-700 block">
 					{t("settings.billing.activePlan.multipleSubscriptions")}
@@ -55,6 +61,7 @@ function ActivePlanCard({
 	const price = "price" in activePlan ? activePlan.price : null;
 	const cancellationScheduled = activePlan.subscription?.cancelAtPeriodEnd === true;
 	const periodEnd = activePlan.subscription?.currentPeriodEnd;
+	const refundTermination = activePlan.subscription?.refundTermination;
 
 	return (
 		<div className="p-4 rounded-lg border">
@@ -64,7 +71,7 @@ function ActivePlanCard({
 					<h4 className="font-bold text-lg text-primary">
 						<span>{activePlanData.title}</span>
 					</h4>
-					{activePlan.status && (
+					{activePlan.status && !refundTermination && (
 						<SubscriptionStatusBadge
 							status={cancellationScheduled ? "canceling" : activePlan.status}
 						/>
@@ -85,14 +92,23 @@ function ActivePlanCard({
 						{t("settings.billing.activePlan.effectivePlan")}
 					</p>
 				)}
-				{!cancellationScheduled && periodEnd && (
+				{refundTermination && (
+					<output className="mt-2 text-sm block">
+						{t(
+							refundTermination === "RETRYING"
+								? "settings.billing.activePlan.refundTerminationRetrying"
+								: "settings.billing.activePlan.refundTerminationPending",
+						)}
+					</output>
+				)}
+				{!refundTermination && !cancellationScheduled && periodEnd && (
 					<p className="mt-2 text-sm text-muted-foreground">
 						{t("settings.billing.activePlan.currentPeriodEnd", {
 							date: format.dateTime(periodEnd, { dateStyle: "medium" }),
 						})}
 					</p>
 				)}
-				{cancellationScheduled && periodEnd && (
+				{!refundTermination && cancellationScheduled && periodEnd && (
 					<p className="mt-2 text-sm text-muted-foreground">
 						{t("settings.billing.activePlan.cancellationScheduled", {
 							date: format.dateTime(periodEnd, { dateStyle: "medium" }),
@@ -100,7 +116,7 @@ function ActivePlanCard({
 					</p>
 				)}
 
-				{!!activePlanData.features?.length && (
+				{!refundTermination && !!activePlanData.features?.length && (
 					<ul className="mt-2 gap-2 text-sm grid list-none">
 						{activePlanData.features.map((feature, key) => (
 							<li key={key} className="flex items-center justify-start">
@@ -111,7 +127,7 @@ function ActivePlanCard({
 					</ul>
 				)}
 
-				{price && (
+				{price && !refundTermination && (
 					<strong
 						className="mt-2 font-medium text-2xl lg:text-3xl block"
 						data-test="price-table-plan-price"
@@ -142,7 +158,7 @@ function ActivePlanCard({
 				)}
 			</div>
 
-			{"purchaseId" in activePlan && activePlan.purchaseId && (
+			{!refundTermination && "purchaseId" in activePlan && activePlan.purchaseId && (
 				<div className="mt-4 flex justify-end">
 					<div className="gap-2 md:flex-row flex w-full flex-col flex-wrap">
 						{activePlan.providerCapabilities.portal ? (

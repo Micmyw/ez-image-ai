@@ -20,6 +20,7 @@ export async function findEffectivePaidSubscription(
 		where: {
 			ownerType: input.ownerType,
 			ownerId: input.ownerId,
+			refundTerminationRequestedAt: null,
 			OR: [
 				{
 					status: { in: ["ACTIVE", "CANCELED"] },

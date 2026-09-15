@@ -5,15 +5,37 @@ import { db } from "../client";
 import { purchase } from "../schema/postgres";
 import type { PurchaseInsertSchema, PurchaseUpdateSchema } from "../zod";
 
+const billingPlanForPurchase = {
+	mediaSubscription: {
+		columns: {
+			id: true,
+			status: true,
+			ownerType: true,
+			ownerId: true,
+			provider: true,
+			cancelAtPeriodEnd: true,
+			currentPeriodEnd: true,
+			refundTerminationRequestedAt: true,
+			refundTerminatedAt: true,
+			refundTerminationError: true,
+		},
+		with: {
+			plan: { columns: { provider: true, priceMicros: true, currency: true, metadata: true } },
+		},
+	},
+} as const;
+
 export async function getPurchasesByOrganizationId(organizationId: string) {
 	return db.query.purchase.findMany({
 		where: (purchase, { eq }) => eq(purchase.organizationId, organizationId),
+		with: billingPlanForPurchase,
 	});
 }
 
 export async function getPurchasesByUserId(userId: string) {
 	return db.query.purchase.findMany({
 		where: (purchase, { eq }) => eq(purchase.userId, userId),
+		with: billingPlanForPurchase,
 	});
 }
 

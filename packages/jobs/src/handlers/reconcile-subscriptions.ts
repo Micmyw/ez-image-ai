@@ -8,6 +8,7 @@ import {
 	isPaymentProviderConfigured,
 	paymentReconciliationScope,
 	reconcileProviderPaymentEvents,
+	recoverRefundTerminations,
 } from "@repo/payments";
 import { requeuePreviouslyUnsupportedRefunds } from "@repo/payments";
 
@@ -33,6 +34,7 @@ export async function reconcileSubscriptions(
 	const providerReconciliation = [];
 	const providerErrors: unknown[] = [];
 	await requeuePreviouslyUnsupportedRefunds(db);
+	await recoverRefundTerminations(db);
 	for (const provider of ["paypal", "waffo"] as const) {
 		if (!isPaymentProviderConfigured(provider)) continue;
 		try {

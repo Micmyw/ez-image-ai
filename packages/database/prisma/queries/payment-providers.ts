@@ -267,7 +267,9 @@ async function assertSubscriptionCheckoutAllowed(
 		where: {
 			ownerType: input.ownerType,
 			ownerId: input.ownerId,
+			refundTerminatedAt: null,
 			OR: [
+				{ refundTerminationRequestedAt: { not: null } },
 				{ status: { in: ["PENDING", "ACTIVE", "PAST_DUE"] } },
 				{ status: "EXPIRED", cancelAtPeriodEnd: false },
 				{ status: "CANCELED", currentPeriodEnd: { gt: now } },

@@ -13,6 +13,7 @@ import type {
 	ProviderBillingPeriodFact,
 	ProviderPaymentFact,
 } from "./lifecycle-normalization";
+import { wakeRefundTermination } from "./refund-termination";
 import { createAnnualBillingPeriods } from "./stripe/events";
 
 type TransactionClient = Prisma.TransactionClient;
@@ -89,6 +90,29 @@ export async function applyProviderBillingFact(
 		}
 		// Historical callbacks authenticate against their immutable Purchase above.
 		// They must not change the payer selected by a later owned checkout.
+	}
+
+	if (subscription.refundTerminationRequestedAt) {
+		if (!subscription.refundTerminatedAt && ["CANCELED", "EXPIRED"].includes(fact.status)) {
+			// A verified closure notification wakes inspection; it does not by
+			// itself bypass the current provider read or refund finalization fence.
+			await wakeRefundTermination(subscription.id, client);
+		}
+		if (fact.payment) {
+			const knownPayment = await client.billingPeriod.findFirst({
+				where: {
+					subscriptionId: subscription.id,
+					providerInvoicePaymentId: `${fact.provider}:${fact.payment.providerPaymentId}`,
+				},
+			});
+			if (!knownPayment) {
+				// The processor retains the verified receipt as DEAD_LETTER with an
+				// audit entry for financial review/compensation. Never grant old rights.
+				throw new Error("PAYMENT_PROVIDER_TERMINATED_SUBSCRIPTION_PAYMENT_REVIEW_REQUIRED");
+			}
+			await validatePayment(fact, subscription, client);
+		}
+		return { grantsCreated: 0 };
 	}
 
 	const lifecyclePeriod = fact.currentPeriod

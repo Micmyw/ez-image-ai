@@ -3,6 +3,30 @@ import { describe, expect, it } from "vitest";
 import { createPurchasesHelper, type ResolvedPurchase } from "./helper";
 
 describe("createPurchasesHelper", () => {
+	it.each(["PENDING", "RETRYING", "COMPLETED"] as const)(
+		"keeps refunded access off and gates resubscription for %s",
+		(refundTermination) => {
+			const result = createPurchasesHelper([
+				{
+					id: "refund",
+					type: "SUBSCRIPTION",
+					productKind: "PLAN",
+					status: "canceled",
+					provider: "paypal",
+					planId: "creator",
+					isEffectiveSubscription: false,
+					planPrice: { type: "subscription", interval: "month", amount: 19, currency: "USD" },
+					subscription: {
+						cancelAtPeriodEnd: true,
+						currentPeriodEnd: new Date(Date.now() + 86400000),
+						refundTermination,
+					},
+				} as ResolvedPurchase,
+			]);
+			expect(result.activePlan?.id).toBe("free");
+			expect(result.hasBlockingSubscription).toBe(refundTermination !== "COMPLETED");
+		},
+	);
 	it.each(["canceled", "expired"])("retains the correct access and management for %s", (status) => {
 		const effective = status === "canceled";
 		const result = createPurchasesHelper([

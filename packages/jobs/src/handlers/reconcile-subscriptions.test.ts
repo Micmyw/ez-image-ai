@@ -53,6 +53,7 @@ describe("subscription deadline reconciliation", () => {
 		expect(subscriptionUpdate).toHaveBeenCalledWith(
 			expect.objectContaining({
 				where: {
+					refundTerminationRequestedAt: null,
 					OR: [
 						{ status: "ACTIVE", currentPeriodEnd: { lte: now } },
 						{ status: "CANCELED", currentPeriodEnd: { lte: now } },

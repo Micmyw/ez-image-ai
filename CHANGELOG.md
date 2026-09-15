@@ -4,6 +4,10 @@
 
 ### Payments and subscription credits
 
+- Automatically request renewal cancellation when the latest PayPal or Waffo subscription payment
+  is fully refunded. Revoke its benefits immediately and retry unconfirmed cancellation durably.
+  Once the provider confirms cancellation, allow immediate resubscription across plans and payment
+  methods. Fence old callbacks and retain unexpected new charges for financial review.
 - Keep prepaid benefits and monthly annual-plan grants after automatic renewal is canceled.
 - Apply PayPal and Waffo subscription and Credit Pack refunds, including PayPal reversals, with
   cumulative credit recovery and debt accounting for credits already consumed.

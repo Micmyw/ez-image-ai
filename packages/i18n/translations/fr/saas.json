@@ -808,6 +808,9 @@
 					"pending": "En attente"
 				},
 				"title": "Votre forfait",
+				"refundTerminationPending": "Votre paiement a été intégralement remboursé et les avantages du forfait ont pris fin. Nous confirmons l’annulation du renouvellement avant que vous puissiez vous réabonner.",
+				"refundTerminationRetrying": "Les avantages de votre forfait remboursé ont pris fin. L’annulation du renouvellement reste à confirmer ; nous continuerons à réessayer. Vous pourrez vous réabonner après confirmation.",
+				"refundTerminated": "Votre abonnement remboursé a pris fin et l’annulation du renouvellement est confirmée. Vous pouvez vous réabonner dès maintenant avec tout moyen de paiement disponible.",
 				"cancellationScheduled": "Votre forfait reste disponible jusqu’au {date}. Il ne sera pas renouvelé.",
 				"multipleSubscriptions": "Plusieurs abonnements sont encore ouverts. Vérifiez les moyens de paiement ci-dessous et annulez les renouvellements inutiles.",
 				"paymentMethod": "Moyen de paiement : {provider}",
