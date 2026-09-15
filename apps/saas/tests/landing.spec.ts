@@ -376,7 +376,9 @@ test("the production homepage excludes account tools, charts, and documentation 
 			}),
 		);
 	const scripts = await readResources(resources.scripts);
-	const styles = [...(await readResources(resources.styles)), ...resources.inlineStyles];
+	const externalStyles = await readResources(resources.styles);
+	const styles = [...externalStyles, ...resources.inlineStyles];
+	const html = (await response?.text()) ?? "";
 	expect(resources.styles, "First visits must not wait for separate stylesheets").toHaveLength(0);
 	expect(resources.inlineStyles.length, "Next must inline the initial styles").toBeGreaterThan(0);
 	for (const marker of ["current-editor-result", "notifications.markAllRead"]) {
@@ -406,11 +408,23 @@ test("the production homepage excludes account tools, charts, and documentation 
 		firstPartyScripts: scripts.length,
 		javascriptBytes: scripts.reduce((total, source) => total + Buffer.byteLength(source), 0),
 		javascriptGzipBytes: scripts.reduce((total, source) => total + gzipSync(source).length, 0),
+		htmlBytes: Buffer.byteLength(html),
+		htmlGzipBytes: gzipSync(html).length,
 		stylesheets: resources.styles.length,
 		inlineStylesheets: resources.inlineStyles.length,
 		cssBytes: styles.reduce((total, source) => total + Buffer.byteLength(source), 0),
 		cssGzipBytes: styles.reduce((total, source) => total + gzipSync(source).length, 0),
 	};
+	const initialTextGzipBytes =
+		summary.javascriptGzipBytes +
+		summary.htmlGzipBytes +
+		externalStyles.reduce((total, source) => total + gzipSync(source).length, 0);
+	// Count inline styles inside HTML only. Moving CSS into HTML must not conceal
+	// a transfer regression behind a smaller number of stylesheet requests.
+	expect(
+		initialTextGzipBytes,
+		"Initial HTML, scripts, and external CSS exceed the budget",
+	).toBeLessThan(520 * 1024);
 	console.log("Homepage production resources:", JSON.stringify(summary));
 	await testInfo.attach("homepage-resources.json", {
 		body: JSON.stringify(summary, null, 2),
