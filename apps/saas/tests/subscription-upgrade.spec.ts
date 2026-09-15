@@ -19,6 +19,12 @@ test.describe("subscription upgrade checkout recovery", () => {
 			 WHERE provider='e2e' AND "providerSubscriptionId"=$1`,
 			[subscriptionId],
 		);
+		await pool.query(
+			`DELETE FROM billing_period WHERE "subscriptionId" IN (
+				SELECT id FROM subscription WHERE provider='e2e' AND "providerSubscriptionId"=$1
+			)`,
+			[subscriptionId],
+		);
 	});
 
 	test.afterEach(async () => {
@@ -51,7 +57,7 @@ test.describe("subscription upgrade checkout recovery", () => {
 		expect(growthEvents.map(({ name }) => name)).not.toContain("checkout_started");
 	});
 
-	test("subscription upgrade waits for server activation and restores the editor", async ({
+	test("subscription upgrade waits for verified payment and restores the editor", async ({
 		page,
 	}) => {
 		const growthEvents = await captureConsentedGrowthEvents(page);
@@ -61,14 +67,14 @@ test.describe("subscription upgrade checkout recovery", () => {
 
 		await page.goto(`/create?asset=${source.id}`);
 		await page.getByLabel(/edit instruction|image prompt/i).fill(prompt);
-		await page.locator('[data-test="editor-model-trigger"]').click();
+		await page.getByRole("button", { name: /^Model: / }).click();
 		await page.getByRole("button", { name: "GPT Image", exact: true }).click();
 		await page.locator('[data-test="editor-model-image-gpt-image-2"]').click();
 		const dialog = page.getByRole("dialog", { name: /unlock more image models/i });
 		await expect(dialog).toBeHidden();
+		await expect(page.getByRole("button", { name: /^Model: / })).toContainText("GPT Image 2");
 		await page.locator('[data-test="editor-model-upgrade"]').click();
 		await expect(dialog).toContainText(/image, instruction, and model settings stay saved/i);
-		await expect(page.locator('[data-test="editor-model-trigger"]')).toContainText("GPT Image 2");
 		await dialog.getByRole("button", { name: /choose a plan/i }).click();
 
 		await expect(page).toHaveURL(/\/choose-plan\?returnTo=/);
@@ -95,11 +101,19 @@ test.describe("subscription upgrade checkout recovery", () => {
 		await expect(page.getByText(/confirming your purchase/i)).toBeVisible();
 		expect(await freeGrantCount(user.id)).toBe(grantCountBeforeReturn);
 		await activateCreatorFixture(user.id);
+		const unpaidState = await page.request.post("/api/rpc/payments/getCheckoutReturnState", {
+			data: { json: { expectedPlanId: "creator" } },
+		});
+		expect(unpaidState.ok()).toBe(true);
+		expect(await unpaidState.json()).toMatchObject({
+			json: { status: "PENDING", planId: null, paidThrough: null },
+		});
+		await recordCreatorPaymentFixture();
 
 		await expect(page).toHaveURL(/\/create\?model=image-gpt-image-2$/, { timeout: 15_000 });
 		await expect(page.getByText(/your paid plan is active/i)).toBeVisible();
 		await expect(page.getByLabel(/edit instruction|image prompt/i)).toHaveValue(prompt);
-		await expect(page.locator('[data-test="editor-model-trigger"]')).toContainText("GPT Image 2");
+		await expect(page.getByRole("button", { name: /^Model: / })).toContainText("GPT Image 2");
 		await expect(page.getByRole("img", { name: /selected source image/i })).toBeVisible();
 		await expect
 			.poll(() =>
@@ -132,6 +146,21 @@ async function activateCreatorFixture(userId: string): Promise<void> {
 			"currentPeriodStart"=EXCLUDED."currentPeriodStart",
 			"currentPeriodEnd"=EXCLUDED."currentPeriodEnd", "graceEndsAt"=NULL, "updatedAt"=now()`,
 		[`subscription-${runId}-free-upgrade`, userId, subscriptionId, plan.id],
+	);
+}
+
+async function recordCreatorPaymentFixture(): Promise<void> {
+	await pool.query(
+		`INSERT INTO billing_period (
+			id, "subscriptionId", "startsAt", "endsAt", status,
+			"paidAmount", "creditAmount", "providerInvoicePaymentId", "createdAt", "updatedAt"
+		 ) SELECT $1, id, "currentPeriodStart", "currentPeriodEnd", 'ACTIVE',
+			19000000, 700, $2, now(), now()
+		   FROM subscription WHERE provider='e2e' AND "providerSubscriptionId"=$3
+		 ON CONFLICT (id) DO UPDATE SET
+			"startsAt"=EXCLUDED."startsAt", "endsAt"=EXCLUDED."endsAt", status='ACTIVE',
+			"paidAmount"=EXCLUDED."paidAmount", "updatedAt"=now()`,
+		[`period-${runId}-free-upgrade`, `${subscriptionId}:local-payment`, subscriptionId],
 	);
 }
 
