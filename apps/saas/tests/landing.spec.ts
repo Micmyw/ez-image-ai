@@ -556,14 +556,14 @@ test("the public root exposes the image editor before authentication", async ({ 
 	await page.goto("/");
 
 	await expect(page).toHaveURL(/\/$/);
-	await expect(page).toHaveTitle(/EzPic AI Image Generator/i);
+	await expect(page).toHaveTitle(/AI Image Editor No Restrictions/i);
 	const canonical = await page.locator('link[rel="canonical"]').getAttribute("href");
 	expect(canonical).not.toBeNull();
 	expect(new URL(canonical!).origin).toBe(new URL(page.url()).origin);
 	await expect(
 		page.getByRole("heading", {
 			level: 1,
-			name: /ai image generator.*editor/i,
+			name: /ai image editor no restrictions/i,
 		}),
 	).toBeVisible();
 	await expect(page.locator("#landing-source-image")).toBeAttached();

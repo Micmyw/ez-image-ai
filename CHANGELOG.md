@@ -9,7 +9,8 @@
   the meaning of "No Restrictions" in an additional FAQ. Preserve existing instructions, FAQs
   and generation features.
 - Read the actual English translations in the hero regression check so unrelated feature copy
-  changes cannot silently replace the homepage keyword contract.
+  changes cannot silently replace the homepage keyword contract. Align public-route and guest
+  landing browser checks with the restored title and H1.
 
 ### Payment availability
 
