@@ -1,7 +1,9 @@
 import { call } from "@orpc/server";
 import type { Session } from "@repo/auth";
 import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+afterEach(() => vi.unstubAllEnvs());
 
 const {
 	bindCheckoutIntent,
@@ -138,6 +140,7 @@ const billingPlan = {
 describe("createCheckoutLink", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.stubEnv("BILLING_ENABLED", "true");
 		vi.mocked(assertPaymentSubscriptionCheckoutAllowed).mockResolvedValue(undefined);
 		paymentsConfig.billingAttachedTo = "user";
 		process.env.NEXT_PUBLIC_SAAS_URL = "https://app.ezpic.test";
@@ -194,6 +197,24 @@ describe("createCheckoutLink", () => {
 				providerPriceId: "P-ATTACKER-CONTROLLED",
 			}),
 		).toMatchObject({ success: false });
+	});
+
+	it("stops new checkouts before touching providers or the ledger when billing is disabled", async () => {
+		vi.stubEnv("BILLING_ENABLED", "false");
+		await expect(
+			call(
+				createCheckoutLink,
+				{
+					provider: "paypal",
+					planId: "creator",
+					interval: "month",
+					idempotencyKey: "disabled-checkout-0001",
+				},
+				{ context: { headers: new Headers() } },
+			),
+		).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
+		expect(createCheckoutIntent).not.toHaveBeenCalled();
+		expect(providerCheckout).not.toHaveBeenCalled();
 	});
 
 	it.each(["PROVIDER_PENDING", "PROVIDER_CREATING"])(
@@ -299,7 +320,7 @@ describe("createCheckoutLink", () => {
 	it("fails closed before persistence or provider access for a stale pricing snapshot", async () => {
 		findBillingPlan.mockResolvedValue({
 			...billingPlan,
-			metadata: { ...billingPlan.metadata, pricingVersion: "2026-08-25.1" },
+			metadata: { ...billingPlan.metadata, billingPricingVersion: "2026-08-25.1" },
 		});
 
 		await expect(

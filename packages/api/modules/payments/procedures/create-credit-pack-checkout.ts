@@ -23,6 +23,7 @@ import { z } from "zod";
 
 import { protectedProcedure } from "../../../orpc/procedures";
 import { verifyOrganizationBillingManagement } from "../../organizations/lib/membership";
+import { assertNewBillingEnabled, assertBillingEnvironmentReady } from "../billing-gate";
 import { isExactCreditPackBillingPlanSnapshot } from "../provider-availability";
 import { recoverProviderCreatingCheckout } from "./checkout-recovery";
 
@@ -50,6 +51,8 @@ export const createCreditPackCheckout = protectedProcedure
 	.input(creditPackCheckoutInputSchema)
 	.output(z.object({ checkoutLink: z.url() }))
 	.handler(async ({ input, context: { session, user } }) => {
+		assertNewBillingEnabled();
+		await assertBillingEnvironmentReady();
 		const { provider, packKey, idempotencyKey } = input;
 		if (!isPaymentProviderConfigured(provider)) throw new ORPCError("NOT_FOUND");
 

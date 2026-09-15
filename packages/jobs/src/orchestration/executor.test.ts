@@ -213,7 +213,17 @@ describe("Node task executor", () => {
 			limit: 100,
 			continuationSequence: 0,
 			scheduleContinuation: expect.any(Function),
+			scheduleProviderReconciliation: expect.any(Function),
 		});
+		await mocks.subscriptions.mock.calls[0]![0].scheduleProviderReconciliation(
+			"paypal",
+			"persisted-provider-cursor",
+		);
+		expect(mocks.dispatch).toHaveBeenCalledWith(
+			"media-reconcile-provider-payments",
+			{ provider: "paypal" },
+			{ idempotencyKey: "persisted-provider-cursor" },
+		);
 	});
 
 	it("rejects unregistered work and invalid attempt context before touching domain handlers", async () => {
@@ -527,6 +537,7 @@ describe("Node task executor", () => {
 			expectedSweepId: "sweep-1",
 			continuationSequence: 4,
 			scheduleContinuation: expect.any(Function),
+			scheduleProviderReconciliation: expect.any(Function),
 		});
 		const schedule = mocks.subscriptions.mock.calls[0]![0].scheduleContinuation as (input: {
 			sweepId: string;

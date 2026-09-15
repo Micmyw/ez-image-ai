@@ -143,6 +143,42 @@ export async function recoverPayPalCheckout(
 	}
 }
 
+export async function inspectPayPalSubscriptionCheckout(
+	http: PayPalHttpBoundary,
+	configuration: PayPalAuthorizedConfiguration,
+	input: { checkoutIntentId: string; providerSessionId: string; priceId: string },
+): Promise<"PENDING" | "PAID" | "CLOSED" | "UNKNOWN"> {
+	const response = await http.request({
+		method: "GET",
+		url: `${configuration.baseUrl}/v1/billing/subscriptions/${encodeURIComponent(input.providerSessionId)}`,
+		headers: { Authorization: `Bearer ${configuration.accessToken}` },
+	});
+	const body = recordValue(response.body);
+	if (
+		response.status !== 200 ||
+		body?.id !== input.providerSessionId ||
+		body?.custom_id !== input.checkoutIntentId ||
+		body?.plan_id !== input.priceId
+	)
+		return "UNKNOWN";
+	if (body.status === "CANCELLED" || body.status === "EXPIRED") {
+		const billing = recordValue(body.billing_info);
+		if (!billing) return "UNKNOWN";
+		if (
+			billing.last_payment ||
+			(Array.isArray(billing.cycle_executions) &&
+				billing.cycle_executions.some(
+					(cycle) => Number(recordValue(cycle)?.cycles_completed ?? 0) > 0,
+				))
+		)
+			return "PAID";
+		return "CLOSED";
+	}
+	if (body.status === "APPROVAL_PENDING" || body.status === "APPROVED") return "PENDING";
+	if (body.status === "ACTIVE" || body.status === "SUSPENDED") return "PAID";
+	return "UNKNOWN";
+}
+
 async function createPayPalOrderCheckoutLink(
 	http: PayPalHttpBoundary,
 	configuration: PayPalAuthorizedConfiguration,

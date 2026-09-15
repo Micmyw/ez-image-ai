@@ -60,6 +60,16 @@ function resolvePurchasePlanId(purchase: ResolvedPurchase) {
 }
 
 function isBlockingSubscription(purchase: ResolvedPurchase) {
+	if (purchase.productKind === "PLAN" && purchase.type === "SUBSCRIPTION") {
+		if (purchase.isEffectiveSubscription === true) return true;
+		// A locally expired entitlement does not prove that the provider has
+		// stopped recurring charges. Preserve the cancellation entry point.
+		if (
+			purchase.status?.toLowerCase() === "expired" &&
+			purchase.subscription?.cancelAtPeriodEnd === false
+		)
+			return true;
+	}
 	return (
 		purchase.productKind === "PLAN" &&
 		purchase.type === "SUBSCRIPTION" &&

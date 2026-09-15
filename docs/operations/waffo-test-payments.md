@@ -45,7 +45,9 @@ Next.js does not automatically select `.env.test.local` during `next dev`; load 
 Call the dotenv CLI through Node on this Windows/pnpm installation: wrapping it in `pnpm exec`
 can consume the argument separator and drop the child command's options.
 Provider availability requires configured credentials, product IDs, and an exact active
-`BillingPlan` snapshot. `BILLING_ENABLED` alone is not a universal checkout stop switch.
+`BillingPlan` snapshot. `BILLING_ENABLED=false` blocks new subscription and Credit Pack checkout
+on the server. Existing payment capture, webhooks, cancellation, refunds and reconciliation continue.
+See [production payment cutover](payment-production-cutover.md) before selecting `prod`.
 
 ## Products and billing snapshots
 

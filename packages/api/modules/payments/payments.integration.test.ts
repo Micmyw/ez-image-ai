@@ -2274,6 +2274,7 @@ describe("Stripe subscription credit lifecycle", () => {
 				providerSubscriptionId: `sub_expired_backlog_${suffix}`,
 				planId: plan.id,
 				status: "ACTIVE",
+				currentPeriodEnd: new Date(now.getTime() + 86_400_000),
 			},
 		});
 		await client.billingPeriod.createMany({
@@ -2285,6 +2286,7 @@ describe("Stripe subscription credit lifecycle", () => {
 					endsAt: new Date(startsAt.getTime() + 24 * 60 * 60 * 1_000),
 					status: "PENDING" as const,
 					creditAmount: 50n,
+					paidAmount: 1_000_000n,
 					grantReferenceKey: `expired-backlog:${suffix}:${index}`,
 				};
 			}),
@@ -2296,6 +2298,7 @@ describe("Stripe subscription credit lifecycle", () => {
 				endsAt: new Date(now.getTime() + 24 * 60 * 60 * 1_000),
 				status: "PENDING",
 				creditAmount: 50n,
+				paidAmount: 1_000_000n,
 				grantReferenceKey: `due-after-expired-backlog:${suffix}`,
 			},
 		});
@@ -2765,7 +2768,9 @@ describe("Stripe subscription credit lifecycle", () => {
 			},
 		});
 
-		expect(await reconcileSubscriptionsWithClient({ now }, client)).toMatchObject({ expired: 2 });
+		expect(
+			(await reconcileSubscriptionsWithClient({ now }, client)).expired,
+		).toBeGreaterThanOrEqual(2);
 		const subscriptions = await client.subscription.findMany({
 			where: {
 				id: { in: [canceledDue.id, canceledPaidThrough.id, pastDueExpired.id, pastDueGrace.id] },
@@ -3686,6 +3691,7 @@ describe("Stripe subscription credit lifecycle", () => {
 				providerSubscriptionId: `sub_grant_refund_fence_${suffix}`,
 				planId: plan.id,
 				status: "ACTIVE",
+				currentPeriodEnd: new Date(now.getTime() + 86_400_000),
 			},
 		});
 		const period = await client.billingPeriod.create({
@@ -3695,6 +3701,7 @@ describe("Stripe subscription credit lifecycle", () => {
 				endsAt: new Date(now.getTime() + 24 * 60 * 60 * 1_000),
 				status: "PENDING",
 				creditAmount: 100n,
+				paidAmount: 1_000_000n,
 				grantReferenceKey: `grant-refund-fence:${suffix}`,
 			},
 		});

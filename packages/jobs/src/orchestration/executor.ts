@@ -25,6 +25,7 @@ import { grantBillingPeriods } from "../handlers/grant-billing-periods";
 import { processPaymentEvent } from "../handlers/process-payment-event";
 import { processProviderEvent } from "../handlers/process-provider-event";
 import { reconcileGenerations } from "../handlers/reconcile-generations";
+import { reconcileProviderPayments } from "../handlers/reconcile-provider-payments";
 import {
 	reconcileSubscriptions,
 	type StripeReconciliationContinuation,
@@ -107,6 +108,16 @@ export async function executeTask(
 			{ ...continuation },
 			{ idempotencyKey: continuation.continuationKey },
 		);
+	const scheduleProviderReconciliation = async (
+		provider: "paypal" | "waffo",
+		continuationKey: string,
+	) => {
+		await dispatch(
+			"media-reconcile-provider-payments",
+			{ provider },
+			{ idempotencyKey: continuationKey },
+		);
+	};
 
 	if (dispatchRouteForTask(taskId)) {
 		const registry = createProviderRegistry(environment);
@@ -245,7 +256,19 @@ export async function executeTask(
 			);
 		}
 		case "media-reconcile-subscriptions":
-			return reconcileSubscriptions({ limit: 100, continuationSequence: 0, scheduleContinuation });
+			return reconcileSubscriptions({
+				limit: 100,
+				continuationSequence: 0,
+				scheduleContinuation,
+				scheduleProviderReconciliation,
+			});
+		case "media-reconcile-provider-payments": {
+			const input = parseTaskPayload(taskId, payload);
+			return reconcileProviderPayments({
+				provider: input.provider,
+				scheduleNext: scheduleProviderReconciliation,
+			});
+		}
 		case "media-reconcile-subscriptions-continuation": {
 			const continuation = parseTaskPayload(taskId, payload);
 			return reconcileSubscriptions({
@@ -253,6 +276,7 @@ export async function executeTask(
 				expectedSweepId: continuation.sweepId,
 				continuationSequence: continuation.sequence,
 				scheduleContinuation,
+				scheduleProviderReconciliation,
 			});
 		}
 		case "media-recover-finalizing-generations":

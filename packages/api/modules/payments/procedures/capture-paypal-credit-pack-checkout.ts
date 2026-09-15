@@ -68,6 +68,7 @@ export const capturePayPalCreditPackCheckout = protectedProcedure
 			const persisted = await ingestPaymentEvent(
 				{
 					provider: "paypal",
+					providerEnvironment: process.env.PAYPAL_ENVIRONMENT,
 					providerEventId: captured.providerEventId,
 					normalizedTransactionId: captured.normalizedTransactionId,
 					verifiedAt: receivedAt,

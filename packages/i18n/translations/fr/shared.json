@@ -1,5 +1,15 @@
 {
 	"pricing": {
+		"pendingCheckout": {
+			"title": "Souscription inachevée",
+			"description": "Un paiement avec {provider} reste en cours. Reprenez-le ou vérifiez sa fermeture avant de démarrer une autre souscription.",
+			"resume": "Reprendre le paiement",
+			"refresh": "Vérifier le statut",
+			"PENDING": "L’approbation est toujours en attente. Reprenez ce paiement ou contactez l’assistance pour changer votre choix.",
+			"PAID": "Le prestataire a activé cette souscription. Nous confirmons le paiement et mettons votre compte à jour.",
+			"CLOSED": "Le paiement est fermé. Vous pouvez choisir une nouvelle souscription.",
+			"UNKNOWN": "La fermeture n’a pas été confirmée. Réessayez plus tard ou contactez l’assistance."
+		},
 		"annualSummary": "Facturé {total} par an · économisez {savings} ({percent}%) par rapport à 12 paiements mensuels",
 		"annualTotal": "Facturé {total} par an",
 		"aspectRatios": "Formats portrait, carré et paysage",

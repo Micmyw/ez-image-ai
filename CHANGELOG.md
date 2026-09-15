@@ -2,6 +2,18 @@
 
 ## 2026-09-15
 
+### Payments and subscription credits
+
+- Keep prepaid benefits and monthly annual-plan grants after automatic renewal is canceled.
+- Apply PayPal and Waffo subscription and Credit Pack refunds, including PayPal reversals, with
+  cumulative credit recovery and debt accounting for credits already consumed.
+- Recover unfinished checkout links and missed payment notifications. Require paid-through evidence
+  before confirming a subscription or granting paid-model access.
+- Stop fully refunded subscriptions from retaining paid access through an older payment during a
+  grace period, and keep checkout confirmation consistent with that rule.
+- Enforce the new-purchase billing switch and reject test payment data and unmarked plan snapshots
+  when switching to live collection. Separate subscription pricing versions from image pricing.
+
 ### Homepage loading
 
 - Reduce initial JavaScript with selective UI imports and load documentation styles only on

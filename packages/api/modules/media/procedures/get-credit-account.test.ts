@@ -14,9 +14,12 @@ vi.mock("@repo/database/client", () => ({
 	db: {
 		creditAccount: { findUnique: database.findAccount },
 		creditLot: { aggregate: database.aggregateLots },
-		subscription: { findFirst: database.findSubscription },
 		generationJob: { count: database.countActiveJobs },
 	},
+}));
+vi.mock("@repo/database", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@repo/database")>()),
+	findEffectivePaidSubscription: database.findSubscription,
 }));
 vi.mock("../lib/free-plan-credits", () => ({
 	ensureFreePlanCreditsForUser: freeCredits.ensure,

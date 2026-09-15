@@ -117,6 +117,9 @@ const payloadParsers = {
 	"media-grant-billing-periods": scheduled,
 	"media-reconcile-generations": scheduled,
 	"media-reconcile-subscriptions": scheduled,
+	"media-reconcile-provider-payments": strictObject({
+		provider: (value) => (value === "paypal" || value === "waffo" ? value : invalid()),
+	}),
 	"media-recover-finalizing-generations": scheduled,
 	"media-recover-verifications": scheduled,
 	"media-recover-payment-events": scheduled,
@@ -196,6 +199,12 @@ const definitions: Record<keyof typeof payloadParsers, TaskDefinition> = {
 	"media-grant-billing-periods": definition("media-billing-periods", 1, 120),
 	"media-reconcile-generations": definition("media-reconciliation", 1, 240),
 	"media-reconcile-subscriptions": definition("media-subscription-reconciliation", 1, 120, 5),
+	"media-reconcile-provider-payments": definition(
+		"media-provider-payment-reconciliation",
+		1,
+		120,
+		5,
+	),
 	"media-reconcile-subscriptions-continuation": definition(
 		"media-subscription-reconciliation",
 		1,

@@ -23,7 +23,16 @@ export const webhookHandler = createPaymentWebhookHandler({
 	},
 	async persist(input) {
 		const { db, ingestPaymentEvent } = await import("@repo/database");
-		const result = await ingestPaymentEvent({ ...input, envelope: input.envelope as never }, db);
+		const providerEnvironment =
+			input.provider === "paypal"
+				? process.env.PAYPAL_ENVIRONMENT
+				: input.provider === "waffo"
+					? process.env.WAFFO_ENVIRONMENT
+					: undefined;
+		const result = await ingestPaymentEvent(
+			{ ...input, providerEnvironment, envelope: input.envelope as never },
+			db,
+		);
 		return { replayed: result.replayed };
 	},
 });

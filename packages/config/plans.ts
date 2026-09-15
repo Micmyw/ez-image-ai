@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+// Subscription USD prices and monthly allowances have their own immutable cohort.
+// Image SKU repricing must not disable unchanged subscription plans.
+export const BILLING_PRICING_VERSION = "2026-09-15.1";
+
 import {
 	EZPIC_PRODUCT_KEYS,
 	IMAGE_SKU_CREDIT_COSTS,

@@ -430,6 +430,66 @@ describe("credit-pack payment lifecycle", () => {
 		}
 	});
 
+	it("applies a PayPal capture reversal after a partial pack refund without double withdrawal", async () => {
+		const fixture = await createPackCheckout(client, {
+			label: "capture-reversal",
+			orderId: `ORDER-REVERSED-${RUN_ID}`,
+			paidAt: new Date("2026-09-01T03:00:00Z"),
+			subscriberBonusEligible: false,
+		});
+		ownerIds.push(fixture.ownerId);
+		billingPlanIds.push(fixture.billingPlanId);
+		const captureId = `CAPTURE-REVERSED-${RUN_ID}`;
+		const payment = await ingestCaptureEvent(client, fixture, {
+			providerEventId: `capture-reversed-${RUN_ID}`,
+			captureId,
+			amount: "59.00",
+		});
+		await processProviderPaymentEvent({ paymentEventId: payment.id }, client);
+		const partial = await ingestRefundEvent(client, fixture, {
+			providerEventId: `partial-reversal-${RUN_ID}`,
+			refundId: `PARTIAL-REV-${RUN_ID}`,
+			captureId,
+			amount: "29.50",
+		});
+		await processProviderPaymentEvent({ paymentEventId: partial.id }, client);
+		const providerEventId = `reversal-${RUN_ID}`;
+		const event = (
+			await ingestPaymentEvent(
+				{
+					provider: "paypal",
+					providerEventId,
+					verifiedAt: new Date(),
+					envelope: {
+						id: providerEventId,
+						event_type: "PAYMENT.CAPTURE.REVERSED",
+						create_time: "2026-09-02T00:00:00Z",
+						resource: { id: captureId, amount: { value: "59.00", currency_code: "USD" } },
+					},
+				},
+				client,
+			)
+		).event;
+		await expect(
+			processProviderPaymentEvent({ paymentEventId: event.id }, client),
+		).resolves.toMatchObject({ outcome: "PROCESSED" });
+		await processProviderPaymentEvent({ paymentEventId: event.id }, client);
+		expect(
+			await client.creditPackFulfillment.findUniqueOrThrow({
+				where: { checkoutIntentId: fixture.checkoutIntentId },
+			}),
+		).toMatchObject({
+			status: "REFUNDED",
+			refundedAmountMicros: 59000000n,
+			refundedCredits: 1500n,
+		});
+		expect(
+			await client.creditAccount.findUniqueOrThrow({
+				where: { ownerType_ownerId: { ownerType: "USER", ownerId: fixture.ownerId } },
+			}),
+		).toMatchObject({ spendableCredits: 0n, creditDebt: 0n });
+	});
+
 	it("turns a full refund of already-consumed pack credits into credit debt", async () => {
 		const fixture = await createPackCheckout(client, {
 			label: "consumed-refund",
@@ -780,7 +840,7 @@ describe("credit-pack payment lifecycle", () => {
 		).toBe(0);
 	});
 
-	it("dead-letters Waffo refund events without changing the fulfilled pack ledger", async () => {
+	it("applies a successful Waffo refund once and ignores a failed refund attempt", async () => {
 		const fixture = await createPackCheckout(client, {
 			label: "waffo-refund-review",
 			provider: "waffo",
@@ -837,12 +897,12 @@ describe("credit-pack payment lifecycle", () => {
 					{ paymentEventId: refund.id, now: new Date("2026-09-01T01:00:00Z") },
 					client,
 				),
-			).resolves.toEqual({ outcome: "DEAD_LETTER", grantsCreated: 0 });
+			).resolves.toEqual({ outcome: "PROCESSED", grantsCreated: 0 });
 			await expect(
 				client.paymentEvent.findUniqueOrThrow({ where: { id: refund.id } }),
 			).resolves.toMatchObject({
-				status: "DEAD_LETTER",
-				failureReason: "PAYMENT_PROVIDER_REFUND_REVIEW_REQUIRED",
+				status: "PROCESSED",
+				failureReason: null,
 			});
 		}
 		await expect(
@@ -859,29 +919,34 @@ describe("credit-pack payment lifecycle", () => {
 					providerPaymentId: true,
 				},
 			}),
-		).resolves.toEqual(fulfillmentBefore);
+		).resolves.toEqual({
+			...fulfillmentBefore,
+			status: "REFUNDED",
+			refundedAmountMicros: 59_000_000n,
+			refundedCredits: 1_500n,
+		});
 		await expect(
 			client.purchase.findUniqueOrThrow({
 				where: { id: fulfillmentBefore.purchaseId! },
 				select: { status: true, productKind: true, type: true, customerId: true },
 			}),
-		).resolves.toEqual(purchaseBefore);
+		).resolves.toEqual({ ...purchaseBefore, status: "refunded" });
 		await expect(
 			client.creditAccount.findUniqueOrThrow({
 				where: { ownerType_ownerId: { ownerType: "USER", ownerId: fixture.ownerId } },
 				select: { spendableCredits: true, reservedCredits: true, creditDebt: true },
 			}),
-		).resolves.toEqual(accountBefore);
+		).resolves.toEqual({ ...accountBefore, spendableCredits: 0n });
 		expect(
 			await client.creditPackAdjustment.count({
 				where: { fulfillmentId: fulfillmentBefore.id },
 			}),
-		).toBe(0);
+		).toBe(1);
 		expect(
 			await client.creditLedgerEntry.count({
 				where: { account: { ownerType: "USER", ownerId: fixture.ownerId } },
 			}),
-		).toBe(ledgerCountBefore);
+		).toBe(ledgerCountBefore + 1);
 	});
 });
 
@@ -1161,11 +1226,13 @@ async function ingestWaffoRefundEvent(
 			envelope: {
 				id: input.providerEventId,
 				eventType: input.eventType,
+				eventId: input.refundId,
 				timestamp: occurredAt.toISOString(),
 				data: {
 					orderId: fixture.orderId,
 					paymentId: input.paymentId,
 					refundId: input.refundId,
+					refundStatus: input.eventType === "refund.succeeded" ? "succeeded" : "failed",
 					amount: "59.00",
 					currency: "USD",
 				},

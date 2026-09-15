@@ -40,7 +40,8 @@ export interface CreditPackPaymentFact {
 }
 
 export interface CreditPackRefundFact {
-	provider: "paypal";
+	provider: "paypal" | "waffo";
+	adjustmentKind?: "REFUND" | "REVERSAL";
 	providerEventId: string;
 	providerRefundId: string;
 	providerPaymentId: string;
@@ -49,10 +50,16 @@ export interface CreditPackRefundFact {
 	occurredAt: Date;
 }
 
+export interface ProviderRefundFact extends CreditPackRefundFact {
+	providerSubscriptionId?: string;
+}
+
 export type NormalizedProviderPaymentEvent =
 	| { kind: "SUBSCRIPTION"; fact: ProviderBillingFact }
 	| { kind: "CREDIT_PACK_PAID"; fact: CreditPackPaymentFact }
-	| { kind: "CREDIT_PACK_REFUNDED"; fact: CreditPackRefundFact };
+	| { kind: "CREDIT_PACK_REFUNDED"; fact: CreditPackRefundFact }
+	| { kind: "PAYMENT_REFUNDED"; fact: ProviderRefundFact }
+	| { kind: "NOOP"; fact: { occurredAt: Date } };
 
 export function normalizeProviderPaymentEvent(
 	provider: Extract<PaymentProviderName, "paypal" | "waffo">,
@@ -64,8 +71,33 @@ export function normalizeProviderPaymentEvent(
 		if (eventType === "order.completed") {
 			return { kind: "CREDIT_PACK_PAID", fact: normalizeWaffoCreditPackPayment(envelope) };
 		}
-		if (eventType.startsWith("refund.")) {
-			throw new Error("PAYMENT_PROVIDER_REFUND_REVIEW_REQUIRED");
+		if (eventType === "refund.failed") {
+			const data = requiredRecord(envelope.data, "WAFFO_EVENT_DATA_MISSING");
+			if (data.refundStatus !== "failed") throw new Error("WAFFO_REFUND_STATUS_INVALID");
+			return {
+				kind: "NOOP",
+				fact: { occurredAt: requiredDate(envelope.timestamp, "WAFFO_EVENT_TIME_INVALID") },
+			};
+		}
+		if (eventType === "refund.succeeded") {
+			const data = requiredRecord(envelope.data, "WAFFO_EVENT_DATA_MISSING");
+			if (data.refundStatus !== "succeeded") throw new Error("WAFFO_REFUND_STATUS_INVALID");
+			return {
+				kind: "PAYMENT_REFUNDED",
+				fact: {
+					provider,
+					providerEventId: getWaffoEventId(envelope),
+					providerRefundId: requiredString(envelope.eventId, "WAFFO_REFUND_ID_MISSING"),
+					providerPaymentId: requiredString(data.paymentId, "WAFFO_PAYMENT_ID_MISSING"),
+					providerSubscriptionId: requiredString(data.orderId, "WAFFO_ORDER_ID_MISSING"),
+					amountMicros: decimalMicros(data.amount, "WAFFO_REFUND_AMOUNT_INVALID"),
+					currency: currency(data.currency, "WAFFO_REFUND_CURRENCY_INVALID"),
+					occurredAt: requiredDate(
+						data.refundCreatedAt ?? envelope.timestamp,
+						"WAFFO_EVENT_TIME_INVALID",
+					),
+				},
+			};
 		}
 		return { kind: "SUBSCRIPTION", fact: normalizeWaffoEvent(envelope) };
 	}
@@ -76,6 +108,64 @@ export function normalizeProviderPaymentEvent(
 	}
 	if (eventType === "PAYMENT.CAPTURE.REFUNDED") {
 		return { kind: "CREDIT_PACK_REFUNDED", fact: normalizePayPalCreditPackRefund(envelope) };
+	}
+	if (eventType === "PAYMENT.CAPTURE.REVERSED") {
+		const resource = requiredRecord(envelope.resource, "PAYPAL_EVENT_RESOURCE_MISSING");
+		const amount = requiredRecord(resource.amount, "PAYPAL_REFUND_AMOUNT_INVALID");
+		const paymentId = requiredString(resource.id, "PAYPAL_REFUND_CAPTURE_ID_MISSING");
+		return {
+			kind: "PAYMENT_REFUNDED",
+			fact: {
+				provider,
+				providerEventId: requiredString(envelope.id, "PAYPAL_EVENT_ID_MISSING"),
+				providerRefundId: `reversal:${paymentId}`,
+				providerPaymentId: paymentId,
+				adjustmentKind: "REVERSAL",
+				amountMicros: decimalMicros(amount.value ?? amount.total, "PAYPAL_REFUND_AMOUNT_INVALID"),
+				currency: currency(
+					amount.currency_code ?? amount.currency,
+					"PAYPAL_REFUND_CURRENCY_INVALID",
+				),
+				occurredAt: requiredDate(
+					resource.update_time ?? envelope.create_time,
+					"PAYPAL_EVENT_TIME_INVALID",
+				),
+			},
+		};
+	}
+	if (eventType === "PAYMENT.SALE.REFUNDED" || eventType === "PAYMENT.SALE.REVERSED") {
+		const resource = requiredRecord(envelope.resource, "PAYPAL_EVENT_RESOURCE_MISSING");
+		const reversal = eventType === "PAYMENT.SALE.REVERSED";
+		if (resource.state !== (reversal ? "reversed" : "completed"))
+			throw new Error("PAYPAL_REFUND_STATUS_INVALID");
+		const amount = requiredRecord(resource.amount, "PAYPAL_REFUND_AMOUNT_INVALID");
+		const paymentId = requiredString(
+			reversal ? resource.id : resource.sale_id,
+			"PAYPAL_REFUND_SALE_ID_MISSING",
+		);
+		return {
+			kind: "PAYMENT_REFUNDED",
+			fact: {
+				provider,
+				providerEventId: requiredString(envelope.id, "PAYPAL_EVENT_ID_MISSING"),
+				providerRefundId: reversal
+					? `reversal:${paymentId}`
+					: requiredString(resource.id, "PAYPAL_REFUND_ID_MISSING"),
+				providerPaymentId: paymentId,
+				...(optionalString(resource.billing_agreement_id)
+					? { providerSubscriptionId: optionalString(resource.billing_agreement_id)! }
+					: {}),
+				adjustmentKind: reversal ? "REVERSAL" : "REFUND",
+				amountMicros: decimalMicros(amount.total, "PAYPAL_REFUND_AMOUNT_INVALID"),
+				currency: currency(amount.currency, "PAYPAL_REFUND_CURRENCY_INVALID"),
+				occurredAt: requiredDate(
+					reversal
+						? (resource.update_time ?? envelope.create_time)
+						: (resource.create_time ?? envelope.create_time),
+					"PAYPAL_EVENT_TIME_INVALID",
+				),
+			},
+		};
 	}
 	return { kind: "SUBSCRIPTION", fact: normalizePayPalEvent(envelope) };
 }
@@ -199,7 +289,7 @@ function normalizePayPalEvent(value: unknown): ProviderBillingFact {
 		checkoutIntentId: optionalString(resource.custom_id),
 		providerCustomerId: optionalString(subscriber?.payer_id),
 		status,
-		cancelAtPeriodEnd: eventType === "BILLING.SUBSCRIPTION.CANCELLED" || status === "CANCELED",
+		cancelAtPeriodEnd: status === "CANCELED" || status === "EXPIRED",
 		occurredAt: requiredDate(
 			eventType.startsWith("BILLING.SUBSCRIPTION.")
 				? envelope.create_time

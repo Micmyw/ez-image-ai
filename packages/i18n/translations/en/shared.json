@@ -1,5 +1,15 @@
 {
 	"pricing": {
+		"pendingCheckout": {
+			"title": "Unfinished subscription checkout",
+			"description": "You have an unfinished checkout with {provider}. Resume it or check whether it has closed before starting another subscription.",
+			"resume": "Resume checkout",
+			"refresh": "Check payment status",
+			"PENDING": "Approval is still pending. Resume this checkout or contact support to change your selection.",
+			"PAID": "The provider has activated this subscription. We are confirming its payment and updating your account.",
+			"CLOSED": "The checkout is closed. You can now choose a subscription again.",
+			"UNKNOWN": "Closure has not been confirmed. Try again later or contact support."
+		},
 		"annualSummary": "Billed {total} yearly · save {savings} ({percent}%) vs 12 monthly payments",
 		"annualTotal": "Billed {total} yearly",
 		"aspectRatios": "Portrait, square, and landscape ratios",

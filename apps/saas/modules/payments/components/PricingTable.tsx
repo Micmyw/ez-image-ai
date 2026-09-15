@@ -24,6 +24,7 @@ import {
 	type SubscriptionCheckoutProvider,
 } from "./checkout-attempt";
 import { PaymentProviderSelector } from "./PaymentProviderSelector";
+import { PendingSubscriptionCheckout } from "./PendingSubscriptionCheckout";
 
 const plans = paymentsConfig.plans;
 
@@ -123,6 +124,7 @@ export function PricingTable({
 
 	return (
 		<div className={cn("@container", className)}>
+			{(userId || organizationId) && <PendingSubscriptionCheckout />}
 			{checkoutConflict && (
 				<p className="mb-4 text-sm text-center text-destructive" role="alert">
 					{t(

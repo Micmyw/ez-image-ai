@@ -54,6 +54,7 @@ describe("subscription deadline reconciliation", () => {
 			expect.objectContaining({
 				where: {
 					OR: [
+						{ status: "ACTIVE", currentPeriodEnd: { lte: now } },
 						{ status: "CANCELED", currentPeriodEnd: { lte: now } },
 						{ status: "PAST_DUE", graceEndsAt: { lte: now } },
 					],

@@ -252,7 +252,7 @@ export type CreditPackFulfillmentScalarFieldEnum = z.infer<typeof CreditPackFulf
 
 // File: CreditPackAdjustmentScalarFieldEnum.schema.ts
 
-export const CreditPackAdjustmentScalarFieldEnumSchema = z.enum(['id', 'fulfillmentId', 'provider', 'providerAdjustmentId', 'amountMicros', 'currency', 'status', 'providerCreatedAt', 'lastProviderChangeAt', 'lastProviderChangeId', 'finalizedCredits', 'creditsFinalizedAt', 'refundReferenceKey', 'createdAt', 'updatedAt'])
+export const CreditPackAdjustmentScalarFieldEnumSchema = z.enum(['id', 'fulfillmentId', 'provider', 'providerAdjustmentId', 'kind', 'amountMicros', 'currency', 'status', 'providerCreatedAt', 'lastProviderChangeAt', 'lastProviderChangeId', 'finalizedCredits', 'creditsFinalizedAt', 'refundReferenceKey', 'createdAt', 'updatedAt'])
 
 export type CreditPackAdjustmentScalarFieldEnum = z.infer<typeof CreditPackAdjustmentScalarFieldEnumSchema>;
 
@@ -262,9 +262,21 @@ export const BillingPeriodScalarFieldEnumSchema = z.enum(['id', 'subscriptionId'
 
 export type BillingPeriodScalarFieldEnum = z.infer<typeof BillingPeriodScalarFieldEnumSchema>;
 
+// File: SubscriptionPaymentAdjustmentScalarFieldEnum.schema.ts
+
+export const SubscriptionPaymentAdjustmentScalarFieldEnumSchema = z.enum(['id', 'subscriptionId', 'provider', 'providerPaymentId', 'providerAdjustmentId', 'kind', 'amountMicros', 'currency', 'providerCreatedAt', 'paymentEventId', 'finalizedCredits', 'creditsFinalizedAt', 'createdAt'])
+
+export type SubscriptionPaymentAdjustmentScalarFieldEnum = z.infer<typeof SubscriptionPaymentAdjustmentScalarFieldEnumSchema>;
+
+// File: PaymentReconciliationCheckpointScalarFieldEnum.schema.ts
+
+export const PaymentReconciliationCheckpointScalarFieldEnumSchema = z.enum(['id', 'provider', 'windowStart', 'windowEnd', 'cursor', 'leaseToken', 'leasedUntil', 'lastCompletedAt', 'lastError', 'updatedAt'])
+
+export type PaymentReconciliationCheckpointScalarFieldEnum = z.infer<typeof PaymentReconciliationCheckpointScalarFieldEnumSchema>;
+
 // File: PaymentEventScalarFieldEnum.schema.ts
 
-export const PaymentEventScalarFieldEnumSchema = z.enum(['id', 'provider', 'providerEventId', 'normalizedTransactionId', 'providerSubscriptionId', 'verifiedAt', 'receivedAt', 'envelope', 'status', 'processedAt', 'failureReason', 'attemptCount', 'lastTriggerAttempt', 'lastAttemptAt', 'lastTriggerRunId', 'lastErrorClass', 'processingToken', 'processingLeasedUntil'])
+export const PaymentEventScalarFieldEnumSchema = z.enum(['id', 'provider', 'providerEnvironment', 'providerEventId', 'normalizedTransactionId', 'providerSubscriptionId', 'verifiedAt', 'receivedAt', 'envelope', 'status', 'processedAt', 'failureReason', 'attemptCount', 'lastTriggerAttempt', 'lastAttemptAt', 'lastTriggerRunId', 'lastErrorClass', 'processingToken', 'processingLeasedUntil'])
 
 export type PaymentEventScalarFieldEnum = z.infer<typeof PaymentEventScalarFieldEnumSchema>;
 
@@ -1460,6 +1472,7 @@ export const CreditPackAdjustmentSchema = z.object({
   fulfillmentId: z.string(),
   provider: z.string(),
   providerAdjustmentId: z.string(),
+  kind: z.string().default("REFUND"),
   amountMicros: z.bigint(),
   currency: z.string(),
   status: CreditPackAdjustmentStatusSchema,
@@ -1500,11 +1513,51 @@ export const BillingPeriodSchema = z.object({
 export type BillingPeriodType = z.infer<typeof BillingPeriodSchema>;
 
 
+// File: SubscriptionPaymentAdjustment.schema.ts
+
+export const SubscriptionPaymentAdjustmentSchema = z.object({
+  id: z.string(),
+  subscriptionId: z.string(),
+  provider: z.string(),
+  providerPaymentId: z.string(),
+  providerAdjustmentId: z.string(),
+  kind: z.string().default("REFUND"),
+  amountMicros: z.bigint(),
+  currency: z.string(),
+  providerCreatedAt: z.date(),
+  paymentEventId: z.string().nullish(),
+  finalizedCredits: z.bigint().default(BigInt("0")),
+  creditsFinalizedAt: z.date().nullish(),
+  createdAt: z.date(),
+});
+
+export type SubscriptionPaymentAdjustmentType = z.infer<typeof SubscriptionPaymentAdjustmentSchema>;
+
+
+// File: PaymentReconciliationCheckpoint.schema.ts
+
+export const PaymentReconciliationCheckpointSchema = z.object({
+  id: z.string(),
+  provider: z.string(),
+  windowStart: z.date(),
+  windowEnd: z.date().nullish(),
+  cursor: z.string().nullish(),
+  leaseToken: z.string().nullish(),
+  leasedUntil: z.date().nullish(),
+  lastCompletedAt: z.date().nullish(),
+  lastError: z.string().nullish(),
+  updatedAt: z.date(),
+});
+
+export type PaymentReconciliationCheckpointType = z.infer<typeof PaymentReconciliationCheckpointSchema>;
+
+
 // File: PaymentEvent.schema.ts
 
 export const PaymentEventSchema = z.object({
   id: z.string(),
   provider: z.string(),
+  providerEnvironment: z.string().nullish(),
   providerEventId: z.string(),
   normalizedTransactionId: z.string().nullish(),
   providerSubscriptionId: z.string().nullish(),

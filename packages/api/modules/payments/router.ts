@@ -12,8 +12,14 @@ import { getCreditPackCheckoutState } from "./procedures/get-credit-pack-checkou
 import { getCreditPackProviderAvailability } from "./procedures/get-credit-pack-provider-availability";
 import { getProviderAvailability } from "./procedures/get-provider-availability";
 import { listPurchases } from "./procedures/list-purchases";
+import {
+	getPendingSubscriptionCheckout,
+	refreshPendingSubscriptionCheckout,
+} from "./procedures/pending-subscription-checkout";
 
 export const paymentsRouter = {
+	getPendingSubscriptionCheckout,
+	refreshPendingSubscriptionCheckout,
 	approveStripeRefundRepair,
 	applyStripeRefundRepair,
 	cancelPurchaseSubscription,

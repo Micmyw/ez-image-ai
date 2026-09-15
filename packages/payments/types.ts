@@ -188,6 +188,16 @@ export type PaymentProvider = {
 	capabilities: PaymentProviderCapabilities;
 	createCheckout: CreateProviderCheckout;
 	recoverCheckout?: RecoverProviderCheckout;
+	listPaymentEvents?: (
+		window: import("./provider/event-source").ProviderEventWindow,
+	) => Promise<import("./provider/event-source").ProviderEventPage>;
+	inspectCheckout?: (input: {
+		checkoutIntentId: string;
+		providerSessionId: string;
+		priceId: string;
+		expiresAt: Date | null;
+		now: Date;
+	}) => Promise<"PENDING" | "PAID" | "CLOSED" | "UNKNOWN">;
 	captureCheckout?: (params: CaptureCheckoutOptions) => Promise<CapturedCheckoutEvent>;
 	createPortal?: CreateCustomerPortalLink;
 	cancelSubscription?: CancelSubscription;

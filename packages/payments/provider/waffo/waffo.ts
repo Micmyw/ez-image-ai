@@ -180,6 +180,62 @@ export function createWaffoWebhookVerifier(
 	};
 }
 
+export async function inspectWaffoSubscriptionCheckout(
+	client: WaffoSdkBoundary,
+	storeId: string,
+	input: { checkoutIntentId: string; expiresAt: Date | null; now: Date },
+): Promise<"PENDING" | "PAID" | "CLOSED" | "UNKNOWN"> {
+	if (!client.graphql) return "UNKNOWN";
+	const result = await client.graphql.query<{
+		subscriptionOrders: Array<{
+			id: string;
+			status: string;
+			orderMerchantExternalId: string;
+			activateAt: string | null;
+			currentPeriodStart: string | null;
+			payments: Array<{ status: string }>;
+		}>;
+	}>({
+		query: `query InspectCheckout($storeId: String!, $externalId: String!) { subscriptionOrders(storeId: $storeId, limit: 2, filter: { orderMerchantExternalId: { eq: $externalId } }) { id status orderMerchantExternalId activateAt currentPeriodStart payments { status } } }`,
+		variables: { storeId, externalId: input.checkoutIntentId },
+	});
+	const orders = result.data?.subscriptionOrders;
+	if (
+		result.errors?.length ||
+		result.warnings?.length ||
+		!Array.isArray(orders) ||
+		orders.length > 1 ||
+		orders.some((order) => order.orderMerchantExternalId !== input.checkoutIntentId)
+	)
+		return "UNKNOWN";
+	if (!orders.length)
+		return input.expiresAt &&
+			input.now.getTime() > input.expiresAt.getTime() + WAFFO_LOST_SESSION_RETRY_DELAY_MS
+			? "CLOSED"
+			: "UNKNOWN";
+	const order = orders[0]!;
+	const status = order.status;
+	if (status === "closed" || status === "canceled") {
+		if (
+			order.activateAt ||
+			order.currentPeriodStart ||
+			order.payments?.some((payment) => payment.status === "succeeded")
+		)
+			return "PAID";
+		if (
+			order.activateAt === null &&
+			order.currentPeriodStart === null &&
+			Array.isArray(order.payments) &&
+			order.payments.every((payment) => payment.status === "failed")
+		)
+			return "CLOSED";
+		return "UNKNOWN";
+	}
+	if (status === "pending") return "PENDING";
+	if (["active", "past_due", "canceling"].includes(status)) return "PAID";
+	return "UNKNOWN";
+}
+
 function recordValue(value: unknown): Record<string, unknown> | null {
 	return value && typeof value === "object" && !Array.isArray(value)
 		? (value as Record<string, unknown>)

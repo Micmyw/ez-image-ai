@@ -32,6 +32,7 @@ export async function reconcileSubscriptionsWithClient(
 					? { provider: providerFilter }
 					: {}),
 			OR: [
+				{ status: "ACTIVE", currentPeriodEnd: { lte: now } },
 				{ status: "CANCELED", currentPeriodEnd: { lte: now } },
 				{ status: "PAST_DUE", graceEndsAt: { lte: now } },
 			],

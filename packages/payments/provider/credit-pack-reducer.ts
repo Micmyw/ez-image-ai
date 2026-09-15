@@ -71,7 +71,7 @@ export async function applyCreditPackPaymentFact(
 			},
 			client,
 		);
-		if (fact.provider === "paypal") {
+		if (fact.provider === "paypal" || fact.provider === "waffo") {
 			await requeueCreditPackRefundEventsMissingCheckoutCorrelation(
 				{ provider: fact.provider, providerPaymentId: fact.providerPaymentId },
 				client,
@@ -194,7 +194,7 @@ export async function applyCreditPackPaymentFact(
 			payload: { creditPackFulfillmentId: fulfillment.id },
 		},
 	});
-	if (fact.provider === "paypal") {
+	if (fact.provider === "paypal" || fact.provider === "waffo") {
 		await requeueCreditPackRefundEventsMissingCheckoutCorrelation(
 			{ provider: fact.provider, providerPaymentId: fact.providerPaymentId },
 			client,
@@ -243,6 +243,7 @@ export async function applyCreditPackRefundFact(
 		if (
 			adjustment.fulfillmentId !== fulfillment.id ||
 			adjustment.amountMicros !== fact.amountMicros ||
+			adjustment.kind !== (fact.adjustmentKind ?? "REFUND") ||
 			adjustment.currency !== fact.currency ||
 			adjustment.status !== "SUCCEEDED"
 		) {
@@ -255,6 +256,7 @@ export async function applyCreditPackRefundFact(
 				fulfillmentId: fulfillment.id,
 				provider: fact.provider,
 				providerAdjustmentId: fact.providerRefundId,
+				kind: fact.adjustmentKind ?? "REFUND",
 				amountMicros: fact.amountMicros,
 				currency: fact.currency,
 				status: "SUCCEEDED",
@@ -265,11 +267,17 @@ export async function applyCreditPackRefundFact(
 		});
 	}
 
-	const totals = await client.creditPackAdjustment.aggregate({
+	const adjustments = await client.creditPackAdjustment.findMany({
 		where: { fulfillmentId: fulfillment.id, status: "SUCCEEDED" },
-		_sum: { amountMicros: true },
 	});
-	const refundedAmountMicros = totals._sum.amountMicros ?? 0n;
+	const refunds = adjustments
+		.filter((row) => row.kind === "REFUND")
+		.reduce((sum, row) => sum + row.amountMicros, 0n);
+	const reversals = adjustments
+		.filter((row) => row.kind === "REVERSAL")
+		.reduce((max, row) => (row.amountMicros > max ? row.amountMicros : max), 0n);
+	if (refunds > fulfillment.paidAmountMicros) throw new Error("CREDIT_PACK_REFUND_AMOUNT_INVALID");
+	const refundedAmountMicros = refunds > reversals ? refunds : reversals;
 	const targetCredits = calculateCreditPackRefundTargetCredits({
 		grantedCredits: fulfillment.grantedCredits,
 		paidAmountMicros: fulfillment.paidAmountMicros,

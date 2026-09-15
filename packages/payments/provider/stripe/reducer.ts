@@ -615,7 +615,8 @@ async function applySubscriptionFact(
 		where: { id: existing.id },
 		data: {
 			status: fact.status,
-			cancelAtPeriodEnd: fact.cancelAtPeriodEnd || fact.status === "CANCELED",
+			cancelAtPeriodEnd:
+				fact.cancelAtPeriodEnd || fact.status === "CANCELED" || fact.status === "EXPIRED",
 			lastProviderEventAt: fact.context.changeAt,
 			lastProviderEventId: fact.context.changeId,
 			currentPeriodStart: fact.currentPeriodStart,
@@ -905,7 +906,8 @@ export async function grantDueBillingPeriods(
 			status: "PENDING",
 			startsAt: { lte: now },
 			endsAt: { gt: now },
-			subscription: { status: "ACTIVE" },
+			paidAmount: { gt: 0n },
+			subscription: { status: { in: ["ACTIVE", "CANCELED"] }, currentPeriodEnd: { gt: now } },
 		},
 		select: { id: true },
 		orderBy: [{ startsAt: "asc" }, { id: "asc" }],
@@ -926,7 +928,10 @@ export async function grantDueBillingPeriods(
 				period.status !== "PENDING" ||
 				period.startsAt > now ||
 				period.endsAt <= now ||
-				period.subscription.status !== "ACTIVE" ||
+				!["ACTIVE", "CANCELED"].includes(period.subscription.status) ||
+				!period.subscription.currentPeriodEnd ||
+				period.subscription.currentPeriodEnd <= now ||
+				period.paidAmount <= 0n ||
 				!period.grantReferenceKey
 			) {
 				return false;
