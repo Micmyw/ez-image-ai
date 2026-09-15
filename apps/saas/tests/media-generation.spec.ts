@@ -29,7 +29,8 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 				});
 		});
 		await page.goto("/models/gpt-image-2");
-		await expect(page.locator('[data-test="editor-model-trigger"]')).toContainText("GPT Image 2", {
+		// Role queries exclude the hidden placeholder retained during streamed hydration.
+		await expect(page.getByRole("button", { name: /^Model: / })).toContainText("GPT Image 2", {
 			timeout: 30_000,
 		});
 		await page.getByLabel(/edit instruction|image prompt/i).fill(prompt);
@@ -526,7 +527,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await openCreator(page, marker("mobile", "Warm the evening light", 0), fundedEmail);
 
 		await expect(page.getByRole("img", { name: /selected source image/i })).toBeVisible();
-		const modelTrigger = page.locator('[data-test="editor-model-trigger"]');
+		const modelTrigger = page.getByRole("button", { name: /^Model: / });
 		await expect(modelTrigger).toBeEnabled();
 		await modelTrigger.focus();
 		await page.keyboard.press("Enter");

@@ -1110,6 +1110,9 @@ model Subscription {
   currentPeriodStart               DateTime?          @db.Timestamptz(3)
   currentPeriodEnd                 DateTime?          @db.Timestamptz(3)
   cancelAtPeriodEnd                Boolean            @default(false)
+  cancellationRequestedAt          DateTime?          @db.Timestamptz(3)
+  renewalDisabledAt                DateTime?          @db.Timestamptz(3)
+  cancellationError                String?
   scheduledPlanId                  String?
   lastProviderEventAt              DateTime?          @db.Timestamptz(3)
   lastProviderEventId              String?
@@ -1117,9 +1120,15 @@ model Subscription {
   lastReconciliationAppliedSweepId String?
   lastReconciledAt                 DateTime?          @db.Timestamptz(3)
   graceEndsAt                      DateTime?          @db.Timestamptz(3)
+  refundTerminationRequestedAt     DateTime?          @db.Timestamptz(3)
+  refundTerminationPaymentId       String?
+  refundTerminationEnvironment     String?
+  refundTerminatedAt               DateTime?          @db.Timestamptz(3)
+  refundTerminationError            String?
   createdAt                        DateTime           @default(now()) @db.Timestamptz(3)
   updatedAt                        DateTime           @updatedAt @db.Timestamptz(3)
   periods                          BillingPeriod[]
+  paymentAdjustments               SubscriptionPaymentAdjustment[]
 
   @@unique([provider, providerSubscriptionId])
   @@index([ownerType, ownerId, status])
@@ -1240,6 +1249,7 @@ model CreditPackAdjustment {
   fulfillment          CreditPackFulfillment      @relation(fields: [fulfillmentId], references: [id], onDelete: Restrict)
   provider             String
   providerAdjustmentId String
+  kind                 String                     @default("REFUND")
   amountMicros         BigInt
   currency             String
   status               CreditPackAdjustmentStatus
@@ -1289,9 +1299,49 @@ model BillingPeriod {
   @@map("billing_period")
 }
 
+// Successful provider adjustments are bound to one immutable payment. Failed or
+// pending notifications remain PaymentEvents and do not change credit balances.
+model SubscriptionPaymentAdjustment {
+  id                   String       @id @default(cuid())
+  subscriptionId       String
+  subscription         Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Restrict)
+  provider             String
+  providerPaymentId    String
+  providerAdjustmentId String
+  kind                 String       @default("REFUND")
+  amountMicros         BigInt
+  currency             String
+  providerCreatedAt    DateTime     @db.Timestamptz(3)
+  paymentEventId       String?
+  finalizedCredits     BigInt       @default(0)
+  creditsFinalizedAt   DateTime?    @db.Timestamptz(3)
+  createdAt            DateTime     @default(now()) @db.Timestamptz(3)
+
+  @@unique([provider, providerAdjustmentId], map: "subscription_payment_adjustment_provider_adjustment_key")
+  @@index([provider, providerPaymentId])
+  @@index([subscriptionId])
+  @@map("subscription_payment_adjustment")
+}
+
+model PaymentReconciliationCheckpoint {
+  id              String    @id
+  provider        String
+  windowStart     DateTime  @db.Timestamptz(3)
+  windowEnd       DateTime? @db.Timestamptz(3)
+  cursor          String?
+  leaseToken      String?
+  leasedUntil     DateTime? @db.Timestamptz(3)
+  lastCompletedAt DateTime? @db.Timestamptz(3)
+  lastError       String?
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+
+  @@map("payment_reconciliation_checkpoint")
+}
+
 model PaymentEvent {
   id                      String                @id @default(cuid())
   provider                String
+  providerEnvironment     String?
   providerEventId         String
   normalizedTransactionId String?
   providerSubscriptionId  String?

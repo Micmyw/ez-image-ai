@@ -58,7 +58,8 @@ const environment = {
 	GUEST_HARD_BUDGET_MICROS: undefined,
 	NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY: "",
 	GUEST_TURNSTILE_SECRET_KEY: "",
-	MEDIA_TRUSTED_PROXY_PROVIDER: "",
+	// The loopback-only guest browser fixture supplies cf-connecting-ip.
+	MEDIA_TRUSTED_PROXY_PROVIDER: "cloudflare",
 	NODE_ENV: process.env.E2E_USE_PRODUCTION_BUILD === "true" ? "production" : "development",
 };
 

@@ -10,6 +10,7 @@ import { logger } from "@repo/logs";
 import { applyCreditPackPaymentFact, applyCreditPackRefundFact } from "./credit-pack-reducer";
 import { normalizeProviderPaymentEvent } from "./lifecycle-normalization";
 import { applyProviderBillingFact } from "./lifecycle-reducer";
+import { applyProviderRefundFact } from "./refund-reducer";
 import type { PaymentEventAttempt } from "./stripe/processor";
 
 interface ProcessResult {
@@ -79,13 +80,14 @@ export async function processClaimedProviderPaymentEvent(
 		  }
 		| undefined;
 	let creditPackRefundCorrelationCandidate:
-		| { provider: "paypal"; providerPaymentId: string }
+		| { provider: NonStripeProvider; providerPaymentId: string }
 		| undefined;
 	try {
 		const event = await client.paymentEvent.findUnique({
 			where: { id: input.paymentEventId },
 			select: {
 				provider: true,
+				providerEnvironment: true,
 				status: true,
 				processingToken: true,
 				processingLeasedUntil: true,
@@ -104,6 +106,13 @@ export async function processClaimedProviderPaymentEvent(
 		}
 		durableAttemptCount = event.attemptCount;
 		const provider = nonStripeProvider(event.provider);
+		const configuredEnvironment =
+			process.env[provider === "paypal" ? "PAYPAL_ENVIRONMENT" : "WAFFO_ENVIRONMENT"];
+		if (
+			(configuredEnvironment === "live" || configuredEnvironment === "prod") &&
+			event.providerEnvironment !== configuredEnvironment
+		)
+			throw new Error("PAYMENT_PROVIDER_ENVIRONMENT_MISMATCH");
 		const normalized = normalizeProviderPaymentEvent(provider, event.envelope);
 		if (normalized.kind === "CREDIT_PACK_PAID" && normalized.fact.checkoutIntentId) {
 			creditPackReviewCandidate = {
@@ -113,7 +122,7 @@ export async function processClaimedProviderPaymentEvent(
 				providerCustomerId: normalized.fact.providerCustomerId,
 			};
 		}
-		if (normalized.kind === "CREDIT_PACK_REFUNDED" && normalized.fact.provider === "paypal") {
+		if (normalized.kind === "CREDIT_PACK_REFUNDED" || normalized.kind === "PAYMENT_REFUNDED") {
 			creditPackRefundCorrelationCandidate = {
 				provider: normalized.fact.provider,
 				providerPaymentId: normalized.fact.providerPaymentId,
@@ -143,17 +152,25 @@ export async function processClaimedProviderPaymentEvent(
 			}
 
 			const result =
-				normalized.kind === "SUBSCRIPTION"
-					? await applyProviderBillingFact(normalized.fact, tx)
-					: normalized.kind === "CREDIT_PACK_PAID"
-						? await applyCreditPackPaymentFact(normalized.fact, tx, {
+				normalized.kind === "NOOP"
+					? { grantsCreated: 0 }
+					: normalized.kind === "PAYMENT_REFUNDED"
+						? await applyProviderRefundFact(normalized.fact, tx, {
 								paymentEventId: input.paymentEventId,
+								providerEnvironment: event.providerEnvironment,
 								now: transactionFenceTime,
 							})
-						: await applyCreditPackRefundFact(normalized.fact, tx, {
-								paymentEventId: input.paymentEventId,
-								now: transactionFenceTime,
-							});
+						: normalized.kind === "SUBSCRIPTION"
+							? await applyProviderBillingFact(normalized.fact, tx)
+							: normalized.kind === "CREDIT_PACK_PAID"
+								? await applyCreditPackPaymentFact(normalized.fact, tx, {
+										paymentEventId: input.paymentEventId,
+										now: transactionFenceTime,
+									})
+								: await applyCreditPackRefundFact(normalized.fact, tx, {
+										paymentEventId: input.paymentEventId,
+										now: transactionFenceTime,
+									});
 			await finishPaymentEvent(input, transactionFenceTime, tx);
 			return { outcome: "PROCESSED" as const, grantsCreated: result.grantsCreated };
 		});

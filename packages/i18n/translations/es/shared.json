@@ -1,5 +1,20 @@
 {
 	"pricing": {
+		"currentPaymentMethod": "tu método de pago actual",
+		"subscriptionRenewalOpen": "Tu suscripción de {provider} aún puede renovarse, aunque haya terminado el período de acceso local. Cancela la renovación en Facturación y espera la confirmación y el final del período pagado antes de usar otro método de pago.",
+		"subscriptionCancellationPending": "La cancelación de tu renovación con {provider} está pendiente de confirmación. Las nuevas suscripciones mensuales o anuales siguen bloqueadas, incluso después de la fecha de finalización local. Consulta Facturación para ver el estado.",
+		"subscriptionPaidThrough": "La cancelación de la renovación con {provider} está confirmada. Tu período pagado termina el {date}; después podrás suscribirte con otro método de pago.",
+		"subscriptionRefundPending": "Tu suscripción reembolsada de {provider} todavía se está cerrando. Podrás contratar una nueva suscripción mensual o anual cuando se confirme el cierre.",
+		"pendingCheckout": {
+			"title": "Suscripción pendiente de completar",
+			"description": "Tienes un pago pendiente con {provider}. Continúa o comprueba si se ha cerrado antes de iniciar otra suscripción.",
+			"resume": "Continuar el pago",
+			"refresh": "Comprobar el estado",
+			"PENDING": "La aprobación sigue pendiente. Continúa este pago o contacta con soporte para cambiar tu selección.",
+			"PAID": "El proveedor ha activado esta suscripción. Estamos confirmando el pago y actualizando tu cuenta.",
+			"CLOSED": "El pago está cerrado. Ya puedes elegir otra suscripción.",
+			"UNKNOWN": "No se ha confirmado el cierre. Inténtalo más tarde o contacta con soporte."
+		},
 		"annualSummary": "Facturación anual de {total} · ahorra {savings} ({percent}%) frente a 12 pagos mensuales",
 		"annualTotal": "Facturación anual de {total}",
 		"aspectRatios": "Formatos vertical, cuadrado y horizontal",

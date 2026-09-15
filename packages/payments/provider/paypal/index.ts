@@ -1,4 +1,5 @@
 import type { PaymentProvider } from "../../types";
+import { listPayPalPaymentEvents } from "./event-source";
 import {
 	cancelPayPalSubscription,
 	capturePayPalCheckoutOrder,
@@ -6,6 +7,8 @@ import {
 	createPayPalWebhookVerifier,
 	getPayPalAccessToken,
 	recoverPayPalCheckout,
+	inspectPayPalSubscriptionCheckout,
+	inspectPayPalSubscriptionCancellation,
 	type PayPalHttpBoundary,
 } from "./paypal";
 
@@ -23,6 +26,7 @@ export function createPayPalHttpBoundary(
 		async request(input) {
 			const response = await fetchImplementation(input.url, {
 				method: input.method,
+				signal: AbortSignal.timeout(15_000),
 				headers: input.headers,
 				...(input.body === undefined
 					? {}
@@ -70,6 +74,18 @@ export function createPayPalProvider(
 			const accessToken = await authorizePayPal(http, configuration);
 			return recoverPayPalCheckout(http, { accessToken, baseUrl: configuration.baseUrl }, options);
 		},
+		async listPaymentEvents(window) {
+			const accessToken = await authorizePayPal(http, configuration);
+			return listPayPalPaymentEvents(http, { accessToken, baseUrl: configuration.baseUrl }, window);
+		},
+		async inspectCheckout(input) {
+			const accessToken = await authorizePayPal(http, configuration);
+			return inspectPayPalSubscriptionCheckout(
+				http,
+				{ accessToken, baseUrl: configuration.baseUrl },
+				input,
+			);
+		},
 		async captureCheckout(options) {
 			const accessToken = await authorizePayPal(http, configuration);
 			return capturePayPalCheckoutOrder(
@@ -81,6 +97,14 @@ export function createPayPalProvider(
 		async cancelSubscription(id) {
 			const accessToken = await authorizePayPal(http, configuration);
 			await cancelPayPalSubscription(http, { accessToken, baseUrl: configuration.baseUrl }, id);
+		},
+		async inspectSubscriptionCancellation(input) {
+			const accessToken = await authorizePayPal(http, configuration);
+			return inspectPayPalSubscriptionCancellation(
+				http,
+				{ accessToken, baseUrl: configuration.baseUrl },
+				input,
+			);
 		},
 	};
 }

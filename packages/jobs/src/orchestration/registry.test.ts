@@ -21,6 +21,11 @@ describe("orchestration task admission", () => {
 				taskId: "media-reconcile-subscriptions-continuation",
 				payload: { sweepId: "sweep-1", continuationKey: "next", sequence: 1.5 },
 			},
+			{ taskId: "media-reconcile-provider-payments", payload: { provider: "stripe" } },
+			{
+				taskId: "media-reconcile-provider-payments",
+				payload: { provider: "paypal", scope: "another-merchant" },
+			},
 		]) {
 			expect(() => parseTaskRequest(value)).toThrow();
 		}

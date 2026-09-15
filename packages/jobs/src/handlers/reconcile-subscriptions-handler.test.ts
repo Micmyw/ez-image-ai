@@ -23,21 +23,68 @@ const {
 vi.mock("@repo/database/client", () => ({ db }));
 vi.mock("@repo/config/server", () => ({ getStripeLegacyLifecycleStatus }));
 vi.mock("@repo/payments", () => ({
+	requeuePreviouslyUnsupportedRefunds: vi.fn().mockResolvedValue({ requeued: 0 }),
+	recoverRefundTerminations: vi.fn().mockResolvedValue({ inspectedRefunds: 0, requeued: 0 }),
+	recoverSubscriptionCancellations: vi.fn().mockResolvedValue({ requeued: 0 }),
+	isPaymentProviderConfigured: vi.fn(() => false),
+	getPaymentProvider: vi.fn(),
+	paymentReconciliationScope: vi.fn(),
+	reconcileProviderPaymentEvents: vi.fn(),
 	createStripeBillingSource,
 	getStripeClient,
 	reconcileStripeBilling,
 }));
 vi.mock("./reconcile-subscriptions-core", () => ({ reconcileSubscriptionsWithClient }));
 
+import {
+	isPaymentProviderConfigured,
+	getPaymentProvider,
+	reconcileProviderPaymentEvents,
+} from "@repo/payments";
+
 import { reconcileSubscriptions } from "./reconcile-subscriptions";
 
 describe("Stripe subscription reconciliation handler", () => {
+	it("dispatches provider sweeps independently so pagination does not block the scheduled Stripe job", async () => {
+		vi.mocked(isPaymentProviderConfigured).mockImplementation((provider) => provider === "paypal");
+		vi.mocked(getPaymentProvider).mockReturnValue({ listPaymentEvents: vi.fn() } as never);
+		vi.mocked(reconcileProviderPaymentEvents).mockResolvedValue({
+			skipped: false,
+			completed: true,
+			recovered: 0,
+		});
+		reconcileStripeBilling.mockResolvedValue({
+			skipped: false,
+			completed: true,
+			sweepId: "scheduled",
+		});
+		const scheduleProviderReconciliation = vi.fn();
+		await reconcileSubscriptions({ scheduleProviderReconciliation } as never);
+		expect(scheduleProviderReconciliation).toHaveBeenCalledWith("paypal", expect.any(String));
+		expect(reconcileProviderPaymentEvents).not.toHaveBeenCalled();
+		expect(reconcileStripeBilling).toHaveBeenCalledOnce();
+	});
 	beforeEach(() => {
 		vi.clearAllMocks();
+		vi.mocked(isPaymentProviderConfigured).mockReturnValue(false);
 		getStripeLegacyLifecycleStatus.mockReturnValue("CONFIGURED");
 		getStripeClient.mockReturnValue(stripe);
 		createStripeBillingSource.mockReturnValue(source);
 		reconcileSubscriptionsWithClient.mockResolvedValue({ expired: 2 });
+	});
+	it("continues Stripe reconciliation after an independent PayPal read failure", async () => {
+		vi.mocked(isPaymentProviderConfigured).mockImplementation((provider) => provider === "paypal");
+		vi.mocked(getPaymentProvider).mockReturnValue({ listPaymentEvents: vi.fn() } as never);
+		vi.mocked(reconcileProviderPaymentEvents).mockRejectedValueOnce(
+			new Error("PAYPAL_UNAVAILABLE"),
+		);
+		reconcileStripeBilling.mockResolvedValue({
+			skipped: false,
+			completed: true,
+			sweepId: "still-runs",
+		});
+		await expect(reconcileSubscriptions()).rejects.toThrow("PAYMENT_RECONCILIATION_FAILED");
+		expect(reconcileStripeBilling).toHaveBeenCalledOnce();
 	});
 
 	it("skips Stripe calls only when legacy lifecycle is disabled while reconciling PayPal/Waffo deadlines", async () => {
@@ -69,7 +116,11 @@ describe("Stripe subscription reconciliation handler", () => {
 		expect(getStripeClient).not.toHaveBeenCalled();
 		expect(createStripeBillingSource).not.toHaveBeenCalled();
 		expect(reconcileStripeBilling).not.toHaveBeenCalled();
-		expect(reconcileSubscriptionsWithClient).not.toHaveBeenCalled();
+		expect(
+			reconcileSubscriptionsWithClient.mock.calls.every(
+				([input]) => input.providerNames?.join(",") === "paypal,waffo",
+			),
+		).toBe(true);
 	});
 
 	it("calls the real billing source and closes local deadlines only after a complete sweep", async () => {
@@ -110,7 +161,11 @@ describe("Stripe subscription reconciliation handler", () => {
 		await expect(reconcileSubscriptions({ limit: 25 })).rejects.toThrow(
 			"STRIPE_RECONCILIATION_SOURCE_FAILURE",
 		);
-		expect(reconcileSubscriptionsWithClient).not.toHaveBeenCalled();
+		expect(
+			reconcileSubscriptionsWithClient.mock.calls.every(
+				([input]) => input.providerNames?.join(",") === "paypal,waffo",
+			),
+		).toBe(true);
 
 		reconcileStripeBilling.mockResolvedValueOnce({
 			skipped: false,
@@ -138,7 +193,11 @@ describe("Stripe subscription reconciliation handler", () => {
 				sequence: 4,
 			},
 		});
-		expect(reconcileSubscriptionsWithClient).not.toHaveBeenCalled();
+		expect(
+			reconcileSubscriptionsWithClient.mock.calls.every(
+				([input]) => input.providerNames?.join(",") === "paypal,waffo",
+			),
+		).toBe(true);
 		expect(scheduleContinuation).toHaveBeenCalledWith({
 			sweepId: "sweep-2",
 			continuationKey: "stripe-reconciliation:sweep-2:continuation:4",
@@ -170,7 +229,11 @@ describe("Stripe subscription reconciliation handler", () => {
 				scheduleContinuation: vi.fn().mockRejectedValue(enqueueFailure),
 			}),
 		).rejects.toBe(enqueueFailure);
-		expect(reconcileSubscriptionsWithClient).not.toHaveBeenCalled();
+		expect(
+			reconcileSubscriptionsWithClient.mock.calls.every(
+				([input]) => input.providerNames?.join(",") === "paypal,waffo",
+			),
+		).toBe(true);
 	});
 
 	it("does not enqueue when another reconciliation lease is active", async () => {

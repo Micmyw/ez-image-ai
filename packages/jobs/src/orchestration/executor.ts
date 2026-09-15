@@ -14,6 +14,7 @@ import {
 	cleanupUploadPromotion,
 	deleteStorageObject,
 } from "../handlers/cleanup-storage-object";
+import { confirmCancellation } from "../handlers/confirm-subscription-cancellation";
 import { deliverOutboxEvent } from "../handlers/deliver-outbox-event";
 import { dispatchGeneration } from "../handlers/dispatch-generation";
 import { dispatchOutbox } from "../handlers/dispatch-outbox";
@@ -25,6 +26,7 @@ import { grantBillingPeriods } from "../handlers/grant-billing-periods";
 import { processPaymentEvent } from "../handlers/process-payment-event";
 import { processProviderEvent } from "../handlers/process-provider-event";
 import { reconcileGenerations } from "../handlers/reconcile-generations";
+import { reconcileProviderPayments } from "../handlers/reconcile-provider-payments";
 import {
 	reconcileSubscriptions,
 	type StripeReconciliationContinuation,
@@ -35,6 +37,7 @@ import {
 } from "../handlers/recover-finalizing-generations";
 import { recoverMediaVerifications } from "../handlers/recover-media-verifications";
 import { settleGeneration } from "../handlers/settle-generation";
+import { terminateSubscriptionAfterRefund } from "../handlers/terminate-refunded-subscription";
 import { verifyUpload } from "../handlers/verify-upload";
 import {
 	createDatabaseDispatchStore,
@@ -107,6 +110,16 @@ export async function executeTask(
 			{ ...continuation },
 			{ idempotencyKey: continuation.continuationKey },
 		);
+	const scheduleProviderReconciliation = async (
+		provider: "paypal" | "waffo",
+		continuationKey: string,
+	) => {
+		await dispatch(
+			"media-reconcile-provider-payments",
+			{ provider },
+			{ idempotencyKey: continuationKey },
+		);
+	};
 
 	if (dispatchRouteForTask(taskId)) {
 		const registry = createProviderRegistry(environment);
@@ -167,6 +180,10 @@ export async function executeTask(
 			return settleGeneration(parseTaskPayload(taskId, payload), {
 				store: databaseSettlementStore,
 			});
+		case "media-terminate-refunded-subscription":
+			return terminateSubscriptionAfterRefund(parseTaskPayload(taskId, payload));
+		case "media-confirm-subscription-cancellation":
+			return confirmCancellation(parseTaskPayload(taskId, payload));
 		case "media-process-payment-event":
 			return processPaymentEvent(parseTaskPayload(taskId, payload), {
 				attempt: context.attempt,
@@ -245,7 +262,19 @@ export async function executeTask(
 			);
 		}
 		case "media-reconcile-subscriptions":
-			return reconcileSubscriptions({ limit: 100, continuationSequence: 0, scheduleContinuation });
+			return reconcileSubscriptions({
+				limit: 100,
+				continuationSequence: 0,
+				scheduleContinuation,
+				scheduleProviderReconciliation,
+			});
+		case "media-reconcile-provider-payments": {
+			const input = parseTaskPayload(taskId, payload);
+			return reconcileProviderPayments({
+				provider: input.provider,
+				scheduleNext: scheduleProviderReconciliation,
+			});
+		}
 		case "media-reconcile-subscriptions-continuation": {
 			const continuation = parseTaskPayload(taskId, payload);
 			return reconcileSubscriptions({
@@ -253,6 +282,7 @@ export async function executeTask(
 				expectedSweepId: continuation.sweepId,
 				continuationSequence: continuation.sequence,
 				scheduleContinuation,
+				scheduleProviderReconciliation,
 			});
 		}
 		case "media-recover-finalizing-generations":

@@ -1,6 +1,9 @@
 import { DEFAULT_PRODUCT_CONFIG, getPlanEntitlement } from "@repo/config";
 import { createCreditPackCheckoutSnapshot } from "@repo/config/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+beforeEach(() => vi.stubEnv("BILLING_ENABLED", "true"));
+afterEach(() => vi.unstubAllEnvs());
 
 import {
 	isExactBillingPlanSnapshot,
@@ -22,6 +25,66 @@ const billingPlanDrifts: Array<[string, BillingPlanDrift]> = [
 ];
 
 describe("payment provider availability", () => {
+	it("rejects an unmarked or sandbox plan snapshot when collecting live money", () => {
+		vi.stubEnv("PAYPAL_ENVIRONMENT", "live");
+		const plan = {
+			id: "plan",
+			provider: "paypal",
+			providerPriceId: "P-CREATOR-MONTHLY",
+			productKind: "PLAN" as const,
+			active: true,
+			version: 1,
+			name: "creator",
+			creditsPerPeriod: 700n,
+			priceMicros: 19000000n,
+			currency: "USD",
+			metadata: {
+				planId: "creator",
+				interval: "month",
+				version: 1,
+				pricingVersion: DEFAULT_PRODUCT_CONFIG.pricingVersion,
+			},
+		};
+		expect(
+			isExactBillingPlanSnapshot(plan, "paypal", plan.providerPriceId, {
+				planId: "creator",
+				interval: "month",
+			}),
+		).toBe(false);
+		expect(
+			isExactBillingPlanSnapshot(
+				{ ...plan, metadata: { ...plan.metadata, providerEnvironment: "sandbox" } },
+				"paypal",
+				plan.providerPriceId,
+				{ planId: "creator", interval: "month" },
+			),
+		).toBe(false);
+		expect(
+			isExactBillingPlanSnapshot(
+				{ ...plan, metadata: { ...plan.metadata, providerEnvironment: "live" } },
+				"paypal",
+				plan.providerPriceId,
+				{ planId: "creator", interval: "month" },
+			),
+		).toBe(true);
+	});
+	it("hides both subscription and pack payment methods while collection is disabled", async () => {
+		vi.stubEnv("BILLING_ENABLED", "false");
+		const findBillingPlan = vi.fn();
+		expect(
+			await resolveProviderAvailability(
+				{ planId: "creator", interval: "month" },
+				{ isConfigured: () => true, getProviderPriceId: () => "P-PLAN", findBillingPlan },
+			),
+		).toEqual([]);
+		expect(
+			await resolveCreditPackProviderAvailability(
+				{ packKey: "credits-1500" },
+				{ isConfigured: () => true, getProviderProductId: () => "PROD-PACK", findBillingPlan },
+			),
+		).toEqual([]);
+		expect(findBillingPlan).not.toHaveBeenCalled();
+	});
 	it("advertises only fully configured providers with an exact BillingPlan snapshot", async () => {
 		const entitlement = getPlanEntitlement("creator");
 		const monthly = entitlement.prices.find((price) => price.interval === "month")!;
@@ -125,7 +188,8 @@ describe("payment provider availability", () => {
 				planId: "creator",
 				interval: "month",
 				version: drift.metadataVersion ?? 1,
-				pricingVersion: drift.pricingVersion ?? DEFAULT_PRODUCT_CONFIG.pricingVersion,
+				pricingVersion: DEFAULT_PRODUCT_CONFIG.pricingVersion,
+				...(drift.pricingVersion ? { billingPricingVersion: drift.pricingVersion } : {}),
 			},
 		};
 

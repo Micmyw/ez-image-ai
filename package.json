@@ -17,6 +17,7 @@
 		"test:unit:contracts": "tsx tests/load/run-unit-contracts.ts",
 		"test:integration": "tsx tests/load/run-integration.ts",
 		"db:migrate:deploy": "pnpm --filter @repo/database exec prisma migrate deploy",
+		"billing:preflight": "tsx packages/api/scripts/billing-preflight.ts",
 		"db:migrate:drift": "pnpm --filter @repo/database exec prisma migrate diff --from-schema prisma/schema.prisma --to-config-datasource --exit-code",
 		"workflows:type-check": "pnpm --filter @repo/jobs --filter @repo/workflows --filter @repo/jobs-runtime type-check",
 		"workflows:build:ci": "pnpm --filter @repo/workflows build",

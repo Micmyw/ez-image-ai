@@ -5,6 +5,50 @@ import { deliverOutboxEvent } from "./deliver-outbox-event";
 import { dispatchOutbox } from "./dispatch-outbox";
 
 describe("outbox delivery routes", () => {
+	it("retries ordinary cancellation until confirmation is available", async () => {
+		const triggerAndWait = vi
+			.fn()
+			.mockRejectedValue(new Error("SUBSCRIPTION_CANCELLATION_CONFIRMATION_PENDING"));
+		await expect(
+			deliverOutboxEvent(
+				{
+					id: "cancel-event",
+					eventType: "SUBSCRIPTION_CANCELLATION_REQUESTED",
+					aggregateId: "subscription-1",
+					payload: { subscriptionId: "subscription-1" },
+					leaseToken: "lease",
+					attempts: 1,
+				},
+				{ trigger: vi.fn(), triggerAndWait, resolveDispatchRoute: vi.fn() },
+			),
+		).rejects.toThrow("SUBSCRIPTION_CANCELLATION_CONFIRMATION_PENDING");
+		expect(triggerAndWait).toHaveBeenCalledWith("media-confirm-subscription-cancellation", {
+			subscriptionId: "subscription-1",
+		});
+	});
+	it("waits for refund termination confirmation and propagates failure for Outbox retry", async () => {
+		const trigger = vi.fn();
+		const triggerAndWait = vi
+			.fn()
+			.mockRejectedValue(new Error("REFUND_TERMINATION_CONFIRMATION_PENDING"));
+		await expect(
+			deliverOutboxEvent(
+				{
+					id: "refund-event",
+					eventType: "SUBSCRIPTION_REFUND_TERMINATION",
+					aggregateId: "subscription-1",
+					payload: { subscriptionId: "subscription-1" },
+					leaseToken: "lease-1",
+					attempts: 1,
+				},
+				{ trigger, triggerAndWait, resolveDispatchRoute: vi.fn() },
+			),
+		).rejects.toThrow("REFUND_TERMINATION_CONFIRMATION_PENDING");
+		expect(triggerAndWait).toHaveBeenCalledWith("media-terminate-refunded-subscription", {
+			subscriptionId: "subscription-1",
+		});
+		expect(trigger).not.toHaveBeenCalled();
+	});
 	it.each(["CREDIT_PACK_FULFILLED", "CREDIT_PACK_ADJUSTED"])(
 		"acknowledges the durable %s domain record without dispatching another payment job",
 		async (eventType) => {

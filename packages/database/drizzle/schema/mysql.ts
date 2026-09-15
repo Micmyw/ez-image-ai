@@ -273,6 +273,9 @@ export const subscription = mysqlTable(
 		currentPeriodStart: timestamp("currentPeriodStart"),
 		currentPeriodEnd: timestamp("currentPeriodEnd"),
 		cancelAtPeriodEnd: boolean("cancelAtPeriodEnd").default(false).notNull(),
+		cancellationRequestedAt: timestamp("cancellationRequestedAt"),
+		renewalDisabledAt: timestamp("renewalDisabledAt"),
+		cancellationError: text("cancellationError"),
 		scheduledPlanId: varchar("scheduledPlanId", { length: 255 }),
 		lastProviderEventAt: timestamp("lastProviderEventAt"),
 		lastProviderEventId: varchar("lastProviderEventId", { length: 255 }),
@@ -282,6 +285,11 @@ export const subscription = mysqlTable(
 		}),
 		lastReconciledAt: timestamp("lastReconciledAt"),
 		graceEndsAt: timestamp("graceEndsAt"),
+		refundTerminationRequestedAt: timestamp("refundTerminationRequestedAt"),
+		refundTerminationPaymentId: text("refundTerminationPaymentId"),
+		refundTerminationEnvironment: text("refundTerminationEnvironment"),
+		refundTerminatedAt: timestamp("refundTerminatedAt"),
+		refundTerminationError: text("refundTerminationError"),
 		createdAt: timestamp("createdAt").defaultNow().notNull(),
 		updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
 	},
@@ -646,6 +654,7 @@ export const invitationRelations = relations(invitation, ({ one }) => ({
 }));
 
 export const purchaseRelations = relations(purchase, ({ one }) => ({
+	mediaSubscription: one(subscription),
 	organization: one(organization, {
 		fields: [purchase.organizationId],
 		references: [organization.id],
@@ -655,6 +664,11 @@ export const purchaseRelations = relations(purchase, ({ one }) => ({
 		references: [user.id],
 	}),
 	creditPackFulfillment: one(creditPackFulfillment),
+}));
+
+export const subscriptionRelations = relations(subscription, ({ one }) => ({
+	purchase: one(purchase, { fields: [subscription.purchaseId], references: [purchase.id] }),
+	plan: one(billingPlan, { fields: [subscription.planId], references: [billingPlan.id] }),
 }));
 
 export const billingPlanRelations = relations(billingPlan, ({ many }) => ({

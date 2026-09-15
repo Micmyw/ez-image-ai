@@ -92,6 +92,8 @@ const payloadParsers = {
 	"media-finalize-generation": strictObject(job),
 	"media-settle-generation": strictObject(job),
 	"media-process-payment-event": strictObject({ paymentEventId: text }),
+	"media-terminate-refunded-subscription": strictObject({ subscriptionId: text }),
+	"media-confirm-subscription-cancellation": strictObject({ subscriptionId: text }),
 	"media-process-provider-webhook": strictObject({ providerWebhookEventId: text }),
 	"media-poll-generation": strictObject({ attemptId: text }),
 	"media-verify-upload": strictObject({
@@ -117,6 +119,9 @@ const payloadParsers = {
 	"media-grant-billing-periods": scheduled,
 	"media-reconcile-generations": scheduled,
 	"media-reconcile-subscriptions": scheduled,
+	"media-reconcile-provider-payments": strictObject({
+		provider: (value) => (value === "paypal" || value === "waffo" ? value : invalid()),
+	}),
 	"media-recover-finalizing-generations": scheduled,
 	"media-recover-verifications": scheduled,
 	"media-recover-payment-events": scheduled,
@@ -184,6 +189,8 @@ const definitions: Record<keyof typeof payloadParsers, TaskDefinition> = {
 	"media-finalize-generation": definition(QUEUE_NAMES.finalization, 3, 900, 5),
 	"media-settle-generation": definition(QUEUE_NAMES.settlementRecovery, 2, 60, 8),
 	"media-process-payment-event": definition("media-payment-events", 5, 60, 8),
+	"media-terminate-refunded-subscription": definition("media-payment-events", 5, 120, 8),
+	"media-confirm-subscription-cancellation": definition("media-payment-events", 5, 120, 8),
 	"media-process-provider-webhook": definition("media-provider-events", 10, 60, 5),
 	"media-poll-generation": definition("media-generation-polling", 8, 300, 3),
 	"media-verify-upload": definition("media-upload-verification", 5, 120, 8),
@@ -196,6 +203,12 @@ const definitions: Record<keyof typeof payloadParsers, TaskDefinition> = {
 	"media-grant-billing-periods": definition("media-billing-periods", 1, 120),
 	"media-reconcile-generations": definition("media-reconciliation", 1, 240),
 	"media-reconcile-subscriptions": definition("media-subscription-reconciliation", 1, 120, 5),
+	"media-reconcile-provider-payments": definition(
+		"media-provider-payment-reconciliation",
+		1,
+		120,
+		5,
+	),
 	"media-reconcile-subscriptions-continuation": definition(
 		"media-subscription-reconciliation",
 		1,

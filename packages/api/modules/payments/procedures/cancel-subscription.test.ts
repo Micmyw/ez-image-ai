@@ -2,10 +2,13 @@ import { call } from "@orpc/server";
 import type { Session } from "@repo/auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { cancelSubscription, getPaymentProvider } = vi.hoisted(() => ({
-	cancelSubscription: vi.fn(),
-	getPaymentProvider: vi.fn(),
-}));
+const { cancelSubscription, getPaymentProvider, requestSubscriptionCancellation } = vi.hoisted(
+	() => ({
+		cancelSubscription: vi.fn(),
+		getPaymentProvider: vi.fn(),
+		requestSubscriptionCancellation: vi.fn(),
+	}),
+);
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database", () => ({
@@ -13,10 +16,11 @@ vi.mock("@repo/database", () => ({
 	getPurchaseById: vi.fn(),
 }));
 vi.mock("@repo/logs", () => ({ logger: { error: vi.fn() } }));
-vi.mock("@repo/payments", () => ({ getPaymentProvider }));
+vi.mock("@repo/database/client", () => ({ db: {} }));
+vi.mock("@repo/payments", () => ({ getPaymentProvider, requestSubscriptionCancellation }));
 
 import { auth } from "@repo/auth";
-import { getPurchaseById } from "@repo/database";
+import { getPurchaseById, getOrganizationMembership } from "@repo/database";
 
 import { cancelPurchaseSubscription } from "./cancel-subscription";
 
@@ -87,7 +91,15 @@ describe("cancelPurchaseSubscription", () => {
 			),
 		).resolves.toEqual({ status: "CANCEL_REQUESTED" });
 		expect(getPaymentProvider).toHaveBeenCalledWith("paypal");
-		expect(cancelSubscription).toHaveBeenCalledWith("I-SUBSCRIPTION");
+		expect(requestSubscriptionCancellation).toHaveBeenCalledWith(
+			{
+				purchaseId: "purchase-paypal",
+				ownerType: "USER",
+				ownerId: "user-1",
+			},
+			{},
+		);
+		expect(cancelSubscription).not.toHaveBeenCalled();
 	});
 
 	it("fails closed when the provider does not implement cancellation", async () => {
@@ -109,6 +121,70 @@ describe("cancelPurchaseSubscription", () => {
 				{ context: { headers: new Headers() } },
 			),
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+		expect(cancelSubscription).not.toHaveBeenCalled();
+	});
+
+	it("rejects another user's purchase before queuing a cancellation", async () => {
+		vi.mocked(getPurchaseById).mockResolvedValue({
+			id: "other-purchase",
+			provider: "paypal",
+			userId: "other-user",
+			organizationId: null,
+			subscriptionId: "other-subscription",
+		} as never);
+		await expect(
+			call(
+				cancelPurchaseSubscription,
+				{ purchaseId: "other-purchase" },
+				{ context: { headers: new Headers() } },
+			),
+		).rejects.toMatchObject({ code: "NOT_FOUND" });
+		expect(requestSubscriptionCancellation).not.toHaveBeenCalled();
+	});
+
+	it.each(["owner", "member"])(
+		"requires organization ownership for an organization %s",
+		async (role) => {
+			vi.mocked(getPurchaseById).mockResolvedValue({
+				id: "org-purchase",
+				provider: "waffo",
+				userId: null,
+				organizationId: "org-1",
+				subscriptionId: "org-subscription",
+			} as never);
+			vi.mocked(getOrganizationMembership).mockResolvedValue({ role } as never);
+			const result = call(
+				cancelPurchaseSubscription,
+				{ purchaseId: "org-purchase" },
+				{ context: { headers: new Headers() } },
+			);
+			if (role === "owner") {
+				await expect(result).resolves.toEqual({ status: "CANCEL_REQUESTED" });
+				expect(requestSubscriptionCancellation).toHaveBeenCalledWith(
+					{
+						purchaseId: "org-purchase",
+						ownerType: "ORGANIZATION",
+						ownerId: "org-1",
+					},
+					{},
+				);
+			} else {
+				await expect(result).rejects.toMatchObject({ code: "NOT_FOUND" });
+				expect(requestSubscriptionCancellation).not.toHaveBeenCalled();
+			}
+			expect(cancelSubscription).not.toHaveBeenCalled();
+		},
+	);
+
+	it("does not claim acceptance when the durable request cannot be saved", async () => {
+		requestSubscriptionCancellation.mockRejectedValueOnce(new Error("database failure"));
+		await expect(
+			call(
+				cancelPurchaseSubscription,
+				{ purchaseId: "purchase-paypal" },
+				{ context: { headers: new Headers() } },
+			),
+		).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
 		expect(cancelSubscription).not.toHaveBeenCalled();
 	});
 });

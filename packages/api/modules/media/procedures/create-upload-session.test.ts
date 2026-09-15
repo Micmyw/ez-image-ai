@@ -8,7 +8,10 @@ vi.mock("@repo/auth", () => ({
 const { findSubscription } = vi.hoisted(() => ({ findSubscription: vi.fn() }));
 
 vi.mock("@repo/database/client", () => ({
-	db: { subscription: { findFirst: findSubscription } },
+	db: {},
+}));
+vi.mock("@repo/database", () => ({
+	findEffectivePaidSubscription: findSubscription,
 }));
 vi.mock("@repo/database/media-assets", () => ({
 	createMediaUploadSessionTransaction: vi.fn(async () => undefined),

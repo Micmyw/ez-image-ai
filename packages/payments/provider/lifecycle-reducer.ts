@@ -3,6 +3,7 @@ import {
 	isDatabaseUniqueConflict,
 	PAYMENT_PROVIDER_CORRELATION_MISSING,
 	requeuePaymentEventsMissingCheckoutCorrelation,
+	requeueCreditPackRefundEventsMissingCheckoutCorrelation,
 	type Prisma,
 } from "@repo/database";
 
@@ -12,6 +13,7 @@ import type {
 	ProviderBillingPeriodFact,
 	ProviderPaymentFact,
 } from "./lifecycle-normalization";
+import { wakeRefundTermination } from "./refund-termination";
 import { createAnnualBillingPeriods } from "./stripe/events";
 
 type TransactionClient = Prisma.TransactionClient;
@@ -74,6 +76,7 @@ export async function applyProviderBillingFact(
 				purchaseId: purchase.id,
 				status: fact.status,
 				cancelAtPeriodEnd: fact.cancelAtPeriodEnd,
+				renewalDisabledAt: ["CANCELED", "EXPIRED"].includes(fact.status) ? fact.occurredAt : null,
 				lastProviderEventAt: fact.occurredAt,
 				lastProviderEventId: fact.providerEventId,
 			},
@@ -86,20 +89,65 @@ export async function applyProviderBillingFact(
 		if (providerCustomerId !== subscription.purchase!.customerId) {
 			throw new Error("PAYMENT_PROVIDER_CUSTOMER_MISMATCH");
 		}
-		await assertAndPersistCustomer(
-			fact.provider,
-			subscription.ownerType,
-			subscription.ownerId,
-			providerCustomerId,
-			client,
-		);
+		// Historical callbacks authenticate against their immutable Purchase above.
+		// They must not change the payer selected by a later owned checkout.
+	}
+
+	if (subscription.refundTerminationRequestedAt) {
+		if (!subscription.refundTerminatedAt && ["CANCELED", "EXPIRED"].includes(fact.status)) {
+			// A verified closure notification wakes inspection; it does not by
+			// itself bypass the current provider read or refund finalization fence.
+			await wakeRefundTermination(subscription.id, client);
+		}
+		if (fact.payment) {
+			const knownPayment = await client.billingPeriod.findFirst({
+				where: {
+					subscriptionId: subscription.id,
+					providerInvoicePaymentId: `${fact.provider}:${fact.payment.providerPaymentId}`,
+				},
+			});
+			if (!knownPayment) {
+				// The processor retains the verified receipt as DEAD_LETTER with an
+				// audit entry for financial review/compensation. Never grant old rights.
+				throw new Error("PAYMENT_PROVIDER_TERMINATED_SUBSCRIPTION_PAYMENT_REVIEW_REQUIRED");
+			}
+			await validatePayment(fact, subscription, client);
+		}
+		return { grantsCreated: 0 };
+	}
+
+	// A terminal PSP confirmation cannot be undone by delayed activation/renewal
+	// callbacks, even after another provider has acquired the owner's subscription.
+	// Unseen financial receipts are retained for review instead of reviving rights.
+	if (subscriptionExisted && subscription.renewalDisabledAt) {
+		if (fact.payment) {
+			const known = await client.billingPeriod.findFirst({
+				where: {
+					subscriptionId: subscription.id,
+					providerInvoicePaymentId: `${fact.provider}:${fact.payment.providerPaymentId}`,
+				},
+			});
+			if (!known)
+				throw new Error("PAYMENT_PROVIDER_TERMINATED_SUBSCRIPTION_PAYMENT_REVIEW_REQUIRED");
+			await validatePayment(fact, subscription, client);
+		}
+		return { grantsCreated: 0 };
 	}
 
 	const lifecyclePeriod = fact.currentPeriod
 		? validateLifecyclePeriod(fact.provider, fact.currentPeriod, subscription.plan.metadata)
 		: null;
 	const paymentPeriod = fact.payment ? await validatePayment(fact, subscription, client) : null;
-	const currentPeriod = paymentPeriod ?? lifecyclePeriod;
+	// A closure notification may contain the previous cycle's dates. Preserve
+	// the newer paid-through bound recorded before cancellation.
+	const currentPeriod =
+		paymentPeriod ??
+		(["CANCELED", "EXPIRED"].includes(fact.status) &&
+		subscription.currentPeriodEnd &&
+		lifecyclePeriod &&
+		lifecyclePeriod.periodEnd < subscription.currentPeriodEnd
+			? null
+			: lifecyclePeriod);
 	const preserveSubscriptionEvent =
 		subscriptionExisted &&
 		((fact.provider === "waffo" && paymentPeriod !== null && fact.currentPeriod === null) ||
@@ -114,6 +162,9 @@ export async function applyProviderBillingFact(
 				data: {
 					status: fact.status,
 					cancelAtPeriodEnd: fact.cancelAtPeriodEnd,
+					...(["CANCELED", "EXPIRED"].includes(fact.status)
+						? { renewalDisabledAt: fact.occurredAt, cancellationError: null }
+						: {}),
 					lastProviderEventAt: fact.occurredAt,
 					lastProviderEventId: fact.providerEventId,
 					...(currentPeriod
@@ -167,6 +218,12 @@ export async function applyProviderBillingFact(
 				client,
 			)
 		: 0;
+	if (paymentPeriod) {
+		await requeueCreditPackRefundEventsMissingCheckoutCorrelation(
+			{ provider: fact.provider, providerPaymentId: paymentPeriod.providerPaymentId },
+			client,
+		);
+	}
 	if (fact.status === "ACTIVE" && fact.currentPeriod && !fact.payment) {
 		await requeuePaymentEventsMissingCheckoutCorrelation(
 			{
@@ -381,10 +438,15 @@ async function assertAndPersistCustomer(
 	const existing = await client.paymentCustomer.findUnique({
 		where: { provider_ownerType_ownerId: { provider, ownerType, ownerId } },
 	});
-	if (existing && existing.providerCustomerId !== providerCustomerId) {
+	if (existing && existing.providerCustomerId !== providerCustomerId && provider !== "paypal") {
 		throw new Error("PAYMENT_PROVIDER_CUSTOMER_MISMATCH");
 	}
-	if (!existing) {
+	if (existing && existing.providerCustomerId !== providerCustomerId) {
+		await client.paymentCustomer.update({
+			where: { id: existing.id },
+			data: { providerCustomerId },
+		});
+	} else if (!existing) {
 		await client.paymentCustomer.create({
 			data: { provider, ownerType, ownerId, providerCustomerId },
 		});
@@ -585,7 +647,8 @@ async function applyProviderPayment(
 			? await client.billingPeriod.update({
 					where: { id: existing.id },
 					data: {
-						status: active ? "ACTIVE" : existing.status,
+						status:
+							existing.status === "REFUNDED" ? "REFUNDED" : active ? "ACTIVE" : existing.status,
 						grantReferenceKey: existing.grantReferenceKey ?? referenceKey,
 						providerInvoiceId: providerPaymentId,
 						providerInvoicePaymentId: providerPaymentId,
@@ -605,7 +668,7 @@ async function applyProviderPayment(
 						paidAmount: payment.amountMicros,
 					},
 				});
-		if (!active) continue;
+		if (!active || saved.status === "REFUNDED") continue;
 		const account = await client.creditAccount.upsert({
 			where: {
 				ownerType_ownerId: {
@@ -619,10 +682,13 @@ async function applyProviderPayment(
 		const existingGrant = await client.creditLedgerEntry.findUnique({
 			where: { referenceKey },
 		});
+		if (existingGrant) continue;
+		const netCredits = saved.creditAmount - saved.refundedCredits;
+		if (netCredits <= 0n) continue;
 		await createCreditGrant(
 			{
 				accountId: account.id,
-				amount: saved.creditAmount,
+				amount: netCredits,
 				referenceKey,
 				expiresAt: saved.endsAt,
 				metadata: {

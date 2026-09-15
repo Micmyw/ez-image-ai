@@ -86,9 +86,11 @@ export async function handleDispatch(
 			// Only these read/reconcile handlers can restart the same instance. A
 			// generation submission is recovered through its persisted attempt.
 			if (
-				!["media-poll-generation", "media-reconcile-subscriptions-continuation"].includes(
-					task.taskId,
-				)
+				![
+					"media-poll-generation",
+					"media-reconcile-subscriptions-continuation",
+					"media-reconcile-provider-payments",
+				].includes(task.taskId)
 			)
 				throw new Error("TERMINAL_WORKFLOW");
 			await instance.restart();

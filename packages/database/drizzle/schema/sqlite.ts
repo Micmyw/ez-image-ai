@@ -289,6 +289,9 @@ export const subscription = sqliteTable(
 		currentPeriodStart: integer("currentPeriodStart", { mode: "timestamp" }),
 		currentPeriodEnd: integer("currentPeriodEnd", { mode: "timestamp" }),
 		cancelAtPeriodEnd: integer("cancelAtPeriodEnd", { mode: "boolean" }).default(false).notNull(),
+		cancellationRequestedAt: integer("cancellationRequestedAt", { mode: "timestamp" }),
+		renewalDisabledAt: integer("renewalDisabledAt", { mode: "timestamp" }),
+		cancellationError: text("cancellationError"),
 		scheduledPlanId: text("scheduledPlanId"),
 		lastProviderEventAt: integer("lastProviderEventAt", { mode: "timestamp" }),
 		lastProviderEventId: text("lastProviderEventId"),
@@ -296,6 +299,11 @@ export const subscription = sqliteTable(
 		lastReconciliationAppliedSweepId: text("lastReconciliationAppliedSweepId"),
 		lastReconciledAt: integer("lastReconciledAt", { mode: "timestamp" }),
 		graceEndsAt: integer("graceEndsAt", { mode: "timestamp" }),
+		refundTerminationRequestedAt: integer("refundTerminationRequestedAt", { mode: "timestamp" }),
+		refundTerminationPaymentId: text("refundTerminationPaymentId"),
+		refundTerminationEnvironment: text("refundTerminationEnvironment"),
+		refundTerminatedAt: integer("refundTerminatedAt", { mode: "timestamp" }),
+		refundTerminationError: text("refundTerminationError"),
 		createdAt: integer("createdAt", { mode: "timestamp" })
 			.notNull()
 			.default(sql`CURRENT_TIMESTAMP`),
@@ -695,6 +703,7 @@ export const invitationRelations = relations(invitation, ({ one }) => ({
 }));
 
 export const purchaseRelations = relations(purchase, ({ one }) => ({
+	mediaSubscription: one(subscription),
 	organization: one(organization, {
 		fields: [purchase.organizationId],
 		references: [organization.id],
@@ -704,6 +713,11 @@ export const purchaseRelations = relations(purchase, ({ one }) => ({
 		references: [user.id],
 	}),
 	creditPackFulfillment: one(creditPackFulfillment),
+}));
+
+export const subscriptionRelations = relations(subscription, ({ one }) => ({
+	purchase: one(purchase, { fields: [subscription.purchaseId], references: [purchase.id] }),
+	plan: one(billingPlan, { fields: [subscription.planId], references: [billingPlan.id] }),
 }));
 
 export const billingPlanRelations = relations(billingPlan, ({ many }) => ({

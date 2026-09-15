@@ -22,6 +22,7 @@ import { z } from "zod";
 import { localeMiddleware } from "../../../orpc/middleware/locale-middleware";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { verifyOrganizationBillingManagement } from "../../organizations/lib/membership";
+import { assertNewBillingEnabled, assertBillingEnvironmentReady } from "../billing-gate";
 import { isExactBillingPlanSnapshot } from "../provider-availability";
 import { recoverProviderCreatingCheckout } from "./checkout-recovery";
 
@@ -49,6 +50,8 @@ export const createCheckoutLink = protectedProcedure
 	.input(checkoutInputSchema)
 	.output(z.object({ checkoutLink: z.url() }))
 	.handler(async ({ input, context: { session, user } }) => {
+		assertNewBillingEnabled();
+		await assertBillingEnvironmentReady();
 		const { provider, planId, interval, idempotencyKey } = input;
 		if (!isPaymentProviderConfigured(provider)) throw new ORPCError("NOT_FOUND");
 

@@ -6,107 +6,119 @@ import {
 	resolveCheckoutReturnState,
 } from "./procedures/get-checkout-return-state";
 
-describe("checkout return ownership", () => {
-	it("rejects organization scope in the user-only first release", () => {
-		expect(() => assertCheckoutReturnOwnerScope("org-other")).toThrowError(ORPCError);
-	});
+const now = new Date("2026-08-25T06:00:00Z");
+const start = new Date("2026-08-25T00:00:00Z");
+const end = new Date("2026-09-25T00:00:00Z");
+const pending = { status: "PENDING", planId: null, paidThrough: null };
+function paidSubscription() {
+	return {
+		status: "ACTIVE",
+		graceEndsAt: null as Date | null,
+		plan: { metadata: { planId: "creator" }, name: "creator" },
+		currentPeriodStart: start,
+		currentPeriodEnd: end,
+		periods: [
+			{ startsAt: start, endsAt: end, paidAmount: 19000000n, refundedAmount: 0n, status: "ACTIVE" },
+		],
+	};
+}
 
-	it("accepts the authenticated user scope", () => {
-		expect(() => assertCheckoutReturnOwnerScope(undefined)).not.toThrow();
-	});
-});
-
-describe("checkout return webhook state", () => {
-	const now = new Date("2026-08-25T06:00:00.000Z");
-
-	it("waits when the latest active subscription is not the plan selected in checkout", () => {
+describe("checkout return ownership and paid confirmation", () => {
+	it("cannot confirm an old subscription fenced by refund termination", () => {
 		expect(
 			resolveCheckoutReturnState(
-				{
-					status: "ACTIVE",
-					graceEndsAt: null,
-					plan: { metadata: { planId: "creator" }, name: "creator" },
-					periods: [],
-					currentPeriodEnd: null,
-				},
-				"studio",
-			),
-		).toEqual({ status: "PENDING", planId: null, paidThrough: null });
-	});
-
-	it.each([
-		["ACTIVE", null],
-		["PAST_DUE", new Date("2026-08-25T06:00:00.001Z")],
-	] as const)(
-		"accepts %s only while the selected plan remains effective",
-		(status, graceEndsAt) => {
-			const paidThrough = new Date("2026-09-25T00:00:00.000Z");
-			expect(
-				resolveCheckoutReturnState(
-					{
-						status,
-						graceEndsAt,
-						plan: { metadata: { planId: "creator" }, name: "creator" },
-						periods: [{ endsAt: paidThrough }],
-						currentPeriodEnd: null,
-					},
-					"creator",
-					now,
-				),
-			).toEqual({ status, planId: "creator", paidThrough });
-		},
-	);
-
-	it("uses the canonical legacy plan-name fallback for an effective subscription", () => {
-		const paidThrough = new Date("2026-09-25T00:00:00.000Z");
-		expect(
-			resolveCheckoutReturnState(
-				{
-					status: "ACTIVE",
-					graceEndsAt: null,
-					plan: { metadata: {}, name: "creator" },
-					periods: [{ endsAt: paidThrough }],
-					currentPeriodEnd: null,
-				},
+				{ ...paidSubscription(), refundTerminationRequestedAt: now },
 				"creator",
 				now,
 			),
-		).toEqual({ status: "ACTIVE", planId: "creator", paidThrough });
+		).toEqual(pending);
 	});
-
-	it("accepts an effective Ultimate subscription", () => {
-		const paidThrough = new Date("2026-09-25T00:00:00.000Z");
+	it("rejects organization scope in the user-only first release", () => {
+		expect(() => assertCheckoutReturnOwnerScope("org-other")).toThrow(ORPCError);
+	});
+	it("accepts the authenticated user scope", () => {
+		expect(() => assertCheckoutReturnOwnerScope(undefined)).not.toThrow();
+	});
+	it("waits for actual payment even after provider activation", () => {
+		expect(
+			resolveCheckoutReturnState({ ...paidSubscription(), periods: [] }, "creator", now),
+		).toEqual(pending);
+	});
+	it("waits for the plan selected by the customer", () => {
+		expect(resolveCheckoutReturnState(paidSubscription(), "studio", now)).toEqual(pending);
+	});
+	it.each(["ACTIVE", "CANCELED"])("confirms %s only during the paid period", (status) => {
+		const subscription = { ...paidSubscription(), status };
+		expect(resolveCheckoutReturnState(subscription, "creator", now)).toEqual({
+			status: "ACTIVE",
+			planId: "creator",
+			paidThrough: end,
+		});
+		expect(resolveCheckoutReturnState(subscription, "creator", end)).toEqual(pending);
+	});
+	it("does not confirm a fully refunded payment", () => {
+		const subscription = paidSubscription();
+		subscription.periods[0]!.refundedAmount = 19000000n;
+		expect(resolveCheckoutReturnState(subscription, "creator", now)).toEqual(pending);
+	});
+	it("keeps partial-refund feature access even if this month's credits were clawed back first", () => {
+		const subscription = paidSubscription();
+		subscription.periods[0]!.refundedAmount = 9500000n;
+		subscription.periods[0]!.status = "REFUNDED";
+		expect(resolveCheckoutReturnState(subscription, "creator", now).status).toBe("ACTIVE");
+	});
+	it("honors the exact grace boundary with prior payment evidence", () => {
+		const subscription = {
+			...paidSubscription(),
+			status: "PAST_DUE",
+			graceEndsAt: new Date(now.getTime() + 1),
+		};
+		expect(resolveCheckoutReturnState(subscription, "creator", now).status).toBe("PAST_DUE");
+		expect(resolveCheckoutReturnState(subscription, "creator", subscription.graceEndsAt)).toEqual(
+			pending,
+		);
+		expect(resolveCheckoutReturnState({ ...subscription, periods: [] }, "creator", now)).toEqual(
+			pending,
+		);
+	});
+	it("does not confirm grace using an older payment after the latest paid period was refunded", () => {
+		const subscription = { ...paidSubscription(), status: "PAST_DUE", graceEndsAt: end };
+		subscription.periods[0]!.refundedAmount = 19000000n;
+		subscription.periods[0]!.status = "REFUNDED";
+		subscription.periods.unshift({
+			startsAt: new Date("2026-07-25T00:00:00Z"),
+			endsAt: start,
+			paidAmount: 19000000n,
+			refundedAmount: 0n,
+			status: "CLOSED",
+		});
+		expect(resolveCheckoutReturnState(subscription, "creator", now)).toEqual(pending);
+	});
+	it("does not use a future paid period to confirm grace early", () => {
+		const subscription = { ...paidSubscription(), status: "PAST_DUE", graceEndsAt: end };
+		subscription.periods[0]!.startsAt = new Date(now.getTime() + 1);
+		expect(resolveCheckoutReturnState(subscription, "creator", now)).toEqual(pending);
+	});
+	it("preserves grace after an unpaid renewal when the last actual payment was not fully refunded", () => {
+		const subscription = { ...paidSubscription(), status: "PAST_DUE", graceEndsAt: end };
+		subscription.periods[0]!.paidAmount = 0n;
+		subscription.periods[0]!.status = "PENDING";
+		subscription.periods.push({
+			startsAt: new Date("2026-07-25T00:00:00Z"),
+			endsAt: start,
+			paidAmount: 19000000n,
+			refundedAmount: 0n,
+			status: "CLOSED",
+		});
+		expect(resolveCheckoutReturnState(subscription, "creator", now).status).toBe("PAST_DUE");
+	});
+	it("uses the canonical legacy plan name and supports Ultimate", () => {
 		expect(
 			resolveCheckoutReturnState(
-				{
-					status: "ACTIVE",
-					graceEndsAt: null,
-					plan: { metadata: { planId: "ultimate" }, name: "ultimate" },
-					periods: [{ endsAt: paidThrough }],
-					currentPeriodEnd: null,
-				},
+				{ ...paidSubscription(), plan: { metadata: {} as { planId: string }, name: "ultimate" } },
 				"ultimate",
 				now,
-			),
-		).toEqual({ status: "ACTIVE", planId: "ultimate", paidThrough });
+			).planId,
+		).toBe("ultimate");
 	});
-
-	it.each([new Date("2026-08-25T06:00:00.000Z"), new Date("2026-08-25T05:59:59.999Z"), null])(
-		"keeps waiting when a PAST_DUE grace is not effective: %s",
-		(graceEndsAt) => {
-			expect(
-				resolveCheckoutReturnState(
-					{
-						status: "PAST_DUE",
-						graceEndsAt,
-						plan: { metadata: { planId: "creator" }, name: "creator" },
-						periods: [],
-						currentPeriodEnd: null,
-					},
-					"creator",
-					now,
-				),
-			).toEqual({ status: "PENDING", planId: null, paidThrough: null });
-		},
-	);
 });

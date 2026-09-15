@@ -1,12 +1,14 @@
 import {
 	type CreditPackKey,
-	DEFAULT_PRODUCT_CONFIG,
+	BILLING_PRICING_VERSION,
 	getPlanEntitlement,
 	resolvePlanEntitlement,
 } from "@repo/config";
 import { createCreditPackCheckoutSnapshot } from "@repo/config/server";
 import { findPriceByPlanId, resolvePaymentProvider } from "@repo/payments";
 import type { PaymentProviderName } from "@repo/payments/types";
+
+import { isNewBillingEnabled } from "./billing-gate";
 
 type CheckoutPaymentProviderName = Extract<PaymentProviderName, "paypal" | "waffo">;
 const checkoutPaymentProviderNames = [
@@ -63,6 +65,7 @@ export async function resolveProviderAvailability(
 	selection: PaymentAvailabilitySelection,
 	dependencies: PaymentAvailabilityDependencies,
 ) {
+	if (!isNewBillingEnabled()) return [];
 	const price = findPriceByPlanId(selection.planId, {
 		type: "subscription",
 		interval: selection.interval,
@@ -86,6 +89,7 @@ export async function resolveCreditPackProviderAvailability(
 	selection: CreditPackAvailabilitySelection,
 	dependencies: CreditPackAvailabilityDependencies,
 ) {
+	if (!isNewBillingEnabled()) return [];
 	const available = [];
 	for (const provider of checkoutPaymentProviderNames) {
 		if (!dependencies.isConfigured(provider)) continue;
@@ -123,19 +127,27 @@ export function isExactBillingPlanSnapshot(
 		return false;
 	}
 	return (
+		isBillingPlanEnvironmentCompatible(billingPlan.metadata, provider) &&
 		billingPlan.provider === provider &&
 		billingPlan.providerPriceId === providerPriceId &&
 		billingPlan.productKind === "PLAN" &&
 		billingPlan.version === BILLING_PLAN_SNAPSHOT_VERSION &&
 		metadataInteger(billingPlan.metadata, "version") === billingPlan.version &&
-		metadataString(billingPlan.metadata, "pricingVersion") ===
-			DEFAULT_PRODUCT_CONFIG.pricingVersion &&
+		isCompatibleBillingPricingVersion(billingPlan.metadata) &&
 		resolvedPlanId === selection.planId &&
 		metadataString(billingPlan.metadata, "interval") === selection.interval &&
 		billingPlan.creditsPerPeriod === BigInt(entitlement.monthlyCredits) &&
 		billingPlan.priceMicros === BigInt(Math.round(price.amount * 1_000_000)) &&
 		billingPlan.currency === price.currency
 	);
+}
+
+function isCompatibleBillingPricingVersion(metadata: unknown): boolean {
+	const version = metadataString(metadata, "billingPricingVersion");
+	if (version !== null) return version === BILLING_PRICING_VERSION;
+	// Existing immutable rows used the image version. Keep them usable only when
+	// every monetary/allowance/product field above still exactly matches.
+	return /^\d{4}-\d{2}-\d{2}\.\d+$/.test(metadataString(metadata, "pricingVersion") ?? "");
 }
 
 export function isExactCreditPackBillingPlanSnapshot(
@@ -147,6 +159,7 @@ export function isExactCreditPackBillingPlanSnapshot(
 	if (!billingPlan?.active || billingPlan.productKind !== "CREDIT_PACK") return false;
 	const snapshot = createCreditPackCheckoutSnapshot(selection.packKey, false);
 	return (
+		isBillingPlanEnvironmentCompatible(billingPlan.metadata, provider) &&
 		billingPlan.provider === provider &&
 		billingPlan.providerPriceId === providerProductId &&
 		billingPlan.version === BILLING_PLAN_SNAPSHOT_VERSION &&
@@ -161,6 +174,20 @@ export function isExactCreditPackBillingPlanSnapshot(
 		metadataString(billingPlan.metadata, "pricingVersion") === snapshot.pricingVersion &&
 		metadataInteger(billingPlan.metadata, "expiryMonths") === snapshot.expiryMonths
 	);
+}
+
+export function isBillingPlanEnvironmentCompatible(
+	metadata: unknown,
+	provider: PaymentProviderName,
+): boolean {
+	if (provider === "stripe") return true;
+	const configured =
+		process.env[provider === "paypal" ? "PAYPAL_ENVIRONMENT" : "WAFFO_ENVIRONMENT"];
+	const recorded = metadataString(metadata, "providerEnvironment");
+	// Legacy sandbox snapshots can still service existing test integrations.
+	// Every live snapshot must explicitly belong to that provider environment.
+	if (configured === "live" || configured === "prod") return recorded === configured;
+	return recorded === null || recorded === configured;
 }
 
 function metadataInteger(value: unknown, key: string): number | null {

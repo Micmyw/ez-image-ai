@@ -1,5 +1,20 @@
 {
 	"pricing": {
+		"currentPaymentMethod": "votre moyen de paiement actuel",
+		"subscriptionRenewalOpen": "Votre abonnement {provider} peut encore se renouveler, même si la période d’accès locale est terminée. Annulez le renouvellement dans Facturation, puis attendez la confirmation et la fin de la période payée avant d’utiliser un autre moyen de paiement.",
+		"subscriptionCancellationPending": "L’annulation du renouvellement via {provider} est en attente de confirmation. Les nouveaux abonnements mensuels ou annuels restent bloqués, même après la date de fin locale. Consultez Facturation pour suivre le statut.",
+		"subscriptionPaidThrough": "L’annulation du renouvellement via {provider} est confirmée. Votre période payée se termine le {date} ; vous pourrez ensuite utiliser un autre moyen de paiement.",
+		"subscriptionRefundPending": "Votre abonnement {provider} remboursé est encore en cours de clôture. Les nouveaux abonnements mensuels ou annuels seront disponibles après confirmation de la clôture.",
+		"pendingCheckout": {
+			"title": "Souscription inachevée",
+			"description": "Un paiement avec {provider} reste en cours. Reprenez-le ou vérifiez sa fermeture avant de démarrer une autre souscription.",
+			"resume": "Reprendre le paiement",
+			"refresh": "Vérifier le statut",
+			"PENDING": "L’approbation est toujours en attente. Reprenez ce paiement ou contactez l’assistance pour changer votre choix.",
+			"PAID": "Le prestataire a activé cette souscription. Nous confirmons le paiement et mettons votre compte à jour.",
+			"CLOSED": "Le paiement est fermé. Vous pouvez choisir une nouvelle souscription.",
+			"UNKNOWN": "La fermeture n’a pas été confirmée. Réessayez plus tard ou contactez l’assistance."
+		},
 		"annualSummary": "Facturé {total} par an · économisez {savings} ({percent}%) par rapport à 12 paiements mensuels",
 		"annualTotal": "Facturé {total} par an",
 		"aspectRatios": "Formats portrait, carré et paysage",

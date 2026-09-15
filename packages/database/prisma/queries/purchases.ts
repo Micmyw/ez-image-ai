@@ -12,7 +12,13 @@ const billingPlanForPurchase = {
 			ownerId: true,
 			provider: true,
 			cancelAtPeriodEnd: true,
+			cancellationRequestedAt: true,
+			renewalDisabledAt: true,
+			cancellationError: true,
 			currentPeriodEnd: true,
+			refundTerminationRequestedAt: true,
+			refundTerminatedAt: true,
+			refundTerminationError: true,
 			plan: {
 				select: {
 					provider: true,

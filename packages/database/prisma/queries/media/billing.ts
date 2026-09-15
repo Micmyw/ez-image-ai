@@ -16,11 +16,38 @@ export async function findEffectivePaidSubscription(
 	client: MediaDatabaseClient,
 ) {
 	const now = input.now ?? new Date();
-	return client.subscription.findFirst({
+	const candidates = await client.subscription.findMany({
 		where: {
 			ownerType: input.ownerType,
 			ownerId: input.ownerId,
-			OR: [{ status: "ACTIVE" }, { status: "PAST_DUE", graceEndsAt: { gt: now } }],
+			refundTerminationRequestedAt: null,
+			OR: [
+				{
+					status: { in: ["ACTIVE", "CANCELED"] },
+					currentPeriodStart: { lte: now },
+					currentPeriodEnd: { gt: now },
+					periods: {
+						some: {
+							startsAt: { lte: now },
+							endsAt: { gt: now },
+							paidAmount: { gt: 0n },
+							refundedAmount: { lt: client.billingPeriod.fields.paidAmount },
+							status: { not: "VOID" },
+						},
+					},
+				},
+				{
+					status: "PAST_DUE",
+					graceEndsAt: { gt: now },
+					periods: {
+						some: {
+							startsAt: { lte: now },
+							paidAmount: { gt: 0n },
+							status: { not: "VOID" },
+						},
+					},
+				},
+			],
 		},
 		select: {
 			id: true,
@@ -29,13 +56,34 @@ export async function findEffectivePaidSubscription(
 			status: true,
 			graceEndsAt: true,
 			plan: { select: { metadata: true, name: true } },
+			periods: {
+				where: { startsAt: { lte: now }, paidAmount: { gt: 0n }, status: { not: "VOID" } },
+				orderBy: { startsAt: "desc" },
+				take: 1,
+				select: { paidAmount: true, refundedAmount: true },
+			},
 		},
 		orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
 	});
+	for (const { periods, ...subscription } of candidates) {
+		// Grace follows the latest paid period, even when a subsequent renewal is
+		// unpaid. A full refund cannot fall back to an older unrefunded payment.
+		// Compare money, not REFUNDED credit status: a partial annual refund can
+		// revoke a whole month's credits while retaining the paid plan's access.
+		const latestPaidPeriod = periods[0];
+		if (
+			subscription.status !== "PAST_DUE" ||
+			(latestPaidPeriod && latestPaidPeriod.refundedAmount < latestPaidPeriod.paidAmount)
+		) {
+			return subscription;
+		}
+	}
+	return null;
 }
 
 export interface IngestPaymentEventInput {
 	provider: string;
+	providerEnvironment?: string;
 	providerEventId: string;
 	normalizedTransactionId?: string;
 	providerSubscriptionId?: string;
@@ -54,7 +102,7 @@ interface CreditPackReviewCandidate {
 }
 
 interface CreditPackRefundCorrelationCandidate {
-	provider: "paypal";
+	provider: "paypal" | "waffo";
 	providerPaymentId: string;
 }
 
@@ -123,7 +171,7 @@ export async function requeuePaymentEventsMissingCheckoutCorrelation(
 }
 
 export async function requeueCreditPackRefundEventsMissingCheckoutCorrelation(
-	input: { provider: "paypal"; providerPaymentId: string },
+	input: { provider: "paypal" | "waffo"; providerPaymentId: string },
 	client: Prisma.TransactionClient,
 ): Promise<{ requeued: number }> {
 	const candidates = await client.$queryRaw<Array<{ id: string }>>`
@@ -133,13 +181,16 @@ export async function requeueCreditPackRefundEventsMissingCheckoutCorrelation(
 		  AND event."status" IN ('FAILED', 'DEAD_LETTER')
 		  AND event."lastErrorClass" = 'TRANSIENT'
 		  AND event."failureReason" = ${PAYMENT_PROVIDER_CORRELATION_MISSING}
-		  AND EXISTS (
+		  AND (EXISTS (
 			SELECT 1
 			FROM "credit_pack_fulfillment" fulfillment
 			WHERE fulfillment."provider" = ${input.provider}
 			  AND fulfillment."providerPaymentId" = ${input.providerPaymentId}
-		  )
-		  AND event."envelope"->>'event_type' = 'PAYMENT.CAPTURE.REFUNDED'
+		  ) OR EXISTS (
+			SELECT 1 FROM "billing_period" period
+			WHERE period."providerInvoicePaymentId" = ${`${input.provider}:${input.providerPaymentId}`}
+		  ))
+		  AND ((event."envelope"->>'event_type' = 'PAYMENT.CAPTURE.REFUNDED'
 		  AND EXISTS (
 			SELECT 1
 			FROM jsonb_array_elements(
@@ -154,7 +205,10 @@ export async function requeueCreditPackRefundEventsMissingCheckoutCorrelation(
 				refund_link->>'href'
 				FROM '^https://[^/]+/v2/payments/captures/([^/]+)$'
 			  ) = ${input.providerPaymentId}
-		  )
+		  )) OR (event."envelope"->>'event_type' = 'PAYMENT.SALE.REFUNDED' AND event."envelope" #>> '{resource,sale_id}' = ${input.providerPaymentId})
+		     OR (event."envelope"->>'event_type' = 'PAYMENT.SALE.REVERSED' AND event."envelope" #>> '{resource,id}' = ${input.providerPaymentId})
+		     OR (event."envelope"->>'event_type' = 'PAYMENT.CAPTURE.REVERSED' AND event."envelope" #>> '{resource,id}' = ${input.providerPaymentId})
+		     OR (event."envelope"->>'eventType' = 'refund.succeeded' AND event."envelope" #>> '{data,paymentId}' = ${input.providerPaymentId}))
 		ORDER BY event."receivedAt", event."id"
 		FOR UPDATE OF event SKIP LOCKED`;
 	let requeued = 0;
@@ -197,8 +251,28 @@ export async function ingestPaymentEvent(
 	input: IngestPaymentEventInput,
 	client: MediaTransactionClient,
 ) {
-	return runSerializable(client, async (tx) => {
-		const replay = await tx.paymentEvent.findUnique({
+	return runSerializable(client, (tx) => ingestPaymentEventInTransaction(input, tx));
+}
+
+export async function ingestPaymentEventInTransaction(
+	input: IngestPaymentEventInput,
+	tx: Prisma.TransactionClient,
+) {
+	const replay = await tx.paymentEvent.findUnique({
+		where: {
+			provider_providerEventId: {
+				provider: input.provider,
+				providerEventId: input.providerEventId,
+			},
+		},
+	});
+	if (replay) return { event: replay, replayed: true };
+	let event;
+	try {
+		event = await tx.paymentEvent.create({ data: input });
+	} catch (error) {
+		if (!isDatabaseUniqueConflict(error)) throw error;
+		const duplicate = await tx.paymentEvent.findUnique({
 			where: {
 				provider_providerEventId: {
 					provider: input.provider,
@@ -206,34 +280,19 @@ export async function ingestPaymentEvent(
 				},
 			},
 		});
-		if (replay) return { event: replay, replayed: true };
-		let event;
-		try {
-			event = await tx.paymentEvent.create({ data: input });
-		} catch (error) {
-			if (!isDatabaseUniqueConflict(error)) throw error;
-			const duplicate = await tx.paymentEvent.findUnique({
-				where: {
-					provider_providerEventId: {
-						provider: input.provider,
-						providerEventId: input.providerEventId,
-					},
-				},
-			});
-			if (!duplicate) throw error;
-			return { event: duplicate, replayed: true };
-		}
-		await tx.outboxEvent.create({
-			data: {
-				eventType: "PAYMENT_EVENT_RECEIVED",
-				aggregateType: "PAYMENT_EVENT",
-				aggregateId: event.id,
-				dedupeKey: `payment-event:${input.provider}:${input.providerEventId}`,
-				payload: { paymentEventId: event.id },
-			},
-		});
-		return { event, replayed: false };
+		if (!duplicate) throw error;
+		return { event: duplicate, replayed: true };
+	}
+	await tx.outboxEvent.create({
+		data: {
+			eventType: "PAYMENT_EVENT_RECEIVED",
+			aggregateType: "PAYMENT_EVENT",
+			aggregateId: event.id,
+			dedupeKey: `payment-event:${input.provider}:${input.providerEventId}`,
+			payload: { paymentEventId: event.id },
+		},
 	});
+	return { event, replayed: false };
 }
 
 export async function claimPaymentEvent(
@@ -295,6 +354,8 @@ export async function failPaymentEvent(
 	return client.$transaction(async (tx) => {
 		if (input.creditPackRefundCorrelationCandidate) {
 			await lockCreditPackProviderPayment(input.creditPackRefundCorrelationCandidate, tx);
+			const candidate = input.creditPackRefundCorrelationCandidate;
+			await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`payment-provider-payment:${candidate.provider}:${candidate.providerPaymentId}`}, 0))::text AS "locked"`;
 		}
 		const changed = await tx.paymentEvent.updateMany({
 			where: { id, status: "PROCESSING", processingToken: token },

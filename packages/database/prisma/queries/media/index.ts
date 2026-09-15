@@ -6,6 +6,7 @@ export * from "./admin-safe-image-catalog";
 export * from "./admin-operations";
 export * from "./attempts";
 export * from "./billing";
+export * from "./payment-environment";
 export * from "./credit-allocations";
 export * from "./credits";
 export * from "./drafts";

@@ -433,7 +433,7 @@ describe("PayPal and Waffo lifecycle normalization", () => {
 		expect(normalized.fact.occurredAt).toEqual(new Date("2026-09-07T01:02:03Z"));
 	});
 
-	it("keeps Waffo refunds in review because its webhook omits authoritative refund identity and amount semantics", () => {
+	it("rejects a Waffo refund without its original payment identity", () => {
 		expect(() =>
 			normalizeProviderPaymentEvent("waffo", {
 				id: "delivery-refund",
@@ -448,6 +448,6 @@ describe("PayPal and Waffo lifecycle normalization", () => {
 					refundStatus: "succeeded",
 				},
 			}),
-		).toThrow("PAYMENT_PROVIDER_REFUND_REVIEW_REQUIRED");
+		).toThrow("WAFFO_PAYMENT_ID_MISSING");
 	});
 });

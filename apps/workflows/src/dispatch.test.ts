@@ -122,4 +122,30 @@ describe("Workflow ingress", () => {
 		).toBe(202);
 		expect(workflows.restart).toHaveBeenCalledOnce();
 	});
+	it.each([
+		["paypal", "errored"],
+		["waffo", "terminated"],
+	])(
+		"resumes a signed %s payment reconciliation after %s without changing its identity",
+		async (provider, status) => {
+			const workflows = binding(status);
+			const response = await handleDispatch(
+				await signed("media-reconcile-provider-payments", { provider }),
+				secret,
+				workflows,
+			);
+			expect(response.status).toBe(202);
+			expect(workflows.restart).toHaveBeenCalledOnce();
+			const result = (await response.json()) as { id: string };
+			expect(result).toMatchObject({ accepted: true, completed: false });
+			expect(workflows.createBatch.mock.calls[0]?.[0][0]).toMatchObject({
+				id: result.id,
+				params: {
+					kind: "task",
+					request: { taskId: "media-reconcile-provider-payments", payload: { provider } },
+				},
+			});
+			expect(workflows.get).toHaveBeenCalledExactlyOnceWith(result.id);
+		},
+	);
 });

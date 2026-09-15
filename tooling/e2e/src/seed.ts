@@ -8,6 +8,7 @@ import {
 	createUser,
 	createUserAccount,
 	expireGenerationDrafts,
+	findEffectivePaidSubscription,
 } from "@repo/database";
 import { db } from "@repo/database/client";
 import { MEDIA_VERIFICATION_RETRY_POLICY } from "@repo/jobs";
@@ -258,32 +259,67 @@ async function ensureCreatorSubscription(
 			providerPriceId: "e2e-creator",
 			name: "creator",
 			creditsPerPeriod: 700n,
-			priceMicros: 0n,
+			priceMicros: 19_000_000n,
 			currency: "USD",
 			metadata: { planId: "creator", source: "local-media-e2e" },
 		},
 		update: {
 			active: true,
 			creditsPerPeriod: 700n,
+			priceMicros: 19_000_000n,
 			metadata: { planId: "creator", source: "local-media-e2e" },
 		},
 	});
 	const providerSubscriptionId =
 		fixture === "funded" ? `e2e:${runId}:creator` : `e2e:${runId}:creator:empty`;
-	await db.subscription.upsert({
-		where: {
-			provider_providerSubscriptionId: { provider: "e2e", providerSubscriptionId },
-		},
-		create: {
-			ownerType: "USER",
-			ownerId: userId,
-			provider: "e2e",
-			providerSubscriptionId,
-			planId: plan.id,
-			status: "ACTIVE",
-		},
-		update: { ownerId: userId, planId: plan.id, status: "ACTIVE" },
+	const now = new Date();
+	const startsAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+	const endsAt = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 1, 1));
+	const subscription = await db.$transaction(async (tx) => {
+		const subscription = await tx.subscription.upsert({
+			where: {
+				provider_providerSubscriptionId: { provider: "e2e", providerSubscriptionId },
+			},
+			create: {
+				ownerType: "USER",
+				ownerId: userId,
+				provider: "e2e",
+				providerSubscriptionId,
+				planId: plan.id,
+				status: "ACTIVE",
+				currentPeriodStart: startsAt,
+				currentPeriodEnd: endsAt,
+			},
+			update: {
+				ownerId: userId,
+				planId: plan.id,
+				status: "ACTIVE",
+				currentPeriodStart: startsAt,
+				currentPeriodEnd: endsAt,
+				graceEndsAt: null,
+			},
+		});
+		// The local paid-plan fixture needs payment evidence independently of its
+		// test balance. In particular, the empty paid account must stay at zero.
+		await tx.billingPeriod.upsert({
+			where: { subscriptionId_startsAt: { subscriptionId: subscription.id, startsAt } },
+			create: {
+				subscriptionId: subscription.id,
+				startsAt,
+				endsAt,
+				status: "ACTIVE",
+				paidAmount: plan.priceMicros,
+				creditAmount: plan.creditsPerPeriod,
+				providerInvoicePaymentId: `${providerSubscriptionId}:local-payment`,
+			},
+			update: { endsAt, paidAmount: plan.priceMicros, status: "ACTIVE" },
+		});
+		return subscription;
 	});
+	const effective = await findEffectivePaidSubscription({ ownerType: "USER", ownerId: userId }, db);
+	if (effective?.id !== subscription.id) {
+		throw new Error("Local paid subscription fixture is missing effective payment evidence");
+	}
 }
 
 async function ensureCredentialUser(email: string, name: string) {

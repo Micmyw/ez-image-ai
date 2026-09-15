@@ -4,6 +4,9 @@ EzPic uses PayPal REST APIs through the existing provider registry, authenticate
 procedures, durable payment events, Outbox, and immutable credit ledger. Keep sandbox
 credentials, products, plans, webhooks, and database state separate from production.
 
+See [production payment cutover](payment-production-cutover.md) for live-environment checks,
+required migrations, immutable plan snapshots, refund events, and launch evidence.
+
 ## Local configuration
 
 Store the following server-only values in the ignored root `.env.local`:

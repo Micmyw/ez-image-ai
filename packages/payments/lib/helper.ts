@@ -12,7 +12,12 @@ export interface ResolvedPurchase extends PurchaseWithoutTimestamps {
 	planId?: PlanId | null;
 	planPrice?: PlanPrice | null;
 	isEffectiveSubscription?: boolean;
-	subscription?: { cancelAtPeriodEnd: boolean; currentPeriodEnd: Date | null } | null;
+	subscription?: {
+		cancelAtPeriodEnd: boolean;
+		currentPeriodEnd: Date | null;
+		refundTermination?: "PENDING" | "RETRYING" | "COMPLETED" | null;
+		cancellation?: "PENDING" | "RETRYING" | "CONFIRMED" | null;
+	} | null;
 	providerCapabilities?: {
 		portal: boolean;
 		cancellation: boolean;
@@ -60,6 +65,29 @@ function resolvePurchasePlanId(purchase: ResolvedPurchase) {
 }
 
 function isBlockingSubscription(purchase: ResolvedPurchase) {
+	if (purchase.productKind === "PLAN" && purchase.type === "SUBSCRIPTION") {
+		if (purchase.subscription?.refundTermination === "COMPLETED") return false;
+		if (purchase.subscription?.refundTermination) return true;
+		if (
+			["paypal", "waffo"].includes(purchase.provider) &&
+			purchase.subscription?.cancellation !== "CONFIRMED"
+		)
+			return true;
+		if (purchase.isEffectiveSubscription === true) return true;
+		if (
+			["canceled", "cancelled", "expired"].includes(purchase.status?.toLowerCase() ?? "") &&
+			purchase.subscription?.currentPeriodEnd &&
+			new Date(purchase.subscription.currentPeriodEnd) > new Date()
+		)
+			return true;
+		// A locally expired entitlement does not prove that the provider has
+		// stopped recurring charges. Preserve the cancellation entry point.
+		if (
+			purchase.status?.toLowerCase() === "expired" &&
+			purchase.subscription?.cancelAtPeriodEnd === false
+		)
+			return true;
+	}
 	return (
 		purchase.productKind === "PLAN" &&
 		purchase.type === "SUBSCRIPTION" &&
@@ -82,7 +110,9 @@ function getSubscriptionPlans(purchases: ResolvedPurchase[]) {
 					status: purchase.status || "active",
 					purchaseId: purchase.id,
 					provider: purchase.provider,
-					isEffectiveSubscription: purchase.isEffectiveSubscription,
+					isEffectiveSubscription: purchase.subscription?.refundTermination
+						? false
+						: purchase.isEffectiveSubscription,
 					subscription: purchase.subscription ?? null,
 					providerCapabilities: purchase.providerCapabilities ?? noManagementCapabilities,
 				},

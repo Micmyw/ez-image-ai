@@ -795,7 +795,10 @@
 				}
 			},
 			"activePlan": {
+				"cancellationPending": "Your cancellation request is awaiting confirmation from the payment service. New subscriptions remain blocked, even if this paid period ends. Your existing paid benefits remain available until their end date.",
+				"cancellationRetrying": "Renewal cancellation is still unconfirmed. We will keep retrying automatically. New subscriptions remain blocked; your existing paid benefits keep their original end date.",
 				"status": {
+					"cancellationPending": "Cancellation requested",
 					"active": "Active",
 					"canceled": "Canceled",
 					"expired": "Expired",
@@ -808,6 +811,9 @@
 					"pending": "Pending"
 				},
 				"title": "Your plan",
+				"refundTerminationPending": "Your payment was fully refunded and its plan benefits have ended. We are confirming renewal cancellation before you can subscribe again.",
+				"refundTerminationRetrying": "Your refunded plan benefits have ended. Renewal cancellation is still unconfirmed; we will keep retrying. You can subscribe again once cancellation is confirmed.",
+				"refundTerminated": "Your refunded subscription has ended and renewal cancellation is confirmed. You can subscribe again now using any available payment method.",
 				"cancellationScheduled": "Your plan remains available until {date}. It will not renew.",
 				"multipleSubscriptions": "More than one subscription is still open. Review each payment method below and cancel any renewal you no longer need.",
 				"paymentMethod": "Payment method: {provider}",

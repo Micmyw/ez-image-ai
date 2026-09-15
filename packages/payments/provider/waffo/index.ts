@@ -1,11 +1,14 @@
 import { WaffoPancake } from "@waffo/pancake-ts";
 
 import type { PaymentProvider } from "../../types";
+import { listWaffoPaymentEvents } from "./event-source";
 import {
 	cancelWaffoSubscription,
 	createWaffoCheckoutLink,
 	createWaffoWebhookVerifier,
 	recoverWaffoCheckout,
+	inspectWaffoSubscriptionCheckout,
+	inspectWaffoSubscriptionCancellation,
 	type WaffoSdkBoundary,
 } from "./waffo";
 
@@ -16,6 +19,13 @@ export function createWaffoClient(
 ): WaffoSdkBoundary {
 	const waffoEnvironment = getWaffoEnvironment(environment);
 	return new WaffoPancake({
+		fetch: (input, init) =>
+			fetch(input, {
+				...init,
+				signal: init?.signal
+					? AbortSignal.any([init.signal, AbortSignal.timeout(15_000)])
+					: AbortSignal.timeout(15_000),
+			}),
 		merchantId: requiredValue(environment.WAFFO_MERCHANT_ID),
 		privateKey: requiredValue(environment.WAFFO_PRIVATE_KEY),
 		webhookPublicKey: requiredValue(environment.WAFFO_WEBHOOK_PUBLIC_KEY),
@@ -41,6 +51,15 @@ export function createWaffoProvider(
 		createCheckout: (options) => createWaffoCheckoutLink(configuredClient, options),
 		recoverCheckout: (options) => recoverWaffoCheckout(configuredClient, storeId, options),
 		cancelSubscription: (id) => cancelWaffoSubscription(configuredClient, id),
+		listPaymentEvents: (window) =>
+			listWaffoPaymentEvents(
+				configuredClient,
+				{ storeId, environment: getWaffoEnvironment(environment) },
+				window,
+			),
+		inspectCheckout: (input) => inspectWaffoSubscriptionCheckout(configuredClient, storeId, input),
+		inspectSubscriptionCancellation: (input) =>
+			inspectWaffoSubscriptionCancellation(configuredClient, storeId, input),
 	};
 }
 

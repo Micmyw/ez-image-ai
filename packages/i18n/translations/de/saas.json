@@ -795,7 +795,10 @@
 				}
 			},
 			"activePlan": {
+				"cancellationPending": "Deine Kündigung wartet auf die Bestätigung des Zahlungsdienstes. Neue Abonnements bleiben auch nach Ablauf dieses bezahlten Zeitraums gesperrt. Deine bezahlten Leistungen bleiben bis zu ihrem Enddatum verfügbar.",
+				"cancellationRetrying": "Die Kündigung der Verlängerung ist noch nicht bestätigt. Wir versuchen es automatisch weiter. Neue Abonnements bleiben gesperrt; das ursprüngliche Enddatum deiner bezahlten Leistungen bleibt bestehen.",
 				"status": {
+					"cancellationPending": "Kündigung angefordert",
 					"active": "Aktiv",
 					"canceled": "Gekündigt",
 					"expired": "Ausgelaufen",
@@ -808,6 +811,9 @@
 					"pending": "Ausstehend"
 				},
 				"title": "Dein Plan",
+				"refundTerminationPending": "Deine Zahlung wurde vollständig erstattet und die Tarifleistungen sind beendet. Bevor du erneut abonnieren kannst, bestätigen wir die Kündigung der Verlängerung.",
+				"refundTerminationRetrying": "Die Leistungen deines erstatteten Tarifs sind beendet. Die Kündigung der Verlängerung ist noch unbestätigt; wir versuchen es weiter. Nach der Bestätigung kannst du erneut abonnieren.",
+				"refundTerminated": "Dein erstattetes Abonnement ist beendet und die Kündigung der Verlängerung wurde bestätigt. Du kannst jetzt mit jeder verfügbaren Zahlungsmethode erneut abonnieren.",
 				"cancellationScheduled": "Dein Tarif bleibt bis zum {date} verfügbar und wird nicht verlängert.",
 				"multipleSubscriptions": "Mehrere Abonnements sind noch offen. Prüfe die Zahlungsmethoden unten und kündige nicht mehr benötigte Verlängerungen.",
 				"paymentMethod": "Zahlungsmethode: {provider}",

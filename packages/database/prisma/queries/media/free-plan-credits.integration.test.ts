@@ -212,6 +212,17 @@ describe("Free monthly credit grants", () => {
 				planId: plan.id,
 				status: scenario.status,
 				graceEndsAt: scenario.graceEndsAt,
+				currentPeriodStart: new Date("2026-08-01T00:00:00Z"),
+				currentPeriodEnd: new Date("2026-09-01T00:00:00Z"),
+				periods: {
+					create: {
+						startsAt: new Date("2026-08-01T00:00:00Z"),
+						endsAt: new Date("2026-09-01T00:00:00Z"),
+						paidAmount: 19000000n,
+						creditAmount: 1000n,
+						status: "ACTIVE",
+					},
+				},
 			},
 		});
 		subscriptionIds.push(subscription.id);

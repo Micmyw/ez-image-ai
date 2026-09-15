@@ -204,6 +204,42 @@ export async function createPaymentCheckoutIntent(
 
 type SubscriptionCheckoutAdmission = PaymentOwner & { checkoutIntentId?: string; now?: Date };
 
+export async function closeConfirmedPaymentCheckoutIntent(
+	input: PaymentOwner & {
+		id: string;
+		expectedStatus: "CREATED" | "PROVIDER_CREATING" | "PROVIDER_PENDING" | "REVIEW";
+		expectedProviderSessionId: string | null;
+		actorUserId: string;
+	},
+	client: MediaTransactionClient,
+) {
+	return runSerializable(client, async (tx) => {
+		await lockSubscriptionCheckoutOwner(input, tx);
+		const changed = await tx.paymentCheckoutIntent.updateMany({
+			where: {
+				id: input.id,
+				ownerType: input.ownerType,
+				ownerId: input.ownerId,
+				productKind: "PLAN",
+				status: input.expectedStatus,
+				providerSessionId: input.expectedProviderSessionId,
+			},
+			data: { status: "CANCELED", activeScopeKey: null, providerCheckoutUrl: null },
+		});
+		if (changed.count === 1)
+			await tx.auditLog.create({
+				data: {
+					actorUserId: input.actorUserId,
+					action: "PAYMENT_CHECKOUT_CLOSED",
+					targetType: "PAYMENT_CHECKOUT_INTENT",
+					targetId: input.id,
+					metadata: { providerConfirmed: input.expectedStatus !== "CREATED" },
+				},
+			});
+		return changed.count === 1;
+	});
+}
+
 // Also used before returning or recovering an existing provider checkout. That
 // path must not bypass account-wide admission just because it has an old key.
 export async function assertPaymentSubscriptionCheckoutAllowed(
@@ -231,9 +267,13 @@ async function assertSubscriptionCheckoutAllowed(
 		where: {
 			ownerType: input.ownerType,
 			ownerId: input.ownerId,
+			refundTerminatedAt: null,
 			OR: [
+				{ refundTerminationRequestedAt: { not: null } },
+				{ provider: { in: ["paypal", "waffo"] }, renewalDisabledAt: null },
 				{ status: { in: ["PENDING", "ACTIVE", "PAST_DUE"] } },
-				{ status: "CANCELED", currentPeriodEnd: { gt: now } },
+				{ status: "EXPIRED", cancelAtPeriodEnd: false },
+				{ status: { in: ["CANCELED", "EXPIRED"] }, currentPeriodEnd: { gt: now } },
 			],
 		},
 		select: { id: true },

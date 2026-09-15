@@ -1,5 +1,20 @@
 {
 	"pricing": {
+		"currentPaymentMethod": "deine aktuelle Zahlungsmethode",
+		"subscriptionRenewalOpen": "Dein {provider}-Abonnement kann sich weiterhin verlängern, auch wenn der lokale Zugriffszeitraum abgelaufen ist. Kündige die Verlängerung unter Abrechnung und warte auf die Bestätigung sowie das Ende des bezahlten Zeitraums, bevor du eine andere Zahlungsmethode verwendest.",
+		"subscriptionCancellationPending": "Die Kündigung deiner Verlängerung über {provider} wartet auf Bestätigung. Neue Monats- oder Jahresabonnements bleiben auch nach dem lokalen Enddatum gesperrt. Den Status findest du unter Abrechnung.",
+		"subscriptionPaidThrough": "Die Verlängerung über {provider} wurde nachweislich gekündigt. Dein bezahlter Zeitraum endet am {date}. Danach kannst du eine andere Zahlungsmethode verwenden.",
+		"subscriptionRefundPending": "Dein erstattetes {provider}-Abonnement wird noch beendet. Neue Monats- oder Jahresabonnements sind verfügbar, sobald die Beendigung bestätigt ist.",
+		"pendingCheckout": {
+			"title": "Unvollständiger Abonnement-Checkout",
+			"description": "Ein Checkout mit {provider} ist noch offen. Setze ihn fort oder prüfe, ob er geschlossen wurde, bevor du ein weiteres Abonnement startest.",
+			"resume": "Checkout fortsetzen",
+			"refresh": "Zahlungsstatus prüfen",
+			"PENDING": "Die Genehmigung steht noch aus. Setze den Checkout fort oder kontaktiere den Support, um deine Auswahl zu ändern.",
+			"PAID": "Der Anbieter hat dieses Abonnement aktiviert. Wir bestätigen die Zahlung und aktualisieren dein Konto.",
+			"CLOSED": "Der Checkout ist geschlossen. Du kannst erneut ein Abonnement auswählen.",
+			"UNKNOWN": "Die Schließung wurde noch nicht bestätigt. Versuche es später erneut oder kontaktiere den Support."
+		},
 		"annualSummary": "Jährlich {total} abgerechnet · {savings} ({percent}%) gegenüber 12 Monatszahlungen sparen",
 		"annualTotal": "Jährlich {total} abgerechnet",
 		"aspectRatios": "Hochformat, Quadrat und Querformat",

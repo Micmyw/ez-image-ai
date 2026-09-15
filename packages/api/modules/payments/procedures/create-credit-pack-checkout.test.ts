@@ -128,6 +128,7 @@ const billingPlan = {
 
 describe("createCreditPackCheckout", () => {
 	beforeEach(() => {
+		vi.stubEnv("BILLING_ENABLED", "true");
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-09-06T08:30:00.000Z"));
 		vi.clearAllMocks();
@@ -210,6 +211,22 @@ describe("createCreditPackCheckout", () => {
 
 	afterEach(() => {
 		vi.useRealTimers();
+		vi.unstubAllEnvs();
+	});
+	it("blocks a new credit-pack payment while billing is disabled", async () => {
+		vi.stubEnv("BILLING_ENABLED", "false");
+		await expect(
+			call(
+				createCreditPackCheckout,
+				{
+					provider: "paypal",
+					packKey: "credits-1500",
+					idempotencyKey: "credit-pack-disabled-0001",
+				},
+				{ context: { headers: new Headers() } },
+			),
+		).rejects.toMatchObject({ code: "SERVICE_UNAVAILABLE" });
+		expect(providerCheckout).not.toHaveBeenCalled();
 	});
 
 	it("accepts only PayPal or Waffo and server-owned product selection", () => {

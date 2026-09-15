@@ -1,7 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { PrismaClient } from "../../generated/client";
+import { PrismaClient, type Prisma } from "../../generated/client";
 import { findEffectivePaidSubscription } from "./billing";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
@@ -105,6 +105,21 @@ describe("effective paid subscription", () => {
 				planId,
 				status: scenario.status,
 				graceEndsAt: scenario.graceEndsAt,
+				currentPeriodStart: new Date("2026-08-01T00:00:00Z"),
+				currentPeriodEnd: new Date("2026-09-01T00:00:00Z"),
+				...(scenario.status !== "CANCELED"
+					? {
+							periods: {
+								create: {
+									startsAt: new Date("2026-08-01T00:00:00Z"),
+									endsAt: new Date("2026-09-01T00:00:00Z"),
+									status: "ACTIVE" as const,
+									paidAmount: 19_000_000n,
+									creditAmount: 1_000n,
+								},
+							},
+						}
+					: {}),
 			},
 		});
 		subscriptionIds.push(createdSubscription.id);
@@ -125,7 +140,189 @@ describe("effective paid subscription", () => {
 			plan: { name: "creator", metadata: { planId: "creator" } },
 		});
 	});
+
+	it("does not use an older payment for grace after the latest paid period is fully refunded", async () => {
+		if (!planId) throw new Error("Effective subscription plan fixture is missing");
+		const ownerId = `${OWNER_PREFIX}-refunded-grace`;
+		const subscription = await client.subscription.create({
+			data: {
+				ownerType: "USER",
+				ownerId,
+				provider: "paypal",
+				providerSubscriptionId: `sub_${crypto.randomUUID()}`,
+				planId,
+				status: "PAST_DUE",
+				graceEndsAt: new Date("2026-09-01T00:00:00Z"),
+				currentPeriodStart: new Date("2026-08-01T00:00:00Z"),
+				currentPeriodEnd: new Date("2026-09-01T00:00:00Z"),
+				periods: {
+					create: [
+						{
+							startsAt: new Date("2026-07-01T00:00:00Z"),
+							endsAt: new Date("2026-08-01T00:00:00Z"),
+							status: "CLOSED",
+							paidAmount: 19_000_000n,
+							creditAmount: 1_000n,
+						},
+						{
+							startsAt: new Date("2026-08-01T00:00:00Z"),
+							endsAt: new Date("2026-09-01T00:00:00Z"),
+							status: "REFUNDED",
+							paidAmount: 19_000_000n,
+							refundedAmount: 19_000_000n,
+							creditAmount: 1_000n,
+							refundedCredits: 1_000n,
+						},
+					],
+				},
+			},
+		});
+		subscriptionIds.push(subscription.id);
+
+		await expect(
+			findEffectivePaidSubscription({ ownerType: "USER", ownerId, now: NOW }, client),
+		).resolves.toBeNull();
+	});
+
+	it.each([
+		{
+			label: "an unpaid renewal after a paid period",
+			previousRefund: 0n,
+			latestPaid: 0n,
+			latestRefund: 0n,
+			latestStatus: "PENDING" as const,
+		},
+		{
+			label: "a partial annual refund that reclaimed this month's credits",
+			previousRefund: 95_000_000n,
+			latestPaid: 190_000_000n,
+			latestRefund: 95_000_000n,
+			latestStatus: "REFUNDED" as const,
+		},
+		{
+			label: "a new paid period after an older refunded payment",
+			previousRefund: 190_000_000n,
+			latestPaid: 19_000_000n,
+			latestRefund: 0n,
+			latestStatus: "ACTIVE" as const,
+		},
+	])("preserves legitimate grace for $label", async (scenario) => {
+		const subscription = await createGraceSubscription([
+			{
+				startsAt: new Date("2026-07-01T00:00:00Z"),
+				endsAt: new Date("2026-08-01T00:00:00Z"),
+				status: "CLOSED",
+				paidAmount: 190_000_000n,
+				refundedAmount: scenario.previousRefund,
+				creditAmount: 1_000n,
+			},
+			{
+				startsAt: new Date("2026-08-01T00:00:00Z"),
+				endsAt: new Date("2026-09-01T00:00:00Z"),
+				status: scenario.latestStatus,
+				paidAmount: scenario.latestPaid,
+				refundedAmount: scenario.latestRefund,
+				creditAmount: 1_000n,
+				refundedCredits: scenario.latestStatus === "REFUNDED" ? 1_000n : 0n,
+			},
+		]);
+		await expect(
+			findEffectivePaidSubscription(
+				{ ownerType: "USER", ownerId: subscription.ownerId, now: NOW },
+				client,
+			),
+		).resolves.toMatchObject({ id: subscription.id, status: "PAST_DUE" });
+	});
+
+	it("does not use a future paid period as grace evidence before it starts", async () => {
+		const subscription = await createGraceSubscription([
+			{
+				startsAt: new Date("2026-09-01T00:00:00Z"),
+				endsAt: new Date("2026-10-01T00:00:00Z"),
+				status: "PENDING",
+				paidAmount: 19_000_000n,
+				creditAmount: 1_000n,
+			},
+		]);
+		await expect(
+			findEffectivePaidSubscription(
+				{ ownerType: "USER", ownerId: subscription.ownerId, now: NOW },
+				client,
+			),
+		).resolves.toBeNull();
+	});
+
+	it("keeps a valid replacement selected when an old refunded subscription gets a later update", async () => {
+		const old = await createGraceSubscription([
+			{
+				startsAt: new Date("2026-07-01T00:00:00Z"),
+				endsAt: new Date("2026-08-01T00:00:00Z"),
+				paidAmount: 19_000_000n,
+				creditAmount: 1_000n,
+			},
+			{
+				startsAt: new Date("2026-08-01T00:00:00Z"),
+				endsAt: new Date("2026-09-01T00:00:00Z"),
+				paidAmount: 19_000_000n,
+				refundedAmount: 19_000_000n,
+				creditAmount: 1_000n,
+				status: "REFUNDED",
+			},
+		]);
+		const replacement = await client.subscription.create({
+			data: {
+				ownerType: "USER",
+				ownerId: old.ownerId,
+				provider: "waffo",
+				providerSubscriptionId: `sub_${crypto.randomUUID()}`,
+				planId: old.planId,
+				status: "ACTIVE",
+				currentPeriodStart: new Date("2026-08-01T00:00:00Z"),
+				currentPeriodEnd: new Date("2026-09-01T00:00:00Z"),
+				updatedAt: NOW,
+				periods: {
+					create: {
+						startsAt: new Date("2026-08-01T00:00:00Z"),
+						endsAt: new Date("2026-09-01T00:00:00Z"),
+						paidAmount: 19_000_000n,
+						creditAmount: 1_000n,
+						status: "ACTIVE",
+					},
+				},
+			},
+		});
+		subscriptionIds.push(replacement.id);
+		await client.subscription.update({
+			where: { id: old.id },
+			data: { updatedAt: new Date(NOW.getTime() + 1) },
+		});
+		await expect(
+			findEffectivePaidSubscription({ ownerType: "USER", ownerId: old.ownerId, now: NOW }, client),
+		).resolves.toMatchObject({ id: replacement.id, status: "ACTIVE" });
+	});
 });
+
+async function createGraceSubscription(
+	periods: Prisma.BillingPeriodCreateWithoutSubscriptionInput[],
+) {
+	if (!planId) throw new Error("Effective subscription plan fixture is missing");
+	const subscription = await client.subscription.create({
+		data: {
+			ownerType: "USER",
+			ownerId: `${OWNER_PREFIX}-${crypto.randomUUID()}`,
+			provider: "paypal",
+			providerSubscriptionId: `sub_${crypto.randomUUID()}`,
+			planId,
+			status: "PAST_DUE",
+			graceEndsAt: new Date("2026-09-01T00:00:00Z"),
+			currentPeriodStart: new Date("2026-08-01T00:00:00Z"),
+			currentPeriodEnd: new Date("2026-09-01T00:00:00Z"),
+			periods: { create: periods },
+		},
+	});
+	subscriptionIds.push(subscription.id);
+	return subscription;
+}
 
 function safeTestDatabaseUrl(): string {
 	if (!TEST_DATABASE_URL) {

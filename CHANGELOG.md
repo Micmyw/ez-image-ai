@@ -11,6 +11,27 @@
 - Queue analytics visits immediately and load the GA4 and Clarity tags after page load and a
   paint opportunity. Bound the wait to two seconds without adding consent or interaction gates.
 
+### Payments and subscription credits
+
+- Keep monthly/yearly checkout blocked while renewal cancellation is unconfirmed, including
+  after local access expires. Persist cancellation requests, retry provider failures, and confirm
+  closure from authenticated provider evidence before allowing a payment-method switch.
+- Show the original payment method, cancellation progress and paid-through date in Billing and
+  plan selection. Keep prepaid benefits after ordinary cancellation; Credit Packs remain repeatable.
+- Automatically request renewal cancellation when the latest PayPal or Waffo subscription payment
+  is fully refunded. Revoke its benefits immediately and retry unconfirmed cancellation durably.
+  Once the provider confirms cancellation, allow immediate resubscription across plans and payment
+  methods. Fence old callbacks and retain unexpected new charges for financial review.
+- Keep prepaid benefits and monthly annual-plan grants after automatic renewal is canceled.
+- Apply PayPal and Waffo subscription and Credit Pack refunds, including PayPal reversals, with
+  cumulative credit recovery and debt accounting for credits already consumed.
+- Recover unfinished checkout links and missed payment notifications. Require paid-through evidence
+  before confirming a subscription or granting paid-model access.
+- Stop fully refunded subscriptions from retaining paid access through an older payment during a
+  grace period, and keep checkout confirmation consistent with that rule.
+- Enforce the new-purchase billing switch and reject test payment data and unmarked plan snapshots
+  when switching to live collection. Separate subscription pricing versions from image pricing.
+
 ### Homepage loading
 
 - Reduce initial JavaScript with selective UI imports and load documentation styles only on

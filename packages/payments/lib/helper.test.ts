@@ -3,6 +3,70 @@ import { describe, expect, it } from "vitest";
 import { createPurchasesHelper, type ResolvedPurchase } from "./helper";
 
 describe("createPurchasesHelper", () => {
+	it.each(["paypal", "waffo"])(
+		"keeps an expired %s cancellation pending until the provider confirms closure",
+		(provider) => {
+			const result = createPurchasesHelper([
+				{
+					id: "canceling-expired",
+					type: "SUBSCRIPTION",
+					productKind: "PLAN",
+					status: "expired",
+					provider,
+					planId: "creator",
+					isEffectiveSubscription: false,
+					planPrice: { type: "subscription", interval: "month", amount: 19, currency: "USD" },
+					subscription: { cancelAtPeriodEnd: true, currentPeriodEnd: new Date(0) },
+				} as ResolvedPurchase,
+			]);
+			expect(result.activePlan?.id).toBe("free");
+			expect(result.hasBlockingSubscription).toBe(true);
+			expect(result.activeSubscriptions).toHaveLength(1);
+		},
+	);
+	it.each(["PENDING", "RETRYING", "COMPLETED"] as const)(
+		"keeps refunded access off and gates resubscription for %s",
+		(refundTermination) => {
+			const result = createPurchasesHelper([
+				{
+					id: "refund",
+					type: "SUBSCRIPTION",
+					productKind: "PLAN",
+					status: "canceled",
+					provider: "paypal",
+					planId: "creator",
+					isEffectiveSubscription: false,
+					planPrice: { type: "subscription", interval: "month", amount: 19, currency: "USD" },
+					subscription: {
+						cancelAtPeriodEnd: true,
+						currentPeriodEnd: new Date(Date.now() + 86400000),
+						refundTermination,
+					},
+				} as ResolvedPurchase,
+			]);
+			expect(result.activePlan?.id).toBe("free");
+			expect(result.hasBlockingSubscription).toBe(refundTermination !== "COMPLETED");
+		},
+	);
+	it.each(["canceled", "expired"])("retains the correct access and management for %s", (status) => {
+		const effective = status === "canceled";
+		const result = createPurchasesHelper([
+			{
+				id: status,
+				type: "SUBSCRIPTION",
+				productKind: "PLAN",
+				status,
+				provider: "paypal",
+				planId: "creator",
+				planPrice: { type: "subscription", interval: "month", amount: 19, currency: "USD" },
+				isEffectiveSubscription: effective,
+				subscription: { cancelAtPeriodEnd: effective, currentPeriodEnd: new Date() },
+			} as ResolvedPurchase,
+		]);
+		expect(result.activePlan?.id).toBe(effective ? "creator" : "free");
+		expect(result.hasBlockingSubscription).toBe(true);
+		expect(result.activeSubscriptions).toHaveLength(1);
+	});
 	it("exposes every manageable subscription and selects the server's effective subscription", () => {
 		const base = {
 			type: "SUBSCRIPTION",
