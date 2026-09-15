@@ -84,6 +84,7 @@ subscription.uncanceled
 subscription.canceled
 subscription.past_due
 refund.succeeded
+refund.failed
 ```
 
 Preserve the raw request body and `X-Waffo-Signature`. The ingress verifies the RSA signature,
@@ -121,9 +122,48 @@ subscription state, exact credit lots, cancellation, and replay without addition
 Unit/database scenarios also cover a receipt preceding activation or renewal and delayed
 receipts after cancellation. Time-based renewal and recovery require separate live evidence.
 
-Waffo refund events currently enter the explicit review path. Automatic Waffo refund credit
-adjustment, customer portal, and seat changes are not supported. This local sandbox does not
-enable production payment credentials or certify a production deployment.
+Verified successful Waffo refunds use the shared refund reducer to revoke the original credit
+grant, record debt for consumed credits, and queue subscription termination after the latest
+payment is fully refunded. A failed refund does not change credits. Uncorrelated or invalid
+refunds remain fenced for review. Customer portal and seat changes are not supported.
+
+For a merchant-authorized sandbox refund, query the original order and payment first. Verify
+the store, buyer identity, product, `testMode: true`, succeeded payment, amount and currency.
+Submit `POST /v1/actions/refund-ticket/create-ticket` using **merchant RSA-SHA256 authentication**,
+with the original `paymentId`, a reason, `requestedAmount: { amount, currency }`, and a stable
+`refundTicketMerchantExternalId`. Waffo auto-approves merchant requests into `processing`; this
+is not refund completion. The installed SDK 0.19.1's `customer.createRefundTicket()` uses a
+customer bearer token and returned HTTP 403 `Access denied` during the hosted test below.
+Use the documented merchant authentication path, not that customer helper, for this operation.
+Never print authentication headers or keys.
+
+Before resubmitting after an uncertain response, query the ticket by the exact merchant reference
+and inspect the payment's refunds. Confirm provider `refund.succeeded`, the verified PaymentEvent,
+completed credit adjustment, matching credit lot/ledger totals, and the termination Outbox state.
+The account-wide debt gate blocks generation while debt remains; later grants repay debt first.
+
+Waffo's normal active-subscription cancellation becomes `canceling` until the paid period ends.
+Although `willRenew` can already be false, this state can normally be reactivated. EzPic therefore
+does not mark final closure from that flag alone: refunded benefits end immediately, but replacement
+monthly/yearly checkout remains blocked until `canceled`/`closed` is confirmed. Other open PayPal
+or Waffo subscriptions also continue to block checkout. Credit Packs remain repeatable.
+See [full refund termination](payment-production-cutover.md#full-refund-termination-and-financial-review).
+
+### Hosted sandbox evidence (2026-09-15)
+
+On deployed revision `e0002b5`, the selected existing Ultimate monthly test order had one succeeded
+USD 49.00 payment and one 1,800-credit grant, with 1,765 unused and 35 consumed. The merchant-signed
+full refund succeeded. The production webhook accepted the signed test notification, and the hosted
+worker processed it automatically: one 1,800-credit refund adjustment removed the remaining 1,765
+credits and recorded 35 debt. The account, lots, reservations and immutable ledger passed the credit
+invariant check. The refunded Waffo plan stopped supplying benefits; the account's two PayPal test
+subscriptions were preserved. Monthly/yearly checkout displayed provider-specific blockers, while
+both providers' Credit Pack buttons remained available.
+
+Waffo still reported `canceling` and `willRenew: false`, so final closure and replacement checkout
+were not completed in this test. This used a historical payment, not a new checkout; it does not
+certify fresh subscription payment, automatic renewal, partial refunds, or a live merchant charge.
+Sandbox evidence does not enable production payment credentials or certify live collection.
 
 ## Official references
 
@@ -132,3 +172,5 @@ enable production payment credentials or certify a production deployment.
 - [Test mode and cards](https://docs.waffo.ai/features/test-mode)
 - [Webhook event contracts](https://docs.waffo.ai/api-reference/webhooks)
 - [Add a webhook](https://docs.waffo.ai/api-reference/endpoints/webhooks/add-webhook)
+- [Create a refund ticket](https://docs.waffo.ai/api-reference/endpoints/refunds/create-refund-ticket)
+- [Cancel a subscription](https://docs.waffo.ai/api-reference/endpoints/subscriptions/cancel-subscription)
