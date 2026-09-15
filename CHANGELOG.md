@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-09-16
+
+### Content safety
+
+- Require both existing text moderation and the production payment partner's prompt scan before
+  generating images. Cover signed-in requests, guest trials, and retries; stop on review, rejection,
+  unavailable checks, or incomplete responses before authorizing generation credits.
+- Preserve private request references for safety support and require a new approved quote after
+  the text-safety policy changes. Explain prompt screening in the privacy policy.
+
 ## 2026-09-15
 
 ### Mobile first-visit performance

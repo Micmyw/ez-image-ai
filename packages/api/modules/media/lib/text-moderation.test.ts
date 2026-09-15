@@ -1,10 +1,22 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("@repo/payments/waffo-content-safety", () => ({
+	createWaffoPromptScanner: vi.fn(),
+}));
+
+import { createWaffoPromptScanner } from "@repo/payments/waffo-content-safety";
+
+import { safeTextResponse } from "../../../../ai/media/moderation/sightengine.test-fixtures";
 import {
 	createTextModerationAdapter,
 	moderateQuoteInput,
 	TEXT_MODERATION_RULE_VERSION,
 } from "./text-moderation";
+
+afterEach(() => {
+	vi.unstubAllGlobals();
+	vi.clearAllMocks();
+});
 
 describe("generation text moderation", () => {
 	const quote = {
@@ -115,7 +127,102 @@ describe("generation text moderation", () => {
 			}),
 		).toThrow("TEXT_MODERATION_CONFIGURATION_ERROR");
 	});
+
+	it.each(["REJECT", "REVIEW", "ERROR"] as const)(
+		"requires the live Waffo scan before approving a quote: %s",
+		async (decision) => {
+			vi.stubGlobal(
+				"fetch",
+				vi.fn(async () => Response.json(safeTextResponse())),
+			);
+			const scan = vi.fn(async () => ({ decision, reasonCode: "WAFFO_PROMPT_SCAN_DENIED" }));
+			vi.mocked(createWaffoPromptScanner).mockReturnValue(scan);
+			const selection = createTextModerationAdapter(liveModerationEnvironment());
+			const persistApproved = vi.fn();
+			const recordDenied = vi.fn();
+			await expect(
+				moderateQuoteInput(quote, {
+					provider: selection.provider,
+					moderateText: (input) => selection.adapter.moderateText(input),
+					persistApproved,
+					recordDenied,
+				}),
+			).rejects.toThrow(`TEXT_MODERATION_${decision}`);
+			expect(scan).toHaveBeenCalledExactlyOnceWith("private prompt");
+			expect(persistApproved).not.toHaveBeenCalled();
+			expect(recordDenied).toHaveBeenCalledWith(
+				expect.objectContaining({
+					decision,
+					provider: "sightengine+waffo",
+				}),
+			);
+		},
+	);
+
+	it("retains both providers' redacted evidence only after both checks allow", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => Response.json(safeTextResponse())),
+		);
+		const waffoEvidence = {
+			requestId: "waffo-request-1",
+			action: "allow" as const,
+			semanticStatus: "scored",
+			matchedCategories: [],
+		};
+		const scan = vi.fn(async () => ({
+			decision: "ALLOW" as const,
+			reasonCode: "WAFFO_PROMPT_ALLOWED",
+			evidence: waffoEvidence,
+		}));
+		vi.mocked(createWaffoPromptScanner).mockReturnValue(scan);
+		const { adapter, provider } = createTextModerationAdapter(liveModerationEnvironment());
+		expect(provider).toBe("sightengine+waffo");
+		const result = await adapter.moderateText({
+			text: "private prompt",
+			ruleVersion: TEXT_MODERATION_RULE_VERSION,
+		});
+		expect(result).toMatchObject({
+			decision: "ALLOW",
+			ruleVersion: TEXT_MODERATION_RULE_VERSION,
+			evidence: { requestId: "req_text_fixture", waffo: waffoEvidence },
+		});
+		expect(JSON.stringify(result)).not.toMatch(/private prompt|fixture-secret/);
+	});
+
+	it("does not send a prompt already denied by Sightengine to another provider", async () => {
+		const rejected = safeTextResponse();
+		rejected.moderation_classes.violent = 0.99;
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => Response.json(rejected)),
+		);
+		const scan = vi.fn();
+		vi.mocked(createWaffoPromptScanner).mockReturnValue(scan);
+		const { adapter } = createTextModerationAdapter(liveModerationEnvironment());
+		expect(
+			await adapter.moderateText({
+				text: "private prompt",
+				ruleVersion: TEXT_MODERATION_RULE_VERSION,
+			}),
+		).toMatchObject({ decision: "REJECT" });
+		expect(scan).not.toHaveBeenCalled();
+	});
+
+	it("invalidates old quote moderation versions when enabling the new safety chain", () => {
+		expect(TEXT_MODERATION_RULE_VERSION).not.toBe("text-safety-2026-09-08.1");
+	});
 });
+
+function liveModerationEnvironment(): Record<string, string | undefined> {
+	return {
+		NODE_ENV: "production",
+		MEDIA_SAFETY_ADAPTER: "sightengine",
+		SIGHTENGINE_API_USER: "fixture-user",
+		SIGHTENGINE_API_SECRET: "fixture-secret",
+		WAFFO_ENVIRONMENT: "prod",
+	};
+}
 
 function localProductionE2EEnvironment(): Record<string, string | undefined> {
 	const databaseUrl = "postgresql://media:media@127.0.0.1:55432/media_e2e_test";

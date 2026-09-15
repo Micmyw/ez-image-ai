@@ -28,6 +28,7 @@ import { buildMediaQuote } from "./quote";
 import {
 	createTextModerationAdapter,
 	TEXT_MODERATION_RULE_VERSION,
+	textModerationProviderForEnvironment,
 	type TextModerationEvidence,
 } from "./text-moderation";
 import {
@@ -395,8 +396,7 @@ export async function submitGuestGenerationForGuest(
 		);
 	}
 	const moderationProvider =
-		dependencies.moderationProvider ??
-		(process.env.MEDIA_SAFETY_ADAPTER === "sightengine" ? "sightengine" : "test");
+		dependencies.moderationProvider ?? textModerationProviderForEnvironment(process.env);
 	const sourceSessionHash = hashGuestAbuseBinding(
 		abuseHmac.secretKey,
 		abuseHmac.keyVersion,

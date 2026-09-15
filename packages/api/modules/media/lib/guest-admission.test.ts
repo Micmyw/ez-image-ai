@@ -1,10 +1,25 @@
 import { createHmac } from "node:crypto";
 
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { submitGuestGenerationForGuest, type guestAdmissionDependencies } from "./guest-admission";
 
+afterEach(() => vi.unstubAllEnvs());
+
 describe("guest admission pre-transaction boundary", () => {
+	it("identifies the production Waffo safety chain on the guest quote", async () => {
+		vi.stubEnv("MEDIA_SAFETY_ADAPTER", "sightengine");
+		vi.stubEnv("WAFFO_ENVIRONMENT", "prod");
+		const dependencies = validDependencies();
+		await submitGuestGenerationForGuest(validBoundary(), validInput(), dependencies);
+		expect(dependencies.createTransaction).toHaveBeenCalledWith(
+			expect.objectContaining({
+				quote: expect.objectContaining({
+					moderation: expect.objectContaining({ provider: "sightengine+waffo" }),
+				}),
+			}),
+		);
+	});
 	it.each([
 		{ capabilityEnabled: false },
 		{ turnstileError: "TURNSTILE_INVALID" },

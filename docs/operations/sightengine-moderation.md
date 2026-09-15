@@ -91,10 +91,14 @@ Do not put credentials into browser variables, source files, or logs. Generation
 its existing provider, storage, budget, and certification gates; changing these four variables alone
 does not certify or enable the complete generation service.
 
-Current versions are `text-safety-2026-09-08.1`, `media-safety-2026-09-08.1`, and
+Current versions are `text-safety-2026-09-16.1`, `media-safety-2026-09-08.1`, and
 `media-policy-2026-09-08.2`. Deploy app and workers consistently. Old approved text quotes cannot
 authorize new jobs under the new rule. The image lifetime change in policy `.2` preserves the same
 classifier rules as `.1`; it does not approve different content.
+
+The production Waffo integration now adds a mandatory prompt scan after Sightengine allows the
+text. See [Waffo prompt moderation](./waffo-prompt-moderation.md) for its request contract and
+failure handling. Image verification continues to use the Sightengine policy above.
 
 **Approved static images have no daily recheck.** Their private immutable bytes, checksum, provider,
 rule, policy, latest approved evidence, and ownership must still match. New uploads and newly

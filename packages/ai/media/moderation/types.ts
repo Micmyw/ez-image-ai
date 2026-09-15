@@ -26,6 +26,12 @@ export type ModerationEvidence = {
 	models: string[];
 	operations: number;
 	scores: Record<string, number>;
+	waffo?: {
+		requestId: string;
+		action: "allow" | "review" | "block";
+		semanticStatus: string;
+		matchedCategories: string[];
+	};
 };
 export interface ModerationSubmission {
 	moderationTaskId: string;

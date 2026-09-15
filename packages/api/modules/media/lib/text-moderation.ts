@@ -7,11 +7,12 @@ import {
 	fingerprintGenerationQuoteSecurityPayload,
 	type CreateModeratedGenerationQuoteInput,
 } from "@repo/database/media-quotes";
+import { createWaffoPromptScanner } from "@repo/payments/waffo-content-safety";
 
-export const TEXT_MODERATION_RULE_VERSION = "text-safety-2026-09-08.1";
+export const TEXT_MODERATION_RULE_VERSION = "text-safety-2026-09-16.1";
 
 export interface TextModerationEvidence extends ModerationDecision {
-	provider: "sightengine" | "test";
+	provider: "sightengine" | "sightengine+waffo" | "test";
 	inputFingerprint: string;
 }
 
@@ -44,7 +45,7 @@ export async function moderateQuoteInput<T>(
 
 export function createTextModerationAdapter(environment: Record<string, string | undefined>): {
 	provider: TextModerationEvidence["provider"];
-	adapter: MediaSafetyAdapter;
+	adapter: Pick<MediaSafetyAdapter, "moderateText">;
 } {
 	const nodeEnv = normalizedNodeEnvironment(environment.NODE_ENV);
 	if (environment.MEDIA_SAFETY_ADAPTER === "test") {
@@ -66,15 +67,54 @@ export function createTextModerationAdapter(environment: Record<string, string |
 	) {
 		throw new Error("TEXT_MODERATION_CONFIGURATION_ERROR");
 	}
+	const adapter = createMediaSafetyAdapter({
+		kind: "sightengine",
+		nodeEnv,
+		apiUser: environment.SIGHTENGINE_API_USER,
+		apiSecret: environment.SIGHTENGINE_API_SECRET,
+	});
+	if (environment.WAFFO_ENVIRONMENT !== "prod") return { provider: "sightengine", adapter };
+	// Every generation path uses this boundary. Live Waffo credentials require
+	// its pre-generation scan even for guests and customers paying another way.
+	const scanWaffo = createWaffoPromptScanner(environment);
 	return {
-		provider: "sightengine",
-		adapter: createMediaSafetyAdapter({
-			kind: "sightengine",
-			nodeEnv,
-			apiUser: environment.SIGHTENGINE_API_USER,
-			apiSecret: environment.SIGHTENGINE_API_SECRET,
-		}),
+		provider: "sightengine+waffo",
+		adapter: {
+			async moderateText(input) {
+				const primary = await adapter.moderateText(input);
+				if (primary.decision !== "ALLOW") return primary;
+				try {
+					const secondary = await scanWaffo(input.text);
+					return {
+						...primary,
+						decision: secondary.decision,
+						reasonCode: secondary.decision === "ALLOW" ? primary.reasonCode : secondary.reasonCode,
+						...(primary.evidence
+							? {
+									evidence: {
+										...primary.evidence,
+										...(secondary.evidence ? { waffo: secondary.evidence } : {}),
+									},
+								}
+							: {}),
+					};
+				} catch {
+					return {
+						decision: "ERROR",
+						reasonCode: "MODERATION_UNAVAILABLE",
+						ruleVersion: input.ruleVersion,
+					};
+				}
+			},
+		},
 	};
+}
+
+export function textModerationProviderForEnvironment(
+	environment: Record<string, string | undefined>,
+): TextModerationEvidence["provider"] {
+	if (environment.MEDIA_SAFETY_ADAPTER !== "sightengine") return "test";
+	return environment.WAFFO_ENVIRONMENT === "prod" ? "sightengine+waffo" : "sightengine";
 }
 
 function normalizedNodeEnvironment(

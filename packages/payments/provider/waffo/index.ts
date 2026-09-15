@@ -16,11 +16,12 @@ type WaffoEnvironment = "test" | "prod";
 
 export function createWaffoClient(
 	environment: Record<string, string | undefined> = process.env,
-): WaffoSdkBoundary {
+	options: { fetch?: typeof fetch } = {},
+): WaffoPancake {
 	const waffoEnvironment = getWaffoEnvironment(environment);
 	return new WaffoPancake({
 		fetch: (input, init) =>
-			fetch(input, {
+			(options.fetch ?? fetch)(input, {
 				...init,
 				signal: init?.signal
 					? AbortSignal.any([init.signal, AbortSignal.timeout(15_000)])

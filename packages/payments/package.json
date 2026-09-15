@@ -10,7 +10,8 @@
 		},
 		"./config": "./config.ts",
 		"./types": "./types.ts",
-		"./lib/helper": "./lib/helper.ts"
+		"./lib/helper": "./lib/helper.ts",
+		"./waffo-content-safety": "./provider/waffo/content-safety.ts"
 	},
 	"scripts": {
 		"clean": "git clean -xdf .cache .turbo dist node_modules",

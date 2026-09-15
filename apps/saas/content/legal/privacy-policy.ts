@@ -5,7 +5,7 @@ export const privacyPolicyDocuments = [
 		title: "Privacy Policy",
 		description:
 			"How EzPic handles account data, private image-editing media, analytics consent, and retention.",
-		body: `_Last updated: September 12, 2026_
+		body: `_Last updated: September 16, 2026_
 
 This policy explains how EzPic handles information when you use the public image editor, prepare a short-lived draft, use an available Nano Banana 2 Lite 1K guest trial, create an account, or use the signed-in editor. EzPic is an independently operated service run by an individual. Its operator is responsible for the information handled by the service and can be reached through the [Contact page](/contact) for privacy questions and requests.
 
@@ -24,6 +24,8 @@ Registered source images and results are private account-scoped assets. Guest me
 If you sign in or register from an active trial, EzPic can create an expiry-bounded account-link grant before revoking the anonymous session. The grant lets the registered account view and download the same watermarked result until its original expiry. It does not transfer sponsored credits, extend retention, add the result to History, or enable Edit Again.
 
 EzPic may send the minimum necessary edit input to configured hosting, storage, moderation, payment, and image-processing services so they can perform the requested function. Those services do not own EzPic job, credit, or subscription state.
+
+Before generation, EzPic screens text instructions with Sightengine and, when its production integration is active, Waffo. The Waffo prompt scan receives the text instruction and scan settings, without your source image, account email, or payment details. EzPic retains limited safety decisions and request references without copying raw instructions into these moderation audit records.
 
 ## Analytics consent
 
@@ -57,7 +59,7 @@ EzPic uses owner checks, private storage, short-lived access, moderation, idempo
 		title: "Datenschutzerklärung",
 		description:
 			"Wie EzPic Kontodaten, private Medien zur Bildbearbeitung, Analyse-Einwilligung und Aufbewahrung behandelt.",
-		body: `_Zuletzt aktualisiert: 12. September 2026_
+		body: `_Zuletzt aktualisiert: 16. September 2026_
 
 Diese Erklärung beschreibt, wie EzPic Informationen verarbeitet, wenn Sie den öffentlichen Bildeditor nutzen, einen kurzlebigen Entwurf vorbereiten, einen verfügbaren Nano-Banana-2-Lite-1K-Gasttest verwenden, ein Konto erstellen oder den angemeldeten Editor nutzen. EzPic wird unabhängig von einer Einzelperson betrieben. Der Betreiber ist für die vom Dienst verarbeiteten Informationen verantwortlich und über die [Kontaktseite](/contact) für Datenschutzfragen und Anfragen erreichbar.
 
@@ -76,6 +78,8 @@ Quellbilder und Ergebnisse registrierter Konten sind private, kontobezogene Medi
 Wenn Sie sich aus einem aktiven Test anmelden oder registrieren, kann EzPic vor dem Widerruf der anonymen Sitzung eine befristete Kontoverknüpfung erstellen. Das registrierte Konto kann dasselbe Ergebnis mit Wasserzeichen nur bis zu dessen ursprünglichem Ablauf ansehen und herunterladen. Die Verknüpfung überträgt keine gesponserten Credits, verlängert die Aufbewahrung nicht, fügt das Ergebnis nicht zum Verlauf hinzu und aktiviert keine weitere Bearbeitung.
 
 EzPic kann die für die angeforderte Funktion notwendigen Eingaben an konfigurierte Hosting-, Speicher-, Moderations-, Zahlungs- und Bildverarbeitungsdienste übermitteln. Diese Dienste besitzen nicht den maßgeblichen EzPic-Status für Auftrag, Credits oder Abonnement.
+
+Vor der Generierung prüft EzPic Textanweisungen mit Sightengine und bei aktiver Produktionsintegration zusätzlich mit Waffo. Die Waffo-Prüfung erhält die Textanweisung und Prüfeinstellungen, jedoch kein Quellbild, keine Konto-E-Mail-Adresse und keine Zahlungsdaten. EzPic speichert begrenzte Prüfentscheidungen und Anfragereferenzen, ohne den ursprünglichen Anweisungstext in diese Moderationsprotokolle zu kopieren.
 
 ## Einwilligung in Analysen
 
