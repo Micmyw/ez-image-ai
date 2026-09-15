@@ -9,6 +9,7 @@ const state = vi.hoisted(() => ({
 	cancelAtPeriodEnd: false,
 	multiple: false,
 	refundTermination: null as "PENDING" | "RETRYING" | null,
+	cancellation: null as "PENDING" | "RETRYING" | "CONFIRMED" | null,
 }));
 vi.mock("@payments/hooks/plan-data", () => ({
 	usePlanData: () => ({
@@ -29,6 +30,7 @@ vi.mock("@payments/hooks/purchases", () => ({
 			providerCapabilities: { portal: false, cancellation: true },
 			subscription: {
 				refundTermination: state.refundTermination,
+				cancellation: state.cancellation,
 				cancelAtPeriodEnd: state.cancelAtPeriodEnd,
 				currentPeriodEnd: new Date("2026-10-12T00:00:00Z"),
 			},
@@ -77,6 +79,8 @@ describe("ActivePlan cancellation display", () => {
 	beforeEach(() => {
 		state.multiple = false;
 		state.refundTermination = null;
+		state.cancellation = null;
+		state.cancelAtPeriodEnd = false;
 	});
 	it.each(["PENDING", "RETRYING"] as const)(
 		"shows honest refunded benefits and renewal state for %s",
@@ -107,12 +111,28 @@ describe("ActivePlan cancellation display", () => {
 	});
 	it("shows the end date and removes the cancel action after renewal cancellation", () => {
 		state.cancelAtPeriodEnd = true;
+		state.cancellation = "CONFIRMED";
 		const html = renderPlan();
 		expect(html).toContain("Renewal canceled");
 		expect(html).toContain("Oct 12, 2026");
 		expect(html).toContain("It will not renew.");
 		expect(html).not.toContain("Cancel subscription");
 	});
+
+	it.each(["PENDING", "RETRYING"] as const)(
+		"does not claim renewal has stopped while %s",
+		(cancellation) => {
+			state.cancelAtPeriodEnd = true;
+			state.cancellation = cancellation;
+			const html = renderPlan();
+			expect(html).toContain(
+				cancellation === "PENDING" ? "awaiting confirmation" : "retrying automatically",
+			);
+			expect(html).not.toContain("Renewal canceled");
+			expect(html).not.toContain("It will not renew.");
+			expect(html).not.toContain("Cancel subscription");
+		},
+	);
 
 	it("keeps the cancel action for an active renewing subscription", () => {
 		state.cancelAtPeriodEnd = false;

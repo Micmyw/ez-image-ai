@@ -38,6 +38,75 @@ test.describe("subscription upgrade checkout recovery", () => {
 
 	test.afterAll(async () => pool.end());
 
+	for (const provider of ["paypal", "waffo"]) {
+		test(`subscription upgrade explains unconfirmed ${provider} cancellation and waits for paid expiry`, async ({
+			page,
+		}) => {
+			const user = await userByEmail(freeEmail);
+			const fixtureId = `cancellation-e2e-${runId}-${provider}`;
+			await pool.query(
+				`INSERT INTO billing_plan (id, provider, "providerPriceId", name, "creditsPerPeriod", "priceMicros", currency, metadata, "updatedAt")
+				 VALUES ($1, $2, $1, 'creator', 700, 19000000, 'USD', '{"planId":"creator","interval":"month"}', now())`,
+				[fixtureId, provider],
+			);
+			try {
+				await pool.query(
+					`INSERT INTO purchase (id, "userId", type, "productKind", provider, "customerId", "subscriptionId", "priceId", status, "updatedAt")
+					 VALUES ($1, $2, 'SUBSCRIPTION', 'PLAN', $3, $1, $1, $1, 'expired', now())`,
+					[fixtureId, user.id, provider],
+				);
+				await pool.query(
+					`INSERT INTO subscription (id, "ownerType", "ownerId", provider, "providerSubscriptionId", "planId", "purchaseId",
+						status, "cancelAtPeriodEnd", "cancellationRequestedAt", "currentPeriodEnd", "updatedAt")
+					 VALUES ($1, 'USER', $2, $3, $1, $1, $1, 'EXPIRED', true, now(), now() - interval '1 day', now())`,
+					[fixtureId, user.id, provider],
+				);
+				await page.goto("/settings/billing");
+				await expect(
+					page.getByText(/new monthly or yearly subscriptions are blocked/i),
+				).toBeVisible();
+				await expect(
+					page.getByText(/awaiting confirmation/, { exact: false }).first(),
+				).toBeVisible();
+				await expect(page.getByText("Renewal canceled", { exact: true })).toHaveCount(0);
+				await expect(page.locator('[data-test="price-table-plan"]')).toHaveCount(0);
+				await page.goto("/choose-plan");
+				await expect(
+					page.getByText(/new monthly or yearly subscriptions are blocked/i),
+				).toBeVisible();
+				await expect(page.locator('[data-test="price-table-plan"]')).toHaveCount(0);
+
+				await pool.query(
+					`UPDATE subscription SET "renewalDisabledAt"=now(), status='CANCELED',
+						"currentPeriodEnd"=now() + interval '1 month' WHERE id=$1`,
+					[fixtureId],
+				);
+				await page.goto("/settings/billing");
+				await expect(page.getByText(/renewal through .* is confirmed canceled/i)).toBeVisible();
+				await expect(page.getByText("Renewal canceled", { exact: true })).toBeVisible();
+				await expect(page.locator('[data-test="price-table-plan"]')).toHaveCount(0);
+				await pool.query(
+					`UPDATE subscription SET status='EXPIRED', "currentPeriodEnd"=now() - interval '1 day' WHERE id=$1`,
+					[fixtureId],
+				);
+				await page.reload();
+				await expect(page.locator('[data-test="price-table-plan"]')).toHaveCount(3);
+				expect(
+					(
+						await pool.query(
+							'SELECT count(*) AS count FROM payment_checkout_intent WHERE "ownerId"=$1',
+							[user.id],
+						)
+					).rows[0].count,
+				).toBe("0");
+			} finally {
+				await pool.query("DELETE FROM subscription WHERE id=$1", [fixtureId]);
+				await pool.query("DELETE FROM purchase WHERE id=$1", [fixtureId]);
+				await pool.query("DELETE FROM billing_plan WHERE id=$1", [fixtureId]);
+			}
+		});
+	}
+
 	test("subscription upgrade with missing Price ID stays local and visibly unavailable", async ({
 		page,
 	}) => {

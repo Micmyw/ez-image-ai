@@ -247,7 +247,11 @@ async function assertSubscriptionCheckoutAllowed(
 		SELECT id FROM subscription
 		WHERE "ownerType" = ${input.ownerType} AND "ownerId" = ${input.ownerId}
 			AND "refundTerminatedAt" IS NULL
-			AND ("refundTerminationRequestedAt" IS NOT NULL OR status IN ('PENDING', 'ACTIVE', 'PAST_DUE') OR (status = 'EXPIRED' AND "cancelAtPeriodEnd" = false) OR (status = 'CANCELED' AND "currentPeriodEnd" > ${now}))
+			AND ("refundTerminationRequestedAt" IS NOT NULL
+				OR (provider IN ('paypal', 'waffo') AND "renewalDisabledAt" IS NULL)
+				OR status IN ('PENDING', 'ACTIVE', 'PAST_DUE')
+				OR (status = 'EXPIRED' AND "cancelAtPeriodEnd" = false)
+				OR (status IN ('CANCELED', 'EXPIRED') AND "currentPeriodEnd" > ${now}))
 		LIMIT 1`);
 	if (existing.rows.length) throw new Error("PAYMENT_SUBSCRIPTION_ALREADY_EXISTS");
 	const legacy = await tx.execute(sql`

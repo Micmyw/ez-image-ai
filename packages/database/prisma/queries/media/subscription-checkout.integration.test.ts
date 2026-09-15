@@ -129,6 +129,28 @@ describe("account-wide subscription checkout admission", () => {
 	});
 
 	it.each(["CANCELED", "EXPIRED"] as const)(
+		"blocks legacy %s cancellation without provider confirmation after local expiry",
+		async (status) => {
+			const ownerId = owner();
+			await client.subscription.create({
+				data: {
+					ownerType: "USER",
+					ownerId,
+					provider: "waffo",
+					providerSubscriptionId: crypto.randomUUID(),
+					planId: plans[1]!,
+					status,
+					cancelAtPeriodEnd: true,
+					currentPeriodEnd: new Date("2026-08-12T12:00:00Z"),
+				},
+			});
+			await expect(createPaymentCheckoutIntent(command(ownerId), client)).rejects.toThrow(
+				"PAYMENT_SUBSCRIPTION_ALREADY_EXISTS",
+			);
+		},
+	);
+
+	it.each(["CANCELED", "EXPIRED"] as const)(
 		"allows a new plan after a %s subscription has ended",
 		async (status) => {
 			const ownerId = owner();
@@ -142,6 +164,7 @@ describe("account-wide subscription checkout admission", () => {
 					status,
 					currentPeriodEnd: new Date("2026-08-12T12:00:00Z"),
 					cancelAtPeriodEnd: true,
+					renewalDisabledAt: new Date("2026-08-10T12:00:00Z"),
 				},
 			});
 			await expect(createPaymentCheckoutIntent(command(ownerId), client)).resolves.toMatchObject({

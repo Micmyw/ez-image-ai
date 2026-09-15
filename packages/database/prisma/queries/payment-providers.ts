@@ -270,9 +270,10 @@ async function assertSubscriptionCheckoutAllowed(
 			refundTerminatedAt: null,
 			OR: [
 				{ refundTerminationRequestedAt: { not: null } },
+				{ provider: { in: ["paypal", "waffo"] }, renewalDisabledAt: null },
 				{ status: { in: ["PENDING", "ACTIVE", "PAST_DUE"] } },
 				{ status: "EXPIRED", cancelAtPeriodEnd: false },
-				{ status: "CANCELED", currentPeriodEnd: { gt: now } },
+				{ status: { in: ["CANCELED", "EXPIRED"] }, currentPeriodEnd: { gt: now } },
 			],
 		},
 		select: { id: true },

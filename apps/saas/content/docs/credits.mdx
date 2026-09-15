@@ -48,9 +48,18 @@ the paid period ends; a past-due subscription retains access only during its sta
 A full refund of the latest payment removes that access even during a grace period. Earlier
 payments do not restore it.
 
+Switching payment methods follows the same rule in both directions, PayPal to Waffo and Waffo to
+PayPal. First cancel renewal in Billing, then wait for the payment service to confirm cancellation
+and for the paid period to end. A cancellation request or a local expiry alone does not confirm
+that recurring charges have stopped. Billing shows the original payment method, cancellation
+progress and the paid-through date; unconfirmed requests are retried automatically.
+If the next month was already paid before cancellation, that paid month remains available and you
+can switch after its end date. One-time Credit Packs do not have this subscription restriction.
+
 If you leave checkout before approval, the pricing page lets you resume the existing checkout and
 check its status. Starting another subscription remains unavailable until the first checkout closes
-or the existing subscription ends. Contact support if you need help with an unfinished checkout.
+or the existing subscription has confirmed cancellation and its paid period has ended.
+Contact support if you need help with an unfinished checkout.
 
 ## Credit Packs
 

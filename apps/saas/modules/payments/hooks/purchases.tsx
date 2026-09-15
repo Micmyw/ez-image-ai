@@ -13,7 +13,9 @@ export const usePurchases = (organizationId?: string) => {
 			query.state.data?.some(
 				(purchase) =>
 					purchase.subscription?.refundTermination === "PENDING" ||
-					purchase.subscription?.refundTermination === "RETRYING",
+					purchase.subscription?.refundTermination === "RETRYING" ||
+					purchase.subscription?.cancellation === "PENDING" ||
+					purchase.subscription?.cancellation === "RETRYING",
 			)
 				? 15_000
 				: false,

@@ -85,6 +85,35 @@ payload satisfies the now-supported contract. Other dead letters and invalid amo
 their fences. Monitor failed events and checkpoint freshness; an enabled cron is not proof a sweep
 completed. PayPal/Waffo failures do not prevent independent legacy Stripe reconciliation.
 
+## Ordinary renewal cancellation and payment-method changes
+
+Apply `20260915102451_subscription_cancellation_confirmation` with the existing reviewed migrations
+before publishing this version. The migration adds nullable confirmation/request/error fields and
+does not infer confirmation from old `cancelAtPeriodEnd` flags or rewrite financial history.
+
+The owner-authorized cancellation endpoint persists `cancellationRequestedAt` and
+`SUBSCRIPTION_CANCELLATION_REQUESTED` atomically. Outbox dispatches
+`media-confirm-subscription-cancellation`; provider network calls run outside database transactions.
+The worker validates the original checkout binding and verified payment-event environment, inspects
+the PSP, requests cancellation if still renewing, then inspects again. Waffo `canceling`, timeouts,
+unknown results and HTTP success without terminal evidence remain unconfirmed. Retry failures are
+stored as sanitized `cancellationError` codes. The hourly sweep requeues exhausted deliveries
+without resetting live leases and inspects ambiguous legacy cancellations.
+
+`renewalDisabledAt` is set only from a verified terminal lifecycle event or authenticated terminal
+inspection. It survives local expiry and fences later activation/renewal callbacks on that contract.
+Unexpected unseen payments after closure retain their verified event in financial-review dead letters;
+review the PSP transaction and compensate as appropriate, without restoring old rights or creating
+duplicate grants. Ordinary cancellation does not reverse credits, stop prepaid annual monthly grants,
+or shorten an already recorded paid period. Switching either way between PayPal and Waffo requires
+confirmed closure and paid expiry. Pending requests and locally expired contracts without confirmation
+block all new monthly/yearly plans, but do not block Credit Packs.
+
+For historical rows without trustworthy merchant provenance, inspect `cancellationError` and
+reconcile the original merchant receipts. Do not backfill confirmation from the date or flag alone.
+Monitor cancellation age, errors and Outbox dead letters. A local test or successful code push does
+not prove production migrations, cron delivery or live merchant cancellation.
+
 ## Full refund termination and financial review
 
 The latest fully refunded PayPal/Waffo subscription payment queues

@@ -13,6 +13,7 @@ import {
 import { PrismaClient } from "@repo/database/generated-client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { reconcileSubscriptionsWithClient } from "../../../jobs/src/handlers/reconcile-subscriptions-core";
 import { reconcileProviderPaymentEvents } from "../../../payments/provider/event-reconciliation";
 import { normalizeProviderBillingEvent } from "../../../payments/provider/lifecycle-normalization";
 import { applyProviderBillingFact } from "../../../payments/provider/lifecycle-reducer";
@@ -23,6 +24,11 @@ import {
 	terminateRefundedSubscription,
 } from "../../../payments/provider/refund-termination";
 import { grantDueBillingPeriods } from "../../../payments/provider/stripe/reducer";
+import {
+	confirmSubscriptionCancellation,
+	recoverSubscriptionCancellations,
+	requestSubscriptionCancellation,
+} from "../../../payments/provider/subscription-cancellation";
 import type { PaymentProvider } from "../../../payments/types";
 import { loadUserPlanEntitlement } from "../media/lib/plan-entitlement";
 
@@ -119,6 +125,294 @@ describe("production payment business regressions", () => {
 			}),
 		).toBe(1);
 		expect(await effective(fixture.ownerId, fixture.endsAt)).toBeNull();
+	});
+
+	it.each([
+		["waffo", "paypal", "month", "month"],
+		["paypal", "waffo", "month", "month"],
+		["waffo", "paypal", "year", "year"],
+		["paypal", "waffo", "year", "year"],
+		["waffo", "paypal", "month", "year"],
+		["paypal", "waffo", "month", "year"],
+		["waffo", "paypal", "year", "month"],
+		["paypal", "waffo", "year", "month"],
+	] as const)(
+		"requires confirmed cancellation and paid expiry for %s to %s (%s to %s)",
+		async (provider, nextProvider, interval, nextInterval) => {
+			const original = await prepare(provider, interval);
+			const driver = await ordinaryCancellationDriver(original);
+			await Promise.all([driver.request(), driver.request()]);
+			expect(
+				await client.outboxEvent.count({
+					where: { dedupeKey: `subscription-cancellation:${driver.subscriptionId}` },
+				}),
+			).toBe(1);
+			expect(await effective(original.ownerId)).not.toBeNull();
+			if (provider === "waffo") {
+				await runSerializable(client, (tx) =>
+					applyProviderBillingFact(
+						normalizeProviderBillingEvent("waffo", {
+							eventId: `${prefix}-canceling-${driver.subscriptionId}`,
+							eventType: "subscription.canceling",
+							timestamp: now.toISOString(),
+							data: { orderId: original.fact.providerSubscriptionId },
+						}),
+						tx,
+					),
+				);
+			}
+			driver.inspect.mockResolvedValue("PENDING");
+			await expect(driver.run()).rejects.toThrow("SUBSCRIPTION_CANCELLATION_CONFIRMATION_PENDING");
+			await reconcileSubscriptionsWithClient(
+				{ now: original.endsAt, providerNames: [provider] },
+				client,
+			);
+			expect(await effective(original.ownerId, original.endsAt)).toBeNull();
+			await expect(
+				prepare(nextProvider, nextInterval, {
+					ownerId: original.ownerId,
+					checkoutAt: original.endsAt,
+					pay: false,
+				}),
+			).rejects.toThrow("PAYMENT_SUBSCRIPTION_ALREADY_EXISTS");
+			driver.inspect.mockResolvedValue("DISABLED");
+			await driver.run();
+			await driver.run();
+			await expect(
+				prepare(nextProvider, nextInterval, {
+					ownerId: original.ownerId,
+					checkoutAt: new Date(original.endsAt.getTime() - 1),
+					pay: false,
+				}),
+			).rejects.toThrow("PAYMENT_SUBSCRIPTION_ALREADY_EXISTS");
+			const replacement = await prepare(nextProvider, nextInterval, {
+				ownerId: original.ownerId,
+				startsAt: original.endsAt,
+				checkoutAt: original.endsAt,
+			});
+			const before = await client.creditLedgerEntry.count({
+				where: { account: { ownerId: original.ownerId } },
+			});
+			await runSerializable(client, (tx) => applyProviderBillingFact(original.fact, tx));
+			await runSerializable(client, (tx) =>
+				applyProviderBillingFact(
+					{
+						...original.fact,
+						payment: null,
+						occurredAt: addMonths(original.endsAt, 1),
+						providerEventId: `${prefix}-late-active-${driver.subscriptionId}`,
+					},
+					tx,
+				),
+			);
+			const replacementSubscription = await client.subscription.findUniqueOrThrow({
+				where: {
+					provider_providerSubscriptionId: {
+						provider: nextProvider,
+						providerSubscriptionId: replacement.fact.providerSubscriptionId,
+					},
+				},
+			});
+			expect(
+				await effective(original.ownerId, new Date(original.endsAt.getTime() + 1000)),
+			).toMatchObject({
+				id: replacementSubscription.id,
+			});
+			expect(
+				await client.creditLedgerEntry.count({
+					where: { account: { ownerId: original.ownerId } },
+				}),
+			).toBe(before);
+			await expect(
+				runSerializable(client, (tx) =>
+					applyProviderBillingFact(
+						{
+							...original.fact,
+							payment: {
+								...original.fact.payment,
+								providerPaymentId: `${prefix}-unseen-${driver.subscriptionId}`,
+							},
+						},
+						tx,
+					),
+				),
+			).rejects.toThrow("PAYMENT_PROVIDER_TERMINATED_SUBSCRIPTION_PAYMENT_REVIEW_REQUIRED");
+			expect(
+				await client.subscription.findUniqueOrThrow({ where: { id: driver.subscriptionId } }),
+			).toMatchObject({
+				renewalDisabledAt: now,
+				status: "CANCELED",
+				currentPeriodEnd: original.endsAt,
+			});
+		},
+	);
+
+	it.each(["paypal", "waffo"] as const)(
+		"retains the second paid month on %s before switching providers",
+		async (provider) => {
+			const fixture = await prepare(provider, "month", {
+				startsAt: addMonths(new Date(now.getTime() - 86400000), -1),
+			});
+			const nextEnd = addMonths(fixture.endsAt, 1);
+			await runSerializable(client, (tx) =>
+				applyProviderBillingFact(
+					{
+						...fixture.fact,
+						occurredAt: fixture.endsAt,
+						providerEventId: `${prefix}-second-${fixture.checkout.intent.id}`,
+						currentPeriod: { periodStart: fixture.endsAt, periodEnd: nextEnd },
+						payment: {
+							...fixture.fact.payment,
+							providerPaymentId: `${prefix}-second-payment-${fixture.checkout.intent.id}`,
+							periodStart: fixture.endsAt,
+							periodEnd: nextEnd,
+						},
+					},
+					tx,
+				),
+			);
+			await runSerializable(client, (tx) =>
+				applyProviderBillingFact(
+					{
+						...fixture.fact,
+						status: "CANCELED",
+						cancelAtPeriodEnd: true,
+						occurredAt: now,
+						providerEventId: `${prefix}-closed-${fixture.checkout.intent.id}`,
+						currentPeriod: fixture.fact.currentPeriod,
+						payment: null,
+					},
+					tx,
+				),
+			);
+			expect(await effective(fixture.ownerId)).not.toBeNull();
+			expect(
+				await client.subscription.findUniqueOrThrow({
+					where: {
+						provider_providerSubscriptionId: {
+							provider,
+							providerSubscriptionId: fixture.fact.providerSubscriptionId,
+						},
+					},
+				}),
+			).toMatchObject({ currentPeriodEnd: nextEnd, renewalDisabledAt: now });
+			const nextProvider = provider === "paypal" ? "waffo" : "paypal";
+			await expect(
+				prepare(nextProvider, "month", { ownerId: fixture.ownerId, pay: false }),
+			).rejects.toThrow("PAYMENT_SUBSCRIPTION_ALREADY_EXISTS");
+			await expect(
+				prepare(nextProvider, "year", {
+					ownerId: fixture.ownerId,
+					checkoutAt: nextEnd,
+					pay: false,
+				}),
+			).resolves.toBeDefined();
+		},
+	);
+
+	it.each(["PENDING", "UNKNOWN", "RENEWING"] as const)(
+		"recovers ordinary cancellation retries from %s without releasing checkout",
+		async (state) => {
+			const fixture = await prepare("waffo", "month");
+			const driver = await ordinaryCancellationDriver(fixture);
+			await driver.request();
+			driver.inspect.mockResolvedValue(state);
+			driver.cancel.mockRejectedValue(new Error("sensitive timeout"));
+			await expect(driver.run()).rejects.toThrow("SUBSCRIPTION_CANCELLATION_CONFIRMATION_PENDING");
+			expect(await effective(fixture.ownerId)).not.toBeNull();
+			expect(
+				await client.subscription.findUniqueOrThrow({ where: { id: driver.subscriptionId } }),
+			).toMatchObject({
+				renewalDisabledAt: null,
+				cancellationError: "SUBSCRIPTION_CANCELLATION_CONFIRMATION_PENDING",
+			});
+			await client.outboxEvent.update({
+				where: { dedupeKey: `subscription-cancellation:${driver.subscriptionId}` },
+				data: { status: "DEAD_LETTER", attempts: 10 },
+			});
+			await recoverSubscriptionCancellations(client);
+			await recoverSubscriptionCancellations(client);
+			expect(
+				await client.outboxEvent.findUniqueOrThrow({
+					where: { dedupeKey: `subscription-cancellation:${driver.subscriptionId}` },
+				}),
+			).toMatchObject({ status: "PENDING", attempts: 0 });
+			driver.inspect.mockResolvedValue("DISABLED");
+			await driver.run();
+			expect(await effective(fixture.ownerId)).not.toBeNull();
+		},
+	);
+
+	it("confirms a cancellation accepted before a network timeout without sending it twice", async () => {
+		const fixture = await prepare("paypal", "month");
+		const driver = await ordinaryCancellationDriver(fixture);
+		await driver.request();
+		driver.inspect.mockResolvedValueOnce("RENEWING").mockResolvedValue("DISABLED");
+		driver.cancel.mockRejectedValue(new Error("response timeout"));
+		await driver.run();
+		await driver.run();
+		expect(driver.cancel).toHaveBeenCalledTimes(1);
+		expect(await effective(fixture.ownerId)).not.toBeNull();
+	});
+
+	it("does not infer closure or send a cancellation while inspecting an ambiguous historical row", async () => {
+		const fixture = await prepare("waffo", "month");
+		const driver = await ordinaryCancellationDriver(fixture);
+		await client.subscription.update({
+			where: { id: driver.subscriptionId },
+			data: { status: "EXPIRED", cancelAtPeriodEnd: true },
+		});
+		await recoverSubscriptionCancellations(client);
+		driver.inspect.mockResolvedValue("RENEWING");
+		await expect(driver.run()).rejects.toThrow("SUBSCRIPTION_CANCELLATION_CONFIRMATION_PENDING");
+		expect(driver.cancel).not.toHaveBeenCalled();
+		driver.inspect.mockResolvedValue("DISABLED");
+		await driver.run();
+		expect(
+			await client.subscription.findUniqueOrThrow({ where: { id: driver.subscriptionId } }),
+		).toMatchObject({ renewalDisabledAt: now });
+	});
+
+	it("keeps mismatched merchant environments and missing bindings away from cancellation APIs", async () => {
+		const fixture = await prepare("paypal", "month");
+		const driver = await ordinaryCancellationDriver(fixture);
+		await driver.request();
+		await client.paymentEvent.update({
+			where: { id: driver.receiptId },
+			data: { providerEnvironment: "live" },
+		});
+		await expect(driver.run()).rejects.toThrow("SUBSCRIPTION_CANCELLATION_ENVIRONMENT_MISMATCH");
+		expect(driver.inspect).not.toHaveBeenCalled();
+		await client.paymentEvent.update({
+			where: { id: driver.receiptId },
+			data: { providerEnvironment: "sandbox" },
+		});
+		await client.paymentCheckoutIntent.update({
+			where: { id: fixture.checkout.intent.id },
+			data: { providerSessionId: null },
+		});
+		await expect(driver.run()).rejects.toThrow("SUBSCRIPTION_CANCELLATION_BINDING_INVALID");
+		expect(driver.inspect).not.toHaveBeenCalled();
+	});
+
+	it("rejects cancellation against another billing owner without creating delivery work", async () => {
+		const fixture = await prepare("paypal", "month");
+		const driver = await ordinaryCancellationDriver(fixture);
+		await expect(
+			requestSubscriptionCancellation(
+				{
+					purchaseId: driver.purchaseId,
+					ownerType: "USER",
+					ownerId: `${prefix}-wrong-owner`,
+				},
+				client,
+			),
+		).rejects.toThrow("SUBSCRIPTION_CANCELLATION_BINDING_INVALID");
+		expect(
+			await client.outboxEvent.count({
+				where: { dedupeKey: `subscription-cancellation:${driver.subscriptionId}` },
+			}),
+		).toBe(0);
 	});
 
 	it("does not give expired ACTIVE subscriptions paid-model or pack-bonus eligibility", async () => {
@@ -618,7 +912,9 @@ describe("production payment business regressions", () => {
 	);
 
 	it("fulfills a newly owned checkout with a different payer without rewriting historical ownership", async () => {
-		const original = await prepare("paypal", "month");
+		const original = await prepare("paypal", "month", {
+			startsAt: addMonths(new Date(now.getTime() - 86400000), -1),
+		});
 		await client.subscription.update({
 			where: {
 				provider_providerSubscriptionId: {
@@ -626,7 +922,7 @@ describe("production payment business regressions", () => {
 					providerSubscriptionId: original.fact.providerSubscriptionId,
 				},
 			},
-			data: { status: "EXPIRED", cancelAtPeriodEnd: true },
+			data: { status: "EXPIRED", cancelAtPeriodEnd: true, renewalDisabledAt: now },
 		});
 		const replacement = await prepare("paypal", "month", {
 			ownerId: original.ownerId,
@@ -977,6 +1273,73 @@ async function terminationDriver(
 			terminateRefundedSubscription({ subscriptionId: subscription.id }, client, {
 				getProvider: () => adapter,
 				environment,
+				now: () => now,
+			}),
+	};
+}
+
+async function ordinaryCancellationDriver(fixture: Awaited<ReturnType<typeof prepare>>) {
+	const { provider, providerSubscriptionId } = fixture.fact;
+	const providerEventId = `${prefix}-proof-${fixture.checkout.intent.id}`;
+	const occurredAt = new Date(fixture.startsAt.getTime() + 1000).toISOString();
+	const envelope =
+		provider === "paypal"
+			? {
+					id: providerEventId,
+					event_type: "BILLING.SUBSCRIPTION.ACTIVATED",
+					create_time: occurredAt,
+					resource: { id: providerSubscriptionId, custom_id: fixture.checkout.intent.id },
+				}
+			: {
+					eventId: providerEventId,
+					eventType: "subscription.activated",
+					timestamp: occurredAt,
+					data: {
+						orderId: providerSubscriptionId,
+						orderMerchantExternalId: fixture.checkout.intent.id,
+					},
+				};
+	const { event } = await ingestPaymentEvent(
+		{
+			provider,
+			providerSubscriptionId,
+			providerEventId,
+			verifiedAt: now,
+			providerEnvironment: provider === "paypal" ? "sandbox" : "test",
+			envelope,
+		},
+		client,
+	);
+	expect(await processProviderPaymentEvent({ paymentEventId: event.id }, client)).toMatchObject({
+		outcome: "PROCESSED",
+	});
+	const subscription = await client.subscription.findUniqueOrThrow({
+		where: { provider_providerSubscriptionId: { provider, providerSubscriptionId } },
+	});
+	const inspect = vi
+		.fn<NonNullable<PaymentProvider["inspectSubscriptionCancellation"]>>()
+		.mockResolvedValue("DISABLED");
+	const cancel = vi.fn<NonNullable<PaymentProvider["cancelSubscription"]>>().mockResolvedValue();
+	const adapter = {
+		name: provider,
+		inspectSubscriptionCancellation: inspect,
+		cancelSubscription: cancel,
+	} as unknown as PaymentProvider;
+	return {
+		subscriptionId: subscription.id,
+		purchaseId: subscription.purchaseId!,
+		receiptId: event.id,
+		inspect,
+		cancel,
+		request: () =>
+			requestSubscriptionCancellation(
+				{ purchaseId: subscription.purchaseId!, ownerType: "USER", ownerId: fixture.ownerId },
+				client,
+			),
+		run: () =>
+			confirmSubscriptionCancellation({ subscriptionId: subscription.id }, client, {
+				getProvider: () => adapter,
+				environment: { PAYPAL_ENVIRONMENT: "sandbox", WAFFO_ENVIRONMENT: "test" },
 				now: () => now,
 			}),
 	};

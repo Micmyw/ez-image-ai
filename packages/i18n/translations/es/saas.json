@@ -795,7 +795,10 @@
 				}
 			},
 			"activePlan": {
+				"cancellationPending": "Tu solicitud de cancelación está pendiente de confirmación del servicio de pago. Las nuevas suscripciones siguen bloqueadas aunque termine este período pagado. Tus beneficios pagados siguen disponibles hasta su fecha de finalización.",
+				"cancellationRetrying": "La cancelación de la renovación aún no está confirmada. Seguiremos reintentándolo automáticamente. Las nuevas suscripciones siguen bloqueadas; tus beneficios pagados conservan su fecha de finalización original.",
 				"status": {
+					"cancellationPending": "Cancelación solicitada",
 					"active": "Activo",
 					"canceled": "Cancelado",
 					"expired": "Expirado",

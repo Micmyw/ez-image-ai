@@ -39,6 +39,7 @@ export const listPurchases = protectedProcedure
 						cancelAtPeriodEnd: z.boolean(),
 						currentPeriodEnd: z.date().nullable(),
 						refundTermination: z.enum(["PENDING", "RETRYING", "COMPLETED"]).nullable(),
+						cancellation: z.enum(["PENDING", "RETRYING", "CONFIRMED"]).nullable(),
 					})
 					.nullable(),
 				providerCapabilities: z.object({
@@ -127,6 +128,9 @@ interface PurchaseWithSubscriptionPlan {
 		ownerId: string;
 		provider: string;
 		cancelAtPeriodEnd: boolean;
+		cancellationRequestedAt?: Date | null;
+		renewalDisabledAt?: Date | null;
+		cancellationError?: string | null;
 		currentPeriodEnd: Date | null;
 		refundTerminationRequestedAt?: Date | null;
 		refundTerminatedAt?: Date | null;
@@ -146,6 +150,7 @@ function resolvePersistedSubscriptionPlan(purchase: PurchaseWithSubscriptionPlan
 		cancelAtPeriodEnd: boolean;
 		currentPeriodEnd: Date | null;
 		refundTermination: "PENDING" | "RETRYING" | "COMPLETED" | null;
+		cancellation: "PENDING" | "RETRYING" | "CONFIRMED" | null;
 	};
 	price: {
 		type: "subscription";
@@ -190,6 +195,13 @@ function resolvePersistedSubscriptionPlan(purchase: PurchaseWithSubscriptionPlan
 		subscription: {
 			cancelAtPeriodEnd: subscription.cancelAtPeriodEnd ?? false,
 			currentPeriodEnd: subscription.currentPeriodEnd ?? null,
+			cancellation: subscription.renewalDisabledAt
+				? "CONFIRMED"
+				: subscription.cancellationRequestedAt || subscription.cancelAtPeriodEnd
+					? subscription.cancellationError
+						? "RETRYING"
+						: "PENDING"
+					: null,
 			refundTermination: subscription.refundTerminatedAt
 				? "COMPLETED"
 				: subscription.refundTerminationRequestedAt

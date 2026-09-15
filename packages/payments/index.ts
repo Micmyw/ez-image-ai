@@ -3,6 +3,11 @@ export * from "./lib/plans";
 export * from "./lib/provider-price-ids";
 export * from "./provider";
 export * from "./provider/event-reconciliation";
+export {
+	requestSubscriptionCancellation,
+	confirmSubscriptionCancellation,
+	recoverSubscriptionCancellations,
+} from "./provider/subscription-cancellation";
 export * from "./provider/stripe/billing-source";
 export * from "./provider/stripe/event-normalizer";
 export * from "./provider/stripe/events";

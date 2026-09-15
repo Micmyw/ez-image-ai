@@ -59,7 +59,17 @@ function ActivePlanCard({
 	}
 
 	const price = "price" in activePlan ? activePlan.price : null;
-	const cancellationScheduled = activePlan.subscription?.cancelAtPeriodEnd === true;
+	const cancellation = activePlan.subscription?.cancellation;
+	const cancellationScheduled =
+		cancellation === "CONFIRMED" ||
+		("provider" in activePlan &&
+			activePlan.provider === "stripe" &&
+			activePlan.subscription?.cancelAtPeriodEnd === true);
+	const cancellationPending =
+		!cancellationScheduled &&
+		(cancellation === "PENDING" ||
+			cancellation === "RETRYING" ||
+			activePlan.subscription?.cancelAtPeriodEnd === true);
 	const periodEnd = activePlan.subscription?.currentPeriodEnd;
 	const refundTermination = activePlan.subscription?.refundTermination;
 
@@ -73,7 +83,13 @@ function ActivePlanCard({
 					</h4>
 					{activePlan.status && !refundTermination && (
 						<SubscriptionStatusBadge
-							status={cancellationScheduled ? "canceling" : activePlan.status}
+							status={
+								cancellationPending
+									? "cancellation_pending"
+									: cancellationScheduled
+										? "canceling"
+										: activePlan.status
+							}
 						/>
 					)}
 				</div>
@@ -98,6 +114,15 @@ function ActivePlanCard({
 							refundTermination === "RETRYING"
 								? "settings.billing.activePlan.refundTerminationRetrying"
 								: "settings.billing.activePlan.refundTerminationPending",
+						)}
+					</output>
+				)}
+				{!refundTermination && cancellationPending && (
+					<output className="mt-2 text-sm block">
+						{t(
+							cancellation === "RETRYING"
+								? "settings.billing.activePlan.cancellationRetrying"
+								: "settings.billing.activePlan.cancellationPending",
 						)}
 					</output>
 				)}
@@ -163,7 +188,9 @@ function ActivePlanCard({
 					<div className="gap-2 md:flex-row flex w-full flex-col flex-wrap">
 						{activePlan.providerCapabilities.portal ? (
 							<CustomerPortalButton purchaseId={activePlan.purchaseId} />
-						) : activePlan.providerCapabilities.cancellation && !cancellationScheduled ? (
+						) : activePlan.providerCapabilities.cancellation &&
+						  !cancellationScheduled &&
+						  !cancellationPending ? (
 							<CancelSubscriptionButton
 								purchaseId={activePlan.purchaseId}
 								organizationId={organizationId}

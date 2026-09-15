@@ -25,6 +25,10 @@ import {
 } from "./checkout-attempt";
 import { PaymentProviderSelector } from "./PaymentProviderSelector";
 import { PendingSubscriptionCheckout } from "./PendingSubscriptionCheckout";
+import {
+	SubscriptionCheckoutNotice,
+	type SubscriptionCheckoutBlocker,
+} from "./SubscriptionCheckoutNotice";
 
 const plans = paymentsConfig.plans;
 
@@ -34,12 +38,14 @@ export function PricingTable({
 	organizationId,
 	activePlanId,
 	subscriptionBlocked = false,
+	subscriptionBlockers = [],
 }: {
 	className?: string;
 	userId?: string;
 	organizationId?: string;
 	activePlanId?: string;
 	subscriptionBlocked?: boolean;
+	subscriptionBlockers?: SubscriptionCheckoutBlocker[];
 	returnTo?: string;
 }) {
 	const t = useTranslations();
@@ -115,11 +121,7 @@ export function PricingTable({
 			: false,
 	);
 	if (hasSubscription) {
-		return (
-			<output className="text-sm block text-muted-foreground">
-				{t("pricing.subscriptionAlreadyExists")}
-			</output>
-		);
+		return <SubscriptionCheckoutNotice blockers={subscriptionBlockers} />;
 	}
 
 	return (

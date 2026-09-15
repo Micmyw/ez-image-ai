@@ -182,9 +182,28 @@ async function main() {
 		});
 		record("payment_failures_resolved", unresolved === 0, unresolved);
 		const renewalUnknown = await db.subscription.count({
-			where: { status: "EXPIRED", cancelAtPeriodEnd: false },
+			where: {
+				refundTerminatedAt: null,
+				status: { in: ["CANCELED", "EXPIRED"] },
+				OR: [
+					{ provider: { in: ["paypal", "waffo"] }, renewalDisabledAt: null },
+					{ status: "EXPIRED", cancelAtPeriodEnd: false },
+				],
+			},
 		});
 		record("expired_renewal_states_resolved", renewalUnknown === 0, renewalUnknown);
+		const pendingCancellations = await db.subscription.count({
+			where: {
+				cancellationRequestedAt: { not: null },
+				renewalDisabledAt: null,
+				refundTerminatedAt: null,
+			},
+		});
+		record(
+			"subscription_cancellations_confirmed",
+			pendingCancellations === 0,
+			pendingCancellations,
+		);
 		const pendingTerminations = await db.subscription.count({
 			where: { refundTerminationRequestedAt: { not: null }, refundTerminatedAt: null },
 		});

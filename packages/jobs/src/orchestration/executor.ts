@@ -14,6 +14,7 @@ import {
 	cleanupUploadPromotion,
 	deleteStorageObject,
 } from "../handlers/cleanup-storage-object";
+import { confirmCancellation } from "../handlers/confirm-subscription-cancellation";
 import { deliverOutboxEvent } from "../handlers/deliver-outbox-event";
 import { dispatchGeneration } from "../handlers/dispatch-generation";
 import { dispatchOutbox } from "../handlers/dispatch-outbox";
@@ -181,6 +182,8 @@ export async function executeTask(
 			});
 		case "media-terminate-refunded-subscription":
 			return terminateSubscriptionAfterRefund(parseTaskPayload(taskId, payload));
+		case "media-confirm-subscription-cancellation":
+			return confirmCancellation(parseTaskPayload(taskId, payload));
 		case "media-process-payment-event":
 			return processPaymentEvent(parseTaskPayload(taskId, payload), {
 				attempt: context.attempt,

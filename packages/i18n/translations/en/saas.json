@@ -795,7 +795,10 @@
 				}
 			},
 			"activePlan": {
+				"cancellationPending": "Your cancellation request is awaiting confirmation from the payment service. New subscriptions remain blocked, even if this paid period ends. Your existing paid benefits remain available until their end date.",
+				"cancellationRetrying": "Renewal cancellation is still unconfirmed. We will keep retrying automatically. New subscriptions remain blocked; your existing paid benefits keep their original end date.",
 				"status": {
+					"cancellationPending": "Cancellation requested",
 					"active": "Active",
 					"canceled": "Canceled",
 					"expired": "Expired",

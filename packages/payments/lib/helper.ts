@@ -16,6 +16,7 @@ export interface ResolvedPurchase extends PurchaseWithoutTimestamps {
 		cancelAtPeriodEnd: boolean;
 		currentPeriodEnd: Date | null;
 		refundTermination?: "PENDING" | "RETRYING" | "COMPLETED" | null;
+		cancellation?: "PENDING" | "RETRYING" | "CONFIRMED" | null;
 	} | null;
 	providerCapabilities?: {
 		portal: boolean;
@@ -67,9 +68,14 @@ function isBlockingSubscription(purchase: ResolvedPurchase) {
 	if (purchase.productKind === "PLAN" && purchase.type === "SUBSCRIPTION") {
 		if (purchase.subscription?.refundTermination === "COMPLETED") return false;
 		if (purchase.subscription?.refundTermination) return true;
+		if (
+			["paypal", "waffo"].includes(purchase.provider) &&
+			purchase.subscription?.cancellation !== "CONFIRMED"
+		)
+			return true;
 		if (purchase.isEffectiveSubscription === true) return true;
 		if (
-			["canceled", "cancelled"].includes(purchase.status?.toLowerCase() ?? "") &&
+			["canceled", "cancelled", "expired"].includes(purchase.status?.toLowerCase() ?? "") &&
 			purchase.subscription?.currentPeriodEnd &&
 			new Date(purchase.subscription.currentPeriodEnd) > new Date()
 		)

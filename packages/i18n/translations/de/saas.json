@@ -795,7 +795,10 @@
 				}
 			},
 			"activePlan": {
+				"cancellationPending": "Deine Kündigung wartet auf die Bestätigung des Zahlungsdienstes. Neue Abonnements bleiben auch nach Ablauf dieses bezahlten Zeitraums gesperrt. Deine bezahlten Leistungen bleiben bis zu ihrem Enddatum verfügbar.",
+				"cancellationRetrying": "Die Kündigung der Verlängerung ist noch nicht bestätigt. Wir versuchen es automatisch weiter. Neue Abonnements bleiben gesperrt; das ursprüngliche Enddatum deiner bezahlten Leistungen bleibt bestehen.",
 				"status": {
+					"cancellationPending": "Kündigung angefordert",
 					"active": "Aktiv",
 					"canceled": "Gekündigt",
 					"expired": "Ausgelaufen",

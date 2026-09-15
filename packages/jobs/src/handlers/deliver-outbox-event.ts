@@ -31,6 +31,10 @@ export async function deliverOutboxEvent(
 			return triggerAndWait(dependencies, "media-terminate-refunded-subscription", {
 				subscriptionId: requiredString(payload.subscriptionId, event.aggregateId),
 			});
+		case "SUBSCRIPTION_CANCELLATION_REQUESTED":
+			return triggerAndWait(dependencies, "media-confirm-subscription-cancellation", {
+				subscriptionId: requiredString(payload.subscriptionId, event.aggregateId),
+			});
 		case "CREDIT_PACK_FULFILLED":
 		case "CREDIT_PACK_ADJUSTED":
 			// These are durable domain records for audit and future notifications. The

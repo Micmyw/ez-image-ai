@@ -1,7 +1,8 @@
 import { ORPCError } from "@orpc/server";
 import { getOrganizationMembership, getPurchaseById } from "@repo/database";
+import { db } from "@repo/database/client";
 import { logger } from "@repo/logs";
-import { getPaymentProvider } from "@repo/payments";
+import { getPaymentProvider, requestSubscriptionCancellation } from "@repo/payments";
 import { z } from "zod";
 
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -25,7 +26,18 @@ export const cancelPurchaseSubscription = protectedProcedure
 			throw new ORPCError("BAD_REQUEST");
 		}
 		try {
-			await provider.cancelSubscription(purchase.subscriptionId);
+			if (purchase.provider === "paypal" || purchase.provider === "waffo") {
+				await requestSubscriptionCancellation(
+					{
+						purchaseId: purchase.id,
+						ownerType: purchase.organizationId ? "ORGANIZATION" : "USER",
+						ownerId: purchase.organizationId ?? user.id,
+					},
+					db,
+				);
+			} else {
+				await provider.cancelSubscription(purchase.subscriptionId);
+			}
 			return { status: "CANCEL_REQUESTED" as const };
 		} catch {
 			logger.error(

@@ -1,5 +1,10 @@
 {
 	"pricing": {
+		"currentPaymentMethod": "your current payment method",
+		"subscriptionRenewalOpen": "Your {provider} subscription may still renew, even if its local access period has ended. Cancel renewal in Billing and wait for confirmation and the paid period to end before subscribing with another payment method.",
+		"subscriptionCancellationPending": "Cancellation of your {provider} renewal is awaiting confirmation. New monthly or yearly subscriptions are blocked, even after the local end date. Check Billing for updates.",
+		"subscriptionPaidThrough": "Renewal through {provider} is confirmed canceled. Your paid period ends on {date}; you can subscribe using another payment method after that.",
+		"subscriptionRefundPending": "Your refunded {provider} subscription is still being closed. New monthly or yearly subscriptions will be available once closure is confirmed.",
 		"pendingCheckout": {
 			"title": "Unfinished subscription checkout",
 			"description": "You have an unfinished checkout with {provider}. Resume it or check whether it has closed before starting another subscription.",

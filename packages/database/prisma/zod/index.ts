@@ -222,7 +222,7 @@ export type BillingPlanScalarFieldEnum = z.infer<typeof BillingPlanScalarFieldEn
 
 // File: SubscriptionScalarFieldEnum.schema.ts
 
-export const SubscriptionScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'provider', 'providerSubscriptionId', 'planId', 'purchaseId', 'status', 'currentPeriodStart', 'currentPeriodEnd', 'cancelAtPeriodEnd', 'scheduledPlanId', 'lastProviderEventAt', 'lastProviderEventId', 'lastReconciliationSweepId', 'lastReconciliationAppliedSweepId', 'lastReconciledAt', 'graceEndsAt', 'refundTerminationRequestedAt', 'refundTerminationPaymentId', 'refundTerminationEnvironment', 'refundTerminatedAt', 'refundTerminationError', 'createdAt', 'updatedAt'])
+export const SubscriptionScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'provider', 'providerSubscriptionId', 'planId', 'purchaseId', 'status', 'currentPeriodStart', 'currentPeriodEnd', 'cancelAtPeriodEnd', 'cancellationRequestedAt', 'renewalDisabledAt', 'cancellationError', 'scheduledPlanId', 'lastProviderEventAt', 'lastProviderEventId', 'lastReconciliationSweepId', 'lastReconciliationAppliedSweepId', 'lastReconciledAt', 'graceEndsAt', 'refundTerminationRequestedAt', 'refundTerminationPaymentId', 'refundTerminationEnvironment', 'refundTerminatedAt', 'refundTerminationError', 'createdAt', 'updatedAt'])
 
 export type SubscriptionScalarFieldEnum = z.infer<typeof SubscriptionScalarFieldEnumSchema>;
 
@@ -1355,6 +1355,9 @@ export const SubscriptionSchema = z.object({
   currentPeriodStart: z.date().nullish(),
   currentPeriodEnd: z.date().nullish(),
   cancelAtPeriodEnd: z.boolean(),
+  cancellationRequestedAt: z.date().nullish(),
+  renewalDisabledAt: z.date().nullish(),
+  cancellationError: z.string().nullish(),
   scheduledPlanId: z.string().nullish(),
   lastProviderEventAt: z.date().nullish(),
   lastProviderEventId: z.string().nullish(),

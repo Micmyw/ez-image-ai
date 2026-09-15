@@ -1110,6 +1110,9 @@ model Subscription {
   currentPeriodStart               DateTime?          @db.Timestamptz(3)
   currentPeriodEnd                 DateTime?          @db.Timestamptz(3)
   cancelAtPeriodEnd                Boolean            @default(false)
+  cancellationRequestedAt          DateTime?          @db.Timestamptz(3)
+  renewalDisabledAt                DateTime?          @db.Timestamptz(3)
+  cancellationError                String?
   scheduledPlanId                  String?
   lastProviderEventAt              DateTime?          @db.Timestamptz(3)
   lastProviderEventId              String?

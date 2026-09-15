@@ -76,6 +76,7 @@ export async function applyProviderBillingFact(
 				purchaseId: purchase.id,
 				status: fact.status,
 				cancelAtPeriodEnd: fact.cancelAtPeriodEnd,
+				renewalDisabledAt: ["CANCELED", "EXPIRED"].includes(fact.status) ? fact.occurredAt : null,
 				lastProviderEventAt: fact.occurredAt,
 				lastProviderEventId: fact.providerEventId,
 			},
@@ -115,11 +116,38 @@ export async function applyProviderBillingFact(
 		return { grantsCreated: 0 };
 	}
 
+	// A terminal PSP confirmation cannot be undone by delayed activation/renewal
+	// callbacks, even after another provider has acquired the owner's subscription.
+	// Unseen financial receipts are retained for review instead of reviving rights.
+	if (subscriptionExisted && subscription.renewalDisabledAt) {
+		if (fact.payment) {
+			const known = await client.billingPeriod.findFirst({
+				where: {
+					subscriptionId: subscription.id,
+					providerInvoicePaymentId: `${fact.provider}:${fact.payment.providerPaymentId}`,
+				},
+			});
+			if (!known)
+				throw new Error("PAYMENT_PROVIDER_TERMINATED_SUBSCRIPTION_PAYMENT_REVIEW_REQUIRED");
+			await validatePayment(fact, subscription, client);
+		}
+		return { grantsCreated: 0 };
+	}
+
 	const lifecyclePeriod = fact.currentPeriod
 		? validateLifecyclePeriod(fact.provider, fact.currentPeriod, subscription.plan.metadata)
 		: null;
 	const paymentPeriod = fact.payment ? await validatePayment(fact, subscription, client) : null;
-	const currentPeriod = paymentPeriod ?? lifecyclePeriod;
+	// A closure notification may contain the previous cycle's dates. Preserve
+	// the newer paid-through bound recorded before cancellation.
+	const currentPeriod =
+		paymentPeriod ??
+		(["CANCELED", "EXPIRED"].includes(fact.status) &&
+		subscription.currentPeriodEnd &&
+		lifecyclePeriod &&
+		lifecyclePeriod.periodEnd < subscription.currentPeriodEnd
+			? null
+			: lifecyclePeriod);
 	const preserveSubscriptionEvent =
 		subscriptionExisted &&
 		((fact.provider === "waffo" && paymentPeriod !== null && fact.currentPeriod === null) ||
@@ -134,6 +162,9 @@ export async function applyProviderBillingFact(
 				data: {
 					status: fact.status,
 					cancelAtPeriodEnd: fact.cancelAtPeriodEnd,
+					...(["CANCELED", "EXPIRED"].includes(fact.status)
+						? { renewalDisabledAt: fact.occurredAt, cancellationError: null }
+						: {}),
 					lastProviderEventAt: fact.occurredAt,
 					lastProviderEventId: fact.providerEventId,
 					...(currentPeriod

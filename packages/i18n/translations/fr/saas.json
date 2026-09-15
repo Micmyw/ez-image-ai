@@ -795,7 +795,10 @@
 				}
 			},
 			"activePlan": {
+				"cancellationPending": "Votre demande d’annulation attend la confirmation du service de paiement. Les nouveaux abonnements restent bloqués même si cette période payée se termine. Vos avantages payés restent disponibles jusqu’à leur date de fin.",
+				"cancellationRetrying": "L’annulation du renouvellement n’est pas encore confirmée. Nous réessaierons automatiquement. Les nouveaux abonnements restent bloqués ; vos avantages payés conservent leur date de fin initiale.",
 				"status": {
+					"cancellationPending": "Annulation demandée",
 					"active": "Actif",
 					"canceled": "Annulé",
 					"expired": "Expiré",

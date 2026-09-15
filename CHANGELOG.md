@@ -4,6 +4,11 @@
 
 ### Payments and subscription credits
 
+- Keep monthly/yearly checkout blocked while renewal cancellation is unconfirmed, including
+  after local access expires. Persist cancellation requests, retry provider failures, and confirm
+  closure from authenticated provider evidence before allowing a payment-method switch.
+- Show the original payment method, cancellation progress and paid-through date in Billing and
+  plan selection. Keep prepaid benefits after ordinary cancellation; Credit Packs remain repeatable.
 - Automatically request renewal cancellation when the latest PayPal or Waffo subscription payment
   is fully refunded. Revoke its benefits immediately and retry unconfirmed cancellation durably.
   Once the provider confirms cancellation, allow immediate resubscription across plans and payment

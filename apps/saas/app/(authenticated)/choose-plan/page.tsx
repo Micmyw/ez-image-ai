@@ -48,7 +48,8 @@ export default async function ChoosePlanPage({
 
 	const purchases = await listPurchases(organizationId);
 
-	const { activePlan } = createPurchasesHelper(purchases);
+	const { activePlan, activeSubscriptions, hasBlockingSubscription } =
+		createPurchasesHelper(purchases);
 	const activePlanDestination = activePlanChoosePlanDestination(activePlan?.id, returnTo);
 
 	if (activePlanDestination) {
@@ -64,6 +65,8 @@ export default async function ChoosePlanPage({
 
 			<div>
 				<PricingTable
+					subscriptionBlocked={hasBlockingSubscription}
+					subscriptionBlockers={activeSubscriptions}
 					returnTo={sanitizeEditorReturnPath(returnTo)}
 					{...(organizationId
 						? {
