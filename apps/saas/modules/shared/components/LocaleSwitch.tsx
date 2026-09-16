@@ -11,7 +11,7 @@ import {
 	DropdownMenuRadioItem,
 	DropdownMenuTrigger,
 } from "@repo/ui/components/dropdown-menu";
-import { LanguagesIcon } from "lucide-react";
+import { GlobeIcon } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
@@ -46,7 +46,7 @@ export function LocaleSwitch({
 						disabled={disabled || pending}
 						aria-busy={pending}
 					>
-						<LanguagesIcon className="size-4" />
+						<GlobeIcon className="size-4" aria-hidden />
 					</Button>
 				}
 			/>

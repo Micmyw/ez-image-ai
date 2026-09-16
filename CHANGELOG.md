@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-17
+
+### Top navigation
+
+- Distribute desktop navigation evenly between the logo and account actions, with more room
+  around header controls and responsive spacing on smaller screens.
+- Use a globe icon for the language selector across public pages and the workspace.
+
 ## 2026-09-16
 
 ### Homepage performance and accessibility

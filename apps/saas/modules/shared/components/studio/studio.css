@@ -178,19 +178,25 @@ body:has(.studio-shell) [data-consent-banner] button {
 }
 .studio-topbar {
 	display: flex;
-	min-height: 64px;
+	min-height: 76px;
 	align-items: center;
 	justify-content: space-between;
-	gap: 20px;
+	gap: clamp(24px, 3vw, 48px);
 	border-bottom: 1px solid #ffffff08;
-	padding: 10px 32px;
+	padding: 14px clamp(24px, 3vw, 48px);
 }
 .studio-toplinks {
 	display: flex;
+	min-width: 0;
+	flex: 0 1 auto;
 	align-items: center;
-	gap: 24px;
+	justify-content: flex-start;
+	gap: clamp(24px, 3vw, 48px);
 	color: #b9adca;
 	font-size: 12px;
+}
+.studio-toplinks > a {
+	white-space: nowrap;
 }
 .studio-toplinks a:hover {
 	color: #fff;
@@ -198,8 +204,9 @@ body:has(.studio-shell) [data-consent-banner] button {
 .studio-header-account,
 .studio-purchase-actions {
 	display: flex;
+	flex-shrink: 0;
 	align-items: center;
-	gap: 10px;
+	gap: clamp(12px, 1.4vw, 20px);
 }
 .studio-header-account {
 	margin-left: auto;
@@ -285,8 +292,24 @@ body:has(.studio-shell) [data-consent-banner] button {
 	.studio-mobile-notifications {
 		display: block;
 	}
+	.studio-toplinks {
+		order: 3;
+		flex-basis: 100%;
+		gap: clamp(28px, 6vw, 56px);
+		justify-content: flex-start;
+		border-top: 1px solid #ffffff08;
+		padding-top: 4px;
+	}
+	.studio-topbar {
+		flex-wrap: wrap;
+		row-gap: 12px;
+		padding-inline: 24px;
+	}
 }
 @media (max-width: 480px) {
+	.studio-shell[data-workspace="true"] .studio-topbar > :first-child > span {
+		display: none;
+	}
 	.studio-header-account,
 	.studio-purchase-actions {
 		gap: 5px;
@@ -732,24 +755,9 @@ body:has(.studio-shell) [data-consent-banner] button {
 	.studio-sidebar {
 		padding-inline: 12px;
 	}
-	.studio-toplinks {
-		order: 3;
-		flex-basis: 100%;
-		gap: 16px;
-		justify-content: space-between;
-		border-top: 1px solid #ffffff08;
-		padding-top: 4px;
-	}
-	.studio-mobile-notifications {
-		margin-left: auto;
-	}
 	.studio-composer-inputs {
 		grid-template-columns: 120px minmax(0, 1fr);
 		gap: 10px;
-	}
-	.studio-topbar {
-		flex-wrap: wrap;
-		padding-inline: 24px;
 	}
 }
 @media (max-width: 767px) {
@@ -783,6 +791,9 @@ body:has(.studio-shell) [data-consent-banner] button {
 		flex-wrap: wrap;
 		gap: 12px;
 		padding: 8px 16px;
+	}
+	.studio-topbar > :first-child {
+		flex: 1;
 	}
 	.studio-toplinks {
 		flex-wrap: wrap;
