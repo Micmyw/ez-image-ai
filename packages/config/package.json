@@ -6,6 +6,7 @@
 	"exports": {
 		".": "./index.ts",
 		"./client": "./client.ts",
+		"./content-safety": "./content-safety.ts",
 		"./server": "./server.ts"
 	},
 	"scripts": {

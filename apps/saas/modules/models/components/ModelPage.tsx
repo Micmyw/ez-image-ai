@@ -130,6 +130,25 @@ export async function ModelPage({
 						reference, and settings.
 					</p>
 				</section>
+				<section className="model-gallery" aria-labelledby="model-gallery-title">
+					<div className="model-section-heading">
+						<div>
+							<p className="model-eyebrow">More creative inspiration</p>
+							<h2 id="model-gallery-title">More ideas to make your own</h2>
+						</div>
+					</div>
+					<div className="model-gallery-grid">
+						{model.galleryArtwork.map((artwork) => (
+							<figure className="model-gallery-card" key={artwork}>
+								<ModelArtwork
+									artwork={artwork}
+									sizes="(max-width: 760px) 90vw, (max-width: 1300px) 40vw, 490px"
+								/>
+								<figcaption>{INSPIRATION[artwork].title}</figcaption>
+							</figure>
+						))}
+					</div>
+				</section>
 				<section className="model-faq" aria-labelledby="model-faq-title">
 					<div>
 						<p className="model-eyebrow">Before you create</p>

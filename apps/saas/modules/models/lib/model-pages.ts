@@ -15,6 +15,7 @@ export interface ModelPageContent {
 	artwork: InspirationKey;
 	exampleArtwork: InspirationKey;
 	beforeArtwork?: InspirationKey;
+	galleryArtwork: readonly [InspirationKey, InspirationKey];
 	features: readonly { title: string; description: string }[];
 	tip: string;
 	review: string;
@@ -23,6 +24,7 @@ export interface ModelPageContent {
 export const MODEL_PAGES: readonly ModelPageContent[] = [
 	{
 		key: "image-gpt-image-2",
+		galleryArtwork: ["gpt-poster", "gpt-2-solar-poster"],
 		name: "GPT Image 2",
 		family: "GPT Image",
 		lead: "Let words become the image.",
@@ -54,6 +56,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-gpt-image-2-5-flare",
+		galleryArtwork: ["gpt-flare-studio", "nano-portrait"],
 		name: "GPT Image 2.5 Flare",
 		family: "GPT Image",
 		lead: "Everyday ideas, with a little more atmosphere.",
@@ -84,6 +87,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-gpt-image-2-5-sunburst",
+		galleryArtwork: ["gpt-campaign", "gpt-sunburst-cyclist"],
 		name: "GPT Image 2.5 Sunburst",
 		family: "GPT Image",
 		lead: "Give your next campaign a clear direction.",
@@ -115,6 +119,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-gpt-image-1-5",
+		galleryArtwork: ["gpt-15-paper-world", "gpt-15-paper-forest"],
 		name: "GPT Image 1.5",
 		family: "GPT Image",
 		lead: "From a clear instruction to a considered image.",
@@ -146,6 +151,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-nano-banana-2-lite",
+		galleryArtwork: ["nano-bakery-fox", "nano-lite-penguin"],
 		name: "Nano Banana 2 Lite",
 		family: "Nano Banana",
 		lead: "A focused starting point for your next idea.",
@@ -177,6 +183,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-nano-banana",
+		galleryArtwork: ["nano-rabbit-orchard", "nano-hedgehog-bookshop"],
 		name: "Nano Banana",
 		family: "Nano Banana",
 		lead: "One idea. Plenty of creative directions.",
@@ -208,6 +215,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-nano-banana-2",
+		galleryArtwork: ["nano-2-rooftop", "nano-2-moon-tram"],
 		name: "Nano Banana 2",
 		family: "Nano Banana",
 		lead: "Explore a look. Then develop the details.",
@@ -240,6 +248,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-nano-banana-pro",
+		galleryArtwork: ["nano-product", "nano-pro-watch"],
 		name: "Nano Banana Pro",
 		family: "Nano Banana",
 		lead: "Make the material part of the story.",
@@ -271,6 +280,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-seedream-4",
+		galleryArtwork: ["seedream-interior", "seedream-5-pro-museum"],
 		name: "Seedream 4.0",
 		family: "Seedream",
 		lead: "Give a space its own atmosphere.",
@@ -302,6 +312,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-seedream-4-5",
+		galleryArtwork: ["seedream-45-botanical", "seedream-45-koi-print"],
 		name: "Seedream 4.5",
 		family: "Seedream",
 		lead: "Find a rhythm in color and shape.",
@@ -333,6 +344,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-seedream-5-lite",
+		galleryArtwork: ["seedream-lite-lynx", "seedream-lite-hummingbird"],
 		name: "Seedream 5 Lite",
 		family: "Seedream",
 		lead: "Let the natural world set the mood.",
@@ -364,6 +376,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-seedream-5-pro",
+		galleryArtwork: ["seedream-pro-observatory", "seedream-pro-lunar-train"],
 		name: "Seedream 5 Pro",
 		family: "Seedream",
 		lead: "Imagine a world beyond the everyday.",

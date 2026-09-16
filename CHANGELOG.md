@@ -4,6 +4,9 @@
 
 ### Model artwork
 
+- Restore a dedicated portrait gallery before each model FAQ, preserving 11 earlier concept
+  images and adding 13 new illustrations and photographs. Each model owns two exclusive gallery
+  images, displayed at their complete proportions on desktop and mobile.
 - Give all 12 model pages their own visual direction with 23 newly generated covers and prompt
   examples, from typography and paper craft to wildlife photography and science-fiction scenes.
   Preserve Nano Banana 2's dedicated line-art/color comparison.

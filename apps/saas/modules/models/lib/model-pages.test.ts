@@ -55,8 +55,14 @@ describe("model artwork", () => {
 		}
 	});
 
-	it("gives every model its own cover", () => {
+	it("gives every model its own cover and a complete portrait gallery", () => {
 		expect(new Set(MODEL_PAGES.map((model) => model.artwork)).size).toBe(MODEL_PAGES.length);
+		for (const model of MODEL_PAGES) {
+			expect(model.galleryArtwork, model.name).toHaveLength(2);
+			for (const key of model.galleryArtwork) {
+				expect(INSPIRATION[key].height, key).toBeGreaterThan(INSPIRATION[key].width);
+			}
+		}
 	});
 
 	it("uses separate image files and content for covers, examples, and reference drawings", () => {
@@ -64,6 +70,7 @@ describe("model artwork", () => {
 			model.artwork,
 			model.exampleArtwork,
 			...(model.beforeArtwork ? [model.beforeArtwork] : []),
+			...(model.galleryArtwork ?? []),
 		]);
 		expect(new Set(keys).size).toBe(keys.length);
 		const fingerprints = keys.map((key) =>

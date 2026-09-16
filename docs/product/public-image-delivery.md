@@ -12,8 +12,12 @@ images remain lazy on mobile and declare their dimensions before loading. Static
 contain a content hash and receive one-year immutable caching through `public/_headers`.
 This policy covers public artwork only; authenticated media uses its existing private access path.
 
-Each of the 12 model detail pages has its own visual direction and exclusive cover and example
-images. Nano Banana 2 also owns its line-art reference and matching color study. Related-model
+Each of the 12 model detail pages has its own visual direction and exclusive cover, example and
+portrait-gallery images. The gallery appears before the FAQ with two complete portrait images:
+two columns on desktop and one column on mobile. It preserves 11 earlier originals and adds 13
+built-in generations. Restored artwork is curated by visual direction; the source manifest records
+any previous model assignment. Across all detail pages, every active asset belongs to one model
+and appears once on that page. Nano Banana 2 also owns its line-art reference and matching color study. Related-model
 links use text only so visiting different model pages does not repeat other models' galleries.
 The directory and homepage previews use the artwork belonging to the model they link to.
 `docs/product/model-artwork.json` records the active assets, model ownership, creative categories,
