@@ -1,3 +1,4 @@
+import { moderationHttpErrorCode, moderationServiceErrorCode } from "@repo/config";
 import { ScanSemanticMode, WaffoPancake } from "@waffo/pancake-ts";
 import { z } from "zod";
 
@@ -61,13 +62,23 @@ export function createWaffoPromptScanner(environment: Record<string, string | un
 					semantic: ScanSemanticMode.Enforce,
 				}),
 			);
-			if (verdict.warnings?.length) throw new Error("WAFFO_PROMPT_SCAN_WARNING");
 			const evidence: WaffoPromptEvidence = {
 				requestId: verdict.requestId,
 				action: verdict.action,
 				semanticStatus: verdict.semanticStatus,
 				matchedCategories: verdict.matchedCategories,
 			};
+			// A content verdict or category match must survive a degraded secondary scan.
+			if (verdict.action === "block" && verdict.reasonCode === "restricted_content")
+				return { decision: "REJECT", reasonCode: "WAFFO_RESTRICTED_CONTENT", evidence };
+			if (
+				verdict.matchedCategories.length ||
+				(verdict.action === "review" && verdict.reasonCode === "review_required")
+			)
+				return { decision: "REVIEW", reasonCode: "WAFFO_REVIEW_REQUIRED", evidence };
+			if (verdict.warnings?.length) throw new Error("MODERATION_INVALID_RESPONSE");
+			if (verdict.semanticStatus === "provider_timeout") throw new Error("MODERATION_TIMEOUT");
+			if (verdict.semanticStatus === "provider_error") throw new Error("MODERATION_SERVICE_ERROR");
 			if (verdict.action === "allow") {
 				if (
 					verdict.reasonCode !== "allowed" ||
@@ -85,8 +96,8 @@ export function createWaffoPromptScanner(environment: Record<string, string | un
 				return { decision: "REVIEW", reasonCode: "WAFFO_REVIEW_REQUIRED", evidence };
 			}
 			return { decision: "ERROR", reasonCode: "MODERATION_UNAVAILABLE", evidence };
-		} catch {
-			return { decision: "ERROR", reasonCode: "MODERATION_UNAVAILABLE" };
+		} catch (error) {
+			return { decision: "ERROR", reasonCode: moderationServiceErrorCode(error) };
 		}
 	};
 }
@@ -117,7 +128,9 @@ const fetchPromptScan: typeof fetch = async (input, init) => {
 		Number(response.headers.get("content-length")) > MAX_PROMPT_SCAN_RESPONSE_BYTES
 	) {
 		void response.body?.cancel().catch(() => undefined);
-		throw new Error("WAFFO_PROMPT_SCAN_RESPONSE_INVALID");
+		throw new Error(
+			!response.ok ? moderationHttpErrorCode(response.status) : "MODERATION_INVALID_RESPONSE",
+		);
 	}
 	if (!response.body) throw new Error("WAFFO_PROMPT_SCAN_RESPONSE_EMPTY");
 	const reader = response.body.getReader();

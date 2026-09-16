@@ -1,3 +1,4 @@
+import { isPermittedModerationEvidence } from "@repo/config";
 import { EZPIC_PRODUCT_KEYS, LEGACY_EZPIC_PRODUCT_KEYS } from "@repo/config";
 
 import type { Prisma } from "../../generated/client";
@@ -156,7 +157,7 @@ export async function findEligibleImageEditParentForOwner(
 		output.status !== "READY" ||
 		output.deletedAt !== null ||
 		!output.mimeType.startsWith("image/") ||
-		output.moderationResults[0]?.status !== "APPROVED"
+		!isPermittedModerationEvidence(output.moderationResults[0])
 	) {
 		return null;
 	}

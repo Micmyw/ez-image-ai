@@ -43,12 +43,19 @@ export async function setNotificationDisabled(
 }
 
 export async function insertNotification(input: {
+	id?: string;
 	userId: string;
 	type: NotificationType;
 	data: unknown;
 	link: string | null;
 	read: boolean;
 }) {
+	if (input.id)
+		return db.notification.upsert({
+			where: { id: input.id },
+			create: { ...input, data: (input.data ?? {}) as Prisma.InputJsonValue },
+			update: {},
+		});
 	return db.notification.create({
 		data: {
 			userId: input.userId,

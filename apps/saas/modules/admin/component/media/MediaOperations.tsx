@@ -19,6 +19,7 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 
 import { GrowthOperationsPanel } from "./GrowthOperationsPanel";
+import { ModerationOperationsPanel } from "./ModerationOperationsPanel";
 
 const AUDIT_PAGE_SIZE = 20;
 
@@ -113,6 +114,7 @@ export function MediaOperations() {
 
 	return (
 		<div className="space-y-6">
+			<ModerationOperationsPanel />
 			<GrowthOperationsPanel />
 			<GuestOperationsPanel data={data?.guest} />
 			<div className="gap-4 md:grid-cols-2 xl:grid-cols-4 grid">

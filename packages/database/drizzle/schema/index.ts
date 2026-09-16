@@ -10,6 +10,7 @@ export type NotificationTarget = (typeof NotificationTarget)[keyof typeof Notifi
 export const NotificationType = {
 	WELCOME: "WELCOME",
 	APP_UPDATE: "APP_UPDATE",
+	MODERATION_ALERT: "MODERATION_ALERT",
 } as const;
 
 export type NotificationType = (typeof NotificationType)[keyof typeof NotificationType];

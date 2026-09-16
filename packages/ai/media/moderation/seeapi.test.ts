@@ -61,7 +61,7 @@ describe("SeeAPI image moderation", () => {
 		"rejects HTTP %s without following a credentialed redirect",
 		async (status) => {
 			const { adapter, fetcher } = fixture(task(), status);
-			await expect(adapter.submitImage(input)).rejects.toThrow("MODERATION_UNAVAILABLE");
+			await expect(adapter.submitImage(input)).rejects.toThrow("MODERATION_INVALID_RESPONSE");
 			expect(
 				await adapter.retrieveImage({ ...input, moderationTaskId: "task_test" }),
 			).toMatchObject({ decision: "ERROR" });

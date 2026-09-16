@@ -218,6 +218,72 @@
 			"paymentEvents": {
 				"title": "Diagnostic des événements de paiement",
 				"empty": "Aucun événement récent"
+			},
+			"moderation": {
+				"title": "Contrôles de sécurité et rétablissement",
+				"description": "Tentatives limitées, alertes regroupées et réexamen du contenu autorisé pendant les pannes techniques.",
+				"openIncidents": "Incidents de service ouverts",
+				"pendingReviews": "Contrôles nécessitant une intervention",
+				"outageWarning": "Un service de détection rencontre des problèmes techniques. Après la limite de tentatives, les demandes peuvent continuer avec un réexamen en attente. Les violations confirmées restent bloquées.",
+				"incidents": "Incidents et rétablissement",
+				"noIncidents": "Aucun incident enregistré.",
+				"textStage": "Contrôle du texte",
+				"imageStage": "Contrôle d’image",
+				"failureCount": "Tentatives échouées",
+				"affectedTargets": "Contrôles concernés",
+				"firstFailure": "Premier échec",
+				"lastFailure": "Dernier échec",
+				"recoveredAt": "Rétablissement confirmé",
+				"references": "Références concernées (extrait)",
+				"acknowledge": "Accuser réception",
+				"acknowledged": "Réception confirmée",
+				"reviewQueue": "File de réexamen du contenu",
+				"filter": "Statut",
+				"needsAttention": "Intervention requise",
+				"billingNote": "Examinez le contenu d’origine. Un nouveau contrôle ne génère pas d’autre image et ne facture pas de crédits de génération. Une décision ultérieure ne modifie pas un paiement réglé. Le blocage empêche les nouveaux accès ; les liens temporaires existants expirent automatiquement.",
+				"noReviews": "Aucun contrôle correspondant.",
+				"allowedPendingReview": "Autorisé pendant la panne",
+				"failures": "{count} tentatives échouées",
+				"jobs": "Tâches associées",
+				"inspect": "Examiner et décider",
+				"reviewDetails": "Examiner le contenu d’origine",
+				"close": "Fermer",
+				"loading": "Chargement…",
+				"loadError": "Impossible de charger les contrôles. Actualisez la page.",
+				"imageAlt": "Image privée examinée par un administrateur",
+				"refreshPreview": "Actualiser les détails et l’aperçu",
+				"uncertainNote": "Le détecteur a peut-être accepté la demande sans renvoyer son identifiant. Le renvoi automatique est désactivé. Examinez le contenu et prenez une décision manuelle.",
+				"lastDecision": "Note de la dernière décision",
+				"reason": "Motif de cette action",
+				"reasonPlaceholder": "Indiquez ce que vous avez vérifié et pourquoi (10 caractères minimum).",
+				"recheck": "Relancer le contrôle",
+				"approve": "Approuver manuellement",
+				"reject": "Bloquer le contenu",
+				"saved": "Action enregistrée. La file et le journal d’audit ont été actualisés.",
+				"actionError": "L’action n’a pas abouti. Actualisez le contrôle : une autre décision ou une vérification en cours a pu le modifier.",
+				"statuses": {
+					"OPEN": "Incident de service",
+					"RECOVERED": "Service rétabli",
+					"RETRYING": "Nouvelle tentative",
+					"PENDING_REVIEW": "Autorisé · réexamen en attente",
+					"RECHECKING": "Nouveau contrôle",
+					"APPROVED": "Approuvé",
+					"REJECTED": "Bloqué",
+					"BLOCKED": "Bloqué · examen requis"
+				},
+				"errors": {
+					"MODERATION_UNAVAILABLE": "Le service n’a pas fourni de résultat exploitable.",
+					"MODERATION_TIMEOUT": "Le délai du service de détection a expiré.",
+					"MODERATION_NETWORK_ERROR": "Le service de détection est injoignable.",
+					"MODERATION_RATE_LIMITED": "La limite de requêtes du service est atteinte.",
+					"MODERATION_SERVICE_ERROR": "Le service a renvoyé une erreur serveur.",
+					"MODERATION_INVALID_RESPONSE": "Le service a renvoyé une réponse incomplète ou invalide.",
+					"MODERATION_SUBMISSION_UNCERTAIN": "La demande a peut-être été acceptée, mais son identifiant manque.",
+					"MODERATION_CONFIGURATION_ERROR": "La configuration du service doit être vérifiée.",
+					"CONTENT_REVIEW_REQUIRED": "Le service a demandé un examen manuel."
+				},
+				"newest": "Contrôles récents",
+				"older": "Contrôles précédents"
 			}
 		},
 		"title": "Administration",
@@ -855,6 +921,9 @@
 			"types": {
 				"APP_UPDATE": {
 					"label": "Mises à jour de l'application"
+				},
+				"MODERATION_ALERT": {
+					"label": "Alertes des contrôles de sécurité (administrateurs)"
 				}
 			},
 			"columns": {

@@ -1,3 +1,4 @@
+import { isPermittedModerationEvidence } from "@repo/config";
 import { IMAGE_SKU_CREDIT_COSTS } from "@repo/config";
 
 import type { Prisma } from "../../generated/client";
@@ -954,7 +955,7 @@ async function loadAdmissionSource(
 		asset.deleteAfter <= input.now ||
 		asset.byteSize > BigInt(input.maximumBytes) ||
 		asset.checksum !== input.sourceAssetChecksum ||
-		evidence?.status !== "APPROVED" ||
+		!isPermittedModerationEvidence(evidence) ||
 		evidence.assetChecksum !== asset.checksum ||
 		evidence.verificationGeneration !== asset.verificationGeneration ||
 		evidence.attemptNumber !== asset.verificationAttemptCount ||

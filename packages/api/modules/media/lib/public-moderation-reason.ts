@@ -22,7 +22,10 @@ export function publicImageModerationReason(
 	result: { status: string; reasonCode?: string } | undefined,
 ): PublicModerationReason | null {
 	// SeeAPI confirms the block, but its label taxonomy is not a public reason contract.
-	return isImageContentRejection(result) ? categoryForReasonCode(result?.reasonCode) : null;
+	return isImageContentRejection(result) ||
+		(result?.status === "REJECTED" && result.reasonCode === "ADMIN_CONTENT_REJECTED")
+		? categoryForReasonCode(result?.reasonCode)
+		: null;
 }
 
 function publicTextModerationReason(result: ModerationDecision): PublicModerationReason | null {

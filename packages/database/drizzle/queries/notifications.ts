@@ -64,6 +64,7 @@ function jsonObjectFromUnknown(value: unknown): Record<string, unknown> {
 }
 
 export async function insertNotification(input: {
+	id?: string;
 	userId: string;
 	type: NotificationType;
 	data: unknown;
@@ -73,14 +74,22 @@ export async function insertNotification(input: {
 	const [row] = await db
 		.insert(notification)
 		.values({
+			...(input.id ? { id: input.id } : {}),
 			userId: input.userId,
 			type: input.type,
 			data: jsonObjectFromUnknown(input.data),
 			link: input.link,
 			read: input.read,
 		})
+		.onConflictDoNothing()
 		.returning();
-	return row ?? null;
+	return (
+		row ??
+		(input.id
+			? await db.query.notification.findFirst({ where: (row, { eq }) => eq(row.id, input.id!) })
+			: null) ??
+		null
+	);
 }
 
 export async function getUserEmailLocaleForNotifications(userId: string) {

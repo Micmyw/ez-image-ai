@@ -226,6 +226,12 @@ export async function requeueAdminMediaVerification(
 		if (!asset || asset.deletedAt !== null) {
 			throw new Error("MEDIA_VERIFICATION_NOT_REQUEUEABLE");
 		}
+		const review = await tx.moderationReview.findUnique({
+			where: { targetType_targetId: { targetType: "ASSET", targetId: asset.id } },
+		});
+		if (review && review.status !== "APPROVED") {
+			throw new Error("MODERATION_REVIEW_ACTION_REQUIRED");
+		}
 		if (asset.kind === "OUTPUT") {
 			throw new Error("MEDIA_OUTPUT_VERIFICATION_REQUEUE_FORBIDDEN");
 		}

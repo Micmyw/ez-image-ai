@@ -218,6 +218,72 @@
 			"paymentEvents": {
 				"title": "Payment event diagnostics",
 				"empty": "No recent events"
+			},
+			"moderation": {
+				"title": "Safety checks and recovery",
+				"description": "Limited retries, grouped service alerts, and review of content allowed during technical failures.",
+				"openIncidents": "Open service incidents",
+				"pendingReviews": "Checks needing attention",
+				"outageWarning": "A safety check service is having technical problems. Requests may continue after the retry limit, with a pending review record. Confirmed violations remain blocked.",
+				"incidents": "Service incidents and recovery",
+				"noIncidents": "No service incidents recorded.",
+				"textStage": "Prompt check",
+				"imageStage": "Image check",
+				"failureCount": "Failed attempts",
+				"affectedTargets": "Affected checks",
+				"firstFailure": "First failure",
+				"lastFailure": "Latest failure",
+				"recoveredAt": "Recovery confirmed",
+				"references": "Affected references (sample)",
+				"acknowledge": "Acknowledge",
+				"acknowledged": "Acknowledged",
+				"reviewQueue": "Content review queue",
+				"filter": "Status",
+				"needsAttention": "Needs attention",
+				"billingNote": "Review the original content. Rechecking does not generate another image or charge generation credits. A later decision does not change a settled charge. Blocking revokes future access; existing temporary links expire automatically.",
+				"noReviews": "No matching checks.",
+				"allowedPendingReview": "Allowed during outage",
+				"failures": "{count} failed attempts",
+				"jobs": "Related jobs",
+				"inspect": "Inspect and review",
+				"reviewDetails": "Review original content",
+				"close": "Close",
+				"loading": "Loading…",
+				"loadError": "Could not load moderation operations. Please refresh.",
+				"imageAlt": "Private image being reviewed by an administrator",
+				"refreshPreview": "Refresh details and preview",
+				"uncertainNote": "The detector may have accepted the original request without returning its task ID. Automatic resubmission is disabled. Inspect the original content and make a manual decision.",
+				"lastDecision": "Last decision note",
+				"reason": "Reason for this action",
+				"reasonPlaceholder": "Record what you checked and why (at least 10 characters).",
+				"recheck": "Run safety check again",
+				"approve": "Approve manually",
+				"reject": "Block content",
+				"saved": "Review action saved. The queue and audit trail have been updated.",
+				"actionError": "This action could not finish. Refresh the review: another decision or an active check may have changed it.",
+				"statuses": {
+					"OPEN": "Service issue",
+					"RECOVERED": "Service recovered",
+					"RETRYING": "Retrying",
+					"PENDING_REVIEW": "Allowed · review pending",
+					"RECHECKING": "Rechecking",
+					"APPROVED": "Approved",
+					"REJECTED": "Blocked",
+					"BLOCKED": "Blocked · review needed"
+				},
+				"errors": {
+					"MODERATION_UNAVAILABLE": "The detection service did not provide a usable result.",
+					"MODERATION_TIMEOUT": "The detection service timed out.",
+					"MODERATION_NETWORK_ERROR": "The detection service could not be reached.",
+					"MODERATION_RATE_LIMITED": "The detection service is rate limited.",
+					"MODERATION_SERVICE_ERROR": "The detection service returned a server error.",
+					"MODERATION_INVALID_RESPONSE": "The detection service returned an incomplete or invalid response.",
+					"MODERATION_SUBMISSION_UNCERTAIN": "The detector may have accepted a request, but its task ID was not returned.",
+					"MODERATION_CONFIGURATION_ERROR": "The detection service configuration needs attention.",
+					"CONTENT_REVIEW_REQUIRED": "The detector requested a human review."
+				},
+				"newest": "Newest reviews",
+				"older": "Older reviews"
 			}
 		},
 		"title": "Administration",
@@ -855,6 +921,9 @@
 			"types": {
 				"APP_UPDATE": {
 					"label": "App updates"
+				},
+				"MODERATION_ALERT": {
+					"label": "Safety check service alerts (administrators)"
 				}
 			},
 			"columns": {

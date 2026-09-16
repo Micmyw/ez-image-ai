@@ -17,6 +17,7 @@ import {
 	type ProductModelKey,
 } from "@repo/config";
 import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
+import { recordTextModerationOutcome } from "@repo/database";
 import {
 	claimGenerationRetryRequest,
 	completeGenerationRetryRequest,
@@ -138,6 +139,12 @@ const defaultDependencies: RetryGenerationDependencies = {
 	findCheckpointQuote: (quoteId) =>
 		db.generationQuote.findUnique({ where: { id: quoteId }, select: { id: true } }),
 	recordDenied: async (evidence) => {
+		await db.$transaction((tx) =>
+			recordTextModerationOutcome(
+				{ targetType: "TEXT_ATTEMPT", targetId: evidence.inputFingerprint, moderation: evidence },
+				tx,
+			),
+		);
 		await db.auditLog.create({
 			data: {
 				action: "MEDIA_TEXT_MODERATION_BLOCKED",

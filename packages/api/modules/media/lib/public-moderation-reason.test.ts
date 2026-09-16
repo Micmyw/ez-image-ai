@@ -4,6 +4,17 @@ import { toMediaOrpcError } from "./errors";
 import { publicImageModerationReason, TextModerationError } from "./public-moderation-reason";
 
 describe("public moderation reason boundary", () => {
+	it("explains an administrator content rejection without implying a detector outage", () => {
+		expect(
+			publicImageModerationReason({ status: "REJECTED", reasonCode: "ADMIN_CONTENT_REJECTED" }),
+		).toBe("restrictedContent");
+		expect(
+			publicImageModerationReason({
+				status: "BYPASSED",
+				reasonCode: "MODERATION_TECHNICAL_FAILURE_BYPASS",
+			}),
+		).toBeNull();
+	});
 	it.each(["REVIEW", "ERROR", "APPROVED", "PENDING"])(
 		"does not attach a violation reason to image status %s",
 		(status) => {

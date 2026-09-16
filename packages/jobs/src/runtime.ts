@@ -33,6 +33,13 @@ import {
 	recoveryProviderKeysFromEnvironment,
 } from "@repo/ai";
 import {
+	isPermittedModerationEvidence,
+	isRetryableModerationError,
+	MODERATION_BYPASS_REASON,
+	MODERATION_RETRYABLE_ERROR_CODES,
+	moderationServiceErrorCode,
+} from "@repo/config";
+import {
 	imageModerationProviderForEnvironment,
 	OUTPUT_MODERATION_BILLING_POLICY,
 } from "@repo/config";
@@ -43,6 +50,7 @@ import {
 	maximumMediaStorageBytes,
 	mediaDailyProviderCostBudgetMicros,
 } from "@repo/config/server";
+import { recordModerationOutcome, lockAssetPromptReview } from "@repo/database";
 import {
 	claimOutputModerationGraceInTransaction,
 	claimGenerationOutputTransferTransaction,
@@ -562,11 +570,44 @@ export function createDatabaseDispatchStore(
 					include: {
 						attempts: { orderBy: { attemptNumber: "desc" }, take: 1 },
 						assets: true,
-						quote: { select: { costMicros: true } },
+						quote: { select: { costMicros: true, moderationDecision: true } },
 						guestTrial: { include: { linkIntents: { select: { state: true } } } },
 					},
 				});
 				if (!job) return null;
+				if (job.quote.moderationDecision === "BYPASS") {
+					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`moderation-quote:${job.quoteId}`}, 0))`;
+					const promptRevoked = await tx.moderationReview.findFirst({
+						where: {
+							targetType: "QUOTE",
+							targetId: job.quoteId,
+							status: { in: ["REJECTED", "BLOCKED"] },
+						},
+						select: { id: true },
+					});
+					if (promptRevoked) {
+						await tx.generationJob.update({
+							where: { id: job.id },
+							data: {
+								status: "FINALIZING",
+								failureCode: "TEXT_MODERATION_REJECTED",
+								version: { increment: 1 },
+							},
+						});
+						await tx.outboxEvent.upsert({
+							where: { dedupeKey: `moderation-revoked:${job.id}` },
+							create: {
+								eventType: "GENERATION_SETTLE",
+								aggregateType: "GENERATION_JOB",
+								aggregateId: job.id,
+								dedupeKey: `moderation-revoked:${job.id}`,
+								payload: { jobId: job.id, version: job.version + 1 },
+							},
+							update: {},
+						});
+						return null;
+					}
+				}
 				const isGuest = job.serviceClass === "GUEST_SLOW";
 				if (isGuest && job.status !== "DISPATCH_QUEUED") return null;
 				if (await isMediaGenerationDisabled(tx, job.productKey, environment)) {
@@ -681,7 +722,7 @@ export function createDatabaseDispatchStore(
 						binding.asset.verificationProvider !== currentProvider ||
 						binding.asset.verificationRuleVersion !== MEDIA_VERIFICATION_RULE_VERSION ||
 						binding.asset.verificationPolicyVersion !== MEDIA_VERIFICATION_POLICY_VERSION ||
-						evidence?.status !== "APPROVED" ||
+						!isPermittedModerationEvidence(evidence) ||
 						evidence.verificationGeneration !== binding.asset.verificationGeneration ||
 						evidence.attemptNumber !== binding.asset.verificationAttemptCount ||
 						evidence.assetChecksum !== binding.asset.checksum ||
@@ -1203,6 +1244,7 @@ export const MEDIA_VERIFICATION_RETRY_POLICY = {
 	maxTransientFailures: 4,
 	leaseMs: 2 * 60 * 1_000,
 	deadlineMs: 24 * 60 * 60 * 1_000,
+	imageDeadlineMs: 2 * 60 * 1_000,
 	evidenceTtlMs: 24 * 60 * 60 * 1_000,
 	processingPollMs: 15_000,
 } as const;
@@ -1227,6 +1269,8 @@ interface MediaVerificationClaim {
 	submissionToken: string | null;
 	submissionUncertain: boolean;
 	forceObjectInspection: boolean;
+	processingDeadlineExpired: boolean;
+	startedAt: Date;
 	leaseToken: string;
 }
 
@@ -1239,6 +1283,7 @@ export function createDatabaseVerifyUploadDependencies(
 		options.moderationProvider ?? imageModerationProviderForEnvironment(process.env);
 	return {
 		async verify(
+			this: void,
 			assetId: string,
 			verificationOptions = { allowQuarantinedReverification: false },
 		): Promise<void> {
@@ -1255,6 +1300,8 @@ export function createDatabaseVerifyUploadDependencies(
 			let storageEtag = claim.storageEtag;
 			let storageVersionId = claim.storageVersionId;
 			let finalizedAt = claim.finalizedAt;
+			let moderationStarted = false;
+			let detectorRequestInFlight = false;
 			try {
 				if (claim.forceObjectInspection || !checksum || !finalizedAt) {
 					const inspected = await (options.inspectPrivateMediaObject ?? inspectPrivateMediaObject)({
@@ -1314,18 +1361,52 @@ export function createDatabaseVerifyUploadDependencies(
 					...location,
 					expiresIn: 300,
 				});
+				const persistedInspection = await database.mediaAsset.updateMany({
+					where: {
+						id: claim.assetId,
+						status: "VERIFYING",
+						verificationLeaseToken: claim.leaseToken,
+						verificationGeneration: claim.generation,
+						verificationLeasedUntil: { gt: new Date() },
+					},
+					data: { checksum, storageEtag, storageVersionId, finalizedAt },
+				});
+				if (persistedInspection.count !== 1) return;
+				moderationStarted = true;
+				if (claim.processingDeadlineExpired) {
+					await failMediaVerification(database, claim, "MODERATION_TIMEOUT", "ERROR", checksum);
+					return;
+				}
+				// Poll/recover an uncertain detector submission without sending another paid inference.
+				if (
+					claim.mimeType.startsWith("image/") &&
+					claim.submissionUncertain &&
+					!claim.providerTaskId
+				) {
+					await failMediaVerification(
+						database,
+						claim,
+						"MODERATION_SUBMISSION_UNCERTAIN",
+						"ERROR",
+						checksum,
+					);
+					return;
+				}
 				let decision: ModerationDecision;
 				const asyncImage =
 					claim.mimeType.startsWith("image/") &&
 					typeof safety.submitImage === "function" &&
 					typeof safety.retrieveImage === "function";
 				if (claim.mimeType.startsWith("image/") && !asyncImage) {
+					detectorRequestInFlight = true;
 					decision = await safety.moderateImage({ assetUrl, ruleVersion: claim.ruleVersion });
+					detectorRequestInFlight = false;
 				} else {
 					let providerTaskId = claim.providerTaskId;
 					if (!providerTaskId) {
 						const submissionToken = await beginMediaVerificationSubmission(database, claim);
 						if (!submissionToken) return;
+						detectorRequestInFlight = true;
 						const submitted = await (
 							asyncImage ? safety.submitImage!.bind(safety) : safety.submitVideo.bind(safety)
 						)({
@@ -1333,6 +1414,7 @@ export function createDatabaseVerifyUploadDependencies(
 							ruleVersion: claim.ruleVersion,
 							idempotencyKey: submissionToken,
 						});
+						detectorRequestInFlight = false;
 						await options.afterVideoSubmission?.(submitted);
 						if (submitted.idempotency.key !== submissionToken) {
 							await failUncertainMediaVerification(
@@ -1366,9 +1448,11 @@ export function createDatabaseVerifyUploadDependencies(
 						}
 					}
 					const retrieval = { moderationTaskId: providerTaskId, ruleVersion: claim.ruleVersion };
+					detectorRequestInFlight = true;
 					decision = asyncImage
 						? await safety.retrieveImage!({ ...retrieval, assetUrl })
 						: await safety.retrieveVideo(retrieval);
+					detectorRequestInFlight = false;
 					if (
 						decision.decision === "REVIEW" &&
 						["VIDEO_PROCESSING", "IMAGE_PROCESSING"].includes(decision.reasonCode)
@@ -1383,6 +1467,7 @@ export function createDatabaseVerifyUploadDependencies(
 				}
 				await completeMediaVerification(database, claim, {
 					...decision,
+					detectorCompleted: true,
 					checksum,
 					storageEtag,
 					storageVersionId,
@@ -1402,6 +1487,29 @@ export function createDatabaseVerifyUploadDependencies(
 					});
 					return;
 				}
+				if (detectorRequestInFlight && claim.mimeType.startsWith("image/")) {
+					const message = moderationServiceErrorCode(error);
+					const state = await database.mediaAsset.findUnique({
+						where: { id: claim.assetId },
+						select: { verificationSubmissionUncertain: true, verificationProviderTaskId: true },
+					});
+					await failMediaVerification(
+						database,
+						claim,
+						["MODERATION_CONFIGURATION_ERROR", "MODERATION_INVALID_INPUT"].includes(message)
+							? message
+							: state?.verificationSubmissionUncertain && !state.verificationProviderTaskId
+								? "MODERATION_SUBMISSION_UNCERTAIN"
+								: isRetryableModerationError(message)
+									? message
+									: "MODERATION_UNAVAILABLE",
+						"ERROR",
+						checksum,
+					);
+					return;
+				}
+				// Persistence failures are not detector outages and cannot consume the permission budget.
+				if (moderationStarted && claim.mimeType.startsWith("image/")) throw error;
 				await failMediaVerificationFromError(
 					database,
 					claim,
@@ -1425,7 +1533,7 @@ async function appendVerificationEvidence(
 		providerTaskId: string | null;
 		ruleVersion: string;
 		policyVersion: string;
-		status: "PENDING" | "APPROVED" | "REJECTED" | "REVIEW" | "ERROR";
+		status: "PENDING" | "APPROVED" | "BYPASSED" | "REJECTED" | "REVIEW" | "ERROR";
 		reasonCode: string;
 		rawEnvelope: Prisma.InputJsonValue;
 		scores?: Record<string, number>;
@@ -1691,7 +1799,10 @@ async function claimMediaVerification(
 					verificationLeasedUntil: null,
 					verificationNextAttemptAt: null,
 					verificationDeadlineAt: new Date(
-						now.getTime() + MEDIA_VERIFICATION_RETRY_POLICY.deadlineMs,
+						now.getTime() +
+							(asset.mimeType.startsWith("image/")
+								? MEDIA_VERIFICATION_RETRY_POLICY.imageDeadlineMs
+								: MEDIA_VERIFICATION_RETRY_POLICY.deadlineMs),
 					),
 					verificationExhaustedAt: null,
 					verificationValidUntil: null,
@@ -1722,7 +1833,11 @@ async function claimMediaVerification(
 		if (asset.status !== "VERIFYING" || asset.deletedAt !== null) return null;
 		if (asset.verificationLeasedUntil && asset.verificationLeasedUntil > now) return null;
 
-		if (asset.verificationSubmissionUncertain && !asset.verificationProviderTaskId) {
+		if (
+			!asset.mimeType.startsWith("image/") &&
+			asset.verificationSubmissionUncertain &&
+			!asset.verificationProviderTaskId
+		) {
 			const attemptNumber = Math.max(asset.verificationAttemptCount, 1);
 			await appendVerificationEvidence(tx, {
 				assetId: asset.id,
@@ -1807,7 +1922,10 @@ async function claimMediaVerification(
 					verificationLeasedUntil: null,
 					verificationNextAttemptAt: null,
 					verificationDeadlineAt: new Date(
-						now.getTime() + MEDIA_VERIFICATION_RETRY_POLICY.deadlineMs,
+						now.getTime() +
+							(asset.mimeType.startsWith("image/")
+								? MEDIA_VERIFICATION_RETRY_POLICY.imageDeadlineMs
+								: MEDIA_VERIFICATION_RETRY_POLICY.deadlineMs),
 					),
 					verificationExhaustedAt: null,
 					verificationValidUntil: null,
@@ -1822,8 +1940,22 @@ async function claimMediaVerification(
 
 		const deadlineAt =
 			asset.verificationDeadlineAt ??
-			new Date(now.getTime() + MEDIA_VERIFICATION_RETRY_POLICY.deadlineMs);
-		if (deadlineAt <= now) {
+			new Date(
+				now.getTime() +
+					(asset.mimeType.startsWith("image/")
+						? MEDIA_VERIFICATION_RETRY_POLICY.imageDeadlineMs
+						: MEDIA_VERIFICATION_RETRY_POLICY.deadlineMs),
+			);
+		const processingDeadlineExpired =
+			asset.mimeType.startsWith("image/") &&
+			asset.verificationLastErrorCode === "IMAGE_PROCESSING" &&
+			asset.verificationAttemptCount >= 3 &&
+			deadlineAt <= now;
+		const boundedImageRecovery =
+			asset.mimeType.startsWith("image/") &&
+			(asset.verificationLastErrorCode === "IMAGE_PROCESSING" ||
+				isRetryableModerationError(asset.verificationLastErrorCode ?? ""));
+		if (deadlineAt <= now && !boundedImageRecovery) {
 			const attemptNumber = asset.verificationAttemptCount + 1;
 			await appendVerificationEvidence(tx, {
 				assetId: asset.id,
@@ -1910,6 +2042,8 @@ async function claimMediaVerification(
 			},
 		});
 		return {
+			processingDeadlineExpired,
+			startedAt: now,
 			assetId: claimed.id,
 			objectKey: claimed.objectKey,
 			mimeType: claimed.mimeType,
@@ -2002,6 +2136,7 @@ async function completeMediaVerification(
 	database: PrismaClient,
 	claim: MediaVerificationClaim,
 	input: ModerationDecision & {
+		detectorCompleted?: boolean;
 		checksum: string | null;
 		storageEtag: string | null;
 		storageVersionId: string | null;
@@ -2024,6 +2159,7 @@ async function completeMediaVerification(
 	}
 	const approvedChecksum = input.checksum;
 	return database.$transaction(async (tx) => {
+		const promptRejected = await lockAssetPromptReview(claim.assetId, tx);
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${claim.assetId}`}, 0))`;
 		const now = new Date();
 		const asset = await tx.mediaAsset.findFirst({
@@ -2036,8 +2172,47 @@ async function completeMediaVerification(
 			},
 		});
 		if (!asset) return false;
+		if (promptRejected)
+			input = { ...input, decision: "REJECT", reasonCode: "ADMIN_CONTENT_REJECTED" };
 		const status =
 			input.decision === "ALLOW" ? "APPROVED" : input.decision === "REJECT" ? "REJECTED" : "REVIEW";
+		if (asset.mimeType.startsWith("image/") && input.detectorCompleted) {
+			const failures = await tx.assetModerationResult.count({
+				where: { assetId: asset.id, verificationGeneration: claim.generation, status: "ERROR" },
+			});
+			const previous = await tx.moderationReview.findUnique({
+				where: { targetType_targetId: { targetType: "ASSET", targetId: asset.id } },
+			});
+			await recordModerationOutcome(
+				{
+					targetType: "ASSET",
+					targetId: asset.id,
+					provider: claim.provider,
+					stage: "IMAGE",
+					epoch: String(claim.generation),
+					failures,
+					lastErrorCode:
+						input.decision === "REVIEW"
+							? "CONTENT_REVIEW_REQUIRED"
+							: (previous?.lastErrorCode ?? ""),
+					startedAt: claim.startedAt,
+					lastFailureAt: previous?.lastFailureAt ?? now,
+					status:
+						input.decision === "ALLOW"
+							? "APPROVED"
+							: input.decision === "REVIEW"
+								? "BLOCKED"
+								: "REJECTED",
+					serviceResponded: true,
+				},
+				tx,
+			);
+		} else if (asset.mimeType.startsWith("image/")) {
+			await tx.moderationReview.updateMany({
+				where: { targetType: "ASSET", targetId: asset.id, status: "RECHECKING", resolvedBy: null },
+				data: { status: "BLOCKED", lastErrorCode: input.reasonCode, version: { increment: 1 } },
+			});
+		}
 		const verificationValidUntil =
 			input.decision === "ALLOW"
 				? asset.mimeType.startsWith("image/")
@@ -2077,7 +2252,7 @@ async function completeMediaVerification(
 				verificationExhaustedAt: null,
 				verificationValidUntil,
 				verificationSubmissionUncertain: false,
-				verificationLastErrorCode: null,
+				verificationLastErrorCode: input.decision === "ALLOW" ? null : input.reasonCode,
 			},
 		});
 		await resolveJobsWaitingForMediaVerification(tx, {
@@ -2101,6 +2276,7 @@ async function failMediaVerification(
 	checksum: string | null,
 ): Promise<boolean> {
 	return database.$transaction(async (tx) => {
+		const promptRejected = await lockAssetPromptReview(claim.assetId, tx);
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${claim.assetId}`}, 0))`;
 		const now = new Date();
 		const asset = await tx.mediaAsset.findFirst({
@@ -2127,16 +2303,74 @@ async function failMediaVerification(
 			reasonCode,
 			rawEnvelope: { decision: status },
 		});
-		const failureCount = await tx.assetModerationResult.count({
+		const totalFailureCount = await tx.assetModerationResult.count({
 			where: {
 				assetId: asset.id,
 				verificationGeneration: claim.generation,
 				status: "ERROR",
 			},
 		});
+		let failureCount = await tx.assetModerationResult.count({
+			where: {
+				assetId: asset.id,
+				verificationGeneration: claim.generation,
+				status: "ERROR",
+				reasonCode: { in: [...MODERATION_RETRYABLE_ERROR_CODES] },
+			},
+		});
+		if (claim.processingDeadlineExpired)
+			failureCount += await tx.assetModerationResult.count({
+				where: {
+					assetId: asset.id,
+					verificationGeneration: claim.generation,
+					status: "PENDING",
+					reasonCode: "IMAGE_PROCESSING",
+				},
+			});
+		const imageRecovery =
+			asset.mimeType.startsWith("image/") &&
+			(reasonCode === "IMAGE_PROCESSING" || isRetryableModerationError(reasonCode));
 		const exhausted =
-			claim.deadlineAt <= now ||
-			(status === "ERROR" && failureCount >= MEDIA_VERIFICATION_RETRY_POLICY.maxTransientFailures);
+			(status === "ERROR" &&
+				["MODERATION_CONFIGURATION_ERROR", "MODERATION_INVALID_INPUT"].includes(reasonCode)) ||
+			(!imageRecovery && claim.deadlineAt <= now) ||
+			(status === "ERROR" &&
+				(imageRecovery ? failureCount : totalFailureCount) >=
+					MEDIA_VERIFICATION_RETRY_POLICY.maxTransientFailures);
+		const bypass =
+			!promptRejected &&
+			exhausted &&
+			failureCount >= MEDIA_VERIFICATION_RETRY_POLICY.maxTransientFailures &&
+			asset.mimeType.startsWith("image/") &&
+			isRetryableModerationError(reasonCode) &&
+			Boolean(checksum && asset.finalizedAt && asset.checksum === checksum);
+		if (
+			status === "ERROR" &&
+			asset.mimeType.startsWith("image/") &&
+			(isRetryableModerationError(reasonCode) ||
+				["MODERATION_CONFIGURATION_ERROR", "MODERATION_INVALID_INPUT"].includes(reasonCode))
+		) {
+			await recordModerationOutcome(
+				{
+					targetType: "ASSET",
+					targetId: asset.id,
+					provider: claim.provider,
+					stage: "IMAGE",
+					epoch: String(claim.generation),
+					failures: imageRecovery ? failureCount : totalFailureCount,
+					lastErrorCode: reasonCode,
+					startedAt: now,
+					lastFailureAt: now,
+					status: bypass ? "PENDING_REVIEW" : exhausted ? "BLOCKED" : "RETRYING",
+					bypassed: bypass,
+				},
+				tx,
+			);
+		}
+		if (bypass) {
+			await permitFailedImageVerification(tx, asset, claim.attemptNumber + 1, reasonCode);
+			return true;
+		}
 		const retryAt = exhausted
 			? null
 			: status === "PENDING"
@@ -2146,6 +2380,9 @@ async function failMediaVerification(
 			where: { id: asset.id },
 			data: {
 				status: exhausted ? "VERIFICATION_FAILED" : "VERIFYING",
+				...(["MODERATION_CONFIGURATION_ERROR", "MODERATION_INVALID_INPUT"].includes(reasonCode)
+					? { verificationSubmissionUncertain: false, verificationSubmissionToken: null }
+					: {}),
 				verificationLeaseToken: null,
 				verificationLeasedUntil: null,
 				verificationNextAttemptAt: retryAt,
@@ -2181,6 +2418,53 @@ async function failMediaVerification(
 			});
 		}
 		return true;
+	});
+}
+
+async function permitFailedImageVerification(
+	tx: Prisma.TransactionClient,
+	asset: Prisma.MediaAssetGetPayload<Record<string, never>>,
+	attemptNumber: number,
+	errorCode: string,
+) {
+	const validUntil = new Date(IMAGE_APPROVAL_NO_TIME_EXPIRY);
+	await appendVerificationEvidence(tx, {
+		assetId: asset.id,
+		assetChecksum: asset.checksum,
+		verificationGeneration: asset.verificationGeneration,
+		attemptNumber,
+		evidenceKind: asset.kind,
+		provider: asset.verificationProvider!,
+		providerTaskId: asset.verificationProviderTaskId,
+		ruleVersion: asset.verificationRuleVersion!,
+		policyVersion: asset.verificationPolicyVersion!,
+		status: "BYPASSED",
+		reasonCode: MODERATION_BYPASS_REASON,
+		rawEnvelope: {
+			decision: "BYPASS",
+			technicalError: errorCode,
+			pendingReview: true,
+			submissionUncertain: asset.verificationSubmissionUncertain,
+		},
+		validUntil,
+	});
+	await tx.mediaAsset.update({
+		where: { id: asset.id },
+		data: {
+			status: "READY",
+			verificationAttemptCount: attemptNumber,
+			verificationLeaseToken: null,
+			verificationLeasedUntil: null,
+			verificationNextAttemptAt: null,
+			verificationExhaustedAt: new Date(),
+			verificationValidUntil: validUntil,
+			verificationLastErrorCode: MODERATION_BYPASS_REASON,
+		},
+	});
+	await resolveJobsWaitingForMediaVerification(tx, {
+		assetId: asset.id,
+		verificationGeneration: asset.verificationGeneration,
+		approved: true,
 	});
 }
 
@@ -2371,7 +2655,7 @@ function evaluateSettlementOutputs(
 		if (asset.status !== "READY") continue;
 		const authorized =
 			matchingEvidence &&
-			evidence?.status === "APPROVED" &&
+			isPermittedModerationEvidence(evidence) &&
 			Boolean(evidence.validUntil && validUntil) &&
 			evidence.validUntil?.getTime() === validUntil?.getTime() &&
 			Boolean(evidence.validUntil && evidence.validUntil > now);

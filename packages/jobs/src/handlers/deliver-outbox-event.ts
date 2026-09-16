@@ -3,6 +3,7 @@ import type { ProviderKey } from "@repo/ai";
 import type { OutboxLease } from "../contracts";
 
 interface OutboxDeliveryDependencies {
+	deliverModerationAlert?(incidentId: string, state: "OPEN" | "RECOVERED"): Promise<void>;
 	trigger(taskId: string, payload: Record<string, unknown>): Promise<void>;
 	triggerAndWait?(taskId: string, payload: Record<string, unknown>): Promise<void>;
 	resolveDispatchRoute(jobId: string): Promise<{
@@ -18,6 +19,13 @@ export async function deliverOutboxEvent(
 ): Promise<void> {
 	const payload = objectValue(event.payload);
 	switch (event.eventType) {
+		case "MODERATION_INCIDENT_ALERT":
+			if (
+				!dependencies.deliverModerationAlert ||
+				(payload.state !== "OPEN" && payload.state !== "RECOVERED")
+			)
+				throw new Error("MODERATION_ALERT_DELIVERY_UNAVAILABLE");
+			return dependencies.deliverModerationAlert(requiredString(payload.incidentId), payload.state);
 		case "GUEST_GENERATION_ELIGIBLE":
 			return triggerAndWait(dependencies, "media-admit-guest-generation", {
 				jobId: requiredString(payload.jobId, event.aggregateId),

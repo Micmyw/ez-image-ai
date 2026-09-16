@@ -67,7 +67,8 @@ export function evaluateGuestOperationalSafety(input: GuestOperationalSafetyInpu
 	if (input.oldestQueueAgeSeconds >= 600) closureReasons.push("QUEUE_AGE");
 	else if (input.oldestQueueAgeSeconds > 300) warnings.push("QUEUE_AGE");
 	if (input.uncertainOlderThanTenMinutes > 0) warnings.push("UNCERTAIN_ATTEMPT_AGE");
-	if ((input.moderationErrorRate ?? 0) > 0.01) closureReasons.push("MODERATION_ERRORS");
+	// Individual safety checks retry and queue outage permissions for review.
+	if ((input.moderationErrorRate ?? 0) > 0.01) warnings.push("MODERATION_ERRORS");
 	if (input.watermarkFailures > 0) closureReasons.push("WATERMARK_FAILURE");
 	if (input.billedSpendMismatch > 0) closureReasons.push("BILLED_SPEND_MISMATCH");
 	if (input.overdueCleanupAssets > 0) closureReasons.push("CLEANUP_OVERDUE");

@@ -1,5 +1,9 @@
 export interface VerifyUploadDependencies {
-	verify(assetId: string, options?: { allowQuarantinedReverification: boolean }): Promise<void>;
+	verify(
+		this: void,
+		assetId: string,
+		options?: { allowQuarantinedReverification: boolean },
+	): Promise<void>;
 }
 
 export async function verifyUpload(

@@ -51,8 +51,10 @@ export function createConfiguredImageSafetyAdapter(
 						input: Parameters<NonNullable<MediaSafetyAdapter["retrieveImage"]>>[0],
 					) {
 						const primary = await seeapi.retrieveImage(input);
-						if (primary.decision !== "ALLOW" || !sightengine) return primary;
+						if (!sightengine || primary.decision === "REJECT" || primary.decision === "REVIEW")
+							return primary;
 						const secondary = await sightengine.moderateImage(input);
+						if (primary.decision === "ERROR" && secondary.decision === "ALLOW") return primary;
 						return {
 							...secondary,
 							...(secondary.evidence

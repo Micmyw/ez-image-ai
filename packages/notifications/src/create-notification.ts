@@ -1,14 +1,13 @@
 import {
 	getUserEmailLocaleForNotifications,
-	insertNotification,
 	isNotificationDisabled,
 	NotificationTarget,
 	type NotificationModel,
 	type NotificationType,
 } from "@repo/database";
 import type { Locale } from "@repo/i18n";
-import { sendEmail } from "@repo/mail";
 
+import { createInAppNotification } from "./in-app";
 import { resolveNotificationLink } from "./resolve-link";
 
 export async function createNotification(input: {
@@ -17,13 +16,11 @@ export async function createNotification(input: {
 	data?: unknown;
 	link?: string | null;
 	read?: boolean;
+	/** Explicit channel selection for operational alerts; preferences still apply. */
+	channels?: readonly NotificationTarget[];
+	/** Stable IN_APP delivery ID. Email is excluded for deduplicated operational delivery. */
+	deliveryId?: string;
 }) {
-	const inAppDisabled = await isNotificationDisabled(
-		input.userId,
-		input.type,
-		NotificationTarget.IN_APP,
-	);
-
 	const emailDisabled = await isNotificationDisabled(
 		input.userId,
 		input.type,
@@ -33,17 +30,15 @@ export async function createNotification(input: {
 	const absoluteLink = resolveNotificationLink(input.link);
 	let created: NotificationModel | null = null;
 
-	if (!inAppDisabled) {
-		created = await insertNotification({
-			userId: input.userId,
-			type: input.type,
-			data: input.data ?? {},
-			link: absoluteLink,
-			read: input.read ?? false,
-		});
+	if (!input.channels || input.channels.includes(NotificationTarget.IN_APP)) {
+		created = await createInAppNotification(input);
 	}
 
-	if (!emailDisabled) {
+	if (
+		!emailDisabled &&
+		!input.deliveryId &&
+		(!input.channels || input.channels.includes(NotificationTarget.EMAIL))
+	) {
 		const userRow = await getUserEmailLocaleForNotifications(input.userId);
 
 		if (userRow?.email) {
@@ -63,6 +58,7 @@ export async function createNotification(input: {
 						: String(input.type);
 			const message = typeof dataObj.message === "string" ? dataObj.message : undefined;
 
+			const { sendEmail } = await import("@repo/mail");
 			await sendEmail({
 				to: userRow.email,
 				locale,

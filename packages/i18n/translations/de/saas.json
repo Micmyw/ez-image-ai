@@ -218,6 +218,72 @@
 			"paymentEvents": {
 				"title": "Zahlungsereignisdiagnose",
 				"empty": "Keine aktuellen Ereignisse"
+			},
+			"moderation": {
+				"title": "Sicherheitsprüfung und Wiederherstellung",
+				"description": "Begrenzte Wiederholungen, gebündelte Dienstwarnungen und Nachprüfung bei technischen Störungen.",
+				"openIncidents": "Offene Dienststörungen",
+				"pendingReviews": "Prüfungen mit Handlungsbedarf",
+				"outageWarning": "Ein Prüfdienst hat technische Probleme. Nach dem Wiederholungslimit können Anfragen mit einem Nachprüfungsvermerk fortgesetzt werden. Bestätigte Verstöße bleiben gesperrt.",
+				"incidents": "Dienststörungen und Wiederherstellung",
+				"noIncidents": "Keine Dienststörungen erfasst.",
+				"textStage": "Textprüfung",
+				"imageStage": "Bildprüfung",
+				"failureCount": "Fehlversuche",
+				"affectedTargets": "Betroffene Prüfungen",
+				"firstFailure": "Erster Fehler",
+				"lastFailure": "Letzter Fehler",
+				"recoveredAt": "Wiederherstellung bestätigt",
+				"references": "Betroffene Referenzen (Auswahl)",
+				"acknowledge": "Bestätigen",
+				"acknowledged": "Bestätigt",
+				"reviewQueue": "Warteschlange zur Nachprüfung",
+				"filter": "Status",
+				"needsAttention": "Handlungsbedarf",
+				"billingNote": "Prüfen Sie den ursprünglichen Inhalt. Eine erneute Prüfung erzeugt kein neues Bild und berechnet keine Generierungsguthaben. Bereits abgerechnete Beträge bleiben unverändert. Eine Sperre verhindert künftigen Zugriff; bestehende temporäre Links laufen automatisch ab.",
+				"noReviews": "Keine passenden Prüfungen.",
+				"allowedPendingReview": "Während der Störung freigegeben",
+				"failures": "{count} Fehlversuche",
+				"jobs": "Zugehörige Aufträge",
+				"inspect": "Ansehen und prüfen",
+				"reviewDetails": "Ursprünglichen Inhalt prüfen",
+				"close": "Schließen",
+				"loading": "Wird geladen…",
+				"loadError": "Die Prüfverwaltung konnte nicht geladen werden. Bitte aktualisieren.",
+				"imageAlt": "Privates Bild zur Prüfung durch einen Administrator",
+				"refreshPreview": "Details und Vorschau aktualisieren",
+				"uncertainNote": "Der Prüfdienst könnte die ursprüngliche Anfrage ohne Rückgabe einer Auftrags-ID angenommen haben. Automatische erneute Übermittlung ist deaktiviert. Prüfen Sie den Inhalt manuell.",
+				"lastDecision": "Letzte Entscheidungsnotiz",
+				"reason": "Begründung dieser Aktion",
+				"reasonPlaceholder": "Dokumentieren Sie Prüfung und Begründung (mindestens 10 Zeichen).",
+				"recheck": "Sicherheitsprüfung wiederholen",
+				"approve": "Manuell freigeben",
+				"reject": "Inhalt sperren",
+				"saved": "Prüfaktion gespeichert. Warteschlange und Prüfprotokoll wurden aktualisiert.",
+				"actionError": "Die Aktion konnte nicht abgeschlossen werden. Aktualisieren Sie die Prüfung; eine andere Entscheidung oder laufende Prüfung könnte sie geändert haben.",
+				"statuses": {
+					"OPEN": "Dienststörung",
+					"RECOVERED": "Dienst wiederhergestellt",
+					"RETRYING": "Wiederholung läuft",
+					"PENDING_REVIEW": "Freigegeben · Nachprüfung offen",
+					"RECHECKING": "Erneute Prüfung",
+					"APPROVED": "Freigegeben",
+					"REJECTED": "Gesperrt",
+					"BLOCKED": "Gesperrt · Prüfung nötig"
+				},
+				"errors": {
+					"MODERATION_UNAVAILABLE": "Der Prüfdienst hat kein nutzbares Ergebnis geliefert.",
+					"MODERATION_TIMEOUT": "Zeitüberschreitung beim Prüfdienst.",
+					"MODERATION_NETWORK_ERROR": "Der Prüfdienst ist nicht erreichbar.",
+					"MODERATION_RATE_LIMITED": "Das Anfragelimit des Prüfdiensts wurde erreicht.",
+					"MODERATION_SERVICE_ERROR": "Der Prüfdienst meldet einen Serverfehler.",
+					"MODERATION_INVALID_RESPONSE": "Die Antwort des Prüfdiensts ist unvollständig oder ungültig.",
+					"MODERATION_SUBMISSION_UNCERTAIN": "Die Anfrage wurde möglicherweise angenommen, aber die Auftrags-ID fehlt.",
+					"MODERATION_CONFIGURATION_ERROR": "Die Konfiguration des Prüfdiensts muss überprüft werden.",
+					"CONTENT_REVIEW_REQUIRED": "Der Prüfdienst hat eine manuelle Prüfung angefordert."
+				},
+				"newest": "Neueste Prüfungen",
+				"older": "Ältere Prüfungen"
 			}
 		},
 		"title": "Administration",
@@ -855,6 +921,9 @@
 			"types": {
 				"APP_UPDATE": {
 					"label": "App-Updates"
+				},
+				"MODERATION_ALERT": {
+					"label": "Warnungen zu Sicherheitsprüfungen (Administratoren)"
 				}
 			},
 			"columns": {

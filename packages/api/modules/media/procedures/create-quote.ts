@@ -1,5 +1,6 @@
 import type { ExecutableRouteGraphOptions, MediaModelInput, ModerationDecision } from "@repo/ai";
 import { EZPIC_PRODUCT_KEYS } from "@repo/config";
+import { recordTextModerationOutcome } from "@repo/database";
 import { findEligibleImageEditParentForOwner } from "@repo/database";
 import { db } from "@repo/database/client";
 import {
@@ -68,6 +69,12 @@ const defaultDependencies: CreateQuoteDependencies = {
 	createAdapter: () => createTextModerationAdapter(process.env),
 	persistApproved: (input) => createModeratedGenerationQuoteTransaction(input, db),
 	recordDenied: async (evidence) => {
+		await db.$transaction((tx) =>
+			recordTextModerationOutcome(
+				{ targetType: "TEXT_ATTEMPT", targetId: evidence.inputFingerprint, moderation: evidence },
+				tx,
+			),
+		);
 		await db.auditLog.create({
 			data: {
 				action: "MEDIA_TEXT_MODERATION_BLOCKED",

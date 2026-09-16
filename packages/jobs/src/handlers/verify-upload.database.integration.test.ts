@@ -401,7 +401,7 @@ describe("claimed draft asset verification", () => {
 		});
 	});
 
-	it("moves exhausted verification attempts out of VERIFYING without approving the asset", async () => {
+	it("permits exhausted technical verification with explicit bypass evidence", async () => {
 		const suffix = crypto.randomUUID();
 		const assetId = `verification_exhausted_${suffix.replaceAll("-", "")}`;
 		await client.mediaAsset.create({
@@ -451,12 +451,12 @@ describe("claimed draft asset verification", () => {
 		await expect(
 			client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
 		).resolves.toMatchObject({
-			status: "VERIFICATION_FAILED",
-			verificationAttemptCount: 4,
+			status: "READY",
+			verificationAttemptCount: 5,
 			verificationExhaustedAt: expect.any(Date),
-			verificationLastErrorCode: "MODERATION_UNAVAILABLE",
+			verificationLastErrorCode: "MODERATION_TECHNICAL_FAILURE_BYPASS",
 		});
-		await expect(client.assetModerationResult.count({ where: { assetId } })).resolves.toBe(4);
+		await expect(client.assetModerationResult.count({ where: { assetId } })).resolves.toBe(5);
 	});
 
 	it("does not spend the transient failure budget on normal video processing polls", async () => {

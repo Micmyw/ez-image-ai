@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 
+import { isPermittedModerationEvidence } from "@repo/config";
+
 import type { MediaAssetKind, Prisma } from "../../generated/client";
 import {
 	LIVE_GENERATION_JOB_STATUSES,
@@ -77,7 +79,7 @@ export function hasCurrentApprovedMediaAssetEvidence(
 
 	const evidence = asset.moderationResults[0];
 	return (
-		evidence?.status === "APPROVED" &&
+		isPermittedModerationEvidence(evidence) &&
 		evidence.assetChecksum === asset.checksum &&
 		evidence.verificationGeneration === asset.verificationGeneration &&
 		evidence.attemptNumber === asset.verificationAttemptCount &&
@@ -197,7 +199,7 @@ export async function listReadableMediaAssets(
 				verificationValidUntil: { gt: input.verification.now },
 				moderationResults: {
 					some: {
-						status: "APPROVED",
+						status: { in: ["APPROVED", "BYPASSED"] },
 						provider: input.verification.provider,
 						ruleVersion: input.verification.ruleVersion,
 						policyVersion: input.verification.policyVersion,

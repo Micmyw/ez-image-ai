@@ -1,3 +1,4 @@
+import { moderationHttpErrorCode, moderationServiceErrorCode } from "@repo/config";
 import { z } from "zod";
 
 import { fetchJson, type HttpClientOptions } from "../providers/http";
@@ -88,8 +89,8 @@ export class SeeapiSafetyAdapter {
 					},
 				},
 			};
-		} catch {
-			return result("ERROR", "MODERATION_UNAVAILABLE");
+		} catch (error) {
+			return result("ERROR", moderationServiceErrorCode(error));
 		}
 	}
 	private async call(path: string, init: RequestInit) {
@@ -107,7 +108,7 @@ export class SeeapiSafetyAdapter {
 			},
 			{ maxResponseBytes: 64 * 1024, ...this.options },
 		);
-		if (!response.ok) throw new Error("MODERATION_UNAVAILABLE");
+		if (!response.ok) throw new Error(moderationHttpErrorCode(response.status));
 		return taskSchema.parse(response.data);
 	}
 }

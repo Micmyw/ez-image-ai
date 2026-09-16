@@ -1,9 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import {
-	MEDIA_VERIFICATION_POLICY_VERSION,
-	MEDIA_VERIFICATION_RULE_VERSION,
-	isImageContentRejection,
-} from "@repo/ai";
+import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
 import { imageModerationProviderForEnvironment } from "@repo/config";
 import {
 	getOwnedMediaAsset,
@@ -45,7 +41,7 @@ export async function requireReadyOwnedMediaAsset(assetId: string, ownerId: stri
 		throw new ORPCError("NOT_FOUND");
 	}
 	if (!state.readable) {
-		const message = isImageContentRejection(state.asset.moderationResults?.[0])
+		const message = publicImageModerationReason(state.asset.moderationResults?.[0])
 			? "ASSET_CONTENT_NOT_ALLOWED"
 			: state.asset.status === "QUARANTINED" || state.asset.status === "VERIFICATION_FAILED"
 				? "ASSET_SAFETY_UNAVAILABLE"

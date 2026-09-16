@@ -15,6 +15,7 @@ import {
 	type GuestAdmissionDenialReason,
 	type GuestJobSnapshot,
 	recordGuestAdmissionDenial,
+	recordTextModerationOutcome,
 } from "@repo/database";
 import { db } from "@repo/database/client";
 
@@ -29,6 +30,7 @@ import { TextModerationError } from "./public-moderation-reason";
 import { buildMediaQuote } from "./quote";
 import {
 	createTextModerationAdapter,
+	moderateTextWithRetry,
 	TEXT_MODERATION_RULE_VERSION,
 	textModerationProviderForEnvironment,
 	type TextModerationEvidence,
@@ -160,6 +162,9 @@ interface GuestAdmissionDependencies {
 	}): GuestQuote;
 	moderatePrompt(input: { text: string; ruleVersion: string }): Promise<ModerationDecision>;
 	moderationProvider?: TextModerationEvidence["provider"];
+	recordModerationDenial?(
+		moderation: Omit<TextModerationEvidence, "inputFingerprint">,
+	): Promise<void>;
 	transactionRecordsDenials?: boolean;
 	recordDenial(input: {
 		promotionPeriod: string;
@@ -226,6 +231,14 @@ export const guestAdmissionDependencies: GuestAdmissionDependencies = {
 		return selection.adapter.moderateText(input);
 	},
 	moderationProvider: undefined,
+	recordModerationDenial: async (moderation) => {
+		await db.$transaction((tx) =>
+			recordTextModerationOutcome(
+				{ targetType: "TEXT_ATTEMPT", targetId: crypto.randomUUID(), moderation },
+				tx,
+			),
+		);
+	},
 	transactionRecordsDenials: true,
 	recordDenial: (input) => recordGuestAdmissionDenial(input, db),
 	createTransaction: (input) =>
@@ -380,11 +393,17 @@ export async function submitGuestGenerationForGuest(
 			quote.pricingSnapshot as CreateGuestGenerationTransactionInput["quote"]["pricingSnapshot"],
 		expiresAt: new Date(now.getTime() + GUEST_QUOTE_TTL_MS),
 	};
-	const moderation = await dependencies.moderatePrompt({
-		text: modelInput.prompt,
-		ruleVersion: TEXT_MODERATION_RULE_VERSION,
-	});
-	if (moderation.decision !== "ALLOW") {
+	const moderation = await moderateTextWithRetry(
+		{
+			text: modelInput.prompt,
+			ruleVersion: TEXT_MODERATION_RULE_VERSION,
+		},
+		(value) => dependencies.moderatePrompt(value),
+	);
+	const moderationProvider =
+		dependencies.moderationProvider ?? textModerationProviderForEnvironment(process.env);
+	if (moderation.decision !== "ALLOW" && moderation.decision !== "BYPASS") {
+		await dependencies.recordModerationDenial?.({ ...moderation, provider: moderationProvider });
 		return rejectGuestAdmission(
 			dependencies,
 			boundary,
@@ -394,11 +413,9 @@ export async function submitGuestGenerationForGuest(
 			loaded.config.abuseEvidenceTtlMs,
 			now,
 			"CONTENT",
-			new TextModerationError(moderation),
+			new TextModerationError({ ...moderation, decision: moderation.decision }),
 		);
 	}
-	const moderationProvider =
-		dependencies.moderationProvider ?? textModerationProviderForEnvironment(process.env);
 	const sourceSessionHash = hashGuestAbuseBinding(
 		abuseHmac.secretKey,
 		abuseHmac.keyVersion,

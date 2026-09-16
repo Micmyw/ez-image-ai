@@ -1,4 +1,4 @@
-import { getBaseUrl } from "@repo/utils";
+import { getBaseUrl } from "@repo/utils/lib/base-url";
 
 /**
  * Turns relative app paths into absolute SaaS URLs for emails and clients.

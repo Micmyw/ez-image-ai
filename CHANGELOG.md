@@ -51,6 +51,14 @@
 
 ### Content safety
 
+- Retry temporary text and image detector failures up to three times after the initial attempt,
+  then permit inspected content with durable pending-review evidence. Keep confirmed content
+  blocks, content-review decisions, invalid files and configuration errors blocked.
+- Add administrator outage alerts, recovery tracking, acknowledgements and a private review queue.
+  Recheck original content, approve it or revoke access with audited, idempotent actions. Recovery
+  never silently approves the backlog, regenerates an image or changes settled generation credits.
+- Keep service-error spikes visible as guest-operation warnings without closing guest admission
+  solely for moderation availability. Existing queue, budget and generation-failure limits remain.
 - Separate safety notices into a clear outcome, safe reason, credit treatment, and next step for
   instructions, reference images, results, and guest trials. Link to policy and support, include
   result task references, and keep incomplete reviews distinct from confirmed content blocks.

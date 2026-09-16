@@ -5,6 +5,7 @@
 	"types": "./src/index.ts",
 	"exports": {
 		".": "./src/index.ts",
+		"./moderation-incident": "./src/moderation-incident.ts",
 		"./catalog": "./src/catalog.ts"
 	},
 	"scripts": {

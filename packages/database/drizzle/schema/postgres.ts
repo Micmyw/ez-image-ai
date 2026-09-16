@@ -5,6 +5,7 @@ import {
 	boolean,
 	check,
 	index,
+	primaryKey,
 	integer,
 	jsonb,
 	pgEnum,
@@ -52,7 +53,11 @@ export const creditPackAdjustmentStatusEnum = pgEnum("CreditPackAdjustmentStatus
 	"CANCELED",
 ]);
 
-export const notificationTypeEnum = pgEnum("NotificationType", ["WELCOME", "APP_UPDATE"]);
+export const notificationTypeEnum = pgEnum("NotificationType", [
+	"WELCOME",
+	"APP_UPDATE",
+	"MODERATION_ALERT",
+]);
 
 export const notificationTargetEnum = pgEnum("NotificationTarget", ["IN_APP", "EMAIL"]);
 
@@ -816,4 +821,74 @@ export const userNotificationPreferenceRelations = relations(
 			references: [user.id],
 		}),
 	}),
+);
+
+// Durable moderation outages and administrator review; private media stays in the existing lifecycle.
+export const moderationIncident = pgTable(
+	"moderation_incident",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		activeKey: text("activeKey").unique(),
+		provider: text("provider").notNull(),
+		stage: text("stage").notNull(),
+		status: text("status").notNull().default("OPEN"),
+		lastErrorCode: text("lastErrorCode").notNull(),
+		failureCount: integer("failureCount").notNull().default(0),
+		firstFailureAt: timestamp("firstFailureAt", { withTimezone: true, precision: 3 }).notNull(),
+		lastFailureAt: timestamp("lastFailureAt", { withTimezone: true, precision: 3 }).notNull(),
+		recoveredAt: timestamp("recoveredAt", { withTimezone: true, precision: 3 }),
+		acknowledgedAt: timestamp("acknowledgedAt", { withTimezone: true, precision: 3 }),
+		alertedAt: timestamp("alertedAt", { withTimezone: true, precision: 3 }),
+		acknowledgedBy: text("acknowledgedBy"),
+	},
+	(table) => [
+		index("moderation_incident_status_lastFailureAt_idx").on(table.status, table.lastFailureAt),
+	],
+);
+export const moderationReview = pgTable(
+	"moderation_review",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		targetType: text("targetType").notNull(),
+		targetId: text("targetId").notNull(),
+		provider: text("provider").notNull(),
+		stage: text("stage").notNull(),
+		attemptEpoch: text("attemptEpoch").notNull(),
+		lastErrorCode: text("lastErrorCode").notNull(),
+		incidentId: text("incidentId").references(() => moderationIncident.id, {
+			onDelete: "set null",
+		}),
+		status: text("status").notNull().default("RETRYING"),
+		bypassed: boolean("bypassed").notNull().default(false),
+		failureCount: integer("failureCount").notNull().default(0),
+		observedFailures: integer("observedFailures").notNull().default(0),
+		version: integer("version").notNull().default(0),
+		firstFailureAt: timestamp("firstFailureAt", { withTimezone: true, precision: 3 }).notNull(),
+		lastFailureAt: timestamp("lastFailureAt", { withTimezone: true, precision: 3 }).notNull(),
+		updatedAt: timestamp("updatedAt", { withTimezone: true, precision: 3 })
+			.notNull()
+			.$onUpdate(() => new Date()),
+		resolvedAt: timestamp("resolvedAt", { withTimezone: true, precision: 3 }),
+		resolvedBy: text("resolvedBy"),
+		resolutionReason: text("resolutionReason"),
+	},
+	(table) => [
+		uniqueIndex("moderation_review_targetType_targetId_key").on(table.targetType, table.targetId),
+		index("moderation_review_status_updatedAt_idx").on(table.status, table.updatedAt),
+	],
+);
+export const moderationIncidentTarget = pgTable(
+	"moderation_incident_target",
+	{
+		incidentId: text("incidentId")
+			.notNull()
+			.references(() => moderationIncident.id, { onDelete: "cascade" }),
+		targetType: text("targetType").notNull(),
+		targetId: text("targetId").notNull(),
+	},
+	(table) => [primaryKey({ columns: [table.incidentId, table.targetType, table.targetId] })],
 );

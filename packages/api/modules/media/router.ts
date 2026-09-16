@@ -46,6 +46,10 @@ import { submitGuestGeneration } from "./procedures/submit-guest-generation";
 export { guestMediaProcedure } from "./guest-procedure";
 
 export const mediaRouter = {
+	adminModerationOperations,
+	adminModerationDetail,
+	adminModerationReviewAction,
+	adminModerationAcknowledge,
 	getPublicCatalog,
 	createQuote,
 	createGeneration,
@@ -88,3 +92,9 @@ export const mediaRouter = {
 	getAssetAccessUrl,
 	deleteAsset,
 };
+import {
+	adminModerationOperations,
+	adminModerationDetail,
+	adminModerationReviewAction,
+	adminModerationAcknowledge,
+} from "./procedures/admin-moderation";

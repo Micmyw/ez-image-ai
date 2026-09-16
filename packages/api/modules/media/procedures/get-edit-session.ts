@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { getCatalogEntry, getCatalogImageSpecCell, imageAspectRatioSchema } from "@repo/ai";
+import { isPermittedModerationEvidence } from "@repo/config";
 import {
 	EZPIC_PRODUCT_KEYS,
 	imageSkuKeySchema,
@@ -138,7 +139,7 @@ function outputState(
 	if (
 		asset.status === "READY" &&
 		asset.mimeType.startsWith("image/") &&
-		asset.moderationResults[0]?.status === "APPROVED"
+		isPermittedModerationEvidence(asset.moderationResults[0])
 	) {
 		return { state: "READY", assetId: asset.id };
 	}

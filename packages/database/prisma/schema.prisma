@@ -325,9 +325,67 @@ enum UploadSessionStatus {
 enum ModerationStatus {
   PENDING
   APPROVED
+  BYPASSED
   REJECTED
   REVIEW
   ERROR
+}
+
+model ModerationIncident {
+  id             String   @id @default(cuid())
+  activeKey      String?  @unique
+  provider       String
+  stage          String
+  status         String   @default("OPEN")
+  lastErrorCode  String
+  failureCount   Int      @default(0)
+  firstFailureAt DateTime @db.Timestamptz(3)
+  lastFailureAt  DateTime @db.Timestamptz(3)
+  recoveredAt    DateTime? @db.Timestamptz(3)
+  acknowledgedAt DateTime? @db.Timestamptz(3)
+  acknowledgedBy String?
+  alertedAt      DateTime? @db.Timestamptz(3)
+  targets        ModerationIncidentTarget[]
+  reviews        ModerationReview[]
+
+  @@index([status, lastFailureAt])
+  @@map("moderation_incident")
+}
+
+model ModerationIncidentTarget {
+  incidentId String
+  targetType String
+  targetId   String
+  incident   ModerationIncident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
+  @@id([incidentId, targetType, targetId])
+  @@map("moderation_incident_target")
+}
+
+model ModerationReview {
+  id               String @id @default(cuid())
+  targetType       String
+  targetId         String
+  incidentId       String?
+  incident         ModerationIncident? @relation(fields: [incidentId], references: [id], onDelete: SetNull)
+  provider         String
+  stage            String
+  status           String @default("RETRYING")
+  bypassed         Boolean @default(false)
+  failureCount     Int @default(0)
+  attemptEpoch     String
+  observedFailures Int @default(0)
+  lastErrorCode    String
+  firstFailureAt   DateTime @db.Timestamptz(3)
+  lastFailureAt    DateTime @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(3)
+  resolvedAt       DateTime? @db.Timestamptz(3)
+  resolvedBy       String?
+  resolutionReason String?
+  version          Int @default(0)
+
+  @@unique([targetType, targetId])
+  @@index([status, updatedAt])
+  @@map("moderation_review")
 }
 
 enum StorageReservationStatus {
@@ -1569,6 +1627,7 @@ enum NotificationTarget {
 }
 
 enum NotificationType {
+  MODERATION_ALERT
   WELCOME
   APP_UPDATE
 }

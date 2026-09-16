@@ -5,6 +5,7 @@ import {
 	boolean,
 	check,
 	index,
+	primaryKey,
 	int,
 	json,
 	mysqlEnum,
@@ -18,7 +19,11 @@ import {
 // Enums
 export const purchaseTypeEnum = mysqlEnum("PurchaseType", ["SUBSCRIPTION", "ONE_TIME"]);
 
-export const notificationTypeEnum = mysqlEnum("NotificationType", ["WELCOME", "APP_UPDATE"]);
+export const notificationTypeEnum = mysqlEnum("NotificationType", [
+	"WELCOME",
+	"APP_UPDATE",
+	"MODERATION_ALERT",
+]);
 
 export const notificationTargetEnum = mysqlEnum("NotificationTarget", ["IN_APP", "EMAIL"]);
 
@@ -741,4 +746,74 @@ export const userNotificationPreferenceRelations = relations(
 			references: [user.id],
 		}),
 	}),
+);
+
+// Durable moderation outages and administrator review; private media stays in the existing lifecycle.
+export const moderationIncident = mysqlTable(
+	"moderation_incident",
+	{
+		id: varchar("id", { length: 191 })
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		activeKey: varchar("activeKey", { length: 191 }).unique(),
+		provider: varchar("provider", { length: 191 }).notNull(),
+		stage: varchar("stage", { length: 191 }).notNull(),
+		status: varchar("status", { length: 191 }).notNull().default("OPEN"),
+		lastErrorCode: varchar("lastErrorCode", { length: 191 }).notNull(),
+		failureCount: int("failureCount").notNull().default(0),
+		firstFailureAt: timestamp("firstFailureAt", { fsp: 3 }).notNull(),
+		lastFailureAt: timestamp("lastFailureAt", { fsp: 3 }).notNull(),
+		recoveredAt: timestamp("recoveredAt", { fsp: 3 }),
+		acknowledgedAt: timestamp("acknowledgedAt", { fsp: 3 }),
+		alertedAt: timestamp("alertedAt", { fsp: 3 }),
+		acknowledgedBy: varchar("acknowledgedBy", { length: 191 }),
+	},
+	(table) => [
+		index("moderation_incident_status_lastFailureAt_idx").on(table.status, table.lastFailureAt),
+	],
+);
+export const moderationReview = mysqlTable(
+	"moderation_review",
+	{
+		id: varchar("id", { length: 191 })
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		targetType: varchar("targetType", { length: 191 }).notNull(),
+		targetId: varchar("targetId", { length: 191 }).notNull(),
+		provider: varchar("provider", { length: 191 }).notNull(),
+		stage: varchar("stage", { length: 191 }).notNull(),
+		attemptEpoch: varchar("attemptEpoch", { length: 191 }).notNull(),
+		lastErrorCode: varchar("lastErrorCode", { length: 191 }).notNull(),
+		incidentId: varchar("incidentId", { length: 191 }).references(() => moderationIncident.id, {
+			onDelete: "set null",
+		}),
+		status: varchar("status", { length: 191 }).notNull().default("RETRYING"),
+		bypassed: boolean("bypassed").notNull().default(false),
+		failureCount: int("failureCount").notNull().default(0),
+		observedFailures: int("observedFailures").notNull().default(0),
+		version: int("version").notNull().default(0),
+		firstFailureAt: timestamp("firstFailureAt", { fsp: 3 }).notNull(),
+		lastFailureAt: timestamp("lastFailureAt", { fsp: 3 }).notNull(),
+		updatedAt: timestamp("updatedAt", { fsp: 3 })
+			.notNull()
+			.$onUpdate(() => new Date()),
+		resolvedAt: timestamp("resolvedAt", { fsp: 3 }),
+		resolvedBy: varchar("resolvedBy", { length: 191 }),
+		resolutionReason: text("resolutionReason"),
+	},
+	(table) => [
+		uniqueIndex("moderation_review_targetType_targetId_key").on(table.targetType, table.targetId),
+		index("moderation_review_status_updatedAt_idx").on(table.status, table.updatedAt),
+	],
+);
+export const moderationIncidentTarget = mysqlTable(
+	"moderation_incident_target",
+	{
+		incidentId: varchar("incidentId", { length: 191 })
+			.notNull()
+			.references(() => moderationIncident.id, { onDelete: "cascade" }),
+		targetType: varchar("targetType", { length: 191 }).notNull(),
+		targetId: varchar("targetId", { length: 191 }).notNull(),
+	},
+	(table) => [primaryKey({ columns: [table.incidentId, table.targetType, table.targetId] })],
 );

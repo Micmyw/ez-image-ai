@@ -1,8 +1,10 @@
+import { isPermittedModerationEvidence } from "@repo/config";
 import { EZPIC_PRODUCT_KEYS, LEGACY_EZPIC_PRODUCT_KEYS } from "@repo/config";
 
 import type { Prisma } from "../../generated/client";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { reserveCreditsInTransaction } from "./credits";
+import { assertQuoteModerationPermitted } from "./moderation-operations";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
 import {
 	ACTIVE_GENERATION_JOB_STATUSES,
@@ -138,7 +140,7 @@ export async function createGenerationJobTransaction(
 			if (quote.expiresAt <= operationNow) throw new Error("Quote expired");
 			if (quote.credits <= 0n) throw new Error("Quote credits are invalid");
 			if (
-				quote.moderationDecision !== "ALLOW" ||
+				!["ALLOW", "BYPASS"].includes(quote.moderationDecision) ||
 				quote.moderationRuleVersion !== input.expectedModerationRuleVersion ||
 				(input.expectedModerationProvider !== undefined &&
 					quote.moderationProvider !== input.expectedModerationProvider) ||
@@ -146,6 +148,7 @@ export async function createGenerationJobTransaction(
 			) {
 				throw new Error("TEXT_MODERATION_EVIDENCE_INVALID");
 			}
+			await assertQuoteModerationPermitted(quote, tx);
 			const replay = await findExistingJob(input, tx);
 			if (replay) return replay;
 			if (input.maximumConcurrentJobs !== undefined) {
@@ -251,7 +254,7 @@ export async function createGenerationJobTransaction(
 					return (
 						asset.verificationValidUntil === null ||
 						asset.verificationValidUntil <= operationNow ||
-						evidence?.status !== "APPROVED" ||
+						!isPermittedModerationEvidence(evidence) ||
 						evidence.attemptNumber !== asset.verificationAttemptCount ||
 						evidence.assetChecksum !== asset.checksum ||
 						evidence.evidenceKind !== asset.kind ||
@@ -535,7 +538,7 @@ async function resolveImageEditBinding(
 		output.status !== "READY" ||
 		output.deletedAt !== null ||
 		!output.mimeType.startsWith("image/") ||
-		output.moderationResults[0]?.status !== "APPROVED"
+		!isPermittedModerationEvidence(output.moderationResults[0])
 	) {
 		throw new Error("NOT_FOUND");
 	}

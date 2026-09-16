@@ -26,12 +26,13 @@ export interface CreateGenerationQuoteInput {
 
 export interface CreateModeratedGenerationQuoteInput extends CreateGenerationQuoteInput {
 	moderation: {
-		decision: "ALLOW" | "REJECT" | "REVIEW" | "ERROR";
+		decision: "ALLOW" | "REJECT" | "REVIEW" | "ERROR" | "BYPASS";
 		provider: string;
 		ruleVersion: string;
 		reasonCode: string;
 		inputFingerprint: string;
 		evidence?: Prisma.InputJsonObject;
+		retry?: { failures: number; lastErrorCode: string; startedAt: string; lastFailureAt: string };
 	};
 }
 

@@ -19,6 +19,18 @@ const safeMetrics = {
 };
 
 describe("guest operational safety thresholds", () => {
+	it("warns on moderation outages without overriding the bounded fail-open policy", () => {
+		expect(
+			evaluateGuestOperationalSafety({ ...safeMetrics, moderationErrorRate: 1 }),
+		).toMatchObject({
+			admissionAction: "WARN",
+			warnings: ["MODERATION_ERRORS"],
+			closureReasons: [],
+		});
+		expect(
+			evaluateGuestOperationalSafety({ ...safeMetrics, moderationErrorRate: 1 }),
+		).not.toHaveProperty("automaticOverride");
+	});
 	it.each([
 		[50_000n, "WARN", "WARN"],
 		[75_000n, "SLOW", "SLOW"],
@@ -51,7 +63,6 @@ describe("guest operational safety thresholds", () => {
 	});
 
 	it.each([
-		["MODERATION_ERRORS", { moderationErrorRate: 0.0101 }],
 		["WATERMARK_FAILURE", { watermarkFailures: 1 }],
 		["BILLED_SPEND_MISMATCH", { billedSpendMismatch: 1 }],
 		["CLEANUP_OVERDUE", { overdueCleanupAssets: 1 }],

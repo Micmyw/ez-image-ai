@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { isImageContentRejection } from "@repo/ai";
+import { isPermittedModerationEvidence } from "@repo/config";
 import { db } from "@repo/database/client";
 
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -78,7 +78,7 @@ export const getJob = protectedProcedure
 					binding.asset.ownerId === user.id &&
 					binding.asset.status === "READY" &&
 					binding.asset.deletedAt === null &&
-					binding.asset.moderationResults[0]?.status === "APPROVED",
+					isPermittedModerationEvidence(binding.asset.moderationResults[0]),
 			)
 			.map(({ asset }) => assetDto(asset));
 		const moderationBilling =
@@ -92,7 +92,7 @@ export const getJob = protectedProcedure
 				binding.role === "OUTPUT" &&
 				binding.asset.ownerType === "USER" &&
 				binding.asset.ownerId === user.id &&
-				isImageContentRejection(binding.asset.moderationResults[0]),
+				publicImageModerationReason(binding.asset.moderationResults[0]) !== null,
 		);
 		const moderationRejected = Boolean(moderationBilling) || Boolean(rejectedOutput);
 		const safetyUnavailable = job.assets.some(

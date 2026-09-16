@@ -2,7 +2,7 @@
 export type NotificationGroupId = "general";
 
 /** Mirrors Prisma `NotificationType` — keep in sync with schema. */
-export type NotificationTypeId = "WELCOME" | "APP_UPDATE";
+export type NotificationTypeId = "WELCOME" | "APP_UPDATE" | "MODERATION_ALERT";
 
 export interface NotificationGroupConfig {
 	id: NotificationGroupId;
@@ -17,6 +17,6 @@ export interface NotificationGroupConfig {
 export const NOTIFICATION_GROUPS: readonly NotificationGroupConfig[] = [
 	{
 		id: "general",
-		types: ["APP_UPDATE"],
+		types: ["APP_UPDATE", "MODERATION_ALERT"],
 	},
 ];

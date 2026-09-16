@@ -38,6 +38,33 @@ function fixture(verdict: unknown = allowed, status = 200) {
 }
 
 describe("Waffo production prompt scanning", () => {
+	it("does not erase a confirmed block when the service reports warnings", async () => {
+		expect(
+			await fixture({
+				...allowed,
+				action: "block",
+				reasonCode: "restricted_content",
+				matchedCategories: ["adult_nsfw"],
+				warnings: ["degraded"],
+			}).scan("test prompt"),
+		).toMatchObject({ decision: "REJECT" });
+	});
+	it("keeps category matches in manual review even if the action says allow", async () => {
+		expect(
+			await fixture({ ...allowed, matchedCategories: ["adult_nsfw"] }).scan("test prompt"),
+		).toMatchObject({ decision: "REVIEW" });
+	});
+	it.each([
+		[429, "MODERATION_RATE_LIMITED"],
+		[503, "MODERATION_SERVICE_ERROR"],
+		[504, "MODERATION_TIMEOUT"],
+		[401, "MODERATION_CONFIGURATION_ERROR"],
+	])("records the safe category for HTTP %s", async (status, reasonCode) => {
+		expect(await fixture(allowed, Number(status)).scan("test prompt")).toMatchObject({
+			decision: "ERROR",
+			reasonCode,
+		});
+	});
 	it("uses merchant signing independently of checkout environment and webhook credentials", async () => {
 		const fetcher = vi.fn<typeof fetch>(async () => Response.json({ data: allowed }));
 		vi.stubGlobal("fetch", fetcher);
@@ -105,7 +132,7 @@ describe("Waffo production prompt scanning", () => {
 				action,
 				reasonCode,
 				semanticStatus,
-				matchedCategories: ["adult_nsfw"],
+				matchedCategories: reasonCode === "service_degraded" ? [] : ["adult_nsfw"],
 			});
 			expect(await scan("synthetic test prompt")).toMatchObject({ decision });
 		},
@@ -117,7 +144,6 @@ describe("Waffo production prompt scanning", () => {
 		{ ...allowed, action: "unknown" },
 		{ ...allowed, requestId: "" },
 		{ ...allowed, reasonCode: "service_degraded" },
-		{ ...allowed, matchedCategories: ["adult_nsfw"] },
 		{ ...allowed, semanticStatus: "disabled" },
 		{ ...allowed, semanticStatus: "shadow_scored" },
 		{ ...allowed, semanticStatus: "skipped_budget" },
@@ -125,10 +151,7 @@ describe("Waffo production prompt scanning", () => {
 		{ ...allowed, semanticStatus: "provider_timeout" },
 		{ ...allowed, warnings: [{ message: "partial" }] },
 	])("fails closed for incomplete or inconsistent verdicts", async (response) => {
-		expect(await fixture(response).scan("test prompt")).toEqual({
-			decision: "ERROR",
-			reasonCode: "MODERATION_UNAVAILABLE",
-		});
+		expect(await fixture(response).scan("test prompt")).toMatchObject({ decision: "ERROR" });
 	});
 
 	it.each(["", " \n ", "x".repeat(10_001)])(

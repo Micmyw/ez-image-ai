@@ -5,6 +5,7 @@ import {
 	recoverExpiredPaymentEvents,
 } from "@repo/database";
 import { db } from "@repo/database/client";
+import { deliverModerationIncidentNotification } from "@repo/notifications/moderation-incident";
 
 import { admitGuestGeneration } from "../handlers/admit-guest-generation";
 import { cancelProviderGeneration } from "../handlers/cancel-generation";
@@ -140,6 +141,7 @@ export async function executeTask(
 					now,
 					deliver: (event) =>
 						deliverOutboxEvent(event, {
+							deliverModerationAlert: deliverModerationIncidentNotification,
 							trigger: (childTaskId, childPayload) =>
 								dispatch(childTaskId, childPayload, {
 									idempotencyKey: `outbox:${event.id}:attempt:${event.attempts}:${childTaskId}`,

@@ -4,6 +4,7 @@ import {
 	check,
 	customType,
 	index,
+	primaryKey,
 	integer,
 	sqliteTable,
 	text,
@@ -595,7 +596,7 @@ export const notification = sqliteTable(
 		userId: text("userId")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		type: text({ enum: ["WELCOME", "APP_UPDATE"] }).notNull(),
+		type: text({ enum: ["WELCOME", "APP_UPDATE", "MODERATION_ALERT"] }).notNull(),
 		data: text("data", { mode: "json" })
 			.$type<Record<string, unknown>>()
 			.notNull()
@@ -622,7 +623,7 @@ export const userNotificationPreference = sqliteTable(
 		userId: text("userId")
 			.notNull()
 			.references(() => user.id, { onDelete: "cascade" }),
-		type: text({ enum: ["WELCOME", "APP_UPDATE"] }).notNull(),
+		type: text({ enum: ["WELCOME", "APP_UPDATE", "MODERATION_ALERT"] }).notNull(),
 		target: text({ enum: ["IN_APP", "EMAIL"] }).notNull(),
 		createdAt: integer("createdAt", { mode: "timestamp" })
 			.notNull()
@@ -790,4 +791,74 @@ export const userNotificationPreferenceRelations = relations(
 			references: [user.id],
 		}),
 	}),
+);
+
+// Durable moderation outages and administrator review; private media stays in the existing lifecycle.
+export const moderationIncident = sqliteTable(
+	"moderation_incident",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		activeKey: text("activeKey").unique(),
+		provider: text("provider").notNull(),
+		stage: text("stage").notNull(),
+		status: text("status").notNull().default("OPEN"),
+		lastErrorCode: text("lastErrorCode").notNull(),
+		failureCount: integer("failureCount").notNull().default(0),
+		firstFailureAt: integer("firstFailureAt", { mode: "timestamp_ms" }).notNull(),
+		lastFailureAt: integer("lastFailureAt", { mode: "timestamp_ms" }).notNull(),
+		recoveredAt: integer("recoveredAt", { mode: "timestamp_ms" }),
+		acknowledgedAt: integer("acknowledgedAt", { mode: "timestamp_ms" }),
+		alertedAt: integer("alertedAt", { mode: "timestamp_ms" }),
+		acknowledgedBy: text("acknowledgedBy"),
+	},
+	(table) => [
+		index("moderation_incident_status_lastFailureAt_idx").on(table.status, table.lastFailureAt),
+	],
+);
+export const moderationReview = sqliteTable(
+	"moderation_review",
+	{
+		id: text("id")
+			.$defaultFn(() => cuid())
+			.primaryKey(),
+		targetType: text("targetType").notNull(),
+		targetId: text("targetId").notNull(),
+		provider: text("provider").notNull(),
+		stage: text("stage").notNull(),
+		attemptEpoch: text("attemptEpoch").notNull(),
+		lastErrorCode: text("lastErrorCode").notNull(),
+		incidentId: text("incidentId").references(() => moderationIncident.id, {
+			onDelete: "set null",
+		}),
+		status: text("status").notNull().default("RETRYING"),
+		bypassed: integer("bypassed", { mode: "boolean" }).notNull().default(false),
+		failureCount: integer("failureCount").notNull().default(0),
+		observedFailures: integer("observedFailures").notNull().default(0),
+		version: integer("version").notNull().default(0),
+		firstFailureAt: integer("firstFailureAt", { mode: "timestamp_ms" }).notNull(),
+		lastFailureAt: integer("lastFailureAt", { mode: "timestamp_ms" }).notNull(),
+		updatedAt: integer("updatedAt", { mode: "timestamp_ms" })
+			.notNull()
+			.$onUpdate(() => new Date()),
+		resolvedAt: integer("resolvedAt", { mode: "timestamp_ms" }),
+		resolvedBy: text("resolvedBy"),
+		resolutionReason: text("resolutionReason"),
+	},
+	(table) => [
+		uniqueIndex("moderation_review_targetType_targetId_key").on(table.targetType, table.targetId),
+		index("moderation_review_status_updatedAt_idx").on(table.status, table.updatedAt),
+	],
+);
+export const moderationIncidentTarget = sqliteTable(
+	"moderation_incident_target",
+	{
+		incidentId: text("incidentId")
+			.notNull()
+			.references(() => moderationIncident.id, { onDelete: "cascade" }),
+		targetType: text("targetType").notNull(),
+		targetId: text("targetId").notNull(),
+	},
+	(table) => [primaryKey({ columns: [table.incidentId, table.targetType, table.targetId] })],
 );

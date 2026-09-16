@@ -218,6 +218,72 @@
 			"paymentEvents": {
 				"title": "Diagnóstico de eventos de pago",
 				"empty": "No hay eventos recientes"
+			},
+			"moderation": {
+				"title": "Controles de seguridad y recuperación",
+				"description": "Reintentos limitados, alertas agrupadas y revisión del contenido permitido durante fallos técnicos.",
+				"openIncidents": "Incidentes de servicio abiertos",
+				"pendingReviews": "Controles que requieren atención",
+				"outageWarning": "Un servicio de detección tiene problemas técnicos. Tras agotar los reintentos, las solicitudes pueden continuar con una revisión pendiente. Las infracciones confirmadas siguen bloqueadas.",
+				"incidents": "Incidentes y recuperación",
+				"noIncidents": "No hay incidentes registrados.",
+				"textStage": "Revisión del texto",
+				"imageStage": "Revisión de imagen",
+				"failureCount": "Intentos fallidos",
+				"affectedTargets": "Controles afectados",
+				"firstFailure": "Primer fallo",
+				"lastFailure": "Último fallo",
+				"recoveredAt": "Recuperación confirmada",
+				"references": "Referencias afectadas (muestra)",
+				"acknowledge": "Confirmar recepción",
+				"acknowledged": "Recepción confirmada",
+				"reviewQueue": "Cola de revisión de contenido",
+				"filter": "Estado",
+				"needsAttention": "Requiere atención",
+				"billingNote": "Revisa el contenido original. Repetir la revisión no genera otra imagen ni cobra créditos de generación. Una decisión posterior no cambia un cargo liquidado. El bloqueo impide nuevos accesos; los enlaces temporales existentes caducan automáticamente.",
+				"noReviews": "No hay controles coincidentes.",
+				"allowedPendingReview": "Permitido durante el fallo",
+				"failures": "{count} intentos fallidos",
+				"jobs": "Tareas relacionadas",
+				"inspect": "Inspeccionar y revisar",
+				"reviewDetails": "Revisar el contenido original",
+				"close": "Cerrar",
+				"loading": "Cargando…",
+				"loadError": "No se pudo cargar la gestión de revisiones. Actualiza la página.",
+				"imageAlt": "Imagen privada que está revisando un administrador",
+				"refreshPreview": "Actualizar detalles y vista previa",
+				"uncertainNote": "El detector puede haber aceptado la solicitud sin devolver su ID de tarea. El reenvío automático está desactivado. Inspecciona el contenido y decide manualmente.",
+				"lastDecision": "Nota de la última decisión",
+				"reason": "Motivo de esta acción",
+				"reasonPlaceholder": "Indica qué revisaste y por qué (al menos 10 caracteres).",
+				"recheck": "Repetir control de seguridad",
+				"approve": "Aprobar manualmente",
+				"reject": "Bloquear contenido",
+				"saved": "Acción guardada. Se actualizaron la cola y el registro de auditoría.",
+				"actionError": "La acción no pudo finalizar. Actualiza la revisión: otra decisión o un control activo pueden haberla cambiado.",
+				"statuses": {
+					"OPEN": "Incidente de servicio",
+					"RECOVERED": "Servicio recuperado",
+					"RETRYING": "Reintentando",
+					"PENDING_REVIEW": "Permitido · revisión pendiente",
+					"RECHECKING": "Revisando de nuevo",
+					"APPROVED": "Aprobado",
+					"REJECTED": "Bloqueado",
+					"BLOCKED": "Bloqueado · requiere revisión"
+				},
+				"errors": {
+					"MODERATION_UNAVAILABLE": "El servicio no devolvió un resultado utilizable.",
+					"MODERATION_TIMEOUT": "El servicio de detección agotó el tiempo de espera.",
+					"MODERATION_NETWORK_ERROR": "No se pudo conectar con el servicio.",
+					"MODERATION_RATE_LIMITED": "Se alcanzó el límite de solicitudes del servicio.",
+					"MODERATION_SERVICE_ERROR": "El servicio devolvió un error de servidor.",
+					"MODERATION_INVALID_RESPONSE": "El servicio devolvió una respuesta incompleta o inválida.",
+					"MODERATION_SUBMISSION_UNCERTAIN": "La solicitud pudo aceptarse, pero no se devolvió su ID.",
+					"MODERATION_CONFIGURATION_ERROR": "La configuración del servicio requiere atención.",
+					"CONTENT_REVIEW_REQUIRED": "El detector solicitó una revisión manual."
+				},
+				"newest": "Revisiones recientes",
+				"older": "Revisiones anteriores"
 			}
 		},
 		"title": "Administración",
@@ -855,6 +921,9 @@
 			"types": {
 				"APP_UPDATE": {
 					"label": "Actualizaciones de la app"
+				},
+				"MODERATION_ALERT": {
+					"label": "Alertas de controles de seguridad (administradores)"
 				}
 			},
 			"columns": {

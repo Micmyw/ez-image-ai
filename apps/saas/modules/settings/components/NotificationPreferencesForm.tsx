@@ -1,5 +1,6 @@
 "use client";
 
+import { useSession } from "@auth/hooks/use-session";
 import { NOTIFICATION_GROUPS } from "@repo/notifications/catalog";
 import { Card, Switch } from "@repo/ui";
 import { orpc } from "@shared/lib/orpc-query-utils";
@@ -10,6 +11,7 @@ import { useMemo } from "react";
 type TargetKey = "IN_APP" | "EMAIL";
 
 export function NotificationPreferencesForm() {
+	const { user } = useSession();
 	const t = useTranslations("settings.notificationsPage");
 	const queryClient = useQueryClient();
 
@@ -39,7 +41,11 @@ export function NotificationPreferencesForm() {
 
 	const isEnabled = (type: string, target: TargetKey) => !disabledSet.has(`${type}:${target}`);
 
-	const onToggle = (type: "WELCOME" | "APP_UPDATE", target: TargetKey, nextEnabled: boolean) => {
+	const onToggle = (
+		type: "WELCOME" | "APP_UPDATE" | "MODERATION_ALERT",
+		target: TargetKey,
+		nextEnabled: boolean,
+	) => {
 		updateMutation.mutate({
 			type,
 			target,
@@ -68,27 +74,33 @@ export function NotificationPreferencesForm() {
 										</tr>
 									</thead>
 									<tbody>
-										{group.types.map((type) => (
-											<tr key={type} className="border-b last:border-0">
-												<td className="px-3 py-3 font-medium">{t(`types.${type}.label`)}</td>
-												<td className="px-3 py-2">
-													<Switch
-														checked={isEnabled(type, "IN_APP")}
-														disabled={updateMutation.isPending}
-														onCheckedChange={(checked) => onToggle(type, "IN_APP", checked)}
-														aria-label={`${type} in-app`}
-													/>
-												</td>
-												<td className="px-3 py-2">
-													<Switch
-														checked={isEnabled(type, "EMAIL")}
-														disabled={updateMutation.isPending}
-														onCheckedChange={(checked) => onToggle(type, "EMAIL", checked)}
-														aria-label={`${type} email`}
-													/>
-												</td>
-											</tr>
-										))}
+										{group.types
+											.filter((type) => type !== "MODERATION_ALERT" || user?.role === "admin")
+											.map((type) => (
+												<tr key={type} className="border-b last:border-0">
+													<td className="px-3 py-3 font-medium">{t(`types.${type}.label`)}</td>
+													<td className="px-3 py-2">
+														<Switch
+															checked={isEnabled(type, "IN_APP")}
+															disabled={updateMutation.isPending}
+															onCheckedChange={(checked) => onToggle(type, "IN_APP", checked)}
+															aria-label={`${type} in-app`}
+														/>
+													</td>
+													<td className="px-3 py-2">
+														{type === "MODERATION_ALERT" ? (
+															"—"
+														) : (
+															<Switch
+																checked={isEnabled(type, "EMAIL")}
+																disabled={updateMutation.isPending}
+																onCheckedChange={(checked) => onToggle(type, "EMAIL", checked)}
+																aria-label={`${type} email`}
+															/>
+														)}
+													</td>
+												</tr>
+											))}
 									</tbody>
 								</table>
 							</div>

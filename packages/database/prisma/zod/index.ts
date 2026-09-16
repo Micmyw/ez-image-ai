@@ -70,6 +70,24 @@ export const PurchaseScalarFieldEnumSchema = z.enum(['id', 'organizationId', 'us
 
 export type PurchaseScalarFieldEnum = z.infer<typeof PurchaseScalarFieldEnumSchema>;
 
+// File: ModerationIncidentScalarFieldEnum.schema.ts
+
+export const ModerationIncidentScalarFieldEnumSchema = z.enum(['id', 'activeKey', 'provider', 'stage', 'status', 'lastErrorCode', 'failureCount', 'firstFailureAt', 'lastFailureAt', 'recoveredAt', 'acknowledgedAt', 'acknowledgedBy', 'alertedAt'])
+
+export type ModerationIncidentScalarFieldEnum = z.infer<typeof ModerationIncidentScalarFieldEnumSchema>;
+
+// File: ModerationIncidentTargetScalarFieldEnum.schema.ts
+
+export const ModerationIncidentTargetScalarFieldEnumSchema = z.enum(['incidentId', 'targetType', 'targetId'])
+
+export type ModerationIncidentTargetScalarFieldEnum = z.infer<typeof ModerationIncidentTargetScalarFieldEnumSchema>;
+
+// File: ModerationReviewScalarFieldEnum.schema.ts
+
+export const ModerationReviewScalarFieldEnumSchema = z.enum(['id', 'targetType', 'targetId', 'incidentId', 'provider', 'stage', 'status', 'bypassed', 'failureCount', 'attemptEpoch', 'observedFailures', 'lastErrorCode', 'firstFailureAt', 'lastFailureAt', 'updatedAt', 'resolvedAt', 'resolvedBy', 'resolutionReason', 'version'])
+
+export type ModerationReviewScalarFieldEnum = z.infer<typeof ModerationReviewScalarFieldEnumSchema>;
+
 // File: GenerationQuoteScalarFieldEnum.schema.ts
 
 export const GenerationQuoteScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'submittedByUserId', 'productKey', 'catalogVersion', 'pricingVersion', 'credits', 'costMicros', 'inputSnapshot', 'pricingSnapshot', 'moderationDecision', 'moderationProvider', 'moderationRuleVersion', 'moderationReasonCode', 'inputFingerprint', 'createdAt', 'expiresAt'])
@@ -456,7 +474,7 @@ export type GenerationJobAssetRole = z.infer<typeof GenerationJobAssetRoleSchema
 
 // File: ModerationStatus.schema.ts
 
-export const ModerationStatusSchema = z.enum(['PENDING', 'APPROVED', 'REJECTED', 'REVIEW', 'ERROR'])
+export const ModerationStatusSchema = z.enum(['PENDING', 'APPROVED', 'BYPASSED', 'REJECTED', 'REVIEW', 'ERROR'])
 
 export type ModerationStatus = z.infer<typeof ModerationStatusSchema>;
 
@@ -582,7 +600,7 @@ export type GenerationDraftStatus = z.infer<typeof GenerationDraftStatusSchema>;
 
 // File: NotificationType.schema.ts
 
-export const NotificationTypeSchema = z.enum(['WELCOME', 'APP_UPDATE'])
+export const NotificationTypeSchema = z.enum(['MODERATION_ALERT', 'WELCOME', 'APP_UPDATE'])
 
 export type NotificationType = z.infer<typeof NotificationTypeSchema>;
 
@@ -767,6 +785,65 @@ export const PurchaseSchema = z.object({
 });
 
 export type PurchaseModel = z.infer<typeof PurchaseSchema>;
+
+// File: ModerationIncident.schema.ts
+
+export const ModerationIncidentSchema = z.object({
+  id: z.string(),
+  activeKey: z.string().nullish(),
+  provider: z.string(),
+  stage: z.string(),
+  status: z.string().default("OPEN"),
+  lastErrorCode: z.string(),
+  failureCount: z.number().int(),
+  firstFailureAt: z.date(),
+  lastFailureAt: z.date(),
+  recoveredAt: z.date().nullish(),
+  acknowledgedAt: z.date().nullish(),
+  acknowledgedBy: z.string().nullish(),
+  alertedAt: z.date().nullish(),
+});
+
+export type ModerationIncidentType = z.infer<typeof ModerationIncidentSchema>;
+
+
+// File: ModerationIncidentTarget.schema.ts
+
+export const ModerationIncidentTargetSchema = z.object({
+  incidentId: z.string(),
+  targetType: z.string(),
+  targetId: z.string(),
+});
+
+export type ModerationIncidentTargetType = z.infer<typeof ModerationIncidentTargetSchema>;
+
+
+// File: ModerationReview.schema.ts
+
+export const ModerationReviewSchema = z.object({
+  id: z.string(),
+  targetType: z.string(),
+  targetId: z.string(),
+  incidentId: z.string().nullish(),
+  provider: z.string(),
+  stage: z.string(),
+  status: z.string().default("RETRYING"),
+  bypassed: z.boolean(),
+  failureCount: z.number().int(),
+  attemptEpoch: z.string(),
+  observedFailures: z.number().int(),
+  lastErrorCode: z.string(),
+  firstFailureAt: z.date(),
+  lastFailureAt: z.date(),
+  updatedAt: z.date(),
+  resolvedAt: z.date().nullish(),
+  resolvedBy: z.string().nullish(),
+  resolutionReason: z.string().nullish(),
+  version: z.number().int(),
+});
+
+export type ModerationReviewType = z.infer<typeof ModerationReviewSchema>;
+
 
 // File: GenerationQuote.schema.ts
 
