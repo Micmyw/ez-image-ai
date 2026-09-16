@@ -23,6 +23,9 @@ vi.mock("@shared/hooks/use-media-query", () => ({ useIsMobile: () => false }));
 vi.mock("@organizations/components/OrganizationSelect", () => ({ OrganzationSelect: () => null }));
 vi.mock("../UserMenu", () => ({ UserMenu: () => <button>Account menu</button> }));
 vi.mock("../NotificationCenter", () => ({ NotificationCenter: () => null }));
+vi.mock("./HeaderPurchaseActions", () => ({
+	HeaderPurchaseActions: () => <div>Purchase actions</div>,
+}));
 vi.mock("../NavBar", () => ({ NavBar: () => <nav>Account navigation</nav> }));
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@tanstack/react-query")>()),

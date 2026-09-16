@@ -25,6 +25,14 @@ information is recorded here.
 
 ## Subscription package contract
 
+The header and public pricing cards share a centered upgrade dialog. Card actions preserve the
+public plan key and month/year selection; signed-out users retain this selection through the
+`redirectTo` handoff. The dialog reuses the existing provider availability, pending-checkout,
+purchase-state and checkout procedures. It does not create subscriptions through a new API path.
+Subscription and Credit Pack controls share a synchronous browser admission lock, stay disabled
+while redirecting, and release on a failed request or a restored browser history document. Database
+admission and immutable checkout intents remain authoritative across tabs and concurrent requests.
+
 `packages/config/plans.ts` is the source of truth. Credits are issued once per internal monthly
 billing period, expire at that period boundary, and do not roll over. Annual billing still creates
 twelve monthly grant periods.

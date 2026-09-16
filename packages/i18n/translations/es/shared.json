@@ -114,6 +114,26 @@
 		"yearly": "Anual",
 		"perSeat": "asiento",
 		"subscriptionAlreadyExists": "Ya tienes una suscripción. Gestiónala en Facturación. Para cambiar de plan o método de pago, cancela la renovación y espera a que termine la suscripción actual.",
-		"checkoutAlreadyPending": "Ya hay un proceso de suscripción en curso. Completa el pago existente antes de iniciar otro. Si el estado no está claro, contacta con soporte."
+		"checkoutAlreadyPending": "Ya hay un proceso de suscripción en curso. Completa el pago existente antes de iniciar otro. Si el estado no está claro, contacta con soporte.",
+		"upgrade": {
+			"button": "Mejorar",
+			"title": "Más espacio para crear",
+			"description": "Elige tu plan y continúa al pago seguro.",
+			"benefitsTitle": "Lleva cada idea más lejos",
+			"plans": "Planes",
+			"purchaseType": "Tipo de compra",
+			"billingPeriod": "Período de facturación",
+			"selectPlan": "Elegir {plan}",
+			"continuePayment": "Continuar al pago",
+			"signInContinue": "Inicia sesión para continuar",
+			"processing": "Preparando el pago…",
+			"redirecting": "Abriendo el pago…",
+			"processingHint": "Estamos preparando tu pago. Espera un momento.",
+			"redirectingHint": "Te estamos llevando al pago. Mantén esta ventana abierta.",
+			"secureHint": "El pago se completa en una página de pago segura.",
+			"language": "Idioma",
+			"creditsLabel": "{credits} créditos disponibles. Añadir créditos",
+			"creditsUnavailable": "Créditos no disponibles. Ver paquetes de créditos"
+		}
 	}
 }

@@ -5,10 +5,11 @@ import type { PaymentProviderName } from "@repo/payments/types";
 import { useRouter } from "@shared/hooks/router";
 import { orpc } from "@shared/lib/orpc-query-utils";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { ArrowUpRightIcon } from "lucide-react";
+import { ArrowUpRightIcon, Loader2Icon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 
+import { usePaymentAction } from "../hooks/use-payment-action";
 import {
 	createCreditPackCheckoutAttemptController,
 	filterCreditPackCheckoutProviders,
@@ -27,7 +28,7 @@ export function CreditPackCheckoutActions({
 }) {
 	const t = useTranslations();
 	const router = useRouter();
-	const [loadingProvider, setLoadingProvider] = useState<CreditPackCheckoutProvider | null>(null);
+	const payment = usePaymentAction();
 	const [checkoutUnavailable, setCheckoutUnavailable] = useState(false);
 	const checkoutAttempts = useRef(
 		createCreditPackCheckoutAttemptController(createCheckoutAttemptKey),
@@ -46,10 +47,10 @@ export function CreditPackCheckoutActions({
 	);
 
 	async function beginCheckout(provider: CreditPackCheckoutProvider) {
+		if (!payment.acquire(`pack:${packKey}:${provider}`)) return;
 		const selection: CreditPackCheckoutSelection = { packKey, provider };
 		const idempotencyKey = checkoutAttempts.current.begin(selection);
 		setCheckoutUnavailable(false);
-		setLoadingProvider(provider);
 
 		try {
 			const { checkoutLink } = await createCheckout.mutateAsync({
@@ -58,15 +59,15 @@ export function CreditPackCheckoutActions({
 				idempotencyKey,
 			});
 			checkoutAttempts.current.succeeded(selection);
+			payment.redirecting();
 			window.location.href = checkoutLink;
 		} catch (error) {
+			payment.release();
 			if (getErrorCode(error) === "UNAUTHORIZED") {
 				router.push("/signup?redirectTo=%2Fpricing");
 				return;
 			}
 			setCheckoutUnavailable(true);
-		} finally {
-			setLoadingProvider(null);
 		}
 	}
 
@@ -88,14 +89,25 @@ export function CreditPackCheckoutActions({
 						<button
 							key={provider}
 							type="button"
-							disabled={loadingProvider !== null}
+							disabled={Boolean(payment.action) || availability.isError}
+							aria-busy={payment.action?.key === `pack:${packKey}:${provider}`}
 							onClick={() => void beginCheckout(provider)}
 							className="border-white/12 bg-white/[0.065] min-h-11 gap-1.5 px-3 text-xs font-semibold text-white hover:bg-white/[0.1] focus-visible:outline-violet-200 inline-flex items-center justify-center rounded-xl border transition hover:border-[#b9a6ff]/45 focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-wait disabled:opacity-60"
 						>
-							{t("pricing.buyWith", {
-								provider: t(`payments.providerSelector.providers.${provider}`),
-							})}
-							<ArrowUpRightIcon className="size-3.5" aria-hidden="true" />
+							{payment.action?.key === `pack:${packKey}:${provider}`
+								? t(
+										payment.action.stage === "redirecting"
+											? "pricing.upgrade.redirecting"
+											: "pricing.upgrade.processing",
+									)
+								: t("pricing.buyWith", {
+										provider: t(`payments.providerSelector.providers.${provider}`),
+									})}
+							{payment.action?.key === `pack:${packKey}:${provider}` ? (
+								<Loader2Icon className="size-3.5 animate-spin" aria-hidden="true" />
+							) : (
+								<ArrowUpRightIcon className="size-3.5" aria-hidden="true" />
+							)}
 						</button>
 					))}
 				</div>

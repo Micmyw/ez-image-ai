@@ -114,6 +114,26 @@
 		"yearly": "Yearly",
 		"perSeat": "seat",
 		"subscriptionAlreadyExists": "You already have a subscription. Manage it in Billing. To switch plans or payment methods, cancel renewal and wait until the current subscription ends.",
-		"checkoutAlreadyPending": "A subscription checkout is already in progress. Complete the existing checkout before starting another. If its status is unclear, contact support."
+		"checkoutAlreadyPending": "A subscription checkout is already in progress. Complete the existing checkout before starting another. If its status is unclear, contact support.",
+		"upgrade": {
+			"button": "Upgrade",
+			"title": "More room to create",
+			"description": "Choose your plan and continue to secure checkout.",
+			"benefitsTitle": "Bring every idea further",
+			"plans": "Plans",
+			"purchaseType": "Purchase type",
+			"billingPeriod": "Billing period",
+			"selectPlan": "Choose {plan}",
+			"continuePayment": "Continue to payment",
+			"signInContinue": "Sign in to continue",
+			"processing": "Preparing checkout…",
+			"redirecting": "Opening payment…",
+			"processingHint": "Your checkout is being prepared. Please wait.",
+			"redirectingHint": "Taking you to payment. Please keep this window open.",
+			"secureHint": "Payment is completed on a secure checkout page.",
+			"language": "Language",
+			"creditsLabel": "{credits} credits available. Add credits",
+			"creditsUnavailable": "Credits unavailable. View credit packs"
+		}
 	}
 }

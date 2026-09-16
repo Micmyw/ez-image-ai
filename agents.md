@@ -40,7 +40,7 @@ as the secondary query and `ai image editor with prompt` as the broader topic. P
 focus during feature work unless the user explicitly changes it. Explain "No Restrictions" as flexible
 prompt editing; normal content safety, legal, model and usage limits remain applicable.
 
-Public SEO URLs are unprefixed English routes. `apps/saas/proxy.ts` supplies their request locale; account routes keep the locale cookie. New public HTML routes belong in its matcher. Reviewed published Blog posts and Docs marked `indexable: true` enter the sitemap. Changelog, Contact, and Docs API/Markdown/image artifacts stay noindex. Public unknown paths use root 404; single-segment organization URLs stay protected.
+Public SEO URLs are unprefixed English routes. `apps/saas/proxy.ts` keeps bare public URLs in English; explicit `?lang=de|es|fr` interface views use `noindex, follow` and retain English canonical URLs. Account routes keep the locale cookie. New public HTML routes belong in its matcher. Reviewed published Blog posts and Docs marked `indexable: true` enter the sitemap. Changelog, Contact, and Docs API/Markdown/image artifacts stay noindex. Public unknown paths use root 404; single-segment organization URLs stay protected.
 
 The Playwright `public` project skips database auth setup. Run SaaS Vitest, Next/Fumadocs generation, and browser checks sequentially because they share generated `.source`.
 

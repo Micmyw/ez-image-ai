@@ -22,7 +22,7 @@ export function PaymentProviderSelector({
 	return (
 		<fieldset className="mt-4" disabled={disabled}>
 			<legend className="mb-2 font-medium text-sm">{t("label")}</legend>
-			<div className="gap-2 sm:grid-cols-3 grid">
+			<div className="gap-2 grid grid-cols-[repeat(auto-fit,minmax(110px,1fr))]">
 				{providers.map((provider) => {
 					const id = `${name}-${provider}`;
 					return (

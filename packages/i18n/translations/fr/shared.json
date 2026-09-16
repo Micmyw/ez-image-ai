@@ -114,6 +114,26 @@
 		"yearly": "Annuel",
 		"perSeat": "place",
 		"subscriptionAlreadyExists": "Vous avez déjà un abonnement. Gérez-le dans Facturation. Pour changer d’offre ou de moyen de paiement, annulez le renouvellement et attendez la fin de l’abonnement actuel.",
-		"checkoutAlreadyPending": "Une souscription est déjà en cours. Terminez le paiement existant avant d’en lancer un autre. Si son état est incertain, contactez l’assistance."
+		"checkoutAlreadyPending": "Une souscription est déjà en cours. Terminez le paiement existant avant d’en lancer un autre. Si son état est incertain, contactez l’assistance.",
+		"upgrade": {
+			"button": "Améliorer",
+			"title": "Plus de place pour créer",
+			"description": "Choisissez votre forfait et passez au paiement sécurisé.",
+			"benefitsTitle": "Allez plus loin avec chaque idée",
+			"plans": "Forfaits",
+			"purchaseType": "Type d’achat",
+			"billingPeriod": "Période de facturation",
+			"selectPlan": "Choisir {plan}",
+			"continuePayment": "Continuer vers le paiement",
+			"signInContinue": "Se connecter pour continuer",
+			"processing": "Préparation du paiement…",
+			"redirecting": "Ouverture du paiement…",
+			"processingHint": "Votre paiement est en cours de préparation. Veuillez patienter.",
+			"redirectingHint": "Redirection vers le paiement. Gardez cette fenêtre ouverte.",
+			"secureHint": "Le paiement est effectué sur une page sécurisée.",
+			"language": "Langue",
+			"creditsLabel": "{credits} crédits disponibles. Ajouter des crédits",
+			"creditsUnavailable": "Crédits indisponibles. Voir les packs de crédits"
+		}
 	}
 }

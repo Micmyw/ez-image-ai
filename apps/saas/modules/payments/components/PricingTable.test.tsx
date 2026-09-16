@@ -73,6 +73,7 @@ vi.mock("@shared/lib/growth-analytics", () => ({
 vi.mock("@shared/lib/orpc-query-utils", () => ({
 	orpc: {
 		payments: {
+			getPendingSubscriptionCheckout: { queryOptions: () => ({ pendingCheckout: true }) },
 			createCheckoutLink: { mutationOptions: () => ({}) },
 			getProviderAvailability: {
 				queryOptions: ({ input }: { input: { interval: "month" | "year"; planId: string } }) => ({
@@ -84,7 +85,8 @@ vi.mock("@shared/lib/orpc-query-utils", () => ({
 }));
 vi.mock("@tanstack/react-query", () => ({
 	useMutation: () => ({ mutateAsync: vi.fn() }),
-	useQuery: ({ input }: { input: { interval: "month" | "year"; planId: string } }) => {
+	useQuery: ({ input }: { input?: { interval: "month" | "year"; planId: string } }) => {
+		if (!input) return { data: null, isPending: false, isError: false };
 		testState.availabilityInputs.push(input);
 		return {
 			data: {
@@ -96,6 +98,7 @@ vi.mock("@tanstack/react-query", () => ({
 	},
 }));
 vi.mock("next-intl", () => ({
+	useLocale: () => "en",
 	useFormatter: () => ({
 		number: (value: number, { currency }: { currency: string }) => `${currency} ${value}`,
 	}),

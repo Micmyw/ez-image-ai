@@ -12,14 +12,22 @@ import {
 	DropdownMenuTrigger,
 } from "@repo/ui/components/dropdown-menu";
 import { LanguagesIcon } from "lucide-react";
-import { useLocale } from "next-intl";
-import { useRouter } from "next/navigation";
+import { useLocale, useTranslations } from "next-intl";
+import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 
-export function LocaleSwitch() {
+export function LocaleSwitch({
+	className,
+	disabled = false,
+}: {
+	className?: string;
+	disabled?: boolean;
+}) {
 	const router = useRouter();
+	const pathname = usePathname();
+	const t = useTranslations("pricing.upgrade");
 	const currentLocale = useLocale();
-	const [value, setValue] = useState<string>(currentLocale);
+	const [pending, setPending] = useState(false);
 
 	if (Object.keys(i18nConfig.locales).length <= 1) {
 		return null;
@@ -29,7 +37,15 @@ export function LocaleSwitch() {
 		<DropdownMenu modal={false}>
 			<DropdownMenuTrigger
 				render={
-					<Button variant="ghost" size="icon" aria-label="Language">
+					<Button
+						variant="ghost"
+						size="icon"
+						aria-label={t("language")}
+						title={i18nConfig.locales[currentLocale as Locale]?.label}
+						className={className}
+						disabled={disabled || pending}
+						aria-busy={pending}
+					>
 						<LanguagesIcon className="size-4" />
 					</Button>
 				}
@@ -37,11 +53,27 @@ export function LocaleSwitch() {
 
 			<DropdownMenuContent>
 				<DropdownMenuRadioGroup
-					value={value}
+					value={currentLocale}
 					onValueChange={async (value) => {
-						setValue(value);
-						await updateLocale(value as Locale);
-						router.refresh();
+						if (value === currentLocale) return;
+						setPending(true);
+						try {
+							await updateLocale(value as Locale);
+							const publicPath =
+								pathname === "/" ||
+								/^\/(create|pricing|models|blog|docs|privacy|terms|changelog|contact)(\/|$)/.test(
+									pathname,
+								);
+							if (publicPath) {
+								const url = new URL(window.location.href);
+								if (value === "en") url.searchParams.delete("lang");
+								else url.searchParams.set("lang", value);
+								router.replace(`${url.pathname}${url.search}${url.hash}`, { scroll: false });
+							}
+							router.refresh();
+						} finally {
+							setPending(false);
+						}
 					}}
 				>
 					{Object.entries(i18nConfig.locales).map(([locale, { label }]) => {

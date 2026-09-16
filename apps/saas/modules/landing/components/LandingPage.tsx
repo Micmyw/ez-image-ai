@@ -113,13 +113,7 @@ export async function LandingPage({
 								{t("pricing.description")}
 							</p>
 						</div>
-						<PublicPricingPlans
-							locale={locale}
-							headingLevel={3}
-							className="mt-10 sm:mt-12"
-							actionHref={editor ? "/settings/billing" : undefined}
-							actionLabel={editor ? t("studio.panels.billing") : undefined}
-						/>
+						<PublicPricingPlans locale={locale} headingLevel={3} className="mt-10 sm:mt-12" />
 					</div>
 				</section>
 

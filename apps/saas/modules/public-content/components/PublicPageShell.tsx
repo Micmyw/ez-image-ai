@@ -1,5 +1,6 @@
 import { getPublicConfig } from "@repo/config/client";
 import { Logo } from "@repo/ui/components/logo";
+import { PublicHeaderAccount } from "@shared/components/studio/PublicHeaderAccount";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -21,7 +22,7 @@ export function PublicPageShell({
 	return (
 		<div className="min-h-screen bg-[#100d1b] text-[#f7f3ff]">
 			<header className="top-0 border-white/10 backdrop-blur-xl sticky z-50 border-b bg-[#100d1b]/90">
-				<div className="min-h-16 gap-4 container flex items-center">
+				<div className="min-h-16 gap-2 py-3 sm:gap-4 container flex flex-wrap items-center">
 					<Link
 						href="/"
 						className="focus-visible:outline-violet-300 shrink-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4"
@@ -32,7 +33,7 @@ export function PublicPageShell({
 							label={publicConfig.brand.siteName}
 						/>
 					</Link>
-					<nav className="gap-1 text-sm font-medium text-slate-300 ml-auto flex items-center">
+					<nav className="gap-1 text-sm font-medium text-slate-300 md:flex ml-auto hidden items-center">
 						<Link className="px-3 py-2 hover:text-white" href="/pricing">
 							{t("common.menu.pricing")}
 						</Link>
@@ -42,13 +43,8 @@ export function PublicPageShell({
 						<Link className="px-3 py-2 hover:text-white sm:inline hidden" href="/docs">
 							{t("common.menu.docs")}
 						</Link>
-						<Link
-							className="min-h-11 px-4 font-semibold text-white inline-flex items-center rounded-xl bg-[#6c4dff] hover:bg-[#7d63ff]"
-							href="/login"
-						>
-							{t("common.menu.login")}
-						</Link>
 					</nav>
+					<PublicHeaderAccount />
 				</div>
 			</header>
 

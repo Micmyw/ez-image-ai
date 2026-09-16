@@ -5,6 +5,9 @@ import { describe, expect, it, vi } from "vitest";
 
 const sessionMock = vi.hoisted(() => vi.fn().mockResolvedValue(null));
 vi.mock("@auth/lib/server", () => ({ getSession: sessionMock }));
+vi.mock("@shared/components/studio/PublicHeaderAccount", () => ({
+	PublicHeaderAccount: () => <div data-public-account-controls="" />,
+}));
 vi.mock("@shared/components/studio/StudioShell", () => ({
 	StudioShell: ({ children }: { children: ReactNode }) => (
 		<div data-studio-shell="">{children}</div>

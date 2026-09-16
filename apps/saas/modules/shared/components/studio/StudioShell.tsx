@@ -25,6 +25,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type MouseEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
+import { HeaderPurchaseActions } from "./HeaderPurchaseActions";
 import { StudioContext, studioPanelForPath, type StudioPanel } from "./studio-context";
 import { StudioPanelBoundary } from "./StudioPanelBoundary";
 import { StudioToolNavigation } from "./StudioToolNavigation";
@@ -293,24 +294,34 @@ function StudioShellContent({ children }: { children: ReactNode }) {
 						<nav className="studio-toplinks" aria-label={t("pageNavigation")}>
 							<StudioToolNavigation />
 							<a href={sectionHref("#pricing")}>{common("pricing")}</a>
-						</nav>
-						{registered ? (
-							<div className="gap-3 flex items-center">
-								{!showSidebar && (
-									<Link href="/create" className="studio-create-link">
-										{t("create")}
-									</Link>
-								)}
-								<NotificationCenter />
-								<div className={showSidebar ? "studio-mobile-only" : undefined}>
-									<UserMenu studio />
+							{registered && !showSidebar && (
+								<Link href="/create" className="studio-create-link">
+									{t("create")}
+								</Link>
+							)}
+							{registered && (
+								<div className="studio-mobile-notifications">
+									<NotificationCenter />
 								</div>
-							</div>
-						) : (
-							<Link className="text-sm text-violet-200" href="/login">
-								{common("login")}
-							</Link>
-						)}
+							)}
+						</nav>
+						<div className="studio-header-account">
+							<HeaderPurchaseActions registered={registered} />
+							{registered ? (
+								<div className="gap-2 flex items-center">
+									<div className="studio-header-notifications">
+										<NotificationCenter />
+									</div>
+									<div className={showSidebar ? "studio-mobile-only" : undefined}>
+										<UserMenu studio />
+									</div>
+								</div>
+							) : (
+								<Link className="text-sm text-violet-200" href="/login">
+									{common("login")}
+								</Link>
+							)}
+						</div>
 					</header>
 					{children}
 				</div>

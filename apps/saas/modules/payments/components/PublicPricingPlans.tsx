@@ -18,12 +18,15 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { type ComponentType, type ReactNode, useState } from "react";
 
+import { usePaymentAction } from "../hooks/use-payment-action";
 import {
 	calculateAnnualBillingPrice,
 	calculateAnnualPlanPricing,
 	hasCompleteAnnualBilling,
 } from "../lib/annual-plan-pricing";
+import { upgradeHref } from "../lib/upgrade-selection";
 import { CreditPackCheckoutActions } from "./CreditPackCheckoutActions";
+import { useUpgrade } from "./upgrade-context";
 
 const planIds = ["creator", "ultimate", "studio"] as const;
 
@@ -33,17 +36,19 @@ export function PublicPricingPlans({
 	className,
 	headingLevel = 2,
 	locale,
-	actionHref = "/signup",
-	actionLabel,
+	initialView = "year",
+	hideViewToggle = false,
 }: {
 	className?: string;
 	headingLevel?: 2 | 3;
 	locale: string;
-	actionHref?: string;
-	actionLabel?: string;
+	initialView?: PricingView;
+	hideViewToggle?: boolean;
 }) {
 	const t = useTranslations();
-	const [view, setView] = useState<PricingView>("year");
+	const [view, setView] = useState<PricingView>(initialView);
+	const openUpgrade = useUpgrade();
+	const payment = usePaymentAction();
 	const PlanHeading = headingLevel === 2 ? "h2" : "h3";
 	const plans = planIds.flatMap((planId) => {
 		const entitlement = PLAN_ENTITLEMENTS.find((plan) => plan.id === planId);
@@ -63,12 +68,17 @@ export function PublicPricingPlans({
 			? firstAnnualPricing.savingsPercent
 			: null;
 	const showingCreditPacks = view === "credit-packs";
+	const subscriptionId = `${hideViewToggle ? "upgrade" : "public"}-subscription-pricing`;
+	const creditPackId = `${hideViewToggle ? "upgrade" : "public"}-credit-pack-pricing`;
 
 	return (
 		<div className={className} data-test="public-pricing-plans">
 			<div className="border-white/9 p-3 sm:p-5 lg:p-7 overflow-hidden rounded-[2.25rem] border bg-[radial-gradient(circle_at_50%_-12rem,rgba(151,116,255,0.18),transparent_31rem),linear-gradient(145deg,rgba(29,20,42,0.98),rgba(20,14,30,0.98))] shadow-[0_36px_110px_-70px_rgba(141,104,255,0.95),inset_0_1px_0_rgba(255,255,255,0.055)]">
-				<div className="flex justify-center">
-					<fieldset className="border-white/10 p-1 min-w-0 inline-flex max-w-full overflow-x-auto rounded-full border bg-[#0f0a17]/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]">
+				<div className="flex justify-center" hidden={hideViewToggle}>
+					<fieldset
+						disabled={Boolean(payment.action)}
+						className="border-white/10 p-1 min-w-0 inline-flex max-w-full overflow-x-auto rounded-full border bg-[#0f0a17]/70 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+					>
 						<legend className="sr-only">
 							{t("pricing.monthly")}, {t("pricing.yearly")}, {t("pricing.creditPacks")}
 						</legend>
@@ -76,7 +86,7 @@ export function PublicPricingPlans({
 							active={view === "month"}
 							onClick={() => setView("month")}
 							dataTest="public-pricing-interval-month"
-							controls="public-subscription-pricing"
+							controls={subscriptionId}
 						>
 							{t("pricing.monthly")}
 						</PricingViewButton>
@@ -84,7 +94,7 @@ export function PublicPricingPlans({
 							active={view === "year"}
 							onClick={() => setView("year")}
 							dataTest="public-pricing-interval-year"
-							controls="public-subscription-pricing"
+							controls={subscriptionId}
 						>
 							{t("pricing.yearly")}
 							{sharedSavingsPercent !== null && (
@@ -97,7 +107,7 @@ export function PublicPricingPlans({
 							active={showingCreditPacks}
 							onClick={() => setView("credit-packs")}
 							dataTest="public-pricing-credit-packs-tab"
-							controls="public-credit-pack-pricing"
+							controls={creditPackId}
 						>
 							{t("pricing.creditPacks")}
 						</PricingViewButton>
@@ -105,7 +115,7 @@ export function PublicPricingPlans({
 				</div>
 
 				<div
-					id="public-subscription-pricing"
+					id={subscriptionId}
 					hidden={showingCreditPacks}
 					className="mt-6 gap-3 lg:grid-cols-3 lg:items-stretch grid"
 				>
@@ -224,14 +234,36 @@ export function PublicPricingPlans({
 									</div>
 
 									<Link
-										href={actionHref}
-										className={`mt-3 min-h-11 px-5 text-sm font-semibold focus-visible:outline-violet-200 inline-flex w-full items-center justify-center rounded-xl border transition focus-visible:outline-2 focus-visible:outline-offset-2 ${
+										href={upgradeHref(
+											{ planId, interval: showAnnualPrice ? "year" : "month" },
+											locale,
+										)}
+										aria-disabled={Boolean(payment.action)}
+										onClick={(event) => {
+											if (payment.action) {
+												event.preventDefault();
+												return;
+											}
+											if (
+												openUpgrade &&
+												!event.metaKey &&
+												!event.ctrlKey &&
+												!event.shiftKey &&
+												!event.altKey
+											) {
+												event.preventDefault();
+												openUpgrade({ planId, interval: showAnnualPrice ? "year" : "month" });
+											}
+										}}
+										className={`mt-3 min-h-11 px-5 text-sm font-semibold focus-visible:outline-violet-200 inline-flex w-full items-center justify-center rounded-xl border transition focus-visible:outline-2 focus-visible:outline-offset-2 aria-disabled:cursor-wait aria-disabled:opacity-50 ${
 											recommended
 												? "text-white border-transparent bg-[#7453ff] shadow-[0_14px_32px_-18px_rgba(116,83,255,1)] hover:bg-[#8267ff]"
 												: "border-white/12 bg-white/[0.055] text-white hover:bg-white/[0.09] hover:border-[#a98bff]/35"
 										}`}
 									>
-										{actionLabel ?? t("pricing.getStarted")}
+										{t("pricing.upgrade.selectPlan", {
+											plan: t(`pricing.products.${planId}.title`),
+										})}
 										<ArrowRightIcon className="ml-2 size-4" aria-hidden="true" />
 									</Link>
 
@@ -256,7 +288,7 @@ export function PublicPricingPlans({
 				</div>
 
 				<div
-					id="public-credit-pack-pricing"
+					id={creditPackId}
 					data-test="public-pricing-credit-packs"
 					hidden={!showingCreditPacks}
 					className="mt-6"

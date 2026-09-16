@@ -114,6 +114,26 @@
 		"yearly": "Jährlich",
 		"perSeat": "Sitz",
 		"subscriptionAlreadyExists": "Du hast bereits ein Abonnement. Verwalte es unter Abrechnung. Um Tarif oder Zahlungsmethode zu wechseln, kündige die Verlängerung und warte bis zum Ende des aktuellen Abonnements.",
-		"checkoutAlreadyPending": "Ein Abonnement-Checkout läuft bereits. Schließe ihn ab, bevor du einen weiteren startest. Bei unklarem Status kontaktiere den Support."
+		"checkoutAlreadyPending": "Ein Abonnement-Checkout läuft bereits. Schließe ihn ab, bevor du einen weiteren startest. Bei unklarem Status kontaktiere den Support.",
+		"upgrade": {
+			"button": "Upgrade",
+			"title": "Mehr Raum für deine Ideen",
+			"description": "Wähle deinen Tarif und fahre zur sicheren Zahlung fort.",
+			"benefitsTitle": "Mach mehr aus jeder Idee",
+			"plans": "Tarife",
+			"purchaseType": "Kaufart",
+			"billingPeriod": "Abrechnungszeitraum",
+			"selectPlan": "{plan} wählen",
+			"continuePayment": "Weiter zur Zahlung",
+			"signInContinue": "Anmelden und fortfahren",
+			"processing": "Zahlung wird vorbereitet…",
+			"redirecting": "Zahlung wird geöffnet…",
+			"processingHint": "Deine Zahlung wird vorbereitet. Bitte warte.",
+			"redirectingHint": "Du wirst zur Zahlung weitergeleitet. Lass dieses Fenster geöffnet.",
+			"secureHint": "Die Zahlung erfolgt auf einer sicheren Zahlungsseite.",
+			"language": "Sprache",
+			"creditsLabel": "{credits} Credits verfügbar. Credits hinzufügen",
+			"creditsUnavailable": "Credits nicht verfügbar. Credit-Pakete ansehen"
+		}
 	}
 }

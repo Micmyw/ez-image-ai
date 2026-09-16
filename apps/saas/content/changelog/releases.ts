@@ -3,6 +3,9 @@ export const publicChangelogEntries = [
 		date: "2026-09-16",
 		title: "Model inspiration and content reporting",
 		changes: [
+			"Added header upgrades, language selection and available credits, with a direct link to Credit Packs.",
+			"Keep your selected plan and billing period when opening checkout or signing in, and show clear progress while payment opens.",
+			"Prevent repeated payment clicks and offer unfinished checkout recovery in the plan picker.",
 			"Make safety notices easier to understand with clear reasons, credit outcomes, next steps, and support links for instructions, images, and guest trials.",
 			"Clarify that an unavailable safety result comes from an incomplete automated check, with guidance to try again later.",
 			"Restored a portrait inspiration gallery on every model page, bringing back 11 earlier artworks alongside 13 new images with no cross-model repeats.",

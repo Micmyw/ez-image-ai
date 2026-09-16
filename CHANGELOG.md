@@ -2,6 +2,18 @@
 
 ## 2026-09-16
 
+### Upgrade and payment experience
+
+- Add a header upgrade action with the configured annual saving, an explicit language switch,
+  and a live available-credit balance linked to Credit Packs.
+- Open a centered plan picker directly from each pricing card, retaining the selected plan
+  and billing interval through sign-in. Show pending checkout recovery and active subscription
+  management in the same flow.
+- Show checkout preparation and redirect states, lock payment controls across plans and Credit
+  Packs during a request, and retain idempotency keys on retries.
+- Keep bare public URLs in English; explicit translated views use `?lang=` and `noindex, follow`
+  while retaining their English canonical URLs.
+
 ### Model artwork
 
 - Restore a dedicated portrait gallery before each model FAQ, preserving 11 earlier concept

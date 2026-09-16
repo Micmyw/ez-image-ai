@@ -1,7 +1,14 @@
 "use client";
 
 import { usePlanData } from "@payments/hooks/plan-data";
+import { usePaymentAction } from "@payments/hooks/use-payment-action";
+import {
+	calculateAnnualBillingPrice,
+	calculateAnnualPlanPricing,
+} from "@payments/lib/annual-plan-pricing";
+import { upgradeHref, type UpgradeSelection } from "@payments/lib/upgrade-selection";
 import type { PlanId } from "@payments/types";
+import { PLAN_ENTITLEMENTS } from "@repo/config/client";
 import { config as paymentsConfig } from "@repo/payments/config";
 import type { PaidPlan } from "@repo/payments/types";
 import { cn } from "@repo/ui";
@@ -13,7 +20,7 @@ import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpc } from "@shared/lib/orpc-query-utils";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { ArrowRightIcon, BadgePercentIcon, CheckIcon, StarIcon } from "lucide-react";
-import { useFormatter, useTranslations } from "next-intl";
+import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useRef, useState } from "react";
 
 import {
@@ -39,6 +46,9 @@ export function PricingTable({
 	activePlanId,
 	subscriptionBlocked = false,
 	subscriptionBlockers = [],
+	compact = false,
+	initialSelection,
+	accountLoading = false,
 }: {
 	className?: string;
 	userId?: string;
@@ -46,21 +56,40 @@ export function PricingTable({
 	activePlanId?: string;
 	subscriptionBlocked?: boolean;
 	subscriptionBlockers?: SubscriptionCheckoutBlocker[];
+	compact?: boolean;
+	initialSelection?: UpgradeSelection;
+	accountLoading?: boolean;
 	returnTo?: string;
 }) {
 	const t = useTranslations();
 	const format = useFormatter();
 	const router = useRouter();
 	const localeCurrency = useLocaleCurrency();
-	const [loading, setLoading] = useState<PlanId | false>(false);
-	const [interval, setInterval] = useState<"month" | "year">("year");
+	const locale = useLocale();
+	const payment = usePaymentAction();
+	const loading = payment.action?.key.startsWith("plan:")
+		? payment.action.key.split(":")[1]
+		: false;
+	const [interval, setInterval] = useState<"month" | "year">(initialSelection?.interval ?? "year");
+	const [selectedPlan, setSelectedPlan] = useState<UpgradeSelection["planId"]>(
+		initialSelection?.planId ?? "ultimate",
+	);
 	const [checkoutUnavailable, setCheckoutUnavailable] = useState(false);
 	const [checkoutConflict, setCheckoutConflict] = useState<"subscription" | "pending" | null>(null);
-	const checkoutInFlight = useRef(false);
 	const hasSubscription = subscriptionBlocked || Boolean(activePlanId && activePlanId !== "free");
 	const checkoutAttempts = useRef(createCheckoutAttemptController(createGrowthAttemptKey));
 
 	const { planData } = usePlanData();
+	const authenticated = Boolean(userId || organizationId);
+	const pending = useQuery({
+		...orpc.payments.getPendingSubscriptionCheckout.queryOptions({ input: {} }),
+		enabled: authenticated && !hasSubscription,
+	});
+	const checkoutBlocked =
+		accountLoading ||
+		Boolean(payment.action) ||
+		checkoutConflict === "subscription" ||
+		(authenticated && (pending.isPending || pending.isError || Boolean(pending.data)));
 
 	const createCheckoutLinkMutation = useMutation(
 		orpc.payments.createCheckoutLink.mutationOptions(),
@@ -71,9 +100,13 @@ export function PricingTable({
 		interval: "month" | "year",
 		provider: SubscriptionCheckoutProvider,
 	) => {
-		if (hasSubscription || checkoutInFlight.current) return;
+		if (hasSubscription || checkoutBlocked) return;
 		if (!(userId || organizationId)) {
-			router.push("/signup");
+			if (planId === "creator" || planId === "ultimate" || planId === "studio") {
+				router.push(
+					`/login?redirectTo=${encodeURIComponent(upgradeHref({ planId, interval }, locale))}`,
+				);
+			}
 			return;
 		}
 
@@ -82,8 +115,7 @@ export function PricingTable({
 			return;
 		}
 
-		setLoading(planId);
-		checkoutInFlight.current = true;
+		if (!payment.acquire(`plan:${planId}`)) return;
 		setCheckoutConflict(null);
 		setCheckoutUnavailable(false);
 		const selection: CheckoutSelection = { provider, planId, interval };
@@ -97,8 +129,9 @@ export function PricingTable({
 				idempotencyKey: checkoutAttemptKey,
 			});
 
-			await saasGrowthFunnel.checkoutStarted(checkoutAttemptKey, planId);
+			void saasGrowthFunnel.checkoutStarted(checkoutAttemptKey, planId).catch(() => undefined);
 			checkoutAttempts.current.succeeded(selection);
+			payment.redirecting();
 			window.location.href = checkoutLink;
 		} catch (error) {
 			const conflict = error instanceof Error && "code" in error && error.code === "CONFLICT";
@@ -107,9 +140,8 @@ export function PricingTable({
 					error.message === "PAYMENT_SUBSCRIPTION_ALREADY_EXISTS" ? "subscription" : "pending",
 				);
 			else setCheckoutUnavailable(true);
-		} finally {
-			setLoading(false);
-			checkoutInFlight.current = false;
+			if (conflict) await pending.refetch();
+			payment.release();
 		}
 	};
 
@@ -122,6 +154,157 @@ export function PricingTable({
 	);
 	if (hasSubscription) {
 		return <SubscriptionCheckoutNotice blockers={subscriptionBlockers} />;
+	}
+	const notices = (
+		<>
+			{authenticated && <PendingSubscriptionCheckout />}
+			{checkoutConflict && (
+				<p className="mb-4 text-sm text-destructive" role="alert">
+					{t(
+						checkoutConflict === "subscription"
+							? "pricing.subscriptionAlreadyExists"
+							: "pricing.checkoutAlreadyPending",
+					)}
+				</p>
+			)}
+			{(checkoutUnavailable || (authenticated && pending.isError)) && (
+				<p className="mb-4 text-sm text-destructive" role="alert">
+					{t("pricing.checkoutUnavailable")}
+				</p>
+			)}
+		</>
+	);
+	if (compact) {
+		const selectedPrice = PLAN_ENTITLEMENTS.find((plan) => plan.id === selectedPlan)!.prices.find(
+			(price) => price.interval === interval,
+		)!;
+		return (
+			<div className={className} data-test="upgrade-plan-picker">
+				{notices}
+				<fieldset
+					disabled={Boolean(payment.action)}
+					className="mb-5 border-white/10 bg-white/5 p-1 flex rounded-full border"
+				>
+					<legend className="sr-only">{t("pricing.upgrade.billingPeriod")}</legend>
+					{(["month", "year"] as const).map((value) => (
+						<button
+							key={value}
+							type="button"
+							aria-pressed={interval === value}
+							onClick={() => setInterval(value)}
+							className={cn(
+								"min-h-10 px-4 text-sm font-semibold flex-1 rounded-full transition disabled:cursor-wait",
+								interval === value ? "bg-[#e7ddff] text-[#291d3d]" : "text-[#b8adbf]",
+							)}
+						>
+							{t(value === "month" ? "pricing.monthly" : "pricing.yearly")}
+						</button>
+					))}
+				</fieldset>
+				<fieldset disabled={Boolean(payment.action)} className="gap-3 grid">
+					<legend className="sr-only">{t("pricing.choosePlan")}</legend>
+					{(["creator", "ultimate", "studio"] as const).map((planId) => {
+						const plan = PLAN_ENTITLEMENTS.find((entry) => entry.id === planId)!;
+						const price = plan.prices.find((entry) => entry.interval === interval)!;
+						const annual = interval === "year" ? calculateAnnualBillingPrice(plan.prices) : null;
+						const savings = interval === "year" ? calculateAnnualPlanPricing(plan.prices) : null;
+						return (
+							<label
+								key={planId}
+								className={cn(
+									"studio-upgrade-plan-option min-h-28 gap-3 p-4 relative cursor-pointer items-center rounded-2xl border transition has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-[#c6b1ff]",
+									selectedPlan === planId
+										? "border-[#b79cff] bg-[#b79cff]/10"
+										: "border-white/10 bg-white/[0.025] hover:border-white/25",
+									payment.action && "cursor-wait opacity-70",
+								)}
+							>
+								<input
+									type="radio"
+									name="upgrade-plan"
+									value={planId}
+									checked={selectedPlan === planId}
+									onChange={() => setSelectedPlan(planId)}
+									className="size-5 shrink-0 accent-[#b79cff]"
+								/>
+								<span className="min-w-0 flex-1">
+									<span className="text-lg font-semibold text-white block">
+										{t(`pricing.products.${planId}.title`)}
+									</span>
+									<span className="mt-1 text-xs block text-[#c8b5f8]">
+										{t("pricing.monthlyCredits", { credits: plan.monthlyCredits })}
+									</span>
+								</span>
+								<span className="studio-upgrade-plan-price shrink-0 text-right">
+									<span className="text-2xl font-semibold text-white">
+										{format.number(annual?.monthlyEquivalent ?? price.amount, {
+											style: "currency",
+											currency: price.currency,
+											maximumFractionDigits: 2,
+										})}
+									</span>
+									<span className="text-xs text-[#b8adbf]">
+										/{t("pricing.month", { count: 1 })}
+									</span>
+									{annual && (
+										<span className="mt-1 text-xs block text-[#b8adbf]">
+											{t("pricing.annualTotal", {
+												total: format.number(annual.total, {
+													style: "currency",
+													currency: annual.currency,
+													maximumFractionDigits: 0,
+												}),
+											})}
+											{savings && (
+												<span className="ml-2 text-[#c8b5f8]">−{savings.savingsPercent}%</span>
+											)}
+										</span>
+									)}
+								</span>
+							</label>
+						);
+					})}
+				</fieldset>
+				<div className="studio-checkout-footer">
+					<div
+						className="gap-3 pt-3 text-sm flex items-center justify-between text-[#e7ddff]"
+						data-test="checkout-selection"
+					>
+						<strong>{t(`pricing.products.${selectedPlan}.title`)}</strong>
+						<span>
+							{format.number(selectedPrice.amount, {
+								style: "currency",
+								currency: selectedPrice.currency,
+								maximumFractionDigits: 2,
+							})}
+							/{t(interval === "year" ? "pricing.year" : "pricing.month", { count: 1 })}
+						</span>
+					</div>
+					<CheckoutControls
+						planId={selectedPlan}
+						interval={interval}
+						recommended
+						authenticated={authenticated}
+						loading={loading === selectedPlan}
+						disabled={checkoutBlocked}
+						onCheckout={(provider) => onSelectPlan(selectedPlan, interval, provider)}
+						compact
+					/>
+					<output
+						className="mt-3 text-xs leading-5 block text-center text-[#a99cb5]"
+						aria-live="polite"
+					>
+						{payment.action
+							? t(
+									payment.action.stage === "redirecting"
+										? "pricing.upgrade.redirectingHint"
+										: "pricing.upgrade.processingHint",
+								)
+							: t("pricing.upgrade.secureHint")}
+					</output>
+				</div>
+			</div>
+		);
 	}
 
 	return (
@@ -149,8 +332,12 @@ export function PricingTable({
 						data-test="price-table-interval-tabs"
 					>
 						<TabsList className="border-foreground/10">
-							<TabsTrigger value="month">{t("pricing.monthly")}</TabsTrigger>
-							<TabsTrigger value="year">{t("pricing.yearly")}</TabsTrigger>
+							<TabsTrigger value="month" disabled={Boolean(payment.action)}>
+								{t("pricing.monthly")}
+							</TabsTrigger>
+							<TabsTrigger value="year" disabled={Boolean(payment.action)}>
+								{t("pricing.yearly")}
+							</TabsTrigger>
 						</TabsList>
 					</Tabs>
 				</div>
@@ -276,7 +463,7 @@ export function PricingTable({
 											recommended={recommended}
 											authenticated={Boolean(userId || organizationId)}
 											loading={loading === planId}
-											disabled={Boolean(loading) || checkoutConflict === "subscription"}
+											disabled={checkoutBlocked}
 											onCheckout={(provider) => onSelectPlan(planId, price.interval, provider)}
 										/>
 									) : (
@@ -307,6 +494,7 @@ function CheckoutControls({
 	loading,
 	disabled,
 	onCheckout,
+	compact = false,
 }: {
 	planId: PlanId;
 	interval: "month" | "year";
@@ -315,8 +503,10 @@ function CheckoutControls({
 	loading: boolean;
 	disabled: boolean;
 	onCheckout: (provider: SubscriptionCheckoutProvider) => void;
+	compact?: boolean;
 }) {
 	const t = useTranslations();
+	const payment = usePaymentAction();
 	const [selectedProvider, setSelectedProvider] = useState<SubscriptionCheckoutProvider | null>(
 		null,
 	);
@@ -357,13 +547,29 @@ function CheckoutControls({
 				</p>
 			)}
 			<Button
-				className="mt-4 w-full"
+				className={cn("mt-4 w-full", compact && "min-h-12 rounded-xl")}
 				variant={recommended ? "primary" : "secondary"}
 				onClick={() => provider && onCheckout(provider)}
 				loading={loading || availability.isPending}
 				disabled={disabled || !provider || unavailable}
+				aria-busy={loading}
+				data-test="subscription-checkout"
 			>
-				{authenticated ? t("pricing.choosePlan") : t("pricing.getStarted")}
+				{loading
+					? t(
+							payment.action?.stage === "redirecting"
+								? "pricing.upgrade.redirecting"
+								: "pricing.upgrade.processing",
+						)
+					: compact
+						? t(
+								authenticated
+									? "pricing.upgrade.continuePayment"
+									: "pricing.upgrade.signInContinue",
+							)
+						: authenticated
+							? t("pricing.choosePlan")
+							: t("pricing.getStarted")}
 				<ArrowRightIcon className="ml-2 size-4" />
 			</Button>
 		</>

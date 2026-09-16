@@ -193,6 +193,166 @@ body:has(.studio-shell) [data-consent-banner] button {
 .studio-toplinks a:hover {
 	color: #fff;
 }
+.studio-header-account,
+.studio-purchase-actions {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+}
+.studio-header-account {
+	margin-left: auto;
+}
+.studio-upgrade {
+	position: relative;
+	display: inline-flex;
+	min-height: 38px;
+	align-items: center;
+	gap: 6px;
+	border: 1px solid #c7afff55;
+	border-radius: 999px;
+	padding: 7px 14px;
+	background: #b79cff;
+	color: #211432;
+	font-size: 12px;
+	font-weight: 700;
+	white-space: nowrap;
+	box-shadow: 0 5px 24px #b79cff1a;
+	transition: background 150ms;
+}
+.studio-upgrade:hover {
+	background: #cbb7ff;
+}
+.studio-upgrade svg {
+	width: 15px;
+	height: 15px;
+}
+.studio-upgrade-saving {
+	position: absolute;
+	top: -8px;
+	right: 1px;
+	border: 2px solid #19131f;
+	border-radius: 6px;
+	padding: 1px 5px;
+	background: #754ed1;
+	color: white;
+	font-size: 9px;
+	line-height: 12px;
+}
+.studio-language {
+	color: #b9adca;
+}
+.studio-header-credits {
+	display: inline-flex;
+	min-height: 38px;
+	align-items: center;
+	gap: 7px;
+	border: 1px solid #b79cff40;
+	border-radius: 999px;
+	padding: 6px 10px;
+	color: #d8c9ff;
+	background: #b79cff08;
+	font-size: 12px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	white-space: nowrap;
+}
+.studio-header-credits:hover {
+	background: #b79cff18;
+}
+.studio-header-credits svg {
+	width: 15px;
+	height: 15px;
+}
+.studio-credits-plus {
+	border-left: 1px solid #b79cff30;
+	padding-left: 6px;
+	box-sizing: content-box;
+}
+.studio-upgrade[aria-disabled="true"],
+.studio-header-credits:disabled {
+	cursor: wait;
+	opacity: 0.55;
+}
+.studio-mobile-notifications {
+	display: none;
+}
+@media (max-width: 1100px) {
+	.studio-header-notifications {
+		display: none;
+	}
+	.studio-mobile-notifications {
+		display: block;
+	}
+}
+@media (max-width: 480px) {
+	.studio-header-account,
+	.studio-purchase-actions {
+		gap: 5px;
+	}
+	.studio-upgrade {
+		padding-inline: 10px;
+		font-size: 11px;
+	}
+	.studio-upgrade > svg {
+		display: none;
+	}
+	.studio-header-credits {
+		gap: 4px;
+		padding-inline: 8px;
+		font-size: 11px;
+	}
+	.studio-credits-plus {
+		display: none;
+	}
+}
+.studio-theme.studio-upgrade-dialog {
+	--studio-upgrade-padding: 32px;
+	width: calc(100% - 24px);
+	max-width: 960px;
+}
+.studio-checkout-footer {
+	position: sticky;
+	bottom: 0;
+	z-index: 1;
+	margin: 16px calc(0px - var(--studio-upgrade-padding)) calc(0px - var(--studio-upgrade-padding));
+	padding: 0 var(--studio-upgrade-padding) 16px;
+	border-top: 1px solid #ffffff14;
+	background: #17121e;
+}
+@media (max-width: 639px) {
+	.studio-theme.studio-upgrade-dialog {
+		--studio-upgrade-padding: 20px;
+	}
+}
+.studio-upgrade-plan-option {
+	display: grid;
+	grid-template-columns: 20px minmax(0, 1fr) auto;
+}
+@media (max-width: 479px) {
+	.studio-upgrade-plan-option {
+		grid-template-columns: 20px minmax(0, 1fr);
+		gap: 8px 12px;
+	}
+	.studio-upgrade-plan-price {
+		grid-column: 2;
+		text-align: left;
+	}
+}
+.studio-upgrade-dialog [data-test="public-pricing-plans"] > div {
+	padding: 12px;
+	border-radius: 16px;
+}
+.studio-upgrade-dialog [data-test="public-pricing-credit-packs"] > div:last-child {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@media (max-width: 767px) {
+	.studio-toplinks .studio-create-link {
+		display: none;
+	}
+	.studio-upgrade-dialog [data-test="public-pricing-credit-packs"] > div:last-child {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
 .studio-menu-trigger {
 	display: inline-flex;
 	min-height: 40px;
@@ -518,13 +678,22 @@ body:has(.studio-shell) [data-consent-banner] button {
 		padding-inline: 12px;
 	}
 	.studio-toplinks {
+		order: 3;
+		flex-basis: 100%;
 		gap: 16px;
+		justify-content: space-between;
+		border-top: 1px solid #ffffff08;
+		padding-top: 4px;
+	}
+	.studio-mobile-notifications {
+		margin-left: auto;
 	}
 	.studio-composer-inputs {
 		grid-template-columns: 120px minmax(0, 1fr);
 		gap: 10px;
 	}
 	.studio-topbar {
+		flex-wrap: wrap;
 		padding-inline: 24px;
 	}
 }
@@ -561,11 +730,8 @@ body:has(.studio-shell) [data-consent-banner] button {
 		padding: 8px 16px;
 	}
 	.studio-toplinks {
-		order: 3;
-		flex-basis: 100%;
-		justify-content: space-between;
-		border-top: 1px solid #ffffff08;
-		padding-top: 4px;
+		flex-wrap: wrap;
+		gap: 4px 8px;
 	}
 	.studio-model-grid {
 		grid-template-columns: minmax(0, 1fr);

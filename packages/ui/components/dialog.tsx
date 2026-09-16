@@ -27,9 +27,13 @@ const DialogContent = ({
 	className,
 	children,
 	overlayProps,
+	closeDisabled,
+	closeLabel = "Close",
 	...props
 }: React.ComponentProps<typeof DialogPrimitive.Popup> & {
 	overlayProps?: React.ComponentProps<typeof DialogPrimitive.Backdrop> & { "data-test"?: string };
+	closeDisabled?: boolean;
+	closeLabel?: string;
 }) => (
 	<DialogPrimitive.Portal>
 		<DialogOverlay {...overlayProps} />
@@ -41,9 +45,12 @@ const DialogContent = ({
 			{...props}
 		>
 			{children}
-			<DialogPrimitive.Close className="top-4 right-4 absolute rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[open]:bg-accent data-[open]:text-muted-foreground">
+			<DialogPrimitive.Close
+				disabled={closeDisabled}
+				className="top-4 right-4 absolute rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none disabled:opacity-30 data-[open]:bg-accent data-[open]:text-muted-foreground"
+			>
 				<XIcon className="size-4" />
-				<span className="sr-only">Close</span>
+				<span className="sr-only">{closeLabel}</span>
 			</DialogPrimitive.Close>
 		</DialogPrimitive.Popup>
 	</DialogPrimitive.Portal>

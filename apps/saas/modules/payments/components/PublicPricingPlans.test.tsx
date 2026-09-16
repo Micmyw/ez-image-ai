@@ -208,6 +208,14 @@ vi.mock("@tanstack/react-query", () => ({
 import { PublicPricingPlans } from "./PublicPricingPlans";
 
 describe("PublicPricingPlans", () => {
+	it("preserves the selected plan and billing interval instead of routing every plan to billing", () => {
+		const markup = renderToStaticMarkup(<PublicPricingPlans locale="en-US" />);
+		for (const plan of ["creator", "ultimate", "studio"]) {
+			expect(markup).toContain(`href="/pricing?plan=${plan}&amp;interval=year"`);
+		}
+		expect(markup).not.toContain('href="/settings/billing"');
+	});
+
 	it("opens on truthful yearly pricing with only Pro, Ultimate, and Max", () => {
 		const markup = renderToStaticMarkup(<PublicPricingPlans locale="en-US" />);
 		const visibleText = markup.replaceAll(/<[^>]+>/g, " ");
