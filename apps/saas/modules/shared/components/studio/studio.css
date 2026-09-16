@@ -1,3 +1,5 @@
+@import "../../../landing/components/landing-performance.css";
+
 /* The workspace and its portalled controls share the homepage palette. */
 body:has(.studio-shell),
 .studio-shell,

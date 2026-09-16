@@ -1,6 +1,6 @@
 # Website analytics
 
-Browser loading behavior updated: September 15, 2026. Vendor verification below retains its
+Browser loading behavior updated: September 16, 2026. Vendor verification below retains its
 original dates and scope.
 
 ## Configuration
@@ -35,7 +35,9 @@ of configuring analytics.
   grants to either vendor; vendor-side settings and behavior still apply.
 - Startup installs the GA4 page-view queue and navigation tracking immediately. Vendor script
   downloads wait for page load, a paint opportunity, and browser idle time, with a two-second
-  fallback from initialization. An early page exit attempts startup too. Public visits queued
+  fallback from initialization. GA4 starts first; Clarity starts after GA4 loads or fails and
+  the browser has another paint/idle opportunity. A two-second fallback also bounds a stalled
+  first tag. An early page exit attempts to load all pending tags. Public visits queued
   during the wait keep their sanitized URLs; an exit before a vendor loads cannot guarantee
   delivery, and Clarity replay starts when its tag loads.
 - GA4 tracks public page views, including public SPA navigation, using URLs with query strings

@@ -14,10 +14,14 @@ export function RegisteredEditorDock({ prompt, jobId }: { prompt: string; jobId:
 	useEffect(() => {
 		const editor = document.getElementById("registered-generator");
 		if (!editor || typeof IntersectionObserver === "undefined") return;
-		const observer = new IntersectionObserver(([entry]) => {
-			setVisible(Boolean(entry && !entry.isIntersecting && entry.boundingClientRect.bottom < 0));
+		const footer = editor.closest(".model-page")?.querySelector(".model-footer");
+		const observer = new IntersectionObserver(() => {
+			const hasPassedEditor = editor.getBoundingClientRect().bottom < 0;
+			const beforeFooter = !footer || footer.getBoundingClientRect().top >= window.innerHeight;
+			setVisible(hasPassedEditor && beforeFooter);
 		});
 		observer.observe(editor);
+		if (footer) observer.observe(footer);
 		return () => observer.disconnect();
 	}, []);
 	if (!visible) return null;

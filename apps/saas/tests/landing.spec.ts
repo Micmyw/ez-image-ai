@@ -347,9 +347,21 @@ test("the production homepage excludes account tools, charts, and documentation 
 	request,
 }, testInfo) => {
 	test.skip(process.env.E2E_USE_PRODUCTION_BUILD !== "true", "Requires production bundles");
+	const cspViolations: string[] = [];
+	await page.exposeFunction("recordCspViolation", (directive: string) => {
+		cspViolations.push(directive);
+	});
+	await page.addInitScript(() => {
+		document.addEventListener("securitypolicyviolation", (event) => {
+			void (
+				window as unknown as { recordCspViolation: (value: string) => Promise<void> }
+			).recordCspViolation(`${event.violatedDirective}: ${event.blockedURI}`);
+		});
+	});
 	await page.setViewportSize({ width: 1350, height: 940 });
 	const response = await page.goto("/");
 	await expect(stage(page, "ready")).toBeVisible();
+	expect(cspViolations, "Client validation must work without attempting unsafe-eval").toEqual([]);
 	const resources = await page.evaluate(() => {
 		const scripts = new Set([...document.scripts].map((script) => script.src));
 		// Hydration can remove script tags after loading; keep those network resources too.
@@ -835,6 +847,7 @@ test("the landing page proves edits with an interactive comparison and visual ex
 	const comparison = page.getByRole("slider", {
 		name: /compare original and edited illustration/i,
 	});
+	await page.locator("#before-after").scrollIntoViewIfNeeded();
 	await expect(comparison).toBeVisible();
 	await expect(comparison).toHaveValue("52");
 
@@ -846,6 +859,7 @@ test("the landing page proves edits with an interactive comparison and visual ex
 	await expect(comparison).toHaveValue("36");
 
 	const examples = page.locator("#examples article");
+	await page.locator("#examples").scrollIntoViewIfNeeded();
 	await expect(examples).toHaveCount(12);
 	await expect(page.locator("#examples img")).toHaveCount(12);
 	expect(
@@ -872,7 +886,10 @@ test("the landing page proves edits with an interactive comparison and visual ex
 	).toBe(true);
 
 	const prompt = page.getByLabel(/describe your (?:image|edit)/i);
-	await page.getByRole("button", { name: /use the mediterranean quiet prompt/i }).click();
+	await page
+		.locator("#examples")
+		.getByRole("button", { name: /mediterranean quiet/i })
+		.click();
 	await expect(prompt).toHaveValue(/sunlit mediterranean retreat/i);
 	await expect(prompt).toBeFocused();
 });
@@ -1063,7 +1080,7 @@ test("model families expose descriptions and quality changes update the quoted c
 		contentType: "image/png",
 	});
 	await page.locator('[data-test="landing-model-image-seedream-5-pro"]').click();
-	await page.getByRole("button", { name: "Open output settings", exact: true }).click();
+	await page.getByRole("button", { name: /^Open output settings:/ }).click();
 	await page.getByRole("button", { name: "High", exact: true }).click();
 	await expect(page.getByRole("button", { name: "2K", exact: true })).toHaveAttribute(
 		"aria-pressed",
@@ -1091,7 +1108,7 @@ test("model families expose descriptions and quality changes update the quoted c
 	const dock = page.locator('[data-test="floating-editor-dock"]');
 	await dock.getByRole("button", { name: /open the quick editor/i }).click();
 	await selectModel(page, "GPT Image", "image-gpt-image-2", "floating");
-	await dock.getByRole("button", { name: "Open output settings", exact: true }).click();
+	await dock.getByRole("button", { name: /^Open output settings:/ }).click();
 	await page.getByRole("button", { name: "4K", exact: true }).click();
 	await expect(dock.locator('[data-test="floating-generate"]')).toContainText("17");
 	await page.keyboard.press("Escape");

@@ -90,10 +90,14 @@ export function startSiteAnalytics(options: SiteAnalyticsOptions): void {
 	if (!gaId && !clarityId) return;
 	initializedDocuments.add(browser);
 	const scriptSources: string[] = [];
-	const appendScript = (src: string) => {
+	const appendScript = (src: string, onSettled?: () => void) => {
 		const script = document.createElement("script");
 		script.async = true;
 		script.src = src;
+		if (onSettled) {
+			script.onload = onSettled;
+			script.onerror = onSettled;
+		}
 		document.head.appendChild(script);
 	};
 
@@ -160,8 +164,32 @@ export function startSiteAnalytics(options: SiteAnalyticsOptions): void {
 		};
 		scriptSources.push(`https://www.clarity.ms/tag/${clarityId}`);
 	}
-	// Install queues and navigation tracking now, then load the vendors after the
-	// initial rendering work. Public visits during this wait retain their own URL.
-	scheduleTagLoading(browser, () => scriptSources.forEach(appendScript));
+	// Both queues are ready immediately, but vendor execution must not compete in
+	// the same rendering window. Load the next tag after its predecessor settles
+	// and the browser has another paint/idle opportunity. A failed or stalled tag
+	// must never prevent the other service from starting automatically.
+	let nextScript = 0;
+	let fallback: number | undefined;
+	const appendNext = () => {
+		if (fallback !== undefined) browser.clearTimeout(fallback);
+		const src = scriptSources[nextScript++];
+		if (!src) return;
+		const last = nextScript === scriptSources.length;
+		if (last) browser.removeEventListener("pagehide", flushPending);
+		let settled = false;
+		const settle = () => {
+			if (settled || nextScript >= scriptSources.length) return;
+			settled = true;
+			if (fallback !== undefined) browser.clearTimeout(fallback);
+			scheduleTagLoading(browser, appendNext);
+		};
+		appendScript(src, last ? undefined : settle);
+		if (!last) fallback = browser.setTimeout(appendNext, 2000);
+	};
+	const flushPending = () => {
+		while (nextScript < scriptSources.length) appendNext();
+	};
+	browser.addEventListener("pagehide", flushPending, { once: true });
+	scheduleTagLoading(browser, appendNext);
 	// Tags live for the document lifetime, so React remounts must not reload or stop them.
 }

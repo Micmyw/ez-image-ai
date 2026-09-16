@@ -1,0 +1,47 @@
+/* Keep the editor and first model row fully rendered. The remaining sections
+   retain their server HTML and become renderable as they approach the viewport.
+   Remember measured heights after a section has been visited. */
+.studio-home > :is(#examples, #before-after, #creator-workflows, #how-it-works, #pricing, #faq) {
+	content-visibility: auto;
+	contain-intrinsic-block-size: auto var(--landing-section-height);
+}
+
+.studio-home > #examples {
+	--landing-section-height: 2450px;
+}
+.studio-home > #before-after {
+	--landing-section-height: 670px;
+}
+.studio-home > #creator-workflows {
+	--landing-section-height: 1210px;
+}
+.studio-home > #how-it-works {
+	--landing-section-height: 1170px;
+}
+.studio-home > #pricing {
+	--landing-section-height: 2400px;
+}
+.studio-home > #faq {
+	--landing-section-height: 1480px;
+}
+
+@media (min-width: 768px) {
+	.studio-home > #examples {
+		--landing-section-height: 1340px;
+	}
+	.studio-home > #before-after {
+		--landing-section-height: 585px;
+	}
+	.studio-home > #creator-workflows {
+		--landing-section-height: 1030px;
+	}
+	.studio-home > #how-it-works {
+		--landing-section-height: 630px;
+	}
+	.studio-home > #pricing {
+		--landing-section-height: 1090px;
+	}
+	.studio-home > #faq {
+		--landing-section-height: 1290px;
+	}
+}

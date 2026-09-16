@@ -43,6 +43,10 @@ describe("landing visual example assets", () => {
 		];
 		expect(Object.keys(artworkVariants).sort()).toEqual(expectedSources.sort());
 		for (const [src, image] of Object.entries(artworkVariants)) {
+			expect(
+				image.variants.map((variant) => variant.width),
+				src,
+			).toContain(288);
 			const source = readFileSync(path.join(publicRoot, src));
 			expect(createHash("sha256").update(source).digest("hex"), src).toBe(image.sourceHash);
 			for (const variant of image.variants) {

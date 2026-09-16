@@ -102,7 +102,6 @@ export function ShowcaseSection() {
 						>
 							<button
 								type="button"
-								aria-label={t("usePromptLabel", { title: t(`items.${item.key}.title`) })}
 								aria-pressed={selectedKey === item.key}
 								className="@container relative block w-full overflow-hidden text-left focus-visible:outline-none"
 								onClick={() => usePrompt(item.key)}

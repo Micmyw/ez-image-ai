@@ -2,6 +2,21 @@
 
 ## 2026-09-16
 
+### Homepage performance and accessibility
+
+- Reduce initial layout work for offscreen homepage sections while retaining their server-rendered
+  content, anchor navigation and complete artwork.
+- Add 288px responsive artwork variants for compact desktop cards, preserving existing cached assets.
+- Start analytics vendors in separate paint/idle windows with automatic startup and bounded fallbacks.
+- Avoid the validation library's blocked dynamic-code probe and make visible button labels part of
+  their accessible names.
+
+### Model-page editor dock
+
+- Hide the signed-in editor dock while a model-page footer is in view so its links stay
+  readable and accessible. Restore the dock when scrolling back above the footer; keep
+  homepage dock behavior unchanged.
+
 ### Public sitemaps
 
 - Publish recorded content update dates for the 25 approved public pages; unchanged rebuilds

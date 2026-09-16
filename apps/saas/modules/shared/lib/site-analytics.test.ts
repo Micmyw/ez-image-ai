@@ -4,7 +4,7 @@ import { startSiteAnalytics } from "./site-analytics";
 
 function harness(initialUrl = "https://ezimageai.com/", cookie = "") {
 	let url = new URL(initialUrl);
-	const scripts: Array<{ src: string }> = [];
+	const scripts: Array<{ src: string; onload?: () => void; onerror?: () => void }> = [];
 	const gtag = vi.fn();
 	const clarity = vi.fn();
 	const events = new EventTarget();
@@ -67,6 +67,9 @@ function harness(initialUrl = "https://ezimageai.com/", cookie = "") {
 		loaded();
 		paint();
 		idle();
+		scripts[0]?.onload?.();
+		paint();
+		idle();
 	};
 	const runTimers = () => {
 		for (const [id, callback] of [...timers]) {
@@ -96,7 +99,7 @@ function harness(initialUrl = "https://ezimageai.com/", cookie = "") {
 }
 
 describe("automatic website analytics", () => {
-	it("queues the initial visit immediately and loads vendors after load, paint, and idle", () => {
+	it("queues visits immediately and gives rendering a turn between vendor executions", () => {
 		const app = harness("https://ezimageai.com/?token=private-token");
 		app.start();
 		expect(app.scripts).toHaveLength(0);
@@ -114,6 +117,11 @@ describe("automatic website analytics", () => {
 		app.paint();
 		expect(app.scripts).toHaveLength(0);
 		app.idle();
+		expect(app.scripts).toHaveLength(1);
+		app.scripts[0]?.onload?.();
+		expect(app.scripts).toHaveLength(1);
+		app.paint();
+		app.idle();
 		expect(app.scripts).toHaveLength(2);
 		expect(JSON.stringify(app.gtag.mock.calls)).not.toContain("private-token");
 	});
@@ -122,6 +130,10 @@ describe("automatic website analytics", () => {
 		app.loaded();
 		app.start();
 		expect(app.scripts).toHaveLength(0);
+		app.paint();
+		app.idle();
+		expect(app.scripts).toHaveLength(1);
+		app.scripts[0]?.onload?.();
 		app.paint();
 		app.idle();
 		expect(app.scripts).toHaveLength(2);
@@ -134,6 +146,7 @@ describe("automatic website analytics", () => {
 		app.paint();
 		expect(app.scripts).toHaveLength(0);
 		app.runTimers();
+		app.runTimers();
 		expect(app.scripts).toHaveLength(2);
 	});
 	it("bounds the wait when load or animation frames stall", () => {
@@ -141,9 +154,25 @@ describe("automatic website analytics", () => {
 		app.start();
 		expect(app.scripts).toHaveLength(0);
 		app.runTimers();
+		app.runTimers();
 		expect(app.scripts).toHaveLength(2);
 		app.finishLoading();
 		app.start();
+		expect(app.scripts).toHaveLength(2);
+	});
+	it("continues after a blocked first vendor and does not append scripts twice", () => {
+		const app = harness();
+		app.start();
+		app.loaded();
+		app.paint();
+		app.idle();
+		expect(app.scripts).toHaveLength(1);
+		app.scripts[0]?.onerror?.();
+		app.paint();
+		app.idle();
+		expect(app.scripts).toHaveLength(2);
+		app.runTimers();
+		app.events.dispatchEvent(new Event("pagehide"));
 		expect(app.scripts).toHaveLength(2);
 	});
 	it("attempts startup before an early page exit without loading twice", () => {

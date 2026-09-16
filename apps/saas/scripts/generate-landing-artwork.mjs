@@ -25,7 +25,7 @@ for (const { src, crop } of sources) {
 	const width = metadata.width;
 	const height = crop ? Math.round((width * 3) / 4) : metadata.height;
 	const variants = [];
-	for (const targetWidth of [240, 384, 480, 640, 768, 960].filter((size) => size <= width)) {
+	for (const targetWidth of [240, 288, 384, 480, 640, 768, 960].filter((size) => size <= width)) {
 		const bytes = await sharp(source)
 			.resize({
 				width: targetWidth,

@@ -83,6 +83,9 @@ describe("ImageOutputSettings", () => {
 			/>,
 		);
 		const visibleText = markup.replaceAll(/<[^>]+>/g, " ");
+		expect(markup).toContain(
+			'aria-label="Localized trigger: 1:1, 1, Localized 1K, Localized Basic"',
+		);
 		const highOption =
 			markup.match(
 				/<button[^>]*data-sku-key="seedream-5-pro-high-2k"[^>]*>[\s\S]*?<\/button>/,

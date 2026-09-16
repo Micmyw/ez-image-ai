@@ -3,6 +3,8 @@ export const publicChangelogEntries = [
 		date: "2026-09-16",
 		title: "Model inspiration and content reporting",
 		changes: [
+			"Made the homepage lighter to render and reduced image downloads for compact example cards.",
+			"Improved screen-reader names for reference-image, output-setting and example-prompt controls.",
 			"Keep the selected plan in view and payment choices steady while switching plans. Credit Packs now share a payment-method selector.",
 			"Make unfinished checkout recovery actionable with the previous plan, order reference and a direct support link, while preventing another subscription payment.",
 			"Clarified the homepage's image-editing prompts, instructions and FAQ headings in all four interface languages.",

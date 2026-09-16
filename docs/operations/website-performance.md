@@ -1,5 +1,79 @@
 # Homepage performance
 
+## September 16 report follow-up
+
+The supplied [mobile report](https://pagespeed.web.dev/analysis/https-ezimageai-com/6exzd6cohp?form_factor=mobile)
+scores 69 for performance, 100 for accessibility, 92 for best practices and 92 for SEO.
+The matching [desktop report](https://pagespeed.web.dev/analysis/https-ezimageai-com/6exzd6cohp?form_factor=desktop)
+scores 70, 100, 96 and 100. Both were captured on September 16 at approximately 14:24 UTC.
+
+| Lighthouse metric   | Mobile | Desktop |
+| ------------------- | -----: | ------: |
+| FCP                 |  1.9 s |   0.5 s |
+| LCP                 |  4.1 s |   0.8 s |
+| Total blocking time | 430 ms |  530 ms |
+| Speed Index         |  7.0 s |   3.1 s |
+| CLS                 |  0.009 |   0.001 |
+
+The mobile LCP element is the consent paragraph. The desktop trace identifies the middle model
+card image. The trace breakdown is an observed measurement and must not be substituted for
+Lighthouse's simulated LCP in the table above.
+
+Changes tied to the report:
+
+- **Main-thread work and forced layout:** use `content-visibility: auto` on lower homepage
+  sections. Preserve their server HTML and estimate initial block sizes; the browser remembers
+  actual sizes after rendering. The editor and model row remain fully rendered. Keep these rules
+  in the existing studio stylesheet rather than adding another blocking stylesheet.
+- **Analytics execution:** queue visits immediately, then start GA4 and Clarity in separate
+  paint/idle windows. A blocked or stalled first vendor cannot stop the second, and an early
+  exit attempts all pending tags. Collection scope and consent behavior remain unchanged.
+- **Oversized example images:** add content-versioned 288px WebP variants. The three reported
+  assets (paper train, glasshouse, porcelain tide) total 60,924 bytes at 288px instead of 96,952
+  at 384px, a 37% reduction. Preserve the original aspect ratios and previous cached files.
+- **CSP issue:** a live browser reproduced Zod's caught `new Function` capability probe.
+  Configure its shared `jitless` setting in Next's client instrumentation before application
+  schemas initialize. Retain the production policy that disallows `unsafe-eval`.
+- **Accessible names:** include visible upload and output-setting text in their names; let
+  showcase cards derive their names from their visible content instead of replacing it.
+
+Items that do not justify unrelated code changes:
+
+- Mobile `robots.txt` failed because the audit's fetch timed out. The desktop audit passed,
+  and a fresh request returned the expected valid rules and both sitemap URLs.
+- The cache-lifetime warning concerns Clarity and Cloudflare's external scripts. Their response
+  headers are vendor-controlled. The Clarity collection timeouts are also external failures.
+- Retain independently cacheable CSS and framework browser compatibility. Do not reintroduce
+  global CSS inlining or remove Next/Cloudflare polyfills solely to suppress diagnostics.
+
+Verification uses the same local production-server setup before and after the patch, with
+anonymous capability checks disabled by the local environment and no live analytics vendor IDs.
+Two regression assertions failed before the thumbnail/name changes; three analytics assertions
+failed before the scheduling change. All 41 affected unit tests then passed. The production
+build, including TypeScript, and 10 focused Playwright scenarios passed. Those scenarios cover
+320/390/1440px editing, model selection, upload/replace/remove, the floating editor, example
+prompts, the comparison slider, motion controls, documentation styling and the CSP regression.
+
+| Local cold-load observation                     |  Before |   After |
+| ----------------------------------------------- | ------: | ------: |
+| Mobile FCP / LCP                                | 2.084 s | 1.276 s |
+| Mobile long-task blocking time (sum above 50ms) |  448 ms |  152 ms |
+| Desktop FCP                                     | 0.388 s | 0.344 s |
+| Desktop LCP                                     | 0.596 s | 0.552 s |
+| CSP violations                                  |       1 |       0 |
+
+These are single controlled observations, not online PageSpeed scores or a statistical benchmark.
+Mobile emulation uses a 412x823 viewport at DPR 1.75, 150ms network latency, 200 KiB/s download
+and 4x CPU slowdown; desktop uses 1350x940, 40ms and 1.25 MiB/s. Local CLS was unchanged
+(0.090 mobile and 0.021 desktop). The build still has 39 referenced script files and three
+cacheable stylesheets; the patch does not claim to remove the framework's unused-JavaScript
+diagnostic. HTML remains below 64 KiB gzip and the aggregate text payload below 520 KiB gzip.
+
+Evidence: `.wrangler/evidence/pagespeed-2026-09-16/`. These measurements were collected locally
+before publication. Deployment and a new online PageSpeed score are not certified by these checks.
+
+## Previous investigation
+
 Local investigation and verification: September 15, 2026. Baseline commit:
 `11f967c80c01ac14cee877b81caf9bbb84224e5c`.
 

@@ -647,7 +647,11 @@ export function LandingGenerator() {
 										? "border-violet-200 bg-violet-400/12"
 										: "border-white/20 hover:bg-white/[0.035] hover:border-[#c9b9ff]/70"
 								}`}
-								aria-label={file ? t("replaceImage") : t("uploadLabel")}
+								aria-label={
+									file
+										? t("replaceImage")
+										: `${t("reference")}: ${t("uploadLabel")}. ${t("fileHint", { megabytes: maximumMegabytes })}`
+								}
 								disabled={isBusy}
 								onClick={() => {
 									beginUpload();
