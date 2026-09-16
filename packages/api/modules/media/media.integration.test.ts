@@ -31,9 +31,11 @@ describe("media browser contract", () => {
 		);
 	});
 
-	it("maps rejected and review-required prompts to one stable public policy code", () => {
+	it("distinguishes rejected prompts from an incomplete safety review", () => {
 		expect(stableMediaErrorCode(new Error("TEXT_MODERATION_REJECT"))).toBe("CONTENT_NOT_ALLOWED");
-		expect(stableMediaErrorCode(new Error("TEXT_MODERATION_REVIEW"))).toBe("CONTENT_NOT_ALLOWED");
+		expect(stableMediaErrorCode(new Error("TEXT_MODERATION_REVIEW"))).toBe(
+			"SAFETY_CHECK_UNAVAILABLE",
+		);
 	});
 
 	it.each([

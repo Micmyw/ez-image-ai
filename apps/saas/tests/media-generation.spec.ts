@@ -430,7 +430,9 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		expect(bindings[0]!.moderationStatus).toBe("REJECTED");
 		const reservation = await reservationFor(job.id);
 		expect(reservation.settledAmount).toBe("0");
-		await expect(page.getByText(/could not pass the safety review/i)).toBeVisible({
+		await expect(
+			page.getByText(/was blocked by the content-safety check and cannot be shown/i),
+		).toBeVisible({
 			timeout: 30_000,
 		});
 		await page.goto("/assets");
