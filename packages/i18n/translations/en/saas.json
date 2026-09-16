@@ -1,9 +1,27 @@
 {
 	"publicContent": {
 		"contact": {
-			"description": "Contact {appName} for help with image editing, your account, billing, or privacy.",
+			"description": "Contact {appName} for support or to report prohibited content.",
 			"emailCta": "Email the EzPic operator at:",
-			"unavailable": "Email support is temporarily unavailable. Please check back later."
+			"unavailable": "Email support is temporarily unavailable. Please check back later.",
+			"reporting": {
+				"footerLabel": "Report content",
+				"title": "Report prohibited content",
+				"description": "Report an unsafe AI-generated image, a prohibited edit, impersonation, or a rights violation to the EzPic operator. Anyone can report a concern; no account is required.",
+				"emailCta": "Email a content report",
+				"detailsTitle": "What to include",
+				"details": {
+					"violation": "Describe the suspected violation and why it concerns you. For infringement or impersonation, explain your connection to the affected work or person.",
+					"reference": "Tell us when and where you encountered it. Include a job or asset reference, or a public page address, if available.",
+					"reply": "Use an email address where the operator can reach you for clarification and the outcome. Put Content report in the subject."
+				},
+				"safety": "Do not send passwords, tokens, cookies, private signed media links, or unnecessary personal data. Do not download, attach, or forward suspected child sexual abuse material or other illegal content; describe it and provide an existing reference instead.",
+				"urgentTitle": "Urgent safety reports",
+				"urgent": "For child safety, terrorism, or imminent serious harm, put URGENT content report in the subject. Initial response: within 2 hours. Action completed: within 24 hours, including weekends. For immediate danger to life, also contact the appropriate emergency service.",
+				"process": "The operator acknowledges, classifies, reviews, and acts on reports, then replies with the outcome where privacy and law allow. The content policy lists all four severity levels and handling times. If a review needs longer, you will receive the reason and an updated timeframe.",
+				"appeal": "To challenge a decision, email the same address with Content appeal in the subject and explain the decision and any new evidence. Appeals receive a response within 10 business days.",
+				"policyLink": "Read the content policy and all response times"
+			}
 		}
 	},
 	"admin": {

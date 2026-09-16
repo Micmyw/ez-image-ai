@@ -1,9 +1,27 @@
 {
 	"publicContent": {
 		"contact": {
-			"description": "Contacta con {appName} para recibir ayuda con la edición de imágenes, tu cuenta, la facturación o la privacidad.",
+			"description": "Contacta con {appName} para recibir ayuda o denunciar contenido prohibido.",
 			"emailCta": "Escribe al operador de EzPic:",
-			"unavailable": "El soporte por correo no está disponible temporalmente. Vuelve a consultar más tarde."
+			"unavailable": "El soporte por correo no está disponible temporalmente. Vuelve a consultar más tarde.",
+			"reporting": {
+				"footerLabel": "Denunciar contenido",
+				"title": "Denunciar contenido prohibido",
+				"description": "Informa al operador de EzPic sobre imágenes de IA inseguras, ediciones prohibidas, suplantaciones o vulneraciones de derechos. Cualquier persona puede denunciar; no hace falta una cuenta.",
+				"emailCta": "Enviar una denuncia por correo",
+				"detailsTitle": "Qué información incluir",
+				"details": {
+					"violation": "Describe la posible infracción y el motivo de tu preocupación. Si se trata de una vulneración de derechos o suplantación, explica tu relación con la obra o persona afectada.",
+					"reference": "Indica cuándo y dónde encontraste el contenido. Incluye una referencia del trabajo o archivo, o la dirección de una página pública, si la tienes.",
+					"reply": "Usa un correo donde el operador pueda pedir aclaraciones y comunicarte el resultado. Escribe Content report en el asunto."
+				},
+				"safety": "No envíes contraseñas, tokens, cookies, enlaces privados firmados ni datos personales innecesarios. No descargues, adjuntes ni reenvíes posible material de abuso sexual infantil u otro contenido ilegal; descríbelo y facilita una referencia existente.",
+				"urgentTitle": "Denuncias urgentes de seguridad",
+				"urgent": "Para riesgos a menores, terrorismo o daños graves inminentes, escribe URGENT content report en el asunto. Respuesta inicial: en 2 horas. Actuación completada: en 24 horas, incluidos los fines de semana. Si hay peligro inmediato para la vida, contacta también con el servicio de emergencias correspondiente.",
+				"process": "El operador acusa recibo, clasifica y revisa las denuncias, toma medidas y comunica el resultado cuando la privacidad y la ley lo permiten. La política de contenido incluye los cuatro niveles de gravedad y sus plazos. Si la revisión necesita más tiempo, recibirás el motivo y un plazo actualizado.",
+				"appeal": "Para recurrir una decisión, escribe a la misma dirección con Content appeal en el asunto y explica la decisión y las nuevas pruebas. Los recursos reciben respuesta en 10 días hábiles.",
+				"policyLink": "Leer la política de contenido y todos los plazos"
+			}
 		}
 	},
 	"admin": {

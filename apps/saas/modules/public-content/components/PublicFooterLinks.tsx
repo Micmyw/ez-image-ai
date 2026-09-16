@@ -7,6 +7,7 @@ const publicLinks = [
 	{ href: "/blog", labelKey: "common.footer.blog" },
 	{ href: "/changelog", labelKey: "common.menu.changelog" },
 	{ href: "/contact", labelKey: "common.menu.contact" },
+	{ href: "/contact#report-content", labelKey: "publicContent.contact.reporting.footerLabel" },
 	{ href: "/docs", labelKey: "common.menu.docs" },
 ] as const;
 

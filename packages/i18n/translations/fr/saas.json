@@ -1,9 +1,27 @@
 {
 	"publicContent": {
 		"contact": {
-			"description": "Contactez {appName} pour obtenir de l’aide sur la retouche, votre compte, la facturation ou la confidentialité.",
+			"description": "Contactez {appName} pour obtenir de l’aide ou signaler un contenu interdit.",
 			"emailCta": "Écrivez à l’opérateur d’EzPic :",
-			"unavailable": "Le support par e-mail est temporairement indisponible. Veuillez revenir plus tard."
+			"unavailable": "Le support par e-mail est temporairement indisponible. Veuillez revenir plus tard.",
+			"reporting": {
+				"footerLabel": "Signaler un contenu",
+				"title": "Signaler un contenu interdit",
+				"description": "Signalez à l’opérateur d’EzPic une image IA dangereuse, une retouche interdite, une usurpation d’identité ou une atteinte aux droits. Tout le monde peut faire un signalement ; aucun compte n’est nécessaire.",
+				"emailCta": "Envoyer un signalement par e-mail",
+				"detailsTitle": "Informations à fournir",
+				"details": {
+					"violation": "Décrivez l’infraction présumée et ce qui vous préoccupe. En cas d’atteinte aux droits ou d’usurpation, précisez votre lien avec l’œuvre ou la personne concernée.",
+					"reference": "Indiquez quand et où vous avez trouvé le contenu. Ajoutez, si possible, une référence de tâche ou de média, ou l’adresse d’une page publique.",
+					"reply": "Utilisez une adresse à laquelle l’opérateur peut demander des précisions et communiquer le résultat. Indiquez Content report dans l’objet."
+				},
+				"safety": "N’envoyez pas de mots de passe, jetons, cookies, liens privés signés ou données personnelles inutiles. Ne téléchargez, ne joignez et ne transférez pas de contenus présumés d’abus sexuels sur mineurs ou d’autres contenus illégaux ; décrivez-les et fournissez une référence existante.",
+				"urgentTitle": "Signalements de sécurité urgents",
+				"urgent": "Pour la sécurité des enfants, le terrorisme ou un danger grave imminent, indiquez URGENT content report dans l’objet. Première réponse : sous 2 heures. Mesure exécutée : sous 24 heures, week-ends compris. En cas de danger immédiat pour la vie, contactez aussi le service d’urgence compétent.",
+				"process": "L’opérateur accuse réception, classe et examine les signalements, prend les mesures nécessaires puis communique le résultat lorsque la confidentialité et la loi le permettent. La politique de contenu détaille les quatre niveaux de gravité et leurs délais. Si l’examen prend plus de temps, vous recevrez le motif et un nouveau délai.",
+				"appeal": "Pour contester une décision, écrivez à la même adresse avec Content appeal dans l’objet et expliquez la décision ainsi que les nouveaux éléments. Les recours reçoivent une réponse sous 10 jours ouvrés.",
+				"policyLink": "Lire la politique de contenu et tous les délais"
+			}
 		}
 	},
 	"admin": {

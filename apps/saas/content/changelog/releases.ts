@@ -1,5 +1,14 @@
 export const publicChangelogEntries = [
 	{
+		date: "2026-09-16",
+		title: "Content policy and reporting",
+		changes: [
+			"Expanded the Terms of Service with prohibited content, moderation, enforcement, and appeals.",
+			"Added a Report content link in the footer and instructions on the Contact page, available without an account.",
+			"Published response and handling times for all four report severity levels.",
+		],
+	},
+	{
 		date: "2026-09-15",
 		title: "Lighter homepage on mobile",
 		changes: [

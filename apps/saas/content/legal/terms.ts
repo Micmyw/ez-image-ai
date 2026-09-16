@@ -5,7 +5,7 @@ export const termsDocuments = [
 		title: "Terms of Service",
 		description:
 			"Terms for EzPic accounts, image-editing workflows, credits, subscriptions, content, and acceptable use.",
-		body: `_Last updated: September 12, 2026_
+		body: `_Last updated: September 16, 2026_
 
 These terms govern use of EzPic's public image editor and account-based image-editing service. EzPic is an independently operated service run by an individual. In these terms, "EzPic" refers to the service and its operator. You can reach the operator through the [Contact page](/contact). By using the service, you agree to the version presented when you use it.
 
@@ -29,11 +29,63 @@ You retain the rights you have in source images and edit instructions. You grant
 
 Generated results can contain errors, artifacts, or unintended similarities. Review every result before publishing or relying on it. EzPic does not promise that a result is unique, suitable for a particular purpose, or free of third-party rights.
 
-## Acceptable use and safety
+## Acceptable Use Policy for AI-generated content
 
-Do not use EzPic to violate law or third-party rights; evade safety controls; distribute malware; impersonate or deceive people unlawfully; exploit minors; create prohibited sexual or violent abuse material; or interfere with the service. A flexible prompt-based workflow does not remove safety, moderation, legal, Provider, plan, or usage limits.
+This content policy is part of these terms. It applies to prompts, uploaded source images, generated or edited images, and content stored or shared through EzPic, including anonymous trials. EzPic is an AI image-editing service; its results are AI-generated or AI-edited. "No Restrictions" describes flexible prompt editing, not an exemption from content safety, legal requirements, model capabilities, or plan and usage limits.
 
-EzPic may reject, pause, or remove content and may restrict an account when reasonably necessary for safety, security, legal compliance, payment integrity, or service protection.
+### Prohibited content
+
+Do not request, upload, generate, edit, store, or distribute any of the following through EzPic:
+
+- **Pornography / NSFW content:** pornographic, sexually explicit, or sexual exploitation content. EzPic does not offer an adult-content exception.
+- **Violence / gore:** graphic violence, severe injury or gore, threats, or content encouraging violent harm or self-harm.
+- **Hate speech:** content attacking, dehumanizing, or inciting discrimination, hostility, or violence against people based on race, ethnicity, nationality, religion, sex, gender identity, sexual orientation, disability, or other protected characteristics.
+- **Child sexual abuse material (CSAM) and child exploitation:** any sexual content involving minors, including synthetic depictions, sexualization, grooming, or exploitation of children.
+- **Deepfakes / impersonation:** deceptive impersonation of real people or organizations, nonconsensual use of a person's likeness, or fabricated intimate content. Never use an edit to mislead others about someone's identity, actions, or endorsement.
+- **Copyright / trademark infringement:** content that infringes another person's copyright, trademark, or other intellectual property rights. You must have the rights and permissions needed for your source material and intended use.
+
+EzPic has zero tolerance for child sexual exploitation, terrorism or violent extremism, assistance with mass violence or weapons of mass destruction, incitement to genocide or ethnic hatred, and nonconsensual sexual deepfakes. Credible reports of imminent harm receive urgent attention and protective action; unlawful activity may be referred to competent authorities where required or permitted by law.
+
+Do not use the service for fraud, harmful misinformation, harassment, spam, malware, or unlawful privacy violations. Do not falsely present AI-generated content as an authentic photograph or as entirely human-created in order to deceive. Do not evade moderation, jailbreak safety controls, bypass access or usage limits, or interfere with the service.
+
+### How content is reviewed
+
+EzPic screens text instructions before generation with Sightengine and, when its production integration is active, Waffo Prompt Sift. Uploaded source images and generated outputs pass through image safety checks using Sightengine before they become available for editing or viewing. A rejection, a review requirement, or an unavailable check does not authorize generation or release unapproved output. Automated checks can make mistakes and do not establish ownership, consent, or the legality of every result.
+
+The individual EzPic operator reviews content reports and appeals, using the information provided and relevant private safety records. Source images and results are private to the account or temporary guest session; EzPic does not publish them to a public gallery. A report does not grant the reporter access to another user's private media.
+
+### Report prohibited content
+
+Anyone, including a person without an EzPic account, can report prohibited generated content or misuse by emailing **support@ezimageai.com**. Use the [Report content entry on the Contact page](/contact#report-content), also linked from the site footer. Put **Content report** in the subject, or **URGENT content report** for child safety, terrorism, or an imminent threat to a person's safety.
+
+Include the suspected violation, a brief description, when and where you encountered it, and any available job or asset reference or publicly accessible page address. If you are reporting infringement or impersonation, explain your connection to the affected work, person, or organization. Include a reply address so the operator can request clarification and communicate the outcome. You do not need access to another user's account to make a report.
+
+Do not send passwords, authentication tokens, cookies, private signed media links, or unnecessary personal information. Do not download, attach, or forward suspected CSAM or other illegal material; provide a description and an existing reference instead. For an immediate danger to life, contact the appropriate emergency service as well as reporting the content.
+
+Reports are assessed objectively and in good faith. Reporter information is handled confidentially and shared only as needed to investigate, protect users, or comply with law, as described in the [Privacy Policy](/privacy). Deliberately false or abusive reports may themselves lead to restrictions; a good-faith report does not require proof that a violation has occurred.
+
+### Response and handling times
+
+The operator acknowledges the report, assigns a severity, reviews the available information and relevant safety records, decides and carries out an appropriate action, and replies with the outcome to the extent privacy and law allow. These timeframes run from receipt at the reporting mailbox:
+
+- **L1 — Critical:** child safety, terrorism, or imminent serious harm. Initial response within **2 hours**; action completed within **24 hours**.
+- **L2 — High risk:** other serious violations, such as nonconsensual intimate deepfakes or severe targeted hate and threats. Initial response within **24 hours**; action completed within **3 business days**.
+- **L3 — Medium risk:** other non-urgent policy or rights complaints. Initial response within **3 business days**; action completed within **7 business days**.
+- **L4 — Low risk:** minor violations or low-risk correction requests. Initial response within **5 business days**; action completed within **15 business days**.
+
+Hour-based windows are elapsed hours, including weekends. Business days are Monday through Friday, measured in UTC. If additional evidence or a legal investigation requires more time, the operator will notify the reporter before the applicable deadline, explain the reason, and provide an updated timeframe. Necessary protective restrictions are not postponed while awaiting a final decision.
+
+### Enforcement
+
+Depending on severity, evidence, and repeated misuse, EzPic may warn the user, reject an edit, withhold or remove prohibited media, restrict features, suspend access, or terminate an account. Serious or repeated violations can result in permanent loss of access. Suspected unlawful activity may be reported to competent authorities, and relevant evidence may be preserved as required or permitted by law. Actions apply to content and access under EzPic's control; EzPic cannot remove copies hosted by unrelated services.
+
+Account and media restrictions do not bypass the existing credit and billing rules. Any billing adjustment or refund is assessed under the applicable payment terms and law.
+
+### Appeals and policy updates
+
+If you believe a restriction or report decision was mistaken, email **support@ezimageai.com** with **Content appeal** in the subject, the decision or reference involved, and your explanation or new evidence. The operator will reconsider the decision and respond within **10 business days**. If further review is needed, the operator will explain the delay and provide an updated timeframe. Necessary safety restrictions can remain in place during review.
+
+Changes to this policy are published with the updated date on this page. Continued use after an update constitutes acceptance of the revised terms, subject to any notice or consent required by applicable law.
 
 ## Service availability
 
@@ -45,6 +97,6 @@ You may stop using the service and manage an active subscription through the ava
 
 ## Contact
 
-For terms, billing, or account questions, [contact the EzPic operator](/contact). Do not send passwords, authentication tokens, cookies, or private signed media links in a support request. Nothing in these terms excludes rights or protections that applicable law does not allow you to waive.`,
+For terms, billing, or account questions, [contact the EzPic operator](/contact). For prohibited content, use [Report content](/contact#report-content) or email support@ezimageai.com. Do not send passwords, authentication tokens, cookies, or private signed media links in a support request. Nothing in these terms excludes rights or protections that applicable law does not allow you to waive.`,
 	},
 ] as const;

@@ -13,6 +13,8 @@ This policy explains how EzPic handles information when you use the public image
 
 EzPic handles account and authentication records, subscription and credit-ledger records, product settings, and operational records needed to create and recover an edit. When you use the editor, the service also handles the source image, your edit instruction, quotes, generation status, moderation evidence, and resulting image.
 
+If you contact support, report prohibited content, or appeal a decision, EzPic handles your reply address, description, references, and correspondence to investigate and respond. The operator limits access and disclosure to what is needed for that review, user protection, or applicable legal obligations. Do not include unnecessary personal data or copies of illegal content in a report.
+
 The public homepage can prepare a short-lived draft containing the source image, selected image product and output settings, and instruction. When the Nano Banana 2 Lite 1K guest trial is enabled and you continue, EzPic creates a temporary anonymous user and session to authorize one private source image, one instruction, one generation job, and one watermarked preview. The trial uses sponsored credits and does not create a subscription or payment charge. Other paid image products and account features require the access shown by the product.
 
 To enforce trial limits and protect the service, EzPic stores pseudonymous HMAC values derived from the temporary session, a browser device identifier, the trusted network address, and a normalized subnet. Stored values are not the raw identifiers. This evidence supports security, rate limits, replay prevention, and sponsored-risk controls; it is not used for advertising.
@@ -66,6 +68,8 @@ Diese Erklärung beschreibt, wie EzPic Informationen verarbeitet, wenn Sie den �
 ## Verarbeitete Informationen
 
 EzPic verarbeitet Konto- und Anmeldedaten, Abonnement- und Credit-Daten, Produkteinstellungen sowie Betriebsdaten, die für Erstellung und Wiederherstellung einer Bearbeitung nötig sind. Im Editor werden außerdem Quellbild, Bearbeitungsanweisung, Angebot, Generierungsstatus, Moderationsnachweise und Ergebnisbild verarbeitet.
+
+Bei Supportanfragen, Meldungen verbotener Inhalte oder Einsprüchen verarbeitet EzPic Ihre Antwortadresse, Beschreibung, Referenzen und Korrespondenz zur Prüfung und Beantwortung. Der Betreiber beschränkt Zugriff und Weitergabe auf das für die Prüfung, den Schutz der Nutzer oder gesetzliche Pflichten Erforderliche. Fügen Sie einer Meldung keine unnötigen personenbezogenen Daten oder Kopien illegaler Inhalte bei.
 
 Die öffentliche Startseite kann einen kurzlebigen Entwurf mit Quellbild, ausgewähltem Bildprodukt und Ausgabeeinstellungen sowie einer Anweisung erstellen. Wenn der Nano-Banana-2-Lite-1K-Gasttest aktiviert ist und Sie fortfahren, erstellt EzPic vorübergehend einen anonymen Benutzer und eine Sitzung. Damit werden ein privates Quellbild, eine Anweisung, ein Auftrag und eine mit Wasserzeichen versehene Vorschau autorisiert. Der Test verwendet gesponserte Credits und erzeugt weder ein Abonnement noch eine Zahlung. Andere kostenpflichtige Bildprodukte und Kontofunktionen erfordern den im Produkt angezeigten Zugriff.
 

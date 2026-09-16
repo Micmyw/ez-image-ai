@@ -1,9 +1,27 @@
 {
 	"publicContent": {
 		"contact": {
-			"description": "Kontaktieren Sie {appName} bei Fragen zu Bildbearbeitung, Konto, Abrechnung oder Datenschutz.",
+			"description": "Kontaktieren Sie {appName} für Unterstützung oder um verbotene Inhalte zu melden.",
 			"emailCta": "Schreiben Sie dem EzPic-Betreiber an:",
-			"unavailable": "Der E-Mail-Support ist vorübergehend nicht verfügbar. Bitte schauen Sie später noch einmal vorbei."
+			"unavailable": "Der E-Mail-Support ist vorübergehend nicht verfügbar. Bitte schauen Sie später noch einmal vorbei.",
+			"reporting": {
+				"footerLabel": "Inhalte melden",
+				"title": "Verbotene Inhalte melden",
+				"description": "Melden Sie dem EzPic-Betreiber ein unsicheres KI-generiertes Bild, eine verbotene Bearbeitung, Identitätsmissbrauch oder eine Rechtsverletzung. Jeder kann eine Meldung einreichen; ein Konto ist nicht erforderlich.",
+				"emailCta": "Inhalt per E-Mail melden",
+				"detailsTitle": "Benötigte Angaben",
+				"details": {
+					"violation": "Beschreiben Sie den vermuteten Verstoß und Ihre Bedenken. Erklären Sie bei Rechtsverletzungen oder Identitätsmissbrauch Ihren Bezug zum betroffenen Werk oder zur Person.",
+					"reference": "Geben Sie an, wann und wo Sie den Inhalt gefunden haben. Fügen Sie nach Möglichkeit eine Auftrags- oder Medienreferenz oder die Adresse einer öffentlichen Seite hinzu.",
+					"reply": "Verwenden Sie eine E-Mail-Adresse für Rückfragen und das Ergebnis. Schreiben Sie Content report in den Betreff."
+				},
+				"safety": "Senden Sie keine Passwörter, Tokens, Cookies, privaten signierten Medienlinks oder unnötigen personenbezogenen Daten. Laden Sie mutmaßliche Darstellungen sexuellen Kindesmissbrauchs oder andere illegale Inhalte nicht herunter und versenden Sie sie nicht als Anhang oder Weiterleitung; beschreiben Sie diese und nennen Sie eine vorhandene Referenz.",
+				"urgentTitle": "Dringende Sicherheitsmeldungen",
+				"urgent": "Schreiben Sie bei Kindesgefährdung, Terrorismus oder unmittelbar drohendem schwerem Schaden URGENT content report in den Betreff. Erste Antwort: innerhalb von 2 Stunden. Maßnahme abgeschlossen: innerhalb von 24 Stunden, auch am Wochenende. Wenden Sie sich bei unmittelbarer Lebensgefahr zusätzlich an den zuständigen Notdienst.",
+				"process": "Der Betreiber bestätigt, klassifiziert und prüft Meldungen, ergreift Maßnahmen und teilt das Ergebnis mit, soweit Datenschutz und Recht dies erlauben. Die Inhaltsrichtlinie nennt alle vier Risikostufen und Bearbeitungsfristen. Dauert eine Prüfung länger, erhalten Sie eine Begründung und eine aktualisierte Frist.",
+				"appeal": "Für einen Einspruch schreiben Sie an dieselbe Adresse mit Content appeal im Betreff und erläutern Sie die Entscheidung sowie neue Nachweise. Einsprüche werden innerhalb von 10 Geschäftstagen beantwortet.",
+				"policyLink": "Inhaltsrichtlinie und alle Antwortfristen lesen"
+			}
 		}
 	},
 	"admin": {

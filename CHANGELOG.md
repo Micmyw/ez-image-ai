@@ -22,6 +22,12 @@
 
 ### Content safety
 
+- Add an Acceptable Use Policy chapter to the public terms with all six prohibited content
+  categories, the real moderation workflow, report handling, enforcement, and appeals. Publish
+  the operator-approved L1-L4 response and action times from Waffo's template.
+- Add an unauthenticated Report content entry on Contact and in shared public footers, using
+  the support mailbox. Explain safe reporting, urgent subjects, and report data handling;
+  synchronize the four UI locales and public documentation.
 - Require both existing text moderation and the production payment partner's prompt scan before
   generating images. Cover signed-in requests, guest trials, and retries; stop on review, rejection,
   unavailable checks, or incomplete responses before authorizing generation credits.
