@@ -415,23 +415,30 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		expect(growthEvents.map(({ name }) => name)).not.toContain("editor_generation_succeeded");
 	});
 
-	test("moderation rejection quarantines the exact output and charges zero", async ({
+	test("unclassified moderation rejection quarantines the exact output and charges zero", async ({
 		page,
 	}, testInfo) => {
 		const prompt = marker("moderation-rejection", "Unsafe output fixture", testInfo.retry);
 		await createScenario(page, prompt);
 		const job = await waitForJob(prompt, "FAILED");
-		const bindings = await rows<{ assetId: string; status: string; moderationStatus: string }>(
-			`SELECT b."assetId", a.status, m.status AS "moderationStatus" FROM generation_job_asset b JOIN media_asset a ON a.id=b."assetId" LEFT JOIN asset_moderation_result m ON m."assetId"=a.id WHERE b."jobId"=$1 AND b.role='OUTPUT'`,
+		const bindings = await rows<{
+			assetId: string;
+			status: string;
+			moderationStatus: string;
+			moderationReason: string;
+		}>(
+			`SELECT b."assetId", a.status, m.status AS "moderationStatus", m."reasonCode" AS "moderationReason" FROM generation_job_asset b JOIN media_asset a ON a.id=b."assetId" LEFT JOIN asset_moderation_result m ON m."assetId"=a.id WHERE b."jobId"=$1 AND b.role='OUTPUT'`,
 			[job.id],
 		);
 		expect(bindings).toHaveLength(1);
 		expect(bindings[0]!.status).toBe("QUARANTINED");
 		expect(bindings[0]!.moderationStatus).toBe("REJECTED");
+		// The generic fixture has no classifier evidence of a policy violation.
+		expect(bindings[0]!.moderationReason).toBe("TEST_DECISION");
 		const reservation = await reservationFor(job.id);
 		expect(reservation.settledAmount).toBe("0");
 		await expect(
-			page.getByText(/was blocked by the content-safety check and cannot be shown/i),
+			page.getByText(/could not complete the safety review.*one-time waiver was not used/i),
 		).toBeVisible({
 			timeout: 30_000,
 		});
