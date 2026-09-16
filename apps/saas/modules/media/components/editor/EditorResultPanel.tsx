@@ -17,6 +17,7 @@ import { isEditorProductKey, type EditorProductKey } from "../../lib/editor-reco
 import { getSignedComparisonState, requestPrivateDownload } from "../../lib/editor-result";
 import { isPublicImageSkuKey } from "../../lib/image-sku-selection";
 import { getJobPresentation } from "../../lib/job-status";
+import { ModerationNotice } from "../ModerationNotice";
 import { BeforeAfterSlider } from "./BeforeAfterSlider";
 
 export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNew: () => void }) {
@@ -101,14 +102,12 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 				</div>
 			)}
 			<p className="mt-5 p-3 text-sm rounded-xl bg-muted/40">{creditSummary(t, job.data)}</p>
-			{job.data.failureReason === "CONTENT_NOT_ALLOWED" && (
-				<Alert className="mt-5" variant="error">
-					<AlertDescription>{t("moderationRejected")}</AlertDescription>
-				</Alert>
-			)}
-			{job.data.status === "FAILED" && job.data.failureReason !== "CONTENT_NOT_ALLOWED" && (
-				<p className="mt-4 text-sm text-muted-foreground">{t("failureHelp")}</p>
-			)}
+			<ModerationNotice job={job.data} />
+			{job.data.status === "FAILED" &&
+				job.data.failureReason !== "CONTENT_NOT_ALLOWED" &&
+				job.data.failureReason !== "SAFETY_CHECK_UNAVAILABLE" && (
+					<p className="mt-4 text-sm text-muted-foreground">{t("failureHelp")}</p>
+				)}
 			{job.data.status === "SUCCEEDED" && source && output && (
 				<div className="mt-6">
 					<SignedComparison
@@ -341,7 +340,7 @@ function creditSummary(
 		creditsReleased: string;
 	},
 ) {
-	if (job.status === "SUCCEEDED") {
+	if (job.status === "SUCCEEDED" || (job.status === "FAILED" && job.creditsCharged !== "0")) {
 		return t("creditSummarySucceeded", {
 			charged: job.creditsCharged,
 			released: job.creditsReleased,

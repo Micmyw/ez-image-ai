@@ -44,6 +44,7 @@ export interface CreateGenerationJobInput {
 	inputAssetIds: string[];
 	expectedInputAssets?: Array<{ assetId: string; assetChecksum: string }>;
 	expectedModerationRuleVersion: string;
+	expectedModerationProvider?: string;
 	expectedAssetModerationRuleVersion?: string;
 	expectedAssetModerationPolicyVersion?: string;
 	maximumDailyCostMicros?: bigint;

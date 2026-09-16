@@ -12,9 +12,11 @@ import { useJob } from "../hooks/use-job";
 import { isEditorProductKey } from "../lib/editor-recovery";
 import { isPublicImageSkuKey } from "../lib/image-sku-selection";
 import { getJobPresentation } from "../lib/job-status";
+import { ModerationNotice } from "./ModerationNotice";
 
 export function JobDetail({ jobId }: { jobId: string }) {
 	const t = useTranslations("media.detail");
+	const create = useTranslations("media.create");
 	const stages = useTranslations("media.status.stages");
 	const products = useTranslations("media.create.products");
 	const skus = useTranslations("media.create.skus");
@@ -74,9 +76,19 @@ export function JobDetail({ jobId }: { jobId: string }) {
 						<dd className="font-medium">{job.data.creditsReleased}</dd>
 					</div>
 				</dl>
-				{presentation.stage === "failed" && (
-					<p className="mt-5 p-4 text-sm rounded-xl bg-destructive/10">{t("safeFailure")}</p>
-				)}
+				<ModerationNotice job={job.data} />
+				{presentation.stage === "failed" &&
+					job.data.failureReason !== "CONTENT_NOT_ALLOWED" &&
+					job.data.failureReason !== "SAFETY_CHECK_UNAVAILABLE" && (
+						<p className="mt-5 p-4 text-sm rounded-xl bg-destructive/10">{t("safeFailure")}</p>
+					)}
+				{canReuse &&
+					presentation.stage === "failed" &&
+					job.data.failureReason !== "CONTENT_NOT_ALLOWED" && (
+						<p className="mt-4 text-sm text-muted-foreground">
+							{create("moderationBillingPolicy")}
+						</p>
+					)}
 				<div className="mt-6 gap-2 flex flex-wrap">
 					{canReuse && (
 						<Button
@@ -86,11 +98,13 @@ export function JobDetail({ jobId }: { jobId: string }) {
 							{t("reuse")}
 						</Button>
 					)}
-					{canReuse && presentation.stage === "failed" && (
-						<Button variant="secondary" onClick={() => void retry()}>
-							{t("retry")}
-						</Button>
-					)}
+					{canReuse &&
+						presentation.stage === "failed" &&
+						job.data.failureReason !== "CONTENT_NOT_ALLOWED" && (
+							<Button variant="secondary" onClick={() => void retry()}>
+								{t("retry")}
+							</Button>
+						)}
 				</div>
 			</div>
 		</div>

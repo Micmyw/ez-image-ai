@@ -1,7 +1,5 @@
-import { ScanSemanticMode } from "@waffo/pancake-ts";
+import { ScanSemanticMode, WaffoPancake } from "@waffo/pancake-ts";
 import { z } from "zod";
-
-import { createWaffoClient } from "./index";
 
 const verdictSchema = z.object({
 	action: z.enum(["allow", "review", "block"]),
@@ -45,7 +43,12 @@ export interface WaffoPromptDecision {
 }
 
 export function createWaffoPromptScanner(environment: Record<string, string | undefined>) {
-	const client = createWaffoClient(environment, { fetch: fetchPromptScan });
+	// This is a merchant-signed verification action, independent of checkout sessions
+	// and payment webhook verification. It always uses the documented API origin.
+	const merchantId = environment.WAFFO_MERCHANT_ID?.trim();
+	const privateKey = environment.WAFFO_PRIVATE_KEY?.trim();
+	if (!merchantId || !privateKey) throw new Error("WAFFO_CONFIGURATION_INCOMPLETE");
+	const client = new WaffoPancake({ merchantId, privateKey, fetch: fetchPromptScan });
 	return async (prompt: string): Promise<WaffoPromptDecision> => {
 		if (!prompt.trim() || prompt.length > 10_000) {
 			return { decision: "ERROR", reasonCode: "MODERATION_INVALID_INPUT" };
@@ -100,7 +103,14 @@ const fetchPromptScan: typeof fetch = async (input, init) => {
 	// an identical prompt still needs a fresh verdict after a policy change.
 	const headers = new Headers(init?.headers);
 	headers.delete("x-idempotency-key");
-	const response = await fetch(input, { ...init, headers, redirect: "error" });
+	const response = await fetch(input, {
+		...init,
+		headers,
+		redirect: "error",
+		signal: init?.signal
+			? AbortSignal.any([init.signal, AbortSignal.timeout(15_000)])
+			: AbortSignal.timeout(15_000),
+	});
 	if (
 		!response.ok ||
 		Number(response.headers.get("content-length")) > MAX_PROMPT_SCAN_RESPONSE_BYTES

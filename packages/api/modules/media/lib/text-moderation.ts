@@ -3,16 +3,17 @@ import {
 	type MediaSafetyAdapter,
 	type ModerationDecision,
 } from "@repo/ai";
+import { moderationConfiguration } from "@repo/config";
 import {
 	fingerprintGenerationQuoteSecurityPayload,
 	type CreateModeratedGenerationQuoteInput,
 } from "@repo/database/media-quotes";
 import { createWaffoPromptScanner } from "@repo/payments/waffo-content-safety";
 
-export const TEXT_MODERATION_RULE_VERSION = "text-safety-2026-09-16.1";
+export const TEXT_MODERATION_RULE_VERSION = "text-safety-2026-09-16.2";
 
 export interface TextModerationEvidence extends ModerationDecision {
-	provider: "sightengine" | "sightengine+waffo" | "test";
+	provider: "sightengine" | "sightengine+waffo" | "waffo" | "test";
 	inputFingerprint: string;
 }
 
@@ -60,43 +61,52 @@ export function createTextModerationAdapter(environment: Record<string, string |
 			}),
 		};
 	}
-	if (
-		environment.MEDIA_SAFETY_ADAPTER !== "sightengine" ||
-		!environment.SIGHTENGINE_API_USER ||
-		!environment.SIGHTENGINE_API_SECRET
-	) {
+	const config = moderationConfiguration(environment);
+	if (!config.textWaffo && !config.textSightengine)
 		throw new Error("TEXT_MODERATION_CONFIGURATION_ERROR");
-	}
-	const adapter = createMediaSafetyAdapter({
-		kind: "sightengine",
-		nodeEnv,
-		apiUser: environment.SIGHTENGINE_API_USER,
-		apiSecret: environment.SIGHTENGINE_API_SECRET,
-	});
-	if (environment.WAFFO_ENVIRONMENT !== "prod") return { provider: "sightengine", adapter };
-	// Every generation path uses this boundary. Live Waffo credentials require
-	// its pre-generation scan even for guests and customers paying another way.
-	const scanWaffo = createWaffoPromptScanner(environment);
+	if (
+		config.textSightengine &&
+		(!environment.SIGHTENGINE_API_USER || !environment.SIGHTENGINE_API_SECRET)
+	)
+		throw new Error("TEXT_MODERATION_CONFIGURATION_ERROR");
+	const primaryAdapter = config.textSightengine
+		? createMediaSafetyAdapter({
+				kind: "sightengine",
+				nodeEnv,
+				apiUser: environment.SIGHTENGINE_API_USER!,
+				apiSecret: environment.SIGHTENGINE_API_SECRET!,
+			})
+		: undefined;
+	const scanWaffo = config.textWaffo ? createWaffoPromptScanner(environment) : undefined;
 	return {
-		provider: "sightengine+waffo",
+		provider: textModerationProviderForEnvironment(environment),
 		adapter: {
 			async moderateText(input) {
-				const primary = await adapter.moderateText(input);
-				if (primary.decision !== "ALLOW") return primary;
+				const primary = primaryAdapter ? await primaryAdapter.moderateText(input) : undefined;
+				if (primary && primary.decision !== "ALLOW") return primary;
+				if (!scanWaffo) return primary!;
 				try {
 					const secondary = await scanWaffo(input.text);
 					return {
-						...primary,
 						decision: secondary.decision,
-						reasonCode: secondary.decision === "ALLOW" ? primary.reasonCode : secondary.reasonCode,
-						...(primary.evidence
+						reasonCode:
+							secondary.decision === "ALLOW" && primary ? primary.reasonCode : secondary.reasonCode,
+						ruleVersion: input.ruleVersion,
+						...(secondary.evidence
 							? {
 									evidence: {
-										...primary.evidence,
-										...(secondary.evidence ? { waffo: secondary.evidence } : {}),
+										...(primary?.evidence ?? {
+											requestId: secondary.evidence.requestId,
+											models: ["waffo-prompt-sift"],
+											operations: 1,
+											scores: {},
+										}),
+										waffo: secondary.evidence,
 									},
 								}
-							: {}),
+							: primary?.evidence
+								? { evidence: primary.evidence }
+								: {}),
 					};
 				} catch {
 					return {
@@ -113,8 +123,12 @@ export function createTextModerationAdapter(environment: Record<string, string |
 export function textModerationProviderForEnvironment(
 	environment: Record<string, string | undefined>,
 ): TextModerationEvidence["provider"] {
-	if (environment.MEDIA_SAFETY_ADAPTER !== "sightengine") return "test";
-	return environment.WAFFO_ENVIRONMENT === "prod" ? "sightengine+waffo" : "sightengine";
+	if (environment.MEDIA_SAFETY_ADAPTER === "test" || !environment.MEDIA_SAFETY_ADAPTER)
+		return "test";
+	const config = moderationConfiguration(environment);
+	if (config.textWaffo) return config.textSightengine ? "sightengine+waffo" : "waffo";
+	if (config.textSightengine) return "sightengine";
+	throw new Error("TEXT_MODERATION_CONFIGURATION_ERROR");
 }
 
 function normalizedNodeEnvironment(

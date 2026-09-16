@@ -1,4 +1,5 @@
 import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
+import { imageModerationProviderForEnvironment } from "@repo/config";
 import { productModelKeySchema } from "@repo/config";
 import {
 	isSafeFalReconciliationEndpoint,
@@ -44,7 +45,7 @@ export const requeueMediaVerification = adminProcedure
 				...input,
 				actorUserId: user.id,
 				currentVerification: {
-					provider: process.env.MEDIA_SAFETY_ADAPTER ?? "test",
+					provider: imageModerationProviderForEnvironment(process.env),
 					ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 					policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 				},

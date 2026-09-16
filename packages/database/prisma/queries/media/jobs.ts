@@ -140,6 +140,8 @@ export async function createGenerationJobTransaction(
 			if (
 				quote.moderationDecision !== "ALLOW" ||
 				quote.moderationRuleVersion !== input.expectedModerationRuleVersion ||
+				(input.expectedModerationProvider !== undefined &&
+					quote.moderationProvider !== input.expectedModerationProvider) ||
 				quote.inputFingerprint !== fingerprintGenerationQuoteSecurityPayload(quote)
 			) {
 				throw new Error("TEXT_MODERATION_EVIDENCE_INVALID");

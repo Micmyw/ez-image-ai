@@ -27,7 +27,7 @@ If you sign in or register from an active trial, EzPic can create an expiry-boun
 
 EzPic may send the minimum necessary edit input to configured hosting, storage, moderation, payment, and image-processing services so they can perform the requested function. Those services do not own EzPic job, credit, or subscription state.
 
-Before generation, EzPic screens text instructions with Sightengine and, when its production integration is active, Waffo. The Waffo prompt scan receives the text instruction and scan settings, without your source image, account email, or payment details. EzPic retains limited safety decisions and request references without copying raw instructions into these moderation audit records.
+Before generation, EzPic screens text instructions using the enabled text-safety services, which can include Waffo and Sightengine. A prompt scan receives the text instruction and scan settings, without your source image, account email, or payment details. Enabled image-safety services, which can include SeeAPI and Sightengine, receive a short-lived access URL for the private uploaded or generated image. EzPic retains limited safety decisions and request references without copying raw instructions or private image URLs into these moderation audit records. A billing-account record retains whether the one-time output-block credit waiver has been used, even after related media or job history is removed.
 
 ## Analytics consent
 
@@ -83,7 +83,7 @@ Wenn Sie sich aus einem aktiven Test anmelden oder registrieren, kann EzPic vor 
 
 EzPic kann die für die angeforderte Funktion notwendigen Eingaben an konfigurierte Hosting-, Speicher-, Moderations-, Zahlungs- und Bildverarbeitungsdienste übermitteln. Diese Dienste besitzen nicht den maßgeblichen EzPic-Status für Auftrag, Credits oder Abonnement.
 
-Vor der Generierung prüft EzPic Textanweisungen mit Sightengine und bei aktiver Produktionsintegration zusätzlich mit Waffo. Die Waffo-Prüfung erhält die Textanweisung und Prüfeinstellungen, jedoch kein Quellbild, keine Konto-E-Mail-Adresse und keine Zahlungsdaten. EzPic speichert begrenzte Prüfentscheidungen und Anfragereferenzen, ohne den ursprünglichen Anweisungstext in diese Moderationsprotokolle zu kopieren.
+Vor der Generierung prüfen die aktivierten Textprüfdienste die Anweisungen; dazu können Waffo und Sightengine gehören. Sie erhalten Text und Prüfeinstellungen, jedoch kein Quellbild, keine Konto-E-Mail-Adresse und keine Zahlungsdaten. Aktivierte Bildprüfdienste wie SeeAPI und Sightengine erhalten einen kurzlebigen Zugriffslink auf das private hochgeladene oder generierte Bild. EzPic speichert begrenzte Prüfentscheidungen und Anfragereferenzen, ohne Rohtexte oder private Bildlinks in diese Moderationsprotokolle zu kopieren. Im Abrechnungskonto bleibt gespeichert, ob die einmalige Credit-Ausnahme für ein gesperrtes Ergebnis genutzt wurde, auch nach Löschung der zugehörigen Medien oder Aufträge.
 
 ## Einwilligung in Analysen
 

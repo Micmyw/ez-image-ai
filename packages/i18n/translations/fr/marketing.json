@@ -51,7 +51,7 @@
 			},
 			"failedEdits": {
 				"question": "Que deviennent les crédits si une retouche échoue ?",
-				"answer": "Lorsqu’une tâche atteint un état final d’échec confirmé, le registre restitue les crédits réservés. Une tentative dont l’acceptation par le service est incertaine n’est pas considérée comme échouée et conserve sa réservation jusqu’à sa résolution."
+				"answer": "Les échecs techniques sans résultat utilisable libèrent les crédits réservés. Si une image générée est bloquée pour son contenu, chaque compte ou équipe bénéficie d’une seule exonération ; les résultats bloqués suivants sont facturés au tarif annoncé. Les instructions ou images importées refusées ne consomment pas cette exonération. Les crédits restent réservés tant qu’une issue incertaine n’est pas résolue."
 			},
 			"privateUploads": {
 				"question": "Les images importées sont-elles publiques ?",

@@ -19,6 +19,8 @@ Outside an available anonymous trial, real generation requires an account, an ow
 
 EzPic shows the credit cost before an account-based edit is confirmed. Credits are reserved when a generation job is created, charged according to the completed job state, and released when the ledger rules require release. Credits are a product usage unit, not cash, stored value, or a transferable financial instrument.
 
+For new generation quotes, each account or team receives one lifetime credit waiver when its generated result is blocked by a confirmed content-safety rejection. Subsequent blocked results are charged at the quoted generation amount, although the image remains unavailable. Prompt or upload rejection before generation, incomplete reviews, and technical safety-check failures do not consume this waiver. A failed check with no usable result releases the reservation. Sponsored guest trials do not consume an account waiver. Job details show the actual charge and release. Contact support to appeal a suspected incorrect decision; applicable consumer rights remain unaffected.
+
 Paid Pro, Ultimate, and Max plans and current subscription prices are shown on the [Pricing page](/pricing). Any free account allowance is shown in the account. A paid checkout is available only when that payment option is offered. Recurring subscriptions continue for their stated interval until canceled. Cancellation and plan-management controls are available from the billing area, subject to applicable processing periods.
 
 Refund eligibility depends on the applicable payment terms, transaction state, and governing law. Contact support with the relevant billing details for review. EzPic does not promise a refund where one is not required or authorized.
@@ -50,7 +52,7 @@ Do not use the service for fraud, harmful misinformation, harassment, spam, malw
 
 ### How content is reviewed
 
-EzPic screens text instructions before generation with Sightengine and, when its production integration is active, Waffo Prompt Sift. Uploaded source images and generated outputs pass through image safety checks using Sightengine before they become available for editing or viewing. A rejection, a review requirement, or an unavailable check does not authorize generation or release unapproved output. Automated checks can make mistakes and do not establish ownership, consent, or the legality of every result.
+EzPic screens text instructions before generation and checks uploaded source images and generated outputs before they become available for editing or viewing. The configured services can include Waffo Prompt Sift and Sightengine for text, and SeeAPI and Sightengine for images. Every enabled check must approve the content. A rejection, a review requirement, or an unavailable check does not authorize generation or release unapproved output. Automated checks can make mistakes, have differing category coverage, and do not establish ownership, consent, or the legality of every result.
 
 The individual EzPic operator reviews content reports and appeals, using the information provided and relevant private safety records. Source images and results are private to the account or temporary guest session; EzPic does not publish them to a public gallery. A report does not grant the reporter access to another user's private media.
 

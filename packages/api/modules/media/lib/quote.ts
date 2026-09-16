@@ -9,7 +9,11 @@ import {
 	type ExecutableRouteGraphOptions,
 	type MediaModelInput,
 } from "@repo/ai";
-import { DEFAULT_PRODUCT_CONFIG, type ProductModelKey } from "@repo/config";
+import {
+	DEFAULT_PRODUCT_CONFIG,
+	OUTPUT_MODERATION_BILLING_POLICY,
+	type ProductModelKey,
+} from "@repo/config";
 import type { Prisma } from "@repo/database";
 
 export function buildMediaQuote(
@@ -55,6 +59,7 @@ export function buildMediaQuote(
 		maximumRouteCostMicros: routeGraph.maximumRouteCostMicros,
 	};
 	const pricingSnapshot: Prisma.InputJsonObject = {
+		outputModerationBillingPolicy: OUTPUT_MODERATION_BILLING_POLICY,
 		...(quote.skuKey ? { skuKey: quote.skuKey } : {}),
 		credits: quote.credits,
 		maximumJobCostMicros: DEFAULT_PRODUCT_CONFIG.budgets.maximumJobCostMicros,

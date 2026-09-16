@@ -8,10 +8,13 @@ EzPic keeps source images and generated results private to their account or temp
 It does not automatically publish your edits to a gallery. The service still sends the information
 needed to hosting, storage, moderation, and image-processing services to complete your request.
 
-Before generation, your text instruction is screened by content-safety services, including the
-production payment partner's prompt check. This prompt check receives the text instruction;
-it does not receive your source image, account email, or payment details. A request awaiting
-review or an unavailable safety check cannot proceed to generation.
+Before generation, your text instruction is screened by the enabled content-safety services.
+Text checks can use Waffo and Sightengine; they receive the instruction and scan settings, without
+your source image, account email, or payment details. Image checks can use SeeAPI and Sightengine;
+they receive a short-lived access URL for the private source or generated image. A request awaiting
+review or an unavailable safety check cannot proceed to generation or release an unapproved image.
+The billing account also records use of its one-time output-block credit waiver; deleting media
+or job history does not reset it.
 
 ## Access control
 

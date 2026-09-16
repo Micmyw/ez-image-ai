@@ -1092,8 +1092,8 @@
 			},
 			"credits": "crédits",
 			"quoteReady": "Prêt à retoucher",
-			"reserveCredits": "Cette retouche réservera {credits} crédits. Seul le travail terminé est facturé.",
-			"quoteMode": "{mode} réservera {credits} crédits. Seul le travail terminé est facturé.",
+			"reserveCredits": "Cette génération réservera {credits} crédits. Consultez la règle de facturation en cas de blocage avant de commencer.",
+			"quoteMode": "{mode} réservera {credits} crédits. Si le résultat est bloqué, la règle suivante s’applique.",
 			"quoteExpires": "Le devis expire à {time}. Modifier l’image, l’instruction ou le mode nécessite un nouveau devis.",
 			"confirm": "Lancer la retouche",
 			"edit": "Modifier les réglages",
@@ -1122,10 +1122,11 @@
 				"qualityUnavailable": "Ce modèle d’image n’est pas inclus dans votre offre. Choisissez Nano Banana 2 Lite ou consultez votre offre.",
 				"assetNotReady": "L’image source n’est pas prête. Attendez son contrôle privé ou choisissez une autre image.",
 				"quoteExpired": "Ce devis a expiré ou le prix a changé. Vérifiez de nouveau la retouche avant de confirmer.",
-				"contentNotAllowed": "L’instruction n’a pas réussi le contrôle de sécurité. Aucune tâche ni réservation n’a été créée.",
+				"contentNotAllowed": "Cette instruction ne respecte pas notre politique de contenu. Veuillez la modifier. Aucun crédit n’a été facturé et votre exonération unique reste disponible.",
 				"concurrentLimit": "Votre forfait a déjà atteint son maximum de retouches en cours. Aucune nouvelle tâche ni réservation de crédits n’a été créée.",
 				"inputTooLarge": "Cette image dépasse la limite d’entrée de votre forfait. Choisissez une image plus petite ou comparez les forfaits.",
-				"safeError": "La retouche n’a pas pu démarrer. Vérifiez le formulaire ou réessayez dans quelques instants."
+				"safeError": "La retouche n’a pas pu démarrer. Vérifiez le formulaire ou réessayez dans quelques instants.",
+				"safetyUnavailable": "La vérification de sécurité n’a pas pu aboutir. Modifiez l’instruction ou réessayez plus tard. Aucun crédit n’a été facturé et votre exonération unique reste disponible."
 			},
 			"modelMenu": {
 				"title": "Modèles d’image",
@@ -1143,7 +1144,8 @@
 				"viewPlans": "Voir les forfaits",
 				"upToResolution": "Jusqu’à {resolution}",
 				"upgradeNotice": "{model} nécessite Pro, Ultimate ou Max. Vous pouvez continuer à modifier avant de choisir un forfait."
-			}
+			},
+			"moderationBillingPolicy": "Sécurité du contenu : chaque compte ou équipe bénéficie d’une seule exonération de crédits pour son premier résultat généré bloqué. Les suivants sont facturés au tarif annoncé. Les instructions ou images refusées avant génération et les échecs de vérification ne consomment ni crédits ni exonération."
 		},
 		"guest": {
 			"eyebrow": "Essai Nano Banana 2 Lite invité",
@@ -1226,7 +1228,10 @@
 				"ready": "Image source prête",
 				"private": "Vous seul pouvez accéder à cette image via un lien privé de courte durée.",
 				"remove": "Retirer l’image",
-				"optionalHint": "Laissez ce champ vide pour créer une image à partir de texte."
+				"optionalHint": "Laissez ce champ vide pour créer une image à partir de texte.",
+				"blocked": "Cette image n’a pas passé la vérification du contenu. Choisissez une autre image. Aucun crédit de génération ni exonération unique n’a été utilisé.",
+				"safetyUnavailable": "L’image est indisponible ou sa vérification n’a pas pu aboutir. Choisissez une autre image ou réessayez plus tard. Aucun crédit de génération ni exonération unique n’a été utilisé.",
+				"unavailable": "Image indisponible"
 			},
 			"mode": {
 				"label": "Modèle d’image",
@@ -1259,7 +1264,7 @@
 			"creditSummaryReserved": "{reserved} crédits sont réservés pendant la retouche.",
 			"creditSummarySucceeded": "{charged} crédits ont été facturés et {released} restitués.",
 			"creditSummaryReturned": "Aucun crédit n’a été facturé. Les {released} crédits sur {reserved} réservés ont tous été restitués.",
-			"moderationRejected": "Le résultat n’a pas réussi le contrôle de sécurité, reste inaccessible et les crédits réservés éligibles ont été restitués.",
+			"moderationRejected": "La vérification du contenu a bloqué ce résultat, qui ne peut pas être affiché. Modifiez l’instruction ou l’image de référence. Consultez le récapitulatif des crédits de cette tâche pour connaître la facturation.",
 			"failureHelp": "La retouche n’a pas abouti. Les crédits réservés éligibles ont été restitués ; ajustez l’instruction et recommencez.",
 			"comparisonUnavailable": "L’image source ou le résultat approuvé n’est plus disponible pour la comparaison.",
 			"downloadUnavailable": "Le téléchargement privé est indisponible pour le moment. Réessayez.",
@@ -1295,7 +1300,10 @@
 				"after": "Résultat"
 			},
 			"generatedReady": "Votre image est prête",
-			"generatedAlt": "Image générée"
+			"generatedAlt": "Image générée",
+			"moderationWaived": "La vérification du contenu a bloqué cette image générée, qui ne peut pas être affichée. Aucun crédit n’a été facturé : l’exonération unique de votre compte ou équipe a été utilisée. Les prochains résultats bloqués seront facturés au tarif annoncé. Modifiez l’instruction ou l’image de référence avant de réessayer. Contactez l’assistance si vous pensez qu’il s’agit d’une erreur.",
+			"moderationCharged": "La vérification du contenu a bloqué cette image générée, qui ne peut pas être affichée. Votre exonération unique a déjà été utilisée ; {credits} crédits ont donc été facturés, au tarif annoncé. Modifiez l’instruction ou l’image de référence avant de réessayer. Contactez l’assistance si vous pensez qu’il s’agit d’une erreur.",
+			"moderationUnavailable": "La vérification de sécurité n’a pas pu aboutir. L’image reste indisponible. Aucun crédit n’a été facturé et votre exonération unique reste disponible. Réessayez plus tard."
 		},
 		"edits": {
 			"title": "Sessions de retouche",

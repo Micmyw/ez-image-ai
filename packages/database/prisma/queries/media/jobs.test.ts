@@ -26,6 +26,7 @@ const BASE_QUOTE = {
 
 function clientWithQuote(quote: typeof BASE_QUOTE, existingJob: unknown = null) {
 	const tx = {
+		$queryRaw: vi.fn(async () => [{ now: new Date() }]),
 		generationJob: { findUnique: vi.fn(async () => existingJob) },
 		generationQuote: { findUnique: vi.fn(async () => quote) },
 	};
@@ -38,6 +39,7 @@ describe("generation job moderation boundary", () => {
 	it.each([
 		["legacy decision", { moderationDecision: "LEGACY_UNREVIEWED" }],
 		["stale rule", { moderationRuleVersion: "text-safety-old" }],
+		["changed detector combination", { moderationProvider: "waffo" }],
 		["tampered input", { inputSnapshot: { kind: "text-to-image", prompt: "changed" } }],
 	] as const)("rejects a quote with %s before reserving credits", async (_case, override) => {
 		const approved = {
@@ -55,6 +57,7 @@ describe("generation job moderation boundary", () => {
 					idempotencyKey: "request_123",
 					inputAssetIds: [],
 					expectedModerationRuleVersion: "text-safety-v1",
+					expectedModerationProvider: "sightengine",
 				},
 				client as never,
 			),

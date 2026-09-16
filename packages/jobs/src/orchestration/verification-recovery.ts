@@ -1,4 +1,5 @@
 import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai/media";
+import { imageModerationProviderForEnvironment } from "@repo/config";
 import type { db } from "@repo/database/client";
 
 import type { RecoverMediaVerificationCandidate } from "../handlers/recover-media-verifications";
@@ -9,7 +10,7 @@ export async function listVerificationRecoveryCandidates(
 	input: { limit: number; now: Date },
 	environment: Record<string, string | undefined>,
 ): Promise<RecoverMediaVerificationCandidate[]> {
-	const moderationProvider = environment.MEDIA_SAFETY_ADAPTER ?? "test";
+	const moderationProvider = imageModerationProviderForEnvironment(environment);
 	const { now, limit } = input;
 	const assets = await database.mediaAsset.findMany({
 		where: {

@@ -1092,8 +1092,8 @@
 			},
 			"credits": "credits",
 			"quoteReady": "Ready to edit",
-			"reserveCredits": "This edit will reserve {credits} credits. You are charged only for completed work.",
-			"quoteMode": "{mode} will reserve {credits} credits. You are charged only for completed work.",
+			"reserveCredits": "This generation will reserve {credits} credits. Review the content-safety billing policy before starting.",
+			"quoteMode": "{mode} will reserve {credits} credits. The policy below applies if the generated result is blocked.",
 			"quoteExpires": "Quote expires at {time}. Changes to the image, instruction, or mode require a new quote.",
 			"confirm": "Start edit",
 			"edit": "Edit settings",
@@ -1122,10 +1122,11 @@
 				"qualityUnavailable": "This image model is not included in your current plan. Choose Nano Banana 2 Lite or review your plan.",
 				"assetNotReady": "The source image is not ready. Wait for its private safety check or choose another image.",
 				"quoteExpired": "This quote expired or pricing changed. Review the edit again before confirming.",
-				"contentNotAllowed": "This instruction could not pass the safety review. No job or reservation was created.",
+				"contentNotAllowed": "We cannot use this instruction under our content policy. Please revise it. No credits were charged, and your one-time output waiver was not used.",
 				"concurrentLimit": "Your plan already has its maximum number of edits running. No new job or credit reservation was created.",
 				"inputTooLarge": "This source image is larger than your plan's input limit. Choose a smaller image or compare plans.",
-				"safeError": "We could not start this edit. Check the form or try again shortly."
+				"safeError": "We could not start this edit. Check the form or try again shortly.",
+				"safetyUnavailable": "We could not complete the safety check. Please revise the instruction or try again later. No credits were charged, and your one-time waiver was not used."
 			},
 			"modelMenu": {
 				"title": "Image models",
@@ -1143,7 +1144,8 @@
 				"viewPlans": "View plans",
 				"upToResolution": "Up to {resolution}",
 				"upgradeNotice": "{model} requires Pro, Ultimate, or Max. You can keep editing before choosing a plan."
-			}
+			},
+			"moderationBillingPolicy": "Content safety: your account or team gets one lifetime credit waiver if a generated image is blocked. Later blocked results use the quoted credits. Prompts or uploads stopped before generation and safety-check failures cost no credits and do not use the waiver."
 		},
 		"guest": {
 			"eyebrow": "Guest Nano Banana 2 Lite trial",
@@ -1226,7 +1228,10 @@
 				"ready": "Source image ready",
 				"private": "Only you can access this image through a short-lived private link.",
 				"remove": "Remove source",
-				"optionalHint": "Leave empty to create from a text prompt."
+				"optionalHint": "Leave empty to create from a text prompt.",
+				"blocked": "This image did not pass the content-safety check. Please choose another image. No generation credits or one-time waiver were used.",
+				"safetyUnavailable": "This image is unavailable or its safety review could not be completed. Please choose another image or try later. No generation credits or one-time waiver were used.",
+				"unavailable": "Image unavailable"
 			},
 			"mode": {
 				"label": "Image model",
@@ -1259,7 +1264,7 @@
 			"creditSummaryReserved": "{reserved} credits are reserved while this edit runs.",
 			"creditSummarySucceeded": "{charged} credits were charged and {released} were returned.",
 			"creditSummaryReturned": "No credits were charged. All {released} of {reserved} reserved credits were returned.",
-			"moderationRejected": "The result could not pass the safety review. It remains unavailable, and eligible reserved credits were returned.",
+			"moderationRejected": "This result was blocked by the content-safety check and cannot be shown. Please change the instruction or reference image before trying again. See this job’s credit summary for the billing outcome.",
 			"failureHelp": "This edit could not finish. Any eligible reserved credits were returned; you can adjust the instruction and try a new edit.",
 			"comparisonUnavailable": "The private source or approved result is no longer available for comparison.",
 			"downloadUnavailable": "The private download is unavailable right now. Please try again.",
@@ -1295,7 +1300,10 @@
 				"after": "Result"
 			},
 			"generatedReady": "Your image is ready",
-			"generatedAlt": "Generated image"
+			"generatedAlt": "Generated image",
+			"moderationWaived": "This generated image was blocked by the content-safety check and cannot be shown. No credits were charged: your account or team’s one-time waiver was used. Future blocked results use the quoted credits. Please change the instruction or reference image before trying again. Contact support if you believe this was a mistake.",
+			"moderationCharged": "This generated image was blocked by the content-safety check and cannot be shown. Your one-time waiver was already used, so {credits} credits were charged for this generation, as quoted. Please change the instruction or reference image before trying again. Contact support if you believe this was a mistake.",
+			"moderationUnavailable": "We could not complete the safety review, so this image remains unavailable. No credits were charged and your one-time waiver was not used. Please try again later."
 		},
 		"edits": {
 			"title": "Edit sessions",

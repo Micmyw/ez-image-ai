@@ -1,5 +1,9 @@
 # Sightengine text and image moderation
 
+For provider switches, the initial Waffo + SeeAPI combination, and the account's lifetime
+output-block credit waiver, see [configurable moderation](./content-moderation.md). This page
+describes the Sightengine profile when its corresponding switch is enabled.
+
 Implementation scope: English prompts and static input/output images. Sightengine supplies scores;
 the versioned application policy decides whether to allow, reject, quarantine for review, or retry a
 technical failure. The generation provider's own safety checks are an additional boundary. They do
@@ -64,8 +68,9 @@ nudity-only completion payload cannot authorize an asset. Do not enable video on
    only approved output can become usable. `REJECT` and `REVIEW` quarantine the asset.
 4. Image `ERROR` uses the existing bounded verification retry/deadline policy. Exhausted errors
    remain unavailable. Review does not count as approval or promise an automatic human review.
-5. Existing settlement resolves reservations for approved, rejected, review, or failed output. This
-   change does not alter ledger accounting or assume a provider will refund its API charge.
+5. Settlement uses the frozen quote policy. New quotes apply the lifetime output-block waiver;
+   later confirmed blocked results are charged as quoted. Review and technical failures do not
+   consume the waiver. The app does not assume the provider refunds its API charge.
 
 Decisions retain only an allowlist: request ID, requested models, provider-reported operation count,
 and consumed score values. Approved quote audits (including guest and retry quotes) retain this

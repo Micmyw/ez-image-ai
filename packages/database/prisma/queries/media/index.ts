@@ -9,6 +9,7 @@ export * from "./billing";
 export * from "./payment-environment";
 export * from "./credit-allocations";
 export * from "./credits";
+export * from "./output-moderation-billing";
 export * from "./drafts";
 export * from "./edit-sessions";
 export * from "./free-plan-credits";

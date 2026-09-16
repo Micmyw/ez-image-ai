@@ -19,7 +19,10 @@ import { assertGenerationAllowed } from "../lib/generation-authorization";
 import { loadUserPlanEntitlement } from "../lib/plan-entitlement";
 import { assertFrozenQuoteRouteGraphIsCurrent } from "../lib/quote";
 import { maximumMediaStorageBytes } from "../lib/storage-limits";
-import { TEXT_MODERATION_RULE_VERSION } from "../lib/text-moderation";
+import {
+	TEXT_MODERATION_RULE_VERSION,
+	textModerationProviderForEnvironment,
+} from "../lib/text-moderation";
 import { createGenerationInputSchema, jsonBigInt } from "../types";
 
 export const createGeneration = protectedProcedure
@@ -91,6 +94,7 @@ interface CreateGenerationDependencies {
 		idempotencyKey: string;
 		inputAssetIds: string[];
 		expectedModerationRuleVersion: string;
+		expectedModerationProvider: string;
 		expectedAssetModerationRuleVersion: string;
 		expectedAssetModerationPolicyVersion: string;
 		maximumDailyCostMicros: bigint;
@@ -171,6 +175,7 @@ export async function createGenerationForUser(
 		idempotencyKey: input.idempotencyKey,
 		inputAssetIds: sourceAssetId ? [sourceAssetId] : [],
 		expectedModerationRuleVersion: TEXT_MODERATION_RULE_VERSION,
+		expectedModerationProvider: textModerationProviderForEnvironment(process.env),
 		expectedAssetModerationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 		expectedAssetModerationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 		maximumDailyCostMicros: BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros),

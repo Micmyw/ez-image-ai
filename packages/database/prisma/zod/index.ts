@@ -138,7 +138,7 @@ export type StorageUsageReservationScalarFieldEnum = z.infer<typeof StorageUsage
 
 // File: CreditAccountScalarFieldEnum.schema.ts
 
-export const CreditAccountScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'spendableCredits', 'reservedCredits', 'creditDebt', 'version', 'createdAt', 'updatedAt'])
+export const CreditAccountScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'spendableCredits', 'reservedCredits', 'creditDebt', 'outputModerationGraceJobId', 'version', 'createdAt', 'updatedAt'])
 
 export type CreditAccountScalarFieldEnum = z.infer<typeof CreditAccountScalarFieldEnumSchema>;
 
@@ -1066,6 +1066,7 @@ export const CreditAccountSchema = z.object({
   spendableCredits: z.bigint().default(BigInt(0)),
   reservedCredits: z.bigint().default(BigInt(0)),
   creditDebt: z.bigint().default(BigInt(0)),
+  outputModerationGraceJobId: z.string().nullish(),
   version: z.number().int(),
   createdAt: z.date(),
   updatedAt: z.date(),

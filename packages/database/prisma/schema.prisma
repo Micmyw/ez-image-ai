@@ -781,6 +781,8 @@ model CreditAccount {
   reservedCredits  BigInt              @default(0)
   /// @zod.custom.use(z.bigint().default(BigInt(0)))
   creditDebt       BigInt              @default(0)
+  /// Lifetime grace belongs to the billing account; survives job history cleanup.
+  outputModerationGraceJobId String?
   version          Int                 @default(0)
   createdAt        DateTime            @default(now()) @db.Timestamptz(3)
   updatedAt        DateTime            @updatedAt @db.Timestamptz(3)

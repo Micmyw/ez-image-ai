@@ -54,6 +54,46 @@ const baseJob = {
 };
 
 describe("getJob", () => {
+	it.each(["WAIVED", "CHARGED"])(
+		"preserves the %s moderation billing outcome after output cleanup",
+		async (outcome) => {
+			mocks.findFirst.mockResolvedValue({
+				...baseJob,
+				status: "FAILED",
+				failureCode: `OUTPUT_CONTENT_BLOCKED_${outcome}`,
+				assets: [],
+				reservation: {
+					settledAmount: outcome === "CHARGED" ? 17n : 0n,
+					releasedAmount: outcome === "WAIVED" ? 17n : 0n,
+				},
+			});
+			const result = await call(
+				getJob,
+				{ jobId: "job-1" },
+				{ context: { headers: new Headers() } },
+			);
+			expect(result).toMatchObject({
+				failureReason: "CONTENT_NOT_ALLOWED",
+				moderationBilling: outcome,
+			});
+		},
+	);
+
+	it("does not describe a review requirement as a confirmed content violation", async () => {
+		mocks.findFirst.mockResolvedValue({
+			...baseJob,
+			status: "FAILED",
+			assets: [
+				{
+					role: "OUTPUT",
+					asset: { ...asset("review", "QUARANTINED"), moderationResults: [{ status: "REVIEW" }] },
+				},
+			],
+		});
+		const result = await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } });
+		expect(result.failureReason).toBe("SAFETY_CHECK_UNAVAILABLE");
+		expect(result.assets).toEqual([]);
+	});
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mocks.getSession.mockResolvedValue({
@@ -148,7 +188,7 @@ describe("getJob", () => {
 					position: 0,
 					asset: {
 						...asset("asset-quarantined", "QUARANTINED"),
-						moderationResults: [{ status: "REJECTED" }],
+						moderationResults: [{ status: "REJECTED", reasonCode: "SEXUAL_CONTENT" }],
 					},
 				},
 			],

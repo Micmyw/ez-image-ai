@@ -1,4 +1,21 @@
 export type ModerationDecisionType = "ALLOW" | "REJECT" | "REVIEW" | "ERROR";
+
+/** Only explicit classifier rejections qualify for output-block billing. */
+export function isImageContentRejection(
+	evidence: { status: string; reasonCode?: string } | undefined,
+): boolean {
+	return (
+		evidence?.status === "REJECTED" &&
+		[
+			"SEEAPI_CONTENT_NOT_ALLOWED",
+			"SEXUAL_CONTENT",
+			"GRAPHIC_CONTENT",
+			"VIOLENT_CONTENT",
+			"WEAPON_THREAT",
+			"SELF_HARM_CONTENT",
+		].includes(evidence.reasonCode ?? "")
+	);
+}
 export interface ModerateTextInput {
 	text: string;
 	ruleVersion: string;
@@ -32,6 +49,7 @@ export type ModerationEvidence = {
 		semanticStatus: string;
 		matchedCategories: string[];
 	};
+	seeapi?: { taskId: string; flagged: boolean; nsfw: string[]; specialCare: string[] };
 };
 export interface ModerationSubmission {
 	moderationTaskId: string;
@@ -46,6 +64,10 @@ export interface ModerationSubmission {
 export interface MediaSafetyAdapter {
 	moderateText(input: ModerateTextInput): Promise<ModerationDecision>;
 	moderateImage(input: ModerateAssetInput): Promise<ModerationDecision>;
+	submitImage?(input: SubmitVideoInput): Promise<ModerationSubmission>;
+	retrieveImage?(
+		input: RetrieveModerationInput & { assetUrl: string },
+	): Promise<ModerationDecision>;
 	submitVideo(input: SubmitVideoInput): Promise<ModerationSubmission>;
 	retrieveVideo(input: RetrieveModerationInput): Promise<ModerationDecision>;
 }

@@ -1092,8 +1092,8 @@
 			},
 			"credits": "créditos",
 			"quoteReady": "Listo para editar",
-			"reserveCredits": "Esta edición reservará {credits} créditos. Solo se cobra el trabajo completado.",
-			"quoteMode": "{mode} reservará {credits} créditos. Solo se cobra el trabajo completado.",
+			"reserveCredits": "Esta generación reservará {credits} créditos. Revisa la política de cobro por bloqueo de contenido antes de empezar.",
+			"quoteMode": "{mode} reservará {credits} créditos. Si el resultado se bloquea, se aplica la política siguiente.",
 			"quoteExpires": "El presupuesto caduca a las {time}. Cambiar la imagen, la instrucción o el modo requiere otro presupuesto.",
 			"confirm": "Iniciar edición",
 			"edit": "Editar ajustes",
@@ -1122,10 +1122,11 @@
 				"qualityUnavailable": "Este modelo de imagen no está incluido en tu plan. Elige Nano Banana 2 Lite o revisa tu plan.",
 				"assetNotReady": "La imagen de origen no está lista. Espera la revisión privada o elige otra imagen.",
 				"quoteExpired": "El presupuesto caducó o cambió el precio. Vuelve a revisar la edición antes de confirmar.",
-				"contentNotAllowed": "La instrucción no superó la revisión de seguridad. No se creó ningún trabajo ni reserva.",
+				"contentNotAllowed": "Esta instrucción no cumple nuestra política de contenido. Modifícala. No se han cobrado créditos ni usado tu exención única.",
 				"concurrentLimit": "Tu plan ya tiene el máximo de ediciones en curso. No se creó ningún trabajo ni reserva de créditos.",
 				"inputTooLarge": "Esta imagen supera el límite de entrada de tu plan. Elige una imagen más pequeña o compara planes.",
-				"safeError": "No pudimos iniciar la edición. Comprueba el formulario o inténtalo de nuevo en unos minutos."
+				"safeError": "No pudimos iniciar la edición. Comprueba el formulario o inténtalo de nuevo en unos minutos.",
+				"safetyUnavailable": "No pudimos completar la revisión de seguridad. Modifica la instrucción o inténtalo más tarde. No se han cobrado créditos ni usado tu exención única."
 			},
 			"modelMenu": {
 				"title": "Modelos de imagen",
@@ -1143,7 +1144,8 @@
 				"viewPlans": "Ver planes",
 				"upToResolution": "Hasta {resolution}",
 				"upgradeNotice": "{model} requiere Pro, Ultimate o Max. Puedes seguir editando antes de elegir un plan."
-			}
+			},
+			"moderationBillingPolicy": "Seguridad de contenido: cada cuenta o equipo dispone de una única exención de créditos para su primer resultado generado bloqueado. Los siguientes se cobran al precio indicado. Las instrucciones o imágenes rechazadas antes de generar y los fallos de revisión no consumen créditos ni la exención."
 		},
 		"guest": {
 			"eyebrow": "Prueba Nano Banana 2 Lite para invitados",
@@ -1226,7 +1228,10 @@
 				"ready": "Imagen de origen lista",
 				"private": "Solo tú puedes acceder a esta imagen mediante un enlace privado de corta duración.",
 				"remove": "Quitar imagen",
-				"optionalHint": "Déjalo vacío para crear una imagen a partir de texto."
+				"optionalHint": "Déjalo vacío para crear una imagen a partir de texto.",
+				"blocked": "Esta imagen no ha superado la revisión de contenido. Elige otra imagen. No se han usado créditos de generación ni la exención única.",
+				"safetyUnavailable": "La imagen no está disponible o su revisión no pudo completarse. Elige otra imagen o inténtalo más tarde. No se han usado créditos de generación ni la exención única.",
+				"unavailable": "Imagen no disponible"
 			},
 			"mode": {
 				"label": "Modelo de imagen",
@@ -1259,7 +1264,7 @@
 			"creditSummaryReserved": "Hay {reserved} créditos reservados mientras se procesa la edición.",
 			"creditSummarySucceeded": "Se cobraron {charged} créditos y se devolvieron {released}.",
 			"creditSummaryReturned": "No se cobraron créditos. Se devolvieron los {released} de {reserved} créditos reservados.",
-			"moderationRejected": "El resultado no superó la revisión de seguridad, permanece inaccesible y se devolvieron los créditos reservados correspondientes.",
+			"moderationRejected": "La revisión de contenido ha bloqueado este resultado y no puede mostrarse. Modifica la instrucción o la imagen de referencia. Consulta el resumen de créditos de esta tarea para ver el cobro.",
 			"failureHelp": "La edición no pudo terminar. Se devolvieron los créditos reservados correspondientes; ajusta la instrucción e inicia otra edición.",
 			"comparisonUnavailable": "La imagen de origen o el resultado aprobado ya no está disponible para comparar.",
 			"downloadUnavailable": "La descarga privada no está disponible en este momento. Inténtalo de nuevo.",
@@ -1295,7 +1300,10 @@
 				"after": "Resultado"
 			},
 			"generatedReady": "Tu imagen está lista",
-			"generatedAlt": "Imagen generada"
+			"generatedAlt": "Imagen generada",
+			"moderationWaived": "La revisión de contenido ha bloqueado esta imagen generada y no puede mostrarse. No se han cobrado créditos: se ha usado la exención única de tu cuenta o equipo. Los próximos resultados bloqueados se cobrarán al precio indicado. Modifica la instrucción o la imagen de referencia antes de reintentarlo. Contacta con soporte si crees que es un error.",
+			"moderationCharged": "La revisión de contenido ha bloqueado esta imagen generada y no puede mostrarse. Tu exención única ya se utilizó, por lo que se han cobrado {credits} créditos, según el precio indicado. Modifica la instrucción o la imagen de referencia antes de reintentarlo. Contacta con soporte si crees que es un error.",
+			"moderationUnavailable": "No pudimos completar la revisión de seguridad, por lo que la imagen no está disponible. No se han cobrado créditos ni usado tu exención única. Inténtalo más tarde."
 		},
 		"edits": {
 			"title": "Sesiones de edición",

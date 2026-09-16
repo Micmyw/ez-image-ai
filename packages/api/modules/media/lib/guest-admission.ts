@@ -5,6 +5,7 @@ import {
 	type MediaModelInput,
 	type ModerationDecision,
 } from "@repo/ai";
+import { imageModerationProviderForEnvironment } from "@repo/config";
 import { GUEST_MEDIA_SPONSOR_CREDITS } from "@repo/config/server";
 import {
 	createGuestGenerationTransaction,
@@ -476,7 +477,7 @@ export async function submitGuestGenerationForGuest(
 		riskBudgetMicros: loaded.config.riskBudgetMicros,
 		sponsorCredits: loaded.config.sponsorCredits,
 		assetModeration: {
-			provider: process.env.MEDIA_SAFETY_ADAPTER ?? "test",
+			provider: imageModerationProviderForEnvironment(process.env),
 			ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 			policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 		},

@@ -32,6 +32,19 @@ function fixture(verdict: unknown = allowed, status = 200) {
 }
 
 describe("Waffo production prompt scanning", () => {
+	it("uses merchant signing independently of checkout environment and webhook credentials", async () => {
+		const fetcher = vi.fn<typeof fetch>(async () => Response.json({ data: allowed }));
+		vi.stubGlobal("fetch", fetcher);
+		const scan = createWaffoPromptScanner({
+			WAFFO_ENVIRONMENT: "test",
+			WAFFO_MERCHANT_ID: environment.WAFFO_MERCHANT_ID,
+			WAFFO_PRIVATE_KEY: environment.WAFFO_PRIVATE_KEY,
+		});
+		expect(await scan("A mountain landscape")).toMatchObject({ decision: "ALLOW" });
+		expect(fetcher.mock.calls[0]![0]).toBe(
+			"https://api.waffo.ai/v1/actions/verification/scan-prompt",
+		);
+	});
 	it("signs the documented semantic-enforcement request and retains only redacted evidence", async () => {
 		const { scan, fetcher } = fixture({
 			...allowed,

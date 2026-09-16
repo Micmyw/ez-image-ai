@@ -31,6 +31,15 @@
 
 ### Content safety
 
+- Add independent text and image moderation switches: Waffo/Sightengine for text and
+  SeeAPI/Sightengine for private uploaded and generated images. Disabled providers make no calls;
+  asynchronous image checks persist their task before polling and all enabled checks must pass.
+- Give each billing account or team one lifetime credit waiver for a confirmed blocked generated
+  result on new quotes. Later blocked results use the quoted credits. Input rejection, technical
+  failures, review requirements, legacy quotes, and sponsored trials do not consume the waiver.
+- Explain this policy before generation and show distinct waived, charged, and unavailable-review
+  messages in results and history, with friendly upload feedback and four-locale translations.
+
 - Display the support email address directly as a clickable mail link in public, authentication,
   and documentation footers, with the existing localized support label.
 - Add an Acceptable Use Policy chapter to the public terms with all six prohibited content

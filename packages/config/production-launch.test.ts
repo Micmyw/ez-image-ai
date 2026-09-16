@@ -123,6 +123,36 @@ function environmentMatrix() {
 }
 
 describe("EzPic production launch environment", () => {
+	it("does not activate Waffo payments when only its prompt-scanning credentials are supplied", () => {
+		const input: Record<string, unknown> = {
+			...productionEnvironment,
+			MEDIA_SAFETY_ADAPTER: "configured",
+			MODERATION_TEXT_WAFFO_ENABLED: "true",
+			MODERATION_IMAGE_SEEAPI_ENABLED: "true",
+			SEEAPI_API_KEY: "fixture",
+		};
+		for (const key of Object.keys(input)) if (key.startsWith("WAFFO_")) delete input[key];
+		input.WAFFO_MERCHANT_ID = "merchant";
+		input.WAFFO_PRIVATE_KEY = "private";
+		expect(() => validateEzPicLaunchEnvironment(input)).not.toThrow();
+	});
+	it("validates Waffo and SeeAPI without disabled Sightengine credentials and rejects all-off", () => {
+		const input = {
+			...productionEnvironment,
+			MEDIA_SAFETY_ADAPTER: "configured",
+			MODERATION_TEXT_WAFFO_ENABLED: "true",
+			MODERATION_TEXT_SIGHTENGINE_ENABLED: "false",
+			MODERATION_IMAGE_SEEAPI_ENABLED: "true",
+			MODERATION_IMAGE_SIGHTENGINE_ENABLED: "false",
+			SIGHTENGINE_API_USER: undefined,
+			SIGHTENGINE_API_SECRET: undefined,
+			SEEAPI_API_KEY: "seeapi-fixture",
+		};
+		expect(() => validateEzPicLaunchEnvironment(input)).not.toThrow();
+		expect(() =>
+			validateEzPicLaunchEnvironment({ ...input, MODERATION_IMAGE_SEEAPI_ENABLED: "false" }),
+		).toThrow("At least one image");
+	});
 	it("accepts PayPal/Waffo production billing without Stripe lifecycle configuration", () => {
 		const input: Record<string, string | undefined> = { ...productionEnvironment };
 		for (const key of [

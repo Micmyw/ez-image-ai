@@ -51,7 +51,7 @@
 			},
 			"failedEdits": {
 				"question": "Was passiert mit Credits, wenn eine Bearbeitung fehlschlägt?",
-				"answer": "Erreicht ein Auftrag einen bestätigten endgültigen Fehlerstatus, gibt das Ledger die reservierten Credits zurück. Ein Versuch mit ungewisser Dienstannahme gilt nicht als fehlgeschlagen; die Reservierung bleibt bestehen, bis die Wiederherstellung ihn klärt."
+				"answer": "Technische Fehler ohne nutzbares Ergebnis geben die reservierten Credits frei. Wird ein generiertes Bild aus Inhaltsgründen gesperrt, erhält jedes Konto oder Team einmalig eine kostenlose Ausnahme; weitere gesperrte Ergebnisse kosten die angekündigten Credits. Abgelehnte Anweisungen oder Uploads verbrauchen diese Ausnahme nicht. Bei unklarem Ausgang bleiben Credits bis zur Klärung reserviert."
 			},
 			"privateUploads": {
 				"question": "Sind hochgeladene Bilder öffentlich?",

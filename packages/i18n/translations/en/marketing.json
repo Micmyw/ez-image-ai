@@ -51,7 +51,7 @@
 			},
 			"failedEdits": {
 				"question": "What happens to credits when an edit fails?",
-				"answer": "When a job reaches a confirmed failed final state, the ledger returns its reserved credits. An attempt with uncertain service acceptance is not treated as failed and keeps the reservation until recovery resolves it."
+				"answer": "Technical failures with no usable result release the reserved credits. If a generated image is blocked by content safety, each account or team gets one lifetime waiver; later blocked results are charged at the quoted amount. Rejected prompts or uploads do not use this waiver. Uncertain outcomes keep credits reserved until recovery resolves them."
 			},
 			"privateUploads": {
 				"question": "Are uploaded images public?",

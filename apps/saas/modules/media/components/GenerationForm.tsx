@@ -525,6 +525,7 @@ export function GenerationForm({
 							credits: generation.quote.credits,
 						})}
 					</p>
+					<p className="mt-2 text-sm text-muted-foreground">{t("moderationBillingPolicy")}</p>
 					<p className="mt-1 text-xs text-muted-foreground">
 						{t("quoteExpires", {
 							time: new Date(generation.quote.expiresAt).toLocaleTimeString([], {

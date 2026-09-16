@@ -1,6 +1,11 @@
 import { createHash } from "node:crypto";
 
 import {
+	createConfiguredImageSafetyAdapter,
+	isImageContentRejection,
+	type MediaSafetyAdapter,
+} from "@repo/ai";
+import {
 	FalProviderAdapter,
 	GeminiProviderAdapter,
 	KieProviderAdapter,
@@ -10,8 +15,6 @@ import {
 	MediaProviderRegistry,
 	createReplicateWebhookVerifier,
 	ReplicateProviderAdapter,
-	SightengineSafetyAdapter,
-	TestMediaSafetyAdapter,
 	type CatalogRoute,
 	type MediaProviderAdapter,
 	type MediaProviderRegistry as ProviderRegistry,
@@ -29,6 +32,10 @@ import {
 	parseRouteGraphSnapshot,
 	recoveryProviderKeysFromEnvironment,
 } from "@repo/ai";
+import {
+	imageModerationProviderForEnvironment,
+	OUTPUT_MODERATION_BILLING_POLICY,
+} from "@repo/config";
 import type { ProductModelKey } from "@repo/config";
 import {
 	getGuestMediaConfig,
@@ -37,6 +44,7 @@ import {
 	mediaDailyProviderCostBudgetMicros,
 } from "@repo/config/server";
 import {
+	claimOutputModerationGraceInTransaction,
 	claimGenerationOutputTransferTransaction,
 	claimOutboxBatch,
 	completeGenerationOutputTransferTransaction,
@@ -663,7 +671,7 @@ export function createDatabaseDispatchStore(
 					if (!binding.asset.checksum || binding.assetChecksum !== binding.asset.checksum) {
 						throw new Error("Input asset checksum no longer matches job binding");
 					}
-					const currentProvider = environment.MEDIA_SAFETY_ADAPTER ?? "test";
+					const currentProvider = imageModerationProviderForEnvironment(environment);
 					const evidence = binding.asset.moderationResults[0];
 					const verificationValidUntil = binding.asset.verificationValidUntil;
 					const now = new Date();
@@ -1182,7 +1190,7 @@ interface VerifyUploadRuntimeOptions {
 		key: string;
 		expiresIn: number;
 	}) => Promise<string>;
-	safety?: SightengineSafetyAdapter | TestMediaSafetyAdapter;
+	safety?: MediaSafetyAdapter;
 	moderationProvider?: string;
 	afterVideoSubmission?: (submission: {
 		moderationTaskId: string;
@@ -1228,7 +1236,7 @@ export function createDatabaseVerifyUploadDependencies(
 ) {
 	const safety = options.safety ?? createSafetyAdapter(process.env);
 	const moderationProvider =
-		options.moderationProvider ?? process.env.MEDIA_SAFETY_ADAPTER ?? "test";
+		options.moderationProvider ?? imageModerationProviderForEnvironment(process.env);
 	return {
 		async verify(
 			assetId: string,
@@ -1307,14 +1315,20 @@ export function createDatabaseVerifyUploadDependencies(
 					expiresIn: 300,
 				});
 				let decision: ModerationDecision;
-				if (claim.mimeType.startsWith("image/")) {
+				const asyncImage =
+					claim.mimeType.startsWith("image/") &&
+					typeof safety.submitImage === "function" &&
+					typeof safety.retrieveImage === "function";
+				if (claim.mimeType.startsWith("image/") && !asyncImage) {
 					decision = await safety.moderateImage({ assetUrl, ruleVersion: claim.ruleVersion });
 				} else {
 					let providerTaskId = claim.providerTaskId;
 					if (!providerTaskId) {
 						const submissionToken = await beginMediaVerificationSubmission(database, claim);
 						if (!submissionToken) return;
-						const submitted = await safety.submitVideo({
+						const submitted = await (
+							asyncImage ? safety.submitImage!.bind(safety) : safety.submitVideo.bind(safety)
+						)({
 							assetUrl,
 							ruleVersion: claim.ruleVersion,
 							idempotencyKey: submissionToken,
@@ -1351,12 +1365,15 @@ export function createDatabaseVerifyUploadDependencies(
 							return;
 						}
 					}
-					decision = await safety.retrieveVideo({
-						moderationTaskId: providerTaskId,
-						ruleVersion: claim.ruleVersion,
-					});
-					if (decision.decision === "REVIEW" && decision.reasonCode === "VIDEO_PROCESSING") {
-						await failMediaVerification(database, claim, "VIDEO_PROCESSING", "PENDING", checksum);
+					const retrieval = { moderationTaskId: providerTaskId, ruleVersion: claim.ruleVersion };
+					decision = asyncImage
+						? await safety.retrieveImage!({ ...retrieval, assetUrl })
+						: await safety.retrieveVideo(retrieval);
+					if (
+						decision.decision === "REVIEW" &&
+						["VIDEO_PROCESSING", "IMAGE_PROCESSING"].includes(decision.reasonCode)
+					) {
+						await failMediaVerification(database, claim, decision.reasonCode, "PENDING", checksum);
 						return;
 					}
 				}
@@ -2299,6 +2316,7 @@ interface SettlementOutputBindingSnapshot {
 			ruleVersion: string;
 			policyVersion: string;
 			status: string;
+			reasonCode: string;
 			validUntil: Date | null;
 		}>;
 	};
@@ -2308,8 +2326,13 @@ function evaluateSettlementOutputs(
 	bindings: SettlementOutputBindingSnapshot[],
 	now: Date,
 	moderationProvider: string,
-): { readyOutputCount: number; waitingForVerification: boolean } {
+): {
+	readyOutputCount: number;
+	contentRejectedOutputCount: number;
+	waitingForVerification: boolean;
+} {
 	let readyOutputCount = 0;
+	let contentRejectedOutputCount = 0;
 	let waitingForVerification = false;
 	for (const binding of bindings) {
 		const asset = binding.asset;
@@ -2324,33 +2347,38 @@ function evaluateSettlementOutputs(
 			waitingForVerification = true;
 			continue;
 		}
-		if (asset.status !== "READY") continue;
 		const evidence = asset.moderationResults[0];
 		const validUntil = asset.verificationValidUntil;
-		const authorized =
+		const matchingEvidence =
 			asset.deletedAt === null &&
+			asset.kind === "OUTPUT" &&
 			Boolean(asset.checksum) &&
 			binding.assetChecksum === asset.checksum &&
 			asset.verificationProvider === moderationProvider &&
 			asset.verificationRuleVersion === MEDIA_VERIFICATION_RULE_VERSION &&
 			asset.verificationPolicyVersion === MEDIA_VERIFICATION_POLICY_VERSION &&
-			Boolean(validUntil && validUntil > now) &&
-			evidence?.status === "APPROVED" &&
-			evidence.assetChecksum === asset.checksum &&
+			evidence?.assetChecksum === asset.checksum &&
 			evidence.verificationGeneration === asset.verificationGeneration &&
 			evidence.attemptNumber === asset.verificationAttemptCount &&
 			evidence.evidenceKind === asset.kind &&
 			evidence.provider === asset.verificationProvider &&
 			evidence.providerTaskId === asset.verificationProviderTaskId &&
 			evidence.ruleVersion === asset.verificationRuleVersion &&
-			evidence.policyVersion === asset.verificationPolicyVersion &&
+			evidence.policyVersion === asset.verificationPolicyVersion;
+		if (asset.status === "QUARANTINED" && matchingEvidence && isImageContentRejection(evidence)) {
+			contentRejectedOutputCount += 1;
+		}
+		if (asset.status !== "READY") continue;
+		const authorized =
+			matchingEvidence &&
+			evidence?.status === "APPROVED" &&
 			Boolean(evidence.validUntil && validUntil) &&
 			evidence.validUntil?.getTime() === validUntil?.getTime() &&
 			Boolean(evidence.validUntil && evidence.validUntil > now);
 		if (authorized) readyOutputCount += 1;
 		else waitingForVerification = true;
 	}
-	return { readyOutputCount, waitingForVerification };
+	return { readyOutputCount, contentRejectedOutputCount, waitingForVerification };
 }
 
 interface SettlementPolicy {
@@ -2458,7 +2486,7 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 			const outputState = evaluateSettlementOutputs(
 				job.assets,
 				new Date(),
-				process.env.MEDIA_SAFETY_ADAPTER ?? "test",
+				imageModerationProviderForEnvironment(process.env),
 			);
 			if (outputState.waitingForVerification) return null;
 			if (job.reservation.status !== "ACTIVE") {
@@ -2497,7 +2525,7 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 					where: { id: claim.jobId, status: { in: ["FINALIZING", "CANCELED"] } },
 					include: { reservation: true, assets: settlementOutputInclude },
 				});
-				if (!job?.reservation) return;
+				if (!job?.reservation || job.reservation.status !== "ACTIVE") return;
 				for (const assetId of [...new Set(job.assets.map((binding) => binding.assetId))].sort()) {
 					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${assetId}`}, 0))`;
 				}
@@ -2509,16 +2537,40 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 				const outputState = evaluateSettlementOutputs(
 					job.assets,
 					new Date(),
-					process.env.MEDIA_SAFETY_ADAPTER ?? "test",
+					imageModerationProviderForEnvironment(process.env),
 				);
 				if (outputState.waitingForVerification) return;
-				const chargeCredits = calculateSettlementCharge({
+				let chargeCredits = calculateSettlementCharge({
 					status: job.status,
 					failureCode: job.failureCode,
 					readyOutputCount: outputState.readyOutputCount,
 					reservedCredits: job.creditsReserved,
 					pricingSnapshot: job.pricingSnapshot,
 				});
+				let moderationFailureCode: string | undefined;
+				if (
+					job.status === "FINALIZING" &&
+					!job.guestTrialId &&
+					job.serviceClass !== "GUEST_SLOW" &&
+					job.failureCode !== "SUBMISSION_REJECTED_CONFIRMED" &&
+					outputState.readyOutputCount === 0 &&
+					outputState.contentRejectedOutputCount > 0 &&
+					job.pricingSnapshot &&
+					typeof job.pricingSnapshot === "object" &&
+					!Array.isArray(job.pricingSnapshot) &&
+					job.pricingSnapshot.outputModerationBillingPolicy === OUTPUT_MODERATION_BILLING_POLICY
+				) {
+					const waived = await claimOutputModerationGraceInTransaction(
+						{ accountId: job.reservation.accountId, jobId: job.id },
+						tx,
+					);
+					chargeCredits = waived
+						? 0n
+						: settlementPolicyFromSnapshot(job.pricingSnapshot, job.creditsReserved).maxCharge;
+					moderationFailureCode = waived
+						? "OUTPUT_CONTENT_BLOCKED_WAIVED"
+						: "OUTPUT_CONTENT_BLOCKED_CHARGED";
+				}
 				await settleCreditsInTransaction(
 					{
 						reservationId: job.reservation.id,
@@ -2534,10 +2586,11 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 						failureCode:
 							outputState.readyOutputCount > 0
 								? null
-								: job.failureCode === "SUBMISSION_REJECTED_CONFIRMED" ||
-									  job.failureCode === GUEST_OUTPUT_CARDINALITY_INVALID_CODE
-									? job.failureCode
-									: "NO_USABLE_OUTPUT",
+								: (moderationFailureCode ??
+									(job.failureCode === "SUBMISSION_REJECTED_CONFIRMED" ||
+									job.failureCode === GUEST_OUTPUT_CARDINALITY_INVALID_CODE
+										? job.failureCode
+										: "NO_USABLE_OUTPUT")),
 						terminalAt: new Date(),
 						version: { increment: 1 },
 					},
@@ -3300,7 +3353,7 @@ export function createFinalizationDependencies(
 	environment = process.env,
 	options: {
 		store?: FinalizationStore;
-		safety?: SightengineSafetyAdapter | TestMediaSafetyAdapter;
+		safety?: MediaSafetyAdapter;
 		database?: PrismaClient;
 		verification?: { verify(assetId: string): Promise<void> };
 		storage?: Partial<{
@@ -3319,7 +3372,7 @@ export function createFinalizationDependencies(
 		options.verification ??
 		createDatabaseVerifyUploadDependencies(database, {
 			safety,
-			moderationProvider: environment.MEDIA_SAFETY_ADAPTER ?? "test",
+			moderationProvider: imageModerationProviderForEnvironment(environment),
 		});
 	const storage = {
 		inspectRemoteMedia,
@@ -5135,14 +5188,7 @@ function rawUrlAuthority(value: string): string | undefined {
 }
 
 function createSafetyAdapter(environment: NodeJS.ProcessEnv) {
-	return environment.MEDIA_SAFETY_ADAPTER === "sightengine" &&
-		environment.SIGHTENGINE_API_USER &&
-		environment.SIGHTENGINE_API_SECRET
-		? new SightengineSafetyAdapter({
-				apiUser: environment.SIGHTENGINE_API_USER,
-				apiSecret: environment.SIGHTENGINE_API_SECRET,
-			})
-		: new TestMediaSafetyAdapter(environment.NODE_ENV === "test" ? "ALLOW" : "ERROR");
+	return createConfiguredImageSafetyAdapter(environment);
 }
 
 function webhookStatus(envelope: Prisma.JsonValue) {

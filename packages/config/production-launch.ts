@@ -227,8 +227,10 @@ export function validateEzPicLaunchEnvironment(
 	requireFalse(input, "E2E_DRAFT_HANDOFF");
 	requireFalse(input, "LOAD_TESTING_ENABLED");
 	requireFalse(input, "MEDIA_ALLOW_TEST_SAFETY_ADAPTER");
-	if (input.MEDIA_SAFETY_ADAPTER !== "sightengine") {
-		throw new Error("MEDIA_SAFETY_ADAPTER must be sightengine; test moderation is forbidden");
+	if (!["sightengine", "configured"].includes(String(input.MEDIA_SAFETY_ADAPTER))) {
+		throw new Error(
+			"MEDIA_SAFETY_ADAPTER must select real configured moderation; test moderation is forbidden",
+		);
 	}
 	if (serverEnvironment.mediaProviderAdapter === "mock") {
 		throw new Error("Production cannot use the mock Provider adapter");
@@ -270,8 +272,6 @@ export function validateEzPicLaunchEnvironment(
 		"S3_ACCESS_KEY_ID",
 		"S3_SECRET_ACCESS_KEY",
 		"SENTRY_DSN",
-		"SIGHTENGINE_API_USER",
-		"SIGHTENGINE_API_SECRET",
 		"RESEND_API_KEY",
 	] as const) {
 		requiredString(input, key);

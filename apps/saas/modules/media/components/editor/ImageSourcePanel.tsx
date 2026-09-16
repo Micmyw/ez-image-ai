@@ -39,9 +39,13 @@ export function ImageSourcePanel({
 			orpcClient.media.getAssetAccessUrl({ assetId: sourceAssetId, disposition: "inline" }),
 		enabled: Boolean(sourceAssetId),
 		retry: false,
-		refetchInterval: (query) => (sourceAssetId && !query.state.data ? 2_000 : false),
+		refetchInterval: (query) =>
+			sourceAssetId && !query.state.data && !terminalSafetyMessage(query.state.error)
+				? 2_000
+				: false,
 		staleTime: 4 * 60_000,
 	});
+	const safetyMessage = terminalSafetyMessage(preview.error);
 
 	useEffect(() => {
 		if (!sourceAssetId || preview.isError) onReadyChange(false);
@@ -87,13 +91,13 @@ export function ImageSourcePanel({
 								className="p-3 text-xs flex size-full items-center justify-center text-center text-muted-foreground"
 								aria-live="polite"
 							>
-								{t("preparing")}
+								{t(safetyMessage ? "unavailable" : "preparing")}
 							</div>
 						)}
 					</div>
 					<div>
 						<p className={compact ? "sr-only" : "font-medium text-sm"}>
-							{preview.data ? t("ready") : t("preparing")}
+							{preview.data ? t("ready") : t(safetyMessage ? "unavailable" : "preparing")}
 						</p>
 						{!compact && <p className="mt-1 text-xs text-muted-foreground">{t("private")}</p>}
 						<Button
@@ -108,6 +112,11 @@ export function ImageSourcePanel({
 					</div>
 				</div>
 			)}
+			{sourceAssetId && safetyMessage && (
+				<p role="alert" className="text-sm text-destructive">
+					{t(safetyMessage)}
+				</p>
+			)}
 			<div hidden={compact && Boolean(sourceAssetId) && !pending}>
 				<MediaUploader
 					key={sourceAssetId || "new-reference"}
@@ -121,4 +130,12 @@ export function ImageSourcePanel({
 			</div>
 		</div>
 	);
+}
+
+function terminalSafetyMessage(error: unknown): "blocked" | "safetyUnavailable" | null {
+	const message = error instanceof Error ? error.message : "";
+	if (message.includes("ASSET_CONTENT_NOT_ALLOWED")) return "blocked";
+	if (message.includes("ASSET_SAFETY_UNAVAILABLE") || message.includes("NOT_FOUND"))
+		return "safetyUnavailable";
+	return null;
 }

@@ -3,6 +3,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseEnv } from "node:util";
 
+import { moderationConfiguration } from "@repo/config";
+
 import { deploymentEnvironment, publicBuildVariables } from "./deployment";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
@@ -80,12 +82,16 @@ for (const [app, secretName] of [
 		mode: 0o600,
 	});
 }
+const moderation = moderationConfiguration(environment);
 const integrations = [
 	"S3_ACCESS_KEY_ID",
 	"S3_SECRET_ACCESS_KEY",
 	"KIE_API_KEY",
-	"SIGHTENGINE_API_USER",
-	"SIGHTENGINE_API_SECRET",
+	...(moderation.imageSightengine || moderation.textSightengine
+		? ["SIGHTENGINE_API_USER", "SIGHTENGINE_API_SECRET"]
+		: []),
+	...(moderation.textWaffo ? ["WAFFO_MERCHANT_ID", "WAFFO_PRIVATE_KEY"] : []),
+	...(moderation.imageSeeapi ? ["SEEAPI_API_KEY"] : []),
 	"MAIL_FROM",
 ];
 process.stdout.write(

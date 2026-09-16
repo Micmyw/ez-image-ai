@@ -38,6 +38,8 @@ describe("Cloudflare deployment environment", () => {
 				NEXT_PUBLIC_SAAS_URL: "https://ezimageai.com",
 				DATABASE_URL: "private-db",
 				KIE_API_KEY: "private-provider",
+				SEEAPI_API_KEY: "private-moderation",
+				MODERATION_IMAGE_SEEAPI_ENABLED: "true",
 				WORKFLOWS_DISPATCH_SECRET: "private-dispatch",
 			}),
 		).toEqual({ NEXT_PUBLIC_SAAS_URL: "https://ezimageai.com" });

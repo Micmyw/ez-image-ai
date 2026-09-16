@@ -58,6 +58,23 @@ vi.mock("../../hooks/use-job", () => ({ useJob: () => mocks.jobQuery }));
 import { EditorResultPanel } from "./EditorResultPanel";
 
 describe("EditorResultPanel", () => {
+	it("shows the charged outcome instead of promising all failed-job credits were returned", () => {
+		mocks.jobQuery = {
+			data: {
+				...imageJob(),
+				status: "FAILED",
+				failureReason: "CONTENT_NOT_ALLOWED",
+				moderationBilling: "CHARGED",
+				assets: [],
+			},
+			isError: false,
+		};
+		const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
+		expect(markup).toContain("moderationCharged");
+		expect(markup).toContain("creditSummarySucceeded");
+		expect(markup).not.toContain("creditSummaryReturned");
+		expect(markup).not.toContain("Download");
+	});
 	beforeEach(() => {
 		vi.clearAllMocks();
 		mocks.useQuery.mockReturnValue({ data: undefined, isError: false });

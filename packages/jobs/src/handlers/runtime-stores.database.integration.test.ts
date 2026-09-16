@@ -11,9 +11,11 @@ import {
 	createRouteGraphSnapshot,
 	type ProviderKey,
 } from "@repo/ai";
-import { DEFAULT_PRODUCT_CONFIG } from "@repo/config";
+import { DEFAULT_PRODUCT_CONFIG, OUTPUT_MODERATION_BILLING_POLICY } from "@repo/config";
 import {
 	beginGuestLinkIntentTransaction,
+	claimOutputModerationGraceInTransaction,
+	runSerializable,
 	completeGuestLinkIntentTransaction,
 	createCreditGrant,
 	createGenerationJobTransaction,
@@ -69,6 +71,173 @@ describe("production media runtime stores", () => {
 	});
 
 	afterAll(async () => client?.$disconnect());
+
+	it("shares the lifetime waiver within a team independently of the personal account", async () => {
+		const ownerId = `moderation-team-${crypto.randomUUID()}`;
+		const team = await client.creditAccount.create({
+			data: { ownerType: "ORGANIZATION", ownerId },
+		});
+		const personal = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
+		const claims = await Promise.all(
+			["job-a", "job-b"].map((jobId) =>
+				runSerializable(client, (tx) =>
+					claimOutputModerationGraceInTransaction({ accountId: team.id, jobId }, tx),
+				),
+			),
+		);
+		expect(claims.filter(Boolean)).toHaveLength(1);
+		expect(
+			await runSerializable(client, (tx) =>
+				claimOutputModerationGraceInTransaction({ accountId: team.id, jobId: "job-c" }, tx),
+			),
+		).toBe(false);
+		expect(
+			await runSerializable(client, (tx) =>
+				claimOutputModerationGraceInTransaction({ accountId: personal.id, jobId: "job-d" }, tx),
+			),
+		).toBe(true);
+	});
+
+	it("persists an asynchronous image check and polls the same task without submitting twice", async () => {
+		const seeded = await seedFinalizingJob();
+		const { assetId } = await seedBoundOutputAsset(seeded.jobId, "VERIFYING");
+		const submitImage = vi.fn(async (input: { idempotencyKey: string; ruleVersion: string }) => ({
+			moderationTaskId: "task-seeapi-durable",
+			status: "QUEUED" as const,
+			ruleVersion: input.ruleVersion,
+			idempotency: { key: input.idempotencyKey, providerSupported: true, replayed: false },
+		}));
+		let pending = true;
+		const retrieveImage = vi.fn(async (input: { ruleVersion: string }) => ({
+			decision: pending ? ("REVIEW" as const) : ("ALLOW" as const),
+			reasonCode: pending ? "IMAGE_PROCESSING" : "NO_POLICY_MATCH",
+			ruleVersion: input.ruleVersion,
+		}));
+		const safety = Object.assign(new TestMediaSafetyAdapter("ERROR"), {
+			submitImage,
+			retrieveImage,
+		});
+		const dependencies = createOutputVerificationDependencies("ALLOW", undefined, safety, "seeapi");
+		await dependencies.verify(assetId);
+		expect(await client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } })).toMatchObject({
+			status: "VERIFYING",
+			verificationProviderTaskId: "task-seeapi-durable",
+			verificationSubmissionUncertain: false,
+		});
+		await client.mediaAsset.update({
+			where: { id: assetId },
+			data: { verificationNextAttemptAt: new Date(0) },
+		});
+		pending = false;
+		await dependencies.verify(assetId);
+		expect(submitImage).toHaveBeenCalledTimes(1);
+		expect(retrieveImage).toHaveBeenCalledTimes(2);
+		expect(await client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } })).toMatchObject({
+			status: "READY",
+			verificationProviderTaskId: "task-seeapi-durable",
+		});
+	});
+
+	it("waives only one lifetime output content rejection across concurrent jobs and settlement replays", async () => {
+		const ownerId = `moderation-grace-${crypto.randomUUID()}`;
+		const pricingSnapshot = {
+			credits: "10",
+			outputModerationBillingPolicy: OUTPUT_MODERATION_BILLING_POLICY,
+			settlementPolicy: { unitCredits: "10", requestedOutputCount: 1, maxCharge: "10" },
+		};
+		const first = await seedFinalizingJob("image-quality", { ownerId, pricingSnapshot });
+		const second = await seedFinalizingJob("image-quality", { ownerId, pricingSnapshot });
+		await seedRejectedOutputAsset(first.jobId, "SEEAPI_CONTENT_NOT_ALLOWED");
+		await seedRejectedOutputAsset(second.jobId, "SEXUAL_CONTENT");
+		const store = createDatabaseSettlementStore(client);
+		const claims = await Promise.all(
+			[first, second].map((job) =>
+				store.claimSettlement({ jobId: job.jobId, version: job.version }),
+			),
+		);
+		expect(claims.every(Boolean)).toBe(true);
+		await Promise.all(claims.map((claim) => store.settle(claim!)));
+		await Promise.all(claims.map((claim) => store.settle(claim!)));
+		const jobs = await client.generationJob.findMany({
+			where: { id: { in: [first.jobId, second.jobId] } },
+			include: { reservation: true },
+		});
+		expect(
+			jobs.map((job) => job.failureCode).sort((a, b) => (a ?? "").localeCompare(b ?? "")),
+		).toEqual(["OUTPUT_CONTENT_BLOCKED_CHARGED", "OUTPUT_CONTENT_BLOCKED_WAIVED"]);
+		expect(jobs.map((job) => job.reservation!.settledAmount).sort((a, b) => Number(a - b))).toEqual(
+			[0n, 10n],
+		);
+		expect(
+			jobs.map((job) => job.reservation!.releasedAmount).sort((a, b) => Number(a - b)),
+		).toEqual([0n, 10n]);
+		const account = await client.creditAccount.findUniqueOrThrow({
+			where: { id: first.accountId },
+		});
+		expect(account.outputModerationGraceJobId).toBe(
+			jobs.find((job) => job.failureCode === "OUTPUT_CONTENT_BLOCKED_WAIVED")!.id,
+		);
+		expect(
+			await client.creditLedgerEntry.count({
+				where: { referenceKey: { in: [first, second].map((job) => `settle:${job.jobId}`) } },
+			}),
+		).toBe(2);
+		const third = await seedFinalizingJob("image-quality", { ownerId, pricingSnapshot });
+		await seedRejectedOutputAsset(third.jobId, "SEEAPI_CONTENT_NOT_ALLOWED");
+		await settleGeneration({ jobId: third.jobId, version: third.version }, { store });
+		expect(
+			await client.creditReservation.findUniqueOrThrow({ where: { id: third.reservationId } }),
+		).toMatchObject({ settledAmount: 10n, releasedAmount: 0n });
+	});
+
+	it.each(["legacy", "inspection", "review", "stale", "guest"])(
+		"does not charge or consume output grace for %s results",
+		async (scenario) => {
+			const pricingSnapshot = {
+				credits: "10",
+				outputModerationBillingPolicy: OUTPUT_MODERATION_BILLING_POLICY,
+				settlementPolicy: { unitCredits: "10", requestedOutputCount: 1, maxCharge: "10" },
+			};
+			const seeded =
+				scenario === "guest"
+					? await seedGuestFinalizingJob()
+					: await seedFinalizingJob(
+							"image-quality",
+							scenario === "legacy" ? undefined : { pricingSnapshot },
+						);
+			if (scenario === "guest")
+				await client.generationJob.update({
+					where: { id: seeded.jobId },
+					data: {
+						pricingSnapshot: {
+							...pricingSnapshot,
+							credits: "4",
+							settlementPolicy: { unitCredits: "4", requestedOutputCount: 1, maxCharge: "4" },
+						},
+					},
+				});
+			const assetId = await seedRejectedOutputAsset(
+				seeded.jobId,
+				scenario === "inspection" ? "UPLOAD_INSPECTION_FAILED" : "SEEAPI_CONTENT_NOT_ALLOWED",
+				scenario === "review" ? "REVIEW" : "REJECTED",
+			);
+			if (scenario === "stale")
+				await client.mediaAsset.update({
+					where: { id: assetId },
+					data: { verificationGeneration: { increment: 1 } },
+				});
+			await settleGeneration(
+				{ jobId: seeded.jobId, version: seeded.version },
+				{ store: createDatabaseSettlementStore(client) },
+			);
+			expect(
+				await client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+			).toMatchObject({ settledAmount: 0n, releasedAmount: seeded.credits });
+			expect(
+				await client.creditAccount.findUniqueOrThrow({ where: { id: seeded.accountId } }),
+			).toMatchObject({ outputModerationGraceJobId: null });
+		},
+	);
 
 	it("active polling leases only the requested attempt and excludes a concurrent duplicate", async () => {
 		const target = await seedPendingProviderJob();
@@ -2931,8 +3100,10 @@ async function cleanupGuestLinkDispatchFixture(fixture: GuestLinkDispatchFixture
 async function seedReservedJob(
 	productKey: "image-fast" | "image-quality" | "image-nano-banana-2-lite" | "video-fast",
 	options?: {
+		ownerId?: string;
 		credits?: bigint;
 		pricingSnapshot?: {
+			outputModerationBillingPolicy?: string;
 			credits: string;
 			settlementPolicy: {
 				unitCredits: string;
@@ -2943,11 +3114,15 @@ async function seedReservedJob(
 	},
 ) {
 	const suffix = crypto.randomUUID();
-	const ownerId = `task4-runtime-${suffix}`;
+	const ownerId = options?.ownerId ?? `task4-runtime-${suffix}`;
 	const inputAssetId = productKey.startsWith("video")
 		? undefined
 		: await seedReadyImageInput(ownerId, suffix);
-	const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
+	const account = await client.creditAccount.upsert({
+		where: { ownerType_ownerId: { ownerType: "USER", ownerId } },
+		create: { ownerType: "USER", ownerId },
+		update: {},
+	});
 	await createCreditGrant(
 		{ accountId: account.id, amount: 100n, referenceKey: `task4-runtime-grant:${suffix}` },
 		client,
@@ -3229,8 +3404,9 @@ function responseFetch(status: number, body: unknown): typeof fetch {
 
 async function seedFinalizingJob(
 	productKey: "image-fast" | "image-quality" | "video-fast" = "image-quality",
+	options?: Parameters<typeof seedReservedJob>[1],
 ) {
-	const seeded = await seedReservedJob(productKey);
+	const seeded = await seedReservedJob(productKey, options);
 	const store = createTestDispatchStore();
 	const claim = await store.claimDispatch({ jobId: seeded.jobId, version: 0 });
 	await store.recordSynchronousCompletion(
@@ -3378,7 +3554,11 @@ async function seedBoundOutputAsset(
 	return { assetId: asset.id, checksum, verificationValidUntil };
 }
 
-async function seedRejectedOutputAsset(jobId: string) {
+async function seedRejectedOutputAsset(
+	jobId: string,
+	reasonCode = "TEST_REJECT",
+	status: "REJECTED" | "REVIEW" = "REJECTED",
+) {
 	const job = await client.generationJob.findUniqueOrThrow({ where: { id: jobId } });
 	const suffix = crypto.randomUUID();
 	const checksum = "d".repeat(64);
@@ -3410,8 +3590,8 @@ async function seedRejectedOutputAsset(jobId: string) {
 			provider: "test",
 			ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 			policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
-			status: "REJECTED",
-			reasonCode: "TEST_REJECT",
+			status,
+			reasonCode,
 			categories: {},
 			rawEnvelope: { decision: "REJECT" },
 		},

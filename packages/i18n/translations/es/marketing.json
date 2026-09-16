@@ -51,7 +51,7 @@
 			},
 			"failedEdits": {
 				"question": "¿Qué ocurre con los créditos si falla una edición?",
-				"answer": "Cuando un trabajo alcanza un estado final de fallo confirmado, el registro devuelve los créditos reservados. Un intento cuya aceptación por el servicio sea incierta no se trata como fallido y mantiene la reserva hasta que la recuperación lo resuelva."
+				"answer": "Los fallos técnicos sin un resultado utilizable liberan los créditos reservados. Si una imagen generada se bloquea por contenido, cada cuenta o equipo dispone de una única exención; los siguientes resultados bloqueados se cobran al precio indicado. Las instrucciones o imágenes subidas rechazadas no consumen la exención. Los resultados inciertos mantienen la reserva hasta resolverse."
 			},
 			"privateUploads": {
 				"question": "¿Las imágenes subidas son públicas?",

@@ -49,6 +49,7 @@ import {
 	createTextModerationAdapter,
 	moderateQuoteInput,
 	TEXT_MODERATION_RULE_VERSION,
+	textModerationProviderForEnvironment,
 	type TextModerationEvidence,
 } from "../lib/text-moderation";
 
@@ -262,18 +263,19 @@ export async function retryGenerationForUser(
 			pricingSnapshot: operation.pricingSnapshot,
 			expiresAt: new Date(dependencies.now().getTime() + 10 * 60_000),
 		};
-		if (!claim.quoteId) {
-			if (
-				operation.moderationRuleVersion !== TEXT_MODERATION_RULE_VERSION ||
-				operation.assetModerationRuleVersion !== MEDIA_VERIFICATION_RULE_VERSION ||
-				operation.assetModerationPolicyVersion !== MEDIA_VERIFICATION_POLICY_VERSION
-			) {
-				throw new Error("GENERATION_RETRY_POLICY_CHANGED");
-			}
-			selection ??= dependencies.createAdapter();
-			if (selection.provider !== operation.moderationProvider) {
-				throw new Error("GENERATION_RETRY_MODERATION_PROVIDER_CHANGED");
-			}
+		if (
+			operation.moderationRuleVersion !== TEXT_MODERATION_RULE_VERSION ||
+			operation.assetModerationRuleVersion !== MEDIA_VERIFICATION_RULE_VERSION ||
+			operation.assetModerationPolicyVersion !== MEDIA_VERIFICATION_POLICY_VERSION
+		) {
+			throw new Error("GENERATION_RETRY_POLICY_CHANGED");
+		}
+		if (!claim.quoteId) selection ??= dependencies.createAdapter();
+		if (
+			(selection?.provider ?? textModerationProviderForEnvironment(process.env)) !==
+			operation.moderationProvider
+		) {
+			throw new Error("GENERATION_RETRY_MODERATION_PROVIDER_CHANGED");
 		}
 		const quote = claim.quoteId
 			? await dependencies.findCheckpointQuote(claim.quoteId)
@@ -303,6 +305,7 @@ export async function retryGenerationForUser(
 				assetChecksum,
 			})),
 			expectedModerationRuleVersion: operation.moderationRuleVersion,
+			expectedModerationProvider: operation.moderationProvider,
 			expectedAssetModerationRuleVersion: operation.assetModerationRuleVersion,
 			expectedAssetModerationPolicyVersion: operation.assetModerationPolicyVersion,
 			maximumDailyCostMicros: BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros),

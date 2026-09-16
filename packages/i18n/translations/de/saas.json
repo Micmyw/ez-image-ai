@@ -1092,8 +1092,8 @@
 			},
 			"credits": "Credits",
 			"quoteReady": "Bereit zum Bearbeiten",
-			"reserveCredits": "Für diese Bearbeitung werden {credits} Credits reserviert. Berechnet wird nur abgeschlossene Arbeit.",
-			"quoteMode": "{mode} reserviert {credits} Credits. Berechnet wird nur abgeschlossene Arbeit.",
+			"reserveCredits": "Für diese Generierung werden {credits} Credits reserviert. Bitte lies vor dem Start die Abrechnungsregeln bei einer Inhaltssperre.",
+			"quoteMode": "{mode} reserviert {credits} Credits. Bei einem gesperrten Ergebnis gilt die folgende Regel.",
 			"quoteExpires": "Das Angebot läuft um {time} ab. Änderungen an Bild, Anweisung oder Modus erfordern ein neues Angebot.",
 			"confirm": "Bearbeitung starten",
 			"edit": "Einstellungen ändern",
@@ -1122,10 +1122,11 @@
 				"qualityUnavailable": "Dieses Bildmodell ist in Ihrem Tarif nicht enthalten. Wählen Sie Nano Banana 2 Lite oder prüfen Sie Ihren Tarif.",
 				"assetNotReady": "Das Quellbild ist noch nicht bereit. Warten Sie auf die private Sicherheitsprüfung oder wählen Sie ein anderes Bild.",
 				"quoteExpired": "Dieses Angebot ist abgelaufen oder die Preise haben sich geändert. Prüfen Sie die Bearbeitung erneut.",
-				"contentNotAllowed": "Die Anweisung hat die Sicherheitsprüfung nicht bestanden. Es wurden weder Auftrag noch Reservierung erstellt.",
+				"contentNotAllowed": "Diese Anweisung entspricht nicht unseren Inhaltsregeln. Bitte ändere sie. Es wurden keine Credits berechnet; die einmalige Ausnahme bleibt erhalten.",
 				"concurrentLimit": "In Ihrem Tarif läuft bereits die maximale Anzahl an Bearbeitungen. Es wurden weder neuer Auftrag noch Credit-Reservierung erstellt.",
 				"inputTooLarge": "Dieses Quellbild überschreitet das Eingabelimit Ihres Tarifs. Wählen Sie ein kleineres Bild oder vergleichen Sie Tarife.",
-				"safeError": "Die Bearbeitung konnte nicht gestartet werden. Prüfen Sie das Formular oder versuchen Sie es später erneut."
+				"safeError": "Die Bearbeitung konnte nicht gestartet werden. Prüfen Sie das Formular oder versuchen Sie es später erneut.",
+				"safetyUnavailable": "Die Sicherheitsprüfung konnte nicht abgeschlossen werden. Bitte ändere die Anweisung oder versuche es später erneut. Keine Credits wurden berechnet; die einmalige Ausnahme bleibt erhalten."
 			},
 			"modelMenu": {
 				"title": "Bildmodelle",
@@ -1143,7 +1144,8 @@
 				"viewPlans": "Tarife ansehen",
 				"upToResolution": "Bis zu {resolution}",
 				"upgradeNotice": "{model} erfordert Pro, Ultimate oder Max. Du kannst weiterbearbeiten, bevor du einen Tarif wählst."
-			}
+			},
+			"moderationBillingPolicy": "Inhaltssicherheit: Pro Konto oder Team ist die erste gesperrte Bildgenerierung einmalig kostenlos. Weitere gesperrte Ergebnisse werden mit den angezeigten Credits berechnet. Vor der Generierung abgelehnte Anweisungen oder Uploads und fehlgeschlagene Sicherheitsprüfungen kosten keine Credits und verbrauchen diese Ausnahme nicht."
 		},
 		"guest": {
 			"eyebrow": "Gast-Test mit Nano Banana 2 Lite",
@@ -1226,7 +1228,10 @@
 				"ready": "Quellbild ist bereit",
 				"private": "Nur Sie können über einen kurzlebigen privaten Link auf dieses Bild zugreifen.",
 				"remove": "Quellbild entfernen",
-				"optionalHint": "Leer lassen, um ein Bild aus einem Textprompt zu erstellen."
+				"optionalHint": "Leer lassen, um ein Bild aus einem Textprompt zu erstellen.",
+				"blocked": "Dieses Bild hat die Inhaltsprüfung nicht bestanden. Bitte wähle ein anderes Bild. Keine Generierungs-Credits oder einmalige Ausnahme wurden verbraucht.",
+				"safetyUnavailable": "Das Bild ist nicht verfügbar oder die Sicherheitsprüfung konnte nicht abgeschlossen werden. Bitte wähle ein anderes Bild oder versuche es später erneut. Keine Generierungs-Credits oder einmalige Ausnahme wurden verbraucht.",
+				"unavailable": "Bild nicht verfügbar"
 			},
 			"mode": {
 				"label": "Bildmodell",
@@ -1259,7 +1264,7 @@
 			"creditSummaryReserved": "{reserved} Credits sind während der Bearbeitung reserviert.",
 			"creditSummarySucceeded": "{charged} Credits wurden berechnet und {released} zurückgegeben.",
 			"creditSummaryReturned": "Es wurden keine Credits berechnet. Alle {released} von {reserved} reservierten Credits wurden zurückgegeben.",
-			"moderationRejected": "Das Ergebnis hat die Sicherheitsprüfung nicht bestanden, bleibt nicht verfügbar und berechtigte Credits wurden zurückgegeben.",
+			"moderationRejected": "Die Inhaltsprüfung hat dieses Ergebnis gesperrt. Es kann nicht angezeigt werden. Bitte ändere Anweisung oder Referenzbild. Die Abrechnung steht in der Credit-Übersicht dieses Auftrags.",
 			"failureHelp": "Die Bearbeitung konnte nicht abgeschlossen werden. Berechtigte reservierte Credits wurden zurückgegeben; passen Sie die Anweisung an und starten Sie neu.",
 			"comparisonUnavailable": "Quellbild oder freigegebenes Ergebnis ist für den Vergleich nicht mehr verfügbar.",
 			"downloadUnavailable": "Der private Download ist momentan nicht verfügbar. Bitte versuche es erneut.",
@@ -1295,7 +1300,10 @@
 				"after": "Ergebnis"
 			},
 			"generatedReady": "Dein Bild ist fertig",
-			"generatedAlt": "Generiertes Bild"
+			"generatedAlt": "Generiertes Bild",
+			"moderationWaived": "Die Inhaltsprüfung hat dieses generierte Bild gesperrt. Es kann nicht angezeigt werden. Dafür wurden keine Credits berechnet; die einmalige Ausnahme für dein Konto oder Team ist jetzt verbraucht. Weitere gesperrte Ergebnisse kosten die angezeigten Credits. Bitte ändere Anweisung oder Referenzbild. Bei einem vermuteten Fehler kontaktiere den Support.",
+			"moderationCharged": "Die Inhaltsprüfung hat dieses generierte Bild gesperrt. Es kann nicht angezeigt werden. Die einmalige Ausnahme wurde bereits genutzt; deshalb wurden wie angekündigt {credits} Credits berechnet. Bitte ändere Anweisung oder Referenzbild. Bei einem vermuteten Fehler kontaktiere den Support.",
+			"moderationUnavailable": "Die Sicherheitsprüfung konnte nicht abgeschlossen werden. Das Bild bleibt gesperrt. Keine Credits wurden berechnet; die einmalige Ausnahme bleibt erhalten. Bitte versuche es später erneut."
 		},
 		"edits": {
 			"title": "Bearbeitungssitzungen",

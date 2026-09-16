@@ -1,5 +1,10 @@
 import { ORPCError } from "@orpc/server";
-import { MEDIA_VERIFICATION_POLICY_VERSION, MEDIA_VERIFICATION_RULE_VERSION } from "@repo/ai";
+import {
+	MEDIA_VERIFICATION_POLICY_VERSION,
+	MEDIA_VERIFICATION_RULE_VERSION,
+	isImageContentRejection,
+} from "@repo/ai";
+import { imageModerationProviderForEnvironment } from "@repo/config";
 import {
 	getOwnedMediaAsset,
 	getOwnedMediaAssetReadState,
@@ -8,7 +13,7 @@ import {
 
 export function currentMediaAssetVerificationBoundary(now = new Date()) {
 	return {
-		provider: process.env.MEDIA_SAFETY_ADAPTER ?? "test",
+		provider: imageModerationProviderForEnvironment(process.env),
 		ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 		policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 		now,
@@ -37,7 +42,14 @@ export async function requireReadyOwnedMediaAsset(assetId: string, ownerId: stri
 	) {
 		throw new ORPCError("NOT_FOUND");
 	}
-	if (!state.readable) throw new ORPCError("PRECONDITION_FAILED");
+	if (!state.readable) {
+		const message = isImageContentRejection(state.asset.moderationResults?.[0])
+			? "ASSET_CONTENT_NOT_ALLOWED"
+			: state.asset.status === "QUARANTINED" || state.asset.status === "VERIFICATION_FAILED"
+				? "ASSET_SAFETY_UNAVAILABLE"
+				: "ASSET_SAFETY_PENDING";
+		throw new ORPCError("PRECONDITION_FAILED", { message });
+	}
 	return state.asset;
 }
 

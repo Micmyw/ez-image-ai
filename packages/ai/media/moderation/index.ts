@@ -4,6 +4,8 @@ import type { MediaSafetyAdapter } from "./types";
 export * from "./sightengine";
 export * from "./test-adapter";
 export * from "./types";
+export * from "./seeapi";
+export * from "./configured";
 export type SafetyAdapterSelection =
 	| { kind: "test"; nodeEnv: "development" | "test" | "production" }
 	| ({ kind: "sightengine"; nodeEnv: "development" | "test" | "production" } & SightengineOptions);

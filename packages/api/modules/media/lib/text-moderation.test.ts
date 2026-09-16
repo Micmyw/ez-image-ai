@@ -19,6 +19,36 @@ afterEach(() => {
 });
 
 describe("generation text moderation", () => {
+	it("uses Waffo alone when Sightengine is switched off", async () => {
+		const scan = vi.fn(async () => ({
+			decision: "ALLOW" as const,
+			reasonCode: "WAFFO_PROMPT_ALLOWED",
+			evidence: {
+				requestId: "request-1",
+				action: "allow" as const,
+				semanticStatus: "scored",
+				matchedCategories: [],
+			},
+		}));
+		vi.mocked(createWaffoPromptScanner).mockReturnValue(scan);
+		const fetcher = vi.fn<typeof fetch>();
+		vi.stubGlobal("fetch", fetcher);
+		const selected = createTextModerationAdapter({
+			NODE_ENV: "test",
+			MEDIA_SAFETY_ADAPTER: "configured",
+			MODERATION_TEXT_WAFFO_ENABLED: "true",
+			MODERATION_TEXT_SIGHTENGINE_ENABLED: "false",
+		});
+		expect(selected.provider).toBe("waffo");
+		expect(
+			await selected.adapter.moderateText({
+				text: "A mountain landscape",
+				ruleVersion: TEXT_MODERATION_RULE_VERSION,
+			}),
+		).toMatchObject({ decision: "ALLOW", evidence: { waffo: { requestId: "request-1" } } });
+		expect(scan).toHaveBeenCalledOnce();
+		expect(fetcher).not.toHaveBeenCalled();
+	});
 	const quote = {
 		ownerType: "USER" as const,
 		ownerId: "user_1",

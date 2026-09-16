@@ -22,6 +22,11 @@ const KIE_ROUTE_OPTIONS = {
 };
 
 describe("buildMediaQuote", () => {
+	it("freezes the disclosed first-block-free output billing policy for new jobs", () => {
+		expect(buildMediaQuote(NANO_QUOTE_INPUT, KIE_ROUTE_OPTIONS).pricingSnapshot).toMatchObject({
+			outputModerationBillingPolicy: "first-block-free-v1",
+		});
+	});
 	it("freezes the exact documented Kie model and selected SKU for all 29 image outputs", () => {
 		let count = 0;
 		for (const official of officialContracts.products) {

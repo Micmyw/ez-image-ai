@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { isImageContentRejection } from "@repo/ai";
 import { db } from "@repo/database/client";
 
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -42,9 +43,14 @@ export const getJob = protectedProcedure
 						asset: {
 							include: {
 								moderationResults: {
-									orderBy: [{ attemptNumber: "desc" }, { createdAt: "desc" }],
+									orderBy: [
+										{ verificationGeneration: "desc" },
+										{ attemptNumber: "desc" },
+										{ createdAt: "desc" },
+										{ id: "desc" },
+									],
 									take: 1,
-									select: { status: true },
+									select: { status: true, reasonCode: true },
 								},
 							},
 						},
@@ -74,13 +80,27 @@ export const getJob = protectedProcedure
 					binding.asset.moderationResults[0]?.status === "APPROVED",
 			)
 			.map(({ asset }) => assetDto(asset));
-		const moderationRejected = job.assets.some(
+		const moderationBilling =
+			job.failureCode === "OUTPUT_CONTENT_BLOCKED_WAIVED"
+				? ("WAIVED" as const)
+				: job.failureCode === "OUTPUT_CONTENT_BLOCKED_CHARGED"
+					? ("CHARGED" as const)
+					: null;
+		const moderationRejected =
+			Boolean(moderationBilling) ||
+			job.assets.some(
+				(binding) =>
+					binding.role === "OUTPUT" &&
+					binding.asset.ownerType === "USER" &&
+					binding.asset.ownerId === user.id &&
+					isImageContentRejection(binding.asset.moderationResults[0]),
+			);
+		const safetyUnavailable = job.assets.some(
 			(binding) =>
 				binding.role === "OUTPUT" &&
 				binding.asset.ownerType === "USER" &&
 				binding.asset.ownerId === user.id &&
-				(binding.asset.status === "QUARANTINED" ||
-					binding.asset.moderationResults[0]?.status === "REJECTED"),
+				(binding.asset.status === "VERIFICATION_FAILED" || binding.asset.status === "QUARANTINED"),
 		);
 		const attempt = job.attempts[0];
 		const canCancel =
@@ -109,11 +129,14 @@ export const getJob = protectedProcedure
 			aspectRatio: publicInput?.aspectRatio ?? null,
 			progress: attempt?.progress ?? null,
 			failureCode: job.failureCode,
+			moderationBilling,
 			failureReason: moderationRejected
 				? ("CONTENT_NOT_ALLOWED" as const)
-				: job.status === "FAILED"
-					? ("GENERATION_FAILED" as const)
-					: null,
+				: safetyUnavailable
+					? ("SAFETY_CHECK_UNAVAILABLE" as const)
+					: job.status === "FAILED"
+						? ("GENERATION_FAILED" as const)
+						: null,
 			canCancel,
 			createdAt: job.createdAt.toISOString(),
 			updatedAt: job.updatedAt.toISOString(),

@@ -3,6 +3,8 @@ export const publicChangelogEntries = [
 		date: "2026-09-16",
 		title: "Model inspiration and content reporting",
 		changes: [
+			"Explain content-safety billing before generation: one lifetime waiver per account or team for a blocked result, with later blocked results charged at the quoted amount.",
+			"Show clear safety-check and credit outcomes for uploaded images, generated results, and job history.",
 			"Added 23 original concept images across all 12 model pages, with a distinct creative direction and matching prompts for each model.",
 			"Removed repeated image galleries from related-model links and preserved complete artwork in homepage model previews.",
 			"Expanded the Terms of Service with prohibited content, moderation, enforcement, and appeals.",
