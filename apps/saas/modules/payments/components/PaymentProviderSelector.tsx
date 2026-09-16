@@ -3,6 +3,7 @@
 import type { PaymentProviderName } from "@repo/payments/types";
 import { cn } from "@repo/ui";
 import { useTranslations } from "next-intl";
+import { useId } from "react";
 
 export function PaymentProviderSelector({
 	name,
@@ -18,19 +19,20 @@ export function PaymentProviderSelector({
 	disabled?: boolean;
 }) {
 	const t = useTranslations("payments.providerSelector");
+	const groupId = `${name}-${useId()}`;
 
 	return (
-		<fieldset className="mt-4" disabled={disabled}>
+		<fieldset className="payment-provider-selector mt-3" disabled={disabled}>
 			<legend className="mb-2 font-medium text-sm">{t("label")}</legend>
 			<div className="gap-2 grid grid-cols-[repeat(auto-fit,minmax(110px,1fr))]">
 				{providers.map((provider) => {
-					const id = `${name}-${provider}`;
+					const id = `${groupId}-${provider}`;
 					return (
 						<label
 							key={provider}
 							htmlFor={id}
 							className={cn(
-								"min-h-10 gap-2 px-3 py-2 text-sm flex cursor-pointer items-center rounded-lg border",
+								"min-h-11 gap-2 px-3 py-2 text-sm flex cursor-pointer items-center rounded-xl border transition has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-primary",
 								value === provider && "border-primary bg-primary/5",
 								disabled && "cursor-not-allowed opacity-60",
 							)}
@@ -38,7 +40,7 @@ export function PaymentProviderSelector({
 							<input
 								id={id}
 								type="radio"
-								name={name}
+								name={groupId}
 								value={provider}
 								checked={value === provider}
 								onChange={() => onValueChange(provider)}

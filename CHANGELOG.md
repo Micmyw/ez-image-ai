@@ -2,8 +2,23 @@
 
 ## 2026-09-16
 
+### Public sitemaps
+
+- Publish recorded content update dates for the 25 approved public pages; unchanged rebuilds
+  do not advance their dates. Blog entries use their update date or original publication date.
+- Add `/sitemap-images.xml` for the homepage and model-page concept artwork, reusing the
+  public responsive images and declaring both sitemaps in `robots.txt`.
+- Return 404 for the unused `/sitemap_index.xml` filename while preserving authenticated
+  organization routes and the private `/assets` library. Public scripts, styles and images remain crawlable.
+
 ### Upgrade and payment experience
 
+- Keep the selected plan visible above checkout on desktop and mobile. Retain payment-method
+  choices while validating another plan, and warm the remaining plan and Credit Pack options.
+- Use one payment-method selector for Credit Packs and one purchase button per pack, with exact
+  availability checks for the selected method. Keep guest sign-in independent of payment lookup.
+- Let customers browse plans during an unfinished checkout. Show recovery actions, the previous
+  plan and order reference, and a direct support link without treating an unknown payment as unpaid.
 - Add a header upgrade action with the configured annual saving, an explicit language switch,
   and a live available-credit balance linked to Credit Packs.
 - Open a centered plan picker directly from each pricing card, retaining the selected plan
@@ -31,6 +46,11 @@
 
 ### Homepage SEO
 
+- Focus the homepage description and section headings on prompt-based image editing while keeping
+  the hero introduction concise. Synchronize instructions and FAQ headings across four locales.
+- Render each illustrative creator brief once across screen sizes, replacing repeated scrolling
+  copies with gently moving columns and a swipeable mobile layout. Keep pause and reduced-motion
+  controls, and declare the Before/After illustration dimensions explicitly.
 - Restore the original prompt-editing keyword focus in the homepage title, H1, description,
   social previews and closing action. Keep the hero introduction to one short sentence and explain
   the meaning of "No Restrictions" in an additional FAQ. Preserve existing instructions, FAQs

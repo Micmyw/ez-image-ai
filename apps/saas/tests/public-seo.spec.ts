@@ -3,13 +3,15 @@ import { expect, test } from "@playwright/test";
 test("all sitemap targets publish consistent indexable HTML without JavaScript", async ({
 	request,
 }) => {
-	test.setTimeout(90_000);
+	test.setTimeout(180_000);
 	const sitemapResponse = await request.get("/sitemap.xml");
 	expect(sitemapResponse.status()).toBe(200);
 	const xml = await sitemapResponse.text();
-	expect(xml).not.toContain("<lastmod>");
+	const modifiedDates = [...xml.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)];
 	const urls = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]!);
-	expect(urls).toHaveLength(12);
+	expect(urls).toHaveLength(25);
+	expect(modifiedDates).toHaveLength(urls.length);
+	for (const [, date] of modifiedDates) expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 	const evidence = [];
 	for (const url of urls) {
 		const response = await request.get(url, { headers: { Cookie: "NEXT_LOCALE=de" } });
@@ -34,6 +36,82 @@ test("all sitemap targets publish consistent indexable HTML without JavaScript",
 		body: JSON.stringify(evidence, null, 2),
 		contentType: "application/json",
 	});
+});
+
+test("image sitemap lists crawlable images present on their public pages", async ({
+	request,
+	page,
+}) => {
+	test.setTimeout(180_000);
+	const response = await request.get("/sitemap-images.xml", { maxRedirects: 0 });
+	expect(response.status()).toBe(200);
+	expect(response.headers()["content-type"]).toContain("application/xml");
+	const entries = await page.evaluate(
+		(xml) => {
+			const doc = new DOMParser().parseFromString(xml, "application/xml");
+			if (doc.querySelector("parsererror")) throw new Error("Invalid image sitemap XML");
+			return Array.from(doc.getElementsByTagName("url")).map((entry) => ({
+				url: entry.getElementsByTagName("loc")[0]!.textContent!,
+				images: Array.from(
+					entry.getElementsByTagNameNS("http://www.google.com/schemas/sitemap-image/1.1", "loc"),
+				).map((image) => image.textContent!),
+			}));
+		},
+		await response.text(),
+	);
+	expect(entries).toHaveLength(14);
+	const imageUrls = new Set<string>();
+	for (const entry of entries) {
+		const pageResponse = await request.get(entry.url);
+		expect(pageResponse.status(), entry.url).toBe(200);
+		const html = await pageResponse.text();
+		const renderedImages = await page.evaluate((markup) => {
+			const doc = new DOMParser().parseFromString(markup, "text/html");
+			return Array.from(doc.querySelectorAll("img[src]")).map((image) => image.getAttribute("src"));
+		}, html);
+		for (const image of entry.images) {
+			expect(renderedImages, `${entry.url}: ${image}`).toContain(new URL(image).pathname);
+			imageUrls.add(image);
+		}
+	}
+	const robots = await (await request.get("/robots.txt")).text();
+	const disallowed = [...robots.matchAll(/^Disallow: (.+)$/gm)].map((match) => match[1]!.trim());
+	for (const image of imageUrls) {
+		expect(
+			disallowed.some((prefix) => new URL(image).pathname.startsWith(prefix)),
+			image,
+		).toBe(false);
+		const imageResponse = await request.get(image, { maxRedirects: 0 });
+		expect(imageResponse.status(), image).toBe(200);
+		expect(imageResponse.headers()["content-type"], image).toContain("image/webp");
+	}
+	await test.info().attach("public-image-inventory", {
+		body: JSON.stringify({ pages: entries.length, uniqueImages: imageUrls.size, entries }, null, 2),
+		contentType: "application/json",
+	});
+});
+
+test("robots advertises both sitemaps and an absent index stays a 404", async ({
+	request,
+	baseURL,
+}) => {
+	test.setTimeout(120_000);
+	const robots = await request.get("/robots.txt");
+	expect(robots.status()).toBe(200);
+	const text = await robots.text();
+	for (const path of ["/sitemap.xml", "/sitemap-images.xml"]) {
+		expect(text).toContain(`Sitemap: ${new URL(path, baseURL).href}`);
+	}
+	for (const method of ["GET", "HEAD"]) {
+		const missing = await request.fetch("/sitemap_index.xml", { method, maxRedirects: 0 });
+		expect(missing.status()).toBe(404);
+		expect(missing.headers().location).toBeUndefined();
+	}
+	for (const path of ["/assets", "/history", "/example-organization"]) {
+		const protectedResponse = await request.get(path, { maxRedirects: 0 });
+		expect(protectedResponse.status(), path).toBe(307);
+		expect(protectedResponse.headers().location, path).toContain("/login");
+	}
 });
 
 test("unmatched public paths return a real 404 with useful public navigation", async ({

@@ -229,8 +229,8 @@
 		},
 		"creatorWorkflows": {
 			"eyebrow": "Illustrative Creator-Storys",
-			"title": "Kreative Arbeit in viele Richtungen",
-			"description": "Lerne sechs zusammengesetzte Creator-Profile und die fokussierten Bildbearbeitungsaufträge kennen, die sie zu EzPic mitbringen könnten.",
+			"title": "Ideen zur Bildbearbeitung für alltägliche Projekte",
+			"description": "Sechs fiktive, zusammengesetzte Kreativprofile zeigen, wie sich Produktfotos, Porträts, Innenräume und mehr mit Prompts bearbeiten lassen.",
 			"pause": "Bewegung anhalten",
 			"resume": "Bewegung fortsetzen",
 			"listLabel": "Illustrative Creator-Story-Karten",
@@ -280,7 +280,8 @@
 					"description": "Eine grobe Szene als Faltpapier, Porzellan oder filmische Malerei neu interpretieren.",
 					"direction": "Grobe Komposition → fokussierte Materialstudie"
 				}
-			}
+			},
+			"mobileHint": "Wische, um alle sechs Bearbeitungsbeispiele zu sehen."
 		},
 		"imageEditorHero": {
 			"eyebrow": "Bildbearbeitung mit Prompts",
@@ -291,8 +292,8 @@
 		},
 		"beforeAfter": {
 			"eyebrow": "Eine Quelle, eine klare Änderung",
-			"title": "Vergleiche die Richtung vor der Bestätigung",
-			"description": "Ziehe den Regler, um eine originale Vektorszene mit ihrer handgezeichneten Bearbeitungsrichtung zu vergleichen.",
+			"title": "Eine Bildbearbeitung im Vorher-Nachher-Vergleich",
+			"description": "Ziehe den Regler, um eine Vektorillustration mit einer von Hand gestalteten Bearbeitungsrichtung zu vergleichen.",
 			"disclaimer": "Diese Illustration zeigt die Oberfläche und ist kein Qualitätsversprechen.",
 			"before": "Original",
 			"after": "Bearbeitungsrichtung",
@@ -303,8 +304,8 @@
 		},
 		"showcase": {
 			"eyebrow": "Prompt-Rezepte",
-			"title": "Beginne mit einem Look. Mach ihn unverwechselbar zu deinem.",
-			"description": "Entdecke eigenständige Bildideen für Räume, Produkte, Porträts, Licht, Food und Illustration. Jedes Beispiel enthält einen vollständigen Prompt zum Wiederverwenden.",
+			"title": "Bildbearbeitungs-Prompts für deine eigenen Ideen",
+			"description": "Starte mit einem Prompt für Hintergründe, Objekte, Porträts oder Beleuchtung. Passe jedes Beispiel an dein Ausgangsbild und die gewünschte Änderung an.",
 			"instruction": "Wähle eine Karte, um ihren vollständigen Prompt in den Editor zu übernehmen.",
 			"usePrompt": "Prompt verwenden",
 			"promptAdded": "Prompt übernommen",
@@ -446,20 +447,20 @@
 		},
 		"howItWorks": {
 			"eyebrow": "So funktioniert es",
-			"title": "Vom Upload zum privaten Ergebnis",
-			"description": "Die Startseite startet das Werkzeug. Ein temporärer Gastbereich übernimmt Warteschlange und privates Ergebnis in derselben EzPic-App.",
+			"title": "So nutzt du einen KI-Bildeditor mit Prompts",
+			"description": "Bearbeite dein Foto in einem Arbeitsbereich: Bild hinzufügen, Änderung beschreiben und Ergebnis prüfen. Angemeldet kannst du auch mit einem reinen Textprompt starten.",
 			"steps": {
 				"draft": {
-					"title": "Hochladen und beschreiben",
-					"description": "Wähle ein unterstütztes Quellbild und beschreibe die gewünschte Änderung genau."
+					"title": "Bild hochladen und Prompt schreiben",
+					"description": "Füge ein JPEG, PNG oder WebP hinzu. Beschreibe, welches Motiv bleiben soll und welchen Hintergrund, welches Objekt, welche Farbe oder welchen Stil du ändern möchtest."
 				},
 				"signin": {
-					"title": "Als Gast fortfahren",
-					"description": "Eine sichere Übergabe auf derselben Origin öffnet deinen temporären Gastbereich ohne Anmeldung."
+					"title": "Modell wählen und Credits prüfen",
+					"description": "Melde dich an, wähle unterstützte Ausgabeeinstellungen und prüfe die Kosten. Geeignete Bearbeitungen mit Referenzbild können den Gasttest nutzen, wenn er verfügbar ist."
 				},
 				"generate": {
-					"title": "Bearbeitung starten und prüfen",
-					"description": "Deine Bestätigung startet den asynchronen Ablauf und liefert eine private Vorschau mit Wasserzeichen."
+					"title": "Erstellen, vergleichen und verfeinern",
+					"description": "Bestätige die Bearbeitung, vergleiche das Ergebnis mit dem Ausgangsbild und verwende es als Referenz für den nächsten Prompt."
 				}
 			}
 		},
@@ -541,6 +542,10 @@
 			"quickStart": "Erste Bearbeitung starten",
 			"prompts": "Eine klarere Bildanweisung schreiben",
 			"privacy": "Private Bildbearbeitung verstehen"
+		},
+		"faq": {
+			"title": "KI-Bildeditor ohne feste Vorlagen: Fragen und Antworten",
+			"description": "So funktioniert die Bearbeitung per Prompt, so bleiben Bilder privat, und diese Sicherheits- und Nutzungslimits gelten."
 		}
 	},
 	"newsletter": {

@@ -21,7 +21,25 @@ describe("SaaS robots", () => {
 					"/try",
 				],
 			},
-			sitemap: new URL("/sitemap.xml", getBaseUrl()).href,
+			sitemap: ["/sitemap.xml", "/sitemap-images.xml"].map(
+				(path) => new URL(path, getBaseUrl()).href,
+			),
 		});
+	});
+
+	it("keeps rendered scripts, styles and public artwork crawlable", () => {
+		const rules = robots().rules;
+		if (Array.isArray(rules)) throw new Error("Expected a single public crawler rule");
+		const blocked = [rules.disallow].flat();
+		for (const path of [
+			"/_next/static/chunks/app.js",
+			"/images/models/example.webp",
+			"/examples/case.webp",
+		]) {
+			expect(
+				blocked.some((prefix) => prefix && path.startsWith(prefix)),
+				path,
+			).toBe(false);
+		}
 	});
 });

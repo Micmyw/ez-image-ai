@@ -84,6 +84,8 @@ vi.mock("@shared/lib/orpc-query-utils", () => ({
 	},
 }));
 vi.mock("@tanstack/react-query", () => ({
+	keepPreviousData: (data: unknown) => data,
+	useQueryClient: () => ({ prefetchQuery: vi.fn() }),
 	useMutation: () => ({ mutateAsync: vi.fn() }),
 	useQuery: ({ input }: { input?: { interval: "month" | "year"; planId: string } }) => {
 		if (!input) return { data: null, isPending: false, isError: false };

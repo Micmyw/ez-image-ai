@@ -3,6 +3,10 @@ export const publicChangelogEntries = [
 		date: "2026-09-16",
 		title: "Model inspiration and content reporting",
 		changes: [
+			"Keep the selected plan in view and payment choices steady while switching plans. Credit Packs now share a payment-method selector.",
+			"Make unfinished checkout recovery actionable with the previous plan, order reference and a direct support link, while preventing another subscription payment.",
+			"Clarified the homepage's image-editing prompts, instructions and FAQ headings in all four interface languages.",
+			"Removed repeated creator briefs and made the six examples easier to browse on desktop and mobile.",
 			"Added header upgrades, language selection and available credits, with a direct link to Credit Packs.",
 			"Keep your selected plan and billing period when opening checkout or signing in, and show clear progress while payment opens.",
 			"Prevent repeated payment clicks and offer unfinished checkout recovery in the plan picker.",

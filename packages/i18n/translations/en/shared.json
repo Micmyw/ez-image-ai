@@ -7,13 +7,19 @@
 		"subscriptionRefundPending": "Your refunded {provider} subscription is still being closed. New monthly or yearly subscriptions will be available once closure is confirmed.",
 		"pendingCheckout": {
 			"title": "Unfinished subscription checkout",
-			"description": "You have an unfinished checkout with {provider}. Resume it or check whether it has closed before starting another subscription.",
+			"description": "A previous {provider} checkout needs to be resolved before another subscription can start.",
 			"resume": "Resume checkout",
 			"refresh": "Check payment status",
-			"PENDING": "Approval is still pending. Resume this checkout or contact support to change your selection.",
+			"check": "Check status",
+			"PENDING": "This checkout is still open. Contact support if you need to change your plan.",
 			"PAID": "The provider has activated this subscription. We are confirming its payment and updating your account.",
 			"CLOSED": "The checkout is closed. You can now choose a subscription again.",
-			"UNKNOWN": "Closure has not been confirmed. Try again later or contact support."
+			"UNKNOWN": "We couldn't confirm this payment. Contact support with the order reference.",
+			"support": "Contact support",
+			"supportSubject": "Subscription checkout help: {id}",
+			"chargedHint": "If you were charged, do not pay again.",
+			"order": "Order reference: {id}",
+			"details": "Order details & help"
 		},
 		"annualSummary": "Billed {total} yearly · save {savings} ({percent}%) vs 12 monthly payments",
 		"annualTotal": "Billed {total} yearly",
@@ -134,6 +140,7 @@
 			"language": "Language",
 			"creditsLabel": "{credits} credits available. Add credits",
 			"creditsUnavailable": "Credits unavailable. View credit packs"
-		}
+		},
+		"buyCredits": "Buy credits"
 	}
 }

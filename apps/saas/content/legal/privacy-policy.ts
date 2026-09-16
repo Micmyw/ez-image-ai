@@ -2,6 +2,7 @@ export const privacyPolicyDocuments = [
 	{
 		path: "privacy-policy",
 		locale: "en",
+		updatedAt: "2026-09-16",
 		title: "Privacy Policy",
 		description:
 			"How EzPic handles account data, private image-editing media, analytics consent, and retention.",

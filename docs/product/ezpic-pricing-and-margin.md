@@ -33,6 +33,15 @@ Subscription and Credit Pack controls share a synchronous browser admission lock
 while redirecting, and release on a failed request or a restored browser history document. Database
 admission and immutable checkout intents remain authoritative across tabs and concurrent requests.
 
+The selected plan scrolls within its own viewport above the payment controls. Availability for
+other plan/cadence combinations is prefetched; previous options remain visible during a change,
+but cannot authorize payment until the selected combination has its own successful response.
+Guests sign in without calling the protected availability endpoint. Credit Packs share one
+payment-method preference and retain exact per-pack availability before enabling each purchase.
+Pending subscription orders leave preferences selectable and replace new checkout with recovery
+actions. Unknown status is not unpaid or closed; support receives the owned order reference, and
+only confirmed provider closure releases server admission.
+
 `packages/config/plans.ts` is the source of truth. Credits are issued once per internal monthly
 billing period, expire at that period boundary, and do not roll over. Annual billing still creates
 twelve monthly grant periods.

@@ -2,6 +2,7 @@ export const termsDocuments = [
 	{
 		path: "terms",
 		locale: "en",
+		updatedAt: "2026-09-16",
 		title: "Terms of Service",
 		description:
 			"Terms for EzPic accounts, image-editing workflows, credits, subscriptions, content, and acceptable use.",

@@ -18,10 +18,10 @@ import { useLocaleCurrency } from "@shared/hooks/locale-currency";
 import { useRouter } from "@shared/hooks/router";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpc } from "@shared/lib/orpc-query-utils";
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowRightIcon, BadgePercentIcon, CheckIcon, StarIcon } from "lucide-react";
 import { useFormatter, useLocale, useTranslations } from "next-intl";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
 	createCheckoutAttemptController,
@@ -38,6 +38,13 @@ import {
 } from "./SubscriptionCheckoutNotice";
 
 const plans = paymentsConfig.plans;
+
+function providerAvailability(planId: PlanId, interval: "month" | "year") {
+	return {
+		...orpc.payments.getProviderAvailability.queryOptions({ input: { planId, interval } }),
+		staleTime: 30_000,
+	};
+}
 
 export function PricingTable({
 	className,
@@ -67,6 +74,9 @@ export function PricingTable({
 	const localeCurrency = useLocaleCurrency();
 	const locale = useLocale();
 	const payment = usePaymentAction();
+	const queryClient = useQueryClient();
+	const planList = useRef<HTMLDivElement>(null);
+	const selectedCard = useRef<HTMLLabelElement>(null);
 	const loading = payment.action?.key.startsWith("plan:")
 		? payment.action.key.split(":")[1]
 		: false;
@@ -81,10 +91,39 @@ export function PricingTable({
 
 	const { planData } = usePlanData();
 	const authenticated = Boolean(userId || organizationId);
+	useEffect(() => {
+		if (!compact || !authenticated || hasSubscription) return;
+		for (const planId of ["creator", "ultimate", "studio"] as const) {
+			for (const period of ["month", "year"] as const) {
+				void queryClient.prefetchQuery(providerAvailability(planId, period));
+			}
+		}
+	}, [authenticated, compact, hasSubscription, queryClient]);
+	useEffect(() => {
+		const list = planList.current;
+		const card = selectedCard.current;
+		if (!compact || !list || !card) return;
+		const revealSelection = () => {
+			if (!list.clientHeight) return;
+			const viewport = list.getBoundingClientRect();
+			const selected = card.getBoundingClientRect();
+			// The dialog scales during its entrance animation; scrollTop uses unscaled pixels.
+			const scale = viewport.height / list.offsetHeight;
+			if (selected.bottom > viewport.bottom)
+				list.scrollTop += (selected.bottom - viewport.bottom) / scale;
+			else if (selected.top < viewport.top) list.scrollTop -= (viewport.top - selected.top) / scale;
+		};
+		revealSelection();
+		const resize = new ResizeObserver(revealSelection);
+		resize.observe(list);
+		resize.observe(card);
+		return () => resize.disconnect();
+	}, [compact, selectedPlan, interval, hasSubscription]);
 	const pending = useQuery({
 		...orpc.payments.getPendingSubscriptionCheckout.queryOptions({ input: {} }),
 		enabled: authenticated && !hasSubscription,
 	});
+	const hasPendingCheckout = authenticated && Boolean(pending.data);
 	const checkoutBlocked =
 		accountLoading ||
 		Boolean(payment.action) ||
@@ -98,7 +137,7 @@ export function PricingTable({
 	const onSelectPlan = async (
 		planId: PlanId,
 		interval: "month" | "year",
-		provider: SubscriptionCheckoutProvider,
+		provider: SubscriptionCheckoutProvider | null,
 	) => {
 		if (hasSubscription || checkoutBlocked) return;
 		if (!(userId || organizationId)) {
@@ -110,7 +149,7 @@ export function PricingTable({
 			return;
 		}
 
-		if (planId !== "creator" && planId !== "ultimate" && planId !== "studio") {
+		if (!provider || (planId !== "creator" && planId !== "ultimate" && planId !== "studio")) {
 			setCheckoutUnavailable(true);
 			return;
 		}
@@ -157,7 +196,6 @@ export function PricingTable({
 	}
 	const notices = (
 		<>
-			{authenticated && <PendingSubscriptionCheckout />}
 			{checkoutConflict && (
 				<p className="mb-4 text-sm text-destructive" role="alert">
 					{t(
@@ -179,11 +217,10 @@ export function PricingTable({
 			(price) => price.interval === interval,
 		)!;
 		return (
-			<div className={className} data-test="upgrade-plan-picker">
-				{notices}
+			<div className={cn("studio-upgrade-picker", className)} data-test="upgrade-plan-picker">
 				<fieldset
 					disabled={Boolean(payment.action)}
-					className="mb-5 border-white/10 bg-white/5 p-1 flex rounded-full border"
+					className="mb-3 border-white/10 bg-white/5 p-1 flex shrink-0 rounded-full border"
 				>
 					<legend className="sr-only">{t("pricing.upgrade.billingPeriod")}</legend>
 					{(["month", "year"] as const).map((value) => (
@@ -201,85 +238,91 @@ export function PricingTable({
 						</button>
 					))}
 				</fieldset>
-				<fieldset disabled={Boolean(payment.action)} className="gap-3 grid">
-					<legend className="sr-only">{t("pricing.choosePlan")}</legend>
-					{(["creator", "ultimate", "studio"] as const).map((planId) => {
-						const plan = PLAN_ENTITLEMENTS.find((entry) => entry.id === planId)!;
-						const price = plan.prices.find((entry) => entry.interval === interval)!;
-						const annual = interval === "year" ? calculateAnnualBillingPrice(plan.prices) : null;
-						const savings = interval === "year" ? calculateAnnualPlanPricing(plan.prices) : null;
-						return (
-							<label
-								key={planId}
-								className={cn(
-									"studio-upgrade-plan-option min-h-28 gap-3 p-4 relative cursor-pointer items-center rounded-2xl border transition has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-[#c6b1ff]",
-									selectedPlan === planId
-										? "border-[#b79cff] bg-[#b79cff]/10"
-										: "border-white/10 bg-white/[0.025] hover:border-white/25",
-									payment.action && "cursor-wait opacity-70",
-								)}
-							>
-								<input
-									type="radio"
-									name="upgrade-plan"
-									value={planId}
-									checked={selectedPlan === planId}
-									onChange={() => setSelectedPlan(planId)}
-									className="size-5 shrink-0 accent-[#b79cff]"
-								/>
-								<span className="min-w-0 flex-1">
-									<span className="text-lg font-semibold text-white block">
-										{t(`pricing.products.${planId}.title`)}
-									</span>
-									<span className="mt-1 text-xs block text-[#c8b5f8]">
-										{t("pricing.monthlyCredits", { credits: plan.monthlyCredits })}
-									</span>
-								</span>
-								<span className="studio-upgrade-plan-price shrink-0 text-right">
-									<span className="text-2xl font-semibold text-white">
-										{format.number(annual?.monthlyEquivalent ?? price.amount, {
-											style: "currency",
-											currency: price.currency,
-											maximumFractionDigits: 2,
-										})}
-									</span>
-									<span className="text-xs text-[#b8adbf]">
-										/{t("pricing.month", { count: 1 })}
-									</span>
-									{annual && (
-										<span className="mt-1 text-xs block text-[#b8adbf]">
-											{t("pricing.annualTotal", {
-												total: format.number(annual.total, {
-													style: "currency",
-													currency: annual.currency,
-													maximumFractionDigits: 0,
-												}),
-											})}
-											{savings && (
-												<span className="ml-2 text-[#c8b5f8]">−{savings.savingsPercent}%</span>
-											)}
-										</span>
+				<div ref={planList} className="studio-upgrade-plan-list" data-test="upgrade-plan-list">
+					<fieldset disabled={Boolean(payment.action)} className="gap-3 grid">
+						<legend className="sr-only">{t("pricing.choosePlan")}</legend>
+						{(["creator", "ultimate", "studio"] as const).map((planId) => {
+							const plan = PLAN_ENTITLEMENTS.find((entry) => entry.id === planId)!;
+							const price = plan.prices.find((entry) => entry.interval === interval)!;
+							const annual = interval === "year" ? calculateAnnualBillingPrice(plan.prices) : null;
+							const savings = interval === "year" ? calculateAnnualPlanPricing(plan.prices) : null;
+							return (
+								<label
+									key={planId}
+									ref={selectedPlan === planId ? selectedCard : undefined}
+									className={cn(
+										"studio-upgrade-plan-option min-h-28 gap-3 p-4 relative cursor-pointer items-center rounded-2xl border transition has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-[#c6b1ff]",
+										selectedPlan === planId
+											? "border-[#b79cff] bg-[#b79cff]/10"
+											: "border-white/10 bg-white/[0.025] hover:border-white/25",
+										payment.action && "cursor-wait opacity-70",
 									)}
-								</span>
-							</label>
-						);
-					})}
-				</fieldset>
+								>
+									<input
+										type="radio"
+										name="upgrade-plan"
+										value={planId}
+										checked={selectedPlan === planId}
+										onChange={() => setSelectedPlan(planId)}
+										className="size-5 shrink-0 accent-[#b79cff]"
+									/>
+									<span className="min-w-0 flex-1">
+										<span className="text-lg font-semibold text-white block">
+											{t(`pricing.products.${planId}.title`)}
+										</span>
+										<span className="mt-1 text-xs block text-[#c8b5f8]">
+											{t("pricing.monthlyCredits", { credits: plan.monthlyCredits })}
+										</span>
+									</span>
+									<span className="studio-upgrade-plan-price shrink-0 text-right">
+										<span className="text-2xl font-semibold text-white">
+											{format.number(annual?.monthlyEquivalent ?? price.amount, {
+												style: "currency",
+												currency: price.currency,
+												maximumFractionDigits: 2,
+											})}
+										</span>
+										<span className="text-xs text-[#b8adbf]">
+											/{t("pricing.month", { count: 1 })}
+										</span>
+										{annual && (
+											<span className="mt-1 text-xs block text-[#b8adbf]">
+												{t("pricing.annualTotal", {
+													total: format.number(annual.total, {
+														style: "currency",
+														currency: annual.currency,
+														maximumFractionDigits: 0,
+													}),
+												})}
+												{savings && (
+													<span className="ml-2 text-[#c8b5f8]">−{savings.savingsPercent}%</span>
+												)}
+											</span>
+										)}
+									</span>
+								</label>
+							);
+						})}
+					</fieldset>
+				</div>
 				<div className="studio-checkout-footer">
-					<div
-						className="gap-3 pt-3 text-sm flex items-center justify-between text-[#e7ddff]"
-						data-test="checkout-selection"
-					>
-						<strong>{t(`pricing.products.${selectedPlan}.title`)}</strong>
-						<span>
-							{format.number(selectedPrice.amount, {
-								style: "currency",
-								currency: selectedPrice.currency,
-								maximumFractionDigits: 2,
-							})}
-							/{t(interval === "year" ? "pricing.year" : "pricing.month", { count: 1 })}
-						</span>
-					</div>
+					{notices}
+					{!hasPendingCheckout && (
+						<div
+							className="gap-3 pt-3 text-sm flex items-center justify-between text-[#e7ddff]"
+							data-test="checkout-selection"
+						>
+							<strong>{t(`pricing.products.${selectedPlan}.title`)}</strong>
+							<span>
+								{format.number(selectedPrice.amount, {
+									style: "currency",
+									currency: selectedPrice.currency,
+									maximumFractionDigits: 2,
+								})}
+								/{t(interval === "year" ? "pricing.year" : "pricing.month", { count: 1 })}
+							</span>
+						</div>
+					)}
 					<CheckoutControls
 						planId={selectedPlan}
 						interval={interval}
@@ -287,21 +330,25 @@ export function PricingTable({
 						authenticated={authenticated}
 						loading={loading === selectedPlan}
 						disabled={checkoutBlocked}
+						hideAction={hasPendingCheckout}
 						onCheckout={(provider) => onSelectPlan(selectedPlan, interval, provider)}
 						compact
 					/>
-					<output
-						className="mt-3 text-xs leading-5 block text-center text-[#a99cb5]"
-						aria-live="polite"
-					>
-						{payment.action
-							? t(
-									payment.action.stage === "redirecting"
-										? "pricing.upgrade.redirectingHint"
-										: "pricing.upgrade.processingHint",
-								)
-							: t("pricing.upgrade.secureHint")}
-					</output>
+					{authenticated && <PendingSubscriptionCheckout compact />}
+					{!hasPendingCheckout && (
+						<output
+							className="mt-3 text-xs leading-5 block text-center text-[#a99cb5]"
+							aria-live="polite"
+						>
+							{payment.action
+								? t(
+										payment.action.stage === "redirecting"
+											? "pricing.upgrade.redirectingHint"
+											: "pricing.upgrade.processingHint",
+									)
+								: t("pricing.upgrade.secureHint")}
+						</output>
+					)}
 				</div>
 			</div>
 		);
@@ -495,6 +542,7 @@ function CheckoutControls({
 	disabled,
 	onCheckout,
 	compact = false,
+	hideAction = false,
 }: {
 	planId: PlanId;
 	interval: "month" | "year";
@@ -502,8 +550,9 @@ function CheckoutControls({
 	authenticated: boolean;
 	loading: boolean;
 	disabled: boolean;
-	onCheckout: (provider: SubscriptionCheckoutProvider) => void;
+	onCheckout: (provider: SubscriptionCheckoutProvider | null) => void;
 	compact?: boolean;
+	hideAction?: boolean;
 }) {
 	const t = useTranslations();
 	const payment = usePaymentAction();
@@ -511,8 +560,9 @@ function CheckoutControls({
 		null,
 	);
 	const availability = useQuery({
-		...orpc.payments.getProviderAvailability.queryOptions({ input: { planId, interval } }),
-		staleTime: 30_000,
+		...providerAvailability(planId, interval),
+		enabled: authenticated,
+		placeholderData: keepPreviousData,
 		refetchInterval: 30_000,
 	});
 	const providers = filterSubscriptionCheckoutProviders(
@@ -524,11 +574,13 @@ function CheckoutControls({
 		selectedProvider && providers.includes(selectedProvider)
 			? selectedProvider
 			: (providers[0] ?? null);
-	const unavailable = availability.isError || (!availability.isPending && providers.length === 0);
+	const unavailable =
+		authenticated && (availability.isError || (!availability.isPending && providers.length === 0));
+	const validating = authenticated && (availability.isPending || availability.isPlaceholderData);
 
 	return (
 		<>
-			{providers.length > 0 && (
+			{authenticated && providers.length > 0 && (
 				<PaymentProviderSelector
 					name={`${planId}-${interval}-provider`}
 					providers={providers}
@@ -538,40 +590,50 @@ function CheckoutControls({
 							setSelectedProvider(nextProvider);
 						}
 					}}
-					disabled={disabled}
+					disabled={Boolean(payment.action)}
 				/>
+			)}
+			{authenticated && providers.length === 0 && !unavailable && (
+				<output
+					className="mt-3 min-h-16 text-sm flex items-center text-muted-foreground"
+					aria-live="polite"
+				>
+					{t("pricing.paymentOptionsLoading")}
+				</output>
 			)}
 			{unavailable && (
 				<p className="mt-3 text-sm text-destructive" role="alert">
 					{t("payments.providerSelector.unavailable")}
 				</p>
 			)}
-			<Button
-				className={cn("mt-4 w-full", compact && "min-h-12 rounded-xl")}
-				variant={recommended ? "primary" : "secondary"}
-				onClick={() => provider && onCheckout(provider)}
-				loading={loading || availability.isPending}
-				disabled={disabled || !provider || unavailable}
-				aria-busy={loading}
-				data-test="subscription-checkout"
-			>
-				{loading
-					? t(
-							payment.action?.stage === "redirecting"
-								? "pricing.upgrade.redirecting"
-								: "pricing.upgrade.processing",
-						)
-					: compact
+			{!hideAction && (
+				<Button
+					className={cn("mt-4 w-full", compact && "min-h-12 rounded-xl")}
+					variant={recommended ? "primary" : "secondary"}
+					onClick={() => onCheckout(authenticated ? provider : null)}
+					loading={loading || validating}
+					disabled={disabled || (authenticated && (!provider || unavailable || validating))}
+					aria-busy={loading || validating}
+					data-test="subscription-checkout"
+				>
+					{loading
 						? t(
-								authenticated
-									? "pricing.upgrade.continuePayment"
-									: "pricing.upgrade.signInContinue",
+								payment.action?.stage === "redirecting"
+									? "pricing.upgrade.redirecting"
+									: "pricing.upgrade.processing",
 							)
-						: authenticated
-							? t("pricing.choosePlan")
-							: t("pricing.getStarted")}
-				<ArrowRightIcon className="ml-2 size-4" />
-			</Button>
+						: compact
+							? t(
+									authenticated
+										? "pricing.upgrade.continuePayment"
+										: "pricing.upgrade.signInContinue",
+								)
+							: authenticated
+								? t("pricing.choosePlan")
+								: t("pricing.getStarted")}
+					<ArrowRightIcon className="ml-2 size-4" />
+				</Button>
+			)}
 		</>
 	);
 }

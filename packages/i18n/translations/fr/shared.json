@@ -7,13 +7,19 @@
 		"subscriptionRefundPending": "Votre abonnement {provider} remboursé est encore en cours de clôture. Les nouveaux abonnements mensuels ou annuels seront disponibles après confirmation de la clôture.",
 		"pendingCheckout": {
 			"title": "Souscription inachevée",
-			"description": "Un paiement avec {provider} reste en cours. Reprenez-le ou vérifiez sa fermeture avant de démarrer une autre souscription.",
+			"description": "Un paiement précédent via {provider} doit être résolu avant de commencer un autre abonnement.",
 			"resume": "Reprendre le paiement",
 			"refresh": "Vérifier le statut",
-			"PENDING": "L’approbation est toujours en attente. Reprenez ce paiement ou contactez l’assistance pour changer votre choix.",
+			"PENDING": "Ce paiement est toujours en cours. Contactez le support pour changer de formule.",
 			"PAID": "Le prestataire a activé cette souscription. Nous confirmons le paiement et mettons votre compte à jour.",
 			"CLOSED": "Le paiement est fermé. Vous pouvez choisir une nouvelle souscription.",
-			"UNKNOWN": "La fermeture n’a pas été confirmée. Réessayez plus tard ou contactez l’assistance."
+			"UNKNOWN": "Nous n’avons pas pu confirmer ce paiement. Contactez le support avec la référence de commande.",
+			"support": "Contacter le support",
+			"supportSubject": "Aide au paiement de l’abonnement : {id}",
+			"chargedHint": "Si vous avez été débité, ne payez pas à nouveau.",
+			"order": "Référence de commande : {id}",
+			"details": "Détails de la commande et aide",
+			"check": "Vérifier le statut"
 		},
 		"annualSummary": "Facturé {total} par an · économisez {savings} ({percent}%) par rapport à 12 paiements mensuels",
 		"annualTotal": "Facturé {total} par an",
@@ -134,6 +140,7 @@
 			"language": "Langue",
 			"creditsLabel": "{credits} crédits disponibles. Ajouter des crédits",
 			"creditsUnavailable": "Crédits indisponibles. Voir les packs de crédits"
-		}
+		},
+		"buyCredits": "Acheter des crédits"
 	}
 }

@@ -309,15 +309,57 @@ body:has(.studio-shell) [data-consent-banner] button {
 	--studio-upgrade-padding: 32px;
 	width: calc(100% - 24px);
 	max-width: 960px;
+	height: min(840px, 94dvh);
+}
+.studio-upgrade-picker {
+	display: flex;
+	flex-direction: column;
+	height: 100%;
+	min-height: 0;
+}
+.studio-upgrade-plan-list {
+	flex: 1 1 auto;
+	min-height: 128px;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	scrollbar-width: thin;
 }
 .studio-checkout-footer {
-	position: sticky;
-	bottom: 0;
-	z-index: 1;
-	margin: 16px calc(0px - var(--studio-upgrade-padding)) calc(0px - var(--studio-upgrade-padding));
-	padding: 0 var(--studio-upgrade-padding) 16px;
+	flex: 0 0 auto;
+	max-height: min(52dvh, calc(100% - 196px));
+	overflow-y: auto;
+	margin-top: 12px;
+	padding-bottom: 2px;
 	border-top: 1px solid #ffffff14;
 	background: #17121e;
+}
+.studio-theme .payment-provider-selector label {
+	border-color: #ffffff24;
+	background: #ffffff06;
+}
+.studio-theme .payment-provider-selector label:has(input:checked) {
+	border-color: #b79cff;
+	background: #b79cff14;
+}
+.studio-theme .payment-provider-selector input {
+	accent-color: #b79cff;
+}
+.studio-theme .pending-checkout {
+	border-color: #b79cff38;
+	background: #b79cff08;
+}
+@media (max-height: 800px), (max-width: 639px) {
+	.studio-upgrade-description {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+	}
+	.studio-upgrade-main {
+		padding-top: 28px;
+		padding-bottom: 16px;
+	}
 }
 @media (max-width: 639px) {
 	.studio-theme.studio-upgrade-dialog {
@@ -330,26 +372,37 @@ body:has(.studio-shell) [data-consent-banner] button {
 }
 @media (max-width: 479px) {
 	.studio-upgrade-plan-option {
-		grid-template-columns: 20px minmax(0, 1fr);
-		gap: 8px 12px;
+		grid-template-columns: 16px minmax(0, 1fr) auto;
+		min-height: 100px;
+		padding: 12px;
+		gap: 8px;
 	}
 	.studio-upgrade-plan-price {
-		grid-column: 2;
-		text-align: left;
+		max-width: 112px;
+	}
+	.studio-upgrade-plan-price > span:first-child {
+		font-size: 20px;
+	}
+	.studio-upgrade-plan-price > span:last-child {
+		font-size: 10px;
+	}
+	.studio-upgrade-plan-option > input {
+		width: 16px;
+		height: 16px;
 	}
 }
 .studio-upgrade-dialog [data-test="public-pricing-plans"] > div {
 	padding: 12px;
 	border-radius: 16px;
 }
-.studio-upgrade-dialog [data-test="public-pricing-credit-packs"] > div:last-child {
+.studio-upgrade-dialog .credit-pack-grid {
 	grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 @media (max-width: 767px) {
 	.studio-toplinks .studio-create-link {
 		display: none;
 	}
-	.studio-upgrade-dialog [data-test="public-pricing-credit-packs"] > div:last-child {
+	.studio-upgrade-dialog .credit-pack-grid {
 		grid-template-columns: minmax(0, 1fr);
 	}
 }

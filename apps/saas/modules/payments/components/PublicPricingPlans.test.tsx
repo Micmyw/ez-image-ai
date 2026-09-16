@@ -11,6 +11,7 @@ const translations: Record<string, string> = {
 	"pricing.aspectRatios": "Portrait, square, and landscape ratios",
 	"pricing.baseCredits": "Base credits: {credits}",
 	"pricing.buyWith": "Buy with {provider}",
+	"pricing.buyCredits": "Buy credits",
 	"pricing.capabilitiesLabel": "Editing capabilities",
 	"pricing.concurrentEdits": "{count} concurrent edits",
 	"pricing.creditExpiry": "Credits refresh monthly and unused credits do not roll over.",
@@ -53,9 +54,9 @@ function interpolate(message: string, values?: Record<string, number | string>) 
 }
 
 vi.mock("next-intl", () => ({
-	useTranslations: () => {
+	useTranslations: (namespace?: string) => {
 		const translate = (key: string, values?: Record<string, number | string>) =>
-			interpolate(translations[key] ?? key, values);
+			interpolate(translations[namespace ? `${namespace}.${key}` : key] ?? key, values);
 		translate.raw = (key: string) => {
 			if (!key.endsWith(".features")) return undefined;
 			return {
@@ -193,16 +194,17 @@ vi.mock("@shared/lib/orpc-query-utils", () => ({
 }));
 vi.mock("@tanstack/react-query", () => ({
 	useMutation: () => ({ isPending: false, mutateAsync: vi.fn() }),
-	useQuery: () => ({
-		data: {
-			providers: [
-				{ capabilities: { checkout: true }, name: "paypal" },
-				{ capabilities: { checkout: true }, name: "waffo" },
-			],
-		},
-		isError: false,
-		isPending: false,
-	}),
+	useQueries: ({ queries }: { queries: unknown[] }) =>
+		queries.map(() => ({
+			data: {
+				providers: [
+					{ capabilities: { checkout: true }, name: "paypal" },
+					{ capabilities: { checkout: true }, name: "waffo" },
+				],
+			},
+			isError: false,
+			isPending: false,
+		})),
 }));
 
 import { PublicPricingPlans } from "./PublicPricingPlans";
@@ -270,8 +272,9 @@ describe("PublicPricingPlans", () => {
 			expect(visibleText).toContain(`Subscribers receive ${total} credits`);
 			expect(visibleText).toContain(price);
 		}
-		expect(visibleText.match(/Buy with PayPal/g)).toHaveLength(4);
-		expect(visibleText.match(/Buy with Waffo/g)).toHaveLength(4);
+		expect(visibleText.match(/Buy credits/g)).toHaveLength(4);
+		expect(visibleText.match(/PayPal/g)).toHaveLength(1);
+		expect(visibleText.match(/Waffo/g)).toHaveLength(1);
 		expect(visibleText).toContain("Valid for 6 months");
 		expect(visibleText).not.toMatch(/Stripe|credit or debit card/i);
 	});

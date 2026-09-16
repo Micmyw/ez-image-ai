@@ -6,6 +6,7 @@ import { blogDocuments } from "../../../content/posts/private-image-editing-work
 
 export type LegalPage = {
 	path: string;
+	updatedAt?: string;
 	locale: string;
 	title: string;
 	description: string;
@@ -18,6 +19,7 @@ export type BlogPost = {
 	title: string;
 	description: string;
 	publishedAt: string;
+	updatedAt?: string;
 	tags: readonly string[];
 	published: boolean;
 	body: string;

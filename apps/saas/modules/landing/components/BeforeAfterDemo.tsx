@@ -59,8 +59,9 @@ export function BeforeAfterDemo() {
 							<Image
 								src="/examples/studio-before.svg"
 								alt={t("beforeAlt")}
-								fill
-								className="object-cover"
+								width={1200}
+								height={800}
+								className="inset-0 absolute h-full w-full object-cover"
 								sizes="(min-width: 1024px) 58vw, 100vw"
 							/>
 							<div
@@ -71,8 +72,9 @@ export function BeforeAfterDemo() {
 								<Image
 									src="/examples/studio-after.svg"
 									alt=""
-									fill
-									className="object-cover"
+									width={1200}
+									height={800}
+									className="inset-0 absolute h-full w-full object-cover"
 									sizes="(min-width: 1024px) 58vw, 100vw"
 								/>
 							</div>

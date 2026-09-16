@@ -317,6 +317,24 @@ Login, guest workspace, create, history, assets, edits, checkout, settings, and 
 `noindex, nofollow`. Legacy locale-prefixed public URLs permanently redirect to their unprefixed
 paths. Public HTML stays English; account pages retain the locale cookie.
 
+Sitemap `lastmod` values are editorial content dates, not build or request timestamps.
+Update `apps/saas/content/page-updates.ts` for meaningful homepage/pricing changes, the
+`updatedAt` field in legal documents and model entries, and `updatedAt: YYYY-MM-DD` in Docs
+frontmatter when their main content changes. Blog posts fall back to `publishedAt` until an
+`updatedAt` is recorded; Blog and Models indexes use the latest child date. Unknown dates
+are omitted rather than inferred from the current time. The initial dates follow the existing
+publication dates, visible legal revision dates, and content revisions in Git: the privacy
+workflow article on September 13; the introductory, editing and quick-start Docs on September 14;
+and the September 16 homepage, pricing, model artwork, credit and privacy revisions.
+
+`/sitemap-images.xml` associates public homepage/model artwork with its actual containing page.
+It uses the same responsive image manifests as the page components and includes only public
+static artwork, never user uploads, outputs, signed URLs or private media. Both sitemaps are
+declared in `robots.txt`; image title/caption tags are omitted because Google deprecated them.
+`/assets` remains the protected account library and its crawl restriction does not cover
+`/_next/static/`, `/images/` or `/examples/`. The unused `/sitemap_index.xml` returns 404 for
+GET and HEAD without falling through to an organization login redirect.
+
 ## Security, privacy, and cost impact
 
 - PostgreSQL, the existing immutable credit ledger, generation jobs, Outbox, Provider routing,
@@ -357,6 +375,18 @@ quality claims, Stripe repricing, public gallery/community features, and any sec
 Provider, or storage system.
 
 ## Unified creation surface
+
+The homepage owns `ai image editor no restrictions`, with prompt-editing variants supporting the
+same canonical URL. Its hero keeps one short introductory sentence. The description, example
+headings, instructions, and FAQ explain prompt control beyond fixed templates while preserving
+content-safety, legal, model, and usage limits. English is the indexable public version; translated
+interface views retain the existing `?lang=` and `noindex, follow` contract.
+
+Each of the six illustrative creator briefs appears once in the initial HTML and rendered DOM.
+Desktop uses three gently moving columns; mobile reuses those columns in a horizontal scroll area.
+Pause and reduced-motion support remain available without duplicated animation or breakpoint copy.
+The Before/After illustrations reserve their original 1200-by-800 aspect ratio and declare their
+intrinsic dimensions. These examples remain illustrative, not evidence of model quality.
 
 The homepage renders the guest editor for visitors and anonymous trial sessions, and the existing
 registered editor inside account/onboarding/organization/subscription boundaries for registered users.

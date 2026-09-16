@@ -4,7 +4,10 @@ import { z } from "zod";
 export const docs = defineDocs({
 	dir: "content/docs",
 	docs: {
-		schema: frontmatterSchema.extend({ indexable: z.boolean().default(false) }),
+		schema: frontmatterSchema.extend({
+			indexable: z.boolean().default(false),
+			updatedAt: z.iso.date().optional(),
+		}),
 		postprocess: {
 			includeProcessedMarkdown: true,
 		},

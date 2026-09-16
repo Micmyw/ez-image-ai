@@ -229,8 +229,8 @@
 		},
 		"creatorWorkflows": {
 			"eyebrow": "Historias ilustrativas de creadores",
-			"title": "Trabajo creativo que avanza en distintas direcciones",
-			"description": "Conoce seis perfiles compuestos y las instrucciones de edición concretas que podrían llevar a EzPic.",
+			"title": "Ideas de edición de imágenes para proyectos cotidianos",
+			"description": "Seis perfiles creativos ficticios ilustran cómo editar fotos de productos, retratos, interiores y más mediante instrucciones.",
 			"pause": "Pausar el movimiento",
 			"resume": "Reanudar el movimiento",
 			"listLabel": "Tarjetas ilustrativas de historias de creadores",
@@ -280,7 +280,8 @@
 					"description": "Reinterpreta una escena preliminar en papel plegado, porcelana o pintura cinematográfica.",
 					"direction": "Composición preliminar → estudio de material enfocado"
 				}
-			}
+			},
+			"mobileHint": "Desliza para explorar las seis propuestas de edición."
 		},
 		"imageEditorHero": {
 			"eyebrow": "Edición de imágenes mediante instrucciones",
@@ -291,8 +292,8 @@
 		},
 		"beforeAfter": {
 			"eyebrow": "Una fuente, un cambio claro",
-			"title": "Compara la dirección antes de confirmar",
-			"description": "Arrastra el divisor para revisar una escena vectorial original y su dirección de edición creada a mano.",
+			"title": "Compara el antes y el después de una edición",
+			"description": "Arrastra el divisor para comparar una ilustración vectorial con una propuesta de edición diseñada a mano.",
 			"disclaimer": "Esta ilustración muestra la interfaz; no es una garantía de calidad.",
 			"before": "Original",
 			"after": "Dirección de edición",
@@ -303,8 +304,8 @@
 		},
 		"showcase": {
 			"eyebrow": "Recetas de prompts",
-			"title": "Parte de un look. Hazlo inconfundiblemente tuyo.",
-			"description": "Explora direcciones visuales originales para interiores, productos, retratos, iluminación, comida e ilustración. Cada caso incluye un prompt completo para reutilizar.",
+			"title": "Instrucciones de edición para adaptar a tus imágenes",
+			"description": "Empieza con instrucciones para fondos, objetos, retratos o iluminación. Adapta cada ejemplo a tu imagen y al cambio que buscas.",
 			"instruction": "Elige una tarjeta para enviar su prompt completo al editor.",
 			"usePrompt": "Usar este prompt",
 			"promptAdded": "Prompt añadido",
@@ -446,20 +447,20 @@
 		},
 		"howItWorks": {
 			"eyebrow": "Cómo funciona",
-			"title": "De la subida al resultado privado",
-			"description": "La página de inicio abre la herramienta. Un espacio temporal de invitado gestiona la cola y el resultado privado en la misma aplicación EzPic.",
+			"title": "Cómo usar un editor de imágenes con IA e instrucciones",
+			"description": "Edita tu foto en un mismo espacio: añade una imagen, describe el cambio y revisa el resultado. Si has iniciado sesión, también puedes empezar solo con texto.",
 			"steps": {
 				"draft": {
-					"title": "Sube y describe",
-					"description": "Elige una imagen de origen compatible y describe con precisión el cambio que quieres."
+					"title": "Sube una imagen y escribe tus instrucciones",
+					"description": "Añade un JPEG, PNG o WebP. Indica qué sujeto conservar y qué fondo, objeto, color o estilo cambiar."
 				},
 				"signin": {
-					"title": "Continúa como invitado",
-					"description": "Una transferencia segura en el mismo origen abre tu espacio temporal sin pedir inicio de sesión."
+					"title": "Elige un modelo y revisa los créditos",
+					"description": "Inicia sesión, elige ajustes de salida compatibles y revisa el coste. Las ediciones con referencia que cumplan los requisitos pueden usar la prueba para invitados cuando esté disponible."
 				},
 				"generate": {
-					"title": "Inicia y revisa la edición",
-					"description": "Tu confirmación inicia el flujo asíncrono y devuelve una vista previa privada con marca de agua."
+					"title": "Crea, compara y ajusta",
+					"description": "Confirma la edición, compara el resultado con el original y úsalo como referencia para la siguiente instrucción."
 				}
 			}
 		},
@@ -541,6 +542,10 @@
 			"quickStart": "Empieza tu primera edición",
 			"prompts": "Escribe una instrucción más clara",
 			"privacy": "Comprende la edición privada de imágenes"
+		},
+		"faq": {
+			"title": "Editor de imágenes con IA sin plantillas fijas: preguntas frecuentes",
+			"description": "Cómo funciona la edición con instrucciones, qué se mantiene privado y qué límites de seguridad y uso se aplican."
 		}
 	},
 	"newsletter": {

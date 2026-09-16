@@ -29,7 +29,7 @@ describe("PaymentProviderSelector", () => {
 		expect(markup).toContain("<legend");
 		expect(markup).toContain("Payment method");
 		expect(markup).toContain('type="radio"');
-		expect(markup).toContain('name="creator-month-provider"');
+		expect(markup).toContain('name="creator-month-provider-');
 		expect(markup).toMatch(/checked="" value="paypal"/);
 		expect(markup).toContain("Credit or debit card");
 		expect(markup).toContain("PayPal");

@@ -9,7 +9,7 @@ export default function robots(): MetadataRoute.Robots {
 			disallow: [
 				"/api/",
 				"/admin/",
-				"/assets",
+				"/assets", // Private asset library; public artwork lives under /images/ and /examples/.
 				"/create",
 				"/draft/",
 				"/edits",
@@ -18,6 +18,8 @@ export default function robots(): MetadataRoute.Robots {
 				"/try",
 			],
 		},
-		sitemap: new URL("/sitemap.xml", getBaseUrl()).href,
+		sitemap: ["/sitemap.xml", "/sitemap-images.xml"].map(
+			(path) => new URL(path, getBaseUrl()).href,
+		),
 	};
 }

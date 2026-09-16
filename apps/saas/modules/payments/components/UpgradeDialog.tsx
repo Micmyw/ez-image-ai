@@ -56,12 +56,12 @@ export function UpgradeDialog({
 			}}
 		>
 			<DialogContent
-				className="studio-theme studio-upgrade-dialog border-white/15 p-0 shadow-2xl max-h-[90dvh] overflow-y-auto bg-[#17121e] text-[#f6f2fb]"
+				className="studio-theme studio-upgrade-dialog border-white/15 p-0 shadow-2xl overflow-hidden bg-[#17121e] text-[#f6f2fb]"
 				overlayProps={{ className: "bg-black/70 backdrop-blur-sm" }}
 				closeDisabled={Boolean(payment.action)}
 				closeLabel={t("studio.closePanel")}
 			>
-				<div className="min-w-0 md:grid-cols-[0.8fr_1.2fr] grid">
+				<div className="min-w-0 min-h-0 md:grid-cols-[0.8fr_1.2fr] grid h-full">
 					<aside className="border-white/10 p-8 md:block hidden border-r bg-[radial-gradient(ellipse_at_top_left,#b79cff20,transparent_70%)]">
 						<CrownIcon className="mb-5 size-9 text-[#b79cff]" aria-hidden />
 						<h3 className="text-2xl font-semibold tracking-tight">
@@ -85,15 +85,15 @@ export function UpgradeDialog({
 							{t("pricing.upgrade.secureHint")}
 						</div>
 					</aside>
-					<div className="min-w-0 p-5 pt-10 sm:p-8">
-						<DialogTitle className="pr-5 text-2xl leading-tight">
+					<div className="studio-upgrade-main min-w-0 min-h-0 p-5 pt-8 sm:p-8 flex flex-col">
+						<DialogTitle className="pr-5 text-xl sm:text-2xl leading-tight shrink-0">
 							{t("pricing.upgrade.title")}
 						</DialogTitle>
-						<DialogDescription className="mt-2 leading-6 text-[#b8adbf]">
+						<DialogDescription className="studio-upgrade-description mt-2 leading-6 shrink-0 text-[#b8adbf]">
 							{t("pricing.upgrade.description")}
 						</DialogDescription>
 						<fieldset
-							className="my-5 gap-4 border-white/10 flex border-b"
+							className="my-3 gap-4 border-white/10 flex shrink-0 border-b"
 							aria-label={t("pricing.upgrade.purchaseType")}
 						>
 							{(["plans", "credit-packs"] as const).map((tab) => (
@@ -109,10 +109,13 @@ export function UpgradeDialog({
 								</button>
 							))}
 						</fieldset>
-						{view === "credit-packs" ? (
+						<div
+							hidden={view !== "credit-packs"}
+							className="studio-upgrade-packs min-h-0 overflow-y-auto overscroll-contain"
+						>
 							<PublicPricingPlans locale={locale} initialView="credit-packs" hideViewToggle />
-						) : null}
-						<div hidden={view !== "plans"}>
+						</div>
+						<div hidden={view !== "plans"} className="studio-upgrade-plans min-h-0 flex-1">
 							{(session.isError || (registered && purchases.isError)) && (
 								<p role="alert" className="mb-3 text-sm text-destructive">
 									{t("pricing.checkoutUnavailable")}

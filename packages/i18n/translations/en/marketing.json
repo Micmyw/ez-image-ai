@@ -229,8 +229,8 @@
 		},
 		"creatorWorkflows": {
 			"eyebrow": "Illustrative creator stories",
-			"title": "Creative work, moving in different directions",
-			"description": "Meet six composite creator profiles and the focused image-editing briefs they could bring to EzPic.",
+			"title": "Image editing ideas for everyday projects",
+			"description": "Six composite creator profiles illustrate how to edit product photos, portraits, interiors, and more with prompts.",
 			"pause": "Pause movement",
 			"resume": "Resume movement",
 			"listLabel": "Illustrative creator story cards",
@@ -280,7 +280,8 @@
 					"description": "Iris reimagines a rough scene in folded paper, porcelain, or cinematic paint while keeping its structure.",
 					"direction": "Rough composition → focused material study"
 				}
-			}
+			},
+			"mobileHint": "Swipe to explore all six editing briefs."
 		},
 		"imageEditorHero": {
 			"eyebrow": "Prompt-based image editing",
@@ -291,8 +292,8 @@
 		},
 		"beforeAfter": {
 			"eyebrow": "One source, one clear change",
-			"title": "Compare the direction before you commit",
-			"description": "Drag the divider to inspect an original vector scene and its hand-authored edit direction. The same comparison pattern is used to make source and result easy to distinguish.",
+			"title": "Compare an image edit before and after",
+			"description": "Drag the divider to compare a vector illustration with a hand-authored edit direction.",
 			"disclaimer": "This illustration demonstrates the interface; it is not a quality guarantee.",
 			"before": "Original",
 			"after": "Edit direction",
@@ -303,8 +304,8 @@
 		},
 		"showcase": {
 			"eyebrow": "Prompt recipes",
-			"title": "Start with a look. Make it unmistakably yours.",
-			"description": "Explore original visual directions for interiors, products, portraits, lighting, food, and illustration. Every case includes a complete prompt you can reuse.",
+			"title": "Image editing prompts to make your own",
+			"description": "Start with an image editing prompt for backgrounds, objects, portraits, or lighting. Adapt each example to your source image and the change you want.",
 			"instruction": "Choose a card to send its full prompt to the editor.",
 			"usePrompt": "Use this prompt",
 			"promptAdded": "Prompt added",
@@ -446,20 +447,20 @@
 		},
 		"howItWorks": {
 			"eyebrow": "How it works",
-			"title": "From an idea to your next image",
-			"description": "Prepare a prompt, choose a model, and create in the same EzPic workspace. Add a reference when you want to guide or edit an existing image.",
+			"title": "How to use an AI image editor with prompt control",
+			"description": "Edit your photo in one workspace: add an image, describe the change, and review the result. You can also start from a text prompt when signed in.",
 			"steps": {
 				"draft": {
-					"title": "Describe your image",
-					"description": "Write a visual brief and choose a model. Add a reference image if you want to edit an existing picture."
+					"title": "Upload an image and write your prompt",
+					"description": "Add a JPEG, PNG, or WebP. Name the subject to keep and the background, object, color, or style to change."
 				},
 				"signin": {
-					"title": "Review your settings",
-					"description": "Sign in, choose output settings, and review the credit quote. Eligible reference edits can also use the sponsored guest trial."
+					"title": "Choose a model and review credits",
+					"description": "Sign in, select supported output settings, and check the quote. Eligible reference edits can use the guest trial when available."
 				},
 				"generate": {
-					"title": "Generate and refine",
-					"description": "Confirm the quote, follow the job in your workspace, and use the result as a reference for your next idea."
+					"title": "Create, compare, and refine",
+					"description": "Confirm the edit, compare the result with your source, and use it as a reference for the next prompt."
 				}
 			}
 		},
@@ -541,6 +542,10 @@
 			"quickStart": "Start your first edit",
 			"prompts": "Write a clearer editing prompt",
 			"privacy": "Understand private image editing"
+		},
+		"faq": {
+			"title": "AI image editor no restrictions: questions answered",
+			"description": "How prompt editing works, what stays private, and which safety and usage limits apply."
 		}
 	},
 	"newsletter": {

@@ -6,6 +6,7 @@ export const blogDocuments = [
 		description:
 			"Understand who can access an EzPic edit, how guest and account media differ, when files expire, and what to check before uploading a photo.",
 		publishedAt: "2026-09-05",
+		updatedAt: "2026-09-13",
 		tags: ["image editing", "privacy", "workflow"],
 		published: true,
 		body: `A private image edit limits who can open the uploaded source and finished result. In EzPic, those files belong to the account or temporary guest session that created the edit; they are not automatically added to a public gallery. Private access does not mean that no processing service receives your image.

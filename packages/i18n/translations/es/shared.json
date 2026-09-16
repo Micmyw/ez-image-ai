@@ -7,13 +7,19 @@
 		"subscriptionRefundPending": "Tu suscripción reembolsada de {provider} todavía se está cerrando. Podrás contratar una nueva suscripción mensual o anual cuando se confirme el cierre.",
 		"pendingCheckout": {
 			"title": "Suscripción pendiente de completar",
-			"description": "Tienes un pago pendiente con {provider}. Continúa o comprueba si se ha cerrado antes de iniciar otra suscripción.",
+			"description": "Debes resolver el pago anterior con {provider} antes de iniciar otra suscripción.",
 			"resume": "Continuar el pago",
 			"refresh": "Comprobar el estado",
-			"PENDING": "La aprobación sigue pendiente. Continúa este pago o contacta con soporte para cambiar tu selección.",
+			"PENDING": "Este proceso de pago sigue abierto. Contacta con soporte si necesitas cambiar de plan.",
 			"PAID": "El proveedor ha activado esta suscripción. Estamos confirmando el pago y actualizando tu cuenta.",
 			"CLOSED": "El pago está cerrado. Ya puedes elegir otra suscripción.",
-			"UNKNOWN": "No se ha confirmado el cierre. Inténtalo más tarde o contacta con soporte."
+			"UNKNOWN": "No pudimos confirmar este pago. Contacta con soporte e indica la referencia del pedido.",
+			"support": "Contactar con soporte",
+			"supportSubject": "Ayuda con el pago de la suscripción: {id}",
+			"chargedHint": "Si ya se te ha cobrado, no vuelvas a pagar.",
+			"order": "Referencia del pedido: {id}",
+			"details": "Detalles del pedido y ayuda",
+			"check": "Comprobar estado"
 		},
 		"annualSummary": "Facturación anual de {total} · ahorra {savings} ({percent}%) frente a 12 pagos mensuales",
 		"annualTotal": "Facturación anual de {total}",
@@ -134,6 +140,7 @@
 			"language": "Idioma",
 			"creditsLabel": "{credits} créditos disponibles. Añadir créditos",
 			"creditsUnavailable": "Créditos no disponibles. Ver paquetes de créditos"
-		}
+		},
+		"buyCredits": "Comprar créditos"
 	}
 }

@@ -229,8 +229,8 @@
 		},
 		"creatorWorkflows": {
 			"eyebrow": "Histoires de créateurs illustratives",
-			"title": "Un travail créatif qui suit plusieurs directions",
-			"description": "Découvrez six profils composites et les consignes de retouche précises qu’ils pourraient confier à EzPic.",
+			"title": "Des idées de retouche pour vos projets du quotidien",
+			"description": "Six profils créatifs fictifs illustrent la retouche de photos de produits, de portraits, d’intérieurs et d’autres images à l’aide d’instructions.",
 			"pause": "Mettre le mouvement en pause",
 			"resume": "Reprendre le mouvement",
 			"listLabel": "Cartes d’histoires de créateurs illustratives",
@@ -280,7 +280,8 @@
 					"description": "Réinterprétez une scène préparatoire en papier plié, porcelaine ou peinture cinématographique.",
 					"direction": "Composition préparatoire → étude de matière ciblée"
 				}
-			}
+			},
+			"mobileHint": "Balayez pour découvrir les six propositions de retouche."
 		},
 		"imageEditorHero": {
 			"eyebrow": "Retouche d’images par instructions",
@@ -291,8 +292,8 @@
 		},
 		"beforeAfter": {
 			"eyebrow": "Une source, un changement clair",
-			"title": "Comparez la direction avant de confirmer",
-			"description": "Faites glisser le séparateur pour comparer une scène vectorielle originale et sa direction de retouche dessinée à la main.",
+			"title": "Comparez une retouche avant et après",
+			"description": "Faites glisser le séparateur pour comparer une illustration vectorielle à une proposition de retouche réalisée à la main.",
 			"disclaimer": "Cette illustration présente l’interface ; elle ne garantit pas la qualité.",
 			"before": "Original",
 			"after": "Direction de retouche",
@@ -303,8 +304,8 @@
 		},
 		"showcase": {
 			"eyebrow": "Recettes de prompts",
-			"title": "Partez d’un style. Rendez-le vraiment vôtre.",
-			"description": "Explorez des directions visuelles originales pour les intérieurs, produits, portraits, lumières, plats et illustrations. Chaque cas contient un prompt complet à réutiliser.",
+			"title": "Des instructions de retouche à adapter à vos images",
+			"description": "Commencez par une instruction pour les arrière-plans, objets, portraits ou éclairages. Adaptez chaque exemple à votre image et au changement souhaité.",
 			"instruction": "Choisissez une carte pour envoyer son prompt complet dans l’éditeur.",
 			"usePrompt": "Utiliser ce prompt",
 			"promptAdded": "Prompt ajouté",
@@ -446,20 +447,20 @@
 		},
 		"howItWorks": {
 			"eyebrow": "Fonctionnement",
-			"title": "De l’import au résultat privé",
-			"description": "La page d’accueil lance l’outil. Un espace invité temporaire gère la file et le résultat privé dans la même application EzPic.",
+			"title": "Comment utiliser un éditeur d’images IA avec des instructions",
+			"description": "Retouchez votre photo dans un même espace : ajoutez une image, décrivez le changement et vérifiez le résultat. Une fois connecté, vous pouvez aussi commencer par du texte seul.",
 			"steps": {
 				"draft": {
-					"title": "Importez et décrivez",
-					"description": "Choisissez une image source compatible et décrivez précisément le changement souhaité."
+					"title": "Importez une image et rédigez vos instructions",
+					"description": "Ajoutez un fichier JPEG, PNG ou WebP. Précisez le sujet à conserver et l’arrière-plan, l’objet, la couleur ou le style à modifier."
 				},
 				"signin": {
-					"title": "Continuez comme invité",
-					"description": "Un transfert sécurisé sur la même origine ouvre votre espace temporaire sans connexion."
+					"title": "Choisissez un modèle et vérifiez les crédits",
+					"description": "Connectez-vous, choisissez des paramètres de sortie compatibles et vérifiez le coût. Les retouches avec référence éligibles peuvent utiliser l’essai invité lorsqu’il est disponible."
 				},
 				"generate": {
-					"title": "Lancez et vérifiez la retouche",
-					"description": "Votre confirmation démarre le flux asynchrone et renvoie un aperçu privé filigrané."
+					"title": "Créez, comparez et affinez",
+					"description": "Confirmez la retouche, comparez le résultat à l’original et utilisez-le comme référence pour vos prochaines instructions."
 				}
 			}
 		},
@@ -541,6 +542,10 @@
 			"quickStart": "Commencer votre première retouche",
 			"prompts": "Rédiger une consigne plus précise",
 			"privacy": "Comprendre la retouche privée"
+		},
+		"faq": {
+			"title": "Éditeur d’images IA sans modèles prédéfinis : vos questions",
+			"description": "Le fonctionnement de la retouche par instructions, la confidentialité et les limites de sécurité et d’utilisation."
 		}
 	},
 	"newsletter": {

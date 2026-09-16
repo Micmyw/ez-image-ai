@@ -187,6 +187,17 @@ test("header shows real available credits and opens the upgrade picker at deskto
 
 test("guest sign-in preserves the selected plan and interval", async ({ page }) => {
 	await mockBilling(page, { registered: false });
+	let protectedLookups = 0;
+	await page.route("**/api/rpc/payments/getProviderAvailability**", (route) => {
+		protectedLookups++;
+		return route.fulfill({
+			status: 401,
+			contentType: "application/json",
+			body: JSON.stringify({
+				json: { code: "UNAUTHORIZED", status: 401, message: "Unauthorized" },
+			}),
+		});
+	});
 	await page.goto("/pricing?plan=studio&interval=month");
 	await page.getByRole("dialog").getByRole("button", { name: "Sign in to continue" }).click();
 	await expect(page).toHaveURL(/\/login\?redirectTo=/);
@@ -196,6 +207,7 @@ test("guest sign-in preserves the selected plan and interval", async ({ page }) 
 	await expect(page.getByRole("dialog")).not.toBeVisible();
 	await page.locator('input[name="email"]').fill("guest@example.com");
 	await expect(page.locator('input[name="email"]')).toHaveValue("guest@example.com");
+	expect(protectedLookups).toBe(0);
 });
 
 test("credit-pack payment locks every pack and restores retry after failure", async ({ page }) => {
@@ -218,7 +230,7 @@ test("credit-pack payment locks every pack and restores retry after failure", as
 	});
 	await page.goto("/pricing?plan=ultimate&interval=year&view=credit-packs");
 	const dialog = page.getByRole("dialog");
-	const buttons = dialog.getByRole("button", { name: "Buy with PayPal", exact: true });
+	const buttons = dialog.getByRole("button", { name: "Buy credits", exact: true });
 	await expect(buttons).toHaveCount(4);
 	await buttons.first().evaluate((button: HTMLButtonElement) => {
 		button.click();
@@ -295,6 +307,7 @@ test("a monthly plan goes straight to its selected checkout and rapid clicks sen
 
 test("failed checkout unlocks retry and reuses the same idempotency key", async ({ page }) => {
 	await mockBilling(page);
+	await page.setViewportSize({ width: 320, height: 720 });
 	const keys: string[] = [];
 	await page.route("**/api/rpc/payments/createCheckoutLink", async (route) => {
 		keys.push(route.request().postDataJSON().json.idempotencyKey);
@@ -313,6 +326,7 @@ test("failed checkout unlocks retry and reuses the same idempotency key", async 
 	await pay.click();
 	await expect(dialog.getByRole("alert")).toBeVisible();
 	await expect(pay).toBeEnabled();
+	await expect(dialog.getByRole("alert")).toBeInViewport({ ratio: 1 });
 	await pay.click();
 	await expect.poll(() => keys.length).toBe(2);
 	expect(keys[0]).toBeTruthy();
@@ -329,7 +343,7 @@ test("unfinished checkout is resumed in place and blocks a second subscription",
 		"href",
 		"https://checkout.example.invalid/pending",
 	);
-	await expect(dialog.locator('[data-test="subscription-checkout"]')).toBeDisabled();
+	await expect(dialog.locator('[data-test="subscription-checkout"]')).toHaveCount(0);
 });
 
 test("active subscribers see management and an unavailable channel never enables payment", async ({
@@ -373,4 +387,250 @@ test("language selection updates public UI and preserves English canonical index
 	const english = await page.request.get("/");
 	expect(english.headers()["x-robots-tag"]).toBeUndefined();
 	expect(await english.text()).toContain('<html lang="en"');
+});
+
+test("Max stays fully visible and payment preferences remain selectable with an uncertain checkout", async ({
+	page,
+}) => {
+	await mockBilling(page);
+	await page.route("**/api/rpc/payments/getPendingSubscriptionCheckout**", (route) =>
+		route.fulfill({
+			contentType: "application/json",
+			body: JSON.stringify({
+				json: {
+					id: "pending-waffo-123",
+					provider: "waffo",
+					planId: "creator",
+					interval: "year",
+					checkoutLink: null,
+				},
+			}),
+		}),
+	);
+	await page.route("**/api/rpc/payments/refreshPendingSubscriptionCheckout", (route) =>
+		route.fulfill({
+			contentType: "application/json",
+			body: JSON.stringify({ json: { status: "UNKNOWN" } }),
+		}),
+	);
+	for (const viewport of [
+		{ width: 1280, height: 720 },
+		{ width: 390, height: 844 },
+		{ width: 320, height: 720 },
+	]) {
+		await page.setViewportSize(viewport);
+		await page.goto("/pricing?plan=studio&interval=year");
+		const dialog = page.getByRole("dialog");
+		const max = dialog.locator("label").filter({ has: page.locator('input[value="studio"]') });
+		await expect(dialog.getByRole("button", { name: "Check payment status" })).toBeVisible();
+		await expect
+			.poll(() =>
+				max.evaluate((card) => {
+					const rect = card.getBoundingClientRect();
+					const footer = document.querySelector(".studio-checkout-footer")!.getBoundingClientRect();
+					const list = card.closest('[data-test="upgrade-plan-list"]')?.getBoundingClientRect();
+					return (
+						rect.top >= (list?.top ?? 0) - 1 &&
+						rect.bottom <= Math.min(footer.top, list?.bottom ?? innerHeight) + 1
+					);
+				}),
+			)
+			.toBe(true);
+		await dialog.getByRole("radio", { name: "Waffo", exact: true }).check();
+		await expect(dialog.getByRole("radio", { name: "Waffo", exact: true })).toBeChecked();
+		await expect(dialog.locator('[data-test="subscription-checkout"]')).toHaveCount(0);
+		await dialog.getByRole("button", { name: "Check payment status" }).click();
+		await expect(
+			dialog.getByText(
+				"We couldn't confirm this payment. Contact support with the order reference.",
+			),
+		).toBeVisible();
+		await expect(dialog.getByRole("link", { name: "Contact support" })).toHaveAttribute(
+			"href",
+			/(?:mailto:|\/contact)/,
+		);
+		await expect(dialog).toContainText("pending-waffo-123");
+		await expect(dialog).toContainText("If you were charged, do not pay again.");
+		await expect(dialog.locator('[data-test="subscription-checkout"]')).toHaveCount(0);
+		await page.screenshot({ path: test.info().outputPath(`pending-max-${viewport.width}.png`) });
+	}
+	await page.goto("/pricing?plan=studio&interval=year&lang=de");
+	const localized = page.getByRole("dialog");
+	await expect(localized.getByRole("link", { name: "Support kontaktieren" })).toBeVisible();
+	await localized.getByText("Bestelldetails & Hilfe", { exact: true }).click();
+	await expect(
+		localized.getByText("Falls bereits Geld abgebucht wurde, bezahle nicht erneut."),
+	).toBeVisible();
+	await expect(localized.locator('[data-test="pending-checkout-reference"]')).toHaveText(
+		"Bestellreferenz: pending-waffo-123",
+	);
+});
+
+test("plan changes retain methods while validating the selected SKU and reject stale availability", async ({
+	page,
+}) => {
+	await mockBilling(page);
+	let release!: () => void;
+	const gate = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	await page.route("**/api/rpc/payments/getProviderAvailability**", async (route) => {
+		const input = (
+			route.request().method() === "GET"
+				? JSON.parse(new URL(route.request().url()).searchParams.get("data")!)
+				: route.request().postDataJSON()
+		).json;
+		if (input.planId !== "studio") return route.fallback();
+		await gate;
+		return route.fulfill({
+			contentType: "application/json",
+			body: JSON.stringify({ json: { providers: [] } }),
+		});
+	});
+	await page.goto("/pricing?plan=creator&interval=year");
+	const dialog = page.getByRole("dialog");
+	const waffo = dialog.getByRole("radio", { name: "Waffo", exact: true });
+	await waffo.check();
+	await dialog.locator('input[value="studio"]').check();
+	await expect(waffo).toBeVisible();
+	await expect(waffo).toBeChecked();
+	await expect(dialog.locator('[data-test="subscription-checkout"]')).toBeDisabled();
+	release();
+	await expect(dialog.getByRole("alert")).toBeVisible();
+	await expect(dialog.locator('[data-test="subscription-checkout"]')).toBeDisabled();
+	await dialog.locator('input[value="ultimate"]').check();
+	await expect(waffo).toBeChecked();
+	await expect(dialog.locator('[data-test="subscription-checkout"]')).toBeEnabled();
+});
+
+test("credit packs share a warmed payment selector and enforce provider availability per pack", async ({
+	page,
+}) => {
+	await mockBilling(page);
+	const lookups = new Map<string, number>();
+	await page.route("**/api/rpc/payments/getCreditPackProviderAvailability**", async (route) => {
+		const { packKey } = (
+			route.request().method() === "GET"
+				? JSON.parse(new URL(route.request().url()).searchParams.get("data")!)
+				: route.request().postDataJSON()
+		).json;
+		lookups.set(packKey, (lookups.get(packKey) ?? 0) + 1);
+		const names = packKey === "credits-1500" ? ["paypal"] : ["paypal", "waffo"];
+		await route.fulfill({
+			contentType: "application/json",
+			body: JSON.stringify({
+				json: { providers: names.map((name) => ({ name, capabilities: { checkout: true } })) },
+			}),
+		});
+	});
+	let selected: { provider: string; packKey: string } | undefined;
+	await page.route("**/api/rpc/payments/createCreditPackCheckout", (route) => {
+		selected = route.request().postDataJSON().json;
+		return route.fulfill({
+			status: 503,
+			contentType: "application/json",
+			body: JSON.stringify({
+				json: { code: "SERVICE_UNAVAILABLE", status: 503, message: "Test retry" },
+			}),
+		});
+	});
+	await page.goto("/pricing?plan=creator&interval=year");
+	const dialog = page.getByRole("dialog");
+	await expect(dialog.locator('[data-test="subscription-checkout"]')).toBeEnabled();
+	await expect.poll(() => lookups.size).toBe(4);
+	await dialog.getByRole("button", { name: "Credit Packs", exact: true }).click();
+	await expect(dialog.getByRole("radio", { name: "PayPal", exact: true })).toHaveCount(1);
+	await expect(dialog.getByRole("button", { name: "Buy credits", exact: true })).toHaveCount(4);
+	await dialog.getByRole("radio", { name: "Waffo", exact: true }).check();
+	const packs = dialog.locator('[data-test="public-credit-pack"]');
+	await expect(
+		packs.first().getByRole("button", { name: "Buy credits", exact: true }),
+	).toBeDisabled();
+	await packs.last().getByRole("button", { name: "Buy credits", exact: true }).click();
+	await expect.poll(() => selected?.provider).toBe("waffo");
+	expect(selected?.packKey).toBe(await packs.last().getAttribute("data-pack-key"));
+	await expect(
+		packs.last().getByRole("button", { name: "Buy credits", exact: true }),
+	).toBeEnabled();
+	await dialog.getByRole("button", { name: "Plans", exact: true }).click();
+	await dialog.getByRole("button", { name: "Credit Packs", exact: true }).click();
+	await expect(dialog.getByRole("radio", { name: "Waffo", exact: true })).toBeChecked();
+	expect([...lookups.values()].every((count) => count === 1)).toBe(true);
+});
+
+for (const status of ["PAID", "CLOSED"] as const) {
+	test(`pending checkout ${status} uses recovery without creating another payment`, async ({
+		page,
+	}) => {
+		await mockBilling(page, { pending: true });
+		let checked = false;
+		let calls = 0;
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		await page.route("**/api/rpc/payments/getPendingSubscriptionCheckout**", async (route) => {
+			if (!checked || status === "PAID") return route.fallback();
+			return route.fulfill({
+				contentType: "application/json",
+				body: JSON.stringify({ json: null }),
+			});
+		});
+		await page.route("**/api/rpc/payments/refreshPendingSubscriptionCheckout", async (route) => {
+			calls++;
+			await gate;
+			checked = true;
+			return route.fulfill({
+				contentType: "application/json",
+				body: JSON.stringify({ json: { status } }),
+			});
+		});
+		await page.goto("/pricing?plan=studio&interval=year");
+		const dialog = page.getByRole("dialog");
+		const check = dialog.getByRole("button", { name: "Check payment status" });
+		await check.evaluate((button: HTMLButtonElement) => {
+			button.click();
+			button.click();
+		});
+		await expect(check).toBeDisabled();
+		await expect.poll(() => calls).toBe(1);
+		release();
+		if (status === "PAID") {
+			await expect(dialog).toContainText(
+				"We are confirming its payment and updating your account.",
+			);
+			await expect(dialog.getByRole("link", { name: "Resume checkout" })).toHaveCount(0);
+			await expect(dialog.locator('[data-test="subscription-checkout"]')).toHaveCount(0);
+		} else {
+			await expect(check).toHaveCount(0);
+			await expect(dialog.locator('[data-test="subscription-checkout"]')).toBeEnabled();
+		}
+	});
+}
+
+test("credit-pack methods settle together when one availability response is slow", async ({
+	page,
+}) => {
+	await mockBilling(page);
+	let release!: () => void;
+	const gate = new Promise<void>((resolve) => {
+		release = resolve;
+	});
+	await page.route("**/api/rpc/payments/getCreditPackProviderAvailability**", async (route) => {
+		const { packKey } = route.request().postDataJSON().json;
+		if (packKey === "credits-8000") await gate;
+		return route.fallback();
+	});
+	await page.goto("/pricing?plan=studio&interval=year&view=credit-packs");
+	const dialog = page.getByRole("dialog");
+	await expect(
+		dialog.locator('[data-test="public-pricing-credit-packs"]').getByRole("status"),
+	).toHaveText("Checking payment options…");
+	await expect(dialog.getByRole("radio", { name: "PayPal", exact: true })).toHaveCount(0);
+	const buttons = dialog.getByRole("button", { name: "Buy credits", exact: true });
+	await expect(buttons).toHaveCount(4);
+	for (const button of await buttons.all()) await expect(button).toBeDisabled();
+	release();
+	await expect(dialog.getByRole("radio", { name: "PayPal", exact: true })).toBeChecked();
+	for (const button of await buttons.all()) await expect(button).toBeEnabled();
 });

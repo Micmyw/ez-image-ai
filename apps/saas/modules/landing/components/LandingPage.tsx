@@ -121,9 +121,9 @@ export async function LandingPage({
 					<div className="max-w-3xl container">
 						<div className="text-center">
 							<h2 className="text-3xl font-semibold text-white sm:text-4xl tracking-[-0.035em]">
-								{t("faq.title")}
+								{t("home.faq.title")}
 							</h2>
-							<p className="mt-3 text-base leading-7 text-slate-300">{t("faq.description")}</p>
+							<p className="mt-3 text-base leading-7 text-slate-300">{t("home.faq.description")}</p>
 						</div>
 						<div className="mt-8 space-y-3">
 							{HOME_FAQ_KEYS.map((key) => (

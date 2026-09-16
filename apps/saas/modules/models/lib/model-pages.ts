@@ -7,6 +7,7 @@ export { INSPIRATION } from "./model-artwork";
 
 export interface ModelPageContent {
 	key: ModelProductKey;
+	updatedAt: string;
 	name: string;
 	family: "GPT Image" | "Nano Banana" | "Seedream";
 	lead: string;
@@ -24,6 +25,7 @@ export interface ModelPageContent {
 export const MODEL_PAGES: readonly ModelPageContent[] = [
 	{
 		key: "image-gpt-image-2",
+		updatedAt: "2026-09-16",
 		recommendationArtwork: ["gpt-poster", "gpt-2-solar-poster", "gpt-2-tidal-poster"],
 		name: "GPT Image 2",
 		family: "GPT Image",
@@ -56,6 +58,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-gpt-image-2-5-flare",
+		updatedAt: "2026-09-16",
 		recommendationArtwork: ["gpt-flare-studio", "nano-portrait", "gpt-flare-florist"],
 		name: "GPT Image 2.5 Flare",
 		family: "GPT Image",
@@ -87,6 +90,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-gpt-image-2-5-sunburst",
+		updatedAt: "2026-09-16",
 		recommendationArtwork: ["gpt-campaign", "gpt-sunburst-cyclist", "gpt-sunburst-tennis"],
 		name: "GPT Image 2.5 Sunburst",
 		family: "GPT Image",
@@ -119,6 +123,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-gpt-image-1-5",
+		updatedAt: "2026-09-16",
 		recommendationArtwork: ["gpt-15-paper-world", "gpt-15-paper-forest", "gpt-15-paper-garden"],
 		name: "GPT Image 1.5",
 		family: "GPT Image",
@@ -151,6 +156,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-nano-banana-2-lite",
+		updatedAt: "2026-09-16",
 		recommendationArtwork: ["nano-bakery-fox", "nano-lite-penguin", "nano-lite-otter"],
 		name: "Nano Banana 2 Lite",
 		family: "Nano Banana",
@@ -183,6 +189,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-nano-banana",
+		updatedAt: "2026-09-16",
 		recommendationArtwork: ["nano-rabbit-orchard", "nano-hedgehog-bookshop", "nano-deer-lantern"],
 		name: "Nano Banana",
 		family: "Nano Banana",
@@ -215,6 +222,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-nano-banana-2",
+		updatedAt: "2026-09-16",
 		recommendationArtwork: ["nano-2-rooftop", "nano-2-moon-tram", "nano-2-airship-harbor"],
 		name: "Nano Banana 2",
 		family: "Nano Banana",
@@ -248,6 +256,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-nano-banana-pro",
+		updatedAt: "2026-09-16",
 		recommendationArtwork: ["nano-product", "nano-pro-watch", "nano-pro-camera-study"],
 		name: "Nano Banana Pro",
 		family: "Nano Banana",
@@ -280,6 +289,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-seedream-4",
+		updatedAt: "2026-09-16",
 		recommendationArtwork: ["seedream-interior", "seedream-5-pro-museum", "seedream-4-stairwell"],
 		name: "Seedream 4.0",
 		family: "Seedream",
@@ -312,6 +322,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-seedream-4-5",
+		updatedAt: "2026-09-16",
 		recommendationArtwork: [
 			"seedream-45-botanical",
 			"seedream-45-koi-print",
@@ -348,6 +359,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-seedream-5-lite",
+		updatedAt: "2026-09-16",
 		recommendationArtwork: [
 			"seedream-lite-lynx",
 			"seedream-lite-hummingbird",
@@ -384,6 +396,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-seedream-5-pro",
+		updatedAt: "2026-09-16",
 		recommendationArtwork: [
 			"seedream-pro-observatory",
 			"seedream-pro-lunar-train",

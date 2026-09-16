@@ -7,13 +7,19 @@
 		"subscriptionRefundPending": "Dein erstattetes {provider}-Abonnement wird noch beendet. Neue Monats- oder Jahresabonnements sind verfügbar, sobald die Beendigung bestätigt ist.",
 		"pendingCheckout": {
 			"title": "Unvollständiger Abonnement-Checkout",
-			"description": "Ein Checkout mit {provider} ist noch offen. Setze ihn fort oder prüfe, ob er geschlossen wurde, bevor du ein weiteres Abonnement startest.",
+			"description": "Ein vorheriger Bezahlvorgang über {provider} muss geklärt werden, bevor ein weiteres Abonnement beginnen kann.",
 			"resume": "Checkout fortsetzen",
 			"refresh": "Zahlungsstatus prüfen",
-			"PENDING": "Die Genehmigung steht noch aus. Setze den Checkout fort oder kontaktiere den Support, um deine Auswahl zu ändern.",
+			"PENDING": "Dieser Bezahlvorgang ist noch offen. Kontaktiere den Support, wenn du deinen Tarif ändern möchtest.",
 			"PAID": "Der Anbieter hat dieses Abonnement aktiviert. Wir bestätigen die Zahlung und aktualisieren dein Konto.",
 			"CLOSED": "Der Checkout ist geschlossen. Du kannst erneut ein Abonnement auswählen.",
-			"UNKNOWN": "Die Schließung wurde noch nicht bestätigt. Versuche es später erneut oder kontaktiere den Support."
+			"UNKNOWN": "Wir konnten die Zahlung nicht bestätigen. Kontaktiere den Support mit der Bestellreferenz.",
+			"support": "Support kontaktieren",
+			"supportSubject": "Hilfe zum Abonnement-Bezahlvorgang: {id}",
+			"chargedHint": "Falls bereits Geld abgebucht wurde, bezahle nicht erneut.",
+			"order": "Bestellreferenz: {id}",
+			"details": "Bestelldetails & Hilfe",
+			"check": "Status prüfen"
 		},
 		"annualSummary": "Jährlich {total} abgerechnet · {savings} ({percent}%) gegenüber 12 Monatszahlungen sparen",
 		"annualTotal": "Jährlich {total} abgerechnet",
@@ -134,6 +140,7 @@
 			"language": "Sprache",
 			"creditsLabel": "{credits} Credits verfügbar. Credits hinzufügen",
 			"creditsUnavailable": "Credits nicht verfügbar. Credit-Pakete ansehen"
-		}
+		},
+		"buyCredits": "Credits kaufen"
 	}
 }

@@ -70,7 +70,6 @@ const WORKFLOW_COLUMNS = [
 	],
 ] as const satisfies readonly (readonly CreatorStory[])[];
 
-const MOBILE_WORKFLOWS = WORKFLOW_COLUMNS.flat();
 const COLUMN_SPEED_CLASSES = [
 	"creator-workflows-track--one",
 	"creator-workflows-track--two",
@@ -81,12 +80,12 @@ export function CreatorWorkflowsSection() {
 	const t = useTranslations("home.creatorWorkflows");
 	const [isPaused, setIsPaused] = useState(false);
 
-	function renderStoryCard(story: CreatorStory, duplicate: boolean) {
+	function renderStoryCard(story: CreatorStory) {
 		const Icon = story.icon;
 
 		return (
 			<li
-				key={`${story.key}-${duplicate ? "duplicate" : "primary"}`}
+				key={story.key}
 				data-test="creator-story-card"
 				className="group border-white/9 p-5 backdrop-blur-sm hover:-translate-y-1 hover:border-violet-300/30 relative flex min-h-[15rem] flex-col overflow-hidden rounded-[1.35rem] border bg-[#21192c]/82 shadow-[0_24px_70px_-42px_rgba(0,0,0,0.95)] transition duration-300 hover:bg-[#281e36]/94 motion-reduce:transform-none motion-reduce:transition-none"
 			>
@@ -135,15 +134,10 @@ export function CreatorWorkflowsSection() {
 		listLabel: string,
 	) {
 		return (
-			<div className="creator-workflows-viewport">
-				<div className={`creator-workflows-track ${speedClassName}`}>
-					<ul className="creator-workflows-list" aria-label={listLabel}>
-						{stories.map((story) => renderStoryCard(story, false))}
-					</ul>
-					<ul className="creator-workflows-list creator-workflows-duplicate" aria-hidden="true">
-						{stories.map((story) => renderStoryCard(story, true))}
-					</ul>
-				</div>
+			<div className={`creator-workflows-track ${speedClassName}`}>
+				<ul className="creator-workflows-list" aria-label={listLabel}>
+					{stories.map(renderStoryCard)}
+				</ul>
 			</div>
 		);
 	}
@@ -197,27 +191,22 @@ export function CreatorWorkflowsSection() {
 				<div
 					id="creator-workflows-motion"
 					data-paused={isPaused}
-					className="creator-workflows-motion mt-10 sm:mt-12"
+					className="creator-workflows-motion mt-10 gap-4 py-3 sm:mt-12 md:grid md:grid-cols-3 md:overflow-visible lg:gap-5 focus-visible:outline-violet-300 flex snap-x snap-mandatory overflow-x-auto rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4"
 				>
-					<div className="md:hidden">
-						{renderWorkflowColumn(
-							MOBILE_WORKFLOWS,
-							"creator-workflows-track--mobile",
-							t("listLabel"),
-						)}
-					</div>
-					<div className="gap-4 lg:gap-5 md:grid-cols-3 md:grid hidden">
-						{WORKFLOW_COLUMNS.map((stories, columnIndex) => (
-							<div key={stories[0].key}>
-								{renderWorkflowColumn(
-									stories,
-									COLUMN_SPEED_CLASSES[columnIndex] ?? COLUMN_SPEED_CLASSES[0],
-									t("columnLabel", { number: columnIndex + 1, total: WORKFLOW_COLUMNS.length }),
-								)}
-							</div>
-						))}
-					</div>
+					{WORKFLOW_COLUMNS.map((stories, columnIndex) => (
+						<div
+							key={stories[0].key}
+							className="min-w-0 md:basis-auto shrink-0 basis-[88%] snap-start"
+						>
+							{renderWorkflowColumn(
+								stories,
+								COLUMN_SPEED_CLASSES[columnIndex] ?? COLUMN_SPEED_CLASSES[0],
+								t("columnLabel", { number: columnIndex + 1, total: WORKFLOW_COLUMNS.length }),
+							)}
+						</div>
+					))}
 				</div>
+				<p className="mt-3 text-xs text-slate-400 md:hidden text-center">{t("mobileHint")}</p>
 
 				<p
 					id="creator-workflows-disclaimer"

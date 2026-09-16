@@ -37,6 +37,9 @@ describe("pending subscription checkout rendering", () => {
 	});
 	it("does not render an expired checkout link", () => {
 		state.data = { id: "intent", provider: "waffo", checkoutLink: null };
-		expect(renderToStaticMarkup(<PendingSubscriptionCheckout />)).not.toContain("href=");
+		const html = renderToStaticMarkup(<PendingSubscriptionCheckout />);
+		expect(html).not.toContain(">resume<");
+		expect(html).toContain(">support<");
+		expect(html).toContain("pending-checkout-reference");
 	});
 });

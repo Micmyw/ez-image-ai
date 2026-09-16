@@ -11,9 +11,9 @@ import type { Metadata } from "next";
 
 import { LandingPage } from "../modules/landing/components/LandingPage";
 
-const title = "AI Image Editor No Restrictions — Edit with Prompts | EzPic";
+const title = "AI Image Editor No Restrictions — Prompt Editing | EzPic";
 const description =
-	"Use an AI image editor with prompt control to edit backgrounds, objects, and styles. Private images and clear credits; safety and usage limits apply.";
+	"AI image editor no restrictions: edit photos with prompts beyond fixed templates. Private images and clear credits; safety and usage limits apply.";
 
 export const metadata: Metadata = {
 	title: { absolute: title },

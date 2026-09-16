@@ -172,6 +172,7 @@ vi.mock("../modules/landing/components/CreatorWorkflowsSection", () => ({
 
 vi.mock("../modules/payments/components/CreditPackCheckoutActions", () => ({
 	CreditPackCheckoutActions: () => <div data-test="credit-pack-checkout-actions" />,
+	CreditPackPaymentOptions: ({ children }: { children: React.ReactNode }) => <>{children}</>,
 }));
 
 import { config as authConfig } from "../../../packages/auth/config";
@@ -236,7 +237,7 @@ describe("consolidated public route contract", () => {
 		expectMetadata(metadata, route.path, route.robots);
 		if (route.path === "/") {
 			expect(JSON.stringify(metadata.title)).toMatch(/ai image editor no restrictions/i);
-			expect(metadata.description).toMatch(/ai image editor with prompt/i);
+			expect(metadata.description).toMatch(/ai image editor no restrictions/i);
 			expect(metadata.openGraph?.title).toEqual((metadata.title as { absolute: string }).absolute);
 			expect(metadata.twitter?.title).toEqual(metadata.openGraph?.title);
 		}
