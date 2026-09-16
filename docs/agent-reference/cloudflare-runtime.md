@@ -13,6 +13,9 @@ Read for job/runtime/database packaging or deployment changes. Operational cutov
 
 - Both deployment profiles use `apps/saas/cloudflare-worker.ts` and OpenNext. Request contexts outlive response streams and registered background work, then disconnect Prisma. `workerd` adapter conditions exclude native Sharp/Node HTTPS.
 - Both Worker configs require `global_fetch_strictly_public`; media URLs must never use VPC fetch.
+- Workers fetch supports `redirect: "manual"`, not `redirect: "error"`. Signed Waffo merchant
+  status and prompt-verification requests use manual mode and reject non-2xx responses without
+  following their `Location` headers. Verify these boundaries in workerd as well as Node tests.
 - Generate separate Node and `runtime = "workerd"` Prisma clients. Database runtime imports use `#prisma-runtime-client`; other packages use `@repo/database/generated-client`. Direct generated-path imports are type-only. Do not bundle Node Prisma into Workers or edit generated clients.
 - Verify final job artifacts with `pnpm --filter @repo/workflows test:artifact:workerd`; `--database` needs a disposable loopback `TEST_DATABASE_URL` on port 55432. Source tests and Wrangler dry builds alone do not establish final WASM loading.
 - `pnpm cloudflare:prepare production` creates ignored deployment configs and secret files from `.env.production.local`. Only allowlisted `NEXT_PUBLIC_` values become build args; test/load credentials are stripped. Preparation is not deployment or enabled-integration certification.

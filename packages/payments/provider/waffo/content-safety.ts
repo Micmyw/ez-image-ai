@@ -106,7 +106,8 @@ const fetchPromptScan: typeof fetch = async (input, init) => {
 	const response = await fetch(input, {
 		...init,
 		headers,
-		redirect: "error",
+		// Workers supports manual redirects; reject every non-2xx response below.
+		redirect: "manual",
 		signal: init?.signal
 			? AbortSignal.any([init.signal, AbortSignal.timeout(15_000)])
 			: AbortSignal.timeout(15_000),

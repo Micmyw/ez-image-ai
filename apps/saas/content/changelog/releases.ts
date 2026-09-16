@@ -3,6 +3,7 @@ export const publicChangelogEntries = [
 		date: "2026-09-16",
 		title: "Model inspiration and content reporting",
 		changes: [
+			"Fixed Waffo payment availability after store approval and restored its prompt verification on the live service.",
 			"Explain content-safety billing before generation: one lifetime waiver per account or team for a blocked result, with later blocked results charged at the quoted amount.",
 			"Show clear safety-check and credit outcomes for uploaded images, generated results, and job history.",
 			"Added 23 original concept images across all 12 model pages, with a distinct creative direction and matching prompts for each model.",

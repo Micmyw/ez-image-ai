@@ -78,7 +78,8 @@ async function readWaffoStore(environment: Environment): Promise<unknown> {
 				throw new Error("WAFFO_STORE_STATUS_UNAVAILABLE");
 			const response = await fetch(input, {
 				...init,
-				redirect: "error",
+				// Workers supports manual redirects; the non-2xx check below rejects them.
+				redirect: "manual",
 				signal: AbortSignal.any([
 					...(init?.signal ? [init.signal] : []),
 					AbortSignal.timeout(3_000),

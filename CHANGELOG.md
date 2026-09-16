@@ -23,6 +23,8 @@
 
 ### Payment availability
 
+- Fix Waffo's merchant approval and prompt-verification requests on Cloudflare Workers so an
+  approved production store becomes available. Continue rejecting redirects and non-success responses.
 - Keep PayPal checkout available while Waffo's store approval is pending. Show Waffo automatically
   after its production store is active and permitted to collect payments, and refresh payment
   choices while the pricing view is open.

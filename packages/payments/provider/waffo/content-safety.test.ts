@@ -26,7 +26,13 @@ afterEach(() => {
 });
 
 function fixture(verdict: unknown = allowed, status = 200) {
-	const fetcher = vi.fn<typeof fetch>(async () => Response.json({ data: verdict }, { status }));
+	const fetcher = vi.fn<typeof fetch>(async (_input, init) => {
+		if (init?.redirect === "error") throw new TypeError("Invalid redirect value");
+		return Response.json(
+			{ data: verdict },
+			{ status, headers: { Location: "https://unexpected.example/scan-prompt" } },
+		);
+	});
 	vi.stubGlobal("fetch", fetcher);
 	return { scan: createWaffoPromptScanner(environment), fetcher };
 }
@@ -61,7 +67,7 @@ describe("Waffo production prompt scanning", () => {
 		expect(url).toBe("https://api.waffo.ai/v1/actions/verification/scan-prompt");
 		expect(init).toMatchObject({
 			method: "POST",
-			redirect: "error",
+			redirect: "manual",
 			signal: expect.any(AbortSignal),
 		});
 		const body = init?.body;
@@ -137,7 +143,7 @@ describe("Waffo production prompt scanning", () => {
 		},
 	);
 
-	it.each([400, 401, 429, 500, 503])(
+	it.each([301, 302, 303, 307, 308, 400, 401, 429, 500, 503])(
 		"does not accept an allow-shaped HTTP %s response or retry it inline",
 		async (status) => {
 			const { scan, fetcher } = fixture(allowed, status);

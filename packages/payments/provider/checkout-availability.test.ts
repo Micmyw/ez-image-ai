@@ -145,34 +145,47 @@ describe("payment merchant checkout availability", () => {
 		await expect(check("waffo", { environment })).resolves.toBe(false);
 	});
 
-	it("uses a fresh signed read and rejects HTTP failures even with an approved body", async () => {
-		const { privateKey, publicKey } = generateKeyPairSync("rsa", {
-			modulusLength: 2048,
-			privateKeyEncoding: { type: "pkcs8", format: "pem" },
-			publicKeyEncoding: { type: "spki", format: "pem" },
-		});
-		const fetchMock = vi
-			.fn()
-			.mockResolvedValueOnce(Response.json(response()))
-			.mockResolvedValueOnce(Response.json(response(), { status: 503 }));
-		vi.stubGlobal("fetch", fetchMock);
-		const check = createPaymentProviderCheckoutAvailability();
-		const options = {
-			environment: {
-				...environment,
-				WAFFO_PRIVATE_KEY: privateKey,
-				WAFFO_WEBHOOK_PUBLIC_KEY: publicKey,
-			},
-			fresh: true,
-		};
-		await expect(check("waffo", options)).resolves.toBe(true);
-		const [url, init] = fetchMock.mock.calls[0]!;
-		expect(url).toBe("https://api.waffo.ai/v1/graphql");
-		expect(init.redirect).toBe("error");
-		const headers = new Headers(init.headers);
-		expect(headers.has("X-Signature")).toBe(true);
-		expect(headers.has("X-Idempotency-Key")).toBe(false);
-		expect(JSON.parse(init.body).variables).toEqual({ id: approvedStore.id });
-		await expect(check("waffo", options)).resolves.toBe(false);
-	});
+	it.each([301, 302, 303, 307, 308, 503])(
+		"uses a Workers-compatible signed read and rejects HTTP %s even with an approved body",
+		async (status) => {
+			const { privateKey, publicKey } = generateKeyPairSync("rsa", {
+				modulusLength: 2048,
+				privateKeyEncoding: { type: "pkcs8", format: "pem" },
+				publicKeyEncoding: { type: "spki", format: "pem" },
+			});
+			const fetchMock = vi
+				.fn()
+				.mockImplementationOnce(async (_input, init) => {
+					// Workers rejects this mode before sending any network request.
+					if (init.redirect === "error") throw new TypeError("Invalid redirect value");
+					return Response.json(response());
+				})
+				.mockResolvedValueOnce(
+					Response.json(response(), {
+						status,
+						headers: { Location: "https://unexpected.example/graphql" },
+					}),
+				);
+			vi.stubGlobal("fetch", fetchMock);
+			const check = createPaymentProviderCheckoutAvailability();
+			const options = {
+				environment: {
+					...environment,
+					WAFFO_PRIVATE_KEY: privateKey,
+					WAFFO_WEBHOOK_PUBLIC_KEY: publicKey,
+				},
+				fresh: true,
+			};
+			await expect(check("waffo", options)).resolves.toBe(true);
+			const [url, init] = fetchMock.mock.calls[0]!;
+			expect(url).toBe("https://api.waffo.ai/v1/graphql");
+			expect(init.redirect).toBe("manual");
+			const headers = new Headers(init.headers);
+			expect(headers.has("X-Signature")).toBe(true);
+			expect(headers.has("X-Idempotency-Key")).toBe(false);
+			expect(JSON.parse(init.body).variables).toEqual({ id: approvedStore.id });
+			await expect(check("waffo", options)).resolves.toBe(false);
+			expect(fetchMock).toHaveBeenCalledTimes(2);
+		},
+	);
 });
