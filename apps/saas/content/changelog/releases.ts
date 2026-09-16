@@ -5,6 +5,7 @@ export const publicChangelogEntries = [
 		changes: [
 			"Expanded the Terms of Service with prohibited content, moderation, enforcement, and appeals.",
 			"Added a Report content link in the footer and instructions on the Contact page, available without an account.",
+			"Display the support email address directly in public, sign-in, and documentation footers.",
 			"Published response and handling times for all four report severity levels.",
 		],
 	},

@@ -11,7 +11,9 @@ until the user sends the message. `noreply@ezimageai.com` is not a reporting cha
 - `/terms`: the Acceptable Use Policy chapter, six prohibited categories, moderation, enforcement,
   four severity levels, handling deadlines, and appeals.
 - `/contact#report-content`: no-login instructions and a mail link with subject `Content report`.
-- Shared public footers: `Report content` links to the Contact section.
+- Shared public footers: `Report content` links to the Contact section; the configured support
+  email address is also visible directly as a `mailto:` link. Authentication and documentation
+  footers show the same address with a localized support label.
 - `/docs/privacy`: private-media reporting guidance; `/privacy` explains report data handling.
 
 Source requirements: [Waffo AUP](https://docs.waffo.ai/zh/mor/account-reviews/aup) and

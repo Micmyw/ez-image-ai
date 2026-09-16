@@ -1,3 +1,4 @@
+import { config } from "@config";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 
@@ -25,6 +26,14 @@ export function PublicFooterLinks({ className }: { className?: string }) {
 					{t(labelKey)}
 				</Link>
 			))}
+			{config.supportEmail && (
+				<a
+					href={`mailto:${config.supportEmail}`}
+					className="rounded hover:text-white focus-visible:outline-violet-300 underline underline-offset-4 transition focus-visible:outline-2 focus-visible:outline-offset-4"
+				>
+					{t("common.footer.support")}: {config.supportEmail}
+				</a>
+			)}
 		</div>
 	);
 }

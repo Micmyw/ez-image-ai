@@ -22,6 +22,8 @@
 
 ### Content safety
 
+- Display the support email address directly as a clickable mail link in public, authentication,
+  and documentation footers, with the existing localized support label.
 - Add an Acceptable Use Policy chapter to the public terms with all six prohibited content
   categories, the real moderation workflow, report handling, enforcement, and appeals. Publish
   the operator-approved L1-L4 response and action times from Waffo's template.

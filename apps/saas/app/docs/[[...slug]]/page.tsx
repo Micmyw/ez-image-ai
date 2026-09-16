@@ -1,5 +1,6 @@
 import { LLMCopyButton } from "@docs/components/LLMCopyButton";
 import { getPageImage, getPageMarkdownUrl, source } from "@docs/lib/source";
+import { Footer } from "@shared/components/Footer";
 import { getBaseUrl } from "@shared/lib/base-url";
 import { DocsBody, DocsDescription, DocsPage, DocsTitle } from "fumadocs-ui/layouts/docs/page";
 import { createRelativeLink } from "fumadocs-ui/mdx";
@@ -30,6 +31,7 @@ export default async function DocumentationPage(props: PageProps<"/docs/[[...slu
 						})}
 					/>
 				</DocsBody>
+				<Footer />
 			</DocsPage>
 		</main>
 	);
