@@ -1373,5 +1373,329 @@
 				"src": "/images/models/variants/seedream-pro-lunar-train-1024.97021a70dce3e24c.webp"
 			}
 		]
+	},
+	"gpt-2-tidal-poster": {
+		"sourceHash": "05a5545504c2673477306b86990f778d85790c881ae5529625bd561887d1f965",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/gpt-2-tidal-poster-320.82df26f07b0d0217.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/gpt-2-tidal-poster-480.15b0733bf8e48afc.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/gpt-2-tidal-poster-640.33c1fc5c704ec4e3.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/gpt-2-tidal-poster-960.1abe8af0fb7cf211.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/gpt-2-tidal-poster-1024.05a5545504c26734.webp"
+			}
+		]
+	},
+	"gpt-flare-florist": {
+		"sourceHash": "4e6add923fee00c850dd493d41c85ff353dcbce142c6363e104e2b8cbd693196",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/gpt-flare-florist-320.452bb1dbb73cf16c.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/gpt-flare-florist-480.fece73786b762adc.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/gpt-flare-florist-640.c254ab07d15e5c91.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/gpt-flare-florist-960.c39c359bd6d6118e.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/gpt-flare-florist-1024.4e6add923fee00c8.webp"
+			}
+		]
+	},
+	"gpt-sunburst-tennis": {
+		"sourceHash": "ce3dae0168bd3c029b321728b94b80c591ac7cd67a63e1371d55ca24a3ede3fb",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/gpt-sunburst-tennis-320.f260380539feee0f.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/gpt-sunburst-tennis-480.077f0566141fd877.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/gpt-sunburst-tennis-640.bf15c8e31fef08ca.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/gpt-sunburst-tennis-960.cdd725053cffc9ed.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/gpt-sunburst-tennis-1024.ce3dae0168bd3c02.webp"
+			}
+		]
+	},
+	"gpt-15-paper-garden": {
+		"sourceHash": "6decf51c1e0744241a35318bd1a64f43fae0b737284e09cb112f67ce4e9ca07b",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/gpt-15-paper-garden-320.82286c103a732acc.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/gpt-15-paper-garden-480.8b237ce961485868.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/gpt-15-paper-garden-640.795323f80b665d2c.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/gpt-15-paper-garden-960.49844b769b8cc1e2.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/gpt-15-paper-garden-1024.6decf51c1e074424.webp"
+			}
+		]
+	},
+	"nano-lite-otter": {
+		"sourceHash": "b360c12fa616a22a0514994976194d98274365de96e2f8318be74586975a7d89",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/nano-lite-otter-320.770b6767a61cbaf6.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/nano-lite-otter-480.d4def798132fd116.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/nano-lite-otter-640.089ddfe691bba159.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/nano-lite-otter-960.54272dcc8f4cb3e6.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/nano-lite-otter-1024.b360c12fa616a22a.webp"
+			}
+		]
+	},
+	"nano-deer-lantern": {
+		"sourceHash": "03cdb9ee11416091abd44f28128a9af3ca185474b124a6d4a51b76bd83bff494",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/nano-deer-lantern-320.cd18a7fb3871c90e.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/nano-deer-lantern-480.29c57b01bcb971e6.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/nano-deer-lantern-640.39a08ac8c3d3e72a.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/nano-deer-lantern-960.96884c8111d3af4c.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/nano-deer-lantern-1024.03cdb9ee11416091.webp"
+			}
+		]
+	},
+	"nano-2-airship-harbor": {
+		"sourceHash": "3de24a4d335a92f965fe2f9d2ea216a2c2ab06e8efef2e0124c1ea60b15f9919",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/nano-2-airship-harbor-320.ee5eb3de0f7f2831.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/nano-2-airship-harbor-480.a0df095214fb9142.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/nano-2-airship-harbor-640.a5182f2b9b9107a1.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/nano-2-airship-harbor-960.c206041f049d4d9d.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/nano-2-airship-harbor-1024.3de24a4d335a92f9.webp"
+			}
+		]
+	},
+	"nano-pro-camera-study": {
+		"sourceHash": "45004952211c1ceab76276949aadbfca637f2c9c4a401f3e2311b84ecd019316",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/nano-pro-camera-study-320.58448d0a57c82991.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/nano-pro-camera-study-480.70bfcdcdb0e34705.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/nano-pro-camera-study-640.ccff20a4dffda1a7.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/nano-pro-camera-study-960.db99c189aff6a89d.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/nano-pro-camera-study-1024.45004952211c1cea.webp"
+			}
+		]
+	},
+	"seedream-4-stairwell": {
+		"sourceHash": "cae6521caee0feca1e12142978d454bce2571863ffb83e617151f899802485d7",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/seedream-4-stairwell-320.9251d63d71d3b4f6.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/seedream-4-stairwell-480.53c262da2689f478.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/seedream-4-stairwell-640.265181ed19893834.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/seedream-4-stairwell-960.2145c6c468cd4300.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/seedream-4-stairwell-1024.cae6521caee0feca.webp"
+			}
+		]
+	},
+	"seedream-45-heron-print": {
+		"sourceHash": "2fc627fb5cc775cc798611329424ed1193fa7732153b02e17890df9f6850cfcf",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/seedream-45-heron-print-320.53a6f92e4f1487e3.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/seedream-45-heron-print-480.df31d8ac72afa81c.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/seedream-45-heron-print-640.602c64d23750bd16.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/seedream-45-heron-print-960.51a837d8d8acee46.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/seedream-45-heron-print-1024.2fc627fb5cc775cc.webp"
+			}
+		]
+	},
+	"seedream-lite-kingfisher-portrait": {
+		"sourceHash": "90bfd2514d1d53feff274195d75e39d600dec81d1c5e41e7d6f74f8d347e3e93",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/seedream-lite-kingfisher-portrait-320.4e25f4c4c3e30133.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/seedream-lite-kingfisher-portrait-480.4b3b3102dcf60ef3.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/seedream-lite-kingfisher-portrait-640.71d13af17b92ec7f.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/seedream-lite-kingfisher-portrait-960.2e6ca378a82ef5d9.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/seedream-lite-kingfisher-portrait-1024.90bfd2514d1d53fe.webp"
+			}
+		]
+	},
+	"seedream-pro-desert-portal": {
+		"sourceHash": "c9305e787dc3f80201c432172496bdb03d8d867a658e21d021e7ef6d8ea12910",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/seedream-pro-desert-portal-320.98b09d6dbc6e72b0.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/seedream-pro-desert-portal-480.c882bf258e8a0fad.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/seedream-pro-desert-portal-640.91783077075aacc4.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/seedream-pro-desert-portal-960.a158cd730acbb4f3.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/seedream-pro-desert-portal-1024.c9305e787dc3f802.webp"
+			}
+		]
 	}
 }

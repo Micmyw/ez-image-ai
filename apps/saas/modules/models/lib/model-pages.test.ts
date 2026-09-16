@@ -7,11 +7,30 @@ import sharp from "sharp";
 import { describe, expect, it } from "vitest";
 
 import { ExploreModels } from "../components/ExploreModels";
+import { ModelRecommendations } from "../components/ModelRecommendations";
 import { INSPIRATION } from "./model-artwork";
 import artworkVariants from "./model-artwork-variants.json";
-import { MODEL_PAGES } from "./model-pages";
+import { MODEL_PAGES, modelPath, modelRecommendations } from "./model-pages";
 
 describe("model artwork", () => {
+	it("renders three complete image recommendation links for every model", () => {
+		for (const model of MODEL_PAGES) {
+			const html = renderToStaticMarkup(createElement(ModelRecommendations, { model }));
+			const cards = html.match(/<a class="model-related-card"[\s\S]*?<\/a>/g) ?? [];
+			const recommendations = modelRecommendations(model);
+			expect(cards, model.name).toHaveLength(3);
+			for (const [index, card] of cards.entries()) {
+				const recommendation = recommendations[index]!;
+				expect(card, model.name).toContain("<img ");
+				expect(card, model.name).toContain("<h3");
+				expect(card, model.name).toContain("<p>");
+				expect(card, model.name).toContain(`href="${modelPath(recommendation.model.key)}"`);
+				expect(card, model.name).toContain(`/images/models/variants/${recommendation.artwork}-`);
+				expect(card, model.name).not.toContain(`href="${modelPath(model.key)}"`);
+			}
+		}
+	});
+
 	it("serves displayed artwork without a runtime image optimizer", () => {
 		const html = renderToStaticMarkup(createElement(ExploreModels));
 		expect(html).not.toContain("/_next/image");
@@ -55,22 +74,42 @@ describe("model artwork", () => {
 		}
 	});
 
-	it("gives every model its own cover and a complete portrait gallery", () => {
+	it("gives every model its own cover and three complete recommendation portraits", () => {
 		expect(new Set(MODEL_PAGES.map((model) => model.artwork)).size).toBe(MODEL_PAGES.length);
 		for (const model of MODEL_PAGES) {
-			expect(model.galleryArtwork, model.name).toHaveLength(2);
-			for (const key of model.galleryArtwork) {
+			expect(model.recommendationArtwork, model.name).toHaveLength(3);
+			for (const key of model.recommendationArtwork) {
 				expect(INSPIRATION[key].height, key).toBeGreaterThan(INSPIRATION[key].width);
 			}
 		}
 	});
 
-	it("uses separate image files and content for covers, examples, and reference drawings", () => {
+	it("uses each destination model's portraits once across all referring pages", () => {
+		const displayed = [];
+		for (const page of MODEL_PAGES) {
+			const recommendations = modelRecommendations(page);
+			expect(recommendations, page.name).toHaveLength(3);
+			expect(new Set(recommendations.map(({ model }) => model.key)).size).toBe(3);
+			for (const { model, artwork } of recommendations) {
+				expect(model.key).not.toBe(page.key);
+				expect(model.family).toBe(page.family);
+				expect(model.recommendationArtwork).toContain(artwork);
+				displayed.push(artwork);
+			}
+		}
+		expect(displayed).toHaveLength(MODEL_PAGES.length * 3);
+		expect(new Set(displayed).size).toBe(displayed.length);
+		expect(displayed.sort()).toEqual(
+			MODEL_PAGES.flatMap((model) => model.recommendationArtwork).sort(),
+		);
+	});
+
+	it("uses separate files and image content for all detail-page artwork", () => {
 		const keys = MODEL_PAGES.flatMap((model) => [
 			model.artwork,
 			model.exampleArtwork,
 			...(model.beforeArtwork ? [model.beforeArtwork] : []),
-			...(model.galleryArtwork ?? []),
+			...model.recommendationArtwork,
 		]);
 		expect(new Set(keys).size).toBe(keys.length);
 		const fingerprints = keys.map((key) =>

@@ -15,7 +15,7 @@ export interface ModelPageContent {
 	artwork: InspirationKey;
 	exampleArtwork: InspirationKey;
 	beforeArtwork?: InspirationKey;
-	galleryArtwork: readonly [InspirationKey, InspirationKey];
+	recommendationArtwork: readonly [InspirationKey, InspirationKey, InspirationKey];
 	features: readonly { title: string; description: string }[];
 	tip: string;
 	review: string;
@@ -24,7 +24,7 @@ export interface ModelPageContent {
 export const MODEL_PAGES: readonly ModelPageContent[] = [
 	{
 		key: "image-gpt-image-2",
-		galleryArtwork: ["gpt-poster", "gpt-2-solar-poster"],
+		recommendationArtwork: ["gpt-poster", "gpt-2-solar-poster", "gpt-2-tidal-poster"],
 		name: "GPT Image 2",
 		family: "GPT Image",
 		lead: "Let words become the image.",
@@ -56,7 +56,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-gpt-image-2-5-flare",
-		galleryArtwork: ["gpt-flare-studio", "nano-portrait"],
+		recommendationArtwork: ["gpt-flare-studio", "nano-portrait", "gpt-flare-florist"],
 		name: "GPT Image 2.5 Flare",
 		family: "GPT Image",
 		lead: "Everyday ideas, with a little more atmosphere.",
@@ -87,7 +87,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-gpt-image-2-5-sunburst",
-		galleryArtwork: ["gpt-campaign", "gpt-sunburst-cyclist"],
+		recommendationArtwork: ["gpt-campaign", "gpt-sunburst-cyclist", "gpt-sunburst-tennis"],
 		name: "GPT Image 2.5 Sunburst",
 		family: "GPT Image",
 		lead: "Give your next campaign a clear direction.",
@@ -119,7 +119,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-gpt-image-1-5",
-		galleryArtwork: ["gpt-15-paper-world", "gpt-15-paper-forest"],
+		recommendationArtwork: ["gpt-15-paper-world", "gpt-15-paper-forest", "gpt-15-paper-garden"],
 		name: "GPT Image 1.5",
 		family: "GPT Image",
 		lead: "From a clear instruction to a considered image.",
@@ -151,7 +151,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-nano-banana-2-lite",
-		galleryArtwork: ["nano-bakery-fox", "nano-lite-penguin"],
+		recommendationArtwork: ["nano-bakery-fox", "nano-lite-penguin", "nano-lite-otter"],
 		name: "Nano Banana 2 Lite",
 		family: "Nano Banana",
 		lead: "A focused starting point for your next idea.",
@@ -183,7 +183,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-nano-banana",
-		galleryArtwork: ["nano-rabbit-orchard", "nano-hedgehog-bookshop"],
+		recommendationArtwork: ["nano-rabbit-orchard", "nano-hedgehog-bookshop", "nano-deer-lantern"],
 		name: "Nano Banana",
 		family: "Nano Banana",
 		lead: "One idea. Plenty of creative directions.",
@@ -215,7 +215,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-nano-banana-2",
-		galleryArtwork: ["nano-2-rooftop", "nano-2-moon-tram"],
+		recommendationArtwork: ["nano-2-rooftop", "nano-2-moon-tram", "nano-2-airship-harbor"],
 		name: "Nano Banana 2",
 		family: "Nano Banana",
 		lead: "Explore a look. Then develop the details.",
@@ -248,7 +248,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-nano-banana-pro",
-		galleryArtwork: ["nano-product", "nano-pro-watch"],
+		recommendationArtwork: ["nano-product", "nano-pro-watch", "nano-pro-camera-study"],
 		name: "Nano Banana Pro",
 		family: "Nano Banana",
 		lead: "Make the material part of the story.",
@@ -280,7 +280,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-seedream-4",
-		galleryArtwork: ["seedream-interior", "seedream-5-pro-museum"],
+		recommendationArtwork: ["seedream-interior", "seedream-5-pro-museum", "seedream-4-stairwell"],
 		name: "Seedream 4.0",
 		family: "Seedream",
 		lead: "Give a space its own atmosphere.",
@@ -312,7 +312,11 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-seedream-4-5",
-		galleryArtwork: ["seedream-45-botanical", "seedream-45-koi-print"],
+		recommendationArtwork: [
+			"seedream-45-botanical",
+			"seedream-45-koi-print",
+			"seedream-45-heron-print",
+		],
 		name: "Seedream 4.5",
 		family: "Seedream",
 		lead: "Find a rhythm in color and shape.",
@@ -344,7 +348,11 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-seedream-5-lite",
-		galleryArtwork: ["seedream-lite-lynx", "seedream-lite-hummingbird"],
+		recommendationArtwork: [
+			"seedream-lite-lynx",
+			"seedream-lite-hummingbird",
+			"seedream-lite-kingfisher-portrait",
+		],
 		name: "Seedream 5 Lite",
 		family: "Seedream",
 		lead: "Let the natural world set the mood.",
@@ -376,7 +384,11 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 	},
 	{
 		key: "image-seedream-5-pro",
-		galleryArtwork: ["seedream-pro-observatory", "seedream-pro-lunar-train"],
+		recommendationArtwork: [
+			"seedream-pro-observatory",
+			"seedream-pro-lunar-train",
+			"seedream-pro-desert-portal",
+		],
 		name: "Seedream 5 Pro",
 		family: "Seedream",
 		lead: "Imagine a world beyond the everyday.",
@@ -413,4 +425,28 @@ export function modelPath(key: ModelProductKey): string {
 }
 export function modelPageForSlug(slug: string): ModelPageContent | undefined {
 	return MODEL_PAGES.find((page) => page.key === `image-${slug}`);
+}
+
+function relatedModels(model: ModelPageContent): readonly ModelPageContent[] {
+	return [
+		...MODEL_PAGES.filter((candidate) => candidate.family === model.family),
+		...MODEL_PAGES.filter((candidate) => candidate.family !== model.family),
+	]
+		.filter((candidate) => candidate.key !== model.key)
+		.slice(0, 3);
+}
+
+export function modelRecommendations(model: ModelPageContent) {
+	return relatedModels(model).map((candidate) => {
+		// A destination owns its portraits; each referring page receives a different one.
+		const referringPages = MODEL_PAGES.filter((page) =>
+			relatedModels(page).some((related) => related.key === candidate.key),
+		);
+		const index = referringPages.findIndex((page) => page.key === model.key);
+		const artwork = candidate.recommendationArtwork[index];
+		if (!artwork) {
+			throw new Error(`Missing recommendation artwork: ${model.key} → ${candidate.key}`);
+		}
+		return { model: candidate, artwork };
+	});
 }

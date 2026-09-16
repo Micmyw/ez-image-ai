@@ -391,6 +391,102 @@ export const INSPIRATION = {
 		width: 1024,
 		height: 1536,
 	},
+	"gpt-2-tidal-poster": {
+		title: "Give typography a sense of rhythm",
+		alt: "TIDAL design poster with bold blue lettering and layered blue and coral waves on cream paper",
+		prompt:
+			'Use case: ads-marketing.\nAsset type: Original EzPic model recommendation portrait, 2:3 vertical, 1024x1536.\nPrimary request: A sophisticated graphic design exhibition poster. Exact large headline "TIDAL" in tall cream sans-serif letters across the top, exact small subheading "FORM IN MOTION" below. Interlocking ultramarine and coral flat wave shapes flow through the bottom two thirds, warm ivory uncoated paper, authentic fine screenprint texture, asymmetric Swiss grid and confident negative space. Precise, fully readable typography. Flat printed graphic art, no photographed poster mockup.\nConstraints: One complete original full-bleed image; no collage, no UI, no frame, no watermark. Keep essential subjects comfortably inside the composition. Only the exact requested lettering. This is concept artwork, not a benchmark of any named model.',
+		width: 1024,
+		height: 1536,
+	},
+	"gpt-flare-florist": {
+		title: "Find a quiet moment in natural light",
+		alt: "Florist arranging soft pink flowers at a wooden worktable in a sunlit greenhouse",
+		prompt:
+			"Use case: photorealistic-natural.\nAsset type: Original EzPic model recommendation portrait, 2:3 vertical, 1024x1536.\nPrimary request: Candid documentary editorial photograph of a fictional adult woman florist in a faded sage linen apron arranging a loose bouquet of soft pink flowers at a worn wooden worktable in a small greenhouse. Waist-up environmental portrait, natural face and believable hands, warm side light through old glass, green stems and galvanized buckets, subtle film grain and tactile everyday detail. Quiet authentic moment, understated color, not posed fashion or glossy advertising.\nConstraints: One complete original full-bleed image; no collage, no UI, no frame, no watermark. Keep essential subjects comfortably inside the composition. No text, labels, brand marks or logos. This is concept artwork, not a benchmark of any named model.",
+		width: 1024,
+		height: 1536,
+	},
+	"gpt-sunburst-tennis": {
+		title: "Turn sport into a bold campaign",
+		alt: "Tennis fashion campaign with an adult athlete in lemon yellow on a violet court",
+		prompt:
+			"Use case: ads-marketing.\nAsset type: Original EzPic model recommendation portrait, 2:3 vertical, 1024x1536.\nPrimary request: High-end sports fashion campaign photograph of a fictional adult Black female tennis athlete wearing an unbranded lemon-yellow pleated sports dress and white shoes on a clean violet tennis court. Entire person and a single silver racket visible, a relaxed confident standing pose between sets, clear cyan sky, powerful crisp late afternoon shadow, premium editorial lighting and natural anatomy. Graphic color blocking and precise fabric texture, restrained sports magazine art direction.\nConstraints: One complete original full-bleed image; no collage, no UI, no frame, no watermark. Keep essential subjects comfortably inside the composition. No text, labels, brand marks or logos. This is concept artwork, not a benchmark of any named model.",
+		width: 1024,
+		height: 1536,
+	},
+	"gpt-15-paper-garden": {
+		title: "Build a garden from folded paper",
+		alt: "Handcrafted paper garden with a vermilion bridge over layered teal water and folded blossoms",
+		prompt:
+			"Use case: stylized-concept.\nAsset type: Original EzPic model recommendation portrait, 2:3 vertical, 1024x1536.\nPrimary request: Studio photograph of an exquisite handmade cut-paper miniature Japanese garden: a small vermilion arched footbridge crosses concentric layers of deep teal paper water, folded pink cherry blossoms on delicate paper branches and cream paper stepping stones. Entire freestanding oval diorama visible on a warm ivory seamless backdrop. Obvious thick matte paper edges, careful origami folds, subtle paper fibers and gentle real cast shadows. Refined physical sculpture, simple elegant composition.\nConstraints: One complete original full-bleed image; no collage, no UI, no frame, no watermark. Keep essential subjects comfortably inside the composition. No text, labels, brand marks or logos. This is concept artwork, not a benchmark of any named model.",
+		width: 1024,
+		height: 1536,
+	},
+	"nano-lite-otter": {
+		title: "Create a mascot with a little personality",
+		alt: "Playful soft toy-style otter gardener holding a tiny terracotta pot with one daisy",
+		prompt:
+			"Use case: stylized-concept.\nAsset type: Original EzPic model recommendation portrait, 2:3 vertical, 1024x1536.\nPrimary request: Original charming 3D mascot of a round cheerful little otter gardener in a butter-yellow overall holding a tiny terracotta pot containing one white daisy. Simple coherent paws, small dark friendly eyes, warm brown soft clay-like fur shapes, pastel mint seamless studio background and gentle contact shadow. Full character including tail and feet visible with generous breathing room. High-quality tactile toy render, playful sculpted materials, instantly readable silhouette.\nConstraints: One complete original full-bleed image; no collage, no UI, no frame, no watermark. Keep essential subjects comfortably inside the composition. No text, labels, brand marks or logos. This is concept artwork, not a benchmark of any named model.",
+		width: 1024,
+		height: 1536,
+	},
+	"nano-deer-lantern": {
+		title: "Paint a small story in watercolor",
+		alt: "Watercolor fawn carrying a glowing lantern through a softly falling snowy woodland",
+		prompt:
+			"Use case: illustration-story.\nAsset type: Original EzPic model recommendation portrait, 2:3 vertical, 1024x1536.\nPrimary request: Original traditional watercolor picture-book illustration of a small gentle fawn in a dusty-blue scarf, with a tiny glowing brass lantern hanging from a short branch it carries in its mouth, walking through a snowy birch woodland at blue hour. Entire fawn visible, delicate expressive pencil lines, translucent indigo and amber watercolor washes, visible granulated pigment, large soft untouched cream paper areas and gently falling snow. Handmade storybook art, not 3D, not photorealism.\nConstraints: One complete original full-bleed image; no collage, no UI, no frame, no watermark. Keep essential subjects comfortably inside the composition. No text, labels, brand marks or logos. This is concept artwork, not a benchmark of any named model.",
+		width: 1024,
+		height: 1536,
+	},
+	"nano-2-airship-harbor": {
+		title: "Build an illustrated world worth exploring",
+		alt: "Graphic novel harbor scene with a cream airship above colorful waterfront houses and a traveler",
+		prompt:
+			"Use case: illustration-story.\nAsset type: Original EzPic model recommendation portrait, 2:3 vertical, 1024x1536.\nPrimary request: One beautifully composed original graphic novel illustration: a cream-and-coral airship floats above a sunlit Mediterranean-like harbor of tightly packed ochre and turquoise houses, a fictional adult traveler in a dark teal coat standing in the foreground looking out over the bay. Clear ink contours, confident flat color masses, subtle halftone print texture, cinematic depth, warm peach sky and cobalt water. Entire airship and traveler visible, richly drawn but readable at thumbnail size. One scene, no comic panels.\nConstraints: One complete original full-bleed image; no collage, no UI, no frame, no watermark. Keep essential subjects comfortably inside the composition. No text, labels, brand marks or logos. This is concept artwork, not a benchmark of any named model.",
+		width: 1024,
+		height: 1536,
+	},
+	"nano-pro-camera-study": {
+		title: "Make materials the focal point",
+		alt: "Unbranded precision silver camera with olive leather on a pale stone pedestal",
+		prompt:
+			"Use case: product-mockup.\nAsset type: Original EzPic model recommendation portrait, 2:3 vertical, 1024x1536.\nPrimary request: Luxury studio product photograph of one original unbranded compact silver rangefinder-style camera with olive-green leather body panels, a precision black circular lens and crisp machined dials. Three-quarter view on a pale travertine plinth, warm ivory background, gentle side lighting, clean rim highlights, visible brushed metal and fine leather grain. Entire product unobstructed and fully within the frame. Immaculate industrial-design editorial, physically coherent construction, no brand imitation.\nConstraints: One complete original full-bleed image; no collage, no UI, no frame, no watermark. Keep essential subjects comfortably inside the composition. No text, labels, brand marks or logos. This is concept artwork, not a benchmark of any named model.",
+		width: 1024,
+		height: 1536,
+	},
+	"seedream-4-stairwell": {
+		title: "Shape an interior with light and space",
+		alt: "Sculptural terracotta spiral staircase in a warm plaster atrium with an olive tree",
+		prompt:
+			"Use case: photorealistic-natural.\nAsset type: Original EzPic model recommendation portrait, 2:3 vertical, 1024x1536.\nPrimary request: Architectural editorial photograph of a serene contemporary Mediterranean atrium, sculptural terracotta spiral staircase with a smooth solid balustrade curving upward in a warm ivory plaster room. Tall arched skylight casts precise afternoon light across textured walls and pale stone floors, one small olive tree in a simple ceramic pot. Believable building geometry, fine material texture, beautifully balanced spatial composition, sophisticated restrained architecture photography, no people.\nConstraints: One complete original full-bleed image; no collage, no UI, no frame, no watermark. Keep essential subjects comfortably inside the composition. No text, labels, brand marks or logos. This is concept artwork, not a benchmark of any named model.",
+		width: 1024,
+		height: 1536,
+	},
+	"seedream-45-heron-print": {
+		title: "Explore the texture of a hand-pulled print",
+		alt: "Indigo and rust linocut of a white heron among reeds under a circular sun",
+		prompt:
+			"Use case: illustration-story.\nAsset type: Original EzPic model recommendation portrait, 2:3 vertical, 1024x1536.\nPrimary request: Original museum-quality hand-carved linocut art print of a graceful white heron standing among tall indigo reeds and rippling water with a single muted vermilion sun. Bold flat silhouette, exquisite carved hatching, small imperfect ink edges, warm cream fibrous paper, elegant asymmetry and negative space. Entire heron and long legs visible, refined Japanese-influenced contemporary printmaking, two-color block print, not a photo or smooth digital vector.\nConstraints: One complete original full-bleed image; no collage, no UI, no frame, no watermark. Keep essential subjects comfortably inside the composition. No text, labels, brand marks or logos. This is concept artwork, not a benchmark of any named model.",
+		width: 1024,
+		height: 1536,
+	},
+	"seedream-lite-kingfisher-portrait": {
+		title: "Bring small natural details into focus",
+		alt: "Vivid blue and orange kingfisher perched on a mossy branch above still green water",
+		prompt:
+			"Use case: photorealistic-natural.\nAsset type: Original EzPic model recommendation portrait, 2:3 vertical, 1024x1536.\nPrimary request: Exceptional natural wildlife photograph of one common kingfisher perched quietly on a slim mossy branch over still green water. Entire bird and beak fully visible, vivid iridescent blue and warm orange feather detail, anatomically accurate feet gripping the branch, one tiny clear droplet on the beak. Soft early morning sidelight, deep forest-green bokeh, simple environmental composition with breathing room. Long-lens field photography, natural and believable.\nConstraints: One complete original full-bleed image; no collage, no UI, no frame, no watermark. Keep essential subjects comfortably inside the composition. No text, labels, brand marks or logos. This is concept artwork, not a benchmark of any named model.",
+		width: 1024,
+		height: 1536,
+	},
+	"seedream-pro-desert-portal": {
+		title: "Imagine an unfamiliar horizon",
+		alt: "Cinematic science-fiction portal towering above a desert with a lone explorer at dusk",
+		prompt:
+			"Use case: stylized-concept.\nAsset type: Original EzPic model recommendation portrait, 2:3 vertical, 1024x1536.\nPrimary request: Cinematic science-fiction environment concept art of an immense weathered circular portal standing upright in a silent amber desert, a luminous teal gravitational surface within the ring, one tiny fictional adult explorer in an ivory environmental suit on the foreground dunes for scale. Vast layered dunes and a pale crescent planet in dusty dusk sky, subtle blue atmospheric haze, sophisticated bronze machinery built into the ring, breathtaking yet restrained film production design. Entire ring and explorer fully visible with breathing room.\nConstraints: One complete original full-bleed image; no collage, no UI, no frame, no watermark. Keep essential subjects comfortably inside the composition. No text, labels, brand marks or logos. This is concept artwork, not a benchmark of any named model.",
+		width: 1024,
+		height: 1536,
+	},
 } as const;
 
 export type InspirationKey = keyof typeof INSPIRATION;

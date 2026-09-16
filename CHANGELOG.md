@@ -16,14 +16,17 @@
 
 ### Model artwork
 
-- Restore a dedicated portrait gallery before each model FAQ, preserving 11 earlier concept
-  images and adding 13 new illustrations and photographs. Each model owns two exclusive gallery
-  images, displayed at their complete proportions on desktop and mobile.
+- Restore the original three clickable portrait recommendations after each model FAQ, with
+  model names, descriptions and navigation. Align the desktop cards and refine their spacing,
+  hover/focus states and compact mobile layout while keeping the complete artwork visible.
+- Reuse all 24 previous gallery images, including 11 earlier originals, and add 12 built-in
+  generations. Each of the 36 recommendation placements uses a distinct portrait belonging to
+  its linked model. Remove the separate two-image gallery.
 - Give all 12 model pages their own visual direction with 23 newly generated covers and prompt
   examples, from typography and paper craft to wildlife photography and science-fiction scenes.
   Preserve Nano Banana 2's dedicated line-art/color comparison.
-- Replace repeated artwork in related-model links with compact text navigation. Align image
-  descriptions and prompts with each page, and show uncropped examples in homepage model cards.
+- Align image descriptions and prompts with each page, and show uncropped examples in homepage
+  model cards.
 - Publish responsive, content-versioned WebP assets and retain previous files for cached pages.
 
 ### Homepage SEO

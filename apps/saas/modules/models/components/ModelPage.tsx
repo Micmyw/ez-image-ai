@@ -12,9 +12,10 @@ import { Suspense } from "react";
 
 import { LandingGenerator } from "../../landing/components/LandingGenerator";
 import { PublicFooterLinks } from "../../public-content/components/PublicFooterLinks";
-import { INSPIRATION, MODEL_PAGES, modelPath, type ModelPageContent } from "../lib/model-pages";
+import { INSPIRATION, type ModelPageContent } from "../lib/model-pages";
 import { InspirationPrompt } from "./InspirationPrompt";
 import { ModelArtwork } from "./ModelArtwork";
+import { ModelRecommendations } from "./ModelRecommendations";
 
 import "../models.css";
 
@@ -29,12 +30,6 @@ export async function ModelPage({
 	const registered = session && !isAnonymousUser(session.user);
 	const example = INSPIRATION[model.exampleArtwork];
 	const before = model.beforeArtwork;
-	const related = [
-		...MODEL_PAGES.filter((candidate) => candidate.family === model.family),
-		...MODEL_PAGES.filter((candidate) => candidate.family !== model.family),
-	]
-		.filter((candidate) => candidate.key !== model.key)
-		.slice(0, 3);
 	return (
 		<StudioShell>
 			<main className="model-page">
@@ -130,25 +125,6 @@ export async function ModelPage({
 						reference, and settings.
 					</p>
 				</section>
-				<section className="model-gallery" aria-labelledby="model-gallery-title">
-					<div className="model-section-heading">
-						<div>
-							<p className="model-eyebrow">More creative inspiration</p>
-							<h2 id="model-gallery-title">More ideas to make your own</h2>
-						</div>
-					</div>
-					<div className="model-gallery-grid">
-						{model.galleryArtwork.map((artwork) => (
-							<figure className="model-gallery-card" key={artwork}>
-								<ModelArtwork
-									artwork={artwork}
-									sizes="(max-width: 760px) 90vw, (max-width: 1300px) 40vw, 490px"
-								/>
-								<figcaption>{INSPIRATION[artwork].title}</figcaption>
-							</figure>
-						))}
-					</div>
-				</section>
 				<section className="model-faq" aria-labelledby="model-faq-title">
 					<div>
 						<p className="model-eyebrow">Before you create</p>
@@ -185,34 +161,7 @@ export async function ModelPage({
 						</details>
 					</div>
 				</section>
-				<section className="model-related" aria-labelledby="model-related-title">
-					<div className="model-section-heading">
-						<div>
-							<p className="model-eyebrow">Keep exploring</p>
-							<h2 id="model-related-title">Another model, another direction</h2>
-						</div>
-						<Link href="/models">
-							View all models <span aria-hidden="true">↗</span>
-						</Link>
-					</div>
-					<div className="model-related-grid">
-						{related.map((candidate) => (
-							<Link
-								className="model-related-card"
-								key={candidate.key}
-								href={modelPath(candidate.key)}
-							>
-								<div>
-									<span>{candidate.family}</span>
-									<h3>
-										{candidate.name} <span aria-hidden="true">↗</span>
-									</h3>
-									<p>{candidate.lead}</p>
-								</div>
-							</Link>
-						))}
-					</div>
-				</section>
+				<ModelRecommendations model={model} />
 				<footer className="model-footer">
 					<Link href="/">EzPic</Link>
 					<PublicFooterLinks className="model-footer-links" />
