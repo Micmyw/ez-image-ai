@@ -2,7 +2,9 @@ import { imageAspectRatioSchema, promptSchema } from "@repo/ai";
 import { z } from "zod";
 
 import { guestMediaProcedure } from "../guest-procedure";
+import { toMediaOrpcError } from "../lib/errors";
 import { submitGuestGenerationForGuest } from "../lib/guest-admission";
+import { TextModerationError } from "../lib/public-moderation-reason";
 
 const guestJobSnapshotSchema = z
 	.object({
@@ -52,7 +54,10 @@ export const submitGuestGeneration = guestMediaProcedure
 			},
 			input,
 			"default",
-		);
+		).catch((error: unknown) => {
+			if (error instanceof TextModerationError) throw toMediaOrpcError(error);
+			throw error;
+		});
 		context.responseHeaders?.set("Cache-Control", "no-store");
 		return {
 			jobId: snapshot.jobId,

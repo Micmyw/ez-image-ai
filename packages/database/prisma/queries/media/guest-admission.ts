@@ -30,6 +30,8 @@ export type GuestJobStage =
 	| "EXPIRED";
 
 export interface GuestJobSnapshot {
+	/** Server-only evidence summary; the API maps this to public categories. */
+	outputSafety?: { status: string; reasonCode?: string };
 	jobId: string;
 	stage: GuestJobStage;
 	projectedDispatchAt: Date;
@@ -546,6 +548,19 @@ export async function getGuestJobSnapshot(
 		watermarked,
 		trialConsumed: trial.eligibility === "CONSUMED" || trial.consumedJobId !== null,
 		linkReady: trial.expiresAt > input.now && trial.linkIntents.length === 0,
+		...(job.status === "FAILED" &&
+		trial.expiresAt > input.now &&
+		output?.ownerType === "USER" &&
+		output.ownerId === input.ownerId &&
+		!output.deletedAt &&
+		["QUARANTINED", "VERIFICATION_FAILED"].includes(output.status)
+			? {
+					outputSafety: {
+						status: output.moderationResults[0]?.status ?? "ERROR",
+						reasonCode: output.moderationResults[0]?.reasonCode,
+					},
+				}
+			: {}),
 	};
 }
 

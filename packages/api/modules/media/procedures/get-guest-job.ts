@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { PUBLIC_MODERATION_REASONS } from "@repo/config";
 import { getGuestJobSnapshot, getRegisteredGuestJobSnapshot } from "@repo/database";
 import { db } from "@repo/database/client";
 import { z } from "zod";
@@ -6,6 +7,7 @@ import { z } from "zod";
 import { protectedProcedure } from "../../../orpc/procedures";
 import { guestMediaProcedure } from "../guest-procedure";
 import { currentMediaAssetVerificationBoundary } from "../lib/asset-authorization";
+import { publicImageModerationReason } from "../lib/public-moderation-reason";
 
 const guestJobInputSchema = z.object({ jobId: z.string().min(1).max(256) }).strict();
 const guestJobOutputSchema = z
@@ -19,6 +21,12 @@ const guestJobOutputSchema = z
 		watermarked: z.boolean(),
 		trialConsumed: z.boolean(),
 		linkReady: z.boolean(),
+		safety: z
+			.object({
+				outcome: z.enum(["blocked", "unavailable"]),
+				reason: z.enum(PUBLIC_MODERATION_REASONS).nullable(),
+			})
+			.optional(),
 	})
 	.strict();
 
@@ -76,6 +84,7 @@ export const getGrantedGuestJob = protectedProcedure
 
 function serializeGuestJob(snapshot: Awaited<ReturnType<typeof getGuestJobSnapshot>>) {
 	if (!snapshot) throw new ORPCError("NOT_FOUND");
+	const reason = publicImageModerationReason(snapshot.outputSafety);
 	return {
 		jobId: snapshot.jobId,
 		stage: snapshot.stage,
@@ -86,5 +95,8 @@ function serializeGuestJob(snapshot: Awaited<ReturnType<typeof getGuestJobSnapsh
 		watermarked: snapshot.watermarked,
 		trialConsumed: snapshot.trialConsumed,
 		linkReady: snapshot.linkReady,
+		...(snapshot.stage === "FAILED" && snapshot.outputSafety
+			? { safety: { outcome: reason ? ("blocked" as const) : ("unavailable" as const), reason } }
+			: {}),
 	};
 }

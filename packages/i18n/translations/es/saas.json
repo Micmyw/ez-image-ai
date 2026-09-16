@@ -1376,6 +1376,64 @@
 			"delete": "Eliminar",
 			"empty": "Aún no hay recursos de imagen.",
 			"more": "Cargar más"
+		},
+		"safety": {
+			"titles": {
+				"prompt": "Revisa esta instrucción",
+				"input": "Elige otra imagen",
+				"output": "Este resultado no se puede mostrar",
+				"unavailable": "Revisión de seguridad no disponible"
+			},
+			"summary": {
+				"prompt": {
+					"blocked": "Esta instrucción no superó la revisión de seguridad. La generación no ha comenzado.",
+					"unavailable": "No pudimos terminar de revisar esta instrucción. La generación no ha comenzado."
+				},
+				"input": {
+					"blocked": "Esta imagen de referencia no superó la revisión de seguridad y no se puede usar para generar.",
+					"unavailable": "Esta imagen no está disponible o no se pudo completar su revisión de seguridad."
+				},
+				"output": {
+					"blocked": "La imagen se generó, pero la revisión de seguridad bloqueó el acceso.",
+					"unavailable": "No pudimos completar la revisión de seguridad, por lo que esta imagen sigue sin estar disponible."
+				}
+			},
+			"reasonLabel": "Motivo",
+			"creditsLabel": "Créditos",
+			"nextLabel": "Qué puedes hacer",
+			"reasons": {
+				"sexualContent": "La revisión de seguridad detectó contenido sexualmente explícito.",
+				"minorSafety": "La revisión de seguridad detectó posible contenido sexual que involucra a menores.",
+				"sexualExploitation": "La revisión de seguridad detectó explotación sexual o contenido sexual no consentido.",
+				"identityMisuse": "La revisión de seguridad detectó manipulación de identidad, como el intercambio de rostros.",
+				"violence": "La revisión de seguridad detectó violencia gráfica, lesiones o una amenaza con armas.",
+				"selfHarm": "La revisión de seguridad detectó contenido de autolesión.",
+				"hate": "La revisión de seguridad detectó contenido de odio o discriminación.",
+				"restrictedContent": "La revisión de seguridad detectó contenido restringido por nuestra política. No hay un motivo más específico disponible."
+			},
+			"reviewUncertain": "No se ha confirmado una infracción de contenido. La revisión no produjo un resultado concluyente.",
+			"billing": {
+				"beforeGeneration": "No se cobraron créditos de generación ni se utilizó tu exención única.",
+				"waived": "No se cobraron créditos: se utilizó la exención única de tu cuenta. Los próximos resultados bloqueados se cobrarán según los créditos indicados.",
+				"charged": "Se cobraron {credits} créditos por esta generación, según lo indicado. La exención única de tu cuenta ya se había utilizado.",
+				"returned": "No se cobraron créditos ni se utilizó tu exención única. Se liberaron los créditos reservados.",
+				"noCharge": "No se cobraron créditos. Consulta el resumen de créditos para ver la cantidad liberada.",
+				"summary": "Consulta el resumen de créditos de esta tarea para ver el cobro real y los créditos liberados.",
+				"sponsored": "No se cobraron créditos a tu cuenta ni se utilizó su exención única. Esta era una prueba patrocinada."
+			},
+			"next": {
+				"prompt": "Adapta la instrucción a la política de contenido antes de volver a intentarlo.",
+				"input": "Elige otra imagen de referencia que cumpla la política de contenido.",
+				"output": "Edita la instrucción o elige otra imagen de referencia antes de iniciar una nueva generación. El nuevo presupuesto mostrará su coste en créditos.",
+				"unavailable": "Vuelve a intentarlo más tarde. Si el problema persiste, contacta con soporte.",
+				"guestOutput": "Contacta con soporte si necesitas ayuda con este resultado. El estado de tu prueba se muestra a continuación."
+			},
+			"policy": "Política de contenido",
+			"appeal": "¿Crees que es un error? Contacta con soporte",
+			"support": "Contactar con soporte",
+			"reference": "Incluye esta referencia de tarea al contactar con soporte:",
+			"replaceImage": "Elegir otra imagen",
+			"editInstruction": "Editar instrucción"
 		}
 	},
 	"common": {

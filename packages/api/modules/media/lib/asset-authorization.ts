@@ -11,6 +11,8 @@ import {
 	getOwnedMediaUploadSession,
 } from "@repo/database/media-assets";
 
+import { publicImageModerationReason } from "./public-moderation-reason";
+
 export function currentMediaAssetVerificationBoundary(now = new Date()) {
 	return {
 		provider: imageModerationProviderForEnvironment(process.env),
@@ -48,7 +50,16 @@ export async function requireReadyOwnedMediaAsset(assetId: string, ownerId: stri
 			: state.asset.status === "QUARANTINED" || state.asset.status === "VERIFICATION_FAILED"
 				? "ASSET_SAFETY_UNAVAILABLE"
 				: "ASSET_SAFETY_PENDING";
-		throw new ORPCError("PRECONDITION_FAILED", { message });
+		throw new ORPCError("PRECONDITION_FAILED", {
+			message,
+			...(message === "ASSET_CONTENT_NOT_ALLOWED"
+				? {
+						data: {
+							moderationReason: publicImageModerationReason(state.asset.moderationResults?.[0]),
+						},
+					}
+				: {}),
+		});
 	}
 	return state.asset;
 }

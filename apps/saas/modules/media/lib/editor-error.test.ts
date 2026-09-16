@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getEditorErrorKey } from "./editor-error";
+import { getEditorErrorKey, getModerationErrorReason } from "./editor-error";
 
 describe("getEditorErrorKey", () => {
 	it.each([
@@ -18,5 +18,18 @@ describe("getEditorErrorKey", () => {
 
 	it("never renders an unknown provider error", () => {
 		expect(getEditorErrorKey(new Error("provider-secret raw response"))).toBe("safeError");
+	});
+	it.each([
+		["CONTENT_NOT_ALLOWED", "sexualContent", "sexualContent"],
+		["ASSET_CONTENT_NOT_ALLOWED", "restrictedContent", "restrictedContent"],
+		["SAFETY_CHECK_UNAVAILABLE", "sexualContent", null],
+		["NOT_FOUND", "sexualContent", null],
+		["CONTENT_NOT_ALLOWED", "raw-private-label", null],
+	])("only reads an allowlisted reason from %s", (code, reason, expected) => {
+		expect(
+			getModerationErrorReason(
+				Object.assign(new Error(code), { data: { moderationReason: reason } }),
+			),
+		).toBe(expected);
 	});
 });

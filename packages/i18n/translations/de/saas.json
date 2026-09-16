@@ -1376,6 +1376,64 @@
 			"delete": "Löschen",
 			"empty": "Noch keine Bild-Assets.",
 			"more": "Mehr laden"
+		},
+		"safety": {
+			"titles": {
+				"prompt": "Bitte überarbeite diese Anweisung",
+				"input": "Bitte wähle ein anderes Bild",
+				"output": "Dieses Ergebnis kann nicht angezeigt werden",
+				"unavailable": "Sicherheitsprüfung nicht verfügbar"
+			},
+			"summary": {
+				"prompt": {
+					"blocked": "Diese Anweisung hat die Sicherheitsprüfung nicht bestanden. Die Generierung wurde nicht gestartet.",
+					"unavailable": "Die Prüfung dieser Anweisung konnte nicht abgeschlossen werden. Die Generierung wurde nicht gestartet."
+				},
+				"input": {
+					"blocked": "Dieses Referenzbild hat die Sicherheitsprüfung nicht bestanden und kann nicht zur Generierung verwendet werden.",
+					"unavailable": "Dieses Bild ist nicht verfügbar oder seine Sicherheitsprüfung konnte nicht abgeschlossen werden."
+				},
+				"output": {
+					"blocked": "Das Bild wurde generiert, aber die Sicherheitsprüfung hat den Zugriff gesperrt.",
+					"unavailable": "Die Sicherheitsprüfung konnte nicht abgeschlossen werden. Dieses Bild bleibt daher nicht verfügbar."
+				}
+			},
+			"reasonLabel": "Grund",
+			"creditsLabel": "Credits",
+			"nextLabel": "Was du tun kannst",
+			"reasons": {
+				"sexualContent": "Die Sicherheitsprüfung hat sexuell explizite Inhalte erkannt.",
+				"minorSafety": "Die Sicherheitsprüfung hat mögliche sexuelle Inhalte mit Minderjährigen erkannt.",
+				"sexualExploitation": "Die Sicherheitsprüfung hat sexuelle Ausbeutung oder nicht einvernehmliche sexuelle Inhalte erkannt.",
+				"identityMisuse": "Die Sicherheitsprüfung hat Identitätsmanipulation erkannt, etwa den Austausch von Gesichtern.",
+				"violence": "Die Sicherheitsprüfung hat drastische Gewalt, Verletzungen oder eine Bedrohung mit Waffen erkannt.",
+				"selfHarm": "Die Sicherheitsprüfung hat Inhalte zu Selbstverletzung erkannt.",
+				"hate": "Die Sicherheitsprüfung hat hasserfüllte oder diskriminierende Inhalte erkannt.",
+				"restrictedContent": "Die Sicherheitsprüfung hat Inhalte erkannt, die laut unserer Richtlinie eingeschränkt sind. Ein genauerer Grund ist nicht verfügbar."
+			},
+			"reviewUncertain": "Dies ist kein bestätigter Richtlinienverstoß. Die Prüfung hat kein eindeutiges Ergebnis geliefert.",
+			"billing": {
+				"beforeGeneration": "Es wurden keine Generierungs-Credits berechnet und dein einmaliger Gebührenerlass wurde nicht genutzt.",
+				"waived": "Es wurden keine Credits berechnet: Der einmalige Gebührenerlass deines Kontos wurde genutzt. Künftige gesperrte Ergebnisse werden zum angezeigten Credit-Betrag berechnet.",
+				"charged": "Für diese Generierung wurden wie angekündigt {credits} Credits berechnet. Der einmalige Gebührenerlass deines Kontos war bereits genutzt.",
+				"returned": "Es wurden keine Credits berechnet und dein einmaliger Gebührenerlass wurde nicht genutzt. Reservierte Credits wurden freigegeben.",
+				"noCharge": "Es wurden keine Credits berechnet. Den freigegebenen Betrag findest du in der Credit-Übersicht.",
+				"summary": "Die tatsächliche Belastung und freigegebene Credits findest du in der Credit-Übersicht dieses Auftrags.",
+				"sponsored": "Deinem Konto wurden keine Credits berechnet und sein einmaliger Gebührenerlass wurde nicht genutzt. Dies war ein gesponserter Test."
+			},
+			"next": {
+				"prompt": "Passe die Anweisung an die Inhaltsrichtlinie an, bevor du es erneut versuchst.",
+				"input": "Wähle ein anderes Referenzbild, das der Inhaltsrichtlinie entspricht.",
+				"output": "Ändere die Anweisung oder wähle ein anderes Referenzbild, bevor du eine neue Generierung startest. Die neuen Credit-Kosten werden vorher angezeigt.",
+				"unavailable": "Versuche es später erneut. Wenn das Problem bestehen bleibt, kontaktiere den Support.",
+				"guestOutput": "Kontaktiere den Support, wenn du Hilfe mit diesem Ergebnis benötigst. Dein Teststatus wird unten angezeigt."
+			},
+			"policy": "Inhaltsrichtlinie",
+			"appeal": "Vermutest du einen Fehler? Support kontaktieren",
+			"support": "Support kontaktieren",
+			"reference": "Gib beim Kontakt mit dem Support diese Auftragsnummer an:",
+			"replaceImage": "Anderes Bild wählen",
+			"editInstruction": "Anweisung bearbeiten"
 		}
 	},
 	"common": {

@@ -1,5 +1,7 @@
 import { ORPCError } from "@orpc/server";
 
+import { TextModerationError } from "./public-moderation-reason";
+
 export const MEDIA_ERROR_CODES = [
 	"INSUFFICIENT_CREDITS",
 	"CREDIT_DEBT_OUTSTANDING",
@@ -39,7 +41,17 @@ export function toMediaOrpcError(error: unknown): ORPCError<string, unknown> {
 			: code === "GENERATION_RETRY_IN_PROGRESS" || code === "IDEMPOTENCY_CONFLICT"
 				? "CONFLICT"
 				: "BAD_REQUEST";
-	return new ORPCError(status, { message: code, data: { code } });
+	return new ORPCError(status, {
+		message: code,
+		data: {
+			code,
+			...(code === "CONTENT_NOT_ALLOWED" &&
+			error instanceof TextModerationError &&
+			error.moderationReason
+				? { moderationReason: error.moderationReason }
+				: {}),
+		},
+	});
 }
 
 export function stableMediaErrorCode(error: unknown): MediaErrorCode {

@@ -98,6 +98,31 @@ confirmed billing outcome even after output-media cleanup. Images remain quarant
 public access. The quote screen discloses the rule, and the result/history views show the actual
 charged/released amounts and appeal guidance. This credit waiver is distinct from a payment refund.
 
+## Customer feedback
+
+Prompt, reference-image, generated-result, and guest-trial screens separate the outcome, reason,
+credit treatment, and next action. Confirmed blocks use an amber notice; an incomplete review uses
+a neutral notice and explicitly avoids declaring a content violation. Both link to the content policy
+and support. Result notices include the task reference; blocked media and private access URLs remain
+unavailable. A cached input preview is hidden if a subsequent access check fails.
+
+The API exposes only `PublicModerationReason` categories. Waffo's confirmed prompt rejection can
+explain sexual content, minor safety, sexual exploitation, or identity manipulation using its
+allowlisted matched categories. SeeAPI's boolean rejection currently has no stable documented
+category mapping, so the notice says restricted content with no more specific reason available.
+Unknown categories also use this fallback. Provider names, raw labels, request IDs, scores, and
+diagnostic payloads stay server-side. REVIEW, ERROR, and unclassified image rejections never gain
+a confirmed-violation label through the presentation mapping.
+
+Credit wording follows the stored result: before generation no credits or waiver are used; a
+confirmed output block reports its waiver or quoted charge; a terminal unavailable review with
+zero charge reports released credits and no waiver use. Historical jobs without the new billing
+marker use their ledger summary. Sponsored trials show no account charge or waiver use and retain
+their separate trial-consumption status. No automatic appeal or refund is created by these notices.
+
+Waffo and SeeAPI requests use Workers-compatible `redirect: "manual"` and reject non-success
+responses. Credentials and private image URLs must never follow a redirect to another origin.
+
 ## References
 
 - [Waffo scan prompt](https://docs.waffo.ai/zh/api-reference/endpoints/content-safety/scan-prompt)

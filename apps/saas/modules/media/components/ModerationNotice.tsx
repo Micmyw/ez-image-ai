@@ -1,33 +1,41 @@
 "use client";
 
-import { Alert, AlertDescription } from "@repo/ui/components/alert";
-import { useTranslations } from "next-intl";
+import { ContentSafetyNotice, type SafetyBillingOutcome } from "./ContentSafetyNotice";
 
 export function ModerationNotice({
 	job,
 }: {
 	job: {
+		id?: string;
 		status: string;
 		failureReason?: string | null;
+		moderationReason?: string | null;
 		moderationBilling?: "WAIVED" | "CHARGED" | null;
 		creditsCharged: string;
 	};
 }) {
-	const t = useTranslations("media.status");
-	const message =
+	const blocked = Boolean(job.moderationBilling) || job.failureReason === "CONTENT_NOT_ALLOWED";
+	const unavailable = job.failureReason === "SAFETY_CHECK_UNAVAILABLE" && job.status === "FAILED";
+	if (!blocked && !unavailable) return null;
+	const billing: SafetyBillingOutcome =
 		job.moderationBilling === "WAIVED"
-			? "moderationWaived"
+			? "waived"
 			: job.moderationBilling === "CHARGED"
-				? "moderationCharged"
-				: job.failureReason === "CONTENT_NOT_ALLOWED"
-					? "moderationRejected"
-					: job.failureReason === "SAFETY_CHECK_UNAVAILABLE" && job.status === "FAILED"
-						? "moderationUnavailable"
-						: null;
-	if (!message) return null;
+				? "charged"
+				: job.creditsCharged === "0"
+					? unavailable
+						? "returned"
+						: "noCharge"
+					: "summary";
 	return (
-		<Alert className="mt-5" variant="error">
-			<AlertDescription>{t(message, { credits: job.creditsCharged })}</AlertDescription>
-		</Alert>
+		<ContentSafetyNotice
+			className="mt-5"
+			stage="output"
+			outcome={blocked ? "blocked" : "unavailable"}
+			reason={job.moderationReason}
+			billing={billing}
+			credits={job.creditsCharged}
+			jobId={job.id}
+		/>
 	);
 }

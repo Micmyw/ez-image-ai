@@ -9,6 +9,7 @@ import { useTranslations } from "next-intl";
 import { type FormEvent, useEffect, useRef, useState } from "react";
 
 import { useGuestTrial } from "../../hooks/use-guest-trial";
+import { ContentSafetyNotice } from "../ContentSafetyNotice";
 import { GuestConversionActions } from "./GuestConversionActions";
 import { GuestResultCard } from "./GuestResultCard";
 import { useGuestShellLinking } from "./GuestShell";
@@ -187,26 +188,52 @@ export function GuestTrialWorkspace({ registered = false }: { registered?: boole
 
 					{(error || terminalFailure) && (
 						<div ref={errorRef} tabIndex={submissionError ? -1 : undefined}>
-							<Alert role={submissionError || terminalFailure ? "alert" : "status"} variant="error">
-								<AlertDescription>
-									{error ?? t(`states.${trial.view.state}`)}
-									{trial.errorKey === "access" && trial.view.state === "ready" && (
-										<Button
-											type="button"
-											variant="ghost"
-											className="mt-2 min-h-11"
-											onClick={() => trial.actions.retryAccess()}
-										>
-											{t("retryPreview")}
-										</Button>
-									)}
-									{terminalFailure && (
-										<span className="mt-1 block">
-											{trial.view.trialConsumed ? t("trialConsumed") : t("trialNotConsumed")}
-										</span>
-									)}
-								</AlertDescription>
-							</Alert>
+							{trial.errorKey === "submit" && trial.moderationError ? (
+								<ContentSafetyNotice
+									stage="prompt"
+									outcome={trial.moderationError.outcome}
+									reason={trial.moderationError.reason}
+									billing="beforeGeneration"
+									onRevise={() => document.getElementById("guest-edit-prompt")?.focus()}
+								/>
+							) : terminalFailure && trial.view.safety ? (
+								<div className="space-y-2">
+									<ContentSafetyNotice
+										stage="output"
+										outcome={trial.view.safety.outcome}
+										reason={trial.view.safety.reason}
+										billing="sponsored"
+										jobId={trial.view.jobId}
+									/>
+									<p className="text-sm text-muted-foreground">
+										{trial.view.trialConsumed ? t("trialConsumed") : t("trialNotConsumed")}
+									</p>
+								</div>
+							) : (
+								<Alert
+									role={submissionError || terminalFailure ? "alert" : "status"}
+									variant="error"
+								>
+									<AlertDescription>
+										{error ?? t(`states.${trial.view.state}`)}
+										{trial.errorKey === "access" && trial.view.state === "ready" && (
+											<Button
+												type="button"
+												variant="ghost"
+												className="mt-2 min-h-11"
+												onClick={() => trial.actions.retryAccess()}
+											>
+												{t("retryPreview")}
+											</Button>
+										)}
+										{terminalFailure && (
+											<span className="mt-1 block">
+												{trial.view.trialConsumed ? t("trialConsumed") : t("trialNotConsumed")}
+											</span>
+										)}
+									</AlertDescription>
+								</Alert>
+							)}
 						</div>
 					)}
 				</div>

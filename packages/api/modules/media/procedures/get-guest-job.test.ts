@@ -15,6 +15,37 @@ import { auth } from "@repo/auth";
 import { getGuestJob } from "./get-guest-job";
 
 describe("getGuestJob", () => {
+	it.each(["REJECTED", "REVIEW", "ERROR"])(
+		"explains a guest output %s without exposing diagnostics",
+		async (status) => {
+			databaseMocks.getGuestJobSnapshot.mockResolvedValue({
+				jobId: "job-1",
+				stage: "FAILED",
+				projectedDispatchAt: new Date("2026-09-16T00:00:00Z"),
+				estimateExpiresAt: new Date("2026-09-16T00:01:00Z"),
+				resultExpiresAt: new Date("2026-09-17T00:00:00Z"),
+				resultAssetId: null,
+				watermarked: false,
+				trialConsumed: true,
+				linkReady: true,
+				outputSafety: {
+					status,
+					reasonCode: "SEEAPI_CONTENT_NOT_ALLOWED",
+					rawEnvelope: { private: "detail" },
+				},
+			});
+			const result = await call(
+				getGuestJob,
+				{ jobId: "job-1" },
+				{ context: { headers: new Headers() } },
+			);
+			expect(result).toHaveProperty("safety", {
+				outcome: status === "REJECTED" ? "blocked" : "unavailable",
+				reason: status === "REJECTED" ? "restrictedContent" : null,
+			});
+			expect(JSON.stringify(result)).not.toMatch(/seeapi|rawEnvelope|private|reasonCode/i);
+		},
+	);
 	beforeEach(() => {
 		vi.clearAllMocks();
 		vi.mocked(auth.api.getSession).mockResolvedValue({

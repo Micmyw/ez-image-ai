@@ -27,7 +27,11 @@ const task = (status = "succeeded", flagged = false) => ({
 	error: null,
 });
 function fixture(body: unknown, status = 200) {
-	const fetcher = vi.fn<typeof fetch>(async () => Response.json(body, { status }));
+	const fetcher = vi.fn<typeof fetch>(async (_url, request) => {
+		// Match Workers: redirect="error" fails before a request can be sent.
+		if (request?.redirect === "error") throw new TypeError("Invalid redirect value");
+		return Response.json(body, { status });
+	});
 	return {
 		fetcher,
 		adapter: new SeeapiSafetyAdapter({ apiKey: "fixture-secret", fetch: fetcher }),
@@ -43,6 +47,7 @@ describe("SeeAPI image moderation", () => {
 		});
 		const [url, request] = fetcher.mock.calls[0]!;
 		expect(url).toBe("https://api.seeapi.com/v1/inferences");
+		expect(request?.redirect).toBe("manual");
 		expect(new Headers(request?.headers).get("Idempotency-Key")).toBe(input.idempotencyKey);
 		expect(new Headers(request?.headers).get("Authorization")).toBe("Bearer fixture-secret");
 		expect(JSON.parse(request?.body as string)).toMatchObject({
@@ -52,6 +57,18 @@ describe("SeeAPI image moderation", () => {
 			input: { image_url: input.assetUrl, threshold_offset: 0, strict_special_care: true },
 		});
 	});
+	it.each([301, 302, 303, 307, 308])(
+		"rejects HTTP %s without following a credentialed redirect",
+		async (status) => {
+			const { adapter, fetcher } = fixture(task(), status);
+			await expect(adapter.submitImage(input)).rejects.toThrow("MODERATION_UNAVAILABLE");
+			expect(
+				await adapter.retrieveImage({ ...input, moderationTaskId: "task_test" }),
+			).toMatchObject({ decision: "ERROR" });
+			expect(fetcher).toHaveBeenCalledTimes(2);
+			for (const [, request] of fetcher.mock.calls) expect(request?.redirect).toBe("manual");
+		},
+	);
 	it.each(["queued", "processing"])("keeps %s pending", async (status) => {
 		expect(
 			await fixture(task(status)).adapter.retrieveImage({

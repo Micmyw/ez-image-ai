@@ -1376,6 +1376,64 @@
 			"delete": "Supprimer",
 			"empty": "Aucune ressource image pour le moment.",
 			"more": "Charger plus"
+		},
+		"safety": {
+			"titles": {
+				"prompt": "Veuillez modifier cette instruction",
+				"input": "Veuillez choisir une autre image",
+				"output": "Ce résultat ne peut pas être affiché",
+				"unavailable": "Vérification de sécurité indisponible"
+			},
+			"summary": {
+				"prompt": {
+					"blocked": "Cette instruction n’a pas passé la vérification de sécurité. La génération n’a pas commencé.",
+					"unavailable": "Nous n’avons pas pu terminer la vérification de cette instruction. La génération n’a pas commencé."
+				},
+				"input": {
+					"blocked": "Cette image de référence n’a pas passé la vérification de sécurité et ne peut pas être utilisée pour la génération.",
+					"unavailable": "Cette image est indisponible ou sa vérification de sécurité n’a pas pu être terminée."
+				},
+				"output": {
+					"blocked": "L’image a été générée, mais la vérification de sécurité en a bloqué l’accès.",
+					"unavailable": "Nous n’avons pas pu terminer la vérification de sécurité. Cette image reste donc indisponible."
+				}
+			},
+			"reasonLabel": "Motif",
+			"creditsLabel": "Crédits",
+			"nextLabel": "Que pouvez-vous faire ?",
+			"reasons": {
+				"sexualContent": "La vérification de sécurité a signalé du contenu sexuellement explicite.",
+				"minorSafety": "La vérification de sécurité a signalé un possible contenu sexuel impliquant des mineurs.",
+				"sexualExploitation": "La vérification de sécurité a signalé de l’exploitation sexuelle ou du contenu sexuel non consenti.",
+				"identityMisuse": "La vérification de sécurité a signalé une manipulation d’identité, par exemple un échange de visages.",
+				"violence": "La vérification de sécurité a signalé de la violence graphique, des blessures ou une menace avec une arme.",
+				"selfHarm": "La vérification de sécurité a signalé du contenu d’automutilation.",
+				"hate": "La vérification de sécurité a signalé du contenu haineux ou discriminatoire.",
+				"restrictedContent": "La vérification de sécurité a signalé du contenu restreint par notre politique. Aucun motif plus précis n’est disponible."
+			},
+			"reviewUncertain": "Il ne s’agit pas d’une infraction confirmée. La vérification n’a pas donné de résultat concluant.",
+			"billing": {
+				"beforeGeneration": "Aucun crédit de génération n’a été facturé et votre exonération unique n’a pas été utilisée.",
+				"waived": "Aucun crédit n’a été facturé : l’exonération unique de votre compte a été utilisée. Les prochains résultats bloqués seront facturés au montant de crédits annoncé.",
+				"charged": "{credits} crédits ont été facturés pour cette génération, comme annoncé. L’exonération unique de votre compte avait déjà été utilisée.",
+				"returned": "Aucun crédit n’a été facturé et votre exonération unique n’a pas été utilisée. Les crédits réservés ont été libérés.",
+				"noCharge": "Aucun crédit n’a été facturé. Consultez le récapitulatif des crédits pour connaître le montant libéré.",
+				"summary": "Consultez le récapitulatif des crédits de cette tâche pour connaître le montant facturé et les crédits libérés.",
+				"sponsored": "Aucun crédit n’a été facturé à votre compte et son exonération unique n’a pas été utilisée. Il s’agissait d’un essai sponsorisé."
+			},
+			"next": {
+				"prompt": "Adaptez l’instruction à la politique de contenu avant de réessayer.",
+				"input": "Choisissez une autre image de référence conforme à la politique de contenu.",
+				"output": "Modifiez l’instruction ou choisissez une autre image de référence avant de lancer une nouvelle génération. Le nouveau devis indiquera son coût en crédits.",
+				"unavailable": "Réessayez plus tard. Si le problème persiste, contactez l’assistance.",
+				"guestOutput": "Contactez l’assistance si vous avez besoin d’aide concernant ce résultat. Le statut de votre essai est indiqué ci-dessous."
+			},
+			"policy": "Politique de contenu",
+			"appeal": "Vous pensez qu’il s’agit d’une erreur ? Contactez-nous",
+			"support": "Contacter l’assistance",
+			"reference": "Indiquez cette référence de tâche lorsque vous contactez l’assistance :",
+			"replaceImage": "Choisir une autre image",
+			"editInstruction": "Modifier l’instruction"
 		}
 	},
 	"common": {

@@ -1,3 +1,5 @@
+import type { PublicModerationReason } from "@repo/config/client";
+
 export type GuestTrialServerStage =
 	| "WAITING"
 	| "EDITING"
@@ -8,6 +10,7 @@ export type GuestTrialServerStage =
 	| "EXPIRED";
 
 export interface GuestTrialSnapshot {
+	safety?: GuestSafetyFeedback;
 	jobId: string;
 	stage: GuestTrialServerStage;
 	projectedDispatchAt: string;
@@ -32,6 +35,7 @@ export type GuestTrialViewState =
 	| "expired";
 
 export interface GuestTrialView {
+	safety?: GuestSafetyFeedback;
 	state: GuestTrialViewState;
 	jobId?: string;
 	resultAssetId?: string;
@@ -54,6 +58,7 @@ export function resolveGuestTrialView(
 		resultExpiresAt: snapshot.resultExpiresAt,
 		trialConsumed: snapshot.trialConsumed,
 		linkReady: snapshot.linkReady,
+		...(snapshot.safety ? { safety: snapshot.safety } : {}),
 	};
 	if (atOrAfter(now, snapshot.resultExpiresAt) || snapshot.stage === "EXPIRED") {
 		return { ...common, state: "expired" };
@@ -87,3 +92,8 @@ function atOrAfter(now: Date, timestamp: string): boolean {
 	const value = new Date(timestamp).getTime();
 	return Number.isFinite(value) && now.getTime() >= value;
 }
+
+type GuestSafetyFeedback = {
+	outcome: "blocked" | "unavailable";
+	reason: PublicModerationReason | null;
+};

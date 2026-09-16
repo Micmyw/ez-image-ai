@@ -102,6 +102,23 @@ describe("GuestTrialWorkspace", () => {
 		expect(visibleText).toContain("Your watermarked result will appear here.");
 		expect(markup).not.toMatch(/\d+%|queue position|history|edit again|cancel/i);
 	});
+	it("explains a blocked sponsored result without advertising a charged waiver", () => {
+		const current = mocks.useGuestTrial();
+		mocks.useGuestTrial.mockReturnValue({
+			...current,
+			view: {
+				state: "failed",
+				jobId: "guest-reference",
+				trialConsumed: true,
+				safety: { outcome: "blocked", reason: "restrictedContent" },
+			},
+		});
+		const markup = renderToStaticMarkup(<GuestTrialWorkspace />);
+		expect(markup).toContain("billing.sponsored");
+		expect(markup).toContain("guest-reference");
+		expect(markup).toContain("This trial was consumed.");
+		expect(markup).not.toMatch(/billing.charged|billing.waived/);
+	});
 
 	it("keeps paid models explanatory and sends the focusable action through fenced account transition", () => {
 		const beginLink = vi.fn();

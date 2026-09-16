@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createGuestGenerationTransaction } from "./guest-admission";
+import { createGuestGenerationTransaction, getGuestJobSnapshot } from "./guest-admission";
 
 describe("guest admission credit contract", () => {
 	it("accepts the current five-credit sponsor value at the database boundary", async () => {
@@ -115,3 +115,64 @@ function guestInput(sponsorCredits: bigint) {
 		},
 	} satisfies Parameters<typeof createGuestGenerationTransaction>[0];
 }
+
+describe("guest safety feedback ownership", () => {
+	it.each(["guest-1", "foreign-owner"])(
+		"only includes rejection evidence belonging to %s",
+		async (assetOwner) => {
+			const findFirst = vi.fn().mockResolvedValue({
+				id: "job-1",
+				status: "FAILED",
+				guestTrial: {
+					ownerId: "guest-1",
+					currentJobId: "job-1",
+					consumedJobId: "job-1",
+					eligibility: "CONSUMED",
+					linkIntents: [],
+					expiresAt: new Date("2026-09-17T00:00:00Z"),
+					projectedDispatchAt: new Date("2026-09-16T00:00:00Z"),
+					estimateExpiresAt: new Date("2026-09-16T00:01:00Z"),
+				},
+				assets: [
+					{
+						role: "OUTPUT",
+						asset: {
+							ownerType: "USER",
+							ownerId: assetOwner,
+							status: "QUARANTINED",
+							deletedAt: null,
+							moderationResults: [
+								{
+									status: "REJECTED",
+									reasonCode: "SEEAPI_CONTENT_NOT_ALLOWED",
+									rawEnvelope: { private: true },
+								},
+							],
+						},
+					},
+				],
+			});
+			const result = await getGuestJobSnapshot(
+				{
+					ownerId: "guest-1",
+					jobId: "job-1",
+					now: new Date("2026-09-16T01:00:00Z"),
+					verification: { provider: "test", ruleVersion: "test", policyVersion: "test" },
+				},
+				{ generationJob: { findFirst } } as never,
+			);
+			expect(result?.resultAssetId).toBeNull();
+			expect(result?.outputSafety).toEqual(
+				assetOwner === "guest-1"
+					? { status: "REJECTED", reasonCode: "SEEAPI_CONTENT_NOT_ALLOWED" }
+					: undefined,
+			);
+			expect(JSON.stringify(result)).not.toMatch(/private|rawEnvelope/);
+			expect(findFirst).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: expect.objectContaining({ id: "job-1", ownerId: "guest-1", ownerType: "USER" }),
+				}),
+			);
+		},
+	);
+});

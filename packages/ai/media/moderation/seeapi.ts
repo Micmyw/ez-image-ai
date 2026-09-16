@@ -101,7 +101,8 @@ export class SeeapiSafetyAdapter {
 			`https://api.seeapi.com${path}`,
 			{
 				...init,
-				redirect: "error",
+				// Workers supports manual, not error. Non-2xx responses below still fail closed.
+				redirect: "manual",
 				headers,
 			},
 			{ maxResponseBytes: 64 * 1024, ...this.options },

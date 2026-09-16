@@ -1376,6 +1376,64 @@
 			"delete": "Delete",
 			"empty": "No image assets yet.",
 			"more": "Load more"
+		},
+		"safety": {
+			"titles": {
+				"prompt": "Please revise this instruction",
+				"input": "Please choose another image",
+				"output": "This result cannot be shown",
+				"unavailable": "Safety review unavailable"
+			},
+			"summary": {
+				"prompt": {
+					"blocked": "This instruction did not pass the safety check. Generation has not started.",
+					"unavailable": "We could not finish checking this instruction. Generation has not started."
+				},
+				"input": {
+					"blocked": "This reference image did not pass the safety check and cannot be used for generation.",
+					"unavailable": "This image is unavailable or its safety review could not be completed."
+				},
+				"output": {
+					"blocked": "The image was generated, but the safety check blocked access to it.",
+					"unavailable": "We could not complete the safety review, so this image remains unavailable."
+				}
+			},
+			"reasonLabel": "Reason",
+			"creditsLabel": "Credits",
+			"nextLabel": "What you can do",
+			"reasons": {
+				"sexualContent": "The safety check flagged sexually explicit content.",
+				"minorSafety": "The safety check flagged possible sexual content involving minors.",
+				"sexualExploitation": "The safety check flagged sexual exploitation or non-consensual sexual content.",
+				"identityMisuse": "The safety check flagged identity manipulation, such as face swapping.",
+				"violence": "The safety check flagged graphic violence, injury or a weapon threat.",
+				"selfHarm": "The safety check flagged self-harm content.",
+				"hate": "The safety check flagged hateful or discriminatory content.",
+				"restrictedContent": "The safety check flagged content restricted by our policy. A more specific reason is not available."
+			},
+			"reviewUncertain": "This is not a confirmed content violation. The check did not produce a clear result.",
+			"billing": {
+				"beforeGeneration": "No generation credits were charged and your one-time waiver was not used.",
+				"waived": "No credits were charged: your account’s one-time waiver was used. Future blocked results use the quoted credits.",
+				"charged": "{credits} credits were charged for this generation, as quoted. Your account’s one-time waiver had already been used.",
+				"returned": "No credits were charged and your one-time waiver was not used. Reserved credits were released.",
+				"noCharge": "No credits were charged. See the credit summary for the amount released.",
+				"summary": "See this job’s credit summary for the actual charge and released credits.",
+				"sponsored": "No credits were charged to your account and its one-time waiver was not used. This was a sponsored trial."
+			},
+			"next": {
+				"prompt": "Edit the instruction to follow the content policy before trying again.",
+				"input": "Choose a different reference image that follows the content policy.",
+				"output": "Edit the instruction or choose a different reference image before starting a new generation. The new quote will show its credit cost.",
+				"unavailable": "Try again later. If this keeps happening, contact support.",
+				"guestOutput": "Contact support if you need help with this result. Your trial status is shown below."
+			},
+			"policy": "Content policy",
+			"appeal": "Think this is a mistake? Contact support",
+			"support": "Contact support",
+			"reference": "Include this task reference when contacting support:",
+			"replaceImage": "Choose another image",
+			"editInstruction": "Edit instruction"
 		}
 	},
 	"common": {

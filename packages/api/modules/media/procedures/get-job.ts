@@ -4,6 +4,7 @@ import { db } from "@repo/database/client";
 
 import { protectedProcedure } from "../../../orpc/procedures";
 import { publicImageGenerationInput } from "../lib/public-generation-input";
+import { publicImageModerationReason } from "../lib/public-moderation-reason";
 import { jobIdInputSchema, jsonBigInt } from "../types";
 
 export const getJob = protectedProcedure
@@ -86,15 +87,14 @@ export const getJob = protectedProcedure
 				: job.failureCode === "OUTPUT_CONTENT_BLOCKED_CHARGED"
 					? ("CHARGED" as const)
 					: null;
-		const moderationRejected =
-			Boolean(moderationBilling) ||
-			job.assets.some(
-				(binding) =>
-					binding.role === "OUTPUT" &&
-					binding.asset.ownerType === "USER" &&
-					binding.asset.ownerId === user.id &&
-					isImageContentRejection(binding.asset.moderationResults[0]),
-			);
+		const rejectedOutput = job.assets.find(
+			(binding) =>
+				binding.role === "OUTPUT" &&
+				binding.asset.ownerType === "USER" &&
+				binding.asset.ownerId === user.id &&
+				isImageContentRejection(binding.asset.moderationResults[0]),
+		);
+		const moderationRejected = Boolean(moderationBilling) || Boolean(rejectedOutput);
 		const safetyUnavailable = job.assets.some(
 			(binding) =>
 				binding.role === "OUTPUT" &&
@@ -130,6 +130,10 @@ export const getJob = protectedProcedure
 			progress: attempt?.progress ?? null,
 			failureCode: job.failureCode,
 			moderationBilling,
+			moderationReason: moderationRejected
+				? (publicImageModerationReason(rejectedOutput?.asset.moderationResults[0]) ??
+					"restrictedContent")
+				: null,
 			failureReason: moderationRejected
 				? ("CONTENT_NOT_ALLOWED" as const)
 				: safetyUnavailable

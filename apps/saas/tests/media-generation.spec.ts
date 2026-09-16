@@ -438,10 +438,15 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		const reservation = await reservationFor(job.id);
 		expect(reservation.settledAmount).toBe("0");
 		await expect(
-			page.getByText(/could not complete the safety review.*one-time waiver was not used/i),
+			page
+				.locator('[data-test="content-safety-notice"]')
+				.filter({ hasText: /one-time waiver was not used/i }),
 		).toBeVisible({
 			timeout: 30_000,
 		});
+		await expect(page.locator('[data-test="content-safety-notice"]')).toContainText(
+			"not a confirmed content violation",
+		);
 		await page.goto("/assets");
 		await expect(page.locator(`[data-asset-id="${bindings[0]!.assetId}"]`)).toHaveCount(0);
 	});

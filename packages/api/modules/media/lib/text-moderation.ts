@@ -10,6 +10,8 @@ import {
 } from "@repo/database/media-quotes";
 import { createWaffoPromptScanner } from "@repo/payments/waffo-content-safety";
 
+import { TextModerationError } from "./public-moderation-reason";
+
 export const TEXT_MODERATION_RULE_VERSION = "text-safety-2026-09-16.2";
 
 export interface TextModerationEvidence extends ModerationDecision {
@@ -39,7 +41,7 @@ export async function moderateQuoteInput<T>(
 	};
 	if (result.decision !== "ALLOW") {
 		await dependencies.recordDenied(evidence);
-		throw new Error(`TEXT_MODERATION_${result.decision}`);
+		throw new TextModerationError(result);
 	}
 	return dependencies.persistApproved(evidence);
 }

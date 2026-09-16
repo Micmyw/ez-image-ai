@@ -33,6 +33,11 @@
 
 ### Content safety
 
+- Separate safety notices into a clear outcome, safe reason, credit treatment, and next step for
+  instructions, reference images, results, and guest trials. Link to policy and support, include
+  result task references, and keep incomplete reviews distinct from confirmed content blocks.
+- Restore SeeAPI image checks on Cloudflare Workers by rejecting redirects with a supported request
+  mode. Hide cached source previews when a new access check fails.
 - Add independent text and image moderation switches: Waffo/Sightengine for text and
   SeeAPI/Sightengine for private uploaded and generated images. Disabled providers make no calls;
   asynchronous image checks persist their task before polling and all enabled checks must pass.

@@ -1,10 +1,11 @@
 "use client";
 
-import type { ImageAspectRatio } from "@repo/config/client";
+import type { ImageAspectRatio, PublicModerationReason } from "@repo/config/client";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpcClient } from "@shared/lib/orpc-client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { getEditorErrorKey, getModerationErrorReason } from "../lib/editor-error";
 import { getGuestDeviceId } from "../lib/guest-device";
 import {
 	isGuestTrialTerminal,
@@ -40,6 +41,10 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 	const [prompt, setPrompt] = useState("");
 	const [snapshot, setSnapshot] = useState<GuestTrialSnapshot | null>(null);
 	const [errorKey, setErrorKey] = useState<GuestErrorKey>();
+	const [moderationError, setModerationError] = useState<{
+		outcome: "blocked" | "unavailable";
+		reason: PublicModerationReason | null;
+	} | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
 	const [resultUrl, setResultUrl] = useState<string | null>(null);
 	const [accessRetryNonce, setAccessRetryNonce] = useState(0);
@@ -171,6 +176,7 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 		}
 		setIsSubmitting(true);
 		setErrorKey(undefined);
+		setModerationError(null);
 		try {
 			const next = await orpcClient.media.submitGuestGeneration({
 				capabilityVersion,
@@ -185,7 +191,14 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 			});
 			updateSnapshot(next);
 			void saasGrowthFunnel.guestGenerationAdmitted(next.jobId);
-		} catch {
+		} catch (error) {
+			const key = getEditorErrorKey(error);
+			if (key === "contentNotAllowed" || key === "safetyUnavailable") {
+				setModerationError({
+					outcome: key === "contentNotAllowed" ? "blocked" : "unavailable",
+					reason: getModerationErrorReason(error),
+				});
+			}
 			setErrorKey("submit");
 			setSubmitErrorNonce((value) => value + 1);
 		} finally {
@@ -238,6 +251,7 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 		canSubmit: Boolean(draft && capabilityVersion && !snapshot),
 		isSubmitting,
 		errorKey,
+		moderationError,
 		resultUrl,
 		submitErrorNonce,
 		actions: { submit, download, beginLink, retryAccess, viewStatus, viewResult },

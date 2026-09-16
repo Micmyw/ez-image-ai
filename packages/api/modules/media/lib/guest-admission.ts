@@ -25,6 +25,7 @@ import {
 	loadGuestCapability,
 	requireGuestAbuseHmac,
 } from "./guest-capability";
+import { TextModerationError } from "./public-moderation-reason";
 import { buildMediaQuote } from "./quote";
 import {
 	createTextModerationAdapter,
@@ -393,7 +394,7 @@ export async function submitGuestGenerationForGuest(
 			loaded.config.abuseEvidenceTtlMs,
 			now,
 			"CONTENT",
-			new Error(`TEXT_MODERATION_${moderation.decision}`),
+			new TextModerationError(moderation),
 		);
 	}
 	const moderationProvider =

@@ -92,6 +92,7 @@ describe("getJob", () => {
 		});
 		const result = await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } });
 		expect(result.failureReason).toBe("SAFETY_CHECK_UNAVAILABLE");
+		expect(result).toHaveProperty("moderationReason", null);
 		expect(result.assets).toEqual([]);
 	});
 	beforeEach(() => {
@@ -197,6 +198,7 @@ describe("getJob", () => {
 		const result = await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } });
 
 		expect(result.failureReason).toBe("CONTENT_NOT_ALLOWED");
+		expect(result).toHaveProperty("moderationReason", "sexualContent");
 		expect(result.assets).toEqual([]);
 		expect(JSON.stringify(result)).not.toContain("asset-quarantined");
 	});

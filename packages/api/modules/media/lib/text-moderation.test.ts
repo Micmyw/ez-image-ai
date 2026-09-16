@@ -7,6 +7,7 @@ vi.mock("@repo/payments/waffo-content-safety", () => ({
 import { createWaffoPromptScanner } from "@repo/payments/waffo-content-safety";
 
 import { safeTextResponse } from "../../../../ai/media/moderation/sightengine.test-fixtures";
+import { toMediaOrpcError } from "./errors";
 import {
 	createTextModerationAdapter,
 	moderateQuoteInput,
@@ -62,6 +63,45 @@ describe("generation text moderation", () => {
 		pricingSnapshot: {},
 		expiresAt: new Date("2026-08-14T01:00:00.000Z"),
 	};
+	it.each([
+		["adult_nsfw", "sexualContent"],
+		["csam_minor", "minorSafety"],
+		["sexual_violence_nonconsensual", "sexualExploitation"],
+		["undress_transform", "sexualExploitation"],
+		["face_swap_identity", "identityMisuse"],
+		["bestiality_restricted", "sexualExploitation"],
+		["unknown-private-label", "restrictedContent"],
+	])("shows a safe reason for Waffo %s without exposing its evidence", async (category, reason) => {
+		const persistApproved = vi.fn();
+		const error = await moderateQuoteInput(quote, {
+			provider: "waffo",
+			moderateText: async () => ({
+				decision: "REJECT",
+				reasonCode: "WAFFO_RESTRICTED_CONTENT",
+				ruleVersion: TEXT_MODERATION_RULE_VERSION,
+				evidence: {
+					requestId: "private-request",
+					models: [],
+					operations: 1,
+					scores: {},
+					waffo: {
+						requestId: "private-request",
+						action: "block",
+						semanticStatus: "scored",
+						matchedCategories: [category],
+					},
+				},
+			}),
+			persistApproved,
+			recordDenied: vi.fn(),
+		}).catch((denied: unknown) => denied);
+		const response = toMediaOrpcError(error);
+		expect(response.data).toEqual({ code: "CONTENT_NOT_ALLOWED", moderationReason: reason });
+		expect(JSON.stringify(response.data)).not.toMatch(
+			/waffo|private|requestId|matchedCategories|scores/i,
+		);
+		expect(persistApproved).not.toHaveBeenCalled();
+	});
 
 	it.each(["REJECT", "REVIEW", "ERROR"] as const)(
 		"fails closed for a %s decision without persisting an approved quote",

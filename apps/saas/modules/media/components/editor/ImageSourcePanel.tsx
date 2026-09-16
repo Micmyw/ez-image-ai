@@ -7,6 +7,8 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { getModerationErrorReason } from "../../lib/editor-error";
+import { ContentSafetyNotice } from "../ContentSafetyNotice";
 import { MediaUploader } from "../MediaUploader";
 
 export function ImageSourcePanel({
@@ -46,11 +48,11 @@ export function ImageSourcePanel({
 		staleTime: 4 * 60_000,
 	});
 	const safetyMessage = terminalSafetyMessage(preview.error);
+	const readablePreview = preview.isError ? undefined : preview.data;
 
 	useEffect(() => {
-		if (!sourceAssetId || preview.isError) onReadyChange(false);
-		if (preview.data) onReadyChange(true);
-	}, [onReadyChange, preview.data, preview.isError, sourceAssetId]);
+		onReadyChange(Boolean(sourceAssetId && readablePreview));
+	}, [onReadyChange, readablePreview, sourceAssetId]);
 
 	return (
 		<div
@@ -80,9 +82,9 @@ export function ImageSourcePanel({
 					}
 				>
 					<div className="aspect-square overflow-hidden rounded-lg bg-muted">
-						{preview.data ? (
+						{readablePreview ? (
 							<img
-								src={preview.data.url}
+								src={readablePreview.url}
 								alt={t("selectedAlt")}
 								className="size-full object-contain"
 							/>
@@ -97,7 +99,7 @@ export function ImageSourcePanel({
 					</div>
 					<div>
 						<p className={compact ? "sr-only" : "font-medium text-sm"}>
-							{preview.data ? t("ready") : t(safetyMessage ? "unavailable" : "preparing")}
+							{readablePreview ? t("ready") : t(safetyMessage ? "unavailable" : "preparing")}
 						</p>
 						{!compact && <p className="mt-1 text-xs text-muted-foreground">{t("private")}</p>}
 						<Button
@@ -113,9 +115,13 @@ export function ImageSourcePanel({
 				</div>
 			)}
 			{sourceAssetId && safetyMessage && (
-				<p role="alert" className="text-sm text-destructive">
-					{t(safetyMessage)}
-				</p>
+				<ContentSafetyNotice
+					stage="input"
+					outcome={safetyMessage === "blocked" ? "blocked" : "unavailable"}
+					reason={getModerationErrorReason(preview.error)}
+					billing="beforeGeneration"
+					onRevise={() => onChange("")}
+				/>
 			)}
 			<div hidden={compact && Boolean(sourceAssetId) && !pending}>
 				<MediaUploader

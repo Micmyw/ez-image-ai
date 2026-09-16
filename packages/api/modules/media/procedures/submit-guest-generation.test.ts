@@ -11,9 +11,31 @@ vi.mock("../lib/guest-admission", () => ({
 import { auth } from "@repo/auth";
 
 import { submitGuestGenerationForGuest } from "../lib/guest-admission";
+import { TextModerationError } from "../lib/public-moderation-reason";
 import { submitGuestGeneration } from "./submit-guest-generation";
 
 describe("submitGuestGeneration", () => {
+	it.each(["REJECT", "REVIEW", "ERROR"] as const)(
+		"returns a safe %s prompt outcome to guests",
+		async (decision) => {
+			vi.mocked(submitGuestGenerationForGuest).mockRejectedValue(
+				new TextModerationError({
+					decision,
+					reasonCode: "SEXUAL_CONTENT",
+					ruleVersion: "private-rule",
+				}),
+			);
+			await expect(
+				call(submitGuestGeneration, validInput(), { context: { headers: new Headers() } }),
+			).rejects.toMatchObject({
+				message: decision === "REJECT" ? "CONTENT_NOT_ALLOWED" : "SAFETY_CHECK_UNAVAILABLE",
+				data:
+					decision === "REJECT"
+						? { code: "CONTENT_NOT_ALLOWED", moderationReason: "sexualContent" }
+						: { code: "SAFETY_CHECK_UNAVAILABLE" },
+			});
+		},
+	);
 	beforeEach(() => {
 		vi.clearAllMocks();
 		vi.mocked(auth.api.getSession).mockResolvedValue({

@@ -22,7 +22,7 @@ import {
 } from "../../landing/lib/prompt-selection";
 import { useGeneration } from "../hooks/use-generation";
 import { replaceImageModelInUrl, useModelNavigation } from "../hooks/use-model-navigation";
-import { getEditorErrorKey } from "../lib/editor-error";
+import { getEditorErrorKey, getModerationErrorReason } from "../lib/editor-error";
 import {
 	isEditorProductKey,
 	type EditorDraftInput,
@@ -41,6 +41,7 @@ import {
 	resolveImageSpecControlValues,
 	type PublicImageSpecCell,
 } from "../lib/image-sku-selection";
+import { ContentSafetyNotice } from "./ContentSafetyNotice";
 import { ImageSourcePanel } from "./editor/ImageSourcePanel";
 import { PromptPanel } from "./editor/PromptPanel";
 import { RegisteredEditorDock } from "./editor/RegisteredEditorDock";
@@ -550,7 +551,15 @@ export function GenerationForm({
 					</div>
 				</div>
 			) : null}
-			{error && (
+			{error && (errorKey === "contentNotAllowed" || errorKey === "safetyUnavailable") ? (
+				<ContentSafetyNotice
+					stage="prompt"
+					outcome={errorKey === "contentNotAllowed" ? "blocked" : "unavailable"}
+					reason={getModerationErrorReason(error)}
+					billing="beforeGeneration"
+					onRevise={() => document.getElementById("generation-prompt")?.focus()}
+				/>
+			) : error ? (
 				<Alert variant="error">
 					<AlertDescription>
 						{t(`errors.${errorKey}`)}
@@ -579,7 +588,7 @@ export function GenerationForm({
 						)}
 					</AlertDescription>
 				</Alert>
-			)}
+			) : null}
 			<EditorUpgradeDialog
 				modelLabel={product?.label}
 				modelProductKey={values.productKey}

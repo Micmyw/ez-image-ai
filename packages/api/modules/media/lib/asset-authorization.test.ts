@@ -31,6 +31,7 @@ describe("requireReadyOwnedMediaAsset", () => {
 		await expect(requireReadyOwnedMediaAsset("asset-1", "user-1")).rejects.toMatchObject({
 			code: "PRECONDITION_FAILED",
 			message,
+			...(verdict === "REJECTED" ? { data: { moderationReason: "sexualContent" } } : {}),
 		});
 	});
 	afterEach(() => {

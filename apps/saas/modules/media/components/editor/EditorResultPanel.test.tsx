@@ -70,7 +70,7 @@ describe("EditorResultPanel", () => {
 			isError: false,
 		};
 		const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
-		expect(markup).toContain("moderationCharged");
+		expect(markup).toContain("billing.charged");
 		expect(markup).toContain("creditSummarySucceeded");
 		expect(markup).not.toContain("creditSummaryReturned");
 		expect(markup).not.toContain("Download");
