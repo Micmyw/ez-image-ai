@@ -43,11 +43,11 @@ export function ExploreModels() {
 						>
 							<div className="bg-white/5 overflow-hidden rounded-xl">
 								<LandingArtwork
-									src={`/images/models/${model.artwork}.webp`}
-									alt={INSPIRATION[model.artwork].alt}
+									src={`/images/models/${model.exampleArtwork}.webp`}
+									alt={INSPIRATION[model.exampleArtwork].alt}
 									sizes="(min-width: 1280px) 380px, (min-width: 768px) 30vw, calc(100vw - 32px)"
 									desktopPreload={model.key === "image-nano-banana-pro"}
-									className="aspect-[4/3] w-full object-cover transition-transform duration-300 group-hover:scale-[1.025] motion-reduce:transition-none"
+									className="h-auto w-full"
 								/>
 							</div>
 							<div className="pt-5">

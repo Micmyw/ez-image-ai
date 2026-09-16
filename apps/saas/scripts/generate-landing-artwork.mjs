@@ -6,12 +6,12 @@ import sharp from "sharp";
 const app = new URL("../", import.meta.url);
 const prefix = "/images/landing/variants/";
 const directory = new URL(`public${prefix}`, app);
-const featured = ["gpt-poster", "nano-product", "seedream-cinema"];
+const featured = ["gpt-2-moon-cinema", "nano-pro-glass-perfume", "seedream-lite-kingfisher"];
 const examples = (await readdir(new URL("public/examples/", app)))
 	.filter((name) => /^case-[a-z-]+\.webp$/.test(name))
 	.sort();
 const sources = [
-	...featured.map((key) => ({ src: `/images/models/${key}.webp`, crop: true })),
+	...featured.map((key) => ({ src: `/images/models/${key}.webp`, crop: false })),
 	...examples.map((name) => ({ src: `/examples/${name}`, crop: false })),
 ];
 const generated = {};

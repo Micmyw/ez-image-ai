@@ -304,12 +304,6 @@
 	border: 1px solid #ffffff0d;
 	transition: border-color 0.2s;
 }
-.model-related-card > img {
-	display: block;
-	width: 100%;
-	height: auto;
-	align-self: start;
-}
 .model-related-card:hover {
 	border-color: #b79cff55;
 }
@@ -321,6 +315,9 @@
 	color: var(--model-accent);
 }
 .model-related-card h3 {
+	display: flex;
+	justify-content: space-between;
+	gap: 12px;
 	font-size: 19px;
 	margin: 7px 0;
 }
@@ -481,10 +478,6 @@
 	}
 	.model-related-grid {
 		grid-template-columns: 1fr;
-	}
-	.model-related-card {
-		display: grid;
-		grid-template-columns: 110px minmax(0, 1fr);
 	}
 	.model-related-card > div {
 		padding: 20px 16px;

@@ -37,7 +37,7 @@ describe("landing visual example assets", () => {
 	it("ships correctly sized, content-versioned thumbnails for every homepage image", async () => {
 		const expectedSources = [
 			...generatedAssets.map((src) => `/${src}`),
-			...["gpt-poster", "nano-product", "seedream-cinema"].map(
+			...["gpt-2-moon-cinema", "nano-pro-glass-perfume", "seedream-lite-kingfisher"].map(
 				(key) => `/images/models/${key}.webp`,
 			),
 		];

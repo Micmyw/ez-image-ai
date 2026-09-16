@@ -25,12 +25,12 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 		key: "image-gpt-image-2",
 		name: "GPT Image 2",
 		family: "GPT Image",
-		lead: "Your brief. Down to the last detail.",
+		lead: "Let words become the image.",
 		description:
-			"Turn carefully written prompts into posters, product visuals, and richly composed scenes. Bring the subject, layout, and lettering into one creative brief.",
-		tags: ["Detailed prompts", "Poster design", "Product visuals"],
-		artwork: "gpt-poster",
-		exampleArtwork: "gpt-2-lime-packaging",
+			"Explore typographic posters and graphic compositions. Bring exact lettering, a strong focal point, and a deliberate layout into one creative brief.",
+		tags: ["Typography", "Poster design", "Graphic composition"],
+		artwork: "gpt-2-jazz-poster",
+		exampleArtwork: "gpt-2-moon-cinema",
 		features: [
 			{
 				title: "Give every element a place",
@@ -59,9 +59,9 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 		lead: "Everyday ideas, with a little more atmosphere.",
 		description:
 			"Explore portraits, lifestyle imagery, and everyday creative concepts with a focus on natural detail and a clear visual brief.",
-		tags: ["Everyday creativity", "Natural detail", "Portrait concepts"],
-		artwork: "gpt-flare-studio",
-		exampleArtwork: "gpt-flare-market",
+		tags: ["Documentary photography", "Natural light", "Everyday moments"],
+		artwork: "gpt-flare-luthier",
+		exampleArtwork: "gpt-flare-flower-stall",
 		features: [
 			{
 				title: "Find the scene in an everyday moment",
@@ -88,10 +88,10 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 		family: "GPT Image",
 		lead: "Give your next campaign a clear direction.",
 		description:
-			"Develop art-directed product scenes, editorial concepts, and campaign visuals with deliberate composition, color, and material choices.",
-		tags: ["Campaign concepts", "Art direction", "Material detail"],
-		artwork: "gpt-campaign",
-		exampleArtwork: "gpt-sunburst-fashion",
+			"Explore sports and fashion campaigns with expressive movement, bold color, and deliberate lighting. Build a visual brief around the person, fabric, and setting.",
+		tags: ["Sports campaigns", "Fashion concepts", "Color and motion"],
+		artwork: "gpt-sunburst-sprinter",
+		exampleArtwork: "gpt-sunburst-windbreaker",
 		features: [
 			{
 				title: "Build a visual system",
@@ -119,10 +119,10 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 		family: "GPT Image",
 		lead: "From a clear instruction to a considered image.",
 		description:
-			"Explore image concepts and reference-based changes with explicit instructions and a choice of Medium or High quality.",
-		tags: ["Instruction-led creation", "Medium / High", "Graphic concepts"],
-		artwork: "gpt-15-paper-world",
-		exampleArtwork: "gpt-15-origami",
+			"Explore paper sculptures, miniature worlds, and reference-based changes with explicit instructions and a choice of Medium or High quality.",
+		tags: ["Paper craft", "Miniature worlds", "Medium / High"],
+		artwork: "gpt-15-paper-lighthouse",
+		exampleArtwork: "gpt-15-paper-balloon",
 		features: [
 			{
 				title: "Start with a compact brief",
@@ -150,10 +150,10 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 		family: "Nano Banana",
 		lead: "A focused starting point for your next idea.",
 		description:
-			"Explore social visuals, character concepts, and everyday image ideas with a straightforward 1K output setting.",
-		tags: ["1K output", "Social concepts", "Everyday ideas"],
-		artwork: "nano-portrait",
-		exampleArtwork: "nano-lite-robot",
+			"Explore playful 3D mascots and character-led social visuals with a straightforward 1K output setting. Start with one readable silhouette and a little personality.",
+		tags: ["3D mascots", "Social concepts", "1K output"],
+		artwork: "nano-lite-capybara",
+		exampleArtwork: "nano-lite-toaster",
 		features: [
 			{
 				title: "Keep the output choice simple",
@@ -181,10 +181,10 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 		family: "Nano Banana",
 		lead: "One idea. Plenty of creative directions.",
 		description:
-			"Explore portraits, stylized artwork, and product concepts with natural-language prompts and optional reference images.",
-		tags: ["Character concepts", "Style exploration", "Reference edits"],
-		artwork: "nano-bakery-fox",
-		exampleArtwork: "nano-watercolor-garden",
+			"Explore watercolor storybooks and gentle illustrated worlds with natural-language prompts and optional reference images. Describe the characters, scene, and painted texture.",
+		tags: ["Watercolor stories", "Illustrated characters", "Reference edits"],
+		artwork: "nano-whale-library",
+		exampleArtwork: "nano-mouse-tea",
 		features: [
 			{
 				title: "Move between visual styles",
@@ -212,9 +212,9 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 		family: "Nano Banana",
 		lead: "Explore a look. Then develop the details.",
 		description:
-			"Shape portrait, product, and visual storytelling ideas with reference guidance and a choice of 1K, 2K, or 4K output.",
-		tags: ["1K / 2K / 4K", "Visual storytelling", "Style control"],
-		artwork: "nano-2-rooftop",
+			"Explore comic illustration and line-art color studies with reference guidance and a choice of 1K, 2K, or 4K output. Develop the drawing, palette, and story together.",
+		tags: ["Comic illustration", "Color studies", "1K / 2K / 4K"],
+		artwork: "nano-2-dragon-courier",
 		exampleArtwork: "nano-2-coloring-after",
 		beforeArtwork: "nano-2-coloring-before",
 		features: [
@@ -246,8 +246,8 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 		description:
 			"Explore polished product scenes, editorial still life, and detailed visual concepts with 1K, 2K, and 4K output options.",
 		tags: ["Product photography", "Material studies", "1K / 2K / 4K"],
-		artwork: "nano-product",
-		exampleArtwork: "nano-pro-espresso",
+		artwork: "nano-pro-camera",
+		exampleArtwork: "nano-pro-glass-perfume",
 		features: [
 			{
 				title: "Art-direct a product scene",
@@ -273,12 +273,12 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 		key: "image-seedream-4",
 		name: "Seedream 4.0",
 		family: "Seedream",
-		lead: "Find the color and shape of an idea.",
+		lead: "Give a space its own atmosphere.",
 		description:
-			"Explore atmospheric scenes, illustration directions, and spatial concepts with flexible output sizes and a focused visual brief.",
-		tags: ["Scene design", "Color exploration", "1K / 2K / 4K"],
-		artwork: "seedream-interior",
-		exampleArtwork: "seedream-4-forest",
+			"Explore architectural interiors and spatial concepts with flexible output sizes. Describe the proportions, materials, daylight, and view beyond the room.",
+		tags: ["Architecture", "Interior concepts", "1K / 2K / 4K"],
+		artwork: "seedream-4-reading-pavilion",
+		exampleArtwork: "seedream-4-tea-room",
 		features: [
 			{
 				title: "Build the frame from big shapes",
@@ -304,22 +304,22 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 		key: "image-seedream-4-5",
 		name: "Seedream 4.5",
 		family: "Seedream",
-		lead: "Design a composition that holds together.",
+		lead: "Find a rhythm in color and shape.",
 		description:
-			"Explore poster layouts, coordinated graphic concepts, and texture-rich visuals with Basic 2K and High 4K output choices.",
-		tags: ["Poster layouts", "Graphic collections", "2K / 4K"],
-		artwork: "seedream-45-botanical",
-		exampleArtwork: "seedream-45-books",
+			"Explore printmaking, surface patterns, and coordinated graphic collections with Basic 2K and High 4K output choices. Build a visual rhythm from a small palette and recurring shapes.",
+		tags: ["Printmaking", "Surface patterns", "2K / 4K"],
+		artwork: "seedream-45-crane-print",
+		exampleArtwork: "seedream-45-citrus-pattern",
 		features: [
 			{
-				title: "Make lettering part of the layout",
+				title: "Start with a repeating visual rhythm",
 				description:
-					"Put exact words in quotation marks and describe their size, position, and relationship to the image. A short headline and a clear hierarchy give a poster brief a useful starting point.",
+					"Choose a few recognizable motifs and describe their spacing, scale, and direction. Alternating large and small shapes gives a print or surface pattern a clear rhythm.",
 			},
 			{
 				title: "Carry a visual idea across a collection",
 				description:
-					"Choose a small palette, a type direction, and one recurring shape. Use that shared brief to explore a set of book covers, packaging concepts, or campaign images with a recognizable design language.",
+					"Choose a small palette, a printing texture, and one recurring shape. Use that shared brief to explore fabric patterns, art prints, or stationery with a recognizable design language.",
 			},
 			{
 				title: "Choose between two output tiers",
@@ -327,25 +327,25 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 					"The editor pairs Basic with 2K and High with 4K for this model. Review the selected tier and its credits before generating.",
 			},
 		],
-		tip: "Keep exact lettering separate from layout instructions. Describe the palette, type hierarchy, and spacing before adding decorative details.",
+		tip: "Describe the motifs, limited palette, spacing, and print texture. If you need a seamless repeat, check every edge before using the pattern.",
 		review:
-			"Review spelling, type hierarchy, margins, and consistency across related images before using a design.",
+			"Review motif consistency, margins, and pattern edges. An attractive pattern is not automatically a seamless tile.",
 	},
 	{
 		key: "image-seedream-5-lite",
 		name: "Seedream 5 Lite",
 		family: "Seedream",
-		lead: "Let the light tell the story.",
+		lead: "Let the natural world set the mood.",
 		description:
-			"Explore cinematic landscapes, dramatic lighting, and atmospheric scenes with Basic 2K, High 3K, and Ultra 4K choices.",
-		tags: ["Cinematic mood", "Dramatic light", "2K / 3K / 4K"],
-		artwork: "seedream-cinema",
-		exampleArtwork: "seedream-5-lite-night",
+			"Explore wildlife portraits and natural environments with Basic 2K, High 3K, and Ultra 4K choices. Set the subject in a believable habitat with a clear lighting brief.",
+		tags: ["Wildlife photography", "Natural atmosphere", "2K / 3K / 4K"],
+		artwork: "seedream-lite-arctic-fox",
+		exampleArtwork: "seedream-lite-kingfisher",
 		features: [
 			{
-				title: "Compose a cinematic moment",
+				title: "Connect a subject to its habitat",
 				description:
-					"Choose a viewpoint, a sense of scale, and a clear focal point. A small figure in a large landscape can communicate a story without adding more objects.",
+					"Choose an animal, a camera viewpoint, and a believable environment. Describe the pose and the space around the subject before adding fine fur or feather details.",
 			},
 			{
 				title: "Use atmosphere deliberately",
@@ -360,18 +360,18 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 		],
 		tip: "Write the camera shot, subject scale, weather, and light source. Avoid stacking several conflicting lighting styles.",
 		review:
-			"Check distant structures, repeated figures, and whether the visual focal point matches the intended story.",
+			"Check animal anatomy, feet, fur or feathers, and whether the habitat and light form a believable scene.",
 	},
 	{
 		key: "image-seedream-5-pro",
 		name: "Seedream 5 Pro",
 		family: "Seedream",
-		lead: "A deliberate frame for a bigger idea.",
+		lead: "Imagine a world beyond the everyday.",
 		description:
-			"Develop composed campaign scenes, architectural concepts, and visual narratives with Basic 1K or High 2K output.",
-		tags: ["Composed scenes", "Campaign imagery", "1K / 2K"],
-		artwork: "seedream-5-pro-museum",
-		exampleArtwork: "seedream-5-pro-leather",
+			"Explore cinematic science-fiction worlds and speculative environments with Basic 1K or High 2K output. Use scale, atmosphere, and a clear focal point to build the scene.",
+		tags: ["Science-fiction worlds", "Cinematic scale", "1K / 2K"],
+		artwork: "seedream-pro-orbital-garden",
+		exampleArtwork: "seedream-pro-undersea-city",
 		features: [
 			{
 				title: "Direct the scene as a whole",

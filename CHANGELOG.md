@@ -2,6 +2,15 @@
 
 ## 2026-09-16
 
+### Model artwork
+
+- Give all 12 model pages their own visual direction with 23 newly generated covers and prompt
+  examples, from typography and paper craft to wildlife photography and science-fiction scenes.
+  Preserve Nano Banana 2's dedicated line-art/color comparison.
+- Replace repeated artwork in related-model links with compact text navigation. Align image
+  descriptions and prompts with each page, and show uncropped examples in homepage model cards.
+- Publish responsive, content-versioned WebP assets and retain previous files for cached pages.
+
 ### Homepage SEO
 
 - Restore the original prompt-editing keyword focus in the homepage title, H1, description,

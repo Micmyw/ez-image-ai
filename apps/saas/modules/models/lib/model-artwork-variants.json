@@ -1,511 +1,666 @@
 {
-	"gpt-poster": {
-		"sourceHash": "737e2f78cb5996e270a827bb44676d12de8dc96dd39d9141753d61cecf3bce4d",
+	"gpt-2-jazz-poster": {
+		"sourceHash": "11c7d588b8d406d1f5245896b9518a58ff57d26247037c39e48152fe3055c60d",
 		"width": 1024,
 		"height": 1536,
 		"variants": [
 			{
 				"width": 320,
-				"src": "/images/models/variants/gpt-poster-320.c7dd1be8d5933426.webp"
+				"src": "/images/models/variants/gpt-2-jazz-poster-320.53c89640aae6b767.webp"
 			},
 			{
 				"width": 480,
-				"src": "/images/models/variants/gpt-poster-480.df8665a3ee0c944b.webp"
+				"src": "/images/models/variants/gpt-2-jazz-poster-480.aa1983a5f7153e3c.webp"
 			},
 			{
 				"width": 640,
-				"src": "/images/models/variants/gpt-poster-640.70b896c81065560e.webp"
+				"src": "/images/models/variants/gpt-2-jazz-poster-640.4ec7d40fe364956a.webp"
 			},
 			{
 				"width": 960,
-				"src": "/images/models/variants/gpt-poster-960.0e669d0d92af9a24.webp"
+				"src": "/images/models/variants/gpt-2-jazz-poster-960.d41dd63efd519a55.webp"
 			},
 			{
 				"width": 1024,
-				"src": "/images/models/variants/gpt-poster-1024.737e2f78cb5996e2.webp"
+				"src": "/images/models/variants/gpt-2-jazz-poster-1024.11c7d588b8d406d1.webp"
 			}
 		]
 	},
-	"nano-product": {
-		"sourceHash": "99ab4d3502cd140523362d36a88ed9850b326487202e643f435a06f516a350d7",
-		"width": 1024,
-		"height": 1536,
-		"variants": [
-			{
-				"width": 320,
-				"src": "/images/models/variants/nano-product-320.5dfaf02fe392353f.webp"
-			},
-			{
-				"width": 480,
-				"src": "/images/models/variants/nano-product-480.6c6e4e97102ec9b8.webp"
-			},
-			{
-				"width": 640,
-				"src": "/images/models/variants/nano-product-640.55e8b4720f2a03dd.webp"
-			},
-			{
-				"width": 960,
-				"src": "/images/models/variants/nano-product-960.4ae81f7222e030ba.webp"
-			},
-			{
-				"width": 1024,
-				"src": "/images/models/variants/nano-product-1024.99ab4d3502cd1405.webp"
-			}
-		]
-	},
-	"nano-portrait": {
-		"sourceHash": "56ec9321df79a6cc1811fb8812b6921bbbe51f1913f316cbe68fb913beaa73e6",
-		"width": 1024,
-		"height": 1536,
-		"variants": [
-			{
-				"width": 320,
-				"src": "/images/models/variants/nano-portrait-320.1b62653bd27a1b76.webp"
-			},
-			{
-				"width": 480,
-				"src": "/images/models/variants/nano-portrait-480.7b6b72ac903f2b69.webp"
-			},
-			{
-				"width": 640,
-				"src": "/images/models/variants/nano-portrait-640.3f0d0a84c716992f.webp"
-			},
-			{
-				"width": 960,
-				"src": "/images/models/variants/nano-portrait-960.71bdd36e91fa5833.webp"
-			},
-			{
-				"width": 1024,
-				"src": "/images/models/variants/nano-portrait-1024.56ec9321df79a6cc.webp"
-			}
-		]
-	},
-	"gpt-campaign": {
-		"sourceHash": "ec74aa8d0b78e95e2eebaeebfdad888655e524237dd258b3605c5522f2919015",
-		"width": 1024,
-		"height": 1536,
-		"variants": [
-			{
-				"width": 320,
-				"src": "/images/models/variants/gpt-campaign-320.01a3c4fb53a75eaf.webp"
-			},
-			{
-				"width": 480,
-				"src": "/images/models/variants/gpt-campaign-480.affa50d413aa8648.webp"
-			},
-			{
-				"width": 640,
-				"src": "/images/models/variants/gpt-campaign-640.9b4b7aa01c47e59e.webp"
-			},
-			{
-				"width": 960,
-				"src": "/images/models/variants/gpt-campaign-960.196b45258918bb75.webp"
-			},
-			{
-				"width": 1024,
-				"src": "/images/models/variants/gpt-campaign-1024.ec74aa8d0b78e95e.webp"
-			}
-		]
-	},
-	"seedream-cinema": {
-		"sourceHash": "a1bda1f917f5a0e63bf62391a5d3d3859194d4950083d76de081b474918d0d02",
-		"width": 1024,
-		"height": 1536,
-		"variants": [
-			{
-				"width": 320,
-				"src": "/images/models/variants/seedream-cinema-320.b1a56a1322e0648d.webp"
-			},
-			{
-				"width": 480,
-				"src": "/images/models/variants/seedream-cinema-480.dcab6525e450d176.webp"
-			},
-			{
-				"width": 640,
-				"src": "/images/models/variants/seedream-cinema-640.d6000c7247c53c07.webp"
-			},
-			{
-				"width": 960,
-				"src": "/images/models/variants/seedream-cinema-960.41982c05815f89b7.webp"
-			},
-			{
-				"width": 1024,
-				"src": "/images/models/variants/seedream-cinema-1024.a1bda1f917f5a0e6.webp"
-			}
-		]
-	},
-	"seedream-interior": {
-		"sourceHash": "7888587a06dea933c375f4cda6fb599666b1f5930b36d7e33e1da2a9b0f4cf26",
-		"width": 1024,
-		"height": 1536,
-		"variants": [
-			{
-				"width": 320,
-				"src": "/images/models/variants/seedream-interior-320.e5229845adb0c336.webp"
-			},
-			{
-				"width": 480,
-				"src": "/images/models/variants/seedream-interior-480.a4f6fe6bda7a3d26.webp"
-			},
-			{
-				"width": 640,
-				"src": "/images/models/variants/seedream-interior-640.6b15df5bb7a74cc6.webp"
-			},
-			{
-				"width": 960,
-				"src": "/images/models/variants/seedream-interior-960.ddf291c833026805.webp"
-			},
-			{
-				"width": 1024,
-				"src": "/images/models/variants/seedream-interior-1024.7888587a06dea933.webp"
-			}
-		]
-	},
-	"gpt-flare-studio": {
-		"sourceHash": "f4ea70435ed770a7995b77c563e6238f8c5bb2f3cb9fe68afc27e0f4939bc1a1",
-		"width": 1024,
-		"height": 1536,
-		"variants": [
-			{
-				"width": 320,
-				"src": "/images/models/variants/gpt-flare-studio-320.042e3a155248e3ac.webp"
-			},
-			{
-				"width": 480,
-				"src": "/images/models/variants/gpt-flare-studio-480.489790fac3da8baa.webp"
-			},
-			{
-				"width": 640,
-				"src": "/images/models/variants/gpt-flare-studio-640.949133707b553f87.webp"
-			},
-			{
-				"width": 960,
-				"src": "/images/models/variants/gpt-flare-studio-960.fb45e6a017df915b.webp"
-			},
-			{
-				"width": 1024,
-				"src": "/images/models/variants/gpt-flare-studio-1024.f4ea70435ed770a7.webp"
-			}
-		]
-	},
-	"gpt-15-paper-world": {
-		"sourceHash": "8c2708ecfc3b73bf989a1d8f4849d57b6932d492f35e5bd756369adcc8168341",
-		"width": 1024,
-		"height": 1536,
-		"variants": [
-			{
-				"width": 320,
-				"src": "/images/models/variants/gpt-15-paper-world-320.5483e718f38122db.webp"
-			},
-			{
-				"width": 480,
-				"src": "/images/models/variants/gpt-15-paper-world-480.a05f95eae2700896.webp"
-			},
-			{
-				"width": 640,
-				"src": "/images/models/variants/gpt-15-paper-world-640.c81c2ceb8debb2ee.webp"
-			},
-			{
-				"width": 960,
-				"src": "/images/models/variants/gpt-15-paper-world-960.fc431b149e829f4e.webp"
-			},
-			{
-				"width": 1024,
-				"src": "/images/models/variants/gpt-15-paper-world-1024.8c2708ecfc3b73bf.webp"
-			}
-		]
-	},
-	"nano-bakery-fox": {
-		"sourceHash": "0594eb788647c0670587947669ce553dde9a36e6e33f7cd1a3048289893d72b8",
-		"width": 1024,
-		"height": 1536,
-		"variants": [
-			{
-				"width": 320,
-				"src": "/images/models/variants/nano-bakery-fox-320.f6e619b5053ca079.webp"
-			},
-			{
-				"width": 480,
-				"src": "/images/models/variants/nano-bakery-fox-480.f18665fc9fca198a.webp"
-			},
-			{
-				"width": 640,
-				"src": "/images/models/variants/nano-bakery-fox-640.0ecf0b293686ab83.webp"
-			},
-			{
-				"width": 960,
-				"src": "/images/models/variants/nano-bakery-fox-960.3a76703a00cbe061.webp"
-			},
-			{
-				"width": 1024,
-				"src": "/images/models/variants/nano-bakery-fox-1024.0594eb788647c067.webp"
-			}
-		]
-	},
-	"nano-2-rooftop": {
-		"sourceHash": "3429709e6696d01dc3b5567f205166e53da7c455fc7ac9e287077a3a33e8861a",
-		"width": 1024,
-		"height": 1536,
-		"variants": [
-			{
-				"width": 320,
-				"src": "/images/models/variants/nano-2-rooftop-320.01bd90335b0995ab.webp"
-			},
-			{
-				"width": 480,
-				"src": "/images/models/variants/nano-2-rooftop-480.d86bfb310e4b915b.webp"
-			},
-			{
-				"width": 640,
-				"src": "/images/models/variants/nano-2-rooftop-640.4e726f23985e241d.webp"
-			},
-			{
-				"width": 960,
-				"src": "/images/models/variants/nano-2-rooftop-960.a1aa5e110ddcc485.webp"
-			},
-			{
-				"width": 1024,
-				"src": "/images/models/variants/nano-2-rooftop-1024.3429709e6696d01d.webp"
-			}
-		]
-	},
-	"seedream-45-botanical": {
-		"sourceHash": "327c04aa71958b10bc8379da002447e6931e21cdcf2d8c620dafacfdc92e8615",
-		"width": 1024,
-		"height": 1536,
-		"variants": [
-			{
-				"width": 320,
-				"src": "/images/models/variants/seedream-45-botanical-320.668a1c7ce359a08f.webp"
-			},
-			{
-				"width": 480,
-				"src": "/images/models/variants/seedream-45-botanical-480.349a9ce11bbb85f8.webp"
-			},
-			{
-				"width": 640,
-				"src": "/images/models/variants/seedream-45-botanical-640.da88e80a50846fb9.webp"
-			},
-			{
-				"width": 960,
-				"src": "/images/models/variants/seedream-45-botanical-960.ff231c8802ca2ca2.webp"
-			},
-			{
-				"width": 1024,
-				"src": "/images/models/variants/seedream-45-botanical-1024.327c04aa71958b10.webp"
-			}
-		]
-	},
-	"seedream-5-pro-museum": {
-		"sourceHash": "d748d736a37479eb7480594c7cfa7e4b6c20503deb77988902536bbfee21c879",
-		"width": 1024,
-		"height": 1536,
-		"variants": [
-			{
-				"width": 320,
-				"src": "/images/models/variants/seedream-5-pro-museum-320.0ddad6bf64aa518e.webp"
-			},
-			{
-				"width": 480,
-				"src": "/images/models/variants/seedream-5-pro-museum-480.c6ee0b1cb5dc9a64.webp"
-			},
-			{
-				"width": 640,
-				"src": "/images/models/variants/seedream-5-pro-museum-640.030b50b05e7e5ee6.webp"
-			},
-			{
-				"width": 960,
-				"src": "/images/models/variants/seedream-5-pro-museum-960.500e956fa2af1e0b.webp"
-			},
-			{
-				"width": 1024,
-				"src": "/images/models/variants/seedream-5-pro-museum-1024.d748d736a37479eb.webp"
-			}
-		]
-	},
-	"gpt-2-lime-packaging": {
-		"sourceHash": "968aa6152499677284b637f3bd7b3081d918c9fcc7295d5674bef82560fc15a7",
+	"gpt-2-moon-cinema": {
+		"sourceHash": "15a9869f02ce770ad327dfc78fd31b92270aa57c449a75c2a2eb41e3deffd2c2",
 		"width": 1536,
 		"height": 1024,
 		"variants": [
 			{
 				"width": 320,
-				"src": "/images/models/variants/gpt-2-lime-packaging-320.b46f1148aa5dfc4e.webp"
+				"src": "/images/models/variants/gpt-2-moon-cinema-320.0bf025cb9c46e5de.webp"
 			},
 			{
 				"width": 480,
-				"src": "/images/models/variants/gpt-2-lime-packaging-480.7dbc2d99e3b6053e.webp"
+				"src": "/images/models/variants/gpt-2-moon-cinema-480.965c4a81ea391474.webp"
 			},
 			{
 				"width": 640,
-				"src": "/images/models/variants/gpt-2-lime-packaging-640.58a0922dc9a4bde5.webp"
+				"src": "/images/models/variants/gpt-2-moon-cinema-640.eae75b2cd45aaaa0.webp"
 			},
 			{
 				"width": 960,
-				"src": "/images/models/variants/gpt-2-lime-packaging-960.1cd47ac5359c60a5.webp"
+				"src": "/images/models/variants/gpt-2-moon-cinema-960.d5a7180e51a3872d.webp"
 			},
 			{
 				"width": 1280,
-				"src": "/images/models/variants/gpt-2-lime-packaging-1280.116ef6ada81ccbd0.webp"
+				"src": "/images/models/variants/gpt-2-moon-cinema-1280.7ca50ef23614d513.webp"
 			},
 			{
 				"width": 1536,
-				"src": "/images/models/variants/gpt-2-lime-packaging-1536.968aa61524996772.webp"
+				"src": "/images/models/variants/gpt-2-moon-cinema-1536.15a9869f02ce770a.webp"
 			}
 		]
 	},
-	"gpt-flare-market": {
-		"sourceHash": "8af0e87861e37c3033e84df912b6c9d404605357d606627cad05be57aff99305",
+	"gpt-flare-luthier": {
+		"sourceHash": "131a7379803c384dffbd207e19af516505754d2185f41e0d64f722aa4c045836",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/gpt-flare-luthier-320.770fb7efaa2582d5.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/gpt-flare-luthier-480.0adb576eba71e032.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/gpt-flare-luthier-640.8ee6ecfcd36ef70f.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/gpt-flare-luthier-960.4306d42114c47a82.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/gpt-flare-luthier-1024.131a7379803c384d.webp"
+			}
+		]
+	},
+	"gpt-flare-flower-stall": {
+		"sourceHash": "7319d3e9a1efcdb6cd0cb660fc562e73e3adeb1392f81272edf2c6b2f62fa2a6",
 		"width": 1536,
 		"height": 1024,
 		"variants": [
 			{
 				"width": 320,
-				"src": "/images/models/variants/gpt-flare-market-320.70773b715fa1563c.webp"
+				"src": "/images/models/variants/gpt-flare-flower-stall-320.3542f39adc4d8dfb.webp"
 			},
 			{
 				"width": 480,
-				"src": "/images/models/variants/gpt-flare-market-480.36a310d30ef66a91.webp"
+				"src": "/images/models/variants/gpt-flare-flower-stall-480.8b93a3e0b95cf144.webp"
 			},
 			{
 				"width": 640,
-				"src": "/images/models/variants/gpt-flare-market-640.1fe693b60a4cba3a.webp"
+				"src": "/images/models/variants/gpt-flare-flower-stall-640.e9fc99856375cec2.webp"
 			},
 			{
 				"width": 960,
-				"src": "/images/models/variants/gpt-flare-market-960.3416e6be09949d8e.webp"
+				"src": "/images/models/variants/gpt-flare-flower-stall-960.371d0d5cd6761958.webp"
 			},
 			{
 				"width": 1280,
-				"src": "/images/models/variants/gpt-flare-market-1280.ba4323be4f4af9a1.webp"
+				"src": "/images/models/variants/gpt-flare-flower-stall-1280.9491b5746b6d75ab.webp"
 			},
 			{
 				"width": 1536,
-				"src": "/images/models/variants/gpt-flare-market-1536.8af0e87861e37c30.webp"
+				"src": "/images/models/variants/gpt-flare-flower-stall-1536.7319d3e9a1efcdb6.webp"
 			}
 		]
 	},
-	"gpt-sunburst-fashion": {
-		"sourceHash": "6245876989f34e2cdcb1dcfb25febeb6f44fc303a8e31c87984a1f285a4adcb1",
+	"gpt-sunburst-sprinter": {
+		"sourceHash": "7c2b914fbe2365931adf5543c8f7f5e7d216193b9d0307914ca6d2cd254e4edd",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/gpt-sunburst-sprinter-320.f65e46e8206edad8.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/gpt-sunburst-sprinter-480.9093c2035836b586.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/gpt-sunburst-sprinter-640.645711ec14490940.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/gpt-sunburst-sprinter-960.c14e11bbd4695cde.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/gpt-sunburst-sprinter-1024.7c2b914fbe236593.webp"
+			}
+		]
+	},
+	"gpt-sunburst-windbreaker": {
+		"sourceHash": "05ec30e121753b8e0cd1229923fa162c024f939069b498f5c9e7a9631d0f0f80",
 		"width": 1536,
 		"height": 1024,
 		"variants": [
 			{
 				"width": 320,
-				"src": "/images/models/variants/gpt-sunburst-fashion-320.3d73e1a5f609998e.webp"
+				"src": "/images/models/variants/gpt-sunburst-windbreaker-320.922eb034c6a0c83e.webp"
 			},
 			{
 				"width": 480,
-				"src": "/images/models/variants/gpt-sunburst-fashion-480.85726fe818565ebc.webp"
+				"src": "/images/models/variants/gpt-sunburst-windbreaker-480.aaef1831a2a59569.webp"
 			},
 			{
 				"width": 640,
-				"src": "/images/models/variants/gpt-sunburst-fashion-640.e6e4dca1bc6e8eb8.webp"
+				"src": "/images/models/variants/gpt-sunburst-windbreaker-640.8391565eae85b3e8.webp"
 			},
 			{
 				"width": 960,
-				"src": "/images/models/variants/gpt-sunburst-fashion-960.ec4246e212ecf1cf.webp"
+				"src": "/images/models/variants/gpt-sunburst-windbreaker-960.76d56e882a2e6121.webp"
 			},
 			{
 				"width": 1280,
-				"src": "/images/models/variants/gpt-sunburst-fashion-1280.0792aef8edb75dfb.webp"
+				"src": "/images/models/variants/gpt-sunburst-windbreaker-1280.be548d6e63f05514.webp"
 			},
 			{
 				"width": 1536,
-				"src": "/images/models/variants/gpt-sunburst-fashion-1536.6245876989f34e2c.webp"
+				"src": "/images/models/variants/gpt-sunburst-windbreaker-1536.05ec30e121753b8e.webp"
 			}
 		]
 	},
-	"gpt-15-origami": {
-		"sourceHash": "d6b44d1710fe1579899badbd719e5fa7d3a2ab2c88c90813ebb34bd973c64bb4",
+	"gpt-15-paper-lighthouse": {
+		"sourceHash": "99e6d95e246b691664eb30f12b2361d2397ab78f2adaae0d6743c31f0c7271ca",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/gpt-15-paper-lighthouse-320.9ab5ef683a593bd4.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/gpt-15-paper-lighthouse-480.f372114cabbfdf89.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/gpt-15-paper-lighthouse-640.729e466a75e9fc75.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/gpt-15-paper-lighthouse-960.77d0555100810911.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/gpt-15-paper-lighthouse-1024.99e6d95e246b6916.webp"
+			}
+		]
+	},
+	"gpt-15-paper-balloon": {
+		"sourceHash": "c1acc72ac57bd327c625a2f3dda7b1906c0035d329f67c2f6041131894cac433",
 		"width": 1536,
 		"height": 1024,
 		"variants": [
 			{
 				"width": 320,
-				"src": "/images/models/variants/gpt-15-origami-320.502f48e6a067fb03.webp"
+				"src": "/images/models/variants/gpt-15-paper-balloon-320.70927a2b7b74677c.webp"
 			},
 			{
 				"width": 480,
-				"src": "/images/models/variants/gpt-15-origami-480.590bdbefc84ae391.webp"
+				"src": "/images/models/variants/gpt-15-paper-balloon-480.16ee004954af60ce.webp"
 			},
 			{
 				"width": 640,
-				"src": "/images/models/variants/gpt-15-origami-640.8d204474fe2eca90.webp"
+				"src": "/images/models/variants/gpt-15-paper-balloon-640.9672e8b9e3f49153.webp"
 			},
 			{
 				"width": 960,
-				"src": "/images/models/variants/gpt-15-origami-960.c2eefa501c253d8e.webp"
+				"src": "/images/models/variants/gpt-15-paper-balloon-960.8f944174db0ae155.webp"
 			},
 			{
 				"width": 1280,
-				"src": "/images/models/variants/gpt-15-origami-1280.7063fbfd0fa5c0d5.webp"
+				"src": "/images/models/variants/gpt-15-paper-balloon-1280.30cad165833b5b45.webp"
 			},
 			{
 				"width": 1536,
-				"src": "/images/models/variants/gpt-15-origami-1536.d6b44d1710fe1579.webp"
+				"src": "/images/models/variants/gpt-15-paper-balloon-1536.c1acc72ac57bd327.webp"
 			}
 		]
 	},
-	"nano-lite-robot": {
-		"sourceHash": "9ce5c32a332a5ac2dfe0f87bd8a3df50ed8fb892b1f373e4296097af508acd24",
+	"nano-lite-capybara": {
+		"sourceHash": "bb28c80d579763d18989ff8115f3807f103e8373bc751ea54186915aaef3e107",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/nano-lite-capybara-320.a9f7dc8d73c01c42.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/nano-lite-capybara-480.8479e1e584840ba7.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/nano-lite-capybara-640.12e938f035346cd9.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/nano-lite-capybara-960.e281de6f7818579e.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/nano-lite-capybara-1024.bb28c80d579763d1.webp"
+			}
+		]
+	},
+	"nano-lite-toaster": {
+		"sourceHash": "4a65e2ad3c5c6e989e4a145297c0e652b3028c767fd97e38b70983132dbc29b6",
 		"width": 1536,
 		"height": 1024,
 		"variants": [
 			{
 				"width": 320,
-				"src": "/images/models/variants/nano-lite-robot-320.eeda50ec21138af8.webp"
+				"src": "/images/models/variants/nano-lite-toaster-320.e3ec23fdf80a3d29.webp"
 			},
 			{
 				"width": 480,
-				"src": "/images/models/variants/nano-lite-robot-480.53869bf4c8be161d.webp"
+				"src": "/images/models/variants/nano-lite-toaster-480.13f8bb17fa6f97b4.webp"
 			},
 			{
 				"width": 640,
-				"src": "/images/models/variants/nano-lite-robot-640.d93c3c772a1945d7.webp"
+				"src": "/images/models/variants/nano-lite-toaster-640.aa45ef4d742c0e60.webp"
 			},
 			{
 				"width": 960,
-				"src": "/images/models/variants/nano-lite-robot-960.382c2f1d5761d542.webp"
+				"src": "/images/models/variants/nano-lite-toaster-960.024d76ad79ca4a00.webp"
 			},
 			{
 				"width": 1280,
-				"src": "/images/models/variants/nano-lite-robot-1280.2e592d59d62cfa20.webp"
+				"src": "/images/models/variants/nano-lite-toaster-1280.5104c5f699e69e0c.webp"
 			},
 			{
 				"width": 1536,
-				"src": "/images/models/variants/nano-lite-robot-1536.9ce5c32a332a5ac2.webp"
+				"src": "/images/models/variants/nano-lite-toaster-1536.4a65e2ad3c5c6e98.webp"
 			}
 		]
 	},
-	"nano-watercolor-garden": {
-		"sourceHash": "7411933976703b2dc441fc133d99bfcb577b77f5195cb30b8641206114bba5a2",
+	"nano-whale-library": {
+		"sourceHash": "a99a34fceae42ab3da602969e5f9a66354245e0db816bcb48162b0d7a8673201",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/nano-whale-library-320.86da959afa1d0679.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/nano-whale-library-480.fa23ff08387988e7.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/nano-whale-library-640.440d45e7ed405489.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/nano-whale-library-960.9c7698c4631bc969.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/nano-whale-library-1024.a99a34fceae42ab3.webp"
+			}
+		]
+	},
+	"nano-mouse-tea": {
+		"sourceHash": "b1817e0302772d0fa38875ea066a300915c63d4e298c759c2341ad36586e693c",
 		"width": 1536,
 		"height": 1024,
 		"variants": [
 			{
 				"width": 320,
-				"src": "/images/models/variants/nano-watercolor-garden-320.5fd3dc3f2a60375c.webp"
+				"src": "/images/models/variants/nano-mouse-tea-320.e009b0f8b897df9a.webp"
 			},
 			{
 				"width": 480,
-				"src": "/images/models/variants/nano-watercolor-garden-480.b4095282f3d2ad7f.webp"
+				"src": "/images/models/variants/nano-mouse-tea-480.9512ddc63d04e96e.webp"
 			},
 			{
 				"width": 640,
-				"src": "/images/models/variants/nano-watercolor-garden-640.f03a7a1cabaf3194.webp"
+				"src": "/images/models/variants/nano-mouse-tea-640.f98e2fa7a38db6a7.webp"
 			},
 			{
 				"width": 960,
-				"src": "/images/models/variants/nano-watercolor-garden-960.f0ec6e262838f617.webp"
+				"src": "/images/models/variants/nano-mouse-tea-960.19596ec7765b3620.webp"
 			},
 			{
 				"width": 1280,
-				"src": "/images/models/variants/nano-watercolor-garden-1280.af9613248324ae18.webp"
+				"src": "/images/models/variants/nano-mouse-tea-1280.192db5c42fc7e518.webp"
 			},
 			{
 				"width": 1536,
-				"src": "/images/models/variants/nano-watercolor-garden-1536.7411933976703b2d.webp"
+				"src": "/images/models/variants/nano-mouse-tea-1536.b1817e0302772d0f.webp"
+			}
+		]
+	},
+	"nano-2-dragon-courier": {
+		"sourceHash": "0972c8558b248c66f1220c327e6f51f9b38938e6fff4390249c4d6850fe97b81",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/nano-2-dragon-courier-320.6f2e3d1413a7ced8.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/nano-2-dragon-courier-480.0a330ee1c6a8c067.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/nano-2-dragon-courier-640.7bfb2bedf5d28f8f.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/nano-2-dragon-courier-960.61a7d79725e16d3c.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/nano-2-dragon-courier-1024.0972c8558b248c66.webp"
+			}
+		]
+	},
+	"nano-pro-camera": {
+		"sourceHash": "673a8a981550b879ef9dc1a4e6c9b81d2690e78b356b952ad934a7beff353d30",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/nano-pro-camera-320.5a5692be3394fcfc.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/nano-pro-camera-480.5478ecd450e96d96.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/nano-pro-camera-640.374352f39662071a.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/nano-pro-camera-960.a12c7be045035470.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/nano-pro-camera-1024.673a8a981550b879.webp"
+			}
+		]
+	},
+	"nano-pro-glass-perfume": {
+		"sourceHash": "c725ccb702e0cccfbfa58f5688bf21d8a878e705c93a76f97ede69980f80e11c",
+		"width": 1536,
+		"height": 1024,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/nano-pro-glass-perfume-320.4d3611c01bde593b.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/nano-pro-glass-perfume-480.46b00b4d86cbd1bf.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/nano-pro-glass-perfume-640.59f02bf7bfa83a12.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/nano-pro-glass-perfume-960.bc26d5ccc42f7fe2.webp"
+			},
+			{
+				"width": 1280,
+				"src": "/images/models/variants/nano-pro-glass-perfume-1280.45ffc71785ef6aef.webp"
+			},
+			{
+				"width": 1536,
+				"src": "/images/models/variants/nano-pro-glass-perfume-1536.c725ccb702e0cccf.webp"
+			}
+		]
+	},
+	"seedream-4-reading-pavilion": {
+		"sourceHash": "b48a3855c612abb9e1059da35ac141e7c0120436b9a6d1ef01b2e0a377452cca",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/seedream-4-reading-pavilion-320.4fe161240dbe2b2b.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/seedream-4-reading-pavilion-480.5886e0ca7a40781c.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/seedream-4-reading-pavilion-640.c129f6cd55e1a5e5.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/seedream-4-reading-pavilion-960.0211496db9649733.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/seedream-4-reading-pavilion-1024.b48a3855c612abb9.webp"
+			}
+		]
+	},
+	"seedream-4-tea-room": {
+		"sourceHash": "bb9ae65fa84931b89fef25c173914ea134cb73a24d2fec6dde7c7a178de3cf3a",
+		"width": 1536,
+		"height": 1024,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/seedream-4-tea-room-320.48baf9cf9a549587.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/seedream-4-tea-room-480.370fd0e271d935fc.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/seedream-4-tea-room-640.8674661118c6da45.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/seedream-4-tea-room-960.a390ca2a5b9e77d7.webp"
+			},
+			{
+				"width": 1280,
+				"src": "/images/models/variants/seedream-4-tea-room-1280.1d294124d0f92cec.webp"
+			},
+			{
+				"width": 1536,
+				"src": "/images/models/variants/seedream-4-tea-room-1536.bb9ae65fa84931b8.webp"
+			}
+		]
+	},
+	"seedream-45-crane-print": {
+		"sourceHash": "614d79c0359751e5152625855db7a3dc09a9b7f1c8e205d4ae08e4a7432be730",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/seedream-45-crane-print-320.ed679d4a0164e20f.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/seedream-45-crane-print-480.22584016852ee6a6.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/seedream-45-crane-print-640.414951dcbe40d083.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/seedream-45-crane-print-960.a6569686128fe5fe.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/seedream-45-crane-print-1024.614d79c0359751e5.webp"
+			}
+		]
+	},
+	"seedream-45-citrus-pattern": {
+		"sourceHash": "0ab450ecce140b8cfbe736a3e17bdc7f765dbc35df65668a6cc1be2fac524f83",
+		"width": 1536,
+		"height": 1024,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/seedream-45-citrus-pattern-320.b7d6061efa1f58ce.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/seedream-45-citrus-pattern-480.7be349ed9a8dd0fc.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/seedream-45-citrus-pattern-640.a0df04868bca37f1.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/seedream-45-citrus-pattern-960.247482c7c81f4133.webp"
+			},
+			{
+				"width": 1280,
+				"src": "/images/models/variants/seedream-45-citrus-pattern-1280.ca8eaf74eb7c460b.webp"
+			},
+			{
+				"width": 1536,
+				"src": "/images/models/variants/seedream-45-citrus-pattern-1536.0ab450ecce140b8c.webp"
+			}
+		]
+	},
+	"seedream-lite-arctic-fox": {
+		"sourceHash": "6e4b3c46e2a264f4a085699b2635e7c39bf945eeeb5da50e8852c921c4718988",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/seedream-lite-arctic-fox-320.909763ca40389d6a.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/seedream-lite-arctic-fox-480.8cb8bb7036da68cf.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/seedream-lite-arctic-fox-640.4cbda325a8c318b7.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/seedream-lite-arctic-fox-960.0f28978101ee8664.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/seedream-lite-arctic-fox-1024.6e4b3c46e2a264f4.webp"
+			}
+		]
+	},
+	"seedream-lite-kingfisher": {
+		"sourceHash": "4f5d27c370082ce2fd548c1f1af6fcc09db969f0371d040243bb1444ac8775ca",
+		"width": 1536,
+		"height": 1024,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/seedream-lite-kingfisher-320.47d2d34584ea738b.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/seedream-lite-kingfisher-480.ebf7cdfd2eae5d1b.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/seedream-lite-kingfisher-640.e840ea72d8a50f24.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/seedream-lite-kingfisher-960.b0415e800d08cc63.webp"
+			},
+			{
+				"width": 1280,
+				"src": "/images/models/variants/seedream-lite-kingfisher-1280.e002f0454387ad5e.webp"
+			},
+			{
+				"width": 1536,
+				"src": "/images/models/variants/seedream-lite-kingfisher-1536.4f5d27c370082ce2.webp"
+			}
+		]
+	},
+	"seedream-pro-orbital-garden": {
+		"sourceHash": "49cae3747a2dddd2ec405e4be2aed284073453b35d0dfb9ce068fd11f9ba351b",
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/seedream-pro-orbital-garden-320.be14f00cc32c1924.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/seedream-pro-orbital-garden-480.7a363f6e2d26d33b.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/seedream-pro-orbital-garden-640.079d66c829a0dd3b.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/seedream-pro-orbital-garden-960.07a27d65b8751cf1.webp"
+			},
+			{
+				"width": 1024,
+				"src": "/images/models/variants/seedream-pro-orbital-garden-1024.49cae3747a2dddd2.webp"
+			}
+		]
+	},
+	"seedream-pro-undersea-city": {
+		"sourceHash": "b167fc76a7016b108b405403c0be9d4989167ffd5ac04d72e5877b82f7fd1e1b",
+		"width": 1536,
+		"height": 1024,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/models/variants/seedream-pro-undersea-city-320.7c6db8cb161732fe.webp"
+			},
+			{
+				"width": 480,
+				"src": "/images/models/variants/seedream-pro-undersea-city-480.89d84af30f90b830.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/models/variants/seedream-pro-undersea-city-640.fa86a1ead9f2c75b.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/models/variants/seedream-pro-undersea-city-960.7d0738022a8d8293.webp"
+			},
+			{
+				"width": 1280,
+				"src": "/images/models/variants/seedream-pro-undersea-city-1280.e16dd5118cc91049.webp"
+			},
+			{
+				"width": 1536,
+				"src": "/images/models/variants/seedream-pro-undersea-city-1536.b167fc76a7016b10.webp"
 			}
 		]
 	},
@@ -568,161 +723,6 @@
 			{
 				"width": 1536,
 				"src": "/images/models/variants/nano-2-coloring-after-1536.be60ea5b5b456a4a.webp"
-			}
-		]
-	},
-	"nano-pro-espresso": {
-		"sourceHash": "8b8be8f2f769af6b564c835315d61d05e4fa263983fe520745b604d252857ec4",
-		"width": 1536,
-		"height": 1024,
-		"variants": [
-			{
-				"width": 320,
-				"src": "/images/models/variants/nano-pro-espresso-320.82bb4de201b15d48.webp"
-			},
-			{
-				"width": 480,
-				"src": "/images/models/variants/nano-pro-espresso-480.4bc456d0e77cd05a.webp"
-			},
-			{
-				"width": 640,
-				"src": "/images/models/variants/nano-pro-espresso-640.eb3b42b1b83e499b.webp"
-			},
-			{
-				"width": 960,
-				"src": "/images/models/variants/nano-pro-espresso-960.c8daebd23ae8284c.webp"
-			},
-			{
-				"width": 1280,
-				"src": "/images/models/variants/nano-pro-espresso-1280.6a0e2537f409fe6c.webp"
-			},
-			{
-				"width": 1536,
-				"src": "/images/models/variants/nano-pro-espresso-1536.8b8be8f2f769af6b.webp"
-			}
-		]
-	},
-	"seedream-4-forest": {
-		"sourceHash": "e5b2fa4f4d504fe6b7671223d4f4f6a4ee5a1aadf96cd5bdeb62fd0a8a278eb6",
-		"width": 1536,
-		"height": 1024,
-		"variants": [
-			{
-				"width": 320,
-				"src": "/images/models/variants/seedream-4-forest-320.92aac3572bbaf6fd.webp"
-			},
-			{
-				"width": 480,
-				"src": "/images/models/variants/seedream-4-forest-480.575145dc1c962a6f.webp"
-			},
-			{
-				"width": 640,
-				"src": "/images/models/variants/seedream-4-forest-640.632a4e246c767dab.webp"
-			},
-			{
-				"width": 960,
-				"src": "/images/models/variants/seedream-4-forest-960.290f90df2efa9e78.webp"
-			},
-			{
-				"width": 1280,
-				"src": "/images/models/variants/seedream-4-forest-1280.77d31d14f1733731.webp"
-			},
-			{
-				"width": 1536,
-				"src": "/images/models/variants/seedream-4-forest-1536.e5b2fa4f4d504fe6.webp"
-			}
-		]
-	},
-	"seedream-45-books": {
-		"sourceHash": "dd14d1b8ca0c413342d7ea7388e38fac35c9ac5f903c51f0d6ce10daf885a5b3",
-		"width": 1536,
-		"height": 1024,
-		"variants": [
-			{
-				"width": 320,
-				"src": "/images/models/variants/seedream-45-books-320.8253b5884afa6381.webp"
-			},
-			{
-				"width": 480,
-				"src": "/images/models/variants/seedream-45-books-480.6af3099955d46e8d.webp"
-			},
-			{
-				"width": 640,
-				"src": "/images/models/variants/seedream-45-books-640.280c6585bbef003c.webp"
-			},
-			{
-				"width": 960,
-				"src": "/images/models/variants/seedream-45-books-960.3bcfc065016bfe41.webp"
-			},
-			{
-				"width": 1280,
-				"src": "/images/models/variants/seedream-45-books-1280.0bac7b9c2f7e0033.webp"
-			},
-			{
-				"width": 1536,
-				"src": "/images/models/variants/seedream-45-books-1536.dd14d1b8ca0c4133.webp"
-			}
-		]
-	},
-	"seedream-5-lite-night": {
-		"sourceHash": "c41b25949901e18b5441bdb528b1222320c72d88395576fb10b177c00ce6b618",
-		"width": 1536,
-		"height": 1024,
-		"variants": [
-			{
-				"width": 320,
-				"src": "/images/models/variants/seedream-5-lite-night-320.1f41bb7927931842.webp"
-			},
-			{
-				"width": 480,
-				"src": "/images/models/variants/seedream-5-lite-night-480.c88a73cfce51c858.webp"
-			},
-			{
-				"width": 640,
-				"src": "/images/models/variants/seedream-5-lite-night-640.99e6cd50420ea35c.webp"
-			},
-			{
-				"width": 960,
-				"src": "/images/models/variants/seedream-5-lite-night-960.5aab0ad272fa1f47.webp"
-			},
-			{
-				"width": 1280,
-				"src": "/images/models/variants/seedream-5-lite-night-1280.4736b8e011d7f7e7.webp"
-			},
-			{
-				"width": 1536,
-				"src": "/images/models/variants/seedream-5-lite-night-1536.c41b25949901e18b.webp"
-			}
-		]
-	},
-	"seedream-5-pro-leather": {
-		"sourceHash": "cc74b59a64890d78c4ffee3167d34d74db778bcfa9355cbee277ca122809deaf",
-		"width": 1536,
-		"height": 1024,
-		"variants": [
-			{
-				"width": 320,
-				"src": "/images/models/variants/seedream-5-pro-leather-320.b679960f57abd379.webp"
-			},
-			{
-				"width": 480,
-				"src": "/images/models/variants/seedream-5-pro-leather-480.bf967132c1620d54.webp"
-			},
-			{
-				"width": 640,
-				"src": "/images/models/variants/seedream-5-pro-leather-640.22eeab965ec339fa.webp"
-			},
-			{
-				"width": 960,
-				"src": "/images/models/variants/seedream-5-pro-leather-960.822ee8c196a491f0.webp"
-			},
-			{
-				"width": 1280,
-				"src": "/images/models/variants/seedream-5-pro-leather-1280.4fdce933797b16e7.webp"
-			},
-			{
-				"width": 1536,
-				"src": "/images/models/variants/seedream-5-pro-leather-1536.cc74b59a64890d78.webp"
 			}
 		]
 	}

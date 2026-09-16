@@ -1,149 +1,4 @@
 export const INSPIRATION = {
-	"gpt-poster": {
-		title: "Make words part of the picture",
-		alt: "Slow Days travel poster with a cobalt arch and turquoise Mediterranean sea",
-		prompt:
-			'Design a contemporary travel poster. A cobalt-blue architectural arch frames a white sailboat on a turquoise sea. Add a coral sun, warm paper texture, and geometric shadows. Set the exact headline "SLOW DAYS" in large cream condensed lettering and "BY THE SEA" at the bottom. Keep the composition uncluttered.',
-		width: 1024,
-		height: 1536,
-	},
-	"nano-product": {
-		title: "A product, a material, a mood",
-		alt: "Silver headphones with green cushions on translucent lime acrylic blocks",
-		prompt:
-			"Photograph unbranded silver over-ear headphones with forest-green cushions on translucent lime acrylic blocks. Use a pistachio backdrop, one diagonal shaft of sunlight, precise metal reflections, and tactile fabric. Leave breathing room around the product. No text or logos.",
-		width: 1024,
-		height: 1536,
-	},
-	"nano-portrait": {
-		title: "A character with a point of view",
-		alt: "Fictional woman in a cobalt coat and orange scarf on a Paris street after rain",
-		prompt:
-			"Create a candid editorial portrait of a fictional adult woman with a short dark bob, cobalt-blue wool coat, and burnt-orange scarf on a quiet Paris street after rain. She looks back over her shoulder. Use natural skin texture, soft daylight, warm cafe lights, and subtle film grain. No logos.",
-		width: 1024,
-		height: 1536,
-	},
-	"gpt-campaign": {
-		title: "Give a campaign a visual language",
-		alt: "Amber serum bottle, blood orange, and green leaf in warm sunlight",
-		prompt:
-			"Create a botanical skincare campaign: an unbranded frosted amber serum bottle with an ivory cap on warm travertine, one curved green leaf, and a cut blood orange. Show tiny droplets and caustics on terracotta plaster. Use late-afternoon sunlight, realistic glass, and an asymmetric composition. No lettering.",
-		width: 1024,
-		height: 1536,
-	},
-	"seedream-cinema": {
-		title: "Tell a story with light and scale",
-		alt: "Tiny traveler in a red coat above a misty fjord and dark mountains",
-		prompt:
-			"Create a cinematic establishing shot of a lone traveler in a red coat on a stone path above a mist-filled fjord. Towering basalt mountains, small waterfalls, a pale crescent moon, and a shaft of golden dawn light on the water. Keep the person tiny against the landscape. Cool blue-gray atmosphere, textured rock, and volumetric fog. No text.",
-		width: 1024,
-		height: 1536,
-	},
-	"seedream-interior": {
-		title: "Build an atmosphere you can feel",
-		alt: "Sculptural living room with a curved linen sofa and circular coastal window",
-		prompt:
-			"Create an architectural editorial photograph of a serene living room: a curved oatmeal linen sofa, low walnut table, olive tree, burnt-orange vase, and large circular window overlooking the coast. Honey-colored plaster, warm afternoon sunlight, soft curved shadows, and natural material textures. Realistic proportions. No people or text.",
-		width: 1024,
-		height: 1536,
-	},
-
-	"gpt-flare-studio": {
-		title: "A portrait shaped by window light",
-		alt: "Freckled ceramic artist in a terracotta apron beside a sunlit studio window",
-		prompt:
-			"Create one original editorial photograph for an AI image model gallery, portrait 2:3 composition, 1024x1536. An adult female ceramic artist with short curly auburn hair and freckles is seated beside a tall studio window, wearing a cream linen shirt with rolled sleeves and a muted terracotta apron, hands resting naturally around a small unfinished clay bowl. Morning side light, quiet workshop, shelves of softly blurred pottery, tactile skin and clay, warm ivory and clay-red palette, candid 50mm film photography, thoughtful direct gaze. Keep the head and upper body in the central 65 percent so both a portrait and a landscape card crop work. A single full-bleed photograph, no collage, no borders, no captions, no watermark, no logos.",
-		width: 1024,
-		height: 1536,
-	},
-	"gpt-15-paper-world": {
-		title: "Give a simple idea a precise form",
-		alt: "Sculptural cobalt paper ribbons and a coral sphere in a cream miniature world",
-		prompt:
-			"One sophisticated sculptural paper-art scene: broad cobalt-blue paper ribbons loop around a matte coral sphere, an ivory folded staircase and one small golden paper bird. All objects physically crafted from thick subtly textured paper. Cream studio environment, directional shadows, minimalist geometric composition with deliberate scale and depth, tangibly handmade yet polished. Frame the full sculpture with generous breathing room; cobalt, coral and warm white. No lettering.",
-		width: 1024,
-		height: 1536,
-	},
-	"nano-bakery-fox": {
-		title: "Create a character with a little personality",
-		alt: "Small orange fox baker carrying a croissant in a lavender miniature bakery",
-		prompt:
-			"A charming original orange fox baker in a tiny lavender bakery, wearing a cream apron, carrying one oversized golden croissant with both paws. Three-dimensional stop-motion clay-and-felt aesthetic, velvety fur, tactile baked pastry, tiny flour dust on a counter, lavender tiled backdrop, soft warm studio light, joyful expression, simple rounded forms. Single coherent scene, full character visible centrally. No logos, readable signs or lettering.",
-		width: 1024,
-		height: 1536,
-	},
-	"nano-2-rooftop": {
-		title: "Make a story readable in one frame",
-		alt: "Illustrated courier with a yellow bicycle on a teal rooftop above a sunlit city",
-		prompt:
-			"A beautifully composed editorial illustration of an adult courier in a scarlet jacket standing with a bright yellow bicycle on a teal rooftop overlooking a sunlit imaginative city. A flock of white folded paper birds arcs through the sky. Dynamic perspective, rooftop plants, coral and mint architecture, crisp expressive ink outlines, elegant cel shading and subtle risograph grain. Single scene with coherent spatial depth, full person and bicycle readable, polished graphic-novel cover without any text or speech bubbles.",
-		width: 1024,
-		height: 1536,
-	},
-	"seedream-45-botanical": {
-		title: "Make type and imagery work together",
-		alt: "Botanical exhibition poster with large FIELD STUDY lettering and sculptural green leaves",
-		prompt:
-			'A finished premium botanical exhibition poster, full bleed. Oversized beautifully typeset black condensed sans-serif headline exactly "FIELD STUDY" at the top, large sculptural dark-green monstera and delicate fern leaves below, one small vermilion circle, warm ivory textured paper. Precise editorial grid, botanical detail, asymmetric balance, large margins. Tiny bottom text exactly "BOTANICAL FORMS / 2026". This is the flat finished artwork, not a photographed frame. Avoid all other text, logos and watermarks.',
-		width: 1024,
-		height: 1536,
-	},
-	"seedream-5-pro-museum": {
-		title: "Shape a scene through space and light",
-		alt: "Sculptural pink concrete museum reflected in still water at dusk",
-		prompt:
-			"Architectural editorial photograph of an original sculptural museum made of pale rose concrete, with one immense circular opening and stepped rectangular wings beside a still reflecting pool. Blue hour sky fading to pale peach, a warm golden glow inside the opening, one small adult visitor in dark clothes providing scale, distant desert hills, realistic precise structure and reflections. Calm monumental composition, luxury architecture magazine, natural concrete texture. No signage, text or logos.",
-		width: 1024,
-		height: 1536,
-	},
-	"gpt-2-lime-packaging": {
-		title: "A packaging brief with exact lettering",
-		alt: "Mint green AURA LIME beverage can on cobalt blocks with a cut lime",
-		prompt:
-			'A premium sparkling-water packaging campaign featuring a single satin mint-green beverage can with exact bold dark-green lettering "AURA" and smaller exact lettering "LIME". Cobalt-blue stepped plinths, one sliced lime, tiny condensation droplets, sharp sidelight, pale mint studio background, realistic aluminum and print texture. A coherent beautifully typeset label, clean product geometry, enough negative space, contemporary editorial product photograph. No other text, trademarks or watermark.',
-		width: 1536,
-		height: 1024,
-	},
-	"gpt-flare-market": {
-		title: "Capture the atmosphere of an everyday moment",
-		alt: "Adult chef arranging tomatoes at an outdoor market in soft early morning light",
-		prompt:
-			"Candid editorial photograph of a fictional adult male chef with salt-and-pepper curls, in a light blue work shirt, carefully arranging ripe red heirloom tomatoes in a wooden crate at an outdoor farmers market. Half-body framing, fresh basil, weathered wood, soft early-morning sidelight and subtle film grain. An authentic relaxed fleeting moment with natural hands and skin, warm red and olive accents against pale blue. Unreadable distant stalls, no prominent signage, no text or watermark.",
-		width: 1536,
-		height: 1024,
-	},
-	"gpt-sunburst-fashion": {
-		title: "Build a campaign around a material and a silhouette",
-		alt: "Fashion editorial with an adult model in a flowing red dress against white sculptural architecture",
-		prompt:
-			"Premium fashion editorial photograph: an adult dark-skinned female model with closely cropped natural hair wears an elegant flowing scarlet dress on a broad curved white concrete terrace. Wind lifts a length of fabric into a clear sculptural shape. Warm low-angle sunshine, deep blue sky, crisp architectural shadows, refined material detail, composed confident pose. Full person in frame, wide campaign composition, real fabric and natural anatomy, no text, logos or watermark.",
-		width: 1536,
-		height: 1024,
-	},
-	"gpt-15-origami": {
-		title: "Turn a compact instruction into a graphic scene",
-		alt: "Three folded paper cranes casting long shadows on a pale peach surface",
-		prompt:
-			"A minimalist studio photograph of exactly three meticulously folded origami cranes, one vermilion, one cream and one ultramarine, on a pale peach seamless surface. Space them in a deliberate diagonal composition from foreground to background, one long clear side-light shadow per crane, tactile paper fibers and precise fold geometry. Sophisticated design magazine still life, generous negative space, quiet warm daylight. No added objects, lettering or watermark.",
-		width: 1536,
-		height: 1024,
-	},
-	"nano-lite-robot": {
-		title: "A small character with a clear silhouette",
-		alt: "Tiny mint robot with a yellow scarf sitting beside a daisy on a coral pedestal",
-		prompt:
-			"An irresistibly appealing original miniature mint-green rounded robot with two simple dark glass eyes and a knitted butter-yellow scarf, seated on a matte coral cylindrical pedestal beside a single white daisy. Small toy-like metal seams, soft clay render, subtle scuffs, pastel lavender studio backdrop, friendly relaxed posture and big readable silhouette. Entire character visible, clean centered composition with breathing room. No text, numbers, logos or watermark.",
-		width: 1536,
-		height: 1024,
-	},
-	"nano-watercolor-garden": {
-		title: "Explore a softer, hand-painted style",
-		alt: "Watercolor red panda botanist tending flowers in a glass greenhouse",
-		prompt:
-			"Original children's-book watercolor illustration of a red panda botanist wearing small round glasses and a pale blue gardening apron, tending delicate cosmos flowers in a sunlit Victorian greenhouse. Warm terracotta pots, winding green vines, soft pink blossoms, rich expressive washes, visible cold-press paper texture, fine pencil accents. Gentle storybook personality, coherent paws and tools, imaginative yet elegant, full scene and character. No lettering, borders or watermark.",
-		width: 1536,
-		height: 1024,
-	},
 	"nano-2-coloring-before": {
 		title: "Start with a line drawing",
 		alt: "Black and white line drawing of a snail mail carrier in a mushroom village",
@@ -160,43 +15,187 @@ export const INSPIRATION = {
 		width: 1536,
 		height: 1024,
 	},
-	"nano-pro-espresso": {
-		title: "Describe the finish, not just the object",
-		alt: "Cream espresso machine with brushed copper controls on a dark walnut counter",
+	"gpt-2-jazz-poster": {
+		title: "Give typography the leading role",
+		alt: "Violet and acid-yellow jazz poster with a geometric saxophone and the words AFTER HOURS",
 		prompt:
-			"High-end editorial product photograph of an unbranded compact espresso machine with a warm ivory powder-coated body, brushed copper knobs and group head, a single handmade blue ceramic espresso cup below. Dark walnut counter, warm coffee-brown plaster background, fine steam, meticulous metal reflections, subtle stone texture, soft directional studio light. Three-quarter viewpoint, precise plausible product construction, enough breathing room, refined commercial art direction. No lettering, logo or watermark.",
+			'A sophisticated Swiss-inspired contemporary jazz festival poster, enormous exact headline "AFTER HOURS" in warm-white tall condensed type, a single angular abstract saxophone made of acid-yellow and violet flat shapes on near-black paper. Rhythmic circles suggest sound. Small exact footer "JAZZ / 2026". Distinctive graphic hierarchy, imperfect screenprint ink texture, very legible spelling, no photograph. No additional lettering. No watermark.',
+		width: 1024,
+		height: 1536,
+	},
+	"gpt-2-moon-cinema": {
+		title: "Compose an image around a short headline",
+		alt: "Graphic MOON CINEMA poster with an ivory moon, vermilion steps and midnight-blue sky",
+		prompt:
+			'Design a landscape graphic cinema poster. Exact huge headline "MOON CINEMA" across the top in elegant cream sans-serif capitals. An ivory crescent moon floats above a vermilion staircase and a tiny dark cinema doorway, midnight blue sky, sharp geometric shadows, offset-print texture, bold negative space. Exact small footer "A NIGHT OF FILM". All lettering fully legible and inside the image. No additional lettering. No watermark.',
 		width: 1536,
 		height: 1024,
 	},
-	"seedream-4-forest": {
-		title: "Build a world from color and large shapes",
-		alt: "Dreamlike forest with a small arched bridge, giant luminous flowers and a winding stream",
+	"gpt-flare-luthier": {
+		title: "A real-feeling moment, shaped by light",
+		alt: "Older violin maker working at a timber bench in soft light from a workshop window",
 		prompt:
-			"A lush dreamlike forest environment: an elegant small stone arch bridge spans a narrow turquoise stream beneath immense emerald trees, giant luminous peach-colored flowers and fern leaves. A distant amber clearing guides the eye; intricate moss and bark textures, painterly environmental concept art with believable lighting and layered depth, tranquil imaginative world, no people. Compose broad readable shapes first, restrained emerald, peach and turquoise palette. No text, logos or watermark.",
+			"Candid documentary photograph of a fictional older East Asian male violin maker with gray hair and round glasses, carefully holding an unfinished violin at a worn timber workbench. He wears a faded indigo work shirt. Wood shavings and hanging violin forms, diffused cool north-window light, warm wood, natural wrinkles and anatomically plausible hands, intimate 50mm film photography, observational rather than posed. No text or logos. No watermark.",
+		width: 1024,
+		height: 1536,
+	},
+	"gpt-flare-flower-stall": {
+		title: "Describe an everyday action with specific details",
+		alt: "Florist wrapping sunflowers at a small street stall in gentle morning light",
+		prompt:
+			"Candid documentary photograph of a fictional adult female florist with dark curls, wearing an olive canvas apron, wrapping a small bunch of sunflowers in brown paper at a small outdoor flower stall. Soft overcast morning light, raindrops on buckets, a relaxed unposed expression, plausible hands, imperfect real-life details, gentle fine grain, muted greens and warm yellows. No readable shop signs. No text or logos. No watermark.",
 		width: 1536,
 		height: 1024,
 	},
-	"seedream-45-books": {
-		title: "Carry a visual system across a small collection",
-		alt: "Three coordinated design books with FORM, COLOUR and SPACE on their covers",
+	"gpt-sunburst-sprinter": {
+		title: "Build a campaign around movement",
+		alt: "Athlete in electric-orange sportswear sprinting through a cobalt studio with fabric streaming behind",
 		prompt:
-			'Editorial still life of exactly three beautifully designed art books arranged on a warm white tabletop, one vermilion, one butter-yellow, one cobalt blue. Exact very large condensed black typography on their covers respectively: "FORM", "COLOUR", "SPACE". Each cover combines its one word with one simple ivory geometric shape, crisp modern print design and consistent typography. Two books lie flat and one leans slightly, all three titles completely legible. Natural side light, fine paper and book cloth texture, coordinated graphic identity. No extra text, logos or watermark.',
+			"High-end sports campaign photograph, a fictional athletic adult Black woman in unbranded electric-orange running clothes sprinting across a deep cobalt-blue studio. Whole body and both shoes visible, powerful believable running anatomy, a long sheer orange ribbon trailing behind in an elegant curve, hard flash freezes motion with crisp graphic shadow. Minimal set, intense contrasting color and dynamic diagonal composition. No text or logos. No watermark.",
+		width: 1024,
+		height: 1536,
+	},
+	"gpt-sunburst-windbreaker": {
+		title: "Direct a campaign with color and motion",
+		alt: "Athlete in a vivid lime windbreaker on a coral court with wind lifting the fabric",
+		prompt:
+			"Editorial sportswear campaign photograph, fictional adult East Asian male athlete wearing an unbranded translucent lime windbreaker and charcoal trousers on an empty coral-colored running court. A gust lifts the jacket into a crisp sculptural silhouette, deep turquoise sky, strong noon shadows, low wide camera angle, whole person visible, authentic fabric and natural anatomy. Bold flat color planes and confident art direction. No text or logos. No watermark.",
 		width: 1536,
 		height: 1024,
 	},
-	"seedream-5-lite-night": {
-		title: "Use atmosphere to guide the eye",
-		alt: "Cinematic night photograph of a yellow tram on a rain-soaked Lisbon street",
+	"gpt-15-paper-lighthouse": {
+		title: "Turn a compact brief into a crafted world",
+		alt: "Handmade paper lighthouse island with layered turquoise waves and a coral tower",
 		prompt:
-			"Cinematic photograph of a small yellow vintage tram moving slowly down a rain-soaked Lisbon street at blue hour. Deep indigo sky, warm orange window light reflected on cobblestones, a single distant adult pedestrian with a red umbrella, subtle mist and atmospheric depth, realistic rails and overhead wires, restrained film grain. Diagonal street composition, believable scale and documentary detail. Avoid readable advertising and prominent signage, no overlays or watermark.",
+			"Photograph of one exquisite handmade cut-paper diorama: a small coral-red lighthouse on an ivory island surrounded by concentric layered turquoise paper waves, tiny folded cream sailboat and pale-yellow paper sun. Visible thick paper edges, precise folds and fine paper fibers, a coherent miniature physical sculpture, warm-white seamless backdrop, gentle directional studio shadows, entire construction visible with breathing room. No text or logos. No watermark.",
+		width: 1024,
+		height: 1536,
+	},
+	"gpt-15-paper-balloon": {
+		title: "Specify the material, shapes, and object count",
+		alt: "Three folded paper hot-air balloons above an intricately cut amber canyon",
+		prompt:
+			"One handcrafted paper-art landscape photographed in a studio: exactly three folded hot-air balloons, cream, vermilion and muted teal, float at staggered heights over a terraced amber paper canyon. Thick matte paper edges and tiny folded basket details, elegant sculptural geometry, soft warm studio light, peach background, all three balloons completely inside frame, refined restrained design-magazine still life. No text or logos. No watermark.",
 		width: 1536,
 		height: 1024,
 	},
-	"seedream-5-pro-leather": {
-		title: "Bring tactile materials into a commercial scene",
-		alt: "Sculptural cognac leather travel bag beside a stone arch with precise sunlight and shadows",
+	"nano-lite-capybara": {
+		title: "A small character with an unmistakable silhouette",
+		alt: "Round capybara astronaut in a mint suit sitting on a lavender crescent moon",
 		prompt:
-			"A premium commercial still life of one unbranded sculptural cognac pebbled-leather travel bag, immaculate stitching, brushed silver hardware and a folded linen scarf, set on a cool pale-gray stone bench beneath a tall architectural arch. A precise shaft of late-afternoon sunlight brings out leather grain and folds; deep plum shadow and warm amber highlights. Elevated three-quarter composition, high-fidelity material textures, believable handle and zip construction. No logo, text or watermark.",
+			"A charming original 3D mascot: a round sleepy capybara astronaut in a mint-green soft spacesuit with a clear spherical helmet, sitting on a lavender crescent moon and holding one tiny yellow star. Matte clay-like fur shapes, friendly simple expressive face, stubby coherent paws, pastel peach seamless background, soft toy photography lighting, entire character and crescent visible, simple readable silhouette. No text or logos. No watermark.",
+		width: 1024,
+		height: 1536,
+	},
+	"nano-lite-toaster": {
+		title: "Keep one character readable at a small size",
+		alt: "Friendly butter-yellow toaster mascot with striped socks on a lilac background",
+		prompt:
+			"A playful original 3D mascot of a butter-yellow rounded toaster with two friendly dark eyes, tiny mitten hands and little feet in coral striped socks. One smiling slice of toast peeks from the slot, a single crumb beside it. Soft glossy vinyl and matte clay materials, lilac seamless background, subtle contact shadow, clean cheerful full-body composition, simple silhouette, no brand or lettering. No text or logos. No watermark.",
+		width: 1536,
+		height: 1024,
+	},
+	"nano-whale-library": {
+		title: "Tell a gentle story in watercolor",
+		alt: "Watercolor whale carrying a tiny lantern-lit library across a blue night sky",
+		prompt:
+			"Original traditional watercolor storybook illustration: a large gentle indigo whale swims through a pale-blue night sky carrying a tiny warmly lit wooden library on its back. A small fictional child in a yellow raincoat sits safely beside the doorway reading a book. Soft cloud washes, a few gold stars, expressive delicate pencil lines, very visible cold-press paper texture and pigment blooms, dreamy generous composition, clearly hand-painted rather than 3D or photographic. No text or logos. No watermark.",
+		width: 1024,
+		height: 1536,
+	},
+	"nano-mouse-tea": {
+		title: "Name the medium as part of the story",
+		alt: "Watercolor mouse pouring tea for a hedgehog under a flowering branch",
+		prompt:
+			"Original hand-painted watercolor picture-book scene of a little field mouse in a blue waistcoat pouring tea for a hedgehog in a tiny mossy garden under a flowering apple branch. Acorn cups, one patchwork picnic cloth, soft pink blossoms, translucent sage and rose washes, visible granulated watercolor pigment, delicate pencil contours and cream cold-press paper. Gentle character gestures, full scene, no text. No text or logos. No watermark.",
+		width: 1536,
+		height: 1024,
+	},
+	"nano-2-dragon-courier": {
+		title: "Shape a story with line and color",
+		alt: "Comic illustration of a teal dragon courier flying above a terracotta canal town",
+		prompt:
+			"Original colorful European-comic illustration of a small friendly teal dragon mail courier wearing a coral satchel and flying over a sunlit canal town with terracotta roofs. One cream envelope in a claw, crisp expressive ink contours, flat golden and teal colors with restrained cel shading, elegant illustrated architecture, diagonally soaring composition, unmistakably 2D drawn art, full dragon silhouette visible. Single scene, no panels or speech bubbles. No text or logos. No watermark.",
+		width: 1024,
+		height: 1536,
+	},
+	"nano-pro-camera": {
+		title: "Make every material choice visible",
+		alt: "Unbranded titanium camera with a black lens on a charcoal reflective surface",
+		prompt:
+			"Exceptional precision studio product photograph of one unbranded titanium compact camera, three-quarter front view on a charcoal satin surface. Large black optical lens with restrained violet coating reflections, knurled silver controls, dark leather grip, physically plausible exact construction. Cool silver highlights, subtle pale-blue rim light, deep charcoal seamless background, restrained premium industrial design, entire camera visible, no lettering on lens or body. No text or logos. No watermark.",
+		width: 1024,
+		height: 1536,
+	},
+	"nano-pro-glass-perfume": {
+		title: "Use reflections to describe a product",
+		alt: "Architectural clear-glass perfume bottle with a brushed steel cap on black slate",
+		prompt:
+			"Premium precision product photograph of a single unbranded architectural clear-glass perfume bottle containing pale icy-blue liquid, a cylindrical brushed stainless-steel cap, standing on black slate. Thick accurate glass refraction, subtle water caustics, tiny believable condensation beads, controlled cool studio strip lighting with deep gray backdrop. Straight-on slightly elevated view, full bottle and ample breathing room, elegant material study with no props or lettering. No text or logos. No watermark.",
+		width: 1536,
+		height: 1024,
+	},
+	"seedream-4-reading-pavilion": {
+		title: "Build a room from proportion and light",
+		alt: "Timber reading pavilion with full-height glazing surrounded by a tranquil green forest",
+		prompt:
+			"Architectural editorial photograph of a small contemporary timber reading pavilion in a lush green forest. Full-height glazing, slender oak rafters, built-in long bookshelf, one low oatmeal reading chair, polished pale stone floor. View from the interior corner toward the forest, filtered green daylight, exact plausible verticals and joinery, calm Japanese-influenced spatial design, tactile wood and linen, no people. No text or logos. No watermark.",
+		width: 1024,
+		height: 1536,
+	},
+	"seedream-4-tea-room": {
+		title: "Give an interior a clear material palette",
+		alt: "Quiet Japanese tea room with walnut joinery, a sunken table and a courtyard maple",
+		prompt:
+			"Architectural interior photograph of a tranquil modern Japanese tea room: walnut wall panels, a low sunken rectangular table, two woven floor cushions, pale limestone floor and a large square window framing one red maple in a small courtyard. Gentle overcast daylight, precise joinery, believable room proportions, restrained warm neutrals with red foliage, wide corner perspective, no people or text. No text or logos. No watermark.",
+		width: 1536,
+		height: 1024,
+	},
+	"seedream-45-crane-print": {
+		title: "Find a visual rhythm in shape and color",
+		alt: "Japanese-inspired screenprint of white cranes among indigo waves and vermilion sun shapes",
+		prompt:
+			"Original contemporary Japanese-inspired woodblock screenprint, two elegant ivory cranes with black wing tips among rhythmic indigo wave arcs and vermilion circular sun shapes. Strong flat geometric design, subtle fibrous washi paper and imperfect ink registration, navy, vermilion and warm ivory only. Sophisticated balanced textile-style composition, unmistakably graphic printed artwork rather than a photograph. No lettering. No text or logos. No watermark.",
+		width: 1024,
+		height: 1536,
+	},
+	"seedream-45-citrus-pattern": {
+		title: "Build a coordinated pattern from a small palette",
+		alt: "Bold screenprinted pattern of cobalt citrus leaves and coral orange slices on cream paper",
+		prompt:
+			"Original mid-century inspired surface-pattern design featuring large cobalt-blue citrus leaves, coral orange slices and small ochre blossom shapes on warm ivory paper. Flat hand-cut organic shapes, flowing balanced rhythm, sophisticated repeat-like composition with varied scale, subtle screenprint texture and imperfect edges, limited four-color palette. Full-bleed graphic artwork, no product mockup, no lettering. No text or logos. No watermark.",
+		width: 1536,
+		height: 1024,
+	},
+	"seedream-lite-arctic-fox": {
+		title: "Let the natural world set the mood",
+		alt: "Arctic fox in soft falling snow with pale blue shadows and warm backlight",
+		prompt:
+			"Exceptional wildlife photograph of a real arctic fox in white winter coat sitting alert on a snowy ridge. Gentle falling snow, delicate pale-blue shadows, warm low winter backlight glowing through fur edges, one small dry grass tuft, soft distant forest bokeh. Natural alert fox anatomy and expressive eyes, finely resolved fur, quiet spacious vertical environmental portrait, documentary photography. No text or logos. No watermark.",
+		width: 1024,
+		height: 1536,
+	},
+	"seedream-lite-kingfisher": {
+		title: "Describe the subject, habitat, and light",
+		alt: "Blue and orange kingfisher perched above a misty green river at dawn",
+		prompt:
+			"Natural wildlife photograph of a common kingfisher with brilliant turquoise-blue back and orange breast perched on a mossy branch above a quiet river at dawn. Tiny water droplets, delicate feather detail, soft green riverbank bokeh and a thin layer of mist, believable bird anatomy and feet, gentle natural side light, environmental composition with plenty of breathing room. No text or logos. No watermark.",
+		width: 1536,
+		height: 1024,
+	},
+	"seedream-pro-orbital-garden": {
+		title: "Build an imagined world with cinematic scale",
+		alt: "Vast orbital greenhouse with a ringed planet above luminous gardens and a tiny astronaut",
+		prompt:
+			"Spectacular cinematic science-fiction concept art of a vast orbital botanical conservatory: sweeping transparent geodesic roof frames a huge ringed planet, lush bioluminescent turquoise gardens descend in terraces around a slender silver walkway, one tiny astronaut in an orange suit establishes scale. Layered atmospheric depth, twilight violet and cyan light, believable elegant future engineering, painterly cinematic realism, single awe-inspiring scene. No text or logos. No watermark.",
+		width: 1024,
+		height: 1536,
+	},
+	"seedream-pro-undersea-city": {
+		title: "Use scale, atmosphere, and a focal point together",
+		alt: "Cinematic underwater research city with luminous domes and a small yellow submersible",
+		prompt:
+			"Cinematic science-fiction environment concept art of an underwater research city nestled inside an enormous blue ocean trench. Luminous transparent domes, warm amber laboratories, sleek connecting bridges, a tiny yellow submersible crossing the foreground, distant whales establishing immense scale. Shafts of sunlight descend through teal water, suspended particles, rich atmospheric depth and coherent elegant engineering. Single wide establishing shot, no typography. No text or logos. No watermark.",
 		width: 1536,
 		height: 1024,
 	},

@@ -17,7 +17,7 @@ describe("model artwork", () => {
 		expect(html).not.toContain("/_next/image");
 		expect(html).toContain('srcSet="/images/landing/variants/');
 		expect(html).toContain('media="(min-width: 768px)"');
-		expect(html.match(/width="1024" height="768"/g)).toHaveLength(3);
+		expect(html.match(/width="1536" height="1024"/g)).toHaveLength(3);
 		expect(html.match(/<img /g)).toHaveLength(3);
 	});
 

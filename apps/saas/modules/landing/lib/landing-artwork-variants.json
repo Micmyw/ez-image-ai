@@ -1,94 +1,94 @@
 {
-	"/images/models/gpt-poster.webp": {
-		"sourceHash": "737e2f78cb5996e270a827bb44676d12de8dc96dd39d9141753d61cecf3bce4d",
-		"width": 1024,
-		"height": 768,
+	"/images/models/gpt-2-moon-cinema.webp": {
+		"sourceHash": "15a9869f02ce770ad327dfc78fd31b92270aa57c449a75c2a2eb41e3deffd2c2",
+		"width": 1536,
+		"height": 1024,
 		"variants": [
 			{
 				"width": 240,
-				"src": "/images/landing/variants/gpt-poster-240.67e4719b3597fdbd.webp"
+				"src": "/images/landing/variants/gpt-2-moon-cinema-240.a8bc2c83a35b84cc.webp"
 			},
 			{
 				"width": 384,
-				"src": "/images/landing/variants/gpt-poster-384.fcf5ff0706fd9d3a.webp"
+				"src": "/images/landing/variants/gpt-2-moon-cinema-384.a8a93f733cc8f100.webp"
 			},
 			{
 				"width": 480,
-				"src": "/images/landing/variants/gpt-poster-480.3d0243286c63a565.webp"
+				"src": "/images/landing/variants/gpt-2-moon-cinema-480.ee0fa4be5c410664.webp"
 			},
 			{
 				"width": 640,
-				"src": "/images/landing/variants/gpt-poster-640.53d9f22a07557f8a.webp"
+				"src": "/images/landing/variants/gpt-2-moon-cinema-640.f2080e35bdf8ba9b.webp"
 			},
 			{
 				"width": 768,
-				"src": "/images/landing/variants/gpt-poster-768.3b557b7bb194209b.webp"
+				"src": "/images/landing/variants/gpt-2-moon-cinema-768.c49c33622ce5cc2a.webp"
 			},
 			{
 				"width": 960,
-				"src": "/images/landing/variants/gpt-poster-960.cc2f70295195fc42.webp"
+				"src": "/images/landing/variants/gpt-2-moon-cinema-960.c327419ade928cab.webp"
 			}
 		]
 	},
-	"/images/models/nano-product.webp": {
-		"sourceHash": "99ab4d3502cd140523362d36a88ed9850b326487202e643f435a06f516a350d7",
-		"width": 1024,
-		"height": 768,
+	"/images/models/nano-pro-glass-perfume.webp": {
+		"sourceHash": "c725ccb702e0cccfbfa58f5688bf21d8a878e705c93a76f97ede69980f80e11c",
+		"width": 1536,
+		"height": 1024,
 		"variants": [
 			{
 				"width": 240,
-				"src": "/images/landing/variants/nano-product-240.72e1364358ec9b1a.webp"
+				"src": "/images/landing/variants/nano-pro-glass-perfume-240.236d0386d93c4c85.webp"
 			},
 			{
 				"width": 384,
-				"src": "/images/landing/variants/nano-product-384.73ca339ce0abe60e.webp"
+				"src": "/images/landing/variants/nano-pro-glass-perfume-384.309fd54903f4fc6e.webp"
 			},
 			{
 				"width": 480,
-				"src": "/images/landing/variants/nano-product-480.0830e1665da3c09b.webp"
+				"src": "/images/landing/variants/nano-pro-glass-perfume-480.9a0199c0dc9ce427.webp"
 			},
 			{
 				"width": 640,
-				"src": "/images/landing/variants/nano-product-640.e9a820ff3c4a4ece.webp"
+				"src": "/images/landing/variants/nano-pro-glass-perfume-640.d259df214e8f8c30.webp"
 			},
 			{
 				"width": 768,
-				"src": "/images/landing/variants/nano-product-768.1093df7c6792bb3c.webp"
+				"src": "/images/landing/variants/nano-pro-glass-perfume-768.f4a78b989c6a9e4f.webp"
 			},
 			{
 				"width": 960,
-				"src": "/images/landing/variants/nano-product-960.af5439eac0053e87.webp"
+				"src": "/images/landing/variants/nano-pro-glass-perfume-960.c0e5a495158c26b2.webp"
 			}
 		]
 	},
-	"/images/models/seedream-cinema.webp": {
-		"sourceHash": "a1bda1f917f5a0e63bf62391a5d3d3859194d4950083d76de081b474918d0d02",
-		"width": 1024,
-		"height": 768,
+	"/images/models/seedream-lite-kingfisher.webp": {
+		"sourceHash": "4f5d27c370082ce2fd548c1f1af6fcc09db969f0371d040243bb1444ac8775ca",
+		"width": 1536,
+		"height": 1024,
 		"variants": [
 			{
 				"width": 240,
-				"src": "/images/landing/variants/seedream-cinema-240.8b76b5e84618f7a0.webp"
+				"src": "/images/landing/variants/seedream-lite-kingfisher-240.794b9551c9b21467.webp"
 			},
 			{
 				"width": 384,
-				"src": "/images/landing/variants/seedream-cinema-384.870490ab5edcbd21.webp"
+				"src": "/images/landing/variants/seedream-lite-kingfisher-384.1879373b818a62f8.webp"
 			},
 			{
 				"width": 480,
-				"src": "/images/landing/variants/seedream-cinema-480.177733994bb073b1.webp"
+				"src": "/images/landing/variants/seedream-lite-kingfisher-480.e861630fb5a99e13.webp"
 			},
 			{
 				"width": 640,
-				"src": "/images/landing/variants/seedream-cinema-640.8fc422bd99ff1ddf.webp"
+				"src": "/images/landing/variants/seedream-lite-kingfisher-640.b7a3b2737ddbda3e.webp"
 			},
 			{
 				"width": 768,
-				"src": "/images/landing/variants/seedream-cinema-768.86142194a7f4edf5.webp"
+				"src": "/images/landing/variants/seedream-lite-kingfisher-768.edcd975120de0b93.webp"
 			},
 			{
 				"width": 960,
-				"src": "/images/landing/variants/seedream-cinema-960.cab04a360978d300.webp"
+				"src": "/images/landing/variants/seedream-lite-kingfisher-960.fc8e4621b68e68f4.webp"
 			}
 		]
 	},

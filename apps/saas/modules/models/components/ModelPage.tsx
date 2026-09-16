@@ -183,13 +183,11 @@ export async function ModelPage({
 								key={candidate.key}
 								href={modelPath(candidate.key)}
 							>
-								<ModelArtwork
-									artwork={candidate.artwork}
-									sizes="(max-width: 760px) 110px, (max-width: 1500px) 28vw, 455px"
-								/>
 								<div>
 									<span>{candidate.family}</span>
-									<h3>{candidate.name}</h3>
+									<h3>
+										{candidate.name} <span aria-hidden="true">↗</span>
+									</h3>
 									<p>{candidate.lead}</p>
 								</div>
 							</Link>

@@ -1,8 +1,10 @@
 export const publicChangelogEntries = [
 	{
 		date: "2026-09-16",
-		title: "Content policy and reporting",
+		title: "Model inspiration and content reporting",
 		changes: [
+			"Added 23 original concept images across all 12 model pages, with a distinct creative direction and matching prompts for each model.",
+			"Removed repeated image galleries from related-model links and preserved complete artwork in homepage model previews.",
 			"Expanded the Terms of Service with prohibited content, moderation, enforcement, and appeals.",
 			"Added a Report content link in the footer and instructions on the Contact page, available without an account.",
 			"Display the support email address directly in public, sign-in, and documentation footers.",
