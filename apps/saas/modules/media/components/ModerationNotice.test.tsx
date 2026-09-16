@@ -50,8 +50,9 @@ describe("customer moderation feedback", () => {
 			failureReason: "SAFETY_CHECK_UNAVAILABLE",
 			moderationReason: "sexualContent",
 		});
-		expect(markup).toContain("Safety review unavailable");
+		expect(markup).toContain("complete the safety check");
 		expect(markup).toContain("not a confirmed content violation");
+		expect(markup).toContain("automated safety check");
 		expect(markup).toContain("one-time waiver was not used");
 		expect(markup).toContain("Try again later");
 		expect(markup).not.toContain("sexually explicit content");
@@ -70,5 +71,11 @@ describe("customer moderation feedback", () => {
 		expect(markup).toContain("17 Credits");
 		expect(markup).not.toContain("This result cannot be shown");
 		expect(markup).not.toContain("{credits}");
+		const unavailable = render(
+			{ creditsCharged: "0", failureReason: "SAFETY_CHECK_UNAVAILABLE" },
+			"de",
+		);
+		expect(unavailable).toContain("automatische Sicherheitsprüfung");
+		expect(unavailable).toContain("Bitte versuche es später erneut");
 	});
 });

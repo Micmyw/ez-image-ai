@@ -39,6 +39,8 @@
 - Separate safety notices into a clear outcome, safe reason, credit treatment, and next step for
   instructions, reference images, results, and guest trials. Link to policy and support, include
   result task references, and keep incomplete reviews distinct from confirmed content blocks.
+- Explain when an automated safety check could not return a clear result and suggest trying later,
+  without implying that a manual review is queued or that a content violation was confirmed.
 - Restore SeeAPI image checks on Cloudflare Workers by rejecting redirects with a supported request
   mode. Hide cached source previews when a new access check fails.
 - Add independent text and image moderation switches: Waffo/Sightengine for text and

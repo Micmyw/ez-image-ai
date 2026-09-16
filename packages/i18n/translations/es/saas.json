@@ -1382,7 +1382,7 @@
 				"prompt": "Revisa esta instrucción",
 				"input": "Elige otra imagen",
 				"output": "Este resultado no se puede mostrar",
-				"unavailable": "Revisión de seguridad no disponible"
+				"unavailable": "No pudimos completar la comprobación de seguridad"
 			},
 			"summary": {
 				"prompt": {
@@ -1411,7 +1411,7 @@
 				"hate": "La revisión de seguridad detectó contenido de odio o discriminación.",
 				"restrictedContent": "La revisión de seguridad detectó contenido restringido por nuestra política. No hay un motivo más específico disponible."
 			},
-			"reviewUncertain": "No se ha confirmado una infracción de contenido. La revisión no produjo un resultado concluyente.",
+			"reviewUncertain": "No se ha confirmado una infracción de contenido. La comprobación automática de seguridad no produjo un resultado concluyente. Inténtalo de nuevo más tarde.",
 			"billing": {
 				"beforeGeneration": "No se cobraron créditos de generación ni se utilizó tu exención única.",
 				"waived": "No se cobraron créditos: se utilizó la exención única de tu cuenta. Los próximos resultados bloqueados se cobrarán según los créditos indicados.",

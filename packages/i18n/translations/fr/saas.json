@@ -1382,7 +1382,7 @@
 				"prompt": "Veuillez modifier cette instruction",
 				"input": "Veuillez choisir une autre image",
 				"output": "Ce résultat ne peut pas être affiché",
-				"unavailable": "Vérification de sécurité indisponible"
+				"unavailable": "La vérification de sécurité n’a pas pu être effectuée"
 			},
 			"summary": {
 				"prompt": {
@@ -1411,7 +1411,7 @@
 				"hate": "La vérification de sécurité a signalé du contenu haineux ou discriminatoire.",
 				"restrictedContent": "La vérification de sécurité a signalé du contenu restreint par notre politique. Aucun motif plus précis n’est disponible."
 			},
-			"reviewUncertain": "Il ne s’agit pas d’une infraction confirmée. La vérification n’a pas donné de résultat concluant.",
+			"reviewUncertain": "Il ne s’agit pas d’une infraction confirmée. La vérification automatique de sécurité n’a pas donné de résultat concluant. Réessayez plus tard.",
 			"billing": {
 				"beforeGeneration": "Aucun crédit de génération n’a été facturé et votre exonération unique n’a pas été utilisée.",
 				"waived": "Aucun crédit n’a été facturé : l’exonération unique de votre compte a été utilisée. Les prochains résultats bloqués seront facturés au montant de crédits annoncé.",

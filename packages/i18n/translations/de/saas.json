@@ -1382,7 +1382,7 @@
 				"prompt": "Bitte überarbeite diese Anweisung",
 				"input": "Bitte wähle ein anderes Bild",
 				"output": "Dieses Ergebnis kann nicht angezeigt werden",
-				"unavailable": "Sicherheitsprüfung nicht verfügbar"
+				"unavailable": "Die Sicherheitsprüfung konnte nicht abgeschlossen werden"
 			},
 			"summary": {
 				"prompt": {
@@ -1411,7 +1411,7 @@
 				"hate": "Die Sicherheitsprüfung hat hasserfüllte oder diskriminierende Inhalte erkannt.",
 				"restrictedContent": "Die Sicherheitsprüfung hat Inhalte erkannt, die laut unserer Richtlinie eingeschränkt sind. Ein genauerer Grund ist nicht verfügbar."
 			},
-			"reviewUncertain": "Dies ist kein bestätigter Richtlinienverstoß. Die Prüfung hat kein eindeutiges Ergebnis geliefert.",
+			"reviewUncertain": "Dies ist kein bestätigter Richtlinienverstoß. Die automatische Sicherheitsprüfung hat kein eindeutiges Ergebnis geliefert. Bitte versuche es später erneut.",
 			"billing": {
 				"beforeGeneration": "Es wurden keine Generierungs-Credits berechnet und dein einmaliger Gebührenerlass wurde nicht genutzt.",
 				"waived": "Es wurden keine Credits berechnet: Der einmalige Gebührenerlass deines Kontos wurde genutzt. Künftige gesperrte Ergebnisse werden zum angezeigten Credit-Betrag berechnet.",

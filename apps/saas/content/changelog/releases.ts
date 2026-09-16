@@ -4,6 +4,7 @@ export const publicChangelogEntries = [
 		title: "Model inspiration and content reporting",
 		changes: [
 			"Make safety notices easier to understand with clear reasons, credit outcomes, next steps, and support links for instructions, images, and guest trials.",
+			"Clarify that an unavailable safety result comes from an incomplete automated check, with guidance to try again later.",
 			"Restored a portrait inspiration gallery on every model page, bringing back 11 earlier artworks alongside 13 new images with no cross-model repeats.",
 			"Fixed Waffo payment availability after store approval and restored its prompt verification on the live service.",
 			"Explain content-safety billing before generation: one lifetime waiver per account or team for a blocked result, with later blocked results charged at the quoted amount.",

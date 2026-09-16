@@ -1382,7 +1382,7 @@
 				"prompt": "Please revise this instruction",
 				"input": "Please choose another image",
 				"output": "This result cannot be shown",
-				"unavailable": "Safety review unavailable"
+				"unavailable": "We couldn't complete the safety check"
 			},
 			"summary": {
 				"prompt": {
@@ -1411,7 +1411,7 @@
 				"hate": "The safety check flagged hateful or discriminatory content.",
 				"restrictedContent": "The safety check flagged content restricted by our policy. A more specific reason is not available."
 			},
-			"reviewUncertain": "This is not a confirmed content violation. The check did not produce a clear result.",
+			"reviewUncertain": "This is not a confirmed content violation. The automated safety check did not return a clear result. Please try again later.",
 			"billing": {
 				"beforeGeneration": "No generation credits were charged and your one-time waiver was not used.",
 				"waived": "No credits were charged: your account’s one-time waiver was used. Future blocked results use the quoted credits.",
