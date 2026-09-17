@@ -12,7 +12,13 @@ import { CoinsIcon, CrownIcon, Loader2Icon, PlusIcon } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 
-export function HeaderPurchaseActions({ registered }: { registered: boolean }) {
+export function HeaderPurchaseActions({
+	registered,
+	showCredits = true,
+}: {
+	registered: boolean;
+	showCredits?: boolean;
+}) {
 	const t = useTranslations("pricing.upgrade");
 	const locale = useLocale();
 	const openUpgrade = useUpgrade();
@@ -20,7 +26,7 @@ export function HeaderPurchaseActions({ registered }: { registered: boolean }) {
 	const account = useQuery({
 		queryKey: ["media-credit-account"],
 		queryFn: () => orpcClient.media.getCreditAccount(),
-		enabled: registered,
+		enabled: registered && showCredits,
 		refetchInterval: 30_000,
 	});
 	const savings = calculateAnnualPlanPricing(
@@ -50,7 +56,7 @@ export function HeaderPurchaseActions({ registered }: { registered: boolean }) {
 				{savings && <span className="studio-upgrade-saving">−{savings.savingsPercent}%</span>}
 			</Link>
 			<LocaleSwitch className="studio-language" disabled={Boolean(payment.action)} />
-			{registered && (
+			{registered && showCredits && (
 				<button
 					type="button"
 					className="studio-header-credits"

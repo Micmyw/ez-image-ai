@@ -7,6 +7,9 @@
 - Distribute desktop navigation evenly between the logo and account actions, with more room
   around header controls and responsive spacing on smaller screens.
 - Use a globe icon for the language selector across public pages and the workspace.
+- Keep compact headers on one row. Move tool navigation, account options, upgrade and language
+  controls into a keyboard-accessible menu drawer while retaining the brand and available credits
+  or sign-in link. Group image tools and models in expandable sections without pushing the editor down.
 
 ## 2026-09-16
 

@@ -22,18 +22,15 @@ export function PublicPageShell({
 	return (
 		<div className="min-h-screen bg-[#100d1b] text-[#f7f3ff]">
 			<header className="top-0 border-white/10 backdrop-blur-xl sticky z-50 border-b bg-[#100d1b]/90">
-				<div className="min-h-16 gap-3 py-3 sm:gap-6 lg:min-h-19 lg:gap-10 lg:py-4 container flex flex-wrap items-center">
+				<div className="studio-public-topbar container">
 					<Link
 						href="/"
 						className="focus-visible:outline-violet-300 shrink-0 rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4"
 						aria-label={publicConfig.brand.siteName}
 					>
-						<Logo
-							className="text-white [&_svg]:text-violet-400"
-							label={publicConfig.brand.siteName}
-						/>
+						<Logo className="studio-header-brand" label={publicConfig.brand.siteName} />
 					</Link>
-					<nav className="min-w-0 gap-6 text-sm font-medium text-slate-300 md:ml-6 md:flex lg:ml-10 lg:gap-10 xl:gap-12 hidden flex-none items-center">
+					<nav className="studio-public-toplinks" aria-label={t("studio.pageNavigation")}>
 						<Link className="px-3 py-2 hover:text-white" href="/pricing">
 							{t("common.menu.pricing")}
 						</Link>

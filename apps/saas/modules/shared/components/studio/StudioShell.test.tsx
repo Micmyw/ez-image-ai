@@ -19,7 +19,10 @@ vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 vi.mock("next/dynamic", async () => ({
 	default: (await import("next/dist/shared/lib/app-dynamic")).default,
 }));
-vi.mock("@shared/hooks/use-media-query", () => ({ useIsMobile: () => false }));
+vi.mock("@shared/hooks/use-media-query", () => ({
+	useIsMobile: () => false,
+	useMediaQuery: () => false,
+}));
 vi.mock("@organizations/components/OrganizationSelect", () => ({ OrganzationSelect: () => null }));
 vi.mock("../UserMenu", () => ({ UserMenu: () => <button>Account menu</button> }));
 vi.mock("../NotificationCenter", () => ({ NotificationCenter: () => null }));
@@ -52,10 +55,11 @@ describe("homepage and signed-in tool navigation", () => {
 		state.user = null;
 	});
 
-	it("renders the visitor homepage without a tool sidebar or drawer toggle", async () => {
+	it("keeps a compact navigation entry available on the visitor homepage without a tool sidebar", async () => {
 		const markup = await renderShell();
 		expect(markup).not.toContain('class="studio-sidebar"');
-		expect(markup).not.toContain('aria-label="openNavigation"');
+		expect(markup).toContain('data-test="header-navigation-trigger"');
+		expect(markup).toContain('aria-label="openNavigation"');
 		expect(markup).toContain('data-workspace="false"');
 		expect(markup).toContain('aria-label="EzPic"');
 		expect(markup).toContain('href="/login"');

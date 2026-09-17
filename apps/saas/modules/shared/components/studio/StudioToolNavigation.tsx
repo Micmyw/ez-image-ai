@@ -14,12 +14,15 @@ import { useState } from "react";
 
 export function StudioToolNavigation({
 	sidebar = false,
+	drawer = false,
 	onNavigate,
 }: {
 	sidebar?: boolean;
+	drawer?: boolean;
 	onNavigate?: () => void;
 }) {
 	const t = useTranslations("studio.tools");
+	const vertical = sidebar || drawer;
 	const models = useTranslations("media.create.products");
 	const pathname = usePathname();
 	const selected =
@@ -39,24 +42,24 @@ export function StudioToolNavigation({
 			<Link
 				href="/create"
 				onClick={navigate}
-				className={sidebar ? "studio-nav-link" : "studio-menu-entry"}
+				className={vertical ? "studio-nav-link" : "studio-menu-entry"}
 				aria-current={pathname === "/create" && !selected ? "page" : undefined}
 			>
 				<ImagesIcon aria-hidden />
 				<span>
 					<strong>{t("imageToImage")}</strong>
-					{!sidebar && <small>{t("imageToImageDescription")}</small>}
+					{!vertical && <small>{t("imageToImageDescription")}</small>}
 				</span>
 			</Link>
 			<Link
 				href="/create#examples"
 				onClick={navigate}
-				className={sidebar ? "studio-nav-link" : "studio-menu-entry"}
+				className={vertical ? "studio-nav-link" : "studio-menu-entry"}
 			>
 				<LayoutGridIcon aria-hidden />
 				<span>
 					<strong>{t("examples")}</strong>
-					{!sidebar && <small>{t("examplesDescription")}</small>}
+					{!vertical && <small>{t("examplesDescription")}</small>}
 				</span>
 			</Link>
 		</>
@@ -66,25 +69,25 @@ export function StudioToolNavigation({
 			<Link
 				key={product.key}
 				href={
-					sidebar && pathname === "/create"
+					vertical && pathname === "/create"
 						? `/create?model=${encodeURIComponent(product.key)}`
 						: imageModelHref(product.key)
 				}
 				scroll={false}
 				onClick={navigate}
 				className={
-					sidebar
+					vertical
 						? `studio-nav-link${selected === product.key ? " is-active" : ""}`
 						: "studio-menu-entry"
 				}
 				aria-current={selected === product.key ? "page" : undefined}
 			>
-				<span className={sidebar ? "studio-nav-model-icon" : "studio-menu-model-icon"}>
-					<ImageModelIcon productKey={product.key} size={sidebar ? 18 : 24} />
+				<span className={vertical ? "studio-nav-model-icon" : "studio-menu-model-icon"}>
+					<ImageModelIcon productKey={product.key} size={vertical ? 18 : 24} />
 				</span>
 				<span>
 					<strong>{models(`${product.key}.label`)}</strong>
-					{!sidebar && <small>{models(`${product.key}.description`)}</small>}
+					{!vertical && <small>{models(`${product.key}.description`)}</small>}
 				</span>
 			</Link>
 		);
@@ -96,6 +99,28 @@ export function StudioToolNavigation({
 			{catalog.isPending ? t("loading") : t("unavailable")}
 		</output>
 	);
+	if (drawer)
+		return (
+			<>
+				<details className="studio-drawer-group">
+					<summary>
+						{t("imageTools")} <ChevronDownIcon aria-hidden />
+					</summary>
+					<div className="studio-drawer-links">{tools}</div>
+				</details>
+				<details className="studio-drawer-group">
+					<summary>
+						{t("models")} <ChevronDownIcon aria-hidden />
+					</summary>
+					<div className="studio-drawer-links">
+						{modelContent}
+						<Link href="/models" className="studio-nav-link" onClick={navigate}>
+							{t("models")} <span aria-hidden>→</span>
+						</Link>
+					</div>
+				</details>
+			</>
+		);
 	if (sidebar)
 		return (
 			<div className="studio-tool-sidebar">

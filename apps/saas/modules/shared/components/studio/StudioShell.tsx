@@ -13,7 +13,6 @@ import {
 	CoinsIcon,
 	HistoryIcon,
 	ImagesIcon,
-	MenuIcon,
 	SparklesIcon,
 	XIcon,
 	ShieldUserIcon,
@@ -25,6 +24,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type MouseEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
+import { HeaderNavigationMenu } from "./HeaderNavigationMenu";
 import { HeaderPurchaseActions } from "./HeaderPurchaseActions";
 import { StudioContext, studioPanelForPath, type StudioPanel } from "./studio-context";
 import { StudioPanelBoundary } from "./StudioPanelBoundary";
@@ -60,31 +60,24 @@ function StudioShellContent({ children }: { children: ReactNode }) {
 	const editing = pathname === "/" || pathname === "/create" || pathname.startsWith("/models/");
 	const [panel, setPanel] = useState<StudioPanel | null>(null);
 	const [navigationOpen, setNavigationOpen] = useState(false);
-	const navigationVisible = showSidebar && navigationOpen;
 	const opener = useRef<HTMLElement | null>(null);
 	const closeRef = useRef<HTMLButtonElement>(null);
 	const panelRef = useRef<HTMLElement>(null);
-	const navigationRef = useRef<HTMLElement>(null);
 	const navigationTrigger = useRef<HTMLButtonElement>(null);
 	const panelActive = useRef(false);
-	const closeNavigation = useCallback(() => {
-		setNavigationOpen(false);
-		requestAnimationFrame(() => navigationTrigger.current?.focus({ preventScroll: true }));
-	}, []);
 	const openPanel = useCallback(
 		(next: StudioPanel) => {
 			if (!panelActive.current)
-				opener.current =
-					mobile && navigationVisible
-						? navigationTrigger.current
-						: document.activeElement instanceof HTMLElement
-							? document.activeElement
-							: null;
+				opener.current = navigationOpen
+					? navigationTrigger.current
+					: document.activeElement instanceof HTMLElement
+						? document.activeElement
+						: null;
 			panelActive.current = true;
 			setPanel(next);
 			setNavigationOpen(false);
 		},
-		[mobile, navigationVisible],
+		[navigationOpen],
 	);
 	const closePanel = useCallback(() => {
 		setPanel(null);
@@ -97,17 +90,13 @@ function StudioShellContent({ children }: { children: ReactNode }) {
 		if (panel) closeRef.current?.focus({ preventScroll: true });
 	}, [panel]);
 	useEffect(() => {
-		setNavigationOpen(false);
-	}, [pathname]);
-	useEffect(() => {
 		function escape(event: KeyboardEvent) {
 			if (event.key !== "Escape" || event.defaultPrevented) return;
-			if (panel) closePanel();
-			else if (navigationVisible) closeNavigation();
+			if (panel && !navigationOpen) closePanel();
 		}
 		document.addEventListener("keydown", escape);
 		return () => document.removeEventListener("keydown", escape);
-	}, [panel, closePanel, navigationVisible, closeNavigation]);
+	}, [panel, closePanel, navigationOpen]);
 	function intercept(event: MouseEvent<HTMLDivElement>) {
 		if (
 			event.defaultPrevented ||
@@ -135,11 +124,10 @@ function StudioShellContent({ children }: { children: ReactNode }) {
 	}
 
 	useEffect(() => {
-		if (!mobile || (!panel && !navigationVisible)) return;
+		if (!mobile || !panel) return;
 		const previousOverflow = document.body.style.overflow;
 		document.body.style.overflow = "hidden";
-		const region = panel ? panelRef.current : navigationRef.current;
-		if (navigationVisible) region?.querySelector<HTMLElement>("a, button")?.focus();
+		const region = panelRef.current;
 		function containFocus(event: KeyboardEvent) {
 			if (event.key !== "Tab" || event.defaultPrevented || !region) return;
 			const focusable = Array.from(
@@ -162,7 +150,7 @@ function StudioShellContent({ children }: { children: ReactNode }) {
 			document.body.style.overflow = previousOverflow;
 			document.removeEventListener("keydown", containFocus);
 		};
-	}, [mobile, panel, navigationVisible]);
+	}, [mobile, panel]);
 	const sectionHref = (hash: string) =>
 		pathname === "/" || pathname === "/create" ? hash : "/" + hash;
 	const sidebar = (
@@ -171,13 +159,6 @@ function StudioShellContent({ children }: { children: ReactNode }) {
 				<Link href="/" aria-label="EzPic">
 					<Logo className="text-white [&_svg]:text-violet-300" label="EzPic" />
 				</Link>
-				<button
-					className="studio-icon studio-mobile-only"
-					onClick={closeNavigation}
-					aria-label={t("closeNavigation")}
-				>
-					<XIcon />
-				</button>
 			</div>
 			<nav className="studio-navigation" aria-label={t("navigation")}>
 				<Link
@@ -253,43 +234,21 @@ function StudioShellContent({ children }: { children: ReactNode }) {
 				onClickCapture={intercept}
 			>
 				{showSidebar && (
-					<aside
-						ref={navigationRef}
-						className="studio-sidebar"
-						data-open={navigationVisible}
-						inert={mobile && Boolean(panel)}
-					>
+					<aside className="studio-sidebar" inert={mobile && Boolean(panel)}>
 						{sidebar}
 					</aside>
 				)}
-				{navigationVisible && (
-					<button
-						className="studio-nav-backdrop"
-						aria-label={t("closeNavigation")}
-						onClick={closeNavigation}
-					/>
-				)}
-				<div className="studio-main" inert={mobile && Boolean(panel || navigationVisible)}>
+				<div className="studio-main" inert={mobile && Boolean(panel)}>
 					<header className="studio-topbar">
-						<div className="min-w-0 gap-3 flex items-center">
-							{showSidebar ? (
-								<>
-									<button
-										className="studio-icon studio-mobile-only"
-										ref={navigationTrigger}
-										aria-expanded={navigationVisible}
-										aria-label={t("openNavigation")}
-										onClick={() => setNavigationOpen(true)}
-									>
-										<MenuIcon />
-									</button>
-									<span className="text-xs truncate text-[#b7acbf]">{t("create")}</span>
-								</>
-							) : (
-								<Link href="/" aria-label="EzPic" className="shrink-0 rounded-lg">
-									<Logo className="text-white [&_svg]:text-violet-300" label="EzPic" />
-								</Link>
-							)}
+						<div className="studio-header-identity">
+							{showSidebar && <span className="studio-workspace-title">{t("create")}</span>}
+							<Link
+								href="/"
+								aria-label="EzPic"
+								className={showSidebar ? "studio-compact-brand" : undefined}
+							>
+								<Logo className="studio-header-brand" label="EzPic" />
+							</Link>
 						</div>
 						<nav className="studio-toplinks" aria-label={t("pageNavigation")}>
 							<StudioToolNavigation />
@@ -299,16 +258,11 @@ function StudioShellContent({ children }: { children: ReactNode }) {
 									{t("create")}
 								</Link>
 							)}
-							{registered && (
-								<div className="studio-mobile-notifications">
-									<NotificationCenter />
-								</div>
-							)}
 						</nav>
 						<div className="studio-header-account">
 							<HeaderPurchaseActions registered={registered} />
 							{registered ? (
-								<div className="gap-2 flex items-center">
+								<div className="studio-header-user-controls gap-2 flex items-center">
 									<div className="studio-header-notifications">
 										<NotificationCenter />
 									</div>
@@ -321,6 +275,21 @@ function StudioShellContent({ children }: { children: ReactNode }) {
 									{common("login")}
 								</Link>
 							)}
+							<HeaderNavigationMenu
+								registered={registered}
+								admin={user?.role === "admin"}
+								pricingHref={sectionHref("#pricing")}
+								open={navigationOpen}
+								onOpenChange={setNavigationOpen}
+								triggerRef={navigationTrigger}
+								restoreFocus={!panel}
+								account={
+									<>
+										<UserMenu showUserName studio />
+										<NotificationCenter />
+									</>
+								}
+							/>
 						</div>
 					</header>
 					{children}
