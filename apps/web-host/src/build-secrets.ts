@@ -48,7 +48,13 @@ function withModerationOverrides(source: string, environment: Record<string, str
 		"MODERATION_IMAGE_SEEAPI_ENABLED",
 		"MODERATION_IMAGE_SIGHTENGINE_ENABLED",
 	];
-	if (!keys.some((key) => environment[key] !== undefined)) return source;
+	// Legacy and test adapters may be inherited from the build runner. Only an
+	// explicit configured adapter or detector switch requests a production override.
+	if (
+		environment.MEDIA_SAFETY_ADAPTER !== "configured" &&
+		!keys.slice(1).some((key) => environment[key] !== undefined)
+	)
+		return source;
 	if (
 		environment.MEDIA_SAFETY_ADAPTER !== "configured" ||
 		keys.slice(1).some((key) => !["true", "false"].includes(environment[key] ?? "")) ||

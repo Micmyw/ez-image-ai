@@ -12,15 +12,27 @@ const unpackValues = (variables: ReturnType<typeof packCloudflareBuildEnvironmen
 	Object.fromEntries(Object.entries(variables).map(([key, item]) => [key, item.value]));
 
 describe("Cloudflare build secret transport", () => {
+	it.each(["test", "sightengine"])(
+		"ignores an ambient %s adapter unless configured moderation overrides are requested",
+		(adapter) => {
+			const source = "MEDIA_SAFETY_ADAPTER=sightengine\nPRIVATE_KEY=unchanged\n";
+			expect(
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: source,
+					MEDIA_SAFETY_ADAPTER: adapter,
+				}),
+			).toBe(source);
+		},
+	);
 	it("can add a server-only image scanner credential without rewriting the secret bundle", () => {
 		expect(
 			parseEnv(
 				readCloudflareBuildEnvironment({
 					CLOUDFLARE_PRODUCTION_ENV: "PRIVATE_KEY=unchanged\n",
-					SEEAPI_API_KEY: "test-key-12345678",
+					SEEAPI_API_KEY: "x".repeat(16),
 				}),
 			),
-		).toEqual({ PRIVATE_KEY: "unchanged", SEEAPI_API_KEY: "test-key-12345678" });
+		).toEqual({ PRIVATE_KEY: "unchanged", SEEAPI_API_KEY: "x".repeat(16) });
 		expect(() =>
 			readCloudflareBuildEnvironment({
 				CLOUDFLARE_PRODUCTION_ENV: "PRIVATE_KEY=unchanged",

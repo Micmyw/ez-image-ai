@@ -19,3 +19,14 @@ e458b5f2b2dff836ba9da9bc9277410467221afb:packages/jobs/src/runtime.test.ts:gener
 8938c213cae8c078bf05433b9acdc89aa96fa0be:packages/auth/lib/organization-deletion.integration.test.ts:generic-api-key:121
 8938c213cae8c078bf05433b9acdc89aa96fa0be:packages/logs/lib/redaction.test.ts:stripe-access-token:10
 8938c213cae8c078bf05433b9acdc89aa96fa0be:packages/logs/lib/redaction.test.ts:stripe-access-token:31
+# Synthetic SeeAPI unit-test values; replaced with a generated placeholder.
+31bf4317cce809f92968d98a55ceaec1064011a6:apps/web-host/src/build-secrets.test.ts:generic-api-key:20
+31bf4317cce809f92968d98a55ceaec1064011a6:apps/web-host/src/build-secrets.test.ts:generic-api-key:23
+# Historical placeholder PEM body "key" and public key-version label "launch-key-v1".
+bc30528a157976085b92c6cf322a9cc3009fb42f:packages/payments/provider/registry.test.ts:private-key:77
+4837b4637dbd915c146e82f66b7a18084ecfecd3:packages/api/modules/media/guest-admission-boundary.integration.test.ts:generic-api-key:172
+3f2afe8997748b2c59412e07534324260075573d:packages/api/modules/media/guest-admission-boundary.integration.test.ts:generic-api-key:152
+3f2afe8997748b2c59412e07534324260075573d:docs/operations/anonymous-standard-trial.md:generic-api-key:45
+4837b4637dbd915c146e82f66b7a18084ecfecd3:packages/api/modules/media/lib/guest-admission.test.ts:generic-api-key:233
+3f2afe8997748b2c59412e07534324260075573d:packages/api/modules/media/lib/guest-admission.test.ts:generic-api-key:203
+3f2afe8997748b2c59412e07534324260075573d:packages/api/modules/media/guest-capability.database.integration.test.ts:generic-api-key:35

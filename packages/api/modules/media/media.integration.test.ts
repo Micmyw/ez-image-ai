@@ -34,6 +34,9 @@ describe("media browser contract", () => {
 	it("distinguishes rejected prompts from an incomplete safety review", () => {
 		expect(stableMediaErrorCode(new Error("TEXT_MODERATION_REJECT"))).toBe("CONTENT_NOT_ALLOWED");
 		expect(stableMediaErrorCode(new Error("TEXT_MODERATION_REVIEW"))).toBe(
+			"CONTENT_REVIEW_REQUIRED",
+		);
+		expect(stableMediaErrorCode(new Error("TEXT_MODERATION_ERROR"))).toBe(
 			"SAFETY_CHECK_UNAVAILABLE",
 		);
 	});
