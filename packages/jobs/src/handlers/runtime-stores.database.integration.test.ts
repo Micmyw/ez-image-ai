@@ -101,6 +101,18 @@ describe("production media runtime stores", () => {
 	it("persists an asynchronous image check and polls the same task without submitting twice", async () => {
 		const seeded = await seedFinalizingJob();
 		const { assetId } = await seedBoundOutputAsset(seeded.jobId, "VERIFYING");
+		const finalizationStore = createDatabaseFinalizationStore(client);
+		const claim = await finalizationStore.claimFinalization(seeded);
+		if (!claim) throw new Error("Expected finalization claim");
+		await client.mediaAsset.update({
+			where: { id: assetId },
+			data: { sourceUrl: `provider-output:${claim.candidates[0]!.key}` },
+		});
+		await finalizationStore.recordFinalizationRetry(claim, {
+			stage: "MODERATION",
+			code: "MODERATION_RETRYABLE",
+			retryable: true,
+		});
 		const submitImage = vi.fn(async (input: { idempotencyKey: string; ruleVersion: string }) => ({
 			moderationTaskId: "task-seeapi-durable",
 			status: "QUEUED" as const,
@@ -136,6 +148,36 @@ describe("production media runtime stores", () => {
 			status: "READY",
 			verificationProviderTaskId: "task-seeapi-durable",
 		});
+		const wake = await client.outboxEvent.findFirst({
+			where: {
+				aggregateId: seeded.jobId,
+				eventType: "GENERATION_FINALIZE_RETRY",
+				availableAt: { lte: new Date() },
+			},
+		});
+		expect(wake).not.toBeNull();
+		const persistCandidate = vi.fn();
+		await expect(
+			finalizeMedia(seeded, { store: finalizationStore, persistCandidate }),
+		).resolves.toMatchObject({ outcome: "FINALIZED", readyOutputs: 1 });
+		expect(persistCandidate).not.toHaveBeenCalled();
+		vi.stubEnv("MEDIA_SAFETY_ADAPTER", "configured");
+		vi.stubEnv("MODERATION_IMAGE_SEEAPI_ENABLED", "true");
+		vi.stubEnv("MODERATION_IMAGE_SIGHTENGINE_ENABLED", "false");
+		try {
+			const settlement = { store: createDatabaseSettlementStore(client) };
+			await expect(settleGeneration(seeded, settlement)).resolves.toMatchObject({
+				outcome: "SETTLED",
+			});
+			await expect(settleGeneration(seeded, settlement)).resolves.toMatchObject({
+				outcome: "SKIPPED",
+			});
+		} finally {
+			vi.unstubAllEnvs();
+		}
+		expect(
+			await client.creditLedgerEntry.count({ where: { referenceKey: `settle:${seeded.jobId}` } }),
+		).toBe(1);
 	});
 
 	it("waives only one lifetime output content rejection across concurrent jobs and settlement replays", async () => {
@@ -2299,18 +2341,40 @@ describe("production media runtime stores", () => {
 		});
 	});
 
-	it("does not queue output settlement before finalization records a complete scan", async () => {
-		const seeded = await seedFinalizingJob();
-		const output = await seedBoundOutputAsset(seeded.jobId, "VERIFYING");
+	it.each(["ALLOW", "REJECT"] as const)(
+		"wakes finalization after %s without settling an incomplete scan",
+		async (decision) => {
+			const seeded = await seedFinalizingJob();
+			const output = await seedBoundOutputAsset(seeded.jobId, "VERIFYING");
+			const sibling = await seedBoundOutputAsset(seeded.jobId, "VERIFYING");
 
-		await verifyUpload({ assetId: output.assetId }, createOutputVerificationDependencies("ALLOW"));
+			await verifyUpload(
+				{ assetId: output.assetId },
+				createOutputVerificationDependencies(decision),
+			);
+			await verifyUpload(
+				{ assetId: output.assetId },
+				createOutputVerificationDependencies(decision),
+			);
+			const wakes = await client.outboxEvent.findMany({
+				where: { aggregateId: seeded.jobId, eventType: "GENERATION_FINALIZE_RETRY" },
+			});
+			expect(wakes).toHaveLength(1);
+			expect(wakes[0]!.availableAt.getTime()).toBeLessThanOrEqual(Date.now());
+			await expect(
+				client.mediaAsset.findUniqueOrThrow({ where: { id: sibling.assetId } }),
+			).resolves.toMatchObject({ status: "VERIFYING" });
+			await expect(
+				client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+			).resolves.toMatchObject({ status: "ACTIVE", settledAmount: 0n });
 
-		await expect(
-			client.outboxEvent.count({
-				where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
-			}),
-		).resolves.toBe(0);
-	});
+			await expect(
+				client.outboxEvent.count({
+					where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
+				}),
+			).resolves.toBe(0);
+		},
+	);
 
 	it("charges only approved output units and releases the rejected-output remainder", async () => {
 		const seeded = await seedReservedJob("image-fast", {

@@ -58,6 +58,12 @@ without a task ID is withheld for recovery/review, not resubmitted blindly. Dete
 form the evidence identity, so changing enabled checks cannot reuse an approval from a different
 combination. Text quotes also bind their approved detector combination before credit reservation.
 
+Completing output verification writes a deduplicated finalization wake-up in the same transaction
+when the complete output scan has not yet been recorded. This avoids waiting for the generic
+finalization backoff after an asynchronous check finishes. It does not queue settlement early:
+finalization must still inspect every candidate before the existing settlement path can proceed.
+Replayed verification and delivery do not create another provider generation or credit settlement.
+
 ## Coverage and operating cost
 
 Waffo's documented categories focus on sexual content and exploitation; SeeAPI's interface returns

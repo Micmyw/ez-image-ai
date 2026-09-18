@@ -11,6 +11,10 @@
   safety checks without labeling an uncertain verdict as a confirmed violation.
 - Configure production text checks with Waffo and image checks with SeeAPI in both website and jobs
   deployments, including persistent build overrides so later releases keep the selected detectors.
+- Resume result finalization as soon as an asynchronous image check finishes, without waiting for
+  a general retry delay. Keep complete-output verification and exactly-once credit settlement.
+- Clarify that an unapproved instruction must be edited and submitted again; the stopped request
+  does not continue automatically.
 
 ## 2026-09-17
 

@@ -1604,7 +1604,23 @@ async function resolveJobsWaitingForMediaVerification(
 				where: { dedupeKey: `generation-settle:${binding.jobId}` },
 				select: { id: true },
 			});
-			if (!completedFinalizationScan) continue;
+			if (!completedFinalizationScan) {
+				// Async moderation can finish before the finalization retry is due.
+				// Wake the complete output scan now; only that scan may queue settlement.
+				const dedupeKey = `generation-finalize-after-output-verification:${binding.jobId}:${input.assetId}:g${input.verificationGeneration}`;
+				await tx.outboxEvent.upsert({
+					where: { dedupeKey },
+					create: {
+						eventType: "GENERATION_FINALIZE_RETRY",
+						aggregateType: "GENERATION_JOB",
+						aggregateId: binding.jobId,
+						dedupeKey,
+						payload: { jobId: binding.jobId, version: binding.job.version },
+					},
+					update: {},
+				});
+				continue;
+			}
 			await tx.outboxEvent.upsert({
 				where: {
 					dedupeKey: `generation-settle-after-output-verification:${binding.jobId}:${input.assetId}:g${input.verificationGeneration}`,

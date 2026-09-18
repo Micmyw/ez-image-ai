@@ -91,9 +91,14 @@ submission; retry or remove it explicitly to return to text generation. After su
 details to check whether it is still processing or has failed. Avoid repeatedly submitting the same
 edit while its outcome is uncertain.
 
-An instruction needing further safety review asks you to revise it or contact support. An unsupported
-language is identified separately. Only a temporarily unavailable check suggests trying again later.
-These stops happen before generation and do not charge generation credits.
+An instruction that the safety check cannot approve asks you to revise and submit it again, or contact
+support. That stopped request does not continue automatically. An unsupported language is identified
+separately. Only a temporarily unavailable check suggests trying again later. These stops happen before
+generation and do not charge generation credits.
+
+“Preparing your result” includes private storage, image safety checks, and credit settlement. When the
+image check finishes, the same task resumes finalization. Its result appears after those steps complete;
+you can also reopen it from History without submitting another generation.
 
 [Credits](/docs/credits) explains reservations and releases. [Contact support](/contact) if the status
 remains unresolved; include the visible error message, but do not send private access links or passwords.

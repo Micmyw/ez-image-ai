@@ -1197,7 +1197,7 @@
 				"safeError": "La retouche n’a pas pu démarrer. Vérifiez le formulaire ou réessayez dans quelques instants.",
 				"safetyUnavailable": "La vérification de sécurité n’a pas pu aboutir. Modifiez l’instruction ou réessayez plus tard. Aucun crédit n’a été facturé et votre exonération unique reste disponible.",
 				"priceChanged": "Le prix en crédits a changé. Vérifiez le coût actualisé sur le bouton, puis réessayez.",
-				"contentReviewRequired": "Cette instruction nécessite un examen de sécurité supplémentaire. Modifiez-la ou contactez l’assistance. Aucun crédit n’a été facturé.",
+				"contentReviewRequired": "Cette instruction n’a pas pu être approuvée. Modifiez-la et soumettez-la à nouveau. Aucun crédit n’a été facturé.",
 				"textLanguageUnsupported": "Cette langue n’est pas prise en charge par la vérification de sécurité. Aucun crédit n’a été facturé."
 			},
 			"modelMenu": {
@@ -1467,7 +1467,7 @@
 				"prompt": {
 					"blocked": "Cette instruction n’a pas passé la vérification de sécurité. La génération n’a pas commencé.",
 					"unavailable": "Nous n’avons pas pu terminer la vérification de cette instruction. La génération n’a pas commencé.",
-					"review": "Cette instruction nécessite un examen de sécurité supplémentaire. La génération n’a pas commencé.",
+					"review": "Cette instruction n’a pas pu être approuvée. La génération n’a pas commencé.",
 					"unsupportedLanguage": "Nous ne pouvons pas vérifier ce prompt dans sa langue actuelle. La génération n’a pas commencé."
 				},
 				"input": {
@@ -1508,7 +1508,7 @@
 				"output": "Modifiez l’instruction ou choisissez une autre image de référence avant de lancer une nouvelle génération. Le nouveau devis indiquera son coût en crédits.",
 				"unavailable": "Réessayez plus tard. Si le problème persiste, contactez l’assistance.",
 				"guestOutput": "Contactez l’assistance si vous avez besoin d’aide concernant ce résultat. Le statut de votre essai est indiqué ci-dessous.",
-				"review": "Modifiez l’instruction pour respecter la politique de contenu ou contactez l’assistance si vous pensez qu’il s’agit d’une erreur.",
+				"review": "Modifiez l’instruction et soumettez-la à nouveau. Cette demande ne reprendra pas automatiquement. Contactez l’assistance si vous pensez qu’il s’agit d’une erreur.",
 				"unsupportedLanguage": "Utilisez une langue prise en charge pour une instruction conforme à la politique ou contactez l’assistance."
 			},
 			"policy": "Politique de contenu",
@@ -1517,7 +1517,7 @@
 			"reference": "Indiquez cette référence de tâche lorsque vous contactez l’assistance :",
 			"replaceImage": "Choisir une autre image",
 			"editInstruction": "Modifier l’instruction",
-			"reviewRequired": "La vérification de sécurité n’a pas pu approuver cette instruction. Cela ne confirme pas une violation des règles de contenu.",
+			"reviewRequired": "Le contrôle de sécurité a signalé un problème potentiel avec la politique de contenu. Il ne s’agit pas d’une violation confirmée.",
 			"unsupportedLanguage": "La vérification de sécurité actuelle ne prend pas en charge cette langue de prompt."
 		}
 	},

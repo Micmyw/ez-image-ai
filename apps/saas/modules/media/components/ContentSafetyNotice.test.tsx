@@ -22,12 +22,13 @@ describe("prompt safety feedback", () => {
 			);
 			expect(html).toContain(
 				outcome === "review"
-					? "needs further safety review"
+					? "could not be approved"
 					: "current safety check does not support this prompt language",
 			);
 			expect(html).toContain("Generation has not started");
 			expect(html).toContain("No generation credits were charged");
 			expect(html).toContain("Edit instruction");
+			if (outcome === "review") expect(html).toContain("will not continue automatically");
 			expect(html).not.toMatch(/Try again later|sexually explicit content|Waffo|Sightengine/);
 		},
 	);
@@ -37,7 +38,7 @@ describe("prompt safety feedback", () => {
 				<ContentSafetyNotice stage="prompt" outcome="review" billing="beforeGeneration" />
 			</NextIntlClientProvider>,
 		);
-		expect(html).toContain("weitere Sicherheitsprüfung");
-		expect(html).not.toContain("needs further safety review");
+		expect(html).toContain("konnte nicht freigegeben werden");
+		expect(html).toContain("wird nicht automatisch fortgesetzt");
 	});
 });

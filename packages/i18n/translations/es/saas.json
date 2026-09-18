@@ -1197,7 +1197,7 @@
 				"safeError": "No pudimos iniciar la edición. Comprueba el formulario o inténtalo de nuevo en unos minutos.",
 				"safetyUnavailable": "No pudimos completar la revisión de seguridad. Modifica la instrucción o inténtalo más tarde. No se han cobrado créditos ni usado tu exención única.",
 				"priceChanged": "El precio en créditos ha cambiado. Comprueba el coste actualizado en el botón y vuelve a enviar.",
-				"contentReviewRequired": "Esta instrucción requiere una revisión de seguridad adicional. Revísala o contacta con soporte. No se han cobrado créditos.",
+				"contentReviewRequired": "No se pudo aprobar esta instrucción. Modifícala y vuelve a enviarla. No se cobraron créditos.",
 				"textLanguageUnsupported": "La revisión de seguridad no admite este idioma. No se han cobrado créditos."
 			},
 			"modelMenu": {
@@ -1467,7 +1467,7 @@
 				"prompt": {
 					"blocked": "Esta instrucción no superó la revisión de seguridad. La generación no ha comenzado.",
 					"unavailable": "No pudimos terminar de revisar esta instrucción. La generación no ha comenzado.",
-					"review": "Esta instrucción requiere una revisión de seguridad adicional. La generación no ha comenzado.",
+					"review": "No se pudo aprobar esta instrucción. La generación no ha comenzado.",
 					"unsupportedLanguage": "No podemos revisar este prompt en su idioma actual. La generación no ha comenzado."
 				},
 				"input": {
@@ -1508,7 +1508,7 @@
 				"output": "Edita la instrucción o elige otra imagen de referencia antes de iniciar una nueva generación. El nuevo presupuesto mostrará su coste en créditos.",
 				"unavailable": "Vuelve a intentarlo más tarde. Si el problema persiste, contacta con soporte.",
 				"guestOutput": "Contacta con soporte si necesitas ayuda con este resultado. El estado de tu prueba se muestra a continuación.",
-				"review": "Revisa la instrucción para cumplir la política de contenido o contacta con soporte si crees que es un error.",
+				"review": "Modifica la instrucción y vuelve a enviarla. Esta solicitud no continuará automáticamente. Contacta con soporte si crees que se trata de un error.",
 				"unsupportedLanguage": "Usa un idioma compatible para una instrucción que cumpla la política o contacta con soporte."
 			},
 			"policy": "Política de contenido",
@@ -1517,7 +1517,7 @@
 			"reference": "Incluye esta referencia de tarea al contactar con soporte:",
 			"replaceImage": "Elegir otra imagen",
 			"editInstruction": "Editar instrucción",
-			"reviewRequired": "La revisión de seguridad no pudo aprobar esta instrucción. Esto no confirma una infracción de contenido.",
+			"reviewRequired": "La comprobación de seguridad detectó un posible problema con la política de contenido. No se trata de una infracción confirmada.",
 			"unsupportedLanguage": "La revisión de seguridad actual no admite el idioma de este prompt."
 		}
 	},

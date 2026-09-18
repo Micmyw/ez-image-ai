@@ -1197,7 +1197,7 @@
 				"safeError": "We could not start this edit. Check the form or try again shortly.",
 				"safetyUnavailable": "We could not complete the safety check. Please revise the instruction or try again later. No credits were charged, and your one-time waiver was not used.",
 				"priceChanged": "The credit price changed. Check the updated cost on the button, then submit again.",
-				"contentReviewRequired": "This instruction needs further safety review. Please revise it or contact support. No credits were charged.",
+				"contentReviewRequired": "This instruction could not be approved. Please revise it and submit again. No credits were charged.",
 				"textLanguageUnsupported": "This prompt language is not supported by the safety check. No credits were charged."
 			},
 			"modelMenu": {
@@ -1467,7 +1467,7 @@
 				"prompt": {
 					"blocked": "This instruction did not pass the safety check. Generation has not started.",
 					"unavailable": "We could not finish checking this instruction. Generation has not started.",
-					"review": "This instruction needs further safety review. Generation has not started.",
+					"review": "This instruction could not be approved. Generation has not started.",
 					"unsupportedLanguage": "We cannot check this prompt in its current language. Generation has not started."
 				},
 				"input": {
@@ -1508,7 +1508,7 @@
 				"output": "Edit the instruction or choose a different reference image before starting a new generation. The new quote will show its credit cost.",
 				"unavailable": "Try again later. If this keeps happening, contact support.",
 				"guestOutput": "Contact support if you need help with this result. Your trial status is shown below.",
-				"review": "Revise the instruction to follow the content policy, or contact support if you believe this was a mistake.",
+				"review": "Edit the instruction and submit it again. This request will not continue automatically. Contact support if you believe this was a mistake.",
 				"unsupportedLanguage": "Use a supported language for a policy-compliant instruction, or contact support for help."
 			},
 			"policy": "Content policy",
@@ -1517,7 +1517,7 @@
 			"reference": "Include this task reference when contacting support:",
 			"replaceImage": "Choose another image",
 			"editInstruction": "Edit instruction",
-			"reviewRequired": "The safety check could not approve this instruction. This is not a confirmed content violation.",
+			"reviewRequired": "The safety check flagged a possible content-policy issue. This is not a confirmed content violation.",
 			"unsupportedLanguage": "The current safety check does not support this prompt language."
 		}
 	},

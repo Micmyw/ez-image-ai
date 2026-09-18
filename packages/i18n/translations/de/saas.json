@@ -1197,7 +1197,7 @@
 				"safeError": "Die Bearbeitung konnte nicht gestartet werden. Prüfen Sie das Formular oder versuchen Sie es später erneut.",
 				"safetyUnavailable": "Die Sicherheitsprüfung konnte nicht abgeschlossen werden. Bitte ändere die Anweisung oder versuche es später erneut. Keine Credits wurden berechnet; die einmalige Ausnahme bleibt erhalten.",
 				"priceChanged": "Der Credit-Preis hat sich geändert. Prüfe die aktualisierten Kosten auf der Schaltfläche und sende erneut.",
-				"contentReviewRequired": "Diese Anweisung erfordert eine weitere Sicherheitsprüfung. Bitte überarbeite sie oder kontaktiere den Support. Es wurden keine Credits berechnet.",
+				"contentReviewRequired": "Diese Anweisung konnte nicht freigegeben werden. Bitte überarbeiten Sie sie und senden Sie sie erneut. Es wurden keine Credits berechnet.",
 				"textLanguageUnsupported": "Diese Prompt-Sprache wird von der Sicherheitsprüfung nicht unterstützt. Es wurden keine Credits berechnet."
 			},
 			"modelMenu": {
@@ -1467,7 +1467,7 @@
 				"prompt": {
 					"blocked": "Diese Anweisung hat die Sicherheitsprüfung nicht bestanden. Die Generierung wurde nicht gestartet.",
 					"unavailable": "Die Prüfung dieser Anweisung konnte nicht abgeschlossen werden. Die Generierung wurde nicht gestartet.",
-					"review": "Diese Anweisung erfordert eine weitere Sicherheitsprüfung. Die Generierung wurde nicht gestartet.",
+					"review": "Diese Anweisung konnte nicht freigegeben werden. Die Generierung wurde nicht gestartet.",
 					"unsupportedLanguage": "Wir können diesen Prompt in seiner aktuellen Sprache nicht prüfen. Die Generierung wurde nicht gestartet."
 				},
 				"input": {
@@ -1508,7 +1508,7 @@
 				"output": "Ändere die Anweisung oder wähle ein anderes Referenzbild, bevor du eine neue Generierung startest. Die neuen Credit-Kosten werden vorher angezeigt.",
 				"unavailable": "Versuche es später erneut. Wenn das Problem bestehen bleibt, kontaktiere den Support.",
 				"guestOutput": "Kontaktiere den Support, wenn du Hilfe mit diesem Ergebnis benötigst. Dein Teststatus wird unten angezeigt.",
-				"review": "Überarbeite die Anweisung entsprechend der Inhaltsrichtlinie oder kontaktiere den Support, wenn du einen Fehler vermutest.",
+				"review": "Bearbeiten Sie die Anweisung und senden Sie sie erneut. Diese Anfrage wird nicht automatisch fortgesetzt. Wenden Sie sich an den Support, wenn Sie einen Fehler vermuten.",
 				"unsupportedLanguage": "Verwende eine unterstützte Sprache für eine richtlinienkonforme Anweisung oder kontaktiere den Support."
 			},
 			"policy": "Inhaltsrichtlinie",
@@ -1517,7 +1517,7 @@
 			"reference": "Gib beim Kontakt mit dem Support diese Auftragsnummer an:",
 			"replaceImage": "Anderes Bild wählen",
 			"editInstruction": "Anweisung bearbeiten",
-			"reviewRequired": "Die Sicherheitsprüfung konnte diese Anweisung nicht freigeben. Dies ist kein bestätigter Inhaltsverstoß.",
+			"reviewRequired": "Die Sicherheitsprüfung hat ein mögliches Problem mit den Inhaltsrichtlinien erkannt. Dies ist kein bestätigter Verstoß.",
 			"unsupportedLanguage": "Die aktuelle Sicherheitsprüfung unterstützt diese Prompt-Sprache nicht."
 		}
 	},
