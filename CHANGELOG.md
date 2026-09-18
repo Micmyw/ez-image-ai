@@ -2,6 +2,10 @@
 
 ## 2026-09-19
 
+### Search Console verification
+
+- Allow production readiness checks to pass without an HTML verification token when Search Console uses DNS verification.
+
 ### Credit settlement feedback
 
 - Keep completed and canceled generation results refreshing until reserved credits are charged or returned, and show pending credits until settlement is confirmed.

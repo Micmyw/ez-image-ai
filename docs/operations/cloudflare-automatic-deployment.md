@@ -62,6 +62,11 @@ pnpm cloudflare:git:secrets
 Git，也不粘贴到聊天中。构建变量与服务运行时变量是两套设置，仓库中的部署命令会根据上述
 配置生成并应用对应的运行时机密文件。
 
+Search Console 使用 DNS 验证时，`NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION` 可以留空或不设置；
+它只用于可选的 HTML 验证标签，不再作为生产就绪检查的必填项。`EZPIC_GSC_PROPERTY` 仍填写
+实际资源标识，例如域名资源的 `sc-domain:ezimageai.com`。就绪检查不验证 Google 账号中的
+所有权状态；DNS 记录及 Search Console 中的验证结果应单独确认。
+
 部署令牌选择 Cloudflare 托管的构建 API 令牌，或选择已有且适用于当前生产账户的令牌。
 Cloudflare 默认生成的令牌包含 Workers 脚本、Workers 路由、KV、R2 的编辑权限，以及账户和
 用户的读取权限。后台任务部署还需要更新现有 Workflow 和使用 Hyperdrive 的相应权限。

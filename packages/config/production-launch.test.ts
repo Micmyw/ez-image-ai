@@ -123,6 +123,19 @@ function environmentMatrix() {
 }
 
 describe("EzPic production launch environment", () => {
+	it.each([undefined, "", "   "])(
+		"accepts DNS-verified Search Console without an HTML verification token (%s)",
+		(token) => {
+			expect(() =>
+				validateEzPicLaunchEnvironment({
+					...productionEnvironment,
+					EZPIC_GSC_PROPERTY: "sc-domain:ezpic.ai",
+					NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION: token,
+				}),
+			).not.toThrow();
+		},
+	);
+
 	it("does not activate Waffo payments when only its prompt-scanning credentials are supplied", () => {
 		const input: Record<string, unknown> = {
 			...productionEnvironment,
@@ -560,7 +573,7 @@ describe("EzPic production launch environment", () => {
 			"WAFFO_PRIVATE_KEY",
 			"SENTRY_DSN",
 			"NEXT_PUBLIC_POSTHOG_KEY",
-			"NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION",
+			"EZPIC_GSC_PROPERTY",
 			"RESEND_API_KEY",
 		] as const) {
 			const input: Record<string, string | undefined> = { ...productionEnvironment };

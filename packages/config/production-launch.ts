@@ -280,10 +280,7 @@ export function validateEzPicLaunchEnvironment(
 	if (!/^phc_[A-Za-z0-9_-]{10,}$/.test(requiredString(input, "NEXT_PUBLIC_POSTHOG_KEY"))) {
 		throw new Error("NEXT_PUBLIC_POSTHOG_KEY must be a configured public project key");
 	}
-	assertNonPlaceholderToken(
-		requiredString(input, "NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION"),
-		"NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION",
-	);
+	// Search Console may be verified through DNS; its optional HTML token is not a readiness gate.
 	assertNonPlaceholderToken(requiredString(input, "EZPIC_GSC_PROPERTY"), "EZPIC_GSC_PROPERTY");
 	assertProductionSupportEmail(requiredString(input, "NEXT_PUBLIC_SUPPORT_EMAIL"));
 	assertProductionMailFrom(requiredString(input, "MAIL_FROM"));
