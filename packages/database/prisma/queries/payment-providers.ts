@@ -133,6 +133,9 @@ export async function createPaymentCheckoutIntent(
 				replay.providerCheckoutUrl
 			) {
 				if (replay.expiresAt && replay.expiresAt <= now) {
+					// A link deadline cannot settle an approval or payment already in flight.
+					if (replay.productKind === "PLAN" && ["paypal", "waffo"].includes(replay.provider))
+						return { unsafeReplay: true as const };
 					await tx.paymentCheckoutIntent.update({
 						where: { id: replay.id },
 						data: { status: "EXPIRED", activeScopeKey: null },
@@ -155,6 +158,8 @@ export async function createPaymentCheckoutIntent(
 			active.expiresAt &&
 			active.expiresAt <= now
 		) {
+			if (active.productKind === "PLAN" && ["paypal", "waffo"].includes(active.provider))
+				throw new Error("PAYMENT_CHECKOUT_INTENT_CONFLICT");
 			await tx.paymentCheckoutIntent.update({
 				where: { id: active.id },
 				data: { status: "EXPIRED", activeScopeKey: null },
@@ -312,9 +317,10 @@ async function assertSubscriptionCheckoutAllowed(
 			productKind: "PLAN",
 			...(input.checkoutIntentId ? { id: { not: input.checkoutIntentId } } : {}),
 			status: { in: ["CREATED", "PROVIDER_CREATING", "PROVIDER_PENDING", "REVIEW"] },
-			// Only a provider-bound pending session with an explicit provider expiry
-			// may stop blocking. Local timeouts cannot settle uncertain acceptance.
+			// PayPal/Waffo subscription approval or payment can outlive the link.
+			// Keep admission fenced until provider inspection confirms closure.
 			OR: [
+				{ provider: { in: ["paypal", "waffo"] } },
 				{ status: { not: "PROVIDER_PENDING" } },
 				{ expiresAt: null },
 				{ expiresAt: { gt: now } },

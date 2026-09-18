@@ -141,6 +141,9 @@ export async function createPaymentCheckoutIntent(input: CreatePaymentCheckoutIn
 					replay.providerCheckoutUrl
 				) {
 					if (replay.expiresAt && replay.expiresAt <= now) {
+						// Link expiry cannot settle an approval or payment already in flight.
+						if (replay.productKind === "PLAN" && ["paypal", "waffo"].includes(replay.provider))
+							return { unsafeReplay: true as const };
 						await tx
 							.update(paymentCheckoutIntent)
 							.set({ status: "EXPIRED", activeScopeKey: null, updatedAt: now })
@@ -169,6 +172,8 @@ export async function createPaymentCheckoutIntent(input: CreatePaymentCheckoutIn
 				active.expiresAt &&
 				active.expiresAt <= now
 			) {
+				if (active.productKind === "PLAN" && ["paypal", "waffo"].includes(active.provider))
+					throw new Error("PAYMENT_CHECKOUT_INTENT_CONFLICT");
 				await tx
 					.update(paymentCheckoutIntent)
 					.set({ status: "EXPIRED", activeScopeKey: null, updatedAt: now })
@@ -267,7 +272,7 @@ async function assertSubscriptionCheckoutAllowed(
 		WHERE "ownerType" = ${input.ownerType} AND "ownerId" = ${input.ownerId} AND "productKind" = 'PLAN'
 		${input.checkoutIntentId ? sql`AND id <> ${input.checkoutIntentId}` : sql``}
 		AND status IN ('CREATED', 'PROVIDER_CREATING', 'PROVIDER_PENDING', 'REVIEW')
-		AND (status <> 'PROVIDER_PENDING' OR "expiresAt" IS NULL OR "expiresAt" > ${now}
+		AND (provider IN ('paypal', 'waffo') OR status <> 'PROVIDER_PENDING' OR "expiresAt" IS NULL OR "expiresAt" > ${now}
 			OR "providerSessionId" IS NULL OR "providerCheckoutUrl" IS NULL)
 		LIMIT 1`);
 	if (pending.rows.length) throw new Error("PAYMENT_CHECKOUT_INTENT_CONFLICT");

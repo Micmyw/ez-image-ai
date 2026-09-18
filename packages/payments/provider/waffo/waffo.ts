@@ -125,12 +125,12 @@ export async function createWaffoCheckoutLink(
 	) {
 		throw new Error("WAFFO_CHECKOUT_RESPONSE_INVALID");
 	}
-	const expiresAt =
-		tokenExpiresAt && tokenExpiresAt < sessionExpiresAt ? tokenExpiresAt : sessionExpiresAt;
+	// The authentication token and checkout session have separate lifetimes.
+	// Token expiry does not close a checkout the buyer already opened.
 	return {
 		checkoutUrl: result.checkoutUrl,
 		providerSessionId: result.sessionId,
-		expiresAt,
+		expiresAt: sessionExpiresAt,
 	};
 }
 

@@ -2,6 +2,12 @@
 
 ## 2026-09-18
 
+### Pending subscription checkout
+
+- Use Waffo's checkout-session expiry rather than its shorter authentication-token expiry.
+- Keep unresolved PayPal and Waffo subscription attempts reserved after link expiry until
+  provider closure is confirmed, including retries and cross-provider checkout requests.
+
 ### Plan selection
 
 - Keep the editor's plan-selection page in the shared purple workspace, with matching

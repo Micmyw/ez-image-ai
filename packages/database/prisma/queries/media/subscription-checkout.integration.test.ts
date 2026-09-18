@@ -213,6 +213,36 @@ describe("account-wide subscription checkout admission", () => {
 		).rejects.toThrow("PAYMENT_SUBSCRIPTION_ALREADY_EXISTS");
 	});
 
+	it.each(["paypal", "waffo"] as const)(
+		"blocks another provider after a %s checkout link expires while payment remains unresolved",
+		async (provider) => {
+			const ownerId = owner();
+			const first = await createPaymentCheckoutIntent(command(ownerId, provider), client);
+			await client.paymentCheckoutIntent.update({
+				where: { id: first.intent.id },
+				data: {
+					status: "PROVIDER_PENDING",
+					providerSessionId: `pending-${crypto.randomUUID()}`,
+					providerCheckoutUrl: "https://checkout.example.test/expired",
+					expiresAt: new Date(now.getTime() - 1),
+				},
+			});
+			await expect(
+				createPaymentCheckoutIntent(
+					command(ownerId, provider === "paypal" ? "waffo" : "paypal"),
+					client,
+				),
+			).rejects.toThrow("PAYMENT_CHECKOUT_INTENT_CONFLICT");
+			expect(await client.paymentCheckoutIntent.count({ where: { ownerId } })).toBe(1);
+			await expect(
+				client.paymentCheckoutIntent.findUnique({ where: { id: first.intent.id } }),
+			).resolves.toMatchObject({
+				status: "PROVIDER_PENDING",
+				activeScopeKey: first.intent.activeScopeKey,
+			});
+		},
+	);
+
 	it("does not open an admission gap while a checkout becomes a subscription", async () => {
 		const ownerId = owner();
 		const first = await createPaymentCheckoutIntent(command(ownerId), client);

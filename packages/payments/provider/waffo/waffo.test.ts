@@ -93,7 +93,7 @@ describe("Waffo Pancake SDK boundary", () => {
 		expect(cancelSubscription).toHaveBeenCalledWith({ orderId: "ORD_subscription" });
 	});
 
-	it("uses typed authenticated checkout with stable owner and intent correlation", async () => {
+	it("keeps the checkout session expiry when the authentication token expires earlier", async () => {
 		const create = vi.fn().mockResolvedValue({
 			sessionId: "session-1",
 			checkoutUrl: "https://pancake.waffo.ai/checkout/session-1#token=jwt",
@@ -110,7 +110,7 @@ describe("Waffo Pancake SDK boundary", () => {
 		await expect(createWaffoCheckoutLink(client, checkoutOptions)).resolves.toEqual({
 			checkoutUrl: "https://pancake.waffo.ai/checkout/session-1#token=jwt",
 			providerSessionId: "session-1",
-			expiresAt: new Date("2026-08-31T00:05:00Z"),
+			expiresAt: new Date("2026-08-31T01:00:00Z"),
 		});
 		expect(create).toHaveBeenCalledWith({
 			productId: "PROD_0123456789AbCdEfGhIjKl",

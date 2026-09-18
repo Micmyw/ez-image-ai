@@ -415,33 +415,35 @@ describe("createPaymentCheckoutIntent active checkout reuse", () => {
 		expect(update).not.toHaveBeenCalled();
 	});
 
-	it("expires an explicitly stale checkout before creating a replacement", async () => {
-		const active = {
-			...pendingSubscription,
-			expiresAt: new Date("2026-09-06T05:00:00.000Z"),
-		};
-		const replacement = { id: "intent-subscription-2", status: "CREATED" };
-		const { client, create, createAlias, update } = clientWithActive(active);
-		create.mockResolvedValue(replacement);
-		update.mockResolvedValue(active);
+	it.each(["paypal", "waffo"] as const)(
+		"keeps an expired %s subscription checkout fenced until provider closure is confirmed",
+		async (provider) => {
+			const active = {
+				...pendingSubscription,
+				provider,
+				expiresAt: new Date("2026-09-06T05:00:00.000Z"),
+			};
+			const replacement = { id: "intent-subscription-2", status: "CREATED" };
+			const { client, create, createAlias, update } = clientWithActive(active);
+			create.mockResolvedValue(replacement);
+			update.mockResolvedValue(active);
 
-		await expect(
-			createPaymentCheckoutIntent(
-				{
-					...subscriptionCommand,
-					idempotencyKey: "subscription-attempt-2",
-					now: new Date("2026-09-06T06:00:00.000Z"),
-				},
-				client as never,
-			),
-		).resolves.toEqual({ intent: replacement, replayed: false });
-		expect(update).toHaveBeenCalledWith({
-			where: { id: pendingSubscription.id },
-			data: { status: "EXPIRED", activeScopeKey: null },
-		});
-		expect(createAlias).not.toHaveBeenCalled();
-		expect(create).toHaveBeenCalledOnce();
-	});
+			await expect(
+				createPaymentCheckoutIntent(
+					{
+						...subscriptionCommand,
+						provider,
+						idempotencyKey: "subscription-attempt-2",
+						now: new Date("2026-09-06T06:00:00.000Z"),
+					},
+					client as never,
+				),
+			).rejects.toThrow("PAYMENT_CHECKOUT_INTENT_CONFLICT");
+			expect(update).not.toHaveBeenCalled();
+			expect(createAlias).not.toHaveBeenCalled();
+			expect(create).not.toHaveBeenCalled();
+		},
+	);
 
 	it("reuses the persisted credit-pack snapshot instead of recalculating a new request", async () => {
 		const firstEvaluation = new Date("2026-09-06T04:00:00.000Z");
@@ -581,46 +583,51 @@ describe("createPaymentCheckoutIntent active checkout reuse", () => {
 		).rejects.toThrow("PAYMENT_CHECKOUT_INTENT_REPLAY_UNSAFE");
 	});
 
-	it("expires the original intent before rejecting an explicitly stale alias replay", async () => {
-		const staleIntent = {
-			...pendingSubscription,
-			expiresAt: new Date("2026-09-06T05:00:00.000Z"),
-		};
-		const update = vi.fn().mockResolvedValue(staleIntent);
-		const transaction = {
-			$queryRaw: vi.fn().mockResolvedValue([]),
-			subscription: { findFirst: vi.fn().mockResolvedValue(null) },
-			purchase: { findFirst: vi.fn().mockResolvedValue(null) },
-			paymentCheckoutIntent: {
-				findFirst: vi.fn().mockResolvedValue(null),
-				findUnique: vi.fn().mockResolvedValue(null),
-				update,
-			},
-			paymentCheckoutIntentIdempotencyAlias: {
-				findUnique: vi.fn().mockResolvedValue({ checkoutIntent: staleIntent }),
-			},
-		};
-		const client = {
-			$transaction: vi.fn(async (operation: (tx: typeof transaction) => Promise<unknown>) =>
-				operation(transaction),
-			),
-		};
-
-		await expect(
-			createPaymentCheckoutIntent(
-				{
-					...subscriptionCommand,
-					idempotencyKey: "subscription-attempt-2",
-					now: new Date("2026-09-06T06:00:00.000Z"),
+	it.each(["direct", "alias"])(
+		"preserves the original subscription fence on an expired %s replay",
+		async (replayKind) => {
+			const staleIntent = {
+				...pendingSubscription,
+				expiresAt: new Date("2026-09-06T05:00:00.000Z"),
+			};
+			const update = vi.fn().mockResolvedValue(staleIntent);
+			const transaction = {
+				$queryRaw: vi.fn().mockResolvedValue([]),
+				subscription: { findFirst: vi.fn().mockResolvedValue(null) },
+				purchase: { findFirst: vi.fn().mockResolvedValue(null) },
+				paymentCheckoutIntent: {
+					findFirst: vi.fn().mockResolvedValue(null),
+					findUnique: vi.fn().mockResolvedValue(replayKind === "direct" ? staleIntent : null),
+					update,
 				},
-				client as never,
-			),
-		).rejects.toThrow("PAYMENT_CHECKOUT_INTENT_REPLAY_UNSAFE");
-		expect(update).toHaveBeenCalledWith({
-			where: { id: pendingSubscription.id },
-			data: { status: "EXPIRED", activeScopeKey: null },
-		});
-	});
+				paymentCheckoutIntentIdempotencyAlias: {
+					findUnique: vi
+						.fn()
+						.mockResolvedValue(replayKind === "alias" ? { checkoutIntent: staleIntent } : null),
+				},
+			};
+			const client = {
+				$transaction: vi.fn(async (operation: (tx: typeof transaction) => Promise<unknown>) =>
+					operation(transaction),
+				),
+			};
+
+			await expect(
+				createPaymentCheckoutIntent(
+					{
+						...subscriptionCommand,
+						idempotencyKey:
+							replayKind === "direct"
+								? pendingSubscription.idempotencyKey
+								: "subscription-attempt-2",
+						now: new Date("2026-09-06T06:00:00.000Z"),
+					},
+					client as never,
+				),
+			).rejects.toThrow("PAYMENT_CHECKOUT_INTENT_REPLAY_UNSAFE");
+			expect(update).not.toHaveBeenCalled();
+		},
+	);
 
 	it("fails closed when a key is bound both directly and through an alias", async () => {
 		const transaction = {

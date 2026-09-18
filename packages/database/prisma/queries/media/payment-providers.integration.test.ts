@@ -665,7 +665,7 @@ describe("provider-aware payment persistence", () => {
 		});
 	});
 
-	it("releases only a provider-bound pending checkout with an explicit expired provider time", async () => {
+	it("retains an expired subscription checkout until provider closure is confirmed", async () => {
 		const plan = await createPlan(client, "waffo", "PROD_ZYXWVUTSRQPO9876543210");
 		const base = {
 			provider: "waffo" as const,
@@ -700,16 +700,16 @@ describe("provider-aware payment persistence", () => {
 			client,
 		);
 
-		const second = await createPaymentCheckoutIntent(
-			{
-				...base,
-				idempotencyKey: `waffo-replacement-${RUN_ID}`,
-				now: new Date("2026-01-02T00:00:00.000Z"),
-			},
-			client,
-		);
-		fixtureIds.intents.push(second.intent.id);
-		expect(second).toMatchObject({ replayed: false, intent: { status: "CREATED" } });
+		await expect(
+			createPaymentCheckoutIntent(
+				{
+					...base,
+					idempotencyKey: `waffo-replacement-${RUN_ID}`,
+					now: new Date("2026-01-02T00:00:00.000Z"),
+				},
+				client,
+			),
+		).rejects.toThrow("PAYMENT_CHECKOUT_INTENT_CONFLICT");
 		await expect(
 			client.paymentCheckoutIntentIdempotencyAlias.count({
 				where: {
@@ -721,7 +721,10 @@ describe("provider-aware payment persistence", () => {
 		).resolves.toBe(0);
 		await expect(
 			client.paymentCheckoutIntent.findUnique({ where: { id: first.intent.id } }),
-		).resolves.toMatchObject({ status: "EXPIRED", activeScopeKey: null });
+		).resolves.toMatchObject({
+			status: "PROVIDER_PENDING",
+			activeScopeKey: first.intent.activeScopeKey,
+		});
 	});
 
 	it("scopes customer and provider session identities by provider", async () => {

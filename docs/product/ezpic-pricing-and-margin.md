@@ -45,6 +45,12 @@ Pending subscription orders leave preferences selectable and replace new checkou
 actions. Unknown status is not unpaid or closed; support receives the owned order reference, and
 only confirmed provider closure releases server admission.
 
+Waffo checkout expiry uses the session deadline rather than the shorter authentication-token
+deadline. An expired PayPal/Waffo subscription link does not itself release admission because
+approval, payment or event delivery may still be in progress. The provider-specific recovery
+design and remaining validation requirements are documented in
+[pending subscription checkout recovery](../operations/pending-subscription-checkouts.md).
+
 `packages/config/plans.ts` is the source of truth. Credits are issued once per internal monthly
 billing period, expire at that period boundary, and do not roll over. Annual billing still creates
 twelve monthly grant periods.
