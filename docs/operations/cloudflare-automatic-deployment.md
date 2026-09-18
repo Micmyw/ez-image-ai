@@ -80,6 +80,13 @@ Cloudflare 默认生成的令牌包含 Workers 脚本、Workers 路由、KV、R2
 保留其他生产配置，且拒绝缺项或关闭全部文字/图片检查的组合。两项服务都必须同步，
 只改本地 `.env.production.local` 不会更新原生 Git 构建。
 
+运行时受 Cloudflare 的 128 个文字绑定上限约束。准备脚本不绑定已失效的 Kie 目录认证变量；
+在 `configured` 模式下，关闭的审核开关使用默认的 `false`，且完全停用 Sightengine 时不绑定
+其凭据。构建机密仍保留完整原值，审核启用状态不变，其他运行时变量照常保留。
+准备后的配置通过 `unsafe.metadata.keep_bindings: []` 关闭 Wrangler 对历史机密的自动继承，
+必须和对应的完整 `--secrets-file` 一起部署；新代码和机密快照原子替换，不能提前删除旧服务
+仍在使用的凭据。否则被省略的旧机密仍会占用绑定名额，导致部署超过上限。
+
 - 仅接受 `workers` 部署模式。在 Cloudflare 中检查 `WORKERS_CI_BRANCH=main`，并确认检出的
   提交与 `WORKERS_CI_COMMIT_SHA` 一致。
 - 复用现有生产环境准备流程，保留功能开关和资源绑定。

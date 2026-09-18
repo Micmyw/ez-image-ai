@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+import { moderationConfiguration } from "@repo/config";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -54,6 +55,7 @@ describe("deployment profiles", () => {
 			NEXT_PUBLIC_AVATARS_BUCKET_NAME: "compiled-avatar-bucket",
 			EZPIC_ENVIRONMENT_MATRIX_PATH: "offline-matrix.json",
 			EZPIC_LAUNCH_EVIDENCE_PATH: "offline-evidence.json",
+			MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "obsolete-certificate",
 			E2E_TEST_MEDIA_ADAPTERS: "false",
 			E2E_DRAFT_HANDOFF: "false",
 			LOAD_TESTING_ENABLED: "false",
@@ -62,6 +64,15 @@ describe("deployment profiles", () => {
 			GUEST_TURNSTILE_SECRET_KEY: "private-turnstile-key",
 			PAYPAL_ENVIRONMENT: "sandbox",
 			WAFFO_ENVIRONMENT: "test",
+			EZPIC_DEPLOYMENT_ENVIRONMENT: "production",
+			MEDIA_SAFETY_ADAPTER: "configured",
+			MODERATION_TEXT_WAFFO_ENABLED: "true",
+			MODERATION_TEXT_SIGHTENGINE_ENABLED: "false",
+			MODERATION_IMAGE_SEEAPI_ENABLED: "true",
+			MODERATION_IMAGE_SIGHTENGINE_ENABLED: "false",
+			SEEAPI_API_KEY: "x".repeat(16),
+			SIGHTENGINE_API_USER: "disabled-scanner-user",
+			SIGHTENGINE_API_SECRET: "disabled-scanner-secret",
 		});
 		expect(environment).toEqual({
 			NODE_ENV: "production",
@@ -72,6 +83,33 @@ describe("deployment profiles", () => {
 			GUEST_TURNSTILE_SECRET_KEY: "private-turnstile-key",
 			PAYPAL_ENVIRONMENT: "sandbox",
 			WAFFO_ENVIRONMENT: "test",
+			EZPIC_DEPLOYMENT_ENVIRONMENT: "production",
+			MEDIA_SAFETY_ADAPTER: "configured",
+			MODERATION_TEXT_WAFFO_ENABLED: "true",
+			MODERATION_IMAGE_SEEAPI_ENABLED: "true",
+			SEEAPI_API_KEY: "x".repeat(16),
+		});
+		expect(moderationConfiguration(environment)).toEqual({
+			textWaffo: true,
+			textSightengine: false,
+			imageSeeapi: true,
+			imageSightengine: false,
+		});
+	});
+	it.each<Record<string, string>>([
+		{ MEDIA_SAFETY_ADAPTER: "sightengine" },
+		{ MEDIA_SAFETY_ADAPTER: "configured", MODERATION_TEXT_SIGHTENGINE_ENABLED: "true" },
+		{ MEDIA_SAFETY_ADAPTER: "configured", MODERATION_IMAGE_SIGHTENGINE_ENABLED: "true" },
+	])("retains credentials when Sightengine is enabled: %j", (switches) => {
+		expect(
+			workersRuntimeEnvironment({
+				...switches,
+				SIGHTENGINE_API_USER: "enabled-scanner-user",
+				SIGHTENGINE_API_SECRET: "enabled-scanner-secret",
+			}),
+		).toMatchObject({
+			SIGHTENGINE_API_USER: "enabled-scanner-user",
+			SIGHTENGINE_API_SECRET: "enabled-scanner-secret",
 		});
 	});
 });
@@ -102,6 +140,12 @@ function artifacts(profile: "workers" | "hybrid", overrides: Record<string, stri
 }
 
 describe("prepared deployment artifacts", () => {
+	it("replaces the complete secret snapshot atomically without inheriting retired bindings", () => {
+		const value = artifacts("workers");
+		for (const config of [value.website, value.workflows]) {
+			expect(config.unsafe).toMatchObject({ metadata: { keep_bindings: [] } });
+		}
+	});
 	it("rejects more than 128 text bindings before uploading either Worker", () => {
 		const extras = Object.fromEntries(
 			Array.from({ length: 128 }, (_, index) => [`EXTRA_${index}`, "value"]),

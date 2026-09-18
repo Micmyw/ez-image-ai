@@ -135,6 +135,10 @@ test.describe("subscription upgrade checkout recovery", () => {
 		const prompt = `[e2e:subscription-upgrade] [run:${runId}] Keep the subject and soften the background`;
 
 		await page.goto(`/create?asset=${source.id}`);
+		await expect(page.getByRole("button", { name: /^Model: / })).toContainText(
+			"Nano Banana 2 Lite",
+			{ timeout: 30_000 },
+		);
 		await page.getByLabel(/edit instruction|image prompt/i).fill(prompt);
 		await page.getByRole("button", { name: /^Model: / }).click();
 		await page.getByRole("button", { name: "GPT Image", exact: true }).click();

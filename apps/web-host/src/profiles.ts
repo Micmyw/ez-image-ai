@@ -119,6 +119,17 @@ export function createProfileArtifacts(options: {
 	for (const config of [website, jobs]) {
 		delete config.env;
 		delete config.$schema;
+		// Each prepared config is deployed with its complete secrets file. Wrangler
+		// otherwise retains omitted secrets, including retired bindings, and can
+		// exceed the binding limit even when the prepared snapshot fits.
+		const unsafe = config.unsafe as Record<string, unknown> | undefined;
+		config.unsafe = {
+			...unsafe,
+			metadata: {
+				...(unsafe?.metadata as Record<string, unknown> | undefined),
+				keep_bindings: [],
+			},
+		};
 	}
 	const hybridEnvironment: Record<string, string> = { ...environment, EZPIC_RUNTIME: "node" };
 	for (const key of Object.keys(hybridEnvironment))
@@ -174,10 +185,32 @@ export function workersRuntimeEnvironment(environment: Record<string, string>) {
 		"NEXT_PUBLIC_AVATARS_BUCKET_NAME",
 		"EZPIC_ENVIRONMENT_MATRIX_PATH",
 		"EZPIC_LAUNCH_EVIDENCE_PATH",
+		"MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS",
 		"E2E_TEST_MEDIA_ADAPTERS",
 		"E2E_DRAFT_HANDOFF",
 		"LOAD_TESTING_ENABLED",
 	]);
+	if (environment.MEDIA_SAFETY_ADAPTER === "configured") {
+		// Configured detectors default to disabled, so explicit false switches do
+		// not need separate bindings. The full build configuration keeps them.
+		for (const key of [
+			"MODERATION_TEXT_WAFFO_ENABLED",
+			"MODERATION_TEXT_SIGHTENGINE_ENABLED",
+			"MODERATION_IMAGE_SEEAPI_ENABLED",
+			"MODERATION_IMAGE_SIGHTENGINE_ENABLED",
+		]) {
+			if (environment[key] === "false") nonRuntimeVariables.add(key);
+		}
+		if (
+			[
+				environment.MODERATION_TEXT_SIGHTENGINE_ENABLED,
+				environment.MODERATION_IMAGE_SIGHTENGINE_ENABLED,
+			].every((value) => value === undefined || value === "false")
+		) {
+			nonRuntimeVariables.add("SIGHTENGINE_API_USER");
+			nonRuntimeVariables.add("SIGHTENGINE_API_SECRET");
+		}
+	}
 	return {
 		...Object.fromEntries(
 			Object.entries(environment).filter(

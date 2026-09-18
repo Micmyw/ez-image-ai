@@ -262,8 +262,16 @@ for (const width of [1440, 390]) {
 		);
 		await page.goto("/");
 		await expect(page.locator(".studio-sidebar")).toHaveCount(0);
-		await page.locator('[data-test="studio-models-menu"]').click();
-		const menu = page.locator(".studio-navigation-popover");
+		const menu =
+			width <= 1200
+				? page.locator('[data-test="header-navigation-drawer"]')
+				: page.locator(".studio-navigation-popover");
+		if (width <= 1200) {
+			await page.locator('[data-test="header-navigation-trigger"]').click();
+			await menu.locator("summary").filter({ hasText: "AI Models" }).click();
+		} else {
+			await page.locator('[data-test="studio-models-menu"]').click();
+		}
 		await menu.locator('a[href="/models/gpt-image-2"]').click();
 		await expect(page).toHaveURL(/\/models\/gpt-image-2$/, { timeout: 30_000 });
 		await page.goto("/create?model=image-gpt-image-2");
@@ -335,11 +343,15 @@ test("account controls load when the browser receives a signed-in session", asyn
 		}),
 	);
 	await page.goto("/");
-	await page.getByRole("button", { name: "User menu", exact: true }).click();
+	await page.locator('[data-test="header-navigation-trigger"]').click();
+	const userMenu = page
+		.locator('[data-test="header-navigation-drawer"]')
+		.getByRole("button", { name: "User menu", exact: true });
+	await userMenu.click();
 	await expect(page.getByRole("menu")).toContainText("mobile-ui@example.test");
 	await expect(page.getByRole("menuitem", { name: "Account settings", exact: true })).toBeVisible();
 	await page.keyboard.press("Escape");
-	await expect(page.getByRole("button", { name: "User menu", exact: true })).toBeFocused();
+	await expect(userMenu).toBeFocused();
 });
 
 test("the production homepage excludes account tools, charts, and documentation styles", async ({
@@ -978,8 +990,16 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 		).toBeVisible();
 		await expect(page.getByRole("button", { name: /sign in to generate/i })).toBeVisible();
 		if (viewport.width < 768) {
-			await expect(page.locator('[data-test="studio-tools-menu"]')).toBeVisible();
-			await expect(page.locator('[data-test="studio-models-menu"]')).toBeVisible();
+			const navigation = page.locator('[data-test="header-navigation-trigger"]');
+			await expect(navigation).toBeVisible();
+			await navigation.click();
+			const drawer = page.locator('[data-test="header-navigation-drawer"]');
+			await drawer.locator("summary").filter({ hasText: "Image Tools" }).click();
+			await expect(drawer.locator('a[href="/create"]')).toBeVisible();
+			await drawer.locator("summary").filter({ hasText: "AI Models" }).click();
+			await expect(drawer.locator('a[href="/models/gpt-image-2"]')).toBeVisible();
+			await page.keyboard.press("Escape");
+			await expect(drawer).toBeHidden();
 			await expect(page.locator('[data-test="landing-model-trigger"]')).toBeVisible();
 		}
 		const [sourceRect, promptRect, tierRect] = await Promise.all([

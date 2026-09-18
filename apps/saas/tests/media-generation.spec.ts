@@ -85,6 +85,10 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		page,
 	}) => {
 		await page.goto("/create");
+		await expect(page.getByRole("button", { name: /^Model: / })).toContainText(
+			"Nano Banana 2 Lite",
+			{ timeout: 30_000 },
+		);
 		await page.getByLabel(/edit instruction|image prompt/i).fill("A ceramic vase in soft daylight");
 		const review = page.locator('[data-test="generation-submit"]');
 		await expect(review).toBeEnabled({ timeout: 30_000 });
@@ -357,6 +361,10 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	});
 
 	async function uploadFile(page: import("@playwright/test").Page, name: string, buffer: Buffer) {
+		await expect(page.getByRole("button", { name: /^Model: / })).toContainText(
+			"Nano Banana 2 Lite",
+			{ timeout: 30_000 },
+		);
 		await page
 			.getByLabel(/upload source images/i)
 			.locator('input[type="file"]')
@@ -582,6 +590,9 @@ async function openCreator(page: import("@playwright/test").Page, prompt: string
 	)[0];
 	if (!source) throw new Error(`Seed source image missing for ${email}`);
 	await page.goto(`/create?asset=${source.id}`);
+	await expect(page.getByRole("button", { name: /^Model: / })).toContainText("Nano Banana 2 Lite", {
+		timeout: 30_000,
+	});
 	await page.getByLabel(/edit instruction|image prompt/i).fill(prompt);
 }
 
