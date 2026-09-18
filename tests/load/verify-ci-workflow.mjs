@@ -179,11 +179,16 @@ function assertNarrowGitleaksFixtureIgnores(value) {
 		.split("\n")
 		.map((line) => line.trim())
 		.filter((line) => line && !line.startsWith("#"));
-	if (fingerprints.length !== 20) {
-		throw new Error("Gitleaks fixture allowlist must contain exactly 20 known fingerprints");
+	if (fingerprints.length !== 29 || new Set(fingerprints).size !== 29) {
+		throw new Error("Gitleaks fixture allowlist must contain exactly 29 unique known fingerprints");
 	}
+	const historicalPlaceholders = new Set([
+		"bc30528a157976085b92c6cf322a9cc3009fb42f:packages/payments/provider/registry.test.ts:private-key:77",
+		"3f2afe8997748b2c59412e07534324260075573d:docs/operations/anonymous-standard-trial.md:generic-api-key:45",
+	]);
 	for (const fingerprint of fingerprints) {
 		if (
+			!historicalPlaceholders.has(fingerprint) &&
 			!/^[0-9a-f]{40}:[^:]+\.test\.ts:(?:generic-api-key|stripe-access-token):[0-9]+$/.test(
 				fingerprint,
 			)
