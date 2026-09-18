@@ -91,7 +91,7 @@
 		"generator": {
 			"eyebrow": "Bearbeitung planen",
 			"title": "Beschreibe die gewünschte Änderung",
-			"subtitle": "Lade ein Quellbild hoch und beschreibe die Bearbeitung. Wenn die Gast-Warteschlange verfügbar ist, kannst du eine private Nano Banana 2 Lite-1K-Bearbeitung in EzPic starten.",
+			"subtitle": "Beginne mit einem Prompt oder füge ein Referenzbild hinzu. Melde dich an und starte mit einem Klick; die Credit-Kosten stehen auf der Schaltfläche.",
 			"offer": "Nano Banana 2 Lite 1K kostenlos testen",
 			"noSignUp": "Keine Registrierung, wenn die Gast-Warteschlange verfügbar ist",
 			"paidSignIn": "Anmeldung und kostenpflichtiger Tarif erforderlich",
@@ -202,7 +202,7 @@
 					"access": "Pro, Ultimate oder Max erforderlich"
 				}
 			},
-			"loginNotice": "Nano Banana 2 Lite-1K-Gastbearbeitungen können ohne Anmeldung starten, wenn die Gast-Warteschlange verfügbar ist; Kontobearbeitungen zeigen vor der Bestätigung den genauen EzPic-Credit-Betrag.",
+			"loginNotice": "Melde dich an, um Bilder aus Text zu erstellen. Die Schaltfläche zeigt vor dem Start die Credit-Kosten. Mit Referenzbild bleibt die gesponserte Nano Banana 2 Lite-Gastbearbeitung verfügbar, wenn die Gast-Warteschlange offen ist.",
 			"previewCaption": "Quellvorschau",
 			"previewPlaceholderAlt": "Originale EzPic-Vektorillustration eines neutralen Lesezimmers",
 			"previewAlt": "Vorschau von {fileName}",
@@ -455,19 +455,19 @@
 					"description": "Füge ein JPEG, PNG oder WebP hinzu. Beschreibe, welches Motiv bleiben soll und welchen Hintergrund, welches Objekt, welche Farbe oder welchen Stil du ändern möchtest."
 				},
 				"signin": {
-					"title": "Modell wählen und Credits prüfen",
-					"description": "Melde dich an, wähle unterstützte Ausgabeeinstellungen und prüfe die Kosten. Geeignete Bearbeitungen mit Referenzbild können den Gasttest nutzen, wenn er verfügbar ist."
+					"title": "Modell wählen und Kosten prüfen",
+					"description": "Melde dich an, wähle unterstützte Ausgabeeinstellungen und prüfe die Credit-Kosten auf der Startschaltfläche. Geeignete Bearbeitungen mit Referenzbild können den Gasttest nutzen, wenn er verfügbar ist."
 				},
 				"generate": {
 					"title": "Erstellen, vergleichen und verfeinern",
-					"description": "Bestätige die Bearbeitung, vergleiche das Ergebnis mit dem Ausgangsbild und verwende es als Referenz für den nächsten Prompt."
+					"description": "Starte die Bearbeitung mit einem Klick, vergleiche das Ergebnis mit dem Ausgangsbild und verwende es als Referenz für den nächsten Prompt."
 				}
 			}
 		},
 		"trust": {
 			"eyebrow": "Klare Grenzen",
 			"title": "Standardmäßig privat, transparent gemessen",
-			"description": "Wenn die gesponserte Gast-Warteschlange verfügbar ist, kann die Startseite eine gesponserte Nano Banana 2 Lite-1K-Bearbeitung starten. Bei Kontobearbeitungen werden EzPic Credits weiterhin erst nach Angebot und Bestätigung reserviert.",
+			"description": "Wenn die gesponserte Gast-Warteschlange verfügbar ist, kann die Startseite eine gesponserte Nano Banana 2 Lite-1K-Bearbeitung starten. Kontobearbeitungen zeigen die Kosten auf der Schaltfläche und prüfen Inhalt und Preis, bevor EzPic Credits reserviert werden.",
 			"items": {
 				"privacy": {
 					"title": "Private Medien",
@@ -475,7 +475,7 @@
 				},
 				"credits": {
 					"title": "Kontrollierte Nutzung",
-					"description": "Nano-Banana-Gastbearbeitungen verwenden die gesponserte Warteschlange; Kontobearbeitungen zeigen den genauen EzPic-Credit-Betrag und warten auf deine Bestätigung."
+					"description": "Nano-Banana-Gastbearbeitungen verwenden die gesponserte Warteschlange; Kontobearbeitungen zeigen den EzPic-Credit-Betrag auf der Schaltfläche. Eine Preisänderung muss vor dem Start bestätigt werden."
 				},
 				"safety": {
 					"title": "Normale Schutzmaßnahmen",
@@ -486,7 +486,7 @@
 		"finalCta": {
 			"eyebrow": "Beginne mit deinem Bild",
 			"title": "Was möchtest du an deinem Bild ändern?",
-			"description": "Füge ein Referenzbild hinzu, beschreibe deine nächste Bearbeitung und wähle ein Modell. Prüfe die Credits, bevor du dein privates Ergebnis erstellst.",
+			"description": "Füge ein Referenzbild hinzu, beschreibe deine nächste Bearbeitung und wähle ein Modell. Prüfe die Credit-Kosten auf der Schaltfläche und starte deine private Bearbeitung mit einem Klick.",
 			"button": "Zurück zum Editor"
 		},
 		"hero": {
@@ -530,7 +530,7 @@
 				},
 				"benefit2": {
 					"title": "Sichtbare Credit-Kosten",
-					"description": "Prüfe die Credit-Reservierung, bevor du eine Bearbeitung bestätigst."
+					"description": "Die Schaltfläche zeigt die Credit-Kosten, bevor du eine Bearbeitung startest."
 				},
 				"benefit3": {
 					"title": "Nachvollziehbarer Verlauf",

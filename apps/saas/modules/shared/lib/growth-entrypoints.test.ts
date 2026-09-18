@@ -14,13 +14,12 @@ describe("authenticated growth event entrypoints", () => {
 		const registeredEditor = source("modules/media/components/editor/RegisteredEditor.tsx");
 		const workspace = source("modules/media/components/editor/ImageEditorWorkspace.tsx");
 		const generation = source("modules/media/hooks/use-generation.ts");
-		const form = source("modules/media/components/GenerationForm.tsx");
 		const result = source("modules/media/components/editor/EditorResultPanel.tsx");
 
 		expect(registeredEditor).toContain("claimedDraft");
 		expect(workspace).toContain(".draftClaimed(");
 		expect(generation).toMatch(/acceptQuote[\s\S]*\.quoteCreated\(/);
-		expect(form).toContain(".generationConfirmed(");
+		expect(generation).toContain(".generationConfirmed(");
 		expect(result).toContain(".generationSucceeded(");
 		expect(result).toContain(".generationFailed(");
 	});

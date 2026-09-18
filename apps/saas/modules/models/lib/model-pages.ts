@@ -424,7 +424,7 @@ export const MODEL_PAGES: readonly ModelPageContent[] = [
 			{
 				title: "Choose a practical output tier",
 				description:
-					"Basic 1K and High 2K are the current choices for this model. Use the editor's quote to review credits before committing to an iteration.",
+					"Basic 1K and High 2K are the current choices for this model. Check the credit cost on the generation button before starting an iteration.",
 			},
 		],
 		tip: "Define the focal point and spatial relationships first. Use a reference to guide a scene you want to develop further.",

@@ -68,11 +68,11 @@ describe("consolidated SaaS sitemap", () => {
 			"/blog/ai-image-editing-prompts": "2026-09-12",
 			"/blog/private-image-editing-workflow": "2026-09-13",
 			"/models": "2026-09-16",
-			"/docs": "2026-09-14",
+			"/docs": "2026-09-18",
 			"/docs/credits": "2026-09-16",
 			"/docs/image-editing": "2026-09-14",
 			"/docs/privacy": "2026-09-16",
-			"/docs/quick-start": "2026-09-14",
+			"/docs/quick-start": "2026-09-18",
 		});
 	});
 

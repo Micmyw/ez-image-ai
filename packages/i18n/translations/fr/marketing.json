@@ -91,7 +91,7 @@
 		"generator": {
 			"eyebrow": "Planifiez votre retouche",
 			"title": "Décrivez le changement souhaité",
-			"subtitle": "Importez une image source et décrivez la retouche. Lorsque la file invitée est disponible, vous pouvez lancer une retouche Nano Banana 2 Lite 1K privée dans EzPic.",
+			"subtitle": "Commencez par une instruction ou ajoutez une image de référence. Connectez-vous et générez en un clic ; le bouton affiche le coût en crédits.",
 			"offer": "Essayez Nano Banana 2 Lite 1K gratuitement",
 			"noSignUp": "Sans inscription lorsque la file invitée est disponible",
 			"paidSignIn": "Connexion et forfait payant requis",
@@ -202,7 +202,7 @@
 					"access": "Pro, Ultimate ou Max requis"
 				}
 			},
-			"loginNotice": "Les retouches Nano Banana 2 Lite 1K invitées peuvent démarrer sans connexion lorsque la file est disponible ; les retouches de compte affichent le montant exact d’EzPic Credits avant confirmation.",
+			"loginNotice": "Connectez-vous pour générer des images à partir de texte. Le bouton affiche le coût en crédits avant le démarrage. Avec une image de référence, la retouche sponsorisée Nano Banana 2 Lite reste disponible lorsque la file invitée est ouverte.",
 			"previewCaption": "Aperçu de la source",
 			"previewPlaceholderAlt": "Illustration vectorielle EzPic originale d’un salon de lecture neutre",
 			"previewAlt": "Aperçu de {fileName}",
@@ -455,19 +455,19 @@
 					"description": "Ajoutez un fichier JPEG, PNG ou WebP. Précisez le sujet à conserver et l’arrière-plan, l’objet, la couleur ou le style à modifier."
 				},
 				"signin": {
-					"title": "Choisissez un modèle et vérifiez les crédits",
-					"description": "Connectez-vous, choisissez des paramètres de sortie compatibles et vérifiez le coût. Les retouches avec référence éligibles peuvent utiliser l’essai invité lorsqu’il est disponible."
+					"title": "Choisissez un modèle et vérifiez le coût",
+					"description": "Connectez-vous, choisissez des paramètres de sortie compatibles et consultez le coût en crédits sur le bouton de génération. Les retouches avec référence éligibles peuvent utiliser l’essai invité lorsqu’il est disponible."
 				},
 				"generate": {
 					"title": "Créez, comparez et affinez",
-					"description": "Confirmez la retouche, comparez le résultat à l’original et utilisez-le comme référence pour vos prochaines instructions."
+					"description": "Lancez la retouche en un clic, comparez le résultat à l’original et utilisez-le comme référence pour vos prochaines instructions."
 				}
 			}
 		},
 		"trust": {
 			"eyebrow": "Limites claires",
 			"title": "Privé par défaut, mesuré clairement",
-			"description": "Lorsque la file invitée sponsorisée est disponible, la page d’accueil peut lancer une retouche Nano Banana 2 Lite 1K sponsorisée. Les retouches de compte exigent toujours un devis et une confirmation avant la réservation des EzPic Credits.",
+			"description": "Lorsque la file invitée sponsorisée est disponible, la page d’accueil peut lancer une retouche Nano Banana 2 Lite 1K sponsorisée. Les retouches de compte affichent le coût sur le bouton et vérifient le contenu et le prix avant de réserver les EzPic Credits.",
 			"items": {
 				"privacy": {
 					"title": "Médias privés",
@@ -475,7 +475,7 @@
 				},
 				"credits": {
 					"title": "Usage contrôlé",
-					"description": "Les retouches Nano Banana invitées utilisent la file sponsorisée ; les retouches de compte affichent le montant exact d’EzPic Credits et attendent votre confirmation."
+					"description": "Les retouches Nano Banana invitées utilisent la file sponsorisée ; les retouches de compte affichent le montant d’EzPic Credits sur le bouton. Tout changement de prix nécessite votre confirmation avant le démarrage."
 				},
 				"safety": {
 					"title": "Protections normales",
@@ -486,7 +486,7 @@
 		"finalCta": {
 			"eyebrow": "Commencez par votre image",
 			"title": "Que changeriez-vous dans votre image ?",
-			"description": "Ajoutez une référence, décrivez votre prochaine retouche et choisissez un modèle. Vérifiez les crédits avant de créer votre résultat privé.",
+			"description": "Ajoutez une référence, décrivez votre prochaine retouche et choisissez un modèle. Consultez le coût en crédits sur le bouton, puis lancez votre retouche privée en un clic.",
 			"button": "Retour à l’éditeur"
 		},
 		"hero": {
@@ -530,7 +530,7 @@
 				},
 				"benefit2": {
 					"title": "Coût visible en crédits",
-					"description": "Vérifiez la réservation de crédits avant de confirmer une retouche."
+					"description": "Consultez le coût en crédits sur le bouton avant de lancer une retouche."
 				},
 				"benefit3": {
 					"title": "Historique consultable",

@@ -91,7 +91,7 @@
 		"generator": {
 			"eyebrow": "Planifica tu edición",
 			"title": "Describe el cambio que quieres",
-			"subtitle": "Sube una imagen de origen y describe la edición. Cuando la cola de invitados esté disponible, podrás iniciar una edición Nano Banana 2 Lite 1K privada en EzPic.",
+			"subtitle": "Empieza con una instrucción o añade una imagen de referencia. Inicia sesión y genera con un clic; el botón muestra el coste en créditos.",
 			"offer": "Prueba Nano Banana 2 Lite 1K gratis",
 			"noSignUp": "Sin registro cuando la cola de invitados esté disponible",
 			"paidSignIn": "Se requiere iniciar sesión y un plan de pago",
@@ -202,7 +202,7 @@
 					"access": "Se requiere Pro, Ultimate o Max"
 				}
 			},
-			"loginNotice": "Las ediciones Nano Banana 2 Lite 1K de invitado pueden iniciarse sin sesión cuando la cola esté disponible; las ediciones de cuenta muestran la cantidad exacta de EzPic Credits antes de la confirmación.",
+			"loginNotice": "Inicia sesión para generar imágenes a partir de texto. El botón muestra el coste en créditos antes de empezar. Con una imagen de referencia, la edición patrocinada Nano Banana 2 Lite sigue disponible cuando la cola de invitados está abierta.",
 			"previewCaption": "Vista previa de origen",
 			"previewPlaceholderAlt": "Ilustración vectorial original de EzPic de una sala de lectura neutra",
 			"previewAlt": "Vista previa de {fileName}",
@@ -455,19 +455,19 @@
 					"description": "Añade un JPEG, PNG o WebP. Indica qué sujeto conservar y qué fondo, objeto, color o estilo cambiar."
 				},
 				"signin": {
-					"title": "Elige un modelo y revisa los créditos",
-					"description": "Inicia sesión, elige ajustes de salida compatibles y revisa el coste. Las ediciones con referencia que cumplan los requisitos pueden usar la prueba para invitados cuando esté disponible."
+					"title": "Elige un modelo y comprueba el coste",
+					"description": "Inicia sesión, elige ajustes de salida compatibles y comprueba el coste en créditos en el botón de generación. Las ediciones con referencia que cumplan los requisitos pueden usar la prueba para invitados cuando esté disponible."
 				},
 				"generate": {
 					"title": "Crea, compara y ajusta",
-					"description": "Confirma la edición, compara el resultado con el original y úsalo como referencia para la siguiente instrucción."
+					"description": "Inicia la edición con un clic, compara el resultado con el original y úsalo como referencia para la siguiente instrucción."
 				}
 			}
 		},
 		"trust": {
 			"eyebrow": "Límites claros",
 			"title": "Privado por defecto, medido con claridad",
-			"description": "Cuando la cola patrocinada para invitados está disponible, la página de inicio puede iniciar una edición Nano Banana 2 Lite 1K patrocinada. Las ediciones de cuenta siguen requiriendo cotización y confirmación antes de reservar EzPic Credits.",
+			"description": "Cuando la cola patrocinada para invitados está disponible, la página de inicio puede iniciar una edición Nano Banana 2 Lite 1K patrocinada. Las ediciones de cuenta muestran el coste en el botón y comprueban el contenido y el precio antes de reservar EzPic Credits.",
 			"items": {
 				"privacy": {
 					"title": "Medios privados",
@@ -475,7 +475,7 @@
 				},
 				"credits": {
 					"title": "Uso controlado",
-					"description": "Las ediciones Nano Banana de invitado usan la cola patrocinada; las ediciones de cuenta muestran la cantidad exacta de EzPic Credits y esperan tu confirmación."
+					"description": "Las ediciones Nano Banana de invitado usan la cola patrocinada; las ediciones de cuenta muestran la cantidad de EzPic Credits en el botón. Si cambia el precio, debes confirmarlo antes de empezar."
 				},
 				"safety": {
 					"title": "Protecciones normales",
@@ -486,7 +486,7 @@
 		"finalCta": {
 			"eyebrow": "Empieza con tu imagen",
 			"title": "¿Qué cambiarías en tu imagen?",
-			"description": "Añade una referencia, describe tu próxima edición y elige un modelo. Revisa los créditos antes de crear tu resultado privado.",
+			"description": "Añade una referencia, describe tu próxima edición y elige un modelo. Comprueba el coste en créditos en el botón e inicia tu edición privada con un clic.",
 			"button": "Volver al editor"
 		},
 		"hero": {
@@ -530,7 +530,7 @@
 				},
 				"benefit2": {
 					"title": "Coste visible en créditos",
-					"description": "Revisa la reserva de créditos antes de confirmar una edición."
+					"description": "Consulta el coste en créditos en el botón antes de iniciar una edición."
 				},
 				"benefit3": {
 					"title": "Historial recuperable",

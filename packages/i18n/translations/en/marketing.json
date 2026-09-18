@@ -91,7 +91,7 @@
 		"generator": {
 			"eyebrow": "Start creating",
 			"title": "Describe the image you have in mind",
-			"subtitle": "Start with a prompt, or add a reference image for an edit. Sign in to review credits and generate.",
+			"subtitle": "Start with a prompt, or add a reference image for an edit. Sign in and generate in one click, with the credit cost shown on the button.",
 			"offer": "Try Nano Banana 2 Lite 1K free",
 			"noSignUp": "No sign-up when the guest queue is available",
 			"paidSignIn": "Sign-in and a paid plan required",
@@ -202,7 +202,7 @@
 					"access": "Pro, Ultimate, or Max plan required"
 				}
 			},
-			"loginNotice": "Sign in to generate from text and review your credit quote. With a reference image, the sponsored Nano Banana 2 Lite guest edit remains available when the guest queue is open.",
+			"loginNotice": "Sign in to generate from text. The button shows the credit cost before you start. With a reference image, the sponsored Nano Banana 2 Lite guest edit remains available when the guest queue is open.",
 			"previewCaption": "Source preview",
 			"previewPlaceholderAlt": "Original EzPic vector illustration of a neutral reading studio",
 			"previewAlt": "Preview of {fileName}",
@@ -455,19 +455,19 @@
 					"description": "Add a JPEG, PNG, or WebP. Name the subject to keep and the background, object, color, or style to change."
 				},
 				"signin": {
-					"title": "Choose a model and review credits",
-					"description": "Sign in, select supported output settings, and check the quote. Eligible reference edits can use the guest trial when available."
+					"title": "Choose a model and check the cost",
+					"description": "Sign in, select supported output settings, and see the credit cost on the generation button. Eligible reference edits can use the guest trial when available."
 				},
 				"generate": {
 					"title": "Create, compare, and refine",
-					"description": "Confirm the edit, compare the result with your source, and use it as a reference for the next prompt."
+					"description": "Start the edit in one click, compare the result with your source, and use it as a reference for the next prompt."
 				}
 			}
 		},
 		"trust": {
 			"eyebrow": "Clear boundaries",
 			"title": "Private by default, metered by design",
-			"description": "When the sponsored guest queue is available, the homepage can start one sponsored Nano Banana 2 Lite 1K edit. Account edits still require a quote and confirmation before EzPic Credits are reserved.",
+			"description": "When the sponsored guest queue is available, the homepage can start one sponsored Nano Banana 2 Lite 1K edit. Account edits show the credit cost on the button and check safety and price before reserving EzPic Credits.",
 			"items": {
 				"privacy": {
 					"title": "Private media",
@@ -475,7 +475,7 @@
 				},
 				"credits": {
 					"title": "Controlled usage",
-					"description": "Guest Nano Banana edits use the sponsored queue; account edits show the exact EzPic Credit amount and wait for your confirmation."
+					"description": "Guest Nano Banana edits use the sponsored queue; account edits show the EzPic Credit amount on the button. A price change requires your confirmation before starting."
 				},
 				"safety": {
 					"title": "Normal safeguards",
@@ -486,7 +486,7 @@
 		"finalCta": {
 			"eyebrow": "Start with your image",
 			"title": "What would you change in your image?",
-			"description": "Add a reference, describe your next edit, and choose a model. Review the credit quote before creating your private result.",
+			"description": "Add a reference, describe your next edit, and choose a model. Check the credit cost on the button, then start your private edit in one click.",
 			"button": "Back to the editor"
 		},
 		"hero": {
@@ -530,7 +530,7 @@
 				},
 				"benefit2": {
 					"title": "Visible credit cost",
-					"description": "Review the credit reservation before confirming an edit."
+					"description": "See the credit cost on the button before starting an edit."
 				},
 				"benefit3": {
 					"title": "Recoverable history",
