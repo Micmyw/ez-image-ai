@@ -2,6 +2,11 @@
 
 ## 2026-09-18
 
+### Plan selection
+
+- Keep the editor's plan-selection page in the shared purple workspace, with matching
+  navigation, plan cards and payment controls across desktop and mobile.
+
 ### Generation and safety feedback
 
 - Start a generation or reference edit with one click and show its credit cost on the button.

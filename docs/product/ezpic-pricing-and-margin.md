@@ -25,6 +25,9 @@ information is recorded here.
 
 ## Subscription package contract
 
+The editor's `/choose-plan` route uses the shared `StudioShell` and its purple theme so model
+upgrades retain the workspace navigation and colors while comparing subscription plans.
+
 The header and public pricing cards share a centered upgrade dialog. Card actions preserve the
 public plan key and month/year selection; signed-out users retain this selection through the
 `redirectTo` handoff. The dialog reuses the existing provider availability, pending-checkout,
