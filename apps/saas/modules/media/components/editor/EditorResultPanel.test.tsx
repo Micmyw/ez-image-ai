@@ -58,6 +58,25 @@ vi.mock("../../hooks/use-job", () => ({ useJob: () => mocks.jobQuery }));
 import { EditorResultPanel } from "./EditorResultPanel";
 
 describe("EditorResultPanel", () => {
+	it("keeps canceled credits pending until settlement confirms the refund", () => {
+		const data = {
+			...imageJob(),
+			status: "CANCELED",
+			creditsCharged: "0",
+			creditsReleased: "0",
+			assets: [],
+		};
+		mocks.jobQuery = { data, isError: false };
+		const pending = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
+		expect(pending).toContain("creditSummaryReserved");
+		expect(pending).not.toContain("creditSummaryReturned");
+
+		mocks.jobQuery = { data: { ...data, creditsReleased: data.creditsReserved }, isError: false };
+		const settled = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
+		expect(settled).toContain("creditSummaryReturned");
+		expect(settled).not.toContain("creditSummaryReserved");
+	});
+
 	it("shows the charged outcome instead of promising all failed-job credits were returned", () => {
 		mocks.jobQuery = {
 			data: {

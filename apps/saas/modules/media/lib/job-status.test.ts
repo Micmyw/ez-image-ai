@@ -30,6 +30,31 @@ describe("getJobPresentation", () => {
 });
 
 describe("getJobPollingInterval", () => {
+	it.each(["SUCCEEDED", "FAILED", "CANCELED"])(
+		"keeps refreshing %s until all reserved credits are accounted for",
+		(status) => {
+			const input = {
+				status,
+				isDocumentVisible: true,
+				credits: { creditsReserved: "5", creditsCharged: "0", creditsReleased: "0" },
+			};
+			expect(getJobPollingInterval(input)).toBe(2_000);
+			expect(getJobPollingInterval({ ...input, isDocumentVisible: false })).toBe(15_000);
+			expect(
+				getJobPollingInterval({
+					...input,
+					credits: { ...input.credits, creditsReleased: "5" },
+				}),
+			).toBe(false);
+			expect(
+				getJobPollingInterval({
+					...input,
+					credits: { ...input.credits, creditsCharged: "3", creditsReleased: "2" },
+				}),
+			).toBe(false);
+		},
+	);
+
 	it("stops polling terminal jobs and slows polling in a background tab", () => {
 		expect(getJobPollingInterval({ status: "SUCCEEDED", isDocumentVisible: true })).toBe(false);
 		expect(getJobPollingInterval({ status: "PROVIDER_RUNNING", isDocumentVisible: true })).toBe(

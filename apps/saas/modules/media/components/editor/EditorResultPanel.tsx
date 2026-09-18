@@ -16,7 +16,7 @@ import { useJob } from "../../hooks/use-job";
 import { isEditorProductKey, type EditorProductKey } from "../../lib/editor-recovery";
 import { getSignedComparisonState, requestPrivateDownload } from "../../lib/editor-result";
 import { isPublicImageSkuKey } from "../../lib/image-sku-selection";
-import { getJobPresentation } from "../../lib/job-status";
+import { getJobPresentation, hasUnsettledJobCredits } from "../../lib/job-status";
 import { ModerationNotice } from "../ModerationNotice";
 import { BeforeAfterSlider } from "./BeforeAfterSlider";
 
@@ -340,6 +340,9 @@ function creditSummary(
 		creditsReleased: string;
 	},
 ) {
+	if (hasUnsettledJobCredits(job)) {
+		return t("creditSummaryReserved", { reserved: job.creditsReserved });
+	}
 	if (job.status === "SUCCEEDED" || (job.status === "FAILED" && job.creditsCharged !== "0")) {
 		return t("creditSummarySucceeded", {
 			charged: job.creditsCharged,

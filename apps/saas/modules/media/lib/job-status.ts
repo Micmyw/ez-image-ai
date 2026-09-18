@@ -63,11 +63,29 @@ export function getJobPresentation(input: JobStatusInput): JobPresentation {
 	};
 }
 
+interface JobCredits {
+	creditsReserved: string;
+	creditsCharged: string;
+	creditsReleased: string;
+}
+
+export function hasUnsettledJobCredits(credits: JobCredits): boolean {
+	return (
+		BigInt(credits.creditsCharged) + BigInt(credits.creditsReleased) <
+		BigInt(credits.creditsReserved)
+	);
+}
+
 export function getJobPollingInterval(input: {
 	status: string;
 	isDocumentVisible: boolean;
+	credits?: JobCredits;
 }): number | false {
-	if (getJobPresentation(input).terminal) return false;
+	if (
+		getJobPresentation(input).terminal &&
+		(!input.credits || !hasUnsettledJobCredits(input.credits))
+	)
+		return false;
 	if (input.status === "NEEDS_RECONCILIATION") return 15_000;
 	return input.isDocumentVisible ? 2_000 : 15_000;
 }

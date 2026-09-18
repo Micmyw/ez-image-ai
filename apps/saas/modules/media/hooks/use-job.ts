@@ -14,6 +14,7 @@ export function useJob(jobId: string | null) {
 			const status = query.state.data?.status ?? "RESERVED";
 			return getJobPollingInterval({
 				status,
+				credits: query.state.data,
 				isDocumentVisible:
 					typeof document === "undefined" || document.visibilityState === "visible",
 			});

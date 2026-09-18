@@ -26,6 +26,9 @@ Credits are reserved when a generation job is created. A successful job records 
 and releases any unused reservation. A failed or canceled job reports the amount released according
 to the server-side ledger result.
 
+The result keeps refreshing until those credits are accounted for. Pending settlement continues to
+show reserved credits instead of claiming that a refund has already completed.
+
 The job panel is the authoritative place to see the reservation, charge, and release values for that
 edit. If the service cannot yet confirm the outcome, credits can remain reserved while that same
 attempt is checked. An uncertain attempt is not automatically treated as failed or free.

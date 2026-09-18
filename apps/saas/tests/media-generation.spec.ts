@@ -481,7 +481,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await expect
 			.poll(() => providerCancellationReadiness(jobId), { timeout: 30_000 })
 			.toBe("PROVIDER_PENDING:SUBMITTED:false:task-bound");
-		await page.getByRole("button", { name: /cancel/i }).click();
+		await page.getByRole("button", { name: "Cancel", exact: true }).click();
 		await expect
 			.poll(
 				async () =>

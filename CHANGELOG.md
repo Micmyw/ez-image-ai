@@ -2,6 +2,10 @@
 
 ## 2026-09-19
 
+### Credit settlement feedback
+
+- Keep completed and canceled generation results refreshing until reserved credits are charged or returned, and show pending credits until settlement is confirmed.
+
 ### Recover unfinished subscription checkouts
 
 - Offer Continue payment and Change plan, automatic status checks, waiting deadlines and an order reference for unresolved payments.
