@@ -421,6 +421,7 @@ export const paymentCheckoutIntent = pgTable(
 		providerSessionId: text("providerSessionId"),
 		providerOrderId: text("providerOrderId"),
 		providerCheckoutUrl: text("providerCheckoutUrl"),
+		checkoutRecovery: jsonb("checkoutRecovery"),
 		activeScopeKey: text("activeScopeKey"),
 		creditPackCatalogVersion: text("creditPackCatalogVersion"),
 		creditPackPricingVersion: text("creditPackPricingVersion"),

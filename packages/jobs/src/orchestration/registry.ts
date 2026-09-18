@@ -94,6 +94,10 @@ const payloadParsers = {
 	"media-process-payment-event": strictObject({ paymentEventId: text }),
 	"media-terminate-refunded-subscription": strictObject({ subscriptionId: text }),
 	"media-confirm-subscription-cancellation": strictObject({ subscriptionId: text }),
+	"media-recover-subscription-checkout": strictObject({
+		checkoutIntentId: text,
+		sequence: integer,
+	}),
 	"media-process-provider-webhook": strictObject({ providerWebhookEventId: text }),
 	"media-poll-generation": strictObject({ attemptId: text }),
 	"media-verify-upload": strictObject({
@@ -191,6 +195,7 @@ const definitions: Record<keyof typeof payloadParsers, TaskDefinition> = {
 	"media-process-payment-event": definition("media-payment-events", 5, 60, 8),
 	"media-terminate-refunded-subscription": definition("media-payment-events", 5, 120, 8),
 	"media-confirm-subscription-cancellation": definition("media-payment-events", 5, 120, 8),
+	"media-recover-subscription-checkout": definition("media-payment-events", 5, 120, 8),
 	"media-process-provider-webhook": definition("media-provider-events", 10, 60, 5),
 	"media-poll-generation": definition("media-generation-polling", 8, 300, 3),
 	"media-verify-upload": definition("media-upload-verification", 5, 120, 8),

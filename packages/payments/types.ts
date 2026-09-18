@@ -126,6 +126,9 @@ export interface CreateCheckoutLinkOptions {
 	email?: string;
 	name?: string;
 	redirectUrl?: string;
+	cancelUrl?: string;
+	/** Persisted per attempt; omitted historical attempts keep provider activation. */
+	subscriptionActivationMode?: "AUTOMATIC" | "MERCHANT";
 	customerId?: string;
 	trialPeriodDays?: number;
 	seats?: number;
@@ -191,11 +194,39 @@ export type SubscriptionCancellationState = "RENEWING" | "PENDING" | "DISABLED" 
 
 export type WebhookHandler = (req: Request) => Promise<Response>;
 
+export interface SubscriptionCheckoutRecoveryInput {
+	checkoutIntentId: string;
+	providerSessionId: string;
+	providerOrderId?: string | null;
+	priceId: string;
+	expiresAt: Date | null;
+	now: Date;
+	cancelRequested: boolean;
+	sessionExpiryVerified: boolean;
+}
+
+export interface SubscriptionCheckoutInspection {
+	status: "PENDING" | "APPROVED" | "PAID" | "CLOSED" | "WAITING" | "UNKNOWN";
+	reason?: string;
+	waitUntil?: Date;
+	providerOrderId?: string;
+}
+
 export type PaymentProvider = {
 	name: PaymentProviderName;
 	capabilities: PaymentProviderCapabilities;
 	createCheckout: CreateProviderCheckout;
 	recoverCheckout?: RecoverProviderCheckout;
+	recoverSubscriptionCheckout?: (
+		input: SubscriptionCheckoutRecoveryInput,
+	) => Promise<SubscriptionCheckoutInspection>;
+	activateSubscriptionCheckout?: (input: SubscriptionCheckoutRecoveryInput) => Promise<void>;
+	resumeSubscriptionCheckout?: (input: {
+		checkoutUrl: string;
+		priceId: string;
+		ownerType: "USER" | "ORGANIZATION";
+		ownerId: string;
+	}) => Promise<string>;
 	listPaymentEvents?: (
 		window: import("./provider/event-source").ProviderEventWindow,
 	) => Promise<import("./provider/event-source").ProviderEventPage>;

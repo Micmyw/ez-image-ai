@@ -378,6 +378,7 @@ export const paymentCheckoutIntent = sqliteTable(
 		providerSessionId: text("providerSessionId"),
 		providerOrderId: text("providerOrderId"),
 		providerCheckoutUrl: text("providerCheckoutUrl"),
+		checkoutRecovery: text("checkoutRecovery", { mode: "json" }),
 		activeScopeKey: text("activeScopeKey"),
 		creditPackCatalogVersion: text("creditPackCatalogVersion"),
 		creditPackPricingVersion: text("creditPackPricingVersion"),

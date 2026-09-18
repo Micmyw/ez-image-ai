@@ -114,6 +114,7 @@ describe("Waffo Pancake SDK boundary", () => {
 		});
 		expect(create).toHaveBeenCalledWith({
 			productId: "PROD_0123456789AbCdEfGhIjKl",
+			expiresInSeconds: 900,
 			currency: "USD",
 			buyerIdentity: "USER:user-1",
 			buyerEmail: "owner@example.com",
@@ -192,7 +193,7 @@ describe("Waffo Pancake SDK boundary", () => {
 		});
 	});
 
-	it("authoritatively reports no Waffo order only after the original session expired", async () => {
+	it("keeps a lost subscription create unknown even after 24 hours without a verified session deadline", async () => {
 		const query = vi.fn().mockResolvedValue({ data: { subscriptionOrders: [] } });
 		const client: WaffoSdkBoundary = {
 			checkout: { authenticated: { create: vi.fn() } },
@@ -207,7 +208,7 @@ describe("Waffo Pancake SDK boundary", () => {
 				providerCreatingAt: new Date("2026-09-06T01:00:00.000Z"),
 				now: new Date("2026-09-07T01:00:00.000Z"),
 			}),
-		).resolves.toEqual({ status: "NOT_FOUND" });
+		).resolves.toEqual({ status: "UNKNOWN" });
 	});
 
 	it("keeps an empty Waffo result unknown while the lost checkout session may remain active", async () => {

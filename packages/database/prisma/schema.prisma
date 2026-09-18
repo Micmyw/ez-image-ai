@@ -1229,6 +1229,7 @@ model PaymentCheckoutIntent {
   providerSessionId                      String?
   providerOrderId                        String?
   providerCheckoutUrl                    String?
+  checkoutRecovery                       Json?
   activeScopeKey                         String?                     @unique
   creditPackCatalogVersion               String?
   creditPackPricingVersion               String?

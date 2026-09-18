@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-19
+
+### Recover unfinished subscription checkouts
+
+- Offer Continue payment and Change plan, automatic status checks, waiting deadlines and an order reference for unresolved payments.
+- Create new PayPal subscriptions with merchant-controlled activation. Abandoning an unactivated attempt revokes its activation before another checkout is allowed.
+- Resume Waffo checkout with a fresh login token on the original session. Confirm pending-order cancellation, session expiry and payment history before allowing replacement.
+- Persist recovery through Outbox jobs with owner locks, retry limits and late-payment protection. Keep historical or unavailable provider records fenced for review.
+
 ## 2026-09-18
 
 ### Pending subscription checkout

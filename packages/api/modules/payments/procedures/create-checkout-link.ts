@@ -6,6 +6,8 @@ import {
 	getPaymentCheckoutIntentForOwnerByIdempotencyKey,
 	getPaymentCustomer,
 	markPaymentCheckoutIntentProviderCreating,
+	readCheckoutRecovery,
+	requestCheckoutRecovery,
 } from "@repo/database";
 import { db } from "@repo/database/client";
 import { logger } from "@repo/logs";
@@ -15,6 +17,7 @@ import {
 	getProviderPriceIdByPlanId,
 	isPaymentProviderConfigured,
 	isPaymentProviderCheckoutAvailable,
+	newSubscriptionCheckoutRecovery,
 } from "@repo/payments";
 import { config as paymentsConfig } from "@repo/payments/config";
 import { getBaseUrl } from "@repo/utils";
@@ -26,6 +29,7 @@ import { verifyOrganizationBillingManagement } from "../../organizations/lib/mem
 import { assertNewBillingEnabled, assertBillingEnvironmentReady } from "../billing-gate";
 import { isExactBillingPlanSnapshot } from "../provider-availability";
 import { recoverProviderCreatingCheckout } from "./checkout-recovery";
+import { resumableCheckoutLink, wakeCheckoutRecovery } from "./pending-subscription-checkout";
 
 export const checkoutInputSchema = z
 	.object({
@@ -119,6 +123,7 @@ export const createCheckoutLink = protectedProcedure
 						planKey: planId,
 						interval,
 						idempotencyKey,
+						checkoutRecovery: newSubscriptionCheckoutRecovery(provider),
 					},
 					db,
 				);
@@ -135,7 +140,12 @@ export const createCheckoutLink = protectedProcedure
 			checkoutIntent.intent.providerSessionId &&
 			checkoutIntent.intent.providerCheckoutUrl
 		) {
-			return { checkoutLink: checkoutIntent.intent.providerCheckoutUrl };
+			return {
+				checkoutLink: await resumableCheckoutLink({
+					...checkoutIntent.intent,
+					billingPlan: trustedBillingPlan,
+				}),
+			};
 		}
 		if (
 			checkoutIntent.intent.status !== "CREATED" &&
@@ -158,7 +168,12 @@ export const createCheckoutLink = protectedProcedure
 				: { organizationId: owner.ownerId }),
 			email: user.email,
 			name: user.name ?? "",
-			redirectUrl: checkoutReturnUrl(planId),
+			redirectUrl: checkoutReturnUrl(planId, checkoutIntent.intent.id),
+			cancelUrl: checkoutReturnUrl(planId, checkoutIntent.intent.id, true),
+			subscriptionActivationMode:
+				readCheckoutRecovery(checkoutIntent.intent.checkoutRecovery).mode === "MERCHANT"
+					? ("MERCHANT" as const)
+					: ("AUTOMATIC" as const),
 			customerId: customer?.providerCustomerId,
 			trialPeriodDays: "trialPeriodDays" in price ? price.trialPeriodDays : undefined,
 		};
@@ -216,6 +231,12 @@ export const createCheckoutLink = protectedProcedure
 					db,
 				);
 			}
+			await wakeCheckoutRecovery(
+				await requestCheckoutRecovery(
+					{ ...owner, id: checkoutIntent.intent.id, actorUserId: user.id },
+					db,
+				),
+			);
 			return { checkoutLink: checkout.checkoutUrl };
 		} catch (error) {
 			logger.error(
@@ -226,9 +247,15 @@ export const createCheckoutLink = protectedProcedure
 		}
 	});
 
-function checkoutReturnUrl(planId: "creator" | "ultimate" | "studio"): string {
+function checkoutReturnUrl(
+	planId: "creator" | "ultimate" | "studio",
+	checkoutIntentId: string,
+	canceled = false,
+): string {
 	const url = new URL("/checkout-return", getBaseUrl(process.env.NEXT_PUBLIC_SAAS_URL, 3000));
 	url.searchParams.set("expectedPlanId", planId);
+	url.searchParams.set("checkoutIntentId", checkoutIntentId);
+	if (canceled) url.searchParams.set("canceled", "1");
 	url.searchParams.set("returnTo", "/create?upgrade=complete");
 	return url.toString();
 }

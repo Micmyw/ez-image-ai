@@ -43,12 +43,13 @@ Guests sign in without calling the protected availability endpoint. Credit Packs
 payment-method preference and retain exact per-pack availability before enabling each purchase.
 Pending subscription orders leave preferences selectable and replace new checkout with recovery
 actions. Unknown status is not unpaid or closed; support receives the owned order reference, and
-only confirmed provider closure releases server admission.
+confirmed provider closure or revocation of an unactivated merchant-controlled PayPal attempt releases server admission.
 
-Waffo checkout expiry uses the session deadline rather than the shorter authentication-token
-deadline. An expired PayPal/Waffo subscription link does not itself release admission because
-approval, payment or event delivery may still be in progress. The provider-specific recovery
-design and remaining validation requirements are documented in
+New PayPal attempts use merchant-controlled activation and preserve this mode for retries.
+Waffo subscription sessions request a 15-minute lifetime and persist the actual returned deadline;
+resuming refreshes only the login token. Neither token nor session expiry alone settles a pending
+payment. Status checks and cancellation run through persistent recovery jobs, with deadlines and
+review states shown in the UI. The implemented flow and external verification limits are documented in
 [pending subscription checkout recovery](../operations/pending-subscription-checkouts.md).
 
 `packages/config/plans.ts` is the source of truth. Credits are issued once per internal monthly

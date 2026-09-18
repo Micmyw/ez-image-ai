@@ -1,5 +1,6 @@
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 
+import { readCheckoutRecovery } from "../../shared/checkout-recovery";
 import { db } from "../client";
 import {
 	billingPlan,
@@ -34,6 +35,7 @@ interface CreatePaymentCheckoutIntentBase extends PaymentOwner {
 	billingPlanId: string;
 	planKey: string;
 	idempotencyKey: string;
+	checkoutRecovery?: Record<string, unknown>;
 	now?: Date;
 }
 
@@ -129,11 +131,19 @@ export async function createPaymentCheckoutIntent(input: CreatePaymentCheckoutIn
 				if (!matchesTrustedCheckoutCommand(replay, input)) {
 					throw new Error("PAYMENT_CHECKOUT_INTENT_IDEMPOTENCY_CONFLICT");
 				}
-				if (productKind === "PLAN")
+				if (productKind === "PLAN") {
 					await assertSubscriptionCheckoutAllowed(
 						{ ...input, checkoutIntentId: replay.id, now },
 						tx,
 					);
+					const recovery = readCheckoutRecovery(replay.checkoutRecovery);
+					if (
+						recovery.cancelRequestedAt ||
+						recovery.activationRequestedAt ||
+						["PAID", "REVIEW"].includes(recovery.status)
+					)
+						throw new Error("PAYMENT_CHECKOUT_INTENT_REPLAY_UNSAFE");
+				}
 				if (replay.status === "CREATED") return { intent: replay, replayed: true };
 				if (
 					replay.status === "PROVIDER_PENDING" &&
@@ -160,6 +170,15 @@ export async function createPaymentCheckoutIntent(input: CreatePaymentCheckoutIn
 				.from(paymentCheckoutIntent)
 				.where(eq(paymentCheckoutIntent.activeScopeKey, activeScopeKey))
 				.limit(1);
+			if (productKind === "PLAN" && active) {
+				const recovery = readCheckoutRecovery(active.checkoutRecovery);
+				if (
+					recovery.cancelRequestedAt ||
+					recovery.activationRequestedAt ||
+					["PAID", "REVIEW"].includes(recovery.status)
+				)
+					throw new Error("PAYMENT_CHECKOUT_INTENT_CONFLICT");
+			}
 			if (productKind === "PLAN")
 				await assertSubscriptionCheckoutAllowed(
 					{ ...input, checkoutIntentId: active?.id, now },
@@ -209,6 +228,7 @@ export async function createPaymentCheckoutIntent(input: CreatePaymentCheckoutIn
 					idempotencyKey: input.idempotencyKey,
 					activeScopeKey,
 					expiresAt: null,
+					checkoutRecovery: input.checkoutRecovery,
 					...creditPackSnapshot,
 				})
 				.returning();

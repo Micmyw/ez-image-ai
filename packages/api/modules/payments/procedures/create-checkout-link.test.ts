@@ -38,7 +38,9 @@ const {
 }));
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
-vi.mock("@repo/database", () => ({
+vi.mock("@repo/database", async () => ({
+	...(await import("../../../../database/shared/checkout-recovery")),
+	requestCheckoutRecovery: vi.fn().mockResolvedValue({ checkoutRecovery: null }),
 	assertPaymentSubscriptionCheckoutAllowed: vi.fn(),
 	bindPaymentCheckoutIntentOrder: bindCheckoutIntentOrder,
 	bindPaymentCheckoutIntentSession: bindCheckoutIntent,
@@ -56,6 +58,15 @@ vi.mock("@repo/database/client", () => ({
 vi.mock("@repo/logs", () => ({ logger: { error: vi.fn() } }));
 vi.mock("@repo/payments/config", () => ({ config: paymentsConfig }));
 vi.mock("@repo/payments", () => ({
+	assertCheckoutRecoveryScope: vi.fn(),
+	newSubscriptionCheckoutRecovery: vi.fn(() => ({
+		version: 1,
+		mode: "MERCHANT",
+		sequence: 0,
+		status: "PENDING",
+		failures: 0,
+		checks: 0,
+	})),
 	findPriceByPlanId: vi.fn(),
 	getPaymentProvider: vi.fn(),
 	getProviderPriceIdByPlanId: vi.fn(),
@@ -398,6 +409,7 @@ describe("createCheckoutLink", () => {
 				planKey: "creator",
 				interval: "month",
 				idempotencyKey: "checkout-operation-alias-0002",
+				checkoutRecovery: expect.objectContaining({ mode: "MERCHANT" }),
 			},
 			expect.anything(),
 		);
@@ -410,7 +422,7 @@ describe("createCheckoutLink", () => {
 				ownerType: "USER",
 				ownerId: "user-1",
 				redirectUrl:
-					"https://app.ezpic.test/checkout-return?expectedPlanId=creator&returnTo=%2Fcreate%3Fupgrade%3Dcomplete",
+					"https://app.ezpic.test/checkout-return?expectedPlanId=creator&checkoutIntentId=checkout-intent-1&returnTo=%2Fcreate%3Fupgrade%3Dcomplete",
 			}),
 		);
 		expect(markCheckoutIntentProviderCreating).toHaveBeenCalledWith(

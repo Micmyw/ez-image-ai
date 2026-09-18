@@ -43,6 +43,11 @@ export async function deliverOutboxEvent(
 			return triggerAndWait(dependencies, "media-confirm-subscription-cancellation", {
 				subscriptionId: requiredString(payload.subscriptionId, event.aggregateId),
 			});
+		case "SUBSCRIPTION_CHECKOUT_RECOVERY":
+			return triggerAndWait(dependencies, "media-recover-subscription-checkout", {
+				checkoutIntentId: requiredString(payload.checkoutIntentId, event.aggregateId),
+				sequence: integerValue(payload.sequence, 0),
+			});
 		case "CREDIT_PACK_FULFILLED":
 		case "CREDIT_PACK_ADJUSTED":
 			// These are durable domain records for audit and future notifications. The

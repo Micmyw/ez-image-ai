@@ -37,6 +37,7 @@ import {
 	recoverFinalizingGenerations,
 } from "../handlers/recover-finalizing-generations";
 import { recoverMediaVerifications } from "../handlers/recover-media-verifications";
+import { recoverCheckout } from "../handlers/recover-subscription-checkout";
 import { settleGeneration } from "../handlers/settle-generation";
 import { terminateSubscriptionAfterRefund } from "../handlers/terminate-refunded-subscription";
 import { verifyUpload } from "../handlers/verify-upload";
@@ -184,6 +185,8 @@ export async function executeTask(
 			});
 		case "media-terminate-refunded-subscription":
 			return terminateSubscriptionAfterRefund(parseTaskPayload(taskId, payload));
+		case "media-recover-subscription-checkout":
+			return recoverCheckout(parseTaskPayload(taskId, payload));
 		case "media-confirm-subscription-cancellation":
 			return confirmCancellation(parseTaskPayload(taskId, payload));
 		case "media-process-payment-event":

@@ -252,7 +252,7 @@ export type PaymentCustomerScalarFieldEnum = z.infer<typeof PaymentCustomerScala
 
 // File: PaymentCheckoutIntentScalarFieldEnum.schema.ts
 
-export const PaymentCheckoutIntentScalarFieldEnumSchema = z.enum(['id', 'provider', 'ownerType', 'ownerId', 'submittedByUserId', 'productKind', 'billingPlanId', 'planKey', 'interval', 'idempotencyKey', 'providerSessionId', 'providerOrderId', 'providerCheckoutUrl', 'activeScopeKey', 'creditPackCatalogVersion', 'creditPackPricingVersion', 'creditPackSubscriberEligibilityVersion', 'creditPackBaseCredits', 'creditPackBonusCredits', 'creditPackTotalCredits', 'creditPackExpiryMonths', 'creditPackSubscriberBonusEligible', 'creditPackSubscriberSubscriptionId', 'creditPackSubscriberPlanKey', 'creditPackEligibilityEvaluatedAt', 'status', 'expiresAt', 'createdAt', 'updatedAt'])
+export const PaymentCheckoutIntentScalarFieldEnumSchema = z.enum(['id', 'provider', 'ownerType', 'ownerId', 'submittedByUserId', 'productKind', 'billingPlanId', 'planKey', 'interval', 'idempotencyKey', 'providerSessionId', 'providerOrderId', 'providerCheckoutUrl', 'checkoutRecovery', 'activeScopeKey', 'creditPackCatalogVersion', 'creditPackPricingVersion', 'creditPackSubscriberEligibilityVersion', 'creditPackBaseCredits', 'creditPackBonusCredits', 'creditPackTotalCredits', 'creditPackExpiryMonths', 'creditPackSubscriberBonusEligible', 'creditPackSubscriberSubscriptionId', 'creditPackSubscriberPlanKey', 'creditPackEligibilityEvaluatedAt', 'status', 'expiresAt', 'createdAt', 'updatedAt'])
 
 export type PaymentCheckoutIntentScalarFieldEnum = z.infer<typeof PaymentCheckoutIntentScalarFieldEnumSchema>;
 
@@ -1488,6 +1488,7 @@ export const PaymentCheckoutIntentSchema = z.object({
   providerSessionId: z.string().nullish(),
   providerOrderId: z.string().nullish(),
   providerCheckoutUrl: z.string().nullish(),
+  checkoutRecovery: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10").nullish(),
   activeScopeKey: z.string().nullish(),
   creditPackCatalogVersion: z.string().nullish(),
   creditPackPricingVersion: z.string().nullish(),

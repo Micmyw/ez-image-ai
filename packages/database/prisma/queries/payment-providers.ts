@@ -1,3 +1,4 @@
+import { readCheckoutRecovery } from "../../shared/checkout-recovery";
 import type { Prisma } from "../generated/client";
 import { runSerializable, type MediaTransactionClient } from "./media/types";
 
@@ -26,6 +27,7 @@ interface CreatePaymentCheckoutIntentBase extends PaymentOwner {
 	billingPlanId: string;
 	planKey: string;
 	idempotencyKey: string;
+	checkoutRecovery?: Prisma.InputJsonValue;
 	now?: Date;
 }
 
@@ -125,6 +127,13 @@ export async function createPaymentCheckoutIntent(
 			}
 			if (productKind === "PLAN") {
 				await assertSubscriptionCheckoutAllowed({ ...input, checkoutIntentId: replay.id, now }, tx);
+				const recovery = readCheckoutRecovery(replay.checkoutRecovery);
+				if (
+					recovery.cancelRequestedAt ||
+					recovery.activationRequestedAt ||
+					["PAID", "REVIEW"].includes(recovery.status)
+				)
+					throw new Error("PAYMENT_CHECKOUT_INTENT_REPLAY_UNSAFE");
 			}
 			if (replay.status === "CREATED") return { intent: replay, replayed: true };
 			if (
@@ -148,6 +157,15 @@ export async function createPaymentCheckoutIntent(
 		}
 
 		const active = await tx.paymentCheckoutIntent.findUnique({ where: { activeScopeKey } });
+		if (productKind === "PLAN" && active) {
+			const recovery = readCheckoutRecovery(active.checkoutRecovery);
+			if (
+				recovery.cancelRequestedAt ||
+				recovery.activationRequestedAt ||
+				["PAID", "REVIEW"].includes(recovery.status)
+			)
+				throw new Error("PAYMENT_CHECKOUT_INTENT_CONFLICT");
+		}
 		if (productKind === "PLAN") {
 			await assertSubscriptionCheckoutAllowed({ ...input, checkoutIntentId: active?.id, now }, tx);
 		}
@@ -196,6 +214,7 @@ export async function createPaymentCheckoutIntent(
 				idempotencyKey: input.idempotencyKey,
 				activeScopeKey,
 				expiresAt: null,
+				checkoutRecovery: input.checkoutRecovery,
 				...creditPackSnapshot,
 			},
 		});

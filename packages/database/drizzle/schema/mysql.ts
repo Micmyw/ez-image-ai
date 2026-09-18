@@ -356,6 +356,7 @@ export const paymentCheckoutIntent = mysqlTable(
 		providerSessionId: varchar("providerSessionId", { length: 255 }),
 		providerOrderId: varchar("providerOrderId", { length: 255 }),
 		providerCheckoutUrl: text("providerCheckoutUrl"),
+		checkoutRecovery: json("checkoutRecovery"),
 		activeScopeKey: varchar("activeScopeKey", { length: 768 }),
 		creditPackCatalogVersion: varchar("creditPackCatalogVersion", { length: 255 }),
 		creditPackPricingVersion: varchar("creditPackPricingVersion", { length: 255 }),

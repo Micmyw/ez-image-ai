@@ -6,7 +6,7 @@ import { Button } from "@repo/ui/components/button";
 import { orpc } from "@shared/lib/orpc-query-utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { usePaymentAction } from "../hooks/use-payment-action";
 
@@ -14,28 +14,88 @@ export function PendingSubscriptionCheckout({ compact = false }: { compact?: boo
 	const t = useTranslations("pricing.pendingCheckout");
 	const pricing = useTranslations("pricing");
 	const queryClient = useQueryClient();
-	const checking = useRef(false);
 	const payment = usePaymentAction();
-	const pending = useQuery(
-		orpc.payments.getPendingSubscriptionCheckout.queryOptions({ input: {} }),
-	);
+	const busy = useRef(false);
+	const checked = useRef({ id: "", at: 0 });
+	const pollingUntil = useRef(Date.now() + 120_000);
+	const [error, setError] = useState(false);
+	const queryOptions = orpc.payments.getPendingSubscriptionCheckout.queryOptions({ input: {} });
+	const pending = useQuery({
+		...queryOptions,
+		refetchInterval: (query) => {
+			const current = query.state.data;
+			if (!current || current.status === "REVIEW") return false;
+			if (current.status === "WAITING") return 30_000;
+			return Date.now() < pollingUntil.current ? 3_000 : false;
+		},
+	});
 	const refresh = useMutation(orpc.payments.refreshPendingSubscriptionCheckout.mutationOptions());
-	const [result, setResult] = useState<{
-		id: string;
-		status: "PENDING" | "PAID" | "CLOSED" | "UNKNOWN";
-	} | null>(null);
+	const cancel = useMutation(orpc.payments.cancelPendingSubscriptionCheckout.mutationOptions());
+	const resume = useMutation(orpc.payments.resumePendingSubscriptionCheckout.mutationOptions());
+	const refreshAsync = refresh.mutateAsync;
+	const id = pending.data?.id;
+	useEffect(() => {
+		if (!id) return;
+		const check = () => {
+			if (
+				document.visibilityState === "hidden" ||
+				busy.current ||
+				(checked.current.id === id && Date.now() - checked.current.at < 30_000)
+			)
+				return;
+			checked.current = { id, at: Date.now() };
+			pollingUntil.current = Date.now() + 120_000;
+			void refreshAsync({ checkoutIntentId: id })
+				.then(() => queryClient.invalidateQueries({ queryKey: orpc.payments.key() }))
+				.catch(() => setError(true));
+		};
+		check();
+		window.addEventListener("focus", check);
+		window.addEventListener("pageshow", check);
+		return () => {
+			window.removeEventListener("focus", check);
+			window.removeEventListener("pageshow", check);
+		};
+	}, [id, refreshAsync, queryClient]);
 	if (!pending.data) return null;
 	const checkout = pending.data;
-	const status = result?.id === checkout.id ? result.status : null;
 	const provider = checkout.provider === "paypal" ? "PayPal" : "Waffo";
-	const plan =
-		checkout.planId && ["creator", "ultimate", "studio"].includes(checkout.planId)
-			? pricing(`products.${checkout.planId}.title`)
-			: pricing("choosePlan");
+	const plan = ["creator", "ultimate", "studio"].includes(checkout.planId)
+		? pricing(`products.${checkout.planId}.title`)
+		: pricing("choosePlan");
 	const period = checkout.interval === "year" ? pricing("yearly") : pricing("monthly");
 	const supportHref = config.supportEmail
 		? `mailto:${config.supportEmail}?subject=${encodeURIComponent(t("supportSubject", { id: checkout.id }))}&body=${encodeURIComponent(`${t("order", { id: checkout.id })}\n${plan} · ${period} · ${provider}`)}`
 		: "/contact";
+	const disabled =
+		Boolean(payment.action) || refresh.isPending || cancel.isPending || resume.isPending;
+	async function act(action: "resume" | "refresh" | "cancel") {
+		if (busy.current || !payment.acquire(`pending-${action}`)) return;
+		busy.current = true;
+		setError(false);
+		pollingUntil.current = Date.now() + 120_000;
+		let redirecting = false;
+		try {
+			const input = { checkoutIntentId: checkout.id };
+			if (action === "resume") {
+				const result = await resume.mutateAsync(input);
+				payment.redirecting();
+				window.location.assign(result.checkoutLink);
+				redirecting = true;
+			} else {
+				const result = await (action === "cancel"
+					? cancel.mutateAsync(input)
+					: refresh.mutateAsync(input));
+				queryClient.setQueryData(queryOptions.queryKey, result.status === "CLOSED" ? null : result);
+				await queryClient.invalidateQueries({ queryKey: orpc.payments.key() });
+			}
+		} catch {
+			setError(true);
+		} finally {
+			busy.current = false;
+			if (!redirecting) payment.release();
+		}
+	}
 	const details = (
 		<>
 			<p className="mt-1 text-muted-foreground">{t("description", { provider })}</p>
@@ -56,51 +116,34 @@ export function PendingSubscriptionCheckout({ compact = false }: { compact?: boo
 			</p>
 			{!compact && details}
 			<div className="mt-2 gap-2 flex flex-wrap items-center">
-				{checkout.checkoutLink && status !== "PAID" && status !== "CLOSED" && (
+				{checkout.canResume && (
 					<Button
 						size="sm"
-						disabled={Boolean(payment.action) || refresh.isPending}
-						loading={payment.action?.key === "resume-subscription"}
-						render={(props) => (
-							<a
-								{...props}
-								href={pending.data!.checkoutLink!}
-								aria-disabled={Boolean(payment.action) || refresh.isPending}
-								onClick={(event) => {
-									if (checking.current || !payment.acquire("resume-subscription")) {
-										event.preventDefault();
-										return;
-									}
-									payment.redirecting();
-								}}
-							>
-								{props.children}
-							</a>
-						)}
+						disabled={disabled}
+						loading={resume.isPending}
+						onClick={() => void act("resume")}
 					>
 						{t("resume")}
+					</Button>
+				)}
+				{checkout.canChange && (
+					<Button
+						size="sm"
+						variant="outline"
+						disabled={disabled}
+						loading={cancel.isPending}
+						onClick={() => void act("cancel")}
+					>
+						{t("changePlan")}
 					</Button>
 				)}
 				<Button
 					size="sm"
 					variant="outline"
 					aria-label={t("refresh")}
-					disabled={refresh.isPending || Boolean(payment.action)}
+					disabled={disabled}
 					loading={refresh.isPending}
-					aria-busy={refresh.isPending}
-					onClick={async () => {
-						if (checking.current || payment.action) return;
-						checking.current = true;
-						try {
-							const result = await refresh.mutateAsync({ checkoutIntentId: pending.data!.id });
-							setResult({ id: checkout.id, status: result.status });
-							await queryClient.invalidateQueries({ queryKey: orpc.payments.key() });
-						} catch {
-							setResult({ id: checkout.id, status: "UNKNOWN" });
-						} finally {
-							checking.current = false;
-						}
-					}}
+					onClick={() => void act("refresh")}
 				>
 					{t(compact ? "check" : "refresh")}
 				</Button>
@@ -113,10 +156,15 @@ export function PendingSubscriptionCheckout({ compact = false }: { compact?: boo
 					{t("support")}
 				</a>
 			</div>
-			{status && (
-				<output className="mt-2 text-xs leading-5 block text-muted-foreground" aria-live="polite">
-					{t(status)}
-				</output>
+			<output className="mt-2 text-xs leading-5 block text-muted-foreground" aria-live="polite">
+				{t(error ? "UNKNOWN" : checkout.status)}
+			</output>
+			{checkout.waitUntil && checkout.status === "WAITING" && (
+				<p className="mt-1 text-xs text-muted-foreground">
+					<time dateTime={checkout.waitUntil}>
+						{t("waitUntil", { date: new Date(checkout.waitUntil).toLocaleString() })}
+					</time>
+				</p>
 			)}
 			{compact && (
 				<details className="mt-2 text-xs leading-5">

@@ -3,8 +3,16 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
 import {
+	requestCheckoutRecovery,
+	claimCheckoutRecovery,
+	claimCheckoutActivation,
+	finishCheckoutRecovery,
+	readCheckoutRecovery,
+} from "../checkout-recovery";
+import {
 	assertPaymentSubscriptionCheckoutAllowed,
 	createPaymentCheckoutIntent,
+	bindPaymentCheckoutIntentSession,
 } from "../payment-providers";
 
 const runId = crypto.randomUUID();
@@ -63,11 +71,222 @@ describe("account-wide subscription checkout admission", () => {
 
 	afterAll(async () => {
 		if (!client) return;
+		const intents = await client.paymentCheckoutIntent.findMany({
+			where: { ownerId: { in: owners } },
+			select: { id: true },
+		});
+		await client.outboxEvent.deleteMany({
+			where: { aggregateId: { in: intents.map((i) => i.id) } },
+		});
+		await client.auditLog.deleteMany({ where: { targetId: { in: intents.map((i) => i.id) } } });
+		await client.paymentEvent.deleteMany({
+			where: { providerEventId: { startsWith: `recovery-${runId}` } },
+		});
 		await client.paymentCheckoutIntent.deleteMany({ where: { ownerId: { in: owners } } });
 		await client.subscription.deleteMany({ where: { ownerId: { in: owners } } });
 		await client.user.deleteMany({ where: { id: { in: owners } } });
 		await client.billingPlan.deleteMany({ where: { id: { in: plans } } });
 		await client.$disconnect();
+	});
+
+	async function openCheckout(mode: "MERCHANT" | "AUTOMATIC" = "MERCHANT") {
+		const result = await createPaymentCheckoutIntent(
+			{
+				...command(owner()),
+				checkoutRecovery: {
+					version: 1,
+					mode,
+					sequence: 0,
+					status: "PENDING",
+					failures: 0,
+					checks: 0,
+				},
+			},
+			client,
+		);
+		const intent = await client.paymentCheckoutIntent.update({
+			where: { id: result.intent.id },
+			data: {
+				status: "PROVIDER_PENDING",
+				providerSessionId: `I-${crypto.randomUUID()}`,
+				providerCheckoutUrl: "https://paypal.test/approve",
+			},
+		});
+		return {
+			id: intent.id,
+			ownerType: "USER" as const,
+			ownerId: intent.ownerId,
+			actorUserId: intent.ownerId,
+			now,
+		};
+	}
+	it("abandons a merchant checkout atomically and admits only one replacement across providers", async () => {
+		const pending = await openCheckout();
+		const closed = await requestCheckoutRecovery({ ...pending, cancel: true }, client);
+		expect(closed.status).toBe("CANCELED");
+		expect(closed.providerCheckoutUrl).toBeNull();
+		const replacements = await Promise.allSettled([
+			createPaymentCheckoutIntent(command(pending.ownerId), client),
+			createPaymentCheckoutIntent(command(pending.ownerId, "waffo"), client),
+		]);
+		expect(replacements.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+		expect(
+			await client.auditLog.count({
+				where: { targetId: pending.id, action: "PAYMENT_CHECKOUT_ABANDONED" },
+			}),
+		).toBe(1);
+	});
+	it("serializes activation against abandonment with the same subscription owner lock", async () => {
+		for (let index = 0; index < 8; index++) {
+			const pending = await openCheckout();
+			await requestCheckoutRecovery(pending, client);
+			const claimed = await claimCheckoutRecovery({ id: pending.id, sequence: 1, now }, client);
+			const [activation] = await Promise.all([
+				claimCheckoutActivation({ id: pending.id, leaseToken: claimed!.leaseToken, now }, client),
+				requestCheckoutRecovery({ ...pending, cancel: true }, client),
+			]);
+			const current = await client.paymentCheckoutIntent.findUniqueOrThrow({
+				where: { id: pending.id },
+			});
+			expect(current.status).toBe(activation ? "PROVIDER_PENDING" : "CANCELED");
+			if (activation)
+				await expect(
+					createPaymentCheckoutIntent(command(pending.ownerId, "waffo"), client),
+				).rejects.toThrow("PAYMENT_CHECKOUT_INTENT_CONFLICT");
+		}
+	});
+	it("retains a verified payment received before the provider closure result", async () => {
+		const pending = await openCheckout("AUTOMATIC");
+		await requestCheckoutRecovery({ ...pending, cancel: true }, client);
+		const claimed = await claimCheckoutRecovery({ id: pending.id, sequence: 1, now }, client);
+		await client.paymentEvent.create({
+			data: {
+				provider: "paypal",
+				providerEventId: `recovery-${runId}-paid`,
+				providerSubscriptionId: claimed!.intent.providerSessionId,
+				verifiedAt: now,
+				envelope: { event_type: "PAYMENT.SALE.COMPLETED", resource: { custom_id: pending.id } },
+			},
+		});
+		const result = await finishCheckoutRecovery(
+			{ id: pending.id, leaseToken: claimed!.leaseToken, status: "CLOSED", now },
+			client,
+		);
+		expect(result!.status).toBe("PROVIDER_PENDING");
+		expect(readCheckoutRecovery(result!.checkoutRecovery).status).toBe("PAID");
+		await expect(createPaymentCheckoutIntent(command(pending.ownerId), client)).rejects.toThrow(
+			"PAYMENT_CHECKOUT_INTENT_CONFLICT",
+		);
+	});
+	it("treats creation-only notifications as unpaid and never revives a canceled attempt", async () => {
+		const pending = await openCheckout();
+		await client.paymentEvent.create({
+			data: {
+				provider: "paypal",
+				providerEventId: `recovery-${runId}-created`,
+				verifiedAt: now,
+				envelope: {
+					event_type: "BILLING.SUBSCRIPTION.CREATED",
+					resource: { custom_id: pending.id },
+				},
+			},
+		});
+		expect((await requestCheckoutRecovery({ ...pending, cancel: true }, client)).status).toBe(
+			"CANCELED",
+		);
+		expect(await claimCheckoutRecovery({ id: pending.id, sequence: 0, now }, client)).toBeNull();
+		await expect(
+			bindPaymentCheckoutIntentSession(
+				{
+					intentId: pending.id,
+					provider: "paypal",
+					providerSessionId: "late-provider-create",
+					providerCheckoutUrl: "https://paypal.test/late",
+				},
+				client,
+			),
+		).rejects.toThrow("PAYMENT_CHECKOUT_INTENT_BINDING_CONFLICT");
+	});
+	it("persists cancellation during an inspection and enqueues a fresh recovery sequence", async () => {
+		const pending = await openCheckout("AUTOMATIC");
+		await requestCheckoutRecovery(pending, client);
+		const claimed = await claimCheckoutRecovery({ id: pending.id, sequence: 1, now }, client);
+		await requestCheckoutRecovery({ ...pending, cancel: true }, client);
+		const result = await finishCheckoutRecovery(
+			{ id: pending.id, leaseToken: claimed!.leaseToken, status: "PENDING", now },
+			client,
+		);
+		expect(readCheckoutRecovery(result!.checkoutRecovery)).toMatchObject({
+			sequence: 2,
+			cancelRequestedAt: now.toISOString(),
+		});
+		expect(await client.outboxEvent.count({ where: { aggregateId: pending.id } })).toBe(2);
+	});
+	it("keeps three unknown checks in review without preventing delayed verified payment processing", async () => {
+		const pending = await openCheckout("AUTOMATIC");
+		await requestCheckoutRecovery(pending, client);
+		for (let sequence = 1; sequence <= 3; sequence++) {
+			const at = new Date(now.getTime() + sequence * 30_000);
+			const claimed = await claimCheckoutRecovery({ id: pending.id, sequence, now: at }, client);
+			await finishCheckoutRecovery(
+				{ id: pending.id, leaseToken: claimed!.leaseToken, status: "UNKNOWN", now: at },
+				client,
+			);
+		}
+		const current = await client.paymentCheckoutIntent.findUniqueOrThrow({
+			where: { id: pending.id },
+		});
+		expect(current.status).toBe("PROVIDER_PENDING");
+		expect(readCheckoutRecovery(current.checkoutRecovery).status).toBe("REVIEW");
+		expect(
+			await client.auditLog.count({
+				where: { targetId: pending.id, action: "PAYMENT_CHECKOUT_RECOVERY_REVIEW" },
+			}),
+		).toBe(1);
+	});
+	it("rejects another user's cancellation without an audit or Outbox write", async () => {
+		const pending = await openCheckout();
+		await expect(
+			requestCheckoutRecovery({ ...pending, ownerId: "other", cancel: true }, client),
+		).rejects.toThrow("CHECKOUT_NOT_FOUND");
+		expect(await client.outboxEvent.count({ where: { aggregateId: pending.id } })).toBe(0);
+	});
+	it("maintains the same closure, receipt and Outbox behavior through the Drizzle alternative", async () => {
+		const previousUrl = process.env.DATABASE_URL;
+		process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
+		const { db: alternative } = await import("../../../drizzle/client");
+		const recovery = await import("../../../drizzle/queries/checkout-recovery");
+		if (previousUrl === undefined) delete process.env.DATABASE_URL;
+		else process.env.DATABASE_URL = previousUrl;
+		try {
+			const replaceable = await openCheckout();
+			expect(
+				(await recovery.requestCheckoutRecovery({ ...replaceable, cancel: true })).status,
+			).toBe("CANCELED");
+			const pending = await openCheckout("AUTOMATIC");
+			await recovery.requestCheckoutRecovery({ ...pending, cancel: true });
+			const claimed = await recovery.claimCheckoutRecovery({ id: pending.id, sequence: 1, now });
+			expect(claimed?.leaseToken).toBeTruthy();
+			await client.paymentEvent.create({
+				data: {
+					provider: "paypal",
+					providerEventId: `recovery-${runId}-drizzle-paid`,
+					verifiedAt: now,
+					envelope: { event_type: "PAYMENT.SALE.COMPLETED", resource: { custom_id: pending.id } },
+				},
+			});
+			const result = await recovery.finishCheckoutRecovery({
+				id: pending.id,
+				leaseToken: claimed!.leaseToken,
+				status: "CLOSED",
+				now,
+			});
+			expect(result?.status).toBe("PROVIDER_PENDING");
+			expect(readCheckoutRecovery(result?.checkoutRecovery).status).toBe("PAID");
+			expect(await client.outboxEvent.count({ where: { aggregateId: pending.id } })).toBe(1);
+		} finally {
+			await alternative.$client.end();
+		}
 	});
 
 	it("admits only one concurrent checkout across providers, plans and billing intervals", async () => {

@@ -3,6 +3,7 @@ export * from "./lib/plans";
 export * from "./lib/provider-price-ids";
 export * from "./provider";
 export * from "./provider/event-reconciliation";
+export * from "./provider/checkout-recovery";
 export {
 	requestSubscriptionCancellation,
 	confirmSubscriptionCancellation,

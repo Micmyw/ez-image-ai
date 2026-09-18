@@ -1,4 +1,5 @@
 import { getStripeLegacyLifecycleStatus } from "@repo/config/server";
+import { recoverPendingCheckouts } from "@repo/database";
 import { db } from "@repo/database/client";
 import {
 	createStripeBillingSource,
@@ -37,6 +38,7 @@ export async function reconcileSubscriptions(
 	await requeuePreviouslyUnsupportedRefunds(db);
 	await recoverRefundTerminations(db);
 	await recoverSubscriptionCancellations(db, input.limit);
+	await recoverPendingCheckouts(db, input.limit, input.now);
 	for (const provider of ["paypal", "waffo"] as const) {
 		if (!isPaymentProviderConfigured(provider)) continue;
 		try {

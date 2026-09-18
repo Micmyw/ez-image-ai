@@ -4,7 +4,7 @@ import type { PlanId } from "@payments/types";
 import { Spinner } from "@repo/ui/components/spinner";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpc } from "@shared/lib/orpc-query-utils";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -18,14 +18,25 @@ export function CheckoutReturnContent({
 	organizationId,
 	expectedPlanId,
 	returnTo,
+	checkoutIntentId,
+	canceled = false,
 }: {
 	organizationId?: string;
 	expectedPlanId: PlanId;
 	returnTo: string;
+	checkoutIntentId?: string;
+	canceled?: boolean;
 }) {
 	const t = useTranslations("checkoutReturn");
 	const router = useRouter();
 	const [polling, setPolling] = useState(true);
+	const { mutateAsync: refreshCheckout } = useMutation(
+		orpc.payments.refreshPendingSubscriptionCheckout.mutationOptions(),
+	);
+	useEffect(() => {
+		if (checkoutIntentId) void refreshCheckout({ checkoutIntentId }).catch(() => undefined);
+		if (canceled) router.replace(createChoosePlanPath(returnTo));
+	}, [checkoutIntentId, canceled, refreshCheckout, returnTo, router]);
 
 	const { data } = useQuery({
 		...orpc.payments.getCheckoutReturnState.queryOptions({

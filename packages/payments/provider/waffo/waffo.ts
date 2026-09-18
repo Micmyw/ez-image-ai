@@ -12,6 +12,12 @@ import { getWaffoEventId } from "./event-id";
 type WaffoEnvironment = "test" | "prod";
 
 export interface WaffoSdkBoundary {
+	auth?: {
+		issueSessionToken(input: {
+			productId: string;
+			buyerIdentity: string;
+		}): Promise<{ token: string; expiresAt: string }>;
+	};
 	checkout: {
 		authenticated: {
 			create(input: {
@@ -22,6 +28,7 @@ export interface WaffoSdkBoundary {
 				successUrl?: string;
 				orderMerchantExternalId: string;
 				metadata: Record<string, string>;
+				expiresInSeconds?: number;
 			}): Promise<{
 				sessionId: string;
 				checkoutUrl: string;
@@ -106,6 +113,7 @@ export async function createWaffoCheckoutLink(
 		...(options.email ? { buyerEmail: options.email } : {}),
 		...(options.redirectUrl ? { successUrl: options.redirectUrl } : {}),
 		orderMerchantExternalId: options.checkoutIntentId,
+		...(options.type === "subscription" ? { expiresInSeconds: 15 * 60 } : {}),
 		metadata: {
 			billingPlanId: options.billingPlanId,
 			...(options.type === "one-time"
@@ -180,7 +188,9 @@ export async function recoverWaffoCheckout(
 		}
 
 		const ageMs = options.now.getTime() - options.providerCreatingAt.getTime();
-		return Number.isFinite(ageMs) && ageMs >= WAFFO_LOST_SESSION_RETRY_DELAY_MS
+		return options.type === "one-time" &&
+			Number.isFinite(ageMs) &&
+			ageMs >= WAFFO_LOST_SESSION_RETRY_DELAY_MS
 			? { status: "NOT_FOUND" }
 			: { status: "UNKNOWN" };
 	} catch {
@@ -243,11 +253,9 @@ export async function inspectWaffoSubscriptionCheckout(
 		orders.some((order) => order.orderMerchantExternalId !== input.checkoutIntentId)
 	)
 		return "UNKNOWN";
-	if (!orders.length)
-		return input.expiresAt &&
-			input.now.getTime() > input.expiresAt.getTime() + WAFFO_LOST_SESSION_RETRY_DELAY_MS
-			? "CLOSED"
-			: "UNKNOWN";
+	// This legacy interface carries no verified session provenance. An order's
+	// absence or closure alone cannot revoke a still-payable checkout session.
+	if (!orders.length) return "UNKNOWN";
 	const order = orders[0]!;
 	const status = order.status;
 	if (status === "closed" || status === "canceled") {
@@ -263,7 +271,7 @@ export async function inspectWaffoSubscriptionCheckout(
 			Array.isArray(order.payments) &&
 			order.payments.every((payment) => payment.status === "failed")
 		)
-			return "CLOSED";
+			return "UNKNOWN";
 		return "UNKNOWN";
 	}
 	if (status === "pending") return "PENDING";

@@ -124,6 +124,16 @@ export function PricingTable({
 		enabled: authenticated && !hasSubscription,
 	});
 	const hasPendingCheckout = authenticated && Boolean(pending.data);
+	const previousPendingId = useRef<string | null>(null);
+	useEffect(() => {
+		if (pending.data) previousPendingId.current = pending.data.id;
+		else if (pending.data === null && previousPendingId.current) {
+			// A closed attempt must not donate its idempotency key to a new checkout.
+			previousPendingId.current = null;
+			checkoutAttempts.current = createCheckoutAttemptController(createGrowthAttemptKey);
+			setCheckoutConflict(null);
+		}
+	}, [pending.data]);
 	const checkoutBlocked =
 		accountLoading ||
 		Boolean(payment.action) ||

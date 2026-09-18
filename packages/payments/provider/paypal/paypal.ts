@@ -7,6 +7,8 @@ import type {
 	CheckoutRecoveryResult,
 	InspectSubscriptionCancellationInput,
 	SubscriptionCancellationState,
+	SubscriptionCheckoutRecoveryInput,
+	SubscriptionCheckoutInspection,
 } from "../../types";
 import type { VerifiedPaymentEvent } from "../webhook";
 
@@ -129,8 +131,9 @@ export async function createPayPalCheckoutLink(
 			custom_id: options.checkoutIntentId,
 			application_context: {
 				return_url: options.redirectUrl ?? "",
-				cancel_url: options.redirectUrl ?? "",
-				user_action: "SUBSCRIBE_NOW",
+				cancel_url: options.cancelUrl ?? options.redirectUrl ?? "",
+				user_action:
+					options.subscriptionActivationMode === "MERCHANT" ? "CONTINUE" : "SUBSCRIBE_NOW",
 			},
 		},
 	});
@@ -174,6 +177,22 @@ export async function inspectPayPalSubscriptionCheckout(
 	configuration: PayPalAuthorizedConfiguration,
 	input: { checkoutIntentId: string; providerSessionId: string; priceId: string },
 ): Promise<"PENDING" | "PAID" | "CLOSED" | "UNKNOWN"> {
+	const result = await recoverPayPalSubscriptionCheckout(http, configuration, input);
+	return result.status === "APPROVED"
+		? "PENDING"
+		: result.status === "WAITING"
+			? "UNKNOWN"
+			: result.status;
+}
+
+export async function recoverPayPalSubscriptionCheckout(
+	http: PayPalHttpBoundary,
+	configuration: PayPalAuthorizedConfiguration,
+	input: Pick<
+		SubscriptionCheckoutRecoveryInput,
+		"checkoutIntentId" | "providerSessionId" | "priceId"
+	>,
+): Promise<SubscriptionCheckoutInspection> {
 	const response = await http.request({
 		method: "GET",
 		url: `${configuration.baseUrl}/v1/billing/subscriptions/${encodeURIComponent(input.providerSessionId)}`,
@@ -186,10 +205,13 @@ export async function inspectPayPalSubscriptionCheckout(
 		body?.custom_id !== input.checkoutIntentId ||
 		body?.plan_id !== input.priceId
 	)
-		return "UNKNOWN";
+		return {
+			status: "UNKNOWN",
+			reason: response.status === 404 ? "RESOURCE_NOT_FOUND" : "PROVIDER_BINDING_UNCONFIRMED",
+		};
 	if (body.status === "CANCELLED" || body.status === "EXPIRED") {
 		const billing = recordValue(body.billing_info);
-		if (!billing) return "UNKNOWN";
+		if (!billing) return { status: "UNKNOWN", reason: "PAYMENT_HISTORY_UNCONFIRMED" };
 		if (
 			billing.last_payment ||
 			(Array.isArray(billing.cycle_executions) &&
@@ -197,12 +219,32 @@ export async function inspectPayPalSubscriptionCheckout(
 					(cycle) => Number(recordValue(cycle)?.cycles_completed ?? 0) > 0,
 				))
 		)
-			return "PAID";
-		return "CLOSED";
+			return { status: "PAID" };
+		return { status: "CLOSED" };
 	}
-	if (body.status === "APPROVAL_PENDING" || body.status === "APPROVED") return "PENDING";
-	if (body.status === "ACTIVE" || body.status === "SUSPENDED") return "PAID";
-	return "UNKNOWN";
+	if (body.status === "APPROVAL_PENDING") return { status: "PENDING" };
+	if (body.status === "APPROVED") return { status: "APPROVED" };
+	if (body.status === "ACTIVE" || body.status === "SUSPENDED") return { status: "PAID" };
+	return { status: "UNKNOWN", reason: "PROVIDER_STATUS_UNCONFIRMED" };
+}
+
+export async function activatePayPalSubscriptionCheckout(
+	http: PayPalHttpBoundary,
+	configuration: PayPalAuthorizedConfiguration,
+	input: SubscriptionCheckoutRecoveryInput,
+): Promise<void> {
+	const response = await http.request({
+		method: "POST",
+		url: `${configuration.baseUrl}/v1/billing/subscriptions/${encodeURIComponent(input.providerSessionId)}/activate`,
+		headers: {
+			Authorization: `Bearer ${configuration.accessToken}`,
+			"Content-Type": "application/json",
+			"PayPal-Request-Id": `activate:${input.checkoutIntentId}`,
+		},
+		body: { reason: "Buyer approved the selected EzPic subscription" },
+	});
+	if (response.status !== 204 && response.status !== 200)
+		throw new Error("PAYPAL_CHECKOUT_ACTIVATION_UNCONFIRMED");
 }
 
 async function createPayPalOrderCheckoutLink(

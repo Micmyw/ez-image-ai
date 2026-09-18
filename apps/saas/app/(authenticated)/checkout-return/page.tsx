@@ -23,13 +23,12 @@ export default async function CheckoutReturnPage({
 		organizationId?: string;
 		expectedPlanId?: string;
 		returnTo?: string;
+		checkoutIntentId?: string;
+		canceled?: string;
 	}>;
 }) {
-	const [session, t, { organizationId, expectedPlanId, returnTo }] = await Promise.all([
-		getSession(),
-		getTranslations("checkoutReturn"),
-		searchParams,
-	]);
+	const [session, t, { organizationId, expectedPlanId, returnTo, checkoutIntentId, canceled }] =
+		await Promise.all([getSession(), getTranslations("checkoutReturn"), searchParams]);
 
 	if (!session) {
 		redirect("/login");
@@ -54,6 +53,10 @@ export default async function CheckoutReturnPage({
 				organizationId={organizationId}
 				expectedPlanId={expectedPlanId}
 				returnTo={safeReturnTo}
+				checkoutIntentId={
+					checkoutIntentId?.length && checkoutIntentId.length <= 128 ? checkoutIntentId : undefined
+				}
+				canceled={canceled === "1"}
 			/>
 		</AuthWrapper>
 	);

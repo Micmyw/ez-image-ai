@@ -1,6 +1,10 @@
 import { WaffoPancake } from "@waffo/pancake-ts";
 
 import type { PaymentProvider } from "../../types";
+import {
+	recoverWaffoSubscriptionCheckout,
+	resumeWaffoSubscriptionCheckout,
+} from "./checkout-recovery";
 import { listWaffoPaymentEvents } from "./event-source";
 import {
 	cancelWaffoSubscription,
@@ -59,6 +63,9 @@ export function createWaffoProvider(
 				window,
 			),
 		inspectCheckout: (input) => inspectWaffoSubscriptionCheckout(configuredClient, storeId, input),
+		recoverSubscriptionCheckout: (input) =>
+			recoverWaffoSubscriptionCheckout(configuredClient, storeId, input),
+		resumeSubscriptionCheckout: (input) => resumeWaffoSubscriptionCheckout(configuredClient, input),
 		inspectSubscriptionCancellation: (input) =>
 			inspectWaffoSubscriptionCancellation(configuredClient, storeId, input),
 	};

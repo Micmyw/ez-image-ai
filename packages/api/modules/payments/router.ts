@@ -15,11 +15,15 @@ import { listPurchases } from "./procedures/list-purchases";
 import {
 	getPendingSubscriptionCheckout,
 	refreshPendingSubscriptionCheckout,
+	cancelPendingSubscriptionCheckout,
+	resumePendingSubscriptionCheckout,
 } from "./procedures/pending-subscription-checkout";
 
 export const paymentsRouter = {
 	getPendingSubscriptionCheckout,
 	refreshPendingSubscriptionCheckout,
+	cancelPendingSubscriptionCheckout,
+	resumePendingSubscriptionCheckout,
 	approveStripeRefundRepair,
 	applyStripeRefundRepair,
 	cancelPurchaseSubscription,

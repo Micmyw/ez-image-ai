@@ -2,13 +2,21 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
-	data: null as null | { id: string; provider: string; checkoutLink: string | null },
+	data: null as null | {
+		id: string;
+		provider: string;
+		canResume: boolean;
+		canChange: boolean;
+		status: string;
+	},
 }));
 vi.mock("@shared/lib/orpc-query-utils", () => ({
 	orpc: {
 		payments: {
 			getPendingSubscriptionCheckout: { queryOptions: () => ({}) },
 			refreshPendingSubscriptionCheckout: { mutationOptions: () => ({}) },
+			cancelPendingSubscriptionCheckout: { mutationOptions: () => ({}) },
+			resumePendingSubscriptionCheckout: { mutationOptions: () => ({}) },
 		},
 	},
 }));
@@ -24,22 +32,31 @@ describe("pending subscription checkout rendering", () => {
 		state.data = null;
 		expect(renderToStaticMarkup(<PendingSubscriptionCheckout />)).toBe("");
 	});
-	it("renders a usable anchor to the server-approved pending checkout", () => {
+	it("offers continuing the same checkout and changing plan", () => {
 		state.data = {
 			id: "intent",
 			provider: "paypal",
-			checkoutLink: "https://www.sandbox.paypal.com/approve?token=I-TEST",
+			canResume: true,
+			canChange: true,
+			status: "PENDING",
 		};
 		const html = renderToStaticMarkup(<PendingSubscriptionCheckout />);
-		expect(html).toContain('href="https://www.sandbox.paypal.com/approve?token=I-TEST"');
 		expect(html).toContain("resume");
+		expect(html).toContain("changePlan");
 		expect(html).toContain("refresh");
 	});
 	it("does not render an expired checkout link", () => {
-		state.data = { id: "intent", provider: "waffo", checkoutLink: null };
+		state.data = {
+			id: "intent",
+			provider: "waffo",
+			canResume: false,
+			canChange: false,
+			status: "WAITING",
+		};
 		const html = renderToStaticMarkup(<PendingSubscriptionCheckout />);
 		expect(html).not.toContain(">resume<");
 		expect(html).toContain(">support<");
 		expect(html).toContain("pending-checkout-reference");
+		expect(html).toContain("WAITING");
 	});
 });

@@ -1,148 +1,99 @@
 # Pending subscription checkout recovery
 
-Reviewed against PayPal's Subscriptions OpenAPI and Waffo Pancake SDK 0.19.1 on
-2026-09-18. This document separates the local expiry fixes from the proposed replacement
-flow. It does not certify a live cancellation, payment, or deployment.
+Implemented 2026-09-19. Opening checkout may create a provider resource before buyer login.
+It is not payment evidence. This flow uses existing PostgreSQL admission locks, immutable checkout
+intent identities, Outbox delivery and the verified payment-event ledger pipeline.
 
-## What an unfinished checkout means
+## Customer flow
 
-Opening checkout is not a paid subscription. It can still create a provider resource
-before the buyer signs in or approves payment:
+- **Resume checkout** continues the same attempt. Waffo renews authentication without creating a new session.
+- **Change plan** requests abandonment of that attempt. The plan table unlocks only after the server closes it.
+- Page entry, browser return and payment return request a status check. Browser query polling is bounded;
+  durable jobs continue independently and show a known waiting deadline or a review state.
+- Unknown status displays the order reference and support action. A displayed expiry or a PayPal 404
+  is never presented as proof of successful cancellation.
 
-| Provider | Resource before payment                                                                                                                  | Cancellation and expiry evidence                                                                                                                                                                                  |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| PayPal   | Creating a subscription returns an `I-...` identifier and approval link; `APPROVAL_PENDING` means created but not approved by the buyer. | The documented `/cancel` error contract permits `ACTIVE` or `SUSPENDED`. Do not assume it can cancel `APPROVAL_PENDING`. No verified fixed approval-link lifetime was found.                                      |
-| Waffo    | Authenticated checkout creates a session plus a separate authentication token. An order may not exist yet.                               | The session defaults to 45 minutes; the token expires after 5 minutes. `orders.cancelSubscription` documents `pending` to `canceled`, and `active`/`trialing` to `canceling`. The latter awaits PSP confirmation. |
+The existing selected plan and billing interval stay in the plan table while recovery runs. After
+closure, the customer chooses a payment method for a fresh attempt; no second payment starts automatically.
 
-A read-only inspection of the reported production incident found a local
-`PROVIDER_PENDING` intent with no expiry or canonical subscription. PayPal returned
-`404 RESOURCE_NOT_FOUND / INVALID_RESOURCE_ID`, while the same credentials could read
-the matching active plan. This explains why the current generic inspection remains
-`UNKNOWN`; it does **not** prove that the original approval link can no longer charge.
-The customer's absence of a visible PayPal agreement is also not a closure receipt.
+## PayPal
 
-## Local fixes in this change
+New subscription intents persist `MERCHANT` activation mode and a fingerprint of the environment,
+client and webhook configuration **before** creating the PayPal resource. Create requests use
+`application_context.user_action = CONTINUE`. PayPal's documented contract requires merchant
+activation after buyer approval. Existing intents without this metadata retain `LEGACY` semantics;
+create retries cannot silently change their original activation mode.
 
-- Persist Waffo's session `expiresAt`, not the earlier `tokenExpiresAt`.
-- Preserve the PayPal/Waffo subscription admission fence when a checkout link expires,
-  including direct retries, alias retries, same-plan replacement and another provider.
-  Expiry does not settle a payment initiated earlier or a delayed payment notification.
-- Keep the Prisma and Drizzle admission paths aligned. Existing credit-pack and legacy
-  Stripe expiry behavior is unchanged.
+An unactivated merchant attempt can be abandoned under the same owner lock as checkout admission.
+This closes the local attempt and revokes EzPic activation, including when an old browser tab later
+approves or returns. It does **not** claim to revoke the external approval URL. Before releasing the
+lock, the transaction checks subscriptions and already-received financial receipts.
 
-These changes do not cancel provider resources, migrate old expiry values, repair
-previously `EXPIRED` intents, refresh expired Waffo authentication tokens, or enable
-self-service abandonment. The reported PayPal intent has not been changed.
+Activation requires an authenticated provider read matching subscription ID, `custom_id` and plan,
+followed by a persisted activation claim under the owner lock. Only an `APPROVED` attempt can activate.
+The worker posts to the same resource with a stable request identity, then reads back. Activation
+timeouts remain fenced; cancellation cannot erase an uncertain activation claim. Browser parameters
+cannot prove approval, supply a provider resource ID, or grant credits. Credits still require the
+existing verified payment lifecycle.
 
-### Verification of the local fixes
+Historical automatic attempts cannot be locally reclassified as merchant controlled. A 404, unknown
+deadline or unapproved legacy resource remains unresolved until provider closure can be confirmed.
+The reported production order was inspected read-only; it was not canceled or rewritten.
 
-The Waffo expiry regression and three expired-subscription retry cases failed before
-their fixes and passed afterward. The final relevant checks passed: 269 payment-provider
-tests, 32 database unit tests, 32 checkout API tests, affected package type checks,
-formatting and lint.
+## Waffo
 
-An isolated PostgreSQL 17 container on loopback port 55432 applied all 52 migrations.
-Both affected persistence/admission integration suites passed (34 tests), including
-concurrent cross-provider admission, expired links, immutable replay and owner isolation.
-These are local database results; PayPal manual activation and Waffo session revocation
-remain unverified external prerequisites for the proposed flow below.
+New subscription sessions request `expiresInSeconds: 900`; persist the **returned session expiry**.
+Session and authentication-token deadlines are independent. Token renewal uses `auth.issueSessionToken`
+for the trusted product and buyer identity, replacing only the original URL's token fragment.
 
-## Proposed replacement flow — not yet implemented
+Recovery queries the exact merchant external ID within the configured store. When requested, it
+cancels a pending order only after checking payment history, then reads the same order back. A canceled
+order does not revoke the original checkout session: recovery waits for its verified deadline too.
+Closure requires no successful/active/in-flight payment, no ambiguous orders and an expired bound
+session. Missing history, partial queries, changed order IDs and pending payments stay fenced.
+Lost subscription creates and historical unverified deadlines cannot be cleared by a 24-hour timer.
 
-Keep a selected replacement plan/cadence separate from the original immutable checkout.
-The customer should see **Awaiting approval**, **Confirming payment**, **Closed**, or
-**Needs review**, rather than a generic indication that they already subscribed.
+The installed SDK exposes no checkout-session revoke/read endpoint in its authenticated GraphQL
+schema. This implementation therefore does not advertise instant Waffo link revocation. Already
+active subscriptions continue through the existing Billing cancellation workflow.
 
-1. Offer **Continue payment** and **Change plan**. On return/page entry, reconcile the
-   owned pending attempt with a bounded retry policy. Avoid repeated browser polling
-   that permanently returns the same unexplained `UNKNOWN` result.
-2. Store a replacement request under the existing owner lock. Do not hold a database
-   transaction while calling a provider. Persist provider operations and retries through
-   the existing Outbox/job system, with stable keys and conditional state transitions.
-3. Stop new admission while activation, cancellation, or payment acceptance is uncertain.
-   After authoritative closure, atomically close the original attempt and authorize
-   one replacement. Recheck paid subscriptions and received payment events in that
-   transaction; use the same owner lock as checkout creation.
-4. Preserve the original attempt and all payment history. Late events must enter the
-   existing durable event/ledger path, including review/refund handling where required.
-   An old browser tab or a client return parameter must never authorize activation.
+## Persistence and delivery
 
-### PayPal: evaluate merchant-controlled activation
+Migration `20260918155111_subscription_checkout_recovery` adds nullable JSON recovery metadata.
+Prisma and PostgreSQL/MySQL/SQLite Drizzle schemas are aligned; both query implementations share the
+same recovery state machine. No historical mode or expiry is backfilled by guesswork.
 
-The current integration sets `application_context.user_action = SUBSCRIBE_NOW`, allowing
-PayPal to activate after buyer approval. The official `CONTINUE` description explicitly
-allows the merchant to control activation. This is the preferred candidate for making
-future abandoned attempts safely replaceable, subject to sandbox verification.
+Protected refresh/cancel/resume routes enforce user ownership or organization billing-owner rights.
+Each recovery request atomically persists a sequence and an Outbox record. Optional immediate
+`dispatchJob` only reduces latency. `SUBSCRIPTION_CHECKOUT_RECOVERY` dispatches
+`media-recover-subscription-checkout`; the hourly subscription reconciler recovers interrupted work.
+Each delivery sequence completes once, with a 90-second lease and conditional completion. Three
+unknown results enter review; repeated approval/activation confirmation is bounded. An actual session
+deadline can schedule a later check. Owner locks serialize activation, closure and new admission.
 
-This requires a complete flow, not a parameter-only edit:
+Review metadata retains `PROVIDER_PENDING` for a bound attempt so delayed verified payments can still
+use the existing lifecycle processor. Unexpected payments for an already canceled attempt remain
+retained by the existing event failure/review path rather than granting duplicate rights.
 
-- Persist an activation mode on each new intent; retain `SUBSCRIBE_NOW` semantics for
-  historical intents. Do not infer the original mode from current configuration.
-- Verify the returned subscription ID, plan, owner correlation and provider approval on
-  the server. Only the current owned attempt may enqueue activation.
-- Atomically choose between superseding an unactivated attempt and claiming activation.
-  Once activation is dispatched or uncertain, do not replace the attempt until reconciled.
-- A superseded manual attempt must never activate, even if its old PayPal tab completes
-  approval later. This revokes EzPic's permission to activate; it does not claim to erase
-  PayPal's external URL.
-- Prove `CONTINUE` approval followed by server activation in sandbox before enabling it.
-  The published activation error schema also mentions suspended subscriptions, so the
-  exact `APPROVED` activation path needs runtime evidence.
+## Verification and release boundary
 
-Historical auto-activation links need a separate recovery path. Record provider environment,
-merchant/app provenance, immutable plan/session correlation, repeated inspection evidence
-and financial-event checks. Persistent 404 must enter a durable review case with a support
-reference. Neither a single 404, a guessed TTL, nor a local cancel flag is sufficient to
-release it. Obtain authoritative provider closure/expiry evidence before any audited repair.
+Regression checks cover stale leases, cancellation during inspection, activation/abandonment races,
+duplicate delivery, paid receipts before closure, tenant access, token-only renewal and payment history.
+The migration and concurrent-admission checks use an isolated PostgreSQL 17 database on port 55432.
 
-### Waffo: distinguish session, token, order and payment
+Sandbox observations on 2026-09-18:
 
-- Persist the actual session deadline and separate token deadline/provenance. Resume an
-  owned, unexpired session by renewing its authentication token through the documented
-  auth boundary; do not create another checkout merely to refresh authentication.
-- If a correlated subscription order exists in `pending`, request its cancellation and
-  read it back. A successful HTTP response alone is not the final closure condition.
-- Before allowing a replacement, prove the session can no longer create/reopen a payable
-  order and all associated payment attempts are terminal and unpaid. The SDK documents
-  order cancellation but no checkout-session revoke endpoint was found. Test reuse of
-  the original URL after cancellation with Waffo; do not assume order cancellation also
-  revokes the session.
-- If there is only a session, wait for its actual deadline and reconcile related orders
-  and payment attempts. An empty order query, authentication-token expiry, or an arbitrary
-  extra delay is not independent proof that no payment is in flight.
-- `canceling`, pending payments, payment history, multiple orders, correlation mismatch,
-  warnings and unavailable queries must remain blocked for reconciliation/review.
+- PayPal create without buyer login returned `APPROVAL_PENDING`; GET found that resource.
+  `/cancel` returned 404, and another GET still found `APPROVAL_PENDING`. Therefore cancel-404 is not closure.
+- Waffo accepted an explicit 60-second test session deadline. Its token deadline was different.
+  Opening the old checkout after expiry displayed “This checkout link has expired”. The merchant
+  schema exposed order/payment queries but no checkout-session query or mutation.
 
-The current Waffo adapter still has a 24-hour empty-result recovery heuristic and can
-report a terminal unpaid order as `CLOSED` without independently proving session
-revocation. Those existing assumptions must be verified or replaced before advertising
-the proposed **Change plan** action as guaranteed closure. Older stored expiry values
-may represent token expiry and must not be relabeled as authoritative session deadlines.
+These observations do not certify a buyer-approved PayPal `CONTINUE` → activation → paid webhook
+round trip. That sandbox buyer check remains **NOT_COMPLETED** without a signed-in sandbox buyer.
+No real charge, production-order mutation or production migration is part of these local checks.
+Apply the migration before deploying both the site and jobs worker. A Git push alone is not evidence
+that either deployment or the reported historical order has been resolved.
 
-## Acceptance evidence for the complete flow
-
-| Scenario                                                        | Required result                                                                                                                  |
-| --------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| Open PayPal, never sign in                                      | Show awaiting approval, without granting a subscription or credits.                                                              |
-| Change a future manual PayPal attempt, then approve its old tab | The superseded attempt never activates or charges.                                                                               |
-| Activation races with replacement                               | Exactly one operation wins; uncertain activation keeps admission blocked.                                                        |
-| PayPal 404, timeout, wrong app/mode or mismatched plan          | No automatic unpaid/closed conclusion; bounded reconciliation and a durable review reference.                                    |
-| Cancel Waffo pending order, then reuse original session URL     | Either the provider rejects every payment attempt, or replacement remains blocked until the session/payment boundary is settled. |
-| Waffo token expires before session                              | No premature admission release; same-session token renewal preserves owner and order correlation.                                |
-| Session expires during payment; webhook arrives late            | No second subscription is created; the original paid event is fulfilled exactly once.                                            |
-| Two tabs/providers/plans request replacement                    | One owner-scoped replacement; no overlapping recurring subscriptions.                                                            |
-| Another user or organization member submits an old intent ID    | Existing owner/billing-manager checks reject the action.                                                                         |
-| Previously paid cancellation/refund                             | Preserve the existing subscription, period, refund and debt rules.                                                               |
-
-Local mocks do not establish PayPal activation or Waffo session invalidation semantics.
-Sandbox provider evidence and isolated PostgreSQL concurrency tests are prerequisites
-for releasing the complete replacement flow.
-
-## Sources
-
-- [PayPal Subscriptions API](https://developer.paypal.com/docs/api/subscriptions/v1/)
-- [PayPal official OpenAPI](https://github.com/paypal/paypal-rest-api-specifications/blob/main/openapi/billing_subscriptions_v1.json):
-  `application_context.user_action`, `subscription_status`, `subscriptions.cancel-422`.
-- [Waffo Pancake SDK API reference](https://github.com/waffo-com/waffo-pancake-sdk-ts/blob/main/docs/api-reference.md):
-  authenticated checkout, session tokens and subscription cancellation; compared with
-  the locally installed 0.19.1 reference.
+References: [PayPal Subscriptions OpenAPI](https://github.com/paypal/paypal-rest-api-specifications/blob/main/openapi/billing_subscriptions_v1.json)
+and the installed `@waffo/pancake-ts` 0.19.1 API reference.

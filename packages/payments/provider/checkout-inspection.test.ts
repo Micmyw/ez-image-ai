@@ -45,7 +45,7 @@ describe("checkout closure with delayed payment delivery", () => {
 			}),
 		).toBe("PAID");
 	});
-	it("can close a Waffo order only when its history confirms it never became payable", async () => {
+	it("does not close a legacy Waffo checkout without a verified session deadline", async () => {
 		const query = vi.fn().mockResolvedValue({
 			data: {
 				subscriptionOrders: [
@@ -66,6 +66,6 @@ describe("checkout closure with delayed payment delivery", () => {
 				expiresAt: null,
 				now: new Date(),
 			}),
-		).toBe("CLOSED");
+		).toBe("UNKNOWN");
 	});
 });

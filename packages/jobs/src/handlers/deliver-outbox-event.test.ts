@@ -5,6 +5,24 @@ import { deliverOutboxEvent } from "./deliver-outbox-event";
 import { dispatchOutbox } from "./dispatch-outbox";
 
 describe("outbox delivery routes", () => {
+	it("delivers each checkout recovery sequence through the registered durable task", async () => {
+		const triggerAndWait = vi.fn();
+		await deliverOutboxEvent(
+			{
+				id: "checkout-event",
+				eventType: "SUBSCRIPTION_CHECKOUT_RECOVERY",
+				aggregateId: "i1",
+				payload: { checkoutIntentId: "i1", sequence: 7 },
+				leaseToken: "lease",
+				attempts: 1,
+			},
+			{ trigger: vi.fn(), triggerAndWait, resolveDispatchRoute: vi.fn() },
+		);
+		expect(triggerAndWait).toHaveBeenCalledWith("media-recover-subscription-checkout", {
+			checkoutIntentId: "i1",
+			sequence: 7,
+		});
+	});
 	it("retries ordinary cancellation until confirmation is available", async () => {
 		const triggerAndWait = vi
 			.fn()
