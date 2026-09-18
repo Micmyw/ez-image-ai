@@ -261,6 +261,9 @@ for (const width of [1440, 390]) {
 			}),
 		);
 		await page.goto("/");
+		await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText(
+			"Nano Banana 2 Lite",
+		);
 		await expect(page.locator(".studio-sidebar")).toHaveCount(0);
 		const menu =
 			width <= 1200
@@ -997,6 +1000,9 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 				.getByRole("button", { name: /add a reference image/i }),
 		).toBeVisible();
 		await expect(page.getByRole("button", { name: /sign in to generate/i })).toBeVisible();
+		await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText(
+			"Nano Banana 2 Lite",
+		);
 		if (viewport.width < 768) {
 			const navigation = page.locator('[data-test="header-navigation-trigger"]');
 			await expect(navigation).toBeVisible();
