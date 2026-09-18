@@ -119,17 +119,6 @@ export function createProfileArtifacts(options: {
 	for (const config of [website, jobs]) {
 		delete config.env;
 		delete config.$schema;
-		// Each prepared config is deployed with its complete secrets file. Wrangler
-		// otherwise retains omitted secrets, including retired bindings, and can
-		// exceed the binding limit even when the prepared snapshot fits.
-		const unsafe = config.unsafe as Record<string, unknown> | undefined;
-		config.unsafe = {
-			...unsafe,
-			metadata: {
-				...(unsafe?.metadata as Record<string, unknown> | undefined),
-				keep_bindings: [],
-			},
-		};
 	}
 	const hybridEnvironment: Record<string, string> = { ...environment, EZPIC_RUNTIME: "node" };
 	for (const key of Object.keys(hybridEnvironment))

@@ -140,12 +140,6 @@ function artifacts(profile: "workers" | "hybrid", overrides: Record<string, stri
 }
 
 describe("prepared deployment artifacts", () => {
-	it("replaces the complete secret snapshot atomically without inheriting retired bindings", () => {
-		const value = artifacts("workers");
-		for (const config of [value.website, value.workflows]) {
-			expect(config.unsafe).toMatchObject({ metadata: { keep_bindings: [] } });
-		}
-	});
 	it("rejects more than 128 text bindings before uploading either Worker", () => {
 		const extras = Object.fromEntries(
 			Array.from({ length: 128 }, (_, index) => [`EXTRA_${index}`, "value"]),

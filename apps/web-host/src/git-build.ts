@@ -6,6 +6,7 @@ import { parseEnv } from "node:util";
 
 import { readCloudflareBuildEnvironment, withoutCloudflareBuildSecrets } from "./build-secrets";
 import { deploymentEnvironment, publicBuildVariables } from "./deployment";
+import { stageRetiredWorkerBindings } from "./deployment-bindings";
 import {
 	assertAutomaticReleaseEnvironment,
 	assertCloudflareGitCommit,
@@ -130,6 +131,19 @@ if (command === "build") {
 			},
 		);
 	}
+	const secretsPath = path.join(prepared, `${configName}.secrets.json`);
+	const secretSnapshot = JSON.parse(await readFile(secretsPath, "utf8"));
+	const retirement = await stageRetiredWorkerBindings({
+		accountId: config.account_id,
+		scriptName: config.name,
+		nextBindingNames: [...Object.keys(config.vars ?? {}), ...Object.keys(secretSnapshot)],
+		versionTag: sha,
+		token: process.env.CLOUDFLARE_API_TOKEN ?? "",
+	});
+	if (retirement.retired.length)
+		process.stdout.write(
+			`Staged retirement of ${retirement.retired.join(", ")}; production traffic is unchanged.\n`,
+		);
 	runPnpm([
 		"--filter",
 		target === "website" ? "saas" : "@repo/workflows",
@@ -139,7 +153,7 @@ if (command === "build") {
 		"--config",
 		configPath,
 		"--secrets-file",
-		path.join(prepared, `${configName}.secrets.json`),
+		secretsPath,
 		"--tag",
 		sha,
 		"--message",
