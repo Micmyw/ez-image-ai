@@ -1,5 +1,5 @@
 ---
-updatedAt: 2026-09-14
+updatedAt: 2026-09-18
 indexable: true
 title: Create your first AI image
 description: Create from a prompt or edit a reference image, choose a model, review credits, and download your private EzPic result.
@@ -23,7 +23,7 @@ only the prompt; selecting a source from Assets keeps the prompt and output choi
 
 When you scroll below the editor, a compact bar lets you return to your prompt or current result.
 If browser storage is available, your account draft is retained in this tab for up to one hour across
-navigation. Restoring a draft checks the source again and requires a fresh credit review. It does
+navigation. Restoring a draft checks the source again and refreshes the credit price when submitted. It does
 not save the image file locally or submit another job.
 
 ## 1. Start with text or an optional reference
@@ -33,7 +33,8 @@ For example: "A cobalt ceramic vase beside a large window, warm afternoon light,
 editorial product photography, no lettering."
 
 Click **Sign in to generate** to continue. Your prompt, selected model, and output settings stay in
-this tab for up to one hour. After signing in, review the credits and click **Generate image**.
+this tab for up to one hour. After signing in, the **Generate image** button shows the credit cost.
+Click it once to run the safety check and start generation.
 No upload is required for this path. Available models and account credits still apply.
 
 To edit or guide a result with an existing image, choose a JPEG, PNG, or WebP image you are allowed
@@ -68,7 +69,9 @@ the model keeps you in the editor and shows an access notice. Click **View plans
 or **Keep editing** to close the dialog. Your selected model and prompt stay saved even if you have
 not uploaded an image yet.
 
-For an account generation, sign in, review the exact credit cost, and confirm the job. Choosing a product or
+For an account generation, sign in, check the credit cost on **Generate image** or **Start edit**, and click
+once. Safety checks and the credit reservation run automatically. If the price changes, the button shows
+the updated cost and you can choose whether to submit again. Choosing a product or
 entering a prompt does not itself purchase a plan. See [Image editing](/docs/image-editing) for output
 settings and [Pricing](/pricing) for plan details.
 
@@ -87,6 +90,10 @@ selected file and prompt while you remain there. A pending, paused, or failed re
 submission; retry or remove it explicitly to return to text generation. After submission, use its status and credit
 details to check whether it is still processing or has failed. Avoid repeatedly submitting the same
 edit while its outcome is uncertain.
+
+An instruction needing further safety review asks you to revise it or contact support. An unsupported
+language is identified separately. Only a temporarily unavailable check suggests trying again later.
+These stops happen before generation and do not charge generation credits.
 
 [Credits](/docs/credits) explains reservations and releases. [Contact support](/contact) if the status
 remains unresolved; include the visible error message, but do not send private access links or passwords.

@@ -347,7 +347,7 @@ describe("GenerationForm product copy", () => {
 		);
 	});
 
-	it("enables Review when the restored source and instruction form a valid input", () => {
+	it("enables direct generation when the restored source and instruction form a valid input", () => {
 		const markup = renderToStaticMarkup(
 			<GenerationForm
 				onCreated={vi.fn()}
@@ -365,7 +365,8 @@ describe("GenerationForm product copy", () => {
 			/>,
 		);
 
-		expect(markup).toContain('<button type="submit">review</button>');
+		expect(markup).toContain('<button type="submit">startEditWithCredits</button>');
+		expect(markup).not.toContain("quoteReady");
 	});
 
 	it("keeps the selected parent attached to both quote and confirmation requests", () => {

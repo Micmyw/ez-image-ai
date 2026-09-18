@@ -387,25 +387,34 @@ describe("useGuestTrial", () => {
 		]);
 		expect(trial.view.state).toBe("waiting");
 	});
-	it.each(["CONTENT_NOT_ALLOWED", "SAFETY_CHECK_UNAVAILABLE"])(
-		"preserves safe feedback for a guest %s denial",
-		async (code) => {
-			api.getGuestEligibility.mockResolvedValue(eligibleDraft());
-			api.submitGuestGeneration.mockRejectedValue(
-				Object.assign(new Error(code), { data: { moderationReason: "sexualContent" } }),
-			);
-			renderHook();
-			let trial = await settleAndRender();
-			await trial.actions.submit("token-one");
-			trial = renderHook();
-			expect(trial).toHaveProperty("moderationError", {
-				outcome: code === "CONTENT_NOT_ALLOWED" ? "blocked" : "unavailable",
-				reason: code === "CONTENT_NOT_ALLOWED" ? "sexualContent" : null,
-			});
-			expect(trial.canSubmit).toBe(true);
-			expect(trial.prompt).toBe("Keep the subject");
-		},
-	);
+	it.each([
+		"CONTENT_NOT_ALLOWED",
+		"CONTENT_REVIEW_REQUIRED",
+		"TEXT_LANGUAGE_UNSUPPORTED",
+		"SAFETY_CHECK_UNAVAILABLE",
+	])("preserves safe feedback for a guest %s denial", async (code) => {
+		api.getGuestEligibility.mockResolvedValue(eligibleDraft());
+		api.submitGuestGeneration.mockRejectedValue(
+			Object.assign(new Error(code), { data: { moderationReason: "sexualContent" } }),
+		);
+		renderHook();
+		let trial = await settleAndRender();
+		await trial.actions.submit("token-one");
+		trial = renderHook();
+		expect(trial).toHaveProperty("moderationError", {
+			outcome:
+				code === "CONTENT_NOT_ALLOWED"
+					? "blocked"
+					: code === "CONTENT_REVIEW_REQUIRED"
+						? "review"
+						: code === "TEXT_LANGUAGE_UNSUPPORTED"
+							? "unsupportedLanguage"
+							: "unavailable",
+			reason: code === "CONTENT_NOT_ALLOWED" ? "sexualContent" : null,
+		});
+		expect(trial.canSubmit).toBe(true);
+		expect(trial.prompt).toBe("Keep the subject");
+	});
 });
 
 function renderHook(registered = false) {

@@ -976,7 +976,7 @@
 		"create": {
 			"eyebrow": "Éditeur d'images",
 			"title": "Retouchez une image source avec une instruction",
-			"subtitle": "Importez une image source, décrivez le changement, choisissez un modèle d’image et ses réglages de sortie, puis vérifiez la réservation de crédits.",
+			"subtitle": "Décrivez une image, ajoutez une référence si nécessaire, choisissez le modèle et les réglages, puis générez au coût en crédits affiché sur le bouton.",
 			"draftRestored": "Votre brouillon de retouche enregistré est prêt à être poursuivi.",
 			"product": "Modèle d’image",
 			"products": {
@@ -1190,12 +1190,15 @@
 				"insufficientCredits": "Vous n’avez pas assez de crédits pour cette retouche. Aucune tâche ni réservation n’a été créée.",
 				"qualityUnavailable": "Ce modèle d’image n’est pas inclus dans votre offre. Choisissez Nano Banana 2 Lite ou consultez votre offre.",
 				"assetNotReady": "L’image source n’est pas prête. Attendez son contrôle privé ou choisissez une autre image.",
-				"quoteExpired": "Ce devis a expiré ou le prix a changé. Vérifiez de nouveau la retouche avant de confirmer.",
+				"quoteExpired": "Ce prix a expiré. Modifiez l’instruction ou les réglages pour obtenir un nouveau prix avant de générer.",
 				"contentNotAllowed": "Cette instruction ne respecte pas notre politique de contenu. Veuillez la modifier. Aucun crédit n’a été facturé et votre exonération unique reste disponible.",
 				"concurrentLimit": "Votre forfait a déjà atteint son maximum de retouches en cours. Aucune nouvelle tâche ni réservation de crédits n’a été créée.",
 				"inputTooLarge": "Cette image dépasse la limite d’entrée de votre forfait. Choisissez une image plus petite ou comparez les forfaits.",
 				"safeError": "La retouche n’a pas pu démarrer. Vérifiez le formulaire ou réessayez dans quelques instants.",
-				"safetyUnavailable": "La vérification de sécurité n’a pas pu aboutir. Modifiez l’instruction ou réessayez plus tard. Aucun crédit n’a été facturé et votre exonération unique reste disponible."
+				"safetyUnavailable": "La vérification de sécurité n’a pas pu aboutir. Modifiez l’instruction ou réessayez plus tard. Aucun crédit n’a été facturé et votre exonération unique reste disponible.",
+				"priceChanged": "Le prix en crédits a changé. Vérifiez le coût actualisé sur le bouton, puis réessayez.",
+				"contentReviewRequired": "Cette instruction nécessite un examen de sécurité supplémentaire. Modifiez-la ou contactez l’assistance. Aucun crédit n’a été facturé.",
+				"textLanguageUnsupported": "Cette langue n’est pas prise en charge par la vérification de sécurité. Aucun crédit n’a été facturé."
 			},
 			"modelMenu": {
 				"title": "Modèles d’image",
@@ -1214,7 +1217,12 @@
 				"upToResolution": "Jusqu’à {resolution}",
 				"upgradeNotice": "{model} nécessite Pro, Ultimate ou Max. Vous pouvez continuer à modifier avant de choisir un forfait."
 			},
-			"moderationBillingPolicy": "Sécurité du contenu : chaque compte ou équipe bénéficie d’une seule exonération de crédits pour son premier résultat généré bloqué. Les suivants sont facturés au tarif annoncé. Les instructions ou images refusées avant génération et les échecs de vérification ne consomment ni crédits ni exonération."
+			"moderationBillingPolicy": "Sécurité du contenu : chaque compte ou équipe bénéficie d’une seule exonération de crédits pour son premier résultat généré bloqué. Les suivants sont facturés au tarif annoncé. Les instructions ou images refusées avant génération et les échecs de vérification ne consomment ni crédits ni exonération.",
+			"generateWithCredits": "Générer une image · {credits} crédits",
+			"startEditWithCredits": "Lancer la retouche · {credits} crédits",
+			"checking": "Vérification…",
+			"starting": "Démarrage…",
+			"creditPolicy": "Crédits et politique de contenu"
 		},
 		"guest": {
 			"eyebrow": "Essai Nano Banana 2 Lite invité",
@@ -1315,7 +1323,7 @@
 		},
 		"status": {
 			"emptyTitle": "Votre résultat apparaîtra ici",
-			"emptyDescription": "Réglez les contrôles, vérifiez la réservation, puis lancez la création. Vous pouvez préparer une autre idée pendant le traitement.",
+			"emptyDescription": "Décrivez une image ou ajoutez une référence, vérifiez le coût et cliquez sur Générer une image ou Lancer la retouche.",
 			"loading": "Chargement de votre retouche…",
 			"unavailableTitle": "Cette retouche n’est pas disponible",
 			"unavailableDescription": "La création sélectionnée ne peut pas être ouverte dans cet éditeur.",
@@ -1451,12 +1459,16 @@
 				"prompt": "Veuillez modifier cette instruction",
 				"input": "Veuillez choisir une autre image",
 				"output": "Ce résultat ne peut pas être affiché",
-				"unavailable": "La vérification de sécurité n’a pas pu être effectuée"
+				"unavailable": "La vérification de sécurité n’a pas pu être effectuée",
+				"review": "Veuillez modifier cette instruction",
+				"unsupportedLanguage": "Cette langue de prompt n’est pas prise en charge"
 			},
 			"summary": {
 				"prompt": {
 					"blocked": "Cette instruction n’a pas passé la vérification de sécurité. La génération n’a pas commencé.",
-					"unavailable": "Nous n’avons pas pu terminer la vérification de cette instruction. La génération n’a pas commencé."
+					"unavailable": "Nous n’avons pas pu terminer la vérification de cette instruction. La génération n’a pas commencé.",
+					"review": "Cette instruction nécessite un examen de sécurité supplémentaire. La génération n’a pas commencé.",
+					"unsupportedLanguage": "Nous ne pouvons pas vérifier ce prompt dans sa langue actuelle. La génération n’a pas commencé."
 				},
 				"input": {
 					"blocked": "Cette image de référence n’a pas passé la vérification de sécurité et ne peut pas être utilisée pour la génération.",
@@ -1495,14 +1507,18 @@
 				"input": "Choisissez une autre image de référence conforme à la politique de contenu.",
 				"output": "Modifiez l’instruction ou choisissez une autre image de référence avant de lancer une nouvelle génération. Le nouveau devis indiquera son coût en crédits.",
 				"unavailable": "Réessayez plus tard. Si le problème persiste, contactez l’assistance.",
-				"guestOutput": "Contactez l’assistance si vous avez besoin d’aide concernant ce résultat. Le statut de votre essai est indiqué ci-dessous."
+				"guestOutput": "Contactez l’assistance si vous avez besoin d’aide concernant ce résultat. Le statut de votre essai est indiqué ci-dessous.",
+				"review": "Modifiez l’instruction pour respecter la politique de contenu ou contactez l’assistance si vous pensez qu’il s’agit d’une erreur.",
+				"unsupportedLanguage": "Utilisez une langue prise en charge pour une instruction conforme à la politique ou contactez l’assistance."
 			},
 			"policy": "Politique de contenu",
 			"appeal": "Vous pensez qu’il s’agit d’une erreur ? Contactez-nous",
 			"support": "Contacter l’assistance",
 			"reference": "Indiquez cette référence de tâche lorsque vous contactez l’assistance :",
 			"replaceImage": "Choisir une autre image",
-			"editInstruction": "Modifier l’instruction"
+			"editInstruction": "Modifier l’instruction",
+			"reviewRequired": "La vérification de sécurité n’a pas pu approuver cette instruction. Cela ne confirme pas une violation des règles de contenu.",
+			"unsupportedLanguage": "La vérification de sécurité actuelle ne prend pas en charge cette langue de prompt."
 		}
 	},
 	"common": {
@@ -1613,7 +1629,7 @@
 			"textMode": "Texte vers image",
 			"editMode": "Image vers image",
 			"signIn": "Se connecter pour générer",
-			"textHint": "Commencez par un prompt. Une image de référence est facultative. Connectez-vous pour consulter les crédits et générer.",
+			"textHint": "Commencez par un prompt. L’image de référence est facultative. Connectez-vous pour voir le coût et générer en un clic.",
 			"promptHint": "Décrivez le sujet, la composition, la lumière et le style. Ajoutez une référence pour modifier ou guider le résultat.",
 			"promptLabel": "Prompt d’image",
 			"generate": "Générer l’image"

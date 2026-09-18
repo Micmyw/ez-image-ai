@@ -976,7 +976,7 @@
 		"create": {
 			"eyebrow": "Image editor",
 			"title": "Edit a source image with a prompt",
-			"subtitle": "Upload a source image, describe the change, choose an image model and its output settings, then review the credit reservation.",
+			"subtitle": "Describe an image, optionally add a reference, choose the model and settings, then generate with the credit cost shown on the button.",
 			"draftRestored": "Your saved edit draft is ready to continue.",
 			"product": "Image model",
 			"products": {
@@ -1190,12 +1190,15 @@
 				"insufficientCredits": "You do not have enough credits for this edit. No job or reservation was created.",
 				"qualityUnavailable": "This image model is not included in your current plan. Choose Nano Banana 2 Lite or review your plan.",
 				"assetNotReady": "The source image is not ready. Wait for its private safety check or choose another image.",
-				"quoteExpired": "This quote expired or pricing changed. Review the edit again before confirming.",
+				"quoteExpired": "This price has expired. Update your instruction or settings to request a fresh price before generating.",
 				"contentNotAllowed": "We cannot use this instruction under our content policy. Please revise it. No credits were charged, and your one-time output waiver was not used.",
 				"concurrentLimit": "Your plan already has its maximum number of edits running. No new job or credit reservation was created.",
 				"inputTooLarge": "This source image is larger than your plan's input limit. Choose a smaller image or compare plans.",
 				"safeError": "We could not start this edit. Check the form or try again shortly.",
-				"safetyUnavailable": "We could not complete the safety check. Please revise the instruction or try again later. No credits were charged, and your one-time waiver was not used."
+				"safetyUnavailable": "We could not complete the safety check. Please revise the instruction or try again later. No credits were charged, and your one-time waiver was not used.",
+				"priceChanged": "The credit price changed. Check the updated cost on the button, then submit again.",
+				"contentReviewRequired": "This instruction needs further safety review. Please revise it or contact support. No credits were charged.",
+				"textLanguageUnsupported": "This prompt language is not supported by the safety check. No credits were charged."
 			},
 			"modelMenu": {
 				"title": "Image models",
@@ -1214,7 +1217,12 @@
 				"upToResolution": "Up to {resolution}",
 				"upgradeNotice": "{model} requires Pro, Ultimate, or Max. You can keep editing before choosing a plan."
 			},
-			"moderationBillingPolicy": "Content safety: your account or team gets one lifetime credit waiver if a generated image is blocked. Later blocked results use the quoted credits. Prompts or uploads stopped before generation and safety-check failures cost no credits and do not use the waiver."
+			"moderationBillingPolicy": "Content safety: your account or team gets one lifetime credit waiver if a generated image is blocked. Later blocked results use the quoted credits. Prompts or uploads stopped before generation and safety-check failures cost no credits and do not use the waiver.",
+			"generateWithCredits": "Generate image · {credits} credits",
+			"startEditWithCredits": "Start edit · {credits} credits",
+			"checking": "Checking…",
+			"starting": "Starting…",
+			"creditPolicy": "Credits and content policy"
 		},
 		"guest": {
 			"eyebrow": "Guest Nano Banana 2 Lite trial",
@@ -1315,7 +1323,7 @@
 		},
 		"status": {
 			"emptyTitle": "Your output will appear here",
-			"emptyDescription": "Upload a source image, describe the change, and review the credit reservation to begin.",
+			"emptyDescription": "Describe an image or add a reference, check the credit cost, and click Generate image or Start edit.",
 			"loading": "Loading your edit…",
 			"unavailableTitle": "This edit is unavailable",
 			"unavailableDescription": "The selected creation cannot be opened in this editor.",
@@ -1451,12 +1459,16 @@
 				"prompt": "Please revise this instruction",
 				"input": "Please choose another image",
 				"output": "This result cannot be shown",
-				"unavailable": "We couldn't complete the safety check"
+				"unavailable": "We couldn't complete the safety check",
+				"review": "Please revise this instruction",
+				"unsupportedLanguage": "This prompt language is not supported"
 			},
 			"summary": {
 				"prompt": {
 					"blocked": "This instruction did not pass the safety check. Generation has not started.",
-					"unavailable": "We could not finish checking this instruction. Generation has not started."
+					"unavailable": "We could not finish checking this instruction. Generation has not started.",
+					"review": "This instruction needs further safety review. Generation has not started.",
+					"unsupportedLanguage": "We cannot check this prompt in its current language. Generation has not started."
 				},
 				"input": {
 					"blocked": "This reference image did not pass the safety check and cannot be used for generation.",
@@ -1495,14 +1507,18 @@
 				"input": "Choose a different reference image that follows the content policy.",
 				"output": "Edit the instruction or choose a different reference image before starting a new generation. The new quote will show its credit cost.",
 				"unavailable": "Try again later. If this keeps happening, contact support.",
-				"guestOutput": "Contact support if you need help with this result. Your trial status is shown below."
+				"guestOutput": "Contact support if you need help with this result. Your trial status is shown below.",
+				"review": "Revise the instruction to follow the content policy, or contact support if you believe this was a mistake.",
+				"unsupportedLanguage": "Use a supported language for a policy-compliant instruction, or contact support for help."
 			},
 			"policy": "Content policy",
 			"appeal": "Think this is a mistake? Contact support",
 			"support": "Contact support",
 			"reference": "Include this task reference when contacting support:",
 			"replaceImage": "Choose another image",
-			"editInstruction": "Edit instruction"
+			"editInstruction": "Edit instruction",
+			"reviewRequired": "The safety check could not approve this instruction. This is not a confirmed content violation.",
+			"unsupportedLanguage": "The current safety check does not support this prompt language."
 		}
 	},
 	"common": {
@@ -1613,7 +1629,7 @@
 			"textMode": "Text to image",
 			"editMode": "Image to image",
 			"signIn": "Sign in to generate",
-			"textHint": "Start with a prompt. A reference image is optional. Sign in to review credits and generate.",
+			"textHint": "Start with a prompt. A reference image is optional. Sign in to see the credit cost and generate with one click.",
 			"promptHint": "Describe your subject, composition, lighting, and style. Add a reference image when you want to edit or guide the result.",
 			"promptLabel": "Image prompt",
 			"generate": "Generate image"

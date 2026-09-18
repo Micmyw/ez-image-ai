@@ -32,6 +32,37 @@ export function packCloudflareBuildEnvironment(source: string) {
 }
 
 export function readCloudflareBuildEnvironment(environment: Record<string, string | undefined>) {
+	return withModerationOverrides(unpackCloudflareBuildEnvironment(environment), environment);
+}
+
+function withModerationOverrides(source: string, environment: Record<string, string | undefined>) {
+	if (environment.SEEAPI_API_KEY !== undefined) {
+		if (!/^[A-Za-z0-9._-]{8,512}$/.test(environment.SEEAPI_API_KEY))
+			throw new Error("CLOUDFLARE_SEEAPI_KEY_INVALID");
+		source = `${source}\nSEEAPI_API_KEY=${environment.SEEAPI_API_KEY}\n`;
+	}
+	const keys = [
+		"MEDIA_SAFETY_ADAPTER",
+		"MODERATION_TEXT_WAFFO_ENABLED",
+		"MODERATION_TEXT_SIGHTENGINE_ENABLED",
+		"MODERATION_IMAGE_SEEAPI_ENABLED",
+		"MODERATION_IMAGE_SIGHTENGINE_ENABLED",
+	];
+	if (!keys.some((key) => environment[key] !== undefined)) return source;
+	if (
+		environment.MEDIA_SAFETY_ADAPTER !== "configured" ||
+		keys.slice(1).some((key) => !["true", "false"].includes(environment[key] ?? "")) ||
+		(environment.MODERATION_TEXT_WAFFO_ENABLED !== "true" &&
+			environment.MODERATION_TEXT_SIGHTENGINE_ENABLED !== "true") ||
+		(environment.MODERATION_IMAGE_SEEAPI_ENABLED !== "true" &&
+			environment.MODERATION_IMAGE_SIGHTENGINE_ENABLED !== "true")
+	) {
+		throw new Error("CLOUDFLARE_MODERATION_OVERRIDES_INVALID");
+	}
+	return `${source}\n${keys.map((key) => `${key}=${environment[key]}`).join("\n")}\n`;
+}
+
+function unpackCloudflareBuildEnvironment(environment: Record<string, string | undefined>) {
 	const source = environment[variableName];
 	if (!source) throw new Error(`CLOUDFLARE_BUILD_SECRET_REQUIRED: ${variableName}`);
 	if (!source.startsWith("parts:")) return source;
@@ -59,7 +90,8 @@ export function withoutCloudflareBuildSecrets<T extends Record<string, string | 
 ) {
 	const result = { ...environment };
 	for (const key of Object.keys(result)) {
-		if (key === variableName || key.startsWith(partPrefix)) delete result[key];
+		if (key === variableName || key.startsWith(partPrefix) || key === "SEEAPI_API_KEY")
+			delete result[key];
 	}
 	return result;
 }

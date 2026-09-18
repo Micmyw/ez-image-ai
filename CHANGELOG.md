@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-09-18
+
+### Generation and safety feedback
+
+- Start a generation or reference edit with one click and show its credit cost on the button.
+  Keep server-side prompt checks, quotes, credit reservations and stable retry keys; ask again
+  only when the returned credit price differs from the displayed cost.
+- Distinguish instructions requiring further review, unsupported prompt languages and unavailable
+  safety checks without labeling an uncertain verdict as a confirmed violation.
+- Configure production text checks with Waffo and image checks with SeeAPI in both website and jobs
+  deployments, including persistent build overrides so later releases keep the selected detectors.
+
 ## 2026-09-17
 
 ### Top navigation

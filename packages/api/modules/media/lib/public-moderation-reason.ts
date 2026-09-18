@@ -49,9 +49,22 @@ function publicTextModerationReason(result: ModerationDecision): PublicModeratio
 /** Carries only a safe category across the API error boundary, never detector evidence. */
 export class TextModerationError extends Error {
 	readonly moderationReason: PublicModerationReason | null;
+	readonly publicCode:
+		| "CONTENT_NOT_ALLOWED"
+		| "CONTENT_REVIEW_REQUIRED"
+		| "TEXT_LANGUAGE_UNSUPPORTED"
+		| "SAFETY_CHECK_UNAVAILABLE";
 	constructor(result: ModerationDecision) {
 		super(`TEXT_MODERATION_${result.decision}`);
 		this.name = "TextModerationError";
 		this.moderationReason = publicTextModerationReason(result);
+		this.publicCode =
+			result.decision === "REJECT"
+				? "CONTENT_NOT_ALLOWED"
+				: result.decision === "REVIEW"
+					? result.reasonCode === "UNSUPPORTED_TEXT_LANGUAGE"
+						? "TEXT_LANGUAGE_UNSUPPORTED"
+						: "CONTENT_REVIEW_REQUIRED"
+					: "SAFETY_CHECK_UNAVAILABLE";
 	}
 }

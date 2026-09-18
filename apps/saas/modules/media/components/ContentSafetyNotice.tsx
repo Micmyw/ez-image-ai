@@ -26,7 +26,7 @@ export function ContentSafetyNotice({
 	className,
 }: {
 	stage: "prompt" | "input" | "output";
-	outcome: "blocked" | "unavailable";
+	outcome: "blocked" | "review" | "unsupportedLanguage" | "unavailable";
 	reason?: string | null;
 	billing: SafetyBillingOutcome;
 	credits?: string;
@@ -48,15 +48,29 @@ export function ContentSafetyNotice({
 		>
 			<Icon aria-hidden="true" />
 			<h3 className="text-base font-semibold leading-snug">
-				{t(blocked ? `titles.${stage}` : "titles.unavailable")}
+				{t(blocked ? `titles.${stage}` : `titles.${outcome}`)}
 			</h3>
 			<AlertDescription className="space-y-3">
-				<p>{t(`summary.${stage}.${outcome}`)}</p>
+				<p>
+					{t(
+						outcome === "review" || outcome === "unsupportedLanguage"
+							? `summary.prompt.${outcome}`
+							: `summary.${stage}.${outcome}`,
+					)}
+				</p>
 				<dl className="space-y-3 text-sm">
 					<div>
 						<dt className="font-medium">{t("reasonLabel")}</dt>
 						<dd className="mt-0.5 text-muted-foreground">
-							{t(blocked ? `reasons.${safeReason}` : "reviewUncertain")}
+							{t(
+								blocked
+									? `reasons.${safeReason}`
+									: outcome === "review"
+										? "reviewRequired"
+										: outcome === "unsupportedLanguage"
+											? "unsupportedLanguage"
+											: "reviewUncertain",
+							)}
 						</dd>
 					</div>
 					<div className="p-3 rounded-lg border border-border/60 bg-background/70">
@@ -71,12 +85,12 @@ export function ContentSafetyNotice({
 									? "next.guestOutput"
 									: blocked
 										? `next.${stage}`
-										: "next.unavailable",
+										: `next.${outcome}`,
 							)}
 						</dd>
 					</div>
 				</dl>
-				{onRevise && blocked && (
+				{onRevise && (blocked || outcome === "review" || outcome === "unsupportedLanguage") && (
 					<Button
 						type="button"
 						size="sm"

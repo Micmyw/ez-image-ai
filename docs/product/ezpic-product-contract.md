@@ -133,10 +133,12 @@ current moderation evidence. A selected upload in progress, paused, or failed in
 and blocks submission until completed or explicitly removed. The prompt is required and follows
 the selected model's length limits within the common 10,000-character maximum.
 
-Review creates only the existing server-owned `GenerationQuote` and shows the product, SKU
-parameters, EzPic Credit amount, and expiry. Changing the source, prompt, model, resolution, quality,
-or aspect ratio invalidates that quote. Confirm then uses a stable per-quote idempotency key and the
-existing transaction to bind the frozen input snapshot, reserve credits, create the job, and write
+The generation button shows the selected SKU's credit cost. One click creates the existing
+server-owned `GenerationQuote`, checks moderation and compares its price with the displayed amount,
+then submits the job. A changed price updates the button and requires another click. Changing the
+source, prompt, model, resolution, quality, or aspect ratio invalidates the quote, including a late
+response. An uncertain submission retains its quote and stable idempotency key on retry. The
+existing transaction binds the frozen input snapshot, reserves credits, creates the job, and writes
 its initial Outbox event. Clients never submit Provider/model routes, prices, credit amounts, signed
 URLs, or arbitrary remote inputs.
 

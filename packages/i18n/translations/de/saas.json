@@ -976,7 +976,7 @@
 		"create": {
 			"eyebrow": "Bildeditor",
 			"title": "Quellbild mit einem Prompt bearbeiten",
-			"subtitle": "Laden Sie ein Quellbild hoch, beschreiben Sie die Änderung, wählen Sie ein Bildmodell mit Ausgabeeinstellungen und prüfen Sie dann die Credit-Reservierung.",
+			"subtitle": "Beschreibe ein Bild, füge optional eine Vorlage hinzu, wähle Modell und Einstellungen und generiere zum auf der Schaltfläche angezeigten Credit-Preis.",
 			"draftRestored": "Ihr gespeicherter Bearbeitungsentwurf kann jetzt fortgesetzt werden.",
 			"product": "Bildmodell",
 			"products": {
@@ -1190,12 +1190,15 @@
 				"insufficientCredits": "Für diese Bearbeitung sind nicht genügend Credits vorhanden. Es wurden weder Auftrag noch Reservierung erstellt.",
 				"qualityUnavailable": "Dieses Bildmodell ist in Ihrem Tarif nicht enthalten. Wählen Sie Nano Banana 2 Lite oder prüfen Sie Ihren Tarif.",
 				"assetNotReady": "Das Quellbild ist noch nicht bereit. Warten Sie auf die private Sicherheitsprüfung oder wählen Sie ein anderes Bild.",
-				"quoteExpired": "Dieses Angebot ist abgelaufen oder die Preise haben sich geändert. Prüfen Sie die Bearbeitung erneut.",
+				"quoteExpired": "Dieser Preis ist abgelaufen. Ändere die Anweisung oder Einstellungen, um vor der Generierung einen aktuellen Preis anzufordern.",
 				"contentNotAllowed": "Diese Anweisung entspricht nicht unseren Inhaltsregeln. Bitte ändere sie. Es wurden keine Credits berechnet; die einmalige Ausnahme bleibt erhalten.",
 				"concurrentLimit": "In Ihrem Tarif läuft bereits die maximale Anzahl an Bearbeitungen. Es wurden weder neuer Auftrag noch Credit-Reservierung erstellt.",
 				"inputTooLarge": "Dieses Quellbild überschreitet das Eingabelimit Ihres Tarifs. Wählen Sie ein kleineres Bild oder vergleichen Sie Tarife.",
 				"safeError": "Die Bearbeitung konnte nicht gestartet werden. Prüfen Sie das Formular oder versuchen Sie es später erneut.",
-				"safetyUnavailable": "Die Sicherheitsprüfung konnte nicht abgeschlossen werden. Bitte ändere die Anweisung oder versuche es später erneut. Keine Credits wurden berechnet; die einmalige Ausnahme bleibt erhalten."
+				"safetyUnavailable": "Die Sicherheitsprüfung konnte nicht abgeschlossen werden. Bitte ändere die Anweisung oder versuche es später erneut. Keine Credits wurden berechnet; die einmalige Ausnahme bleibt erhalten.",
+				"priceChanged": "Der Credit-Preis hat sich geändert. Prüfe die aktualisierten Kosten auf der Schaltfläche und sende erneut.",
+				"contentReviewRequired": "Diese Anweisung erfordert eine weitere Sicherheitsprüfung. Bitte überarbeite sie oder kontaktiere den Support. Es wurden keine Credits berechnet.",
+				"textLanguageUnsupported": "Diese Prompt-Sprache wird von der Sicherheitsprüfung nicht unterstützt. Es wurden keine Credits berechnet."
 			},
 			"modelMenu": {
 				"title": "Bildmodelle",
@@ -1214,7 +1217,12 @@
 				"upToResolution": "Bis zu {resolution}",
 				"upgradeNotice": "{model} erfordert Pro, Ultimate oder Max. Du kannst weiterbearbeiten, bevor du einen Tarif wählst."
 			},
-			"moderationBillingPolicy": "Inhaltssicherheit: Pro Konto oder Team ist die erste gesperrte Bildgenerierung einmalig kostenlos. Weitere gesperrte Ergebnisse werden mit den angezeigten Credits berechnet. Vor der Generierung abgelehnte Anweisungen oder Uploads und fehlgeschlagene Sicherheitsprüfungen kosten keine Credits und verbrauchen diese Ausnahme nicht."
+			"moderationBillingPolicy": "Inhaltssicherheit: Pro Konto oder Team ist die erste gesperrte Bildgenerierung einmalig kostenlos. Weitere gesperrte Ergebnisse werden mit den angezeigten Credits berechnet. Vor der Generierung abgelehnte Anweisungen oder Uploads und fehlgeschlagene Sicherheitsprüfungen kosten keine Credits und verbrauchen diese Ausnahme nicht.",
+			"generateWithCredits": "Bild generieren · {credits} Credits",
+			"startEditWithCredits": "Bearbeitung starten · {credits} Credits",
+			"checking": "Wird geprüft…",
+			"starting": "Wird gestartet…",
+			"creditPolicy": "Credits und Inhaltsrichtlinie"
 		},
 		"guest": {
 			"eyebrow": "Gast-Test mit Nano Banana 2 Lite",
@@ -1315,7 +1323,7 @@
 		},
 		"status": {
 			"emptyTitle": "Ihre Ausgabe erscheint hier",
-			"emptyDescription": "Legen Sie die Einstellungen fest, prüfen Sie die Reservierung und starten Sie. Währenddessen können Sie eine weitere Idee vorbereiten.",
+			"emptyDescription": "Beschreibe ein Bild oder füge eine Vorlage hinzu, prüfe die Credits und klicke auf Bild generieren oder Bearbeitung starten.",
 			"loading": "Bearbeitung wird geladen…",
 			"unavailableTitle": "Diese Bearbeitung ist nicht verfügbar",
 			"unavailableDescription": "Die ausgewählte Erstellung kann in diesem Editor nicht geöffnet werden.",
@@ -1451,12 +1459,16 @@
 				"prompt": "Bitte überarbeite diese Anweisung",
 				"input": "Bitte wähle ein anderes Bild",
 				"output": "Dieses Ergebnis kann nicht angezeigt werden",
-				"unavailable": "Die Sicherheitsprüfung konnte nicht abgeschlossen werden"
+				"unavailable": "Die Sicherheitsprüfung konnte nicht abgeschlossen werden",
+				"review": "Bitte überarbeite diese Anweisung",
+				"unsupportedLanguage": "Diese Prompt-Sprache wird nicht unterstützt"
 			},
 			"summary": {
 				"prompt": {
 					"blocked": "Diese Anweisung hat die Sicherheitsprüfung nicht bestanden. Die Generierung wurde nicht gestartet.",
-					"unavailable": "Die Prüfung dieser Anweisung konnte nicht abgeschlossen werden. Die Generierung wurde nicht gestartet."
+					"unavailable": "Die Prüfung dieser Anweisung konnte nicht abgeschlossen werden. Die Generierung wurde nicht gestartet.",
+					"review": "Diese Anweisung erfordert eine weitere Sicherheitsprüfung. Die Generierung wurde nicht gestartet.",
+					"unsupportedLanguage": "Wir können diesen Prompt in seiner aktuellen Sprache nicht prüfen. Die Generierung wurde nicht gestartet."
 				},
 				"input": {
 					"blocked": "Dieses Referenzbild hat die Sicherheitsprüfung nicht bestanden und kann nicht zur Generierung verwendet werden.",
@@ -1495,14 +1507,18 @@
 				"input": "Wähle ein anderes Referenzbild, das der Inhaltsrichtlinie entspricht.",
 				"output": "Ändere die Anweisung oder wähle ein anderes Referenzbild, bevor du eine neue Generierung startest. Die neuen Credit-Kosten werden vorher angezeigt.",
 				"unavailable": "Versuche es später erneut. Wenn das Problem bestehen bleibt, kontaktiere den Support.",
-				"guestOutput": "Kontaktiere den Support, wenn du Hilfe mit diesem Ergebnis benötigst. Dein Teststatus wird unten angezeigt."
+				"guestOutput": "Kontaktiere den Support, wenn du Hilfe mit diesem Ergebnis benötigst. Dein Teststatus wird unten angezeigt.",
+				"review": "Überarbeite die Anweisung entsprechend der Inhaltsrichtlinie oder kontaktiere den Support, wenn du einen Fehler vermutest.",
+				"unsupportedLanguage": "Verwende eine unterstützte Sprache für eine richtlinienkonforme Anweisung oder kontaktiere den Support."
 			},
 			"policy": "Inhaltsrichtlinie",
 			"appeal": "Vermutest du einen Fehler? Support kontaktieren",
 			"support": "Support kontaktieren",
 			"reference": "Gib beim Kontakt mit dem Support diese Auftragsnummer an:",
 			"replaceImage": "Anderes Bild wählen",
-			"editInstruction": "Anweisung bearbeiten"
+			"editInstruction": "Anweisung bearbeiten",
+			"reviewRequired": "Die Sicherheitsprüfung konnte diese Anweisung nicht freigeben. Dies ist kein bestätigter Inhaltsverstoß.",
+			"unsupportedLanguage": "Die aktuelle Sicherheitsprüfung unterstützt diese Prompt-Sprache nicht."
 		}
 	},
 	"common": {
@@ -1613,7 +1629,7 @@
 			"textMode": "Text zu Bild",
 			"editMode": "Bild zu Bild",
 			"signIn": "Anmelden und generieren",
-			"textHint": "Beginne mit einem Prompt. Ein Referenzbild ist optional. Melde dich an, um Credits zu prüfen und zu generieren.",
+			"textHint": "Beginne mit einem Prompt. Ein Referenzbild ist optional. Melde dich an, um die Credits zu sehen und mit einem Klick zu generieren.",
 			"promptHint": "Beschreibe Motiv, Komposition, Licht und Stil. Füge bei Bedarf ein Referenzbild hinzu.",
 			"promptLabel": "Bild-Prompt",
 			"generate": "Bild generieren"

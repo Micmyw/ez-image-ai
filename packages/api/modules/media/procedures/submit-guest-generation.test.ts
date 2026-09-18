@@ -28,11 +28,19 @@ describe("submitGuestGeneration", () => {
 			await expect(
 				call(submitGuestGeneration, validInput(), { context: { headers: new Headers() } }),
 			).rejects.toMatchObject({
-				message: decision === "REJECT" ? "CONTENT_NOT_ALLOWED" : "SAFETY_CHECK_UNAVAILABLE",
+				message:
+					decision === "REJECT"
+						? "CONTENT_NOT_ALLOWED"
+						: decision === "REVIEW"
+							? "CONTENT_REVIEW_REQUIRED"
+							: "SAFETY_CHECK_UNAVAILABLE",
 				data:
 					decision === "REJECT"
 						? { code: "CONTENT_NOT_ALLOWED", moderationReason: "sexualContent" }
-						: { code: "SAFETY_CHECK_UNAVAILABLE" },
+						: {
+								code:
+									decision === "REVIEW" ? "CONTENT_REVIEW_REQUIRED" : "SAFETY_CHECK_UNAVAILABLE",
+							},
 			});
 		},
 	);

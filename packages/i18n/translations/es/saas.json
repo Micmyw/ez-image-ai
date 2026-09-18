@@ -976,7 +976,7 @@
 		"create": {
 			"eyebrow": "Editor de imágenes",
 			"title": "Edita una imagen de origen con una instrucción",
-			"subtitle": "Sube una imagen de origen, describe el cambio, elige un modelo de imagen y sus ajustes de salida, y revisa la reserva de créditos.",
+			"subtitle": "Describe una imagen, añade una referencia opcional, elige el modelo y los ajustes y genera con el coste en créditos indicado en el botón.",
 			"draftRestored": "Tu borrador de edición guardado está listo para continuar.",
 			"product": "Modelo de imagen",
 			"products": {
@@ -1190,12 +1190,15 @@
 				"insufficientCredits": "No tienes créditos suficientes para esta edición. No se creó ningún trabajo ni reserva.",
 				"qualityUnavailable": "Este modelo de imagen no está incluido en tu plan. Elige Nano Banana 2 Lite o revisa tu plan.",
 				"assetNotReady": "La imagen de origen no está lista. Espera la revisión privada o elige otra imagen.",
-				"quoteExpired": "El presupuesto caducó o cambió el precio. Vuelve a revisar la edición antes de confirmar.",
+				"quoteExpired": "Este precio ha caducado. Actualiza la instrucción o los ajustes para obtener un precio nuevo antes de generar.",
 				"contentNotAllowed": "Esta instrucción no cumple nuestra política de contenido. Modifícala. No se han cobrado créditos ni usado tu exención única.",
 				"concurrentLimit": "Tu plan ya tiene el máximo de ediciones en curso. No se creó ningún trabajo ni reserva de créditos.",
 				"inputTooLarge": "Esta imagen supera el límite de entrada de tu plan. Elige una imagen más pequeña o compara planes.",
 				"safeError": "No pudimos iniciar la edición. Comprueba el formulario o inténtalo de nuevo en unos minutos.",
-				"safetyUnavailable": "No pudimos completar la revisión de seguridad. Modifica la instrucción o inténtalo más tarde. No se han cobrado créditos ni usado tu exención única."
+				"safetyUnavailable": "No pudimos completar la revisión de seguridad. Modifica la instrucción o inténtalo más tarde. No se han cobrado créditos ni usado tu exención única.",
+				"priceChanged": "El precio en créditos ha cambiado. Comprueba el coste actualizado en el botón y vuelve a enviar.",
+				"contentReviewRequired": "Esta instrucción requiere una revisión de seguridad adicional. Revísala o contacta con soporte. No se han cobrado créditos.",
+				"textLanguageUnsupported": "La revisión de seguridad no admite este idioma. No se han cobrado créditos."
 			},
 			"modelMenu": {
 				"title": "Modelos de imagen",
@@ -1214,7 +1217,12 @@
 				"upToResolution": "Hasta {resolution}",
 				"upgradeNotice": "{model} requiere Pro, Ultimate o Max. Puedes seguir editando antes de elegir un plan."
 			},
-			"moderationBillingPolicy": "Seguridad de contenido: cada cuenta o equipo dispone de una única exención de créditos para su primer resultado generado bloqueado. Los siguientes se cobran al precio indicado. Las instrucciones o imágenes rechazadas antes de generar y los fallos de revisión no consumen créditos ni la exención."
+			"moderationBillingPolicy": "Seguridad de contenido: cada cuenta o equipo dispone de una única exención de créditos para su primer resultado generado bloqueado. Los siguientes se cobran al precio indicado. Las instrucciones o imágenes rechazadas antes de generar y los fallos de revisión no consumen créditos ni la exención.",
+			"generateWithCredits": "Generar imagen · {credits} créditos",
+			"startEditWithCredits": "Iniciar edición · {credits} créditos",
+			"checking": "Comprobando…",
+			"starting": "Iniciando…",
+			"creditPolicy": "Créditos y política de contenido"
 		},
 		"guest": {
 			"eyebrow": "Prueba Nano Banana 2 Lite para invitados",
@@ -1315,7 +1323,7 @@
 		},
 		"status": {
 			"emptyTitle": "Tu resultado aparecerá aquí",
-			"emptyDescription": "Configura los controles, revisa la reserva y empieza. Puedes preparar otra idea mientras continúa el trabajo.",
+			"emptyDescription": "Describe una imagen o añade una referencia, comprueba los créditos y pulsa Generar imagen o Iniciar edición.",
 			"loading": "Cargando tu edición…",
 			"unavailableTitle": "Esta edición no está disponible",
 			"unavailableDescription": "La creación seleccionada no se puede abrir en este editor.",
@@ -1451,12 +1459,16 @@
 				"prompt": "Revisa esta instrucción",
 				"input": "Elige otra imagen",
 				"output": "Este resultado no se puede mostrar",
-				"unavailable": "No pudimos completar la comprobación de seguridad"
+				"unavailable": "No pudimos completar la comprobación de seguridad",
+				"review": "Revisa esta instrucción",
+				"unsupportedLanguage": "Este idioma no es compatible"
 			},
 			"summary": {
 				"prompt": {
 					"blocked": "Esta instrucción no superó la revisión de seguridad. La generación no ha comenzado.",
-					"unavailable": "No pudimos terminar de revisar esta instrucción. La generación no ha comenzado."
+					"unavailable": "No pudimos terminar de revisar esta instrucción. La generación no ha comenzado.",
+					"review": "Esta instrucción requiere una revisión de seguridad adicional. La generación no ha comenzado.",
+					"unsupportedLanguage": "No podemos revisar este prompt en su idioma actual. La generación no ha comenzado."
 				},
 				"input": {
 					"blocked": "Esta imagen de referencia no superó la revisión de seguridad y no se puede usar para generar.",
@@ -1495,14 +1507,18 @@
 				"input": "Elige otra imagen de referencia que cumpla la política de contenido.",
 				"output": "Edita la instrucción o elige otra imagen de referencia antes de iniciar una nueva generación. El nuevo presupuesto mostrará su coste en créditos.",
 				"unavailable": "Vuelve a intentarlo más tarde. Si el problema persiste, contacta con soporte.",
-				"guestOutput": "Contacta con soporte si necesitas ayuda con este resultado. El estado de tu prueba se muestra a continuación."
+				"guestOutput": "Contacta con soporte si necesitas ayuda con este resultado. El estado de tu prueba se muestra a continuación.",
+				"review": "Revisa la instrucción para cumplir la política de contenido o contacta con soporte si crees que es un error.",
+				"unsupportedLanguage": "Usa un idioma compatible para una instrucción que cumpla la política o contacta con soporte."
 			},
 			"policy": "Política de contenido",
 			"appeal": "¿Crees que es un error? Contacta con soporte",
 			"support": "Contactar con soporte",
 			"reference": "Incluye esta referencia de tarea al contactar con soporte:",
 			"replaceImage": "Elegir otra imagen",
-			"editInstruction": "Editar instrucción"
+			"editInstruction": "Editar instrucción",
+			"reviewRequired": "La revisión de seguridad no pudo aprobar esta instrucción. Esto no confirma una infracción de contenido.",
+			"unsupportedLanguage": "La revisión de seguridad actual no admite el idioma de este prompt."
 		}
 	},
 	"common": {
@@ -1613,7 +1629,7 @@
 			"textMode": "Texto a imagen",
 			"editMode": "Imagen a imagen",
 			"signIn": "Inicia sesión para generar",
-			"textHint": "Empieza con un prompt. La imagen de referencia es opcional. Inicia sesión para revisar los créditos y generar.",
+			"textHint": "Empieza con un prompt. La imagen de referencia es opcional. Inicia sesión para ver el coste y generar con un clic.",
 			"promptHint": "Describe el sujeto, la composición, la luz y el estilo. Añade una referencia para editar o guiar el resultado.",
 			"promptLabel": "Prompt de imagen",
 			"generate": "Generar imagen"

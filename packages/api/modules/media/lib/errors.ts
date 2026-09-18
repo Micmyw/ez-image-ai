@@ -17,6 +17,8 @@ export const MEDIA_ERROR_CODES = [
 	"INPUT_TOO_LARGE",
 	"CONCURRENT_JOB_LIMIT_REACHED",
 	"CONTENT_NOT_ALLOWED",
+	"CONTENT_REVIEW_REQUIRED",
+	"TEXT_LANGUAGE_UNSUPPORTED",
 	"SAFETY_CHECK_UNAVAILABLE",
 	"GENERATION_RETRY_IN_PROGRESS",
 	"GENERATION_RETRY_FAILED",
@@ -55,9 +57,11 @@ export function toMediaOrpcError(error: unknown): ORPCError<string, unknown> {
 }
 
 export function stableMediaErrorCode(error: unknown): MediaErrorCode {
+	if (error instanceof TextModerationError) return error.publicCode;
 	const message = error instanceof Error ? error.message : "";
 	if (/TEXT_MODERATION_REJECT/.test(message)) return "CONTENT_NOT_ALLOWED";
-	if (/TEXT_MODERATION_(REVIEW|ERROR|CONFIGURATION_ERROR)/.test(message))
+	if (/TEXT_MODERATION_REVIEW/.test(message)) return "CONTENT_REVIEW_REQUIRED";
+	if (/TEXT_MODERATION_(ERROR|CONFIGURATION_ERROR)/.test(message))
 		return "SAFETY_CHECK_UNAVAILABLE";
 	for (const code of MEDIA_ERROR_CODES) {
 		if (message.includes(code)) return code;

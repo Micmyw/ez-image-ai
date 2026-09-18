@@ -49,10 +49,20 @@ describe("public moderation reason boundary", () => {
 					},
 				},
 			});
-			expect(toMediaOrpcError(error).data).toEqual({ code: "SAFETY_CHECK_UNAVAILABLE" });
+			expect(toMediaOrpcError(error).data).toEqual({
+				code: decision === "REVIEW" ? "CONTENT_REVIEW_REQUIRED" : "SAFETY_CHECK_UNAVAILABLE",
+			});
 			expect(JSON.stringify(error)).not.toMatch(/private|scores|waffo/i);
 		},
 	);
+	it("explains an unsupported prompt language separately from a service outage", () => {
+		const error = new TextModerationError({
+			decision: "REVIEW",
+			reasonCode: "UNSUPPORTED_TEXT_LANGUAGE",
+			ruleVersion: "private-rule",
+		});
+		expect(toMediaOrpcError(error).data).toEqual({ code: "TEXT_LANGUAGE_UNSUPPORTED" });
+	});
 	it("does not forward arbitrary error properties as trusted public diagnostics", () => {
 		const error = Object.assign(new Error("CONTENT_NOT_ALLOWED"), {
 			moderationReason: "sexualContent",

@@ -5,7 +5,7 @@ import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpcClient } from "@shared/lib/orpc-client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { getEditorErrorKey, getModerationErrorReason } from "../lib/editor-error";
+import { getModerationErrorReason, getPromptSafetyOutcome } from "../lib/editor-error";
 import { getGuestDeviceId } from "../lib/guest-device";
 import {
 	isGuestTrialTerminal,
@@ -42,7 +42,7 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 	const [snapshot, setSnapshot] = useState<GuestTrialSnapshot | null>(null);
 	const [errorKey, setErrorKey] = useState<GuestErrorKey>();
 	const [moderationError, setModerationError] = useState<{
-		outcome: "blocked" | "unavailable";
+		outcome: NonNullable<ReturnType<typeof getPromptSafetyOutcome>>;
 		reason: PublicModerationReason | null;
 	} | null>(null);
 	const [isSubmitting, setIsSubmitting] = useState(false);
@@ -192,10 +192,10 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 			updateSnapshot(next);
 			void saasGrowthFunnel.guestGenerationAdmitted(next.jobId);
 		} catch (error) {
-			const key = getEditorErrorKey(error);
-			if (key === "contentNotAllowed" || key === "safetyUnavailable") {
+			const outcome = getPromptSafetyOutcome(error);
+			if (outcome) {
 				setModerationError({
-					outcome: key === "contentNotAllowed" ? "blocked" : "unavailable",
+					outcome,
 					reason: getModerationErrorReason(error),
 				});
 			}

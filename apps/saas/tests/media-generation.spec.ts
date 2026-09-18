@@ -34,8 +34,10 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			timeout: 30_000,
 		});
 		await page.getByLabel(/edit instruction|image prompt/i).fill(prompt);
-		await page.getByRole("button", { name: /review credits/i }).click();
-		await page.getByRole("button", { name: /generate image/i }).dblclick();
+		await expect(page.locator('[data-test="generation-submit"]')).toHaveText(
+			"Generate image · 7 credits",
+		);
+		await page.locator('[data-test="generation-submit"]').dblclick();
 		const job = await waitForJob(prompt, "SUCCEEDED");
 		expect(
 			await count(`SELECT count(*) FROM generation_job_asset WHERE "jobId"=$1 AND role='INPUT'`, [
@@ -76,7 +78,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await page.goto(`/create?reuseJob=${job.id}`);
 		await expect(page.getByLabel(/edit instruction|image prompt/i)).toHaveValue(prompt);
 		await expect(page.getByRole("img", { name: /selected source image/i })).toHaveCount(0);
-		await expect(page.getByRole("button", { name: /review credits/i })).toBeEnabled();
+		await expect(page.locator('[data-test="generation-submit"]')).toBeEnabled();
 	});
 
 	test("a pending or failed reference upload cannot silently submit text generation", async ({
@@ -84,10 +86,8 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	}) => {
 		await page.goto("/create");
 		await page.getByLabel(/edit instruction|image prompt/i).fill("A ceramic vase in soft daylight");
-		const review = page.getByRole("button", { name: /review credits/i });
+		const review = page.locator('[data-test="generation-submit"]');
 		await expect(review).toBeEnabled({ timeout: 30_000 });
-		await review.click();
-		await expect(page.getByRole("button", { name: /generate image/i })).toBeEnabled();
 		let release!: () => void;
 		const gate = new Promise<void>((resolve) => {
 			release = resolve;
@@ -107,7 +107,6 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			});
 			await expect(page.getByText("pending-reference.png")).toBeAttached();
 			await expect(review).toBeDisabled();
-			await expect(page.getByRole("button", { name: /generate image/i })).toHaveCount(0);
 		} finally {
 			release();
 		}
@@ -123,8 +122,10 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		const growthEvents = await captureConsentedGrowthEvents(page);
 		const prompt = marker("duplicate", "A ceramic lamp on a quiet desk", testInfo.retry);
 		await openCreator(page, prompt, fundedEmail);
-		await page.getByRole("button", { name: /review credits/i }).click();
-		await page.getByRole("button", { name: /start edit/i }).dblclick();
+		await expect(page.locator('[data-test="generation-submit"]')).toHaveText(
+			"Start edit · 5 credits",
+		);
+		await page.locator('[data-test="generation-submit"]').dblclick();
 		const job = await waitForJob(prompt, "SUCCEEDED");
 		const user = await userByEmail(fundedEmail);
 		expect(await jobsForPrompt(user.id, prompt)).toHaveLength(1);
@@ -205,8 +206,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 
 		const childPrompt = marker("session-child", "Add a soft shadow", testInfo.retry);
 		await page.getByLabel(/edit instruction|image prompt/i).fill(childPrompt);
-		await page.getByRole("button", { name: /review credits/i }).click();
-		await page.getByRole("button", { name: /start edit/i }).click();
+		await page.locator('[data-test="generation-submit"]').click();
 		const childJob = await waitForJob(childPrompt, "SUCCEEDED");
 		const childVersion = await editVersion(childJob.id);
 		expect(childVersion.editSessionId).toBe(rootVersion.editSessionId);
@@ -217,8 +217,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await rootCard.getByRole("link", { name: /edit again/i }).click();
 		const branchPrompt = marker("session-branch", "Try a cooler background", testInfo.retry);
 		await page.getByLabel(/edit instruction|image prompt/i).fill(branchPrompt);
-		await page.getByRole("button", { name: /review credits/i }).click();
-		await page.getByRole("button", { name: /start edit/i }).click();
+		await page.locator('[data-test="generation-submit"]').click();
 		const branchJob = await waitForJob(branchPrompt, "SUCCEEDED");
 		const branchVersion = await editVersion(branchJob.id);
 
@@ -262,7 +261,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			[user.id],
 		);
 		await openCreator(page, prompt, emptyEmail);
-		await page.getByRole("button", { name: /review credits/i }).click();
+		await page.locator('[data-test="generation-submit"]').click();
 		await expect(
 			page.locator('[data-test="registered-generator"]').getByRole("alert"),
 		).toBeVisible();
@@ -521,9 +520,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await expect(page).toHaveURL(new RegExp(`/create\\?asset=${asset.id}`));
 		const prompt = marker("reuse", "Turn the reference into a watercolor scene", testInfo.retry);
 		await page.getByLabel(/edit instruction|image prompt/i).fill(prompt);
-		await page.getByRole("button", { name: /review credits/i }).click();
-		await expect(page.getByText(/ready to edit/i)).toBeVisible();
-		await page.getByRole("button", { name: /start edit/i }).click();
+		await page.locator('[data-test="generation-submit"]').click();
 		const job = await waitForJob(prompt, "SUCCEEDED");
 		const binding = (
 			await rows<{ assetId: string }>(
@@ -534,7 +531,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		expect(binding?.assetId).toBe(asset.id);
 	});
 
-	test("mobile editor keeps the required source, prompt, model and SKU controls, and review action keyboard accessible", async ({
+	test("mobile editor keeps the required source, prompt, model and SKU controls, and generation action keyboard accessible", async ({
 		page,
 	}) => {
 		await page.setViewportSize({ width: 390, height: 844 });
@@ -568,7 +565,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 				.getByRole("button", { name: "2K", exact: true }),
 		).toHaveAttribute("aria-pressed", "true");
 		await page.keyboard.press("Escape");
-		await expect(page.getByRole("button", { name: /review credits/i })).toBeEnabled();
+		await expect(page.locator('[data-test="generation-submit"]')).toBeEnabled();
 		expect(
 			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
 		).toBe(true);
@@ -593,9 +590,7 @@ async function createScenario(
 	prompt: string,
 ): Promise<string> {
 	await openCreator(page, prompt, fundedEmail);
-	await page.getByRole("button", { name: /review credits/i }).click();
-	await expect(page.getByText(/ready to edit/i)).toBeVisible();
-	await page.getByRole("button", { name: /start edit/i }).click();
+	await page.locator('[data-test="generation-submit"]').click();
 	const user = await userByEmail(fundedEmail);
 	const job = await expect
 		.poll(async () => (await jobsForPrompt(user.id, prompt))[0] ?? null)

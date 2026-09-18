@@ -124,7 +124,7 @@ test("text prompt and settings survive signing in without an upload", async ({ p
 	await expect(page).toHaveURL(/\/create\?model=image-gpt-image-2$/, { timeout: 60_000 });
 	await expect(page.getByLabel(/edit instruction|image prompt/i)).toHaveValue(prompt);
 	await expect(page.locator('[data-test="editor-model-trigger"]')).toContainText("GPT Image 2");
-	await expect(page.getByRole("button", { name: /review credits/i })).toBeEnabled({
+	await expect(page.locator('[data-test="generation-submit"]')).toBeEnabled({
 		timeout: 30_000,
 	});
 	expect(uploads).toEqual([]);

@@ -1,3 +1,5 @@
+import { parseEnv } from "node:util";
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -10,6 +12,54 @@ const unpackValues = (variables: ReturnType<typeof packCloudflareBuildEnvironmen
 	Object.fromEntries(Object.entries(variables).map(([key, item]) => [key, item.value]));
 
 describe("Cloudflare build secret transport", () => {
+	it("can add a server-only image scanner credential without rewriting the secret bundle", () => {
+		expect(
+			parseEnv(
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "PRIVATE_KEY=unchanged\n",
+					SEEAPI_API_KEY: "test-key-12345678",
+				}),
+			),
+		).toEqual({ PRIVATE_KEY: "unchanged", SEEAPI_API_KEY: "test-key-12345678" });
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: "PRIVATE_KEY=unchanged",
+				SEEAPI_API_KEY: "key\nOTHER=value",
+			}),
+		).toThrow("CLOUDFLARE_SEEAPI_KEY_INVALID");
+	});
+	it("refuses partial switches or disabling every detector", () => {
+		for (const overrides of [
+			{ MEDIA_SAFETY_ADAPTER: "configured" },
+			{
+				MEDIA_SAFETY_ADAPTER: "configured",
+				MODERATION_TEXT_WAFFO_ENABLED: "false",
+				MODERATION_TEXT_SIGHTENGINE_ENABLED: "false",
+				MODERATION_IMAGE_SEEAPI_ENABLED: "true",
+				MODERATION_IMAGE_SIGHTENGINE_ENABLED: "false",
+			},
+		]) {
+			expect(() =>
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "PRIVATE_KEY=unchanged",
+					...overrides,
+				}),
+			).toThrow("CLOUDFLARE_MODERATION_OVERRIDES_INVALID");
+		}
+	});
+	it("applies explicit moderation switches without replacing unrelated production secrets", () => {
+		const source = "MEDIA_SAFETY_ADAPTER=sightengine\nPRIVATE_KEY=unchanged\n";
+		const switches = {
+			MEDIA_SAFETY_ADAPTER: "configured",
+			MODERATION_TEXT_WAFFO_ENABLED: "true",
+			MODERATION_TEXT_SIGHTENGINE_ENABLED: "false",
+			MODERATION_IMAGE_SEEAPI_ENABLED: "true",
+			MODERATION_IMAGE_SIGHTENGINE_ENABLED: "false",
+		};
+		expect(
+			parseEnv(readCloudflareBuildEnvironment({ CLOUDFLARE_PRODUCTION_ENV: source, ...switches })),
+		).toEqual({ PRIVATE_KEY: "unchanged", ...switches });
+	});
 	it("keeps existing short dotenv secrets compatible", () => {
 		const source = "NEXT_PUBLIC_SAAS_URL=https://ezimageai.com\nPRIVATE_KEY=example\n";
 		const variables = packCloudflareBuildEnvironment(source);
@@ -61,6 +111,7 @@ describe("Cloudflare build secret transport", () => {
 			...unpackValues(packCloudflareBuildEnvironment("private-data".repeat(1000))),
 			CLOUDFLARE_PRODUCTION_ENV_PART_16: "stale-part",
 			CLOUDFLARE_API_TOKEN: "deployment-token",
+			SEEAPI_API_KEY: "private-image-scanner-key",
 			PATH: "tools",
 		};
 		expect(withoutCloudflareBuildSecrets(environment)).toEqual({

@@ -22,7 +22,11 @@ import {
 } from "../../landing/lib/prompt-selection";
 import { useGeneration } from "../hooks/use-generation";
 import { replaceImageModelInUrl, useModelNavigation } from "../hooks/use-model-navigation";
-import { getEditorErrorKey, getModerationErrorReason } from "../lib/editor-error";
+import {
+	getEditorErrorKey,
+	getModerationErrorReason,
+	getPromptSafetyOutcome,
+} from "../lib/editor-error";
 import {
 	isEditorProductKey,
 	type EditorDraftInput,
@@ -95,6 +99,7 @@ export function GenerationForm({
 	const [sourceReady, setSourceReady] = useState(initialSourceReady);
 	const [sourcePending, setSourcePending] = useState(false);
 	const sourcePendingRef = useRef(false);
+	const submittingRef = useRef(false);
 	const [upgradeOpen, setUpgradeOpen] = useState(false);
 	const [upgradeStorageUnavailable, setUpgradeStorageUnavailable] = useState(false);
 	const form = useForm<GenerationFormValues>({
@@ -158,8 +163,10 @@ export function GenerationForm({
 		values.skuKey,
 		values.sourceAssetId,
 	]);
-	const error = generation.createQuote.error ?? generation.createGeneration.error;
+	const error = generation.createGeneration.error ?? generation.createQuote.error;
 	const errorKey = getEditorErrorKey(error);
+	const safetyOutcome = getPromptSafetyOutcome(error);
+	const displayedCredits = generation.quote?.credits ?? selectedCell?.credits ?? product?.credits;
 	const suggestions = ["background", "object", "lighting", "style"].map((key) =>
 		t(`suggestions.${key}`),
 	);
@@ -347,14 +354,27 @@ export function GenerationForm({
 	}
 
 	async function confirmGeneration() {
+		if (
+			!input ||
+			displayedCredits === undefined ||
+			sourcePendingRef.current ||
+			submittingRef.current
+		)
+			return;
+		submittingRef.current = true;
 		try {
-			if (!generation.quote || !input || sourcePendingRef.current) return;
-			await saasGrowthFunnel.generationConfirmed(generation.quote.id, generation.quote.productKey);
-			const result = await generation.createGeneration.mutateAsync();
+			const result = await generation.createGeneration.mutateAsync({
+				productKey: values.productKey,
+				input,
+				expectedCredits: String(displayedCredits),
+			});
+			if (!result) return;
 			onCreated(result.job.id);
 			generation.beginNewAction();
 		} catch {
 			// The mutation exposes only a stable, translated public error below.
+		} finally {
+			submittingRef.current = false;
 		}
 	}
 
@@ -369,7 +389,7 @@ export function GenerationForm({
 					setUpgradeOpen(true);
 					return;
 				}
-				if (input) generation.createQuote.mutate({ productKey: validated.productKey, input });
+				void confirmGeneration();
 			})}
 		>
 			<div className="studio-composer-heading">
@@ -489,19 +509,24 @@ export function GenerationForm({
 						{t("modelMenu.viewPlans")}
 					</Button>
 				) : (
-					!generation.quote && (
-						<Button
-							type="submit"
-							variant="primary"
-							className="studio-submit"
-							disabled={
-								!input || generation.createQuote.isPending || generation.createGeneration.isPending
-							}
-							loading={generation.createQuote.isPending}
-						>
-							{t("review")}
-						</Button>
-					)
+					<Button
+						type="submit"
+						data-test="generation-submit"
+						variant="primary"
+						className="studio-submit"
+						disabled={
+							!input || generation.createQuote.isPending || generation.createGeneration.isPending
+						}
+						loading={generation.createGeneration.isPending}
+					>
+						{generation.createQuote.isPending
+							? t("checking")
+							: generation.createGeneration.isPending
+								? t("starting")
+								: t(values.sourceAssetId ? "startEditWithCredits" : "generateWithCredits", {
+										credits: displayedCredits ?? "—",
+									})}
+					</Button>
 				)}
 			</div>
 			{sourcePending && (
@@ -517,44 +542,14 @@ export function GenerationForm({
 					{t("modelMenu.upgradeNotice", { model: product.label })}
 				</output>
 			)}
-			{generation.quote ? (
-				<div className="studio-quote p-4 rounded-xl border bg-muted/40" aria-live="polite">
-					<p className="font-medium">{t("quoteReady")}</p>
-					<p className="mt-1 text-sm text-muted-foreground">
-						{t("quoteMode", {
-							mode: product?.label ?? generation.quote.productKey,
-							credits: generation.quote.credits,
-						})}
-					</p>
-					<p className="mt-2 text-sm text-muted-foreground">{t("moderationBillingPolicy")}</p>
-					<p className="mt-1 text-xs text-muted-foreground">
-						{t("quoteExpires", {
-							time: new Date(generation.quote.expiresAt).toLocaleTimeString([], {
-								hour: "2-digit",
-								minute: "2-digit",
-							}),
-						})}
-					</p>
-					<div className="mt-4 gap-2 flex flex-wrap">
-						<Button
-							type="button"
-							variant="primary"
-							loading={generation.createGeneration.isPending}
-							disabled={!input || sourcePending || generation.createGeneration.isPending}
-							onClick={() => void confirmGeneration()}
-						>
-							{values.sourceAssetId ? t("confirm") : studio("generation.generate")}
-						</Button>
-						<Button type="button" variant="ghost" onClick={generation.beginNewAction}>
-							{t("edit")}
-						</Button>
-					</div>
-				</div>
-			) : null}
-			{error && (errorKey === "contentNotAllowed" || errorKey === "safetyUnavailable") ? (
+			<details className="mt-3 text-xs text-muted-foreground">
+				<summary className="py-2 cursor-pointer">{t("creditPolicy")}</summary>
+				<p className="mt-1 leading-relaxed">{t("moderationBillingPolicy")}</p>
+			</details>
+			{error && safetyOutcome ? (
 				<ContentSafetyNotice
 					stage="prompt"
-					outcome={errorKey === "contentNotAllowed" ? "blocked" : "unavailable"}
+					outcome={safetyOutcome}
 					reason={getModerationErrorReason(error)}
 					billing="beforeGeneration"
 					onRevise={() => document.getElementById("generation-prompt")?.focus()}

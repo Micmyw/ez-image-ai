@@ -100,6 +100,13 @@ charged/released amounts and appeal guidance. This credit waiver is distinct fro
 
 ## Customer feedback
 
+Prompt denials use separate public outcomes: `CONTENT_REVIEW_REQUIRED` asks the customer to revise
+the instruction or contact support, `TEXT_LANGUAGE_UNSUPPORTED` identifies a language limitation,
+and `SAFETY_CHECK_UNAVAILABLE` identifies an unavailable check. These are not confirmed content
+violations and do not create a quote, reserve credits, or consume the output-block waiver.
+Production uses Waffo text checks without the legacy Sightengine Latin-script gate and SeeAPI
+image checks. Keep website, jobs and Cloudflare Git build overrides aligned.
+
 Prompt, reference-image, generated-result, and guest-trial screens separate the outcome, reason,
 credit treatment, and next action. Confirmed blocks use an amber notice; an incomplete review uses
 a neutral notice and explicitly avoids declaring a content violation. Both link to the content policy

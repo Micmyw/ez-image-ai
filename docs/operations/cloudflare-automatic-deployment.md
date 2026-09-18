@@ -72,6 +72,14 @@ Cloudflare 默认生成的令牌包含 Workers 脚本、Workers 路由、KV、R2
 
 ## 四、命令会执行哪些操作
 
+网站和任务服务的构建配置也支持一组明确的审核覆盖变量：
+`MEDIA_SAFETY_ADAPTER=configured`、`MODERATION_TEXT_WAFFO_ENABLED=true`、
+`MODERATION_TEXT_SIGHTENGINE_ENABLED=false`、`MODERATION_IMAGE_SEEAPI_ENABLED=true`、
+`MODERATION_IMAGE_SIGHTENGINE_ENABLED=false`。这五项必须一起填写，作为普通构建变量即可；
+`SEEAPI_API_KEY` 单独存为构建机密。构建会在校验原有生产机密分段之后应用这组配置，
+保留其他生产配置，且拒绝缺项或关闭全部文字/图片检查的组合。两项服务都必须同步，
+只改本地 `.env.production.local` 不会更新原生 Git 构建。
+
 - 仅接受 `workers` 部署模式。在 Cloudflare 中检查 `WORKERS_CI_BRANCH=main`，并确认检出的
   提交与 `WORKERS_CI_COMMIT_SHA` 一致。
 - 复用现有生产环境准备流程，保留功能开关和资源绑定。
