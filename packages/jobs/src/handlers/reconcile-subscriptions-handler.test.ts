@@ -7,6 +7,7 @@ const {
 	getStripeClient,
 	reconcileStripeBilling,
 	reconcileSubscriptionsWithClient,
+	recoverPendingCheckouts,
 	source,
 	stripe,
 } = vi.hoisted(() => ({
@@ -16,11 +17,13 @@ const {
 	getStripeClient: vi.fn(),
 	reconcileStripeBilling: vi.fn(),
 	reconcileSubscriptionsWithClient: vi.fn(),
+	recoverPendingCheckouts: vi.fn(),
 	source: { id: "billing-source" },
 	stripe: { id: "stripe-client" },
 }));
 
 vi.mock("@repo/database/client", () => ({ db }));
+vi.mock("@repo/database", () => ({ recoverPendingCheckouts }));
 vi.mock("@repo/config/server", () => ({ getStripeLegacyLifecycleStatus }));
 vi.mock("@repo/payments", () => ({
 	requeuePreviouslyUnsupportedRefunds: vi.fn().mockResolvedValue({ requeued: 0 }),
@@ -66,6 +69,7 @@ describe("Stripe subscription reconciliation handler", () => {
 	});
 	beforeEach(() => {
 		vi.clearAllMocks();
+		recoverPendingCheckouts.mockReset().mockResolvedValue(0);
 		vi.mocked(isPaymentProviderConfigured).mockReturnValue(false);
 		getStripeLegacyLifecycleStatus.mockReturnValue("CONFIGURED");
 		getStripeClient.mockReturnValue(stripe);
@@ -89,8 +93,9 @@ describe("Stripe subscription reconciliation handler", () => {
 
 	it("skips Stripe calls only when legacy lifecycle is disabled while reconciling PayPal/Waffo deadlines", async () => {
 		getStripeLegacyLifecycleStatus.mockReturnValue("DISABLED");
+		const now = new Date("2026-09-19T00:00:00Z");
 
-		await expect(reconcileSubscriptions({ limit: 25 })).resolves.toMatchObject({
+		await expect(reconcileSubscriptions({ limit: 25, now })).resolves.toMatchObject({
 			reconciliation: {
 				skipped: true,
 				reason: "STRIPE_LEGACY_LIFECYCLE_DISABLED",
@@ -101,10 +106,20 @@ describe("Stripe subscription reconciliation handler", () => {
 		expect(getStripeClient).not.toHaveBeenCalled();
 		expect(createStripeBillingSource).not.toHaveBeenCalled();
 		expect(reconcileStripeBilling).not.toHaveBeenCalled();
+		expect(recoverPendingCheckouts).toHaveBeenCalledExactlyOnceWith(db, 25, now);
 		expect(reconcileSubscriptionsWithClient).toHaveBeenCalledWith(
-			{ limit: 25, providerNames: ["paypal", "waffo"] },
+			{ limit: 25, now, providerNames: ["paypal", "waffo"] },
 			db,
 		);
+	});
+
+	it("propagates checkout recovery persistence failure so the scheduled job retries", async () => {
+		const failure = new Error("CHECKOUT_RECOVERY_PERSISTENCE_UNAVAILABLE");
+		recoverPendingCheckouts.mockRejectedValueOnce(failure);
+
+		await expect(reconcileSubscriptions()).rejects.toBe(failure);
+		expect(reconcileStripeBilling).not.toHaveBeenCalled();
+		expect(reconcileSubscriptionsWithClient).not.toHaveBeenCalled();
 	});
 
 	it("fails closed without touching provider or deadline state when Stripe lifecycle is incomplete", async () => {
