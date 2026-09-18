@@ -2,11 +2,11 @@ export const termsDocuments = [
 	{
 		path: "terms",
 		locale: "en",
-		updatedAt: "2026-09-16",
+		updatedAt: "2026-09-18",
 		title: "Terms of Service",
 		description:
 			"Terms for EzPic accounts, image-editing workflows, credits, subscriptions, content, and acceptable use.",
-		body: `_Last updated: September 16, 2026_
+		body: `_Last updated: September 18, 2026_
 
 These terms govern use of EzPic's public image editor and account-based image-editing service. EzPic is an independently operated service run by an individual. In these terms, "EzPic" refers to the service and its operator. You can reach the operator through the [Contact page](/contact). By using the service, you agree to the version presented when you use it.
 
@@ -14,7 +14,7 @@ These terms govern use of EzPic's public image editor and account-based image-ed
 
 You may prepare a short-lived draft from the public page without an account. When the sponsored Nano Banana 2 Lite 1K guest trial is enabled, continuing can create a temporary anonymous user and session for one private, watermarked result. The trial does not create a subscription or payment charge. Other image products, saved history, assets, paid plans, and other account features require the access shown by the product.
 
-Outside an available anonymous trial, real generation requires an account, an owned source image, a current server quote, sufficient credits, and explicit confirmation. Keep account credentials secure and provide accurate account and billing information.
+Outside an available anonymous trial, real generation requires an account and sufficient credits. Text-to-image generation does not require a source image; an uploaded reference must belong to your account. Clicking the generation button confirms the credit cost shown on it, checks the prompt and current server quote, and starts the job if those checks pass. If the price changes, the editor shows the new cost and requires another click. Keep account credentials secure and provide accurate account and billing information.
 
 ## Credits, plans, and subscriptions
 

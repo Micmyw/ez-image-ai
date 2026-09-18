@@ -6,7 +6,7 @@ export const blogDocuments = [
 		description:
 			"Understand who can access an EzPic edit, how guest and account media differ, when files expire, and what to check before uploading a photo.",
 		publishedAt: "2026-09-05",
-		updatedAt: "2026-09-13",
+		updatedAt: "2026-09-18",
 		tags: ["image editing", "privacy", "workflow"],
 		published: true,
 		body: `A private image edit limits who can open the uploaded source and finished result. In EzPic, those files belong to the account or temporary guest session that created the edit; they are not automatically added to a public gallery. Private access does not mean that no processing service receives your image.
@@ -25,7 +25,7 @@ Download a result you want to keep before its expiry. If you sign in or register
 
 ## Account media has a different lifecycle
 
-Account-based editing requires the source image to belong to your account and shows a credit quote before confirmation. The current retention settings target 30 days for registered input and output media and 7 days for failed-job cleanup. Keep your own copy of work you need for longer. Billing and security records can have different retention periods.
+For account-based editing, any source image must belong to your account. The generation button shows the credit cost; one click checks the prompt and current price before starting the job. You can also generate from text without a source image. The current retention settings target 30 days for registered input and output media and 7 days for failed-job cleanup. Keep your own copy of work you need for longer. Billing and security records can have different retention periods.
 
 When you open or download a result, EzPic checks ownership and issues a temporary access link. Do not forward that link: someone holding a valid signed link may be able to use it until it expires. Share a downloaded image through a channel you control if you intend to publish it.
 

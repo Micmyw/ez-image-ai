@@ -135,15 +135,15 @@ export async function ModelPage({
 							<summary>Can I create an image without uploading a reference?</summary>
 							<p>
 								Yes. Describe the image you want and leave the reference empty to use text to image.
-								Add a reference to switch to image to image. Sign in to review the quote and start a
-								generation.
+								Add a reference to switch to image to image. Sign in, check the credits shown on the
+								button, and generate with one click.
 							</p>
 						</details>
 						<details>
 							<summary>How do I choose the output settings and credits?</summary>
 							<p>
 								The workspace shows the currently available choices for {model.name}. Select your
-								output settings and review the quoted credits before confirming. Availability can
+								output settings and check the credits on the generation button. Availability can
 								change; an unavailable model cannot be submitted.
 							</p>
 						</details>
