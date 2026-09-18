@@ -289,10 +289,16 @@ for (const width of [1440, 390]) {
 		const sourcePreview = page.getByRole("img", { name: /preview of navigation-source\.png/i });
 		await expect(sourcePreview).toBeVisible();
 		const sourcePreviewUrl = await sourcePreview.getAttribute("src");
-		if (width < 768)
-			await page.getByRole("button", { name: "Open navigation", exact: true }).click();
-		await expect(page.locator(".studio-sidebar")).toBeVisible();
-		await page.locator('.studio-sidebar a[href="/create?model=image-nano-banana-2-lite"]').click();
+		const workspaceNavigation =
+			width <= 1200
+				? page.locator('[data-test="header-navigation-drawer"]')
+				: page.locator(".studio-sidebar");
+		if (width <= 1200) {
+			await page.locator('[data-test="header-navigation-trigger"]').click();
+			await workspaceNavigation.locator("summary").filter({ hasText: "AI Models" }).click();
+		}
+		await expect(workspaceNavigation).toBeVisible();
+		await workspaceNavigation.locator('a[href="/create?model=image-nano-banana-2-lite"]').click();
 		await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText(
 			"Nano Banana 2 Lite",
 		);
@@ -301,7 +307,7 @@ for (const width of [1440, 390]) {
 		);
 		await expect(sourcePreview).toBeVisible();
 		await expect(sourcePreview).toHaveAttribute("src", sourcePreviewUrl!);
-		if (width < 768) await expect(page.locator(".studio-sidebar")).toBeHidden();
+		if (width <= 1200) await expect(workspaceNavigation).toBeHidden();
 		await page.goBack();
 		await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText("GPT Image 2");
 		await page.reload();
@@ -343,6 +349,8 @@ test("account controls load when the browser receives a signed-in session", asyn
 		}),
 	);
 	await page.goto("/");
+	// The signed-in header replaces the initial guest header when the session loads.
+	await expect(page.locator(".studio-header-user-controls")).toBeAttached();
 	await page.locator('[data-test="header-navigation-trigger"]').click();
 	const userMenu = page
 		.locator('[data-test="header-navigation-drawer"]')
@@ -995,7 +1003,7 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 			await navigation.click();
 			const drawer = page.locator('[data-test="header-navigation-drawer"]');
 			await drawer.locator("summary").filter({ hasText: "Image Tools" }).click();
-			await expect(drawer.locator('a[href="/create"]')).toBeVisible();
+			await expect(drawer.locator('.studio-drawer-links a[href="/create"]')).toBeVisible();
 			await drawer.locator("summary").filter({ hasText: "AI Models" }).click();
 			await expect(drawer.locator('a[href="/models/gpt-image-2"]')).toBeVisible();
 			await page.keyboard.press("Escape");
