@@ -1339,6 +1339,7 @@
 			"recent": "Créations récentes",
 			"all": "Tout afficher",
 			"creditSummaryReserved": "{reserved} crédits sont réservés pendant la retouche.",
+			"creditSummaryFinalizing": "Votre image est prête. Le décompte de vos {reserved} crédits réservés se termine en arrière-plan.",
 			"creditSummarySucceeded": "{charged} crédits ont été facturés et {released} restitués.",
 			"creditSummaryReturned": "Aucun crédit n’a été facturé. Les {released} crédits sur {reserved} réservés ont tous été restitués.",
 			"moderationRejected": "La vérification du contenu a bloqué ce résultat, qui ne peut pas être affiché. Modifiez l’instruction ou l’image de référence. Consultez le récapitulatif des crédits de cette tâche pour connaître la facturation.",

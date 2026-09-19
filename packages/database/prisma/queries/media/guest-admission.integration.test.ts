@@ -5,7 +5,12 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
 import { getAdminMediaDiagnostics } from "./admin-diagnostics";
-import { createGuestGenerationTransaction, recordGuestAdmissionDenial } from "./guest-admission";
+import {
+	createGuestGenerationTransaction,
+	recordGuestAdmissionDenial,
+	getGuestJobSnapshot,
+	getGuestOwnedResultAssetForAccess,
+} from "./guest-admission";
 import { expireGuestJobBeforeProvider } from "./guest-retention";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
 
@@ -971,6 +976,51 @@ describe("guest generation admission", () => {
 			emptyGuestBusinessGraph(),
 		);
 	});
+
+	it.each([false, true])(
+		"exposes a finalizing guest result only with approved watermarked evidence (rejected=%s)",
+		async (rejected) => {
+			const fixture = await createGuestFixture("early-approved-output");
+			const input = guestAdmissionInput(fixture, { idempotencyKey: "guest-early-output" });
+			const admitted = await createGuestAdmission(input);
+			const assetId = await finalizeGuestAdmissionResultForReplay({
+				fixture,
+				jobId: admitted.jobId,
+				resultExpiresAt: admitted.resultExpiresAt,
+				outputVerification: {},
+				appendRejectedEvidence: rejected,
+			});
+			await client.generationJob.update({
+				where: { id: admitted.jobId },
+				data: { status: "FINALIZING", terminalAt: null },
+			});
+			const accessInput = {
+				ownerId: fixture.ownerId,
+				jobId: admitted.jobId,
+				assetId,
+				now: fixture.now,
+				verification: input.assetModeration,
+			};
+			const snapshot = await getGuestJobSnapshot(accessInput, client);
+			expect(snapshot).toMatchObject({
+				stage: rejected ? "FINISHING" : "READY",
+				resultAssetId: rejected ? null : assetId,
+			});
+			const replay = await createGuestAdmission(input);
+			expect(replay).toMatchObject({
+				stage: rejected ? "FINISHING" : "READY",
+				resultAssetId: rejected ? null : assetId,
+			});
+			const access = await getGuestOwnedResultAssetForAccess(accessInput, client);
+			expect(access?.id ?? null).toBe(rejected ? null : assetId);
+			expect(
+				await client.generationJob.findUnique({
+					where: { id: admitted.jobId },
+					select: { status: true },
+				}),
+			).toEqual({ status: "FINALIZING" });
+		},
+	);
 
 	it.each([
 		["current approved", {}, false, "READY", true] as const,

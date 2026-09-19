@@ -34,6 +34,7 @@ export function scenarioFromPrompt(prompt: string): MediaE2EScenario {
 	if (prompt.includes("[e2e:moderation-rejection]")) return "moderation-rejection";
 	if (prompt.includes("[e2e:cancel-pending]")) return "cancel-pending";
 	if (prompt.includes("[e2e:delayed-success]")) return "delayed-success";
+	if (prompt.includes("[e2e:settlement-delay]")) return "settlement-delay";
 	return "success";
 }
 
@@ -42,6 +43,7 @@ export type MediaE2EScenario =
 	| "provider-failure"
 	| "moderation-rejection"
 	| "cancel-pending"
+	| "settlement-delay"
 	| "delayed-success";
 
 export class LocalMediaE2EProvider implements MediaProviderAdapter {

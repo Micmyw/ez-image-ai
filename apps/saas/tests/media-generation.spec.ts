@@ -17,6 +17,44 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	test.describe.configure({ timeout: 90_000 });
 	test.afterAll(async () => pool.end());
 
+	test("approved images are visible and downloadable before background credit settlement", async ({
+		page,
+	}, testInfo) => {
+		const prompt = marker(
+			"settlement-delay",
+			"A ceramic vase in warm afternoon light",
+			testInfo.retry,
+		);
+		const jobId = await createScenario(page, prompt);
+		await expect(page.getByRole("img", { name: /edited image/i })).toBeVisible();
+		await expect
+			.poll(() =>
+				page
+					.getByRole("img", { name: /edited image/i })
+					.evaluate((image) => (image as HTMLImageElement).naturalWidth),
+			)
+			.toBeGreaterThan(0);
+		await expect(page.getByRole("button", { name: "Download", exact: true })).toBeEnabled();
+		await expect(page.getByText(/credits are being settled in the background/i)).toBeVisible();
+		expect(
+			(await rows<{ status: string }>("SELECT status FROM generation_job WHERE id=$1", [jobId]))[0]
+				?.status,
+		).toBe("FINALIZING");
+		expect((await reservationFor(jobId)).settledAmount).toBe("0");
+		await page.screenshot({
+			path: testInfo.outputPath("approved-before-settlement.png"),
+			fullPage: false,
+		});
+		await expect
+			.poll(async () => (await reservationFor(jobId)).status, { timeout: 45_000 })
+			.toBe("SETTLED");
+		await expect(page.getByText(/credits are being settled in the background/i)).toHaveCount(0);
+		await expect(page.getByRole("link", { name: /edit again/i })).toBeVisible();
+		expect(await count('SELECT count(*) FROM generation_attempt WHERE "jobId"=$1', [jobId])).toBe(
+			1,
+		);
+	});
+
 	test("text generation uses credits, has no input binding, and can become a reference edit", async ({
 		page,
 	}, testInfo) => {

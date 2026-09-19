@@ -3,6 +3,16 @@ import { describe, expect, it } from "vitest";
 import { getJobPresentation, getJobPollingInterval } from "./job-status";
 
 describe("getJobPresentation", () => {
+	it("shows an approved output while finalization is still running without ending polling", () => {
+		expect(getJobPresentation({ status: "FINALIZING", hasReadyOutput: true })).toEqual({
+			stage: "ready",
+			progress: null,
+			terminal: false,
+		});
+		expect(getJobPollingInterval({ status: "FINALIZING", isDocumentVisible: true })).toBe(2_000);
+		expect(getJobPresentation({ status: "FAILED", hasReadyOutput: true }).stage).toBe("failed");
+	});
+
 	it.each([
 		["RESERVED", "reserved"],
 		["DISPATCH_QUEUED", "queued"],

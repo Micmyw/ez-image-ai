@@ -51,7 +51,14 @@ export function RegisteredEditorDock({ prompt, jobId }: { prompt: string; jobId:
 					onClick={() => returnToEditor(true)}
 					aria-label={t("dock.result")}
 				>
-					<output>{job.data ? stages(getJobPresentation(job.data).stage) : t("loading")}</output>
+					<output>
+						{job.data
+							? stages(
+									getJobPresentation({ ...job.data, hasReadyOutput: job.data.assets.length > 0 })
+										.stage,
+								)
+							: t("loading")}
+					</output>
 				</button>
 			)}
 			<button

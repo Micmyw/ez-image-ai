@@ -1339,6 +1339,7 @@
 			"recent": "Creaciones recientes",
 			"all": "Ver todas",
 			"creditSummaryReserved": "Hay {reserved} créditos reservados mientras se procesa la edición.",
+			"creditSummaryFinalizing": "Tu imagen está lista. Tus {reserved} créditos reservados se están liquidando en segundo plano.",
 			"creditSummarySucceeded": "Se cobraron {charged} créditos y se devolvieron {released}.",
 			"creditSummaryReturned": "No se cobraron créditos. Se devolvieron los {released} de {reserved} créditos reservados.",
 			"moderationRejected": "La revisión de contenido ha bloqueado este resultado y no puede mostrarse. Modifica la instrucción o la imagen de referencia. Consulta el resumen de créditos de esta tarea para ver el cobro.",

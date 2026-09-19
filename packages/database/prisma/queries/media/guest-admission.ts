@@ -531,15 +531,16 @@ export async function getGuestJobSnapshot(
 	const outputBinding = job.assets[0];
 	const output = outputBinding?.asset;
 	const watermarked = Boolean(
-		job.status === "SUCCEEDED" &&
+		["FINALIZING", "SUCCEEDED"].includes(job.status) &&
 		isGuestWatermarkedOutput(outputBinding, input.ownerId, trial.expiresAt, input.now) &&
 		output &&
 		hasCurrentApprovedMediaAssetEvidence(output, { ...input.verification, now: input.now }),
 	);
 	return {
 		jobId: job.id,
-		stage:
-			job.status === "SUCCEEDED" && !watermarked
+		stage: watermarked
+			? "READY"
+			: job.status === "SUCCEEDED"
 				? "FINISHING"
 				: guestStage(job.status, trial.expiresAt, input.now),
 		projectedDispatchAt: trial.projectedDispatchAt,
@@ -626,7 +627,7 @@ export async function getGuestOwnedResultAssetForAccess(
 				ownerId: input.ownerId,
 				productKey: { in: [...GUEST_JOB_PRODUCT_KEYS] },
 				serviceClass: "GUEST_SLOW",
-				status: "SUCCEEDED",
+				status: { in: ["FINALIZING", "SUCCEEDED"] },
 				guestTrial: { is: { ownerId: input.ownerId, expiresAt: { gt: input.now } } },
 			},
 		},
@@ -670,7 +671,7 @@ export async function getRegisteredGuestResultAssetForAccess(
 			guestJob: {
 				productKey: { in: [...GUEST_JOB_PRODUCT_KEYS] },
 				serviceClass: "GUEST_SLOW",
-				status: "SUCCEEDED",
+				status: { in: ["FINALIZING", "SUCCEEDED"] },
 				assets: { some: { assetId: input.assetId, role: "OUTPUT" } },
 			},
 		},
@@ -834,7 +835,7 @@ async function findGuestAdmissionReplay(
 	const outputBinding = existing.assets.find((asset) => asset.role === "OUTPUT");
 	const output = outputBinding?.asset;
 	const watermarked = Boolean(
-		existing.status === "SUCCEEDED" &&
+		["FINALIZING", "SUCCEEDED"].includes(existing.status) &&
 		isGuestWatermarkedOutput(outputBinding, input.ownerId, trial.expiresAt, input.now) &&
 		output &&
 		hasCurrentApprovedMediaAssetEvidence(output, { ...input.assetModeration, now: input.now }),
@@ -842,8 +843,9 @@ async function findGuestAdmissionReplay(
 	return {
 		jobId: existing.id,
 		trialId: trial.id,
-		stage:
-			existing.status === "SUCCEEDED" && !watermarked
+		stage: watermarked
+			? "READY"
+			: existing.status === "SUCCEEDED"
 				? "FINISHING"
 				: guestStage(existing.status, trial.expiresAt, input.now),
 		projectedDispatchAt: trial.projectedDispatchAt,

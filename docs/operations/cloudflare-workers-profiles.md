@@ -118,6 +118,14 @@ releases execution capacity. The Node executor retains its existing overall and 
 The Durable Object only controls delivery/admission; database leases, immutable ledgers,
 uncertain submissions, Outbox acknowledgment and recovery remain in existing business code.
 
+Normal generation stages immediately deliver their committed Outbox events in a separate durable
+step after releasing the executor slot. Pending image verification uses bounded durable polling
+at the persisted database retry time. Failed delivery leaves the original Outbox event recoverable;
+it never turns a successful provider submission into another submission. The minute schedule is
+the recovery path, and maintenance runs sequentially with an Outbox pass before and after recovery.
+Approved private outputs can be displayed before finalization and credit settlement finish; asset
+ownership, current verification, guest watermark and expiry checks still control signed access.
+
 Both Worker configs require `global_fetch_strictly_public`. The media adapter uses native global
 fetch, exact server-owned host allowlists, A/AAAA validation and per-hop manual redirect checks.
 The platform blocks private-network destinations at connection time, including DNS rebinding

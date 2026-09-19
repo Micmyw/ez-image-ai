@@ -1,5 +1,9 @@
 import type { TaskRequest } from "@repo/jobs/orchestration/contracts";
-import { maintenanceTasksAt, taskDefinition } from "@repo/jobs/orchestration/registry";
+import {
+	dispatchRouteForTask,
+	maintenanceTasksAt,
+	taskDefinition,
+} from "@repo/jobs/orchestration/registry";
 
 export interface DurableSteps {
 	do<T>(
@@ -46,7 +50,26 @@ export async function runTask(
 					}
 				},
 			);
-			if (result.status === "ok") return result;
+			if (result.status === "ok") {
+				if (shouldDeliverNextStage(request.taskId, result)) {
+					try {
+						// The previous invocation has released its executor slot and committed
+						// its Outbox events. Delivery remains leased and completion-acknowledged.
+						await runTask(
+							{ taskId: "media-deliver-outbox", payload: {} },
+							runId,
+							step,
+							invoke,
+							`${prefix}-next-stage`,
+						);
+					} catch {
+						// Never replay successful submission/verification because delivery failed.
+						// The committed Outbox remains available to scheduled recovery.
+						console.warn("immediate_outbox_delivery_deferred", { taskId: request.taskId, runId });
+					}
+				}
+				return result;
+			}
 			if (result.status === "expired") return { status: "expired" };
 			if (result.status === "busy") {
 				if (capacity === 119) throw new Error("TASK_CAPACITY_TIMEOUT");
@@ -59,6 +82,24 @@ export async function runTask(
 			await step.sleep(`${prefix}-retry-${attempt}`, `${Math.min(30, 2 ** (attempt - 1))} seconds`);
 	}
 	throw new Error(`TASK_FAILED:${request.taskId}`);
+}
+
+function shouldDeliverNextStage(
+	taskId: string,
+	result: InvocationResult & { status: "ok" },
+): boolean {
+	if (taskId === "media-poll-generation" || taskId === "media-verify-upload")
+		return result.poll?.done === true;
+	return (
+		Boolean(dispatchRouteForTask(taskId)) ||
+		[
+			"media-admit-guest-generation",
+			"media-process-provider-webhook",
+			"media-finalize-generation",
+			"media-cancel-generation",
+			"media-settle-generation",
+		].includes(taskId)
+	);
 }
 
 export async function runPolling(
@@ -98,10 +139,27 @@ export async function runMaintenance(
 	step: DurableSteps,
 	invoke: InvokeTask,
 ): Promise<void> {
-	const results = await Promise.allSettled(
-		maintenanceTasksAt(timestamp).map((taskId) =>
-			runTask({ taskId, payload: { timestamp } }, `${runId}:${taskId}`, step, invoke),
-		),
-	);
-	if (results.some((result) => result.status === "rejected")) throw new Error("MAINTENANCE_FAILED");
+	let failed = false;
+	// Workers serialize admission. Avoid starting competing maintenance calls
+	// that repeatedly sleep for capacity and crowd out live generation stages.
+	for (const taskId of maintenanceTasksAt(timestamp)) {
+		try {
+			await runTask({ taskId, payload: { timestamp } }, `${runId}:${taskId}`, step, invoke);
+		} catch {
+			failed = true;
+		}
+	}
+	try {
+		// Recovery may itself commit fresh events after the first Outbox pass.
+		await runTask(
+			{ taskId: "media-deliver-outbox", payload: {} },
+			runId,
+			step,
+			invoke,
+			"recovered-outbox",
+		);
+	} catch {
+		failed = true;
+	}
+	if (failed) throw new Error("MAINTENANCE_FAILED");
 }

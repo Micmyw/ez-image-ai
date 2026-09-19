@@ -51,6 +51,7 @@ const mocks = vi.hoisted(() => {
 		expireGuest: vi.fn(),
 		monitorGuest: vi.fn(),
 		findAssets: vi.fn(),
+		findAsset: vi.fn(),
 		resolveDispatchRoute: vi.fn(),
 		reconciliationStore,
 		finalizationStore,
@@ -81,7 +82,9 @@ vi.mock("../runtime", () => ({
 	resolveDatabaseDispatchRoute: mocks.resolveDispatchRoute,
 }));
 vi.mock("./client", () => ({ dispatchJob: mocks.dispatch }));
-vi.mock("@repo/database/client", () => ({ db: { mediaAsset: { findMany: mocks.findAssets } } }));
+vi.mock("@repo/database/client", () => ({
+	db: { mediaAsset: { findMany: mocks.findAssets, findUnique: mocks.findAsset } },
+}));
 vi.mock("@repo/database", () => ({
 	expireGenerationDrafts: vi.fn(),
 	expirePendingMediaUploadSessions: vi.fn(),
@@ -131,9 +134,31 @@ beforeEach(() => {
 	mocks.outboxStore.defer.mockResolvedValue(undefined);
 	mocks.outboxStore.release.mockResolvedValue(undefined);
 	mocks.dispatchStore.claimDispatch.mockResolvedValue(null);
+	mocks.findAsset.mockResolvedValue(null);
 });
 
 describe("Node task executor", () => {
+	it("returns the persisted moderation due time for durable polling instead of waiting for cron", async () => {
+		const now = new Date("2026-09-19T06:00:00Z");
+		mocks.findAsset.mockResolvedValue({
+			status: "VERIFYING",
+			deletedAt: null,
+			verificationNextAttemptAt: new Date(now.getTime() + 3_000),
+			verificationLeasedUntil: null,
+		});
+		expect(
+			await executeTask(
+				{ taskId: "media-verify-upload", payload: { assetId: "output" } },
+				context,
+				{ now: () => now },
+			),
+		).toEqual({ done: false, waitSeconds: 3 });
+		mocks.findAsset.mockResolvedValue({ status: "READY", deletedAt: null });
+		expect(
+			await executeTask({ taskId: "media-verify-upload", payload: { assetId: "output" } }, context),
+		).toEqual({ done: true, waitSeconds: 0 });
+	});
+
 	it("keeps payment recovery failures independent from durable Outbox delivery", async () => {
 		mocks.recoverPayments.mockRejectedValueOnce(
 			new Error("PAYMENT_LEASE_RECOVERY_AUDIT_UNAVAILABLE"),

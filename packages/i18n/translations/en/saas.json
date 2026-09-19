@@ -1339,6 +1339,7 @@
 			"recent": "Recent creations",
 			"all": "View all",
 			"creditSummaryReserved": "{reserved} credits are reserved while this edit runs.",
+			"creditSummaryFinalizing": "Your image is ready. Your {reserved} reserved credits are being settled in the background.",
 			"creditSummarySucceeded": "{charged} credits were charged and {released} were returned.",
 			"creditSummaryReturned": "No credits were charged. All {released} of {reserved} reserved credits were returned.",
 			"moderationRejected": "This result was blocked by the content-safety check and cannot be shown. Please change the instruction or reference image before trying again. See this job’s credit summary for the billing outcome.",

@@ -25,7 +25,10 @@ export function JobDetail({ jobId }: { jobId: string }) {
 	const job = useJob(jobId);
 	if (job.isError && !job.data) return <JobDetailUnavailable />;
 	if (!job.data) return <div aria-busy="true">{t("loading")}</div>;
-	const presentation = getJobPresentation({ status: job.data.status, progress: job.data.progress });
+	const presentation = getJobPresentation({
+		...job.data,
+		hasReadyOutput: job.data.assets.length > 0,
+	});
 	const editorProductKey = isEditorProductKey(job.data.productKey) ? job.data.productKey : null;
 	const skuKey =
 		editorProductKey && job.data.skuKey && isPublicImageSkuKey(job.data.skuKey)

@@ -21,6 +21,10 @@ describe("local Workflows runtime", () => {
 					{ name: "media-dispatch-image-kie-nano-banana-2-attempt-1-capacity-1" },
 					{ status: "ok" },
 				);
+				await m.mockStepResult(
+					{ name: "media-dispatch-image-kie-nano-banana-2-next-stage-attempt-1-capacity-0" },
+					{ status: "ok" },
+				);
 			});
 			await jobs.create({
 				id,
@@ -38,34 +42,44 @@ describe("local Workflows runtime", () => {
 			await inspection.dispose();
 		}
 	});
-	it("executes a bounded polling workflow with persisted decisions", async () => {
-		const id = `poll-${crypto.randomUUID()}`;
-		const inspection = await introspectWorkflowInstance(jobs, id);
-		try {
-			await inspection.modify(async (m) => {
-				await m.disableSleeps();
-				await m.mockStepResult(
-					{ name: "poll-0-attempt-1-capacity-0" },
-					{ status: "ok", poll: { done: false, waitSeconds: 20 } },
-				);
-				await m.mockStepResult(
-					{ name: "poll-1-attempt-1-capacity-0" },
-					{ status: "ok", poll: { done: true, waitSeconds: 0 } },
-				);
-			});
-			await jobs.create({
-				id,
-				params: {
-					kind: "task",
-					request: { taskId: "media-poll-generation", payload: { attemptId: "a" } },
-				},
-			});
-			await inspection.waitForStatus("complete");
-			expect(await inspection.getOutput()).toEqual({ completed: true });
-		} finally {
-			await inspection.dispose();
-		}
-	});
+	it.each(["media-poll-generation", "media-verify-upload"])(
+		"executes %s polling and next-stage delivery with persisted decisions",
+		async (taskId) => {
+			const id = `poll-${crypto.randomUUID()}`;
+			const inspection = await introspectWorkflowInstance(jobs, id);
+			try {
+				await inspection.modify(async (m) => {
+					await m.disableSleeps();
+					await m.mockStepResult(
+						{ name: "poll-0-attempt-1-capacity-0" },
+						{ status: "ok", poll: { done: false, waitSeconds: 20 } },
+					);
+					await m.mockStepResult(
+						{ name: "poll-1-attempt-1-capacity-0" },
+						{ status: "ok", poll: { done: true, waitSeconds: 0 } },
+					);
+					await m.mockStepResult(
+						{ name: "poll-1-next-stage-attempt-1-capacity-0" },
+						{ status: "ok" },
+					);
+				});
+				await jobs.create({
+					id,
+					params: {
+						kind: "task",
+						request: {
+							taskId,
+							payload: taskId === "media-poll-generation" ? { attemptId: "a" } : { assetId: "a" },
+						},
+					},
+				});
+				await inspection.waitForStatus("complete");
+				expect(await inspection.getOutput()).toEqual({ completed: true });
+			} finally {
+				await inspection.dispose();
+			}
+		},
+	);
 });
 // Retain the explicit export for the integration pool's entrypoint discovery.
 export { JobsWorkflow };

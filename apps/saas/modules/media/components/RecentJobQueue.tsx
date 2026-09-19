@@ -32,7 +32,7 @@ export function RecentJobQueue({
 		<div className="studio-recent" aria-label={t("recent")}>
 			<div className="min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-4 grid">
 				{jobs.map((job) => {
-					const stage = getJobPresentation({ status: job.status }).stage;
+					const stage = getJobPresentation({ ...job, hasReadyOutput: job.outputCount > 0 }).stage;
 					const skuKey = job.skuKey && isPublicImageSkuKey(job.skuKey) ? job.skuKey : null;
 					const aspectRatio = isImageAspectRatio(job.aspectRatio) ? job.aspectRatio : null;
 					return (

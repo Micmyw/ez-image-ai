@@ -4,6 +4,7 @@ import type {
 	TaskExecutionContext,
 	PollingTickResult,
 } from "@repo/jobs/orchestration/contracts";
+import { parsePollingTickResult } from "@repo/jobs/orchestration/contracts";
 import { parseTaskRequest, taskDefinition } from "@repo/jobs/orchestration/registry";
 
 export interface WorkerExecutionOptions {
@@ -71,7 +72,9 @@ export function createWorkerExecutionHandler(options: WorkerExecutionOptions) {
 				const poll = await options.poll({ attemptId: request.payload.attemptId as string });
 				return respond(200, { status: "ok", poll });
 			}
-			await options.execute(request, context);
+			const result = await options.execute(request, context);
+			if (request.taskId === "media-verify-upload")
+				return respond(200, { status: "ok", poll: parsePollingTickResult(result) });
 			return respond(200, { status: "ok" });
 		} catch {
 			process.stderr.write(

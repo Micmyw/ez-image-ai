@@ -91,7 +91,10 @@ export function EditVersionTimeline({ sessionId }: { sessionId: string }) {
 			</header>
 			<ol className="mt-7 space-y-5">
 				{session.data.versions.map((version, index) => {
-					const stage = getJobPresentation({ status: version.status }).stage;
+					const stage = getJobPresentation({
+						...version,
+						hasReadyOutput: Boolean(version.output.assetId),
+					}).stage;
 					const outputAssetId = version.output.assetId;
 					const currentProductKey = isEditorProductKey(version.productKey)
 						? version.productKey

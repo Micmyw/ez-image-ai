@@ -58,6 +58,41 @@ vi.mock("../../hooks/use-job", () => ({ useJob: () => mocks.jobQuery }));
 import { EditorResultPanel } from "./EditorResultPanel";
 
 describe("EditorResultPanel", () => {
+	it.each(["text-to-image", "image-to-image"])(
+		"shows and downloads an approved %s output before credits settle",
+		(kind) => {
+			mocks.jobQuery = {
+				data: {
+					...imageJob(),
+					status: "FINALIZING",
+					creditsCharged: "0",
+					input: { kind },
+					...(kind === "text-to-image" ? { inputAssets: [] } : {}),
+				},
+				isError: false,
+			};
+			mocks.useQuery.mockReturnValue({ data: { url: "https://private.example.test/output" } });
+			const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
+			expect(markup).toContain('src="https://private.example.test/output"');
+			expect(markup).toContain("stages.ready");
+			expect(markup).toContain("Download");
+			expect(markup).toContain("creditSummaryFinalizing");
+			expect(markup).not.toContain("creditSummarySucceeded");
+			expect(markup).not.toContain("Edit again");
+		},
+	);
+
+	it("keeps the result hidden while output verification is pending", () => {
+		mocks.jobQuery = {
+			data: { ...imageJob(), status: "FINALIZING", creditsCharged: "0", assets: [] },
+			isError: false,
+		};
+		const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
+		expect(markup).toContain("stages.finishing");
+		expect(markup).not.toContain("Download");
+		expect(mocks.useQuery).not.toHaveBeenCalled();
+	});
+
 	it("keeps canceled credits pending until settlement confirms the refund", () => {
 		const data = {
 			...imageJob(),

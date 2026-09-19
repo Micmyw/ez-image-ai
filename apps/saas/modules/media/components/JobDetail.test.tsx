@@ -125,6 +125,7 @@ function job(
 		skuKey,
 		aspectRatio,
 		status,
+		assets: [],
 		progress: null,
 		creditsReserved: "4",
 		creditsCharged: "0",

@@ -1,5 +1,13 @@
 export const publicChangelogEntries = [
 	{
+		date: "2026-09-19",
+		title: "View approved images sooner",
+		changes: [
+			"Show approved images and enable downloads while credit settlement finishes in the background.",
+			"Reduce waiting between generation, image checks and result preparation, with automatic recovery if a step is interrupted.",
+		],
+	},
+	{
 		date: "2026-09-16",
 		title: "Model inspiration and content reporting",
 		changes: [

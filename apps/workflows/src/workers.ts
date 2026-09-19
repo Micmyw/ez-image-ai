@@ -107,7 +107,9 @@ export class JobsWorkflow extends WorkflowEntrypoint<WorkersEnvironment, JobsPar
 		const steps = step as unknown as DurableSteps;
 		if (event.payload.kind === "maintenance")
 			await runMaintenance(event.payload.timestamp, event.instanceId, steps, invoke);
-		else if (event.payload.request.taskId === "media-poll-generation")
+		else if (
+			["media-poll-generation", "media-verify-upload"].includes(event.payload.request.taskId)
+		)
 			await runPolling(event.payload.request, event.instanceId, steps, invoke);
 		else await runTask(event.payload.request, event.instanceId, steps, invoke);
 		return { completed: true };

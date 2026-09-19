@@ -39,6 +39,22 @@ async function request(url: string, taskId = "media-finalize-generation") {
 }
 
 describe("private Node runtime", () => {
+	it("returns only bounded moderation polling state for the hybrid workflow", async () => {
+		const { url } = await start(
+			vi.fn().mockResolvedValue({ done: false, waitSeconds: 3, providerSecret: "private" }),
+		);
+		const body = JSON.stringify({
+			request: { taskId: "media-verify-upload", payload: { assetId: "asset" } },
+			context: { attempt: 1, maxAttempts: 8, runId: "run" },
+		});
+		const response = await fetch(`${url}/internal/execute`, {
+			method: "POST",
+			body,
+			headers: await signRequest(secret, "POST", "/internal/execute", body),
+		});
+		expect(await response.json()).toEqual({ status: "ok", poll: { done: false, waitSeconds: 3 } });
+	});
+
 	it("requires authentication before executing a task", async () => {
 		const { url, execute } = await start();
 		expect((await fetch(`${url}/internal/execute`, { method: "POST", body: "{}" })).status).toBe(

@@ -21,6 +21,29 @@ async function signed(
 }
 
 describe("Workers job admission", () => {
+	it("returns only moderation polling control state and rejects malformed results", async () => {
+		const execute = vi
+			.fn()
+			.mockResolvedValue({ done: false, waitSeconds: 3, providerSecret: "private" });
+		const handler = createWorkerExecutionHandler({ secret, execute, poll: vi.fn() });
+		const body = JSON.stringify({
+			request: { taskId: "media-verify-upload", payload: { assetId: "asset" } },
+			context: { attempt: 1, maxAttempts: 8, runId: "run" },
+		});
+		const request = async () =>
+			new Request("https://executor/internal/execute", {
+				method: "POST",
+				body,
+				headers: await signRequest(secret, "POST", "/internal/execute", body),
+			});
+		expect(await (await handler(await request())).json()).toEqual({
+			status: "ok",
+			poll: { done: false, waitSeconds: 3 },
+		});
+		execute.mockResolvedValueOnce({ done: false, waitSeconds: -1, providerSecret: "private" });
+		expect(await (await handler(await request())).json()).toEqual({ status: "failed" });
+	});
+
 	it("authenticates and validates before creating runtime resources", async () => {
 		const execute = vi.fn();
 		const handler = createWorkerExecutionHandler({ secret, execute, poll: vi.fn() });

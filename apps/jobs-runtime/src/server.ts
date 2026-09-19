@@ -7,6 +7,7 @@ import type {
 	TaskExecutionContext,
 	PollingTickResult,
 } from "@repo/jobs/orchestration/contracts";
+import { parsePollingTickResult } from "@repo/jobs/orchestration/contracts";
 import { parseTaskRequest, taskDefinition } from "@repo/jobs/orchestration/registry";
 
 import { executionDeadline } from "./deadline";
@@ -107,8 +108,13 @@ export function createRuntimeServer(options: {
 				const poll = await options.poll({ attemptId: request.payload.attemptId as string });
 				respond(200, { status: "ok", poll });
 			} else {
-				await options.execute(request, context);
-				respond(200, { status: "ok" });
+				const result = await options.execute(request, context);
+				respond(
+					200,
+					request.taskId === "media-verify-upload"
+						? { status: "ok", poll: parsePollingTickResult(result) }
+						: { status: "ok" },
+				);
 			}
 		} catch {
 			process.stderr.write(

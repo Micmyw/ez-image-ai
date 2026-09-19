@@ -115,33 +115,48 @@ describe("getJob", () => {
 		expect(result.assets.map(({ id }) => id)).toEqual(["asset-output"]);
 	});
 
-	it("returns separately bound input and approved output assets without private URLs or provider data", async () => {
-		mocks.findFirst.mockResolvedValue(baseJob as never);
+	it.each(["FINALIZING", "SUCCEEDED"])(
+		"returns approved %s outputs independently of settlement without private routing data",
+		async (status) => {
+			mocks.findFirst.mockResolvedValue({
+				...baseJob,
+				status,
+				...(status === "FINALIZING"
+					? { reservation: { settledAmount: 0n, releasedAmount: 0n } }
+					: {}),
+			});
 
-		const result = await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } });
+			const result = await call(
+				getJob,
+				{ jobId: "job-1" },
+				{ context: { headers: new Headers() } },
+			);
 
-		expect(result.inputAssets.map(({ id }) => id)).toEqual(["asset-input"]);
-		expect(result.assets.map(({ id }) => id)).toEqual(["asset-output"]);
-		expect(result).toMatchObject({
-			canCancel: false,
-			failureReason: null,
-			skuKey: "gpt-image-2-4k",
-			aspectRatio: "4:5",
-			input: {
-				kind: "image-to-image",
-				prompt: "Private prompt",
-				sourceAssetId: "asset-input",
+			expect(result.inputAssets.map(({ id }) => id)).toEqual(["asset-input"]);
+			expect(result.assets.map(({ id }) => id)).toEqual(["asset-output"]);
+			expect(result).toMatchObject({
+				status,
+				creditsCharged: status === "FINALIZING" ? "0" : "17",
+				canCancel: false,
+				failureReason: null,
 				skuKey: "gpt-image-2-4k",
 				aspectRatio: "4:5",
-			},
-		});
-		expect(JSON.stringify(result)).not.toMatch(/signed|https?:|provider|model/i);
-		expect(mocks.findFirst).toHaveBeenCalledWith(
-			expect.objectContaining({
-				where: { id: "job-1", ownerType: "USER", ownerId: "user-1" },
-			}),
-		);
-	});
+				input: {
+					kind: "image-to-image",
+					prompt: "Private prompt",
+					sourceAssetId: "asset-input",
+					skuKey: "gpt-image-2-4k",
+					aspectRatio: "4:5",
+				},
+			});
+			expect(JSON.stringify(result)).not.toMatch(/signed|https?:|provider|model/i);
+			expect(mocks.findFirst).toHaveBeenCalledWith(
+				expect.objectContaining({
+					where: { id: "job-1", ownerType: "USER", ownerId: "user-1" },
+				}),
+			);
+		},
+	);
 
 	it("marks only server-cancelable states as cancelable", async () => {
 		mocks.findFirst.mockResolvedValue({

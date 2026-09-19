@@ -2,6 +2,12 @@
 
 ## 2026-09-19
 
+### Show approved images before background settlement
+
+- Display and allow downloads of privately stored, approved images while finalization and credit settlement continue. Keep polling until the actual job and credit outcome is complete.
+- Deliver committed next-stage Outbox events immediately after generation, verification and finalization. Poll pending image checks with durable waits; retain scheduled recovery, leases and idempotent credit settlement.
+- Run maintenance tasks in sequence so they do not repeatedly compete for the Workers executor's single admission slot.
+
 ### Search Console verification
 
 - Allow production readiness checks to pass without an HTML verification token when Search Console uses DNS verification.

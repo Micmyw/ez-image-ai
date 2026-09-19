@@ -27,6 +27,7 @@ import {
 	settleGeneration,
 	verifyUpload,
 } from "@repo/jobs";
+import { OutboxDeliveryPendingError } from "@repo/jobs/orchestration/contracts";
 
 import { LocalMediaE2EProvider, scenarioFromPrompt } from "./fixtures";
 import { assertLocalMediaE2E, LOCAL_MEDIA_SAFETY_PROVIDER } from "./guard";
@@ -114,6 +115,13 @@ async function deliverLocally(event: {
 		}
 		case "GENERATION_SETTLE": {
 			const job = await db.generationJob.findUniqueOrThrow({ where: { id: jobId } });
+			// Loopback-only fixture: hold settlement long enough to observe the real
+			// approved asset while the job and reserved credits remain unfinished.
+			if (
+				scenarioFromPrompt(promptFrom(job.inputSnapshot)) === "settlement-delay" &&
+				Date.now() - job.updatedAt.getTime() < 15_000
+			)
+				throw new OutboxDeliveryPendingError();
 			await settleGeneration(
 				{ jobId, version: job.version },
 				{ store: createDatabaseSettlementStore(db) },

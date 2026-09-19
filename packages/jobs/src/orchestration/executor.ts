@@ -205,8 +205,33 @@ export async function executeTask(
 		}
 		case "media-poll-generation":
 			return executePollingTick(parseTaskPayload(taskId, payload));
-		case "media-verify-upload":
-			return verifyUpload(parseTaskPayload(taskId, payload), databaseVerifyUploadDependencies);
+		case "media-verify-upload": {
+			const input = parseTaskPayload(taskId, payload);
+			await verifyUpload(input, databaseVerifyUploadDependencies);
+			const asset = await db.mediaAsset.findUnique({
+				where: { id: input.assetId },
+				select: {
+					status: true,
+					deletedAt: true,
+					verificationNextAttemptAt: true,
+					verificationLeasedUntil: true,
+				},
+			});
+			if (!asset || asset.deletedAt || asset.status !== "VERIFYING")
+				return { done: true, waitSeconds: 0 };
+			// A pending provider check keeps its existing task identity and DB lease.
+			// Workflow sleep releases the executor until the persisted retry is due.
+			const nextAt = Math.max(
+				asset.verificationNextAttemptAt?.getTime() ?? 0,
+				asset.verificationLeasedUntil?.getTime() ?? 0,
+			);
+			return {
+				done: false,
+				waitSeconds: nextAt
+					? Math.min(60, Math.max(1, Math.ceil((nextAt - now().getTime()) / 1_000)))
+					: 5,
+			};
+		}
 		case "media-delete-object":
 			return deleteStorageObject(
 				parseTaskPayload(taskId, payload),

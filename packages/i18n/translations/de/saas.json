@@ -1339,6 +1339,7 @@
 			"recent": "Letzte Erstellungen",
 			"all": "Alle anzeigen",
 			"creditSummaryReserved": "{reserved} Credits sind während der Bearbeitung reserviert.",
+			"creditSummaryFinalizing": "Dein Bild ist fertig. Deine {reserved} reservierten Credits werden im Hintergrund abgerechnet.",
 			"creditSummarySucceeded": "{charged} Credits wurden berechnet und {released} zurückgegeben.",
 			"creditSummaryReturned": "Es wurden keine Credits berechnet. Alle {released} von {reserved} reservierten Credits wurden zurückgegeben.",
 			"moderationRejected": "Die Inhaltsprüfung hat dieses Ergebnis gesperrt. Es kann nicht angezeigt werden. Bitte ändere Anweisung oder Referenzbild. Die Abrechnung steht in der Credit-Übersicht dieses Auftrags.",

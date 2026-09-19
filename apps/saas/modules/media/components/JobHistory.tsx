@@ -94,7 +94,7 @@ export function JobHistory({
 			</div>
 			<div className="divide-y rounded-2xl border bg-background">
 				{jobs.map((job) => {
-					const stage = getJobPresentation({ status: job.status }).stage;
+					const stage = getJobPresentation({ ...job, hasReadyOutput: job.outputCount > 0 }).stage;
 					const currentProductKey = isEditorProductKey(job.productKey) ? job.productKey : null;
 					const skuKey =
 						currentProductKey && job.skuKey && isPublicImageSkuKey(job.skuKey) ? job.skuKey : null;

@@ -117,6 +117,78 @@ function guestInput(sponsorCredits: bigint) {
 }
 
 describe("guest safety feedback ownership", () => {
+	it.each([true, false])(
+		"shows a finalizing guest output only after approval (approved=%s)",
+		async (approved) => {
+			const now = new Date("2026-09-19T00:00:00Z");
+			const expiresAt = new Date(now.getTime() + 60_000);
+			const checksum = "a".repeat(64);
+			const asset = {
+				id: "output",
+				ownerType: "USER",
+				ownerId: "guest-1",
+				kind: "OUTPUT",
+				status: approved ? "READY" : "VERIFYING",
+				deletedAt: null,
+				checksum,
+				retentionClass: "GUEST_TRIAL",
+				deleteAfter: expiresAt,
+				watermarkVersion: "v1",
+				watermarkedAt: now,
+				cleanStagingDeletedAt: now,
+				verificationValidUntil: expiresAt,
+				verificationGeneration: 1,
+				verificationAttemptCount: 1,
+				verificationProvider: "test",
+				verificationProviderTaskId: "check",
+				verificationRuleVersion: "test",
+				verificationPolicyVersion: "test",
+				moderationResults: [
+					{
+						status: "APPROVED",
+						assetChecksum: checksum,
+						verificationGeneration: 1,
+						attemptNumber: 1,
+						evidenceKind: "OUTPUT",
+						provider: "test",
+						providerTaskId: "check",
+						ruleVersion: "test",
+						policyVersion: "test",
+						validUntil: expiresAt,
+					},
+				],
+			};
+			const findFirst = vi.fn().mockResolvedValue({
+				id: "job-1",
+				status: "FINALIZING",
+				guestTrial: {
+					ownerId: "guest-1",
+					currentJobId: "job-1",
+					consumedJobId: "job-1",
+					eligibility: "CONSUMED",
+					linkIntents: [],
+					expiresAt,
+					projectedDispatchAt: now,
+					estimateExpiresAt: expiresAt,
+				},
+				assets: [{ role: "OUTPUT", assetChecksum: checksum, asset }],
+			});
+			const result = await getGuestJobSnapshot(
+				{
+					ownerId: "guest-1",
+					jobId: "job-1",
+					now,
+					verification: { provider: "test", ruleVersion: "test", policyVersion: "test" },
+				},
+				{ generationJob: { findFirst } } as never,
+			);
+			expect(result).toMatchObject({
+				stage: approved ? "READY" : "FINISHING",
+				resultAssetId: approved ? "output" : null,
+			});
+		},
+	);
+
 	it.each(["guest-1", "foreign-owner"])(
 		"only includes rejection evidence belonging to %s",
 		async (assetOwner) => {

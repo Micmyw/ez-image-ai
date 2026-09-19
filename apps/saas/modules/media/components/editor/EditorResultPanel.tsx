@@ -59,7 +59,10 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 		return <EditorUnavailableState detailsHref={`/history/${jobId}`} />;
 	}
 
-	const presentation = getJobPresentation({ status: job.data.status, progress: job.data.progress });
+	const presentation = getJobPresentation({
+		...job.data,
+		hasReadyOutput: job.data.assets.length > 0,
+	});
 	const productKey = job.data.productKey;
 	const source = job.data.inputAssets[0];
 	const output = job.data.assets[0];
@@ -108,7 +111,7 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 				job.data.failureReason !== "SAFETY_CHECK_UNAVAILABLE" && (
 					<p className="mt-4 text-sm text-muted-foreground">{t("failureHelp")}</p>
 				)}
-			{job.data.status === "SUCCEEDED" && source && output && (
+			{presentation.stage === "ready" && source && output && (
 				<div className="mt-6">
 					<SignedComparison
 						inputAssetId={source.id}
@@ -117,7 +120,7 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 					/>
 				</div>
 			)}
-			{job.data.status === "SUCCEEDED" &&
+			{presentation.stage === "ready" &&
 				!source &&
 				output &&
 				job.data.input?.kind === "text-to-image" && (
@@ -142,7 +145,7 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 						{t("cancel")}
 					</Button>
 				)}
-				{job.data.status === "SUCCEEDED" && output && (
+				{presentation.stage === "ready" && output && (
 					<DownloadButton assetId={output.id} productKey={productKey} />
 				)}
 				{job.data.status === "SUCCEEDED" && output && (
@@ -338,9 +341,12 @@ function creditSummary(
 		creditsReserved: string;
 		creditsCharged: string;
 		creditsReleased: string;
+		assets: readonly unknown[];
 	},
 ) {
 	if (hasUnsettledJobCredits(job)) {
+		if ((job.status === "FINALIZING" || job.status === "SUCCEEDED") && job.assets.length > 0)
+			return t("creditSummaryFinalizing", { reserved: job.creditsReserved });
 		return t("creditSummaryReserved", { reserved: job.creditsReserved });
 	}
 	if (job.status === "SUCCEEDED" || (job.status === "FAILED" && job.creditsCharged !== "0")) {
