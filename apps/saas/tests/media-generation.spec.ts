@@ -26,13 +26,10 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			testInfo.retry,
 		);
 		const jobId = await createScenario(page, prompt);
-		await expect(page.getByRole("img", { name: /edited image/i })).toBeVisible();
+		const approvedImage = page.getByRole("img", { name: "Edited result image", exact: true });
+		await expect(approvedImage).toBeVisible();
 		await expect
-			.poll(() =>
-				page
-					.getByRole("img", { name: /edited image/i })
-					.evaluate((image) => (image as HTMLImageElement).naturalWidth),
-			)
+			.poll(() => approvedImage.evaluate((image) => (image as HTMLImageElement).naturalWidth))
 			.toBeGreaterThan(0);
 		await expect(page.getByRole("button", { name: "Download", exact: true })).toBeEnabled();
 		await expect(page.getByText(/credits are being settled in the background/i)).toBeVisible();
@@ -41,6 +38,9 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 				?.status,
 		).toBe("FINALIZING");
 		expect((await reservationFor(jobId)).settledAmount).toBe("0");
+		const download = page.waitForEvent("download");
+		await page.getByRole("button", { name: "Download", exact: true }).click();
+		expect((await download).suggestedFilename()).toBeTruthy();
 		await page.screenshot({
 			path: testInfo.outputPath("approved-before-settlement.png"),
 			fullPage: false,
