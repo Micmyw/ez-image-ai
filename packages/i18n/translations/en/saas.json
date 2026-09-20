@@ -1174,6 +1174,7 @@
 			"concurrentJobs": "{count, plural, one {# edit is currently running} other {# edits are currently running}}.",
 			"history": "View History",
 			"workspace": {
+				"closePreview": "Close preview",
 				"sequence": "Source · instruction · service · result",
 				"editor": "Edit setup",
 				"result": "Private result",

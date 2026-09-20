@@ -1,5 +1,14 @@
 export const publicChangelogEntries = [
 	{
+		date: "2026-09-20",
+		title: "Clearer image preview controls",
+		changes: [
+			"Close a result preview without losing your prompt, reference image or saved history.",
+			"Switch models or return to the homepage without carrying a previously selected result into the new page.",
+			"Return from a history detail to the list with a clearly labeled back button, keeping the history panel open.",
+		],
+	},
+	{
 		date: "2026-09-19",
 		title: "View approved images sooner",
 		changes: [

@@ -3,10 +3,9 @@ import { describe, expect, it } from "vitest";
 import { beginNewEditorWorkspaceState } from "./editor-workspace-state";
 
 describe("editor workspace state", () => {
-	it("clears a recovered draft and selected job when the user starts a new edit", () => {
+	it("clears a recovered draft when the user starts a new edit", () => {
 		expect(
 			beginNewEditorWorkspaceState({
-				jobId: "job-1",
 				parentJobId: "job-parent",
 				initialDraft: {
 					productKey: "image-gpt-image-2",
@@ -22,7 +21,6 @@ describe("editor workspace state", () => {
 				recoveryVisible: true,
 			}),
 		).toEqual({
-			jobId: null,
 			parentJobId: null,
 			initialDraft: null,
 			formKey: 3,

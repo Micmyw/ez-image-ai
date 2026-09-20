@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-20
+
+### Dismiss image result previews
+
+- Add **Close preview** above the selected image result without clearing the editing draft or deleting its history.
+- Keep preview selection on the current page; changing models or returning to the homepage no longer restores a historical result from the saved draft.
+- Make the history detail panel's **Back to history** action explicit with a left arrow, so another saved image can be opened without closing and reopening the panel.
+
 ## 2026-09-19
 
 ### Show approved images before background settlement

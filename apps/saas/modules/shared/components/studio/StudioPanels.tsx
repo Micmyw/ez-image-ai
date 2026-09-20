@@ -22,6 +22,7 @@ import { SetPasswordForm } from "@settings/components/SetPassword";
 import { TwoFactorBlock } from "@settings/components/TwoFactorBlock";
 import { UserAvatarForm } from "@settings/components/UserAvatarForm";
 import { UserLanguageForm } from "@settings/components/UserLanguageForm";
+import { ArrowLeftIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import { STUDIO_ASSET_SELECTED_EVENT, type StudioPanel } from "./studio-context";
@@ -35,7 +36,7 @@ export function StudioPanels({
 	onChange: (panel: StudioPanel) => void;
 	onClose: () => void;
 }) {
-	const t = useTranslations("studio");
+	const detail = useTranslations("media.detail");
 	const { user } = useSession();
 	if (!user) return null;
 	switch (panel.kind) {
@@ -58,8 +59,14 @@ export function StudioPanels({
 		case "history":
 			return panel.jobId ? (
 				<div>
-					<Button className="mb-4" variant="ghost" onClick={() => onChange({ kind: "history" })}>
-						{t("history")}
+					<Button
+						type="button"
+						className="mb-4"
+						variant="secondary"
+						onClick={() => onChange({ kind: "history" })}
+					>
+						<ArrowLeftIcon className="size-4" aria-hidden="true" />
+						{detail("back")}
 					</Button>
 					<EditorResultPanel jobId={panel.jobId} onNew={onClose} />
 				</div>

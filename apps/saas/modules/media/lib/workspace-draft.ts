@@ -5,7 +5,6 @@ import { generationFormValuesSchema, type GenerationFormValues } from "./form-sc
 
 export interface WorkspaceDraft {
 	values: GenerationFormValues;
-	jobId: string | null;
 	parentJobId: string | null;
 }
 export interface WorkspaceStorage {
@@ -28,7 +27,8 @@ const storedDraftSchema = z
 			.refine((value) =>
 				(IMAGE_SKU_KEYS_BY_PRODUCT[value.productKey] as readonly string[]).includes(value.skuKey),
 			),
-		jobId: z.string().min(1).max(128).nullable(),
+		// Accept old drafts without restoring their transient result selection.
+		jobId: z.string().min(1).max(128).nullable().optional(),
 		parentJobId: z.string().min(1).max(128).nullable(),
 	})
 	.strict();
@@ -40,7 +40,13 @@ export function saveWorkspaceDraft(
 	now = Date.now(),
 ): boolean {
 	try {
-		const parsed = storedDraftSchema.safeParse({ version: 1, savedAt: now, ownerId, ...draft });
+		const parsed = storedDraftSchema.safeParse({
+			version: 1,
+			savedAt: now,
+			ownerId,
+			values: draft.values,
+			parentJobId: draft.parentJobId,
+		});
 		if (!parsed.success) return false;
 		storage.setItem(WORKSPACE_DRAFT_KEY, JSON.stringify(parsed.data));
 		return true;
@@ -69,7 +75,6 @@ export function loadWorkspaceDraft(
 		}
 		return {
 			values: parsed.data.values,
-			jobId: parsed.data.jobId,
 			parentJobId: parsed.data.parentJobId,
 		};
 	} catch {

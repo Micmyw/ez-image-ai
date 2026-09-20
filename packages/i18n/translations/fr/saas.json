@@ -1174,6 +1174,7 @@
 			"concurrentJobs": "{count, plural, one {# retouche est en cours} other {# retouches sont en cours}}.",
 			"history": "Voir l'historique",
 			"workspace": {
+				"closePreview": "Fermer l’aperçu",
 				"sequence": "Source · instruction · service · résultat",
 				"editor": "Configuration de la retouche",
 				"result": "Résultat privé",

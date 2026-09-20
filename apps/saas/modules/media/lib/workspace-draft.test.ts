@@ -23,12 +23,28 @@ const draft: WorkspaceDraft = {
 		sourceAssetId: "asset-123",
 		aspectRatio: "16:9",
 	},
-	jobId: "job-123",
 	parentJobId: null,
 };
 
 describe("workspace continuity across account and checkout navigation", () => {
-	it("restores the prompt, source, output choice and selected job for the same account", () => {
+	it("does not restore a historical preview from an existing saved draft", () => {
+		const store = storage();
+		store.setItem(
+			WORKSPACE_DRAFT_KEY,
+			JSON.stringify({ version: 1, savedAt: 1000, ownerId: "owner-a", ...draft, jobId: "job-123" }),
+		);
+		const restored = loadWorkspaceDraft(store, "owner-a", 2000);
+		expect(restored?.values).toEqual(draft.values);
+		expect(restored?.parentJobId).toBeNull();
+		expect(restored).not.toHaveProperty("jobId");
+	});
+	it("saves editing input without retaining a selected result", () => {
+		const store = storage();
+		const legacyDraft = { ...draft, jobId: "job-123" };
+		expect(saveWorkspaceDraft(store, "owner-a", legacyDraft, 1000)).toBe(true);
+		expect(JSON.parse(store.getItem(WORKSPACE_DRAFT_KEY)!)).not.toHaveProperty("jobId");
+	});
+	it("restores the prompt, source and output choice for the same account", () => {
 		const store = storage();
 		expect(saveWorkspaceDraft(store, "owner-a", draft, 1000)).toBe(true);
 		expect(loadWorkspaceDraft(store, "owner-a", 2000)).toEqual(draft);

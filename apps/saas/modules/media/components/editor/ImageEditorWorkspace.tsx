@@ -3,7 +3,9 @@
 import { useSession } from "@auth/hooks/use-session";
 import { readEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
+import { Button } from "@repo/ui/components/button";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
+import { XIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
@@ -49,9 +51,9 @@ export function ImageEditorWorkspace({
 	const router = useRouter();
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
+	const jobId = searchParams.get("job");
 	const claimedDraftEventKey = useId();
 	const [workspace, setWorkspace] = useState<EditorWorkspaceState>(() => ({
-		jobId: searchParams.get("job"),
 		parentJobId: parentJobId ?? null,
 		initialDraft: initialDraft ?? null,
 		formKey: 0,
@@ -88,7 +90,6 @@ export function ImageEditorWorkspace({
 							},
 						},
 						parentJobId: saved.parentJobId,
-						jobId: searchParams.get("job") ?? saved.jobId,
 						formKey: current.formKey + 1,
 					}));
 					setSourceReady(false);
@@ -106,7 +107,6 @@ export function ImageEditorWorkspace({
 				setStorageUnavailable(
 					!saveWorkspaceDraft(window.sessionStorage, user.id, {
 						values,
-						jobId: workspace.jobId,
 						parentJobId: workspace.parentJobId,
 					}),
 				);
@@ -114,7 +114,7 @@ export function ImageEditorWorkspace({
 				setStorageUnavailable(true);
 			}
 		},
-		[user?.id, workspace.jobId, workspace.parentJobId],
+		[user?.id, workspace.parentJobId],
 	);
 
 	useEffect(() => {
@@ -149,13 +149,19 @@ export function ImageEditorWorkspace({
 	}, []);
 
 	function selectJob(nextJobId: string | null) {
-		setWorkspace((current) => ({ ...current, jobId: nextJobId }));
-		const next = new URLSearchParams(searchParams);
-		if (nextJobId) next.set("job", nextJobId);
-		else next.delete("job");
+		const url = new URL(window.location.href);
+		if (nextJobId) url.searchParams.set("job", nextJobId);
+		else url.searchParams.delete("job");
 		for (const key of ["asset", "reuseJob", "parentJob", "draftError", "upgrade", "resume"])
-			next.delete(key);
-		window.history.replaceState(null, "", pathname + (next.size ? "?" + next : ""));
+			url.searchParams.delete(key);
+		window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+	}
+
+	function closePreview() {
+		const url = new URL(window.location.href);
+		url.searchParams.delete("job");
+		window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+		document.getElementById("generation-prompt")?.focus({ preventScroll: true });
 	}
 
 	function beginNewEdit() {
@@ -196,7 +202,7 @@ export function ImageEditorWorkspace({
 				<GenerationForm
 					onSourceChanged={unlinkSource}
 					onDraftChange={draftReady ? persistDraft : undefined}
-					jobId={workspace.jobId}
+					jobId={jobId}
 					key={workspace.formKey}
 					initialDraft={workspace.initialDraft}
 					allowedProductKeys={allowedProductKeys}
@@ -204,19 +210,25 @@ export function ImageEditorWorkspace({
 					parentJobId={workspace.parentJobId}
 					onCreated={selectJob}
 				/>
-				{workspace.jobId && (
+				{jobId && (
 					<div
 						className="mt-5"
 						id="current-editor-result"
 						tabIndex={-1}
 						aria-label={t("workspace.result")}
 					>
-						<EditorResultPanel jobId={workspace.jobId} onNew={beginNewEdit} />
+						<div className="mb-2 flex justify-end">
+							<Button type="button" variant="ghost" onClick={closePreview}>
+								<XIcon className="size-4" aria-hidden="true" />
+								{t("workspace.closePreview")}
+							</Button>
+						</div>
+						<EditorResultPanel jobId={jobId} onNew={beginNewEdit} />
 					</div>
 				)}
 			</div>
 			<section className="mt-5" aria-label={t("workspace.recent")}>
-				<RecentJobQueue selectedJobId={workspace.jobId} onSelect={selectJob} />
+				<RecentJobQueue selectedJobId={jobId} onSelect={selectJob} />
 			</section>
 		</div>
 	);

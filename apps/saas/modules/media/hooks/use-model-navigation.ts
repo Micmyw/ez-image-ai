@@ -14,6 +14,7 @@ export function replaceImageModelInUrl(productKey: string) {
 	const url = new URL(window.location.href);
 	if (url.searchParams.get("model") === productKey) return;
 	url.searchParams.set("model", productKey);
+	url.searchParams.delete("job");
 	window.history.replaceState(null, "", url.pathname + url.search + url.hash);
 }
 

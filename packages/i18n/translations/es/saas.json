@@ -1174,6 +1174,7 @@
 			"concurrentJobs": "Ahora {count, plural, one {hay # edición en curso} other {hay # ediciones en curso}}.",
 			"history": "Ver Historial",
 			"workspace": {
+				"closePreview": "Cerrar vista previa",
 				"sequence": "Origen · instrucción · servicio · resultado",
 				"editor": "Configuración de edición",
 				"result": "Resultado privado",

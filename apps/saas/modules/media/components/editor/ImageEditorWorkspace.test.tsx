@@ -75,6 +75,7 @@ describe("ImageEditorWorkspace responsive composition", () => {
 				/>,
 			);
 			expect(markup).toContain('data-testid="result-panel"');
+			expect(markup).toContain("workspace.closePreview");
 			expect(markup.indexOf('data-testid="generation-form"')).toBeLessThan(
 				markup.indexOf('data-testid="result-panel"'),
 			);

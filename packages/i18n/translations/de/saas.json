@@ -1174,6 +1174,7 @@
 			"concurrentJobs": "Derzeit {count, plural, one {läuft # Bearbeitung} other {laufen # Bearbeitungen}}.",
 			"history": "Verlauf anzeigen",
 			"workspace": {
+				"closePreview": "Vorschau schließen",
 				"sequence": "Quelle · Anweisung · Dienst · Ergebnis",
 				"editor": "Bearbeitung einrichten",
 				"result": "Privates Ergebnis",
