@@ -1,3 +1,4 @@
+import { getGuestRiskBudgetMicros } from "@repo/config/server";
 import {
 	expireGenerationDrafts,
 	expirePendingMediaUploadSessions,
@@ -262,7 +263,7 @@ export async function executeTask(
 			return monitorGuestOperationalSafety(db, {
 				guestEnvironmentEnabled: environment.GUEST_MEDIA_ENABLED === "true",
 				guestPromotionPeriod: environment.GUEST_PROMOTION_PERIOD ?? "",
-				guestRiskBudgetMicros: guestRiskBudgetMicros(environment.GUEST_RISK_BUDGET_MICROS),
+				guestRiskBudgetMicros: getGuestRiskBudgetMicros(environment),
 				now: scheduledAt,
 			});
 		}
@@ -340,9 +341,4 @@ export async function executeTask(
 		default:
 			throw new Error("UNREGISTERED_TASK_EXECUTOR");
 	}
-}
-
-function guestRiskBudgetMicros(value: string | undefined): bigint {
-	if (!value || !/^[1-9][0-9]*$/.test(value)) return 0n;
-	return BigInt(value);
 }

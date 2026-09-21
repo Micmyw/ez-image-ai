@@ -4930,8 +4930,10 @@ async function guestDispatchChecksPass(
 		!risk ||
 		risk.expiresAt <= now ||
 		risk.reservedMicros < trial.frozenQuotedRiskMicros ||
-		risk.reservedMicros + risk.consumedMicros > risk.hardLimitMicros ||
-		risk.reservedMicros + risk.consumedMicros > config.riskBudgetMicros
+		(risk.hardLimitMicros !== null &&
+			risk.reservedMicros + risk.consumedMicros > risk.hardLimitMicros) ||
+		(config.riskBudgetMicros !== null &&
+			risk.reservedMicros + risk.consumedMicros > config.riskBudgetMicros)
 	) {
 		return false;
 	}
@@ -4954,7 +4956,12 @@ async function guestDispatchChecksPass(
 	});
 	if (active) return false;
 	const globalBudget = mediaDailyProviderCostBudgetMicros(environment);
-	if (globalBudget !== undefined) {
+	// An explicitly uncapped guest promotion has no aggregate spend gate. Registered
+	// generation retains its own daily budget; quotes and guest cost accounting remain intact.
+	if (
+		globalBudget !== undefined &&
+		(config.riskBudgetMicros !== null || risk.hardLimitMicros !== null)
+	) {
 		const utcDay = now.toISOString().slice(0, 10);
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media:global-daily-provider-budget:${utcDay}`}, 0))`;
 		if (

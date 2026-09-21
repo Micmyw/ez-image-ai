@@ -407,6 +407,9 @@ describe("anonymous Standard trial persistent schema contract", () => {
 		expect(byConstraint.get("guest_risk_budget_limit_check")).toMatch(
 			/\("reservedMicros" \+ "consumedMicros"\) <= "hardLimitMicros"/,
 		);
+		expect(byConstraint.get("guest_risk_budget_limit_check")).toContain(
+			'"hardLimitMicros" IS NULL',
+		);
 	});
 
 	it("persists the admission, risk, and durable pre-admission link fence", async () => {

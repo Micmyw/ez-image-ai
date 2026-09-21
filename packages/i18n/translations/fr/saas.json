@@ -120,6 +120,7 @@
 					"off": "Désactivé"
 				},
 				"states": {
+					"unlimited": "Aucun plafond de dépenses",
 					"ok": "Normal",
 					"warn": "Avertissement",
 					"slow": "Admission ralentie",

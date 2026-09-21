@@ -43,6 +43,22 @@ const productionBase = {
 } as const;
 
 describe("validateServerEnvironment", () => {
+	it("accepts a paired unlimited guest budget at the runtime environment boundary", () => {
+		expect(() =>
+			validateServerEnvironment({
+				...productionBase,
+				GUEST_RISK_BUDGET_MICROS: "unlimited",
+				GUEST_HARD_BUDGET_MICROS: "unlimited",
+			}),
+		).not.toThrow();
+		expect(() =>
+			validateServerEnvironment({
+				...productionBase,
+				GUEST_RISK_BUDGET_MICROS: "unlimited",
+				GUEST_HARD_BUDGET_MICROS: "200000",
+			}),
+		).toThrow();
+	});
 	it("accepts explicit Hyperdrive runtime configuration without an origin credential", () => {
 		expect(() =>
 			validateServerEnvironment({

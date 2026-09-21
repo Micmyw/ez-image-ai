@@ -549,6 +549,24 @@ describe("Node task executor", () => {
 		});
 	});
 
+	it("passes an explicit unlimited budget through scheduled safety monitoring", async () => {
+		const timestamp = Date.UTC(2026, 8, 21, 12, 0);
+		await executeTask({ taskId: "media-expire-guest-media", payload: { timestamp } }, context, {
+			environment: {
+				GUEST_MEDIA_ENABLED: "true",
+				GUEST_PROMOTION_PERIOD: "launch",
+				GUEST_RISK_BUDGET_MICROS: "unlimited",
+				GUEST_HARD_BUDGET_MICROS: "unlimited",
+			},
+		});
+		expect(mocks.monitorGuest).toHaveBeenCalledWith(expect.anything(), {
+			guestEnvironmentEnabled: true,
+			guestPromotionPeriod: "launch",
+			guestRiskBudgetMicros: null,
+			now: new Date(timestamp),
+		});
+	});
+
 	it("resumes subscription sweeps using their persisted sequence and continuation key", async () => {
 		await executeTask(
 			{

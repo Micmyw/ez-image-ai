@@ -120,6 +120,7 @@
 					"off": "Desactivado"
 				},
 				"states": {
+					"unlimited": "Sin límite de gasto",
 					"ok": "Normal",
 					"warn": "Advertencia",
 					"slow": "Admisión ralentizada",

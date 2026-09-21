@@ -19,6 +19,30 @@ const safeMetrics = {
 };
 
 describe("guest operational safety thresholds", () => {
+	it("keeps uncapped spend observable without budget throttling or automatic closure", () => {
+		const result = evaluateGuestOperationalSafety({
+			...safeMetrics,
+			riskBudgetMicros: null,
+			committedRiskMicros: 10_000_000n,
+			heldRiskMicros: 20_000n,
+		});
+		expect(result).toMatchObject({
+			usedRiskMicros: 10_020_000n,
+			utilizationPercent: null,
+			riskState: "UNLIMITED",
+			admissionAction: "OPEN",
+			warnings: [],
+			closureReasons: [],
+		});
+		expect(result).not.toHaveProperty("automaticOverride");
+		expect(
+			evaluateGuestOperationalSafety({
+				...safeMetrics,
+				riskBudgetMicros: null,
+				watermarkFailures: 1,
+			}),
+		).toMatchObject({ admissionAction: "CLOSE", closureReasons: ["WATERMARK_FAILURE"] });
+	});
 	it("warns on moderation outages without overriding the bounded fail-open policy", () => {
 		expect(
 			evaluateGuestOperationalSafety({ ...safeMetrics, moderationErrorRate: 1 }),

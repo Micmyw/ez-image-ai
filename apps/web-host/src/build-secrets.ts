@@ -44,6 +44,12 @@ export function readCloudflareBuildEnvironment(environment: Record<string, strin
 
 function withGuestBudgetOverride(source: string, environment: Record<string, string | undefined>) {
 	const budget = environment.GUEST_RISK_BUDGET_MICROS;
+	const hardOverride = environment.GUEST_HARD_BUDGET_MICROS;
+	if (budget === "unlimited" || hardOverride === "unlimited") {
+		if (budget !== "unlimited" || hardOverride !== "unlimited")
+			throw new Error("CLOUDFLARE_GUEST_BUDGET_OVERRIDE_INVALID");
+		return `${source}\nGUEST_RISK_BUDGET_MICROS=unlimited\nGUEST_HARD_BUDGET_MICROS=unlimited\n`;
+	}
 	if (budget === undefined) return source;
 	const hardCap = parseEnv(source).GUEST_HARD_BUDGET_MICROS ?? "";
 	if (!/^[1-9]\d*$/.test(budget) || !/^[1-9]\d*$/.test(hardCap) || BigInt(budget) > BigInt(hardCap))

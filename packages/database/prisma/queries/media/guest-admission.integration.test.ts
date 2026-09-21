@@ -358,6 +358,84 @@ describe("guest generation admission", () => {
 		expect(diagnostics.guest.risk).toEqual({ utilizationPercent: 5.71, state: "OK" });
 	});
 
+	it("admits uncapped spend past the old ceiling and reserves each idempotent request once", async () => {
+		const fixture = await createGuestFixture("unlimited-spend");
+		const bucket = await client.guestRiskBudgetBucket.create({
+			data: {
+				promotionPeriod: fixture.promotionPeriod,
+				subjectHash: "global",
+				hardLimitMicros: null,
+				consumedMicros: 10_000_000n,
+				expiresAt: fixture.validUntil,
+			},
+		});
+		const input = guestAdmissionInput(fixture, {
+			idempotencyKey: "unlimited-spend",
+			riskBudgetMicros: null,
+		});
+		const first = await createGuestAdmission(input);
+		expect(first.projectedDispatchAt).toEqual(fixture.now);
+		expect((await createGuestAdmission(input)).jobId).toBe(first.jobId);
+		expect(
+			await client.guestRiskBudgetBucket.findUniqueOrThrow({ where: { id: bucket.id } }),
+		).toMatchObject({
+			hardLimitMicros: null,
+			consumedMicros: 10_000_000n,
+			reservedMicros: 20_000n,
+		});
+		const diagnostics = await getAdminMediaDiagnostics(client, {
+			guestEnvironmentEnabled: true,
+			guestPromotionPeriod: fixture.promotionPeriod,
+			guestRiskBudgetMicros: null,
+		});
+		expect(diagnostics.guest.risk).toEqual({ utilizationPercent: null, state: "UNLIMITED" });
+		expect(diagnostics.guest.controls.automaticClosureReasons).not.toContain("RISK_BUDGET");
+	});
+
+	it("creates uncapped accounting for a new promotion without a numeric sentinel", async () => {
+		const fixture = await createGuestFixture("unlimited-new");
+		await createGuestAdmission(
+			guestAdmissionInput(fixture, { idempotencyKey: "unlimited-new", riskBudgetMicros: null }),
+		);
+		expect(
+			await client.guestRiskBudgetBucket.findUniqueOrThrow({
+				where: {
+					promotionPeriod_subjectHash: {
+						promotionPeriod: fixture.promotionPeriod,
+						subjectHash: "global",
+					},
+				},
+			}),
+		).toMatchObject({ hardLimitMicros: null, reservedMicros: 20_000n, consumedMicros: 0n });
+	});
+
+	it.each(["stored", "configured"] as const)(
+		"retains a %s finite cap until both budget controls are uncapped",
+		async (source) => {
+			const fixture = await createGuestFixture(`unlimited-mixed-${source}`);
+			await client.guestRiskBudgetBucket.create({
+				data: {
+					promotionPeriod: fixture.promotionPeriod,
+					subjectHash: "global",
+					hardLimitMicros: source === "stored" ? 200_000n : null,
+					consumedMicros: 180_000n,
+					expiresAt: fixture.validUntil,
+				},
+			});
+			await expect(
+				createGuestAdmission(
+					guestAdmissionInput(fixture, {
+						idempotencyKey: `unlimited-mixed-${source}`,
+						riskBudgetMicros: source === "configured" ? 200_000n : null,
+					}),
+				),
+			).rejects.toThrow("GUEST_RISK_CAPACITY");
+			await expect(countGuestBusinessGraph(fixture.ownerId)).resolves.toEqual(
+				emptyGuestBusinessGraph(),
+			);
+		},
+	);
+
 	it("doubles the queue estimate at 75 percent risk and rejects at 90 percent", async () => {
 		const fixtureNow = new Date();
 		const slowFixture = await createGuestFixture("risk-slow", fixtureNow, "promotion-slow");
@@ -1483,7 +1561,7 @@ function guestAdmissionInput(
 		maximumGlobalQueueDepth?: number;
 		queueTtlMs?: number;
 		queueCapacity?: number;
-		riskBudgetMicros?: bigint;
+		riskBudgetMicros?: bigint | null;
 		sourceSessionHash?: string;
 		deviceHash?: string;
 		ipHash?: string;
@@ -1560,7 +1638,8 @@ function guestAdmissionInput(
 		maximumGlobalRequestsPerHour: overrides.maximumGlobalRequestsPerHour ?? 100,
 		maximumGlobalRequestsPerDay: overrides.maximumGlobalRequestsPerDay ?? 100,
 		abuseEvidenceTtlMs: overrides.abuseEvidenceTtlMs ?? 30 * 24 * 60 * 60_000,
-		riskBudgetMicros: overrides.riskBudgetMicros ?? 2_300_000n,
+		riskBudgetMicros:
+			overrides.riskBudgetMicros === undefined ? 2_300_000n : overrides.riskBudgetMicros,
 		sponsorCredits: 5n,
 		assetModeration: {
 			provider: "test",

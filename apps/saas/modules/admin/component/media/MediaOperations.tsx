@@ -32,8 +32,8 @@ interface GuestDiagnostics {
 		expiredBeforeDispatch: number;
 	};
 	risk: {
-		utilizationPercent: number;
-		state: "OK" | "WARN" | "SLOW" | "CLOSED" | "EXHAUSTED";
+		utilizationPercent: number | null;
+		state: "OK" | "WARN" | "SLOW" | "CLOSED" | "EXHAUSTED" | "UNLIMITED";
 	};
 	sponsorCredits: { granted: string; reserved: string; settled: string; released: string };
 	attempts: {
@@ -413,8 +413,12 @@ function GuestOperationsPanel({ data }: { data?: GuestDiagnostics }) {
 					<div className="mt-5 gap-3 sm:grid-cols-2 xl:grid-cols-4 grid">
 						<SummaryCard
 							title={t("metrics.risk")}
-							value={`${formatPercent(data.risk.utilizationPercent)} · ${diagnosticLabel("state", data.risk.state)}`}
-							alert={data.risk.state !== "OK"}
+							value={
+								data.risk.utilizationPercent === null
+									? diagnosticLabel("state", data.risk.state)
+									: `${formatPercent(data.risk.utilizationPercent)} · ${diagnosticLabel("state", data.risk.state)}`
+							}
+							alert={data.risk.state !== "OK" && data.risk.state !== "UNLIMITED"}
 						/>
 						<SummaryCard
 							title={t("metrics.queue")}

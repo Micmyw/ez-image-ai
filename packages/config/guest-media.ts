@@ -62,7 +62,8 @@ export interface GuestMediaConfig {
 	linkIntentTtlMs: number;
 	resultGrantTtlMs: number;
 	limits: GuestAdmissionLimits;
-	riskBudgetMicros: bigint;
+	/** null explicitly means unlimited; missing or malformed configuration never does. */
+	riskBudgetMicros: bigint | null;
 	abuseHmac: {
 		keyVersion: string | null;
 		keyIdentity: string | null;
@@ -125,8 +126,10 @@ export function getGuestMediaConfig(
 	const promotionPeriod = normalizedPromotionPeriod(environment.GUEST_PROMOTION_PERIOD);
 	const costEvidenceId = normalizedNonEmptyString(environment.GUEST_COST_EVIDENCE_ID);
 	const hardBudgetMicros = positiveBigInt(environment.GUEST_HARD_BUDGET_MICROS);
-	const configuredRiskBudgetMicros = positiveBigInt(environment.GUEST_RISK_BUDGET_MICROS);
-	const riskBudgetMicros = configuredRiskBudgetMicros ?? BigInt(350_000);
+	const configuredRiskBudgetMicros = getGuestRiskBudgetMicros(environment);
+	const unlimitedBudget = configuredRiskBudgetMicros === null;
+	const riskBudgetMicros =
+		configuredRiskBudgetMicros === 0n ? 350_000n : configuredRiskBudgetMicros;
 	const siteKey = normalizedNonEmptyString(environment.NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY);
 	const secretKey = normalizedNonEmptyString(environment.GUEST_TURNSTILE_SECRET_KEY);
 	const proxyProvider = trustedProxyProvider(environment.MEDIA_TRUSTED_PROXY_PROVIDER);
@@ -153,9 +156,16 @@ export function getGuestMediaConfig(
 		reason = "GUEST_RUNTIME_DISABLED";
 	} else if (!promotionPeriod) {
 		reason = "GUEST_PROMOTION_PERIOD_REQUIRED";
-	} else if (environment.GUEST_HARD_BUDGET_MICROS !== undefined && hardBudgetMicros === null) {
+	} else if (
+		!unlimitedBudget &&
+		(environment.GUEST_RISK_BUDGET_MICROS === "unlimited" ||
+			(environment.GUEST_HARD_BUDGET_MICROS !== undefined && hardBudgetMicros === null))
+	) {
 		reason = "GUEST_CONFIGURATION_INVALID";
-	} else if (productionControlsRequired && (!costEvidenceId || hardBudgetMicros === null)) {
+	} else if (
+		productionControlsRequired &&
+		(!costEvidenceId || (!unlimitedBudget && hardBudgetMicros === null))
+	) {
 		reason = "GUEST_PRODUCTION_EVIDENCE_REQUIRED";
 	} else if (productionControlsRequired && (!siteKey || !secretKey)) {
 		reason = "GUEST_PRODUCTION_TURNSTILE_REQUIRED";
@@ -163,7 +173,8 @@ export function getGuestMediaConfig(
 		reason = "GUEST_PRODUCTION_TRUSTED_PROXY_REQUIRED";
 	} else if (
 		productionControlsRequired &&
-		(configuredRiskBudgetMicros === null || configuredRiskBudgetMicros > BigInt(350_000))
+		configuredRiskBudgetMicros !== null &&
+		(configuredRiskBudgetMicros === 0n || configuredRiskBudgetMicros > BigInt(350_000))
 	) {
 		reason = "GUEST_CONFIGURATION_INVALID";
 	} else if (productionControlsRequired && productionEnvelope === null) {
@@ -210,6 +221,16 @@ export function getGuestMediaConfig(
 			required: productionControlsRequired,
 		}),
 	});
+}
+
+/** Shared by admission configuration and its operational monitor. Invalid input stays fail-closed. */
+export function getGuestRiskBudgetMicros(environment: Record<string, unknown>): bigint | null {
+	const risk = environment.GUEST_RISK_BUDGET_MICROS;
+	const hard = environment.GUEST_HARD_BUDGET_MICROS;
+	if (risk === "unlimited" || hard === "unlimited") {
+		return risk === "unlimited" && hard === "unlimited" ? null : 0n;
+	}
+	return positiveBigInt(risk) ?? 0n;
 }
 
 export function guestAbuseHmacKeyIdentity(secret: string): string {

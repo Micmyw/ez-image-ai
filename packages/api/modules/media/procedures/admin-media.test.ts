@@ -75,45 +75,127 @@ describe("media administration authorization and safe DTOs", () => {
 		expect(listAdminUncertainGenerationAttempts).not.toHaveBeenCalled();
 	});
 
-	it("returns only allowlisted aggregate diagnostics", async () => {
-		vi.mocked(auth.api.getSession).mockResolvedValue({
-			user: { id: "admin_1", role: "admin" },
-			session: { id: "session_1" },
-		} as never);
-		vi.mocked(getAdminMediaDiagnostics).mockResolvedValue({
-			generatedAt: "2026-08-14T00:00:00.000Z",
-			queue: { depth: 4, oldestAgeSeconds: 12, stalledJobs: 1, needsReconciliation: 2 },
-			outbox: { pending: 2, deadLetter: 0, oldestAgeSeconds: 5 },
-			generation: { succeeded: 3, failed: 1, running: 0 },
-			storage: { readyAssets: 3, readyBytes: "1200", reservedBytes: "10" },
-			credits: { spendable: "40", reserved: "5", debt: "0", settled: "20" },
-			events: {
-				generationFailed: 0,
-				payment: {
-					failed: {
-						count: 1,
-						items: [
-							{
-								id: "payment_failed_1",
-								status: "FAILED",
-								attemptCount: 2,
-								lastTriggerAttempt: 2,
-								lastAttemptAt: "2026-08-14T00:00:00.000Z",
-								lastErrorClass: "TRANSIENT",
-							},
-						],
+	it.each([false, true])(
+		"returns only allowlisted aggregate diagnostics (unlimited=%s)",
+		async (unlimited) => {
+			if (unlimited) {
+				vi.stubEnv("GUEST_RISK_BUDGET_MICROS", "unlimited");
+				vi.stubEnv("GUEST_HARD_BUDGET_MICROS", "unlimited");
+			}
+			vi.mocked(auth.api.getSession).mockResolvedValue({
+				user: { id: "admin_1", role: "admin" },
+				session: { id: "session_1" },
+			} as never);
+			vi.mocked(getAdminMediaDiagnostics).mockResolvedValue({
+				generatedAt: "2026-08-14T00:00:00.000Z",
+				queue: { depth: 4, oldestAgeSeconds: 12, stalledJobs: 1, needsReconciliation: 2 },
+				outbox: { pending: 2, deadLetter: 0, oldestAgeSeconds: 5 },
+				generation: { succeeded: 3, failed: 1, running: 0 },
+				storage: { readyAssets: 3, readyBytes: "1200", reservedBytes: "10" },
+				credits: { spendable: "40", reserved: "5", debt: "0", settled: "20" },
+				events: {
+					generationFailed: 0,
+					payment: {
+						failed: {
+							count: 1,
+							items: [
+								{
+									id: "payment_failed_1",
+									status: "FAILED",
+									attemptCount: 2,
+									lastTriggerAttempt: 2,
+									lastAttemptAt: "2026-08-14T00:00:00.000Z",
+									lastErrorClass: "TRANSIENT",
+								},
+							],
+						},
+						deadLetter: { count: 0, items: [] },
+						ignored: { count: 0, items: [] },
 					},
-					deadLetter: { count: 0, items: [] },
-					ignored: { count: 0, items: [] },
 				},
-			},
-			stripeReconciliation: {
-				checkpoint: null,
-				issues: { openCount: 0, items: [] },
-				historicalRefunds: { needsReviewCount: 0, missingLifecycleCount: 0, items: [] },
-			},
-			overrides: [],
-			guest: {
+				stripeReconciliation: {
+					checkpoint: null,
+					issues: { openCount: 0, items: [] },
+					historicalRefunds: { needsReviewCount: 0, missingLifecycleCount: 0, items: [] },
+				},
+				overrides: [],
+				guest: {
+					admission: {
+						accepted: 3,
+						deniedByReason: [{ reason: "QUEUE_CAPACITY", count: 2 }],
+					},
+					queue: {
+						depth: 4,
+						oldestAgeSeconds: 301,
+						waitMs: { p50: 80_000, p95: 140_000 },
+						expiredBeforeDispatch: 1,
+					},
+					risk: {
+						utilizationPercent: unlimited ? null : 80,
+						state: unlimited ? "UNLIMITED" : "SLOW",
+					},
+					sponsorCredits: { granted: "12", reserved: "4", settled: "8", released: "0" },
+					attempts: {
+						accepted: 2,
+						rejected: 0,
+						uncertain: 1,
+						uncertainOlderThanTenMinutes: 1,
+						billingEvidencePresent: 2,
+						billingEvidenceMissing: 1,
+						billingMismatch: 0,
+					},
+					moderation: { approved: 2, rejected: 1, errors: 0, errorRate: 0 },
+					watermark: { succeeded: 2, failed: 0 },
+					resultAccess: { ready: 2, grantsCompleted: 1, expiredGrants: 0 },
+					cleanup: {
+						expiredAssets: 1,
+						overdueAssets: 1,
+						deadLetterEvents: 0,
+						oldestOverdueSeconds: 42,
+					},
+					controls: {
+						environmentEnabled: false,
+						runtimeEnabled: false,
+						admissionOpen: false,
+						automaticClosureReasons: ["QUEUE_AGE"],
+					},
+					rawIp: "203.0.113.8",
+					deviceHash: "fixture-secret-do-not-return",
+					prompt: "fixture-secret-do-not-return",
+					providerPayload: { costMicros: 1234 },
+				},
+			} as never);
+
+			const result = await call(adminMediaDiagnostics, undefined, context);
+			expect(getAdminMediaDiagnostics).toHaveBeenCalledWith(
+				{},
+				{
+					guestEnvironmentEnabled: true,
+					guestPromotionPeriod: "review-period",
+					guestRiskBudgetMicros: unlimited ? null : 100_000n,
+				},
+			);
+			const serialized = JSON.stringify(result);
+			expect(Object.keys(result).sort()).toEqual(
+				[
+					"generatedAt",
+					"queue",
+					"outbox",
+					"generation",
+					"storage",
+					"credits",
+					"events",
+					"stripeReconciliation",
+					"overrides",
+					"guest",
+				].sort(),
+			);
+			expect(serialized).not.toMatch(
+				/prompt|rawPayload|requestBody|responseBody|envelope|secret|signature|signedUrl|objectKey|sourceUrl|token|url|"providers?":|providerEventId|providerObjectId|providerRefundId|providerCost|costMicros|marginMicros|providerModelId|providerTaskId/i,
+			);
+			expect(serialized).not.toContain("fixture-secret-do-not-return");
+			expect(result.queue.depth).toBe(4);
+			expect(result.guest).toEqual({
 				admission: {
 					accepted: 3,
 					deniedByReason: [{ reason: "QUEUE_CAPACITY", count: 2 }],
@@ -125,8 +207,8 @@ describe("media administration authorization and safe DTOs", () => {
 					expiredBeforeDispatch: 1,
 				},
 				risk: {
-					utilizationPercent: 80,
-					state: "SLOW",
+					utilizationPercent: unlimited ? null : 80,
+					state: unlimited ? "UNLIMITED" : "SLOW",
 				},
 				sponsorCredits: { granted: "12", reserved: "4", settled: "8", released: "0" },
 				attempts: {
@@ -153,94 +235,19 @@ describe("media administration authorization and safe DTOs", () => {
 					admissionOpen: false,
 					automaticClosureReasons: ["QUEUE_AGE"],
 				},
-				rawIp: "203.0.113.8",
-				deviceHash: "fixture-secret-do-not-return",
-				prompt: "fixture-secret-do-not-return",
-				providerPayload: { costMicros: 1234 },
-			},
-		} as never);
-
-		const result = await call(adminMediaDiagnostics, undefined, context);
-		expect(getAdminMediaDiagnostics).toHaveBeenCalledWith(
-			{},
-			{
-				guestEnvironmentEnabled: true,
-				guestPromotionPeriod: "review-period",
-				guestRiskBudgetMicros: 100_000n,
-			},
-		);
-		const serialized = JSON.stringify(result);
-		expect(Object.keys(result).sort()).toEqual(
-			[
-				"generatedAt",
-				"queue",
-				"outbox",
-				"generation",
-				"storage",
-				"credits",
-				"events",
-				"stripeReconciliation",
-				"overrides",
-				"guest",
-			].sort(),
-		);
-		expect(serialized).not.toMatch(
-			/prompt|rawPayload|requestBody|responseBody|envelope|secret|signature|signedUrl|objectKey|sourceUrl|token|url|"providers?":|providerEventId|providerObjectId|providerRefundId|providerCost|costMicros|marginMicros|providerModelId|providerTaskId/i,
-		);
-		expect(serialized).not.toContain("fixture-secret-do-not-return");
-		expect(result.queue.depth).toBe(4);
-		expect(result.guest).toEqual({
-			admission: {
-				accepted: 3,
-				deniedByReason: [{ reason: "QUEUE_CAPACITY", count: 2 }],
-			},
-			queue: {
-				depth: 4,
-				oldestAgeSeconds: 301,
-				waitMs: { p50: 80_000, p95: 140_000 },
-				expiredBeforeDispatch: 1,
-			},
-			risk: {
-				utilizationPercent: 80,
-				state: "SLOW",
-			},
-			sponsorCredits: { granted: "12", reserved: "4", settled: "8", released: "0" },
-			attempts: {
-				accepted: 2,
-				rejected: 0,
-				uncertain: 1,
-				uncertainOlderThanTenMinutes: 1,
-				billingEvidencePresent: 2,
-				billingEvidenceMissing: 1,
-				billingMismatch: 0,
-			},
-			moderation: { approved: 2, rejected: 1, errors: 0, errorRate: 0 },
-			watermark: { succeeded: 2, failed: 0 },
-			resultAccess: { ready: 2, grantsCompleted: 1, expiredGrants: 0 },
-			cleanup: {
-				expiredAssets: 1,
-				overdueAssets: 1,
-				deadLetterEvents: 0,
-				oldestOverdueSeconds: 42,
-			},
-			controls: {
-				environmentEnabled: false,
-				runtimeEnabled: false,
-				admissionOpen: false,
-				automaticClosureReasons: ["QUEUE_AGE"],
-			},
-		});
-		expect(result.events.payment.failed.items).toEqual([
-			{
-				id: "payment_failed_1",
-				status: "FAILED",
-				attemptCount: 2,
-				lastTriggerAttempt: 2,
-				lastAttemptAt: "2026-08-14T00:00:00.000Z",
-				lastErrorClass: "TRANSIENT",
-			},
-		]);
-	});
+			});
+			expect(result.events.payment.failed.items).toEqual([
+				{
+					id: "payment_failed_1",
+					status: "FAILED",
+					attemptCount: 2,
+					lastTriggerAttempt: 2,
+					lastAttemptAt: "2026-08-14T00:00:00.000Z",
+					lastErrorClass: "TRANSIENT",
+				},
+			]);
+		},
+	);
 
 	it("returns a redacted uncertain-attempt recovery DTO only to administrators", async () => {
 		vi.mocked(auth.api.getSession).mockResolvedValue({

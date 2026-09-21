@@ -50,6 +50,45 @@ const productionRuntimeOverride = {
 };
 
 describe("guest media configuration", () => {
+	it("supports explicitly unlimited guest budgets without removing daily quotas or security controls", () => {
+		const environment = {
+			...productionEnvironment,
+			GUEST_RISK_BUDGET_MICROS: "unlimited",
+			GUEST_HARD_BUDGET_MICROS: "unlimited",
+		};
+		expect(
+			getGuestMediaConfig(environment, productionRuntimeOverride, productionNow),
+		).toMatchObject({
+			enabled: true,
+			riskBudgetMicros: null,
+			productionEvidence: { hardBudgetMicros: null },
+			limits: { maximumAcceptedTrialsPerSessionPerDay: 2, maximumActiveJobsPerGuest: 1 },
+			turnstile: { required: true },
+		});
+		expect(
+			getGuestMediaConfig(
+				{ ...environment, GUEST_TURNSTILE_SECRET_KEY: undefined },
+				productionRuntimeOverride,
+				productionNow,
+			),
+		).toMatchObject({ enabled: false, reason: "GUEST_PRODUCTION_TURNSTILE_REQUIRED" });
+	});
+
+	it.each([
+		{ GUEST_RISK_BUDGET_MICROS: "unlimited" },
+		{ GUEST_HARD_BUDGET_MICROS: "unlimited" },
+		{ GUEST_RISK_BUDGET_MICROS: "0", GUEST_HARD_BUDGET_MICROS: "0" },
+		{ GUEST_RISK_BUDGET_MICROS: "Infinity", GUEST_HARD_BUDGET_MICROS: "Infinity" },
+	])("rejects partial or ambiguous unlimited configuration %j", (override) => {
+		expect(
+			getGuestMediaConfig(
+				{ ...productionEnvironment, ...override },
+				productionRuntimeOverride,
+				productionNow,
+			),
+		).toMatchObject({ enabled: false, reason: "GUEST_CONFIGURATION_INVALID" });
+	});
+
 	it("gives guests two daily edits while keeping one active job and five credits per edit", () => {
 		expect(getGuestMediaConfig(developmentEnvironment, true)).toMatchObject({
 			sponsorCredits: 5n,

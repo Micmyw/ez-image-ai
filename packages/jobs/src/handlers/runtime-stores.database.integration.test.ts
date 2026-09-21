@@ -472,56 +472,120 @@ describe("production media runtime stores", () => {
 		expect(JSON.stringify(after.requestSnapshot)).not.toContain(signedUrl);
 	});
 
-	it("allows two racing workers to submit a guest trial only once", async () => {
+	it("keeps the daily provider budget enforced for a bounded guest promotion", async () => {
 		const guest = await seedGuestDispatchJob();
-		const submit = vi.fn(async () => ({
-			providerTaskId: `guest-provider-${crypto.randomUUID()}`,
-			status: "QUEUED" as const,
-			outcome: "accepted" as const,
-			idempotency: { key: guest.jobId, providerSupported: false, replayed: false },
-			reconciliation: { submissionToken: guest.jobId },
-		}));
-		const provider = {
-			provider: "kie" as const,
-			submit,
-			retrieve: vi.fn(),
-			normalizeResult: vi.fn(),
-		};
 		const store = createTestDispatchStore({
-			environment: guest.environment,
+			environment: { ...guest.environment, MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS: "1" },
 		});
 		try {
-			await Promise.all([
-				dispatchGeneration(
-					{ jobId: guest.jobId, version: 0 },
-					{ store, getProvider: () => provider },
-				),
-				dispatchGeneration(
-					{ jobId: guest.jobId, version: 0 },
-					{ store, getProvider: () => provider },
-				),
-			]);
-
-			expect(submit).toHaveBeenCalledTimes(1);
-			expect(await client.generationAttempt.count({ where: { jobId: guest.jobId } })).toBe(1);
-			await expect(
-				client.generationJob.findUniqueOrThrow({ where: { id: guest.jobId } }),
-			).resolves.toMatchObject({ status: "PROVIDER_PENDING", serviceClass: "GUEST_SLOW" });
-			await expect(
-				client.guestMediaTrial.findUniqueOrThrow({ where: { id: guest.trialId } }),
-			).resolves.toMatchObject({
-				eligibility: "CONSUMED",
-				riskState: "COMMITTED",
-				consumedJobId: guest.jobId,
-			});
+			await expect(store.claimDispatch({ jobId: guest.jobId, version: 0 })).resolves.toBeNull();
+			expect(await client.generationAttempt.count({ where: { jobId: guest.jobId } })).toBe(0);
+			expect(
+				await client.guestRiskBudgetBucket.findUniqueOrThrow({
+					where: {
+						promotionPeriod_subjectHash: {
+							promotionPeriod: guest.promotionPeriod,
+							subjectHash: "global",
+						},
+					},
+				}),
+			).toMatchObject({ reservedMicros: 0n, consumedMicros: 0n });
 		} finally {
-			await client.generationJob.updateMany({
+			await client.generationJob.update({
 				where: { id: guest.jobId },
 				data: { status: "FAILED", terminalAt: new Date() },
 			});
 			await revertRuntimeConfigOverride(guest.overrideId, "task4-guest-test", client);
 		}
 	});
+
+	it.each([false, true])(
+		"allows racing workers to submit a guest trial only once (unlimited=%s)",
+		async (unlimited) => {
+			const guest = await seedGuestDispatchJob();
+			if (unlimited) {
+				await client.guestRiskBudgetBucket.update({
+					where: {
+						promotionPeriod_subjectHash: {
+							promotionPeriod: guest.promotionPeriod,
+							subjectHash: "global",
+						},
+					},
+					data: { hardLimitMicros: null, consumedMicros: 10_000_000n },
+				});
+			}
+			const submit = vi.fn(async () => ({
+				providerTaskId: `guest-provider-${crypto.randomUUID()}`,
+				status: "QUEUED" as const,
+				outcome: "accepted" as const,
+				idempotency: { key: guest.jobId, providerSupported: false, replayed: false },
+				reconciliation: { submissionToken: guest.jobId },
+			}));
+			const provider = {
+				provider: "kie" as const,
+				submit,
+				retrieve: vi.fn(),
+				normalizeResult: vi.fn(),
+			};
+			const store = createTestDispatchStore({
+				environment: {
+					...guest.environment,
+					...(unlimited
+						? {
+								GUEST_RISK_BUDGET_MICROS: "unlimited",
+								GUEST_HARD_BUDGET_MICROS: "unlimited",
+								MEDIA_DAILY_PROVIDER_COST_BUDGET_MICROS: "1",
+							}
+						: {}),
+				},
+			});
+			try {
+				await Promise.all([
+					dispatchGeneration(
+						{ jobId: guest.jobId, version: 0 },
+						{ store, getProvider: () => provider },
+					),
+					dispatchGeneration(
+						{ jobId: guest.jobId, version: 0 },
+						{ store, getProvider: () => provider },
+					),
+				]);
+
+				expect(submit).toHaveBeenCalledTimes(1);
+				expect(
+					await client.guestRiskBudgetBucket.findUniqueOrThrow({
+						where: {
+							promotionPeriod_subjectHash: {
+								promotionPeriod: guest.promotionPeriod,
+								subjectHash: "global",
+							},
+						},
+					}),
+				).toMatchObject({
+					reservedMicros: 0n,
+					consumedMicros: unlimited ? 10_020_000n : 20_000n,
+					hardLimitMicros: unlimited ? null : 250_000n,
+				});
+				expect(await client.generationAttempt.count({ where: { jobId: guest.jobId } })).toBe(1);
+				await expect(
+					client.generationJob.findUniqueOrThrow({ where: { id: guest.jobId } }),
+				).resolves.toMatchObject({ status: "PROVIDER_PENDING", serviceClass: "GUEST_SLOW" });
+				await expect(
+					client.guestMediaTrial.findUniqueOrThrow({ where: { id: guest.trialId } }),
+				).resolves.toMatchObject({
+					eligibility: "CONSUMED",
+					riskState: "COMMITTED",
+					consumedJobId: guest.jobId,
+				});
+			} finally {
+				await client.generationJob.updateMany({
+					where: { id: guest.jobId },
+					data: { status: "FAILED", terminalAt: new Date() },
+				});
+				await revertRuntimeConfigOverride(guest.overrideId, "task4-guest-test", client);
+			}
+		},
+	);
 
 	it("keeps internal guest polling separate from the public capacity estimate", async () => {
 		await client.$executeRawUnsafe(

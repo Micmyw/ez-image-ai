@@ -355,6 +355,13 @@ describe("guest capability snapshot", () => {
 
 	it("binds promotion, effective security configuration, and abuse-key identity into the version", async () => {
 		const baseline = await loadGuestCapabilitySnapshot(enabledEnvironment);
+		const unlimited = await loadGuestCapabilitySnapshot({
+			...enabledEnvironment,
+			GUEST_RISK_BUDGET_MICROS: "unlimited",
+			GUEST_HARD_BUDGET_MICROS: "unlimited",
+		});
+		expect(unlimited.enabled).toBe(true);
+		expectNoPrivateCapabilityData(unlimited, ["unlimited"]);
 		const changedPromotion = await loadGuestCapabilitySnapshot({
 			...enabledEnvironment,
 			GUEST_PROMOTION_PERIOD: "2026-launch-b",
@@ -376,12 +383,13 @@ describe("guest capability snapshot", () => {
 		expect(
 			new Set([
 				baseline.version,
+				unlimited.version,
 				changedPromotion.version,
 				changedRiskBudget.version,
 				changedSecret.version,
 				changedKeyVersion.version,
 			]),
-		).toHaveLength(5);
+		).toHaveLength(6);
 	});
 
 	it("keeps capability identity stable across irrelevant environment and object-key ordering", async () => {

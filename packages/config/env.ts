@@ -12,6 +12,10 @@ const booleanStringSchema = z
 	.transform((value) => value === "true");
 
 const optionalSecretSchema = z.string().min(1).optional();
+const optionalGuestBudgetSchema = z
+	.string()
+	.regex(/^(?:[1-9][0-9]*|unlimited)$/)
+	.optional();
 const optionalPayPalPlanIdSchema = z
 	.string()
 	.regex(/^P-[A-Z0-9-]+$/)
@@ -102,14 +106,8 @@ const rawServerEnvironmentSchema = z.object({
 	GUEST_MEDIA_ENABLED: booleanStringSchema,
 	GUEST_PROMOTION_PERIOD: z.string().trim().min(1).optional(),
 	GUEST_COST_EVIDENCE_ID: z.string().trim().min(1).optional(),
-	GUEST_HARD_BUDGET_MICROS: z
-		.string()
-		.regex(/^[1-9][0-9]*$/)
-		.optional(),
-	GUEST_RISK_BUDGET_MICROS: z
-		.string()
-		.regex(/^[1-9][0-9]*$/)
-		.optional(),
+	GUEST_HARD_BUDGET_MICROS: optionalGuestBudgetSchema,
+	GUEST_RISK_BUDGET_MICROS: optionalGuestBudgetSchema,
 	GUEST_TURNSTILE_SECRET_KEY: optionalSecretSchema,
 	NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY: optionalSecretSchema,
 	MEDIA_TRUSTED_PROXY_PROVIDER: z.enum(["vercel", "cloudflare"]).optional(),
@@ -204,6 +202,12 @@ export function validateServerEnvironment(
 ): ServerEnvironment {
 	const parsed = rawServerEnvironmentSchema.parse(input);
 	const issues: string[] = [];
+	if (
+		(parsed.GUEST_RISK_BUDGET_MICROS === "unlimited") !==
+		(parsed.GUEST_HARD_BUDGET_MICROS === "unlimited")
+	) {
+		issues.push("GUEST_UNLIMITED_BUDGET_REQUIRES_BOTH_LIMITS");
+	}
 	const checkoutPaymentProviders = getCheckoutPaymentProviders(parsed);
 	const stripeLegacyLifecycleStatus = getStripeLegacyLifecycleStatus(parsed);
 	if (parsed.MEDIA_SAFETY_ADAPTER === "test" && !parsed.MEDIA_ALLOW_TEST_SAFETY_ADAPTER) {

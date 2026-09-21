@@ -1,3 +1,4 @@
+import { getGuestRiskBudgetMicros } from "./guest-media";
 import { parseEzPicLaunchEvidence, type EzPicLaunchEvidence } from "./launch-evidence";
 import { IMAGE_SKU_KEYS_BY_PRODUCT, type ImageSkuKey } from "./product";
 import {
@@ -205,7 +206,7 @@ function guestProductionConfigurationCheck(
 		typeof environment.GUEST_TURNSTILE_SECRET_KEY === "string" &&
 		environment.GUEST_TURNSTILE_SECRET_KEY.length >= 16 &&
 		["cloudflare", "vercel"].includes(String(environment.MEDIA_TRUSTED_PROXY_PROVIDER)) &&
-		positiveIntegerString(environment.GUEST_RISK_BUDGET_MICROS) !== null &&
+		getGuestRiskBudgetMicros(environment) !== 0n &&
 		Boolean(evidenceId) &&
 		Boolean(runtimeEvidenceId);
 	return complete

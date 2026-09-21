@@ -120,7 +120,7 @@ interface GuestAdmissionConfig {
 		maximumRequestsPerIpPerHour: number;
 		maximumGlobalQueueDepth: number;
 	};
-	riskBudgetMicros: bigint;
+	riskBudgetMicros: bigint | null;
 	abuseHmac: {
 		keyVersion: string | null;
 		secretKey: string | null;

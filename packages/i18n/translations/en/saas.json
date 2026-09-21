@@ -120,6 +120,7 @@
 					"off": "Disabled"
 				},
 				"states": {
+					"unlimited": "No spending cap",
 					"ok": "Normal",
 					"warn": "Warning",
 					"slow": "Admission slowed",

@@ -87,7 +87,7 @@ export interface CreateGuestGenerationTransactionInput {
 	maximumGlobalRequestsPerHour?: number;
 	maximumGlobalRequestsPerDay?: number;
 	abuseEvidenceTtlMs: number;
-	riskBudgetMicros: bigint;
+	riskBudgetMicros: bigint | null;
 	sponsorCredits: bigint;
 	assetModeration: {
 		provider: string;
@@ -1068,11 +1068,11 @@ async function guestRiskAdmissionAction(
 			},
 		},
 	});
-	const hardLimit = existing
-		? existing.hardLimitMicros < input.riskBudgetMicros
-			? existing.hardLimitMicros
-			: input.riskBudgetMicros
-		: input.riskBudgetMicros;
+	const hardLimit = effectiveGuestRiskLimit(
+		input.riskBudgetMicros,
+		existing?.hardLimitMicros ?? null,
+	);
+	if (hardLimit === null) return "OPEN";
 	const projectedRiskMicros =
 		(existing?.reservedMicros ?? 0n) +
 		(existing?.consumedMicros ?? 0n) +
@@ -1096,16 +1096,16 @@ async function holdQuotedRisk(
 			},
 		},
 	});
-	const hardLimit = existing
-		? existing.hardLimitMicros < input.riskBudgetMicros
-			? existing.hardLimitMicros
-			: input.riskBudgetMicros
-		: input.riskBudgetMicros;
+	const hardLimit = effectiveGuestRiskLimit(
+		input.riskBudgetMicros,
+		existing?.hardLimitMicros ?? null,
+	);
 	const aggregateExpiresAt =
 		existing && existing.expiresAt > expiresAt ? existing.expiresAt : expiresAt;
 	if (
 		risk <= 0n ||
-		(existing?.reservedMicros ?? 0n) + (existing?.consumedMicros ?? 0n) + risk > hardLimit
+		(hardLimit !== null &&
+			(existing?.reservedMicros ?? 0n) + (existing?.consumedMicros ?? 0n) + risk > hardLimit)
 	) {
 		throw new Error("GUEST_RISK_CAPACITY");
 	}
@@ -1130,6 +1130,12 @@ async function holdQuotedRisk(
 			version: { increment: 1 },
 		},
 	});
+}
+
+function effectiveGuestRiskLimit(configured: bigint | null, stored: bigint | null): bigint | null {
+	if (configured === null) return stored;
+	if (stored === null) return configured;
+	return configured < stored ? configured : stored;
 }
 
 function guestAdmissionDenialReason(error: unknown): GuestAdmissionDenialReason | null {
@@ -1203,7 +1209,7 @@ function validateAdmissionInput(input: CreateGuestGenerationTransactionInput): v
 		if (!Number.isSafeInteger(value) || value <= 0) throw new Error("GUEST_CONFIGURATION_ERROR");
 	}
 	if (
-		input.riskBudgetMicros <= 0n ||
+		(input.riskBudgetMicros !== null && input.riskBudgetMicros <= 0n) ||
 		input.quote.expiresAt <= input.now ||
 		Number.isNaN(input.turnstile.challengeTimestamp.getTime()) ||
 		input.turnstile.expiresAt <= input.turnstile.challengeTimestamp ||

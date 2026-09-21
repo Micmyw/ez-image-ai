@@ -3,6 +3,7 @@ export * from "./credit-packs.server";
 export * from "./fingerprint";
 export {
 	getGuestMediaConfig,
+	getGuestRiskBudgetMicros,
 	GUEST_MEDIA_SPONSOR_CREDITS,
 	guestAbuseHmacKeyIdentity,
 	isLocalProductionBuildE2EEnvironment,

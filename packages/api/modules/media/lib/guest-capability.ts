@@ -120,7 +120,7 @@ function createGuestCapabilityVersion(
 		config.limits.maximumRequestsPerMinute,
 		config.limits.maximumRequestsPerIpPerHour,
 		config.limits.maximumGlobalQueueDepth,
-		config.riskBudgetMicros.toString(),
+		config.riskBudgetMicros?.toString() ?? "unlimited",
 		config.productionEvidence.costEvidenceId ?? "",
 		config.productionEvidence.hardBudgetMicros?.toString() ?? "",
 		config.turnstile.required,

@@ -1,5 +1,6 @@
 import { getCatalogEntry, getCatalogImageSpecCell } from "@repo/ai";
 import { EZPIC_PRODUCT_KEYS, IMAGE_ASPECT_RATIOS, IMAGE_SKU_KEYS } from "@repo/config";
+import { getGuestRiskBudgetMicros } from "@repo/config/server";
 import {
 	type AdminSafeImageProductDefinition,
 	getAdminGrowthOperations,
@@ -157,8 +158,8 @@ const guestDiagnosticsSchema = z.object({
 		expiredBeforeDispatch: aggregateCountSchema,
 	}),
 	risk: z.object({
-		utilizationPercent: z.number().min(0),
-		state: z.enum(["OK", "WARN", "SLOW", "CLOSED", "EXHAUSTED"]),
+		utilizationPercent: z.number().min(0).nullable(),
+		state: z.enum(["OK", "WARN", "SLOW", "CLOSED", "EXHAUSTED", "UNLIMITED"]),
 	}),
 	sponsorCredits: z.object({
 		granted: aggregateMicrosSchema,
@@ -372,7 +373,7 @@ export const adminMediaDiagnostics = adminProcedure
 		const diagnostics = await getAdminMediaDiagnostics(db, {
 			guestEnvironmentEnabled: process.env.GUEST_MEDIA_ENABLED === "true",
 			guestPromotionPeriod: process.env.GUEST_PROMOTION_PERIOD ?? "",
-			guestRiskBudgetMicros: guestRiskBudgetMicros(process.env.GUEST_RISK_BUDGET_MICROS),
+			guestRiskBudgetMicros: getGuestRiskBudgetMicros(process.env),
 		});
 		return adminMediaDiagnosticsOutputSchema.parse(diagnostics);
 	});
@@ -423,8 +424,3 @@ export const listUncertainGenerationAttempts = adminProcedure
 			ADMIN_SAFE_IMAGE_PRODUCTS,
 		),
 	}));
-
-function guestRiskBudgetMicros(value: string | undefined): bigint {
-	if (!value || !/^[1-9][0-9]*$/.test(value)) return 0n;
-	return BigInt(value);
-}

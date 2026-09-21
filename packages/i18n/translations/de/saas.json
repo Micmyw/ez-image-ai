@@ -120,6 +120,7 @@
 					"off": "Deaktiviert"
 				},
 				"states": {
+					"unlimited": "Kein Ausgabenlimit",
 					"ok": "Normal",
 					"warn": "Warnung",
 					"slow": "Zulassung verlangsamt",

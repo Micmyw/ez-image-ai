@@ -31,7 +31,7 @@ function bigintRatio(numerator: bigint, denominator: bigint): number | null {
 export interface GuestOperationalSafetyInput {
 	heldRiskMicros: bigint;
 	committedRiskMicros: bigint;
-	riskBudgetMicros: bigint;
+	riskBudgetMicros: bigint | null;
 	queueDepth: number;
 	oldestQueueAgeSeconds: number;
 	uncertainOlderThanTenMinutes: number;
@@ -43,25 +43,28 @@ export interface GuestOperationalSafetyInput {
 
 export function evaluateGuestOperationalSafety(input: GuestOperationalSafetyInput) {
 	const usedRiskMicros = input.heldRiskMicros + input.committedRiskMicros;
-	const budgetConfigured = input.riskBudgetMicros > 0n;
-	const utilizationPercent = budgetConfigured
-		? Number((usedRiskMicros * 10_000n) / input.riskBudgetMicros) / 100
-		: 100;
-	const riskState =
-		utilizationPercent >= 100
+	const budget = input.riskBudgetMicros;
+	const unlimited = budget === null;
+	const budgetConfigured = budget === null || budget > 0n;
+	const utilizationPercent =
+		budget === null ? null : budget > 0n ? Number((usedRiskMicros * 10_000n) / budget) / 100 : 100;
+	const thresholdPercent = utilizationPercent ?? 0;
+	const riskState = unlimited
+		? ("UNLIMITED" as const)
+		: thresholdPercent >= 100
 			? ("EXHAUSTED" as const)
-			: utilizationPercent >= 90
+			: thresholdPercent >= 90
 				? ("CLOSED" as const)
-				: utilizationPercent >= 75
+				: thresholdPercent >= 75
 					? ("SLOW" as const)
-					: utilizationPercent >= 50
+					: thresholdPercent >= 50
 						? ("WARN" as const)
 						: ("OK" as const);
 	const warnings: string[] = [];
 	const closureReasons: string[] = [];
 	if (!budgetConfigured) closureReasons.push("RISK_BUDGET_CONFIGURATION");
-	else if (utilizationPercent >= 90) closureReasons.push("RISK_BUDGET");
-	else if (utilizationPercent >= 50) warnings.push("RISK_BUDGET");
+	else if (thresholdPercent >= 90) closureReasons.push("RISK_BUDGET");
+	else if (thresholdPercent >= 50) warnings.push("RISK_BUDGET");
 	if (input.queueDepth >= 25) closureReasons.push("QUEUE_DEPTH");
 	else if (input.queueDepth > 20) warnings.push("QUEUE_DEPTH");
 	if (input.oldestQueueAgeSeconds >= 600) closureReasons.push("QUEUE_AGE");
@@ -74,11 +77,11 @@ export function evaluateGuestOperationalSafety(input: GuestOperationalSafetyInpu
 	if (input.overdueCleanupAssets > 0) closureReasons.push("CLEANUP_OVERDUE");
 
 	const admissionAction =
-		utilizationPercent >= 100
+		thresholdPercent >= 100
 			? ("REJECT" as const)
 			: closureReasons.length > 0
 				? ("CLOSE" as const)
-				: utilizationPercent >= 75
+				: thresholdPercent >= 75
 					? ("SLOW" as const)
 					: warnings.length > 0
 						? ("WARN" as const)
@@ -99,7 +102,7 @@ export function evaluateGuestOperationalSafety(input: GuestOperationalSafetyInpu
 export interface AdminMediaDiagnosticsOptions {
 	guestEnvironmentEnabled?: boolean;
 	guestPromotionPeriod?: string;
-	guestRiskBudgetMicros?: bigint;
+	guestRiskBudgetMicros?: bigint | null;
 }
 
 export interface MonitorGuestOperationalSafetyOptions extends AdminMediaDiagnosticsOptions {
@@ -867,7 +870,8 @@ async function getAdminGuestDiagnostics(
 	const safety = evaluateGuestOperationalSafety({
 		heldRiskMicros: row.heldRiskMicros,
 		committedRiskMicros: row.committedRiskMicros,
-		riskBudgetMicros: options.guestRiskBudgetMicros ?? 0n,
+		riskBudgetMicros:
+			options.guestRiskBudgetMicros === undefined ? 0n : options.guestRiskBudgetMicros,
 		queueDepth: Number(row.queueDepth),
 		oldestQueueAgeSeconds: Math.round(row.oldestQueueAgeSeconds ?? 0),
 		uncertainOlderThanTenMinutes: Number(row.uncertainOlderThanTenMinutes),

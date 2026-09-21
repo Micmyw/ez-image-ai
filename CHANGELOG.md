@@ -2,6 +2,11 @@
 
 ## 2026-09-21
 
+### Optional unlimited guest promotion budget
+
+- Support an explicitly uncapped shared guest budget while retaining two free edits per guest per UTC day, rate limits and private moderated results.
+- Continue reserving and recording guest costs. Uncapped promotions do not slow or close admission at spending thresholds; the admin panel shows "No spending cap".
+
 ### Two daily guest edits
 
 - Offer two sponsored Nano Banana 2 Lite 1K edits per UTC calendar day, with one image and five sponsored Credits per edit. Unused daily edits do not roll over.

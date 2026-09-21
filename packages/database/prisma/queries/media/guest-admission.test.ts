@@ -3,6 +3,20 @@ import { describe, expect, it, vi } from "vitest";
 import { createGuestGenerationTransaction, getGuestJobSnapshot } from "./guest-admission";
 
 describe("guest admission credit contract", () => {
+	it("accepts a null budget as uncapped while still entering the normal transaction", async () => {
+		const reached = new Error("TRANSACTION_REACHED");
+		const transaction = vi.fn(async () => {
+			throw reached;
+		});
+		await expect(
+			createGuestGenerationTransaction(
+				{ ...guestInput(5n), riskBudgetMicros: null },
+				clientWith(transaction),
+				vi.fn() as never,
+			),
+		).rejects.toBe(reached);
+		expect(transaction).toHaveBeenCalledOnce();
+	});
 	it("accepts the current five-credit sponsor value at the database boundary", async () => {
 		const transactionReached = new Error("TRANSACTION_REACHED");
 		const transaction = vi.fn(async () => {

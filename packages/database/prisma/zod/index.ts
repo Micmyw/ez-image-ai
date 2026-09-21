@@ -1391,7 +1391,7 @@ export const GuestRiskBudgetBucketSchema = z.object({
   subjectHash: z.string(),
   reservedMicros: z.bigint().default(BigInt("0")),
   consumedMicros: z.bigint().default(BigInt("0")),
-  hardLimitMicros: z.bigint(),
+  hardLimitMicros: z.bigint().nullish(),
   expiresAt: z.date(),
   version: z.number().int(),
   updatedAt: z.date(),

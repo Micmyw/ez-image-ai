@@ -1127,7 +1127,8 @@ model GuestRiskBudgetBucket {
   subjectHash     String
   reservedMicros  BigInt   @default(0)
   consumedMicros  BigInt   @default(0)
-  hardLimitMicros BigInt
+  /// null means an explicitly uncapped promotion; costs are still reserved and recorded.
+  hardLimitMicros BigInt?
   expiresAt       DateTime @db.Timestamptz(3)
   version         Int      @default(0)
   updatedAt       DateTime @updatedAt @db.Timestamptz(3)

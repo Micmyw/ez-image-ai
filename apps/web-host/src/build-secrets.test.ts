@@ -12,6 +12,31 @@ const unpackValues = (variables: ReturnType<typeof packCloudflareBuildEnvironmen
 	Object.fromEntries(Object.entries(variables).map(([key, item]) => [key, item.value]));
 
 describe("Cloudflare build secret transport", () => {
+	it("supports an explicit paired unlimited override and preserves unrelated production secrets", () => {
+		expect(
+			parseEnv(
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV:
+						"PRIVATE_KEY=unchanged\nGUEST_RISK_BUDGET_MICROS=200000\nGUEST_HARD_BUDGET_MICROS=200000\n",
+					GUEST_RISK_BUDGET_MICROS: "unlimited",
+					GUEST_HARD_BUDGET_MICROS: "unlimited",
+				}),
+			),
+		).toEqual({
+			PRIVATE_KEY: "unchanged",
+			GUEST_RISK_BUDGET_MICROS: "unlimited",
+			GUEST_HARD_BUDGET_MICROS: "unlimited",
+		});
+	});
+	it("rejects a partial unlimited build override", () => {
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV:
+					"GUEST_RISK_BUDGET_MICROS=200000\nGUEST_HARD_BUDGET_MICROS=200000\n",
+				GUEST_HARD_BUDGET_MICROS: "unlimited",
+			}),
+		).toThrow("CLOUDFLARE_GUEST_BUDGET_OVERRIDE_INVALID");
+	});
 	it("updates the guest risk budget within the existing hard cap without changing other secrets", () => {
 		expect(
 			parseEnv(
