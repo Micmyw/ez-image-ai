@@ -129,7 +129,7 @@ export function getGuestMediaConfig(
 	const configuredRiskBudgetMicros = getGuestRiskBudgetMicros(environment);
 	const unlimitedBudget = configuredRiskBudgetMicros === null;
 	const riskBudgetMicros =
-		configuredRiskBudgetMicros === 0n ? 350_000n : configuredRiskBudgetMicros;
+		configuredRiskBudgetMicros === BigInt(0) ? BigInt(350_000) : configuredRiskBudgetMicros;
 	const siteKey = normalizedNonEmptyString(environment.NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY);
 	const secretKey = normalizedNonEmptyString(environment.GUEST_TURNSTILE_SECRET_KEY);
 	const proxyProvider = trustedProxyProvider(environment.MEDIA_TRUSTED_PROXY_PROVIDER);
@@ -174,7 +174,7 @@ export function getGuestMediaConfig(
 	} else if (
 		productionControlsRequired &&
 		configuredRiskBudgetMicros !== null &&
-		(configuredRiskBudgetMicros === 0n || configuredRiskBudgetMicros > BigInt(350_000))
+		(configuredRiskBudgetMicros === BigInt(0) || configuredRiskBudgetMicros > BigInt(350_000))
 	) {
 		reason = "GUEST_CONFIGURATION_INVALID";
 	} else if (productionControlsRequired && productionEnvelope === null) {
@@ -228,9 +228,9 @@ export function getGuestRiskBudgetMicros(environment: Record<string, unknown>): 
 	const risk = environment.GUEST_RISK_BUDGET_MICROS;
 	const hard = environment.GUEST_HARD_BUDGET_MICROS;
 	if (risk === "unlimited" || hard === "unlimited") {
-		return risk === "unlimited" && hard === "unlimited" ? null : 0n;
+		return risk === "unlimited" && hard === "unlimited" ? null : BigInt(0);
 	}
-	return positiveBigInt(risk) ?? 0n;
+	return positiveBigInt(risk) ?? BigInt(0);
 }
 
 export function guestAbuseHmacKeyIdentity(secret: string): string {

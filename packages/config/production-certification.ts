@@ -206,7 +206,7 @@ function guestProductionConfigurationCheck(
 		typeof environment.GUEST_TURNSTILE_SECRET_KEY === "string" &&
 		environment.GUEST_TURNSTILE_SECRET_KEY.length >= 16 &&
 		["cloudflare", "vercel"].includes(String(environment.MEDIA_TRUSTED_PROXY_PROVIDER)) &&
-		getGuestRiskBudgetMicros(environment) !== 0n &&
+		getGuestRiskBudgetMicros(environment) !== BigInt(0) &&
 		Boolean(evidenceId) &&
 		Boolean(runtimeEvidenceId);
 	return complete
