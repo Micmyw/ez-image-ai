@@ -3,6 +3,20 @@ import { describe, expect, it, vi } from "vitest";
 import { createGuestGenerationTransaction, getGuestJobSnapshot } from "./guest-admission";
 
 describe("guest admission credit contract", () => {
+	it.each([undefined, "unlimited", 0n, -1n])(
+		"rejects a missing or invalid internal budget %s before opening a transaction",
+		async (budget) => {
+			const transaction = vi.fn();
+			await expect(
+				createGuestGenerationTransaction(
+					{ ...guestInput(5n), riskBudgetMicros: budget as never },
+					clientWith(transaction),
+					vi.fn() as never,
+				),
+			).rejects.toThrow("GUEST_CONFIGURATION_ERROR");
+			expect(transaction).not.toHaveBeenCalled();
+		},
+	);
 	it("accepts a null budget as uncapped while still entering the normal transaction", async () => {
 		const reached = new Error("TRANSACTION_REACHED");
 		const transaction = vi.fn(async () => {

@@ -1209,7 +1209,8 @@ function validateAdmissionInput(input: CreateGuestGenerationTransactionInput): v
 		if (!Number.isSafeInteger(value) || value <= 0) throw new Error("GUEST_CONFIGURATION_ERROR");
 	}
 	if (
-		(input.riskBudgetMicros !== null && input.riskBudgetMicros <= 0n) ||
+		(input.riskBudgetMicros !== null &&
+			(typeof input.riskBudgetMicros !== "bigint" || input.riskBudgetMicros <= 0n)) ||
 		input.quote.expiresAt <= input.now ||
 		Number.isNaN(input.turnstile.challengeTimestamp.getTime()) ||
 		input.turnstile.expiresAt <= input.turnstile.challengeTimestamp ||
