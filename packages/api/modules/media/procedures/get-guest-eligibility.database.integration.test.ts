@@ -11,7 +11,10 @@ const testEnvironment = vi.hoisted(() => ({
 const capabilityMocks = vi.hoisted(() => ({ loadGuestCapability: vi.fn() }));
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
-vi.mock("../lib/guest-capability", () => capabilityMocks);
+vi.mock("../lib/guest-capability", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../lib/guest-capability")>()),
+	...capabilityMocks,
+}));
 vi.mock("@repo/database/client", async () => {
 	const connectionString = safeTestDatabaseUrl(
 		testEnvironment.testDatabaseUrl,
@@ -44,7 +47,15 @@ describe("getGuestEligibility claimed draft database boundary", () => {
 			session: { id: "guest-session-placeholder", userId: "guest-placeholder" },
 		} as never);
 		capabilityMocks.loadGuestCapability.mockResolvedValue({
-			config: { enabled: true, promotionPeriod: "launch-task-5" },
+			config: {
+				enabled: true,
+				promotionPeriod: "launch-task-5",
+				limits: {
+					maximumAcceptedTrialsPerSessionPerDay: 2,
+					maximumAcceptedTrialsPerDevicePerDay: 2,
+				},
+				abuseHmac: { secretKey: "test-secret", keyVersion: "test-v1" },
+			},
 			snapshot: { version: "guest-task-5" },
 		});
 	});
@@ -65,6 +76,7 @@ describe("getGuestEligibility claimed draft database boundary", () => {
 		).resolves.toMatchObject({
 			eligible: true,
 			reason: "AVAILABLE",
+			dailyAllowance: { limit: 2, remaining: 2 },
 			claimedDraft: {
 				sourceAssetId: fixture.assetId,
 				prompt: "Replace the background with a violet studio",

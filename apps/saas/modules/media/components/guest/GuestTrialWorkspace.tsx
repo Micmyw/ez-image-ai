@@ -41,7 +41,9 @@ export function GuestTrialWorkspace({ registered = false }: { registered?: boole
 
 	function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
-		const consumedTurnstileToken = turnstileToken;
+		const consumedTurnstileToken = GUEST_TURNSTILE_SITE_KEY
+			? turnstileToken
+			: `${LOCAL_TURNSTILE_EVIDENCE}-${crypto.randomUUID()}`;
 		void trial.actions.submit(consumedTurnstileToken);
 		if (GUEST_TURNSTILE_SITE_KEY) resetChallenge();
 	}

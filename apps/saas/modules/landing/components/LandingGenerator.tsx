@@ -477,7 +477,9 @@ export function LandingGenerator() {
 		const attemptKey = createAttemptKey();
 		try {
 			validateLandingImageFile(file, maximumBytes);
-			const consumedTurnstileToken = turnstileToken;
+			const consumedTurnstileToken = GUEST_TURNSTILE_SITE_KEY
+				? turnstileToken
+				: `${LOCAL_TURNSTILE_EVIDENCE}-${crypto.randomUUID()}`;
 			if (GUEST_TURNSTILE_SITE_KEY) resetChallenge();
 			const handoff = await uploadGuestDraft({
 				capabilityVersion: capability.version,

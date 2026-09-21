@@ -71,7 +71,9 @@ test("anonymous Nano Banana 2 Lite trial is private, accessible, responsive, and
 	await expect(main.getByRole("button", { name: /create account/i })).toBeVisible();
 	await expect(page.getByRole("link", { name: /history|assets|edits/i })).toHaveCount(0);
 	await expect(page.getByText(/edit again/i)).toHaveCount(0);
-	await expect(page.getByText("Today: 1 of 2 free edits remaining", { exact: true })).toBeVisible();
+	await expect(page.getByRole("status").filter({ hasText: /^Today:/ })).toContainText(
+		"Today: 1 of 2 free edits remaining",
+	);
 	await expect
 		.poll(
 			async () => {
@@ -87,12 +89,16 @@ test("anonymous Nano Banana 2 Lite trial is private, accessible, responsive, and
 	await page.getByRole("link", { name: "Edit another image", exact: true }).click();
 	const secondPrompt = `${prompt} second daily edit`;
 	await enterGuestWorkspace(page, secondPrompt);
-	await expect(page.getByText("Today: 1 of 2 free edits remaining", { exact: true })).toBeVisible();
+	await expect(page.getByRole("status").filter({ hasText: /^Today:/ })).toContainText(
+		"Today: 1 of 2 free edits remaining",
+	);
 	await page.getByRole("button", { name: /start my nano banana edit/i }).click();
 	await expect(page.locator("#guest-result-region").getByRole("img")).toBeVisible({
 		timeout: 60_000,
 	});
-	await expect(page.getByText("Today: 0 of 2 free edits remaining", { exact: true })).toBeVisible();
+	await expect(page.getByRole("status").filter({ hasText: /^Today:/ })).toContainText(
+		"Today: 0 of 2 free edits remaining",
+	);
 	await expect(page.getByRole("link", { name: "Edit another image", exact: true })).toHaveCount(0);
 	await expect(page.getByText(/used today’s two free edits/i)).toBeVisible();
 

@@ -96,6 +96,23 @@ describe("deployment profiles", () => {
 			imageSightengine: false,
 		});
 	});
+	it("replaces obsolete lifetime guest limits with daily limits in Worker bindings", () => {
+		const environment = workersRuntimeEnvironment({
+			GUEST_SESSION_MAX_ACCEPTED_TRIALS: "1",
+			GUEST_DEVICE_MAX_ACCEPTED_PER_PROMOTION: "1",
+			GUEST_SESSION_MAX_ACCEPTED_PER_DAY: "2",
+			GUEST_DEVICE_MAX_ACCEPTED_PER_DAY: "2",
+			GUEST_IP_MAX_PER_10_MINUTES: "2",
+		});
+		expect(environment).toEqual({
+			NODE_ENV: "production",
+			EZPIC_RUNTIME: "workers",
+			EZPIC_DATABASE_BINDING: "hyperdrive",
+			GUEST_SESSION_MAX_ACCEPTED_PER_DAY: "2",
+			GUEST_DEVICE_MAX_ACCEPTED_PER_DAY: "2",
+			GUEST_IP_MAX_PER_10_MINUTES: "2",
+		});
+	});
 	it.each<Record<string, string>>([
 		{ MEDIA_SAFETY_ADAPTER: "sightengine" },
 		{ MEDIA_SAFETY_ADAPTER: "configured", MODERATION_TEXT_SIGHTENGINE_ENABLED: "true" },

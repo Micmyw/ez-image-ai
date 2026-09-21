@@ -62,6 +62,37 @@ describe("retired Worker bindings", () => {
 		).resolves.toEqual({ versionId: "current-version", retired: [] });
 		expect(request).toHaveBeenCalledTimes(1);
 	});
+	it("retires lifetime guest limits while preserving daily limits and unrelated settings", async () => {
+		const oldLimits = [
+			{ name: "GUEST_SESSION_MAX_ACCEPTED_TRIALS", type: "secret_text" },
+			{ name: "GUEST_DEVICE_MAX_ACCEPTED_PER_PROMOTION", type: "plain_text" },
+		];
+		const preserved = [
+			{ name: "GUEST_SESSION_MAX_ACCEPTED_PER_DAY", type: "secret_text" },
+			{ name: "GUEST_DEVICE_MAX_ACCEPTED_PER_DAY", type: "secret_text" },
+			{ name: "GUEST_IP_MAX_PER_10_MINUTES", type: "secret_text" },
+			...staged.bindings,
+		];
+		const request = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(
+				response({ id: "current-version", bindings: [...oldLimits, ...preserved] }),
+			)
+			.mockResolvedValueOnce(response({ id: "daily-version", bindings: preserved }));
+		await expect(
+			stageRetiredWorkerBindings(
+				{ ...options, nextBindingNames: preserved.map(({ name }) => name) },
+				request,
+			),
+		).resolves.toEqual({
+			versionId: "daily-version",
+			retired: oldLimits.map(({ name }) => name),
+		});
+		expect(JSON.parse(request.mock.calls[1]![1]!.body as string).env).toEqual({
+			GUEST_SESSION_MAX_ACCEPTED_TRIALS: null,
+			GUEST_DEVICE_MAX_ACCEPTED_PER_PROMOTION: null,
+		});
+	});
 	it("does not create another intermediate version when cleanup already succeeded", async () => {
 		const request = vi.fn<typeof fetch>().mockResolvedValue(response(staged));
 		await expect(stageRetiredWorkerBindings(options, request)).resolves.toEqual({
