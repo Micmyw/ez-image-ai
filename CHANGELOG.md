@@ -16,6 +16,7 @@
 ### EzImageAI branding
 
 - Unify public pages, the editor, account screens, product documentation, credit labels and email branding under EzImageAI.
+- Apply the public brand during production builds so page titles stay consistent with the EzImageAI interface.
 - Keep the homepage's image-editing heading and canonical URLs, add consistent Open Graph site names, and identify EzImageAI with linked WebSite and Organization structured data.
 - Update newly generated guest-image watermarks to EzImageAI in both image-processing runtimes.
 

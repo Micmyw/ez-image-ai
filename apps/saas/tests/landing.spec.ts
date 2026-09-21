@@ -973,7 +973,8 @@ test("creator workflow movement can be paused and resumed", async ({ page }) => 
 	await workflows.scrollIntoViewIfNeeded();
 	await page.mouse.move(0, 0);
 	await expect(track).toHaveCSS("animation-play-state", "running");
-	await track.locator("li").first().hover();
+	// Hover the stationary viewport; a looping card never passes Playwright's stability check.
+	await workflows.locator(".creator-workflows-viewport").first().hover();
 	await expect(track).toHaveCSS("animation-play-state", "paused");
 	await page.mouse.move(0, 0);
 	await expect(track).toHaveCSS("animation-play-state", "running");

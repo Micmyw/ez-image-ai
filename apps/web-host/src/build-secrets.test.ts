@@ -12,6 +12,32 @@ const unpackValues = (variables: ReturnType<typeof packCloudflareBuildEnvironmen
 	Object.fromEntries(Object.entries(variables).map(([key, item]) => [key, item.value]));
 
 describe("Cloudflare build secret transport", () => {
+	it("updates the public brand without replacing unrelated production configuration", () => {
+		const source = "PRIVATE_KEY=unchanged\nNEXT_PUBLIC_SITE_NAME=EzPic\nBILLING_ENABLED=true\n";
+		expect(
+			parseEnv(
+				readCloudflareBuildEnvironment({
+					...unpackValues(packCloudflareBuildEnvironment(source)),
+					NEXT_PUBLIC_SITE_NAME: "EzImageAI",
+				}),
+			),
+		).toEqual({
+			PRIVATE_KEY: "unchanged",
+			NEXT_PUBLIC_SITE_NAME: "EzImageAI",
+			BILLING_ENABLED: "true",
+		});
+	});
+	it.each(["", "EzImageAI\nPRIVATE_KEY=changed", '"EzImageAI"', "x".repeat(101)])(
+		"rejects an invalid public brand override: %s",
+		(brand) => {
+			expect(() =>
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "PRIVATE_KEY=unchanged\n",
+					NEXT_PUBLIC_SITE_NAME: brand,
+				}),
+			).toThrow("CLOUDFLARE_PUBLIC_BRAND_OVERRIDE_INVALID");
+		},
+	);
 	it("supports an explicit paired unlimited override and preserves unrelated production secrets", () => {
 		expect(
 			parseEnv(

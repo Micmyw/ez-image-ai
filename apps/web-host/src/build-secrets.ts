@@ -33,13 +33,24 @@ export function packCloudflareBuildEnvironment(source: string) {
 }
 
 export function readCloudflareBuildEnvironment(environment: Record<string, string | undefined>) {
-	return withGuestBudgetOverride(
-		withGuestQuotaOverrides(
-			withModerationOverrides(unpackCloudflareBuildEnvironment(environment), environment),
+	return withPublicBrandOverride(
+		withGuestBudgetOverride(
+			withGuestQuotaOverrides(
+				withModerationOverrides(unpackCloudflareBuildEnvironment(environment), environment),
+				environment,
+			),
 			environment,
 		),
 		environment,
 	);
+}
+
+function withPublicBrandOverride(source: string, environment: Record<string, string | undefined>) {
+	const brand = environment.NEXT_PUBLIC_SITE_NAME;
+	if (brand === undefined) return source;
+	if (!/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,99}$/.test(brand) || brand.trim() !== brand)
+		throw new Error("CLOUDFLARE_PUBLIC_BRAND_OVERRIDE_INVALID");
+	return `${source}\nNEXT_PUBLIC_SITE_NAME="${brand}"\n`;
 }
 
 function withGuestBudgetOverride(source: string, environment: Record<string, string | undefined>) {
