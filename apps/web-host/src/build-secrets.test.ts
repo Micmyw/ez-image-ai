@@ -12,6 +12,41 @@ const unpackValues = (variables: ReturnType<typeof packCloudflareBuildEnvironmen
 	Object.fromEntries(Object.entries(variables).map(([key, item]) => [key, item.value]));
 
 describe("Cloudflare build secret transport", () => {
+	it("updates the guest risk budget within the existing hard cap without changing other secrets", () => {
+		expect(
+			parseEnv(
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV:
+						"PRIVATE_KEY=unchanged\nGUEST_RISK_BUDGET_MICROS=40000\nGUEST_HARD_BUDGET_MICROS=200000\n",
+					GUEST_RISK_BUDGET_MICROS: "200000",
+				}),
+			),
+		).toEqual({
+			PRIVATE_KEY: "unchanged",
+			GUEST_RISK_BUDGET_MICROS: "200000",
+			GUEST_HARD_BUDGET_MICROS: "200000",
+		});
+	});
+	it.each(["0", "-1", "200001", "unlimited", "200000\nPRIVATE_KEY=changed"])(
+		"rejects invalid or excessive guest budget overrides: %s",
+		(budget) => {
+			expect(() =>
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "GUEST_HARD_BUDGET_MICROS=200000\n",
+					GUEST_RISK_BUDGET_MICROS: budget,
+					GUEST_HARD_BUDGET_MICROS: "999999999",
+				}),
+			).toThrow("CLOUDFLARE_GUEST_BUDGET_OVERRIDE_INVALID");
+		},
+	);
+	it("requires an existing hard cap before accepting a guest budget override", () => {
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: "PRIVATE_KEY=unchanged\n",
+				GUEST_RISK_BUDGET_MICROS: "200000",
+			}),
+		).toThrow("CLOUDFLARE_GUEST_BUDGET_OVERRIDE_INVALID");
+	});
 	it("overrides only the three daily guest limits without rewriting production secrets", () => {
 		const limits = {
 			GUEST_SESSION_MAX_ACCEPTED_PER_DAY: "2",

@@ -126,8 +126,16 @@ Worker `versions/latest` 的 JSON Merge Patch，将上述已停用绑定从最�
 构建入口将这三项覆盖到现有环境包，不需要重写机密分段。新的每日配置替代旧的
 `GUEST_SESSION_MAX_ACCEPTED_TRIALS` 和 `GUEST_DEVICE_MAX_ACCEPTED_PER_PROMOTION`。
 每日按 UTC 00:00（北京时间 08:00）重置，不累积；每次仍代付 5 积分。
-并发上限仍为每游客/设备 1 个任务，预算、风险、全局流量、IP 每日及子网限制保持原值。
+并发上限仍为每游客/设备 1 个任务；每日次数与全站成本预算、全局流量、IP 每日及子网限制分别生效。
 回滚旧代码会恢复每活动期最多一次的应用限制；已有多次试用记录必须保留，不能重建旧唯一索引。
+
+用户批准调整全站游客成本预算后，可在两个原生构建中同步设置普通变量
+`GUEST_RISK_BUDGET_MICROS`（例如 `200000` 表示本轮总预算 $0.20）。构建只覆盖这一项，
+并要求其为正整数且不超过原始环境包里的 `GUEST_HARD_BUDGET_MICROS`。
+同时更新本地生产环境文件；已有 `guest_risk_budget_bucket` 还会独立限制额度，需在
+`guest-promotion:<promotionPeriod>` 事务锁下调整其 `hardLimitMicros` 并追加审计记录。
+保留 `reservedMicros`、`consumedMicros` 和过期时间，不清空历史消费或更换活动标识来绕过限制。
+此预算不是每天自动发放的用户积分，也不因每日两次额度刷新而自动重置。
 
 2026 年 9 月 14 日按用户要求移除目录认证版本硬门槛。发布、模型目录、生产配置检查和
 任务调度都不再读取 `MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS`。现有构建机密中的旧值

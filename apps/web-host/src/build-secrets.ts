@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { parseEnv } from "node:util";
 
 const variableName = "CLOUDFLARE_PRODUCTION_ENV";
 const partPrefix = `${variableName}_PART_`;
@@ -32,10 +33,22 @@ export function packCloudflareBuildEnvironment(source: string) {
 }
 
 export function readCloudflareBuildEnvironment(environment: Record<string, string | undefined>) {
-	return withGuestQuotaOverrides(
-		withModerationOverrides(unpackCloudflareBuildEnvironment(environment), environment),
+	return withGuestBudgetOverride(
+		withGuestQuotaOverrides(
+			withModerationOverrides(unpackCloudflareBuildEnvironment(environment), environment),
+			environment,
+		),
 		environment,
 	);
+}
+
+function withGuestBudgetOverride(source: string, environment: Record<string, string | undefined>) {
+	const budget = environment.GUEST_RISK_BUDGET_MICROS;
+	if (budget === undefined) return source;
+	const hardCap = parseEnv(source).GUEST_HARD_BUDGET_MICROS ?? "";
+	if (!/^[1-9]\d*$/.test(budget) || !/^[1-9]\d*$/.test(hardCap) || BigInt(budget) > BigInt(hardCap))
+		throw new Error("CLOUDFLARE_GUEST_BUDGET_OVERRIDE_INVALID");
+	return `${source}\nGUEST_RISK_BUDGET_MICROS=${budget}\n`;
 }
 
 function withGuestQuotaOverrides(source: string, environment: Record<string, string | undefined>) {
