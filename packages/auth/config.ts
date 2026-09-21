@@ -38,6 +38,7 @@ export const config = {
 			"history",
 			"icon.png",
 			"image-proxy",
+			"image-to-image",
 			"llms-full.txt",
 			"llms.mdx",
 			"llms.txt",

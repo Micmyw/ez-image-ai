@@ -1,7 +1,88 @@
 {
+	"imageToImage": {
+		"name": "Image to Image AI",
+		"title": "Image to Image AI Generator",
+		"subtitle": "Upload a reference image and describe what to keep or change.",
+		"home": "Home",
+		"breadcrumb": "Breadcrumb",
+		"navigationDescription": "Transform a reference image with a prompt.",
+		"referenceLabel": "Reference image · required",
+		"referenceNotice": "Add a reference image to start an image-to-image edit.",
+		"loading": "Loading your workspace…",
+		"how": {
+			"title": "How to generate an image from another image",
+			"description": "Start with a photo, sketch, or illustration. Your reference supplies the starting point; your prompt describes the changes.",
+			"steps": {
+				"upload": {
+					"title": "Upload your reference",
+					"body": "Add a JPEG, PNG, or WebP that you have permission to use. Choose a clear image so important details are easy to see."
+				},
+				"prompt": {
+					"title": "Describe what stays and what changes",
+					"body": "Name the subject to keep, then describe the new background, lighting, colors, or style. Select the available model and output settings."
+				},
+				"generate": {
+					"title": "Generate, compare, and refine",
+					"body": "Check the credits or guest allowance shown before generating. Compare the result with your reference and adjust your prompt for another edit."
+				}
+			}
+		},
+		"useCases": {
+			"title": "Image-to-image prompts for your next idea",
+			"intro": "Use these starting prompts with your own reference image. Change the details to fit your subject and review each result.",
+			"background": {
+				"title": "Give a product a new background",
+				"body": "Explore a different setting while asking to preserve the product's shape, color, and label.",
+				"prompt": "Keep the product, its shape, color, and label. Replace the background with a warm beige studio backdrop and add a soft natural shadow."
+			},
+			"portrait": {
+				"title": "Change the light in a portrait",
+				"body": "Describe the lighting and mood you want, along with the facial details and framing to retain.",
+				"prompt": "Keep the person's facial features, hairstyle, clothing, and framing. Change the lighting to soft golden-hour light with gentle shadows."
+			},
+			"style": {
+				"title": "Explore another visual style",
+				"body": "Try a watercolor, illustration, or other style through your prompt, using the same source as your starting point.",
+				"prompt": "Reinterpret this image as a soft watercolor illustration. Keep the main subject, composition, and color palette, and add subtle paper texture."
+			}
+		},
+		"promptLabel": "Example prompt",
+		"usePrompt": "Use this prompt",
+		"guide": {
+			"title": "A good reference and a specific prompt work together",
+			"body": "Start with one clear change. Describe important details to preserve, avoid conflicting instructions, and check small text, faces, and edges in the result. Image to image uses a reference; creating an entirely new scene from words alone is available in the general workspace after sign-in.",
+			"link": "Read the image editing guide",
+			"textToImage": "Create from a text prompt"
+		},
+		"faq": {
+			"title": "Image to image AI: questions answered",
+			"definition": {
+				"question": "What is an image to image AI generator?",
+				"answer": "It creates a new image using an existing image and a written instruction. You can ask for changes to a background, lighting, objects, or visual style. The reference guides the result, while the selected model and settings affect how the instruction is interpreted."
+			},
+			"free": {
+				"question": "Can I use image to image AI for free?",
+				"answer": "Eligible visitors can try reference editing when the sponsored guest queue is available. Guest results are watermarked and kept for up to 24 hours. A registered Free account has a separate monthly credit allowance. Check the current allowance and model access in the workspace or pricing page; free access is limited."
+			},
+			"control": {
+				"question": "Will the result keep every detail of my original image?",
+				"answer": "Exact preservation is not guaranteed. State which details matter, keep the requested change specific, and compare the result with your original. Faces, lettering, logos, and fine edges may need another edit or manual review."
+			},
+			"privacy": {
+				"question": "Are my uploaded images and results public?",
+				"answer": "Your reference images and results stay private rather than appearing in a public gallery. Guest media is temporary. Account media follows the retention and deletion rules described in the privacy policy."
+			},
+			"limits": {
+				"question": "Can I change the style without a fixed template?",
+				"answer": "Yes. Describe the style in your prompt instead of selecting from a fixed template list. Content safety, legal requirements, model capabilities, upload limits, and usage allowances still apply."
+			}
+		},
+		"pricing": "See free and paid options",
+		"startAgain": "Start with your image"
+	},
 	"blog": {
 		"description": "Practical guides to AI image editing prompts, private uploads, and reviewing your results.",
-		"title": "EzPic guides",
+		"title": "EzImageAI guides",
 		"back": "Back to blog"
 	},
 	"changelog": {
@@ -26,11 +107,11 @@
 		"title": "Documentation"
 	},
 	"faq": {
-		"description": "Clear answers about guest availability, image models, EzPic Credits, private media, billing, and responsible use.",
+		"description": "Clear answers about guest availability, image models, EzImageAI Credits, private media, billing, and responsible use.",
 		"title": "Frequently asked questions",
 		"items": {
 			"restrictions": {
-				"question": "What does “AI image editor with prompt no restrictions” mean on EzPic?",
+				"question": "What does “AI image editor with prompt no restrictions” mean on EzImageAI?",
 				"answer": "It means flexible prompt editing instead of a fixed template list. Describe what to preserve and what to change, keep your images private, and review credits before confirming. Content safety checks, legal requirements, model capabilities, and plan limits still apply; it does not mean uncensored or unlimited free generation."
 			},
 			"guestAvailability": {
@@ -39,7 +120,7 @@
 			},
 			"guestVsFree": {
 				"question": "What is the difference between Guest and Free?",
-				"answer": "Guest access offers two sponsored Nano Banana 2 Lite 1K edits per day, with private watermarked results kept for up to 24 hours. A registered Free account separately receives 25 EzPic Credits each month, enough for up to five Nano Banana 2 Lite 1K edits. GPT Image 2 and Seedream 5 Pro require a paid plan."
+				"answer": "Guest access offers two sponsored Nano Banana 2 Lite 1K edits per day, with private watermarked results kept for up to 24 hours. A registered Free account separately receives 25 EzImageAI Credits each month, enough for up to five Nano Banana 2 Lite 1K edits. GPT Image 2 and Seedream 5 Pro require a paid plan."
 			},
 			"editTiers": {
 				"question": "Which image models and output settings are available?",
@@ -55,7 +136,7 @@
 			},
 			"privateUploads": {
 				"question": "Are uploaded images public?",
-				"answer": "No. Guest and account inputs and outputs are private, not posted to a public gallery. The configured retention target for account inputs and outputs is 30 days. EzPic may send only the minimum content needed to configured infrastructure and image-processing services."
+				"answer": "No. Guest and account inputs and outputs are private, not posted to a public gallery. The configured retention target for account inputs and outputs is 30 days. EzImageAI may send only the minimum content needed to configured infrastructure and image-processing services."
 			},
 			"formats": {
 				"question": "Do I need to upload a reference image?",
@@ -63,15 +144,15 @@
 			},
 			"outputBehavior": {
 				"question": "Will every result be unique and exact?",
-				"answer": "No. Results can contain defects or resemble other images. EzPic does not guarantee uniqueness, fitness for a particular purpose, or freedom from third-party rights."
+				"answer": "No. Results can contain defects or resemble other images. EzImageAI does not guarantee uniqueness, fitness for a particular purpose, or freedom from third-party rights."
 			},
 			"stableTiers": {
-				"question": "Why do image models use different EzPic Credit amounts?",
-				"answer": "Each image model has its own legal output-setting matrix and EzPic Credit amount. EzPic shows the product name, supported settings, and exact charge; private service routing and operating costs stay on the server."
+				"question": "Why do image models use different EzImageAI Credit amounts?",
+				"answer": "Each image model has its own legal output-setting matrix and EzImageAI Credit amount. EzImageAI shows the product name, supported settings, and exact charge; private service routing and operating costs stay on the server."
 			},
 			"annualBilling": {
 				"question": "How does annual billing affect credits?",
-				"answer": "Pro is $190 per year, Ultimate is $490, and Max is $790. EzPic Credits are still issued monthly—700 for Pro, 1,800 for Ultimate, and 3,000 for Max—and unused credits do not roll over."
+				"answer": "Pro is $190 per year, Ultimate is $490, and Max is $790. EzImageAI Credits are still issued monthly—700 for Pro, 1,800 for Ultimate, and 3,000 for Max—and unused credits do not roll over."
 			},
 			"cancelSubscription": {
 				"question": "How do I cancel my subscription?",
@@ -79,11 +160,11 @@
 			},
 			"refundPolicy": {
 				"question": "How are refunds handled?",
-				"answer": "Refund eligibility depends on the payment terms, transaction status, and applicable law. Contact support for review; EzPic does not promise a refund where one does not apply."
+				"answer": "Refund eligibility depends on the payment terms, transaction status, and applicable law. Contact support for review; EzImageAI does not promise a refund where one does not apply."
 			},
 			"commercialUse": {
 				"question": "Can I use edited images commercially?",
-				"answer": "Before commercial use, you must have the rights to every input and independently check the applicable terms, law, and third-party rights. Guest results are temporary and watermarked; EzPic does not claim that any output is automatically cleared for commercial use."
+				"answer": "Before commercial use, you must have the rights to every input and independently check the applicable terms, law, and third-party rights. Guest results are temporary and watermarked; EzImageAI does not claim that any output is automatically cleared for commercial use."
 			}
 		}
 	},
@@ -99,7 +180,7 @@
 			"freeQueue": "2 free edits daily · watermarked · available for up to 24 hours",
 			"qualityAccess": "{model} requires sign-in and a Pro, Ultimate, or Max plan.",
 			"temporaryResult": "Your preview stays private and temporary.",
-			"temporarySessionDisclosure": "EzPic creates a temporary session for this trial, keeps guest media for up to 24 hours, and uses pseudonymous abuse signals for the policy period described in our Privacy Policy.",
+			"temporarySessionDisclosure": "EzImageAI creates a temporary session for this trial, keeps guest media for up to 24 hours, and uses pseudonymous abuse signals for the policy period described in our Privacy Policy.",
 			"qualityCta": "More image models · paid plan",
 			"retryChallenge": "Retry verification",
 			"characterCount": "{count, number} / {maximum, number}",
@@ -115,7 +196,7 @@
 				"outputFormat": "Output format",
 				"background": "Background",
 				"modeControlsQuality": "Controlled by the selected model and SKU",
-				"credits": "EzPic Credits",
+				"credits": "EzImageAI Credits",
 				"optionLabels": {
 					"1k": "1K",
 					"2k": "2K",
@@ -198,13 +279,13 @@
 				"quality": {
 					"label": "More image models",
 					"badge": "Paid account",
-					"description": "Each model keeps its own verified output settings and EzPic Credit amount",
+					"description": "Each model keeps its own verified output settings and EzImageAI Credit amount",
 					"access": "Pro, Ultimate, or Max plan required"
 				}
 			},
 			"loginNotice": "Sign in to generate from text. The button shows the credit cost before you start. With a reference image, the sponsored Nano Banana 2 Lite guest edit remains available when the guest queue is open.",
 			"previewCaption": "Source preview",
-			"previewPlaceholderAlt": "Original EzPic vector illustration of a neutral reading studio",
+			"previewPlaceholderAlt": "Original EzImageAI vector illustration of a neutral reading studio",
 			"previewAlt": "Preview of {fileName}",
 			"privateLabel": "Private draft",
 			"floating": {
@@ -236,7 +317,7 @@
 			"listLabel": "Illustrative creator story cards",
 			"columnLabel": "Creator story column {number, number} of {total, number}",
 			"directionLabel": "Sample edit brief",
-			"disclaimer": "These composite profiles illustrate possible EzPic workflows. They are not customer testimonials, published case studies, or promised results.",
+			"disclaimer": "These composite profiles illustrate possible EzImageAI workflows. They are not customer testimonials, published case studies, or promised results.",
 			"cards": {
 				"ecommerce": {
 					"name": "Mina I.",
@@ -310,7 +391,7 @@
 			"usePrompt": "Use this prompt",
 			"promptAdded": "Prompt added",
 			"usePromptLabel": "Use the {title} prompt",
-			"provenanceNote": "Original images created separately for visual inspiration. They are not presented as EzPic outputs; actual results depend on your source image and prompt.",
+			"provenanceNote": "Original images created separately for visual inspiration. They are not presented as EzImageAI outputs; actual results depend on your source image and prompt.",
 			"items": {
 				"mediterranean": {
 					"tag": "Interior",
@@ -389,7 +470,7 @@
 		"supportedEdits": {
 			"eyebrow": "Supported edits",
 			"title": "Direct the change while keeping your source image",
-			"description": "EzPic supports prompt-guided edits to an uploaded JPEG, PNG, or WebP. Results depend on the source and instruction, so review each output before use.",
+			"description": "EzImageAI supports prompt-guided edits to an uploaded JPEG, PNG, or WebP. Results depend on the source and instruction, so review each output before use.",
 			"items": {
 				"background": {
 					"title": "Background changes",
@@ -467,7 +548,7 @@
 		"trust": {
 			"eyebrow": "Clear boundaries",
 			"title": "Private by default, metered by design",
-			"description": "When the sponsored guest queue is available, the homepage can start up to two Nano Banana 2 Lite 1K edits per day. Account edits show the credit cost on the button and check safety and price before reserving EzPic Credits.",
+			"description": "When the sponsored guest queue is available, the homepage can start up to two Nano Banana 2 Lite 1K edits per day. Account edits show the credit cost on the button and check safety and price before reserving EzImageAI Credits.",
 			"items": {
 				"privacy": {
 					"title": "Private media",
@@ -475,7 +556,7 @@
 				},
 				"credits": {
 					"title": "Controlled usage",
-					"description": "Guest Nano Banana edits use the sponsored queue; account edits show the EzPic Credit amount on the button. A price change requires your confirmation before starting."
+					"description": "Guest Nano Banana edits use the sponsored queue; account edits show the EzImageAI Credit amount on the button. A price change requires your confirmation before starting."
 				},
 				"safety": {
 					"title": "Normal safeguards",
@@ -496,13 +577,13 @@
 			"subtitle": "Upload a source image, describe the change, and review the credit cost before you create an edited result.",
 			"getStarted": "Start editing",
 			"documentation": "Product guide",
-			"imageAlt": "EzPic private image-editing workspace",
+			"imageAlt": "EzImageAI private image-editing workspace",
 			"builtWith": "A focused image-editing workflow"
 		},
 		"features": {
 			"badge": "Image-editing workflow",
 			"title": "From source image to controlled edit",
-			"description": "EzPic keeps the edit prompt, model-specific output settings, EzPic Credits, and private assets in one focused workspace.",
+			"description": "EzImageAI keeps the edit prompt, model-specific output settings, EzImageAI Credits, and private assets in one focused workspace.",
 			"feature1": {
 				"title": "Directed edits",
 				"subtitle": "Describe the change instead of rebuilding the image.",
@@ -517,7 +598,7 @@
 				},
 				"benefit3": {
 					"title": "Model-specific settings",
-					"description": "Choose from EzPic’s available image models; each keeps its own verified output settings and EzPic Credit amount."
+					"description": "Choose from EzImageAI’s available image models; each keeps its own verified output settings and EzImageAI Credit amount."
 				}
 			},
 			"feature2": {
@@ -540,7 +621,7 @@
 		},
 		"pricing": {
 			"title": "Free AI image editing and paid plans",
-			"description": "Start with 25 monthly EzPic Credits on a Free account. Nano Banana 2 Lite 1K uses 5 credits per edit—up to five edits a month. Paid plans offer more credits and additional image models."
+			"description": "Start with 25 monthly EzImageAI Credits on a Free account. Nano Banana 2 Lite 1K uses 5 credits per edit—up to five edits a month. Paid plans offer more credits and additional image models."
 		},
 		"guides": {
 			"quickStart": "Start your first edit",
@@ -556,8 +637,8 @@
 					"answer": "When the sponsored guest queue is available, eligible visitors can make two Nano Banana 2 Lite 1K image edits per day without signing up. Upload a reference image and describe your change. Each result is private, watermarked, and available for up to 24 hours. The allowance resets at 00:00 UTC; unused edits do not roll over. Text-to-image generation requires sign-in."
 				},
 				"guestVsFree": {
-					"question": "Can I use EzPic as a free AI image editor?",
-					"answer": "Yes. A registered Free account receives 25 EzPic Credits each month for eligible edits. Separately, guests can make two sponsored edits per day when the queue is available. “No Restrictions” means flexible prompt editing beyond fixed templates; content safety, legal, model, and usage limits still apply."
+					"question": "Can I use EzImageAI as a free AI image editor?",
+					"answer": "Yes. A registered Free account receives 25 EzImageAI Credits each month for eligible edits. Separately, guests can make two sponsored edits per day when the queue is available. “No Restrictions” means flexible prompt editing beyond fixed templates; content safety, legal, model, and usage limits still apply."
 				}
 			}
 		}
@@ -574,7 +655,7 @@
 			}
 		},
 		"submit": "Subscribe",
-		"subtitle": "Receive occasional EzPic product and image-editing updates.",
+		"subtitle": "Receive occasional EzImageAI product and image-editing updates.",
 		"title": "Product updates"
 	},
 	"notFound": {

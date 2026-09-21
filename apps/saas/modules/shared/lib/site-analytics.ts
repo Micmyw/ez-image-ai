@@ -113,7 +113,7 @@ export function startSiteAnalytics(options: SiteAnalyticsOptions): void {
 		const propertiesFor = (url: URL) => ({
 			page_location: `${url.origin}${publicPage(url) ? url.pathname : "/"}`,
 			page_referrer: referrerOrigin(document.referrer),
-			page_title: "EzPic",
+			page_title: "EzImageAI",
 		});
 		const trackPage = () => {
 			const url = new URL(browser.location.href);

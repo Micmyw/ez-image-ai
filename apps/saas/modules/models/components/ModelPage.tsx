@@ -39,7 +39,7 @@ export async function ModelPage({
 						<span aria-hidden="true">/</span>
 						<span>{model.name}</span>
 					</nav>
-					<p className="model-eyebrow">{model.family} · Create with EzPic</p>
+					<p className="model-eyebrow">{model.family} · Create with EzImageAI</p>
 					<h1>
 						{model.name}
 						<span>AI Image Generator</span>
@@ -69,7 +69,7 @@ export async function ModelPage({
 						<ModelArtwork artwork={model.artwork} sizes="(max-width: 760px) 100vw, 45vw" />
 						<figcaption>
 							<span className="model-artwork-label">Creative inspiration</span>
-							<span>Original EzPic concept artwork</span>
+							<span>Original EzImageAI concept artwork</span>
 						</figcaption>
 					</figure>
 					<div className="model-story-copy">
@@ -101,7 +101,7 @@ export async function ModelPage({
 						)}
 						<figure>
 							<ModelArtwork artwork={model.exampleArtwork} sizes="(max-width: 760px) 90vw, 42vw" />
-							<figcaption>{before ? "Color study" : "Original EzPic concept"}</figcaption>
+							<figcaption>{before ? "Color study" : "Original EzImageAI concept"}</figcaption>
 						</figure>
 					</div>
 					<div className="model-example-content">
@@ -163,7 +163,7 @@ export async function ModelPage({
 				</section>
 				<ModelRecommendations model={model} />
 				<footer className="model-footer">
-					<Link href="/">EzPic</Link>
+					<Link href="/">EzImageAI</Link>
 					<PublicFooterLinks className="model-footer-links" />
 				</footer>
 			</main>

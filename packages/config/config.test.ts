@@ -452,7 +452,7 @@ describe("server media limits", () => {
 });
 
 describe("product configuration", () => {
-	it("publishes the EzPic image-editing product contract without template branding", () => {
+	it("publishes the EzImageAI image-editing product contract without template branding", () => {
 		const publicConfig = getPublicConfig();
 
 		expect(DEFAULT_PRODUCT_CONFIG.productKeys).toEqual([
@@ -472,14 +472,14 @@ describe("product configuration", () => {
 		expect(DEFAULT_PRODUCT_CONFIG.catalogVersion).toBe("2026-09-14.1");
 		expect(DEFAULT_PRODUCT_CONFIG.pricingVersion).toBe("2026-09-13.2");
 		expect(publicConfig.brand).toMatchObject({
-			siteName: "EzPic",
+			siteName: "EzImageAI",
 			siteDescription: expect.stringMatching(/image edit/i),
 			supportEmail: null,
 		});
 		expect(publicConfig).not.toHaveProperty("publicUrls");
 	});
 
-	it("publishes the complete EzPic plan contract from one server-owned catalog", () => {
+	it("publishes the complete EzImageAI plan contract from one server-owned catalog", () => {
 		expect(
 			PLAN_ENTITLEMENTS.map(
 				({

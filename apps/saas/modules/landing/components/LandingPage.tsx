@@ -181,7 +181,7 @@ export async function LandingPage({
 				<div className="gap-5 sm:flex-row sm:text-left container flex flex-col items-center justify-between text-center">
 					<div>
 						<Logo
-							className="text-white [&_svg]:text-violet-400"
+							className="text-white [&_svg]:text-violet-400 [&>span]:block"
 							label={publicConfig.brand.siteName}
 						/>
 						<p className="mt-2 max-w-lg text-xs leading-5 text-slate-400">

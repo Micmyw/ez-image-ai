@@ -12,7 +12,7 @@ export const metadata = createPublicPageMetadata({
 	path: "/models",
 	title: "AI Image Models — Find Your Creative Direction",
 	description:
-		"Explore GPT Image, Nano Banana, and Seedream in EzPic. Find creative directions, original inspiration, and a workspace for text to image and reference editing.",
+		"Explore GPT Image, Nano Banana, and Seedream in EzImageAI. Find creative directions, original inspiration, and a workspace for text to image and reference editing.",
 	index: true,
 });
 
@@ -21,7 +21,7 @@ export default function ModelsPage() {
 		<StudioShell>
 			<main className="model-page model-directory">
 				<section className="model-directory-hero">
-					<p className="model-eyebrow">The EzPic model collection</p>
+					<p className="model-eyebrow">The EzImageAI model collection</p>
 					<h1>
 						Find your
 						<br />
@@ -82,7 +82,7 @@ export default function ModelsPage() {
 					Open a model page to explore prompts and check current workspace availability.
 				</p>
 				<footer className="model-footer">
-					<Link href="/">EzPic</Link>
+					<Link href="/">EzImageAI</Link>
 					<PublicFooterLinks className="model-footer-links" />
 				</footer>
 			</main>

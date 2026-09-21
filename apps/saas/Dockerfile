@@ -16,7 +16,7 @@ RUN --mount=type=cache,id=ezpic-jobs-pnpm,target=/pnpm/store \
     --network-concurrency=8 --fetch-timeout=300000
 # Public build arguments only. Runtime secrets never enter the image build.
 ARG NEXT_PUBLIC_SAAS_URL
-ARG NEXT_PUBLIC_SITE_NAME=EzPic
+ARG NEXT_PUBLIC_SITE_NAME=EzImageAI
 ARG NEXT_PUBLIC_SITE_DESCRIPTION="Private prompt-based AI image editing with transparent credits."
 ARG NEXT_PUBLIC_SUPPORT_EMAIL=""
 ARG NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION=""

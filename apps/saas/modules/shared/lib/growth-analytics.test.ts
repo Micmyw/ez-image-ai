@@ -51,7 +51,7 @@ type SaasGrowthAnalyticsModule = {
 
 const growthAnalytics = utils as typeof utils & Partial<SaasGrowthAnalyticsModule>;
 
-describe("authenticated EzPic growth funnel", () => {
+describe("authenticated EzImageAI growth funnel", () => {
 	it("emits every authenticated funnel event with enum and bucket properties only", async () => {
 		const createFunnel = growthAnalytics.createSaasGrowthFunnel;
 		expect(createFunnel).toBeTypeOf("function");
@@ -166,7 +166,7 @@ describe("authenticated EzPic growth funnel", () => {
 		"image-seedream-4-5",
 		"image-seedream-5-lite",
 		"image-seedream-5-pro",
-	])("accepts the public-safe EzPic product key %s", (productKey) => {
+	])("accepts the public-safe EzImageAI product key %s", (productKey) => {
 		expect(
 			utils.growthAnalyticsEventSchema.safeParse({
 				name: "editor_generation_confirmed",

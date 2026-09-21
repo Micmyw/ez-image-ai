@@ -2,5 +2,6 @@
 // the page's main content changes, never just because the site was rebuilt.
 export const publicPageUpdates = [
 	{ path: "/", lastModified: "2026-09-21" },
+	{ path: "/image-to-image", lastModified: "2026-09-21" },
 	{ path: "/pricing", lastModified: "2026-09-16" },
 ] as const;

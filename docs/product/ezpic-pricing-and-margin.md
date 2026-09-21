@@ -1,8 +1,8 @@
-# EzPic pricing and margin record
+# EzImageAI pricing and margin record
 
 ## Decision snapshot
 
-Image pricing version `2026-09-13.2` uses one `EzPic Credit` balance and 29 legal image-edit SKU
+Image pricing version `2026-09-13.2` uses one `EzImageAI Credit` balance and 29 legal image-edit SKU
 cells across twelve products. The plan and Credit Pack amounts below are product decisions and local
 application contracts. Kie public prices are planning inputs only; no paid Kie execution,
 reconciled bill, or production margin has been certified.
@@ -64,7 +64,7 @@ twelve monthly grant periods.
 | Max (`studio`)             |         3,000 |               10 | All 12 public image products |     20 MB |     $79 |   $790 |                  120–600 |
 
 The paid-plan ranges divide the allowance by the current maximum twenty-five-credit and minimum
-five-credit SKU and count only whole outputs. Mixed usage draws from the same EzPic Credit balance.
+five-credit SKU and count only whole outputs. Mixed usage draws from the same EzImageAI Credit balance.
 The UI displays the exact SKU charge before confirmation; it does not advertise one universal
 per-image charge. Annual prices equal ten monthly payments, so the public rounded discount is
 `-17%`.
@@ -76,7 +76,7 @@ server-only.
 
 ## Output tier pricing
 
-Higher output tiers within each model use more EzPic Credits. Retail tier prices are explicit
+Higher output tiers within each model use more EzImageAI Credits. Retail tier prices are explicit
 product prices; provider planning costs stay unchanged. Nano Banana Pro uses 19 / 22 / 25 credits
 for 1K / 2K / 4K; Seedream 4.5 uses 8 / 12 for 2K Basic / 4K High; Seedream 5 Lite uses
 7 / 10 / 14 for 2K Basic / 3K High / 4K Ultra. Other already-increasing tiers retain their prices.
@@ -92,37 +92,37 @@ prices remain unchanged by this expansion.
 Each model owns an model-specific parameter matrix. A resolution or quality choice from
 one model is never reused to construct another model's request.
 
-| Product                | SKU                         | Resolution | Quality | Kie public cost | EzPic Credits |
-| ---------------------- | --------------------------- | ---------- | ------- | --------------: | ------------: |
-| Nano Banana 2 Lite     | `nano-banana-2-lite-1k`     | 1K         | —       |         $0.0200 |             5 |
-| Nano Banana            | `nano-banana-default`       | —          | —       |         $0.0200 |             5 |
-| Nano Banana 2          | `nano-banana-2-1k`          | 1K         | —       |         $0.0400 |             9 |
-| Nano Banana 2          | `nano-banana-2-2k`          | 2K         | —       |         $0.0600 |            13 |
-| Nano Banana 2          | `nano-banana-2-4k`          | 4K         | —       |         $0.0900 |            19 |
-| Nano Banana Pro        | `nano-banana-pro-1k`        | 1K         | —       |         $0.0900 |            19 |
-| Nano Banana Pro        | `nano-banana-pro-2k`        | 2K         | —       |         $0.0900 |            22 |
-| Nano Banana Pro        | `nano-banana-pro-4k`        | 4K         | —       |         $0.1200 |            25 |
-| GPT Image 1.5          | `gpt-image-1-5-medium`      | —          | Medium  |         $0.0200 |             5 |
-| GPT Image 1.5          | `gpt-image-1-5-high`        | —          | High    |         $0.1100 |            23 |
-| GPT Image 2            | `gpt-image-2-1k`            | 1K         | —       |         $0.0300 |             7 |
-| GPT Image 2            | `gpt-image-2-2k`            | 2K         | —       |         $0.0500 |            11 |
-| GPT Image 2            | `gpt-image-2-4k`            | 4K         | —       |         $0.0800 |            17 |
-| GPT Image 2.5 Flare    | `gpt-image-2-5-flare-1k`    | 1K         | —       |         $0.0300 |             7 |
-| GPT Image 2.5 Flare    | `gpt-image-2-5-flare-2k`    | 2K         | —       |         $0.0500 |            11 |
-| GPT Image 2.5 Flare    | `gpt-image-2-5-flare-4k`    | 4K         | —       |         $0.0800 |            17 |
-| GPT Image 2.5 Sunburst | `gpt-image-2-5-sunburst-1k` | 1K         | —       |         $0.0300 |             7 |
-| GPT Image 2.5 Sunburst | `gpt-image-2-5-sunburst-2k` | 2K         | —       |         $0.0500 |            11 |
-| GPT Image 2.5 Sunburst | `gpt-image-2-5-sunburst-4k` | 4K         | —       |         $0.0800 |            17 |
-| Seedream 4.0           | `seedream-4-1k`             | 1K         | —       |         $0.0250 |             6 |
-| Seedream 4.0           | `seedream-4-2k`             | 2K         | —       |         $0.0250 |             8 |
-| Seedream 4.0           | `seedream-4-4k`             | 4K         | —       |         $0.0250 |            10 |
-| Seedream 4.5           | `seedream-4-5-basic-2k`     | 2K         | Basic   |         $0.0325 |             8 |
-| Seedream 4.5           | `seedream-4-5-high-4k`      | 4K         | High    |         $0.0325 |            12 |
-| Seedream 5 Lite        | `seedream-5-lite-basic-2k`  | 2K         | Basic   |         $0.0275 |             7 |
-| Seedream 5 Lite        | `seedream-5-lite-high-3k`   | 3K         | High    |         $0.0275 |            10 |
-| Seedream 5 Lite        | `seedream-5-lite-ultra-4k`  | 4K         | Ultra   |         $0.0275 |            14 |
-| Seedream 5 Pro         | `seedream-5-pro-basic-1k`   | 1K         | Basic   |         $0.0350 |             8 |
-| Seedream 5 Pro         | `seedream-5-pro-high-2k`    | 2K         | High    |         $0.0700 |            15 |
+| Product                | SKU                         | Resolution | Quality | Kie public cost | EzImageAI Credits |
+| ---------------------- | --------------------------- | ---------- | ------- | --------------: | ----------------: |
+| Nano Banana 2 Lite     | `nano-banana-2-lite-1k`     | 1K         | —       |         $0.0200 |                 5 |
+| Nano Banana            | `nano-banana-default`       | —          | —       |         $0.0200 |                 5 |
+| Nano Banana 2          | `nano-banana-2-1k`          | 1K         | —       |         $0.0400 |                 9 |
+| Nano Banana 2          | `nano-banana-2-2k`          | 2K         | —       |         $0.0600 |                13 |
+| Nano Banana 2          | `nano-banana-2-4k`          | 4K         | —       |         $0.0900 |                19 |
+| Nano Banana Pro        | `nano-banana-pro-1k`        | 1K         | —       |         $0.0900 |                19 |
+| Nano Banana Pro        | `nano-banana-pro-2k`        | 2K         | —       |         $0.0900 |                22 |
+| Nano Banana Pro        | `nano-banana-pro-4k`        | 4K         | —       |         $0.1200 |                25 |
+| GPT Image 1.5          | `gpt-image-1-5-medium`      | —          | Medium  |         $0.0200 |                 5 |
+| GPT Image 1.5          | `gpt-image-1-5-high`        | —          | High    |         $0.1100 |                23 |
+| GPT Image 2            | `gpt-image-2-1k`            | 1K         | —       |         $0.0300 |                 7 |
+| GPT Image 2            | `gpt-image-2-2k`            | 2K         | —       |         $0.0500 |                11 |
+| GPT Image 2            | `gpt-image-2-4k`            | 4K         | —       |         $0.0800 |                17 |
+| GPT Image 2.5 Flare    | `gpt-image-2-5-flare-1k`    | 1K         | —       |         $0.0300 |                 7 |
+| GPT Image 2.5 Flare    | `gpt-image-2-5-flare-2k`    | 2K         | —       |         $0.0500 |                11 |
+| GPT Image 2.5 Flare    | `gpt-image-2-5-flare-4k`    | 4K         | —       |         $0.0800 |                17 |
+| GPT Image 2.5 Sunburst | `gpt-image-2-5-sunburst-1k` | 1K         | —       |         $0.0300 |                 7 |
+| GPT Image 2.5 Sunburst | `gpt-image-2-5-sunburst-2k` | 2K         | —       |         $0.0500 |                11 |
+| GPT Image 2.5 Sunburst | `gpt-image-2-5-sunburst-4k` | 4K         | —       |         $0.0800 |                17 |
+| Seedream 4.0           | `seedream-4-1k`             | 1K         | —       |         $0.0250 |                 6 |
+| Seedream 4.0           | `seedream-4-2k`             | 2K         | —       |         $0.0250 |                 8 |
+| Seedream 4.0           | `seedream-4-4k`             | 4K         | —       |         $0.0250 |                10 |
+| Seedream 4.5           | `seedream-4-5-basic-2k`     | 2K         | Basic   |         $0.0325 |                 8 |
+| Seedream 4.5           | `seedream-4-5-high-4k`      | 4K         | High    |         $0.0325 |                12 |
+| Seedream 5 Lite        | `seedream-5-lite-basic-2k`  | 2K         | Basic   |         $0.0275 |                 7 |
+| Seedream 5 Lite        | `seedream-5-lite-high-3k`   | 3K         | High    |         $0.0275 |                10 |
+| Seedream 5 Lite        | `seedream-5-lite-ultra-4k`  | 4K         | Ultra   |         $0.0275 |                14 |
+| Seedream 5 Pro         | `seedream-5-pro-basic-1k`   | 1K         | Basic   |         $0.0350 |                 8 |
+| Seedream 5 Pro         | `seedream-5-pro-high-2k`    | 2K         | High    |         $0.0700 |                15 |
 
 The first release always requests one output and binds exactly one owned source image. Kie's
 Seedream 5 Pro price makes the first input image free and adds $0.0025 for each input after the
@@ -131,7 +131,7 @@ flow must freeze `referenceCount` and `max(0, referenceCount - 1) * $0.0025` in 
 silently absorbing that variable cost. The server validates the exact product/SKU/aspect-ratio tuple
 and freezes the corresponding credit and cost values in the quote. Output format and background are
 product-local request controls, not billing dimensions; choosing them does not create another SKU or
-change the EzPic Credit amount.
+change the EzImageAI Credit amount.
 
 ## Credit Pack contract
 
@@ -164,7 +164,7 @@ relevant per-product flag, and the active catalog version in
 `MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS`. A configured key or passing adapter test is not
 certification.
 
-OpenRouter Standard/Quality routes are retired from new EzPic generation. `image-fast` and
+OpenRouter Standard/Quality routes are retired from new EzImageAI generation. `image-fast` and
 `image-quality` remain only for already-frozen historical job recovery; an operator may retain
 OpenRouter in `MEDIA_RECOVERY_PROVIDERS` without placing it in `MEDIA_ENABLED_PROVIDERS`. The legacy
 `image-edit-model-benchmark.md` cannot satisfy any Kie certification or pricing gate.
@@ -172,9 +172,9 @@ OpenRouter in `MEDIA_RECOVERY_PROVIDERS` without placing it in `MEDIA_ENABLED_PR
 ## Raphael public comparison
 
 Raphael's public pricing page was used as a product-pattern comparison, not as evidence of its
-internal cost or as a target EzPic subsidy level. Raphael communicates that credit use varies by
-model; EzPic applies the same understandable wallet concept to its own explicitly listed SKU
-charges. EzPic does not infer Raphael's Provider costs, rollover rule, or apparent zero-credit
+internal cost or as a target EzImageAI subsidy level. Raphael communicates that credit use varies by
+model; EzImageAI applies the same understandable wallet concept to its own explicitly listed SKU
+charges. EzImageAI does not infer Raphael's Provider costs, rollover rule, or apparent zero-credit
 routes.
 
 ## Conservative full-use economics
@@ -184,47 +184,47 @@ These estimates use public Kie list prices plus conservative assumptions, not a 
 - payment processing: 4.5% of collected revenue plus $0.30 per charge;
 - refund/chargeback risk reserve: 1.5% of collected revenue;
 - Provider variation buffer: 15% over each Kie public SKU price;
-- EzPic runtime/storage reserve: $0.005 for an explicit 1K cell and $0.010 for 2K/3K/4K or a cell
+- EzImageAI runtime/storage reserve: $0.005 for an explicit 1K cell and $0.010 for 2K/3K/4K or a cell
   without an explicit resolution;
 - one payment charge per monthly purchase and one per annual purchase.
 
-| SKU                         | Buffered Kie cost plus EzPic reserve | Planned cost/Credit |
-| --------------------------- | -----------------------------------: | ------------------: |
-| `nano-banana-2-lite-1k`     |                            $0.028000 |           $0.005600 |
-| `nano-banana-default`       |                            $0.033000 |           $0.006600 |
-| `nano-banana-2-1k`          |                            $0.051000 |           $0.005667 |
-| `nano-banana-2-2k`          |                            $0.079000 |           $0.006077 |
-| `nano-banana-2-4k`          |                            $0.113500 |           $0.005974 |
-| `nano-banana-pro-1k`        |                            $0.108500 |           $0.005711 |
-| `nano-banana-pro-2k`        |                            $0.113500 |           $0.005159 |
-| `nano-banana-pro-4k`        |                            $0.148000 |           $0.005920 |
-| `gpt-image-1-5-medium`      |                            $0.033000 |           $0.006600 |
-| `gpt-image-1-5-high`        |                            $0.136500 |           $0.005935 |
-| `gpt-image-2-1k`            |                            $0.039500 |           $0.005643 |
-| `gpt-image-2-2k`            |                            $0.067500 |           $0.006136 |
-| `gpt-image-2-4k`            |                            $0.102000 |           $0.006000 |
-| `gpt-image-2-5-flare-1k`    |                            $0.039500 |           $0.005643 |
-| `gpt-image-2-5-flare-2k`    |                            $0.067500 |           $0.006136 |
-| `gpt-image-2-5-flare-4k`    |                            $0.102000 |           $0.006000 |
-| `gpt-image-2-5-sunburst-1k` |                            $0.039500 |           $0.005643 |
-| `gpt-image-2-5-sunburst-2k` |                            $0.067500 |           $0.006136 |
-| `gpt-image-2-5-sunburst-4k` |                            $0.102000 |           $0.006000 |
-| `seedream-4-1k`             |                            $0.033750 |           $0.005625 |
-| `seedream-4-2k`             |                            $0.038750 |           $0.004844 |
-| `seedream-4-4k`             |                            $0.038750 |           $0.003875 |
-| `seedream-4-5-basic-2k`     |                            $0.047375 |           $0.005922 |
-| `seedream-4-5-high-4k`      |                            $0.047375 |           $0.003948 |
-| `seedream-5-lite-basic-2k`  |                            $0.041625 |           $0.005946 |
-| `seedream-5-lite-high-3k`   |                            $0.041625 |           $0.004163 |
-| `seedream-5-lite-ultra-4k`  |                            $0.041625 |           $0.002973 |
-| `seedream-5-pro-basic-1k`   |                            $0.045250 |           $0.005656 |
-| `seedream-5-pro-high-2k`    |                            $0.090500 |           $0.006033 |
+| SKU                         | Buffered Kie cost plus EzImageAI reserve | Planned cost/Credit |
+| --------------------------- | ---------------------------------------: | ------------------: |
+| `nano-banana-2-lite-1k`     |                                $0.028000 |           $0.005600 |
+| `nano-banana-default`       |                                $0.033000 |           $0.006600 |
+| `nano-banana-2-1k`          |                                $0.051000 |           $0.005667 |
+| `nano-banana-2-2k`          |                                $0.079000 |           $0.006077 |
+| `nano-banana-2-4k`          |                                $0.113500 |           $0.005974 |
+| `nano-banana-pro-1k`        |                                $0.108500 |           $0.005711 |
+| `nano-banana-pro-2k`        |                                $0.113500 |           $0.005159 |
+| `nano-banana-pro-4k`        |                                $0.148000 |           $0.005920 |
+| `gpt-image-1-5-medium`      |                                $0.033000 |           $0.006600 |
+| `gpt-image-1-5-high`        |                                $0.136500 |           $0.005935 |
+| `gpt-image-2-1k`            |                                $0.039500 |           $0.005643 |
+| `gpt-image-2-2k`            |                                $0.067500 |           $0.006136 |
+| `gpt-image-2-4k`            |                                $0.102000 |           $0.006000 |
+| `gpt-image-2-5-flare-1k`    |                                $0.039500 |           $0.005643 |
+| `gpt-image-2-5-flare-2k`    |                                $0.067500 |           $0.006136 |
+| `gpt-image-2-5-flare-4k`    |                                $0.102000 |           $0.006000 |
+| `gpt-image-2-5-sunburst-1k` |                                $0.039500 |           $0.005643 |
+| `gpt-image-2-5-sunburst-2k` |                                $0.067500 |           $0.006136 |
+| `gpt-image-2-5-sunburst-4k` |                                $0.102000 |           $0.006000 |
+| `seedream-4-1k`             |                                $0.033750 |           $0.005625 |
+| `seedream-4-2k`             |                                $0.038750 |           $0.004844 |
+| `seedream-4-4k`             |                                $0.038750 |           $0.003875 |
+| `seedream-4-5-basic-2k`     |                                $0.047375 |           $0.005922 |
+| `seedream-4-5-high-4k`      |                                $0.047375 |           $0.003948 |
+| `seedream-5-lite-basic-2k`  |                                $0.041625 |           $0.005946 |
+| `seedream-5-lite-high-3k`   |                                $0.041625 |           $0.004163 |
+| `seedream-5-lite-ultra-4k`  |                                $0.041625 |           $0.002973 |
+| `seedream-5-pro-basic-1k`   |                                $0.045250 |           $0.005656 |
+| `seedream-5-pro-high-2k`    |                                $0.090500 |           $0.006033 |
 
 Nano Banana Default and GPT Image 1.5 Medium tie for the highest conservative planning cost per
-EzPic Credit at `$0.006600`. The higher reserve is intentional because neither cell exposes a
+EzImageAI Credit at `$0.006600`. The higher reserve is intentional because neither cell exposes a
 resolution parameter; treating either as 1K would understate an unverified workload.
 
-The 15% buffer is a finance-planning reserve only. It is not added to the browser-visible EzPic
+The 15% buffer is a finance-planning reserve only. It is not added to the browser-visible EzImageAI
 Credit amount or silently written into a quote; the quote freezes the catalog cost, and a different
 reconciled Kie charge requires operator review.
 
@@ -283,20 +283,20 @@ test, or dry-run smoke may be substituted for those 29 cell-specific artifacts.
 The following nine output cells extend the existing twenty. Public Kie model-page prices are
 planning ceilings, not reconciled billing evidence. Existing retail SKU prices remain unchanged.
 
-| Added SKU                   | Kie planning cost | EzPic Credits |
-| --------------------------- | ----------------: | ------------: |
-| `gpt-image-2-5-flare-1k`    |            $0.030 |             7 |
-| `gpt-image-2-5-flare-2k`    |            $0.050 |            11 |
-| `gpt-image-2-5-flare-4k`    |            $0.080 |            17 |
-| `gpt-image-2-5-sunburst-1k` |            $0.030 |             7 |
-| `gpt-image-2-5-sunburst-2k` |            $0.050 |            11 |
-| `gpt-image-2-5-sunburst-4k` |            $0.080 |            17 |
-| `seedream-4-1k`             |            $0.025 |             6 |
-| `seedream-4-2k`             |            $0.025 |             8 |
-| `seedream-4-4k`             |            $0.025 |            10 |
+| Added SKU                   | Kie planning cost | EzImageAI Credits |
+| --------------------------- | ----------------: | ----------------: |
+| `gpt-image-2-5-flare-1k`    |            $0.030 |                 7 |
+| `gpt-image-2-5-flare-2k`    |            $0.050 |                11 |
+| `gpt-image-2-5-flare-4k`    |            $0.080 |                17 |
+| `gpt-image-2-5-sunburst-1k` |            $0.030 |                 7 |
+| `gpt-image-2-5-sunburst-2k` |            $0.050 |                11 |
+| `gpt-image-2-5-sunburst-4k` |            $0.080 |                17 |
+| `seedream-4-1k`             |            $0.025 |                 6 |
+| `seedream-4-2k`             |            $0.025 |                 8 |
+| `seedream-4-4k`             |            $0.025 |                10 |
 
 Seedream 4.0 uses an explicit `max_images=1`. Its upstream price is independent of resolution;
-the increasing retail output tiers include EzPic's higher-resolution processing allowance.
+the increasing retail output tiers include EzImageAI's higher-resolution processing allowance.
 Neither the screenshot's Seedream 3.5 labels nor Raphael discounts are treated as API or cost evidence.
 
 Sources checked on 2026-09-13:

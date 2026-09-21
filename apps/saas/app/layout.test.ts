@@ -9,7 +9,7 @@ vi.mock("next/font/google", () => ({
 import { metadata } from "./layout";
 
 describe("SaaS root metadata", () => {
-	it("uses the configured EzPic identity while remaining non-indexable", () => {
+	it("uses the configured EzImageAI identity while remaining non-indexable", () => {
 		expect(metadata).toMatchObject({
 			applicationName: config.appName,
 			description: config.appDescription,

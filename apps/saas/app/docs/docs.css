@@ -1,5 +1,11 @@
 @reference "../globals.css";
-/* Emit Fumadocs' safelisted utilities only in the documentation stylesheet. */
-@import "tailwindcss/utilities.css" layer(utilities) source(none);
 @import "fumadocs-ui/css/shadcn.css";
 @import "fumadocs-ui/css/preset.css";
+
+/* Route stylesheets persist after navigation. Include portaled Docs UI while
+   preventing these duplicate utilities from overriding other public pages. */
+@layer utilities {
+	@scope (:root:has(#docs-root)) {
+		@tailwind utilities source(none);
+	}
+}

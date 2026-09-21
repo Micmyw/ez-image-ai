@@ -58,7 +58,7 @@ function bindingDouble(
 }
 
 describe("Cloudflare Images processor", () => {
-	it("keeps EzPic lettering proportional on an extreme panoramic image", async () => {
+	it("keeps EzImageAI lettering proportional on an extreme panoramic image", async () => {
 		const bytes = await sharp({
 			create: { width: 12_000, height: 64, channels: 3, background: "#202020" },
 		})
@@ -87,7 +87,7 @@ describe("Cloudflare Images processor", () => {
 			}
 		}
 		expect(lastWhite - firstWhite).toBeGreaterThan(20);
-		expect(lastWhite - firstWhite).toBeLessThan(120);
+		expect(lastWhite - firstWhite).toBeLessThan(180);
 	});
 
 	it("inspects private bytes without creating a transformation", async () => {
@@ -102,7 +102,7 @@ describe("Cloudflare Images processor", () => {
 	});
 
 	it.each(["image/jpeg", "image/png", "image/webp"] as const)(
-		"draws the EzPic plate and lettering using private byte streams and returns %s",
+		"draws the EzImageAI plate and lettering using private byte streams and returns %s",
 		async (contentType) => {
 			const fake = bindingDouble();
 			const processor = createCloudflareImagesProcessor(fake.binding);

@@ -44,7 +44,7 @@ vi.mock("@repo/config/client", () => ({
 	getPublicConfig: () => ({
 		brand: {
 			siteDescription: "Private AI image editing",
-			siteName: "EzPic",
+			siteName: "EzImageAI",
 		},
 	}),
 	PLAN_ENTITLEMENTS: [
@@ -129,7 +129,7 @@ vi.mock("@repo/config/client", () => ({
 vi.mock("@config", () => ({
 	config: {
 		appDescription: "Private AI image editing",
-		appName: "EzPic",
+		appName: "EzImageAI",
 		supportEmail: "support@ezpic.test",
 	},
 }));
@@ -155,7 +155,9 @@ vi.mock("@repo/ui/components/logo", () => ({
 }));
 
 vi.mock("../modules/landing/components/LandingGenerator", () => ({
-	LandingGenerator: () => <div data-test="landing-generator" />,
+	LandingGenerator: ({ requireReference = false }: { requireReference?: boolean }) => (
+		<div data-test="landing-generator" data-require-reference={requireReference} />
+	),
 }));
 
 vi.mock("../modules/landing/components/BeforeAfterDemo", () => ({
@@ -209,6 +211,7 @@ type PublicContentModule = {
 
 const publicRoutes = [
 	{ modulePath: "./page", path: "/", robots: "index" },
+	{ modulePath: "./(public)/image-to-image/page", path: "/image-to-image", robots: "index" },
 	{ modulePath: "./(public)/pricing/page", path: "/pricing", robots: "index" },
 	{ modulePath: "./(public)/privacy/page", path: "/privacy", robots: "index" },
 	{ modulePath: "./(public)/terms/page", path: "/terms", robots: "index" },
@@ -226,6 +229,17 @@ const legalFallbackCases = [
 ] as const;
 
 describe("consolidated public route contract", () => {
+	it("gives image-to-image its own EzImageAI title and canonical", async () => {
+		const pageModule = await loadOptionalModule<PublicPageModule>("./(public)/image-to-image/page");
+		expect(pageModule).not.toBeNull();
+		if (!pageModule) return;
+		const metadata = await resolveMetadata(pageModule);
+		expect(metadata?.title).toEqual({ absolute: "Image to Image AI Generator | EzImageAI" });
+		expect(metadata?.openGraph?.title).toBe("Image to Image AI Generator | EzImageAI");
+		expect(metadata?.twitter?.title).toBe("Image to Image AI Generator | EzImageAI");
+		expectMetadata(metadata!, "/image-to-image", "index");
+	});
+
 	it.each(publicRoutes)("exports explicit metadata and one h1 for $path", async (route) => {
 		const pageModule = await loadOptionalModule<PublicPageModule>(route.modulePath);
 		expect(pageModule, `${route.path} must be implemented by apps/saas`).not.toBeNull();
@@ -320,7 +334,15 @@ describe("consolidated public route contract", () => {
 		expect(footerMarkup, "the landing page must render a footer").toBeDefined();
 		if (!footerMarkup) return;
 
-		for (const path of ["/privacy", "/terms", "/blog", "/changelog", "/contact", "/docs"]) {
+		for (const path of [
+			"/privacy",
+			"/terms",
+			"/blog",
+			"/changelog",
+			"/contact",
+			"/docs",
+			"/image-to-image",
+		]) {
 			expect(footerMarkup, `landing footer must link ${path}`).toContain(`href="${path}"`);
 		}
 	});
@@ -340,8 +362,17 @@ describe("consolidated public route contract", () => {
 		expect(structuredData).toEqual([
 			expect.objectContaining({
 				"@type": "WebSite",
-				name: "EzPic",
+				name: "EzImageAI",
+				alternateName: "EzImage AI",
 				url: `${canonicalOrigin}/`,
+				publisher: { "@id": `${canonicalOrigin}/#organization` },
+			}),
+			expect.objectContaining({
+				"@type": "Organization",
+				"@id": `${canonicalOrigin}/#organization`,
+				name: "EzImageAI",
+				url: `${canonicalOrigin}/`,
+				logo: `${canonicalOrigin}/icon.png`,
 			}),
 		]);
 		expect(JSON.stringify(structuredData)).not.toMatch(
@@ -393,8 +424,8 @@ describe("consolidated public route contract", () => {
 		}
 	});
 
-	it("reserves the docs route from organization slugs", () => {
-		expect(authConfig.organizations.forbiddenOrganizationSlugs).toContain("docs");
+	it.each(["docs", "image-to-image"])("reserves %s from organization slugs", (slug) => {
+		expect(authConfig.organizations.forbiddenOrganizationSlugs).toContain(slug);
 	});
 });
 
@@ -408,6 +439,8 @@ async function resolveMetadata(
 
 function expectMetadata(metadata: Metadata, path: string, indexing: "index" | "noindex") {
 	expect(canonicalUrl(metadata)).toBe(new URL(path, canonicalOrigin).href);
+	expect(JSON.stringify(metadata.title)).toContain("EzImageAI");
+	expect(metadata.openGraph?.siteName).toBe("EzImageAI");
 	expect(metadata.title, `${path} must have a title`).toBeTruthy();
 	expect(String(metadata.description ?? "").trim(), `${path} must have a description`).not.toBe("");
 	expect(JSON.stringify(metadata)).not.toMatch(/acme|lorem ipsum|my app/i);
@@ -512,6 +545,30 @@ describe("homepage workspace session selection", () => {
 		expect(html).toContain("data-account-gates");
 		expect(html).toContain("data-registered-boundary");
 		expect(html).toContain('id="examples"');
+		expect(html).not.toContain('data-test="landing-generator"');
+	});
+});
+
+describe("image-to-image workspace session selection", () => {
+	it.each([null, { user: { id: "trial", isAnonymous: true } }])(
+		"requires a reference in the guest editor for %j",
+		async (session) => {
+			const { default: Page } = await import("./(public)/image-to-image/page");
+			sessionMock.mockResolvedValueOnce(session);
+			const stream = await renderToReadableStream(await Page({}));
+			const html = await new Response(stream).text();
+			expect(html).toContain('data-test="landing-generator" data-require-reference="true"');
+			expect(html).not.toContain("data-registered-boundary");
+		},
+	);
+	it("keeps registered editing inside the existing account gates", async () => {
+		const { default: Page } = await import("./(public)/image-to-image/page");
+		sessionMock.mockResolvedValueOnce({ user: { id: "registered", isAnonymous: false } });
+		const stream = await renderToReadableStream(await Page({}));
+		const html = await new Response(stream).text();
+		expect(html).toContain('data-test="registered-generator"');
+		expect(html).toContain("data-account-gates");
+		expect(html).toContain("data-registered-boundary");
 		expect(html).not.toContain('data-test="landing-generator"');
 	});
 });

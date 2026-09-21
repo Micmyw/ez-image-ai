@@ -2,12 +2,12 @@
 	"publicContent": {
 		"contact": {
 			"description": "Contactez {appName} pour obtenir de l’aide ou signaler un contenu interdit.",
-			"emailCta": "Écrivez à l’opérateur d’EzPic :",
+			"emailCta": "Écrivez à l’opérateur d’EzImageAI :",
 			"unavailable": "Le support par e-mail est temporairement indisponible. Veuillez revenir plus tard.",
 			"reporting": {
 				"footerLabel": "Signaler un contenu",
 				"title": "Signaler un contenu interdit",
-				"description": "Signalez à l’opérateur d’EzPic une image IA dangereuse, une retouche interdite, une usurpation d’identité ou une atteinte aux droits. Tout le monde peut faire un signalement ; aucun compte n’est nécessaire.",
+				"description": "Signalez à l’opérateur d’EzImageAI une image IA dangereuse, une retouche interdite, une usurpation d’identité ou une atteinte aux droits. Tout le monde peut faire un signalement ; aucun compte n’est nécessaire.",
 				"emailCta": "Envoyer un signalement par e-mail",
 				"detailsTitle": "Informations à fournir",
 				"details": {
@@ -63,7 +63,7 @@
 		"media": {
 			"growth": {
 				"title": "Croissance et opérations de génération",
-				"description": "Agrégats EzPic en lecture seule sans instructions, médias privés, URL ni identifiants bruts de tâches.",
+				"description": "Agrégats EzImageAI en lecture seule sans instructions, médias privés, URL ni identifiants bruts de tâches.",
 				"all": "Tous",
 				"apply": "Appliquer les filtres",
 				"loading": "Chargement des agrégats opérationnels…",
@@ -1135,7 +1135,7 @@
 				"outputFormat": "Format de sortie",
 				"background": "Arrière-plan",
 				"modeControlsQuality": "Définie par le modèle et la SKU sélectionnés",
-				"credits": "EzPic Credits",
+				"credits": "EzImageAI Credits",
 				"optionLabels": {
 					"1k": "1K",
 					"2k": "2K",
@@ -1258,7 +1258,7 @@
 			"startsWithCapacity": "Démarre dès qu’une capacité gratuite est disponible",
 			"estimatedStart": "Début estimé : {start}",
 			"nav": {
-				"brand": "Éditeur d’images EzPic",
+				"brand": "Éditeur d’images EzImageAI",
 				"signIn": "Se connecter",
 				"createAccount": "Créer un compte"
 			},
@@ -1275,7 +1275,7 @@
 				"expired": "Ce résultat invité a expiré"
 			},
 			"errors": {
-				"eligibility": "Impossible de récupérer cette retouche invitée. Revenez sur EzPic et préparez-la à nouveau.",
+				"eligibility": "Impossible de récupérer cette retouche invitée. Revenez sur EzImageAI et préparez-la à nouveau.",
 				"submit": "Impossible d’envoyer cette retouche. Vérifiez l’étape indiquée et réessayez.",
 				"access": "Le lien privé du résultat est indisponible. Demandez-le à nouveau.",
 				"download": "Le téléchargement privé est indisponible pour le moment.",
@@ -1322,7 +1322,7 @@
 				"standardDescription": "Retouche d’image privée en 1K.",
 				"quality": "Plus de modèles d’image",
 				"qualityDescription": "Retouche d’image privée avec des réglages de sortie propres au modèle.",
-				"credits": "{credits} EzPic Credits",
+				"credits": "{credits} EzImageAI Credits",
 				"qualityUnavailable": "Passez à une offre supérieure pour utiliser ce modèle d’image. L’image, l’instruction et les réglages de sortie seront conservés.",
 				"upgrade": "Voir les options"
 			}

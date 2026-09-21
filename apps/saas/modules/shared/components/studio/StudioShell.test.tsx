@@ -35,7 +35,7 @@ vi.mock("@tanstack/react-query", async (importOriginal) => ({
 	useQuery: () => ({ data: null }),
 }));
 vi.mock("@shared/lib/orpc-client", () => ({ orpcClient: {} }));
-vi.mock("@repo/ui/components/logo", () => ({ Logo: () => <span>EzPic</span> }));
+vi.mock("@repo/ui/components/logo", () => ({ Logo: () => <span>EzImageAI</span> }));
 
 import { AppWrapper } from "../AppWrapper";
 import { StudioShell } from "./StudioShell";
@@ -61,7 +61,7 @@ describe("homepage and signed-in tool navigation", () => {
 		expect(markup).toContain('data-test="header-navigation-trigger"');
 		expect(markup).toContain('aria-label="openNavigation"');
 		expect(markup).toContain('data-workspace="false"');
-		expect(markup).toContain('aria-label="EzPic"');
+		expect(markup).toContain('aria-label="EzImageAI"');
 		expect(markup).toContain('href="/login"');
 	});
 
@@ -79,7 +79,7 @@ describe("homepage and signed-in tool navigation", () => {
 		const markup = await renderShell();
 		expect(markup).toContain('class="studio-sidebar"');
 		expect(markup).toContain('data-workspace="true"');
-		expect(markup).toContain('aria-label="EzPic" href="/"');
+		expect(markup).toContain('aria-label="EzImageAI" href="/"');
 		expect(markup).toContain('href="/history"');
 	});
 	it("server-renders account navigation through the shared error-page wrapper", async () => {

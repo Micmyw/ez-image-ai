@@ -49,7 +49,7 @@ for (let index = 0; index < pixels.length; index += 3) {
 }
 assert(
 	letteringPixels > 50,
-	"Sharp rendered a plate without visible EzPic lettering; check image fonts",
+	"Sharp rendered a plate without visible EzImageAI lettering; check image fonts",
 );
 process.stdout.write(
 	JSON.stringify({

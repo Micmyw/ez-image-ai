@@ -39,7 +39,7 @@ vi.mock("../hooks/use-media-upload", () => ({
 
 import { filterEzPicImageFiles, MediaUploader } from "./MediaUploader";
 
-describe("EzPic media uploader", () => {
+describe("EzImageAI media uploader", () => {
 	it("accepts and describes source images only", () => {
 		const markup = renderToStaticMarkup(<MediaUploader onChange={() => undefined} />);
 

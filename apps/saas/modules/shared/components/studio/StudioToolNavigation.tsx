@@ -22,6 +22,7 @@ export function StudioToolNavigation({
 	onNavigate?: () => void;
 }) {
 	const t = useTranslations("studio.tools");
+	const imageToImage = useTranslations("imageToImage");
 	const vertical = sidebar || drawer;
 	const models = useTranslations("media.create.products");
 	const pathname = usePathname();
@@ -60,6 +61,18 @@ export function StudioToolNavigation({
 				<span>
 					<strong>{t("examples")}</strong>
 					{!vertical && <small>{t("examplesDescription")}</small>}
+				</span>
+			</Link>
+			<Link
+				href="/image-to-image"
+				onClick={navigate}
+				className={vertical ? "studio-nav-link" : "studio-menu-entry"}
+				aria-current={pathname === "/image-to-image" ? "page" : undefined}
+			>
+				<ImagesIcon aria-hidden />
+				<span>
+					<strong>{imageToImage("name")}</strong>
+					{!vertical && <small>{imageToImage("navigationDescription")}</small>}
 				</span>
 			</Link>
 		</>

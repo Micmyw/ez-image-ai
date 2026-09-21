@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 const baseUrl = process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000";
 const legacyUnnamespacedEndpoints = [
-	"/api/search?query=EzPic",
+	"/api/search?query=EzImageAI",
 	"/llms.txt",
 	"/llms-full.txt",
 	"/llms.mdx",
@@ -60,13 +60,56 @@ test.describe("same-origin documentation", () => {
 		await page.goto("/docs");
 		await expect(page.locator('a[href="/docs/quick-start"]').first()).toBeVisible();
 
-		const response = await request.get("/docs/api/search?query=EzPic");
+		const response = await request.get("/docs/api/search?query=EzImageAI");
 		expect(response.status()).toBe(200);
 		expect(response.headers()["x-robots-tag"]).toBe("noindex, follow");
 		expect(response.headers()["content-type"]).toContain("application/json");
 		const body = await response.text();
 		expect(body).toContain("/docs");
 		expect(body).not.toMatch(/acme|lorem ipsum|my app/i);
+	});
+
+	test("Docs navigation preserves homepage gallery geometry", async ({ page }, testInfo) => {
+		await page.setViewportSize({ width: 1350, height: 940 });
+		await page.goto("/docs/quick-start");
+		await expect(page.locator("#nd-page")).toBeVisible();
+		await page
+			.getByRole("link", { name: "EzImageAI image editor mark EzImageAI", exact: true })
+			.click();
+		await expect(page).toHaveURL(`${baseUrl}/`);
+		await expect(page.locator("#docs-root")).toHaveCount(0);
+		await expect(page.locator("#examples-title")).toHaveCSS("font-size", "48px");
+		await expect(page.locator("#examples-title")).toHaveCSS("text-align", "left");
+
+		const cards = page.locator("#examples article");
+		await expect(cards).toHaveCount(12);
+		for (const card of await cards.all()) {
+			await card.scrollIntoViewIfNeeded();
+			const button = card.locator("button");
+			const image = card.locator("img");
+			await expect(image).toHaveJSProperty("complete", true);
+			await expect(card.locator("button > div > div")).toHaveCSS("position", "absolute");
+			const imageBox = await image.boundingBox();
+			const buttonBox = await button.boundingBox();
+			expect(Math.abs(buttonBox!.height - imageBox!.height)).toBeLessThan(2);
+		}
+		await cards.first().hover();
+		await expect(cards.first().locator("button > div > div")).toHaveCSS("opacity", "1");
+		await expect(cards.first().getByRole("heading", { level: 3 })).toBeVisible();
+		await page.screenshot({ path: testInfo.outputPath("gallery-after-docs-desktop.png") });
+
+		await page.setViewportSize({ width: 390, height: 844 });
+		for (const card of await cards.all()) {
+			await card.scrollIntoViewIfNeeded();
+			await expect(card.locator("button > div > div")).toHaveCSS("position", "relative");
+			await expect(card.locator("button > div > div")).toHaveCSS("opacity", "1");
+			await expect(card.getByRole("heading", { level: 3 })).toBeVisible();
+		}
+		expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
+			390,
+		);
+		await cards.first().scrollIntoViewIfNeeded();
+		await page.screenshot({ path: testInfo.outputPath("gallery-after-docs-mobile.png") });
 	});
 
 	test("Docs publishes namespaced LLM and raw Markdown endpoints", async ({ request }) => {
@@ -80,7 +123,7 @@ test.describe("same-origin documentation", () => {
 			expect(response.status(), endpoint).toBe(200);
 			expect(response.headers()["x-robots-tag"], endpoint).toBe("noindex, follow");
 			const body = await response.text();
-			expect(body, endpoint).toMatch(/EzPic/i);
+			expect(body, endpoint).toMatch(/EzImageAI/i);
 			expect(body, endpoint).not.toMatch(/acme|lorem ipsum|my app/i);
 		}
 	});

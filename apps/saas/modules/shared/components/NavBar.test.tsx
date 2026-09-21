@@ -83,7 +83,7 @@ vi.mock("next/navigation", () => ({ usePathname: () => "/settings/general" }));
 import { NavBar } from "./NavBar";
 
 describe("SaaS navigation", () => {
-	it("shows the EzPic editor destinations without the chatbot example", () => {
+	it("shows the EzImageAI editor destinations without the chatbot example", () => {
 		const markup = renderToStaticMarkup(<NavBar />);
 
 		for (const label of ["Create", "Edits", "History", "Assets", "Settings", "Billing"]) {
@@ -103,6 +103,6 @@ describe("SaaS navigation", () => {
 		expect(markup).not.toContain('href="/chatbot"');
 		expect(markup).not.toContain("lucide-clapperboard");
 		expect(markup).toContain("lucide-image-plus");
-		expect(markup).toContain('data-logo-label="EzPic"');
+		expect(markup).toContain('data-logo-label="EzImageAI"');
 	});
 });

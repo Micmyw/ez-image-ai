@@ -70,11 +70,16 @@ import {
 const GUEST_TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY ?? null;
 const LOCAL_TURNSTILE_EVIDENCE = "local-guest-upload";
 
-export function LandingGenerator() {
+export function LandingGenerator({
+	requireReference = false,
+}: { requireReference?: boolean } = {}) {
 	const queryClient = useQueryClient();
 	const t = useTranslations("home.generator");
 	const tCreate = useTranslations("media.create");
 	const studio = useTranslations("studio");
+	const imageToImage = useTranslations("imageToImage");
+	const referenceLabel = requireReference ? imageToImage("referenceLabel") : t("reference");
+	const uploadLabel = requireReference ? referenceLabel : `${referenceLabel}: ${t("uploadLabel")}`;
 	const generatorRef = useRef<HTMLDivElement>(null);
 	const inputRef = useRef<HTMLInputElement>(null);
 	const promptRef = useRef<HTMLTextAreaElement>(null);
@@ -241,8 +246,8 @@ export function LandingGenerator() {
 	const maximumMegabytes = Math.round(maximumBytes / 1024 / 1024);
 	const supportedMimeTypes = capability?.upload.mimeTypes ?? LANDING_IMAGE_CONTENT_TYPES;
 	const availableProducts = useMemo(
-		() => (file ? (capability?.products ?? []) : textProducts),
-		[file, capability?.products, textProducts],
+		() => (file || requireReference ? (capability?.products ?? []) : textProducts),
+		[file, requireReference, capability?.products, textProducts],
 	);
 	useEffect(() => {
 		setSelectedProductKey((current) => resolveLandingProductSelection(availableProducts, current));
@@ -260,15 +265,17 @@ export function LandingGenerator() {
 		localizedProducts.find((product) => product.key === selectedProductKey) ?? null;
 	const modelOptions = localizedProducts.map((product) => ({
 		...product,
-		requiresUpgrade: file
-			? product.accessHint === "paid-account"
-			: !getPlanEntitlement("free").allowedProducts.includes(product.key),
+		requiresUpgrade:
+			file || requireReference
+				? product.accessHint === "paid-account"
+				: !getPlanEntitlement("free").allowedProducts.includes(product.key),
 	}));
 	const selectedSku =
 		selectedProduct?.skuMatrix.cells.find((cell) => cell.skuKey === selectedSkuKey) ?? null;
-	const capabilityUsable = file
-		? Boolean(capability?.enabled && capability.products.length > 0)
-		: textProducts.length > 0;
+	const capabilityUsable =
+		file || requireReference
+			? Boolean(capability?.enabled && capability.products.length > 0)
+			: textProducts.length > 0;
 	useEffect(() => {
 		setSelectedSkuKey((current) => resolveLandingSkuSelection(selectedProduct, current));
 	}, [selectedProduct]);
@@ -293,7 +300,7 @@ export function LandingGenerator() {
 		hasSource: Boolean(file),
 		prompt,
 		turnstileReady: !file || Boolean(turnstileToken),
-		requiresSource: false,
+		requiresSource: requireReference,
 	});
 	const isBusy = disabledReason === "busy";
 	const canSubmit = disabledReason === null;
@@ -421,6 +428,10 @@ export function LandingGenerator() {
 
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
+		if (requireReference && !file) {
+			setFileError(t("fileErrors.required"));
+			return;
+		}
 		if (!file) {
 			if (!canSubmit || !selectedProduct || !selectedSku) return;
 			try {
@@ -537,7 +548,7 @@ export function LandingGenerator() {
 				? t("actions.retryAvailability")
 				: stage === "failed" && selectedProduct
 					? t("actions.retry")
-					: !file
+					: !file && !requireReference
 						? studio("generation.signIn")
 						: selectedProduct?.accessHint === "paid-account"
 							? t("actions.quality")
@@ -629,7 +640,7 @@ export function LandingGenerator() {
 					<div className="gap-1.5 sm:gap-2 sm:grid-cols-[7.5rem_minmax(0,1fr)] md:grid-cols-[8.5rem_minmax(0,1fr)] bg-black/10 p-1.5 grid grid-cols-[4.75rem_minmax(0,1fr)] rounded-[1.3rem]">
 						<section data-test="landing-source-panel" className="min-w-0 relative">
 							<label htmlFor="landing-source-image" className="sr-only">
-								{t("reference")}
+								{referenceLabel}
 							</label>
 							{file && (
 								<button
@@ -652,7 +663,7 @@ export function LandingGenerator() {
 								aria-label={
 									file
 										? t("replaceImage")
-										: `${t("reference")}: ${t("uploadLabel")}. ${t("fileHint", { megabytes: maximumMegabytes })}`
+										: `${uploadLabel}. ${t("fileHint", { megabytes: maximumMegabytes })}`
 								}
 								disabled={isBusy}
 								onClick={() => {
@@ -686,7 +697,7 @@ export function LandingGenerator() {
 											<UploadCloudIcon className="size-5" aria-hidden="true" />
 										</span>
 										<span className="max-w-24 text-sm font-semibold leading-5 text-white">
-											{t("reference")}
+											{referenceLabel}
 										</span>
 										<span className="max-w-36 leading-4 md:block hidden text-[0.68rem] text-[#94889f]">
 											{t("fileHint", { megabytes: maximumMegabytes })}
@@ -699,7 +710,7 @@ export function LandingGenerator() {
 								id="landing-source-image"
 								type="file"
 								accept={supportedMimeTypes.join(",")}
-								aria-label={t("reference")}
+								aria-label={referenceLabel}
 								aria-invalid={Boolean(fileError)}
 								disabled={isBusy}
 								className="sr-only"
@@ -793,7 +804,7 @@ export function LandingGenerator() {
 						>
 							{actionLabel}
 							{selectedSku &&
-								(!file || selectedProduct?.accessHint === "paid-account") &&
+								((!file && !requireReference) || selectedProduct?.accessHint === "paid-account") &&
 								!canRetryCapability && (
 									<span
 										data-test="generation-credit-amount"
@@ -862,7 +873,7 @@ export function LandingGenerator() {
 				{selectedProduct && capabilityUsable && (
 					<span className="gap-1.5 inline-flex items-center">
 						<SparklesIcon className="size-3.5 text-[#b79cff]" aria-hidden="true" />
-						{!file
+						{!file && !requireReference
 							? studio("generation.textHint")
 							: selectedProduct.accessHint === "paid-account"
 								? t("qualityAccess", { model: selectedProduct.label })
@@ -871,7 +882,7 @@ export function LandingGenerator() {
 				)}
 				<span className="gap-1.5 sm:ml-auto inline-flex items-center">
 					<LockKeyholeIcon className="size-3.5 text-emerald-300" aria-hidden="true" />
-					{file ? t("temporaryResult") : studio("private")}
+					{file || requireReference ? t("temporaryResult") : studio("private")}
 				</span>
 			</div>
 
@@ -1013,7 +1024,8 @@ export function LandingGenerator() {
 									>
 										{actionLabel}
 										{selectedSku &&
-											(!file || selectedProduct?.accessHint === "paid-account") &&
+											((!file && !requireReference) ||
+												selectedProduct?.accessHint === "paid-account") &&
 											!canRetryCapability && (
 												<span
 													data-test="generation-credit-amount"

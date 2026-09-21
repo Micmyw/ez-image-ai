@@ -41,15 +41,21 @@ const NotificationCenter = dynamic(() =>
 );
 const UserMenu = dynamic(() => import("../UserMenu").then((module) => module.UserMenu));
 
-export function StudioShell({ children }: { children: ReactNode }) {
+export function StudioShell({
+	children,
+	brandName = "EzImageAI",
+}: {
+	children: ReactNode;
+	brandName?: string;
+}) {
 	return (
 		<SessionProvider>
-			<StudioShellContent>{children}</StudioShellContent>
+			<StudioShellContent brandName={brandName}>{children}</StudioShellContent>
 		</SessionProvider>
 	);
 }
 
-function StudioShellContent({ children }: { children: ReactNode }) {
+function StudioShellContent({ children, brandName }: { children: ReactNode; brandName: string }) {
 	const t = useTranslations("studio");
 	const common = useTranslations("common.menu");
 	const { user } = useSession();
@@ -57,7 +63,11 @@ function StudioShellContent({ children }: { children: ReactNode }) {
 	const pathname = usePathname();
 	const showSidebar = pathname === "/create" || (registered && pathname !== "/");
 	const mobile = useIsMobile();
-	const editing = pathname === "/" || pathname === "/create" || pathname.startsWith("/models/");
+	const editing =
+		pathname === "/" ||
+		pathname === "/create" ||
+		pathname === "/image-to-image" ||
+		pathname.startsWith("/models/");
 	const [panel, setPanel] = useState<StudioPanel | null>(null);
 	const [navigationOpen, setNavigationOpen] = useState(false);
 	const opener = useRef<HTMLElement | null>(null);
@@ -156,8 +166,8 @@ function StudioShellContent({ children }: { children: ReactNode }) {
 	const sidebar = (
 		<>
 			<div className="studio-brand-row">
-				<Link href="/" aria-label="EzPic">
-					<Logo className="text-white [&_svg]:text-violet-300" label="EzPic" />
+				<Link href="/" aria-label={brandName}>
+					<Logo className="text-white [&_svg]:text-violet-300" label={brandName} />
 				</Link>
 			</div>
 			<nav className="studio-navigation" aria-label={t("navigation")}>
@@ -216,10 +226,10 @@ function StudioShellContent({ children }: { children: ReactNode }) {
 						<UserMenu showUserName studio />
 					</>
 				) : (
-					<Link className="studio-signin" href="/login">
+					<a className="studio-signin" href="/login">
 						{common("login")}
 						<span aria-hidden>↗</span>
-					</Link>
+					</a>
 				)}
 			</div>
 		</>
@@ -244,10 +254,10 @@ function StudioShellContent({ children }: { children: ReactNode }) {
 							{showSidebar && <span className="studio-workspace-title">{t("create")}</span>}
 							<Link
 								href="/"
-								aria-label="EzPic"
+								aria-label={brandName}
 								className={showSidebar ? "studio-compact-brand" : undefined}
 							>
-								<Logo className="studio-header-brand" label="EzPic" />
+								<Logo className="studio-header-brand" label={brandName} />
 							</Link>
 						</div>
 						<nav className="studio-toplinks" aria-label={t("pageNavigation")}>
@@ -271,9 +281,10 @@ function StudioShellContent({ children }: { children: ReactNode }) {
 									</div>
 								</div>
 							) : (
-								<Link className="text-sm text-violet-200" href="/login">
+								<a className="text-sm text-violet-200" href="/login">
+									{/* Reload the root locale provider when entering account routes. */}
 									{common("login")}
-								</Link>
+								</a>
 							)}
 							<HeaderNavigationMenu
 								registered={registered}

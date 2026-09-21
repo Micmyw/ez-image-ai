@@ -16,7 +16,7 @@ Use this structure as a starting point: **Change [specific part] to [desired app
 
 For example: "Replace the background with a plain warm-gray studio backdrop. Keep the blue mug, handle shape, printed logo, and camera angle unchanged. Match the soft shadow to the new background."
 
-This is a suggested instruction, not a demonstrated EzPic result. AI edits can still alter details you ask to preserve.
+This is a suggested instruction, not a demonstrated EzImageAI result. AI edits can still alter details you ask to preserve.
 
 ## Product photo: replace the setting
 
@@ -46,7 +46,7 @@ Reduce the instruction to one main change. Remove conflicting directions, such a
 
 Higher resolution changes the output size; it does not guarantee a more accurate instruction. Choose from the settings currently offered in the editor and check the credit amount before confirming.
 
-## Prepare an edit in EzPic
+## Prepare an edit in EzImageAI
 
 Open the [AI image editor](/#image-editor), choose a JPEG, PNG, or WebP source, and enter your instruction. The page checks current availability before you can continue. When the guest trial is available, it offers one private, watermarked preview; account access is required for the other editing options shown in the product.
 

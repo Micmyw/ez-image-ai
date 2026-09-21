@@ -3,6 +3,7 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 
 const publicLinks = [
+	{ href: "/image-to-image", labelKey: "imageToImage.name" },
 	{ href: "/privacy", labelKey: "common.footer.privacyPolicy" },
 	{ href: "/terms", labelKey: "common.footer.termsAndConditions" },
 	{ href: "/blog", labelKey: "common.footer.blog" },

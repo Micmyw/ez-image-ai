@@ -72,7 +72,7 @@ describe("ImageOutputSettings", () => {
 					outputFormat: "Localized output format",
 					background: "Localized background",
 					modeControlsQuality: "Localized model setting hint",
-					credits: "EzPic Credits",
+					credits: "EzImageAI Credits",
 					optionLabels: {
 						"1k": "Localized 1K",
 						"2k": "Localized 2K",
@@ -91,7 +91,7 @@ describe("ImageOutputSettings", () => {
 				/<button[^>]*data-sku-key="seedream-5-pro-high-2k"[^>]*>[\s\S]*?<\/button>/,
 			)?.[0] ?? "";
 		expect(highOption.replaceAll(/<[^>]+>/g, " ").replaceAll(/\s+/g, " ")).toContain(
-			"15 EzPic Credits",
+			"15 EzImageAI Credits",
 		);
 
 		for (const label of [
@@ -104,7 +104,7 @@ describe("ImageOutputSettings", () => {
 		]) {
 			expect(visibleText).toContain(label);
 		}
-		expect(visibleText).toContain("1K · Basic · 8 EzPic Credits");
+		expect(visibleText).toContain("1K · Basic · 8 EzImageAI Credits");
 		expect(visibleText).not.toContain("Catalog");
 	});
 
@@ -174,7 +174,7 @@ describe("ImageOutputSettings", () => {
 					outputFormat: "Localized output format",
 					background: "Localized background",
 					modeControlsQuality: "Model-specific",
-					credits: "EzPic Credits",
+					credits: "EzImageAI Credits",
 					optionLabels: {
 						"1k": "1K",
 						"2k": "2K",
@@ -189,7 +189,7 @@ describe("ImageOutputSettings", () => {
 
 		expect(visibleText).toContain("Localized background");
 		expect(visibleText).toContain("Localized transparent");
-		expect(visibleText).toContain("1K · 7 EzPic Credits");
+		expect(visibleText).toContain("1K · 7 EzImageAI Credits");
 		expect(visibleText).not.toContain("Localized output format");
 		expect(visibleText).not.toContain("Catalog background");
 	});

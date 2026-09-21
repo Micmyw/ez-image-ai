@@ -2,6 +2,24 @@
 
 ## 2026-09-21
 
+### Documentation navigation styles
+
+- Keep homepage gallery images, hover captions, and responsive headings consistent after returning from Docs.
+- Limit documentation utilities to the documentation view, including its search dialogs.
+- Restore the saved account language when opening sign-in from public desktop and mobile navigation.
+
+### EzImageAI branding
+
+- Unify public pages, the editor, account screens, product documentation, credit labels and email branding under EzImageAI.
+- Keep the homepage's image-editing heading and canonical URLs, add consistent Open Graph site names, and identify EzImageAI with linked WebSite and Organization structured data.
+- Update newly generated guest-image watermarks to EzImageAI in both image-processing runtimes.
+
+### Image to image AI page
+
+- Add `/image-to-image` with the EzImageAI title, a reference-first workspace, practical prompts, and clear free-access and privacy information.
+- Require an uploaded reference on this page while retaining text-to-image creation in the general workspace. Reuse the existing guest and account generation flows.
+- Add English canonical metadata, navigation, breadcrumbs, and sitemap discovery, with German, Spanish, and French interface translations.
+
 ### Optional unlimited guest promotion budget
 
 - Support an explicitly uncapped shared guest budget while retaining two free edits per guest per UTC day, rate limits and private moderated results.

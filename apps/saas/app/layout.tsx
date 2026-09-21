@@ -27,6 +27,7 @@ const sansFont = Plus_Jakarta_Sans({
 
 export const metadata: Metadata = {
 	applicationName: config.appName,
+	openGraph: { siteName: config.appName },
 	description: config.appDescription,
 	metadataBase: new URL(getBaseUrl()),
 	robots: {

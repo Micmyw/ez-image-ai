@@ -7,14 +7,16 @@ export function createPublicPageMetadata({
 	title,
 	description,
 	index,
+	brandName = config.appName,
 }: {
 	path: string;
 	title: string;
 	description: string;
 	index: boolean;
+	brandName?: string;
 }): Metadata {
 	const canonical = new URL(path, getBaseUrl()).href;
-	const absoluteTitle = title.includes(config.appName) ? title : `${title} | ${config.appName}`;
+	const absoluteTitle = title.includes(brandName) ? title : `${title} | ${brandName}`;
 
 	return {
 		title: { absolute: absoluteTitle },
@@ -22,6 +24,7 @@ export function createPublicPageMetadata({
 		alternates: { canonical },
 		robots: { index, follow: true },
 		openGraph: {
+			siteName: brandName,
 			title: absoluteTitle,
 			description,
 			type: "website",

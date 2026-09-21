@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@config", () => ({
-	config: { appName: "EzPic" },
+	config: { appName: "EzImageAI" },
 }));
 vi.mock("@repo/ui", () => ({
 	cn: (...values: unknown[]) => values.filter((value) => typeof value === "string").join(" "),
@@ -20,14 +20,14 @@ vi.mock("./LocaleSwitch", () => ({
 import { AuthWrapper } from "./AuthWrapper";
 
 describe("SaaS auth shell", () => {
-	it("uses the configured EzPic label and hides unfinished locale switching", () => {
+	it("uses the configured EzImageAI label and hides unfinished locale switching", () => {
 		const markup = renderToStaticMarkup(
 			<AuthWrapper>
 				<p>Sign in</p>
 			</AuthWrapper>,
 		);
 
-		expect(markup).toContain('data-logo-label="EzPic"');
+		expect(markup).toContain('data-logo-label="EzImageAI"');
 		expect(markup).toContain('href="/"');
 		expect(markup).toContain('data-color-mode-toggle="visible"');
 		expect(markup).not.toContain("data-locale-switch");

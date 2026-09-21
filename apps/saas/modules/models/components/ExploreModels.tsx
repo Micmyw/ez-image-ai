@@ -59,8 +59,8 @@ export function ExploreModels() {
 					))}
 			</div>
 			<p className="mt-6 text-xs leading-6 text-[#a99db2]">
-				Original EzPic concept artwork for inspiration. These images are not verified outputs from
-				the named models.
+				Original EzImageAI concept artwork for inspiration. These images are not verified outputs
+				from the named models.
 			</p>
 		</section>
 	);

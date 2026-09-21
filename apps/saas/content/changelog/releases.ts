@@ -1,6 +1,14 @@
 export const publicChangelogEntries = [
 	{
 		date: "2026-09-21",
+		title: "A consistent EzImageAI identity",
+		changes: [
+			"Use EzImageAI across the website, editor, help pages, emails and credit labels.",
+			"Update sharing previews and new guest-image watermarks to match the website name.",
+		],
+	},
+	{
+		date: "2026-09-21",
 		title: "Clearer free editing and guest access",
 		changes: [
 			"Explain Free account credits and paid plan options in the homepage pricing section.",
@@ -66,7 +74,7 @@ export const publicChangelogEntries = [
 		date: "2026-08-31",
 		title: "Unified public image editor",
 		changes: [
-			"Moved the upload-first EzPic experience to the same-origin SaaS homepage.",
+			"Moved the upload-first EzImageAI experience to the same-origin SaaS homepage.",
 			"Added server-advertised Standard and Quality tier selection without exposing Provider or model details to the browser.",
 			"Preserved the selected source image, prompt, and tier across retryable guest-draft failures.",
 		],
@@ -81,7 +89,7 @@ export const publicChangelogEntries = [
 	},
 	{
 		date: "2026-08-25",
-		title: "EzPic source-image editing foundation",
+		title: "EzImageAI source-image editing foundation",
 		changes: [
 			"Specialized the product around source-image-required Standard and Quality edits.",
 			"Kept real quotes, credit reservation, job creation, moderation, and private media ownership on server-controlled paths.",

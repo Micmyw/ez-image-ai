@@ -1,7 +1,88 @@
 {
+	"imageToImage": {
+		"name": "IA image à image",
+		"title": "Générateur IA image à image",
+		"subtitle": "Importez une image de référence et décrivez ce qu’il faut conserver ou modifier.",
+		"home": "Accueil",
+		"breadcrumb": "Fil d’Ariane",
+		"navigationDescription": "Transformez une image de référence avec un prompt.",
+		"referenceLabel": "Image de référence · obligatoire",
+		"referenceNotice": "Ajoutez une image de référence pour commencer la retouche.",
+		"loading": "Chargement de votre espace de travail…",
+		"how": {
+			"title": "Comment générer une image à partir d’une autre",
+			"description": "Commencez avec une photo, un croquis ou une illustration. La référence fournit le point de départ ; votre prompt décrit les changements.",
+			"steps": {
+				"upload": {
+					"title": "Importez votre référence",
+					"body": "Ajoutez un fichier JPEG, PNG ou WebP que vous avez le droit d’utiliser. Choisissez une image nette pour rendre les détails importants visibles."
+				},
+				"prompt": {
+					"title": "Décrivez ce qui reste et ce qui change",
+					"body": "Indiquez le sujet à conserver, puis décrivez le fond, la lumière, les couleurs ou le style souhaités. Choisissez un modèle et les réglages de sortie disponibles."
+				},
+				"generate": {
+					"title": "Générez, comparez et affinez",
+					"body": "Vérifiez les crédits ou le quota invité affichés avant de générer. Comparez le résultat à votre référence et ajustez le prompt pour une nouvelle retouche."
+				}
+			}
+		},
+		"useCases": {
+			"title": "Des prompts image à image pour votre prochaine idée",
+			"intro": "Utilisez ces exemples avec votre propre image de référence. Adaptez les détails au sujet et vérifiez chaque résultat.",
+			"background": {
+				"title": "Changez le fond d’un produit",
+				"body": "Explorez un autre décor en demandant de conserver la forme, la couleur et l’étiquette du produit.",
+				"prompt": "Conserve le produit, sa forme, sa couleur et son étiquette. Remplace l’arrière-plan par un fond de studio beige chaud et ajoute une ombre naturelle douce."
+			},
+			"portrait": {
+				"title": "Modifiez la lumière d’un portrait",
+				"body": "Décrivez l’éclairage et l’ambiance souhaités, ainsi que les traits du visage et le cadrage à conserver.",
+				"prompt": "Conserve les traits du visage, la coiffure, les vêtements et le cadrage. Remplace l’éclairage par une lumière douce de fin de journée avec des ombres légères."
+			},
+			"style": {
+				"title": "Explorez un autre style visuel",
+				"body": "Essayez l’aquarelle, l’illustration ou un autre style avec votre prompt, en gardant la même image de départ.",
+				"prompt": "Réinterprète cette image comme une illustration à l’aquarelle douce. Conserve le sujet principal, la composition et la palette, et ajoute une texture de papier subtile."
+			}
+		},
+		"promptLabel": "Exemple de prompt",
+		"usePrompt": "Utiliser ce prompt",
+		"guide": {
+			"title": "Une bonne référence et un prompt précis se complètent",
+			"body": "Commencez par un changement clair. Décrivez les détails à conserver, évitez les instructions contradictoires et vérifiez les petits textes, les visages et les contours. L’image à image utilise une référence ; pour créer une scène à partir de mots seulement, connectez-vous à l’espace de travail général.",
+			"link": "Lire le guide de retouche d’images",
+			"textToImage": "Créer à partir d’un prompt textuel"
+		},
+		"faq": {
+			"title": "Questions sur l’IA image à image",
+			"definition": {
+				"question": "Qu’est-ce qu’un générateur IA image à image ?",
+				"answer": "Il crée une nouvelle image à partir d’une image existante et d’une instruction écrite. Vous pouvez demander de modifier le fond, la lumière, les objets ou le style visuel. La référence guide le résultat ; le modèle et les réglages influencent l’interprétation."
+			},
+			"free": {
+				"question": "Puis-je utiliser l’IA image à image gratuitement ?",
+				"answer": "Les visiteurs éligibles peuvent essayer la retouche lorsque la file invitée sponsorisée est disponible. Les résultats invités portent un filigrane et sont conservés jusqu’à 24 heures. Un compte Free inscrit dispose d’un quota mensuel de crédits distinct. Consultez le quota et les modèles disponibles dans l’espace de travail ou sur la page des tarifs ; l’accès gratuit est limité."
+			},
+			"control": {
+				"question": "Tous les détails de mon image originale seront-ils conservés ?",
+				"answer": "Une conservation exacte n’est pas garantie. Précisez les détails importants, demandez un changement ciblé et comparez le résultat à l’original. Les visages, les textes, les logos et les contours fins peuvent nécessiter une nouvelle retouche ou une vérification manuelle."
+			},
+			"privacy": {
+				"question": "Mes images et mes résultats sont-ils publics ?",
+				"answer": "Vos références et résultats restent privés et ne sont pas publiés dans une galerie publique. Les médias invités sont temporaires. Les médias des comptes suivent les règles de conservation et de suppression décrites dans la politique de confidentialité."
+			},
+			"limits": {
+				"question": "Puis-je changer de style sans modèle prédéfini ?",
+				"answer": "Oui. Décrivez le style dans votre prompt au lieu de le choisir dans une liste de modèles fixes. Les règles de sécurité du contenu, les exigences légales, les capacités du modèle, les limites d’importation et les quotas d’utilisation restent applicables."
+			}
+		},
+		"pricing": "Voir les options gratuites et payantes",
+		"startAgain": "Commencer avec votre image"
+	},
 	"blog": {
 		"description": "Des guides pratiques sur les consignes de retouche avec IA, les images privées et la vérification des résultats.",
-		"title": "Guides EzPic",
+		"title": "Guides EzImageAI",
 		"back": "Retour au blog"
 	},
 	"changelog": {
@@ -26,11 +107,11 @@
 		"title": "Documentation"
 	},
 	"faq": {
-		"description": "Des réponses claires sur la disponibilité invitée, les modèles d’image, les EzPic Credits, les médias privés, la facturation et l’usage responsable.",
+		"description": "Des réponses claires sur la disponibilité invitée, les modèles d’image, les EzImageAI Credits, les médias privés, la facturation et l’usage responsable.",
 		"title": "Questions fréquemment posées",
 		"items": {
 			"restrictions": {
-				"question": "Que signifie « No Restrictions » sur EzPic ?",
+				"question": "Que signifie « No Restrictions » sur EzImageAI ?",
 				"answer": "Il s’agit d’une retouche flexible par instructions plutôt que d’une liste fixe de modèles prédéfinis. Décrivez ce qu’il faut conserver et modifier, gardez vos images privées et vérifiez les crédits avant confirmation. Les contrôles de contenu, les obligations légales, les capacités du modèle et les limites du forfait restent applicables. Cela ne signifie ni génération sans modération ni génération gratuite illimitée."
 			},
 			"guestAvailability": {
@@ -39,11 +120,11 @@
 			},
 			"guestVsFree": {
 				"question": "Quelle est la différence entre l’accès invité et Free ?",
-				"answer": "Les invités disposent de deux retouches sponsorisées par jour avec Nano Banana 2 Lite en 1K. Les résultats privés et filigranés sont disponibles jusqu’à 24 heures. Un compte Free inscrit reçoit séparément 25 EzPic Credits par mois, soit jusqu’à cinq retouches avec Nano Banana 2 Lite en 1K. GPT Image 2 et Seedream 5 Pro nécessitent un forfait payant."
+				"answer": "Les invités disposent de deux retouches sponsorisées par jour avec Nano Banana 2 Lite en 1K. Les résultats privés et filigranés sont disponibles jusqu’à 24 heures. Un compte Free inscrit reçoit séparément 25 EzImageAI Credits par mois, soit jusqu’à cinq retouches avec Nano Banana 2 Lite en 1K. GPT Image 2 et Seedream 5 Pro nécessitent un forfait payant."
 			},
 			"editTiers": {
 				"question": "Quels modèles d’image et réglages de sortie sont disponibles ?",
-				"answer": "Nano Banana 2 Lite 1K utilise 5 EzPic Credits. GPT Image 2 en utilise 7 en 1K, 11 en 2K ou 17 en 4K. Seedream 5 Pro en utilise 8 en Basic 1K ou 15 en High 2K. Chaque retouche confirmée produit un résultat."
+				"answer": "Nano Banana 2 Lite 1K utilise 5 EzImageAI Credits. GPT Image 2 en utilise 7 en 1K, 11 en 2K ou 17 en 4K. Seedream 5 Pro en utilise 8 en Basic 1K ou 15 en High 2K. Chaque retouche confirmée produit un résultat."
 			},
 			"creditReservation": {
 				"question": "Quand les crédits sont-ils utilisés ?",
@@ -55,7 +136,7 @@
 			},
 			"privateUploads": {
 				"question": "Les images importées sont-elles publiques ?",
-				"answer": "Non. Les entrées et résultats invités ou liés à un compte restent privés et ne sont pas publiés dans une galerie. La cible de conservation configurée pour les entrées et sorties de compte est de 30 jours. EzPic peut transmettre uniquement le contenu minimal nécessaire aux services d’infrastructure et de traitement d’image configurés."
+				"answer": "Non. Les entrées et résultats invités ou liés à un compte restent privés et ne sont pas publiés dans une galerie. La cible de conservation configurée pour les entrées et sorties de compte est de 30 jours. EzImageAI peut transmettre uniquement le contenu minimal nécessaire aux services d’infrastructure et de traitement d’image configurés."
 			},
 			"formats": {
 				"question": "Quelles images puis-je importer ?",
@@ -63,15 +144,15 @@
 			},
 			"outputBehavior": {
 				"question": "Chaque résultat est-il unique et exact ?",
-				"answer": "Non. Les résultats peuvent présenter des défauts ou ressembler à d’autres images. EzPic ne garantit ni leur unicité, ni leur adaptation à un usage particulier, ni l’absence de droits de tiers."
+				"answer": "Non. Les résultats peuvent présenter des défauts ou ressembler à d’autres images. EzImageAI ne garantit ni leur unicité, ni leur adaptation à un usage particulier, ni l’absence de droits de tiers."
 			},
 			"stableTiers": {
-				"question": "Pourquoi les modèles d’image utilisent-ils des montants différents d’EzPic Credits ?",
-				"answer": "Chaque modèle d’image possède sa propre matrice de réglages de sortie autorisés et son propre montant d’EzPic Credits. EzPic affiche le nom du produit, les réglages pris en charge et le débit exact ; le routage privé et les coûts d’exploitation restent sur le serveur."
+				"question": "Pourquoi les modèles d’image utilisent-ils des montants différents d’EzImageAI Credits ?",
+				"answer": "Chaque modèle d’image possède sa propre matrice de réglages de sortie autorisés et son propre montant d’EzImageAI Credits. EzImageAI affiche le nom du produit, les réglages pris en charge et le débit exact ; le routage privé et les coûts d’exploitation restent sur le serveur."
 			},
 			"annualBilling": {
 				"question": "Comment la facturation annuelle affecte-t-elle les crédits ?",
-				"answer": "Pro coûte 190 $ par an, Ultimate 490 $ et Max 790 $. Les EzPic Credits sont tout de même attribués chaque mois—700 pour Pro, 1 800 pour Ultimate et 3 000 pour Max—et les crédits inutilisés ne sont pas reportés."
+				"answer": "Pro coûte 190 $ par an, Ultimate 490 $ et Max 790 $. Les EzImageAI Credits sont tout de même attribués chaque mois—700 pour Pro, 1 800 pour Ultimate et 3 000 pour Max—et les crédits inutilisés ne sont pas reportés."
 			},
 			"cancelSubscription": {
 				"question": "Comment résilier mon abonnement ?",
@@ -79,11 +160,11 @@
 			},
 			"refundPolicy": {
 				"question": "Comment les remboursements sont-ils gérés ?",
-				"answer": "L’éligibilité dépend des conditions de paiement, du statut de la transaction et du droit applicable. Contactez le support pour examen ; EzPic ne promet pas de remboursement lorsqu’il ne s’applique pas."
+				"answer": "L’éligibilité dépend des conditions de paiement, du statut de la transaction et du droit applicable. Contactez le support pour examen ; EzImageAI ne promet pas de remboursement lorsqu’il ne s’applique pas."
 			},
 			"commercialUse": {
 				"question": "Puis-je utiliser les images retouchées à des fins commerciales ?",
-				"answer": "Avant toute utilisation commerciale, vous devez détenir les droits sur toutes les entrées et vérifier vous-même les conditions, la loi et les droits de tiers applicables. Les résultats invités sont temporaires et filigranés ; EzPic n’affirme pas qu’une sortie est automatiquement autorisée pour un usage commercial."
+				"answer": "Avant toute utilisation commerciale, vous devez détenir les droits sur toutes les entrées et vérifier vous-même les conditions, la loi et les droits de tiers applicables. Les résultats invités sont temporaires et filigranés ; EzImageAI n’affirme pas qu’une sortie est automatiquement autorisée pour un usage commercial."
 			}
 		}
 	},
@@ -99,7 +180,7 @@
 			"freeQueue": "2 retouches gratuites par jour · filigrane · disponibles jusqu’à 24 heures",
 			"qualityAccess": "{model} nécessite une connexion et un forfait Pro, Ultimate ou Max.",
 			"temporaryResult": "Votre aperçu reste privé et temporaire.",
-			"temporarySessionDisclosure": "EzPic crée une session temporaire pour cet essai, conserve les médias invités jusqu’à 24 heures et utilise des signaux pseudonymes contre les abus pendant la période décrite dans notre Politique de confidentialité.",
+			"temporarySessionDisclosure": "EzImageAI crée une session temporaire pour cet essai, conserve les médias invités jusqu’à 24 heures et utilise des signaux pseudonymes contre les abus pendant la période décrite dans notre Politique de confidentialité.",
 			"qualityCta": "Plus de modèles d’image · forfait payant",
 			"retryChallenge": "Réessayer la vérification",
 			"characterCount": "{count, number} / {maximum, number}",
@@ -115,7 +196,7 @@
 				"outputFormat": "Format de sortie",
 				"background": "Arrière-plan",
 				"modeControlsQuality": "Définie par le modèle et la SKU sélectionnés",
-				"credits": "EzPic Credits",
+				"credits": "EzImageAI Credits",
 				"optionLabels": {
 					"1k": "1K",
 					"2k": "2K",
@@ -198,13 +279,13 @@
 				"quality": {
 					"label": "Plus de modèles d’image",
 					"badge": "Compte payant",
-					"description": "Chaque modèle conserve ses propres réglages de sortie vérifiés et son montant d’EzPic Credits",
+					"description": "Chaque modèle conserve ses propres réglages de sortie vérifiés et son montant d’EzImageAI Credits",
 					"access": "Pro, Ultimate ou Max requis"
 				}
 			},
 			"loginNotice": "Connectez-vous pour générer des images à partir de texte. Le bouton affiche le coût en crédits avant le démarrage. Avec une image de référence, la retouche sponsorisée Nano Banana 2 Lite reste disponible lorsque la file invitée est ouverte.",
 			"previewCaption": "Aperçu de la source",
-			"previewPlaceholderAlt": "Illustration vectorielle EzPic originale d’un salon de lecture neutre",
+			"previewPlaceholderAlt": "Illustration vectorielle EzImageAI originale d’un salon de lecture neutre",
 			"previewAlt": "Aperçu de {fileName}",
 			"privateLabel": "Brouillon privé",
 			"floating": {
@@ -236,7 +317,7 @@
 			"listLabel": "Cartes d’histoires de créateurs illustratives",
 			"columnLabel": "Colonne d’histoires {number, number} sur {total, number}",
 			"directionLabel": "Consigne d’exemple",
-			"disclaimer": "Ces profils composites illustrent des usages possibles d’EzPic. Il ne s’agit pas de témoignages clients, d’études de cas publiées ni de résultats garantis.",
+			"disclaimer": "Ces profils composites illustrent des usages possibles d’EzImageAI. Il ne s’agit pas de témoignages clients, d’études de cas publiées ni de résultats garantis.",
 			"cards": {
 				"ecommerce": {
 					"name": "Mina I.",
@@ -310,7 +391,7 @@
 			"usePrompt": "Utiliser ce prompt",
 			"promptAdded": "Prompt ajouté",
 			"usePromptLabel": "Utiliser le prompt {title}",
-			"provenanceNote": "Images originales créées séparément à titre d’inspiration visuelle. Elles ne sont pas présentées comme des résultats EzPic ; les résultats réels dépendent de votre image source et de votre prompt.",
+			"provenanceNote": "Images originales créées séparément à titre d’inspiration visuelle. Elles ne sont pas présentées comme des résultats EzImageAI ; les résultats réels dépendent de votre image source et de votre prompt.",
 			"items": {
 				"mediterranean": {
 					"tag": "Intérieur",
@@ -389,7 +470,7 @@
 		"supportedEdits": {
 			"eyebrow": "Retouches prises en charge",
 			"title": "Dirigez le changement tout en gardant votre image source",
-			"description": "EzPic prend en charge les retouches guidées sur une image JPEG, PNG ou WebP importée. Vérifiez chaque résultat avant utilisation.",
+			"description": "EzImageAI prend en charge les retouches guidées sur une image JPEG, PNG ou WebP importée. Vérifiez chaque résultat avant utilisation.",
 			"items": {
 				"background": {
 					"title": "Changer l’arrière-plan",
@@ -467,7 +548,7 @@
 		"trust": {
 			"eyebrow": "Limites claires",
 			"title": "Privé par défaut, mesuré clairement",
-			"description": "Lorsque la file sponsorisée est disponible, la page d’accueil permet de lancer jusqu’à deux retouches par jour avec Nano Banana 2 Lite en 1K. Pour les comptes, le bouton indique le coût et la sécurité ainsi que le prix sont vérifiés avant de réserver les EzPic Credits.",
+			"description": "Lorsque la file sponsorisée est disponible, la page d’accueil permet de lancer jusqu’à deux retouches par jour avec Nano Banana 2 Lite en 1K. Pour les comptes, le bouton indique le coût et la sécurité ainsi que le prix sont vérifiés avant de réserver les EzImageAI Credits.",
 			"items": {
 				"privacy": {
 					"title": "Médias privés",
@@ -475,7 +556,7 @@
 				},
 				"credits": {
 					"title": "Usage contrôlé",
-					"description": "Les retouches Nano Banana invitées utilisent la file sponsorisée ; les retouches de compte affichent le montant d’EzPic Credits sur le bouton. Tout changement de prix nécessite votre confirmation avant le démarrage."
+					"description": "Les retouches Nano Banana invitées utilisent la file sponsorisée ; les retouches de compte affichent le montant d’EzImageAI Credits sur le bouton. Tout changement de prix nécessite votre confirmation avant le démarrage."
 				},
 				"safety": {
 					"title": "Protections normales",
@@ -496,13 +577,13 @@
 			"subtitle": "Importez une image source, décrivez le changement et vérifiez le coût en crédits avant de créer un résultat retouché.",
 			"getStarted": "Commencer la retouche",
 			"documentation": "Guide du produit",
-			"imageAlt": "Espace privé de retouche d'image EzPic",
+			"imageAlt": "Espace privé de retouche d'image EzImageAI",
 			"builtWith": "Un flux ciblé de retouche d'image"
 		},
 		"features": {
 			"badge": "Flux de retouche d'image",
 			"title": "De l'image source à une retouche contrôlée",
-			"description": "EzPic regroupe l'instruction, les réglages de sortie propres au modèle, les EzPic Credits et les ressources privées dans un espace ciblé.",
+			"description": "EzImageAI regroupe l'instruction, les réglages de sortie propres au modèle, les EzImageAI Credits et les ressources privées dans un espace ciblé.",
 			"feature1": {
 				"title": "Retouches dirigées",
 				"subtitle": "Décrivez le changement au lieu de reconstruire l'image.",
@@ -513,11 +594,11 @@
 				},
 				"benefit2": {
 					"title": "Source obligatoire",
-					"description": "L'éditeur ne présente jamais la génération à partir de texte seul comme un produit EzPic."
+					"description": "L'éditeur ne présente jamais la génération à partir de texte seul comme un produit EzImageAI."
 				},
 				"benefit3": {
 					"title": "Réglages propres à chaque modèle",
-					"description": "Choisissez parmi les modèles d’image disponibles dans EzPic ; chacun conserve ses propres réglages de sortie vérifiés et son montant d’EzPic Credits."
+					"description": "Choisissez parmi les modèles d’image disponibles dans EzImageAI ; chacun conserve ses propres réglages de sortie vérifiés et son montant d’EzImageAI Credits."
 				}
 			},
 			"feature2": {
@@ -540,7 +621,7 @@
 		},
 		"pricing": {
 			"title": "Retouche d’images IA gratuite et forfaits payants",
-			"description": "Commencez avec 25 EzPic Credits par mois sur un compte Free. Nano Banana 2 Lite 1K utilise 5 crédits par retouche, soit jusqu’à cinq retouches par mois. Les forfaits payants offrent davantage de crédits et des modèles d’image supplémentaires."
+			"description": "Commencez avec 25 EzImageAI Credits par mois sur un compte Free. Nano Banana 2 Lite 1K utilise 5 crédits par retouche, soit jusqu’à cinq retouches par mois. Les forfaits payants offrent davantage de crédits et des modèles d’image supplémentaires."
 		},
 		"guides": {
 			"quickStart": "Commencer votre première retouche",
@@ -556,8 +637,8 @@
 					"answer": "Lorsque la file sponsorisée est disponible, les visiteurs éligibles peuvent effectuer deux retouches par jour avec Nano Banana 2 Lite en 1K sans inscription. Importez une image de référence et décrivez la modification. Chaque résultat est privé, filigrané et disponible jusqu’à 24 heures. Le quota est renouvelé à 00:00 UTC ; les retouches inutilisées ne sont pas reportées. La génération à partir de texte nécessite une connexion."
 				},
 				"guestVsFree": {
-					"question": "Puis-je utiliser EzPic comme éditeur d’images IA gratuit ?",
-					"answer": "Oui. Un compte Free inscrit reçoit 25 EzPic Credits par mois pour les retouches éligibles. Les invités peuvent séparément effectuer deux retouches sponsorisées par jour lorsque la file est disponible. « No Restrictions » désigne la retouche flexible par instructions, au-delà des modèles prédéfinis ; les limites de sécurité, légales, du modèle et d’utilisation restent applicables."
+					"question": "Puis-je utiliser EzImageAI comme éditeur d’images IA gratuit ?",
+					"answer": "Oui. Un compte Free inscrit reçoit 25 EzImageAI Credits par mois pour les retouches éligibles. Les invités peuvent séparément effectuer deux retouches sponsorisées par jour lorsque la file est disponible. « No Restrictions » désigne la retouche flexible par instructions, au-delà des modèles prédéfinis ; les limites de sécurité, légales, du modèle et d’utilisation restent applicables."
 				}
 			}
 		}
@@ -574,7 +655,7 @@
 			}
 		},
 		"submit": "S'abonner",
-		"subtitle": "Recevez occasionnellement les nouveautés EzPic et des conseils de retouche d'image.",
+		"subtitle": "Recevez occasionnellement les nouveautés EzImageAI et des conseils de retouche d'image.",
 		"title": "Nouveautés du produit"
 	},
 	"notFound": {

@@ -2,12 +2,12 @@
 	"publicContent": {
 		"contact": {
 			"description": "Contact {appName} for support or to report prohibited content.",
-			"emailCta": "Email the EzPic operator at:",
+			"emailCta": "Email the EzImageAI operator at:",
 			"unavailable": "Email support is temporarily unavailable. Please check back later.",
 			"reporting": {
 				"footerLabel": "Report content",
 				"title": "Report prohibited content",
-				"description": "Report an unsafe AI-generated image, a prohibited edit, impersonation, or a rights violation to the EzPic operator. Anyone can report a concern; no account is required.",
+				"description": "Report an unsafe AI-generated image, a prohibited edit, impersonation, or a rights violation to the EzImageAI operator. Anyone can report a concern; no account is required.",
 				"emailCta": "Email a content report",
 				"detailsTitle": "What to include",
 				"details": {
@@ -63,7 +63,7 @@
 		"media": {
 			"growth": {
 				"title": "Growth and generation operations",
-				"description": "Read-only aggregates for the EzPic editing funnel. Prompts, private media, URLs, and raw job IDs are excluded.",
+				"description": "Read-only aggregates for the EzImageAI editing funnel. Prompts, private media, URLs, and raw job IDs are excluded.",
 				"all": "All",
 				"apply": "Apply filters",
 				"loading": "Loading operations aggregates…",
@@ -1135,7 +1135,7 @@
 				"outputFormat": "Output format",
 				"background": "Background",
 				"modeControlsQuality": "Controlled by the selected model and SKU",
-				"credits": "EzPic Credits",
+				"credits": "EzImageAI Credits",
 				"optionLabels": {
 					"1k": "1K",
 					"2k": "2K",
@@ -1258,7 +1258,7 @@
 			"startsWithCapacity": "Starts as free capacity becomes available",
 			"estimatedStart": "Estimated start: {start}",
 			"nav": {
-				"brand": "EzPic image editor",
+				"brand": "EzImageAI image editor",
 				"signIn": "Sign in",
 				"createAccount": "Create account"
 			},
@@ -1275,7 +1275,7 @@
 				"expired": "This guest result has expired"
 			},
 			"errors": {
-				"eligibility": "We could not recover this guest edit. Return to EzPic and prepare it again.",
+				"eligibility": "We could not recover this guest edit. Return to EzImageAI and prepare it again.",
 				"submit": "We could not submit this edit. Check the highlighted step and try again.",
 				"access": "The private result link is unavailable. Request it again.",
 				"download": "The private download is unavailable right now.",
@@ -1322,7 +1322,7 @@
 				"standardDescription": "Private 1K image editing.",
 				"quality": "More image models",
 				"qualityDescription": "Private image editing with model-specific output settings.",
-				"credits": "{credits} EzPic Credits",
+				"credits": "{credits} EzImageAI Credits",
 				"qualityUnavailable": "Upgrade to use this image model. Your image, instruction, and output settings will stay in place.",
 				"upgrade": "View upgrade options"
 			}

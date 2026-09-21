@@ -21,6 +21,7 @@ describe("consolidated SaaS sitemap", () => {
 		expect(urls.map(({ pathname }) => pathname).sort()).toEqual(
 			[
 				"/",
+				"/image-to-image",
 				"/pricing",
 				"/privacy",
 				"/terms",
@@ -61,6 +62,7 @@ describe("consolidated SaaS sitemap", () => {
 		);
 		expect(dates).toMatchObject({
 			"/": "2026-09-21",
+			"/image-to-image": "2026-09-21",
 			"/pricing": "2026-09-16",
 			"/privacy": "2026-09-16",
 			"/terms": "2026-09-18",

@@ -89,7 +89,7 @@ describe("same-origin Docs source", () => {
 		if (!searchRoute) return;
 
 		const response = await searchRoute.GET(
-			new Request("https://www.ezpic.test/docs/api/search?query=EzPic"),
+			new Request("https://www.ezpic.test/docs/api/search?query=EzImageAI"),
 		);
 		expect(response.status).toBe(200);
 		const payload = await response.text();

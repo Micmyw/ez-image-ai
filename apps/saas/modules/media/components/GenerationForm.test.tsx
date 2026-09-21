@@ -82,7 +82,7 @@ vi.mock("next-intl", () => ({
 			"outputSettings.quality": "Localized quality",
 			"outputSettings.outputFormat": "Localized output format",
 			"outputSettings.background": "Localized background",
-			"outputSettings.credits": "EzPic Credits",
+			"outputSettings.credits": "EzImageAI Credits",
 			"outputSettings.optionLabels.1k": "Localized 1K",
 			"outputSettings.optionLabels.2k": "Localized 2K",
 			"outputSettings.optionLabels.4k": "Localized 4K",
@@ -323,6 +323,28 @@ describe("GenerationForm product copy", () => {
 		mocks.useGeneration.mockReturnValue(generationState());
 	});
 
+	it.each([false, true])("requires a source only in reference mode (%s)", (requireReference) => {
+		const markup = renderToStaticMarkup(
+			<GenerationForm
+				onCreated={vi.fn()}
+				requireReference={requireReference}
+				initialDraft={{
+					productKey: "image-nano-banana-2-lite",
+					input: {
+						kind: "text-to-image",
+						prompt: "A product on a neutral background",
+						skuKey: "nano-banana-2-lite-1k",
+						aspectRatio: "1:1",
+					},
+				}}
+			/>,
+		);
+		const submit = markup.match(/<button(?=[^>]*type="submit")[^>]*>/)?.[0];
+		expect(submit).toBeDefined();
+		if (requireReference) expect(submit).toContain("disabled");
+		else expect(submit).not.toContain("disabled");
+	});
+
 	it("renders localized product and field copy instead of catalog English", () => {
 		const markup = renderToStaticMarkup(<GenerationForm onCreated={vi.fn()} />);
 
@@ -347,27 +369,31 @@ describe("GenerationForm product copy", () => {
 		);
 	});
 
-	it("enables direct generation when the restored source and instruction form a valid input", () => {
-		const markup = renderToStaticMarkup(
-			<GenerationForm
-				onCreated={vi.fn()}
-				initialSourceReady
-				initialDraft={{
-					productKey: "image-nano-banana-2-lite",
-					input: {
-						kind: "image-to-image",
-						prompt: "Replace the background with a quiet studio",
-						sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
-						skuKey: "nano-banana-2-lite-1k",
-						aspectRatio: "auto",
-					},
-				}}
-			/>,
-		);
+	it.each([false, true])(
+		"enables generation with a valid restored source in reference mode %s",
+		(requireReference) => {
+			const markup = renderToStaticMarkup(
+				<GenerationForm
+					onCreated={vi.fn()}
+					requireReference={requireReference}
+					initialSourceReady
+					initialDraft={{
+						productKey: "image-nano-banana-2-lite",
+						input: {
+							kind: "image-to-image",
+							prompt: "Replace the background with a quiet studio",
+							sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+							skuKey: "nano-banana-2-lite-1k",
+							aspectRatio: "auto",
+						},
+					}}
+				/>,
+			);
 
-		expect(markup).toContain('<button type="submit">startEditWithCredits</button>');
-		expect(markup).not.toContain("quoteReady");
-	});
+			expect(markup).toContain('<button type="submit">startEditWithCredits</button>');
+			expect(markup).not.toContain("quoteReady");
+		},
+	);
 
 	it("keeps the selected parent attached to both quote and confirmation requests", () => {
 		renderToStaticMarkup(
@@ -479,6 +505,6 @@ describe("GenerationForm product copy", () => {
 
 		expect(markup).toContain("Localized background");
 		expect(markup).toMatch(/aria-pressed="true"[^>]*>Localized transparent<\/button>/);
-		expect(markup).toContain("Localized GPT 1K · 7 EzPic Credits");
+		expect(markup).toContain("Localized GPT 1K · 7 EzImageAI Credits");
 	});
 });

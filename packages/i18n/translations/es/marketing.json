@@ -1,7 +1,88 @@
 {
+	"imageToImage": {
+		"name": "IA de imagen a imagen",
+		"title": "Generador de IA de imagen a imagen",
+		"subtitle": "Sube una imagen de referencia y describe qué conservar o cambiar.",
+		"home": "Inicio",
+		"breadcrumb": "Ruta de navegación",
+		"navigationDescription": "Transforma una imagen de referencia con un prompt.",
+		"referenceLabel": "Imagen de referencia · obligatoria",
+		"referenceNotice": "Añade una imagen de referencia para empezar a editar.",
+		"loading": "Cargando tu espacio de trabajo…",
+		"how": {
+			"title": "Cómo generar una imagen a partir de otra",
+			"description": "Empieza con una foto, un boceto o una ilustración. La referencia aporta el punto de partida y tu prompt describe los cambios.",
+			"steps": {
+				"upload": {
+					"title": "Sube tu referencia",
+					"body": "Añade un archivo JPEG, PNG o WebP que tengas permiso para usar. Elige una imagen clara para que se vean los detalles importantes."
+				},
+				"prompt": {
+					"title": "Describe qué conservar y qué cambiar",
+					"body": "Indica el sujeto que quieres mantener y describe el fondo, la iluminación, los colores o el estilo nuevos. Selecciona un modelo y los ajustes de salida disponibles."
+				},
+				"generate": {
+					"title": "Genera, compara y ajusta",
+					"body": "Comprueba los créditos o el cupo de invitado antes de generar. Compara el resultado con la referencia y ajusta el prompt para otra edición."
+				}
+			}
+		},
+		"useCases": {
+			"title": "Prompts de imagen a imagen para tu próxima idea",
+			"intro": "Usa estos prompts como punto de partida con tu propia imagen. Adapta los detalles al sujeto y revisa cada resultado.",
+			"background": {
+				"title": "Dale un fondo nuevo a un producto",
+				"body": "Explora otro entorno y pide que se conserven la forma, el color y la etiqueta del producto.",
+				"prompt": "Conserva el producto, su forma, color y etiqueta. Sustituye el fondo por un fondo de estudio beige cálido y añade una sombra natural suave."
+			},
+			"portrait": {
+				"title": "Cambia la luz de un retrato",
+				"body": "Describe la iluminación y el ambiente que buscas, junto con los rasgos faciales y el encuadre que quieres conservar.",
+				"prompt": "Conserva los rasgos faciales, el peinado, la ropa y el encuadre. Cambia la iluminación a una luz suave de la hora dorada con sombras delicadas."
+			},
+			"style": {
+				"title": "Explora otro estilo visual",
+				"body": "Prueba una acuarela, una ilustración u otro estilo mediante tu prompt, usando la misma referencia.",
+				"prompt": "Reinterpreta esta imagen como una ilustración de acuarela suave. Conserva el sujeto principal, la composición y la paleta de colores, y añade una textura sutil de papel."
+			}
+		},
+		"promptLabel": "Prompt de ejemplo",
+		"usePrompt": "Usar este prompt",
+		"guide": {
+			"title": "Una buena referencia y un prompt concreto se complementan",
+			"body": "Empieza con un cambio claro. Describe los detalles que quieres conservar, evita instrucciones contradictorias y revisa textos pequeños, rostros y bordes. Imagen a imagen utiliza una referencia; para crear una escena solo con texto, inicia sesión y utiliza el espacio de trabajo general.",
+			"link": "Leer la guía de edición de imágenes",
+			"textToImage": "Crear a partir de un prompt de texto"
+		},
+		"faq": {
+			"title": "Preguntas sobre la IA de imagen a imagen",
+			"definition": {
+				"question": "¿Qué es un generador de IA de imagen a imagen?",
+				"answer": "Crea una imagen nueva a partir de una imagen existente y una instrucción escrita. Puedes pedir cambios en el fondo, la iluminación, los objetos o el estilo visual. La referencia orienta el resultado y el modelo y los ajustes influyen en la interpretación."
+			},
+			"free": {
+				"question": "¿Puedo usar la IA de imagen a imagen gratis?",
+				"answer": "Los visitantes que cumplan los requisitos pueden probar la edición cuando esté disponible la cola de invitados patrocinada. Los resultados incluyen una marca de agua y se conservan hasta 24 horas. Una cuenta Free registrada tiene un cupo mensual de créditos independiente. Consulta el cupo y los modelos disponibles en el espacio de trabajo o en la página de precios; el acceso gratuito es limitado."
+			},
+			"control": {
+				"question": "¿Se conservarán todos los detalles de la imagen original?",
+				"answer": "No se garantiza una conservación exacta. Especifica qué detalles importan, solicita un cambio concreto y compara el resultado con el original. Los rostros, las letras, los logotipos y los bordes finos pueden necesitar otra edición o una revisión manual."
+			},
+			"privacy": {
+				"question": "¿Mis imágenes y resultados son públicos?",
+				"answer": "Tus imágenes de referencia y resultados permanecen privados y no aparecen en una galería pública. Los archivos de invitados son temporales. Los archivos de cuentas siguen las reglas de conservación y eliminación de la política de privacidad."
+			},
+			"limits": {
+				"question": "¿Puedo cambiar el estilo sin una plantilla fija?",
+				"answer": "Sí. Describe el estilo en el prompt en lugar de elegirlo de una lista fija de plantillas. Siguen aplicándose las normas de seguridad de contenido, los requisitos legales, las capacidades del modelo, los límites de subida y los cupos de uso."
+			}
+		},
+		"pricing": "Ver opciones gratuitas y de pago",
+		"startAgain": "Empezar con tu imagen"
+	},
 	"blog": {
 		"description": "Guías prácticas sobre instrucciones para editar imágenes con IA, cargas privadas y revisión de resultados.",
-		"title": "Guías de EzPic",
+		"title": "Guías de EzImageAI",
 		"back": "Volver al blog"
 	},
 	"changelog": {
@@ -26,11 +107,11 @@
 		"title": "Documentación"
 	},
 	"faq": {
-		"description": "Respuestas claras sobre disponibilidad para invitados, modelos de imagen, EzPic Credits, medios privados, facturación y uso responsable.",
+		"description": "Respuestas claras sobre disponibilidad para invitados, modelos de imagen, EzImageAI Credits, medios privados, facturación y uso responsable.",
 		"title": "Preguntas frecuentes",
 		"items": {
 			"restrictions": {
-				"question": "¿Qué significa «No Restrictions» en EzPic?",
+				"question": "¿Qué significa «No Restrictions» en EzImageAI?",
 				"answer": "Significa edición flexible mediante instrucciones en lugar de una lista fija de plantillas. Describe qué conservar y qué cambiar, mantén tus imágenes privadas y revisa los créditos antes de confirmar. Siguen vigentes los controles de contenido, los requisitos legales, las capacidades del modelo y los límites del plan. No significa generación sin censura ni generación gratuita ilimitada."
 			},
 			"guestAvailability": {
@@ -39,11 +120,11 @@
 			},
 			"guestVsFree": {
 				"question": "¿Qué diferencia hay entre Invitado y Free?",
-				"answer": "Los invitados disponen de dos ediciones patrocinadas al día con Nano Banana 2 Lite en 1K, con resultados privados y con marca de agua disponibles hasta 24 horas. Por separado, una cuenta Free registrada recibe 25 EzPic Credits al mes, suficientes para hasta cinco ediciones con Nano Banana 2 Lite en 1K. GPT Image 2 y Seedream 5 Pro requieren un plan de pago."
+				"answer": "Los invitados disponen de dos ediciones patrocinadas al día con Nano Banana 2 Lite en 1K, con resultados privados y con marca de agua disponibles hasta 24 horas. Por separado, una cuenta Free registrada recibe 25 EzImageAI Credits al mes, suficientes para hasta cinco ediciones con Nano Banana 2 Lite en 1K. GPT Image 2 y Seedream 5 Pro requieren un plan de pago."
 			},
 			"editTiers": {
 				"question": "¿Qué modelos de imagen y ajustes de salida están disponibles?",
-				"answer": "Nano Banana 2 Lite 1K usa 5 EzPic Credits. GPT Image 2 usa 7 en 1K, 11 en 2K o 17 en 4K. Seedream 5 Pro usa 8 para Basic 1K o 15 para High 2K. Cada edición confirmada genera un resultado."
+				"answer": "Nano Banana 2 Lite 1K usa 5 EzImageAI Credits. GPT Image 2 usa 7 en 1K, 11 en 2K o 17 en 4K. Seedream 5 Pro usa 8 para Basic 1K o 15 para High 2K. Cada edición confirmada genera un resultado."
 			},
 			"creditReservation": {
 				"question": "¿Cuándo se utilizan los créditos?",
@@ -55,7 +136,7 @@
 			},
 			"privateUploads": {
 				"question": "¿Las imágenes subidas son públicas?",
-				"answer": "No. Las entradas y los resultados de invitados y cuentas son privados y no se publican en una galería. El objetivo de conservación configurado para entradas y resultados de cuenta es de 30 días. EzPic puede enviar solo el contenido mínimo necesario a los servicios de infraestructura y procesamiento de imágenes configurados."
+				"answer": "No. Las entradas y los resultados de invitados y cuentas son privados y no se publican en una galería. El objetivo de conservación configurado para entradas y resultados de cuenta es de 30 días. EzImageAI puede enviar solo el contenido mínimo necesario a los servicios de infraestructura y procesamiento de imágenes configurados."
 			},
 			"formats": {
 				"question": "¿Qué imágenes puedo subir?",
@@ -63,15 +144,15 @@
 			},
 			"outputBehavior": {
 				"question": "¿Todos los resultados son únicos y exactos?",
-				"answer": "No. Los resultados pueden contener defectos o parecerse a otras imágenes. EzPic no garantiza que sean únicos, adecuados para un fin concreto ni libres de derechos de terceros."
+				"answer": "No. Los resultados pueden contener defectos o parecerse a otras imágenes. EzImageAI no garantiza que sean únicos, adecuados para un fin concreto ni libres de derechos de terceros."
 			},
 			"stableTiers": {
-				"question": "¿Por qué los modelos de imagen usan distintas cantidades de EzPic Credits?",
-				"answer": "Cada modelo de imagen tiene su propia matriz de ajustes de salida válidos y su propia cantidad de EzPic Credits. EzPic muestra el nombre del producto, los ajustes admitidos y el cargo exacto; el enrutamiento privado y los costes operativos permanecen en el servidor."
+				"question": "¿Por qué los modelos de imagen usan distintas cantidades de EzImageAI Credits?",
+				"answer": "Cada modelo de imagen tiene su propia matriz de ajustes de salida válidos y su propia cantidad de EzImageAI Credits. EzImageAI muestra el nombre del producto, los ajustes admitidos y el cargo exacto; el enrutamiento privado y los costes operativos permanecen en el servidor."
 			},
 			"annualBilling": {
 				"question": "¿Cómo afecta la facturación anual a los créditos?",
-				"answer": "Pro cuesta $190 al año, Ultimate $490 y Max $790. Los EzPic Credits se siguen otorgando cada mes—700 para Pro, 1.800 para Ultimate y 3.000 para Max—y los no utilizados no se acumulan."
+				"answer": "Pro cuesta $190 al año, Ultimate $490 y Max $790. Los EzImageAI Credits se siguen otorgando cada mes—700 para Pro, 1.800 para Ultimate y 3.000 para Max—y los no utilizados no se acumulan."
 			},
 			"cancelSubscription": {
 				"question": "¿Cómo cancelo mi suscripción?",
@@ -79,11 +160,11 @@
 			},
 			"refundPolicy": {
 				"question": "¿Cómo se gestionan los reembolsos?",
-				"answer": "La elegibilidad depende de las condiciones de pago, el estado de la transacción y la legislación aplicable. Contacta con soporte para que lo revise; EzPic no promete un reembolso cuando no corresponda."
+				"answer": "La elegibilidad depende de las condiciones de pago, el estado de la transacción y la legislación aplicable. Contacta con soporte para que lo revise; EzImageAI no promete un reembolso cuando no corresponda."
 			},
 			"commercialUse": {
 				"question": "¿Puedo usar comercialmente las imágenes editadas?",
-				"answer": "Antes del uso comercial, debes tener los derechos sobre todas las entradas y comprobar por tu cuenta las condiciones, la legislación y los derechos de terceros aplicables. Los resultados de invitado son temporales y llevan marca de agua; EzPic no afirma que ninguna salida quede autorizada automáticamente para uso comercial."
+				"answer": "Antes del uso comercial, debes tener los derechos sobre todas las entradas y comprobar por tu cuenta las condiciones, la legislación y los derechos de terceros aplicables. Los resultados de invitado son temporales y llevan marca de agua; EzImageAI no afirma que ninguna salida quede autorizada automáticamente para uso comercial."
 			}
 		}
 	},
@@ -99,7 +180,7 @@
 			"freeQueue": "2 ediciones gratis al día · marca de agua · disponibles hasta 24 horas",
 			"qualityAccess": "{model} requiere iniciar sesión y un plan Pro, Ultimate o Max.",
 			"temporaryResult": "Tu vista previa permanece privada y temporal.",
-			"temporarySessionDisclosure": "EzPic crea una sesión temporal para esta prueba, conserva los archivos del invitado hasta 24 horas y usa señales seudónimas contra abusos durante el periodo descrito en nuestra Política de privacidad.",
+			"temporarySessionDisclosure": "EzImageAI crea una sesión temporal para esta prueba, conserva los archivos del invitado hasta 24 horas y usa señales seudónimas contra abusos durante el periodo descrito en nuestra Política de privacidad.",
 			"qualityCta": "Más modelos de imagen · plan de pago",
 			"retryChallenge": "Reintentar la verificación",
 			"characterCount": "{count, number} / {maximum, number}",
@@ -115,7 +196,7 @@
 				"outputFormat": "Formato de salida",
 				"background": "Fondo",
 				"modeControlsQuality": "La controlan el modelo y el SKU seleccionados",
-				"credits": "EzPic Credits",
+				"credits": "EzImageAI Credits",
 				"optionLabels": {
 					"1k": "1K",
 					"2k": "2K",
@@ -198,13 +279,13 @@
 				"quality": {
 					"label": "Más modelos de imagen",
 					"badge": "Cuenta de pago",
-					"description": "Cada modelo conserva sus propios ajustes de salida verificados y su cantidad de EzPic Credits",
+					"description": "Cada modelo conserva sus propios ajustes de salida verificados y su cantidad de EzImageAI Credits",
 					"access": "Se requiere Pro, Ultimate o Max"
 				}
 			},
 			"loginNotice": "Inicia sesión para generar imágenes a partir de texto. El botón muestra el coste en créditos antes de empezar. Con una imagen de referencia, la edición patrocinada Nano Banana 2 Lite sigue disponible cuando la cola de invitados está abierta.",
 			"previewCaption": "Vista previa de origen",
-			"previewPlaceholderAlt": "Ilustración vectorial original de EzPic de una sala de lectura neutra",
+			"previewPlaceholderAlt": "Ilustración vectorial original de EzImageAI de una sala de lectura neutra",
 			"previewAlt": "Vista previa de {fileName}",
 			"privateLabel": "Borrador privado",
 			"floating": {
@@ -236,7 +317,7 @@
 			"listLabel": "Tarjetas ilustrativas de historias de creadores",
 			"columnLabel": "Columna de historias {number, number} de {total, number}",
 			"directionLabel": "Instrucción de ejemplo",
-			"disclaimer": "Estos perfiles compuestos ilustran posibles flujos de EzPic. No son testimonios de clientes, casos publicados ni resultados garantizados.",
+			"disclaimer": "Estos perfiles compuestos ilustran posibles flujos de EzImageAI. No son testimonios de clientes, casos publicados ni resultados garantizados.",
 			"cards": {
 				"ecommerce": {
 					"name": "Mina I.",
@@ -310,7 +391,7 @@
 			"usePrompt": "Usar este prompt",
 			"promptAdded": "Prompt añadido",
 			"usePromptLabel": "Usar el prompt {title}",
-			"provenanceNote": "Imágenes originales creadas por separado como inspiración visual. No se presentan como resultados de EzPic; los resultados reales dependen de tu imagen y tu prompt.",
+			"provenanceNote": "Imágenes originales creadas por separado como inspiración visual. No se presentan como resultados de EzImageAI; los resultados reales dependen de tu imagen y tu prompt.",
 			"items": {
 				"mediterranean": {
 					"tag": "Interior",
@@ -389,7 +470,7 @@
 		"supportedEdits": {
 			"eyebrow": "Ediciones compatibles",
 			"title": "Indica el cambio conservando tu imagen de origen",
-			"description": "EzPic admite ediciones guiadas por instrucciones sobre imágenes JPEG, PNG o WebP subidas. Revisa cada resultado antes de usarlo.",
+			"description": "EzImageAI admite ediciones guiadas por instrucciones sobre imágenes JPEG, PNG o WebP subidas. Revisa cada resultado antes de usarlo.",
 			"items": {
 				"background": {
 					"title": "Cambios de fondo",
@@ -467,7 +548,7 @@
 		"trust": {
 			"eyebrow": "Límites claros",
 			"title": "Privado por defecto, medido con claridad",
-			"description": "Cuando la cola patrocinada está disponible, puedes iniciar hasta dos ediciones diarias con Nano Banana 2 Lite en 1K desde la página de inicio. Las ediciones con cuenta muestran el coste en el botón y comprueban la seguridad y el precio antes de reservar EzPic Credits.",
+			"description": "Cuando la cola patrocinada está disponible, puedes iniciar hasta dos ediciones diarias con Nano Banana 2 Lite en 1K desde la página de inicio. Las ediciones con cuenta muestran el coste en el botón y comprueban la seguridad y el precio antes de reservar EzImageAI Credits.",
 			"items": {
 				"privacy": {
 					"title": "Medios privados",
@@ -475,7 +556,7 @@
 				},
 				"credits": {
 					"title": "Uso controlado",
-					"description": "Las ediciones Nano Banana de invitado usan la cola patrocinada; las ediciones de cuenta muestran la cantidad de EzPic Credits en el botón. Si cambia el precio, debes confirmarlo antes de empezar."
+					"description": "Las ediciones Nano Banana de invitado usan la cola patrocinada; las ediciones de cuenta muestran la cantidad de EzImageAI Credits en el botón. Si cambia el precio, debes confirmarlo antes de empezar."
 				},
 				"safety": {
 					"title": "Protecciones normales",
@@ -496,13 +577,13 @@
 			"subtitle": "Sube una imagen de origen, describe el cambio y revisa el coste en créditos antes de crear un resultado editado.",
 			"getStarted": "Empezar a editar",
 			"documentation": "Guía del producto",
-			"imageAlt": "Espacio privado de edición de imágenes de EzPic",
+			"imageAlt": "Espacio privado de edición de imágenes de EzImageAI",
 			"builtWith": "Un flujo centrado en la edición de imágenes"
 		},
 		"features": {
 			"badge": "Flujo de edición de imágenes",
 			"title": "De la imagen de origen a una edición controlada",
-			"description": "EzPic reúne la instrucción, los ajustes de salida específicos del modelo, los EzPic Credits y los recursos privados en un espacio de trabajo enfocado.",
+			"description": "EzImageAI reúne la instrucción, los ajustes de salida específicos del modelo, los EzImageAI Credits y los recursos privados en un espacio de trabajo enfocado.",
 			"feature1": {
 				"title": "Ediciones dirigidas",
 				"subtitle": "Describe el cambio en vez de reconstruir la imagen.",
@@ -513,11 +594,11 @@
 				},
 				"benefit2": {
 					"title": "Origen obligatorio",
-					"description": "El editor nunca presenta la generación solo desde texto como producto EzPic."
+					"description": "El editor nunca presenta la generación solo desde texto como producto EzImageAI."
 				},
 				"benefit3": {
 					"title": "Ajustes específicos por modelo",
-					"description": "Elige entre los modelos de imagen disponibles en EzPic; cada uno conserva sus propios ajustes de salida verificados y su cantidad de EzPic Credits."
+					"description": "Elige entre los modelos de imagen disponibles en EzImageAI; cada uno conserva sus propios ajustes de salida verificados y su cantidad de EzImageAI Credits."
 				}
 			},
 			"feature2": {
@@ -540,7 +621,7 @@
 		},
 		"pricing": {
 			"title": "Edición de imágenes con IA gratis y planes de pago",
-			"description": "Empieza con 25 EzPic Credits al mes en una cuenta Free. Nano Banana 2 Lite 1K usa 5 créditos por edición: hasta cinco ediciones al mes. Los planes de pago ofrecen más créditos y modelos de imagen adicionales."
+			"description": "Empieza con 25 EzImageAI Credits al mes en una cuenta Free. Nano Banana 2 Lite 1K usa 5 créditos por edición: hasta cinco ediciones al mes. Los planes de pago ofrecen más créditos y modelos de imagen adicionales."
 		},
 		"guides": {
 			"quickStart": "Empieza tu primera edición",
@@ -556,8 +637,8 @@
 					"answer": "Cuando la cola patrocinada está disponible, los visitantes elegibles pueden realizar dos ediciones de imagen al día con Nano Banana 2 Lite en 1K sin registrarse. Sube una imagen de referencia y describe el cambio. Cada resultado es privado, lleva marca de agua y está disponible hasta 24 horas. El cupo se renueva a las 00:00 UTC y no se acumula. La generación de texto a imagen requiere iniciar sesión."
 				},
 				"guestVsFree": {
-					"question": "¿Puedo usar EzPic como editor de imágenes con IA gratis?",
-					"answer": "Sí. Una cuenta Free registrada recibe 25 EzPic Credits al mes para ediciones elegibles. Por separado, los invitados pueden realizar dos ediciones patrocinadas al día cuando la cola está disponible. «No Restrictions» significa edición flexible mediante instrucciones, más allá de plantillas fijas; siguen vigentes los límites de seguridad, legales, del modelo y de uso."
+					"question": "¿Puedo usar EzImageAI como editor de imágenes con IA gratis?",
+					"answer": "Sí. Una cuenta Free registrada recibe 25 EzImageAI Credits al mes para ediciones elegibles. Por separado, los invitados pueden realizar dos ediciones patrocinadas al día cuando la cola está disponible. «No Restrictions» significa edición flexible mediante instrucciones, más allá de plantillas fijas; siguen vigentes los límites de seguridad, legales, del modelo y de uso."
 				}
 			}
 		}
@@ -574,7 +655,7 @@
 			}
 		},
 		"submit": "Suscribirse",
-		"subtitle": "Recibe ocasionalmente novedades de EzPic y consejos de edición de imágenes.",
+		"subtitle": "Recibe ocasionalmente novedades de EzImageAI y consejos de edición de imágenes.",
 		"title": "Novedades del producto"
 	},
 	"notFound": {

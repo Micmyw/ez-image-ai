@@ -1,7 +1,88 @@
 {
+	"imageToImage": {
+		"name": "Bild-zu-Bild-KI",
+		"title": "Bild-zu-Bild-KI-Generator",
+		"subtitle": "Lade ein Referenzbild hoch und beschreibe, was bleiben oder sich ändern soll.",
+		"home": "Startseite",
+		"breadcrumb": "Brotkrümelnavigation",
+		"navigationDescription": "Verändere ein Referenzbild mit einem Prompt.",
+		"referenceLabel": "Referenzbild · erforderlich",
+		"referenceNotice": "Füge ein Referenzbild hinzu, um mit der Bildbearbeitung zu beginnen.",
+		"loading": "Dein Arbeitsbereich wird geladen…",
+		"how": {
+			"title": "So erzeugst du ein neues Bild aus einem vorhandenen",
+			"description": "Beginne mit einem Foto, einer Skizze oder einer Illustration. Das Referenzbild liefert den Ausgangspunkt, dein Prompt beschreibt die Änderungen.",
+			"steps": {
+				"upload": {
+					"title": "Referenzbild hochladen",
+					"body": "Füge eine JPEG-, PNG- oder WebP-Datei hinzu, die du verwenden darfst. Wähle ein klares Bild, auf dem wichtige Details gut sichtbar sind."
+				},
+				"prompt": {
+					"title": "Beschreiben, was bleibt und was sich ändert",
+					"body": "Nenne das Motiv, das erhalten bleiben soll, und beschreibe Hintergrund, Licht, Farben oder Stil. Wähle ein verfügbares Modell und die Ausgabeeinstellungen."
+				},
+				"generate": {
+					"title": "Erzeugen, vergleichen und verfeinern",
+					"body": "Prüfe vor dem Start die angezeigten Credits oder dein Gastkontingent. Vergleiche das Ergebnis mit der Vorlage und passe den Prompt für eine weitere Bearbeitung an."
+				}
+			}
+		},
+		"useCases": {
+			"title": "Bild-zu-Bild-Prompts für deine nächste Idee",
+			"intro": "Verwende diese Vorschläge mit deinem eigenen Referenzbild. Passe die Details an dein Motiv an und prüfe jedes Ergebnis.",
+			"background": {
+				"title": "Ein neuer Hintergrund für dein Produkt",
+				"body": "Probiere eine andere Umgebung aus und beschreibe dabei, welche Form, Farbe und Beschriftung erhalten bleiben sollen.",
+				"prompt": "Behalte das Produkt, seine Form, Farbe und Beschriftung bei. Ersetze den Hintergrund durch einen warmen beigefarbenen Studiohintergrund und ergänze einen weichen natürlichen Schatten."
+			},
+			"portrait": {
+				"title": "Das Licht in einem Porträt verändern",
+				"body": "Beschreibe Licht und Stimmung sowie die Gesichtszüge und den Bildausschnitt, die erhalten bleiben sollen.",
+				"prompt": "Behalte Gesichtszüge, Frisur, Kleidung und Bildausschnitt bei. Ändere die Beleuchtung zu weichem Licht zur goldenen Stunde mit sanften Schatten."
+			},
+			"style": {
+				"title": "Einen anderen Bildstil erkunden",
+				"body": "Probiere per Prompt Aquarell, Illustration oder einen anderen Stil aus, mit demselben Bild als Ausgangspunkt.",
+				"prompt": "Interpretiere dieses Bild als sanfte Aquarellillustration. Behalte Hauptmotiv, Komposition und Farbpalette bei und ergänze eine dezente Papierstruktur."
+			}
+		},
+		"promptLabel": "Beispiel-Prompt",
+		"usePrompt": "Diesen Prompt verwenden",
+		"guide": {
+			"title": "Ein gutes Referenzbild und ein genauer Prompt ergänzen sich",
+			"body": "Beginne mit einer klaren Änderung. Beschreibe wichtige Details, die erhalten bleiben sollen, vermeide widersprüchliche Anweisungen und prüfe kleine Schrift, Gesichter und Kanten. Bild-zu-Bild nutzt eine Vorlage; neue Szenen nur aus Text kannst du nach der Anmeldung im allgemeinen Arbeitsbereich erstellen.",
+			"link": "Anleitung zur Bildbearbeitung lesen",
+			"textToImage": "Ein Bild aus Text erstellen"
+		},
+		"faq": {
+			"title": "Fragen zur Bild-zu-Bild-KI",
+			"definition": {
+				"question": "Was ist ein Bild-zu-Bild-KI-Generator?",
+				"answer": "Er erstellt ein neues Bild aus einem vorhandenen Bild und einer schriftlichen Anweisung. Du kannst Hintergrund, Licht, Objekte oder Stil verändern lassen. Die Vorlage gibt die Richtung vor; Modell und Einstellungen beeinflussen die Umsetzung."
+			},
+			"free": {
+				"question": "Kann ich die Bild-zu-Bild-KI kostenlos nutzen?",
+				"answer": "Berechtigte Gäste können die Bearbeitung ausprobieren, wenn die gesponserte Gastwarteschlange verfügbar ist. Gastergebnisse tragen ein Wasserzeichen und werden bis zu 24 Stunden gespeichert. Registrierte Free-Konten haben ein separates monatliches Credit-Kontingent. Prüfe Kontingent und Modellzugang im Arbeitsbereich oder auf der Preisseite; der kostenlose Zugang ist begrenzt."
+			},
+			"control": {
+				"question": "Bleibt jedes Detail meines Originalbilds erhalten?",
+				"answer": "Eine exakte Erhaltung ist nicht garantiert. Nenne wichtige Details, beschränke dich auf eine konkrete Änderung und vergleiche das Ergebnis mit dem Original. Gesichter, Schrift, Logos und feine Kanten können eine weitere Bearbeitung oder manuelle Prüfung benötigen."
+			},
+			"privacy": {
+				"question": "Sind hochgeladene Bilder und Ergebnisse öffentlich?",
+				"answer": "Deine Referenzbilder und Ergebnisse bleiben privat und erscheinen nicht in einer öffentlichen Galerie. Gastmedien sind temporär. Für Kontomedien gelten die Speicher- und Löschregeln der Datenschutzerklärung."
+			},
+			"limits": {
+				"question": "Kann ich den Stil ohne feste Vorlage ändern?",
+				"answer": "Ja. Beschreibe den Stil im Prompt, statt eine feste Gestaltungsvorlage auszuwählen. Inhaltssicherheit, rechtliche Vorgaben, Modellfähigkeiten, Uploadgrenzen und Nutzungskontingente gelten weiterhin."
+			}
+		},
+		"pricing": "Kostenlose und kostenpflichtige Optionen",
+		"startAgain": "Mit deinem Bild beginnen"
+	},
 	"blog": {
 		"description": "Praktische Anleitungen zu KI-Bildanweisungen, privaten Uploads und der Prüfung Ihrer Ergebnisse.",
-		"title": "EzPic-Anleitungen",
+		"title": "EzImageAI-Anleitungen",
 		"back": "Zurück zum Blog"
 	},
 	"changelog": {
@@ -26,11 +107,11 @@
 		"title": "Dokumentation"
 	},
 	"faq": {
-		"description": "Klare Antworten zu Gastverfügbarkeit, Bildmodellen, EzPic Credits, privaten Medien, Abrechnung und verantwortungsvoller Nutzung.",
+		"description": "Klare Antworten zu Gastverfügbarkeit, Bildmodellen, EzImageAI Credits, privaten Medien, Abrechnung und verantwortungsvoller Nutzung.",
 		"title": "Häufig gestellte Fragen",
 		"items": {
 			"restrictions": {
-				"question": "Was bedeutet „No Restrictions“ bei EzPic?",
+				"question": "Was bedeutet „No Restrictions“ bei EzImageAI?",
 				"answer": "Gemeint ist flexible Bearbeitung mit Prompts statt einer festen Vorlagenliste. Beschreibe, was erhalten bleiben und was sich ändern soll, halte deine Bilder privat und prüfe die Credits vor der Bestätigung. Inhaltsprüfungen, gesetzliche Anforderungen, Modellfähigkeiten und Tariflimits gelten weiterhin. Es bedeutet weder unzensierte noch unbegrenzt kostenlose Generierung."
 			},
 			"guestAvailability": {
@@ -39,11 +120,11 @@
 			},
 			"guestVsFree": {
 				"question": "Worin unterscheiden sich Gastzugang und Free?",
-				"answer": "Gäste erhalten täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite in 1K. Private Ergebnisse mit Wasserzeichen bleiben bis zu 24 Stunden verfügbar. Ein registriertes Free-Konto erhält separat monatlich 25 EzPic Credits, ausreichend für bis zu fünf Bearbeitungen mit Nano Banana 2 Lite in 1K. GPT Image 2 und Seedream 5 Pro erfordern einen kostenpflichtigen Tarif."
+				"answer": "Gäste erhalten täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite in 1K. Private Ergebnisse mit Wasserzeichen bleiben bis zu 24 Stunden verfügbar. Ein registriertes Free-Konto erhält separat monatlich 25 EzImageAI Credits, ausreichend für bis zu fünf Bearbeitungen mit Nano Banana 2 Lite in 1K. GPT Image 2 und Seedream 5 Pro erfordern einen kostenpflichtigen Tarif."
 			},
 			"editTiers": {
 				"question": "Welche Bildmodelle und Ausgabeeinstellungen sind verfügbar?",
-				"answer": "Nano Banana 2 Lite 1K verwendet 5 EzPic Credits. GPT Image 2 verwendet 7 bei 1K, 11 bei 2K oder 17 bei 4K. Seedream 5 Pro verwendet 8 für Basic 1K oder 15 für High 2K. Jede bestätigte Bearbeitung erzeugt ein Ergebnis."
+				"answer": "Nano Banana 2 Lite 1K verwendet 5 EzImageAI Credits. GPT Image 2 verwendet 7 bei 1K, 11 bei 2K oder 17 bei 4K. Seedream 5 Pro verwendet 8 für Basic 1K oder 15 für High 2K. Jede bestätigte Bearbeitung erzeugt ein Ergebnis."
 			},
 			"creditReservation": {
 				"question": "Wann werden Credits verwendet?",
@@ -55,7 +136,7 @@
 			},
 			"privateUploads": {
 				"question": "Sind hochgeladene Bilder öffentlich?",
-				"answer": "Nein. Eingaben und Ergebnisse von Gästen und Konten bleiben privat und werden nicht in einer öffentlichen Galerie veröffentlicht. Das konfigurierte Aufbewahrungsziel für Ein- und Ausgaben von Konten beträgt 30 Tage. EzPic kann nur die für die Verarbeitung erforderlichen Mindestinhalte an konfigurierte Infrastruktur- und Bildverarbeitungsdienste übermitteln."
+				"answer": "Nein. Eingaben und Ergebnisse von Gästen und Konten bleiben privat und werden nicht in einer öffentlichen Galerie veröffentlicht. Das konfigurierte Aufbewahrungsziel für Ein- und Ausgaben von Konten beträgt 30 Tage. EzImageAI kann nur die für die Verarbeitung erforderlichen Mindestinhalte an konfigurierte Infrastruktur- und Bildverarbeitungsdienste übermitteln."
 			},
 			"formats": {
 				"question": "Welche Bilder kann ich hochladen?",
@@ -63,15 +144,15 @@
 			},
 			"outputBehavior": {
 				"question": "Sind alle Ergebnisse einzigartig und exakt?",
-				"answer": "Nein. Ergebnisse können Fehler enthalten oder anderen Bildern ähneln. EzPic garantiert weder Einzigartigkeit noch Eignung für einen bestimmten Zweck oder Freiheit von Rechten Dritter."
+				"answer": "Nein. Ergebnisse können Fehler enthalten oder anderen Bildern ähneln. EzImageAI garantiert weder Einzigartigkeit noch Eignung für einen bestimmten Zweck oder Freiheit von Rechten Dritter."
 			},
 			"stableTiers": {
-				"question": "Warum verwenden Bildmodelle unterschiedliche EzPic-Credit-Beträge?",
-				"answer": "Jedes Bildmodell hat eine eigene Matrix zulässiger Ausgabeeinstellungen und einen eigenen EzPic-Credit-Betrag. EzPic zeigt Produktname, unterstützte Einstellungen und genaue Belastung; private Dienstrouten und Betriebskosten bleiben auf dem Server."
+				"question": "Warum verwenden Bildmodelle unterschiedliche EzImageAI-Credit-Beträge?",
+				"answer": "Jedes Bildmodell hat eine eigene Matrix zulässiger Ausgabeeinstellungen und einen eigenen EzImageAI-Credit-Betrag. EzImageAI zeigt Produktname, unterstützte Einstellungen und genaue Belastung; private Dienstrouten und Betriebskosten bleiben auf dem Server."
 			},
 			"annualBilling": {
 				"question": "Wie wirkt sich die Jahreszahlung auf die Credits aus?",
-				"answer": "Pro kostet 190 $ pro Jahr, Ultimate 490 $ und Max 790 $. EzPic Credits werden trotzdem monatlich vergeben—700 für Pro, 1.800 für Ultimate und 3.000 für Max—und nicht genutzte Credits werden nicht übertragen."
+				"answer": "Pro kostet 190 $ pro Jahr, Ultimate 490 $ und Max 790 $. EzImageAI Credits werden trotzdem monatlich vergeben—700 für Pro, 1.800 für Ultimate und 3.000 für Max—und nicht genutzte Credits werden nicht übertragen."
 			},
 			"cancelSubscription": {
 				"question": "Wie kündige ich mein Abonnement?",
@@ -79,11 +160,11 @@
 			},
 			"refundPolicy": {
 				"question": "Wie werden Erstattungen gehandhabt?",
-				"answer": "Die Erstattungsberechtigung richtet sich nach den Zahlungsbedingungen, dem Transaktionsstatus und dem geltenden Recht. Wende dich zur Prüfung an den Support; EzPic verspricht keine Erstattung, wenn kein Anspruch besteht."
+				"answer": "Die Erstattungsberechtigung richtet sich nach den Zahlungsbedingungen, dem Transaktionsstatus und dem geltenden Recht. Wende dich zur Prüfung an den Support; EzImageAI verspricht keine Erstattung, wenn kein Anspruch besteht."
 			},
 			"commercialUse": {
 				"question": "Darf ich bearbeitete Bilder kommerziell nutzen?",
-				"answer": "Vor einer kommerziellen Nutzung musst du die Rechte an allen Eingaben besitzen und die geltenden Bedingungen, Gesetze und Rechte Dritter selbst prüfen. Gast-Ergebnisse sind vorübergehend und mit einem Wasserzeichen versehen; EzPic behauptet nicht, dass Ausgaben automatisch für die kommerzielle Nutzung freigegeben sind."
+				"answer": "Vor einer kommerziellen Nutzung musst du die Rechte an allen Eingaben besitzen und die geltenden Bedingungen, Gesetze und Rechte Dritter selbst prüfen. Gast-Ergebnisse sind vorübergehend und mit einem Wasserzeichen versehen; EzImageAI behauptet nicht, dass Ausgaben automatisch für die kommerzielle Nutzung freigegeben sind."
 			}
 		}
 	},
@@ -99,7 +180,7 @@
 			"freeQueue": "2 kostenlose Bearbeitungen täglich · Wasserzeichen · bis zu 24 Stunden verfügbar",
 			"qualityAccess": "{model} erfordert eine Anmeldung und einen Pro-, Ultimate- oder Max-Tarif.",
 			"temporaryResult": "Deine Vorschau bleibt privat und vorübergehend.",
-			"temporarySessionDisclosure": "EzPic erstellt für diesen Test eine temporäre Sitzung, bewahrt Gastmedien bis zu 24 Stunden auf und nutzt pseudonyme Missbrauchssignale für den in unserer Datenschutzerklärung beschriebenen Zeitraum.",
+			"temporarySessionDisclosure": "EzImageAI erstellt für diesen Test eine temporäre Sitzung, bewahrt Gastmedien bis zu 24 Stunden auf und nutzt pseudonyme Missbrauchssignale für den in unserer Datenschutzerklärung beschriebenen Zeitraum.",
 			"qualityCta": "Weitere Bildmodelle · kostenpflichtiger Tarif",
 			"retryChallenge": "Überprüfung erneut versuchen",
 			"characterCount": "{count, number} / {maximum, number}",
@@ -115,7 +196,7 @@
 				"outputFormat": "Ausgabeformat",
 				"background": "Hintergrund",
 				"modeControlsQuality": "Wird durch das gewählte Modell und die SKU bestimmt",
-				"credits": "EzPic Credits",
+				"credits": "EzImageAI Credits",
 				"optionLabels": {
 					"1k": "1K",
 					"2k": "2K",
@@ -198,13 +279,13 @@
 				"quality": {
 					"label": "Weitere Bildmodelle",
 					"badge": "Bezahltes Konto",
-					"description": "Jedes Modell behält eigene verifizierte Ausgabeeinstellungen und einen eigenen EzPic-Credit-Betrag",
+					"description": "Jedes Modell behält eigene verifizierte Ausgabeeinstellungen und einen eigenen EzImageAI-Credit-Betrag",
 					"access": "Pro, Ultimate oder Max erforderlich"
 				}
 			},
 			"loginNotice": "Melde dich an, um Bilder aus Text zu erstellen. Die Schaltfläche zeigt vor dem Start die Credit-Kosten. Mit Referenzbild bleibt die gesponserte Nano Banana 2 Lite-Gastbearbeitung verfügbar, wenn die Gast-Warteschlange offen ist.",
 			"previewCaption": "Quellvorschau",
-			"previewPlaceholderAlt": "Originale EzPic-Vektorillustration eines neutralen Lesezimmers",
+			"previewPlaceholderAlt": "Originale EzImageAI-Vektorillustration eines neutralen Lesezimmers",
 			"previewAlt": "Vorschau von {fileName}",
 			"privateLabel": "Privater Entwurf",
 			"floating": {
@@ -236,7 +317,7 @@
 			"listLabel": "Illustrative Creator-Story-Karten",
 			"columnLabel": "Creator-Story-Spalte {number, number} von {total, number}",
 			"directionLabel": "Beispielauftrag",
-			"disclaimer": "Diese zusammengesetzten Profile zeigen mögliche EzPic-Workflows. Sie sind keine Kundenstimmen, veröffentlichten Fallstudien oder zugesicherten Ergebnisse.",
+			"disclaimer": "Diese zusammengesetzten Profile zeigen mögliche EzImageAI-Workflows. Sie sind keine Kundenstimmen, veröffentlichten Fallstudien oder zugesicherten Ergebnisse.",
 			"cards": {
 				"ecommerce": {
 					"name": "Mina I.",
@@ -310,7 +391,7 @@
 			"usePrompt": "Prompt verwenden",
 			"promptAdded": "Prompt übernommen",
 			"usePromptLabel": "Prompt {title} verwenden",
-			"provenanceNote": "Originalbilder, die separat als visuelle Inspiration erstellt wurden. Sie werden nicht als EzPic-Ergebnisse dargestellt; tatsächliche Ergebnisse hängen von Quellbild und Prompt ab.",
+			"provenanceNote": "Originalbilder, die separat als visuelle Inspiration erstellt wurden. Sie werden nicht als EzImageAI-Ergebnisse dargestellt; tatsächliche Ergebnisse hängen von Quellbild und Prompt ab.",
 			"items": {
 				"mediterranean": {
 					"tag": "Interieur",
@@ -389,7 +470,7 @@
 		"supportedEdits": {
 			"eyebrow": "Unterstützte Bearbeitungen",
 			"title": "Bestimme die Änderung und behalte dein Quellbild",
-			"description": "EzPic unterstützt prompt-gesteuerte Änderungen an hochgeladenen JPEG-, PNG- oder WebP-Bildern. Prüfe jedes Ergebnis vor der Verwendung.",
+			"description": "EzImageAI unterstützt prompt-gesteuerte Änderungen an hochgeladenen JPEG-, PNG- oder WebP-Bildern. Prüfe jedes Ergebnis vor der Verwendung.",
 			"items": {
 				"background": {
 					"title": "Hintergrund ändern",
@@ -467,7 +548,7 @@
 		"trust": {
 			"eyebrow": "Klare Grenzen",
 			"title": "Standardmäßig privat, transparent gemessen",
-			"description": "Wenn die Gastwarteschlange verfügbar ist, können über die Startseite täglich bis zu zwei Bearbeitungen mit Nano Banana 2 Lite in 1K gestartet werden. Bei Kontobearbeitungen zeigt die Schaltfläche die Kosten an; Sicherheit und Preis werden vor der Reservierung der EzPic Credits geprüft.",
+			"description": "Wenn die Gastwarteschlange verfügbar ist, können über die Startseite täglich bis zu zwei Bearbeitungen mit Nano Banana 2 Lite in 1K gestartet werden. Bei Kontobearbeitungen zeigt die Schaltfläche die Kosten an; Sicherheit und Preis werden vor der Reservierung der EzImageAI Credits geprüft.",
 			"items": {
 				"privacy": {
 					"title": "Private Medien",
@@ -475,7 +556,7 @@
 				},
 				"credits": {
 					"title": "Kontrollierte Nutzung",
-					"description": "Nano-Banana-Gastbearbeitungen verwenden die gesponserte Warteschlange; Kontobearbeitungen zeigen den EzPic-Credit-Betrag auf der Schaltfläche. Eine Preisänderung muss vor dem Start bestätigt werden."
+					"description": "Nano-Banana-Gastbearbeitungen verwenden die gesponserte Warteschlange; Kontobearbeitungen zeigen den EzImageAI-Credit-Betrag auf der Schaltfläche. Eine Preisänderung muss vor dem Start bestätigt werden."
 				},
 				"safety": {
 					"title": "Normale Schutzmaßnahmen",
@@ -496,13 +577,13 @@
 			"subtitle": "Lade ein Quellbild hoch, beschreibe die Änderung und prüfe die Credit-Kosten, bevor du ein bearbeitetes Ergebnis erstellst.",
 			"getStarted": "Bearbeitung starten",
 			"documentation": "Produktleitfaden",
-			"imageAlt": "Privater EzPic-Arbeitsbereich für Bildbearbeitung",
+			"imageAlt": "Privater EzImageAI-Arbeitsbereich für Bildbearbeitung",
 			"builtWith": "Ein fokussierter Ablauf für Bildbearbeitung"
 		},
 		"features": {
 			"badge": "Ablauf für Bildbearbeitung",
 			"title": "Vom Quellbild zur kontrollierten Bearbeitung",
-			"description": "EzPic bündelt Bearbeitungsprompt, modellspezifische Ausgabeeinstellungen, EzPic Credits und private Assets in einem fokussierten Arbeitsbereich.",
+			"description": "EzImageAI bündelt Bearbeitungsprompt, modellspezifische Ausgabeeinstellungen, EzImageAI Credits und private Assets in einem fokussierten Arbeitsbereich.",
 			"feature1": {
 				"title": "Gezielte Bearbeitungen",
 				"subtitle": "Beschreibe die Änderung, statt das Bild neu aufzubauen.",
@@ -513,11 +594,11 @@
 				},
 				"benefit2": {
 					"title": "Quellbild erforderlich",
-					"description": "Der Editor stellt reine Text-zu-Bild-Erzeugung nie als EzPic-Produkt dar."
+					"description": "Der Editor stellt reine Text-zu-Bild-Erzeugung nie als EzImageAI-Produkt dar."
 				},
 				"benefit3": {
 					"title": "Modellspezifische Einstellungen",
-					"description": "Wähle aus den in EzPic verfügbaren Bildmodellen; jedes behält eigene verifizierte Ausgabeeinstellungen und einen eigenen EzPic-Credit-Betrag."
+					"description": "Wähle aus den in EzImageAI verfügbaren Bildmodellen; jedes behält eigene verifizierte Ausgabeeinstellungen und einen eigenen EzImageAI-Credit-Betrag."
 				}
 			},
 			"feature2": {
@@ -540,7 +621,7 @@
 		},
 		"pricing": {
 			"title": "Kostenlose KI-Bildbearbeitung und kostenpflichtige Tarife",
-			"description": "Mit einem Free-Konto erhältst du monatlich 25 EzPic Credits. Nano Banana 2 Lite 1K benötigt 5 Credits pro Bearbeitung – das reicht für bis zu fünf Bearbeitungen im Monat. Kostenpflichtige Tarife bieten mehr Credits und zusätzliche Bildmodelle."
+			"description": "Mit einem Free-Konto erhältst du monatlich 25 EzImageAI Credits. Nano Banana 2 Lite 1K benötigt 5 Credits pro Bearbeitung – das reicht für bis zu fünf Bearbeitungen im Monat. Kostenpflichtige Tarife bieten mehr Credits und zusätzliche Bildmodelle."
 		},
 		"guides": {
 			"quickStart": "Erste Bearbeitung starten",
@@ -556,8 +637,8 @@
 					"answer": "Wenn die gesponserte Gastwarteschlange verfügbar ist, können berechtigte Besucher täglich zwei Bilder mit Nano Banana 2 Lite in 1K ohne Registrierung bearbeiten. Lade ein Referenzbild hoch und beschreibe die Änderung. Jedes Ergebnis ist privat, mit Wasserzeichen versehen und bis zu 24 Stunden verfügbar. Das Kontingent wird um 00:00 UTC erneuert; ungenutzte Bearbeitungen verfallen. Text-zu-Bild erfordert eine Anmeldung."
 				},
 				"guestVsFree": {
-					"question": "Kann ich EzPic als kostenlosen KI-Bildeditor nutzen?",
-					"answer": "Ja. Ein registriertes Free-Konto erhält monatlich 25 EzPic Credits für berechtigte Bearbeitungen. Gäste können separat täglich zwei gesponserte Bearbeitungen nutzen, wenn die Warteschlange verfügbar ist. „No Restrictions“ bedeutet flexibles Bearbeiten per Prompt jenseits fester Vorlagen; Sicherheits-, Rechts-, Modell- und Nutzungslimits gelten weiterhin."
+					"question": "Kann ich EzImageAI als kostenlosen KI-Bildeditor nutzen?",
+					"answer": "Ja. Ein registriertes Free-Konto erhält monatlich 25 EzImageAI Credits für berechtigte Bearbeitungen. Gäste können separat täglich zwei gesponserte Bearbeitungen nutzen, wenn die Warteschlange verfügbar ist. „No Restrictions“ bedeutet flexibles Bearbeiten per Prompt jenseits fester Vorlagen; Sicherheits-, Rechts-, Modell- und Nutzungslimits gelten weiterhin."
 				}
 			}
 		}
@@ -574,7 +655,7 @@
 			}
 		},
 		"submit": "Abonnieren",
-		"subtitle": "Erhalte gelegentliche EzPic-Produktneuigkeiten und Tipps zur Bildbearbeitung.",
+		"subtitle": "Erhalte gelegentliche EzImageAI-Produktneuigkeiten und Tipps zur Bildbearbeitung.",
 		"title": "Produktneuigkeiten"
 	},
 	"notFound": {

@@ -9,7 +9,7 @@ test("all sitemap targets publish consistent indexable HTML without JavaScript",
 	const xml = await sitemapResponse.text();
 	const modifiedDates = [...xml.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)];
 	const urls = [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)].map((match) => match[1]!);
-	expect(urls).toHaveLength(25);
+	expect(urls).toHaveLength(26);
 	expect(modifiedDates).toHaveLength(urls.length);
 	for (const [, date] of modifiedDates) expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
 	const evidence = [];
@@ -161,16 +161,30 @@ test("public pages keep stable English while account pages retain the locale coo
 	}
 	await page.goto("/login");
 	await expect(page.locator("html")).toHaveAttribute("lang", "de");
+	await expect(page.getByRole("heading", { name: "Willkommen zurück" })).toBeVisible();
 	expect((await context.cookies()).find((cookie) => cookie.name === "NEXT_LOCALE")?.value).toBe(
 		"de",
 	);
-	await page.getByRole("link", { name: "EzPic", exact: true }).first().click();
+	await page.getByRole("link", { name: "EzImageAI", exact: true }).first().click();
 	await expect(page.locator("html")).toHaveAttribute("lang", "en");
+	for (const path of ["/", "/image-to-image", "/pricing"]) {
+		await page.goto(path);
+		await page
+			.getByRole("banner")
+			.getByRole("link", { name: /sign in/i })
+			.click();
+		await expect(page.locator("html"), path).toHaveAttribute("lang", "de");
+		await expect(page.getByRole("heading", { name: "Willkommen zurück" }), path).toBeVisible();
+	}
+	await page.setViewportSize({ width: 390, height: 844 });
+	await page.goto("/image-to-image");
+	await page.locator('[data-test="header-navigation-trigger"]').click();
 	await page
-		.getByRole("banner")
+		.locator('[data-test="header-navigation-drawer"]')
 		.getByRole("link", { name: /sign in/i })
 		.click();
 	await expect(page.locator("html")).toHaveAttribute("lang", "de");
+	await expect(page.getByRole("heading", { name: "Willkommen zurück" })).toBeVisible();
 });
 
 test("an unavailable editor provides recovery without submitting an edit", async ({ page }) => {
@@ -193,11 +207,14 @@ test("an unavailable editor provides recovery without submitting an edit", async
 			},
 		});
 	});
-	await page.goto("/");
+	await page.goto("/image-to-image");
 	const editor = page.locator('[data-test="landing-generator"]');
-	await expect(editor.getByText(/editing is unavailable right now/i)).toBeVisible();
+	await expect(page.locator('[data-test="landing-stage"]')).toContainText(
+		/generation is unavailable right now/i,
+	);
+	await expect(page.locator('[data-test="landing-stage"]')).toBeVisible();
 	await expect(editor.getByRole("button", { name: /try .* free/i })).toHaveCount(0);
-	await editor.getByLabel(/describe your edit/i).fill("Keep the mug and soften the background");
+	await editor.getByLabel(/describe your image/i).fill("Keep the mug and soften the background");
 	await expect(editor.getByRole("link", { name: /prompt guide/i })).toHaveAttribute(
 		"href",
 		"/blog/ai-image-editing-prompts",
@@ -207,9 +224,9 @@ test("an unavailable editor provides recovery without submitting an edit", async
 		"/contact",
 	);
 	const beforeRetry = capabilityRequests;
-	await editor.getByRole("button", { name: /check edit availability again/i }).click();
+	await editor.getByRole("button", { name: /check availability/i }).click();
 	await expect.poll(() => capabilityRequests).toBe(beforeRetry + 1);
-	await expect(editor.getByLabel(/describe your edit/i)).toHaveValue(
+	await expect(editor.getByLabel(/describe your image/i)).toHaveValue(
 		"Keep the mug and soften the background",
 	);
 	expect(draftRequests).toBe(0);

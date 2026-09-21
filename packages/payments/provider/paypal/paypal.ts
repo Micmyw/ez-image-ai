@@ -241,7 +241,7 @@ export async function activatePayPalSubscriptionCheckout(
 			"Content-Type": "application/json",
 			"PayPal-Request-Id": `activate:${input.checkoutIntentId}`,
 		},
-		body: { reason: "Buyer approved the selected EzPic subscription" },
+		body: { reason: "Buyer approved the selected EzImageAI subscription" },
 	});
 	if (response.status !== 204 && response.status !== 200)
 		throw new Error("PAYPAL_CHECKOUT_ACTIVATION_UNCONFIRMED");

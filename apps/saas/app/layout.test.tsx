@@ -11,7 +11,7 @@ const passthrough = ({ children }: { children: ReactNode }) => children;
 vi.mock("@config", () => ({
 	config: {
 		appDescription: "Private image editing",
-		appName: "EzPic",
+		appName: "EzImageAI",
 		defaultTheme: "dark",
 		enabledThemes: ["light", "dark"],
 	},

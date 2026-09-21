@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 const indexableRoutes = ["/", "/pricing", "/privacy", "/terms", "/blog"] as const;
 const noindexRoutes = ["/changelog", "/contact", "/create"] as const;
 const requiredFooterRoutes = [
+	"/image-to-image",
 	"/privacy",
 	"/terms",
 	"/blog",
@@ -22,10 +23,169 @@ const legacyRedirects: ReadonlyArray<{ from: string; to: string }> = [
 
 test.use({ storageState: { cookies: [], origins: [] } });
 
+async function mockPublicImageAvailability(page: import("@playwright/test").Page) {
+	const product = {
+		key: "image-nano-banana-2-lite",
+		label: "Nano Banana 2 Lite",
+		description: "Fast private image editing",
+		credits: "5",
+		accessHint: "guest-trial",
+		aspectRatios: ["auto", "1:1"],
+		skuMatrix: {
+			defaultSkuKey: "nano-banana-2-lite-1k",
+			dimensions: [
+				{ key: "resolution", label: "Resolution", options: [{ key: "1k", label: "1K" }] },
+			],
+			cells: [
+				{
+					skuKey: "nano-banana-2-lite-1k",
+					label: "1K",
+					parameterValues: { resolution: "1k" },
+					credits: 5,
+					aspectRatios: ["auto", "1:1"],
+					controls: [],
+				},
+			],
+		},
+	};
+	await page.route("**/api/media/guest-capability", (route) =>
+		route.fulfill({
+			json: {
+				version: "image-to-image-e2e",
+				enabled: true,
+				reason: null,
+				upload: {
+					mimeTypes: ["image/jpeg", "image/png", "image/webp"],
+					maximumBytes: 10 * 1024 * 1024,
+				},
+				products: [product],
+				queueEstimate: { kind: "capacity" },
+			},
+		}),
+	);
+	await page.route("**/api/rpc/media/getPublicCatalog**", (route) =>
+		route.fulfill({
+			json: {
+				json: {
+					catalogVersion: "image-to-image-e2e",
+					pricingVersion: "image-to-image-e2e",
+					products: [{ ...product, inputKinds: ["text-to-image", "image-to-image"] }],
+				},
+			},
+		}),
+	);
+}
+
+test.describe("image-to-image landing page", () => {
+	test.use({ contextOptions: { reducedMotion: "reduce" } });
+	test.beforeEach(async ({ page }) => {
+		await mockPublicImageAvailability(page);
+	});
+
+	for (const width of [1440, 390]) {
+		test(`has focused metadata and requires an image at ${width}px`, async ({ page, context }) => {
+			test.setTimeout(90_000);
+			await page.setViewportSize({ width, height: 900 });
+			await context.addCookies([
+				{ name: "NEXT_LOCALE", value: "de", url: new URL(baseUrl).origin },
+			]);
+			await expectPublicPage(page, "/image-to-image", "index");
+			await expect(page.locator("html")).toHaveAttribute("lang", "en");
+			await expect(page).toHaveTitle("Image to Image AI Generator | EzImageAI");
+			await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+				"Image to Image AI Generator",
+			);
+			await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
+				"content",
+				await page.title(),
+			);
+			const schemas = await page
+				.locator('script[type="application/ld+json"]')
+				.evaluateAll((scripts) =>
+					scripts.flatMap((script) => {
+						const data = JSON.parse(script.textContent ?? "{}");
+						return data["@graph"] ?? [data];
+					}),
+				);
+			expect(schemas).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						"@type": "BreadcrumbList",
+						itemListElement: expect.arrayContaining([
+							expect.objectContaining({
+								position: 2,
+								name: "Image to Image AI",
+								item: new URL("/image-to-image", baseUrl).href,
+							}),
+						]),
+					}),
+				]),
+			);
+			const action = page.locator('[data-test="landing-generate"]');
+			await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText(
+				"Nano Banana 2 Lite",
+			);
+			await page.getByRole("button", { name: "Use this prompt" }).first().click();
+			await expect(page.locator("textarea")).toHaveValue(/Keep the product, its shape/);
+			await expect(page.getByRole("heading", { level: 1 })).toBeInViewport();
+			await expect(action).toBeDisabled();
+			await expect(page.locator("#landing-source-image")).toHaveAttribute(
+				"aria-label",
+				"Reference image · required",
+			);
+			await expect(
+				page.locator('[data-test="landing-source-panel"] button'),
+			).not.toHaveAccessibleName(/optional/i);
+			expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+				true,
+			);
+			await page.screenshot({
+				path: test.info().outputPath(`image-to-image-${width}-viewport.png`),
+			});
+			await page.screenshot({
+				path: test.info().outputPath(`image-to-image-${width}.png`),
+				fullPage: true,
+			});
+			await page.locator("#landing-source-image").setInputFiles({
+				name: "reference.png",
+				mimeType: "image/png",
+				buffer: Buffer.from(
+					"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+					"base64",
+				),
+			});
+			await expect(page.getByRole("img", { name: /preview of reference.png/i })).toBeVisible();
+			await expect(action).toBeEnabled();
+			await page.getByRole("button", { name: /remove image/i }).click();
+			await expect(action).toBeDisabled();
+		});
+	}
+
+	for (const locale of ["de", "es", "fr"]) {
+		test(`keeps the ${locale} interface noindex with an English canonical`, async ({ page }) => {
+			const response = await page.goto(`/image-to-image?lang=${locale}`);
+			expect(response?.status()).toBe(200);
+			expect(response?.headers()["x-robots-tag"]).toBe("noindex, follow");
+			await expect(page.locator("html")).toHaveAttribute("lang", locale);
+			await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+			await expect(page.getByRole("heading", { level: 1 })).not.toHaveText(
+				"Image to Image AI Generator",
+			);
+			await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+				"href",
+				new URL("/image-to-image", baseUrl).href,
+			);
+		});
+	}
+});
+
 test.describe("consolidated public routes", () => {
 	for (const path of indexableRoutes) {
 		test(`${path} is an indexable same-origin page`, async ({ page }) => {
-			if (path === "/") test.setTimeout(90_000);
+			if (path === "/") {
+				test.setTimeout(90_000);
+				await mockPublicImageAvailability(page);
+			}
 			const response = await expectPublicPage(page, path, "index");
 			if (path === "/") {
 				const html = await response!.text();
@@ -36,14 +196,14 @@ test.describe("consolidated public routes", () => {
 				await expect(page).toHaveTitle(/AI Image Editor No Restrictions/);
 				await expect(page.locator('meta[name="description"]')).toHaveAttribute(
 					"content",
-					/ai image editor with prompt/i,
+					"AI image editor no restrictions: edit photos with prompts beyond fixed templates. Private images and clear credits; safety and usage limits apply.",
 				);
 				await expect(page.locator('meta[property="og:title"]')).toHaveAttribute(
 					"content",
 					await page.title(),
 				);
 				const explanation = page.locator("#faq details").filter({
-					hasText: "What does “AI image editor with prompt no restrictions” mean on EzPic?",
+					hasText: "What does “AI image editor with prompt no restrictions” mean on EzImageAI?",
 				});
 				await explanation.locator("summary").click();
 				await expect(explanation.locator("p")).toBeVisible();
@@ -71,6 +231,7 @@ test.describe("consolidated public routes", () => {
 	}
 
 	test("the landing footer exposes every public destination", async ({ page }) => {
+		await mockPublicImageAvailability(page);
 		await page.goto("/");
 		const footer = page.getByRole("contentinfo");
 		await expect(footer).toBeVisible();
@@ -177,7 +338,11 @@ test.describe("consolidated public routes", () => {
 		);
 		if (configuredEmail) {
 			expect(mailHrefs.length).toBeGreaterThan(0);
-			expect(mailHrefs.every((href) => href === `mailto:${configuredEmail}`)).toBe(true);
+			for (const href of mailHrefs) {
+				const target = new URL(href!);
+				expect(target.protocol).toBe("mailto:");
+				expect(decodeURIComponent(target.pathname)).toBe(configuredEmail);
+			}
 		} else {
 			expect(mailHrefs).toEqual([]);
 		}
@@ -187,7 +352,7 @@ test.describe("consolidated public routes", () => {
 		const response = await request.get("/api/docs");
 		expect(response.status()).toBe(200);
 		expect(response.headers()["content-type"]).toContain("text/html");
-		expect(await response.text()).toMatch(/EzPic/i);
+		expect(await response.text()).toMatch(/EzImageAI/i);
 	});
 
 	test("public legal pages stay English regardless of the account locale cookie", async ({

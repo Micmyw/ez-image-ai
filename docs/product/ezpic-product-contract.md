@@ -1,19 +1,19 @@
-# EzPic product contract
+# EzImageAI product contract
 
-This document records the public product boundary introduced by EzPic product PR 1 and extended by
+This document records the public product boundary introduced by EzImageAI product PR 1 and extended by
 the later editor PRs. It is the reference for later product work; the lower-level AI media
 foundation remains the implementation base.
 
 ## Product identity and configuration
 
-EzPic is a private, prompt-based AI image editor. A deployment can replace the working brand and
+EzImageAI is a private, prompt-based AI image editor. A deployment can replace the working brand and
 public contact details without editing components or email templates:
 
 | Variable                       | Purpose                                                           |
 | ------------------------------ | ----------------------------------------------------------------- |
 | `NEXT_PUBLIC_SAAS_URL`         | Canonical origin for the public landing and authenticated product |
 | `NEXT_PUBLIC_SUPPORT_EMAIL`    | Public support address; omitted when blank                        |
-| `NEXT_PUBLIC_SITE_NAME`        | Product name, defaulting to `EzPic`                               |
+| `NEXT_PUBLIC_SITE_NAME`        | Product name, defaulting to `EzImageAI`                           |
 | `NEXT_PUBLIC_SITE_DESCRIPTION` | Product metadata and descriptive copy                             |
 
 Production deployments must provide their real origins and support address. Repository defaults
@@ -22,40 +22,40 @@ is embedded in the product code.
 
 ## Public products, one wallet, and legal SKUs
 
-EzPic exposes twelve image products backed by one `EzPic Credit` balance. Credit use is selected
+EzImageAI exposes twelve image products backed by one `EzImageAI Credit` balance. Credit use is selected
 by the exact legal SKU, not by a universal per-image rate:
 
-| Public product key             | Legal SKU                   | Parameters | EzPic Credits |
-| ------------------------------ | --------------------------- | ---------- | ------------: |
-| `image-nano-banana-2-lite`     | `nano-banana-2-lite-1k`     | 1K         |             5 |
-| `image-nano-banana`            | `nano-banana-default`       | Default    |             5 |
-| `image-nano-banana-2`          | `nano-banana-2-1k`          | 1K         |             9 |
-| `image-nano-banana-2`          | `nano-banana-2-2k`          | 2K         |            13 |
-| `image-nano-banana-2`          | `nano-banana-2-4k`          | 4K         |            19 |
-| `image-nano-banana-pro`        | `nano-banana-pro-1k`        | 1K         |            19 |
-| `image-nano-banana-pro`        | `nano-banana-pro-2k`        | 2K         |            22 |
-| `image-nano-banana-pro`        | `nano-banana-pro-4k`        | 4K         |            25 |
-| `image-gpt-image-1-5`          | `gpt-image-1-5-medium`      | Medium     |             5 |
-| `image-gpt-image-1-5`          | `gpt-image-1-5-high`        | High       |            23 |
-| `image-gpt-image-2`            | `gpt-image-2-1k`            | 1K         |             7 |
-| `image-gpt-image-2`            | `gpt-image-2-2k`            | 2K         |            11 |
-| `image-gpt-image-2`            | `gpt-image-2-4k`            | 4K         |            17 |
-| `image-seedream-4-5`           | `seedream-4-5-basic-2k`     | Basic, 2K  |             8 |
-| `image-seedream-4-5`           | `seedream-4-5-high-4k`      | High, 4K   |            12 |
-| `image-seedream-5-lite`        | `seedream-5-lite-basic-2k`  | Basic, 2K  |             7 |
-| `image-seedream-5-lite`        | `seedream-5-lite-high-3k`   | High, 3K   |            10 |
-| `image-seedream-5-lite`        | `seedream-5-lite-ultra-4k`  | Ultra, 4K  |            14 |
-| `image-seedream-5-pro`         | `seedream-5-pro-basic-1k`   | Basic, 1K  |             8 |
-| `image-seedream-5-pro`         | `seedream-5-pro-high-2k`    | High, 2K   |            15 |
-| `image-gpt-image-2-5-flare`    | `gpt-image-2-5-flare-1k`    | 1K         |             7 |
-| `image-gpt-image-2-5-flare`    | `gpt-image-2-5-flare-2k`    | 2K         |            11 |
-| `image-gpt-image-2-5-flare`    | `gpt-image-2-5-flare-4k`    | 4K         |            17 |
-| `image-gpt-image-2-5-sunburst` | `gpt-image-2-5-sunburst-1k` | 1K         |             7 |
-| `image-gpt-image-2-5-sunburst` | `gpt-image-2-5-sunburst-2k` | 2K         |            11 |
-| `image-gpt-image-2-5-sunburst` | `gpt-image-2-5-sunburst-4k` | 4K         |            17 |
-| `image-seedream-4`             | `seedream-4-1k`             | 1K         |             6 |
-| `image-seedream-4`             | `seedream-4-2k`             | 2K         |             8 |
-| `image-seedream-4`             | `seedream-4-4k`             | 4K         |            10 |
+| Public product key             | Legal SKU                   | Parameters | EzImageAI Credits |
+| ------------------------------ | --------------------------- | ---------- | ----------------: |
+| `image-nano-banana-2-lite`     | `nano-banana-2-lite-1k`     | 1K         |                 5 |
+| `image-nano-banana`            | `nano-banana-default`       | Default    |                 5 |
+| `image-nano-banana-2`          | `nano-banana-2-1k`          | 1K         |                 9 |
+| `image-nano-banana-2`          | `nano-banana-2-2k`          | 2K         |                13 |
+| `image-nano-banana-2`          | `nano-banana-2-4k`          | 4K         |                19 |
+| `image-nano-banana-pro`        | `nano-banana-pro-1k`        | 1K         |                19 |
+| `image-nano-banana-pro`        | `nano-banana-pro-2k`        | 2K         |                22 |
+| `image-nano-banana-pro`        | `nano-banana-pro-4k`        | 4K         |                25 |
+| `image-gpt-image-1-5`          | `gpt-image-1-5-medium`      | Medium     |                 5 |
+| `image-gpt-image-1-5`          | `gpt-image-1-5-high`        | High       |                23 |
+| `image-gpt-image-2`            | `gpt-image-2-1k`            | 1K         |                 7 |
+| `image-gpt-image-2`            | `gpt-image-2-2k`            | 2K         |                11 |
+| `image-gpt-image-2`            | `gpt-image-2-4k`            | 4K         |                17 |
+| `image-seedream-4-5`           | `seedream-4-5-basic-2k`     | Basic, 2K  |                 8 |
+| `image-seedream-4-5`           | `seedream-4-5-high-4k`      | High, 4K   |                12 |
+| `image-seedream-5-lite`        | `seedream-5-lite-basic-2k`  | Basic, 2K  |                 7 |
+| `image-seedream-5-lite`        | `seedream-5-lite-high-3k`   | High, 3K   |                10 |
+| `image-seedream-5-lite`        | `seedream-5-lite-ultra-4k`  | Ultra, 4K  |                14 |
+| `image-seedream-5-pro`         | `seedream-5-pro-basic-1k`   | Basic, 1K  |                 8 |
+| `image-seedream-5-pro`         | `seedream-5-pro-high-2k`    | High, 2K   |                15 |
+| `image-gpt-image-2-5-flare`    | `gpt-image-2-5-flare-1k`    | 1K         |                 7 |
+| `image-gpt-image-2-5-flare`    | `gpt-image-2-5-flare-2k`    | 2K         |                11 |
+| `image-gpt-image-2-5-flare`    | `gpt-image-2-5-flare-4k`    | 4K         |                17 |
+| `image-gpt-image-2-5-sunburst` | `gpt-image-2-5-sunburst-1k` | 1K         |                 7 |
+| `image-gpt-image-2-5-sunburst` | `gpt-image-2-5-sunburst-2k` | 2K         |                11 |
+| `image-gpt-image-2-5-sunburst` | `gpt-image-2-5-sunburst-4k` | 4K         |                17 |
+| `image-seedream-4`             | `seedream-4-1k`             | 1K         |                 6 |
+| `image-seedream-4`             | `seedream-4-2k`             | 2K         |                 8 |
+| `image-seedream-4`             | `seedream-4-4k`             | 4K         |                10 |
 
 The current catalog contains twelve products and twenty-nine priced output cells. GPT Image 2.5
 Flare and Sunburst support their four additional aspect ratios only at 1K. Seedream 4.0 is limited
@@ -73,20 +73,20 @@ quality-plus-resolution products do not share a global option table. Their aspec
 remain independent. The client renders only the legal cells returned for the selected public
 product instead of constructing combinations from shared quality or resolution arrays. Supported
 output format and background controls are non-billable product-local request options; they do not
-create SKU cells or alter the quoted EzPic Credit amount.
+create SKU cells or alter the quoted EzImageAI Credit amount.
 
 Public catalog responses contain product labels, SKU labels, legal parameter cells, aspect ratios,
-and EzPic Credit amounts needed by the editor. They never contain Kie identity, raw model IDs,
+and EzImageAI Credit amounts needed by the editor. They never contain Kie identity, raw model IDs,
 credentials, route costs, routing weights, or raw Provider payloads. The quote freezes the selected
 SKU, credits, server-only cost, catalog/pricing version, and route graph before reservation.
 
-`image-fast` and `image-quality` are legacy EzPic keys retained only to interpret historical records
+`image-fast` and `image-quality` are legacy EzImageAI keys retained only to interpret historical records
 and recover already-accepted attempts. A new retry is migrated to a legal Kie product/SKU instead of
 submitting the legacy route again. The legacy keys are absent from the public product configuration,
 plans, and new quote candidates. OpenRouter is not used for new image submissions; its adapter may
 remain worker-only to retrieve or reconcile historical attempts.
 
-`video-fast` and `video-quality` remain internal catalog entries and stay outside EzPic public
+`video-fast` and `video-quality` remain internal catalog entries and stay outside EzImageAI public
 configuration, plans, navigation, SEO, and UI.
 
 Image catalog version: `2026-09-14.1`; image pricing version: `2026-09-13.2`. Credit Pack catalog, pricing, and
@@ -107,7 +107,7 @@ prompt uses the enabled public text catalog. Continuing saves a bounded one-hour
 and opens login; the prompt never enters the URL, and a fresh quote is required after sign-in.
 A visitor can also choose one JPEG, PNG, or WebP source within the server-advertised limit, enter
 an edit instruction, and start the sponsored Nano Banana 2 Lite 1K trial. That guest path is fixed to product
-`image-nano-banana-2-lite`, SKU `nano-banana-2-lite-1k`, one output, and five sponsored EzPic
+`image-nano-banana-2-lite`, SKU `nano-banana-2-lite-1k`, one output, and five sponsored EzImageAI
 Credits per edit. Each anonymous owner/session and device can admit two edits per UTC calendar day,
 for up to ten sponsored Credits daily with no rollover. A fresh upload can bind to the existing
 anonymous owner. Admission counts accepted trial records under the existing transaction locks;
@@ -190,7 +190,7 @@ sessions or backfilled.
 operations always scope by `ownerType=USER` and the current user ID; cross-owner session, job, or
 asset references use a generic not-found/forbidden response without confirming whether the target
 exists. Session listing uses a stable `(updatedAt, id)` cursor. The timeline exposes only the real
-prompt, stable public product label, SKU/parameter label, EzPic Credits, status, timestamps, and
+prompt, stable public product label, SKU/parameter label, EzImageAI Credits, status, timestamps, and
 owner-authorized private thumbnail. It does not expose Provider/model/cost data, object keys,
 signed URLs, or raw snapshots. Failed versions remain for audit but cannot be edited again. A
 deleted output remains in the timeline as `Asset deleted`; deleting it does not cascade into jobs,
@@ -314,7 +314,7 @@ recorded in
 Public navigation exposes Models, Examples, How It Works, Pricing, FAQ, Privacy, Terms, Blog, Changelog,
 Contact, Docs, Sign In, and Start Editing on the unified SaaS origin. Authenticated navigation is
 limited to Create, Edits, History, Assets, Billing, and Settings. Existing chatbot and video
-implementation code may remain, but those entries are hidden from EzPic navigation.
+implementation code may remain, but those entries are hidden from EzImageAI navigation.
 
 The same-origin sitemap includes `/`, `/pricing`, `/privacy`, `/terms`, `/models`, twelve individual
 model pages, reviewed published Blog content, and Docs marked `indexable: true`.

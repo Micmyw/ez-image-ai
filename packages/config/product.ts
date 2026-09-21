@@ -237,7 +237,7 @@ export const DEFAULT_PRODUCT_CONFIG = productConfigSchema.parse({
 	catalogVersion: "2026-09-14.1",
 	pricingVersion: "2026-09-13.2",
 	brand: {
-		siteName: "EzPic",
+		siteName: "EzImageAI",
 		siteDescription: "Private prompt-based AI image editing with transparent credits.",
 		supportEmail: null,
 	},

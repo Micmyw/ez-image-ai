@@ -3,7 +3,7 @@ import { cn } from "../lib";
 export function Logo({
 	withLabel = true,
 	className,
-	label = "EzPic",
+	label = "EzImageAI",
 	decorative = false,
 }: {
 	className?: string;

@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 const appDirectory = import.meta.dirname;
 
 describe("SaaS brand assets", () => {
-	it("ships the generated EzPic PNG favicon instead of the template icon", () => {
+	it("ships the generated EzImageAI PNG favicon instead of the template icon", () => {
 		const iconPath = path.join(appDirectory, "icon.png");
 		const icon = readFileSync(iconPath);
 
@@ -18,12 +18,12 @@ describe("SaaS brand assets", () => {
 		expect(icon.byteLength).toBeLessThan(100_000);
 	});
 
-	it("publishes an EzPic Open Graph image route", async () => {
+	it("publishes an EzImageAI Open Graph image route", async () => {
 		const source = readFileSync(path.join(appDirectory, "opengraph-image.tsx"), "utf8");
 		const openGraphImage = await import("./opengraph-image");
 
 		expect(source).not.toContain("✦");
-		expect(openGraphImage.alt).toMatch(/EzPic.*image editor/i);
+		expect(openGraphImage.alt).toMatch(/EzImageAI.*image editor/i);
 		expect(openGraphImage.size).toEqual({ width: 1200, height: 630 });
 		expect(openGraphImage.contentType).toBe("image/png");
 	});

@@ -1,4 +1,5 @@
 import { getSession } from "@auth/lib/server";
+import { config } from "@config";
 import {
 	RegisteredEditor,
 	type CreatePageFilters,
@@ -11,7 +12,7 @@ import type { Metadata } from "next";
 
 import { LandingPage } from "../modules/landing/components/LandingPage";
 
-const title = "AI Image Editor No Restrictions — Prompt Editing | EzPic";
+const title = `AI Image Editor No Restrictions — Prompt Editing | ${config.appName}`;
 const description =
 	"AI image editor no restrictions: edit photos with prompts beyond fixed templates. Private images and clear credits; safety and usage limits apply.";
 
@@ -21,6 +22,7 @@ export const metadata: Metadata = {
 	alternates: { canonical: new URL("/", getBaseUrl()).href },
 	robots: { index: true, follow: true },
 	openGraph: {
+		siteName: config.appName,
 		title,
 		description,
 		type: "website",
@@ -36,13 +38,29 @@ export default async function HomePage({
 }) {
 	const session = await getSession();
 	const registered = Boolean(session && !isAnonymousUser(session.user));
+	const homeUrl = new URL("/", getBaseUrl()).href;
+	const organizationId = `${homeUrl}#organization`;
 	const structuredData = {
 		"@context": "https://schema.org",
-		"@type": "WebSite",
-		name: "EzPic",
-		description,
-		url: new URL("/", getBaseUrl()).href,
-		inLanguage: "en",
+		"@graph": [
+			{
+				"@type": "WebSite",
+				"@id": `${homeUrl}#website`,
+				name: config.appName,
+				alternateName: "EzImage AI",
+				description,
+				url: homeUrl,
+				inLanguage: "en",
+				publisher: { "@id": organizationId },
+			},
+			{
+				"@type": "Organization",
+				"@id": organizationId,
+				name: config.appName,
+				url: homeUrl,
+				logo: new URL("/icon.png", homeUrl).href,
+			},
+		],
 	};
 
 	return (

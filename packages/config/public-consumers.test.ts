@@ -12,7 +12,7 @@ afterEach(() => {
 	vi.resetModules();
 });
 
-describe("public EzPic identity consumers", () => {
+describe("public EzImageAI identity consumers", () => {
 	it("does not project static application origins into public product configuration", async () => {
 		const { DEFAULT_PRODUCT_CONFIG, getPublicConfig } = await import("./index");
 

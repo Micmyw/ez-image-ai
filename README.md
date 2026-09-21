@@ -1,16 +1,16 @@
-# EzPic
+# EzImageAI
 
 [English](README.md) | [简体中文](README.zh-CN.md)
 
-EzPic is a focused, private prompt-based AI image editor. Its upload-first workflow offers nine
-server-advertised image products and 20 product-specific SKU cells, with one shared EzPic Credit
+EzImageAI is a focused, private prompt-based AI image editor. Its upload-first workflow offers nine
+server-advertised image products and 20 product-specific SKU cells, with one shared EzImageAI Credit
 balance and an exact charge shown before confirmation. It retains the existing AI media
 foundation for jobs, credits, storage, moderation, Providers, payments, and administration. Brand,
 origins, and support details are deployment configuration rather than hardcoded production identity.
 
 The repository is production-oriented, but a checkout is not live-certified until its own cloud
 accounts, credentials, quotas, Webhooks, alerts, and staging load have been verified. See the
-[EzPic product contract](docs/product/ezpic-product-contract.md) for the exact public/internal
+[EzImageAI product contract](docs/product/ezpic-product-contract.md) for the exact public/internal
 boundary and PR 1 exclusions.
 
 ## Authenticated editor workflow
@@ -51,7 +51,7 @@ input-size authorization:
 | Ultimate |           1,800 |                6 | All 9 public image products |     20 MB | $49/month, $490/year |       72–360 |
 | Max      |           3,000 |               10 | All 9 public image products |     20 MB | $79/month, $790/year |      120–600 |
 
-Paid-plan ranges use the current 5–25 EzPic Credit charge per legal SKU cell. Output format and
+Paid-plan ranges use the current 5–25 EzImageAI Credit charge per legal SKU cell. Output format and
 background controls do not change that charge.
 
 Free credits are granted only by the server through the existing immutable Credit Account, Lot,

@@ -1,13 +1,13 @@
 import { LLMCopyButton } from "@docs/components/LLMCopyButton";
 import { getPageImage, getPageMarkdownUrl, source } from "@docs/lib/source";
 import { Footer } from "@shared/components/Footer";
-import { getBaseUrl } from "@shared/lib/base-url";
 import { DocsBody, DocsDescription, DocsPage, DocsTitle } from "fumadocs-ui/layouts/docs/page";
 import { createRelativeLink } from "fumadocs-ui/mdx";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { getMDXComponents } from "../../../mdx-components";
+import { createPublicPageMetadata } from "../../../modules/public-content/lib/metadata";
 
 export default async function DocumentationPage(props: PageProps<"/docs/[[...slug]]">) {
 	const { slug } = await props.params;
@@ -46,17 +46,17 @@ export async function generateMetadata(props: PageProps<"/docs/[[...slug]]">): P
 	const page = source.getPage(slug);
 	if (!page) notFound();
 
-	const canonical = new URL(page.url, getBaseUrl()).href;
-	return {
+	const metadata = createPublicPageMetadata({
+		path: page.url,
 		title: page.data.title,
-		description: page.data.description,
-		alternates: { canonical },
-		robots: { index: page.data.indexable, follow: true },
+		description: page.data.description ?? "",
+		index: page.data.indexable,
+	});
+	return {
+		...metadata,
 		openGraph: {
-			title: page.data.title,
-			description: page.data.description,
+			...metadata.openGraph,
 			type: "article",
-			url: canonical,
 			images: [getPageImage(page).url],
 		},
 	};

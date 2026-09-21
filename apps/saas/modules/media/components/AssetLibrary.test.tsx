@@ -23,7 +23,7 @@ vi.mock("next-intl", () => ({
 
 import { AssetLibrary } from "./AssetLibrary";
 
-describe("EzPic asset library", () => {
+describe("EzImageAI asset library", () => {
 	it("queries and exposes image assets only", () => {
 		useAssets.mockReturnValue({
 			data: { pages: [{ items: [] }] },

@@ -96,8 +96,8 @@ export function HeaderNavigationMenu({
 				onClick={navigate}
 			>
 				<SheetTitle className="sr-only">{t("pageNavigation")}</SheetTitle>
-				<Link href="/" aria-label="EzPic" className="studio-drawer-brand">
-					<Logo className="studio-header-brand" label="EzPic" />
+				<Link href="/" aria-label="EzImageAI" className="studio-drawer-brand">
+					<Logo className="studio-header-brand" label="EzImageAI" />
 				</Link>
 				<nav className="studio-drawer-navigation" aria-label={t("pageNavigation")}>
 					<Link href="/create" className="studio-drawer-create">
@@ -124,9 +124,9 @@ export function HeaderNavigationMenu({
 					{registered ? (
 						<div className="studio-drawer-user">{account}</div>
 					) : (
-						<Link href="/login" className="studio-drawer-signin">
+						<a href="/login" className="studio-drawer-signin">
 							{common("login")} <ArrowUpRightIcon aria-hidden />
-						</Link>
+						</a>
 					)}
 				</div>
 			</SheetContent>

@@ -2,12 +2,12 @@
 	"publicContent": {
 		"contact": {
 			"description": "Contacta con {appName} para recibir ayuda o denunciar contenido prohibido.",
-			"emailCta": "Escribe al operador de EzPic:",
+			"emailCta": "Escribe al operador de EzImageAI:",
 			"unavailable": "El soporte por correo no está disponible temporalmente. Vuelve a consultar más tarde.",
 			"reporting": {
 				"footerLabel": "Denunciar contenido",
 				"title": "Denunciar contenido prohibido",
-				"description": "Informa al operador de EzPic sobre imágenes de IA inseguras, ediciones prohibidas, suplantaciones o vulneraciones de derechos. Cualquier persona puede denunciar; no hace falta una cuenta.",
+				"description": "Informa al operador de EzImageAI sobre imágenes de IA inseguras, ediciones prohibidas, suplantaciones o vulneraciones de derechos. Cualquier persona puede denunciar; no hace falta una cuenta.",
 				"emailCta": "Enviar una denuncia por correo",
 				"detailsTitle": "Qué información incluir",
 				"details": {
@@ -63,7 +63,7 @@
 		"media": {
 			"growth": {
 				"title": "Crecimiento y operaciones de generación",
-				"description": "Agregados de solo lectura de EzPic sin instrucciones, medios privados, URL ni ID de trabajos sin procesar.",
+				"description": "Agregados de solo lectura de EzImageAI sin instrucciones, medios privados, URL ni ID de trabajos sin procesar.",
 				"all": "Todos",
 				"apply": "Aplicar filtros",
 				"loading": "Cargando agregados operativos…",
@@ -1135,7 +1135,7 @@
 				"outputFormat": "Formato de salida",
 				"background": "Fondo",
 				"modeControlsQuality": "La controlan el modelo y el SKU seleccionados",
-				"credits": "EzPic Credits",
+				"credits": "EzImageAI Credits",
 				"optionLabels": {
 					"1k": "1K",
 					"2k": "2K",
@@ -1258,7 +1258,7 @@
 			"startsWithCapacity": "Empieza cuando haya capacidad gratuita",
 			"estimatedStart": "Inicio estimado: {start}",
 			"nav": {
-				"brand": "Editor de imágenes EzPic",
+				"brand": "Editor de imágenes EzImageAI",
 				"signIn": "Iniciar sesión",
 				"createAccount": "Crear cuenta"
 			},
@@ -1275,7 +1275,7 @@
 				"expired": "Este resultado de invitado ha caducado"
 			},
 			"errors": {
-				"eligibility": "No pudimos recuperar esta edición de invitado. Vuelve a EzPic y prepárala de nuevo.",
+				"eligibility": "No pudimos recuperar esta edición de invitado. Vuelve a EzImageAI y prepárala de nuevo.",
 				"submit": "No pudimos enviar esta edición. Revisa el paso resaltado y vuelve a intentarlo.",
 				"access": "El enlace privado del resultado no está disponible. Solicítalo de nuevo.",
 				"download": "La descarga privada no está disponible ahora mismo.",
@@ -1322,7 +1322,7 @@
 				"standardDescription": "Edición privada de imágenes en 1K.",
 				"quality": "Más modelos de imagen",
 				"qualityDescription": "Edición privada de imágenes con ajustes de salida específicos del modelo.",
-				"credits": "{credits} EzPic Credits",
+				"credits": "{credits} EzImageAI Credits",
 				"qualityUnavailable": "Mejora el plan para usar este modelo de imagen. La imagen, la instrucción y los ajustes de salida se conservarán.",
 				"upgrade": "Ver opciones de mejora"
 			}

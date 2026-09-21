@@ -1,10 +1,10 @@
-# EzPic public example provenance
+# EzImageAI public example provenance
 
-All SVG files in this directory were authored specifically for EzPic in this repository on
+All SVG files in this directory were authored specifically for EzImageAI in this repository on
 2026-08-25. They are original geometric vector illustrations assembled from simple shapes and
 gradients; they do not copy third-party assets, code, copy, layout, or branding.
 
-The files may be used and modified in EzPic product and marketing surfaces. They contain no third-
+The files may be used and modified in EzImageAI product and marketing surfaces. They contain no third-
 party photography, logos, people, testimonials, or customer work. `studio-before.svg` and
 `studio-after.svg` deliberately reuse the same illustrated objects to demonstrate the comparison
 control. The five `edit-*.svg` files illustrate categories of edit instructions; they are not AI
@@ -13,10 +13,10 @@ commercial-use terms.
 
 ## Interactive prompt gallery (2026-08-31; expanded 2026-09-05)
 
-The twelve `case-*.webp` files were created specifically for EzPic with the built-in image-generation
+The twelve `case-*.webp` files were created specifically for EzImageAI with the built-in image-generation
 tool, then resized and encoded as WebP assets for this repository. They are original
-inspiration imagery, not copied from any third-party product or asset. They are also not EzPic model
-outputs, customer work, or evidence of EzPic model quality. The landing page repeats that distinction.
+inspiration imagery, not copied from any third-party product or asset. They are also not EzImageAI model
+outputs, customer work, or evidence of EzImageAI model quality. The landing page repeats that distinction.
 
 The original generated PNG files remain in the task's Codex generated-image directory; the product
 uses only the optimized WebP derivatives below:
@@ -58,7 +58,7 @@ assets are unchanged by this display adjustment.
 
 ```text
 Use case: photorealistic-natural
-Asset type: EzPic landing-page inspiration gallery card
+Asset type: EzImageAI landing-page inspiration gallery card
 Primary request: a sunlit Mediterranean living room after a tasteful AI restyle
 Scene/backdrop: airy apartment with limewashed plaster walls, warm oak furniture, soft linen upholstery, one olive tree, handmade ceramic accents
 Style/medium: high-end editorial interior photography, realistic and naturally lived-in
@@ -73,7 +73,7 @@ Constraints: original scene only; no people; no text; no logos; no watermark; no
 
 ```text
 Use case: product-mockup
-Asset type: EzPic landing-page inspiration gallery card
+Asset type: EzImageAI landing-page inspiration gallery card
 Primary request: a luxury cobalt-blue glass perfume bottle in a sculptural studio setting
 Scene/backdrop: curved sand-colored plaster pedestal with a shallow reflective water surface and one soft translucent shadow
 Subject: one unbranded cobalt glass perfume bottle with a minimal blank metal cap
@@ -89,7 +89,7 @@ Constraints: original unbranded product; blank bottle with no label; no text; no
 
 ```text
 Use case: photorealistic-natural
-Asset type: EzPic landing-page inspiration gallery card
+Asset type: EzImageAI landing-page inspiration gallery card
 Primary request: an editorial street portrait featuring a sculptural emerald-green jacket
 Scene/backdrop: quiet modern city corner after light rain, softly blurred architecture
 Subject: a stylish adult model wearing a bold emerald jacket over simple neutral clothing
@@ -105,7 +105,7 @@ Constraints: one adult subject; natural anatomy; no text; no logos; no watermark
 
 ```text
 Use case: photorealistic-natural
-Asset type: EzPic landing-page inspiration gallery card
+Asset type: EzImageAI landing-page inspiration gallery card
 Primary request: a quiet coastal motel transformed by cinematic blue-hour lighting
 Scene/backdrop: mid-century roadside motel beside the ocean, empty foreground, distant horizon
 Subject: the architecture and one vintage convertible parked under the canopy
@@ -121,7 +121,7 @@ Constraints: no people; no readable signage; no text; no logos; no watermark; or
 
 ```text
 Use case: photorealistic-natural
-Asset type: EzPic landing-page inspiration gallery card
+Asset type: EzImageAI landing-page inspiration gallery card
 Primary request: a simple citrus tart transformed into a vibrant editorial food photograph
 Scene/backdrop: hand-glazed lavender ceramic plate on a dark plum table with a folded coral linen napkin
 Subject: one elegant citrus tart with glossy fruit, delicate cream, and a few natural crumbs
@@ -137,7 +137,7 @@ Constraints: no hands; no utensils with logos; no text; no watermark; no extra d
 
 ```text
 Use case: stylized-concept
-Asset type: EzPic landing-page inspiration gallery card
+Asset type: EzImageAI landing-page inspiration gallery card
 Primary request: a mountain railway scene transformed into layered paper-cut illustration
 Scene/backdrop: alpine valley with a winding red train, pine forest, distant snow peaks, and small clouds
 Subject: the train curving through the landscape as the clear focal point
@@ -153,7 +153,7 @@ Constraints: original illustration; no people; no text; no logos; no watermark; 
 
 ```text
 Use case: stylized-concept
-Asset type: EzPic landing-page inspiration gallery card
+Asset type: EzImageAI landing-page inspiration gallery card
 Primary request: a moonlit glass greenhouse transformed into an otherworldly botanical sanctuary
 Scene/backdrop: a Victorian-style glasshouse at night, layered tropical foliage, faint mist, a glimpse of a deep indigo sky
 Subject: oversized translucent leaves and delicate bioluminescent flowers as the focal point; no people
@@ -170,7 +170,7 @@ Avoid: fantasy characters, neon signage, excessive bloom, oversaturation
 
 ```text
 Use case: stylized-concept
-Asset type: EzPic landing-page inspiration gallery card
+Asset type: EzImageAI landing-page inspiration gallery card
 Primary request: a dramatic ocean wave and tiny coastal cliffs transformed into a handcrafted blue-and-white porcelain diorama
 Scene/backdrop: an ivory studio backdrop blending seamlessly into the porcelain sea
 Subject: one curling wave with foam sculpted from porcelain, miniature cliffs and a tiny lighthouse with no markings
@@ -187,7 +187,7 @@ Avoid: real water, plastic appearance, busy background, branded lighthouse
 
 ```text
 Use case: product-mockup
-Asset type: EzPic landing-page inspiration gallery card
+Asset type: EzImageAI landing-page inspiration gallery card
 Primary request: an unbranded retro instant camera redesigned as a playful premium tangerine-orange product
 Scene/backdrop: minimal lavender studio with a translucent acrylic plinth and one crisp geometric shadow
 Subject: a single compact instant camera with blank surfaces, tangerine body, brushed aluminum controls, dark glass lens
@@ -204,7 +204,7 @@ Avoid: hands, straps, floating parts, distorted controls
 
 ```text
 Use case: photorealistic-natural
-Asset type: EzPic landing-page inspiration gallery card
+Asset type: EzImageAI landing-page inspiration gallery card
 Primary request: a dignified red fox photographed as an editorial studio portrait
 Scene/backdrop: a minimal deep-plum studio with a sculptural violet velvet chair
 Subject: one healthy adult red fox sitting naturally on the chair, alert gaze, full ears and front paws visible
@@ -221,7 +221,7 @@ Avoid: anthropomorphic pose, cartoon styling, extra limbs, taxidermy look
 
 ```text
 Use case: stylized-concept
-Asset type: EzPic landing-page inspiration gallery card
+Asset type: EzImageAI landing-page inspiration gallery card
 Primary request: two koi fish transformed into folded translucent handmade-paper sculptures gliding through a dark teal underwater garden
 Scene/backdrop: quiet underwater space with sparse ribbon-like aquatic plants and a few tiny air bubbles
 Subject: one coral-orange koi and one pale lilac koi, clearly shaped from folded paper with elegant flowing fins
@@ -238,7 +238,7 @@ Avoid: cartoon eyes, plastic, crowded coral reef, realistic fish skin
 
 ```text
 Use case: photorealistic-natural
-Asset type: EzPic landing-page inspiration gallery card
+Asset type: EzImageAI landing-page inspiration gallery card
 Primary request: a quiet mid-century desert pool transformed by luminous sunrise color
 Scene/backdrop: low modernist home, long turquoise pool, sparse boulders and desert plants, distant warm mountains
 Subject: architecture, water reflections, and one sculptural lounge chair; no people
@@ -255,7 +255,7 @@ Avoid: tropical vegetation, crowded resort, oversaturated HDR, night scene
 
 ## Brand icon refresh (2026-09-05)
 
-The EzPic app icon was generated with the built-in image-generation tool as an original
+The EzImageAI app icon was generated with the built-in image-generation tool as an original
 transparent mark, then deterministically flattened to the product violet and apricot colors, cleaned
 of stray dark guide pixels, padded, and encoded as the 512×512 `apps/saas/app/icon.png`. The shared
 inline logo uses a simplified vector companion derived from the same crop-frame concept so it remains
@@ -263,7 +263,7 @@ crisp inside navigation and authenticated product chrome.
 
 ```text
 Use case: logo-brand
-Asset type: EzPic website app icon and favicon
+Asset type: EzImageAI website app icon and favicon
 Primary request: create an original compact geometric symbol for an easy AI image editor: two interlocking crop-frame corners fold into an open picture portal, with one tiny four-point editing sparkle at the open upper-right corner
 Style/medium: crisp vector-friendly flat logo mark, minimal, modern, strong silhouette
 Composition/framing: centered square icon with generous transparent padding; readable at 16px; balanced negative space

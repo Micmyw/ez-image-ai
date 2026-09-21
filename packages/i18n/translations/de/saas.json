@@ -2,12 +2,12 @@
 	"publicContent": {
 		"contact": {
 			"description": "Kontaktieren Sie {appName} für Unterstützung oder um verbotene Inhalte zu melden.",
-			"emailCta": "Schreiben Sie dem EzPic-Betreiber an:",
+			"emailCta": "Schreiben Sie dem EzImageAI-Betreiber an:",
 			"unavailable": "Der E-Mail-Support ist vorübergehend nicht verfügbar. Bitte schauen Sie später noch einmal vorbei.",
 			"reporting": {
 				"footerLabel": "Inhalte melden",
 				"title": "Verbotene Inhalte melden",
-				"description": "Melden Sie dem EzPic-Betreiber ein unsicheres KI-generiertes Bild, eine verbotene Bearbeitung, Identitätsmissbrauch oder eine Rechtsverletzung. Jeder kann eine Meldung einreichen; ein Konto ist nicht erforderlich.",
+				"description": "Melden Sie dem EzImageAI-Betreiber ein unsicheres KI-generiertes Bild, eine verbotene Bearbeitung, Identitätsmissbrauch oder eine Rechtsverletzung. Jeder kann eine Meldung einreichen; ein Konto ist nicht erforderlich.",
 				"emailCta": "Inhalt per E-Mail melden",
 				"detailsTitle": "Benötigte Angaben",
 				"details": {
@@ -63,7 +63,7 @@
 		"media": {
 			"growth": {
 				"title": "Wachstum und Generierungsbetrieb",
-				"description": "Schreibgeschützte EzPic-Aggregate ohne Prompts, private Medien, URLs oder rohe Auftrags-IDs.",
+				"description": "Schreibgeschützte EzImageAI-Aggregate ohne Prompts, private Medien, URLs oder rohe Auftrags-IDs.",
 				"all": "Alle",
 				"apply": "Filter anwenden",
 				"loading": "Betriebsdaten werden geladen…",
@@ -1135,7 +1135,7 @@
 				"outputFormat": "Ausgabeformat",
 				"background": "Hintergrund",
 				"modeControlsQuality": "Wird durch das gewählte Modell und die SKU bestimmt",
-				"credits": "EzPic Credits",
+				"credits": "EzImageAI Credits",
 				"optionLabels": {
 					"1k": "1K",
 					"2k": "2K",
@@ -1258,7 +1258,7 @@
 			"startsWithCapacity": "Startet, sobald kostenlose Kapazität verfügbar ist",
 			"estimatedStart": "Voraussichtlicher Start: {start}",
 			"nav": {
-				"brand": "EzPic Bildeditor",
+				"brand": "EzImageAI Bildeditor",
 				"signIn": "Anmelden",
 				"createAccount": "Konto erstellen"
 			},
@@ -1275,7 +1275,7 @@
 				"expired": "Dieses Gast-Ergebnis ist abgelaufen"
 			},
 			"errors": {
-				"eligibility": "Diese Gastbearbeitung konnte nicht wiederhergestellt werden. Kehre zu EzPic zurück und bereite sie erneut vor.",
+				"eligibility": "Diese Gastbearbeitung konnte nicht wiederhergestellt werden. Kehre zu EzImageAI zurück und bereite sie erneut vor.",
 				"submit": "Diese Bearbeitung konnte nicht gesendet werden. Prüfe den markierten Schritt und versuche es erneut.",
 				"access": "Der private Ergebnislink ist nicht verfügbar. Fordere ihn erneut an.",
 				"download": "Der private Download ist derzeit nicht verfügbar.",
@@ -1322,7 +1322,7 @@
 				"standardDescription": "Private 1K-Bildbearbeitung.",
 				"quality": "Weitere Bildmodelle",
 				"qualityDescription": "Private Bildbearbeitung mit modellspezifischen Ausgabeeinstellungen.",
-				"credits": "{credits} EzPic Credits",
+				"credits": "{credits} EzImageAI Credits",
 				"qualityUnavailable": "Für dieses Bildmodell ist ein Upgrade nötig. Bild, Anweisung und Ausgabeeinstellungen bleiben erhalten.",
 				"upgrade": "Upgrade-Optionen anzeigen"
 			}

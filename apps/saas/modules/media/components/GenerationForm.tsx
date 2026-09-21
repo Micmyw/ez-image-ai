@@ -61,6 +61,7 @@ export function GenerationForm({
 	allowedProductKeys = [...EZPIC_PRODUCT_KEYS],
 	initialSourceReady = false,
 	parentJobId,
+	requireReference = false,
 }: {
 	onCreated: (jobId: string) => void;
 	onDraftChange?: (values: GenerationFormValues) => void;
@@ -70,9 +71,11 @@ export function GenerationForm({
 	allowedProductKeys?: EditorProductKey[];
 	initialSourceReady?: boolean;
 	parentJobId?: string | null;
+	requireReference?: boolean;
 }) {
 	const t = useTranslations("media.create");
 	const studio = useTranslations("studio");
+	const imageToImage = useTranslations("imageToImage");
 	const router = useRouter();
 	const [hasSource, setHasSource] = useState(Boolean(initialDraft?.input.sourceAssetId));
 	const generation = useGeneration({ parentJobId: hasSource ? parentJobId : null });
@@ -135,6 +138,7 @@ export function GenerationForm({
 			sourcePending ||
 			!supportedAspectRatios.includes(values.aspectRatio) ||
 			(Boolean(values.sourceAssetId) && !sourceReady) ||
+			(requireReference && !values.sourceAssetId) ||
 			!values.prompt.trim()
 		) {
 			return null;
@@ -157,6 +161,7 @@ export function GenerationForm({
 		controlValues,
 		sourceReady,
 		sourcePending,
+		requireReference,
 		supportedAspectRatios,
 		values.aspectRatio,
 		values.prompt,
@@ -394,7 +399,9 @@ export function GenerationForm({
 		>
 			<div className="studio-composer-heading">
 				<span>
-					{values.sourceAssetId ? studio("generation.editMode") : studio("generation.textMode")}
+					{requireReference || values.sourceAssetId
+						? studio("generation.editMode")
+						: studio("generation.textMode")}
 				</span>
 				<span className="text-xs text-muted-foreground">{studio("private")}</span>
 			</div>
@@ -402,6 +409,9 @@ export function GenerationForm({
 				<output className="mb-3 text-sm text-amber-200 block">
 					{studio("tools.modelUnavailable")}
 				</output>
+			)}
+			{requireReference && !values.sourceAssetId && (
+				<p className="mb-3 text-sm text-violet-200">{imageToImage("referenceNotice")}</p>
 			)}
 			<div className="studio-composer-inputs">
 				<ImageSourcePanel
@@ -419,7 +429,11 @@ export function GenerationForm({
 				/>
 				<PromptPanel
 					maxLength={getImageProductSelectionContract(values.productKey)?.maximumPromptLength}
-					label={values.sourceAssetId ? t("fields.prompt") : studio("generation.promptLabel")}
+					label={
+						requireReference || values.sourceAssetId
+							? t("fields.prompt")
+							: studio("generation.promptLabel")
+					}
 					hint={studio("generation.promptHint")}
 					suggestionsLabel={t("suggestions.label")}
 					suggestions={suggestions}
@@ -523,9 +537,14 @@ export function GenerationForm({
 							? t("checking")
 							: generation.createGeneration.isPending
 								? t("starting")
-								: t(values.sourceAssetId ? "startEditWithCredits" : "generateWithCredits", {
-										credits: displayedCredits ?? "—",
-									})}
+								: t(
+										requireReference || values.sourceAssetId
+											? "startEditWithCredits"
+											: "generateWithCredits",
+										{
+											credits: displayedCredits ?? "—",
+										},
+									)}
 					</Button>
 				)}
 			</div>

@@ -30,7 +30,7 @@ const creditPackCheckoutOptions: CreateCheckoutLinkOptions = {
 	priceId: "PROD-CREDITS-1500",
 	currency: "USD",
 	amountMicros: 59_000_000n,
-	description: "EzPic 1,500 Credits",
+	description: "EzImageAI 1,500 Credits",
 	billingPlanId: "billing-plan-pack-1",
 	checkoutIntentId: "checkout-intent-pack-1",
 	idempotencyKey: "checkout-pack-attempt-1",
@@ -170,7 +170,7 @@ describe("PayPal REST boundary", () => {
 					{
 						reference_id: "credits-1500",
 						custom_id: "checkout-intent-pack-1",
-						description: "EzPic 1,500 Credits",
+						description: "EzImageAI 1,500 Credits",
 						amount: {
 							currency_code: "USD",
 							value: "59.00",
@@ -180,7 +180,7 @@ describe("PayPal REST boundary", () => {
 						},
 						items: [
 							{
-								name: "EzPic 1,500 Credits",
+								name: "EzImageAI 1,500 Credits",
 								sku: "PROD-CREDITS-1500",
 								quantity: "1",
 								unit_amount: { currency_code: "USD", value: "59.00" },

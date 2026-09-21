@@ -3,7 +3,6 @@
 import { useSessionQuery } from "@auth/lib/api";
 import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
-import Link from "next/link";
 
 import { HeaderNavigationMenu } from "./HeaderNavigationMenu";
 import { HeaderPurchaseActions } from "./HeaderPurchaseActions";
@@ -43,9 +42,10 @@ export function PublicHeaderAccount() {
 				</SessionProvider>
 			) : (
 				<>
-					<Link className="text-sm text-violet-200 whitespace-nowrap" href="/login">
+					{/* Account routes read the saved locale in a fresh root layout. */}
+					<a className="text-sm text-violet-200 whitespace-nowrap" href="/login">
 						{t("login")}
-					</Link>
+					</a>
 					<HeaderNavigationMenu registered={false} />
 				</>
 			)}

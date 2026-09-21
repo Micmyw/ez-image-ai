@@ -15,7 +15,7 @@ vi.mock("@repo/config/client", () => ({
 		minimumCreditsPerImage: 5,
 		maximumCreditsPerImage: 17,
 	}),
-	getPublicConfig: () => ({ brand: { siteName: "EzPic" } }),
+	getPublicConfig: () => ({ brand: { siteName: "EzImageAI" } }),
 	PLAN_ENTITLEMENTS: [
 		{
 			id: "free",
