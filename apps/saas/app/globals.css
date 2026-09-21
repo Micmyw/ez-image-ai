@@ -88,15 +88,21 @@
 	}
 
 	to {
-		transform: translateY(-0.5rem);
+		transform: translateY(-50%);
 	}
+}
+
+.creator-workflows-viewport {
+	height: 32rem;
+	overflow: hidden;
+	-webkit-mask-image: linear-gradient(to bottom, transparent, black 8%, black 92%, transparent);
+	mask-image: linear-gradient(to bottom, transparent, black 8%, black 92%, transparent);
 }
 
 .creator-workflows-track {
 	animation-name: creator-workflows-scroll;
-	animation-timing-function: ease-in-out;
+	animation-timing-function: linear;
 	animation-iteration-count: infinite;
-	animation-direction: alternate;
 	will-change: transform;
 }
 
@@ -117,7 +123,7 @@
 	flex-direction: column;
 	gap: 1rem;
 	margin: 0;
-	padding-block: 0;
+	padding-block: 0 1rem;
 	padding-inline-start: 0;
 	list-style: none;
 }
@@ -128,10 +134,32 @@
 	animation-play-state: paused;
 }
 
+.creator-workflows-motion[data-animated="false"] .creator-workflows-track {
+	animation: none;
+}
+
+.creator-workflows-motion[data-animated="false"] .creator-workflows-viewport {
+	height: auto;
+	overflow: visible;
+	-webkit-mask-image: none;
+	mask-image: none;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.creator-workflows-track {
 		animation: none;
 		transform: none;
 		will-change: auto;
+	}
+
+	.creator-workflows-duplicate {
+		display: none;
+	}
+
+	.creator-workflows-viewport {
+		height: auto;
+		overflow: visible;
+		-webkit-mask-image: none;
+		mask-image: none;
 	}
 }

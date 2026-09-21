@@ -14,7 +14,7 @@ import {
 	type LucideIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 type StoryKey = "ecommerce" | "brand" | "social" | "realEstate" | "portrait" | "conceptArt";
 
@@ -79,14 +79,17 @@ const COLUMN_SPEED_CLASSES = [
 export function CreatorWorkflowsSection() {
 	const t = useTranslations("home.creatorWorkflows");
 	const [isPaused, setIsPaused] = useState(false);
+	const [isMotionReady, setIsMotionReady] = useState(false);
+	// Keep the six source stories unique in server HTML; add visual loop copies after hydration.
+	useEffect(() => setIsMotionReady(true), []);
 
-	function renderStoryCard(story: CreatorStory) {
+	function renderStoryCard(story: CreatorStory, duplicate = false) {
 		const Icon = story.icon;
 
 		return (
 			<li
 				key={story.key}
-				data-test="creator-story-card"
+				data-test={duplicate ? "creator-story-duplicate" : "creator-story-card"}
 				className="group border-white/9 p-5 backdrop-blur-sm hover:-translate-y-1 hover:border-violet-300/30 relative flex min-h-[15rem] flex-col overflow-hidden rounded-[1.35rem] border bg-[#21192c]/82 shadow-[0_24px_70px_-42px_rgba(0,0,0,0.95)] transition duration-300 hover:bg-[#281e36]/94 motion-reduce:transform-none motion-reduce:transition-none"
 			>
 				<div
@@ -134,10 +137,21 @@ export function CreatorWorkflowsSection() {
 		listLabel: string,
 	) {
 		return (
-			<div className={`creator-workflows-track ${speedClassName}`}>
-				<ul className="creator-workflows-list" aria-label={listLabel}>
-					{stories.map(renderStoryCard)}
-				</ul>
+			<div className="creator-workflows-viewport">
+				<div className={`creator-workflows-track ${speedClassName}`}>
+					<ul className="creator-workflows-list" aria-label={listLabel}>
+						{stories.map((story) => renderStoryCard(story))}
+					</ul>
+					{isMotionReady && (
+						<ul
+							className="creator-workflows-list creator-workflows-duplicate"
+							aria-hidden="true"
+							inert
+						>
+							{stories.map((story) => renderStoryCard(story, true))}
+						</ul>
+					)}
+				</div>
 			</div>
 		);
 	}
@@ -191,6 +205,7 @@ export function CreatorWorkflowsSection() {
 				<div
 					id="creator-workflows-motion"
 					data-paused={isPaused}
+					data-animated={isMotionReady}
 					className="creator-workflows-motion mt-10 gap-4 py-3 sm:mt-12 md:grid md:grid-cols-3 md:overflow-visible lg:gap-5 focus-visible:outline-violet-300 flex snap-x snap-mandatory overflow-x-auto rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4"
 				>
 					{WORKFLOW_COLUMNS.map((stories, columnIndex) => (

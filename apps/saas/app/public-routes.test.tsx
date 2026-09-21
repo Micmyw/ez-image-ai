@@ -256,7 +256,7 @@ describe("consolidated public route contract", () => {
 			expect(metadata.twitter?.title).toEqual(metadata.openGraph?.title);
 		}
 
-		const page = route.path === "/" ? await LandingPage() : await pageModule.default();
+		const page = route.path === "/" ? await LandingPage() : await pageModule.default({});
 		const markup = renderToStaticMarkup(page);
 		expect(markup.match(/<h1(?:\s|>)/g) ?? []).toHaveLength(1);
 		expect(markup).not.toMatch(

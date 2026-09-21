@@ -26,7 +26,9 @@ const faqKeys = ["definition", "free", "control", "privacy", "limits"] as const;
 
 export async function ImageToImagePage({
 	searchParams = Promise.resolve({}),
-}: { searchParams?: Promise<CreatePageFilters> } = {}) {
+}: {
+	searchParams?: Promise<CreatePageFilters>;
+}) {
 	const [session, t, locale] = await Promise.all([
 		getSession(),
 		getTranslations("imageToImage"),

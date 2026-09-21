@@ -2,6 +2,11 @@
 
 ## 2026-09-21
 
+### Creator story scrolling
+
+- Restore continuous vertical scrolling in the homepage story cards, with hover pause, a pause button and a static reduced-motion view.
+- Keep six unique stories in the initial HTML and add assistive-technology-hidden loop copies after the page becomes interactive.
+
 ### Documentation navigation styles
 
 - Keep homepage gallery images, hover captions, and responsive headings consistent after returning from Docs.

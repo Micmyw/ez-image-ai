@@ -917,6 +917,39 @@ test("the landing page proves edits with an interactive comparison and visual ex
 	await expect(prompt).toBeFocused();
 });
 
+for (const width of [1440, 390]) {
+	test(`creator workflows automatically cycle through cards at ${width}px`, async ({ page }) => {
+		await page.emulateMedia({ reducedMotion: "no-preference" });
+		await page.setViewportSize({ width, height: 900 });
+		await page.goto("/");
+		const workflows = page.locator("#creator-workflows");
+		await workflows.scrollIntoViewIfNeeded();
+		await page.mouse.move(0, 0);
+		const tracks = workflows.locator(".creator-workflows-track");
+		const positions = () =>
+			tracks.evaluateAll((elements) =>
+				elements.map((element) => new DOMMatrixReadOnly(getComputedStyle(element).transform).m42),
+			);
+		const start = await positions();
+		await expect
+			.poll(async () =>
+				(await positions()).every((position, i) => Math.abs(position - start[i]!) > 20),
+			)
+			.toBe(true);
+		await expect(workflows.getByRole("heading", { level: 3 })).toHaveCount(6);
+		for (const track of await tracks.all()) {
+			const lists = track.locator("ul");
+			await expect(lists).toHaveCount(2);
+			await expect(lists.nth(1)).toHaveAttribute("aria-hidden", "true");
+			const first = await lists.first().boundingBox();
+			const copy = await lists.nth(1).boundingBox();
+			expect(Math.abs(first!.height - copy!.height)).toBeLessThan(1);
+			expect(Math.abs(copy!.y - first!.y - first!.height)).toBeLessThan(1);
+		}
+		await page.screenshot({ path: test.info().outputPath(`creator-workflows-${width}.png`) });
+	});
+}
+
 test("creator workflows become static when reduced motion is requested", async ({ page }) => {
 	await page.emulateMedia({ reducedMotion: "reduce" });
 	await page.goto("/");
@@ -931,12 +964,18 @@ test("creator workflows become static when reduced motion is requested", async (
 });
 
 test("creator workflow movement can be paused and resumed", async ({ page }) => {
+	await page.emulateMedia({ reducedMotion: "no-preference" });
 	await page.goto("/");
 
 	const workflows = page.locator("#creator-workflows");
 	const track = workflows.locator(".creator-workflows-track--one");
 	const pauseButton = workflows.getByRole("button", { name: /pause movement/i });
 	await workflows.scrollIntoViewIfNeeded();
+	await page.mouse.move(0, 0);
+	await expect(track).toHaveCSS("animation-play-state", "running");
+	await track.locator("li").first().hover();
+	await expect(track).toHaveCSS("animation-play-state", "paused");
+	await page.mouse.move(0, 0);
 	await expect(track).toHaveCSS("animation-play-state", "running");
 
 	await pauseButton.click();

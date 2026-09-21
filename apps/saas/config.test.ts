@@ -21,7 +21,7 @@ afterEach(() => {
 });
 
 describe("SaaS product configuration", () => {
-	it("uses the complete environment-backed public EzPic identity", async () => {
+	it("uses the complete environment-backed public EzImageAI identity", async () => {
 		process.env.NEXT_PUBLIC_SAAS_URL = "https://app.configured.test";
 		process.env.NEXT_PUBLIC_SUPPORT_EMAIL = "help@configured.test";
 		process.env.NEXT_PUBLIC_SITE_NAME = "Configured Editor";
@@ -39,13 +39,13 @@ describe("SaaS product configuration", () => {
 		expect(config).not.toHaveProperty("docsUrl");
 	});
 
-	it("falls back to the neutral EzPic product identity", async () => {
+	it("falls back to the neutral EzImageAI product identity", async () => {
 		for (const key of publicProductEnvironmentKeys) delete process.env[key];
 
 		const { config } = await import("./config");
 
 		expect(config).toMatchObject({
-			appName: "EzPic",
+			appName: "EzImageAI",
 			appDescription: expect.stringMatching(/image edit/i),
 		});
 		expect(config).not.toHaveProperty("supportEmail");
