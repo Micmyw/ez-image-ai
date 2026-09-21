@@ -25,11 +25,11 @@ const productionEnvironment = {
 	GUEST_BOOTSTRAP_MAX_OUTSTANDING: "25",
 	GUEST_TEMPORARY_PRINCIPAL_MAX_TOTAL: "100",
 	GUEST_SESSION_MAX_ACTIVE_JOBS: "1",
-	GUEST_SESSION_MAX_ACCEPTED_TRIALS: "1",
+	GUEST_SESSION_MAX_ACCEPTED_PER_DAY: "2",
 	GUEST_DEVICE_MAX_ACTIVE_JOBS: "1",
-	GUEST_DEVICE_MAX_ACCEPTED_PER_PROMOTION: "1",
+	GUEST_DEVICE_MAX_ACCEPTED_PER_DAY: "2",
 	GUEST_IP_MAX_ACTIVE_JOBS: "2",
-	GUEST_IP_MAX_PER_10_MINUTES: "1",
+	GUEST_IP_MAX_PER_10_MINUTES: "2",
 	GUEST_IP_MAX_PER_24_HOURS: "3",
 	GUEST_SUBNET_MAX_PER_24_HOURS: "20",
 	GUEST_GLOBAL_MAX_PER_MINUTE: "3",
@@ -50,6 +50,18 @@ const productionRuntimeOverride = {
 };
 
 describe("guest media configuration", () => {
+	it("gives guests two daily edits while keeping one active job and five credits per edit", () => {
+		expect(getGuestMediaConfig(developmentEnvironment, true)).toMatchObject({
+			sponsorCredits: 5n,
+			limits: {
+				maximumAcceptedTrialsPerSessionPerDay: 2,
+				maximumAcceptedTrialsPerDevicePerDay: 2,
+				maximumRequestsPerIpPerTenMinutes: 2,
+				maximumActiveJobsPerGuest: 1,
+				maximumActiveJobsPerDevice: 1,
+			},
+		});
+	});
 	it("allows an audited initial key immediately but never a future-dated activation", () => {
 		const initial = {
 			...productionRuntimeOverride,
@@ -92,10 +104,10 @@ describe("guest media configuration", () => {
 			riskBudgetMicros: 350_000n,
 			limits: {
 				maximumActiveJobsPerGuest: 1,
-				maximumAcceptedTrialsPerSession: 1,
-				maximumAcceptedTrialsPerDevicePromotion: 1,
+				maximumAcceptedTrialsPerSessionPerDay: 2,
+				maximumAcceptedTrialsPerDevicePerDay: 2,
 				maximumActiveJobsPerIp: 2,
-				maximumRequestsPerIpPerTenMinutes: 1,
+				maximumRequestsPerIpPerTenMinutes: 2,
 				maximumRequestsPerIpPerDay: 3,
 				maximumRequestsPerSubnetPerDay: 20,
 				maximumGlobalRequestsPerMinute: 3,
@@ -116,9 +128,9 @@ describe("guest media configuration", () => {
 			GUEST_BOOTSTRAP_MAX_OUTSTANDING: undefined,
 			GUEST_TEMPORARY_PRINCIPAL_MAX_TOTAL: undefined,
 			GUEST_SESSION_MAX_ACTIVE_JOBS: undefined,
-			GUEST_SESSION_MAX_ACCEPTED_TRIALS: undefined,
+			GUEST_SESSION_MAX_ACCEPTED_PER_DAY: undefined,
 			GUEST_DEVICE_MAX_ACTIVE_JOBS: undefined,
-			GUEST_DEVICE_MAX_ACCEPTED_PER_PROMOTION: undefined,
+			GUEST_DEVICE_MAX_ACCEPTED_PER_DAY: undefined,
 			GUEST_IP_MAX_ACTIVE_JOBS: undefined,
 			GUEST_IP_MAX_PER_10_MINUTES: undefined,
 			GUEST_IP_MAX_PER_24_HOURS: undefined,
@@ -155,11 +167,11 @@ describe("guest media configuration", () => {
 		["GUEST_ABUSE_EVIDENCE_TTL_DAYS", "29"],
 		["GUEST_ABUSE_EVIDENCE_TTL_DAYS", "31"],
 		["GUEST_SESSION_MAX_ACTIVE_JOBS", "2"],
-		["GUEST_SESSION_MAX_ACCEPTED_TRIALS", "2"],
+		["GUEST_SESSION_MAX_ACCEPTED_PER_DAY", "3"],
 		["GUEST_DEVICE_MAX_ACTIVE_JOBS", "2"],
-		["GUEST_DEVICE_MAX_ACCEPTED_PER_PROMOTION", "2"],
+		["GUEST_DEVICE_MAX_ACCEPTED_PER_DAY", "3"],
 		["GUEST_IP_MAX_ACTIVE_JOBS", "3"],
-		["GUEST_IP_MAX_PER_10_MINUTES", "2"],
+		["GUEST_IP_MAX_PER_10_MINUTES", "3"],
 		["GUEST_IP_MAX_PER_24_HOURS", "4"],
 		["GUEST_SUBNET_MAX_PER_24_HOURS", "21"],
 		["GUEST_GLOBAL_MAX_PER_MINUTE", "4"],

@@ -15,7 +15,8 @@ import {
 
 type GuestErrorKey = "eligibility" | "submit" | "access" | "download" | "link" | "turnstile";
 type LinkDestination = "login" | "signup";
-type GuestInitialLoad =
+type DailyAllowance = { limit: number; remaining: number; resetsAt: string };
+type GuestInitialLoad = { dailyAllowance?: DailyAllowance | null } & (
 	| { kind: "redirect" }
 	| { kind: "snapshot"; capabilityVersion?: string; snapshot: GuestTrialSnapshot }
 	| {
@@ -28,7 +29,8 @@ type GuestInitialLoad =
 				aspectRatio: ImageAspectRatio;
 			};
 	  }
-	| { kind: "unavailable"; capabilityVersion: string };
+	| { kind: "unavailable"; capabilityVersion: string }
+);
 
 export function useGuestTrial({ registered = false }: { registered?: boolean } = {}) {
 	const [capabilityVersion, setCapabilityVersion] = useState<string>();
@@ -50,6 +52,7 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 	const [accessRetryNonce, setAccessRetryNonce] = useState(0);
 	const [submitErrorNonce, setSubmitErrorNonce] = useState(0);
 	const [clockNow, setClockNow] = useState(() => new Date());
+	const [dailyAllowance, setDailyAllowance] = useState<DailyAllowance | null>(null);
 	const initialLoad = useRef<{
 		registered: boolean;
 		request: Promise<GuestInitialLoad>;
@@ -79,6 +82,7 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 		void initialLoad.current.request
 			.then((result) => {
 				if (!active) return;
+				setDailyAllowance(result.dailyAllowance ?? null);
 				if (result.kind === "redirect") {
 					window.location.assign("/create");
 					return;
@@ -105,6 +109,40 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 	}, [pollJob, registered, updateSnapshot]);
 
 	const view = useMemo(() => resolveGuestTrialView(snapshot, clockNow), [clockNow, snapshot]);
+	useEffect(() => {
+		if (registered || !view.jobId || !isGuestTrialTerminal(view.state)) return;
+		let active = true;
+		let timer: number | undefined;
+		const refresh = async () => {
+			try {
+				const eligibility = await loadGuestEligibility();
+				if (!active) return;
+				setDailyAllowance(eligibility.dailyAllowance);
+				if (eligibility.eligible && eligibility.claimedDraft) {
+					setDraft(eligibility.claimedDraft);
+					setPrompt(eligibility.claimedDraft.prompt);
+					setCapabilityVersion(eligibility.capabilityVersion);
+					setSnapshot(null);
+					setResultUrl(null);
+					setErrorKey(undefined);
+				} else if (
+					!eligibility.eligible &&
+					eligibility.dailyAllowance?.remaining &&
+					eligibility.reason === "EXISTING_TRIAL"
+				) {
+					// Approved output can be visible while the previous job is still settling.
+					timer = window.setTimeout(() => void refresh(), 2_500);
+				}
+			} catch {
+				/* Keep the current result available; admission checks the quota again. */
+			}
+		};
+		void refresh();
+		return () => {
+			active = false;
+			if (timer) window.clearTimeout(timer);
+		};
+	}, [registered, view.jobId, view.state]);
 	const requestAccess = useCallback(
 		async (jobId: string, assetId: string, disposition: "inline" | "attachment") => {
 			return registered
@@ -190,6 +228,9 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 				turnstileToken,
 			});
 			updateSnapshot(next);
+			setDailyAllowance((current) =>
+				current ? { ...current, remaining: Math.max(0, current.remaining - 1) } : current,
+			);
 			void saasGrowthFunnel.guestGenerationAdmitted(next.jobId);
 		} catch (error) {
 			const outcome = getPromptSafetyOutcome(error);
@@ -224,6 +265,11 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 		try {
 			await orpcClient.media.beginGuestLinkIntent({
 				capabilityVersion,
+				...(view.jobId
+					? { jobId: view.jobId }
+					: draft
+						? { sourceAssetId: draft.sourceAssetId }
+						: {}),
 				deviceId: await getGuestDeviceId(),
 				returnPath: "/try",
 				idempotencyKey: createIdempotencyKey("guest-link"),
@@ -245,6 +291,7 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 
 	return {
 		view,
+		dailyAllowance,
 		draft,
 		prompt,
 		setPrompt,
@@ -272,22 +319,32 @@ async function loadInitialGuestTrial(
 			? { kind: "redirect" }
 			: { kind: "snapshot", snapshot: await pollJob(linked.jobId) };
 	}
-	const eligibility = await orpcClient.media.getGuestEligibility();
-	if (eligibility.existingJobId) {
-		return {
-			kind: "snapshot",
-			capabilityVersion: eligibility.capabilityVersion,
-			snapshot: await pollJob(eligibility.existingJobId),
-		};
-	}
+	const eligibility = await loadGuestEligibility();
 	if (eligibility.eligible && eligibility.claimedDraft) {
 		return {
 			kind: "draft",
+			dailyAllowance: eligibility.dailyAllowance,
 			capabilityVersion: eligibility.capabilityVersion,
 			draft: eligibility.claimedDraft,
 		};
 	}
-	return { kind: "unavailable", capabilityVersion: eligibility.capabilityVersion };
+	if (eligibility.existingJobId) {
+		return {
+			kind: "snapshot",
+			dailyAllowance: eligibility.dailyAllowance,
+			capabilityVersion: eligibility.capabilityVersion,
+			snapshot: await pollJob(eligibility.existingJobId),
+		};
+	}
+	return {
+		kind: "unavailable",
+		capabilityVersion: eligibility.capabilityVersion,
+		dailyAllowance: eligibility.dailyAllowance,
+	};
+}
+
+async function loadGuestEligibility() {
+	return orpcClient.media.getGuestEligibility({ deviceId: await getGuestDeviceId() });
 }
 
 function createIdempotencyKey(prefix: string): string {

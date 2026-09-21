@@ -2,6 +2,12 @@
 
 ## 2026-09-21
 
+### Two daily guest edits
+
+- Offer two sponsored Nano Banana 2 Lite 1K edits per UTC calendar day, with one image and five sponsored Credits per edit. Unused daily edits do not roll over.
+- Show remaining daily edits and let returning guests upload another image without losing the existing session. Keep one active job per guest/device, private watermarked results, and existing risk and spending limits.
+- Enforce daily limits atomically across owner, session and device identities; request replay and automatic recovery do not consume another daily slot.
+
 ### Faster pending image checks
 
 - Start durable polling immediately when an image check is still processing, instead of leaving its first wake-up for scheduled recovery.

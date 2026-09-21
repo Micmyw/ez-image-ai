@@ -12,6 +12,38 @@ const unpackValues = (variables: ReturnType<typeof packCloudflareBuildEnvironmen
 	Object.fromEntries(Object.entries(variables).map(([key, item]) => [key, item.value]));
 
 describe("Cloudflare build secret transport", () => {
+	it("overrides only the three daily guest limits without rewriting production secrets", () => {
+		const limits = {
+			GUEST_SESSION_MAX_ACCEPTED_PER_DAY: "2",
+			GUEST_DEVICE_MAX_ACCEPTED_PER_DAY: "2",
+			GUEST_IP_MAX_PER_10_MINUTES: "2",
+		};
+		expect(
+			parseEnv(
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "PRIVATE_KEY=unchanged\nGUEST_IP_MAX_PER_10_MINUTES=1\n",
+					...limits,
+				}),
+			),
+		).toEqual({ PRIVATE_KEY: "unchanged", ...limits });
+	});
+	it("rejects partial or excessive daily guest overrides", () => {
+		for (const limits of [
+			{ GUEST_SESSION_MAX_ACCEPTED_PER_DAY: "2" },
+			{
+				GUEST_SESSION_MAX_ACCEPTED_PER_DAY: "3",
+				GUEST_DEVICE_MAX_ACCEPTED_PER_DAY: "2",
+				GUEST_IP_MAX_PER_10_MINUTES: "2",
+			},
+		]) {
+			expect(() =>
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "PRIVATE_KEY=unchanged",
+					...limits,
+				}),
+			).toThrow("CLOUDFLARE_GUEST_QUOTA_OVERRIDES_INVALID");
+		}
+	});
 	it.each(["test", "sightengine"])(
 		"ignores an ambient %s adapter unless configured moderation overrides are requested",
 		(adapter) => {

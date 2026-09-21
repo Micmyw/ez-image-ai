@@ -35,11 +35,11 @@
 			},
 			"guestAvailability": {
 				"question": "Quand la retouche invitée est-elle disponible ?",
-				"answer": "Lorsque la file invitée sponsorisée est disponible, une personne peut lancer une retouche Nano Banana 2 Lite 1K sans compte. Le résultat est privé, filigrané et disponible pendant 24 heures maximum."
+				"answer": "Lorsque la file sponsorisée est disponible, les visiteurs éligibles peuvent effectuer deux retouches par jour avec Nano Banana 2 Lite en 1K sans inscription. Importez une image de référence et décrivez la modification. Chaque résultat est privé, filigrané et disponible jusqu’à 24 heures. Le quota est renouvelé à 00:00 UTC ; les retouches inutilisées ne sont pas reportées. La génération à partir de texte nécessite une connexion."
 			},
 			"guestVsFree": {
 				"question": "Quelle est la différence entre l’accès invité et Free ?",
-				"answer": "L’accès invité offre, sous réserve de disponibilité, une seule retouche Nano Banana 2 Lite 1K sponsorisée, filigranée et conservée jusqu’à 24 heures. Un compte Free inscrit reçoit 25 EzPic Credits par mois ; Nano Banana 2 Lite 1K en utilise 5, soit jusqu’à cinq retouches. GPT Image 2 et Seedream 5 Pro nécessitent un forfait payant."
+				"answer": "Les invités disposent de deux retouches sponsorisées par jour avec Nano Banana 2 Lite en 1K. Les résultats privés et filigranés sont disponibles jusqu’à 24 heures. Un compte Free inscrit reçoit séparément 25 EzPic Credits par mois, soit jusqu’à cinq retouches avec Nano Banana 2 Lite en 1K. GPT Image 2 et Seedream 5 Pro nécessitent un forfait payant."
 			},
 			"editTiers": {
 				"question": "Quels modèles d’image et réglages de sortie sont disponibles ?",
@@ -96,7 +96,7 @@
 			"noSignUp": "Sans inscription lorsque la file invitée est disponible",
 			"paidSignIn": "Connexion et forfait payant requis",
 			"oneOutput": "Un résultat",
-			"freeQueue": "File gratuite · un aperçu filigrané · disponible jusqu’à 24 heures",
+			"freeQueue": "2 retouches gratuites par jour · filigrane · disponibles jusqu’à 24 heures",
 			"qualityAccess": "{model} nécessite une connexion et un forfait Pro, Ultimate ou Max.",
 			"temporaryResult": "Votre aperçu reste privé et temporaire.",
 			"temporarySessionDisclosure": "EzPic crée une session temporaire pour cet essai, conserve les médias invités jusqu’à 24 heures et utilise des signaux pseudonymes contre les abus pendant la période décrite dans notre Politique de confidentialité.",
@@ -193,7 +193,7 @@
 					"label": "Nano Banana 2 Lite",
 					"badge": "Essai invité",
 					"description": "Retouche 1K d’une image source avec un résultat",
-					"access": "Une retouche invitée sponsorisée"
+					"access": "Deux retouches invité sponsorisées par jour"
 				},
 				"quality": {
 					"label": "Plus de modèles d’image",
@@ -467,7 +467,7 @@
 		"trust": {
 			"eyebrow": "Limites claires",
 			"title": "Privé par défaut, mesuré clairement",
-			"description": "Lorsque la file invitée sponsorisée est disponible, la page d’accueil peut lancer une retouche Nano Banana 2 Lite 1K sponsorisée. Les retouches de compte affichent le coût sur le bouton et vérifient le contenu et le prix avant de réserver les EzPic Credits.",
+			"description": "Lorsque la file sponsorisée est disponible, la page d’accueil permet de lancer jusqu’à deux retouches par jour avec Nano Banana 2 Lite en 1K. Pour les comptes, le bouton indique le coût et la sécurité ainsi que le prix sont vérifiés avant de réserver les EzPic Credits.",
 			"items": {
 				"privacy": {
 					"title": "Médias privés",
@@ -553,11 +553,11 @@
 			"items": {
 				"guestAvailability": {
 					"question": "Puis-je essayer l’éditeur d’images IA sans m’inscrire ?",
-					"answer": "Lorsque la file invitée sponsorisée est disponible, les visiteurs éligibles peuvent essayer une retouche d’image Nano Banana 2 Lite 1K sans s’inscrire. Importez une image de référence et décrivez votre modification. Le résultat est privé, filigrané et disponible pendant 24 heures maximum. La génération d’images à partir de texte nécessite une connexion."
+					"answer": "Lorsque la file sponsorisée est disponible, les visiteurs éligibles peuvent effectuer deux retouches par jour avec Nano Banana 2 Lite en 1K sans inscription. Importez une image de référence et décrivez la modification. Chaque résultat est privé, filigrané et disponible jusqu’à 24 heures. Le quota est renouvelé à 00:00 UTC ; les retouches inutilisées ne sont pas reportées. La génération à partir de texte nécessite une connexion."
 				},
 				"guestVsFree": {
 					"question": "Puis-je utiliser EzPic comme éditeur d’images IA gratuit ?",
-					"answer": "Oui. Un compte Free inscrit reçoit 25 EzPic Credits par mois pour les retouches disponibles dans ce forfait. Un essai invité distinct, utilisable une seule fois, peut également être proposé sans compte. « No Restrictions » désigne une retouche flexible par instructions au-delà des modèles prédéfinis ; les limites de sécurité, légales, du modèle et d’utilisation restent applicables."
+					"answer": "Oui. Un compte Free inscrit reçoit 25 EzPic Credits par mois pour les retouches éligibles. Les invités peuvent séparément effectuer deux retouches sponsorisées par jour lorsque la file est disponible. « No Restrictions » désigne la retouche flexible par instructions, au-delà des modèles prédéfinis ; les limites de sécurité, légales, du modèle et d’utilisation restent applicables."
 				}
 			}
 		}

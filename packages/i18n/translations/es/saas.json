@@ -1227,8 +1227,8 @@
 		},
 		"guest": {
 			"eyebrow": "Prueba Nano Banana 2 Lite para invitados",
-			"title": "Haz una edición de imagen privada",
-			"subtitle": "Tu origen y tu instrucción están listos. Entra en la cola gratuita para obtener una vista previa temporal con marca de agua.",
+			"title": "Edita una imagen de forma privada",
+			"subtitle": "Disfruta de dos ediciones gratuitas al día con Nano Banana 2 Lite en 1K. Cada edición crea una vista previa temporal, privada y con marca de agua.",
 			"sourceReady": "Origen privado listo",
 			"sourceHandoff": "Transferido de forma privada para esta edición",
 			"promptLabel": "Instrucción de edición",
@@ -1252,7 +1252,7 @@
 			"signIn": "Iniciar sesión",
 			"createAccount": "Crear cuenta",
 			"accountDisclosure": "La vista previa actual seguirá caducando. Las ventajas de la cuenta se aplican a futuras ediciones registradas.",
-			"trialConsumed": "Esta prueba se consumió.",
+			"trialConsumed": "Esta edición utilizó un turno diario de invitado.",
 			"trialNotConsumed": "Esta prueba no se consumió. Puedes repetir el paso de recuperación seguro.",
 			"startsWithCapacity": "Empieza cuando haya capacidad gratuita",
 			"estimatedStart": "Inicio estimado: {start}",
@@ -1280,7 +1280,11 @@
 				"download": "La descarga privada no está disponible ahora mismo.",
 				"link": "El inicio de sesión no está disponible para esta prueba ahora mismo.",
 				"turnstile": "Completa la verificación y vuelve a intentarlo."
-			}
+			},
+			"dailyAllowance": "Hoy: quedan {remaining, number} de {limit, number} ediciones gratuitas",
+			"dailyReset": "Se restablecen cada día a las 00:00 UTC. Las ediciones no utilizadas no se acumulan.",
+			"dailyLimitReached": "Has usado las dos ediciones gratuitas de hoy. Vuelve después de las 00:00 UTC para disponer de dos más.",
+			"editAnother": "Editar otra imagen"
 		},
 		"upgradeDialog": {
 			"title": "Desbloquea más modelos de imagen",

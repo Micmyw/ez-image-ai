@@ -141,11 +141,9 @@ describe("anonymous Standard trial persistent schema contract", () => {
 			expect.arrayContaining([
 				"guest_session_bootstrap_claimHash_key",
 				"guest_session_bootstrap_idempotencyKey_key",
-				"guest_session_bootstrap_ownerId_promotionPeriod_key",
 				"guest_session_bootstrap_principalLeaseToken_key",
 				"guest_media_trial_currentJobId_key",
 				"guest_media_trial_consumedJobId_key",
-				"guest_media_trial_ownerId_promotionPeriod_key",
 				"guest_link_intent_tokenHash_key",
 				"guest_link_intent_idempotencyKey_key",
 				"guest_result_access_grant_guestJobId_registeredUserId_key",
@@ -521,8 +519,6 @@ describe("anonymous Standard trial persistent schema contract", () => {
 		`);
 		expect(uniqueIndexes.rows.map((row) => row.indexName)).toEqual(
 			expect.arrayContaining([
-				"guest_media_trial_promotionPeriod_sourceSessionHash_key",
-				"guest_media_trial_promotionPeriod_deviceHash_key",
 				"guest_link_intent_anonymousOwnerId_promotionPeriod_key",
 				"guest_link_intent_trialId_key",
 				"guest_link_intent_claimedDraftId_key",

@@ -5,6 +5,7 @@ import type { Prisma } from "../../generated/client";
 import { hasCurrentApprovedMediaAssetEvidence } from "./assets";
 import { createCreditGrant, reserveCreditsInTransaction } from "./credits";
 import { consumeGuestTurnstileTokenHash, incrementGuestBucket } from "./guest-bootstrap";
+import { getGuestDailyAllowance } from "./guest-quota";
 import { deriveGuestQueueEstimate } from "./guest-retention";
 import {
 	createModeratedGenerationQuote,
@@ -75,9 +76,9 @@ export interface CreateGuestGenerationTransactionInput {
 	maximumActiveJobsPerGuest: number;
 	maximumRequestsPerMinute: number;
 	maximumRequestsPerIpPerHour: number;
-	maximumAcceptedTrialsPerSession?: number;
+	maximumAcceptedTrialsPerSessionPerDay?: number;
 	maximumActiveJobsPerDevice?: number;
-	maximumAcceptedTrialsPerDevicePromotion?: number;
+	maximumAcceptedTrialsPerDevicePerDay?: number;
 	maximumActiveJobsPerIp?: number;
 	maximumRequestsPerIpPerTenMinutes?: number;
 	maximumRequestsPerIpPerDay?: number;
@@ -211,31 +212,15 @@ export async function createGuestGenerationTransaction(
 			});
 			if (linkIntent) throw new Error("GUEST_LINK_IN_PROGRESS");
 
-			const existingTrial = await tx.guestMediaTrial.findUnique({
-				where: {
-					ownerId_promotionPeriod: {
-						ownerId: input.ownerId,
-						promotionPeriod: input.promotionPeriod,
-					},
+			const allowance = await getGuestDailyAllowance(
+				{
+					...input,
+					maximumAcceptedTrialsPerSessionPerDay: input.maximumAcceptedTrialsPerSessionPerDay ?? 2,
+					maximumAcceptedTrialsPerDevicePerDay: input.maximumAcceptedTrialsPerDevicePerDay ?? 2,
 				},
-				select: { id: true },
-			});
-			if (existingTrial) throw new Error("GUEST_TRIAL_UNAVAILABLE");
-			const [sessionTrialCount, deviceTrialCount] = await Promise.all([
-				tx.guestMediaTrial.count({
-					where: {
-						promotionPeriod: input.promotionPeriod,
-						sourceSessionHash: input.sourceSessionHash,
-					},
-				}),
-				tx.guestMediaTrial.count({
-					where: { promotionPeriod: input.promotionPeriod, deviceHash: input.deviceHash },
-				}),
-			]);
-			if (
-				sessionTrialCount >= (input.maximumAcceptedTrialsPerSession ?? 1) ||
-				deviceTrialCount >= (input.maximumAcceptedTrialsPerDevicePromotion ?? 1)
-			) {
+				tx,
+			);
+			if (allowance.remaining === 0) {
 				throw new Error("GUEST_TRIAL_UNAVAILABLE");
 			}
 
@@ -315,6 +300,7 @@ export async function createGuestGenerationTransaction(
 			await holdQuotedRisk(input, resultExpiresAt, tx);
 			const trial = await tx.guestMediaTrial.create({
 				data: {
+					createdAt: input.now,
 					ownerId: input.ownerId,
 					promotionPeriod: input.promotionPeriod,
 					eligibility: "IN_FLIGHT",
@@ -337,8 +323,10 @@ export async function createGuestGenerationTransaction(
 					expiresAt: resultExpiresAt,
 				},
 			});
-			const account = await tx.creditAccount.create({
-				data: { ownerType: "USER", ownerId: input.ownerId },
+			const account = await tx.creditAccount.upsert({
+				where: { ownerType_ownerId: { ownerType: "USER", ownerId: input.ownerId } },
+				create: { ownerType: "USER", ownerId: input.ownerId },
+				update: {},
 			});
 			await createCreditGrant(
 				{
@@ -1200,9 +1188,9 @@ function validateAdmissionInput(input: CreateGuestGenerationTransactionInput): v
 		input.maximumActiveJobsPerGuest,
 		input.maximumRequestsPerMinute,
 		input.maximumRequestsPerIpPerHour,
-		input.maximumAcceptedTrialsPerSession ?? 1,
+		input.maximumAcceptedTrialsPerSessionPerDay ?? 1,
 		input.maximumActiveJobsPerDevice ?? 1,
-		input.maximumAcceptedTrialsPerDevicePromotion ?? 1,
+		input.maximumAcceptedTrialsPerDevicePerDay ?? 1,
 		input.maximumActiveJobsPerIp ?? 2,
 		input.maximumRequestsPerIpPerTenMinutes ?? input.maximumRequestsPerIpPerHour,
 		input.maximumRequestsPerIpPerDay ?? input.maximumRequestsPerIpPerHour,

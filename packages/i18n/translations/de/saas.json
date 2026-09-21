@@ -1227,8 +1227,8 @@
 		},
 		"guest": {
 			"eyebrow": "Gast-Test mit Nano Banana 2 Lite",
-			"title": "Eine private Bildbearbeitung erstellen",
-			"subtitle": "Quelle und Anweisung sind bereit. Nutze die kostenlose Warteschlange für eine temporäre Vorschau mit Wasserzeichen.",
+			"title": "Bearbeite ein Bild privat",
+			"subtitle": "Nutze täglich zwei kostenlose Bearbeitungen mit Nano Banana 2 Lite in 1K. Jede Bearbeitung erstellt eine temporäre, private Vorschau mit Wasserzeichen.",
 			"sourceReady": "Private Quelle bereit",
 			"sourceHandoff": "Privat für diese Bearbeitung übergeben",
 			"promptLabel": "Bearbeitungsanweisung",
@@ -1252,7 +1252,7 @@
 			"signIn": "Anmelden",
 			"createAccount": "Konto erstellen",
 			"accountDisclosure": "Die aktuelle Vorschau läuft weiterhin ab. Kontovorteile gelten für zukünftige registrierte Bearbeitungen.",
-			"trialConsumed": "Dieser Test wurde verbraucht.",
+			"trialConsumed": "Diese Bearbeitung hat einen täglichen Gastplatz verbraucht.",
 			"trialNotConsumed": "Dieser Test wurde nicht verbraucht. Du kannst den sicheren Wiederherstellungsschritt erneut versuchen.",
 			"startsWithCapacity": "Startet, sobald kostenlose Kapazität verfügbar ist",
 			"estimatedStart": "Voraussichtlicher Start: {start}",
@@ -1280,7 +1280,11 @@
 				"download": "Der private Download ist derzeit nicht verfügbar.",
 				"link": "Die Kontoanmeldung ist für diesen Test derzeit nicht verfügbar.",
 				"turnstile": "Schließe die Überprüfung ab und versuche es erneut."
-			}
+			},
+			"dailyAllowance": "Heute: {remaining, number} von {limit, number} kostenlosen Bearbeitungen übrig",
+			"dailyReset": "Täglich um 00:00 UTC zurückgesetzt. Ungenutzte Bearbeitungen werden nicht übertragen.",
+			"dailyLimitReached": "Deine zwei kostenlosen Bearbeitungen für heute sind aufgebraucht. Ab 00:00 UTC stehen dir zwei neue zur Verfügung.",
+			"editAnother": "Ein weiteres Bild bearbeiten"
 		},
 		"upgradeDialog": {
 			"title": "Weitere Bildmodelle freischalten",

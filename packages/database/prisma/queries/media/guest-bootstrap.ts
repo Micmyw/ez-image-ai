@@ -250,6 +250,32 @@ export async function hasDurableGuestBootstrapProof(
 	);
 }
 
+/** Bind a new upload to an existing guest without creating another anonymous principal. */
+export async function bindGuestBootstrapToExistingOwner(
+	input: { claimHash: string; ownerId: string; now: Date },
+	tx: Prisma.TransactionClient,
+): Promise<void> {
+	await lockGuestBootstrapClaim(input.claimHash, tx);
+	const owner = await tx.user.findUnique({
+		where: { id: input.ownerId },
+		select: { isAnonymous: true },
+	});
+	if (!owner?.isAnonymous) throw new Error("DRAFT_UNAVAILABLE");
+	const bootstrap = await tx.guestSessionBootstrap.findUnique({
+		where: { claimHash: input.claimHash },
+	});
+	if (!bootstrap || bootstrap.expiresAt <= input.now) throw new Error("DRAFT_UNAVAILABLE");
+	if (bootstrap.ownerId === input.ownerId && bootstrap.completedAt) return;
+	// A principal creation lease must finish through its original, fenced path.
+	if (bootstrap.ownerId || bootstrap.completedAt || bootstrap.principalLeaseToken) {
+		throw new Error("DRAFT_UNAVAILABLE");
+	}
+	await tx.guestSessionBootstrap.update({
+		where: { id: bootstrap.id },
+		data: { ownerId: input.ownerId, completedAt: input.now, version: { increment: 1 } },
+	});
+}
+
 export async function loadGuestUploadCompletion(
 	input: {
 		sessionId: string;

@@ -106,9 +106,9 @@ interface GuestAdmissionConfig {
 	abuseEvidenceTtlMs: number;
 	limits: {
 		maximumActiveJobsPerGuest: number;
-		maximumAcceptedTrialsPerSession?: number;
+		maximumAcceptedTrialsPerSessionPerDay?: number;
 		maximumActiveJobsPerDevice?: number;
-		maximumAcceptedTrialsPerDevicePromotion?: number;
+		maximumAcceptedTrialsPerDevicePerDay?: number;
 		maximumActiveJobsPerIp?: number;
 		maximumRequestsPerIpPerTenMinutes?: number;
 		maximumRequestsPerIpPerDay?: number;
@@ -480,10 +480,10 @@ export async function submitGuestGenerationForGuest(
 		maximumActiveJobsPerGuest: loaded.config.limits.maximumActiveJobsPerGuest,
 		maximumRequestsPerMinute: loaded.config.limits.maximumRequestsPerMinute,
 		maximumRequestsPerIpPerHour: loaded.config.limits.maximumRequestsPerIpPerHour,
-		maximumAcceptedTrialsPerSession: loaded.config.limits.maximumAcceptedTrialsPerSession,
+		maximumAcceptedTrialsPerSessionPerDay:
+			loaded.config.limits.maximumAcceptedTrialsPerSessionPerDay,
 		maximumActiveJobsPerDevice: loaded.config.limits.maximumActiveJobsPerDevice,
-		maximumAcceptedTrialsPerDevicePromotion:
-			loaded.config.limits.maximumAcceptedTrialsPerDevicePromotion,
+		maximumAcceptedTrialsPerDevicePerDay: loaded.config.limits.maximumAcceptedTrialsPerDevicePerDay,
 		maximumActiveJobsPerIp: loaded.config.limits.maximumActiveJobsPerIp,
 		maximumRequestsPerIpPerTenMinutes: loaded.config.limits.maximumRequestsPerIpPerTenMinutes,
 		maximumRequestsPerIpPerDay: loaded.config.limits.maximumRequestsPerIpPerDay,

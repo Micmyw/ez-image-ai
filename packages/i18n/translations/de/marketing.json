@@ -35,11 +35,11 @@
 			},
 			"guestAvailability": {
 				"question": "Wann ist die Gastbearbeitung verfügbar?",
-				"answer": "Wenn die gesponserte Gast-Warteschlange verfügbar ist, kann eine Person ohne Konto eine Nano Banana 2 Lite-1K-Bearbeitung starten. Das Ergebnis ist mit einem Wasserzeichen versehen, privat und bis zu 24 Stunden verfügbar."
+				"answer": "Wenn die gesponserte Gastwarteschlange verfügbar ist, können berechtigte Besucher täglich zwei Bilder mit Nano Banana 2 Lite in 1K ohne Registrierung bearbeiten. Lade ein Referenzbild hoch und beschreibe die Änderung. Jedes Ergebnis ist privat, mit Wasserzeichen versehen und bis zu 24 Stunden verfügbar. Das Kontingent wird um 00:00 UTC erneuert; ungenutzte Bearbeitungen verfallen. Text-zu-Bild erfordert eine Anmeldung."
 			},
 			"guestVsFree": {
 				"question": "Worin unterscheiden sich Gastzugang und Free?",
-				"answer": "Der Gastzugang bietet bedingt eine einmalige gesponserte Nano Banana 2 Lite-1K-Bearbeitung mit Wasserzeichen, die bis zu 24 Stunden aufbewahrt wird. Ein registriertes Free-Konto erhält monatlich 25 EzPic Credits; Nano Banana 2 Lite 1K kostet 5, also sind bis zu fünf Bearbeitungen möglich. GPT Image 2 und Seedream 5 Pro erfordern einen kostenpflichtigen Tarif."
+				"answer": "Gäste erhalten täglich zwei gesponserte Bearbeitungen mit Nano Banana 2 Lite in 1K. Private Ergebnisse mit Wasserzeichen bleiben bis zu 24 Stunden verfügbar. Ein registriertes Free-Konto erhält separat monatlich 25 EzPic Credits, ausreichend für bis zu fünf Bearbeitungen mit Nano Banana 2 Lite in 1K. GPT Image 2 und Seedream 5 Pro erfordern einen kostenpflichtigen Tarif."
 			},
 			"editTiers": {
 				"question": "Welche Bildmodelle und Ausgabeeinstellungen sind verfügbar?",
@@ -96,7 +96,7 @@
 			"noSignUp": "Keine Registrierung, wenn die Gast-Warteschlange verfügbar ist",
 			"paidSignIn": "Anmeldung und kostenpflichtiger Tarif erforderlich",
 			"oneOutput": "Ein Ergebnis",
-			"freeQueue": "Kostenlose Warteschlange · eine Vorschau mit Wasserzeichen · bis zu 24 Stunden verfügbar",
+			"freeQueue": "2 kostenlose Bearbeitungen täglich · Wasserzeichen · bis zu 24 Stunden verfügbar",
 			"qualityAccess": "{model} erfordert eine Anmeldung und einen Pro-, Ultimate- oder Max-Tarif.",
 			"temporaryResult": "Deine Vorschau bleibt privat und vorübergehend.",
 			"temporarySessionDisclosure": "EzPic erstellt für diesen Test eine temporäre Sitzung, bewahrt Gastmedien bis zu 24 Stunden auf und nutzt pseudonyme Missbrauchssignale für den in unserer Datenschutzerklärung beschriebenen Zeitraum.",
@@ -193,7 +193,7 @@
 					"label": "Nano Banana 2 Lite",
 					"badge": "Gast-Test",
 					"description": "1K-Quellbildbearbeitung mit einem Ergebnis",
-					"access": "Eine gesponserte Gastbearbeitung"
+					"access": "Zwei gesponserte Gastbearbeitungen pro Tag"
 				},
 				"quality": {
 					"label": "Weitere Bildmodelle",
@@ -467,7 +467,7 @@
 		"trust": {
 			"eyebrow": "Klare Grenzen",
 			"title": "Standardmäßig privat, transparent gemessen",
-			"description": "Wenn die gesponserte Gast-Warteschlange verfügbar ist, kann die Startseite eine gesponserte Nano Banana 2 Lite-1K-Bearbeitung starten. Kontobearbeitungen zeigen die Kosten auf der Schaltfläche und prüfen Inhalt und Preis, bevor EzPic Credits reserviert werden.",
+			"description": "Wenn die Gastwarteschlange verfügbar ist, können über die Startseite täglich bis zu zwei Bearbeitungen mit Nano Banana 2 Lite in 1K gestartet werden. Bei Kontobearbeitungen zeigt die Schaltfläche die Kosten an; Sicherheit und Preis werden vor der Reservierung der EzPic Credits geprüft.",
 			"items": {
 				"privacy": {
 					"title": "Private Medien",
@@ -553,11 +553,11 @@
 			"items": {
 				"guestAvailability": {
 					"question": "Kann ich den KI-Bildeditor ohne Registrierung ausprobieren?",
-					"answer": "Wenn die gesponserte Gast-Warteschlange verfügbar ist, können berechtigte Besucher eine Nano Banana 2 Lite-1K-Bildbearbeitung ohne Registrierung ausprobieren. Lade ein Referenzbild hoch und beschreibe deine Änderung. Das Ergebnis ist privat, mit einem Wasserzeichen versehen und bis zu 24 Stunden verfügbar. Für die Bilderzeugung aus Text ist eine Anmeldung erforderlich."
+					"answer": "Wenn die gesponserte Gastwarteschlange verfügbar ist, können berechtigte Besucher täglich zwei Bilder mit Nano Banana 2 Lite in 1K ohne Registrierung bearbeiten. Lade ein Referenzbild hoch und beschreibe die Änderung. Jedes Ergebnis ist privat, mit Wasserzeichen versehen und bis zu 24 Stunden verfügbar. Das Kontingent wird um 00:00 UTC erneuert; ungenutzte Bearbeitungen verfallen. Text-zu-Bild erfordert eine Anmeldung."
 				},
 				"guestVsFree": {
 					"question": "Kann ich EzPic als kostenlosen KI-Bildeditor nutzen?",
-					"answer": "Ja. Ein registriertes Free-Konto erhält monatlich 25 EzPic Credits für die im Tarif verfügbaren Bearbeitungen. Zusätzlich kann ein einmaliger Gasttest ohne Konto verfügbar sein. „No Restrictions“ bedeutet flexible Bearbeitung per Prompt über feste Vorlagen hinaus; Sicherheits-, Rechts-, Modell- und Nutzungslimits gelten weiterhin."
+					"answer": "Ja. Ein registriertes Free-Konto erhält monatlich 25 EzPic Credits für berechtigte Bearbeitungen. Gäste können separat täglich zwei gesponserte Bearbeitungen nutzen, wenn die Warteschlange verfügbar ist. „No Restrictions“ bedeutet flexibles Bearbeiten per Prompt jenseits fester Vorlagen; Sicherheits-, Rechts-, Modell- und Nutzungslimits gelten weiterhin."
 				}
 			}
 		}

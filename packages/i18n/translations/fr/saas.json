@@ -1227,8 +1227,8 @@
 		},
 		"guest": {
 			"eyebrow": "Essai Nano Banana 2 Lite invité",
-			"title": "Réalisez une retouche d’image privée",
-			"subtitle": "Votre source et votre instruction sont prêtes. Rejoignez la file gratuite pour un aperçu temporaire filigrané.",
+			"title": "Modifiez une image en privé",
+			"subtitle": "Profitez de deux retouches gratuites par jour avec Nano Banana 2 Lite en 1K. Chaque retouche crée un aperçu temporaire, privé et filigrané.",
 			"sourceReady": "Source privée prête",
 			"sourceHandoff": "Transférée en privé pour cette retouche",
 			"promptLabel": "Instruction de retouche",
@@ -1252,7 +1252,7 @@
 			"signIn": "Se connecter",
 			"createAccount": "Créer un compte",
 			"accountDisclosure": "L’aperçu actuel expirera toujours. Les avantages du compte s’appliquent aux futures retouches enregistrées.",
-			"trialConsumed": "Cet essai a été utilisé.",
+			"trialConsumed": "Cette retouche a utilisé un essai invité du jour.",
 			"trialNotConsumed": "Cet essai n’a pas été utilisé. Vous pouvez réessayer l’étape de récupération sûre.",
 			"startsWithCapacity": "Démarre dès qu’une capacité gratuite est disponible",
 			"estimatedStart": "Début estimé : {start}",
@@ -1280,7 +1280,11 @@
 				"download": "Le téléchargement privé est indisponible pour le moment.",
 				"link": "La connexion au compte est indisponible pour cet essai pour le moment.",
 				"turnstile": "Terminez la vérification puis réessayez."
-			}
+			},
+			"dailyAllowance": "Aujourd’hui : {remaining, number} retouches gratuites restantes sur {limit, number}",
+			"dailyReset": "Renouvellement chaque jour à 00:00 UTC. Les retouches inutilisées ne sont pas reportées.",
+			"dailyLimitReached": "Vous avez utilisé vos deux retouches gratuites du jour. Revenez après 00:00 UTC pour en obtenir deux autres.",
+			"editAnother": "Modifier une autre image"
 		},
 		"upgradeDialog": {
 			"title": "Débloquer plus de modèles d’image",

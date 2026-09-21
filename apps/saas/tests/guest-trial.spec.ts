@@ -15,7 +15,7 @@ const png = Buffer.from(
 test("anonymous Nano Banana 2 Lite trial is private, accessible, responsive, and temporary", async ({
 	page,
 }, testInfo) => {
-	test.setTimeout(120_000);
+	test.setTimeout(180_000);
 	const prompt = `[e2e:delayed-success] [run:${runId}] guest browser certification ${testInfo.retry}`;
 	await enterGuestWorkspace(page, prompt);
 
@@ -71,10 +71,34 @@ test("anonymous Nano Banana 2 Lite trial is private, accessible, responsive, and
 	await expect(main.getByRole("button", { name: /create account/i })).toBeVisible();
 	await expect(page.getByRole("link", { name: /history|assets|edits/i })).toHaveCount(0);
 	await expect(page.getByText(/edit again/i)).toHaveCount(0);
+	await expect(page.getByText("Today: 1 of 2 free edits remaining", { exact: true })).toBeVisible();
+	await expect
+		.poll(
+			async () => {
+				const result = await pool.query(
+					'SELECT status FROM generation_job WHERE "inputSnapshot"->>\'prompt\'=$1 ORDER BY "createdAt" DESC LIMIT 1',
+					[`${prompt} retry`],
+				);
+				return result.rows[0]?.status;
+			},
+			{ timeout: 30_000 },
+		)
+		.toBe("SUCCEEDED");
+	await page.getByRole("link", { name: "Edit another image", exact: true }).click();
+	const secondPrompt = `${prompt} second daily edit`;
+	await enterGuestWorkspace(page, secondPrompt);
+	await expect(page.getByText("Today: 1 of 2 free edits remaining", { exact: true })).toBeVisible();
+	await page.getByRole("button", { name: /start my nano banana edit/i }).click();
+	await expect(page.locator("#guest-result-region").getByRole("img")).toBeVisible({
+		timeout: 60_000,
+	});
+	await expect(page.getByText("Today: 0 of 2 free edits remaining", { exact: true })).toBeVisible();
+	await expect(page.getByRole("link", { name: "Edit another image", exact: true })).toHaveCount(0);
+	await expect(page.getByText(/used today’s two free edits/i)).toBeVisible();
 
 	const expiredTrial = await pool.query(
 		`UPDATE guest_media_trial SET "projectedDispatchAt"="createdAt" + interval '1 millisecond', "estimateExpiresAt"="createdAt" + interval '2 milliseconds', "expiresAt"="createdAt" + interval '3 milliseconds' WHERE COALESCE("currentJobId", "consumedJobId")=(SELECT id FROM generation_job WHERE "inputSnapshot"->>'prompt'=$1 ORDER BY "createdAt" DESC LIMIT 1)`,
-		[`${prompt} retry`],
+		[secondPrompt],
 	);
 	expect(expiredTrial.rowCount).toBe(1);
 	await page.reload();

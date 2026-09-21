@@ -13,6 +13,8 @@ export interface BeginGuestLinkIntentTransactionInput {
 	promotionPeriod: string;
 	sourceSessionHash: string;
 	deviceHash: string;
+	jobId?: string;
+	sourceAssetId?: string;
 	returnPath: GuestReturnPath;
 	idempotencyKey: string;
 	tokenHash: string;
@@ -61,20 +63,24 @@ export async function beginGuestLinkIntentTransaction(
 		});
 		if (!anonymousOwner?.isAnonymous) throw new Error("GUEST_LINK_UNAVAILABLE");
 
-		const trial = await tx.guestMediaTrial.findUnique({
-			where: {
-				ownerId_promotionPeriod: {
-					ownerId: input.anonymousOwnerId,
-					promotionPeriod: input.promotionPeriod,
-				},
-			},
-			select: {
-				id: true,
-				sourceSessionHash: true,
-				deviceHash: true,
-				expiresAt: true,
-			},
-		});
+		const trial = input.sourceAssetId
+			? null
+			: await tx.guestMediaTrial.findFirst({
+					where: {
+						ownerId: input.anonymousOwnerId,
+						promotionPeriod: input.promotionPeriod,
+						expiresAt: { gt: input.now },
+						...(input.jobId ? { jobs: { some: { id: input.jobId } } } : {}),
+					},
+					orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+					select: {
+						id: true,
+						sourceSessionHash: true,
+						deviceHash: true,
+						expiresAt: true,
+					},
+				});
+		if (input.jobId && !trial) throw new Error("GUEST_LINK_UNAVAILABLE");
 
 		let trialId: string | null = null;
 		let claimedDraftId: string | null = null;
@@ -94,6 +100,9 @@ export async function beginGuestLinkIntentTransaction(
 				where: {
 					ownerId: input.anonymousOwnerId,
 					promotionPeriod: input.promotionPeriod,
+					...(input.sourceAssetId
+						? { sourceAssetId: input.sourceAssetId, guestMediaTrial: { is: null } }
+						: {}),
 					completedAt: { not: null },
 					expiresAt: { gt: input.now },
 					claimedDraft: {
@@ -106,6 +115,7 @@ export async function beginGuestLinkIntentTransaction(
 						},
 					},
 				},
+				orderBy: [{ createdAt: "desc" }, { id: "desc" }],
 				select: { claimedDraftId: true },
 			});
 			if (!bootstrap?.claimedDraftId) throw new Error("GUEST_LINK_UNAVAILABLE");

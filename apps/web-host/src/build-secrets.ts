@@ -32,7 +32,22 @@ export function packCloudflareBuildEnvironment(source: string) {
 }
 
 export function readCloudflareBuildEnvironment(environment: Record<string, string | undefined>) {
-	return withModerationOverrides(unpackCloudflareBuildEnvironment(environment), environment);
+	return withGuestQuotaOverrides(
+		withModerationOverrides(unpackCloudflareBuildEnvironment(environment), environment),
+		environment,
+	);
+}
+
+function withGuestQuotaOverrides(source: string, environment: Record<string, string | undefined>) {
+	const keys = [
+		"GUEST_SESSION_MAX_ACCEPTED_PER_DAY",
+		"GUEST_DEVICE_MAX_ACCEPTED_PER_DAY",
+		"GUEST_IP_MAX_PER_10_MINUTES",
+	];
+	if (!keys.some((key) => environment[key] !== undefined)) return source;
+	if (keys.some((key) => !["1", "2"].includes(environment[key] ?? "")))
+		throw new Error("CLOUDFLARE_GUEST_QUOTA_OVERRIDES_INVALID");
+	return `${source}\n${keys.map((key) => `${key}=${environment[key]}`).join("\n")}\n`;
 }
 
 function withModerationOverrides(source: string, environment: Record<string, string | undefined>) {

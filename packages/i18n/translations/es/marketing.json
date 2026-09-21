@@ -35,11 +35,11 @@
 			},
 			"guestAvailability": {
 				"question": "¿Cuándo está disponible la edición como invitado?",
-				"answer": "Cuando la cola patrocinada para invitados está disponible, una persona puede iniciar una edición Nano Banana 2 Lite 1K sin cuenta. El resultado lleva marca de agua, es privado y permanece disponible hasta 24 horas."
+				"answer": "Cuando la cola patrocinada está disponible, los visitantes elegibles pueden realizar dos ediciones de imagen al día con Nano Banana 2 Lite en 1K sin registrarse. Sube una imagen de referencia y describe el cambio. Cada resultado es privado, lleva marca de agua y está disponible hasta 24 horas. El cupo se renueva a las 00:00 UTC y no se acumula. La generación de texto a imagen requiere iniciar sesión."
 			},
 			"guestVsFree": {
 				"question": "¿Qué diferencia hay entre Invitado y Free?",
-				"answer": "Invitado ofrece de forma condicionada una única edición Nano Banana 2 Lite 1K patrocinada, con marca de agua y disponible hasta 24 horas. Una cuenta Free registrada recibe 25 EzPic Credits al mes; Nano Banana 2 Lite 1K cuesta 5, así que permite hasta cinco ediciones. GPT Image 2 y Seedream 5 Pro requieren un plan de pago."
+				"answer": "Los invitados disponen de dos ediciones patrocinadas al día con Nano Banana 2 Lite en 1K, con resultados privados y con marca de agua disponibles hasta 24 horas. Por separado, una cuenta Free registrada recibe 25 EzPic Credits al mes, suficientes para hasta cinco ediciones con Nano Banana 2 Lite en 1K. GPT Image 2 y Seedream 5 Pro requieren un plan de pago."
 			},
 			"editTiers": {
 				"question": "¿Qué modelos de imagen y ajustes de salida están disponibles?",
@@ -96,7 +96,7 @@
 			"noSignUp": "Sin registro cuando la cola de invitados esté disponible",
 			"paidSignIn": "Se requiere iniciar sesión y un plan de pago",
 			"oneOutput": "Un resultado",
-			"freeQueue": "Cola gratuita · una vista previa con marca de agua · disponible hasta 24 horas",
+			"freeQueue": "2 ediciones gratis al día · marca de agua · disponibles hasta 24 horas",
 			"qualityAccess": "{model} requiere iniciar sesión y un plan Pro, Ultimate o Max.",
 			"temporaryResult": "Tu vista previa permanece privada y temporal.",
 			"temporarySessionDisclosure": "EzPic crea una sesión temporal para esta prueba, conserva los archivos del invitado hasta 24 horas y usa señales seudónimas contra abusos durante el periodo descrito en nuestra Política de privacidad.",
@@ -193,7 +193,7 @@
 					"label": "Nano Banana 2 Lite",
 					"badge": "Prueba de invitado",
 					"description": "Edición 1K de imagen de origen con un resultado",
-					"access": "Una edición patrocinada como invitado"
+					"access": "Dos ediciones patrocinadas al día para invitados"
 				},
 				"quality": {
 					"label": "Más modelos de imagen",
@@ -467,7 +467,7 @@
 		"trust": {
 			"eyebrow": "Límites claros",
 			"title": "Privado por defecto, medido con claridad",
-			"description": "Cuando la cola patrocinada para invitados está disponible, la página de inicio puede iniciar una edición Nano Banana 2 Lite 1K patrocinada. Las ediciones de cuenta muestran el coste en el botón y comprueban el contenido y el precio antes de reservar EzPic Credits.",
+			"description": "Cuando la cola patrocinada está disponible, puedes iniciar hasta dos ediciones diarias con Nano Banana 2 Lite en 1K desde la página de inicio. Las ediciones con cuenta muestran el coste en el botón y comprueban la seguridad y el precio antes de reservar EzPic Credits.",
 			"items": {
 				"privacy": {
 					"title": "Medios privados",
@@ -553,11 +553,11 @@
 			"items": {
 				"guestAvailability": {
 					"question": "¿Puedo probar el editor de imágenes con IA sin registrarme?",
-					"answer": "Cuando la cola patrocinada para invitados está disponible, los visitantes que cumplen los requisitos pueden probar una edición de imagen Nano Banana 2 Lite 1K sin registrarse. Sube una imagen de referencia y describe el cambio. El resultado es privado, lleva marca de agua y está disponible hasta 24 horas. La generación de imágenes a partir de texto requiere iniciar sesión."
+					"answer": "Cuando la cola patrocinada está disponible, los visitantes elegibles pueden realizar dos ediciones de imagen al día con Nano Banana 2 Lite en 1K sin registrarse. Sube una imagen de referencia y describe el cambio. Cada resultado es privado, lleva marca de agua y está disponible hasta 24 horas. El cupo se renueva a las 00:00 UTC y no se acumula. La generación de texto a imagen requiere iniciar sesión."
 				},
 				"guestVsFree": {
 					"question": "¿Puedo usar EzPic como editor de imágenes con IA gratis?",
-					"answer": "Sí. Una cuenta Free registrada recibe 25 EzPic Credits al mes para las ediciones disponibles en el plan. También puede estar disponible una prueba única para invitados sin cuenta. «No Restrictions» significa edición flexible mediante instrucciones más allá de las plantillas fijas; siguen aplicándose los límites de seguridad, legales, del modelo y de uso."
+					"answer": "Sí. Una cuenta Free registrada recibe 25 EzPic Credits al mes para ediciones elegibles. Por separado, los invitados pueden realizar dos ediciones patrocinadas al día cuando la cola está disponible. «No Restrictions» significa edición flexible mediante instrucciones, más allá de plantillas fijas; siguen vigentes los límites de seguridad, legales, del modelo y de uso."
 				}
 			}
 		}

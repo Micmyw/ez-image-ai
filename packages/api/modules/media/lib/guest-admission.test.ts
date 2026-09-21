@@ -307,9 +307,9 @@ function validDependencies(options?: {
 				abuseEvidenceTtlMs: 30 * 24 * 60 * 60_000,
 				limits: {
 					maximumActiveJobsPerGuest: 1,
-					maximumAcceptedTrialsPerSession: 1,
+					maximumAcceptedTrialsPerSessionPerDay: 1,
 					maximumActiveJobsPerDevice: 1,
-					maximumAcceptedTrialsPerDevicePromotion: 1,
+					maximumAcceptedTrialsPerDevicePerDay: 1,
 					maximumActiveJobsPerIp: 2,
 					maximumRequestsPerIpPerTenMinutes: 1,
 					maximumRequestsPerIpPerDay: 3,

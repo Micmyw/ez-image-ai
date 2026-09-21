@@ -15,6 +15,7 @@ export * from "./edit-sessions";
 export * from "./free-plan-credits";
 export * from "./guest-bootstrap";
 export * from "./guest-admission";
+export * from "./guest-quota";
 export * from "./guest-link";
 export * from "./guest-retention";
 export * from "./jobs";

@@ -997,7 +997,7 @@ model GuestSessionBootstrap {
   completedAt             DateTime?        @db.Timestamptz(3)
   guestMediaTrial         GuestMediaTrial? @relation("GuestTrialSourceBootstrap")
 
-  @@unique([ownerId, promotionPeriod])
+  @@index([ownerId, promotionPeriod, createdAt])
   @@index([expiresAt])
   @@index([principalLeaseExpiresAt])
   @@map("guest_session_bootstrap")
@@ -1046,9 +1046,9 @@ model GuestMediaTrial {
   consumedAt             DateTime?                @db.Timestamptz(3)
   expiresAt              DateTime                 @db.Timestamptz(3)
 
-  @@unique([ownerId, promotionPeriod])
-  @@unique([promotionPeriod, sourceSessionHash])
-  @@unique([promotionPeriod, deviceHash])
+  @@index([ownerId, promotionPeriod, createdAt])
+  @@index([promotionPeriod, sourceSessionHash, createdAt], map: "guest_media_trial_session_daily_idx")
+  @@index([promotionPeriod, deviceHash, createdAt], map: "guest_media_trial_device_daily_idx")
   @@index([eligibility, expiresAt])
   @@index([sourceAssetId])
   @@index([abuseEvidenceDeletedAt, abuseEvidenceExpiresAt], map: "guest_media_trial_abuse_evidence_expiry_idx")

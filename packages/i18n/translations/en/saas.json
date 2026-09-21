@@ -1227,8 +1227,8 @@
 		},
 		"guest": {
 			"eyebrow": "Guest Nano Banana 2 Lite trial",
-			"title": "Make one private image edit",
-			"subtitle": "Your source and instruction are ready. Join the free queue for one temporary watermarked preview.",
+			"title": "Make a private image edit",
+			"subtitle": "Get two free Nano Banana 2 Lite 1K edits each day. Each edit creates one temporary, private, watermarked preview.",
 			"sourceReady": "Private source ready",
 			"sourceHandoff": "Transferred privately for this edit",
 			"promptLabel": "Edit instruction",
@@ -1252,7 +1252,7 @@
 			"signIn": "Sign in",
 			"createAccount": "Create account",
 			"accountDisclosure": "The current preview still expires. Account benefits apply to future registered edits.",
-			"trialConsumed": "This trial was consumed.",
+			"trialConsumed": "This edit used one daily guest slot.",
 			"trialNotConsumed": "This trial was not consumed. You can retry the safe recovery step.",
 			"startsWithCapacity": "Starts as free capacity becomes available",
 			"estimatedStart": "Estimated start: {start}",
@@ -1280,7 +1280,11 @@
 				"download": "The private download is unavailable right now.",
 				"link": "Account sign-in is not available for this trial right now.",
 				"turnstile": "Complete the verification and try again."
-			}
+			},
+			"dailyAllowance": "Today: {remaining, number} of {limit, number} free edits remaining",
+			"dailyReset": "Resets daily at 00:00 UTC. Unused edits do not roll over.",
+			"dailyLimitReached": "You have used today’s two free edits. Come back after 00:00 UTC for two more.",
+			"editAnother": "Edit another image"
 		},
 		"upgradeDialog": {
 			"title": "Unlock more image models",

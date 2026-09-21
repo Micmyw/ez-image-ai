@@ -2,7 +2,8 @@ import { call } from "@orpc/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const databaseMocks = vi.hoisted(() => ({
-	guestMediaTrial: { findUnique: vi.fn() },
+	guestMediaTrial: { findFirst: vi.fn(), count: vi.fn() },
+	generationJob: { findFirst: vi.fn() },
 	guestLinkIntent: { findUnique: vi.fn() },
 	guestSessionBootstrap: { findFirst: vi.fn() },
 }));
@@ -10,7 +11,10 @@ const capabilityMocks = vi.hoisted(() => ({ loadGuestCapability: vi.fn() }));
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database/client", () => ({ db: databaseMocks }));
-vi.mock("../lib/guest-capability", () => capabilityMocks);
+vi.mock("../lib/guest-capability", async (importOriginal) => ({
+	...(await importOriginal<typeof import("../lib/guest-capability")>()),
+	...capabilityMocks,
+}));
 
 import { auth } from "@repo/auth";
 
@@ -24,10 +28,20 @@ describe("getGuestEligibility claimed draft recovery", () => {
 			session: { id: "guest-session-1", userId: "guest-1" },
 		} as never);
 		capabilityMocks.loadGuestCapability.mockResolvedValue({
-			config: { enabled: true, promotionPeriod: "launch-1" },
+			config: {
+				enabled: true,
+				promotionPeriod: "launch-1",
+				limits: {
+					maximumAcceptedTrialsPerSessionPerDay: 2,
+					maximumAcceptedTrialsPerDevicePerDay: 2,
+				},
+				abuseHmac: { secretKey: "test-secret", keyVersion: "test-v1" },
+			},
 			snapshot: { version: "guest-v7" },
 		});
-		databaseMocks.guestMediaTrial.findUnique.mockResolvedValue(null);
+		databaseMocks.guestMediaTrial.findFirst.mockResolvedValue(null);
+		databaseMocks.guestMediaTrial.count.mockResolvedValue(0);
+		databaseMocks.generationJob.findFirst.mockResolvedValue(null);
 		databaseMocks.guestLinkIntent.findUnique.mockResolvedValue(null);
 		databaseMocks.guestSessionBootstrap.findFirst.mockResolvedValue(validBootstrap());
 	});
@@ -69,7 +83,8 @@ describe("getGuestEligibility claimed draft recovery", () => {
 	});
 
 	it("returns the consumed job so a completed guest result can recover after reload", async () => {
-		databaseMocks.guestMediaTrial.findUnique.mockResolvedValue({
+		databaseMocks.guestMediaTrial.count.mockResolvedValue(2);
+		databaseMocks.guestMediaTrial.findFirst.mockResolvedValue({
 			currentJobId: null,
 			consumedJobId: "job-consumed-1",
 		});
@@ -80,6 +95,42 @@ describe("getGuestEligibility claimed draft recovery", () => {
 			eligible: false,
 			reason: "EXISTING_TRIAL",
 			existingJobId: "job-consumed-1",
+		});
+	});
+
+	it("keeps the second edit available and selects only a fresh unused draft", async () => {
+		databaseMocks.guestMediaTrial.count.mockResolvedValue(1);
+		databaseMocks.guestMediaTrial.findFirst.mockResolvedValue({
+			currentJobId: null,
+			consumedJobId: "first-job",
+		});
+		await expect(
+			call(
+				getGuestEligibility,
+				{ deviceId: "6fcb957d-4be6-4f92-8d53-2b93ee9755e2" },
+				{ context: { headers: new Headers() } },
+			),
+		).resolves.toMatchObject({
+			eligible: true,
+			existingJobId: "first-job",
+			dailyAllowance: { limit: 2, remaining: 1 },
+		});
+		expect(databaseMocks.guestSessionBootstrap.findFirst).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({ guestMediaTrial: { is: null } }),
+				orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+			}),
+		);
+	});
+
+	it("keeps the previous active edit recoverable even after midnight", async () => {
+		databaseMocks.generationJob.findFirst.mockResolvedValue({ id: "active-yesterday" });
+		await expect(
+			call(getGuestEligibility, undefined, { context: { headers: new Headers() } }),
+		).resolves.toMatchObject({
+			eligible: false,
+			existingJobId: "active-yesterday",
+			dailyAllowance: { limit: 2, remaining: 2 },
 		});
 	});
 

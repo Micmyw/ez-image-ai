@@ -35,11 +35,11 @@
 			},
 			"guestAvailability": {
 				"question": "When is the guest edit available?",
-				"answer": "When the sponsored guest queue is available, a visitor can start one Nano Banana 2 Lite 1K edit without an account. The result is watermarked, private, and available for up to 24 hours."
+				"answer": "When the sponsored guest queue is available, eligible visitors can make two Nano Banana 2 Lite 1K image edits per day without signing up. Upload a reference image and describe your change. Each result is private, watermarked, and available for up to 24 hours. The allowance resets at 00:00 UTC; unused edits do not roll over. Text-to-image generation requires sign-in."
 			},
 			"guestVsFree": {
 				"question": "What is the difference between Guest and Free?",
-				"answer": "Guest is a conditional, one-time sponsored Nano Banana 2 Lite 1K edit with a watermarked result kept for up to 24 hours. A registered Free account receives 25 EzPic Credits each month; Nano Banana 2 Lite 1K costs 5, so that is up to five edits. GPT Image 2 and Seedream 5 Pro require a paid plan."
+				"answer": "Guest access offers two sponsored Nano Banana 2 Lite 1K edits per day, with private watermarked results kept for up to 24 hours. A registered Free account separately receives 25 EzPic Credits each month, enough for up to five Nano Banana 2 Lite 1K edits. GPT Image 2 and Seedream 5 Pro require a paid plan."
 			},
 			"editTiers": {
 				"question": "Which image models and output settings are available?",
@@ -96,7 +96,7 @@
 			"noSignUp": "No sign-up when the guest queue is available",
 			"paidSignIn": "Sign-in and a paid plan required",
 			"oneOutput": "One output",
-			"freeQueue": "Free queue · one watermarked preview · available for up to 24 hours",
+			"freeQueue": "2 free edits daily · watermarked · available for up to 24 hours",
 			"qualityAccess": "{model} requires sign-in and a Pro, Ultimate, or Max plan.",
 			"temporaryResult": "Your preview stays private and temporary.",
 			"temporarySessionDisclosure": "EzPic creates a temporary session for this trial, keeps guest media for up to 24 hours, and uses pseudonymous abuse signals for the policy period described in our Privacy Policy.",
@@ -193,7 +193,7 @@
 					"label": "Nano Banana 2 Lite",
 					"badge": "Guest trial",
 					"description": "1K source-image editing with one output",
-					"access": "One sponsored guest edit"
+					"access": "Two sponsored guest edits per day"
 				},
 				"quality": {
 					"label": "More image models",
@@ -467,7 +467,7 @@
 		"trust": {
 			"eyebrow": "Clear boundaries",
 			"title": "Private by default, metered by design",
-			"description": "When the sponsored guest queue is available, the homepage can start one sponsored Nano Banana 2 Lite 1K edit. Account edits show the credit cost on the button and check safety and price before reserving EzPic Credits.",
+			"description": "When the sponsored guest queue is available, the homepage can start up to two Nano Banana 2 Lite 1K edits per day. Account edits show the credit cost on the button and check safety and price before reserving EzPic Credits.",
 			"items": {
 				"privacy": {
 					"title": "Private media",
@@ -553,11 +553,11 @@
 			"items": {
 				"guestAvailability": {
 					"question": "Can I try the AI image editor without signing up?",
-					"answer": "When the sponsored guest queue is available, eligible visitors can try one Nano Banana 2 Lite 1K image edit without signing up. Upload a reference image and describe your change. The result is private, watermarked, and available for up to 24 hours. Text-to-image generation requires sign-in."
+					"answer": "When the sponsored guest queue is available, eligible visitors can make two Nano Banana 2 Lite 1K image edits per day without signing up. Upload a reference image and describe your change. Each result is private, watermarked, and available for up to 24 hours. The allowance resets at 00:00 UTC; unused edits do not roll over. Text-to-image generation requires sign-in."
 				},
 				"guestVsFree": {
 					"question": "Can I use EzPic as a free AI image editor?",
-					"answer": "Yes. A registered Free account receives 25 EzPic Credits each month for eligible edits. A separate, one-time guest trial may be available without an account. “No Restrictions” means flexible prompt editing beyond fixed templates; content safety, legal, model, and usage limits still apply."
+					"answer": "Yes. A registered Free account receives 25 EzPic Credits each month for eligible edits. Separately, guests can make two sponsored edits per day when the queue is available. “No Restrictions” means flexible prompt editing beyond fixed templates; content safety, legal, model, and usage limits still apply."
 				}
 			}
 		}

@@ -5,12 +5,14 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
 import { getAdminMediaDiagnostics } from "./admin-diagnostics";
+import { claimGuestGenerationDraftTransaction } from "./drafts";
 import {
 	createGuestGenerationTransaction,
 	recordGuestAdmissionDenial,
 	getGuestJobSnapshot,
 	getGuestOwnedResultAssetForAccess,
 } from "./guest-admission";
+import { beginGuestLinkIntentTransaction } from "./guest-link";
 import { expireGuestJobBeforeProvider } from "./guest-retention";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
 
@@ -45,6 +47,166 @@ describe("guest generation admission", () => {
 		await client?.$disconnect();
 	});
 
+	it("admits two daily edits on one device across sessions, rejects the third, and resets at UTC midnight", async () => {
+		const now = guestAdmissionTestTime(0);
+		const deviceHash = hashFixture("daily-two-device");
+		const admit = async (label: string, at: Date) => {
+			const fixture = await createGuestFixture(label, at);
+			return createGuestAdmission(
+				guestAdmissionInput(fixture, {
+					idempotencyKey: label,
+					deviceHash,
+					maximumAcceptedTrialsPerSessionPerDay: 2,
+					maximumAcceptedTrialsPerDevicePerDay: 2,
+				}),
+			);
+		};
+		for (const label of ["daily-first", "daily-second"]) {
+			const admitted = await admit(label, now);
+			await client.generationJob.update({
+				where: { id: admitted.jobId },
+				data: { status: "SUCCEEDED", terminalAt: now },
+			});
+		}
+		await expect(admit("daily-third", now)).rejects.toThrow("GUEST_TRIAL_UNAVAILABLE");
+		const midnight = new Date(now);
+		midnight.setUTCHours(24, 0, 0, 0);
+		await expect(admit("daily-next-day", midnight)).resolves.toMatchObject({ stage: "WAITING" });
+	});
+
+	it("reuses one guest account for two uploads and replays without consuming another daily slot", async () => {
+		const fixture = await createGuestFixture("same-owner-first");
+		const policy = {
+			maximumAcceptedTrialsPerSessionPerDay: 2,
+			maximumAcceptedTrialsPerDevicePerDay: 2,
+		};
+		const firstInput = guestAdmissionInput(fixture, {
+			...policy,
+			idempotencyKey: "same-owner-first",
+		});
+		const first = await createGuestAdmission(firstInput);
+		await client.generationJob.update({
+			where: { id: first.jobId },
+			data: { status: "SUCCEEDED", terminalAt: fixture.now },
+		});
+		const next = await createGuestFixture(
+			"same-owner-second",
+			fixture.now,
+			fixture.promotionPeriod,
+			fixture,
+		);
+		const draft = await client.generationDraft.findUniqueOrThrow({ where: { id: next.draftId } });
+		await client.guestSessionBootstrap.update({
+			where: { id: next.bootstrapId },
+			data: { ownerId: null, completedAt: null, claimHash: draft.claimTokenHash },
+		});
+		await client.generationDraft.update({
+			where: { id: next.draftId },
+			data: { status: "ACTIVE" },
+		});
+		await expect(
+			claimGuestGenerationDraftTransaction(
+				{
+					claimTokenHash: draft.claimTokenHash!,
+					userId: fixture.ownerId,
+					allowedProductKeys: ["image-nano-banana-2-lite"],
+					now: fixture.now,
+				},
+				client,
+			),
+		).resolves.toMatchObject({ id: next.draftId });
+		const secondInput = guestAdmissionInput(next, {
+			...policy,
+			idempotencyKey: "same-owner-second",
+		});
+		const second = await createGuestAdmission(secondInput);
+		await expect(createGuestAdmission(secondInput)).resolves.toMatchObject({ jobId: second.jobId });
+		await expect(client.creditAccount.count({ where: { ownerId: fixture.ownerId } })).resolves.toBe(
+			1,
+		);
+		await expect(
+			client.creditLedgerEntry.aggregate({
+				where: { account: { ownerId: fixture.ownerId }, type: "GRANT" },
+				_sum: { amount: true },
+			}),
+		).resolves.toMatchObject({ _sum: { amount: 10n } });
+		await expect(
+			createGuestAdmission(
+				guestAdmissionInput(next, { ...policy, idempotencyKey: "same-owner-third" }),
+			),
+		).rejects.toThrow("GUEST_TRIAL_UNAVAILABLE");
+		await expect(
+			beginGuestLinkIntentTransaction(
+				{
+					anonymousOwnerId: fixture.ownerId,
+					promotionPeriod: fixture.promotionPeriod,
+					sourceSessionHash: fixture.sourceSessionHash,
+					deviceHash: fixture.deviceHash,
+					jobId: second.jobId,
+					returnPath: "/try",
+					idempotencyKey: "same-owner-link",
+					tokenHash: hashFixture("same-owner-link"),
+					now: fixture.now,
+					expiresAt: fixture.validUntil,
+				},
+				client,
+			),
+		).resolves.toMatchObject({ trialId: second.trialId });
+	});
+
+	it("admits exactly one contender for the last daily device slot", async () => {
+		const now = guestAdmissionTestTime(30);
+		const policy = {
+			deviceHash: hashFixture("last-slot-device"),
+			maximumAcceptedTrialsPerSessionPerDay: 2,
+			maximumAcceptedTrialsPerDevicePerDay: 2,
+		};
+		const firstFixture = await createGuestFixture("last-slot-first", now);
+		const first = await createGuestAdmission(
+			guestAdmissionInput(firstFixture, { ...policy, idempotencyKey: "last-slot-first" }),
+		);
+		await client.generationJob.update({
+			where: { id: first.jobId },
+			data: { status: "SUCCEEDED", terminalAt: now },
+		});
+		const fixtures = await Promise.all(
+			Array.from({ length: 8 }, (_, i) => createGuestFixture(`last-slot-${i}`, now)),
+		);
+		const results = await concurrentSettledBarrier(
+			fixtures.map(
+				(fixture, i) => () =>
+					createGuestAdmission(
+						guestAdmissionInput(fixture, { ...policy, idempotencyKey: `last-slot-${i}` }),
+					),
+			),
+		);
+		expect(results.filter((result) => result.status === "fulfilled")).toHaveLength(1);
+		await expect(
+			client.guestMediaTrial.count({ where: { deviceHash: policy.deviceHash } }),
+		).resolves.toBe(2);
+	});
+
+	it("does not reset the active-device limit at midnight", async () => {
+		const now = guestAdmissionTestTime(0);
+		const policy = {
+			deviceHash: hashFixture("midnight-active-device"),
+			maximumAcceptedTrialsPerSessionPerDay: 2,
+			maximumAcceptedTrialsPerDevicePerDay: 2,
+		};
+		const first = await createGuestFixture("midnight-active-first", now);
+		await createGuestAdmission(
+			guestAdmissionInput(first, { ...policy, idempotencyKey: "midnight-active-first" }),
+		);
+		const midnight = new Date(now);
+		midnight.setUTCHours(24, 0, 0, 0);
+		const next = await createGuestFixture("midnight-active-next", midnight);
+		await expect(
+			createGuestAdmission(
+				guestAdmissionInput(next, { ...policy, idempotencyKey: "midnight-active-next" }),
+			),
+		).rejects.toThrow("GUEST_DEVICE_LIMIT");
+	});
+
 	it("commits exactly one sponsored graph under a deterministic 32-way replay", async () => {
 		const fixture = await createGuestFixture("replay");
 		const input = guestAdmissionInput(fixture, { idempotencyKey: "guest-replay-0001" });
@@ -53,12 +215,7 @@ describe("guest generation admission", () => {
 		expect(new Set(results.map((result) => result.jobId)).size).toBe(1);
 		const jobId = results[0]!.jobId;
 		const trial = await client.guestMediaTrial.findUniqueOrThrow({
-			where: {
-				ownerId_promotionPeriod: {
-					ownerId: fixture.ownerId,
-					promotionPeriod: fixture.promotionPeriod,
-				},
-			},
+			where: { currentJobId: jobId },
 		});
 		const account = await client.creditAccount.findUniqueOrThrow({
 			where: { ownerType_ownerId: { ownerType: "USER", ownerId: fixture.ownerId } },
@@ -589,7 +746,7 @@ describe("guest generation admission", () => {
 		const rejected = await createGuestFixture("device-active-rejected", undefined, promotionPeriod);
 		const targetedLimits = {
 			deviceHash: sharedDeviceHash,
-			maximumAcceptedTrialsPerDevicePromotion: 2,
+			maximumAcceptedTrialsPerDevicePerDay: 2,
 			maximumActiveJobsPerDevice: 1,
 		};
 
@@ -1060,38 +1217,41 @@ describe("guest generation admission", () => {
 		label: string,
 		now = new Date(),
 		promotionPeriod = "launch-2026-08",
+		existing?: GuestFixture,
 	) {
 		const suffix = `${label}-${randomUUID()}`;
-		const ownerId = `guest-${suffix}`;
-		const sessionId = `session-${suffix}`;
-		const sourceSessionHash = hashFixture(`session:${suffix}`);
-		const deviceHash = hashFixture(`device:${suffix}`);
+		const ownerId = existing?.ownerId ?? `guest-${suffix}`;
+		const sessionId = existing?.sessionId ?? `session-${suffix}`;
+		const sourceSessionHash = existing?.sourceSessionHash ?? hashFixture(`session:${suffix}`);
+		const deviceHash = existing?.deviceHash ?? hashFixture(`device:${suffix}`);
 		const assetId = `asset-${suffix}`;
 		const draftId = `draft-${suffix}`;
 		const bootstrapId = `bootstrap-${suffix}`;
 		const checksum = hashFixture(`asset:${suffix}`);
 		const validUntil = new Date(now.getTime() + 24 * 60 * 60_000);
-		await client.user.create({
-			data: {
-				id: ownerId,
-				name: "Guest",
-				email: `${suffix}@anonymous.invalid`,
-				emailVerified: false,
-				isAnonymous: true,
-				createdAt: now,
-				updatedAt: now,
-			},
-		});
-		await client.session.create({
-			data: {
-				id: sessionId,
-				token: `token-${suffix}`,
-				userId: ownerId,
-				expiresAt: validUntil,
-				createdAt: now,
-				updatedAt: now,
-			},
-		});
+		if (!existing)
+			await client.user.create({
+				data: {
+					id: ownerId,
+					name: "Guest",
+					email: `${suffix}@anonymous.invalid`,
+					emailVerified: false,
+					isAnonymous: true,
+					createdAt: now,
+					updatedAt: now,
+				},
+			});
+		if (!existing)
+			await client.session.create({
+				data: {
+					id: sessionId,
+					token: `token-${suffix}`,
+					userId: ownerId,
+					expiresAt: validUntil,
+					createdAt: now,
+					updatedAt: now,
+				},
+			});
 		await client.mediaAsset.create({
 			data: {
 				id: assetId,
@@ -1284,12 +1444,7 @@ describe("guest generation admission", () => {
 			data: { status: "SUCCEEDED", terminalAt: input.fixture.now },
 		});
 		await client.guestMediaTrial.update({
-			where: {
-				ownerId_promotionPeriod: {
-					ownerId: input.fixture.ownerId,
-					promotionPeriod: input.fixture.promotionPeriod,
-				},
-			},
+			where: { currentJobId: input.jobId },
 			data: {
 				eligibility: "CONSUMED",
 				currentJobId: null,
@@ -1334,9 +1489,9 @@ function guestAdmissionInput(
 		ipHash?: string;
 		subnetHash?: string;
 		maximumActiveJobsPerGuest?: number;
-		maximumAcceptedTrialsPerSession?: number;
+		maximumAcceptedTrialsPerSessionPerDay?: number;
 		maximumActiveJobsPerDevice?: number;
-		maximumAcceptedTrialsPerDevicePromotion?: number;
+		maximumAcceptedTrialsPerDevicePerDay?: number;
 		maximumActiveJobsPerIp?: number;
 		maximumRequestsPerIpPerTenMinutes?: number;
 		maximumRequestsPerIpPerDay?: number;
@@ -1393,9 +1548,9 @@ function guestAdmissionInput(
 		maximumActiveJobsPerGuest: overrides.maximumActiveJobsPerGuest ?? 1,
 		maximumRequestsPerMinute: overrides.maximumRequestsPerMinute ?? 100,
 		maximumRequestsPerIpPerHour: 100,
-		maximumAcceptedTrialsPerSession: overrides.maximumAcceptedTrialsPerSession ?? 1,
+		maximumAcceptedTrialsPerSessionPerDay: overrides.maximumAcceptedTrialsPerSessionPerDay ?? 1,
 		maximumActiveJobsPerDevice: overrides.maximumActiveJobsPerDevice ?? 1,
-		maximumAcceptedTrialsPerDevicePromotion: overrides.maximumAcceptedTrialsPerDevicePromotion ?? 1,
+		maximumAcceptedTrialsPerDevicePerDay: overrides.maximumAcceptedTrialsPerDevicePerDay ?? 1,
 		maximumActiveJobsPerIp: overrides.maximumActiveJobsPerIp ?? 2,
 		maximumRequestsPerIpPerTenMinutes: overrides.maximumRequestsPerIpPerTenMinutes ?? 100,
 		maximumRequestsPerIpPerDay: overrides.maximumRequestsPerIpPerDay ?? 100,

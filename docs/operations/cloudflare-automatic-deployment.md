@@ -113,6 +113,22 @@ Worker `versions/latest` 的 JSON Merge Patch，将上述已停用绑定从最�
 
 ## 五、模型可用性与发布检查
 
+### 游客每日两次额度（2026-09-21）
+
+先通过 Prisma 应用 `20260921092212_guest_daily_allowance`，再发布新消费者。
+迁移将游客活动期唯一约束替换为每日查询索引；原始草稿、bootstrap、幂等请求及任务唯一约束保留。
+网站与后台 Worker 的原生 Git 构建同时设置以下非机密变量，每项均为 `2`：
+
+- `GUEST_SESSION_MAX_ACCEPTED_PER_DAY`
+- `GUEST_DEVICE_MAX_ACCEPTED_PER_DAY`
+- `GUEST_IP_MAX_PER_10_MINUTES`
+
+构建入口将这三项覆盖到现有环境包，不需要重写机密分段。新的每日配置替代旧的
+`GUEST_SESSION_MAX_ACCEPTED_TRIALS` 和 `GUEST_DEVICE_MAX_ACCEPTED_PER_PROMOTION`。
+每日按 UTC 00:00（北京时间 08:00）重置，不累积；每次仍代付 5 积分。
+并发上限仍为每游客/设备 1 个任务，预算、风险、全局流量、IP 每日及子网限制保持原值。
+回滚旧代码会恢复每活动期最多一次的应用限制；已有多次试用记录必须保留，不能重建旧唯一索引。
+
 2026 年 9 月 14 日按用户要求移除目录认证版本硬门槛。发布、模型目录、生产配置检查和
 任务调度都不再读取 `MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS`。现有构建机密中的旧值
 会被忽略，无需为了目录升级同步认证版本，也不再触发 `PRODUCTION_CATALOG_NOT_CERTIFIED`。

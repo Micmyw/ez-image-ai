@@ -28,6 +28,8 @@ export const beginGuestLinkIntent = guestMediaProcedure
 			.object({
 				capabilityVersion: z.string().min(1).max(128),
 				deviceId: z.string().uuid(),
+				jobId: z.string().min(1).max(256).optional(),
+				sourceAssetId: z.string().min(1).max(256).optional(),
 				returnPath: z.enum(["/try", "/create", "/pricing"]),
 				idempotencyKey: z.string().regex(/^\w[\w.:-]{7,127}$/),
 			})
@@ -65,6 +67,8 @@ export const beginGuestLinkIntent = guestMediaProcedure
 		const intent = await beginGuestLinkIntentTransaction(
 			{
 				anonymousOwnerId: context.user.id,
+				jobId: input.jobId,
+				sourceAssetId: input.sourceAssetId,
 				promotionPeriod: loaded.config.promotionPeriod,
 				sourceSessionHash: hashGuestAbuseBinding(
 					abuseSecret,

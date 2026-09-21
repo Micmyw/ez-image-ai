@@ -77,6 +77,15 @@ export function GuestTrialWorkspace({ registered = false }: { registered?: boole
 				<p className="mt-4 max-w-2xl text-base leading-7 text-slate-600 mx-auto text-balance">
 					{t("subtitle")}
 				</p>
+				{!registered && trial.dailyAllowance && (
+					<output className="mt-3 text-sm font-medium text-violet-700 block">
+						{t("dailyAllowance", {
+							remaining: trial.dailyAllowance.remaining,
+							limit: trial.dailyAllowance.limit,
+						})}
+						<span className="mt-1 text-xs font-normal text-slate-500 block">{t("dailyReset")}</span>
+					</output>
+				)}
 			</header>
 
 			<div className="mt-8 gap-5 sm:grid-cols-2 grid min-[1200px]:grid-cols-[minmax(20rem,0.9fr)_minmax(0,1.25fr)] min-[1200px]:items-start">
@@ -246,6 +255,20 @@ export function GuestTrialWorkspace({ registered = false }: { registered?: boole
 					/>
 					{trial.view.state === "ready" && !registered && (
 						<GuestConversionActions onBeginLink={trial.actions.beginLink} />
+					)}
+					{!registered && ["ready", "rejected", "failed", "expired"].includes(trial.view.state) && (
+						<div className="text-sm text-center">
+							{trial.dailyAllowance?.remaining ? (
+								<a
+									href="/#image-editor"
+									className="min-h-11 font-semibold text-violet-700 inline-flex items-center underline underline-offset-4"
+								>
+									{t("editAnother")}
+								</a>
+							) : trial.dailyAllowance?.remaining === 0 ? (
+								<p className="text-slate-600">{t("dailyLimitReached")}</p>
+							) : null}
+						</div>
 					)}
 				</div>
 			</div>

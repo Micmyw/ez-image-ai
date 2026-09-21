@@ -17,9 +17,9 @@ export type GuestMediaDisabledReason =
 
 export interface GuestAdmissionLimits {
 	maximumActiveJobsPerGuest: number;
-	maximumAcceptedTrialsPerSession: number;
+	maximumAcceptedTrialsPerSessionPerDay: number;
 	maximumActiveJobsPerDevice: number;
-	maximumAcceptedTrialsPerDevicePromotion: number;
+	maximumAcceptedTrialsPerDevicePerDay: number;
 	maximumActiveJobsPerIp: number;
 	maximumRequestsPerIpPerTenMinutes: number;
 	maximumRequestsPerIpPerDay: number;
@@ -97,11 +97,11 @@ const FIXED_GUEST_MEDIA_CONFIG = {
 	resultGrantTtlMs: 15 * 60 * 1_000,
 	limits: Object.freeze({
 		maximumActiveJobsPerGuest: 1,
-		maximumAcceptedTrialsPerSession: 1,
+		maximumAcceptedTrialsPerSessionPerDay: 2,
 		maximumActiveJobsPerDevice: 1,
-		maximumAcceptedTrialsPerDevicePromotion: 1,
+		maximumAcceptedTrialsPerDevicePerDay: 2,
 		maximumActiveJobsPerIp: 2,
-		maximumRequestsPerIpPerTenMinutes: 1,
+		maximumRequestsPerIpPerTenMinutes: 2,
 		maximumRequestsPerIpPerDay: 3,
 		maximumRequestsPerSubnetPerDay: 20,
 		maximumGlobalRequestsPerMinute: 3,
@@ -268,10 +268,12 @@ function readProductionGuestEnvelope(environment: Record<string, unknown>): {
 	const abuseEvidenceTtlDays = positiveInteger(environment.GUEST_ABUSE_EVIDENCE_TTL_DAYS);
 	const configured = {
 		maximumActiveJobsPerGuest: positiveInteger(environment.GUEST_SESSION_MAX_ACTIVE_JOBS),
-		maximumAcceptedTrialsPerSession: positiveInteger(environment.GUEST_SESSION_MAX_ACCEPTED_TRIALS),
+		maximumAcceptedTrialsPerSessionPerDay: positiveInteger(
+			environment.GUEST_SESSION_MAX_ACCEPTED_PER_DAY,
+		),
 		maximumActiveJobsPerDevice: positiveInteger(environment.GUEST_DEVICE_MAX_ACTIVE_JOBS),
-		maximumAcceptedTrialsPerDevicePromotion: positiveInteger(
-			environment.GUEST_DEVICE_MAX_ACCEPTED_PER_PROMOTION,
+		maximumAcceptedTrialsPerDevicePerDay: positiveInteger(
+			environment.GUEST_DEVICE_MAX_ACCEPTED_PER_DAY,
 		),
 		maximumActiveJobsPerIp: positiveInteger(environment.GUEST_IP_MAX_ACTIVE_JOBS),
 		maximumRequestsPerIpPerTenMinutes: positiveInteger(environment.GUEST_IP_MAX_PER_10_MINUTES),
@@ -296,11 +298,11 @@ function readProductionGuestEnvelope(environment: Record<string, unknown>): {
 		queueTtlSeconds > 600 ||
 		abuseEvidenceTtlDays !== 30 ||
 		completeLimits.maximumActiveJobsPerGuest > 1 ||
-		completeLimits.maximumAcceptedTrialsPerSession > 1 ||
+		completeLimits.maximumAcceptedTrialsPerSessionPerDay > 2 ||
 		completeLimits.maximumActiveJobsPerDevice > 1 ||
-		completeLimits.maximumAcceptedTrialsPerDevicePromotion > 1 ||
+		completeLimits.maximumAcceptedTrialsPerDevicePerDay > 2 ||
 		completeLimits.maximumActiveJobsPerIp > 2 ||
-		completeLimits.maximumRequestsPerIpPerTenMinutes > 1 ||
+		completeLimits.maximumRequestsPerIpPerTenMinutes > 2 ||
 		completeLimits.maximumRequestsPerIpPerDay > 3 ||
 		completeLimits.maximumRequestsPerSubnetPerDay > 20 ||
 		completeLimits.maximumGlobalRequestsPerMinute > 3 ||

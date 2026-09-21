@@ -15,7 +15,10 @@ import { maximumMediaStorageBytes } from "@repo/config/server";
 import type { Prisma } from "../../generated/client";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { hasCurrentApprovedMediaAssetEvidence } from "./assets";
-import { createGuestSessionBootstrapWithClaimFence } from "./guest-bootstrap";
+import {
+	bindGuestBootstrapToExistingOwner,
+	createGuestSessionBootstrapWithClaimFence,
+} from "./guest-bootstrap";
 import { lockOwnerStorageUsage } from "./storage-usage-locks";
 import type { MediaTransactionClient } from "./types";
 
@@ -273,6 +276,12 @@ async function claimGenerationDraftWithPolicy(
 	const storedProductKeys = expandStoredDraftProductKeys(allowedProductKeys);
 	return client.$transaction(async (tx) => {
 		const now = input.now ?? new Date();
+		if (requireGuestBootstrap) {
+			await bindGuestBootstrapToExistingOwner(
+				{ claimHash: input.claimTokenHash, ownerId: input.userId, now },
+				tx,
+			);
+		}
 		const draft = await tx.generationDraft.findFirst({
 			where: {
 				claimTokenHash: input.claimTokenHash,

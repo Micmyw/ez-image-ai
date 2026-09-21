@@ -181,6 +181,7 @@ describe("useGuestTrial", () => {
 		renderHook();
 		hookRuntime.unmount({ forgetDependencies: true });
 		renderHook();
+		await Promise.resolve();
 		expect(api.getGuestEligibility).toHaveBeenCalledTimes(1);
 
 		eligibility.resolve(eligibleDraft());
@@ -223,6 +224,20 @@ describe("useGuestTrial", () => {
 		expect(api.completeGuestLinkIntent).toHaveBeenCalledWith({});
 		expect(api.getGrantedGuestJob).toHaveBeenCalledWith({ jobId: "linked-job-1" });
 		expect(api.getGuestEligibility).not.toHaveBeenCalled();
+	});
+
+	it("opens a fresh second draft instead of restoring the first completed edit", async () => {
+		api.getGuestEligibility.mockResolvedValue({
+			...eligibleDraft(),
+			existingJobId: "guest-first-job",
+			dailyAllowance: { limit: 2, remaining: 1, resetsAt: "2026-08-29T00:00:00.000Z" },
+		});
+		api.getGuestJob.mockResolvedValue(readySnapshot());
+		renderHook();
+		const trial = await settleAndRender();
+		expect(trial.canSubmit).toBe(true);
+		expect(trial.draft?.sourceAssetId).toBe("source-1");
+		expect(api.getGuestJob).not.toHaveBeenCalled();
 	});
 
 	it("polls only while visible and nonterminal, then clears polling on unmount", async () => {

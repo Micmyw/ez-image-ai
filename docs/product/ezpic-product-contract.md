@@ -108,7 +108,12 @@ and opens login; the prompt never enters the URL, and a fresh quote is required 
 A visitor can also choose one JPEG, PNG, or WebP source within the server-advertised limit, enter
 an edit instruction, and start the sponsored Nano Banana 2 Lite 1K trial. That guest path is fixed to product
 `image-nano-banana-2-lite`, SKU `nano-banana-2-lite-1k`, one output, and five sponsored EzPic
-Credits. Visitors can browse and select all twelve models; choosing a paid model preserves the
+Credits per edit. Each anonymous owner/session and device can admit two edits per UTC calendar day,
+for up to ten sponsored Credits daily with no rollover. A fresh upload can bind to the existing
+anonymous owner. Admission counts accepted trial records under the existing transaction locks;
+idempotent replay and automatic replacement do not use an extra slot. One active job per owner
+and device remains enforced across midnight. Global cost, risk, and network limits still apply.
+Visitors can browse and select all twelve models; choosing a paid model preserves the
 selection and opens the sign-in or upgrade flow before generation. Prompt suggestions only populate
 the prompt field. Generation access still follows the server's plan entitlements, while history,
 assets, subscriptions, and account settings require authentication.

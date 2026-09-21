@@ -1,9 +1,14 @@
 import { getCatalogEntry, getCatalogImageSpecCell, imageAspectRatioSchema } from "@repo/ai";
+import { ACTIVE_GENERATION_JOB_STATUSES, getGuestDailyAllowance } from "@repo/database";
 import { db } from "@repo/database/client";
 import { z } from "zod";
 
 import { guestMediaProcedure } from "../guest-procedure";
-import { loadGuestCapability } from "../lib/guest-capability";
+import {
+	hashGuestAbuseBinding,
+	loadGuestCapability,
+	requireGuestAbuseHmac,
+} from "../lib/guest-capability";
 
 export const getGuestEligibility = guestMediaProcedure
 	.route({
@@ -11,8 +16,9 @@ export const getGuestEligibility = guestMediaProcedure
 		path: "/media/guest-eligibility",
 		tags: ["Media"],
 		summary: "Get guest image admission eligibility",
-		description: "Returns only the current promotion admission fence for this anonymous owner.",
+		description: "Returns the daily guest allowance and recoverable edit for this anonymous owner.",
 	})
+	.input(z.object({ deviceId: z.string().uuid() }).strict().optional())
 	.output(
 		z
 			.object({
@@ -20,6 +26,13 @@ export const getGuestEligibility = guestMediaProcedure
 				eligible: z.boolean(),
 				reason: z.enum(["AVAILABLE", "EXISTING_TRIAL", "LINK_IN_PROGRESS", "DISABLED"]),
 				existingJobId: z.string().min(1).nullable(),
+				dailyAllowance: z
+					.object({
+						limit: z.number().int(),
+						remaining: z.number().int(),
+						resetsAt: z.string().datetime(),
+					})
+					.nullable(),
 				claimedDraft: z
 					.object({
 						sourceAssetId: z.string().min(1),
@@ -32,7 +45,8 @@ export const getGuestEligibility = guestMediaProcedure
 			})
 			.strict(),
 	)
-	.handler(async ({ context }) => {
+	.handler(async ({ context, input }) => {
+		context.responseHeaders?.set("Cache-Control", "no-store");
 		const loaded = await loadGuestCapability();
 		if (!loaded.config.enabled || !loaded.config.promotionPeriod) {
 			return {
@@ -41,17 +55,20 @@ export const getGuestEligibility = guestMediaProcedure
 				reason: "DISABLED" as const,
 				existingJobId: null,
 				claimedDraft: null,
+				dailyAllowance: null,
 			};
 		}
 		const now = new Date();
-		const [trial, linkIntent, bootstrap] = await Promise.all([
-			db.guestMediaTrial.findUnique({
+		const hmac = requireGuestAbuseHmac(loaded.config);
+		const hash = (purpose: string, value: string) =>
+			hashGuestAbuseBinding(hmac.secretKey, hmac.keyVersion, purpose, value);
+		const [trial, linkIntent, bootstrap, allowance, activeJob] = await Promise.all([
+			db.guestMediaTrial.findFirst({
 				where: {
-					ownerId_promotionPeriod: {
-						ownerId: context.user.id,
-						promotionPeriod: loaded.config.promotionPeriod,
-					},
+					ownerId: context.user.id,
+					promotionPeriod: loaded.config.promotionPeriod,
 				},
+				orderBy: [{ createdAt: "desc" }, { id: "desc" }],
 				select: { currentJobId: true, consumedJobId: true },
 			}),
 			db.guestLinkIntent.findUnique({
@@ -68,6 +85,7 @@ export const getGuestEligibility = guestMediaProcedure
 					ownerId: context.user.id,
 					promotionPeriod: loaded.config.promotionPeriod,
 					completedAt: { not: null },
+					guestMediaTrial: { is: null },
 					expiresAt: { gt: now },
 					claimedDraft: {
 						is: {
@@ -82,6 +100,7 @@ export const getGuestEligibility = guestMediaProcedure
 						},
 					},
 				},
+				orderBy: [{ createdAt: "desc" }, { id: "desc" }],
 				select: {
 					ownerId: true,
 					sourceAssetId: true,
@@ -101,18 +120,40 @@ export const getGuestEligibility = guestMediaProcedure
 					},
 				},
 			}),
+			getGuestDailyAllowance(
+				{
+					ownerId: context.user.id,
+					promotionPeriod: loaded.config.promotionPeriod,
+					sourceSessionHash: hash("guest-source-session", context.session.id),
+					deviceHash: input?.deviceId ? hash("guest-device", input.deviceId) : undefined,
+					...loaded.config.limits,
+					now,
+				},
+				db,
+			),
+			db.generationJob.findFirst({
+				where: {
+					ownerType: "USER",
+					ownerId: context.user.id,
+					serviceClass: "GUEST_SLOW",
+					status: { in: [...ACTIVE_GENERATION_JOB_STATUSES] },
+				},
+				select: { id: true },
+			}),
 		]);
 		const claimedDraft = resolveClaimedDraft(bootstrap, context.user.id, now);
 		context.responseHeaders?.set("Cache-Control", "no-store");
 		return {
 			capabilityVersion: loaded.snapshot.version,
-			eligible: !trial && !linkIntent,
-			reason: trial
-				? ("EXISTING_TRIAL" as const)
-				: linkIntent
-					? ("LINK_IN_PROGRESS" as const)
-					: ("AVAILABLE" as const),
-			existingJobId: trial?.currentJobId ?? trial?.consumedJobId ?? null,
+			eligible: allowance.remaining > 0 && !linkIntent && !activeJob,
+			reason:
+				activeJob || allowance.remaining === 0
+					? ("EXISTING_TRIAL" as const)
+					: linkIntent
+						? ("LINK_IN_PROGRESS" as const)
+						: ("AVAILABLE" as const),
+			existingJobId: activeJob?.id ?? trial?.currentJobId ?? trial?.consumedJobId ?? null,
+			dailyAllowance: { ...allowance, resetsAt: allowance.resetsAt.toISOString() },
 			claimedDraft,
 		};
 	});
