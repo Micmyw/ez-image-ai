@@ -538,6 +538,10 @@
 				}
 			}
 		},
+		"pricing": {
+			"title": "Edición de imágenes con IA gratis y planes de pago",
+			"description": "Empieza con 25 EzPic Credits al mes en una cuenta Free. Nano Banana 2 Lite 1K usa 5 créditos por edición: hasta cinco ediciones al mes. Los planes de pago ofrecen más créditos y modelos de imagen adicionales."
+		},
 		"guides": {
 			"quickStart": "Empieza tu primera edición",
 			"prompts": "Escribe una instrucción más clara",
@@ -545,7 +549,17 @@
 		},
 		"faq": {
 			"title": "Editor de imágenes con IA sin plantillas fijas: preguntas frecuentes",
-			"description": "Cómo funciona la edición con instrucciones, qué se mantiene privado y qué límites de seguridad y uso se aplican."
+			"description": "Cómo funciona la edición con instrucciones, qué se mantiene privado y qué límites de seguridad y uso se aplican.",
+			"items": {
+				"guestAvailability": {
+					"question": "¿Puedo probar el editor de imágenes con IA sin registrarme?",
+					"answer": "Cuando la cola patrocinada para invitados está disponible, los visitantes que cumplen los requisitos pueden probar una edición de imagen Nano Banana 2 Lite 1K sin registrarse. Sube una imagen de referencia y describe el cambio. El resultado es privado, lleva marca de agua y está disponible hasta 24 horas. La generación de imágenes a partir de texto requiere iniciar sesión."
+				},
+				"guestVsFree": {
+					"question": "¿Puedo usar EzPic como editor de imágenes con IA gratis?",
+					"answer": "Sí. Una cuenta Free registrada recibe 25 EzPic Credits al mes para las ediciones disponibles en el plan. También puede estar disponible una prueba única para invitados sin cuenta. «No Restrictions» significa edición flexible mediante instrucciones más allá de las plantillas fijas; siguen aplicándose los límites de seguridad, legales, del modelo y de uso."
+				}
+			}
 		}
 	},
 	"newsletter": {

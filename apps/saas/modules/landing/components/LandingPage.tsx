@@ -107,10 +107,10 @@ export async function LandingPage({
 					<div className="container">
 						<div className="max-w-3xl mx-auto text-center">
 							<h2 className="text-4xl font-semibold text-white sm:text-5xl tracking-[-0.045em]">
-								{t("pricing.title")}
+								{t("home.pricing.title")}
 							</h2>
 							<p className="mt-5 text-base leading-7 sm:text-lg text-[#b7acbf]">
-								{t("pricing.description")}
+								{t("home.pricing.description")}
 							</p>
 						</div>
 						<PublicPricingPlans locale={locale} headingLevel={3} className="mt-10 sm:mt-12" />
@@ -126,23 +126,29 @@ export async function LandingPage({
 							<p className="mt-3 text-base leading-7 text-slate-300">{t("home.faq.description")}</p>
 						</div>
 						<div className="mt-8 space-y-3">
-							{HOME_FAQ_KEYS.map((key) => (
-								<details
-									key={key}
-									className="group border-white/10 bg-white/[0.045] p-5 open:border-violet-400/40 open:bg-white/[0.07] rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition"
-								>
-									<summary className="font-semibold text-white focus-visible:outline-violet-300 gap-4 flex cursor-pointer list-none items-center justify-between rounded-md marker:hidden focus-visible:outline-2 focus-visible:outline-offset-4">
-										<span>{t(`faq.items.${key}.question`)}</span>
-										<ChevronDownIcon
-											className="size-4 text-violet-300 shrink-0 transition-transform group-open:rotate-180 motion-reduce:transition-none"
-											aria-hidden="true"
-										/>
-									</summary>
-									<p className="mt-3 text-sm leading-6 text-slate-300">
-										{t(`faq.items.${key}.answer`)}
-									</p>
-								</details>
-							))}
+							{HOME_FAQ_KEYS.map((key) => {
+								const namespace =
+									key === "guestAvailability" || key === "guestVsFree"
+										? (`home.faq.items.${key}` as const)
+										: (`faq.items.${key}` as const);
+								return (
+									<details
+										key={key}
+										className="group border-white/10 bg-white/[0.045] p-5 open:border-violet-400/40 open:bg-white/[0.07] rounded-2xl border shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition"
+									>
+										<summary className="font-semibold text-white focus-visible:outline-violet-300 gap-4 flex cursor-pointer list-none items-center justify-between rounded-md marker:hidden focus-visible:outline-2 focus-visible:outline-offset-4">
+											<span>{t(`${namespace}.question`)}</span>
+											<ChevronDownIcon
+												className="size-4 text-violet-300 shrink-0 transition-transform group-open:rotate-180 motion-reduce:transition-none"
+												aria-hidden="true"
+											/>
+										</summary>
+										<p className="mt-3 text-sm leading-6 text-slate-300">
+											{t(`${namespace}.answer`)}
+										</p>
+									</details>
+								);
+							})}
 						</div>
 					</div>
 				</section>

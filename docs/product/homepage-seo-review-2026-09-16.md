@@ -3,6 +3,25 @@
 检查日期：2026-09-16。范围为 `https://ezimageai.com/` 的首页内容、初始 HTML 和相关界面。
 第三方报告中的 87 分、72% 聚焦度和词频榜仅作为诊断线索，不是 Google 排名标准。
 
+## 2026-09-21：免费编辑与免注册查询的首页承接
+
+- 页面仍以 `ai image editor no restrictions` 为主词，Title、Description、H1 和首屏简介沿用原值。
+- 现有定价区使用首页专属标题 `Free AI image editing and paid plans`，说明 Free 账户每月
+  25 积分、Nano Banana 2 Lite 1K 每次 5 积分，以及付费套餐的额外积分和模型。
+- 首页的两条访问方式 FAQ 分别回答 `Can I try the AI image editor without signing up?`
+  和 `Can I use EzPic as a free AI image editor?`。明确访客队列可用且符合条件时的一次试用、
+  水印、最长 24 小时保留和文生图需要登录；“No Restrictions”仍表示超出固定模板的灵活编辑。
+- 新文案位于 `home.pricing` 和 `home.faq.items`，英、德、西、法四种语言同步。
+  首页只覆盖这两条 FAQ；独立定价页沿用原来的共享问答。
+- `free`、`prompt`、`no sign up` 变体由首页的对应内容承接，不为词序变体创建 URL。
+  `best` 的比较意图和独立功能页不在本次改动范围；未核验的搜索量不作为产品或排名承诺。
+- 首页内容日期更新为 2026-09-21；此记录不代表部署、Google 重新抓取或排名变化。
+- 本地验证：现有首页和 sitemap 测试 5 项通过，SaaS 类型检查、改动文件格式及 lint 通过。
+  四语新增的 24 条消息均可解析并出现在 HTTP 200 初始 HTML 中；非英语响应保留
+  `X-Robots-Tag: noindex, follow`。浏览器检查英语 1440/390 和德语 390 宽度的排版及 FAQ
+  展开，无页面横向溢出；独立定价页保留原 FAQ。同步修正 sitemap 测试中快速入门文档的
+  过期日期期望，使其与现有文档的 2026-09-20 一致。
+
 ## 页面定位与事实边界
 
 - 类型：可直接使用的 AI 图片编辑工具首页，面向需要修改已有图片的创作者。

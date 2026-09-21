@@ -538,6 +538,10 @@
 				}
 			}
 		},
+		"pricing": {
+			"title": "Retouche d’images IA gratuite et forfaits payants",
+			"description": "Commencez avec 25 EzPic Credits par mois sur un compte Free. Nano Banana 2 Lite 1K utilise 5 crédits par retouche, soit jusqu’à cinq retouches par mois. Les forfaits payants offrent davantage de crédits et des modèles d’image supplémentaires."
+		},
 		"guides": {
 			"quickStart": "Commencer votre première retouche",
 			"prompts": "Rédiger une consigne plus précise",
@@ -545,7 +549,17 @@
 		},
 		"faq": {
 			"title": "Éditeur d’images IA sans modèles prédéfinis : vos questions",
-			"description": "Le fonctionnement de la retouche par instructions, la confidentialité et les limites de sécurité et d’utilisation."
+			"description": "Le fonctionnement de la retouche par instructions, la confidentialité et les limites de sécurité et d’utilisation.",
+			"items": {
+				"guestAvailability": {
+					"question": "Puis-je essayer l’éditeur d’images IA sans m’inscrire ?",
+					"answer": "Lorsque la file invitée sponsorisée est disponible, les visiteurs éligibles peuvent essayer une retouche d’image Nano Banana 2 Lite 1K sans s’inscrire. Importez une image de référence et décrivez votre modification. Le résultat est privé, filigrané et disponible pendant 24 heures maximum. La génération d’images à partir de texte nécessite une connexion."
+				},
+				"guestVsFree": {
+					"question": "Puis-je utiliser EzPic comme éditeur d’images IA gratuit ?",
+					"answer": "Oui. Un compte Free inscrit reçoit 25 EzPic Credits par mois pour les retouches disponibles dans ce forfait. Un essai invité distinct, utilisable une seule fois, peut également être proposé sans compte. « No Restrictions » désigne une retouche flexible par instructions au-delà des modèles prédéfinis ; les limites de sécurité, légales, du modèle et d’utilisation restent applicables."
+				}
+			}
 		}
 	},
 	"newsletter": {

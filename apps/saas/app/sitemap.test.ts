@@ -60,7 +60,7 @@ describe("consolidated SaaS sitemap", () => {
 			entries.map((entry) => [new URL(entry.url).pathname, entry.lastModified]),
 		);
 		expect(dates).toMatchObject({
-			"/": "2026-09-16",
+			"/": "2026-09-21",
 			"/pricing": "2026-09-16",
 			"/privacy": "2026-09-16",
 			"/terms": "2026-09-18",
@@ -72,7 +72,7 @@ describe("consolidated SaaS sitemap", () => {
 			"/docs/credits": "2026-09-16",
 			"/docs/image-editing": "2026-09-14",
 			"/docs/privacy": "2026-09-16",
-			"/docs/quick-start": "2026-09-18",
+			"/docs/quick-start": "2026-09-20",
 		});
 	});
 

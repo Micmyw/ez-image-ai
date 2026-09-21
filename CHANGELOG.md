@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-21
+
+### Homepage free editing and guest access
+
+- Explain the Free account's monthly credits and paid plan options in the homepage pricing section.
+- Clarify the conditional guest edit without sign-up, result watermark and retention, and the sign-in requirement for text-to-image generation.
+- Keep flexible prompt editing and its safety and usage limits explicit in all four interface languages.
+
 ## 2026-09-20
 
 ### Dismiss image result previews

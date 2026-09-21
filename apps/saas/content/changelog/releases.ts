@@ -1,5 +1,14 @@
 export const publicChangelogEntries = [
 	{
+		date: "2026-09-21",
+		title: "Clearer free editing and guest access",
+		changes: [
+			"Explain Free account credits and paid plan options in the homepage pricing section.",
+			"Clarify when an edit is available without sign-up, how long a guest result lasts, and when sign-in is required.",
+			"Keep the limits of free access and flexible prompt editing clear in English, German, Spanish and French.",
+		],
+	},
+	{
 		date: "2026-09-20",
 		title: "Clearer image preview controls",
 		changes: [

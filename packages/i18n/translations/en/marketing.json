@@ -538,6 +538,10 @@
 				}
 			}
 		},
+		"pricing": {
+			"title": "Free AI image editing and paid plans",
+			"description": "Start with 25 monthly EzPic Credits on a Free account. Nano Banana 2 Lite 1K uses 5 credits per edit—up to five edits a month. Paid plans offer more credits and additional image models."
+		},
 		"guides": {
 			"quickStart": "Start your first edit",
 			"prompts": "Write a clearer editing prompt",
@@ -545,7 +549,17 @@
 		},
 		"faq": {
 			"title": "AI image editor no restrictions: questions answered",
-			"description": "How prompt editing works, what stays private, and which safety and usage limits apply."
+			"description": "How prompt editing works, what stays private, and which safety and usage limits apply.",
+			"items": {
+				"guestAvailability": {
+					"question": "Can I try the AI image editor without signing up?",
+					"answer": "When the sponsored guest queue is available, eligible visitors can try one Nano Banana 2 Lite 1K image edit without signing up. Upload a reference image and describe your change. The result is private, watermarked, and available for up to 24 hours. Text-to-image generation requires sign-in."
+				},
+				"guestVsFree": {
+					"question": "Can I use EzPic as a free AI image editor?",
+					"answer": "Yes. A registered Free account receives 25 EzPic Credits each month for eligible edits. A separate, one-time guest trial may be available without an account. “No Restrictions” means flexible prompt editing beyond fixed templates; content safety, legal, model, and usage limits still apply."
+				}
+			}
 		}
 	},
 	"newsletter": {

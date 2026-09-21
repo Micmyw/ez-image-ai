@@ -538,6 +538,10 @@
 				}
 			}
 		},
+		"pricing": {
+			"title": "Kostenlose KI-Bildbearbeitung und kostenpflichtige Tarife",
+			"description": "Mit einem Free-Konto erhältst du monatlich 25 EzPic Credits. Nano Banana 2 Lite 1K benötigt 5 Credits pro Bearbeitung – das reicht für bis zu fünf Bearbeitungen im Monat. Kostenpflichtige Tarife bieten mehr Credits und zusätzliche Bildmodelle."
+		},
 		"guides": {
 			"quickStart": "Erste Bearbeitung starten",
 			"prompts": "Eine klarere Bildanweisung schreiben",
@@ -545,7 +549,17 @@
 		},
 		"faq": {
 			"title": "KI-Bildeditor ohne feste Vorlagen: Fragen und Antworten",
-			"description": "So funktioniert die Bearbeitung per Prompt, so bleiben Bilder privat, und diese Sicherheits- und Nutzungslimits gelten."
+			"description": "So funktioniert die Bearbeitung per Prompt, so bleiben Bilder privat, und diese Sicherheits- und Nutzungslimits gelten.",
+			"items": {
+				"guestAvailability": {
+					"question": "Kann ich den KI-Bildeditor ohne Registrierung ausprobieren?",
+					"answer": "Wenn die gesponserte Gast-Warteschlange verfügbar ist, können berechtigte Besucher eine Nano Banana 2 Lite-1K-Bildbearbeitung ohne Registrierung ausprobieren. Lade ein Referenzbild hoch und beschreibe deine Änderung. Das Ergebnis ist privat, mit einem Wasserzeichen versehen und bis zu 24 Stunden verfügbar. Für die Bilderzeugung aus Text ist eine Anmeldung erforderlich."
+				},
+				"guestVsFree": {
+					"question": "Kann ich EzPic als kostenlosen KI-Bildeditor nutzen?",
+					"answer": "Ja. Ein registriertes Free-Konto erhält monatlich 25 EzPic Credits für die im Tarif verfügbaren Bearbeitungen. Zusätzlich kann ein einmaliger Gasttest ohne Konto verfügbar sein. „No Restrictions“ bedeutet flexible Bearbeitung per Prompt über feste Vorlagen hinaus; Sicherheits-, Rechts-, Modell- und Nutzungslimits gelten weiterhin."
+				}
+			}
 		}
 	},
 	"newsletter": {
