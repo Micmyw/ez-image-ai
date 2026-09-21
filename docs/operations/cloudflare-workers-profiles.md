@@ -120,7 +120,15 @@ uncertain submissions, Outbox acknowledgment and recovery remain in existing bus
 
 Normal generation stages immediately deliver their committed Outbox events in a separate durable
 step after releasing the executor slot. Pending image verification uses bounded durable polling
-at the persisted database retry time. Failed delivery leaves the original Outbox event recoverable;
+at the persisted database retry time. A pending image check makes its Outbox wake-up immediately
+deliverable, including when the first check ran inside finalization. The polling Workflow then
+waits for the database's five-second image interval; video checks keep their fifteen-second interval.
+Delaying the Outbox wake-up itself would make the finalizer's immediate pass miss it and leave
+the first poll waiting for the minute recovery schedule. Database leases and due times still fence
+overlapping deliveries, and polling reuses the same moderation task without resubmitting it.
+Repeated pending image responses reuse one Outbox polling continuation per verification generation,
+so increasing the polling frequency does not create a new Workflow for each pending response.
+Failed delivery leaves the original Outbox event recoverable;
 it never turns a successful provider submission into another submission. The minute schedule is
 the recovery path, and maintenance runs sequentially with an Outbox pass before and after recovery.
 Approved private outputs can be displayed before finalization and credit settlement finish; asset

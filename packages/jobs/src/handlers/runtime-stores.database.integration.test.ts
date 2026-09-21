@@ -131,19 +131,39 @@ describe("production media runtime stores", () => {
 		});
 		const dependencies = createOutputVerificationDependencies("ALLOW", undefined, safety, "seeapi");
 		await dependencies.verify(assetId);
-		expect(await client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } })).toMatchObject({
+		const pendingAsset = await client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } });
+		expect(pendingAsset).toMatchObject({
 			status: "VERIFYING",
 			verificationProviderTaskId: "task-seeapi-durable",
 			verificationSubmissionUncertain: false,
 		});
+		const pollingWake = await client.outboxEvent.findFirstOrThrow({
+			where: { aggregateId: assetId, eventType: "MEDIA_ASSET_VERIFY" },
+		});
+		// The finalizer's immediate Outbox pass must be able to start polling now.
+		// The persisted due time, rather than delayed dispatch/cron, throttles SeeAPI reads.
+		expect.soft(pollingWake.availableAt.getTime()).toBeLessThanOrEqual(Date.now());
+		expect
+			.soft(pendingAsset.verificationNextAttemptAt!.getTime() - pollingWake.availableAt.getTime())
+			.toBe(5_000);
 		await client.mediaAsset.update({
 			where: { id: assetId },
 			data: { verificationNextAttemptAt: new Date(0) },
 		});
+		await dependencies.verify(assetId);
+		expect(
+			await client.outboxEvent.count({
+				where: { aggregateId: assetId, eventType: "MEDIA_ASSET_VERIFY" },
+			}),
+		).toBe(1);
 		pending = false;
+		await client.mediaAsset.update({
+			where: { id: assetId },
+			data: { verificationNextAttemptAt: new Date(0) },
+		});
 		await dependencies.verify(assetId);
 		expect(submitImage).toHaveBeenCalledTimes(1);
-		expect(retrieveImage).toHaveBeenCalledTimes(2);
+		expect(retrieveImage).toHaveBeenCalledTimes(3);
 		expect(await client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } })).toMatchObject({
 			status: "READY",
 			verificationProviderTaskId: "task-seeapi-durable",

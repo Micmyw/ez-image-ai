@@ -2,6 +2,11 @@
 
 ## 2026-09-21
 
+### Faster pending image checks
+
+- Start durable polling immediately when an image check is still processing, instead of leaving its first wake-up for scheduled recovery.
+- Check pending image results every five seconds while retaining the same moderation task, retry limits and private output access checks. Approved images remain visible before background finalization and credit settlement complete.
+
 ### Homepage free editing and guest access
 
 - Explain the Free account's monthly credits and paid plan options in the homepage pricing section.

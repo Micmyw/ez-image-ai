@@ -1246,6 +1246,7 @@ export const MEDIA_VERIFICATION_RETRY_POLICY = {
 	deadlineMs: 24 * 60 * 60 * 1_000,
 	imageDeadlineMs: 2 * 60 * 1_000,
 	evidenceTtlMs: 24 * 60 * 60 * 1_000,
+	imageProcessingPollMs: 5_000,
 	processingPollMs: 15_000,
 } as const;
 
@@ -2390,7 +2391,12 @@ async function failMediaVerification(
 		const retryAt = exhausted
 			? null
 			: status === "PENDING"
-				? new Date(now.getTime() + MEDIA_VERIFICATION_RETRY_POLICY.processingPollMs)
+				? new Date(
+						now.getTime() +
+							(asset.mimeType.startsWith("image/")
+								? MEDIA_VERIFICATION_RETRY_POLICY.imageProcessingPollMs
+								: MEDIA_VERIFICATION_RETRY_POLICY.processingPollMs),
+					)
 				: new Date(now.getTime() + Math.min(60_000, 1_000 * 2 ** Math.max(failureCount - 1, 0)));
 		await tx.mediaAsset.update({
 			where: { id: asset.id },
@@ -2418,17 +2424,24 @@ async function failMediaVerification(
 			});
 		}
 		if (retryAt) {
+			const pendingImage = status === "PENDING" && asset.mimeType.startsWith("image/");
+			// One active polling continuation per verification generation. Scheduled
+			// recovery can retry its delivery without creating a Workflow on every poll.
+			const dedupeKey = pendingImage
+				? `media-asset-verify:${asset.id}:g${claim.generation}:poll`
+				: `media-asset-verify:${asset.id}:g${claim.generation}:a${claim.attemptNumber + 1}`;
 			await tx.outboxEvent.upsert({
-				where: {
-					dedupeKey: `media-asset-verify:${asset.id}:g${claim.generation}:a${claim.attemptNumber + 1}`,
-				},
+				where: { dedupeKey },
 				create: {
 					eventType: "MEDIA_ASSET_VERIFY",
 					aggregateType: "MEDIA_ASSET",
 					aggregateId: asset.id,
-					dedupeKey: `media-asset-verify:${asset.id}:g${claim.generation}:a${claim.attemptNumber + 1}`,
+					dedupeKey,
 					payload: { assetId: asset.id },
-					availableAt: retryAt,
+					// Inline finalization must start the polling Workflow in its immediate
+					// Outbox pass. The asset's due time/lease throttles detector reads;
+					// delaying delivery as well leaves this wake-up waiting for cron.
+					availableAt: pendingImage ? now : retryAt,
 				},
 				update: {},
 			});
