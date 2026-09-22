@@ -24,7 +24,9 @@ export function PendingSubscriptionCheckout({ compact = false }: { compact?: boo
 		...queryOptions,
 		refetchInterval: (query) => {
 			const current = query.state.data;
-			if (!current || current.status === "REVIEW") return false;
+			if (!current) return false;
+			// Read-only polling can observe an administrator's resolution without waking recovery.
+			if (current.status === "REVIEW") return 30_000;
 			if (current.status === "WAITING") return 30_000;
 			return Date.now() < pollingUntil.current ? 3_000 : false;
 		},
@@ -34,8 +36,9 @@ export function PendingSubscriptionCheckout({ compact = false }: { compact?: boo
 	const resume = useMutation(orpc.payments.resumePendingSubscriptionCheckout.mutationOptions());
 	const refreshAsync = refresh.mutateAsync;
 	const id = pending.data?.id;
+	const recoveryStatus = pending.data?.status;
 	useEffect(() => {
-		if (!id) return;
+		if (!id || recoveryStatus === "REVIEW" || recoveryStatus === "PAID") return;
 		const check = () => {
 			if (
 				document.visibilityState === "hidden" ||
@@ -56,7 +59,7 @@ export function PendingSubscriptionCheckout({ compact = false }: { compact?: boo
 			window.removeEventListener("focus", check);
 			window.removeEventListener("pageshow", check);
 		};
-	}, [id, refreshAsync, queryClient]);
+	}, [id, recoveryStatus, refreshAsync, queryClient]);
 	if (!pending.data) return null;
 	const checkout = pending.data;
 	const provider = checkout.provider === "paypal" ? "PayPal" : "Waffo";
@@ -85,7 +88,7 @@ export function PendingSubscriptionCheckout({ compact = false }: { compact?: boo
 			} else {
 				const result = await (action === "cancel"
 					? cancel.mutateAsync(input)
-					: refresh.mutateAsync(input));
+					: refresh.mutateAsync({ ...input, retryReview: true }));
 				queryClient.setQueryData(queryOptions.queryKey, result.status === "CLOSED" ? null : result);
 				await queryClient.invalidateQueries({ queryKey: orpc.payments.key() });
 			}

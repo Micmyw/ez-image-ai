@@ -8,8 +8,11 @@ intent identities, Outbox delivery and the verified payment-event ledger pipelin
 
 - **Resume checkout** continues the same attempt. Waffo renews authentication without creating a new session.
 - **Change plan** requests abandonment of that attempt. The plan table unlocks only after the server closes it.
-- Page entry, browser return and payment return request a status check. Browser query polling is bounded;
-  durable jobs continue independently and show a known waiting deadline or a review state.
+- Page entry, browser return and payment return request a status check for recoverable attempts.
+  `REVIEW` only polls the local status every 30 seconds, so it can observe administrator closure
+  without restarting recovery. The hourly sweep also skips `REVIEW` and `PAID`. An explicit customer
+  status check can retry review after its cooldown, retaining the failure/check history. Confirmed
+  `PAID` status stays intact while ledger fulfillment completes.
 - Unknown status displays the order reference and support action. A displayed expiry or a PayPal 404
   is never presented as proof of successful cancellation.
 
@@ -36,9 +39,48 @@ timeouts remain fenced; cancellation cannot erase an uncertain activation claim.
 cannot prove approval, supply a provider resource ID, or grant credits. Credits still require the
 existing verified payment lifecycle.
 
-Historical automatic attempts cannot be locally reclassified as merchant controlled. A 404, unknown
-deadline or unapproved legacy resource remains unresolved until provider closure can be confirmed.
-The reported production order was inspected read-only; it was not canceled or rewritten.
+Historical automatic attempts cannot be locally reclassified as merchant controlled. A 404 or unknown
+deadline never unlocks them automatically. Provider-confirmed closure uses ordinary recovery; the
+narrow missing-resource case can instead receive the explicit reviewed decision described below.
+
+## Reviewed legacy PayPal closure
+
+Administrators can open `/admin/media#checkout-review` and load the customer's order reference.
+The read-only snapshot shows the account reference, plan and whether the historical attempt can be
+reviewed. Customer refresh/cancel APIs do not expose this operation.
+
+1. Verify the customer confirms **no subscription approval or payment authorization**, and review the
+   merchant's PayPal subscriptions and transactions. If approval, payment or an active subscription
+   exists, use billing reconciliation instead. Preserve the support case and merchant review notes.
+2. Load the order, enter the case reference and reason, and attest to both checks. The server uses
+   the authenticated administrator's identity; client-supplied provider evidence is rejected.
+3. Submission rechecks PayPal using current authenticated credentials. The persisted plan environment,
+   original approval URL host and any stored scope must agree with the current environment. The exact
+   original plan must remain accessible to those credentials. The exact subscription GET must return
+   PayPal's `RESOURCE_NOT_FOUND` / `INVALID_RESOURCE_ID` response. This is an observation, **not proof
+   of cancellation**. Missing provenance, changed provider status, network errors or approval retain
+   the lock.
+4. The serializable database transaction takes the provider resource and owner locks, checks the
+   loaded `updatedAt`, requires fresh evidence (under two minutes), and rereads eligibility and billing
+   records. Only bound `LEGACY` attempts in recovery `REVIEW` after at least three unknown results,
+   with the latest reason `RESOURCE_NOT_FOUND`, qualify. Activation claims, active leases, order/payment bindings, purchases, overlapping
+   subscriptions and received approval/financial events block closure.
+5. Successful resolution retains original provider identifiers, marks the local intent `CANCELED` and
+   recovery `CLOSED`, clears its approval URL and active scope, and creates
+   `PAYMENT_CHECKOUT_MANUALLY_CLOSED`. Audit metadata records the actor, reason, evidence reference,
+   previous state, fresh provider observation, attestations and **`providerConfirmed: false`**. The
+   persisted operation identity allows the same decision to be retried without another audit record.
+   Stale snapshots or changes to replay evidence are rejected. No subscription, payment or credits
+   are created or changed by this operation.
+
+The customer's local-status polling discovers closure; they can then choose a new checkout, subject
+to the existing account-wide subscription admission rules. A late payment on a manually closed
+legacy attempt stays in the existing payment-event review path; operators must reconcile it rather
+than silently grant another subscription or ignore the charge.
+
+No additional migration or environment variable is required for this follow-up. The one-off
+production repair authorized on 2026-09-22 was performed separately with an audited operator
+decision; it did not certify PayPal cancellation. This code change does not deploy itself.
 
 ## Waffo
 
@@ -81,6 +123,13 @@ Regression checks cover stale leases, cancellation during inspection, activation
 duplicate delivery, paid receipts before closure, tenant access, token-only renewal and payment history.
 The migration and concurrent-admission checks use an isolated PostgreSQL 17 database on port 55432.
 
+The 2026-09-22 follow-up was also checked on an isolated PostgreSQL 16 database: stable review/paid
+states, concurrent idempotent closure, one replacement checkout, stale-snapshot rejection, received
+approval/payment guards, and Prisma/Drizzle parity. Focused browser checks use real local sign-in
+with fixture payment responses; they cover required administrator evidence, retry identity, desktop
+and mobile layouts, read-only customer polling and the resolved state. These are not live PayPal
+buyer-payment checks.
+
 Sandbox observations on 2026-09-18:
 
 - PayPal create without buyer login returned `APPROVAL_PENDING`; GET found that resource.
@@ -93,7 +142,8 @@ These observations do not certify a buyer-approved PayPal `CONTINUE` → activat
 round trip. That sandbox buyer check remains **NOT_COMPLETED** without a signed-in sandbox buyer.
 No real charge, production-order mutation or production migration is part of these local checks.
 Apply the migration before deploying both the site and jobs worker. A Git push alone is not evidence
-that either deployment or the reported historical order has been resolved.
+that either deployment has completed. The separate operator repair is not evidence that these
+follow-up changes are live.
 
 References: [PayPal Subscriptions OpenAPI](https://github.com/paypal/paypal-rest-api-specifications/blob/main/openapi/billing_subscriptions_v1.json)
 and the installed `@waffo/pancake-ts` 0.19.1 API reference.

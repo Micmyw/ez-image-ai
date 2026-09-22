@@ -8,6 +8,8 @@ import {
 	claimCheckoutActivation,
 	finishCheckoutRecovery,
 	readCheckoutRecovery,
+	resolveCheckoutReview,
+	recoverPendingCheckouts,
 } from "../checkout-recovery";
 import {
 	assertPaymentSubscriptionCheckoutAllowed,
@@ -120,6 +122,132 @@ describe("account-wide subscription checkout admission", () => {
 			now,
 		};
 	}
+	async function legacyReview() {
+		const pending = await openCheckout();
+		const current = await client.paymentCheckoutIntent.update({
+			where: { id: pending.id },
+			data: {
+				checkoutRecovery: {
+					version: 1,
+					mode: "LEGACY",
+					status: "REVIEW",
+					sequence: 3,
+					completedSequence: 3,
+					failures: 3,
+					checks: 3,
+					reason: "RESOURCE_NOT_FOUND",
+				},
+			},
+			include: { billingPlan: true },
+		});
+		return {
+			id: current.id,
+			actorUserId: "admin-review-test",
+			expectedUpdatedAt: current.updatedAt.toISOString(),
+			operationKey: crypto.randomUUID(),
+			reason: "Customer did not sign in or approve PayPal",
+			evidenceReference: "Test case: merchant payment records checked",
+			customerConfirmedNoApproval: true,
+			merchantRecordsReviewed: true,
+			providerObservation: {
+				status: "UNKNOWN" as const,
+				reason: "RESOURCE_NOT_FOUND" as const,
+				checkedAt: now.toISOString(),
+				environment: "sandbox" as const,
+				scope: "paypal:integration",
+				priceId: current.billingPlan.providerPriceId,
+				providerSessionId: current.providerSessionId!,
+			},
+			now,
+		};
+	}
+	it("closes a reviewed legacy checkout exactly once and admits only one replacement", async () => {
+		const input = await legacyReview();
+		const results = await Promise.all([
+			resolveCheckoutReview(input, client),
+			resolveCheckoutReview(input, client),
+		]);
+		expect(results.every((r) => r.status === "CANCELED" && r.providerCheckoutUrl === null)).toBe(
+			true,
+		);
+		expect(results[0]!.providerSessionId).toBe(input.providerObservation.providerSessionId);
+		const audits = await client.auditLog.findMany({
+			where: { targetId: input.id, action: "PAYMENT_CHECKOUT_MANUALLY_CLOSED" },
+		});
+		expect(audits).toHaveLength(1);
+		expect(audits[0]!.metadata).toMatchObject({
+			providerConfirmed: false,
+			evidenceReference: input.evidenceReference,
+		});
+		await expect(
+			resolveCheckoutReview({ ...input, reason: "Changed evidence must not replay" }, client),
+		).rejects.toThrow("CHECKOUT_REVIEW_STALE");
+		expect(await claimCheckoutRecovery({ id: input.id, sequence: 3, now }, client)).toBeNull();
+		const replacements = await Promise.allSettled([
+			createPaymentCheckoutIntent(command(results[0]!.ownerId), client),
+			createPaymentCheckoutIntent(command(results[0]!.ownerId, "waffo"), client),
+		]);
+		expect(replacements.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+	});
+	it.each(["BILLING.SUBSCRIPTION.APPROVED", "PAYMENT.SALE.COMPLETED"])(
+		"blocks a reviewed closure when %s arrived during provider inspection",
+		async (eventType) => {
+			const input = await legacyReview();
+			await client.paymentEvent.create({
+				data: {
+					provider: "paypal",
+					providerEventId: `recovery-${runId}-${crypto.randomUUID()}`,
+					verifiedAt: now,
+					envelope: {
+						event_type: eventType,
+						resource: { custom_id: input.id, status: "APPROVED" },
+					},
+				},
+			});
+			await expect(resolveCheckoutReview(input, client)).rejects.toThrow(
+				"CHECKOUT_REVIEW_FINANCIAL_ACTIVITY",
+			);
+			expect(
+				(await client.paymentCheckoutIntent.findUniqueOrThrow({ where: { id: input.id } })).status,
+			).toBe("PROVIDER_PENDING");
+			expect(await client.auditLog.count({ where: { targetId: input.id } })).toBe(0);
+		},
+	);
+	it("rejects a changed snapshot after provider inspection without releasing the lock", async () => {
+		const input = await legacyReview();
+		await requestCheckoutRecovery(
+			{
+				id: input.id,
+				ownerType: "USER",
+				ownerId: (await client.paymentCheckoutIntent.findUniqueOrThrow({ where: { id: input.id } }))
+					.ownerId,
+				actorUserId: "owner",
+				retryReview: true,
+				now,
+			},
+			client,
+		);
+		await expect(resolveCheckoutReview(input, client)).rejects.toThrow("CHECKOUT_REVIEW_STALE");
+	});
+	it("hourly recovery never requeues REVIEW or PAID in either persistence adapter", async () => {
+		const reviewed = await legacyReview();
+		const paid = await openCheckout();
+		await client.paymentCheckoutIntent.update({
+			where: { id: paid.id },
+			data: {
+				checkoutRecovery: {
+					version: 1,
+					mode: "MERCHANT",
+					status: "PAID",
+					sequence: 1,
+					failures: 0,
+				},
+			},
+		});
+		const ids = [reviewed.id, paid.id];
+		await recoverPendingCheckouts(client, 1000, new Date("2099-01-01"));
+		expect(await client.outboxEvent.count({ where: { aggregateId: { in: ids } } })).toBe(0);
+	});
 	it("abandons a merchant checkout atomically and admits only one replacement across providers", async () => {
 		const pending = await openCheckout();
 		const closed = await requestCheckoutRecovery({ ...pending, cancel: true }, client);
@@ -259,6 +387,32 @@ describe("account-wide subscription checkout admission", () => {
 		if (previousUrl === undefined) delete process.env.DATABASE_URL;
 		else process.env.DATABASE_URL = previousUrl;
 		try {
+			const reviewed = await legacyReview();
+			await recovery.recoverPendingCheckouts(1000, new Date("2099-01-01"));
+			expect(await client.outboxEvent.count({ where: { aggregateId: reviewed.id } })).toBe(0);
+			const closed = await recovery.resolveCheckoutReview(reviewed);
+			expect(closed.status).toBe("CANCELED");
+			await recovery.resolveCheckoutReview(reviewed);
+			expect(
+				await client.auditLog.count({
+					where: { targetId: reviewed.id, action: "PAYMENT_CHECKOUT_MANUALLY_CLOSED" },
+				}),
+			).toBe(1);
+			const approved = await legacyReview();
+			await client.paymentEvent.create({
+				data: {
+					provider: "paypal",
+					providerEventId: `recovery-${runId}-drizzle-approved`,
+					verifiedAt: now,
+					envelope: {
+						event_type: "BILLING.SUBSCRIPTION.APPROVED",
+						resource: { custom_id: approved.id, status: "APPROVED" },
+					},
+				},
+			});
+			await expect(recovery.resolveCheckoutReview(approved)).rejects.toThrow(
+				"CHECKOUT_REVIEW_FINANCIAL_ACTIVITY",
+			);
 			const replaceable = await openCheckout();
 			expect(
 				(await recovery.requestCheckoutRecovery({ ...replaceable, cancel: true })).status,

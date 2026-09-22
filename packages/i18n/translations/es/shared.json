@@ -25,7 +25,7 @@
 			"APPROVED": "Recibimos tu aprobación. Estamos confirmando la activación.",
 			"ACTIVATING": "Estamos confirmando la activación de la suscripción. No inicies otro pago.",
 			"WAITING": "Estamos cerrando el pago anterior. Podrás elegir otro plan cuando confirmemos el cierre y cualquier pago pendiente.",
-			"REVIEW": "Las comprobaciones automáticas no pudieron confirmar el cierre. Contacta con soporte e indica la referencia del pedido.",
+			"REVIEW": "Las comprobaciones automáticas se han detenido porque esta compra necesita revisión. Contacta con soporte e indica la referencia del pedido. Si saliste de PayPal antes de autorizar el pago, indícalo.",
 			"waitUntil": "El enlace de pago anterior caduca el {date}. Lo comprobaremos de nuevo entonces."
 		},
 		"annualSummary": "Facturación anual de {total} · ahorra {savings} ({percent}%) frente a 12 pagos mensuales",

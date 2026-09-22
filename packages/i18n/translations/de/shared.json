@@ -25,7 +25,7 @@
 			"APPROVED": "Deine Zustimmung ist eingegangen. Wir bestätigen die Aktivierung.",
 			"ACTIVATING": "Die Aktivierung wird bestätigt. Bitte starte keine weitere Zahlung.",
 			"WAITING": "Der vorherige Bezahlvorgang wird geschlossen. Nach Bestätigung des Abschlusses und offener Zahlungen kannst du einen anderen Tarif wählen.",
-			"REVIEW": "Die automatischen Prüfungen konnten den Abschluss nicht bestätigen. Kontaktiere den Support mit der Bestellreferenz.",
+			"REVIEW": "Automatische Prüfungen wurden angehalten, da diese Bestellung geprüft werden muss. Kontaktieren Sie den Support mit der Bestellreferenz. Erwähnen Sie, falls Sie PayPal vor der Zahlungsfreigabe verlassen haben.",
 			"waitUntil": "Der bisherige Zahlungslink läuft am {date} ab. Wir prüfen ihn dann erneut."
 		},
 		"annualSummary": "Jährlich {total} abgerechnet · {savings} ({percent}%) gegenüber 12 Monatszahlungen sparen",

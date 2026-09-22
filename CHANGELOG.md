@@ -2,11 +2,23 @@
 
 ## 2026-09-22
 
+### Billing session recovery
+
+- Redirect expired or missing sessions from server-rendered billing reads to sign-in instead of raising an unhandled Unauthorized error, while retaining API authorization and reporting other failures.
+- Keep anonymous trial users on the guest workspace consistently across parallel account layouts and billing reads.
+
 ### Homepage startup and accessible controls
 
 - Load the authentication SDK when a session query runs, and keep organization tools out of the guest homepage's initial scripts while retaining server rendering for registered workspaces.
 - Load text-prompt draft persistence when submitting, save the selected prompt and model before sign-in navigation, and restore the ready state when saving fails.
 - Derive output-setting button names from their rendered selections so screen-reader names include the visible text.
+
+### Abandoned PayPal checkout recovery
+
+- Keep checkouts that need manual review stable during automatic polling and scheduled recovery, with an explicit payment-status retry available to the customer.
+- Preserve confirmed payment status while subscription fulfillment completes.
+- Add an administrator checkout-review panel with required customer and merchant-record evidence, fresh PayPal checks, concurrency protection and an auditable, repeat-safe closure decision for eligible historical abandoned checkouts.
+- Explain the support handoff and preserve duplicate-subscription protection for approved, paid or otherwise uncertain attempts.
 
 ## 2026-09-21
 

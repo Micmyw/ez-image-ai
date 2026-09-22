@@ -285,6 +285,34 @@
 				},
 				"newest": "Newest reviews",
 				"older": "Older reviews"
+			},
+			"checkoutReview": {
+				"title": "Subscription checkout review",
+				"description": "Resolve older PayPal checkouts that remain under review after the customer left without approving payment.",
+				"reference": "Order reference",
+				"load": "Load checkout",
+				"loadError": "Could not load this PayPal checkout. Check the order reference and try again.",
+				"owner": "Account reference",
+				"plan": "Plan",
+				"closed": "This checkout is closed. The customer can choose a new plan if no other subscription or checkout is active.",
+				"notEligible": "This checkout does not qualify for reviewed closure. Check its payment status and resolve any approval or payment through billing reconciliation.",
+				"evidence": "Review evidence",
+				"customerConfirmed": "The customer confirmed they never approved this PayPal subscription or authorized payment.",
+				"merchantReviewed": "I reviewed the merchant's PayPal subscription and transaction records and found no approval, payment, or active subscription for this checkout.",
+				"evidenceReference": "Support case reference and merchant review notes (10–500 characters)",
+				"reason": "Reason for closure (10–500 characters)",
+				"decisionHint": "The server will check PayPal and local billing records again. Closing records an administrator decision and releases this checkout's lock; it does not certify that PayPal canceled the external subscription.",
+				"close": "Close reviewed checkout",
+				"checking": "Checking PayPal and billing records…",
+				"errors": {
+					"CHECKOUT_REVIEW_STALE": "The checkout changed. Load it again and review the latest details before retrying.",
+					"CHECKOUT_REVIEW_NOT_ELIGIBLE": "This checkout no longer qualifies for reviewed closure. Load its latest status.",
+					"CHECKOUT_REVIEW_FINANCIAL_ACTIVITY": "Approval, payment, or subscription evidence was found. The checkout remains locked; reconcile that evidence first.",
+					"CHECKOUT_REVIEW_PROVENANCE_UNCONFIRMED": "The original PayPal account, environment, or plan could not be verified. The checkout remains locked.",
+					"CHECKOUT_REVIEW_EVIDENCE_REQUIRED": "Complete both confirmations and the review notes. If the provider check expired, retry the same decision.",
+					"CHECKOUT_REVIEW_PROVIDER_UNCONFIRMED": "PayPal did not confirm the expected missing-resource response. Review the current payment status before trying again.",
+					"CHECKOUT_REVIEW_FAILED": "The review could not be completed. Load the checkout to check its status, then retry if it remains eligible."
+				}
 			}
 		},
 		"title": "Administration",

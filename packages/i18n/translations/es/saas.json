@@ -285,6 +285,34 @@
 				},
 				"newest": "Revisiones recientes",
 				"older": "Revisiones anteriores"
+			},
+			"checkoutReview": {
+				"title": "Revisión de suscripciones pendientes",
+				"description": "Resolver compras antiguas de PayPal que siguen en revisión después de que el cliente saliera sin autorizar el pago.",
+				"reference": "Referencia del pedido",
+				"load": "Cargar pedido",
+				"loadError": "No se pudo cargar este pedido de PayPal. Comprueba la referencia e inténtalo de nuevo.",
+				"owner": "Referencia de la cuenta",
+				"plan": "Plan",
+				"closed": "Este pedido está cerrado. El cliente puede elegir otro plan si no hay otra suscripción o compra activa.",
+				"notEligible": "Este pedido no cumple los requisitos para cerrarse aquí. Comprueba su estado de pago y concilia cualquier autorización o pago.",
+				"evidence": "Pruebas de la revisión",
+				"customerConfirmed": "El cliente confirmó que nunca aprobó esta suscripción de PayPal ni autorizó el pago.",
+				"merchantReviewed": "Revisé los registros de suscripciones y transacciones de PayPal del comercio y no encontré ninguna aprobación, pago o suscripción activa para este pedido.",
+				"evidenceReference": "Referencia del caso y notas de la revisión del comercio (10–500 caracteres)",
+				"reason": "Motivo del cierre (10–500 caracteres)",
+				"decisionHint": "El servidor volverá a comprobar PayPal y los registros de facturación locales. El cierre registra una decisión del administrador y libera el bloqueo de este pedido; no certifica que PayPal haya cancelado la suscripción externa.",
+				"close": "Cerrar pedido revisado",
+				"checking": "Comprobando PayPal y los registros de facturación…",
+				"errors": {
+					"CHECKOUT_REVIEW_STALE": "El pedido ha cambiado. Vuelve a cargarlo y revisa los detalles actuales.",
+					"CHECKOUT_REVIEW_NOT_ELIGIBLE": "Este pedido ya no cumple los requisitos para cerrarse aquí. Carga su estado actual.",
+					"CHECKOUT_REVIEW_FINANCIAL_ACTIVITY": "Se encontraron pruebas de autorización, pago o suscripción. El bloqueo se mantiene; concilia esas pruebas primero.",
+					"CHECKOUT_REVIEW_PROVENANCE_UNCONFIRMED": "No se pudo verificar la cuenta, el entorno o el plan original de PayPal. El bloqueo se mantiene.",
+					"CHECKOUT_REVIEW_EVIDENCE_REQUIRED": "Completa ambas confirmaciones y las notas. Si la comprobación del proveedor caducó, vuelve a intentar la misma decisión.",
+					"CHECKOUT_REVIEW_PROVIDER_UNCONFIRMED": "PayPal no confirmó la respuesta esperada de recurso no encontrado. Revisa el estado de pago antes de reintentar.",
+					"CHECKOUT_REVIEW_FAILED": "No se pudo completar la revisión. Carga el pedido para comprobar su estado y reintenta si sigue cumpliendo los requisitos."
+				}
 			}
 		},
 		"title": "Administración",

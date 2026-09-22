@@ -3,6 +3,7 @@ import {
 	claimCheckoutRecoveryWithStore,
 	claimCheckoutActivationWithStore,
 	finishCheckoutRecoveryWithStore,
+	resolveCheckoutReviewWithStore,
 	hasCheckoutFinancialReceipt,
 	type CheckoutRecoveryPersistence,
 	type OwnedCheckoutRecoveryInput,
@@ -14,8 +15,13 @@ export {
 	checkoutRecoveryView,
 	readCheckoutRecovery,
 	checkoutRecoveryStatusSchema,
+	canReviewLegacyCheckout,
 } from "../../shared/checkout-recovery";
-export type { CheckoutRecovery, RecoverableCheckout } from "../../shared/checkout-recovery";
+export type {
+	CheckoutRecovery,
+	RecoverableCheckout,
+	CheckoutReviewObservation,
+} from "../../shared/checkout-recovery";
 
 export function checkoutRecoveryStore(client: MediaTransactionClient): CheckoutRecoveryPersistence {
 	return {
@@ -26,9 +32,32 @@ export function checkoutRecoveryStore(client: MediaTransactionClient): CheckoutR
 						const scope = `payment-subscription:${JSON.stringify([owner.ownerType, owner.ownerId])}`;
 						await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${scope}, 0))::text AS "locked"`;
 					},
+					async lockProvider(intent) {
+						for (const id of [
+							...new Set(
+								[intent.providerSessionId, intent.providerOrderId].filter((id): id is string =>
+									Boolean(id),
+								),
+							),
+						].sort((a, b) => a.localeCompare(b))) {
+							const scope = `${intent.provider}:${id}`;
+							await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${scope}, 0))::text AS "locked"`;
+						}
+					},
 					find: (id) =>
 						tx.paymentCheckoutIntent.findUnique({ where: { id }, include: { billingPlan: true } }),
-					async hasFinancialActivity(intent) {
+					async hasFinancialActivity(intent, requireUnapproved) {
+						const ids = [intent.providerSessionId, intent.providerOrderId].filter(
+							(id): id is string => Boolean(id),
+						);
+						if (
+							requireUnapproved &&
+							(await tx.purchase.findFirst({
+								where: { provider: intent.provider, subscriptionId: { in: ids } },
+								select: { id: true },
+							}))
+						)
+							return true;
 						const subscription = await tx.subscription.findFirst({
 							where: {
 								ownerType: intent.ownerType,
@@ -75,7 +104,7 @@ export function checkoutRecoveryStore(client: MediaTransactionClient): CheckoutR
 						});
 						return (
 							events.length > 1000 ||
-							events.some((event) => hasCheckoutFinancialReceipt(event.envelope))
+							events.some((event) => hasCheckoutFinancialReceipt(event.envelope, requireUnapproved))
 						);
 					},
 					update: (id, patch) =>
@@ -103,14 +132,16 @@ export function checkoutRecoveryStore(client: MediaTransactionClient): CheckoutR
 							update: {},
 						});
 					},
-					async audit(intent, action, actorUserId) {
+					async audit(intent, action, actorUserId, metadata) {
 						await tx.auditLog.create({
 							data: {
 								actorUserId,
 								action,
 								targetType: "PAYMENT_CHECKOUT_INTENT",
 								targetId: intent.id,
-								metadata: { provider: intent.provider },
+								metadata: JSON.parse(
+									JSON.stringify({ ...metadata, provider: intent.provider }),
+								) as Prisma.InputJsonValue,
 							},
 						});
 					},
@@ -123,6 +154,12 @@ export function requestCheckoutRecovery(
 	client: MediaTransactionClient,
 ) {
 	return requestCheckoutRecoveryWithStore(input, checkoutRecoveryStore(client));
+}
+export function resolveCheckoutReview(
+	input: Parameters<typeof resolveCheckoutReviewWithStore>[0],
+	client: MediaTransactionClient,
+) {
+	return resolveCheckoutReviewWithStore(input, checkoutRecoveryStore(client));
 }
 export function claimCheckoutRecovery(
 	input: Parameters<typeof claimCheckoutRecoveryWithStore>[0],
@@ -173,6 +210,7 @@ export async function recoverPendingCheckouts(
 	>`
 		SELECT "id", "ownerType", "ownerId", "submittedByUserId" FROM payment_checkout_intent
 		WHERE "productKind" = 'PLAN' AND provider IN ('paypal', 'waffo') AND status IN ('PROVIDER_PENDING', 'PROVIDER_CREATING', 'REVIEW')
+		AND COALESCE("checkoutRecovery"->>'status', 'PENDING') NOT IN ('REVIEW', 'PAID')
 		AND COALESCE(("checkoutRecovery"->>'nextCheckAt')::timestamptz, '-infinity') <= ${now}
 		AND COALESCE(("checkoutRecovery"->>'leasedUntil')::timestamptz, '-infinity') <= ${now}
 		ORDER BY "updatedAt", "id" LIMIT ${Math.min(Math.max(limit, 1), 1000)}`;

@@ -285,6 +285,34 @@
 				},
 				"newest": "Contrôles récents",
 				"older": "Contrôles précédents"
+			},
+			"checkoutReview": {
+				"title": "Examen des souscriptions en attente",
+				"description": "Résoudre les anciennes commandes PayPal restées en examen après que le client a quitté la page sans autoriser le paiement.",
+				"reference": "Référence de commande",
+				"load": "Charger la commande",
+				"loadError": "Impossible de charger cette commande PayPal. Vérifiez la référence et réessayez.",
+				"owner": "Référence du compte",
+				"plan": "Offre",
+				"closed": "Cette commande est clôturée. Le client peut choisir une autre offre si aucun autre abonnement ou paiement n'est en cours.",
+				"notEligible": "Cette commande ne peut pas être clôturée ici. Vérifiez son état de paiement et rapprochez toute autorisation ou tout paiement.",
+				"evidence": "Éléments de vérification",
+				"customerConfirmed": "Le client a confirmé n'avoir jamais approuvé cet abonnement PayPal ni autorisé de paiement.",
+				"merchantReviewed": "J'ai vérifié les abonnements et transactions PayPal du marchand et n'ai trouvé aucune approbation, aucun paiement ni abonnement actif pour cette commande.",
+				"evidenceReference": "Référence du dossier et notes de vérification du marchand (10–500 caractères)",
+				"reason": "Motif de clôture (10–500 caractères)",
+				"decisionHint": "Le serveur vérifiera à nouveau PayPal et les données de facturation locales. La clôture consigne une décision de l'administrateur et libère le verrou de cette commande ; elle ne certifie pas l'annulation de l'abonnement externe par PayPal.",
+				"close": "Clôturer la commande examinée",
+				"checking": "Vérification de PayPal et des données de facturation…",
+				"errors": {
+					"CHECKOUT_REVIEW_STALE": "La commande a changé. Rechargez-la et vérifiez les informations actuelles.",
+					"CHECKOUT_REVIEW_NOT_ELIGIBLE": "Cette commande ne peut plus être clôturée ici. Chargez son état actuel.",
+					"CHECKOUT_REVIEW_FINANCIAL_ACTIVITY": "Une autorisation, un paiement ou un abonnement a été trouvé. Le verrou reste actif ; rapprochez d'abord ces éléments.",
+					"CHECKOUT_REVIEW_PROVENANCE_UNCONFIRMED": "Le compte, l'environnement ou l'offre PayPal d'origine n'a pas pu être vérifié. Le verrou reste actif.",
+					"CHECKOUT_REVIEW_EVIDENCE_REQUIRED": "Complétez les deux confirmations et les notes. Si la vérification du prestataire a expiré, réessayez la même décision.",
+					"CHECKOUT_REVIEW_PROVIDER_UNCONFIRMED": "PayPal n'a pas confirmé la réponse attendue de ressource introuvable. Vérifiez l'état du paiement avant de réessayer.",
+					"CHECKOUT_REVIEW_FAILED": "L'examen n'a pas pu aboutir. Rechargez la commande pour vérifier son état, puis réessayez si elle reste admissible."
+				}
 			}
 		},
 		"title": "Administration",

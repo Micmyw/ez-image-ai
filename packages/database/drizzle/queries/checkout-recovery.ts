@@ -5,6 +5,7 @@ import {
 	claimCheckoutRecoveryWithStore,
 	claimCheckoutActivationWithStore,
 	finishCheckoutRecoveryWithStore,
+	resolveCheckoutReviewWithStore,
 	hasCheckoutFinancialReceipt,
 	type CheckoutRecoveryPersistence,
 	type OwnedCheckoutRecoveryInput,
@@ -16,8 +17,13 @@ export {
 	checkoutRecoveryView,
 	readCheckoutRecovery,
 	checkoutRecoveryStatusSchema,
+	canReviewLegacyCheckout,
 } from "../../shared/checkout-recovery";
-export type { CheckoutRecovery, RecoverableCheckout } from "../../shared/checkout-recovery";
+export type {
+	CheckoutRecovery,
+	RecoverableCheckout,
+	CheckoutReviewObservation,
+} from "../../shared/checkout-recovery";
 
 export function checkoutRecoveryStore(): CheckoutRecoveryPersistence {
 	return {
@@ -38,8 +44,26 @@ export function checkoutRecoveryStore(): CheckoutRecoveryPersistence {
 							const scope = `payment-subscription:${JSON.stringify([owner.ownerType, owner.ownerId])}`;
 							await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${scope}, 0))`);
 						},
+						async lockProvider(intent) {
+							for (const id of [
+								...new Set(
+									[intent.providerSessionId, intent.providerOrderId].filter((id): id is string =>
+										Boolean(id),
+									),
+								),
+							].sort((a, b) => a.localeCompare(b))) {
+								const scope = `${intent.provider}:${id}`;
+								await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${scope}, 0))`);
+							}
+						},
 						find,
-						async hasFinancialActivity(intent) {
+						async hasFinancialActivity(intent, requireUnapproved) {
+							if (requireUnapproved) {
+								const purchases = await tx.execute(
+									sql`SELECT id FROM purchase WHERE provider = ${intent.provider} AND "subscriptionId" IN (${intent.providerSessionId}, ${intent.providerOrderId}) LIMIT 1`,
+								);
+								if (purchases.rows.length) return true;
+							}
 							const subscriptions =
 								await tx.execute(sql`SELECT id FROM subscription WHERE "ownerType" = ${intent.ownerType} AND "ownerId" = ${intent.ownerId}
 				AND ((provider = ${intent.provider} AND "providerSubscriptionId" IN (${intent.providerSessionId}, ${intent.providerOrderId}))
@@ -51,7 +75,9 @@ export function checkoutRecoveryStore(): CheckoutRecoveryPersistence {
 				("providerSubscriptionId" IN (${intent.providerSessionId}, ${intent.providerOrderId}) OR envelope->'resource'->>'custom_id' = ${intent.id} OR envelope->'data'->>'orderMerchantExternalId' = ${intent.id}) LIMIT 1001`);
 							return (
 								events.rows.length > 1000 ||
-								events.rows.some((event) => hasCheckoutFinancialReceipt(event.envelope))
+								events.rows.some((event) =>
+									hasCheckoutFinancialReceipt(event.envelope, requireUnapproved),
+								)
 							);
 						},
 						async update(id, patch) {
@@ -70,9 +96,9 @@ export function checkoutRecoveryStore(): CheckoutRecoveryPersistence {
 								sql`INSERT INTO outbox_event (id, "eventType", "aggregateType", "aggregateId", "dedupeKey", payload, "availableAt") VALUES (${crypto.randomUUID()}, 'SUBSCRIPTION_CHECKOUT_RECOVERY', 'PAYMENT_CHECKOUT_INTENT', ${id}, ${`checkout-recovery:${id}:${sequence}`}, ${JSON.stringify({ checkoutIntentId: id, sequence })}::jsonb, ${availableAt}) ON CONFLICT ("dedupeKey") DO NOTHING`,
 							);
 						},
-						async audit(intent, action, actorUserId) {
+						async audit(intent, action, actorUserId, metadata) {
 							await tx.execute(
-								sql`INSERT INTO audit_log (id, "actorUserId", action, "targetType", "targetId", metadata) VALUES (${crypto.randomUUID()}, ${actorUserId ?? null}, ${action}, 'PAYMENT_CHECKOUT_INTENT', ${intent.id}, ${JSON.stringify({ provider: intent.provider })}::jsonb)`,
+								sql`INSERT INTO audit_log (id, "actorUserId", action, "targetType", "targetId", metadata) VALUES (${crypto.randomUUID()}, ${actorUserId ?? null}, ${action}, 'PAYMENT_CHECKOUT_INTENT', ${intent.id}, ${JSON.stringify({ ...metadata, provider: intent.provider })}::jsonb)`,
 							);
 						},
 					});
@@ -83,6 +109,9 @@ export function checkoutRecoveryStore(): CheckoutRecoveryPersistence {
 }
 export function requestCheckoutRecovery(input: OwnedCheckoutRecoveryInput) {
 	return requestCheckoutRecoveryWithStore(input, checkoutRecoveryStore());
+}
+export function resolveCheckoutReview(input: Parameters<typeof resolveCheckoutReviewWithStore>[0]) {
+	return resolveCheckoutReviewWithStore(input, checkoutRecoveryStore());
 }
 export function claimCheckoutRecovery(input: Parameters<typeof claimCheckoutRecoveryWithStore>[0]) {
 	return claimCheckoutRecoveryWithStore(input, checkoutRecoveryStore());
@@ -130,6 +159,7 @@ export async function recoverPendingCheckouts(limit = 100, now = new Date()) {
 	}>(sql`
 		SELECT "id", "ownerType", "ownerId", "submittedByUserId" FROM payment_checkout_intent WHERE "productKind" = 'PLAN'
 		AND provider IN ('paypal','waffo') AND status IN ('PROVIDER_PENDING','PROVIDER_CREATING','REVIEW')
+		AND COALESCE("checkoutRecovery"->>'status', 'PENDING') NOT IN ('REVIEW', 'PAID')
 		AND COALESCE(("checkoutRecovery"->>'nextCheckAt')::timestamptz, '-infinity') <= ${now}
 		AND COALESCE(("checkoutRecovery"->>'leasedUntil')::timestamptz, '-infinity') <= ${now}
 		ORDER BY "updatedAt", "id" LIMIT ${Math.min(Math.max(limit, 1), 1000)}`);

@@ -18,6 +18,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 
+import { CheckoutReviewPanel } from "./CheckoutReviewPanel";
 import { GrowthOperationsPanel } from "./GrowthOperationsPanel";
 import { ModerationOperationsPanel } from "./ModerationOperationsPanel";
 
@@ -114,6 +115,7 @@ export function MediaOperations() {
 
 	return (
 		<div className="space-y-6">
+			<CheckoutReviewPanel />
 			<ModerationOperationsPanel />
 			<GrowthOperationsPanel />
 			<GuestOperationsPanel data={data?.guest} />

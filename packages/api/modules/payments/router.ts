@@ -1,4 +1,8 @@
 import {
+	getAdminCheckoutReview,
+	resolveAdminCheckoutReview,
+} from "./procedures/admin-checkout-review";
+import {
 	applyStripeRefundRepair,
 	approveStripeRefundRepair,
 } from "./procedures/admin-stripe-refund-repairs";
@@ -20,6 +24,8 @@ import {
 } from "./procedures/pending-subscription-checkout";
 
 export const paymentsRouter = {
+	getAdminCheckoutReview,
+	resolveAdminCheckoutReview,
 	getPendingSubscriptionCheckout,
 	refreshPendingSubscriptionCheckout,
 	cancelPendingSubscriptionCheckout,

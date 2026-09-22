@@ -1,6 +1,22 @@
 export const publicChangelogEntries = [
 	{
 		date: "2026-09-22",
+		title: "Smoother sign-in recovery on billing pages",
+		changes: [
+			"Return to sign-in when your account session expires while opening billing, instead of showing a page error.",
+			"Keep guest trial sessions in the guest workspace when an account billing link is opened.",
+		],
+	},
+	{
+		date: "2026-09-22",
+		title: "Clearer recovery for abandoned checkouts",
+		changes: [
+			"Keep checkout review messages steady, with an explicit status check and clearer instructions for contacting support after leaving PayPal without approving payment.",
+			"Help support resolve eligible abandoned checkouts after reviewing the customer and payment records, while preserving protection against duplicate subscriptions.",
+		],
+	},
+	{
+		date: "2026-09-22",
 		title: "Lighter homepage startup",
 		changes: [
 			"Load account and prompt-saving tools as needed, with fewer scripts required when opening the homepage.",

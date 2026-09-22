@@ -285,6 +285,34 @@
 				},
 				"newest": "Neueste Prüfungen",
 				"older": "Ältere Prüfungen"
+			},
+			"checkoutReview": {
+				"title": "Prüfung offener Abonnementbestellungen",
+				"description": "Ältere PayPal-Bestellungen prüfen, die offen bleiben, nachdem der Kunde ohne Zahlungsfreigabe abgebrochen hat.",
+				"reference": "Bestellreferenz",
+				"load": "Bestellung laden",
+				"loadError": "Diese PayPal-Bestellung konnte nicht geladen werden. Prüfen Sie die Referenz und versuchen Sie es erneut.",
+				"owner": "Kontoreferenz",
+				"plan": "Tarif",
+				"closed": "Diese Bestellung ist geschlossen. Der Kunde kann einen neuen Tarif wählen, sofern kein anderes Abonnement oder Checkout aktiv ist.",
+				"notEligible": "Diese Bestellung kann hier nicht geschlossen werden. Prüfen Sie den Zahlungsstatus und klären Sie vorhandene Freigaben oder Zahlungen im Zahlungsabgleich.",
+				"evidence": "Prüfnachweise",
+				"customerConfirmed": "Der Kunde hat bestätigt, dass er dieses PayPal-Abonnement nie genehmigt und keine Zahlung autorisiert hat.",
+				"merchantReviewed": "Ich habe die PayPal-Abonnement- und Transaktionsdaten des Händlers geprüft und keine Freigabe, Zahlung oder aktives Abonnement für diese Bestellung gefunden.",
+				"evidenceReference": "Supportfall und Notizen zur Händlerprüfung (10–500 Zeichen)",
+				"reason": "Grund für die Schließung (10–500 Zeichen)",
+				"decisionHint": "Der Server prüft PayPal und die lokalen Abrechnungsdaten erneut. Die Schließung dokumentiert eine Administratorentscheidung und hebt diese Bestellsperre auf; sie bestätigt keine Kündigung durch PayPal.",
+				"close": "Geprüfte Bestellung schließen",
+				"checking": "PayPal und Abrechnungsdaten werden geprüft…",
+				"errors": {
+					"CHECKOUT_REVIEW_STALE": "Die Bestellung hat sich geändert. Laden Sie sie erneut und prüfen Sie die aktuellen Details.",
+					"CHECKOUT_REVIEW_NOT_ELIGIBLE": "Diese Bestellung kann nicht mehr hier geschlossen werden. Laden Sie den aktuellen Status.",
+					"CHECKOUT_REVIEW_FINANCIAL_ACTIVITY": "Eine Freigabe, Zahlung oder ein Abonnement wurde gefunden. Die Sperre bleibt bestehen, bis diese Nachweise geklärt sind.",
+					"CHECKOUT_REVIEW_PROVENANCE_UNCONFIRMED": "Das ursprüngliche PayPal-Konto, die Umgebung oder der Tarif konnte nicht bestätigt werden. Die Sperre bleibt bestehen.",
+					"CHECKOUT_REVIEW_EVIDENCE_REQUIRED": "Vervollständigen Sie beide Bestätigungen und die Notizen. Bei abgelaufener Anbieterprüfung wiederholen Sie dieselbe Entscheidung.",
+					"CHECKOUT_REVIEW_PROVIDER_UNCONFIRMED": "PayPal hat die erwartete Antwort zur fehlenden Ressource nicht bestätigt. Prüfen Sie zuerst den aktuellen Zahlungsstatus.",
+					"CHECKOUT_REVIEW_FAILED": "Die Prüfung konnte nicht abgeschlossen werden. Laden Sie die Bestellung und versuchen Sie es erneut, wenn sie weiterhin geeignet ist."
+				}
 			}
 		},
 		"title": "Administration",

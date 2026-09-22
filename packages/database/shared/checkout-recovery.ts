@@ -30,6 +30,16 @@ const recoverySchema = z.object({
 	reason: z.string().optional(),
 	leaseToken: z.string().optional(),
 	leasedUntil: z.iso.datetime().optional(),
+	resolution: z
+		.object({
+			operationKey: z.string(),
+			actorUserId: z.string(),
+			expectedUpdatedAt: z.string(),
+			reason: z.string(),
+			evidenceReference: z.string(),
+			resolvedAt: z.iso.datetime(),
+		})
+		.optional(),
 });
 export type CheckoutRecovery = z.infer<typeof recoverySchema>;
 export function readCheckoutRecovery(value: unknown): CheckoutRecovery {
@@ -54,7 +64,8 @@ export interface RecoverableCheckout {
 	providerCheckoutUrl: string | null;
 	checkoutRecovery: unknown;
 	expiresAt: Date | null;
-	billingPlan: { providerPriceId: string };
+	updatedAt?: Date;
+	billingPlan: { providerPriceId: string; metadata?: unknown };
 }
 export type CheckoutRecoveryPatch = {
 	checkoutRecovery: CheckoutRecovery;
@@ -65,11 +76,17 @@ export type CheckoutRecoveryPatch = {
 };
 export interface CheckoutRecoveryTransaction {
 	lock(owner: { ownerType: string; ownerId: string }): Promise<void>;
+	lockProvider(intent: RecoverableCheckout): Promise<void>;
 	find(id: string): Promise<RecoverableCheckout | null>;
-	hasFinancialActivity(intent: RecoverableCheckout): Promise<boolean>;
+	hasFinancialActivity(intent: RecoverableCheckout, requireUnapproved?: boolean): Promise<boolean>;
 	update(id: string, patch: CheckoutRecoveryPatch): Promise<RecoverableCheckout>;
 	enqueue(id: string, sequence: number, availableAt: Date): Promise<void>;
-	audit(intent: RecoverableCheckout, action: string, actorUserId?: string): Promise<void>;
+	audit(
+		intent: RecoverableCheckout,
+		action: string,
+		actorUserId?: string,
+		metadata?: Record<string, unknown>,
+	): Promise<void>;
 }
 export interface CheckoutRecoveryPersistence {
 	transaction<T>(work: (tx: CheckoutRecoveryTransaction) => Promise<T>): Promise<T>;
@@ -80,6 +97,8 @@ export type OwnedCheckoutRecoveryInput = {
 	ownerId: string;
 	actorUserId: string;
 	cancel?: boolean;
+	/** Explicit human retry; automatic polling and recovery must leave REVIEW stable. */
+	retryReview?: boolean;
 	now?: Date;
 };
 const pendingStatuses = ["CREATED", "PROVIDER_CREATING", "PROVIDER_PENDING", "REVIEW"];
@@ -92,6 +111,144 @@ function settledState(intent: RecoverableCheckout): CheckoutRecoveryStatus {
 		: intent.status === "CANCELED"
 			? "CLOSED"
 			: readCheckoutRecovery(intent.checkoutRecovery).status;
+}
+
+/** Eligibility only; fresh provider evidence and financial checks are still required. */
+export function canReviewLegacyCheckout(intent: RecoverableCheckout, now = new Date()) {
+	const state = readCheckoutRecovery(intent.checkoutRecovery);
+	return (
+		intent.provider === "paypal" &&
+		intent.productKind === "PLAN" &&
+		["PROVIDER_PENDING", "REVIEW"].includes(intent.status) &&
+		Boolean(intent.providerSessionId) &&
+		!intent.providerOrderId &&
+		state.mode === "LEGACY" &&
+		state.status === "REVIEW" &&
+		state.failures >= 3 &&
+		state.reason === "RESOURCE_NOT_FOUND" &&
+		!state.activationRequestedAt &&
+		(!state.leasedUntil || new Date(state.leasedUntil) <= now)
+	);
+}
+
+/** Server-produced inspection, never accepted from an API client. */
+export interface CheckoutReviewObservation {
+	status: "UNKNOWN";
+	reason: "RESOURCE_NOT_FOUND";
+	checkedAt: string;
+	environment: "sandbox" | "live";
+	scope: string;
+	priceId: string;
+	providerSessionId: string;
+}
+export interface ResolveCheckoutReviewInput {
+	id: string;
+	actorUserId: string;
+	expectedUpdatedAt: string;
+	operationKey: string;
+	reason: string;
+	evidenceReference: string;
+	customerConfirmedNoApproval: boolean;
+	merchantRecordsReviewed: boolean;
+	providerObservation?: CheckoutReviewObservation;
+	now?: Date;
+}
+
+/** An audited operator decision, not a claim that PayPal confirmed cancellation. */
+export async function resolveCheckoutReviewWithStore(
+	input: ResolveCheckoutReviewInput,
+	store: CheckoutRecoveryPersistence,
+) {
+	return store.transaction(async (tx) => {
+		const initial = await tx.find(input.id);
+		if (!initial) throw new Error("CHECKOUT_NOT_FOUND");
+		// Same order as lifecycle processing: provider resource, then subscription owner.
+		await tx.lockProvider(initial);
+		await tx.lock(initial);
+		const intent = await tx.find(input.id);
+		if (!intent) throw new Error("CHECKOUT_NOT_FOUND");
+		const state = readCheckoutRecovery(intent.checkoutRecovery);
+		if (
+			!input.customerConfirmedNoApproval ||
+			!input.merchantRecordsReviewed ||
+			input.reason.trim().length < 10 ||
+			input.reason.length > 500 ||
+			input.evidenceReference.trim().length < 10 ||
+			input.evidenceReference.length > 500 ||
+			input.operationKey.length < 8 ||
+			input.operationKey.length > 128 ||
+			!input.actorUserId
+		)
+			throw new Error("CHECKOUT_REVIEW_EVIDENCE_REQUIRED");
+		if (state.resolution) {
+			const prior = state.resolution;
+			if (
+				intent.status === "CANCELED" &&
+				state.status === "CLOSED" &&
+				prior.operationKey === input.operationKey &&
+				prior.actorUserId === input.actorUserId &&
+				prior.expectedUpdatedAt === input.expectedUpdatedAt &&
+				prior.reason === input.reason &&
+				prior.evidenceReference === input.evidenceReference
+			)
+				return intent;
+			throw new Error("CHECKOUT_REVIEW_STALE");
+		}
+		if (!intent.updatedAt || intent.updatedAt.toISOString() !== input.expectedUpdatedAt)
+			throw new Error("CHECKOUT_REVIEW_STALE");
+		const now = input.now ?? new Date();
+		if (!canReviewLegacyCheckout(intent, now)) throw new Error("CHECKOUT_REVIEW_NOT_ELIGIBLE");
+		const evidence = input.providerObservation;
+		const age = now.getTime() - new Date(evidence?.checkedAt ?? "").getTime();
+		if (
+			!evidence ||
+			evidence.status !== "UNKNOWN" ||
+			evidence.reason !== "RESOURCE_NOT_FOUND" ||
+			!Number.isFinite(age) ||
+			age < 0 ||
+			age >= 120_000 ||
+			!evidence.scope ||
+			!["live", "sandbox"].includes(evidence.environment) ||
+			evidence.priceId !== intent.billingPlan.providerPriceId ||
+			evidence.providerSessionId !== intent.providerSessionId
+		)
+			throw new Error("CHECKOUT_REVIEW_EVIDENCE_REQUIRED");
+		if (await tx.hasFinancialActivity(intent, true))
+			throw new Error("CHECKOUT_REVIEW_FINANCIAL_ACTIVITY");
+		const resolution = {
+			operationKey: input.operationKey,
+			actorUserId: input.actorUserId,
+			expectedUpdatedAt: input.expectedUpdatedAt,
+			reason: input.reason,
+			evidenceReference: input.evidenceReference,
+			resolvedAt: now.toISOString(),
+		};
+		const closed = await tx.update(intent.id, {
+			status: "CANCELED",
+			activeScopeKey: null,
+			providerCheckoutUrl: null,
+			checkoutRecovery: {
+				...state,
+				status: "CLOSED",
+				reason: "OPERATOR_REVIEWED_ABANDONMENT",
+				resolution,
+				cancelRequestedAt: state.cancelRequestedAt ?? now.toISOString(),
+				leaseToken: undefined,
+				leasedUntil: undefined,
+				nextCheckAt: undefined,
+			},
+		});
+		await tx.audit(intent, "PAYMENT_CHECKOUT_MANUALLY_CLOSED", input.actorUserId, {
+			...resolution,
+			providerConfirmed: false,
+			providerObservation: evidence,
+			customerConfirmedNoApproval: true,
+			merchantRecordsReviewed: true,
+			previousStatus: intent.status,
+			previousRecovery: state,
+		});
+		return closed;
+	});
 }
 
 /** Only this persisted MERCHANT mode can revoke activation without closing a PSP URL. */
@@ -112,6 +269,7 @@ export async function requestCheckoutRecoveryWithStore(
 		if (terminal(intent)) return intent;
 		const now = input.now ?? new Date();
 		const state = readCheckoutRecovery(intent.checkoutRecovery);
+		if (state.status === "PAID") return intent;
 		if (
 			input.cancel &&
 			!state.activationRequestedAt &&
@@ -139,6 +297,8 @@ export async function requestCheckoutRecoveryWithStore(
 			state.cancelRequestedAt = now.toISOString();
 			await tx.audit(intent, "PAYMENT_CHECKOUT_CLOSURE_REQUESTED", input.actorUserId);
 		} else if (state.nextCheckAt && new Date(state.nextCheckAt) > now) return intent;
+		if (state.status === "REVIEW" && !input.retryReview)
+			return input.cancel ? tx.update(intent.id, { checkoutRecovery: state }) : intent;
 		if (state.leasedUntil && new Date(state.leasedUntil) > now)
 			return tx.update(intent.id, { checkoutRecovery: state });
 		state.sequence += 1;
@@ -316,10 +476,17 @@ export function checkoutRecoveryView(intent: RecoverableCheckout) {
 }
 
 /** Signed lifecycle/payment receipts must settle before releasing the owner's fence. */
-export function hasCheckoutFinancialReceipt(envelope: unknown): boolean {
+export function hasCheckoutFinancialReceipt(envelope: unknown, requireUnapproved = false): boolean {
 	if (!envelope || typeof envelope !== "object") return true;
 	const value = envelope as Record<string, unknown>;
 	const resource = value.resource as Record<string, unknown> | undefined;
+	if (
+		requireUnapproved &&
+		(value.event_type !== "BILLING.SUBSCRIPTION.CREATED" ||
+			resource?.status !== "APPROVAL_PENDING" ||
+			resource?.subscriber)
+	)
+		return true;
 	const billing = resource?.billing_info as
 		| { last_payment?: unknown; cycle_executions?: Array<{ cycles_completed?: number }> }
 		| undefined;

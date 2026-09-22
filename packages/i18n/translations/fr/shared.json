@@ -25,7 +25,7 @@
 			"APPROVED": "Votre accord a été reçu. Nous confirmons l’activation.",
 			"ACTIVATING": "L’activation de l’abonnement est en cours de confirmation. Ne lancez pas un autre paiement.",
 			"WAITING": "Le paiement précédent est en cours de clôture. Vous pourrez choisir une autre formule après confirmation de la clôture et des paiements en attente.",
-			"REVIEW": "Les vérifications automatiques n’ont pas confirmé la clôture. Contactez l’assistance avec la référence de commande.",
+			"REVIEW": "Les vérifications automatiques sont arrêtées car cette commande doit être examinée. Contactez l'assistance avec la référence de commande. Si vous avez quitté PayPal avant d'autoriser le paiement, précisez-le.",
 			"waitUntil": "Le lien de paiement précédent expire le {date}. Nous le vérifierons à nouveau à ce moment-là."
 		},
 		"annualSummary": "Facturé {total} par an · économisez {savings} ({percent}%) par rapport à 12 paiements mensuels",

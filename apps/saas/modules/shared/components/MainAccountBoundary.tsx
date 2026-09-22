@@ -1,9 +1,9 @@
 import { getOrganizationList, getSession } from "@auth/lib/server";
-import { listPurchases } from "@repo/api/modules/payments/procedures/list-purchases";
+import { listPurchases } from "@payments/lib/server";
 import { config as authConfig } from "@repo/auth/config";
+import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
 import { config as paymentsConfig } from "@repo/payments/config";
 import { createPurchasesHelper } from "@repo/payments/lib/helper";
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { PropsWithChildren } from "react";
 
@@ -12,6 +12,9 @@ export async function MainAccountBoundary({ children }: PropsWithChildren) {
 
 	if (!session) {
 		redirect("/login");
+	}
+	if (isAnonymousUser(session.user)) {
+		redirect("/try");
 	}
 
 	if (authConfig.users.enableOnboarding && !session.user.onboardingComplete) {
@@ -35,11 +38,7 @@ export async function MainAccountBoundary({ children }: PropsWithChildren) {
 			? session?.session.activeOrganizationId || organizations?.at(0)?.id
 			: undefined;
 
-		const purchases = await listPurchases.callable({
-			context: { headers: await headers() },
-		})({
-			organizationId,
-		});
+		const purchases = await listPurchases(organizationId);
 
 		const { activePlan } = createPurchasesHelper(purchases);
 

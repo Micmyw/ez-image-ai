@@ -93,6 +93,8 @@ async function main(): Promise<void> {
 			"tests/media-generation.spec.ts",
 			"tests/avatar-upload.spec.ts",
 			"tests/subscription-upgrade.spec.ts",
+			"tests/checkout-review.spec.ts",
+			"tests/billing-auth.spec.ts",
 			"tests/seo.spec.ts",
 			"--workers=1",
 		]);

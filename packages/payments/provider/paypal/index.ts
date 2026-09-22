@@ -1,4 +1,12 @@
+import {
+	canReviewLegacyCheckout,
+	readCheckoutRecovery,
+	type RecoverableCheckout,
+	type CheckoutReviewObservation,
+} from "@repo/database";
+
 import type { PaymentProvider } from "../../types";
+import { paymentReconciliationScope } from "../event-reconciliation";
 import { listPayPalPaymentEvents } from "./event-source";
 import {
 	cancelPayPalSubscription,
@@ -139,6 +147,78 @@ export function createConfiguredPayPalWebhookVerifier(
 			baseUrl: configuration.baseUrl,
 			webhookId: configuration.webhookId,
 		})(rawBody, headers);
+	};
+}
+
+/** Fresh read-only evidence for an operator decision; a 404 alone never closes a checkout. */
+export async function inspectPayPalCheckoutReview(
+	intent: RecoverableCheckout,
+	environment: Record<string, string | undefined> = process.env,
+	http = createPayPalHttpBoundary(),
+): Promise<CheckoutReviewObservation> {
+	if (!canReviewLegacyCheckout(intent)) throw new Error("CHECKOUT_REVIEW_NOT_ELIGIBLE");
+	const paypalEnvironment = environment.PAYPAL_ENVIRONMENT;
+	const state = readCheckoutRecovery(intent.checkoutRecovery);
+	const metadata = intent.billingPlan.metadata as Record<string, unknown> | null;
+	let checkoutUrl: URL;
+	let scope: string;
+	try {
+		checkoutUrl = new URL(intent.providerCheckoutUrl ?? "");
+		scope = paymentReconciliationScope("paypal", environment);
+	} catch {
+		throw new Error("CHECKOUT_REVIEW_PROVENANCE_UNCONFIRMED");
+	}
+	if (
+		(paypalEnvironment !== "sandbox" && paypalEnvironment !== "live") ||
+		metadata?.providerEnvironment !== paypalEnvironment ||
+		(state.environment && state.environment !== paypalEnvironment) ||
+		(state.scope && state.scope !== scope) ||
+		checkoutUrl.protocol !== "https:" ||
+		checkoutUrl.port ||
+		checkoutUrl.username ||
+		checkoutUrl.password ||
+		checkoutUrl.hostname !==
+			(paypalEnvironment === "live" ? "www.paypal.com" : "www.sandbox.paypal.com")
+	)
+		throw new Error("CHECKOUT_REVIEW_PROVENANCE_UNCONFIRMED");
+	const configuration = getPayPalRuntimeConfiguration(environment);
+	const accessToken = await authorizePayPal(http, configuration);
+	const headers = { Authorization: `Bearer ${accessToken}` };
+	const subscription = await http.request({
+		method: "GET",
+		headers,
+		url: `${configuration.baseUrl}/v1/billing/subscriptions/${encodeURIComponent(intent.providerSessionId!)}`,
+	});
+	const body = subscription.body as { name?: string; details?: Array<{ issue?: string }> } | null;
+	if (
+		subscription.status !== 404 ||
+		body?.name !== "RESOURCE_NOT_FOUND" ||
+		!Array.isArray(body.details) ||
+		!body.details.some((detail) => detail?.issue === "INVALID_RESOURCE_ID")
+	)
+		throw new Error("CHECKOUT_REVIEW_PROVIDER_UNCONFIRMED");
+	// Historical attempts predate merchant-scope snapshots. Authenticate access to their
+	// original plan as well as checking persisted environment provenance.
+	const plan = await http.request({
+		method: "GET",
+		headers,
+		url: `${configuration.baseUrl}/v1/billing/plans/${encodeURIComponent(intent.billingPlan.providerPriceId)}`,
+	});
+	const originalPlan = plan.body as { id?: string; status?: string } | null;
+	if (
+		plan.status !== 200 ||
+		originalPlan?.id !== intent.billingPlan.providerPriceId ||
+		!["ACTIVE", "INACTIVE", "CREATED"].includes(String(originalPlan?.status))
+	)
+		throw new Error("CHECKOUT_REVIEW_PROVENANCE_UNCONFIRMED");
+	return {
+		status: "UNKNOWN",
+		reason: "RESOURCE_NOT_FOUND",
+		checkedAt: new Date().toISOString(),
+		environment: paypalEnvironment,
+		scope,
+		priceId: intent.billingPlan.providerPriceId,
+		providerSessionId: intent.providerSessionId!,
 	};
 }
 

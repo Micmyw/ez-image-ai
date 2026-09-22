@@ -71,7 +71,7 @@ export async function wakeCheckoutRecovery(intent: RecoverableCheckout) {
 }
 
 async function request(
-	input: z.infer<typeof inputSchema>,
+	input: z.infer<typeof inputSchema> & { retryReview?: boolean },
 	userId: string,
 	organizationId: string | null | undefined,
 	cancel: boolean,
@@ -79,7 +79,13 @@ async function request(
 	const owner = await ownerFor(userId, organizationId);
 	try {
 		const intent = await requestCheckoutRecovery(
-			{ ...owner, id: input.checkoutIntentId, actorUserId: userId, cancel },
+			{
+				...owner,
+				id: input.checkoutIntentId,
+				actorUserId: userId,
+				cancel,
+				...(input.retryReview ? { retryReview: true } : {}),
+			},
 			db,
 		);
 		await wakeCheckoutRecovery(intent);
@@ -98,7 +104,7 @@ export const refreshPendingSubscriptionCheckout = protectedProcedure
 		tags: ["Payments"],
 		summary: "Request durable provider status inspection",
 	})
-	.input(inputSchema)
+	.input(inputSchema.extend({ retryReview: z.boolean().optional() }))
 	.output(viewSchema)
 	.handler(({ input, context: { user, session } }) =>
 		request(input, user.id, session.activeOrganizationId, false),

@@ -25,7 +25,7 @@
 			"APPROVED": "Your approval was received. We are confirming activation.",
 			"ACTIVATING": "Subscription activation is being confirmed. Please do not start another payment.",
 			"WAITING": "Closing your previous checkout. You can choose another plan once closure and any pending payment are confirmed.",
-			"REVIEW": "Automatic checks could not confirm closure. Contact support with the order reference to resolve this checkout.",
+			"REVIEW": "Automatic checks have stopped because this checkout needs review. Contact support with the order reference. If you left PayPal before approving payment, include that detail.",
 			"waitUntil": "The previous checkout link expires at {date}. We will check it again then."
 		},
 		"annualSummary": "Billed {total} yearly · save {savings} ({percent}%) vs 12 monthly payments",
