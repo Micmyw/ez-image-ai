@@ -37,6 +37,22 @@ const draft = {
 };
 
 describe("editor upgrade navigation", () => {
+	it("retains the temporary upload receipt across upgrade navigation", () => {
+		const store = memoryStorage();
+		const receipt = {
+			assetId: crypto.randomUUID(),
+			token: "signed-receipt",
+			expiresAt: "2026-09-23T12:00:00Z",
+		};
+		const temporaryDraft = {
+			...draft,
+			parentJobId: null,
+			temporaryReference: receipt,
+			draft: { ...draft.draft, input: { ...draft.draft.input, sourceAssetId: receipt.assetId } },
+		};
+		expect(writeEditorUpgradeDraft(store, temporaryDraft, 1000)).toBe(true);
+		expect(readEditorUpgradeDraft(store, 2000)).toEqual(temporaryDraft);
+	});
 	it.each([
 		["/create", "/create"],
 		["/create?upgrade=complete", "/create?upgrade=complete"],

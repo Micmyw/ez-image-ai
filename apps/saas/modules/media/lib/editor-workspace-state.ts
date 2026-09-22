@@ -1,6 +1,8 @@
 import type { EditorDraftInput } from "./editor-recovery";
+import type { TemporaryReferenceReceipt } from "./temporary-reference-upload";
 
 export interface EditorWorkspaceState {
+	temporaryReference?: TemporaryReferenceReceipt;
 	parentJobId: string | null;
 	initialDraft: EditorDraftInput | null;
 	formKey: number;

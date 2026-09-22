@@ -4,6 +4,7 @@ export type EditorErrorKey =
 	| "insufficientCredits"
 	| "qualityUnavailable"
 	| "assetNotReady"
+	| "referenceExpired"
 	| "quoteExpired"
 	| "priceChanged"
 	| "contentNotAllowed"
@@ -19,6 +20,7 @@ export function getEditorErrorKey(error: unknown): EditorErrorKey {
 	if (message.includes("INSUFFICIENT_CREDITS")) return "insufficientCredits";
 	if (message.includes("ENTITLEMENT_REQUIRED")) return "qualityUnavailable";
 	if (message.includes("ASSET_NOT_READY")) return "assetNotReady";
+	if (message.includes("TEMPORARY_REFERENCE_")) return "referenceExpired";
 	if (message.includes("PRICE_CHANGED")) return "priceChanged";
 	if (message.includes("QUOTE_EXPIRED")) {
 		return "quoteExpired";

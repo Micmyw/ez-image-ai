@@ -125,6 +125,9 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			"Nano Banana 2 Lite",
 			{ timeout: 30_000 },
 		);
+		await expect(page.locator('[data-test="generation-submit"]')).toContainText("5 credits", {
+			timeout: 30_000,
+		});
 		await page.getByLabel(/edit instruction|image prompt/i).fill("A ceramic vase in soft daylight");
 		const review = page.locator('[data-test="generation-submit"]');
 		await expect(review).toBeEnabled({ timeout: 30_000 });
@@ -133,7 +136,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			release = resolve;
 		});
 		let attempts = 0;
-		await page.route("**/api/rpc/media/createUploadSession**", async (route) => {
+		await page.route("**/api/media/temporary-references", async (route) => {
 			attempts++;
 			await gate;
 			await route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
@@ -174,7 +177,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await expect(review).toBeEnabled();
 	});
 
-	test("upload preview ignores removed completions and hides rejected replacements", async ({
+	test("upload preview ignores removed completions without starting safety checks", async ({
 		page,
 	}) => {
 		await page.goto("/create");
@@ -182,86 +185,62 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			"Nano Banana 2 Lite",
 			{ timeout: 30_000 },
 		);
+		await expect(page.locator('[data-test="generation-submit"]')).toContainText("5 credits", {
+			timeout: 30_000,
+		});
 		await page.getByLabel(/edit instruction|image prompt/i).fill("A ceramic vase in soft daylight");
 		const review = page.locator('[data-test="generation-submit"]');
-		await expect(review).toBeEnabled({ timeout: 30_000 });
-		let session = 0;
 		let release!: () => void;
 		const gate = new Promise<void>((resolve) => {
 			release = resolve;
 		});
-		const accessedAssets: string[] = [];
-		await page.route("**/api/rpc/media/createUploadSession**", (route) => {
-			session++;
-			return route.fulfill({
-				json: {
+		let uploads = 0;
+		let firstCompleted = false;
+		const accesses: string[] = [];
+		page.on("request", (request) => {
+			if (request.url().includes("getAssetAccessUrl")) accesses.push(request.url());
+		});
+		await page.route("**/api/media/temporary-references", async (route) => {
+			const sequence = ++uploads;
+			if (sequence === 1) await gate;
+			try {
+				await route.fulfill({
 					json: {
-						method: "PUT",
-						sessionId: `preview-${session}`,
-						assetId: `preview-${session}`,
-						uploadUrl: `${new URL(page.url()).origin}/preview-upload-fixture`,
+						assetId:
+							sequence === 1
+								? "0f447af8-8cf3-4a79-83dd-c9c831e2c731"
+								: "0f447af8-8cf3-4a79-83dd-c9c831e2c732",
+						token: `receipt-${sequence}`,
+						expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
 					},
-				},
-			});
+				});
+			} finally {
+				if (sequence === 1) firstCompleted = true;
+			}
 		});
-		await page.route("**/preview-upload-fixture", (route) => route.fulfill({ status: 200 }));
-		await page.route("**/api/rpc/media/completeUploadSession**", async (route) => {
-			const id = route.request().postDataJSON().json.sessionId;
-			if (id === "preview-1") await gate;
-			await route.fulfill({
-				json: { json: { id, status: "VERIFYING", mimeType: "image/png", byteSize: "68" } },
-			});
-		});
-		await page.route("**/api/rpc/media/getAssetAccessUrl**", (route) => {
-			accessedAssets.push(route.request().postDataJSON().json.assetId);
-			return route.fulfill({
-				status: 412,
-				json: {
-					json: {
-						defined: false,
-						code: "PRECONDITION_FAILED",
-						status: 412,
-						message: "ASSET_CONTENT_NOT_ALLOWED",
-					},
-				},
-			});
-		});
-		const file = {
-			name: "replace-reference.png",
-			mimeType: "image/png",
-			buffer: Buffer.from(
-				"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
-				"base64",
-			),
-		};
 		const preview = page.getByRole("img", { name: "Selected source image", exact: true });
 		try {
 			await page
 				.locator('[data-test="registered-generator"] input[type="file"]')
-				.setInputFiles(file);
+				.setInputFiles("public/examples/case-tangerine-camera.webp");
 			await expect(preview).toBeVisible();
-			await expect(page.getByText("Saving image…", { exact: true })).toBeVisible();
+			await expect.poll(() => uploads).toBe(1);
 			const removedUrl = await preview.getAttribute("src");
 			await page.getByRole("button", { name: "Remove source", exact: true }).click();
 			await expect(preview).toHaveCount(0);
 			await page
 				.locator('[data-test="registered-generator"] input[type="file"]')
-				.setInputFiles(file);
+				.setInputFiles("public/examples/case-tangerine-camera.webp");
 			await expect(
-				page.getByRole("alert").filter({ hasText: "No generation credits were charged" }),
+				page.getByText("Uploaded. Safety is checked when you generate.", { exact: true }),
 			).toBeVisible();
-			await expect(preview).toHaveCount(0);
-			await expect(review).toBeDisabled();
-			const oldResponse = page.waitForResponse(
-				(response) =>
-					response.url().includes("completeUploadSession") &&
-					response.request().postDataJSON().json.sessionId === "preview-1",
-			);
+			const replacementUrl = await preview.getAttribute("src");
+			expect(replacementUrl).not.toBe(removedUrl);
 			release();
-			await oldResponse;
-			await expect(preview).toHaveCount(0);
-			await expect(review).toBeDisabled();
-			expect(accessedAssets).toEqual(["preview-2"]);
+			await expect.poll(() => firstCompleted).toBe(true);
+			await expect(preview).toHaveAttribute("src", replacementUrl!);
+			await expect(review).toBeEnabled();
+			expect(accesses).toEqual([]);
 			await expect
 				.poll(() =>
 					page.evaluate(async (url) => {
@@ -287,6 +266,9 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			"Nano Banana 2 Lite",
 			{ timeout: 30_000 },
 		);
+		await expect(page.locator('[data-test="generation-submit"]')).toContainText("5 credits", {
+			timeout: 30_000,
+		});
 		await page.getByLabel(/edit instruction|image prompt/i).fill("A ceramic vase in soft daylight");
 		const review = page.locator('[data-test="generation-submit"]');
 		await expect(review).toBeEnabled();
@@ -317,7 +299,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	});
 
 	for (const width of [1280, 390]) {
-		test(`upload preview survives saving and safety checks at ${width}px`, async ({
+		test(`upload preview becomes ready without safety polling at ${width}px`, async ({
 			page,
 		}, testInfo) => {
 			await page.setViewportSize({ width, height: 900 });
@@ -326,67 +308,35 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 				"Nano Banana 2 Lite",
 				{ timeout: 30_000 },
 			);
+			await expect(page.locator('[data-test="generation-submit"]')).toContainText("5 credits", {
+				timeout: 30_000,
+			});
 			await page
 				.getByLabel(/edit instruction|image prompt/i)
 				.fill("A ceramic vase in soft daylight");
 			const review = page.locator('[data-test="generation-submit"]');
-			await expect(review).toBeEnabled({ timeout: 30_000 });
 			let release!: () => void;
-			const completionGate = new Promise<void>((resolve) => {
+			const gate = new Promise<void>((resolve) => {
 				release = resolve;
 			});
-			let ready = false;
-			await page.route("**/api/rpc/media/createUploadSession**", (route) =>
-				route.fulfill({
-					json: {
-						json: {
-							method: "PUT",
-							sessionId: "preview-session",
-							assetId: "preview-asset",
-							uploadUrl: `${new URL(page.url()).origin}/preview-upload-fixture`,
-						},
-					},
-				}),
-			);
-			await page.route("**/preview-upload-fixture", (route) => route.fulfill({ status: 200 }));
-			await page.route("**/api/rpc/media/completeUploadSession**", async (route) => {
-				await completionGate;
+			const legacyRequests: string[] = [];
+			page.on("request", (request) => {
+				if (
+					/createUploadSession|completeUploadSession|getAssetAccessUrl|createQuote/.test(
+						request.url(),
+					)
+				)
+					legacyRequests.push(request.url());
+			});
+			await page.route("**/api/media/temporary-references", async (route) => {
+				await gate;
 				await route.fulfill({
 					json: {
-						json: {
-							id: "preview-asset",
-							status: "VERIFYING",
-							mimeType: "image/webp",
-							byteSize: "35604",
-						},
+						assetId: "0f447af8-8cf3-4a79-83dd-c9c831e2c735",
+						token: "receipt",
+						expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
 					},
 				});
-			});
-			await page.route("**/api/rpc/media/getAssetAccessUrl**", (route) =>
-				ready
-					? route.fulfill({
-							json: {
-								json: {
-									url: `${new URL(page.url()).origin}/should-not-download-preview`,
-									expiresAt: "2099-01-01T00:00:00Z",
-								},
-							},
-						})
-					: route.fulfill({
-							status: 412,
-							json: {
-								json: {
-									defined: false,
-									code: "PRECONDITION_FAILED",
-									status: 412,
-									message: "ASSET_SAFETY_PENDING",
-								},
-							},
-						}),
-			);
-			let remotePreviewRequests = 0;
-			page.on("request", (request) => {
-				if (request.url().includes("should-not-download-preview")) remotePreviewRequests++;
 			});
 			try {
 				await page
@@ -399,28 +349,20 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 					.poll(() => preview.evaluate((image) => (image as HTMLImageElement).naturalWidth))
 					.toBeGreaterThan(0);
 				const localUrl = await preview.getAttribute("src");
-				await expect(page.getByText("Saving image…", { exact: true })).toBeVisible();
 				await expect(review).toBeDisabled();
 				release();
-				await expect(page.getByText("Uploaded · checking image…", { exact: true })).toBeVisible();
+				await expect(
+					page.getByText("Uploaded. Safety is checked when you generate.", { exact: true }),
+				).toBeVisible();
+				await expect(review).toBeEnabled();
 				await expect(preview).toHaveAttribute("src", localUrl!);
-				await expect
-					.poll(() => preview.evaluate((image) => (image as HTMLImageElement).naturalWidth))
-					.toBeGreaterThan(0);
-				await expect(review).toBeDisabled();
+				expect(legacyRequests).toEqual([]);
 				expect(
 					await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
 				).toBe(true);
-				await page.locator('[data-test="registered-generator"]').screenshot({
-					path: testInfo.outputPath("instant-upload-preview.png"),
-				});
-				ready = true;
-				await expect(page.getByText("Source image ready", { exact: true })).toBeVisible({
-					timeout: 10_000,
-				});
-				await expect(review).toBeEnabled();
-				await expect(preview).toHaveAttribute("src", localUrl!);
-				expect(remotePreviewRequests).toBe(0);
+				await page
+					.locator('[data-test="registered-generator"]')
+					.screenshot({ path: testInfo.outputPath("temporary-upload-preview.png") });
 				await page.getByRole("button", { name: "Remove source", exact: true }).click();
 				await expect(preview).toHaveCount(0);
 				await expect
@@ -440,6 +382,91 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 			}
 		});
 	}
+
+	test("temporary reference uploads without an asset, then generates once from the approved bytes", async ({
+		page,
+	}, testInfo) => {
+		const prompt = marker("temporary-reference", "A ceramic vase in soft daylight", testInfo.retry);
+		await page.goto("/create");
+		await expect(page.getByRole("button", { name: /^Model: / })).toContainText(
+			"Nano Banana 2 Lite",
+			{ timeout: 30_000 },
+		);
+		await expect(page.locator('[data-test="generation-submit"]')).toContainText("5 credits", {
+			timeout: 30_000,
+		});
+		await page.getByLabel(/edit instruction|image prompt/i).fill(prompt);
+		const uploaded = page.waitForResponse((response) =>
+			response.url().endsWith("/api/media/temporary-references"),
+		);
+		await page
+			.locator('[data-test="registered-generator"] input[type="file"]')
+			.setInputFiles("public/examples/case-tangerine-camera.webp");
+		const uploadResponse = await uploaded;
+		expect(uploadResponse.ok()).toBe(true);
+		await expect(
+			page.getByText("Uploaded. Safety is checked when you generate.", { exact: true }),
+		).toBeVisible();
+		const user = await userByEmail(fundedEmail);
+		const reservation = (
+			await rows<{ referenceKey: string }>(
+				`SELECT "referenceKey" FROM storage_usage_reservation WHERE "ownerId"=$1 AND "referenceKey" LIKE 'temporary-reference:%' AND status='COMMITTED' ORDER BY "createdAt" DESC LIMIT 1`,
+				[user.id],
+			)
+		)[0]!;
+		const receipt = { assetId: reservation.referenceKey.slice("temporary-reference:".length) };
+		expect(await count("SELECT count(*) FROM media_asset WHERE id=$1", [receipt.assetId])).toBe(0);
+		expect(
+			await count('SELECT count(*) FROM asset_moderation_result WHERE "assetId"=$1', [
+				receipt.assetId,
+			]),
+		).toBe(0);
+		expect(
+			await count('SELECT count(*) FROM outbox_event WHERE "aggregateId"=$1', [receipt.assetId]),
+		).toBe(0);
+		await expect(
+			page.getByText("Uploaded. Safety is checked when you generate.", { exact: true }),
+		).toBeVisible();
+		const submit = page.locator('[data-test="generation-submit"]');
+		await expect(submit).toBeEnabled();
+		await submit.dblclick();
+		const job = await waitForJob(prompt, "SUCCEEDED");
+		expect(await jobsForPrompt(user.id, prompt)).toHaveLength(1);
+		expect(await count('SELECT count(*) FROM generation_attempt WHERE "jobId"=$1', [job.id])).toBe(
+			1,
+		);
+		expect(
+			await count(
+				`SELECT count(*) FROM asset_moderation_result WHERE "assetId"=$1 AND status='APPROVED'`,
+				[receipt.assetId],
+			),
+		).toBe(1);
+		expect(
+			await count(
+				`SELECT count(*) FROM generation_job_asset WHERE "jobId"=$1 AND "assetId"=$2 AND role='INPUT'`,
+				[job.id, receipt.assetId],
+			),
+		).toBe(1);
+		await expect(page.getByRole("heading", { name: /your edit is ready/i })).toBeVisible({
+			timeout: 30_000,
+		});
+		const download = page.waitForEvent("download");
+		await page.getByRole("button", { name: /^download$/i }).click();
+		expect((await download).suggestedFilename()).toBeTruthy();
+		// Reference expiry never hides a completed output or changes its credit settlement.
+		await pool.query(`UPDATE media_asset SET "deleteAfter"=now()-interval '1 second' WHERE id=$1`, [
+			receipt.assetId,
+		]);
+		await page.reload();
+		await expect(page.getByRole("img", { name: "Generated image", exact: true })).toBeVisible({
+			timeout: 30_000,
+		});
+		await expect(page.getByRole("button", { name: /^download$/i })).toBeEnabled();
+		await page.screenshot({
+			path: testInfo.outputPath("temporary-reference-result.png"),
+			fullPage: false,
+		});
+	});
 
 	test("successful edit is idempotent and shows the job-bound before, after, and private download", async ({
 		page,
@@ -605,23 +632,16 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		).toBe(before);
 	});
 
-	test("valid upload becomes READY and invalid signature is deleted with its storage reservation released", async ({
+	test("legacy upload API verifies permanent images and releases invalid uploads", async ({
 		page,
 	}) => {
-		const renderPhaseUpdateWarnings: string[] = [];
-		page.on("console", (message) => {
-			if (message.text().includes("Cannot update a component")) {
-				renderPhaseUpdateWarnings.push(message.text());
-			}
-		});
 		const user = await userByEmail(fundedEmail);
-		await page.goto("/create");
 		const before = new Set(
 			(await rows<{ id: string }>(`SELECT id FROM media_asset WHERE "ownerId"=$1`, [user.id])).map(
 				(asset) => asset.id,
 			),
 		);
-		await uploadFile(page, `${runId}-valid.png`, validPng());
+		expect(await uploadLegacyFile(page, validPng())).toBe(true);
 		const validAsset = await waitForNewAsset(user.id, before, "READY");
 		expect(validAsset.status).toBe("READY");
 
@@ -630,7 +650,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 				(asset) => asset.id,
 			),
 		);
-		await uploadFile(page, `${runId}-invalid-signature.png`, Buffer.alloc(validPng().length, 0x41));
+		expect(await uploadLegacyFile(page, Buffer.alloc(validPng().length, 0x41))).toBe(false);
 		const invalidAsset = await waitForNewAsset(user.id, beforeInvalid, "DELETED");
 		const session = (
 			await rows<{ id: string; status: string }>(
@@ -678,22 +698,23 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 					)[0]?.status,
 			)
 			.toBe("RELEASED");
-		expect(renderPhaseUpdateWarnings).toEqual([]);
 	});
 
-	async function uploadFile(page: import("@playwright/test").Page, name: string, buffer: Buffer) {
-		await expect(page.getByRole("button", { name: /^Model: / })).toContainText(
-			"Nano Banana 2 Lite",
-			{ timeout: 30_000 },
-		);
-		await page
-			.getByLabel(/upload source images/i)
-			.locator('input[type="file"]')
-			.setInputFiles({
-				name,
-				mimeType: "image/png",
-				buffer,
-			});
+	async function uploadLegacyFile(page: import("@playwright/test").Page, buffer: Buffer) {
+		const created = await page.request.post("/api/rpc/media/createUploadSession", {
+			data: { json: { contentType: "image/png", byteSize: buffer.length } },
+		});
+		expect(created.ok()).toBe(true);
+		const session = (await created.json()).json;
+		const stored = await page.request.put(session.uploadUrl, {
+			data: buffer,
+			headers: { "Content-Type": "image/png" },
+		});
+		expect(stored.ok()).toBe(true);
+		const completed = await page.request.post("/api/rpc/media/completeUploadSession", {
+			data: { json: { sessionId: session.sessionId } },
+		});
+		return completed.ok();
 	}
 
 	async function waitForNewAsset(userId: string, before: Set<string>, status: "READY" | "DELETED") {
@@ -912,6 +933,9 @@ async function openCreator(page: import("@playwright/test").Page, prompt: string
 	if (!source) throw new Error(`Seed source image missing for ${email}`);
 	await page.goto(`/create?asset=${source.id}`);
 	await expect(page.getByRole("button", { name: /^Model: / })).toContainText("Nano Banana 2 Lite", {
+		timeout: 30_000,
+	});
+	await expect(page.locator('[data-test="generation-submit"]')).toContainText("5 credits", {
 		timeout: 30_000,
 	});
 	await page.getByLabel(/edit instruction|image prompt/i).fill(prompt);

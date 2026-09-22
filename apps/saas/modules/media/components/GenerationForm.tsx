@@ -51,6 +51,7 @@ import {
 	resolveImageSpecControlValues,
 	type PublicImageSpecCell,
 } from "../lib/image-sku-selection";
+import type { TemporaryReferenceReceipt } from "../lib/temporary-reference-upload";
 import { ContentSafetyNotice } from "./ContentSafetyNotice";
 import { ImageSourcePanel } from "./editor/ImageSourcePanel";
 import { PromptPanel } from "./editor/PromptPanel";
@@ -64,6 +65,7 @@ export function GenerationForm({
 	onSourceChanged,
 	jobId = null,
 	initialDraft,
+	initialTemporaryReference,
 	initialProductKey,
 	allowedProductKeys = [...EZPIC_PRODUCT_KEYS],
 	initialSourceReady = false,
@@ -72,7 +74,8 @@ export function GenerationForm({
 	layout = "default",
 }: {
 	onCreated: (jobId: string) => void;
-	onDraftChange?: (values: GenerationFormValues) => void;
+	onDraftChange?: (values: GenerationFormValues, reference?: TemporaryReferenceReceipt) => void;
+	initialTemporaryReference?: TemporaryReferenceReceipt;
 	onSourceChanged?: () => void;
 	jobId?: string | null;
 	initialDraft?: EditorDraftInput | null;
@@ -88,7 +91,16 @@ export function GenerationForm({
 	const imageToImage = useTranslations("imageToImage");
 	const router = useRouter();
 	const [hasSource, setHasSource] = useState(Boolean(initialDraft?.input.sourceAssetId));
-	const generation = useGeneration({ parentJobId: hasSource ? parentJobId : null });
+	const [temporaryReference, setTemporaryReference] = useState<
+		TemporaryReferenceReceipt | undefined
+	>(
+		initialTemporaryReference?.assetId === initialDraft?.input.sourceAssetId
+			? initialTemporaryReference
+			: undefined,
+	);
+	const generation = useGeneration({
+		parentJobId: hasSource && !temporaryReference ? parentJobId : null,
+	});
 	const products = (generation.catalog.data?.products ?? []).map((product) =>
 		isEditorProductKey(product.key)
 			? {
@@ -219,8 +231,9 @@ export function GenerationForm({
 	);
 
 	const updateSourceAsset = useCallback(
-		(sourceAssetId: string) => {
+		(sourceAssetId: string, reference?: TemporaryReferenceReceipt) => {
 			if (sourceAssetId === form.getValues("sourceAssetId")) return;
+			setTemporaryReference(reference);
 			setSourceReady(false);
 			setHasSource(Boolean(sourceAssetId));
 			onSourceChanged?.();
@@ -255,10 +268,10 @@ export function GenerationForm({
 
 	useEffect(() => {
 		if (!onDraftChange) return;
-		onDraftChange(form.getValues());
-		const subscription = form.watch(() => onDraftChange(form.getValues()));
+		onDraftChange(form.getValues(), temporaryReference);
+		const subscription = form.watch(() => onDraftChange(form.getValues(), temporaryReference));
 		return () => subscription.unsubscribe();
-	}, [form, onDraftChange]);
+	}, [form, onDraftChange, temporaryReference]);
 
 	function replaceControlValues(cell: PublicImageSpecCell) {
 		const next = resolveImageSpecControlValues(cell, {});
@@ -367,7 +380,8 @@ export function GenerationForm({
 					...currentControls,
 				},
 			},
-			parentJobId: current.sourceAssetId ? (parentJobId ?? null) : null,
+			parentJobId: current.sourceAssetId && !temporaryReference ? (parentJobId ?? null) : null,
+			temporaryReference,
 			sourceReady,
 		});
 		if (!saved) {
@@ -392,6 +406,7 @@ export function GenerationForm({
 				productKey: values.productKey,
 				input,
 				expectedCredits: String(displayedCredits),
+				temporaryReferenceToken: temporaryReference?.token,
 			});
 			if (!result) return;
 			onCreated(result.job.id);
@@ -441,6 +456,7 @@ export function GenerationForm({
 					compact
 					label={layout === "minimal" ? imageToImage("composer.referenceLabel") : undefined}
 					sourceAssetId={values.sourceAssetId}
+					temporaryReference={temporaryReference}
 					maximumImageBytes={Math.min(
 						generation.creditAccount.data?.maximumInputBytes ??
 							getPlanEntitlement("free").maximumInputBytes,

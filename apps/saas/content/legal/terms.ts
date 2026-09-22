@@ -2,11 +2,11 @@ export const termsDocuments = [
 	{
 		path: "terms",
 		locale: "en",
-		updatedAt: "2026-09-18",
+		updatedAt: "2026-09-22",
 		title: "Terms of Service",
 		description:
 			"Terms for EzImageAI accounts, image-editing workflows, credits, subscriptions, content, and acceptable use.",
-		body: `_Last updated: September 18, 2026_
+		body: `_Last updated: September 22, 2026_
 
 These terms govern use of EzImageAI's public image editor and account-based image-editing service. EzImageAI is an independently operated service run by an individual. In these terms, "EzImageAI" refers to the service and its operator. You can reach the operator through the [Contact page](/contact). By using the service, you agree to the version presented when you use it.
 
@@ -53,7 +53,7 @@ Do not use the service for fraud, harmful misinformation, harassment, spam, malw
 
 ### How content is reviewed
 
-EzImageAI screens text instructions before generation and checks uploaded source images and generated outputs before they become available for editing or viewing. The configured services can include Waffo Prompt Sift and Sightengine for text, and SeeAPI and Sightengine for images. Every enabled check must approve the content. A rejection, a review requirement, or an unavailable check does not authorize generation or release unapproved output. Automated checks can make mistakes, have differing category coverage, and do not establish ownership, consent, or the legality of every result.
+EzImageAI screens text instructions using Waffo and checks source images and generated outputs using SeeAPI. Sightengine is not enabled for these checks. A selected temporary reference is previewed locally and uploaded before checking; clicking Generate starts its safety checks, and the image model runs only after positive image approval. A rejected or failed temporary-reference check stops generation and releases reserved credits. Other existing moderation paths retain bounded outage recovery and pending-review rules described in the [Privacy Policy](/privacy). Confirmed content blocks and review requirements remain blocked. Automated checks can make mistakes, have differing category coverage, and do not establish ownership, consent, or the legality of every result.
 
 The individual EzImageAI operator reviews content reports and appeals, using the information provided and relevant private safety records. Source images and results are private to the account or temporary guest session; EzImageAI does not publish them to a public gallery. A report does not grant the reporter access to another user's private media.
 

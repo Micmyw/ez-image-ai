@@ -9,6 +9,7 @@ export const createQuoteInputSchema = z
 		productKey: z.enum(EZPIC_PRODUCT_KEYS),
 		input: mediaModelInputSchema,
 		parentJobId: z.string().min(1).max(128).optional(),
+		temporaryReferenceToken: z.string().min(1).max(2048).optional(),
 	})
 	.superRefine((value, context) => {
 		if (isValidCurrentEzPicImageSelection(value.productKey, value.input)) return;

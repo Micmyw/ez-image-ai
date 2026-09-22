@@ -2,6 +2,12 @@
 
 ## 2026-09-22
 
+### Temporary editor references
+
+- Preview selected images immediately and upload them once to private temporary storage. Upload completion enables submission; image safety checks start only when Generate is clicked.
+- Keep a 24-hour reference lifetime, reject expired inputs, and retain generated results independently. Text checks use Waffo and image checks use SeeAPI, without enabling Sightengine.
+- Create the input binding, generation job, credit hold and recovery events atomically. Failed reference checks release the hold without calling the image model; retries retain the same immutable reference and moderation task.
+
 ### Background job capacity
 
 - Give lightweight verification, asynchronous generation submission and status checks their own four-slot executor, while keeping large media transfers serialized and maintenance on a separate single-slot executor.
@@ -26,8 +32,8 @@
 
 ### Immediate source image previews
 
-- Show selected reference images immediately in the account editor while uploading, saving, and checking them. Keep generation disabled until the server confirms the source is ready.
-- Trigger upload verification as soon as the saved asset and recovery event are committed, retaining scheduled recovery and adding stage timings for upload verification.
+- Show selected reference images immediately in the account editor while uploading. Temporary editor references become ready to submit after upload; library uploads retain their existing safety checks.
+- Trigger library upload verification as soon as the saved asset and recovery event are committed, retaining scheduled recovery and adding stage timings for upload verification.
 
 ### Billing session recovery
 

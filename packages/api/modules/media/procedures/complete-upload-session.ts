@@ -200,7 +200,7 @@ export async function completeOwnedUploadSession(
 	return toMediaAssetDto(asset);
 }
 
-async function dispatchUploadVerification(assetId: string): Promise<void> {
+export async function dispatchUploadVerification(assetId: string): Promise<void> {
 	const startedAt = Date.now();
 	try {
 		await dispatchJob(

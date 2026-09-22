@@ -33,7 +33,11 @@ export function useGeneration({ parentJobId }: { parentJobId?: string | null } =
 		queryFn: () => orpcClient.media.getCreditAccount(),
 	});
 	const createQuote = useMutation({
-		mutationFn: async (input: { productKey: EditorProductKey; input: GenerationInput }) => {
+		mutationFn: async (input: {
+			productKey: EditorProductKey;
+			input: GenerationInput;
+			temporaryReferenceToken?: string;
+		}) => {
 			const request = action.current!.beginQuoteRequest();
 			const value = await orpcClient.media.createQuote({
 				...input,
@@ -55,6 +59,7 @@ export function useGeneration({ parentJobId }: { parentJobId?: string | null } =
 			productKey: EditorProductKey;
 			input: GenerationInput;
 			expectedCredits: string;
+			temporaryReferenceToken?: string;
 		}) => {
 			if (pendingSubmission.current) return pendingSubmission.current;
 			const submit = async () => {
@@ -68,6 +73,7 @@ export function useGeneration({ parentJobId }: { parentJobId?: string | null } =
 					const response = await createQuote.mutateAsync({
 						productKey: submission.productKey,
 						input: submission.input,
+						temporaryReferenceToken: submission.temporaryReferenceToken,
 					});
 					if (!action.current!.acceptQuote(response.request)) return null;
 					approved = cachedQuote.current;

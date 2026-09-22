@@ -37,6 +37,7 @@ import {
 	hashGuestAbuseBinding,
 	requireGuestAbuseHmac,
 } from "./modules/media/lib/guest-capability";
+import { uploadTemporaryReference } from "./modules/media/temporary-reference-upload";
 import { createProviderWebhookHandler } from "./modules/media/webhooks/provider-webhook";
 import { mediaLoadTestHandler } from "./modules/testing/media-load";
 import { openApiHandler, rpcHandler } from "./orpc/handler";
@@ -141,6 +142,7 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 				}),
 			)
 			// Auth handler
+			.post("/media/temporary-references", (c) => uploadTemporaryReference(c.req.raw))
 			.on(["POST", "GET"], "/auth/**", async (c) => {
 				const authPath = c.req.path.slice(c.req.path.indexOf("/auth") + "/auth".length);
 				const session = await auth.api.getSession({ headers: c.req.raw.headers });
@@ -581,6 +583,9 @@ function requestBodyLimit(path: string): number {
 }
 
 async function boundedRequestBody(context: Context, next: Next) {
+	// This authenticated endpoint enforces declared and actual sizes while streaming.
+	if (context.req.method === "POST" && context.req.path === "/api/media/temporary-references")
+		return next();
 	const request = context.req.raw;
 	if (!request.body) return next();
 	const maximumBytes = requestBodyLimit(context.req.path);

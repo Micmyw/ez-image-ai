@@ -20,6 +20,7 @@ import {
 	createGuestSessionBootstrapWithClaimFence,
 } from "./guest-bootstrap";
 import { lockOwnerStorageUsage } from "./storage-usage-locks";
+import { unexpiredStorageReservations } from "./temporary-references";
 import type { MediaTransactionClient } from "./types";
 
 type LegacyEzPicProductKey = (typeof LEGACY_EZPIC_PRODUCT_KEYS)[number];
@@ -450,6 +451,7 @@ async function transferGenerationDraftAssetOwnership(
 			ownerType: "USER",
 			ownerId: input.nextOwnerId,
 			status: { in: ["ACTIVE", "COMMITTED"] },
+			...unexpiredStorageReservations(),
 		},
 		_sum: { bytes: true },
 	});

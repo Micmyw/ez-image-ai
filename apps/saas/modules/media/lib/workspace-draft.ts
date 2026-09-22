@@ -2,8 +2,13 @@ import { IMAGE_SKU_KEYS_BY_PRODUCT } from "@repo/config/client";
 import { z } from "zod";
 
 import { generationFormValuesSchema, type GenerationFormValues } from "./form-schema";
+import {
+	temporaryReferenceReceiptSchema,
+	type TemporaryReferenceReceipt,
+} from "./temporary-reference-upload";
 
 export interface WorkspaceDraft {
+	temporaryReference?: TemporaryReferenceReceipt;
 	values: GenerationFormValues;
 	parentJobId: string | null;
 }
@@ -31,6 +36,7 @@ const storedDraftSchema = z
 		// Accept old drafts without restoring their transient result selection.
 		jobId: z.string().min(1).max(128).nullable().optional(),
 		parentJobId: z.string().min(1).max(128).nullable(),
+		temporaryReference: temporaryReferenceReceiptSchema.optional(),
 	})
 	.strict();
 
@@ -49,6 +55,7 @@ export function saveWorkspaceDraft(
 			pathname,
 			values: draft.values,
 			parentJobId: draft.parentJobId,
+			temporaryReference: draft.temporaryReference,
 		});
 		if (!parsed.success) return false;
 		storage.setItem(WORKSPACE_DRAFT_KEY, JSON.stringify(parsed.data));
@@ -81,6 +88,9 @@ export function loadWorkspaceDraft(
 		return {
 			values: parsed.data.values,
 			parentJobId: parsed.data.parentJobId,
+			...(parsed.data.temporaryReference
+				? { temporaryReference: parsed.data.temporaryReference }
+				: {}),
 		};
 	} catch {
 		return null;

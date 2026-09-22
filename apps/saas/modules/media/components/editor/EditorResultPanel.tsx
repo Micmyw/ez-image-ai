@@ -52,7 +52,9 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 		!job.data.skuKey ||
 		!isPublicImageSkuKey(job.data.skuKey) ||
 		!isImageAspectRatio(job.data.aspectRatio) ||
-		(job.data.input?.kind !== "text-to-image" && job.data.inputAssets.length === 0) ||
+		(job.data.input?.kind !== "text-to-image" &&
+			job.data.inputAssets.length === 0 &&
+			!job.data.inputReferenceState) ||
 		!job.data.inputAssets.every((asset) => asset.mimeType.startsWith("image/")) ||
 		!job.data.assets.every((asset) => asset.mimeType.startsWith("image/"))
 	) {
@@ -120,20 +122,16 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 					/>
 				</div>
 			)}
-			{presentation.stage === "ready" &&
-				!source &&
-				output &&
-				job.data.input?.kind === "text-to-image" && (
-					<div className="mt-6">
-						<SignedOutput assetId={output.id} />
-					</div>
-				)}
-			{job.data.status === "SUCCEEDED" &&
-				(!output || (!source && job.data.input?.kind !== "text-to-image")) && (
-					<Alert className="mt-5" variant="error">
-						<AlertDescription>{t("comparisonUnavailable")}</AlertDescription>
-					</Alert>
-				)}
+			{presentation.stage === "ready" && !source && output && (
+				<div className="mt-6">
+					<SignedOutput assetId={output.id} />
+				</div>
+			)}
+			{job.data.status === "SUCCEEDED" && !output && (
+				<Alert className="mt-5" variant="error">
+					<AlertDescription>{t("comparisonUnavailable")}</AlertDescription>
+				</Alert>
+			)}
 			{cancelError && (
 				<Alert className="mt-5" variant="error">
 					<AlertDescription>{t("cancelUnavailable")}</AlertDescription>

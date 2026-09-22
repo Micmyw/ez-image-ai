@@ -9,6 +9,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { MediaUploadItem, MediaUploadStatus } from "../../hooks/use-media-upload";
 import { getModerationErrorReason } from "../../lib/editor-error";
+import type { TemporaryReferenceReceipt } from "../../lib/temporary-reference-upload";
 import { ContentSafetyNotice } from "../ContentSafetyNotice";
 import { MediaUploader } from "../MediaUploader";
 
@@ -31,6 +32,7 @@ const uploadStatusLabels = {
 
 export function ImageSourcePanel({
 	sourceAssetId,
+	temporaryReference,
 	onChange,
 	onReadyChange,
 	onPendingChange,
@@ -39,7 +41,8 @@ export function ImageSourcePanel({
 	label,
 }: {
 	sourceAssetId: string;
-	onChange: (assetId: string) => void;
+	temporaryReference?: TemporaryReferenceReceipt;
+	onChange: (assetId: string, reference?: TemporaryReferenceReceipt) => void;
 	onReadyChange: (ready: boolean) => void;
 	onPendingChange?: (pending: boolean) => void;
 	maximumImageBytes?: number;
@@ -48,6 +51,18 @@ export function ImageSourcePanel({
 }) {
 	const t = useTranslations("media.editor.source");
 	const [pending, setPending] = useState(false);
+	const [referenceExpired, setReferenceExpired] = useState(false);
+	useEffect(() => {
+		setReferenceExpired(false);
+		if (!temporaryReference) return;
+		const delay = Date.parse(temporaryReference.expiresAt) - Date.now();
+		if (delay <= 0) {
+			setReferenceExpired(true);
+			return;
+		}
+		const timer = setTimeout(() => setReferenceExpired(true), delay);
+		return () => clearTimeout(timer);
+	}, [temporaryReference]);
 	const [uploadRevision, setUploadRevision] = useState(0);
 	const [localPreview, setLocalPreview] = useState<LocalPreview | null>(null);
 	const localPreviewRef = useRef<LocalPreview | null>(null);
@@ -83,12 +98,12 @@ export function ImageSourcePanel({
 		[sourceAssetId, updateLocalPreview],
 	);
 	const updateAsset = useCallback(
-		(assetIds: string[]) => {
+		(assetIds: string[], reference?: TemporaryReferenceReceipt) => {
 			const assetId = assetIds[0] ?? "";
 			if (localPreviewRef.current && assetId) {
 				updateLocalPreview({ ...localPreviewRef.current, assetId, status: "uploaded" });
 			}
-			onChange(assetId);
+			onChange(assetId, reference);
 		},
 		[onChange, updateLocalPreview],
 	);
@@ -117,6 +132,7 @@ export function ImageSourcePanel({
 			? localPreview
 			: null;
 	const serverPreviewEnabled =
+		!temporaryReference &&
 		Boolean(sourceAssetId) &&
 		(!currentLocalPreview || currentLocalPreview.assetId === sourceAssetId);
 	const preview = useQuery({
@@ -133,15 +149,23 @@ export function ImageSourcePanel({
 	});
 	const safetyMessage = serverPreviewEnabled ? terminalSafetyMessage(preview.error) : null;
 	const readablePreview = !serverPreviewEnabled || preview.isError ? undefined : preview.data;
-	const ready = Boolean(sourceAssetId && readablePreview && !pending);
+	const ready = Boolean(
+		sourceAssetId &&
+		(readablePreview || (temporaryReference?.assetId === sourceAssetId && !referenceExpired)) &&
+		!pending,
+	);
 	const previewUrl = safetyMessage ? undefined : (currentLocalPreview?.url ?? readablePreview?.url);
-	const status = safetyMessage
-		? "unavailable"
-		: ready
-			? "ready"
-			: currentLocalPreview
-				? uploadStatusLabels[currentLocalPreview.status]
-				: "checking";
+	const status = referenceExpired
+		? "expired"
+		: safetyMessage
+			? "unavailable"
+			: ready
+				? temporaryReference
+					? "uploadedForGeneration"
+					: "ready"
+				: currentLocalPreview
+					? uploadStatusLabels[currentLocalPreview.status]
+					: "checking";
 
 	useEffect(() => {
 		onReadyChange(ready);
@@ -182,7 +206,15 @@ export function ImageSourcePanel({
 								className="p-3 text-xs flex size-full items-center justify-center text-center text-muted-foreground"
 								aria-live="polite"
 							>
-								{t(safetyMessage ? "unavailable" : "preparing")}
+								{t(
+									referenceExpired
+										? "expired"
+										: temporaryReference
+											? "uploadedForGeneration"
+											: safetyMessage
+												? "unavailable"
+												: "preparing",
+								)}
 							</div>
 						)}
 					</div>
@@ -211,6 +243,7 @@ export function ImageSourcePanel({
 			)}
 			<div hidden={compact && Boolean(sourceAssetId) && !pending}>
 				<MediaUploader
+					temporaryReference
 					key={`${sourceAssetId || "new-reference"}:${uploadRevision}`}
 					compact={compact}
 					multiple={false}

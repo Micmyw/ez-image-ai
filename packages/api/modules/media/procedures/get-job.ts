@@ -60,6 +60,22 @@ export const getJob = protectedProcedure
 			},
 		});
 		if (!job) throw new ORPCError("NOT_FOUND");
+		const reference = job.assets.find(
+			(binding) =>
+				binding.role === "INPUT" &&
+				binding.asset.ownerType === "USER" &&
+				binding.asset.ownerId === user.id,
+		)?.asset;
+		const referenceExpired = Boolean(reference?.deleteAfter && reference.deleteAfter <= new Date());
+		const inputReferenceState = !reference
+			? null
+			: referenceExpired
+				? ("EXPIRED" as const)
+				: reference.status === "VERIFYING"
+					? ("VERIFYING" as const)
+					: reference.status === "READY"
+						? ("READY" as const)
+						: ("UNAVAILABLE" as const);
 		const inputAssets = job.assets
 			.filter(
 				(binding) =>
@@ -67,7 +83,8 @@ export const getJob = protectedProcedure
 					binding.asset.ownerType === "USER" &&
 					binding.asset.ownerId === user.id &&
 					binding.asset.status === "READY" &&
-					binding.asset.deletedAt === null,
+					binding.asset.deletedAt === null &&
+					(!binding.asset.deleteAfter || binding.asset.deleteAfter > new Date()),
 			)
 			.map(({ asset }) => assetDto(asset));
 		const outputAssets = job.assets
@@ -94,10 +111,14 @@ export const getJob = protectedProcedure
 				binding.asset.ownerId === user.id &&
 				publicImageModerationReason(binding.asset.moderationResults[0]) !== null,
 		);
-		const moderationRejected = Boolean(moderationBilling) || Boolean(rejectedOutput);
+		const rejectedInput =
+			reference && publicImageModerationReason(reference.moderationResults[0]) !== null
+				? reference
+				: null;
+		const moderationRejected =
+			Boolean(moderationBilling) || Boolean(rejectedOutput) || Boolean(rejectedInput);
 		const safetyUnavailable = job.assets.some(
 			(binding) =>
-				binding.role === "OUTPUT" &&
 				binding.asset.ownerType === "USER" &&
 				binding.asset.ownerId === user.id &&
 				(binding.asset.status === "VERIFICATION_FAILED" || binding.asset.status === "QUARANTINED"),
@@ -130,9 +151,16 @@ export const getJob = protectedProcedure
 			progress: attempt?.progress ?? null,
 			failureCode: job.failureCode,
 			moderationBilling,
+			inputReferenceState,
+			moderationStage:
+				rejectedInput ||
+				(reference && ["QUARANTINED", "VERIFICATION_FAILED"].includes(reference.status))
+					? ("input" as const)
+					: ("output" as const),
 			moderationReason: moderationRejected
-				? (publicImageModerationReason(rejectedOutput?.asset.moderationResults[0]) ??
-					"restrictedContent")
+				? (publicImageModerationReason(
+						rejectedInput?.moderationResults[0] ?? rejectedOutput?.asset.moderationResults[0],
+					) ?? "restrictedContent")
 				: null,
 			failureReason: moderationRejected
 				? ("CONTENT_NOT_ALLOWED" as const)

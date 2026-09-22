@@ -27,6 +27,7 @@ import {
 	type EditorWorkspaceState,
 } from "../../lib/editor-workspace-state";
 import type { GenerationFormValues } from "../../lib/form-schema";
+import type { TemporaryReferenceReceipt } from "../../lib/temporary-reference-upload";
 import { loadWorkspaceDraft, saveWorkspaceDraft } from "../../lib/workspace-draft";
 import { GenerationForm } from "../GenerationForm";
 import { RecentJobQueue } from "../RecentJobQueue";
@@ -98,6 +99,7 @@ export function ImageEditorWorkspace({
 							},
 						},
 						parentJobId: saved.parentJobId,
+						temporaryReference: saved.temporaryReference,
 						formKey: current.formKey + 1,
 					}));
 					setSourceReady(false);
@@ -121,7 +123,7 @@ export function ImageEditorWorkspace({
 		return () => window.removeEventListener(STUDIO_WORKSPACE_RESET_EVENT, resetWorkspace);
 	}, []);
 	const persistDraft = useCallback(
-		(values: GenerationFormValues) => {
+		(values: GenerationFormValues, temporaryReference?: TemporaryReferenceReceipt) => {
 			if (!user?.id) return;
 			try {
 				setStorageUnavailable(
@@ -131,6 +133,7 @@ export function ImageEditorWorkspace({
 						{
 							values,
 							parentJobId: workspace.parentJobId,
+							temporaryReference,
 						},
 						Date.now(),
 						draftPath,
@@ -157,6 +160,7 @@ export function ImageEditorWorkspace({
 			...current,
 			parentJobId: restored.parentJobId,
 			initialDraft: restored.draft,
+			temporaryReference: restored.temporaryReference,
 			formKey: current.formKey + 1,
 			recoveryVisible: true,
 		}));
@@ -234,6 +238,7 @@ export function ImageEditorWorkspace({
 					jobId={jobId}
 					key={workspace.formKey}
 					initialDraft={workspace.initialDraft}
+					initialTemporaryReference={workspace.temporaryReference}
 					initialProductKey={freshProductKey}
 					allowedProductKeys={allowedProductKeys}
 					initialSourceReady={sourceReady}

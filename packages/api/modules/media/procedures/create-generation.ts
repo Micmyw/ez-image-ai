@@ -3,7 +3,12 @@ import {
 	MEDIA_VERIFICATION_RULE_VERSION,
 	type ExecutableRouteGraphOptions,
 } from "@repo/ai";
-import { DEFAULT_PRODUCT_CONFIG, EZPIC_PRODUCT_KEYS, type PlanEntitlement } from "@repo/config";
+import {
+	DEFAULT_PRODUCT_CONFIG,
+	EZPIC_PRODUCT_KEYS,
+	temporaryReferenceSchema,
+	type PlanEntitlement,
+} from "@repo/config";
 import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
 import { createGenerationJobTransaction } from "@repo/database";
 import { db } from "@repo/database/client";
@@ -24,6 +29,7 @@ import {
 	textModerationProviderForEnvironment,
 } from "../lib/text-moderation";
 import { createGenerationInputSchema, jsonBigInt } from "../types";
+import { dispatchUploadVerification } from "./complete-upload-session";
 
 export const createGeneration = protectedProcedure
 	.route({ method: "POST", path: "/media/generations", tags: ["Media"] })
@@ -31,19 +37,22 @@ export const createGeneration = protectedProcedure
 	.handler(async ({ context: { user }, input }) => {
 		try {
 			const result = await createGenerationForUser(user.id, input);
-			await dispatchCreatedJobBestEffort(
-				{
-					jobId: result.job.id,
-					version: result.job.version,
-					replayed: result.replayed,
-					serviceClass: "STANDARD",
-				},
-				{
-					resolveRoute: resolveDatabaseDispatchRoute,
-					dispatch: dispatchJob,
-					warn: (message, details) => logger.warn(message, details),
-				},
-			);
+			if (result.verificationAssetId && !result.replayed) {
+				await dispatchUploadVerification(result.verificationAssetId);
+			} else
+				await dispatchCreatedJobBestEffort(
+					{
+						jobId: result.job.id,
+						version: result.job.version,
+						replayed: result.replayed,
+						serviceClass: "STANDARD",
+					},
+					{
+						resolveRoute: resolveDatabaseDispatchRoute,
+						dispatch: dispatchJob,
+						warn: (message, details) => logger.warn(message, details),
+					},
+				);
 			return {
 				job: {
 					id: result.job.id,
@@ -71,6 +80,7 @@ interface GenerationQuoteForCreation {
 }
 
 interface CreatedGenerationJob {
+	verificationAssetId?: string;
 	job: {
 		id: string;
 		status: string;
@@ -154,12 +164,17 @@ export async function createGenerationForUser(
 	const inputSnapshot = objectRecord(quote.inputSnapshot);
 	const sourceAssetId =
 		typeof inputSnapshot.sourceAssetId === "string" ? inputSnapshot.sourceAssetId : undefined;
+	const temporaryReference =
+		inputSnapshot.temporaryReference === undefined
+			? undefined
+			: temporaryReferenceSchema.parse(inputSnapshot.temporaryReference);
 	await dependencies.assertAllowed({
 		userId,
 		productKey: quote.productKey as Parameters<typeof assertGenerationAllowed>[0]["productKey"],
 		credits: quote.credits,
 		costMicros: quote.costMicros,
 		input: quote.inputSnapshot as Parameters<typeof assertGenerationAllowed>[0]["input"],
+		temporaryReference,
 		catalogVersion: quote.catalogVersion,
 		pricingVersion: quote.pricingVersion,
 		enforceProspectiveDailyBudget: false,

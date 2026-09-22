@@ -1229,7 +1229,8 @@
 				"safetyUnavailable": "No pudimos completar la revisión de seguridad. Modifica la instrucción o inténtalo más tarde. No se han cobrado créditos ni usado tu exención única.",
 				"priceChanged": "El precio en créditos ha cambiado. Comprueba el coste actualizado en el botón y vuelve a enviar.",
 				"contentReviewRequired": "No se pudo aprobar esta instrucción. Modifícala y vuelve a enviarla. No se cobraron créditos.",
-				"textLanguageUnsupported": "La revisión de seguridad no admite este idioma. No se han cobrado créditos."
+				"textLanguageUnsupported": "La revisión de seguridad no admite este idioma. No se han cobrado créditos.",
+				"referenceExpired": "Tu referencia temporal no está disponible o ha caducado. Vuelve a subirla."
 			},
 			"modelMenu": {
 				"title": "Modelos de imagen",
@@ -1348,7 +1349,9 @@
 				"saving": "Guardando imagen…",
 				"checking": "Imagen subida · verificando…",
 				"paused": "Subida en pausa",
-				"uploadFailed": "La subida falló · reintenta o elimina"
+				"uploadFailed": "La subida falló · reintenta o elimina",
+				"uploadedForGeneration": "Subida. La seguridad se comprueba al generar.",
+				"expired": "Esta referencia ha caducado. Vuelve a subirla."
 			},
 			"mode": {
 				"label": "Modelo de imagen",
@@ -1395,7 +1398,8 @@
 				"finishing": "Finalizando",
 				"ready": "Listo",
 				"failed": "Requiere atención",
-				"canceled": "Cancelado"
+				"canceled": "Cancelado",
+				"checkingReference": "Comprobando referencia"
 			},
 			"headings": {
 				"reserved": "Créditos reservados",
@@ -1405,7 +1409,8 @@
 				"finishing": "Preparando el resultado",
 				"ready": "Tu edición está lista",
 				"failed": "La edición no pudo terminar",
-				"canceled": "La edición fue cancelada"
+				"canceled": "La edición fue cancelada",
+				"checkingReference": "Comprobando tu imagen de referencia"
 			},
 			"compare": {
 				"loading": "Preparando las vistas privadas de antes y después…",

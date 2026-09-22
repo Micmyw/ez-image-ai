@@ -6,12 +6,15 @@ import {
 } from "@repo/ai";
 import {
 	DEFAULT_PRODUCT_CONFIG,
+	assertTemporaryReferenceUsable,
+	type TemporaryReference,
 	getImageProductSelectionContract,
 	PLAN_ENTITLEMENTS,
 	type PlanId,
 	type ProductModelKey,
 } from "@repo/config";
 import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
+import { unexpiredStorageReservations } from "@repo/database";
 import { db } from "@repo/database/client";
 
 import { ensureFreePlanCreditsForUser } from "./free-plan-credits";
@@ -35,6 +38,8 @@ export interface GenerationAccessSnapshot {
 }
 
 export interface GenerationAuthorizationInput {
+	/** Server-verified receipt; never populated from unvalidated request metadata. */
+	temporaryReference?: TemporaryReference;
 	userId: string;
 	productKey: ProductModelKey;
 	credits: bigint;
@@ -60,6 +65,8 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 		const startOfDay = new Date();
 		startOfDay.setUTCHours(0, 0, 0, 0);
 		const sourceAssetId = "sourceAssetId" in input.input ? input.input.sourceAssetId : undefined;
+		if (input.temporaryReference)
+			assertTemporaryReferenceUsable(input.temporaryReference, input.userId, sourceAssetId ?? "");
 		const maximumGlobalDailyCostMicros = mediaDailyProviderCostBudgetMicros(process.env);
 		const [
 			blocked,
@@ -114,22 +121,29 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 					ownerType: "USER",
 					ownerId: input.userId,
 					status: { in: ["ACTIVE", "COMMITTED"] },
+					...unexpiredStorageReservations(),
 				},
 				_sum: { bytes: true },
 			}),
 			loadUserPlanEntitlement(input.userId),
-			sourceAssetId
-				? db.mediaAsset.findFirst({
-						where: {
-							id: sourceAssetId,
-							ownerType: "USER",
-							ownerId: input.userId,
-							status: "READY",
-							deletedAt: null,
-						},
-						select: { mimeType: true, byteSize: true },
+			input.temporaryReference
+				? Promise.resolve({
+						mimeType: input.temporaryReference.contentType,
+						byteSize: BigInt(input.temporaryReference.bytes),
 					})
-				: Promise.resolve(null),
+				: sourceAssetId
+					? db.mediaAsset.findFirst({
+							where: {
+								id: sourceAssetId,
+								ownerType: "USER",
+								ownerId: input.userId,
+								status: "READY",
+								deletedAt: null,
+								OR: [{ deleteAfter: null }, { deleteAfter: { gt: new Date() } }],
+							},
+							select: { mimeType: true, byteSize: true },
+						})
+					: Promise.resolve(null),
 		]);
 		return {
 			generationEnabled: !blocked,

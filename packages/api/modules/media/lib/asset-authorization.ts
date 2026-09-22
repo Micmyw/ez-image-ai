@@ -36,6 +36,7 @@ export async function requireReadyOwnedMediaAsset(assetId: string, ownerId: stri
 		!state ||
 		state.asset.ownerType !== "USER" ||
 		state.asset.deletedAt ||
+		(state.asset.deleteAfter && state.asset.deleteAfter <= new Date()) ||
 		state.asset.status === "DELETED"
 	) {
 		throw new ORPCError("NOT_FOUND");

@@ -34,6 +34,7 @@ import {
 } from "@repo/ai";
 import {
 	isPermittedModerationEvidence,
+	isTemporaryReferenceObjectKey,
 	isRetryableModerationError,
 	MODERATION_BYPASS_REASON,
 	MODERATION_RETRYABLE_ERROR_CODES,
@@ -706,6 +707,36 @@ export function createDatabaseDispatchStore(
 							},
 						},
 					});
+					if (binding && isTemporaryReferenceObjectKey(binding.asset.objectKey)) {
+						if (
+							!binding.asset.deleteAfter ||
+							binding.asset.deleteAfter.getTime() <= Date.now() ||
+							binding.asset.deletedAt ||
+							["QUARANTINED", "VERIFICATION_FAILED", "DELETED"].includes(binding.asset.status)
+						) {
+							await resolveJobsWaitingForMediaVerification(tx, {
+								assetId: binding.asset.id,
+								verificationGeneration: binding.asset.verificationGeneration,
+								approved: false,
+								failureCode:
+									binding.asset.deleteAfter && binding.asset.deleteAfter.getTime() > Date.now()
+										? "ASSET_VERIFICATION_FAILED"
+										: "TEMPORARY_REFERENCE_EXPIRED",
+							});
+							return null;
+						}
+						// The durable verification event will wake this same job. No model attempt yet.
+						if (binding.asset.status === "VERIFYING") return null;
+						if (binding.asset.moderationResults[0]?.status !== "APPROVED") {
+							await resolveJobsWaitingForMediaVerification(tx, {
+								assetId: binding.asset.id,
+								verificationGeneration: binding.asset.verificationGeneration,
+								approved: false,
+								failureCode: "ASSET_VERIFICATION_FAILED",
+							});
+							return null;
+						}
+					}
 					if (!binding || binding.asset.status !== "READY") {
 						throw new Error("Input asset is not ready");
 					}
@@ -1361,44 +1392,53 @@ export function createDatabaseVerifyUploadDependencies(
 				}
 
 				const location = { bucket: "media" as const, key: claim.objectKey };
-				const [metadata, header] = await Promise.all([
-					(options.headObject ?? headObject)(location),
-					(options.readMediaHeader ?? readMediaHeader)(location),
-				]);
-				const detectedType = detectMediaType(header);
-				recordStage("storage_inspected");
-				if (
-					metadata.contentLength !== Number(claim.byteSize) ||
-					metadata.contentType !== claim.mimeType ||
-					detectedType !== claim.mimeType
-				) {
-					await completeMediaVerification(database, claim, {
-						decision: "REJECT",
-						reasonCode: "UPLOAD_METADATA_MISMATCH",
-						ruleVersion: claim.ruleVersion,
-						checksum,
-						storageEtag,
-						storageVersionId,
-						finalizedAt,
-					});
-					return;
+				const immutableReference =
+					claim.kind === "INPUT" &&
+					isTemporaryReferenceObjectKey(claim.objectKey) &&
+					Boolean(claim.checksum && claim.finalizedAt) &&
+					!claim.forceObjectInspection;
+				if (!immutableReference) {
+					const [metadata, header] = await Promise.all([
+						(options.headObject ?? headObject)(location),
+						(options.readMediaHeader ?? readMediaHeader)(location),
+					]);
+					const detectedType = detectMediaType(header);
+					recordStage("storage_inspected");
+					if (
+						metadata.contentLength !== Number(claim.byteSize) ||
+						metadata.contentType !== claim.mimeType ||
+						detectedType !== claim.mimeType
+					) {
+						await completeMediaVerification(database, claim, {
+							decision: "REJECT",
+							reasonCode: "UPLOAD_METADATA_MISMATCH",
+							ruleVersion: claim.ruleVersion,
+							checksum,
+							storageEtag,
+							storageVersionId,
+							finalizedAt,
+						});
+						return;
+					}
 				}
 
 				const assetUrl = await (options.createSignedReadUrl ?? createSignedReadUrl)({
 					...location,
 					expiresIn: 300,
 				});
-				const persistedInspection = await database.mediaAsset.updateMany({
-					where: {
-						id: claim.assetId,
-						status: "VERIFYING",
-						verificationLeaseToken: claim.leaseToken,
-						verificationGeneration: claim.generation,
-						verificationLeasedUntil: { gt: new Date() },
-					},
-					data: { checksum, storageEtag, storageVersionId, finalizedAt },
-				});
-				if (persistedInspection.count !== 1) return;
+				if (!immutableReference) {
+					const persistedInspection = await database.mediaAsset.updateMany({
+						where: {
+							id: claim.assetId,
+							status: "VERIFYING",
+							verificationLeaseToken: claim.leaseToken,
+							verificationGeneration: claim.generation,
+							verificationLeasedUntil: { gt: new Date() },
+						},
+						data: { checksum, storageEtag, storageVersionId, finalizedAt },
+					});
+					if (persistedInspection.count !== 1) return;
+				}
 				recordStage("prepared");
 				moderationStarted = true;
 				if (claim.processingDeadlineExpired) {
@@ -1730,6 +1770,7 @@ async function claimMediaVerification(
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${input.assetId}`}, 0))`;
 		let asset = await tx.mediaAsset.findUnique({ where: { id: input.assetId } });
 		if (!asset) throw new Error("Media asset not found");
+		if (asset.deletedAt !== null || asset.status === "DELETED") return null;
 		// Transfer recovery owns incomplete outputs. Moderation must not consume its
 		// retry budget or terminalize a placeholder while storage still owns it.
 		if (
@@ -1739,6 +1780,29 @@ async function claimMediaVerification(
 			return null;
 		}
 		const now = new Date();
+		if (
+			isTemporaryReferenceObjectKey(asset.objectKey) &&
+			(!asset.deleteAfter || asset.deleteAfter <= now)
+		) {
+			// Preserve historical approvals/rejections when a late wake-up sees expiry.
+			await tx.mediaAsset.updateMany({
+				where: { id: asset.id, status: "VERIFYING" },
+				data: {
+					status: "VERIFICATION_FAILED",
+					verificationLastErrorCode: "TEMPORARY_REFERENCE_EXPIRED",
+					verificationNextAttemptAt: null,
+					verificationLeaseToken: null,
+					verificationLeasedUntil: null,
+				},
+			});
+			await resolveJobsWaitingForMediaVerification(tx, {
+				assetId: asset.id,
+				verificationGeneration: asset.verificationGeneration,
+				approved: false,
+				failureCode: "TEMPORARY_REFERENCE_EXPIRED",
+			});
+			return null;
+		}
 		if (
 			asset.status === "READY" &&
 			asset.deletedAt === null &&
@@ -1810,6 +1874,7 @@ async function claimMediaVerification(
 			}
 		}
 		const hasLegacyReverificationMarker =
+			!isTemporaryReferenceObjectKey(asset.objectKey) &&
 			asset.status === "VERIFYING" &&
 			Boolean(
 				await tx.auditLog.findFirst({
@@ -2006,7 +2071,10 @@ async function claimMediaVerification(
 			asset.mimeType.startsWith("image/") &&
 			(asset.verificationLastErrorCode === "IMAGE_PROCESSING" ||
 				isRetryableModerationError(asset.verificationLastErrorCode ?? ""));
-		if (deadlineAt <= now && !boundedImageRecovery) {
+		if (
+			deadlineAt <= now &&
+			(!boundedImageRecovery || isTemporaryReferenceObjectKey(asset.objectKey))
+		) {
 			const attemptNumber = asset.verificationAttemptCount + 1;
 			await appendVerificationEvidence(tx, {
 				assetId: asset.id,
@@ -2382,6 +2450,7 @@ async function failMediaVerification(
 			asset.mimeType.startsWith("image/") &&
 			(reasonCode === "IMAGE_PROCESSING" || isRetryableModerationError(reasonCode));
 		const exhausted =
+			(isTemporaryReferenceObjectKey(asset.objectKey) && claim.deadlineAt <= now) ||
 			(status === "ERROR" &&
 				["MODERATION_CONFIGURATION_ERROR", "MODERATION_INVALID_INPUT"].includes(reasonCode)) ||
 			(!imageRecovery && claim.deadlineAt <= now) ||
@@ -2389,6 +2458,7 @@ async function failMediaVerification(
 				(imageRecovery ? failureCount : totalFailureCount) >=
 					MEDIA_VERIFICATION_RETRY_POLICY.maxTransientFailures);
 		const bypass =
+			!isTemporaryReferenceObjectKey(asset.objectKey) &&
 			!promptRejected &&
 			exhausted &&
 			failureCount >= MEDIA_VERIFICATION_RETRY_POLICY.maxTransientFailures &&

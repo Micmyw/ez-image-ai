@@ -8,6 +8,7 @@ import { type ClipboardEvent, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 
 import { type MediaUploadItem, useMediaUpload } from "../hooks/use-media-upload";
+import type { TemporaryReferenceReceipt } from "../lib/temporary-reference-upload";
 import { getFileFingerprint } from "../lib/upload-state";
 
 const publicProductConfig = getPublicConfig();
@@ -25,7 +26,8 @@ export function filterEzPicImageFiles(
 
 export interface MediaUploaderProps {
 	value?: string[];
-	onChange: (assetIds: string[]) => void;
+	onChange: (assetIds: string[], reference?: TemporaryReferenceReceipt) => void;
+	temporaryReference?: boolean;
 	onPendingChange?: (pending: boolean) => void;
 	onUploadChange?: (item: MediaUploadItem | null) => void;
 	multiple?: boolean;
@@ -40,10 +42,11 @@ export function MediaUploader({
 	multiple = true,
 	maximumImageBytes = publicProductConfig.uploadLimits.imageBytes,
 	compact = false,
+	temporaryReference = false,
 }: MediaUploaderProps) {
 	const t = useTranslations("media.uploader");
 	const studio = useTranslations("studio");
-	const uploader = useMediaUpload(onChange);
+	const uploader = useMediaUpload(onChange, temporaryReference);
 	const addFiles = uploader.addFiles;
 	const pending = uploader.items.some((item) => item.status !== "uploaded");
 	useEffect(() => onPendingChange?.(pending), [onPendingChange, pending]);

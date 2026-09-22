@@ -1229,7 +1229,8 @@
 				"safetyUnavailable": "Die Sicherheitsprüfung konnte nicht abgeschlossen werden. Bitte ändere die Anweisung oder versuche es später erneut. Keine Credits wurden berechnet; die einmalige Ausnahme bleibt erhalten.",
 				"priceChanged": "Der Credit-Preis hat sich geändert. Prüfe die aktualisierten Kosten auf der Schaltfläche und sende erneut.",
 				"contentReviewRequired": "Diese Anweisung konnte nicht freigegeben werden. Bitte überarbeiten Sie sie und senden Sie sie erneut. Es wurden keine Credits berechnet.",
-				"textLanguageUnsupported": "Diese Prompt-Sprache wird von der Sicherheitsprüfung nicht unterstützt. Es wurden keine Credits berechnet."
+				"textLanguageUnsupported": "Diese Prompt-Sprache wird von der Sicherheitsprüfung nicht unterstützt. Es wurden keine Credits berechnet.",
+				"referenceExpired": "Deine temporäre Referenz ist nicht verfügbar oder abgelaufen. Bitte erneut hochladen."
 			},
 			"modelMenu": {
 				"title": "Bildmodelle",
@@ -1348,7 +1349,9 @@
 				"saving": "Bild wird gespeichert…",
 				"checking": "Hochgeladen · Bild wird geprüft…",
 				"paused": "Upload pausiert",
-				"uploadFailed": "Upload fehlgeschlagen · erneut versuchen oder entfernen"
+				"uploadFailed": "Upload fehlgeschlagen · erneut versuchen oder entfernen",
+				"uploadedForGeneration": "Hochgeladen. Die Sicherheitsprüfung erfolgt beim Generieren.",
+				"expired": "Diese Referenz ist abgelaufen. Bitte erneut hochladen."
 			},
 			"mode": {
 				"label": "Bildmodell",
@@ -1395,7 +1398,8 @@
 				"finishing": "Wird fertiggestellt",
 				"ready": "Bereit",
 				"failed": "Handlung nötig",
-				"canceled": "Abgebrochen"
+				"canceled": "Abgebrochen",
+				"checkingReference": "Referenz wird geprüft"
 			},
 			"headings": {
 				"reserved": "Credits reserviert",
@@ -1405,7 +1409,8 @@
 				"finishing": "Ergebnis wird vorbereitet",
 				"ready": "Ihre Bearbeitung ist bereit",
 				"failed": "Bearbeitung nicht abgeschlossen",
-				"canceled": "Bearbeitung abgebrochen"
+				"canceled": "Bearbeitung abgebrochen",
+				"checkingReference": "Dein Referenzbild wird geprüft"
 			},
 			"compare": {
 				"loading": "Private Vorher-/Nachher-Vorschau wird vorbereitet…",

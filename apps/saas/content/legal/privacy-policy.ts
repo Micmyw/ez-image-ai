@@ -2,11 +2,11 @@ export const privacyPolicyDocuments = [
 	{
 		path: "privacy-policy",
 		locale: "en",
-		updatedAt: "2026-09-16",
+		updatedAt: "2026-09-22",
 		title: "Privacy Policy",
 		description:
 			"How EzImageAI handles account data, private image-editing media, analytics consent, and retention.",
-		body: `_Last updated: September 16, 2026_
+		body: `_Last updated: September 22, 2026_
 
 This policy explains how EzImageAI handles information when you use the public image editor, prepare a short-lived draft, use an available Nano Banana 2 Lite 1K guest trial, create an account, or use the signed-in editor. EzImageAI is an independently operated service run by an individual. Its operator is responsible for the information handled by the service and can be reached through the [Contact page](/contact) for privacy questions and requests.
 
@@ -28,7 +28,7 @@ If you sign in or register from an active trial, EzImageAI can create an expiry-
 
 EzImageAI may send the minimum necessary edit input to configured hosting, storage, moderation, payment, and image-processing services so they can perform the requested function. Those services do not own EzImageAI job, credit, or subscription state.
 
-Before generation, EzImageAI screens text instructions using the enabled text-safety services, which can include Waffo and Sightengine. A prompt scan receives the text instruction and scan settings, without your source image, account email, or payment details. Enabled image-safety services, which can include SeeAPI and Sightengine, receive a short-lived access URL for the private uploaded or generated image. Temporary detector failures receive bounded retries and may then allow the request to proceed with a pending-review flag; this is not a positive safety verdict. Confirmed content blocks and content-review decisions remain blocked. Authorized administrators may inspect the original instruction or image to recheck, approve, or restrict it. Access and decisions are audited. EzImageAI retains limited safety decisions and request references without copying raw instructions or private image URLs into these moderation audit records. A billing-account record retains whether the one-time output-block credit waiver has been used, even after related media or job history is removed.
+Before generation, EzImageAI screens text instructions using Waffo. A prompt scan receives the text instruction and scan settings, without your source image, account email, or payment details. SeeAPI receives a short-lived access URL to check private source and generated images. Sightengine is not enabled for these checks. New temporary editor references are checked when you click Generate and must receive positive approval before the image model runs; a failed check stops generation and releases its credit hold. Other existing moderation paths retain bounded retries for temporary detector failures and may then proceed with a pending-review flag; this is not a positive safety verdict. Confirmed content blocks and content-review decisions remain blocked. Authorized administrators may inspect the original instruction or image to recheck, approve, or restrict it. Access and decisions are audited. EzImageAI retains limited safety decisions and request references without copying raw instructions or private image URLs into these moderation audit records. A billing-account record retains whether the one-time output-block credit waiver has been used, even after related media or job history is removed.
 
 ## Analytics consent
 
@@ -44,7 +44,7 @@ Information is used to provide and secure the service; verify ownership; moderat
 
 ## Retention and deletion
 
-Public-page drafts expire after no more than one hour. Media used by the Nano Banana 2 Lite 1K guest trial is access-bounded and scheduled for deletion no later than 24 hours after the trial job is created. Clean, unwatermarked staging bytes are deleted before the result becomes available. The current registered-product configuration targets 30 days for input and output media and 7 days for failed-job cleanup.
+Public-page drafts expire after no more than one hour. Media used by the Nano Banana 2 Lite 1K guest trial is access-bounded and scheduled for deletion no later than 24 hours after the trial job is created. Clean, unwatermarked staging bytes are deleted before the result becomes available. New references uploaded in the signed-in editor expire after 24 hours and are removed through the storage lifecycle policy. Physical deletion can occur after that access deadline. Generated results remain independent of reference expiry. Registered library media and generated outputs retain the existing target of 30 days, with 7 days for failed-job cleanup.
 
 Billing, credit-ledger, security, audit, and legal records may require different retention because they support financial integrity, dispute handling, fraud prevention, or legal obligations. Deleting or expiring a private asset prevents new access links and schedules the underlying object for deletion through the asynchronous cleanup path. Backup and infrastructure copies may take additional time to age out.
 
@@ -62,7 +62,7 @@ EzImageAI uses owner checks, private storage, short-lived access, moderation, id
 		title: "Datenschutzerklärung",
 		description:
 			"Wie EzImageAI Kontodaten, private Medien zur Bildbearbeitung, Analyse-Einwilligung und Aufbewahrung behandelt.",
-		body: `_Zuletzt aktualisiert: 16. September 2026_
+		body: `_Zuletzt aktualisiert: 22. September 2026_
 
 Diese Erklärung beschreibt, wie EzImageAI Informationen verarbeitet, wenn Sie den öffentlichen Bildeditor nutzen, einen kurzlebigen Entwurf vorbereiten, einen verfügbaren Nano-Banana-2-Lite-1K-Gasttest verwenden, ein Konto erstellen oder den angemeldeten Editor nutzen. EzImageAI wird unabhängig von einer Einzelperson betrieben. Der Betreiber ist für die vom Dienst verarbeiteten Informationen verantwortlich und über die [Kontaktseite](/contact) für Datenschutzfragen und Anfragen erreichbar.
 
@@ -84,7 +84,7 @@ Wenn Sie sich aus einem aktiven Test anmelden oder registrieren, kann EzImageAI 
 
 EzImageAI kann die für die angeforderte Funktion notwendigen Eingaben an konfigurierte Hosting-, Speicher-, Moderations-, Zahlungs- und Bildverarbeitungsdienste übermitteln. Diese Dienste besitzen nicht den maßgeblichen EzImageAI-Status für Auftrag, Credits oder Abonnement.
 
-Vor der Generierung prüfen die aktivierten Textprüfdienste die Anweisungen; dazu können Waffo und Sightengine gehören. Sie erhalten Text und Prüfeinstellungen, jedoch kein Quellbild, keine Konto-E-Mail-Adresse und keine Zahlungsdaten. Aktivierte Bildprüfdienste wie SeeAPI und Sightengine erhalten einen kurzlebigen Zugriffslink auf das private hochgeladene oder generierte Bild. EzImageAI speichert begrenzte Prüfentscheidungen und Anfragereferenzen, ohne Rohtexte oder private Bildlinks in diese Moderationsprotokolle zu kopieren. Im Abrechnungskonto bleibt gespeichert, ob die einmalige Credit-Ausnahme für ein gesperrtes Ergebnis genutzt wurde, auch nach Löschung der zugehörigen Medien oder Aufträge.
+Vor der Generierung prüft Waffo die Anweisungen und erhält Text und Prüfeinstellungen, jedoch kein Quellbild, keine Konto-E-Mail-Adresse und keine Zahlungsdaten. SeeAPI erhält einen kurzlebigen Zugriffslink zur Prüfung privater Quell- und Ergebnisbilder. Sightengine ist hierfür nicht aktiviert. Neue temporäre Referenzbilder werden erst beim Start der Generierung geprüft. Das Bildmodell wird nur nach positiver Freigabe aufgerufen; eine fehlgeschlagene Prüfung beendet den Auftrag und gibt reservierte Credits frei. Für andere bestehende Prüfpfade bleiben begrenzte Wiederholungen bei technischen Ausfällen und gegebenenfalls eine spätere Prüfung bestehen; dies gilt nicht als positive Freigabe. EzImageAI speichert begrenzte Prüfentscheidungen und Anfragereferenzen, ohne Rohtexte oder private Bildlinks in diese Moderationsprotokolle zu kopieren. Im Abrechnungskonto bleibt gespeichert, ob die einmalige Credit-Ausnahme für ein gesperrtes Ergebnis genutzt wurde, auch nach Löschung der zugehörigen Medien oder Aufträge.
 
 ## Einwilligung in Analysen
 
@@ -100,7 +100,7 @@ Die Informationen werden verwendet, um den Dienst bereitzustellen und zu schütz
 
 ## Aufbewahrung und Löschung
 
-Entwürfe der öffentlichen Seite laufen nach höchstens einer Stunde ab. Medien des Nano-Banana-2-Lite-1K-Gasttests werden spätestens 24 Stunden nach Erstellung des Auftrags unzugänglich und zur Löschung eingeplant. Für Medien registrierter Konten sieht die aktuelle Konfiguration 30 Tage und für fehlgeschlagene Aufträge 7 Tage Bereinigung vor.
+Entwürfe der öffentlichen Seite laufen nach höchstens einer Stunde ab. Medien des Nano-Banana-2-Lite-1K-Gasttests werden spätestens 24 Stunden nach Erstellung des Auftrags unzugänglich und zur Löschung eingeplant. Neue Referenzbilder im angemeldeten Editor laufen nach 24 Stunden ab und werden über die Speicher-Lebenszyklusregel gelöscht. Die physische Löschung kann nach dem Zugriffsablauf erfolgen. Generierte Ergebnisse bleiben unabhängig vom Ablauf der Referenz verfügbar. Für Bibliotheksmedien und generierte Ergebnisse registrierter Konten gelten weiterhin 30 Tage und für fehlgeschlagene Aufträge 7 Tage Bereinigung.
 
 Abrechnungs-, Credit-, Sicherheits-, Audit- und Rechtsdaten können wegen finanzieller Integrität, Streitbehandlung, Betrugsprävention oder gesetzlicher Pflichten länger aufbewahrt werden. Nach Ablauf oder Löschung werden neue Zugriffslinks verhindert und das Objekt über den asynchronen Bereinigungsweg gelöscht. Sicherungs- und Infrastrukturkopien können zusätzliche Zeit zum Auslaufen benötigen.
 

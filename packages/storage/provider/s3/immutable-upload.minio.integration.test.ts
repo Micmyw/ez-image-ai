@@ -23,6 +23,38 @@ describe("immutable staging upload promotion (MinIO)", () => {
 		expect(config.bucketNames.media).toBe(mediaBucket);
 		await storage.checkStorageMetadataAccess();
 	});
+	it.each([64, 10 * 1024 * 1024, 12 * 1024 * 1024])(
+		"writes a %i-byte temporary reference once and rejects replacement",
+		async (size) => {
+			const target = {
+				bucket: "media" as const,
+				key: `users/temporary-references/v1/minio-test/${randomUUID()}`,
+			};
+			const original = pngPayload(size);
+			const replacement = Buffer.from(original);
+			replacement[32] = 0xff;
+			const write = (body: Buffer) =>
+				storage.putTemporaryReferenceObject({
+					...target,
+					contentType,
+					contentLength: body.length,
+					body: new ReadableStream({
+						start(controller) {
+							controller.enqueue(body);
+							controller.close();
+						},
+					}),
+				});
+			try {
+				await expect(write(original)).resolves.toEqual({ bytes: size, sha256: sha256(original) });
+				await expect(write(replacement)).rejects.toSatisfy(isConditionalWriteConflict);
+				expect((await readObject(target)).equals(original)).toBe(true);
+				expect(await storage.listMultipartUploads(target)).toEqual([]);
+			} finally {
+				await deleteLocations(target);
+			}
+		},
+	);
 
 	it("keeps final bytes unchanged when an unexpired staging PUT URL is replayed", async () => {
 		const id = randomUUID();

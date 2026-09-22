@@ -27,6 +27,22 @@ const draft: WorkspaceDraft = {
 };
 
 describe("workspace continuity across account and checkout navigation", () => {
+	it("keeps a temporary receipt with its source on reload and never shares it across accounts", () => {
+		const store = storage();
+		const receipt = {
+			assetId: crypto.randomUUID(),
+			token: "signed-receipt",
+			expiresAt: "2026-09-23T12:00:00Z",
+		};
+		const temporaryDraft = {
+			...draft,
+			values: { ...draft.values, sourceAssetId: receipt.assetId },
+			temporaryReference: receipt,
+		};
+		expect(saveWorkspaceDraft(store, "owner-a", temporaryDraft, 1000)).toBe(true);
+		expect(loadWorkspaceDraft(store, "owner-a", 2000)).toEqual(temporaryDraft);
+		expect(loadWorkspaceDraft(store, "owner-b", 2000)).toBeNull();
+	});
 	it("does not carry a prompt or source from create into a model page", () => {
 		const store = storage();
 		saveWorkspaceDraft(store, "owner-a", draft, 1000, "/create");

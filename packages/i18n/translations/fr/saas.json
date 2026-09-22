@@ -1229,7 +1229,8 @@
 				"safetyUnavailable": "La vérification de sécurité n’a pas pu aboutir. Modifiez l’instruction ou réessayez plus tard. Aucun crédit n’a été facturé et votre exonération unique reste disponible.",
 				"priceChanged": "Le prix en crédits a changé. Vérifiez le coût actualisé sur le bouton, puis réessayez.",
 				"contentReviewRequired": "Cette instruction n’a pas pu être approuvée. Modifiez-la et soumettez-la à nouveau. Aucun crédit n’a été facturé.",
-				"textLanguageUnsupported": "Cette langue n’est pas prise en charge par la vérification de sécurité. Aucun crédit n’a été facturé."
+				"textLanguageUnsupported": "Cette langue n’est pas prise en charge par la vérification de sécurité. Aucun crédit n’a été facturé.",
+				"referenceExpired": "Votre référence temporaire est indisponible ou a expiré. Veuillez la téléverser à nouveau."
 			},
 			"modelMenu": {
 				"title": "Modèles d’image",
@@ -1348,7 +1349,9 @@
 				"saving": "Enregistrement de l’image…",
 				"checking": "Image envoyée · vérification…",
 				"paused": "Envoi en pause",
-				"uploadFailed": "Échec de l’envoi · réessayez ou retirez l’image"
+				"uploadFailed": "Échec de l’envoi · réessayez ou retirez l’image",
+				"uploadedForGeneration": "Image importée. La vérification a lieu lors de la génération.",
+				"expired": "Cette référence a expiré. Veuillez la téléverser à nouveau."
 			},
 			"mode": {
 				"label": "Modèle d’image",
@@ -1395,7 +1398,8 @@
 				"finishing": "Finalisation",
 				"ready": "Prêt",
 				"failed": "Action requise",
-				"canceled": "Annulé"
+				"canceled": "Annulé",
+				"checkingReference": "Vérification de la référence"
 			},
 			"headings": {
 				"reserved": "Crédits réservés",
@@ -1405,7 +1409,8 @@
 				"finishing": "Préparation du résultat",
 				"ready": "Votre retouche est prête",
 				"failed": "La retouche n'a pas abouti",
-				"canceled": "La retouche a été annulée"
+				"canceled": "La retouche a été annulée",
+				"checkingReference": "Vérification de votre image de référence"
 			},
 			"compare": {
 				"loading": "Préparation des aperçus privés avant et après…",

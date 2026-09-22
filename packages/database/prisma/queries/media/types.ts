@@ -71,6 +71,7 @@ export interface CreateGenerationJobInput {
 }
 
 export interface CreateGenerationJobResult {
+	verificationAssetId?: string;
 	job: {
 		id: string;
 		status: GenerationJobStatusValue;

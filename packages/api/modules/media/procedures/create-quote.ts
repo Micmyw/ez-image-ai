@@ -13,6 +13,7 @@ import { toMediaOrpcError } from "../lib/errors";
 import { getCurrentExecutableRouteGraphOptions } from "../lib/executable-route-graph";
 import { assertGenerationAllowed } from "../lib/generation-authorization";
 import { buildMediaQuote } from "../lib/quote";
+import { verifyTemporaryReference } from "../lib/temporary-reference-token";
 import {
 	createTextModerationAdapter,
 	moderateQuoteInput,
@@ -89,9 +90,23 @@ const defaultDependencies: CreateQuoteDependencies = {
 
 export async function createQuoteForUser(
 	userId: string,
-	input: { productKey: CurrentEzPicProductKey; input: MediaModelInput; parentJobId?: string },
+	input: {
+		productKey: CurrentEzPicProductKey;
+		input: MediaModelInput;
+		parentJobId?: string;
+		temporaryReferenceToken?: string;
+	},
 	dependencies: CreateQuoteDependencies = defaultDependencies,
 ) {
+	const temporaryReference = input.temporaryReferenceToken
+		? verifyTemporaryReference(
+				input.temporaryReferenceToken,
+				userId,
+				input.input.kind === "image-to-image" ? input.input.sourceAssetId : "",
+				dependencies.now(),
+			)
+		: undefined;
+	if (temporaryReference && input.parentJobId) throw new Error("TEMPORARY_REFERENCE_INVALID");
 	const editContext = await freezeImageEditContext(userId, input, dependencies);
 	const routeGraphOptions = await dependencies.getRouteGraphOptions?.();
 	const quote = buildMediaQuote(input, routeGraphOptions);
@@ -101,6 +116,7 @@ export async function createQuoteForUser(
 		credits: quote.credits,
 		costMicros: quote.costMicros,
 		input: input.input,
+		temporaryReference,
 		routeGraphOptions,
 	});
 	const quoteInput = {
@@ -112,7 +128,11 @@ export async function createQuoteForUser(
 		pricingVersion: quote.pricingVersion,
 		credits: quote.credits,
 		costMicros: quote.costMicros,
-		inputSnapshot: editContext ? { ...input.input, editContext } : input.input,
+		inputSnapshot: {
+			...input.input,
+			...(editContext ? { editContext } : {}),
+			...(temporaryReference ? { temporaryReference } : {}),
+		},
 		pricingSnapshot: quote.pricingSnapshot,
 		expiresAt: new Date(dependencies.now().getTime() + 10 * 60_000),
 	};

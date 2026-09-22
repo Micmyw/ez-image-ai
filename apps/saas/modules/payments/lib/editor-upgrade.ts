@@ -10,6 +10,10 @@ import {
 import { z } from "zod";
 
 import { isEditorProductKey, type EditorDraftInput } from "../../media/lib/editor-recovery";
+import {
+	temporaryReferenceReceiptSchema,
+	type TemporaryReferenceReceipt,
+} from "../../media/lib/temporary-reference-upload";
 import type { PlanId } from "../types";
 
 export const EDITOR_UPGRADE_STORAGE_KEY = "ezpic.editor-upgrade.v1";
@@ -41,6 +45,7 @@ const storedEditorUpgradeDraftSchema = z
 			.strict(),
 		parentJobId: z.string().min(1).max(128).nullable(),
 		sourceReady: z.boolean(),
+		temporaryReference: temporaryReferenceReceiptSchema.optional(),
 	})
 	.strict()
 	.refine((value) =>
@@ -51,6 +56,7 @@ const storedEditorUpgradeDraftSchema = z
 	);
 
 export interface EditorUpgradeDraft {
+	temporaryReference?: TemporaryReferenceReceipt;
 	draft: EditorDraftInput;
 	parentJobId: string | null;
 	sourceReady: boolean;
@@ -164,6 +170,9 @@ export function readEditorUpgradeDraft(
 			draft,
 			parentJobId: parsed.data.parentJobId,
 			sourceReady: parsed.data.sourceReady,
+			...(parsed.data.temporaryReference
+				? { temporaryReference: parsed.data.temporaryReference }
+				: {}),
 		};
 	} catch {
 		return null;

@@ -1,5 +1,5 @@
 ---
-updatedAt: 2026-09-16
+updatedAt: 2026-09-22
 indexable: true
 title: Privacy and private media
 description: Understand how EzImageAI limits access to uploaded sources, generated results, and account-owned media.
@@ -9,13 +9,17 @@ EzImageAI keeps source images and generated results private to their account or 
 It does not automatically publish your edits to a gallery. The service still sends the information
 needed to hosting, storage, moderation, and image-processing services to complete your request.
 
-Before generation, your text instruction is screened by the enabled content-safety services.
-Text checks can use Waffo and Sightengine; they receive the instruction and scan settings, without
-your source image, account email, or payment details. Image checks can use SeeAPI and Sightengine;
-they receive a short-lived access URL for the private source or generated image. Confirmed content
-blocks and content-review decisions stop the request. Temporary detector failures receive up to
-three retries after the initial attempt; an inspected image or instruction may then proceed with a
-durable pending-review flag. This does not mean a safety check passed. Authorized administrators can
+Before generation, Waffo screens your text instruction. It receives the instruction and scan settings,
+without your source image, account email, or payment details. SeeAPI checks images using a short-lived
+access URL for the private source or generated image. Sightengine is not enabled for these checks.
+Selecting a temporary reference uploads it without starting a safety check. When you click Generate,
+the reference must receive a positive approval before the image model is called. A blocked reference
+or failed check stops generation and releases its credit hold.
+
+Other existing moderation paths, including instructions, library uploads and generated outputs,
+retain their outage policy: temporary detector failures receive up to three retries after the initial
+attempt and may proceed with a durable pending-review flag. This does not mean a safety check passed.
+Confirmed content blocks and content-review decisions stop the request. Authorized administrators can
 inspect the original content, recheck it, approve it, or revoke access, with an audit record.
 The billing account also records use of its one-time output-block credit waiver; deleting media
 or job history does not reset it.
@@ -30,7 +34,8 @@ copy and choose your own sharing channel when you intend to publish a result.
 
 - Public drafts expire within one hour.
 - Guest-trial media expires within 24 hours of the job being created. Guest previews are watermarked.
-- Registered input and output media currently targets 30 days of retention, with 7 days for failed-job cleanup.
+- New references uploaded in the signed-in editor expire after 24 hours. Storage removes these temporary files through its lifecycle policy; physical deletion may occur after the access deadline. Expired references cannot be submitted again or downloaded, but their generated results remain available under the result retention policy.
+- Registered library uploads and generated output media currently target 30 days of retention, with 7 days for failed-job cleanup.
 
 Guest results keep their original expiry when linked to a new account. Deleting an eligible asset
 prevents new access links and schedules file cleanup. Billing, security, and backup records may have

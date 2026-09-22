@@ -3,6 +3,21 @@ import { describe, expect, it } from "vitest";
 import { getJobPresentation, getJobPollingInterval } from "./job-status";
 
 describe("getJobPresentation", () => {
+	it("shows reference checks only before provider submission and preserves terminal results", () => {
+		expect(
+			getJobPresentation({ status: "DISPATCH_QUEUED", inputReferenceState: "VERIFYING" }),
+		).toEqual({
+			stage: "checkingReference",
+			progress: null,
+			terminal: false,
+		});
+		expect(getJobPresentation({ status: "SUCCEEDED", inputReferenceState: "EXPIRED" }).stage).toBe(
+			"ready",
+		);
+		expect(getJobPresentation({ status: "FAILED", inputReferenceState: "VERIFYING" }).stage).toBe(
+			"failed",
+		);
+	});
 	it("shows an approved output while finalization is still running without ending polling", () => {
 		expect(getJobPresentation({ status: "FINALIZING", hasReadyOutput: true })).toEqual({
 			stage: "ready",

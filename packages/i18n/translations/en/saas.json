@@ -1229,7 +1229,8 @@
 				"safetyUnavailable": "We could not complete the safety check. Please revise the instruction or try again later. No credits were charged, and your one-time waiver was not used.",
 				"priceChanged": "The credit price changed. Check the updated cost on the button, then submit again.",
 				"contentReviewRequired": "This instruction could not be approved. Please revise it and submit again. No credits were charged.",
-				"textLanguageUnsupported": "This prompt language is not supported by the safety check. No credits were charged."
+				"textLanguageUnsupported": "This prompt language is not supported by the safety check. No credits were charged.",
+				"referenceExpired": "Your temporary reference is unavailable or has expired. Please upload it again."
 			},
 			"modelMenu": {
 				"title": "Image models",
@@ -1348,7 +1349,9 @@
 				"saving": "Saving image…",
 				"checking": "Uploaded · checking image…",
 				"paused": "Upload paused",
-				"uploadFailed": "Upload failed · retry or remove"
+				"uploadFailed": "Upload failed · retry or remove",
+				"uploadedForGeneration": "Uploaded. Safety is checked when you generate.",
+				"expired": "This reference has expired. Please upload it again."
 			},
 			"mode": {
 				"label": "Image model",
@@ -1395,7 +1398,8 @@
 				"finishing": "Finishing",
 				"ready": "Ready",
 				"failed": "Needs attention",
-				"canceled": "Canceled"
+				"canceled": "Canceled",
+				"checkingReference": "Checking reference"
 			},
 			"headings": {
 				"reserved": "Credits reserved",
@@ -1405,7 +1409,8 @@
 				"finishing": "Preparing your result",
 				"ready": "Your edit is ready",
 				"failed": "This edit could not finish",
-				"canceled": "This edit was canceled"
+				"canceled": "This edit was canceled",
+				"checkingReference": "Checking your reference image"
 			},
 			"compare": {
 				"loading": "Preparing private before and after previews…",

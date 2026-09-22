@@ -1,7 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { fingerprintGenerationQuoteSecurityPayload } from "@repo/database";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/database/client", () => ({ db: {} }));
 
+import { signTemporaryReference } from "../lib/temporary-reference-token";
 import { createQuoteInputSchema } from "../types";
 import { createQuoteForUser } from "./create-quote";
 
@@ -19,6 +21,92 @@ const INPUT = {
 };
 
 describe("createQuoteForUser", () => {
+	afterEach(() => vi.unstubAllEnvs());
+	it("freezes a signed reference into the text-approved quote fingerprint", async () => {
+		vi.stubEnv("BETTER_AUTH_SECRET", "local-temporary-reference-test-key");
+		const now = new Date("2026-09-22T12:00:00Z");
+		const reference = {
+			v: 1 as const,
+			ownerId: "user_1",
+			assetId: crypto.randomUUID(),
+			contentType: "image/png" as const,
+			bytes: 100,
+			checksum: "a".repeat(64),
+			createdAt: now.toISOString(),
+			expiresAt: new Date(now.getTime() + 86_400_000).toISOString(),
+		};
+		const assertAllowed = vi.fn(async () => undefined);
+		const persistApproved = vi.fn(async (quote) => ({ id: "temporary-quote", ...quote }));
+		await createQuoteForUser(
+			"user_1",
+			{
+				...INPUT,
+				input: { ...INPUT.input, sourceAssetId: reference.assetId },
+				temporaryReferenceToken: signTemporaryReference(reference),
+			},
+			{
+				now: () => now,
+				assertAllowed,
+				persistApproved,
+				recordDenied: vi.fn(),
+				createAdapter: () => ({
+					provider: "waffo",
+					adapter: {
+						moderateText: async ({ ruleVersion }) => ({
+							decision: "ALLOW",
+							reasonCode: "NO_POLICY_MATCH",
+							ruleVersion,
+						}),
+					},
+				}),
+			},
+		);
+		expect(assertAllowed).toHaveBeenCalledWith(
+			expect.objectContaining({ temporaryReference: reference }),
+		);
+		const frozen = persistApproved.mock.calls[0]![0];
+		expect(frozen.inputSnapshot.temporaryReference).toEqual(reference);
+		expect(frozen.moderation.inputFingerprint).toBe(
+			fingerprintGenerationQuoteSecurityPayload(frozen),
+		);
+		expect(frozen.moderation.inputFingerprint).not.toBe(
+			fingerprintGenerationQuoteSecurityPayload({
+				...frozen,
+				inputSnapshot: {
+					...frozen.inputSnapshot,
+					temporaryReference: { ...reference, checksum: "b".repeat(64) },
+				},
+			}),
+		);
+	});
+	it("rejects a forged temporary reference before authorization or paid moderation", async () => {
+		const assertAllowed = vi.fn(async () => undefined);
+		const moderateText = vi.fn(async ({ ruleVersion }) => ({
+			decision: "ALLOW" as const,
+			reasonCode: "NO_POLICY_MATCH",
+			ruleVersion,
+		}));
+		const persistApproved = vi.fn(async (quote) => ({ id: "forged-quote", ...quote }));
+		await expect(
+			createQuoteForUser(
+				"user_1",
+				{
+					...INPUT,
+					temporaryReferenceToken: "forged.receipt",
+				} as never,
+				{
+					now: () => new Date(),
+					assertAllowed,
+					createAdapter: () => ({ provider: "waffo", adapter: { moderateText } }),
+					persistApproved,
+					recordDenied: vi.fn(),
+				} as never,
+			),
+		).rejects.toThrow("TEMPORARY_REFERENCE_INVALID");
+		expect(assertAllowed).not.toHaveBeenCalled();
+		expect(moderateText).not.toHaveBeenCalled();
+		expect(persistApproved).not.toHaveBeenCalled();
+	});
 	it.each([
 		["image-nano-banana-2-lite", "nano-banana-2-lite-1k", "auto"],
 		["image-gpt-image-2", "gpt-image-2-1k", "1:1"],

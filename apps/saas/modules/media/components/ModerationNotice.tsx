@@ -10,6 +10,7 @@ export function ModerationNotice({
 		status: string;
 		failureReason?: string | null;
 		moderationReason?: string | null;
+		moderationStage?: "input" | "output";
 		moderationBilling?: "WAIVED" | "CHARGED" | null;
 		creditsCharged: string;
 	};
@@ -30,7 +31,7 @@ export function ModerationNotice({
 	return (
 		<ContentSafetyNotice
 			className="mt-5"
-			stage="output"
+			stage={job.moderationStage ?? "output"}
 			outcome={blocked ? "blocked" : "unavailable"}
 			reason={job.moderationReason}
 			billing={billing}

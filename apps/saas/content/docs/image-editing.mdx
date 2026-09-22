@@ -81,9 +81,10 @@ Check the total credit cost after changing settings and before confirming the ed
 ## Reference image preparation
 
 In the signed-in editor, choosing a reference immediately displays a local preview while the image
-uploads, saves, and passes its checks. The status below the image shows progress through these steps.
-You can keep editing the prompt, but generation waits until the source is ready. A preview alone does
-not confirm that the upload or checks succeeded. If upload fails, retry it or remove the reference.
+uploads. You can keep editing the prompt and submit when the upload finishes. Clicking Generate
+starts the safety checks; the image model only receives a temporary reference after approval.
+A local preview alone does not confirm a successful upload. If upload fails, retry it or remove
+the reference. Temporary references expire after 24 hours; select the file again if needed.
 
 ## Job status
 
@@ -96,7 +97,8 @@ successfully, fail, or be canceled only when the server reports that cancellatio
 
 A successful image edit provides a before-and-after comparison. Inspect the parts you wanted to keep,
 as well as the area you changed. Downloads use temporary private access links; save a local copy if
-you need it beyond the retention period.
+you need it beyond the retention period. Once a temporary reference expires, its generated result
+can still be viewed and downloaded without the original comparison.
 
 A text generation provides a single image preview. Use **Edit again** to turn that output into the
 reference for a new edit, or reuse its prompt from History to create another image without a source.

@@ -12,6 +12,7 @@ import {
 	type GenerationJobStatusValue,
 } from "./state-machine";
 import { lockOwnerStorageUsage } from "./storage-usage-locks";
+import { adoptTemporaryReference, unexpiredStorageReservations } from "./temporary-references";
 import type {
 	CreateGenerationJobInput,
 	CreateGenerationJobResult,
@@ -173,6 +174,7 @@ export async function createGenerationJobTransaction(
 						ownerType: input.ownerType,
 						ownerId: input.ownerId,
 						status: { in: ["ACTIVE", "COMMITTED"] },
+						...unexpiredStorageReservations(operationNow),
 					},
 					_sum: { bytes: true },
 				});
@@ -208,6 +210,21 @@ export async function createGenerationJobTransaction(
 				}
 			}
 			await lockMediaAssetGenerationBindings(input.inputAssetIds, tx);
+			const temporaryValue = isJsonObject(quote.inputSnapshot)
+				? quote.inputSnapshot.temporaryReference
+				: undefined;
+			const temporaryReference =
+				temporaryValue === undefined
+					? null
+					: await adoptTemporaryReference(
+							{
+								value: temporaryValue,
+								ownerId: input.ownerId,
+								assetIds: input.inputAssetIds,
+								now: operationNow,
+							},
+							tx,
+						);
 			const edit = input.edit;
 			if (!edit && imageEditContext(quote.inputSnapshot)) throw new Error("NOT_FOUND");
 			const editBinding = edit
@@ -220,7 +237,8 @@ export async function createGenerationJobTransaction(
 							id: { in: input.inputAssetIds },
 							ownerType: "USER",
 							ownerId: input.ownerId,
-							status: "READY",
+							status: temporaryReference ? { in: ["READY", "VERIFYING"] } : "READY",
+							deletedAt: null,
 							checksum: { not: null },
 						},
 					})
@@ -242,6 +260,12 @@ export async function createGenerationJobTransaction(
 						orderBy: [{ assetId: "asc" }, { attemptNumber: "desc" }, { createdAt: "desc" }],
 					})
 				: [];
+			if (
+				inputAssets.some(
+					(asset) => asset.deleteAfter && asset.deleteAfter.getTime() <= operationNow.getTime(),
+				)
+			)
+				throw new Error("TEMPORARY_REFERENCE_EXPIRED");
 			const latestEvidenceByAssetId = new Map<string, (typeof moderationEvidence)[number]>();
 			for (const evidence of moderationEvidence) {
 				if (!latestEvidenceByAssetId.has(evidence.assetId)) {
@@ -250,6 +274,8 @@ export async function createGenerationJobTransaction(
 			}
 			if (
 				inputAssets.some((asset) => {
+					if (asset.id === temporaryReference?.assetId && asset.status === "VERIFYING")
+						return false;
 					const evidence = latestEvidenceByAssetId.get(asset.id);
 					return (
 						asset.verificationValidUntil === null ||
@@ -283,8 +309,9 @@ export async function createGenerationJobTransaction(
 			if (
 				inputAssets.some(
 					(asset) =>
-						asset.verificationRuleVersion !== input.expectedAssetModerationRuleVersion ||
-						asset.verificationPolicyVersion !== input.expectedAssetModerationPolicyVersion,
+						!(asset.id === temporaryReference?.assetId && asset.status === "VERIFYING") &&
+						(asset.verificationRuleVersion !== input.expectedAssetModerationRuleVersion ||
+							asset.verificationPolicyVersion !== input.expectedAssetModerationPolicyVersion),
 				)
 			) {
 				throw new Error("ASSET_MODERATION_EVIDENCE_STALE");
@@ -362,6 +389,12 @@ export async function createGenerationJobTransaction(
 				});
 			}
 			return {
+				...(temporaryReference &&
+				inputAssets.some(
+					(asset) => asset.id === temporaryReference.assetId && asset.status === "VERIFYING",
+				)
+					? { verificationAssetId: temporaryReference.assetId }
+					: {}),
 				job: {
 					id: job.id,
 					status: job.status,
@@ -471,7 +504,12 @@ async function resolveImageEditBinding(
 		});
 		if (!rootAsset) throw new Error("NOT_FOUND");
 		if (
-			rootAsset.status !== "READY" ||
+			(rootAsset.status !== "READY" &&
+				!(
+					rootAsset.status === "VERIFYING" &&
+					isJsonObject(quote.inputSnapshot) &&
+					quote.inputSnapshot.temporaryReference
+				)) ||
 			rootAsset.deletedAt !== null ||
 			!rootAsset.mimeType.startsWith("image/")
 		) {
@@ -589,7 +627,11 @@ function imageEditContext(inputSnapshot: Prisma.JsonValue): FrozenImageEditConte
 
 function generationJobInputSnapshot(inputSnapshot: Prisma.JsonValue): Prisma.InputJsonValue {
 	if (!isJsonObject(inputSnapshot)) return inputSnapshot as Prisma.InputJsonValue;
-	const { editContext: _editContext, ...generationInput } = inputSnapshot;
+	const {
+		editContext: _editContext,
+		temporaryReference: _temporaryReference,
+		...generationInput
+	} = inputSnapshot;
 	return generationInput as Prisma.InputJsonObject;
 }
 

@@ -13,6 +13,7 @@ export const JOB_STATUSES = [
 
 export type JobStatus = (typeof JOB_STATUSES)[number];
 export type UserJobStage =
+	| "checkingReference"
 	| "reserved"
 	| "queued"
 	| "starting"
@@ -23,6 +24,7 @@ export type UserJobStage =
 	| "canceled";
 
 interface JobStatusInput {
+	inputReferenceState?: string | null;
 	status: string;
 	progress?: number | null;
 	hasReadyOutput?: boolean;
@@ -51,7 +53,12 @@ export function getJobPresentation(input: JobStatusInput): JobPresentation {
 	const status = JOB_STATUSES.includes(input.status as JobStatus)
 		? (input.status as JobStatus)
 		: "FAILED";
-	const stage = status === "FINALIZING" && input.hasReadyOutput ? "ready" : STAGES[status];
+	const stage =
+		input.inputReferenceState === "VERIFYING" && ["RESERVED", "DISPATCH_QUEUED"].includes(status)
+			? "checkingReference"
+			: status === "FINALIZING" && input.hasReadyOutput
+				? "ready"
+				: STAGES[status];
 	const progress =
 		status === "PROVIDER_RUNNING" && typeof input.progress === "number"
 			? Math.max(0, Math.min(100, Math.round(input.progress)))

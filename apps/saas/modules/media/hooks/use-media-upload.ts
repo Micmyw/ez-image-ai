@@ -4,6 +4,10 @@ import { orpcClient } from "@shared/lib/orpc-client";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import {
+	uploadTemporaryReferenceFile,
+	type TemporaryReferenceReceipt,
+} from "../lib/temporary-reference-upload";
+import {
 	createPersistedUploadState,
 	getFileFingerprint,
 	getPendingPartNumbers,
@@ -20,6 +24,7 @@ export type MediaUploadStatus =
 	| "error";
 
 export interface MediaUploadItem {
+	temporaryReference?: TemporaryReferenceReceipt;
 	file: File;
 	previewUrl: string | null;
 	progress: number;
@@ -30,7 +35,10 @@ export interface MediaUploadItem {
 
 const STORAGE_PREFIX = "media-upload:";
 
-export function useMediaUpload(onChange?: (assetIds: string[]) => void) {
+export function useMediaUpload(
+	onChange?: (assetIds: string[], reference?: TemporaryReferenceReceipt) => void,
+	temporaryReference = false,
+) {
 	const [items, setItems] = useState<MediaUploadItem[]>([]);
 	const abortControllers = useRef(new Map<string, AbortController>());
 	const previewUrls = useRef(new Set<string>());
@@ -54,7 +62,7 @@ export function useMediaUpload(onChange?: (assetIds: string[]) => void) {
 			return;
 		}
 		emittedAssetIds.current = assetIds;
-		onChange(assetIds);
+		onChange(assetIds, items[0]?.temporaryReference);
 	}, [items, onChange]);
 
 	const update = useCallback((fingerprint: string, changes: Partial<MediaUploadItem>) => {
@@ -78,6 +86,17 @@ export function useMediaUpload(onChange?: (assetIds: string[]) => void) {
 			};
 			update(fingerprint, { status: "uploading", error: null });
 			try {
+				if (temporaryReference) {
+					const receipt = await uploadTemporaryReferenceFile(file, controller.signal);
+					assertActive();
+					update(fingerprint, {
+						status: "uploaded",
+						progress: 100,
+						assetId: receipt.assetId,
+						temporaryReference: receipt,
+					});
+					return;
+				}
 				const saved = parsePersistedUploadState(
 					localStorage.getItem(`${STORAGE_PREFIX}${fingerprint}`),
 				);
@@ -156,7 +175,7 @@ export function useMediaUpload(onChange?: (assetIds: string[]) => void) {
 				if (isCurrent()) abortControllers.current.delete(fingerprint);
 			}
 		},
-		[update],
+		[update, temporaryReference],
 	);
 
 	const addFiles = useCallback(

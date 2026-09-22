@@ -58,6 +58,18 @@ vi.mock("../../hooks/use-job", () => ({ useJob: () => mocks.jobQuery }));
 import { EditorResultPanel } from "./EditorResultPanel";
 
 describe("EditorResultPanel", () => {
+	it("keeps completed outputs available after the temporary input expires", () => {
+		mocks.jobQuery = {
+			data: { ...imageJob(), status: "SUCCEEDED", inputAssets: [], inputReferenceState: "EXPIRED" },
+			isError: false,
+		};
+		mocks.useQuery.mockReturnValue({ data: { url: "https://private.example.test/output" } });
+		const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
+		expect(markup).toContain('src="https://private.example.test/output"');
+		expect(markup).toContain("Download");
+		expect(markup).toContain("Edit again");
+		expect(markup).not.toContain("This edit is unavailable");
+	});
 	it.each(["text-to-image", "image-to-image"])(
 		"shows and downloads an approved %s output before credits settle",
 		(kind) => {

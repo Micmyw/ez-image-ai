@@ -8,6 +8,7 @@ import {
 	lockMediaAssetGenerationBindings,
 } from "./asset-binding-locks";
 import { lockOwnerStorageUsage } from "./storage-usage-locks";
+import { unexpiredStorageReservations } from "./temporary-references";
 import type { CursorPageInput, MediaDatabaseClient, MediaTransactionClient } from "./types";
 import { getMediaDatabaseClient, isDatabaseUniqueConflict, runSerializable } from "./types";
 
@@ -197,6 +198,7 @@ export async function listReadableMediaAssets(
 				verificationRuleVersion: input.verification.ruleVersion,
 				verificationPolicyVersion: input.verification.policyVersion,
 				verificationValidUntil: { gt: input.verification.now },
+				AND: [{ OR: [{ deleteAfter: null }, { deleteAfter: { gt: input.verification.now } }] }],
 				moderationResults: {
 					some: {
 						status: { in: ["APPROVED", "BYPASSED"] },
@@ -297,6 +299,7 @@ export async function createMediaUploadSessionTransaction(
 					ownerType: input.ownerType,
 					ownerId: input.ownerId,
 					status: { in: ["ACTIVE", "COMMITTED"] },
+					...unexpiredStorageReservations(),
 				},
 				_sum: { bytes: true },
 			}),
@@ -1656,6 +1659,7 @@ export async function reserveGenerationOutputStorageTransaction(
 				ownerId: asset.ownerId,
 				status: { in: ["ACTIVE", "COMMITTED"] },
 				referenceKey: { not: referenceKey },
+				...unexpiredStorageReservations(),
 			},
 			_sum: { bytes: true },
 		});
