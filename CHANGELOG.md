@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-23
+
+### Workspace navigation loading
+
+- Load workspace and model destinations when their links are opened, reducing automatic background requests while the editor or a result page loads.
+
 ## 2026-09-22
 
 ### Temporary editor references
@@ -21,7 +27,7 @@
 
 ### Model navigation and workspace sidebar
 
-- Open dedicated model pages from every model navigation menu, prefetch on hover or keyboard focus, and select the requested model on the first editor render.
+- Open dedicated model pages from every model navigation menu and select the requested model on the first editor render.
 - Start with empty input when entering another model page; restore the most recent tab draft only on a same-route refresh, and replace it after entering another editor route. Keep prompt and reference input when switching models inside the editor.
 - Make **Create image** open `/create`, and give **Editing Examples** its own `/examples` gallery with prompts that open in the editor.
 - Keep the sidebar branding, create shortcut and account controls fixed while the middle navigation scrolls.

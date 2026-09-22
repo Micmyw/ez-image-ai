@@ -188,13 +188,14 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 		<>
 			<div className="studio-sidebar-header">
 				<div className="studio-brand-row">
-					<Link href="/" aria-label={brandName}>
+					<Link href="/" aria-label={brandName} prefetch={false}>
 						<Logo className="text-white [&_svg]:text-violet-300" label={brandName} />
 					</Link>
 				</div>
 				<Link
 					className={pathname === "/create" ? "studio-nav-link is-active" : "studio-nav-link"}
 					href="/create"
+					prefetch={false}
 					onClick={startFreshCreate}
 				>
 					<SparklesIcon />
@@ -206,15 +207,15 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 				{registered && (
 					<>
 						<p className="studio-nav-label">{t("workspace")}</p>
-						<Link className="studio-nav-link" href="/history">
+						<Link className="studio-nav-link" href="/history" prefetch={false}>
 							<HistoryIcon />
 							{t("history")}
 						</Link>
-						<Link className="studio-nav-link" href="/assets">
+						<Link className="studio-nav-link" href="/assets" prefetch={false}>
 							<ImagesIcon />
 							{t("assets")}
 						</Link>
-						<Link className="studio-nav-link" href="/edits">
+						<Link className="studio-nav-link" href="/edits" prefetch={false}>
 							<ImagesIcon />
 							{t("edits")}
 						</Link>
@@ -230,7 +231,7 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 					{common("pricing")}
 				</a>
 				{user?.role === "admin" && (
-					<Link className="studio-nav-link" href="/admin">
+					<Link className="studio-nav-link" href="/admin" prefetch={false}>
 						<ShieldUserIcon />
 						{t("admin")}
 					</Link>
@@ -274,6 +275,7 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 							{showSidebar && <span className="studio-workspace-title">{t("create")}</span>}
 							<Link
 								href="/"
+								prefetch={false}
 								aria-label={brandName}
 								className={showSidebar ? "studio-compact-brand" : undefined}
 							>
@@ -284,7 +286,7 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 							<StudioToolNavigation />
 							<a href={sectionHref("#pricing")}>{common("pricing")}</a>
 							{registered && !showSidebar && (
-								<Link href="/create" className="studio-create-link">
+								<Link href="/create" className="studio-create-link" prefetch={false}>
 									{t("create")}
 								</Link>
 							)}

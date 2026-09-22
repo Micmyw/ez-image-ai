@@ -62,6 +62,7 @@ export function StudioToolNavigation({
 		<>
 			<Link
 				href="/create"
+				prefetch={false}
 				onClick={(event) => navigateToWorkspace(event, "/create", DEFAULT_EDITOR_PRODUCT_KEY)}
 				className={vertical ? "studio-nav-link" : "studio-menu-entry"}
 				aria-current={pathname === "/create" && !selected ? "page" : undefined}
@@ -74,6 +75,7 @@ export function StudioToolNavigation({
 			</Link>
 			<Link
 				href="/examples"
+				prefetch={false}
 				onClick={navigate}
 				className={vertical ? "studio-nav-link" : "studio-menu-entry"}
 				aria-current={pathname === "/examples" ? "page" : undefined}
@@ -86,6 +88,7 @@ export function StudioToolNavigation({
 			</Link>
 			<Link
 				href="/image-to-image"
+				prefetch={false}
 				onClick={navigate}
 				className={vertical ? "studio-nav-link" : "studio-menu-entry"}
 				aria-current={pathname === "/image-to-image" ? "page" : undefined}
@@ -104,6 +107,7 @@ export function StudioToolNavigation({
 			<Link
 				key={product.key}
 				href={href}
+				prefetch={false}
 				onClick={(event) => navigateToWorkspace(event, href, product.key)}
 				className={
 					vertical
@@ -144,7 +148,7 @@ export function StudioToolNavigation({
 					</summary>
 					<div className="studio-drawer-links">
 						{modelContent}
-						<Link href="/models" className="studio-nav-link" onClick={navigate}>
+						<Link href="/models" className="studio-nav-link" onClick={navigate} prefetch={false}>
 							{t("models")} <span aria-hidden>→</span>
 						</Link>
 					</div>
@@ -156,7 +160,7 @@ export function StudioToolNavigation({
 			<div className="studio-tool-sidebar">
 				<p className="studio-nav-label">{t("imageTools")}</p>
 				{tools}
-				<Link href="/models" className="studio-nav-label">
+				<Link href="/models" className="studio-nav-label" prefetch={false}>
 					{t("models")}
 				</Link>
 				{modelContent}
@@ -193,7 +197,12 @@ export function StudioToolNavigation({
 							{kind === "tools" ? tools : modelContent}
 						</div>
 						{kind === "models" && (
-							<Link href="/models" className="studio-menu-entry" onClick={navigate}>
+							<Link
+								href="/models"
+								className="studio-menu-entry"
+								onClick={navigate}
+								prefetch={false}
+							>
 								{t("models")} <span aria-hidden>→</span>
 							</Link>
 						)}
