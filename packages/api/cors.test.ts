@@ -8,6 +8,7 @@ vi.mock("@repo/jobs", () => ({
 }));
 vi.mock("@repo/storage", () => ({
 	checkStorageMetadataAccess: vi.fn(),
+	putTemporaryReferenceObject: vi.fn(),
 	MAX_AVATAR_UPLOAD_BYTES: 2_000_000,
 }));
 vi.mock("@repo/payments", () => ({
