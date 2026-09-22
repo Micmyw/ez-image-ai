@@ -3,17 +3,23 @@ export function SuggestedPrompts({
 	suggestions,
 	labels,
 	onSelect,
+	hideLabel = false,
 }: {
 	label: string;
 	suggestions: string[];
 	labels?: string[];
 	onSelect: (prompt: string) => void;
+	hideLabel?: boolean;
 }) {
 	return (
 		<div aria-labelledby="editor-suggested-prompts">
 			<p
 				id="editor-suggested-prompts"
-				className="mb-2 font-medium text-xs tracking-wide text-muted-foreground uppercase"
+				className={
+					hideLabel
+						? "sr-only"
+						: "mb-2 font-medium text-xs tracking-wide text-muted-foreground uppercase"
+				}
 			>
 				{label}
 			</p>

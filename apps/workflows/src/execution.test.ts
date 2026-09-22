@@ -1,7 +1,7 @@
 import { signRequest } from "@repo/jobs/orchestration/auth";
 import { describe, expect, it, vi } from "vitest";
 
-import { createWorkerExecutionHandler } from "./execution";
+import { createWorkerExecutionHandler, type WorkerExecutionOptions } from "./execution";
 
 const secret = "test-only-32-character-shared-secret";
 
@@ -21,6 +21,40 @@ async function signed(
 }
 
 describe("Workers job admission", () => {
+	it("reports saturation and elapsed execution without letting telemetry replay work", async () => {
+		let finish!: () => void;
+		const execute = vi.fn(
+			() =>
+				new Promise<void>((resolve) => {
+					finish = resolve;
+				}),
+		);
+		const onEvent = vi.fn<NonNullable<WorkerExecutionOptions["onEvent"]>>(() => {
+			throw new Error("telemetry unavailable");
+		});
+		const handler = createWorkerExecutionHandler({
+			secret,
+			execute,
+			poll: vi.fn(),
+			maxActive: 1,
+			onEvent,
+		});
+		const first = handler(await signed());
+		await vi.waitFor(() => expect(execute).toHaveBeenCalledOnce());
+		expect((await handler(await signed())).status).toBe(429);
+		finish();
+		expect((await first).status).toBe(200);
+		expect(onEvent.mock.calls.map(([event]) => event)).toEqual([
+			expect.objectContaining({ phase: "busy", active: 1, maximum: 1 }),
+			expect.objectContaining({
+				phase: "completed",
+				active: 0,
+				outcome: "ok",
+				elapsedMs: expect.any(Number),
+			}),
+		]);
+		expect(execute).toHaveBeenCalledOnce();
+	});
 	it("returns only moderation polling control state and rejects malformed results", async () => {
 		const execute = vi
 			.fn()

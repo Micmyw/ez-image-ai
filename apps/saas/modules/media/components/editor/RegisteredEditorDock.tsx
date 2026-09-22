@@ -14,7 +14,9 @@ export function RegisteredEditorDock({ prompt, jobId }: { prompt: string; jobId:
 	useEffect(() => {
 		const editor = document.getElementById("registered-generator");
 		if (!editor || typeof IntersectionObserver === "undefined") return;
-		const footer = editor.closest(".model-page")?.querySelector(".model-footer");
+		const footer = editor
+			.closest(".model-page, [data-image-to-image-page]")
+			?.querySelector(".model-footer, [data-editor-end]");
 		const observer = new IntersectionObserver(() => {
 			const hasPassedEditor = editor.getBoundingClientRect().bottom < 0;
 			const beforeFooter = !footer || footer.getBoundingClientRect().top >= window.innerHeight;

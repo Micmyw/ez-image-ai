@@ -2,51 +2,19 @@
 
 import { ArrowUpRightIcon, CheckIcon, MousePointerClickIcon, SparklesIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { useState } from "react";
+import Link from "next/link";
+import { type ReactNode, useState } from "react";
 
 import {
 	LANDING_PROMPT_SELECTED_EVENT,
 	type LandingPromptSelectedDetail,
 } from "../lib/prompt-selection";
+import { SHOWCASE_ITEMS } from "../lib/showcase-items";
 import { LandingArtwork } from "./LandingArtwork";
 
-const SHOWCASE_ITEMS = [
-	{
-		key: "mediterranean",
-		image: "/examples/case-mediterranean-room.webp",
-		width: 1200,
-		height: 900,
-	},
-	{
-		key: "lunarGreenhouse",
-		image: "/examples/case-lunar-greenhouse.webp",
-		width: 864,
-		height: 1080,
-	},
-	{ key: "cobalt", image: "/examples/case-cobalt-product.webp", width: 1024, height: 1536 },
-	{ key: "origamiKoi", image: "/examples/case-origami-koi.webp", width: 1200, height: 800 },
-	{ key: "emerald", image: "/examples/case-emerald-fashion.webp", width: 1024, height: 1536 },
-	{
-		key: "tangerineCamera",
-		image: "/examples/case-tangerine-camera.webp",
-		width: 960,
-		height: 960,
-	},
-	{ key: "blueHour", image: "/examples/case-blue-hour.webp", width: 1200, height: 800 },
-	{
-		key: "porcelainTide",
-		image: "/examples/case-porcelain-tide.webp",
-		width: 960,
-		height: 1200,
-	},
-	{ key: "citrus", image: "/examples/case-citrus-editorial.webp", width: 1024, height: 1536 },
-	{ key: "velvetFox", image: "/examples/case-velvet-fox.webp", width: 960, height: 1200 },
-	{ key: "paperTrain", image: "/examples/case-paper-train.webp", width: 900, height: 1350 },
-	{ key: "desertPool", image: "/examples/case-desert-pool.webp", width: 1200, height: 800 },
-] as const;
-
-export function ShowcaseSection() {
+export function ShowcaseSection({ standalone = false }: { standalone?: boolean } = {}) {
 	const t = useTranslations("home.showcase");
+	const Heading = standalone ? "h1" : "h2";
 	const [selectedKey, setSelectedKey] = useState<(typeof SHOWCASE_ITEMS)[number]["key"]>();
 
 	function usePrompt(key: (typeof SHOWCASE_ITEMS)[number]["key"]) {
@@ -72,12 +40,12 @@ export function ShowcaseSection() {
 							<SparklesIcon className="size-3.5" aria-hidden="true" />
 							{t("eyebrow")}
 						</p>
-						<h2
+						<Heading
 							id="examples-title"
 							className="mt-3 max-w-4xl text-3xl font-semibold sm:text-4xl lg:text-5xl leading-[1.02] tracking-[-0.045em] text-balance"
 						>
 							{t("title")}
-						</h2>
+						</Heading>
 					</div>
 					<div className="lg:justify-self-end">
 						<p className="max-w-xl text-base leading-7 text-slate-300 sm:text-lg">
@@ -100,11 +68,11 @@ export function ShowcaseSection() {
 									: "border-white/10"
 							}`}
 						>
-							<button
-								type="button"
-								aria-pressed={selectedKey === item.key}
-								className="@container relative block w-full overflow-hidden text-left focus-visible:outline-none"
-								onClick={() => usePrompt(item.key)}
+							<ShowcasePromptAction
+								standalone={standalone}
+								exampleKey={item.key}
+								selected={selectedKey === item.key}
+								onSelect={() => usePrompt(item.key)}
 							>
 								<div className="bg-slate-800 relative overflow-hidden">
 									<LandingArtwork
@@ -146,12 +114,38 @@ export function ShowcaseSection() {
 										</div>
 									</div>
 								</div>
-							</button>
+							</ShowcasePromptAction>
 						</article>
 					))}
 				</div>
 				<p className="mt-6 max-w-3xl text-xs leading-5 text-slate-400">{t("provenanceNote")}</p>
 			</div>
 		</section>
+	);
+}
+
+function ShowcasePromptAction({
+	standalone,
+	exampleKey,
+	selected,
+	onSelect,
+	children,
+}: {
+	standalone: boolean;
+	exampleKey: string;
+	selected: boolean;
+	onSelect: () => void;
+	children: ReactNode;
+}) {
+	const className =
+		"@container relative block w-full overflow-hidden text-left focus-visible:outline-none";
+	return standalone ? (
+		<Link className={className} href={`/create?example=${exampleKey}`}>
+			{children}
+		</Link>
+	) : (
+		<button type="button" className={className} aria-pressed={selected} onClick={onSelect}>
+			{children}
+		</button>
 	);
 }

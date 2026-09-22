@@ -92,7 +92,7 @@ export function ImageOutputSettings({
 						<span className="sr-only">{labels.trigger}: </span>
 						<span className="gap-1.5 flex shrink-0 items-center">
 							<ScanIcon className="size-3.5" aria-hidden="true" />
-							<span className={value === "auto" ? "sr-only" : ""}>
+							<span className={`image-output-aspect-label ${value === "auto" ? "sr-only" : ""}`}>
 								{value === "auto" ? labels.automatic : value}
 							</span>
 						</span>

@@ -8,19 +8,29 @@ import { MainAccountBoundary } from "@shared/components/MainAccountBoundary";
 import { RegisteredWorkspaceBoundary } from "@shared/components/RegisteredWorkspaceBoundary";
 import { StudioShell } from "@shared/components/studio/StudioShell";
 import { getBaseUrl } from "@shared/lib/base-url";
-import { ChevronDownIcon, ImagePlusIcon, PaintbrushIcon, SunIcon } from "lucide-react";
+import {
+	ArrowDownIcon,
+	ArrowUpRightIcon,
+	ChevronDownIcon,
+	ImagePlusIcon,
+	PencilLineIcon,
+	ScanEyeIcon,
+} from "lucide-react";
 import { getLocale, getTranslations } from "next-intl/server";
 import Link from "next/link";
 import { Suspense } from "react";
 
 import { PublicFooterLinks } from "../../public-content/components/PublicFooterLinks";
-import { ImageToImagePrompt } from "./ImageToImagePrompt";
+import { ImageToImageExamples } from "./ImageToImageExamples";
 import { LandingGenerator } from "./LandingGenerator";
 
-const useCases = [
-	{ key: "background", Icon: ImagePlusIcon },
-	{ key: "portrait", Icon: SunIcon },
-	{ key: "style", Icon: PaintbrushIcon },
+import "./image-to-image.css";
+
+const useCases = ["background", "portrait", "style"] as const;
+const steps = [
+	{ key: "upload", Icon: ImagePlusIcon },
+	{ key: "prompt", Icon: PencilLineIcon },
+	{ key: "generate", Icon: ScanEyeIcon },
 ] as const;
 const faqKeys = ["definition", "free", "control", "privacy", "limits"] as const;
 
@@ -105,8 +115,42 @@ export async function ImageToImagePage({
 								)}
 							</Suspense>
 						</div>
+						<div className="mt-6 flex justify-center">
+							<a
+								href="#image-to-image-examples"
+								className="min-h-11 gap-2 px-4 text-xs text-violet-200 hover:bg-white/5 focus-visible:outline-violet-300 inline-flex items-center rounded-lg focus-visible:outline-2"
+							>
+								{t("examples.explore")} <ArrowDownIcon size={14} aria-hidden="true" />
+							</a>
+						</div>
 					</div>
 				</section>
+
+				<ImageToImageExamples
+					items={useCases.map((key) => ({
+						key,
+						label: t(`examples.${key}.label`),
+						title: t(`useCases.${key}.title`),
+						body: t(`useCases.${key}.body`),
+						prompt: t(`useCases.${key}.prompt`),
+						beforeAlt: t(`examples.${key}.beforeAlt`),
+						afterAlt: t(`examples.${key}.afterAlt`),
+					}))}
+					labels={{
+						title: t("useCases.title"),
+						intro: t("useCases.intro"),
+						choose: t("examples.choose"),
+						before: t("examples.before"),
+						after: t("examples.after"),
+						compare: t("examples.compare"),
+						drag: t("examples.drag"),
+						prompt: t("promptLabel"),
+						usePrompt: t("usePrompt"),
+						promptAdded: t("examples.promptAdded"),
+						ownImage: t("examples.ownImage"),
+						note: t("examples.note"),
+					}}
+				/>
 
 				<section className="py-14 sm:py-20 container" aria-labelledby="image-to-image-how">
 					<div className="max-w-3xl mx-auto text-center">
@@ -118,50 +162,20 @@ export async function ImageToImagePage({
 						</h2>
 						<p className="mt-4 text-base leading-7 text-slate-300">{t("how.description")}</p>
 					</div>
-					<div className="mt-9 gap-5 md:grid-cols-3 grid">
-						{(["upload", "prompt", "generate"] as const).map((key, index) => (
-							<article
-								key={key}
-								className="border-white/10 bg-white/[0.035] p-6 rounded-2xl border"
-							>
-								<span className="font-mono text-sm text-violet-300">0{index + 1}</span>
+					<div className="mt-9 gap-8 md:grid-cols-3 grid">
+						{steps.map(({ key, Icon }, index) => (
+							<article key={key} className="border-violet-300/25 pt-6 relative border-t">
+								<div className="flex items-center justify-between">
+									<Icon
+										className="size-10 bg-violet-300/10 p-2.5 text-violet-200 rounded-xl"
+										aria-hidden="true"
+									/>
+									<span className="font-mono text-xs text-violet-300/70">0{index + 1}</span>
+								</div>
 								<h3 className="mt-4 text-lg font-semibold">{t(`how.steps.${key}.title`)}</h3>
 								<p className="mt-3 text-sm leading-6 text-slate-300">
 									{t(`how.steps.${key}.body`)}
 								</p>
-							</article>
-						))}
-					</div>
-				</section>
-
-				<section className="py-14 sm:py-20 container" aria-labelledby="image-to-image-prompts">
-					<div className="max-w-3xl">
-						<h2
-							id="image-to-image-prompts"
-							className="text-3xl font-semibold tracking-tight sm:text-4xl"
-						>
-							{t("useCases.title")}
-						</h2>
-						<p className="mt-4 text-base leading-7 text-slate-300">{t("useCases.intro")}</p>
-					</div>
-					<div className="mt-9 gap-5 lg:grid-cols-3 grid">
-						{useCases.map(({ key, Icon }) => (
-							<article
-								key={key}
-								className="min-w-0 border-violet-300/15 bg-violet-300/[0.045] p-6 flex flex-col rounded-2xl border"
-							>
-								<Icon className="size-6 text-violet-300" aria-hidden="true" />
-								<h3 className="mt-5 text-xl font-semibold">{t(`useCases.${key}.title`)}</h3>
-								<p className="mb-5 mt-3 text-sm leading-6 text-slate-300">
-									{t(`useCases.${key}.body`)}
-								</p>
-								<div className="bg-black/20 p-4 mt-auto rounded-xl">
-									<p className="mb-2 text-xs font-semibold text-violet-300">{t("promptLabel")}</p>
-									<blockquote className="text-sm leading-6 text-slate-200">
-										{t(`useCases.${key}.prompt`)}
-									</blockquote>
-								</div>
-								<ImageToImagePrompt prompt={t(`useCases.${key}.prompt`)} label={t("usePrompt")} />
 							</article>
 						))}
 					</div>
@@ -188,22 +202,17 @@ export async function ImageToImagePage({
 				</section>
 
 				<section
-					className="max-w-3xl py-14 sm:py-20 container"
+					className="image-edit-faq container"
+					data-editor-end=""
 					aria-labelledby="image-to-image-faq"
 				>
-					<h2
-						id="image-to-image-faq"
-						className="text-3xl font-semibold tracking-tight sm:text-4xl text-center"
-					>
+					<h2 id="image-to-image-faq" className="image-edit-faq-title">
 						{t("faq.title")}
 					</h2>
-					<div className="mt-8 space-y-3">
+					<div className="image-edit-faq-content">
 						{faqKeys.map((key) => (
-							<details
-								key={key}
-								className="group border-white/10 bg-white/[0.035] p-5 open:border-violet-300/40 rounded-2xl border"
-							>
-								<summary className="gap-4 rounded font-semibold focus-visible:outline-violet-300 flex cursor-pointer list-none items-center justify-between marker:hidden focus-visible:outline-2 focus-visible:outline-offset-4">
+							<details key={key} className="image-edit-faq-item group">
+								<summary className="gap-4 rounded focus-visible:outline-violet-300 flex cursor-pointer list-none items-center justify-between marker:hidden focus-visible:outline-2 focus-visible:outline-offset-4">
 									<span>{t(`faq.${key}.question`)}</span>
 									<ChevronDownIcon
 										className="size-4 text-violet-300 shrink-0 transition group-open:rotate-180 motion-reduce:transition-none"
@@ -221,13 +230,9 @@ export async function ImageToImagePage({
 								)}
 							</details>
 						))}
-					</div>
-					<div className="mt-9 text-center">
-						<a
-							href="#image-editor"
-							className="min-h-12 bg-violet-600 px-6 font-semibold hover:bg-violet-500 focus-visible:outline-violet-300 inline-flex items-center rounded-xl transition focus-visible:outline-2 focus-visible:outline-offset-4"
-						>
+						<a href="#image-editor" className="image-edit-return-link">
 							{t("startAgain")}
+							<ArrowUpRightIcon size={18} aria-hidden="true" />
 						</a>
 					</div>
 				</section>

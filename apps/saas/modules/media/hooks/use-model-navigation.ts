@@ -9,6 +9,18 @@ export function imageModelHref(productKey: string) {
 	return `/models/${encodeURIComponent(productKey.replace(/^image-/, ""))}`;
 }
 
+export function useRequestedImageModel() {
+	const pathname = usePathname();
+	return resolveRequestedImageModel(pathname, useSearchParams().get("model"));
+}
+
+export function resolveRequestedImageModel(pathname: string, queryModel: string | null) {
+	const slug = pathname.startsWith("/models/") ? pathname.slice("/models/".length) : null;
+	const routeModel = slug ? `image-${slug}` : null;
+	if (queryModel && (isEditorProductKey(queryModel) || !routeModel)) return queryModel;
+	return routeModel;
+}
+
 /** Keep manual choices shareable without remounting the form or its private input. */
 export function replaceImageModelInUrl(productKey: string) {
 	const url = new URL(window.location.href);
@@ -29,10 +41,8 @@ export function useModelNavigation({
 	onSelect: (key: EditorProductKey) => void;
 	ready: boolean;
 }) {
-	const pathname = usePathname();
-	const slug = pathname.startsWith("/models/") ? pathname.slice("/models/".length) : null;
-	const requested = useSearchParams().get("model") ?? (slug ? `image-${slug}` : null);
-	const applied = useRef<string | null>(null);
+	const requested = useRequestedImageModel();
+	const applied = useRef<string | null>(requested);
 	const available = Boolean(
 		requested &&
 		isEditorProductKey(requested) &&

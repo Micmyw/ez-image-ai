@@ -95,7 +95,9 @@ describe("landing generator workflow", () => {
 		expect(resolveLandingProductSelection(products.slice(1), "image-nano-banana-2-lite")).toBe(
 			"image-gpt-image-2",
 		);
-		expect(resolveLandingProductSelection([], "image-nano-banana-2-lite")).toBeNull();
+		expect(resolveLandingProductSelection([], "image-nano-banana-2-lite")).toBe(
+			"image-nano-banana-2-lite",
+		);
 	});
 
 	it("keeps a supported aspect ratio and falls back to Automatic for a changed tier", () => {

@@ -8,6 +8,7 @@ import {
 } from "@repo/config/client";
 
 export type EditorProductKey = (typeof EZPIC_PRODUCT_KEYS)[number];
+export const DEFAULT_EDITOR_PRODUCT_KEY: EditorProductKey = EZPIC_PRODUCT_KEYS[0];
 
 export function isEditorProductKey(
 	productKey: string | null | undefined,

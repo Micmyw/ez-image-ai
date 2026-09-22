@@ -1,10 +1,16 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { replaceImageModelInUrl } from "./use-model-navigation";
+import { replaceImageModelInUrl, resolveRequestedImageModel } from "./use-model-navigation";
 
 afterEach(() => vi.unstubAllGlobals());
 
 describe("image model URL selection", () => {
+	it("uses a valid model-page slug when an invalid query value tries to mask it", () => {
+		expect(resolveRequestedImageModel("/models/nano-banana-2", "unknown-model")).toBe(
+			"image-nano-banana-2",
+		);
+		expect(resolveRequestedImageModel("/create", "unknown-model")).toBe("unknown-model");
+	});
 	it("closes the previous result when choosing another model and preserves other URL options", () => {
 		const replaceState = vi.fn();
 		vi.stubGlobal("window", {

@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ useGeneration: vi.fn(), modelOptions: vi.fn() }));
+const navigation = vi.hoisted(() => ({ pathname: "/create", search: "" }));
 vi.mock("./editor/RegisteredEditorDock", () => ({ RegisteredEditorDock: () => null }));
 vi.mock("./ImageModelSelector", async (importOriginal) => {
 	const { ImageModelSelector } = await importOriginal<typeof import("./ImageModelSelector")>();
@@ -16,8 +17,8 @@ vi.mock("./ImageModelSelector", async (importOriginal) => {
 
 vi.mock("@shared/hooks/router", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("next/navigation", () => ({
-	useSearchParams: () => new URLSearchParams(),
-	usePathname: () => "/create",
+	useSearchParams: () => new URLSearchParams(navigation.search),
+	usePathname: () => navigation.pathname,
 }));
 vi.mock("@payments/components/EditorUpgradeDialog", () => ({
 	EditorUpgradeDialog: ({ open }: { open: boolean }) =>
@@ -312,15 +313,62 @@ function generationState() {
 vi.mock("./editor/ImageSourcePanel", () => ({
 	ImageSourcePanel: () => <span>Localized source image</span>,
 }));
-vi.mock("./editor/PromptPanel", () => ({
-	PromptPanel: ({ label }: { label: string }) => <span>{label}</span>,
-}));
 
 import { GenerationForm } from "./GenerationForm";
 
 describe("GenerationForm product copy", () => {
 	beforeEach(() => {
+		navigation.pathname = "/create";
+		navigation.search = "";
 		mocks.useGeneration.mockReturnValue(generationState());
+	});
+
+	it.each([
+		["/models/gpt-image-2", ""],
+		["/create", "model=image-gpt-image-2"],
+	])("renders the requested model on the first frame at %s?%s", (pathname, search) => {
+		navigation.pathname = pathname;
+		navigation.search = search;
+		const markup = renderToStaticMarkup(<GenerationForm onCreated={vi.fn()} />);
+		const trigger = markup.match(
+			/<button[^>]*data-test="editor-model-trigger"[\s\S]*?<\/button>/,
+		)?.[0];
+		expect(trigger).toContain("Localized GPT Image 2");
+		expect(trigger).not.toContain("Localized Nano Banana 2 Lite");
+	});
+
+	it("keeps the requested model label while the catalog is still loading", () => {
+		navigation.pathname = "/models/gpt-image-2";
+		mocks.useGeneration.mockReturnValue({
+			...generationState(),
+			catalog: { data: undefined },
+		});
+		const markup = renderToStaticMarkup(<GenerationForm onCreated={vi.fn()} />);
+		const trigger = markup.match(
+			/<button[^>]*data-test="editor-model-trigger"[\s\S]*?<\/button>/,
+		)?.[0];
+		expect(trigger).toContain("Localized GPT Image 2");
+		expect(trigger).not.toContain("Choose a model");
+	});
+
+	it("lets an explicit fresh-workspace model override a stale query on the first frame", () => {
+		navigation.pathname = "/models/nano-banana-2-lite";
+		navigation.search = "model=image-gpt-image-2";
+		const markup = renderToStaticMarkup(
+			<GenerationForm onCreated={vi.fn()} initialProductKey="image-nano-banana-2-lite" />,
+		);
+		const trigger = markup.match(
+			/<button[^>]*data-test="editor-model-trigger"[\s\S]*?<\/button>/,
+		)?.[0];
+		expect(trigger).toContain("Localized Nano Banana 2 Lite");
+		expect(trigger).not.toContain("Localized GPT Image 2");
+	});
+
+	it("opens the selected public example as editable prompt text", () => {
+		navigation.search = "example=mediterranean";
+		const markup = renderToStaticMarkup(<GenerationForm onCreated={vi.fn()} />);
+		const prompt = markup.match(/<textarea[^>]*id="generation-prompt"[\s\S]*?<\/textarea>/)?.[0];
+		expect(prompt).toContain("items.mediterranean.prompt");
 	});
 
 	it.each([false, true])("requires a source only in reference mode (%s)", (requireReference) => {

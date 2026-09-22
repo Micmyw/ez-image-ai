@@ -239,7 +239,7 @@ test.beforeEach(async ({ page }) => {
 });
 
 for (const width of [1440, 390]) {
-	test(`tool navigation opens a guest workspace and preserves edits while selecting models at ${width}px`, async ({
+	test(`tool navigation opens dedicated model pages with fresh input at ${width}px`, async ({
 		page,
 	}) => {
 		// This journey compiles several routes on a fresh local Next.js dev server.
@@ -291,7 +291,6 @@ for (const width of [1440, 390]) {
 		});
 		const sourcePreview = page.getByRole("img", { name: /preview of navigation-source\.png/i });
 		await expect(sourcePreview).toBeVisible();
-		const sourcePreviewUrl = await sourcePreview.getAttribute("src");
 		const workspaceNavigation =
 			width <= 1200
 				? page.locator('[data-test="header-navigation-drawer"]')
@@ -301,20 +300,18 @@ for (const width of [1440, 390]) {
 			await workspaceNavigation.locator("summary").filter({ hasText: "AI Models" }).click();
 		}
 		await expect(workspaceNavigation).toBeVisible();
-		await workspaceNavigation.locator('a[href="/create?model=image-nano-banana-2-lite"]').click();
+		await workspaceNavigation.locator('a[href="/models/nano-banana-2-lite"]').click();
+		await expect(page).toHaveURL(/\/models\/nano-banana-2-lite$/, { timeout: 30_000 });
 		await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText(
 			"Nano Banana 2 Lite",
 		);
-		await expect(page.locator("#landing-edit-prompt")).toHaveValue(
-			"Keep this prompt and source while changing models.",
-		);
-		await expect(sourcePreview).toBeVisible();
-		await expect(sourcePreview).toHaveAttribute("src", sourcePreviewUrl!);
+		await expect(page.locator("#landing-edit-prompt")).toHaveValue("");
+		await expect(sourcePreview).toHaveCount(0);
 		if (width <= 1200) await expect(workspaceNavigation).toBeHidden();
-		await page.goBack();
-		await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText("GPT Image 2");
 		await page.reload();
-		await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText("GPT Image 2");
+		await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText(
+			"Nano Banana 2 Lite",
+		);
 		expect(
 			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
 		).toBe(true);
@@ -327,6 +324,99 @@ for (const width of [1440, 390]) {
 		expect(settings.headers().location).toContain("/login");
 	});
 }
+
+for (const width of [1440, 390]) {
+	test(`canonical workspace links clear input after an in-editor model change at ${width}px`, async ({
+		page,
+	}) => {
+		await page.setViewportSize({ width, height: 1000 });
+		await page.goto("/models/nano-banana-2-lite");
+		await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText(
+			"Nano Banana 2 Lite",
+		);
+		await page.locator("#landing-edit-prompt").fill("STALE_SENTINEL");
+		await page.locator("#landing-source-image").setInputFiles({
+			name: "same-route-source.png",
+			mimeType: "image/png",
+			buffer: Buffer.from(ONE_PIXEL_PNG, "base64"),
+		});
+		const sourcePreview = page.getByRole("img", { name: /preview of same-route-source\.png/i });
+		await expect(sourcePreview).toBeVisible();
+		await selectModel(page, "GPT Image", "image-gpt-image-2");
+		await expect(page).toHaveURL(/\/models\/nano-banana-2-lite\?model=image-gpt-image-2$/);
+		await expect(page.locator("#landing-edit-prompt")).toHaveValue("STALE_SENTINEL");
+		await expect(sourcePreview).toBeVisible();
+		await page.evaluate(() => {
+			(window as typeof window & { __workspaceMarker?: string }).__workspaceMarker = "preserved";
+		});
+
+		const navigation =
+			width <= 1200
+				? page.locator('[data-test="header-navigation-drawer"]')
+				: page.locator(".studio-navigation-popover");
+		if (width <= 1200) {
+			await page.locator('[data-test="header-navigation-trigger"]').click();
+			await navigation.locator("summary").filter({ hasText: "AI Models" }).click();
+		} else {
+			await page.locator('[data-test="studio-models-menu"]').click();
+		}
+		await navigation.locator('a[href="/models/nano-banana-2-lite"]').click();
+		await expect(page).toHaveURL(/\/models\/nano-banana-2-lite$/);
+		await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText(
+			"Nano Banana 2 Lite",
+		);
+		await expect(page.locator("#landing-edit-prompt")).toHaveValue("");
+		await expect(sourcePreview).toHaveCount(0);
+		expect(
+			await page.evaluate(
+				() => (window as typeof window & { __workspaceMarker?: string }).__workspaceMarker,
+			),
+		).toBe("preserved");
+
+		await page.goto("/create?model=image-gpt-image-2");
+		await page.locator("#landing-edit-prompt").fill("ANOTHER_STALE_SENTINEL");
+		if (width <= 1200) {
+			await page.locator('[data-test="header-navigation-trigger"]').click();
+			await page.locator('.studio-drawer-create[href="/create"]').click();
+		} else {
+			await page.locator('.studio-sidebar-header a[href="/create"]').click();
+		}
+		await expect(page).toHaveURL(/\/create$/);
+		await expect(page.locator("#landing-edit-prompt")).toHaveValue("");
+	});
+}
+
+test("keeps the sidebar header and account fixed while its navigation scrolls", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 1440, height: 520 });
+	await page.goto("/create");
+	await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText(
+		"Nano Banana 2 Lite",
+	);
+	const navigation = page.locator(".studio-navigation");
+	const header = page.locator(".studio-sidebar-header");
+	const account = page.locator(".studio-account");
+	await expect(header).toBeVisible();
+	await expect(account).toBeVisible();
+	const before = {
+		header: await header.boundingBox(),
+		account: await account.boundingBox(),
+	};
+	expect(await navigation.evaluate((element) => element.scrollHeight > element.clientHeight)).toBe(
+		true,
+	);
+	await navigation.evaluate((element) => {
+		element.scrollTop = element.scrollHeight;
+	});
+	await expect.poll(() => navigation.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+	const after = {
+		header: await header.boundingBox(),
+		account: await account.boundingBox(),
+	};
+	expect(after.header?.y).toBeCloseTo(before.header?.y ?? 0, 1);
+	expect(after.account?.y).toBeCloseTo(before.account?.y ?? 0, 1);
+});
 
 test("account controls load when the browser receives a signed-in session", async ({ page }) => {
 	await page.setViewportSize({ width: 390, height: 844 });

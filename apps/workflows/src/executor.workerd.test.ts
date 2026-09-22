@@ -1,5 +1,6 @@
 import { signRequest } from "@repo/jobs/orchestration/auth";
 import { OutboxDeliveryPendingError } from "@repo/jobs/orchestration/contracts";
+import { WORKER_EXECUTORS } from "@repo/jobs/orchestration/worker-executors";
 import { createMultipartUpload } from "@repo/storage";
 import { env } from "cloudflare:test";
 import { describe, expect, it, vi } from "vitest";
@@ -8,6 +9,39 @@ import { createWorkflowBindingDispatcher } from "./dispatch";
 import type { WorkersEnvironment } from "./workers";
 
 describe("complete Workers executor module", () => {
+	it.each(Object.values(WORKER_EXECUTORS).map((policy) => policy.name))(
+		"authenticates the %s executor before using runtime resources",
+		async (name) => {
+			const jobs = (env as unknown as WorkersEnvironment).JOBS_EXECUTOR;
+			const response = await jobs
+				.get(jobs.idFromName(name))
+				.fetch(new Request("https://executor/internal/execute", { method: "POST", body: "{}" }));
+			expect(response.status).toBe(401);
+		},
+	);
+	it.each(["jobs-control", "jobs-maintenance"])(
+		"rejects a heavy transfer sent to %s using the real Durable Object identity",
+		async (name) => {
+			const jobs = (env as unknown as WorkersEnvironment).JOBS_EXECUTOR;
+			const body = JSON.stringify({
+				request: { taskId: "media-finalize-generation", payload: { jobId: "job", version: 0 } },
+				context: { attempt: 1, maxAttempts: 5, runId: "routing-test" },
+			});
+			const response = await jobs.get(jobs.idFromName(name)).fetch(
+				new Request("https://executor/internal/execute", {
+					method: "POST",
+					body,
+					headers: await signRequest(
+						"test-only-32-character-shared-secret",
+						"POST",
+						"/internal/execute",
+						body,
+					),
+				}),
+			);
+			expect(response.status).toBe(400);
+		},
+	);
 	it("parses an R2 multipart XML response without browser DOM globals", async () => {
 		vi.stubEnv("S3_ENDPOINT", "https://storage.test");
 		vi.stubEnv("S3_REGION", "auto");

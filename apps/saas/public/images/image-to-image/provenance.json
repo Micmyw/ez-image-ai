@@ -1,0 +1,20 @@
+[
+	{
+		"key": "background",
+		"source": "/images/models/nano-product.webp",
+		"editPrompt": "Use case: precise-object-edit. Edit target: the attached product photo of silver and dark green headphones. Create ONE full-size edited version for an illustrative before/after website comparison. Keep the headphones' EXACT shape, material, dark green color, orientation, position, size and framing unchanged. Replace the green background and translucent green display blocks with a warm beige seamless studio backdrop and a plain matte beige plinth supporting the headphones in the exact same position, and add a soft natural shadow. Preserve the portrait 2:3 framing. No text, labels, logos, watermarks, split-screen, collage, borders or UI. Product must align spatially with the input for a drag comparison.",
+		"method": "Built-in image_gen edit; display illustration only, not an EzImageAI provider result."
+	},
+	{
+		"key": "portrait",
+		"source": "/images/models/nano-portrait.webp",
+		"editPrompt": "Use case: lighting-weather, identity-preserve. Edit target: the attached street portrait of a woman in a dark blue coat and rust scarf. Produce ONE full-size edited version for an illustrative before/after website comparison. Keep the person's exact facial features, expression, hairstyle, clothing, position, size, camera viewpoint and framing. Keep all buildings and street details aligned in the same locations. Change ONLY lighting to soft golden-hour sunlight from the upper left with warm light on the cheek, hair and coat, gentle shadows, softly glowing background. Natural editorial photography, real skin texture. Maintain portrait 2:3 aspect. No text, logos, split-screen, collage, border or UI. The subject must align with the source for a drag comparison.",
+		"method": "Built-in image_gen edit; display illustration only, not an EzImageAI provider result."
+	},
+	{
+		"key": "style",
+		"source": "/images/models/seedream-lite-kingfisher.webp",
+		"editPrompt": "Use case: style-transfer. Edit target: the attached photograph of a turquoise and orange kingfisher perched on a mossy branch beside a river. Reinterpret this entire image as a soft hand-painted watercolor illustration. Preserve the bird's exact placement, pose, size, branch position, river, tree silhouettes, composition and turquoise/orange/soft green color palette. Add visible watercolor pigment blooms, gentle brushwork and subtle ivory paper texture throughout. Beautiful, restrained natural-history watercolor, recognizable but clearly painted. Keep original landscape 3:2 aspect ratio and composition spatially aligned for a before/after comparison. No text, captions, logos, borders, split screen, collage or UI.",
+		"method": "Built-in image_gen edit; display illustration only, not an EzImageAI provider result."
+	}
+]

@@ -34,6 +34,7 @@ export const config = {
 			"docs",
 			"draft",
 			"edits",
+			"examples",
 			"forgot-password",
 			"history",
 			"icon.png",

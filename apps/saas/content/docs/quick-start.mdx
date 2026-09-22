@@ -13,8 +13,13 @@ The homepage has no tool sidebar, whether you are signed in or visiting.
 
 Use **AI Image Tools** to open the [creation page](/create), or browse [AI Models](/models) for a
 dedicated page with a preselected generator, creative directions, and an example prompt for each model.
-Visitors and signed-in users both get the tool sidebar on the creation page. Changing models within
-that workspace keeps your image and prompt. The URL retains the selection for refresh and navigation.
+Visitors and signed-in users both get the tool sidebar on the creation page. Sidebar model links open
+the corresponding model page with empty input. The model selector inside the editor keeps your image
+and prompt while changing the model, and the URL retains that selection on refresh.
+
+**Create image** opens `/create`. **Editing Examples** opens the [example gallery](/examples), where
+choosing an image opens the creation page with its prompt. The sidebar header and account controls
+stay visible while the middle navigation scrolls.
 
 After signing in, the sidebar also includes **History** and **Assets**. Select your avatar in the
 homepage header or the creation sidebar to open account settings. Visitors do not see account settings.
@@ -22,8 +27,9 @@ These panels leave your editor and current job in place. Choosing an inspiration
 only the prompt; selecting a source from Assets keeps the prompt and output choices.
 
 When you scroll below the editor, a compact bar lets you return to your prompt or current result.
-If browser storage is available, your account draft is retained in this tab for up to one hour across
-navigation. Restoring a draft checks the source again and refreshes the credit price when submitted. It does
+If browser storage is available, your most recent account draft is retained in this tab for up to one
+hour and restored when that same editor route is refreshed. Opening another model replaces it with a
+new draft. Restoring a draft checks the source again and refreshes the credit price when submitted. It does
 not save the image file locally or submit another job.
 
 ## 1. Start with text or an optional reference

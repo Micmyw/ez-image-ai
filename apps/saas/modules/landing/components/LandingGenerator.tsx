@@ -5,7 +5,11 @@ import {
 	ImageOutputSettings,
 	type ImageOutputSettingsLabels,
 } from "@media/components/ImageOutputSettings";
-import { replaceImageModelInUrl, useModelNavigation } from "@media/hooks/use-model-navigation";
+import {
+	replaceImageModelInUrl,
+	useModelNavigation,
+	useRequestedImageModel,
+} from "@media/hooks/use-model-navigation";
 import { isEditorProductKey } from "@media/lib/editor-recovery";
 import {
 	type ImageSpecControlKey,
@@ -20,6 +24,10 @@ import { Button } from "@repo/ui/components/button";
 import { Textarea } from "@repo/ui/components/textarea";
 import { Turnstile } from "@repo/ui/components/turnstile";
 import { trackBrowserGrowthEvent } from "@repo/utils";
+import {
+	STUDIO_WORKSPACE_RESET_EVENT,
+	type StudioWorkspaceResetDetail,
+} from "@shared/components/studio/studio-context";
 import { useQueryClient } from "@tanstack/react-query";
 import {
 	CoinsIcon,
@@ -65,14 +73,43 @@ import {
 	LANDING_PROMPT_SELECTED_EVENT,
 	type LandingPromptSelectedDetail,
 } from "../lib/prompt-selection";
+import { useShowcasePrompt } from "../lib/use-showcase-prompt";
 
 const GUEST_TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY ?? null;
 const LOCAL_TURNSTILE_EVIDENCE = "local-guest-upload";
 
-export function LandingGenerator({
+export function LandingGenerator(props: { requireReference?: boolean } = {}) {
+	const [reset, setReset] = useState<{ key: number; productKey?: GuestProductKey }>({ key: 0 });
+	useEffect(() => {
+		function resetWorkspace(event: Event) {
+			const productKey = (event as CustomEvent<StudioWorkspaceResetDetail>).detail?.productKey;
+			if (!isEditorProductKey(productKey)) return;
+			setReset((current) => ({ key: current.key + 1, productKey }));
+		}
+		window.addEventListener(STUDIO_WORKSPACE_RESET_EVENT, resetWorkspace);
+		return () => window.removeEventListener(STUDIO_WORKSPACE_RESET_EVENT, resetWorkspace);
+	}, []);
+	return (
+		<LandingGeneratorWorkspace
+			key={reset.key}
+			{...props}
+			initialProductKey={reset.productKey}
+			startEmpty={reset.key > 0}
+		/>
+	);
+}
+
+function LandingGeneratorWorkspace({
 	requireReference = false,
-}: { requireReference?: boolean } = {}) {
+	initialProductKey,
+	startEmpty = false,
+}: {
+	requireReference?: boolean;
+	initialProductKey?: GuestProductKey;
+	startEmpty?: boolean;
+}) {
 	const queryClient = useQueryClient();
+	const examplePrompt = useShowcasePrompt();
 	const t = useTranslations("home.generator");
 	const tCreate = useTranslations("media.create");
 	const studio = useTranslations("studio");
@@ -89,12 +126,16 @@ export function LandingGenerator({
 	const [capabilityRequestKey, setCapabilityRequestKey] = useState(0);
 	const [textProducts, setTextProducts] = useState<GuestCapabilityProduct[]>([]);
 	const [textDraftError, setTextDraftError] = useState(false);
-	const [selectedProductKey, setSelectedProductKey] = useState<GuestProductKey | null>(null);
+	const requestedModel = useRequestedImageModel();
+	const [selectedProductKey, setSelectedProductKey] = useState<GuestProductKey | null>(
+		initialProductKey ??
+			(requestedModel && isEditorProductKey(requestedModel) ? requestedModel : null),
+	);
 	const [selectedSkuKey, setSelectedSkuKey] = useState<ImageSkuKey | null>(null);
 	const [file, setFile] = useState<File | null>(null);
 	const [fileError, setFileError] = useState<string>();
 	const [previewUrl, setPreviewUrl] = useState<string>();
-	const [prompt, setPrompt] = useState("");
+	const [prompt, setPrompt] = useState(startEmpty ? "" : examplePrompt);
 	const [aspectRatio, setAspectRatio] = useState<ImageAspectRatio>("auto");
 	const [controlValues, setControlValues] = useState<ImageSpecControlValues>({});
 	const [submitError, setSubmitError] = useState<"turnstile" | "upload">();
@@ -164,17 +205,20 @@ export function LandingGenerator({
 	useEffect(() => {
 		const generator = generatorRef.current;
 		if (!generator) return;
+		const pageEnd = generator
+			.closest("[data-image-to-image-page]")
+			?.querySelector("[data-editor-end]");
 
 		const observer = new IntersectionObserver(
-			([entry]) => {
-				if (!entry) return;
-				const hasPassedEditor = !entry.isIntersecting && entry.boundingClientRect.bottom <= 72;
+			() => {
+				const hasPassedEditor = generator.getBoundingClientRect().bottom <= 72;
+				const beforePageEnd = !pageEnd || pageEnd.getBoundingClientRect().top >= window.innerHeight;
 				const dockContainsFocus =
 					floatingDockRef.current?.contains(document.activeElement) ?? false;
-				setIsDockVisible(hasPassedEditor);
-				if (!hasPassedEditor) {
+				setIsDockVisible(hasPassedEditor && beforePageEnd);
+				if (!hasPassedEditor || !beforePageEnd) {
 					setIsDockExpanded(false);
-					if (dockContainsFocus) {
+					if (dockContainsFocus && !hasPassedEditor) {
 						requestAnimationFrame(() => promptRef.current?.focus({ preventScroll: true }));
 					}
 				}
@@ -182,6 +226,7 @@ export function LandingGenerator({
 			{ rootMargin: "-72px 0px 0px", threshold: 0 },
 		);
 		observer.observe(generator);
+		if (pageEnd) observer.observe(pageEnd);
 
 		return () => observer.disconnect();
 	}, []);
@@ -542,6 +587,9 @@ export function LandingGenerator({
 	}
 
 	const selectedProductLabel = selectedProduct?.label ?? "";
+	const selectedProductFallbackLabel = selectedProductKey
+		? tCreate(`products.${selectedProductKey}.label`)
+		: undefined;
 	const actionLabel =
 		stage === "checking"
 			? t("states.checking")
@@ -638,9 +686,12 @@ export function LandingGenerator({
 							{studio("tools.modelUnavailable")}
 						</output>
 					)}
-					<div className="gap-1.5 sm:gap-2 sm:grid-cols-[7.5rem_minmax(0,1fr)] md:grid-cols-[8.5rem_minmax(0,1fr)] bg-black/10 p-1.5 grid grid-cols-[4.75rem_minmax(0,1fr)] rounded-[1.3rem]">
+					<div
+						data-test="landing-composer-inputs"
+						className="gap-1.5 sm:gap-2 sm:grid-cols-[7.5rem_minmax(0,1fr)] md:grid-cols-[8.5rem_minmax(0,1fr)] bg-black/10 p-1.5 grid grid-cols-[4.75rem_minmax(0,1fr)] rounded-[1.3rem]"
+					>
 						<section data-test="landing-source-panel" className="min-w-0 relative">
-							<label htmlFor="landing-source-image" className="sr-only">
+							<label htmlFor="landing-source-image" className="landing-source-label sr-only">
 								{referenceLabel}
 							</label>
 							{file && (
@@ -666,6 +717,7 @@ export function LandingGenerator({
 										? t("replaceImage")
 										: `${uploadLabel}. ${t("fileHint", { megabytes: maximumMegabytes })}`
 								}
+								data-reference-upload=""
 								disabled={isBusy}
 								onClick={() => {
 									beginUpload();
@@ -693,7 +745,7 @@ export function LandingGenerator({
 										</span>
 									</>
 								) : (
-									<span className="gap-2.5 flex flex-col items-center">
+									<span className="landing-reference-empty gap-2.5 flex flex-col items-center">
 										<span className="size-11 group-hover:-translate-y-1 grid place-items-center rounded-xl bg-[#a98bff]/12 text-[#c9b9ff] ring-1 ring-[#a98bff]/25 transition motion-reduce:transform-none">
 											<UploadCloudIcon className="size-5" aria-hidden="true" />
 										</span>
@@ -728,7 +780,7 @@ export function LandingGenerator({
 							data-test="landing-prompt-panel"
 							className="min-w-0 focus-within:bg-white/[0.025] relative overflow-hidden rounded-[1rem] transition-colors focus-within:ring-1 focus-within:ring-[#b79cff]/30 focus-within:ring-inset motion-reduce:transition-none"
 						>
-							<label htmlFor="landing-edit-prompt" className="sr-only">
+							<label htmlFor="landing-edit-prompt" className="landing-prompt-label sr-only">
 								{t("prompt")}
 							</label>
 							<Textarea
@@ -756,22 +808,30 @@ export function LandingGenerator({
 						data-test="landing-controls-panel"
 						className="mt-4 gap-2 px-1 flex flex-wrap items-center"
 					>
-						<ImageModelSelector
-							idPrefix="landing"
-							products={modelOptions}
-							value={selectedProductKey}
-							disabled={isBusy || !capabilityUsable}
-							onChange={(key) => {
-								const next = localizedProducts.find((product) => product.key === key);
-								if (!next) return;
-								setSelectedProductKey(next.key);
-								replaceImageModelInUrl(next.key);
-								setSelectedSkuKey(resolveLandingSkuSelection(next, null));
-								setSubmitError(undefined);
-							}}
-						/>
-
-						<div className="min-w-0 max-w-full">
+						<div className="image-edit-control-field contents">
+							<span className="image-edit-control-label hidden" aria-hidden="true">
+								{imageToImage("composer.modelLabel")}
+							</span>
+							<ImageModelSelector
+								idPrefix="landing"
+								products={modelOptions}
+								value={selectedProductKey}
+								valueLabel={selectedProductFallbackLabel}
+								disabled={isBusy || !capabilityUsable}
+								onChange={(key) => {
+									const next = localizedProducts.find((product) => product.key === key);
+									if (!next) return;
+									setSelectedProductKey(next.key);
+									replaceImageModelInUrl(next.key);
+									setSelectedSkuKey(resolveLandingSkuSelection(next, null));
+									setSubmitError(undefined);
+								}}
+							/>
+						</div>
+						<div className="image-edit-control-field min-w-0 contents max-w-full">
+							<span className="image-edit-control-label hidden" aria-hidden="true">
+								{imageToImage("composer.outputLabel")}
+							</span>
 							<ImageOutputSettings
 								idPrefix="landing"
 								aspectRatios={selectedSku?.aspectRatios ?? []}
@@ -866,13 +926,14 @@ export function LandingGenerator({
 					id="landing-stage-status"
 					data-test="landing-stage"
 					data-stage={stage}
+					data-guidance={disabledReason ?? ""}
 					className={canSubmit ? "sr-only" : "font-semibold text-[#ddd4e4]"}
 					aria-live="polite"
 				>
 					{statusLabel}
 				</output>
 				{selectedProduct && capabilityUsable && (
-					<span className="gap-1.5 inline-flex items-center">
+					<span className="gap-1.5 inline-flex items-center" data-generation-guidance="">
 						<SparklesIcon className="size-3.5 text-[#b79cff]" aria-hidden="true" />
 						{!file && !requireReference
 							? studio("generation.textHint")
@@ -980,6 +1041,7 @@ export function LandingGenerator({
 										idPrefix="floating"
 										products={modelOptions}
 										value={selectedProductKey}
+										valueLabel={selectedProductFallbackLabel}
 										disabled={isBusy || !capabilityUsable}
 										onChange={(key) => {
 											const next = localizedProducts.find((product) => product.key === key);

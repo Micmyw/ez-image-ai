@@ -1,5 +1,38 @@
 {
 	"imageToImage": {
+		"composer": {
+			"referenceLabel": "Referenzbild (optional)",
+			"promptLabel": "Prompt",
+			"modelLabel": "Modell",
+			"outputLabel": "Ausgabeeinstellungen",
+			"placeholder": "Beschreibe dein Bild oder was du ändern möchtest…"
+		},
+		"examples": {
+			"explore": "Beispiele erkunden",
+			"choose": "Wähle eine Bearbeitung",
+			"before": "Original",
+			"after": "Bearbeitungsbeispiel",
+			"compare": "Vergleichen",
+			"drag": "Zum Vergleichen ziehen",
+			"promptAdded": "Prompt im Editor eingefügt",
+			"ownImage": "Füge dein eigenes Referenzbild hinzu und starte, wenn du bereit bist.",
+			"note": "KI-generierte Illustrationen von Bearbeitungsideen, keine verifizierten EzImageAI-Ergebnisse. Deine Ergebnisse variieren je nach Bild, Prompt und Einstellungen.",
+			"background": {
+				"label": "Produkthintergrund",
+				"beforeAlt": "Silberne und grüne Kopfhörer auf einer grünen Auslage",
+				"afterAlt": "Illustrative Bearbeitung derselben Kopfhörer vor einem warmen beigefarbenen Studiohintergrund"
+			},
+			"portrait": {
+				"label": "Porträtbeleuchtung",
+				"beforeAlt": "Straßenporträt bei kühlem, bewölktem Licht",
+				"afterAlt": "Illustrative Bearbeitung desselben Porträts im warmen Licht der goldenen Stunde"
+			},
+			"style": {
+				"label": "Aquarellstil",
+				"beforeAlt": "Eisvogel auf einem bemoosten Ast an einem Fluss",
+				"afterAlt": "Illustrative Aquarellversion des Eisvogels und des Flusses"
+			}
+		},
 		"name": "Bild-zu-Bild-KI",
 		"title": "Bild-zu-Bild-KI-Generator",
 		"subtitle": "Lade ein Referenzbild zum Bearbeiten hoch oder beschreibe ein Bild, um es aus einem Prompt zu erstellen.",

@@ -27,6 +27,28 @@ const draft: WorkspaceDraft = {
 };
 
 describe("workspace continuity across account and checkout navigation", () => {
+	it("does not carry a prompt or source from create into a model page", () => {
+		const store = storage();
+		saveWorkspaceDraft(store, "owner-a", draft, 1000, "/create");
+		expect(loadWorkspaceDraft(store, "owner-a", 2000, "/models/gpt-image-2")).toBeNull();
+	});
+	it("restores a reload on the same route but starts another model with empty input", () => {
+		const store = storage();
+		saveWorkspaceDraft(store, "owner-a", draft, 1000, "/models/nano-banana-2-lite");
+		expect(loadWorkspaceDraft(store, "owner-a", 2000, "/models/gpt-image-2")).toBeNull();
+		expect(loadWorkspaceDraft(store, "owner-a", 2000, "/models/nano-banana-2-lite")).toEqual(draft);
+	});
+	it("replaces the recent draft after another editor route starts", () => {
+		const store = storage();
+		const nextDraft = {
+			...draft,
+			values: { ...draft.values, prompt: "", sourceAssetId: "" },
+		};
+		saveWorkspaceDraft(store, "owner-a", draft, 1000, "/models/nano-banana-2-lite");
+		saveWorkspaceDraft(store, "owner-a", nextDraft, 2000, "/models/gpt-image-2");
+		expect(loadWorkspaceDraft(store, "owner-a", 3000, "/models/nano-banana-2-lite")).toBeNull();
+		expect(loadWorkspaceDraft(store, "owner-a", 3000, "/models/gpt-image-2")).toEqual(nextDraft);
+	});
 	it("does not restore a historical preview from an existing saved draft", () => {
 		const store = storage();
 		store.setItem(

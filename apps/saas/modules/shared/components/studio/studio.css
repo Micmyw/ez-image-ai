@@ -95,12 +95,16 @@ body:has(.studio-shell) [data-consent-banner] button {
 	display: flex;
 	width: var(--studio-sidebar-width);
 	flex-direction: column;
-	gap: 28px;
-	overflow-y: auto;
-	overscroll-behavior: contain;
+	gap: 16px;
+	overflow: hidden;
 	border-right: 1px solid #ffffff0c;
 	background: #130e1a;
 	padding: 28px 16px 18px;
+}
+.studio-sidebar-header {
+	display: grid;
+	flex-shrink: 0;
+	gap: 28px;
 }
 .studio-brand-row {
 	display: flex;
@@ -110,7 +114,13 @@ body:has(.studio-shell) [data-consent-banner] button {
 }
 .studio-navigation {
 	display: grid;
+	flex: 1;
+	min-height: 0;
+	align-content: start;
 	gap: 5px;
+	overflow-y: auto;
+	overscroll-behavior: contain;
+	scrollbar-width: thin;
 }
 .studio-nav-link {
 	display: flex;
@@ -144,8 +154,9 @@ body:has(.studio-shell) [data-consent-banner] button {
 	font-size: 11px;
 }
 .studio-account {
+	flex-shrink: 0;
 	margin-top: auto;
-	padding-top: 20px;
+	padding-top: 12px;
 	border-top: 1px solid #ffffff0d;
 }
 .studio-credit-link,

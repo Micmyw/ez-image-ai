@@ -1,5 +1,6 @@
 "use client";
 
+import { DEFAULT_EDITOR_PRODUCT_KEY } from "@media/lib/editor-recovery";
 import { Logo } from "@repo/ui/components/logo";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@repo/ui/components/sheet";
 import { useMediaQuery } from "@shared/hooks/use-media-query";
@@ -17,6 +18,7 @@ import {
 } from "react";
 
 import { HeaderPurchaseActions } from "./HeaderPurchaseActions";
+import { resetStudioWorkspace } from "./studio-context";
 import { StudioToolNavigation } from "./StudioToolNavigation";
 
 export function HeaderNavigationMenu({
@@ -65,6 +67,21 @@ export function HeaderNavigationMenu({
 		returnFocus.current = false;
 		setOpen(false);
 	}
+	function startFreshCreate(event: MouseEvent<HTMLAnchorElement>) {
+		if (
+			pathname !== "/create" ||
+			event.defaultPrevented ||
+			event.button !== 0 ||
+			event.metaKey ||
+			event.ctrlKey ||
+			event.shiftKey ||
+			event.altKey
+		)
+			return;
+		event.preventDefault();
+		window.history.replaceState(null, "", "/create");
+		resetStudioWorkspace(DEFAULT_EDITOR_PRODUCT_KEY);
+	}
 
 	return (
 		<Sheet
@@ -100,7 +117,7 @@ export function HeaderNavigationMenu({
 					<Logo className="studio-header-brand" label="EzImageAI" />
 				</Link>
 				<nav className="studio-drawer-navigation" aria-label={t("pageNavigation")}>
-					<Link href="/create" className="studio-drawer-create">
+					<Link href="/create" className="studio-drawer-create" onClick={startFreshCreate}>
 						{t("create")} <ArrowUpRightIcon aria-hidden />
 					</Link>
 					<StudioToolNavigation drawer />

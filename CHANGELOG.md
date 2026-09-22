@@ -2,6 +2,24 @@
 
 ## 2026-09-22
 
+### Background job capacity
+
+- Give lightweight verification, asynchronous generation submission and status checks their own four-slot executor, while keeping large media transfers serialized and maintenance on a separate single-slot executor.
+- Preserve database leases, retry identities and completion-before-acknowledgment for Outbox children. Record executor saturation and execution durations for capacity evaluation; no extra page initialization requests are added.
+
+### Interactive image-to-image examples
+
+- Add three illustrated editing examples with keyboard-accessible case selection, draggable before/after comparisons, and prompt handoff to the existing editor on `/image-to-image`.
+- Keep existing SEO metadata, headings, prompt copy, guide and FAQ text; label generated artwork as illustrative examples and deliver responsive WebP images.
+- Simplify the page's editor with one prompt hint, optional instruction suggestions, a full-width mobile prompt and separated controls. Replace the thumbnail CTA with a restrained FAQ layout and return link, and hide the editor dock near the page ending.
+
+### Model navigation and workspace sidebar
+
+- Open dedicated model pages from every model navigation menu, prefetch on hover or keyboard focus, and select the requested model on the first editor render.
+- Start with empty input when entering another model page; restore the most recent tab draft only on a same-route refresh, and replace it after entering another editor route. Keep prompt and reference input when switching models inside the editor.
+- Make **Create image** open `/create`, and give **Editing Examples** its own `/examples` gallery with prompts that open in the editor.
+- Keep the sidebar branding, create shortcut and account controls fixed while the middle navigation scrolls.
+
 ### Prompt-only creation on the image-to-image page
 
 - Allow `/image-to-image` to create from a text prompt without a reference image, using the existing signed-in generation and guest sign-in handoff. Adding an image still selects reference editing.

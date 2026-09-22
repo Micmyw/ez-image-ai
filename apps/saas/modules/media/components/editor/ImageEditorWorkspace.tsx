@@ -4,6 +4,10 @@ import { useSession } from "@auth/hooks/use-session";
 import { readEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
+import {
+	STUDIO_WORKSPACE_RESET_EVENT,
+	type StudioWorkspaceResetDetail,
+} from "@shared/components/studio/studio-context";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { XIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -11,11 +15,12 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 
 import { canConfirmEditorUpgrade } from "../../lib/editor-entitlement";
-import type {
-	EditorDraftInput,
-	EditorProductKey,
-	EditorRestoreNotice,
-	EditorRestoreState,
+import {
+	isEditorProductKey,
+	type EditorDraftInput,
+	type EditorProductKey,
+	type EditorRestoreNotice,
+	type EditorRestoreState,
 } from "../../lib/editor-recovery";
 import {
 	beginNewEditorWorkspaceState,
@@ -51,6 +56,8 @@ export function ImageEditorWorkspace({
 	const router = useRouter();
 	const pathname = usePathname();
 	const searchParams = useSearchParams();
+	const example = searchParams.get("example");
+	const draftPath = example ? `${pathname}?example=${encodeURIComponent(example)}` : pathname;
 	const jobId = searchParams.get("job");
 	const claimedDraftEventKey = useId();
 	const [workspace, setWorkspace] = useState<EditorWorkspaceState>(() => ({
@@ -61,6 +68,7 @@ export function ImageEditorWorkspace({
 	}));
 	const [sourceReady, setSourceReady] = useState(restoreState === "ready");
 	const [upgradeRestored, setUpgradeRestored] = useState(false);
+	const [freshProductKey, setFreshProductKey] = useState<EditorProductKey>();
 
 	useEffect(() => {
 		if (initialized.current || !user?.id) return;
@@ -74,7 +82,7 @@ export function ImageEditorWorkspace({
 		);
 		try {
 			if (!explicitRecovery) {
-				const saved = loadWorkspaceDraft(window.sessionStorage, user.id);
+				const saved = loadWorkspaceDraft(window.sessionStorage, user.id, Date.now(), draftPath);
 				if (saved) {
 					const { productKey, ...input } = saved.values;
 					setWorkspace((current) => ({
@@ -99,22 +107,40 @@ export function ImageEditorWorkspace({
 			setStorageUnavailable(true);
 		}
 		setDraftReady(true);
-	}, [initialDraft, restoreState, searchParams, user?.id]);
+	}, [draftPath, initialDraft, restoreState, searchParams, user?.id]);
+	useEffect(() => {
+		function resetWorkspace(event: Event) {
+			const productKey = (event as CustomEvent<StudioWorkspaceResetDetail>).detail?.productKey;
+			if (!isEditorProductKey(productKey)) return;
+			setFreshProductKey(productKey);
+			setWorkspace(beginNewEditorWorkspaceState);
+			setSourceReady(false);
+			setUpgradeRestored(false);
+		}
+		window.addEventListener(STUDIO_WORKSPACE_RESET_EVENT, resetWorkspace);
+		return () => window.removeEventListener(STUDIO_WORKSPACE_RESET_EVENT, resetWorkspace);
+	}, []);
 	const persistDraft = useCallback(
 		(values: GenerationFormValues) => {
 			if (!user?.id) return;
 			try {
 				setStorageUnavailable(
-					!saveWorkspaceDraft(window.sessionStorage, user.id, {
-						values,
-						parentJobId: workspace.parentJobId,
-					}),
+					!saveWorkspaceDraft(
+						window.sessionStorage,
+						user.id,
+						{
+							values,
+							parentJobId: workspace.parentJobId,
+						},
+						Date.now(),
+						draftPath,
+					),
 				);
 			} catch {
 				setStorageUnavailable(true);
 			}
 		},
-		[user?.id, workspace.parentJobId],
+		[draftPath, user?.id, workspace.parentJobId],
 	);
 
 	useEffect(() => {
@@ -134,6 +160,7 @@ export function ImageEditorWorkspace({
 			formKey: current.formKey + 1,
 			recoveryVisible: true,
 		}));
+		setFreshProductKey(undefined);
 		setSourceReady(restored.sourceReady);
 		setUpgradeRestored(
 			searchParams.get("upgrade") === "complete" &&
@@ -166,6 +193,7 @@ export function ImageEditorWorkspace({
 
 	function beginNewEdit() {
 		setWorkspace(beginNewEditorWorkspaceState);
+		setFreshProductKey(undefined);
 		setSourceReady(false);
 		setUpgradeRestored(false);
 		window.history.replaceState(null, "", pathname);
@@ -200,11 +228,13 @@ export function ImageEditorWorkspace({
 			)}
 			<div data-editor-layout="inline" className="min-w-0">
 				<GenerationForm
+					layout={pathname === "/image-to-image" ? "minimal" : "default"}
 					onSourceChanged={unlinkSource}
 					onDraftChange={draftReady ? persistDraft : undefined}
 					jobId={jobId}
 					key={workspace.formKey}
 					initialDraft={workspace.initialDraft}
+					initialProductKey={freshProductKey}
 					allowedProductKeys={allowedProductKeys}
 					initialSourceReady={sourceReady}
 					parentJobId={workspace.parentJobId}

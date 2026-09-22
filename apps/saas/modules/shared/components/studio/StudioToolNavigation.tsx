@@ -1,16 +1,18 @@
 "use client";
 
 import { ImageModelIcon } from "@media/components/ImageModelIcon";
-import { imageModelHref } from "@media/hooks/use-model-navigation";
-import { isEditorProductKey } from "@media/lib/editor-recovery";
+import { imageModelHref, useRequestedImageModel } from "@media/hooks/use-model-navigation";
+import { DEFAULT_EDITOR_PRODUCT_KEY, isEditorProductKey } from "@media/lib/editor-recovery";
 import { publicCatalogQueryOptions } from "@media/lib/public-catalog-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDownIcon, ImagesIcon, LayoutGridIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { usePathname } from "next/navigation";
+import { type MouseEvent, useState } from "react";
+
+import { resetStudioWorkspace } from "./studio-context";
 
 export function StudioToolNavigation({
 	sidebar = false,
@@ -26,9 +28,7 @@ export function StudioToolNavigation({
 	const vertical = sidebar || drawer;
 	const models = useTranslations("media.create.products");
 	const pathname = usePathname();
-	const selected =
-		useSearchParams().get("model") ??
-		(pathname.startsWith("/models/") ? `image-${pathname.slice("/models/".length)}` : null);
+	const selected = useRequestedImageModel();
 	const [menu, setMenu] = useState<"tools" | "models" | null>(null);
 	const catalog = useQuery(publicCatalogQueryOptions);
 	const products = (catalog.data?.products ?? []).filter(
@@ -38,11 +38,31 @@ export function StudioToolNavigation({
 		setMenu(null);
 		onNavigate?.();
 	};
+	const navigateToWorkspace = (
+		event: MouseEvent<HTMLAnchorElement>,
+		href: string,
+		productKey: string,
+	) => {
+		if (
+			pathname === href &&
+			!event.defaultPrevented &&
+			event.button === 0 &&
+			!event.metaKey &&
+			!event.ctrlKey &&
+			!event.shiftKey &&
+			!event.altKey
+		) {
+			event.preventDefault();
+			window.history.replaceState(null, "", href);
+			resetStudioWorkspace(productKey);
+		}
+		navigate();
+	};
 	const tools = (
 		<>
 			<Link
 				href="/create"
-				onClick={navigate}
+				onClick={(event) => navigateToWorkspace(event, "/create", DEFAULT_EDITOR_PRODUCT_KEY)}
 				className={vertical ? "studio-nav-link" : "studio-menu-entry"}
 				aria-current={pathname === "/create" && !selected ? "page" : undefined}
 			>
@@ -53,9 +73,10 @@ export function StudioToolNavigation({
 				</span>
 			</Link>
 			<Link
-				href="/create#examples"
+				href="/examples"
 				onClick={navigate}
 				className={vertical ? "studio-nav-link" : "studio-menu-entry"}
+				aria-current={pathname === "/examples" ? "page" : undefined}
 			>
 				<LayoutGridIcon aria-hidden />
 				<span>
@@ -78,16 +99,12 @@ export function StudioToolNavigation({
 		</>
 	);
 	const modelLinks = products.map((product) => {
+		const href = imageModelHref(product.key);
 		return (
 			<Link
 				key={product.key}
-				href={
-					vertical && pathname === "/create"
-						? `/create?model=${encodeURIComponent(product.key)}`
-						: imageModelHref(product.key)
-				}
-				scroll={false}
-				onClick={navigate}
+				href={href}
+				onClick={(event) => navigateToWorkspace(event, href, product.key)}
 				className={
 					vertical
 						? `studio-nav-link${selected === product.key ? " is-active" : ""}`

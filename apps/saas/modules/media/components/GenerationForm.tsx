@@ -11,6 +11,7 @@ import { Button } from "@repo/ui/components/button";
 import { STUDIO_ASSET_SELECTED_EVENT } from "@shared/components/studio/studio-context";
 import { useRouter } from "@shared/hooks/router";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
+import { LockKeyholeIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -20,8 +21,13 @@ import {
 	LANDING_PROMPT_SELECTED_EVENT,
 	type LandingPromptSelectedDetail,
 } from "../../landing/lib/prompt-selection";
+import { useShowcasePrompt } from "../../landing/lib/use-showcase-prompt";
 import { useGeneration } from "../hooks/use-generation";
-import { replaceImageModelInUrl, useModelNavigation } from "../hooks/use-model-navigation";
+import {
+	replaceImageModelInUrl,
+	useModelNavigation,
+	useRequestedImageModel,
+} from "../hooks/use-model-navigation";
 import {
 	getEditorErrorKey,
 	getModerationErrorReason,
@@ -58,20 +64,24 @@ export function GenerationForm({
 	onSourceChanged,
 	jobId = null,
 	initialDraft,
+	initialProductKey,
 	allowedProductKeys = [...EZPIC_PRODUCT_KEYS],
 	initialSourceReady = false,
 	parentJobId,
 	requireReference = false,
+	layout = "default",
 }: {
 	onCreated: (jobId: string) => void;
 	onDraftChange?: (values: GenerationFormValues) => void;
 	onSourceChanged?: () => void;
 	jobId?: string | null;
 	initialDraft?: EditorDraftInput | null;
+	initialProductKey?: EditorProductKey;
 	allowedProductKeys?: EditorProductKey[];
 	initialSourceReady?: boolean;
 	parentJobId?: string | null;
 	requireReference?: boolean;
+	layout?: "default" | "minimal";
 }) {
 	const t = useTranslations("media.create");
 	const studio = useTranslations("studio");
@@ -105,17 +115,27 @@ export function GenerationForm({
 	const submittingRef = useRef(false);
 	const [upgradeOpen, setUpgradeOpen] = useState(false);
 	const [upgradeStorageUnavailable, setUpgradeStorageUnavailable] = useState(false);
+	const requestedModel = useRequestedImageModel();
+	const examplePrompt = useShowcasePrompt();
+	const resolvedInitialProductKey =
+		initialProductKey ??
+		(requestedModel && isEditorProductKey(requestedModel)
+			? requestedModel
+			: (initialDraft?.productKey ?? "image-nano-banana-2-lite"));
+	const initialContract = getImageProductSelectionContract(resolvedInitialProductKey)!;
+	const initialSelection =
+		initialDraft?.productKey === resolvedInitialProductKey ? initialDraft.input : null;
 	const form = useForm<GenerationFormValues>({
 		resolver: zodResolver(generationFormValuesSchema),
 		mode: "onChange",
 		defaultValues: {
-			productKey: initialDraft?.productKey ?? "image-nano-banana-2-lite",
-			skuKey: initialDraft?.input.skuKey ?? "nano-banana-2-lite-1k",
-			prompt: initialDraft?.input.prompt ?? "",
+			productKey: resolvedInitialProductKey,
+			skuKey: initialSelection?.skuKey ?? initialContract.defaultSkuKey,
+			prompt: initialDraft?.input.prompt ?? examplePrompt,
 			sourceAssetId: initialDraft?.input.sourceAssetId ?? "",
-			aspectRatio: initialDraft?.input.aspectRatio ?? "auto",
-			outputFormat: initialDraft?.input.outputFormat,
-			background: initialDraft?.input.background,
+			aspectRatio: initialSelection?.aspectRatio ?? initialContract.defaultAspectRatio,
+			outputFormat: initialSelection?.outputFormat,
+			background: initialSelection?.background,
 		},
 	});
 	const values = form.watch();
@@ -387,6 +407,7 @@ export function GenerationForm({
 		<form
 			data-task-order="source-prompt-service-action"
 			className="studio-composer"
+			data-layout={layout}
 			data-test="registered-generator"
 			id="registered-generator"
 			onSubmit={form.handleSubmit((validated) => {
@@ -397,14 +418,16 @@ export function GenerationForm({
 				void confirmGeneration();
 			})}
 		>
-			<div className="studio-composer-heading">
-				<span>
-					{requireReference || values.sourceAssetId
-						? studio("generation.editMode")
-						: studio("generation.textMode")}
-				</span>
-				<span className="text-xs text-muted-foreground">{studio("private")}</span>
-			</div>
+			{layout !== "minimal" && (
+				<div className="studio-composer-heading">
+					<span>
+						{requireReference || values.sourceAssetId
+							? studio("generation.editMode")
+							: studio("generation.textMode")}
+					</span>
+					<span className="text-xs text-muted-foreground">{studio("private")}</span>
+				</div>
+			)}
 			{modelNavigation.unavailable && (
 				<output className="mb-3 text-sm text-amber-200 block">
 					{studio("tools.modelUnavailable")}
@@ -416,6 +439,7 @@ export function GenerationForm({
 			<div className="studio-composer-inputs">
 				<ImageSourcePanel
 					compact
+					label={layout === "minimal" ? imageToImage("composer.referenceLabel") : undefined}
 					sourceAssetId={values.sourceAssetId}
 					maximumImageBytes={Math.min(
 						generation.creditAccount.data?.maximumInputBytes ??
@@ -428,13 +452,20 @@ export function GenerationForm({
 					onChange={updateSourceAsset}
 				/>
 				<PromptPanel
+					minimal={layout === "minimal"}
 					maxLength={getImageProductSelectionContract(values.productKey)?.maximumPromptLength}
 					label={
-						requireReference || values.sourceAssetId
-							? t("fields.prompt")
-							: studio("generation.promptLabel")
+						layout === "minimal"
+							? imageToImage("composer.promptLabel")
+							: requireReference || values.sourceAssetId
+								? t("fields.prompt")
+								: studio("generation.promptLabel")
 					}
-					hint={studio("generation.promptHint")}
+					hint={
+						layout === "minimal"
+							? imageToImage("composer.placeholder")
+							: studio("generation.promptHint")
+					}
 					suggestionsLabel={t("suggestions.label")}
 					suggestions={suggestions}
 					suggestionLabels={["background", "object", "lighting", "style"].map((key) =>
@@ -445,72 +476,87 @@ export function GenerationForm({
 				/>
 			</div>
 			<div className="studio-composer-controls">
-				<ImageModelSelector
-					idPrefix="editor"
-					products={products.flatMap((candidate) =>
-						candidate.skuMatrix
-							? [
-									{
-										...candidate,
-										skuMatrix: candidate.skuMatrix,
-										requiresUpgrade:
-											isEditorProductKey(candidate.key) &&
-											!allowedProductKeys.includes(candidate.key),
-									},
-								]
-							: [],
+				<div className={layout === "minimal" ? "image-edit-control-field" : "contents"}>
+					{layout === "minimal" && (
+						<span className="image-edit-control-label" aria-hidden="true">
+							{imageToImage("composer.modelLabel")}
+						</span>
 					)}
-					value={values.productKey}
-					onChange={(key) => {
-						if (isEditorProductKey(key)) {
-							updateProduct(key);
-							replaceImageModelInUrl(key);
-						}
-					}}
-					disabled={generation.createGeneration.isPending}
-				/>
-				<ImageOutputSettings
-					idPrefix="editor"
-					aspectRatios={supportedAspectRatios}
-					value={values.aspectRatio}
-					onChange={updateAspectRatio}
-					modeLabel={product?.label ?? values.productKey}
-					skuMatrix={product?.skuMatrix}
-					skuKey={values.skuKey}
-					onSkuChange={updateSku}
-					controlValues={controlValues}
-					onControlChange={updateControl}
-					tone="dark"
-					labels={{
-						title: t("outputSettings.title"),
-						trigger: t("outputSettings.trigger"),
-						aspectRatio: t("outputSettings.aspectRatio"),
-						automatic: t("outputSettings.automatic"),
-						outputNumber: t("outputSettings.outputNumber"),
-						oneOutput: t("outputSettings.oneOutput"),
-						resolution: t("outputSettings.resolution"),
-						quality: t("outputSettings.quality"),
-						outputFormat: t("outputSettings.outputFormat"),
-						background: t("outputSettings.background"),
-						modeControlsQuality: t("outputSettings.modeControlsQuality"),
-						credits: t("outputSettings.credits"),
-						optionLabels: {
-							"1k": t("outputSettings.optionLabels.1k"),
-							"2k": t("outputSettings.optionLabels.2k"),
-							"3k": t("outputSettings.optionLabels.3k"),
-							"4k": t("outputSettings.optionLabels.4k"),
-							basic: t("outputSettings.optionLabels.basic"),
-							medium: t("outputSettings.optionLabels.medium"),
-							high: t("outputSettings.optionLabels.high"),
-							ultra: t("outputSettings.optionLabels.ultra"),
-							png: t("outputSettings.optionLabels.png"),
-							jpeg: t("outputSettings.optionLabels.jpeg"),
-							auto: t("outputSettings.optionLabels.auto"),
-							opaque: t("outputSettings.optionLabels.opaque"),
-							transparent: t("outputSettings.optionLabels.transparent"),
-						},
-					}}
-				/>
+					<ImageModelSelector
+						idPrefix="editor"
+						products={products.flatMap((candidate) =>
+							candidate.skuMatrix
+								? [
+										{
+											...candidate,
+											skuMatrix: candidate.skuMatrix,
+											requiresUpgrade:
+												isEditorProductKey(candidate.key) &&
+												!allowedProductKeys.includes(candidate.key),
+										},
+									]
+								: [],
+						)}
+						value={values.productKey}
+						valueLabel={t(`products.${values.productKey}.label`)}
+						onChange={(key) => {
+							if (isEditorProductKey(key)) {
+								updateProduct(key);
+								replaceImageModelInUrl(key);
+							}
+						}}
+						disabled={generation.createGeneration.isPending}
+					/>
+				</div>
+				<div className={layout === "minimal" ? "image-edit-control-field" : "contents"}>
+					{layout === "minimal" && (
+						<span className="image-edit-control-label" aria-hidden="true">
+							{imageToImage("composer.outputLabel")}
+						</span>
+					)}
+					<ImageOutputSettings
+						idPrefix="editor"
+						aspectRatios={supportedAspectRatios}
+						value={values.aspectRatio}
+						onChange={updateAspectRatio}
+						modeLabel={product?.label ?? values.productKey}
+						skuMatrix={product?.skuMatrix}
+						skuKey={values.skuKey}
+						onSkuChange={updateSku}
+						controlValues={controlValues}
+						onControlChange={updateControl}
+						tone="dark"
+						labels={{
+							title: t("outputSettings.title"),
+							trigger: t("outputSettings.trigger"),
+							aspectRatio: t("outputSettings.aspectRatio"),
+							automatic: t("outputSettings.automatic"),
+							outputNumber: t("outputSettings.outputNumber"),
+							oneOutput: t("outputSettings.oneOutput"),
+							resolution: t("outputSettings.resolution"),
+							quality: t("outputSettings.quality"),
+							outputFormat: t("outputSettings.outputFormat"),
+							background: t("outputSettings.background"),
+							modeControlsQuality: t("outputSettings.modeControlsQuality"),
+							credits: t("outputSettings.credits"),
+							optionLabels: {
+								"1k": t("outputSettings.optionLabels.1k"),
+								"2k": t("outputSettings.optionLabels.2k"),
+								"3k": t("outputSettings.optionLabels.3k"),
+								"4k": t("outputSettings.optionLabels.4k"),
+								basic: t("outputSettings.optionLabels.basic"),
+								medium: t("outputSettings.optionLabels.medium"),
+								high: t("outputSettings.optionLabels.high"),
+								ultra: t("outputSettings.optionLabels.ultra"),
+								png: t("outputSettings.optionLabels.png"),
+								jpeg: t("outputSettings.optionLabels.jpeg"),
+								auto: t("outputSettings.optionLabels.auto"),
+								opaque: t("outputSettings.optionLabels.opaque"),
+								transparent: t("outputSettings.optionLabels.transparent"),
+							},
+						}}
+					/>
+				</div>
 				{upgradeRequired ? (
 					<Button
 						type="button"
@@ -561,10 +607,18 @@ export function GenerationForm({
 					{t("modelMenu.upgradeNotice", { model: product.label })}
 				</output>
 			)}
-			<details className="mt-3 text-xs text-muted-foreground">
-				<summary className="py-2 cursor-pointer">{t("creditPolicy")}</summary>
-				<p className="mt-1 leading-relaxed">{t("moderationBillingPolicy")}</p>
-			</details>
+			<div className={layout === "minimal" ? "image-edit-composer-meta" : undefined}>
+				<details className="mt-3 text-xs text-muted-foreground">
+					<summary className="py-2 cursor-pointer">{t("creditPolicy")}</summary>
+					<p className="mt-1 leading-relaxed">{t("moderationBillingPolicy")}</p>
+				</details>
+				{layout === "minimal" && (
+					<span className="image-edit-private">
+						<LockKeyholeIcon size={13} aria-hidden="true" />
+						{studio("private")}
+					</span>
+				)}
+			</div>
 			{error && safetyOutcome ? (
 				<ContentSafetyNotice
 					stage="prompt"

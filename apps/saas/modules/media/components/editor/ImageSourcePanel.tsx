@@ -36,6 +36,7 @@ export function ImageSourcePanel({
 	onPendingChange,
 	maximumImageBytes,
 	compact = false,
+	label,
 }: {
 	sourceAssetId: string;
 	onChange: (assetId: string) => void;
@@ -43,6 +44,7 @@ export function ImageSourcePanel({
 	onPendingChange?: (pending: boolean) => void;
 	maximumImageBytes?: number;
 	compact?: boolean;
+	label?: string;
 }) {
 	const t = useTranslations("media.editor.source");
 	const [pending, setPending] = useState(false);
@@ -154,7 +156,7 @@ export function ImageSourcePanel({
 			}
 		>
 			<div className="gap-3 flex flex-wrap items-center justify-between">
-				<h2 className={compact ? "sr-only" : "font-medium text-sm"}>{t("title")}</h2>
+				<h2 className={compact ? "sr-only" : "font-medium text-sm"}>{label ?? t("title")}</h2>
 				<Button
 					type="button"
 					size="sm"

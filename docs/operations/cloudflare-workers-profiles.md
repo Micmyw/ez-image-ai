@@ -112,11 +112,43 @@ same schema. The `workerd` condition selects the official edge runtime and its p
 query compiler. Keep generated files ignored and regenerate them during builds. This changes
 runtime artifacts only; it adds no tables or migrations.
 
-Workers jobs serialize admitted tasks initially to bound the 128 MiB shared Worker memory.
-Workflows waits durably when the executor is busy; request cancellation never prematurely
-releases execution capacity. The Node executor retains its existing overall and queue caps.
+Workers jobs use three named objects in the existing `JOBS_EXECUTOR` namespace:
+
+| Object             | Work                                                                                                      | Admitted concurrency |
+| ------------------ | --------------------------------------------------------------------------------------------------------- | -------------------- |
+| `jobs-primary`     | Output transfer/finalization, synchronous Gemini/OpenRouter image responses, explicit legacy reinspection | 1                    |
+| `jobs-control`     | Ordinary verification, asynchronous provider submission, generation polling/webhooks and settlement       | 4                    |
+| `jobs-maintenance` | Outbox delivery, cancellation, guest admission, billing and scheduled recovery                            | 1                    |
+
+The task classification is server-owned in `packages/jobs/src/orchestration/worker-executors.ts`.
+Unreviewed provider adapters and new registered task types default to the heavy lane.
+Ordinary verification reads bounded media headers; checksum fallback streams the stored object.
+New control/maintenance objects reject misrouted tasks before creating database resources.
+The original `jobs-primary` still accepts legacy deliveries at concurrency one, preserving heavy
+serialization while existing Workflows drain. Do not change the heavy object name to increase capacity.
+New names reuse the same class and binding and require no schema migration or additional cron.
+
+Each executor still enforces the existing per-queue cap in addition to its overall cap. Provider
+submission routes each have one target; ordinary verification and explicit legacy reinspection
+use different lanes, with an aggregate admission ceiling of five matching their queue limit of five.
+During cutover, old Workflows may deliver control/maintenance tasks to `jobs-primary`; drain old
+Workflows first when strict aggregate provider/queue limits must hold through the transition.
+Inline Outbox children execute sequentially within the maintenance parent's occupied slot. A guard
+rejects cross-lane inline execution without acknowledging its event; completion-before-ACK remains
+required. Do not recursively acquire the same single-slot executor for an inline child.
+
+Objects may share an isolate's 128 MB memory budget, even though each object's active duration is
+billed separately. Keep heavy transfers serialized and validate memory and database pressure before
+raising any cap. Workflows waits durably when the executor is busy; request cancellation never
+prematurely releases execution capacity. The Node executor retains its existing overall and queue caps.
 The Durable Object only controls delivery/admission; database leases, immutable ledgers,
 uncertain submissions, Outbox acknowledgment and recovery remain in existing business code.
+
+`job.executor` logs include executor name, task/run identity, busy or completed phase, capacity and
+elapsed admitted execution time. They exclude payloads, prompts, URLs and credentials. Use busy rate,
+execution duration and database/provider limits to tune capacity. Local 5/10/20-request admission
+tests establish routing, bounded concurrency and progress under contention; they do not measure
+production user capacity, Cloudflare memory headroom, or the account's actual bill.
 
 Normal generation stages immediately deliver their committed Outbox events in a separate durable
 step after releasing the executor slot. Pending image verification uses bounded durable polling

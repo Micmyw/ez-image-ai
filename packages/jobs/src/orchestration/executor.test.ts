@@ -111,6 +111,7 @@ vi.mock("../handlers/finalization-recovery-store", () => ({
 vi.mock("../handlers/grant-billing-periods", () => ({ grantBillingPeriods: vi.fn() }));
 
 import { executeTask } from "./executor";
+import { assertWorkerInlineTask } from "./worker-executors";
 
 const context = { attempt: 2, maxAttempts: 8, runId: "workflow-1" };
 const event = (overrides: Partial<OutboxLease> = {}): OutboxLease => ({
@@ -380,7 +381,9 @@ describe("Node task executor", () => {
 				}),
 		);
 		mocks.outboxStore.claimBatch.mockResolvedValue([event()]);
-		const execution = executeTask({ taskId: "media-deliver-outbox", payload: {} }, context);
+		const execution = executeTask({ taskId: "media-deliver-outbox", payload: {} }, context, {
+			assertInlineTask: assertWorkerInlineTask,
+		});
 		await didStart;
 		expect(mocks.outboxStore.complete).not.toHaveBeenCalled();
 		expect(mocks.dispatch).not.toHaveBeenCalled();
@@ -390,6 +393,24 @@ describe("Node task executor", () => {
 			"outbox-1",
 			expect.stringContaining("workflow-1"),
 			"lease-1",
+		);
+	});
+
+	it("leaves the Outbox recoverable if inline execution is not admitted", async () => {
+		mocks.outboxStore.claimBatch.mockResolvedValue([event()]);
+		const assertInlineTask = vi.fn(() => {
+			throw new Error("CROSS_EXECUTOR_INLINE_TASK");
+		});
+		expect(
+			await executeTask({ taskId: "media-deliver-outbox", payload: {} }, context, {
+				assertInlineTask,
+			}),
+		).toEqual({ claimed: 1, delivered: 0 });
+		expect(assertInlineTask).toHaveBeenCalledOnce();
+		expect(mocks.cleanup).not.toHaveBeenCalled();
+		expect(mocks.outboxStore.complete).not.toHaveBeenCalled();
+		expect(mocks.outboxStore.release).toHaveBeenCalledWith(
+			expect.objectContaining({ id: "outbox-1", leaseToken: "lease-1" }),
 		);
 	});
 
@@ -410,7 +431,11 @@ describe("Node task executor", () => {
 				payload: { trialId: "trial-1" },
 			}),
 		]);
-		expect(await executeTask({ taskId: "media-deliver-outbox", payload: {} }, context)).toEqual({
+		expect(
+			await executeTask({ taskId: "media-deliver-outbox", payload: {} }, context, {
+				assertInlineTask: assertWorkerInlineTask,
+			}),
+		).toEqual({
 			claimed: 3,
 			delivered: 2,
 		});

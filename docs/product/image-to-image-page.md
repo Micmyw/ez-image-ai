@@ -10,13 +10,40 @@ separate generator, free, style-transfer, or from-image variants. The homepage r
 `ai image editor no restrictions` as its primary query.
 
 Visitors use `LandingGenerator`; registered accounts use the existing
-`RegisteredEditor` inside the usual account boundaries. This entry requires a
-reference before submission. The general workspace still supports text-only input.
+`RegisteredEditor` inside the usual account boundaries. This entry supports prompt-only
+creation; adding a reference selects image editing in the existing workspace.
 Uploads, availability, credits, guest admission, moderation, and private results use
 the existing implementation. This route does not introduce a new generation API.
 
+The route uses a quieter editor presentation: the registered form shows one short
+prompt placeholder and offers suggested instructions in a closed disclosure. On
+phones the compact reference upload sits above a full-width prompt. Labeled model
+and output selectors each occupy a full row above the generation action, keeping
+model names readable on narrow screens. Credits, upload limits, errors and policy
+details remain available. The FAQ uses simple divided rows with a return-to-editor
+link instead of a decorative image card. Floating editor controls yield when the
+FAQ and page ending enter view.
+
 The page contains three prompt examples, steps, limitations, and FAQ. The prompts
 are editable starting points, not verified output examples or quality guarantees.
+The examples now appear immediately below the editor as selectable product-background,
+portrait-lighting, and watercolor comparisons. All three original prompt sections
+are server-rendered, including inactive panels. Arrow keys, Home, and End select a
+case; a native range input or the Original/Compare/Edited example buttons reveal
+each full image. Images use `object-fit: contain` and responsive, lazy-loaded WebP
+variants so the comparison does not crop the artwork.
+
+Selecting **Use this prompt** fills the existing guest or registered editor and
+returns focus to it. It does not upload the sample, change the selected model, or
+start a generation. The user can supply their own reference. The generated images
+are illustrative assets, explicitly not verified EzImageAI outputs; their source
+paths and image-generation prompts are in
+`apps/saas/public/images/image-to-image/provenance.json`.
+
+Metadata, canonical URLs, robots rules, schema, sitemap, and existing translation
+strings are preserved. New translations describe only the example controls, assets,
+and streamlined editor labels.
+
 Free access is described with its eligibility, quota, watermark, and retention
 conditions. No unconditional free or unrestricted-generation promise is made.
 

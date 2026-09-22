@@ -2,6 +2,7 @@
 
 import { SessionProvider } from "@auth/components/SessionProvider";
 import { useSession } from "@auth/hooks/use-session";
+import { DEFAULT_EDITOR_PRODUCT_KEY } from "@media/lib/editor-recovery";
 import { config as authConfig } from "@repo/auth/config";
 import { Button } from "@repo/ui/components/button";
 import { Logo } from "@repo/ui/components/logo";
@@ -16,7 +17,6 @@ import {
 	SparklesIcon,
 	XIcon,
 	ShieldUserIcon,
-	LayoutGridIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import dynamic from "next/dynamic";
@@ -26,7 +26,12 @@ import { type MouseEvent, type ReactNode, useCallback, useEffect, useRef, useSta
 
 import { HeaderNavigationMenu } from "./HeaderNavigationMenu";
 import { HeaderPurchaseActions } from "./HeaderPurchaseActions";
-import { StudioContext, studioPanelForPath, type StudioPanel } from "./studio-context";
+import {
+	resetStudioWorkspace,
+	StudioContext,
+	studioPanelForPath,
+	type StudioPanel,
+} from "./studio-context";
 import { StudioPanelBoundary } from "./StudioPanelBoundary";
 import { StudioToolNavigation } from "./StudioToolNavigation";
 
@@ -163,26 +168,41 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 	}, [mobile, panel]);
 	const sectionHref = (hash: string) =>
 		pathname === "/" || pathname === "/create" ? hash : "/" + hash;
+	function startFreshCreate(event: MouseEvent<HTMLAnchorElement>) {
+		if (
+			pathname !== "/create" ||
+			event.defaultPrevented ||
+			event.button !== 0 ||
+			event.metaKey ||
+			event.ctrlKey ||
+			event.shiftKey ||
+			event.altKey
+		)
+			return;
+		event.preventDefault();
+		window.history.replaceState(null, "", "/create");
+		resetStudioWorkspace(DEFAULT_EDITOR_PRODUCT_KEY);
+		setNavigationOpen(false);
+	}
 	const sidebar = (
 		<>
-			<div className="studio-brand-row">
-				<Link href="/" aria-label={brandName}>
-					<Logo className="text-white [&_svg]:text-violet-300" label={brandName} />
-				</Link>
-			</div>
-			<nav className="studio-navigation" aria-label={t("navigation")}>
+			<div className="studio-sidebar-header">
+				<div className="studio-brand-row">
+					<Link href="/" aria-label={brandName}>
+						<Logo className="text-white [&_svg]:text-violet-300" label={brandName} />
+					</Link>
+				</div>
 				<Link
-					className={editing ? "studio-nav-link is-active" : "studio-nav-link"}
-					href={editing ? "#image-editor" : "/create"}
+					className={pathname === "/create" ? "studio-nav-link is-active" : "studio-nav-link"}
+					href="/create"
+					onClick={startFreshCreate}
 				>
 					<SparklesIcon />
 					{t("create")}
 				</Link>
+			</div>
+			<nav className="studio-navigation" aria-label={t("navigation")}>
 				<StudioToolNavigation sidebar onNavigate={() => setNavigationOpen(false)} />
-				<a className="studio-nav-link" href={sectionHref("#examples")}>
-					<LayoutGridIcon />
-					{t("explore")}
-				</a>
 				{registered && (
 					<>
 						<p className="studio-nav-label">{t("workspace")}</p>

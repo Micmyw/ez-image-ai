@@ -6,6 +6,7 @@ Read for job/runtime/database packaging or deployment changes. Operational cutov
 
 - API work uses `dispatchJob` from `@repo/jobs/orchestration/client`. `WORKFLOWS_DISPATCH_URL` includes `/internal/dispatch` and requires HTTPS in production. SaaS and Worker share a random `WORKFLOWS_DISPATCH_SECRET` of at least 32 characters.
 - `apps/workflows` owns durable dispatch/retry/sleep and scheduled maintenance. Default `workers` admits existing handlers through the private `WorkerJobs` Durable Object, with request-owned Hyperdrive/Prisma connections and Cloudflare Images. `hybrid` uses `apps/jobs-runtime` with Sharp.
+- WorkerJobs uses three named objects in the existing namespace: `jobs-primary` for heavy work (1), `jobs-control` for lightweight work (4), and `jobs-maintenance` for maintenance (1). Routing and inline-child boundaries live in `packages/jobs/src/orchestration/worker-executors.ts`. Keep large-image responses serialized; object names do not provide independent 128 MB memory allocations.
 - Workers use flat secrets and injected contexts. Origin credentials stay in Hyperdrive with verified TLS and query caching disabled. Hybrid containers receive `JOBS_RUNTIME_ENV` JSON secrets at startup; never embed credentials in artifacts/public variables.
 - `pnpm workflows:type-check` checks orchestration/Node boundaries; `pnpm cloudflare:jobs:build` builds Workers artifacts; `pnpm workflows:build:ci` builds hybrid artifacts without Cloudflare credentials. Container build/execution needs Docker.
 

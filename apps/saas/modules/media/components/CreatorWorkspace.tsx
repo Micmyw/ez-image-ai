@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import type {
 	EditorDraftInput,
@@ -23,5 +24,7 @@ export function CreatorWorkspace(props: {
 	restoreNotice: EditorRestoreNotice;
 	parentJobId?: string | null;
 }) {
-	return <ImageEditorWorkspace {...props} />;
+	const pathname = usePathname();
+	const example = useSearchParams().get("example");
+	return <ImageEditorWorkspace key={`${pathname}:${example ?? ""}`} {...props} />;
 }

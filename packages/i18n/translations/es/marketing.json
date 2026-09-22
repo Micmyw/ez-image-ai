@@ -1,5 +1,38 @@
 {
 	"imageToImage": {
+		"composer": {
+			"referenceLabel": "Imagen de referencia (opcional)",
+			"promptLabel": "Prompt",
+			"modelLabel": "Modelo",
+			"outputLabel": "Ajustes de salida",
+			"placeholder": "Describe tu imagen o lo que te gustaría cambiar…"
+		},
+		"examples": {
+			"explore": "Explorar los ejemplos",
+			"choose": "Elige una edición para explorar",
+			"before": "Original",
+			"after": "Ejemplo editado",
+			"compare": "Comparar",
+			"drag": "Arrastra para comparar",
+			"promptAdded": "Prompt añadido al editor",
+			"ownImage": "Añade tu propia imagen de referencia y genera cuando estés listo.",
+			"note": "Ilustraciones de ideas de edición generadas con IA, no resultados verificados de EzImageAI. Los resultados varían según la imagen, el prompt y los ajustes.",
+			"background": {
+				"label": "Fondo de producto",
+				"beforeAlt": "Auriculares plateados y verdes sobre una base verde",
+				"afterAlt": "Edición ilustrativa de los mismos auriculares con un fondo de estudio beige cálido"
+			},
+			"portrait": {
+				"label": "Luz de retrato",
+				"beforeAlt": "Retrato en una calle con luz fría de un día nublado",
+				"afterAlt": "Edición ilustrativa del mismo retrato con luz cálida de la hora dorada"
+			},
+			"style": {
+				"label": "Estilo acuarela",
+				"beforeAlt": "Martín pescador en una rama cubierta de musgo junto a un río",
+				"afterAlt": "Versión ilustrativa en acuarela del martín pescador y el río"
+			}
+		},
 		"name": "IA de imagen a imagen",
 		"title": "Generador de IA de imagen a imagen",
 		"subtitle": "Sube una imagen de referencia para editarla o describe una imagen para generarla con un prompt.",

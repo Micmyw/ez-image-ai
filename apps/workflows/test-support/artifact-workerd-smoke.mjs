@@ -47,7 +47,8 @@ const runtime = new Miniflare(
 				modules: true,
 				script: `export default { fetch(request, env) {
   if (new URL(request.url).pathname === '/internal/execute') {
-    return env.EXECUTOR.get(env.EXECUTOR.idFromName('jobs-primary')).fetch(request);
+    const name = request.headers.get('x-test-executor') || 'jobs-primary';
+    return env.EXECUTOR.get(env.EXECUTOR.idFromName(name)).fetch(request);
   }
   return env.JOBS_ENTRY.fetch(request);
 } };`,
@@ -80,7 +81,7 @@ const runtime = new Miniflare(
 	}),
 );
 
-async function request(endpoint, body, signed = false) {
+async function request(endpoint, body, signed = false, executorName = "jobs-primary") {
 	const timestamp = String(Date.now());
 	const signature = createHmac("sha256", secret)
 		.update(`POST\n${endpoint}\n${timestamp}\n${body}`)
@@ -88,7 +89,10 @@ async function request(endpoint, body, signed = false) {
 	return runtime.dispatchFetch(`https://artifact-smoke.invalid${endpoint}`, {
 		method: "POST",
 		body,
-		headers: signed ? { "x-jobs-timestamp": timestamp, "x-jobs-signature": signature } : {},
+		headers: {
+			"x-test-executor": executorName,
+			...(signed ? { "x-jobs-timestamp": timestamp, "x-jobs-signature": signature } : {}),
+		},
 		signal: AbortSignal.timeout(30_000),
 	});
 }
@@ -98,20 +102,58 @@ try {
 	assert.equal((await request("/internal/dispatch", "{}")).status, 401);
 	assert.equal((await request("/internal/execute", "{}")).status, 401);
 	assert.equal((await request("/internal/execute", "{}", true)).status, 400);
-	if (checkDatabase) {
-		// A random missing attempt performs a real Prisma query through the local
-		// Hyperdrive binding, then returns without invoking a provider or mutating jobs.
-		const response = await request(
-			"/internal/execute",
-			JSON.stringify({
-				request: { taskId: "media-poll-generation", payload: { attemptId: randomUUID() } },
-				context: { attempt: 1, maxAttempts: 3, runId: "artifact-smoke" },
-			}),
-			true,
+	for (const name of ["jobs-control", "jobs-maintenance"]) {
+		assert.equal((await request("/internal/execute", "{}", false, name)).status, 401);
+		assert.equal(
+			(
+				await request(
+					"/internal/execute",
+					JSON.stringify({
+						request: {
+							taskId: "media-finalize-generation",
+							payload: { jobId: randomUUID(), version: 0 },
+						},
+						context: { attempt: 1, maxAttempts: 5, runId: "artifact-routing-smoke" },
+					}),
+					true,
+					name,
+				)
+			).status,
+			400,
 		);
-		const result = await response.json();
-		assert.equal(response.status, 200, JSON.stringify(result));
-		assert.deepEqual(result, { status: "ok", poll: { done: true, waitSeconds: 0 } });
+	}
+	if (checkDatabase) {
+		// Six request-owned Prisma contexts across all three objects. Missing IDs
+		// query local Hyperdrive without provider calls or business-state mutations.
+		await Promise.all(
+			[
+				"jobs-primary",
+				"jobs-control",
+				"jobs-control",
+				"jobs-control",
+				"jobs-control",
+				"jobs-maintenance",
+			].map(async (name) => {
+				const maintenance = name === "jobs-maintenance";
+				const response = await request(
+					"/internal/execute",
+					JSON.stringify({
+						request: maintenance
+							? { taskId: "media-cancel-generation", payload: { jobId: randomUUID(), version: 0 } }
+							: { taskId: "media-poll-generation", payload: { attemptId: randomUUID() } },
+						context: { attempt: 1, maxAttempts: maintenance ? 5 : 3, runId: "artifact-smoke" },
+					}),
+					true,
+					name,
+				);
+				const result = await response.json();
+				assert.equal(response.status, 200, `${name}: ${JSON.stringify(result)}`);
+				assert.deepEqual(
+					result,
+					maintenance ? { status: "ok" } : { status: "ok", poll: { done: true, waitSeconds: 0 } },
+				);
+			}),
+		);
 	}
 	process.stdout.write(
 		JSON.stringify({
@@ -119,6 +161,7 @@ try {
 			startedInWorkerd: true,
 			unsignedRejected: true,
 			invalidSignedTaskRejected: true,
+			executorRoutingVerified: true,
 			localPostgresQuery: checkDatabase,
 			liveCloudflareVerified: false,
 		}) + "\n",

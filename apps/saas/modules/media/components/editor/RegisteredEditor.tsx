@@ -8,12 +8,16 @@ import {
 	buildEditAgainRecoveryCandidate,
 	resolveEditorRecovery,
 } from "@media/lib/editor-recovery.server";
+import { getPublicProductCatalog } from "@repo/ai";
+import { getCurrentExecutableRouteGraphOptions } from "@repo/api/modules/media/lib/executable-route-graph";
 import {
 	findEffectivePaidSubscription,
 	findEligibleImageEditParentForOwner,
 	getClaimedGenerationDraft,
 } from "@repo/database";
 import { db } from "@repo/database/client";
+import { getServerQueryClient } from "@shared/lib/server";
+import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { cookies } from "next/headers";
 
 export interface CreatePageFilters {
@@ -44,9 +48,17 @@ export async function RegisteredEditor({
 	let parentJobId: string | null = null;
 	let claimedDraft = false;
 
-	const subscription = session
-		? await findEffectivePaidSubscription({ ownerType: "USER", ownerId: session.user.id }, db)
-		: null;
+	const queryClient = getServerQueryClient();
+	const [subscription] = await Promise.all([
+		session
+			? findEffectivePaidSubscription({ ownerType: "USER", ownerId: session.user.id }, db)
+			: null,
+		queryClient.prefetchQuery({
+			queryKey: ["media-catalog"],
+			queryFn: async () => getPublicProductCatalog(await getCurrentExecutableRouteGraphOptions()),
+			staleTime: 5 * 60_000,
+		}),
+	]);
 	const allowedProductKeys = resolveEditorAllowedProductKeys(
 		subscription?.plan.metadata,
 		subscription?.plan.name,
@@ -120,14 +132,16 @@ export async function RegisteredEditor({
 	});
 
 	return (
-		<CreatorWorkspace
-			claimedDraft={claimedDraft}
-			initialDraft={recovery.initialDraft}
-			parentJobId={parentJobId}
-			allowedProductKeys={allowedProductKeys}
-			restoreState={recovery.restoreState}
-			restoreNotice={recovery.notice}
-		/>
+		<HydrationBoundary state={dehydrate(queryClient)}>
+			<CreatorWorkspace
+				claimedDraft={claimedDraft}
+				initialDraft={recovery.initialDraft}
+				parentJobId={parentJobId}
+				allowedProductKeys={allowedProductKeys}
+				restoreState={recovery.restoreState}
+				restoreNotice={recovery.notice}
+			/>
+		</HydrationBoundary>
 	);
 }
 

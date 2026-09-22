@@ -76,6 +76,7 @@ export interface ExecutorDependencies {
 	dispatch?: typeof dispatchJob;
 	now?: () => Date;
 	environment?: Record<string, string | undefined>;
+	assertInlineTask?(parent: TaskRequest, child: TaskRequest): void;
 }
 
 export async function executeTask(
@@ -150,10 +151,13 @@ export async function executeTask(
 									requireCompletion: true,
 								}),
 							// Cleanup, cancellation, and guest admission must finish before ACK.
-							// Inline execution avoids waiting on a second Container admission.
+							// Inline execution retains the parent's admitted slot and avoids
+							// reacquiring the same single-slot executor while awaiting a child.
 							triggerAndWait: async (childTaskId, childPayload) => {
+								const child = { taskId: childTaskId, payload: childPayload };
+								dependencies.assertInlineTask?.(request, child);
 								await executeTask(
-									{ taskId: childTaskId, payload: childPayload },
+									child,
 									{
 										attempt: 1,
 										maxAttempts: taskDefinition(childTaskId, environment).maxAttempts,

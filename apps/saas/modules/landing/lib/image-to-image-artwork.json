@@ -1,0 +1,110 @@
+{
+	"background-before": {
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/image-to-image/background-before-320.9cfc6f33e397.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/image-to-image/background-before-640.400c81552a87.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/image-to-image/background-before-960.8df3f6269a91.webp"
+			}
+		]
+	},
+	"background-after": {
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/image-to-image/background-after-320.3ff0333970dd.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/image-to-image/background-after-640.d9ba0a390f6e.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/image-to-image/background-after-960.e4cfdebaf16c.webp"
+			}
+		]
+	},
+	"portrait-before": {
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/image-to-image/portrait-before-320.3b4334aceaf7.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/image-to-image/portrait-before-640.8e15ad7a4a0e.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/image-to-image/portrait-before-960.1c935b84b9de.webp"
+			}
+		]
+	},
+	"portrait-after": {
+		"width": 1024,
+		"height": 1536,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/image-to-image/portrait-after-320.4d194c2ca2ab.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/image-to-image/portrait-after-640.0c5fc53ea782.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/image-to-image/portrait-after-960.1c9a90a9703f.webp"
+			}
+		]
+	},
+	"style-before": {
+		"width": 1536,
+		"height": 1024,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/image-to-image/style-before-320.7ef513af5300.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/image-to-image/style-before-640.a026fd666756.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/image-to-image/style-before-960.03273c358179.webp"
+			}
+		]
+	},
+	"style-after": {
+		"width": 1536,
+		"height": 1024,
+		"variants": [
+			{
+				"width": 320,
+				"src": "/images/image-to-image/style-after-320.358aeb209b0f.webp"
+			},
+			{
+				"width": 640,
+				"src": "/images/image-to-image/style-after-640.07e097dace26.webp"
+			},
+			{
+				"width": 960,
+				"src": "/images/image-to-image/style-after-960.0e5ba95642bc.webp"
+			}
+		]
+	}
+}

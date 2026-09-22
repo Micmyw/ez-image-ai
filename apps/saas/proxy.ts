@@ -17,6 +17,7 @@ export const config = {
 	matcher: [
 		"/",
 		"/create",
+		"/examples",
 		"/image-to-image",
 		"/models/:path*",
 		"/pricing",

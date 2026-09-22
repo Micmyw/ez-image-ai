@@ -165,7 +165,8 @@ vi.mock("../modules/landing/components/BeforeAfterDemo", () => ({
 }));
 
 vi.mock("../modules/landing/components/ShowcaseSection", () => ({
-	ShowcaseSection: () => <section id="examples" />,
+	ShowcaseSection: ({ standalone = false }: { standalone?: boolean }) =>
+		standalone ? <h1>AI Image Editing Examples</h1> : <section id="examples" />,
 }));
 
 vi.mock("../modules/landing/components/CreatorWorkflowsSection", () => ({
@@ -211,6 +212,7 @@ type PublicContentModule = {
 
 const publicRoutes = [
 	{ modulePath: "./page", path: "/", robots: "index" },
+	{ modulePath: "./(public)/examples/page", path: "/examples", robots: "noindex" },
 	{ modulePath: "./(public)/image-to-image/page", path: "/image-to-image", robots: "index" },
 	{ modulePath: "./(public)/pricing/page", path: "/pricing", robots: "index" },
 	{ modulePath: "./(public)/privacy/page", path: "/privacy", robots: "index" },
@@ -424,7 +426,7 @@ describe("consolidated public route contract", () => {
 		}
 	});
 
-	it.each(["docs", "image-to-image"])("reserves %s from organization slugs", (slug) => {
+	it.each(["docs", "examples", "image-to-image"])("reserves %s from organization slugs", (slug) => {
 		expect(authConfig.organizations.forbiddenOrganizationSlugs).toContain(slug);
 	});
 });
@@ -550,6 +552,20 @@ describe("homepage workspace session selection", () => {
 });
 
 describe("image-to-image workspace session selection", () => {
+	it("renders all image examples and their existing prompt copy in the initial HTML", async () => {
+		const { default: Page } = await import("./(public)/image-to-image/page");
+		sessionMock.mockResolvedValueOnce(null);
+		const stream = await renderToReadableStream(await Page({}));
+		const html = await new Response(stream).text();
+		expect(html.match(/data-image-comparison=""/g)).toHaveLength(3);
+		for (const key of ["background", "portrait", "style"]) {
+			expect(html).toContain(`useCases.${key}.title`);
+			expect(html).toContain(`useCases.${key}.body`);
+			expect(html).toContain(`useCases.${key}.prompt`);
+			expect(html).toContain(`id="image-example-${key}"`);
+		}
+		expect(html.match(/<h1\b/g)).toHaveLength(1);
+	});
 	it.each([null, { user: { id: "trial", isAnonymous: true } }])(
 		"allows prompt-only creation in the guest editor for %j",
 		async (session) => {

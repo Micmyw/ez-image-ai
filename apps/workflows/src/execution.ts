@@ -12,6 +12,16 @@ export interface WorkerExecutionOptions {
 	execute(request: TaskRequest, context: TaskExecutionContext): Promise<unknown>;
 	poll(input: { attemptId: string }): Promise<PollingTickResult>;
 	maxActive?: number;
+	acceptsTask?(request: TaskRequest): boolean;
+	onEvent?(event: {
+		phase: "busy" | "completed";
+		taskId: string;
+		runId: string;
+		active: number;
+		maximum: number;
+		elapsedMs?: number;
+		outcome?: "ok" | "failed";
+	}): void;
 	env?: Record<string, string | undefined>;
 }
 
@@ -24,6 +34,13 @@ export function createWorkerExecutionHandler(options: WorkerExecutionOptions) {
 	const queues = new Map<string, number>();
 	const respond = (status: number, data: unknown) =>
 		Response.json(data, { status, headers: { "cache-control": "no-store" } });
+	const report = (event: Parameters<NonNullable<WorkerExecutionOptions["onEvent"]>>[0]) => {
+		try {
+			options.onEvent?.(event);
+		} catch {
+			// Observability must not turn completed work into a retry.
+		}
+	};
 	return async (incoming: Request): Promise<Response> => {
 		const url = new URL(incoming.url);
 		if (incoming.method !== "POST" || url.pathname !== "/internal/execute" || url.search)
@@ -44,6 +61,8 @@ export function createWorkerExecutionHandler(options: WorkerExecutionOptions) {
 		try {
 			const value = JSON.parse(body);
 			request = parseTaskRequest(value.request);
+			if (options.acceptsTask && !options.acceptsTask(request))
+				throw new Error("WRONG_TASK_EXECUTOR");
 			definition = taskDefinition(request.taskId, options.env ?? process.env);
 			context = value.context;
 			if (
@@ -61,10 +80,15 @@ export function createWorkerExecutionHandler(options: WorkerExecutionOptions) {
 			return respond(400, { status: "invalid_task" });
 		}
 		const queued = queues.get(definition.queue) ?? 0;
-		if (active >= maximum || queued >= definition.concurrency)
+		const identity = { taskId: request.taskId, runId: context.runId, maximum };
+		if (active >= maximum || queued >= definition.concurrency) {
+			report({ ...identity, phase: "busy", active });
 			return respond(429, { status: "busy" });
+		}
 		active++;
 		queues.set(definition.queue, queued + 1);
+		const startedAt = Date.now();
+		let outcome: "ok" | "failed" = "ok";
 		try {
 			// Deadlines belong to bounded I/O and Workflow delivery. Releasing this
 			// slot on a raced timeout would allow abandoned execution to overlap.
@@ -77,6 +101,7 @@ export function createWorkerExecutionHandler(options: WorkerExecutionOptions) {
 				return respond(200, { status: "ok", poll: parsePollingTickResult(result) });
 			return respond(200, { status: "ok" });
 		} catch {
+			outcome = "failed";
 			process.stderr.write(
 				JSON.stringify({
 					event: "job_execution_failed",
@@ -89,6 +114,13 @@ export function createWorkerExecutionHandler(options: WorkerExecutionOptions) {
 		} finally {
 			active--;
 			queues.set(definition.queue, (queues.get(definition.queue) ?? 1) - 1);
+			report({
+				...identity,
+				phase: "completed",
+				active,
+				outcome,
+				elapsedMs: Date.now() - startedAt,
+			});
 		}
 	};
 }

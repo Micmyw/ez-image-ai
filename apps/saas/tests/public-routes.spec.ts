@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const indexableRoutes = ["/", "/pricing", "/privacy", "/terms", "/blog"] as const;
-const noindexRoutes = ["/changelog", "/contact", "/create"] as const;
+const noindexRoutes = ["/changelog", "/contact", "/create", "/examples"] as const;
 const requiredFooterRoutes = [
 	"/image-to-image",
 	"/privacy",
@@ -11,6 +11,7 @@ const requiredFooterRoutes = [
 	"/contact",
 	"/docs",
 ] as const;
+
 const baseUrl = process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000";
 const legacyRedirects: ReadonlyArray<{ from: string; to: string }> = [
 	{ from: "/legal/privacy-policy", to: "/privacy" },
@@ -75,6 +76,16 @@ async function mockPublicImageAvailability(page: import("@playwright/test").Page
 		}),
 	);
 }
+
+test("editing examples open the create page with an editable prompt", async ({ page }) => {
+	await mockPublicImageAvailability(page);
+	await expectPublicPage(page, "/examples", "noindex");
+	await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+	await expect(page.locator('#examples a[href^="/create?example="]')).toHaveCount(12);
+	await page.locator('#examples a[href="/create?example=mediterranean"]').click();
+	await expect(page).toHaveURL(/\/create\?example=mediterranean$/, { timeout: 30_000 });
+	await expect(page.locator("#landing-edit-prompt")).toHaveValue(/sunlit mediterranean retreat/i);
+});
 
 test.describe("image-to-image landing page", () => {
 	test.use({ contextOptions: { reducedMotion: "reduce" } });

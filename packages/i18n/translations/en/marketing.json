@@ -1,5 +1,38 @@
 {
 	"imageToImage": {
+		"composer": {
+			"referenceLabel": "Reference image (optional)",
+			"promptLabel": "Prompt",
+			"modelLabel": "Model",
+			"outputLabel": "Output settings",
+			"placeholder": "Describe your image, or what you'd like to change…"
+		},
+		"examples": {
+			"explore": "Explore the examples",
+			"choose": "Pick an edit to explore",
+			"before": "Original",
+			"after": "Edited example",
+			"compare": "Compare",
+			"drag": "Drag to compare",
+			"promptAdded": "Prompt added to your editor",
+			"ownImage": "Add your own reference image, then generate when you’re ready.",
+			"note": "AI-generated illustrations of editing ideas, not verified EzImageAI outputs. Your results will vary with your image, prompt, and settings.",
+			"background": {
+				"label": "Product background",
+				"beforeAlt": "Silver and green headphones on a green display",
+				"afterAlt": "Illustrative edit of the same headphones against a warm beige studio backdrop"
+			},
+			"portrait": {
+				"label": "Portrait lighting",
+				"beforeAlt": "Street portrait in cool overcast light",
+				"afterAlt": "Illustrative edit of the same portrait in warm golden-hour light"
+			},
+			"style": {
+				"label": "Watercolor style",
+				"beforeAlt": "Kingfisher on a mossy branch beside a river",
+				"afterAlt": "Illustrative watercolor version of the kingfisher and river"
+			}
+		},
 		"name": "Image to Image AI",
 		"title": "Image to Image AI Generator",
 		"subtitle": "Upload a reference image to edit, or describe an image to generate from a prompt.",

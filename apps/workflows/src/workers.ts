@@ -4,6 +4,12 @@ import { executeTask } from "@repo/jobs/orchestration/executor";
 import { executePollingTick } from "@repo/jobs/orchestration/polling";
 import { taskDefinition } from "@repo/jobs/orchestration/registry";
 import {
+	assertWorkerInlineTask,
+	workerExecutorForTask,
+	workerExecutorLane,
+	WORKER_EXECUTORS,
+} from "@repo/jobs/orchestration/worker-executors";
+import {
 	createCloudflareImagesProcessor,
 	type CloudflareImagesBinding,
 } from "@repo/storage/image-processing/cloudflare-images";
@@ -40,14 +46,25 @@ export class WorkerJobs extends DurableObject<WorkersEnvironment> {
 	private handler?: ReturnType<typeof createWorkerExecutionHandler>;
 
 	override async fetch(request: Request): Promise<Response> {
+		const lane = this.ctx.id.equals(
+			this.env.JOBS_EXECUTOR.idFromName(WORKER_EXECUTORS.control.name),
+		)
+			? "control"
+			: this.ctx.id.equals(this.env.JOBS_EXECUTOR.idFromName(WORKER_EXECUTORS.maintenance.name))
+				? "maintenance"
+				: "heavy";
 		this.handler ??= createWorkerExecutionHandler({
 			secret: this.env.WORKFLOWS_DISPATCH_SECRET,
-			// A Worker has 128 MiB, shared by all its invocations. Serialize heavy
-			// transfers initially; the Node/Container executor retains its own cap.
-			maxActive: 1,
+			maxActive: WORKER_EXECUTORS[lane].maxActive,
+			// The original object also accepts old Workflow deliveries. Keeping its
+			// cap at one preserves the heavy limit while existing Workflows drain.
+			acceptsTask: (task) => lane === "heavy" || workerExecutorLane(task) === lane,
+			onEvent: (event) =>
+				console.info("job.executor", { executor: WORKER_EXECUTORS[lane].name, ...event }),
 			execute: (task, context) =>
 				this.scoped(() =>
 					executeTask(task, context, {
+						assertInlineTask: assertWorkerInlineTask,
 						dispatch: createWorkflowBindingDispatcher({
 							url: this.env.WORKFLOWS_DISPATCH_URL,
 							secret: this.env.WORKFLOWS_DISPATCH_SECRET,
@@ -83,7 +100,7 @@ export class JobsWorkflow extends WorkflowEntrypoint<WorkersEnvironment, JobsPar
 		const invoke: InvokeTask = async (request, context): Promise<InvocationResult> => {
 			const body = JSON.stringify({ request, context });
 			const executor = this.env.JOBS_EXECUTOR.get(
-				this.env.JOBS_EXECUTOR.idFromName("jobs-primary"),
+				this.env.JOBS_EXECUTOR.idFromName(workerExecutorForTask(request).name),
 			);
 			const response = await executor.fetch(
 				new Request("https://executor/internal/execute", {

@@ -1,5 +1,38 @@
 {
 	"imageToImage": {
+		"composer": {
+			"referenceLabel": "Image de référence (facultatif)",
+			"promptLabel": "Prompt",
+			"modelLabel": "Modèle",
+			"outputLabel": "Paramètres de sortie",
+			"placeholder": "Décrivez votre image ou ce que vous souhaitez modifier…"
+		},
+		"examples": {
+			"explore": "Explorer les exemples",
+			"choose": "Choisissez une retouche à explorer",
+			"before": "Original",
+			"after": "Exemple retouché",
+			"compare": "Comparer",
+			"drag": "Glissez pour comparer",
+			"promptAdded": "Prompt ajouté à l’éditeur",
+			"ownImage": "Ajoutez votre propre image de référence, puis lancez la création.",
+			"note": "Illustrations d’idées de retouche générées par IA, et non des résultats vérifiés d’EzImageAI. Les résultats varient selon l’image, le prompt et les réglages.",
+			"background": {
+				"label": "Fond de produit",
+				"beforeAlt": "Casque argenté et vert sur un présentoir vert",
+				"afterAlt": "Retouche illustrative du même casque sur un fond de studio beige chaud"
+			},
+			"portrait": {
+				"label": "Lumière du portrait",
+				"beforeAlt": "Portrait de rue sous une lumière froide et nuageuse",
+				"afterAlt": "Retouche illustrative du même portrait dans la lumière chaude de l’heure dorée"
+			},
+			"style": {
+				"label": "Style aquarelle",
+				"beforeAlt": "Martin-pêcheur sur une branche moussue près d’une rivière",
+				"afterAlt": "Version illustrative à l’aquarelle du martin-pêcheur et de la rivière"
+			}
+		},
 		"name": "IA image à image",
 		"title": "Générateur IA image à image",
 		"subtitle": "Importez une image de référence à retoucher ou décrivez une image à générer à partir d’un prompt.",

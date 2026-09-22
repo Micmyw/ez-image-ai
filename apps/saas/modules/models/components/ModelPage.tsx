@@ -19,15 +19,13 @@ import { ModelRecommendations } from "./ModelRecommendations";
 
 import "../models.css";
 
-export async function ModelPage({
+export function ModelPage({
 	model,
 	searchParams,
 }: {
 	model: ModelPageContent;
 	searchParams: Promise<CreatePageFilters>;
 }) {
-	const session = await getSession();
-	const registered = session && !isAnonymousUser(session.user);
 	const example = INSPIRATION[model.exampleArtwork];
 	const before = model.beforeArtwork;
 	return (
@@ -51,16 +49,8 @@ export async function ModelPage({
 						))}
 					</ul>
 					<div className="model-generator">
-						<Suspense fallback={<p className="model-loading">Loading your workspace…</p>}>
-							{registered ? (
-								<RegisteredWorkspaceBoundary>
-									<MainAccountBoundary>
-										<RegisteredEditor searchParams={searchParams} />
-									</MainAccountBoundary>
-								</RegisteredWorkspaceBoundary>
-							) : (
-								<LandingGenerator />
-							)}
+						<Suspense fallback={<ModelGeneratorFallback />}>
+							<ModelGenerator modelKey={model.key} searchParams={searchParams} />
 						</Suspense>
 					</div>
 				</section>
@@ -168,5 +158,33 @@ export async function ModelPage({
 				</footer>
 			</main>
 		</StudioShell>
+	);
+}
+
+async function ModelGenerator({
+	modelKey,
+	searchParams,
+}: {
+	modelKey: string;
+	searchParams: Promise<CreatePageFilters>;
+}) {
+	const session = await getSession();
+	const registered = session && !isAnonymousUser(session.user);
+	return registered ? (
+		<RegisteredWorkspaceBoundary>
+			<MainAccountBoundary>
+				<RegisteredEditor searchParams={searchParams} />
+			</MainAccountBoundary>
+		</RegisteredWorkspaceBoundary>
+	) : (
+		<LandingGenerator key={modelKey} />
+	);
+}
+
+function ModelGeneratorFallback() {
+	return (
+		<output className="model-loading" aria-live="polite">
+			<span>Loading your workspace…</span>
+		</output>
 	);
 }

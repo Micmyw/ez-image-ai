@@ -18,6 +18,7 @@ const storedDraftSchema = z
 		version: z.literal(1),
 		savedAt: z.number().int().nonnegative(),
 		ownerId: z.string().min(1).max(128),
+		pathname: z.string().startsWith("/").max(256).default("/create"),
 		values: generationFormValuesSchema
 			.extend({
 				prompt: z.string().max(10_000),
@@ -38,12 +39,14 @@ export function saveWorkspaceDraft(
 	ownerId: string,
 	draft: WorkspaceDraft,
 	now = Date.now(),
+	pathname = "/create",
 ): boolean {
 	try {
 		const parsed = storedDraftSchema.safeParse({
 			version: 1,
 			savedAt: now,
 			ownerId,
+			pathname,
 			values: draft.values,
 			parentJobId: draft.parentJobId,
 		});
@@ -59,6 +62,7 @@ export function loadWorkspaceDraft(
 	storage: WorkspaceStorage,
 	ownerId: string,
 	now = Date.now(),
+	pathname = "/create",
 ): WorkspaceDraft | null {
 	try {
 		const serialized = storage.getItem(WORKSPACE_DRAFT_KEY);
@@ -73,6 +77,7 @@ export function loadWorkspaceDraft(
 			storage.removeItem(WORKSPACE_DRAFT_KEY);
 			return null;
 		}
+		if (parsed.data.pathname !== pathname) return null;
 		return {
 			values: parsed.data.values,
 			parentJobId: parsed.data.parentJobId,

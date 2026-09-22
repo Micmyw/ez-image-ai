@@ -38,12 +38,14 @@ export function ImageModelSelector({
 	idPrefix,
 	products,
 	value,
+	valueLabel,
 	onChange,
 	disabled = false,
 }: {
 	idPrefix: string;
 	products: readonly ImageModelOption[];
 	value: string | null;
+	valueLabel?: string;
 	onChange: (key: string) => void;
 	disabled?: boolean;
 }) {
@@ -54,6 +56,7 @@ export function ImageModelSelector({
 		products.some((product) => product.key.startsWith(group.prefix)),
 	);
 	const selected = products.find((product) => product.key === value);
+	const selectedLabel = selected?.label ?? valueLabel;
 	const selectedGroup = groups.find((group) => selected?.key.startsWith(group.prefix)) ?? groups[0];
 	const activeGroup = groups.find((group) => group.key === activeGroupKey) ?? selectedGroup;
 
@@ -70,12 +73,12 @@ export function ImageModelSelector({
 					<button
 						type="button"
 						data-test={`${idPrefix}-model-trigger`}
-						aria-label={t("trigger", { model: selected?.label ?? t("choose") })}
+						aria-label={t("trigger", { model: selectedLabel ?? t("choose") })}
 						disabled={disabled || !groups.length}
 						className="min-h-11 min-w-0 gap-2 px-3 text-xs font-semibold border-white/10 bg-white/[0.055] hover:bg-white/10 focus-visible:outline-violet-300 inline-flex max-w-full items-center rounded-lg border text-[#f2ecfa] transition focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
 					>
-						<ImageModelIcon productKey={selected?.key} size={18} />
-						<span className="truncate">{selected?.label ?? t("choose")}</span>
+						<ImageModelIcon productKey={selected?.key ?? value ?? undefined} size={18} />
+						<span className="truncate">{selectedLabel ?? t("choose")}</span>
 						<ChevronDownIcon className="size-3.5 shrink-0 text-[#a99db2]" aria-hidden="true" />
 					</button>
 				}
@@ -92,9 +95,9 @@ export function ImageModelSelector({
 				<h3 className="px-2 py-2 font-semibold tracking-widest text-[0.65rem] text-[#a99db2] uppercase">
 					{t("title")}
 				</h3>
-				<div className="gap-2 sm:grid-cols-[10.5rem_minmax(0,1fr)] grid">
+				<div className="gap-2 sm:grid-cols-[10.5rem_minmax(0,1fr)] grid grid-cols-[minmax(0,1fr)]">
 					<fieldset
-						className="gap-1 bg-black/10 p-1 sm:flex-col flex rounded-xl"
+						className="min-w-0 gap-1 bg-black/10 p-1 sm:flex-col flex rounded-xl"
 						aria-label={t("groups")}
 					>
 						{groups.map((group) => (
@@ -106,10 +109,12 @@ export function ImageModelSelector({
 								onClick={() => setActiveGroupKey(group.key)}
 								className={`min-h-11 min-w-0 gap-2 p-2 focus-visible:outline-violet-300 sm:flex-initial flex-1 rounded-lg text-left transition focus-visible:outline-2 ${group.key === activeGroup?.key ? "bg-[#4b3a64]" : "hover:bg-white/5"}`}
 							>
-								<span className="gap-2 flex items-center">
+								<span className="gap-1.5 sm:gap-2 sm:flex-row flex flex-col items-center">
 									<ImageModelIcon productKey={group.prefix} size={20} />
-									<span className="min-w-0">
-										<span className="text-xs font-semibold block">{group.label}</span>
+									<span className="min-w-0 sm:text-left text-center">
+										<span className="min-h-8 sm:min-h-0 text-xs font-semibold flex items-center">
+											{group.label}
+										</span>
 										<span className="mt-1 sm:block hidden text-[0.65rem] text-[#b2a7bc]">
 											{t(`groupDescriptions.${group.key}`)}
 										</span>

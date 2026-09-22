@@ -48,6 +48,8 @@ The Playwright `public` project skips database auth setup. Run SaaS Vitest, Next
 
 Default `workers` uses OpenNext for the site and Workflows/WorkerJobs for jobs; `hybrid` changes background execution to the private Node container only. `dispatchJob` from `@repo/jobs/orchestration/client` is the API submission path. Business transitions stay in `packages/jobs` and `packages/database`; preserve PostgreSQL leases, immutable ledger, Outbox recovery, and uncertainty gates. Never fail over runtimes automatically after uncertain/timed-out execution.
 
+Workers route heavy transfers and synchronous image responses to `jobs-primary` (1), lightweight control work to `jobs-control` (4), and maintenance to `jobs-maintenance` (1). Keep classification in `packages/jobs/src/orchestration/worker-executors.ts`; inline Outbox children must stay within the parent's maintenance slot. Separate Durable Objects do not guarantee separate memory isolates.
+
 For jobs, database runtime imports, packaging, or deployment, use [Cloudflare runtime constraints](docs/agent-reference/cloudflare-runtime.md) and [profile cutover/drain/rollback operations](docs/operations/cloudflare-workers-profiles.md). Builds/preparation do not deploy or certify live cron, recovery, shutdown, or external integrations.
 
 Consumer-facing changes update `CHANGELOG.md`, relevant `apps/saas/modules/landing`, `apps/saas/content`, product docs, and translations. Use conventional commits and update this entry when app/runtime boundaries change.

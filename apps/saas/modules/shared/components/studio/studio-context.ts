@@ -7,6 +7,19 @@ export type StudioPanel = {
 	jobId?: string;
 };
 export const STUDIO_ASSET_SELECTED_EVENT = "ezpic:studio-asset-selected";
+export const STUDIO_WORKSPACE_RESET_EVENT = "ezpic:studio-workspace-reset";
+
+export interface StudioWorkspaceResetDetail {
+	productKey: string;
+}
+
+export function resetStudioWorkspace(productKey: string) {
+	window.dispatchEvent(
+		new CustomEvent<StudioWorkspaceResetDetail>(STUDIO_WORKSPACE_RESET_EVENT, {
+			detail: { productKey },
+		}),
+	);
+}
 
 export function studioPanelForPath(pathname: string): StudioPanel | null {
 	if (pathname === "/assets") return { kind: "assets" };
