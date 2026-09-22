@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-09-22
+
+### Homepage startup and accessible controls
+
+- Load the authentication SDK when a session query runs, and keep organization tools out of the guest homepage's initial scripts while retaining server rendering for registered workspaces.
+- Load text-prompt draft persistence when submitting, save the selected prompt and model before sign-in navigation, and restore the ready state when saving fails.
+- Derive output-setting button names from their rendered selections so screen-reader names include the visible text.
+
 ## 2026-09-21
 
 ### Creator story scrolling

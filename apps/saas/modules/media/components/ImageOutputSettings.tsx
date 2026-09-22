@@ -69,11 +69,6 @@ export function ImageOutputSettings({
 			? [{ key: dimension.key, label: labels.optionLabels?.[option.key] ?? option.label }]
 			: [];
 	});
-	const selectionSummary = [
-		value === "auto" ? labels.automatic : value,
-		"1",
-		...selectedOptions.map((option) => option.label),
-	].join(", ");
 	const dark = tone === "dark";
 	const muted = dark ? "text-[#b2a7bc]" : "text-muted-foreground";
 	const optionStyle = (selected: boolean) =>
@@ -93,8 +88,8 @@ export function ImageOutputSettings({
 						data-test={`${idPrefix}-output-settings-trigger`}
 						className={`min-h-11 gap-2 px-3 text-xs font-semibold focus-visible:outline-violet-300 inline-flex max-w-full items-center rounded-lg border whitespace-nowrap transition focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${dark ? "border-white/10 bg-white/[0.055] hover:bg-white/10 text-[#c5b9d2]" : "border-foreground/10 bg-muted/45 text-muted-foreground hover:bg-muted"}`}
 						disabled={disabled || aspectRatios.length === 0}
-						aria-label={`${labels.trigger}: ${selectionSummary}`}
 					>
+						<span className="sr-only">{labels.trigger}: </span>
 						<span className="gap-1.5 flex shrink-0 items-center">
 							<ScanIcon className="size-3.5" aria-hidden="true" />
 							<span className={value === "auto" ? "sr-only" : ""}>

@@ -1,5 +1,74 @@
 # Homepage performance
 
+## September 22 report follow-up
+
+The supplied [mobile report](https://pagespeed.web.dev/analysis/https-ezimageai-com/gpj6p9taem?form_factor=mobile)
+scores **72** for performance. Its [desktop counterpart](https://pagespeed.web.dev/analysis/https-ezimageai-com/gpj6p9taem?form_factor=desktop)
+scores **93**. Both score 100 for accessibility, best practices and SEO. Lighthouse 13.5.0
+captured them on September 22 around 04:28 UTC.
+
+| Lighthouse metric   | Mobile | Desktop |
+| ------------------- | -----: | ------: |
+| FCP                 |  1.8 s |   0.6 s |
+| LCP                 |  4.2 s |   0.8 s |
+| Total blocking time | 412 ms |  167 ms |
+| Speed Index         |  4.4 s |   1.5 s |
+| CLS                 |  0.014 |   0.001 |
+
+The mobile LCP element remains the consent paragraph. Its observed timing is 2.331 seconds;
+the table reports simulated Lighthouse metrics. Script evaluation accounts for 1.327 seconds
+of the 2.3 seconds of main-thread work. The longest application initialization task is 328 ms;
+GA4 has 138 ms and 109 ms tasks, and Clarity has a 90 ms task.
+
+Changes tied to this report:
+
+- **Application initialization and unused JavaScript:** load the existing Better Auth SDK when
+  session, linked-account or passkey queries execute. Preserve the session query key, cookie-cache
+  bypass and error handling. Put the organization provider behind a client dynamic boundary with
+  SSR retained; a conditional server component reference previously included it in guest scripts.
+- **Prompt draft validation:** load the existing draft persistence module when submitting a text
+  prompt. Save the same prompt, product and SKU before navigating to sign-in; restore the editable
+  state if loading or storage fails. The guest upload path is unchanged.
+- **Visible label mismatch:** derive output-setting names from their rendered children, with a
+  hidden action prefix. The report's experimental `label-content-name-mismatch` diagnostic failed
+  despite its 100 accessibility score. It was reproduced live and passes in the updated local
+  Lighthouse snapshot, with no failing elements.
+
+The production HTML's directly referenced JavaScript falls from **429,121 to 404,149 gzip bytes**
+(24,972 bytes, or 5.8%). Initial script references decrease from 39 to 38; neither the full
+authentication SDK nor the prompt-persistence marker appears in those initial scripts. Session
+queries still load the SDK afterward. The browser resource test counts that later request too:
+40 scripts / 422,845 gzip bytes, plus three independently cacheable stylesheets / 28,885 gzip bytes.
+HTML is 64,121 gzip bytes, within the existing 64 KiB budget. The baseline was 63,370 bytes;
+concurrent payment-translation changes also affected the candidate build.
+
+Verification: the deferred-SDK unit assertion and production initial-script assertion failed
+before their fixes. Afterward, 60 focused unit tests and nine production Playwright scenarios
+passed, including signed-in account controls, prompt-save failure and retry, sign-in handoff,
+model/SKU selection, uploads and 320/390/1440px layouts. The production build includes TypeScript.
+The local Lighthouse snapshot scores 100 for accessibility, best practices and SEO.
+
+Local mobile timing does **not** establish an improvement. Under 412x823 / DPR 1.75, Slow 4G and
+4x CPU emulation, the baseline FCP/LCP was 1.740 seconds with 297 ms of long-task blocking. Three
+candidate observations were 2.280 / 1.932 / 1.716 seconds, with 881 / 642 / 720 ms of blocking.
+Another task was compiling and testing a development server during the candidate measurements,
+so these samples do not provide an isolated timing comparison. They are retained in the evidence;
+the deterministic resource reduction and functional checks are the verified outcomes. Local
+analytics IDs were unset and generation was disabled. Recheck the deployed version with PageSpeed.
+
+Remaining diagnostics:
+
+- GA4 dominates the unused-JavaScript estimate; framework code contributes too. Keep the existing
+  staggered analytics scheduling and supported browser compatibility.
+- Third-party cache lifetimes remain controlled by Clarity and Cloudflare. The longest reported
+  request chain ends at Cloudflare RUM, and Lighthouse lists no useful preconnect candidates.
+- Render-blocking CSS has an estimated 150 ms opportunity. Retain cacheable CSS rather than
+  returning to the previously rejected global-inlining experiment.
+- The 47 ms forced-reflow diagnostic is unattributed; it does not identify a source-level fix.
+  Image sizing already passes, so no new image derivatives are needed for this report.
+
+Evidence: `.wrangler/evidence/pagespeed-2026-09-22/`. These checks do not certify a new online score.
+
 ## September 16 report follow-up
 
 The supplied [mobile report](https://pagespeed.web.dev/analysis/https-ezimageai-com/6exzd6cohp?form_factor=mobile)

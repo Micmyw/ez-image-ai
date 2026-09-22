@@ -1,5 +1,14 @@
 export const publicChangelogEntries = [
 	{
+		date: "2026-09-22",
+		title: "Lighter homepage startup",
+		changes: [
+			"Load account and prompt-saving tools as needed, with fewer scripts required when opening the homepage.",
+			"Keep your text prompt and model selection saved before continuing to sign in.",
+			"Make output-setting button names match the selections shown on screen.",
+		],
+	},
+	{
 		date: "2026-09-21",
 		title: "A consistent EzImageAI identity",
 		changes: [

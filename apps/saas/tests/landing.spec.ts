@@ -414,6 +414,19 @@ test("the production homepage excludes account tools, charts, and documentation 
 	const externalStyles = await readResources(resources.styles);
 	const styles = [...externalStyles, ...resources.inlineStyles];
 	const html = (await response?.text()) ?? "";
+	const initialScriptUrls = new Set(
+		[...html.matchAll(/<script[^>]* src="([^"]+)"/g)].map(
+			(match) => new URL(match[1]!, response!.url()).href,
+		),
+	);
+	for (const marker of ["/two-factor/verify-totp", "ezpic.editor-upgrade.v1"]) {
+		expect(
+			resources.scripts.some(
+				(url, index) => initialScriptUrls.has(url) && scripts[index]!.includes(marker),
+			),
+			`Keep deferred account and draft code out of the initial scripts (${marker})`,
+		).toBe(false);
+	}
 	expect(
 		resources.styles.length,
 		"Shared styles must remain independently cacheable",
@@ -493,6 +506,59 @@ test("the homepage shares one model catalog request between navigation and edito
 	await page.locator('[data-test="studio-models-menu"]').click();
 	await expect(page.locator(".studio-navigation-popover")).toBeVisible();
 	expect(catalogRequests).toBe(1);
+});
+
+test("a guest text prompt is saved before sign-in navigation", async ({ page }) => {
+	await page.route("**/login?**", (route) =>
+		route.fulfill({ contentType: "text/html", body: "<h1>Sign in</h1>" }),
+	);
+	await page.goto("/");
+	await expect(stage(page, "ready")).toBeVisible();
+	const prompt = "A blue ceramic vase in warm afternoon light";
+	await page.getByLabel(/describe your image/i).fill(prompt);
+	await page.getByRole("button", { name: /sign in to generate/i }).click();
+	await expect(page).toHaveURL(/\/login\?redirectTo=/);
+	const draft = await page.evaluate(() =>
+		JSON.parse(window.sessionStorage.getItem("ezpic.editor-upgrade.v1") ?? "null"),
+	);
+	expect(draft).toMatchObject({
+		draft: {
+			productKey: "image-nano-banana-2-lite",
+			input: { kind: "text-to-image", prompt, skuKey: "nano-banana-2-lite-1k" },
+		},
+		sourceReady: false,
+	});
+});
+
+test("a guest text prompt stays editable when saving fails", async ({ page }) => {
+	await page.route("**/login?**", (route) =>
+		route.fulfill({ contentType: "text/html", body: "<h1>Sign in</h1>" }),
+	);
+	await page.goto("/");
+	await expect(stage(page, "ready")).toBeVisible();
+	await page.evaluate(() => {
+		// oxlint-disable-next-line typescript/unbound-method -- Restore this native method with its original receiver behavior.
+		const setItem = Storage.prototype.setItem;
+		Storage.prototype.setItem = function (key, value) {
+			if (key === "ezpic.editor-upgrade.v1") {
+				Storage.prototype.setItem = setItem;
+				throw new Error("Storage temporarily unavailable");
+			}
+			setItem.call(this, key, value);
+		};
+	});
+	const prompt = page.getByLabel(/describe your image/i);
+	await prompt.fill("A paper city at sunrise");
+	const submit = page.getByRole("button", { name: /sign in to generate/i });
+	await submit.click();
+	await expect(
+		page.getByText("This browser couldn't save your draft.", { exact: false }),
+	).toBeVisible();
+	await expect(stage(page, "ready")).toBeVisible();
+	await expect(prompt).toHaveValue("A paper city at sunrise");
+	await expect(submit).toBeEnabled();
+	await submit.click();
+	await expect(page).toHaveURL(/\/login\?redirectTo=/);
 });
 
 test("the landing generator reports capability checking before it becomes ready", async ({

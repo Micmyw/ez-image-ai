@@ -1,13 +1,11 @@
-import { SessionProvider } from "@auth/components/SessionProvider";
 import { sessionQueryKey } from "@auth/lib/api";
 import { getOrganizationList, getSession } from "@auth/lib/server";
-import { ActiveOrganizationProvider } from "@organizations/components/ActiveOrganizationProvider";
 import { organizationListQueryKey } from "@organizations/lib/api";
 import { listPurchases } from "@payments/lib/server";
 import { config as authConfig } from "@repo/auth/config";
 import { isAnonymousUser } from "@repo/auth/lib/anonymous-boundary";
 import { config as paymentsConfig } from "@repo/payments/config";
-import { ConfirmationAlertProvider } from "@shared/components/ConfirmationAlertProvider";
+import { RegisteredWorkspaceProviders } from "@shared/components/RegisteredWorkspaceProviders";
 import { orpc } from "@shared/lib/orpc-query-utils";
 import { getServerQueryClient } from "@shared/lib/server";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
@@ -49,11 +47,7 @@ export async function RegisteredWorkspaceBoundary({ children }: PropsWithChildre
 
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>
-			<SessionProvider>
-				<ActiveOrganizationProvider>
-					<ConfirmationAlertProvider>{children}</ConfirmationAlertProvider>
-				</ActiveOrganizationProvider>
-			</SessionProvider>
+			<RegisteredWorkspaceProviders>{children}</RegisteredWorkspaceProviders>
 		</HydrationBoundary>
 	);
 }

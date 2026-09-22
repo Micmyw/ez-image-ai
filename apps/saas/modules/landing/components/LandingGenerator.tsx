@@ -13,7 +13,6 @@ import {
 	resolveImageSpecControlValues,
 } from "@media/lib/image-sku-selection";
 import { publicCatalogQueryOptions } from "@media/lib/public-catalog-query";
-import { writeEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
 import { getImageProductSelectionContract, getPlanEntitlement } from "@repo/config/client";
 import type { ImageAspectRatio, ImageSkuKey } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
@@ -434,7 +433,10 @@ export function LandingGenerator({
 		}
 		if (!file) {
 			if (!canSubmit || !selectedProduct || !selectedSku) return;
+			setTextDraftError(false);
+			setStage("handoff");
 			try {
+				const { writeEditorUpgradeDraft } = await import("@payments/lib/editor-upgrade");
 				const saved = writeEditorUpgradeDraft(window.sessionStorage, {
 					draft: {
 						productKey: selectedProduct.key,
@@ -451,10 +453,9 @@ export function LandingGenerator({
 				});
 				if (!saved) {
 					setTextDraftError(true);
+					setStage("ready");
 					return;
 				}
-				setTextDraftError(false);
-				setStage("handoff");
 				const redirectTo = `/create?resume=text&model=${encodeURIComponent(selectedProduct.key)}`;
 				window.location.assign(`/login?${new URLSearchParams({ redirectTo })}`);
 			} catch {
