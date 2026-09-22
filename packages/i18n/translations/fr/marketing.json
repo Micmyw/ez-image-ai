@@ -2,7 +2,7 @@
 	"imageToImage": {
 		"name": "IA image à image",
 		"title": "Générateur IA image à image",
-		"subtitle": "Importez une image de référence et décrivez ce qu’il faut conserver ou modifier.",
+		"subtitle": "Importez une image de référence à retoucher ou décrivez une image à générer à partir d’un prompt.",
 		"home": "Accueil",
 		"breadcrumb": "Fil d’Ariane",
 		"navigationDescription": "Transformez une image de référence avec un prompt.",
@@ -50,7 +50,7 @@
 		"usePrompt": "Utiliser ce prompt",
 		"guide": {
 			"title": "Une bonne référence et un prompt précis se complètent",
-			"body": "Commencez par un changement clair. Décrivez les détails à conserver, évitez les instructions contradictoires et vérifiez les petits textes, les visages et les contours. L’image à image utilise une référence ; pour créer une scène à partir de mots seulement, connectez-vous à l’espace de travail général.",
+			"body": "Commencez par un changement clair. Décrivez les détails à conserver, évitez les instructions contradictoires et vérifiez les petits textes, les visages et les contours. Vous pouvez aussi laisser la référence vide et générer une image à partir d’un prompt sur cette page après connexion.",
 			"link": "Lire le guide de retouche d’images",
 			"textToImage": "Créer à partir d’un prompt textuel"
 		},

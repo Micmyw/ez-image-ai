@@ -119,9 +119,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await expect(page.locator('[data-test="generation-submit"]')).toBeEnabled();
 	});
 
-	test("a pending or failed reference upload cannot silently submit text generation", async ({
-		page,
-	}) => {
+	test("upload preview blocks generation during pending and failed uploads", async ({ page }) => {
 		await page.goto("/create");
 		await expect(page.getByRole("button", { name: /^Model: / })).toContainText(
 			"Nano Banana 2 Lite",
@@ -134,7 +132,9 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		const gate = new Promise<void>((resolve) => {
 			release = resolve;
 		});
+		let attempts = 0;
 		await page.route("**/api/rpc/media/createUploadSession**", async (route) => {
+			attempts++;
 			await gate;
 			await route.fulfill({ status: 503, contentType: "application/json", body: "{}" });
 		});
@@ -148,15 +148,298 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 				),
 			});
 			await expect(page.getByText("pending-reference.png")).toBeAttached();
+			const preview = page.getByRole("img", { name: "Selected source image", exact: true });
+			await expect(preview).toBeVisible();
+			await expect(preview).toHaveAttribute("src", /^blob:/);
+			await expect
+				.poll(() => preview.evaluate((image) => (image as HTMLImageElement).naturalWidth))
+				.toBeGreaterThan(0);
 			await expect(review).toBeDisabled();
 		} finally {
 			release();
 		}
 		await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
+		await expect(
+			page.getByRole("img", { name: "Selected source image", exact: true }),
+		).toBeVisible();
+		await expect(review).toBeDisabled();
+		await page.getByRole("button", { name: "Retry", exact: true }).click();
+		await expect.poll(() => attempts).toBe(2);
+		await expect(page.getByRole("button", { name: "Retry", exact: true })).toBeVisible();
 		await expect(review).toBeDisabled();
 		await page.getByRole("button", { name: "Remove", exact: true }).click();
+		await expect(page.getByRole("img", { name: "Selected source image", exact: true })).toHaveCount(
+			0,
+		);
 		await expect(review).toBeEnabled();
 	});
+
+	test("upload preview ignores removed completions and hides rejected replacements", async ({
+		page,
+	}) => {
+		await page.goto("/create");
+		await expect(page.getByRole("button", { name: /^Model: / })).toContainText(
+			"Nano Banana 2 Lite",
+			{ timeout: 30_000 },
+		);
+		await page.getByLabel(/edit instruction|image prompt/i).fill("A ceramic vase in soft daylight");
+		const review = page.locator('[data-test="generation-submit"]');
+		await expect(review).toBeEnabled({ timeout: 30_000 });
+		let session = 0;
+		let release!: () => void;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const accessedAssets: string[] = [];
+		await page.route("**/api/rpc/media/createUploadSession**", (route) => {
+			session++;
+			return route.fulfill({
+				json: {
+					json: {
+						method: "PUT",
+						sessionId: `preview-${session}`,
+						assetId: `preview-${session}`,
+						uploadUrl: `${new URL(page.url()).origin}/preview-upload-fixture`,
+					},
+				},
+			});
+		});
+		await page.route("**/preview-upload-fixture", (route) => route.fulfill({ status: 200 }));
+		await page.route("**/api/rpc/media/completeUploadSession**", async (route) => {
+			const id = route.request().postDataJSON().json.sessionId;
+			if (id === "preview-1") await gate;
+			await route.fulfill({
+				json: { json: { id, status: "VERIFYING", mimeType: "image/png", byteSize: "68" } },
+			});
+		});
+		await page.route("**/api/rpc/media/getAssetAccessUrl**", (route) => {
+			accessedAssets.push(route.request().postDataJSON().json.assetId);
+			return route.fulfill({
+				status: 412,
+				json: {
+					json: {
+						defined: false,
+						code: "PRECONDITION_FAILED",
+						status: 412,
+						message: "ASSET_CONTENT_NOT_ALLOWED",
+					},
+				},
+			});
+		});
+		const file = {
+			name: "replace-reference.png",
+			mimeType: "image/png",
+			buffer: Buffer.from(
+				"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+				"base64",
+			),
+		};
+		const preview = page.getByRole("img", { name: "Selected source image", exact: true });
+		try {
+			await page
+				.locator('[data-test="registered-generator"] input[type="file"]')
+				.setInputFiles(file);
+			await expect(preview).toBeVisible();
+			await expect(page.getByText("Saving image…", { exact: true })).toBeVisible();
+			const removedUrl = await preview.getAttribute("src");
+			await page.getByRole("button", { name: "Remove source", exact: true }).click();
+			await expect(preview).toHaveCount(0);
+			await page
+				.locator('[data-test="registered-generator"] input[type="file"]')
+				.setInputFiles(file);
+			await expect(
+				page.getByRole("alert").filter({ hasText: "No generation credits were charged" }),
+			).toBeVisible();
+			await expect(preview).toHaveCount(0);
+			await expect(review).toBeDisabled();
+			const oldResponse = page.waitForResponse(
+				(response) =>
+					response.url().includes("completeUploadSession") &&
+					response.request().postDataJSON().json.sessionId === "preview-1",
+			);
+			release();
+			await oldResponse;
+			await expect(preview).toHaveCount(0);
+			await expect(review).toBeDisabled();
+			expect(accessedAssets).toEqual(["preview-2"]);
+			await expect
+				.poll(() =>
+					page.evaluate(async (url) => {
+						try {
+							await fetch(url);
+							return false;
+						} catch {
+							return true;
+						}
+					}, removedUrl!),
+				)
+				.toBe(true);
+		} finally {
+			release();
+		}
+	});
+
+	test("upload preview restores readiness when switching cached library sources", async ({
+		page,
+	}) => {
+		await page.goto("/create");
+		await expect(page.getByRole("button", { name: /^Model: / })).toContainText(
+			"Nano Banana 2 Lite",
+			{ timeout: 30_000 },
+		);
+		await page.getByLabel(/edit instruction|image prompt/i).fill("A ceramic vase in soft daylight");
+		const review = page.locator('[data-test="generation-submit"]');
+		await expect(review).toBeEnabled();
+		await page.route("**/api/rpc/media/getAssetAccessUrl**", (route) =>
+			route.fulfill({
+				json: {
+					json: {
+						url: `${new URL(page.url()).origin}/examples/case-tangerine-camera.webp?asset=${route.request().postDataJSON().json.assetId}`,
+						expiresAt: "2099-01-01T00:00:00Z",
+					},
+				},
+			}),
+		);
+		for (const assetId of ["library-a", "library-b", "library-a"]) {
+			// Assets uses this event to select a source without replacing the editor.
+			await page.evaluate(
+				(id) =>
+					window.dispatchEvent(
+						new CustomEvent("ezpic:studio-asset-selected", { detail: { assetId: id } }),
+					),
+				assetId,
+			);
+			await expect(
+				page.getByRole("img", { name: "Selected source image", exact: true }),
+			).toHaveAttribute("src", new RegExp(`asset=${assetId}$`));
+			await expect(review).toBeEnabled();
+		}
+	});
+
+	for (const width of [1280, 390]) {
+		test(`upload preview survives saving and safety checks at ${width}px`, async ({
+			page,
+		}, testInfo) => {
+			await page.setViewportSize({ width, height: 900 });
+			await page.goto("/create");
+			await expect(page.getByRole("button", { name: /^Model: / })).toContainText(
+				"Nano Banana 2 Lite",
+				{ timeout: 30_000 },
+			);
+			await page
+				.getByLabel(/edit instruction|image prompt/i)
+				.fill("A ceramic vase in soft daylight");
+			const review = page.locator('[data-test="generation-submit"]');
+			await expect(review).toBeEnabled({ timeout: 30_000 });
+			let release!: () => void;
+			const completionGate = new Promise<void>((resolve) => {
+				release = resolve;
+			});
+			let ready = false;
+			await page.route("**/api/rpc/media/createUploadSession**", (route) =>
+				route.fulfill({
+					json: {
+						json: {
+							method: "PUT",
+							sessionId: "preview-session",
+							assetId: "preview-asset",
+							uploadUrl: `${new URL(page.url()).origin}/preview-upload-fixture`,
+						},
+					},
+				}),
+			);
+			await page.route("**/preview-upload-fixture", (route) => route.fulfill({ status: 200 }));
+			await page.route("**/api/rpc/media/completeUploadSession**", async (route) => {
+				await completionGate;
+				await route.fulfill({
+					json: {
+						json: {
+							id: "preview-asset",
+							status: "VERIFYING",
+							mimeType: "image/webp",
+							byteSize: "35604",
+						},
+					},
+				});
+			});
+			await page.route("**/api/rpc/media/getAssetAccessUrl**", (route) =>
+				ready
+					? route.fulfill({
+							json: {
+								json: {
+									url: `${new URL(page.url()).origin}/should-not-download-preview`,
+									expiresAt: "2099-01-01T00:00:00Z",
+								},
+							},
+						})
+					: route.fulfill({
+							status: 412,
+							json: {
+								json: {
+									defined: false,
+									code: "PRECONDITION_FAILED",
+									status: 412,
+									message: "ASSET_SAFETY_PENDING",
+								},
+							},
+						}),
+			);
+			let remotePreviewRequests = 0;
+			page.on("request", (request) => {
+				if (request.url().includes("should-not-download-preview")) remotePreviewRequests++;
+			});
+			try {
+				await page
+					.locator('[data-test="registered-generator"] input[type="file"]')
+					.setInputFiles("public/examples/case-tangerine-camera.webp");
+				const preview = page.getByRole("img", { name: "Selected source image", exact: true });
+				await expect(preview).toBeVisible();
+				await expect(preview).toHaveAttribute("src", /^blob:/);
+				await expect
+					.poll(() => preview.evaluate((image) => (image as HTMLImageElement).naturalWidth))
+					.toBeGreaterThan(0);
+				const localUrl = await preview.getAttribute("src");
+				await expect(page.getByText("Saving image…", { exact: true })).toBeVisible();
+				await expect(review).toBeDisabled();
+				release();
+				await expect(page.getByText("Uploaded · checking image…", { exact: true })).toBeVisible();
+				await expect(preview).toHaveAttribute("src", localUrl!);
+				await expect
+					.poll(() => preview.evaluate((image) => (image as HTMLImageElement).naturalWidth))
+					.toBeGreaterThan(0);
+				await expect(review).toBeDisabled();
+				expect(
+					await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
+				).toBe(true);
+				await page.locator('[data-test="registered-generator"]').screenshot({
+					path: testInfo.outputPath("instant-upload-preview.png"),
+				});
+				ready = true;
+				await expect(page.getByText("Source image ready", { exact: true })).toBeVisible({
+					timeout: 10_000,
+				});
+				await expect(review).toBeEnabled();
+				await expect(preview).toHaveAttribute("src", localUrl!);
+				expect(remotePreviewRequests).toBe(0);
+				await page.getByRole("button", { name: "Remove source", exact: true }).click();
+				await expect(preview).toHaveCount(0);
+				await expect
+					.poll(() =>
+						page.evaluate(async (url) => {
+							try {
+								await fetch(url);
+								return false;
+							} catch {
+								return true;
+							}
+						}, localUrl!),
+					)
+					.toBe(true);
+			} finally {
+				release();
+			}
+		});
+	}
 
 	test("successful edit is idempotent and shows the job-bound before, after, and private download", async ({
 		page,

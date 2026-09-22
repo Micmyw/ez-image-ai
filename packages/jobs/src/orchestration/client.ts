@@ -6,6 +6,7 @@ import { OutboxDeliveryPendingError } from "./contracts";
 export interface DispatchOptions {
 	idempotencyKey?: string;
 	requireCompletion?: boolean;
+	timeoutMs?: number;
 }
 
 export function createJobDispatcher(config: { url: string; secret: string; fetch?: typeof fetch }) {
@@ -29,7 +30,7 @@ export function createJobDispatcher(config: { url: string; secret: string; fetch
 			method: "POST",
 			body,
 			headers: await signRequest(config.secret, "POST", url.pathname, body),
-			signal: AbortSignal.timeout(15_000),
+			signal: AbortSignal.timeout(options.timeoutMs ?? 15_000),
 			// workerd supports manual/follow only. Reject every non-202 response
 			// below without following a redirect or forwarding signed credentials.
 			redirect: "manual",

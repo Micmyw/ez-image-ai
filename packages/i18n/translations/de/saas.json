@@ -999,7 +999,8 @@
 				"uploading": "Wird hochgeladen",
 				"paused": "Pausiert",
 				"uploaded": "Hochgeladen",
-				"error": "Upload fehlgeschlagen"
+				"error": "Upload fehlgeschlagen",
+				"finalizing": "Wird gespeichert"
 			}
 		},
 		"create": {
@@ -1342,7 +1343,12 @@
 				"optionalHint": "Leer lassen, um ein Bild aus einem Textprompt zu erstellen.",
 				"blocked": "Dieses Bild hat die Inhaltsprüfung nicht bestanden. Bitte wähle ein anderes Bild. Keine Generierungs-Credits oder einmalige Ausnahme wurden verbraucht.",
 				"safetyUnavailable": "Das Bild ist nicht verfügbar oder die Sicherheitsprüfung konnte nicht abgeschlossen werden. Bitte wähle ein anderes Bild oder versuche es später erneut. Keine Generierungs-Credits oder einmalige Ausnahme wurden verbraucht.",
-				"unavailable": "Bild nicht verfügbar"
+				"unavailable": "Bild nicht verfügbar",
+				"uploading": "Bild wird hochgeladen…",
+				"saving": "Bild wird gespeichert…",
+				"checking": "Hochgeladen · Bild wird geprüft…",
+				"paused": "Upload pausiert",
+				"uploadFailed": "Upload fehlgeschlagen · erneut versuchen oder entfernen"
 			},
 			"mode": {
 				"label": "Bildmodell",

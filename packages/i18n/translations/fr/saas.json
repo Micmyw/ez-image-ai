@@ -999,7 +999,8 @@
 				"uploading": "Envoi en cours",
 				"paused": "En pause",
 				"uploaded": "Envoyé",
-				"error": "Échec de l’envoi"
+				"error": "Échec de l’envoi",
+				"finalizing": "Enregistrement"
 			}
 		},
 		"create": {
@@ -1342,7 +1343,12 @@
 				"optionalHint": "Laissez ce champ vide pour créer une image à partir de texte.",
 				"blocked": "Cette image n’a pas passé la vérification du contenu. Choisissez une autre image. Aucun crédit de génération ni exonération unique n’a été utilisé.",
 				"safetyUnavailable": "L’image est indisponible ou sa vérification n’a pas pu aboutir. Choisissez une autre image ou réessayez plus tard. Aucun crédit de génération ni exonération unique n’a été utilisé.",
-				"unavailable": "Image indisponible"
+				"unavailable": "Image indisponible",
+				"uploading": "Envoi de l’image…",
+				"saving": "Enregistrement de l’image…",
+				"checking": "Image envoyée · vérification…",
+				"paused": "Envoi en pause",
+				"uploadFailed": "Échec de l’envoi · réessayez ou retirez l’image"
 			},
 			"mode": {
 				"label": "Modèle d’image",

@@ -999,7 +999,8 @@
 				"uploading": "Uploading",
 				"paused": "Paused",
 				"uploaded": "Uploaded",
-				"error": "Upload failed"
+				"error": "Upload failed",
+				"finalizing": "Saving"
 			}
 		},
 		"create": {
@@ -1342,7 +1343,12 @@
 				"optionalHint": "Leave empty to create from a text prompt.",
 				"blocked": "This image did not pass the content-safety check. Please choose another image. No generation credits or one-time waiver were used.",
 				"safetyUnavailable": "This image is unavailable or its safety review could not be completed. Please choose another image or try later. No generation credits or one-time waiver were used.",
-				"unavailable": "Image unavailable"
+				"unavailable": "Image unavailable",
+				"uploading": "Uploading image…",
+				"saving": "Saving image…",
+				"checking": "Uploaded · checking image…",
+				"paused": "Upload paused",
+				"uploadFailed": "Upload failed · retry or remove"
 			},
 			"mode": {
 				"label": "Image model",

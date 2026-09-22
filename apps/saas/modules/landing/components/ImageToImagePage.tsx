@@ -92,7 +92,7 @@ export async function ImageToImagePage({
 								{t("subtitle")}
 							</p>
 						</div>
-						<div className="mt-6" data-reference-only="true">
+						<div className="mt-6">
 							<Suspense fallback={<p className="p-6 text-slate-300 text-center">{t("loading")}</p>}>
 								{registered ? (
 									<RegisteredWorkspaceBoundary>
@@ -101,7 +101,7 @@ export async function ImageToImagePage({
 										</MainAccountBoundary>
 									</RegisteredWorkspaceBoundary>
 								) : (
-									<LandingGenerator requireReference />
+									<LandingGenerator />
 								)}
 							</Suspense>
 						</div>

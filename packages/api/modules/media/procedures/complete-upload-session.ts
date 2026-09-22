@@ -10,6 +10,8 @@ import {
 	recordMediaUploadPromotionMultipartTransaction,
 	renewMediaUploadSessionFinalizationLeaseTransaction,
 } from "@repo/database/media-assets";
+import { dispatchJob } from "@repo/jobs/orchestration/client";
+import { logger } from "@repo/logs";
 import {
 	abortMultipartUpload,
 	completeMultipartUpload,
@@ -189,8 +191,36 @@ export async function completeOwnedUploadSession(
 		},
 		db,
 	);
-	await deleteObject(staging).catch(() => undefined);
+	// The transaction already persisted MEDIA_ASSET_VERIFY. Only wait for durable
+	// dispatch acceptance; Outbox recovery still owns delivery if this attempt fails.
+	await Promise.all([
+		dispatchUploadVerification(asset.id),
+		deleteObject(staging).catch(() => undefined),
+	]);
 	return toMediaAssetDto(asset);
+}
+
+async function dispatchUploadVerification(assetId: string): Promise<void> {
+	const startedAt = Date.now();
+	try {
+		await dispatchJob(
+			"media-verify-upload",
+			{ assetId },
+			{
+				idempotencyKey: `media-verify-upload:${assetId}`,
+				timeoutMs: 3_000,
+			},
+		);
+		logger.info("Upload verification dispatch accepted", {
+			assetId,
+			dispatchMs: Date.now() - startedAt,
+		});
+	} catch {
+		logger.warn("Immediate upload verification dispatch failed; outbox recovery remains pending", {
+			assetId,
+			dispatchMs: Date.now() - startedAt,
+		});
+	}
 }
 
 function storedMultipartParts(value: unknown): Array<{ partNumber: number; etag: string }> {

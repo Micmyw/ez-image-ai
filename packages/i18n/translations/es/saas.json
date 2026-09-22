@@ -999,7 +999,8 @@
 				"uploading": "Subiendo",
 				"paused": "En pausa",
 				"uploaded": "Subido",
-				"error": "Error de carga"
+				"error": "Error de carga",
+				"finalizing": "Guardando"
 			}
 		},
 		"create": {
@@ -1342,7 +1343,12 @@
 				"optionalHint": "Déjalo vacío para crear una imagen a partir de texto.",
 				"blocked": "Esta imagen no ha superado la revisión de contenido. Elige otra imagen. No se han usado créditos de generación ni la exención única.",
 				"safetyUnavailable": "La imagen no está disponible o su revisión no pudo completarse. Elige otra imagen o inténtalo más tarde. No se han usado créditos de generación ni la exención única.",
-				"unavailable": "Imagen no disponible"
+				"unavailable": "Imagen no disponible",
+				"uploading": "Subiendo imagen…",
+				"saving": "Guardando imagen…",
+				"checking": "Imagen subida · verificando…",
+				"paused": "Subida en pausa",
+				"uploadFailed": "La subida falló · reintenta o elimina"
 			},
 			"mode": {
 				"label": "Modelo de imagen",

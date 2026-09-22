@@ -1,5 +1,5 @@
 ---
-updatedAt: 2026-09-14
+updatedAt: 2026-09-22
 indexable: true
 title: Image generation and editing
 description: Compare EzImageAI text-to-image and reference-editing output options, credits, and private result controls.
@@ -7,6 +7,9 @@ description: Compare EzImageAI text-to-image and reference-editing output option
 
 EzImageAI creates an image from a written prompt or edits an existing reference. Leave the reference
 empty for text to image, or add an image for image to image. Text generation requires sign-in.
+The [image-to-image tool](/image-to-image) also accepts a prompt without an uploaded reference.
+Leave the image empty to generate from text, or add a reference to edit it. Visitors without an
+account are asked to sign in before generating from text.
 Start with the [quick start](/docs/quick-start) for your first image. The settings below help you choose an
 output before confirming its credit cost; they do not guarantee that every requested change will be exact.
 
@@ -74,6 +77,13 @@ also instructs the editor to extract the subject without a backdrop, scenery, or
 Choose an aspect ratio to suit the destination, such as a square layout or a landscape image. Larger
 output sizes can be useful when more pixels are needed, but do not guarantee better prompt adherence.
 Check the total credit cost after changing settings and before confirming the edit.
+
+## Reference image preparation
+
+In the signed-in editor, choosing a reference immediately displays a local preview while the image
+uploads, saves, and passes its checks. The status below the image shows progress through these steps.
+You can keep editing the prompt, but generation waits until the source is ready. A preview alone does
+not confirm that the upload or checks succeeded. If upload fails, retry it or remove the reference.
 
 ## Job status
 

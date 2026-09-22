@@ -2,6 +2,15 @@
 
 ## 2026-09-22
 
+### Prompt-only creation on the image-to-image page
+
+- Allow `/image-to-image` to create from a text prompt without a reference image, using the existing signed-in generation and guest sign-in handoff. Adding an image still selects reference editing.
+
+### Immediate source image previews
+
+- Show selected reference images immediately in the account editor while uploading, saving, and checking them. Keep generation disabled until the server confirms the source is ready.
+- Trigger upload verification as soon as the saved asset and recovery event are committed, retaining scheduled recovery and adding stage timings for upload verification.
+
 ### Billing session recovery
 
 - Redirect expired or missing sessions from server-rendered billing reads to sign-in instead of raising an unhandled Unauthorized error, while retaining API authorization and reporting other failures.

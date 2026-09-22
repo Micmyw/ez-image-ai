@@ -1288,6 +1288,19 @@ export function createDatabaseVerifyUploadDependencies(
 			assetId: string,
 			verificationOptions = { allowQuarantinedReverification: false },
 		): Promise<void> {
+			const taskStartedAt = Date.now();
+			let lastStageAt = taskStartedAt;
+			const recordStage = (stage: string, details: Record<string, unknown> = {}) => {
+				const now = Date.now();
+				console.info("media.upload.verification", {
+					assetId,
+					stage,
+					stageMs: now - lastStageAt,
+					elapsedMs: now - taskStartedAt,
+					...details,
+				});
+				lastStageAt = now;
+			};
 			const claim = await claimMediaVerification(database, {
 				assetId,
 				provider: moderationProvider,
@@ -1295,6 +1308,18 @@ export function createDatabaseVerifyUploadDependencies(
 				policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 				allowQuarantinedReverification: verificationOptions.allowQuarantinedReverification === true,
 			});
+			recordStage(
+				claim ? "claimed" : "not_claimed",
+				claim
+					? {
+							attemptNumber: claim.attemptNumber,
+							generation: claim.generation,
+							finalizedToTaskStartMs: claim.finalizedAt
+								? Math.max(0, taskStartedAt - claim.finalizedAt.getTime())
+								: null,
+						}
+					: {},
+			);
 			if (!claim) return;
 
 			let checksum = claim.checksum;
@@ -1341,6 +1366,7 @@ export function createDatabaseVerifyUploadDependencies(
 					(options.readMediaHeader ?? readMediaHeader)(location),
 				]);
 				const detectedType = detectMediaType(header);
+				recordStage("storage_inspected");
 				if (
 					metadata.contentLength !== Number(claim.byteSize) ||
 					metadata.contentType !== claim.mimeType ||
@@ -1373,6 +1399,7 @@ export function createDatabaseVerifyUploadDependencies(
 					data: { checksum, storageEtag, storageVersionId, finalizedAt },
 				});
 				if (persistedInspection.count !== 1) return;
+				recordStage("prepared");
 				moderationStarted = true;
 				if (claim.processingDeadlineExpired) {
 					await failMediaVerification(database, claim, "MODERATION_TIMEOUT", "ERROR", checksum);
@@ -1402,11 +1429,13 @@ export function createDatabaseVerifyUploadDependencies(
 					detectorRequestInFlight = true;
 					decision = await safety.moderateImage({ assetUrl, ruleVersion: claim.ruleVersion });
 					detectorRequestInFlight = false;
+					recordStage("moderation_result", { decision: decision.decision });
 				} else {
 					let providerTaskId = claim.providerTaskId;
 					if (!providerTaskId) {
 						const submissionToken = await beginMediaVerificationSubmission(database, claim);
 						if (!submissionToken) return;
+						recordStage("submission_recorded");
 						detectorRequestInFlight = true;
 						const submitted = await (
 							asyncImage ? safety.submitImage!.bind(safety) : safety.submitVideo.bind(safety)
@@ -1416,6 +1445,7 @@ export function createDatabaseVerifyUploadDependencies(
 							idempotencyKey: submissionToken,
 						});
 						detectorRequestInFlight = false;
+						recordStage("moderation_submitted");
 						await options.afterVideoSubmission?.(submitted);
 						if (submitted.idempotency.key !== submissionToken) {
 							await failUncertainMediaVerification(
@@ -1449,11 +1479,13 @@ export function createDatabaseVerifyUploadDependencies(
 						}
 					}
 					const retrieval = { moderationTaskId: providerTaskId, ruleVersion: claim.ruleVersion };
+					recordStage("retrieval_prepared");
 					detectorRequestInFlight = true;
 					decision = asyncImage
 						? await safety.retrieveImage!({ ...retrieval, assetUrl })
 						: await safety.retrieveVideo(retrieval);
 					detectorRequestInFlight = false;
+					recordStage("moderation_result", { decision: decision.decision });
 					if (
 						decision.decision === "REVIEW" &&
 						["VIDEO_PROCESSING", "IMAGE_PROCESSING"].includes(decision.reasonCode)
@@ -1517,6 +1549,8 @@ export function createDatabaseVerifyUploadDependencies(
 					verificationErrorCode(error),
 					checksum,
 				);
+			} finally {
+				recordStage("attempt_finished");
 			}
 		},
 	};

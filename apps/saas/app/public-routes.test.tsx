@@ -551,13 +551,13 @@ describe("homepage workspace session selection", () => {
 
 describe("image-to-image workspace session selection", () => {
 	it.each([null, { user: { id: "trial", isAnonymous: true } }])(
-		"requires a reference in the guest editor for %j",
+		"allows prompt-only creation in the guest editor for %j",
 		async (session) => {
 			const { default: Page } = await import("./(public)/image-to-image/page");
 			sessionMock.mockResolvedValueOnce(session);
 			const stream = await renderToReadableStream(await Page({}));
 			const html = await new Response(stream).text();
-			expect(html).toContain('data-test="landing-generator" data-require-reference="true"');
+			expect(html).toContain('data-test="landing-generator" data-require-reference="false"');
 			expect(html).not.toContain("data-registered-boundary");
 		},
 	);

@@ -5,11 +5,29 @@ import { orpcClient } from "@shared/lib/orpc-client";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
+import type { MediaUploadItem, MediaUploadStatus } from "../../hooks/use-media-upload";
 import { getModerationErrorReason } from "../../lib/editor-error";
 import { ContentSafetyNotice } from "../ContentSafetyNotice";
 import { MediaUploader } from "../MediaUploader";
+
+interface LocalPreview {
+	file: File;
+	url: string;
+	assetId: string | null;
+	selectionSourceId: string;
+	status: MediaUploadStatus;
+}
+
+const uploadStatusLabels = {
+	idle: "uploading",
+	uploading: "uploading",
+	finalizing: "saving",
+	paused: "paused",
+	error: "uploadFailed",
+	uploaded: "checking",
+} as const;
 
 export function ImageSourcePanel({
 	sourceAssetId,
@@ -28,6 +46,56 @@ export function ImageSourcePanel({
 }) {
 	const t = useTranslations("media.editor.source");
 	const [pending, setPending] = useState(false);
+	const [uploadRevision, setUploadRevision] = useState(0);
+	const [localPreview, setLocalPreview] = useState<LocalPreview | null>(null);
+	const localPreviewRef = useRef<LocalPreview | null>(null);
+	const updateLocalPreview = useCallback((next: LocalPreview | null) => {
+		const previous = localPreviewRef.current;
+		if (previous && previous.url !== next?.url) URL.revokeObjectURL(previous.url);
+		localPreviewRef.current = next;
+		setLocalPreview(next);
+	}, []);
+	useEffect(
+		() => () => {
+			if (localPreviewRef.current) URL.revokeObjectURL(localPreviewRef.current.url);
+		},
+		[],
+	);
+	const updateUpload = useCallback(
+		(item: MediaUploadItem | null) => {
+			const current = localPreviewRef.current;
+			if (!item) {
+				// Completing the upload remounts the uploader; retain the panel-owned
+				// preview while the server verifies the newly assigned asset ID.
+				if (current && !current.assetId) updateLocalPreview(null);
+				return;
+			}
+			updateLocalPreview({
+				file: item.file,
+				url: current?.file === item.file ? current.url : URL.createObjectURL(item.file),
+				assetId: item.assetId,
+				selectionSourceId: sourceAssetId,
+				status: item.status,
+			});
+		},
+		[sourceAssetId, updateLocalPreview],
+	);
+	const updateAsset = useCallback(
+		(assetIds: string[]) => {
+			const assetId = assetIds[0] ?? "";
+			if (localPreviewRef.current && assetId) {
+				updateLocalPreview({ ...localPreviewRef.current, assetId, status: "uploaded" });
+			}
+			onChange(assetId);
+		},
+		[onChange, updateLocalPreview],
+	);
+	useEffect(() => {
+		const current = localPreviewRef.current;
+		if (current && sourceAssetId !== (current.assetId ?? current.selectionSourceId)) {
+			updateLocalPreview(null);
+		}
+	}, [sourceAssetId, updateLocalPreview]);
 	const updatePending = useCallback(
 		(next: boolean) => {
 			setPending(next);
@@ -35,11 +103,25 @@ export function ImageSourcePanel({
 		},
 		[onPendingChange],
 	);
+	const removeSource = useCallback(() => {
+		updateLocalPreview(null);
+		setUploadRevision((revision) => revision + 1);
+		updatePending(false);
+		onReadyChange(false);
+		onChange("");
+	}, [onChange, onReadyChange, updateLocalPreview, updatePending]);
+	const currentLocalPreview =
+		localPreview && sourceAssetId === (localPreview.assetId ?? localPreview.selectionSourceId)
+			? localPreview
+			: null;
+	const serverPreviewEnabled =
+		Boolean(sourceAssetId) &&
+		(!currentLocalPreview || currentLocalPreview.assetId === sourceAssetId);
 	const preview = useQuery({
 		queryKey: ["media-asset-preview", sourceAssetId],
 		queryFn: () =>
 			orpcClient.media.getAssetAccessUrl({ assetId: sourceAssetId, disposition: "inline" }),
-		enabled: Boolean(sourceAssetId),
+		enabled: serverPreviewEnabled,
 		retry: false,
 		refetchInterval: (query) =>
 			sourceAssetId && !query.state.data && !terminalSafetyMessage(query.state.error)
@@ -47,12 +129,21 @@ export function ImageSourcePanel({
 				: false,
 		staleTime: 4 * 60_000,
 	});
-	const safetyMessage = terminalSafetyMessage(preview.error);
-	const readablePreview = preview.isError ? undefined : preview.data;
+	const safetyMessage = serverPreviewEnabled ? terminalSafetyMessage(preview.error) : null;
+	const readablePreview = !serverPreviewEnabled || preview.isError ? undefined : preview.data;
+	const ready = Boolean(sourceAssetId && readablePreview && !pending);
+	const previewUrl = safetyMessage ? undefined : (currentLocalPreview?.url ?? readablePreview?.url);
+	const status = safetyMessage
+		? "unavailable"
+		: ready
+			? "ready"
+			: currentLocalPreview
+				? uploadStatusLabels[currentLocalPreview.status]
+				: "checking";
 
 	useEffect(() => {
-		onReadyChange(Boolean(sourceAssetId && readablePreview));
-	}, [onReadyChange, readablePreview, sourceAssetId]);
+		onReadyChange(ready);
+	}, [onReadyChange, ready, sourceAssetId]);
 
 	return (
 		<div
@@ -73,7 +164,7 @@ export function ImageSourcePanel({
 					{t("chooseLibrary")}
 				</Button>
 			</div>
-			{sourceAssetId && (
+			{(sourceAssetId || currentLocalPreview) && (
 				<div
 					className={
 						compact
@@ -82,12 +173,8 @@ export function ImageSourcePanel({
 					}
 				>
 					<div className="aspect-square overflow-hidden rounded-lg bg-muted">
-						{readablePreview ? (
-							<img
-								src={readablePreview.url}
-								alt={t("selectedAlt")}
-								className="size-full object-contain"
-							/>
+						{previewUrl ? (
+							<img src={previewUrl} alt={t("selectedAlt")} className="size-full object-contain" />
 						) : (
 							<div
 								className="p-3 text-xs flex size-full items-center justify-center text-center text-muted-foreground"
@@ -98,17 +185,14 @@ export function ImageSourcePanel({
 						)}
 					</div>
 					<div>
-						<p className={compact ? "sr-only" : "font-medium text-sm"}>
-							{readablePreview ? t("ready") : t(safetyMessage ? "unavailable" : "preparing")}
+						<p
+							className={compact ? "text-xs text-muted-foreground" : "font-medium text-sm"}
+							aria-live="polite"
+						>
+							{t(status)}
 						</p>
 						{!compact && <p className="mt-1 text-xs text-muted-foreground">{t("private")}</p>}
-						<Button
-							type="button"
-							size="sm"
-							variant="ghost"
-							className="mt-2"
-							onClick={() => onChange("")}
-						>
+						<Button type="button" size="sm" variant="ghost" className="mt-2" onClick={removeSource}>
 							{t("remove")}
 						</Button>
 					</div>
@@ -120,18 +204,19 @@ export function ImageSourcePanel({
 					outcome={safetyMessage === "blocked" ? "blocked" : "unavailable"}
 					reason={getModerationErrorReason(preview.error)}
 					billing="beforeGeneration"
-					onRevise={() => onChange("")}
+					onRevise={removeSource}
 				/>
 			)}
 			<div hidden={compact && Boolean(sourceAssetId) && !pending}>
 				<MediaUploader
-					key={sourceAssetId || "new-reference"}
+					key={`${sourceAssetId || "new-reference"}:${uploadRevision}`}
 					compact={compact}
 					multiple={false}
 					maximumImageBytes={maximumImageBytes}
 					value={sourceAssetId ? [sourceAssetId] : []}
-					onChange={(assetIds) => onChange(assetIds[0] ?? "")}
+					onChange={updateAsset}
 					onPendingChange={updatePending}
+					onUploadChange={updateUpload}
 				/>
 			</div>
 		</div>

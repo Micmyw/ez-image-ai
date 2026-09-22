@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { type ClipboardEvent, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
 
-import { useMediaUpload } from "../hooks/use-media-upload";
+import { type MediaUploadItem, useMediaUpload } from "../hooks/use-media-upload";
 import { getFileFingerprint } from "../lib/upload-state";
 
 const publicProductConfig = getPublicConfig();
@@ -27,6 +27,7 @@ export interface MediaUploaderProps {
 	value?: string[];
 	onChange: (assetIds: string[]) => void;
 	onPendingChange?: (pending: boolean) => void;
+	onUploadChange?: (item: MediaUploadItem | null) => void;
 	multiple?: boolean;
 	maximumImageBytes?: number;
 	compact?: boolean;
@@ -35,6 +36,7 @@ export interface MediaUploaderProps {
 export function MediaUploader({
 	onChange,
 	onPendingChange,
+	onUploadChange,
 	multiple = true,
 	maximumImageBytes = publicProductConfig.uploadLimits.imageBytes,
 	compact = false,
@@ -45,6 +47,8 @@ export function MediaUploader({
 	const addFiles = uploader.addFiles;
 	const pending = uploader.items.some((item) => item.status !== "uploaded");
 	useEffect(() => onPendingChange?.(pending), [onPendingChange, pending]);
+	const selectedUpload = uploader.items[0] ?? null;
+	useEffect(() => onUploadChange?.(selectedUpload), [onUploadChange, selectedUpload]);
 	const imageByteLimit = Math.min(maximumImageBytes, publicProductConfig.uploadLimits.imageBytes);
 	const addImageFiles = useCallback(
 		(files: File[]) => {
@@ -78,6 +82,7 @@ export function MediaUploader({
 	return (
 		<div className="space-y-3">
 			<div
+				hidden={!multiple && uploader.items.length > 0}
 				{...getRootProps()}
 				onPaste={onPaste}
 				className={

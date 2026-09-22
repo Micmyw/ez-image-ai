@@ -10,10 +10,11 @@ vi.mock("next/dynamic", async () => ({
 }));
 vi.mock("next/navigation", () => ({
 	useRouter: () => ({ replace: vi.fn() }),
-	usePathname: () => "/create",
+	usePathname: () => navigation.pathname,
 	useSearchParams: () => filters,
 }));
 const filters = vi.hoisted(() => new URLSearchParams());
+const navigation = vi.hoisted(() => ({ pathname: "/create" }));
 vi.mock("@payments/lib/editor-upgrade", () => ({ readEditorUpgradeDraft: vi.fn() }));
 vi.mock("@shared/lib/growth-analytics", () => ({ saasGrowthFunnel: { draftClaimed: vi.fn() } }));
 vi.mock("@repo/ui/components/alert", () => ({
@@ -21,7 +22,11 @@ vi.mock("@repo/ui/components/alert", () => ({
 	AlertDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
 }));
 vi.mock("../GenerationForm", () => ({
-	GenerationForm: () => <div data-testid="generation-form">form</div>,
+	GenerationForm: ({ requireReference = false }: { requireReference?: boolean }) => (
+		<div data-testid="generation-form" data-require-reference={requireReference}>
+			form
+		</div>
+	),
 }));
 vi.mock("../RecentJobQueue", () => ({
 	RecentJobQueue: () => <div data-testid="recent-edits">recent</div>,
@@ -34,6 +39,22 @@ import { CreatorWorkspace } from "../CreatorWorkspace";
 import { ImageEditorWorkspace } from "./ImageEditorWorkspace";
 
 describe("ImageEditorWorkspace responsive composition", () => {
+	it("allows prompt-only creation on the image-to-image page", () => {
+		navigation.pathname = "/image-to-image";
+		try {
+			const markup = renderToStaticMarkup(
+				<ImageEditorWorkspace
+					allowedProductKeys={["image-nano-banana-2-lite"]}
+					restoreState="idle"
+					restoreNotice={null}
+				/>,
+			);
+			expect(markup).toContain('data-testid="generation-form" data-require-reference="false"');
+		} finally {
+			navigation.pathname = "/create";
+		}
+	});
+
 	it("server-renders the signed-in editor through its lazy entry", async () => {
 		const stream = await renderToReadableStream(
 			<CreatorWorkspace

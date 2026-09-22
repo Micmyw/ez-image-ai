@@ -11,7 +11,13 @@ import {
 	type PersistedUploadState,
 } from "../lib/upload-state";
 
-export type MediaUploadStatus = "idle" | "uploading" | "paused" | "uploaded" | "error";
+export type MediaUploadStatus =
+	| "idle"
+	| "uploading"
+	| "finalizing"
+	| "paused"
+	| "uploaded"
+	| "error";
 
 export interface MediaUploadItem {
 	file: File;
@@ -62,8 +68,14 @@ export function useMediaUpload(onChange?: (assetIds: string[]) => void) {
 	const upload = useCallback(
 		async (file: File) => {
 			const fingerprint = getFileFingerprint(file);
+			abortControllers.current.get(fingerprint)?.abort();
 			const controller = new AbortController();
 			abortControllers.current.set(fingerprint, controller);
+			const isCurrent = () => abortControllers.current.get(fingerprint) === controller;
+			const assertActive = () => {
+				if (!isCurrent() || controller.signal.aborted)
+					throw new DOMException("Upload canceled", "AbortError");
+			};
 			update(fingerprint, { status: "uploading", error: null });
 			try {
 				const saved = parsePersistedUploadState(
@@ -75,6 +87,7 @@ export function useMediaUpload(onChange?: (assetIds: string[]) => void) {
 						contentType: file.type,
 						byteSize: file.size,
 					}));
+				assertActive();
 				if ("method" in session && session.method === "PUT") {
 					const response = await fetch(session.uploadUrl, {
 						method: "PUT",
@@ -83,7 +96,10 @@ export function useMediaUpload(onChange?: (assetIds: string[]) => void) {
 						signal: controller.signal,
 					});
 					if (!response.ok) throw new Error("The image upload failed");
+					assertActive();
+					update(fingerprint, { status: "finalizing", progress: 100 });
 					await orpcClient.media.completeUploadSession({ sessionId: session.sessionId });
+					assertActive();
 					update(fingerprint, { status: "uploaded", progress: 100, assetId: session.assetId });
 					return;
 				}
@@ -97,6 +113,7 @@ export function useMediaUpload(onChange?: (assetIds: string[]) => void) {
 				};
 				localStorage.setItem(`${STORAGE_PREFIX}${fingerprint}`, createPersistedUploadState(state));
 				for (const partNumber of getPendingPartNumbers(state)) {
+					assertActive();
 					const { uploadUrl } = await orpcClient.media.createMultipartPartUrl({
 						sessionId: state.sessionId,
 						partNumber,
@@ -109,6 +126,7 @@ export function useMediaUpload(onChange?: (assetIds: string[]) => void) {
 					});
 					const etag = response.headers.get("etag");
 					if (!response.ok || !etag) throw new Error("A video part failed to upload");
+					assertActive();
 					state.completedParts = [...state.completedParts, { partNumber, etag }];
 					localStorage.setItem(
 						`${STORAGE_PREFIX}${fingerprint}`,
@@ -118,20 +136,24 @@ export function useMediaUpload(onChange?: (assetIds: string[]) => void) {
 						progress: Math.round((state.completedParts.length / state.partCount) * 100),
 					});
 				}
+				assertActive();
+				update(fingerprint, { status: "finalizing", progress: 100 });
 				await orpcClient.media.completeUploadSession({
 					sessionId: state.sessionId,
 					parts: state.completedParts,
 				});
+				assertActive();
 				localStorage.removeItem(`${STORAGE_PREFIX}${fingerprint}`);
 				update(fingerprint, { status: "uploaded", progress: 100, assetId: state.assetId });
 			} catch (error) {
+				if (!isCurrent()) return;
 				const paused = controller.signal.aborted;
 				update(fingerprint, {
 					status: paused ? "paused" : "error",
 					error: paused ? null : error instanceof Error ? error.message : "Upload failed",
 				});
 			} finally {
-				abortControllers.current.delete(fingerprint);
+				if (isCurrent()) abortControllers.current.delete(fingerprint);
 			}
 		},
 		[update],
@@ -139,45 +161,47 @@ export function useMediaUpload(onChange?: (assetIds: string[]) => void) {
 
 	const addFiles = useCallback(
 		(files: File[]) => {
-			setItems((current) => [
-				...current,
-				...files.map((file) => {
-					const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : null;
-					if (previewUrl) previewUrls.current.add(previewUrl);
-					return {
-						file,
-						previewUrl,
-						progress: 0,
-						status: "idle" as const,
-						assetId: null,
-						error: null,
-					};
-				}),
-			]);
+			const added = files.map((file) => {
+				const previewUrl = file.type.startsWith("image/") ? URL.createObjectURL(file) : null;
+				if (previewUrl) previewUrls.current.add(previewUrl);
+				return {
+					file,
+					previewUrl,
+					progress: 0,
+					status: "idle" as const,
+					assetId: null,
+					error: null,
+				};
+			});
+			setItems((current) => [...current, ...added]);
 			for (const file of files) void upload(file);
 		},
 		[upload],
 	);
 
-	const remove = useCallback(async (fingerprint: string) => {
-		abortControllers.current.get(fingerprint)?.abort();
-		const saved = parsePersistedUploadState(
-			localStorage.getItem(`${STORAGE_PREFIX}${fingerprint}`),
-		);
-		if (saved)
-			await orpcClient.media
-				.abortUploadSession({ sessionId: saved.sessionId })
-				.catch(() => undefined);
-		localStorage.removeItem(`${STORAGE_PREFIX}${fingerprint}`);
-		setItems((current) => {
-			const removed = current.find((item) => getFileFingerprint(item.file) === fingerprint);
+	const remove = useCallback(
+		async (fingerprint: string) => {
+			abortControllers.current.get(fingerprint)?.abort();
+			abortControllers.current.delete(fingerprint);
+			const saved = parsePersistedUploadState(
+				localStorage.getItem(`${STORAGE_PREFIX}${fingerprint}`),
+			);
+			localStorage.removeItem(`${STORAGE_PREFIX}${fingerprint}`);
+			const removed = items.find((item) => getFileFingerprint(item.file) === fingerprint);
 			if (removed?.previewUrl) {
 				URL.revokeObjectURL(removed.previewUrl);
 				previewUrls.current.delete(removed.previewUrl);
 			}
-			return current.filter((item) => getFileFingerprint(item.file) !== fingerprint);
-		});
-	}, []);
+			setItems((current) => {
+				return current.filter((item) => getFileFingerprint(item.file) !== fingerprint);
+			});
+			if (saved)
+				await orpcClient.media
+					.abortUploadSession({ sessionId: saved.sessionId })
+					.catch(() => undefined);
+		},
+		[items],
+	);
 
 	return {
 		items,

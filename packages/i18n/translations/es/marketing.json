@@ -2,7 +2,7 @@
 	"imageToImage": {
 		"name": "IA de imagen a imagen",
 		"title": "Generador de IA de imagen a imagen",
-		"subtitle": "Sube una imagen de referencia y describe qué conservar o cambiar.",
+		"subtitle": "Sube una imagen de referencia para editarla o describe una imagen para generarla con un prompt.",
 		"home": "Inicio",
 		"breadcrumb": "Ruta de navegación",
 		"navigationDescription": "Transforma una imagen de referencia con un prompt.",
@@ -50,7 +50,7 @@
 		"usePrompt": "Usar este prompt",
 		"guide": {
 			"title": "Una buena referencia y un prompt concreto se complementan",
-			"body": "Empieza con un cambio claro. Describe los detalles que quieres conservar, evita instrucciones contradictorias y revisa textos pequeños, rostros y bordes. Imagen a imagen utiliza una referencia; para crear una escena solo con texto, inicia sesión y utiliza el espacio de trabajo general.",
+			"body": "Empieza con un cambio claro. Describe los detalles que quieres conservar, evita instrucciones contradictorias y revisa textos pequeños, rostros y bordes. También puedes dejar la referencia vacía y generar una imagen con un prompt de texto en esta página después de iniciar sesión.",
 			"link": "Leer la guía de edición de imágenes",
 			"textToImage": "Crear a partir de un prompt de texto"
 		},

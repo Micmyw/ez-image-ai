@@ -2,7 +2,7 @@
 	"imageToImage": {
 		"name": "Image to Image AI",
 		"title": "Image to Image AI Generator",
-		"subtitle": "Upload a reference image and describe what to keep or change.",
+		"subtitle": "Upload a reference image to edit, or describe an image to generate from a prompt.",
 		"home": "Home",
 		"breadcrumb": "Breadcrumb",
 		"navigationDescription": "Transform a reference image with a prompt.",
@@ -50,7 +50,7 @@
 		"usePrompt": "Use this prompt",
 		"guide": {
 			"title": "A good reference and a specific prompt work together",
-			"body": "Start with one clear change. Describe important details to preserve, avoid conflicting instructions, and check small text, faces, and edges in the result. Image to image uses a reference; creating an entirely new scene from words alone is available in the general workspace after sign-in.",
+			"body": "Start with one clear change. Describe important details to preserve, avoid conflicting instructions, and check small text, faces, and edges in the result. You can also leave the reference empty and create from a text prompt on this page after sign-in.",
 			"link": "Read the image editing guide",
 			"textToImage": "Create from a text prompt"
 		},

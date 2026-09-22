@@ -5,6 +5,26 @@ import { OutboxDeliveryPendingError } from "./contracts";
 const id = `job-${"a".repeat(64)}`;
 
 describe("Outbox completion receipts", () => {
+	it("bounds optional immediate dispatch without waiting for job completion", async () => {
+		const timeout = vi.spyOn(AbortSignal, "timeout");
+		const dispatch = createJobDispatcher({
+			url: "https://jobs.example/internal/dispatch",
+			secret: "test-only-32-character-shared-secret",
+			fetch: vi
+				.fn<typeof fetch>()
+				.mockResolvedValue(
+					Response.json({ accepted: true, id, completed: false }, { status: 202 }),
+				),
+		});
+		try {
+			await expect(
+				dispatch("media-verify-upload", { assetId: "a" }, { timeoutMs: 3_000 }),
+			).resolves.toBeUndefined();
+			expect(timeout).toHaveBeenCalledWith(3_000);
+		} finally {
+			timeout.mockRestore();
+		}
+	});
 	it("rejects redirects without forwarding dispatch credentials", async () => {
 		const fetcher = vi
 			.fn<typeof fetch>()

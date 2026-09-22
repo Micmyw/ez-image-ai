@@ -116,6 +116,21 @@ Provider transfer, soft delete followed by physical cleanup, quota release, and 
 of abandoned multipart uploads. Alerts must cover cleanup dead letters and unexpected storage
 growth.
 
+Upload completion commits the immutable asset and `MEDIA_ASSET_VERIFY` event before immediately
+requesting `media-verify-upload`. This request waits only for durable acceptance, with a three-second
+timeout; failed or uncertain acceptance leaves the existing Outbox/verification recovery intact.
+Staging cleanup runs concurrently with acceptance. Completion replays do not create another immediate
+dispatch. Database leases and the moderation submission token still guard duplicate execution.
+
+For slow preparation, correlate the asset ID in `Upload verification dispatch accepted` (or its
+recovery warning) and `media.upload.verification` logs. `dispatchMs` measures acceptance latency.
+On the first claimed attempt, `finalizedToTaskStartMs` measures saved-asset age at handler entry;
+`stageMs` then separates claiming, storage inspection, signing/persistence (`prepared`), submission
+state recording, detector submission, retrieval, and completion. Later attempts include earlier
+processing time in asset age and must not be counted as initial queue latency. No signed media URL,
+storage key, submission token, or raw detector payload belongs in these timing logs. An Outbox
+`processedAt` timestamp acknowledges completed delivery; it does not mark dispatch start.
+
 ## 5. Payment providers and credit lifecycle
 
 New subscription and credit-pack checkout uses PayPal and Waffo Pancake only. Configure at least one

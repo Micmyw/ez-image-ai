@@ -200,7 +200,6 @@ export function ImageEditorWorkspace({
 			)}
 			<div data-editor-layout="inline" className="min-w-0">
 				<GenerationForm
-					requireReference={pathname === "/image-to-image"}
 					onSourceChanged={unlinkSource}
 					onDraftChange={draftReady ? persistDraft : undefined}
 					jobId={jobId}

@@ -3,6 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database/client", () => ({ db: {} }));
+vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn(async () => undefined) }));
+vi.mock("@repo/logs", () => ({ logger: { info: vi.fn(), warn: vi.fn() } }));
 vi.mock("@repo/database/media-assets", () => ({
 	claimMediaUploadSessionFinalizationTransaction: vi.fn(),
 	clearMediaUploadPromotionMultipartTransaction: vi.fn(),
@@ -47,6 +49,7 @@ import {
 	recordMediaUploadPromotionMultipartTransaction,
 	renewMediaUploadSessionFinalizationLeaseTransaction,
 } from "@repo/database/media-assets";
+import { dispatchJob } from "@repo/jobs/orchestration/client";
 import {
 	MediaValidationError,
 	abortMultipartUpload,
@@ -98,6 +101,52 @@ function finalizationClaim(overrides: Record<string, unknown> = {}) {
 }
 
 describe("completeUploadSession", () => {
+	it("dispatches verification after durable completion without waiting for verification", async () => {
+		await expect(
+			call(completeUploadSession, { sessionId: "session_1" }, context),
+		).resolves.toMatchObject({
+			id: "asset_1",
+			status: "VERIFYING",
+		});
+		expect(dispatchJob).toHaveBeenCalledExactlyOnceWith(
+			"media-verify-upload",
+			{ assetId: "asset_1" },
+			{ idempotencyKey: "media-verify-upload:asset_1", timeoutMs: 3_000 },
+		);
+		expect(
+			vi.mocked(completeMediaUploadSessionTransaction).mock.invocationCallOrder[0],
+		).toBeLessThan(vi.mocked(dispatchJob).mock.invocationCallOrder[0]!);
+	});
+
+	it("keeps a completed upload recoverable when immediate dispatch fails", async () => {
+		vi.mocked(dispatchJob).mockRejectedValueOnce(new Error("dispatch unavailable"));
+		await expect(
+			call(completeUploadSession, { sessionId: "session_1" }, context),
+		).resolves.toMatchObject({
+			id: "asset_1",
+			status: "VERIFYING",
+		});
+		expect(dispatchJob).toHaveBeenCalledOnce();
+		expect(failMediaUploadSessionFinalizationTransaction).not.toHaveBeenCalled();
+	});
+
+	it.each(["session", "claim"])("does not redispatch a completed %s replay", async (replay) => {
+		const asset = { id: "asset_1", status: "VERIFYING", mimeType: "image/png", byteSize: 16n };
+		if (replay === "session") {
+			vi.mocked(requireOwnedUploadSession).mockResolvedValueOnce(
+				uploadSession({ status: "COMPLETED", asset }) as never,
+			);
+		} else {
+			vi.mocked(claimMediaUploadSessionFinalizationTransaction).mockResolvedValueOnce({
+				outcome: "COMPLETED",
+				asset,
+			} as never);
+		}
+		await expect(
+			call(completeUploadSession, { sessionId: "session_1" }, context),
+		).resolves.toMatchObject({ id: "asset_1" });
+		expect(dispatchJob).not.toHaveBeenCalled();
+	});
 	beforeEach(() => {
 		vi.resetAllMocks();
 		vi.useFakeTimers();
@@ -419,6 +468,7 @@ describe("completeUploadSession", () => {
 		);
 		expect(promoteStagedObject).toHaveBeenCalledOnce();
 		expect(deleteObject).not.toHaveBeenCalled();
+		expect(dispatchJob).not.toHaveBeenCalled();
 	});
 
 	it("terminalizes a claimed session with a token CAS when staging is deterministically absent", async () => {

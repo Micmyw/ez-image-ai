@@ -2,7 +2,7 @@
 	"imageToImage": {
 		"name": "Bild-zu-Bild-KI",
 		"title": "Bild-zu-Bild-KI-Generator",
-		"subtitle": "Lade ein Referenzbild hoch und beschreibe, was bleiben oder sich ändern soll.",
+		"subtitle": "Lade ein Referenzbild zum Bearbeiten hoch oder beschreibe ein Bild, um es aus einem Prompt zu erstellen.",
 		"home": "Startseite",
 		"breadcrumb": "Brotkrümelnavigation",
 		"navigationDescription": "Verändere ein Referenzbild mit einem Prompt.",
@@ -50,7 +50,7 @@
 		"usePrompt": "Diesen Prompt verwenden",
 		"guide": {
 			"title": "Ein gutes Referenzbild und ein genauer Prompt ergänzen sich",
-			"body": "Beginne mit einer klaren Änderung. Beschreibe wichtige Details, die erhalten bleiben sollen, vermeide widersprüchliche Anweisungen und prüfe kleine Schrift, Gesichter und Kanten. Bild-zu-Bild nutzt eine Vorlage; neue Szenen nur aus Text kannst du nach der Anmeldung im allgemeinen Arbeitsbereich erstellen.",
+			"body": "Beginne mit einer klaren Änderung. Beschreibe wichtige Details, die erhalten bleiben sollen, vermeide widersprüchliche Anweisungen und prüfe kleine Schrift, Gesichter und Kanten. Du kannst das Referenzbild auch weglassen und nach der Anmeldung direkt auf dieser Seite ein Bild aus einem Textprompt erstellen.",
 			"link": "Anleitung zur Bildbearbeitung lesen",
 			"textToImage": "Ein Bild aus Text erstellen"
 		},

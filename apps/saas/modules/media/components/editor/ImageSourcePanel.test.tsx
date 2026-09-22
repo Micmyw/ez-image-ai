@@ -3,6 +3,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import messages from "../../../../../../packages/i18n/translations/en/saas.json";
+import frenchMessages from "../../../../../../packages/i18n/translations/fr/saas.json";
+
+let activeMessages = messages;
 
 const mocks = vi.hoisted(() => ({ useQuery: vi.fn() }));
 vi.mock("@tanstack/react-query", () => ({ useQuery: mocks.useQuery }));
@@ -15,7 +18,7 @@ vi.mock("@repo/ui/components/button", () => ({
 }));
 vi.mock("next-intl", () => ({
 	useTranslations: (namespace: string) => (key: string) => {
-		let value: unknown = messages;
+		let value: unknown = activeMessages;
 		for (const part of `${namespace}.${key}`.split("."))
 			value = (value as Record<string, unknown>)[part];
 		return value;
@@ -25,6 +28,27 @@ vi.mock("next-intl", () => ({
 import { ImageSourcePanel } from "./ImageSourcePanel";
 
 describe("private input safety feedback", () => {
+	it.each([messages, frenchMessages])(
+		"renders the visible preparation status in the account locale",
+		(locale) => {
+			activeMessages = locale;
+			mocks.useQuery.mockReturnValue({ isError: true, error: new Error("ASSET_SAFETY_PENDING") });
+			try {
+				const markup = renderToStaticMarkup(
+					<ImageSourcePanel
+						compact
+						sourceAssetId="private-input"
+						onChange={vi.fn()}
+						onReadyChange={vi.fn()}
+					/>,
+				);
+				expect(markup).toContain(locale.media.editor.source.checking);
+				expect(markup).not.toContain(`class="sr-only">${locale.media.editor.source.checking}`);
+			} finally {
+				activeMessages = messages;
+			}
+		},
+	);
 	it("hides a cached preview after the safety check rejects access", () => {
 		mocks.useQuery.mockReturnValue({
 			isError: true,
