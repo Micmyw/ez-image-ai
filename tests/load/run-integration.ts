@@ -59,6 +59,7 @@ run(
 		"src/handlers/runtime-stores.database.integration.test.ts",
 		"src/handlers/verify-upload.database.integration.test.ts",
 		"src/handlers/moderation-outage.database.integration.test.ts",
+		"src/handlers/temporary-reference.database.integration.test.ts",
 		"--config",
 		"vitest.config.ts",
 	],
