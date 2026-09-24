@@ -29,6 +29,27 @@ export function createRuntimeDatabaseClient(connectionString: string): PrismaCli
 	});
 }
 
+// The website Worker routes every accepted request through a database scope,
+// including requests whose handler never queries the database. Constructing a
+// PrismaClient allocates several MiB before any query runs, so materialize it
+// on first real use and keep disposal of an unused scope allocation-free.
+export function createLazyDatabaseClient(createClient: () => PrismaClient): PrismaClient {
+	let client: PrismaClient | undefined;
+	return new Proxy({} as PrismaClient, {
+		get(_target, property) {
+			if (!client) {
+				// Thenable probes such as Promise.resolve must not allocate a
+				// client, and an unused scope is disposed without creating one.
+				if (property === "$disconnect") return () => Promise.resolve();
+				if (property === "then") return undefined;
+			}
+			client ??= createClient();
+			const value = Reflect.get(client, property, client);
+			return typeof value === "function" ? value.bind(client) : value;
+		},
+	});
+}
+
 export function getDatabaseClient(): PrismaClient {
 	const scoped = databaseContext.getStore();
 	if (scoped) return scoped;

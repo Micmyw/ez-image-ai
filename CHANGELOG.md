@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-24
+
+### Website worker memory use
+
+- Create each request's database client only when the request first accesses the database, keeping request isolation and disposal unchanged. Requests that never query the database no longer allocate a database client, lowering worker memory use during navigation prefetches and content-page traffic.
+
 ## 2026-09-23
 
 ### Workspace navigation loading

@@ -1,4 +1,8 @@
-import { createRuntimeDatabaseClient, runWithDatabaseClient } from "@repo/database/client";
+import {
+	createLazyDatabaseClient,
+	createRuntimeDatabaseClient,
+	runWithDatabaseClient,
+} from "@repo/database/client";
 import {
 	createCloudflareImagesProcessor,
 	type CloudflareImagesBinding,
@@ -40,7 +44,11 @@ export default {
 					throw new Error("WEBSITE_WORKER_BINDINGS_REQUIRED");
 				}
 				const processor = createCloudflareImagesProcessor(environment.IMAGES);
-				const client = createRuntimeDatabaseClient(environment.HYPERDRIVE.connectionString);
+				// Most requests (prefetches, public pages) never query the
+				// database; allocate the client only on first actual access.
+				const client = createLazyDatabaseClient(() =>
+					createRuntimeDatabaseClient(environment.HYPERDRIVE.connectionString),
+				);
 				return runScopedWorkerRequest(
 					forwardedRequest,
 					environment,

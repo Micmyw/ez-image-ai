@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { db, runWithDatabaseClient, createRuntimeDatabaseClient } from "./client";
+import {
+	db,
+	runWithDatabaseClient,
+	createLazyDatabaseClient,
+	createRuntimeDatabaseClient,
+} from "./client";
 import type { PrismaClient } from "./generated/client";
 import { getMediaDatabaseClient } from "./queries/media/types";
 
@@ -66,5 +71,39 @@ describe("database runtime scope", () => {
 		const second = createRuntimeDatabaseClient(url);
 		expect(first).not.toBe(second);
 		await Promise.all([first.$disconnect(), second.$disconnect()]);
+	});
+});
+
+describe("lazy database client", () => {
+	it("never constructs a client for a scope that is only disposed", async () => {
+		const create = vi.fn(() => client("unused"));
+		const lazy = createLazyDatabaseClient(create);
+		await expect(lazy.$disconnect()).resolves.toBeUndefined();
+		expect(create).not.toHaveBeenCalled();
+	});
+
+	it("does not construct a client for thenable probes", async () => {
+		const create = vi.fn(() => client("unused"));
+		const lazy = createLazyDatabaseClient(create);
+		await Promise.resolve(lazy);
+		expect(create).not.toHaveBeenCalled();
+	});
+
+	it("constructs one client on first use, shares it, and disconnects it", async () => {
+		const disconnect = vi.fn(async () => {});
+		const inner = {
+			user: { findMany: vi.fn(async () => ["lazy"]) },
+			$disconnect: disconnect,
+		} as unknown as PrismaClient;
+		const create = vi.fn(() => inner);
+		const lazy = createLazyDatabaseClient(create);
+		await runWithDatabaseClient(lazy, async () => {
+			expect(await db.user.findMany()).toEqual(["lazy"]);
+			expect(getMediaDatabaseClient()).toBe(lazy);
+		});
+		expect(create).toHaveBeenCalledTimes(1);
+		await lazy.$disconnect();
+		expect(create).toHaveBeenCalledTimes(1);
+		expect(disconnect).toHaveBeenCalledTimes(1);
 	});
 });
