@@ -21,17 +21,6 @@ import {
 	type TextModerationEvidence,
 } from "../lib/text-moderation";
 import { createQuoteInputSchema, jsonBigInt } from "../types";
-import type { PreparedGenerationAdmission } from "./create-generation";
-
-interface CreatedGenerationQuote {
-	id: string;
-	productKey: string;
-	catalogVersion: string;
-	pricingVersion: string;
-	credits: bigint;
-	expiresAt: Date;
-	admission?: PreparedGenerationAdmission;
-}
 
 interface CreateQuoteDependencies {
 	now(): Date;
@@ -111,7 +100,7 @@ export async function createQuoteForUser(
 	dependencies: CreateQuoteDependencies = defaultDependencies,
 	submission?: { quoteId: string; fingerprint: string; expectedCredits: string },
 	timing: FlowTiming = createFlowTiming(),
-): Promise<CreatedGenerationQuote> {
+) {
 	const temporaryReference = input.temporaryReferenceToken
 		? verifyTemporaryReference(
 				input.temporaryReferenceToken,
@@ -130,17 +119,15 @@ export async function createQuoteForUser(
 	const quote = buildMediaQuote(input, routeGraphOptions);
 	if (submission && quote.credits.toString() !== submission.expectedCredits)
 		throw new Error("PRICE_CHANGED");
-	await timing.measure("admission.eligibility", () =>
-		dependencies.assertAllowed({
-			userId,
-			productKey: input.productKey,
-			credits: quote.credits,
-			costMicros: quote.costMicros,
-			input: input.input,
-			temporaryReference,
-			routeGraphOptions,
-		}),
-	);
+	await timing.measure("admission.eligibility", () => dependencies.assertAllowed({
+		userId,
+		productKey: input.productKey,
+		credits: quote.credits,
+		costMicros: quote.costMicros,
+		input: input.input,
+		temporaryReference,
+		routeGraphOptions,
+	}));
 	const quoteInput = {
 		...(submission ? { quoteId: submission.quoteId } : {}),
 		ownerType: "USER" as const,
@@ -161,28 +148,12 @@ export async function createQuoteForUser(
 		expiresAt: new Date(dependencies.now().getTime() + 10 * 60_000),
 	};
 	const selection = dependencies.createAdapter();
-	const created = await moderateQuoteInput(quoteInput, {
+	return moderateQuoteInput(quoteInput, {
 		provider: selection.provider,
-		moderateText: (moderationInput) =>
-			timing.measure("admission.waffo", () => selection.adapter.moderateText(moderationInput)),
-		persistApproved: (moderation) =>
-			timing.measure("admission.quote.transaction", () =>
-				dependencies.persistApproved({ ...quoteInput, moderation }),
-			),
+		moderateText: (moderationInput) => timing.measure("admission.waffo", () => selection.adapter.moderateText(moderationInput)),
+		persistApproved: (moderation) => timing.measure("admission.quote.transaction", () => dependencies.persistApproved({ ...quoteInput, moderation })),
 		recordDenied: (evidence) => dependencies.recordDenied(evidence),
 	});
-	return {
-		...created,
-		...(submission && routeGraphOptions
-			? {
-					admission: {
-						ownerId: userId,
-						quote: { ...quoteInput, id: created.id },
-						routeGraphOptions,
-					},
-				}
-			: {}),
-	};
 }
 
 async function freezeImageEditContext(
@@ -225,13 +196,7 @@ export const createQuote = protectedProcedure
 	.input(createQuoteInputSchema)
 	.handler(async ({ context: { user, requestId }, input }) => {
 		try {
-			const created = await createQuoteForUser(
-				user.id,
-				input,
-				undefined,
-				undefined,
-				createFlowTiming({ requestId }),
-			);
+			const created = await createQuoteForUser(user.id, input, undefined, undefined, createFlowTiming({ requestId }));
 			return {
 				id: created.id,
 				productKey: created.productKey,

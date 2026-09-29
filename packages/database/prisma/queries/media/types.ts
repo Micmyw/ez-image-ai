@@ -54,6 +54,8 @@ export interface CreateGenerationJobInput {
 	maximumGlobalDailyCostMicros?: bigint;
 	maximumStorageBytes?: bigint;
 	maximumConcurrentJobs?: number;
+	/** Combined admission repeats mutable eligibility in this transaction, not a second preflight. */
+	validateCurrentEligibility?: boolean;
 	edit?:
 		| {
 				kind: "ROOT";

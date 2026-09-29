@@ -5,7 +5,7 @@ import { buildMediaQuote } from "../lib/quote";
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: vi.fn() } } }));
 vi.mock("@repo/database/client", () => ({ db: {} }));
 vi.mock("@repo/jobs", () => ({ resolveDatabaseDispatchRoute: vi.fn() }));
-vi.mock("@repo/logs", () => ({ logger: { warn: vi.fn() } }));
+vi.mock("@repo/logs", () => ({ logger: { info: vi.fn(), warn: vi.fn() } }));
 vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn() }));
 
 import { createGenerationForUser } from "./create-generation";
