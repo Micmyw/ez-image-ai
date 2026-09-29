@@ -88,13 +88,29 @@ export function hasUnsettledJobCredits(credits: JobCredits): boolean {
 export function getJobPollingInterval(input: {
 	status: string;
 	isDocumentVisible: boolean;
+	hasReadyOutput?: boolean;
 	credits?: JobCredits;
 }): number | false {
 	if (
 		getJobPresentation(input).terminal &&
 		(!input.credits || !hasUnsettledJobCredits(input.credits))
 	)
-		return false;
+		return input.hasReadyOutput ? (input.isDocumentVisible ? 30_000 : 60_000) : false;
 	if (input.status === "NEEDS_RECONCILIATION") return 15_000;
 	return input.isDocumentVisible ? 2_000 : 15_000;
+}
+
+/** A new visibility decision can arrive without changing GenerationJob.version. */
+export function reconcileJobSnapshot<
+	T extends { id: string; version: number; observedAt?: number },
+>(previous: T | undefined, incoming: T): T {
+	if (!previous || previous.id !== incoming.id) return incoming;
+	if (incoming.version < previous.version) return previous;
+	if (
+		previous.observedAt !== undefined &&
+		incoming.observedAt !== undefined &&
+		incoming.observedAt < previous.observedAt
+	)
+		return previous;
+	return incoming;
 }
