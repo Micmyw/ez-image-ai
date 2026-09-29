@@ -1,3 +1,5 @@
+import type { TechnicalGenerationFailureCode } from "@repo/config";
+
 import type { MediaModelInput } from "./catalog/schemas";
 
 export type ProviderKey = "replicate" | "fal" | "kie" | "gemini" | "openrouter";
@@ -106,6 +108,8 @@ export interface NormalizedResult {
 	failure: ProviderFailure | null;
 	retryable: boolean;
 	providerCharged: boolean;
+	/** Only set for a validated terminal task failure, never a transport timeout. */
+	confirmedTechnicalFailure?: TechnicalGenerationFailureCode;
 }
 export interface VerifiedProviderEvent {
 	eventId: string;

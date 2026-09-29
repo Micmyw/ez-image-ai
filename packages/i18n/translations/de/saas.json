@@ -1399,7 +1399,8 @@
 				"ready": "Bereit",
 				"failed": "Handlung nötig",
 				"canceled": "Abgebrochen",
-				"checkingReference": "Referenz wird geprüft"
+				"checkingReference": "Referenz wird geprüft",
+				"confirming": "Ergebnis wird geprüft"
 			},
 			"headings": {
 				"reserved": "Credits reserviert",
@@ -1410,7 +1411,8 @@
 				"ready": "Ihre Bearbeitung ist bereit",
 				"failed": "Bearbeitung nicht abgeschlossen",
 				"canceled": "Bearbeitung abgebrochen",
-				"checkingReference": "Dein Referenzbild wird geprüft"
+				"checkingReference": "Dein Referenzbild wird geprüft",
+				"confirming": "Wir prüfen dein Ergebnis"
 			},
 			"compare": {
 				"loading": "Private Vorher-/Nachher-Vorschau wird vorbereitet…",
@@ -1565,6 +1567,16 @@
 			"editInstruction": "Anweisung bearbeiten",
 			"reviewRequired": "Die Sicherheitsprüfung hat ein mögliches Problem mit den Inhaltsrichtlinien erkannt. Dies ist kein bestätigter Verstoß.",
 			"unsupportedLanguage": "Die aktuelle Sicherheitsprüfung unterstützt diese Prompt-Sprache nicht."
+		},
+		"failure": {
+			"confirming": "Dies dauert länger als üblich. Wir prüfen das Ergebnis. Deine Credits bleiben reserviert, bis das Ergebnis feststeht.",
+			"timeout": "Entschuldigung, der Bilddienst hat das Zeitlimit überschritten und konnte dein Bild nicht fertigstellen.",
+			"serviceUnavailable": "Entschuldigung, der Bilddienst war vorübergehend nicht verfügbar und konnte dein Bild nicht fertigstellen.",
+			"generic": "Entschuldigung, dieses Bild konnte nicht fertiggestellt werden.",
+			"creditsPending": "Deine reservierten Credits werden zurückgegeben. Das Guthaben wird danach aktualisiert.",
+			"creditsReturned": "Es wurden keine Credits berechnet. Deine {credits} reservierten Credits wurden zurückgegeben.",
+			"retryHint": "Dein Prompt und deine Einstellungen sind gespeichert. Du kannst es erneut versuchen.",
+			"referenceExpired": "Dein Prompt und deine Einstellungen sind gespeichert. Bitte wähle vor dem erneuten Versuch ein Referenzbild aus."
 		}
 	},
 	"common": {

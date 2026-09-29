@@ -19,9 +19,11 @@ import {
 	type MediaProviderAdapter,
 	type MediaProviderRegistry as ProviderRegistry,
 	type ModerationDecision,
+	type NormalizedResult,
 	type ProviderExecutionInput,
 	type ProviderKey,
 	type ProviderOutput,
+	type ProviderTaskSnapshot,
 	type RetrieveOnlyMediaProviderAdapter,
 	chooseCatalogRoute,
 	configuredProviderKeysFromEnvironment,
@@ -33,6 +35,7 @@ import {
 	recoveryProviderKeysFromEnvironment,
 } from "@repo/ai";
 import {
+	isTechnicalGenerationFailureCode,
 	isPermittedModerationEvidence,
 	isTemporaryReferenceObjectKey,
 	isRetryableModerationError,
@@ -2849,6 +2852,22 @@ function parsePositiveCreditAmount(value: unknown): bigint | null {
 	}
 }
 
+function confirmedTechnicalFailureCode(snapshot: ProviderTaskSnapshot, result: NormalizedResult) {
+	return snapshot.status === "FAILED" &&
+		result.outputs.length === 0 &&
+		isTechnicalGenerationFailureCode(result.confirmedTechnicalFailure)
+		? result.confirmedTechnicalFailure
+		: null;
+}
+
+function settlementFailureCode(failureCode: string | null): string {
+	return isTechnicalGenerationFailureCode(failureCode) ||
+		failureCode === "SUBMISSION_REJECTED_CONFIRMED" ||
+		failureCode === GUEST_OUTPUT_CARDINALITY_INVALID_CODE
+		? failureCode
+		: "NO_USABLE_OUTPUT";
+}
+
 function calculateSettlementCharge(input: {
 	status: string;
 	failureCode: string | null;
@@ -2911,7 +2930,8 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 					where: { id: job.id, status: "FINALIZING" },
 					data: {
 						status: outputState.readyOutputCount > 0 ? "SUCCEEDED" : "FAILED",
-						failureCode: outputState.readyOutputCount > 0 ? null : "NO_USABLE_OUTPUT",
+						failureCode:
+							outputState.readyOutputCount > 0 ? null : settlementFailureCode(job.failureCode),
 						terminalAt: new Date(),
 					},
 				});
@@ -3003,11 +3023,7 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 						failureCode:
 							outputState.readyOutputCount > 0
 								? null
-								: (moderationFailureCode ??
-									(job.failureCode === "SUBMISSION_REJECTED_CONFIRMED" ||
-									job.failureCode === GUEST_OUTPUT_CARDINALITY_INVALID_CODE
-										? job.failureCode
-										: "NO_USABLE_OUTPUT")),
+								: (moderationFailureCode ?? settlementFailureCode(job.failureCode)),
 						terminalAt: new Date(),
 						version: { increment: 1 },
 					},
@@ -4161,6 +4177,7 @@ export function createDatabaseProviderEventStore(
 					select: { productKey: true, status: true },
 				});
 				const incoming = claim.snapshot.status;
+				const technicalFailure = confirmedTechnicalFailureCode(claim.snapshot, result);
 				const canonicalTime = claim.providerOccurredAt ?? claim.receivedAt;
 				const envelope =
 					incoming === "SUCCEEDED"
@@ -4277,6 +4294,9 @@ export function createDatabaseProviderEventStore(
 							result.providerCostMicros === null ? undefined : BigInt(result.providerCostMicros),
 						responseSnapshot: responseSnapshotForResult(result) as Prisma.InputJsonValue,
 						uncertainSubmission: incomingTerminal ? false : undefined,
+						errorSnapshot: technicalFailure
+							? { code: technicalFailure, retryable: true }
+							: undefined,
 						reconcileLeaseToken: incomingTerminal ? null : undefined,
 						reconcileLeasedUntil: incomingTerminal ? null : undefined,
 						nextReconcileAt: incomingTerminal ? null : undefined,
@@ -4312,7 +4332,11 @@ export function createDatabaseProviderEventStore(
 							id: attempt.jobId,
 							status: { in: ["SUBMITTING", "PROVIDER_PENDING", "PROVIDER_RUNNING"] },
 						},
-						data: { status: "FINALIZING", version: { increment: 1 } },
+						data: {
+							status: "FINALIZING",
+							failureCode: technicalFailure ?? undefined,
+							version: { increment: 1 },
+						},
 					});
 					await tx.outboxEvent.upsert({
 						where: { dedupeKey: `generation-settle:${attempt.jobId}` },
@@ -4464,6 +4488,8 @@ export function createDatabaseReconciliationStore(
 				});
 				await options.afterAttemptRead?.();
 				if (!attempt) return;
+				if (snapshot.providerTaskId !== attempt.providerTaskId || lease.jobId !== attempt.jobId)
+					throw new Error("RECONCILIATION_TASK_MISMATCH");
 				if (
 					attempt.status === "NEEDS_RECONCILIATION" ||
 					attempt.job.status === "NEEDS_RECONCILIATION"
@@ -4475,6 +4501,7 @@ export function createDatabaseReconciliationStore(
 					return;
 				}
 				const terminalFailure = snapshot.status === "FAILED" || snapshot.status === "CANCELED";
+				const technicalFailure = confirmedTechnicalFailureCode(snapshot, result);
 				const envelope =
 					snapshot.status === "SUCCEEDED"
 						? createOutputTransferEnvelope(mediaKindForJob(attempt.job.productKey), result.outputs)
@@ -4508,7 +4535,9 @@ export function createDatabaseReconciliationStore(
 							snapshot.status === "SUCCEEDED"
 								? "SUCCEEDED"
 								: terminalFailure
-									? "NEEDS_RECONCILIATION"
+									? technicalFailure
+										? "FAILED"
+										: "NEEDS_RECONCILIATION"
 									: snapshot.status === "RUNNING"
 										? "RUNNING"
 										: undefined,
@@ -4517,18 +4546,22 @@ export function createDatabaseReconciliationStore(
 						providerCostMicros:
 							result.providerCostMicros === null ? undefined : BigInt(result.providerCostMicros),
 						uncertainSubmission: terminalFailure
-							? true
+							? !technicalFailure
 							: snapshot.status === "SUCCEEDED"
 								? false
 								: undefined,
-						errorSnapshot: terminalFailure
-							? manualReconciliationErrorSnapshot(
-									attempt.errorSnapshot,
-									"RECONCILIATION_TERMINAL_UNVERIFIED",
-								)
-							: undefined,
+						errorSnapshot: technicalFailure
+							? { code: technicalFailure, retryable: true }
+							: terminalFailure
+								? manualReconciliationErrorSnapshot(
+										attempt.errorSnapshot,
+										"RECONCILIATION_TERMINAL_UNVERIFIED",
+									)
+								: undefined,
 						reconcileLeaseToken: null,
 						reconcileLeasedUntil: null,
+						completedAt:
+							technicalFailure || snapshot.status === "SUCCEEDED" ? new Date() : undefined,
 						nextReconcileAt:
 							terminalFailure || snapshot.status === "SUCCEEDED"
 								? null
@@ -4556,6 +4589,30 @@ export function createDatabaseReconciliationStore(
 							aggregateId: lease.jobId,
 							dedupeKey: `generation-finalize:${lease.jobId}:${lease.attemptId}`,
 							payload: { jobId: lease.jobId },
+						},
+						update: {},
+					});
+				} else if (technicalFailure) {
+					const jobChanged = await tx.generationJob.updateMany({
+						where: {
+							id: attempt.jobId,
+							status: { in: ["SUBMITTING", "PROVIDER_PENDING", "PROVIDER_RUNNING"] },
+						},
+						data: {
+							status: "FINALIZING",
+							failureCode: technicalFailure,
+							version: { increment: 1 },
+						},
+					});
+					if (jobChanged.count !== 1) throw new Error("TECHNICAL_FAILURE_JOB_STATE_CONFLICT");
+					await tx.outboxEvent.upsert({
+						where: { dedupeKey: `generation-settle:${attempt.jobId}` },
+						create: {
+							eventType: "GENERATION_SETTLE",
+							aggregateType: "GENERATION_JOB",
+							aggregateId: attempt.jobId,
+							dedupeKey: `generation-settle:${attempt.jobId}`,
+							payload: { jobId: attempt.jobId },
 						},
 						update: {},
 					});

@@ -34,7 +34,7 @@ describe("getJobPresentation", () => {
 		["SUBMITTING", "starting"],
 		["PROVIDER_PENDING", "queued"],
 		["PROVIDER_RUNNING", "creating"],
-		["NEEDS_RECONCILIATION", "queued"],
+		["NEEDS_RECONCILIATION", "confirming"],
 		["FINALIZING", "finishing"],
 		["SUCCEEDED", "ready"],
 		["FAILED", "failed"],

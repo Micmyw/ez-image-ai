@@ -1,18 +1,22 @@
 "use client";
 
-import { IMAGE_ASPECT_RATIOS, type ImageAspectRatio } from "@repo/config/client";
+import {
+	IMAGE_ASPECT_RATIOS,
+	isTechnicalGenerationFailureCode,
+	type ImageAspectRatio,
+} from "@repo/config/client";
 import { Badge } from "@repo/ui/components/badge";
 import { Button } from "@repo/ui/components/button";
-import { orpcClient } from "@shared/lib/orpc-client";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 
 import { useJob } from "../hooks/use-job";
 import { isEditorProductKey } from "../lib/editor-recovery";
 import { isPublicImageSkuKey } from "../lib/image-sku-selection";
 import { getJobPresentation } from "../lib/job-status";
+import { GenerationFailureNotice } from "./GenerationFailureNotice";
 import { ModerationNotice } from "./ModerationNotice";
+import { RetryGenerationButton } from "./RetryGenerationButton";
 
 export function JobDetail({ jobId }: { jobId: string }) {
 	const t = useTranslations("media.detail");
@@ -21,7 +25,6 @@ export function JobDetail({ jobId }: { jobId: string }) {
 	const products = useTranslations("media.create.products");
 	const skus = useTranslations("media.create.skus");
 	const outputSettings = useTranslations("media.create.outputSettings");
-	const router = useRouter();
 	const job = useJob(jobId);
 	if (job.isError && !job.data) return <JobDetailUnavailable />;
 	if (!job.data) return <div aria-busy="true">{t("loading")}</div>;
@@ -37,13 +40,6 @@ export function JobDetail({ jobId }: { jobId: string }) {
 	const aspectRatio =
 		editorProductKey && isImageAspectRatio(job.data.aspectRatio) ? job.data.aspectRatio : null;
 	const canReuse = Boolean(editorProductKey && skuKey && aspectRatio);
-	async function retry() {
-		const result = await orpcClient.media.retryGeneration({
-			jobId,
-			idempotencyKey: crypto.randomUUID(),
-		});
-		router.push(`/create?job=${result.jobId}`);
-	}
 	return (
 		<div>
 			<Link href="/history" className="text-sm text-muted-foreground">
@@ -80,13 +76,10 @@ export function JobDetail({ jobId }: { jobId: string }) {
 					</div>
 				</dl>
 				<ModerationNotice job={job.data} />
-				{presentation.stage === "failed" &&
-					job.data.failureReason !== "CONTENT_NOT_ALLOWED" &&
-					job.data.failureReason !== "SAFETY_CHECK_UNAVAILABLE" && (
-						<p className="mt-5 p-4 text-sm rounded-xl bg-destructive/10">{t("safeFailure")}</p>
-					)}
+				<GenerationFailureNotice job={job.data} />
 				{canReuse &&
 					presentation.stage === "failed" &&
+					!isTechnicalGenerationFailureCode(job.data.failureReason) &&
 					job.data.failureReason !== "CONTENT_NOT_ALLOWED" && (
 						<p className="mt-4 text-sm text-muted-foreground">
 							{create("moderationBillingPolicy")}
@@ -101,13 +94,7 @@ export function JobDetail({ jobId }: { jobId: string }) {
 							{t("reuse")}
 						</Button>
 					)}
-					{canReuse &&
-						presentation.stage === "failed" &&
-						job.data.failureReason !== "CONTENT_NOT_ALLOWED" && (
-							<Button variant="secondary" onClick={() => void retry()}>
-								{t("retry")}
-							</Button>
-						)}
+					{canReuse && job.data.canRetry && <RetryGenerationButton key={jobId} jobId={jobId} />}
 				</div>
 			</div>
 		</div>

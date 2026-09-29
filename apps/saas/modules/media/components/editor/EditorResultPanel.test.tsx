@@ -38,6 +38,7 @@ vi.mock("next/link", () => ({
 		<a href={href}>{children}</a>
 	),
 }));
+vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 vi.mock("next-intl", () => ({
 	useTranslations: () => (key: string) => {
 		const translations: Record<string, string> = {
@@ -58,6 +59,29 @@ vi.mock("../../hooks/use-job", () => ({ useJob: () => mocks.jobQuery }));
 import { EditorResultPanel } from "./EditorResultPanel";
 
 describe("EditorResultPanel", () => {
+	it("offers retry for a settled technical failure and not an unsettled one", () => {
+		const data = {
+			...imageJob(),
+			status: "FAILED",
+			failureReason: "GENERATION_TIMEOUT",
+			assets: [],
+			creditsCharged: "0",
+			creditsReleased: "0",
+			canRetry: false,
+		};
+		mocks.jobQuery = { data, isError: false };
+		expect(renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />)).not.toContain(
+			"<button>retry</button>",
+		);
+		mocks.jobQuery = {
+			data: { ...data, creditsReleased: data.creditsReserved, canRetry: true },
+			isError: false,
+		};
+		const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
+		expect(markup).toContain("<button>retry</button>");
+		expect(markup).toContain("creditSummaryReturned");
+		expect(markup).not.toContain("failureHelp");
+	});
 	it("keeps completed outputs available after the temporary input expires", () => {
 		mocks.jobQuery = {
 			data: { ...imageJob(), status: "SUCCEEDED", inputAssets: [], inputReferenceState: "EXPIRED" },

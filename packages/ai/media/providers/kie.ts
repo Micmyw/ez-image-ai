@@ -189,6 +189,11 @@ export class KieProviderAdapter implements MediaProviderAdapter {
 	async normalizeResult(snapshot: ProviderTaskSnapshot): Promise<NormalizedResult> {
 		const job = kieJobRecordSchema.safeParse(snapshot.raw);
 		if (job.success) {
+			if (
+				job.data.data.taskId !== snapshot.providerTaskId ||
+				jobStatus(job.data.data.state) !== snapshot.status
+			)
+				throw malformedKieResponse();
 			const providerCostMicros = jobCostMicros(job.data.data.creditsConsumed);
 			const result = normalizedResult(
 				snapshot,
@@ -198,6 +203,9 @@ export class KieProviderAdapter implements MediaProviderAdapter {
 			);
 			return {
 				...result,
+				...(snapshot.status === "FAILED" && result.outputs.length === 0
+					? { confirmedTechnicalFailure: confirmedJobTechnicalFailure(job.data.data) }
+					: {}),
 				providerCharged:
 					snapshot.status === "SUCCEEDED" ||
 					(providerCostMicros !== null && providerCostMicros > 0),
@@ -574,6 +582,35 @@ function jobCostMicros(creditsConsumed: number | null | undefined): number | nul
 	const cost = creditsConsumed * KIE_CREDIT_COST_MICROS;
 	if (!Number.isSafeInteger(cost)) throw malformedKieResponse();
 	return cost;
+}
+
+function confirmedJobTechnicalFailure(data: {
+	failCode?: string | number | null;
+	failMsg?: string | null;
+}): NormalizedResult["confirmedTechnicalFailure"] {
+	const code = String(data.failCode ?? "");
+	const message = data.failMsg?.trim() ?? "";
+	// Do not turn content rejection (or a safety-check timeout) into a technical refund.
+	if (
+		/content|policy|nsfw|safety|moderat|prohibit|block|violation|illegal|违规|审核/i.test(
+			`${code} ${message}`,
+		)
+	)
+		return undefined;
+	// These codes belong to a validated FAILED task, not the HTTP request to retrieve it.
+	if (
+		["408", "504", "524"].includes(code) ||
+		/^(?:generate|generation) task (?:timeout|timed out)[.!]?$/i.test(message)
+	)
+		return "GENERATION_TIMEOUT";
+	if (
+		["500", "502", "503"].includes(code) ||
+		/^(?:(?:service|server) (?:is )?)?(?:temporarily unavailable|overloaded|internal server error)[.!]?$/i.test(
+			message,
+		)
+	)
+		return "GENERATION_SERVICE_UNAVAILABLE";
+	return undefined;
 }
 
 function statusFromSuccessFlag(value: number): ProviderTaskSnapshot["status"] {

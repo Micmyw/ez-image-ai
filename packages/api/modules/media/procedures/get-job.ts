@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { isPermittedModerationEvidence } from "@repo/config";
+import { isPermittedModerationEvidence, isTechnicalGenerationFailureCode } from "@repo/config";
 import { db } from "@repo/database/client";
 
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -133,17 +133,24 @@ export const getJob = protectedProcedure
 			attempt?.status !== "SUBMISSION_UNCERTAIN" &&
 			attempt?.status !== "NEEDS_RECONCILIATION";
 		const publicInput = publicImageGenerationInput(job.productKey, job.inputSnapshot);
+		const creditsCharged = job.reservation?.settledAmount ?? job.archivedCreditsCharged ?? 0n;
+		const creditsReleased = job.reservation?.releasedAmount ?? job.archivedCreditsReleased ?? 0n;
+		const canRetry =
+			job.status === "FAILED" &&
+			!moderationRejected &&
+			job._count.attempts === 0 &&
+			job.reservation?.status !== "ACTIVE" &&
+			creditsCharged + creditsReleased >= job.creditsReserved &&
+			Boolean(
+				publicInput && (publicInput.kind === "text-to-image" || inputReferenceState === "READY"),
+			);
 		return {
 			id: job.id,
 			status: job.status,
 			version: job.version,
 			creditsReserved: jsonBigInt(job.creditsReserved),
-			creditsCharged: jsonBigInt(
-				job.reservation?.settledAmount ?? job.archivedCreditsCharged ?? 0n,
-			),
-			creditsReleased: jsonBigInt(
-				job.reservation?.releasedAmount ?? job.archivedCreditsReleased ?? 0n,
-			),
+			creditsCharged: jsonBigInt(creditsCharged),
+			creditsReleased: jsonBigInt(creditsReleased),
 			productKey: job.productKey,
 			input: publicInput,
 			skuKey: publicInput?.skuKey ?? null,
@@ -167,9 +174,12 @@ export const getJob = protectedProcedure
 				: safetyUnavailable
 					? ("SAFETY_CHECK_UNAVAILABLE" as const)
 					: job.status === "FAILED"
-						? ("GENERATION_FAILED" as const)
+						? isTechnicalGenerationFailureCode(job.failureCode)
+							? job.failureCode
+							: ("GENERATION_FAILED" as const)
 						: null,
 			canCancel,
+			canRetry,
 			createdAt: job.createdAt.toISOString(),
 			updatedAt: job.updatedAt.toISOString(),
 			inputAssets,

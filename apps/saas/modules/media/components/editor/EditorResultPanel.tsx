@@ -17,7 +17,9 @@ import { isEditorProductKey, type EditorProductKey } from "../../lib/editor-reco
 import { getSignedComparisonState, requestPrivateDownload } from "../../lib/editor-result";
 import { isPublicImageSkuKey } from "../../lib/image-sku-selection";
 import { getJobPresentation, hasUnsettledJobCredits } from "../../lib/job-status";
+import { GenerationFailureNotice } from "../GenerationFailureNotice";
 import { ModerationNotice } from "../ModerationNotice";
+import { RetryGenerationButton } from "../RetryGenerationButton";
 import { BeforeAfterSlider } from "./BeforeAfterSlider";
 
 export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNew: () => void }) {
@@ -108,11 +110,7 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 			)}
 			<p className="mt-5 p-3 text-sm rounded-xl bg-muted/40">{creditSummary(t, job.data)}</p>
 			<ModerationNotice job={job.data} />
-			{job.data.status === "FAILED" &&
-				job.data.failureReason !== "CONTENT_NOT_ALLOWED" &&
-				job.data.failureReason !== "SAFETY_CHECK_UNAVAILABLE" && (
-					<p className="mt-4 text-sm text-muted-foreground">{t("failureHelp")}</p>
-				)}
+			<GenerationFailureNotice job={job.data} />
 			{presentation.stage === "ready" && source && output && (
 				<div className="mt-6">
 					<SignedComparison
@@ -138,6 +136,7 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 				</Alert>
 			)}
 			<div className="mt-6 gap-2 flex flex-wrap">
+				{job.data.canRetry && <RetryGenerationButton key={jobId} jobId={jobId!} />}
 				{job.data.canCancel && (
 					<Button variant="secondary" loading={canceling} disabled={canceling} onClick={cancel}>
 						{t("cancel")}

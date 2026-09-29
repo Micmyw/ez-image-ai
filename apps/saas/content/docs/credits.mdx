@@ -1,5 +1,5 @@
 ---
-updatedAt: 2026-09-16
+updatedAt: 2026-09-29
 indexable: true
 title: Credits
 description: Learn when EzImageAI reserves, charges, and releases credits for an image editing job.
@@ -35,6 +35,17 @@ show reserved credits instead of claiming that a refund has already completed.
 The job panel is the authoritative place to see the reservation, charge, and release values for that
 edit. If the service cannot yet confirm the outcome, credits can remain reserved while that same
 attempt is checked. An uncertain attempt is not automatically treated as failed or free.
+
+When the generation service confirms a timeout or a recognized temporary service failure with no
+output, the reserved Credits are returned automatically. The result panel explains the failure and
+shows the returned amount after settlement. This does not use your content-safety waiver.
+You can then choose **Try again** using your saved prompt and settings. If the temporary reference
+image has expired, select it again first. A retry creates a new generation under the current price
+and safety rules.
+
+A lost connection or a slow response alone does not confirm that generation failed. These jobs show
+**Checking result** while the original attempt is checked, without automatically submitting another
+generation. Delayed notifications cannot charge an already settled failed job again.
 
 ## Results blocked by content safety
 

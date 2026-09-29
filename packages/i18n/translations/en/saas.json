@@ -1399,7 +1399,8 @@
 				"ready": "Ready",
 				"failed": "Needs attention",
 				"canceled": "Canceled",
-				"checkingReference": "Checking reference"
+				"checkingReference": "Checking reference",
+				"confirming": "Checking result"
 			},
 			"headings": {
 				"reserved": "Credits reserved",
@@ -1410,7 +1411,8 @@
 				"ready": "Your edit is ready",
 				"failed": "This edit could not finish",
 				"canceled": "This edit was canceled",
-				"checkingReference": "Checking your reference image"
+				"checkingReference": "Checking your reference image",
+				"confirming": "We are confirming your result"
 			},
 			"compare": {
 				"loading": "Preparing private before and after previews…",
@@ -1565,6 +1567,16 @@
 			"editInstruction": "Edit instruction",
 			"reviewRequired": "The safety check flagged a possible content-policy issue. This is not a confirmed content violation.",
 			"unsupportedLanguage": "The current safety check does not support this prompt language."
+		},
+		"failure": {
+			"confirming": "This is taking longer than usual. We are checking the generation result. Your credits remain reserved while we confirm what happened.",
+			"timeout": "Sorry, the generation service timed out and could not complete your image.",
+			"serviceUnavailable": "Sorry, the generation service was temporarily unavailable and could not complete your image.",
+			"generic": "Sorry, this image could not be completed.",
+			"creditsPending": "We are returning your reserved credits. The balance will update once this is complete.",
+			"creditsReturned": "No credits were charged. Your {credits} reserved credits have been returned.",
+			"retryHint": "Your prompt and settings are saved. You can try again.",
+			"referenceExpired": "Your prompt and settings are saved. Please select a reference image again before retrying."
 		}
 	},
 	"common": {

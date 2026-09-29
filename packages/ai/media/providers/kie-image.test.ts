@@ -698,6 +698,73 @@ describe("Kie image jobs", () => {
 		});
 	});
 
+	it.each([0, 5, undefined])(
+		"recognizes a confirmed task timeout independently of reported consumption %s",
+		async (creditsConsumed) => {
+			const adapter = new KieProviderAdapter({
+				apiKey: "key",
+				fetch: capturingFetch(
+					{
+						code: 200,
+						data: {
+							taskId: "kie-image-1",
+							state: "fail",
+							failCode: "524",
+							failMsg: "generate task timeout.",
+							creditsConsumed,
+						},
+					},
+					[],
+				),
+			});
+			const snapshot = await adapter.retrieve({
+				providerTaskId: "kie-image-1",
+				statusUrl: "https://api.kie.ai/api/v1/jobs/recordInfo?taskId=kie-image-1",
+			});
+			expect(await adapter.normalizeResult(snapshot)).toMatchObject({
+				outputs: [],
+				confirmedTechnicalFailure: "GENERATION_TIMEOUT",
+			});
+		},
+	);
+
+	it.each([
+		{ state: "generating", failCode: "524", failMsg: "generate task timeout." },
+		{ state: "fail", failCode: "CONTENT_POLICY_REJECTED", failMsg: "Safety timeout" },
+		{ state: "fail", failCode: "524", failMsg: "Content policy violation" },
+		{ state: "fail", failCode: "UNKNOWN", failMsg: "Unknown failure" },
+		{
+			state: "fail",
+			failCode: "524",
+			resultJson: '{"resultUrls":["https://cdn.test/result.png"]}',
+		},
+	])("does not confirm an ambiguous or content failure: %j", async (data) => {
+		const adapter = new KieProviderAdapter({
+			apiKey: "key",
+			fetch: capturingFetch({ code: 200, data: { taskId: "kie-image-1", ...data } }, []),
+		});
+		const snapshot = await adapter.retrieve({
+			providerTaskId: "kie-image-1",
+			statusUrl: "https://api.kie.ai/api/v1/jobs/recordInfo?taskId=kie-image-1",
+		});
+		expect((await adapter.normalizeResult(snapshot)).confirmedTechnicalFailure).toBeUndefined();
+	});
+
+	it("does not confuse an HTTP 524 with a confirmed task failure", async () => {
+		const adapter = new KieProviderAdapter({
+			apiKey: "key",
+			fetch: async () => Response.json({ message: "timeout" }, { status: 524 }),
+		});
+		const snapshot = await adapter.retrieve({
+			providerTaskId: "kie-image-1",
+			statusUrl: "https://api.kie.ai/api/v1/jobs/recordInfo?taskId=kie-image-1",
+		});
+		expect(snapshot.status).toBe("UNKNOWN");
+		await expect(adapter.normalizeResult(snapshot)).rejects.toMatchObject({
+			code: "MALFORMED_PROVIDER_RESPONSE",
+		});
+	});
+
 	it("normalizes fractional Kie credits without rejecting a valid job record", async () => {
 		const statusUrl = "https://api.kie.ai/api/v1/jobs/recordInfo?taskId=kie-image-1";
 		const adapter = new KieProviderAdapter({

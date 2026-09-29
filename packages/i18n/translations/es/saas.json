@@ -1399,7 +1399,8 @@
 				"ready": "Listo",
 				"failed": "Requiere atención",
 				"canceled": "Cancelado",
-				"checkingReference": "Comprobando referencia"
+				"checkingReference": "Comprobando referencia",
+				"confirming": "Comprobando resultado"
 			},
 			"headings": {
 				"reserved": "Créditos reservados",
@@ -1410,7 +1411,8 @@
 				"ready": "Tu edición está lista",
 				"failed": "La edición no pudo terminar",
 				"canceled": "La edición fue cancelada",
-				"checkingReference": "Comprobando tu imagen de referencia"
+				"checkingReference": "Comprobando tu imagen de referencia",
+				"confirming": "Estamos confirmando tu resultado"
 			},
 			"compare": {
 				"loading": "Preparando las vistas privadas de antes y después…",
@@ -1565,6 +1567,16 @@
 			"editInstruction": "Editar instrucción",
 			"reviewRequired": "La comprobación de seguridad detectó un posible problema con la política de contenido. No se trata de una infracción confirmada.",
 			"unsupportedLanguage": "La revisión de seguridad actual no admite el idioma de este prompt."
+		},
+		"failure": {
+			"confirming": "Esto está tardando más de lo habitual. Estamos comprobando el resultado. Tus créditos siguen reservados mientras lo confirmamos.",
+			"timeout": "Lo sentimos, el servicio de generación superó el tiempo de espera y no pudo completar tu imagen.",
+			"serviceUnavailable": "Lo sentimos, el servicio de generación no estaba disponible temporalmente y no pudo completar tu imagen.",
+			"generic": "Lo sentimos, no se pudo completar esta imagen.",
+			"creditsPending": "Estamos devolviendo tus créditos reservados. El saldo se actualizará cuando termine.",
+			"creditsReturned": "No se cobró ningún crédito. Se han devuelto tus {credits} créditos reservados.",
+			"retryHint": "Tu descripción y ajustes están guardados. Puedes volver a intentarlo.",
+			"referenceExpired": "Tu descripción y ajustes están guardados. Selecciona una imagen de referencia antes de volver a intentarlo."
 		}
 	},
 	"common": {

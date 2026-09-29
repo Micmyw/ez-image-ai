@@ -1399,7 +1399,8 @@
 				"ready": "Prêt",
 				"failed": "Action requise",
 				"canceled": "Annulé",
-				"checkingReference": "Vérification de la référence"
+				"checkingReference": "Vérification de la référence",
+				"confirming": "Vérification du résultat"
 			},
 			"headings": {
 				"reserved": "Crédits réservés",
@@ -1410,7 +1411,8 @@
 				"ready": "Votre retouche est prête",
 				"failed": "La retouche n'a pas abouti",
 				"canceled": "La retouche a été annulée",
-				"checkingReference": "Vérification de votre image de référence"
+				"checkingReference": "Vérification de votre image de référence",
+				"confirming": "Nous confirmons votre résultat"
 			},
 			"compare": {
 				"loading": "Préparation des aperçus privés avant et après…",
@@ -1565,6 +1567,16 @@
 			"editInstruction": "Modifier l’instruction",
 			"reviewRequired": "Le contrôle de sécurité a signalé un problème potentiel avec la politique de contenu. Il ne s’agit pas d’une violation confirmée.",
 			"unsupportedLanguage": "La vérification de sécurité actuelle ne prend pas en charge cette langue de prompt."
+		},
+		"failure": {
+			"confirming": "Cela prend plus de temps que prévu. Nous vérifions le résultat. Vos crédits restent réservés pendant cette vérification.",
+			"timeout": "Désolé, le service de génération a dépassé le délai et n’a pas pu terminer votre image.",
+			"serviceUnavailable": "Désolé, le service de génération était temporairement indisponible et n’a pas pu terminer votre image.",
+			"generic": "Désolé, cette image n’a pas pu être terminée.",
+			"creditsPending": "Nous restituons vos crédits réservés. Votre solde sera ensuite mis à jour.",
+			"creditsReturned": "Aucun crédit n’a été facturé. Vos {credits} crédits réservés ont été restitués.",
+			"retryHint": "Votre description et vos réglages sont enregistrés. Vous pouvez réessayer.",
+			"referenceExpired": "Votre description et vos réglages sont enregistrés. Sélectionnez une image de référence avant de réessayer."
 		}
 	},
 	"common": {

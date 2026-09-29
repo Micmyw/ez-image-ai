@@ -18,6 +18,7 @@ export type UserJobStage =
 	| "queued"
 	| "starting"
 	| "creating"
+	| "confirming"
 	| "finishing"
 	| "ready"
 	| "failed"
@@ -42,7 +43,7 @@ const STAGES: Record<JobStatus, UserJobStage> = {
 	SUBMITTING: "starting",
 	PROVIDER_PENDING: "queued",
 	PROVIDER_RUNNING: "creating",
-	NEEDS_RECONCILIATION: "queued",
+	NEEDS_RECONCILIATION: "confirming",
 	FINALIZING: "finishing",
 	SUCCEEDED: "ready",
 	FAILED: "failed",

@@ -4,6 +4,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import {
 	FalProviderAdapter,
 	GeminiProviderAdapter,
+	KieProviderAdapter,
 	MEDIA_VERIFICATION_POLICY_VERSION,
 	MEDIA_VERIFICATION_RULE_VERSION,
 	ReplicateProviderAdapter,
@@ -3020,6 +3021,129 @@ describe("production media runtime stores", () => {
 		expect(
 			await client.providerWebhookEvent.findUniqueOrThrow({ where: { id: completion.id } }),
 		).toMatchObject({ status: "PROCESSED", failureReason: null });
+	});
+
+	it.each([0, 5, undefined])(
+		"settles a confirmed Kie timeout once with consumption %s and ignores late success",
+		async (creditsConsumed) => {
+			const seeded = await seedPendingProviderJob();
+			await client.generationAttempt.update({
+				where: { id: seeded.attemptId },
+				data: { provider: "kie", nextReconcileAt: new Date(0) },
+			});
+			const adapter = new KieProviderAdapter({
+				apiKey: "test",
+				fetch: responseFetch(200, {
+					code: 200,
+					data: {
+						taskId: seeded.providerTaskId,
+						state: "fail",
+						failCode: "524",
+						failMsg: "generate task timeout.",
+						creditsConsumed,
+					},
+				}),
+			});
+			const snapshot = await adapter.retrieve({
+				providerTaskId: seeded.providerTaskId,
+				statusUrl: `https://api.kie.ai/api/v1/jobs/recordInfo?taskId=${seeded.providerTaskId}`,
+			});
+			const result = await adapter.normalizeResult(snapshot);
+			const store = createDatabaseReconciliationStore(client);
+			const [lease] = await store.claimStale({
+				attemptId: seeded.attemptId,
+				limit: 1,
+				leaseSeconds: 60,
+				now: new Date(),
+			});
+			expect(lease).toBeDefined();
+			await store.recordReconciled(lease!, snapshot, result);
+			await store.recordReconciled(lease!, snapshot, result);
+			expect(
+				await client.outboxEvent.count({
+					where: { aggregateId: seeded.jobId, eventType: "GENERATION_SETTLE" },
+				}),
+			).toBe(1);
+			const settlement = { store: createDatabaseSettlementStore(client) };
+			await Promise.all([
+				settleGeneration({ ...seeded, version: 0 }, settlement),
+				settleGeneration({ ...seeded, version: 0 }, settlement),
+			]);
+			const job = await client.generationJob.findUniqueOrThrow({
+				where: { id: seeded.jobId },
+				include: { reservation: true, attempts: true },
+			});
+			expect(job).toMatchObject({ status: "FAILED", failureCode: "GENERATION_TIMEOUT" });
+			expect(job.reservation).toMatchObject({
+				status: "SETTLED",
+				settledAmount: 0n,
+				releasedAmount: job.creditsReserved,
+			});
+			expect(job.attempts[0]).toMatchObject({
+				status: "FAILED",
+				uncertainSubmission: false,
+				completedAt: expect.any(Date),
+				errorSnapshot: { code: "GENERATION_TIMEOUT" },
+				responseSnapshot: { failureCode: "GENERATION_TIMEOUT" },
+			});
+			expect(
+				await client.creditLedgerEntry.count({ where: { referenceKey: `settle:${seeded.jobId}` } }),
+			).toBe(1);
+			expect(
+				await client.creditAccount.findUniqueOrThrow({ where: { id: job.reservation!.accountId } }),
+			).toMatchObject({ outputModerationGraceJobId: null });
+			const late = await createProviderEvent(
+				"kie",
+				seeded.providerTaskId,
+				"succeeded",
+				new Date(),
+				1n,
+			);
+			expect(await createDatabaseProviderEventStore(client).claimProviderEvent(late.id)).toBeNull();
+			expect(
+				await client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+			).toMatchObject({ status: "FAILED" });
+			expect(
+				await client.creditLedgerEntry.count({ where: { referenceKey: `settle:${seeded.jobId}` } }),
+			).toBe(1);
+		},
+	);
+
+	it("preserves a confirmed timeout reason through provider-event settlement", async () => {
+		const seeded = await seedPendingProviderJob();
+		const event = await createProviderEvent(
+			seeded.provider,
+			seeded.providerTaskId,
+			"failed",
+			new Date(),
+			1n,
+		);
+		const store = createDatabaseProviderEventStore(client);
+		const claim = await store.claimProviderEvent(event.id);
+		expect(claim).not.toBeNull();
+		await store.recordProviderProgress(claim!, {
+			outputs: [],
+			progress: null,
+			providerCostMicros: null,
+			providerCharged: false,
+			retryable: true,
+			failure: { code: "PROVIDER_TEMPORARY", message: "timeout", retryable: true },
+			confirmedTechnicalFailure: "GENERATION_TIMEOUT",
+		});
+		await settleGeneration(
+			{ ...seeded, version: 0 },
+			{ store: createDatabaseSettlementStore(client) },
+		);
+		expect(
+			await client.generationJob.findUniqueOrThrow({
+				where: { id: seeded.jobId },
+				include: { reservation: true },
+			}),
+		).toMatchObject({
+			status: "FAILED",
+			failureCode: "GENERATION_TIMEOUT",
+			reservation: { status: "SETTLED", settledAmount: 0n },
+		});
 	});
 
 	it("freezes an unverified terminal reconciliation without settling credits", async () => {

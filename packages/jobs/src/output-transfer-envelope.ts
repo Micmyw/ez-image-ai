@@ -58,11 +58,12 @@ export function providerOutputsFromTransferEnvelope(
 }
 
 export function responseSnapshotForResult(
-	result: Pick<NormalizedResult, "outputs" | "providerCharged">,
+	result: Pick<NormalizedResult, "outputs" | "providerCharged" | "confirmedTechnicalFailure">,
 ) {
 	return {
 		providerCharged: result.providerCharged,
 		outputCount: result.outputs.length,
+		...(result.confirmedTechnicalFailure ? { failureCode: result.confirmedTechnicalFailure } : {}),
 	};
 }
 

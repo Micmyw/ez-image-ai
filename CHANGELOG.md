@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-29
+
+### Generation timeout recovery
+
+- Automatically return reserved credits for confirmed generation timeouts and recognized temporary service failures with no output. Keep unknown outcomes in recovery, preserve content-safety billing, and prevent duplicate releases or later charges from delayed notifications.
+- Explain generation failures and returned credits in the editor and history, offer a retry after settlement, and show uncertain results as being checked instead of queued. Retry clicks share one request identity until its outcome is known.
+
 ## 2026-09-24
 
 ### Website worker memory use

@@ -54,6 +54,50 @@ const baseJob = {
 };
 
 describe("getJob", () => {
+	it.each(["GENERATION_TIMEOUT", "GENERATION_SERVICE_UNAVAILABLE"])(
+		"returns %s with retry only after credits settle",
+		async (failureCode) => {
+			const failed = {
+				...baseJob,
+				status: "FAILED",
+				failureCode,
+				assets: [{ role: "INPUT", position: 0, asset: asset("asset-input") }],
+				reservation: { status: "ACTIVE", settledAmount: 0n, releasedAmount: 0n },
+			};
+			mocks.findFirst.mockResolvedValue(failed);
+			expect(
+				await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } }),
+			).toMatchObject({ failureReason: failureCode, creditsReleased: "0", canRetry: false });
+			mocks.findFirst.mockResolvedValue({
+				...failed,
+				reservation: { status: "SETTLED", settledAmount: 0n, releasedAmount: 17n },
+			});
+			expect(
+				await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } }),
+			).toMatchObject({ failureReason: failureCode, creditsReleased: "17", canRetry: true });
+			mocks.findFirst.mockResolvedValue({ ...failed, status: "NEEDS_RECONCILIATION" });
+			expect(
+				await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } }),
+			).toMatchObject({ canRetry: false });
+		},
+	);
+
+	it("does not offer one-click retry after the reference expires", async () => {
+		mocks.findFirst.mockResolvedValue({
+			...baseJob,
+			status: "FAILED",
+			failureCode: "GENERATION_TIMEOUT",
+			reservation: { status: "SETTLED", settledAmount: 0n, releasedAmount: 17n },
+			assets: [{ role: "INPUT", asset: { ...asset("asset-input"), deleteAfter: new Date(0) } }],
+		});
+		expect(
+			await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } }),
+		).toMatchObject({
+			failureReason: "GENERATION_TIMEOUT",
+			canRetry: false,
+			inputReferenceState: "EXPIRED",
+		});
+	});
 	it.each(["WAIVED", "CHARGED"])(
 		"preserves the %s moderation billing outcome after output cleanup",
 		async (outcome) => {
