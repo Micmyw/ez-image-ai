@@ -50,6 +50,7 @@ export async function createModeratedGenerationQuote(
 	validateModeratedGenerationQuote(input);
 	const quote = await client.generationQuote.create({
 		data: {
+			...(input.quoteId ? { id: input.quoteId } : {}),
 			ownerType: input.ownerType,
 			ownerId: input.ownerId,
 			submittedByUserId: input.submittedByUserId,
@@ -163,4 +164,30 @@ function stableSerialize(value: unknown): string {
 
 export async function getGenerationQuote(id: string, client?: MediaDatabaseClient) {
 	return getMediaDatabaseClient(client).generationQuote.findUnique({ where: { id } });
+}
+
+export async function findGenerationSubmissionQuote(
+	ownerId: string,
+	quoteId: string,
+	client: MediaDatabaseClient,
+) {
+	return client.generationQuote.findFirst({
+		where: { id: quoteId, ownerType: "USER", ownerId, submittedByUserId: ownerId },
+		select: {
+			id: true,
+			productKey: true,
+			credits: true,
+			expiresAt: true,
+			inputSnapshot: true,
+			job: {
+				select: {
+					id: true,
+					status: true,
+					version: true,
+					creditsReserved: true,
+					idempotencyKey: true,
+				},
+			},
+		},
+	});
 }

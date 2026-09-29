@@ -30,6 +30,50 @@ describe("claimed draft asset verification", () => {
 
 	afterAll(async () => client?.$disconnect());
 
+	it("reuses finalized output inspection while still requiring the image safety decision", async () => {
+		const assetId = crypto.randomUUID();
+		await client.mediaAsset.create({
+			data: {
+				id: assetId,
+				ownerType: "USER",
+				ownerId: `output-test-${assetId}`,
+				kind: "OUTPUT",
+				status: "VERIFYING",
+				objectKey: `users/test/assets/${assetId}/original.png`,
+				mimeType: "image/png",
+				byteSize: 16n,
+				checksum: "c".repeat(64),
+				finalizedAt: new Date(),
+			},
+		});
+		const storageRead = vi.fn(async () => {
+			throw new Error("Finalized output must not be downloaded again");
+		});
+		const safety = new TestMediaSafetyAdapter("ALLOW");
+		const moderate = vi.spyOn(safety, "moderateImage");
+		const dependencies = createDatabaseVerifyUploadDependencies(client, {
+			headObject: storageRead,
+			readMediaHeader: storageRead,
+			inspectPrivateMediaObject: storageRead,
+			createSignedReadUrl: async () => "https://private.example/verified-output.png",
+			safety,
+			moderationProvider: "test",
+		});
+		await verifyUpload({ assetId }, dependencies);
+		expect(storageRead).not.toHaveBeenCalled();
+		expect(moderate).toHaveBeenCalledTimes(1);
+		expect(await client.mediaAsset.findUnique({ where: { id: assetId } })).toMatchObject({
+			status: "READY",
+		});
+		expect(
+			await client.assetModerationResult.findFirstOrThrow({ where: { assetId } }),
+		).toMatchObject({
+			status: "APPROVED",
+			evidenceKind: "OUTPUT",
+			assetChecksum: "c".repeat(64),
+		});
+	});
+
 	it.each([
 		["ALLOW", "READY", "APPROVED"],
 		["REJECT", "QUARANTINED", "REJECTED"],

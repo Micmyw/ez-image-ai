@@ -25,6 +25,8 @@ export interface CreateGenerationQuoteInput {
 }
 
 export interface CreateModeratedGenerationQuoteInput extends CreateGenerationQuoteInput {
+	/** Server-derived identity for a retriable combined submission. */
+	quoteId?: string;
 	moderation: {
 		decision: "ALLOW" | "REJECT" | "REVIEW" | "ERROR" | "BYPASS";
 		provider: string;

@@ -33,6 +33,28 @@ const sourceAsset = {
 };
 
 describe("Kie image jobs", () => {
+	it("sends the server-owned completion callback alongside the image request", async () => {
+		const captured: CapturedRequest[] = [];
+		const adapter = new KieProviderAdapter({
+			apiKey: "test",
+			fetch: capturingFetch({ code: 200, data: { taskId: "remote-1" } }, captured),
+		});
+		await adapter.submit({
+			attemptId: "attempt-1",
+			providerModelId: "nano-banana-2-lite",
+			webhookUrl: "https://app.test/api/webhooks/ai/kie?token=signed",
+			input: {
+				kind: "image-to-image",
+				prompt: "Restyle the product photo",
+				skuKey: "nano-banana-2-lite-1k",
+				aspectRatio: "16:9",
+				sourceAsset,
+			},
+		});
+		expect(parseCapturedBody(captured)).toMatchObject({
+			callBackUrl: "https://app.test/api/webhooks/ai/kie?token=signed",
+		});
+	});
 	it.each([
 		[
 			"Nano Banana 2 Lite",

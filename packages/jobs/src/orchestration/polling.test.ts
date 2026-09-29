@@ -59,6 +59,38 @@ function fixture() {
 }
 
 describe("one durable polling tick", () => {
+	it("rechecks a competing lease shortly without querying the provider or shortening its lease", async () => {
+		const f = fixture();
+		const leasedUntil = new Date(f.now.getTime() + 60_000);
+		f.store.getPollingState.mockResolvedValue({ pollAt: leasedUntil, leasedUntil });
+		expect(await executePollingTick({ attemptId: "attempt-1" }, f.dependencies)).toEqual({
+			done: false,
+			waitSeconds: 5,
+		});
+		expect(f.store.claimStale).not.toHaveBeenCalled();
+		expect(f.adapter.retrieve).not.toHaveBeenCalled();
+		f.store.getPollingState.mockResolvedValueOnce({ pollAt: f.now }).mockResolvedValueOnce(null);
+		expect(await executePollingTick({ attemptId: "attempt-1" }, f.dependencies)).toEqual({
+			done: true,
+			waitSeconds: 0,
+		});
+		expect(f.adapter.retrieve).toHaveBeenCalledTimes(1);
+	});
+
+	it("also rechecks shortly when a competing lease is acquired during this tick", async () => {
+		const f = fixture();
+		const leasedUntil = new Date(f.now.getTime() + 300_000);
+		f.store.claimStale.mockResolvedValue([]);
+		f.store.getPollingState
+			.mockResolvedValueOnce({ pollAt: f.now })
+			.mockResolvedValueOnce({ pollAt: leasedUntil, leasedUntil });
+		expect(await executePollingTick({ attemptId: "attempt-1" }, f.dependencies)).toEqual({
+			done: false,
+			waitSeconds: 5,
+		});
+		expect(f.adapter.retrieve).not.toHaveBeenCalled();
+	});
+
 	it("returns a bounded sleep without querying a Provider before the DB due time", async () => {
 		const f = fixture();
 		f.store.getPollingState.mockResolvedValue({ pollAt: new Date(f.now.getTime() + 75_000) });

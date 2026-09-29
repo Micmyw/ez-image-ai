@@ -259,6 +259,15 @@ function SignedComparison({
 		staleTime: 4 * 60_000,
 	});
 	const state = getSignedComparisonState(input, output);
+	if (state === "output-only" && output.data) {
+		return (
+			<img
+				src={output.data.url}
+				alt={t("generatedAlt")}
+				className="mx-auto max-h-[42rem] w-full rounded-xl object-contain"
+			/>
+		);
+	}
 	if (state === "unavailable") {
 		return (
 			<Alert variant="error">

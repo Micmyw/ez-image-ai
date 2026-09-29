@@ -630,6 +630,7 @@ function generationJobInputSnapshot(inputSnapshot: Prisma.JsonValue): Prisma.Inp
 	const {
 		editContext: _editContext,
 		temporaryReference: _temporaryReference,
+		submissionFingerprint: _submissionFingerprint,
 		...generationInput
 	} = inputSnapshot;
 	return generationInput as Prisma.InputJsonObject;

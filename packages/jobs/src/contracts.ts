@@ -305,7 +305,7 @@ export interface ReconciliationDependencies {
 }
 
 export interface GenerationPollingStore extends ReconciliationStore {
-	getPollingState(attemptId: string): Promise<{ pollAt: Date } | null>;
+	getPollingState(attemptId: string): Promise<{ pollAt: Date; leasedUntil?: Date | null } | null>;
 }
 
 export interface OutboxLease {

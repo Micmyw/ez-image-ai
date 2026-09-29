@@ -5,7 +5,14 @@ import { getSignedComparisonState, requestPrivateDownload } from "./editor-resul
 describe("editor result private asset access", () => {
 	it("distinguishes signed preview loading, ready, and unavailable states", () => {
 		expect(getSignedComparisonState({}, {})).toBe("loading");
-		expect(getSignedComparisonState({ isError: true }, {})).toBe("unavailable");
+		expect(getSignedComparisonState({ isError: true }, {})).toBe("loading");
+		expect(getSignedComparisonState({}, { isError: true })).toBe("unavailable");
+		expect(getSignedComparisonState({}, { data: { url: "https://signed.test/output" } })).toBe(
+			"output-only",
+		);
+		expect(
+			getSignedComparisonState({ isError: true }, { data: { url: "https://signed.test/output" } }),
+		).toBe("output-only");
 		expect(
 			getSignedComparisonState(
 				{ data: { url: "https://signed.test/input" } },

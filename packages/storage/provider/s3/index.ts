@@ -253,6 +253,8 @@ export async function promoteStagedObject(input: {
 	 * remote source produced different bytes during a later retry.
 	 */
 	acceptExistingFinalIdentity?: boolean;
+	/** Bounded fast path for small, server-owned generated images. */
+	preferSinglePut?: boolean;
 	promotion?: {
 		uploadId?: string;
 		onMultipartUploadCreated?: (input: { uploadId: string }) => Promise<void>;
@@ -280,6 +282,62 @@ export async function promoteStagedObject(input: {
 			"OUTPUT_MEDIA_TYPE_MISMATCH",
 			"Staging object metadata does not match the expected provider output",
 		);
+	}
+	if (
+		input.preferSinglePut &&
+		!input.promotion?.uploadId &&
+		input.contentLength <= 2 * 1024 * 1024 &&
+		(input.contentType === "image/jpeg" ||
+			input.contentType === "image/png" ||
+			input.contentType === "image/webp")
+	) {
+		let identity: { etag: string | null; versionId: string | null } = {
+			etag: null,
+			versionId: null,
+		};
+		const unexpectedMultipart = async (): Promise<never> => {
+			throw new Error("SMALL_PROMOTION_MULTIPART_UNEXPECTED");
+		};
+		try {
+			const copied = await writeImmutableReference(
+				{
+					body: Readable.toWeb(
+						Readable.from(source.Body as AsyncIterable<Uint8Array>),
+					) as unknown as ReadableStream<Uint8Array>,
+					contentLength: input.contentLength,
+					contentType: input.contentType,
+				},
+				{
+					async put(body, sha256) {
+						if (input.expectedSha256 && sha256 !== input.expectedSha256)
+							throw new Error("UPLOAD_CHECKSUM_MISMATCH");
+						const written = await getS3Client().send(
+							new PutObjectCommand({
+								...mediaLocation(input.final),
+								Body: body,
+								ContentType: input.contentType,
+								ContentLength: body.length,
+								IfNoneMatch: "*",
+							}),
+						);
+						identity = { etag: written.ETag ?? null, versionId: written.VersionId ?? null };
+					},
+					createMultipart: unexpectedMultipart,
+					uploadPart: unexpectedMultipart,
+					complete: unexpectedMultipart,
+					abort: unexpectedMultipart,
+				},
+			);
+			return { ...copied, ...identity };
+		} catch (error) {
+			if (!isConditionalWriteConflict(error)) throw error;
+			return inspectStoredMediaObject(
+				input.final,
+				input.contentType,
+				input.acceptExistingFinalIdentity ? undefined : input.contentLength,
+				input.expectedSha256,
+			);
+		}
 	}
 	let uploadId = input.promotion?.uploadId;
 	if (!uploadId) {

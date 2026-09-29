@@ -2,6 +2,13 @@
 
 ## 2026-09-29
 
+### Faster generated-image previews
+
+- Submit an account generation in one request while checking the displayed price and preserving the same quote, job, and credit reservation across retries.
+- Wake result retrieval on authenticated Kie completion notifications, retaining provider verification and polling recovery. Recheck competing retrieval leases after five seconds rather than sleeping until their full expiry.
+- Use a bounded conditional write for generated images up to 2 MB, reuse verified output metadata during moderation, and show the generated image while its original reference is still loading or unavailable.
+- Keep loading buttons stable when browser translation replaces text nodes. Generation time still depends on the selected model and required safety checks.
+
 ### Generation timeout recovery
 
 - Automatically return reserved credits for confirmed generation timeouts and recognized temporary service failures with no output. Keep unknown outcomes in recovery, preserve content-safety billing, and prevent duplicate releases or later charges from delayed notifications.

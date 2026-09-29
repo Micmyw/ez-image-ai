@@ -41,6 +41,7 @@ import { listEditSessions } from "./procedures/list-edit-sessions";
 import { listJobs } from "./procedures/list-jobs";
 import { renameEditSession } from "./procedures/rename-edit-session";
 import { retryGeneration } from "./procedures/retry-generation";
+import { submitGeneration } from "./procedures/submit-generation";
 import { submitGuestGeneration } from "./procedures/submit-guest-generation";
 
 export { guestMediaProcedure } from "./guest-procedure";
@@ -53,6 +54,7 @@ export const mediaRouter = {
 	getPublicCatalog,
 	createQuote,
 	createGeneration,
+	submitGeneration,
 	createGenerationDraft,
 	getGuestCapability,
 	getGuestEligibility,

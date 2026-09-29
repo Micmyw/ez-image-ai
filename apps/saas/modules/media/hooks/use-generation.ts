@@ -5,7 +5,8 @@ import { orpcClient } from "@shared/lib/orpc-client";
 import { type QueryClient, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 
-import { createEditorActionController, type EditorQuoteRequest } from "../lib/editor-action";
+import { createEditorActionController } from "../lib/editor-action";
+import { getEditorErrorKey } from "../lib/editor-error";
 import { isEditorProductKey, type EditorProductKey } from "../lib/editor-recovery";
 import type { GenerationInput } from "../lib/form-schema";
 
@@ -17,11 +18,6 @@ export function useGeneration({ parentJobId }: { parentJobId?: string | null } =
 	const action = useRef<ReturnType<typeof createEditorActionController> | null>(null);
 	action.current ??= createEditorActionController();
 	const [quote, setQuote] = useState<EditorQuote | null>(null);
-	const cachedQuote = useRef<{
-		request: EditorQuoteRequest;
-		value: EditorQuote;
-		submitted: boolean;
-	} | null>(null);
 	const pendingSubmission = useRef<Promise<GenerationResult | null> | null>(null);
 	const catalog = useQuery({
 		queryKey: ["media-catalog"],
@@ -48,7 +44,6 @@ export function useGeneration({ parentJobId }: { parentJobId?: string | null } =
 		},
 		onSuccess: ({ request, value }) => {
 			if (action.current!.acceptQuote(request)) {
-				cachedQuote.current = { request, value, submitted: false };
 				setQuote(value);
 				void saasGrowthFunnel.quoteCreated(value.id, value.productKey, Number(value.credits));
 			}
@@ -63,32 +58,37 @@ export function useGeneration({ parentJobId }: { parentJobId?: string | null } =
 		}) => {
 			if (pendingSubmission.current) return pendingSubmission.current;
 			const submit = async () => {
-				let approved = cachedQuote.current;
-				// Preserve an uncertain submission's quote/key. Never automatically create another job.
-				if (
-					!approved ||
-					!action.current!.acceptQuote(approved.request) ||
-					(!approved.submitted && Date.parse(approved.value.expiresAt) <= Date.now())
-				) {
-					const response = await createQuote.mutateAsync({
-						productKey: submission.productKey,
-						input: submission.input,
-						temporaryReferenceToken: submission.temporaryReferenceToken,
+				const request = action.current!.beginQuoteRequest();
+				// The server owns the frozen quote and price check. Preserve the same key
+				// after a lost response; settings changes explicitly start a new action.
+				const result = await orpcClient.media
+					.submitGeneration({
+						...submission,
+						idempotencyKey: action.current!.idempotencyKeyFor("submission"),
+						...(parentJobId ? { parentJobId } : {}),
+					})
+					.catch((error: unknown) => {
+						// An expired, unused quote cannot create a job. Only the next manual
+						// retry gets a fresh key; uncertain requests keep their original key.
+						if (
+							action.current!.acceptQuote(request) &&
+							getEditorErrorKey(error) === "quoteExpired"
+						) {
+							action.current!.invalidate();
+							setQuote(null);
+						}
+						throw error;
 					});
-					if (!action.current!.acceptQuote(response.request)) return null;
-					approved = cachedQuote.current;
-				}
-				if (!approved || !action.current!.acceptQuote(approved.request)) return null;
-				if (approved.value.productKey !== submission.productKey)
-					throw new Error("PRODUCT_UNAVAILABLE");
-				if (approved.value.credits !== submission.expectedCredits) throw new Error("PRICE_CHANGED");
-				approved.submitted = true;
-				void saasGrowthFunnel.generationConfirmed(approved.value.id, approved.value.productKey);
-				return orpcClient.media.createGeneration({
-					quoteId: approved.value.id,
-					idempotencyKey: action.current!.idempotencyKeyFor(approved.value.id),
-					...(parentJobId ? { parentJobId } : {}),
-				});
+				if (!action.current!.acceptQuote(request)) return null;
+				const productKey = requireEditorProductKey(result.quote.productKey);
+				setQuote({ ...result.quote, productKey });
+				void saasGrowthFunnel.quoteCreated(
+					result.quote.id,
+					productKey,
+					Number(result.quote.credits),
+				);
+				void saasGrowthFunnel.generationConfirmed(result.quote.id, productKey);
+				return { job: result.job, replayed: result.replayed };
 			};
 			pendingSubmission.current = submit();
 			try {
@@ -101,7 +101,6 @@ export function useGeneration({ parentJobId }: { parentJobId?: string | null } =
 	});
 	function beginNewAction() {
 		action.current!.invalidate();
-		cachedQuote.current = null;
 		setQuote(null);
 		createQuote.reset();
 		if (!pendingSubmission.current) createGeneration.reset();

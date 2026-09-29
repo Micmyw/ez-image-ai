@@ -22,6 +22,27 @@ const INPUT = {
 
 describe("createQuoteForUser", () => {
 	afterEach(() => vi.unstubAllEnvs());
+	it("rejects a changed displayed price before moderation or persistence", async () => {
+		const createAdapter = vi.fn();
+		const persistApproved = vi.fn();
+		const assertAllowed = vi.fn();
+		await expect(
+			createQuoteForUser(
+				"user_1",
+				INPUT,
+				{
+					now: () => new Date(),
+					assertAllowed,
+					createAdapter,
+					persistApproved,
+					recordDenied: vi.fn(),
+				},
+				{ quoteId: "submission-quote", fingerprint: "frozen-input", expectedCredits: "999" },
+			),
+		).rejects.toThrow("PRICE_CHANGED");
+		expect(createAdapter).not.toHaveBeenCalled();
+		expect(persistApproved).not.toHaveBeenCalled();
+	});
 	it("freezes a signed reference into the text-approved quote fingerprint", async () => {
 		vi.stubEnv("BETTER_AUTH_SECRET", "local-temporary-reference-test-key");
 		const now = new Date("2026-09-22T12:00:00Z");

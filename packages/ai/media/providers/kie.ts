@@ -298,6 +298,7 @@ function buildKieImageRequest(input: ProviderSubmitInput): Record<string, unknow
 	}
 	return {
 		model: input.providerModelId,
+		...(input.webhookUrl ? { callBackUrl: input.webhookUrl } : {}),
 		input: {
 			...(input.input.kind === "image-to-image"
 				? { [spec.sourceField]: [input.input.sourceAsset.transferUrl] }

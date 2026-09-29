@@ -30,7 +30,11 @@ export async function pollGeneration(
 		const untilDueMs = state.pollAt.getTime() - now().getTime();
 		if (untilDueMs > 0) {
 			await dependencies.wait(
-				Math.min(60, Math.max(5, Math.ceil(untilDueMs / 1_000)), remainingMs / 1_000),
+				Math.min(
+					state.leasedUntil && state.leasedUntil > now() ? 5 : 60,
+					Math.max(5, Math.ceil(untilDueMs / 1_000)),
+					remainingMs / 1_000,
+				),
 			);
 			continue;
 		}

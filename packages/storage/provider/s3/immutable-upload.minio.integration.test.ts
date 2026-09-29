@@ -88,6 +88,40 @@ describe("immutable staging upload promotion (MinIO)", () => {
 		}
 	});
 
+	it("converges small-output conditional PUTs and preserves the winner during recovery", async () => {
+		const id = randomUUID();
+		const staging = location("staging", id);
+		const final = location("final", id);
+		const original = pngPayload(512);
+		const replacement = Buffer.from(original);
+		replacement[32] = 0xff;
+		try {
+			const putUrl = await storage.createSignedUpload({
+				...staging,
+				contentType,
+				contentLength: original.length,
+			});
+			expect(await putSignedObject(putUrl, original)).toBe(true);
+			const promote = () =>
+				storage.promoteStagedObject({
+					staging,
+					final,
+					contentType,
+					contentLength: original.length,
+					preferSinglePut: true,
+					acceptExistingFinalIdentity: true,
+				});
+			const results = await Promise.all([promote(), promote()]);
+			expect(results.map((result) => result.sha256)).toEqual([sha256(original), sha256(original)]);
+			expect(await storage.listMultipartUploads(final)).toEqual([]);
+			expect(await putSignedObject(putUrl, replacement)).toBe(true);
+			expect((await promote()).sha256).toBe(sha256(original));
+			expect(await readObject(final)).toEqual(original);
+		} finally {
+			await deleteLocations(staging, final);
+		}
+	});
+
 	it("signs staging multipart parts, converges concurrent promotions, and cleans only staging", async () => {
 		const id = randomUUID();
 		const firstStaging = location("staging", `${id}-first`);

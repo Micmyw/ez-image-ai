@@ -38,6 +38,7 @@ import {
 	requireGuestAbuseHmac,
 } from "./modules/media/lib/guest-capability";
 import { uploadTemporaryReference } from "./modules/media/temporary-reference-upload";
+import { createKieCallbackHandler } from "./modules/media/webhooks/kie-callback";
 import { createProviderWebhookHandler } from "./modules/media/webhooks/provider-webhook";
 import { mediaLoadTestHandler } from "./modules/testing/media-load";
 import { openApiHandler, rpcHandler } from "./orpc/handler";
@@ -63,6 +64,7 @@ const defaultApiAppDependencies: ApiAppDependencies = {
 };
 
 const providerWebhookVerifiers = createProviderWebhookVerifierRegistry();
+const kieCallbackHandler = createKieCallbackHandler();
 const providerWebhookHandler = createProviderWebhookHandler({
 	getVerifier(provider) {
 		return providerWebhookVerifiers.get(provider) ?? null;
@@ -192,7 +194,9 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 			.post("/webhooks/payments", (c) => paymentsWebhookHandler(c.req.raw))
 			// Provider webhooks must receive the untouched raw body before the oRPC catch-all.
 			.post("/webhooks/ai/:provider", (c) =>
-				providerWebhookHandler(c.req.param("provider"), c.req.raw),
+				c.req.param("provider") === "kie"
+					? kieCallbackHandler(c.req.raw)
+					: providerWebhookHandler(c.req.param("provider"), c.req.raw),
 			)
 			.post("/webhooks/moderation/:provider", (c) => c.json({ code: "WEBHOOK_NOT_SUPPORTED" }, 404))
 			// Pure process liveness; no dependencies or business effects.

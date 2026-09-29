@@ -23,6 +23,7 @@ import {
 	createRuntimeConfigOverride,
 	revertRuntimeConfigOverride,
 	resolveAdminUncertainSubmission,
+	wakeKieGenerationAttempt,
 } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
 import { MediaValidationError } from "@repo/storage";
@@ -330,6 +331,50 @@ describe("production media runtime stores", () => {
 		expect((await store.getPollingState(target.attemptId))?.pollAt.getTime()).toBeGreaterThan(
 			now.getTime(),
 		);
+	});
+
+	it("Kie completion wakes only the bound active task and preserves an existing lease and credit hold", async () => {
+		const target = await seedPendingProviderJob();
+		const leaseToken = crypto.randomUUID();
+		const attempt = await client.generationAttempt.update({
+			where: { id: target.attemptId },
+			data: {
+				provider: "kie",
+				reconcileLeaseToken: leaseToken,
+				reconcileLeasedUntil: new Date(Date.now() + 60_000),
+				nextReconcileAt: new Date(Date.now() + 120_000),
+			},
+		});
+		const before = await client.creditReservation.findFirstOrThrow({
+			where: { jobId: target.jobId },
+		});
+		expect(
+			await wakeKieGenerationAttempt(
+				{ attemptId: target.attemptId, providerTaskId: "wrong-task" },
+				client,
+			),
+		).toBe("invalid");
+		expect(
+			await wakeKieGenerationAttempt(
+				{ attemptId: target.attemptId, providerTaskId: attempt.providerTaskId! },
+				client,
+			),
+		).toBe("ready");
+		const after = await client.generationAttempt.findUniqueOrThrow({
+			where: { id: target.attemptId },
+		});
+		expect(after.nextReconcileAt!.getTime()).toBeLessThanOrEqual(Date.now());
+		expect(after.reconcileLeaseToken).toBe(leaseToken);
+		expect(after.reconcileLeasedUntil).toEqual(attempt.reconcileLeasedUntil);
+		expect(after.status).toBe(attempt.status);
+		expect(await client.creditReservation.findUnique({ where: { id: before.id } })).toEqual(before);
+		await client.generationJob.update({ where: { id: target.jobId }, data: { status: "FAILED" } });
+		expect(
+			await wakeKieGenerationAttempt(
+				{ attemptId: target.attemptId, providerTaskId: attempt.providerTaskId! },
+				client,
+			),
+		).toBe("terminal");
 	});
 
 	it("active polling becomes due promptly and stops for terminal or manual-recovery jobs", async () => {

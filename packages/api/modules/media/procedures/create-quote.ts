@@ -97,6 +97,7 @@ export async function createQuoteForUser(
 		temporaryReferenceToken?: string;
 	},
 	dependencies: CreateQuoteDependencies = defaultDependencies,
+	submission?: { quoteId: string; fingerprint: string; expectedCredits: string },
 ) {
 	const temporaryReference = input.temporaryReferenceToken
 		? verifyTemporaryReference(
@@ -110,6 +111,8 @@ export async function createQuoteForUser(
 	const editContext = await freezeImageEditContext(userId, input, dependencies);
 	const routeGraphOptions = await dependencies.getRouteGraphOptions?.();
 	const quote = buildMediaQuote(input, routeGraphOptions);
+	if (submission && quote.credits.toString() !== submission.expectedCredits)
+		throw new Error("PRICE_CHANGED");
 	await dependencies.assertAllowed({
 		userId,
 		productKey: input.productKey,
@@ -120,6 +123,7 @@ export async function createQuoteForUser(
 		routeGraphOptions,
 	});
 	const quoteInput = {
+		...(submission ? { quoteId: submission.quoteId } : {}),
 		ownerType: "USER" as const,
 		ownerId: userId,
 		submittedByUserId: userId,
@@ -130,6 +134,7 @@ export async function createQuoteForUser(
 		costMicros: quote.costMicros,
 		inputSnapshot: {
 			...input.input,
+			...(submission ? { submissionFingerprint: submission.fingerprint } : {}),
 			...(editContext ? { editContext } : {}),
 			...(temporaryReference ? { temporaryReference } : {}),
 		},

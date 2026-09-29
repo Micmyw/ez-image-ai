@@ -1,0 +1,130 @@
+import { createHash } from "node:crypto";
+
+import { findGenerationSubmissionQuote } from "@repo/database";
+import { db } from "@repo/database/client";
+import { z } from "zod";
+
+import { protectedProcedure } from "../../../orpc/procedures";
+import { toMediaOrpcError } from "../lib/errors";
+import { createGenerationInputSchema, createQuoteInputSchema, jsonBigInt } from "../types";
+import { createGenerationForUser, dispatchCreatedGeneration } from "./create-generation";
+import { createQuoteForUser } from "./create-quote";
+
+export const submitGenerationInputSchema = createQuoteInputSchema.safeExtend({
+	idempotencyKey: createGenerationInputSchema.shape.idempotencyKey,
+	expectedCredits: z.string().regex(/^[1-9]\d{0,9}$/),
+});
+type Input = z.infer<typeof submitGenerationInputSchema>;
+interface Dependencies {
+	findQuote(ownerId: string, quoteId: string): ReturnType<typeof findGenerationSubmissionQuote>;
+	createQuote: typeof createQuoteForUser;
+	createJob: typeof createGenerationForUser;
+	dispatch: typeof dispatchCreatedGeneration;
+}
+const defaults: Dependencies = {
+	findQuote: (owner, id) => findGenerationSubmissionQuote(owner, id, db),
+	createQuote: createQuoteForUser,
+	createJob: createGenerationForUser,
+	dispatch: dispatchCreatedGeneration,
+};
+
+export async function submitGenerationForUser(
+	userId: string,
+	input: Input,
+	dependencies: Dependencies = defaults,
+) {
+	const quoteId = `submit_${hash([userId, input.idempotencyKey])}`;
+	const fingerprint = hash({
+		productKey: input.productKey,
+		input: input.input,
+		expectedCredits: input.expectedCredits,
+		parentJobId: input.parentJobId ?? null,
+		temporaryReferenceToken: input.temporaryReferenceToken ?? null,
+	});
+	let existing = await dependencies.findQuote(userId, quoteId);
+	let quote;
+	if (!existing) {
+		try {
+			quote = await dependencies.createQuote(userId, input, undefined, {
+				quoteId,
+				fingerprint,
+				expectedCredits: input.expectedCredits,
+			});
+		} catch (error) {
+			// Concurrent identical submissions can race on the deterministic quote ID.
+			if (!error || typeof error !== "object" || !("code" in error) || error.code !== "P2002")
+				throw error;
+			existing = await dependencies.findQuote(userId, quoteId);
+			if (!existing) throw error;
+		}
+	}
+	if (existing) {
+		const snapshot = existing.inputSnapshot as { submissionFingerprint?: unknown } | null;
+		if (
+			snapshot?.submissionFingerprint !== fingerprint ||
+			(existing.job && existing.job.idempotencyKey !== input.idempotencyKey)
+		)
+			throw new Error("IDEMPOTENCY_CONFLICT");
+		quote = existing;
+	}
+	if (!quote) throw new Error("NOT_FOUND");
+	// A lost response must return the original job, even after its credits were reserved
+	// or the quote expired. The frozen fingerprint prevents reuse with changed inputs.
+	let result: Awaited<ReturnType<Dependencies["createJob"]>>;
+	if (existing?.job) {
+		result = { job: existing.job, replayed: true };
+	} else {
+		try {
+			result = await dependencies.createJob(userId, {
+				quoteId: quote.id,
+				idempotencyKey: input.idempotencyKey,
+				...(input.parentJobId ? { parentJobId: input.parentJobId } : {}),
+			});
+		} catch (error) {
+			// A concurrent request may have reserved the balance or committed while
+			// this request was checking admission. Recover that job before returning an error.
+			const recovered = await dependencies.findQuote(userId, quoteId);
+			if (!recovered?.job || recovered.job.idempotencyKey !== input.idempotencyKey) throw error;
+			result = { job: recovered.job, replayed: true };
+		}
+	}
+	await dependencies.dispatch(result);
+	return {
+		job: {
+			id: result.job.id,
+			status: result.job.status,
+			version: result.job.version,
+			creditsReserved: jsonBigInt(result.job.creditsReserved),
+		},
+		replayed: result.replayed,
+		quote: {
+			id: quote.id,
+			productKey: quote.productKey,
+			credits: jsonBigInt(quote.credits),
+			expiresAt: quote.expiresAt.toISOString(),
+		},
+	};
+}
+
+function hash(value: unknown): string {
+	return createHash("sha256")
+		.update(
+			JSON.stringify(value, (_key, item) =>
+				item && typeof item === "object" && !Array.isArray(item)
+					? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b)))
+					: item,
+			),
+		)
+		.digest("hex");
+}
+
+export const submitGeneration = protectedProcedure
+	.route({ method: "POST", path: "/media/generations/submit", tags: ["Media"] })
+	.input(submitGenerationInputSchema)
+	.handler(async ({ context: { user }, input }) => {
+		try {
+			return await submitGenerationForUser(user.id, input);
+		} catch (error) {
+			throw toMediaOrpcError(error);
+		}
+	});

@@ -57,6 +57,11 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
 ) {
 	const mergedClassName = cn(buttonVariants({ variant, size, className }));
 	const isDisabled = Boolean(disabled || loading);
+	// Translators may replace text nodes. Stable elements keep React's spinner
+	// insertion/removal anchored to nodes it still owns.
+	const content = React.Children.map(children, (child) =>
+		typeof child === "string" || typeof child === "number" ? <span>{child}</span> : child,
+	);
 
 	if (render) {
 		const element = render({
@@ -66,7 +71,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
 			children: (
 				<>
 					{loading && <Spinner className="mr-1.5 size-4 text-inherit" />}
-					{children}
+					{content}
 				</>
 			),
 		});
@@ -77,7 +82,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(function Button(
 	return (
 		<button ref={ref} className={mergedClassName} disabled={isDisabled} {...props}>
 			{loading && <Spinner className="mr-1.5 size-4 text-inherit" />}
-			{children}
+			{content}
 		</button>
 	);
 });

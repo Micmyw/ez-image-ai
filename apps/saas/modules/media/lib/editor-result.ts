@@ -3,14 +3,14 @@ interface SignedAssetQueryState {
 	isError?: boolean;
 }
 
-export type SignedComparisonState = "loading" | "ready" | "unavailable";
+export type SignedComparisonState = "loading" | "output-only" | "ready" | "unavailable";
 
 export function getSignedComparisonState(
 	input: SignedAssetQueryState,
 	output: SignedAssetQueryState,
 ): SignedComparisonState {
-	if (input.isError || output.isError) return "unavailable";
-	return input.data && output.data ? "ready" : "loading";
+	if (output.data) return input.data ? "ready" : "output-only";
+	return output.isError ? "unavailable" : "loading";
 }
 
 export async function requestPrivateDownload(

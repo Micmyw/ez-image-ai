@@ -19,7 +19,7 @@ export async function executePollingTick(
 	const now = dependencies.now ?? (() => new Date());
 	const state = await dependencies.store.getPollingState(payload.attemptId);
 	if (!state) return { done: true, waitSeconds: 0 };
-	if (state.pollAt.getTime() > now().getTime()) return nextTick(state.pollAt, now());
+	if (state.pollAt.getTime() > now().getTime()) return nextTick(state, now());
 	// A Workflow step owns exactly one database-scoped tick. Workflow sleep releases
 	// the Container; PostgreSQL leases and pollAt remain the execution authority.
 	await reconcileGenerations(
@@ -27,12 +27,18 @@ export async function executePollingTick(
 		{ store: dependencies.store, getProvider: dependencies.getProvider, now },
 	);
 	const nextState = await dependencies.store.getPollingState(payload.attemptId);
-	return nextState ? nextTick(nextState.pollAt, now()) : { done: true, waitSeconds: 0 };
+	return nextState ? nextTick(nextState, now()) : { done: true, waitSeconds: 0 };
 }
 
-function nextTick(pollAt: Date, now: Date): PollingTickResult {
-	const delay = Math.ceil((pollAt.getTime() - now.getTime()) / 1_000);
+function nextTick(
+	state: { pollAt: Date; leasedUntil?: Date | null },
+	now: Date,
+): PollingTickResult {
+	const delay = Math.ceil((state.pollAt.getTime() - now.getTime()) / 1_000);
 	if (!Number.isFinite(delay)) throw new Error("INVALID_GENERATION_POLLING_STATE");
+	// Another executor can release its lease well before expiry. Re-read soon;
+	// only the database lease owner may retrieve or persist provider results.
+	if (state.leasedUntil && state.leasedUntil > now) return { done: false, waitSeconds: 5 };
 	return { done: false, waitSeconds: Math.min(60, Math.max(5, delay)) };
 }
 

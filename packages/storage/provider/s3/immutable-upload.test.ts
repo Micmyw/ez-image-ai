@@ -49,6 +49,55 @@ describe("promoteStagedObject", () => {
 		s3.send.mockReset();
 	});
 
+	it("promotes small generated images with one conditional PUT and no reread", async () => {
+		const body = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
+		s3.send
+			.mockRejectedValueOnce(Object.assign(new Error("missing"), { name: "NoSuchKey" }))
+			.mockResolvedValueOnce({
+				Body: Readable.from([body]),
+				ContentLength: body.length,
+				ContentType: "image/png",
+			})
+			.mockResolvedValueOnce({ ETag: "immutable-etag" });
+		const result = await promoteStagedObject({
+			staging: { bucket: "media", key: "users/test/staging/one" },
+			final: { bucket: "media", key: "users/test/final/one" },
+			contentLength: body.length,
+			contentType: "image/png",
+			preferSinglePut: true,
+		});
+		expect(result).toEqual({
+			bytes: body.length,
+			sha256: createHash("sha256").update(body).digest("hex"),
+			etag: "immutable-etag",
+			versionId: null,
+		});
+		expect(s3.send).toHaveBeenCalledTimes(3);
+		expect(s3.send.mock.calls[2]![0]).toMatchObject({ input: { IfNoneMatch: "*", Body: body } });
+	});
+
+	it("rejects a small output checksum mismatch before writing the final object", async () => {
+		const body = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
+		s3.send
+			.mockRejectedValueOnce(Object.assign(new Error("missing"), { name: "NoSuchKey" }))
+			.mockResolvedValueOnce({
+				Body: Readable.from([body]),
+				ContentLength: body.length,
+				ContentType: "image/png",
+			});
+		await expect(
+			promoteStagedObject({
+				staging: { bucket: "media", key: "users/test/staging/one" },
+				final: { bucket: "media", key: "users/test/final/one" },
+				contentLength: body.length,
+				contentType: "image/png",
+				preferSinglePut: true,
+				expectedSha256: "a".repeat(64),
+			}),
+		).rejects.toThrow("UPLOAD_CHECKSUM_MISMATCH");
+		expect(s3.send).toHaveBeenCalledTimes(2);
+	});
+
 	it.each([
 		{ name: "AccessDenied", status: 403 },
 		{ name: "TooManyRequests", status: 429 },

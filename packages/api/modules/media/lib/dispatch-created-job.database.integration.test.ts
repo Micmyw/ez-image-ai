@@ -1,4 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
+import { getCatalogEntry, isCatalogInputSupported } from "@repo/ai";
 import {
 	createCreditGrant,
 	createGenerationJobTransaction,
@@ -21,6 +22,19 @@ describe("committed generation fast dispatch", () => {
 	});
 
 	afterAll(async () => client?.$disconnect());
+
+	it("keeps retry identity on the quote without passing it to the model", async () => {
+		const created = await createCommittedJob(client, "image-nano-banana-2-lite");
+		const job = await client.generationJob.findUniqueOrThrow({
+			where: { id: created.job.id },
+			include: { quote: true },
+		});
+		expect(job.quote.inputSnapshot).toHaveProperty("submissionFingerprint", "a".repeat(64));
+		expect(
+			isCatalogInputSupported(getCatalogEntry("image-nano-banana-2-lite"), job.inputSnapshot),
+		).toBe(true);
+		expect(job.inputSnapshot).not.toHaveProperty("submissionFingerprint");
+	});
 
 	it("leaves JOB_CREATED pending after immediate delivery fails", async () => {
 		const created = await createCommittedJob(client);
@@ -57,7 +71,7 @@ describe("committed generation fast dispatch", () => {
 	});
 });
 
-async function createCommittedJob(database: PrismaClient) {
+async function createCommittedJob(database: PrismaClient, productKey = "image-fast") {
 	const suffix = crypto.randomUUID();
 	const ownerId = `fast-dispatch-${suffix}`;
 	const account = await database.creditAccount.create({ data: { ownerType: "USER", ownerId } });
@@ -69,12 +83,16 @@ async function createCommittedJob(database: PrismaClient) {
 		ownerType: "USER",
 		ownerId,
 		submittedByUserId: ownerId,
-		productKey: "image-fast",
+		productKey,
 		catalogVersion: "2026-08-13.1",
 		pricingVersion: "2026-08-13.1",
 		credits: 4n,
 		costMicros: 3_000n,
-		inputSnapshot: { kind: "text-to-image", prompt: "fast path" },
+		inputSnapshot: {
+			kind: "text-to-image",
+			prompt: "fast path",
+			submissionFingerprint: "a".repeat(64),
+		},
 		pricingSnapshot: { credits: 4 },
 		expiresAt: new Date(Date.now() + 60_000),
 	} as const;

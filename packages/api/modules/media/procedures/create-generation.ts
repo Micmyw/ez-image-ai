@@ -37,22 +37,7 @@ export const createGeneration = protectedProcedure
 	.handler(async ({ context: { user }, input }) => {
 		try {
 			const result = await createGenerationForUser(user.id, input);
-			if (result.verificationAssetId && !result.replayed) {
-				await dispatchUploadVerification(result.verificationAssetId);
-			} else
-				await dispatchCreatedJobBestEffort(
-					{
-						jobId: result.job.id,
-						version: result.job.version,
-						replayed: result.replayed,
-						serviceClass: "STANDARD",
-					},
-					{
-						resolveRoute: resolveDatabaseDispatchRoute,
-						dispatch: dispatchJob,
-						warn: (message, details) => logger.warn(message, details),
-					},
-				);
+			await dispatchCreatedGeneration(result);
 			return {
 				job: {
 					id: result.job.id,
@@ -66,6 +51,27 @@ export const createGeneration = protectedProcedure
 			throw toMediaOrpcError(error);
 		}
 	});
+
+export async function dispatchCreatedGeneration(result: CreatedGenerationJob): Promise<void> {
+	if (result.verificationAssetId && !result.replayed) {
+		await dispatchUploadVerification(result.verificationAssetId);
+	} else {
+		await dispatchCreatedJobBestEffort(
+			{
+				jobId: result.job.id,
+				version: result.job.version,
+				replayed: result.replayed,
+				serviceClass: "STANDARD",
+			},
+			{
+				resolveRoute: resolveDatabaseDispatchRoute,
+				dispatch: (task, payload, options) =>
+					dispatchJob(task, payload, { ...options, timeoutMs: 3_000 }),
+				warn: (message, details) => logger.warn(message, details),
+			},
+		);
+	}
+}
 
 interface GenerationQuoteForCreation {
 	id: string;

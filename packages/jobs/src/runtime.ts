@@ -126,6 +126,7 @@ import {
 	canReuseApprovedImageEvidence,
 	IMAGE_APPROVAL_NO_TIME_EXPIRY,
 } from "./media-approval-lifetime";
+import { kieCompletionCallbackUrl } from "./orchestration/kie-callback-auth";
 import {
 	createOutputTransferEnvelope,
 	providerOutputsFromTransferEnvelope,
@@ -861,7 +862,9 @@ export function createDatabaseDispatchStore(
 					webhookUrl:
 						route.provider === "replicate" && process.env.NEXT_PUBLIC_SAAS_URL
 							? `${process.env.NEXT_PUBLIC_SAAS_URL}/api/webhooks/ai/replicate`
-							: undefined,
+							: route.provider === "kie" && resolution.entry.mediaKind === "image"
+								? kieCompletionCallbackUrl(attempt.id, environment)
+								: undefined,
 				};
 			});
 			if (claim === dispatchAdmissionBlocked) throw new DispatchAdmissionBlockedError();
@@ -1395,12 +1398,12 @@ export function createDatabaseVerifyUploadDependencies(
 				}
 
 				const location = { bucket: "media" as const, key: claim.objectKey };
-				const immutableReference =
-					claim.kind === "INPUT" &&
-					isTemporaryReferenceObjectKey(claim.objectKey) &&
+				const verifiedImmutableObject =
+					(claim.kind === "OUTPUT" ||
+						(claim.kind === "INPUT" && isTemporaryReferenceObjectKey(claim.objectKey))) &&
 					Boolean(claim.checksum && claim.finalizedAt) &&
 					!claim.forceObjectInspection;
-				if (!immutableReference) {
+				if (!verifiedImmutableObject) {
 					const [metadata, header] = await Promise.all([
 						(options.headObject ?? headObject)(location),
 						(options.readMediaHeader ?? readMediaHeader)(location),
@@ -1429,7 +1432,7 @@ export function createDatabaseVerifyUploadDependencies(
 					...location,
 					expiresIn: 300,
 				});
-				if (!immutableReference) {
+				if (!verifiedImmutableObject) {
 					const persistedInspection = await database.mediaAsset.updateMany({
 						where: {
 							id: claim.assetId,
@@ -3947,6 +3950,7 @@ export function createFinalizationDependencies(
 								contentType: mimeType,
 								contentLength: staged.bytes,
 								acceptExistingFinalIdentity: true,
+								preferSinglePut: true,
 								promotion: {
 									uploadId: transfer.promotionMultipartUploadId ?? undefined,
 									onMultipartUploadCreated: async ({ uploadId }) => {
@@ -4451,6 +4455,7 @@ export function createDatabaseReconciliationStore(
 						attempt.reconcileLeasedUntil?.getTime() ?? 0,
 					),
 				),
+				leasedUntil: attempt.reconcileLeasedUntil,
 			};
 		},
 		async claimStale({ limit, leaseSeconds, now, attemptId }) {

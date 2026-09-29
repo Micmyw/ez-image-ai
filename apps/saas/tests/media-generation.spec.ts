@@ -17,6 +17,70 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	test.describe.configure({ timeout: 90_000 });
 	test.afterAll(async () => pool.end());
 
+	test("translated button text survives generation and download loading states", async ({
+		page,
+	}, testInfo) => {
+		const failures: string[] = [];
+		page.on("pageerror", (error) => failures.push(error.message));
+		const prompt = marker(
+			"translated-button",
+			"Keep the product on a blue background",
+			testInfo.retry,
+		);
+		await openCreator(page, prompt, fundedEmail);
+		const submit = page.locator('[data-test="generation-submit"]');
+		await replaceTextLikeBrowserTranslation(submit);
+		await submit.click();
+		await waitForJob(prompt, "SUCCEEDED");
+		const downloadButton = page.getByRole("button", { name: "Download", exact: true });
+		await expect(downloadButton).toBeEnabled({ timeout: 30_000 });
+		await replaceTextLikeBrowserTranslation(downloadButton);
+		const download = page.waitForEvent("download");
+		await downloadButton.click();
+		expect((await download).suggestedFilename()).toBeTruthy();
+		await expect(downloadButton).toBeEnabled();
+		expect(failures).toEqual([]);
+		await page
+			.locator("section[aria-live='polite']")
+			.filter({ has: downloadButton })
+			.screenshot({
+				path: testInfo.outputPath("translated-generation-result.png"),
+			});
+	});
+
+	test("generated preview remains visible when the original reference access fails", async ({
+		page,
+	}, testInfo) => {
+		const prompt = marker("output-first", "Keep the product on a warm background", testInfo.retry);
+		const jobId = await createScenario(page, prompt);
+		await waitForJob(prompt, "SUCCEEDED");
+		const source = (
+			await rows<{ assetId: string }>(
+				'SELECT "assetId" FROM generation_job_asset WHERE "jobId"=$1 AND role=\'INPUT\'',
+				[jobId],
+			)
+		)[0]!;
+		await page.route("**/api/rpc/media/getAssetAccessUrl**", async (route) => {
+			const request = route.request();
+			if (decodeURIComponent(request.url() + (request.postData() ?? "")).includes(source.assetId))
+				await route.abort();
+			else await route.continue();
+		});
+		await page.goto(`/create?job=${jobId}`);
+		const output = page.getByRole("img", { name: "Generated image", exact: true });
+		await expect(output).toBeVisible({ timeout: 30_000 });
+		await expect
+			.poll(() => output.evaluate((image) => (image as HTMLImageElement).naturalWidth))
+			.toBeGreaterThan(0);
+		await expect(page.getByRole("button", { name: "Download", exact: true })).toBeEnabled();
+		await page
+			.locator("section[aria-live='polite']")
+			.filter({ has: output })
+			.screenshot({
+				path: testInfo.outputPath("output-without-original.png"),
+			});
+	});
+
 	test("approved images are visible and downloadable before background credit settlement", async ({
 		page,
 	}, testInfo) => {
@@ -71,10 +135,15 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await expect(page.getByRole("button", { name: /^Model: / })).toContainText("GPT Image 2", {
 			timeout: 30_000,
 		});
-		await page.getByLabel(/edit instruction|image prompt/i).fill(prompt);
 		await expect(page.locator('[data-test="generation-submit"]')).toHaveText(
 			"Generate image · 7 credits",
 		);
+		// The streamed form is visible before its live catalog and handlers are ready.
+		// Match openCreator: wait for the live credit price before entering the prompt.
+		await page
+			.locator('[data-test="registered-generator"]')
+			.getByLabel(/image prompt/i)
+			.fill(prompt);
 		await page.locator('[data-test="generation-submit"]').dblclick();
 		const job = await waitForJob(prompt, "SUCCEEDED");
 		expect(
@@ -939,6 +1008,19 @@ async function openCreator(page: import("@playwright/test").Page, prompt: string
 		timeout: 30_000,
 	});
 	await page.getByLabel(/edit instruction|image prompt/i).fill(prompt);
+}
+
+async function replaceTextLikeBrowserTranslation(target: import("@playwright/test").Locator) {
+	await target.evaluate((element) => {
+		const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+		const textNodes: Node[] = [];
+		while (walker.nextNode()) textNodes.push(walker.currentNode);
+		for (const node of textNodes) {
+			const translated = document.createElement("font");
+			translated.textContent = node.textContent;
+			node.parentNode?.replaceChild(translated, node);
+		}
+	});
 }
 
 async function createScenario(
