@@ -14,16 +14,20 @@ export function RegisteredEditorDock({ prompt, jobId }: { prompt: string; jobId:
 	useEffect(() => {
 		const editor = document.getElementById("registered-generator");
 		if (!editor || typeof IntersectionObserver === "undefined") return;
-		const footer = editor
-			.closest(".model-page, [data-image-to-image-page]")
-			?.querySelector(".model-footer, [data-editor-end]");
+		const page = editor.closest(".model-page, .studio-home, [data-image-to-image-page]");
+		const footer = page?.querySelector(".model-footer, [data-editor-end]");
+		const examples = page?.querySelector("[data-editor-dock-clear]");
 		const observer = new IntersectionObserver(() => {
 			const hasPassedEditor = editor.getBoundingClientRect().bottom < 0;
 			const beforeFooter = !footer || footer.getBoundingClientRect().top >= window.innerHeight;
-			setVisible(hasPassedEditor && beforeFooter);
+			const examplesRect = examples?.getBoundingClientRect();
+			const readingExamples =
+				examplesRect && examplesRect.bottom > 0 && examplesRect.top < window.innerHeight;
+			setVisible(hasPassedEditor && beforeFooter && !readingExamples);
 		});
 		observer.observe(editor);
 		if (footer) observer.observe(footer);
+		if (examples) observer.observe(examples);
 		return () => observer.disconnect();
 	}, []);
 	if (!visible) return null;

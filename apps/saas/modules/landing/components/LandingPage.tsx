@@ -153,7 +153,7 @@ export async function LandingPage({
 					</div>
 				</section>
 
-				<section className="py-14 text-white sm:py-20">
+				<section data-editor-end="" className="py-14 text-white sm:py-20">
 					<div className="container">
 						<div className="gap-6 border-violet-300/20 px-6 py-9 md:flex-row md:px-9 md:text-left lg:px-12 relative flex flex-col items-center justify-between overflow-hidden rounded-[2rem] border bg-[radial-gradient(circle_at_12%_0%,rgba(108,77,255,0.42),transparent_24rem),radial-gradient(circle_at_92%_120%,rgba(255,182,122,0.22),transparent_22rem),#1b1430] text-center shadow-[0_28px_90px_-48px_rgba(108,77,255,0.8)]">
 							<div>

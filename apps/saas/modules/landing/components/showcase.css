@@ -1,0 +1,210 @@
+.showcase-grid {
+	columns: 2;
+	column-gap: 18px;
+	margin-top: 32px;
+}
+.showcase-card {
+	break-inside: avoid;
+	margin-bottom: 18px;
+	overflow: hidden;
+	border: 1px solid #ffffff12;
+	border-radius: 16px;
+	background: #211b2b;
+	transition:
+		border-color 220ms ease,
+		box-shadow 220ms ease,
+		transform 220ms ease;
+}
+.showcase-card[data-selected="true"] {
+	border-color: #b79cff;
+}
+.showcase-card:has(:focus-visible) {
+	outline: 2px solid #b79cff;
+	outline-offset: 4px;
+}
+.showcase-trigger {
+	cursor: pointer;
+}
+.showcase-artwork {
+	position: relative;
+	background: #2b2434;
+}
+.showcase-artwork img {
+	transition: transform 650ms cubic-bezier(0.2, 0.65, 0.3, 1);
+}
+.showcase-tag {
+	position: absolute;
+	z-index: 1;
+	top: 10px;
+	left: 10px;
+	max-width: calc(100% - 20px);
+	overflow: hidden;
+	border: 1px solid #ffffff26;
+	border-radius: 6px;
+	padding: 4px 7px;
+	background: #171020ad;
+	backdrop-filter: blur(8px);
+	font-size: 10px;
+	font-weight: 500;
+	line-height: 1.4;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	color: #f6f2fb;
+}
+.showcase-caption {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+	padding: 44px 16px 16px;
+	background: linear-gradient(0deg, #09070ef0, #09070e80 45%, transparent 85%);
+	opacity: 0;
+	transform: translateY(6px);
+	pointer-events: none;
+	transition:
+		opacity 220ms ease,
+		transform 220ms ease;
+}
+.showcase-caption p {
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	min-height: 0;
+	overflow: hidden;
+	font-size: 13px;
+	line-height: 1.55;
+	color: #fff;
+}
+.showcase-action {
+	display: flex;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: flex-end;
+	gap: 6px;
+	margin-top: 12px;
+	font-size: 12px;
+	font-weight: 500;
+	line-height: 1.5;
+	color: #ffffffd9;
+}
+.showcase-action svg {
+	flex-shrink: 0;
+}
+@media (hover: hover) and (pointer: fine) {
+	.showcase-card:hover {
+		border-color: #b79cff80;
+		box-shadow: 0 10px 24px #08041040;
+		transform: translateY(-2px);
+	}
+	.showcase-card:hover .showcase-artwork img {
+		transform: scale(1.05);
+	}
+	.showcase-card:hover .showcase-caption {
+		opacity: 1;
+		transform: none;
+	}
+}
+@media (hover: none), (pointer: coarse) {
+	/* A visible action makes touch cards usable without a hover gesture. */
+	.showcase-card:not(:has(:focus-visible)) .showcase-caption {
+		background: linear-gradient(0deg, #09070ed9, transparent 64px);
+		opacity: 1;
+		transform: none;
+	}
+	.showcase-card:not(:has(:focus-visible)) .showcase-caption p {
+		max-height: 0;
+		opacity: 0;
+	}
+}
+.showcase-card:has(:focus-visible) .showcase-caption {
+	opacity: 1;
+	transform: none;
+}
+@container (max-width: 220px) {
+	.showcase-caption {
+		padding: 34px 10px 10px;
+	}
+	.showcase-caption p {
+		-webkit-line-clamp: 2;
+		font-size: 12px;
+		line-height: 1.45;
+	}
+	.showcase-action {
+		gap: 4px;
+		margin-top: 8px;
+		font-size: 10px;
+	}
+	.showcase-action svg {
+		width: 13px;
+		height: 13px;
+	}
+	.showcase-tag {
+		top: 8px;
+		left: 8px;
+		max-width: calc(100% - 16px);
+		padding: 3px 6px;
+	}
+}
+@container (max-width: 180px) {
+	.showcase-caption p {
+		font-size: 11px;
+	}
+	.showcase-card[data-orientation="landscape"] .showcase-caption p {
+		-webkit-line-clamp: 1;
+	}
+}
+@media (min-width: 900px) {
+	.showcase-grid {
+		columns: 3;
+	}
+}
+@media (min-width: 1280px) {
+	.showcase-grid {
+		columns: 4;
+	}
+}
+@media (max-width: 767px) {
+	.studio-home :is([data-test="registered-editor-dock"], [data-test="floating-editor-dock"]) {
+		display: none;
+	}
+	.showcase-heading {
+		gap: 16px;
+		text-align: left;
+	}
+	.showcase-heading h1,
+	.showcase-heading h2 {
+		font-size: 28px;
+		line-height: 1.18;
+	}
+	.showcase-heading > div:last-child > p:first-child {
+		font-size: 14px;
+		line-height: 1.75;
+	}
+	.showcase-heading > div:last-child > p:last-child {
+		margin-top: 12px;
+		font-size: 12px;
+		font-weight: 500;
+		color: #cbb5ef;
+	}
+	.showcase-grid {
+		margin-top: 24px;
+		column-gap: 12px;
+	}
+	.showcase-card {
+		margin-bottom: 12px;
+		border-radius: 12px;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.showcase-card,
+	.showcase-artwork img,
+	.showcase-caption {
+		transition: none;
+	}
+	.showcase-card:hover,
+	.showcase-card:hover .showcase-artwork img,
+	.showcase-caption {
+		transform: none;
+	}
+}

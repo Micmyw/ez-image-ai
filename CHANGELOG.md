@@ -2,6 +2,11 @@
 
 ## 2026-09-29
 
+### Responsive example gallery
+
+- Show examples in two masonry columns on phones, keeping mixed image proportions. Restore gentle image zoom and prompt overlays on mouse hover and keyboard focus across the homepage, `/create`, and `/examples`, with a visible touch action and reduced-motion support.
+- Keep floating editor bars off mobile gallery pages and hide desktop bars while browsing examples or reaching the closing call to action. Preserve existing prompts, public headings, translated SEO copy, metadata, and canonical routes.
+
 ### Faster generated-image previews
 
 - Submit an account generation in one request while checking the displayed price and preserving the same quote, job, and credit reservation across retries.

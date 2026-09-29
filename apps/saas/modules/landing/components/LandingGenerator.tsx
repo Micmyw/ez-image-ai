@@ -205,9 +205,9 @@ function LandingGeneratorWorkspace({
 	useEffect(() => {
 		const generator = generatorRef.current;
 		if (!generator) return;
-		const pageEnd = generator
-			.closest("[data-image-to-image-page]")
-			?.querySelector("[data-editor-end]");
+		const page = generator.closest(".studio-home, [data-image-to-image-page]");
+		const pageEnd = page?.querySelector("[data-editor-end]");
+		const examples = page?.querySelector("[data-editor-dock-clear]");
 
 		const observer = new IntersectionObserver(
 			() => {
@@ -215,7 +215,12 @@ function LandingGeneratorWorkspace({
 				const beforePageEnd = !pageEnd || pageEnd.getBoundingClientRect().top >= window.innerHeight;
 				const dockContainsFocus =
 					floatingDockRef.current?.contains(document.activeElement) ?? false;
-				setIsDockVisible(hasPassedEditor && beforePageEnd);
+				const examplesRect = examples?.getBoundingClientRect();
+				const readingExamples =
+					examplesRect && examplesRect.bottom > 72 && examplesRect.top < window.innerHeight;
+				setIsDockVisible(
+					hasPassedEditor && beforePageEnd && (!readingExamples || dockContainsFocus),
+				);
 				if (!hasPassedEditor || !beforePageEnd) {
 					setIsDockExpanded(false);
 					if (dockContainsFocus && !hasPassedEditor) {
@@ -227,6 +232,7 @@ function LandingGeneratorWorkspace({
 		);
 		observer.observe(generator);
 		if (pageEnd) observer.observe(pageEnd);
+		if (examples) observer.observe(examples);
 
 		return () => observer.disconnect();
 	}, []);
