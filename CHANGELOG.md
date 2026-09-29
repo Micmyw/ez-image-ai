@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-30
+
+### Generation admission and preview delivery
+
+- Reuse approved submission configuration and eligibility reads while rechecking mutable limits in the credit-reservation transaction. Keep standalone quote/create requests and retry identities compatible.
+- Return an authorized, short-lived preview with job status and display approved outputs before final settlement. Refresh access without reloading an already displayed image; hide revoked or expired outputs and bound failed-image retries.
+- Skip global Outbox scans after confirmed no-op verification or polling, retaining delivery after real changes, legacy execution and scheduled recovery.
+- Add payload-free phase timings and isolated before/after simulations. These changes are locally verified; production latency and deployment are not established by the simulations.
+
 ## 2026-09-29
 
 ### Responsive example gallery
