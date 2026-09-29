@@ -35,6 +35,25 @@ function fixture() {
 }
 
 describe("Outbox completion receipts", () => {
+	it.each([new TypeError("lost response"), new Error("WORKFLOWS_DISPATCH_UNCONFIRMED")])(
+		"retains the same targeted delivery on uncertain acceptance",
+		async (error) => {
+			const f = fixture();
+			const deliver = vi.fn().mockRejectedValueOnce(error).mockResolvedValueOnce(undefined);
+			await dispatchOutbox(
+				{ workerId: "worker", outputReviewEventId: "outbox-payment" },
+				{ ...f, deliver },
+			);
+			expect(f.store.complete).not.toHaveBeenCalled();
+			expect(f.store.release).not.toHaveBeenCalled();
+			expect(f.store.defer).toHaveBeenCalledOnce();
+			await dispatchOutbox(
+				{ workerId: "worker", outputReviewEventId: "outbox-payment" },
+				{ ...f, deliver },
+			);
+			expect(deliver.mock.calls.map(([event]) => event.attempts)).toEqual([1, 1]);
+		},
+	);
 	it.each([
 		"WORKFLOWS_DISPATCH_URL is invalid",
 		"WORKFLOWS_DISPATCH_SECRET must contain at least 32 characters",

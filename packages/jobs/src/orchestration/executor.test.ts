@@ -139,6 +139,58 @@ beforeEach(() => {
 });
 
 describe("Node task executor", () => {
+	it("preserves original output due time in recovery diagnostics after delivery was deferred", async () => {
+		mocks.outboxStore.claimBatch.mockResolvedValue([
+			event({
+				eventType: "MEDIA_ASSET_VERIFY",
+				aggregateId: "asset-1",
+				payload: { assetId: "asset-1", originalDueAt: 1000 },
+				availableAt: new Date(31000),
+			}),
+		]);
+		await executeTask(
+			{ taskId: "media-deliver-output-review", payload: { eventId: "outbox-1" } },
+			context,
+		);
+		expect(mocks.dispatch).toHaveBeenCalledWith(
+			"media-verify-upload",
+			{ assetId: "asset-1" },
+			expect.objectContaining({ trace: { outboxEventId: "outbox-1", dueAt: 1000 } }),
+		);
+	});
+	it("delivers exactly the committed output event with the same completion identity as scanning", async () => {
+		const review = event({
+			eventType: "MEDIA_ASSET_VERIFY",
+			aggregateId: "output",
+			payload: { assetId: "output" },
+			availableAt: new Date(1000),
+		});
+		mocks.outboxStore.claimBatch.mockResolvedValue([review]);
+		mocks.dispatch.mockRejectedValue(new OutboxDeliveryPendingError());
+		await executeTask(
+			{ taskId: "media-deliver-output-review", payload: { eventId: review.id } },
+			context,
+		);
+		expect(mocks.outboxStore.claimBatch).toHaveBeenLastCalledWith({
+			workerId: `workflow:${context.runId}`,
+			limit: 1,
+			leaseSeconds: 90,
+			outputReviewEventId: review.id,
+		});
+		expect(mocks.outboxStore.complete).not.toHaveBeenCalled();
+		expect(mocks.outboxStore.defer).toHaveBeenCalledOnce();
+		await executeTask({ taskId: "media-deliver-outbox", payload: {} }, context);
+		expect(mocks.dispatch.mock.calls[0]).toEqual(mocks.dispatch.mock.calls[1]);
+		expect(mocks.dispatch.mock.calls[0]).toEqual([
+			"media-verify-upload",
+			{ assetId: "output" },
+			{
+				idempotencyKey: "outbox:outbox-1:attempt:1:media-verify-upload",
+				requireCompletion: true,
+				trace: { outboxEventId: "outbox-1", dueAt: 1000 },
+			},
+		]);
+	});
 	it.each([true, false])(
 		"returns the committed Outbox signal %s rather than inferring it from READY",
 		async (outboxCommitted) => {

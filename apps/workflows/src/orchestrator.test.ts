@@ -19,6 +19,79 @@ function fakeSteps() {
 }
 
 describe("durable job orchestration", () => {
+	it("retains scheduled recovery without replaying finalization when targeted wake fails", async () => {
+		const invoke = vi.fn(async (request) =>
+			request.taskId === "media-finalize-generation"
+				? { status: "ok" as const, outputReview: { waiting: true, eventIds: ["committed-event"] } }
+				: { status: "failed" as const },
+		);
+		expect(
+			await runTask(
+				{ taskId: "media-finalize-generation", payload: {} },
+				"failed-wake",
+				fakeSteps(),
+				invoke,
+			),
+		).toMatchObject({ status: "ok" });
+		expect(
+			invoke.mock.calls.filter(([r]) => r.taskId === "media-finalize-generation"),
+		).toHaveLength(1);
+		expect(invoke.mock.calls.some(([r]) => r.taskId === "media-deliver-outbox")).toBe(false);
+	});
+	it("retains ordinary delivery for a mixed technical failure after targeting pending output siblings", async () => {
+		const invoke = vi.fn(async (request) =>
+			request.taskId === "media-finalize-generation"
+				? { status: "ok" as const, outputReview: { waiting: false, eventIds: ["committed-event"] } }
+				: { status: "ok" as const },
+		);
+		await runTask(
+			{ taskId: "media-finalize-generation", payload: {} },
+			"mixed",
+			fakeSteps(),
+			invoke,
+		);
+		expect(invoke.mock.calls.map(([r]) => r.taskId)).toEqual([
+			"media-finalize-generation",
+			"media-deliver-output-review",
+			"media-deliver-outbox",
+		]);
+	});
+	it("hands a pending output to targeted delivery after heavy completion, without maintenance", async () => {
+		let heavyActive = false;
+		const invoke = vi.fn(async (request) => {
+			if (request.taskId === "media-finalize-generation") {
+				heavyActive = true;
+				await Promise.resolve();
+				heavyActive = false;
+				return {
+					status: "ok" as const,
+					outputReview: { waiting: true, eventIds: ["actual-event"] },
+				};
+			}
+			expect(heavyActive).toBe(false);
+			if (request.taskId === "media-deliver-outbox") throw new Error("MAINTENANCE_OCCUPIED");
+			return { status: "ok" } as const;
+		});
+		const step = fakeSteps();
+		await runTask(
+			{ taskId: "media-finalize-generation", payload: { jobId: "job", version: 0 } },
+			"handoff",
+			step,
+			invoke,
+		);
+		expect(invoke.mock.calls.map(([request]) => request)).toEqual([
+			{ taskId: "media-finalize-generation", payload: { jobId: "job", version: 0 } },
+			{ taskId: "media-deliver-output-review", payload: { eventId: "actual-event" } },
+		]);
+		expect(step.sleep).not.toHaveBeenCalled();
+		await runTask(
+			{ taskId: "media-finalize-generation", payload: { jobId: "job", version: 0 } },
+			"handoff",
+			step,
+			invoke,
+		);
+		expect(invoke).toHaveBeenCalledTimes(2);
+	});
 	it("keeps original event due time only on the first poll tick, including capacity waits", async () => {
 		const step = fakeSteps();
 		const invoke = vi

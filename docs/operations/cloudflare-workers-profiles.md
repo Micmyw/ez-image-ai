@@ -226,6 +226,20 @@ procedure above: older strict ingress validators reject new requests containing 
 Do not create replacement Workflow identities, events or provider attempts to replay in-flight
 work during rollback; leases and uncertainty recovery continue to own the original attempts.
 
+2A-1 adds the private `media-deliver-output-review` task and an optional `outputReview` executor
+response. No database migration or new production variable is needed. Deploy compatible receivers
+before producers if the Node executor and Workflow are released separately; the Workers artifact
+contains both. Old finalizer responses retain their normal global delivery path. Old verification
+events keep their existing payload and recovery route.
+
+For a focused 2A-1 rollback, restore the finalization handoff to global delivery while retaining
+the new task parser, control routing and completion protocol until all in-flight targeted work
+finishes. Existing verification events/provider identities/due times remain recoverable. Do not
+delete pending rows, reset attempts or create replacement paid generations. For full rollback to
+an older binary, drain new targeted Workflows and executor leases first, using the cutover steps
+above (including the earlier trace compatibility requirement). Reverting callback timing is
+independent of business state and has no migration ordering requirement.
+
 Sharp and Images encode differently. Retrying an unfinished watermarked output across adapters
 can produce a different checksum; existing conditional writes intentionally reject that mismatch.
 Do not solve it by overwriting stored assets or switching executors after a timeout. Rollback

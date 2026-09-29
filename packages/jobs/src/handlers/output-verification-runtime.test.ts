@@ -64,7 +64,10 @@ describe("output verification admission", () => {
 					create: async () => ({}),
 					count: async () => 0,
 				},
-				outboxEvent: { createMany: wake },
+				outboxEvent: {
+					createMany: wake,
+					findUniqueOrThrow: async () => ({ id: "persisted-output-poll", availableAt: now }),
+				},
 			};
 			const database = {
 				...tx,
@@ -106,6 +109,7 @@ describe("output verification admission", () => {
 			});
 			await expect(dependencies.verify(asset.id)).resolves.toEqual({
 				outboxCommitted: immediateWake,
+				...(immediateWake ? { outputReviewEventId: "persisted-output-poll" } : {}),
 			});
 			expect(wake).toHaveBeenCalledOnce();
 			expect.soft(wake).toHaveBeenCalledWith(
@@ -117,12 +121,17 @@ describe("output verification admission", () => {
 				}),
 			);
 			expect.soft(asset.verificationNextAttemptAt).toEqual(new Date(now.getTime() + intervalMs));
-			await expect(dependencies.verify(asset.id)).resolves.toEqual({ outboxCommitted: false });
+			await expect(dependencies.verify(asset.id)).resolves.toMatchObject({
+				outboxCommitted: false,
+			});
 			expect(submit).toHaveBeenCalledOnce();
 			expect(retrieve).toHaveBeenCalledOnce();
 			expect(asset.status).toBe("VERIFYING");
 			vi.setSystemTime(new Date(now.getTime() + intervalMs));
-			await expect(dependencies.verify(asset.id)).resolves.toEqual({ outboxCommitted: false });
+			await expect(dependencies.verify(asset.id)).resolves.toEqual({
+				outboxCommitted: false,
+				...(immediateWake ? { outputReviewEventId: "persisted-output-poll" } : {}),
+			});
 			expect(submit).toHaveBeenCalledOnce();
 			expect(retrieve).toHaveBeenCalledTimes(2);
 			expect(retrieve).toHaveBeenLastCalledWith(

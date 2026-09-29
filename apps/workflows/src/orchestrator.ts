@@ -1,4 +1,8 @@
-import type { TaskRequest, PollingTickResult } from "@repo/jobs/orchestration/contracts";
+import type {
+	TaskRequest,
+	PollingTickResult,
+	OutputReviewContinuation,
+} from "@repo/jobs/orchestration/contracts";
 import {
 	dispatchRouteForTask,
 	maintenanceTasksAt,
@@ -14,7 +18,7 @@ export interface DurableSteps {
 	sleep(name: string, duration: string): Promise<void>;
 }
 export type InvocationResult =
-	| { status: "ok"; poll?: PollingTickResult }
+	| { status: "ok"; poll?: PollingTickResult; outputReview?: OutputReviewContinuation }
 	| { status: "busy" | "failed" | "expired" };
 export type InvokeTask = (
 	request: TaskRequest,
@@ -51,6 +55,23 @@ export async function runTask(
 				},
 			);
 			if (result.status === "ok") {
+				if (request.taskId === "media-finalize-generation" && result.outputReview) {
+					for (const eventId of result.outputReview.eventIds) {
+						try {
+							// The heavy invocation has finished. The control executor claims this
+							// exact committed event using the same lease/receipt path as recovery.
+							await runTask(
+								{ taskId: "media-deliver-output-review", payload: { eventId } },
+								runId,
+								step,
+								invoke,
+								`${prefix}-output-review-${eventId}`,
+							);
+						} catch {
+							console.warn("output_review_delivery_deferred", { runId, outboxEventId: eventId });
+						}
+					}
+				}
 				if (shouldDeliverNextStage(request.taskId, result)) {
 					try {
 						// The previous invocation has released its executor slot and committed
@@ -88,6 +109,7 @@ function shouldDeliverNextStage(
 	taskId: string,
 	result: InvocationResult & { status: "ok" },
 ): boolean {
+	if (taskId === "media-finalize-generation" && result.outputReview?.waiting) return false;
 	if (taskId === "media-poll-generation" || taskId === "media-verify-upload")
 		return result.poll?.done === true && result.poll.outboxCommitted !== false;
 	return (

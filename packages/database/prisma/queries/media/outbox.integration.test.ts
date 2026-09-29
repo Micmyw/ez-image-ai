@@ -12,6 +12,7 @@ import {
 describe("durable Outbox completion receipts in PostgreSQL", () => {
 	let client: PrismaClient;
 	const ownedIds: string[] = [];
+	const ownedAssets: string[] = [];
 	const initialTime = new Date("1900-01-01T00:00:00.000Z");
 
 	beforeAll(() => {
@@ -31,6 +32,8 @@ describe("durable Outbox completion receipts in PostgreSQL", () => {
 	afterEach(async () => {
 		if (ownedIds.length)
 			await client.outboxEvent.deleteMany({ where: { id: { in: ownedIds.splice(0) } } });
+		if (ownedAssets.length)
+			await client.mediaAsset.deleteMany({ where: { id: { in: ownedAssets.splice(0) } } });
 	});
 	afterAll(async () => client?.$disconnect());
 
@@ -56,6 +59,131 @@ describe("durable Outbox completion receipts in PostgreSQL", () => {
 		expect(event).toBeDefined();
 		return event!;
 	}
+
+	async function createOutputEvent(kind: "INPUT" | "OUTPUT" = "OUTPUT") {
+		const asset = await client.mediaAsset.create({
+			data: {
+				ownerType: "USER",
+				ownerId: "outbox-target-test",
+				kind,
+				status: "VERIFYING",
+				objectKey: `test/${crypto.randomUUID()}`,
+				mimeType: "image/png",
+				byteSize: 16n,
+			},
+		});
+		ownedAssets.push(asset.id);
+		const event = await client.outboxEvent.create({
+			data: {
+				eventType: "MEDIA_ASSET_VERIFY",
+				aggregateType: "MEDIA_ASSET",
+				aggregateId: asset.id,
+				dedupeKey: `test-output-poll:${asset.id}`,
+				payload: { assetId: asset.id },
+				availableAt: initialTime,
+			},
+		});
+		ownedIds.push(event.id);
+		return event;
+	}
+
+	it("targets only the committed output event and leaves input/other events to normal delivery", async () => {
+		const output = await createOutputEvent();
+		const input = await createOutputEvent("INPUT");
+		const other = await createEvent();
+		const target = (id: string) =>
+			claimOutboxBatch(
+				{
+					workerId: "target",
+					limit: 1,
+					leaseSeconds: 60,
+					now: initialTime,
+					outputReviewEventId: id,
+				},
+				client,
+			);
+		for (const id of [input.id, other.id, "missing"]) expect(await target(id)).toEqual([]);
+		expect(await target(output.id)).toMatchObject([{ id: output.id, attempts: 1 }]);
+		expect(await target(output.id)).toEqual([]);
+		expect(await client.outboxEvent.findUniqueOrThrow({ where: { id: input.id } })).toMatchObject({
+			status: "PENDING",
+			attempts: 0,
+		});
+	});
+	it("claims old output events without new trace fields but rejects mismatched payload identity", async () => {
+		const old = await createOutputEvent();
+		await client.outboxEvent.update({ where: { id: old.id }, data: { payload: {} } });
+		expect(
+			await claimOutboxBatch(
+				{
+					workerId: "old-format",
+					limit: 1,
+					leaseSeconds: 60,
+					now: initialTime,
+					outputReviewEventId: old.id,
+				},
+				client,
+			),
+		).toMatchObject([{ id: old.id }]);
+		const mismatched = await createOutputEvent();
+		await client.outboxEvent.update({
+			where: { id: mismatched.id },
+			data: { payload: { assetId: old.aggregateId } },
+		});
+		expect(
+			await claimOutboxBatch(
+				{
+					workerId: "mismatched",
+					limit: 1,
+					leaseSeconds: 60,
+					now: initialTime,
+					outputReviewEventId: mismatched.id,
+				},
+				client,
+			),
+		).toEqual([]);
+	});
+
+	it("has one winner between targeted wake and scheduled scan, and fences an expired winner", async () => {
+		const event = await createOutputEvent();
+		const claims = await Promise.all([
+			claimOutboxBatch(
+				{
+					workerId: "target",
+					limit: 1,
+					leaseSeconds: 60,
+					now: initialTime,
+					outputReviewEventId: event.id,
+				},
+				client,
+			),
+			claimOutboxBatch(
+				{ workerId: "scan", limit: 100, leaseSeconds: 60, now: initialTime },
+				client,
+			),
+		]);
+		const winners = claims.flat().filter((row) => row.id === event.id);
+		expect(winners).toHaveLength(1);
+		const oldOwner = claims[0]!.some((row) => row.id === event.id) ? "target" : "scan";
+		const reclaimed = await claimOutboxBatch(
+			{
+				workerId: "recovery",
+				limit: 1,
+				leaseSeconds: 60,
+				now: new Date(initialTime.getTime() + 60001),
+				outputReviewEventId: event.id,
+			},
+			client,
+		);
+		expect(reclaimed).toHaveLength(1);
+		expect(reclaimed[0]!.leaseToken).not.toBe(winners[0]!.leaseToken);
+		expect(await completeOutboxEvent(event.id, oldOwner, winners[0]!.leaseToken, client)).toEqual({
+			count: 0,
+		});
+		expect(
+			await completeOutboxEvent(event.id, "recovery", reclaimed[0]!.leaseToken, client),
+		).toEqual({ count: 1 });
+	});
 
 	it("preserves one delivery attempt through more pending checks than the failure budget", async () => {
 		const created = await createEvent();

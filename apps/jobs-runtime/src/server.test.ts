@@ -44,6 +44,19 @@ async function request(url: string, taskId = "media-finalize-generation") {
 }
 
 describe("private Node runtime", () => {
+	it("preserves the bounded output continuation across hybrid execution", async () => {
+		const { url } = await start(
+			vi.fn().mockResolvedValue({
+				outcome: "WAITING_MODERATION",
+				outputReviewEventIds: ["event"],
+				privateUrl: "hidden",
+			}),
+		);
+		expect(await (await request(url)).json()).toEqual({
+			status: "ok",
+			outputReview: { waiting: true, eventIds: ["event"] },
+		});
+	});
 	it.each(["media-poll-generation", "media-verify-upload"])(
 		"records admitted execution once for the hybrid %s path",
 		async (taskId) => {

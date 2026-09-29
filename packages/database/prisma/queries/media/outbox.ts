@@ -1,4 +1,5 @@
-import type { Prisma } from "../../generated/client";
+import { Prisma } from "#prisma-runtime-client";
+
 import type { MediaTransactionClient, OutboxClaimInput } from "./types";
 import { runSerializable } from "./types";
 
@@ -20,6 +21,16 @@ export async function claimOutboxBatch(input: OutboxClaimInput, client: MediaTra
 	if (input.leaseSeconds < 1) throw new Error("Outbox lease duration is invalid");
 	const now = input.now ?? new Date();
 	const leasedUntil = new Date(now.getTime() + input.leaseSeconds * 1_000);
+	const target =
+		input.outputReviewEventId === undefined
+			? Prisma.empty
+			: Prisma.sql`
+		AND "id" = ${input.outputReviewEventId}
+		AND "eventType" = 'MEDIA_ASSET_VERIFY' AND "aggregateType" = 'MEDIA_ASSET'
+		AND ("payload"->>'assetId' IS NULL OR "payload"->>'assetId' = "aggregateId")
+		AND EXISTS (SELECT 1 FROM "media_asset" asset
+			WHERE asset."id" = "outbox_event"."aggregateId" AND asset."kind" = 'OUTPUT'
+			AND asset."mimeType" LIKE 'image/%')`;
 	return runSerializable(
 		client,
 		(tx) =>
@@ -28,6 +39,7 @@ export async function claimOutboxBatch(input: OutboxClaimInput, client: MediaTra
 				SELECT "id"
 				FROM "outbox_event"
 				WHERE "availableAt" <= ${now}
+				  ${target}
 				  AND (
 					"status" = 'PENDING'
 					OR ("status" = 'LEASED' AND "leasedUntil" <= ${now})

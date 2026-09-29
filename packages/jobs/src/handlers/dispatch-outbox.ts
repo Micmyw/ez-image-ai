@@ -18,13 +18,16 @@ function deliveryErrorCode(error: unknown): string {
 }
 
 export async function dispatchOutbox(
-	input: { workerId: string; limit?: number; leaseSeconds?: number },
+	input: { workerId: string; limit?: number; leaseSeconds?: number; outputReviewEventId?: string },
 	dependencies: OutboxDependencies,
 ): Promise<{ claimed: number; delivered: number }> {
 	const events = await dependencies.store.claimBatch({
 		workerId: input.workerId,
 		limit: Math.min(Math.max(input.limit ?? 25, 1), 100),
 		leaseSeconds: Math.min(Math.max(input.leaseSeconds ?? 60, 10), 300),
+		...(input.outputReviewEventId === undefined
+			? {}
+			: { outputReviewEventId: input.outputReviewEventId }),
 	});
 	let delivered = 0;
 	for (const event of events) {
@@ -34,7 +37,13 @@ export async function dispatchOutbox(
 			delivered += 1;
 		} catch (error) {
 			const now = dependencies.now?.() ?? new Date();
-			if (error instanceof OutboxDeliveryPendingError) {
+			if (
+				error instanceof OutboxDeliveryPendingError ||
+				(input.outputReviewEventId &&
+					["DELIVERY_FAILED", "WORKFLOWS_DISPATCH_UNCONFIRMED"].includes(deliveryErrorCode(error)))
+			) {
+				// An unconfirmed targeted wake may already be accepted. Keep its delivery
+				// identity and recovery row; only a completion receipt can ACK it.
 				if (!dependencies.store.defer) throw error;
 				await dependencies.store.defer({
 					id: event.id,

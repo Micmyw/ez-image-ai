@@ -87,6 +87,7 @@ const dispatchPayload = strictObject({
 
 const payloadParsers = {
 	"media-deliver-outbox": scheduled,
+	"media-deliver-output-review": strictObject({ eventId: text }),
 	"media-admit-guest-generation": strictObject({ jobId: text, trialId: text }),
 	"media-cancel-generation": strictObject(job),
 	"media-finalize-generation": strictObject(job),
@@ -205,6 +206,7 @@ export function parseTaskRequest(value: unknown): TaskRequest {
 
 const definitions: Record<keyof typeof payloadParsers, TaskDefinition> = {
 	"media-deliver-outbox": definition("media-outbox", 2, 120),
+	"media-deliver-output-review": definition("media-outbox", 2, 120),
 	"media-admit-guest-generation": definition("media-guest-admission", 1, 60, 1),
 	"media-cancel-generation": definition("media-provider-cancellation", 4, 60, 5),
 	"media-finalize-generation": definition(QUEUE_NAMES.finalization, 3, 900, 5),

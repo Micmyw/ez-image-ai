@@ -166,6 +166,20 @@ try {
 			}),
 		);
 	}
+	if (checkDatabase) {
+		// A missing targeted event must return without claiming any other live row.
+		const body = JSON.stringify({
+			request: {
+				taskId: "media-deliver-output-review",
+				payload: { eventId: `artifact-missing-${randomUUID()}` },
+			},
+			context: { attempt: 1, maxAttempts: 3, runId: "artifact-output-review" },
+		});
+		assert.equal((await request("/internal/execute", body, true, "jobs-maintenance")).status, 400);
+		const response = await request("/internal/execute", body, true, "jobs-control");
+		assert.equal(response.status, 200);
+		assert.deepEqual(await response.json(), { status: "ok" });
+	}
 	process.stdout.write(
 		JSON.stringify({
 			artifact: "dist-workers/workers.js",
@@ -174,6 +188,7 @@ try {
 			invalidSignedTaskRejected: true,
 			executorRoutingVerified: true,
 			localPostgresQuery: checkDatabase,
+			targetedOutputReviewClaim: checkDatabase,
 			liveCloudflareVerified: false,
 		}) + "\n",
 	);

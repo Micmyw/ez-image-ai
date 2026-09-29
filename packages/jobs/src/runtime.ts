@@ -1162,8 +1162,7 @@ export function createDatabaseDispatchStore(
 export const databaseDispatchStore: DispatchStore = createDatabaseDispatchStore(db);
 
 export const databaseOutboxStore: OutboxStore = {
-	claimBatch: ({ workerId, limit, leaseSeconds }) =>
-		claimOutboxBatch({ workerId, limit, leaseSeconds }, db),
+	claimBatch: (input) => claimOutboxBatch(input, db),
 	async complete(id, workerId, leaseToken) {
 		await completeOutboxEvent(id, workerId, leaseToken, db);
 	},
@@ -1290,6 +1289,7 @@ export const MEDIA_VERIFICATION_RETRY_POLICY = {
 
 interface MediaVerificationClaim {
 	assetId: string;
+	nextAllowedQueryAt: Date | null;
 	objectKey: string;
 	mimeType: string;
 	byteSize: bigint;
@@ -1534,7 +1534,13 @@ export function createDatabaseVerifyUploadDependencies(
 						}
 					}
 					const retrieval = { moderationTaskId: providerTaskId, ruleVersion: claim.ruleVersion };
-					recordStage("retrieval_prepared");
+					recordStage("retrieval_prepared", {
+						nextAllowedQueryAt: claim.nextAllowedQueryAt?.getTime() ?? null,
+						queryStartedAt: Date.now(),
+						allowedQueryToStartMs: claim.nextAllowedQueryAt
+							? Math.max(0, Date.now() - claim.nextAllowedQueryAt.getTime())
+							: null,
+					});
 					detectorRequestInFlight = true;
 					decision = asyncImage
 						? await safety.retrieveImage!({ ...retrieval, assetUrl })
@@ -1545,14 +1551,13 @@ export function createDatabaseVerifyUploadDependencies(
 						decision.decision === "REVIEW" &&
 						["VIDEO_PROCESSING", "IMAGE_PROCESSING"].includes(decision.reasonCode)
 					) {
-						outboxCommitted = await failMediaVerification(
+						return await recordMediaVerificationWaitOrFailure(
 							database,
 							claim,
 							decision.reasonCode,
 							"PENDING",
 							checksum,
 						);
-						return { outboxCommitted };
 					}
 				}
 				if (decision.decision === "ERROR") {
@@ -2168,6 +2173,7 @@ async function claimMediaVerification(
 		}
 		const generation = Math.max(asset.verificationGeneration, 1);
 		const attemptNumber = asset.verificationAttemptCount + 1;
+		const nextAllowedQueryAt = asset.verificationNextAttemptAt;
 		const leaseToken = crypto.randomUUID();
 		const claimed = await tx.mediaAsset.update({
 			where: { id: asset.id },
@@ -2187,6 +2193,7 @@ async function claimMediaVerification(
 		});
 		return {
 			processingDeadlineExpired,
+			nextAllowedQueryAt,
 			startedAt: now,
 			assetId: claimed.id,
 			objectKey: claimed.objectKey,
@@ -2417,6 +2424,17 @@ async function failMediaVerification(
 	status: "PENDING" | "ERROR",
 	checksum: string | null,
 ): Promise<boolean> {
+	return (await recordMediaVerificationWaitOrFailure(database, claim, reasonCode, status, checksum))
+		.outboxCommitted;
+}
+
+async function recordMediaVerificationWaitOrFailure(
+	database: PrismaClient,
+	claim: MediaVerificationClaim,
+	reasonCode: string,
+	status: "PENDING" | "ERROR",
+	checksum: string | null,
+): Promise<OutboxCommitResult> {
 	return database.$transaction(async (tx) => {
 		const promptRejected = await lockAssetPromptReview(claim.assetId, tx);
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${claim.assetId}`}, 0))`;
@@ -2430,7 +2448,7 @@ async function failMediaVerification(
 				verificationLeasedUntil: { gt: now },
 			},
 		});
-		if (!asset) return false;
+		if (!asset) return { outboxCommitted: false };
 		await appendVerificationEvidence(tx, {
 			assetId: asset.id,
 			assetChecksum: checksum,
@@ -2512,7 +2530,14 @@ async function failMediaVerification(
 			);
 		}
 		if (bypass) {
-			return permitFailedImageVerification(tx, asset, claim.attemptNumber + 1, reasonCode);
+			return {
+				outboxCommitted: await permitFailedImageVerification(
+					tx,
+					asset,
+					claim.attemptNumber + 1,
+					reasonCode,
+				),
+			};
 		}
 		const retryAt = exhausted
 			? null
@@ -2564,16 +2589,27 @@ async function failMediaVerification(
 					aggregateType: "MEDIA_ASSET",
 					aggregateId: asset.id,
 					dedupeKey,
-					payload: { assetId: asset.id },
-					// Inline finalization must start the polling Workflow in its immediate
-					// Outbox pass. The asset's due time/lease throttles detector reads;
-					// delaying delivery as well leaves this wake-up waiting for cron.
+					payload: {
+						assetId: asset.id,
+						...(pendingImage && asset.kind === "OUTPUT" ? { originalDueAt: now.getTime() } : {}),
+					},
+					// The same event supports targeted delivery and scheduled recovery.
+					// The asset's due time/lease throttles reads independently of delivery.
 					availableAt: pendingImage ? now : retryAt,
 				},
 			});
 			outboxCommitted ||= pendingImage && inserted.count > 0;
+			if (pendingImage && asset.kind === "OUTPUT" && asset.verificationProviderTaskId) {
+				// Read the actual row in the committing transaction, including on dedupe.
+				// A crash after commit leaves this very event for scheduled delivery.
+				const event = await tx.outboxEvent.findUniqueOrThrow({
+					where: { dedupeKey },
+					select: { id: true },
+				});
+				return { outboxCommitted, outputReviewEventId: event.id };
+			}
 		}
-		return outboxCommitted;
+		return { outboxCommitted };
 	});
 }
 
@@ -3356,6 +3392,13 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 			}
 			return { assetId: binding.assetId, approved: binding.asset.status === "READY" };
 		},
+		async recordFinalizationWait(claim, results) {
+			await runSerializable(database, async (tx) => {
+				const job = await tx.generationJob.findUniqueOrThrow({ where: { id: claim.jobId } });
+				if (job.status !== "FINALIZING") return;
+				await bindFinalizationResults(tx, claim, results);
+			});
+		},
 		async recordFinalization(claim, results, failure) {
 			await runSerializable(database, async (tx) => {
 				const job = await tx.generationJob.findUniqueOrThrow({ where: { id: claim.jobId } });
@@ -4102,9 +4145,41 @@ export function createFinalizationDependencies(
 			if (["QUARANTINED", "VERIFICATION_FAILED", "DELETED"].includes(completedAsset.status)) {
 				return { assetId, approved: false };
 			}
-			await verification.verify(assetId);
+			const progress = await verification.verify(assetId);
 			const asset = await database.mediaAsset.findUniqueOrThrow({ where: { id: assetId } });
 			if (asset.status === "VERIFYING") {
+				const pending = asset.verificationLastErrorCode === "IMAGE_PROCESSING";
+				const polling =
+					!asset.verificationLastErrorCode &&
+					asset.verificationLeaseToken &&
+					asset.verificationLeasedUntil &&
+					asset.verificationLeasedUntil > new Date();
+				if (
+					asset.kind === "OUTPUT" &&
+					asset.mimeType.startsWith("image/") &&
+					(pending || polling) &&
+					asset.verificationProviderTaskId
+				) {
+					// Duplicate/old finalizers may observe a wait committed by another actor.
+					// Look up its real event; never create a replacement or reset the due time.
+					const eventId =
+						progress?.outputReviewEventId ??
+						(
+							await database.outboxEvent.findUnique({
+								where: {
+									dedupeKey: `media-asset-verify:${asset.id}:g${asset.verificationGeneration}:poll`,
+								},
+								select: { id: true },
+							})
+						)?.id;
+					if (pending || eventId)
+						return {
+							assetId,
+							approved: false,
+							moderationPending: true,
+							...(eventId ? { outputReviewEventId: eventId } : {}),
+						};
+				}
 				throw { code: "MODERATION_RETRYABLE", stage: "MODERATION", retryable: true };
 			}
 			return { assetId, approved: asset.status === "READY" };

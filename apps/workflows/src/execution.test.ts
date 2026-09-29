@@ -22,6 +22,29 @@ async function signed(
 }
 
 describe("Workers job admission", () => {
+	it("returns only committed output review identities after releasing the heavy slot", async () => {
+		const execute = vi.fn().mockResolvedValue({
+			outcome: "WAITING_MODERATION",
+			readyOutputs: 0,
+			outputReviewEventIds: ["event-1"],
+			providerTaskId: "secret-task",
+			privateUrl: "secret-url",
+		});
+		const onEvent = vi.fn();
+		const handler = createWorkerExecutionHandler({ secret, execute, poll: vi.fn(), onEvent });
+		expect(await (await handler(await signed())).json()).toEqual({
+			status: "ok",
+			outputReview: { waiting: true, eventIds: ["event-1"] },
+		});
+		expect(onEvent).toHaveBeenLastCalledWith(
+			expect.objectContaining({ phase: "completed", active: 0, outcome: "ok" }),
+		);
+		execute.mockResolvedValueOnce({
+			outcome: "WAITING_MODERATION",
+			outputReviewEventIds: ["https://private/token"],
+		});
+		expect((await handler(await signed())).status).toBe(502);
+	});
 	it.each(["media-poll-generation", "media-verify-upload"])(
 		"records the actual admitted start at the common boundary for %s",
 		async (taskId) => {

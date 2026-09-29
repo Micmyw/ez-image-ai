@@ -50,6 +50,8 @@ Default `workers` uses OpenNext for the site and Workflows/WorkerJobs for jobs; 
 
 Workers route heavy transfers and synchronous image responses to `jobs-primary` (1), lightweight control work to `jobs-control` (4), and maintenance to `jobs-maintenance` (1). Keep classification in `packages/jobs/src/orchestration/worker-executors.ts`; inline Outbox children must stay within the parent's maintenance slot. Separate Durable Objects do not guarantee separate memory isolates.
 
+Output image PENDING may return its committed Outbox event for `media-deliver-output-review` on control, after heavy execution releases its slot. Targeted delivery uses the same Outbox claim/lease/completion receipts as scanning and starts the existing verification polling Workflow; acceptance alone never ACKs the event. Keep the stored next-query time and provider task identity. Other handoffs retain normal Outbox delivery.
+
 For jobs, database runtime imports, packaging, or deployment, use [Cloudflare runtime constraints](docs/agent-reference/cloudflare-runtime.md) and [profile cutover/drain/rollback operations](docs/operations/cloudflare-workers-profiles.md). Builds/preparation do not deploy or certify live cron, recovery, shutdown, or external integrations.
 
 Consumer-facing changes update `CHANGELOG.md`, relevant `apps/saas/modules/landing`, `apps/saas/content`, product docs, and translations. Use conventional commits and update this entry when app/runtime boundaries change.

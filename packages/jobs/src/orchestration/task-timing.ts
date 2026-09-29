@@ -1,4 +1,19 @@
+import type { OutboxLease } from "../contracts";
 import type { TaskExecutionContext, TaskRequest } from "./contracts";
+
+/** Deferring a delivery changes availableAt, not its original diagnostic due time. */
+export function outboxTaskTrace(event: OutboxLease): Pick<TaskRequest, "trace"> {
+	const payload = event.payload as { originalDueAt?: unknown } | null;
+	const original = event.eventType === "MEDIA_ASSET_VERIFY" ? payload?.originalDueAt : undefined;
+	const dueAt =
+		typeof original === "number" &&
+		Number.isSafeInteger(original) &&
+		original >= 0 &&
+		Number.isFinite(new Date(original).getTime())
+			? original
+			: event.availableAt?.getTime();
+	return dueAt === undefined ? {} : { trace: { outboxEventId: event.id, dueAt } };
+}
 
 /** Called after capacity admission, including inline children sharing the parent slot. */
 export function logTaskStarted(

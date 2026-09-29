@@ -124,6 +124,8 @@ export interface OutboxClaimInput {
 	limit: number;
 	leaseSeconds: number;
 	now?: Date;
+	/** Restrict a continuation claim to one output verification event. */
+	outputReviewEventId?: string;
 }
 
 export interface CursorPageInput {

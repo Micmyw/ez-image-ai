@@ -2,6 +2,12 @@
 
 ## 2026-09-30
 
+### Output review continuation (not yet deployed)
+
+- Continue pending output image review through its committed event after releasing the heavy executor, using the existing bounded verification polling and recovery protocol.
+- Keep normal review waits outside technical finalization retries. Preserve moderation identities, safety decisions and credit settlement; add callback and query-wait timing without recording request content.
+- Local regression and artifact checks do not establish Cloudflare latency gains; the isolated cloud comparison remains pending authorization.
+
 ### Generation admission and preview delivery
 
 - Reuse approved submission configuration and eligibility reads while rechecking mutable limits in the credit-reservation transaction. Keep standalone quote/create requests and retry identities compatible.

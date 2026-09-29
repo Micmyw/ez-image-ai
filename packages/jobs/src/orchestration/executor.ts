@@ -70,7 +70,7 @@ import {
 	parseTaskRequest,
 	taskDefinition,
 } from "./registry";
-import { logTaskStarted } from "./task-timing";
+import { logTaskStarted, outboxTaskTrace } from "./task-timing";
 import { listVerificationRecoveryCandidates } from "./verification-recovery";
 
 export interface ExecutorDependencies {
@@ -138,8 +138,16 @@ export async function executeTask(
 
 	switch (taskId) {
 		case "media-deliver-outbox":
+		case "media-deliver-output-review":
 			return dispatchOutbox(
-				{ workerId: `workflow:${context.runId}`, limit: 50, leaseSeconds: 90 },
+				{
+					workerId: `workflow:${context.runId}`,
+					limit: taskId === "media-deliver-output-review" ? 1 : 50,
+					leaseSeconds: 90,
+					...(taskId === "media-deliver-output-review"
+						? { outputReviewEventId: parseTaskPayload(taskId, payload).eventId }
+						: {}),
+				},
 				{
 					store: databaseOutboxStore,
 					now,
@@ -150,9 +158,7 @@ export async function executeTask(
 								dispatch(childTaskId, childPayload, {
 									idempotencyKey: `outbox:${event.id}:attempt:${event.attempts}:${childTaskId}`,
 									requireCompletion: true,
-									...(event.availableAt
-										? { trace: { outboxEventId: event.id, dueAt: event.availableAt.getTime() } }
-										: {}),
+									...outboxTaskTrace(event),
 								}),
 							// Cleanup, cancellation, and guest admission must finish before ACK.
 							// Inline execution retains the parent's admitted slot and avoids
@@ -161,9 +167,7 @@ export async function executeTask(
 								const child = {
 									taskId: childTaskId,
 									payload: childPayload,
-									...(event.availableAt
-										? { trace: { outboxEventId: event.id, dueAt: event.availableAt.getTime() } }
-										: {}),
+									...outboxTaskTrace(event),
 								};
 								dependencies.assertInlineTask?.(request, child);
 								const childContext = {

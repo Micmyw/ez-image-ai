@@ -7,7 +7,10 @@ import type {
 	TaskExecutionContext,
 	PollingTickResult,
 } from "@repo/jobs/orchestration/contracts";
-import { parsePollingTickResult } from "@repo/jobs/orchestration/contracts";
+import {
+	parsePollingTickResult,
+	parseOutputReviewContinuation,
+} from "@repo/jobs/orchestration/contracts";
 import { parseTaskRequest, taskDefinition } from "@repo/jobs/orchestration/registry";
 import { logTaskStarted } from "@repo/jobs/orchestration/task-timing";
 
@@ -111,11 +114,15 @@ export function createRuntimeServer(options: {
 				respond(200, { status: "ok", poll });
 			} else {
 				const result = await options.execute(request, context);
+				const outputReview =
+					request.taskId === "media-finalize-generation"
+						? parseOutputReviewContinuation(result)
+						: undefined;
 				respond(
 					200,
 					request.taskId === "media-verify-upload"
 						? { status: "ok", poll: parsePollingTickResult(result) }
-						: { status: "ok" },
+						: { status: "ok", ...(outputReview ? { outputReview } : {}) },
 				);
 			}
 		} catch {
