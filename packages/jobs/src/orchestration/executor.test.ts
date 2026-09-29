@@ -139,6 +139,64 @@ beforeEach(() => {
 });
 
 describe("Node task executor", () => {
+	it.each([true, false])(
+		"returns the committed Outbox signal %s rather than inferring it from READY",
+		async (outboxCommitted) => {
+			mocks.verify.mockResolvedValueOnce({ outboxCommitted });
+			mocks.findAsset.mockResolvedValueOnce({ status: "READY", deletedAt: null });
+			expect(
+				await executeTask(
+					{ taskId: "media-verify-upload", payload: { assetId: "output" } },
+					context,
+				),
+			).toEqual({ done: true, waitSeconds: 0, outboxCommitted });
+		},
+	);
+	it("does not duplicate the execution boundary start log or add a timing database operation", async () => {
+		const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+		const now = new Date("2026-09-29T00:00:05Z");
+		try {
+			await executeTask(
+				{
+					taskId: "media-verify-upload",
+					payload: { assetId: "asset-1" },
+					trace: { outboxEventId: "event-1", dueAt: now.getTime() - 2_500, requestId: "request-1" },
+				},
+				context,
+				{ now: () => now },
+			);
+			expect(info).not.toHaveBeenCalled();
+			expect(mocks.findAsset).toHaveBeenCalledOnce();
+		} finally {
+			info.mockRestore();
+		}
+	});
+	it("records a single start for inline Outbox children that bypass the HTTP boundary", async () => {
+		const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
+		const now = new Date("2026-09-30T00:00:05Z");
+		mocks.outboxStore.claimBatch.mockResolvedValue([
+			event({ availableAt: new Date(now.getTime() - 2_500) }),
+		]);
+		try {
+			await executeTask({ taskId: "media-deliver-outbox", payload: {} }, context, {
+				now: () => now,
+				assertInlineTask: assertWorkerInlineTask,
+			});
+			expect(info).toHaveBeenCalledExactlyOnceWith(
+				"media.task.started",
+				expect.objectContaining({
+					taskId: "media-delete-object",
+					assetId: "asset-1",
+					outboxEventId: "outbox-1",
+					startedAt: now.getTime(),
+					dueToStartMs: 2_500,
+				}),
+			);
+			expect(JSON.stringify(info.mock.calls)).not.toContain("private/object");
+		} finally {
+			info.mockRestore();
+		}
+	});
 	it("returns the persisted moderation due time for durable polling instead of waiting for cron", async () => {
 		const now = new Date("2026-09-19T06:00:00Z");
 		mocks.findAsset.mockResolvedValue({
@@ -222,7 +280,7 @@ describe("Node task executor", () => {
 			await executeTask({ taskId: "media-reconcile-generations", payload: {} }, context, {
 				environment,
 			}),
-		).toEqual({ claimed: 1, reconciled: 0 });
+		).toEqual({ claimed: 1, reconciled: 0, outboxCommitted: false });
 		expect(mocks.runtime.createReconciliationProviderRegistry).toHaveBeenCalledWith(environment);
 		expect(mocks.reconciliationStore.markUncertainForManualReconciliation).toHaveBeenCalledWith(
 			lease,

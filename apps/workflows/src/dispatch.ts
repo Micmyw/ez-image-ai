@@ -55,7 +55,9 @@ export async function handleDispatch(
 		const value = JSON.parse(body) as Record<string, unknown>;
 		if (
 			!value ||
-			Object.keys(value).some((key) => !["taskId", "payload", "idempotencyKey"].includes(key))
+			Object.keys(value).some(
+				(key) => !["taskId", "payload", "idempotencyKey", "trace"].includes(key),
+			)
 		)
 			throw new Error();
 		if (
@@ -65,11 +67,19 @@ export async function handleDispatch(
 		)
 			throw new Error();
 		idempotencyKey = value.idempotencyKey;
-		task = parseTaskRequest({ taskId: value.taskId, payload: value.payload });
+		task = parseTaskRequest({
+			taskId: value.taskId,
+			payload: value.payload,
+			...(value.trace === undefined ? {} : { trace: value.trace }),
+		});
 	} catch {
 		return new Response("Invalid task", { status: 400 });
 	}
-	const id = await workflowInstanceId({ idempotencyKey, task });
+	// Diagnostic metadata may change on redelivery. Preserve the historical identity.
+	const id = await workflowInstanceId({
+		idempotencyKey,
+		task: { taskId: task.taskId, payload: task.payload },
+	});
 	try {
 		// createBatch is Cloudflare's idempotent create API: duplicate IDs are
 		// skipped atomically. A lost HTTP response can safely replay the same body.

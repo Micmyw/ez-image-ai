@@ -12,6 +12,7 @@ interface ClaimedOutboxRow {
 	attempts: number;
 	leaseToken: string;
 	leasedUntil: Date;
+	availableAt: Date;
 }
 
 export async function claimOutboxBatch(input: OutboxClaimInput, client: MediaTransactionClient) {
@@ -43,7 +44,7 @@ export async function claimOutboxBatch(input: OutboxClaimInput, client: MediaTra
 			WHERE event."id" = claimable."id"
 			RETURNING event."id", event."eventType", event."aggregateType",
 			          event."aggregateId", event."dedupeKey", event."payload",
-			          event."attempts", event."leaseToken", event."leasedUntil"`,
+			          event."attempts", event."leaseToken", event."leasedUntil", event."availableAt"`,
 	);
 }
 

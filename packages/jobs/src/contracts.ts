@@ -288,13 +288,18 @@ export interface ReconciliationStore {
 		lease: ReconciliationLease,
 		snapshot: ProviderTaskSnapshot,
 		result: NormalizedResult,
-	): Promise<void>;
+	): Promise<OutboxCommitResult | void>;
 	releaseReconciliationLease(
 		lease: ReconciliationLease,
 		code: string,
 		retryAt: Date,
 	): Promise<void>;
 	markUncertainForManualReconciliation(lease: ReconciliationLease, code?: string): Promise<void>;
+}
+
+export interface OutboxCommitResult {
+	/** True only after a transaction commits a new next-stage Outbox event. */
+	outboxCommitted: boolean;
 }
 
 export interface ReconciliationDependencies {
@@ -315,6 +320,7 @@ export interface OutboxLease {
 	payload: unknown;
 	leaseToken: string;
 	attempts: number;
+	availableAt?: Date;
 }
 
 /** The durable executor has accepted work but has not yet confirmed completion. */

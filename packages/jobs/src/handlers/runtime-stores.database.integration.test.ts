@@ -24,6 +24,9 @@ import {
 	revertRuntimeConfigOverride,
 	resolveAdminUncertainSubmission,
 	wakeKieGenerationAttempt,
+	claimOutboxBatch,
+	completeOutboxEvent,
+	releaseOutboxEvent,
 } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
 import { MediaValidationError } from "@repo/storage";
@@ -42,7 +45,9 @@ import {
 	resolveDatabaseDispatchRoute,
 	type DispatchRuntimeOptions,
 } from "../runtime";
+import { deliverOutboxEvent } from "./deliver-outbox-event";
 import { dispatchGeneration } from "./dispatch-generation";
+import { dispatchOutbox } from "./dispatch-outbox";
 import { finalizeMedia } from "./finalize-media";
 import { reconcileGenerations } from "./reconcile-generations";
 import { settleGeneration } from "./settle-generation";
@@ -73,6 +78,121 @@ describe("production media runtime stores", () => {
 	});
 
 	afterAll(async () => client?.$disconnect());
+
+	it("recovers a committed verification event after a crash before wake-up, even when duplicate verification is a no-op", async () => {
+		const seeded = await seedFinalizingJob();
+		const output = await seedBoundOutputAsset(seeded.jobId, "VERIFYING");
+		const verification = createOutputVerificationDependencies("ALLOW");
+		expect(await verifyUpload({ assetId: output.assetId }, verification)).toEqual({
+			outboxCommitted: true,
+		});
+		const event = await client.outboxEvent.findFirstOrThrow({
+			where: { aggregateId: seeded.jobId, eventType: "GENERATION_FINALIZE_RETRY" },
+		});
+		// Simulate process death: never deliver the returned wake-up signal.
+		expect(await verifyUpload({ assetId: output.assetId }, verification)).toEqual({
+			outboxCommitted: false,
+		});
+		const workerId = `crash-recovery:${event.id}`;
+		const recovered = await claimFixtureOutboxEvent(event.id, workerId, new Date());
+		expect(recovered).toMatchObject({
+			id: event.id,
+			aggregateId: seeded.jobId,
+			payload: event.payload,
+			availableAt: event.availableAt,
+		});
+		const trigger = vi.fn(async () => undefined);
+		await deliverOutboxEvent(recovered, { trigger, resolveDispatchRoute: vi.fn() });
+		expect(trigger).toHaveBeenCalledExactlyOnceWith("media-finalize-generation", {
+			jobId: seeded.jobId,
+			version: seeded.version,
+		});
+		await completeOutboxEvent(event.id, workerId, recovered.leaseToken, client);
+		expect(await client.outboxEvent.findUniqueOrThrow({ where: { id: event.id } })).toMatchObject({
+			status: "PROCESSED",
+		});
+	});
+
+	it("re-delivers the same committed event after lost acceptance without another provider attempt", async () => {
+		const seeded = await seedReservedJob("image-nano-banana-2-lite");
+		const event = await client.outboxEvent.findFirstOrThrow({
+			where: { aggregateId: seeded.jobId, eventType: "JOB_CREATED" },
+		});
+		let now = new Date();
+		let loseResponse = true;
+		const submit = vi.fn(async () => ({
+			providerTaskId: `mock-kie-${seeded.jobId}`,
+			status: "QUEUED" as const,
+			outcome: "accepted" as const,
+			idempotency: { key: seeded.jobId, providerSupported: false, replayed: false },
+			reconciliation: { submissionToken: seeded.jobId },
+		}));
+		const provider = {
+			provider: "kie" as const,
+			submit,
+			retrieve: vi.fn(),
+			normalizeResult: vi.fn(),
+		};
+		const store = createTestDispatchStore();
+		const deliveredIds: string[] = [];
+		const dependencies = {
+			now: () => now,
+			store: {
+				claimBatch: async ({ workerId }: { workerId: string }) => [
+					await claimFixtureOutboxEvent(event.id, workerId, now),
+				],
+				complete: async (id: string, workerId: string, leaseToken: string) => {
+					await completeOutboxEvent(id, workerId, leaseToken, client);
+				},
+				release: async (input: {
+					id: string;
+					workerId: string;
+					leaseToken: string;
+					errorCode: string;
+					retryAt: Date;
+				}) => {
+					await releaseOutboxEvent({ ...input, error: input.errorCode, maxAttempts: 12 }, client);
+				},
+			},
+			deliver: async (leased: Awaited<ReturnType<typeof claimFixtureOutboxEvent>>) => {
+				deliveredIds.push(leased.id);
+				await deliverOutboxEvent(leased, {
+					resolveDispatchRoute: (jobId) =>
+						resolveDatabaseDispatchRoute(jobId, {
+							database: client,
+							enabledProviders: TEST_EXECUTABLE_PROVIDERS,
+						}),
+					trigger: async (_taskId, payload) => {
+						await dispatchGeneration(
+							{ jobId: payload.jobId as string, version: payload.version as number },
+							{ store, getProvider: () => provider },
+						);
+						if (loseResponse) {
+							loseResponse = false;
+							throw new Error("simulated lost acceptance response");
+						}
+					},
+				});
+			},
+		};
+		expect(await dispatchOutbox({ workerId: "lost-response-1" }, dependencies)).toEqual({
+			claimed: 1,
+			delivered: 0,
+		});
+		const retry = await client.outboxEvent.findUniqueOrThrow({ where: { id: event.id } });
+		expect(retry).toMatchObject({ status: "PENDING", attempts: 1 });
+		now = new Date(retry.availableAt.getTime() + 1);
+		expect(await dispatchOutbox({ workerId: "lost-response-2" }, dependencies)).toEqual({
+			claimed: 1,
+			delivered: 1,
+		});
+		expect(deliveredIds).toEqual([event.id, event.id]);
+		expect(submit).toHaveBeenCalledOnce();
+		expect(await client.generationAttempt.count({ where: { jobId: seeded.jobId } })).toBe(1);
+		expect(
+			await client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+		).toMatchObject({ status: "ACTIVE", amount: seeded.credits });
+	});
 
 	it("shares the lifetime waiver within a team independently of the personal account", async () => {
 		const ownerId = `moderation-team-${crypto.randomUUID()}`;
@@ -1263,7 +1383,7 @@ describe("production media runtime stores", () => {
 					now: () => recoveryNow,
 				},
 			),
-		).resolves.toEqual({ claimed: 1, reconciled: 0 });
+		).resolves.toEqual({ claimed: 1, reconciled: 0, outboxCommitted: false });
 
 		const [job, attempt, reservation, settlementCount, audit] = await Promise.all([
 			client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
@@ -2478,14 +2598,16 @@ describe("production media runtime stores", () => {
 			const output = await seedBoundOutputAsset(seeded.jobId, "VERIFYING");
 			const sibling = await seedBoundOutputAsset(seeded.jobId, "VERIFYING");
 
-			await verifyUpload(
+			const changed = await verifyUpload(
 				{ assetId: output.assetId },
 				createOutputVerificationDependencies(decision),
 			);
-			await verifyUpload(
+			const duplicate = await verifyUpload(
 				{ assetId: output.assetId },
 				createOutputVerificationDependencies(decision),
 			);
+			expect(changed).toEqual({ outboxCommitted: true });
+			expect(duplicate).toEqual({ outboxCommitted: false });
 			const wakes = await client.outboxEvent.findMany({
 				where: { aggregateId: seeded.jobId, eventType: "GENERATION_FINALIZE_RETRY" },
 			});
@@ -3412,6 +3534,18 @@ async function cleanupGuestLinkDispatchFixture(fixture: GuestLinkDispatchFixture
 		data: { status: "FAILED", terminalAt: new Date() },
 	});
 	await revertRuntimeConfigOverride(fixture.overrideId, "task4-guest-test", client);
+}
+
+async function claimFixtureOutboxEvent(id: string, workerId: string, now: Date) {
+	// Other fixtures can leave older durable events. Use the real ordered recovery
+	// claim until this test's event is reached; never deliver another fixture's work.
+	for (let batch = 0; batch < 30; batch++) {
+		const events = await claimOutboxBatch({ workerId, limit: 100, leaseSeconds: 90, now }, client);
+		const event = events.find((candidate) => candidate.id === id);
+		if (event) return event;
+		if (events.length === 0) break;
+	}
+	throw new Error("EXPECTED_RECOVERABLE_FIXTURE_EVENT");
 }
 
 async function seedReservedJob(

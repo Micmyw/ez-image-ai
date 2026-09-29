@@ -6,6 +6,7 @@ import type {
 } from "@repo/jobs/orchestration/contracts";
 import { parsePollingTickResult } from "@repo/jobs/orchestration/contracts";
 import { parseTaskRequest, taskDefinition } from "@repo/jobs/orchestration/registry";
+import { logTaskStarted } from "@repo/jobs/orchestration/task-timing";
 
 export interface WorkerExecutionOptions {
 	secret: string;
@@ -88,6 +89,7 @@ export function createWorkerExecutionHandler(options: WorkerExecutionOptions) {
 		active++;
 		queues.set(definition.queue, queued + 1);
 		const startedAt = Date.now();
+		logTaskStarted(request, context, startedAt);
 		let outcome: "ok" | "failed" = "ok";
 		try {
 			// Deadlines belong to bounded I/O and Workflow delivery. Releasing this

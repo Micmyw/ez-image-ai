@@ -151,7 +151,18 @@ tests establish routing, bounded concurrency and progress under contention; they
 production user capacity, Cloudflare memory headroom, or the account's actual bill.
 
 Normal generation stages immediately deliver their committed Outbox events in a separate durable
-step after releasing the executor slot. Pending image verification uses bounded durable polling
+step after releasing the executor slot. Verification and generation polling return an explicit
+transaction outcome: a terminal duplicate that created no next-stage event does not start another
+global Outbox pass. This includes lost-lease and `not_claimed` executions; claim-time transitions
+that do create settlement or dispatch work still wake delivery. Older execution results without
+the outcome field keep their previous delivery behavior, and scheduled recovery remains active
+if a process stops after commit but before wake-up. Outbox delivery carries its existing event ID
+and `availableAt` as diagnostic metadata, excluded from Workflow identity; `media.task.started`
+logs the first admitted start in both Worker and Node paths, including their dedicated generation
+poll entry points and inline Outbox children, without payloads or new database writes. The event
+due-to-start metric is emitted only for the first poll tick and execution attempt; later ticks keep
+correlation IDs but omit the original due time. Their own due-to-start metric remains unmeasured
+(`null`), so planned sleeps and retry work are not counted as initial dispatch delay. Pending checks wait durably
 at the persisted database retry time. A pending image check makes its Outbox wake-up immediately
 deliverable, including when the first check ran inside finalization. The polling Workflow then
 waits for the database's five-second image interval; video checks keep their fifteen-second interval.
@@ -206,6 +217,14 @@ Sources: [Images pricing](https://developers.cloudflare.com/images/pricing/),
    dispatch URL. Verify the bindings and signed dispatch before reopening generation.
 4. Verify login/session cookies, a private upload, an actual image transformation, storage,
    generation callback/polling, failure recovery and credits. Then restore feature gates.
+
+Batch 1A/1B's no-op Outbox suppression requires no migration. A focused rollback may restore
+the old `shouldDeliverNextStage` behavior while retaining the optional diagnostic `trace`
+parser and dispatch identity rules. Older persisted executor responses without `outboxCommitted`
+already retain their previous delivery behavior. A full older-binary rollback needs the drain
+procedure above: older strict ingress validators reject new requests containing `trace`.
+Do not create replacement Workflow identities, events or provider attempts to replay in-flight
+work during rollback; leases and uncertainty recovery continue to own the original attempts.
 
 Sharp and Images encode differently. Retrying an unfinished watermarked output across adapters
 can produce a different checksum; existing conditional writes intentionally reject that mismatch.

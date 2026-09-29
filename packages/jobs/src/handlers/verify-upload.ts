@@ -3,14 +3,15 @@ export interface VerifyUploadDependencies {
 		this: void,
 		assetId: string,
 		options?: { allowQuarantinedReverification: boolean },
-	): Promise<void>;
+	): Promise<OutboxCommitResult | void>;
 }
 
 export async function verifyUpload(
 	payload: { assetId: string; allowQuarantinedReverification?: boolean },
 	dependencies: VerifyUploadDependencies,
-): Promise<void> {
-	await dependencies.verify(payload.assetId, {
+): Promise<OutboxCommitResult | void> {
+	return dependencies.verify(payload.assetId, {
 		allowQuarantinedReverification: payload.allowQuarantinedReverification === true,
 	});
 }
+import type { OutboxCommitResult } from "../contracts";

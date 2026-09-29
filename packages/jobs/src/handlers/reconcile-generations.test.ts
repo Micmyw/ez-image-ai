@@ -35,7 +35,7 @@ describe("reconcileGenerations", () => {
 			},
 		);
 
-		expect(result).toEqual({ claimed: 1, reconciled: 0 });
+		expect(result).toEqual({ claimed: 1, reconciled: 0, outboxCommitted: false });
 		expect(markUncertainForManualReconciliation).toHaveBeenCalledOnce();
 		expect(markUncertainForManualReconciliation).toHaveBeenCalledWith(
 			lease,

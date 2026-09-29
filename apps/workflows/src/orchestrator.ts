@@ -1,4 +1,4 @@
-import type { TaskRequest } from "@repo/jobs/orchestration/contracts";
+import type { TaskRequest, PollingTickResult } from "@repo/jobs/orchestration/contracts";
 import {
 	dispatchRouteForTask,
 	maintenanceTasksAt,
@@ -14,7 +14,7 @@ export interface DurableSteps {
 	sleep(name: string, duration: string): Promise<void>;
 }
 export type InvocationResult =
-	| { status: "ok"; poll?: { done: boolean; waitSeconds: number } }
+	| { status: "ok"; poll?: PollingTickResult }
 	| { status: "busy" | "failed" | "expired" };
 export type InvokeTask = (
 	request: TaskRequest,
@@ -89,7 +89,7 @@ function shouldDeliverNextStage(
 	result: InvocationResult & { status: "ok" },
 ): boolean {
 	if (taskId === "media-poll-generation" || taskId === "media-verify-upload")
-		return result.poll?.done === true;
+		return result.poll?.done === true && result.poll.outboxCommitted !== false;
 	return (
 		Boolean(dispatchRouteForTask(taskId)) ||
 		[
@@ -121,7 +121,16 @@ export async function runPolling(
 			async () => Date.now() >= deadline,
 		);
 		if (expired) return;
-		const result = await runTask(request, runId, step, invoke, `poll-${index}`, deadline);
+		const { dueAt, ...correlation } = request.trace ?? {};
+		const tickRequest = {
+			...request,
+			trace: {
+				...correlation,
+				...(index === 0 && dueAt !== undefined ? { dueAt } : {}),
+				pollTick: index,
+			},
+		};
+		const result = await runTask(tickRequest, runId, step, invoke, `poll-${index}`, deadline);
 		if (result.status === "expired") return;
 		if (!result.poll) throw new Error("INVALID_POLL_RESULT");
 		if (result.poll.done) return;

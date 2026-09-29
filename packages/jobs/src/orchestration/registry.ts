@@ -174,15 +174,32 @@ export function parseDispatchPayload(taskId: string, payload: unknown) {
 }
 
 export function parseTaskRequest(value: unknown): TaskRequest {
-	const envelope = strictObject({ taskId: text, payload: record })(value);
+	const identity = (value: unknown) => {
+		if (typeof value !== "string" || !/^[a-zA-Z0-9_:-]{1,256}$/.test(value)) return invalid();
+		return value;
+	};
+	const envelope = strictObject({
+		taskId: text,
+		payload: record,
+		trace: optional(
+			strictObject({
+				requestId: optional(identity),
+				outboxEventId: optional(identity),
+				dueAt: optional(timestamp),
+				pollTick: optional(integer),
+			}),
+		),
+	})(value);
+	const trace = envelope.trace === undefined ? {} : { trace: envelope.trace };
 	if (dispatchRouteForTask(envelope.taskId)) {
 		parseDispatchPayload(envelope.taskId, envelope.payload);
-		return { taskId: envelope.taskId, payload: dispatchPayload(envelope.payload) };
+		return { taskId: envelope.taskId, payload: dispatchPayload(envelope.payload), ...trace };
 	}
 	if (!Object.hasOwn(payloadParsers, envelope.taskId)) return invalid();
 	return {
 		taskId: envelope.taskId,
 		payload: parseTaskPayload(envelope.taskId as keyof typeof payloadParsers, envelope.payload),
+		...trace,
 	};
 }
 

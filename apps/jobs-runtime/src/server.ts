@@ -9,6 +9,7 @@ import type {
 } from "@repo/jobs/orchestration/contracts";
 import { parsePollingTickResult } from "@repo/jobs/orchestration/contracts";
 import { parseTaskRequest, taskDefinition } from "@repo/jobs/orchestration/registry";
+import { logTaskStarted } from "@repo/jobs/orchestration/task-timing";
 
 import { executionDeadline } from "./deadline";
 
@@ -93,6 +94,7 @@ export function createRuntimeServer(options: {
 		}
 		active++;
 		queues.set(definition.queue, queued + 1);
+		logTaskStarted(request, context);
 		const cancelDeadline = executionDeadline(definition.timeoutSeconds + 15, () => {
 			// All interrupted work stays recoverable via leases and pending Outbox
 			// receipts. Do not keep an abandoned process alive after its deadline.

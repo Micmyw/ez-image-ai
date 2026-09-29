@@ -70,6 +70,7 @@ import {
 	parseTaskRequest,
 	taskDefinition,
 } from "./registry";
+import { logTaskStarted } from "./task-timing";
 import { listVerificationRecoveryCandidates } from "./verification-recovery";
 
 export interface ExecutorDependencies {
@@ -149,22 +150,29 @@ export async function executeTask(
 								dispatch(childTaskId, childPayload, {
 									idempotencyKey: `outbox:${event.id}:attempt:${event.attempts}:${childTaskId}`,
 									requireCompletion: true,
+									...(event.availableAt
+										? { trace: { outboxEventId: event.id, dueAt: event.availableAt.getTime() } }
+										: {}),
 								}),
 							// Cleanup, cancellation, and guest admission must finish before ACK.
 							// Inline execution retains the parent's admitted slot and avoids
 							// reacquiring the same single-slot executor while awaiting a child.
 							triggerAndWait: async (childTaskId, childPayload) => {
-								const child = { taskId: childTaskId, payload: childPayload };
+								const child = {
+									taskId: childTaskId,
+									payload: childPayload,
+									...(event.availableAt
+										? { trace: { outboxEventId: event.id, dueAt: event.availableAt.getTime() } }
+										: {}),
+								};
 								dependencies.assertInlineTask?.(request, child);
-								await executeTask(
-									child,
-									{
-										attempt: 1,
-										maxAttempts: taskDefinition(childTaskId, environment).maxAttempts,
-										runId: `${context.runId}:outbox:${event.id}:${event.leaseToken}`,
-									},
-									dependencies,
-								);
+								const childContext = {
+									attempt: 1,
+									maxAttempts: taskDefinition(childTaskId, environment).maxAttempts,
+									runId: `${context.runId}:outbox:${event.id}:${event.leaseToken}`,
+								};
+								logTaskStarted(child, childContext, now().getTime());
+								await executeTask(child, childContext, dependencies);
 							},
 							resolveDispatchRoute: resolveDatabaseDispatchRoute,
 						}),
@@ -212,7 +220,8 @@ export async function executeTask(
 			return executePollingTick(parseTaskPayload(taskId, payload));
 		case "media-verify-upload": {
 			const input = parseTaskPayload(taskId, payload);
-			await verifyUpload(input, databaseVerifyUploadDependencies);
+			const progress = await verifyUpload(input, databaseVerifyUploadDependencies);
+			const signal = progress === undefined ? {} : { outboxCommitted: progress.outboxCommitted };
 			const asset = await db.mediaAsset.findUnique({
 				where: { id: input.assetId },
 				select: {
@@ -223,7 +232,7 @@ export async function executeTask(
 				},
 			});
 			if (!asset || asset.deletedAt || asset.status !== "VERIFYING")
-				return { done: true, waitSeconds: 0 };
+				return { done: true, waitSeconds: 0, ...signal };
 			// A pending provider check keeps its existing task identity and DB lease.
 			// Workflow sleep releases the executor until the persisted retry is due.
 			const nextAt = Math.max(
@@ -232,6 +241,7 @@ export async function executeTask(
 			);
 			return {
 				done: false,
+				...signal,
 				waitSeconds: nextAt
 					? Math.min(60, Math.max(1, Math.ceil((nextAt - now().getTime()) / 1_000)))
 					: 5,

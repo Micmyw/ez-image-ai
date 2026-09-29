@@ -19,6 +19,79 @@ function fakeSteps() {
 }
 
 describe("durable job orchestration", () => {
+	it("keeps original event due time only on the first poll tick, including capacity waits", async () => {
+		const step = fakeSteps();
+		const invoke = vi
+			.fn()
+			.mockResolvedValueOnce({ status: "busy" })
+			.mockResolvedValueOnce({
+				status: "ok",
+				poll: { done: false, waitSeconds: 5, outboxCommitted: false },
+			})
+			.mockResolvedValueOnce({
+				status: "ok",
+				poll: { done: true, waitSeconds: 0, outboxCommitted: false },
+			});
+		await runPolling(
+			{
+				taskId: "media-verify-upload",
+				payload: { assetId: "asset-1" },
+				trace: { outboxEventId: "event-1", dueAt: 1_800_000_000_000 },
+			},
+			"poll-trace",
+			step,
+			invoke,
+		);
+		expect(invoke.mock.calls.map(([request]) => request.trace)).toEqual([
+			{ outboxEventId: "event-1", dueAt: 1_800_000_000_000, pollTick: 0 },
+			{ outboxEventId: "event-1", dueAt: 1_800_000_000_000, pollTick: 0 },
+			{ outboxEventId: "event-1", pollTick: 1 },
+		]);
+		// Durable replay uses the same recorded steps and does not re-execute logs.
+		await runPolling(
+			{
+				taskId: "media-verify-upload",
+				payload: { assetId: "asset-1" },
+				trace: { outboxEventId: "event-1", dueAt: 1_800_000_000_000 },
+			},
+			"poll-trace",
+			step,
+			invoke,
+		);
+		expect(invoke).toHaveBeenCalledTimes(3);
+	});
+	it.each(["media-verify-upload", "media-poll-generation"])(
+		"does not scan Outbox after a duplicate %s with no committed event",
+		async (taskId) => {
+			const invoke = vi.fn().mockResolvedValue({
+				status: "ok",
+				poll: { done: true, waitSeconds: 0, outboxCommitted: false },
+			});
+			await runTask({ taskId, payload: {} }, "duplicate", fakeSteps(), invoke);
+			expect(invoke).toHaveBeenCalledOnce();
+		},
+	);
+	it.each([true, undefined])(
+		"retains delivery after committed or legacy polling result %s",
+		async (outboxCommitted) => {
+			const invoke = vi
+				.fn()
+				.mockResolvedValue({ status: "ok" })
+				.mockResolvedValueOnce({
+					status: "ok",
+					poll: {
+						done: true,
+						waitSeconds: 0,
+						...(outboxCommitted === undefined ? {} : { outboxCommitted }),
+					},
+				});
+			await runTask({ taskId: "media-verify-upload", payload: {} }, "changed", fakeSteps(), invoke);
+			expect(invoke.mock.calls.map(([request]) => request.taskId)).toEqual([
+				"media-verify-upload",
+				"media-deliver-outbox",
+			]);
+		},
+	);
 	it.each([
 		"media-finalize-generation",
 		"media-process-provider-webhook",
