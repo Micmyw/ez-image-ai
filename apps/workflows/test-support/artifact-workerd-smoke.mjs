@@ -133,14 +133,23 @@ try {
 				"jobs-control",
 				"jobs-control",
 				"jobs-maintenance",
-			].map(async (name) => {
+			].map(async (name, index) => {
 				const maintenance = name === "jobs-maintenance";
 				const response = await request(
 					"/internal/execute",
 					JSON.stringify({
-						request: maintenance
-							? { taskId: "media-cancel-generation", payload: { jobId: randomUUID(), version: 0 } }
-							: { taskId: "media-poll-generation", payload: { attemptId: randomUUID() } },
+						request: {
+							...(maintenance
+								? {
+										taskId: "media-cancel-generation",
+										payload: { jobId: randomUUID(), version: 0 },
+									}
+								: { taskId: "media-poll-generation", payload: { attemptId: randomUUID() } }),
+							// Both legacy envelopes and traced envelopes must pass final-artifact admission.
+							...(index % 2 === 0
+								? { trace: { outboxEventId: randomUUID(), dueAt: Date.now(), pollTick: 0 } }
+								: {}),
+						},
 						context: { attempt: 1, maxAttempts: maintenance ? 5 : 3, runId: "artifact-smoke" },
 					}),
 					true,
@@ -150,7 +159,9 @@ try {
 				assert.equal(response.status, 200, `${name}: ${JSON.stringify(result)}`);
 				assert.deepEqual(
 					result,
-					maintenance ? { status: "ok" } : { status: "ok", poll: { done: true, waitSeconds: 0 } },
+					maintenance
+						? { status: "ok" }
+						: { status: "ok", poll: { done: true, waitSeconds: 0, outboxCommitted: false } },
 				);
 			}),
 		);

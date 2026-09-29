@@ -59,11 +59,22 @@ describe("preview timing", () => {
 	});
 	it.each([
 		{ entries: [] },
-		{ entries: [{ entryType: "resource", initiatorType: "img", startTime: 50 }] },
+		{
+			entries: [
+				{
+					entryType: "resource",
+					initiatorType: "img",
+					startTime: 50,
+					duration: 10,
+					name: "synthetic-image",
+					toJSON: () => ({}),
+				},
+			],
+		},
 	])("marks missing or older resource timing as unmeasured: %j", ({ entries }) => {
 		const log = vi.spyOn(console, "info").mockImplementation(() => {});
 		const now = vi.spyOn(performance, "now").mockReturnValue(100);
-		vi.spyOn(performance, "getEntriesByName").mockReturnValue(entries as PerformanceEntry[]);
+		vi.spyOn(performance, "getEntriesByName").mockReturnValue(entries);
 		const jobId = `unmeasured-${entries.length}`;
 		recordOutputReceived(jobId, "asset");
 		now.mockReturnValue(300);

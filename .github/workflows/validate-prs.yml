@@ -206,41 +206,50 @@ jobs:
         env:
           DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
         run: pnpm --filter @repo/database generate
+      - name: Download verified MinIO release binaries
+        run: |
+          mkdir -p "$RUNNER_TEMP/media-e2e-tools"
+          cd "$RUNNER_TEMP/media-e2e-tools"
+          # Same executables as the previous pinned images; the registry now rejects pulls.
+          curl --fail --show-error --location --retry 3 \
+            https://github.com/minio/minio/releases/download/RELEASE.2025-04-22T22-12-26Z/minio.linux-amd64.RELEASE.2025-04-22T22-12-26Z --output minio
+          curl --fail --show-error --location --retry 3 \
+            https://github.com/minio/mc/releases/download/RELEASE.2025-04-16T18-13-26Z/mc.linux-amd64.RELEASE.2025-04-16T18-13-26Z --output mc
+          sha256sum --check --strict <<'CHECKSUMS'
+          53e2a2cb16c5366ea6fbbc479c19ddb4c6a0948273e752f740fb1fbf27bb817c  minio
+          ac90da87a35641be5a0ac75d49de5161ddb47d629b5ba01261b0ae9e00aea15f  mc
+          CHECKSUMS
+          chmod +x minio mc
+          ./minio --version
+          ./mc --version
+          echo "$RUNNER_TEMP/media-e2e-tools" >> "$GITHUB_PATH"
       - name: Start pinned MinIO service
         env:
           MINIO_ROOT_USER: minioadmin
           MINIO_ROOT_PASSWORD: minioadmin
         run: |
-          docker run --detach --rm \
-            --name media-e2e-minio \
-            --publish 127.0.0.1:9000:9000 \
-            --env MINIO_ROOT_USER \
-            --env MINIO_ROOT_PASSWORD \
-            quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z@sha256:a1ea29fa28355559ef137d71fc570e508a214ec84ff8083e39bc5428980b015e server /data --console-address ":9001"
+          nohup "$RUNNER_TEMP/media-e2e-tools/minio" server "$RUNNER_TEMP/media-e2e-data" \
+            --address 127.0.0.1:9000 --console-address 127.0.0.1:9001 \
+            > "$RUNNER_TEMP/media-e2e-minio.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/media-e2e-minio.pid"
           for attempt in {1..30}; do
             if curl --fail --silent --show-error http://127.0.0.1:9000/minio/health/ready; then
               exit 0
             fi
             sleep 1
           done
-          docker logs media-e2e-minio
+          cat "$RUNNER_TEMP/media-e2e-minio.log"
           exit 1
       - name: Initialize deterministic media E2E buckets
         env:
           MINIO_ROOT_USER: minioadmin
           MINIO_ROOT_PASSWORD: minioadmin
         run: |
-          docker run --rm --network host \
-            --env MINIO_ROOT_USER \
-            --env MINIO_ROOT_PASSWORD \
-            --entrypoint /bin/sh \
-            quay.io/minio/mc:RELEASE.2025-04-16T18-13-26Z@sha256:aead63c77f9db9107f1696fb08ecb0faeda23729cde94b0f663edf4fe09728e3 -ec '
-              mc alias set local http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
-              mc mb --ignore-existing local/media-private
-              mc anonymous set none local/media-private
-              mc mb --ignore-existing local/avatars
-              mc anonymous set download local/avatars
-            '
+          mc alias set local http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+          mc mb --ignore-existing local/media-private
+          mc anonymous set none local/media-private
+          mc mb --ignore-existing local/avatars
+          mc anonymous set download local/avatars
       - name: Run immutable upload MinIO regression
         run: pnpm --filter @repo/storage test:minio
       - name: Install Chromium with system dependencies
@@ -251,6 +260,21 @@ jobs:
         run: pnpm db:migrate:deploy
       - name: Run authenticated mock E2E
         run: pnpm e2e:media:ci
+      - name: Stop task-owned MinIO service
+        if: ${{ always() }}
+        run: |
+          if [ -f "$RUNNER_TEMP/media-e2e-minio.pid" ]; then
+            minio_pid="$(cat "$RUNNER_TEMP/media-e2e-minio.pid")"
+            if [ "$(readlink "/proc/$minio_pid/exe" || true)" = "$RUNNER_TEMP/media-e2e-tools/minio" ]; then
+              kill "$minio_pid"
+              for attempt in {1..10}; do
+                if ! kill -0 "$minio_pid" 2>/dev/null; then exit 0; fi
+                sleep 1
+              done
+              echo "Task-owned MinIO did not exit after SIGTERM" >&2
+              exit 1
+            fi
+          fi
       - name: Upload SaaS Playwright evidence
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v4
