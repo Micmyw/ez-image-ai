@@ -9,6 +9,7 @@ import { createEditorActionController } from "../lib/editor-action";
 import { getEditorErrorKey } from "../lib/editor-error";
 import { isEditorProductKey, type EditorProductKey } from "../lib/editor-recovery";
 import type { GenerationInput } from "../lib/form-schema";
+import { recordGenerationAccepted } from "../lib/preview-timing";
 
 type EditorQuote = { id: string; productKey: EditorProductKey; credits: string; expiresAt: string };
 type GenerationResult = Awaited<ReturnType<typeof orpcClient.media.createGeneration>>;
@@ -61,6 +62,7 @@ export function useGeneration({ parentJobId }: { parentJobId?: string | null } =
 				const request = action.current!.beginQuoteRequest();
 				// The server owns the frozen quote and price check. Preserve the same key
 				// after a lost response; settings changes explicitly start a new action.
+				const submissionStartedAt = performance.now();
 				const result = await orpcClient.media
 					.submitGeneration({
 						...submission,
@@ -80,6 +82,7 @@ export function useGeneration({ parentJobId }: { parentJobId?: string | null } =
 						throw error;
 					});
 				if (!action.current!.acceptQuote(request)) return null;
+				recordGenerationAccepted(result.job.id, submissionStartedAt);
 				const productKey = requireEditorProductKey(result.quote.productKey);
 				setQuote({ ...result.quote, productKey });
 				void saasGrowthFunnel.quoteCreated(
