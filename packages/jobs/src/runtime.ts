@@ -99,6 +99,7 @@ import {
 	readMediaHeader,
 	RemoteMediaPolicyError,
 	streamRemoteObjectToStorage,
+	tryWriteImmutableGenerationImage,
 	GUEST_WATERMARK_VERSION,
 	watermarkStagedGuestImage,
 } from "@repo/storage";
@@ -3855,6 +3856,7 @@ export function createFinalizationDependencies(
 			inspectRemoteMedia: typeof inspectRemoteMedia;
 			putPrivateMediaObject: typeof putPrivateMediaObject;
 			streamRemoteObjectToStorage: typeof streamRemoteObjectToStorage;
+			tryWriteImmutableGenerationImage: typeof tryWriteImmutableGenerationImage;
 			promoteStagedObject: typeof promoteStagedObject;
 			watermarkStagedGuestImage: typeof watermarkStagedGuestImage;
 		}>;
@@ -3873,6 +3875,7 @@ export function createFinalizationDependencies(
 		inspectRemoteMedia,
 		putPrivateMediaObject,
 		streamRemoteObjectToStorage,
+		tryWriteImmutableGenerationImage,
 		promoteStagedObject,
 		watermarkStagedGuestImage,
 		...options.storage,
@@ -3963,68 +3966,89 @@ export function createFinalizationDependencies(
 			let completedAsset = transfer.asset;
 			if (transfer.outcome === "CLAIMED") {
 				try {
-					const staged = inlineBody
-						? await storage.putPrivateMediaObject({
-								bucket: "media",
-								key: transfer.stagingObjectKey,
-								contentType: mimeType,
-								body: inlineBody,
-							})
-						: await storage.streamRemoteObjectToStorage({
-								bucket: "media",
-								key: transfer.stagingObjectKey,
-								sourceUrl: (candidate.output as Extract<ProviderOutput, { kind: "remote-url" }>)
-									.url,
-								allowedHosts: providerCdnAllowlist(environment),
-								expectedContentType: mimeType,
-								expectedMediaKind: claim.mediaKind,
-							});
-					const reserved = await reserveGenerationOutputStorageTransaction(
-						{
-							assetId,
-							ownerId: claim.ownerId,
-							transferToken: transfer.transferToken,
-							bytes: BigInt(staged.bytes),
-							maximumStorageBytes: maximumMediaStorageBytes(environment),
-						},
-						database,
-					);
-					if (reserved.outcome === "STALE") {
-						throw {
-							code: "OUTPUT_TRANSFER_FENCE_LOST",
-							stage: "TRANSFER",
-							retryable: true,
-						};
-					}
-					const promoted = claim.guest
-						? await storage.watermarkStagedGuestImage({
-								staging: { bucket: "media", key: transfer.stagingObjectKey },
-								final: { bucket: "media", key: objectKey },
-								contentType: mimeType as "image/jpeg" | "image/png" | "image/webp",
-								deleteAfter: claim.guest.deleteAfter,
-							})
-						: await storage.promoteStagedObject({
-								staging: { bucket: "media", key: transfer.stagingObjectKey },
-								final: { bucket: "media", key: objectKey },
-								contentType: mimeType,
-								contentLength: staged.bytes,
-								acceptExistingFinalIdentity: true,
-								preferSinglePut: true,
-								promotion: {
-									uploadId: transfer.promotionMultipartUploadId ?? undefined,
-									onMultipartUploadCreated: async ({ uploadId }) => {
-										await recordGenerationOutputPromotionMultipartTransaction(
-											{
-												assetId,
-												ownerId: claim.ownerId,
-												transferToken: transfer.transferToken,
-												multipartUploadId: uploadId,
+					const reserve = async (bytes: number) => {
+						const reserved = await reserveGenerationOutputStorageTransaction(
+							{
+								assetId,
+								ownerId: claim.ownerId,
+								transferToken: transfer.transferToken,
+								bytes: BigInt(bytes),
+								maximumStorageBytes: maximumMediaStorageBytes(environment),
+							},
+							database,
+						);
+						if (reserved.outcome === "STALE")
+							throw { code: "OUTPUT_TRANSFER_FENCE_LOST", stage: "TRANSFER", retryable: true };
+					};
+					const direct =
+						!claim.guest && !transfer.promotionMultipartUploadId
+							? await storage.tryWriteImmutableGenerationImage({
+									bucket: "media",
+									key: objectKey,
+									contentType: mimeType,
+									...(inlineBody
+										? { body: inlineBody }
+										: {
+												sourceUrl: (
+													candidate.output as Extract<ProviderOutput, { kind: "remote-url" }>
+												).url,
+												allowedHosts: providerCdnAllowlist(environment),
+											}),
+									reserve,
+								})
+							: null;
+					// Keep the old lease/staging metadata contract for drain/rollback. Direct
+					// mode never writes that staging key; its eventual delete is harmless.
+					const promoted =
+						direct ??
+						(await (async () => {
+							const staged = inlineBody
+								? await storage.putPrivateMediaObject({
+										bucket: "media",
+										key: transfer.stagingObjectKey,
+										contentType: mimeType,
+										body: inlineBody,
+									})
+								: await storage.streamRemoteObjectToStorage({
+										bucket: "media",
+										key: transfer.stagingObjectKey,
+										sourceUrl: (candidate.output as Extract<ProviderOutput, { kind: "remote-url" }>)
+											.url,
+										allowedHosts: providerCdnAllowlist(environment),
+										expectedContentType: mimeType,
+										expectedMediaKind: claim.mediaKind,
+									});
+							await reserve(staged.bytes);
+							return claim.guest
+								? await storage.watermarkStagedGuestImage({
+										staging: { bucket: "media", key: transfer.stagingObjectKey },
+										final: { bucket: "media", key: objectKey },
+										contentType: mimeType as "image/jpeg" | "image/png" | "image/webp",
+										deleteAfter: claim.guest.deleteAfter,
+									})
+								: await storage.promoteStagedObject({
+										staging: { bucket: "media", key: transfer.stagingObjectKey },
+										final: { bucket: "media", key: objectKey },
+										contentType: mimeType,
+										contentLength: staged.bytes,
+										acceptExistingFinalIdentity: true,
+										preferSinglePut: true,
+										promotion: {
+											uploadId: transfer.promotionMultipartUploadId ?? undefined,
+											onMultipartUploadCreated: async ({ uploadId }) => {
+												await recordGenerationOutputPromotionMultipartTransaction(
+													{
+														assetId,
+														ownerId: claim.ownerId,
+														transferToken: transfer.transferToken,
+														multipartUploadId: uploadId,
+													},
+													database,
+												);
 											},
-											database,
-										);
-									},
-								},
-							});
+										},
+									});
+						})());
 					if (claim.guest) {
 						const resizedReservation = await reserveGenerationOutputStorageTransaction(
 							{

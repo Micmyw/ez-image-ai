@@ -31,6 +31,8 @@ import {
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 const globalStorage = vi.hoisted(() => ({
+	// Existing cases exercise legacy streaming/promotion and guest recovery.
+	tryWriteImmutableGenerationImage: vi.fn(async () => null),
 	inspectRemoteMedia: vi.fn(async () => ({ contentType: "image/png" as const })),
 	putPrivateMediaObject: vi.fn(async () => {
 		throw new Error("GLOBAL_STORAGE_USED");
@@ -75,6 +77,93 @@ describe("generation output transfer runtime", () => {
 	});
 
 	afterAll(async () => client?.$disconnect());
+	it
+		.skipIf(process.env.RUN_MEDIA_STORAGE_INTEGRATION !== "true")
+		.each(["DB_FAILURE", "LEASE_EXPIRED"])(
+		"recovers a real immutable S3 output after %s without retransfer or generation",
+		async (failure) => {
+			const endpoint = new URL(process.env.S3_ENDPOINT ?? "");
+			if (endpoint.hostname !== "127.0.0.1" || endpoint.port !== "9540")
+				throw new Error("USE_ISOLATED_MINIO");
+			const storage = await vi.importActual<typeof import("@repo/storage")>("@repo/storage");
+			const seeded = await seedFinalizingJob([
+				{
+					kind: "inline-base64",
+					mimeType: "image/png",
+					data: PNG_BODY.toString("base64"),
+					trust: "untrusted-transfer-candidate",
+				},
+			]);
+			const claim = await createDatabaseFinalizationStore(client).claimFinalization({
+				jobId: seeded.jobId,
+				version: seeded.version,
+			});
+			if (!claim) throw new Error("Expected claim");
+			const verification = createDatabaseVerifyUploadDependencies(client, {
+				safety: new TestMediaSafetyAdapter("ALLOW"),
+				moderationProvider: "test",
+			});
+			let inject = true;
+			let target: { bucket: "media"; key: string } | undefined;
+			const direct: typeof storage.tryWriteImmutableGenerationImage = async (input) => {
+				target = { bucket: "media", key: input.key };
+				const written = await storage.tryWriteImmutableGenerationImage(input);
+				if (inject) {
+					inject = false;
+					if (failure === "DB_FAILURE") throw new Error("DB_COMMIT_UNAVAILABLE");
+					await client.mediaAsset.updateMany({
+						where: { objectKey: input.key },
+						data: { outputTransferLeaseExpiresAt: new Date(0) },
+					});
+				}
+				return written;
+			};
+			const deps = createFinalizationDependencies(process.env, {
+				database: client,
+				verification,
+				storage: { tryWriteImmutableGenerationImage: direct },
+			});
+			try {
+				await expect(deps.persistCandidate(claim, claim.candidates[0]!)).rejects.toMatchObject({
+					retryable: true,
+				});
+				const placeholder = await client.mediaAsset.findFirstOrThrow({
+					where: { ownerId: seeded.ownerId, kind: "OUTPUT" },
+				});
+				expect(placeholder.status).not.toBe("READY");
+				const before = await storage.headObject(target!);
+				await client.mediaAsset.update({
+					where: { id: placeholder.id },
+					data: { outputTransferLeaseExpiresAt: new Date(0) },
+				});
+				await expect(deps.persistCandidate(claim, claim.candidates[0]!)).resolves.toMatchObject({
+					approved: true,
+					assetId: placeholder.id,
+				});
+				const asset = await client.mediaAsset.findUniqueOrThrow({ where: { id: placeholder.id } });
+				expect(asset.status).toBe("READY");
+				expect(asset.storageEtag).toBe(before.etag);
+				expect((await storage.headObject(target!)).etag).toBe(before.etag);
+				expect(await client.generationAttempt.count({ where: { jobId: seeded.jobId } })).toBe(1);
+				expect(
+					await client.assetModerationResult.count({
+						where: { assetId: asset.id, status: "APPROVED" },
+					}),
+				).toBe(1);
+				const reservation = await client.creditReservation.findUniqueOrThrow({
+					where: { jobId: seeded.jobId },
+				});
+				expect(reservation).toMatchObject({ status: "ACTIVE", settledAmount: 0n });
+				const cleanup = await client.outboxEvent.findMany({
+					where: { aggregateId: asset.id, eventType: "MEDIA_OBJECT_DELETE" },
+				});
+				for (const event of cleanup)
+					expect(JSON.stringify(event.payload)).not.toContain(target!.key);
+			} finally {
+				if (target) await storage.deleteObject(target);
+			}
+		},
+	);
 	it("keeps a fixed-time output PENDING durable without technical retries, duplicate inference or credits", async () => {
 		const seeded = await seedFinalizingJob([
 			{
