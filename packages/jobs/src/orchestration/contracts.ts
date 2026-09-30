@@ -29,10 +29,35 @@ export interface TaskDefinition {
 }
 
 export interface PollingTickResult {
+	continuation?: TaskContinuation;
 	done: boolean;
 	waitSeconds: number;
 	/** Absent on old executors. False means no committed forwardable event. */
 	outboxCommitted?: boolean;
+}
+
+export interface TaskContinuation {
+	eventIds: string[];
+	pollAttemptId?: string;
+}
+
+/** A present empty continuation deliberately suppresses legacy global scanning. */
+export function parseTaskContinuation(value: unknown): TaskContinuation | undefined {
+	if (value === undefined) return undefined;
+	const next = value as Partial<TaskContinuation> | null;
+	const validId = (id: unknown) => typeof id === "string" && /^[a-zA-Z0-9_:-]{1,256}$/.test(id);
+	if (
+		!next ||
+		!Array.isArray(next.eventIds) ||
+		next.eventIds.length > 100 ||
+		next.eventIds.some((id) => !validId(id)) ||
+		(next.pollAttemptId !== undefined && !validId(next.pollAttemptId))
+	)
+		throw new Error("INVALID_TASK_CONTINUATION");
+	return {
+		eventIds: [...new Set(next.eventIds)],
+		...(next.pollAttemptId ? { pollAttemptId: next.pollAttemptId } : {}),
+	};
 }
 
 export interface OutputReviewContinuation {
@@ -76,6 +101,9 @@ export function parsePollingTickResult(value: unknown): PollingTickResult {
 	return {
 		done: result.done,
 		waitSeconds: result.waitSeconds,
+		...(result.continuation === undefined
+			? {}
+			: { continuation: parseTaskContinuation(result.continuation) }),
 		...(result.outboxCommitted === undefined ? {} : { outboxCommitted: result.outboxCommitted }),
 	};
 }

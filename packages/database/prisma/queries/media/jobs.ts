@@ -3,6 +3,7 @@ import { EZPIC_PRODUCT_KEYS, LEGACY_EZPIC_PRODUCT_KEYS } from "@repo/config";
 
 import type { Prisma } from "../../generated/client";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
+import { getInitialGenerationEventIds } from "./continuations";
 import { reserveCreditsInTransaction } from "./credits";
 import { loadCurrentGenerationAdmission } from "./generation-admission";
 import { assertQuoteModerationPermitted } from "./moderation-operations";
@@ -83,6 +84,7 @@ async function findExistingJob(
 		throw new Error("IDEMPOTENCY_CONFLICT");
 	}
 	return {
+		continuationEventIds: await getInitialGenerationEventIds(existing.id, client),
 		job: {
 			id: existing.id,
 			status: existing.status,
@@ -412,6 +414,7 @@ export async function createGenerationJobTransaction(
 				});
 			}
 			return {
+				continuationEventIds: await getInitialGenerationEventIds(job.id, tx),
 				...(temporaryReference &&
 				inputAssets.some(
 					(asset) => asset.id === temporaryReference.assetId && asset.status === "VERIFYING",

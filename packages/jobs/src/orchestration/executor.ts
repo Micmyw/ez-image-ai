@@ -5,6 +5,13 @@ import {
 	monitorGuestOperationalSafety,
 	recoverExpiredPaymentEvents,
 } from "@repo/database";
+import {
+	getAssetGenerationContinuation,
+	getFinalizationContinuation,
+	getSubmittedGenerationContinuation,
+	getProviderEventContinuation,
+	getInitialGenerationEventIds,
+} from "@repo/database";
 import { db } from "@repo/database/client";
 import { deliverModerationIncidentNotification } from "@repo/notifications/moderation-incident";
 
@@ -128,22 +135,34 @@ export async function executeTask(
 
 	if (dispatchRouteForTask(taskId)) {
 		const registry = createProviderRegistry(environment);
-		return dispatchGeneration(parseDispatchPayload(taskId, payload), {
+		const result = await dispatchGeneration(parseDispatchPayload(taskId, payload), {
 			store: createDatabaseDispatchStore(db, { enabledProviders: new Set(registry.keys()) }),
 			getProvider: (provider) => getRegisteredProvider(registry, provider),
 			isGenerationEnabled: () => environment.MEDIA_GENERATION_ENABLED === "true",
-			schedulePolling,
 		});
+		return {
+			...result,
+			continuation: await getSubmittedGenerationContinuation(payload.jobId as string, db),
+		};
 	}
 
 	switch (taskId) {
 		case "media-deliver-outbox":
 		case "media-deliver-output-review":
+		case "media-deliver-events":
 			return dispatchOutbox(
 				{
 					workerId: `workflow:${context.runId}`,
-					limit: taskId === "media-deliver-output-review" ? 1 : 50,
+					limit:
+						taskId === "media-deliver-output-review"
+							? 1
+							: taskId === "media-deliver-events"
+								? 100
+								: 50,
 					leaseSeconds: 90,
+					...(taskId === "media-deliver-events"
+						? { eventIds: parseTaskPayload(taskId, payload).eventIds }
+						: {}),
 					...(taskId === "media-deliver-output-review"
 						? { outputReviewEventId: parseTaskPayload(taskId, payload).eventId }
 						: {}),
@@ -182,11 +201,14 @@ export async function executeTask(
 						}),
 				},
 			);
-		case "media-admit-guest-generation":
-			return admitGuestGeneration(
-				parseTaskPayload(taskId, payload),
-				databaseGuestAdmissionDependencies,
-			);
+		case "media-admit-guest-generation": {
+			const input = parseTaskPayload(taskId, payload);
+			const result = await admitGuestGeneration(input, databaseGuestAdmissionDependencies);
+			return {
+				result,
+				continuation: { eventIds: await getInitialGenerationEventIds(input.jobId, db) },
+			};
+		}
 		case "media-cancel-generation": {
 			const registry = createProviderRegistry(environment, { includeRecoveryProviders: true });
 			return cancelProviderGeneration(parseTaskPayload(taskId, payload), {
@@ -194,12 +216,28 @@ export async function executeTask(
 				getProvider: (provider) => getRegisteredProvider(registry, provider),
 			});
 		}
-		case "media-finalize-generation":
-			return finalizeMedia(parseTaskPayload(taskId, payload), createFinalizationDependencies());
-		case "media-settle-generation":
-			return settleGeneration(parseTaskPayload(taskId, payload), {
+		case "media-finalize-generation": {
+			const input = parseTaskPayload(taskId, payload);
+			const result = await finalizeMedia(input, createFinalizationDependencies());
+			const continuation =
+				result.outcome === "WAITING_MODERATION"
+					? { eventIds: result.outputReviewEventIds ?? [] }
+					: await getFinalizationContinuation(input.jobId, db);
+			return {
+				...result,
+				continuation: {
+					eventIds: [
+						...new Set([...continuation.eventIds, ...(result.outputReviewEventIds ?? [])]),
+					],
+				},
+			};
+		}
+		case "media-settle-generation": {
+			const result = await settleGeneration(parseTaskPayload(taskId, payload), {
 				store: databaseSettlementStore,
 			});
+			return { result, continuation: { eventIds: [] } };
+		}
 		case "media-terminate-refunded-subscription":
 			return terminateSubscriptionAfterRefund(parseTaskPayload(taskId, payload));
 		case "media-recover-subscription-checkout":
@@ -215,10 +253,15 @@ export async function executeTask(
 			});
 		case "media-process-provider-webhook": {
 			const registry = createProviderRegistry(environment, { includeRecoveryProviders: true });
-			return processProviderEvent(parseTaskPayload(taskId, payload), {
+			const input = parseTaskPayload(taskId, payload);
+			const result = await processProviderEvent(input, {
 				store: databaseProviderEventStore,
 				getProvider: (provider) => getRegisteredProvider(registry, provider),
 			});
+			return {
+				result,
+				continuation: await getProviderEventContinuation(input.providerWebhookEventId, db),
+			};
 		}
 		case "media-poll-generation":
 			return executePollingTick(parseTaskPayload(taskId, payload));
@@ -236,7 +279,12 @@ export async function executeTask(
 				},
 			});
 			if (!asset || asset.deletedAt || asset.status !== "VERIFYING")
-				return { done: true, waitSeconds: 0, ...signal };
+				return {
+					done: true,
+					waitSeconds: 0,
+					...signal,
+					continuation: await getAssetGenerationContinuation(input.assetId, db),
+				};
 			// A pending provider check keeps its existing task identity and DB lease.
 			// Workflow sleep releases the executor until the persisted retry is due.
 			const nextAt = Math.max(
@@ -245,6 +293,7 @@ export async function executeTask(
 			);
 			return {
 				done: false,
+				continuation: { eventIds: [] },
 				...signal,
 				waitSeconds: nextAt
 					? Math.min(60, Math.max(1, Math.ceil((nextAt - now().getTime()) / 1_000)))

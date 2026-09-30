@@ -349,6 +349,7 @@ export interface OutboxStore {
 		limit: number;
 		leaseSeconds: number;
 		outputReviewEventId?: string;
+		eventIds?: string[];
 	}): Promise<OutboxLease[]>;
 	complete(id: string, workerId: string, leaseToken: string): Promise<void>;
 	defer?(input: { id: string; workerId: string; leaseToken: string; retryAt: Date }): Promise<void>;

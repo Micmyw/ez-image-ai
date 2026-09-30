@@ -8,7 +8,9 @@ vi.mock("@repo/jobs", () => ({ resolveDatabaseDispatchRoute: vi.fn() }));
 vi.mock("@repo/logs", () => ({ logger: { info: vi.fn(), warn: vi.fn() } }));
 vi.mock("@repo/jobs/orchestration/client", () => ({ dispatchJob: vi.fn() }));
 
-import { createGenerationForUser } from "./create-generation";
+import { dispatchJob } from "@repo/jobs/orchestration/client";
+
+import { createGenerationForUser, dispatchCreatedGeneration } from "./create-generation";
 
 const SOURCE_ASSET_ID = "asset_01J5ABCD1234EFGH5678JKLMNP";
 const KIE_ROUTE_OPTIONS = {
@@ -27,6 +29,27 @@ const NANO_INPUT = {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("createGenerationForUser", () => {
+	it("wakes only committed admission events, reusing the same identity after response loss", async () => {
+		const wake = vi.mocked(dispatchJob).mockReset();
+		wake.mockRejectedValue(new Error("ACCEPTED_RESPONSE_LOST"));
+		const result = {
+			job: { id: "committed-job", status: "RESERVED", version: 0, creditsReserved: 5n },
+			replayed: false,
+			continuationEventIds: ["committed-input"],
+		};
+		await expect(dispatchCreatedGeneration(result)).resolves.toBeUndefined();
+		await expect(dispatchCreatedGeneration({ ...result, replayed: true })).resolves.toBeUndefined();
+		expect(wake.mock.calls).toEqual(
+			Array.from({ length: 2 }, () => [
+				"media-deliver-events",
+				{ eventIds: ["committed-input"] },
+				{ idempotencyKey: "generation-start:committed-job:0", timeoutMs: 3000 },
+			]),
+		);
+		wake.mockClear();
+		await dispatchCreatedGeneration({ ...result, continuationEventIds: [] });
+		expect(wake).not.toHaveBeenCalled();
+	});
 	it("creates a text job through the existing reservation transaction without input assets or an edit session", async () => {
 		const input = {
 			kind: "text-to-image" as const,

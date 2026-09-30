@@ -7,6 +7,7 @@ import type {
 import {
 	parsePollingTickResult,
 	parseOutputReviewContinuation,
+	parseTaskContinuation,
 } from "@repo/jobs/orchestration/contracts";
 import { parseTaskRequest, taskDefinition } from "@repo/jobs/orchestration/registry";
 import { logTaskStarted } from "@repo/jobs/orchestration/task-timing";
@@ -102,13 +103,20 @@ export function createWorkerExecutionHandler(options: WorkerExecutionOptions) {
 				return respond(200, { status: "ok", poll });
 			}
 			const result = await options.execute(request, context);
+			const continuation = parseTaskContinuation(
+				(result as { continuation?: unknown } | null)?.continuation,
+			);
 			if (request.taskId === "media-verify-upload")
 				return respond(200, { status: "ok", poll: parsePollingTickResult(result) });
 			if (request.taskId === "media-finalize-generation") {
 				const outputReview = parseOutputReviewContinuation(result);
-				return respond(200, { status: "ok", ...(outputReview ? { outputReview } : {}) });
+				return respond(200, {
+					status: "ok",
+					...(outputReview ? { outputReview } : {}),
+					...(continuation ? { continuation } : {}),
+				});
 			}
-			return respond(200, { status: "ok" });
+			return respond(200, { status: "ok", ...(continuation ? { continuation } : {}) });
 		} catch {
 			outcome = "failed";
 			process.stderr.write(

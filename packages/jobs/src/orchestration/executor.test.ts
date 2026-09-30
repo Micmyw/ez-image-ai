@@ -52,6 +52,7 @@ const mocks = vi.hoisted(() => {
 		monitorGuest: vi.fn(),
 		findAssets: vi.fn(),
 		findAsset: vi.fn(),
+		continuation: vi.fn(async () => ({ eventIds: [] as string[] })),
 		resolveDispatchRoute: vi.fn(),
 		reconciliationStore,
 		finalizationStore,
@@ -90,6 +91,11 @@ vi.mock("@repo/database", () => ({
 	expirePendingMediaUploadSessions: vi.fn(),
 	recoverExpiredPaymentEvents: mocks.recoverPayments,
 	monitorGuestOperationalSafety: mocks.monitorGuest,
+	getAssetGenerationContinuation: mocks.continuation,
+	getFinalizationContinuation: mocks.continuation,
+	getSubmittedGenerationContinuation: mocks.continuation,
+	getProviderEventContinuation: mocks.continuation,
+	getInitialGenerationEventIds: vi.fn(async () => []),
 }));
 vi.mock("../handlers/process-payment-event", () => ({ processPaymentEvent: mocks.payment }));
 vi.mock("../handlers/reconcile-subscriptions", () => ({
@@ -126,6 +132,7 @@ const event = (overrides: Partial<OutboxLease> = {}): OutboxLease => ({
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	mocks.continuation.mockReset().mockResolvedValue({ eventIds: [] });
 	mocks.dispatch.mockResolvedValue(undefined);
 	mocks.cleanup.mockResolvedValue(undefined);
 	mocks.cancel.mockResolvedValue(undefined);
@@ -201,7 +208,7 @@ describe("Node task executor", () => {
 					{ taskId: "media-verify-upload", payload: { assetId: "output" } },
 					context,
 				),
-			).toEqual({ done: true, waitSeconds: 0, outboxCommitted });
+			).toEqual({ done: true, waitSeconds: 0, outboxCommitted, continuation: { eventIds: [] } });
 		},
 	);
 	it("does not duplicate the execution boundary start log or add a timing database operation", async () => {
@@ -263,11 +270,11 @@ describe("Node task executor", () => {
 				context,
 				{ now: () => now },
 			),
-		).toEqual({ done: false, waitSeconds: 3 });
+		).toEqual({ done: false, waitSeconds: 3, continuation: { eventIds: [] } });
 		mocks.findAsset.mockResolvedValue({ status: "READY", deletedAt: null });
 		expect(
 			await executeTask({ taskId: "media-verify-upload", payload: { assetId: "output" } }, context),
-		).toEqual({ done: true, waitSeconds: 0 });
+		).toEqual({ done: true, waitSeconds: 0, continuation: { eventIds: [] } });
 	});
 
 	it("keeps payment recovery failures independent from durable Outbox delivery", async () => {
@@ -412,7 +419,7 @@ describe("Node task executor", () => {
 					{ taskId: route.taskId, payload: { jobId: "job-1", version: 0 } },
 					context,
 				),
-			).toEqual({ outcome: "SKIPPED" });
+			).toEqual({ outcome: "SKIPPED", continuation: { eventIds: [] } });
 			expect(mocks.dispatchStore.claimDispatch).toHaveBeenLastCalledWith({
 				jobId: "job-1",
 				version: 0,
@@ -436,7 +443,7 @@ describe("Node task executor", () => {
 		);
 	});
 
-	it("keeps accepted submission durable when scheduling active polling fails", async () => {
+	it("returns the original accepted attempt for durable in-flow polling without another dispatch", async () => {
 		mocks.dispatchStore.claimDispatch.mockResolvedValue({
 			attemptId: "attempt-1",
 			attemptNumber: 1,
@@ -454,7 +461,7 @@ describe("Node task executor", () => {
 			idempotency: { providerSupported: false, replayed: false },
 			reconciliation: { submissionToken: "token-1" },
 		});
-		mocks.dispatch.mockRejectedValueOnce(new Error("scheduling unavailable"));
+		mocks.continuation.mockResolvedValueOnce({ eventIds: [], pollAttemptId: "attempt-1" } as never);
 		expect(
 			await executeTask(
 				{
@@ -464,12 +471,8 @@ describe("Node task executor", () => {
 				context,
 				{ now: () => new Date(1_200_000) },
 			),
-		).toEqual({ outcome: "SUBMITTED" });
-		expect(mocks.dispatch).toHaveBeenCalledExactlyOnceWith(
-			"media-poll-generation",
-			{ attemptId: "attempt-1" },
-			{ idempotencyKey: "generation-poll:attempt-1:2" },
-		);
+		).toEqual({ outcome: "SUBMITTED", continuation: { eventIds: [], pollAttemptId: "attempt-1" } });
+		expect(mocks.dispatch).not.toHaveBeenCalled();
 		expect(mocks.dispatchStore.recordSubmission).toHaveBeenCalledTimes(1);
 		expect(mocks.dispatchStore.recordUncertainSubmission).not.toHaveBeenCalled();
 		expect(mocks.adapter.submit).toHaveBeenCalledTimes(1);
@@ -624,7 +627,7 @@ describe("Node task executor", () => {
 			mocks.dispatch
 				.mockRejectedValueOnce(new OutboxDeliveryPendingError())
 				.mockRejectedValueOnce(new OutboxDeliveryPendingError())
-				.mockRejectedValueOnce(new Error("WORKFLOWS_EXECUTION_FAILED"))
+				.mockRejectedValueOnce(new Error("WORKFLOWS_DISPATCH_REJECTED"))
 				.mockResolvedValueOnce(undefined);
 			for (let poll = 0; poll < 3; poll += 1) {
 				expect(await executeTask({ taskId: "media-deliver-outbox", payload: {} }, context)).toEqual(

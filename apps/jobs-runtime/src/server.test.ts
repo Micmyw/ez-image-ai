@@ -44,6 +44,18 @@ async function request(url: string, taskId = "media-finalize-generation") {
 }
 
 describe("private Node runtime", () => {
+	it("uses the same bounded continuation contract for hybrid execution", async () => {
+		const execute = vi.fn().mockResolvedValue({
+			continuation: { eventIds: ["event"], pollAttemptId: "attempt", privateUrl: "hidden" },
+		});
+		const { url } = await start(execute);
+		expect(await (await request(url)).json()).toEqual({
+			status: "ok",
+			continuation: { eventIds: ["event"], pollAttemptId: "attempt" },
+		});
+		execute.mockResolvedValueOnce({ continuation: { eventIds: ["https://private/token"] } });
+		expect((await request(url)).status).toBe(502);
+	});
 	it("preserves the bounded output continuation across hybrid execution", async () => {
 		const { url } = await start(
 			vi.fn().mockResolvedValue({

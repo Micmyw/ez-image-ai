@@ -75,6 +75,7 @@ export interface CreateGenerationJobInput {
 }
 
 export interface CreateGenerationJobResult {
+	continuationEventIds?: string[];
 	verificationAssetId?: string;
 	job: {
 		id: string;
@@ -120,6 +121,8 @@ export interface CreditRefundInput {
 }
 
 export interface OutboxClaimInput {
+	/** Bounded committed events for the normal generation chain. */
+	eventIds?: string[];
 	workerId: string;
 	limit: number;
 	leaseSeconds: number;

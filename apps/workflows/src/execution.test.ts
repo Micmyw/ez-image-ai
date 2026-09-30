@@ -22,6 +22,32 @@ async function signed(
 }
 
 describe("Workers job admission", () => {
+	it("sanitizes generic continuation and rejects malformed identities without leaking private output", async () => {
+		const execute = vi.fn().mockResolvedValue({
+			continuation: { eventIds: ["event", "event"], privateUrl: "secret" },
+			privateUrl: "secret",
+		});
+		const handler = createWorkerExecutionHandler({ secret, execute, poll: vi.fn() });
+		expect(await (await handler(await signed())).json()).toEqual({
+			status: "ok",
+			continuation: { eventIds: ["event"] },
+		});
+		execute.mockResolvedValueOnce({
+			continuation: { eventIds: [], pollAttemptId: "original", privateUrl: "secret" },
+		});
+		expect(await (await handler(await signed())).json()).toEqual({
+			status: "ok",
+			continuation: { eventIds: [], pollAttemptId: "original" },
+		});
+		for (const continuation of [
+			{ eventIds: ["https://private/token"] },
+			{ eventIds: Array(101).fill("event") },
+			{ eventIds: [], pollAttemptId: {} },
+		]) {
+			execute.mockResolvedValueOnce({ continuation });
+			expect((await handler(await signed())).status).toBe(502);
+		}
+	});
 	it("returns only committed output review identities after releasing the heavy slot", async () => {
 		const execute = vi.fn().mockResolvedValue({
 			outcome: "WAITING_MODERATION",

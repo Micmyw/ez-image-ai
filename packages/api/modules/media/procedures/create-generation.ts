@@ -10,7 +10,7 @@ import {
 	type PlanEntitlement,
 } from "@repo/config";
 import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
-import { createGenerationJobTransaction } from "@repo/database";
+import { createGenerationJobTransaction, getInitialGenerationEventIds } from "@repo/database";
 import { db } from "@repo/database/client";
 import { resolveDatabaseDispatchRoute } from "@repo/jobs";
 import { dispatchJob } from "@repo/jobs/orchestration/client";
@@ -56,6 +56,25 @@ export const createGeneration = protectedProcedure
 	});
 
 export async function dispatchCreatedGeneration(result: CreatedGenerationJob): Promise<void> {
+	const eventIds =
+		result.continuationEventIds ??
+		(result.replayed ? await getInitialGenerationEventIds(result.job.id, db) : undefined);
+	if (eventIds !== undefined) {
+		if (!eventIds.length) return;
+		try {
+			await dispatchJob(
+				"media-deliver-events",
+				{ eventIds },
+				{
+					idempotencyKey: `generation-start:${result.job.id}:${result.job.version}`,
+					timeoutMs: 3_000,
+				},
+			);
+		} catch {
+			logger.warn("Generation wake deferred to durable recovery", { jobId: result.job.id });
+		}
+		return;
+	}
 	if (result.verificationAssetId && !result.replayed) {
 		await dispatchUploadVerification(result.verificationAssetId);
 	} else {
@@ -96,6 +115,7 @@ export interface PreparedGenerationAdmission {
 }
 
 interface CreatedGenerationJob {
+	continuationEventIds?: string[];
 	verificationAssetId?: string;
 	job: {
 		id: string;

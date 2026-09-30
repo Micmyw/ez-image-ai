@@ -161,7 +161,15 @@ try {
 					result,
 					maintenance
 						? { status: "ok" }
-						: { status: "ok", poll: { done: true, waitSeconds: 0, outboxCommitted: false } },
+						: {
+								status: "ok",
+								poll: {
+									done: true,
+									waitSeconds: 0,
+									outboxCommitted: false,
+									continuation: { eventIds: [] },
+								},
+							},
 				);
 			}),
 		);
@@ -179,6 +187,21 @@ try {
 		const response = await request("/internal/execute", body, true, "jobs-control");
 		assert.equal(response.status, 200);
 		assert.deepEqual(await response.json(), { status: "ok" });
+		const generic = JSON.stringify({
+			request: {
+				taskId: "media-deliver-events",
+				payload: { eventIds: [`artifact-missing-${randomUUID()}`] },
+			},
+			context: { attempt: 1, maxAttempts: 3, runId: "artifact-continuation" },
+		});
+		assert.equal(
+			(await request("/internal/execute", generic, true, "jobs-maintenance")).status,
+			400,
+		);
+		assert.deepEqual(
+			await (await request("/internal/execute", generic, true, "jobs-control")).json(),
+			{ status: "ok" },
+		);
 	}
 	process.stdout.write(
 		JSON.stringify({

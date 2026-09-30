@@ -10,6 +10,7 @@ import type {
 import {
 	parsePollingTickResult,
 	parseOutputReviewContinuation,
+	parseTaskContinuation,
 } from "@repo/jobs/orchestration/contracts";
 import { parseTaskRequest, taskDefinition } from "@repo/jobs/orchestration/registry";
 import { logTaskStarted } from "@repo/jobs/orchestration/task-timing";
@@ -114,6 +115,9 @@ export function createRuntimeServer(options: {
 				respond(200, { status: "ok", poll });
 			} else {
 				const result = await options.execute(request, context);
+				const continuation = parseTaskContinuation(
+					(result as { continuation?: unknown } | null)?.continuation,
+				);
 				const outputReview =
 					request.taskId === "media-finalize-generation"
 						? parseOutputReviewContinuation(result)
@@ -122,7 +126,11 @@ export function createRuntimeServer(options: {
 					200,
 					request.taskId === "media-verify-upload"
 						? { status: "ok", poll: parsePollingTickResult(result) }
-						: { status: "ok", ...(outputReview ? { outputReview } : {}) },
+						: {
+								status: "ok",
+								...(outputReview ? { outputReview } : {}),
+								...(continuation ? { continuation } : {}),
+							},
 				);
 			}
 		} catch {

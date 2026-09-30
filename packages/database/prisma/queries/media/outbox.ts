@@ -19,12 +19,26 @@ interface ClaimedOutboxRow {
 export async function claimOutboxBatch(input: OutboxClaimInput, client: MediaTransactionClient) {
 	if (input.limit < 1 || input.limit > 100) throw new Error("Outbox claim limit is invalid");
 	if (input.leaseSeconds < 1) throw new Error("Outbox lease duration is invalid");
+	if (
+		input.eventIds !== undefined &&
+		(input.outputReviewEventId !== undefined ||
+			input.eventIds.length < 1 ||
+			input.eventIds.length > 100 ||
+			input.eventIds.some((id) => !id || id.length > 256))
+	)
+		throw new Error("Invalid continuation events");
 	const now = input.now ?? new Date();
 	const leasedUntil = new Date(now.getTime() + input.leaseSeconds * 1_000);
 	const target =
-		input.outputReviewEventId === undefined
-			? Prisma.empty
-			: Prisma.sql`
+		input.eventIds !== undefined
+			? Prisma.sql`AND "id" IN (${Prisma.join(input.eventIds)})
+		AND (("aggregateType" = 'MEDIA_ASSET' AND "eventType" IN ('MEDIA_ASSET_VERIFY', 'MEDIA_ASSET_MODERATION_REQUESTED')
+		 AND ("payload"->>'assetId' IS NULL OR "payload"->>'assetId' = "aggregateId"))
+		 OR ("aggregateType" = 'GENERATION_JOB' AND "eventType" IN ('JOB_CREATED', 'GENERATION_DISPATCH', 'GENERATION_FINALIZE', 'GENERATION_FINALIZE_RETRY', 'GENERATION_SETTLE')
+		 AND ("payload"->>'jobId' IS NULL OR "payload"->>'jobId' = "aggregateId")))`
+			: input.outputReviewEventId === undefined
+				? Prisma.empty
+				: Prisma.sql`
 		AND "id" = ${input.outputReviewEventId}
 		AND "eventType" = 'MEDIA_ASSET_VERIFY' AND "aggregateType" = 'MEDIA_ASSET'
 		AND ("payload"->>'assetId' IS NULL OR "payload"->>'assetId' = "aggregateId")

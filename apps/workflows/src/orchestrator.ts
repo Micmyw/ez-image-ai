@@ -2,6 +2,7 @@ import type {
 	TaskRequest,
 	PollingTickResult,
 	OutputReviewContinuation,
+	TaskContinuation,
 } from "@repo/jobs/orchestration/contracts";
 import {
 	dispatchRouteForTask,
@@ -18,7 +19,12 @@ export interface DurableSteps {
 	sleep(name: string, duration: string): Promise<void>;
 }
 export type InvocationResult =
-	| { status: "ok"; poll?: PollingTickResult; outputReview?: OutputReviewContinuation }
+	| {
+			status: "ok";
+			poll?: PollingTickResult;
+			outputReview?: OutputReviewContinuation;
+			continuation?: TaskContinuation;
+	  }
 	| { status: "busy" | "failed" | "expired" };
 export type InvokeTask = (
 	request: TaskRequest,
@@ -55,6 +61,40 @@ export async function runTask(
 				},
 			);
 			if (result.status === "ok") {
+				const continuation = result.continuation ?? result.poll?.continuation;
+				if (continuation) {
+					if (continuation.pollAttemptId) {
+						// Acceptance is already persisted. Stay in this Workflow, releasing
+						// executor and DB scope between ticks; never repeat the submit step.
+						await runPolling(
+							{
+								taskId: "media-poll-generation",
+								payload: { attemptId: continuation.pollAttemptId },
+							},
+							runId,
+							step,
+							invoke,
+							`${prefix}-accepted-poll`,
+						);
+					}
+					if (continuation.eventIds.length) {
+						try {
+							await runTask(
+								{ taskId: "media-deliver-events", payload: { eventIds: continuation.eventIds } },
+								runId,
+								step,
+								invoke,
+								`${prefix}-continue`,
+							);
+						} catch {
+							console.warn("generation_continuation_deferred", {
+								runId,
+								eventIds: continuation.eventIds,
+							});
+						}
+					}
+					return result;
+				}
 				if (request.taskId === "media-finalize-generation" && result.outputReview) {
 					for (const eventId of result.outputReview.eventIds) {
 						try {
@@ -129,16 +169,17 @@ export async function runPolling(
 	runId: string,
 	step: DurableSteps,
 	invoke: InvokeTask,
+	prefix = "poll",
 ): Promise<void> {
 	// Persist wall-clock decisions; replay must not extend the polling deadline.
 	const deadline = await step.do(
-		"poll-deadline",
+		`${prefix}-deadline`,
 		{ retries: { limit: 0, delay: "1 second" }, timeout: "5 seconds" },
 		async () => Date.now() + 600_000,
 	);
 	for (let index = 0; index < 128; index++) {
 		const expired = await step.do(
-			`poll-budget-${index}`,
+			`${prefix}-budget-${index}`,
 			{ retries: { limit: 0, delay: "1 second" }, timeout: "5 seconds" },
 			async () => Date.now() >= deadline,
 		);
@@ -152,14 +193,14 @@ export async function runPolling(
 				pollTick: index,
 			},
 		};
-		const result = await runTask(tickRequest, runId, step, invoke, `poll-${index}`, deadline);
+		const result = await runTask(tickRequest, runId, step, invoke, `${prefix}-${index}`, deadline);
 		if (result.status === "expired") return;
 		if (!result.poll) throw new Error("INVALID_POLL_RESULT");
 		if (result.poll.done) return;
 		const seconds = result.poll.waitSeconds;
 		if (!Number.isFinite(seconds) || seconds < 1 || seconds > 60)
 			throw new Error("INVALID_POLL_WAIT");
-		await step.sleep(`poll-wait-${index}`, `${seconds} seconds`);
+		await step.sleep(`${prefix}-wait-${index}`, `${seconds} seconds`);
 	}
 	// The scheduled reconciliation retains ownership beyond this bounded window.
 }

@@ -18,13 +18,20 @@ function deliveryErrorCode(error: unknown): string {
 }
 
 export async function dispatchOutbox(
-	input: { workerId: string; limit?: number; leaseSeconds?: number; outputReviewEventId?: string },
+	input: {
+		workerId: string;
+		limit?: number;
+		leaseSeconds?: number;
+		outputReviewEventId?: string;
+		eventIds?: string[];
+	},
 	dependencies: OutboxDependencies,
 ): Promise<{ claimed: number; delivered: number }> {
 	const events = await dependencies.store.claimBatch({
 		workerId: input.workerId,
 		limit: Math.min(Math.max(input.limit ?? 25, 1), 100),
 		leaseSeconds: Math.min(Math.max(input.leaseSeconds ?? 60, 10), 300),
+		...(input.eventIds === undefined ? {} : { eventIds: input.eventIds }),
 		...(input.outputReviewEventId === undefined
 			? {}
 			: { outputReviewEventId: input.outputReviewEventId }),
@@ -39,7 +46,17 @@ export async function dispatchOutbox(
 			const now = dependencies.now?.() ?? new Date();
 			if (
 				error instanceof OutboxDeliveryPendingError ||
-				(input.outputReviewEventId &&
+				((input.outputReviewEventId ||
+					input.eventIds ||
+					[
+						"JOB_CREATED",
+						"GENERATION_DISPATCH",
+						"GENERATION_FINALIZE",
+						"GENERATION_FINALIZE_RETRY",
+						"GENERATION_SETTLE",
+						"MEDIA_ASSET_VERIFY",
+						"MEDIA_ASSET_MODERATION_REQUESTED",
+					].includes(event.eventType)) &&
 					["DELIVERY_FAILED", "WORKFLOWS_DISPATCH_UNCONFIRMED"].includes(deliveryErrorCode(error)))
 			) {
 				// An unconfirmed targeted wake may already be accepted. Keep its delivery

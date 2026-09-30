@@ -27,6 +27,7 @@ import {
 	claimOutboxBatch,
 	completeOutboxEvent,
 	releaseOutboxEvent,
+	deferOutboxEvent,
 } from "@repo/database";
 import { PrismaClient } from "@repo/database/generated-client";
 import { MediaValidationError } from "@repo/storage";
@@ -144,6 +145,14 @@ describe("production media runtime stores", () => {
 				complete: async (id: string, workerId: string, leaseToken: string) => {
 					await completeOutboxEvent(id, workerId, leaseToken, client);
 				},
+				defer: async (input: {
+					id: string;
+					workerId: string;
+					leaseToken: string;
+					retryAt: Date;
+				}) => {
+					await deferOutboxEvent({ ...input, now }, client);
+				},
 				release: async (input: {
 					id: string;
 					workerId: string;
@@ -180,7 +189,7 @@ describe("production media runtime stores", () => {
 			delivered: 0,
 		});
 		const retry = await client.outboxEvent.findUniqueOrThrow({ where: { id: event.id } });
-		expect(retry).toMatchObject({ status: "PENDING", attempts: 1 });
+		expect(retry).toMatchObject({ status: "PENDING", attempts: 0 });
 		now = new Date(retry.availableAt.getTime() + 1);
 		expect(await dispatchOutbox({ workerId: "lost-response-2" }, dependencies)).toEqual({
 			claimed: 1,
