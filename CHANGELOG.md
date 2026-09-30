@@ -2,6 +2,12 @@
 
 ## 2026-09-30
 
+### First-image continuation (local validation, not yet deployed)
+
+- Continue admission, input review, provider completion and output review through the original task identities without waiting for a global maintenance scan. Keep recovery scans, resource limits and existing moderation decisions.
+- Store ordinary untransformed small outputs once in immutable private storage, while retaining guest watermark and large-file recovery paths. Approved results can be previewed before settlement and cleanup.
+- Validate the final jobs artifact against local PostgreSQL, Workflows/WorkerJobs and private object storage with isolated fixed-time suppliers. Local results do not establish production latency.
+
 ### Output review continuation (not yet deployed)
 
 - Continue pending output image review through its committed event after releasing the heavy executor, using the existing bounded verification polling and recovery protocol.
