@@ -60,6 +60,8 @@ run(
 		"src/handlers/verify-upload.database.integration.test.ts",
 		"src/handlers/moderation-outage.database.integration.test.ts",
 		"src/handlers/temporary-reference.database.integration.test.ts",
+		"src/handlers/output-review-delivery.database.integration.test.ts",
+		"src/handlers/continuation-delivery.database.integration.test.ts",
 		"--config",
 		"vitest.config.ts",
 	],
