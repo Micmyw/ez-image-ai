@@ -29,6 +29,7 @@ vi.mock("@repo/database", async (original) => ({
 		harness.active.dependencies.findQuote(owner, quoteId),
 	createGenerationJobTransaction: (input: unknown) =>
 		harness.active.createJobDependencies.createGenerationJob(input),
+	getInitialGenerationEventIds: (jobId: string) => harness.active.getInitialEventIds(jobId),
 }));
 vi.mock("@repo/database/media-quotes", async (original) => ({
 	...(await original<typeof import("@repo/database/media-quotes")>()),
@@ -51,11 +52,7 @@ vi.mock("@repo/jobs", () => ({
 }));
 vi.mock("@repo/logs", () => ({ logger: { info: vi.fn(), warn: vi.fn() } }));
 vi.mock("@repo/jobs/orchestration/client", () => ({
-	dispatchJob: (_task: string, payload: { jobId: string; version: number }) =>
-		harness.active.dependencies.dispatch({
-			job: { id: payload.jobId, version: payload.version },
-			replayed: false,
-		}),
+	dispatchJob: (task: string, payload: unknown) => harness.active.dispatchTask(task, payload),
 }));
 vi.mock("../lib/rate-limit", () => ({
 	enforceMediaRateLimit: () => harness.active.operation("rateLimit"),
@@ -188,6 +185,7 @@ function fixture(domain: Domain = currentDomain, providerResponseLoss = false) {
 	};
 	const quotes = new Map<string, any>();
 	const jobs = new Map<string, any>();
+	const admissionEvents = new Map<string, { id: string; version: number }>();
 	let claimed = false;
 	let acceptedAt: number | undefined;
 	let uncertain = false;
@@ -272,7 +270,9 @@ function fixture(domain: Domain = currentDomain, providerResponseLoss = false) {
 			jobs.set(request.quoteId, job);
 			quotes.get(request.quoteId).job = job;
 			counts.reservation = (counts.reservation ?? 0) + 1;
-			return { job, replayed: false };
+			const eventId = `admission:${job.id}`;
+			admissionEvents.set(eventId, job);
+			return { job, replayed: false, continuationEventIds: [eventId] };
 		},
 	};
 	const dependencies: NonNullable<Parameters<typeof submitGenerationForUser>[2]> = {
@@ -346,6 +346,31 @@ function fixture(domain: Domain = currentDomain, providerResponseLoss = false) {
 		dependencies,
 		createJobDependencies,
 		createQuoteDependencies,
+		getInitialEventIds: async (jobId: string) => {
+			await operation("initialEventLookup");
+			return [...admissionEvents].flatMap(([id, job]) => (job.id === jobId ? [id] : []));
+		},
+		dispatchTask: async (
+			task: string,
+			payload: { eventIds: string[] } | { jobId: string; version: number },
+		) => {
+			counts[task] = (counts[task] ?? 0) + 1;
+			if (task === "media-deliver-events" && "eventIds" in payload) {
+				for (const eventId of payload.eventIds) {
+					const job = admissionEvents.get(eventId);
+					if (!job) continue;
+					await dependencies.dispatch({ job } as never);
+					admissionEvents.delete(eventId);
+				}
+				return;
+			}
+			// The archived batch-one source still dispatches the generation directly.
+			if (task !== "media-dispatch-generation" || !("jobId" in payload))
+				throw new Error(`UNEXPECTED_SIMULATION_TASK:${task}`);
+			await dependencies.dispatch({
+				job: { id: payload.jobId, version: payload.version },
+			} as never);
+		},
 		get acceptedAt() {
 			return acceptedAt;
 		},
@@ -670,6 +695,10 @@ describe("fixed-delay admission simulation", () => {
 						expect(f.counts.attempt).toBe(1);
 						expect(f.uncertain).toBe(scenario === "response-loss");
 						expect(f.counts.identity).toBe(requestIds.length + 1);
+						if (variant === "after") {
+							expect(f.counts["media-deliver-events"]).toBeGreaterThanOrEqual(1);
+							expect(f.counts["media-dispatch-generation"] ?? 0).toBe(0);
+						}
 						expect(stageTimings.some((entry) => entry.stage === "request.identity")).toBe(true);
 						expect(endpointTimes.clickToHttpResponseDecodedMs).toBeGreaterThanOrEqual(
 							endpointTimes.clickToProcedureReturnMs,
