@@ -52,6 +52,7 @@ import {
 	type PublicImageSpecCell,
 } from "../lib/image-sku-selection";
 import type { TemporaryReferenceReceipt } from "../lib/temporary-reference-upload";
+import { useToolPrompt, useToolPromptBinding } from "../lib/tool-prompt-context";
 import { ContentSafetyNotice } from "./ContentSafetyNotice";
 import { ImageSourcePanel } from "./editor/ImageSourcePanel";
 import { PromptPanel } from "./editor/PromptPanel";
@@ -86,6 +87,7 @@ export function GenerationForm({
 	requireReference?: boolean;
 	layout?: "default" | "minimal";
 }) {
+	const toolPrompt = useToolPrompt();
 	const t = useTranslations("media.create");
 	const studio = useTranslations("studio");
 	const imageToImage = useTranslations("imageToImage");
@@ -143,7 +145,7 @@ export function GenerationForm({
 		defaultValues: {
 			productKey: resolvedInitialProductKey,
 			skuKey: initialSelection?.skuKey ?? initialContract.defaultSkuKey,
-			prompt: initialDraft?.input.prompt ?? examplePrompt,
+			prompt: initialDraft?.input.prompt ?? toolPrompt?.initialPrompt ?? examplePrompt,
 			sourceAssetId: initialDraft?.input.sourceAssetId ?? "",
 			aspectRatio: initialSelection?.aspectRatio ?? initialContract.defaultAspectRatio,
 			outputFormat: initialSelection?.outputFormat,
@@ -245,6 +247,11 @@ export function GenerationForm({
 		},
 		[form, beginNewAction, onSourceChanged],
 	);
+	useToolPromptBinding({
+		prompt: values.prompt,
+		busy: generation.createGeneration.isPending || sourcePending,
+		applyPrompt: updatePrompt,
+	});
 
 	useEffect(() => {
 		function selectPrompt(event: Event) {

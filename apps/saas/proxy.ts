@@ -19,6 +19,7 @@ export const config = {
 		"/create",
 		"/examples",
 		"/image-to-image",
+		"/photo-to-coloring-page",
 		"/models/:path*",
 		"/pricing",
 		"/privacy",

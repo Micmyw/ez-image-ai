@@ -18,6 +18,7 @@ import { getSignedComparisonState, requestPrivateDownload } from "../../lib/edit
 import { isPublicImageSkuKey } from "../../lib/image-sku-selection";
 import { getJobPresentation, hasUnsettledJobCredits } from "../../lib/job-status";
 import { GenerationFailureNotice } from "../GenerationFailureNotice";
+import { ImagePrintButton } from "../ImagePrintButton";
 import { ModerationNotice } from "../ModerationNotice";
 import { RetryGenerationButton } from "../RetryGenerationButton";
 import { BeforeAfterSlider } from "./BeforeAfterSlider";
@@ -144,6 +145,18 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 				)}
 				{presentation.stage === "ready" && output && (
 					<DownloadButton assetId={output.id} productKey={productKey} />
+				)}
+				{presentation.stage === "ready" && output && (
+					<ImagePrintButton
+						getImageUrl={async () =>
+							(
+								await orpcClient.media.getAssetAccessUrl({
+									assetId: output.id,
+									disposition: "inline",
+								})
+							).url
+						}
+					/>
 				)}
 				{job.data.status === "SUCCEEDED" && output && (
 					<Button

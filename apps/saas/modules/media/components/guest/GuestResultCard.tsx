@@ -3,6 +3,7 @@ import { ImageIcon, LockKeyholeIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
 import type { GuestTrialView } from "../../lib/guest-trial-state";
+import { ImagePrintButton } from "../ImagePrintButton";
 
 export function GuestResultCard({
 	view,
@@ -55,6 +56,7 @@ export function GuestResultCard({
 					<Button type="button" variant="primary" className="min-h-11" onClick={onDownload}>
 						{t("download")}
 					</Button>
+					{resultUrl && <ImagePrintButton imageUrl={resultUrl} />}
 				</div>
 			)}
 		</section>

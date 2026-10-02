@@ -17,6 +17,7 @@ import {
 	resolveImageSpecControlValues,
 } from "@media/lib/image-sku-selection";
 import { publicCatalogQueryOptions } from "@media/lib/public-catalog-query";
+import { useToolPrompt, useToolPromptBinding } from "@media/lib/tool-prompt-context";
 import { getImageProductSelectionContract, getPlanEntitlement } from "@repo/config/client";
 import type { ImageAspectRatio, ImageSkuKey } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
@@ -108,6 +109,7 @@ function LandingGeneratorWorkspace({
 	initialProductKey?: GuestProductKey;
 	startEmpty?: boolean;
 }) {
+	const toolPrompt = useToolPrompt();
 	const queryClient = useQueryClient();
 	const examplePrompt = useShowcasePrompt();
 	const t = useTranslations("home.generator");
@@ -135,7 +137,9 @@ function LandingGeneratorWorkspace({
 	const [file, setFile] = useState<File | null>(null);
 	const [fileError, setFileError] = useState<string>();
 	const [previewUrl, setPreviewUrl] = useState<string>();
-	const [prompt, setPrompt] = useState(startEmpty ? "" : examplePrompt);
+	const [prompt, setPrompt] = useState(
+		toolPrompt?.initialPrompt ?? (startEmpty ? "" : examplePrompt),
+	);
 	const [aspectRatio, setAspectRatio] = useState<ImageAspectRatio>("auto");
 	const [controlValues, setControlValues] = useState<ImageSpecControlValues>({});
 	const [submitError, setSubmitError] = useState<"turnstile" | "upload">();
@@ -353,6 +357,7 @@ function LandingGeneratorWorkspace({
 		requiresSource: requireReference,
 	});
 	const isBusy = disabledReason === "busy";
+	useToolPromptBinding({ prompt, busy: isBusy, applyPrompt: setPrompt });
 	const canSubmit = disabledReason === null;
 	const modelNavigation = useModelNavigation({
 		products: localizedProducts,

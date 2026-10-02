@@ -2,6 +2,8 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { ToolPromptProvider } from "../lib/tool-prompt-context";
+
 const mocks = vi.hoisted(() => ({ useGeneration: vi.fn(), modelOptions: vi.fn() }));
 const navigation = vi.hoisted(() => ({ pathname: "/create", search: "" }));
 vi.mock("./editor/RegisteredEditorDock", () => ({ RegisteredEditorDock: () => null }));
@@ -317,6 +319,35 @@ vi.mock("./editor/ImageSourcePanel", () => ({
 import { GenerationForm } from "./GenerationForm";
 
 describe("GenerationForm product copy", () => {
+	it("uses a tool instruction but does not replace a recovered user's prompt", () => {
+		mocks.useGeneration.mockReturnValue(generationState());
+		const fresh = renderToStaticMarkup(
+			<ToolPromptProvider initialPrompt="Turn my uploaded photo into coloring outlines">
+				<GenerationForm onCreated={vi.fn()} requireReference />
+			</ToolPromptProvider>,
+		);
+		expect(fresh).toContain("Turn my uploaded photo into coloring outlines");
+		const recovered = renderToStaticMarkup(
+			<ToolPromptProvider initialPrompt="Turn my uploaded photo into coloring outlines">
+				<GenerationForm
+					onCreated={vi.fn()}
+					requireReference
+					initialDraft={{
+						productKey: "image-nano-banana-2-lite",
+						input: {
+							kind: "image-to-image",
+							prompt: "Keep my own customized instruction",
+							sourceAssetId: "asset_01J5ABCD1234EFGH5678JKLMNP",
+							skuKey: "nano-banana-2-lite-1k",
+							aspectRatio: "auto",
+						},
+					}}
+				/>
+			</ToolPromptProvider>,
+		);
+		expect(recovered).toContain("Keep my own customized instruction");
+		expect(recovered).not.toContain("Turn my uploaded photo into coloring outlines");
+	});
 	beforeEach(() => {
 		navigation.pathname = "/create";
 		navigation.search = "";

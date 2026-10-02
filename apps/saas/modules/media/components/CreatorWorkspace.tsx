@@ -23,6 +23,7 @@ export function CreatorWorkspace(props: {
 	restoreState: EditorRestoreState;
 	restoreNotice: EditorRestoreNotice;
 	parentJobId?: string | null;
+	requireReference?: boolean;
 }) {
 	const pathname = usePathname();
 	const example = useSearchParams().get("example");

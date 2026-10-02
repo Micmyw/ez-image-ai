@@ -40,6 +40,7 @@ export function ImageEditorWorkspace({
 	restoreState,
 	restoreNotice,
 	parentJobId,
+	requireReference = false,
 }: {
 	claimedDraft?: boolean;
 	initialDraft?: EditorDraftInput | null;
@@ -47,6 +48,7 @@ export function ImageEditorWorkspace({
 	restoreState: EditorRestoreState;
 	restoreNotice: EditorRestoreNotice;
 	parentJobId?: string | null;
+	requireReference?: boolean;
 }) {
 	const t = useTranslations("media.create");
 	const studio = useTranslations("studio");
@@ -232,7 +234,12 @@ export function ImageEditorWorkspace({
 			)}
 			<div data-editor-layout="inline" className="min-w-0">
 				<GenerationForm
-					layout={pathname === "/image-to-image" ? "minimal" : "default"}
+					requireReference={requireReference}
+					layout={
+						pathname === "/image-to-image" || pathname === "/photo-to-coloring-page"
+							? "minimal"
+							: "default"
+					}
 					onSourceChanged={unlinkSource}
 					onDraftChange={draftReady ? persistDraft : undefined}
 					jobId={jobId}

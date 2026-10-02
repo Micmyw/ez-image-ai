@@ -51,6 +51,7 @@ export const config = {
 			"opengraph-image",
 			"organization-invitation",
 			"pricing",
+			"photo-to-coloring-page",
 			"privacy",
 			"reset-password",
 			"robots.txt",

@@ -72,6 +72,7 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 		pathname === "/" ||
 		pathname === "/create" ||
 		pathname === "/image-to-image" ||
+		pathname === "/photo-to-coloring-page" ||
 		pathname.startsWith("/models/");
 	const [panel, setPanel] = useState<StudioPanel | null>(null);
 	const [navigationOpen, setNavigationOpen] = useState(false);
