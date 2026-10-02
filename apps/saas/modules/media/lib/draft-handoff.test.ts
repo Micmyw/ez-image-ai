@@ -36,6 +36,23 @@ function paidAccountRequest() {
 }
 
 describe("draft handoff POST", () => {
+	it("stores only the server-validated public effect return path in a short HttpOnly cookie", async () => {
+		const path = "/effects/1980s-ai-photo?preset=studio-portrait";
+		const response = await createDraftHandoffResponse(request(), {
+			publicOrigin: "https://app.example.com",
+			saasOrigin: "https://app.example.com",
+			secure: true,
+			isRegistered: false,
+			resolveEffectReturnPath: () => path,
+		});
+		const cookie = response.headers
+			.getSetCookie()
+			.find((value) => value.startsWith("media_effect_return="));
+		expect(cookie).toContain(encodeURIComponent(path));
+		expect(cookie).toContain("HttpOnly");
+		expect(cookie).toContain("Max-Age=3600");
+		expect(response.headers.get("location")).not.toContain("preset");
+	});
 	it("sets the scoped HttpOnly cookie and redirects through the configured SaaS origin", async () => {
 		const response = await createDraftHandoffResponse(
 			request("https://app.example.com", "https://internal.example/draft/continue"),

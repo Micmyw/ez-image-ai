@@ -18,6 +18,7 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
+			"server-only": path.resolve(import.meta.dirname, "./test-support/server-only.ts"),
 			"@config": path.resolve(import.meta.dirname, "./config"),
 			"@docs": path.resolve(import.meta.dirname, "./modules/docs"),
 			"@docs-source": path.resolve(import.meta.dirname, "./.source"),

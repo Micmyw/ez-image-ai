@@ -18,9 +18,15 @@ import { GuestStatusPanel } from "./GuestStatusPanel";
 const GUEST_TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY ?? null;
 const LOCAL_TURNSTILE_EVIDENCE = "local-guest-generate";
 
-export function GuestTrialWorkspace({ registered = false }: { registered?: boolean }) {
+export function GuestTrialWorkspace({
+	registered = false,
+	effectReturnPath,
+}: {
+	registered?: boolean;
+	effectReturnPath?: string;
+}) {
 	const t = useTranslations("media.guest");
-	const trial = useGuestTrial({ registered });
+	const trial = useGuestTrial({ registered, effectReturnPath });
 	const [turnstileToken, setTurnstileToken] = useState(
 		GUEST_TURNSTILE_SITE_KEY ? "" : LOCAL_TURNSTILE_EVIDENCE,
 	);

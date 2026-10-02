@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import * as effectContent from "../modules/effects/lib/content";
 import * as content from "../modules/public-content/lib/content";
 import sitemap from "./sitemap";
 
@@ -17,6 +18,7 @@ describe("consolidated SaaS sitemap", () => {
 	it("publishes exactly the approved same-origin public routes", () => {
 		const entries = sitemap();
 		const urls = entries.map(({ url }) => new URL(url));
+		const publishedEffects = effectContent.getPublishedEffects();
 
 		expect(urls.map(({ pathname }) => pathname).sort()).toEqual(
 			[
@@ -46,6 +48,8 @@ describe("consolidated SaaS sitemap", () => {
 				"/docs/image-editing",
 				"/docs/credits",
 				"/docs/privacy",
+				...(publishedEffects.length ? ["/effects"] : []),
+				...publishedEffects.map((effect) => `/effects/${effect.slug}`),
 			].sort(),
 		);
 		expect(urls.every(({ origin }) => origin === "https://www.ezpic.test")).toBe(true);
@@ -70,12 +74,29 @@ describe("consolidated SaaS sitemap", () => {
 			"/blog/ai-image-editing-prompts": "2026-09-12",
 			"/blog/private-image-editing-workflow": "2026-09-22",
 			"/models": "2026-09-16",
-			"/docs": "2026-09-18",
+			"/docs": "2026-09-29",
 			"/docs/credits": "2026-09-29",
-			"/docs/image-editing": "2026-09-22",
-			"/docs/privacy": "2026-09-22",
-			"/docs/quick-start": "2026-09-22",
+			"/docs/image-editing": "2026-09-29",
+			"/docs/privacy": "2026-09-29",
+			"/docs/quick-start": "2026-09-29",
 		});
+		const publishedEffects = effectContent.getPublishedEffects();
+		for (const effect of publishedEffects) {
+			expect(dates[`/effects/${effect.slug}`]).toBe(effect.updatedAt);
+		}
+		if (publishedEffects.length) {
+			expect(dates["/effects"]).toBe(
+				publishedEffects
+					.map((effect) => effect.updatedAt)
+					.sort()
+					.at(-1),
+			);
+		}
+	});
+
+	it("omits the Effects directory when the published reader is empty", () => {
+		vi.spyOn(effectContent, "getPublishedEffects").mockReturnValue([]);
+		expect(sitemap().some(({ url }) => new URL(url).pathname.startsWith("/effects"))).toBe(false);
 	});
 
 	it("does not advance modification dates when rebuilding unchanged content", () => {

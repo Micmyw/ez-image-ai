@@ -1,0 +1,216 @@
+{
+	"description": "Internal editorial evidence; not a public content DTO. Generation uses the existing authenticated production EzImageAI workflow. No production content deployment is implied.",
+	"checkedAt": "2026-09-29T15:56:57.552Z",
+	"authorization": {
+		"maxGenerations": 6,
+		"maxCredits": 30,
+		"stopIfQuoteChanges": true
+	},
+	"input": {
+		"kind": "ai-generated-input",
+		"generator": "built-in image_gen tool",
+		"generationArtifact": "exec-70958d8b-9c84-4dcf-821d-85a4566923a3.png",
+		"generatedFileTimestamp": "2026-09-29T15:27:41.223Z",
+		"reviewedAt": "2026-09-29T15:31:40.790Z",
+		"authorization": "User explicitly authorized generating image material for the 1980s effect on 2026-09-29.",
+		"description": "Fictional adult woman generated without a real-person reference; original input, not an EzImageAI output or historical photograph.",
+		"prompt": "Use case: photorealistic-natural.\nAsset type: an original reference portrait for testing a photo-editing product. Generate ONE fictional adult person, not a celebrity or any recognizable real person.\nSubject: a woman clearly in her early thirties, short dark-brown hair in a simple modern bob, brown eyes, natural facial proportions with slight asymmetry, a relaxed closed-mouth smile. No makeup retouching or fashion glamour. She wears a plain light gray crew-neck cotton T-shirt.\nScene: plain softly illuminated light-gray indoor wall, uncluttered and without objects. Contemporary neutral digital photography, not vintage and not a stylized illustration.\nComposition: portrait 4:5 framing, head and torso visible, front facing with a slight natural turn, both shoulders fully in frame, plenty of space above the head, arms and hands outside the crop. Face well lit, focused, detailed natural skin texture, no harsh shadows.\nConstraints: one fictional adult only; no text, dates, marks, logos, watermarks, jewelry, glasses, other people, collage, or frame. This is the neutral ORIGINAL reference photograph; do not apply an eighties aesthetic, film fading or grain yet.",
+		"master": {
+			"path": "output/1980s-content-validation/input-adult-v1-original.png",
+			"width": 1122,
+			"height": 1402,
+			"sha256": "2cd432201f0c4134bae338aec7dd5a98c60012ead4abda10ce6f68d16d77f1f9"
+		},
+		"input": {
+			"path": "/images/effects/1980s-ai-photo/input-adult-v1.webp",
+			"width": 1000,
+			"height": 1250,
+			"sha256": "87591984e7ff7bc665408716dcbd1136368773fa4d39ad1bf88565cf0c51fab4",
+			"transformation": "Resized to width 1000px and encoded as WebP at quality 90; no creative alteration."
+		},
+		"productGeneration": false,
+		"review": "One adult subject; facial features and torso clearly visible; no logos, captions, watermarks or other people. Suitable as the common reference for the three pending product tests."
+	},
+	"attempts": [
+		{
+			"attempt": 1,
+			"presetId": "studio-portrait",
+			"version": 2,
+			"prompt": "Transform the uploaded portrait into a photorealistic 1980s studio photograph. Use the reference image as the guide for the person's facial structure, skin tone, apparent age, and expression; do not deliberately change their identity. Add a softly feathered hairstyle and a period-inspired denim jacket over a plain shirt. Use a muted blue-gray studio backdrop, soft portrait lighting, gentle diffusion, subtle 35mm film grain, and restrained faded color. Keep natural skin texture and realistic anatomy. Avoid neon cyberpunk styling, cartoon rendering, text, watermarks, and deliberate beauty reshaping.",
+			"submittedAt": "2026-09-29T15:39:39.513Z",
+			"jobId": "cmumue8a70004psp779gmh3x2",
+			"productKey": "image-nano-banana-2-lite",
+			"parameters": {
+				"skuKey": "nano-banana-2-lite-1k",
+				"aspectRatio": "4:5"
+			},
+			"quotedCredits": 5,
+			"balanceBefore": 1000,
+			"balanceAfterReservation": 995,
+			"state": "READY",
+			"completedObservedAt": "2026-09-29T15:41:51.044Z",
+			"chargedCredits": 5,
+			"returnedCredits": 0,
+			"downloadPath": "output/1980s-content-validation/studio-portrait-v2-original.jpg",
+			"review": {
+				"presetId": "studio-portrait",
+				"version": 2,
+				"outcome": "passed",
+				"observations": "The output adds a feathered hairstyle, denim jacket and blue-gray studio background with restrained grain. The face, smile and lighting differ slightly from the source. No obvious text, watermark or extra subject is visible. Hands remain outside the frame, so hand preservation was not tested.",
+				"publicCaption": "A denim jacket, feathered hair and blue-gray backdrop create the studio look. Facial details and the crop changed slightly from the original."
+			},
+			"asset": {
+				"presetId": "studio-portrait",
+				"version": 2,
+				"master": {
+					"path": "output/1980s-content-validation/studio-portrait-v2-original.jpg",
+					"width": 928,
+					"height": 1152,
+					"format": "jpeg",
+					"sha256": "dc641f0431fcbcbd66fce3da891ed77c6659231b8c31ce7970f298783d3ec055"
+				},
+				"public": {
+					"src": "/images/effects/1980s-ai-photo/studio-portrait-v2.webp",
+					"width": 928,
+					"height": 1152,
+					"bytes": 198270,
+					"sha256": "625dadfc94d75b5b54bc6bc763d6a7d8122d31ebeb5da238dea5a9e93bde6a3b"
+				},
+				"transformation": "WebP quality 90, downscaled only if wider than 1000px; no creative alterations."
+			}
+		},
+		{
+			"attempt": 2,
+			"presetId": "family-snapshot",
+			"version": 2,
+			"prompt": "Restyle the uploaded portrait as a candid family-album photograph inspired by the 1980s. Follow the reference image for the person's facial structure, skin tone, apparent age, and expression. Show the same person in a simple period-inspired knit sweater in a modest living-room setting, without adding other people. Use slightly imperfect direct-flash lighting, warm indoor tones, mild print fading, and subtle consumer-film grain. Keep the scene believable and the person recognizable as a goal, not a guaranteed result. Avoid heavy beauty retouching, artificial scratches across the face, captions, watermarks, and cartoon effects.",
+			"submittedAt": "2026-09-29T15:43:14.975Z",
+			"productKey": "image-nano-banana-2-lite",
+			"parameters": {
+				"skuKey": "nano-banana-2-lite-1k",
+				"aspectRatio": "4:3"
+			},
+			"quotedCredits": 5,
+			"balanceBefore": 995,
+			"state": "READY",
+			"jobId": "cmumuiuaj0002psp71jirbl89",
+			"balanceAfterReservation": 990,
+			"completedObservedAt": "2026-09-29T15:45:45.430Z",
+			"chargedCredits": 5,
+			"returnedCredits": 0,
+			"downloadPath": "output/1980s-content-validation/family-snapshot-v2-original.jpg",
+			"review": {
+				"presetId": "family-snapshot",
+				"version": 2,
+				"outcome": "failed",
+				"observations": "The living-room setting and knit sweater appeared, but the result has obvious red-eye, a teeth-showing smile instead of the original closed-mouth expression, and visible print-damage flecks. Retained as a failed editorial candidate; excluded from public marketing assets.",
+				"nextVersion": 3,
+				"revision": "Replace imperfect direct flash with gentle off-axis bounced flash; explicitly retain the closed-mouth expression and natural brown eyes; exclude facial damage overlays. This bundled adjustment is a test candidate, not a proven general fix."
+			},
+			"asset": null
+		},
+		{
+			"attempt": 3,
+			"presetId": "street-portrait",
+			"version": 2,
+			"prompt": "Create a photorealistic 1980s-inspired street portrait from the uploaded reference photo. Use the person's facial structure, skin tone, apparent age, and expression as the identity guide. Style the person with a denim jacket, a plain T-shirt, and restrained period-inspired hair. Place them on an ordinary city street in soft late-afternoon light, with an unobtrusive background and no readable signs. Use muted warm colors, natural shadows, mild film grain, and realistic skin texture. Avoid neon sci-fi scenery, exaggerated fashion, deliberate facial reshaping, extra fingers, text, and watermarks.",
+			"submittedAt": "2026-09-29T15:46:25.260Z",
+			"productKey": "image-nano-banana-2-lite",
+			"parameters": {
+				"skuKey": "nano-banana-2-lite-1k",
+				"aspectRatio": "4:5"
+			},
+			"quotedCredits": 5,
+			"balanceBefore": 990,
+			"state": "READY",
+			"jobId": "cmumumxhi0002psp7fnoyqkfj",
+			"balanceAfterReservation": 985,
+			"completedObservedAt": "2026-09-29T15:48:26.675Z",
+			"chargedCredits": 5,
+			"returnedCredits": 0,
+			"downloadPath": "output/1980s-content-validation/street-portrait-v2-original.jpg",
+			"review": {
+				"presetId": "street-portrait",
+				"version": 2,
+				"outcome": "passed",
+				"observations": "The output shows a denim jacket, restrained feathered hair, an ordinary street and warm late-afternoon light. The mouth opens slightly compared with the reference, and facial proportions differ. Background cars and a blurred pedestrian are invented. No readable sign or watermark is visible. Hands remain outside the frame.",
+				"publicCaption": "Warm street light and a denim jacket create the outdoor look. The smile changed, and the cars and blurred pedestrian were generated."
+			},
+			"asset": {
+				"presetId": "street-portrait",
+				"version": 2,
+				"master": {
+					"path": "output/1980s-content-validation/street-portrait-v2-original.jpg",
+					"width": 928,
+					"height": 1152,
+					"format": "jpeg",
+					"sha256": "7501b13578f3f5f306c029c459487c3812270bba63acfd5497244fd0e43a05df"
+				},
+				"public": {
+					"src": "/images/effects/1980s-ai-photo/street-portrait-v2.webp",
+					"width": 928,
+					"height": 1152,
+					"bytes": 143164,
+					"sha256": "0a4fd5870aff2ffe3288c16c6565712cb02f40a384d5e75f6e5e1a9d9a9aaa5f"
+				},
+				"transformation": "WebP quality 90, downscaled only if wider than 1000px; no creative alterations."
+			}
+		},
+		{
+			"attempt": 4,
+			"presetId": "family-snapshot",
+			"version": 3,
+			"prompt": "Restyle the uploaded portrait as a family-album photograph inspired by the 1980s. Follow the reference image for the person's facial structure, skin tone, and apparent age, and keep the same relaxed closed-mouth expression. Show the same person in a simple period-inspired knit sweater in a modest living-room setting, without adding other people. Use gentle off-axis bounced-flash lighting, warm indoor tones, mild print fading, and fine consumer-film grain. Keep the eyes naturally brown without red-eye, and keep the face and eyes free of scratches, dust, or damage overlays. Keep the scene believable and the person recognizable as a goal, not a guaranteed result. Avoid heavy beauty retouching, captions, watermarks, and cartoon effects.",
+			"promptVerification": "Matched visible AX textbox value before submission",
+			"submittedAt": "2026-09-29T15:52:40.341Z",
+			"productKey": "image-nano-banana-2-lite",
+			"parameters": {
+				"skuKey": "nano-banana-2-lite-1k",
+				"aspectRatio": "4:3"
+			},
+			"quotedCredits": 5,
+			"balanceBefore": 985,
+			"state": "READY",
+			"jobId": "cmumuuz0e0002psp7gyjumyqa",
+			"balanceAfterReservation": 980,
+			"completedObservedAt": "2026-09-29T15:54:45.801Z",
+			"chargedCredits": 5,
+			"returnedCredits": 0,
+			"downloadPath": "output/1980s-content-validation/family-snapshot-v3-original.jpg",
+			"review": {
+				"presetId": "family-snapshot",
+				"version": 3,
+				"outcome": "passed",
+				"observations": "The revised run has natural brown eyes without the obvious red-eye from v2, and a closed-mouth expression. It adds the requested knit sweater and warm living-room setting. The face still differs subtly from the source. The model invented an album-paper frame, corner tabs and background decorations including a small framed family photograph. The result is suitable as an openly labelled AI family-album interpretation, not a historic family record or an identity-preservation guarantee. Hands remain outside the crop.",
+				"publicCaption": "The revised family-album prompt produced natural brown eyes and a closed-mouth smile in this run. The model also added the album border and background decorations."
+			},
+			"asset": {
+				"presetId": "family-snapshot",
+				"version": 3,
+				"master": {
+					"path": "output/1980s-content-validation/family-snapshot-v3-original.jpg",
+					"width": 1200,
+					"height": 896,
+					"format": "jpeg",
+					"sha256": "3b48533b6da2e0d6bf6615aa7d697156ecafc7594ce2c892c02af259f9c0b719"
+				},
+				"public": {
+					"src": "/images/effects/1980s-ai-photo/family-snapshot-v3.webp",
+					"width": 1000,
+					"height": 747,
+					"bytes": 118026,
+					"sha256": "614fc1d1b1460b103f66c2d7144e4c8482d452e4a991d119fb81793f1fdb092a"
+				},
+				"transformation": "WebP quality 90, downscaled only if wider than 1000px; no creative alterations."
+			}
+		}
+	],
+	"creditSummary": {
+		"generations": 4,
+		"charged": 20,
+		"returned": 0,
+		"openingBalance": 1000,
+		"closingBalance": 980
+	},
+	"scope": "One AI-generated adult input; three published configurations, one rejected earlier family prompt. No success-rate or general identity-preservation claim."
+}

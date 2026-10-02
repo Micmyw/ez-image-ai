@@ -2,6 +2,9 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { EffectEditorContext } from "../../effects/lib/editor-context";
+import type { EffectPageContent, PublicEffectPreset } from "../../effects/lib/types";
+
 const mocks = vi.hoisted(() => ({ useGeneration: vi.fn(), modelOptions: vi.fn() }));
 const navigation = vi.hoisted(() => ({ pathname: "/create", search: "" }));
 vi.mock("./editor/RegisteredEditorDock", () => ({ RegisteredEditorDock: () => null }));
@@ -316,11 +319,146 @@ vi.mock("./editor/ImageSourcePanel", () => ({
 
 import { GenerationForm } from "./GenerationForm";
 
+const effectPreset: PublicEffectPreset = {
+	id: "studio-portrait",
+	version: 1,
+	name: "Studio portrait",
+	prompt: "Keep the face and create a retro portrait.",
+	inputRequirement: "required",
+	inputHint: "Use a clear photo",
+	productKey: "image-nano-banana-2-lite",
+	parameters: { skuKey: "nano-banana-2-lite-1k", aspectRatio: "auto" },
+	exampleIds: [],
+};
+const testEffect: EffectPageContent = {
+	id: "retro-portrait",
+	slug: "retro-portrait",
+	title: "Retro portrait",
+	summary: "A retro portrait",
+	seoTitle: "Retro portrait",
+	seoDescription: "A retro portrait",
+	primaryCategoryId: "portraits",
+	tags: [],
+	status: "draft",
+	trendStage: "none",
+	defaultPresetId: effectPreset.id,
+	presets: [effectPreset],
+	examples: [],
+	instructions: [],
+	limitations: [],
+	faq: [],
+	relatedEffectIds: [],
+	updatedAt: "2026-09-29",
+};
+function withEffectEditor(child: React.ReactNode) {
+	return (
+		<EffectEditorContext.Provider
+			value={{
+				effect: testEffect,
+				preview: true,
+				selectedPreset: effectPreset,
+				prompt: effectPreset.prompt,
+				isBusy: false,
+				requestPreset: vi.fn(),
+				focusEditor: vi.fn(),
+				bindEditor: () => () => undefined,
+				updateEditor: vi.fn(),
+				getReturnPath: () => "/create",
+				getAnalyticsContext: () => undefined,
+				resultContainer: null,
+				setResultContainer: vi.fn(),
+				hasResult: false,
+				setResultActive: vi.fn(),
+			}}
+		>
+			{child}
+		</EffectEditorContext.Provider>
+	);
+}
+
 describe("GenerationForm product copy", () => {
 	beforeEach(() => {
 		navigation.pathname = "/create";
 		navigation.search = "";
 		mocks.useGeneration.mockReturnValue(generationState());
+	});
+
+	it("preserves the homepage mode, prompt guidance and visible instruction choices", () => {
+		navigation.pathname = "/";
+		const markup = renderToStaticMarkup(<GenerationForm onCreated={vi.fn()} />);
+		expect(markup).toContain('class="studio-composer-heading"');
+		expect(markup).toContain("generation.textMode");
+		expect(markup).toContain("Localized image prompt");
+		expect(markup).toContain('id="generation-prompt-hint"');
+		expect(markup).toContain("suggestions.label");
+		for (const key of ["background", "object", "lighting", "style"])
+			expect(markup).toContain(`promptSuggestions.${key}`);
+		expect(markup).not.toContain('class="image-edit-prompt-ideas"');
+	});
+
+	it("fills the effect preset without accepting a conflicting model query or creating a task", () => {
+		navigation.pathname = "/effects/retro-portrait";
+		navigation.search = "model=image-gpt-image-2";
+		const state = generationState();
+		mocks.useGeneration.mockReturnValue(state);
+		const markup = renderToStaticMarkup(withEffectEditor(<GenerationForm onCreated={vi.fn()} />));
+		expect(markup).toContain(effectPreset.prompt);
+		const trigger = markup.match(
+			/<button[^>]*data-test="editor-model-trigger"[\s\S]*?<\/button>/,
+		)?.[0];
+		expect(trigger).toContain("Localized Nano Banana 2 Lite");
+		expect(trigger).not.toContain("Localized GPT Image 2");
+		expect(state.createGeneration.mutateAsync).not.toHaveBeenCalled();
+	});
+
+	it("keeps the editor inert until private draft recovery completes", () => {
+		const pending = renderToStaticMarkup(
+			withEffectEditor(<GenerationForm ready={false} onCreated={vi.fn()} />),
+		);
+		expect(pending).toMatch(
+			/<form[^>]*data-editor-ready="false"[^>]*aria-busy="true"[^>]*inert=""/,
+		);
+		const ready = renderToStaticMarkup(
+			withEffectEditor(<GenerationForm ready onCreated={vi.fn()} />),
+		);
+		expect(ready).toMatch(/<form[^>]*data-editor-ready="true"[^>]*aria-busy="false"/);
+		expect(ready).not.toMatch(/<form[^>]*inert=/);
+	});
+
+	it("keeps a recovered private prompt instead of replacing it with the preset default", () => {
+		const markup = renderToStaticMarkup(
+			withEffectEditor(
+				<GenerationForm
+					onCreated={vi.fn()}
+					initialDraft={{
+						productKey: "image-nano-banana-2-lite",
+						input: {
+							kind: "image-to-image",
+							prompt: "My saved private portrait changes",
+							sourceAssetId: "owned-reference",
+							skuKey: "nano-banana-2-lite-1k",
+							aspectRatio: "auto",
+						},
+					}}
+				/>,
+			),
+		);
+		expect(markup).toContain("My saved private portrait changes");
+		expect(markup).not.toContain(effectPreset.prompt);
+	});
+
+	it("keeps an unavailable effect model selected and explains why it cannot submit", () => {
+		const state = generationState();
+		state.catalog.data.products = state.catalog.data.products.filter(
+			(product) => product.key !== effectPreset.productKey,
+		);
+		mocks.useGeneration.mockReturnValue(state);
+		const markup = renderToStaticMarkup(withEffectEditor(<GenerationForm onCreated={vi.fn()} />));
+		expect(markup).toContain("modelUnavailable");
+		const trigger = markup.match(
+			/<button[^>]*data-test="editor-model-trigger"[\s\S]*?<\/button>/,
+		)?.[0];
+		expect(trigger).toContain("Localized Nano Banana 2 Lite");
 	});
 
 	it.each([

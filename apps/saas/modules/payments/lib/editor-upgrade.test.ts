@@ -58,6 +58,10 @@ describe("editor upgrade navigation", () => {
 		["/create?upgrade=complete", "/create?upgrade=complete"],
 		["/history", "/history"],
 		["/history/job_01J5ABCDEF", "/history/job_01J5ABCDEF"],
+		[
+			"/effects/1980s-ai-photo?preset=studio-portrait&upgrade=complete",
+			"/effects/1980s-ai-photo?preset=studio-portrait&upgrade=complete",
+		],
 	])("accepts the local editor/session path %s", (input, expected) => {
 		expect(sanitizeEditorReturnPath(input)).toBe(expected);
 	});
@@ -69,6 +73,7 @@ describe("editor upgrade navigation", () => {
 		"/create?redirect=https://attacker.example",
 		"/history/../../settings",
 		"/create\\@attacker.example",
+		"/effects/1980s-ai-photo?preset=studio-portrait&sourceAssetId=private",
 	])("rejects a non-editor return path: %s", (input) => {
 		expect(sanitizeEditorReturnPath(input)).toBe("/create");
 	});

@@ -14,6 +14,7 @@ import {
 } from "@repo/config/client";
 import { hasGrowthAnalyticsConsent, readGrowthAnalyticsSessionHash } from "@repo/utils";
 
+import { sanitizeEffectEditorReturnPath } from "../../effects/lib/editor-selection";
 import type { PublicImageSpecControl } from "../../media/lib/image-sku-selection";
 
 export const LANDING_IMAGE_CONTENT_TYPES = ["image/jpeg", "image/png", "image/webp"] as const;
@@ -272,6 +273,7 @@ export async function completeGuestDraftUpload(
 export function submitGuestDraftHandoff(
 	handoff: GuestDraftHandoff,
 	documentRef: Document = document,
+	returnTo?: string,
 ): void {
 	const form = documentRef.createElement("form");
 	form.method = "POST";
@@ -285,6 +287,8 @@ export function submitGuestDraftHandoff(
 		),
 	);
 	form.append(hiddenField(documentRef, "claimToken", handoff.claimToken));
+	const effectReturn = sanitizeEffectEditorReturnPath(returnTo);
+	if (effectReturn) form.append(hiddenField(documentRef, "returnTo", effectReturn));
 	const cookie = documentRef.cookie ?? "";
 	if (hasGrowthAnalyticsConsent(cookie)) {
 		const anonymousSessionHash = readGrowthAnalyticsSessionHash(cookie);

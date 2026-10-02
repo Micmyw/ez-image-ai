@@ -17,6 +17,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 
+import { useEffectEditor, useEffectEditorBinding } from "../../effects/lib/editor-context";
+import {
+	applyEffectPresetToValues,
+	hasEffectPresetChanges,
+	isEffectSelectionAvailable,
+} from "../../effects/lib/editor-selection";
 import {
 	LANDING_PROMPT_SELECTED_EVENT,
 	type LandingPromptSelectedDetail,
@@ -63,6 +69,7 @@ export function GenerationForm({
 	onCreated,
 	onDraftChange,
 	onSourceChanged,
+	ready = true,
 	jobId = null,
 	initialDraft,
 	initialTemporaryReference,
@@ -70,13 +77,14 @@ export function GenerationForm({
 	allowedProductKeys = [...EZPIC_PRODUCT_KEYS],
 	initialSourceReady = false,
 	parentJobId,
-	requireReference = false,
+	requireReference: referenceRequired = false,
 	layout = "default",
 }: {
 	onCreated: (jobId: string) => void;
 	onDraftChange?: (values: GenerationFormValues, reference?: TemporaryReferenceReceipt) => void;
 	initialTemporaryReference?: TemporaryReferenceReceipt;
 	onSourceChanged?: () => void;
+	ready?: boolean;
 	jobId?: string | null;
 	initialDraft?: EditorDraftInput | null;
 	initialProductKey?: EditorProductKey;
@@ -86,6 +94,10 @@ export function GenerationForm({
 	requireReference?: boolean;
 	layout?: "default" | "minimal";
 }) {
+	const effectEditor = useEffectEditor();
+	const effectPreset = effectEditor?.selectedPreset;
+	const requireReference = referenceRequired || effectPreset?.inputRequirement === "required";
+	const effects = useTranslations("effects.editor");
 	const t = useTranslations("media.create");
 	const studio = useTranslations("studio");
 	const imageToImage = useTranslations("imageToImage");
@@ -131,19 +143,22 @@ export function GenerationForm({
 	const examplePrompt = useShowcasePrompt();
 	const resolvedInitialProductKey =
 		initialProductKey ??
+		(effectPreset ? (initialDraft?.productKey ?? effectPreset.productKey) : undefined) ??
 		(requestedModel && isEditorProductKey(requestedModel)
 			? requestedModel
 			: (initialDraft?.productKey ?? "image-nano-banana-2-lite"));
 	const initialContract = getImageProductSelectionContract(resolvedInitialProductKey)!;
 	const initialSelection =
-		initialDraft?.productKey === resolvedInitialProductKey ? initialDraft.input : null;
+		initialDraft?.productKey === resolvedInitialProductKey
+			? initialDraft.input
+			: effectPreset?.parameters;
 	const form = useForm<GenerationFormValues>({
 		resolver: zodResolver(generationFormValuesSchema),
 		mode: "onChange",
 		defaultValues: {
 			productKey: resolvedInitialProductKey,
 			skuKey: initialSelection?.skuKey ?? initialContract.defaultSkuKey,
-			prompt: initialDraft?.input.prompt ?? examplePrompt,
+			prompt: initialDraft?.input.prompt ?? effectPreset?.prompt ?? examplePrompt,
 			sourceAssetId: initialDraft?.input.sourceAssetId ?? "",
 			aspectRatio: initialSelection?.aspectRatio ?? initialContract.defaultAspectRatio,
 			outputFormat: initialSelection?.outputFormat,
@@ -154,6 +169,11 @@ export function GenerationForm({
 	const product = products.find((candidate) => candidate.key === values.productKey);
 	const upgradeRequired = Boolean(product && !allowedProductKeys.includes(values.productKey));
 	const selectedCell = getImageSpecCell(product?.skuMatrix, values.skuKey);
+	const effectSelectionUnavailable = Boolean(
+		effectEditor &&
+		(generation.catalog.isError ||
+			(generation.catalog.data && !isEffectSelectionAvailable(values, products))),
+	);
 	const supportedAspectRatios = publicImageAspectRatios(selectedCell);
 	const controlValues = useMemo(
 		() =>
@@ -167,6 +187,7 @@ export function GenerationForm({
 		if (
 			!product ||
 			!selectedCell ||
+			effectSelectionUnavailable ||
 			sourcePending ||
 			!supportedAspectRatios.includes(values.aspectRatio) ||
 			(Boolean(values.sourceAssetId) && !sourceReady) ||
@@ -190,6 +211,7 @@ export function GenerationForm({
 	}, [
 		product,
 		selectedCell,
+		effectSelectionUnavailable,
 		controlValues,
 		sourceReady,
 		sourcePending,
@@ -213,6 +235,15 @@ export function GenerationForm({
 	}, [upgradeOpen, values.productKey]);
 
 	const beginNewAction = generation.beginNewAction;
+	useEffectEditorBinding({
+		prompt: values.prompt,
+		busy: generation.createGeneration.isPending || sourcePending,
+		hasCustomChanges: (preset) => hasEffectPresetChanges(form.getValues(), preset),
+		applyPreset: (preset) => {
+			form.reset(applyEffectPresetToValues(form.getValues(), preset));
+			generation.beginNewAction();
+		},
+	});
 	const updateSourcePending = useCallback(
 		(pending: boolean) => {
 			if (sourcePendingRef.current === pending) return;
@@ -315,7 +346,8 @@ export function GenerationForm({
 	const modelNavigation = useModelNavigation({
 		products,
 		value: values.productKey,
-		ready: Boolean(generation.catalog.data) && !generation.createGeneration.isPending,
+		ready:
+			!effectEditor && Boolean(generation.catalog.data) && !generation.createGeneration.isPending,
 		onSelect: updateProduct,
 	});
 
@@ -389,11 +421,14 @@ export function GenerationForm({
 			setUpgradeOpen(true);
 			return;
 		}
-		router.push(createChoosePlanPath("/create?upgrade=complete"));
+		router.push(
+			createChoosePlanPath(effectEditor?.getReturnPath("upgrade") ?? "/create?upgrade=complete"),
+		);
 	}
 
 	async function confirmGeneration() {
 		if (
+			!ready ||
 			!input ||
 			displayedCredits === undefined ||
 			sourcePendingRef.current ||
@@ -424,6 +459,9 @@ export function GenerationForm({
 			className="studio-composer"
 			data-layout={layout}
 			data-test="registered-generator"
+			data-editor-ready={ready}
+			aria-busy={!ready}
+			inert={!ready}
 			id="registered-generator"
 			onSubmit={form.handleSubmit((validated) => {
 				if (!allowedProductKeys.includes(validated.productKey)) {
@@ -433,6 +471,12 @@ export function GenerationForm({
 				void confirmGeneration();
 			})}
 		>
+			{(!ready || (effectEditor && !generation.catalog.data && !generation.catalog.isError)) && (
+				<output className="mb-3 text-sm block text-muted-foreground">{t("checking")}</output>
+			)}
+			{effectSelectionUnavailable && (
+				<output className="mb-3 text-sm text-amber-200 block">{effects("modelUnavailable")}</output>
+			)}
 			{layout !== "minimal" && (
 				<div className="studio-composer-heading">
 					<span>
@@ -454,7 +498,16 @@ export function GenerationForm({
 			<div className="studio-composer-inputs">
 				<ImageSourcePanel
 					compact
-					label={layout === "minimal" ? imageToImage("composer.referenceLabel") : undefined}
+					label={
+						effectEditor && requireReference
+							? imageToImage("referenceLabel")
+							: layout === "minimal"
+								? imageToImage("composer.referenceLabel")
+								: undefined
+					}
+					uploadLabel={
+						effectEditor && requireReference ? imageToImage("referenceLabel") : undefined
+					}
 					sourceAssetId={values.sourceAssetId}
 					temporaryReference={temporaryReference}
 					maximumImageBytes={Math.min(
@@ -518,7 +571,7 @@ export function GenerationForm({
 						onChange={(key) => {
 							if (isEditorProductKey(key)) {
 								updateProduct(key);
-								replaceImageModelInUrl(key);
+								if (!effectEditor) replaceImageModelInUrl(key);
 							}
 						}}
 						disabled={generation.createGeneration.isPending}

@@ -12,6 +12,9 @@ import { getBaseUrl } from "@shared/lib/base-url";
 import { headers } from "next/headers";
 import { NextResponse } from "next/server";
 
+import { readEffectEditorReturnCookie } from "../../../modules/effects/lib/editor-return";
+import { resolvePublishedEffectReturnPath } from "../../../modules/effects/lib/editor-return.server";
+
 export async function POST(request: Request) {
 	const saasOrigin = process.env.NEXT_PUBLIC_SAAS_URL;
 	if (!saasOrigin) return new Response(null, { status: 403 });
@@ -25,24 +28,28 @@ export async function POST(request: Request) {
 			saasOrigin,
 			secure: process.env.NODE_ENV === "production",
 			isRegistered: Boolean(session && !isAnonymousUser(session.user)),
+			resolveEffectReturnPath: resolvePublishedEffectReturnPath,
 		});
 	} catch {
 		return new Response(null, { status: 403 });
 	}
 }
 
-export async function GET(_request: Request) {
+export async function GET(request: Request) {
 	const session = await getSession();
 	if (!session) return anonymousBootstrapPostResponse();
 	const saasOrigin = getBaseUrl();
 	const responseHeaders = new Headers();
+	const effectReturn = resolvePublishedEffectReturnPath(
+		readEffectEditorReturnCookie(request.headers.get("cookie")),
+	);
 	try {
 		const draft = await (
 			isAnonymousUser(session.user) ? claimGuestDraft : claimGenerationDraft
 		).callable({
 			context: { headers: await headers(), responseHeaders },
 		})({});
-		const target = isAnonymousUser(session.user) ? "/try" : "/create";
+		const target = isAnonymousUser(session.user) ? "/try" : (effectReturn ?? "/create");
 		const response = NextResponse.redirect(new URL(target, saasOrigin));
 		for (const [name, value] of responseHeaders) response.headers.append(name, value);
 		if (!isAnonymousUser(session.user)) {
@@ -50,7 +57,7 @@ export async function GET(_request: Request) {
 				httpOnly: true,
 				sameSite: "lax",
 				secure: process.env.NODE_ENV === "production",
-				path: "/create",
+				path: effectReturn ? new URL(effectReturn, saasOrigin).pathname : "/create",
 				maxAge: 300,
 			});
 		}
@@ -59,7 +66,9 @@ export async function GET(_request: Request) {
 	} catch {
 		const target = isAnonymousUser(session.user)
 			? "/try?draftError=unavailable"
-			: "/create?draftError=unavailable";
+			: effectReturn
+				? `${effectReturn}&draftError=unavailable`
+				: "/create?draftError=unavailable";
 		const response = NextResponse.redirect(new URL(target, saasOrigin));
 		expireHandoffCookies(response);
 		return response;

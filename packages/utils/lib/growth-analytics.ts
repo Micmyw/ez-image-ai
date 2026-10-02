@@ -3,6 +3,10 @@ import { z } from "zod";
 
 export const EZPIC_GROWTH_EVENT_NAMES = [
 	"landing_viewed",
+	"effect_viewed",
+	"blog_viewed",
+	"prompt_copied",
+	"preset_selected",
 	"example_prompt_selected",
 	"source_upload_started",
 	"source_upload_completed",
@@ -33,8 +37,54 @@ export const growthAnalyticsEventNameSchema = z.enum(EZPIC_GROWTH_EVENT_NAMES);
 
 export const EZPIC_ANALYTICS_PRODUCT_KEYS = EZPIC_PRODUCT_KEYS;
 
+const contentIdSchema = z
+	.string()
+	.regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
+	.max(96);
+const analyticsHashSchema = z.string().regex(/^sha256:[a-f0-9]{64}$/);
+const contentAttributionShape = {
+	effect_id: contentIdSchema.optional(),
+	preset_id: contentIdSchema.optional(),
+	preset_version: z.number().int().positive().max(1_000_000).optional(),
+	source_blog_id: contentIdSchema.optional(),
+	internal_source: z
+		.enum(["effects-directory", "blog", "home", "image-to-image", "model", "effect"])
+		.optional(),
+	entry_path: z
+		.string()
+		.max(256)
+		.regex(/^\/(?:effects\/[a-z0-9]+(?:-[a-z0-9]+)*|blog\/[a-z0-9]+(?:[-/][a-z0-9]+)*)$/)
+		.optional(),
+};
+
+function validContentAttribution(value: z.infer<typeof contentAttributionBaseSchema>): boolean {
+	const hasEffect = value.effect_id !== undefined;
+	if (hasEffect !== (value.preset_id !== undefined && value.preset_version !== undefined)) {
+		return false;
+	}
+	if (!hasEffect && (value.preset_id !== undefined || value.preset_version !== undefined)) {
+		return false;
+	}
+	const hasContent = hasEffect || value.source_blog_id !== undefined;
+	return (
+		hasContent &&
+		value.entry_path !== undefined &&
+		value.internal_source !== undefined &&
+		(hasEffect || (value.internal_source === "blog" && value.entry_path.startsWith("/blog/")))
+	);
+}
+
+const contentAttributionBaseSchema = z.object(contentAttributionShape).strict();
+export const growthContentAttributionSchema = contentAttributionBaseSchema.refine(
+	validContentAttribution,
+	"Content attribution needs a complete registered effect/preset or a blog reference.",
+);
+export type GrowthContentAttribution = z.infer<typeof growthContentAttributionSchema>;
+
 export const growthAnalyticsPropertiesSchema = z
 	.object({
+		...contentAttributionShape,
+		task_hash: analyticsHashSchema.optional(),
 		plan: z.enum(["free", "creator", "ultimate", "studio"]).optional(),
 		productKey: z.enum(EZPIC_ANALYTICS_PRODUCT_KEYS).optional(),
 		status: z
@@ -56,6 +106,7 @@ export const growthAnalyticsPropertiesSchema = z
 				"admitted",
 				"ready",
 				"registered",
+				"copied",
 			])
 			.optional(),
 		creditsBucket: z
@@ -67,7 +118,18 @@ export const growthAnalyticsPropertiesSchema = z
 			.regex(/^sha256:[a-f0-9]{64}$/)
 			.optional(),
 	})
-	.strict();
+	.strict()
+	.refine((value) => {
+		const attribution = Object.fromEntries(
+			Object.keys(contentAttributionShape)
+				.filter((key) => value[key as keyof typeof value] !== undefined)
+				.map((key) => [key, value[key as keyof typeof value]]),
+		);
+		return (
+			Object.keys(attribution).length === 0 ||
+			growthContentAttributionSchema.safeParse(attribution).success
+		);
+	});
 
 export const growthAnalyticsEventSchema = z
 	.object({
@@ -83,6 +145,177 @@ export type GrowthAnalyticsTrackResult = "blocked" | "duplicate" | "failed" | "r
 
 export const EZPIC_GROWTH_EVENT_FIXTURE = "ezpic:growth-event";
 export const EZPIC_ANALYTICS_SESSION_COOKIE = "ezpic_analytics_session";
+export const EZPIC_CONTENT_ATTRIBUTION_STORAGE_KEY = "ezpic:content-attribution:v1";
+export const EZPIC_CONTENT_ATTRIBUTION_MAX_AGE_MS = 30 * 60_000;
+
+const storedAttributionSchema = z
+	.object({
+		context: growthContentAttributionSchema.optional(),
+		expiresAt: z.number().finite(),
+		tasks: z
+			.array(
+				z
+					.object({
+						hash: analyticsHashSchema,
+						context: growthContentAttributionSchema,
+						expiresAt: z.number().finite(),
+						delivered: z.array(growthAnalyticsEventNameSchema).max(EZPIC_GROWTH_EVENT_NAMES.length),
+					})
+					.strict(),
+			)
+			.max(20),
+	})
+	.strict();
+
+/** Only bounded public references and one-way task hashes are retained in this tab. */
+export function createGrowthContentAttributionStore(runtime: {
+	hasConsent: () => boolean;
+	storage?: Pick<Storage, "getItem" | "setItem" | "removeItem">;
+	now?: () => number;
+}) {
+	type State = z.infer<typeof storedAttributionSchema>;
+	let state: State | undefined;
+	const now = runtime.now ?? Date.now;
+	function clear() {
+		state = undefined;
+		try {
+			runtime.storage?.removeItem(EZPIC_CONTENT_ATTRIBUTION_STORAGE_KEY);
+		} catch {
+			/* Storage can be unavailable. */
+		}
+	}
+	function save(value: State) {
+		state = value;
+		try {
+			runtime.storage?.setItem(EZPIC_CONTENT_ATTRIBUTION_STORAGE_KEY, JSON.stringify(value));
+		} catch {
+			/* Memory-only attribution still works. */
+		}
+	}
+	function readState(): State | undefined {
+		if (!runtime.hasConsent()) {
+			clear();
+			return undefined;
+		}
+		if (!state) {
+			try {
+				const parsed = storedAttributionSchema.safeParse(
+					JSON.parse(runtime.storage?.getItem(EZPIC_CONTENT_ATTRIBUTION_STORAGE_KEY) ?? "null"),
+				);
+				if (parsed.success) state = parsed.data;
+				else clear();
+			} catch {
+				clear();
+			}
+		}
+		if (!state) return undefined;
+		const time = now();
+		const tasks = state.tasks.filter(
+			(task) =>
+				task.expiresAt > time && task.expiresAt <= time + EZPIC_CONTENT_ATTRIBUTION_MAX_AGE_MS,
+		);
+		const context =
+			state.expiresAt > time && state.expiresAt <= time + EZPIC_CONTENT_ATTRIBUTION_MAX_AGE_MS
+				? state.context
+				: undefined;
+		if (!context && tasks.length === 0) {
+			clear();
+			return undefined;
+		}
+		state = { ...state, context, tasks };
+		return state;
+	}
+	return {
+		clear,
+		clearContext() {
+			const value = readState();
+			if (!value) return;
+			if (value.tasks.length === 0) clear();
+			else save({ ...value, context: undefined, expiresAt: now() });
+		},
+		read: () => readState()?.context,
+		set(input: unknown): boolean {
+			if (!runtime.hasConsent()) {
+				clear();
+				return false;
+			}
+			const parsed = growthContentAttributionSchema.safeParse(input);
+			if (!parsed.success || containsSensitiveAnalyticsData(input)) {
+				clear();
+				return false;
+			}
+			save({
+				context: parsed.data,
+				expiresAt: now() + EZPIC_CONTENT_ATTRIBUTION_MAX_AGE_MS,
+				tasks: readState()?.tasks ?? [],
+			});
+			return true;
+		},
+		bindTask(hash: string, context: GrowthContentAttribution) {
+			if (
+				!runtime.hasConsent() ||
+				!analyticsHashSchema.safeParse(hash).success ||
+				!growthContentAttributionSchema.safeParse(context).success
+			)
+				return;
+			const value = readState() ?? { expiresAt: now(), tasks: [] };
+			if (value.tasks.some((task) => task.hash === hash)) return;
+			save({
+				...value,
+				tasks: [
+					...value.tasks,
+					{ hash, context, expiresAt: now() + EZPIC_CONTENT_ATTRIBUTION_MAX_AGE_MS, delivered: [] },
+				].slice(-20),
+			});
+		},
+		readTask(hash: string) {
+			return readState()?.tasks.find((task) => task.hash === hash);
+		},
+		markDelivered(hash: string, name: GrowthAnalyticsEventName) {
+			const value = readState();
+			if (!value) return;
+			save({
+				...value,
+				tasks: value.tasks.map((task) =>
+					task.hash === hash
+						? { ...task, delivered: [...new Set([...task.delivered, name])] }
+						: task,
+				),
+			});
+		},
+	};
+}
+
+export type GrowthAnalyticsAttributionSnapshot = Readonly<{
+	enabled: boolean;
+	context: GrowthContentAttribution | null;
+	capturedAt: number;
+}>;
+
+/** Captures absence too: a request begun without content must never inherit a later page. */
+export function snapshotGrowthContentAttribution(
+	context: GrowthContentAttribution | undefined,
+	enabled: boolean,
+	now = Date.now(),
+): GrowthAnalyticsAttributionSnapshot {
+	const parsed = enabled && context ? growthContentAttributionSchema.safeParse(context) : undefined;
+	return Object.freeze({
+		enabled,
+		context: parsed?.success ? Object.freeze(parsed.data) : null,
+		capturedAt: now,
+	});
+}
+
+type GrowthTrackOptions = {
+	dedupeKey?: string;
+	taskKey?: string;
+	attribution?: GrowthAnalyticsAttributionSnapshot;
+};
+class GrowthDispatchSkipped extends Error {
+	constructor(readonly result: "blocked" | "duplicate") {
+		super(result);
+	}
+}
 
 const sensitiveKeyPatterns = [
 	/^prompt$/,
@@ -138,14 +371,15 @@ export function containsSensitiveAnalyticsData(value: unknown): boolean {
 
 export function createGrowthAnalyticsDispatcher(options: {
 	hasConsent: () => boolean;
-	send: (event: GrowthAnalyticsEvent) => Promise<void> | void;
+	send: (event: GrowthAnalyticsEvent, options?: GrowthTrackOptions) => Promise<void> | void;
 }) {
 	const deliveredDedupeKeys = new Set<string>();
+	const pendingDedupeKeys = new Set<string>();
 
 	return {
 		async track(
 			input: unknown,
-			trackOptions?: { dedupeKey?: string },
+			trackOptions?: GrowthTrackOptions,
 		): Promise<GrowthAnalyticsTrackResult> {
 			if (containsSensitiveAnalyticsData(input)) return "rejected";
 			const parsed = growthAnalyticsEventSchema.safeParse(input);
@@ -153,14 +387,19 @@ export function createGrowthAnalyticsDispatcher(options: {
 			if (!options.hasConsent()) return "blocked";
 
 			const dedupeKey = trackOptions?.dedupeKey;
-			if (dedupeKey && deliveredDedupeKeys.has(dedupeKey)) return "duplicate";
+			if (dedupeKey && (deliveredDedupeKeys.has(dedupeKey) || pendingDedupeKeys.has(dedupeKey)))
+				return "duplicate";
 
 			try {
-				await options.send(parsed.data);
+				if (dedupeKey) pendingDedupeKeys.add(dedupeKey);
+				await options.send(parsed.data, trackOptions);
 				if (dedupeKey) deliveredDedupeKeys.add(dedupeKey);
 				return "sent";
-			} catch {
+			} catch (error) {
+				if (error instanceof GrowthDispatchSkipped) return error.result;
 				return "failed";
+			} finally {
+				if (dedupeKey) pendingDedupeKeys.delete(dedupeKey);
 			}
 		},
 	};
@@ -175,20 +414,65 @@ export function createBrowserGrowthAnalyticsDispatcher(runtime: {
 	dispatch: (eventName: string, detail: GrowthAnalyticsEvent) => void;
 	resolveAnonymousSessionHash?: () => Promise<string | undefined>;
 	sendExternal?: (event: GrowthAnalyticsEvent) => Promise<void>;
+	attribution?: ReturnType<typeof createGrowthContentAttributionStore>;
+	isSuppressed?: () => boolean;
+	hashTask?: (sessionHash: string, key: string) => Promise<string | undefined>;
 }) {
 	return createGrowthAnalyticsDispatcher({
-		hasConsent: () => hasGrowthAnalyticsConsent(runtime.getCookie()),
-		send: async (event) => {
+		hasConsent: () => {
+			const consent = hasGrowthAnalyticsConsent(runtime.getCookie());
+			if (!consent) runtime.attribution?.clear();
+			return consent && !runtime.isSuppressed?.();
+		},
+		send: async (event, options) => {
+			const snapshot = options?.attribution;
+			if (
+				snapshot &&
+				(!snapshot.enabled ||
+					!Number.isFinite(snapshot.capturedAt) ||
+					snapshot.capturedAt > Date.now() ||
+					Date.now() - snapshot.capturedAt >= EZPIC_CONTENT_ATTRIBUTION_MAX_AGE_MS)
+			) {
+				throw new GrowthDispatchSkipped("blocked");
+			}
+			const currentContext = snapshot
+				? snapshot.context
+					? growthContentAttributionSchema.parse(snapshot.context)
+					: undefined
+				: runtime.attribution?.read();
 			const anonymousSessionHash = await runtime.resolveAnonymousSessionHash?.();
+			const taskKey = taskKeyForGrowthEvent(event.name, options);
+			const taskHash =
+				anonymousSessionHash && taskKey
+					? await (runtime.hashTask ?? hashGrowthTaskIdentity)(anonymousSessionHash, taskKey)
+					: undefined;
+			if (!hasGrowthAnalyticsConsent(runtime.getCookie()) || runtime.isSuppressed?.()) {
+				runtime.attribution?.clear();
+				throw new GrowthDispatchSkipped("blocked");
+			}
+			if (
+				taskHash &&
+				currentContext &&
+				(event.name === "editor_generation_confirmed" || event.name === "guest_generation_admitted")
+			) {
+				runtime.attribution?.bindTask(taskHash, currentContext);
+			}
+			const task = taskHash ? runtime.attribution?.readTask(taskHash) : undefined;
+			if (task?.delivered.includes(event.name)) throw new GrowthDispatchSkipped("duplicate");
+			// A terminal event for an older job must not inherit the currently selected effect.
+			const context = taskKey ? task?.context : currentContext;
 			const enriched = growthAnalyticsEventSchema.parse({
 				...event,
 				properties: {
+					...context,
 					...event.properties,
+					...(taskHash ? { task_hash: taskHash } : {}),
 					...(anonymousSessionHash ? { anonymousSessionHash } : {}),
 				},
 			});
 			runtime.dispatch(EZPIC_GROWTH_EVENT_FIXTURE, enriched);
 			await runtime.sendExternal?.(enriched);
+			if (taskHash) runtime.attribution?.markDelivered(taskHash, event.name);
 		},
 	});
 }
@@ -196,14 +480,78 @@ export function createBrowserGrowthAnalyticsDispatcher(runtime: {
 let browserGrowthAnalyticsDispatcher:
 	| ReturnType<typeof createBrowserGrowthAnalyticsDispatcher>
 	| undefined;
+let browserContentAttribution: ReturnType<typeof createGrowthContentAttributionStore> | undefined;
+let browserGrowthAnalyticsSuppressed = false;
+
+function browserAttributionStore() {
+	if (!browserContentAttribution) {
+		let storage: Storage | undefined;
+		try {
+			storage = typeof window === "undefined" ? undefined : window.sessionStorage;
+		} catch {
+			/* Privacy settings may disable storage. */
+		}
+		browserContentAttribution = createGrowthContentAttributionStore({
+			hasConsent: () =>
+				typeof document !== "undefined" && hasGrowthAnalyticsConsent(document.cookie ?? ""),
+			storage,
+		});
+	}
+	return browserContentAttribution;
+}
+
+export function setBrowserGrowthContentAttribution(context: unknown): boolean {
+	return browserAttributionStore().set(context);
+}
+
+export function readBrowserGrowthContentAttribution(): GrowthContentAttribution | undefined {
+	return browserAttributionStore().read();
+}
+
+export function clearBrowserGrowthContentAttribution() {
+	browserAttributionStore().clear();
+}
+
+/** Clears the active page only. Previously admitted tasks keep their original context. */
+export function clearBrowserGrowthActiveContentAttribution() {
+	browserAttributionStore().clearContext();
+}
+
+export function captureBrowserGrowthAnalyticsAttribution(): GrowthAnalyticsAttributionSnapshot {
+	const enabled =
+		typeof document !== "undefined" &&
+		hasGrowthAnalyticsConsent(document.cookie ?? "") &&
+		!browserGrowthAnalyticsSuppressed;
+	return snapshotGrowthContentAttribution(
+		enabled ? browserAttributionStore().read() : undefined,
+		enabled,
+	);
+}
+
+/** Protected preview pages must suppress reused editor events too. */
+export function setBrowserGrowthAnalyticsSuppressed(suppressed: boolean) {
+	browserGrowthAnalyticsSuppressed = suppressed;
+	if (suppressed) clearBrowserGrowthContentAttribution();
+}
 
 export function trackBrowserGrowthEvent(
 	event: unknown,
-	options?: { dedupeKey?: string },
+	options?: GrowthTrackOptions,
 ): Promise<GrowthAnalyticsTrackResult> {
+	// Re-entering a generic editor ends content selection, while pending task snapshots remain valid.
+	if (
+		typeof event === "object" &&
+		event !== null &&
+		"name" in event &&
+		event.name === "landing_viewed"
+	) {
+		browserAttributionStore().clearContext();
+	}
 	browserGrowthAnalyticsDispatcher ??= createBrowserGrowthAnalyticsDispatcher({
 		getCookie: () => (typeof document === "undefined" ? "" : (document.cookie ?? "")),
 		resolveAnonymousSessionHash: getOrCreateBrowserGrowthAnalyticsSessionHash,
+		attribution: browserAttributionStore(),
+		isSuppressed: () => browserGrowthAnalyticsSuppressed,
 		dispatch: (eventName, detail) => {
 			if (typeof window === "undefined" || typeof CustomEvent === "undefined") {
 				throw new Error("BROWSER_GROWTH_ANALYTICS_UNAVAILABLE");
@@ -213,6 +561,45 @@ export function trackBrowserGrowthEvent(
 		sendExternal: sendConfiguredPostHogGrowthEvent,
 	});
 	return browserGrowthAnalyticsDispatcher.track(event, options);
+}
+
+function taskKeyForGrowthEvent(
+	name: GrowthAnalyticsEventName,
+	options?: GrowthTrackOptions,
+): string | undefined {
+	if (name === "editor_generation_confirmed") return options?.taskKey;
+	const prefixes: Partial<Record<GrowthAnalyticsEventName, string>> = {
+		editor_generation_succeeded: "editor-generation-succeeded:",
+		editor_generation_failed: "editor-generation-failed:",
+		guest_generation_admitted: "guest-generation-admitted:",
+		guest_result_ready: "guest-result-ready:",
+		guest_registered_session_established: "guest-registered-session-established:",
+		guest_result_grant_completed: "guest-result-grant-completed:",
+	};
+	const prefix = prefixes[name];
+	return prefix && options?.dedupeKey?.startsWith(prefix)
+		? options.dedupeKey.slice(prefix.length)
+		: undefined;
+}
+
+export async function hashGrowthTaskIdentity(
+	sessionHash: string,
+	taskKey: string,
+): Promise<string | undefined> {
+	if (
+		!analyticsHashSchema.safeParse(sessionHash).success ||
+		!taskKey ||
+		typeof crypto === "undefined" ||
+		!crypto.subtle
+	)
+		return undefined;
+	const digest = new Uint8Array(
+		await crypto.subtle.digest(
+			"SHA-256",
+			new TextEncoder().encode(`${sessionHash}:growth-task:${taskKey}`),
+		),
+	);
+	return `sha256:${[...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
 }
 
 export function readGrowthAnalyticsSessionHash(cookie: string): string | undefined {
@@ -261,12 +648,14 @@ export function createPostHogGrowthSender(options: {
 
 async function getOrCreateBrowserGrowthAnalyticsSessionHash(): Promise<string | undefined> {
 	if (typeof document === "undefined" || typeof crypto === "undefined") return undefined;
+	if (!hasGrowthAnalyticsConsent(document.cookie ?? "")) return undefined;
 	const existing = readGrowthAnalyticsSessionHash(document.cookie);
 	if (existing) return existing;
 	if (!crypto.getRandomValues || !crypto.subtle) return undefined;
 	const random = crypto.getRandomValues(new Uint8Array(32));
 	const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", random));
 	const hash = `sha256:${[...digest].map((byte) => byte.toString(16).padStart(2, "0")).join("")}`;
+	if (!hasGrowthAnalyticsConsent(document.cookie ?? "")) return undefined;
 	const secure =
 		typeof location !== "undefined" && location.protocol === "https:" ? "; Secure" : "";
 	document.cookie = `${EZPIC_ANALYTICS_SESSION_COOKIE}=${hash}; Path=/; Max-Age=2592000; SameSite=Lax${secure}`;
@@ -309,7 +698,7 @@ type EzPicProductKey = (typeof EZPIC_ANALYTICS_PRODUCT_KEYS)[number];
 type EzPicPaidPlan = "creator" | "ultimate" | "studio";
 type TrackGrowthEvent = (
 	event: GrowthAnalyticsEvent,
-	options?: { dedupeKey?: string },
+	options?: GrowthTrackOptions,
 ) => Promise<GrowthAnalyticsTrackResult>;
 
 export function createSaasGrowthFunnel(track: TrackGrowthEvent = trackBrowserGrowthEvent) {
@@ -319,7 +708,12 @@ export function createSaasGrowthFunnel(track: TrackGrowthEvent = trackBrowserGro
 				{ name: "draft_claimed", properties: { productKey, status: "claimed" } },
 				{ dedupeKey: `draft-claimed:${key}` },
 			),
-		quoteCreated: (key: string, productKey: EzPicProductKey, credits: number) =>
+		quoteCreated: (
+			key: string,
+			productKey: EzPicProductKey,
+			credits: number,
+			attribution?: GrowthAnalyticsAttributionSnapshot,
+		) =>
 			track(
 				{
 					name: "editor_quote_created",
@@ -329,12 +723,21 @@ export function createSaasGrowthFunnel(track: TrackGrowthEvent = trackBrowserGro
 						status: "created",
 					},
 				},
-				{ dedupeKey: `editor-quote-created:${key}` },
+				{ dedupeKey: `editor-quote-created:${key}`, ...(attribution ? { attribution } : {}) },
 			),
-		generationConfirmed: (key: string, productKey: EzPicProductKey) =>
+		generationConfirmed: (
+			key: string,
+			productKey: EzPicProductKey,
+			taskKey?: string,
+			attribution?: GrowthAnalyticsAttributionSnapshot,
+		) =>
 			track(
 				{ name: "editor_generation_confirmed", properties: { productKey, status: "confirmed" } },
-				{ dedupeKey: `editor-generation-confirmed:${key}` },
+				{
+					dedupeKey: `editor-generation-confirmed:${key}`,
+					...(taskKey ? { taskKey } : {}),
+					...(attribution ? { attribution } : {}),
+				},
 			),
 		generationSucceeded: (key: string, productKey: EzPicProductKey, latencyMs: number) =>
 			track(
@@ -395,10 +798,10 @@ export function createSaasGrowthFunnel(track: TrackGrowthEvent = trackBrowserGro
 				{ name: "subscription_activated", properties: { plan, status: "activated" } },
 				{ dedupeKey: `subscription-activated:${plan}` },
 			),
-		guestGenerationAdmitted: (key: string) =>
+		guestGenerationAdmitted: (key: string, attribution?: GrowthAnalyticsAttributionSnapshot) =>
 			track(
 				{ name: "guest_generation_admitted", properties: { status: "admitted" } },
-				{ dedupeKey: `guest-generation-admitted:${key}` },
+				{ dedupeKey: `guest-generation-admitted:${key}`, ...(attribution ? { attribution } : {}) },
 			),
 		guestResultReady: (key: string) =>
 			track(

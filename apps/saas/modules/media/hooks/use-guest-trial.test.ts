@@ -124,6 +124,21 @@ const api = vi.hoisted(() => ({
 	submitGuestGeneration: vi.fn(),
 }));
 const device = vi.hoisted(() => ({ getGuestDeviceId: vi.fn(() => Promise.resolve("device-1")) }));
+const analytics = vi.hoisted(() => ({ capture: vi.fn(), guestAdmitted: vi.fn() }));
+vi.mock("@repo/utils", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@repo/utils")>()),
+	captureBrowserGrowthAnalyticsAttribution: analytics.capture,
+}));
+vi.mock("@shared/lib/growth-analytics", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@shared/lib/growth-analytics")>();
+	return {
+		...actual,
+		saasGrowthFunnel: {
+			...actual.saasGrowthFunnel,
+			guestGenerationAdmitted: analytics.guestAdmitted,
+		},
+	};
+});
 
 vi.mock("react", async (importOriginal) => {
 	const actual = await importOriginal<typeof import("react")>();
@@ -152,6 +167,10 @@ describe("useGuestTrial", () => {
 		vi.setSystemTime(new Date("2026-08-28T00:00:00.000Z"));
 		hookRuntime.reset();
 		vi.clearAllMocks();
+		analytics.capture
+			.mockReset()
+			.mockReturnValue({ enabled: false, context: null, capturedAt: Date.now() });
+		analytics.guestAdmitted.mockResolvedValue("blocked");
 		visibilityState = "visible";
 		vi.stubGlobal("window", {
 			setTimeout: (callback: () => void, delay?: number) => setTimeout(callback, delay),
@@ -225,6 +244,30 @@ describe("useGuestTrial", () => {
 		expect(api.getGrantedGuestJob).toHaveBeenCalledWith({ jobId: "linked-job-1" });
 		expect(api.getGuestEligibility).not.toHaveBeenCalled();
 	});
+
+	it.each([
+		[undefined, "/create"],
+		[
+			"/effects/1980s-ai-photo?preset=studio-portrait",
+			"/effects/1980s-ai-photo?preset=studio-portrait",
+		],
+		["/effects/1980s-ai-photo?preset=studio-portrait&prompt=private", "/create"],
+		["https://evil.test/effects/portrait?preset=studio-portrait", "/create"],
+	])(
+		"returns a linked draft to its validated editor without submitting: %s",
+		async (returnPath, expected) => {
+			api.completeGuestLinkIntent.mockResolvedValue({
+				mode: "DRAFT",
+				draftId: "draft-1",
+				returnPath: "/try",
+			});
+			renderHook(true, returnPath);
+			await settleAndRender(true, returnPath);
+			expect(locationAssign).toHaveBeenCalledWith(expected);
+			expect(api.submitGuestGeneration).not.toHaveBeenCalled();
+			expect(api.getGrantedGuestJob).not.toHaveBeenCalled();
+		},
+	);
 
 	it("opens a fresh second draft instead of restoring the first completed edit", async () => {
 		api.getGuestEligibility.mockResolvedValue({
@@ -402,6 +445,43 @@ describe("useGuestTrial", () => {
 		]);
 		expect(trial.view.state).toBe("waiting");
 	});
+	it("captures guest attribution before device lookup and preserves it through a delayed admission", async () => {
+		api.getGuestEligibility.mockResolvedValue(eligibleDraft());
+		renderHook();
+		const trial = await settleAndRender();
+		const originalAttribution = {
+			enabled: true,
+			capturedAt: Date.now(),
+			context: {
+				effect_id: "effect-a",
+				preset_id: "portrait",
+				preset_version: 1,
+				internal_source: "effect",
+				entry_path: "/effects/effect-a",
+			},
+		};
+		analytics.capture.mockReturnValue(originalAttribution);
+		const deviceLookup = deferred<string>();
+		const admission = deferred<ReturnType<typeof waitingSnapshot>>();
+		device.getGuestDeviceId.mockReturnValueOnce(deviceLookup.promise);
+		api.submitGuestGeneration.mockReturnValueOnce(admission.promise);
+		const pending = trial.actions.submit("fresh-token");
+		expect(analytics.capture).toHaveBeenCalledTimes(1);
+		analytics.capture.mockReturnValue({
+			enabled: true,
+			capturedAt: Date.now(),
+			context: {
+				...originalAttribution.context,
+				effect_id: "effect-b",
+				entry_path: "/effects/effect-b",
+			},
+		});
+		deviceLookup.resolve("device-1");
+		await Promise.resolve();
+		admission.resolve(waitingSnapshot());
+		await pending;
+		expect(analytics.guestAdmitted).toHaveBeenCalledWith("guest-job-1", originalAttribution);
+	});
 	it.each([
 		"CONTENT_NOT_ALLOWED",
 		"CONTENT_REVIEW_REQUIRED",
@@ -432,18 +512,18 @@ describe("useGuestTrial", () => {
 	});
 });
 
-function renderHook(registered = false) {
+function renderHook(registered = false, effectReturnPath?: string) {
 	hookRuntime.beginRender();
-	const trial = useGuestTrial({ registered });
+	const trial = useGuestTrial({ registered, effectReturnPath });
 	hookRuntime.flushEffects();
 	return trial;
 }
 
-async function settleAndRender(registered = false) {
-	let trial = renderHook(registered);
+async function settleAndRender(registered = false, effectReturnPath?: string) {
+	let trial = renderHook(registered, effectReturnPath);
 	for (let cycle = 0; cycle < 3; cycle += 1) {
 		for (let index = 0; index < 8; index += 1) await Promise.resolve();
-		trial = renderHook(registered);
+		trial = renderHook(registered, effectReturnPath);
 	}
 	return trial;
 }

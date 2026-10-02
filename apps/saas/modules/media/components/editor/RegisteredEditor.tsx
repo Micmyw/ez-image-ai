@@ -30,8 +30,10 @@ export interface CreatePageFilters {
 
 export async function RegisteredEditor({
 	searchParams,
+	requireReference = false,
 }: {
 	searchParams: Promise<CreatePageFilters>;
+	requireReference?: boolean;
 }) {
 	const session = await getSession();
 	const filters = await searchParams;
@@ -134,6 +136,7 @@ export async function RegisteredEditor({
 	return (
 		<HydrationBoundary state={dehydrate(queryClient)}>
 			<CreatorWorkspace
+				requireReference={requireReference}
 				claimedDraft={claimedDraft}
 				initialDraft={recovery.initialDraft}
 				parentJobId={parentJobId}

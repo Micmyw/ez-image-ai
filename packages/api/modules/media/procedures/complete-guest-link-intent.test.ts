@@ -73,5 +73,83 @@ describe("completeGuestLinkIntent", () => {
 		).resolves.toEqual({ mode: "DRAFT", draftId: "draft-1", returnPath: "/create" });
 
 		expect(responseHeaders.get("set-cookie")).toContain("Max-Age=0");
+		const claimedCookie = responseHeaders
+			.getSetCookie()
+			.find((value) => value.startsWith("media_claimed_draft="));
+		expect(claimedCookie).toContain("media_claimed_draft=draft-1");
+		expect(claimedCookie).toContain("HttpOnly");
+		expect(claimedCookie).toContain("SameSite=Lax");
+		expect(claimedCookie).toContain("Path=/create;");
+		expect(claimedCookie).toContain("Max-Age=300");
+	});
+	it("keeps result-only grants on /try without creating an editor draft cookie", async () => {
+		vi.mocked(completeGuestLinkIntentTransaction).mockResolvedValue({
+			mode: "RESULT",
+			jobId: "guest-job-1",
+			returnPath: "/try",
+			expiresAt: new Date("2026-10-01T00:00:00.000Z"),
+		});
+		const responseHeaders = new Headers();
+		const result = await call(
+			completeGuestLinkIntent,
+			{},
+			{
+				context: {
+					headers: new Headers({ cookie: `media_guest_link_intent=${linkToken}` }),
+					responseHeaders,
+				},
+			},
+		);
+		expect(result).toMatchObject({ mode: "RESULT", jobId: "guest-job-1", returnPath: "/try" });
+		expect(responseHeaders.getSetCookie().join("\n")).not.toContain("media_claimed_draft");
+	});
+	it("scopes an effect recovery cookie to its existing bounded effect destination", async () => {
+		vi.mocked(completeGuestLinkIntentTransaction).mockResolvedValue({
+			mode: "DRAFT",
+			draftId: "draft-1",
+			returnPath: "/try",
+		});
+		const responseHeaders = new Headers();
+		await call(
+			completeGuestLinkIntent,
+			{},
+			{
+				context: {
+					headers: new Headers({
+						cookie: `media_guest_link_intent=${linkToken}; media_effect_return=${encodeURIComponent("/effects/1980s-ai-photo?preset=studio-portrait")}`,
+					}),
+					responseHeaders,
+				},
+			},
+		);
+		const claimedCookie = responseHeaders
+			.getSetCookie()
+			.find((value) => value.startsWith("media_claimed_draft="));
+		expect(claimedCookie).toContain("Path=/effects/1980s-ai-photo;");
+	});
+	it("ignores a corrupt effect return cookie after a successful draft transfer", async () => {
+		vi.mocked(completeGuestLinkIntentTransaction).mockResolvedValue({
+			mode: "DRAFT",
+			draftId: "draft-1",
+			returnPath: "/create",
+		});
+		const responseHeaders = new Headers();
+		await expect(
+			call(
+				completeGuestLinkIntent,
+				{},
+				{
+					context: {
+						headers: new Headers({
+							cookie: `media_guest_link_intent=${linkToken}; media_effect_return=%GG`,
+						}),
+						responseHeaders,
+					},
+				},
+			),
+		).resolves.toMatchObject({ mode: "DRAFT" });
+		expect(
+			responseHeaders.getSetCookie().find((value) => value.startsWith("media_claimed_draft=")),
+		).toContain("Path=/create;");
 	});
 });

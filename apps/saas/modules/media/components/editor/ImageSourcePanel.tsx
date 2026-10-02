@@ -39,6 +39,7 @@ export function ImageSourcePanel({
 	maximumImageBytes,
 	compact = false,
 	label,
+	uploadLabel,
 }: {
 	sourceAssetId: string;
 	temporaryReference?: TemporaryReferenceReceipt;
@@ -48,6 +49,7 @@ export function ImageSourcePanel({
 	maximumImageBytes?: number;
 	compact?: boolean;
 	label?: string;
+	uploadLabel?: string;
 }) {
 	const t = useTranslations("media.editor.source");
 	const [pending, setPending] = useState(false);
@@ -246,6 +248,7 @@ export function ImageSourcePanel({
 					temporaryReference
 					key={`${sourceAssetId || "new-reference"}:${uploadRevision}`}
 					compact={compact}
+					uploadLabel={uploadLabel}
 					multiple={false}
 					maximumImageBytes={maximumImageBytes}
 					value={sourceAssetId ? [sourceAssetId] : []}

@@ -28,6 +28,22 @@
 - Show examples in two masonry columns on phones, keeping mixed image proportions. Restore gentle image zoom and prompt overlays on mouse hover and keyboard focus across the homepage, `/create`, and `/examples`, with a visible touch action and reduced-motion support.
 - Keep floating editor bars off mobile gallery pages and hide desktop bars while browsing examples or reaching the closing call to action. Preserve existing prompts, public headings, translated SEO copy, metadata, and canonical routes.
 
+### AI Effects and editing guides
+
+- Add a shared Effects directory and detail template with copyable prompts, preset selection, authorized example comparisons, and the existing private editor. Preset changes protect edited prompts and settings and do not start generation.
+- Add one server-only content catalog with draft isolation, exact preset-version test checks, public model/SKU validation, related content, canonical pagination, and explicit retirement responses.
+- Complete the first 1980s studio, family-album, and street presets with one original AI-generated adult reference and three reviewed EzImageAI outputs. Four authorized generations used 20 credits; the first family snapshot was rejected for red-eye and replaced after a revised prompt. Keep the exact versions, real observations and private evidence linked to the content record.
+- Upgrade Blog discovery and reading layouts with topic filters, reading time, heading navigation, copyable prompts, and stable effect/preset/example references while preserving existing article URLs, body text, and publication dates.
+- Add persistent Effects navigation and conditional homepage/tool/model recommendations, plus bounded content context in existing consent-aware browser analytics. Document configuration-only additions, evidence requirements, release boundaries, and rollback in `docs/product/effects-and-guides.md`.
+- Give the single-theme directory a wide featured card, add matched comparison images and precise preset links to the existing prompt guide, and make Docs navigation and five user guides consistent with the product.
+- This entry records local content and implementation plus the bounded real-generation review. It does not confirm Git publication, production content deployment, general model reliability, or payment/analytics behavior beyond the observed generation-credit settlement.
+
+### Homepage mobile editor
+
+- Restore the existing homepage generator layout, including the signed-in mode heading, prompt guidance and instruction choices. Scope the image-to-image composer styling to that route and keep the Effects editor styling within its own workbench.
+- Keep the original model and example sections immediately after the editors. Place Effects recommendations later in the homepage and image-to-image content.
+- Preserve existing public headings, translated SEO copy, metadata, and canonical routes.
+
 ### Faster generated-image previews
 
 - Submit an account generation in one request while checking the displayed price and preserving the same quote, job, and credit reservation across retries.

@@ -1,125 +1,74 @@
 ---
-updatedAt: 2026-09-22
+updatedAt: 2026-09-29
 indexable: true
 title: Create your first AI image
-description: Create from a prompt or edit a reference image, choose a model, review credits, and download your private EzImageAI result.
+description: Start with a prompt or reference photo, choose your settings, and download a result from the EzImageAI editor.
 ---
 
-## Stay in your workspace
+Begin in EzImageAI on the [homepage](/#image-editor) or open the dedicated [image editor](/create).
+A text prompt is enough to create an image. Add a reference when you want to edit or build on a photo.
 
-The [EzImageAI homepage](/) has top navigation and a centered editor, with inspiration examples and guides
-below. After signing in, it shows your account editor and a **Create image** link in the header.
-The homepage has no tool sidebar, whether you are signed in or visiting.
+## 1. Describe what you want
 
-Use **AI Image Tools** to open the [creation page](/create), or browse [AI Models](/models) for a
-dedicated page with a preselected generator, creative directions, and an example prompt for each model.
-Visitors and signed-in users both get the tool sidebar on the creation page. Sidebar model links open
-the corresponding model page with empty input. The model selector inside the editor keeps your image
-and prompt while changing the model, and the URL retains that selection on refresh.
+For a new image, describe the subject, setting, light, and style. For an edit, explain both the
+change and the details that should stay the same.
 
-**Create image** opens `/create`. **Editing Examples** opens the [example gallery](/examples), where
-choosing an image opens the creation page with its prompt. The sidebar header and account controls
-stay visible while the middle navigation scrolls.
+<div className="not-prose docs-prompt-example">
 
-After signing in, the sidebar also includes **History** and **Assets**. Select your avatar in the
-homepage header or the creation sidebar to open account settings. Visitors do not see account settings.
-These panels leave your editor and current job in place. Choosing an inspiration example replaces
-only the prompt; selecting a source from Assets keeps the prompt and output choices.
+**Change** Replace the background with a pale gray studio backdrop and soft light from the left.
 
-When you scroll below the editor, a compact bar lets you return to your prompt or current result.
-If browser storage is available, your most recent account draft is retained in this tab for up to one
-hour and restored when that same editor route is refreshed. Opening another model replaces it with a
-new draft. Restoring a draft checks the source again and refreshes the credit price when submitted. It does
-not save the image file locally or submit another job.
+**Keep** Keep the mug, its logo, color, and viewing angle unchanged.
 
-## 1. Start with text or an optional reference
+</div>
 
-To create a new image, leave the reference empty. Describe the subject, composition, light, and style.
-For example: "A cobalt ceramic vase beside a large window, warm afternoon light, a cream wall,
-editorial product photography, no lettering."
+This is a suggested instruction, not a guaranteed result. Start with one clear change and inspect
+the result before adding more. The [prompt-writing guide](/blog/ai-image-editing-prompts) has more examples.
 
-Click **Sign in to generate** to continue. Your prompt, selected model, and output settings stay in
-this tab for up to one hour. After signing in, the **Generate image** button shows the credit cost.
-Click it once to run the safety check and start generation.
-No upload is required for this path. Available models and account credits still apply.
+## 2. Add a photo if you need one
 
-To edit or guide a result with an existing image, choose a JPEG, PNG, or WebP image you are allowed
-to use in the [workspace](/#image-editor). Check the size limit beside the upload control; the guest editor accepts up to
-10 MB. Use a source where the subject and important details are clearly visible.
+Choose a JPEG, PNG, or WebP image you have permission to use. Check the file-size limit shown next
+to the upload control; limits can depend on your account and selected model.
 
-Choosing an image immediately shows a preview in your browser. In the signed-in editor, upload
-starts automatically. You can write your prompt while it uploads; the generation button becomes
-available when the upload finishes. Clicking it starts the prompt and reference safety checks before
-the image model runs. Temporary references expire after 24 hours; select the image again if it expires.
-Images chosen from your library keep their existing checks. For visitors,
-continuing starts the upload. If the page
-reports that editing is unavailable, you can prepare your instruction, read the guides, or check
-availability again. Signing in does not by itself restore an unavailable service.
+A preview appears as soon as you select a file. In the signed-in editor, the upload starts
+automatically, so you can write while it finishes. A local preview does not mean the upload is
+complete. If it fails, use the retry action or remove the reference.
 
-## 2. Write a clear prompt
+To create from text instead, leave the reference empty. Text generation requires sign-in.
 
-Write a concrete instruction for the edit. Describe the change you want to see rather than a general
-topic. You can revise the prompt before submitting the job. For example: "Replace the background
-with a pale gray studio backdrop. Keep the mug, logo, and viewing angle unchanged."
+## 3. Choose a model and review the cost
 
-This is a suggested prompt, not a demonstrated result. For more examples, read
-[How to write AI image editing prompts](/blog/ai-image-editing-prompts).
+Open the model selector, then check the available aspect ratio, resolution, and other output
+settings. Different models offer different options. The cost shown on the generation button
+updates with your selection.
 
-## 3. Check access and output settings
+If a model needs a different plan, review the access notice or choose another available model.
+You can compare current plans on [Pricing](/pricing). Opening a plan dialog does not purchase it.
 
-Choose an available image product and output setting. When the guest trial is available, Nano Banana
-2 Lite 1K offers two free edits per day without registration, each producing one private,
-watermarked preview. The allowance resets at 00:00 UTC and unused edits do not roll over. Other options require the
-account access shown in the editor. Guest results expire within 24 hours and are not saved to History.
+When a guest trial is available, its allowance and requirements appear in the editor. Guest
+results are temporary, watermarked previews, separate from your account credit balance and History.
 
-Model menus use matching brand icons across the navigation and editor. The configured catalog includes
-twelve models across Nano Banana, GPT Image, and Seedream, including GPT Image 2.5 Flare,
-GPT Image 2.5 Sunburst, and Seedream 4.0. Each menu lists the models currently enabled for use. A **Paid plan** badge marks
-models that need a subscription; **Up to 2K** or **Up to 4K** describes a model's maximum resolution.
-Choose the actual resolution in output settings. If your account needs a different plan, selecting
-the model keeps you in the editor and shows an access notice. Click **View plans** to compare plans,
-or **Keep editing** to close the dialog. Your selected model and prompt stay saved even if you have
-not uploaded an image yet.
+## 4. Generate, inspect, and download
 
-For an account generation, sign in, check the credit cost on **Generate image** or **Start edit**, and click
-once. Safety checks and the credit reservation run automatically. If the price changes, the button shows
-the updated cost and you can choose whether to submit again. Choosing a product or
-entering a prompt does not itself purchase a plan. See [Image editing](/docs/image-editing) for output
-settings and [Pricing](/pricing) for plan details.
+Choose **Generate image** or **Start edit** once. The editor runs the required checks and shows
+progress beneath your controls. Selecting a preset or signing in does not submit the edit for you.
 
-## 4. Review the result
+When the result is ready, inspect faces, lettering, logos, edges, and the details you asked to
+preserve. Reference edits offer a before-and-after comparison when both images are available.
+Use the download control to keep a local copy.
 
-The result panel reports progress and the final outcome. A text generation shows a single image;
-a reference edit offers a before-and-after comparison. Check text, faces, logos, and edges before
-downloading or publishing. Original artwork on model pages is creative inspiration, not a verified
-output or quality comparison of the named model. An eligible saved account
-result can be used with **Edit again**, which starts a new edit with its own credit charge.
+An eligible saved account result can be opened again from **History**. **Edit again** uses that
+result as the source of a new edit, with a new credit cost.
 
-Use **Close preview** above a result to hide it while keeping your prompt and reference image.
-Switching models or returning to the homepage also closes the preview. Your result stays in
-**History** and the recent creations list, where you can open it again. A direct link to a selected
-result still opens that preview, including after a refresh.
+## Resume after signing in or refreshing
 
-In the **History** panel, use **Back to history** above a result to return to the list and open
-another creation. The top-right close button closes the whole panel.
+The editor can retain your prompt, model, and output choices while you sign in or review a plan.
+When browser storage is available, an account draft can also be restored in the same tab and
+editor route for up to one hour. Restoring it does not start a new generation.
 
-## If an edit does not finish
+An image file may need to be selected again after a refresh or sign-in. Read any recovery notice
+before continuing. Temporary references expire after 24 hours; an expired reference cannot be
+used for another edit. Keep your original file separately.
 
-If the upload fails, check the file format and size, then use the retry action. The page preserves the
-selected file and prompt while you remain there. A pending, paused, or failed reference blocks
-submission; retry or remove it explicitly to return to text generation. After submission, use its status and credit
-details to check whether it is still processing or has failed. Avoid repeatedly submitting the same
-edit while its outcome is uncertain.
-
-An instruction that the safety check cannot approve asks you to revise and submit it again, or contact
-support. That stopped request does not continue automatically. An unsupported language is identified
-separately. Only a temporarily unavailable check suggests trying again later. These stops happen before
-generation and do not charge generation credits.
-
-“Preparing your result” includes private storage and image safety checks. Once an image is approved,
-you can view and download it while finalization and credit settlement finish in the background.
-The credit summary updates automatically; **Edit again** becomes available once the task completes.
-You can also reopen the result from History without submitting another generation.
-
-[Credits](/docs/credits) explains reservations and releases. [Contact support](/contact) if the status
-remains unresolved; include the visible error message, but do not send private access links or passwords.
+If a submitted edit is still processing, check its existing result or History before starting
+another one. See [progress and recovery](/docs/image-editing#follow-progress-without-starting-over)
+for the next step when an upload, check, or generation stops.
