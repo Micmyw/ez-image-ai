@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-03
+
+### Dependency security maintenance (not yet deployed)
+
+- Upgrade Next.js, Hono, Nodemailer and affected indirect dependencies to patched releases. Keep the shared dependency catalog, the 24-hour release-age policy and existing audit gates.
+- Upgrade Vitest and its coverage adapter together; wait for the editor to finish restoring its state before the subscription-upgrade browser test enters a prompt.
+- The updated lockfile reports no known vulnerabilities in full or production-only dependency audits. Deployment and live verification remain separate.
+
 ## 2026-09-30
 
 ### First-image continuation (local validation, not yet deployed)
