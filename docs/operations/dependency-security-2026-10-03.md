@@ -37,4 +37,8 @@ All listed local gates passed on the updated dependencies, including all 22 type
 
 The previous browser failure was a test synchronization issue: the subscription-upgrade test filled the prompt while `#registered-generator` was still `inert` and `data-editor-ready=false`. It now waits for readiness and verifies the entered value immediately. Existing draft-save/restore assertions and timeouts are preserved.
 
+The combined release also exposed a homepage transfer-budget regression: CI measured 67,566 bytes of compressed HTML against the existing 64 KiB limit. Public pages were serializing the entire administration translation namespace. The root client provider now omits that namespace; the protected admin layout supplies it through a client provider that merges inherited application messages, including after client navigation. Server-side translations, page copy and the transfer-budget assertions stay unchanged.
+
+The exact production homepage Playwright check was reproduced locally before the fix (67,502 gzip bytes) and passed afterward (63,164 gzip bytes). The root/provider checks passed for all four supported locales, and the SaaS type check passed. These local size measurements use the same test and production build mode; CI measurements can differ slightly with build paths and environment.
+
 No migration, production environment change, real provider generation, or deployment is part of this patch. The original speed-batch rollout ordering still applies: compatible jobs receivers first, then the website producer, as described in [the first-image release notes](first-image-scanless-batch-2026-09-30.md).

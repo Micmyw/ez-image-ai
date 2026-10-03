@@ -12,6 +12,7 @@
 
 - Upgrade Next.js, Hono, Nodemailer and affected indirect dependencies to patched releases. Keep the shared dependency catalog, the 24-hour release-age policy and existing audit gates.
 - Upgrade Vitest and its coverage adapter together; wait for the editor to finish restoring its state before the subscription-upgrade browser test enters a prompt.
+- Load administration translations within the admin layout so public pages keep their existing HTML size budget without changing editor copy or layout.
 - The updated lockfile reports no known vulnerabilities in full or production-only dependency audits. Deployment and live verification remain separate.
 
 ## 2026-09-30
