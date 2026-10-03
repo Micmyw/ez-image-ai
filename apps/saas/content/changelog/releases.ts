@@ -9,6 +9,23 @@ export const publicChangelogEntries = [
 		],
 	},
 	{
+		date: "2026-10-04",
+		title: "Image and Video categories",
+		changes: [
+			"Find image creation and photo editing under Image. Video is marked as coming soon and is not available yet.",
+			"Keep prompt-idea buttons readable in the editor's dark theme.",
+		],
+	},
+	{
+		date: "2026-10-03",
+		title: "A simpler image composer",
+		changes: [
+			"Keep a reference image beside your prompt, with model selection and generation together in a compact toolbar.",
+			"Open one settings button to choose aspect ratio, resolution, quality and other options supported by your model. Each generation still produces one image, without a quantity selector.",
+			"Open prompt ideas only when you need inspiration, with the same controls on desktop and mobile.",
+		],
+	},
+	{
 		date: "2026-10-03",
 		title: "A clearer image composer",
 		changes: [

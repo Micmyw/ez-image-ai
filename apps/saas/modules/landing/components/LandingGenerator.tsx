@@ -1,5 +1,6 @@
 "use client";
 
+import { ComposerHeader } from "@media/components/editor/ComposerHeader";
 import { PromptIdeas } from "@media/components/editor/PromptIdeas";
 
 import "@media/components/editor/generation-composer.css";
@@ -39,8 +40,8 @@ import {
 	ChevronDownIcon,
 	ImagePlusIcon,
 	LockKeyholeIcon,
+	PlusIcon,
 	SparklesIcon,
-	UploadCloudIcon,
 	XIcon,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -888,7 +889,7 @@ function LandingGeneratorWorkspace({
 				) : (
 					<span className="landing-reference-empty gap-2.5 flex flex-col items-center">
 						<span className="size-11 group-hover:-translate-y-1 grid place-items-center rounded-xl bg-[#a98bff]/12 text-[#c9b9ff] ring-1 ring-[#a98bff]/25 transition motion-reduce:transform-none">
-							<UploadCloudIcon className="size-5" aria-hidden="true" />
+							<PlusIcon className="size-5" aria-hidden="true" />
 						</span>
 						<span className="max-w-24 text-sm font-semibold leading-5 text-white">
 							{requireReference ? referenceLabel : composer("addReference")}
@@ -924,18 +925,12 @@ function LandingGeneratorWorkspace({
 			<div
 				ref={generatorRef}
 				data-test="landing-generator"
-				data-composer-design="prompt-first"
+				data-composer-design="compact"
 				data-composer-kind={isImageEdit ? "image-to-image" : "text-to-image"}
 				className="mt-6 p-3 sm:p-4 relative isolate mx-auto max-w-[76rem] overflow-hidden rounded-[1.75rem] border border-[#b79cff]/20 bg-[#2b2137] shadow-[0_34px_100px_-48px_rgba(0,0,0,0.95),0_28px_70px_-50px_rgba(169,139,255,0.72),inset_0_1px_0_rgba(255,255,255,0.07)]"
 			>
 				<form className="relative" onSubmit={(event) => void submit(event)}>
-					<div className="studio-composer-heading">
-						<span>{studio(isImageEdit ? "generation.editMode" : "generation.textMode")}</span>
-						<span className="composer-private" title={studio("private")}>
-							<LockKeyholeIcon size={15} aria-hidden="true" />
-							{composer("private")}
-						</span>
-					</div>
+					<ComposerHeader />
 					{effectSelectionUnavailable && (
 						<output className="mb-3 text-sm text-amber-200 block">
 							{effects("modelUnavailable")}
@@ -960,7 +955,7 @@ function LandingGeneratorWorkspace({
 						data-test="landing-composer-inputs"
 						className="gap-1.5 sm:gap-2 sm:grid-cols-[7.5rem_minmax(0,1fr)] md:grid-cols-[8.5rem_minmax(0,1fr)] bg-black/10 p-1.5 grid grid-cols-[4.75rem_minmax(0,1fr)] rounded-[1.3rem]"
 					>
-						{isImageEdit && referencePanel}
+						{referencePanel}
 
 						<section
 							data-test="landing-prompt-panel"
@@ -978,7 +973,7 @@ function LandingGeneratorWorkspace({
 								maxLength={maximumPromptLength}
 								value={prompt}
 								disabled={isBusy}
-								placeholder={isImageEdit ? composer("editHint") : t("placeholder")}
+								placeholder={isImageEdit ? composer("editHint") : composer("createHint")}
 								className="min-h-36 p-4 pb-9 sm:p-5 sm:pb-9 md:min-h-[9.5rem] text-base leading-7 resize-none border-0 bg-transparent text-[#f6f2fb] shadow-none placeholder:text-[#a99db2] focus-visible:ring-0"
 								onChange={(event) => setPrompt(event.target.value)}
 							/>
@@ -988,7 +983,6 @@ function LandingGeneratorWorkspace({
 								</span>
 							) : null}
 						</section>
-						{!isImageEdit && referencePanel}
 						<PromptIdeas
 							disabled={isBusy}
 							label={isImageEdit ? tCreate("suggestions.label") : composer("promptIdeas")}
@@ -1148,10 +1142,12 @@ function LandingGeneratorWorkspace({
 								: t("freeQueue")}
 					</span>
 				)}
-				<span className="gap-1.5 sm:ml-auto inline-flex items-center">
-					<LockKeyholeIcon className="size-3.5 text-emerald-300" aria-hidden="true" />
-					{file || requireReference ? t("temporaryResult") : studio("private")}
-				</span>
+				{(file || requireReference) && (
+					<span className="gap-1.5 sm:ml-auto inline-flex items-center">
+						<LockKeyholeIcon className="size-3.5 text-emerald-300" aria-hidden="true" />
+						{t("temporaryResult")}
+					</span>
+				)}
 			</div>
 
 			{isDockVisible && (

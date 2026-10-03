@@ -11,7 +11,6 @@ import { Button } from "@repo/ui/components/button";
 import { STUDIO_ASSET_SELECTED_EVENT } from "@shared/components/studio/studio-context";
 import { useRouter } from "@shared/hooks/router";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
-import { LockKeyholeIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -60,6 +59,7 @@ import {
 import type { TemporaryReferenceReceipt } from "../lib/temporary-reference-upload";
 import { useToolPrompt, useToolPromptBinding } from "../lib/tool-prompt-context";
 import { ContentSafetyNotice } from "./ContentSafetyNotice";
+import { ComposerHeader } from "./editor/ComposerHeader";
 import { ImageSourcePanel } from "./editor/ImageSourcePanel";
 import { PromptPanel } from "./editor/PromptPanel";
 import { RegisteredEditorDock } from "./editor/RegisteredEditorDock";
@@ -479,10 +479,8 @@ export function GenerationForm({
 
 	return (
 		<form
-			data-task-order={
-				isImageEdit ? "source-prompt-service-action" : "prompt-source-service-action"
-			}
-			data-composer-design="prompt-first"
+			data-task-order="source-prompt-service-action"
+			data-composer-design="compact"
 			data-composer-kind={isImageEdit ? "image-to-image" : "text-to-image"}
 			className="studio-composer"
 			data-layout={layout}
@@ -505,13 +503,7 @@ export function GenerationForm({
 			{effectSelectionUnavailable && (
 				<output className="mb-3 text-sm text-amber-200 block">{effects("modelUnavailable")}</output>
 			)}
-			<div className="studio-composer-heading">
-				<span>{studio(isImageEdit ? "generation.editMode" : "generation.textMode")}</span>
-				<span className="composer-private" title={studio("private")}>
-					<LockKeyholeIcon size={15} aria-hidden="true" />
-					{composer("private")}
-				</span>
-			</div>
+			<ComposerHeader />
 			{modelNavigation.unavailable && (
 				<output className="mb-3 text-sm text-amber-200 block">
 					{studio("tools.modelUnavailable")}
@@ -522,7 +514,7 @@ export function GenerationForm({
 			)}
 			<div className="studio-composer-inputs">
 				<PromptPanel
-					referenceFirst={isImageEdit}
+					referenceFirst
 					disabled={generation.createGeneration.isPending}
 					referencePanel={
 						<ImageSourcePanel
@@ -547,7 +539,7 @@ export function GenerationForm({
 					}
 					maxLength={getImageProductSelectionContract(values.productKey)?.maximumPromptLength}
 					label={isImageEdit ? t("fields.prompt") : studio("generation.promptLabel")}
-					hint={isImageEdit ? composer("editHint") : studio("generation.promptHint")}
+					hint={isImageEdit ? composer("editHint") : composer("createHint")}
 					suggestionsLabel={isImageEdit ? t("suggestions.label") : composer("promptIdeas")}
 					suggestions={suggestions}
 					suggestionLabels={suggestionKeys.map((key) =>
@@ -692,10 +684,6 @@ export function GenerationForm({
 					<summary className="py-2 cursor-pointer">{t("creditPolicy")}</summary>
 					<p className="mt-1 leading-relaxed">{t("moderationBillingPolicy")}</p>
 				</details>
-				<span className="image-edit-private">
-					<LockKeyholeIcon size={13} aria-hidden="true" />
-					{studio("private")}
-				</span>
 			</div>
 			{error && safetyOutcome ? (
 				<ContentSafetyNotice

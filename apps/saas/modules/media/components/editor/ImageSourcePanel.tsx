@@ -3,6 +3,7 @@
 import { Button } from "@repo/ui/components/button";
 import { orpcClient } from "@shared/lib/orpc-client";
 import { useQuery } from "@tanstack/react-query";
+import { XIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -233,8 +234,15 @@ export function ImageSourcePanel({
 							{t(status)}
 						</p>
 						{!compact && <p className="mt-1 text-xs text-muted-foreground">{t("private")}</p>}
-						<Button type="button" size="sm" variant="ghost" className="mt-2" onClick={removeSource}>
-							{t("remove")}
+						<Button
+							type="button"
+							size="sm"
+							variant="ghost"
+							className={presentation === "composer" ? "composer-remove-reference" : "mt-2"}
+							onClick={removeSource}
+							aria-label={t("remove")}
+						>
+							{presentation === "composer" ? <XIcon size={14} aria-hidden="true" /> : t("remove")}
 						</Button>
 					</div>
 				</div>

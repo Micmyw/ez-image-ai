@@ -2,7 +2,7 @@
 
 import { getPublicConfig } from "@repo/config/client";
 import { Button } from "@repo/ui/components/button";
-import { UploadCloudIcon } from "lucide-react";
+import { PlusIcon, UploadCloudIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { type ClipboardEvent, useCallback, useEffect } from "react";
 import { useDropzone } from "react-dropzone";
@@ -98,9 +98,15 @@ export function MediaUploader({
 						: "p-6 rounded-lg border border-dashed text-center focus-visible:ring-2 focus-visible:outline-none"
 				}
 				aria-label={uploadLabel ?? t("label")}
+				title={t("limit", { megabytes: Math.round(imageByteLimit / 1024 / 1024) })}
 			>
 				<input {...getInputProps()} />
-				{compact && <UploadCloudIcon className="mb-3 size-6 text-violet-300 mx-auto" aria-hidden />}
+				{compact &&
+					(presentation === "composer" ? (
+						<PlusIcon className="size-6 text-violet-200" aria-hidden />
+					) : (
+						<UploadCloudIcon className="mb-3 size-6 text-violet-300 mx-auto" aria-hidden />
+					))}
 				<p>
 					{isDragActive ? t("active") : (uploadLabel ?? (compact ? studio("upload") : t("idle")))}
 				</p>

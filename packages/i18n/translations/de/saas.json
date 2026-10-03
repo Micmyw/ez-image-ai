@@ -1697,10 +1697,15 @@
 			"generate": "Bild generieren"
 		},
 		"composer": {
+			"mediaType": "Medientyp",
+			"image": "Bild",
+			"video": "Video",
+			"comingSoon": "Demnächst",
 			"private": "Privat",
 			"addReference": "Referenz hinzufügen",
 			"fromAssets": "Aus Medien",
 			"promptIdeas": "Prompt-Ideen",
+			"createHint": "Beschreibe das Bild, das du erstellen möchtest…",
 			"editHint": "Beschreibe, was du ändern möchtest und was gleich bleiben soll.",
 			"oneImage": "1 Bild",
 			"automatic": "Auto",
