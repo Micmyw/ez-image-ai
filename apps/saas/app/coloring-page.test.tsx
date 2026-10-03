@@ -31,6 +31,19 @@ vi.mock("../modules/public-content/components/PublicFooterLinks", () => ({
 	PublicFooterLinks: () => null,
 }));
 vi.mock("../modules/coloring/components/ColoringExample", () => ({ ColoringExample: () => null }));
+vi.mock("../modules/coloring/components/GuestColoringSource", () => ({
+	GuestColoringSource: ({
+		assetId,
+		jobId,
+		registered,
+	}: {
+		assetId: string;
+		jobId: string;
+		registered: boolean;
+	}) => (
+		<div data-guest-source={assetId} data-guest-job={jobId} data-registered={String(registered)} />
+	),
+}));
 vi.mock("next-intl/server", () => ({ getTranslations: async () => (key: string) => key }));
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 
@@ -45,6 +58,42 @@ import { config as proxyConfig, proxy } from "../proxy";
 import { metadata } from "./(public)/photo-to-coloring-page/page";
 
 describe("photo to coloring page", () => {
+	it.each(["asset=private", "guestAsset=output&guestJob=guest", "job=private"])(
+		"noindexes personal image URLs while retaining the public canonical: %s",
+		(query) => {
+			const response = proxy(
+				new NextRequest(`https://example.com/photo-to-coloring-page?${query}`),
+			);
+			expect(response.headers.get("x-robots-tag")).toBe("noindex, follow");
+		},
+	);
+	it.each([false, true])(
+		"routes a guest result to authorized import (registered: %s)",
+		async (registered) => {
+			session.mockResolvedValue({ user: { id: "viewer", isAnonymous: !registered } });
+			const html = renderToStaticMarkup(
+				await ColoringWorkspace({
+					searchParams: Promise.resolve({
+						guestAsset: "selected-result",
+						guestJob: "selected-job",
+					}),
+				}),
+			);
+			expect(html).toContain('data-guest-source="selected-result"');
+			expect(html).toContain('data-guest-job="selected-job"');
+			expect(html).toContain(`data-registered="${registered}"`);
+			expect(html).not.toContain("data-account-editor");
+		},
+	);
+	it("preserves the selected account image across a sign-in prompt", async () => {
+		session.mockResolvedValue(null);
+		const html = renderToStaticMarkup(
+			await ColoringWorkspace({ searchParams: Promise.resolve({ asset: "selected-output" }) }),
+		);
+		expect(html).toContain(
+			"/login?redirectTo=%2Fphoto-to-coloring-page%3Fasset%3Dselected-output%23image-editor",
+		);
+	});
 	it("has a dedicated English canonical and crawlable social image", () => {
 		expect(metadata.alternates?.canonical).toBe("https://www.ezpic.test/photo-to-coloring-page");
 		expect(metadata.robots).toEqual({ index: true, follow: true });

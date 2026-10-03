@@ -19,6 +19,7 @@ import { db } from "@repo/database/client";
 import { getServerQueryClient } from "@shared/lib/server";
 import { dehydrate, HydrationBoundary } from "@tanstack/react-query";
 import { cookies } from "next/headers";
+import type { ReactNode } from "react";
 
 export interface CreatePageFilters {
 	model?: string;
@@ -31,9 +32,13 @@ export interface CreatePageFilters {
 export async function RegisteredEditor({
 	searchParams,
 	requireReference = false,
+	sourceOnlyPrompt = "",
+	sourceActions,
 }: {
 	searchParams: Promise<CreatePageFilters>;
 	requireReference?: boolean;
+	sourceOnlyPrompt?: string;
+	sourceActions?: ReactNode;
 }) {
 	const session = await getSession();
 	const filters = await searchParams;
@@ -88,7 +93,7 @@ export async function RegisteredEditor({
 							productKey: "image-nano-banana-2-lite",
 							input: {
 								kind: "image-to-image",
-								prompt: "",
+								prompt: sourceOnlyPrompt,
 								sourceAssetId: filters.asset,
 								skuKey: "nano-banana-2-lite-1k",
 								aspectRatio: "auto",
@@ -144,6 +149,7 @@ export async function RegisteredEditor({
 				restoreState={recovery.restoreState}
 				restoreNotice={recovery.notice}
 			/>
+			{filters.asset && recovery.restoreState === "ready" && sourceActions}
 		</HydrationBoundary>
 	);
 }

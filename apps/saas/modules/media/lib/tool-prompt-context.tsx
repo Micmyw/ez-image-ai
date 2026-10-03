@@ -14,6 +14,7 @@ import {
 type Binding = { prompt: string; busy: boolean; applyPrompt: (prompt: string) => void };
 type ToolPrompt = {
 	initialPrompt: string;
+	allowPrinting: boolean;
 	prompt: string;
 	busy: boolean;
 	ready: boolean;
@@ -27,9 +28,11 @@ const ToolPromptContext = createContext<ToolPrompt | null>(null);
 /** Tools supply public editing instructions; uploads, model selection and submission stay in the editor. */
 export function ToolPromptProvider({
 	initialPrompt,
+	allowPrinting = false,
 	children,
 }: {
 	initialPrompt: string;
+	allowPrinting?: boolean;
 	children: ReactNode;
 }) {
 	const binding = useRef<React.RefObject<Binding> | null>(null);
@@ -56,8 +59,8 @@ export function ToolPromptProvider({
 		return true;
 	}, []);
 	const value = useMemo(
-		() => ({ initialPrompt, ...state, bind, report, apply }),
-		[initialPrompt, state, bind, report, apply],
+		() => ({ initialPrompt, allowPrinting, ...state, bind, report, apply }),
+		[initialPrompt, allowPrinting, state, bind, report, apply],
 	);
 	return <ToolPromptContext.Provider value={value}>{children}</ToolPromptContext.Provider>;
 }

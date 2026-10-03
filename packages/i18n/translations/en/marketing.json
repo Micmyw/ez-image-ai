@@ -769,6 +769,16 @@
 			"documentTitle": "EzImageAI printable image",
 			"error": "The image could not be prepared for printing. Refresh the result or download it and print from your device.",
 			"hint": "Match the paper size in the print dialog. Turn off headers and footers; choose Save as PDF to export."
+		},
+		"handoff": {
+			"action": "Turn into coloring page",
+			"loading": "Opening your selected image…",
+			"ready": "Your selected image is ready. Review the coloring instruction, then choose Generate when you are ready.",
+			"unavailable": "This image could not be opened. It may have expired or may no longer be available to this session. Try again or upload a photo from your device.",
+			"retry": "Try again",
+			"uploadOwn": "Upload my own photo",
+			"signIn": "Sign in to open the selected image from your account.",
+			"printSelected": "Print the image you opened"
 		}
 	}
 }

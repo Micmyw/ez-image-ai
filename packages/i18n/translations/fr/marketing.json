@@ -769,6 +769,16 @@
 			"documentTitle": "Image imprimable EzImageAI",
 			"error": "Impossible de préparer l’image pour l’impression. Actualisez le résultat ou téléchargez-le et imprimez-le depuis votre appareil.",
 			"hint": "Choisissez le même format dans la fenêtre d’impression. Désactivez les en-têtes et pieds de page ; choisissez Enregistrer en PDF pour exporter."
+		},
+		"handoff": {
+			"action": "Transformer en coloriage",
+			"loading": "Ouverture de l’image sélectionnée…",
+			"ready": "Votre image est prête. Vérifiez la consigne de coloriage, puis choisissez Générer lorsque vous êtes prêt.",
+			"unavailable": "Impossible d’ouvrir cette image. Elle a peut-être expiré ou n’est plus disponible dans cette session. Réessayez ou importez une photo depuis votre appareil.",
+			"retry": "Réessayer",
+			"uploadOwn": "Importer ma propre photo",
+			"signIn": "Connectez-vous pour ouvrir l’image sélectionnée de votre compte.",
+			"printSelected": "Imprimer l’image ouverte"
 		}
 	}
 }

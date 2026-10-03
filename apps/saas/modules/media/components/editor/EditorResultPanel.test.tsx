@@ -56,9 +56,32 @@ vi.mock("next-intl", () => ({
 }));
 vi.mock("../../hooks/use-job", () => ({ useJob: () => mocks.jobQuery }));
 
+import { ToolPromptProvider } from "../../lib/tool-prompt-context";
 import { EditorResultPanel } from "./EditorResultPanel";
 
 describe("EditorResultPanel", () => {
+	it("offers only a coloring-page entry with the selected output outside the tool", () => {
+		const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
+		expect(markup).toContain('href="/photo-to-coloring-page?asset=asset-output#image-editor"');
+		expect(markup).not.toContain("/photo-to-coloring-page?asset=asset-input");
+		expect(markup).not.toMatch(/US Letter|<select|Print \/ Save PDF/);
+	});
+	it("keeps paper settings inside the tool workspace", () => {
+		const markup = renderToStaticMarkup(
+			<ToolPromptProvider initialPrompt="Coloring instruction" allowPrinting>
+				<EditorResultPanel jobId="job-1" onNew={vi.fn()} />
+			</ToolPromptProvider>,
+		);
+		expect(markup).toContain("US Letter");
+		expect(markup).toContain('value="a4"');
+		expect(markup).not.toContain('href="/photo-to-coloring-page?');
+	});
+	it("does not offer a tool handoff before an output is ready", () => {
+		mocks.jobQuery = { data: { ...imageJob(), status: "RUNNING", assets: [] }, isError: false };
+		expect(renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />)).not.toContain(
+			"/photo-to-coloring-page?",
+		);
+	});
 	it("renders the authorized inline preview immediately without waiting for an access query", () => {
 		mocks.jobQuery = {
 			data: {

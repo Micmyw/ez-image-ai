@@ -11,6 +11,13 @@ export function proxy(request: NextRequest) {
 	headers.set("X-NEXT-INTL-LOCALE", locale);
 	const response = NextResponse.next({ request: { headers } });
 	if (locale !== "en") response.headers.set("X-Robots-Tag", "noindex, follow");
+	if (
+		request.nextUrl.pathname === "/photo-to-coloring-page" &&
+		["asset", "guestAsset", "guestJob", "job", "reuseJob"].some((key) =>
+			request.nextUrl.searchParams.has(key),
+		)
+	)
+		response.headers.set("X-Robots-Tag", "noindex, follow");
 	if (request.nextUrl.pathname.startsWith("/effects-preview/"))
 		response.headers.set("X-Robots-Tag", "noindex, nofollow");
 	return response;

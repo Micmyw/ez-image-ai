@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useState } from "react";
 
+import { ColoringPageLink } from "../../coloring/components/ColoringPageLink";
 export interface AssetCardProps {
 	asset: {
 		id: string;
@@ -57,6 +58,7 @@ export function AssetCard({ asset, onDeleted, onSelect }: AssetCardProps) {
 					{new Date(asset.createdAt).toLocaleString()}
 				</p>
 				<div className="mt-4 gap-2 flex flex-wrap">
+					{asset.mimeType.startsWith("image/") && <ColoringPageLink assetId={asset.id} />}
 					{asset.mimeType.startsWith("image/") &&
 						(onSelect ? (
 							<Button size="sm" onClick={() => onSelect(asset.id)}>

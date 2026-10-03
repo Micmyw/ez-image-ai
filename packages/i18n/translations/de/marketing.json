@@ -769,6 +769,16 @@
 			"documentTitle": "EzImageAI Druckbild",
 			"error": "Das Bild konnte nicht zum Drucken vorbereitet werden. Lade das Ergebnis neu oder lade es herunter und drucke es auf deinem Gerät.",
 			"hint": "Wähle dasselbe Papierformat im Druckdialog. Deaktiviere Kopf- und Fußzeilen; wähle zum Exportieren Als PDF speichern."
+		},
+		"handoff": {
+			"action": "In Ausmalbild umwandeln",
+			"loading": "Dein ausgewähltes Bild wird geöffnet…",
+			"ready": "Dein ausgewähltes Bild ist bereit. Prüfe die Anweisung und wähle Generieren, wenn du bereit bist.",
+			"unavailable": "Dieses Bild konnte nicht geöffnet werden. Es ist möglicherweise abgelaufen oder für diese Sitzung nicht mehr verfügbar. Versuche es erneut oder lade ein eigenes Foto hoch.",
+			"retry": "Erneut versuchen",
+			"uploadOwn": "Eigenes Foto hochladen",
+			"signIn": "Melde dich an, um das ausgewählte Bild aus deinem Konto zu öffnen.",
+			"printSelected": "Das geöffnete Bild drucken"
 		}
 	}
 }

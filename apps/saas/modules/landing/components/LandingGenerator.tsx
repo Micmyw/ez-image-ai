@@ -88,7 +88,7 @@ import { useShowcasePrompt } from "../lib/use-showcase-prompt";
 const GUEST_TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_GUEST_TURNSTILE_SITE_KEY ?? null;
 const LOCAL_TURNSTILE_EVIDENCE = "local-guest-upload";
 
-export function LandingGenerator(props: { requireReference?: boolean } = {}) {
+export function LandingGenerator(props: { requireReference?: boolean; initialFile?: File } = {}) {
 	const [reset, setReset] = useState<{ key: number; productKey?: GuestProductKey }>({ key: 0 });
 	useEffect(() => {
 		function resetWorkspace(event: Event) {
@@ -111,10 +111,12 @@ export function LandingGenerator(props: { requireReference?: boolean } = {}) {
 
 function LandingGeneratorWorkspace({
 	requireReference: referenceRequired = false,
+	initialFile,
 	initialProductKey,
 	startEmpty = false,
 }: {
 	requireReference?: boolean;
+	initialFile?: File;
 	initialProductKey?: GuestProductKey;
 	startEmpty?: boolean;
 }) {
@@ -152,9 +154,15 @@ function LandingGeneratorWorkspace({
 	const [selectedSkuKey, setSelectedSkuKey] = useState<ImageSkuKey | null>(
 		effectPreset?.parameters.skuKey ?? null,
 	);
-	const [file, setFile] = useState<File | null>(null);
+	const [file, setFile] = useState<File | null>(startEmpty ? null : (initialFile ?? null));
 	const [fileError, setFileError] = useState<string>();
 	const [previewUrl, setPreviewUrl] = useState<string>();
+	useEffect(() => {
+		if (!initialFile || startEmpty) return;
+		const url = URL.createObjectURL(initialFile);
+		setPreviewUrl(url);
+		return () => URL.revokeObjectURL(url);
+	}, [initialFile, startEmpty]);
 	const [prompt, setPrompt] = useState(
 		effectPreset?.prompt ?? toolPrompt?.initialPrompt ?? (startEmpty ? "" : examplePrompt),
 	);

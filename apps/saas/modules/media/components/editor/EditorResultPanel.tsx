@@ -12,12 +12,14 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
+import { ColoringPageLink } from "../../../coloring/components/ColoringPageLink";
 import { useJob } from "../../hooks/use-job";
 import { isEditorProductKey, type EditorProductKey } from "../../lib/editor-recovery";
 import { getSignedComparisonState, requestPrivateDownload } from "../../lib/editor-result";
 import { isPublicImageSkuKey } from "../../lib/image-sku-selection";
 import { getJobPresentation, hasUnsettledJobCredits } from "../../lib/job-status";
 import { recordOutputLoaded } from "../../lib/preview-timing";
+import { useToolPrompt } from "../../lib/tool-prompt-context";
 import { GenerationFailureNotice } from "../GenerationFailureNotice";
 import { ImagePrintButton } from "../ImagePrintButton";
 import { ModerationNotice } from "../ModerationNotice";
@@ -27,6 +29,7 @@ import { InlineOutputPreview } from "./InlineOutputPreview";
 
 export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNew: () => void }) {
 	const t = useTranslations("media.status");
+	const allowPrinting = useToolPrompt()?.allowPrinting ?? false;
 	const job = useJob(jobId);
 	const [canceling, setCanceling] = useState(false);
 	const [cancelError, setCancelError] = useState(false);
@@ -163,7 +166,10 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 				{presentation.stage === "ready" && output && (
 					<DownloadButton assetId={output.id} productKey={productKey} />
 				)}
-				{presentation.stage === "ready" && output && (
+				{presentation.stage === "ready" && output && !allowPrinting && (
+					<ColoringPageLink assetId={output.id} />
+				)}
+				{presentation.stage === "ready" && output && allowPrinting && (
 					<ImagePrintButton
 						getImageUrl={async () =>
 							(

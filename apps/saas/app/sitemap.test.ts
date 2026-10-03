@@ -66,7 +66,7 @@ describe("consolidated SaaS sitemap", () => {
 		expect(dates).toMatchObject({
 			"/": "2026-09-21",
 			"/image-to-image": "2026-09-21",
-			"/photo-to-coloring-page": "2026-10-03",
+			"/photo-to-coloring-page": "2026-10-04",
 			"/pricing": "2026-09-16",
 			"/privacy": "2026-09-22",
 			"/terms": "2026-09-22",
