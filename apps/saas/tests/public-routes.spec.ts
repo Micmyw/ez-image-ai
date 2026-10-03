@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Locator } from "@playwright/test";
 
 const indexableRoutes = ["/", "/pricing", "/privacy", "/terms", "/blog"] as const;
 const noindexRoutes = ["/changelog", "/contact", "/create", "/examples"] as const;
@@ -93,7 +93,7 @@ test.describe("image-to-image landing page", () => {
 		await mockPublicImageAvailability(page);
 	});
 
-	for (const width of [1440, 390]) {
+	for (const width of [1440, 390, 320]) {
 		test(`has focused metadata and preserves the shared composer at ${width}px`, async ({
 			page,
 			context,
@@ -135,12 +135,14 @@ test.describe("image-to-image landing page", () => {
 					}),
 				]),
 			);
-			const action = page.locator('[data-test="landing-generate"]');
+			const generator = page.locator('[data-test="landing-generator"]');
+			const prompt = generator.getByRole("textbox", { name: "Image prompt", exact: true });
+			const action = generator.locator('[data-test="landing-generate"]');
 			await expect(page.locator('[data-test="landing-model-trigger"]')).toContainText(
 				"Nano Banana 2 Lite",
 			);
 			await page.getByRole("button", { name: "Use this prompt" }).first().click();
-			await expect(page.locator("textarea")).toHaveValue(/Keep the product, its shape/);
+			await expect(prompt).toHaveValue(/Keep the product, its shape/);
 			await expect(page.getByRole("heading", { level: 1 })).toBeInViewport();
 			await expect(action).toBeEnabled();
 			await expect(page.locator("#landing-source-image")).toHaveAttribute(
@@ -150,6 +152,27 @@ test.describe("image-to-image landing page", () => {
 			await expect(page.locator('[data-test="landing-source-panel"] button')).toHaveAccessibleName(
 				/optional/i,
 			);
+			const [sourceRect, promptRect, controlsRect] = await Promise.all([
+				box(generator.locator("[data-reference-upload]")),
+				box(prompt),
+				box(generator.locator('[data-test="landing-controls-panel"]')),
+			]);
+			expect(sourceRect.x + sourceRect.width).toBeLessThanOrEqual(promptRect.x);
+			expect(Math.abs(sourceRect.y - promptRect.y)).toBeLessThan(2);
+			expect(controlsRect.y).toBeGreaterThan(
+				Math.max(sourceRect.y + sourceRect.height, promptRect.y + promptRect.height),
+			);
+			await generator.getByRole("button", { name: /^Open output settings:/ }).click();
+			const settings = page.locator('[data-test="landing-output-settings-panel"]');
+			await expect(settings).toBeVisible();
+			await expect(settings.locator('[data-fixed-setting="resolution"]')).toHaveText("1K");
+			await settings.getByText("1:1", { exact: true }).click();
+			await expect(settings.getByRole("radio", { name: "1:1", exact: true })).toBeChecked();
+			expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
+				true,
+			);
+			await page.keyboard.press("Escape");
+			await expect(settings).toBeHidden();
 			expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
 				true,
 			);
@@ -169,8 +192,12 @@ test.describe("image-to-image landing page", () => {
 				),
 			});
 			await expect(page.getByRole("img", { name: /preview of reference.png/i })).toBeVisible();
+			await expect(
+				generator.getByRole("textbox", { name: "Edit instruction", exact: true }),
+			).toHaveValue(/Keep the product, its shape/);
 			await expect(action).toBeEnabled();
 			await page.getByRole("button", { name: /remove image/i }).click();
+			await expect(prompt).toHaveValue(/Keep the product, its shape/);
 			await expect(action).toBeEnabled();
 		});
 	}
@@ -222,7 +249,7 @@ test.describe("consolidated public routes", () => {
 				await explanation.locator("summary").click();
 				await expect(explanation.locator("p")).toBeVisible();
 				await expect(explanation).toContainText("model capabilities, and plan limits still apply");
-				for (const width of [1440, 390]) {
+				for (const width of [1440, 390, 320]) {
 					await page.setViewportSize({ width, height: 900 });
 					await page.getByRole("heading", { level: 1 }).scrollIntoViewIfNeeded();
 					const intro = page.locator("#image-editor h1 ~ p");
@@ -415,6 +442,13 @@ test.describe("consolidated public routes", () => {
 		});
 	}
 });
+
+async function box(locator: Locator) {
+	return locator.evaluate((element) => {
+		const { x, y, width, height } = element.getBoundingClientRect();
+		return { x, y, width, height };
+	});
+}
 
 async function expectPublicPage(
 	page: import("@playwright/test").Page,

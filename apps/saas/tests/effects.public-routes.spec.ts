@@ -334,10 +334,15 @@ test.describe("protected editorial preview with a temporary local administrator"
 			authoredEffect.presets.find((item) => item.id === "family-snapshot")!.prompt,
 		);
 		await expect(source).toHaveAttribute("src", originalPreview!);
-		const aspectRatio = page.getByRole("combobox", { name: "Aspect ratio", exact: true });
-		await expect(aspectRatio).toHaveValue("4:3");
-		await aspectRatio.selectOption("1:1");
-		await expect(aspectRatio).toHaveValue("1:1");
+		const settingsTrigger = page.locator('[data-test="editor-output-settings-trigger"]');
+		await settingsTrigger.click();
+		const settings = page.locator('[data-test="editor-output-settings-panel"]');
+		await expect(settings).toBeVisible();
+		await expect(settings.getByRole("radio", { name: "4:3", exact: true })).toBeChecked();
+		await settings.getByText("1:1", { exact: true }).click();
+		await expect(settings.getByRole("radio", { name: "1:1", exact: true })).toBeChecked();
+		await page.keyboard.press("Escape");
+		await expect(settings).toBeHidden();
 		await preset.selectOption("street-portrait");
 		await expect(confirmation).toBeVisible();
 		await confirmation.getByRole("button", { name: "Use preset", exact: true }).click();
@@ -345,7 +350,11 @@ test.describe("protected editorial preview with a temporary local administrator"
 			authoredEffect.presets.find((item) => item.id === "street-portrait")!.prompt,
 		);
 		await expect(source).toHaveAttribute("src", originalPreview!);
-		await expect(aspectRatio).toHaveValue("4:5");
+		await settingsTrigger.click();
+		await expect(settings).toBeVisible();
+		await expect(settings.getByRole("radio", { name: "4:5", exact: true })).toBeChecked();
+		await page.keyboard.press("Escape");
+		await expect(settings).toBeHidden();
 		await page
 			.locator(".effect-workbench-controls")
 			.getByRole("button", { name: "Copy prompt", exact: true })

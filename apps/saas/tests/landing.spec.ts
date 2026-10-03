@@ -859,18 +859,27 @@ test("the landing generator supports model and SKU choice plus drop, replace, an
 
 	await selectModel(page, "GPT Image", "image-gpt-image-2");
 	await expect(gpt).toContainText("GPT Image 2");
-	const settings = page.locator('[data-test="landing-output-settings"]');
-	const aspectRatio = settings.getByRole("combobox", { name: "Aspect ratio", exact: true });
-	const resolution = settings.getByRole("combobox", { name: "Resolution", exact: true });
-	await expect(aspectRatio).toHaveValue("auto");
-	await expect(resolution).toHaveValue("1k");
-	await resolution.selectOption("4k");
+	const settings = await openOutputSettings(page);
+	await expect(settings.getByRole("radio", { name: "Automatic", exact: true })).toBeChecked();
+	await expect(settings.getByRole("button", { name: "1K", exact: true })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	const fourK = settings.getByRole("button", { name: "4K", exact: true });
+	await fourK.click();
 	await expect(
 		page.locator('[data-test="landing-generate"] [data-test="generation-credit-amount"]'),
 	).toHaveText("17");
-	await aspectRatio.selectOption("16:9");
-	await expect(aspectRatio).toHaveValue("16:9");
-	await expect(resolution).toHaveValue("4k");
+	await settings.getByText("16:9", { exact: true }).click();
+	await expect(settings.getByRole("radio", { name: "16:9", exact: true })).toBeChecked();
+	await expect(fourK).toHaveAttribute("aria-pressed", "true");
+	await expect(settings.locator('[data-test="landing-settings-credits"]')).toHaveText(
+		"4K · 17 EzImageAI Credits",
+	);
+	await page.keyboard.press("Escape");
+	await expect(settings).toBeHidden();
+	await expect(page.locator('[data-test="landing-output-settings-trigger"]')).toContainText("16:9");
+	await expect(page.locator('[data-test="landing-output-settings-trigger"]')).toContainText("4K");
 
 	const dropZone = page.locator('[data-test="landing-generator"]').getByRole("button", {
 		name: /add a reference image/i,
@@ -963,14 +972,18 @@ test("the selected model and SKU cross each private-upload stage without leaking
 
 	await page.goto("/");
 	await selectModel(page, "GPT Image", "image-gpt-image-2");
-	const settings = page.locator('[data-test="landing-output-settings"]');
-	const background = settings.getByRole("combobox", { name: "Background", exact: true });
+	const settings = await openOutputSettings(page);
+	const background = settings.getByRole("group", { name: "Background", exact: true });
 	await expect(background).toBeVisible();
-	await background.selectOption("transparent");
-	await expect(background).toHaveValue("transparent");
-	await settings.getByRole("combobox", { name: "Resolution", exact: true }).selectOption("4k");
+	const transparent = background.getByRole("button", { name: "Transparent", exact: true });
+	await transparent.click();
+	await expect(transparent).toHaveAttribute("aria-pressed", "true");
+	await settings.getByRole("button", { name: "4K", exact: true }).click();
 	await expect(background).toHaveCount(0);
-	await settings.getByRole("combobox", { name: "Aspect ratio", exact: true }).selectOption("16:9");
+	await settings.getByText("16:9", { exact: true }).click();
+	await expect(settings.getByRole("radio", { name: "16:9", exact: true })).toBeChecked();
+	await page.keyboard.press("Escape");
+	await expect(settings).toBeHidden();
 	await page.locator("#landing-source-image").setInputFiles(pngFile("gpt-source.png"));
 	await page
 		.getByRole("textbox", { name: "Edit instruction", exact: true })
@@ -1250,9 +1263,11 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 					Math.max(tierRect.y, action.y),
 			).toBeGreaterThan(20);
 		}
-		expect(sourceRect.y).toBeGreaterThanOrEqual(promptRect.y + promptRect.height);
-		expect(Math.abs(sourceRect.x - promptRect.x)).toBeLessThan(2);
-		expect(controls.y).toBeGreaterThan(sourceRect.y + sourceRect.height);
+		expect(sourceRect.x + sourceRect.width).toBeLessThanOrEqual(promptRect.x);
+		expect(Math.abs(sourceRect.y - promptRect.y)).toBeLessThan(2);
+		expect(controls.y).toBeGreaterThan(
+			Math.max(sourceRect.y + sourceRect.height, promptRect.y + promptRect.height),
+		);
 		expect(
 			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
 			`${viewport.width}px horizontal overflow`,
@@ -1307,6 +1322,15 @@ async function selectModel(page: Page, family: string, productKey: string, prefi
 	await page.locator(`[data-test="${prefix}-model-${productKey}"]`).click();
 }
 
+async function openOutputSettings(page: Page, prefix = "landing") {
+	const trigger = page.locator(`[data-test="${prefix}-output-settings-trigger"]`);
+	await expect(trigger).toHaveAccessibleName(/^Open output settings:/);
+	await trigger.click();
+	const panel = page.locator(`[data-test="${prefix}-output-settings-panel"]`);
+	await expect(panel).toBeVisible();
+	return panel;
+}
+
 test("model families expose descriptions and quality changes update the quoted credits", async ({
 	page,
 }, testInfo) => {
@@ -1330,15 +1354,24 @@ test("model families expose descriptions and quality changes update the quoted c
 		contentType: "image/png",
 	});
 	await page.locator('[data-test="landing-model-image-seedream-5-pro"]').click();
-	const settings = page.locator('[data-test="landing-output-settings"]');
-	const quality = settings.getByRole("combobox", { name: "Quality", exact: true });
-	const resolution = settings.getByRole("combobox", { name: "Resolution", exact: true });
+	const settings = await openOutputSettings(page);
+	const quality = settings.getByRole("group", { name: "Quality", exact: true });
+	const resolution = settings.getByRole("group", { name: "Resolution", exact: true });
 	const credits = page.locator(
 		'[data-test="landing-generate"] [data-test="generation-credit-amount"]',
 	);
-	await quality.selectOption("high");
-	await expect(quality).toHaveValue("high");
-	await expect(resolution).toHaveValue("2k");
+	await quality.getByRole("button", { name: "High", exact: true }).click();
+	await expect(quality.getByRole("button", { name: "High", exact: true })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	await expect(resolution.getByRole("button", { name: "2K", exact: true })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	await expect(settings.locator('[data-test="landing-settings-credits"]')).toHaveText(
+		"2K · High · 15 EzImageAI Credits",
+	);
 	await expect(credits).toHaveText("15");
 	await testInfo.attach("quality-pricing", {
 		body: await page.screenshot({
@@ -1347,18 +1380,29 @@ test("model families expose descriptions and quality changes update the quoted c
 		}),
 		contentType: "image/png",
 	});
-	await quality.selectOption("basic");
-	await expect(quality).toHaveValue("basic");
-	await expect(resolution).toHaveValue("1k");
+	await quality.getByRole("button", { name: "Basic", exact: true }).click();
+	await expect(quality.getByRole("button", { name: "Basic", exact: true })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
+	await expect(resolution.getByRole("button", { name: "1K", exact: true })).toHaveAttribute(
+		"aria-pressed",
+		"true",
+	);
 	await expect(credits).toHaveText("8");
+	await page.keyboard.press("Escape");
+	await expect(settings).toBeHidden();
 	// Stay before the final CTA: entering it intentionally dismisses the dock.
 	await page.locator("#how-it-works").scrollIntoViewIfNeeded();
 	const dock = page.locator('[data-test="floating-editor-dock"]');
 	await dock.getByRole("button", { name: /open the quick editor/i }).click();
 	await selectModel(page, "GPT Image", "image-gpt-image-2", "floating");
-	await dock.getByRole("button", { name: /^Open output settings:/ }).click();
-	await page.getByRole("button", { name: "4K", exact: true }).click();
-	await expect(dock.locator('[data-test="floating-generate"]')).toContainText("17");
+	const floatingSettings = await openOutputSettings(page, "floating");
+	await floatingSettings.getByRole("button", { name: "4K", exact: true }).click();
+	await expect(
+		dock.locator('[data-test="floating-generate"] [data-test="generation-credit-amount"]'),
+	).toHaveText("17");
 	await page.keyboard.press("Escape");
+	await expect(floatingSettings).toBeHidden();
 	await expect(dock.locator('[data-test="floating-editor-expanded"]')).toBeVisible();
 });

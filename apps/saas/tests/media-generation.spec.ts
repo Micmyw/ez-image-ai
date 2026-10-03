@@ -957,9 +957,14 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		page,
 	}) => {
 		await page.setViewportSize({ width: 390, height: 844 });
-		await openCreator(page, marker("mobile", "Warm the evening light", 0), fundedEmail);
+		const prompt = marker("mobile", "Warm the evening light", 0);
+		await openCreator(page, prompt, fundedEmail);
 
 		await expect(page.getByRole("img", { name: /selected source image/i })).toBeVisible();
+		const promptInput = page.getByRole("textbox", { name: "Edit instruction", exact: true });
+		await expect(promptInput).toHaveValue(prompt);
+		await promptInput.focus();
+		await expect(promptInput).toBeFocused();
 		const modelTrigger = page.getByRole("button", { name: /^Model: / });
 		await expect(modelTrigger).toBeEnabled();
 		await modelTrigger.focus();
@@ -972,16 +977,37 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await page.keyboard.press("Space");
 		await expect(modelTrigger).toContainText("Seedream 5 Pro");
 
-		const quality = page.getByRole("combobox", { name: "Quality", exact: true });
-		await quality.focus();
-		await page.keyboard.press("ArrowDown");
+		const settingsTrigger = page.locator('[data-test="editor-output-settings-trigger"]');
+		await settingsTrigger.focus();
+		await page.keyboard.press("Enter");
+		const settings = page.locator('[data-test="editor-output-settings-panel"]');
+		await expect(settings).toBeVisible();
+		const quality = settings.getByRole("group", { name: "Quality", exact: true });
+		const basic = quality.getByRole("button", { name: "Basic", exact: true });
+		const high = quality.getByRole("button", { name: "High", exact: true });
+		await expect(basic).toHaveAttribute("aria-pressed", "true");
+		await basic.focus();
 		await page.keyboard.press("Tab");
-		await expect(quality).toHaveValue("high");
-		await expect(page.getByRole("combobox", { name: "Resolution", exact: true })).toHaveValue("2k");
-		await expect(page.locator('[data-test="generation-submit"]')).toHaveAccessibleName(
-			"Start edit 15 credits",
+		await expect(high).toBeFocused();
+		await page.keyboard.press("Space");
+		await expect(high).toHaveAttribute("aria-pressed", "true");
+		await expect(
+			settings
+				.getByRole("group", { name: "Resolution", exact: true })
+				.getByRole("button", { name: "2K", exact: true }),
+		).toHaveAttribute("aria-pressed", "true");
+		await expect(settings.locator('[data-test="editor-settings-credits"]')).toHaveText(
+			"2K · High · 15 EzImageAI Credits",
 		);
-		await expect(page.locator('[data-test="generation-submit"]')).toBeEnabled();
+		await page.keyboard.press("Escape");
+		await expect(settings).toBeHidden();
+		await expect(settingsTrigger).toBeFocused();
+		const generate = page.locator('[data-test="generation-submit"]');
+		await expect(generate).toHaveAccessibleName("Start edit 15 credits");
+		await expect(generate).toBeEnabled();
+		await page.keyboard.press("Tab");
+		await expect(generate).toBeFocused();
+		await expect(promptInput).toHaveValue(prompt);
 		expect(
 			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
 		).toBe(true);
