@@ -42,7 +42,7 @@ function fixture() {
 		claimStale: vi.fn<GenerationPollingStore["claimStale"]>().mockResolvedValue([lease]),
 		recordReconciled: vi
 			.fn<GenerationPollingStore["recordReconciled"]>()
-			.mockResolvedValue(undefined),
+			.mockResolvedValue({ outboxCommitted: false }),
 		releaseReconciliationLease: vi
 			.fn<GenerationPollingStore["releaseReconciliationLease"]>()
 			.mockResolvedValue(undefined),
@@ -59,6 +59,39 @@ function fixture() {
 }
 
 describe("one durable polling tick", () => {
+	it("retains the legacy signal when an older store does not report committed events", async () => {
+		const f = fixture();
+		f.store.recordReconciled.mockResolvedValueOnce(undefined);
+		f.store.getPollingState.mockResolvedValueOnce({ pollAt: f.now }).mockResolvedValueOnce(null);
+		expect(await executePollingTick({ attemptId: "attempt-1" }, f.dependencies)).toEqual({
+			done: true,
+			waitSeconds: 0,
+		});
+	});
+	it("distinguishes another worker's terminal update from this tick's committed event", async () => {
+		const f = fixture();
+		f.store.claimStale.mockResolvedValue([]);
+		f.store.getPollingState.mockResolvedValueOnce({ pollAt: f.now }).mockResolvedValueOnce(null);
+		expect(await executePollingTick({ attemptId: "attempt-1" }, f.dependencies)).toEqual({
+			done: true,
+			waitSeconds: 0,
+			outboxCommitted: false,
+		});
+		expect(f.adapter.retrieve).not.toHaveBeenCalled();
+	});
+	it.each([true, false])(
+		"carries the transaction's actual committed event signal %s",
+		async (outboxCommitted) => {
+			const f = fixture();
+			f.store.recordReconciled.mockResolvedValueOnce({ outboxCommitted });
+			f.store.getPollingState.mockResolvedValueOnce({ pollAt: f.now }).mockResolvedValueOnce(null);
+			expect(await executePollingTick({ attemptId: "attempt-1" }, f.dependencies)).toEqual({
+				done: true,
+				waitSeconds: 0,
+				outboxCommitted,
+			});
+		},
+	);
 	it("rechecks a competing lease shortly without querying the provider or shortening its lease", async () => {
 		const f = fixture();
 		const leasedUntil = new Date(f.now.getTime() + 60_000);
@@ -66,6 +99,7 @@ describe("one durable polling tick", () => {
 		expect(await executePollingTick({ attemptId: "attempt-1" }, f.dependencies)).toEqual({
 			done: false,
 			waitSeconds: 5,
+			outboxCommitted: false,
 		});
 		expect(f.store.claimStale).not.toHaveBeenCalled();
 		expect(f.adapter.retrieve).not.toHaveBeenCalled();
@@ -73,6 +107,7 @@ describe("one durable polling tick", () => {
 		expect(await executePollingTick({ attemptId: "attempt-1" }, f.dependencies)).toEqual({
 			done: true,
 			waitSeconds: 0,
+			outboxCommitted: false,
 		});
 		expect(f.adapter.retrieve).toHaveBeenCalledTimes(1);
 	});
@@ -87,6 +122,7 @@ describe("one durable polling tick", () => {
 		expect(await executePollingTick({ attemptId: "attempt-1" }, f.dependencies)).toEqual({
 			done: false,
 			waitSeconds: 5,
+			outboxCommitted: false,
 		});
 		expect(f.adapter.retrieve).not.toHaveBeenCalled();
 	});
@@ -97,6 +133,7 @@ describe("one durable polling tick", () => {
 		expect(await executePollingTick({ attemptId: "attempt-1" }, f.dependencies)).toEqual({
 			done: false,
 			waitSeconds: 60,
+			outboxCommitted: false,
 		});
 		expect(f.store.claimStale).not.toHaveBeenCalled();
 		expect(f.adapter.retrieve).not.toHaveBeenCalled();
@@ -110,6 +147,7 @@ describe("one durable polling tick", () => {
 		expect(await executePollingTick({ attemptId: "attempt-1" }, f.dependencies)).toEqual({
 			done: false,
 			waitSeconds: 13,
+			outboxCommitted: false,
 		});
 		expect(f.store.claimStale).toHaveBeenCalledExactlyOnceWith({
 			attemptId: "attempt-1",
@@ -128,6 +166,7 @@ describe("one durable polling tick", () => {
 		expect(await executePollingTick({ attemptId: "attempt-1" }, f.dependencies)).toEqual({
 			done: true,
 			waitSeconds: 0,
+			outboxCommitted: false,
 		});
 		expect(f.store.getPollingState).toHaveBeenCalledWith("attempt-1");
 		expect(f.store.claimStale).not.toHaveBeenCalled();
@@ -135,6 +174,7 @@ describe("one durable polling tick", () => {
 		expect(await executePollingTick({ attemptId: "attempt-1" }, f.dependencies)).toEqual({
 			done: true,
 			waitSeconds: 0,
+			outboxCommitted: false,
 		});
 		expect(f.store.claimStale).toHaveBeenCalledTimes(1);
 	});
@@ -145,11 +185,13 @@ describe("one durable polling tick", () => {
 		expect(await executePollingTick({ attemptId: "attempt-1" }, f.dependencies)).toEqual({
 			done: false,
 			waitSeconds: 5,
+			outboxCommitted: false,
 		});
 		vi.mocked(f.adapter.retrieve).mockRejectedValueOnce(new Error("transport"));
 		expect(await executePollingTick({ attemptId: "attempt-1" }, f.dependencies)).toEqual({
 			done: false,
 			waitSeconds: 5,
+			outboxCommitted: false,
 		});
 		expect(f.store.releaseReconciliationLease).toHaveBeenCalledWith(
 			expect.objectContaining({ attemptId: "attempt-1" }),

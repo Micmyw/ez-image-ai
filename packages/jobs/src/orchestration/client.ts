@@ -1,12 +1,13 @@
 import { assertWorkflowsConfiguration } from "@repo/config/server";
 
 import { MAX_DISPATCH_BYTES, signRequest } from "./auth";
-import { OutboxDeliveryPendingError } from "./contracts";
+import { OutboxDeliveryPendingError, type TaskTrace } from "./contracts";
 
 export interface DispatchOptions {
 	idempotencyKey?: string;
 	requireCompletion?: boolean;
 	timeoutMs?: number;
+	trace?: TaskTrace;
 }
 
 export function createJobDispatcher(config: { url: string; secret: string; fetch?: typeof fetch }) {
@@ -23,7 +24,12 @@ export function createJobDispatcher(config: { url: string; secret: string; fetch
 	): Promise<void> => {
 		const idempotencyKey = options.idempotencyKey ?? crypto.randomUUID();
 		if (!idempotencyKey || idempotencyKey.length > 512) throw new Error("INVALID_IDEMPOTENCY_KEY");
-		const body = JSON.stringify({ taskId, payload, idempotencyKey });
+		const body = JSON.stringify({
+			taskId,
+			payload,
+			idempotencyKey,
+			...(options.trace ? { trace: options.trace } : {}),
+		});
 		if (new TextEncoder().encode(body).byteLength > MAX_DISPATCH_BYTES)
 			throw new Error("BODY_TOO_LARGE");
 		const response = await (config.fetch ?? fetch)(url, {

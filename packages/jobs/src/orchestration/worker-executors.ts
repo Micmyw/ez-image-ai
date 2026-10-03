@@ -29,6 +29,8 @@ export function workerExecutorLane(input: TaskRequest): WorkerExecutorLane {
 			// Explicit legacy reinspection stays with the heavy transfers.
 			return request.payload.allowQuarantinedReverification === true ? "heavy" : "control";
 		case "media-poll-generation":
+		case "media-deliver-output-review":
+		case "media-deliver-events":
 		case "media-process-provider-webhook":
 		case "media-settle-generation":
 			return "control";

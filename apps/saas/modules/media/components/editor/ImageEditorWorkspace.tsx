@@ -4,6 +4,7 @@ import { useSession } from "@auth/hooks/use-session";
 import { readEditorUpgradeDraft } from "@payments/lib/editor-upgrade";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
 import { Button } from "@repo/ui/components/button";
+import { clearBrowserGrowthActiveContentAttribution } from "@repo/utils";
 import {
 	STUDIO_WORKSPACE_RESET_EVENT,
 	type StudioWorkspaceResetDetail,
@@ -12,8 +13,11 @@ import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { XIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
+import { useEffectEditor } from "../../../effects/lib/editor-context";
+import { effectWorkspacePath } from "../../../effects/lib/editor-selection";
 import { canConfirmEditorUpgrade } from "../../lib/editor-entitlement";
 import {
 	isEditorProductKey,
@@ -50,6 +54,8 @@ export function ImageEditorWorkspace({
 	parentJobId?: string | null;
 	requireReference?: boolean;
 }) {
+	const effectEditor = useEffectEditor();
+	const isEffectEditor = Boolean(effectEditor);
 	const t = useTranslations("media.create");
 	const studio = useTranslations("studio");
 	const { user } = useSession();
@@ -58,10 +64,22 @@ export function ImageEditorWorkspace({
 	const [storageUnavailable, setStorageUnavailable] = useState(false);
 	const router = useRouter();
 	const pathname = usePathname();
+	useLayoutEffect(() => {
+		if (!isEffectEditor) clearBrowserGrowthActiveContentAttribution();
+	}, [isEffectEditor, pathname]);
 	const searchParams = useSearchParams();
 	const example = searchParams.get("example");
-	const draftPath = example ? `${pathname}?example=${encodeURIComponent(example)}` : pathname;
+	const draftPath = effectEditor
+		? effectWorkspacePath(pathname, effectEditor.selectedPreset.id)
+		: example
+			? `${pathname}?example=${encodeURIComponent(example)}`
+			: pathname;
 	const jobId = searchParams.get("job");
+	const setResultActive = effectEditor?.setResultActive;
+	useEffect(() => {
+		setResultActive?.(Boolean(jobId));
+		return () => setResultActive?.(false);
+	}, [jobId, setResultActive]);
 	const claimedDraftEventKey = useId();
 	const [workspace, setWorkspace] = useState<EditorWorkspaceState>(() => ({
 		parentJobId: parentJobId ?? null,
@@ -172,10 +190,14 @@ export function ImageEditorWorkspace({
 			searchParams.get("upgrade") === "complete" &&
 				canConfirmEditorUpgrade(restored.draft.productKey, allowedProductKeys),
 		);
-		router.replace(`${pathname}?model=${encodeURIComponent(restored.draft.productKey)}`, {
+		const returnUrl = new URL(window.location.href);
+		returnUrl.searchParams.delete("upgrade");
+		returnUrl.searchParams.delete("resume");
+		if (!isEffectEditor) returnUrl.searchParams.set("model", restored.draft.productKey);
+		router.replace(returnUrl.pathname + returnUrl.search + returnUrl.hash, {
 			scroll: false,
 		});
-	}, [allowedProductKeys, pathname, router, searchParams]);
+	}, [allowedProductKeys, pathname, router, searchParams, isEffectEditor]);
 
 	const unlinkSource = useCallback(() => {
 		setWorkspace((current) => (current.parentJobId ? { ...current, parentJobId: null } : current));
@@ -202,8 +224,24 @@ export function ImageEditorWorkspace({
 		setFreshProductKey(undefined);
 		setSourceReady(false);
 		setUpgradeRestored(false);
-		window.history.replaceState(null, "", pathname);
+		window.history.replaceState(null, "", effectEditor ? draftPath : pathname);
 	}
+	const result = jobId ? (
+		<div
+			className="mt-5"
+			id="current-editor-result"
+			tabIndex={-1}
+			aria-label={t("workspace.result")}
+		>
+			<div className="mb-2 flex justify-end">
+				<Button type="button" variant="ghost" onClick={closePreview}>
+					<XIcon className="size-4" aria-hidden="true" />
+					{t("workspace.closePreview")}
+				</Button>
+			</div>
+			<EditorResultPanel jobId={jobId} onNew={beginNewEdit} />
+		</div>
+	) : null;
 
 	return (
 		<div className="mt-6 min-w-0">
@@ -237,7 +275,7 @@ export function ImageEditorWorkspace({
 					ready={draftReady}
 					requireReference={requireReference}
 					layout={
-						pathname === "/image-to-image" || pathname === "/photo-to-coloring-page"
+						pathname === "/image-to-image" || pathname === "/photo-to-coloring-page" || effectEditor
 							? "minimal"
 							: "default"
 					}
@@ -253,22 +291,9 @@ export function ImageEditorWorkspace({
 					parentJobId={workspace.parentJobId}
 					onCreated={selectJob}
 				/>
-				{jobId && (
-					<div
-						className="mt-5"
-						id="current-editor-result"
-						tabIndex={-1}
-						aria-label={t("workspace.result")}
-					>
-						<div className="mb-2 flex justify-end">
-							<Button type="button" variant="ghost" onClick={closePreview}>
-								<XIcon className="size-4" aria-hidden="true" />
-								{t("workspace.closePreview")}
-							</Button>
-						</div>
-						<EditorResultPanel jobId={jobId} onNew={beginNewEdit} />
-					</div>
-				)}
+				{effectEditor?.resultContainer
+					? createPortal(result, effectEditor.resultContainer)
+					: result}
 			</div>
 			<section className="mt-5" aria-label={t("workspace.recent")}>
 				<RecentJobQueue selectedJobId={jobId} onSelect={selectJob} />

@@ -1,11 +1,25 @@
 export const promptEditingDocuments = [
 	{
+		id: "ai-image-editing-prompts",
 		slug: "ai-image-editing-prompts",
 		locale: "en",
 		title: "How to Write AI Image Editing Prompts",
 		description:
 			"Write a clear edit instruction: name the change, protect the details that matter, and review the result. Includes product, portrait, and background examples.",
 		publishedAt: "2026-09-12",
+		articleType: "prompt-guides",
+		categoryId: "prompt-writing",
+		authorId: "ezimageai-editorial",
+		primaryEffectId: "1980s-ai-photo",
+		relatedEffectIds: ["1980s-ai-photo"],
+		contentBlocks: [
+			{
+				type: "effect",
+				effectId: "1980s-ai-photo",
+				presetId: "studio-portrait",
+				afterHeadingId: "portrait-adjust-the-light",
+			},
+		],
 		tags: ["image editing", "prompts"],
 		published: true,
 		body: `An image editing prompt tells the editor what to change in an existing picture. The source already supplies the subject and composition, so begin with the change you need and then state what should stay the same.

@@ -16,12 +16,56 @@
 - Add A4 and US Letter image printing with browser PDF saving to available guest and account results. Print only the authorized image, fit it without cropping, and handle unavailable image URLs.
 - Add an explicitly labeled AI-generated demonstration, English search metadata, canonical URL, sitemap entry, visible usage guidance and factual structured data. Preserve the homepage's existing keyword focus.
 
+### Dependency security maintenance (not yet deployed)
+
+- Upgrade Next.js, Hono, Nodemailer and affected indirect dependencies to patched releases. Keep the shared dependency catalog, the 24-hour release-age policy and existing audit gates.
+- Upgrade Vitest and its coverage adapter together; wait for the editor to finish restoring its state before the subscription-upgrade browser test enters a prompt.
+- Load administration translations within the admin layout so public pages keep their existing HTML size budget without changing editor copy or layout.
+- The updated lockfile reports no known vulnerabilities in full or production-only dependency audits. Deployment and live verification remain separate.
+
+## 2026-09-30
+
+### First-image continuation (local validation, not yet deployed)
+
+- Continue admission, input review, provider completion and output review through the original task identities without waiting for a global maintenance scan. Keep recovery scans, resource limits and existing moderation decisions.
+- Store ordinary untransformed small outputs once in immutable private storage, while retaining guest watermark and large-file recovery paths. Approved results can be previewed before settlement and cleanup.
+- Validate the final jobs artifact against local PostgreSQL, Workflows/WorkerJobs and private object storage with isolated fixed-time suppliers. Local results do not establish production latency.
+
+### Output review continuation (not yet deployed)
+
+- Continue pending output image review through its committed event after releasing the heavy executor, using the existing bounded verification polling and recovery protocol.
+- Keep normal review waits outside technical finalization retries. Preserve moderation identities, safety decisions and credit settlement; add callback and query-wait timing without recording request content.
+- Local regression and artifact checks do not establish Cloudflare latency gains; the isolated cloud comparison remains pending authorization.
+
+### Generation admission and preview delivery
+
+- Reuse approved submission configuration and eligibility reads while rechecking mutable limits in the credit-reservation transaction. Keep standalone quote/create requests and retry identities compatible.
+- Return an authorized, short-lived preview with job status and display approved outputs before final settlement. Refresh access without reloading an already displayed image; hide revoked or expired outputs and bound failed-image retries.
+- Skip global Outbox scans after confirmed no-op verification or polling, retaining delivery after real changes, legacy execution and scheduled recovery.
+- Add payload-free phase timings and isolated before/after simulations. These changes are locally verified; production latency and deployment are not established by the simulations.
+
 ## 2026-09-29
 
 ### Responsive example gallery
 
 - Show examples in two masonry columns on phones, keeping mixed image proportions. Restore gentle image zoom and prompt overlays on mouse hover and keyboard focus across the homepage, `/create`, and `/examples`, with a visible touch action and reduced-motion support.
 - Keep floating editor bars off mobile gallery pages and hide desktop bars while browsing examples or reaching the closing call to action. Preserve existing prompts, public headings, translated SEO copy, metadata, and canonical routes.
+
+### AI Effects and editing guides
+
+- Add a shared Effects directory and detail template with copyable prompts, preset selection, authorized example comparisons, and the existing private editor. Preset changes protect edited prompts and settings and do not start generation.
+- Add one server-only content catalog with draft isolation, exact preset-version test checks, public model/SKU validation, related content, canonical pagination, and explicit retirement responses.
+- Complete the first 1980s studio, family-album, and street presets with one original AI-generated adult reference and three reviewed EzImageAI outputs. Four authorized generations used 20 credits; the first family snapshot was rejected for red-eye and replaced after a revised prompt. Keep the exact versions, real observations and private evidence linked to the content record.
+- Upgrade Blog discovery and reading layouts with topic filters, reading time, heading navigation, copyable prompts, and stable effect/preset/example references while preserving existing article URLs, body text, and publication dates.
+- Add persistent Effects navigation and conditional homepage/tool/model recommendations, plus bounded content context in existing consent-aware browser analytics. Document configuration-only additions, evidence requirements, release boundaries, and rollback in `docs/product/effects-and-guides.md`.
+- Give the single-theme directory a wide featured card, add matched comparison images and precise preset links to the existing prompt guide, and make Docs navigation and five user guides consistent with the product.
+- This entry records local content and implementation plus the bounded real-generation review. It does not confirm Git publication, production content deployment, general model reliability, or payment/analytics behavior beyond the observed generation-credit settlement.
+
+### Homepage mobile editor
+
+- Restore the existing homepage generator layout, including the signed-in mode heading, prompt guidance and instruction choices. Scope the image-to-image composer styling to that route and keep the Effects editor styling within its own workbench.
+- Keep the original model and example sections immediately after the editors. Place Effects recommendations later in the homepage and image-to-image content.
+- Preserve existing public headings, translated SEO copy, metadata, and canonical routes.
 
 ### Faster generated-image previews
 

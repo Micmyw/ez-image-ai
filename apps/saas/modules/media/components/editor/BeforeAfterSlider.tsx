@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactEventHandler } from "react";
 
 export function BeforeAfterSlider({
 	beforeUrl,
@@ -13,6 +13,8 @@ export function BeforeAfterSlider({
 	beforeLabel,
 	afterLabel,
 	onCompared,
+	onOutputLoad,
+	onOutputError,
 }: {
 	beforeUrl: string;
 	afterUrl: string;
@@ -24,13 +26,21 @@ export function BeforeAfterSlider({
 	beforeLabel: string;
 	afterLabel: string;
 	onCompared?: () => void;
+	onOutputLoad?: ReactEventHandler<HTMLImageElement>;
+	onOutputError?: ReactEventHandler<HTMLImageElement>;
 }) {
 	const [position, setPosition] = useState(50);
 
 	return (
 		<div className="space-y-3">
 			<div className="sm:aspect-[4/3] relative aspect-square overflow-hidden rounded-2xl border bg-muted">
-				<img src={afterUrl} alt={afterAlt} className="inset-0 absolute size-full object-contain" />
+				<img
+					src={afterUrl}
+					alt={afterAlt}
+					onLoad={onOutputLoad}
+					onError={onOutputError}
+					className="inset-0 absolute size-full object-contain"
+				/>
 				<span className="top-3 right-3 px-2 py-1 text-xs absolute rounded-full bg-background/90">
 					{afterLabel}
 				</span>

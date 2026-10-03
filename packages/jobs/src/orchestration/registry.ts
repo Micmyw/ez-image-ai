@@ -87,6 +87,14 @@ const dispatchPayload = strictObject({
 
 const payloadParsers = {
 	"media-deliver-outbox": scheduled,
+	"media-deliver-output-review": strictObject({ eventId: text }),
+	"media-deliver-events": strictObject({
+		eventIds: (value) => {
+			const ids = objectKeys(value);
+			if (!ids.length || ids.some((id) => id.length > 256)) return invalid();
+			return [...new Set(ids)];
+		},
+	}),
 	"media-admit-guest-generation": strictObject({ jobId: text, trialId: text }),
 	"media-cancel-generation": strictObject(job),
 	"media-finalize-generation": strictObject(job),
@@ -174,20 +182,39 @@ export function parseDispatchPayload(taskId: string, payload: unknown) {
 }
 
 export function parseTaskRequest(value: unknown): TaskRequest {
-	const envelope = strictObject({ taskId: text, payload: record })(value);
+	const identity = (value: unknown) => {
+		if (typeof value !== "string" || !/^[a-zA-Z0-9_:-]{1,256}$/.test(value)) return invalid();
+		return value;
+	};
+	const envelope = strictObject({
+		taskId: text,
+		payload: record,
+		trace: optional(
+			strictObject({
+				requestId: optional(identity),
+				outboxEventId: optional(identity),
+				dueAt: optional(timestamp),
+				pollTick: optional(integer),
+			}),
+		),
+	})(value);
+	const trace = envelope.trace === undefined ? {} : { trace: envelope.trace };
 	if (dispatchRouteForTask(envelope.taskId)) {
 		parseDispatchPayload(envelope.taskId, envelope.payload);
-		return { taskId: envelope.taskId, payload: dispatchPayload(envelope.payload) };
+		return { taskId: envelope.taskId, payload: dispatchPayload(envelope.payload), ...trace };
 	}
 	if (!Object.hasOwn(payloadParsers, envelope.taskId)) return invalid();
 	return {
 		taskId: envelope.taskId,
 		payload: parseTaskPayload(envelope.taskId as keyof typeof payloadParsers, envelope.payload),
+		...trace,
 	};
 }
 
 const definitions: Record<keyof typeof payloadParsers, TaskDefinition> = {
 	"media-deliver-outbox": definition("media-outbox", 2, 120),
+	"media-deliver-output-review": definition("media-outbox", 2, 120),
+	"media-deliver-events": definition("media-outbox", 2, 120),
 	"media-admit-guest-generation": definition("media-guest-admission", 1, 60, 1),
 	"media-cancel-generation": definition("media-provider-cancellation", 4, 60, 5),
 	"media-finalize-generation": definition(QUEUE_NAMES.finalization, 3, 900, 5),

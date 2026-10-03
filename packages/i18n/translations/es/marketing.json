@@ -712,6 +712,7 @@
 			"support": "Soporte"
 		},
 		"menu": {
+			"effects": "Efectos con IA",
 			"blog": "Blog",
 			"changelog": "Registro",
 			"contact": "Contacto",

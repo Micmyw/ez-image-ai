@@ -20,6 +20,8 @@ import { getLocale, getTranslations } from "next-intl/server";
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { EffectRecommendations } from "../../effects/components/EffectRecommendations";
+import { getPublishedEffects } from "../../effects/lib/content";
 import { PublicFooterLinks } from "../../public-content/components/PublicFooterLinks";
 import { ImageToImageExamples } from "./ImageToImageExamples";
 import { LandingGenerator } from "./LandingGenerator";
@@ -200,6 +202,15 @@ export async function ImageToImagePage({
 						</div>
 					</div>
 				</section>
+
+				<EffectRecommendations
+					internalSource="image-to-image"
+					effects={getPublishedEffects()
+						.filter((effect) =>
+							effect.presets.some((preset) => preset.inputRequirement === "required"),
+						)
+						.slice(0, 3)}
+				/>
 
 				<section
 					className="image-edit-faq container"

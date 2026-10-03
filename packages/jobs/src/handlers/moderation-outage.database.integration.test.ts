@@ -93,7 +93,7 @@ function verifier(
 		provider,
 	};
 }
-async function exhaust(id: string, verify: (id: string) => Promise<void>) {
+async function exhaust(id: string, verify: (id: string) => Promise<unknown>) {
 	for (let attempt = 0; attempt < 4; attempt++) {
 		await client.mediaAsset.update({ where: { id }, data: { verificationNextAttemptAt: null } });
 		await verify(id);

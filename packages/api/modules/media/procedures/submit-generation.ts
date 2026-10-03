@@ -6,8 +6,13 @@ import { z } from "zod";
 
 import { protectedProcedure } from "../../../orpc/procedures";
 import { toMediaOrpcError } from "../lib/errors";
+import { createFlowTiming, type FlowTiming } from "../lib/flow-timing";
 import { createGenerationInputSchema, createQuoteInputSchema, jsonBigInt } from "../types";
-import { createGenerationForUser, dispatchCreatedGeneration } from "./create-generation";
+import {
+	createGenerationForUser,
+	createGenerationFromApprovedQuote,
+	dispatchCreatedGeneration,
+} from "./create-generation";
 import { createQuoteForUser } from "./create-quote";
 
 export const submitGenerationInputSchema = createQuoteInputSchema.safeExtend({
@@ -19,12 +24,14 @@ interface Dependencies {
 	findQuote(ownerId: string, quoteId: string): ReturnType<typeof findGenerationSubmissionQuote>;
 	createQuote: typeof createQuoteForUser;
 	createJob: typeof createGenerationForUser;
+	createPreparedJob?: typeof createGenerationFromApprovedQuote;
 	dispatch: typeof dispatchCreatedGeneration;
 }
 const defaults: Dependencies = {
 	findQuote: (owner, id) => findGenerationSubmissionQuote(owner, id, db),
 	createQuote: createQuoteForUser,
 	createJob: createGenerationForUser,
+	createPreparedJob: createGenerationFromApprovedQuote,
 	dispatch: dispatchCreatedGeneration,
 };
 
@@ -32,6 +39,7 @@ export async function submitGenerationForUser(
 	userId: string,
 	input: Input,
 	dependencies: Dependencies = defaults,
+	timing: FlowTiming = createFlowTiming(),
 ) {
 	const quoteId = `submit_${hash([userId, input.idempotencyKey])}`;
 	const fingerprint = hash({
@@ -41,15 +49,25 @@ export async function submitGenerationForUser(
 		parentJobId: input.parentJobId ?? null,
 		temporaryReferenceToken: input.temporaryReferenceToken ?? null,
 	});
-	let existing = await dependencies.findQuote(userId, quoteId);
+	let existing = await timing.measure("admission.lookup", () =>
+		dependencies.findQuote(userId, quoteId),
+	);
 	let quote;
+	let admission: Awaited<ReturnType<typeof createQuoteForUser>>["admission"];
 	if (!existing) {
 		try {
-			quote = await dependencies.createQuote(userId, input, undefined, {
-				quoteId,
-				fingerprint,
-				expectedCredits: input.expectedCredits,
-			});
+			quote = await dependencies.createQuote(
+				userId,
+				input,
+				undefined,
+				{
+					quoteId,
+					fingerprint,
+					expectedCredits: input.expectedCredits,
+				},
+				timing,
+			);
+			admission = quote.admission;
 		} catch (error) {
 			// Concurrent identical submissions can race on the deterministic quote ID.
 			if (!error || typeof error !== "object" || !("code" in error) || error.code !== "P2002")
@@ -75,11 +93,15 @@ export async function submitGenerationForUser(
 		result = { job: existing.job, replayed: true };
 	} else {
 		try {
-			result = await dependencies.createJob(userId, {
+			const request = {
 				quoteId: quote.id,
 				idempotencyKey: input.idempotencyKey,
 				...(input.parentJobId ? { parentJobId: input.parentJobId } : {}),
-			});
+			};
+			result =
+				admission && dependencies.createPreparedJob
+					? await dependencies.createPreparedJob(userId, request, admission, undefined, timing)
+					: await dependencies.createJob(userId, request, undefined, timing);
 		} catch (error) {
 			// A concurrent request may have reserved the balance or committed while
 			// this request was checking admission. Recover that job before returning an error.
@@ -88,7 +110,8 @@ export async function submitGenerationForUser(
 			result = { job: recovered.job, replayed: true };
 		}
 	}
-	await dependencies.dispatch(result);
+	timing.bind({ jobId: result.job.id, assetId: result.verificationAssetId });
+	await timing.measure("admission.dispatch", () => dependencies.dispatch(result));
 	return {
 		job: {
 			id: result.job.id,
@@ -121,9 +144,14 @@ function hash(value: unknown): string {
 export const submitGeneration = protectedProcedure
 	.route({ method: "POST", path: "/media/generations/submit", tags: ["Media"] })
 	.input(submitGenerationInputSchema)
-	.handler(async ({ context: { user }, input }) => {
+	.handler(async ({ context: { user, requestId }, input }) => {
 		try {
-			return await submitGenerationForUser(user.id, input);
+			return await submitGenerationForUser(
+				user.id,
+				input,
+				undefined,
+				createFlowTiming({ requestId }),
+			);
 		} catch (error) {
 			throw toMediaOrpcError(error);
 		}

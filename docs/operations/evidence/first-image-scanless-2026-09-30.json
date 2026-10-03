@@ -1,0 +1,1531 @@
+{
+	"boundary": "Local actual workerd Workflow/DO, PostgreSQL, MinIO, protected oRPC, Chromium image decode; external suppliers fixed-time fixtures; minimal preview page (not SaaS UI), 250ms polling. One sample per cell. No Cloudflare latency claim.",
+	"samples": [
+		{
+			"label": "old-idle-immediate-rpc",
+			"artifactSha256": "b672ae90ded4732c6ab2c734031f5d3a6c443c2d5b65fa36917777bfb35c8671",
+			"jobId": "cmunfffd6000a2kbk0bp5ve82",
+			"milliseconds": {
+				"clickToKieAccepted": 1011,
+				"kieProcessingFixture": 1500,
+				"callbackJitter": 15,
+				"kieCompleteToOutputHandler": 131,
+				"outputHandlerToReviewSubmit": 199,
+				"firstOutputQueryToReady": 23,
+				"firstOutputReviewEndToReady": null,
+				"kieCompleteToVisible": 522,
+				"clickToVisible": 3048,
+				"readyUpdatedAtToBrowserReceived": 132,
+				"receivedToDecoded": 11,
+				"decodedToVisible": 17
+			},
+			"admission": [
+				{
+					"stage": "admission.lookup",
+					"milliseconds": 8.10990000000038
+				},
+				{
+					"stage": "admission.edit-context",
+					"milliseconds": 0.06860000000051514
+				},
+				{
+					"stage": "admission.config",
+					"milliseconds": 4.598399999999856
+				},
+				{
+					"stage": "admission.rateLimit",
+					"milliseconds": 2.9816000000000713
+				},
+				{
+					"stage": "admission.eligibility",
+					"milliseconds": 40.415100000000166
+				},
+				{
+					"stage": "admission.waffo",
+					"milliseconds": 113.60379999999986
+				},
+				{
+					"stage": "admission.quote.transaction",
+					"milliseconds": 16.340500000000247
+				},
+				{
+					"stage": "admission.rateLimit",
+					"milliseconds": 2.4471000000003187
+				},
+				{
+					"stage": "admission.rate-limit",
+					"milliseconds": 2.5372999999999593
+				},
+				{
+					"stage": "admission.job.transaction",
+					"milliseconds": 91.8774000000003
+				},
+				{
+					"stage": "admission.committed",
+					"milliseconds": 0
+				},
+				{
+					"stage": "admission.dispatch",
+					"milliseconds": 157.34090000000015
+				}
+			],
+			"callback": [],
+			"maintenance": [],
+			"globalScans": 6,
+			"handoffs": [
+				{
+					"task": "media-verify-upload",
+					"eventId": "cmunfffcq00082kbks0iwauy9",
+					"assetId": "c112eaed-23de-4026-bf45-a5d0d513dfdd",
+					"originalDueAt": 1790731716218,
+					"handlerAt": 1790731716713,
+					"dueToHandlerMs": 495
+				},
+				{
+					"task": "media-dispatch-image-kie-nano-banana-2-lite",
+					"eventId": "cmunfffdz000f2kbkh17271ip",
+					"originalDueAt": 1790731716263,
+					"handlerAt": 1790731716787,
+					"dueToHandlerMs": 524
+				},
+				{
+					"task": "media-dispatch-image-kie-nano-banana-2-lite",
+					"eventId": "cmunfffo10001psp78drgsdds",
+					"originalDueAt": 1790731716625,
+					"handlerAt": 1790731716832,
+					"dueToHandlerMs": 207
+				},
+				{
+					"task": "media-finalize-generation",
+					"eventId": "cmunffh430003psp72pexmpo3",
+					"originalDueAt": 1790731718499,
+					"handlerAt": 1790731718557,
+					"dueToHandlerMs": 58
+				},
+				{
+					"task": "media-delete-object",
+					"eventId": "cmunffhai0006psp7tktsafxu",
+					"assetId": "asset_TNjFj2SG9_CMNjtV5J-Hm86y0gKe4D5P",
+					"originalDueAt": 1790731718731,
+					"handlerAt": 1790731718843,
+					"dueToHandlerMs": 112
+				},
+				{
+					"task": "media-finalize-generation",
+					"eventId": "cmunffhce0008psp7qvjcwsm0",
+					"originalDueAt": 1790731718798,
+					"handlerAt": 1790731718871,
+					"dueToHandlerMs": 73
+				},
+				{
+					"task": "media-settle-generation",
+					"eventId": "cmunffhcs000apsp7orgapuie",
+					"originalDueAt": 1790731718812,
+					"handlerAt": 1790731718916,
+					"dueToHandlerMs": 104
+				}
+			],
+			"allowedQueries": [],
+			"supplierCounts": {
+				"kieSubmissions": 1,
+				"kieQueries": 1,
+				"inputReviewSubmissions": 1,
+				"inputReviewQueries": 1,
+				"outputReviewSubmissions": 1,
+				"outputReviewQueries": 1
+			},
+			"outputQueries": [
+				{
+					"queryAt": 1790731718765,
+					"completeAt": 1790731718756,
+					"approved": true
+				}
+			],
+			"storageRequests": {
+				"POST": 2,
+				"PUT": 2,
+				"GET": 2,
+				"DELETE": 1
+			},
+			"finalizationTechnicalRetries": 0,
+			"ledger": [
+				{
+					"type": "RESERVE",
+					"amount": "5",
+					"referenceKey": "job:cmunfffd6000a2kbk0bp5ve82:reserve"
+				},
+				{
+					"type": "SETTLE",
+					"amount": "5",
+					"referenceKey": "settle:cmunfffd6000a2kbk0bp5ve82"
+				}
+			]
+		},
+		{
+			"label": "new-idle-immediate-rpc",
+			"artifactSha256": "2ff4681a8e7033c7e9050ae300a39ba3e023b6957f2fe06f92e676e5d7df21f6",
+			"jobId": "cmunffp9b000ag4bk9ynbtyf3",
+			"milliseconds": {
+				"clickToKieAccepted": 853,
+				"kieProcessingFixture": 1500,
+				"callbackJitter": 3,
+				"kieCompleteToOutputHandler": 151,
+				"outputHandlerToReviewSubmit": 154,
+				"firstOutputQueryToReady": 22,
+				"firstOutputReviewEndToReady": null,
+				"kieCompleteToVisible": 639,
+				"clickToVisible": 2995,
+				"readyUpdatedAtToBrowserReceived": 276,
+				"receivedToDecoded": 5,
+				"decodedToVisible": 22
+			},
+			"admission": [
+				{
+					"stage": "admission.lookup",
+					"milliseconds": 6.163199999999961
+				},
+				{
+					"stage": "admission.edit-context",
+					"milliseconds": 0.05720000000019354
+				},
+				{
+					"stage": "admission.config",
+					"milliseconds": 3.8368000000000393
+				},
+				{
+					"stage": "admission.rateLimit",
+					"milliseconds": 2.4112000000004628
+				},
+				{
+					"stage": "admission.eligibility",
+					"milliseconds": 41.81919999999991
+				},
+				{
+					"stage": "admission.waffo",
+					"milliseconds": 112.05829999999969
+				},
+				{
+					"stage": "admission.quote.transaction",
+					"milliseconds": 14.538499999999658
+				},
+				{
+					"stage": "admission.rateLimit",
+					"milliseconds": 1.9651999999996406
+				},
+				{
+					"stage": "admission.rate-limit",
+					"milliseconds": 2.0453999999999724
+				},
+				{
+					"stage": "admission.job.transaction",
+					"milliseconds": 86.0639000000001
+				},
+				{
+					"stage": "admission.committed",
+					"milliseconds": 0
+				},
+				{
+					"stage": "admission.dispatch",
+					"milliseconds": 140.42360000000008
+				}
+			],
+			"callback": [
+				{
+					"stage": "callback.auth",
+					"milliseconds": 0.25060000000030414
+				},
+				{
+					"stage": "callback.body",
+					"milliseconds": 0.9315999999998894
+				},
+				{
+					"stage": "callback.db.read",
+					"milliseconds": 3.5547999999998865
+				},
+				{
+					"stage": "callback.db.persist",
+					"milliseconds": 10.45259999999962
+				},
+				{
+					"stage": "callback.database",
+					"milliseconds": 14.317199999999502
+				},
+				{
+					"stage": "callback.wake",
+					"milliseconds": 42.94629999999961
+				},
+				{
+					"stage": "callback.total",
+					"milliseconds": 58.85120000000006
+				}
+			],
+			"maintenance": [],
+			"globalScans": 0,
+			"handoffs": [
+				{
+					"task": "media-verify-upload",
+					"eventId": "cmunffp8u0008g4bk348wmyrf",
+					"assetId": "06c4722d-f966-4e42-b54f-9ed73c4251b5",
+					"originalDueAt": 1790731729039,
+					"handlerAt": 1790731729262,
+					"dueToHandlerMs": 223
+				},
+				{
+					"task": "media-dispatch-image-kie-nano-banana-2-lite",
+					"eventId": "cmunffpki0001psp7oulql4b3",
+					"originalDueAt": 1790731729458,
+					"handlerAt": 1790731729534,
+					"dueToHandlerMs": 76
+				},
+				{
+					"task": "media-finalize-generation",
+					"eventId": "cmunffqwy0003psp7x4gulb7t",
+					"originalDueAt": 1790731731202,
+					"handlerAt": 1790731731260,
+					"dueToHandlerMs": 58
+				},
+				{
+					"task": "media-settle-generation",
+					"eventId": "cmunffr5b000apsp73lw752hx",
+					"originalDueAt": 1790731731504,
+					"handlerAt": 1790731731557,
+					"dueToHandlerMs": 53
+				}
+			],
+			"allowedQueries": [
+				{
+					"assetId": "06c4722d-f966-4e42-b54f-9ed73c4251b5",
+					"nextAllowedAt": null,
+					"queryAt": 1790731729413,
+					"allowedToQueryMs": null
+				},
+				{
+					"assetId": "asset_A6LStdLkqXZxhvK_fdk50jsEhuUXVzUQ",
+					"nextAllowedAt": null,
+					"allowedToQueryMs": null
+				}
+			],
+			"supplierCounts": {
+				"kieSubmissions": 1,
+				"kieQueries": 1,
+				"inputReviewSubmissions": 1,
+				"inputReviewQueries": 1,
+				"outputReviewSubmissions": 1,
+				"outputReviewQueries": 1
+			},
+			"outputQueries": [
+				{
+					"queryAt": 1790731731423,
+					"completeAt": 1790731731414,
+					"approved": true
+				}
+			],
+			"storageRequests": {
+				"GET": 1,
+				"PUT": 1
+			},
+			"finalizationTechnicalRetries": 0,
+			"ledger": [
+				{
+					"type": "RESERVE",
+					"amount": "5",
+					"referenceKey": "job:cmunffp9b000ag4bk9ynbtyf3:reserve"
+				},
+				{
+					"type": "SETTLE",
+					"amount": "5",
+					"referenceKey": "settle:cmunffp9b000ag4bk9ynbtyf3"
+				}
+			]
+		},
+		{
+			"label": "old-idle-delayed-rpc",
+			"artifactSha256": "b672ae90ded4732c6ab2c734031f5d3a6c443c2d5b65fa36917777bfb35c8671",
+			"jobId": "cmunffyh7000a2cbkfp512yva",
+			"milliseconds": {
+				"clickToKieAccepted": 6024,
+				"kieProcessingFixture": 1500,
+				"callbackJitter": 10,
+				"kieCompleteToOutputHandler": 134,
+				"outputHandlerToReviewSubmit": 231,
+				"firstOutputQueryToReady": 5211,
+				"firstOutputReviewEndToReady": null,
+				"kieCompleteToVisible": 5644,
+				"clickToVisible": 13178,
+				"readyUpdatedAtToBrowserReceived": 29,
+				"receivedToDecoded": 5,
+				"decodedToVisible": 25
+			},
+			"admission": [
+				{
+					"stage": "admission.lookup",
+					"milliseconds": 14.69549999999981
+				},
+				{
+					"stage": "admission.edit-context",
+					"milliseconds": 0.06289999999989959
+				},
+				{
+					"stage": "admission.config",
+					"milliseconds": 3.8766999999998006
+				},
+				{
+					"stage": "admission.rateLimit",
+					"milliseconds": 2.3216999999995096
+				},
+				{
+					"stage": "admission.eligibility",
+					"milliseconds": 34.22519999999986
+				},
+				{
+					"stage": "admission.waffo",
+					"milliseconds": 110.32349999999951
+				},
+				{
+					"stage": "admission.quote.transaction",
+					"milliseconds": 17.342900000000554
+				},
+				{
+					"stage": "admission.rateLimit",
+					"milliseconds": 1.9034999999994398
+				},
+				{
+					"stage": "admission.rate-limit",
+					"milliseconds": 1.9889000000002852
+				},
+				{
+					"stage": "admission.job.transaction",
+					"milliseconds": 89.51769999999942
+				},
+				{
+					"stage": "admission.committed",
+					"milliseconds": 0
+				},
+				{
+					"stage": "admission.dispatch",
+					"milliseconds": 148.8037000000004
+				}
+			],
+			"callback": [],
+			"maintenance": [],
+			"globalScans": 8,
+			"handoffs": [
+				{
+					"task": "media-verify-upload",
+					"eventId": "cmunffygr00082cbko9w30b2r",
+					"assetId": "c3b8c7c4-7000-4662-9ba2-691c92b8e291",
+					"originalDueAt": 1790731740987,
+					"handlerAt": 1790731746516,
+					"dueToHandlerMs": 5529
+				},
+				{
+					"task": "media-dispatch-image-kie-nano-banana-2-lite",
+					"eventId": "cmunffyht000f2cbkpvy5s27f",
+					"originalDueAt": 1790731741025,
+					"handlerAt": 1790731746567,
+					"dueToHandlerMs": 5542
+				},
+				{
+					"task": "media-verify-upload",
+					"eventId": "cmunffyq90001psp77sdne0yc",
+					"assetId": "c3b8c7c4-7000-4662-9ba2-691c92b8e291",
+					"originalDueAt": 1790731741304,
+					"handlerAt": 1790731746612,
+					"dueToHandlerMs": 5308
+				},
+				{
+					"task": "media-dispatch-image-kie-nano-banana-2-lite",
+					"eventId": "cmunfg2om0003psp77oi7ise0",
+					"originalDueAt": 1790731746454,
+					"handlerAt": 1790731746664,
+					"dueToHandlerMs": 210
+				},
+				{
+					"task": "media-finalize-generation",
+					"eventId": "cmunfg44f0005psp7d3ygnjex",
+					"originalDueAt": 1790731748319,
+					"handlerAt": 1790731748370,
+					"dueToHandlerMs": 51
+				},
+				{
+					"task": "media-delete-object",
+					"eventId": "cmunfg4bj0008psp7kq4rtgpt",
+					"assetId": "asset_WaMXFsWgvWq90jFkm78SypN9JVUCycFm",
+					"originalDueAt": 1790731748575,
+					"handlerAt": 1790731748675,
+					"dueToHandlerMs": 100
+				},
+				{
+					"task": "media-verify-upload",
+					"eventId": "cmunfg4d0000apsp76e0k2um0",
+					"assetId": "asset_WaMXFsWgvWq90jFkm78SypN9JVUCycFm",
+					"originalDueAt": 1790731748618,
+					"handlerAt": 1790731748708,
+					"dueToHandlerMs": 90
+				},
+				{
+					"task": "media-finalize-generation",
+					"eventId": "cmunfg8dk000epsp7qydayino",
+					"originalDueAt": 1790731753832,
+					"handlerAt": 1790731753880,
+					"dueToHandlerMs": 48
+				},
+				{
+					"task": "media-settle-generation",
+					"eventId": "cmunfg8ge000gpsp7456svrzz",
+					"originalDueAt": 1790731753934,
+					"handlerAt": 1790731753982,
+					"dueToHandlerMs": 48
+				}
+			],
+			"allowedQueries": [],
+			"supplierCounts": {
+				"kieSubmissions": 1,
+				"kieQueries": 1,
+				"inputReviewSubmissions": 1,
+				"inputReviewQueries": 2,
+				"outputReviewSubmissions": 1,
+				"outputReviewQueries": 2
+			},
+			"outputQueries": [
+				{
+					"queryAt": 1790731748610,
+					"completeAt": 1790731752101,
+					"approved": false
+				},
+				{
+					"queryAt": 1790731753796,
+					"completeAt": 1790731752101,
+					"approved": true
+				}
+			],
+			"storageRequests": {
+				"POST": 2,
+				"PUT": 2,
+				"GET": 2,
+				"DELETE": 1
+			},
+			"finalizationTechnicalRetries": 1,
+			"ledger": [
+				{
+					"type": "RESERVE",
+					"amount": "5",
+					"referenceKey": "job:cmunffyh7000a2cbkfp512yva:reserve"
+				},
+				{
+					"type": "SETTLE",
+					"amount": "5",
+					"referenceKey": "settle:cmunffyh7000a2cbkfp512yva"
+				}
+			]
+		},
+		{
+			"label": "new-idle-delayed-rpc",
+			"artifactSha256": "2ff4681a8e7033c7e9050ae300a39ba3e023b6957f2fe06f92e676e5d7df21f6",
+			"jobId": "cmunfgfym000ag4bkastmdt9s",
+			"milliseconds": {
+				"clickToKieAccepted": 5937,
+				"kieProcessingFixture": 1500,
+				"callbackJitter": 4,
+				"kieCompleteToOutputHandler": 164,
+				"outputHandlerToReviewSubmit": 168,
+				"firstOutputQueryToReady": 5194,
+				"firstOutputReviewEndToReady": 5167,
+				"kieCompleteToVisible": 5754,
+				"clickToVisible": 13195,
+				"readyUpdatedAtToBrowserReceived": 188,
+				"receivedToDecoded": 4,
+				"decodedToVisible": 28
+			},
+			"admission": [
+				{
+					"stage": "admission.lookup",
+					"milliseconds": 6.0416000000004715
+				},
+				{
+					"stage": "admission.edit-context",
+					"milliseconds": 0.053399999999783176
+				},
+				{
+					"stage": "admission.config",
+					"milliseconds": 3.7013999999999214
+				},
+				{
+					"stage": "admission.rateLimit",
+					"milliseconds": 2.2633999999998196
+				},
+				{
+					"stage": "admission.eligibility",
+					"milliseconds": 33.75750000000062
+				},
+				{
+					"stage": "admission.waffo",
+					"milliseconds": 117.97299999999996
+				},
+				{
+					"stage": "admission.quote.transaction",
+					"milliseconds": 15.188000000000102
+				},
+				{
+					"stage": "admission.rateLimit",
+					"milliseconds": 2.0158000000001266
+				},
+				{
+					"stage": "admission.rate-limit",
+					"milliseconds": 2.0967000000000553
+				},
+				{
+					"stage": "admission.job.transaction",
+					"milliseconds": 78.01400000000012
+				},
+				{
+					"stage": "admission.committed",
+					"milliseconds": 0
+				},
+				{
+					"stage": "admission.dispatch",
+					"milliseconds": 143.41759999999977
+				}
+			],
+			"callback": [
+				{
+					"stage": "callback.auth",
+					"milliseconds": 0.23669999999947322
+				},
+				{
+					"stage": "callback.body",
+					"milliseconds": 0.4308000000000902
+				},
+				{
+					"stage": "callback.db.read",
+					"milliseconds": 9.083400000001348
+				},
+				{
+					"stage": "callback.db.persist",
+					"milliseconds": 11.657599999998638
+				},
+				{
+					"stage": "callback.database",
+					"milliseconds": 21.02979999999843
+				},
+				{
+					"stage": "callback.wake",
+					"milliseconds": 35.67019999999866
+				},
+				{
+					"stage": "callback.total",
+					"milliseconds": 57.72600000000057
+				}
+			],
+			"maintenance": [],
+			"globalScans": 0,
+			"handoffs": [
+				{
+					"task": "media-verify-upload",
+					"eventId": "cmunfgfy90008g4bkziymqswl",
+					"assetId": "8551eabf-88d1-407f-a6e6-5f643e60eb7d",
+					"originalDueAt": 1790731763649,
+					"handlerAt": 1790731763871,
+					"dueToHandlerMs": 222
+				},
+				{
+					"task": "media-dispatch-image-kie-nano-banana-2-lite",
+					"eventId": "cmunfgk770003psp75hw8cqnv",
+					"originalDueAt": 1790731769155,
+					"handlerAt": 1790731769226,
+					"dueToHandlerMs": 71
+				},
+				{
+					"task": "media-finalize-generation",
+					"eventId": "cmunfgljo0005psp7i49zad04",
+					"originalDueAt": 1790731770900,
+					"handlerAt": 1790731770973,
+					"dueToHandlerMs": 73
+				},
+				{
+					"task": "media-verify-upload",
+					"eventId": "cmunfglr9000apsp7dbhytwo3",
+					"assetId": "asset_IMV8B_rgwliVK-9pxf4RsuGiWNMKk29S",
+					"originalDueAt": 1790731771158,
+					"handlerAt": 1790731771226,
+					"dueToHandlerMs": 68
+				},
+				{
+					"task": "media-finalize-generation",
+					"eventId": "cmunfgpr5000cpsp7o8ysn3n6",
+					"originalDueAt": 1790731776353,
+					"handlerAt": 1790731776408,
+					"dueToHandlerMs": 55
+				},
+				{
+					"task": "media-settle-generation",
+					"eventId": "cmunfgpu5000epsp7lfe307lp",
+					"originalDueAt": 1790731776461,
+					"handlerAt": 1790731776528,
+					"dueToHandlerMs": 67
+				}
+			],
+			"allowedQueries": [
+				{
+					"assetId": "8551eabf-88d1-407f-a6e6-5f643e60eb7d",
+					"nextAllowedAt": null,
+					"queryAt": 1790731764020,
+					"allowedToQueryMs": null
+				},
+				{
+					"assetId": "8551eabf-88d1-407f-a6e6-5f643e60eb7d",
+					"nextAllowedAt": 1790731769031,
+					"queryAt": 1790731769119,
+					"allowedToQueryMs": 88
+				},
+				{
+					"assetId": "asset_IMV8B_rgwliVK-9pxf4RsuGiWNMKk29S",
+					"nextAllowedAt": null,
+					"queryAt": 1790731771150,
+					"allowedToQueryMs": null
+				},
+				{
+					"assetId": "asset_IMV8B_rgwliVK-9pxf4RsuGiWNMKk29S",
+					"nextAllowedAt": 1790731776158,
+					"queryAt": 1790731776319,
+					"allowedToQueryMs": 161
+				}
+			],
+			"supplierCounts": {
+				"kieSubmissions": 1,
+				"kieQueries": 1,
+				"inputReviewSubmissions": 1,
+				"inputReviewQueries": 2,
+				"outputReviewSubmissions": 1,
+				"outputReviewQueries": 2
+			},
+			"outputQueries": [
+				{
+					"queryAt": 1790731771149,
+					"completeAt": 1790731774641,
+					"approved": false
+				},
+				{
+					"queryAt": 1790731776319,
+					"completeAt": 1790731774641,
+					"approved": true
+				}
+			],
+			"storageRequests": {
+				"GET": 1,
+				"PUT": 1
+			},
+			"finalizationTechnicalRetries": 0,
+			"ledger": [
+				{
+					"type": "RESERVE",
+					"amount": "5",
+					"referenceKey": "job:cmunfgfym000ag4bkastmdt9s:reserve"
+				},
+				{
+					"type": "SETTLE",
+					"amount": "5",
+					"referenceKey": "settle:cmunfgfym000ag4bkastmdt9s"
+				}
+			]
+		},
+		{
+			"label": "old-busy-immediate-rpc",
+			"artifactSha256": "b672ae90ded4732c6ab2c734031f5d3a6c443c2d5b65fa36917777bfb35c8671",
+			"jobId": "cmunfgxbc000ge0bkw33px6jn",
+			"milliseconds": {
+				"clickToKieAccepted": 887,
+				"kieProcessingFixture": 1500,
+				"callbackJitter": 12,
+				"kieCompleteToOutputHandler": 3627,
+				"outputHandlerToReviewSubmit": 190,
+				"firstOutputQueryToReady": 23,
+				"firstOutputReviewEndToReady": null,
+				"kieCompleteToVisible": 4146,
+				"clickToVisible": 6545,
+				"readyUpdatedAtToBrowserReceived": 273,
+				"receivedToDecoded": 4,
+				"decodedToVisible": 20
+			},
+			"admission": [
+				{
+					"stage": "admission.lookup",
+					"milliseconds": 4.070600000000013
+				},
+				{
+					"stage": "admission.edit-context",
+					"milliseconds": 0.0672999999997046
+				},
+				{
+					"stage": "admission.config",
+					"milliseconds": 3.5250000000005457
+				},
+				{
+					"stage": "admission.rateLimit",
+					"milliseconds": 2.468699999999444
+				},
+				{
+					"stage": "admission.eligibility",
+					"milliseconds": 36.47809999999936
+				},
+				{
+					"stage": "admission.waffo",
+					"milliseconds": 117.73070000000007
+				},
+				{
+					"stage": "admission.quote.transaction",
+					"milliseconds": 18.369799999999486
+				},
+				{
+					"stage": "admission.rateLimit",
+					"milliseconds": 1.9516999999996187
+				},
+				{
+					"stage": "admission.rate-limit",
+					"milliseconds": 2.1059000000004744
+				},
+				{
+					"stage": "admission.job.transaction",
+					"milliseconds": 81.38030000000072
+				},
+				{
+					"stage": "admission.committed",
+					"milliseconds": 0
+				},
+				{
+					"stage": "admission.dispatch",
+					"milliseconds": 148.1882999999998
+				}
+			],
+			"callback": [],
+			"maintenance": [
+				{
+					"stage": "maintenance.locked",
+					"at": 1790731787966
+				},
+				{
+					"stage": "maintenance.released",
+					"at": 1790731791505,
+					"status": 200
+				}
+			],
+			"globalScans": 6,
+			"handoffs": [
+				{
+					"task": "media-verify-upload",
+					"eventId": "cmunfgxb0000ee0bk3wil31da",
+					"assetId": "43ddad1b-6924-4f60-89a7-b8136f35e432",
+					"originalDueAt": 1790731786140,
+					"handlerAt": 1790731786563,
+					"dueToHandlerMs": 423
+				},
+				{
+					"task": "media-dispatch-image-kie-nano-banana-2-lite",
+					"eventId": "cmunfgxbw000le0bk5y5wxctz",
+					"originalDueAt": 1790731786172,
+					"handlerAt": 1790731786632,
+					"dueToHandlerMs": 460
+				},
+				{
+					"task": "media-dispatch-image-kie-nano-banana-2-lite",
+					"eventId": "cmunfgxkl0001psp7yvysecro",
+					"originalDueAt": 1790731786485,
+					"handlerAt": 1790731786675,
+					"dueToHandlerMs": 190
+				},
+				{
+					"task": "media-finalize-generation",
+					"eventId": "cmunfgyzt0003psp73kx6i9j9",
+					"originalDueAt": 1790731788329,
+					"handlerAt": 1790731791876,
+					"dueToHandlerMs": 3547
+				},
+				{
+					"task": "media-delete-object",
+					"eventId": "cmunfh1ux0007psp78b43xrkh",
+					"assetId": "asset_U1F4q8TY5rotrUxXj3AtKTAldokcoVNU",
+					"originalDueAt": 1790731792041,
+					"handlerAt": 1790731792154,
+					"dueToHandlerMs": 113
+				},
+				{
+					"task": "media-finalize-generation",
+					"eventId": "cmunfh1wr0009psp7c3zgqs19",
+					"originalDueAt": 1790731792107,
+					"handlerAt": 1790731792183,
+					"dueToHandlerMs": 76
+				},
+				{
+					"task": "media-settle-generation",
+					"eventId": "cmunfh1x6000bpsp7hgkbr7r2",
+					"originalDueAt": 1790731792122,
+					"handlerAt": 1790731792214,
+					"dueToHandlerMs": 92
+				}
+			],
+			"allowedQueries": [],
+			"supplierCounts": {
+				"kieSubmissions": 1,
+				"kieQueries": 1,
+				"inputReviewSubmissions": 1,
+				"inputReviewQueries": 1,
+				"outputReviewSubmissions": 1,
+				"outputReviewQueries": 1
+			},
+			"outputQueries": [
+				{
+					"queryAt": 1790731792075,
+					"completeAt": 1790731792066,
+					"approved": true
+				}
+			],
+			"storageRequests": {
+				"POST": 2,
+				"PUT": 2,
+				"GET": 2,
+				"DELETE": 1
+			},
+			"finalizationTechnicalRetries": 0,
+			"ledger": [
+				{
+					"type": "RESERVE",
+					"amount": "5",
+					"referenceKey": "job:cmunfgxbc000ge0bkw33px6jn:reserve"
+				},
+				{
+					"type": "SETTLE",
+					"amount": "5",
+					"referenceKey": "settle:cmunfgxbc000ge0bkw33px6jn"
+				}
+			]
+		},
+		{
+			"label": "new-busy-immediate-rpc",
+			"artifactSha256": "2ff4681a8e7033c7e9050ae300a39ba3e023b6957f2fe06f92e676e5d7df21f6",
+			"jobId": "cmunfh9r1000gusbknrzaawn0",
+			"milliseconds": {
+				"clickToKieAccepted": 874,
+				"kieProcessingFixture": 1500,
+				"callbackJitter": 7,
+				"kieCompleteToOutputHandler": 161,
+				"outputHandlerToReviewSubmit": 167,
+				"firstOutputQueryToReady": 24,
+				"firstOutputReviewEndToReady": null,
+				"kieCompleteToVisible": 614,
+				"clickToVisible": 2995,
+				"readyUpdatedAtToBrowserReceived": 226,
+				"receivedToDecoded": 8,
+				"decodedToVisible": 19
+			},
+			"admission": [
+				{
+					"stage": "admission.lookup",
+					"milliseconds": 4.165799999999763
+				},
+				{
+					"stage": "admission.edit-context",
+					"milliseconds": 0.05569999999988795
+				},
+				{
+					"stage": "admission.config",
+					"milliseconds": 3.90729999999985
+				},
+				{
+					"stage": "admission.rateLimit",
+					"milliseconds": 2.533400000000256
+				},
+				{
+					"stage": "admission.eligibility",
+					"milliseconds": 40.54959999999937
+				},
+				{
+					"stage": "admission.waffo",
+					"milliseconds": 106.19639999999981
+				},
+				{
+					"stage": "admission.quote.transaction",
+					"milliseconds": 14.772899999999936
+				},
+				{
+					"stage": "admission.rateLimit",
+					"milliseconds": 1.9830000000001746
+				},
+				{
+					"stage": "admission.rate-limit",
+					"milliseconds": 2.078700000000026
+				},
+				{
+					"stage": "admission.job.transaction",
+					"milliseconds": 88.13369999999941
+				},
+				{
+					"stage": "admission.committed",
+					"milliseconds": 0
+				},
+				{
+					"stage": "admission.dispatch",
+					"milliseconds": 139.74219999999968
+				}
+			],
+			"callback": [
+				{
+					"stage": "callback.auth",
+					"milliseconds": 0.24279999999998836
+				},
+				{
+					"stage": "callback.body",
+					"milliseconds": 0.4546999999993204
+				},
+				{
+					"stage": "callback.db.read",
+					"milliseconds": 10.477999999999156
+				},
+				{
+					"stage": "callback.db.persist",
+					"milliseconds": 14.74869999999919
+				},
+				{
+					"stage": "callback.database",
+					"milliseconds": 25.76209999999992
+				},
+				{
+					"stage": "callback.wake",
+					"milliseconds": 36.45719999999983
+				},
+				{
+					"stage": "callback.total",
+					"milliseconds": 63.25290000000041
+				}
+			],
+			"maintenance": [
+				{
+					"stage": "maintenance.locked",
+					"at": 1790731804063
+				},
+				{
+					"stage": "maintenance.released",
+					"at": 1790731807601,
+					"status": 200
+				}
+			],
+			"globalScans": 0,
+			"handoffs": [
+				{
+					"task": "media-verify-upload",
+					"eventId": "cmunfh9qq000eusbksfninakr",
+					"assetId": "8c8f8a59-93d8-4b20-a730-599e1c8f35fa",
+					"originalDueAt": 1790731802258,
+					"handlerAt": 1790731802474,
+					"dueToHandlerMs": 216
+				},
+				{
+					"task": "media-dispatch-image-kie-nano-banana-2-lite",
+					"eventId": "cmunfha2n0001psp7knpg6gc6",
+					"originalDueAt": 1790731802687,
+					"handlerAt": 1790731802766,
+					"dueToHandlerMs": 79
+				},
+				{
+					"task": "media-finalize-generation",
+					"eventId": "cmunfhbfi0003psp7m6r9l749",
+					"originalDueAt": 1790731804446,
+					"handlerAt": 1790731804509,
+					"dueToHandlerMs": 63
+				},
+				{
+					"task": "media-settle-generation",
+					"eventId": "cmunfhbne000apsp7auvgi1jc",
+					"originalDueAt": 1790731804730,
+					"handlerAt": 1790731804778,
+					"dueToHandlerMs": 48
+				}
+			],
+			"allowedQueries": [
+				{
+					"assetId": "8c8f8a59-93d8-4b20-a730-599e1c8f35fa",
+					"nextAllowedAt": null,
+					"queryAt": 1790731802641,
+					"allowedToQueryMs": null
+				},
+				{
+					"assetId": "asset_RtR3aHfxS76Ue5LMz7GmgIV3G5Yh4j-U",
+					"nextAllowedAt": null,
+					"allowedToQueryMs": null
+				}
+			],
+			"supplierCounts": {
+				"kieSubmissions": 1,
+				"kieQueries": 1,
+				"inputReviewSubmissions": 1,
+				"inputReviewQueries": 1,
+				"outputReviewSubmissions": 1,
+				"outputReviewQueries": 1
+			},
+			"outputQueries": [
+				{
+					"queryAt": 1790731804685,
+					"completeAt": 1790731804676,
+					"approved": true
+				}
+			],
+			"storageRequests": {
+				"GET": 1,
+				"PUT": 1
+			},
+			"finalizationTechnicalRetries": 0,
+			"ledger": [
+				{
+					"type": "RESERVE",
+					"amount": "5",
+					"referenceKey": "job:cmunfh9r1000gusbknrzaawn0:reserve"
+				},
+				{
+					"type": "SETTLE",
+					"amount": "5",
+					"referenceKey": "settle:cmunfh9r1000gusbknrzaawn0"
+				}
+			]
+		},
+		{
+			"label": "old-busy-delayed-rpc",
+			"artifactSha256": "b672ae90ded4732c6ab2c734031f5d3a6c443c2d5b65fa36917777bfb35c8671",
+			"jobId": "cmunfhl2v000go8bkcsrile8y",
+			"milliseconds": {
+				"clickToKieAccepted": 6011,
+				"kieProcessingFixture": 1500,
+				"callbackJitter": 10,
+				"kieCompleteToOutputHandler": 3610,
+				"outputHandlerToReviewSubmit": 195,
+				"firstOutputQueryToReady": 5229,
+				"firstOutputReviewEndToReady": null,
+				"kieCompleteToVisible": 9323,
+				"clickToVisible": 16844,
+				"readyUpdatedAtToBrowserReceived": 252,
+				"receivedToDecoded": 4,
+				"decodedToVisible": 21
+			},
+			"admission": [
+				{
+					"stage": "admission.lookup",
+					"milliseconds": 4.09940000000006
+				},
+				{
+					"stage": "admission.edit-context",
+					"milliseconds": 0.06460000000060973
+				},
+				{
+					"stage": "admission.config",
+					"milliseconds": 3.5008000000007087
+				},
+				{
+					"stage": "admission.rateLimit",
+					"milliseconds": 2.2523000000001048
+				},
+				{
+					"stage": "admission.eligibility",
+					"milliseconds": 48.41820000000007
+				},
+				{
+					"stage": "admission.waffo",
+					"milliseconds": 110.64169999999922
+				},
+				{
+					"stage": "admission.quote.transaction",
+					"milliseconds": 12.599500000000262
+				},
+				{
+					"stage": "admission.rateLimit",
+					"milliseconds": 1.9756999999999607
+				},
+				{
+					"stage": "admission.rate-limit",
+					"milliseconds": 2.055000000000291
+				},
+				{
+					"stage": "admission.job.transaction",
+					"milliseconds": 81.77899999999954
+				},
+				{
+					"stage": "admission.committed",
+					"milliseconds": 0
+				},
+				{
+					"stage": "admission.dispatch",
+					"milliseconds": 147.8088000000007
+				}
+			],
+			"callback": [],
+			"maintenance": [
+				{
+					"stage": "maintenance.locked",
+					"at": 1790731823894
+				},
+				{
+					"stage": "maintenance.released",
+					"at": 1790731827427,
+					"status": 200
+				}
+			],
+			"globalScans": 8,
+			"handoffs": [
+				{
+					"task": "media-verify-upload",
+					"eventId": "cmunfhl2j000eo8bk0f22iwqv",
+					"assetId": "7e49033a-8eba-4ab7-b9b0-afd1706c33c3",
+					"originalDueAt": 1790731816939,
+					"handlerAt": 1790731822448,
+					"dueToHandlerMs": 5509
+				},
+				{
+					"task": "media-dispatch-image-kie-nano-banana-2-lite",
+					"eventId": "cmunfhl3f000lo8bkdbcac0dp",
+					"originalDueAt": 1790731816971,
+					"handlerAt": 1790731822502,
+					"dueToHandlerMs": 5531
+				},
+				{
+					"task": "media-verify-upload",
+					"eventId": "cmunfhlbn0001psp7wg7l35i4",
+					"assetId": "7e49033a-8eba-4ab7-b9b0-afd1706c33c3",
+					"originalDueAt": 1790731817244,
+					"handlerAt": 1790731822540,
+					"dueToHandlerMs": 5296
+				},
+				{
+					"task": "media-dispatch-image-kie-nano-banana-2-lite",
+					"eventId": "cmunfhp9t0003psp7tj1z6uub",
+					"originalDueAt": 1790731822385,
+					"handlerAt": 1790731822600,
+					"dueToHandlerMs": 215
+				},
+				{
+					"task": "media-finalize-generation",
+					"eventId": "cmunfhqpu0005psp7utnag0h5",
+					"originalDueAt": 1790731824258,
+					"handlerAt": 1790731827780,
+					"dueToHandlerMs": 3522
+				},
+				{
+					"task": "media-delete-object",
+					"eventId": "cmunfhtkd0009psp7rmybp4sg",
+					"assetId": "asset_FXq9mTRsp3qXC_ZJ4_BbJQ9EwgHTpQG0",
+					"originalDueAt": 1790731827949,
+					"handlerAt": 1790731828063,
+					"dueToHandlerMs": 114
+				},
+				{
+					"task": "media-verify-upload",
+					"eventId": "cmunfhtm6000bpsp72a5gbhih",
+					"assetId": "asset_FXq9mTRsp3qXC_ZJ4_BbJQ9EwgHTpQG0",
+					"originalDueAt": 1790731828001,
+					"handlerAt": 1790731828096,
+					"dueToHandlerMs": 95
+				},
+				{
+					"task": "media-finalize-generation",
+					"eventId": "cmunfhxmy000fpsp775mp7e66",
+					"originalDueAt": 1790731833226,
+					"handlerAt": 1790731833272,
+					"dueToHandlerMs": 46
+				},
+				{
+					"task": "media-settle-generation",
+					"eventId": "cmunfhxps000hpsp7bnqil902",
+					"originalDueAt": 1790731833328,
+					"handlerAt": 1790731833409,
+					"dueToHandlerMs": 81
+				}
+			],
+			"allowedQueries": [],
+			"supplierCounts": {
+				"kieSubmissions": 1,
+				"kieQueries": 1,
+				"inputReviewSubmissions": 1,
+				"inputReviewQueries": 2,
+				"outputReviewSubmissions": 1,
+				"outputReviewQueries": 2
+			},
+			"outputQueries": [
+				{
+					"queryAt": 1790731827987,
+					"completeAt": 1790731831475,
+					"approved": false
+				},
+				{
+					"queryAt": 1790731833192,
+					"completeAt": 1790731831475,
+					"approved": true
+				}
+			],
+			"storageRequests": {
+				"POST": 2,
+				"PUT": 2,
+				"GET": 2,
+				"DELETE": 1
+			},
+			"finalizationTechnicalRetries": 1,
+			"ledger": [
+				{
+					"type": "RESERVE",
+					"amount": "5",
+					"referenceKey": "job:cmunfhl2v000go8bkcsrile8y:reserve"
+				},
+				{
+					"type": "SETTLE",
+					"amount": "5",
+					"referenceKey": "settle:cmunfhl2v000go8bkcsrile8y"
+				}
+			]
+		},
+		{
+			"label": "new-busy-delayed-rpc",
+			"artifactSha256": "2ff4681a8e7033c7e9050ae300a39ba3e023b6957f2fe06f92e676e5d7df21f6",
+			"jobId": "cmunfi5fj000gskbkds0zv4lu",
+			"milliseconds": {
+				"clickToKieAccepted": 5941,
+				"kieProcessingFixture": 1500,
+				"callbackJitter": 16,
+				"kieCompleteToOutputHandler": 141,
+				"outputHandlerToReviewSubmit": 164,
+				"firstOutputQueryToReady": 5190,
+				"firstOutputReviewEndToReady": 5169,
+				"kieCompleteToVisible": 5587,
+				"clickToVisible": 13044,
+				"readyUpdatedAtToBrowserReceived": 50,
+				"receivedToDecoded": 5,
+				"decodedToVisible": 28
+			},
+			"admission": [
+				{
+					"stage": "admission.lookup",
+					"milliseconds": 4.319700000000012
+				},
+				{
+					"stage": "admission.edit-context",
+					"milliseconds": 0.10759999999936554
+				},
+				{
+					"stage": "admission.config",
+					"milliseconds": 3.8599999999996726
+				},
+				{
+					"stage": "admission.rateLimit",
+					"milliseconds": 2.407700000000659
+				},
+				{
+					"stage": "admission.eligibility",
+					"milliseconds": 36.94250000000011
+				},
+				{
+					"stage": "admission.waffo",
+					"milliseconds": 112.88460000000032
+				},
+				{
+					"stage": "admission.quote.transaction",
+					"milliseconds": 12.86700000000019
+				},
+				{
+					"stage": "admission.rateLimit",
+					"milliseconds": 2.011000000000422
+				},
+				{
+					"stage": "admission.rate-limit",
+					"milliseconds": 2.088400000000547
+				},
+				{
+					"stage": "admission.job.transaction",
+					"milliseconds": 84.51190000000042
+				},
+				{
+					"stage": "admission.committed",
+					"milliseconds": 0
+				},
+				{
+					"stage": "admission.dispatch",
+					"milliseconds": 140.40580000000045
+				}
+			],
+			"callback": [
+				{
+					"stage": "callback.auth",
+					"milliseconds": 0.22419999999874562
+				},
+				{
+					"stage": "callback.body",
+					"milliseconds": 0.46789999999964493
+				},
+				{
+					"stage": "callback.db.read",
+					"milliseconds": 6.386799999998402
+				},
+				{
+					"stage": "callback.db.persist",
+					"milliseconds": 6.318400000000111
+				},
+				{
+					"stage": "callback.database",
+					"milliseconds": 13.008499999999913
+				},
+				{
+					"stage": "callback.wake",
+					"milliseconds": 35.83630000000085
+				},
+				{
+					"stage": "callback.total",
+					"milliseconds": 49.96169999999984
+				}
+			],
+			"maintenance": [
+				{
+					"stage": "maintenance.locked",
+					"at": 1790731850191
+				},
+				{
+					"stage": "maintenance.released",
+					"at": 1790731853733,
+					"status": 200
+				}
+			],
+			"globalScans": 0,
+			"handoffs": [
+				{
+					"task": "media-verify-upload",
+					"eventId": "cmunfi5f7000eskbkw1g68oe0",
+					"assetId": "f53c86c6-7ad7-48b9-903b-92fa7132718d",
+					"originalDueAt": 1790731843315,
+					"handlerAt": 1790731843535,
+					"dueToHandlerMs": 220
+				},
+				{
+					"task": "media-dispatch-image-kie-nano-banana-2-lite",
+					"eventId": "cmunfi9od0003psp7tousmsru",
+					"originalDueAt": 1790731848829,
+					"handlerAt": 1790731848897,
+					"dueToHandlerMs": 68
+				},
+				{
+					"task": "media-finalize-generation",
+					"eventId": "cmunfib0q0005psp7bmavl8ir",
+					"originalDueAt": 1790731850570,
+					"handlerAt": 1790731850630,
+					"dueToHandlerMs": 60
+				},
+				{
+					"task": "media-verify-upload",
+					"eventId": "cmunfib7p000apsp745we6nr7",
+					"assetId": "asset_hmxTI1X9AFZ7C8w07L1mQNlzTdLj1ZBO",
+					"originalDueAt": 1790731850811,
+					"handlerAt": 1790731850882,
+					"dueToHandlerMs": 71
+				},
+				{
+					"task": "media-finalize-generation",
+					"eventId": "cmunfif7m000dpsp72egc4zmo",
+					"originalDueAt": 1790731856002,
+					"handlerAt": 1790731856060,
+					"dueToHandlerMs": 58
+				},
+				{
+					"task": "media-settle-generation",
+					"eventId": "cmunfifap000fpsp7y2ki0cfo",
+					"originalDueAt": 1790731856113,
+					"handlerAt": 1790731856159,
+					"dueToHandlerMs": 46
+				}
+			],
+			"allowedQueries": [
+				{
+					"assetId": "f53c86c6-7ad7-48b9-903b-92fa7132718d",
+					"nextAllowedAt": null,
+					"queryAt": 1790731843688,
+					"allowedToQueryMs": null
+				},
+				{
+					"assetId": "f53c86c6-7ad7-48b9-903b-92fa7132718d",
+					"nextAllowedAt": 1790731848699,
+					"queryAt": 1790731848793,
+					"allowedToQueryMs": 94
+				},
+				{
+					"assetId": "asset_hmxTI1X9AFZ7C8w07L1mQNlzTdLj1ZBO",
+					"nextAllowedAt": null,
+					"queryAt": 1790731850803,
+					"allowedToQueryMs": null
+				},
+				{
+					"assetId": "asset_hmxTI1X9AFZ7C8w07L1mQNlzTdLj1ZBO",
+					"nextAllowedAt": 1790731855811,
+					"queryAt": 1790731855969,
+					"allowedToQueryMs": 158
+				}
+			],
+			"supplierCounts": {
+				"kieSubmissions": 1,
+				"kieQueries": 1,
+				"inputReviewSubmissions": 1,
+				"inputReviewQueries": 2,
+				"outputReviewSubmissions": 1,
+				"outputReviewQueries": 2
+			},
+			"outputQueries": [
+				{
+					"queryAt": 1790731850803,
+					"completeAt": 1790731854294,
+					"approved": false
+				},
+				{
+					"queryAt": 1790731855970,
+					"completeAt": 1790731854294,
+					"approved": true
+				}
+			],
+			"storageRequests": {
+				"GET": 1,
+				"PUT": 1
+			},
+			"finalizationTechnicalRetries": 0,
+			"ledger": [
+				{
+					"type": "RESERVE",
+					"amount": "5",
+					"referenceKey": "job:cmunfi5fj000gskbkds0zv4lu:reserve"
+				},
+				{
+					"type": "SETTLE",
+					"amount": "5",
+					"referenceKey": "settle:cmunfi5fj000gskbkds0zv4lu"
+				}
+			]
+		}
+	],
+	"boundaryCase": {
+		"label": "new-idle-immediate-10mib",
+		"outputBytes": 10485760,
+		"artifactSha256": "2ff4681a8e7033c7e9050ae300a39ba3e023b6957f2fe06f92e676e5d7df21f6",
+		"clickToVisibleMs": 3381,
+		"attempts": 1,
+		"ledger": [
+			{
+				"type": "RESERVE",
+				"amount": "5",
+				"referenceKey": "job:cmunfzmrv000anwbkcrok8hh6:reserve"
+			},
+			{
+				"type": "SETTLE",
+				"amount": "5",
+				"referenceKey": "settle:cmunfzmrv000anwbkcrok8hh6"
+			}
+		],
+		"storageRequests": [
+			{
+				"method": "GET",
+				"status": 404
+			},
+			{
+				"method": "PUT",
+				"status": 200
+			}
+		],
+		"limits": "One local workerd sample, not a cloud memory ceiling or concurrency load test"
+	}
+}

@@ -18,6 +18,16 @@ export const publicChangelogEntries = [
 		],
 	},
 	{
+		date: "2026-09-29",
+		title: "Photo effects and clearer editing guides",
+		changes: [
+			"Explore three 1980s photo recipes with real before-and-after examples, complete copyable prompts and the existing image editor on the same page.",
+			"Make editing guides easier to browse by topic, with reading times, section navigation, and copyable prompts while keeping existing article addresses.",
+			"Compare the tested studio, family-album and street styles, with the model, settings and observed limitations shown beside each example. Keep unfinished recipes private until their examples are reviewed.",
+			"Find clearer help for editing, saved work, credits and privacy in Docs, with navigation that matches the product.",
+		],
+	},
+	{
 		date: "2026-09-22",
 		title: "Smoother sign-in recovery on billing pages",
 		changes: [

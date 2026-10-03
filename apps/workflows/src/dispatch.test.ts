@@ -28,6 +28,29 @@ function binding(status = "queued") {
 }
 
 describe("Workflow ingress", () => {
+	it("keeps legacy dispatch identity when diagnostic trace is added or refreshed", async () => {
+		const workflows = binding("complete");
+		const dispatch = createWorkflowBindingDispatcher({
+			url: "https://jobs.example/internal/dispatch",
+			secret,
+			workflows,
+		});
+		const payload = { jobId: "job-1", version: 0 };
+		await dispatch("media-finalize-generation", payload, { idempotencyKey: "same-event" });
+		await dispatch("media-finalize-generation", payload, {
+			idempotencyKey: "same-event",
+			trace: { outboxEventId: "event-1", dueAt: 1_800_000_000_000 },
+		});
+		await dispatch("media-finalize-generation", payload, {
+			idempotencyKey: "same-event",
+			trace: { outboxEventId: "event-1", dueAt: 1_800_000_030_000 },
+		});
+		expect(new Set(workflows.createBatch.mock.calls.map(([batch]) => batch[0].id)).size).toBe(1);
+		expect(workflows.createBatch.mock.calls[1]?.[0][0].params).toMatchObject({
+			kind: "task",
+			request: { trace: { outboxEventId: "event-1" } },
+		});
+	});
 	it("dispatches nested jobs through the binding and waits for durable completion on replay", async () => {
 		const publicFetch = vi
 			.spyOn(globalThis, "fetch")

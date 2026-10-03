@@ -3,17 +3,46 @@ import { getBaseUrl } from "@shared/lib/base-url";
 import type { MetadataRoute } from "next";
 
 import { publicPageUpdates } from "../content/page-updates";
+import { getPublishedEffects } from "../modules/effects/lib/content";
 import { MODEL_PAGES, modelPath } from "../modules/models/lib/model-pages";
 import {
 	getAllPublishedBlogPosts,
 	getLegalPageByPath,
 } from "../modules/public-content/lib/content";
+import { CONTENT_PAGE_SIZE, contentPagePath } from "../modules/public-content/lib/pagination";
 
 export default function sitemap(): MetadataRoute.Sitemap {
 	const baseUrl = getBaseUrl();
 	const posts = getAllPublishedBlogPosts("en");
+	const effects = getPublishedEffects();
+	const effectsLastModified = effects
+		.map((effect) => effect.updatedAt)
+		.sort()
+		.at(-1);
 	const pages = [
 		...publicPageUpdates,
+		...(effects.length ? [{ path: "/effects", lastModified: effectsLastModified }] : []),
+		...effects.map((effect) => ({
+			path: `/effects/${effect.slug}`,
+			lastModified: effect.updatedAt,
+		})),
+		...Array.from(
+			{ length: Math.max(0, Math.ceil(effects.length / CONTENT_PAGE_SIZE) - 1) },
+			(_, index) => ({
+				path: contentPagePath("/effects", index + 2),
+				lastModified: effectsLastModified,
+			}),
+		),
+		...Array.from(
+			{ length: Math.max(0, Math.ceil(posts.length / CONTENT_PAGE_SIZE) - 1) },
+			(_, index) => ({
+				path: contentPagePath("/blog", index + 2),
+				lastModified: posts
+					.map((post) => post.updatedAt ?? post.publishedAt)
+					.sort()
+					.at(-1),
+			}),
+		),
 		{
 			path: "/privacy",
 			lastModified: getLegalPageByPath("privacy-policy", { locale: "en" })?.updatedAt,

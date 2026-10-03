@@ -4,8 +4,13 @@ import type {
 	TaskExecutionContext,
 	PollingTickResult,
 } from "@repo/jobs/orchestration/contracts";
-import { parsePollingTickResult } from "@repo/jobs/orchestration/contracts";
+import {
+	parsePollingTickResult,
+	parseOutputReviewContinuation,
+	parseTaskContinuation,
+} from "@repo/jobs/orchestration/contracts";
 import { parseTaskRequest, taskDefinition } from "@repo/jobs/orchestration/registry";
+import { logTaskStarted } from "@repo/jobs/orchestration/task-timing";
 
 export interface WorkerExecutionOptions {
 	secret: string;
@@ -88,6 +93,7 @@ export function createWorkerExecutionHandler(options: WorkerExecutionOptions) {
 		active++;
 		queues.set(definition.queue, queued + 1);
 		const startedAt = Date.now();
+		logTaskStarted(request, context, startedAt);
 		let outcome: "ok" | "failed" = "ok";
 		try {
 			// Deadlines belong to bounded I/O and Workflow delivery. Releasing this
@@ -97,9 +103,20 @@ export function createWorkerExecutionHandler(options: WorkerExecutionOptions) {
 				return respond(200, { status: "ok", poll });
 			}
 			const result = await options.execute(request, context);
+			const continuation = parseTaskContinuation(
+				(result as { continuation?: unknown } | null)?.continuation,
+			);
 			if (request.taskId === "media-verify-upload")
 				return respond(200, { status: "ok", poll: parsePollingTickResult(result) });
-			return respond(200, { status: "ok" });
+			if (request.taskId === "media-finalize-generation") {
+				const outputReview = parseOutputReviewContinuation(result);
+				return respond(200, {
+					status: "ok",
+					...(outputReview ? { outputReview } : {}),
+					...(continuation ? { continuation } : {}),
+				});
+			}
+			return respond(200, { status: "ok", ...(continuation ? { continuation } : {}) });
 		} catch {
 			outcome = "failed";
 			process.stderr.write(

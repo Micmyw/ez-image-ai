@@ -4,8 +4,8 @@
 		"target": "ES2022",
 		"module": "Preserve",
 		"outDir": "dist",
-		"rootDir": "src",
+		"rootDir": "../..",
 		"noEmit": true
 	},
-	"include": ["src/**/*.ts"]
+	"include": ["src/**/*.ts", "src/**/*.mts"]
 }

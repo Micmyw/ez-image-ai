@@ -42,7 +42,85 @@ import {
 	abortIncompleteMultipartUploads,
 	listMultipartUploads,
 	promoteStagedObject,
+	tryWriteImmutableGenerationImage,
 } from "./index";
+
+describe("single private generation image", () => {
+	const body = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
+	const missing = () => Object.assign(new Error("missing"), { name: "NoSuchKey" });
+	const stored = (bytes = body) => ({
+		Body: Readable.from([bytes]),
+		ContentLength: bytes.length,
+		ContentType: "image/png",
+		ETag: "fixed",
+	});
+	beforeEach(() => s3.send.mockReset());
+	it("reserves before one conditional final write, without staging or promotion", async () => {
+		const reserve = vi.fn(async () => {
+			expect(s3.send).toHaveBeenCalledTimes(1);
+		});
+		s3.send.mockRejectedValueOnce(missing()).mockResolvedValueOnce({ ETag: "fixed" });
+		const result = await tryWriteImmutableGenerationImage({
+			bucket: "media",
+			key: "users/test/assets/a/original.png",
+			contentType: "image/png",
+			body,
+			reserve,
+		});
+		expect(result?.bytes).toBe(body.length);
+		expect(reserve).toHaveBeenCalledWith(body.length);
+		expect(s3.send.mock.calls[1]![0]).toMatchObject({
+			input: { IfNoneMatch: "*", Body: body, Key: "users/test/assets/a/original.png" },
+		});
+		expect(s3.send).toHaveBeenCalledTimes(2);
+	});
+	it("recovers the same stored content after a DB failure without writing again", async () => {
+		s3.send.mockResolvedValueOnce(stored());
+		const reserve = vi.fn(async () => undefined);
+		const result = await tryWriteImmutableGenerationImage({
+			bucket: "media",
+			key: "users/test/assets/a/original.png",
+			contentType: "image/png",
+			body: Buffer.concat([body, Buffer.from("changed provider")]),
+			reserve,
+		});
+		expect(result?.sha256).toBe(createHash("sha256").update(body).digest("hex"));
+		expect(s3.send).toHaveBeenCalledTimes(1);
+		expect(reserve).toHaveBeenCalledWith(body.length);
+	});
+	it("re-reads the immutable winner on a conditional conflict", async () => {
+		s3.send
+			.mockRejectedValueOnce(missing())
+			.mockRejectedValueOnce(Object.assign(new Error("conflict"), { name: "PreconditionFailed" }))
+			.mockResolvedValueOnce(stored());
+		const reserve = vi.fn(async () => undefined);
+		const result = await tryWriteImmutableGenerationImage({
+			bucket: "media",
+			key: "users/test/assets/a/original.png",
+			contentType: "image/png",
+			body,
+			reserve,
+		});
+		expect(result?.etag).toBe("fixed");
+		expect(s3.send).toHaveBeenCalledTimes(3);
+		expect(reserve).toHaveBeenCalledTimes(2);
+	});
+	it("never writes after a lost transfer fence or quota rejection", async () => {
+		s3.send.mockRejectedValueOnce(missing());
+		await expect(
+			tryWriteImmutableGenerationImage({
+				bucket: "media",
+				key: "users/test/assets/a/original.png",
+				contentType: "image/png",
+				body,
+				reserve: async () => {
+					throw new Error("FENCE_LOST");
+				},
+			}),
+		).rejects.toThrow("FENCE_LOST");
+		expect(s3.send).toHaveBeenCalledTimes(1);
+	});
+});
 
 describe("promoteStagedObject", () => {
 	beforeEach(() => {

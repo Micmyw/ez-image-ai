@@ -50,7 +50,8 @@ export const metadata: Metadata = {
 
 export default async function RootLayout({ children }: PropsWithChildren) {
 	const locale = await getLocale();
-	const messages = await getMessages();
+	// The admin layout supplies its namespace, including on client navigation.
+	const { admin: _admin, ...messages } = await getMessages();
 	const consentStatus = parseConsentStatus((await cookies()).get("consent")?.value);
 
 	return (

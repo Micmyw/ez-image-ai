@@ -31,6 +31,8 @@ import {
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 const globalStorage = vi.hoisted(() => ({
+	// Existing cases exercise legacy streaming/promotion and guest recovery.
+	tryWriteImmutableGenerationImage: vi.fn(async () => null),
 	inspectRemoteMedia: vi.fn(async () => ({ contentType: "image/png" as const })),
 	putPrivateMediaObject: vi.fn(async () => {
 		throw new Error("GLOBAL_STORAGE_USED");
@@ -54,9 +56,12 @@ vi.mock("@repo/storage", async () => ({
 import {
 	createDatabaseDispatchStore,
 	createDatabaseFinalizationStore,
+	createDatabaseSettlementStore,
 	createDatabaseVerifyUploadDependencies,
 	createFinalizationDependencies,
 } from "../runtime";
+import { finalizeMedia } from "./finalize-media";
+import { settleGeneration } from "./settle-generation";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const PNG_BODY = Buffer.from("89504e470d0a1a0a0000000d4948445200000001", "hex");
@@ -72,6 +77,249 @@ describe("generation output transfer runtime", () => {
 	});
 
 	afterAll(async () => client?.$disconnect());
+	it
+		.skipIf(process.env.RUN_MEDIA_STORAGE_INTEGRATION !== "true")
+		.each(["DB_FAILURE", "LEASE_EXPIRED"])(
+		"recovers a real immutable S3 output after %s without retransfer or generation",
+		async (failure) => {
+			const endpoint = new URL(process.env.S3_ENDPOINT ?? "");
+			if (endpoint.hostname !== "127.0.0.1" || endpoint.port !== "9540")
+				throw new Error("USE_ISOLATED_MINIO");
+			const storage = await vi.importActual<typeof import("@repo/storage")>("@repo/storage");
+			const seeded = await seedFinalizingJob([
+				{
+					kind: "inline-base64",
+					mimeType: "image/png",
+					data: PNG_BODY.toString("base64"),
+					trust: "untrusted-transfer-candidate",
+				},
+			]);
+			const claim = await createDatabaseFinalizationStore(client).claimFinalization({
+				jobId: seeded.jobId,
+				version: seeded.version,
+			});
+			if (!claim) throw new Error("Expected claim");
+			const verification = createDatabaseVerifyUploadDependencies(client, {
+				safety: new TestMediaSafetyAdapter("ALLOW"),
+				moderationProvider: "test",
+			});
+			let inject = true;
+			let target: { bucket: "media"; key: string } | undefined;
+			const direct: typeof storage.tryWriteImmutableGenerationImage = async (input) => {
+				target = { bucket: "media", key: input.key };
+				const written = await storage.tryWriteImmutableGenerationImage(input);
+				if (inject) {
+					inject = false;
+					if (failure === "DB_FAILURE") throw new Error("DB_COMMIT_UNAVAILABLE");
+					await client.mediaAsset.updateMany({
+						where: { objectKey: input.key },
+						data: { outputTransferLeaseExpiresAt: new Date(0) },
+					});
+				}
+				return written;
+			};
+			const deps = createFinalizationDependencies(process.env, {
+				database: client,
+				verification,
+				storage: { tryWriteImmutableGenerationImage: direct },
+			});
+			try {
+				await expect(deps.persistCandidate(claim, claim.candidates[0]!)).rejects.toMatchObject({
+					retryable: true,
+				});
+				const placeholder = await client.mediaAsset.findFirstOrThrow({
+					where: { ownerId: seeded.ownerId, kind: "OUTPUT" },
+				});
+				expect(placeholder.status).not.toBe("READY");
+				const before = await storage.headObject(target!);
+				await client.mediaAsset.update({
+					where: { id: placeholder.id },
+					data: { outputTransferLeaseExpiresAt: new Date(0) },
+				});
+				await expect(deps.persistCandidate(claim, claim.candidates[0]!)).resolves.toMatchObject({
+					approved: true,
+					assetId: placeholder.id,
+				});
+				const asset = await client.mediaAsset.findUniqueOrThrow({ where: { id: placeholder.id } });
+				expect(asset.status).toBe("READY");
+				expect(asset.storageEtag).toBe(before.etag);
+				expect((await storage.headObject(target!)).etag).toBe(before.etag);
+				expect(await client.generationAttempt.count({ where: { jobId: seeded.jobId } })).toBe(1);
+				expect(
+					await client.assetModerationResult.count({
+						where: { assetId: asset.id, status: "APPROVED" },
+					}),
+				).toBe(1);
+				const reservation = await client.creditReservation.findUniqueOrThrow({
+					where: { jobId: seeded.jobId },
+				});
+				expect(reservation).toMatchObject({ status: "ACTIVE", settledAmount: 0n });
+				const cleanup = await client.outboxEvent.findMany({
+					where: { aggregateId: asset.id, eventType: "MEDIA_OBJECT_DELETE" },
+				});
+				for (const event of cleanup)
+					expect(JSON.stringify(event.payload)).not.toContain(target!.key);
+			} finally {
+				if (target) await storage.deleteObject(target);
+			}
+		},
+	);
+	it("keeps a fixed-time output PENDING durable without technical retries, duplicate inference or credits", async () => {
+		const seeded = await seedFinalizingJob([
+			{
+				kind: "remote-url",
+				url: "https://replicate.delivery/pending.png",
+				trust: "untrusted-transfer-candidate",
+			},
+		]);
+		const started = Date.now();
+		const completeAt = started + 7_500;
+		const submit = vi.fn(async (input: { idempotencyKey: string; ruleVersion: string }) => ({
+			moderationTaskId: "persisted-seeapi-task",
+			status: "QUEUED" as const,
+			ruleVersion: input.ruleVersion,
+			idempotency: { key: input.idempotencyKey, providerSupported: false, replayed: false },
+		}));
+		let duringRetrieval: (() => Promise<void>) | undefined;
+		const retrieve = vi.fn(async (input: { ruleVersion: string }) => {
+			await duringRetrieval?.();
+			return {
+				decision: Date.now() < completeAt ? ("REVIEW" as const) : ("ALLOW" as const),
+				reasonCode: Date.now() < completeAt ? "IMAGE_PROCESSING" : "TEST_ALLOW",
+				ruleVersion: input.ruleVersion,
+			};
+		});
+		const safety = Object.assign(new TestMediaSafetyAdapter("ERROR"), {
+			submitImage: submit,
+			retrieveImage: retrieve,
+		});
+		const verification = createDatabaseVerifyUploadDependencies(client, {
+			safety,
+			moderationProvider: "test",
+			createSignedReadUrl: async () => "https://private.example/output",
+		});
+		const stream = vi.fn(async () => ({ bytes: PNG_BODY.byteLength, sha256: PNG_CHECKSUM }));
+		const dependencies = createFinalizationDependencies(process.env, {
+			database: client,
+			verification,
+			safety,
+			storage: {
+				streamRemoteObjectToStorage: stream,
+				promoteStagedObject: async () => ({
+					bytes: PNG_BODY.byteLength,
+					sha256: PNG_CHECKSUM,
+					etag: "etag",
+					versionId: null,
+				}),
+			},
+		});
+		const payload = { jobId: seeded.jobId, version: seeded.version };
+		const ledgerBefore = await client.creditLedgerEntry.findMany({
+			where: { account: { ownerId: seeded.ownerId } },
+			orderBy: { id: "asc" },
+		});
+		vi.useFakeTimers({ toFake: ["Date"] });
+		vi.setSystemTime(started);
+		try {
+			const result = await finalizeMedia(payload, dependencies);
+			expect(result).toMatchObject({ outcome: "WAITING_MODERATION", readyOutputs: 0 });
+			expect(result.outputReviewEventIds).toHaveLength(1);
+			const event = await client.outboxEvent.findUniqueOrThrow({
+				where: { id: result.outputReviewEventIds![0] },
+			});
+			const assetId = event.aggregateId;
+			expect(event).toMatchObject({
+				eventType: "MEDIA_ASSET_VERIFY",
+				status: "PENDING",
+				availableAt: new Date(started),
+				attempts: 0,
+				payload: { assetId },
+			});
+			expect(await client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } })).toMatchObject({
+				verificationProviderTaskId: "persisted-seeapi-task",
+				verificationNextAttemptAt: new Date(started + 5000),
+				verificationLeaseToken: null,
+				outputTransferToken: null,
+				status: "VERIFYING",
+			});
+			// Simulate losing the committed finalizer response / crashing before wake.
+			// A duplicate finalizer returns the same stored event without resetting time.
+			vi.setSystemTime(started + 4000);
+			expect(await finalizeMedia(payload, dependencies)).toEqual(result);
+			expect(retrieve).toHaveBeenCalledTimes(1);
+			vi.setSystemTime(started + 5000);
+			let release!: () => void;
+			let reached!: () => void;
+			const atProvider = new Promise<void>((resolve) => {
+				reached = resolve;
+			});
+			const response = new Promise<void>((resolve) => {
+				release = resolve;
+			});
+			duringRetrieval = async () => {
+				reached();
+				await response;
+			};
+			const activePoll = verification.verify(assetId);
+			await atProvider;
+			try {
+				// A scanner may already be querying the same persisted task when a
+				// duplicate finalizer resumes. Its live lease is a wait, not a failure.
+				expect(await finalizeMedia(payload, dependencies)).toEqual(result);
+			} finally {
+				release();
+				await activePoll;
+				duringRetrieval = undefined;
+			}
+			expect(retrieve).toHaveBeenCalledTimes(2);
+			expect(await client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } })).toMatchObject({
+				status: "VERIFYING",
+				verificationNextAttemptAt: new Date(started + 10000),
+			});
+			expect(
+				await client.generationJob.findUniqueOrThrow({ where: { id: seeded.jobId } }),
+			).toMatchObject({
+				status: "FINALIZING",
+				finalizationRetryCount: 0,
+				finalizationErrorCode: null,
+			});
+			expect(
+				await client.creditLedgerEntry.findMany({
+					where: { account: { ownerId: seeded.ownerId } },
+					orderBy: { id: "asc" },
+				}),
+			).toEqual(ledgerBefore);
+			vi.setSystemTime(started + 10000);
+			await Promise.all([verification.verify(assetId), verification.verify(assetId)]);
+			expect(retrieve).toHaveBeenCalledTimes(3);
+			expect(submit).toHaveBeenCalledTimes(1);
+			expect(stream).toHaveBeenCalledTimes(1);
+			expect(await client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } })).toMatchObject({
+				status: "READY",
+				verificationProviderTaskId: "persisted-seeapi-task",
+				verificationLeaseToken: null,
+			});
+			expect(
+				await client.assetModerationResult.findMany({
+					where: { assetId },
+					orderBy: { attemptNumber: "asc" },
+					select: { status: true },
+				}),
+			).toEqual([{ status: "PENDING" }, { status: "PENDING" }, { status: "APPROVED" }]);
+			await finalizeMedia(payload, dependencies);
+			await settleGeneration(payload, { store: createDatabaseSettlementStore(client) });
+			await settleGeneration(payload, { store: createDatabaseSettlementStore(client) });
+			expect(await client.generationAttempt.count({ where: { jobId: seeded.jobId } })).toBe(1);
+			expect(
+				await client.creditLedgerEntry.count({ where: { referenceKey: `settle:${seeded.jobId}` } }),
+			).toBe(1);
+			expect(
+				await client.creditReservation.findUniqueOrThrow({ where: { jobId: seeded.jobId } }),
+			).toMatchObject({ status: "SETTLED" });
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 
 	it("lets one actor write staging and fences a concurrent duplicate before storage", async () => {
 		const seeded = await seedFinalizingJob([

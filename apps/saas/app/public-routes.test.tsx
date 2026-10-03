@@ -34,7 +34,8 @@ vi.mock("@shared/lib/base-url", () => ({
 	getBaseUrl: () => canonicalOrigin,
 }));
 
-vi.mock("@repo/config/client", () => ({
+vi.mock("@repo/config/client", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@repo/config/client")>()),
 	getPlanUsageEstimate: () => ({
 		minimumImageEdits: 4,
 		maximumImageEdits: 10,

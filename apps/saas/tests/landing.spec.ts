@@ -711,6 +711,8 @@ test("a failed capability check can be retried without reloading the page", asyn
 
 	await page.locator("#examples").scrollIntoViewIfNeeded();
 	const dock = page.locator('[data-test="floating-editor-dock"]');
+	await expect(dock).toHaveCount(0);
+	await page.locator("#how-it-works").scrollIntoViewIfNeeded();
 	await dock.getByRole("button", { name: /open the quick editor/i }).click();
 	const floatingRetry = dock.getByRole("button", { name: retryName });
 	await expect(floatingRetry).toBeEnabled();
@@ -808,6 +810,9 @@ test("the editor follows the user as a compact dock and expands without losing i
 	await expect(dock).toHaveCount(0);
 
 	await page.locator("#examples").scrollIntoViewIfNeeded();
+	// The gallery intentionally clears the dock so it cannot cover example cards.
+	await expect(dock).toHaveCount(0);
+	await page.locator("#how-it-works").scrollIntoViewIfNeeded();
 	await expect(dock).toBeVisible();
 	await expect(dock.locator('[data-test="floating-editor-expanded"]')).toHaveCount(0);
 
@@ -1334,7 +1339,8 @@ test("model families expose descriptions and quality changes update the quoted c
 	);
 	await expect(page.locator('[data-test="landing-generate"]')).toContainText("8");
 	await page.keyboard.press("Escape");
-	await page.locator("#faq").scrollIntoViewIfNeeded();
+	// Stay before the final CTA: entering it intentionally dismisses the dock.
+	await page.locator("#how-it-works").scrollIntoViewIfNeeded();
 	const dock = page.locator('[data-test="floating-editor-dock"]');
 	await dock.getByRole("button", { name: /open the quick editor/i }).click();
 	await selectModel(page, "GPT Image", "image-gpt-image-2", "floating");

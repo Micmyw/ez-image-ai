@@ -44,8 +44,8 @@ export function MediaUploader({
 	multiple = true,
 	maximumImageBytes = publicProductConfig.uploadLimits.imageBytes,
 	compact = false,
-	temporaryReference = false,
 	uploadLabel,
+	temporaryReference = false,
 	presentation = "default",
 }: MediaUploaderProps) {
 	const t = useTranslations("media.uploader");

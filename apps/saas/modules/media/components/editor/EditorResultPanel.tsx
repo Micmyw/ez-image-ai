@@ -17,11 +17,13 @@ import { isEditorProductKey, type EditorProductKey } from "../../lib/editor-reco
 import { getSignedComparisonState, requestPrivateDownload } from "../../lib/editor-result";
 import { isPublicImageSkuKey } from "../../lib/image-sku-selection";
 import { getJobPresentation, hasUnsettledJobCredits } from "../../lib/job-status";
+import { recordOutputLoaded } from "../../lib/preview-timing";
 import { GenerationFailureNotice } from "../GenerationFailureNotice";
 import { ImagePrintButton } from "../ImagePrintButton";
 import { ModerationNotice } from "../ModerationNotice";
 import { RetryGenerationButton } from "../RetryGenerationButton";
 import { BeforeAfterSlider } from "./BeforeAfterSlider";
+import { InlineOutputPreview } from "./InlineOutputPreview";
 
 export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNew: () => void }) {
 	const t = useTranslations("media.status");
@@ -71,6 +73,8 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 	const productKey = job.data.productKey;
 	const source = job.data.inputAssets[0];
 	const output = job.data.assets[0];
+	// Older cached responses can omit preview even though the current API always supplies it.
+	const hasInlinePreview = Boolean(output && output.preview !== undefined);
 
 	async function cancel() {
 		if (!jobId) return;
@@ -112,18 +116,31 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 			<p className="mt-5 p-3 text-sm rounded-xl bg-muted/40">{creditSummary(t, job.data)}</p>
 			<ModerationNotice job={job.data} />
 			<GenerationFailureNotice job={job.data} />
-			{presentation.stage === "ready" && source && output && (
+			{presentation.stage === "ready" && output && hasInlinePreview && (
+				<div className="mt-6">
+					<InlineOutputPreview
+						key={`${jobId}:${output.id}:${output.contentVersion}`}
+						jobId={jobId}
+						asset={output}
+						sourceId={source?.id}
+						productKey={productKey}
+						refresh={job.refetch}
+					/>
+				</div>
+			)}
+			{presentation.stage === "ready" && source && output && !hasInlinePreview && (
 				<div className="mt-6">
 					<SignedComparison
+						jobId={jobId}
 						inputAssetId={source.id}
 						outputAssetId={output.id}
 						productKey={productKey}
 					/>
 				</div>
 			)}
-			{presentation.stage === "ready" && !source && output && (
+			{presentation.stage === "ready" && !source && output && !hasInlinePreview && (
 				<div className="mt-6">
-					<SignedOutput assetId={output.id} />
+					<SignedOutput jobId={jobId} assetId={output.id} />
 				</div>
 			)}
 			{job.data.status === "SUCCEEDED" && !output && (
@@ -166,7 +183,7 @@ export function EditorResultPanel({ jobId, onNew }: { jobId: string | null; onNe
 								{...props}
 								onClick={() => void saasGrowthFunnel.editAgainStarted(jobId, productKey)}
 								href={
-									job.data.input?.kind === "text-to-image"
+									job.data?.input?.kind === "text-to-image"
 										? `/create?asset=${encodeURIComponent(output.id)}&model=${encodeURIComponent(productKey)}`
 										: `/create?asset=${encodeURIComponent(output.id)}&parentJob=${encodeURIComponent(jobId)}`
 								}
@@ -226,7 +243,7 @@ function EditorEmptyState() {
 	);
 }
 
-function SignedOutput({ assetId }: { assetId: string }) {
+function SignedOutput({ jobId, assetId }: { jobId: string; assetId: string }) {
 	const t = useTranslations("media.status");
 	const output = useQuery({
 		queryKey: ["media-asset-preview", assetId],
@@ -244,16 +261,19 @@ function SignedOutput({ assetId }: { assetId: string }) {
 		<img
 			src={output.data.url}
 			alt={t("generatedAlt")}
+			onLoad={(event) => recordOutputLoaded(jobId, assetId, event.currentTarget)}
 			className="mx-auto max-h-[42rem] w-full rounded-xl object-contain"
 		/>
 	);
 }
 
 function SignedComparison({
+	jobId,
 	inputAssetId,
 	outputAssetId,
 	productKey,
 }: {
+	jobId: string;
 	inputAssetId: string;
 	outputAssetId: string;
 	productKey: EditorProductKey;
@@ -277,6 +297,7 @@ function SignedComparison({
 			<img
 				src={output.data.url}
 				alt={t("generatedAlt")}
+				onLoad={(event) => recordOutputLoaded(jobId, outputAssetId, event.currentTarget)}
 				className="mx-auto max-h-[42rem] w-full rounded-xl object-contain"
 			/>
 		);
@@ -295,6 +316,7 @@ function SignedComparison({
 	}
 	return (
 		<BeforeAfterSlider
+			onOutputLoad={(event) => recordOutputLoaded(jobId, outputAssetId, event.currentTarget)}
 			beforeUrl={input.data.url}
 			afterUrl={output.data.url}
 			beforeAlt={t("compare.beforeAlt")}

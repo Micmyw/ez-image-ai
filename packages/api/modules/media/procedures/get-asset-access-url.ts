@@ -1,7 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { getRegisteredGuestResultAssetForAccess } from "@repo/database";
 import { db } from "@repo/database/client";
-import { createSignedReadUrl } from "@repo/storage";
 import { z } from "zod";
 
 import { protectedProcedure } from "../../../orpc/procedures";
@@ -9,6 +8,8 @@ import {
 	currentMediaAssetVerificationBoundary,
 	requireReadyOwnedMediaAsset,
 } from "../lib/asset-authorization";
+import { signAuthorizedAssetReadUrl } from "../lib/asset-read-url";
+import { createFlowTiming } from "../lib/flow-timing";
 
 export const getAssetAccessUrl = protectedProcedure
 	.route({
@@ -23,7 +24,9 @@ export const getAssetAccessUrl = protectedProcedure
 			disposition: z.enum(["inline", "attachment"]).default("inline"),
 		}),
 	)
-	.handler(async ({ context: { user }, input }) => {
+	.handler(async ({ context: { user, requestId }, input }) => {
+		const timing = createFlowTiming({ requestId, assetId: input.assetId });
+		const authorizationStarted = performance.now();
 		let asset: {
 			id: string;
 			objectKey: string;
@@ -48,35 +51,6 @@ export const getAssetAccessUrl = protectedProcedure
 			if (!granted) throw new ORPCError("NOT_FOUND");
 			asset = granted;
 		}
-		const signingNow = new Date();
-		const remainingEvidenceSeconds = asset.verificationValidUntil
-			? Math.floor((asset.verificationValidUntil.getTime() - signingNow.getTime()) / 1_000)
-			: 0;
-		const remainingDeleteSeconds = asset.deleteAfter
-			? Math.floor((asset.deleteAfter.getTime() - signingNow.getTime()) / 1_000)
-			: 300;
-		const remainingResultSeconds = asset.resultExpiresAt
-			? Math.floor((asset.resultExpiresAt.getTime() - signingNow.getTime()) / 1_000)
-			: 300;
-		const expiresIn = Math.min(
-			300,
-			remainingEvidenceSeconds,
-			remainingDeleteSeconds,
-			remainingResultSeconds,
-		);
-		if (expiresIn <= 0) throw new ORPCError("PRECONDITION_FAILED");
-		const disposition =
-			input.disposition === "inline"
-				? ("inline" as const)
-				: (`attachment; filename="${asset.id}"` as const);
-		return {
-			assetId: asset.id,
-			expiresIn,
-			url: await createSignedReadUrl({
-				bucket: "media",
-				key: asset.objectKey,
-				expiresIn,
-				responseContentDisposition: disposition,
-			}),
-		};
+		timing.mark("asset.authorization", performance.now() - authorizationStarted);
+		return timing.measure("asset.sign", () => signAuthorizedAssetReadUrl(asset, input.disposition));
 	});

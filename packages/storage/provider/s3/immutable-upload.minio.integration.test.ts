@@ -2,7 +2,7 @@ import { execFile } from "node:child_process";
 import { createHash, randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 
-import { beforeAll, describe, expect, it } from "vitest";
+import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import { createFinalAssetObjectKey, createStagingObjectKey } from "../../lib/object-key";
 
@@ -22,6 +22,81 @@ describe("immutable staging upload promotion (MinIO)", () => {
 		const { config } = await import("../../config");
 		expect(config.bucketNames.media).toBe(mediaBucket);
 		await storage.checkStorageMetadataAccess();
+	});
+	it("converges direct writes on one immutable object and recovers a write before DB commit", async () => {
+		const target = location("final", randomUUID());
+		const first = pngPayload(512);
+		const second = Buffer.from(first);
+		second[32] = 255;
+		let release!: () => void;
+		const bothReserved = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		let reservations = 0;
+		const reserve = vi.fn(async () => {
+			if (++reservations === 2) release();
+			await bothReserved;
+		});
+		try {
+			const results = await Promise.all(
+				[first, second].map((body) =>
+					storage.tryWriteImmutableGenerationImage({ ...target, contentType, body, reserve }),
+				),
+			);
+			const actual = await readObject(target);
+			expect([sha256(first), sha256(second)]).toContain(sha256(actual));
+			expect(results.map((result) => result?.sha256)).toEqual([sha256(actual), sha256(actual)]);
+			// The DB never recorded either identity. A later lease reads the existing
+			// immutable winner even if the supplier now supplies different bytes.
+			const recovered = await storage.tryWriteImmutableGenerationImage({
+				...target,
+				contentType,
+				body: pngPayload(256),
+				reserve,
+			});
+			expect(recovered).toMatchObject({ bytes: actual.length, sha256: sha256(actual) });
+			expect(await readObject(target)).toEqual(actual);
+			expect(await storage.listMultipartUploads(target)).toEqual([]);
+		} finally {
+			await deleteLocations(target);
+		}
+	});
+	it("does not create a final object after quota or lease rejection", async () => {
+		const target = location("final", randomUUID());
+		try {
+			await expect(
+				storage.tryWriteImmutableGenerationImage({
+					...target,
+					contentType,
+					body: pngPayload(512),
+					reserve: async () => {
+						throw new Error("FENCE_LOST");
+					},
+				}),
+			).rejects.toThrow("FENCE_LOST");
+			const response = await fetch(await storage.createSignedReadUrl(target));
+			expect(response.status).toBe(404);
+		} finally {
+			await deleteLocations(target);
+		}
+	});
+	it("leaves outputs above the bounded PUT size to the existing transfer path", async () => {
+		const target = location("final", randomUUID());
+		const reserve = vi.fn(async () => undefined);
+		try {
+			await expect(
+				storage.tryWriteImmutableGenerationImage({
+					...target,
+					contentType,
+					body: pngPayload(10 * 1024 * 1024 + 1),
+					reserve,
+				}),
+			).resolves.toBeNull();
+			expect(reserve).not.toHaveBeenCalled();
+			expect((await fetch(await storage.createSignedReadUrl(target))).status).toBe(404);
+		} finally {
+			await deleteLocations(target);
+		}
 	});
 	it.each([64, 10 * 1024 * 1024, 12 * 1024 * 1024])(
 		"writes a %i-byte temporary reference once and rejects replacement",

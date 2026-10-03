@@ -56,10 +56,43 @@ export const completeGuestLinkIntent = protectedProcedure
 			"Set-Cookie",
 			guestLinkIntentCookie("", 0, process.env.NODE_ENV === "production"),
 		);
+		if (result.mode === "DRAFT") {
+			// Reuse the editor's short-lived, owner-checked draft recovery after the
+			// transfer commits. Public effect editors share this same private flow.
+			context.responseHeaders?.append(
+				"Set-Cookie",
+				[
+					`media_claimed_draft=${encodeURIComponent(result.draftId)}`,
+					"HttpOnly",
+					"SameSite=Lax",
+					process.env.NODE_ENV === "production" ? "Secure" : "",
+					`Path=${claimedDraftCookiePath(context.headers.get("cookie"))}`,
+					"Max-Age=300",
+				]
+					.filter(Boolean)
+					.join("; "),
+			);
+		}
 		return result.mode === "DRAFT"
 			? result
 			: { ...result, returnPath: "/try" as const, expiresAt: result.expiresAt.toISOString() };
 	});
+
+function claimedDraftCookiePath(header: string | null): string {
+	let effectReturn: string | null;
+	try {
+		effectReturn = readCookie(header, "media_effect_return");
+	} catch {
+		return "/create";
+	}
+	if (!effectReturn || effectReturn.length > 512) return "/create";
+	// The app handoff validates publication and preset membership before writing
+	// this HttpOnly cookie. Recheck its shape when limiting the recovery scope.
+	const match = effectReturn.match(
+		/^\/effects\/([a-z0-9]+(?:-[a-z0-9]+)*)\?preset=[a-z0-9]+(?:-[a-z0-9]+)*$/,
+	);
+	return match && match[1] !== "category" ? `/effects/${match[1]}` : "/create";
+}
 
 function readCookie(header: string | null, name: string): string | null {
 	for (const entry of header?.split(";") ?? []) {

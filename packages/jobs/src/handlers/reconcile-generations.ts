@@ -3,7 +3,7 @@ import type { ReconciliationDependencies } from "../contracts";
 export async function reconcileGenerations(
 	input: { limit?: number; leaseSeconds?: number; attemptId?: string },
 	dependencies: ReconciliationDependencies,
-): Promise<{ claimed: number; reconciled: number }> {
+): Promise<{ claimed: number; reconciled: number; outboxCommitted?: boolean }> {
 	if (input.attemptId !== undefined && !input.attemptId.trim()) {
 		throw new Error("INVALID_GENERATION_ATTEMPT_ID");
 	}
@@ -15,6 +15,7 @@ export async function reconcileGenerations(
 		...(input.attemptId === undefined ? {} : { attemptId: input.attemptId }),
 	});
 	let reconciled = 0;
+	let outboxCommitted: boolean | undefined = false;
 	for (const lease of leases) {
 		if (!lease.providerTaskId) {
 			if (lease.repairCount >= 5) {
@@ -45,7 +46,9 @@ export async function reconcileGenerations(
 				resultUrl: lease.resultUrl,
 			});
 			const result = await adapter.normalizeResult(snapshot);
-			await dependencies.store.recordReconciled(lease, snapshot, result);
+			const progress = await dependencies.store.recordReconciled(lease, snapshot, result);
+			if (progress?.outboxCommitted) outboxCommitted = true;
+			else if (progress === undefined && outboxCommitted !== true) outboxCommitted = undefined;
 			reconciled += 1;
 			if (snapshot.status === "QUEUED" || snapshot.status === "RUNNING") {
 				try {
@@ -64,5 +67,9 @@ export async function reconcileGenerations(
 			);
 		}
 	}
-	return { claimed: leases.length, reconciled };
+	return {
+		claimed: leases.length,
+		reconciled,
+		...(outboxCommitted === undefined ? {} : { outboxCommitted }),
+	};
 }

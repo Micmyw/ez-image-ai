@@ -122,6 +122,12 @@ export function HeaderNavigationMenu({
 					</Link>
 					<StudioToolNavigation drawer />
 					<div className="studio-drawer-link-group">
+						<Link
+							href="/effects"
+							aria-current={pathname.startsWith("/effects") ? "page" : undefined}
+						>
+							{common("effects")}
+						</Link>
 						<Link href={pricingHref}>{common("pricing")}</Link>
 						<Link href="/blog">{common("blog")}</Link>
 						<Link href="/docs">{common("docs")}</Link>

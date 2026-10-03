@@ -70,9 +70,14 @@ vi.mock("@payments/components/PublicPricingPlans", () => ({
 
 vi.mock("./LandingGenerator", () => ({ LandingGenerator: () => <div /> }));
 vi.mock("./BeforeAfterDemo", () => ({ BeforeAfterDemo: () => <section /> }));
-vi.mock("./ShowcaseSection", () => ({ ShowcaseSection: () => <section /> }));
+vi.mock("./ShowcaseSection", () => ({ ShowcaseSection: () => <section id="examples" /> }));
 vi.mock("./CreatorWorkflowsSection", () => ({ CreatorWorkflowsSection: () => <section /> }));
-vi.mock("../../models/components/ExploreModels", () => ({ ExploreModels: () => <section /> }));
+vi.mock("../../models/components/ExploreModels", () => ({
+	ExploreModels: () => <section id="explore-models" />,
+}));
+vi.mock("../../effects/components/EffectRecommendations", () => ({
+	EffectRecommendations: () => <section id="effect-recommendations" />,
+}));
 vi.mock("../../public-content/components/PublicFooterLinks", () => ({
 	PublicFooterLinks: () => null,
 }));
@@ -95,6 +100,16 @@ describe("LandingPage hero hierarchy", () => {
 		expect(faq).toMatch(/ai image editor with prompt no restrictions/i);
 		expect(faq).toContain("flexible prompt editing");
 		expect(faq).toContain("model capabilities, and plan limits still apply");
+	});
+	it("keeps models and examples ahead of the secondary effects entry", async () => {
+		const markup = renderToStaticMarkup(await LandingPage());
+		const heroEnd = markup.indexOf("</section>");
+		const models = markup.indexOf('id="explore-models"');
+		const examples = markup.indexOf('id="examples"');
+		const effects = markup.indexOf('id="effect-recommendations"');
+		expect(models).toBeGreaterThan(heroEnd);
+		expect(examples).toBeGreaterThan(models);
+		expect(effects).toBeGreaterThan(examples);
 	});
 });
 

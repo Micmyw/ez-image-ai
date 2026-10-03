@@ -1,5 +1,6 @@
 export const blogDocuments = [
 	{
+		id: "private-image-editing-workflow",
 		slug: "private-image-editing-workflow",
 		locale: "en",
 		title: "Private AI Image Editing: Uploads, Access, and Retention",
@@ -7,6 +8,10 @@ export const blogDocuments = [
 			"Understand who can access an EzImageAI edit, how guest and account media differ, when files expire, and what to check before uploading a photo.",
 		publishedAt: "2026-09-05",
 		updatedAt: "2026-09-22",
+		articleType: "guides",
+		categoryId: "privacy-workflow",
+		authorId: "ezimageai-editorial",
+		relatedEffectIds: [],
 		tags: ["image editing", "privacy", "workflow"],
 		published: true,
 		body: `A private image edit limits who can open the uploaded source and finished result. In EzImageAI, those files belong to the account or temporary guest session that created the edit; they are not automatically added to a public gallery. Private access does not mean that no processing service receives your image.

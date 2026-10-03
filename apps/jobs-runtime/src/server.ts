@@ -7,8 +7,13 @@ import type {
 	TaskExecutionContext,
 	PollingTickResult,
 } from "@repo/jobs/orchestration/contracts";
-import { parsePollingTickResult } from "@repo/jobs/orchestration/contracts";
+import {
+	parsePollingTickResult,
+	parseOutputReviewContinuation,
+	parseTaskContinuation,
+} from "@repo/jobs/orchestration/contracts";
 import { parseTaskRequest, taskDefinition } from "@repo/jobs/orchestration/registry";
+import { logTaskStarted } from "@repo/jobs/orchestration/task-timing";
 
 import { executionDeadline } from "./deadline";
 
@@ -93,6 +98,7 @@ export function createRuntimeServer(options: {
 		}
 		active++;
 		queues.set(definition.queue, queued + 1);
+		logTaskStarted(request, context);
 		const cancelDeadline = executionDeadline(definition.timeoutSeconds + 15, () => {
 			// All interrupted work stays recoverable via leases and pending Outbox
 			// receipts. Do not keep an abandoned process alive after its deadline.
@@ -109,11 +115,22 @@ export function createRuntimeServer(options: {
 				respond(200, { status: "ok", poll });
 			} else {
 				const result = await options.execute(request, context);
+				const continuation = parseTaskContinuation(
+					(result as { continuation?: unknown } | null)?.continuation,
+				);
+				const outputReview =
+					request.taskId === "media-finalize-generation"
+						? parseOutputReviewContinuation(result)
+						: undefined;
 				respond(
 					200,
 					request.taskId === "media-verify-upload"
 						? { status: "ok", poll: parsePollingTickResult(result) }
-						: { status: "ok" },
+						: {
+								status: "ok",
+								...(outputReview ? { outputReview } : {}),
+								...(continuation ? { continuation } : {}),
+							},
 				);
 			}
 		} catch {

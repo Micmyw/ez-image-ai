@@ -9,6 +9,14 @@ import {
 } from "./worker-executors";
 
 describe("Worker executor workload boundaries", () => {
+	it("keeps targeted output delivery on the bounded control executor", () => {
+		expect(
+			workerExecutorForTask({
+				taskId: "media-deliver-output-review",
+				payload: { eventId: "event" },
+			}),
+		).toEqual({ name: "jobs-control", maxActive: 4 });
+	});
 	it("keeps synchronous image responses serialized and asynchronous submissions on control", () => {
 		for (const route of STATIC_DISPATCH_ROUTE_MANIFEST) {
 			const task = { taskId: route.taskId, payload: { jobId: "job", version: 0 } };
