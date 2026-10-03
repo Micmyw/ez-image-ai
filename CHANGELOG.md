@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-04
+
+### Coloring page entry from image previews
+
+- Replace global paper-size and print controls with a compact **Turn into coloring page** entry in result previews and the image library. The entry opens the selected image in the dedicated tool; outline, background and print controls stay there.
+- Restore account images with ownership checks and coloring instructions. Open temporary guest results through their existing authorized access, retaining the watermark and expiry checks. Navigation does not submit a generation or spend credits.
+- Keep personal image URLs out of search indexing while retaining the English tool canonical and adding guidance for editing an existing result.
+
 ## 2026-10-03
 
 ### Generation composer

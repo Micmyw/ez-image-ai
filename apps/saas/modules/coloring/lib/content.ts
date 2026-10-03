@@ -18,11 +18,16 @@ export const coloringSteps = [
 	},
 	{
 		title: "Download, print or save a PDF",
-		body: "Download your result or choose Print / Save PDF beside it. Select A4 or US Letter, match the paper size in the print dialog, turn off browser headers and footers, and choose a printer or Save as PDF. The image fits inside the page without cropping.",
+		body: "Download your result or use Print / Save PDF in this tool. From another image preview, choose Turn into coloring page to bring that image here. Select A4 or US Letter, match the paper size in the print dialog, turn off browser headers and footers, and choose a printer or Save as PDF. The image fits inside the page without cropping.",
 	},
 ] as const;
 
 export const coloringFaq = [
+	{
+		question: "Can I use an image I already made in EzImageAI?",
+		answer:
+			"Yes. Choose Turn into coloring page on a result preview or an image in your asset library. The selected image opens in this tool with a coloring instruction. Opening it does not generate an image or spend generation credits. Review the settings before generating. Temporary guest results must still be available in your session.",
+	},
 	{
 		question: "Can I turn my own photo into a coloring page?",
 		answer:
@@ -72,7 +77,7 @@ export function coloringStructuredData(baseUrl: string) {
 				name: COLORING_TITLE,
 				description: COLORING_DESCRIPTION,
 				inLanguage: "en",
-				dateModified: "2026-10-03",
+				dateModified: "2026-10-04",
 				mainEntity: { "@id": `${url}#tool` },
 				primaryImageOfPage: {
 					"@type": "ImageObject",

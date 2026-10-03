@@ -768,6 +768,16 @@
 			"documentTitle": "Imagen imprimible de EzImageAI",
 			"error": "No se pudo preparar la imagen para imprimir. Actualiza el resultado o descárgalo e imprímelo desde tu dispositivo.",
 			"hint": "Elige el mismo tamaño de papel en el diálogo. Desactiva encabezados y pies de página; elige Guardar como PDF para exportar."
+		},
+		"handoff": {
+			"action": "Convertir en página para colorear",
+			"loading": "Abriendo la imagen seleccionada…",
+			"ready": "La imagen seleccionada está lista. Revisa la instrucción y elige Generar cuando quieras continuar.",
+			"unavailable": "No se pudo abrir esta imagen. Puede haber caducado o ya no estar disponible en esta sesión. Inténtalo de nuevo o sube una foto desde tu dispositivo.",
+			"retry": "Reintentar",
+			"uploadOwn": "Subir mi propia foto",
+			"signIn": "Inicia sesión para abrir la imagen seleccionada de tu cuenta.",
+			"printSelected": "Imprimir la imagen que abriste"
 		}
 	}
 }

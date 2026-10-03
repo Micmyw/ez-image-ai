@@ -17,15 +17,23 @@ import { LandingGenerator } from "../../landing/components/LandingGenerator";
 import { PublicFooterLinks } from "../../public-content/components/PublicFooterLinks";
 import { buildColoringPrompt } from "../lib/coloring-prompt";
 import { coloringFaq, coloringSteps, coloringStructuredData } from "../lib/content";
+import { coloringPageHref } from "../lib/navigation";
 import { ColoringControls } from "./ColoringControls";
 import { ColoringExample } from "./ColoringExample";
+import { ColoringSourcePrint } from "./ColoringSourcePrint";
+import { GuestColoringSource } from "./GuestColoringSource";
 
 import "../coloring.css";
+
+export interface ColoringPageFilters extends CreatePageFilters {
+	guestAsset?: string;
+	guestJob?: string;
+}
 
 export async function PhotoToColoringPage({
 	searchParams = Promise.resolve({}),
 }: {
-	searchParams?: Promise<CreatePageFilters>;
+	searchParams?: Promise<ColoringPageFilters>;
 }) {
 	const t = await getTranslations("coloring");
 	return (
@@ -52,7 +60,7 @@ export async function PhotoToColoringPage({
 							print a page that is yours.
 						</p>
 					</header>
-					<ToolPromptProvider initialPrompt={buildColoringPrompt()}>
+					<ToolPromptProvider initialPrompt={buildColoringPrompt()} allowPrinting>
 						<div className="coloring-workbench">
 							<section
 								className="coloring-editor"
@@ -170,16 +178,49 @@ export async function PhotoToColoringPage({
 export async function ColoringWorkspace({
 	searchParams,
 }: {
-	searchParams: Promise<CreatePageFilters>;
+	searchParams: Promise<ColoringPageFilters>;
 }) {
 	const session = await getSession();
-	return session && !isAnonymousUser(session.user) ? (
-		<RegisteredWorkspaceBoundary>
-			<MainAccountBoundary>
-				<RegisteredEditor searchParams={searchParams} requireReference />
-			</MainAccountBoundary>
-		</RegisteredWorkspaceBoundary>
-	) : (
-		<LandingGenerator requireReference />
+	const filters = await searchParams;
+	const registered = Boolean(session && !isAnonymousUser(session.user));
+	const guestSource =
+		typeof filters.guestAsset === "string" && typeof filters.guestJob === "string" ? (
+			<GuestColoringSource
+				key={`${filters.guestJob}:${filters.guestAsset}`}
+				assetId={filters.guestAsset}
+				jobId={filters.guestJob}
+				registered={registered}
+			/>
+		) : null;
+	if (registered)
+		return (
+			<RegisteredWorkspaceBoundary>
+				<MainAccountBoundary>
+					{guestSource ?? (
+						<RegisteredEditor
+							searchParams={searchParams}
+							requireReference
+							sourceOnlyPrompt={buildColoringPrompt()}
+							sourceActions={
+								filters.asset ? <ColoringSourcePrint assetId={filters.asset} /> : undefined
+							}
+						/>
+					)}
+				</MainAccountBoundary>
+			</RegisteredWorkspaceBoundary>
+		);
+	if (guestSource) return guestSource;
+	const t = await getTranslations("coloring.handoff");
+	return (
+		<>
+			{typeof filters.asset === "string" && filters.asset && (
+				<output className="mb-3 text-sm block">
+					<Link href={`/login?redirectTo=${encodeURIComponent(coloringPageHref(filters.asset))}`}>
+						{t("signIn")}
+					</Link>
+				</output>
+			)}
+			<LandingGenerator requireReference />
+		</>
 	);
 }

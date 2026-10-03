@@ -4,13 +4,19 @@ Route: `/photo-to-coloring-page`. Added 2026-10-03.
 
 The primary task is editing a photo uploaded from the user's device, without generating an image first. The shared guest and signed-in editors require a reference. Simple, balanced and detailed options and background removal/simplification prepare a public prompt. Applying options explicitly replaces that prompt and preserves the selected source; it never submits a generation. Recovered account drafts take precedence over the default tool prompt. Existing upload, model access, credits, moderation, private media and generation APIs stay authoritative.
 
-Available guest and account results include A4/US Letter printing. Printing retrieves an authorized image (or the existing guest result URL), waits for it to load and opens the browser print dialog with one image, 12 mm margins and `object-fit: contain`. Users can save a PDF through that dialog. It is not a vector conversion or resolution upgrade. An unavailable image produces a retry/download message, and the temporary frame is removed after printing, failure or component cleanup.
+Result previews on the homepage, editor and history, guest results, and image library cards expose a compact **Turn into coloring page** link. They do not expose paper-size or print settings. The link carries the selected output's opaque asset ID to the tool, not the original input, old prompt or signed URL. A fresh account source-only handoff starts with the coloring prompt; claimed drafts retain the user's instruction. Account ownership/readiness checks still apply.
+
+Guest result links also carry the job ID. The tool obtains a fresh authorized read URL (using the registered grant when appropriate), reads the approved watermarked image into a bounded in-memory File, and seeds the existing upload form. It accepts JPG/PNG/WebP up to 10 MiB, limits streamed bytes, aborts on exit/timeout and releases object URLs. Expired or inaccessible results show retry and own-photo upload options. A new edit follows the normal upload, review and generation flow; navigating to the tool never uploads or generates. No signed URLs or image bytes are saved in navigation or browser storage.
+
+A4/US Letter printing is enabled only in the coloring workbench, its opened-source controls and its illustrative example. Global history drawers keep the compact link even on this route. Printing retrieves an authorized image (or uses the image just opened by the guest importer), waits for it to load and opens the browser print dialog with one image, 12 mm margins and `object-fit: contain`. Users can save a PDF through that dialog. It is not a vector conversion or resolution upgrade. An unavailable image produces a retry/download message, and the temporary frame is removed after printing, failure or component cleanup.
 
 ## Public content and search
 
 The English route owns `turn photo into coloring page`, with natural coverage of `photo to coloring page`, printable outlines, background simplification and printing. Homepage keywords and metadata are preserved. The route has one H1, canonical and social metadata, a sitemap entry with a recorded content date, public navigation links, server-rendered instructions, comparison guidance and FAQs. Explicit translated UI views keep the English canonical and `noindex, follow`. The top-level slug is reserved from organization URLs.
 
 Structured data describes the visible WebPage, WebApplication and breadcrumbs. No invented reviews, ratings, free prices or rich-result promises. GEO work consists of accessible factual answers and clear product limitations. No special AI markup or `llms.txt` requirement is claimed.
+
+Personal source/result query URLs use `X-Robots-Tag: noindex, follow` and retain the bare English canonical. The public FAQ explains how to open an existing result, the explicit generation step and guest expiry.
 
 Official guidance checked via HTTP 200 on 2026-10-03:
 

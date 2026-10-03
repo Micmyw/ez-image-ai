@@ -2,8 +2,8 @@ import { Button } from "@repo/ui/components/button";
 import { ImageIcon, LockKeyholeIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 
+import { ColoringPageLink } from "../../../coloring/components/ColoringPageLink";
 import type { GuestTrialView } from "../../lib/guest-trial-state";
-import { ImagePrintButton } from "../ImagePrintButton";
 
 export function GuestResultCard({
 	view,
@@ -56,7 +56,9 @@ export function GuestResultCard({
 					<Button type="button" variant="primary" className="min-h-11" onClick={onDownload}>
 						{t("download")}
 					</Button>
-					{resultUrl && <ImagePrintButton imageUrl={resultUrl} />}
+					{view.resultAssetId && view.jobId && (
+						<ColoringPageLink assetId={view.resultAssetId} guestJobId={view.jobId} />
+					)}
 				</div>
 			)}
 		</section>
