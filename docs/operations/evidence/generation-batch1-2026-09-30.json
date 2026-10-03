@@ -1,0 +1,3232 @@
+{
+	"baseline": "aed472af9f843d2503a55eec252b086b248b63fe",
+	"codeCommits": ["525efec", "9e80f17", "4d27245", "5b4e267"],
+	"production": "未做生产复测",
+	"units": "milliseconds unless named as counts; medians/ranges computed from observations, not targets",
+	"limits": "Independent admission, status, database, browser and scheduler experiments cannot be added into a full end-to-end result. No paid provider, production database or deployment. First-image paint uses load plus two animation frames with DOM visibility checks.",
+	"admission": {
+		"domain": {
+			"before": {
+				"generatedAt": "2026-09-29T16:47:46.476Z",
+				"kind": "fixed-delay isolated admission domain and dispatchGeneration simulator; not HTTP or production",
+				"sourceHashes": {
+					"modules/media/procedures/submit-generation.ts": "b8b52bbb6b832dd3f0bd2740515e0ddf3bdff462579c360c33de65ebd7674888",
+					"modules/media/procedures/create-quote.ts": "042b490b27852dd3eeb5ca02449688746e86813772767109d01cab68e0f8841d",
+					"modules/media/procedures/create-generation.ts": "270a1ccd136ed60a7e3a225c1df1cd615163f3420d8053a891af26985c1a43f1",
+					"modules/media/lib/generation-authorization.ts": "376c70513b46945450bfc0ab89b3ad8935223679732e430f7feb8e63cab66e39"
+				},
+				"harnessSha256": "b064b8971d7722e53a1c892f1f5b0ede97511c51a021c69365d1ef0597f56730",
+				"conditions": {
+					"process": "modules already loaded; no cold Worker measurement; no explicit paid-work warm-up",
+					"fixtures": "new in-memory data and counters each run",
+					"execution": "three samples per scenario; before/after interleaved; one serialized delayed DB boundary queue; two simultaneous same-key callers only in concurrent scenario",
+					"clocks": "performance.now in one process; nested/overlapping stage durations are never summed",
+					"dispatch": "the injected dispatch invokes real dispatchGeneration inline, so domain return includes that simulated dispatch; production Workflow HTTP acceptance timing is not modeled"
+				},
+				"delaysMs": {
+					"serialDatabaseBoundary": 8,
+					"quoteTransactionBoundary": 16,
+					"jobTransactionBoundary": 24,
+					"waffoSubmission": 30,
+					"kieSubmissionAcceptance": 25,
+					"kieAsynchronousCompletion": null
+				},
+				"metricDefinitions": {
+					"clickToDomainReturnMs": "harness start to first completed submitGenerationForUser return; real domain boundary, not HTTP network response",
+					"clickToAllDomainReturnsMs": "harness start to all concurrent same-key domain calls returning",
+					"clickToKieAcceptanceMs": "harness start to mock provider accepting inside actual dispatchGeneration handler",
+					"stagePerCallMs": "observed durations emitted by existing media.flow.timing; includes boundary queues and timer jitter, not server SQL execution"
+				},
+				"unmeasured": [
+					"real HTTP admission time and transport",
+					"authentication middleware",
+					"first rate-limit call in isolation (included in eligibility)",
+					"transaction-internal server SQL execution and unexpanded SQL counts",
+					"connection acquisition",
+					"Cloudflare scheduling",
+					"Kie asynchronous completion",
+					"SeeAPI and browser (separate harnesses)",
+					"preview signing (separate status harness)",
+					"production latency"
+				],
+				"scenarios": [
+					{
+						"scenario": "normal",
+						"sampleCount": 3,
+						"metricsMs": {
+							"clickToKieAcceptanceMs": {
+								"samples": [567.0143999999998, 547.4692, 543.4685000000004],
+								"median": 547.4692,
+								"minimum": 543.4685000000004,
+								"maximum": 567.0143999999998
+							},
+							"clickToDomainReturnMs": {
+								"samples": [582.8324, 563.0583000000001, 559.0830000000001],
+								"median": 563.0583000000001,
+								"minimum": 559.0830000000001,
+								"maximum": 582.8324
+							},
+							"clickToAllDomainReturnsMs": {
+								"samples": [582.8324, 563.0583000000001, 559.0830000000001],
+								"median": 563.0583000000001,
+								"minimum": 559.0830000000001,
+								"maximum": 582.8324
+							}
+						},
+						"stagePerCallMs": {
+							"admission.lookup": {
+								"observations": 3,
+								"medianMs": 14.944099999999935,
+								"minimumMs": 14.755599999999959,
+								"maximumMs": 15.479100000000017
+							},
+							"admission.edit-context": {
+								"observations": 3,
+								"medianMs": 0.005200000000058935,
+								"minimumMs": 0.002100000000154978,
+								"maximumMs": 0.040500000000065484
+							},
+							"admission.config": {
+								"observations": 6,
+								"medianMs": 15.601250000000164,
+								"minimumMs": 14.89240000000018,
+								"maximumMs": 16.22990000000027
+							},
+							"admission.eligibility": {
+								"observations": 6,
+								"medianMs": 155.70965,
+								"minimumMs": 153.11429999999996,
+								"maximumMs": 157.2573000000002
+							},
+							"admission.waffo": {
+								"observations": 3,
+								"medianMs": 31.33939999999984,
+								"minimumMs": 30.816600000000108,
+								"maximumMs": 43.95330000000013
+							},
+							"admission.quote.transaction": {
+								"observations": 3,
+								"medianMs": 31.236000000000104,
+								"minimumMs": 30.186899999999696,
+								"maximumMs": 31.814800000000105
+							},
+							"admission.quote.lookup": {
+								"observations": 3,
+								"medianMs": 15.366099999999733,
+								"minimumMs": 15.154100000000199,
+								"maximumMs": 15.416299999999865
+							},
+							"admission.entitlement": {
+								"observations": 3,
+								"medianMs": 15.742600000000493,
+								"minimumMs": 15.210399999999936,
+								"maximumMs": 15.848500000000058
+							},
+							"admission.job.transaction": {
+								"observations": 3,
+								"medianMs": 30.847499999999854,
+								"minimumMs": 30.582300000000032,
+								"maximumMs": 31.433899999999994
+							},
+							"admission.dispatch": {
+								"observations": 3,
+								"medianMs": 76.9973,
+								"minimumMs": 76.70670000000018,
+								"maximumMs": 78.30119999999988
+							}
+						},
+						"uniqueOperationCountsIncludingReplay": [
+							{
+								"submissionLookup": 2,
+								"configRead": 2,
+								"rateLimit": 2,
+								"freeGrant": 2,
+								"runtimeFlagRead": 4,
+								"accountRead": 2,
+								"balanceRead": 2,
+								"budgetRead": 4,
+								"storageRead": 2,
+								"entitlement": 3,
+								"waffo": 1,
+								"quoteTransaction": 1,
+								"quoteRead": 1,
+								"jobTransaction": 1,
+								"reservation": 1,
+								"dispatchClaim": 2,
+								"attempt": 1,
+								"submissionStarted": 1,
+								"kie": 1,
+								"submissionRecorded": 1
+							}
+						]
+					},
+					{
+						"scenario": "response-loss",
+						"sampleCount": 3,
+						"metricsMs": {
+							"clickToKieAcceptanceMs": {
+								"samples": [545.1967000000004, 548.0614999999998, 541.3838999999998],
+								"median": 545.1967000000004,
+								"minimum": 541.3838999999998,
+								"maximum": 548.0614999999998
+							},
+							"clickToDomainReturnMs": {
+								"samples": [560.8969000000006, 563.6459000000004, 556.8000000000002],
+								"median": 560.8969000000006,
+								"minimum": 556.8000000000002,
+								"maximum": 563.6459000000004
+							},
+							"clickToAllDomainReturnsMs": {
+								"samples": [560.8969000000006, 563.6459000000004, 556.8000000000002],
+								"median": 560.8969000000006,
+								"minimum": 556.8000000000002,
+								"maximum": 563.6459000000004
+							}
+						},
+						"stagePerCallMs": {
+							"admission.lookup": {
+								"observations": 3,
+								"medianMs": 15.102700000000368,
+								"minimumMs": 14.696200000000317,
+								"maximumMs": 15.21939999999995
+							},
+							"admission.edit-context": {
+								"observations": 3,
+								"medianMs": 0.005699999999706051,
+								"minimumMs": 0.003800000000410364,
+								"maximumMs": 0.0059000000001105946
+							},
+							"admission.config": {
+								"observations": 6,
+								"medianMs": 15.578099999999722,
+								"minimumMs": 15.215400000000045,
+								"maximumMs": 16.017299999999523
+							},
+							"admission.eligibility": {
+								"observations": 6,
+								"medianMs": 155.78520000000026,
+								"minimumMs": 154.7467999999999,
+								"maximumMs": 157.29579999999987
+							},
+							"admission.waffo": {
+								"observations": 3,
+								"medianMs": 30.86740000000009,
+								"minimumMs": 30.685300000000097,
+								"maximumMs": 31.72490000000016
+							},
+							"admission.quote.transaction": {
+								"observations": 3,
+								"medianMs": 30.712399999999434,
+								"minimumMs": 30.297599999999875,
+								"maximumMs": 31.40430000000015
+							},
+							"admission.quote.lookup": {
+								"observations": 3,
+								"medianMs": 15.926500000000487,
+								"minimumMs": 15.091300000000047,
+								"maximumMs": 16.193500000000313
+							},
+							"admission.entitlement": {
+								"observations": 3,
+								"medianMs": 15.160800000000563,
+								"minimumMs": 14.760299999999916,
+								"maximumMs": 15.279299999999239
+							},
+							"admission.job.transaction": {
+								"observations": 3,
+								"medianMs": 31.25879999999961,
+								"minimumMs": 30.466299999999137,
+								"maximumMs": 31.26890000000003
+							},
+							"admission.dispatch": {
+								"observations": 3,
+								"medianMs": 76.80630000000019,
+								"minimumMs": 75.65410000000065,
+								"maximumMs": 79.76569999999992
+							}
+						},
+						"uniqueOperationCountsIncludingReplay": [
+							{
+								"submissionLookup": 2,
+								"configRead": 2,
+								"rateLimit": 2,
+								"freeGrant": 2,
+								"runtimeFlagRead": 4,
+								"accountRead": 2,
+								"balanceRead": 2,
+								"budgetRead": 4,
+								"storageRead": 2,
+								"entitlement": 3,
+								"waffo": 1,
+								"quoteTransaction": 1,
+								"quoteRead": 1,
+								"jobTransaction": 1,
+								"reservation": 1,
+								"dispatchClaim": 2,
+								"attempt": 1,
+								"submissionStarted": 1,
+								"kie": 1,
+								"uncertaintyRecorded": 1
+							}
+						]
+					},
+					{
+						"scenario": "concurrent-replay",
+						"sampleCount": 3,
+						"metricsMs": {
+							"clickToKieAcceptanceMs": {
+								"samples": [950.2852000000003, 949.5169000000005, 946.2670999999991],
+								"median": 949.5169000000005,
+								"minimum": 946.2670999999991,
+								"maximum": 950.2852000000003
+							},
+							"clickToDomainReturnMs": {
+								"samples": [966.0536000000011, 965.3241999999991, 961.1831999999995],
+								"median": 965.3241999999991,
+								"minimum": 961.1831999999995,
+								"maximum": 966.0536000000011
+							},
+							"clickToAllDomainReturnsMs": {
+								"samples": [981.5130000000008, 980.9620999999988, 977.7693999999992],
+								"median": 980.9620999999988,
+								"minimum": 977.7693999999992,
+								"maximum": 981.5130000000008
+							}
+						},
+						"stagePerCallMs": {
+							"admission.lookup": {
+								"observations": 6,
+								"medianMs": 23.002949999999146,
+								"minimumMs": 15.00590000000011,
+								"maximumMs": 31.068499999999403
+							},
+							"admission.edit-context": {
+								"observations": 6,
+								"medianMs": 0.006199999999807915,
+								"minimumMs": 0.004299999999602733,
+								"maximumMs": 0.008100000000922591
+							},
+							"admission.config": {
+								"observations": 12,
+								"medianMs": 30.93184999999994,
+								"minimumMs": 30.141999999999825,
+								"maximumMs": 46.64470000000074
+							},
+							"admission.eligibility": {
+								"observations": 12,
+								"medianMs": 257.0965500000002,
+								"minimumMs": 201.8181000000004,
+								"maximumMs": 328.15300000000025
+							},
+							"admission.waffo": {
+								"observations": 6,
+								"medianMs": 30.880349999999908,
+								"minimumMs": 29.649099999998725,
+								"maximumMs": 43.69510000000082
+							},
+							"admission.quote.transaction": {
+								"observations": 6,
+								"medianMs": 84.86494999999968,
+								"minimumMs": 30.753099999999904,
+								"maximumMs": 124.15250000000015
+							},
+							"admission.quote.lookup": {
+								"observations": 6,
+								"medianMs": 23.334200000001147,
+								"minimumMs": 14.745199999999386,
+								"maximumMs": 31.30279999999948
+							},
+							"admission.entitlement": {
+								"observations": 6,
+								"medianMs": 31.140850000000682,
+								"minimumMs": 30.683399999999892,
+								"maximumMs": 31.75470000000132
+							},
+							"admission.job.transaction": {
+								"observations": 6,
+								"medianMs": 47.15745000000061,
+								"minimumMs": 45.590000000000146,
+								"maximumMs": 47.545500000000175
+							},
+							"admission.dispatch": {
+								"observations": 6,
+								"medianMs": 123.51159999999982,
+								"minimumMs": 14.888999999999214,
+								"maximumMs": 235.07120000000032
+							}
+						},
+						"uniqueOperationCountsIncludingReplay": [
+							{
+								"submissionLookup": 4,
+								"configRead": 4,
+								"rateLimit": 4,
+								"freeGrant": 4,
+								"runtimeFlagRead": 8,
+								"accountRead": 4,
+								"balanceRead": 4,
+								"budgetRead": 8,
+								"storageRead": 4,
+								"entitlement": 6,
+								"waffo": 2,
+								"quoteTransaction": 2,
+								"quoteRead": 2,
+								"jobTransaction": 2,
+								"reservation": 1,
+								"dispatchClaim": 3,
+								"attempt": 1,
+								"submissionStarted": 1,
+								"kie": 1,
+								"submissionRecorded": 1
+							}
+						]
+					}
+				]
+			},
+			"after": {
+				"generatedAt": "2026-09-29T16:47:46.478Z",
+				"kind": "fixed-delay isolated admission domain and dispatchGeneration simulator; not HTTP or production",
+				"sourceHashes": {
+					"modules/media/procedures/submit-generation.ts": "70e1aeec6df8302aca124ac5417876bba038ecd04614c9ca50afcd8a548bd40b",
+					"modules/media/procedures/create-quote.ts": "bbc251e59e625a800913cca747a7f69348a80c9dffbc6c018e8c09ca00fa7c61",
+					"modules/media/procedures/create-generation.ts": "f3afdcf3dbbb166dc59e0f9d5f607d46725b669ce9210c089892a4297fdc1ead",
+					"modules/media/lib/generation-authorization.ts": "20dfa74a5fb79f0ddbf62dd4055f41708f574f3788afebd045fb484633895078"
+				},
+				"harnessSha256": "b064b8971d7722e53a1c892f1f5b0ede97511c51a021c69365d1ef0597f56730",
+				"conditions": {
+					"process": "modules already loaded; no cold Worker measurement; no explicit paid-work warm-up",
+					"fixtures": "new in-memory data and counters each run",
+					"execution": "three samples per scenario; before/after interleaved; one serialized delayed DB boundary queue; two simultaneous same-key callers only in concurrent scenario",
+					"clocks": "performance.now in one process; nested/overlapping stage durations are never summed",
+					"dispatch": "the injected dispatch invokes real dispatchGeneration inline, so domain return includes that simulated dispatch; production Workflow HTTP acceptance timing is not modeled"
+				},
+				"delaysMs": {
+					"serialDatabaseBoundary": 8,
+					"quoteTransactionBoundary": 16,
+					"jobTransactionBoundary": 24,
+					"waffoSubmission": 30,
+					"kieSubmissionAcceptance": 25,
+					"kieAsynchronousCompletion": null
+				},
+				"metricDefinitions": {
+					"clickToDomainReturnMs": "harness start to first completed submitGenerationForUser return; real domain boundary, not HTTP network response",
+					"clickToAllDomainReturnsMs": "harness start to all concurrent same-key domain calls returning",
+					"clickToKieAcceptanceMs": "harness start to mock provider accepting inside actual dispatchGeneration handler",
+					"stagePerCallMs": "observed durations emitted by existing media.flow.timing; includes boundary queues and timer jitter, not server SQL execution"
+				},
+				"unmeasured": [
+					"real HTTP admission time and transport",
+					"authentication middleware",
+					"first rate-limit call in isolation (included in eligibility)",
+					"transaction-internal server SQL execution and unexpanded SQL counts",
+					"connection acquisition",
+					"Cloudflare scheduling",
+					"Kie asynchronous completion",
+					"SeeAPI and browser (separate harnesses)",
+					"preview signing (separate status harness)",
+					"production latency"
+				],
+				"scenarios": [
+					{
+						"scenario": "normal",
+						"sampleCount": 3,
+						"metricsMs": {
+							"clickToKieAcceptanceMs": {
+								"samples": [357.52980000000025, 359.3152, 342.3832000000002],
+								"median": 357.52980000000025,
+								"minimum": 342.3832000000002,
+								"maximum": 359.3152
+							},
+							"clickToDomainReturnMs": {
+								"samples": [372.8336000000004, 374.72630000000026, 357.03709999999955],
+								"median": 372.8336000000004,
+								"minimum": 357.03709999999955,
+								"maximum": 374.72630000000026
+							},
+							"clickToAllDomainReturnsMs": {
+								"samples": [372.8336000000004, 374.72630000000026, 357.03709999999955],
+								"median": 372.8336000000004,
+								"minimum": 357.03709999999955,
+								"maximum": 374.72630000000026
+							}
+						},
+						"stagePerCallMs": {
+							"admission.lookup": {
+								"observations": 3,
+								"medianMs": 14.888699999999972,
+								"minimumMs": 14.860700000000179,
+								"maximumMs": 15.248899999999594
+							},
+							"admission.edit-context": {
+								"observations": 3,
+								"medianMs": 0.004799999999704596,
+								"minimumMs": 0.0041999999998552084,
+								"maximumMs": 0.04469999999992069
+							},
+							"admission.config": {
+								"observations": 3,
+								"medianMs": 15.851799999999912,
+								"minimumMs": 14.96180000000004,
+								"maximumMs": 16.108499999999367
+							},
+							"admission.eligibility": {
+								"observations": 3,
+								"medianMs": 124.55479999999989,
+								"minimumMs": 123.57660000000033,
+								"maximumMs": 125.08400000000029
+							},
+							"admission.waffo": {
+								"observations": 3,
+								"medianMs": 30.486699999999928,
+								"minimumMs": 30.474299999999857,
+								"maximumMs": 30.59979999999996
+							},
+							"admission.quote.transaction": {
+								"observations": 3,
+								"medianMs": 30.02280000000019,
+								"minimumMs": 15.779199999999946,
+								"maximumMs": 30.82439999999997
+							},
+							"admission.rate-limit": {
+								"observations": 3,
+								"medianMs": 15.822599999999966,
+								"minimumMs": 15.085299999999734,
+								"maximumMs": 15.973500000000058
+							},
+							"admission.job.transaction": {
+								"observations": 3,
+								"medianMs": 62.3411000000001,
+								"minimumMs": 61.764100000000326,
+								"maximumMs": 63.001000000000204
+							},
+							"admission.committed": {
+								"observations": 3,
+								"medianMs": 0,
+								"minimumMs": 0,
+								"maximumMs": 0
+							},
+							"admission.dispatch": {
+								"observations": 3,
+								"medianMs": 77.20210000000043,
+								"minimumMs": 76.8426999999997,
+								"maximumMs": 77.87300000000005
+							}
+						},
+						"uniqueOperationCountsIncludingReplay": [
+							{
+								"submissionLookup": 2,
+								"configRead": 1,
+								"rateLimit": 2,
+								"freeGrant": 1,
+								"accountRead": 1,
+								"balanceRead": 1,
+								"budgetRead": 2,
+								"storageRead": 1,
+								"entitlement": 1,
+								"waffo": 1,
+								"quoteTransaction": 1,
+								"jobTransaction": 1,
+								"transactionConfigRead": 1,
+								"transactionEntitlementRead": 1,
+								"reservation": 1,
+								"dispatchClaim": 2,
+								"attempt": 1,
+								"submissionStarted": 1,
+								"kie": 1,
+								"submissionRecorded": 1
+							}
+						]
+					},
+					{
+						"scenario": "response-loss",
+						"sampleCount": 3,
+						"metricsMs": {
+							"clickToKieAcceptanceMs": {
+								"samples": [357.58299999999963, 355.66109999999935, 356.53909999999996],
+								"median": 356.53909999999996,
+								"minimum": 355.66109999999935,
+								"maximum": 357.58299999999963
+							},
+							"clickToDomainReturnMs": {
+								"samples": [373.54489999999987, 371.3090999999995, 372.0542000000005],
+								"median": 372.0542000000005,
+								"minimum": 371.3090999999995,
+								"maximum": 373.54489999999987
+							},
+							"clickToAllDomainReturnsMs": {
+								"samples": [373.54489999999987, 371.3090999999995, 372.0542000000005],
+								"median": 372.0542000000005,
+								"minimum": 371.3090999999995,
+								"maximum": 373.54489999999987
+							}
+						},
+						"stagePerCallMs": {
+							"admission.lookup": {
+								"observations": 3,
+								"medianMs": 14.8753999999999,
+								"minimumMs": 14.370599999999286,
+								"maximumMs": 15.010800000000017
+							},
+							"admission.edit-context": {
+								"observations": 3,
+								"medianMs": 0.0049000000008163624,
+								"minimumMs": 0.003499999999803549,
+								"maximumMs": 0.005799999999908323
+							},
+							"admission.config": {
+								"observations": 3,
+								"medianMs": 15.75669999999991,
+								"minimumMs": 15.188699999999699,
+								"maximumMs": 16.09810000000016
+							},
+							"admission.eligibility": {
+								"observations": 3,
+								"medianMs": 124.33629999999994,
+								"minimumMs": 123.1225000000004,
+								"maximumMs": 124.67409999999927
+							},
+							"admission.waffo": {
+								"observations": 3,
+								"medianMs": 31.224700000000666,
+								"minimumMs": 31.08519999999953,
+								"maximumMs": 31.760199999999713
+							},
+							"admission.quote.transaction": {
+								"observations": 3,
+								"medianMs": 30.91529999999966,
+								"minimumMs": 30.851400000000467,
+								"maximumMs": 31.22100000000046
+							},
+							"admission.rate-limit": {
+								"observations": 3,
+								"medianMs": 14.848500000000058,
+								"minimumMs": 13.848100000000159,
+								"maximumMs": 15.073899999999412
+							},
+							"admission.job.transaction": {
+								"observations": 3,
+								"medianMs": 62.25799999999981,
+								"minimumMs": 61.41730000000007,
+								"maximumMs": 62.36880000000019
+							},
+							"admission.committed": {
+								"observations": 3,
+								"medianMs": 0,
+								"minimumMs": 0,
+								"maximumMs": 0
+							},
+							"admission.dispatch": {
+								"observations": 3,
+								"medianMs": 77.3743000000004,
+								"minimumMs": 76.96970000000056,
+								"maximumMs": 78.34089999999924
+							}
+						},
+						"uniqueOperationCountsIncludingReplay": [
+							{
+								"submissionLookup": 2,
+								"configRead": 1,
+								"rateLimit": 2,
+								"freeGrant": 1,
+								"accountRead": 1,
+								"balanceRead": 1,
+								"budgetRead": 2,
+								"storageRead": 1,
+								"entitlement": 1,
+								"waffo": 1,
+								"quoteTransaction": 1,
+								"jobTransaction": 1,
+								"transactionConfigRead": 1,
+								"transactionEntitlementRead": 1,
+								"reservation": 1,
+								"dispatchClaim": 2,
+								"attempt": 1,
+								"submissionStarted": 1,
+								"kie": 1,
+								"uncertaintyRecorded": 1
+							}
+						]
+					},
+					{
+						"scenario": "concurrent-replay",
+						"sampleCount": 3,
+						"metricsMs": {
+							"clickToKieAcceptanceMs": {
+								"samples": [587.863800000001, 588.3321000000014, 577.6170999999995],
+								"median": 587.863800000001,
+								"minimum": 577.6170999999995,
+								"maximum": 588.3321000000014
+							},
+							"clickToDomainReturnMs": {
+								"samples": [681.9255000000012, 682.9040000000005, 670.4920999999995],
+								"median": 681.9255000000012,
+								"minimum": 670.4920999999995,
+								"maximum": 682.9040000000005
+							},
+							"clickToAllDomainReturnsMs": {
+								"samples": [745.1329000000005, 746.5540000000001, 731.8724000000002],
+								"median": 745.1329000000005,
+								"minimum": 731.8724000000002,
+								"maximum": 746.5540000000001
+							}
+						},
+						"stagePerCallMs": {
+							"admission.lookup": {
+								"observations": 6,
+								"medianMs": 21.7199499999997,
+								"minimumMs": 13.230100000000675,
+								"maximumMs": 30.699299999998402
+							},
+							"admission.edit-context": {
+								"observations": 6,
+								"medianMs": 0.005000000000109139,
+								"minimumMs": 0.004400000001623994,
+								"maximumMs": 0.01330000000052678
+							},
+							"admission.config": {
+								"observations": 9,
+								"medianMs": 31.000300000001516,
+								"minimumMs": 30.47609999999986,
+								"maximumMs": 31.96349999999984
+							},
+							"admission.eligibility": {
+								"observations": 9,
+								"medianMs": 171.29459999999926,
+								"minimumMs": 154.70200000000114,
+								"maximumMs": 264.41389999999956
+							},
+							"admission.waffo": {
+								"observations": 6,
+								"medianMs": 30.73829999999998,
+								"minimumMs": 30.306500000000597,
+								"maximumMs": 32.249299999999494
+							},
+							"admission.quote.transaction": {
+								"observations": 6,
+								"medianMs": 72.5953499999996,
+								"minimumMs": 45.32920000000013,
+								"maximumMs": 94.03869999999915
+							},
+							"admission.rate-limit": {
+								"observations": 3,
+								"medianMs": 15.042699999999968,
+								"minimumMs": 14.910200000000259,
+								"maximumMs": 15.459199999999328
+							},
+							"admission.quote.lookup": {
+								"observations": 3,
+								"medianMs": 30.23400000000038,
+								"minimumMs": 23.247400000000198,
+								"maximumMs": 30.526599999999235
+							},
+							"admission.job.transaction": {
+								"observations": 6,
+								"medianMs": 77.87385000000086,
+								"minimumMs": 30.653999999998632,
+								"maximumMs": 139.52330000000075
+							},
+							"admission.committed": {
+								"observations": 6,
+								"medianMs": 0,
+								"minimumMs": 0,
+								"maximumMs": 0
+							},
+							"admission.dispatch": {
+								"observations": 6,
+								"medianMs": 101.08764999999948,
+								"minimumMs": 15.103799999998955,
+								"maximumMs": 187.76490000000013
+							},
+							"admission.entitlement": {
+								"observations": 3,
+								"medianMs": 30.51249999999891,
+								"minimumMs": 28.79370000000017,
+								"maximumMs": 31.437799999999697
+							}
+						},
+						"uniqueOperationCountsIncludingReplay": [
+							{
+								"submissionLookup": 4,
+								"configRead": 3,
+								"rateLimit": 4,
+								"freeGrant": 3,
+								"accountRead": 3,
+								"balanceRead": 3,
+								"budgetRead": 6,
+								"storageRead": 3,
+								"entitlement": 4,
+								"waffo": 2,
+								"quoteTransaction": 2,
+								"jobTransaction": 2,
+								"transactionConfigRead": 1,
+								"quoteRead": 1,
+								"transactionEntitlementRead": 1,
+								"reservation": 1,
+								"dispatchClaim": 3,
+								"attempt": 1,
+								"submissionStarted": 1,
+								"kie": 1,
+								"submissionRecorded": 1
+							}
+						]
+					}
+				]
+			}
+		},
+		"http": {
+			"before": {
+				"generatedAt": "2026-09-29T16:47:58.381Z",
+				"kind": "actual protected submitGeneration procedure and RPCHandler/RPCLink Fetch boundary; no socket or external network",
+				"sourceHashes": {
+					"modules/media/procedures/submit-generation.ts": "b8b52bbb6b832dd3f0bd2740515e0ddf3bdff462579c360c33de65ebd7674888",
+					"modules/media/procedures/create-quote.ts": "042b490b27852dd3eeb5ca02449688746e86813772767109d01cab68e0f8841d",
+					"modules/media/procedures/create-generation.ts": "270a1ccd136ed60a7e3a225c1df1cd615163f3420d8053a891af26985c1a43f1",
+					"modules/media/lib/generation-authorization.ts": "376c70513b46945450bfc0ab89b3ad8935223679732e430f7feb8e63cab66e39"
+				},
+				"harnessSha256": "b064b8971d7722e53a1c892f1f5b0ede97511c51a021c69365d1ef0597f56730",
+				"conditions": {
+					"process": "loaded modules; fresh fixture per run; three paired samples per scenario, before/after interleaved; not cold Workers or production",
+					"load": "one serialized boundary queue, two same-key calls only for concurrent-replay",
+					"delaysMs": {
+						"databaseBoundary": 8,
+						"identityBoundary": 8,
+						"dispatchRouteBoundary": 8,
+						"quoteTransaction": 16,
+						"jobTransaction": 24,
+						"waffoSubmission": 30,
+						"kieSubmissionAcceptance": 25,
+						"kieAsynchronousCompletion": null
+					},
+					"dispatch": "production dispatchCreatedGeneration and dispatchCreatedJobBestEffort call mocked route/dispatch adapters; adapter executes real dispatchGeneration inline"
+				},
+				"metricDefinitions": {
+					"clickToProcedureReturnMs": "RPC client start to real protected procedure handler returning, before RPC response encoding; not the separately measured bare domain function return",
+					"clickToRpcResponseReadyMs": "RPC client start to RPCHandler producing a Fetch Response",
+					"clickToHttpResponseDecodedMs": "RPC client start to RPCLink decoding that Fetch Response; local HTTP semantics without sockets/Hono/Cloudflare/network",
+					"clickToAllHttpResponsesDecodedMs": "RPC client start to all simultaneous callers decoding their responses",
+					"clickToKieAcceptanceMs": "RPC client start to mock Kie accepting inside real dispatchGeneration"
+				},
+				"unmeasured": [
+					"Hono middleware and actual network transport",
+					"real auth/database latency",
+					"SQL server execution",
+					"connection acquisition",
+					"Cloudflare scheduling",
+					"Kie asynchronous completion",
+					"SeeAPI/signing/browser (separate harnesses)",
+					"production latency"
+				],
+				"scenarios": [
+					{
+						"scenario": "normal",
+						"sampleCount": 3,
+						"metricsMs": {
+							"clickToProcedureReturnMs": {
+								"samples": [615.741399999999, 591.8346000000001, 591.9737000000005],
+								"median": 591.9737000000005,
+								"minimum": 591.8346000000001,
+								"maximum": 615.741399999999
+							},
+							"clickToRpcResponseReadyMs": {
+								"samples": [616.8408, 592.1454000000012, 593.4892],
+								"median": 593.4892,
+								"minimum": 592.1454000000012,
+								"maximum": 616.8408
+							},
+							"clickToHttpResponseDecodedMs": {
+								"samples": [617.1552999999985, 592.2579999999998, 593.6710999999996],
+								"median": 593.6710999999996,
+								"minimum": 592.2579999999998,
+								"maximum": 617.1552999999985
+							},
+							"clickToAllHttpResponsesDecodedMs": {
+								"samples": [617.1552999999985, 592.2579999999998, 593.6710999999996],
+								"median": 593.6710999999996,
+								"minimum": 592.2579999999998,
+								"maximum": 617.1552999999985
+							},
+							"clickToKieAcceptanceMs": {
+								"samples": [600.3149999999987, 576.3922000000002, 577.1496999999999],
+								"median": 577.1496999999999,
+								"minimum": 576.3922000000002,
+								"maximum": 600.3149999999987
+							}
+						},
+						"stagePerCallMs": {
+							"request.identity": {
+								"observations": 3,
+								"medianMs": 14.299000000000888,
+								"minimumMs": 8.157999999999447,
+								"maximumMs": 15.177400000000489
+							},
+							"admission.lookup": {
+								"observations": 3,
+								"medianMs": 15.845299999999042,
+								"minimumMs": 13.766200000000026,
+								"maximumMs": 16.28559999999925
+							},
+							"admission.edit-context": {
+								"observations": 3,
+								"medianMs": 0.003400000001420267,
+								"minimumMs": 0.002599999999802094,
+								"maximumMs": 0.004000000000814907
+							},
+							"admission.config": {
+								"observations": 6,
+								"medianMs": 15.682949999999437,
+								"minimumMs": 14.313799999999901,
+								"maximumMs": 17.264499999999316
+							},
+							"admission.eligibility": {
+								"observations": 6,
+								"medianMs": 155.9582500000006,
+								"minimumMs": 154.33669999999984,
+								"maximumMs": 157.91100000000006
+							},
+							"admission.waffo": {
+								"observations": 3,
+								"medianMs": 31.227499999999054,
+								"minimumMs": 30.915100000000166,
+								"maximumMs": 32.03909999999996
+							},
+							"admission.quote.transaction": {
+								"observations": 3,
+								"medianMs": 31.03950000000077,
+								"minimumMs": 30.53820000000087,
+								"maximumMs": 31.91480000000047
+							},
+							"admission.quote.lookup": {
+								"observations": 3,
+								"medianMs": 15.591700000000856,
+								"minimumMs": 15.47610000000168,
+								"maximumMs": 29.4416999999994
+							},
+							"admission.entitlement": {
+								"observations": 3,
+								"medianMs": 15.236899999999878,
+								"minimumMs": 14.912199999998847,
+								"maximumMs": 15.290999999999258
+							},
+							"admission.job.transaction": {
+								"observations": 3,
+								"medianMs": 32.02050000000054,
+								"minimumMs": 31.461599999998725,
+								"maximumMs": 32.057199999999284
+							},
+							"admission.dispatch": {
+								"observations": 3,
+								"medianMs": 93.07330000000002,
+								"minimumMs": 91.53659999999945,
+								"maximumMs": 94.16539999999986
+							}
+						},
+						"uniqueOperationCountsIncludingReplay": [
+							{
+								"identity": 2,
+								"submissionLookup": 2,
+								"configRead": 2,
+								"rateLimit": 2,
+								"freeGrant": 2,
+								"runtimeFlagRead": 4,
+								"accountRead": 2,
+								"balanceRead": 2,
+								"budgetRead": 4,
+								"storageRead": 2,
+								"entitlement": 3,
+								"waffo": 1,
+								"quoteTransaction": 1,
+								"quoteRead": 1,
+								"jobTransaction": 1,
+								"reservation": 1,
+								"dispatchRoute": 1,
+								"dispatchClaim": 1,
+								"attempt": 1,
+								"submissionStarted": 1,
+								"kie": 1,
+								"submissionRecorded": 1
+							}
+						]
+					},
+					{
+						"scenario": "response-loss",
+						"sampleCount": 3,
+						"metricsMs": {
+							"clickToProcedureReturnMs": {
+								"samples": [593.8420000000006, 591.676099999997, 590.5195999999996],
+								"median": 591.676099999997,
+								"minimum": 590.5195999999996,
+								"maximum": 593.8420000000006
+							},
+							"clickToRpcResponseReadyMs": {
+								"samples": [594.0388999999996, 591.9236999999994, 590.7075999999979],
+								"median": 591.9236999999994,
+								"minimum": 590.7075999999979,
+								"maximum": 594.0388999999996
+							},
+							"clickToHttpResponseDecodedMs": {
+								"samples": [594.1082999999999, 592.0218999999997, 590.7786000000015],
+								"median": 592.0218999999997,
+								"minimum": 590.7786000000015,
+								"maximum": 594.1082999999999
+							},
+							"clickToAllHttpResponsesDecodedMs": {
+								"samples": [594.1082999999999, 592.0218999999997, 590.7786000000015],
+								"median": 592.0218999999997,
+								"minimum": 590.7786000000015,
+								"maximum": 594.1082999999999
+							},
+							"clickToKieAcceptanceMs": {
+								"samples": [578.357, 575.4350999999988, 575.2158999999992],
+								"median": 575.4350999999988,
+								"minimum": 575.2158999999992,
+								"maximum": 578.357
+							}
+						},
+						"stagePerCallMs": {
+							"request.identity": {
+								"observations": 3,
+								"medianMs": 14.357099999997445,
+								"minimumMs": 14.292399999998452,
+								"maximumMs": 15.66939999999886
+							},
+							"admission.lookup": {
+								"observations": 3,
+								"medianMs": 15.846299999997427,
+								"minimumMs": 15.061400000000503,
+								"maximumMs": 16.50920000000042
+							},
+							"admission.edit-context": {
+								"observations": 3,
+								"medianMs": 0.006499999999505235,
+								"minimumMs": 0.004899999999906868,
+								"maximumMs": 0.006699999998090789
+							},
+							"admission.config": {
+								"observations": 6,
+								"medianMs": 15.59099999999944,
+								"minimumMs": 14.32470000000103,
+								"maximumMs": 16.102600000001985
+							},
+							"admission.eligibility": {
+								"observations": 6,
+								"medianMs": 156.37585000000036,
+								"minimumMs": 154.09159999999974,
+								"maximumMs": 158.0061999999998
+							},
+							"admission.waffo": {
+								"observations": 3,
+								"medianMs": 31.50920000000042,
+								"minimumMs": 30.51119999999719,
+								"maximumMs": 31.608000000000175
+							},
+							"admission.quote.transaction": {
+								"observations": 3,
+								"medianMs": 30.369599999998172,
+								"minimumMs": 29.79190000000017,
+								"maximumMs": 30.605400000000373
+							},
+							"admission.quote.lookup": {
+								"observations": 3,
+								"medianMs": 15.33220000000074,
+								"minimumMs": 14.952500000003056,
+								"maximumMs": 15.411000000000058
+							},
+							"admission.entitlement": {
+								"observations": 3,
+								"medianMs": 14.969600000000355,
+								"minimumMs": 14.477100000000064,
+								"maximumMs": 15.205000000001746
+							},
+							"admission.job.transaction": {
+								"observations": 3,
+								"medianMs": 31.33100000000195,
+								"minimumMs": 30.70850000000064,
+								"maximumMs": 31.892800000001444
+							},
+							"admission.dispatch": {
+								"observations": 3,
+								"medianMs": 93.60269999999946,
+								"minimumMs": 92.3752999999997,
+								"maximumMs": 94.41469999999754
+							}
+						},
+						"uniqueOperationCountsIncludingReplay": [
+							{
+								"identity": 2,
+								"submissionLookup": 2,
+								"configRead": 2,
+								"rateLimit": 2,
+								"freeGrant": 2,
+								"runtimeFlagRead": 4,
+								"accountRead": 2,
+								"balanceRead": 2,
+								"budgetRead": 4,
+								"storageRead": 2,
+								"entitlement": 3,
+								"waffo": 1,
+								"quoteTransaction": 1,
+								"quoteRead": 1,
+								"jobTransaction": 1,
+								"reservation": 1,
+								"dispatchRoute": 1,
+								"dispatchClaim": 1,
+								"attempt": 1,
+								"submissionStarted": 1,
+								"kie": 1,
+								"uncertaintyRecorded": 1
+							}
+						]
+					},
+					{
+						"scenario": "concurrent-replay",
+						"sampleCount": 3,
+						"metricsMs": {
+							"clickToProcedureReturnMs": {
+								"samples": [978.4133999999976, 959.3611999999994, 984.0156999999999],
+								"median": 978.4133999999976,
+								"minimum": 959.3611999999994,
+								"maximum": 984.0156999999999
+							},
+							"clickToRpcResponseReadyMs": {
+								"samples": [978.6070999999974, 959.4946000000018, 984.2201999999997],
+								"median": 978.6070999999974,
+								"minimum": 959.4946000000018,
+								"maximum": 984.2201999999997
+							},
+							"clickToHttpResponseDecodedMs": {
+								"samples": [978.6857999999993, 959.5525999999991, 984.3016000000025],
+								"median": 978.6857999999993,
+								"minimum": 959.5525999999991,
+								"maximum": 984.3016000000025
+							},
+							"clickToAllHttpResponsesDecodedMs": {
+								"samples": [1041.1458999999995, 1022.3726000000024, 1045.8494000000028],
+								"median": 1041.1458999999995,
+								"minimum": 1022.3726000000024,
+								"maximum": 1045.8494000000028
+							},
+							"clickToKieAcceptanceMs": {
+								"samples": [1024.9300999999978, 1006.888600000002, 1030.224900000001],
+								"median": 1024.9300999999978,
+								"minimum": 1006.888600000002,
+								"maximum": 1030.224900000001
+							}
+						},
+						"stagePerCallMs": {
+							"request.identity": {
+								"observations": 6,
+								"medianMs": 22.038799999998446,
+								"minimumMs": 13.83259999999791,
+								"maximumMs": 30.76469999999972
+							},
+							"admission.lookup": {
+								"observations": 6,
+								"medianMs": 30.71574999999939,
+								"minimumMs": 29.96889999999985,
+								"maximumMs": 31.080900000000838
+							},
+							"admission.edit-context": {
+								"observations": 6,
+								"medianMs": 0.005600000000413274,
+								"minimumMs": 0.002300000000104774,
+								"maximumMs": 0.007900000000518048
+							},
+							"admission.config": {
+								"observations": 12,
+								"medianMs": 31.348249999999098,
+								"minimumMs": 31.008600000001024,
+								"maximumMs": 46.779999999998836
+							},
+							"admission.eligibility": {
+								"observations": 12,
+								"medianMs": 255.6255999999994,
+								"minimumMs": 200.3849999999984,
+								"maximumMs": 326.608400000001
+							},
+							"admission.waffo": {
+								"observations": 6,
+								"medianMs": 30.797450000000026,
+								"minimumMs": 30.20679999999993,
+								"maximumMs": 31.090000000000146
+							},
+							"admission.quote.transaction": {
+								"observations": 6,
+								"medianMs": 85.566499999999,
+								"minimumMs": 31.33009999999922,
+								"maximumMs": 124.84189999999944
+							},
+							"admission.quote.lookup": {
+								"observations": 6,
+								"medianMs": 23.113749999998618,
+								"minimumMs": 15.15599999999904,
+								"maximumMs": 31.67710000000079
+							},
+							"admission.entitlement": {
+								"observations": 6,
+								"medianMs": 31.02534999999989,
+								"minimumMs": 30.50720000000001,
+								"maximumMs": 31.610799999998562
+							},
+							"admission.job.transaction": {
+								"observations": 6,
+								"medianMs": 46.79899999999907,
+								"minimumMs": 45.23489999999947,
+								"maximumMs": 48.37329999999929
+							},
+							"admission.dispatch": {
+								"observations": 6,
+								"medianMs": 131.29364999999962,
+								"minimumMs": 0.005600000000413274,
+								"maximumMs": 265.59879999999976
+							}
+						},
+						"uniqueOperationCountsIncludingReplay": [
+							{
+								"identity": 3,
+								"submissionLookup": 4,
+								"configRead": 4,
+								"rateLimit": 4,
+								"freeGrant": 4,
+								"runtimeFlagRead": 8,
+								"accountRead": 4,
+								"balanceRead": 4,
+								"budgetRead": 8,
+								"storageRead": 4,
+								"entitlement": 6,
+								"waffo": 2,
+								"quoteTransaction": 2,
+								"quoteRead": 2,
+								"jobTransaction": 2,
+								"reservation": 1,
+								"dispatchRoute": 1,
+								"dispatchClaim": 1,
+								"attempt": 1,
+								"submissionStarted": 1,
+								"kie": 1,
+								"submissionRecorded": 1
+							}
+						]
+					}
+				]
+			},
+			"after": {
+				"generatedAt": "2026-09-29T16:47:58.384Z",
+				"kind": "actual protected submitGeneration procedure and RPCHandler/RPCLink Fetch boundary; no socket or external network",
+				"sourceHashes": {
+					"modules/media/procedures/submit-generation.ts": "70e1aeec6df8302aca124ac5417876bba038ecd04614c9ca50afcd8a548bd40b",
+					"modules/media/procedures/create-quote.ts": "bbc251e59e625a800913cca747a7f69348a80c9dffbc6c018e8c09ca00fa7c61",
+					"modules/media/procedures/create-generation.ts": "f3afdcf3dbbb166dc59e0f9d5f607d46725b669ce9210c089892a4297fdc1ead",
+					"modules/media/lib/generation-authorization.ts": "20dfa74a5fb79f0ddbf62dd4055f41708f574f3788afebd045fb484633895078"
+				},
+				"harnessSha256": "b064b8971d7722e53a1c892f1f5b0ede97511c51a021c69365d1ef0597f56730",
+				"conditions": {
+					"process": "loaded modules; fresh fixture per run; three paired samples per scenario, before/after interleaved; not cold Workers or production",
+					"load": "one serialized boundary queue, two same-key calls only for concurrent-replay",
+					"delaysMs": {
+						"databaseBoundary": 8,
+						"identityBoundary": 8,
+						"dispatchRouteBoundary": 8,
+						"quoteTransaction": 16,
+						"jobTransaction": 24,
+						"waffoSubmission": 30,
+						"kieSubmissionAcceptance": 25,
+						"kieAsynchronousCompletion": null
+					},
+					"dispatch": "production dispatchCreatedGeneration and dispatchCreatedJobBestEffort call mocked route/dispatch adapters; adapter executes real dispatchGeneration inline"
+				},
+				"metricDefinitions": {
+					"clickToProcedureReturnMs": "RPC client start to real protected procedure handler returning, before RPC response encoding; not the separately measured bare domain function return",
+					"clickToRpcResponseReadyMs": "RPC client start to RPCHandler producing a Fetch Response",
+					"clickToHttpResponseDecodedMs": "RPC client start to RPCLink decoding that Fetch Response; local HTTP semantics without sockets/Hono/Cloudflare/network",
+					"clickToAllHttpResponsesDecodedMs": "RPC client start to all simultaneous callers decoding their responses",
+					"clickToKieAcceptanceMs": "RPC client start to mock Kie accepting inside real dispatchGeneration"
+				},
+				"unmeasured": [
+					"Hono middleware and actual network transport",
+					"real auth/database latency",
+					"SQL server execution",
+					"connection acquisition",
+					"Cloudflare scheduling",
+					"Kie asynchronous completion",
+					"SeeAPI/signing/browser (separate harnesses)",
+					"production latency"
+				],
+				"scenarios": [
+					{
+						"scenario": "normal",
+						"sampleCount": 3,
+						"metricsMs": {
+							"clickToProcedureReturnMs": {
+								"samples": [404.5550999999996, 403.6946000000007, 403.075499999999],
+								"median": 403.6946000000007,
+								"minimum": 403.075499999999,
+								"maximum": 404.5550999999996
+							},
+							"clickToRpcResponseReadyMs": {
+								"samples": [405.3894, 403.90040000000045, 403.47220000000016],
+								"median": 403.90040000000045,
+								"minimum": 403.47220000000016,
+								"maximum": 405.3894
+							},
+							"clickToHttpResponseDecodedMs": {
+								"samples": [405.5463, 403.97470000000067, 403.5640000000003],
+								"median": 403.97470000000067,
+								"minimum": 403.5640000000003,
+								"maximum": 405.5463
+							},
+							"clickToAllHttpResponsesDecodedMs": {
+								"samples": [405.5463, 403.97470000000067, 403.5640000000003],
+								"median": 403.97470000000067,
+								"minimum": 403.5640000000003,
+								"maximum": 405.5463
+							},
+							"clickToKieAcceptanceMs": {
+								"samples": [389.8809000000001, 387.6939999999995, 389.6306000000004],
+								"median": 389.6306000000004,
+								"minimum": 387.6939999999995,
+								"maximum": 389.8809000000001
+							}
+						},
+						"stagePerCallMs": {
+							"request.identity": {
+								"observations": 3,
+								"medianMs": 14.08770000000004,
+								"minimumMs": 13.021600000000035,
+								"maximumMs": 14.15520000000106
+							},
+							"admission.lookup": {
+								"observations": 3,
+								"medianMs": 14.971199999999953,
+								"minimumMs": 13.362699999999677,
+								"maximumMs": 15.303400000000693
+							},
+							"admission.edit-context": {
+								"observations": 3,
+								"medianMs": 0.002300000000104774,
+								"minimumMs": 0.0020999999997002305,
+								"maximumMs": 0.005100000000311411
+							},
+							"admission.config": {
+								"observations": 3,
+								"medianMs": 15.634799999999814,
+								"minimumMs": 15.23070000000007,
+								"maximumMs": 16.36369999999988
+							},
+							"admission.eligibility": {
+								"observations": 3,
+								"medianMs": 126.48290000000088,
+								"minimumMs": 124.28909999999996,
+								"maximumMs": 126.61390000000029
+							},
+							"admission.waffo": {
+								"observations": 3,
+								"medianMs": 30.395700000000943,
+								"minimumMs": 29.989400000000387,
+								"maximumMs": 45.48350000000028
+							},
+							"admission.quote.transaction": {
+								"observations": 3,
+								"medianMs": 30.128099999999904,
+								"minimumMs": 15.460100000000239,
+								"maximumMs": 30.98739999999998
+							},
+							"admission.rate-limit": {
+								"observations": 3,
+								"medianMs": 15.528900000001158,
+								"minimumMs": 15.289600000000064,
+								"maximumMs": 15.809199999999691
+							},
+							"admission.job.transaction": {
+								"observations": 3,
+								"medianMs": 61.66200000000026,
+								"minimumMs": 61.350399999999354,
+								"maximumMs": 62.55459999999948
+							},
+							"admission.committed": {
+								"observations": 3,
+								"medianMs": 0,
+								"minimumMs": 0,
+								"maximumMs": 0
+							},
+							"admission.dispatch": {
+								"observations": 3,
+								"medianMs": 94.07899999999972,
+								"minimumMs": 92.8181999999997,
+								"maximumMs": 94.38509999999951
+							}
+						},
+						"uniqueOperationCountsIncludingReplay": [
+							{
+								"identity": 2,
+								"submissionLookup": 2,
+								"configRead": 1,
+								"rateLimit": 2,
+								"freeGrant": 1,
+								"accountRead": 1,
+								"balanceRead": 1,
+								"budgetRead": 2,
+								"storageRead": 1,
+								"entitlement": 1,
+								"waffo": 1,
+								"quoteTransaction": 1,
+								"jobTransaction": 1,
+								"transactionConfigRead": 1,
+								"transactionEntitlementRead": 1,
+								"reservation": 1,
+								"dispatchRoute": 1,
+								"dispatchClaim": 1,
+								"attempt": 1,
+								"submissionStarted": 1,
+								"kie": 1,
+								"submissionRecorded": 1
+							}
+						]
+					},
+					{
+						"scenario": "response-loss",
+						"sampleCount": 3,
+						"metricsMs": {
+							"clickToProcedureReturnMs": {
+								"samples": [400.53729999999996, 404.58569999999963, 387.5499000000018],
+								"median": 400.53729999999996,
+								"minimum": 387.5499000000018,
+								"maximum": 404.58569999999963
+							},
+							"clickToRpcResponseReadyMs": {
+								"samples": [400.6919999999991, 404.7478999999985, 387.766599999999],
+								"median": 400.6919999999991,
+								"minimum": 387.766599999999,
+								"maximum": 404.7478999999985
+							},
+							"clickToHttpResponseDecodedMs": {
+								"samples": [400.7501000000011, 404.8205999999991, 387.84790000000066],
+								"median": 400.7501000000011,
+								"minimum": 387.84790000000066,
+								"maximum": 404.8205999999991
+							},
+							"clickToAllHttpResponsesDecodedMs": {
+								"samples": [400.7501000000011, 404.8205999999991, 387.84790000000066],
+								"median": 400.7501000000011,
+								"minimum": 387.84790000000066,
+								"maximum": 404.8205999999991
+							},
+							"clickToKieAcceptanceMs": {
+								"samples": [385.22509999999966, 389.03369999999995, 372.6330999999991],
+								"median": 385.22509999999966,
+								"minimum": 372.6330999999991,
+								"maximum": 389.03369999999995
+							}
+						},
+						"stagePerCallMs": {
+							"request.identity": {
+								"observations": 3,
+								"medianMs": 14.256700000001729,
+								"minimumMs": 13.429799999998068,
+								"maximumMs": 14.376099999997678
+							},
+							"admission.lookup": {
+								"observations": 3,
+								"medianMs": 15.21480000000156,
+								"minimumMs": 14.864700000001903,
+								"maximumMs": 16.17819999999847
+							},
+							"admission.edit-context": {
+								"observations": 3,
+								"medianMs": 0.004199999999400461,
+								"minimumMs": 0.003899999999703141,
+								"maximumMs": 0.00480000000243308
+							},
+							"admission.config": {
+								"observations": 3,
+								"medianMs": 15.697799999998097,
+								"minimumMs": 15.088199999998324,
+								"maximumMs": 15.767700000000332
+							},
+							"admission.eligibility": {
+								"observations": 3,
+								"medianMs": 123.94510000000082,
+								"minimumMs": 122.81139999999868,
+								"maximumMs": 124.93439999999828
+							},
+							"admission.waffo": {
+								"observations": 3,
+								"medianMs": 30.950400000001537,
+								"minimumMs": 30.578999999997905,
+								"maximumMs": 31.633700000002136
+							},
+							"admission.quote.transaction": {
+								"observations": 3,
+								"medianMs": 30.642900000002555,
+								"minimumMs": 15.85620000000199,
+								"maximumMs": 30.93249999999898
+							},
+							"admission.rate-limit": {
+								"observations": 3,
+								"medianMs": 15.234300000000076,
+								"minimumMs": 14.958399999999529,
+								"maximumMs": 16.043499999999767
+							},
+							"admission.job.transaction": {
+								"observations": 3,
+								"medianMs": 61.591599999999744,
+								"minimumMs": 61.54999999999927,
+								"maximumMs": 61.81720000000132
+							},
+							"admission.committed": {
+								"observations": 3,
+								"medianMs": 0,
+								"minimumMs": 0,
+								"maximumMs": 0
+							},
+							"admission.dispatch": {
+								"observations": 3,
+								"medianMs": 93.01910000000134,
+								"minimumMs": 92.47459999999774,
+								"maximumMs": 93.42259999999806
+							}
+						},
+						"uniqueOperationCountsIncludingReplay": [
+							{
+								"identity": 2,
+								"submissionLookup": 2,
+								"configRead": 1,
+								"rateLimit": 2,
+								"freeGrant": 1,
+								"accountRead": 1,
+								"balanceRead": 1,
+								"budgetRead": 2,
+								"storageRead": 1,
+								"entitlement": 1,
+								"waffo": 1,
+								"quoteTransaction": 1,
+								"jobTransaction": 1,
+								"transactionConfigRead": 1,
+								"transactionEntitlementRead": 1,
+								"reservation": 1,
+								"dispatchRoute": 1,
+								"dispatchClaim": 1,
+								"attempt": 1,
+								"submissionStarted": 1,
+								"kie": 1,
+								"uncertaintyRecorded": 1
+							}
+						]
+					},
+					{
+						"scenario": "concurrent-replay",
+						"sampleCount": 3,
+						"metricsMs": {
+							"clickToProcedureReturnMs": {
+								"samples": [686.6939999999995, 718.9403999999995, 686.613400000002],
+								"median": 686.6939999999995,
+								"minimum": 686.613400000002,
+								"maximum": 718.9403999999995
+							},
+							"clickToRpcResponseReadyMs": {
+								"samples": [686.8279000000002, 719.1512000000002, 686.8009999999995],
+								"median": 686.8279000000002,
+								"minimum": 686.8009999999995,
+								"maximum": 719.1512000000002
+							},
+							"clickToHttpResponseDecodedMs": {
+								"samples": [686.8862000000008, 719.237799999999, 686.8767000000007],
+								"median": 686.8862000000008,
+								"minimum": 686.8767000000007,
+								"maximum": 719.237799999999
+							},
+							"clickToAllHttpResponsesDecodedMs": {
+								"samples": [733.8156999999992, 766.7039999999979, 732.5224000000017],
+								"median": 733.8156999999992,
+								"minimum": 732.5224000000017,
+								"maximum": 766.7039999999979
+							},
+							"clickToKieAcceptanceMs": {
+								"samples": [592.7373000000007, 640.6767, 593.0864000000001],
+								"median": 593.0864000000001,
+								"minimum": 592.7373000000007,
+								"maximum": 640.6767
+							}
+						},
+						"stagePerCallMs": {
+							"request.identity": {
+								"observations": 6,
+								"medianMs": 22.182749999999942,
+								"minimumMs": 13.822700000000623,
+								"maximumMs": 31.635999999998603
+							},
+							"admission.lookup": {
+								"observations": 6,
+								"medianMs": 30.742049999998926,
+								"minimumMs": 30.593400000001566,
+								"maximumMs": 31.293399999998655
+							},
+							"admission.edit-context": {
+								"observations": 6,
+								"medianMs": 0.004899999999906868,
+								"minimumMs": 0.0033000000003085006,
+								"maximumMs": 0.006000000001222361
+							},
+							"admission.config": {
+								"observations": 9,
+								"medianMs": 31.291000000001077,
+								"minimumMs": 31.1150000000016,
+								"maximumMs": 31.921800000000076
+							},
+							"admission.eligibility": {
+								"observations": 9,
+								"medianMs": 170.74759999999878,
+								"minimumMs": 155.1790000000001,
+								"maximumMs": 251.3758999999991
+							},
+							"admission.waffo": {
+								"observations": 6,
+								"medianMs": 31.210549999999785,
+								"minimumMs": 30.136399999999412,
+								"maximumMs": 32.45379999999932
+							},
+							"admission.quote.transaction": {
+								"observations": 6,
+								"medianMs": 62.87184999999954,
+								"minimumMs": 45.3624000000018,
+								"maximumMs": 95.00570000000153
+							},
+							"admission.rate-limit": {
+								"observations": 3,
+								"medianMs": 15.489399999998568,
+								"minimumMs": 14.354599999998754,
+								"maximumMs": 15.7683999999972
+							},
+							"admission.job.transaction": {
+								"observations": 6,
+								"medianMs": 62.94800000000032,
+								"minimumMs": 30.692599999998492,
+								"maximumMs": 123.55240000000049
+							},
+							"admission.committed": {
+								"observations": 6,
+								"medianMs": 0,
+								"minimumMs": 0,
+								"maximumMs": 0
+							},
+							"admission.quote.lookup": {
+								"observations": 3,
+								"medianMs": 30.99539999999979,
+								"minimumMs": 30.248099999997066,
+								"maximumMs": 31.604299999999057
+							},
+							"admission.dispatch": {
+								"observations": 6,
+								"medianMs": 101.96069999999963,
+								"minimumMs": 0.005600000000413274,
+								"maximumMs": 218.7412000000004
+							},
+							"admission.entitlement": {
+								"observations": 3,
+								"medianMs": 30.641700000000128,
+								"minimumMs": 30.51130000000194,
+								"maximumMs": 31.35269999999946
+							}
+						},
+						"uniqueOperationCountsIncludingReplay": [
+							{
+								"identity": 3,
+								"submissionLookup": 4,
+								"configRead": 3,
+								"rateLimit": 4,
+								"freeGrant": 3,
+								"accountRead": 3,
+								"balanceRead": 3,
+								"budgetRead": 6,
+								"storageRead": 3,
+								"entitlement": 4,
+								"waffo": 2,
+								"quoteTransaction": 2,
+								"jobTransaction": 2,
+								"transactionConfigRead": 1,
+								"transactionEntitlementRead": 1,
+								"quoteRead": 1,
+								"reservation": 1,
+								"dispatchRoute": 1,
+								"dispatchClaim": 1,
+								"attempt": 1,
+								"submissionStarted": 1,
+								"kie": 1,
+								"submissionRecorded": 1
+							},
+							{
+								"identity": 3,
+								"submissionLookup": 4,
+								"configRead": 3,
+								"rateLimit": 4,
+								"freeGrant": 3,
+								"accountRead": 3,
+								"balanceRead": 3,
+								"budgetRead": 6,
+								"storageRead": 3,
+								"entitlement": 4,
+								"waffo": 2,
+								"quoteTransaction": 2,
+								"jobTransaction": 2,
+								"transactionConfigRead": 1,
+								"quoteRead": 1,
+								"transactionEntitlementRead": 1,
+								"reservation": 1,
+								"dispatchRoute": 1,
+								"dispatchClaim": 1,
+								"attempt": 1,
+								"submissionStarted": 1,
+								"kie": 1,
+								"submissionRecorded": 1
+							}
+						]
+					}
+				]
+			}
+		}
+	},
+	"status": {
+		"before": {
+			"scope": "real getJob and getAssetAccessUrl with isolated delayed storage/database boundaries; image load measured separately",
+			"clock": "wall",
+			"sourceMode": "saved timing-only source",
+			"delaysMs": {
+				"dataAccess": 40,
+				"sign": 10,
+				"request": 30
+			},
+			"unmeasured": ["SQL server time", "connection wait", "Internet latency", "browser paint"],
+			"conditions": "One caller, five successive samples, modules loaded; no separate runtime cold-start comparison.",
+			"metricsMs": {
+				"readyToImageRequestMs": {
+					"samples": [
+						203.25530000000026, 183.47519999999986, 168.7215000000001, 192.28909999999996,
+						180.5682999999999
+					],
+					"median": 183.47519999999986,
+					"minimum": 168.7215000000001,
+					"maximum": 203.25530000000026
+				},
+				"statusProcedureMs": {
+					"samples": [
+						58.13819999999987, 51.54439999999977, 42.5038999999997, 46.516000000000076,
+						41.42819999999983
+					],
+					"median": 46.516000000000076,
+					"minimum": 41.42819999999983,
+					"maximum": 58.13819999999987
+				},
+				"statusResponseMs": {
+					"samples": [
+						97.53340000000026, 93.30490000000009, 75.76310000000012, 86.10609999999997,
+						75.04570000000012
+					],
+					"median": 86.10609999999997,
+					"minimum": 75.04570000000012,
+					"maximum": 97.53340000000026
+				},
+				"signingMs": {
+					"samples": [
+						15.400800000000345, 15.436999999999898, 12.481599999999617, 25.2496000000001,
+						15.778099999999995
+					],
+					"median": 15.436999999999898,
+					"minimum": 12.481599999999617,
+					"maximum": 25.2496000000001
+				}
+			},
+			"uniqueOperationCounts": [
+				{
+					"requests": 2,
+					"jobRead": 1,
+					"assetRead": 1,
+					"sign": 1
+				}
+			],
+			"stageTimingsBySample": [
+				[
+					{
+						"stage": "status.query",
+						"stageMs": 44.46279999999979
+					},
+					{
+						"stage": "status.authorization",
+						"stageMs": 1.7723000000000866
+					},
+					{
+						"stage": "asset.authorization",
+						"stageMs": 50.75849999999991
+					},
+					{
+						"stage": "asset.sign",
+						"stageMs": 15.400800000000345
+					}
+				],
+				[
+					{
+						"stage": "status.query",
+						"stageMs": 51.26980000000003
+					},
+					{
+						"stage": "status.authorization",
+						"stageMs": 0.07580000000007203
+					},
+					{
+						"stage": "asset.authorization",
+						"stageMs": 43.45239999999967
+					},
+					{
+						"stage": "asset.sign",
+						"stageMs": 15.436999999999898
+					}
+				],
+				[
+					{
+						"stage": "status.query",
+						"stageMs": 42.070700000000215
+					},
+					{
+						"stage": "status.authorization",
+						"stageMs": 0.08030000000007931
+					},
+					{
+						"stage": "asset.authorization",
+						"stageMs": 45.518699999999626
+					},
+					{
+						"stage": "asset.sign",
+						"stageMs": 12.481599999999617
+					}
+				],
+				[
+					{
+						"stage": "status.query",
+						"stageMs": 46.23919999999998
+					},
+					{
+						"stage": "status.authorization",
+						"stageMs": 0.07349999999996726
+					},
+					{
+						"stage": "asset.authorization",
+						"stageMs": 40.911299999999756
+					},
+					{
+						"stage": "asset.sign",
+						"stageMs": 25.2496000000001
+					}
+				],
+				[
+					{
+						"stage": "status.query",
+						"stageMs": 40.88180000000011
+					},
+					{
+						"stage": "status.authorization",
+						"stageMs": 0.08440000000018699
+					},
+					{
+						"stage": "asset.authorization",
+						"stageMs": 55.47640000000001
+					},
+					{
+						"stage": "asset.sign",
+						"stageMs": 15.778099999999995
+					}
+				]
+			]
+		},
+		"after": {
+			"scope": "real getJob and getAssetAccessUrl with isolated delayed storage/database boundaries; image load measured separately",
+			"clock": "wall",
+			"sourceMode": "current checkout",
+			"delaysMs": {
+				"dataAccess": 40,
+				"sign": 10,
+				"request": 30
+			},
+			"unmeasured": ["SQL server time", "connection wait", "Internet latency", "browser paint"],
+			"conditions": "One caller, five successive samples, modules loaded; no separate runtime cold-start comparison.",
+			"metricsMs": {
+				"readyToImageRequestMs": {
+					"samples": [
+						115.72990000000004, 91.23080000000004, 93.73379999999997, 92.17600000000016,
+						93.26920000000018
+					],
+					"median": 93.26920000000018,
+					"minimum": 91.23080000000004,
+					"maximum": 115.72990000000004
+				},
+				"statusProcedureMs": {
+					"samples": [
+						78.59619999999995, 60.9224999999999, 63.31189999999992, 61.91040000000021,
+						61.73840000000018
+					],
+					"median": 61.91040000000021,
+					"minimum": 60.9224999999999,
+					"maximum": 78.59619999999995
+				},
+				"statusResponseMs": {
+					"samples": [
+						115.38940000000002, 91.15459999999985, 93.65980000000013, 92.10749999999985,
+						93.20659999999998
+					],
+					"median": 93.20659999999998,
+					"minimum": 91.15459999999985,
+					"maximum": 115.38940000000002
+				},
+				"signingMs": {
+					"samples": [
+						15.184200000000146, 14.882700000000114, 15.657600000000002, 15.278400000000147,
+						15.195200000000114
+					],
+					"median": 15.195200000000114,
+					"minimum": 14.882700000000114,
+					"maximum": 15.657600000000002
+				}
+			},
+			"uniqueOperationCounts": [
+				{
+					"requests": 1,
+					"jobRead": 1,
+					"assetRead": 0,
+					"sign": 1
+				}
+			],
+			"stageTimingsBySample": [
+				[
+					{
+						"stage": "status.query",
+						"stageMs": 50.75220000000013
+					},
+					{
+						"stage": "status.authorization",
+						"stageMs": 0.4175999999999931
+					},
+					{
+						"stage": "status.preview",
+						"stageMs": 0
+					},
+					{
+						"stage": "status.sign",
+						"stageMs": 15.184200000000146
+					}
+				],
+				[
+					{
+						"stage": "status.query",
+						"stageMs": 45.54299999999989
+					},
+					{
+						"stage": "status.authorization",
+						"stageMs": 0.15449999999987085
+					},
+					{
+						"stage": "status.preview",
+						"stageMs": 0
+					},
+					{
+						"stage": "status.sign",
+						"stageMs": 14.882700000000114
+					}
+				],
+				[
+					{
+						"stage": "status.query",
+						"stageMs": 47.12440000000015
+					},
+					{
+						"stage": "status.authorization",
+						"stageMs": 0.09130000000004657
+					},
+					{
+						"stage": "status.preview",
+						"stageMs": 0
+					},
+					{
+						"stage": "status.sign",
+						"stageMs": 15.657600000000002
+					}
+				],
+				[
+					{
+						"stage": "status.query",
+						"stageMs": 46.220400000000154
+					},
+					{
+						"stage": "status.authorization",
+						"stageMs": 0.09070000000019718
+					},
+					{
+						"stage": "status.preview",
+						"stageMs": 0
+					},
+					{
+						"stage": "status.sign",
+						"stageMs": 15.278400000000147
+					}
+				],
+				[
+					{
+						"stage": "status.query",
+						"stageMs": 46.095600000000104
+					},
+					{
+						"stage": "status.authorization",
+						"stageMs": 0.09739999999965221
+					},
+					{
+						"stage": "status.preview",
+						"stageMs": 0
+					},
+					{
+						"stage": "status.sign",
+						"stageMs": 15.195200000000114
+					}
+				]
+			]
+		}
+	},
+	"database": {
+		"scope": "real isolated PostgreSQL projection plus legacy access lookup; single synthetic fixture, 10 alternating warmed samples per path; not production capacity evidence",
+		"unmeasured": ["SQL server execution time", "connection wait", "Cloudflare latency"],
+		"firstAfterColdReadMs": 76.9751,
+		"variants": {
+			"before": {
+				"clientWallMs": {
+					"samples": [
+						4.07650000000001, 3.834799999999973, 3.601199999999949, 3.5656000000000176,
+						4.166500000000042, 3.6913999999999305, 3.2555999999999585, 3.6422999999999774,
+						3.5991000000000213, 3.4034000000000333
+					],
+					"median": 3.621749999999963,
+					"minimum": 3.2555999999999585,
+					"maximum": 4.166500000000042
+				},
+				"queryCount": 9,
+				"assetColumns": 45
+			},
+			"after": {
+				"clientWallMs": {
+					"samples": [
+						5.367799999999988, 2.683499999999981, 1.9635000000000673, 1.999300000000062,
+						2.0282999999999447, 2.1855000000000473, 2.112899999999968, 2.1373000000000957,
+						1.7975999999999885, 2.157100000000014
+					],
+					"median": 2.1251000000000317,
+					"minimum": 1.7975999999999885,
+					"maximum": 5.367799999999988
+				},
+				"queryCount": 6,
+				"assetColumns": 24
+			}
+		}
+	},
+	"browser": {
+		"before": {
+			"createdAt": "2026-09-29T15:56:05.423Z",
+			"scope": "real Chromium and actual React result panel/useJob; fixed-delay mocked HTTP API/storage; no Next, database or providers",
+			"delaysMs": {
+				"status": 160,
+				"accessOutput": 180,
+				"accessInput": 1400,
+				"image": 120
+			},
+			"sourceHashes": {
+				"apps/saas/modules/media/hooks/use-job.ts": "d05c42e14a752d7325a82b1be798fdda9cb81f34f578d574d3f63beca34e1e8b",
+				"apps/saas/modules/media/components/editor/EditorResultPanel.tsx": "eeea4e3eb07a4076fe244e2226fc9d08e5e9782488811fb6e7be0c1f928b44c4",
+				"apps/saas/modules/media/components/editor/BeforeAfterSlider.tsx": "177609324b50aaf97ef462f4d21bed8e46cd87b4f780ec41920479e67d5607fb"
+			},
+			"unmeasured": [
+				"SQL server execution",
+				"database connection wait",
+				"real provider completion",
+				"CDN/R2 latency",
+				"compositor paint; visibility uses two animation frames after load"
+			],
+			"cleanup": {
+				"browserClosed": true,
+				"serverClosed": true
+			},
+			"conditions": "Real Chromium, one page at a time, fresh browser context per sample; bundled modules, no Next/Worker cold-start measurement.",
+			"scenarios": [
+				{
+					"scenario": "normal",
+					"sampleCount": 3,
+					"metricsMs": {
+						"outputReceivedToImageStartMs": {
+							"samples": [202.29999999701977, 203.89999999850988, 202.79999999701977],
+							"median": 202.79999999701977,
+							"minimum": 202.29999999701977,
+							"maximum": 203.89999999850988
+						},
+						"outputReceivedToLoadMs": {
+							"samples": [334.70000000298023, 347.3999999985099, 347],
+							"median": 347,
+							"minimum": 334.70000000298023,
+							"maximum": 347.3999999985099
+						},
+						"outputReceivedToVisibleMs": {
+							"samples": [353.20000000298023, 373.8999999985099, 375.6000000014901],
+							"median": 373.8999999985099,
+							"minimum": 353.20000000298023,
+							"maximum": 375.6000000014901
+						}
+					},
+					"uniqueOperationCounts": [
+						{
+							"requestCounts": {
+								"status": 1,
+								"outputAccess": 1,
+								"inputAccess": 1,
+								"outputImage": 1
+							}
+						}
+					]
+				}
+			],
+			"regressions": []
+		},
+		"after": {
+			"createdAt": "2026-09-29T16:26:58.166Z",
+			"scope": "real Chromium and actual React result panel/useJob; fixed-delay mocked HTTP API/storage; no Next, database or providers",
+			"delaysMs": {
+				"status": 160,
+				"accessOutput": 180,
+				"accessInput": 1400,
+				"image": 120
+			},
+			"sourceHashes": {
+				"apps/saas/modules/media/hooks/use-job.ts": "39576ea1555d7bd9c0426da5deefa8d5c2e1a09f03827e20f81f1f029f22c0a3",
+				"apps/saas/modules/media/components/editor/EditorResultPanel.tsx": "ddb8a475481272de6fb5be4d5acf4b30ba69f62bf820d2751966918c44899fc2",
+				"apps/saas/modules/media/components/editor/BeforeAfterSlider.tsx": "08c6ebefa2b08283d9f24500662f7d1b5ef61fbce2c16fde88c27d836091a93a",
+				"apps/saas/modules/media/lib/preview-timing.ts": "c715e5b123a72d07e041685ef1f1f531b349f35ab3628f7f7feee0fb2567ff7f"
+			},
+			"bundleSha256": "a335db6ec064a3d8bdc980894a316fad9ea7d25c4cccde9866fe1f00b8a9b77b",
+			"unmeasured": [
+				"SQL server execution",
+				"database connection wait",
+				"real provider completion",
+				"CDN/R2 latency",
+				"compositor paint; visibility uses two animation frames after load"
+			],
+			"cleanup": {
+				"browserClosed": true,
+				"serverClosed": true,
+				"trackedBrowserProcessesStillAlive": []
+			},
+			"conditions": "Real Chromium, one page at a time, fresh browser context per sample; bundled modules, no Next/Worker cold-start measurement.",
+			"scenarios": [
+				{
+					"scenario": "normal",
+					"sampleCount": 3,
+					"metricsMs": {
+						"outputReceivedToImageStartMs": {
+							"samples": [3.2999999970197678, 3.2000000029802322, 3.5],
+							"median": 3.2999999970197678,
+							"minimum": 3.2000000029802322,
+							"maximum": 3.5
+						},
+						"outputReceivedToLoadMs": {
+							"samples": [145.89999999850988, 146.60000000149012, 148],
+							"median": 146.60000000149012,
+							"minimum": 145.89999999850988,
+							"maximum": 148
+						},
+						"outputReceivedToVisibleMs": {
+							"samples": [171, 172.5, 177.5],
+							"median": 172.5,
+							"minimum": 171,
+							"maximum": 177.5
+						}
+					},
+					"uniqueOperationCounts": [
+						{
+							"requestCounts": {
+								"status": 1,
+								"outputAccess": 0,
+								"inputAccess": 1,
+								"outputImage": 1
+							}
+						}
+					]
+				}
+			],
+			"regressions": [
+				{
+					"name": "re-sign without repeat image download",
+					"passed": true,
+					"statusRequests": 4,
+					"outputImageRequests": 1
+				},
+				{
+					"name": "true revocation removes already visible image despite unchanged job.version",
+					"passed": true
+				},
+				{
+					"name": "older response cannot restore revoked output",
+					"passed": true
+				},
+				{
+					"name": "expired image credential revalidates authorized job response and displays replacement",
+					"passed": true
+				},
+				{
+					"name": "authorization error removes cached visible output",
+					"passed": true
+				},
+				{
+					"name": "asset visibility deadline removes output without waiting for the next poll",
+					"passed": true
+				},
+				{
+					"name": "new refetch aborts older in-flight status response using the actual hook signal",
+					"passed": true,
+					"oldRequestFailure": "net::ERR_ABORTED"
+				},
+				{
+					"name": "persistent image failure stops after one credential refresh and shows failure UI",
+					"passed": true,
+					"statusRequests": 2,
+					"outputAttempts": 2
+				},
+				{
+					"name": "visibility timing checks the real image after frames: visible, hidden, detached and outside viewport",
+					"passed": true,
+					"observations": {
+						"visible": ["received", "loaded", "visible"],
+						"hidden": ["received", "loaded"],
+						"detached": ["received", "loaded"],
+						"offscreen": ["received", "loaded"]
+					}
+				}
+			]
+		},
+		"before-downstream": {
+			"createdAt": "2026-09-29T16:11:42.049Z",
+			"scope": "real Chromium and actual React result panel/useJob; fixed-delay mocked HTTP API/storage; no Next, database or providers",
+			"delaysMs": {
+				"status": 160,
+				"accessOutput": 180,
+				"accessInput": 1400,
+				"image": 120
+			},
+			"sourceHashes": {
+				"apps/saas/modules/media/hooks/use-job.ts": "d05c42e14a752d7325a82b1be798fdda9cb81f34f578d574d3f63beca34e1e8b",
+				"apps/saas/modules/media/components/editor/EditorResultPanel.tsx": "eeea4e3eb07a4076fe244e2226fc9d08e5e9782488811fb6e7be0c1f928b44c4",
+				"apps/saas/modules/media/components/editor/BeforeAfterSlider.tsx": "177609324b50aaf97ef462f4d21bed8e46cd87b4f780ec41920479e67d5607fb",
+				"apps/saas/modules/media/lib/preview-timing.ts": "63a321af256057e13db1de7e02503ef1801863be613eb8cdb345bf9f73f60494"
+			},
+			"bundleSha256": "ef2175ef5d0765a5cb1e91591e981a1e2fbf64a555ac19ce46820c4d8d070f56",
+			"unmeasured": [
+				"SQL server execution",
+				"database connection wait",
+				"real provider completion",
+				"CDN/R2 latency",
+				"compositor paint; visibility uses two animation frames after load"
+			],
+			"cleanup": {
+				"browserClosed": true,
+				"serverClosed": true,
+				"trackedBrowserProcessesStillAlive": []
+			},
+			"conditions": "Real Chromium, one page at a time, fresh browser context per sample; bundled modules, no Next/Worker cold-start measurement.",
+			"scenarios": [
+				{
+					"scenario": "allow",
+					"sampleCount": 3,
+					"metricsMs": {
+						"outputReceivedToImageStartMs": {
+							"samples": [188.5, 198.89999999850988, 189.5],
+							"median": 189.5,
+							"minimum": 188.5,
+							"maximum": 198.89999999850988
+						},
+						"outputReceivedToLoadMs": {
+							"samples": [331.3999999985099, 328.30000000447035, 318.8999999985099],
+							"median": 328.30000000447035,
+							"minimum": 318.8999999985099,
+							"maximum": 331.3999999985099
+						},
+						"outputReceivedToVisibleMs": {
+							"samples": [363.6000000014901, 345.70000000298023, 335],
+							"median": 345.70000000298023,
+							"minimum": 335,
+							"maximum": 363.6000000014901
+						},
+						"kieCompleteToVisibleMs": {
+							"samples": [2619.300048828125, 2599.800048828125, 2583.10009765625],
+							"median": 2599.800048828125,
+							"minimum": 2583.10009765625,
+							"maximum": 2619.300048828125
+						},
+						"kieCompleteToOutputReadyMs": {
+							"samples": [341, 339, 328],
+							"median": 339,
+							"minimum": 328,
+							"maximum": 341
+						},
+						"outputReadyToReceivedMs": {
+							"samples": [1914.800048828125, 1915.2001953125, 1920.10009765625],
+							"median": 1915.2001953125,
+							"minimum": 1914.800048828125,
+							"maximum": 1920.10009765625
+						}
+					},
+					"uniqueOperationCounts": [
+						{
+							"requestCounts": {
+								"status": 2,
+								"outputAccess": 1,
+								"inputAccess": 1,
+								"outputImage": 1
+							},
+							"privateWrites": 1,
+							"moderationSubmissions": 1,
+							"moderationQueries": 1
+						}
+					]
+				},
+				{
+					"scenario": "pending",
+					"sampleCount": 3,
+					"metricsMs": {
+						"outputReceivedToImageStartMs": {
+							"samples": [201.79999999701977, 200.79999999701977, 196.79999999701977],
+							"median": 200.79999999701977,
+							"minimum": 196.79999999701977,
+							"maximum": 201.79999999701977
+						},
+						"outputReceivedToLoadMs": {
+							"samples": [330.70000000298023, 346, 333.6000000014901],
+							"median": 333.6000000014901,
+							"minimum": 330.70000000298023,
+							"maximum": 346
+						},
+						"outputReceivedToVisibleMs": {
+							"samples": [357, 363.69999999552965, 358.29999999701977],
+							"median": 358.29999999701977,
+							"minimum": 357,
+							"maximum": 363.69999999552965
+						},
+						"kieCompleteToVisibleMs": {
+							"samples": [4786.60009765625, 4818.5, 4794.10009765625],
+							"median": 4794.10009765625,
+							"minimum": 4786.60009765625,
+							"maximum": 4818.5
+						},
+						"kieCompleteToOutputReadyMs": {
+							"samples": [2612, 2617, 2611],
+							"median": 2612,
+							"minimum": 2611,
+							"maximum": 2617
+						},
+						"outputReadyToReceivedMs": {
+							"samples": [1817.699951171875, 1837.89990234375, 1824.900146484375],
+							"median": 1824.900146484375,
+							"minimum": 1817.699951171875,
+							"maximum": 1837.89990234375
+						}
+					},
+					"uniqueOperationCounts": [
+						{
+							"requestCounts": {
+								"status": 3,
+								"outputAccess": 1,
+								"inputAccess": 1,
+								"outputImage": 1
+							},
+							"privateWrites": 1,
+							"moderationSubmissions": 1,
+							"moderationQueries": 2
+						}
+					]
+				}
+			],
+			"regressions": []
+		},
+		"after-downstream": {
+			"createdAt": "2026-09-29T16:27:16.772Z",
+			"scope": "real Chromium and actual React result panel/useJob; fixed-delay mocked HTTP API/storage; no Next, database or providers",
+			"delaysMs": {
+				"status": 160,
+				"accessOutput": 180,
+				"accessInput": 1400,
+				"image": 120
+			},
+			"sourceHashes": {
+				"apps/saas/modules/media/hooks/use-job.ts": "39576ea1555d7bd9c0426da5deefa8d5c2e1a09f03827e20f81f1f029f22c0a3",
+				"apps/saas/modules/media/components/editor/EditorResultPanel.tsx": "ddb8a475481272de6fb5be4d5acf4b30ba69f62bf820d2751966918c44899fc2",
+				"apps/saas/modules/media/components/editor/BeforeAfterSlider.tsx": "08c6ebefa2b08283d9f24500662f7d1b5ef61fbce2c16fde88c27d836091a93a",
+				"apps/saas/modules/media/lib/preview-timing.ts": "c715e5b123a72d07e041685ef1f1f531b349f35ab3628f7f7feee0fb2567ff7f"
+			},
+			"bundleSha256": "a335db6ec064a3d8bdc980894a316fad9ea7d25c4cccde9866fe1f00b8a9b77b",
+			"unmeasured": [
+				"SQL server execution",
+				"database connection wait",
+				"real provider completion",
+				"CDN/R2 latency",
+				"compositor paint; visibility uses two animation frames after load"
+			],
+			"cleanup": {
+				"browserClosed": true,
+				"serverClosed": true,
+				"trackedBrowserProcessesStillAlive": []
+			},
+			"conditions": "Real Chromium, one page at a time, fresh browser context per sample; bundled modules, no Next/Worker cold-start measurement.",
+			"scenarios": [
+				{
+					"scenario": "allow",
+					"sampleCount": 3,
+					"metricsMs": {
+						"outputReceivedToImageStartMs": {
+							"samples": [2, 2.0999999940395355, 2],
+							"median": 2,
+							"minimum": 2,
+							"maximum": 2.0999999940395355
+						},
+						"outputReceivedToLoadMs": {
+							"samples": [146.60000000149012, 149.19999999552965, 145.60000000149012],
+							"median": 146.60000000149012,
+							"minimum": 145.60000000149012,
+							"maximum": 149.19999999552965
+						},
+						"outputReceivedToVisibleMs": {
+							"samples": [170.20000000298023, 178.39999999850988, 174.29999999701977],
+							"median": 174.29999999701977,
+							"minimum": 170.20000000298023,
+							"maximum": 178.39999999850988
+						},
+						"kieCompleteToVisibleMs": {
+							"samples": [2429.39990234375, 2438.699951171875, 2439.400146484375],
+							"median": 2438.699951171875,
+							"minimum": 2429.39990234375,
+							"maximum": 2439.400146484375
+						},
+						"kieCompleteToOutputReadyMs": {
+							"samples": [341, 328, 328],
+							"median": 328,
+							"minimum": 328,
+							"maximum": 341
+						},
+						"outputReadyToReceivedMs": {
+							"samples": [1918.199951171875, 1932.300048828125, 1937.10009765625],
+							"median": 1932.300048828125,
+							"minimum": 1918.199951171875,
+							"maximum": 1937.10009765625
+						}
+					},
+					"uniqueOperationCounts": [
+						{
+							"requestCounts": {
+								"status": 2,
+								"outputAccess": 0,
+								"inputAccess": 1,
+								"outputImage": 1
+							},
+							"privateWrites": 1,
+							"moderationSubmissions": 1,
+							"moderationQueries": 1
+						}
+					]
+				},
+				{
+					"scenario": "pending",
+					"sampleCount": 3,
+					"metricsMs": {
+						"outputReceivedToImageStartMs": {
+							"samples": [1.8999999985098839, 1.5999999940395355, 1.6999999955296516],
+							"median": 1.6999999955296516,
+							"minimum": 1.5999999940395355,
+							"maximum": 1.8999999985098839
+						},
+						"outputReceivedToLoadMs": {
+							"samples": [144.39999999850988, 147.39999999850988, 138.19999999552965],
+							"median": 144.39999999850988,
+							"minimum": 138.19999999552965,
+							"maximum": 147.39999999850988
+						},
+						"outputReceivedToVisibleMs": {
+							"samples": [162.29999999701977, 168, 167.59999999403954],
+							"median": 167.59999999403954,
+							"minimum": 162.29999999701977,
+							"maximum": 168
+						},
+						"kieCompleteToVisibleMs": {
+							"samples": [4594.10009765625, 4602.300048828125, 4605.5],
+							"median": 4602.300048828125,
+							"minimum": 4594.10009765625,
+							"maximum": 4605.5
+						},
+						"kieCompleteToOutputReadyMs": {
+							"samples": [2611, 2610, 2620],
+							"median": 2611,
+							"minimum": 2610,
+							"maximum": 2620
+						},
+						"outputReadyToReceivedMs": {
+							"samples": [1820.800048828125, 1824.39990234375, 1817.89990234375],
+							"median": 1820.800048828125,
+							"minimum": 1817.89990234375,
+							"maximum": 1824.39990234375
+						}
+					},
+					"uniqueOperationCounts": [
+						{
+							"requestCounts": {
+								"status": 3,
+								"outputAccess": 0,
+								"inputAccess": 1,
+								"outputImage": 1
+							},
+							"privateWrites": 1,
+							"moderationSubmissions": 1,
+							"moderationQueries": 2
+						}
+					]
+				}
+			],
+			"regressions": []
+		},
+		"slowFirstImage": {
+			"createdAt": "2026-09-29T16:26:31.397Z",
+			"completed": true,
+			"cleanup": {
+				"browserClosed": true,
+				"serverClosed": true,
+				"trackedBrowserProcessesStillAlive": []
+			},
+			"name": "first output download outlives actual two-second polling without being restarted by re-signing",
+			"passed": true,
+			"imageDelayMs": 3300,
+			"outputAttempts": 1,
+			"statusRequests": 2,
+			"failedDownloads": [],
+			"timings": [
+				{
+					"stage": "received",
+					"elapsedMs": 0,
+					"loadMs": null,
+					"visibilityMethod": "load-plus-two-animation-frames"
+				},
+				{
+					"stage": "loaded",
+					"elapsedMs": 3323.2999999970198,
+					"loadMs": 3323.2999999970198,
+					"visibilityMethod": "load-plus-two-animation-frames"
+				},
+				{
+					"stage": "visible",
+					"elapsedMs": 3342.1999999955297,
+					"loadMs": 3323.2999999970198,
+					"visibilityMethod": "load-plus-two-animation-frames"
+				}
+			]
+		}
+	},
+	"outbox": {
+		"before": {
+			"clock": "Vitest virtual time",
+			"sampleCount": 3,
+			"conditions": "Modules imported once, fresh fixture per sample, one source task at a time; maintenance occupied for the first 1000 ms in that scenario only. No runtime cold-start measurement.",
+			"fixedDelays": {
+				"executorCheckMs": 40,
+				"outboxScanMs": 80,
+				"maintenanceHoldMs": 1000,
+				"pendingWaitMs": 5000
+			},
+			"source": {
+				"path": "orchestrator-before.ts",
+				"sha256": "b2150a23ccb1ccbe4afbfd548d32f0bce7514b62531f9a57f05577c9d6266991"
+			},
+			"scope": "Actual archived/current runTask and runPolling; executor and maintenance are simulated. First task due time is fixed at fixture start. Global delivery requested-to-start is a separate synthetic wake-up metric, not business Outbox event latency. Completion tails are not first-image latency.",
+			"unmeasured": [
+				"Production and browser first-image latency",
+				"Database connection wait and SQL server execution time",
+				"Missed-wakeup recovery timing and accepted-response-loss recovery timing",
+				"Waffo, SeeAPI and Kie logical submissions (no providers in this harness)"
+			],
+			"results": [
+				{
+					"scenario": "duplicate-verification",
+					"summary": {
+						"virtualDurationMs": {
+							"median": 120,
+							"minimum": 120,
+							"maximum": 120
+						},
+						"eventDueToFirstTaskStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalDeliveryRequestedToStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalOutboxScans": {
+							"median": 1,
+							"minimum": 1,
+							"maximum": 1
+						},
+						"ineffectiveGlobalOutboxScans": {
+							"median": 1,
+							"minimum": 1,
+							"maximum": 1
+						},
+						"maintenanceBusyResponses": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						}
+					},
+					"uniqueSamples": [
+						{
+							"virtualDurationMs": 120,
+							"eventDueToFirstTaskStartMs": 0,
+							"firstGlobalDeliveryRequestedAtOffsetMs": 40,
+							"firstGlobalDeliveryStartedAtOffsetMs": 40,
+							"globalDeliveryRequestedToStartMs": 0,
+							"executorChecks": 1,
+							"globalDeliveryInvocations": 1,
+							"globalOutboxScans": 1,
+							"ineffectiveGlobalOutboxScans": 1,
+							"maintenanceBusyResponses": 0,
+							"durableSleeps": []
+						}
+					]
+				},
+				{
+					"scenario": "duplicate-poll",
+					"summary": {
+						"virtualDurationMs": {
+							"median": 120,
+							"minimum": 120,
+							"maximum": 120
+						},
+						"eventDueToFirstTaskStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalDeliveryRequestedToStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalOutboxScans": {
+							"median": 1,
+							"minimum": 1,
+							"maximum": 1
+						},
+						"ineffectiveGlobalOutboxScans": {
+							"median": 1,
+							"minimum": 1,
+							"maximum": 1
+						},
+						"maintenanceBusyResponses": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						}
+					},
+					"uniqueSamples": [
+						{
+							"virtualDurationMs": 120,
+							"eventDueToFirstTaskStartMs": 0,
+							"firstGlobalDeliveryRequestedAtOffsetMs": 40,
+							"firstGlobalDeliveryStartedAtOffsetMs": 40,
+							"globalDeliveryRequestedToStartMs": 0,
+							"executorChecks": 1,
+							"globalDeliveryInvocations": 1,
+							"globalOutboxScans": 1,
+							"ineffectiveGlobalOutboxScans": 1,
+							"maintenanceBusyResponses": 0,
+							"durableSleeps": []
+						}
+					]
+				},
+				{
+					"scenario": "committed-verification",
+					"summary": {
+						"virtualDurationMs": {
+							"median": 120,
+							"minimum": 120,
+							"maximum": 120
+						},
+						"eventDueToFirstTaskStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalDeliveryRequestedToStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalOutboxScans": {
+							"median": 1,
+							"minimum": 1,
+							"maximum": 1
+						},
+						"ineffectiveGlobalOutboxScans": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"maintenanceBusyResponses": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						}
+					},
+					"uniqueSamples": [
+						{
+							"virtualDurationMs": 120,
+							"eventDueToFirstTaskStartMs": 0,
+							"firstGlobalDeliveryRequestedAtOffsetMs": 40,
+							"firstGlobalDeliveryStartedAtOffsetMs": 40,
+							"globalDeliveryRequestedToStartMs": 0,
+							"executorChecks": 1,
+							"globalDeliveryInvocations": 1,
+							"globalOutboxScans": 1,
+							"ineffectiveGlobalOutboxScans": 0,
+							"maintenanceBusyResponses": 0,
+							"durableSleeps": []
+						}
+					]
+				},
+				{
+					"scenario": "pending-then-approved",
+					"summary": {
+						"virtualDurationMs": {
+							"median": 5160,
+							"minimum": 5160,
+							"maximum": 5160
+						},
+						"eventDueToFirstTaskStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalDeliveryRequestedToStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalOutboxScans": {
+							"median": 1,
+							"minimum": 1,
+							"maximum": 1
+						},
+						"ineffectiveGlobalOutboxScans": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"maintenanceBusyResponses": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						}
+					},
+					"uniqueSamples": [
+						{
+							"virtualDurationMs": 5160,
+							"eventDueToFirstTaskStartMs": 0,
+							"firstGlobalDeliveryRequestedAtOffsetMs": 5080,
+							"firstGlobalDeliveryStartedAtOffsetMs": 5080,
+							"globalDeliveryRequestedToStartMs": 0,
+							"executorChecks": 2,
+							"globalDeliveryInvocations": 1,
+							"globalOutboxScans": 1,
+							"ineffectiveGlobalOutboxScans": 0,
+							"maintenanceBusyResponses": 0,
+							"durableSleeps": ["5 seconds"]
+						}
+					]
+				},
+				{
+					"scenario": "duplicate-with-maintenance",
+					"summary": {
+						"virtualDurationMs": {
+							"median": 5120,
+							"minimum": 5120,
+							"maximum": 5120
+						},
+						"eventDueToFirstTaskStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalDeliveryRequestedToStartMs": {
+							"median": 5000,
+							"minimum": 5000,
+							"maximum": 5000
+						},
+						"globalOutboxScans": {
+							"median": 1,
+							"minimum": 1,
+							"maximum": 1
+						},
+						"ineffectiveGlobalOutboxScans": {
+							"median": 1,
+							"minimum": 1,
+							"maximum": 1
+						},
+						"maintenanceBusyResponses": {
+							"median": 1,
+							"minimum": 1,
+							"maximum": 1
+						}
+					},
+					"uniqueSamples": [
+						{
+							"virtualDurationMs": 5120,
+							"eventDueToFirstTaskStartMs": 0,
+							"firstGlobalDeliveryRequestedAtOffsetMs": 40,
+							"firstGlobalDeliveryStartedAtOffsetMs": 5040,
+							"globalDeliveryRequestedToStartMs": 5000,
+							"executorChecks": 1,
+							"globalDeliveryInvocations": 2,
+							"globalOutboxScans": 1,
+							"ineffectiveGlobalOutboxScans": 1,
+							"maintenanceBusyResponses": 1,
+							"durableSleeps": ["5 seconds"]
+						}
+					]
+				},
+				{
+					"scenario": "legacy-finalization",
+					"summary": {
+						"virtualDurationMs": {
+							"median": 120,
+							"minimum": 120,
+							"maximum": 120
+						},
+						"eventDueToFirstTaskStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalDeliveryRequestedToStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalOutboxScans": {
+							"median": 1,
+							"minimum": 1,
+							"maximum": 1
+						},
+						"ineffectiveGlobalOutboxScans": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"maintenanceBusyResponses": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						}
+					},
+					"uniqueSamples": [
+						{
+							"virtualDurationMs": 120,
+							"eventDueToFirstTaskStartMs": 0,
+							"firstGlobalDeliveryRequestedAtOffsetMs": 40,
+							"firstGlobalDeliveryStartedAtOffsetMs": 40,
+							"globalDeliveryRequestedToStartMs": 0,
+							"executorChecks": 1,
+							"globalDeliveryInvocations": 1,
+							"globalOutboxScans": 1,
+							"ineffectiveGlobalOutboxScans": 0,
+							"maintenanceBusyResponses": 0,
+							"durableSleeps": []
+						}
+					]
+				}
+			]
+		},
+		"after": {
+			"clock": "Vitest virtual time",
+			"sampleCount": 3,
+			"conditions": "Modules imported once, fresh fixture per sample, one source task at a time; maintenance occupied for the first 1000 ms in that scenario only. No runtime cold-start measurement.",
+			"fixedDelays": {
+				"executorCheckMs": 40,
+				"outboxScanMs": 80,
+				"maintenanceHoldMs": 1000,
+				"pendingWaitMs": 5000
+			},
+			"source": {
+				"path": "apps/workflows/src/orchestrator.ts",
+				"sha256": "3cd27c23fc01d81ea9e62bf1d81c702bee34ed5ab21d07596942d65c81a27183"
+			},
+			"scope": "Actual archived/current runTask and runPolling; executor and maintenance are simulated. First task due time is fixed at fixture start. Global delivery requested-to-start is a separate synthetic wake-up metric, not business Outbox event latency. Completion tails are not first-image latency.",
+			"unmeasured": [
+				"Production and browser first-image latency",
+				"Database connection wait and SQL server execution time",
+				"Missed-wakeup recovery timing and accepted-response-loss recovery timing",
+				"Waffo, SeeAPI and Kie logical submissions (no providers in this harness)"
+			],
+			"results": [
+				{
+					"scenario": "duplicate-verification",
+					"summary": {
+						"virtualDurationMs": {
+							"median": 40,
+							"minimum": 40,
+							"maximum": 40
+						},
+						"eventDueToFirstTaskStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalDeliveryRequestedToStartMs": null,
+						"globalOutboxScans": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"ineffectiveGlobalOutboxScans": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"maintenanceBusyResponses": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						}
+					},
+					"uniqueSamples": [
+						{
+							"virtualDurationMs": 40,
+							"eventDueToFirstTaskStartMs": 0,
+							"firstGlobalDeliveryRequestedAtOffsetMs": null,
+							"firstGlobalDeliveryStartedAtOffsetMs": null,
+							"globalDeliveryRequestedToStartMs": null,
+							"executorChecks": 1,
+							"globalDeliveryInvocations": 0,
+							"globalOutboxScans": 0,
+							"ineffectiveGlobalOutboxScans": 0,
+							"maintenanceBusyResponses": 0,
+							"durableSleeps": []
+						}
+					]
+				},
+				{
+					"scenario": "duplicate-poll",
+					"summary": {
+						"virtualDurationMs": {
+							"median": 40,
+							"minimum": 40,
+							"maximum": 40
+						},
+						"eventDueToFirstTaskStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalDeliveryRequestedToStartMs": null,
+						"globalOutboxScans": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"ineffectiveGlobalOutboxScans": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"maintenanceBusyResponses": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						}
+					},
+					"uniqueSamples": [
+						{
+							"virtualDurationMs": 40,
+							"eventDueToFirstTaskStartMs": 0,
+							"firstGlobalDeliveryRequestedAtOffsetMs": null,
+							"firstGlobalDeliveryStartedAtOffsetMs": null,
+							"globalDeliveryRequestedToStartMs": null,
+							"executorChecks": 1,
+							"globalDeliveryInvocations": 0,
+							"globalOutboxScans": 0,
+							"ineffectiveGlobalOutboxScans": 0,
+							"maintenanceBusyResponses": 0,
+							"durableSleeps": []
+						}
+					]
+				},
+				{
+					"scenario": "committed-verification",
+					"summary": {
+						"virtualDurationMs": {
+							"median": 120,
+							"minimum": 120,
+							"maximum": 120
+						},
+						"eventDueToFirstTaskStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalDeliveryRequestedToStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalOutboxScans": {
+							"median": 1,
+							"minimum": 1,
+							"maximum": 1
+						},
+						"ineffectiveGlobalOutboxScans": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"maintenanceBusyResponses": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						}
+					},
+					"uniqueSamples": [
+						{
+							"virtualDurationMs": 120,
+							"eventDueToFirstTaskStartMs": 0,
+							"firstGlobalDeliveryRequestedAtOffsetMs": 40,
+							"firstGlobalDeliveryStartedAtOffsetMs": 40,
+							"globalDeliveryRequestedToStartMs": 0,
+							"executorChecks": 1,
+							"globalDeliveryInvocations": 1,
+							"globalOutboxScans": 1,
+							"ineffectiveGlobalOutboxScans": 0,
+							"maintenanceBusyResponses": 0,
+							"durableSleeps": []
+						}
+					]
+				},
+				{
+					"scenario": "pending-then-approved",
+					"summary": {
+						"virtualDurationMs": {
+							"median": 5160,
+							"minimum": 5160,
+							"maximum": 5160
+						},
+						"eventDueToFirstTaskStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalDeliveryRequestedToStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalOutboxScans": {
+							"median": 1,
+							"minimum": 1,
+							"maximum": 1
+						},
+						"ineffectiveGlobalOutboxScans": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"maintenanceBusyResponses": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						}
+					},
+					"uniqueSamples": [
+						{
+							"virtualDurationMs": 5160,
+							"eventDueToFirstTaskStartMs": 0,
+							"firstGlobalDeliveryRequestedAtOffsetMs": 5080,
+							"firstGlobalDeliveryStartedAtOffsetMs": 5080,
+							"globalDeliveryRequestedToStartMs": 0,
+							"executorChecks": 2,
+							"globalDeliveryInvocations": 1,
+							"globalOutboxScans": 1,
+							"ineffectiveGlobalOutboxScans": 0,
+							"maintenanceBusyResponses": 0,
+							"durableSleeps": ["5 seconds"]
+						}
+					]
+				},
+				{
+					"scenario": "duplicate-with-maintenance",
+					"summary": {
+						"virtualDurationMs": {
+							"median": 40,
+							"minimum": 40,
+							"maximum": 40
+						},
+						"eventDueToFirstTaskStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalDeliveryRequestedToStartMs": null,
+						"globalOutboxScans": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"ineffectiveGlobalOutboxScans": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"maintenanceBusyResponses": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						}
+					},
+					"uniqueSamples": [
+						{
+							"virtualDurationMs": 40,
+							"eventDueToFirstTaskStartMs": 0,
+							"firstGlobalDeliveryRequestedAtOffsetMs": null,
+							"firstGlobalDeliveryStartedAtOffsetMs": null,
+							"globalDeliveryRequestedToStartMs": null,
+							"executorChecks": 1,
+							"globalDeliveryInvocations": 0,
+							"globalOutboxScans": 0,
+							"ineffectiveGlobalOutboxScans": 0,
+							"maintenanceBusyResponses": 0,
+							"durableSleeps": []
+						}
+					]
+				},
+				{
+					"scenario": "legacy-finalization",
+					"summary": {
+						"virtualDurationMs": {
+							"median": 120,
+							"minimum": 120,
+							"maximum": 120
+						},
+						"eventDueToFirstTaskStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalDeliveryRequestedToStartMs": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"globalOutboxScans": {
+							"median": 1,
+							"minimum": 1,
+							"maximum": 1
+						},
+						"ineffectiveGlobalOutboxScans": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						},
+						"maintenanceBusyResponses": {
+							"median": 0,
+							"minimum": 0,
+							"maximum": 0
+						}
+					},
+					"uniqueSamples": [
+						{
+							"virtualDurationMs": 120,
+							"eventDueToFirstTaskStartMs": 0,
+							"firstGlobalDeliveryRequestedAtOffsetMs": 40,
+							"firstGlobalDeliveryStartedAtOffsetMs": 40,
+							"globalDeliveryRequestedToStartMs": 0,
+							"executorChecks": 1,
+							"globalDeliveryInvocations": 1,
+							"globalOutboxScans": 1,
+							"ineffectiveGlobalOutboxScans": 0,
+							"maintenanceBusyResponses": 0,
+							"durableSleeps": []
+						}
+					]
+				}
+			]
+		}
+	},
+	"cleanup": {
+		"rootPid": 26288,
+		"trackedPids": [26288, 43364, 10528, 27856, 46852, 35376],
+		"remainingPids": [],
+		"port55432Listening": false,
+		"dataPreserved": true
+	},
+	"sourceArtifacts": [
+		{
+			"path": ".cache/generation-batch1/admission-before-verified.json",
+			"sha256": "6b95aeb3965edefa2069b3a17cda6d89e0a03db0898634f657975a4873672085"
+		},
+		{
+			"path": ".cache/generation-batch1/admission-after-verified.json",
+			"sha256": "c603780a837df063894578e3fefd0fa048ccc01591bc67e3bb627564e8e82695"
+		},
+		{
+			"path": ".cache/generation-batch1/admission-http-before-verified.json",
+			"sha256": "e6a277131cea77e2ede86c59bcc2b8129b6950032557048cf5d2f9ed45bb6826"
+		},
+		{
+			"path": ".cache/generation-batch1/admission-http-after-verified.json",
+			"sha256": "76bae7e98c3f6be16d974caf91ac1a23308d486bb95ba9c1237bf7bd61765b89"
+		},
+		{
+			"path": ".cache/generation-batch1/preview-before-stages.json",
+			"sha256": "8224b158fc9baa0852bed71f36a179ceee9387469e648475371868f5b4938e53"
+		},
+		{
+			"path": ".cache/generation-batch1/preview-after-stages.json",
+			"sha256": "2c8c58f5bf4dee7b60e1703d42051fdfdb740a91e18c1d12696d9448a556b2da"
+		},
+		{
+			"path": ".cache/generation-batch1/status-database-comparison.json",
+			"sha256": "b32f06276b39afb9258cecafe8f57766a32a6c2ab84bdf0b02bfc9b00ab44a85"
+		},
+		{
+			"path": ".cache/generation-batch1/browser/before.json",
+			"sha256": "f33e2350115cc02f668be284f00d34298d80c9fbf71b3941cb1e6635eb7a34e0"
+		},
+		{
+			"path": ".cache/generation-batch1/browser/after.json",
+			"sha256": "3e79fd75cb13ed0bd0296427909976f2d5a90d956ad7e5664756cf9a5dce8443"
+		},
+		{
+			"path": ".cache/generation-batch1/browser/before-downstream.json",
+			"sha256": "4fba7fafcee1d52a9aef9999af1b232a46ff129392a86487e84be5c72b1503fe"
+		},
+		{
+			"path": ".cache/generation-batch1/browser/after-downstream.json",
+			"sha256": "7bbe97f734d31f524f41e16437962a81a6c8cd13f338e072bdcc616d6e6adea5"
+		},
+		{
+			"path": ".cache/generation-batch1/browser/after-slow-first-image.json",
+			"sha256": "1d874d43c5f4365546737724a20caa99264fac0c70c78939be58dfde73ea839d"
+		},
+		{
+			"path": ".cache/generation-batch1/outbox-before-verified.json",
+			"sha256": "bd69f28e1ae324f8be72e873a008ffa9710935ed087959ca692de292301662c6"
+		},
+		{
+			"path": ".cache/generation-batch1/outbox-after-verified.json",
+			"sha256": "d3949f265d8bb98a711eb59893c1a6cd8c220f5fb0e76d9d34937577de70ddf4"
+		},
+		{
+			"path": ".cache/generation-batch1/postgres-cleanup.json",
+			"sha256": "73fcad966526ff4116f016da3c6af2e990caca6d8e4b00ce1984383dad34672a"
+		}
+	]
+}

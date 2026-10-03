@@ -209,7 +209,10 @@ describe("temporary reference generation boundary", () => {
 		});
 		const safety = new TestMediaSafetyAdapter("ALLOW");
 		const moderate = vi.spyOn(safety, "moderateImage");
-		await verification(safety).verify(f.assetId);
+		// The claim exits without calling the detector, but its transaction commits
+		// settlement work. It must not be classified as an unchanged duplicate.
+		expect(await verification(safety).verify(f.assetId)).toEqual({ outboxCommitted: true });
+		expect(await verification(safety).verify(f.assetId)).toEqual({ outboxCommitted: false });
 		expect(moderate).not.toHaveBeenCalled();
 		expect(await client.generationAttempt.count({ where: { jobId: job.id } })).toBe(0);
 		const current = await client.generationJob.findUniqueOrThrow({ where: { id: job.id } });

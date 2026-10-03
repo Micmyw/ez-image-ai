@@ -207,4 +207,18 @@ describe("authenticated EzImageAI growth funnel", () => {
 			{ dedupeKey: "guest-result-grant-completed:private-guest-job-id" },
 		]);
 	});
+
+	it("passes the accepted job identity only through the internal confirmation options", async () => {
+		const track = vi.fn<Track>().mockResolvedValue("sent");
+		const funnel = utils.createSaasGrowthFunnel(track);
+		await funnel.generationConfirmed("private-quote-id", "image-gpt-image-2", "private-job-id");
+		expect(track).toHaveBeenCalledWith(
+			{
+				name: "editor_generation_confirmed",
+				properties: { productKey: "image-gpt-image-2", status: "confirmed" },
+			},
+			{ dedupeKey: "editor-generation-confirmed:private-quote-id", taskKey: "private-job-id" },
+		);
+		expect(JSON.stringify(track.mock.calls[0]?.[0])).not.toMatch(/private-quote-id|private-job-id/);
+	});
 });

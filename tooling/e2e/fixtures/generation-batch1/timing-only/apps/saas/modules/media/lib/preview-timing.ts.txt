@@ -1,0 +1,34 @@
+type PreviewTiming = { jobId: string; assetId: string; requestId?: string; receivedAt: number; loadedAt?: number; visible?: boolean };
+const timings = new Map<string, PreviewTiming>();
+
+export function recordOutputReceived(jobId: string, assetId: string, requestId?: string) {
+	const key = `${jobId}:${assetId}`;
+	if (timings.has(key)) return;
+	if (timings.size >= 32) timings.delete(timings.keys().next().value!);
+	const timing = { jobId, assetId, requestId, receivedAt: performance.now() };
+	timings.set(key, timing);
+	emit(timing, "received");
+}
+
+export function recordOutputLoaded(jobId: string, assetId: string) {
+	const timing = timings.get(`${jobId}:${assetId}`);
+	if (!timing || timing.loadedAt !== undefined) return;
+	timing.loadedAt = performance.now();
+	emit(timing, "loaded");
+	// Two animation frames approximate painted visibility, not compositor timing.
+	if (typeof requestAnimationFrame !== "function") return;
+	requestAnimationFrame(() => requestAnimationFrame(() => {
+		if (document.visibilityState !== "visible" || timing.visible) return;
+		timing.visible = true;
+		emit(timing, "visible");
+	}));
+}
+
+function emit(timing: PreviewTiming, stage: "received" | "loaded" | "visible") {
+	console.info("media.preview.timing", {
+		jobId: timing.jobId, assetId: timing.assetId, requestId: timing.requestId, stage,
+		elapsedMs: performance.now() - timing.receivedAt,
+		loadMs: timing.loadedAt === undefined ? null : timing.loadedAt - timing.receivedAt,
+		visibilityMethod: "load-plus-two-animation-frames",
+	});
+}

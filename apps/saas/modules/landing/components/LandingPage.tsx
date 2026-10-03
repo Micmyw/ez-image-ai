@@ -7,6 +7,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { EffectRecommendations } from "../../effects/components/EffectRecommendations";
 import { ExploreModels } from "../../models/components/ExploreModels";
 import { PublicFooterLinks } from "../../public-content/components/PublicFooterLinks";
 import { HOME_FAQ_KEYS } from "../lib/faq";
@@ -48,6 +49,7 @@ export async function LandingPage({
 				<ShowcaseSection />
 				<BeforeAfterDemo />
 				<CreatorWorkflowsSection />
+				{!workspace && <EffectRecommendations featured />}
 
 				<section id="how-it-works" className="scroll-mt-20 py-20 text-white sm:py-28">
 					<div className="container">

@@ -133,14 +133,23 @@ try {
 				"jobs-control",
 				"jobs-control",
 				"jobs-maintenance",
-			].map(async (name) => {
+			].map(async (name, index) => {
 				const maintenance = name === "jobs-maintenance";
 				const response = await request(
 					"/internal/execute",
 					JSON.stringify({
-						request: maintenance
-							? { taskId: "media-cancel-generation", payload: { jobId: randomUUID(), version: 0 } }
-							: { taskId: "media-poll-generation", payload: { attemptId: randomUUID() } },
+						request: {
+							...(maintenance
+								? {
+										taskId: "media-cancel-generation",
+										payload: { jobId: randomUUID(), version: 0 },
+									}
+								: { taskId: "media-poll-generation", payload: { attemptId: randomUUID() } }),
+							// Both legacy envelopes and traced envelopes must pass final-artifact admission.
+							...(index % 2 === 0
+								? { trace: { outboxEventId: randomUUID(), dueAt: Date.now(), pollTick: 0 } }
+								: {}),
+						},
 						context: { attempt: 1, maxAttempts: maintenance ? 5 : 3, runId: "artifact-smoke" },
 					}),
 					true,
@@ -150,9 +159,48 @@ try {
 				assert.equal(response.status, 200, `${name}: ${JSON.stringify(result)}`);
 				assert.deepEqual(
 					result,
-					maintenance ? { status: "ok" } : { status: "ok", poll: { done: true, waitSeconds: 0 } },
+					maintenance
+						? { status: "ok" }
+						: {
+								status: "ok",
+								poll: {
+									done: true,
+									waitSeconds: 0,
+									outboxCommitted: false,
+									continuation: { eventIds: [] },
+								},
+							},
 				);
 			}),
+		);
+	}
+	if (checkDatabase) {
+		// A missing targeted event must return without claiming any other live row.
+		const body = JSON.stringify({
+			request: {
+				taskId: "media-deliver-output-review",
+				payload: { eventId: `artifact-missing-${randomUUID()}` },
+			},
+			context: { attempt: 1, maxAttempts: 3, runId: "artifact-output-review" },
+		});
+		assert.equal((await request("/internal/execute", body, true, "jobs-maintenance")).status, 400);
+		const response = await request("/internal/execute", body, true, "jobs-control");
+		assert.equal(response.status, 200);
+		assert.deepEqual(await response.json(), { status: "ok" });
+		const generic = JSON.stringify({
+			request: {
+				taskId: "media-deliver-events",
+				payload: { eventIds: [`artifact-missing-${randomUUID()}`] },
+			},
+			context: { attempt: 1, maxAttempts: 3, runId: "artifact-continuation" },
+		});
+		assert.equal(
+			(await request("/internal/execute", generic, true, "jobs-maintenance")).status,
+			400,
+		);
+		assert.deepEqual(
+			await (await request("/internal/execute", generic, true, "jobs-control")).json(),
+			{ status: "ok" },
 		);
 	}
 	process.stdout.write(
@@ -163,6 +211,7 @@ try {
 			invalidSignedTaskRejected: true,
 			executorRoutingVerified: true,
 			localPostgresQuery: checkDatabase,
+			targetedOutputReviewClaim: checkDatabase,
 			liveCloudflareVerified: false,
 		}) + "\n",
 	);

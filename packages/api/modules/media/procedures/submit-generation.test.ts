@@ -59,6 +59,7 @@ describe("combined generation admission", () => {
 			input,
 			undefined,
 			expect.objectContaining({ expectedCredits: "5", quoteId: expect.stringMatching(/^submit_/) }),
+			expect.objectContaining({ measure: expect.any(Function) }),
 		);
 		expect(f.dependencies.createJob).toHaveBeenCalledTimes(1);
 	});

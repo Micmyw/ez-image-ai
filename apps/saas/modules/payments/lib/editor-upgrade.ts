@@ -9,6 +9,7 @@ import {
 } from "@repo/config/client";
 import { z } from "zod";
 
+import { sanitizeEffectEditorReturnPath } from "../../effects/lib/editor-selection";
 import { isEditorProductKey, type EditorDraftInput } from "../../media/lib/editor-recovery";
 import {
 	temporaryReferenceReceiptSchema,
@@ -69,6 +70,8 @@ interface BrowserStorage {
 }
 
 export function sanitizeEditorReturnPath(value: string | null | undefined): string {
+	const effectPath = sanitizeEffectEditorReturnPath(value);
+	if (effectPath) return effectPath;
 	if (!value?.startsWith("/") || value.startsWith("//") || value.includes("\\")) return "/create";
 	let url: URL;
 	try {

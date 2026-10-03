@@ -1,4 +1,9 @@
-import type { TaskRequest } from "@repo/jobs/orchestration/contracts";
+import type {
+	TaskRequest,
+	PollingTickResult,
+	OutputReviewContinuation,
+	TaskContinuation,
+} from "@repo/jobs/orchestration/contracts";
 import {
 	dispatchRouteForTask,
 	maintenanceTasksAt,
@@ -14,7 +19,12 @@ export interface DurableSteps {
 	sleep(name: string, duration: string): Promise<void>;
 }
 export type InvocationResult =
-	| { status: "ok"; poll?: { done: boolean; waitSeconds: number } }
+	| {
+			status: "ok";
+			poll?: PollingTickResult;
+			outputReview?: OutputReviewContinuation;
+			continuation?: TaskContinuation;
+	  }
 	| { status: "busy" | "failed" | "expired" };
 export type InvokeTask = (
 	request: TaskRequest,
@@ -51,6 +61,57 @@ export async function runTask(
 				},
 			);
 			if (result.status === "ok") {
+				const continuation = result.continuation ?? result.poll?.continuation;
+				if (continuation) {
+					if (continuation.pollAttemptId) {
+						// Acceptance is already persisted. Stay in this Workflow, releasing
+						// executor and DB scope between ticks; never repeat the submit step.
+						await runPolling(
+							{
+								taskId: "media-poll-generation",
+								payload: { attemptId: continuation.pollAttemptId },
+							},
+							runId,
+							step,
+							invoke,
+							`${prefix}-accepted-poll`,
+						);
+					}
+					if (continuation.eventIds.length) {
+						try {
+							await runTask(
+								{ taskId: "media-deliver-events", payload: { eventIds: continuation.eventIds } },
+								runId,
+								step,
+								invoke,
+								`${prefix}-continue`,
+							);
+						} catch {
+							console.warn("generation_continuation_deferred", {
+								runId,
+								eventIds: continuation.eventIds,
+							});
+						}
+					}
+					return result;
+				}
+				if (request.taskId === "media-finalize-generation" && result.outputReview) {
+					for (const eventId of result.outputReview.eventIds) {
+						try {
+							// The heavy invocation has finished. The control executor claims this
+							// exact committed event using the same lease/receipt path as recovery.
+							await runTask(
+								{ taskId: "media-deliver-output-review", payload: { eventId } },
+								runId,
+								step,
+								invoke,
+								`${prefix}-output-review-${eventId}`,
+							);
+						} catch {
+							console.warn("output_review_delivery_deferred", { runId, outboxEventId: eventId });
+						}
+					}
+				}
 				if (shouldDeliverNextStage(request.taskId, result)) {
 					try {
 						// The previous invocation has released its executor slot and committed
@@ -88,8 +149,9 @@ function shouldDeliverNextStage(
 	taskId: string,
 	result: InvocationResult & { status: "ok" },
 ): boolean {
+	if (taskId === "media-finalize-generation" && result.outputReview?.waiting) return false;
 	if (taskId === "media-poll-generation" || taskId === "media-verify-upload")
-		return result.poll?.done === true;
+		return result.poll?.done === true && result.poll.outboxCommitted !== false;
 	return (
 		Boolean(dispatchRouteForTask(taskId)) ||
 		[
@@ -107,28 +169,38 @@ export async function runPolling(
 	runId: string,
 	step: DurableSteps,
 	invoke: InvokeTask,
+	prefix = "poll",
 ): Promise<void> {
 	// Persist wall-clock decisions; replay must not extend the polling deadline.
 	const deadline = await step.do(
-		"poll-deadline",
+		`${prefix}-deadline`,
 		{ retries: { limit: 0, delay: "1 second" }, timeout: "5 seconds" },
 		async () => Date.now() + 600_000,
 	);
 	for (let index = 0; index < 128; index++) {
 		const expired = await step.do(
-			`poll-budget-${index}`,
+			`${prefix}-budget-${index}`,
 			{ retries: { limit: 0, delay: "1 second" }, timeout: "5 seconds" },
 			async () => Date.now() >= deadline,
 		);
 		if (expired) return;
-		const result = await runTask(request, runId, step, invoke, `poll-${index}`, deadline);
+		const { dueAt, ...correlation } = request.trace ?? {};
+		const tickRequest = {
+			...request,
+			trace: {
+				...correlation,
+				...(index === 0 && dueAt !== undefined ? { dueAt } : {}),
+				pollTick: index,
+			},
+		};
+		const result = await runTask(tickRequest, runId, step, invoke, `${prefix}-${index}`, deadline);
 		if (result.status === "expired") return;
 		if (!result.poll) throw new Error("INVALID_POLL_RESULT");
 		if (result.poll.done) return;
 		const seconds = result.poll.waitSeconds;
 		if (!Number.isFinite(seconds) || seconds < 1 || seconds > 60)
 			throw new Error("INVALID_POLL_WAIT");
-		await step.sleep(`poll-wait-${index}`, `${seconds} seconds`);
+		await step.sleep(`${prefix}-wait-${index}`, `${seconds} seconds`);
 	}
 	// The scheduled reconciliation retains ownership beyond this bounded window.
 }

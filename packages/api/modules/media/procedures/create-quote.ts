@@ -11,6 +11,7 @@ import {
 import { protectedProcedure } from "../../../orpc/procedures";
 import { toMediaOrpcError } from "../lib/errors";
 import { getCurrentExecutableRouteGraphOptions } from "../lib/executable-route-graph";
+import { createFlowTiming, type FlowTiming } from "../lib/flow-timing";
 import { assertGenerationAllowed } from "../lib/generation-authorization";
 import { buildMediaQuote } from "../lib/quote";
 import { verifyTemporaryReference } from "../lib/temporary-reference-token";
@@ -20,6 +21,17 @@ import {
 	type TextModerationEvidence,
 } from "../lib/text-moderation";
 import { createQuoteInputSchema, jsonBigInt } from "../types";
+import type { PreparedGenerationAdmission } from "./create-generation";
+
+interface CreatedGenerationQuote {
+	id: string;
+	productKey: string;
+	catalogVersion: string;
+	pricingVersion: string;
+	credits: bigint;
+	expiresAt: Date;
+	admission?: PreparedGenerationAdmission;
+}
 
 interface CreateQuoteDependencies {
 	now(): Date;
@@ -98,7 +110,8 @@ export async function createQuoteForUser(
 	},
 	dependencies: CreateQuoteDependencies = defaultDependencies,
 	submission?: { quoteId: string; fingerprint: string; expectedCredits: string },
-) {
+	timing: FlowTiming = createFlowTiming(),
+): Promise<CreatedGenerationQuote> {
 	const temporaryReference = input.temporaryReferenceToken
 		? verifyTemporaryReference(
 				input.temporaryReferenceToken,
@@ -108,20 +121,26 @@ export async function createQuoteForUser(
 			)
 		: undefined;
 	if (temporaryReference && input.parentJobId) throw new Error("TEMPORARY_REFERENCE_INVALID");
-	const editContext = await freezeImageEditContext(userId, input, dependencies);
-	const routeGraphOptions = await dependencies.getRouteGraphOptions?.();
+	const editContext = await timing.measure("admission.edit-context", () =>
+		freezeImageEditContext(userId, input, dependencies),
+	);
+	const routeGraphOptions = await timing.measure("admission.config", async () =>
+		dependencies.getRouteGraphOptions?.(),
+	);
 	const quote = buildMediaQuote(input, routeGraphOptions);
 	if (submission && quote.credits.toString() !== submission.expectedCredits)
 		throw new Error("PRICE_CHANGED");
-	await dependencies.assertAllowed({
-		userId,
-		productKey: input.productKey,
-		credits: quote.credits,
-		costMicros: quote.costMicros,
-		input: input.input,
-		temporaryReference,
-		routeGraphOptions,
-	});
+	await timing.measure("admission.eligibility", () =>
+		dependencies.assertAllowed({
+			userId,
+			productKey: input.productKey,
+			credits: quote.credits,
+			costMicros: quote.costMicros,
+			input: input.input,
+			temporaryReference,
+			routeGraphOptions,
+		}),
+	);
 	const quoteInput = {
 		...(submission ? { quoteId: submission.quoteId } : {}),
 		ownerType: "USER" as const,
@@ -142,12 +161,28 @@ export async function createQuoteForUser(
 		expiresAt: new Date(dependencies.now().getTime() + 10 * 60_000),
 	};
 	const selection = dependencies.createAdapter();
-	return moderateQuoteInput(quoteInput, {
+	const created = await moderateQuoteInput(quoteInput, {
 		provider: selection.provider,
-		moderateText: (moderationInput) => selection.adapter.moderateText(moderationInput),
-		persistApproved: (moderation) => dependencies.persistApproved({ ...quoteInput, moderation }),
+		moderateText: (moderationInput) =>
+			timing.measure("admission.waffo", () => selection.adapter.moderateText(moderationInput)),
+		persistApproved: (moderation) =>
+			timing.measure("admission.quote.transaction", () =>
+				dependencies.persistApproved({ ...quoteInput, moderation }),
+			),
 		recordDenied: (evidence) => dependencies.recordDenied(evidence),
 	});
+	return {
+		...created,
+		...(submission && routeGraphOptions
+			? {
+					admission: {
+						ownerId: userId,
+						quote: { ...quoteInput, id: created.id },
+						routeGraphOptions,
+					},
+				}
+			: {}),
+	};
 }
 
 async function freezeImageEditContext(
@@ -188,9 +223,15 @@ function isImageEditProduct(productKey: CurrentEzPicProductKey): boolean {
 export const createQuote = protectedProcedure
 	.route({ method: "POST", path: "/media/quotes", tags: ["Media"] })
 	.input(createQuoteInputSchema)
-	.handler(async ({ context: { user }, input }) => {
+	.handler(async ({ context: { user, requestId }, input }) => {
 		try {
-			const created = await createQuoteForUser(user.id, input);
+			const created = await createQuoteForUser(
+				user.id,
+				input,
+				undefined,
+				undefined,
+				createFlowTiming({ requestId }),
+			);
 			return {
 				id: created.id,
 				productKey: created.productKey,

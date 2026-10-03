@@ -159,6 +159,9 @@ export interface FinalizationClaim {
 export interface PersistedCandidate {
 	assetId: string;
 	approved: boolean;
+	/** Normal provider processing, with the same persisted verification identity. */
+	moderationPending?: boolean;
+	outputReviewEventId?: string;
 }
 
 export interface FinalizationFailure {
@@ -183,6 +186,11 @@ export interface FinalizationStore {
 		claim: FinalizationClaim,
 		results: Array<PersistedCandidate & { candidateKey: string }>,
 		failure?: FinalizationFailure,
+	): Promise<void>;
+	/** Preserve partial output ordering without retry bookkeeping or settlement. */
+	recordFinalizationWait?(
+		claim: FinalizationClaim,
+		results: Array<PersistedCandidate & { candidateKey: string }>,
 	): Promise<void>;
 	/**
 	 * A terminal resolution has already bound any usable results, persisted the
@@ -288,13 +296,20 @@ export interface ReconciliationStore {
 		lease: ReconciliationLease,
 		snapshot: ProviderTaskSnapshot,
 		result: NormalizedResult,
-	): Promise<void>;
+	): Promise<OutboxCommitResult | void>;
 	releaseReconciliationLease(
 		lease: ReconciliationLease,
 		code: string,
 		retryAt: Date,
 	): Promise<void>;
 	markUncertainForManualReconciliation(lease: ReconciliationLease, code?: string): Promise<void>;
+}
+
+export interface OutboxCommitResult {
+	/** True only after a transaction commits a new next-stage Outbox event. */
+	outboxCommitted: boolean;
+	/** Actual committed output polling event; never derived from a diagnostic trace. */
+	outputReviewEventId?: string;
 }
 
 export interface ReconciliationDependencies {
@@ -315,6 +330,7 @@ export interface OutboxLease {
 	payload: unknown;
 	leaseToken: string;
 	attempts: number;
+	availableAt?: Date;
 }
 
 /** The durable executor has accepted work but has not yet confirmed completion. */
@@ -332,6 +348,8 @@ export interface OutboxStore {
 		workerId: string;
 		limit: number;
 		leaseSeconds: number;
+		outputReviewEventId?: string;
+		eventIds?: string[];
 	}): Promise<OutboxLease[]>;
 	complete(id: string, workerId: string, leaseToken: string): Promise<void>;
 	defer?(input: { id: string; workerId: string; leaseToken: string; retryAt: Date }): Promise<void>;

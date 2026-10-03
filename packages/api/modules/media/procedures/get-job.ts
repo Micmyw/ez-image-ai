@@ -1,8 +1,15 @@
+import { createHash } from "node:crypto";
+
 import { ORPCError } from "@orpc/server";
-import { isPermittedModerationEvidence, isTechnicalGenerationFailureCode } from "@repo/config";
+import { isTechnicalGenerationFailureCode } from "@repo/config";
 import { db } from "@repo/database/client";
+import { hasCurrentApprovedMediaAssetEvidence } from "@repo/database/media-assets";
+import { getOwnedGenerationJobStatus } from "@repo/database/media-job-status";
 
 import { protectedProcedure } from "../../../orpc/procedures";
+import { currentMediaAssetVerificationBoundary } from "../lib/asset-authorization";
+import { signAuthorizedAssetReadUrl } from "../lib/asset-read-url";
+import { createFlowTiming } from "../lib/flow-timing";
 import { publicImageGenerationInput } from "../lib/public-generation-input";
 import { publicImageModerationReason } from "../lib/public-moderation-reason";
 import { jobIdInputSchema, jsonBigInt } from "../types";
@@ -10,56 +17,17 @@ import { jobIdInputSchema, jsonBigInt } from "../types";
 export const getJob = protectedProcedure
 	.route({ method: "GET", path: "/media/jobs/{jobId}", tags: ["Media"] })
 	.input(jobIdInputSchema)
-	.handler(async ({ context: { user }, input }) => {
-		const job = await db.generationJob.findFirst({
-			where: { id: input.jobId, ownerType: "USER", ownerId: user.id },
-			include: {
-				reservation: true,
-				_count: {
-					select: {
-						attempts: {
-							where: {
-								OR: [
-									{ uncertainSubmission: true },
-									{
-										status: {
-											in: ["SUBMISSION_UNCERTAIN", "NEEDS_RECONCILIATION"],
-										},
-									},
-								],
-							},
-						},
-					},
-				},
-				attempts: {
-					orderBy: { attemptNumber: "desc" },
-					take: 1,
-					select: { progress: true, status: true, uncertainSubmission: true },
-				},
-				assets: {
-					orderBy: [{ role: "asc" }, { position: "asc" }, { id: "asc" }],
-					select: {
-						role: true,
-						position: true,
-						asset: {
-							include: {
-								moderationResults: {
-									orderBy: [
-										{ verificationGeneration: "desc" },
-										{ attemptNumber: "desc" },
-										{ createdAt: "desc" },
-										{ id: "desc" },
-									],
-									take: 1,
-									select: { status: true, reasonCode: true },
-								},
-							},
-						},
-					},
-				},
-			},
-		});
+	.handler(async ({ context: { user, requestId, responseHeaders }, input }) => {
+		const timing = createFlowTiming({ requestId, jobId: input.jobId });
+		responseHeaders?.set("Cache-Control", "private, no-store");
+		const observedAt = Date.now();
+		const job = await timing.measure("status.query", () =>
+			getOwnedGenerationJobStatus(input.jobId, user.id, db),
+		);
 		if (!job) throw new ORPCError("NOT_FOUND");
+		timing.bind({ attemptId: job.attempts[0]?.id });
+		const authorizationStarted = performance.now();
+		const boundary = currentMediaAssetVerificationBoundary();
 		const reference = job.assets.find(
 			(binding) =>
 				binding.role === "INPUT" &&
@@ -95,9 +63,10 @@ export const getJob = protectedProcedure
 					binding.asset.ownerId === user.id &&
 					binding.asset.status === "READY" &&
 					binding.asset.deletedAt === null &&
-					isPermittedModerationEvidence(binding.asset.moderationResults[0]),
+					(!binding.asset.deleteAfter || binding.asset.deleteAfter > boundary.now) &&
+					hasCurrentApprovedMediaAssetEvidence(binding.asset, boundary),
 			)
-			.map(({ asset }) => assetDto(asset));
+			.map(({ asset }) => asset);
 		const moderationBilling =
 			job.failureCode === "OUTPUT_CONTENT_BLOCKED_WAIVED"
 				? ("WAIVED" as const)
@@ -144,7 +113,59 @@ export const getJob = protectedProcedure
 			Boolean(
 				publicInput && (publicInput.kind === "text-to-image" || inputReferenceState === "READY"),
 			);
+		timing.mark("status.authorization", performance.now() - authorizationStarted);
+		const outputs = await timing.measure("status.sign", () =>
+			Promise.all(
+				outputAssets.map(async (asset) => {
+					const contentVersion = createHash("sha256")
+						.update(
+							JSON.stringify([
+								asset.id,
+								asset.objectKey,
+								asset.checksum,
+								asset.verificationGeneration,
+							]),
+						)
+						.digest("hex");
+					const visibleUntil = new Date(
+						Math.min(
+							asset.verificationValidUntil!.getTime(),
+							asset.deleteAfter?.getTime() ?? Infinity,
+						),
+					).toISOString();
+					const preview = await signAuthorizedAssetReadUrl(asset);
+					timing.mark("status.preview", 0, { assetId: asset.id });
+					return { ...assetDto(asset), contentVersion, visibleUntil, preview };
+				}),
+			),
+		);
+		const displayVersion = createHash("sha256")
+			.update(
+				JSON.stringify([
+					job.version,
+					job.status,
+					inputReferenceState,
+					creditsCharged.toString(),
+					creditsReleased.toString(),
+					job.assets.map(({ asset, role }) => [
+						role,
+						asset.id,
+						asset.status,
+						asset.updatedAt,
+						asset.deletedAt,
+						asset.deleteAfter,
+						asset.verificationGeneration,
+						asset.verificationValidUntil,
+						asset.moderationResults[0]?.id,
+					]),
+					outputs.map((asset) => [asset.id, asset.contentVersion, asset.visibleUntil]),
+				]),
+			)
+			.digest("hex");
 		return {
+			requestId,
+			observedAt,
+			displayVersion,
 			id: job.id,
 			status: job.status,
 			version: job.version,
@@ -183,7 +204,7 @@ export const getJob = protectedProcedure
 			createdAt: job.createdAt.toISOString(),
 			updatedAt: job.updatedAt.toISOString(),
 			inputAssets,
-			assets: outputAssets,
+			assets: outputs,
 		};
 	});
 

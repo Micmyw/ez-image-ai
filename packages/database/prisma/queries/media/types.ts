@@ -54,6 +54,8 @@ export interface CreateGenerationJobInput {
 	maximumGlobalDailyCostMicros?: bigint;
 	maximumStorageBytes?: bigint;
 	maximumConcurrentJobs?: number;
+	/** Combined admission repeats mutable eligibility in this transaction, not a second preflight. */
+	validateCurrentEligibility?: boolean;
 	edit?:
 		| {
 				kind: "ROOT";
@@ -73,6 +75,7 @@ export interface CreateGenerationJobInput {
 }
 
 export interface CreateGenerationJobResult {
+	continuationEventIds?: string[];
 	verificationAssetId?: string;
 	job: {
 		id: string;
@@ -118,10 +121,14 @@ export interface CreditRefundInput {
 }
 
 export interface OutboxClaimInput {
+	/** Bounded committed events for the normal generation chain. */
+	eventIds?: string[];
 	workerId: string;
 	limit: number;
 	leaseSeconds: number;
 	now?: Date;
+	/** Restrict a continuation claim to one output verification event. */
+	outputReviewEventId?: string;
 }
 
 export interface CursorPageInput {

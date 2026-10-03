@@ -47,7 +47,7 @@ export function LLMCopyButton({ markdownUrl }: { markdownUrl: string }) {
 			onClick={onClick}
 		>
 			{checked ? <Check /> : <Copy />}
-			{isLoading ? "Loading Markdown" : "Copy Markdown"}
+			{checked ? "Page copied" : isLoading ? "Copying page…" : "Copy page"}
 		</button>
 	);
 }

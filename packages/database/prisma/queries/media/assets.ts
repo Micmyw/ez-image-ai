@@ -59,8 +59,24 @@ export function hasCurrentApprovedMediaAssetEvidence(
 		| "verificationRuleVersion"
 		| "verificationPolicyVersion"
 		| "verificationValidUntil"
-		| "moderationResults"
-	>,
+	> & {
+		moderationResults: Array<
+			Pick<
+				MediaAssetReadRecord["moderationResults"][number],
+				| "status"
+				| "reasonCode"
+				| "assetChecksum"
+				| "verificationGeneration"
+				| "attemptNumber"
+				| "evidenceKind"
+				| "provider"
+				| "providerTaskId"
+				| "ruleVersion"
+				| "policyVersion"
+				| "validUntil"
+			>
+		>;
+	},
 	verification: MediaAssetVerificationBoundary,
 ): boolean {
 	if (

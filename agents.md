@@ -50,6 +50,10 @@ Default `workers` uses OpenNext for the site and Workflows/WorkerJobs for jobs; 
 
 Workers route heavy transfers and synchronous image responses to `jobs-primary` (1), lightweight control work to `jobs-control` (4), and maintenance to `jobs-maintenance` (1). Keep classification in `packages/jobs/src/orchestration/worker-executors.ts`; inline Outbox children must stay within the parent's maintenance slot. Separate Durable Objects do not guarantee separate memory isolates.
 
+Normal first-image continuation uses committed event IDs through `media-deliver-events`, with accepted attempts polling in their existing Workflow. Explicit empty continuation suppresses global scanning; legacy responses and scheduled recovery retain it. Targeted and scanned delivery share leases, due times and completion receipts. Ordinary untransformed images up to 10 MiB use one conditional private write; guest transformations, unknown/large transfers and persisted multipart recovery retain staging. See `docs/operations/first-image-scanless-batch-2026-09-30.md` for local test boundaries and receiver-first rollout/drain order.
+
+The legacy `media-deliver-output-review` entry remains accepted on control for existing 2A-1 Workflows. New output PENDING results use the generic continuation after heavy execution releases its slot. Acceptance alone never ACKs the event; keep the stored next-query time and provider task identity.
+
 For jobs, database runtime imports, packaging, or deployment, use [Cloudflare runtime constraints](docs/agent-reference/cloudflare-runtime.md) and [profile cutover/drain/rollback operations](docs/operations/cloudflare-workers-profiles.md). Builds/preparation do not deploy or certify live cron, recovery, shutdown, or external integrations.
 
 Consumer-facing changes update `CHANGELOG.md`, relevant `apps/saas/modules/landing`, `apps/saas/content`, product docs, and translations. Use conventional commits and update this entry when app/runtime boundaries change.

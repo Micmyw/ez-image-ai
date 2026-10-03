@@ -1,6 +1,29 @@
 import { describe, expect, it } from "vitest";
 
 import { getJobPresentation, getJobPollingInterval } from "./job-status";
+import { reconcileJobSnapshot } from "./job-status";
+
+describe("status snapshots", () => {
+	it("ignores a late old response but accepts real revocation at the same job version", () => {
+		const current = {
+			id: "j",
+			version: 4,
+			observedAt: 200,
+			displayVersion: "ready",
+			assets: ["a"],
+		};
+		expect(reconcileJobSnapshot(current, { ...current, observedAt: 100, assets: [] })).toBe(
+			current,
+		);
+		const revoked = { ...current, observedAt: 300, displayVersion: "revoked", assets: [] };
+		expect(reconcileJobSnapshot(current, revoked)).toBe(revoked);
+	});
+	it("continues lightweight authorization refresh after settlement", () => {
+		expect(
+			getJobPollingInterval({ status: "SUCCEEDED", isDocumentVisible: true, hasReadyOutput: true }),
+		).toBe(30_000);
+	});
+});
 
 describe("getJobPresentation", () => {
 	it("shows reference checks only before provider submission and preserves terminal results", () => {

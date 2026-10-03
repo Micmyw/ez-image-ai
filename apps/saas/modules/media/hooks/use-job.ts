@@ -8,20 +8,33 @@ import {
 	getJobPollingInterval,
 	getJobPresentation,
 	hasUnsettledJobCredits,
+	reconcileJobSnapshot,
 } from "../lib/job-status";
+import { recordOutputReceived } from "../lib/preview-timing";
 
 export function useJob(jobId: string | null) {
 	const queryClient = useQueryClient();
 	const refreshedSettlement = useRef<string | null>(null);
 	const query = useQuery({
 		queryKey: ["media-job", jobId],
-		queryFn: () => orpcClient.media.getJob({ jobId: jobId! }),
+		queryFn: async ({ signal }) => {
+			const result = await orpcClient.media.getJob({ jobId: jobId! }, { signal });
+			signal.throwIfAborted();
+			const current = reconcileJobSnapshot(
+				queryClient.getQueryData<typeof result>(["media-job", jobId]),
+				result,
+			);
+			for (const asset of current.assets)
+				recordOutputReceived(current.id, asset.id, current.requestId);
+			return current;
+		},
 		enabled: Boolean(jobId),
 		refetchInterval: (query) => {
 			const status = query.state.data?.status ?? "RESERVED";
 			return getJobPollingInterval({
 				status,
 				credits: query.state.data,
+				hasReadyOutput: Boolean(query.state.data?.assets.length),
 				isDocumentVisible:
 					typeof document === "undefined" || document.visibilityState === "visible",
 			});
@@ -37,5 +50,8 @@ export function useJob(jobId: string | null) {
 		refreshedSettlement.current = settlement;
 		void queryClient.invalidateQueries({ queryKey: ["media-credit-account"] });
 	}, [settlement, queryClient]);
-	return query;
+	const accessDenied = ["UNAUTHORIZED", "FORBIDDEN", "NOT_FOUND"].includes(
+		(query.error as { code?: string } | null)?.code ?? "",
+	);
+	return { ...query, data: accessDenied ? undefined : query.data };
 }

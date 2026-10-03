@@ -6,6 +6,8 @@ import {
 import { EZPIC_ANALYTICS_SESSION_COOKIE } from "@repo/utils";
 import { NextResponse } from "next/server";
 
+import { EFFECT_EDITOR_RETURN_COOKIE } from "../../effects/lib/editor-return";
+
 export const DRAFT_HANDOFF_INTENT = "continue-marketing-draft";
 export const ACCOUNT_DRAFT_HANDOFF_INTENT = "continue-account-draft";
 
@@ -14,6 +16,7 @@ interface DraftHandoffOptions {
 	saasOrigin: string;
 	secure: boolean;
 	isRegistered: boolean;
+	resolveEffectReturnPath?: (value: unknown) => string | null;
 }
 
 export async function createDraftHandoffResponse(
@@ -51,6 +54,14 @@ export async function createDraftHandoffResponse(
 	const response = NextResponse.redirect(new URL(destination, options.saasOrigin), 303);
 	response.headers.set("Cache-Control", "no-store");
 	response.headers.set("Referrer-Policy", "no-referrer");
+	const effectReturn = options.resolveEffectReturnPath?.(form.get("returnTo"));
+	response.cookies.set(EFFECT_EDITOR_RETURN_COOKIE, effectReturn ?? "", {
+		httpOnly: true,
+		sameSite: "lax",
+		secure: options.secure,
+		path: "/",
+		maxAge: effectReturn ? 3_600 : 0,
+	});
 	if (analyticsConsent === "true" && typeof anonymousSessionHash === "string") {
 		const analyticsCookieOptions = {
 			httpOnly: false,

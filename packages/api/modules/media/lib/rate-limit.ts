@@ -1,8 +1,18 @@
 import { createHash } from "node:crypto";
 
 import { db } from "@repo/database/client";
+import { getLogContext } from "@repo/logs";
+
+import { createFlowTiming } from "./flow-timing";
 
 export async function enforceMediaRateLimit(userId: string, action: string): Promise<void> {
+	await createFlowTiming({ requestId: getLogContext().requestId }).measure(
+		"admission.rateLimit",
+		() => consumeMediaRateLimit(userId, action),
+	);
+}
+
+async function consumeMediaRateLimit(userId: string, action: string): Promise<void> {
 	const now = new Date();
 	const windowStart = new Date(Math.floor(now.getTime() / 60_000) * 60_000);
 	const subjectHash = createHash("sha256").update(`${action}:${userId}`).digest("hex");

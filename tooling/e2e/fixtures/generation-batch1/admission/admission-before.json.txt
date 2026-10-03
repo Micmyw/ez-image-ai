@@ -1,0 +1,108 @@
+{
+  "label": "before",
+  "generatedAt": "2026-09-29T15:48:56.761Z",
+  "sourceHashes": {
+    "submit-generation.ts": "b8b52bbb6b832dd3f0bd2740515e0ddf3bdff462579c360c33de65ebd7674888",
+    "create-quote.ts": "042b490b27852dd3eeb5ca02449688746e86813772767109d01cab68e0f8841d",
+    "create-generation.ts": "270a1ccd136ed60a7e3a225c1df1cd615163f3420d8053a891af26985c1a43f1",
+    "admission-simulation.test.ts": "2e1552e5ee6694b27c7e98c7046eafdcced1fff81a4e6486a4ebf272eef9957c"
+  },
+  "delaysMs": {
+    "serialDatabaseBoundary": 8,
+    "quoteTransactionBoundary": 16,
+    "jobTransactionBoundary": 24,
+    "waffo": 30,
+    "kieSubmit": 25
+  },
+  "kind": "isolated real domain functions and dispatchGeneration with delayed in-memory DB/provider boundaries",
+  "unmeasured": [
+    "database SQL execution",
+    "connection wait",
+    "Cloudflare scheduling",
+    "SeeAPI and browser (separate scenarios)",
+    "production latency"
+  ],
+  "samples": [
+    {
+      "scenario": "normal",
+      "clickToKieAcceptanceMs": 555.9667999999999,
+      "clickToReturnMs": 571.5294999999999,
+      "operationsIncludingReplay": {
+        "submissionLookup": 2,
+        "configRead": 2,
+        "rateLimit": 2,
+        "freeGrant": 2,
+        "runtimeFlagRead": 4,
+        "accountRead": 2,
+        "balanceRead": 2,
+        "budgetRead": 4,
+        "storageRead": 2,
+        "entitlement": 3,
+        "waffo": 1,
+        "quoteTransaction": 1,
+        "quoteRead": 1,
+        "jobTransaction": 1,
+        "reservation": 1,
+        "dispatchClaim": 2,
+        "attempt": 1,
+        "submissionStarted": 1,
+        "kie": 1,
+        "submissionRecorded": 1
+      }
+    },
+    {
+      "scenario": "response-loss",
+      "clickToKieAcceptanceMs": 537.7228,
+      "clickToReturnMs": 553.0816999999997,
+      "operationsIncludingReplay": {
+        "submissionLookup": 2,
+        "configRead": 2,
+        "rateLimit": 2,
+        "freeGrant": 2,
+        "runtimeFlagRead": 4,
+        "accountRead": 2,
+        "balanceRead": 2,
+        "budgetRead": 4,
+        "storageRead": 2,
+        "entitlement": 3,
+        "waffo": 1,
+        "quoteTransaction": 1,
+        "quoteRead": 1,
+        "jobTransaction": 1,
+        "reservation": 1,
+        "dispatchClaim": 2,
+        "attempt": 1,
+        "submissionStarted": 1,
+        "kie": 1,
+        "uncertaintyRecorded": 1
+      }
+    },
+    {
+      "scenario": "concurrent-replay",
+      "clickToKieAcceptanceMs": 925.1423999999997,
+      "clickToReturnMs": 954.3294999999998,
+      "operationsIncludingReplay": {
+        "submissionLookup": 4,
+        "configRead": 4,
+        "rateLimit": 4,
+        "freeGrant": 4,
+        "runtimeFlagRead": 8,
+        "accountRead": 4,
+        "balanceRead": 4,
+        "budgetRead": 8,
+        "storageRead": 4,
+        "entitlement": 6,
+        "waffo": 2,
+        "quoteTransaction": 2,
+        "quoteRead": 2,
+        "jobTransaction": 2,
+        "reservation": 1,
+        "dispatchClaim": 3,
+        "attempt": 1,
+        "submissionStarted": 1,
+        "kie": 1,
+        "submissionRecorded": 1
+      }
+    }
+  ]
+}

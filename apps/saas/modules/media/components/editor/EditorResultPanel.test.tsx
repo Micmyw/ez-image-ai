@@ -59,6 +59,31 @@ vi.mock("../../hooks/use-job", () => ({ useJob: () => mocks.jobQuery }));
 import { EditorResultPanel } from "./EditorResultPanel";
 
 describe("EditorResultPanel", () => {
+	it("renders the authorized inline preview immediately without waiting for an access query", () => {
+		mocks.jobQuery = {
+			data: {
+				...imageJob(),
+				status: "FINALIZING",
+				inputAssets: [],
+				inputReferenceState: "EXPIRED",
+				assets: [
+					{
+						id: "asset-output",
+						mimeType: "image/png",
+						contentVersion: "content-1",
+						visibleUntil: "2099-01-01T00:00:00Z",
+						preview: { url: "https://private.test/inline", expiresAt: "2099-01-01T00:00:00Z" },
+					},
+				],
+			},
+			isError: false,
+		};
+		mocks.useQuery.mockReturnValue({ data: undefined, isError: false });
+		const markup = renderToStaticMarkup(<EditorResultPanel jobId="job-1" onNew={vi.fn()} />);
+		expect(markup).toContain('src="https://private.test/inline"');
+		expect(markup).toContain("stages.ready");
+		expect(mocks.useQuery).not.toHaveBeenCalled();
+	});
 	it("offers retry for a settled technical failure and not an unsettled one", () => {
 		const data = {
 			...imageJob(),

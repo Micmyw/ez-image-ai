@@ -6,6 +6,27 @@ import { maintenanceTasksAt, parseTaskRequest, taskDefinition } from "./registry
 const dispatchTask = "media-dispatch-image-kie-nano-banana-2";
 
 describe("orchestration task admission", () => {
+	it("preserves bounded diagnostic identities without admitting arbitrary trace data", () => {
+		const request = {
+			taskId: "media-verify-upload",
+			payload: { assetId: "asset-1" },
+			trace: {
+				outboxEventId: "event-1",
+				dueAt: 1_800_000_000_000,
+				requestId: "request-1",
+				pollTick: 0,
+			},
+		};
+		expect(parseTaskRequest(request)).toEqual(request);
+		for (const trace of [
+			{ ...request.trace, prompt: "private prompt" },
+			{ ...request.trace, dueAt: Number.NaN },
+			{ ...request.trace, pollTick: -1 },
+			{ ...request.trace, pollTick: 0.5 },
+			{ ...request.trace, requestId: "https://private/?token=secret" },
+		])
+			expect(() => parseTaskRequest({ ...request, trace })).toThrow();
+	});
 	it("rejects unregistered task IDs, unknown properties, and invalid scalar values", () => {
 		for (const value of [
 			{ taskId: "arbitrary-code", payload: {} },

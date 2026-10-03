@@ -2,16 +2,69 @@
 updatedAt: 2026-10-03
 indexable: true
 title: Image generation and editing
-description: Compare EzImageAI text-to-image and reference-editing output options, credits, and private result controls.
+description: Work with source photos, choose model settings, and continue or recover an edit without losing track of your result.
 ---
 
-EzImageAI creates an image from a written prompt or edits an existing reference. Leave the reference
-empty for text to image, or add an image for image to image. Text generation requires sign-in.
-The [image-to-image tool](/image-to-image) also accepts a prompt without an uploaded reference.
-Leave the image empty to generate from text, or add a reference to edit it. Visitors without an
-account are asked to sign in before generating from text.
-Start with the [quick start](/docs/quick-start) for your first image. The settings below help you choose an
-output before confirming its credit cost; they do not guarantee that every requested change will be exact.
+Use the [image editor](/create) for either a new image or a change to an existing photo.
+Leave the reference empty for text generation; add a reference for image editing.
+For a first walkthrough, follow [Create your first AI image](/docs/quick-start).
+
+## Add or replace a reference
+
+Use a source where the important subject and details are clear. JPEG, PNG, and WebP are supported;
+the editor shows the size limit for your account and model. Upload only images you are allowed to use.
+
+In the signed-in editor, selecting a photo shows its preview and starts the upload. You can keep
+writing while it uploads. Generation becomes available when the reference is ready and the other
+requirements are met.
+
+If the upload fails, retry it. To continue without a photo, remove it explicitly. An unfinished
+or failed reference is not silently ignored and turned into a text-only generation.
+
+New references uploaded in the account editor are temporary and expire after 24 hours. Select the
+file again if it expires. A saved generated result has its own retention period and can remain
+available after its original reference expires.
+
+## Write the change and the details to keep
+
+Keep the instruction specific. Name the area you want to change, then describe what should remain.
+
+<div className="not-prose docs-prompt-example">
+
+**Change** Turn the background into a quiet street at dusk, with warm light from the shop windows.
+
+**Keep** Keep the person's face, expression, clothing, pose, and framing as close to the original as possible.
+
+</div>
+
+This is a starting prompt, not a demonstrated output. Generative edits can still alter details you
+asked to preserve. Compare the result with your source before using it.
+Read [How to write AI image editing prompts](/blog/ai-image-editing-prompts) for more guidance.
+
+## Choose a model and output settings
+
+The [model collection](/models) explains the available creative directions. Opening a model page
+starts a workspace for that model. Changing the model inside the editor keeps your prompt and
+source; review the output settings again because supported options can change.
+
+Use aspect ratio for the shape of the image. Use resolution or quality for the available output
+tier. Format and background controls appear only where the selected model supports them.
+Some quality and resolution choices are linked and update together.
+
+Check the credit amount on the generation button after changing settings. A larger image does
+not guarantee that a model will follow a difficult instruction more closely. Availability and
+account access are shown in the editor; a model's information page is not an availability promise.
+
+## Use an effect preset
+
+[AI Effects](/effects) groups photo recipes by the result you want. On an available recipe, you
+can copy the prompt or choose **Use this preset** to prepare the same editor with its supported
+settings. Selecting a preset does not start a generation or spend credits.
+
+If you have changed the prompt or settings, review the replacement confirmation. Your uploaded
+source stays in the editor. Check the recipe's input requirements, current model availability,
+and credit cost before choosing Generate. Effects use the same account and safety requirements
+as other edits and do not add a separate free allowance.
 
 ## Turn your own photo into a coloring page
 
@@ -26,110 +79,38 @@ page without cropping; it does not add pixels or convert the image to vector out
 AI can change likeness or details, so check the lines before printing. See the tool page for a
 labeled illustration and a printable sample.
 
-## Image products and EzImageAI Credits
+## Follow progress without starting over
 
-The workspace shows only image products and output settings available for the current account. Each
-available combination has an exact EzImageAI Credit charge. The catalog below describes configured options;
-the editor shows which are currently available to you:
+The result panel shows the current stage after you submit. Generation time depends on the model,
+queue, transfers, and required checks; there is no fixed completion time for every edit.
 
-| Image product          | Output setting | EzImageAI Credits |
-| ---------------------- | -------------- | ----------------: |
-| Nano Banana 2 Lite     | 1K             |                 5 |
-| Nano Banana 2          | 1K             |                 9 |
-| Nano Banana 2          | 2K             |                13 |
-| Nano Banana 2          | 4K             |                19 |
-| Nano Banana Pro        | 1K             |                19 |
-| Nano Banana Pro        | 2K             |                22 |
-| Nano Banana Pro        | 4K             |                25 |
-| Nano Banana            | Default        |                 5 |
-| GPT Image 2            | 1K             |                 7 |
-| GPT Image 2            | 2K             |                11 |
-| GPT Image 2            | 4K             |                17 |
-| GPT Image 1.5          | Medium         |                 5 |
-| GPT Image 1.5          | High           |                23 |
-| Seedream 5 Pro         | Basic · 1K     |                 8 |
-| Seedream 5 Pro         | High · 2K      |                15 |
-| Seedream 5 Lite        | Basic · 2K     |                 7 |
-| Seedream 5 Lite        | High · 3K      |                10 |
-| Seedream 5 Lite        | Ultra · 4K     |                14 |
-| Seedream 4.5           | Basic · 2K     |                 8 |
-| Seedream 4.5           | High · 4K      |                12 |
-| GPT Image 2.5 Flare    | 1K             |                 7 |
-| GPT Image 2.5 Flare    | 2K             |                11 |
-| GPT Image 2.5 Flare    | 4K             |                17 |
-| GPT Image 2.5 Sunburst | 1K             |                 7 |
-| GPT Image 2.5 Sunburst | 2K             |                11 |
-| GPT Image 2.5 Sunburst | 4K             |                17 |
-| Seedream 4.0           | 1K             |                 6 |
-| Seedream 4.0           | 2K             |                 8 |
-| Seedream 4.0           | 4K             |                10 |
+| What you see                     | What to do                                                                                               |
+| -------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| A reference is uploading         | Keep writing while it finishes. Retry a failed upload or remove the reference.                           |
+| A prompt or image needs a change | Read the notice, revise the instruction or source, and submit only when ready.                           |
+| Generation is running            | Follow the existing result. Avoid submitting another copy just to check progress.                        |
+| **Preparing your result**        | The image is being prepared for private viewing. The result and credit summary update as work completes. |
+| **Checking result**              | The service is checking the original attempt. A slow response does not confirm failure.                  |
+| An edit has failed               | Read the credit outcome, then use **Try again** when offered. A retry is a new generation.               |
 
-The [model collection](/models) includes twelve image models across Nano Banana, GPT Image, and Seedream.
-Each page has its own creative guidance and preselected workspace. Both input modes use the same
-listed credit amount for the selected output setting, subject to current availability.
-GPT Image 2.5 Flare and Sunburst offer 1K, 2K, and 4K outputs. Their 27:16, 16:27, 9:8, and 8:9
-ratios are available at 1K only. Seedream 4.0 accepts instructions up to 5,000 characters and
-produces one image per confirmed edit. Availability follows the editor's current model list.
+A result may become viewable before its credit summary finishes updating. Wait for the task to
+complete before using **Edit again**. Only use cancellation when the interface offers it.
 
-Each image product offers its own output settings, aspect ratios, and input limits. A setting offered
-for one product may not be available for another. A successful confirmed edit produces one image.
-Output format and background controls, where offered, do not change the displayed credit charge.
+If progress remains unresolved, [contact support](/contact) with the visible status and task
+reference. Do not include a password or private image-access link.
 
-Nano Banana and GPT Image 1.5 accept input images up to 10 MB. Your account's upload allowance
-also applies; choosing a larger plan does not raise a model's own input limit.
+## Review and continue from a result
 
-Prompt limits follow the selected model: Nano Banana and Seedream 4.0 accept up to 5,000
-characters; Seedream 4.5 and Seedream 5 Lite accept up to 3,000; Seedream 5 Pro accepts up to
-5,000. The other models use EzImageAI's 10,000-character limit. Seedream 5 Lite and Pro require at
-least three characters. Changing models updates the editor's character limit.
+A text generation shows a single image. A reference edit can show a before-and-after comparison.
+If the original reference has expired, its result may still be viewable without that comparison.
 
-GPT Image 2 supports automatic aspect ratio and background controls at 1K only. Its 4K output
-does not support a square aspect ratio. For Sunburst 2K or 4K, choosing a transparent background
-also instructs the editor to extract the subject without a backdrop, scenery, or shadow.
+Use **Close preview** to hide the result while keeping your current prompt and source. Eligible
+account results remain accessible from **History**, subject to their retention period.
+Opening a saved result does not run the generation again.
 
-Choose an aspect ratio to suit the destination, such as a square layout or a landscape image. Larger
-output sizes can be useful when more pixels are needed, but do not guarantee better prompt adherence.
-Check the total credit cost after changing settings and before confirming the edit.
+Choose **Edit again** on an eligible saved result to use it as a new source. Review the prompt,
+settings, and new credit cost. Guest previews remain temporary and watermarked and do not offer
+the same saved-history workflow.
 
-## Reference image preparation
-
-In the signed-in editor, choosing a reference immediately displays a local preview while the image
-uploads. You can keep editing the prompt and submit when the upload finishes. Clicking Generate
-starts the safety checks; the image model only receives a temporary reference after approval.
-A local preview alone does not confirm a successful upload. If upload fails, retry it or remove
-the reference. Temporary references expire after 24 hours; select the file again if needed.
-
-## Job status
-
-After submission, the result panel appears directly below the editor and reports the current stage
-and progress. There is no result placeholder before you select or start a job. You can browse examples
-or open account panels while the current job continues to update. A job can finish
-successfully, fail, or be canceled only when the server reports that cancellation is allowed.
-
-## Results
-
-A generated image appears as soon as its safety check is complete, even while the original reference
-is still loading. The before-and-after comparison becomes available when both images are accessible.
-Generation time depends on the selected model and safety checks. Inspect the parts you wanted to keep,
-as well as the area you changed. Downloads use temporary private access links; save a local copy if
-you need it beyond the retention period. Once a temporary reference expires, its generated result
-can still be viewed and downloaded without the original comparison.
-
-A text generation provides a single image preview. Use **Edit again** to turn that output into the
-reference for a new edit, or reuse its prompt from History to create another image without a source.
-Each new generation requires a fresh credit quote.
-
-The **Edit again** action on an eligible saved account result uses that image as the source for a new
-edit. It has a new credit charge. Guest previews stay watermarked and temporary and do not offer this
-saved-history workflow. See [Privacy and private media](/docs/privacy) for access and expiry details.
-
-## Choosing a model and output tier
-
-The homepage model menu groups the available models into Nano Banana, GPT Image, and Seedream.
-Each entry includes an icon, an editing-style description, supported resolution where applicable,
-and its starting Credit amount. The menu only lists models currently available to the service.
-
-The compact output bar opens the aspect ratio, resolution, quality, and supported format options.
-Each quality or resolution choice shows its Credit amount. Paired quality and resolution settings
-change together, and the selected amount appears on the continue button before you proceed.
-The short guidance and privacy notes sit below the homepage editor.
+Download results you want to keep. [Privacy and private media](/docs/privacy) explains retention
+and private links; [Credits](/docs/credits) explains charges and pending reservations.

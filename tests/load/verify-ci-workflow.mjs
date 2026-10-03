@@ -72,13 +72,27 @@ assertStepPrecedes(
 assertStepPrecedes(mockE2e, "run: pnpm --filter @repo/database generate", "run: pnpm e2e:media:ci");
 
 assertIncludes(mockE2e, "name: Start pinned MinIO service");
-assertMatch(mockE2e, /minio\/minio:RELEASE\.[0-9T:-]+Z/);
-assertNotMatch(mockE2e, /minio\/minio:latest/);
-assertIncludes(mockE2e, "--name media-e2e-minio");
-assertIncludes(mockE2e, "--publish 127.0.0.1:9000:9000");
+assertMatch(
+	mockE2e,
+	/https:\/\/github.com\/minio\/minio\/releases\/download\/RELEASE\.[0-9T:-]+Z\/minio\.linux-amd64\.RELEASE\.[0-9T:-]+Z/,
+);
+assertNotMatch(mockE2e, /(?:minio|mc):latest|releases\/latest/);
+assertIncludes(mockE2e, "53e2a2cb16c5366ea6fbbc479c19ddb4c6a0948273e752f740fb1fbf27bb817c  minio");
+assertIncludes(mockE2e, "ac90da87a35641be5a0ac75d49de5161ddb47d629b5ba01261b0ae9e00aea15f  mc");
+assertIncludes(mockE2e, "sha256sum --check --strict");
+assertStepPrecedes(mockE2e, "sha256sum --check --strict", "chmod +x minio mc");
+assertStepPrecedes(
+	mockE2e,
+	"name: Download verified MinIO release binaries",
+	"name: Start pinned MinIO service",
+);
+assertIncludes(mockE2e, "--address 127.0.0.1:9000 --console-address 127.0.0.1:9001");
 assertIncludes(mockE2e, "http://127.0.0.1:9000/minio/health/ready");
-assertMatch(mockE2e, /minio\/mc:RELEASE\.[0-9T:-]+Z/);
-assertNotMatch(mockE2e, /minio\/mc:latest/);
+assertMatch(
+	mockE2e,
+	/https:\/\/github.com\/minio\/mc\/releases\/download\/RELEASE\.[0-9T:-]+Z\/mc\.linux-amd64\.RELEASE\.[0-9T:-]+Z/,
+);
+assertIncludes(mockE2e, "name: Stop task-owned MinIO service");
 assertIncludes(mockE2e, "mc mb --ignore-existing local/media-private");
 assertIncludes(mockE2e, "mc anonymous set none local/media-private");
 assertIncludes(mockE2e, "mc mb --ignore-existing local/avatars");

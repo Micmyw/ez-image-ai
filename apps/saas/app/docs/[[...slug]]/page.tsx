@@ -1,9 +1,9 @@
 import { LLMCopyButton } from "@docs/components/LLMCopyButton";
 import { getPageImage, getPageMarkdownUrl, source } from "@docs/lib/source";
-import { Footer } from "@shared/components/Footer";
 import { DocsBody, DocsDescription, DocsPage, DocsTitle } from "fumadocs-ui/layouts/docs/page";
 import { createRelativeLink } from "fumadocs-ui/mdx";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { getMDXComponents } from "../../../mdx-components";
@@ -19,19 +19,29 @@ export default async function DocumentationPage(props: PageProps<"/docs/[[...slu
 	return (
 		<main className="contents">
 			<DocsPage toc={page.data.toc} full={page.data.full}>
-				<DocsTitle>{page.data.title}</DocsTitle>
-				<DocsDescription className="mb-0">{page.data.description}</DocsDescription>
-				<div className="gap-2 pb-6 flex flex-row items-center border-b">
-					<LLMCopyButton markdownUrl={getPageMarkdownUrl(page)} />
-				</div>
-				<DocsBody>
+				<header className="docs-article-header">
+					<p className="docs-eyebrow">EZIMAGEAI · HELP CENTER</p>
+					<DocsTitle id="docs-content" tabIndex={-1}>
+						{page.data.title}
+					</DocsTitle>
+					<DocsDescription>{page.data.description}</DocsDescription>
+				</header>
+				<DocsBody className="docs-prose">
 					<MDX
 						components={getMDXComponents({
 							a: createRelativeLink(source, page),
 						})}
 					/>
 				</DocsBody>
-				<Footer />
+				<footer className="docs-article-footer">
+					<div>
+						<p>Still need a hand?</p>
+						<Link href="/contact">
+							Contact support <span aria-hidden>↗</span>
+						</Link>
+					</div>
+					<LLMCopyButton markdownUrl={getPageMarkdownUrl(page)} />
+				</footer>
 			</DocsPage>
 		</main>
 	);

@@ -99,6 +99,7 @@ import {
 	readMediaHeader,
 	RemoteMediaPolicyError,
 	streamRemoteObjectToStorage,
+	tryWriteImmutableGenerationImage,
 	GUEST_WATERMARK_VERSION,
 	watermarkStagedGuestImage,
 } from "@repo/storage";
@@ -118,6 +119,7 @@ import {
 	type ProviderCancellationStore,
 	type ProviderEventStore,
 	type SettlementStore,
+	type OutboxCommitResult,
 	type UncertainSubmissionEvidence,
 } from "./contracts";
 import { generationPollingDelaySeconds } from "./generation-polling-policy";
@@ -1161,8 +1163,7 @@ export function createDatabaseDispatchStore(
 export const databaseDispatchStore: DispatchStore = createDatabaseDispatchStore(db);
 
 export const databaseOutboxStore: OutboxStore = {
-	claimBatch: ({ workerId, limit, leaseSeconds }) =>
-		claimOutboxBatch({ workerId, limit, leaseSeconds }, db),
+	claimBatch: (input) => claimOutboxBatch(input, db),
 	async complete(id, workerId, leaseToken) {
 		await completeOutboxEvent(id, workerId, leaseToken, db);
 	},
@@ -1289,6 +1290,7 @@ export const MEDIA_VERIFICATION_RETRY_POLICY = {
 
 interface MediaVerificationClaim {
 	assetId: string;
+	nextAllowedQueryAt: Date | null;
 	objectKey: string;
 	mimeType: string;
 	byteSize: bigint;
@@ -1324,7 +1326,7 @@ export function createDatabaseVerifyUploadDependencies(
 			this: void,
 			assetId: string,
 			verificationOptions = { allowQuarantinedReverification: false },
-		): Promise<void> {
+		): Promise<OutboxCommitResult> {
 			const taskStartedAt = Date.now();
 			let lastStageAt = taskStartedAt;
 			const recordStage = (stage: string, details: Record<string, unknown> = {}) => {
@@ -1338,13 +1340,15 @@ export function createDatabaseVerifyUploadDependencies(
 				});
 				lastStageAt = now;
 			};
-			const claim = await claimMediaVerification(database, {
+			const claimed = await claimMediaVerification(database, {
 				assetId,
 				provider: moderationProvider,
 				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 				policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 				allowQuarantinedReverification: verificationOptions.allowQuarantinedReverification === true,
 			});
+			const { claim } = claimed;
+			let outboxCommitted = claimed.outboxCommitted;
 			recordStage(
 				claim ? "claimed" : "not_claimed",
 				claim
@@ -1355,9 +1359,9 @@ export function createDatabaseVerifyUploadDependencies(
 								? Math.max(0, taskStartedAt - claim.finalizedAt.getTime())
 								: null,
 						}
-					: {},
+					: { outboxCommitted: claimed.outboxCommitted },
 			);
-			if (!claim) return;
+			if (!claim) return { outboxCommitted };
 
 			let checksum = claim.checksum;
 			let storageEtag = claim.storageEtag;
@@ -1380,7 +1384,7 @@ export function createDatabaseVerifyUploadDependencies(
 						contentLength: Number(claim.byteSize),
 					});
 					if (claim.forceObjectInspection && checksum && inspected.sha256 !== checksum) {
-						await completeMediaVerification(database, claim, {
+						outboxCommitted = await completeMediaVerification(database, claim, {
 							decision: "REJECT",
 							reasonCode: "LEGACY_UPLOAD_CHECKSUM_MISMATCH",
 							ruleVersion: claim.ruleVersion,
@@ -1389,7 +1393,7 @@ export function createDatabaseVerifyUploadDependencies(
 							storageVersionId,
 							finalizedAt,
 						});
-						return;
+						return { outboxCommitted };
 					}
 					checksum = inspected.sha256;
 					storageEtag = inspected.etag;
@@ -1415,7 +1419,7 @@ export function createDatabaseVerifyUploadDependencies(
 						metadata.contentType !== claim.mimeType ||
 						detectedType !== claim.mimeType
 					) {
-						await completeMediaVerification(database, claim, {
+						outboxCommitted = await completeMediaVerification(database, claim, {
 							decision: "REJECT",
 							reasonCode: "UPLOAD_METADATA_MISMATCH",
 							ruleVersion: claim.ruleVersion,
@@ -1424,7 +1428,7 @@ export function createDatabaseVerifyUploadDependencies(
 							storageVersionId,
 							finalizedAt,
 						});
-						return;
+						return { outboxCommitted };
 					}
 				}
 
@@ -1443,13 +1447,19 @@ export function createDatabaseVerifyUploadDependencies(
 						},
 						data: { checksum, storageEtag, storageVersionId, finalizedAt },
 					});
-					if (persistedInspection.count !== 1) return;
+					if (persistedInspection.count !== 1) return { outboxCommitted };
 				}
 				recordStage("prepared");
 				moderationStarted = true;
 				if (claim.processingDeadlineExpired) {
-					await failMediaVerification(database, claim, "MODERATION_TIMEOUT", "ERROR", checksum);
-					return;
+					outboxCommitted = await failMediaVerification(
+						database,
+						claim,
+						"MODERATION_TIMEOUT",
+						"ERROR",
+						checksum,
+					);
+					return { outboxCommitted };
 				}
 				// Poll/recover an uncertain detector submission without sending another paid inference.
 				if (
@@ -1457,14 +1467,14 @@ export function createDatabaseVerifyUploadDependencies(
 					claim.submissionUncertain &&
 					!claim.providerTaskId
 				) {
-					await failMediaVerification(
+					outboxCommitted = await failMediaVerification(
 						database,
 						claim,
 						"MODERATION_SUBMISSION_UNCERTAIN",
 						"ERROR",
 						checksum,
 					);
-					return;
+					return { outboxCommitted };
 				}
 				let decision: ModerationDecision;
 				const asyncImage =
@@ -1480,7 +1490,7 @@ export function createDatabaseVerifyUploadDependencies(
 					let providerTaskId = claim.providerTaskId;
 					if (!providerTaskId) {
 						const submissionToken = await beginMediaVerificationSubmission(database, claim);
-						if (!submissionToken) return;
+						if (!submissionToken) return { outboxCommitted };
 						recordStage("submission_recorded");
 						detectorRequestInFlight = true;
 						const submitted = await (
@@ -1494,14 +1504,14 @@ export function createDatabaseVerifyUploadDependencies(
 						recordStage("moderation_submitted");
 						await options.afterVideoSubmission?.(submitted);
 						if (submitted.idempotency.key !== submissionToken) {
-							await failUncertainMediaVerification(
+							outboxCommitted = await failUncertainMediaVerification(
 								database,
 								claim,
 								"VIDEO_SUBMISSION_IDEMPOTENCY_MISMATCH",
 								checksum,
 								submitted.moderationTaskId,
 							);
-							return;
+							return { outboxCommitted };
 						}
 						providerTaskId = submitted.moderationTaskId;
 						const binding = await bindMediaVerificationProviderTask(
@@ -1511,21 +1521,27 @@ export function createDatabaseVerifyUploadDependencies(
 							submissionToken,
 						);
 						if (binding === "LOST") {
-							await failUncertainMediaVerification(
+							outboxCommitted = await failUncertainMediaVerification(
 								database,
 								claim,
 								"VIDEO_SUBMISSION_RESULT_NOT_BOUND",
 								checksum,
 								providerTaskId,
 							);
-							return;
+							return { outboxCommitted };
 						}
 						if (binding === "BOUND_LEASE_EXPIRED") {
-							return;
+							return { outboxCommitted };
 						}
 					}
 					const retrieval = { moderationTaskId: providerTaskId, ruleVersion: claim.ruleVersion };
-					recordStage("retrieval_prepared");
+					recordStage("retrieval_prepared", {
+						nextAllowedQueryAt: claim.nextAllowedQueryAt?.getTime() ?? null,
+						queryStartedAt: Date.now(),
+						allowedQueryToStartMs: claim.nextAllowedQueryAt
+							? Math.max(0, Date.now() - claim.nextAllowedQueryAt.getTime())
+							: null,
+					});
 					detectorRequestInFlight = true;
 					decision = asyncImage
 						? await safety.retrieveImage!({ ...retrieval, assetUrl })
@@ -1536,15 +1552,26 @@ export function createDatabaseVerifyUploadDependencies(
 						decision.decision === "REVIEW" &&
 						["VIDEO_PROCESSING", "IMAGE_PROCESSING"].includes(decision.reasonCode)
 					) {
-						await failMediaVerification(database, claim, decision.reasonCode, "PENDING", checksum);
-						return;
+						return await recordMediaVerificationWaitOrFailure(
+							database,
+							claim,
+							decision.reasonCode,
+							"PENDING",
+							checksum,
+						);
 					}
 				}
 				if (decision.decision === "ERROR") {
-					await failMediaVerification(database, claim, decision.reasonCode, "ERROR", checksum);
-					return;
+					outboxCommitted = await failMediaVerification(
+						database,
+						claim,
+						decision.reasonCode,
+						"ERROR",
+						checksum,
+					);
+					return { outboxCommitted };
 				}
-				await completeMediaVerification(database, claim, {
+				outboxCommitted = await completeMediaVerification(database, claim, {
 					...decision,
 					detectorCompleted: true,
 					checksum,
@@ -1555,7 +1582,7 @@ export function createDatabaseVerifyUploadDependencies(
 			} catch (error) {
 				options.onVerificationError?.(error);
 				if (isDeterministicLegacyInspectionFailure(error)) {
-					await completeMediaVerification(database, claim, {
+					outboxCommitted = await completeMediaVerification(database, claim, {
 						decision: "REJECT",
 						reasonCode: "UPLOAD_INSPECTION_FAILED",
 						ruleVersion: claim.ruleVersion,
@@ -1564,7 +1591,7 @@ export function createDatabaseVerifyUploadDependencies(
 						storageVersionId,
 						finalizedAt,
 					});
-					return;
+					return { outboxCommitted };
 				}
 				if (detectorRequestInFlight && claim.mimeType.startsWith("image/")) {
 					const message = moderationServiceErrorCode(error);
@@ -1572,7 +1599,7 @@ export function createDatabaseVerifyUploadDependencies(
 						where: { id: claim.assetId },
 						select: { verificationSubmissionUncertain: true, verificationProviderTaskId: true },
 					});
-					await failMediaVerification(
+					outboxCommitted = await failMediaVerification(
 						database,
 						claim,
 						["MODERATION_CONFIGURATION_ERROR", "MODERATION_INVALID_INPUT"].includes(message)
@@ -1585,11 +1612,11 @@ export function createDatabaseVerifyUploadDependencies(
 						"ERROR",
 						checksum,
 					);
-					return;
+					return { outboxCommitted };
 				}
 				// Persistence failures are not detector outages and cannot consume the permission budget.
 				if (moderationStarted && claim.mimeType.startsWith("image/")) throw error;
-				await failMediaVerificationFromError(
+				outboxCommitted = await failMediaVerificationFromError(
 					database,
 					claim,
 					verificationErrorCode(error),
@@ -1598,6 +1625,7 @@ export function createDatabaseVerifyUploadDependencies(
 			} finally {
 				recordStage("attempt_finished");
 			}
+			return { outboxCommitted };
 		},
 	};
 }
@@ -1664,7 +1692,8 @@ async function resolveJobsWaitingForMediaVerification(
 		approved: boolean;
 		failureCode?: string;
 	},
-): Promise<void> {
+): Promise<boolean> {
+	let outboxCommitted = false;
 	const bindings = await tx.generationJobAsset.findMany({
 		where: {
 			assetId: input.assetId,
@@ -1689,48 +1718,44 @@ async function resolveJobsWaitingForMediaVerification(
 				// Async moderation can finish before the finalization retry is due.
 				// Wake the complete output scan now; only that scan may queue settlement.
 				const dedupeKey = `generation-finalize-after-output-verification:${binding.jobId}:${input.assetId}:g${input.verificationGeneration}`;
-				await tx.outboxEvent.upsert({
-					where: { dedupeKey },
-					create: {
+				const inserted = await tx.outboxEvent.createMany({
+					skipDuplicates: true,
+					data: {
 						eventType: "GENERATION_FINALIZE_RETRY",
 						aggregateType: "GENERATION_JOB",
 						aggregateId: binding.jobId,
 						dedupeKey,
 						payload: { jobId: binding.jobId, version: binding.job.version },
 					},
-					update: {},
 				});
+				outboxCommitted ||= inserted.count > 0;
 				continue;
 			}
-			await tx.outboxEvent.upsert({
-				where: {
-					dedupeKey: `generation-settle-after-output-verification:${binding.jobId}:${input.assetId}:g${input.verificationGeneration}`,
-				},
-				create: {
+			const inserted = await tx.outboxEvent.createMany({
+				skipDuplicates: true,
+				data: {
 					eventType: "GENERATION_SETTLE",
 					aggregateType: "GENERATION_JOB",
 					aggregateId: binding.jobId,
 					dedupeKey: `generation-settle-after-output-verification:${binding.jobId}:${input.assetId}:g${input.verificationGeneration}`,
 					payload: { jobId: binding.jobId, version: binding.job.version },
 				},
-				update: {},
 			});
+			outboxCommitted ||= inserted.count > 0;
 			continue;
 		}
 		if (input.approved) {
-			await tx.outboxEvent.upsert({
-				where: {
-					dedupeKey: `generation-dispatch-after-verification:${binding.jobId}:${input.assetId}:g${input.verificationGeneration}`,
-				},
-				create: {
+			const inserted = await tx.outboxEvent.createMany({
+				skipDuplicates: true,
+				data: {
 					eventType: "GENERATION_DISPATCH",
 					aggregateType: "GENERATION_JOB",
 					aggregateId: binding.jobId,
 					dedupeKey: `generation-dispatch-after-verification:${binding.jobId}:${input.assetId}:g${input.verificationGeneration}`,
 					payload: { jobId: binding.jobId, version: binding.job.version },
 				},
-				update: {},
 			});
+			outboxCommitted ||= inserted.count > 0;
 			continue;
 		}
 		const changed = await tx.generationJob.updateMany({
@@ -1746,20 +1771,19 @@ async function resolveJobsWaitingForMediaVerification(
 			},
 		});
 		if (changed.count !== 1) continue;
-		await tx.outboxEvent.upsert({
-			where: {
-				dedupeKey: `generation-settle-after-input-verification:${binding.jobId}:${input.assetId}:g${input.verificationGeneration}`,
-			},
-			create: {
+		const inserted = await tx.outboxEvent.createMany({
+			skipDuplicates: true,
+			data: {
 				eventType: "GENERATION_SETTLE",
 				aggregateType: "GENERATION_JOB",
 				aggregateId: binding.jobId,
 				dedupeKey: `generation-settle-after-input-verification:${binding.jobId}:${input.assetId}:g${input.verificationGeneration}`,
 				payload: { jobId: binding.jobId, version: binding.job.version + 1 },
 			},
-			update: {},
 		});
+		outboxCommitted ||= inserted.count > 0;
 	}
+	return outboxCommitted;
 }
 
 async function claimMediaVerification(
@@ -1771,8 +1795,9 @@ async function claimMediaVerification(
 		policyVersion: string;
 		allowQuarantinedReverification: boolean;
 	},
-): Promise<MediaVerificationClaim | null> {
-	return database.$transaction(async (tx) => {
+): Promise<{ claim: MediaVerificationClaim | null; outboxCommitted: boolean }> {
+	let outboxCommitted = false;
+	const claim = await database.$transaction<MediaVerificationClaim | null>(async (tx) => {
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${input.assetId}`}, 0))`;
 		let asset = await tx.mediaAsset.findUnique({ where: { id: input.assetId } });
 		if (!asset) throw new Error("Media asset not found");
@@ -1801,7 +1826,7 @@ async function claimMediaVerification(
 					verificationLeasedUntil: null,
 				},
 			});
-			await resolveJobsWaitingForMediaVerification(tx, {
+			outboxCommitted = await resolveJobsWaitingForMediaVerification(tx, {
 				assetId: asset.id,
 				verificationGeneration: asset.verificationGeneration,
 				approved: false,
@@ -1871,7 +1896,7 @@ async function claimMediaVerification(
 						metadata: { sourceEvidenceId: evidence.id, reason: "CONTENT_AND_RULE_UNCHANGED" },
 					},
 				});
-				await resolveJobsWaitingForMediaVerification(tx, {
+				outboxCommitted = await resolveJobsWaitingForMediaVerification(tx, {
 					assetId: asset.id,
 					verificationGeneration: generation,
 					approved: true,
@@ -1987,7 +2012,7 @@ async function claimMediaVerification(
 					verificationLastErrorCode: "VIDEO_SUBMISSION_UNCERTAIN_REQUIRES_REVIEW",
 				},
 			});
-			await resolveJobsWaitingForMediaVerification(tx, {
+			outboxCommitted = await resolveJobsWaitingForMediaVerification(tx, {
 				assetId: asset.id,
 				verificationGeneration: Math.max(asset.verificationGeneration, 1),
 				approved: false,
@@ -2109,7 +2134,7 @@ async function claimMediaVerification(
 					verificationLastErrorCode: "VERIFICATION_DEADLINE_EXCEEDED",
 				},
 			});
-			await resolveJobsWaitingForMediaVerification(tx, {
+			outboxCommitted = await resolveJobsWaitingForMediaVerification(tx, {
 				assetId: asset.id,
 				verificationGeneration: Math.max(asset.verificationGeneration, 1),
 				approved: false,
@@ -2139,7 +2164,7 @@ async function claimMediaVerification(
 						asset.verificationLastErrorCode ?? "VERIFICATION_FAILURE_BUDGET_EXHAUSTED",
 				},
 			});
-			await resolveJobsWaitingForMediaVerification(tx, {
+			outboxCommitted = await resolveJobsWaitingForMediaVerification(tx, {
 				assetId: asset.id,
 				verificationGeneration: Math.max(asset.verificationGeneration, 1),
 				approved: false,
@@ -2149,6 +2174,7 @@ async function claimMediaVerification(
 		}
 		const generation = Math.max(asset.verificationGeneration, 1);
 		const attemptNumber = asset.verificationAttemptCount + 1;
+		const nextAllowedQueryAt = asset.verificationNextAttemptAt;
 		const leaseToken = crypto.randomUUID();
 		const claimed = await tx.mediaAsset.update({
 			where: { id: asset.id },
@@ -2168,6 +2194,7 @@ async function claimMediaVerification(
 		});
 		return {
 			processingDeadlineExpired,
+			nextAllowedQueryAt,
 			startedAt: now,
 			assetId: claimed.id,
 			objectKey: claimed.objectKey,
@@ -2191,6 +2218,7 @@ async function claimMediaVerification(
 			leaseToken,
 		};
 	});
+	return { claim, outboxCommitted };
 }
 
 async function beginMediaVerificationSubmission(
@@ -2269,18 +2297,16 @@ async function completeMediaVerification(
 	},
 ): Promise<boolean> {
 	if (!input.checksum || !/^[a-f0-9]{64}$/i.test(input.checksum)) {
-		await failMediaVerification(database, claim, "CHECKSUM_UNAVAILABLE", "ERROR", null);
-		return false;
+		return failMediaVerification(database, claim, "CHECKSUM_UNAVAILABLE", "ERROR", null);
 	}
 	if (input.ruleVersion !== claim.ruleVersion) {
-		await failMediaVerification(
+		return failMediaVerification(
 			database,
 			claim,
 			"VERIFICATION_RULE_VERSION_MISMATCH",
 			"ERROR",
 			input.checksum,
 		);
-		return false;
 	}
 	const approvedChecksum = input.checksum;
 	return database.$transaction(async (tx) => {
@@ -2380,7 +2406,7 @@ async function completeMediaVerification(
 				verificationLastErrorCode: input.decision === "ALLOW" ? null : input.reasonCode,
 			},
 		});
-		await resolveJobsWaitingForMediaVerification(tx, {
+		return resolveJobsWaitingForMediaVerification(tx, {
 			assetId: asset.id,
 			verificationGeneration: claim.generation,
 			approved: input.decision === "ALLOW",
@@ -2389,7 +2415,6 @@ async function completeMediaVerification(
 					? "INPUT_REVERIFICATION_REJECTED"
 					: "INPUT_REVERIFICATION_REVIEW_REQUIRED",
 		});
-		return true;
 	});
 }
 
@@ -2400,6 +2425,17 @@ async function failMediaVerification(
 	status: "PENDING" | "ERROR",
 	checksum: string | null,
 ): Promise<boolean> {
+	return (await recordMediaVerificationWaitOrFailure(database, claim, reasonCode, status, checksum))
+		.outboxCommitted;
+}
+
+async function recordMediaVerificationWaitOrFailure(
+	database: PrismaClient,
+	claim: MediaVerificationClaim,
+	reasonCode: string,
+	status: "PENDING" | "ERROR",
+	checksum: string | null,
+): Promise<OutboxCommitResult> {
 	return database.$transaction(async (tx) => {
 		const promptRejected = await lockAssetPromptReview(claim.assetId, tx);
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${claim.assetId}`}, 0))`;
@@ -2413,7 +2449,7 @@ async function failMediaVerification(
 				verificationLeasedUntil: { gt: now },
 			},
 		});
-		if (!asset) return false;
+		if (!asset) return { outboxCommitted: false };
 		await appendVerificationEvidence(tx, {
 			assetId: asset.id,
 			assetChecksum: checksum,
@@ -2495,8 +2531,14 @@ async function failMediaVerification(
 			);
 		}
 		if (bypass) {
-			await permitFailedImageVerification(tx, asset, claim.attemptNumber + 1, reasonCode);
-			return true;
+			return {
+				outboxCommitted: await permitFailedImageVerification(
+					tx,
+					asset,
+					claim.attemptNumber + 1,
+					reasonCode,
+				),
+			};
 		}
 		const retryAt = exhausted
 			? null
@@ -2522,8 +2564,9 @@ async function failMediaVerification(
 				verificationLastErrorCode: reasonCode,
 			},
 		});
+		let outboxCommitted = false;
 		if (exhausted) {
-			await resolveJobsWaitingForMediaVerification(tx, {
+			outboxCommitted = await resolveJobsWaitingForMediaVerification(tx, {
 				assetId: asset.id,
 				verificationGeneration: claim.generation,
 				approved: false,
@@ -2540,23 +2583,34 @@ async function failMediaVerification(
 			const dedupeKey = pendingImage
 				? `media-asset-verify:${asset.id}:g${claim.generation}:poll`
 				: `media-asset-verify:${asset.id}:g${claim.generation}:a${claim.attemptNumber + 1}`;
-			await tx.outboxEvent.upsert({
-				where: { dedupeKey },
-				create: {
+			const inserted = await tx.outboxEvent.createMany({
+				skipDuplicates: true,
+				data: {
 					eventType: "MEDIA_ASSET_VERIFY",
 					aggregateType: "MEDIA_ASSET",
 					aggregateId: asset.id,
 					dedupeKey,
-					payload: { assetId: asset.id },
-					// Inline finalization must start the polling Workflow in its immediate
-					// Outbox pass. The asset's due time/lease throttles detector reads;
-					// delaying delivery as well leaves this wake-up waiting for cron.
+					payload: {
+						assetId: asset.id,
+						...(pendingImage && asset.kind === "OUTPUT" ? { originalDueAt: now.getTime() } : {}),
+					},
+					// The same event supports targeted delivery and scheduled recovery.
+					// The asset's due time/lease throttles reads independently of delivery.
 					availableAt: pendingImage ? now : retryAt,
 				},
-				update: {},
 			});
+			outboxCommitted ||= pendingImage && inserted.count > 0;
+			if (pendingImage && asset.kind === "OUTPUT" && asset.verificationProviderTaskId) {
+				// Read the actual row in the committing transaction, including on dedupe.
+				// A crash after commit leaves this very event for scheduled delivery.
+				const event = await tx.outboxEvent.findUniqueOrThrow({
+					where: { dedupeKey },
+					select: { id: true },
+				});
+				return { outboxCommitted, outputReviewEventId: event.id };
+			}
 		}
-		return true;
+		return { outboxCommitted };
 	});
 }
 
@@ -2600,7 +2654,7 @@ async function permitFailedImageVerification(
 			verificationLastErrorCode: MODERATION_BYPASS_REASON,
 		},
 	});
-	await resolveJobsWaitingForMediaVerification(tx, {
+	return resolveJobsWaitingForMediaVerification(tx, {
 		assetId: asset.id,
 		verificationGeneration: asset.verificationGeneration,
 		approved: true,
@@ -2681,13 +2735,12 @@ async function failUncertainMediaVerification(
 				verificationLastErrorCode: reasonCode,
 			},
 		});
-		await resolveJobsWaitingForMediaVerification(tx, {
+		return resolveJobsWaitingForMediaVerification(tx, {
 			assetId: asset.id,
 			verificationGeneration: claim.generation,
 			approved: false,
 			failureCode: "ASSET_VERIFICATION_SUBMISSION_UNCERTAIN",
 		});
-		return true;
 	});
 }
 
@@ -3340,6 +3393,13 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 			}
 			return { assetId: binding.assetId, approved: binding.asset.status === "READY" };
 		},
+		async recordFinalizationWait(claim, results) {
+			await runSerializable(database, async (tx) => {
+				const job = await tx.generationJob.findUniqueOrThrow({ where: { id: claim.jobId } });
+				if (job.status !== "FINALIZING") return;
+				await bindFinalizationResults(tx, claim, results);
+			});
+		},
 		async recordFinalization(claim, results, failure) {
 			await runSerializable(database, async (tx) => {
 				const job = await tx.generationJob.findUniqueOrThrow({ where: { id: claim.jobId } });
@@ -3791,11 +3851,12 @@ export function createFinalizationDependencies(
 		store?: FinalizationStore;
 		safety?: MediaSafetyAdapter;
 		database?: PrismaClient;
-		verification?: { verify(assetId: string): Promise<void> };
+		verification?: { verify(assetId: string): Promise<OutboxCommitResult | void> };
 		storage?: Partial<{
 			inspectRemoteMedia: typeof inspectRemoteMedia;
 			putPrivateMediaObject: typeof putPrivateMediaObject;
 			streamRemoteObjectToStorage: typeof streamRemoteObjectToStorage;
+			tryWriteImmutableGenerationImage: typeof tryWriteImmutableGenerationImage;
 			promoteStagedObject: typeof promoteStagedObject;
 			watermarkStagedGuestImage: typeof watermarkStagedGuestImage;
 		}>;
@@ -3814,6 +3875,7 @@ export function createFinalizationDependencies(
 		inspectRemoteMedia,
 		putPrivateMediaObject,
 		streamRemoteObjectToStorage,
+		tryWriteImmutableGenerationImage,
 		promoteStagedObject,
 		watermarkStagedGuestImage,
 		...options.storage,
@@ -3904,68 +3966,89 @@ export function createFinalizationDependencies(
 			let completedAsset = transfer.asset;
 			if (transfer.outcome === "CLAIMED") {
 				try {
-					const staged = inlineBody
-						? await storage.putPrivateMediaObject({
-								bucket: "media",
-								key: transfer.stagingObjectKey,
-								contentType: mimeType,
-								body: inlineBody,
-							})
-						: await storage.streamRemoteObjectToStorage({
-								bucket: "media",
-								key: transfer.stagingObjectKey,
-								sourceUrl: (candidate.output as Extract<ProviderOutput, { kind: "remote-url" }>)
-									.url,
-								allowedHosts: providerCdnAllowlist(environment),
-								expectedContentType: mimeType,
-								expectedMediaKind: claim.mediaKind,
-							});
-					const reserved = await reserveGenerationOutputStorageTransaction(
-						{
-							assetId,
-							ownerId: claim.ownerId,
-							transferToken: transfer.transferToken,
-							bytes: BigInt(staged.bytes),
-							maximumStorageBytes: maximumMediaStorageBytes(environment),
-						},
-						database,
-					);
-					if (reserved.outcome === "STALE") {
-						throw {
-							code: "OUTPUT_TRANSFER_FENCE_LOST",
-							stage: "TRANSFER",
-							retryable: true,
-						};
-					}
-					const promoted = claim.guest
-						? await storage.watermarkStagedGuestImage({
-								staging: { bucket: "media", key: transfer.stagingObjectKey },
-								final: { bucket: "media", key: objectKey },
-								contentType: mimeType as "image/jpeg" | "image/png" | "image/webp",
-								deleteAfter: claim.guest.deleteAfter,
-							})
-						: await storage.promoteStagedObject({
-								staging: { bucket: "media", key: transfer.stagingObjectKey },
-								final: { bucket: "media", key: objectKey },
-								contentType: mimeType,
-								contentLength: staged.bytes,
-								acceptExistingFinalIdentity: true,
-								preferSinglePut: true,
-								promotion: {
-									uploadId: transfer.promotionMultipartUploadId ?? undefined,
-									onMultipartUploadCreated: async ({ uploadId }) => {
-										await recordGenerationOutputPromotionMultipartTransaction(
-											{
-												assetId,
-												ownerId: claim.ownerId,
-												transferToken: transfer.transferToken,
-												multipartUploadId: uploadId,
+					const reserve = async (bytes: number) => {
+						const reserved = await reserveGenerationOutputStorageTransaction(
+							{
+								assetId,
+								ownerId: claim.ownerId,
+								transferToken: transfer.transferToken,
+								bytes: BigInt(bytes),
+								maximumStorageBytes: maximumMediaStorageBytes(environment),
+							},
+							database,
+						);
+						if (reserved.outcome === "STALE")
+							throw { code: "OUTPUT_TRANSFER_FENCE_LOST", stage: "TRANSFER", retryable: true };
+					};
+					const direct =
+						!claim.guest && !transfer.promotionMultipartUploadId
+							? await storage.tryWriteImmutableGenerationImage({
+									bucket: "media",
+									key: objectKey,
+									contentType: mimeType,
+									...(inlineBody
+										? { body: inlineBody }
+										: {
+												sourceUrl: (
+													candidate.output as Extract<ProviderOutput, { kind: "remote-url" }>
+												).url,
+												allowedHosts: providerCdnAllowlist(environment),
+											}),
+									reserve,
+								})
+							: null;
+					// Keep the old lease/staging metadata contract for drain/rollback. Direct
+					// mode never writes that staging key; its eventual delete is harmless.
+					const promoted =
+						direct ??
+						(await (async () => {
+							const staged = inlineBody
+								? await storage.putPrivateMediaObject({
+										bucket: "media",
+										key: transfer.stagingObjectKey,
+										contentType: mimeType,
+										body: inlineBody,
+									})
+								: await storage.streamRemoteObjectToStorage({
+										bucket: "media",
+										key: transfer.stagingObjectKey,
+										sourceUrl: (candidate.output as Extract<ProviderOutput, { kind: "remote-url" }>)
+											.url,
+										allowedHosts: providerCdnAllowlist(environment),
+										expectedContentType: mimeType,
+										expectedMediaKind: claim.mediaKind,
+									});
+							await reserve(staged.bytes);
+							return claim.guest
+								? await storage.watermarkStagedGuestImage({
+										staging: { bucket: "media", key: transfer.stagingObjectKey },
+										final: { bucket: "media", key: objectKey },
+										contentType: mimeType as "image/jpeg" | "image/png" | "image/webp",
+										deleteAfter: claim.guest.deleteAfter,
+									})
+								: await storage.promoteStagedObject({
+										staging: { bucket: "media", key: transfer.stagingObjectKey },
+										final: { bucket: "media", key: objectKey },
+										contentType: mimeType,
+										contentLength: staged.bytes,
+										acceptExistingFinalIdentity: true,
+										preferSinglePut: true,
+										promotion: {
+											uploadId: transfer.promotionMultipartUploadId ?? undefined,
+											onMultipartUploadCreated: async ({ uploadId }) => {
+												await recordGenerationOutputPromotionMultipartTransaction(
+													{
+														assetId,
+														ownerId: claim.ownerId,
+														transferToken: transfer.transferToken,
+														multipartUploadId: uploadId,
+													},
+													database,
+												);
 											},
-											database,
-										);
-									},
-								},
-							});
+										},
+									});
+						})());
 					if (claim.guest) {
 						const resizedReservation = await reserveGenerationOutputStorageTransaction(
 							{
@@ -4086,9 +4169,41 @@ export function createFinalizationDependencies(
 			if (["QUARANTINED", "VERIFICATION_FAILED", "DELETED"].includes(completedAsset.status)) {
 				return { assetId, approved: false };
 			}
-			await verification.verify(assetId);
+			const progress = await verification.verify(assetId);
 			const asset = await database.mediaAsset.findUniqueOrThrow({ where: { id: assetId } });
 			if (asset.status === "VERIFYING") {
+				const pending = asset.verificationLastErrorCode === "IMAGE_PROCESSING";
+				const polling =
+					!asset.verificationLastErrorCode &&
+					asset.verificationLeaseToken &&
+					asset.verificationLeasedUntil &&
+					asset.verificationLeasedUntil > new Date();
+				if (
+					asset.kind === "OUTPUT" &&
+					asset.mimeType.startsWith("image/") &&
+					(pending || polling) &&
+					asset.verificationProviderTaskId
+				) {
+					// Duplicate/old finalizers may observe a wait committed by another actor.
+					// Look up its real event; never create a replacement or reset the due time.
+					const eventId =
+						progress?.outputReviewEventId ??
+						(
+							await database.outboxEvent.findUnique({
+								where: {
+									dedupeKey: `media-asset-verify:${asset.id}:g${asset.verificationGeneration}:poll`,
+								},
+								select: { id: true },
+							})
+						)?.id;
+					if (pending || eventId)
+						return {
+							assetId,
+							approved: false,
+							moderationPending: true,
+							...(eventId ? { outputReviewEventId: eventId } : {}),
+						};
+				}
 				throw { code: "MODERATION_RETRYABLE", stage: "MODERATION", retryable: true };
 			}
 			return { assetId, approved: asset.status === "READY" };
@@ -4486,13 +4601,13 @@ export function createDatabaseReconciliationStore(
 			          attempt."reconciliationCount" AS "repairCount"`;
 		},
 		async recordReconciled(lease, snapshot, result) {
-			await database.$transaction(async (tx) => {
+			return database.$transaction(async (tx) => {
 				const attempt = await tx.generationAttempt.findFirst({
 					where: { id: lease.attemptId, reconcileLeaseToken: lease.leaseToken },
 					include: { job: { select: { productKey: true, status: true } } },
 				});
 				await options.afterAttemptRead?.();
-				if (!attempt) return;
+				if (!attempt) return { outboxCommitted: false };
 				if (snapshot.providerTaskId !== attempt.providerTaskId || lease.jobId !== attempt.jobId)
 					throw new Error("RECONCILIATION_TASK_MISMATCH");
 				if (
@@ -4503,7 +4618,7 @@ export function createDatabaseReconciliationStore(
 						where: { id: attempt.id, reconcileLeaseToken: lease.leaseToken },
 						data: { reconcileLeaseToken: null, reconcileLeasedUntil: null, nextReconcileAt: null },
 					});
-					return;
+					return { outboxCommitted: false };
 				}
 				const terminalFailure = snapshot.status === "FAILED" || snapshot.status === "CANCELED";
 				const technicalFailure = confirmedTechnicalFailureCode(snapshot, result);
@@ -4524,7 +4639,7 @@ export function createDatabaseReconciliationStore(
 								result.providerCostMicros === null ? undefined : BigInt(result.providerCostMicros),
 						},
 					});
-					return;
+					return { outboxCommitted: false };
 				}
 				if (envelope) {
 					await tx.generationAttemptTransferEnvelope.upsert({
@@ -4576,8 +4691,9 @@ export function createDatabaseReconciliationStore(
 									),
 					},
 				});
-				if (changed.count !== 1) return;
+				if (changed.count !== 1) return { outboxCommitted: false };
 				await options.afterAttemptUpdate?.();
+				let outboxCommitted = false;
 				if (snapshot.status === "SUCCEEDED") {
 					await tx.generationJob.updateMany({
 						where: {
@@ -4586,17 +4702,17 @@ export function createDatabaseReconciliationStore(
 						},
 						data: { status: "FINALIZING", version: { increment: 1 } },
 					});
-					await tx.outboxEvent.upsert({
-						where: { dedupeKey: `generation-finalize:${lease.jobId}:${lease.attemptId}` },
-						create: {
+					const inserted = await tx.outboxEvent.createMany({
+						skipDuplicates: true,
+						data: {
 							eventType: "GENERATION_FINALIZE",
 							aggregateType: "GENERATION_JOB",
 							aggregateId: lease.jobId,
 							dedupeKey: `generation-finalize:${lease.jobId}:${lease.attemptId}`,
 							payload: { jobId: lease.jobId },
 						},
-						update: {},
 					});
+					outboxCommitted = inserted.count > 0;
 				} else if (technicalFailure) {
 					const jobChanged = await tx.generationJob.updateMany({
 						where: {
@@ -4610,17 +4726,17 @@ export function createDatabaseReconciliationStore(
 						},
 					});
 					if (jobChanged.count !== 1) throw new Error("TECHNICAL_FAILURE_JOB_STATE_CONFLICT");
-					await tx.outboxEvent.upsert({
-						where: { dedupeKey: `generation-settle:${attempt.jobId}` },
-						create: {
+					const inserted = await tx.outboxEvent.createMany({
+						skipDuplicates: true,
+						data: {
 							eventType: "GENERATION_SETTLE",
 							aggregateType: "GENERATION_JOB",
 							aggregateId: attempt.jobId,
 							dedupeKey: `generation-settle:${attempt.jobId}`,
 							payload: { jobId: attempt.jobId },
 						},
-						update: {},
 					});
+					outboxCommitted = inserted.count > 0;
 				} else if (terminalFailure) {
 					const reservation = await tx.creditReservation.findUnique({
 						where: { jobId: lease.jobId },
@@ -4659,6 +4775,7 @@ export function createDatabaseReconciliationStore(
 						},
 					});
 				}
+				return { outboxCommitted };
 			});
 		},
 		async releaseReconciliationLease(lease, code, retryAt) {

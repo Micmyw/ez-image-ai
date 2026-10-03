@@ -1,29 +1,64 @@
 import { call, ORPCError } from "@orpc/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ getSession: vi.fn(), findFirst: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+	getSession: vi.fn(),
+	findFirst: vi.fn(),
+	sign: vi.fn(async () => "https://private.test/preview"),
+}));
 
 vi.mock("@repo/auth", () => ({ auth: { api: { getSession: mocks.getSession } } }));
 vi.mock("@repo/database/client", () => ({
 	db: { generationJob: { findFirst: mocks.findFirst } },
 }));
+vi.mock("@repo/storage", () => ({ createSignedReadUrl: mocks.sign }));
 
+import { currentMediaAssetVerificationBoundary } from "../lib/asset-authorization";
 import { getJob } from "./get-job";
+
+const boundary = currentMediaAssetVerificationBoundary();
+const validUntil = new Date("2099-01-01T00:00:00Z");
 
 const asset = (id: string, status = "READY") => ({
 	id,
 	ownerType: "USER",
 	ownerId: "user-1",
-	kind: "IMAGE",
+	kind: id.includes("input") ? "INPUT" : "OUTPUT",
 	status,
 	mimeType: "image/png",
 	byteSize: 128n,
 	width: 64,
 	height: 64,
 	durationMillis: null,
+	objectKey: `private/${id}`,
+	checksum: "a".repeat(64),
+	verificationGeneration: 1,
+	verificationAttemptCount: 1,
+	verificationProvider: boundary.provider,
+	verificationProviderTaskId: "audit-1",
+	verificationRuleVersion: boundary.ruleVersion,
+	verificationPolicyVersion: boundary.policyVersion,
+	verificationValidUntil: validUntil,
+	deleteAfter: null,
 	deletedAt: null,
+	updatedAt: new Date("2026-08-25T00:00:00.000Z"),
 	createdAt: new Date("2026-08-25T00:00:00.000Z"),
-	moderationResults: [{ status: "APPROVED" }],
+	moderationResults: [
+		{
+			id: "audit-1",
+			status: "APPROVED",
+			assetChecksum: "a".repeat(64),
+			verificationGeneration: 1,
+			attemptNumber: 1,
+			evidenceKind: id.includes("input") ? "INPUT" : "OUTPUT",
+			provider: boundary.provider,
+			providerTaskId: "audit-1",
+			ruleVersion: boundary.ruleVersion,
+			policyVersion: boundary.policyVersion,
+			validUntil,
+			createdAt: new Date("2026-08-25T00:00:00.000Z"),
+		},
+	],
 });
 
 const baseJob = {
@@ -54,6 +89,88 @@ const baseJob = {
 };
 
 describe("getJob", () => {
+	it("projects only required database fields and includes an authorized preview in one response", async () => {
+		mocks.findFirst.mockResolvedValue(baseJob);
+		const responseHeaders = new Headers();
+		const result = await call(
+			getJob,
+			{ jobId: "job-1" },
+			{ context: { headers: new Headers(), responseHeaders, requestId: "request-1" } },
+		);
+		expect(responseHeaders.get("Cache-Control")).toBe("private, no-store");
+		expect(result.assets[0]).toMatchObject({
+			preview: { url: "https://private.test/preview" },
+			contentVersion: expect.any(String),
+		});
+		expect(result).toMatchObject({
+			requestId: "request-1",
+			displayVersion: expect.any(String),
+			observedAt: expect.any(Number),
+		});
+		const query = mocks.findFirst.mock.calls[0][0];
+		expect(query).not.toHaveProperty("include");
+		expect(query.select.reservation).toEqual({
+			select: { status: true, settledAmount: true, releasedAmount: true },
+		});
+		expect(query.select.assets.select.asset.select).not.toHaveProperty("rawEnvelope");
+		expect(query.select.assets.select.asset.select).not.toHaveProperty("verificationLastError");
+	});
+	it.each(["PENDING", "REJECTED", "ERROR", "REVIEW", "BYPASSED"])(
+		"does not sign %s as approved",
+		async (status) => {
+			const output = asset("blocked");
+			output.moderationResults[0].status = status;
+			mocks.findFirst.mockResolvedValue({
+				...baseJob,
+				assets: [{ role: "OUTPUT", asset: output }],
+			});
+			const result = await call(
+				getJob,
+				{ jobId: "job-1" },
+				{ context: { headers: new Headers() } },
+			);
+			expect(result.assets).toEqual([]);
+			expect(mocks.sign).not.toHaveBeenCalled();
+		},
+	);
+	it("retains only the existing technical-outage bypass policy", async () => {
+		const { MODERATION_BYPASS_REASON } = await import("@repo/config");
+		const output = asset("bypassed");
+		Object.assign(output.moderationResults[0], {
+			status: "BYPASSED",
+			reasonCode: MODERATION_BYPASS_REASON,
+		});
+		mocks.findFirst.mockResolvedValue({ ...baseJob, assets: [{ role: "OUTPUT", asset: output }] });
+		const result = await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } });
+		expect(result.assets[0]).toHaveProperty("preview.url");
+	});
+	it.each([
+		{ deleteAfter: new Date(0) },
+		{ deletedAt: new Date() },
+		{ status: "QUARANTINED" },
+		{ verificationValidUntil: new Date(0) },
+		{ verificationGeneration: 2 },
+		{ checksum: "b".repeat(64) },
+		{ verificationPolicyVersion: "old-policy" },
+		{ ownerType: "GUEST" },
+	])("never signs expired, revoked, mismatched or guest assets: %j", async (changes) => {
+		mocks.findFirst.mockResolvedValue({
+			...baseJob,
+			assets: [{ role: "OUTPUT", asset: { ...asset("blocked"), ...changes } }],
+		});
+		expect(
+			(await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } })).assets,
+		).toEqual([]);
+		expect(mocks.sign).not.toHaveBeenCalled();
+	});
+	it("changes displayVersion on revocation even without job.version changing", async () => {
+		mocks.findFirst.mockResolvedValue(baseJob);
+		const before = await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } });
+		mocks.findFirst.mockResolvedValue({ ...baseJob, assets: [] });
+		const after = await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } });
+		expect(after.version).toBe(before.version);
+		expect(after.displayVersion).not.toBe(before.displayVersion);
+	});
 	it.each(["GENERATION_TIMEOUT", "GENERATION_SERVICE_UNAVAILABLE"])(
 		"returns %s with retry only after credits settle",
 		async (failureCode) => {
@@ -193,7 +310,9 @@ describe("getJob", () => {
 					aspectRatio: "4:5",
 				},
 			});
-			expect(JSON.stringify(result)).not.toMatch(/signed|https?:|provider|model/i);
+			expect(JSON.stringify(result)).not.toMatch(
+				/must-not-leak|providerModelId|providerCostMicros|objectKey|assetChecksum/,
+			);
 			expect(mocks.findFirst).toHaveBeenCalledWith(
 				expect.objectContaining({
 					where: { id: "job-1", ownerType: "USER", ownerId: "user-1" },

@@ -8,6 +8,8 @@
 		"pump": "tsx ./src/pump.ts",
 		"test:contracts": "tsx --test src/*.test.ts",
 		"test": "pnpm run test:contracts",
+		"test:scanless-runtime": "tsx src/scanless-runtime.mts",
+		"test:scanless-report": "node src/analyze-scanless-runtime.mjs",
 		"e2e": "tsx ./src/run.ts",
 		"type-check": "tsc --noEmit"
 	},

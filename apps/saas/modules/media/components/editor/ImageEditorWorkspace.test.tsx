@@ -1,7 +1,26 @@
 vi.mock("@auth/hooks/use-session", () => ({ useSession: () => ({ user: { id: "owner-a" } }) }));
 import React from "react";
 import { renderToReadableStream, renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+const attribution = vi.hoisted(() => ({
+	clearActive: vi.fn(),
+	commitEffects: [] as Array<() => void>,
+	effect: null as { selectedPreset: { id: string } } | null,
+}));
+vi.mock("react", async (importOriginal) => ({
+	...(await importOriginal<typeof import("react")>()),
+	useLayoutEffect: (callback: () => void) => {
+		attribution.commitEffects.push(callback);
+	},
+}));
+vi.mock("@repo/utils", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@repo/utils")>()),
+	clearBrowserGrowthActiveContentAttribution: attribution.clearActive,
+}));
+vi.mock("../../../effects/lib/editor-context", () => ({
+	useEffectEditor: () => attribution.effect,
+}));
 
 vi.mock("next-intl", () => ({ useTranslations: () => (key: string) => key }));
 // Exercise the same lazy SSR implementation used by the App Router compiler.
@@ -22,8 +41,18 @@ vi.mock("@repo/ui/components/alert", () => ({
 	AlertDescription: ({ children }: { children: React.ReactNode }) => <p>{children}</p>,
 }));
 vi.mock("../GenerationForm", () => ({
-	GenerationForm: ({ requireReference = false }: { requireReference?: boolean }) => (
-		<div data-testid="generation-form" data-require-reference={requireReference}>
+	GenerationForm: ({
+		requireReference = false,
+		layout,
+	}: {
+		requireReference?: boolean;
+		layout?: string;
+	}) => (
+		<div
+			data-testid="generation-form"
+			data-require-reference={requireReference}
+			data-layout={layout}
+		>
 			form
 		</div>
 	),
@@ -39,6 +68,94 @@ import { CreatorWorkspace } from "../CreatorWorkspace";
 import { ImageEditorWorkspace } from "./ImageEditorWorkspace";
 
 describe("ImageEditorWorkspace responsive composition", () => {
+	beforeEach(() => {
+		attribution.clearActive.mockClear();
+		attribution.commitEffects = [];
+		attribution.effect = null;
+	});
+	it.each(["/create", "/image-to-image", "/models/gpt-image-2"])(
+		"clears active content on entering the ordinary registered editor at %s",
+		(pathname) => {
+			navigation.pathname = pathname;
+			try {
+				renderToStaticMarkup(
+					<ImageEditorWorkspace
+						allowedProductKeys={["image-nano-banana-2-lite"]}
+						restoreState="idle"
+						restoreNotice={null}
+					/>,
+				);
+				for (const commit of attribution.commitEffects) commit();
+				expect(attribution.clearActive).toHaveBeenCalledOnce();
+			} finally {
+				navigation.pathname = "/create";
+			}
+		},
+	);
+	it("retains the current effect scope in an effect editor", () => {
+		attribution.effect = { selectedPreset: { id: "studio-portrait" } };
+		navigation.pathname = "/effects/1980s-ai-photo";
+		try {
+			renderToStaticMarkup(
+				<ImageEditorWorkspace
+					allowedProductKeys={["image-nano-banana-2-lite"]}
+					restoreState="idle"
+					restoreNotice={null}
+				/>,
+			);
+			for (const commit of attribution.commitEffects) commit();
+			expect(attribution.clearActive).not.toHaveBeenCalled();
+		} finally {
+			navigation.pathname = "/create";
+			attribution.effect = null;
+		}
+	});
+	it.each([
+		["/", "default"],
+		["/image-to-image", "minimal"],
+		["/create", "default"],
+	])("preserves the existing %s composer layout (%s)", (pathname, layout) => {
+		navigation.pathname = pathname;
+		try {
+			const markup = renderToStaticMarkup(
+				<ImageEditorWorkspace
+					allowedProductKeys={["image-nano-banana-2-lite"]}
+					restoreState="idle"
+					restoreNotice={null}
+				/>,
+			);
+			expect(markup).toContain(`data-layout="${layout}"`);
+		} finally {
+			navigation.pathname = "/create";
+		}
+	});
+	it("keeps the streamlined effect layout inside an explicit effect editor", () => {
+		attribution.effect = { selectedPreset: { id: "studio-portrait" } };
+		navigation.pathname = "/effects/1980s-ai-photo";
+		try {
+			const markup = renderToStaticMarkup(
+				<ImageEditorWorkspace
+					allowedProductKeys={["image-nano-banana-2-lite"]}
+					restoreState="idle"
+					restoreNotice={null}
+				/>,
+			);
+			expect(markup).toContain('data-layout="minimal"');
+		} finally {
+			navigation.pathname = "/create";
+		}
+	});
+	it("passes an effect's required-reference constraint through the existing workspace", () => {
+		const markup = renderToStaticMarkup(
+			<ImageEditorWorkspace
+				requireReference
+				allowedProductKeys={["image-nano-banana-2-lite"]}
+				restoreState="idle"
+				restoreNotice={null}
+			/>,
+		);
+		expect(markup).toContain('data-testid="generation-form" data-require-reference="true"');
+	});
 	it("allows prompt-only creation on the image-to-image page", () => {
 		navigation.pathname = "/image-to-image";
 		try {

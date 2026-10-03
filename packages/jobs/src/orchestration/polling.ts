@@ -1,6 +1,10 @@
+import { getAttemptGenerationContinuation } from "@repo/database";
+import { db } from "@repo/database/client";
+
 import type { GenerationPollingStore, ReconciliationDependencies } from "../contracts";
 import { reconcileGenerations } from "../handlers/reconcile-generations";
 import type { PollingTickResult } from "./contracts";
+import type { TaskContinuation } from "./contracts";
 import { parseTaskPayload } from "./registry";
 
 export interface PollingTickDependencies extends Omit<
@@ -8,6 +12,7 @@ export interface PollingTickDependencies extends Omit<
 	"store" | "schedulePolling"
 > {
 	store: GenerationPollingStore;
+	continuation?(attemptId: string): Promise<TaskContinuation>;
 }
 
 export async function executePollingTick(
@@ -18,16 +23,37 @@ export async function executePollingTick(
 	const dependencies = providedDependencies ?? (await databasePollingDependencies());
 	const now = dependencies.now ?? (() => new Date());
 	const state = await dependencies.store.getPollingState(payload.attemptId);
-	if (!state) return { done: true, waitSeconds: 0 };
-	if (state.pollAt.getTime() > now().getTime()) return nextTick(state, now());
+	if (!state)
+		return {
+			done: true,
+			waitSeconds: 0,
+			outboxCommitted: false,
+			...(dependencies.continuation
+				? { continuation: await dependencies.continuation(payload.attemptId) }
+				: {}),
+		};
+	if (state.pollAt.getTime() > now().getTime())
+		return { ...nextTick(state, now()), outboxCommitted: false };
 	// A Workflow step owns exactly one database-scoped tick. Workflow sleep releases
 	// the Container; PostgreSQL leases and pollAt remain the execution authority.
-	await reconcileGenerations(
+	const progress = await reconcileGenerations(
 		{ attemptId: payload.attemptId, leaseSeconds: 300 },
 		{ store: dependencies.store, getProvider: dependencies.getProvider, now },
 	);
 	const nextState = await dependencies.store.getPollingState(payload.attemptId);
-	return nextState ? nextTick(nextState, now()) : { done: true, waitSeconds: 0 };
+	return {
+		...(nextState ? nextTick(nextState, now()) : { done: true, waitSeconds: 0 }),
+		...(dependencies.continuation
+			? {
+					continuation: nextState
+						? { eventIds: [] }
+						: await dependencies.continuation(payload.attemptId),
+				}
+			: {}),
+		...(progress.outboxCommitted === undefined
+			? {}
+			: { outboxCommitted: progress.outboxCommitted }),
+	};
 }
 
 function nextTick(
@@ -47,6 +73,7 @@ async function databasePollingDependencies(): Promise<PollingTickDependencies> {
 	const registry = runtime.createReconciliationProviderRegistry(process.env);
 	return {
 		store: runtime.databaseReconciliationStore,
+		continuation: (attemptId) => getAttemptGenerationContinuation(attemptId, db),
 		getProvider: (provider) => runtime.getAnyRegisteredProvider(registry, provider),
 	};
 }

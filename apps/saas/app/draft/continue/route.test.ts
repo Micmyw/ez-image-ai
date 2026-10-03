@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
 	claimRegistered: vi.fn(),
 	claimGuest: vi.fn(),
 	headers: vi.fn(async () => new Headers()),
+	effectReturn: vi.fn(),
 }));
 
 vi.mock("@auth/lib/server", () => ({ getSession: mocks.getSession }));
@@ -15,6 +16,9 @@ vi.mock("@repo/api/modules/media/procedures/claim-guest-draft", () => ({
 	claimGuestDraft: { callable: mocks.claimGuest },
 }));
 vi.mock("next/headers", () => ({ headers: mocks.headers }));
+vi.mock("../../../modules/effects/lib/editor-return.server", () => ({
+	resolvePublishedEffectReturnPath: mocks.effectReturn,
+}));
 
 import { GET } from "./route";
 
@@ -24,6 +28,7 @@ describe("draft continuation identity router", () => {
 		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", "https://app.test");
 		mocks.claimRegistered.mockReturnValue(async () => ({ id: "draft_1" }));
 		mocks.claimGuest.mockReturnValue(async () => ({ id: "draft_1" }));
+		mocks.effectReturn.mockReturnValue(null);
 	});
 
 	afterEach(() => vi.unstubAllEnvs());
@@ -70,6 +75,21 @@ describe("draft continuation identity router", () => {
 		expect(response.headers.get("location")).toBe("https://app.test/create");
 		expect(mocks.claimRegistered).toHaveBeenCalledOnce();
 		expect(mocks.claimGuest).not.toHaveBeenCalled();
+	});
+	it("keeps a registered effect draft and its cookie on the validated effect route", async () => {
+		mocks.getSession.mockResolvedValue({ user: { id: "user_1", isAnonymous: false } });
+		mocks.effectReturn.mockReturnValue("/effects/1980s-ai-photo?preset=studio-portrait");
+		const response = await GET(
+			new Request("https://app.test/draft/continue", {
+				headers: {
+					cookie: "media_effect_return=%2Feffects%2F1980s-ai-photo%3Fpreset%3Dstudio-portrait",
+				},
+			}),
+		);
+		expect(response.headers.get("location")).toBe(
+			"https://app.test/effects/1980s-ai-photo?preset=studio-portrait",
+		);
+		expect(response.headers.getSetCookie().join("\n")).toContain("Path=/effects/1980s-ai-photo");
 	});
 
 	it("claims only a guest-ready bootstrap draft for an anonymous session", async () => {

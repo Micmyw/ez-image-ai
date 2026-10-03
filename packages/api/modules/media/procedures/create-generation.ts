@@ -10,7 +10,7 @@ import {
 	type PlanEntitlement,
 } from "@repo/config";
 import { mediaDailyProviderCostBudgetMicros } from "@repo/config/server";
-import { createGenerationJobTransaction } from "@repo/database";
+import { createGenerationJobTransaction, getInitialGenerationEventIds } from "@repo/database";
 import { db } from "@repo/database/client";
 import { resolveDatabaseDispatchRoute } from "@repo/jobs";
 import { dispatchJob } from "@repo/jobs/orchestration/client";
@@ -20,9 +20,11 @@ import { protectedProcedure } from "../../../orpc/procedures";
 import { dispatchCreatedJobBestEffort } from "../lib/dispatch-created-job";
 import { toMediaOrpcError } from "../lib/errors";
 import { getCurrentExecutableRouteGraphOptions } from "../lib/executable-route-graph";
+import { createFlowTiming, type FlowTiming } from "../lib/flow-timing";
 import { assertGenerationAllowed } from "../lib/generation-authorization";
 import { loadUserPlanEntitlement } from "../lib/plan-entitlement";
 import { assertFrozenQuoteRouteGraphIsCurrent } from "../lib/quote";
+import { enforceMediaRateLimit } from "../lib/rate-limit";
 import { maximumMediaStorageBytes } from "../lib/storage-limits";
 import {
 	TEXT_MODERATION_RULE_VERSION,
@@ -34,10 +36,11 @@ import { dispatchUploadVerification } from "./complete-upload-session";
 export const createGeneration = protectedProcedure
 	.route({ method: "POST", path: "/media/generations", tags: ["Media"] })
 	.input(createGenerationInputSchema)
-	.handler(async ({ context: { user }, input }) => {
+	.handler(async ({ context: { user, requestId }, input }) => {
 		try {
-			const result = await createGenerationForUser(user.id, input);
-			await dispatchCreatedGeneration(result);
+			const timing = createFlowTiming({ requestId });
+			const result = await createGenerationForUser(user.id, input, undefined, timing);
+			await timing.measure("admission.dispatch", () => dispatchCreatedGeneration(result));
 			return {
 				job: {
 					id: result.job.id,
@@ -53,6 +56,25 @@ export const createGeneration = protectedProcedure
 	});
 
 export async function dispatchCreatedGeneration(result: CreatedGenerationJob): Promise<void> {
+	const eventIds =
+		result.continuationEventIds ??
+		(result.replayed ? await getInitialGenerationEventIds(result.job.id, db) : undefined);
+	if (eventIds !== undefined) {
+		if (!eventIds.length) return;
+		try {
+			await dispatchJob(
+				"media-deliver-events",
+				{ eventIds },
+				{
+					idempotencyKey: `generation-start:${result.job.id}:${result.job.version}`,
+					timeoutMs: 3_000,
+				},
+			);
+		} catch {
+			logger.warn("Generation wake deferred to durable recovery", { jobId: result.job.id });
+		}
+		return;
+	}
 	if (result.verificationAssetId && !result.replayed) {
 		await dispatchUploadVerification(result.verificationAssetId);
 	} else {
@@ -73,7 +95,7 @@ export async function dispatchCreatedGeneration(result: CreatedGenerationJob): P
 	}
 }
 
-interface GenerationQuoteForCreation {
+export interface GenerationQuoteForCreation {
 	id: string;
 	productKey: string;
 	catalogVersion: string;
@@ -85,7 +107,15 @@ interface GenerationQuoteForCreation {
 	pricingSnapshot: unknown;
 }
 
+/** Only produced in server memory after qualification and text moderation; never a request DTO. */
+export interface PreparedGenerationAdmission {
+	ownerId: string;
+	quote: GenerationQuoteForCreation;
+	routeGraphOptions: ExecutableRouteGraphOptions;
+}
+
 interface CreatedGenerationJob {
+	continuationEventIds?: string[];
 	verificationAssetId?: string;
 	job: {
 		id: string;
@@ -102,6 +132,7 @@ interface CreateGenerationDependencies {
 	getRouteGraphOptions(): Promise<ExecutableRouteGraphOptions>;
 	loadEntitlement(userId: string): Promise<Pick<PlanEntitlement, "maximumConcurrentJobs">>;
 	assertAllowed: typeof assertGenerationAllowed;
+	enforceRateLimit?: typeof enforceMediaRateLimit;
 	createGenerationJob(input: {
 		ownerType: "USER";
 		ownerId: string;
@@ -116,7 +147,8 @@ interface CreateGenerationDependencies {
 		maximumDailyCostMicros: bigint;
 		maximumGlobalDailyCostMicros?: bigint;
 		maximumStorageBytes: bigint;
-		maximumConcurrentJobs: number;
+		maximumConcurrentJobs?: number;
+		validateCurrentEligibility?: boolean;
 		edit?:
 			| { kind: "ROOT"; rootAssetId: string }
 			| {
@@ -137,6 +169,7 @@ const defaultDependencies: CreateGenerationDependencies = {
 	getRouteGraphOptions: () => getCurrentExecutableRouteGraphOptions(),
 	loadEntitlement: (userId) => loadUserPlanEntitlement(userId),
 	assertAllowed: (input) => assertGenerationAllowed(input),
+	enforceRateLimit: enforceMediaRateLimit,
 	createGenerationJob: (input) => createGenerationJobTransaction(input, db),
 };
 
@@ -144,9 +177,40 @@ export async function createGenerationForUser(
 	userId: string,
 	input: { quoteId: string; idempotencyKey: string; parentJobId?: string },
 	dependencies: CreateGenerationDependencies = defaultDependencies,
+	timing: FlowTiming = createFlowTiming(),
 ): Promise<CreatedGenerationJob> {
-	const quote = await dependencies.findQuote(userId, input.quoteId);
+	const quote = await timing.measure("admission.quote.lookup", () =>
+		dependencies.findQuote(userId, input.quoteId),
+	);
 	if (!quote) throw new Error("NOT_FOUND");
+	return createGenerationFromQuote(userId, input, quote, dependencies, timing);
+}
+
+export async function createGenerationFromApprovedQuote(
+	userId: string,
+	input: { quoteId: string; idempotencyKey: string; parentJobId?: string },
+	admission: PreparedGenerationAdmission,
+	dependencies: CreateGenerationDependencies = defaultDependencies,
+	timing: FlowTiming = createFlowTiming(),
+): Promise<CreatedGenerationJob> {
+	if (admission.ownerId !== userId || admission.quote.id !== input.quoteId)
+		throw new Error("NOT_FOUND");
+	if (process.env.MEDIA_GENERATION_ENABLED !== "true") throw new Error("MODEL_DISABLED");
+	// Keep the existing two admission charges; only duplicate data reads are removed.
+	await timing.measure("admission.rate-limit", async () =>
+		dependencies.enforceRateLimit?.(userId, "media:generation"),
+	);
+	return createGenerationFromQuote(userId, input, admission.quote, dependencies, timing, admission);
+}
+
+async function createGenerationFromQuote(
+	userId: string,
+	input: { quoteId: string; idempotencyKey: string; parentJobId?: string },
+	quote: GenerationQuoteForCreation,
+	dependencies: CreateGenerationDependencies,
+	timing: FlowTiming,
+	admission?: PreparedGenerationAdmission,
+): Promise<CreatedGenerationJob> {
 	if (quote.expiresAt <= dependencies.now()) throw new Error("QUOTE_EXPIRED");
 	if (
 		quote.catalogVersion !== DEFAULT_PRODUCT_CONFIG.catalogVersion ||
@@ -157,7 +221,9 @@ export async function createGenerationForUser(
 	if (!EZPIC_PRODUCT_KEYS.includes(quote.productKey as (typeof EZPIC_PRODUCT_KEYS)[number])) {
 		throw new Error("PRICE_CHANGED");
 	}
-	const routeGraphOptions = await dependencies.getRouteGraphOptions();
+	const routeGraphOptions =
+		admission?.routeGraphOptions ??
+		(await timing.measure("admission.config", () => dependencies.getRouteGraphOptions()));
 	assertFrozenQuoteRouteGraphIsCurrent(
 		{
 			productKey: quote.productKey as Parameters<typeof assertGenerationAllowed>[0]["productKey"],
@@ -174,37 +240,48 @@ export async function createGenerationForUser(
 		inputSnapshot.temporaryReference === undefined
 			? undefined
 			: temporaryReferenceSchema.parse(inputSnapshot.temporaryReference);
-	await dependencies.assertAllowed({
-		userId,
-		productKey: quote.productKey as Parameters<typeof assertGenerationAllowed>[0]["productKey"],
-		credits: quote.credits,
-		costMicros: quote.costMicros,
-		input: quote.inputSnapshot as Parameters<typeof assertGenerationAllowed>[0]["input"],
-		temporaryReference,
-		catalogVersion: quote.catalogVersion,
-		pricingVersion: quote.pricingVersion,
-		enforceProspectiveDailyBudget: false,
-		routeGraphOptions,
-	});
-	const entitlement = await dependencies.loadEntitlement(userId);
+	if (!admission)
+		await timing.measure("admission.eligibility", () =>
+			dependencies.assertAllowed({
+				userId,
+				productKey: quote.productKey as Parameters<typeof assertGenerationAllowed>[0]["productKey"],
+				credits: quote.credits,
+				costMicros: quote.costMicros,
+				input: quote.inputSnapshot as Parameters<typeof assertGenerationAllowed>[0]["input"],
+				temporaryReference,
+				catalogVersion: quote.catalogVersion,
+				pricingVersion: quote.pricingVersion,
+				enforceProspectiveDailyBudget: false,
+				routeGraphOptions,
+			}),
+		);
+	const entitlement = admission
+		? undefined
+		: await timing.measure("admission.entitlement", () => dependencies.loadEntitlement(userId));
 	const maximumGlobalDailyCostMicros = mediaDailyProviderCostBudgetMicros(process.env);
-	return dependencies.createGenerationJob({
-		ownerType: "USER",
-		ownerId: userId,
-		submittedByUserId: userId,
-		quoteId: quote.id,
-		idempotencyKey: input.idempotencyKey,
-		inputAssetIds: sourceAssetId ? [sourceAssetId] : [],
-		expectedModerationRuleVersion: TEXT_MODERATION_RULE_VERSION,
-		expectedModerationProvider: textModerationProviderForEnvironment(process.env),
-		expectedAssetModerationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
-		expectedAssetModerationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
-		maximumDailyCostMicros: BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros),
-		...(maximumGlobalDailyCostMicros === undefined ? {} : { maximumGlobalDailyCostMicros }),
-		maximumStorageBytes: maximumMediaStorageBytes(),
-		maximumConcurrentJobs: entitlement.maximumConcurrentJobs,
-		...imageEditBinding(quote.productKey, inputSnapshot, input.parentJobId),
-	});
+	const created = await timing.measure("admission.job.transaction", () =>
+		dependencies.createGenerationJob({
+			ownerType: "USER",
+			ownerId: userId,
+			submittedByUserId: userId,
+			quoteId: quote.id,
+			idempotencyKey: input.idempotencyKey,
+			inputAssetIds: sourceAssetId ? [sourceAssetId] : [],
+			expectedModerationRuleVersion: TEXT_MODERATION_RULE_VERSION,
+			expectedModerationProvider: textModerationProviderForEnvironment(process.env),
+			expectedAssetModerationRuleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+			expectedAssetModerationPolicyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+			maximumDailyCostMicros: BigInt(DEFAULT_PRODUCT_CONFIG.budgets.maximumDailyUserCostMicros),
+			...(maximumGlobalDailyCostMicros === undefined ? {} : { maximumGlobalDailyCostMicros }),
+			maximumStorageBytes: maximumMediaStorageBytes(),
+			validateCurrentEligibility: true,
+			...(entitlement ? { maximumConcurrentJobs: entitlement.maximumConcurrentJobs } : {}),
+			...imageEditBinding(quote.productKey, inputSnapshot, input.parentJobId),
+		}),
+	);
+	timing.bind({ jobId: created.job.id, assetId: created.verificationAssetId });
+	timing.mark("admission.committed", 0);
+	return created;
 }
 
 function imageEditBinding(

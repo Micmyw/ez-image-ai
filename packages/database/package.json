@@ -13,6 +13,7 @@
 		".": "./index.ts",
 		"./client": "./prisma/client.ts",
 		"./media-assets": "./prisma/queries/media/assets.ts",
+		"./media-job-status": "./prisma/queries/media/job-status.ts",
 		"./media-quotes": "./prisma/queries/media/quotes.ts",
 		"./generated-client": {
 			"workerd": "./prisma/generated-worker/client.ts",

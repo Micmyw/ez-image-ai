@@ -19,6 +19,152 @@ function fakeSteps() {
 }
 
 describe("durable job orchestration", () => {
+	it("retains scheduled recovery without replaying finalization when targeted wake fails", async () => {
+		const invoke = vi.fn(async (request) =>
+			request.taskId === "media-finalize-generation"
+				? { status: "ok" as const, outputReview: { waiting: true, eventIds: ["committed-event"] } }
+				: { status: "failed" as const },
+		);
+		expect(
+			await runTask(
+				{ taskId: "media-finalize-generation", payload: {} },
+				"failed-wake",
+				fakeSteps(),
+				invoke,
+			),
+		).toMatchObject({ status: "ok" });
+		expect(
+			invoke.mock.calls.filter(([r]) => r.taskId === "media-finalize-generation"),
+		).toHaveLength(1);
+		expect(invoke.mock.calls.some(([r]) => r.taskId === "media-deliver-outbox")).toBe(false);
+	});
+	it("retains ordinary delivery for a mixed technical failure after targeting pending output siblings", async () => {
+		const invoke = vi.fn(async (request) =>
+			request.taskId === "media-finalize-generation"
+				? { status: "ok" as const, outputReview: { waiting: false, eventIds: ["committed-event"] } }
+				: { status: "ok" as const },
+		);
+		await runTask(
+			{ taskId: "media-finalize-generation", payload: {} },
+			"mixed",
+			fakeSteps(),
+			invoke,
+		);
+		expect(invoke.mock.calls.map(([r]) => r.taskId)).toEqual([
+			"media-finalize-generation",
+			"media-deliver-output-review",
+			"media-deliver-outbox",
+		]);
+	});
+	it("hands a pending output to targeted delivery after heavy completion, without maintenance", async () => {
+		let heavyActive = false;
+		const invoke = vi.fn(async (request) => {
+			if (request.taskId === "media-finalize-generation") {
+				heavyActive = true;
+				await Promise.resolve();
+				heavyActive = false;
+				return {
+					status: "ok" as const,
+					outputReview: { waiting: true, eventIds: ["actual-event"] },
+				};
+			}
+			expect(heavyActive).toBe(false);
+			if (request.taskId === "media-deliver-outbox") throw new Error("MAINTENANCE_OCCUPIED");
+			return { status: "ok" } as const;
+		});
+		const step = fakeSteps();
+		await runTask(
+			{ taskId: "media-finalize-generation", payload: { jobId: "job", version: 0 } },
+			"handoff",
+			step,
+			invoke,
+		);
+		expect(invoke.mock.calls.map(([request]) => request)).toEqual([
+			{ taskId: "media-finalize-generation", payload: { jobId: "job", version: 0 } },
+			{ taskId: "media-deliver-output-review", payload: { eventId: "actual-event" } },
+		]);
+		expect(step.sleep).not.toHaveBeenCalled();
+		await runTask(
+			{ taskId: "media-finalize-generation", payload: { jobId: "job", version: 0 } },
+			"handoff",
+			step,
+			invoke,
+		);
+		expect(invoke).toHaveBeenCalledTimes(2);
+	});
+	it("keeps original event due time only on the first poll tick, including capacity waits", async () => {
+		const step = fakeSteps();
+		const invoke = vi
+			.fn()
+			.mockResolvedValueOnce({ status: "busy" })
+			.mockResolvedValueOnce({
+				status: "ok",
+				poll: { done: false, waitSeconds: 5, outboxCommitted: false },
+			})
+			.mockResolvedValueOnce({
+				status: "ok",
+				poll: { done: true, waitSeconds: 0, outboxCommitted: false },
+			});
+		await runPolling(
+			{
+				taskId: "media-verify-upload",
+				payload: { assetId: "asset-1" },
+				trace: { outboxEventId: "event-1", dueAt: 1_800_000_000_000 },
+			},
+			"poll-trace",
+			step,
+			invoke,
+		);
+		expect(invoke.mock.calls.map(([request]) => request.trace)).toEqual([
+			{ outboxEventId: "event-1", dueAt: 1_800_000_000_000, pollTick: 0 },
+			{ outboxEventId: "event-1", dueAt: 1_800_000_000_000, pollTick: 0 },
+			{ outboxEventId: "event-1", pollTick: 1 },
+		]);
+		// Durable replay uses the same recorded steps and does not re-execute logs.
+		await runPolling(
+			{
+				taskId: "media-verify-upload",
+				payload: { assetId: "asset-1" },
+				trace: { outboxEventId: "event-1", dueAt: 1_800_000_000_000 },
+			},
+			"poll-trace",
+			step,
+			invoke,
+		);
+		expect(invoke).toHaveBeenCalledTimes(3);
+	});
+	it.each(["media-verify-upload", "media-poll-generation"])(
+		"does not scan Outbox after a duplicate %s with no committed event",
+		async (taskId) => {
+			const invoke = vi.fn().mockResolvedValue({
+				status: "ok",
+				poll: { done: true, waitSeconds: 0, outboxCommitted: false },
+			});
+			await runTask({ taskId, payload: {} }, "duplicate", fakeSteps(), invoke);
+			expect(invoke).toHaveBeenCalledOnce();
+		},
+	);
+	it.each([true, undefined])(
+		"retains delivery after committed or legacy polling result %s",
+		async (outboxCommitted) => {
+			const invoke = vi
+				.fn()
+				.mockResolvedValue({ status: "ok" })
+				.mockResolvedValueOnce({
+					status: "ok",
+					poll: {
+						done: true,
+						waitSeconds: 0,
+						...(outboxCommitted === undefined ? {} : { outboxCommitted }),
+					},
+				});
+			await runTask({ taskId: "media-verify-upload", payload: {} }, "changed", fakeSteps(), invoke);
+			expect(invoke.mock.calls.map(([request]) => request.taskId)).toEqual([
+				"media-verify-upload",
+				"media-deliver-outbox",
+			]);
+		},
+	);
 	it.each([
 		"media-finalize-generation",
 		"media-process-provider-webhook",

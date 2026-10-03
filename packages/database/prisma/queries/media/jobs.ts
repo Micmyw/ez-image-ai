@@ -3,7 +3,9 @@ import { EZPIC_PRODUCT_KEYS, LEGACY_EZPIC_PRODUCT_KEYS } from "@repo/config";
 
 import type { Prisma } from "../../generated/client";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
+import { getInitialGenerationEventIds } from "./continuations";
 import { reserveCreditsInTransaction } from "./credits";
+import { loadCurrentGenerationAdmission } from "./generation-admission";
 import { assertQuoteModerationPermitted } from "./moderation-operations";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
 import {
@@ -82,6 +84,7 @@ async function findExistingJob(
 		throw new Error("IDEMPOTENCY_CONFLICT");
 	}
 	return {
+		continuationEventIds: await getInitialGenerationEventIds(existing.id, client),
 		job: {
 			id: existing.id,
 			status: existing.status,
@@ -120,10 +123,10 @@ export async function createGenerationJobTransaction(
 	try {
 		return await runSerializable(client, async (tx) => {
 			const operationNow = await getDatabaseNow(tx);
-			if (input.maximumConcurrentJobs !== undefined) {
+			if (input.maximumConcurrentJobs !== undefined || input.validateCurrentEligibility) {
 				if (
-					!Number.isSafeInteger(input.maximumConcurrentJobs) ||
-					input.maximumConcurrentJobs <= 0
+					input.maximumConcurrentJobs !== undefined &&
+					(!Number.isSafeInteger(input.maximumConcurrentJobs) || input.maximumConcurrentJobs <= 0)
 				) {
 					throw new Error("Generation concurrency limit must be a positive safe integer");
 				}
@@ -152,7 +155,19 @@ export async function createGenerationJobTransaction(
 			await assertQuoteModerationPermitted(quote, tx);
 			const replay = await findExistingJob(input, tx);
 			if (replay) return replay;
-			if (input.maximumConcurrentJobs !== undefined) {
+			const admission = input.validateCurrentEligibility
+				? await loadCurrentGenerationAdmission(
+						{
+							ownerId: input.ownerId,
+							productKey: quote.productKey,
+							costMicros: quote.costMicros,
+							now: operationNow,
+						},
+						tx,
+					)
+				: undefined;
+			const maximumConcurrentJobs = admission?.maximumConcurrentJobs ?? input.maximumConcurrentJobs;
+			if (maximumConcurrentJobs !== undefined) {
 				const activeJobs = await tx.generationJob.count({
 					where: {
 						ownerType: input.ownerType,
@@ -160,7 +175,7 @@ export async function createGenerationJobTransaction(
 						status: { in: [...ACTIVE_GENERATION_JOB_STATUSES] },
 					},
 				});
-				if (activeJobs >= input.maximumConcurrentJobs) {
+				if (activeJobs >= maximumConcurrentJobs) {
 					throw new Error("CONCURRENT_JOB_LIMIT_REACHED");
 				}
 			}
@@ -249,6 +264,16 @@ export async function createGenerationJobTransaction(
 			) {
 				throw new Error("Every input asset must be READY and owned by the user");
 			}
+			if (
+				admission &&
+				inputAssets.some(
+					(asset) =>
+						asset.byteSize === null || asset.byteSize > BigInt(admission.maximumInputBytes),
+				)
+			)
+				throw new Error("INPUT_TOO_LARGE");
+			if (admission && inputAssets.some((asset) => !asset.mimeType.startsWith("image/")))
+				throw new Error("ASSET_NOT_READY");
 			const moderationEvidence = inputAssets.length
 				? await tx.assetModerationResult.findMany({
 						where: {
@@ -389,6 +414,7 @@ export async function createGenerationJobTransaction(
 				});
 			}
 			return {
+				continuationEventIds: await getInitialGenerationEventIds(job.id, tx),
 				...(temporaryReference &&
 				inputAssets.some(
 					(asset) => asset.id === temporaryReference.assetId && asset.status === "VERIFYING",

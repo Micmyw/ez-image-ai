@@ -19,6 +19,7 @@ export * from "./guest-quota";
 export * from "./guest-link";
 export * from "./guest-retention";
 export * from "./jobs";
+export * from "./continuations";
 export * from "./kie-callback";
 export * from "./idempotency";
 export * from "./operations";

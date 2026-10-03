@@ -37,7 +37,15 @@ describe("output verification admission", () => {
 			const update = async ({ data }: { data: Record<string, unknown> }) => ({
 				...Object.assign(asset, data),
 			});
-			const wake = vi.fn(async (_input: { where: { dedupeKey: string } }) => ({}));
+			const committedEvents = new Set<string>();
+			const wake = vi.fn(
+				async (input: { skipDuplicates: boolean; data: { dedupeKey: string } }) => {
+					expect(input.skipDuplicates).toBe(true);
+					if (committedEvents.has(input.data.dedupeKey)) return { count: 0 };
+					committedEvents.add(input.data.dedupeKey);
+					return { count: 1 };
+				},
+			);
 			const tx = {
 				$executeRaw: vi.fn(async () => 1),
 				mediaAsset: {
@@ -56,7 +64,10 @@ describe("output verification admission", () => {
 					create: async () => ({}),
 					count: async () => 0,
 				},
-				outboxEvent: { upsert: wake },
+				outboxEvent: {
+					createMany: wake,
+					findUniqueOrThrow: async () => ({ id: "persisted-output-poll", availableAt: now }),
+				},
 			};
 			const database = {
 				...tx,
@@ -96,23 +107,31 @@ describe("output verification admission", () => {
 					),
 				createSignedReadUrl: async () => "https://private.example/output",
 			});
-			await dependencies.verify(asset.id);
+			await expect(dependencies.verify(asset.id)).resolves.toEqual({
+				outboxCommitted: immediateWake,
+				...(immediateWake ? { outputReviewEventId: "persisted-output-poll" } : {}),
+			});
 			expect(wake).toHaveBeenCalledOnce();
 			expect.soft(wake).toHaveBeenCalledWith(
 				expect.objectContaining({
-					create: expect.objectContaining({
+					data: expect.objectContaining({
 						eventType: "MEDIA_ASSET_VERIFY",
 						availableAt: new Date(now.getTime() + (immediateWake ? 0 : intervalMs)),
 					}),
 				}),
 			);
 			expect.soft(asset.verificationNextAttemptAt).toEqual(new Date(now.getTime() + intervalMs));
-			await dependencies.verify(asset.id);
+			await expect(dependencies.verify(asset.id)).resolves.toMatchObject({
+				outboxCommitted: false,
+			});
 			expect(submit).toHaveBeenCalledOnce();
 			expect(retrieve).toHaveBeenCalledOnce();
 			expect(asset.status).toBe("VERIFYING");
 			vi.setSystemTime(new Date(now.getTime() + intervalMs));
-			await dependencies.verify(asset.id);
+			await expect(dependencies.verify(asset.id)).resolves.toEqual({
+				outboxCommitted: false,
+				...(immediateWake ? { outputReviewEventId: "persisted-output-poll" } : {}),
+			});
 			expect(submit).toHaveBeenCalledOnce();
 			expect(retrieve).toHaveBeenCalledTimes(2);
 			expect(retrieve).toHaveBeenLastCalledWith(
@@ -120,7 +139,8 @@ describe("output verification admission", () => {
 			);
 			if (immediateWake) {
 				// Repeated pending responses must reuse one polling Workflow, not fan out.
-				expect(wake.mock.calls[1]![0].where.dedupeKey).toBe(wake.mock.calls[0]![0].where.dedupeKey);
+				expect(wake.mock.calls[1]![0].data.dedupeKey).toBe(wake.mock.calls[0]![0].data.dedupeKey);
+				expect(committedEvents.size).toBe(1);
 			}
 			expect(asset.status).toBe("VERIFYING");
 		},
@@ -186,7 +206,7 @@ describe("output verification admission", () => {
 			const verify = createDatabaseVerifyUploadDependencies(database as never, {
 				safety: new TestMediaSafetyAdapter("ALLOW"),
 			});
-			await expect(verify.verify(asset.id)).resolves.toBeUndefined();
+			await expect(verify.verify(asset.id)).resolves.toEqual({ outboxCommitted: false });
 			expect(update).not.toHaveBeenCalled();
 		},
 	);

@@ -1,126 +1,145 @@
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 
-type ContentBlock =
-	| { type: "heading"; level: 2 | 3; text: string }
-	| { type: "paragraph"; text: string }
-	| { type: "unordered-list"; items: string[] }
-	| { type: "ordered-list"; items: string[] };
+import { parsePublicMarkdown } from "../lib/blog-markdown";
+import { PromptBlock } from "./PromptBlock";
 
-export function PublicMarkdown({ body }: { body: string }) {
-	return (
-		<div className="max-w-3xl text-slate-300 mx-auto">
-			{parseBlocks(body).map((block, index) => {
-				const key = `${block.type}-${index}`;
-				if (block.type === "heading") {
-					return block.level === 2 ? (
-						<h2 key={key} className="mt-10 mb-4 text-2xl font-semibold text-white">
-							{renderInline(block.text)}
-						</h2>
+export function PublicMarkdown({
+	body,
+	afterSections = {},
+	renderPrompt,
+	copyQuotedPrompts = false,
+}: {
+	body: string;
+	afterSections?: Readonly<Record<string, ReactNode>>;
+	renderPrompt?: (prompt: string, key: string) => ReactNode;
+	copyQuotedPrompts?: boolean;
+}) {
+	const output: ReactNode[] = [];
+	const sections: { id: string; level: number }[] = [];
+	const closeSection = () => {
+		const section = sections.pop();
+		if (section && afterSections[section.id])
+			output.push(<Fragment key={`after-${section.id}`}>{afterSections[section.id]}</Fragment>);
+	};
+	for (const [index, block] of parsePublicMarkdown(body).entries()) {
+		const key = `${block.type}-${index}`;
+		if (block.type === "heading") {
+			while (sections.length && sections.at(-1)!.level >= block.level) closeSection();
+			sections.push({ id: block.id, level: block.level });
+			const Heading = block.level === 2 ? "h2" : "h3";
+			output.push(
+				<Heading
+					id={block.id}
+					key={key}
+					className={
+						block.level === 2
+							? "mt-10 mb-4 scroll-mt-28 text-2xl font-semibold text-white"
+							: "mt-8 mb-3 scroll-mt-28 text-xl font-semibold text-white"
+					}
+				>
+					{renderInline(block.text)}
+				</Heading>,
+			);
+		} else if (block.type === "unordered-list" || block.type === "ordered-list") {
+			const List = block.type === "ordered-list" ? "ol" : "ul";
+			output.push(
+				<List
+					key={key}
+					className={`mb-5 space-y-2 pl-6 leading-7 ${block.type === "ordered-list" ? "list-decimal" : "list-disc"}`}
+				>
+					{block.items.map((item, itemIndex) => (
+						<li key={`${key}-${itemIndex}`}>{renderInline(item)}</li>
+					))}
+				</List>,
+			);
+		} else if (block.type === "prompt") {
+			output.push(
+				renderPrompt ? (
+					renderPrompt(block.text, key)
+				) : (
+					<PromptBlock key={key} prompt={block.text} />
+				),
+			);
+		} else if (block.type === "code") {
+			output.push(
+				<pre
+					key={key}
+					className="mb-5 bg-white/5 p-4 text-sm leading-7 max-w-full rounded-xl [overflow-wrap:anywhere] break-words whitespace-pre-wrap"
+				>
+					<code>{block.text}</code>
+				</pre>,
+			);
+		} else if (block.type === "callout") {
+			output.push(
+				<aside
+					key={key}
+					className="my-6 border-violet-300 bg-violet-300/5 p-5 leading-7 rounded-r-xl border-l-2"
+				>
+					{renderInline(block.text)}
+				</aside>,
+			);
+		} else if (block.type === "table") {
+			output.push(
+				<div
+					key={key}
+					className="mb-6 border-white/10 max-w-full overflow-x-auto rounded-xl border"
+				>
+					<table className="text-sm leading-6 w-full table-fixed text-left">
+						<thead>
+							<tr>
+								{block.headings.map((cell, cellIndex) => (
+									<th
+										key={cellIndex}
+										scope="col"
+										className="bg-white/5 p-3 font-semibold text-white [overflow-wrap:anywhere] break-words"
+									>
+										{renderInline(cell)}
+									</th>
+								))}
+							</tr>
+						</thead>
+						<tbody>
+							{block.rows.map((row, rowIndex) => (
+								<tr key={rowIndex}>
+									{block.headings.map((_, cellIndex) => (
+										<td
+											key={cellIndex}
+											className="border-white/10 p-3 border-t align-top [overflow-wrap:anywhere] break-words"
+										>
+											{renderInline(row[cellIndex] ?? "")}
+										</td>
+									))}
+								</tr>
+							))}
+						</tbody>
+					</table>
+				</div>,
+			);
+		} else if (block.type === "paragraph") {
+			const quotedPrompt = copyQuotedPrompts ? /^"([\s\S]+)"$/.exec(block.text) : null;
+			if (quotedPrompt) {
+				output.push(
+					renderPrompt ? (
+						renderPrompt(quotedPrompt[1]!, key)
 					) : (
-						<h3 key={key} className="mt-8 mb-3 text-xl font-semibold text-white">
-							{renderInline(block.text)}
-						</h3>
-					);
-				}
-				if (block.type === "unordered-list") {
-					return (
-						<ul key={key} className="mb-5 space-y-2 pl-6 list-disc">
-							{block.items.map((item, itemIndex) => (
-								<li key={`${key}-${itemIndex}`}>{renderInline(item)}</li>
-							))}
-						</ul>
-					);
-				}
-				if (block.type === "ordered-list") {
-					return (
-						<ol key={key} className="mb-5 space-y-2 pl-6 list-decimal">
-							{block.items.map((item, itemIndex) => (
-								<li key={`${key}-${itemIndex}`}>{renderInline(item)}</li>
-							))}
-						</ol>
-					);
-				}
-				return (
-					<p key={key} className="mb-5 leading-7">
-						{renderInline(block.text)}
-					</p>
+						<PromptBlock key={key} prompt={quotedPrompt[1]!} />
+					),
 				);
-			})}
+				continue;
+			}
+			output.push(
+				<p key={key} className="mb-5 leading-7">
+					{renderInline(block.text)}
+				</p>,
+			);
+		}
+	}
+	while (sections.length) closeSection();
+	return (
+		<div className="min-w-0 max-w-3xl text-slate-300 mx-auto [overflow-wrap:anywhere]">
+			{output}
 		</div>
 	);
-}
-
-function parseBlocks(body: string): ContentBlock[] {
-	const lines = body.replaceAll("\r\n", "\n").trim().split("\n");
-	const blocks: ContentBlock[] = [];
-	let index = 0;
-
-	while (index < lines.length) {
-		const line = lines[index]?.trim() ?? "";
-		if (!line) {
-			index += 1;
-			continue;
-		}
-
-		const heading = /^(#{2,3})\s+(.+)$/.exec(line);
-		if (heading) {
-			blocks.push({
-				type: "heading",
-				level: heading[1]!.length === 2 ? 2 : 3,
-				text: heading[2]!,
-			});
-			index += 1;
-			continue;
-		}
-
-		const unordered = collectList(lines, index, /^[-*]\s+(.+)$/);
-		if (unordered) {
-			blocks.push({ type: "unordered-list", items: unordered.items });
-			index = unordered.nextIndex;
-			continue;
-		}
-
-		const ordered = collectList(lines, index, /^\d+\.\s+(.+)$/);
-		if (ordered) {
-			blocks.push({ type: "ordered-list", items: ordered.items });
-			index = ordered.nextIndex;
-			continue;
-		}
-
-		const paragraph: string[] = [];
-		while (index < lines.length) {
-			const paragraphLine = lines[index]?.trim() ?? "";
-			if (
-				!paragraphLine ||
-				/^(#{2,3})\s+/.test(paragraphLine) ||
-				/^[-*]\s+/.test(paragraphLine) ||
-				/^\d+\.\s+/.test(paragraphLine)
-			) {
-				break;
-			}
-			paragraph.push(paragraphLine);
-			index += 1;
-		}
-		blocks.push({ type: "paragraph", text: paragraph.join(" ") });
-	}
-
-	return blocks;
-}
-
-function collectList(
-	lines: string[],
-	startIndex: number,
-	pattern: RegExp,
-): { items: string[]; nextIndex: number } | null {
-	const items: string[] = [];
-	let index = startIndex;
-	while (index < lines.length) {
-		const match = pattern.exec(lines[index]?.trim() ?? "");
-		if (!match) break;
-		items.push(match[1]!);
-		index += 1;
-	}
-	return items.length ? { items, nextIndex: index } : null;
 }
 
 function renderInline(text: string): ReactNode[] {
@@ -129,8 +148,8 @@ function renderInline(text: string): ReactNode[] {
 		.filter(Boolean)
 		.map((part, index) => {
 			const link = /^\[([^\]]+)\]\((\/[^\s)]*)\)$/.exec(part);
-			// Public editorial content links to same-origin routes only.
-			if (link && !link[2]!.startsWith("//") && !link[2]!.includes("\\")) {
+			// Editorial Markdown retains its same-origin-only link contract; raw HTML is text.
+			if (link && !link[2]!.startsWith("//") && !link[2]!.includes("\\"))
 				return (
 					<a
 						key={index}
@@ -140,16 +159,12 @@ function renderInline(text: string): ReactNode[] {
 						{link[1]}
 					</a>
 				);
-			}
-			if (part.startsWith("`") && part.endsWith("`")) {
+			if (part.startsWith("`") && part.endsWith("`"))
 				return <code key={index}>{part.slice(1, -1)}</code>;
-			}
-			if (part.startsWith("**") && part.endsWith("**")) {
+			if (part.startsWith("**") && part.endsWith("**"))
 				return <strong key={index}>{part.slice(2, -2)}</strong>;
-			}
-			if (part.startsWith("_") && part.endsWith("_")) {
+			if (part.startsWith("_") && part.endsWith("_"))
 				return <em key={index}>{part.slice(1, -1)}</em>;
-			}
 			return part;
 		});
 }

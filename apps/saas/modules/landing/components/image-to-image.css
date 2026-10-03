@@ -41,7 +41,7 @@
 	color: #e9e1ef;
 }
 .image-edit-faq-item summary::-webkit-details-marker,
-.image-edit-prompt-ideas summary::-webkit-details-marker {
+:where([data-image-to-image-page]) .image-edit-prompt-ideas summary::-webkit-details-marker {
 	display: none;
 }
 .image-edit-faq-item summary:hover {
@@ -62,11 +62,11 @@
 	color: #f6f2fb;
 }
 .image-edit-return-link:focus-visible,
-.image-edit-prompt-ideas summary:focus-visible {
+:where([data-image-to-image-page]) .image-edit-prompt-ideas summary:focus-visible {
 	outline: 2px solid #c7b6e5;
 	outline-offset: 4px;
 }
-.studio-composer[data-layout="minimal"],
+:where([data-image-to-image-page]) .studio-composer[data-layout="minimal"],
 [data-image-to-image-page] [data-test="landing-generator"] {
 	padding: 24px;
 	border: 1px solid #b8a6ca2b;
@@ -74,37 +74,43 @@
 	background: #211b2b;
 	box-shadow: 0 16px 48px -32px #0009;
 }
-.studio-composer[data-layout="minimal"] .studio-composer-inputs,
+:where([data-image-to-image-page]) .studio-composer[data-layout="minimal"] .studio-composer-inputs,
 [data-image-to-image-page] [data-test="landing-composer-inputs"] {
 	grid-template-columns: 144px minmax(0, 1fr);
 	gap: 28px;
 	padding: 0;
 	background: none;
 }
-.studio-composer[data-layout="minimal"] .studio-prompt {
+:where([data-image-to-image-page]) .studio-composer[data-layout="minimal"] .studio-prompt {
 	padding: 4px 0 0;
 }
-.studio-composer[data-layout="minimal"] .studio-prompt label {
+:where([data-image-to-image-page]) .studio-composer[data-layout="minimal"] .studio-prompt label {
 	font-size: 12px;
 	font-weight: 500;
 	color: #cec2d9;
 }
-.studio-composer[data-layout="minimal"] .studio-prompt textarea {
+:where([data-image-to-image-page]) .studio-composer[data-layout="minimal"] .studio-prompt textarea {
 	min-height: 112px;
 	margin-top: 10px;
 	font-size: 16px;
 	line-height: 1.75;
 	resize: vertical;
 }
-.studio-composer[data-layout="minimal"] .studio-prompt textarea::placeholder {
+:where([data-image-to-image-page])
+	.studio-composer[data-layout="minimal"]
+	.studio-prompt
+	textarea::placeholder {
 	color: #998aa8;
 }
-.studio-composer[data-layout="minimal"] .studio-prompt textarea:focus-visible {
+:where([data-image-to-image-page])
+	.studio-composer[data-layout="minimal"]
+	.studio-prompt
+	textarea:focus-visible {
 	outline: 1px solid #b79cff70;
 	outline-offset: 6px;
 	box-shadow: none;
 }
-.image-edit-prompt-ideas summary {
+:where([data-image-to-image-page]) .image-edit-prompt-ideas summary {
 	display: flex;
 	align-items: center;
 	gap: 8px;
@@ -115,27 +121,29 @@
 	font-size: 12px;
 	color: #b4a4c5;
 }
-.image-edit-prompt-ideas summary:hover {
+:where([data-image-to-image-page]) .image-edit-prompt-ideas summary:hover {
 	color: #e9ddf9;
 }
-.image-edit-prompt-ideas[open] > summary > svg:last-child {
+:where([data-image-to-image-page]) .image-edit-prompt-ideas[open] > summary > svg:last-child {
 	transform: rotate(180deg);
 }
-.image-edit-prompt-ideas > div {
+:where([data-image-to-image-page]) .image-edit-prompt-ideas > div {
 	padding-top: 8px;
 }
-.image-edit-prompt-ideas button {
+:where([data-image-to-image-page]) .image-edit-prompt-ideas button {
 	min-height: 36px;
 	background: #ffffff04;
 	border-color: #ffffff14;
 }
-.studio-composer[data-layout="minimal"] .studio-composer-controls,
+:where([data-image-to-image-page])
+	.studio-composer[data-layout="minimal"]
+	.studio-composer-controls,
 [data-image-to-image-page] [data-test="landing-controls-panel"] {
 	margin-top: 20px;
 	padding: 18px 0 0;
 	border-top: 1px solid #ffffff0d;
 }
-.studio-composer[data-layout="minimal"] .studio-submit,
+:where([data-image-to-image-page]) .studio-composer[data-layout="minimal"] .studio-submit,
 [data-image-to-image-page] [data-test="landing-generate"] {
 	border-radius: 10px;
 	min-height: 44px;
@@ -143,11 +151,13 @@
 	color: #1b1326;
 	font-weight: 600;
 }
-.studio-composer[data-layout="minimal"] .studio-submit:not(:disabled):hover,
+:where([data-image-to-image-page])
+	.studio-composer[data-layout="minimal"]
+	.studio-submit:not(:disabled):hover,
 [data-image-to-image-page] [data-test="landing-generate"]:not(:disabled):hover {
 	background: #bea3f5;
 }
-.image-edit-composer-meta {
+:where([data-image-to-image-page]) .image-edit-composer-meta {
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
@@ -155,22 +165,22 @@
 	gap: 6px 20px;
 	margin-top: 12px;
 }
-.image-edit-composer-meta > details {
+:where([data-image-to-image-page]) .image-edit-composer-meta > details {
 	margin: 0;
 	font-size: 11px;
 	color: #998da5;
 }
-.image-edit-private {
+:where([data-image-to-image-page]) .image-edit-private {
 	display: inline-flex;
 	align-items: center;
 	gap: 6px;
 	font-size: 11px;
 	color: #998da5;
 }
-.image-edit-control-field {
+:where([data-image-to-image-page]) .image-edit-control-field {
 	display: contents;
 }
-.image-edit-control-label {
+:where([data-image-to-image-page]) .image-edit-control-label {
 	display: none;
 }
 [data-image-to-image-page] [data-test="landing-generator"] > div[aria-hidden="true"] {
@@ -213,33 +223,42 @@
 	.image-edit-faq-title {
 		max-width: 360px;
 	}
-	.studio-composer[data-layout="minimal"],
+	:where([data-image-to-image-page]) .studio-composer[data-layout="minimal"],
 	[data-image-to-image-page] [data-test="landing-generator"] {
 		padding: 16px;
 		border-radius: 16px;
 	}
-	.studio-composer[data-layout="minimal"] .studio-composer-inputs,
+	:where([data-image-to-image-page])
+		.studio-composer[data-layout="minimal"]
+		.studio-composer-inputs,
 	[data-image-to-image-page] [data-test="landing-composer-inputs"] {
 		grid-template-columns: minmax(0, 1fr);
 		gap: 18px;
 	}
-	.studio-composer[data-layout="minimal"] .studio-source {
+	:where([data-image-to-image-page]) .studio-composer[data-layout="minimal"] .studio-source {
 		gap: 0;
 	}
-	.studio-composer[data-layout="minimal"] .studio-source > div:first-child {
+	:where([data-image-to-image-page])
+		.studio-composer[data-layout="minimal"]
+		.studio-source
+		> div:first-child {
 		order: 0;
 		align-self: stretch;
 		margin: 0;
 		gap: 2px 8px;
 	}
-	.studio-composer[data-layout="minimal"] .studio-source > div:first-child > a {
+	:where([data-image-to-image-page])
+		.studio-composer[data-layout="minimal"]
+		.studio-source
+		> div:first-child
+		> a {
 		width: auto;
 		min-height: 32px;
 		color: #b4a4c5;
 		font-size: 10px;
 		font-weight: 400;
 	}
-	.studio-composer[data-layout="minimal"] .studio-source h2,
+	:where([data-image-to-image-page]) .studio-composer[data-layout="minimal"] .studio-source h2,
 	[data-image-to-image-page] :is(.landing-source-label, .landing-prompt-label) {
 		position: static;
 		display: block;
@@ -252,7 +271,9 @@
 		clip-path: none;
 		white-space: normal;
 	}
-	.studio-composer[data-layout="minimal"] :is(.studio-source h2, .studio-prompt label),
+	:where([data-image-to-image-page])
+		.studio-composer[data-layout="minimal"]
+		:is(.studio-source h2, .studio-prompt label),
 	[data-image-to-image-page]
 		:is(.landing-source-label, .landing-prompt-label, .image-edit-control-label) {
 		font-size: 10px;
@@ -262,7 +283,7 @@
 		text-transform: uppercase;
 		color: #a99bb7;
 	}
-	.studio-composer[data-layout="minimal"] .studio-upload {
+	:where([data-image-to-image-page]) .studio-composer[data-layout="minimal"] .studio-upload {
 		display: grid;
 		grid-template-columns: 72px minmax(0, 1fr);
 		height: auto;
@@ -273,7 +294,7 @@
 		background: transparent;
 		text-align: left;
 	}
-	.studio-composer[data-layout="minimal"] .studio-upload > svg {
+	:where([data-image-to-image-page]) .studio-composer[data-layout="minimal"] .studio-upload > svg {
 		grid-column: 1;
 		grid-row: 1;
 		align-self: center;
@@ -285,10 +306,13 @@
 		border-radius: 10px;
 		background: #ffffff03;
 	}
-	.studio-composer[data-layout="minimal"] .studio-upload > p {
+	:where([data-image-to-image-page]) .studio-composer[data-layout="minimal"] .studio-upload > p {
 		display: none;
 	}
-	.studio-composer[data-layout="minimal"] .studio-upload > p:last-child {
+	:where([data-image-to-image-page])
+		.studio-composer[data-layout="minimal"]
+		.studio-upload
+		> p:last-child {
 		display: block;
 		grid-column: 2;
 		grid-row: 1;
@@ -299,7 +323,10 @@
 		line-height: 1.6;
 		color: #93869f;
 	}
-	.studio-composer[data-layout="minimal"] .studio-prompt textarea,
+	:where([data-image-to-image-page])
+		.studio-composer[data-layout="minimal"]
+		.studio-prompt
+		textarea,
 	[data-image-to-image-page] [data-test="landing-prompt-panel"] textarea {
 		min-height: 164px;
 		padding: 14px;
@@ -310,7 +337,10 @@
 		line-height: 1.7;
 		resize: vertical;
 	}
-	.studio-composer[data-layout="minimal"] .studio-prompt textarea:focus-visible,
+	:where([data-image-to-image-page])
+		.studio-composer[data-layout="minimal"]
+		.studio-prompt
+		textarea:focus-visible,
 	[data-image-to-image-page] [data-test="landing-prompt-panel"] textarea:focus-visible {
 		outline: 1px solid #b79cff70;
 		outline-offset: 0;
@@ -319,10 +349,12 @@
 	[data-image-to-image-page] [data-test="landing-prompt-panel"]:focus-within {
 		outline: none;
 	}
-	.image-edit-prompt-ideas summary {
+	:where([data-image-to-image-page]) .image-edit-prompt-ideas summary {
 		min-height: 44px;
 	}
-	.studio-composer[data-layout="minimal"] .studio-composer-controls,
+	:where([data-image-to-image-page])
+		.studio-composer[data-layout="minimal"]
+		.studio-composer-controls,
 	[data-image-to-image-page] [data-test="landing-controls-panel"] {
 		display: grid;
 		grid-template-columns: minmax(0, 1fr);
@@ -365,7 +397,7 @@
 		clip-path: none;
 		white-space: normal;
 	}
-	.studio-composer[data-layout="minimal"] .studio-submit,
+	:where([data-image-to-image-page]) .studio-composer[data-layout="minimal"] .studio-submit,
 	[data-image-to-image-page] [data-test="landing-generate"] {
 		grid-column: 1 / -1;
 		flex: 1 0 100%;
@@ -374,11 +406,11 @@
 		min-height: 46px;
 		font-size: 13px;
 	}
-	.image-edit-composer-meta {
+	:where([data-image-to-image-page]) .image-edit-composer-meta {
 		align-items: flex-start;
 		gap: 4px 12px;
 	}
-	.image-edit-private {
+	:where([data-image-to-image-page]) .image-edit-private {
 		min-height: 30px;
 	}
 	[data-image-to-image-page] [data-reference-upload] {
@@ -781,5 +813,13 @@
 @media (prefers-reduced-motion: reduce) {
 	.image-edit-tabs > button {
 		transition: none;
+	}
+}
+
+@media (max-width: 767px) {
+	/* Keep mobile browsing clear; examples and the closing CTA return to the editor. */
+	[data-image-to-image-page]
+		:is([data-test="registered-editor-dock"], [data-test="floating-editor-dock"]) {
+		display: none;
 	}
 }

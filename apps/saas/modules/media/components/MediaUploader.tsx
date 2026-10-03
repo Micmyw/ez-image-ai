@@ -33,6 +33,7 @@ export interface MediaUploaderProps {
 	multiple?: boolean;
 	maximumImageBytes?: number;
 	compact?: boolean;
+	uploadLabel?: string;
 }
 
 export function MediaUploader({
@@ -42,6 +43,7 @@ export function MediaUploader({
 	multiple = true,
 	maximumImageBytes = publicProductConfig.uploadLimits.imageBytes,
 	compact = false,
+	uploadLabel,
 	temporaryReference = false,
 }: MediaUploaderProps) {
 	const t = useTranslations("media.uploader");
@@ -97,7 +99,9 @@ export function MediaUploader({
 			>
 				<input {...getInputProps()} />
 				{compact && <UploadCloudIcon className="mb-3 size-6 text-violet-300 mx-auto" aria-hidden />}
-				<p>{isDragActive ? t("active") : compact ? studio("upload") : t("idle")}</p>
+				<p>
+					{isDragActive ? t("active") : (uploadLabel ?? (compact ? studio("upload") : t("idle")))}
+				</p>
 				<p
 					className={
 						compact ? "mt-2 text-[10px] text-muted-foreground" : "text-sm text-muted-foreground"

@@ -1,4 +1,5 @@
-import type { Prisma } from "../../generated/client";
+import { Prisma } from "#prisma-runtime-client";
+
 import type { MediaTransactionClient, OutboxClaimInput } from "./types";
 import { runSerializable } from "./types";
 
@@ -12,13 +13,38 @@ interface ClaimedOutboxRow {
 	attempts: number;
 	leaseToken: string;
 	leasedUntil: Date;
+	availableAt: Date;
 }
 
 export async function claimOutboxBatch(input: OutboxClaimInput, client: MediaTransactionClient) {
 	if (input.limit < 1 || input.limit > 100) throw new Error("Outbox claim limit is invalid");
 	if (input.leaseSeconds < 1) throw new Error("Outbox lease duration is invalid");
+	if (
+		input.eventIds !== undefined &&
+		(input.outputReviewEventId !== undefined ||
+			input.eventIds.length < 1 ||
+			input.eventIds.length > 100 ||
+			input.eventIds.some((id) => !id || id.length > 256))
+	)
+		throw new Error("Invalid continuation events");
 	const now = input.now ?? new Date();
 	const leasedUntil = new Date(now.getTime() + input.leaseSeconds * 1_000);
+	const target =
+		input.eventIds !== undefined
+			? Prisma.sql`AND "id" IN (${Prisma.join(input.eventIds)})
+		AND (("aggregateType" = 'MEDIA_ASSET' AND "eventType" IN ('MEDIA_ASSET_VERIFY', 'MEDIA_ASSET_MODERATION_REQUESTED')
+		 AND ("payload"->>'assetId' IS NULL OR "payload"->>'assetId' = "aggregateId"))
+		 OR ("aggregateType" = 'GENERATION_JOB' AND "eventType" IN ('JOB_CREATED', 'GENERATION_DISPATCH', 'GENERATION_FINALIZE', 'GENERATION_FINALIZE_RETRY', 'GENERATION_SETTLE')
+		 AND ("payload"->>'jobId' IS NULL OR "payload"->>'jobId' = "aggregateId")))`
+			: input.outputReviewEventId === undefined
+				? Prisma.empty
+				: Prisma.sql`
+		AND "id" = ${input.outputReviewEventId}
+		AND "eventType" = 'MEDIA_ASSET_VERIFY' AND "aggregateType" = 'MEDIA_ASSET'
+		AND ("payload"->>'assetId' IS NULL OR "payload"->>'assetId' = "aggregateId")
+		AND EXISTS (SELECT 1 FROM "media_asset" asset
+			WHERE asset."id" = "outbox_event"."aggregateId" AND asset."kind" = 'OUTPUT'
+			AND asset."mimeType" LIKE 'image/%')`;
 	return runSerializable(
 		client,
 		(tx) =>
@@ -27,6 +53,7 @@ export async function claimOutboxBatch(input: OutboxClaimInput, client: MediaTra
 				SELECT "id"
 				FROM "outbox_event"
 				WHERE "availableAt" <= ${now}
+				  ${target}
 				  AND (
 					"status" = 'PENDING'
 					OR ("status" = 'LEASED' AND "leasedUntil" <= ${now})
@@ -43,7 +70,7 @@ export async function claimOutboxBatch(input: OutboxClaimInput, client: MediaTra
 			WHERE event."id" = claimable."id"
 			RETURNING event."id", event."eventType", event."aggregateType",
 			          event."aggregateId", event."dedupeKey", event."payload",
-			          event."attempts", event."leaseToken", event."leasedUntil"`,
+			          event."attempts", event."leaseToken", event."leasedUntil", event."availableAt"`,
 	);
 }
 

@@ -11,8 +11,9 @@ export async function finalizeMedia(
 	payload: JobPayload,
 	dependencies: FinalizationDependencies,
 ): Promise<{
-	outcome: "SKIPPED" | "FINALIZED" | "RETRY_SCHEDULED";
+	outcome: "SKIPPED" | "FINALIZED" | "RETRY_SCHEDULED" | "WAITING_MODERATION";
 	readyOutputs: number;
+	outputReviewEventIds?: string[];
 }> {
 	const claim = await dependencies.store.claimFinalization(payload);
 	if (!claim) return { outcome: "SKIPPED", readyOutputs: 0 };
@@ -54,6 +55,13 @@ export async function finalizeMedia(
 			}
 		}
 	}
+	const pending = results.filter((result) => result.moderationPending);
+	const outputReviewEventIds = [
+		...new Set(
+			pending.flatMap((result) => (result.outputReviewEventId ? [result.outputReviewEventId] : [])),
+		),
+	];
+	const continuation = pending.length ? { outputReviewEventIds } : {};
 	if (retryFailure) {
 		const resolution = await dependencies.store.recordFinalizationRetry(
 			claim,
@@ -69,6 +77,19 @@ export async function finalizeMedia(
 		return {
 			outcome: "RETRY_SCHEDULED",
 			readyOutputs: results.filter((result) => result.approved).length,
+			...continuation,
+		};
+	}
+	if (pending.length) {
+		if (claim.candidates.length > 1)
+			await dependencies.store.recordFinalizationWait?.(claim, results);
+		// Transfer completion already bound these private assets. Verification owns
+		// the durable wait and wakes finalization when resolved; do not settle early
+		// or spend the technical retry budget while the detector is processing.
+		return {
+			outcome: "WAITING_MODERATION",
+			readyOutputs: results.filter((result) => result.approved).length,
+			...continuation,
 		};
 	}
 	if (terminalFailure) {

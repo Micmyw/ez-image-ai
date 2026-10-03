@@ -25,6 +25,7 @@ export function StudioToolNavigation({
 }) {
 	const t = useTranslations("studio.tools");
 	const imageToImage = useTranslations("imageToImage");
+	const effects = useTranslations("effects");
 	const coloring = useTranslations("coloring");
 	const vertical = sidebar || drawer;
 	const models = useTranslations("media.create.products");
@@ -61,6 +62,21 @@ export function StudioToolNavigation({
 	};
 	const tools = (
 		<>
+			{!drawer && (
+				<Link
+					href="/effects"
+					prefetch={false}
+					onClick={navigate}
+					className={vertical ? "studio-nav-link" : "studio-menu-entry"}
+					aria-current={pathname.startsWith("/effects") ? "page" : undefined}
+				>
+					<LayoutGridIcon aria-hidden />
+					<span>
+						<strong>{effects("name")}</strong>
+						{!vertical && <small>{effects("navigationDescription")}</small>}
+					</span>
+				</Link>
+			)}
 			<Link
 				href="/photo-to-coloring-page"
 				prefetch={false}

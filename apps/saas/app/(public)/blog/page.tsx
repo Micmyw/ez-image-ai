@@ -1,54 +1,62 @@
 import { getLocale, getTranslations } from "next-intl/server";
-import Link from "next/link";
+import { notFound } from "next/navigation";
 
+import { getPublishedEffects } from "../../../modules/effects/lib/content";
+import { BlogDirectory } from "../../../modules/public-content/components/BlogDirectory";
+import { toVisualBlogCard } from "../../../modules/public-content/components/BlogVisual.server";
+import { EffectCallout } from "../../../modules/public-content/components/EffectCallout";
 import { PublicPageShell } from "../../../modules/public-content/components/PublicPageShell";
 import { getAllPublishedBlogPosts } from "../../../modules/public-content/lib/content";
 import { createPublicPageMetadata } from "../../../modules/public-content/lib/metadata";
+import { contentPagePath, paginateContent } from "../../../modules/public-content/lib/pagination";
 
-export async function generateMetadata() {
+import "../../../modules/public-content/components/blog.css";
+
+type BlogIndexProps = { searchParams?: Promise<Record<string, string | string[] | undefined>> };
+
+export async function generateMetadata(props: BlogIndexProps) {
+	const { searchParams } = props ?? {};
 	const t = await getTranslations();
+	const query = (await searchParams) ?? {};
+	const page = paginateContent(getAllPublishedBlogPosts(await getLocale()), query.page);
+	if (!page) notFound();
 	return createPublicPageMetadata({
-		path: "/blog",
-		title: t("blog.title"),
-		description: t("blog.description"),
-		index: true,
+		path: contentPagePath("/blog", page.page),
+		title:
+			page.page > 1
+				? `${t("guides.title")} — ${t("guides.pageNumber", { page: page.page })}`
+				: t("guides.title"),
+		description: t("guides.description"),
+		index: !query.q && !query.category && !query.tag,
 	});
 }
 
-export default async function BlogPage() {
+export default async function BlogPage(props: BlogIndexProps) {
+	const { searchParams } = props ?? {};
 	const locale = await getLocale();
 	const t = await getTranslations();
 	const posts = getAllPublishedBlogPosts(locale);
-
+	const query = (await searchParams) ?? {};
+	const pagination = paginateContent(posts, query.page);
+	if (!pagination) notFound();
+	const relatedIds = new Set(posts.flatMap((post) => post.relatedEffectIds));
+	const effects = getPublishedEffects()
+		.filter((effect) => relatedIds.has(effect.id))
+		.slice(0, 3);
 	return (
-		<PublicPageShell title={t("blog.title")} description={t("blog.description")}>
-			<div className="max-w-3xl gap-5 mx-auto grid">
-				{posts.map((post) => (
-					<article
-						key={post.slug}
-						className="border-white/10 bg-white/[0.045] p-6 rounded-3xl border"
-					>
-						<p className="text-xs font-semibold text-violet-300 tracking-wide uppercase">
-							{new Intl.DateTimeFormat(locale, { dateStyle: "long" }).format(
-								new Date(`${post.publishedAt}T00:00:00.000Z`),
-							)}
-						</p>
-						<h2 className="mt-3 text-2xl font-semibold text-white">
-							<Link className="hover:text-violet-200" href={`/blog/${post.slug}`}>
-								{post.title}
-							</Link>
-						</h2>
-						<p className="mt-3 leading-7 text-slate-300">{post.description}</p>
-						<div className="mt-4 gap-2 flex flex-wrap">
-							{post.tags.map((tag) => (
-								<span key={tag} className="text-xs text-slate-400">
-									#{tag}
-								</span>
-							))}
-						</div>
-					</article>
-				))}
-			</div>
+		<PublicPageShell title={t("guides.title")} description={t("guides.description")} compact>
+			<BlogDirectory
+				posts={posts.map((post) => toVisualBlogCard(post, locale))}
+				page={pagination.page}
+			/>
+			{effects.length > 0 && (
+				<section className="blog-related">
+					<h2>{t("guides.relatedEffects")}</h2>
+					{effects.map((effect) => (
+						<EffectCallout key={effect.id} effect={effect} label={t("guides.useEffect")} />
+					))}
+				</section>
+			)}
 		</PublicPageShell>
 	);
 }

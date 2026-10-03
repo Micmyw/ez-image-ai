@@ -32,6 +32,7 @@ import {
 	getExpiredGuestBootstrapCookie,
 	hashDraftClaimToken,
 } from "./modules/media/lib/draft-security";
+import { createFlowTiming } from "./modules/media/lib/flow-timing";
 import {
 	guestPrincipalEmail,
 	hashGuestAbuseBinding,
@@ -119,9 +120,19 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 							process.env.DEPLOYMENT_VERSION ?? process.env.VERCEL_GIT_COMMIT_SHA ?? undefined,
 					},
 					async () => {
-						await next();
-						c.header("x-request-id", requestId);
-						c.header("x-trace-id", traceId);
+						const respond = async () => {
+							await next();
+							c.header("x-request-id", requestId);
+							c.header("x-trace-id", traceId);
+						};
+						// Response-ready time includes authentication/serialization, not network delivery.
+						const measuredMediaRequest =
+							/^\/api\/(?:rpc\/media\/(?:getJob|submitGeneration|createQuote|createGeneration)|media\/(?:jobs\/[^/]+|generations\/submit))$/.test(
+								c.req.path,
+							);
+						if (measuredMediaRequest)
+							await createFlowTiming({ requestId }).measure("request.http", respond);
+						else await respond();
 					},
 				);
 			})

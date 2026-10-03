@@ -2,172 +2,85 @@
 updatedAt: 2026-09-29
 indexable: true
 title: Credits
-description: Learn when EzImageAI reserves, charges, and releases credits for an image editing job.
+description: Check the cost before generating and understand reserved, charged, and returned credits, subscriptions, and Credit Packs.
 ---
 
-EzImageAI uses one Credit balance to meter image editing jobs. The current plan and server capability
-response determine which image products and output settings you can submit. Each available combination
-has its own Credit charge, which the review step shows before confirmation.
+The editor shows the credit cost before you start an image. It depends on the selected model and
+output settings. Check that amount again after changing a model, resolution, or quality option.
 
-## Quality and resolution
+Preparing a prompt, selecting a preset, uploading a reference, or browsing plans does not itself
+start a paid generation. Current prices, plan allowances, and available payment methods are shown
+on [Pricing](/pricing) and in **Credits & billing**.
 
-Higher quality and resolution tiers within the same model use more Credits. Open output settings
-to see the amount for each available tier; the selected amount updates before you continue.
-Some models pair quality with resolution, so changing one also updates the other. Only the
-combinations supported by the selected model are available.
+## Before you generate
 
-For example, Seedream 5 Lite uses 7 Credits for 2K Basic, 10 for 3K High, and 14 for 4K Ultra.
-GPT Image 2 uses 7, 11, or 17 Credits for 1K, 2K, or 4K. Choosing PNG, JPEG, or a supported
-background option does not change the Credit amount. Guests get two sponsored Nano Banana 2 Lite
-1K edits per day, at 5 Credits per edit (10 sponsored Credits in total). This is an edit allowance,
-not a transferable account balance. It resets at 00:00 UTC, with no rollover. Each accepted edit
-uses one daily slot; rejected prompts before admission and automatic recovery do not use extra slots.
+Choose an available model and output option, then read the cost on **Generate image** or
+**Start edit**. Your account must have the required access and enough available credits.
 
-## Reservation and settlement
+If the price changes before the request is accepted, the editor shows the new cost so you can
+decide whether to submit again. A new generation, including **Edit again** or a retry after a
+completed failure, has its own quote and credit charge.
 
-Credits are reserved when a generation job is created. A successful job records the charged amount
-and releases any unused reservation. A failed or canceled job reports the amount released according
-to the server-side ledger result.
+When a guest trial is offered, its daily allowance is separate from an account balance.
+Guest previews are watermarked and temporary. The editor shows the current trial availability;
+an effect preset does not provide extra free edits.
 
-The result keeps refreshing until those credits are accounted for. Pending settlement continues to
-show reserved credits instead of claiming that a refund has already completed.
+## Reserved, charged, and returned
 
-The job panel is the authoritative place to see the reservation, charge, and release values for that
-edit. If the service cannot yet confirm the outcome, credits can remain reserved while that same
-attempt is checked. An uncertain attempt is not automatically treated as failed or free.
+| Credit status            | What it means                                                                                |
+| ------------------------ | -------------------------------------------------------------------------------------------- |
+| **Reserved**             | Credits are held for an accepted generation while its outcome is being completed or checked. |
+| **Charged**              | These credits were used for the completed attempt under the policy shown for it.             |
+| **Released or returned** | This amount has been returned to the available balance after the attempt was settled.        |
 
-When the generation service confirms a timeout or a recognized temporary service failure with no
-output, the reserved Credits are returned automatically. The result panel explains the failure and
-shows the returned amount after settlement. This does not use your content-safety waiver.
-You can then choose **Try again** using your saved prompt and settings. If the temporary reference
-image has expired, select it again first. A retry creates a new generation under the current price
-and safety rules.
+Read the result panel for the amounts associated with that edit. A result can be visible while its
+credit summary is still finishing. A reservation is not a completed refund.
 
-A lost connection or a slow response alone does not confirm that generation failed. These jobs show
-**Checking result** while the original attempt is checked, without automatically submitting another
-generation. Delayed notifications cannot charge an already settled failed job again.
+A slow response or lost connection does not prove a generation failed. If the panel says
+**Checking result**, wait for that existing attempt to be resolved instead of submitting another
+copy. Confirmed temporary generation failures with no output return their reserved credits;
+the panel shows the returned amount after settlement.
 
-## Results blocked by content safety
+## If a safety check stops an image
 
-Each account or team gets one lifetime credit waiver for its first generated result blocked by a
-confirmed content-safety rejection. Later blocked results are charged at the amount quoted before
-generation, even though the image cannot be shown or downloaded. The result panel and job details
-show whether the waiver was used and the actual credits charged and returned.
+Prompts or source images stopped before generation do not consume generation credits.
 
-Instructions or uploaded images stopped before generation do not consume generation credits or the
-waiver. Incomplete reviews and technical safety-check failures also do not consume the waiver; a job
-with no usable output because of these failures releases its reservation. Sponsored guest trials
-do not use the account waiver. Existing quotes retain their original billing policy.
+For generated results, each billing account or team has one lifetime credit waiver for its first
+confirmed content-safety rejection. Later blocked results are charged under the policy shown for
+that attempt, even though the image cannot be displayed or downloaded. The result notice shows
+whether the waiver applied and the actual amount charged or returned.
 
-Change the instruction or reference image before trying again after a content block. If you believe
-the decision was mistaken, [contact support](/contact#report-content) with the job reference.
+An incomplete check or technical failure is not the same as a confirmed content block.
+Read the reason and credit outcome together. Revise the prompt or source before trying again,
+or [contact support](/contact#report-content) if you believe a decision is mistaken.
+See the [Terms of Service](/terms) for the content rules.
 
-Safety notices separate the reason, credit outcome, and next step. When a reliable category is
-available, it is explained in plain language. If the check only reports restricted content, the
-notice says that a more specific reason is unavailable. An incomplete review is not a confirmed
-policy violation. The notices link to the [content policy](/terms) and support; result notices
-include the task reference to help support locate the edit. A sponsored guest trial also shows
-whether the trial itself was consumed, separately from account credits.
+## Subscriptions and Credit Packs
 
-Check [Pricing](/pricing) for current plan prices and allowances, and [Image editing](/docs/image-editing)
-for individual output options. If a reservation stays unresolved, [contact support](/contact) with the
-visible job status instead of submitting repeated copies of the edit.
+**Subscriptions** provide credits for each monthly credit period. Annual billing changes when
+you pay; subscription credits still arrive monthly and unused credits expire at the end of
+their credit period. Check your plan and dates in Credits & billing.
 
-## Subscription credits
+**Credit Packs** are one-time purchases that add credits without changing your subscription.
+Review the amount, any applicable bonus, price, and expiry before paying. A pack is separate
+from subscription renewal.
 
-The header shows your available credit balance when you are signed in. Select the balance or its
-plus icon to open Credit Packs. Select **Upgrade** to compare subscription plans, or choose a plan
-on the pricing page to open checkout with that plan and billing period already selected.
+Canceling renewal preserves benefits for the period already paid for. The billing page shows
+the cancellation status and paid-through date. A request still awaiting confirmation does not
+mean recurring billing has already stopped.
 
-If your account session expires when you open the billing page, sign in again to view your plan.
-Guest trial sessions return to the guest workspace when an account billing link is opened.
+An existing subscription or unfinished checkout may need to be resolved before another
+subscription can begin. Use the options shown in Billing instead of starting repeated payments.
 
-The payment button shows preparation and redirect progress and temporarily disables other payment
-actions. If a request fails, you can retry. An unfinished subscription checkout offers **Resume checkout**
-and **Change plan**, and checks its status when you return. Opening a payment page does not mean
-you have paid. Changing plans may require waiting for the previous checkout to close; any known
-deadline appears beside its status. If a checkout needs manual review, automatic payment checks
-stop. You can explicitly check its status again or contact support with the displayed order
-reference. If you left PayPal before logging in or approving payment, include that detail so support
-can review the abandoned checkout. The page updates when it is resolved. If you were charged, do not
-pay again.
+## Return from checkout safely
 
-An existing subscription must be managed in
-**Credits & billing** before another subscription can start; Credit Packs remain separate purchases.
+Returning to EzImageAI is not proof that a payment succeeded. Credits are added after the
+payment is verified. Use **Resume checkout** or **Check status** when those actions are offered.
 
-Pro, Ultimate, and Max receive 700, 1,800, and 3,000 credits per monthly credit period. Annual
-billing changes the payment cadence, not the grant cadence: credits still arrive monthly and unused
-subscription credits expire at the end of their period. Any free account allowance is shown in the
-account and is separate from the temporary guest trial. With current edits costing 5–25 EzImageAI Credits, those paid
-monthly allowances cover approximately 28–140, 72–360, and 120–600 single-image edits respectively;
-the actual count depends on the selected image products and output settings.
+If you were charged but the order is unresolved, do not pay again. Contact support with the
+displayed order reference and payment status. Never send your password, full card details, or
+private image-access links.
 
-Canceling automatic renewal keeps your plan benefits until the end of the period already paid for.
-For annual plans, the remaining prepaid monthly credit grants continue on schedule. Access ends when
-the paid period ends; a past-due subscription retains access only during its stated grace period.
-A full refund of the latest payment removes that access even during a grace period. Earlier
-payments do not restore it.
-
-Switching payment methods follows the same rule in both directions, PayPal to Waffo and Waffo to
-PayPal. First cancel renewal in Billing, then wait for the payment service to confirm cancellation
-and for the paid period to end. A cancellation request or a local expiry alone does not confirm
-that recurring charges have stopped. Billing shows the original payment method, cancellation
-progress and the paid-through date; unconfirmed requests are retried automatically.
-If the next month was already paid before cancellation, that paid month remains available and you
-can switch after its end date. One-time Credit Packs do not have this subscription restriction.
-
-If you leave checkout before approval, the pricing page lets you resume the existing checkout and
-check its status. Starting another subscription remains unavailable until the first checkout closes
-or the existing subscription has confirmed cancellation and its paid period has ended.
-You can still compare plans and select a payment method while this is resolved. The pending order
-shows its original plan, payment method, and order reference under **Order details & help**. Use
-**Resume checkout** when a valid link is available, or **Check status**. If the result cannot be
-confirmed, use **Contact support**, including the order reference. An unknown result does not mean
-the payment failed. If you were charged, do not pay again; support needs to check the payment and
-subscription records before the old checkout can be released.
-
-## Credit Packs
-
-Credit Packs are one-time additions to your balance:
-
-Choose a payment method once above the packs, then select **Buy credits** on the pack you want.
-Each pack checks whether that method is available for that specific purchase; a disabled pack does
-not silently switch to another payment method. Switching between plans and packs retains your choice.
-
-|          Pack | Price | Paid-subscriber amount |
-| ------------: | ----: | ---------------------: |
-| 1,500 credits |   $59 |          1,800 credits |
-| 3,000 credits |  $109 |          3,600 credits |
-| 5,000 credits |  $169 |          6,000 credits |
-| 8,000 credits |  $259 |          9,600 credits |
-
-Paid subscribers receive the displayed 20% bonus when the checkout is first created. That amount is
-then fixed for the purchase even if the subscription changes later. Credit Pack credits expire six
-calendar months after the verified purchase and do not change your subscription plan.
-
-New subscription and Credit Pack checkout uses the currently available PayPal or Waffo options.
-Payment choices refresh automatically; a temporarily unavailable method does not prevent using
-another available method. EzImageAI adds credits only after the
-payment has been verified; returning to the site is not itself proof of payment. Refunds reduce the
-corresponding grant, and credits already used from a refunded purchase can create a balance debt that
-future grants repay.
-
-Partial refunds recover the corresponding proportion of the purchased credits, including any bonus.
-For annual subscriptions, recovery counts both credits already issued and future monthly grants;
-the earliest credit periods are adjusted first. Remaining paid plan benefits continue until the
-original paid-through date unless the payment is fully refunded. A full refund or payment reversal
-withdraws that payment's benefits and remaining credit grants.
-
-A full refund of the latest PayPal or Waffo subscription payment also starts cancellation of
-automatic renewal. Its plan benefits end immediately. The billing area shows whether cancellation
-is still awaiting confirmation; unconfirmed attempts are retried automatically. Once the payment
-provider confirms cancellation and the refunded credits are accounted for, you can subscribe again
-immediately using any available plan or payment method, without waiting for the original end date.
-Waffo may report cancellation in progress before confirming it; resubscription stays unavailable
-during that time. Partial refunds and refunds of older payments do not cancel a newer paid period.
-Canceling renewal without a full refund preserves the prepaid period and allows resubscription
-after that period ends. This subscription limit does not apply to one-time Credit Packs.
-
-If a refunded credit is reserved for an unfinished image, canceling or failing that image does not
-make the refunded credit spendable again. If the image succeeds, the consumed refunded credits become
-debt. New credits repay outstanding debt before becoming available for another image.
+Refunds adjust the credits and benefits from the corresponding purchase. If those credits were
+already used, a balance debt can be repaid from future grants. The outcome depends on the
+purchase and refund; check Billing or contact support for your order.

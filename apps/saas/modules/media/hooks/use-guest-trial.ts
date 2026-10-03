@@ -1,10 +1,12 @@
 "use client";
 
 import type { ImageAspectRatio, PublicModerationReason } from "@repo/config/client";
+import { captureBrowserGrowthAnalyticsAttribution } from "@repo/utils";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
 import { orpcClient } from "@shared/lib/orpc-client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { sanitizeEffectEditorReturnPath } from "../../effects/lib/editor-selection";
 import { getModerationErrorReason, getPromptSafetyOutcome } from "../lib/editor-error";
 import { getGuestDeviceId } from "../lib/guest-device";
 import {
@@ -32,7 +34,11 @@ type GuestInitialLoad = { dailyAllowance?: DailyAllowance | null } & (
 	| { kind: "unavailable"; capabilityVersion: string }
 );
 
-export function useGuestTrial({ registered = false }: { registered?: boolean } = {}) {
+export function useGuestTrial({
+	registered = false,
+	effectReturnPath,
+}: { registered?: boolean; effectReturnPath?: string } = {}) {
+	const returnAfterDraftLink = sanitizeEffectEditorReturnPath(effectReturnPath) ?? "/create";
 	const [capabilityVersion, setCapabilityVersion] = useState<string>();
 	const [draft, setDraft] = useState<{
 		sourceAssetId: string;
@@ -84,7 +90,7 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 				if (!active) return;
 				setDailyAllowance(result.dailyAllowance ?? null);
 				if (result.kind === "redirect") {
-					window.location.assign("/create");
+					window.location.assign(returnAfterDraftLink);
 					return;
 				}
 				if (result.kind === "snapshot") {
@@ -106,7 +112,7 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 		return () => {
 			active = false;
 		};
-	}, [pollJob, registered, updateSnapshot]);
+	}, [pollJob, registered, returnAfterDraftLink, updateSnapshot]);
 
 	const view = useMemo(() => resolveGuestTrialView(snapshot, clockNow), [clockNow, snapshot]);
 	useEffect(() => {
@@ -215,6 +221,7 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 		setIsSubmitting(true);
 		setErrorKey(undefined);
 		setModerationError(null);
+		const attribution = captureBrowserGrowthAnalyticsAttribution();
 		try {
 			const next = await orpcClient.media.submitGuestGeneration({
 				capabilityVersion,
@@ -231,7 +238,7 @@ export function useGuestTrial({ registered = false }: { registered?: boolean } =
 			setDailyAllowance((current) =>
 				current ? { ...current, remaining: Math.max(0, current.remaining - 1) } : current,
 			);
-			void saasGrowthFunnel.guestGenerationAdmitted(next.jobId);
+			void saasGrowthFunnel.guestGenerationAdmitted(next.jobId, attribution);
 		} catch (error) {
 			const outcome = getPromptSafetyOutcome(error);
 			if (outcome) {

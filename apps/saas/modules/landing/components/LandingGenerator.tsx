@@ -52,6 +52,12 @@ import {
 	useState,
 } from "react";
 
+import { useEffectEditor, useEffectEditorBinding } from "../../effects/lib/editor-context";
+import { readEffectGuestDraft, saveEffectGuestDraft } from "../../effects/lib/editor-guest-draft";
+import {
+	hasEffectPresetChanges,
+	isEffectSelectionAvailable,
+} from "../../effects/lib/editor-selection";
 import {
 	getGuestCapability,
 	type GuestCapabilitySnapshot,
@@ -101,7 +107,7 @@ export function LandingGenerator(props: { requireReference?: boolean } = {}) {
 }
 
 function LandingGeneratorWorkspace({
-	requireReference = false,
+	requireReference: referenceRequired = false,
 	initialProductKey,
 	startEmpty = false,
 }: {
@@ -109,6 +115,11 @@ function LandingGeneratorWorkspace({
 	initialProductKey?: GuestProductKey;
 	startEmpty?: boolean;
 }) {
+	const effectEditor = useEffectEditor();
+	const isEffectEditor = Boolean(effectEditor);
+	const effectPreset = effectEditor?.selectedPreset;
+	const requireReference = referenceRequired || effectPreset?.inputRequirement === "required";
+	const effects = useTranslations("effects.editor");
 	const toolPrompt = useToolPrompt();
 	const queryClient = useQueryClient();
 	const examplePrompt = useShowcasePrompt();
@@ -130,18 +141,29 @@ function LandingGeneratorWorkspace({
 	const [textDraftError, setTextDraftError] = useState(false);
 	const requestedModel = useRequestedImageModel();
 	const [selectedProductKey, setSelectedProductKey] = useState<GuestProductKey | null>(
-		initialProductKey ??
+		effectPreset?.productKey ??
+			initialProductKey ??
 			(requestedModel && isEditorProductKey(requestedModel) ? requestedModel : null),
 	);
-	const [selectedSkuKey, setSelectedSkuKey] = useState<ImageSkuKey | null>(null);
+	const [selectedSkuKey, setSelectedSkuKey] = useState<ImageSkuKey | null>(
+		effectPreset?.parameters.skuKey ?? null,
+	);
 	const [file, setFile] = useState<File | null>(null);
 	const [fileError, setFileError] = useState<string>();
 	const [previewUrl, setPreviewUrl] = useState<string>();
 	const [prompt, setPrompt] = useState(
-		toolPrompt?.initialPrompt ?? (startEmpty ? "" : examplePrompt),
+		effectPreset?.prompt ?? toolPrompt?.initialPrompt ?? (startEmpty ? "" : examplePrompt),
 	);
-	const [aspectRatio, setAspectRatio] = useState<ImageAspectRatio>("auto");
-	const [controlValues, setControlValues] = useState<ImageSpecControlValues>({});
+	const [aspectRatio, setAspectRatio] = useState<ImageAspectRatio>(
+		effectPreset?.parameters.aspectRatio ?? "auto",
+	);
+	const [controlValues, setControlValues] = useState<ImageSpecControlValues>({
+		outputFormat: effectPreset?.parameters.outputFormat,
+		background: effectPreset?.parameters.background,
+	});
+	const [effectDraftReady, setEffectDraftReady] = useState(false);
+	const [reselectReference, setReselectReference] = useState(false);
+	const effectDraftInitialized = useRef(false);
 	const [submitError, setSubmitError] = useState<"turnstile" | "upload">();
 	const [uploadPercentage, setUploadPercentage] = useState<number>();
 	const [stage, setStage] = useState<LandingGeneratorStage>("checking");
@@ -153,14 +175,16 @@ function LandingGeneratorWorkspace({
 	);
 	const [turnstileResetKey, setTurnstileResetKey] = useState(0);
 	const uploadAttemptKey = useRef<string | null>(null);
+	const submissionInFlight = useRef(false);
 
 	useEffect(() => {
 		let active = true;
 		setStage("checking");
-		void trackBrowserGrowthEvent(
-			{ name: "landing_viewed", properties: { status: "viewed" } },
-			{ dedupeKey: "landing" },
-		);
+		if (!isEffectEditor)
+			void trackBrowserGrowthEvent(
+				{ name: "landing_viewed", properties: { status: "viewed" } },
+				{ dedupeKey: "landing" },
+			);
 		void Promise.allSettled([
 			getGuestCapability(),
 			queryClient.fetchQuery({
@@ -193,20 +217,79 @@ function LandingGeneratorWorkspace({
 						)
 					: [];
 			setTextProducts(available);
-			setSelectedProductKey((current) =>
-				resolveLandingProductSelection(
-					available.length ? available : (snapshot?.products ?? []),
-					current,
-				),
-			);
+			if (!isEffectEditor)
+				setSelectedProductKey((current) =>
+					resolveLandingProductSelection(
+						available.length ? available : (snapshot?.products ?? []),
+						current,
+					),
+				);
 			setStage(guest.status === "rejected" && catalog.status === "rejected" ? "failed" : "ready");
 		});
 		return () => {
 			active = false;
 		};
-	}, [capabilityRequestKey, queryClient]);
+	}, [capabilityRequestKey, queryClient, isEffectEditor]);
 
 	useEffect(() => {
+		if (!effectEditor || effectDraftInitialized.current) return;
+		effectDraftInitialized.current = true;
+		try {
+			const saved = readEffectGuestDraft(
+				window.sessionStorage,
+				effectEditor.effect,
+				effectEditor.selectedPreset,
+			);
+			if (saved) {
+				setPrompt(saved.values.prompt);
+				setSelectedProductKey(saved.values.productKey);
+				setSelectedSkuKey(saved.values.skuKey);
+				setAspectRatio(saved.values.aspectRatio);
+				setControlValues({
+					outputFormat: saved.values.outputFormat,
+					background: saved.values.background,
+				});
+				setReselectReference(saved.hadReference);
+			}
+		} catch {
+			setTextDraftError(true);
+		}
+		setEffectDraftReady(true);
+	}, [effectEditor]);
+	useEffect(() => {
+		if (!effectEditor || !effectDraftReady || !selectedProductKey || !selectedSkuKey) return;
+		try {
+			const saved = saveEffectGuestDraft(
+				window.sessionStorage,
+				effectEditor.effect,
+				effectEditor.selectedPreset,
+				{
+					productKey: selectedProductKey,
+					skuKey: selectedSkuKey,
+					prompt,
+					aspectRatio,
+					...controlValues,
+				},
+				Boolean(file) || reselectReference,
+			);
+			if (!saved) setTextDraftError(true);
+		} catch {
+			setTextDraftError(true);
+		}
+	}, [
+		effectEditor,
+		effectDraftReady,
+		selectedProductKey,
+		selectedSkuKey,
+		prompt,
+		aspectRatio,
+		controlValues,
+		file,
+		reselectReference,
+	]);
+
+	useEffect(() => {
+		if (isEffectEditor) return;
 		const generator = generatorRef.current;
 		if (!generator) return;
 		const page = generator.closest(".studio-home, [data-image-to-image-page]");
@@ -239,7 +322,7 @@ function LandingGeneratorWorkspace({
 		if (examples) observer.observe(examples);
 
 		return () => observer.disconnect();
-	}, []);
+	}, [isEffectEditor]);
 
 	useEffect(() => {
 		if (!isDockExpanded) return;
@@ -304,8 +387,9 @@ function LandingGeneratorWorkspace({
 		[file, requireReference, capability?.products, textProducts],
 	);
 	useEffect(() => {
+		if (isEffectEditor) return;
 		setSelectedProductKey((current) => resolveLandingProductSelection(availableProducts, current));
-	}, [availableProducts]);
+	}, [availableProducts, isEffectEditor]);
 	const localizedProducts = useMemo(
 		() =>
 			localizeLandingProducts(availableProducts, {
@@ -331,9 +415,11 @@ function LandingGeneratorWorkspace({
 			? Boolean(capability?.enabled && capability.products.length > 0)
 			: textProducts.length > 0;
 	useEffect(() => {
+		if (isEffectEditor) return;
 		setSelectedSkuKey((current) => resolveLandingSkuSelection(selectedProduct, current));
-	}, [selectedProduct]);
+	}, [selectedProduct, isEffectEditor]);
 	useEffect(() => {
+		if (isEffectEditor) return;
 		setAspectRatio(
 			(current) =>
 				resolveLandingAspectRatioSelection(
@@ -343,10 +429,21 @@ function LandingGeneratorWorkspace({
 					current,
 				) ?? "auto",
 		);
-	}, [selectedProduct, selectedSku]);
+	}, [selectedProduct, selectedSku, isEffectEditor]);
 	useEffect(() => {
+		if (isEffectEditor) return;
 		setControlValues(resolveImageSpecControlValues(selectedSku, {}));
-	}, [selectedSku]);
+	}, [selectedSku, isEffectEditor]);
+	const effectSelectionUnavailable = Boolean(
+		effectEditor &&
+		stage !== "checking" &&
+		(!selectedProductKey ||
+			!selectedSkuKey ||
+			!isEffectSelectionAvailable(
+				{ productKey: selectedProductKey, skuKey: selectedSkuKey, aspectRatio, ...controlValues },
+				availableProducts,
+			)),
+	);
 	const disabledReason = landingDisabledReason({
 		stage,
 		capabilityEnabled: capabilityUsable,
@@ -357,12 +454,42 @@ function LandingGeneratorWorkspace({
 		requiresSource: requireReference,
 	});
 	const isBusy = disabledReason === "busy";
+	const canSubmit = disabledReason === null && !effectSelectionUnavailable;
+	useEffectEditorBinding({
+		prompt,
+		busy: isBusy,
+		hasCustomChanges: (preset) =>
+			Boolean(
+				selectedProductKey &&
+				selectedSkuKey &&
+				hasEffectPresetChanges(
+					{
+						productKey: selectedProductKey,
+						skuKey: selectedSkuKey,
+						prompt,
+						aspectRatio,
+						...controlValues,
+					},
+					preset,
+				),
+			),
+		applyPreset: (preset) => {
+			setPrompt(preset.prompt);
+			setSelectedProductKey(preset.productKey);
+			setSelectedSkuKey(preset.parameters.skuKey);
+			setAspectRatio(preset.parameters.aspectRatio);
+			setControlValues({
+				outputFormat: preset.parameters.outputFormat,
+				background: preset.parameters.background,
+			});
+			setSubmitError(undefined);
+		},
+	});
 	useToolPromptBinding({ prompt, busy: isBusy, applyPrompt: setPrompt });
-	const canSubmit = disabledReason === null;
 	const modelNavigation = useModelNavigation({
 		products: localizedProducts,
 		value: selectedProductKey,
-		ready: stage !== "checking" && !isBusy,
+		ready: !effectEditor && stage !== "checking" && !isBusy,
 		onSelect: (key) => {
 			if (!isBusy) {
 				setSelectedProductKey(key);
@@ -401,6 +528,7 @@ function LandingGeneratorWorkspace({
 			const attemptKey = uploadAttemptKey.current ?? createAttemptKey();
 			uploadAttemptKey.current = attemptKey;
 			setFile(nextFile);
+			setReselectReference(false);
 			setFileError(undefined);
 			setSubmitError(undefined);
 			setUploadPercentage(undefined);
@@ -447,6 +575,7 @@ function LandingGeneratorWorkspace({
 
 	function clearFile() {
 		setFile(null);
+		setReselectReference(false);
 		setFileError(undefined);
 		setPreviewUrl((current) => {
 			if (current) URL.revokeObjectURL(current);
@@ -483,12 +612,14 @@ function LandingGeneratorWorkspace({
 
 	async function submit(event: FormEvent<HTMLFormElement>) {
 		event.preventDefault();
+		if (effectSelectionUnavailable || submissionInFlight.current) return;
 		if (requireReference && !file) {
 			setFileError(t("fileErrors.required"));
 			return;
 		}
 		if (!file) {
 			if (!canSubmit || !selectedProduct || !selectedSku) return;
+			submissionInFlight.current = true;
 			setTextDraftError(false);
 			setStage("handoff");
 			try {
@@ -508,13 +639,17 @@ function LandingGeneratorWorkspace({
 					sourceReady: false,
 				});
 				if (!saved) {
+					submissionInFlight.current = false;
 					setTextDraftError(true);
 					setStage("ready");
 					return;
 				}
-				const redirectTo = `/create?resume=text&model=${encodeURIComponent(selectedProduct.key)}`;
+				const redirectTo =
+					effectEditor?.getReturnPath("resume") ??
+					`/create?resume=text&model=${encodeURIComponent(selectedProduct.key)}`;
 				window.location.assign(`/login?${new URLSearchParams({ redirectTo })}`);
 			} catch {
+				submissionInFlight.current = false;
 				setTextDraftError(true);
 				setStage("ready");
 			}
@@ -539,6 +674,7 @@ function LandingGeneratorWorkspace({
 			return;
 		}
 
+		submissionInFlight.current = true;
 		setStage("preparing");
 		setSubmitError(undefined);
 		setUploadPercentage(undefined);
@@ -580,8 +716,9 @@ function LandingGeneratorWorkspace({
 				{ dedupeKey: `auth-handoff-started:${attemptKey}` },
 			);
 			await nextAnimationFrame();
-			submitGuestDraftHandoff(handoff);
+			submitGuestDraftHandoff(handoff, document, effectEditor?.getReturnPath());
 		} catch (error) {
+			submissionInFlight.current = false;
 			if (error instanceof Error && error.message.startsWith("SOURCE_IMAGE_")) {
 				setFileError(fileErrorMessage(error, t, maximumMegabytes));
 			} else {
@@ -687,6 +824,16 @@ function LandingGeneratorWorkspace({
 					aria-hidden="true"
 				/>
 				<form className="relative" onSubmit={(event) => void submit(event)}>
+					{effectSelectionUnavailable && (
+						<output className="mb-3 text-sm text-amber-200 block">
+							{effects("modelUnavailable")}
+						</output>
+					)}
+					{reselectReference && (
+						<output className="mb-3 text-sm text-amber-200 block">
+							{effects("reselectReference")}
+						</output>
+					)}
 					{textDraftError && (
 						<output className="mb-3 text-sm text-amber-200 block">
 							{studio("storageUnavailable")}
@@ -833,8 +980,15 @@ function LandingGeneratorWorkspace({
 									const next = localizedProducts.find((product) => product.key === key);
 									if (!next) return;
 									setSelectedProductKey(next.key);
-									replaceImageModelInUrl(next.key);
+									if (!effectEditor) replaceImageModelInUrl(next.key);
 									setSelectedSkuKey(resolveLandingSkuSelection(next, null));
+									if (effectEditor) {
+										const cell = next.skuMatrix.cells.find(
+											(candidate) => candidate.skuKey === next.skuMatrix.defaultSkuKey,
+										);
+										setAspectRatio(cell?.aspectRatios[0] ?? "auto");
+										setControlValues(resolveImageSpecControlValues(cell ?? null, {}));
+									}
 									setSubmitError(undefined);
 								}}
 							/>

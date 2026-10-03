@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
 	consentCookie: undefined as string | undefined,
+	clientMessages: vi.fn(),
 }));
 
 const passthrough = ({ children }: { children: ReactNode }) => children;
@@ -43,10 +44,19 @@ vi.mock("next/headers", () => ({
 			name === "consent" && mocks.consentCookie ? { value: mocks.consentCookie } : undefined,
 	}),
 }));
-vi.mock("next-intl", () => ({ NextIntlClientProvider: passthrough }));
+vi.mock("next-intl", () => ({
+	NextIntlClientProvider: ({ children, messages }: { children: ReactNode; messages: unknown }) => {
+		mocks.clientMessages(messages);
+		return children;
+	},
+}));
 vi.mock("next-intl/server", () => ({
 	getLocale: async () => "en",
-	getMessages: async () => ({}),
+	getMessages: async () => ({
+		common: { menu: { login: "Sign In" } },
+		home: { title: "Image editor" },
+		admin: { title: "Administration" },
+	}),
 }));
 vi.mock("next-themes", () => ({ ThemeProvider: passthrough }));
 vi.mock("next/font/google", () => ({ Plus_Jakarta_Sans: () => ({ variable: "font-sans" }) }));
@@ -55,6 +65,7 @@ vi.mock("nuqs/adapters/next/app", () => ({ NuqsAdapter: passthrough }));
 describe("SaaS root layout", () => {
 	beforeEach(() => {
 		mocks.consentCookie = undefined;
+		mocks.clientMessages.mockClear();
 		vi.stubEnv(
 			"NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION",
 			"0123456789abcdefghijklmnopqrstuvwxyz_ABCD-EFGH",
@@ -82,5 +93,15 @@ describe("SaaS root layout", () => {
 	it("publishes the configured Google verification token in root metadata", async () => {
 		const { metadata } = await import("./layout");
 		expect(metadata.verification?.google).toBe(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION);
+	});
+
+	it("keeps administration translations out of the shared client payload", async () => {
+		const { default: RootLayout } = await import("./layout");
+		renderToStaticMarkup(await RootLayout({ children: <main>content</main> }));
+
+		expect(mocks.clientMessages).toHaveBeenCalledWith({
+			common: { menu: { login: "Sign In" } },
+			home: { title: "Image editor" },
+		});
 	});
 });

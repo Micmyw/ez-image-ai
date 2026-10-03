@@ -79,16 +79,31 @@ const productionDependencies: GenerationAuthorizationDependencies = {
 			entitlement,
 			sourceAsset,
 		] = await Promise.all([
-			db.runtimeConfigOverride.findFirst({
-				where: { active: true, configKey: "media.generation.enabled", value: { equals: false } },
-			}),
-			db.runtimeConfigOverride.findFirst({
-				where: {
-					active: true,
-					configKey: `media.model.${input.productKey}.enabled`,
-					value: { equals: false },
-				},
-			}),
+			// The request's route graph already includes these runtime overrides.
+			input.routeGraphOptions
+				? Promise.resolve(
+						input.routeGraphOptions.generationEnabled === false ? { blocked: true } : null,
+					)
+				: db.runtimeConfigOverride.findFirst({
+						where: {
+							active: true,
+							configKey: "media.generation.enabled",
+							value: { equals: false },
+						},
+					}),
+			input.routeGraphOptions
+				? Promise.resolve(
+						input.routeGraphOptions.disabledProductKeys?.has(input.productKey)
+							? { blocked: true }
+							: null,
+					)
+				: db.runtimeConfigOverride.findFirst({
+						where: {
+							active: true,
+							configKey: `media.model.${input.productKey}.enabled`,
+							value: { equals: false },
+						},
+					}),
 			db.creditAccount.findUnique({
 				where: { ownerType_ownerId: { ownerType: "USER", ownerId: input.userId } },
 			}),

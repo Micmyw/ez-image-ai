@@ -4,6 +4,11 @@ const api = vi.hoisted(() => ({
 	createGeneration: vi.fn(),
 	submitGeneration: vi.fn(),
 }));
+const analytics = vi.hoisted(() => ({ capture: vi.fn() }));
+vi.mock("@repo/utils", async (importOriginal) => ({
+	...(await importOriginal<typeof import("@repo/utils")>()),
+	captureBrowserGrowthAnalyticsAttribution: analytics.capture,
+}));
 vi.mock("@shared/lib/orpc-client", () => ({ orpcClient: { media: api } }));
 vi.mock("@shared/lib/growth-analytics", () => ({
 	saasGrowthFunnel: { quoteCreated: vi.fn(), generationConfirmed: vi.fn() },
@@ -32,6 +37,8 @@ vi.mock("@tanstack/react-query", () => ({
 		},
 	}),
 }));
+import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
+
 import { useGeneration } from "./use-generation";
 const submission = {
 	productKey: "image-nano-banana-2-lite" as const,
@@ -59,8 +66,87 @@ const response = {
 beforeEach(() => {
 	vi.clearAllMocks();
 	api.submitGeneration.mockReset().mockResolvedValue(response);
+	analytics.capture
+		.mockReset()
+		.mockReturnValue({ enabled: false, context: null, capturedAt: Date.now() });
 });
 describe("one-request generation", () => {
+	it.each([true, false])(
+		"keeps request-start attribution across navigation (had effect: %s)",
+		async (hadEffect) => {
+			const initialAttribution = {
+				enabled: true,
+				capturedAt: Date.now(),
+				context: hadEffect
+					? {
+							effect_id: "effect-a",
+							preset_id: "portrait",
+							preset_version: 1,
+							internal_source: "effect",
+							entry_path: "/effects/effect-a",
+						}
+					: null,
+			};
+			analytics.capture.mockReturnValue(initialAttribution);
+			let resolve!: (value: typeof response) => void;
+			api.submitGeneration.mockReturnValueOnce(
+				new Promise((done) => {
+					resolve = done;
+				}),
+			);
+			const generation = useGeneration();
+			const pending = generation.createGeneration.mutateAsync(submission);
+			analytics.capture.mockReturnValue({
+				enabled: true,
+				capturedAt: Date.now(),
+				context: {
+					...initialAttribution.context,
+					effect_id: "effect-b",
+					entry_path: "/effects/effect-b",
+				},
+			});
+			resolve(response);
+			await pending;
+			expect(analytics.capture).toHaveBeenCalledTimes(1);
+			expect(saasGrowthFunnel.quoteCreated).toHaveBeenCalledWith(
+				"quote-1",
+				submission.productKey,
+				5,
+				initialAttribution,
+			);
+			expect(saasGrowthFunnel.generationConfirmed).toHaveBeenCalledWith(
+				"quote-1",
+				submission.productKey,
+				"job-1",
+				initialAttribution,
+			);
+			expect(analytics.capture.mock.invocationCallOrder[0]).toBeLessThan(
+				api.submitGeneration.mock.invocationCallOrder[0]!,
+			);
+		},
+	);
+
+	it("keeps one attribution snapshot for the same uncertain submission key", async () => {
+		const firstAttribution = { enabled: true, context: null, capturedAt: Date.now() };
+		analytics.capture.mockReturnValue(firstAttribution);
+		api.submitGeneration.mockRejectedValueOnce(new Error("Network response lost"));
+		const generation = useGeneration();
+		await expect(generation.createGeneration.mutateAsync(submission)).rejects.toThrow(
+			"Network response lost",
+		);
+		analytics.capture.mockReturnValue({ enabled: false, context: null, capturedAt: Date.now() });
+		await generation.createGeneration.mutateAsync(submission);
+		expect(analytics.capture).toHaveBeenCalledTimes(1);
+		expect(saasGrowthFunnel.generationConfirmed).toHaveBeenLastCalledWith(
+			"quote-1",
+			submission.productKey,
+			"job-1",
+			firstAttribution,
+		);
+		generation.beginNewAction();
+		await generation.createGeneration.mutateAsync(submission);
+		expect(analytics.capture).toHaveBeenCalledTimes(2);
+	});
 	it("submits the displayed price and frozen inputs in one request", async () => {
 		await expect(useGeneration().createGeneration.mutateAsync(submission)).resolves.toEqual(result);
 		expect(api.submitGeneration).toHaveBeenCalledWith({
