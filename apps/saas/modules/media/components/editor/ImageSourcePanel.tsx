@@ -39,6 +39,8 @@ export function ImageSourcePanel({
 	maximumImageBytes,
 	compact = false,
 	label,
+	uploadLabel,
+	presentation = "default",
 }: {
 	sourceAssetId: string;
 	temporaryReference?: TemporaryReferenceReceipt;
@@ -48,8 +50,11 @@ export function ImageSourcePanel({
 	maximumImageBytes?: number;
 	compact?: boolean;
 	label?: string;
+	uploadLabel?: string;
+	presentation?: "default" | "composer";
 }) {
 	const t = useTranslations("media.editor.source");
+	const composer = useTranslations("studio.composer");
 	const [pending, setPending] = useState(false);
 	const [referenceExpired, setReferenceExpired] = useState(false);
 	useEffect(() => {
@@ -173,13 +178,14 @@ export function ImageSourcePanel({
 
 	return (
 		<div
+			data-source-state={sourceAssetId || currentLocalPreview ? "selected" : "empty"}
 			className={
 				compact
 					? "studio-source min-w-0 space-y-2"
 					: "space-y-3 border-slate-200 bg-slate-50/60 p-4 rounded-xl border"
 			}
 		>
-			<div className="gap-3 flex flex-wrap items-center justify-between">
+			<div className="composer-reference-actions gap-3 flex flex-wrap items-center justify-between">
 				<h2 className={compact ? "sr-only" : "font-medium text-sm"}>{label ?? t("title")}</h2>
 				<Button
 					type="button"
@@ -187,18 +193,19 @@ export function ImageSourcePanel({
 					variant="ghost"
 					render={(props) => <Link {...props} href="/assets" />}
 				>
-					{t("chooseLibrary")}
+					{presentation === "composer" ? composer("fromAssets") : t("chooseLibrary")}
 				</Button>
 			</div>
 			{(sourceAssetId || currentLocalPreview) && (
 				<div
+					data-reference-preview=""
 					className={
 						compact
 							? "space-y-2"
 							: "gap-3 border-violet-200 bg-white p-3 sm:grid-cols-[7rem_1fr] grid items-center rounded-xl border"
 					}
 				>
-					<div className="aspect-square overflow-hidden rounded-lg bg-muted">
+					<div className="composer-reference-image aspect-square overflow-hidden rounded-lg bg-muted">
 						{previewUrl ? (
 							<img src={previewUrl} alt={t("selectedAlt")} className="size-full object-contain" />
 						) : (
@@ -218,7 +225,7 @@ export function ImageSourcePanel({
 							</div>
 						)}
 					</div>
-					<div>
+					<div className="composer-reference-status">
 						<p
 							className={compact ? "text-xs text-muted-foreground" : "font-medium text-sm"}
 							aria-live="polite"
@@ -246,6 +253,8 @@ export function ImageSourcePanel({
 					temporaryReference
 					key={`${sourceAssetId || "new-reference"}:${uploadRevision}`}
 					compact={compact}
+					presentation={presentation}
+					uploadLabel={uploadLabel}
 					multiple={false}
 					maximumImageBytes={maximumImageBytes}
 					value={sourceAssetId ? [sourceAssetId] : []}

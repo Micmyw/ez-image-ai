@@ -33,6 +33,8 @@ export interface MediaUploaderProps {
 	multiple?: boolean;
 	maximumImageBytes?: number;
 	compact?: boolean;
+	uploadLabel?: string;
+	presentation?: "default" | "composer";
 }
 
 export function MediaUploader({
@@ -43,6 +45,8 @@ export function MediaUploader({
 	maximumImageBytes = publicProductConfig.uploadLimits.imageBytes,
 	compact = false,
 	temporaryReference = false,
+	uploadLabel,
+	presentation = "default",
 }: MediaUploaderProps) {
 	const t = useTranslations("media.uploader");
 	const studio = useTranslations("studio");
@@ -83,29 +87,38 @@ export function MediaUploader({
 		[addImageFiles],
 	);
 	return (
-		<div className="space-y-3">
+		<div className="composer-uploader space-y-3">
 			<div
 				hidden={!multiple && uploader.items.length > 0}
-				{...getRootProps()}
+				{...getRootProps({ role: "button" })}
 				onPaste={onPaste}
 				className={
 					compact
 						? "studio-upload min-h-32 p-3 text-xs rounded-xl border border-dashed text-center focus-visible:ring-2 focus-visible:outline-none"
 						: "p-6 rounded-lg border border-dashed text-center focus-visible:ring-2 focus-visible:outline-none"
 				}
-				aria-label={t("label")}
+				aria-label={uploadLabel ?? t("label")}
 			>
 				<input {...getInputProps()} />
 				{compact && <UploadCloudIcon className="mb-3 size-6 text-violet-300 mx-auto" aria-hidden />}
-				<p>{isDragActive ? t("active") : compact ? studio("upload") : t("idle")}</p>
-				<p
-					className={
-						compact ? "mt-2 text-[10px] text-muted-foreground" : "text-sm text-muted-foreground"
-					}
-				>
+				<p>
+					{isDragActive ? t("active") : (uploadLabel ?? (compact ? studio("upload") : t("idle")))}
+				</p>
+				{presentation !== "composer" && (
+					<p
+						className={
+							compact ? "mt-2 text-[10px] text-muted-foreground" : "text-sm text-muted-foreground"
+						}
+					>
+						{t("limit", { megabytes: Math.round(imageByteLimit / 1024 / 1024) })}
+					</p>
+				)}
+			</div>
+			{presentation === "composer" && uploader.items.length === 0 && (
+				<p className="composer-upload-hint">
 					{t("limit", { megabytes: Math.round(imageByteLimit / 1024 / 1024) })}
 				</p>
-			</div>
+			)}
 			<ul className="space-y-2" aria-live="polite">
 				{uploader.items.map((item) => {
 					const id = getFileFingerprint(item.file);

@@ -66,6 +66,9 @@ vi.mock("next-intl", () => ({
 	useTranslations: () => (key: string, values?: Record<string, unknown>) =>
 		({
 			product: "Localized image model",
+			edit: "Start edit",
+			generate: "Generate image",
+			creditAmount: `${typeof values?.credits === "number" || typeof values?.credits === "string" ? values.credits : "—"} credits`,
 			"products.image-nano-banana-2-lite.label": "Localized Nano Banana 2 Lite",
 			"products.image-nano-banana-2-lite.description": "Localized fast 1K edits",
 			"products.image-gpt-image-2.label": "Localized GPT Image 2",
@@ -469,7 +472,12 @@ describe("GenerationForm product copy", () => {
 				/>,
 			);
 
-			expect(markup).toContain('<button type="submit">startEditWithCredits</button>');
+			expect(markup).toContain('data-composer-kind="image-to-image"');
+			expect(markup).toMatch(
+				/<button type="submit"><span>Start edit<\/span><span[^>]*>5 credits<\/span><\/button>/,
+			);
+			expect(markup).toContain("promptSuggestions.object");
+			expect(markup).not.toContain("ideas.portrait.label");
 			expect(markup).not.toContain("quoteReady");
 		},
 	);
@@ -495,6 +503,79 @@ describe("GenerationForm product copy", () => {
 
 		expect(mocks.useGeneration).toHaveBeenCalledWith({ parentJobId: "job-parent" });
 	});
+
+	it("does not offer adjustable count or resolution for a fixed-output model", () => {
+		const markup = renderToStaticMarkup(<GenerationForm onCreated={vi.fn()} />);
+		expect(markup).toContain('data-output-count="1"');
+		expect(markup).not.toMatch(/<select[^>]*-resolution/);
+		expect(markup).not.toMatch(/<select[^>]*-quality/);
+		expect(markup).not.toMatch(/<select[^>]*-background/);
+		expect(markup).toMatch(/<select[^>]*-aspect-ratio/);
+	});
+
+	it("shows quality and format only for the selected model and preserves linked SKU choices", () => {
+		const markup = renderToStaticMarkup(
+			<GenerationForm
+				onCreated={vi.fn()}
+				initialDraft={{
+					productKey: "image-seedream-5-pro",
+					input: {
+						kind: "text-to-image",
+						prompt: "A mountain lake at sunrise",
+						skuKey: "seedream-5-pro-basic-1k",
+						aspectRatio: "1:1",
+					},
+				}}
+			/>,
+		);
+		expect(markup).toMatch(/<select[^>]*-quality/);
+		expect(markup).toMatch(/<select[^>]*-outputFormat/);
+		expect(markup).toContain('<option value="high">Localized High</option>');
+		expect(markup).not.toMatch(/<select[^>]*-background/);
+		expect(markup).toContain('class="composer-submit-cost">8 credits');
+	});
+
+	it("shows text-generation ideas in a closed disclosure without repeating the placeholder", () => {
+		navigation.pathname = "/";
+		const markup = renderToStaticMarkup(<GenerationForm onCreated={vi.fn()} />);
+		expect(markup).toContain('class="studio-composer-heading"');
+		expect(markup).toContain("generation.textMode");
+		expect(markup).toContain("Localized image prompt");
+		expect(markup).not.toContain('id="generation-prompt-hint"');
+		expect(markup).toContain('placeholder="generation.promptHint"');
+		expect(markup).toContain('data-composer-kind="text-to-image"');
+		expect(markup).toContain("promptIdeas");
+		for (const key of ["portrait", "product", "landscape", "illustration"])
+			expect(markup).toContain(`ideas.${key}.label`);
+		expect(markup).not.toContain("promptSuggestions.object");
+		expect(markup).toMatch(/<details[^>]*class="image-edit-prompt-ideas composer-prompt-ideas"/);
+		expect(markup).not.toMatch(/<details[^>]*open=/);
+	});
+
+	it.each([false, true])(
+		"keeps recovery markup stable with a cached catalog (reference: %s)",
+		(requireReference) => {
+			navigation.pathname = "/models/gpt-image-2";
+			const state = generationState();
+			mocks.useGeneration.mockReturnValue(state);
+			const renderPending = () =>
+				renderToStaticMarkup(
+					<GenerationForm ready={false} requireReference={requireReference} onCreated={vi.fn()} />,
+				);
+			const cached = renderPending();
+			expect(cached).toMatch(
+				/<form[^>]*data-editor-ready="false"[^>]*aria-busy="true"[^>]*inert=""/,
+			);
+			mocks.useGeneration.mockReturnValue({ ...state, catalog: { data: undefined } });
+			expect(renderPending()).toBe(cached);
+			mocks.useGeneration.mockReturnValue(state);
+			const ready = renderToStaticMarkup(
+				<GenerationForm ready requireReference={requireReference} onCreated={vi.fn()} />,
+			);
+			expect(ready).toMatch(/<form[^>]*data-editor-ready="true"[^>]*aria-busy="false"/);
+			expect(ready).not.toMatch(/<form[^>]*inert=/);
+		},
+	);
 
 	it("shows required and available credits with an upgrade action", () => {
 		const state = generationState();
@@ -583,7 +664,9 @@ describe("GenerationForm product copy", () => {
 		);
 
 		expect(markup).toContain("Localized background");
-		expect(markup).toMatch(/aria-pressed="true"[^>]*>Localized transparent<\/button>/);
-		expect(markup).toContain("Localized GPT 1K · 7 EzImageAI Credits");
+		expect(markup).toMatch(
+			/<option value="transparent" selected="">Localized transparent<\/option>/,
+		);
+		expect(markup).toContain('class="composer-submit-cost">7 credits');
 	});
 });

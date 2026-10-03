@@ -1691,6 +1691,37 @@
 			"promptHint": "Describe el sujeto, la composición, la luz y el estilo. Añade una referencia para editar o guiar el resultado.",
 			"promptLabel": "Prompt de imagen",
 			"generate": "Generar imagen"
+		},
+		"composer": {
+			"private": "Privado",
+			"addReference": "Añadir referencia",
+			"fromAssets": "De archivos",
+			"promptIdeas": "Ideas de prompts",
+			"editHint": "Describe qué quieres cambiar y qué debe mantenerse igual.",
+			"oneImage": "1 imagen",
+			"automatic": "Auto",
+			"coupledHint": "Algunas opciones de calidad y resolución están vinculadas. Cambiar una puede actualizar la otra.",
+			"generate": "Generar imagen",
+			"edit": "Iniciar edición",
+			"creditAmount": "{credits} créditos",
+			"ideas": {
+				"portrait": {
+					"label": "Retrato",
+					"prompt": "Un retrato con luz natural, sombras suaves, un fondo sencillo, fotografiado en película de 35 mm."
+				},
+				"product": {
+					"label": "Foto de producto",
+					"prompt": "Una taza de cerámica sobre un pedestal de piedra, iluminación suave de estudio, un fondo neutro y limpio."
+				},
+				"landscape": {
+					"label": "Paisaje",
+					"prompt": "Un tranquilo lago de montaña al amanecer, niebla sobre el agua, luz cálida y colores naturales."
+				},
+				"illustration": {
+					"label": "Ilustración",
+					"prompt": "Un rincón de lectura ilustrado con cortinas de lino, madera cálida y un estilo de acuarela alegre."
+				}
+			}
 		}
 	}
 }

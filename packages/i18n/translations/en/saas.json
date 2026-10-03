@@ -1691,6 +1691,37 @@
 			"promptHint": "Describe your subject, composition, lighting, and style. Add a reference image when you want to edit or guide the result.",
 			"promptLabel": "Image prompt",
 			"generate": "Generate image"
+		},
+		"composer": {
+			"private": "Private",
+			"addReference": "Add reference",
+			"fromAssets": "From assets",
+			"promptIdeas": "Prompt ideas",
+			"editHint": "Describe what you want to change and what should stay the same.",
+			"oneImage": "1 image",
+			"automatic": "Auto",
+			"coupledHint": "Some quality and resolution options are linked. Changing one may update the other.",
+			"generate": "Generate image",
+			"edit": "Start edit",
+			"creditAmount": "{credits} credits",
+			"ideas": {
+				"portrait": {
+					"label": "Portrait",
+					"prompt": "A natural-light portrait, soft shadows, a simple background, photographed on 35mm film."
+				},
+				"product": {
+					"label": "Product photo",
+					"prompt": "A ceramic cup on a stone pedestal, soft studio lighting, a clean neutral background."
+				},
+				"landscape": {
+					"label": "Landscape",
+					"prompt": "A quiet mountain lake at sunrise, mist over the water, warm light and natural colors."
+				},
+				"illustration": {
+					"label": "Illustration",
+					"prompt": "An illustrated reading corner with linen curtains, warm wood and a playful watercolor style."
+				}
+			}
 		}
 	}
 }

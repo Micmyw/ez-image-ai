@@ -1,6 +1,15 @@
 export const publicChangelogEntries = [
 	{
 		date: "2026-10-03",
+		title: "A clearer image composer",
+		changes: [
+			"Start with a full-width prompt, add a reference image when needed and open prompt ideas for the current editing mode.",
+			"See only settings supported by the selected model, with linked quality, resolution and credit costs kept in sync.",
+			"Keep typed prompts stable while the editor starts and prevent completed guest previews from waiting on worker clock differences.",
+		],
+	},
+	{
+		date: "2026-10-03",
 		title: "Turn your own photos into coloring pages",
 		changes: [
 			"Upload a photo directly, choose the amount of outline detail and simplify or remove the background using the existing image editor.",

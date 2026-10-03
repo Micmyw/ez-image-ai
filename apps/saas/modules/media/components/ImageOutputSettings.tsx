@@ -28,6 +28,8 @@ export interface ImageOutputSettingsLabels {
 	credits?: string;
 	coupledHint?: string;
 	optionLabels?: Readonly<Record<string, string>>;
+	oneImage?: string;
+	shortAutomatic?: string;
 }
 
 export function ImageOutputSettings({
@@ -44,6 +46,7 @@ export function ImageOutputSettings({
 	labels,
 	disabled = false,
 	tone = "dark",
+	presentation = "compact",
 }: {
 	idPrefix: string;
 	aspectRatios: readonly ImageAspectRatio[];
@@ -58,6 +61,7 @@ export function ImageOutputSettings({
 	labels: ImageOutputSettingsLabels;
 	disabled?: boolean;
 	tone?: "dark" | "light";
+	presentation?: "compact" | "composer";
 }) {
 	const generatedId = useId();
 	const selectedCell = getImageSpecCell(skuMatrix, skuKey);
@@ -78,6 +82,96 @@ export function ImageOutputSettings({
 		skuMatrix.dimensions.length > 1 &&
 		skuMatrix.cells.length <
 			skuMatrix.dimensions.reduce((count, dimension) => count * dimension.options.length, 1);
+
+	if (presentation === "composer") {
+		const dimensionSettings = (skuMatrix?.dimensions ?? []).map((dimension) => {
+			const options = dimension.options.map((option) => ({
+				value: option.key,
+				label: labels.optionLabels?.[option.key] ?? option.label,
+				disabled:
+					!skuMatrix ||
+					!skuKey ||
+					!selectImageSkuForDimension(skuMatrix, skuKey, dimension.key, option.key),
+			}));
+			const selected = options.find(
+				(option) => option.value === selectedCell?.parameterValues[dimension.key],
+			);
+			return (
+				<ComposerSetting
+					key={dimension.key}
+					id={`${idPrefix}-${generatedId}-${dimension.key}`}
+					label={labels[dimension.key]}
+					value={selected?.value ?? ""}
+					valueLabel={selected?.label ?? "—"}
+					options={options}
+					disabled={disabled || !onSkuChange}
+					onChange={(option) => {
+						const next =
+							skuMatrix &&
+							skuKey &&
+							selectImageSkuForDimension(skuMatrix, skuKey, dimension.key, option);
+						if (next) onSkuChange?.(next.skuKey);
+					}}
+				/>
+			);
+		});
+		const controlSettings = (selectedCell?.controls ?? []).map((control) => {
+			const options = control.options.map((option) => ({
+				value: option.key,
+				label: labels.optionLabels?.[option.key] ?? option.label,
+			}));
+			return (
+				<ComposerSetting
+					key={control.key}
+					id={`${idPrefix}-${generatedId}-${control.key}`}
+					label={labels[control.key]}
+					value={controlValues[control.key] ?? control.defaultValue}
+					valueLabel={
+						options.find(
+							(option) => option.value === (controlValues[control.key] ?? control.defaultValue),
+						)?.label ?? "—"
+					}
+					options={options}
+					disabled={disabled || !onControlChange}
+					onChange={(option) => onControlChange?.(control.key, option)}
+				/>
+			);
+		});
+		const additionalSettings = [...dimensionSettings.slice(1), ...controlSettings];
+		return (
+			<div className="composer-output-settings" data-test={`${idPrefix}-output-settings`}>
+				<div className="composer-output-grid">
+					<ComposerSetting
+						id={`${idPrefix}-${generatedId}-aspect-ratio`}
+						label={labels.aspectRatio}
+						value={value}
+						valueLabel={value === "auto" ? (labels.shortAutomatic ?? labels.automatic) : value}
+						options={aspectRatios.map((ratio) => ({
+							value: ratio,
+							label: ratio === "auto" ? (labels.shortAutomatic ?? labels.automatic) : ratio,
+						}))}
+						disabled={disabled}
+						onChange={(ratio) => onChange(ratio as ImageAspectRatio)}
+					/>
+					<div className="composer-setting" title={labels.oneOutput}>
+						<div className="composer-setting-value composer-setting-static" data-output-count="1">
+							<ImageIcon size={16} aria-hidden="true" />
+							{labels.oneImage ?? "1"}
+						</div>
+						<span className="composer-setting-label">{labels.outputNumber}</span>
+						<span className="sr-only">{labels.oneOutput}</span>
+					</div>
+					{dimensionSettings[0]}
+				</div>
+				{additionalSettings.length > 0 && (
+					<div className="composer-output-secondary-grid">{additionalSettings}</div>
+				)}
+				{coupled && labels.coupledHint && (
+					<p className="composer-setting-hint">{labels.coupledHint}</p>
+				)}
+			</div>
+		);
+	}
 
 	return (
 		<Popover>
@@ -244,5 +338,63 @@ export function ImageOutputSettings({
 				</div>
 			</PopoverContent>
 		</Popover>
+	);
+}
+
+function ComposerSetting({
+	id,
+	label,
+	value,
+	valueLabel,
+	options,
+	disabled,
+	onChange,
+}: {
+	id: string;
+	label: string;
+	value: string;
+	valueLabel: string;
+	options: { value: string; label: string; disabled?: boolean }[];
+	disabled: boolean;
+	onChange: (value: string) => void;
+}) {
+	const selectable = options.filter((option) => !option.disabled).length > 1;
+	return (
+		<div className="composer-setting">
+			{selectable ? (
+				<div className="composer-setting-value">
+					<select
+						id={id}
+						value={value}
+						disabled={disabled}
+						onChange={(event) => onChange(event.target.value)}
+					>
+						{options.map((option) => (
+							<option key={option.value} value={option.value} disabled={option.disabled}>
+								{option.label}
+							</option>
+						))}
+					</select>
+					<ChevronDownIcon size={14} aria-hidden="true" />
+				</div>
+			) : (
+				<div
+					id={id}
+					className="composer-setting-value composer-setting-static"
+					aria-labelledby={`${id}-label`}
+				>
+					{valueLabel}
+				</div>
+			)}
+			{selectable ? (
+				<label htmlFor={id} className="composer-setting-label">
+					{label}
+				</label>
+			) : (
+				<span id={`${id}-label`} className="composer-setting-label">
+					{label}
+				</span>
+			)}
+		</div>
 	);
 }

@@ -60,7 +60,10 @@ import { RegisteredEditorDock } from "./editor/RegisteredEditorDock";
 import { ImageModelSelector } from "./ImageModelSelector";
 import { ImageOutputSettings } from "./ImageOutputSettings";
 
+import "./editor/generation-composer.css";
+
 export function GenerationForm({
+	ready = true,
 	onCreated,
 	onDraftChange,
 	onSourceChanged,
@@ -74,6 +77,7 @@ export function GenerationForm({
 	requireReference = false,
 	layout = "default",
 }: {
+	ready?: boolean;
 	onCreated: (jobId: string) => void;
 	onDraftChange?: (values: GenerationFormValues, reference?: TemporaryReferenceReceipt) => void;
 	initialTemporaryReference?: TemporaryReferenceReceipt;
@@ -90,6 +94,7 @@ export function GenerationForm({
 	const toolPrompt = useToolPrompt();
 	const t = useTranslations("media.create");
 	const studio = useTranslations("studio");
+	const composer = useTranslations("studio.composer");
 	const imageToImage = useTranslations("imageToImage");
 	const router = useRouter();
 	const [hasSource, setHasSource] = useState(Boolean(initialDraft?.input.sourceAssetId));
@@ -103,7 +108,9 @@ export function GenerationForm({
 	const generation = useGeneration({
 		parentJobId: hasSource && !temporaryReference ? parentJobId : null,
 	});
-	const products = (generation.catalog.data?.products ?? []).map((product) =>
+	// A sibling can populate the browser catalog before this streamed form hydrates.
+	// Keep its recovery markup identical until the workspace is ready for input.
+	const products = (ready ? (generation.catalog.data?.products ?? []) : []).map((product) =>
 		isEditorProductKey(product.key)
 			? {
 					...product,
@@ -206,8 +213,12 @@ export function GenerationForm({
 	const errorKey = getEditorErrorKey(error);
 	const safetyOutcome = getPromptSafetyOutcome(error);
 	const displayedCredits = generation.quote?.credits ?? selectedCell?.credits ?? product?.credits;
-	const suggestions = ["background", "object", "lighting", "style"].map((key) =>
-		t(`suggestions.${key}`),
+	const isImageEdit = requireReference || sourcePending || Boolean(values.sourceAssetId);
+	const suggestionKeys = isImageEdit
+		? ["background", "object", "lighting", "style"]
+		: ["portrait", "product", "landscape", "illustration"];
+	const suggestions = suggestionKeys.map((key) =>
+		isImageEdit ? t(`suggestions.${key}`) : composer(`ideas.${key}.prompt`),
 	);
 
 	useEffect(() => {
@@ -249,7 +260,7 @@ export function GenerationForm({
 	);
 	useToolPromptBinding({
 		prompt: values.prompt,
-		busy: generation.createGeneration.isPending || sourcePending,
+		busy: !ready || generation.createGeneration.isPending || sourcePending,
 		applyPrompt: updatePrompt,
 	});
 
@@ -322,7 +333,7 @@ export function GenerationForm({
 	const modelNavigation = useModelNavigation({
 		products,
 		value: values.productKey,
-		ready: Boolean(generation.catalog.data) && !generation.createGeneration.isPending,
+		ready: ready && Boolean(generation.catalog.data) && !generation.createGeneration.isPending,
 		onSelect: updateProduct,
 	});
 
@@ -401,6 +412,7 @@ export function GenerationForm({
 
 	async function confirmGeneration() {
 		if (
+			!ready ||
 			!input ||
 			displayedCredits === undefined ||
 			sourcePendingRef.current ||
@@ -427,10 +439,17 @@ export function GenerationForm({
 
 	return (
 		<form
-			data-task-order="source-prompt-service-action"
+			data-task-order={
+				isImageEdit ? "source-prompt-service-action" : "prompt-source-service-action"
+			}
+			data-composer-design="prompt-first"
+			data-composer-kind={isImageEdit ? "image-to-image" : "text-to-image"}
 			className="studio-composer"
 			data-layout={layout}
 			data-test="registered-generator"
+			data-editor-ready={ready}
+			aria-busy={!ready}
+			inert={!ready}
 			id="registered-generator"
 			onSubmit={form.handleSubmit((validated) => {
 				if (!allowedProductKeys.includes(validated.productKey)) {
@@ -440,16 +459,16 @@ export function GenerationForm({
 				void confirmGeneration();
 			})}
 		>
-			{layout !== "minimal" && (
-				<div className="studio-composer-heading">
-					<span>
-						{requireReference || values.sourceAssetId
-							? studio("generation.editMode")
-							: studio("generation.textMode")}
-					</span>
-					<span className="text-xs text-muted-foreground">{studio("private")}</span>
-				</div>
+			{!ready && (
+				<output className="mb-3 text-sm block text-muted-foreground">{t("checking")}</output>
 			)}
+			<div className="studio-composer-heading">
+				<span>{studio(isImageEdit ? "generation.editMode" : "generation.textMode")}</span>
+				<span className="composer-private" title={studio("private")}>
+					<LockKeyholeIcon size={15} aria-hidden="true" />
+					{composer("private")}
+				</span>
+			</div>
 			{modelNavigation.unavailable && (
 				<output className="mb-3 text-sm text-amber-200 block">
 					{studio("tools.modelUnavailable")}
@@ -459,52 +478,47 @@ export function GenerationForm({
 				<p className="mb-3 text-sm text-violet-200">{imageToImage("referenceNotice")}</p>
 			)}
 			<div className="studio-composer-inputs">
-				<ImageSourcePanel
-					compact
-					label={layout === "minimal" ? imageToImage("composer.referenceLabel") : undefined}
-					sourceAssetId={values.sourceAssetId}
-					temporaryReference={temporaryReference}
-					maximumImageBytes={Math.min(
-						generation.creditAccount.data?.maximumInputBytes ??
-							getPlanEntitlement("free").maximumInputBytes,
-						getImageProductSelectionContract(values.productKey)?.maximumInputBytes ??
-							Number.MAX_SAFE_INTEGER,
-					)}
-					onReadyChange={setSourceReady}
-					onPendingChange={updateSourcePending}
-					onChange={updateSourceAsset}
-				/>
 				<PromptPanel
-					minimal={layout === "minimal"}
+					referenceFirst={isImageEdit}
+					disabled={generation.createGeneration.isPending}
+					referencePanel={
+						<ImageSourcePanel
+							compact
+							presentation="composer"
+							label={requireReference ? imageToImage("referenceLabel") : undefined}
+							uploadLabel={
+								requireReference ? imageToImage("referenceLabel") : composer("addReference")
+							}
+							sourceAssetId={values.sourceAssetId}
+							temporaryReference={temporaryReference}
+							maximumImageBytes={Math.min(
+								generation.creditAccount.data?.maximumInputBytes ??
+									getPlanEntitlement("free").maximumInputBytes,
+								getImageProductSelectionContract(values.productKey)?.maximumInputBytes ??
+									Number.MAX_SAFE_INTEGER,
+							)}
+							onReadyChange={setSourceReady}
+							onPendingChange={updateSourcePending}
+							onChange={updateSourceAsset}
+						/>
+					}
 					maxLength={getImageProductSelectionContract(values.productKey)?.maximumPromptLength}
-					label={
-						layout === "minimal"
-							? imageToImage("composer.promptLabel")
-							: requireReference || values.sourceAssetId
-								? t("fields.prompt")
-								: studio("generation.promptLabel")
-					}
-					hint={
-						layout === "minimal"
-							? imageToImage("composer.placeholder")
-							: studio("generation.promptHint")
-					}
-					suggestionsLabel={t("suggestions.label")}
+					label={isImageEdit ? t("fields.prompt") : studio("generation.promptLabel")}
+					hint={isImageEdit ? composer("editHint") : studio("generation.promptHint")}
+					suggestionsLabel={isImageEdit ? t("suggestions.label") : composer("promptIdeas")}
 					suggestions={suggestions}
-					suggestionLabels={["background", "object", "lighting", "style"].map((key) =>
-						studio(`promptSuggestions.${key}`),
+					suggestionLabels={suggestionKeys.map((key) =>
+						isImageEdit ? studio(`promptSuggestions.${key}`) : composer(`ideas.${key}.label`),
 					)}
 					value={values.prompt}
 					onChange={updatePrompt}
 				/>
 			</div>
 			<div className="studio-composer-controls">
-				<div className={layout === "minimal" ? "image-edit-control-field" : "contents"}>
-					{layout === "minimal" && (
-						<span className="image-edit-control-label" aria-hidden="true">
-							{imageToImage("composer.modelLabel")}
-						</span>
-					)}
+				<div className="image-edit-control-field composer-model-field">
+					<span className="image-edit-control-label" aria-hidden="true">
+						{imageToImage("composer.modelLabel")}
+					</span>
 					<ImageModelSelector
 						idPrefix="editor"
 						products={products.flatMap((candidate) =>
@@ -531,14 +545,11 @@ export function GenerationForm({
 						disabled={generation.createGeneration.isPending}
 					/>
 				</div>
-				<div className={layout === "minimal" ? "image-edit-control-field" : "contents"}>
-					{layout === "minimal" && (
-						<span className="image-edit-control-label" aria-hidden="true">
-							{imageToImage("composer.outputLabel")}
-						</span>
-					)}
+				<div className="image-edit-control-field composer-output-field">
 					<ImageOutputSettings
 						idPrefix="editor"
+						presentation="composer"
+						disabled={generation.createGeneration.isPending}
 						aspectRatios={supportedAspectRatios}
 						value={values.aspectRatio}
 						onChange={updateAspectRatio}
@@ -551,6 +562,9 @@ export function GenerationForm({
 						tone="dark"
 						labels={{
 							title: t("outputSettings.title"),
+							oneImage: composer("oneImage"),
+							shortAutomatic: composer("automatic"),
+							coupledHint: composer("coupledHint"),
 							trigger: t("outputSettings.trigger"),
 							aspectRatio: t("outputSettings.aspectRatio"),
 							automatic: t("outputSettings.automatic"),
@@ -602,18 +616,18 @@ export function GenerationForm({
 						}
 						loading={generation.createGeneration.isPending}
 					>
-						{generation.createQuote.isPending
-							? t("checking")
-							: generation.createGeneration.isPending
-								? t("starting")
-								: t(
-										requireReference || values.sourceAssetId
-											? "startEditWithCredits"
-											: "generateWithCredits",
-										{
-											credits: displayedCredits ?? "—",
-										},
-									)}
+						{generation.createQuote.isPending ? (
+							t("checking")
+						) : generation.createGeneration.isPending ? (
+							t("starting")
+						) : (
+							<>
+								<span>{composer(isImageEdit ? "edit" : "generate")}</span>
+								<span className="composer-submit-cost">
+									{composer("creditAmount", { credits: displayedCredits ?? "—" })}
+								</span>
+							</>
+						)}
 					</Button>
 				)}
 			</div>
@@ -630,17 +644,15 @@ export function GenerationForm({
 					{t("modelMenu.upgradeNotice", { model: product.label })}
 				</output>
 			)}
-			<div className={layout === "minimal" ? "image-edit-composer-meta" : undefined}>
+			<div className="image-edit-composer-meta composer-meta">
 				<details className="mt-3 text-xs text-muted-foreground">
 					<summary className="py-2 cursor-pointer">{t("creditPolicy")}</summary>
 					<p className="mt-1 leading-relaxed">{t("moderationBillingPolicy")}</p>
 				</details>
-				{layout === "minimal" && (
-					<span className="image-edit-private">
-						<LockKeyholeIcon size={13} aria-hidden="true" />
-						{studio("private")}
-					</span>
-				)}
+				<span className="image-edit-private">
+					<LockKeyholeIcon size={13} aria-hidden="true" />
+					{studio("private")}
+				</span>
 			</div>
 			{error && safetyOutcome ? (
 				<ContentSafetyNotice

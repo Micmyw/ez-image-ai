@@ -1691,6 +1691,37 @@
 			"promptHint": "Décrivez le sujet, la composition, la lumière et le style. Ajoutez une référence pour modifier ou guider le résultat.",
 			"promptLabel": "Prompt d’image",
 			"generate": "Générer l’image"
+		},
+		"composer": {
+			"private": "Privé",
+			"addReference": "Ajouter une référence",
+			"fromAssets": "Mes fichiers",
+			"promptIdeas": "Idées de prompts",
+			"editHint": "Décrivez ce que vous souhaitez modifier et ce qui doit rester identique.",
+			"oneImage": "1 image",
+			"automatic": "Auto",
+			"coupledHint": "Certaines options de qualité et de résolution sont liées. Modifier l’une peut ajuster l’autre.",
+			"generate": "Générer une image",
+			"edit": "Lancer la retouche",
+			"creditAmount": "{credits} crédits",
+			"ideas": {
+				"portrait": {
+					"label": "Portrait",
+					"prompt": "Un portrait en lumière naturelle, des ombres douces, un fond simple, photographié sur pellicule 35 mm."
+				},
+				"product": {
+					"label": "Photo de produit",
+					"prompt": "Une tasse en céramique sur un socle en pierre, un éclairage de studio doux, un fond neutre et épuré."
+				},
+				"landscape": {
+					"label": "Paysage",
+					"prompt": "Un lac de montagne calme au lever du soleil, de la brume sur l’eau, une lumière chaude et des couleurs naturelles."
+				},
+				"illustration": {
+					"label": "Illustration",
+					"prompt": "Un coin lecture illustré avec des rideaux en lin, du bois chaleureux et un style aquarelle ludique."
+				}
+			}
 		}
 	}
 }

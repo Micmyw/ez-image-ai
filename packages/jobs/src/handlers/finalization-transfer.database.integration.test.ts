@@ -370,7 +370,7 @@ describe("generation output transfer runtime", () => {
 		}
 	});
 
-	it("moderates and publishes only the transformed guest output identity", async () => {
+	it("moderates and publishes the transformed guest output despite storage host clock skew", async () => {
 		const seeded = await seedFinalizingJob([
 			{
 				kind: "remote-url",
@@ -387,12 +387,12 @@ describe("generation output transfer runtime", () => {
 		if (!claim) throw new Error("Expected guest finalization claim");
 
 		const transformedChecksum = "e".repeat(64);
-		// Completion uses the database clock. Keep fixture evidence on the same clock
-		// so host/Container skew cannot masquerade as a future watermark timestamp.
+		// A successful storage operation may be timed by a host ahead of PostgreSQL.
+		// Persist its observed completion on the database clock without rejecting it.
 		const [databaseClock] = await client.$queryRaw<Array<{ now: Date }>>`
 			SELECT clock_timestamp() AS "now"`;
 		if (!databaseClock) throw new Error("Expected the database clock");
-		const cleanStagingDeletedAt = databaseClock.now;
+		const cleanStagingDeletedAt = new Date(databaseClock.now.getTime() + 60_000);
 		const promote = vi.fn(async (_input: Parameters<typeof promoteStagedObject>[0]) => ({
 			bytes: PNG_BODY.byteLength,
 			sha256: PNG_CHECKSUM,
@@ -445,9 +445,17 @@ describe("generation output transfer runtime", () => {
 			retentionClass: "GUEST_TRIAL",
 			deleteAfter,
 			watermarkVersion: GUEST_WATERMARK_VERSION,
-			watermarkedAt: cleanStagingDeletedAt,
-			cleanStagingDeletedAt,
 		});
+		const [completedClock] = await client.$queryRaw<Array<{ now: Date }>>`
+			SELECT clock_timestamp() AS "now"`;
+		expect(output.watermarkedAt).toEqual(output.cleanStagingDeletedAt);
+		expect(output.cleanStagingDeletedAt?.getTime()).toBeGreaterThanOrEqual(
+			databaseClock.now.getTime(),
+		);
+		expect(output.cleanStagingDeletedAt?.getTime()).toBeLessThanOrEqual(
+			completedClock!.now.getTime(),
+		);
+		expect(output.cleanStagingDeletedAt).not.toEqual(cleanStagingDeletedAt);
 		await client.generationJob.update({
 			where: { id: seeded.jobId },
 			data: { status: "FAILED", terminalAt: new Date() },

@@ -1691,6 +1691,37 @@
 			"promptHint": "Beschreibe Motiv, Komposition, Licht und Stil. Füge bei Bedarf ein Referenzbild hinzu.",
 			"promptLabel": "Bild-Prompt",
 			"generate": "Bild generieren"
+		},
+		"composer": {
+			"private": "Privat",
+			"addReference": "Referenz hinzufügen",
+			"fromAssets": "Aus Medien",
+			"promptIdeas": "Prompt-Ideen",
+			"editHint": "Beschreibe, was du ändern möchtest und was gleich bleiben soll.",
+			"oneImage": "1 Bild",
+			"automatic": "Auto",
+			"coupledHint": "Einige Qualitäts- und Auflösungsoptionen sind verknüpft. Eine Änderung kann die andere Option anpassen.",
+			"generate": "Bild generieren",
+			"edit": "Bearbeitung starten",
+			"creditAmount": "{credits} Credits",
+			"ideas": {
+				"portrait": {
+					"label": "Porträt",
+					"prompt": "Ein Porträt bei natürlichem Licht, weiche Schatten, schlichter Hintergrund, auf 35-mm-Film fotografiert."
+				},
+				"product": {
+					"label": "Produktfotografie",
+					"prompt": "Eine Keramiktasse auf einem Steinsockel, weiches Studiolicht, klarer neutraler Hintergrund."
+				},
+				"landscape": {
+					"label": "Landschaft",
+					"prompt": "Ein stiller Bergsee bei Sonnenaufgang, Nebel über dem Wasser, warmes Licht und natürliche Farben."
+				},
+				"illustration": {
+					"label": "Illustration",
+					"prompt": "Eine illustrierte Leseecke mit Leinenvorhängen, warmem Holz und einem verspielten Aquarellstil."
+				}
+			}
 		}
 	}
 }

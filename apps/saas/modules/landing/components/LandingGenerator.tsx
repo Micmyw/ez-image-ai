@@ -1,5 +1,8 @@
 "use client";
 
+import { PromptIdeas } from "@media/components/editor/PromptIdeas";
+
+import "@media/components/editor/generation-composer.css";
 import { ImageModelSelector } from "@media/components/ImageModelSelector";
 import {
 	ImageOutputSettings,
@@ -115,6 +118,7 @@ function LandingGeneratorWorkspace({
 	const t = useTranslations("home.generator");
 	const tCreate = useTranslations("media.create");
 	const studio = useTranslations("studio");
+	const composer = useTranslations("studio.composer");
 	const imageToImage = useTranslations("imageToImage");
 	const referenceLabel = requireReference ? imageToImage("referenceLabel") : t("reference");
 	const uploadLabel = requireReference ? referenceLabel : `${referenceLabel}: ${t("uploadLabel")}`;
@@ -641,6 +645,8 @@ function LandingGeneratorWorkspace({
 			</div>
 		) : null;
 	const outputSettingsLabels = {
+		oneImage: composer("oneImage"),
+		shortAutomatic: composer("automatic"),
 		title: t("settings.title"),
 		trigger: t("settings.trigger"),
 		aspectRatio: t("settings.aspectRatio"),
@@ -671,22 +677,120 @@ function LandingGeneratorWorkspace({
 		},
 	} satisfies ImageOutputSettingsLabels;
 
+	const isImageEdit = requireReference || Boolean(file);
+	const composerSuggestionKeys = isImageEdit
+		? ["background", "object", "lighting", "style"]
+		: ["portrait", "product", "landscape", "illustration"];
+	const referencePanel = (
+		<section
+			data-test="landing-source-panel"
+			data-source-selected={Boolean(file)}
+			className="min-w-0 relative"
+		>
+			<label htmlFor="landing-source-image" className="landing-source-label sr-only">
+				{referenceLabel}
+			</label>
+			{file && (
+				<button
+					type="button"
+					className="top-2 right-2 size-11 bg-black/65 text-white backdrop-blur hover:bg-black/85 absolute z-20 grid place-items-center rounded-full transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b79cff]"
+					onClick={clearFile}
+					disabled={isBusy}
+					aria-label={t("removeImage")}
+				>
+					<XIcon className="size-4" aria-hidden="true" />
+				</button>
+			)}
+			<button
+				type="button"
+				className={`group min-h-36 p-3 md:min-h-[9.5rem] bg-white/[0.025] relative flex w-full items-center justify-center overflow-hidden rounded-[1rem] border border-dashed text-center transition duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b79cff] disabled:cursor-wait motion-reduce:transition-none ${
+					isDragging
+						? "border-violet-200 bg-violet-400/12"
+						: "border-white/20 hover:bg-white/[0.035] hover:border-[#c9b9ff]/70"
+				}`}
+				aria-label={
+					file
+						? t("replaceImage")
+						: `${uploadLabel}. ${t("fileHint", { megabytes: maximumMegabytes })}`
+				}
+				data-reference-upload=""
+				disabled={isBusy}
+				onClick={() => {
+					beginUpload();
+					inputRef.current?.click();
+				}}
+				onDragEnter={(event) => {
+					event.preventDefault();
+					if (!isBusy) setIsDragging(true);
+				}}
+				onDragOver={handleDragOver}
+				onDragLeave={() => setIsDragging(false)}
+				onDrop={handleDrop}
+			>
+				{previewUrl ? (
+					<>
+						<Image
+							src={previewUrl}
+							alt={t("previewAlt", { fileName: file?.name ?? "" })}
+							fill
+							unoptimized
+							className="object-cover transition duration-500 group-hover:scale-105 motion-reduce:transition-none"
+						/>
+						<span className="inset-x-2 bottom-2 bg-black/65 px-3 py-2 text-xs font-semibold text-white backdrop-blur absolute rounded-lg">
+							{t("replaceImage")}
+						</span>
+					</>
+				) : (
+					<span className="landing-reference-empty gap-2.5 flex flex-col items-center">
+						<span className="size-11 group-hover:-translate-y-1 grid place-items-center rounded-xl bg-[#a98bff]/12 text-[#c9b9ff] ring-1 ring-[#a98bff]/25 transition motion-reduce:transform-none">
+							<UploadCloudIcon className="size-5" aria-hidden="true" />
+						</span>
+						<span className="max-w-24 text-sm font-semibold leading-5 text-white">
+							{requireReference ? referenceLabel : composer("addReference")}
+						</span>
+						<span className="max-w-36 leading-4 md:block hidden text-[0.68rem] text-[#94889f]">
+							{t("fileHint", { megabytes: maximumMegabytes })}
+						</span>
+					</span>
+				)}
+			</button>
+			<input
+				ref={inputRef}
+				id="landing-source-image"
+				type="file"
+				accept={supportedMimeTypes.join(",")}
+				aria-label={referenceLabel}
+				aria-invalid={Boolean(fileError)}
+				disabled={isBusy}
+				className="sr-only"
+				onChange={handleFileChange}
+			/>
+			{fileError && (
+				<p className="mt-2 text-sm text-red-300" role="alert">
+					{fileError}
+				</p>
+			)}
+			<p className="composer-upload-hint">{t("fileHint", { megabytes: maximumMegabytes })}</p>
+		</section>
+	);
+
 	return (
 		<>
 			<div
 				ref={generatorRef}
 				data-test="landing-generator"
+				data-composer-design="prompt-first"
+				data-composer-kind={isImageEdit ? "image-to-image" : "text-to-image"}
 				className="mt-6 p-3 sm:p-4 relative isolate mx-auto max-w-[76rem] overflow-hidden rounded-[1.75rem] border border-[#b79cff]/20 bg-[#2b2137] shadow-[0_34px_100px_-48px_rgba(0,0,0,0.95),0_28px_70px_-50px_rgba(169,139,255,0.72),inset_0_1px_0_rgba(255,255,255,0.07)]"
 			>
-				<div
-					className="inset-0 pointer-events-none absolute bg-[radial-gradient(circle_at_88%_-40%,rgba(183,156,255,0.18),transparent_24rem)]"
-					aria-hidden="true"
-				/>
-				<div
-					className="top-0 right-16 left-16 pointer-events-none absolute h-px bg-gradient-to-r from-transparent via-[#c9b9ff]/55 to-transparent"
-					aria-hidden="true"
-				/>
 				<form className="relative" onSubmit={(event) => void submit(event)}>
+					<div className="studio-composer-heading">
+						<span>{studio(isImageEdit ? "generation.editMode" : "generation.textMode")}</span>
+						<span className="composer-private" title={studio("private")}>
+							<LockKeyholeIcon size={15} aria-hidden="true" />
+							{composer("private")}
+						</span>
+					</div>
 					{textDraftError && (
 						<output className="mb-3 text-sm text-amber-200 block">
 							{studio("storageUnavailable")}
@@ -701,98 +805,14 @@ function LandingGeneratorWorkspace({
 						data-test="landing-composer-inputs"
 						className="gap-1.5 sm:gap-2 sm:grid-cols-[7.5rem_minmax(0,1fr)] md:grid-cols-[8.5rem_minmax(0,1fr)] bg-black/10 p-1.5 grid grid-cols-[4.75rem_minmax(0,1fr)] rounded-[1.3rem]"
 					>
-						<section data-test="landing-source-panel" className="min-w-0 relative">
-							<label htmlFor="landing-source-image" className="landing-source-label sr-only">
-								{referenceLabel}
-							</label>
-							{file && (
-								<button
-									type="button"
-									className="top-2 right-2 size-11 bg-black/65 text-white backdrop-blur hover:bg-black/85 absolute z-20 grid place-items-center rounded-full transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b79cff]"
-									onClick={clearFile}
-									disabled={isBusy}
-									aria-label={t("removeImage")}
-								>
-									<XIcon className="size-4" aria-hidden="true" />
-								</button>
-							)}
-							<button
-								type="button"
-								className={`group min-h-36 p-3 md:min-h-[9.5rem] bg-white/[0.025] relative flex w-full items-center justify-center overflow-hidden rounded-[1rem] border border-dashed text-center transition duration-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b79cff] disabled:cursor-wait motion-reduce:transition-none ${
-									isDragging
-										? "border-violet-200 bg-violet-400/12"
-										: "border-white/20 hover:bg-white/[0.035] hover:border-[#c9b9ff]/70"
-								}`}
-								aria-label={
-									file
-										? t("replaceImage")
-										: `${uploadLabel}. ${t("fileHint", { megabytes: maximumMegabytes })}`
-								}
-								data-reference-upload=""
-								disabled={isBusy}
-								onClick={() => {
-									beginUpload();
-									inputRef.current?.click();
-								}}
-								onDragEnter={(event) => {
-									event.preventDefault();
-									if (!isBusy) setIsDragging(true);
-								}}
-								onDragOver={handleDragOver}
-								onDragLeave={() => setIsDragging(false)}
-								onDrop={handleDrop}
-							>
-								{previewUrl ? (
-									<>
-										<Image
-											src={previewUrl}
-											alt={t("previewAlt", { fileName: file?.name ?? "" })}
-											fill
-											unoptimized
-											className="object-cover transition duration-500 group-hover:scale-105 motion-reduce:transition-none"
-										/>
-										<span className="inset-x-2 bottom-2 bg-black/65 px-3 py-2 text-xs font-semibold text-white backdrop-blur absolute rounded-lg">
-											{t("replaceImage")}
-										</span>
-									</>
-								) : (
-									<span className="landing-reference-empty gap-2.5 flex flex-col items-center">
-										<span className="size-11 group-hover:-translate-y-1 grid place-items-center rounded-xl bg-[#a98bff]/12 text-[#c9b9ff] ring-1 ring-[#a98bff]/25 transition motion-reduce:transform-none">
-											<UploadCloudIcon className="size-5" aria-hidden="true" />
-										</span>
-										<span className="max-w-24 text-sm font-semibold leading-5 text-white">
-											{referenceLabel}
-										</span>
-										<span className="max-w-36 leading-4 md:block hidden text-[0.68rem] text-[#94889f]">
-											{t("fileHint", { megabytes: maximumMegabytes })}
-										</span>
-									</span>
-								)}
-							</button>
-							<input
-								ref={inputRef}
-								id="landing-source-image"
-								type="file"
-								accept={supportedMimeTypes.join(",")}
-								aria-label={referenceLabel}
-								aria-invalid={Boolean(fileError)}
-								disabled={isBusy}
-								className="sr-only"
-								onChange={handleFileChange}
-							/>
-							{fileError && (
-								<p className="mt-2 text-sm text-red-300" role="alert">
-									{fileError}
-								</p>
-							)}
-						</section>
+						{isImageEdit && referencePanel}
 
 						<section
 							data-test="landing-prompt-panel"
 							className="min-w-0 focus-within:bg-white/[0.025] relative overflow-hidden rounded-[1rem] transition-colors focus-within:ring-1 focus-within:ring-[#b79cff]/30 focus-within:ring-inset motion-reduce:transition-none"
 						>
 							<label htmlFor="landing-edit-prompt" className="landing-prompt-label sr-only">
-								{t("prompt")}
+								{isImageEdit ? tCreate("fields.prompt") : studio("generation.promptLabel")}
 							</label>
 							<Textarea
 								ref={promptRef}
@@ -803,7 +823,7 @@ function LandingGeneratorWorkspace({
 								maxLength={maximumPromptLength}
 								value={prompt}
 								disabled={isBusy}
-								placeholder={t("placeholder")}
+								placeholder={isImageEdit ? composer("editHint") : t("placeholder")}
 								className="min-h-36 p-4 pb-9 sm:p-5 sm:pb-9 md:min-h-[9.5rem] text-base leading-7 resize-none border-0 bg-transparent text-[#f6f2fb] shadow-none placeholder:text-[#a99db2] focus-visible:ring-0"
 								onChange={(event) => setPrompt(event.target.value)}
 							/>
@@ -813,13 +833,28 @@ function LandingGeneratorWorkspace({
 								</span>
 							) : null}
 						</section>
+						{!isImageEdit && referencePanel}
+						<PromptIdeas
+							disabled={isBusy}
+							label={isImageEdit ? tCreate("suggestions.label") : composer("promptIdeas")}
+							suggestions={composerSuggestionKeys.map((key) =>
+								isImageEdit ? tCreate(`suggestions.${key}`) : composer(`ideas.${key}.prompt`),
+							)}
+							labels={composerSuggestionKeys.map((key) =>
+								isImageEdit ? studio(`promptSuggestions.${key}`) : composer(`ideas.${key}.label`),
+							)}
+							onSelect={(suggestion) => {
+								setPrompt(suggestion);
+								promptRef.current?.focus({ preventScroll: true });
+							}}
+						/>
 					</div>
 
 					<div
 						data-test="landing-controls-panel"
 						className="mt-4 gap-2 px-1 flex flex-wrap items-center"
 					>
-						<div className="image-edit-control-field contents">
+						<div className="image-edit-control-field composer-model-field">
 							<span className="image-edit-control-label hidden" aria-hidden="true">
 								{imageToImage("composer.modelLabel")}
 							</span>
@@ -839,12 +874,10 @@ function LandingGeneratorWorkspace({
 								}}
 							/>
 						</div>
-						<div className="image-edit-control-field min-w-0 contents max-w-full">
-							<span className="image-edit-control-label hidden" aria-hidden="true">
-								{imageToImage("composer.outputLabel")}
-							</span>
+						<div className="image-edit-control-field composer-output-field">
 							<ImageOutputSettings
 								idPrefix="landing"
+								presentation="composer"
 								aspectRatios={selectedSku?.aspectRatios ?? []}
 								value={aspectRatio}
 								onChange={(nextAspectRatio) => {

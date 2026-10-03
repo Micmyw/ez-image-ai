@@ -3966,6 +3966,7 @@ export function createFinalizationDependencies(
 									},
 								},
 							});
+					let guestCompletedAt: Date | undefined;
 					if (claim.guest) {
 						const resizedReservation = await reserveGenerationOutputStorageTransaction(
 							{
@@ -3984,6 +3985,13 @@ export function createFinalizationDependencies(
 								retryable: true,
 							};
 						}
+						// Storage has confirmed watermarking and clean-source deletion. Record
+						// that completion on PostgreSQL's clock, which owns the transfer lease.
+						const [clock] = await database.$queryRaw<Array<{ now: Date }>>`
+							SELECT clock_timestamp() AS "now"
+						`;
+						if (!clock) throw new Error("Database did not return its current time");
+						guestCompletedAt = clock.now;
 					}
 					const completed = await completeGenerationOutputTransferTransaction(
 						{
@@ -3994,12 +4002,12 @@ export function createFinalizationDependencies(
 							checksum: promoted.sha256,
 							storageEtag: promoted.etag ?? null,
 							storageVersionId: promoted.versionId ?? null,
-							...(claim.guest && "cleanStagingDeletedAt" in promoted
+							...(claim.guest && guestCompletedAt
 								? {
 										guestWatermark: {
 											version: GUEST_WATERMARK_VERSION,
-											watermarkedAt: promoted.cleanStagingDeletedAt,
-											cleanStagingDeletedAt: promoted.cleanStagingDeletedAt,
+											watermarkedAt: guestCompletedAt,
+											cleanStagingDeletedAt: guestCompletedAt,
 											deleteAfter: claim.guest.deleteAfter,
 										},
 									}

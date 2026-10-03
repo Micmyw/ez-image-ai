@@ -234,6 +234,7 @@ export function ImageEditorWorkspace({
 			)}
 			<div data-editor-layout="inline" className="min-w-0">
 				<GenerationForm
+					ready={draftReady}
 					requireReference={requireReference}
 					layout={
 						pathname === "/image-to-image" || pathname === "/photo-to-coloring-page"

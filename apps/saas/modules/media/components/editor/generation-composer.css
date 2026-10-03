@@ -1,0 +1,548 @@
+/* Opt-in composer styling. Keep route and floating-dock layouts outside this boundary. */
+[data-composer-design="prompt-first"][data-composer-kind][data-test] {
+	container-type: inline-size;
+	min-width: 0;
+	padding: 22px;
+	border: 1px solid #b79cff35;
+	border-radius: 20px;
+	background: #2b2137;
+	color: #f6f2fb;
+	box-shadow: none;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .studio-composer-heading {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 12px;
+	padding: 0;
+	margin-bottom: 20px;
+	font-size: 16px;
+	font-weight: 600;
+	line-height: 1.4;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-private {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	max-width: none;
+	font-size: 12px;
+	font-weight: 400;
+	color: #b8adbf;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	:is(.studio-composer-inputs, [data-test="landing-composer-inputs"]) {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	padding: 0;
+	background: none;
+	border-radius: 0;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .studio-prompt {
+	display: flex;
+	flex-direction: column;
+	gap: 16px;
+	width: 100%;
+	padding: 0;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .studio-prompt > * {
+	margin-block: 0;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	:is(.composer-prompt-field label, .landing-prompt-label) {
+	position: static;
+	display: block;
+	width: auto;
+	height: auto;
+	margin: 0 0 8px;
+	padding: 0;
+	clip-path: none;
+	overflow: visible;
+	white-space: normal;
+	font-size: 13px;
+	font-weight: 500;
+	letter-spacing: normal;
+	text-transform: none;
+	color: #e5dbea;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	:is(.studio-prompt textarea, [data-test="landing-prompt-panel"] textarea) {
+	box-sizing: border-box;
+	width: 100%;
+	min-height: 144px;
+	padding: 14px;
+	margin: 0;
+	border: 1px solid #b79cff30;
+	border-radius: 12px;
+	background: #211a2a;
+	font-size: 16px;
+	line-height: 1.65;
+	color: #f6f2fb;
+	resize: vertical;
+	box-shadow: none;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] textarea::placeholder {
+	color: #a99db2;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] textarea:focus-visible {
+	outline: 2px solid #b79cff;
+	outline-offset: 2px;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	[data-test="landing-prompt-panel"] {
+	overflow: visible;
+	background: none;
+	border-radius: 0;
+	outline: none;
+	box-shadow: none;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .studio-source {
+	position: relative;
+	display: block;
+	min-width: 0;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .studio-source > * {
+	margin-block: 0;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-reference-actions {
+	position: absolute;
+	top: 0;
+	right: 0;
+	z-index: 1;
+	display: flex;
+	margin: 0;
+	padding: 0;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	.composer-reference-actions
+	h2 {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	padding: 0;
+	margin: -1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-reference-actions a {
+	width: auto;
+	min-height: 44px;
+	padding: 0 12px;
+	margin: 0;
+	border-left: 1px solid #b79cff25;
+	border-radius: 0 12px 12px 0;
+	font-size: 12px;
+	color: #c9b9ff;
+	white-space: nowrap;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .studio-upload:not([hidden]) {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	justify-content: flex-start;
+	gap: 10px;
+	min-height: 44px;
+	padding: 10px 116px 10px 12px;
+	border: 1px solid #b79cff30;
+	border-radius: 12px;
+	background: #ffffff03;
+	text-align: left;
+	font-size: 13px;
+	line-height: 1.5;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	.studio-upload
+	input[type="file"] {
+	position: absolute;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .studio-upload > svg {
+	width: 20px;
+	height: 20px;
+	margin: 0;
+	flex-shrink: 0;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-upload-hint {
+	margin: 6px 0 0;
+	font-size: 11px;
+	line-height: 1.6;
+	color: #b8adbf;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	[data-source-state="selected"]
+	.composer-reference-actions {
+	position: static;
+	justify-content: space-between;
+	margin-bottom: 8px;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	[data-source-state="selected"]
+	.composer-reference-actions
+	h2 {
+	position: static;
+	width: auto;
+	height: auto;
+	margin: 0;
+	overflow: visible;
+	clip-path: none;
+	font-size: 13px;
+	font-weight: 500;
+	color: #e5dbea;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	[data-source-state="selected"]
+	.composer-reference-actions
+	a {
+	min-height: 32px;
+	padding: 0;
+	border: 0;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] [data-reference-preview] {
+	display: grid;
+	grid-template-columns: 64px minmax(0, 1fr);
+	align-items: center;
+	gap: 12px;
+	padding: 12px;
+	border: 1px solid #b79cff30;
+	border-radius: 12px;
+	background: #211a2a;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	[data-reference-preview]
+	.composer-reference-image {
+	width: 64px;
+	height: 64px;
+	min-height: 0;
+	margin: 0;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-reference-status {
+	min-width: 0;
+	margin: 0;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	.composer-reference-status
+	button {
+	min-height: 36px;
+	margin-top: 4px;
+	padding-inline: 0;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-prompt-ideas {
+	margin: 0;
+	border: 1px solid #b79cff25;
+	border-radius: 12px;
+	background: #ffffff02;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	.composer-prompt-ideas
+	summary {
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	width: 100%;
+	min-height: 44px;
+	padding: 10px 12px;
+	font-size: 13px;
+	color: #ddd0ee;
+	list-style: none;
+	cursor: pointer;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	.composer-prompt-ideas
+	summary::-webkit-details-marker {
+	display: none;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	.composer-prompt-ideas
+	summary
+	> svg:last-child {
+	margin-left: auto;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	.composer-prompt-ideas[open]
+	summary
+	> svg:last-child {
+	transform: rotate(180deg);
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-prompt-ideas > div {
+	padding: 0 12px 12px;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-prompt-ideas button {
+	min-height: 40px;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	:is(.studio-composer-controls, [data-test="landing-controls-panel"]) {
+	display: grid;
+	grid-template-columns: minmax(200px, 1fr) minmax(280px, 1.6fr) auto;
+	align-items: end;
+	gap: 14px;
+	margin: 20px 0 0;
+	padding: 18px 0 0;
+	border-top: 1px solid #ffffff12;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .image-edit-control-field {
+	display: block;
+	min-width: 0;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	.composer-model-field
+	> .image-edit-control-label {
+	display: block;
+	margin: 0 0 8px;
+	font-size: 12px;
+	line-height: 1.4;
+	letter-spacing: normal;
+	text-transform: none;
+	color: #b8adbf;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	.composer-model-field
+	> button {
+	width: 100%;
+	min-height: 44px;
+	padding: 10px 14px;
+	border-color: #b79cff30;
+	border-radius: 12px;
+	font-size: 13px;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	.composer-model-field
+	> button
+	> svg:last-child {
+	margin-left: auto;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-output-grid {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(82px, 1fr) minmax(0, 1fr);
+	gap: 12px;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	.composer-output-grid:has(> :last-child:nth-child(2)) {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	.composer-output-secondary-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(min(100%, 145px), 1fr));
+	gap: 12px;
+	margin-top: 12px;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-setting {
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+	gap: 6px;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-setting-value {
+	position: relative;
+	display: flex;
+	align-items: center;
+	min-width: 0;
+	min-height: 44px;
+	border: 1px solid #b79cff30;
+	border-radius: 12px;
+	background: #ffffff04;
+	font-size: 13px;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-setting-static {
+	justify-content: center;
+	gap: 5px;
+	padding: 8px 6px;
+	text-align: center;
+	line-height: 1.4;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] [data-output-count="1"] {
+	white-space: nowrap;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-setting select {
+	width: 100%;
+	min-width: 0;
+	min-height: 44px;
+	padding: 8px 28px 8px 10px;
+	border: 0;
+	border-radius: inherit;
+	appearance: none;
+	background: transparent;
+	color: inherit;
+	font-size: inherit;
+	cursor: pointer;
+	text-overflow: ellipsis;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	.composer-setting
+	select:disabled {
+	cursor: not-allowed;
+	opacity: 0.55;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-setting option {
+	background: #2b2137;
+	color: #f6f2fb;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	.composer-setting
+	select
+	+ svg {
+	position: absolute;
+	right: 10px;
+	pointer-events: none;
+	color: #b79cff;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	:is(.composer-setting-label, .composer-setting-hint) {
+	font-size: 11px;
+	line-height: 1.5;
+	color: #b8adbf;
+	hyphens: auto;
+	overflow-wrap: anywhere;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-setting-hint {
+	margin-top: 8px;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	:is(.studio-submit, [data-test="landing-generate"]) {
+	min-height: 48px;
+	height: auto;
+	margin: 0;
+	padding: 12px 18px;
+	border-radius: 12px;
+	background: #8065f5;
+	color: #fff;
+	font-size: 14px;
+	line-height: 1.5;
+	font-weight: 600;
+	white-space: normal;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	:is(.studio-submit, [data-test="landing-generate"]):not(:disabled):hover {
+	background: #927afa;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-meta {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	flex-wrap: wrap;
+	gap: 4px 16px;
+	margin-top: 14px;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-submit-cost {
+	margin-left: 10px;
+	padding-left: 12px;
+	border-left: 1px solid #ffffff50;
+	font-size: 12px;
+	font-weight: 500;
+	white-space: nowrap;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-meta > details {
+	margin: 0;
+	font-size: 11px;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .image-edit-private {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	font-size: 11px;
+	color: #b8adbf;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	:is(button, select, summary, a):focus-visible {
+	outline: 2px solid #b79cff;
+	outline-offset: 3px;
+}
+/* Guest upload uses the same hierarchy and retains its own validation and retry flow. */
+[data-composer-design="prompt-first"][data-composer-kind][data-test] [data-reference-upload] {
+	min-height: 52px;
+	padding: 12px;
+	border: 1px solid #b79cff30;
+	border-radius: 12px;
+	background: #ffffff03;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	[data-source-selected="false"]
+	.landing-source-label {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	margin: -1px;
+	padding: 0;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test] .landing-reference-empty {
+	display: flex;
+	width: 100%;
+	flex-direction: row;
+	justify-content: flex-start;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	.landing-reference-empty
+	> span:first-child {
+	width: 24px;
+	height: 24px;
+	border: 0;
+	background: none;
+	box-shadow: none;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	.landing-reference-empty
+	> span:nth-child(2) {
+	display: block;
+	max-width: none;
+	font-size: 13px;
+	font-weight: 500;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	.landing-reference-empty
+	> span:last-child {
+	display: none;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	[data-source-selected="true"]
+	[data-reference-upload] {
+	min-height: 144px;
+	max-width: none;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	[data-source-selected="true"]
+	.landing-source-label {
+	position: static;
+	display: block;
+	width: auto;
+	height: auto;
+	margin: 0 0 8px;
+	padding: 0;
+	overflow: visible;
+	clip-path: none;
+	font-size: 13px;
+	font-weight: 500;
+	letter-spacing: normal;
+	text-transform: none;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	[data-source-selected="true"]
+	> button[aria-label]:not([data-reference-upload]) {
+	top: 36px;
+}
+[data-composer-design="prompt-first"][data-composer-kind][data-test]
+	[data-source-selected="true"]
+	[data-reference-upload]
+	img {
+	object-fit: contain;
+}
+@container (max-width: 800px) {
+	[data-composer-design="prompt-first"][data-composer-kind][data-test]
+		:is(.studio-composer-controls, [data-test="landing-controls-panel"]) {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+@media (max-width: 767px) {
+	[data-composer-design="prompt-first"][data-composer-kind][data-test] {
+		padding: 16px;
+		border-radius: 18px;
+	}
+	[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-output-grid {
+		gap: 8px;
+	}
+	[data-composer-design="prompt-first"][data-composer-kind][data-test] .composer-meta {
+		justify-content: center;
+	}
+}

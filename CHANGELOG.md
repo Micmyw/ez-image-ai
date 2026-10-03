@@ -2,6 +2,14 @@
 
 ## 2026-10-03
 
+### Generation composer
+
+- Keep the initial editor markup stable while restoring its draft, preventing a cached model catalog from resetting typed prompts during page hydration.
+- Record successful guest watermark processing on the database clock so clock differences between workers and PostgreSQL do not leave previews waiting for a retry.
+- Give image creation and reference editing a full-width prompt, a compact reference area, and collapsible prompt ideas. Reference-based tools show the required image before the editing instruction.
+- Keep model selection visible and display only supported output settings. Fixed resolution and one-image output are informational; linked quality, resolution, and credit changes follow the existing model catalog.
+- Apply the shared responsive composer to guest and account editors, including narrow tool columns, while retaining upload status, access notices, content policy, and generation feedback.
+
 ### Photo to coloring page
 
 - Add `/photo-to-coloring-page` for converting a user's own photo into printable outlines, with simple, balanced and detailed instructions and a choice of plain white or simplified background. Reuse the existing guest and account image editor, private uploads, model selection and credits.

@@ -130,7 +130,7 @@ async function enterGuestWorkspace(page: Page, prompt: string): Promise<void> {
 	}
 	await page.context().addCookies([{ name: "consent", value: "true", url: saasUrl }]);
 	await page.goto("/");
-	await page.getByLabel(/describe your (?:image|edit)/i).fill(prompt);
+	await page.getByLabel(/image prompt|edit instruction/i).fill(prompt);
 	const chooserPromise = page.waitForEvent("filechooser");
 	await page
 		.locator('[data-test="landing-generator"]')

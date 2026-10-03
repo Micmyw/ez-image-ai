@@ -122,6 +122,8 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 	test("text generation uses credits, has no input binding, and can become a reference edit", async ({
 		page,
 	}, testInfo) => {
+		const pageErrors: string[] = [];
+		page.on("pageerror", (error) => pageErrors.push(error.message));
 		const prompt = marker("text-image", "A ceramic vase in warm afternoon light", testInfo.retry);
 		page.on("requestfailed", (request) => {
 			if (request.resourceType() === "image")
@@ -135,8 +137,8 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await expect(page.getByRole("button", { name: /^Model: / })).toContainText("GPT Image 2", {
 			timeout: 30_000,
 		});
-		await expect(page.locator('[data-test="generation-submit"]')).toHaveText(
-			"Generate image · 7 credits",
+		await expect(page.locator('[data-test="generation-submit"]')).toHaveAccessibleName(
+			"Generate image 7 credits",
 		);
 		// The streamed form is visible before its live catalog and handlers are ready.
 		// Match openCreator: wait for the live credit price before entering the prompt.
@@ -186,6 +188,7 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await expect(page.getByLabel(/edit instruction|image prompt/i)).toHaveValue(prompt);
 		await expect(page.getByRole("img", { name: /selected source image/i })).toHaveCount(0);
 		await expect(page.locator('[data-test="generation-submit"]')).toBeEnabled();
+		expect(pageErrors).toEqual([]);
 	});
 
 	test("upload preview blocks generation during pending and failed uploads", async ({ page }) => {
@@ -543,8 +546,8 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		const growthEvents = await captureConsentedGrowthEvents(page);
 		const prompt = marker("duplicate", "A ceramic lamp on a quiet desk", testInfo.retry);
 		await openCreator(page, prompt, fundedEmail);
-		await expect(page.locator('[data-test="generation-submit"]')).toHaveText(
-			"Start edit · 5 credits",
+		await expect(page.locator('[data-test="generation-submit"]')).toHaveAccessibleName(
+			"Start edit 5 credits",
 		);
 		await page.locator('[data-test="generation-submit"]').dblclick();
 		const job = await waitForJob(prompt, "SUCCEEDED");
@@ -969,21 +972,15 @@ test.describe("creator workspace through real oRPC, database, storage, and local
 		await page.keyboard.press("Space");
 		await expect(modelTrigger).toContainText("Seedream 5 Pro");
 
-		const outputSettings = page.getByRole("button", { name: /open output settings/i });
-		await outputSettings.focus();
-		await page.keyboard.press("Enter");
-		const high = page
-			.getByRole("group", { name: /quality/i })
-			.getByRole("button", { name: "High", exact: true });
-		await high.focus();
-		await page.keyboard.press("Space");
-		await expect(high).toHaveAttribute("aria-pressed", "true");
-		await expect(
-			page
-				.getByRole("group", { name: /resolution/i })
-				.getByRole("button", { name: "2K", exact: true }),
-		).toHaveAttribute("aria-pressed", "true");
-		await page.keyboard.press("Escape");
+		const quality = page.getByRole("combobox", { name: "Quality", exact: true });
+		await quality.focus();
+		await page.keyboard.press("ArrowDown");
+		await page.keyboard.press("Tab");
+		await expect(quality).toHaveValue("high");
+		await expect(page.getByRole("combobox", { name: "Resolution", exact: true })).toHaveValue("2k");
+		await expect(page.locator('[data-test="generation-submit"]')).toHaveAccessibleName(
+			"Start edit 15 credits",
+		);
 		await expect(page.locator('[data-test="generation-submit"]')).toBeEnabled();
 		expect(
 			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth),
