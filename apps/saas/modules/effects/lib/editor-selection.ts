@@ -4,6 +4,7 @@ import {
 	resolveImageSpecControlValues,
 	type PublicImageSpecMatrix,
 } from "../../media/lib/image-sku-selection";
+import { isPhotoIdeaRoute } from "../../public-content/lib/photo-idea-routes";
 import type { PublicEffectPreset } from "./types";
 
 /** A preset changes editable controls only. The existing upload/asset binding stays intact. */
@@ -59,7 +60,9 @@ export function isEffectSelectionAvailable(
 }
 
 export function effectWorkspacePath(pathname: string, presetId?: string): string {
-	return presetId ? `${pathname}?preset=${encodeURIComponent(presetId)}` : pathname;
+	const legacySlug = pathname.startsWith("/effects/") ? pathname.slice("/effects/".length) : null;
+	const path = legacySlug && isPhotoIdeaRoute(legacySlug) ? `/blog/${legacySlug}` : pathname;
+	return presetId ? `${path}?preset=${encodeURIComponent(presetId)}` : path;
 }
 
 /** Only public, bounded IDs and the existing recovery flag can leave the page. */
@@ -67,7 +70,7 @@ export function sanitizeEffectEditorReturnPath(value: unknown): string | null {
 	if (
 		typeof value !== "string" ||
 		value.length > 512 ||
-		!value.startsWith("/effects/") ||
+		(!value.startsWith("/effects/") && !value.startsWith("/blog/")) ||
 		value.includes("\\")
 	)
 		return null;
@@ -80,8 +83,8 @@ export function sanitizeEffectEditorReturnPath(value: unknown): string | null {
 	if (
 		url.origin !== "https://effect-return.invalid" ||
 		url.hash ||
-		!/^\/effects\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(url.pathname) ||
-		url.pathname === "/effects/category"
+		!/^\/(?:effects|blog)\/[a-z0-9]+(?:-[a-z0-9]+)*$/.test(url.pathname) ||
+		!isPhotoIdeaRoute(url.pathname.split("/")[2] ?? "")
 	)
 		return null;
 	if ([...url.searchParams.keys()].some((key) => !["preset", "upgrade", "resume"].includes(key)))
@@ -94,5 +97,5 @@ export function sanitizeEffectEditorReturnPath(value: unknown): string | null {
 		return null;
 	if (url.searchParams.has("resume") && url.searchParams.get("resume") !== "text") return null;
 	if (url.searchParams.has("upgrade") && url.searchParams.has("resume")) return null;
-	return url.pathname + url.search;
+	return `/blog/${url.pathname.split("/")[2]}` + url.search;
 }

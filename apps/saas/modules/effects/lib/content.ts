@@ -69,35 +69,6 @@ export function createEffectContentReader(records: readonly Effect[]) {
 		};
 	}
 
-	function getFeaturedEffects(limit = 4): PublicEffect[] {
-		return published
-			.filter((effect) => effect.featuredOrder !== undefined)
-			.sort((left, right) => (left.featuredOrder ?? 0) - (right.featuredOrder ?? 0))
-			.slice(0, Math.max(0, Math.min(4, Math.trunc(limit))));
-	}
-
-	function getRelatedEffects(
-		effect: Pick<Effect, "id" | "relatedEffectIds" | "primaryCategoryId">,
-	): PublicEffect[] {
-		const explicit = effect.relatedEffectIds.flatMap((id) => {
-			const related = getPublishedEffectById(id);
-			return related && related.id !== effect.id ? [related] : [];
-		});
-		const candidates = published.filter(
-			(candidate) =>
-				candidate.id !== effect.id &&
-				candidate.primaryCategoryId === effect.primaryCategoryId &&
-				!explicit.some((related) => related.id === candidate.id),
-		);
-		return [...explicit, ...candidates].slice(0, 3);
-	}
-
-	function getEffectsForProduct(productKey: string): PublicEffect[] {
-		return published.filter((effect) =>
-			effect.presets.some((preset) => preset.productKey === productKey),
-		);
-	}
-
 	/** Only for server-side relation checks; includes draft identities but never draft copy or assets. */
 	function getEffectRecordsForValidation(): readonly {
 		id: string;
@@ -118,9 +89,6 @@ export function createEffectContentReader(records: readonly Effect[]) {
 		getEffectBySlugForPreview,
 		getEffectPreviewContent,
 		getRetiredEffectBySlug,
-		getFeaturedEffects,
-		getRelatedEffects,
-		getEffectsForProduct,
 		getEffectRecordsForValidation,
 	};
 }
@@ -168,8 +136,5 @@ export const {
 	getEffectBySlugForPreview,
 	getEffectPreviewContent,
 	getRetiredEffectBySlug,
-	getFeaturedEffects,
-	getRelatedEffects,
-	getEffectsForProduct,
 	getEffectRecordsForValidation,
 } = createEffectContentReader(effectRecords);

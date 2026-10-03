@@ -30,6 +30,7 @@ export function HeaderNavigationMenu({
 	onOpenChange,
 	triggerRef,
 	restoreFocus = true,
+	showAccountActions = true,
 }: {
 	registered: boolean;
 	account?: ReactNode;
@@ -39,6 +40,7 @@ export function HeaderNavigationMenu({
 	onOpenChange?: (open: boolean) => void;
 	triggerRef?: RefObject<HTMLButtonElement | null>;
 	restoreFocus?: boolean;
+	showAccountActions?: boolean;
 }) {
 	const t = useTranslations("studio");
 	const common = useTranslations("common.menu");
@@ -122,15 +124,7 @@ export function HeaderNavigationMenu({
 					</Link>
 					<StudioToolNavigation drawer />
 					<div className="studio-drawer-link-group">
-						<Link
-							href="/effects"
-							aria-current={pathname.startsWith("/effects") ? "page" : undefined}
-						>
-							{common("effects")}
-						</Link>
 						<Link href={pricingHref}>{common("pricing")}</Link>
-						<Link href="/blog">{common("blog")}</Link>
-						<Link href="/docs">{common("docs")}</Link>
 					</div>
 					{registered && (
 						<div className="studio-drawer-link-group">
@@ -142,16 +136,18 @@ export function HeaderNavigationMenu({
 						</div>
 					)}
 				</nav>
-				<div className="studio-drawer-account">
-					<HeaderPurchaseActions registered={registered} showCredits={false} />
-					{registered ? (
-						<div className="studio-drawer-user">{account}</div>
-					) : (
-						<a href="/login" className="studio-drawer-signin">
-							{common("login")} <ArrowUpRightIcon aria-hidden />
-						</a>
-					)}
-				</div>
+				{showAccountActions && (
+					<div className="studio-drawer-account">
+						<HeaderPurchaseActions registered={registered} showCredits={false} />
+						{registered ? (
+							<div className="studio-drawer-user">{account}</div>
+						) : (
+							<a href="/login" className="studio-drawer-signin">
+								{common("login")} <ArrowUpRightIcon aria-hidden />
+							</a>
+						)}
+					</div>
+				)}
 			</SheetContent>
 		</Sheet>
 	);

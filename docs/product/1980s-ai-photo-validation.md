@@ -1,5 +1,7 @@
 # 1980s photo effect: content and acceptance record
 
+The 2026-10-04 information-architecture migration reuses this evidence at `/blog/1980s-ai-photo`; the former Effects address becomes a permanent redirect. The recorded image bytes, preset versions, model observations and credit usage below are unchanged. This migration does not represent another paid generation test. See [Resources and Photo Ideas](./resources-and-photo-ideas.md).
+
 This round completes the first content-bearing effect while preserving the existing content reader,
 draft isolation, shared editor, authorization, moderation, quote, job and credit flows. It does not
 authorize or record a Git push or production content deployment.

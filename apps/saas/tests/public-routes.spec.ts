@@ -94,7 +94,10 @@ test.describe("image-to-image landing page", () => {
 	});
 
 	for (const width of [1440, 390]) {
-		test(`has focused metadata and requires an image at ${width}px`, async ({ page, context }) => {
+		test(`has focused metadata and preserves the shared composer at ${width}px`, async ({
+			page,
+			context,
+		}) => {
 			test.setTimeout(90_000);
 			await page.setViewportSize({ width, height: 900 });
 			await context.addCookies([
@@ -139,14 +142,14 @@ test.describe("image-to-image landing page", () => {
 			await page.getByRole("button", { name: "Use this prompt" }).first().click();
 			await expect(page.locator("textarea")).toHaveValue(/Keep the product, its shape/);
 			await expect(page.getByRole("heading", { level: 1 })).toBeInViewport();
-			await expect(action).toBeDisabled();
+			await expect(action).toBeEnabled();
 			await expect(page.locator("#landing-source-image")).toHaveAttribute(
 				"aria-label",
-				"Reference image · required",
+				"Reference image · optional",
 			);
-			await expect(
-				page.locator('[data-test="landing-source-panel"] button'),
-			).not.toHaveAccessibleName(/optional/i);
+			await expect(page.locator('[data-test="landing-source-panel"] button')).toHaveAccessibleName(
+				/optional/i,
+			);
 			expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(
 				true,
 			);
@@ -168,7 +171,7 @@ test.describe("image-to-image landing page", () => {
 			await expect(page.getByRole("img", { name: /preview of reference.png/i })).toBeVisible();
 			await expect(action).toBeEnabled();
 			await page.getByRole("button", { name: /remove image/i }).click();
-			await expect(action).toBeDisabled();
+			await expect(action).toBeEnabled();
 		});
 	}
 

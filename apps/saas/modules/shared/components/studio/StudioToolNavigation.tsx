@@ -6,13 +6,31 @@ import { DEFAULT_EDITOR_PRODUCT_KEY, isEditorProductKey } from "@media/lib/edito
 import { publicCatalogQueryOptions } from "@media/lib/public-catalog-query";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDownIcon, ImagesIcon, LayoutGridIcon } from "lucide-react";
+import {
+	BookOpenIcon,
+	ChevronDownIcon,
+	ImagesIcon,
+	LayoutGridIcon,
+	SparklesIcon,
+} from "lucide-react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type MouseEvent, useState } from "react";
 
+import {
+	PUBLIC_NAVIGATION_GROUPS,
+	type PublicNavigationGroup,
+	type PublicNavigationLink,
+} from "./public-navigation";
 import { resetStudioWorkspace } from "./studio-context";
+
+const navigationIcons = {
+	image: ImagesIcon,
+	examples: LayoutGridIcon,
+	book: BookOpenIcon,
+	models: SparklesIcon,
+};
 
 export function StudioToolNavigation({
 	sidebar = false,
@@ -23,15 +41,11 @@ export function StudioToolNavigation({
 	drawer?: boolean;
 	onNavigate?: () => void;
 }) {
-	const t = useTranslations("studio.tools");
-	const imageToImage = useTranslations("imageToImage");
-	const effects = useTranslations("effects");
-	const coloring = useTranslations("coloring");
+	const t = useTranslations();
 	const vertical = sidebar || drawer;
-	const models = useTranslations("media.create.products");
 	const pathname = usePathname();
 	const selected = useRequestedImageModel();
-	const [menu, setMenu] = useState<"tools" | "models" | null>(null);
+	const [menu, setMenu] = useState<PublicNavigationGroup["id"] | null>(null);
 	const catalog = useQuery(publicCatalogQueryOptions);
 	const products = (catalog.data?.products ?? []).filter(
 		(product) => isEditorProductKey(product.key) && product.skuMatrix?.cells.length,
@@ -60,77 +74,33 @@ export function StudioToolNavigation({
 		}
 		navigate();
 	};
-	const tools = (
-		<>
-			{!drawer && (
-				<Link
-					href="/effects"
-					prefetch={false}
-					onClick={navigate}
-					className={vertical ? "studio-nav-link" : "studio-menu-entry"}
-					aria-current={pathname.startsWith("/effects") ? "page" : undefined}
-				>
-					<LayoutGridIcon aria-hidden />
-					<span>
-						<strong>{effects("name")}</strong>
-						{!vertical && <small>{effects("navigationDescription")}</small>}
-					</span>
-				</Link>
-			)}
+	const navigationLink = (link: PublicNavigationLink) => {
+		const Icon = navigationIcons[link.icon];
+		const active =
+			link.href === "/create"
+				? pathname === link.href && !selected
+				: pathname === link.href || pathname.startsWith(`${link.href}/`);
+		return (
 			<Link
-				href="/photo-to-coloring-page"
+				key={link.href}
+				href={link.href}
 				prefetch={false}
-				onClick={navigate}
+				onClick={(event) =>
+					link.href === "/create"
+						? navigateToWorkspace(event, link.href, DEFAULT_EDITOR_PRODUCT_KEY)
+						: navigate()
+				}
 				className={vertical ? "studio-nav-link" : "studio-menu-entry"}
-				aria-current={pathname === "/photo-to-coloring-page" ? "page" : undefined}
+				aria-current={active ? "page" : undefined}
 			>
-				<ImagesIcon aria-hidden />
+				<Icon aria-hidden />
 				<span>
-					<strong>{coloring("name")}</strong>
-					{!vertical && <small>{coloring("navigationDescription")}</small>}
+					<strong>{t(link.labelKey)}</strong>
+					{!vertical && "descriptionKey" in link && <small>{t(link.descriptionKey)}</small>}
 				</span>
 			</Link>
-			<Link
-				href="/create"
-				prefetch={false}
-				onClick={(event) => navigateToWorkspace(event, "/create", DEFAULT_EDITOR_PRODUCT_KEY)}
-				className={vertical ? "studio-nav-link" : "studio-menu-entry"}
-				aria-current={pathname === "/create" && !selected ? "page" : undefined}
-			>
-				<ImagesIcon aria-hidden />
-				<span>
-					<strong>{t("imageToImage")}</strong>
-					{!vertical && <small>{t("imageToImageDescription")}</small>}
-				</span>
-			</Link>
-			<Link
-				href="/examples"
-				prefetch={false}
-				onClick={navigate}
-				className={vertical ? "studio-nav-link" : "studio-menu-entry"}
-				aria-current={pathname === "/examples" ? "page" : undefined}
-			>
-				<LayoutGridIcon aria-hidden />
-				<span>
-					<strong>{t("examples")}</strong>
-					{!vertical && <small>{t("examplesDescription")}</small>}
-				</span>
-			</Link>
-			<Link
-				href="/image-to-image"
-				prefetch={false}
-				onClick={navigate}
-				className={vertical ? "studio-nav-link" : "studio-menu-entry"}
-				aria-current={pathname === "/image-to-image" ? "page" : undefined}
-			>
-				<ImagesIcon aria-hidden />
-				<span>
-					<strong>{imageToImage("name")}</strong>
-					{!vertical && <small>{imageToImage("navigationDescription")}</small>}
-				</span>
-			</Link>
-		</>
-	);
+		);
+	};
 	const modelLinks = products.map((product) => {
 		const href = imageModelHref(product.key);
 		return (
@@ -150,8 +120,8 @@ export function StudioToolNavigation({
 					<ImageModelIcon productKey={product.key} size={vertical ? 18 : 24} />
 				</span>
 				<span>
-					<strong>{models(`${product.key}.label`)}</strong>
-					{!vertical && <small>{models(`${product.key}.description`)}</small>}
+					<strong>{t(`media.create.products.${product.key}.label`)}</strong>
+					{!vertical && <small>{t(`media.create.products.${product.key}.description`)}</small>}
 				</span>
 			</Link>
 		);
@@ -160,85 +130,64 @@ export function StudioToolNavigation({
 		modelLinks
 	) : (
 		<output className="studio-menu-status">
-			{catalog.isPending ? t("loading") : t("unavailable")}
+			{t(catalog.isPending ? "studio.tools.loading" : "studio.tools.unavailable")}
 		</output>
 	);
+	const groupContent = (group: PublicNavigationGroup) => (
+		<>
+			{group.id === "models" && (
+				<div className={vertical ? undefined : "studio-model-grid"}>{modelContent}</div>
+			)}
+			{group.links.map(navigationLink)}
+		</>
+	);
 	if (drawer)
-		return (
-			<>
-				<details className="studio-drawer-group">
-					<summary>
-						{t("imageTools")} <ChevronDownIcon aria-hidden />
-					</summary>
-					<div className="studio-drawer-links">{tools}</div>
-				</details>
-				<details className="studio-drawer-group">
-					<summary>
-						{t("models")} <ChevronDownIcon aria-hidden />
-					</summary>
-					<div className="studio-drawer-links">
-						{modelContent}
-						<Link href="/models" className="studio-nav-link" onClick={navigate} prefetch={false}>
-							{t("models")} <span aria-hidden>→</span>
-						</Link>
-					</div>
-				</details>
-			</>
-		);
+		return PUBLIC_NAVIGATION_GROUPS.map((group) => (
+			<details className="studio-drawer-group" key={group.id} data-navigation-group={group.id}>
+				<summary>
+					{t(group.labelKey)} <ChevronDownIcon aria-hidden />
+				</summary>
+				<div className="studio-drawer-links">{groupContent(group)}</div>
+			</details>
+		));
 	if (sidebar)
 		return (
 			<div className="studio-tool-sidebar">
-				<p className="studio-nav-label">{t("imageTools")}</p>
-				{tools}
-				<Link href="/models" className="studio-nav-label" prefetch={false}>
-					{t("models")}
-				</Link>
-				{modelContent}
+				{PUBLIC_NAVIGATION_GROUPS.map((group) => (
+					<section key={group.id} data-navigation-group={group.id}>
+						<p className="studio-nav-label">{t(group.labelKey)}</p>
+						{groupContent(group)}
+					</section>
+				))}
 			</div>
 		);
-	return (
-		<>
-			{(["tools", "models"] as const).map((kind) => (
-				<Popover
-					key={kind}
-					open={menu === kind}
-					onOpenChange={(open) => setMenu(open ? kind : null)}
-				>
-					<PopoverTrigger
-						render={
-							<button
-								type="button"
-								className="studio-menu-trigger"
-								data-test={`studio-${kind}-menu`}
-							>
-								{t(kind === "tools" ? "imageTools" : "models")}
-								<ChevronDownIcon aria-hidden />
-							</button>
-						}
-					/>
-					<PopoverContent
-						align="start"
-						sideOffset={12}
-						positionerClassName="z-[70]"
-						className={`studio-theme studio-navigation-popover ${kind === "models" ? "studio-model-popover" : ""}`}
-						aria-label={t(kind === "tools" ? "imageTools" : "models")}
+	return PUBLIC_NAVIGATION_GROUPS.map((group) => (
+		<Popover
+			key={group.id}
+			open={menu === group.id}
+			onOpenChange={(open) => setMenu(open ? group.id : null)}
+		>
+			<PopoverTrigger
+				render={
+					<button
+						type="button"
+						className="studio-menu-trigger"
+						data-test={`studio-${group.id}-menu`}
 					>
-						<div className={kind === "models" ? "studio-model-grid" : undefined}>
-							{kind === "tools" ? tools : modelContent}
-						</div>
-						{kind === "models" && (
-							<Link
-								href="/models"
-								className="studio-menu-entry"
-								onClick={navigate}
-								prefetch={false}
-							>
-								{t("models")} <span aria-hidden>→</span>
-							</Link>
-						)}
-					</PopoverContent>
-				</Popover>
-			))}
-		</>
-	);
+						{t(group.labelKey)}
+						<ChevronDownIcon aria-hidden />
+					</button>
+				}
+			/>
+			<PopoverContent
+				align="start"
+				sideOffset={12}
+				positionerClassName="z-[70]"
+				className={`studio-theme studio-navigation-popover ${group.id === "models" ? "studio-model-popover" : ""}`}
+				aria-label={t(group.labelKey)}
+			>
+				{groupContent(group)}
+			</PopoverContent>
+		</Popover>
+	));
 }

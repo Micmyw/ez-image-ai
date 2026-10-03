@@ -229,7 +229,7 @@ body:has(.studio-shell) [data-consent-banner] button {
 .studio-public-toplinks {
 	display: flex;
 	align-items: center;
-	gap: clamp(24px, 3vw, 48px);
+	gap: clamp(18px, 2vw, 32px);
 	color: #cbd5e1;
 	font-size: 14px;
 	font-weight: 500;
@@ -240,7 +240,7 @@ body:has(.studio-shell) [data-consent-banner] button {
 	flex: 0 1 auto;
 	align-items: center;
 	justify-content: flex-start;
-	gap: clamp(24px, 3vw, 48px);
+	gap: clamp(18px, 2vw, 32px);
 	color: #b9adca;
 	font-size: 12px;
 }

@@ -37,8 +37,8 @@ export default function DocumentationLayout({ children }: LayoutProps<"/docs">) 
 									Open the image editor <span aria-hidden>↗</span>
 								</Link>
 								<nav aria-label="More from EzImageAI">
-									<Link href="/effects">Effects</Link>
-									<Link href="/blog">Guides</Link>
+									<Link href="/blog">Blog</Link>
+									<Link href="/examples">Editing Examples</Link>
 									<Link href="/pricing">Pricing</Link>
 									<Link href="/contact">Support</Link>
 								</nav>

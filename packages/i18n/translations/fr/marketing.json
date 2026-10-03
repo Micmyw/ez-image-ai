@@ -713,6 +713,7 @@
 		},
 		"menu": {
 			"effects": "Effets IA",
+			"resources": "Ressources",
 			"blog": "Blog",
 			"changelog": "Modifications",
 			"contact": "Contact",

@@ -51,7 +51,7 @@ export function createEffectAnalyticsContext(
 			: options.internalSource === "blog"
 				? "effect"
 				: (options.internalSource ?? "effect"),
-		entry_path: `/effects/${effect.slug}`,
+		entry_path: `/blog/${effect.slug}`,
 	});
 	return parsed.success ? parsed.data : undefined;
 }

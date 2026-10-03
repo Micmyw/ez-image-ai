@@ -1,3 +1,5 @@
+@import "./blog-card.css";
+
 .blog-directory {
 	max-width: 1100px;
 	margin-inline: auto;
@@ -52,121 +54,6 @@
 	margin-block: 1.5rem 1rem;
 	font-size: 0.875rem;
 	color: #b1a9c1;
-}
-.blog-grid {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 1.5rem;
-}
-.blog-grid-compact {
-	align-items: start;
-}
-.blog-grid-compact:has(.blog-card-with-cover) {
-	grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
-}
-.blog-card {
-	display: flex;
-	flex-direction: column;
-	min-width: 0;
-	border: 1px solid #ffffff1c;
-	border-radius: 24px;
-	background: #ffffff04;
-	overflow: hidden;
-}
-.blog-card-body {
-	display: flex;
-	flex: 1;
-	flex-direction: column;
-	align-items: flex-start;
-	padding: clamp(1.25rem, 3vw, 2rem);
-}
-.blog-card-featured h2 {
-	font-size: clamp(1.5rem, 2.5vw, 2rem);
-}
-.blog-card-arrow {
-	font-size: 0.8em;
-	color: #c5a9f8;
-	white-space: nowrap;
-}
-.blog-card-text {
-	background: #ffffff03;
-}
-.blog-card h2,
-.blog-card h3 {
-	margin-top: 1rem;
-	font-size: clamp(1.35rem, 2vw, 1.65rem);
-	font-weight: 600;
-	line-height: 1.3;
-	letter-spacing: -0.025em;
-	overflow-wrap: anywhere;
-}
-.blog-card h2 a:hover,
-.blog-card h3 a:hover {
-	color: #d8c4ff;
-}
-.blog-card-body > p {
-	display: -webkit-box;
-	-webkit-line-clamp: 3;
-	-webkit-box-orient: vertical;
-	overflow: hidden;
-	margin-top: 1rem;
-	margin-bottom: 1.5rem;
-	color: #c2b9d2;
-	line-height: 1.7;
-}
-.blog-category {
-	font-size: 0.75rem;
-	font-weight: 600;
-	letter-spacing: 0.06em;
-	text-transform: uppercase;
-	color: #c5a9f8;
-}
-.blog-card-meta {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 0.4rem 1rem;
-	margin-top: auto;
-	padding-top: 1rem;
-	border-top: 1px solid #ffffff12;
-	width: 100%;
-	font-size: 0.8rem;
-	color: #b1a9c1;
-}
-.blog-card-image {
-	display: block;
-	overflow: hidden;
-	background: #0c0914;
-}
-.blog-card-frame {
-	position: relative;
-	min-width: 0;
-	aspect-ratio: 16 / 10;
-}
-.blog-card-frame img {
-	width: 100%;
-	height: 100%;
-	object-fit: cover;
-	object-position: center 35%;
-}
-.blog-card-comparison {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	gap: 2px;
-}
-.blog-card-comparison .blog-card-frame {
-	aspect-ratio: 4 / 5;
-}
-.blog-card-frame > span {
-	position: absolute;
-	left: 0.7rem;
-	bottom: 0.7rem;
-	padding: 0.3rem 0.55rem;
-	border: 1px solid #ffffff30;
-	border-radius: 6px;
-	background: #100d1bc9;
-	color: #fff;
-	font-size: 0.7rem;
-	font-weight: 600;
 }
 .blog-empty {
 	padding: 3rem 1rem;
@@ -487,11 +374,6 @@
 	}
 }
 @media (max-width: 639px) {
-	.blog-grid,
-	.blog-grid-compact:has(.blog-card-with-cover) {
-		grid-template-columns: minmax(0, 1fr);
-		gap: 1rem;
-	}
 	.blog-filters {
 		align-items: stretch;
 	}
@@ -511,5 +393,79 @@
 	}
 	.blog-breadcrumb [aria-current="page"] {
 		max-width: 250px;
+	}
+}
+
+/* Interactive articles keep editorial text readable and give only presets/editor a wider canvas. */
+.photo-idea-article {
+	max-width: 1100px;
+	margin-inline: auto;
+}
+.photo-idea-article > div > :is(p, h2, h3, ul, ol),
+.photo-idea-notes {
+	max-width: 736px;
+	margin-inline: auto;
+}
+.photo-idea-article > div {
+	max-width: none;
+}
+.photo-idea-presets {
+	margin-block: 2rem 3rem;
+}
+.photo-idea-presets .effect-preset-grid {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+.photo-idea-generation {
+	margin-block: 2rem 3rem;
+}
+.photo-idea-generation > h3 {
+	font-size: 1.5rem;
+	font-weight: 600;
+}
+.photo-idea-generation > p {
+	max-width: 736px;
+	margin-block: 0.75rem 1.5rem;
+	color: #b8adbf;
+	line-height: 1.7;
+}
+.photo-idea-generation .effect-workbench {
+	margin-top: 1.5rem;
+}
+.photo-idea-article > .blog-toc-mobile {
+	display: block;
+	max-width: 736px;
+	margin-inline: auto;
+}
+.photo-idea-preview-strip {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 0.75rem;
+	max-width: 736px;
+	margin: 0 auto 2rem;
+}
+.photo-idea-preview-strip a {
+	display: block;
+	min-width: 0;
+	border: 1px solid #ffffff20;
+	border-radius: 14px;
+	overflow: hidden;
+	background: #ffffff04;
+}
+.photo-idea-preview-strip img {
+	width: 100%;
+	height: auto;
+	aspect-ratio: 4 / 3;
+	object-fit: cover;
+	object-position: center 35%;
+}
+.photo-idea-preview-strip span {
+	display: block;
+	padding: 0.65rem;
+	font-size: 0.8rem;
+	line-height: 1.4;
+}
+@media (max-width: 1023px) {
+	.photo-idea-presets .effect-preset-grid {
+		grid-template-columns: minmax(0, 1fr);
 	}
 }

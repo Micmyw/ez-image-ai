@@ -4,9 +4,60 @@ import {
 	completeGuestDraftUpload,
 	createGuestDraftUploadIntent,
 	getGuestCapability,
+	submitGuestDraftHandoff,
 } from "./guest-draft-client";
 
 describe("same-origin landing guest client", () => {
+	it.each(["/blog/1980s-ai-photo", "/effects/1980s-ai-photo"])(
+		"hands off a preset draft from %s using only the canonical article return path",
+		(pathname) => {
+			const handoff = handoffDocument();
+			submitGuestDraftHandoff(
+				{
+					action: "/draft/continue",
+					claimToken: "c".repeat(43),
+					productKey: "image-nano-banana-2-lite",
+					skuKey: "nano-banana-2-lite-1k",
+					accessHint: "guest-trial",
+				},
+				handoff.document,
+				`${pathname}?preset=studio-portrait`,
+			);
+			expect(handoff.form.method).toBe("POST");
+			expect(handoff.form.action).toBe("/draft/continue");
+			expect(handoff.fields.map(({ name, value }) => [name, value])).toEqual([
+				["intent", "continue-marketing-draft"],
+				["claimToken", "c".repeat(43)],
+				["returnTo", "/blog/1980s-ai-photo?preset=studio-portrait"],
+			]);
+			expect(handoff.form.submit).toHaveBeenCalledOnce();
+		},
+	);
+	it.each([
+		"/blog/prompt-writing-guide?preset=studio-portrait",
+		"/blog/unregistered-photo-idea?preset=studio-portrait",
+		"/blog/1980s-ai-photo?preset=studio-portrait&prompt=private",
+		"/blog/1980s-ai-photo?preset=studio-portrait&sourceAssetId=private",
+		"https://attacker.example/blog/1980s-ai-photo?preset=studio-portrait",
+	])("omits an unsafe or unregistered article return path: %s", (returnTo) => {
+		const handoff = handoffDocument();
+		submitGuestDraftHandoff(
+			{
+				action: "/draft/continue",
+				claimToken: "c".repeat(43),
+				productKey: "image-gpt-image-2",
+				skuKey: "gpt-image-2-1k",
+				accessHint: "paid-account",
+			},
+			handoff.document,
+			returnTo,
+		);
+		expect(handoff.fields.map(({ name, value }) => [name, value])).toEqual([
+			["intent", "continue-account-draft"],
+			["claimToken", "c".repeat(43)],
+		]);
+		expect(handoff.form.submit).toHaveBeenCalledOnce();
+	});
 	it("loads public capability from the SaaS origin", async () => {
 		const fetcher = vi.fn(async (_input: RequestInfo | URL, _init?: RequestInit) =>
 			Response.json({
@@ -232,6 +283,23 @@ describe("same-origin landing guest client", () => {
 		});
 	});
 });
+
+function handoffDocument() {
+	const fields: Array<Pick<HTMLInputElement, "type" | "name" | "value">> = [];
+	const form = {
+		method: "",
+		action: "",
+		style: { display: "" },
+		append: (field: (typeof fields)[number]) => fields.push(field),
+		submit: vi.fn(),
+	};
+	const document = {
+		cookie: "",
+		createElement: (tag: string) => (tag === "form" ? form : { type: "", name: "", value: "" }),
+		body: { append: vi.fn() },
+	} as unknown as Document;
+	return { document, form, fields };
+}
 
 function nanoProduct() {
 	return {

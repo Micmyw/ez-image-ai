@@ -82,7 +82,7 @@ describe("published content analytics association", () => {
 			preset_version: 2,
 			source_blog_id: "ai-image-editing-prompts",
 			internal_source: "blog",
-			entry_path: "/effects/1980s-ai-photo",
+			entry_path: "/blog/1980s-ai-photo",
 		});
 		expect(
 			createEffectAnalyticsContext(published, "studio-portrait", {
@@ -130,7 +130,7 @@ describe("published content analytics association", () => {
 		{ assetUrl: "https://private.example/image?signature=secret" },
 		{ jobId: "raw-job-id" },
 		{ task_hash: "raw-job-id" },
-		{ entry_path: "/effects/1980s-ai-photo?prompt=private" },
+		{ entry_path: "/blog/1980s-ai-photo?prompt=private" },
 		{ effect_id: "https://example.com" },
 		{ preset_id: undefined },
 		{ preset_version: undefined },

@@ -1,10 +1,8 @@
 import { getLocale, getTranslations } from "next-intl/server";
 import { notFound } from "next/navigation";
 
-import { getPublishedEffects } from "../../../modules/effects/lib/content";
 import { BlogDirectory } from "../../../modules/public-content/components/BlogDirectory";
 import { toVisualBlogCard } from "../../../modules/public-content/components/BlogVisual.server";
-import { EffectCallout } from "../../../modules/public-content/components/EffectCallout";
 import { PublicPageShell } from "../../../modules/public-content/components/PublicPageShell";
 import { getAllPublishedBlogPosts } from "../../../modules/public-content/lib/content";
 import { createPublicPageMetadata } from "../../../modules/public-content/lib/metadata";
@@ -39,24 +37,15 @@ export default async function BlogPage(props: BlogIndexProps) {
 	const query = (await searchParams) ?? {};
 	const pagination = paginateContent(posts, query.page);
 	if (!pagination) notFound();
-	const relatedIds = new Set(posts.flatMap((post) => post.relatedEffectIds));
-	const effects = getPublishedEffects()
-		.filter((effect) => relatedIds.has(effect.id))
-		.slice(0, 3);
 	return (
 		<PublicPageShell title={t("guides.title")} description={t("guides.description")} compact>
 			<BlogDirectory
+				key={`${typeof query.category === "string" ? query.category : ""}:${typeof query.q === "string" ? query.q : ""}`}
 				posts={posts.map((post) => toVisualBlogCard(post, locale))}
 				page={pagination.page}
+				initialCategory={typeof query.category === "string" ? query.category : ""}
+				initialQuery={typeof query.q === "string" ? query.q : ""}
 			/>
-			{effects.length > 0 && (
-				<section className="blog-related">
-					<h2>{t("guides.relatedEffects")}</h2>
-					{effects.map((effect) => (
-						<EffectCallout key={effect.id} effect={effect} label={t("guides.useEffect")} />
-					))}
-				</section>
-			)}
 		</PublicPageShell>
 	);
 }

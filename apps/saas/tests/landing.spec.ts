@@ -560,6 +560,19 @@ test("the production homepage excludes account tools, charts, and documentation 
 		summary.javascriptGzipBytes +
 		summary.htmlGzipBytes +
 		externalStyles.reduce((total, source) => total + gzipSync(source).length, 0);
+	console.log("Homepage production resources:", JSON.stringify(summary));
+	await testInfo.attach("homepage-resources.json", {
+		body: JSON.stringify(summary, null, 2),
+		contentType: "application/json",
+	});
+	await testInfo.attach("homepage-resource-details.json", {
+		body: JSON.stringify(
+			resources.scripts.map((url, index) => ({ url, gzipBytes: gzipSync(scripts[index]!).length })),
+			null,
+			2,
+		),
+		contentType: "application/json",
+	});
 	expect(summary.htmlGzipBytes, "Keep the initial document below 64 KiB gzip").toBeLessThan(
 		64 * 1024,
 	);
@@ -569,11 +582,6 @@ test("the production homepage excludes account tools, charts, and documentation 
 		initialTextGzipBytes,
 		"Initial HTML, scripts, and external CSS exceed the budget",
 	).toBeLessThan(520 * 1024);
-	console.log("Homepage production resources:", JSON.stringify(summary));
-	await testInfo.attach("homepage-resources.json", {
-		body: JSON.stringify(summary, null, 2),
-		contentType: "application/json",
-	});
 	await page.evaluate(() => document.fonts.ready.then(() => undefined));
 	await page.screenshot({ path: testInfo.outputPath("homepage-desktop.png") });
 	await page.setViewportSize({ width: 390, height: 844 });
@@ -1194,7 +1202,9 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 	]) {
 		await page.setViewportSize(viewport);
 		await page.goto("/");
-		await expect(page.getByLabel(/describe your (?:image|edit)/i)).toBeVisible();
+		await expect(
+			page.getByRole("textbox", { name: /^(?:Image prompt|Edit instruction)$/ }),
+		).toBeVisible();
 		await expect(
 			page
 				.locator('[data-test="landing-generator"]')
@@ -1209,7 +1219,7 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 			await expect(navigation).toBeVisible();
 			await navigation.click();
 			const drawer = page.locator('[data-test="header-navigation-drawer"]');
-			await drawer.locator("summary").filter({ hasText: "Image Tools" }).click();
+			await drawer.locator("summary").filter({ hasText: "AI Image" }).click();
 			await expect(drawer.locator('.studio-drawer-links a[href="/create"]')).toBeVisible();
 			await drawer.locator("summary").filter({ hasText: "AI Models" }).click();
 			await expect(drawer.locator('a[href="/models/gpt-image-2"]')).toBeVisible();
@@ -1223,7 +1233,7 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 					.locator('[data-test="landing-generator"]')
 					.getByRole("button", { name: /add a reference image/i }),
 			),
-			box(page.getByLabel(/describe your (?:image|edit)/i)),
+			box(page.getByRole("textbox", { name: /^(?:Image prompt|Edit instruction)$/ })),
 			box(page.locator('[data-test="landing-model-trigger"]')),
 		]);
 		const controls = await box(page.locator('[data-test="landing-controls-panel"]'));
@@ -1232,14 +1242,15 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 		const help = await box(page.locator('[data-test="landing-generator-help"]'));
 		expect(help.y).toBeGreaterThanOrEqual(composer.y + composer.height);
 		if (viewport.width >= 768) {
-			expect(Math.abs(tierRect.y - action.y)).toBeLessThan(2);
-			expect(controls.height).toBeLessThanOrEqual(50);
+			expect(action.x).toBeGreaterThanOrEqual(tierRect.x + tierRect.width);
+			expect(
+				Math.min(tierRect.y + tierRect.height, action.y + action.height) -
+					Math.max(tierRect.y, action.y),
+			).toBeGreaterThan(20);
 		}
-		expect(sourceRect.x).toBeLessThan(promptRect.x);
-		expect(Math.abs(sourceRect.y - promptRect.y)).toBeLessThan(2);
-		expect(
-			Math.max(sourceRect.y + sourceRect.height, promptRect.y + promptRect.height),
-		).toBeLessThan(tierRect.y);
+		expect(sourceRect.y).toBeGreaterThanOrEqual(promptRect.y + promptRect.height);
+		expect(Math.abs(sourceRect.x - promptRect.x)).toBeLessThan(2);
+		expect(controls.y).toBeGreaterThan(sourceRect.y + sourceRect.height);
 		expect(
 			await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1),
 			`${viewport.width}px horizontal overflow`,
@@ -1254,8 +1265,10 @@ test("the landing tool stays usable at desktop and narrow mobile widths", async 
 		await page
 			.locator("#landing-source-image")
 			.setInputFiles(pngFile(`source-${viewport.width}.png`));
-		await page.getByLabel(/describe your (?:image|edit)/i).fill("Keep the subject sharp");
-		await expect(page.getByRole("button", { name: /continue/i })).toBeEnabled();
+		await page
+			.getByRole("textbox", { name: /^(?:Image prompt|Edit instruction)$/ })
+			.fill("Keep the subject sharp");
+		await expect(page.locator('[data-test="landing-generate"]')).toBeEnabled();
 		await testInfo.attach(`landing-${viewport.width}`, {
 			body: await page
 				.locator("#image-editor")

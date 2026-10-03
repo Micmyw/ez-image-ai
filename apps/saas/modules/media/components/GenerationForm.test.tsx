@@ -416,8 +416,8 @@ describe("GenerationForm product copy", () => {
 		mocks.useGeneration.mockReturnValue(generationState());
 	});
 
-	it("fills the effect preset without accepting a conflicting model query or creating a task", () => {
-		navigation.pathname = "/effects/retro-portrait";
+	it("fills the article preset without accepting a conflicting model query or creating a task", () => {
+		navigation.pathname = "/blog/1980s-ai-photo";
 		navigation.search = "model=image-gpt-image-2";
 		const state = generationState();
 		mocks.useGeneration.mockReturnValue(state);

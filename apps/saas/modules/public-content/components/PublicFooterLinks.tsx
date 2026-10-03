@@ -1,42 +1,64 @@
+import "server-only";
 import { config } from "@config";
-import { useTranslations } from "next-intl";
+import { PUBLIC_FOOTER_GROUPS } from "@shared/components/studio/public-navigation";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 
-const publicLinks = [
-	{ href: "/effects", labelKey: "effects.name" },
-	{ href: "/photo-to-coloring-page", labelKey: "coloring.name" },
-	{ href: "/image-to-image", labelKey: "imageToImage.name" },
+import { getFeaturedPhotoIdeas } from "../lib/content";
+
+import "./public-footer.css";
+
+const legalLinks = [
+	{ href: "/pricing", labelKey: "common.menu.pricing" },
 	{ href: "/privacy", labelKey: "common.footer.privacyPolicy" },
 	{ href: "/terms", labelKey: "common.footer.termsAndConditions" },
-	{ href: "/blog", labelKey: "common.footer.blog" },
-	{ href: "/changelog", labelKey: "common.menu.changelog" },
-	{ href: "/contact", labelKey: "common.menu.contact" },
 	{ href: "/contact#report-content", labelKey: "publicContent.contact.reporting.footerLabel" },
-	{ href: "/docs", labelKey: "common.menu.docs" },
 ] as const;
 
 export function PublicFooterLinks({ className }: { className?: string }) {
 	const t = useTranslations();
+	const featuredPhotoIdeas = getFeaturedPhotoIdeas(useLocale(), 2);
 
 	return (
-		<div className={className ?? "gap-x-4 gap-y-2 flex flex-wrap items-center justify-center"}>
-			{publicLinks.map(({ href, labelKey }) => (
-				<Link
-					key={href}
-					href={href}
-					className="rounded hover:text-white focus-visible:outline-violet-300 transition focus-visible:outline-2 focus-visible:outline-offset-4"
-				>
-					{t(labelKey)}
-				</Link>
-			))}
-			{config.supportEmail && (
-				<a
-					href={`mailto:${config.supportEmail}`}
-					className="rounded hover:text-white focus-visible:outline-violet-300 underline underline-offset-4 transition focus-visible:outline-2 focus-visible:outline-offset-4"
-				>
-					{t("common.footer.support")}: {config.supportEmail}
-				</a>
-			)}
+		<div className={`public-footer-navigation ${className ?? ""}`} data-footer-navigation>
+			<div className="public-footer-groups">
+				{PUBLIC_FOOTER_GROUPS.map((group) => (
+					<nav key={group.id} aria-label={t(group.labelKey)} data-footer-group={group.id}>
+						<h2>{t(group.labelKey)}</h2>
+						<ul>
+							{group.links.map(({ href, labelKey }) => (
+								<li key={href}>
+									<Link href={href} prefetch={false}>
+										{t(labelKey)}
+									</Link>
+								</li>
+							))}
+							{group.id === "resources" &&
+								featuredPhotoIdeas.map((post) => (
+									<li key={post.slug}>
+										<Link href={`/blog/${post.slug}`} prefetch={false}>
+											{post.title}
+										</Link>
+									</li>
+								))}
+						</ul>
+					</nav>
+				))}
+			</div>
+			<div className="public-footer-bottom">
+				<div className="public-footer-legal">
+					{legalLinks.map(({ href, labelKey }) => (
+						<Link key={href} href={href} prefetch={false}>
+							{t(labelKey)}
+						</Link>
+					))}
+				</div>
+				{config.supportEmail && (
+					<a href={`mailto:${config.supportEmail}`} className="public-footer-support">
+						{t("common.footer.support")}: {config.supportEmail}
+					</a>
+				)}
+			</div>
 		</div>
 	);
 }

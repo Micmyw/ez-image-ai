@@ -1,6 +1,7 @@
 import { IMAGE_SKU_KEYS_BY_PRODUCT } from "@repo/config/client";
 import { z } from "zod";
 
+import { sanitizeEffectEditorReturnPath } from "../../effects/lib/editor-selection";
 import { generationFormValuesSchema, type GenerationFormValues } from "./form-schema";
 import {
 	temporaryReferenceReceiptSchema,
@@ -84,7 +85,15 @@ export function loadWorkspaceDraft(
 			storage.removeItem(WORKSPACE_DRAFT_KEY);
 			return null;
 		}
-		if (parsed.data.pathname !== pathname) return null;
+		if (
+			parsed.data.pathname !== pathname &&
+			!(
+				parsed.data.pathname.startsWith("/effects/") &&
+				pathname.startsWith("/blog/") &&
+				sanitizeEffectEditorReturnPath(parsed.data.pathname) === pathname
+			)
+		)
+			return null;
 		return {
 			values: parsed.data.values,
 			parentJobId: parsed.data.parentJobId,

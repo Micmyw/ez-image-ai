@@ -7,13 +7,24 @@ import { useState } from "react";
 import { CONTENT_PAGE_SIZE, contentPagePath } from "../lib/pagination";
 import { BlogCard, type BlogCardData } from "./BlogCard";
 
-export function BlogDirectory({ posts, page }: { posts: readonly BlogCardData[]; page: number }) {
+export function BlogDirectory({
+	posts,
+	page,
+	initialCategory = "",
+	initialQuery = "",
+}: {
+	posts: readonly BlogCardData[];
+	page: number;
+	initialCategory?: string;
+	initialQuery?: string;
+}) {
 	const t = useTranslations();
-	const [query, setQuery] = useState("");
-	const [category, setCategory] = useState("");
+	const [query, setQuery] = useState(initialQuery);
+	const [category, setCategory] = useState(initialCategory);
 	const [filterPage, setFilterPage] = useState(1);
 	const categories = [...new Set(posts.map((post) => post.categoryId))];
-	const showDiscoveryControls = posts.length > 3;
+	const showDiscoveryControls =
+		categories.length > 1 || posts.length > 3 || Boolean(initialCategory || initialQuery);
 	const activeSearch = query.trim().toLocaleLowerCase();
 	const filtering = Boolean(category || activeSearch);
 	const filtered = posts.filter(

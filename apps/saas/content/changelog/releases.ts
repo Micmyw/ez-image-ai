@@ -1,5 +1,14 @@
 export const publicChangelogEntries = [
 	{
+		date: "2026-10-04",
+		title: "Photo Ideas, guides and help in Resources",
+		changes: [
+			"Find Blog, Editing Examples and Docs together in Resources, with image features, tools and models grouped separately.",
+			"Explore the 1980s Photo Idea in the Blog, compare three tested looks and try their prompts in the editor on the same page.",
+			"Keep your existing guide links and old 1980s bookmarks working while browsing a single home for each photo idea.",
+		],
+	},
+	{
 		date: "2026-10-03",
 		title: "A clearer image composer",
 		changes: [

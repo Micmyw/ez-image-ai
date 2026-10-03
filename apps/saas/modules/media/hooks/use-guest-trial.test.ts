@@ -247,12 +247,16 @@ describe("useGuestTrial", () => {
 
 	it.each([
 		[undefined, "/create"],
+		["/blog/1980s-ai-photo?preset=studio-portrait", "/blog/1980s-ai-photo?preset=studio-portrait"],
 		[
 			"/effects/1980s-ai-photo?preset=studio-portrait",
-			"/effects/1980s-ai-photo?preset=studio-portrait",
+			"/blog/1980s-ai-photo?preset=studio-portrait",
 		],
 		["/effects/1980s-ai-photo?preset=studio-portrait&prompt=private", "/create"],
+		["/blog/1980s-ai-photo?preset=studio-portrait&prompt=private", "/create"],
+		["/blog/unregistered-photo-idea?preset=studio-portrait", "/create"],
 		["https://evil.test/effects/portrait?preset=studio-portrait", "/create"],
+		["https://evil.test/blog/1980s-ai-photo?preset=studio-portrait", "/create"],
 	])(
 		"returns a linked draft to its validated editor without submitting: %s",
 		async (returnPath, expected) => {
@@ -456,8 +460,8 @@ describe("useGuestTrial", () => {
 				effect_id: "effect-a",
 				preset_id: "portrait",
 				preset_version: 1,
-				internal_source: "effect",
-				entry_path: "/effects/effect-a",
+				internal_source: "blog",
+				entry_path: "/blog/photo-idea-a",
 			},
 		};
 		analytics.capture.mockReturnValue(originalAttribution);
@@ -473,7 +477,7 @@ describe("useGuestTrial", () => {
 			context: {
 				...originalAttribution.context,
 				effect_id: "effect-b",
-				entry_path: "/effects/effect-b",
+				entry_path: "/blog/photo-idea-b",
 			},
 		});
 		deviceLookup.resolve("device-1");

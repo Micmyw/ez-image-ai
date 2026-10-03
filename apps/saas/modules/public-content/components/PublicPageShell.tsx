@@ -1,6 +1,7 @@
 import { getPublicConfig } from "@repo/config/client";
 import { Logo } from "@repo/ui/components/logo";
 import { PublicHeaderAccount } from "@shared/components/studio/PublicHeaderAccount";
+import { StudioToolNavigation } from "@shared/components/studio/StudioToolNavigation";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import type { ReactNode } from "react";
@@ -39,44 +40,14 @@ export function PublicPageShell({
 					>
 						<Logo className="studio-header-brand" label={publicConfig.brand.siteName} />
 					</Link>
-					<nav
-						className="studio-public-toplinks sm:flex hidden"
-						aria-label={t("studio.pageNavigation")}
-					>
-						<Link className="px-3 py-2 hover:text-white" href="/effects">
-							{t("effects.name")}
-						</Link>
+					<nav className="studio-public-toplinks" aria-label={t("studio.pageNavigation")}>
+						<StudioToolNavigation />
 						<Link className="px-3 py-2 hover:text-white" href="/pricing">
 							{t("common.menu.pricing")}
-						</Link>
-						<Link className="px-3 py-2 hover:text-white sm:inline hidden" href="/blog">
-							{t("common.menu.blog")}
-						</Link>
-						<Link className="px-3 py-2 hover:text-white sm:inline hidden" href="/docs">
-							{t("common.menu.docs")}
 						</Link>
 					</nav>
 					<PublicHeaderAccount />
 				</div>
-				{!compact && (
-					<nav
-						className="gap-x-5 border-white/5 text-sm sm:hidden container flex flex-wrap justify-center border-t"
-						aria-label={t("studio.pageNavigation")}
-					>
-						<Link className="min-h-11 text-violet-200 inline-flex items-center" href="/effects">
-							{t("effects.name")}
-						</Link>
-						<Link className="min-h-11 inline-flex items-center" href="/blog">
-							{t("common.menu.blog")}
-						</Link>
-						<Link className="min-h-11 inline-flex items-center" href="/pricing">
-							{t("common.menu.pricing")}
-						</Link>
-						<Link className="min-h-11 inline-flex items-center" href="/docs">
-							{t("common.menu.docs")}
-						</Link>
-					</nav>
-				)}
 			</header>
 
 			<main className={compact ? "py-8 sm:py-12" : "py-14 sm:py-20"}>
@@ -102,7 +73,7 @@ export function PublicPageShell({
 			</main>
 
 			<footer className="py-8 border-t border-[#2c2440] bg-[#0c0914]">
-				<div className="gap-5 sm:flex-row sm:text-left container flex flex-col items-center justify-between text-center">
+				<div className="gap-8 container flex flex-col">
 					<div>
 						<Logo
 							className="text-white [&_svg]:text-violet-400 [&>span]:block"
@@ -112,7 +83,7 @@ export function PublicPageShell({
 							{publicConfig.brand.siteDescription}
 						</p>
 					</div>
-					<PublicFooterLinks className="gap-x-4 gap-y-2 text-sm font-medium text-slate-300 flex flex-wrap items-center justify-center" />
+					<PublicFooterLinks />
 				</div>
 			</footer>
 		</div>

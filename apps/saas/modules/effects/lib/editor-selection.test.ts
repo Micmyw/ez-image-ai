@@ -89,13 +89,19 @@ describe("effect editor selection", () => {
 		);
 	});
 	it.each([
+		"/blog/1980s-ai-photo?preset=studio-portrait",
+		"/blog/1980s-ai-photo?preset=studio-portrait&resume=text",
 		"/effects/1980s-ai-photo?preset=studio-portrait",
 		"/effects/1980s-ai-photo?preset=studio-portrait&upgrade=complete",
 		"/effects/1980s-ai-photo?preset=studio-portrait&resume=text",
 	])("accepts a bounded effect recovery path %s", (path) =>
-		expect(sanitizeEffectEditorReturnPath(path)).toBe(path),
+		expect(sanitizeEffectEditorReturnPath(path)).toBe(path.replace("/effects/", "/blog/")),
 	);
 	it.each([
+		"/blog/private-image-editing-workflow?preset=studio-portrait",
+		"/blog/unregistered?preset=studio-portrait",
+		"/blog/1980s-ai-photo?preset=studio-portrait&private=secret",
+		"/blog/1980s-ai-photo?preset=studio-portrait#private",
 		"//evil.test/effects/test?preset=studio-portrait",
 		"/effects/category?preset=studio-portrait",
 		"/effects/1980s-ai-photo?preset=studio-portrait&prompt=private",

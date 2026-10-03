@@ -59,8 +59,12 @@ describe("editor upgrade navigation", () => {
 		["/history", "/history"],
 		["/history/job_01J5ABCDEF", "/history/job_01J5ABCDEF"],
 		[
+			"/blog/1980s-ai-photo?preset=studio-portrait&upgrade=complete",
+			"/blog/1980s-ai-photo?preset=studio-portrait&upgrade=complete",
+		],
+		[
 			"/effects/1980s-ai-photo?preset=studio-portrait&upgrade=complete",
-			"/effects/1980s-ai-photo?preset=studio-portrait&upgrade=complete",
+			"/blog/1980s-ai-photo?preset=studio-portrait&upgrade=complete",
 		],
 	])("accepts the local editor/session path %s", (input, expected) => {
 		expect(sanitizeEditorReturnPath(input)).toBe(expected);
@@ -74,9 +78,29 @@ describe("editor upgrade navigation", () => {
 		"/history/../../settings",
 		"/create\\@attacker.example",
 		"/effects/1980s-ai-photo?preset=studio-portrait&sourceAssetId=private",
+		"/blog/1980s-ai-photo?preset=studio-portrait&sourceAssetId=private",
+		"/blog/1980s-ai-photo?preset=studio-portrait&preset=neon-street",
+		"/blog/1980s-ai-photo?preset=studio-portrait#private",
+		"/blog/unregistered-photo-idea?preset=studio-portrait",
+		"/blog/prompt-writing-guide?preset=studio-portrait",
 	])("rejects a non-editor return path: %s", (input) => {
 		expect(sanitizeEditorReturnPath(input)).toBe("/create");
 	});
+	it.each(["/blog/1980s-ai-photo", "/effects/1980s-ai-photo"])(
+		"preserves the canonical article preset throughout checkout from %s",
+		(pathname) => {
+			const returnTo = `${pathname}?preset=studio-portrait&upgrade=complete`;
+			const canonical = "/blog/1980s-ai-photo?preset=studio-portrait&upgrade=complete";
+			const choosePlanUrl = new URL(createChoosePlanPath(returnTo), "https://app.example.com");
+			const checkoutReturnUrl = new URL(
+				buildCheckoutReturnUrl({ origin: "https://app.example.com", planId: "creator", returnTo }),
+			);
+			expect(choosePlanUrl.searchParams.get("returnTo")).toBe(canonical);
+			expect(checkoutReturnUrl.searchParams.get("returnTo")).toBe(canonical);
+			expect(checkoutReturnDestination("ACTIVE", returnTo)).toBe(canonical);
+			expect(activePlanChoosePlanDestination("creator", returnTo)).toBe(canonical);
+		},
+	);
 
 	it("keeps the editor draft out of checkout URLs", () => {
 		const choosePlanPath = createChoosePlanPath("/create?upgrade=complete");

@@ -20,8 +20,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { EffectRecommendations } from "../../effects/components/EffectRecommendations";
-import { getPublishedEffects } from "../../effects/lib/content";
+import { PhotoIdeaRecommendations } from "../../public-content/components/PhotoIdeaRecommendations";
 import { PublicFooterLinks } from "../../public-content/components/PublicFooterLinks";
 import { ImageToImageExamples } from "./ImageToImageExamples";
 import { LandingGenerator } from "./LandingGenerator";
@@ -203,14 +202,7 @@ export async function ImageToImagePage({
 					</div>
 				</section>
 
-				<EffectRecommendations
-					internalSource="image-to-image"
-					effects={getPublishedEffects()
-						.filter((effect) =>
-							effect.presets.some((preset) => preset.inputRequirement === "required"),
-						)
-						.slice(0, 3)}
-				/>
+				<PhotoIdeaRecommendations />
 
 				<section
 					className="image-edit-faq container"
@@ -247,7 +239,7 @@ export async function ImageToImagePage({
 						</a>
 					</div>
 				</section>
-				<footer className="gap-6 border-white/10 py-9 text-sm text-slate-400 sm:flex-row container flex flex-col items-center justify-between border-t">
+				<footer className="gap-6 border-white/10 py-9 text-sm text-slate-400 container flex flex-col items-stretch border-t">
 					<Link href="/" className="font-semibold text-white">
 						EzImageAI
 					</Link>

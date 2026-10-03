@@ -111,6 +111,6 @@ export async function loginEffectsAdmin(page: Page, fixture: EffectsAdminFixture
 	await signIn.click();
 	await expect(page).toHaveURL(/\/effects-preview\/1980s-ai-photo(?:\?|$)/, { timeout: 60_000 });
 	await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-		"1980s AI Photo Prompts & Retro Photo Maker",
+		"1980s AI Photo Ideas & Prompts",
 	);
 }

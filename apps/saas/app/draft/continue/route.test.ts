@@ -76,20 +76,49 @@ describe("draft continuation identity router", () => {
 		expect(mocks.claimRegistered).toHaveBeenCalledOnce();
 		expect(mocks.claimGuest).not.toHaveBeenCalled();
 	});
-	it("keeps a registered effect draft and its cookie on the validated effect route", async () => {
+	it.each(["/blog/1980s-ai-photo", "/effects/1980s-ai-photo"])(
+		"keeps a registered draft and its cookie on the validated article route from %s",
+		async (pathname) => {
+			const savedReturn = `${pathname}?preset=studio-portrait`;
+			const canonical = "/blog/1980s-ai-photo?preset=studio-portrait";
+			mocks.getSession.mockResolvedValue({ user: { id: "user_1", isAnonymous: false } });
+			mocks.effectReturn.mockReturnValue(canonical);
+			const response = await GET(
+				new Request("https://app.test/draft/continue", {
+					headers: { cookie: `media_effect_return=${encodeURIComponent(savedReturn)}` },
+				}),
+			);
+			expect(mocks.effectReturn).toHaveBeenCalledWith(savedReturn);
+			expect(response.headers.get("location")).toBe(`https://app.test${canonical}`);
+			expect(response.headers.getSetCookie().join("\n")).toContain("Path=/blog/1980s-ai-photo");
+			expect(response.headers.getSetCookie().join("\n")).not.toContain("Path=/effects/");
+		},
+	);
+
+	it("keeps an unavailable draft on its validated article and selected preset", async () => {
 		mocks.getSession.mockResolvedValue({ user: { id: "user_1", isAnonymous: false } });
-		mocks.effectReturn.mockReturnValue("/effects/1980s-ai-photo?preset=studio-portrait");
+		mocks.effectReturn.mockReturnValue("/blog/1980s-ai-photo?preset=studio-portrait");
+		mocks.claimRegistered.mockReturnValue(async () => {
+			throw new Error("DRAFT_UNAVAILABLE");
+		});
+		const response = await GET(new Request("https://app.test/draft/continue"));
+		expect(response.headers.get("location")).toBe(
+			"https://app.test/blog/1980s-ai-photo?preset=studio-portrait&draftError=unavailable",
+		);
+		expect(response.headers.getSetCookie().join("\n")).not.toContain("media_claimed_draft=");
+	});
+
+	it("falls back to the ordinary editor when an article return fails publication validation", async () => {
+		mocks.getSession.mockResolvedValue({ user: { id: "user_1", isAnonymous: false } });
+		const savedReturn = "/blog/unpublished-photo-idea?preset=studio-portrait";
 		const response = await GET(
 			new Request("https://app.test/draft/continue", {
-				headers: {
-					cookie: "media_effect_return=%2Feffects%2F1980s-ai-photo%3Fpreset%3Dstudio-portrait",
-				},
+				headers: { cookie: `media_effect_return=${encodeURIComponent(savedReturn)}` },
 			}),
 		);
-		expect(response.headers.get("location")).toBe(
-			"https://app.test/effects/1980s-ai-photo?preset=studio-portrait",
-		);
-		expect(response.headers.getSetCookie().join("\n")).toContain("Path=/effects/1980s-ai-photo");
+		expect(mocks.effectReturn).toHaveBeenCalledWith(savedReturn);
+		expect(response.headers.get("location")).toBe("https://app.test/create");
+		expect(response.headers.getSetCookie().join("\n")).toContain("Path=/create");
 	});
 
 	it("claims only a guest-ready bootstrap draft for an anonymous session", async () => {

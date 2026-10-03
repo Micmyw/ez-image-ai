@@ -42,6 +42,8 @@ prompt editing; normal content safety, legal, model and usage limits remain appl
 
 Public SEO URLs are unprefixed English routes. `apps/saas/proxy.ts` keeps bare public URLs in English; explicit `?lang=de|es|fr` interface views use `noindex, follow` and retain English canonical URLs. Account routes keep the locale cookie. New public HTML routes belong in its matcher. Reviewed published Blog posts and Docs marked `indexable: true` enter the sitemap. Changelog, Contact, and Docs API/Markdown/image artifacts stay noindex. Public unknown paths use root 404; single-segment organization URLs stay protected.
 
+Resources groups Blog, Editing Examples and Docs. Photo Ideas are Blog articles with optional validated shared generation presets; the Blog owns their canonical/publication identity. Legacy `/effects` routes only redirect to published Blog destinations. Keep recipe evidence, draft isolation and safe editor-return validation when adding or migrating a Photo Idea; do not introduce a parallel public Effects catalog.
+
 The Playwright `public` project skips database auth setup. Run SaaS Vitest, Next/Fumadocs generation, and browser checks sequentially because they share generated `.source`.
 
 ## Cloudflare execution and hosting

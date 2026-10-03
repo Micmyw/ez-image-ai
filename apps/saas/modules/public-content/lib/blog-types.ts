@@ -1,6 +1,11 @@
-export const BLOG_CATEGORIES = ["prompt-writing", "privacy-workflow"] as const;
+export const BLOG_CATEGORIES = ["photo-ideas", "prompt-writing", "privacy-workflow"] as const;
 export type BlogCategoryId = (typeof BLOG_CATEGORIES)[number];
-export type BlogArticleType = "guides" | "prompt-guides" | "troubleshooting" | "comparisons";
+export type BlogArticleType =
+	| "photo-ideas"
+	| "guides"
+	| "prompt-guides"
+	| "troubleshooting"
+	| "comparisons";
 
 export const BLOG_EDITORIAL_TEAM = {
 	id: "ezimageai-editorial",
@@ -34,6 +39,10 @@ export type BlogPost = {
 	tags: readonly string[];
 	authorId: typeof BLOG_EDITORIAL_TEAM.id;
 	cover?: { src: string; alt: string; width: number; height: number };
+	/** Optional shared generation recipe. Publication requires its reviewed evidence to pass. */
+	recipeId?: string;
+	recipePlacement?: { presetsAfterHeadingId: string; editorAfterHeadingId: string };
+	featuredOrder?: number;
 	primaryEffectId?: string;
 	/** The single maintained source of article-to-effect relationships. */
 	relatedEffectIds: readonly string[];

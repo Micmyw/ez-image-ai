@@ -18,7 +18,6 @@ describe("consolidated SaaS sitemap", () => {
 	it("publishes exactly the approved same-origin public routes", () => {
 		const entries = sitemap();
 		const urls = entries.map(({ url }) => new URL(url));
-		const publishedEffects = effectContent.getPublishedEffects();
 
 		expect(urls.map(({ pathname }) => pathname).sort()).toEqual(
 			[
@@ -44,13 +43,12 @@ describe("consolidated SaaS sitemap", () => {
 				"/models/seedream-5-pro",
 				"/blog/private-image-editing-workflow",
 				"/blog/ai-image-editing-prompts",
+				"/blog/1980s-ai-photo",
 				"/docs",
 				"/docs/quick-start",
 				"/docs/image-editing",
 				"/docs/credits",
 				"/docs/privacy",
-				...(publishedEffects.length ? ["/effects"] : []),
-				...publishedEffects.map((effect) => `/effects/${effect.slug}`),
 			].sort(),
 		);
 		expect(urls.every(({ origin }) => origin === "https://www.ezpic.test")).toBe(true);
@@ -72,33 +70,25 @@ describe("consolidated SaaS sitemap", () => {
 			"/pricing": "2026-09-16",
 			"/privacy": "2026-09-22",
 			"/terms": "2026-09-22",
-			"/blog": "2026-09-22",
+			"/blog": "2026-10-04",
+			"/blog/1980s-ai-photo": "2026-10-04",
 			"/blog/ai-image-editing-prompts": "2026-09-12",
 			"/blog/private-image-editing-workflow": "2026-09-22",
 			"/models": "2026-09-16",
-			"/docs": "2026-09-29",
+			"/docs": "2026-10-04",
 			"/docs/credits": "2026-09-29",
-			"/docs/image-editing": "2026-10-03",
+			"/docs/image-editing": "2026-10-04",
 			"/docs/privacy": "2026-09-29",
 			"/docs/quick-start": "2026-09-29",
 		});
-		const publishedEffects = effectContent.getPublishedEffects();
-		for (const effect of publishedEffects) {
-			expect(dates[`/effects/${effect.slug}`]).toBe(effect.updatedAt);
-		}
-		if (publishedEffects.length) {
-			expect(dates["/effects"]).toBe(
-				publishedEffects
-					.map((effect) => effect.updatedAt)
-					.sort()
-					.at(-1),
-			);
-		}
 	});
 
-	it("omits the Effects directory when the published reader is empty", () => {
-		vi.spyOn(effectContent, "getPublishedEffects").mockReturnValue([]);
+	it("never indexes legacy Effects routes and hides a Photo Idea with an unavailable recipe", () => {
 		expect(sitemap().some(({ url }) => new URL(url).pathname.startsWith("/effects"))).toBe(false);
+		vi.spyOn(effectContent, "getPublishedEffectById").mockReturnValue(null);
+		expect(sitemap().some(({ url }) => new URL(url).pathname === "/blog/1980s-ai-photo")).toBe(
+			false,
+		);
 	});
 
 	it("does not advance modification dates when rebuilding unchanged content", () => {

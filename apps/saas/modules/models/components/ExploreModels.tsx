@@ -27,6 +27,7 @@ export function ExploreModels() {
 				</div>
 				<Link
 					href="/models"
+					prefetch={false}
 					className="text-sm text-violet-200 hover:text-white underline underline-offset-4"
 				>
 					Explore all 12 models <span aria-hidden="true">↗</span>
@@ -39,6 +40,7 @@ export function ExploreModels() {
 						<Link
 							key={model.key}
 							href={modelPath(model.key)}
+							prefetch={false}
 							className="group min-w-0 focus-visible:outline-violet-300 block rounded-xl focus-visible:outline-2 focus-visible:outline-offset-4"
 						>
 							<div className="bg-white/5 overflow-hidden rounded-xl">

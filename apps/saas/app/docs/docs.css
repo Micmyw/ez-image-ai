@@ -111,7 +111,7 @@
 #docs-root .docs-product-links {
 	display: flex;
 	align-items: center;
-	gap: 26px;
+	gap: clamp(18px, 2vw, 26px);
 	margin-left: auto;
 	font-size: 13px;
 	color: #b8adbf;
@@ -435,7 +435,7 @@
 	}
 }
 
-@media (max-width: 1000px) {
+@media (max-width: 1200px) {
 	#docs-root .docs-product-links {
 		display: none;
 	}

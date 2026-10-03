@@ -2,6 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { effectPath, type PublicEffect } from "../../effects/lib/types";
+import { getPublishedPhotoIdeaBySlug } from "../lib/content";
 
 export function EffectCallout({
 	effect,
@@ -16,6 +17,8 @@ export function EffectCallout({
 	label: string;
 	compact?: boolean;
 }) {
+	const idea = getPublishedPhotoIdeaBySlug(effect.slug);
+	if (!idea) return null;
 	return (
 		<aside className={`blog-effect-callout${compact ? " blog-effect-callout-compact" : ""}`}>
 			<Image
@@ -27,8 +30,8 @@ export function EffectCallout({
 				sizes={compact ? "180px" : "(max-width: 639px) 80px, 132px"}
 			/>
 			<div>
-				<p className="blog-effect-title">{effect.title}</p>
-				<p>{effect.summary}</p>
+				<p className="blog-effect-title">{idea.post.title}</p>
+				<p>{idea.post.description}</p>
 				<Link href={effectPath(effect, presetId, sourceBlogId)}>
 					{label}
 					<span aria-hidden="true"> →</span>

@@ -27,6 +27,41 @@ const draft: WorkspaceDraft = {
 };
 
 describe("workspace continuity across account and checkout navigation", () => {
+	it("restores a legacy preset draft on its canonical article without renewing its expiry", () => {
+		const store = storage();
+		const legacy = "/effects/1980s-ai-photo?preset=studio-portrait";
+		const canonical = "/blog/1980s-ai-photo?preset=studio-portrait";
+		expect(saveWorkspaceDraft(store, "owner-a", draft, 1000, legacy)).toBe(true);
+		expect(loadWorkspaceDraft(store, "owner-a", 2000, canonical)).toEqual(draft);
+		expect(JSON.parse(store.getItem(WORKSPACE_DRAFT_KEY)!).savedAt).toBe(1000);
+		expect(loadWorkspaceDraft(store, "owner-a", 3_601_001, canonical)).toBeNull();
+	});
+	it.each([
+		["/effects/1980s-ai-photo?preset=studio-portrait", "/blog/1980s-ai-photo?preset=neon-street"],
+		["/effects/unregistered?preset=studio-portrait", "/blog/unregistered?preset=studio-portrait"],
+		[
+			"/effects/1980s-ai-photo?preset=studio-portrait&prompt=private",
+			"/blog/1980s-ai-photo?preset=studio-portrait",
+		],
+		["/effects/1980s-ai-photo?preset=studio-portrait", "/create"],
+	])("does not migrate a private workspace from %s to a different scope %s", (saved, requested) => {
+		const store = storage();
+		saveWorkspaceDraft(store, "owner-a", draft, 1000, saved);
+		expect(loadWorkspaceDraft(store, "owner-a", 2000, requested)).toBeNull();
+	});
+	it("keeps the original owner check when restoring a migrated article draft", () => {
+		const store = storage();
+		saveWorkspaceDraft(
+			store,
+			"owner-a",
+			draft,
+			1000,
+			"/effects/1980s-ai-photo?preset=studio-portrait",
+		);
+		expect(
+			loadWorkspaceDraft(store, "owner-b", 2000, "/blog/1980s-ai-photo?preset=studio-portrait"),
+		).toBeNull();
+	});
 	it("keeps a temporary receipt with its source on reload and never shares it across accounts", () => {
 		const store = storage();
 		const receipt = {

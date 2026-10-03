@@ -28,6 +28,7 @@ export function BlogCard({
 			{post.cover && (
 				<Link
 					href={blogPath(post)}
+					prefetch={false}
 					tabIndex={-1}
 					className={`blog-card-image${post.comparisonInput ? " blog-card-comparison" : ""}`}
 				>
@@ -64,7 +65,7 @@ export function BlogCard({
 			<div className="blog-card-body">
 				<span className="blog-category">{category}</span>
 				<Heading>
-					<Link href={blogPath(post)}>
+					<Link href={blogPath(post)} prefetch={false}>
 						{post.title}
 						<span className="blog-card-arrow" aria-hidden="true">
 							{" "}
