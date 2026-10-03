@@ -2,7 +2,7 @@
 
 import type { ImageAspectRatio } from "@repo/config/client";
 import { Popover, PopoverContent, PopoverTrigger } from "@repo/ui/components/popover";
-import { ChevronDownIcon, ImageIcon, ScanIcon, SlidersHorizontalIcon } from "lucide-react";
+import { ChevronDownIcon, ScanIcon } from "lucide-react";
 import { useId } from "react";
 
 import {
@@ -76,102 +76,12 @@ export function ImageOutputSettings({
 	const dark = tone === "dark";
 	const muted = dark ? "text-[#b2a7bc]" : "text-muted-foreground";
 	const optionStyle = (selected: boolean) =>
-		`min-h-11 min-w-0 rounded-lg px-2 py-1 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-300 disabled:cursor-not-allowed disabled:opacity-45 ${selected ? (dark ? "bg-[#4b3a70] text-white" : "bg-primary/10 text-foreground ring-1 ring-primary/50") : dark ? "text-[#c5b9d2] hover:bg-white/5" : "text-muted-foreground hover:bg-muted"}`;
+		`min-h-11 sm:min-h-8 min-w-0 rounded-lg px-2 py-1 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-300 disabled:cursor-not-allowed disabled:opacity-45 ${selected ? (dark ? "bg-[#4b3a70] text-white" : "bg-primary/10 text-foreground ring-1 ring-primary/50") : dark ? "text-[#c5b9d2] hover:bg-white/5" : "text-muted-foreground hover:bg-muted"}`;
 	const coupled =
 		skuMatrix &&
 		skuMatrix.dimensions.length > 1 &&
 		skuMatrix.cells.length <
 			skuMatrix.dimensions.reduce((count, dimension) => count * dimension.options.length, 1);
-
-	if (presentation === "composer") {
-		const dimensionSettings = (skuMatrix?.dimensions ?? []).map((dimension) => {
-			const options = dimension.options.map((option) => ({
-				value: option.key,
-				label: labels.optionLabels?.[option.key] ?? option.label,
-				disabled:
-					!skuMatrix ||
-					!skuKey ||
-					!selectImageSkuForDimension(skuMatrix, skuKey, dimension.key, option.key),
-			}));
-			const selected = options.find(
-				(option) => option.value === selectedCell?.parameterValues[dimension.key],
-			);
-			return (
-				<ComposerSetting
-					key={dimension.key}
-					id={`${idPrefix}-${generatedId}-${dimension.key}`}
-					label={labels[dimension.key]}
-					value={selected?.value ?? ""}
-					valueLabel={selected?.label ?? "—"}
-					options={options}
-					disabled={disabled || !onSkuChange}
-					onChange={(option) => {
-						const next =
-							skuMatrix &&
-							skuKey &&
-							selectImageSkuForDimension(skuMatrix, skuKey, dimension.key, option);
-						if (next) onSkuChange?.(next.skuKey);
-					}}
-				/>
-			);
-		});
-		const controlSettings = (selectedCell?.controls ?? []).map((control) => {
-			const options = control.options.map((option) => ({
-				value: option.key,
-				label: labels.optionLabels?.[option.key] ?? option.label,
-			}));
-			return (
-				<ComposerSetting
-					key={control.key}
-					id={`${idPrefix}-${generatedId}-${control.key}`}
-					label={labels[control.key]}
-					value={controlValues[control.key] ?? control.defaultValue}
-					valueLabel={
-						options.find(
-							(option) => option.value === (controlValues[control.key] ?? control.defaultValue),
-						)?.label ?? "—"
-					}
-					options={options}
-					disabled={disabled || !onControlChange}
-					onChange={(option) => onControlChange?.(control.key, option)}
-				/>
-			);
-		});
-		const additionalSettings = [...dimensionSettings.slice(1), ...controlSettings];
-		return (
-			<div className="composer-output-settings" data-test={`${idPrefix}-output-settings`}>
-				<div className="composer-output-grid">
-					<ComposerSetting
-						id={`${idPrefix}-${generatedId}-aspect-ratio`}
-						label={labels.aspectRatio}
-						value={value}
-						valueLabel={value === "auto" ? (labels.shortAutomatic ?? labels.automatic) : value}
-						options={aspectRatios.map((ratio) => ({
-							value: ratio,
-							label: ratio === "auto" ? (labels.shortAutomatic ?? labels.automatic) : ratio,
-						}))}
-						disabled={disabled}
-						onChange={(ratio) => onChange(ratio as ImageAspectRatio)}
-					/>
-					<div className="composer-setting" title={labels.oneOutput}>
-						<div className="composer-setting-value composer-setting-static" data-output-count="1">
-							<ImageIcon size={16} aria-hidden="true" />
-							{labels.oneImage ?? "1"}
-						</div>
-						<span className="composer-setting-label">{labels.outputNumber}</span>
-						<span className="sr-only">{labels.oneOutput}</span>
-					</div>
-					{dimensionSettings[0]}
-				</div>
-				{additionalSettings.length > 0 && (
-					<div className="composer-output-secondary-grid">{additionalSettings}</div>
-				)}
-				{coupled && labels.coupledHint && (
-					<p className="composer-setting-hint">{labels.coupledHint}</p>
-				)}
-			</div>
-		);
-	}
 
 	return (
 		<Popover>
@@ -180,18 +90,16 @@ export function ImageOutputSettings({
 					<button
 						type="button"
 						data-test={`${idPrefix}-output-settings-trigger`}
+						data-presentation={presentation}
 						className={`min-h-11 gap-2 px-3 text-xs font-semibold focus-visible:outline-violet-300 inline-flex max-w-full items-center rounded-lg border whitespace-nowrap transition focus-visible:outline-2 focus-visible:outline-offset-2 disabled:cursor-not-allowed disabled:opacity-50 ${dark ? "border-white/10 bg-white/[0.055] hover:bg-white/10 text-[#c5b9d2]" : "border-foreground/10 bg-muted/45 text-muted-foreground hover:bg-muted"}`}
 						disabled={disabled || aspectRatios.length === 0}
 					>
 						<span className="sr-only">{labels.trigger}: </span>
 						<span className="gap-1.5 flex shrink-0 items-center">
 							<ScanIcon className="size-3.5" aria-hidden="true" />
-							<span className={`image-output-aspect-label ${value === "auto" ? "sr-only" : ""}`}>
-								{value === "auto" ? labels.automatic : value}
+							<span className="image-output-aspect-label">
+								{value === "auto" ? (labels.shortAutomatic ?? labels.automatic) : value}
 							</span>
-						</span>
-						<span className="gap-1.5 pl-2 flex items-center border-l border-current/15 max-[359px]:hidden">
-							<ImageIcon className="size-3.5" aria-hidden="true" />1
 						</span>
 						{selectedOptions.map((option) => (
 							<span key={option.key} className="pl-2 border-l border-current/15">
@@ -209,13 +117,11 @@ export function ImageOutputSettings({
 				sideOffset={8}
 				positionerClassName="z-[80]"
 				aria-label={labels.title}
-				className={`p-3 sm:p-4 max-h-[var(--available-height)] w-[min(28rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-2xl shadow-[0_24px_64px_-16px_rgba(0,0,0,0.65)] ${dark ? "border-white/10 bg-[#2a2037] text-[#f2ecfa]" : "border-foreground/10 bg-popover text-popover-foreground"}`}
+				data-test={`${idPrefix}-output-settings-panel`}
+				className={`p-3 max-h-[var(--available-height)] w-[min(24rem,calc(100vw-2rem))] overflow-y-auto overscroll-contain rounded-2xl shadow-[0_24px_64px_-16px_rgba(0,0,0,0.65)] ${dark ? "border-white/10 bg-[#2a2037] text-[#f2ecfa]" : "border-foreground/10 bg-popover text-popover-foreground"}`}
 			>
-				<div className="gap-2 flex items-center">
-					<SlidersHorizontalIcon className="size-4 text-[#b79cff]" aria-hidden="true" />
-					<h3 className="text-sm font-semibold">{labels.title}</h3>
-				</div>
-				<fieldset className="mt-4" disabled={disabled}>
+				<h3 className="sr-only">{labels.title}</h3>
+				<fieldset disabled={disabled}>
 					<legend className={`text-xs font-semibold ${muted}`}>{labels.aspectRatio}</legend>
 					<div className="mt-2 gap-1 sm:grid-cols-6 grid grid-cols-4">
 						{aspectRatios.map((aspectRatio) => {
@@ -225,7 +131,7 @@ export function ImageOutputSettings({
 							return (
 								<label
 									key={aspectRatio}
-									className={`${optionStyle(selected)} min-h-14 gap-1 focus-within:outline-violet-300 relative flex cursor-pointer flex-col items-center justify-center focus-within:outline-2`}
+									className={`${optionStyle(selected)} min-h-12 gap-1 focus-within:outline-violet-300 relative flex cursor-pointer flex-col items-center justify-center focus-within:outline-2`}
 								>
 									<input
 										type="radio"
@@ -258,12 +164,23 @@ export function ImageOutputSettings({
 					</div>
 				</fieldset>
 				{skuMatrix?.dimensions.map((dimension) => (
-					<fieldset key={dimension.key} className="mt-4">
+					<fieldset key={dimension.key} className="mt-2">
 						<legend className={`text-xs font-semibold ${muted}`}>{labels[dimension.key]}</legend>
 						<div
-							className={`mt-2 gap-1 p-1 grid auto-cols-fr grid-flow-col rounded-xl ${dark ? "bg-black/10" : "bg-muted/40"}`}
+							className={`mt-1 gap-1 p-0.5 grid auto-cols-fr grid-flow-col rounded-xl ${dark ? "bg-black/10" : "bg-muted/40"}`}
 						>
 							{dimension.options.map((option) => {
+								if (dimension.options.length === 1) {
+									return (
+										<span
+											key={option.key}
+											className="px-3 py-2 text-xs font-semibold"
+											data-fixed-setting={dimension.key}
+										>
+											{labels.optionLabels?.[option.key] ?? option.label}
+										</span>
+									);
+								}
 								const nextCell = skuKey
 									? selectImageSkuForDimension(skuMatrix, skuKey, dimension.key, option.key)
 									: null;
@@ -284,33 +201,28 @@ export function ImageOutputSettings({
 										<span className="py-1 block">
 											{labels.optionLabels?.[option.key] ?? option.label}
 										</span>
-										{nextCell && (
-											<span className="pb-1 font-normal block text-[0.6rem] opacity-75">
-												{nextCell.credits} {labels.credits ?? "Credits"}
-											</span>
-										)}
 									</button>
 								);
 							})}
 						</div>
 					</fieldset>
 				))}
-				{coupled && labels.coupledHint && (
-					<p className={`mt-3 text-xs leading-5 ${muted}`}>{labels.coupledHint}</p>
-				)}
+				{coupled && labels.coupledHint && <p className="sr-only">{labels.coupledHint}</p>}
 				{(selectedCell?.controls ?? []).map((control) => (
-					<fieldset key={control.key} className="mt-4">
+					<fieldset key={control.key} className="mt-2">
 						<legend className={`text-xs font-semibold ${muted}`}>{labels[control.key]}</legend>
 						<div
-							className={`mt-2 gap-1 p-1 grid auto-cols-fr grid-flow-col rounded-xl ${dark ? "bg-black/10" : "bg-muted/40"}`}
+							className={`mt-1 gap-1 p-0.5 grid auto-cols-fr grid-flow-col rounded-xl ${dark ? "bg-black/10" : "bg-muted/40"}`}
 						>
 							{control.options.map((option) => (
 								<button
 									key={option.key}
 									type="button"
-									aria-pressed={controlValues[control.key] === option.key}
+									aria-pressed={(controlValues[control.key] ?? control.defaultValue) === option.key}
 									disabled={disabled || !onControlChange}
-									className={optionStyle(controlValues[control.key] === option.key)}
+									className={optionStyle(
+										(controlValues[control.key] ?? control.defaultValue) === option.key,
+									)}
 									onClick={() => onControlChange?.(control.key, option.key)}
 								>
 									{labels.optionLabels?.[option.key] ?? option.label}
@@ -320,12 +232,8 @@ export function ImageOutputSettings({
 					</fieldset>
 				))}
 				<div
-					className={`mt-4 gap-2 pt-3 text-xs flex flex-wrap items-center justify-between border-t ${dark ? "border-white/10" : "border-foreground/10"}`}
+					className={`mt-3 gap-2 pt-2 text-xs flex flex-wrap items-center justify-between border-t ${dark ? "border-white/10" : "border-foreground/10"}`}
 				>
-					<span className={`gap-1.5 flex items-center ${muted}`} title={labels.oneOutput}>
-						<ImageIcon className="size-3.5" aria-hidden="true" />
-						{labels.outputNumber}: 1
-					</span>
 					<output
 						aria-live="polite"
 						className="font-semibold"
@@ -338,63 +246,5 @@ export function ImageOutputSettings({
 				</div>
 			</PopoverContent>
 		</Popover>
-	);
-}
-
-function ComposerSetting({
-	id,
-	label,
-	value,
-	valueLabel,
-	options,
-	disabled,
-	onChange,
-}: {
-	id: string;
-	label: string;
-	value: string;
-	valueLabel: string;
-	options: { value: string; label: string; disabled?: boolean }[];
-	disabled: boolean;
-	onChange: (value: string) => void;
-}) {
-	const selectable = options.filter((option) => !option.disabled).length > 1;
-	return (
-		<div className="composer-setting">
-			{selectable ? (
-				<div className="composer-setting-value">
-					<select
-						id={id}
-						value={value}
-						disabled={disabled}
-						onChange={(event) => onChange(event.target.value)}
-					>
-						{options.map((option) => (
-							<option key={option.value} value={option.value} disabled={option.disabled}>
-								{option.label}
-							</option>
-						))}
-					</select>
-					<ChevronDownIcon size={14} aria-hidden="true" />
-				</div>
-			) : (
-				<div
-					id={id}
-					className="composer-setting-value composer-setting-static"
-					aria-labelledby={`${id}-label`}
-				>
-					{valueLabel}
-				</div>
-			)}
-			{selectable ? (
-				<label htmlFor={id} className="composer-setting-label">
-					{label}
-				</label>
-			) : (
-				<span id={`${id}-label`} className="composer-setting-label">
-					{label}
-				</span>
-			)}
-		</div>
 	);
 }

@@ -1693,10 +1693,15 @@
 			"generate": "Generate image"
 		},
 		"composer": {
+			"mediaType": "Media type",
+			"image": "Image",
+			"video": "Video",
+			"comingSoon": "Soon",
 			"private": "Private",
 			"addReference": "Add reference",
 			"fromAssets": "From assets",
 			"promptIdeas": "Prompt ideas",
+			"createHint": "Describe the image you want to create…",
 			"editHint": "Describe what you want to change and what should stay the same.",
 			"oneImage": "1 image",
 			"automatic": "Auto",

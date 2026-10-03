@@ -646,11 +646,13 @@ describe("GenerationForm product copy", () => {
 
 	it("does not offer adjustable count or resolution for a fixed-output model", () => {
 		const markup = renderToStaticMarkup(<GenerationForm onCreated={vi.fn()} />);
-		expect(markup).toContain('data-output-count="1"');
+		expect(markup).not.toContain('data-output-count="1"');
+		expect(markup).toContain('data-test="editor-output-settings-trigger"');
+		expect(markup).toContain('data-fixed-setting="resolution"');
 		expect(markup).not.toMatch(/<select[^>]*-resolution/);
 		expect(markup).not.toMatch(/<select[^>]*-quality/);
 		expect(markup).not.toMatch(/<select[^>]*-background/);
-		expect(markup).toMatch(/<select[^>]*-aspect-ratio/);
+		expect(markup).toContain('type="radio"');
 	});
 
 	it("shows quality and format only for the selected model and preserves linked SKU choices", () => {
@@ -668,27 +670,34 @@ describe("GenerationForm product copy", () => {
 				}}
 			/>,
 		);
-		expect(markup).toMatch(/<select[^>]*-quality/);
-		expect(markup).toMatch(/<select[^>]*-outputFormat/);
-		expect(markup).toContain('<option value="high">Localized High</option>');
+		expect(markup).toContain("Localized quality");
+		expect(markup).toContain("Localized output format");
+		expect(markup).toMatch(
+			/<button[^>]*aria-label="Localized High"[^>]*data-sku-key="seedream-5-pro-high-2k"/,
+		);
 		expect(markup).not.toMatch(/<select[^>]*-background/);
 		expect(markup).toContain('class="composer-submit-cost">8 credits');
 	});
 
-	it("shows text-generation ideas in a closed disclosure without repeating the placeholder", () => {
+	it("keeps prompt ideas behind a compact button without repeating the placeholder", () => {
 		navigation.pathname = "/";
 		const markup = renderToStaticMarkup(<GenerationForm onCreated={vi.fn()} />);
 		expect(markup).toContain('class="studio-composer-heading"');
-		expect(markup).toContain("generation.textMode");
+		expect(markup).toContain('aria-label="mediaType"');
+		expect(markup).toContain('aria-pressed="true"');
+		expect(markup).toContain('aria-pressed="false" disabled=""');
+		expect(markup).toContain("comingSoon");
+		expect(markup).not.toContain("generation.textMode");
 		expect(markup).toContain("Localized image prompt");
 		expect(markup).not.toContain('id="generation-prompt-hint"');
-		expect(markup).toContain('placeholder="generation.promptHint"');
+		expect(markup).toContain('placeholder="createHint"');
 		expect(markup).toContain('data-composer-kind="text-to-image"');
 		expect(markup).toContain("promptIdeas");
 		for (const key of ["portrait", "product", "landscape", "illustration"])
 			expect(markup).toContain(`ideas.${key}.label`);
 		expect(markup).not.toContain("promptSuggestions.object");
-		expect(markup).toMatch(/<details[^>]*class="image-edit-prompt-ideas composer-prompt-ideas"/);
+		expect(markup).toContain('class="composer-ideas-trigger"');
+		expect(markup).not.toMatch(/<details[^>]*class="image-edit-prompt-ideas/);
 		expect(markup).not.toMatch(/<details[^>]*open=/);
 	});
 
@@ -804,9 +813,7 @@ describe("GenerationForm product copy", () => {
 		);
 
 		expect(markup).toContain("Localized background");
-		expect(markup).toMatch(
-			/<option value="transparent" selected="">Localized transparent<\/option>/,
-		);
+		expect(markup).toMatch(/<button[^>]*aria-pressed="true"[^>]*>Localized transparent<\/button>/);
 		expect(markup).toContain('class="composer-submit-cost">7 credits');
 	});
 });

@@ -36,7 +36,7 @@ export function PromptPanel({
 		<div className="studio-prompt space-y-3 min-w-0">
 			{referenceFirst && <Fragment key="reference">{referencePanel}</Fragment>}
 			<div key="prompt" className="composer-prompt-field">
-				<div className="gap-3 flex items-end justify-between">
+				<div className="composer-prompt-label gap-3 flex items-end justify-between">
 					<Label htmlFor="generation-prompt">{label}</Label>
 					<span className="text-xs text-muted-foreground tabular-nums" aria-live="polite">
 						{value.length >= maxLength * 0.9

@@ -8,10 +8,17 @@
 - Restore account images with ownership checks and coloring instructions. Open temporary guest results through their existing authorized access, retaining the watermark and expiry checks. Navigation does not submit a generation or spend credits.
 - Keep personal image URLs out of search indexing while retaining the English tool canonical and adding guidance for editing an existing result.
 
+### Composer categories
+
+- Add shared Image and Video category controls to the guest and account composers. Image is selected; Video is disabled and marked as coming soon while the future module is unavailable.
+- Keep portalled prompt-idea choices in the editor's dark theme, including button backgrounds, hover colors and keyboard focus rings.
+
 ## 2026-10-03
 
 ### Generation composer
 
+- Simplify the main editor into a reference tile beside the prompt and one bottom toolbar. Group aspect ratio, resolution, quality and supported extras under one settings button; remove the fixed one-image count from the UI.
+- Keep prompt ideas in a small popover and show the private status once. Adapt the same controls to narrow tool panels and mobile widths without changing generation or credit rules.
 - Keep the initial editor markup stable while restoring its draft, preventing a cached model catalog from resetting typed prompts during page hydration.
 - Record successful guest watermark processing on the database clock so clock differences between workers and PostgreSQL do not leave previews waiting for a retry.
 - Give image creation and reference editing a full-width prompt, a compact reference area, and collapsible prompt ideas. Reference-based tools show the required image before the editing instruction.
