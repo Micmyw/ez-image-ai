@@ -2,7 +2,7 @@
 
 Date: 2026-10-04. Plan: [Resources and interactive Photo Ideas](../plans/2026-10-04-resources-photo-ideas.md). Product rules: [Resources and Photo Ideas](./resources-and-photo-ideas.md).
 
-Implementation is in `codex/resources-photo-ideas`, based on `1b3c9dc2c2b5ee3e9dd0b05e3fea02141908d04b`, in the Codex-managed `resources-photo-ideas` worktree. The shared checkout and its existing work are preserved. This is a local implementation and verification record; no new push, merge or deployment is claimed.
+Implementation is in `codex/resources-photo-ideas`, based on `1b3c9dc2c2b5ee3e9dd0b05e3fea02141908d04b`, in the Codex-managed `resources-photo-ideas` worktree. The shared checkout and its existing work are preserved. This report records local implementation and verification before publication. Git publication and deployment have separate release records.
 
 ## Delivered behavior
 
@@ -22,7 +22,7 @@ Implementation is in `codex/resources-photo-ideas`, based on `1b3c9dc2c2b5ee3e9d
 - Affected production-build browser run: **34 functional cases passed**, with no skips. Its sole failure was the existing homepage resource budget; after removing unused retired-directory translations, a fresh production build and the focused budget case passed. All **35 affected cases** therefore have a passing result, across the functional run and final performance rerun.
 - Formatting passed for all **98 affected files**; focused lint passed for **74 source files**; `git diff --check` passed. Generated local evidence/cache files are excluded from source checks.
 
-The original `LandingGenerator`, `GenerationForm`, `ImageEditorWorkspace`, generation styles, recipe record, public example assets and durable generation-evidence JSON have no changes against the starting commit. The `media` translation namespace and homepage copy are unchanged in all four locales. Browser assertions that still described an older composer were updated to the verified starting implementation: its current labels, native ratio selector, prompt/reference ordering and optional reference on the shared homepage/image-to-image form. The production form was not changed to satisfy those assertions.
+At the original acceptance, `LandingGenerator`, `GenerationForm`, `ImageEditorWorkspace`, generation styles, the recipe record, public example assets and durable generation-evidence JSON had no changes against the starting commit. Release integration subsequently retained the coloring-preview changes from `3b781797`; the three composer components and original 1980s assets/evidence are unchanged relative to that remote main commit. The `media` translation namespace and homepage copy are unchanged in all four locales. Browser assertions that still described an older composer were updated to the verified starting implementation: its current labels, native ratio selector, prompt/reference ordering and optional reference on the shared homepage/image-to-image form. The production form was not changed to satisfy those assertions.
 
 The local browser environment uses an isolated `ezpic_effects_e2e_resources_test` database on loopback. Existing migrations initialized it; no schema change was added. Generation and billing remain disabled, and interactive generation controls use local browser fixtures without submitting generation or payment requests. Temporary administrator accounts are created and removed by the existing guarded fixture. The local build uses a nonfunctional placeholder mail key; no mail is sent.
 
@@ -32,18 +32,18 @@ Final captures are produced by the public browser suites under `apps/saas/.cache
 
 The acceptance set covers the Blog directory and Photo Ideas filter, 1980s article and editor, Resources drawer, existing guides, Docs, homepage and image-to-image. It includes 320/360/390px narrow views and desktop widths through 1440px. Final visual inspection confirmed readable article cards, the three genuine output thumbnails, consistent navigation/footer groups and usable narrow-screen composers without horizontal overflow.
 
-Selected local captures (retained with this worktree, not production screenshots):
+Selected local captures are committed under `docs/product/evidence/resources-photo-ideas/` so they survive worktree cleanup. They are local rendered pages, not production screenshots:
 
-- [Blog directory and grouped footer, desktop](../../apps/saas/.cache/resources-photo-ideas-final/1980s-content.public-route-85002-icle-fit-mobile-and-desktop-public/blog-1280-full.png).
-- [1980s article, desktop](../../apps/saas/.cache/resources-photo-ideas-final/1980s-content.public-route-85002-icle-fit-mobile-and-desktop-public/article-1280-firstfold.png) and [390px](../../apps/saas/.cache/resources-photo-ideas-final/1980s-content.public-route-85002-icle-fit-mobile-and-desktop-public/article-390-firstfold.png).
-- [Same-page editor and comparison](../../apps/saas/.cache/resources-photo-ideas-final/1980s-content.public-route-85002-icle-fit-mobile-and-desktop-public/1980s-editor-1280.png).
-- [Resources mobile navigation](../../apps/saas/.cache/resources-photo-ideas-final/1980s-content.public-route-85002-icle-fit-mobile-and-desktop-public/resources-mobile-navigation.png).
-- [Existing homepage composer, 320px](../../apps/saas/.cache/resources-photo-ideas-final/landing-the-landing-tool-s-3d1ce-op-and-narrow-mobile-widths-guest/generator-320.png) and [image-to-image composer, 390px](../../apps/saas/.cache/resources-photo-ideas-final/public-routes-image-to-ima-7de3c-he-shared-composer-at-390px-public/image-to-image-390-viewport.png).
-- [Customer Docs, mobile](../../apps/saas/.cache/resources-photo-ideas-final/1980s-content.public-route-3564d-ntent-on-desktop-and-mobile-public/docs-image-editing-390.png).
+- [Blog directory and grouped footer, desktop](./evidence/resources-photo-ideas/blog-desktop.png).
+- [1980s article, desktop](./evidence/resources-photo-ideas/article-desktop.png) and [390px](./evidence/resources-photo-ideas/article-mobile.png).
+- [Same-page editor and comparison](./evidence/resources-photo-ideas/article-editor.png).
+- [Resources mobile navigation](./evidence/resources-photo-ideas/resources-mobile.png).
+- [Existing homepage composer, 320px](./evidence/resources-photo-ideas/homepage-320.png) and [image-to-image composer, 390px](./evidence/resources-photo-ideas/image-to-image-mobile.png).
+- [Customer Docs, mobile](./evidence/resources-photo-ideas/docs-mobile.png).
 
 The unmocked local article capture truthfully shows unavailable generation settings because generation is disabled in this environment. Separate guarded browser fixtures verified exact preset handoff, availability handling and protection of edited text/reference images. They do not establish live model availability or paid generation success.
 
-Machine-readable browser evidence is in `.cache/resources-photo-ideas/final-browser.json` and `final-budget.json`, with matching `.log` files. These caches are local acceptance evidence and are not part of the source publication set.
+The original machine-readable browser evidence was recorded in `.cache/resources-photo-ideas/final-browser.json` and `final-budget.json`, with matching `.log` files. Raw caches are retained separately as local acceptance evidence and are not part of the source publication set.
 
 ## Genuine generation evidence
 
@@ -60,8 +60,8 @@ Local checks cover permanent old-route redirects, the canonical Blog URL, publis
 
 Home-page transfer budgets remain **64 KiB for compressed HTML** and **520 KiB for the measured HTML, scripts and external CSS**. Model/article recommendation links avoid speculative route downloads; homepage recommendations load card styles without the full article stylesheet. The shared account wrapper defers its shell with SSR retained. Unused retired-directory translation copy is removed from the four public message bundles.
 
-Final measured gzip sizes: **64,451 B HTML**, **434,711 B JavaScript**, and **33,164 B external CSS**; total **532,326 B**, below the unchanged **532,480 B** limit. The browser found 39 first-party scripts and seven external stylesheets. The total budget has only 154 B of headroom and remains a release gate for future changes. This is a production-build resource measurement, not a live-network speed or Core Web Vitals claim.
+Pre-integration measured gzip sizes: **64,451 B HTML**, **434,711 B JavaScript**, and **33,164 B external CSS**; total **532,326 B**, below the unchanged **532,480 B** limit. The browser found 39 first-party scripts and seven external stylesheets. The total budget has only 154 B of headroom and remains a release gate for future changes. This is a production-build resource measurement, not a live-network speed or Core Web Vitals claim.
 
-Remote CI, Git publication, deployment, live redirects and live search crawling are **not performed in this turn**. A later release must verify the deployed response codes, canonical URLs, assets and authenticated return path independently.
+These local results do not establish remote CI, Git publication, deployment, live redirects or live search crawling. Use the release PR and deployment records for those statuses, and verify deployed response codes, canonical URLs, assets and authenticated return paths independently.
 
-All tracked task-owned preview/build/browser processes have exited, and port 3036 has no listener. Before removing the disposable database, verification found zero users, generation jobs, credit-ledger entries and other active database connections. Only `ezpic_effects_e2e_resources_test` was dropped; the shared `supastarter` database and existing PostgreSQL/MinIO containers remain. The unmerged app-managed worktree, source changes and local acceptance captures are retained for review. No temporary server is left running.
+All tracked task-owned preview/build/browser processes have exited, and port 3036 has no listener. Before removing the disposable database, verification found zero users, generation jobs, credit-ledger entries and other active database connections. Only `ezpic_effects_e2e_resources_test` was dropped; the shared `supastarter` database and existing PostgreSQL/MinIO containers remain. At the end of original local acceptance, the unmerged app-managed worktree and its local captures were retained for review; release cleanup follows confirmed incorporation and evidence preservation. No temporary server is left running.
