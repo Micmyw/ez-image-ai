@@ -737,5 +737,37 @@
 			"light": "Light",
 			"dark": "Dark"
 		}
+	},
+	"coloring": {
+		"name": "Photo to Coloring Page",
+		"navigationDescription": "Turn your own photos into printable outlines",
+		"uploadTitle": "Upload your own photo",
+		"uploadHint": "Start directly from a photo on your device. No generated image needed.",
+		"loading": "Loading your image editor…",
+		"detail": "Outline detail",
+		"levels": {
+			"simple": "Simple",
+			"balanced": "Balanced",
+			"detailed": "Detailed"
+		},
+		"background": "Background",
+		"removeBackground": "Remove · plain white",
+		"keepBackground": "Keep · simplify the scene",
+		"apply": "Apply coloring settings",
+		"applyHint": "Replaces the instruction below. Your photo stays selected; generation starts only when you choose Generate.",
+		"applied": "Settings applied. Review the instruction before generating.",
+		"exampleTitle": "From photo to coloring page",
+		"demo": "Illustrative demo",
+		"before": "Photo",
+		"after": "Coloring page",
+		"demoNotice": "Both images are AI-generated illustrations, not customer uploads or verified results from this tool. Your result will vary.",
+		"printSample": "Try printing the demo",
+		"print": {
+			"paper": "Paper size",
+			"action": "Print / Save PDF",
+			"documentTitle": "EzImageAI printable image",
+			"error": "The image could not be prepared for printing. Refresh the result or download it and print from your device.",
+			"hint": "Match the paper size in the print dialog. Turn off headers and footers; choose Save as PDF to export."
+		}
 	}
 }

@@ -17,6 +17,7 @@ import {
 	resolveImageSpecControlValues,
 } from "@media/lib/image-sku-selection";
 import { publicCatalogQueryOptions } from "@media/lib/public-catalog-query";
+import { useToolPrompt, useToolPromptBinding } from "@media/lib/tool-prompt-context";
 import { getImageProductSelectionContract, getPlanEntitlement } from "@repo/config/client";
 import type { ImageAspectRatio, ImageSkuKey } from "@repo/config/client";
 import { Alert, AlertDescription } from "@repo/ui/components/alert";
@@ -119,6 +120,7 @@ function LandingGeneratorWorkspace({
 	const effectPreset = effectEditor?.selectedPreset;
 	const requireReference = referenceRequired || effectPreset?.inputRequirement === "required";
 	const effects = useTranslations("effects.editor");
+	const toolPrompt = useToolPrompt();
 	const queryClient = useQueryClient();
 	const examplePrompt = useShowcasePrompt();
 	const t = useTranslations("home.generator");
@@ -149,7 +151,9 @@ function LandingGeneratorWorkspace({
 	const [file, setFile] = useState<File | null>(null);
 	const [fileError, setFileError] = useState<string>();
 	const [previewUrl, setPreviewUrl] = useState<string>();
-	const [prompt, setPrompt] = useState(effectPreset?.prompt ?? (startEmpty ? "" : examplePrompt));
+	const [prompt, setPrompt] = useState(
+		effectPreset?.prompt ?? toolPrompt?.initialPrompt ?? (startEmpty ? "" : examplePrompt),
+	);
 	const [aspectRatio, setAspectRatio] = useState<ImageAspectRatio>(
 		effectPreset?.parameters.aspectRatio ?? "auto",
 	);
@@ -481,6 +485,7 @@ function LandingGeneratorWorkspace({
 			setSubmitError(undefined);
 		},
 	});
+	useToolPromptBinding({ prompt, busy: isBusy, applyPrompt: setPrompt });
 	const modelNavigation = useModelNavigation({
 		products: localizedProducts,
 		value: selectedProductKey,

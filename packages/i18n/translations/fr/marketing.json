@@ -737,5 +737,37 @@
 			"light": "Clair",
 			"dark": "Sombre"
 		}
+	},
+	"coloring": {
+		"name": "Photo en coloriage",
+		"navigationDescription": "Transformez vos photos en contours à imprimer",
+		"uploadTitle": "Importez votre propre photo",
+		"uploadHint": "Commencez par une photo de votre appareil. Aucune image générée nécessaire.",
+		"loading": "Chargement de l’éditeur d’images…",
+		"detail": "Détail des contours",
+		"levels": {
+			"simple": "Simple",
+			"balanced": "Équilibré",
+			"detailed": "Détaillé"
+		},
+		"background": "Arrière-plan",
+		"removeBackground": "Supprimer · blanc",
+		"keepBackground": "Conserver · simplifier",
+		"apply": "Appliquer les réglages",
+		"applyHint": "Remplace l’instruction ci-dessous. Votre photo reste sélectionnée ; la création commence uniquement lorsque vous choisissez Générer.",
+		"applied": "Réglages appliqués. Vérifiez l’instruction avant de générer.",
+		"exampleTitle": "De la photo au coloriage",
+		"demo": "Exemple illustratif",
+		"before": "Photo",
+		"after": "Coloriage",
+		"demoNotice": "Les deux images sont des illustrations générées par IA, pas des photos de clients ni des résultats vérifiés de cet outil. Votre résultat peut varier.",
+		"printSample": "Imprimer l’exemple",
+		"print": {
+			"paper": "Format du papier",
+			"action": "Imprimer / Enregistrer PDF",
+			"documentTitle": "Image imprimable EzImageAI",
+			"error": "Impossible de préparer l’image pour l’impression. Actualisez le résultat ou téléchargez-le et imprimez-le depuis votre appareil.",
+			"hint": "Choisissez le même format dans la fenêtre d’impression. Désactivez les en-têtes et pieds de page ; choisissez Enregistrer en PDF pour exporter."
+		}
 	}
 }

@@ -737,5 +737,37 @@
 			"light": "Claro",
 			"dark": "Oscuro"
 		}
+	},
+	"coloring": {
+		"name": "Foto a dibujo para colorear",
+		"navigationDescription": "Convierte tus fotos en contornos para imprimir",
+		"uploadTitle": "Sube tu propia foto",
+		"uploadHint": "Empieza con una foto de tu dispositivo. No necesitas una imagen generada.",
+		"loading": "Cargando el editor de imágenes…",
+		"detail": "Detalle de los contornos",
+		"levels": {
+			"simple": "Simple",
+			"balanced": "Equilibrado",
+			"detailed": "Detallado"
+		},
+		"background": "Fondo",
+		"removeBackground": "Quitar · blanco",
+		"keepBackground": "Mantener · simplificar",
+		"apply": "Aplicar ajustes de dibujo",
+		"applyHint": "Reemplaza la instrucción de abajo. Tu foto sigue seleccionada; la generación empieza solo al pulsar Generar.",
+		"applied": "Ajustes aplicados. Revisa la instrucción antes de generar.",
+		"exampleTitle": "De foto a dibujo para colorear",
+		"demo": "Ejemplo ilustrativo",
+		"before": "Foto",
+		"after": "Dibujo para colorear",
+		"demoNotice": "Ambas imágenes son ilustraciones generadas con IA, no fotos de clientes ni resultados verificados de esta herramienta. Tu resultado puede variar.",
+		"printSample": "Imprime el ejemplo",
+		"print": {
+			"paper": "Tamaño del papel",
+			"action": "Imprimir / Guardar PDF",
+			"documentTitle": "Imagen imprimible de EzImageAI",
+			"error": "No se pudo preparar la imagen para imprimir. Actualiza el resultado o descárgalo e imprímelo desde tu dispositivo.",
+			"hint": "Elige el mismo tamaño de papel en el diálogo. Desactiva encabezados y pies de página; elige Guardar como PDF para exportar."
+		}
 	}
 }

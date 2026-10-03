@@ -3,5 +3,6 @@
 export const publicPageUpdates = [
 	{ path: "/", lastModified: "2026-09-21" },
 	{ path: "/image-to-image", lastModified: "2026-09-21" },
+	{ path: "/photo-to-coloring-page", lastModified: "2026-10-03" },
 	{ path: "/pricing", lastModified: "2026-09-16" },
 ] as const;

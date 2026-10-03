@@ -1,5 +1,14 @@
 export const publicChangelogEntries = [
 	{
+		date: "2026-10-03",
+		title: "Turn your own photos into coloring pages",
+		changes: [
+			"Upload a photo directly, choose the amount of outline detail and simplify or remove the background using the existing image editor.",
+			"Print available image results on A4 or US Letter, or save a PDF through your browser’s print dialog.",
+			"Use the new coloring-page guide and labeled demonstration to prepare a photo, review the result and choose print settings.",
+		],
+	},
+	{
 		date: "2026-09-29",
 		title: "Photo effects and clearer editing guides",
 		changes: [

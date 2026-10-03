@@ -273,8 +273,12 @@ export function ImageEditorWorkspace({
 			<div data-editor-layout="inline" className="min-w-0">
 				<GenerationForm
 					ready={draftReady}
-					layout={pathname === "/image-to-image" || effectEditor ? "minimal" : "default"}
 					requireReference={requireReference}
+					layout={
+						pathname === "/image-to-image" || pathname === "/photo-to-coloring-page" || effectEditor
+							? "minimal"
+							: "default"
+					}
 					onSourceChanged={unlinkSource}
 					onDraftChange={draftReady ? persistDraft : undefined}
 					jobId={jobId}

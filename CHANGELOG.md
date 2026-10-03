@@ -2,6 +2,12 @@
 
 ## 2026-10-03
 
+### Photo to coloring page
+
+- Add `/photo-to-coloring-page` for converting a user's own photo into printable outlines, with simple, balanced and detailed instructions and a choice of plain white or simplified background. Reuse the existing guest and account image editor, private uploads, model selection and credits.
+- Add A4 and US Letter image printing with browser PDF saving to available guest and account results. Print only the authorized image, fit it without cropping, and handle unavailable image URLs.
+- Add an explicitly labeled AI-generated demonstration, English search metadata, canonical URL, sitemap entry, visible usage guidance and factual structured data. Preserve the homepage's existing keyword focus.
+
 ### Dependency security maintenance (not yet deployed)
 
 - Upgrade Next.js, Hono, Nodemailer and affected indirect dependencies to patched releases. Keep the shared dependency catalog, the 24-hour release-age policy and existing audit gates.

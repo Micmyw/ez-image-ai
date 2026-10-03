@@ -37,6 +37,7 @@ export const config = {
 		"/effects/:path*",
 		"/effects-preview/:path*",
 		"/image-to-image",
+		"/photo-to-coloring-page",
 		"/models/:path*",
 		"/pricing",
 		"/privacy",

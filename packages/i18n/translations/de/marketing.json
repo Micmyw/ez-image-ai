@@ -737,5 +737,37 @@
 			"light": "Hell",
 			"dark": "Dunkel"
 		}
+	},
+	"coloring": {
+		"name": "Foto als Malvorlage",
+		"navigationDescription": "Eigene Fotos in druckbare Konturen verwandeln",
+		"uploadTitle": "Eigenes Foto hochladen",
+		"uploadHint": "Starte mit einem Foto von deinem Gerät. Ein generiertes Bild ist nicht nötig.",
+		"loading": "Bildeditor wird geladen…",
+		"detail": "Konturdetails",
+		"levels": {
+			"simple": "Einfach",
+			"balanced": "Ausgewogen",
+			"detailed": "Detailliert"
+		},
+		"background": "Hintergrund",
+		"removeBackground": "Entfernen · weiß",
+		"keepBackground": "Behalten · vereinfachen",
+		"apply": "Maleinstellungen anwenden",
+		"applyHint": "Ersetzt die Anweisung unten. Dein Foto bleibt ausgewählt. Die Erstellung beginnt erst, wenn du auf Generieren klickst.",
+		"applied": "Einstellungen angewendet. Prüfe die Anweisung vor der Erstellung.",
+		"exampleTitle": "Vom Foto zur Malvorlage",
+		"demo": "Illustratives Beispiel",
+		"before": "Foto",
+		"after": "Malvorlage",
+		"demoNotice": "Beide Bilder sind KI-generierte Illustrationen, keine Kundenfotos oder verifizierten Ergebnisse dieses Tools. Dein Ergebnis kann abweichen.",
+		"printSample": "Beispiel drucken",
+		"print": {
+			"paper": "Papierformat",
+			"action": "Drucken / PDF speichern",
+			"documentTitle": "EzImageAI Druckbild",
+			"error": "Das Bild konnte nicht zum Drucken vorbereitet werden. Lade das Ergebnis neu oder lade es herunter und drucke es auf deinem Gerät.",
+			"hint": "Wähle dasselbe Papierformat im Druckdialog. Deaktiviere Kopf- und Fußzeilen; wähle zum Exportieren Als PDF speichern."
+		}
 	}
 }
