@@ -17,7 +17,7 @@ describe("public image sitemap", () => {
 		vi.stubEnv("NEXT_PUBLIC_SAAS_URL", baseUrl);
 		const pageUrls = new Set(sitemap().map(({ url }) => url));
 		const entries = getPublicImageSitemapEntries(baseUrl);
-		expect(entries).toHaveLength(14);
+		expect(entries).toHaveLength(15);
 		expect(new Set(entries.map(({ url }) => url)).size).toBe(entries.length);
 		for (const entry of entries) {
 			expect(pageUrls.has(entry.url), entry.url).toBe(true);
@@ -27,11 +27,20 @@ describe("public image sitemap", () => {
 			for (const image of entry.images) {
 				const url = new URL(image);
 				expect(url.origin).toBe(baseUrl);
-				expect(url.pathname).toMatch(/^\/images\/(landing|models)\/variants\/.+\.webp$/);
+				expect(url.pathname).toMatch(
+					/^\/images\/(?:(landing|models)\/variants|effects\/1980s-ai-photo)\/.+\.webp$/,
+				);
 				expect(url.search).toBe("");
 				expect(existsSync(path.join(publicRoot, url.pathname)), image).toBe(true);
 			}
 		}
+	});
+	it("indexes all three real outputs and the common original on the Blog canonical only", () => {
+		const entries = getPublicImageSitemapEntries(baseUrl);
+		const idea = entries.find(({ url }) => url.endsWith("/blog/1980s-ai-photo"))!;
+		expect(idea.images).toHaveLength(4);
+		expect(idea.images.some((src) => src.endsWith("/input-adult-v1.webp"))).toBe(true);
+		expect(entries.some(({ url }) => url.includes("/effects/"))).toBe(false);
 	});
 
 	it("covers the homepage recipes and both stages of the coloring example", () => {

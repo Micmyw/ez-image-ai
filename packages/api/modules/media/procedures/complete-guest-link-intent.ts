@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 
+import { isPhotoIdeaRoute } from "@repo/config/photo-ideas";
 import { completeGuestLinkIntentTransaction } from "@repo/database";
 import { db } from "@repo/database/client";
 import { z } from "zod";
@@ -58,7 +59,7 @@ export const completeGuestLinkIntent = protectedProcedure
 		);
 		if (result.mode === "DRAFT") {
 			// Reuse the editor's short-lived, owner-checked draft recovery after the
-			// transfer commits. Public effect editors share this same private flow.
+			// transfer commits. Preset-based article editors share this same private flow.
 			context.responseHeaders?.append(
 				"Set-Cookie",
 				[
@@ -89,9 +90,9 @@ function claimedDraftCookiePath(header: string | null): string {
 	// The app handoff validates publication and preset membership before writing
 	// this HttpOnly cookie. Recheck its shape when limiting the recovery scope.
 	const match = effectReturn.match(
-		/^\/effects\/([a-z0-9]+(?:-[a-z0-9]+)*)\?preset=[a-z0-9]+(?:-[a-z0-9]+)*$/,
+		/^\/(?:effects|blog)\/([a-z0-9]+(?:-[a-z0-9]+)*)\?preset=[a-z0-9]+(?:-[a-z0-9]+)*$/,
 	);
-	return match && match[1] !== "category" ? `/effects/${match[1]}` : "/create";
+	return match && isPhotoIdeaRoute(match[1]!) ? `/blog/${match[1]}` : "/create";
 }
 
 function readCookie(header: string | null, name: string): string | null {

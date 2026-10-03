@@ -51,6 +51,28 @@ beforeEach(() => {
 });
 
 describe("Blog directory pagination", () => {
+	it("shows and applies the Photo Ideas filter from the canonical Blog URL", () => {
+		const photoIdea = {
+			...posts[0]!,
+			id: "1980s-ai-photo",
+			slug: "1980s-ai-photo",
+			categoryId: "photo-ideas" as const,
+		};
+		const tree = BlogDirectory({
+			posts: [photoIdea, posts[1]!],
+			page: 1,
+			initialCategory: "photo-ideas",
+		});
+		expect(cardIds(tree)).toEqual([photoIdea.id]);
+		expect(findElements(tree, (element) => element.type === "fieldset")).toHaveLength(1);
+		click(tree, "guides.allCategories");
+		runtime.cursor = 0;
+		expect(
+			cardIds(
+				BlogDirectory({ posts: [photoIdea, posts[1]!], page: 1, initialCategory: "photo-ideas" }),
+			),
+		).toEqual([photoIdea.id, posts[1]!.id]);
+	});
 	it("keeps a two-article library compact without search, category controls or count chrome", () => {
 		const tree = BlogDirectory({ posts: posts.slice(0, 2), page: 1 });
 		expect(cardIds(tree)).toEqual(["guide-1", "guide-2"]);

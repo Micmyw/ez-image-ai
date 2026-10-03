@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { createDraftHandoffResponse, DRAFT_HANDOFF_INTENT } from "./draft-handoff";
 
@@ -24,34 +24,64 @@ function request(
 	});
 }
 
-function paidAccountRequest() {
+function paidAccountRequest(returnTo?: string) {
 	return new Request("https://app.example.com/draft/continue", {
 		method: "POST",
 		headers: {
 			Origin: "https://app.example.com",
 			"Content-Type": "application/x-www-form-urlencoded",
 		},
-		body: new URLSearchParams({ intent: "continue-account-draft", claimToken }),
+		body: new URLSearchParams({
+			intent: "continue-account-draft",
+			claimToken,
+			...(returnTo ? { returnTo } : {}),
+		}),
 	});
 }
 
 describe("draft handoff POST", () => {
-	it("stores only the server-validated public effect return path in a short HttpOnly cookie", async () => {
-		const path = "/effects/1980s-ai-photo?preset=studio-portrait";
-		const response = await createDraftHandoffResponse(request(), {
+	it.each(["/blog/1980s-ai-photo", "/effects/1980s-ai-photo"])(
+		"stores only the server-resolved article path from %s in a short HttpOnly cookie",
+		async (pathname) => {
+			const rawReturn = `${pathname}?preset=studio-portrait`;
+			const canonical = "/blog/1980s-ai-photo?preset=studio-portrait";
+			const resolver = vi.fn(() => canonical);
+			const response = await createDraftHandoffResponse(paidAccountRequest(rawReturn), {
+				publicOrigin: "https://app.example.com",
+				saasOrigin: "https://app.example.com",
+				secure: true,
+				isRegistered: false,
+				resolveEffectReturnPath: resolver,
+			});
+			const cookie = response.headers
+				.getSetCookie()
+				.find((value) => value.startsWith("media_effect_return="));
+			expect(resolver).toHaveBeenCalledWith(rawReturn);
+			expect(cookie).toContain(encodeURIComponent(canonical));
+			expect(cookie).toContain("HttpOnly");
+			expect(cookie).toContain("Max-Age=3600");
+			expect(response.headers.get("location")).toBe(
+				"https://app.example.com/login?redirectTo=%2Fdraft%2Fcontinue",
+			);
+		},
+	);
+	it("expires the return cookie when the server rejects an unpublished article", async () => {
+		const rawReturn = "/blog/unpublished-photo-idea?preset=studio-portrait";
+		const resolver = vi.fn(() => null);
+		const response = await createDraftHandoffResponse(paidAccountRequest(rawReturn), {
 			publicOrigin: "https://app.example.com",
 			saasOrigin: "https://app.example.com",
 			secure: true,
 			isRegistered: false,
-			resolveEffectReturnPath: () => path,
+			resolveEffectReturnPath: resolver,
 		});
 		const cookie = response.headers
 			.getSetCookie()
 			.find((value) => value.startsWith("media_effect_return="));
-		expect(cookie).toContain(encodeURIComponent(path));
-		expect(cookie).toContain("HttpOnly");
-		expect(cookie).toContain("Max-Age=3600");
-		expect(response.headers.get("location")).not.toContain("preset");
+		expect(resolver).toHaveBeenCalledWith(rawReturn);
+		expect(cookie).toContain("media_effect_return=;");
+		expect(cookie).toContain("Max-Age=0");
+		expect(cookie).not.toContain("unpublished-photo-idea");
 	});
 	it("sets the scoped HttpOnly cookie and redirects through the configured SaaS origin", async () => {
 		const response = await createDraftHandoffResponse(

@@ -248,12 +248,8 @@ describe("Effects configuration and relationships", () => {
 			},
 		]);
 		expect(reader.getPublishedEffects().map((effect) => effect.id)).toEqual([first.id, second.id]);
-		expect(reader.getFeaturedEffects().map((effect) => effect.id)).toEqual([second.id, first.id]);
-		expect(reader.getRelatedEffects(second).map((effect) => effect.id)).toEqual([first.id]);
-		expect(reader.getEffectsForProduct("image-nano-banana-2-lite")).toHaveLength(2);
-		expect(reader.getEffectsForProduct("unknown-model")).toEqual([]);
 		expect(effectPath(reader.getPublishedEffectBySlug(second.slug)!)).toBe(
-			"/effects/watercolor-photo",
+			"/blog/watercolor-photo",
 		);
 	});
 
@@ -305,10 +301,10 @@ describe("Effects configuration and relationships", () => {
 		expect(reader.getEffectPreviewContent("unknown")).toBeNull();
 		expect(resolveEffectPreset(effect, "../../private-model").id).toBe(effect.defaultPresetId);
 		expect(effectPath(effect, "unknown", "https://untrusted.example/?prompt=private")).toBe(
-			"/effects/1980s-ai-photo",
+			"/blog/1980s-ai-photo",
 		);
 		expect(effectPath(effect, "studio-portrait", "ai-image-editing-prompts")).toBe(
-			"/effects/1980s-ai-photo?preset=studio-portrait&source=ai-image-editing-prompts",
+			"/blog/1980s-ai-photo?preset=studio-portrait&source=ai-image-editing-prompts",
 		);
 	});
 });
@@ -323,7 +319,6 @@ describe("Effects retirement and asset boundaries", () => {
 				featuredOrder: undefined,
 			}),
 		]);
-		expect(reader.getFeaturedEffects()).toEqual([]);
 		expect(reader.getPublishedEffectBySlug("1980s-ai-photo")).not.toBeNull();
 		expect(reader.getRetiredEffectBySlug("1980s-ai-photo")).toBeNull();
 	});
@@ -344,7 +339,7 @@ describe("Effects retirement and asset boundaries", () => {
 			replacement,
 		]);
 		expect(redirected.getRetiredEffectBySlug(retired.slug)?.redirectTo).toBe(
-			"/effects/equivalent-photo",
+			"/blog/equivalent-photo",
 		);
 		expect(() =>
 			createEffectContentReader([

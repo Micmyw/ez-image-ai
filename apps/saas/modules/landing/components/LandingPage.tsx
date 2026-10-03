@@ -7,8 +7,8 @@ import { getLocale, getTranslations } from "next-intl/server";
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { EffectRecommendations } from "../../effects/components/EffectRecommendations";
 import { ExploreModels } from "../../models/components/ExploreModels";
+import { PhotoIdeaRecommendations } from "../../public-content/components/PhotoIdeaRecommendations";
 import { PublicFooterLinks } from "../../public-content/components/PublicFooterLinks";
 import { HOME_FAQ_KEYS } from "../lib/faq";
 import { BeforeAfterDemo } from "./BeforeAfterDemo";
@@ -49,7 +49,7 @@ export async function LandingPage({
 				<ShowcaseSection />
 				<BeforeAfterDemo />
 				<CreatorWorkflowsSection />
-				{!workspace && <EffectRecommendations featured />}
+				{!workspace && <PhotoIdeaRecommendations featured />}
 
 				<section id="how-it-works" className="scroll-mt-20 py-20 text-white sm:py-28">
 					<div className="container">
@@ -180,7 +180,7 @@ export async function LandingPage({
 			</main>
 
 			<footer className="py-10 bg-[#0f0b16]">
-				<div className="gap-5 sm:flex-row sm:text-left container flex flex-col items-center justify-between text-center">
+				<div className="gap-8 container flex flex-col items-stretch">
 					<div>
 						<Logo
 							className="text-white [&_svg]:text-violet-400 [&>span]:block"
@@ -209,12 +209,12 @@ export async function LandingPage({
 						>
 							{t("common.menu.pricing")}
 						</a>
-						<PublicFooterLinks className="contents" />
 						<span className="gap-1.5 text-xs text-slate-400 inline-flex items-center">
 							<LockKeyholeIcon className="size-3.5" aria-hidden="true" />
 							{t("home.imageEditorHero.private")}
 						</span>
 					</div>
+					<PublicFooterLinks />
 				</div>
 			</footer>
 		</StudioShell>

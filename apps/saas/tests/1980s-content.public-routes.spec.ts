@@ -15,7 +15,8 @@ import {
 import type { EffectAsset, EffectExample, EffectPreset } from "../modules/effects/lib/types";
 import { readEightiesEffect } from "./helpers/effects-content";
 
-const effectPath = "/effects/1980s-ai-photo";
+const effectPath = "/blog/1980s-ai-photo";
+const articleTitle = "1980s AI Photo Ideas & Prompts";
 const guidePath = "/blog/ai-image-editing-prompts";
 const publicRoot = resolve(__dirname, "../public");
 const effect = readEightiesEffect();
@@ -137,11 +138,11 @@ test.describe("1980s real published content — local public-route acceptance", 
 		}) => {
 			const response = await page.goto(effectPath);
 			expect(response?.status()).toBe(200);
-			await expect(page.getByRole("heading", { level: 1 })).toHaveText(effect.title);
-			await expect(page).toHaveTitle(effect.seoTitle);
+			await expect(page.getByRole("heading", { level: 1 })).toHaveText(articleTitle);
+			await expect(page).toHaveTitle(new RegExp(escapeRegExp(articleTitle)));
 			await expect(page.locator('meta[name="description"]')).toHaveAttribute(
 				"content",
-				effect.seoDescription,
+				expect.stringContaining("Three ways to give a portrait"),
 			);
 			await assertCanonical(page, new URL(effectPath, baseURL).href);
 			await expect(page.locator(".effect-preset-card")).toHaveCount(3);
@@ -184,19 +185,17 @@ test.describe("1980s real published content — local public-route acceptance", 
 					).toBe(true);
 				}
 			}
-			await expect(page.getByRole("link", { name: "Copy a prompt", exact: true })).toHaveAttribute(
-				"href",
-				"#effect-presets",
+			await expect(page.locator("article.photo-idea-article")).toContainText(
+				"Four product generations",
 			);
-			await expect(
-				page.getByRole("link", { name: "Try with my photo", exact: true }),
-			).toHaveAttribute("href", "#image-editor");
-			await expect(page.locator(`.effect-guide-links a[href="${guidePath}"]`)).toBeVisible();
+			await expect(page.locator("#image-editor")).toHaveCount(1);
+			await expect(page.locator(`article.photo-idea-article a[href="${guidePath}"]`)).toBeVisible();
 			const sitemap = await request.get("/sitemap.xml");
 			expect(sitemap.status()).toBe(200);
 			const xml = await sitemap.text();
 			expect(xml).toContain(`<loc>${new URL(effectPath, baseURL).href}</loc>`);
-			expect(xml).toContain(`<loc>${new URL("/effects", baseURL).href}</loc>`);
+			expect(xml).not.toContain(`<loc>${new URL("/effects", baseURL).href}</loc>`);
+			expect(xml).not.toContain("/effects/1980s-ai-photo");
 			expect(xml).not.toContain("/effects-preview/");
 			for (const path of [
 				"/effects-preview/1980s-ai-photo",
@@ -207,7 +206,7 @@ test.describe("1980s real published content — local public-route acceptance", 
 		});
 	});
 
-	test("the homepage and one real directory card lead to the canonical theme and three presets", async ({
+	test("homepage recommendations and Blog Photo Ideas lead to one canonical article", async ({
 		page,
 		baseURL,
 	}) => {
@@ -216,37 +215,21 @@ test.describe("1980s real published content — local public-route acceptance", 
 			/AI Image Editor No Restrictions/i,
 		);
 		const featured = page
-			.locator(".effect-card")
-			.filter({ has: page.locator(`a[href^="${effectPath}"]`) });
+			.locator("[data-photo-ideas-recommendations] .blog-card")
+			.filter({ has: page.locator(`a[href="${effectPath}"]`) });
 		await expect(featured).toHaveCount(1);
-		await expect(featured.locator("img")).toHaveAttribute("alt", effect.cover!.alt);
-		await page.locator('a[href="/effects"]').first().click();
-		await expect(page).toHaveURL(new URL("/effects", baseURL).href);
-		await expect(page.getByRole("heading", { level: 1 })).toContainText("AI Photo Effects");
-		await assertCanonical(page, new URL("/effects", baseURL).href);
-		const directory = page.locator(".effects-directory.is-single");
-		await expect(directory.locator(".effect-card.is-featured")).toHaveCount(1);
-		await expect(directory.locator(".effect-card h2")).toHaveText(effect.title);
-		await expect(directory.getByRole("searchbox")).toHaveCount(0);
-		await expect(directory.locator("select, .effects-count")).toHaveCount(0);
-		await expect(directory.locator(".effects-preset-links a")).toHaveCount(3);
-		for (const preset of effect.presets) {
-			const link = directory.getByRole("link", { name: new RegExp(escapeRegExp(preset.name)) });
-			await expect(link).toHaveAttribute(
-				"href",
-				`${effectPath}?preset=${preset.id}&from=effects-directory#image-editor`,
-			);
-			await expect(link.locator("img")).toHaveAttribute(
-				"alt",
-				matchingExamples(preset)[0]!.output.alt,
-			);
-		}
-		await expect(directory).not.toContainText(/trending|\d+ effects/i);
-		await directory.getByRole("link", { name: /Explore prompts & try it/ }).click();
-		await expect(page).toHaveURL(
-			new RegExp(`${escapeRegExp(effectPath)}\\?from=effects-directory$`),
-		);
-		await expect(page.getByRole("heading", { level: 1 })).toHaveText(effect.title);
+		await expect(featured.locator(`img[alt="${effect.cover!.alt}"]`)).toHaveCount(1);
+		await page.goto("/blog?category=photo-ideas");
+		await assertCanonical(page, new URL("/blog", baseURL).href, false);
+		const directory = page.locator(".blog-directory");
+		await expect(directory.locator(".blog-card")).toHaveCount(1);
+		await expect(
+			directory.getByRole("button", { name: "Photo Ideas", exact: true }),
+		).toHaveAttribute("aria-pressed", "true");
+		await directory.getByRole("heading", { name: articleTitle }).getByRole("link").click();
+		await expect(page).toHaveURL(new URL(effectPath, baseURL).href);
+		await expect(page.getByRole("heading", { level: 1 })).toHaveText(articleTitle);
+		await expect(page.locator(".effect-preset-card")).toHaveCount(3);
 	});
 
 	test("each copy is exact and each preset prepares the same prompt without generation", async ({
@@ -289,7 +272,8 @@ test.describe("1980s real published content — local public-route acceptance", 
 		await context.grantPermissions(["clipboard-read", "clipboard-write"]);
 		await page.goto("/blog");
 		await declineOptionalConsent(page);
-		await expect(page.locator(".blog-filters, .blog-results")).toHaveCount(0);
+		await expect(page.locator(".blog-filters")).toBeVisible();
+		await expect(page.locator(".blog-results")).toHaveText("3 posts");
 		const card = page
 			.locator(".blog-card-with-cover")
 			.filter({ has: page.locator(`a[href="${guidePath}"]`) });
@@ -332,75 +316,47 @@ test.describe("1980s real published content — local public-route acceptance", 
 		await expect(page.locator("#landing-edit-prompt")).toHaveValue(preset.prompt);
 	});
 
-	test("390px first fold shows the real theme and effect, mobile navigation works, and 360px does not overflow", async ({
+	test("Photo Ideas, Resources navigation and the article fit mobile and desktop", async ({
 		page,
 	}, testInfo) => {
-		test.setTimeout(120_000);
+		test.setTimeout(180_000);
 		await page.setViewportSize({ width: 390, height: 844 });
-		await page.goto("/effects");
+		await page.goto("/blog?category=photo-ideas");
 		await declineOptionalConsent(page);
-		await page.evaluate(() => window.scrollTo(0, 0));
-		const featured = page.locator(".effects-directory .effect-card.is-featured");
-		await assertFirstFold(featured.locator("h2"), featured.locator("img"), 160);
-		await screenshot(page, testInfo, "1980s-directory-390-firstfold.png");
-		const menu = page.locator('[data-test="header-navigation-trigger"]');
-		await expect(menu).toHaveCount(1);
-		await menu.click();
+		await expect(page.locator(".blog-directory .blog-card")).toHaveCount(1);
+		await screenshot(page, testInfo, "photo-ideas-blog-390-firstfold.png");
+		await page.locator('[data-test="header-navigation-trigger"]').click();
 		const drawer = page.locator('[data-test="header-navigation-drawer"]');
 		await expect(drawer).toBeVisible();
-		for (const href of ["/effects", "/blog", "/docs"])
+		await drawer.locator("summary").filter({ hasText: "Resources" }).click();
+		for (const href of ["/blog", "/examples", "/docs"])
 			await expect(drawer.locator(`a[href="${href}"]`)).toBeVisible();
-		await screenshot(page, testInfo, "1980s-mobile-navigation.png");
+		await expect(drawer.locator('a[href="/effects"]')).toHaveCount(0);
+		await screenshot(page, testInfo, "resources-mobile-navigation.png");
 		await drawer.locator('a[href="/blog"]').click();
 		await expect(page).toHaveURL(/\/blog$/);
 		await expect(drawer).toBeHidden();
-		await page.goto(effectPath);
-		await page.evaluate(() => window.scrollTo(0, 0));
-		await assertFirstFold(
-			page.getByRole("heading", { level: 1 }),
-			page.locator(".effect-mobile-example .effect-example-frame:not([hidden]) img"),
-			100,
-		);
-		await screenshot(page, testInfo, "1980s-detail-390-firstfold.png");
-		await page.setViewportSize({ width: 360, height: 844 });
-		for (const path of ["/effects", effectPath, "/blog", guidePath]) {
-			await page.goto(path);
-			await assertNoHorizontalOverflow(page, `${path} at 360px`);
-			if (path === effectPath) {
-				for (const preset of effect.presets)
-					await page.locator(`#preset-${preset.id} summary`).click();
-				await assertNoHorizontalOverflow(page, "all three complete prompts expanded at 360px");
+		for (const width of [360, 390, 1280]) {
+			await page.setViewportSize({ width, height: 900 });
+			for (const [name, path] of [
+				["blog", "/blog"],
+				["article", effectPath],
+				["guide", guidePath],
+			] as const) {
+				await page.goto(path);
+				await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+				await assertNoHorizontalOverflow(page, `${path} at ${width}px`);
+				if (path === effectPath) {
+					for (const preset of effect.presets)
+						await page.locator(`#preset-${preset.id}`).scrollIntoViewIfNeeded();
+					await page.locator("#image-editor").scrollIntoViewIfNeeded();
+					await assertNoHorizontalOverflow(page, `editor at ${width}px`);
+					await screenshot(page, testInfo, `1980s-editor-${width}.png`);
+				}
+				await page.evaluate(() => window.scrollTo(0, 0));
+				await screenshot(page, testInfo, `${name}-${width}-firstfold.png`);
+				await screenshot(page, testInfo, `${name}-${width}-full.png`, true);
 			}
-			await screenshot(
-				page,
-				testInfo,
-				`1980s-${path === effectPath ? "detail" : path === guidePath ? "guide" : path.slice(1)}-360.png`,
-				true,
-			);
-		}
-		await page.setViewportSize({ width: 1440, height: 1000 });
-		for (const path of ["/effects", effectPath]) {
-			await page.goto(path);
-			await assertNoHorizontalOverflow(page, `${path} desktop`);
-			await loadedImage(
-				page.locator(
-					path === effectPath
-						? ".effect-desktop-example .effect-example-frame:not([hidden]) img"
-						: ".effects-directory .effect-card img",
-				),
-			);
-			await screenshot(
-				page,
-				testInfo,
-				`1980s-${path === effectPath ? "detail" : "directory"}-desktop.png`,
-				true,
-			);
-			await page.evaluate(() => window.scrollTo(0, 0));
-			await screenshot(
-				page,
-				testInfo,
-				`1980s-${path === effectPath ? "detail" : "directory"}-desktop-firstfold.png`,
-			);
 		}
 	});
 });
@@ -481,13 +437,14 @@ async function assertPublicAsset(request: APIRequestContext, asset: EffectAsset)
 	).toBe(createHash("sha256").update(local).digest("hex"));
 }
 
-async function assertCanonical(page: Page, expected: string) {
+async function assertCanonical(page: Page, expected: string, indexable = true) {
 	await expect(page.locator('link[rel="canonical"]')).toHaveAttribute("href", expected);
 	await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
 		"content",
-		/(?:^|,\s*)index(?:,|$)/,
+		indexable ? /(?:^|,\s*)index(?:,|$)/ : "noindex, follow",
 	);
-	await expect(page.locator('meta[name="robots"]')).not.toHaveAttribute("content", /noindex/);
+	if (indexable)
+		await expect(page.locator('meta[name="robots"]')).not.toHaveAttribute("content", /noindex/);
 }
 
 async function declineOptionalConsent(page: Page) {
@@ -505,20 +462,6 @@ async function loadedImage(image: Locator) {
 	expect(await image.evaluate((node) => (node as HTMLImageElement).naturalWidth)).toBeGreaterThan(
 		0,
 	);
-}
-
-async function assertFirstFold(title: Locator, image: Locator, minimumImageHeight: number) {
-	await loadedImage(image);
-	await expect(title).toBeInViewport();
-	const titleBox = (await title.boundingBox())!;
-	const imageBox = (await image.boundingBox())!;
-	expect(titleBox.y).toBeGreaterThanOrEqual(0);
-	expect(titleBox.y + titleBox.height).toBeLessThanOrEqual(844);
-	expect(imageBox.width).toBeGreaterThanOrEqual(240);
-	expect(
-		Math.min(844, imageBox.y + imageBox.height) - Math.max(0, imageBox.y),
-		"A recognizable part of the real effect must be visible before scrolling",
-	).toBeGreaterThanOrEqual(minimumImageHeight);
 }
 
 async function assertNoHorizontalOverflow(page: Page, label: string) {

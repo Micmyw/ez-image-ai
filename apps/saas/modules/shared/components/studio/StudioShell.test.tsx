@@ -121,6 +121,25 @@ describe("homepage and signed-in tool navigation", () => {
 		expect(markup).toContain("Account content");
 	});
 
+	it.each(["/history", "/settings/general"])(
+		"server-renders the deferred workspace shell and content through AppWrapper on %s",
+		async (pathname) => {
+			state.pathname = pathname;
+			state.user = { id: "owner" };
+			const stream = await renderToReadableStream(
+				<AppWrapper>
+					<main>Workspace account content</main>
+				</AppWrapper>,
+			);
+			const markup = await new Response(stream).text();
+			expect(markup).toContain('data-studio-shell=""');
+			expect(markup).toContain('class="studio-sidebar"');
+			expect(markup).toContain("Workspace account content");
+			expect(markup).toContain('href="/history"');
+			expect(markup).not.toContain("BAILOUT_TO_CLIENT_SIDE_RENDERING");
+		},
+	);
+
 	it.each([null, { id: "guest", isAnonymous: true }])(
 		"opens the same tool sidebar for a visitor without account controls (%j)",
 		async (user) => {

@@ -38,7 +38,6 @@ vi.mock("next/link", () => ({
 }));
 
 import { EffectPresetCard } from "./EffectPresetCard";
-import { EffectsDirectory } from "./EffectsDirectory";
 
 // These DTOs exist only inside the component test, never in the public content catalog.
 const presets: PublicEffectPreset[] = ["studio", "snapshot", "street"].map((id) => ({
@@ -124,21 +123,6 @@ function withEditor(children: ReactNode) {
 }
 
 describe("Effects content presentation", () => {
-	it("renders one visual feature and three preset links without pretending they are separate effects", () => {
-		const html = renderToStaticMarkup(<EffectsDirectory effects={[effect]} page={1} />);
-		expect(html.match(/class="effect-card is-featured"/g)).toHaveLength(1);
-		expect(html).not.toContain('type="search"');
-		expect(html).not.toContain('class="effects-count"');
-		expect(html).not.toContain("<select");
-		expect(html).toContain("Featured");
-		for (const preset of presets) {
-			expect(html).toContain(`?preset=${preset.id}&amp;from=effects-directory#image-editor`);
-			expect(html).toContain(
-				examples.find((example) => example.presetId === preset.id)!.output.alt,
-			);
-		}
-	});
-
 	it("keeps the full prompt and matched image metadata in server HTML while its disclosure is closed", () => {
 		const html = renderToStaticMarkup(
 			withEditor(

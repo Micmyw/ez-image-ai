@@ -92,9 +92,9 @@ describe("ImageEditorWorkspace responsive composition", () => {
 			}
 		},
 	);
-	it("retains the current effect scope in an effect editor", () => {
+	it("retains the current preset scope in an article editor", () => {
 		attribution.effect = { selectedPreset: { id: "studio-portrait" } };
-		navigation.pathname = "/effects/1980s-ai-photo";
+		navigation.pathname = "/blog/1980s-ai-photo";
 		try {
 			renderToStaticMarkup(
 				<ImageEditorWorkspace
@@ -129,9 +129,9 @@ describe("ImageEditorWorkspace responsive composition", () => {
 			navigation.pathname = "/create";
 		}
 	});
-	it("keeps the streamlined effect layout inside an explicit effect editor", () => {
+	it("keeps the streamlined preset layout inside the article editor", () => {
 		attribution.effect = { selectedPreset: { id: "studio-portrait" } };
-		navigation.pathname = "/effects/1980s-ai-photo";
+		navigation.pathname = "/blog/1980s-ai-photo";
 		try {
 			const markup = renderToStaticMarkup(
 				<ImageEditorWorkspace

@@ -8,6 +8,10 @@ vi.mock("@auth/lib/server", () => ({ getSession: sessionMock }));
 vi.mock("@shared/components/studio/PublicHeaderAccount", () => ({
 	PublicHeaderAccount: () => <div data-public-account-controls="" />,
 }));
+// Navigation interactions have their own router/query-provider coverage.
+vi.mock("@shared/components/studio/StudioToolNavigation", () => ({
+	StudioToolNavigation: () => <div data-public-tool-navigation="" />,
+}));
 vi.mock("@shared/components/studio/StudioShell", () => ({
 	StudioShell: ({ children }: { children: ReactNode }) => (
 		<div data-studio-shell="">{children}</div>
@@ -142,6 +146,7 @@ vi.mock("next-intl/server", () => ({
 }));
 
 vi.mock("next-intl", () => ({
+	useLocale: () => "en",
 	useTranslations: () => createTranslator(),
 }));
 

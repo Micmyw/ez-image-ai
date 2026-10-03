@@ -10,7 +10,7 @@ import {
 import { readEightiesEffect } from "./helpers/effects-content";
 
 const widths = [360, 390, 768, 1280, 1440] as const;
-const effectPath = "/effects/1980s-ai-photo";
+const effectPath = "/blog/1980s-ai-photo";
 const previewPath = "/effects-preview/1980s-ai-photo";
 const promptGuidePath = "/blog/ai-image-editing-prompts";
 const privacyGuidePath = "/blog/private-image-editing-workflow";
@@ -39,54 +39,34 @@ test.use({
 	contextOptions: { reducedMotion: "reduce" },
 });
 
-test.describe("Effects public publication boundary", () => {
-	test("the directory reflects reviewed publication and keeps draft content private", async ({
+test.describe("Photo Ideas publication and legacy boundaries", () => {
+	test("legacy Effects links permanently redirect and Blog owns discovery", async ({
 		page,
 		request,
 		baseURL,
 	}) => {
-		const response = await page.goto("/effects");
-		expect(response?.status()).toBe(200);
-		await expect(page.getByRole("heading", { level: 1 })).toContainText("AI Photo Effects");
+		const directoryRedirect = await request.get("/effects", { maxRedirects: 0 });
+		expect(directoryRedirect.status()).toBe(308);
+		expect(directoryRedirect.headers().location).toBe("/blog?category=photo-ideas");
+		const oldDetail = await request.get("/effects/1980s-ai-photo?preset=family-snapshot&lang=de", {
+			maxRedirects: 0,
+		});
+		expect(oldDetail.status()).toBe(isPublished ? 308 : 404);
 		if (isPublished) {
-			await expect(page.locator(".effects-directory .effect-card")).toHaveCount(1);
-			await expect(page.locator(".effects-directory .effect-card h2")).toHaveText(
-				authoredEffect.title,
-			);
-		} else {
-			await expect(
-				page.getByRole("heading", { name: "A place for your next photo idea" }),
-			).toBeVisible();
-			await expect(
-				page.getByRole("link", { name: "Open image editor", exact: true }),
-			).toHaveAttribute("href", "/image-to-image");
-			await expect(page.getByRole("link", { name: /Read the guides/i })).toHaveAttribute(
-				"href",
-				"/blog",
-			);
+			const target = new URL(oldDetail.headers().location!, baseURL);
+			expect(target.pathname).toBe(effectPath);
+			expect(target.searchParams.get("preset")).toBe("family-snapshot");
+			expect(target.searchParams.get("lang")).toBe("de");
 		}
+		await page.goto("/blog?category=photo-ideas");
+		await expect(page.locator(".blog-directory .blog-card")).toHaveCount(isPublished ? 1 : 0);
 		await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
 			"href",
-			new URL("/effects", baseURL).href,
+			new URL("/blog", baseURL).href,
 		);
-		await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
-			"content",
-			isPublished ? /^index, follow$/ : /noindex.*follow/,
-		);
-		await expect(page.getByRole("navigation", { name: "Effect pages" })).toHaveCount(0);
-		await expect(page.getByRole("searchbox", { name: "Search photo effects" })).toHaveCount(0);
-		for (const path of ["/effects", "/blog", promptGuidePath, "/sitemap.xml"]) {
-			const resource = await request.get(path);
-			expect(resource.status()).toBe(200);
-			const body = await resource.text();
-			if (!isPublished) {
-				expect(body, `Draft URL leaked through ${path}`).not.toContain(effectPath);
-				expect(body, `Draft title leaked through ${path}`).not.toContain(authoredEffect.title);
-				expect(body, `Draft prompt leaked through ${path}`).not.toContain(studioPrompt);
-			} else if (path === "/effects" || path === "/sitemap.xml") {
-				expect(body, `Published effect missing from ${path}`).toContain(effectPath);
-			}
-		}
+		const xml = await (await request.get("/sitemap.xml")).text();
+		expect(xml).not.toContain("/effects/");
+		if (isPublished) expect(xml).toContain(effectPath);
 	});
 
 	test("unpublished, unknown, reserved category, and unauthorized preview return real 404s", async ({
@@ -97,7 +77,6 @@ test.describe("Effects public publication boundary", () => {
 			previewPath,
 			"/effects/unknown-effect-for-browser-verification",
 			"/effects/category/retro-vintage",
-			"/effects?page=2",
 			"/blog?page=2",
 			"/blog/category/prompt-writing",
 		]) {
@@ -107,41 +86,39 @@ test.describe("Effects public publication boundary", () => {
 		}
 	});
 
-	test("the homepage navigation and footer expose the permanent Effects directory", async ({
-		page,
-	}) => {
+	test("the homepage groups content under Resources and preserves its editor", async ({ page }) => {
 		const noGeneration = await mockMediaUi(page);
 		await page.goto("/");
 		await expect(page.getByRole("heading", { level: 1 })).toHaveText(
 			/AI Image Editor No Restrictions/i,
 		);
-		await expect(page.locator('a[href="/effects"]').first()).toBeVisible();
-		await expect(page.getByRole("contentinfo").locator('a[href="/effects"]')).toBeVisible();
-		if (isPublished) {
-			await expect(
-				page.locator(".effect-card").filter({ has: page.locator(`a[href^="${effectPath}"]`) }),
-			).toHaveCount(1);
-		} else {
-			await expect(page.locator(`a[href^="${effectPath}"]`)).toHaveCount(0);
-		}
+		await expect(page.locator('a[href="/effects"]')).toHaveCount(0);
+		await page.locator('[data-test="studio-resources-menu"]').click();
+		const menu = page.locator(".studio-navigation-popover");
+		for (const href of ["/blog", "/examples", "/docs"])
+			await expect(menu.locator(`a[href="${href}"]`)).toBeVisible();
+		await page.keyboard.press("Escape");
+		const footer = page.getByRole("contentinfo");
+		await expect(footer.locator(`a[href="${effectPath}"]`)).toBeVisible();
+		await expect(page.locator("[data-photo-ideas-recommendations] .blog-card")).toHaveCount(
+			isPublished ? 1 : 0,
+		);
 		expect(noGeneration.mutations).toEqual([]);
 	});
 });
 
 test.describe("Guides browsing and article interactions", () => {
-	test("the small guide directory keeps both old articles reachable without redundant filters", async ({
-		page,
-	}) => {
+	test("Blog keeps both old guides and filters its new Photo Idea", async ({ page }) => {
 		await page.goto("/blog");
 		await expect(page.getByRole("heading", { level: 1 })).toHaveText(
-			"AI Image Editing Guides & Tutorials",
+			"AI Photo Ideas, Prompts & Editing Guides",
 		);
 		const directory = page.locator(".blog-directory");
 		await expect(directory.locator(`h2 a[href="${promptGuidePath}"]`)).toBeVisible();
 		await expect(directory.locator(`h2 a[href="${privacyGuidePath}"]`)).toBeVisible();
-		await expect(directory.getByRole("searchbox")).toHaveCount(0);
-		await expect(directory.locator(".blog-filters, .blog-results")).toHaveCount(0);
-		await expect(directory.locator("article")).toHaveCount(2);
+		await expect(directory.getByRole("searchbox")).toHaveCount(1);
+		await expect(directory.getByRole("button", { name: "Photo Ideas", exact: true })).toBeVisible();
+		await expect(directory.locator("article")).toHaveCount(isPublished ? 3 : 2);
 		await expect(page).toHaveURL(/\/blog$/);
 	});
 
@@ -194,8 +171,10 @@ test.describe("Guides browsing and article interactions", () => {
 			);
 			const html = await response!.text();
 			expect(html).toContain(article.text);
-			if (isPublished && article.path === promptGuidePath) expect(html).toContain(effectPath);
-			else expect(html).not.toContain(effectPath);
+			const themeLinks = page.locator(`article.blog-prose a[href^="${effectPath}?"]`);
+			if (isPublished && article.path === promptGuidePath)
+				await expect(themeLinks.first()).toBeVisible();
+			else await expect(themeLinks).toHaveCount(0);
 		});
 	}
 
@@ -263,14 +242,14 @@ test.describe("Guides browsing and article interactions", () => {
 		);
 	});
 
-	test("Effects, Guides, and the prompt article fit all five acceptance widths", async ({
+	test("Photo Ideas, Blog, and the prompt article fit all five acceptance widths", async ({
 		page,
 	}, testInfo) => {
 		test.setTimeout(180_000);
 		for (const width of widths) {
 			await page.setViewportSize({ width, height: 900 });
 			for (const [name, path] of [
-				["effects-directory", "/effects"],
+				["photo-ideas", "/blog?category=photo-ideas"],
 				["guides-directory", "/blog"],
 				["prompt-guide", promptGuidePath],
 			] as const) {
@@ -355,12 +334,15 @@ test.describe("protected editorial preview with a temporary local administrator"
 			authoredEffect.presets.find((item) => item.id === "family-snapshot")!.prompt,
 		);
 		await expect(source).toHaveAttribute("src", originalPreview!);
-		await expect(page.locator('[data-test="editor-output-settings-trigger"]')).toContainText("4:3");
-		await page.locator('[data-test="editor-output-settings-trigger"]').click();
-		const squareRatio = page.getByRole("radio", { name: "1:1", exact: true });
-		await page.locator("label").filter({ has: squareRatio }).click();
-		await expect(squareRatio).toBeChecked();
+		const settingsTrigger = page.locator('[data-test="editor-output-settings-trigger"]');
+		await settingsTrigger.click();
+		const settings = page.locator('[data-test="editor-output-settings-panel"]');
+		await expect(settings).toBeVisible();
+		await expect(settings.getByRole("radio", { name: "4:3", exact: true })).toBeChecked();
+		await settings.getByText("1:1", { exact: true }).click();
+		await expect(settings.getByRole("radio", { name: "1:1", exact: true })).toBeChecked();
 		await page.keyboard.press("Escape");
+		await expect(settings).toBeHidden();
 		await preset.selectOption("street-portrait");
 		await expect(confirmation).toBeVisible();
 		await confirmation.getByRole("button", { name: "Use preset", exact: true }).click();
@@ -368,8 +350,15 @@ test.describe("protected editorial preview with a temporary local administrator"
 			authoredEffect.presets.find((item) => item.id === "street-portrait")!.prompt,
 		);
 		await expect(source).toHaveAttribute("src", originalPreview!);
-		await expect(page.locator('[data-test="editor-output-settings-trigger"]')).toContainText("4:5");
-		await page.getByRole("button", { name: "Copy prompt", exact: true }).first().click();
+		await settingsTrigger.click();
+		await expect(settings).toBeVisible();
+		await expect(settings.getByRole("radio", { name: "4:5", exact: true })).toBeChecked();
+		await page.keyboard.press("Escape");
+		await expect(settings).toBeHidden();
+		await page
+			.locator(".effect-workbench-controls")
+			.getByRole("button", { name: "Copy prompt", exact: true })
+			.click();
 		expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(
 			await prompt.inputValue(),
 		);

@@ -2,6 +2,14 @@
 
 ## 2026-10-04
 
+### Resources and interactive Photo Ideas
+
+- Separate AI Image, AI Tools, AI Models and Resources in public navigation, mobile menus and grouped footers. Resources brings together Blog, Editing Examples and Docs.
+- Make the 1980s theme a single Blog Photo Idea with three complete, tested prompts, real source/output comparisons, editorial context, limitations and the shared editor on the same page.
+- Retire public Effects discovery in favor of Blog Photo Ideas. Preserve old theme links with permanent redirects and keep existing guide addresses, draft isolation and preset evidence checks.
+- Recommend published Blog Photo Ideas from the homepage, image-to-image and relevant model pages. Preserve homepage keywords and the shared composer, upload, authorization and credit behavior.
+- Reduce the public client payload by retaining FAQ and contact copy in server-rendered content, while preserving all editor and navigation translations and the existing transfer limits.
+
 ### Coloring page entry from image previews
 
 - Replace global paper-size and print controls with a compact **Turn into coloring page** entry in result previews and the image library. The entry opens the selected image in the dedicated tool; outline, background and print controls stay there.

@@ -1,3 +1,4 @@
+import { getUnifiedMessagesForLocale } from "@repo/i18n";
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -5,6 +6,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
 	consentCookie: undefined as string | undefined,
 	clientMessages: vi.fn(),
+	locale: "en",
+	serverMessages: undefined as Record<string, unknown> | undefined,
 }));
 
 const passthrough = ({ children }: { children: ReactNode }) => children;
@@ -51,12 +54,15 @@ vi.mock("next-intl", () => ({
 	},
 }));
 vi.mock("next-intl/server", () => ({
-	getLocale: async () => "en",
-	getMessages: async () => ({
-		common: { menu: { login: "Sign In" } },
-		home: { title: "Image editor" },
-		admin: { title: "Administration" },
-	}),
+	getLocale: async () => mocks.locale,
+	getMessages: async () =>
+		mocks.serverMessages ?? {
+			common: { menu: { login: "Sign In" } },
+			home: { title: "Image editor" },
+			admin: { title: "Administration" },
+			faq: { items: { question: "Frequently asked question" } },
+			publicContent: { contact: { description: "Contact support" } },
+		},
 }));
 vi.mock("next-themes", () => ({ ThemeProvider: passthrough }));
 vi.mock("next/font/google", () => ({ Plus_Jakarta_Sans: () => ({ variable: "font-sans" }) }));
@@ -66,6 +72,8 @@ describe("SaaS root layout", () => {
 	beforeEach(() => {
 		mocks.consentCookie = undefined;
 		mocks.clientMessages.mockClear();
+		mocks.locale = "en";
+		mocks.serverMessages = undefined;
 		vi.stubEnv(
 			"NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION",
 			"0123456789abcdefghijklmnopqrstuvwxyz_ABCD-EFGH",
@@ -95,7 +103,7 @@ describe("SaaS root layout", () => {
 		expect(metadata.verification?.google).toBe(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION);
 	});
 
-	it("keeps administration translations out of the shared client payload", async () => {
+	it("keeps administration and server-only copy out of the shared client payload", async () => {
 		const { default: RootLayout } = await import("./layout");
 		renderToStaticMarkup(await RootLayout({ children: <main>content</main> }));
 
@@ -104,4 +112,38 @@ describe("SaaS root layout", () => {
 			home: { title: "Image editor" },
 		});
 	});
+
+	it.each(["en", "de", "es", "fr"] as const)(
+		"retains %s server-rendered FAQ and contact copy while preserving interactive translations",
+		async (locale) => {
+			const fullMessages = await getUnifiedMessagesForLocale(locale);
+			mocks.locale = locale;
+			mocks.serverMessages = fullMessages;
+			const { default: RootLayout } = await import("./layout");
+			const serverContent = (
+				<main>
+					<h2>{fullMessages.faq.items.restrictions.question}</h2>
+					<p>{fullMessages.faq.items.restrictions.answer}</p>
+					<a href="/contact#report-content">
+						{fullMessages.publicContent.contact.reporting.footerLabel}
+					</a>
+				</main>
+			);
+			const markup = renderToStaticMarkup(await RootLayout({ children: serverContent }));
+
+			expect(markup).toContain(`lang="${locale}"`);
+			expect(markup).toContain(renderToStaticMarkup(serverContent));
+			const [clientMessages] = mocks.clientMessages.mock.lastCall ?? [];
+			expect(clientMessages).not.toHaveProperty("admin");
+			expect(clientMessages).not.toHaveProperty("faq");
+			expect(clientMessages).not.toHaveProperty("publicContent");
+			for (const [namespace, messages] of Object.entries(fullMessages)) {
+				if (!["admin", "faq", "publicContent"].includes(namespace)) {
+					expect(clientMessages[namespace]).toEqual(messages);
+				}
+			}
+			expect(fullMessages.faq.items.restrictions.answer).not.toBe("");
+			expect(fullMessages.publicContent.contact.reporting.footerLabel).not.toBe("");
+		},
+	);
 });

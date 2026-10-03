@@ -713,6 +713,7 @@
 		},
 		"menu": {
 			"effects": "KI-Effekte",
+			"resources": "Ressourcen",
 			"blog": "Blog",
 			"changelog": "Changelog",
 			"contact": "Kontakt",

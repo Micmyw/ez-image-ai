@@ -10,8 +10,8 @@ import { StudioShell } from "@shared/components/studio/StudioShell";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { EffectRecommendations } from "../../effects/components/EffectRecommendations";
 import { LandingGenerator } from "../../landing/components/LandingGenerator";
+import { PhotoIdeaRecommendations } from "../../public-content/components/PhotoIdeaRecommendations";
 import { PublicFooterLinks } from "../../public-content/components/PublicFooterLinks";
 import { INSPIRATION, type ModelPageContent } from "../lib/model-pages";
 import { InspirationPrompt } from "./InspirationPrompt";
@@ -55,7 +55,7 @@ export function ModelPage({
 						</Suspense>
 					</div>
 				</section>
-				<EffectRecommendations productKey={model.key} />
+				<PhotoIdeaRecommendations productKey={model.key} />
 				<section className="model-story" aria-labelledby="model-story-title">
 					<figure className="model-artwork">
 						<ModelArtwork artwork={model.artwork} sizes="(max-width: 760px) 100vw, 45vw" />

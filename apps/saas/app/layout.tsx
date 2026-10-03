@@ -51,7 +51,13 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: PropsWithChildren) {
 	const locale = await getLocale();
 	// The admin layout supplies its namespace, including on client navigation.
-	const { admin: _admin, ...messages } = await getMessages();
+	// FAQ and contact copy is rendered only by Server Components from the full messages.
+	const {
+		admin: _admin,
+		faq: _faq,
+		publicContent: _publicContent,
+		...messages
+	} = await getMessages();
 	const consentStatus = parseConsentStatus((await cookies()).get("consent")?.value);
 
 	return (

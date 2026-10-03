@@ -198,5 +198,5 @@ export function effectPath(
 		parameters.set("source", sourceBlogId);
 	}
 	const query = parameters.toString();
-	return `/effects/${effect.slug}${query ? `?${query}` : ""}`;
+	return `/blog/${effect.slug}${query ? `?${query}` : ""}`;
 }

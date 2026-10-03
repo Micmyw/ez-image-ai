@@ -1,0 +1,37 @@
+.photo-idea-recommendations {
+	padding-block: clamp(2.5rem, 6vw, 5rem);
+}
+
+.photo-idea-recommendations-heading {
+	display: flex;
+	align-items: baseline;
+	justify-content: space-between;
+	flex-wrap: wrap;
+	gap: 1rem;
+	margin-bottom: 1.5rem;
+}
+
+.photo-idea-recommendations-heading h2 {
+	font-size: clamp(1.5rem, 3vw, 2rem);
+	font-weight: 600;
+	color: #f7f3ff;
+}
+
+.photo-idea-recommendations-heading a {
+	color: #d1b8fa;
+	text-underline-offset: 0.25em;
+}
+
+.photo-idea-recommendations-heading a:hover {
+	text-decoration: underline;
+}
+
+.photo-idea-recommendations a:focus-visible {
+	outline: 2px solid #c4b5fd;
+	outline-offset: 4px;
+}
+
+.photo-idea-recommendations-single {
+	max-width: 1100px;
+	margin-inline: auto;
+}

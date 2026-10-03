@@ -1,5 +1,7 @@
 # Effects and Guides
 
+Public organization and canonical routing are superseded by [Resources and Photo Ideas](./resources-and-photo-ideas.md). The following record preserves the original implementation and evidence requirements; it does not define a second public Effects catalog.
+
 Implementation reference for the 2026-09-29 Effects and Blog requirements. This document describes
 the local implementation and its content operation rules; it is not a production deployment record.
 

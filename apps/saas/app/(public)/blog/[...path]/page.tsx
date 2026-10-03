@@ -20,6 +20,7 @@ import {
 } from "../../../../modules/public-content/components/BlogVisual.server";
 import { ContentToc } from "../../../../modules/public-content/components/ContentToc";
 import { EffectCallout } from "../../../../modules/public-content/components/EffectCallout";
+import type { PhotoIdeaSearchParams } from "../../../../modules/public-content/components/PhotoIdeaArticle";
 import { PublicMarkdown } from "../../../../modules/public-content/components/PublicMarkdown";
 import { PublicPageShell } from "../../../../modules/public-content/components/PublicPageShell";
 import {
@@ -85,12 +86,25 @@ export async function generateMetadata({ params }: { params: Promise<BlogPagePar
 	};
 }
 
-export default async function BlogArticlePage({ params }: { params: Promise<BlogPageParams> }) {
+export default async function BlogArticlePage({
+	params,
+	searchParams = Promise.resolve({}),
+}: {
+	params: Promise<BlogPageParams>;
+	searchParams?: Promise<PhotoIdeaSearchParams>;
+}) {
 	const { path } = await params;
 	const locale = await getLocale();
 	const t = await getTranslations();
 	const post = getBlogPostBySlug(normalizePath(path), locale);
 	if (!post) notFound();
+	if (post.recipeId) {
+		const recipe = getPublishedEffectById(post.recipeId);
+		if (!recipe) notFound();
+		const { PhotoIdeaArticle } =
+			await import("../../../../modules/public-content/components/PhotoIdeaArticle");
+		return <PhotoIdeaArticle post={post} recipe={recipe} searchParams={searchParams} />;
+	}
 	const visual = getBlogVisual(post);
 	const visualPost = withBlogVisualCover(post);
 	const headings = getContentHeadings(post.body);

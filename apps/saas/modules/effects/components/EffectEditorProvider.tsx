@@ -152,7 +152,7 @@ export function EffectEditorProvider({
 						effect_id: effect.id,
 						preset_id: selectedRef.current.id,
 						preset_version: selectedRef.current.version,
-						entry_path: `/effects/${effect.slug}`,
+						entry_path: `/blog/${effect.slug}`,
 					},
 		[effect.id, effect.slug, isPreview],
 	);

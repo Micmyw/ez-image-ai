@@ -1,27 +1,38 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-const mocks = vi.hoisted(() => ({ effect: vi.fn() }));
+const mocks = vi.hoisted(() => ({ idea: vi.fn() }));
 vi.mock("server-only", () => ({}));
-vi.mock("./content", () => ({ getPublishedEffectBySlug: mocks.effect }));
+vi.mock("../../public-content/lib/content", () => ({ getPublishedPhotoIdeaBySlug: mocks.idea }));
 import { resolvePublishedEffectReturnPath } from "./editor-return.server";
+const idea = { recipe: { slug: "1980s-ai-photo", presets: [{ id: "studio-portrait" }] } };
 
-describe("published effect handoff allowlist", () => {
-	beforeEach(() => mocks.effect.mockReset());
-	it("rejects a draft, unknown effect, or unregistered preset", () => {
-		mocks.effect.mockReturnValue(null);
+describe("published Photo Idea handoff allowlist", () => {
+	beforeEach(() => mocks.idea.mockReset());
+	it("rejects an unavailable article/recipe or unregistered preset", () => {
+		mocks.idea.mockReturnValue(null);
 		expect(
-			resolvePublishedEffectReturnPath("/effects/1980s-ai-photo?preset=studio-portrait"),
+			resolvePublishedEffectReturnPath("/blog/1980s-ai-photo?preset=studio-portrait"),
 		).toBeNull();
-		mocks.effect.mockReturnValue({ slug: "1980s-ai-photo", presets: [{ id: "studio-portrait" }] });
+		mocks.idea.mockReturnValue(idea);
 		expect(
-			resolvePublishedEffectReturnPath("/effects/1980s-ai-photo?preset=private-prompt"),
+			resolvePublishedEffectReturnPath("/blog/1980s-ai-photo?preset=private-prompt"),
 		).toBeNull();
 	});
-	it("returns only an authored public effect/preset, excluding the old recovery flag", () => {
-		mocks.effect.mockReturnValue({ slug: "1980s-ai-photo", presets: [{ id: "studio-portrait" }] });
+	it.each(["/effects/1980s-ai-photo", "/blog/1980s-ai-photo"])(
+		"normalizes %s to the published article and drops consumed recovery flags",
+		(path) => {
+			mocks.idea.mockReturnValue(idea);
+			expect(
+				resolvePublishedEffectReturnPath(`${path}?preset=studio-portrait&upgrade=complete`),
+			).toBe("/blog/1980s-ai-photo?preset=studio-portrait");
+		},
+	);
+	it("never accepts ordinary or arbitrary Blog pages as generation return routes", () => {
+		mocks.idea.mockReturnValue(idea);
 		expect(
 			resolvePublishedEffectReturnPath(
-				"/effects/1980s-ai-photo?preset=studio-portrait&upgrade=complete",
+				"/blog/private-image-editing-workflow?preset=studio-portrait",
 			),
-		).toBe("/effects/1980s-ai-photo?preset=studio-portrait");
+		).toBeNull();
+		expect(mocks.idea).not.toHaveBeenCalled();
 	});
 });

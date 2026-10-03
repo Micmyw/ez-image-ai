@@ -1,5 +1,6 @@
 import { getContentHeadings } from "./blog-markdown";
 import { BLOG_CATEGORIES, BLOG_EDITORIAL_TEAM, type BlogPost } from "./blog-types";
+import { PHOTO_IDEA_RECIPE_ROUTES } from "./photo-idea-routes";
 
 type EffectReference = {
 	id: string;
@@ -45,8 +46,30 @@ export function validateBlogPosts(
 		)
 			fail("invalid publication or modification date");
 		if (!BLOG_CATEGORIES.includes(post.categoryId)) fail("unknown category");
-		if (!["guides", "prompt-guides", "troubleshooting", "comparisons"].includes(post.articleType))
+		if (
+			!["photo-ideas", "guides", "prompt-guides", "troubleshooting", "comparisons"].includes(
+				post.articleType,
+			)
+		)
 			fail("unknown article type");
+		if (post.recipeId) {
+			if (post.articleType !== "photo-ideas" || post.categoryId !== "photo-ideas")
+				fail("interactive recipes belong to Photo Ideas");
+			if (!post.relatedEffectIds.includes(post.recipeId)) fail("recipe must be related");
+			if (
+				!PHOTO_IDEA_RECIPE_ROUTES.some(
+					(route) => route.slug === post.slug && route.recipeId === post.recipeId,
+				)
+			)
+				fail("recipe requires a registered article identity");
+			if (posts.some((other) => other.recipeId === post.recipeId && other.id !== post.id))
+				fail("a recipe must have one canonical article");
+		}
+		if (
+			post.featuredOrder !== undefined &&
+			(!Number.isInteger(post.featuredOrder) || post.featuredOrder < 0)
+		)
+			fail("invalid featured order");
 		if (post.authorId !== BLOG_EDITORIAL_TEAM.id) fail("unknown author");
 		if (
 			new Set(post.relatedEffectIds).size !== post.relatedEffectIds.length ||
@@ -65,6 +88,14 @@ export function validateBlogPosts(
 		)
 			fail("invalid local cover");
 		const headingIds = new Set(getContentHeadings(post.body).map((heading) => heading.id));
+		if (
+			post.recipeId &&
+			(!post.recipePlacement ||
+				!headingIds.has(post.recipePlacement.presetsAfterHeadingId) ||
+				!headingIds.has(post.recipePlacement.editorAfterHeadingId))
+		)
+			fail("recipe needs valid article insertion headings");
+		if (!post.recipeId && post.recipePlacement) fail("recipe placement needs a recipe");
 		for (const block of post.contentBlocks ?? []) {
 			if (!post.relatedEffectIds.includes(block.effectId)) fail("content effect must be related");
 			const effect = effectMap.get(block.effectId);

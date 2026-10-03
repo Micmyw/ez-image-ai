@@ -72,7 +72,7 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 		pathname === "/" ||
 		pathname === "/create" ||
 		pathname === "/image-to-image" ||
-		pathname.startsWith("/effects/") ||
+		pathname === "/blog/1980s-ai-photo" ||
 		pathname.startsWith("/effects-preview/") ||
 		pathname === "/photo-to-coloring-page" ||
 		pathname.startsWith("/models/");
@@ -287,8 +287,6 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 						</div>
 						<nav className="studio-toplinks" aria-label={t("pageNavigation")}>
 							<StudioToolNavigation />
-							<Link href="/effects">{common("effects")}</Link>
-							<Link href="/blog">{common("blog")}</Link>
 							<a href={sectionHref("#pricing")}>{common("pricing")}</a>
 							{registered && !showSidebar && (
 								<Link href="/create" className="studio-create-link" prefetch={false}>

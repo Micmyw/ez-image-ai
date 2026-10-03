@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import { eightiesPhotoEffect } from "../../../content/effects/1980s-ai-photo";
+import { eightiesPhotoDocuments } from "../../../content/posts/1980s-ai-photo";
 import { promptEditingDocuments } from "../../../content/posts/ai-image-editing-prompts";
 import { blogDocuments } from "../../../content/posts/private-image-editing-workflow";
 import * as effectContent from "../../effects/lib/content";
@@ -15,6 +16,10 @@ import {
 	getBlogPostBySlug,
 	getBlogPostsForEffect,
 	getPublishedBlogPostPaths,
+	getPublishedPhotoIdeaBySlug,
+	getFeaturedPhotoIdeas,
+	getPhotoIdeasForProduct,
+	createBlogContentReader,
 } from "./content";
 
 const effectReferences = [{ id: "1980s-ai-photo", presets: [{ id: "studio-portrait" }] }];
@@ -22,6 +27,7 @@ const effectReferences = [{ id: "1980s-ai-photo", presets: [{ id: "studio-portra
 describe("Blog publication and editorial relationships", () => {
 	it("keeps both existing URLs, publication dates and English fallback", () => {
 		expect(getPublishedBlogPostPaths().sort()).toEqual([
+			"1980s-ai-photo",
 			"ai-image-editing-prompts",
 			"private-image-editing-workflow",
 		]);
@@ -44,11 +50,39 @@ describe("Blog publication and editorial relationships", () => {
 		expect(promptPost?.primaryEffectId).toBe("1980s-ai-photo");
 		expect(promptPost?.contentBlocks).toContainEqual(promptEditingDocuments[0].contentBlocks[0]);
 		expect(getBlogPostsForEffect("1980s-ai-photo", "en").map((post) => post.id)).toEqual([
+			"1980s-ai-photo",
 			"ai-image-editing-prompts",
 		]);
 		expect(getBlogPostsForEffect("unknown", "en")).toEqual([]);
 		const cards = publicPosts.map((post) => toBlogCard(post, "en"));
 		expect(cards.every((card) => !("body" in card) && !("relatedEffectIds" in card))).toBe(true);
+	});
+
+	it("makes the article the only public identity for the shared tested recipe", () => {
+		const idea = getPublishedPhotoIdeaBySlug("1980s-ai-photo")!;
+		expect(idea.post.articleType).toBe("photo-ideas");
+		expect(idea.post.categoryId).toBe("photo-ideas");
+		expect(idea.post.recipeId).toBe(idea.recipe.id);
+		expect(idea.recipe.presets).toHaveLength(3);
+		expect(idea.recipe.lastTestedAt).toBe("2026-09-29");
+		expect(idea.post.updatedAt).toBe("2026-10-04");
+		expect(getFeaturedPhotoIdeas("en").map((post) => post.id)).toEqual([idea.post.id]);
+		expect(getPhotoIdeasForProduct("image-nano-banana-2-lite", "en")).toEqual([idea.post]);
+		expect(getPhotoIdeasForProduct("unavailable", "en")).toEqual([]);
+	});
+
+	it("hides a draft article even when its shared recipe remains approved", () => {
+		const reader = createBlogContentReader([
+			...promptEditingDocuments,
+			{ ...eightiesPhotoDocuments[0], published: false },
+		]);
+		expect(reader.getPublishedPhotoIdeaBySlug("1980s-ai-photo")).toBeNull();
+		expect(reader.getFeaturedPhotoIdeas("en")).toEqual([]);
+		expect(reader.getPublishedBlogPostPaths()).toEqual(["ai-image-editing-prompts"]);
+		expect(reader.getBlogPostBySlug("ai-image-editing-prompts", "en")?.relatedEffectIds).toEqual(
+			[],
+		);
+		expect(reader.getPhotoIdeaForPreview("1980s-ai-photo")?.published).toBe(false);
 	});
 
 	it("filters a separately constructed unpublished fixture out of public Blog associations", () => {

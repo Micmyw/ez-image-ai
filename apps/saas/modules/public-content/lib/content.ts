@@ -1,6 +1,7 @@
 import { publicChangelogEntries } from "../../../content/changelog/releases";
 import { privacyPolicyDocuments } from "../../../content/legal/privacy-policy";
 import { termsDocuments } from "../../../content/legal/terms";
+import { eightiesPhotoDocuments } from "../../../content/posts/1980s-ai-photo";
 import { promptEditingDocuments } from "../../../content/posts/ai-image-editing-prompts";
 import { blogDocuments } from "../../../content/posts/private-image-editing-workflow";
 import { getEffectRecordsForValidation, getPublishedEffectById } from "../../effects/lib/content";
@@ -25,68 +26,133 @@ export type PublicChangelogEntry = {
 };
 
 const legalDocuments: readonly LegalPage[] = [...privacyPolicyDocuments, ...termsDocuments];
-const posts: readonly BlogPost[] = [...blogDocuments, ...promptEditingDocuments];
-validateBlogPosts(posts, getEffectRecordsForValidation());
+const posts: readonly BlogPost[] = [
+	...blogDocuments,
+	...promptEditingDocuments,
+	...eightiesPhotoDocuments,
+];
 
 export function getLegalPageByPath(path: string, options: { locale: string }): LegalPage | null {
 	return selectLocalizedDocument(legalDocuments, "path", path, options.locale);
 }
 
-export function getAllPublishedBlogPosts(locale: string): BlogPost[] {
-	return uniqueValues(posts, "slug")
-		.map((slug) => selectLocalizedDocument(posts, "slug", slug, locale))
-		.filter((post): post is BlogPost => post?.published === true)
-		.map(publicBlogPost)
-		.sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
-}
+export function createBlogContentReader(records: readonly BlogPost[]) {
+	validateBlogPosts(records, getEffectRecordsForValidation());
+	const isPublished = (post: BlogPost | null): post is BlogPost =>
+		post?.published === true && (!post.recipeId || Boolean(getPublishedEffectById(post.recipeId)));
+	const hasPublishedArticle = (recipeId: string) =>
+		records.some((post) => post.recipeId === recipeId && isPublished(post));
 
-export function getBlogPostBySlug(slug: string, locale: string): BlogPost | null {
-	const post = selectLocalizedDocument(posts, "slug", slug, locale);
-	return post?.published ? publicBlogPost(post) : null;
-}
+	function getAllPublishedBlogPosts(locale: string): BlogPost[] {
+		return uniqueValues(records, "slug")
+			.map((slug) => selectLocalizedDocument(records, "slug", slug, locale))
+			.filter(isPublished)
+			.map(publicBlogPost)
+			.sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
+	}
 
-/** Effects obtain related tutorials from the Blog relationship, never from a second list. */
-export function getBlogPostsForEffect(effectId: string, locale: string): BlogPost[] {
-	if (!getPublishedEffectById(effectId)) return [];
-	return getAllPublishedBlogPosts(locale).filter((post) =>
-		post.relatedEffectIds.includes(effectId),
-	);
-}
+	function getBlogPostBySlug(slug: string, locale: string): BlogPost | null {
+		const post = selectLocalizedDocument(records, "slug", slug, locale);
+		return isPublished(post) ? publicBlogPost(post) : null;
+	}
 
-export function getRelatedBlogPosts(post: BlogPost, locale: string, limit = 3): BlogPost[] {
-	return getAllPublishedBlogPosts(locale)
-		.filter(
-			(candidate) =>
-				candidate.id !== post.id &&
-				(candidate.categoryId === post.categoryId ||
-					candidate.tags.some((tag) => post.tags.includes(tag)) ||
-					candidate.relatedEffectIds.some((id) => post.relatedEffectIds.includes(id))),
-		)
-		.slice(0, limit);
-}
+	/** Effects obtain related tutorials from the Blog relationship, never from a second list. */
+	function getBlogPostsForEffect(effectId: string, locale: string): BlogPost[] {
+		if (!getPublishedEffectById(effectId)) return [];
+		return getAllPublishedBlogPosts(locale).filter((post) =>
+			post.relatedEffectIds.includes(effectId),
+		);
+	}
 
-function publicBlogPost(post: BlogPost): BlogPost {
-	const relatedEffectIds = post.relatedEffectIds.filter((id) => getPublishedEffectById(id));
+	function getRelatedBlogPosts(post: BlogPost, locale: string, limit = 3): BlogPost[] {
+		return getAllPublishedBlogPosts(locale)
+			.filter(
+				(candidate) =>
+					candidate.id !== post.id &&
+					(candidate.categoryId === post.categoryId ||
+						candidate.tags.some((tag) => post.tags.includes(tag)) ||
+						candidate.relatedEffectIds.some((id) => post.relatedEffectIds.includes(id))),
+			)
+			.slice(0, limit);
+	}
+
+	function publicBlogPost(post: BlogPost): BlogPost {
+		const relatedEffectIds = post.relatedEffectIds.filter(
+			(id) => getPublishedEffectById(id) && hasPublishedArticle(id),
+		);
+		return {
+			...post,
+			relatedEffectIds,
+			primaryEffectId:
+				post.primaryEffectId && relatedEffectIds.includes(post.primaryEffectId)
+					? post.primaryEffectId
+					: undefined,
+			contentBlocks: post.contentBlocks?.filter((block) =>
+				relatedEffectIds.includes(block.effectId),
+			),
+			tests: post.tests?.filter(
+				(test) => !test.preset || relatedEffectIds.includes(test.preset.effectId),
+			),
+		};
+	}
+
+	function getPublishedBlogPostPaths(): string[] {
+		return uniqueValues(records.filter(isPublished), "slug");
+	}
+
+	function getPublishedPhotoIdeaBySlug(slug: string, locale = "en") {
+		const post = getBlogPostBySlug(slug, locale);
+		const recipe = post?.recipeId ? getPublishedEffectById(post.recipeId) : null;
+		return post && recipe ? { post, recipe } : null;
+	}
+
+	function getFeaturedPhotoIdeas(locale: string, limit = 4): BlogPost[] {
+		return getAllPublishedBlogPosts(locale)
+			.filter((post) => post.articleType === "photo-ideas" && post.featuredOrder !== undefined)
+			.sort((left, right) => (left.featuredOrder ?? 0) - (right.featuredOrder ?? 0))
+			.slice(0, Math.max(0, Math.min(4, Math.trunc(limit))));
+	}
+
+	function getPhotoIdeasForProduct(productKey: string, locale: string): BlogPost[] {
+		return getAllPublishedBlogPosts(locale).filter(
+			(post) =>
+				post.recipeId &&
+				getPublishedEffectById(post.recipeId)?.presets.some(
+					(preset) => preset.productKey === productKey,
+				),
+		);
+	}
+
+	/** Authorize an administrator before using this preview-only reader. */
+	function getPhotoIdeaForPreview(recipeId: string, locale = "en"): BlogPost | null {
+		const record = records.find((post) => post.recipeId === recipeId);
+		return record ? selectLocalizedDocument(records, "slug", record.slug, locale) : null;
+	}
+
 	return {
-		...post,
-		relatedEffectIds,
-		primaryEffectId:
-			post.primaryEffectId && relatedEffectIds.includes(post.primaryEffectId)
-				? post.primaryEffectId
-				: undefined,
-		contentBlocks: post.contentBlocks?.filter((block) => relatedEffectIds.includes(block.effectId)),
-		tests: post.tests?.filter(
-			(test) => !test.preset || relatedEffectIds.includes(test.preset.effectId),
-		),
+		getAllPublishedBlogPosts,
+		getBlogPostBySlug,
+		getBlogPostsForEffect,
+		getRelatedBlogPosts,
+		getPublishedBlogPostPaths,
+		getPublishedPhotoIdeaBySlug,
+		getFeaturedPhotoIdeas,
+		getPhotoIdeasForProduct,
+		getPhotoIdeaForPreview,
 	};
 }
 
-export function getPublishedBlogPostPaths(): string[] {
-	return uniqueValues(
-		posts.filter((post) => post.published),
-		"slug",
-	);
-}
+export const {
+	getAllPublishedBlogPosts,
+	getBlogPostBySlug,
+	getBlogPostsForEffect,
+	getRelatedBlogPosts,
+	getPublishedBlogPostPaths,
+	getPublishedPhotoIdeaBySlug,
+	getFeaturedPhotoIdeas,
+	getPhotoIdeasForProduct,
+	getPhotoIdeaForPreview,
+} = createBlogContentReader(posts);
 
 export function getPublicChangelogEntries(): readonly PublicChangelogEntry[] {
 	return publicChangelogEntries;

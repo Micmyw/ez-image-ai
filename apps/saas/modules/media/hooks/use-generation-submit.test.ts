@@ -82,8 +82,8 @@ describe("one-request generation", () => {
 							effect_id: "effect-a",
 							preset_id: "portrait",
 							preset_version: 1,
-							internal_source: "effect",
-							entry_path: "/effects/effect-a",
+							internal_source: "blog",
+							entry_path: "/blog/photo-idea-a",
 						}
 					: null,
 			};
@@ -102,7 +102,7 @@ describe("one-request generation", () => {
 				context: {
 					...initialAttribution.context,
 					effect_id: "effect-b",
-					entry_path: "/effects/effect-b",
+					entry_path: "/blog/photo-idea-b",
 				},
 			});
 			resolve(response);
