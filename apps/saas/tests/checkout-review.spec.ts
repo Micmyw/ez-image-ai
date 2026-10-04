@@ -5,6 +5,7 @@ import { expect, test } from "@playwright/test";
 import pg from "pg";
 
 import { isExplicitVideoVerificationTarget } from "../../../tests/load/video-verification-target";
+import { submitPasswordSignIn } from "./helpers/password-sign-in";
 
 // Real local authentication and UI; provider outcomes are fixtures. The API and
 // serializable closure transaction have separate unit and PostgreSQL coverage.
@@ -55,7 +56,7 @@ test.describe("checkout review browser flow", () => {
 		await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 90_000 });
 		await page.getByLabel(/email/i).fill(email);
 		await page.locator('input[type="password"]').fill(password);
-		await page.locator('button[type="submit"]').click();
+		await submitPasswordSignIn(page);
 		await expect(page).toHaveURL(/\/create/, { timeout: 60_000 });
 	});
 	test("requires review evidence, preserves the operation on retry and shows the closed result", async ({

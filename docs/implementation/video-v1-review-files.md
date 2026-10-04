@@ -8,12 +8,12 @@
 `packages/database/prisma/zod/index.ts` 是从本分支 schema 重新生成的产物。
 完整责任与验收要求见 [审核说明](video-v1-github-review.md)。
 
-共 **353 个路径**。A 为新增、M 为修改、D 为删除。
+共 **358 个路径**。A 为新增、M 为修改、D 为删除。
 
 | 类别           | 路径数 |
 | -------------- | -----: |
-| 实现与配置     |    160 |
-| 测试与验证工具 |    139 |
+| 实现与配置     |    161 |
+| 测试与验证工具 |    143 |
 | 文档           |     26 |
 | 夹具与验收记录 |     28 |
 
@@ -54,6 +54,7 @@
 | M    | [apps/saas/proxy.ts](../../apps/saas/proxy.ts)                                                                                                                                                           |
 | M    | [apps/saas/storage-connect-origin.ts](../../apps/saas/storage-connect-origin.ts)                                                                                                                         |
 | M    | [apps/saas/tests/auth.setup.ts](../../apps/saas/tests/auth.setup.ts)                                                                                                                                     |
+| A    | [apps/saas/tests/helpers/password-sign-in.ts](../../apps/saas/tests/helpers/password-sign-in.ts)                                                                                                         |
 | M    | [apps/saas/wrangler.jsonc](../../apps/saas/wrangler.jsonc)                                                                                                                                               |
 | M    | [apps/web-host/src/build-secrets.ts](../../apps/web-host/src/build-secrets.ts)                                                                                                                           |
 | M    | [apps/web-host/src/deployment-bindings.ts](../../apps/web-host/src/deployment-bindings.ts)                                                                                                               |
@@ -193,6 +194,7 @@
 | A    | [apps/saas/cloudflare/linux-build-cleanup.test.mjs](../../apps/saas/cloudflare/linux-build-cleanup.test.mjs)                                                                                         |
 | A    | [apps/saas/cloudflare/linux-build-policy.test.mjs](../../apps/saas/cloudflare/linux-build-policy.test.mjs)                                                                                           |
 | M    | [apps/saas/modules/docs/lib/source.test.ts](../../apps/saas/modules/docs/lib/source.test.ts)                                                                                                         |
+| M    | [apps/saas/modules/shared/components/studio/StudioShell.test.tsx](../../apps/saas/modules/shared/components/studio/StudioShell.test.tsx)                                                             |
 | A    | [apps/saas/modules/video-v1/messages.test.ts](../../apps/saas/modules/video-v1/messages.test.ts)                                                                                                     |
 | A    | [apps/saas/modules/video-v1/model.test.ts](../../apps/saas/modules/video-v1/model.test.ts)                                                                                                           |
 | A    | [apps/saas/modules/video-v1/playwright.config.ts](../../apps/saas/modules/video-v1/playwright.config.ts)                                                                                             |
@@ -202,7 +204,9 @@
 | M    | [apps/saas/proxy.test.ts](../../apps/saas/proxy.test.ts)                                                                                                                                             |
 | M    | [apps/saas/storage-connect-origin.test.ts](../../apps/saas/storage-connect-origin.test.ts)                                                                                                           |
 | M    | [apps/saas/tests/avatar-upload.spec.ts](../../apps/saas/tests/avatar-upload.spec.ts)                                                                                                                 |
+| M    | [apps/saas/tests/billing-auth.spec.ts](../../apps/saas/tests/billing-auth.spec.ts)                                                                                                                   |
 | M    | [apps/saas/tests/checkout-review.spec.ts](../../apps/saas/tests/checkout-review.spec.ts)                                                                                                             |
+| M    | [apps/saas/tests/landing.spec.ts](../../apps/saas/tests/landing.spec.ts)                                                                                                                             |
 | M    | [apps/saas/tests/subscription-upgrade.spec.ts](../../apps/saas/tests/subscription-upgrade.spec.ts)                                                                                                   |
 | M    | [apps/saas/vitest.config.ts](../../apps/saas/vitest.config.ts)                                                                                                                                       |
 | M    | [apps/web-host/src/build-secrets.test.ts](../../apps/web-host/src/build-secrets.test.ts)                                                                                                             |
@@ -324,6 +328,7 @@
 | A    | [tests/video-v1/no-paid-network.mjs](../../tests/video-v1/no-paid-network.mjs)                                                                                                                       |
 | A    | [tests/video-v1/pricing-report.ts](../../tests/video-v1/pricing-report.ts)                                                                                                                           |
 | A    | [tests/video-v1/run.ts](../../tests/video-v1/run.ts)                                                                                                                                                 |
+| A    | [tooling/e2e/src/password-sign-in.test.ts](../../tooling/e2e/src/password-sign-in.test.ts)                                                                                                           |
 | M    | [tooling/e2e/src/run.ts](../../tooling/e2e/src/run.ts)                                                                                                                                               |
 
 ## 文档

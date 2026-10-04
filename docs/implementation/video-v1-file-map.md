@@ -190,6 +190,16 @@ stderr evidence collection lives in
 `packages/storage/test-support/workerd-network-evidence.mjs`, used by the existing
 remote-media smoke with matching unit coverage.
 
+The shared `StudioShell.tsx` and `HeaderNavigationMenu.tsx` defer
+`VideoNavigationLink` until registered-user navigation renders. Guest import
+regressions live in `StudioShell.test.tsx`; the existing homepage resource check
+in `apps/saas/tests/landing.spec.ts` also rejects the video catalog marker while
+retaining its original transfer budget.
+
+`apps/saas/tests/helpers/password-sign-in.ts` handles one explicit bounded
+Better Auth 429 cooldown for real browser fixture login, with contract tests in
+`tooling/e2e/src/password-sign-in.test.ts`. Production authentication is unchanged.
+
 The harness exception is limited to explicit local Mock tests. The video visual
 adapter continues to require SeeAPI, and deployed production does not inherit a
 test approval. Current CI results and external blockers are recorded in

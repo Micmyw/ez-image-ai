@@ -5,6 +5,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const state = vi.hoisted(() => ({
 	pathname: "/",
 	user: null as { id: string; isAnonymous?: boolean } | null,
+	videoAvailable: false,
+	videoNavigationImported: vi.fn(),
 }));
 vi.mock("@auth/components/SessionProvider", () => ({
 	SessionProvider: ({ children }: { children: ReactNode }) => children,
@@ -26,6 +28,10 @@ vi.mock("@shared/hooks/use-media-query", () => ({
 }));
 vi.mock("@organizations/components/OrganizationSelect", () => ({ OrganzationSelect: () => null }));
 vi.mock("../UserMenu", () => ({ UserMenu: () => <button>Account menu</button> }));
+vi.mock("../../../video-v1/VideoNavigationLink", async (importOriginal) => {
+	state.videoNavigationImported();
+	return importOriginal();
+});
 vi.mock("../NotificationCenter", () => ({ NotificationCenter: () => null }));
 vi.mock("./HeaderPurchaseActions", () => ({
 	HeaderPurchaseActions: () => <div>Purchase actions</div>,
@@ -34,7 +40,10 @@ vi.mock("../NavBar", () => ({ NavBar: () => <nav>Account navigation</nav> }));
 vi.mock("@tanstack/react-query", async (importOriginal) => ({
 	...(await importOriginal<typeof import("@tanstack/react-query")>()),
 	useQuery: () => ({
-		data: { products: [{ key: "image-gpt-image-2", skuMatrix: { cells: [{}] } }] },
+		data: {
+			available: state.videoAvailable,
+			products: [{ key: "image-gpt-image-2", skuMatrix: { cells: [{}] } }],
+		},
 	}),
 }));
 vi.mock("@shared/lib/orpc-client", () => ({ orpcClient: {} }));
@@ -56,6 +65,34 @@ describe("homepage and signed-in tool navigation", () => {
 	beforeEach(() => {
 		state.pathname = "/";
 		state.user = null;
+		state.videoAvailable = false;
+	});
+
+	it.each([null, { id: "guest", isAnonymous: true }])(
+		"does not import video navigation or its catalog for a homepage visitor (%j)",
+		async (user) => {
+			state.user = user;
+			expect(state.videoNavigationImported).not.toHaveBeenCalled();
+			const markup = await renderShell();
+			expect(markup).not.toContain('href="/video"');
+			expect(state.videoNavigationImported).not.toHaveBeenCalled();
+		},
+	);
+
+	it("loads video navigation for a registered user only when its catalog grants access", async () => {
+		state.pathname = "/create";
+		state.user = { id: "owner" };
+		state.videoAvailable = true;
+		const markup = await renderShell();
+		expect(state.videoNavigationImported).toHaveBeenCalled();
+		expect(markup).toContain('href="/video"');
+	});
+
+	it("keeps the deferred video link hidden when the registered user has no catalog access", async () => {
+		state.pathname = "/create";
+		state.user = { id: "owner" };
+		const markup = await renderShell();
+		expect(markup).not.toContain('href="/video"');
 	});
 
 	it("opens a model page from the create sidebar instead of only changing the form query", async () => {

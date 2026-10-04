@@ -2,6 +2,8 @@ import fs from "node:fs/promises";
 
 import { expect, test as setup } from "@playwright/test";
 
+import { submitPasswordSignIn } from "./helpers/password-sign-in";
+
 const authFile = "playwright/.auth/user.json";
 
 setup("authenticate deterministic creators", async ({ browser }) => {
@@ -42,7 +44,7 @@ async function authenticate(
 	await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 120_000 });
 	await page.getByLabel(/email/i).fill(email);
 	await page.locator('input[type="password"]').fill(password);
-	await page.locator('button[type="submit"]').click();
+	await submitPasswordSignIn(page);
 	await expect(page).toHaveURL(/\/create/, { timeout: 60_000 });
 	await expect(page.getByLabel(/edit instruction|image prompt/i)).toBeVisible({ timeout: 120_000 });
 	await context.storageState({ path });

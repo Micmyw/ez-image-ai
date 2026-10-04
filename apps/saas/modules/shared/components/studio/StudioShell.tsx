@@ -24,7 +24,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type MouseEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
-import { VideoNavigationLink } from "../../../video-v1/VideoNavigationLink";
 import { HeaderNavigationMenu } from "./HeaderNavigationMenu";
 import { HeaderPurchaseActions } from "./HeaderPurchaseActions";
 import {
@@ -46,6 +45,9 @@ const NotificationCenter = dynamic(() =>
 	import("../NotificationCenter").then((module) => module.NotificationCenter),
 );
 const UserMenu = dynamic(() => import("../UserMenu").then((module) => module.UserMenu));
+const VideoNavigationLink = dynamic(() =>
+	import("../../../video-v1/VideoNavigationLink").then((module) => module.VideoNavigationLink),
+);
 
 export function StudioShell({
 	children,

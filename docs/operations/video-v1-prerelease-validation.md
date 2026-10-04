@@ -89,6 +89,37 @@ Fifteen focused cases and the real local workerd smoke passed, including the sam
 100 ms delay injection. The tests are discovered by the existing Storage unit
 contract command. This verifies local workerd behavior, not a Cloudflare deployment.
 
+[The run on `2ea0ef29`](https://github.com/Micmyw/ez-image-ai/actions/runs/37188831446)
+passed four of five jobs, including all 1577 integration cases, both database
+invariant checks, production builds and the workerd smoke. MinIO passed 12 image
+and five video-input cases. Authenticated browsers passed 34 cases and two more
+after a login retry; the avatar regression passed. The guest phase passed 27
+cases, but its homepage resource check failed twice at 534,261 gzip bytes against
+the existing 532,480-byte limit. Its trace showed a statically imported video
+catalog/hooks chunk of 11,980 gzip bytes on the guest homepage. Video UI did not
+execute after that failure; this run is FAILURE, not a complete browser pass.
+
+Both shared navigation entry points now load `VideoNavigationLink` dynamically
+inside the existing registered-user condition. The link still requires the
+server catalog's availability decision. Two guest/anonymous import regressions
+failed before the change; all 21 focused shell/navigation cases passed afterward.
+The existing production homepage browser test also rejects the actual video
+catalog product marker in downloaded scripts, without changing its byte limit.
+The resulting production resource total must be verified in the subsequent CI
+run; a source-level split alone is not that measurement.
+
+The two login retries in that run were not unexplained browser timing: server
+logs recorded HTTP 429 for `POST /api/auth/sign-in/email` after three successful
+sign-ins inside ten seconds. Better Auth's production password-login rule is
+three requests per ten seconds and returns `X-Retry-After`. The browser-test
+helper now listens before submitting the real form and honors at most one valid
+0–10-second server cooldown. Missing/invalid delay headers, other errors and a
+second 429 fail explicitly. Production authentication and its rate limits are
+unchanged, and the tests retain their real login and post-login URL assertions.
+All 19 focused cooldown contracts passed; the E2E tooling type check passed.
+The homepage navigation change also passed the SaaS type check and independent
+source review. No local database or browser server was restarted for these fixes.
+
 The nine video UI cases now follow the standard media E2E in CI. They reuse the
 existing browser harness and local services, with video disabled and a network
 guard allowing only loopback services and optional font downloads. Video RPCs,
@@ -146,6 +177,13 @@ passed all ten unmodified invariant checks. The main database retained all 23
 SeeAPI inbox records with zero missing jobs or assets, proving the result did not
 come from deleting the evidence. The earlier failed reproduction is retained
 separately.
+
+After verification, both task-owned PostgreSQL containers and their dedicated
+volumes were removed following graceful shutdown. Ports 55432, 55439 and 55440
+were confirmed closed, and all recorded task process trees exited. The shared
+PostgreSQL and MinIO services retained their original container identities,
+start times, volumes and healthy state. The unmerged review worktree and local
+diagnostic evidence are retained.
 
 ## Deployment readiness repair
 

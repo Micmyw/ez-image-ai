@@ -4,6 +4,8 @@ import { pathToFileURL } from "node:url";
 import { expect, test, type Page } from "@playwright/test";
 import pg from "pg";
 
+import { submitPasswordSignIn } from "./helpers/password-sign-in";
+
 test.use({ storageState: { cookies: [], origins: [] } });
 
 test.describe("billing page authentication", () => {
@@ -104,7 +106,7 @@ async function signIn(page: Page, email: string, password: string) {
 	await expect(page.locator('button[type="submit"]')).toBeEnabled({ timeout: 90_000 });
 	await page.getByLabel(/email/i).fill(email);
 	await page.locator('input[type="password"]').fill(password);
-	await page.locator('button[type="submit"]').click();
+	await submitPasswordSignIn(page);
 	await expect(page).toHaveURL(/\/create/, { timeout: 60_000 });
 }
 

@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@repo/ui/componen
 import { useMediaQuery } from "@shared/hooks/use-media-query";
 import { ArrowUpRightIcon, MenuIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -17,10 +18,13 @@ import {
 	useState,
 } from "react";
 
-import { VideoNavigationLink } from "../../../video-v1/VideoNavigationLink";
 import { HeaderPurchaseActions } from "./HeaderPurchaseActions";
 import { resetStudioWorkspace } from "./studio-context";
 import { StudioToolNavigation } from "./StudioToolNavigation";
+
+const VideoNavigationLink = dynamic(() =>
+	import("../../../video-v1/VideoNavigationLink").then((module) => module.VideoNavigationLink),
+);
 
 export function HeaderNavigationMenu({
 	registered,

@@ -522,7 +522,12 @@ test("the production homepage excludes account tools, charts, and documentation 
 		"Shared styles must remain independently cacheable",
 	).toBeGreaterThan(0);
 	expect(resources.inlineStyles, "Do not duplicate global CSS inside HTML and RSC").toHaveLength(0);
-	for (const marker of ["current-editor-result", "notifications.markAllRead"]) {
+	for (const marker of [
+		"current-editor-result",
+		"notifications.markAllRead",
+		// Stable product key from the authenticated video catalog.
+		"video-kling-2-6-v1",
+	]) {
 		expect
 			.soft(
 				scripts.some((source) => source.includes(marker)),
