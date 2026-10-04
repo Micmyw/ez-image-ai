@@ -10,6 +10,12 @@ import { getDatabaseClient } from "../../client";
 import type { Prisma } from "../../generated/client";
 import { releaseCreditsInTransaction } from "./credits";
 import { runReadCommitted } from "./types";
+import {
+	lockVideoOwnerStorage,
+	releaseVideoPreOutputCapacity,
+	videoOutputReservationBytes,
+	videoOutputReservationKey,
+} from "./video-v1-storage";
 
 const ENGINE = "video-workflow-v1";
 const terminal = new Set(["READY", "FAILED", "REJECTED"]);
@@ -141,6 +147,7 @@ export async function claimVideoProviderSubmission(input: {
 	ruleVersion: string;
 }) {
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
+		await lockVideoOwnerStorage(tx, input.jobId);
 		const job = await lockedContext(tx, input.jobId);
 		const existing = job.attempts[0];
 		if (existing) return { attempt: existing, claimed: false };
@@ -161,6 +168,16 @@ export async function claimVideoProviderSubmission(input: {
 		) {
 			throw new Error("VIDEO_INPUT_REVIEW_REQUIRED");
 		}
+		const outputReservation = await tx.storageUsageReservation.findFirst({
+			where: {
+				ownerType: job.ownerType,
+				ownerId: job.ownerId,
+				referenceKey: videoOutputReservationKey(job.id),
+				status: "ACTIVE",
+				bytes: { gte: videoOutputReservationBytes(job.inputSnapshot) },
+			},
+		});
+		if (!outputReservation) throw new Error("VIDEO_STORAGE_RESERVATION_REQUIRED");
 		const attempt = await tx.generationAttempt.create({
 			data: {
 				jobId: job.id,
@@ -259,14 +276,19 @@ export async function failVideoExecution(
 	onlyBeforeAccepted = false,
 ) {
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
+		await lockVideoOwnerStorage(tx, jobId);
 		const job = await lockedContext(tx, jobId);
 		if (
 			terminal.has(job.videoExecution!.stage) ||
 			job.videoExecution!.stage === "NEEDS_REVIEW" ||
 			job.attempts[0]?.status === "SUCCEEDED" ||
-			(onlyBeforeAccepted && job.attempts[0]?.providerTaskId)
+			(onlyBeforeAccepted && job.attempts[0]?.providerTaskId) ||
+			(!onlyBeforeAccepted &&
+				(job.attempts.some((attempt) => attempt.uncertainSubmission) ||
+					job.videoExecution!.stage === "SUBMISSION_UNCERTAIN"))
 		)
 			return false;
+		await releaseVideoPreOutputCapacity(tx, job);
 		if (job.reservation?.status === "ACTIVE")
 			await releaseCreditsInTransaction(
 				{

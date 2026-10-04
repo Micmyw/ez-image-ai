@@ -1936,7 +1936,6 @@
 		"modelAvailabilityHint": "Les options dépendent du modèle et de votre compte. Aucun devis ne peut être obtenu pour les réglages indisponibles.",
 		"selectionUnavailable": "Cette combinaison de modèle et de réglages n’est pas disponible pour la génération actuellement.",
 		"settings": "Réglages vidéo",
-		"done": "Terminé",
-		"audioReviewHint": "L’audio nécessite une vérification du contenu parlé. En cas d’incertitude, il reste bloqué pour vérification avant lecture."
+		"done": "Terminé"
 	}
 }

@@ -6,6 +6,16 @@ the implemented paths; the [review branch inventory](video-v1-review-files.md)
 records the complete branch diff, including integration fixes and generated schema output.
 The original implementation baseline below remains historical attribution evidence.
 
+The follow-up to review snapshot `4a7294c0` adds
+`packages/database/prisma/queries/media/video-v1-storage.ts` for the frozen output
+capacity policy, stable reservation keys, shared quota and lock helpers. Admission
+in `video-v1.ts`, the paid-send fence in `video-v1-execution.ts`, and output recovery
+in `video-v1-fulfillment.ts` share that reservation. `video-v1-cleanup.ts` honors the
+saved output expiry and releases capacity only after physical deletion. Immutable
+audio policy is carried from `packages/config/video-output.ts` to both transfer and
+recovery inspection in `packages/jobs/src/video-v1/output-storage.ts`. Evidence and
+rollback constraints are in the [review repair report](../operations/video-v1-review-fixes-2026-10-04.md).
+
 Implementation baseline (2026-10-04): branch `main`, HEAD
 `569bf39eea9dcf072d3c5e5f79d58cd38d6bb466`. The supplied plan's
 `1b3c9dc2c2b5ee3e9dd0b05e3fea02141908d04b` is historical context only.
@@ -126,7 +136,11 @@ audio-bearing work whose accepted policy still requires that review remains held
 
 For new SeeAPI work, `threshold_offset=0`, `strict_special_care=true`, and
 `return_frames=none`; requested frames are `clamp(ceil(request seconds)+2,8,32)`.
-The actual stored video is limited to 30 seconds and 100,000,000 bytes. Its report must meet
+Storage and its admission reservation allow at most 100 MiB (104,857,600 bytes).
+The SeeAPI input gate separately allows at most 30 seconds and 100,000,000 bytes.
+A stored result between the two byte limits enters
+`NEEDS_REVIEW / VIDEO_SEEAPI_INPUT_LIMIT_EXCEEDED` before SeeAPI submission and
+cannot be delivered. Its report must meet
 the application's first/last/adjacent-sample coverage checks, but those checks do not prove
 every-frame review and have not been validated against real supplier output. Optional
 special-care labels preserve their reported/omitted distinction without invented categories.

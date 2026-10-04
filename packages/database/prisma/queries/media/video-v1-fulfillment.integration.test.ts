@@ -689,6 +689,101 @@ describe("video V1 fulfillment isolated database", () => {
 		});
 		await scoped(() => failVideoDelivery(item.jobId, "TEST_CLEANUP"));
 	});
+	it("migrates prepayment capacity without double counting and commits only actual output bytes", async () => {
+		const item = await fixture();
+		const prepay = await client.storageUsageReservation.create({
+			data: {
+				ownerType: "USER",
+				ownerId: item.ownerId,
+				referenceKey: `video-output:${item.jobId}`,
+				bytes: 104857600n,
+				expiresAt: new Date(0),
+			},
+		});
+		// Accepted capacity must survive a later quota reduction and elapsed TTL.
+		const claim = await scoped(() => claimVideoOutputStorage(item.jobId, 1n));
+		expect(claim.maxBytes).toBe(104857600);
+		expect(
+			await client.storageUsageReservation.findMany({ where: { ownerId: item.ownerId } }),
+		).toEqual([
+			expect.objectContaining({
+				id: prepay.id,
+				referenceKey: `generation-output:${claim.asset.id}`,
+				bytes: 104857600n,
+				status: "ACTIVE",
+			}),
+		]);
+		const output = {
+			bytes: 1000,
+			checksum: "a".repeat(64),
+			etag: "etag",
+			durationMillis: 5000,
+			width: 1280,
+			height: 720,
+			audioTracks: 0,
+			videoTracks: 1 as const,
+		};
+		await scoped(() =>
+			completeVideoOutputStorage(item.jobId, claim.asset.id, claim.token!, output),
+		);
+		await scoped(() =>
+			completeVideoOutputStorage(item.jobId, claim.asset.id, claim.token!, output),
+		);
+		expect(
+			await client.storageUsageReservation.findUnique({ where: { id: prepay.id } }),
+		).toMatchObject({ bytes: 1000n, status: "COMMITTED" });
+		await scoped(() => failVideoDelivery(item.jobId, "REVIEW_REJECTED", true));
+		// Physical object cleanup, not a logical rejection, releases stored bytes.
+		expect(
+			await client.storageUsageReservation.findUnique({ where: { id: prepay.id } }),
+		).toMatchObject({ bytes: 1000n, status: "COMMITTED" });
+	});
+	it("historical paid jobs recover only when the full output budget is available", async () => {
+		const item = await fixture();
+		await expect(scoped(() => claimVideoOutputStorage(item.jobId, 104857599n))).rejects.toThrow(
+			"VIDEO_STORAGE_QUOTA_EXCEEDED",
+		);
+		expect(
+			await client.generationJobAsset.count({ where: { jobId: item.jobId, role: "OUTPUT" } }),
+		).toBe(0);
+		const claim = await scoped(() => claimVideoOutputStorage(item.jobId, 104857600n));
+		expect(claim.maxBytes).toBe(104857600);
+		expect(
+			await client.storageUsageReservation.count({
+				where: { ownerId: item.ownerId, status: "ACTIVE", bytes: 104857600n },
+			}),
+		).toBe(1);
+		expect(await client.generationAttempt.count({ where: { jobId: item.jobId } })).toBe(1);
+	});
+	it("historical partial reservations require a full upgrade without dropping expired competing capacity", async () => {
+		const item = await fixture();
+		const claim = await scoped(() => claimVideoOutputStorage(item.jobId, 104857600n));
+		await scoped(() => releaseVideoStorageLease(item.jobId, claim.asset.id, claim.token!));
+		const own = await client.storageUsageReservation.update({
+			where: { referenceKey: `generation-output:${claim.asset.id}` },
+			data: { bytes: 10n, expiresAt: new Date(0) },
+		});
+		await client.storageUsageReservation.create({
+			data: {
+				ownerType: "USER",
+				ownerId: item.ownerId,
+				referenceKey: `media-upload:${crypto.randomUUID()}`,
+				bytes: 1n,
+				expiresAt: new Date(0),
+			},
+		});
+		await expect(scoped(() => claimVideoOutputStorage(item.jobId, 104857600n))).rejects.toThrow(
+			"VIDEO_STORAGE_QUOTA_EXCEEDED",
+		);
+		expect(
+			await client.storageUsageReservation.findUnique({ where: { id: own.id } }),
+		).toMatchObject({ bytes: 10n });
+		const retry = await scoped(() => claimVideoOutputStorage(item.jobId, 104857601n));
+		expect(retry.asset.id).toBe(claim.asset.id);
+		expect(
+			await client.storageUsageReservation.findUnique({ where: { id: own.id } }),
+		).toMatchObject({ bytes: 104857600n });
+	});
 	it("DB failure resume preserves one asset/key, quota reservation, attempt and immutable identity", async () => {
 		const item = await fixture();
 		const initial = await scoped(() => claimVideoOutputStorage(item.jobId, 200_000_000n));

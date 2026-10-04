@@ -200,6 +200,15 @@ async function fixture(options: { missingTextProfile?: boolean } = {}) {
 		},
 	});
 	const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
+	await client.storageUsageReservation.create({
+		data: {
+			ownerType: "USER",
+			ownerId,
+			referenceKey: `video-output:${job.id}`,
+			bytes: 104857600n,
+			expiresAt: new Date(0),
+		},
+	});
 	await createCreditGrant(
 		{ accountId: account.id, amount: 10n, referenceKey: `grant:${suffix}` },
 		client,
@@ -248,6 +257,50 @@ async function fixture(options: { missingTextProfile?: boolean } = {}) {
 }
 
 describe("video submission database correctness", () => {
+	it.each(["missing", "insufficient", "released", "foreign-owner"])(
+		"refuses a new paid submission with %s output capacity",
+		async (mode) => {
+			const f = await fixture();
+			const where = { referenceKey: `video-output:${f.job.id}` };
+			if (mode === "missing") await client.storageUsageReservation.delete({ where });
+			else
+				await client.storageUsageReservation.update({
+					where,
+					data:
+						mode === "insufficient"
+							? { bytes: 104857599n }
+							: mode === "released"
+								? { status: "RELEASED" }
+								: { ownerId: "wrong-owner" },
+				});
+			await expect(run(() => claimVideoProviderSubmission(f.claim))).rejects.toThrow(
+				"VIDEO_STORAGE_RESERVATION_REQUIRED",
+			);
+			expect(await client.generationAttempt.count({ where: { jobId: f.job.id } })).toBe(0);
+		},
+	);
+	it("retains output capacity and credits when provider acceptance is uncertain", async () => {
+		const f = await fixture();
+		await run(() => claimVideoProviderSubmission(f.claim));
+		expect(await run(() => failVideoExecution(f.job.id, "TIMEOUT"))).toBe(false);
+		expect(
+			await client.storageUsageReservation.findUnique({
+				where: { referenceKey: `video-output:${f.job.id}` },
+			}),
+		).toMatchObject({ status: "ACTIVE", bytes: 104857600n });
+		expect((await run(() => getVideoExecutionContext(f.job.id)))?.reservation?.status).toBe(
+			"ACTIVE",
+		);
+	});
+	it("releases output capacity for a definite pre-provider moderation rejection", async () => {
+		const f = await fixture();
+		expect(await run(() => failVideoExecution(f.job.id, "MODERATION_REJECTED", true))).toBe(true);
+		expect(
+			await client.storageUsageReservation.findUnique({
+				where: { referenceKey: `video-output:${f.job.id}` },
+			}),
+		).toMatchObject({ status: "RELEASED" });
+	});
 	it("refuses new paid claims for historical inputs missing a frozen text profile", async () => {
 		const f = await fixture({ missingTextProfile: true });
 		await expect(run(() => claimVideoProviderSubmission(f.claim))).rejects.toThrow(
@@ -367,6 +420,11 @@ describe("video submission database correctness", () => {
 			),
 		);
 		const job = await run(() => getVideoExecutionContext(f.job.id));
+		expect(
+			await client.storageUsageReservation.findUnique({
+				where: { referenceKey: `video-output:${f.job.id}` },
+			}),
+		).toMatchObject({ status: "RELEASED" });
 		expect(job?.reservation?.status).toBe("RELEASED");
 		expect(
 			await client.creditLedgerEntry.count({

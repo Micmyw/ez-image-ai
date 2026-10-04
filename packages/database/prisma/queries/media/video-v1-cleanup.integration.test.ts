@@ -31,7 +31,7 @@ async function asset(kind: "INPUT" | "OUTPUT" = "INPUT") {
 		},
 	});
 }
-async function bind(assetId: string, stage: "NEEDS_REVIEW" | "READY") {
+async function bind(assetId: string, stage: "NEEDS_REVIEW" | "READY" | "FAILED" | "REJECTED") {
 	const quote = await db.generationQuote.create({
 		data: {
 			ownerType: "USER",
@@ -61,7 +61,12 @@ async function bind(assetId: string, stage: "NEEDS_REVIEW" | "READY") {
 			inputSnapshot: {},
 			pricingSnapshot: {},
 			executionEngine: "video-workflow-v1",
-			status: stage === "READY" ? "SUCCEEDED" : "NEEDS_RECONCILIATION",
+			status:
+				stage === "READY"
+					? "SUCCEEDED"
+					: stage === "NEEDS_REVIEW"
+						? "NEEDS_RECONCILIATION"
+						: "FAILED",
 		},
 	});
 	await db.videoExecution.create({
@@ -77,6 +82,52 @@ async function bind(assetId: string, stage: "NEEDS_REVIEW" | "READY") {
 	});
 	return job;
 }
+
+async function deliveredOutput(deleteAfter: Date | null, createdAt = old) {
+	const output = await asset("OUTPUT");
+	const job = await bind(output.id, "READY");
+	const validUntil = new Date(now.getTime() + 40 * 86_400_000);
+	await db.assetModerationResult.create({
+		data: {
+			assetId: output.id,
+			assetChecksum: "a".repeat(64),
+			verificationGeneration: 1,
+			attemptNumber: 1,
+			evidenceKind: "OUTPUT",
+			provider: "retention-test",
+			ruleVersion: "test",
+			policyVersion: "test",
+			status: "APPROVED",
+			reasonCode: "ISOLATED_RETENTION_FIXTURE",
+			categories: {},
+			rawEnvelope: {},
+			validUntil,
+		},
+	});
+	await db.mediaAsset.update({
+		where: { id: output.id },
+		data: {
+			status: "READY",
+			deleteAfter,
+			createdAt,
+			checksum: "a".repeat(64),
+			verificationGeneration: 1,
+			verificationAttemptCount: 1,
+			verificationProvider: "retention-test",
+			verificationRuleVersion: "test",
+			verificationPolicyVersion: "test",
+			verificationValidUntil: validUntil,
+		},
+	});
+	return { output, job };
+}
+
+async function isCleanupCandidate(assetId: string, at = now) {
+	return (await listVideoResourceCleanupCandidates({ limit: 100, now: at }, db)).some(
+		(candidate) => candidate.id === assetId,
+	);
+}
+
 describe("video orphan resource isolation", () => {
 	beforeAll(() => {
 		const url = process.env.TEST_DATABASE_URL;
@@ -99,9 +150,119 @@ describe("video orphan resource isolation", () => {
 		});
 		await db.generationJob.deleteMany({ where: { ownerId } });
 		await db.generationQuote.deleteMany({ where: { ownerId } });
-		await db.mediaAsset.deleteMany({ where: { ownerId } });
+		// Moderation evidence is append-only, including synthetic evidence in this isolated DB.
+		await db.mediaAsset.updateMany({
+			where: { ownerId, moderationResults: { some: {} } },
+			data: { status: "DELETED", deletedAt: now, videoCleanupCompletedAt: now },
+		});
+		await db.mediaAsset.deleteMany({ where: { ownerId, moderationResults: { none: {} } } });
 		await db.storageUsageReservation.deleteMany({ where: { ownerId } });
 		await db.$disconnect();
+	});
+	it.each(["candidate scan", "transaction claim"] as const)(
+		"preserves old delivered output until explicit retention expires in the %s",
+		async (entry) => {
+			const { output } = await deliveredOutput(new Date(now.getTime() + 7 * 86_400_000));
+			if (entry === "candidate scan") expect(await isCleanupCandidate(output.id)).toBe(false);
+			else expect(await claimVideoResourceCleanup(output.id, now, db)).toBeNull();
+			expect(await db.mediaAsset.findUniqueOrThrow({ where: { id: output.id } })).toMatchObject({
+				status: "READY",
+				deletedAt: null,
+			});
+		},
+	);
+	it.each([-1, 0, 1])("uses the explicit output deadline at offset %i ms", async (offset) => {
+		const { output } = await deliveredOutput(now, new Date(now.getTime() - 2 * 86_400_000));
+		const at = new Date(now.getTime() + offset);
+		expect(await isCleanupCandidate(output.id, at)).toBe(offset >= 0);
+		const claim = await claimVideoResourceCleanup(output.id, at, db);
+		if (offset >= 0) expect(claim).not.toBeNull();
+		else expect(claim).toBeNull();
+	});
+	it("rechecks the deadline in the transaction after an earlier candidate scan", async () => {
+		const { output } = await deliveredOutput(old);
+		expect(await isCleanupCandidate(output.id)).toBe(true);
+		await db.mediaAsset.update({
+			where: { id: output.id },
+			data: { deleteAfter: new Date(now.getTime() + 86_400_000) },
+		});
+		expect(await claimVideoResourceCleanup(output.id, now, db)).toBeNull();
+	});
+	it("keeps a delivered output with missing retention metadata for explicit repair", async () => {
+		const { output } = await deliveredOutput(null);
+		expect(await isCleanupCandidate(output.id)).toBe(false);
+		expect(await claimVideoResourceCleanup(output.id, now, db)).toBeNull();
+		await db.mediaAsset.update({
+			where: { id: output.id },
+			data: { status: "VERIFICATION_FAILED" },
+		});
+		// The successful owning job remains proof of delivery even if asset state later changes.
+		expect(await isCleanupCandidate(output.id)).toBe(false);
+		expect(await claimVideoResourceCleanup(output.id, now, db)).toBeNull();
+	});
+	it.each(["FAILED", "REJECTED"] as const)(
+		"allows the age fallback only for an undelivered %s output without an explicit deadline",
+		async (stage) => {
+			const output = await asset("OUTPUT");
+			await bind(output.id, stage);
+			await db.mediaAsset.update({
+				where: { id: output.id },
+				data: {
+					deleteAfter: null,
+					status: stage === "FAILED" ? "VERIFICATION_FAILED" : "QUARANTINED",
+					createdAt: new Date(now.getTime() - 30 * 86_400_000 + 1),
+				},
+			});
+			expect(await isCleanupCandidate(output.id)).toBe(false);
+			expect(await claimVideoResourceCleanup(output.id, now, db)).toBeNull();
+			await db.mediaAsset.update({ where: { id: output.id }, data: { createdAt: old } });
+			expect(await isCleanupCandidate(output.id)).toBe(true);
+			expect(await claimVideoResourceCleanup(output.id, now, db)).not.toBeNull();
+		},
+	);
+	it("honors an explicit future deadline on failed output instead of the age fallback", async () => {
+		const output = await asset("OUTPUT");
+		await bind(output.id, "FAILED");
+		await db.mediaAsset.update({
+			where: { id: output.id },
+			data: { status: "VERIFICATION_FAILED", deleteAfter: new Date(now.getTime() + 1) },
+		});
+		expect(await isCleanupCandidate(output.id)).toBe(false);
+		expect(await claimVideoResourceCleanup(output.id, now, db)).toBeNull();
+	});
+	it("retains job storage reservation through tombstoning until physical cleanup completes", async () => {
+		const { output, job } = await deliveredOutput(now);
+		const reservation = await db.storageUsageReservation.create({
+			data: {
+				ownerType: "USER",
+				ownerId,
+				bytes: 100n,
+				status: "COMMITTED",
+				referenceKey: `video-output:${job.id}`,
+				expiresAt: old,
+			},
+		});
+		const claim = await claimVideoResourceCleanup(output.id, now, db);
+		expect(claim).not.toBeNull();
+		expect(claim?.objectKeys).toContain(output.objectKey);
+		expect(
+			await db.storageUsageReservation.findUniqueOrThrow({ where: { id: reservation.id } }),
+		).toMatchObject({ status: "COMMITTED", releasedAt: null });
+		// A failed object deletion leaves the claim retryable and the bytes occupied.
+		expect(await isCleanupCandidate(output.id)).toBe(true);
+		const retried = await claimVideoResourceCleanup(output.id, now, db);
+		expect(retried?.objectKeys).toEqual(claim!.objectKeys);
+		await completeVideoResourceCleanup(retried!, now, db);
+		await completeVideoResourceCleanup(retried!, now, db);
+		expect(
+			await db.storageUsageReservation.findUniqueOrThrow({ where: { id: reservation.id } }),
+		).toMatchObject({ status: "RELEASED", releasedAt: now });
+		expect(await isCleanupCandidate(output.id)).toBe(false);
+		expect(
+			await db.auditLog.count({
+				where: { targetId: output.id, action: "VIDEO_RESOURCE_CLEANUP_COMPLETED" },
+			}),
+		).toBe(1);
 	});
 	it("tombstones unbound expired input and releases storage only on completed cleanup", async () => {
 		const input = await asset();
@@ -146,15 +307,68 @@ describe("video orphan resource isolation", () => {
 			),
 		).toBe(false);
 	});
+	it.each([
+		{
+			label: "live job",
+			jobStatus: "PROVIDER_PENDING",
+			stage: "FAILED",
+			attempt: null,
+			uncertain: false,
+		},
+		{
+			label: "manual review",
+			jobStatus: "FAILED",
+			stage: "NEEDS_REVIEW",
+			attempt: null,
+			uncertain: false,
+		},
+		{
+			label: "uncertain attempt",
+			jobStatus: "FAILED",
+			stage: "FAILED",
+			attempt: "SUBMISSION_UNCERTAIN",
+			uncertain: false,
+		},
+		{
+			label: "uncertainty flag",
+			jobStatus: "FAILED",
+			stage: "FAILED",
+			attempt: "SUBMITTED",
+			uncertain: true,
+		},
+		{
+			label: "manual reconciliation",
+			jobStatus: "FAILED",
+			stage: "FAILED",
+			attempt: "NEEDS_RECONCILIATION",
+			uncertain: false,
+		},
+	] as const)("preserves an otherwise expired output protected by $label", async (scenario) => {
+		const output = await asset("OUTPUT");
+		const job = await bind(output.id, "FAILED");
+		await db.generationJob.update({ where: { id: job.id }, data: { status: scenario.jobStatus } });
+		await db.videoExecution.update({ where: { jobId: job.id }, data: { stage: scenario.stage } });
+		if (scenario.attempt) {
+			await db.generationAttempt.create({
+				data: {
+					jobId: job.id,
+					attemptNumber: 1,
+					provider: "kie",
+					providerModelId: "test",
+					status: scenario.attempt,
+					uncertainSubmission: scenario.uncertain,
+					requestSnapshot: {},
+				},
+			});
+		}
+		expect(await isCleanupCandidate(output.id)).toBe(false);
+		expect(await claimVideoResourceCleanup(output.id, now, db)).toBeNull();
+	});
 	it("protects active review and uncertain attempts even after retention expires", async () => {
 		const output = await asset("OUTPUT");
 		const job = await bind(output.id, "NEEDS_REVIEW");
 		expect(await claimVideoResourceCleanup(output.id, now, db)).toBeNull();
-		expect(
-			(await listVideoResourceCleanupCandidates({ limit: 100, now }, db)).some(
-				(a) => a.id === output.id,
-			),
-		).toBe(false);
+		expect(await isCleanupCandidate(output.id)).toBe(false);
 		await db.videoExecution.update({ where: { jobId: job.id }, data: { stage: "READY" } });
 		await db.generationJob.update({ where: { id: job.id }, data: { status: "SUCCEEDED" } });
 		await db.generationAttempt.create({
@@ -169,6 +383,7 @@ describe("video orphan resource isolation", () => {
 			},
 		});
 		expect(await claimVideoResourceCleanup(output.id, now, db)).toBeNull();
+		expect(await isCleanupCandidate(output.id)).toBe(false);
 		expect(
 			(await db.mediaAsset.findUniqueOrThrow({ where: { id: output.id } })).deletedAt,
 		).toBeNull();

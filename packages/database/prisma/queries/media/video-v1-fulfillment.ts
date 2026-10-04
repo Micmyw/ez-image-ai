@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import {
 	VIDEO_AUDIO_POLICY_VERSION,
+	VIDEO_OUTPUT_MAX_BYTES,
 	readVideoAudioSafetyPolicy,
 	videoOutputConstraints,
 	videoOutputSpecificationFailure,
@@ -18,8 +19,14 @@ import { getDatabaseClient } from "../../client";
 import type { Prisma } from "../../generated/client";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { releaseCreditsInTransaction, settleCreditsInTransaction } from "./credits";
-import { lockOwnerStorageUsage } from "./storage-usage-locks";
 import { runReadCommitted } from "./types";
+import {
+	lockVideoOwnerStorage,
+	releaseVideoPreOutputCapacity,
+	videoOutputReservationBytes,
+	videoOutputReservationKey,
+	videoOwnerStorageUsage,
+} from "./video-v1-storage";
 export {
 	claimVideoAudioStep,
 	recordVideoAudioTranscript,
@@ -27,7 +34,7 @@ export {
 } from "./video-v1-audio-review";
 
 const ENGINE = "video-workflow-v1";
-const MAX_BYTES = 100 * 1024 * 1024;
+const MAX_BYTES = VIDEO_OUTPUT_MAX_BYTES;
 const include = {
 	videoExecution: true,
 	reservation: true,
@@ -104,11 +111,7 @@ function state(job: VideoJob) {
 
 export async function claimVideoOutputStorage(jobId: string, maximumStorageBytes: bigint) {
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
-		const owner = await tx.generationJob.findUniqueOrThrow({
-			where: { id: jobId },
-			select: { ownerType: true, ownerId: true },
-		});
-		await lockOwnerStorageUsage(owner, tx);
+		const owner = await lockVideoOwnerStorage(tx, jobId);
 		await lock(tx, jobId);
 		const job = await tx.generationJob.findUnique({ where: { id: jobId }, include });
 		assertVideo(job);
@@ -147,17 +150,25 @@ export async function claimVideoOutputStorage(jobId: string, maximumStorageBytes
 			throw new Error("VIDEO_STORAGE_BUSY");
 		const assetId = asset?.id ?? randomUUID();
 		const referenceKey = `generation-output:${assetId}`;
-		const usage = await tx.storageUsageReservation.aggregate({
-			where: {
-				...owner,
-				referenceKey: { not: referenceKey },
-				OR: [{ status: "COMMITTED" }, { status: "ACTIVE", expiresAt: { gt: now } }],
-			},
-			_sum: { bytes: true },
+		const prepaidKey = videoOutputReservationKey(job.id);
+		const reservations = await tx.storageUsageReservation.findMany({
+			where: { referenceKey: { in: [referenceKey, prepaidKey] } },
 		});
-		const available = maximumStorageBytes - (usage._sum.bytes ?? 0n);
-		if (available <= 0n) throw new Error("VIDEO_STORAGE_QUOTA_EXCEEDED");
-		const maxBytes = Number(available < BigInt(MAX_BYTES) ? available : BigInt(MAX_BYTES));
+		if (
+			reservations.some((row) => row.ownerId !== owner.ownerId || row.ownerType !== owner.ownerType)
+		)
+			throw new Error("VIDEO_STORAGE_RESERVATION_OWNER_MISMATCH");
+		if (reservations.length > 1) throw new Error("VIDEO_STORAGE_RESERVATION_CONFLICT");
+		const reservation = reservations[0];
+		const requiredBytes = videoOutputReservationBytes(job.inputSnapshot);
+		// Admission capacity survives elapsed leases and plan/quota changes. Older
+		// already-paid jobs may adopt capacity only here, after authenticated success.
+		if (!reservation || reservation.status !== "ACTIVE" || reservation.bytes < requiredBytes) {
+			const usedBytes = await videoOwnerStorageUsage(tx, owner, [referenceKey, prepaidKey]);
+			if (usedBytes + requiredBytes > maximumStorageBytes)
+				throw new Error("VIDEO_STORAGE_QUOTA_EXCEEDED");
+		}
+		const maxBytes = Number(requiredBytes);
 		const token = randomUUID();
 		const expiresAt = new Date(now.getTime() + 5 * 60_000);
 		if (!asset) {
@@ -178,11 +189,15 @@ export async function claimVideoOutputStorage(jobId: string, maximumStorageBytes
 				data: { jobId, assetId, role: "OUTPUT", assetChecksum: "pending", position: 0 },
 			});
 		}
-		await tx.storageUsageReservation.upsert({
-			where: { referenceKey },
-			create: { ...owner, referenceKey, bytes: BigInt(maxBytes), expiresAt },
-			update: { bytes: BigInt(maxBytes), status: "ACTIVE", expiresAt, releasedAt: null },
-		});
+		if (reservation)
+			await tx.storageUsageReservation.update({
+				where: { id: reservation.id },
+				data: { referenceKey, bytes: requiredBytes, status: "ACTIVE", expiresAt, releasedAt: null },
+			});
+		else
+			await tx.storageUsageReservation.create({
+				data: { ...owner, referenceKey, bytes: requiredBytes, expiresAt },
+			});
 		asset = await tx.mediaAsset.update({
 			where: { id: assetId },
 			data: { outputTransferToken: token, outputTransferLeaseExpiresAt: expiresAt },
@@ -231,6 +246,7 @@ export async function completeVideoOutputStorage(
 	)
 		throw new Error("VIDEO_STORED_SPECIFICATION_INVALID");
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
+		const owner = await lockVideoOwnerStorage(tx, jobId);
 		await lock(tx, jobId);
 		const job = await tx.generationJob.findUnique({ where: { id: jobId }, include });
 		assertVideo(job);
@@ -258,6 +274,7 @@ export async function completeVideoOutputStorage(
 			throw new Error("VIDEO_STORAGE_LEASE_STALE");
 		const reserved = await tx.storageUsageReservation.updateMany({
 			where: {
+				...owner,
 				referenceKey: `generation-output:${assetId}`,
 				status: "ACTIVE",
 				bytes: { gte: BigInt(output.bytes) },
@@ -863,6 +880,7 @@ export async function finalizeVideoDelivery(
 
 export async function failVideoDelivery(jobId: string, reasonCode: string, rejected = false) {
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
+		await lockVideoOwnerStorage(tx, jobId);
 		await lock(tx, jobId);
 		const job = await tx.generationJob.findUnique({ where: { id: jobId }, include });
 		assertVideo(job);
@@ -874,6 +892,7 @@ export async function failVideoDelivery(jobId: string, reasonCode: string, rejec
 			throw new Error("VIDEO_UNCERTAIN_RESERVATION_MUST_REMAIN");
 		if (!job.reservation || job.reservation.status !== "ACTIVE")
 			throw new Error("VIDEO_RESERVATION_NOT_ACTIVE");
+		await releaseVideoPreOutputCapacity(tx, job);
 		await releaseCreditsInTransaction(
 			{ reservationId: job.reservation.id, referenceKey: `video-v1:${job.id}:release` },
 			tx,

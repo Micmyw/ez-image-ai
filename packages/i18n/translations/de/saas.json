@@ -1936,7 +1936,6 @@
 		"modelAvailabilityHint": "Optionen hängen vom Modell und deinem Konto ab. Für nicht verfügbare Einstellungen gibt es kein Angebot.",
 		"selectionUnavailable": "Diese Kombination aus Modell und Einstellungen ist derzeit nicht zur Generierung verfügbar.",
 		"settings": "Videoeinstellungen",
-		"done": "Fertig",
-		"audioReviewHint": "Audio erfordert die Prüfung gesprochener Inhalte. Unsicheres Audio bleibt bis zur Prüfung gesperrt."
+		"done": "Fertig"
 	}
 }

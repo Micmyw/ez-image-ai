@@ -1936,7 +1936,6 @@
 		"modelAvailabilityHint": "Options depend on this model and your account. Unavailable settings cannot be quoted.",
 		"selectionUnavailable": "This model and setting combination is not available for generation right now.",
 		"settings": "Video settings",
-		"done": "Done",
-		"audioReviewHint": "Audio requires spoken-content review. Uncertain audio is held for review before playback."
+		"done": "Done"
 	}
 }

@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 
 import {
+	readVideoAudioSafetyPolicy,
+	VIDEO_OUTPUT_MAX_BYTES,
 	videoOutputConstraints,
 	videoOutputSpecificationFailure,
 	type VideoOutputConstraints,
@@ -27,10 +29,18 @@ export type VideoStoredObject = VideoMp4Metadata & {
 	checksum: string;
 	etag: string;
 };
-export const VIDEO_MAX_BYTES = 100 * 1024 * 1024;
+export const VIDEO_MAX_BYTES = VIDEO_OUTPUT_MAX_BYTES;
 const VIDEO_SPOKEN_REVIEW_MAX_BYTES = 25_000_000;
-function assertAudioReviewSize(metadata: VideoMp4Metadata, bytes: number) {
-	if (metadata.audioTracks > 0 && bytes > VIDEO_SPOKEN_REVIEW_MAX_BYTES)
+function assertAudioReviewSize(
+	metadata: VideoMp4Metadata,
+	bytes: number,
+	constraints: VideoOutputConstraints,
+) {
+	if (
+		readVideoAudioSafetyPolicy(constraints).mode === "required" &&
+		metadata.audioTracks > 0 &&
+		bytes > VIDEO_SPOKEN_REVIEW_MAX_BYTES
+	)
 		throw new VideoSpecificationError("VIDEO_AUDIO_MEDIA_TOO_LARGE");
 }
 
@@ -85,7 +95,7 @@ export async function inspectVideoObject(
 	if (expected && checksum !== expected.checksum)
 		throw new VideoSpecificationError("VIDEO_STORED_IDENTITY_CHANGED");
 	const result = inspector.finish();
-	assertAudioReviewSize(result, bytes);
+	assertAudioReviewSize(result, bytes, constraints);
 	const failure = videoOutputSpecificationFailure(result, constraints);
 	if (failure) throw new VideoSpecificationError(failure);
 	return { ...result, bytes, checksum, etag: metadata.etag };
@@ -137,7 +147,7 @@ export async function transferVideoOutput(input: {
 			uploadPart: ({ partNumber, body }) =>
 				uploadMultipartPart({ ...location, uploadId, partNumber, body }),
 			complete: async (parts) => {
-				assertAudioReviewSize(inspector.finish(), sourceBytes);
+				assertAudioReviewSize(inspector.finish(), sourceBytes, constraints);
 				const failure = videoOutputSpecificationFailure(inspector.finish(), constraints);
 				if (failure) throw new VideoSpecificationError(failure);
 				await completeMultipartUpload({ ...location, uploadId, parts, ifNoneMatch: "*" });

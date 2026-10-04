@@ -8,13 +8,13 @@
 `packages/database/prisma/zod/index.ts` 是从本分支 schema 重新生成的产物。
 完整责任与验收要求见 [审核说明](video-v1-github-review.md)。
 
-共 **339 个路径**。A 为新增、M 为修改、D 为删除。
+共 **341 个路径**。A 为新增、M 为修改、D 为删除。
 
 | 类别           | 路径数 |
 | -------------- | -----: |
-| 实现与配置     |    155 |
+| 实现与配置     |    156 |
 | 测试与验证工具 |    135 |
-| 文档           |     24 |
+| 文档           |     25 |
 | 夹具与验收记录 |     25 |
 
 ## 实现与配置
@@ -135,6 +135,7 @@
 | A    | [packages/database/prisma/queries/media/video-v1-moderation-events.ts](../../packages/database/prisma/queries/media/video-v1-moderation-events.ts)                                                       |
 | A    | [packages/database/prisma/queries/media/video-v1-recovery.ts](../../packages/database/prisma/queries/media/video-v1-recovery.ts)                                                                         |
 | A    | [packages/database/prisma/queries/media/video-v1-seeapi-events.ts](../../packages/database/prisma/queries/media/video-v1-seeapi-events.ts)                                                               |
+| A    | [packages/database/prisma/queries/media/video-v1-storage.ts](../../packages/database/prisma/queries/media/video-v1-storage.ts)                                                                           |
 | A    | [packages/database/prisma/queries/media/video-v1-uploads.ts](../../packages/database/prisma/queries/media/video-v1-uploads.ts)                                                                           |
 | A    | [packages/database/prisma/queries/media/video-v1.ts](../../packages/database/prisma/queries/media/video-v1.ts)                                                                                           |
 | M    | [packages/database/prisma/queries/media/webhooks.ts](../../packages/database/prisma/queries/media/webhooks.ts)                                                                                           |
@@ -340,6 +341,7 @@
 | A    | [docs/operations/video-v1-configuration.example.env](../../docs/operations/video-v1-configuration.example.env)         |
 | A    | [docs/operations/video-v1-followup-verification.md](../../docs/operations/video-v1-followup-verification.md)           |
 | A    | [docs/operations/video-v1-review-branch-verification.md](../../docs/operations/video-v1-review-branch-verification.md) |
+| A    | [docs/operations/video-v1-review-fixes-2026-10-04.md](../../docs/operations/video-v1-review-fixes-2026-10-04.md)       |
 | A    | [docs/operations/video-v1-rollout.md](../../docs/operations/video-v1-rollout.md)                                       |
 | A    | [docs/operations/video-v1-seeapi-verification.md](../../docs/operations/video-v1-seeapi-verification.md)               |
 | A    | [docs/operations/video-v1-verification.md](../../docs/operations/video-v1-verification.md)                             |

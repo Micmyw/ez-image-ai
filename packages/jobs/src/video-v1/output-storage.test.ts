@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -47,8 +48,8 @@ vi.mock("@repo/storage", async (importOriginal) => ({
 		return {
 			body: new ReadableStream({
 				start(controller) {
-					for (let i = 0; i < value.length; i += 100)
-						controller.enqueue(value.subarray(i, i + 100));
+					for (let i = 0; i < value.length; i += 65536)
+						controller.enqueue(value.subarray(i, i + 65536));
 					controller.close();
 				},
 			}),
@@ -213,6 +214,107 @@ describe("video output bounded streaming", () => {
 				),
 			}),
 		).rejects.toThrow("VIDEO_AUDIO_MEDIA_TOO_LARGE");
+		expect(backend.completed).toBe(0);
+		expect(backend.aborted).toBe(1);
+	});
+	it.each(["transfer", "recovery"] as const)(
+		"allows a valid 30MB native-audio MP4 during %s when its frozen policy does not request speech review",
+		async (path) => {
+			const bytes = mp4Fixture({ audio: true, mediaBytes: 30_000_000 });
+			const constraints = {
+				productKey: "video-kling-3",
+				durationSeconds: 5,
+				sound: true,
+				resolution: "720p",
+				aspectRatio: "16:9",
+				audioSafetyPolicy: { schemaVersion: 1 as const, mode: "not_requested" as const },
+			};
+			let stored;
+			if (path === "transfer") {
+				stored = await transferVideoOutput({
+					key: "users/u/native.mp4",
+					url: "https://cdn.video.test/file",
+					maxBytes: 100 * 1024 * 1024,
+					constraints,
+					requestOptions: options(Readable.from([bytes])),
+				});
+				expect(backend.completed).toBe(1);
+			} else {
+				backend.object = bytes;
+				stored = await inspectVideoObject(
+					"users/u/native.mp4",
+					{
+						checksum: createHash("sha256").update(bytes).digest("hex"),
+						etag: "sealed-etag",
+						bytes: bytes.length,
+					},
+					constraints,
+				);
+				expect(backend.completed).toBe(0);
+				expect(backend.parts).toHaveLength(0);
+			}
+			expect(stored).toMatchObject({
+				bytes: bytes.length,
+				audioTracks: 1,
+				audioTrackIds: [2],
+				durationMillis: 5000,
+				width: 1280,
+				height: 720,
+			});
+			expect(backend.aborted).toBe(0);
+		},
+	);
+	it.each(["required", "missing"] as const)(
+		"keeps the 25MB speech-review bound for %s policy on transfer and existing-object recovery",
+		async (mode) => {
+			const bytes = mp4Fixture({ audio: true, mediaBytes: 30_000_000 });
+			const constraints = {
+				productKey: "video-kling-3",
+				durationSeconds: 5,
+				sound: true,
+				resolution: "720p",
+				aspectRatio: "16:9",
+				...(mode === "required"
+					? { audioSafetyPolicy: { schemaVersion: 1 as const, mode: "required" as const } }
+					: {}),
+			};
+			await expect(
+				transferVideoOutput({
+					key: "users/u/historical.mp4",
+					url: "https://cdn.video.test/file",
+					maxBytes: 100 * 1024 * 1024,
+					constraints,
+					requestOptions: options(Readable.from([bytes])),
+				}),
+			).rejects.toThrow("VIDEO_AUDIO_MEDIA_TOO_LARGE");
+			expect(backend.completed).toBe(0);
+			expect(backend.aborted).toBe(1);
+			backend.object = bytes;
+			await expect(
+				inspectVideoObject("users/u/historical.mp4", undefined, constraints),
+			).rejects.toThrow("VIDEO_AUDIO_MEDIA_TOO_LARGE");
+		},
+	);
+	it("still rejects native audio when the immutable sound option is false under not-requested policy", async () => {
+		const constraints = {
+			productKey: "video-kling-3",
+			durationSeconds: 5,
+			sound: false,
+			resolution: "720p",
+			aspectRatio: "16:9",
+			audioSafetyPolicy: { schemaVersion: 1 as const, mode: "not_requested" as const },
+		};
+		await expect(
+			transferVideoOutput({
+				key: "users/u/silent.mp4",
+				url: "https://cdn.video.test/file",
+				maxBytes: 100 * 1024 * 1024,
+				constraints,
+				requestOptions: options(
+					Readable.from([mp4Fixture({ audio: true, mediaBytes: 30_000_000 })]),
+				),
+			}),
+		).rejects.toThrow("VIDEO_AUDIO_TRACK_NOT_ALLOWED");
 		expect(backend.completed).toBe(0);
 		expect(backend.aborted).toBe(1);
 	});

@@ -35,6 +35,9 @@ There is no video editing, audio upload, or post-generation resolution upgrade.
 
 Choose **Review credit cost** to get a quote. A quote does not reserve credits or start generation.
 Read the quoted credits, then confirm. Pricing is shown only when a valid service price is configured.
+Confirmation reserves space for the output along with credits. Insufficient account storage prevents
+generation from starting. An unresolved provider request keeps its reservation while the original
+attempt is checked.
 Video can use only credits backed by a qualifying payment. Free credits, credits with an unknown
 payment source, and payment funding that does not cover the required video spend are not eligible.
 Changing the model, prompt, image, duration, resolution, shape, or audio invalidates the previous quote.
@@ -68,6 +71,7 @@ tasks show the actual credit status; they do not expose a button that silently b
 Playback and MP4 download become available only after the saved private video passes required
 checks. If a playback link expires, refresh its authorization. Downloads request fresh access.
 Other accounts cannot use your task or access your stored output through these pages.
+Delivered videos are retained until their recorded expiry unless you delete them first.
 
 If storage needs recovery, the server works with the existing generated result. It does not request
 another video from the model. When new video requests are disabled, your existing task status and

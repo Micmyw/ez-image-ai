@@ -21,7 +21,6 @@ import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { reserveCreditsInTransaction } from "./credits";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
 import { lockOwnerStorageUsage } from "./storage-usage-locks";
-import { unexpiredStorageReservations } from "./temporary-references";
 import {
 	runReadCommitted,
 	runSerializable,
@@ -29,6 +28,12 @@ import {
 	type MediaTransactionClient,
 	type PaidCreditFundingPolicy,
 } from "./types";
+import {
+	videoOutputStoragePolicy,
+	videoOutputReservationBytes,
+	videoOutputReservationKey,
+	videoOwnerStorageUsage,
+} from "./video-v1-storage";
 
 const ENGINE = "video-workflow-v1";
 type VideoRequest = ReturnType<typeof videoV1InputSchema.parse>;
@@ -202,6 +207,7 @@ export async function createVideoQuoteRecord(
 				visualSafetyProfile,
 				textSafetyProfile,
 				audioSafetyPolicy,
+				outputStoragePolicy: videoOutputStoragePolicy,
 				schemaVersion: 1,
 				modelContractVersion: requestContract(request),
 				requestFingerprint,
@@ -402,16 +408,12 @@ export async function createVideoJobRecord(
 		if (capacity.globalCount + capacity.legacyCount >= BigInt(input.limits.providerConcurrency))
 			throw new Error("VIDEO_PROVIDER_BUSY");
 		await lockOwnerStorageUsage({ ownerType: "USER", ownerId: input.ownerId }, tx);
-		const usage = await tx.storageUsageReservation.aggregate({
-			where: {
-				ownerType: "USER",
-				ownerId: input.ownerId,
-				status: { in: ["ACTIVE", "COMMITTED"] },
-				...unexpiredStorageReservations(now),
-			},
-			_sum: { bytes: true },
+		const outputBytes = videoOutputReservationBytes(quote.inputSnapshot);
+		const usedBytes = await videoOwnerStorageUsage(tx, {
+			ownerType: "USER",
+			ownerId: input.ownerId,
 		});
-		if ((usage._sum.bytes ?? 0n) >= input.limits.maximumStorageBytes)
+		if (usedBytes + outputBytes > input.limits.maximumStorageBytes)
 			throw new Error("STORAGE_QUOTA_EXCEEDED");
 		if (request.mode === "image-to-video")
 			await lockMediaAssetGenerationBindings([request.inputAssetId!], tx);
@@ -455,6 +457,17 @@ export async function createVideoJobRecord(
 			},
 		});
 		const creditReservationStartedAt = new Date().toISOString();
+		await tx.storageUsageReservation.create({
+			data: {
+				ownerType: "USER",
+				ownerId: input.ownerId,
+				referenceKey: videoOutputReservationKey(job.id),
+				bytes: outputBytes,
+				// Non-temporary capacity counts until explicit release/commit, even
+				// when this diagnostic timestamp passes during provider recovery.
+				expiresAt: new Date(now.getTime() + 24 * 60 * 60_000),
+			},
+		});
 		await reserveCreditsInTransaction(
 			{
 				accountId: account.id,

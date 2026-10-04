@@ -1,5 +1,6 @@
 /** Immutable request-derived output requirements. Legacy snapshots remain five-second/silent. */
 export const VIDEO_AUDIO_POLICY_VERSION = "video-spoken-content-2026-10-04.1";
+export const VIDEO_OUTPUT_MAX_BYTES = 100 * 1024 * 1024;
 export type VideoAudioSafetyPolicy = {
 	schemaVersion: 1;
 	mode: "not_requested" | "required";
@@ -27,6 +28,8 @@ export function readVideoAudioSafetyPolicy(snapshot: unknown): VideoAudioSafetyP
 	return { schemaVersion: 1, mode: value.mode };
 }
 export type VideoOutputConstraints = {
+	/** Missing historical constraints retain the spoken-review size limit. */
+	audioSafetyPolicy?: VideoAudioSafetyPolicy;
 	productKey?: string;
 	durationSeconds: number;
 	sound: boolean;
@@ -48,6 +51,7 @@ export function videoOutputConstraints(value: unknown): VideoOutputConstraints {
 			: {};
 	if (typeof snapshot.productKey !== "string")
 		return {
+			audioSafetyPolicy: readVideoAudioSafetyPolicy(snapshot),
 			durationSeconds: 5,
 			sound: false,
 			resolution: "default",
@@ -63,6 +67,7 @@ export function videoOutputConstraints(value: unknown): VideoOutputConstraints {
 	)
 		throw new Error("VIDEO_OUTPUT_CONSTRAINTS_INVALID");
 	return {
+		audioSafetyPolicy: readVideoAudioSafetyPolicy(snapshot),
 		productKey: snapshot.productKey,
 		durationSeconds: Number(snapshot.duration),
 		sound: snapshot.sound,

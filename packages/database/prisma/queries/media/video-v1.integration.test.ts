@@ -5,6 +5,7 @@ import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
+import { createMediaUploadSessionTransaction } from "./assets";
 import { createCreditGrant, releaseCredits, reserveCreditsInTransaction } from "./credits";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
 import {
@@ -34,7 +35,7 @@ const limits = {
 	ownerConcurrency: 1,
 	globalConcurrency: 5,
 	providerConcurrency: 5,
-	maximumStorageBytes: 100_000_000n,
+	maximumStorageBytes: 1_000_000_000n,
 	maximumInputBytes: 10_000_000,
 };
 
@@ -370,12 +371,133 @@ describe("video V1 admission isolated PostgreSQL", () => {
 			await client.creditLedgerEntry.count({ where: { accountId: account.id, type: "RESERVE" } }),
 		).toBe(1);
 		const jobId = results[0]!.jobId;
+		expect(
+			await client.storageUsageReservation.findMany({ where: { ownerId: input.ownerId } }),
+		).toEqual([
+			expect.objectContaining({
+				referenceKey: `video-output:${jobId}`,
+				bytes: 104857600n,
+				status: "ACTIVE",
+			}),
+		]);
 		expect(await client.outboxEvent.count({ where: { aggregateId: jobId } })).toBe(0);
 		expect(await client.videoExecution.findUnique({ where: { jobId } })).toMatchObject({
 			workflowInstanceId: `video-v1-${jobId}`,
 			startState: "PENDING",
 			stage: "QUEUED",
 		});
+	});
+	it.each([1n, 104857599n])(
+		"rejects admission with only %s output bytes before creating any paid graph",
+		async (available) => {
+			const f = await fixture();
+			await expect(
+				createVideoJobRecord(
+					{ ...f.input, limits: { ...limits, maximumStorageBytes: available } },
+					client,
+				),
+			).rejects.toThrow("STORAGE_QUOTA_EXCEEDED");
+			expect(await client.generationJob.count({ where: { ownerId: f.ownerId } })).toBe(0);
+			expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
+			expect(await client.storageUsageReservation.count({ where: { ownerId: f.ownerId } })).toBe(0);
+		},
+	);
+	it("atomically reserves the entire output maximum before provider submission", async () => {
+		const f = await fixture();
+		const result = await createVideoJobRecord(
+			{ ...f.input, limits: { ...limits, maximumStorageBytes: 104857600n } },
+			client,
+		);
+		expect(
+			await client.storageUsageReservation.findUnique({
+				where: { referenceKey: `video-output:${result.jobId}` },
+			}),
+		).toMatchObject({ ownerId: f.ownerId, status: "ACTIVE", bytes: 104857600n });
+	});
+	it("serializes video admissions racing for the final complete output budget", async () => {
+		const f = await fixture();
+		const second = await createVideoQuoteRecord(
+			{ ...f.input, maximumInputBytes: limits.maximumInputBytes },
+			client,
+		);
+		const capacityLimits = { ...limits, ownerConcurrency: 2, maximumStorageBytes: 104857600n };
+		const outcomes = await Promise.allSettled([
+			createVideoJobRecord({ ...f.input, limits: capacityLimits }, client),
+			createVideoJobRecord(
+				{
+					...f.input,
+					quoteId: second.quoteId,
+					idempotencyKey: crypto.randomUUID(),
+					limits: capacityLimits,
+				},
+				client,
+			),
+		]);
+		expect(outcomes.filter((item) => item.status === "fulfilled")).toHaveLength(1);
+		expect(
+			(outcomes.find((item) => item.status === "rejected") as PromiseRejectedResult).reason.message,
+		).toBe("STORAGE_QUOTA_EXCEEDED");
+		expect(
+			await client.storageUsageReservation.count({
+				where: { ownerId: f.ownerId, status: "ACTIVE" },
+			}),
+		).toBe(1);
+		expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(1);
+	});
+	it("shares the owner storage lock with uploads racing for the final byte", async () => {
+		const f = await fixture();
+		const suffix = crypto.randomUUID();
+		const outcomes = await Promise.allSettled([
+			createVideoJobRecord(
+				{ ...f.input, limits: { ...limits, maximumStorageBytes: 104857600n } },
+				client,
+			),
+			createMediaUploadSessionTransaction(
+				{
+					ownerType: "USER",
+					ownerId: f.ownerId,
+					assetId: `storage-race-${suffix}`,
+					sessionId: suffix,
+					kind: "INPUT",
+					objectKey: `input/${suffix}`,
+					stagingObjectKey: `staging/${suffix}`,
+					mimeType: "image/png",
+					expectedBytes: 1n,
+					tokenHash: suffix,
+					multipartUploadId: null,
+					expiresAt: new Date(Date.now() + 60_000),
+					limits: { maximumActiveSessions: 5, maximumReservedBytes: 104857600n },
+				},
+				client,
+			),
+		]);
+		expect(outcomes.filter((item) => item.status === "fulfilled")).toHaveLength(1);
+		expect(
+			(outcomes.find((item) => item.status === "rejected") as PromiseRejectedResult).reason.message,
+		).toBe("STORAGE_QUOTA_EXCEEDED");
+		const usage = await client.storageUsageReservation.aggregate({
+			where: { ownerId: f.ownerId, status: "ACTIVE" },
+			_sum: { bytes: true },
+		});
+		expect(usage._sum.bytes! <= 104857600n).toBe(true);
+	});
+	it("does not discard expired non-temporary upload/output capacity", async () => {
+		const f = await fixture();
+		await client.storageUsageReservation.create({
+			data: {
+				ownerType: "USER",
+				ownerId: f.ownerId,
+				referenceKey: `generation-output:${crypto.randomUUID()}`,
+				bytes: 1n,
+				expiresAt: new Date(0),
+			},
+		});
+		await expect(
+			createVideoJobRecord(
+				{ ...f.input, limits: { ...limits, maximumStorageBytes: 104857600n } },
+				client,
+			),
+		).rejects.toThrow("STORAGE_QUOTA_EXCEEDED");
 	});
 	it("same key with different prompt, ratio, or image conflicts without a second reservation", async () => {
 		const { input, account } = await fixture();

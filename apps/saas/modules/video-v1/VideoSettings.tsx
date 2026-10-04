@@ -321,7 +321,6 @@ export function VideoSettings({
 			{model.audio === "provider-native" && (
 				<p className="text-xs text-muted-foreground">{t("nativeSoundHint")}</p>
 			)}
-			{draft.sound && <p className="text-xs text-muted-foreground">{t("audioReviewHint")}</p>}
 		</>
 	);
 }

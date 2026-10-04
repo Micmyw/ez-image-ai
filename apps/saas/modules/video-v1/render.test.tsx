@@ -1,9 +1,12 @@
+import { getVideoModelOptions } from "@repo/config/video-models";
 import { NextIntlClientProvider } from "next-intl";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import de from "../../../../packages/i18n/translations/de/saas.json";
 import en from "../../../../packages/i18n/translations/en/saas.json";
 import type { VideoState } from "./api";
+import { initialVideoDraft } from "./model";
 
 vi.mock("./api", () => ({ videoApi: { jobs: { playback: vi.fn() } } }));
 vi.mock("@auth/hooks/use-session", () => ({
@@ -20,6 +23,7 @@ vi.mock("@tanstack/react-query", () => ({
 }));
 
 import { VideoStateCard } from "./VideoJob";
+import { VideoSettings } from "./VideoSettings";
 
 function render(stage: VideoState["stage"], canPlay = false) {
 	const state: VideoState = {
@@ -39,6 +43,48 @@ function render(stage: VideoState["stage"], canPlay = false) {
 }
 
 describe("truthful video delivery UI", () => {
+	it.each([
+		{ locale: "en", messages: en },
+		{ locale: "de", messages: de },
+	])(
+		"keeps sound enabled without a retired audio-review notice in $locale",
+		({ locale, messages }) => {
+			const draft = { ...initialVideoDraft, sound: true };
+			const onError = vi.fn();
+			const markup = renderToStaticMarkup(
+				<NextIntlClientProvider
+					locale={locale}
+					messages={messages}
+					timeZone="UTC"
+					onError={onError}
+				>
+					<VideoSettings
+						draft={draft}
+						models={[
+							{
+								productKey: draft.productKey,
+								available: true,
+								options: getVideoModelOptions(draft.productKey, draft.mode).map((option) => ({
+									...option,
+									mode: draft.mode,
+									available: true,
+									credits: null,
+								})),
+							},
+						]}
+						onChange={vi.fn()}
+						disabled={false}
+					/>
+				</NextIntlClientProvider>,
+			);
+			expect(markup).toContain('data-test="video-settings-trigger"');
+			expect(markup).toContain(`<span>${messages.videoV1.soundOn}</span>`);
+			expect(markup).not.toMatch(
+				/audioReviewHint|spoken-content review|Prüfung gesprochener Inhalte/,
+			);
+			expect(onError).not.toHaveBeenCalled();
+		},
+	);
 	it.each([
 		"QUEUED",
 		"INPUT_REVIEW",

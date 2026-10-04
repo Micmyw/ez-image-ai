@@ -3,6 +3,7 @@ export const publicChangelogEntries = [
 		date: "2026-10-04",
 		title: "Video beta workspace prepared",
 		changes: [
+			"Check output storage before confirming generation and keep delivered videos until their recorded expiry.",
 			"Prepare a private, invitation-only video workspace with credit confirmation, server task history, and reviewed private results. New video requests remain disabled until service acceptance and account access are configured.",
 			"Choose supported settings across model families. Each combination requires configured pricing and required moderation checks; interrupted confirmations retain every selected setting.",
 			"Keep the existing image editor and guest image trial unchanged. Video does not include a guest trial.",

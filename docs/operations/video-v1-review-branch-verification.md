@@ -1,5 +1,9 @@
 # Video review branch verification
 
+Historical verification for `4a7294c0f8d085953eb6a1fffbec41bcaec6e2bf`.
+The latest repairs and their fresh checks are recorded in
+[the review-fix report](video-v1-review-fixes-2026-10-04.md).
+
 Branch: `codex/video-v1-release`. Base: `e4f6b81fd8fc8e769b975e6c59177a1afefa06a9`.
 This is the user's requested GitHub review handoff, before production release.
 

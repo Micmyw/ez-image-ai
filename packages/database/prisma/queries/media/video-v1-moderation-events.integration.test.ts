@@ -1,4 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
+import { VIDEO_OUTPUT_MAX_BYTES } from "@repo/config/video-output";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -78,7 +79,7 @@ describe("video moderation durable inbox isolated PostgreSQL", () => {
 					// Admission concurrency itself is covered by video-v1.integration.test.
 					globalConcurrency: 10_000,
 					providerConcurrency: 10_000,
-					maximumStorageBytes: 100_000_000n,
+					maximumStorageBytes: BigInt(VIDEO_OUTPUT_MAX_BYTES),
 					maximumInputBytes: 10_000_000,
 				},
 			},

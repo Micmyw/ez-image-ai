@@ -53,7 +53,35 @@ describe("immutable video output contract", () => {
 				resolution: "1080p",
 				aspectRatio: "16:9",
 			}),
-		).toEqual(expected);
+		).toEqual({ ...expected, audioSafetyPolicy: { schemaVersion: 1, mode: "required" } });
+	});
+	it.each(["not_requested", "required"] as const)(
+		"carries the frozen %s audio policy into storage and recovery constraints",
+		(mode) => {
+			const audioSafetyPolicy = { schemaVersion: 1 as const, mode };
+			for (const request of [
+				{ duration: 5, sound: false },
+				{
+					productKey: "video-kling-3",
+					duration: 10,
+					sound: true,
+					resolution: "1080p",
+					aspectRatio: "16:9",
+				},
+			]) {
+				expect(videoOutputConstraints({ ...request, audioSafetyPolicy }).audioSafetyPolicy).toEqual(
+					audioSafetyPolicy,
+				);
+			}
+		},
+	);
+	it("rejects malformed frozen audio policy instead of silently removing the historical limit", () => {
+		expect(() =>
+			videoOutputConstraints({
+				duration: 5,
+				audioSafetyPolicy: { schemaVersion: 1, mode: "allow" },
+			}),
+		).toThrow("VIDEO_AUDIO_SAFETY_POLICY_INVALID");
 	});
 	it("checks duration, resolution, aspect ratio and actual audio track identity independently", () => {
 		expect(videoOutputSpecificationFailure(metadata, expected)).toBeNull();

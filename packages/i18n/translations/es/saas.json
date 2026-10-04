@@ -1936,7 +1936,6 @@
 		"modelAvailabilityHint": "Las opciones dependen del modelo y de tu cuenta. No se puede obtener un precio para opciones no disponibles.",
 		"selectionUnavailable": "Esta combinación de modelo y ajustes no está disponible para generar ahora.",
 		"settings": "Ajustes de vídeo",
-		"done": "Listo",
-		"audioReviewHint": "El audio requiere una revisión del contenido hablado. El audio incierto queda retenido para revisión antes de reproducirse."
+		"done": "Listo"
 	}
 }

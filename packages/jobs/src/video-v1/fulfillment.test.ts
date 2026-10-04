@@ -1,5 +1,6 @@
 /* oxlint-disable typescript/unbound-method -- Assertions inspect mock call history without invoking methods. */
 import type { MediaSafetyAdapter, ModerationDecision } from "@repo/ai";
+import { videoOutputConstraints } from "@repo/config/video-output";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 const mocks = vi.hoisted(() => ({
@@ -132,6 +133,45 @@ describe("video fulfillment stage recovery", () => {
 		});
 		expect(mocks.transfer).not.toHaveBeenCalled();
 	});
+	it.each(["transfer", "recovery", "stored"] as const)(
+		"passes the frozen audio policy through the %s storage path",
+		async (path) => {
+			const constraints = videoOutputConstraints({
+				productKey: "video-kling-3",
+				duration: 5,
+				sound: true,
+				resolution: "720p",
+				aspectRatio: "16:9",
+				audioSafetyPolicy: { schemaVersion: 1, mode: "not_requested" },
+			});
+			const output = { ...object, bytes: 30_000_000, audioTracks: 1, audioTrackIds: [2] };
+			mocks.claimStore.mockResolvedValue({
+				status: path === "stored" ? "STORED" : "CLAIMED",
+				token: path === "stored" ? null : "transfer",
+				asset: { ...asset, byteSize: BigInt(output.bytes) },
+				maxBytes: 100 * 1024 * 1024,
+				sourceUrl: "https://provider.invalid/result",
+				constraints,
+			});
+			mocks.inspect.mockResolvedValue(path === "transfer" ? null : output);
+			mocks.transfer.mockResolvedValue(output);
+			expect(await storeVideoOutput("job", {})).toEqual({
+				assetId: asset.id,
+				checksum: asset.checksum,
+				byteSize: "30000000",
+			});
+			expect(mocks.inspect).toHaveBeenCalledWith(
+				asset.objectKey,
+				path === "stored"
+					? { checksum: asset.checksum, etag: asset.storageEtag, bytes: output.bytes }
+					: undefined,
+				constraints,
+			);
+			if (path === "transfer")
+				expect(mocks.transfer).toHaveBeenCalledWith(expect.objectContaining({ constraints }));
+			else expect(mocks.transfer).not.toHaveBeenCalled();
+		},
+	);
 	it("submits the immutable stored identity, then immediately consumes a final whole-video ALLOW", async () => {
 		mocks.claimReview
 			.mockResolvedValueOnce({

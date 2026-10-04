@@ -583,6 +583,17 @@ describe("SeeAPI visual actual-domain Mock flow", () => {
 						},
 						tx,
 					);
+					// Historical audio-policy fixtures still exercise a new paid claim,
+					// so admission must already have reserved the complete output budget.
+					await tx.storageUsageReservation.create({
+						data: {
+							ownerType: "USER",
+							ownerId,
+							referenceKey: `video-output:${job.id}`,
+							bytes: 104857600n,
+							expiresAt: new Date(Date.now() + 86_400_000),
+						},
+					});
 					await tx.videoExecution.create({
 						data: {
 							jobId: job.id,

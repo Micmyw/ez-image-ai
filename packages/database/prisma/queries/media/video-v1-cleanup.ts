@@ -1,3 +1,4 @@
+import type { Prisma } from "../../generated/client";
 import {
 	lockMediaAssetGenerationBindings,
 	LIVE_GENERATION_JOB_STATUSES,
@@ -9,6 +10,28 @@ const ENGINE = "video-workflow-v1";
 const DAY = 86_400_000;
 const WRITE_GRACE = 600_000;
 const TERMINAL = ["READY", "FAILED", "REJECTED"];
+
+/** An explicit delivery deadline always wins over the orphan-age fallback. */
+function outputRetentionDue(now: Date): Prisma.MediaAssetWhereInput {
+	return {
+		kind: "OUTPUT",
+		OR: [
+			{ deleteAfter: { lte: now } },
+			{
+				deleteAfter: null,
+				status: { not: "READY" },
+				createdAt: { lte: new Date(now.getTime() - 30 * DAY) },
+				// Missing retention on delivered content needs repair, not guessed expiry.
+				jobBindings: {
+					none: {
+						role: "OUTPUT",
+						job: { OR: [{ status: "SUCCEEDED" }, { videoExecution: { stage: "READY" } }] },
+					},
+				},
+			},
+		],
+	};
+}
 
 export interface VideoResourceCleanup {
 	assetId: string;
@@ -64,7 +87,7 @@ export async function listVideoResourceCleanupCandidates(
 						},
 					],
 				},
-				{ kind: "OUTPUT", createdAt: { lte: new Date(input.now.getTime() - 30 * DAY) } },
+				outputRetentionDue(input.now),
 			],
 		},
 		select: { id: true },
@@ -88,7 +111,13 @@ export async function claimVideoResourceCleanup(
 		await lockOwnerStorageUsage(owner, tx);
 		await lockMediaAssetGenerationBindings([assetId], tx);
 		const asset = await tx.mediaAsset.findFirst({
-			where: { id: assetId, verificationEngine: ENGINE, videoCleanupCompletedAt: null },
+			where: {
+				id: assetId,
+				verificationEngine: ENGINE,
+				videoCleanupCompletedAt: null,
+				// Revalidate the exact candidate deadline under owner and binding locks.
+				OR: [{ kind: { not: "OUTPUT" } }, { deletedAt: { not: null } }, outputRetentionDue(now)],
+			},
 			include: {
 				uploadSessions: true,
 				jobBindings: {
@@ -139,7 +168,8 @@ export async function claimVideoResourceCleanup(
 				(expiredUpload ||
 					(asset.deleteAfter && asset.deleteAfter <= now) ||
 					asset.createdAt.getTime() + DAY <= now.getTime())) ||
-			(asset.kind === "OUTPUT" && asset.createdAt.getTime() + 30 * DAY <= now.getTime());
+			// The locked read already applied outputRetentionDue to non-tombstoned outputs.
+			asset.kind === "OUTPUT";
 		if (!due) return null;
 		const originalKey = asset.objectKey.endsWith(".video-input.png")
 			? asset.objectKey.slice(0, -".video-input.png".length)
@@ -195,15 +225,26 @@ export async function completeVideoResourceCleanup(
 				status: "DELETED",
 				deletedAt: { not: null },
 			},
+			include: {
+				jobBindings: {
+					where: { role: "OUTPUT", job: { executionEngine: ENGINE } },
+					select: { jobId: true },
+				},
+			},
 		});
 		if (!asset || asset.videoCleanupCompletedAt) return;
 		await lockOwnerStorageUsage({ ownerType: asset.ownerType, ownerId: asset.ownerId }, tx);
 		await tx.storageUsageReservation.updateMany({
 			where: {
+				ownerType: asset.ownerType,
+				ownerId: asset.ownerId,
 				referenceKey: {
 					in: [
 						`generation-output:${asset.id}`,
 						`video-output:${asset.id}`,
+						...(asset.kind === "OUTPUT"
+							? asset.jobBindings.map(({ jobId }) => `video-output:${jobId}`)
+							: []),
 						...claim.sessionIds.map((id) => `media-upload:${id}`),
 					],
 				},

@@ -18,6 +18,7 @@
 
 ### Private video beta
 
+- Bind the legacy spoken-review size limit to each task's saved audio policy, reserve output capacity before paid generation, and retain successful videos until their recorded expiry. Preserve existing uncertainty, content-review, settlement and physical-cleanup protections.
 - Add a separate, disabled-by-default `/video` workspace and `/video/history` for invited signed-in accounts. Text and one-image inputs default to Kling 2.6, five seconds, and sound off, with explicit credit confirmation and private reviewed output access. A grouped model selector exposes only supported duration, resolution, framing, and audio combinations; service readiness and configured pricing still gate generation.
 - Preserve a confirmation key across interrupted responses, restore task state from the server, and distinguish upload completion, content review, provider uncertainty, storage, and credit settlement. Existing image creation stays unchanged.
 - Prepare SeeAPI sampled-frame visual review for new video requests with the same strict settings as SeeAPI image review. Waffo screens prompts; new text and visual cost approval is required before admission. A verified, durably stored callback starts authenticated status confirmation with bounded retries for transient read failures; a missing callback or unconfirmed result holds the private result and reserved credits for manual review. Native model sound remains available without a separate audio-review call or fee.
