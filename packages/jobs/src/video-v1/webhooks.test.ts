@@ -13,8 +13,10 @@ async function callback(
 	options: {
 		token?: string;
 		taskId?: string;
+		taskField?: "taskId" | "task_id";
 		timestamp?: string;
 		unsigned?: boolean;
+		envelope?: Record<string, unknown>;
 		body?: Record<string, unknown>;
 	} = {},
 ) {
@@ -41,7 +43,10 @@ async function callback(
 				? { "x-webhook-timestamp": timestamp, "x-webhook-signature": signature }
 				: {}),
 		},
-		body: JSON.stringify({ data: { taskId, ...options.body } }),
+		body: JSON.stringify({
+			...options.envelope,
+			data: { [options.taskField ?? "taskId"]: taskId, ...options.body },
+		}),
 	});
 }
 function fixture() {
@@ -74,6 +79,66 @@ function fixture() {
 }
 
 describe("verified durable video callback inbox", () => {
+	it.each(["taskId", "task_id"] as const)(
+		"authenticates the documented %s identity while ignoring Veo result/accounting fields",
+		async (taskField) => {
+			const f = fixture();
+			await acceptVideoProviderWebhook(
+				await callback({
+					taskField,
+					body: {
+						info: { resultUrls: ["https://untrusted.example/video.mp4"] },
+						creditsConsumed: 0,
+						fallbackFlag: true,
+					},
+				}),
+				f.options,
+			);
+			expect(f.persist).toHaveBeenCalledWith({
+				callbackTokenHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+				taskId: "task-1",
+				timestamp: String(Math.floor(now.getTime() / 1000)),
+				receivedAt: now,
+			});
+		},
+	);
+	it.each(["another-task", null, 1])(
+		"rejects conflicting identity aliases before persistence: %j",
+		async (task_id) => {
+			const f = fixture();
+			const response = await createVideoProviderWebhookHandler(f.options)(
+				await callback({ body: { task_id } }),
+			);
+			expect(response.status).toBe(400);
+			expect(f.persist).not.toHaveBeenCalled();
+		},
+	);
+	it("accepts identical aliases but still requires their valid signature", async () => {
+		const f = fixture();
+		await acceptVideoProviderWebhook(await callback({ body: { task_id: "task-1" } }), f.options);
+		expect(f.persist).toHaveBeenCalledTimes(1);
+		const response = await createVideoProviderWebhookHandler(f.options)(
+			await callback({ taskField: "task_id", unsigned: true }),
+		);
+		expect(response.status).toBe(401);
+		expect(f.persist).toHaveBeenCalledTimes(1);
+	});
+	it.each(["taskId", "task_id"])("rejects a conflicting root %s copy", async (field) => {
+		const f = fixture();
+		const response = await createVideoProviderWebhookHandler(f.options)(
+			await callback({ taskField: "task_id", envelope: { [field]: "different-task" } }),
+		);
+		expect(response.status).toBe(400);
+		expect(f.persist).not.toHaveBeenCalled();
+	});
+	it("accepts the common guide's matching root and nested identities", async () => {
+		const f = fixture();
+		await acceptVideoProviderWebhook(
+			await callback({ taskField: "task_id", envelope: { taskId: "task-1" } }),
+			f.options,
+		);
+		expect(f.persist).toHaveBeenCalledTimes(1);
+	});
 	it("discards unsigned body result URLs and persists only signed task correlation", async () => {
 		const f = fixture();
 		await acceptVideoProviderWebhook(

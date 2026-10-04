@@ -21,6 +21,11 @@ function inputFor(productKey: string, mode: VideoMode = "text-to-video"): KieVid
 		...(mode === "image-to-video" ? { inputAssetId: "sealed-private-asset", imageUrl } : {}),
 	};
 }
+function requestParameters(
+	request: ReturnType<typeof buildKieVideoModelRequest>,
+): Record<string, unknown> {
+	return "input" in request ? request.input : request;
+}
 describe("Kie multi-model video boundary", () => {
 	it("matches saved official request properties and enums for every implemented mode", () => {
 		const contracts = officialFixture.contracts as unknown as Array<{
@@ -34,9 +39,12 @@ describe("Kie multi-model video boundary", () => {
 				};
 			};
 		}>;
-		for (const model of VIDEO_MODEL_CATALOG.filter((entry) => entry.status === "implemented")) {
+		for (const model of VIDEO_MODEL_CATALOG.filter(
+			(entry) => entry.status === "implemented" && entry.productKey !== "video-veo-3-1-fast",
+		)) {
 			for (const mode of model.modes) {
 				const request = buildKieVideoModelRequest(inputFor(model.productKey, mode));
+				if (!("input" in request)) throw new Error("Expected unified provider request");
 				const contract = contracts.find(
 					(entry) =>
 						entry.request.properties.model.enum?.includes(request.model) ||
@@ -80,31 +88,35 @@ describe("Kie multi-model video boundary", () => {
 		["video-seedance-2-fast", "bytedance/seedance-2-fast", 5],
 		["video-gemini-omni-flash", "google/gemini-omni-flash-1-1", "4"],
 		["video-veo-3-1", "veo-3-1", 4],
+		["video-veo-3-1-fast", "veo3_fast", 4],
 	])("uses the documented model and duration type for %s", (key, model, duration) => {
 		const request = buildKieVideoModelRequest(inputFor(key as string));
+		const parameters = requestParameters(request);
 		expect(request.model).toBe(model);
-		expect(request.input.duration).toBe(duration);
+		expect(parameters.duration).toBe(duration);
 		expect(request.callBackUrl).toBe(callbackUrl);
-		expect(request.input).not.toHaveProperty("productKey");
+		expect(parameters).not.toHaveProperty("productKey");
 	});
 	it("builds only the approved single first-frame binding for every supported image mode", () => {
 		for (const model of VIDEO_MODEL_CATALOG.filter((entry) =>
 			entry.modes.includes("image-to-video"),
 		)) {
 			const request = buildKieVideoModelRequest(inputFor(model.productKey, "image-to-video"));
-			const serialized = JSON.stringify(request.input);
+			const parameters = requestParameters(request);
+			const serialized = JSON.stringify(parameters);
 			expect(serialized.split(imageUrl).length - 1).toBe(1);
 			expect(serialized).not.toContain("sealed-private-asset");
-			expect(request.input).not.toHaveProperty("last_frame_url");
-			expect(request.input).not.toHaveProperty("reference_video_urls");
+			expect(parameters).not.toHaveProperty("last_frame_url");
+			expect(parameters).not.toHaveProperty("reference_video_urls");
 		}
 	});
 	it("serializes real audio switches and never invents a mute field", () => {
 		expect(
-			buildKieVideoModelRequest({ ...inputFor("video-kling-3"), sound: true }).input.sound,
+			requestParameters(buildKieVideoModelRequest({ ...inputFor("video-kling-3"), sound: true }))
+				.sound,
 		).toBe(true);
 		expect(
-			buildKieVideoModelRequest({ ...inputFor("video-seedance-2"), sound: true }).input
+			requestParameters(buildKieVideoModelRequest({ ...inputFor("video-seedance-2"), sound: true }))
 				.generate_audio,
 		).toBe(true);
 		for (const key of [
@@ -112,22 +124,29 @@ describe("Kie multi-model video boundary", () => {
 			"video-gemini-omni-flash",
 			"video-kling-3-turbo",
 			"video-veo-3-1",
+			"video-veo-3-1-fast",
 		]) {
-			const request = buildKieVideoModelRequest(inputFor(key));
-			expect(request.input).not.toHaveProperty("sound");
-			expect(request.input).not.toHaveProperty("generate_audio");
+			const parameters = requestParameters(buildKieVideoModelRequest(inputFor(key)));
+			expect(parameters).not.toHaveProperty("sound");
+			expect(parameters).not.toHaveProperty("generate_audio");
 		}
 	});
 	it("disables prompt transformation and leaves all reference/edit/fallback features out", () => {
 		for (const model of VIDEO_MODEL_CATALOG.filter((entry) => entry.status === "implemented")) {
 			const request = buildKieVideoModelRequest(inputFor(model.productKey, model.modes[0]));
-			expect(request.input).not.toHaveProperty("enable_fallback");
-			expect(request.input).not.toHaveProperty("reference_audio_urls");
-			if (model.family === "Seedance") expect(request.input.nsfw_checker).toBe(true);
+			const parameters = requestParameters(request);
+			expect(parameters).not.toHaveProperty("enable_fallback");
+			expect(parameters).not.toHaveProperty("enableFallback");
+			expect(parameters).not.toHaveProperty("reference_audio_urls");
+			if (model.family === "Seedance") expect(parameters.nsfw_checker).toBe(true);
 		}
-		expect(buildKieVideoModelRequest(inputFor("video-veo-3-1")).input.enable_translation).toBe(
-			false,
-		);
+		expect(
+			requestParameters(buildKieVideoModelRequest(inputFor("video-veo-3-1"))).enable_translation,
+		).toBe(false);
+		expect(
+			requestParameters(buildKieVideoModelRequest(inputFor("video-veo-3-1-fast")))
+				.enableTranslation,
+		).toBe(false);
 	});
 	it.each([408, 429, 500, 503])("never retries or fails over ambiguous HTTP %s", async (status) => {
 		const fetch = vi.fn<typeof globalThis.fetch>(async () => new Response("{}", { status }));
@@ -176,5 +195,26 @@ describe("Kie multi-model video boundary", () => {
 		expect(fetch.mock.calls[0]![0]).toBe(
 			"https://api.kie.ai/api/v1/jobs/recordInfo?taskId=task_123",
 		);
+	});
+	it("routes Veo Fast creation and retrieval through its documented old API only", async () => {
+		const fetch = vi
+			.fn<typeof globalThis.fetch>()
+			.mockResolvedValueOnce(Response.json({ code: 200, data: { taskId: "veo-task" } }))
+			.mockResolvedValueOnce(
+				Response.json({ code: 200, data: { taskId: "veo-task", successFlag: 0 } }),
+			);
+		const adapter = new KieVideoModelsAdapter({ apiKey: "fixture", fetch });
+		expect(await adapter.submit(inputFor("video-veo-3-1-fast"))).toEqual({
+			status: "ACCEPTED",
+			providerTaskId: "veo-task",
+		});
+		expect(await adapter.retrieve("veo-task", "video-veo-3-1-fast")).toEqual({ status: "PENDING" });
+		expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+			"https://api.kie.ai/api/v1/veo/generate",
+			"https://api.kie.ai/api/v1/veo/record-info?taskId=veo-task",
+		]);
+		const body = JSON.parse(fetch.mock.calls[0]![1]!.body as string);
+		expect(body).toMatchObject({ model: "veo3_fast", duration: 4, resolution: "720p" });
+		expect(body).not.toHaveProperty("input");
 	});
 });

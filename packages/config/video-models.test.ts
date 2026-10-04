@@ -115,10 +115,36 @@ describe("official video model capabilities", () => {
 			"video-gemini-omni-flash",
 			"video-kling-3-turbo",
 			"video-veo-3-1",
+			"video-veo-3-1-fast",
 		]) {
 			expect(getVideoModel(key)?.audio).toBe("provider-native");
 			expect(getVideoModelOptions(key, "text-to-video").every((option) => option.sound)).toBe(true);
 		}
+	});
+	it("exposes only the documented old-endpoint Veo Fast capabilities", () => {
+		const model = getVideoModel("video-veo-3-1-fast")!;
+		expect(model.status).toBe("implemented");
+		expect(model.defaults["text-to-video"]).toEqual({
+			duration: 4,
+			resolution: "720p",
+			aspectRatio: "16:9",
+			sound: true,
+		});
+		for (const group of model.groups) {
+			expect(group.durations).toEqual([4, 6, 8]);
+			expect(group.resolutions).toEqual(["720p", "1080p", "4k"]);
+			expect(group.sounds).toEqual([true]);
+		}
+		expect(model.groups.find((group) => group.mode === "text-to-video")!.aspectRatios).toEqual([
+			"16:9",
+			"9:16",
+		]);
+		expect(model.groups.find((group) => group.mode === "image-to-video")!.aspectRatios).toEqual([
+			"16:9",
+			"9:16",
+			"source",
+		]);
+		expect(getVideoModel("video-veo-3-1-pro")!.status).toBe("blocked");
 	});
 	it("caps provider-long prompts at the actual text moderation UTF-16 limit", () => {
 		const model = getVideoModel("video-seedance-2-5")!;

@@ -228,3 +228,51 @@ Kling-only migration remains unchanged. Model/mode admission, reservation replay
 product/evidence cases are verified against PostgreSQL in
 `packages/database/prisma/queries/media/video-v1.integration.test.ts`.
 `docs/operations/video-multimodel-quote-constraint.md` records the migration and compatible rollback.
+
+`packages/database/prisma/migrations/20261005010000_video_veo_fast_quote_pending_evidence/migration.sql`
+adds only the thirteenth public key, `video-veo-3-1-fast`, without editing the applied 12-key
+migration. The same PostgreSQL suite adds the exact 4-second, 720p, text-to-video native-audio
+quote/admission/idempotency regression; provider and price contracts remain in their existing
+model modules above.
+
+### Veo 3.1 Fast provider and pricing follow-up (2026-10-05)
+
+The explicit old-Veo contract uses `model=veo3_fast` at `/api/v1/veo/generate` and
+`/api/v1/veo/record-info`. It is not an alias for the unified generic `veo-3-1` route.
+These twelve source/test/fixture locations implement and verify that boundary:
+
+| Responsibility                                                                                               | Confirmed code location                                                    |
+| ------------------------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------- |
+| Old-Veo creation, authoritative retrieval and conservative unknown-result handling                           | `packages/ai/media/providers/kie-veo-fast.ts`                              |
+| Official contract, payload, identity, malformed/ambiguous result and single-send regression tests            | `packages/ai/media/providers/kie-veo-fast.test.ts`                         |
+| Public source excerpts for creation, query, callback, HMAC and per-video tariff                              | `packages/ai/media/catalog/fixtures/kie-veo-fast-contract-2026-10-05.json` |
+| Explicit provider route selection from the saved public product key                                          | `packages/ai/media/providers/kie-video-models.ts`                          |
+| Other-model contract preservation and old-Veo route selection regressions                                    | `packages/ai/media/providers/kie-video-models.test.ts`                     |
+| Public Fast T2V/I2V capability groups and catalog version `.2`                                               | `packages/config/video-models.ts`                                          |
+| Duration, resolution, framing and native-audio capability validation                                         | `packages/config/video-models.test.ts`                                     |
+| Fast per-video rates and supplier price version `.3`                                                         | `packages/config/video-pricing.server.ts`                                  |
+| Per-video pricing, unsupported selections, profit floor and version approval tests                           | `packages/config/video-pricing.test.ts`                                    |
+| Original HMAC verification with consistent documented task-ID aliases                                        | `packages/jobs/src/video-v1/webhooks.ts`                                   |
+| Conflicting identity rejection, durable duplicate callbacks and unsigned-result isolation tests              | `packages/jobs/src/video-v1/webhooks.test.ts`                              |
+| Frozen provider routing, one paid submission, restored-task recovery and previous-version accepted-job tests | `packages/jobs/src/video-v1/submission.test.ts`                            |
+
+The existing independent `VideoGenerationWorkflowV1`, database send fence, immutable
+review bindings, storage recovery and settlement remain authoritative. The 61st quote
+migration is documented immediately above and does not rewrite the applied 60th migration.
+Release configuration must synchronize `video-models-2026-10-04.2` and
+`kie-public-2026-10-04.3`; first live acceptance is limited to text input, 4 seconds,
+720p, 16:9 and native audio. Local/Mock validation does not establish real supplier charging,
+callback delivery or production availability; those remain **NOT_RUN** for Fast until
+explicit acceptance evidence is recorded. Price sources and the current 52-credit minimum
+quote are recorded in `docs/operations/video-v1-price-basis-2026-10-05.md`.
+
+### Late callback retirement and isolated verification
+
+`packages/database/prisma/queries/media/video-v1-execution.ts` retires a bounded
+batch of late callbacks only for the same verified provider attempt with an authoritative
+result and terminal video execution. Its adjacent integration test reproduces the late
+notification race and protects unresolved tasks, engine isolation and active notification fairness.
+`tests/video-v1/run.ts` includes the separate old-Veo adapter tests. The target guard in
+`tests/load/video-verification-target.ts` and its test allow an explicitly selected disposable
+high-port fixture, while rejecting non-loopback hosts, unrelated database names and connection
+overrides. This avoids reusing a port owned by another task.

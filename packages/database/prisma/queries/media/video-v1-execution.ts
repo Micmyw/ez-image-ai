@@ -6,8 +6,6 @@ import {
 } from "@repo/config/video-text-safety";
 import { z } from "zod";
 
-import { Prisma as RuntimePrisma } from "#prisma-runtime-client";
-
 import { getDatabaseClient } from "../../client";
 import type { Prisma } from "../../generated/client";
 import { releaseCreditsInTransaction } from "./credits";
@@ -580,49 +578,53 @@ export async function postponeVideoWebhookNotification(eventId: string, now = ne
 
 export async function listPendingVideoWebhookEvents(limit: number, now = new Date()) {
 	const database = getDatabaseClient();
-	const rows = await database.providerWebhookEvent.findMany({
-		where: {
-			provider: "kie-video-v1",
-			status: "RECEIVED",
-			envelope: { path: ["notifiedAt"], equals: RuntimePrisma.JsonNull },
-			OR: [{ processingLeasedUntil: null }, { processingLeasedUntil: { lte: now } }],
-		},
-		orderBy: [
-			{ processingLeasedUntil: { sort: "asc", nulls: "first" } },
-			{ receivedAt: "asc" },
-			{ id: "asc" },
-		],
-		take: Math.min(100, Math.max(1, limit)),
-	});
-	const active = await database.videoExecution.findMany({
-		where: {
-			jobId: { in: rows.map((row) => String(object(row.envelope).jobId)) },
-			job: { executionEngine: ENGINE },
-			stage: { notIn: ["READY", "FAILED", "REJECTED", "NEEDS_REVIEW"] },
-		},
-		select: { jobId: true },
-	});
-	const activeIds = new Set(active.map((execution) => execution.jobId));
-	const retiredIds = rows
-		.filter((row) => !activeIds.has(String(object(row.envelope).jobId)))
-		.map((row) => row.id);
-	if (retiredIds.length)
-		await database.providerWebhookEvent.updateMany({
-			where: { id: { in: retiredIds }, provider: "kie-video-v1", status: "RECEIVED" },
-			data: {
-				status: "IGNORED",
-				processedAt: now,
-				failureReason: "VIDEO_WORKFLOW_NOT_ACTIVE",
-				processingLeasedUntil: null,
-			},
-		});
-	return rows
-		.filter((row) => activeIds.has(String(object(row.envelope).jobId)))
-		.map((row) => ({
-			eventId: row.id,
-			jobId: String(object(row.envelope).jobId),
-			workflowInstanceId: `video-v1-${String(object(row.envelope).jobId)}`,
-		}));
+	const batchLimit = Math.min(100, Math.max(1, Math.floor(limit)));
+	// A callback can arrive after the final query's receivedThrough cutoff, even
+	// after sendEvent succeeded. Retire that evidence only after the same attempt
+	// has an authoritative result and the execution is terminal. Notification is
+	// not consumption; NEEDS_REVIEW and uncertain attempts remain in the inbox.
+	// This is part of the existing bounded recovery batch, never a legacy scan.
+	await database.$executeRaw`
+		WITH terminal_events AS (
+			SELECT e."id"
+			FROM "provider_webhook_event" e
+			JOIN "generation_attempt" a ON a."id" = e."envelope"->>'attemptId'
+				AND a."jobId" = e."envelope"->>'jobId'
+			JOIN "generation_job" j ON j."id" = a."jobId" AND j."executionEngine" = ${ENGINE}
+			JOIN "video_execution" v ON v."jobId" = j."id"
+			WHERE e."provider" = 'kie-video-v1' AND e."status" = 'RECEIVED'
+				AND e."verifiedAt" IS NOT NULL
+				AND e."envelope"->>'executionEngine' = ${ENGINE}
+				AND a."provider" = 'kie' AND a."providerTaskId" = e."providerTaskId"
+				AND a."providerTaskId" = e."envelope"->>'taskId'
+				AND v."stage" IN ('READY', 'FAILED', 'REJECTED')
+				AND a."status" IN ('SUCCEEDED', 'FAILED') AND a."uncertainSubmission" = false
+				AND a."responseSnapshot"->'authoritative' = 'true'::jsonb
+			ORDER BY e."receivedAt", e."id" LIMIT ${batchLimit}
+			FOR UPDATE OF e SKIP LOCKED
+		)
+		UPDATE "provider_webhook_event" e
+		SET "status" = 'IGNORED', "processedAt" = ${now},
+			"failureReason" = 'VIDEO_PROVIDER_RESULT_ALREADY_CONFIRMED', "processingLeasedUntil" = NULL
+		FROM terminal_events t WHERE e."id" = t."id" AND e."status" = 'RECEIVED'`;
+	// Select active notifications separately so retained unknown-state evidence
+	// and any terminal backlog cannot starve a live workflow's bounded page.
+	return database.$queryRaw<Array<{ eventId: string; jobId: string; workflowInstanceId: string }>>`
+		SELECT e."id" AS "eventId", j."id" AS "jobId", v."workflowInstanceId"
+		FROM "provider_webhook_event" e
+		JOIN "generation_attempt" a ON a."id" = e."envelope"->>'attemptId'
+			AND a."jobId" = e."envelope"->>'jobId'
+		JOIN "generation_job" j ON j."id" = a."jobId" AND j."executionEngine" = ${ENGINE}
+		JOIN "video_execution" v ON v."jobId" = j."id"
+		WHERE e."provider" = 'kie-video-v1' AND e."status" = 'RECEIVED'
+			AND e."verifiedAt" IS NOT NULL
+			AND e."envelope"->>'executionEngine' = ${ENGINE}
+			AND a."provider" = 'kie' AND a."providerTaskId" = e."providerTaskId"
+			AND a."providerTaskId" = e."envelope"->>'taskId'
+			AND v."stage" NOT IN ('READY', 'FAILED', 'REJECTED', 'NEEDS_REVIEW')
+			AND e."envelope"->'notifiedAt' = 'null'::jsonb
+			AND (e."processingLeasedUntil" IS NULL OR e."processingLeasedUntil" <= ${now})
+		ORDER BY e."processingLeasedUntil" ASC NULLS FIRST, e."receivedAt", e."id" LIMIT ${batchLimit}`;
 }
 
 export async function consumeVideoProviderEvents(

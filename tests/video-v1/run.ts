@@ -62,7 +62,7 @@ const commands = integration
 		]
 	: [
 			["--filter", "@repo/config", "exec", "vitest", "run", "video"],
-			["--filter", "@repo/ai", "exec", "vitest", "run", "video"],
+			["--filter", "@repo/ai", "exec", "vitest", "run", "video", "kie-veo-fast"],
 			["--filter", "@repo/storage", "exec", "vitest", "run", "video-mp4"],
 			[
 				"--filter",

@@ -5,7 +5,7 @@ import { configuredVideoVisualSafetyProfile } from "./video-safety";
 import { createVideoTextSafetyProfile } from "./video-text-safety";
 
 /** Public list prices read on 2026-10-04, not an account-specific billing receipt. */
-export const VIDEO_SUPPLIER_PRICE_VERSION = "kie-public-2026-10-04.2";
+export const VIDEO_SUPPLIER_PRICE_VERSION = "kie-public-2026-10-04.3";
 // Official product pages limit these tariffs to October 7 at 06:00 UTC.
 // A later operator approval cannot extend the supplier's promotional price.
 const promotionalPriceExpiry: Readonly<Record<string, number | undefined>> = {
@@ -118,6 +118,16 @@ export function videoSupplierCostMicros(input: VideoPricingSelection): bigint {
 				input.duration
 			];
 			if (cost) return BigInt(cost + (resolution === "4k" ? 420_000 : 0));
+			break;
+		}
+		case "video-veo-3-1-fast": {
+			// The old /veo/generate contract explicitly binds veo3_fast to Fast.
+			// Published rates are per video, not per second; generic veo-3-1 remains unpriced.
+			if (!input.sound || ![4, 6, 8].includes(input.duration)) break;
+			const cost = ({ "720p": 300_000, "1080p": 325_000, "4k": 900_000 } as Record<string, number>)[
+				resolution
+			];
+			if (cost) return BigInt(cost);
 			break;
 		}
 	}
