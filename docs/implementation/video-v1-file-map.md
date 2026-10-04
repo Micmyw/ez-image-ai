@@ -219,3 +219,12 @@ The harness exception is limited to explicit local Mock tests. The video visual
 adapter continues to require SeeAPI, and deployed production does not inherit a
 test approval. Current CI results and external blockers are recorded in
 `docs/operations/video-v1-prerelease-validation.md`.
+
+### Real multi-model acceptance follow-up
+
+`packages/database/prisma/migrations/20261005000000_video_multimodel_quote_pending_evidence/migration.sql`
+extends the pending-review quote CHECK to the explicit implemented model catalog. The original
+Kling-only migration remains unchanged. Model/mode admission, reservation replay and rejected
+product/evidence cases are verified against PostgreSQL in
+`packages/database/prisma/queries/media/video-v1.integration.test.ts`.
+`docs/operations/video-multimodel-quote-constraint.md` records the migration and compatible rollback.

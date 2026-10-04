@@ -1,5 +1,10 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { applyVideoInternalFunding } from "@repo/config/video-internal-funding";
+import {
+	VIDEO_MODEL_CATALOG,
+	VIDEO_MODEL_CATALOG_VERSION,
+	type VideoModelSelection,
+} from "@repo/config/video-models";
 import { createVideoAudioSafetyPolicy } from "@repo/config/video-output";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
@@ -45,6 +50,15 @@ const limits = {
 	maximumStorageBytes: 1_000_000_000n,
 	maximumInputBytes: 10_000_000,
 };
+const modelModeSelections = VIDEO_MODEL_CATALOG.filter(
+	(model) => model.status === "implemented",
+).flatMap((model) =>
+	model.modes.map((mode) => ({
+		productKey: model.productKey,
+		mode,
+		...model.defaults[mode]!,
+	})),
+);
 
 describe("video V1 admission isolated PostgreSQL", () => {
 	let client: PrismaClient;
@@ -144,6 +158,78 @@ describe("video V1 admission isolated PostgreSQL", () => {
 				inputFingerprint: fingerprintGenerationQuoteSecurityPayload(expired),
 			},
 		});
+	}
+	async function modelQuoteFixture(selection: VideoModelSelection) {
+		const f = await fixture();
+		const asset =
+			selection.mode === "image-to-video"
+				? await client.mediaAsset.create({
+						data: {
+							ownerType: "USER",
+							ownerId: f.ownerId,
+							kind: "INPUT",
+							status: "VERIFYING",
+							verificationEngine: "video-workflow-v1",
+							objectKey: `test/multimodel/${crypto.randomUUID()}.png`,
+							mimeType: "image/png",
+							byteSize: 100n,
+							width: 100,
+							height: 100,
+							checksum: "a".repeat(64),
+							finalizedAt: new Date(),
+						},
+					})
+				: null;
+		const selectedRequest = {
+			...selection,
+			prompt: request.prompt,
+			...(asset ? { inputAssetId: asset.id } : {}),
+		};
+		const selectedProfile = createVideoVisualSafetyProfile("seeapi", selection.duration);
+		const quote = await createVideoQuoteRecord(
+			{
+				...f.input,
+				request: selectedRequest,
+				visualSafetyProfile: selectedProfile,
+				maximumInputBytes: limits.maximumInputBytes,
+			},
+			client,
+		);
+		return {
+			...f,
+			quote,
+			input: {
+				...f.input,
+				quoteId: quote.quoteId,
+				request: selectedRequest,
+				visualSafetyProfile: selectedProfile,
+			},
+		};
+	}
+	async function insertQuoteEvidenceVariant(
+		quoteId: string,
+		evidence: {
+			productKey: string;
+			moderationDecision?: string;
+			moderationProvider?: string;
+			moderationReasonCode?: string;
+			inputFingerprint?: string;
+		},
+	) {
+		return client.$executeRaw`
+			INSERT INTO "generation_quote" (
+				"id", "ownerType", "ownerId", "submittedByUserId", "productKey", "catalogVersion",
+				"pricingVersion", "credits", "costMicros", "inputSnapshot", "pricingSnapshot",
+				"moderationDecision", "moderationProvider", "moderationRuleVersion", "moderationReasonCode",
+				"inputFingerprint", "expiresAt"
+			)
+			SELECT ${crypto.randomUUID()}, "ownerType", "ownerId", "submittedByUserId", ${evidence.productKey},
+				"catalogVersion", "pricingVersion", "credits", "costMicros", "inputSnapshot", "pricingSnapshot",
+				${evidence.moderationDecision ?? "PENDING_VIDEO_WORKFLOW"},
+				${evidence.moderationProvider ?? "video-workflow-v1"}, "moderationRuleVersion",
+				${evidence.moderationReasonCode ?? "PENDING_VIDEO_WORKFLOW"},
+				${evidence.inputFingerprint ?? "a".repeat(64)}, "expiresAt"
+			FROM "generation_quote" WHERE "id" = ${quoteId}`;
 	}
 	const paidFundingPolicy = { minimumUsdMicrosPerCredit: 21_944n };
 	async function requote(f: Awaited<ReturnType<typeof fixture>>, quotedPrice: VideoPrice) {
@@ -1096,5 +1182,107 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		await expect(
 			createVideoJobRecord({ ...input, request: { ...selection, duration: 10 } }, client),
 		).rejects.toThrow("IDEMPOTENCY_CONFLICT");
+	});
+	it.each(modelModeSelections)(
+		"persists pending quote and admission for implemented $productKey $mode",
+		async (selection) => {
+			const f = await modelQuoteFixture(selection);
+			const quote = await client.generationQuote.findUniqueOrThrow({
+				where: { id: f.quote.quoteId },
+			});
+			expect(quote).toMatchObject({
+				productKey: selection.productKey,
+				catalogVersion: VIDEO_MODEL_CATALOG_VERSION,
+				moderationDecision: "PENDING_VIDEO_WORKFLOW",
+				moderationProvider: "video-workflow-v1",
+				moderationReasonCode: "PENDING_VIDEO_WORKFLOW",
+			});
+			expect(quote.inputFingerprint).toMatch(/^[a-f0-9]{64}$/);
+			const accepted = await createVideoJobRecord(f.input, client);
+			expect(
+				await client.generationJob.findUnique({ where: { id: accepted.jobId } }),
+			).toMatchObject({
+				productKey: selection.productKey,
+				executionEngine: "video-workflow-v1",
+				inputSnapshot: selection,
+			});
+			expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(1);
+			await expect(createVideoJobRecord(f.input, client)).resolves.toEqual({
+				...accepted,
+				replayed: true,
+			});
+		},
+	);
+	it("Seedance 1.5 Pro 4s 480p silent quote admits through the real pending-evidence constraint", async () => {
+		const selection = {
+			productKey: "video-seedance-1-5-pro",
+			mode: "text-to-video" as const,
+			duration: 4,
+			resolution: "480p",
+			aspectRatio: "16:9",
+			sound: false,
+		};
+		const f = await modelQuoteFixture(selection);
+		const accepted = await createVideoJobRecord(f.input, client);
+		expect(await client.generationJob.findUnique({ where: { id: accepted.jobId } })).toMatchObject({
+			productKey: selection.productKey,
+			inputSnapshot: selection,
+			creditsReserved: price.credits,
+		});
+	});
+	it.each([
+		{ label: "image product", productKey: "image-gpt-image-1-5" },
+		{ label: "unknown video", productKey: "video-not-implemented" },
+		...VIDEO_MODEL_CATALOG.filter((model) => model.status === "blocked").map((model) => ({
+			label: model.productKey,
+			productKey: model.productKey,
+		})),
+	])("database rejects pending-video evidence for $label", async ({ productKey }) => {
+		const f = await fixture();
+		await expect(insertQuoteEvidenceVariant(f.quote.quoteId, { productKey })).rejects.toThrow(
+			"generation_quote_moderation_decision_check",
+		);
+	});
+	it.each([
+		{ label: "wrong provider", moderationProvider: "legacy" },
+		{ label: "wrong reason", moderationReasonCode: "ALLOW" },
+		{ label: "short fingerprint", inputFingerprint: "a".repeat(63) },
+		{ label: "non-hex fingerprint", inputFingerprint: "g".repeat(64) },
+	])(
+		"database preserves pending-video $label evidence rejection",
+		async ({ label: _label, ...evidence }) => {
+			const f = await fixture();
+			await expect(
+				insertQuoteEvidenceVariant(f.quote.quoteId, {
+					productKey: "video-seedance-1-5-pro",
+					...evidence,
+				}),
+			).rejects.toThrow("generation_quote_moderation_decision_check");
+		},
+	);
+	it("preserves image ALLOW, BYPASS and legacy decisions and their independent fingerprint guards", async () => {
+		const f = await fixture();
+		for (const moderationDecision of ["ALLOW", "BYPASS", "LEGACY_UNREVIEWED"]) {
+			const evidence = {
+				productKey: "image-gpt-image-1-5",
+				moderationDecision,
+				moderationProvider: "legacy",
+				moderationReasonCode:
+					moderationDecision === "BYPASS"
+						? "MODERATION_TECHNICAL_FAILURE_BYPASS"
+						: moderationDecision,
+				inputFingerprint: moderationDecision === "LEGACY_UNREVIEWED" ? "" : "a".repeat(64),
+			};
+			await expect(insertQuoteEvidenceVariant(f.quote.quoteId, evidence)).resolves.toBe(1);
+			if (moderationDecision !== "LEGACY_UNREVIEWED") {
+				await expect(
+					insertQuoteEvidenceVariant(f.quote.quoteId, { ...evidence, inputFingerprint: "" }),
+				).rejects.toThrow(
+					moderationDecision === "ALLOW"
+						? "generation_quote_approved_fingerprint_check"
+						: "generation_quote_bypass_fingerprint_check",
+				);
+			}
+		}
 	});
 });
