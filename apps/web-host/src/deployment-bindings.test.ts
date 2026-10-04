@@ -104,14 +104,12 @@ describe("retired Worker bindings", () => {
 		expect(request).not.toHaveBeenCalled();
 	});
 	it("rejects a partial replacement that would inherit an unrepresented flat model", async () => {
-		const request = vi
-			.fn<typeof fetch>()
-			.mockResolvedValue(
-				response({
-					id: "old-version",
-					bindings: [{ name: "MEDIA_SEEDREAM_4_ENABLED", type: "secret_text" }],
-				}),
-			);
+		const request = vi.fn<typeof fetch>().mockResolvedValue(
+			response({
+				id: "old-version",
+				bindings: [{ name: "MEDIA_SEEDREAM_4_ENABLED", type: "secret_text" }],
+			}),
+		);
 		await expect(
 			stageRetiredWorkerBindings(
 				{
