@@ -173,3 +173,16 @@ not satisfy them; the root verification report owns final tests and release stat
 - No production credentials, prices or real-generation results are manufactured.
   Actual external acceptance and feature opening are recorded separately in
   `docs/operations/video-v1-verification.md`.
+
+### Pre-release CI and local harness follow-up
+
+| Responsibility                                                          | Confirmed code location                                                                                                                                                                      |
+| ----------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Separate video PostgreSQL group, video UI and private MinIO CI coverage | `.github/workflows/validate-prs.yml`; `tests/load/run-integration.ts`; `tests/load/verify-ci-workflow.mjs`; Jobs and Storage package scripts                                                 |
+| Multi-model deployment readiness                                        | `apps/web-host/src/profiles.ts` and its workers/hybrid tests                                                                                                                                 |
+| Strict local production-build E2E identity and moderation entry points  | `packages/config/guest-media.ts`; `packages/config/moderation.ts`; `packages/ai/media/moderation/configured.ts`; `packages/api/modules/media/lib/text-moderation.ts` and corresponding tests |
+
+The harness exception is limited to explicit local Mock tests. The video visual
+adapter continues to require SeeAPI, and deployed production does not inherit a
+test approval. Current CI results and external blockers are recorded in
+`docs/operations/video-v1-prerelease-validation.md`.

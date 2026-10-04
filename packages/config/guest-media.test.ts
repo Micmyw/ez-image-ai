@@ -2,13 +2,27 @@ import { createHash } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
-import { getGuestMediaConfig } from "./guest-media";
+import { getGuestMediaConfig, isLocalProductionBuildE2EEnvironment } from "./guest-media";
 import { getPublicGuestMediaConfig } from "./public";
 
 const developmentEnvironment = {
 	NODE_ENV: "development",
 	GUEST_MEDIA_ENABLED: "true",
 	GUEST_PROMOTION_PERIOD: "2026-launch",
+};
+const localDatabase = "postgresql://postgres:postgres@127.0.0.1:55432/guest_media_testing";
+const localProductionE2E = {
+	...developmentEnvironment,
+	NODE_ENV: "production",
+	E2E_USE_PRODUCTION_BUILD: "true",
+	E2E_TEST_MEDIA_ADAPTERS: "true",
+	E2E_RUN_ID: "guest-e2e-123",
+	MEDIA_PROVIDER_ADAPTER: "mock",
+	MEDIA_SAFETY_ADAPTER: "test",
+	MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true",
+	DATABASE_URL: localDatabase,
+	TEST_DATABASE_URL: localDatabase,
+	NEXT_PUBLIC_SAAS_URL: "http://localhost:3000",
 };
 
 const productionEnvironment = {
@@ -365,21 +379,6 @@ describe("guest media configuration", () => {
 	});
 
 	it("permits the guest path only for a complete loopback production-build E2E identity", () => {
-		const localDatabase = "postgresql://postgres:postgres@127.0.0.1:55432/guest_media_testing";
-		const localProductionE2E = {
-			...developmentEnvironment,
-			NODE_ENV: "production",
-			E2E_USE_PRODUCTION_BUILD: "true",
-			E2E_TEST_MEDIA_ADAPTERS: "true",
-			E2E_RUN_ID: "guest-e2e-123",
-			MEDIA_PROVIDER_ADAPTER: "mock",
-			MEDIA_SAFETY_ADAPTER: "test",
-			MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true",
-			DATABASE_URL: localDatabase,
-			TEST_DATABASE_URL: localDatabase,
-			NEXT_PUBLIC_SAAS_URL: "http://localhost:3000",
-		};
-
 		expect(getGuestMediaConfig(localProductionE2E, true)).toMatchObject({
 			enabled: true,
 			reason: null,
@@ -398,6 +397,40 @@ describe("guest media configuration", () => {
 				true,
 			),
 		).toMatchObject({
+			enabled: false,
+			reason: "GUEST_PRODUCTION_EVIDENCE_REQUIRED",
+		});
+	});
+
+	it.each([
+		"postgres://postgres:postgres@localhost:55432/guest_media_testing",
+		localDatabase,
+		"postgresql://postgres:postgres@[::1]:55432/guest_media_testing",
+	])("permits a plain local PostgreSQL E2E connection: %s", (databaseUrl) => {
+		expect(
+			isLocalProductionBuildE2EEnvironment({
+				...localProductionE2E,
+				DATABASE_URL: databaseUrl,
+				TEST_DATABASE_URL: databaseUrl,
+			}),
+		).toBe(true);
+	});
+
+	it.each([
+		`${localDatabase}?host=remote.example.test`,
+		`${localDatabase}?service=remote`,
+		`${localDatabase}?sslmode=require`,
+		`${localDatabase}#remote`,
+		"https://127.0.0.1:55432/guest_media_testing",
+		"file://127.0.0.1/guest_media_testing",
+	])("rejects PostgreSQL E2E URL overrides or invalid protocols: %s", (databaseUrl) => {
+		const environment = {
+			...localProductionE2E,
+			DATABASE_URL: databaseUrl,
+			TEST_DATABASE_URL: databaseUrl,
+		};
+		expect(isLocalProductionBuildE2EEnvironment(environment)).toBe(false);
+		expect(getGuestMediaConfig(environment, true)).toMatchObject({
 			enabled: false,
 			reason: "GUEST_PRODUCTION_EVIDENCE_REQUIRED",
 		});

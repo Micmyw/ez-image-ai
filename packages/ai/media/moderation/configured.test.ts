@@ -13,6 +13,18 @@ const legacySettings = {
 	SIGHTENGINE_API_USER: "legacy-fixture",
 	SIGHTENGINE_API_SECRET: "legacy-fixture",
 };
+const localProductionE2EEnvironment = {
+	NODE_ENV: "production",
+	E2E_USE_PRODUCTION_BUILD: "true",
+	E2E_TEST_MEDIA_ADAPTERS: "true",
+	E2E_RUN_ID: "media-e2e-123",
+	DATABASE_URL: "postgresql://media:media@127.0.0.1:55432/media_e2e_test",
+	TEST_DATABASE_URL: "postgresql://media:media@127.0.0.1:55432/media_e2e_test",
+	NEXT_PUBLIC_SAAS_URL: "http://localhost:3000",
+	MEDIA_PROVIDER_ADAPTER: "mock",
+	MEDIA_SAFETY_ADAPTER: "test",
+	MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true",
+};
 const input = {
 	assetUrl: "https://private.example/image.png",
 	ruleVersion: "rule",
@@ -50,6 +62,52 @@ function responses(
 }
 
 describe("configured image moderation", () => {
+	it("permits the complete local production-build E2E identity without external calls", async () => {
+		const fetcher = responses();
+		const adapter = createConfiguredImageSafetyAdapter(localProductionE2EEnvironment);
+		expect(await adapter.moderateImage(input)).toMatchObject({
+			decision: "ALLOW",
+			reasonCode: "TEST_DECISION",
+		});
+		expect(fetcher).not.toHaveBeenCalled();
+	});
+
+	it.each(Object.keys(localProductionE2EEnvironment))(
+		"fails closed for production-build E2E without %s",
+		async (key) => {
+			const fetcher = responses();
+			const adapter = createConfiguredImageSafetyAdapter({
+				...localProductionE2EEnvironment,
+				[key]: undefined,
+			});
+			expect(await adapter.moderateImage(input)).toMatchObject({ decision: "ERROR" });
+			expect(fetcher).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each([
+		{ NEXT_PUBLIC_SAAS_URL: "https://ezpic.ai" },
+		{ TEST_DATABASE_URL: "postgresql://media:media@127.0.0.1:55432/other_test" },
+		{
+			DATABASE_URL: "postgresql://media:media@remote.example.test/media_e2e_test",
+			TEST_DATABASE_URL: "postgresql://media:media@remote.example.test/media_e2e_test",
+		},
+		{
+			DATABASE_URL:
+				"postgresql://media:media@127.0.0.1:55432/media_e2e_test?host=remote.example.test",
+			TEST_DATABASE_URL:
+				"postgresql://media:media@127.0.0.1:55432/media_e2e_test?host=remote.example.test",
+		},
+	])("fails closed for non-isolated production-build E2E: %j", async (overrides) => {
+		const fetcher = responses();
+		const adapter = createConfiguredImageSafetyAdapter({
+			...localProductionE2EEnvironment,
+			...overrides,
+		});
+		expect(await adapter.moderateImage(input)).toMatchObject({ decision: "ERROR" });
+		expect(fetcher).not.toHaveBeenCalled();
+	});
+
 	it("uses only SeeAPI and preserves its authoritative evidence despite obsolete provider switches", async () => {
 		const fetcher = responses();
 		const adapter = createConfiguredImageSafetyAdapter({ ...environment, ...legacySettings });

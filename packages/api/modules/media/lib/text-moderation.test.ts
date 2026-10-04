@@ -168,10 +168,46 @@ describe("generation text moderation", () => {
 		).toThrow(/production/i);
 	});
 
-	it("forbids a test adapter even with a local production-build E2E identity", () => {
-		expect(() => createTextModerationAdapter(localProductionE2EEnvironment())).toThrow(
-			/production/i,
-		);
+	it("permits a test adapter only with the complete local production-build E2E identity", async () => {
+		const fetcher = vi.fn<typeof fetch>();
+		vi.stubGlobal("fetch", fetcher);
+		const selected = createTextModerationAdapter(localProductionE2EEnvironment());
+		expect(selected.provider).toBe("test");
+		await expect(
+			selected.adapter.moderateText({ text: "fixture", ruleVersion: TEXT_MODERATION_RULE_VERSION }),
+		).resolves.toMatchObject({ decision: "ALLOW", reasonCode: "TEST_DECISION" });
+		expect(createWaffoPromptScanner).not.toHaveBeenCalled();
+		expect(fetcher).not.toHaveBeenCalled();
+	});
+
+	it.each(Object.keys(localProductionE2EEnvironment()))(
+		"rejects a production-build E2E test adapter without %s",
+		(key) => {
+			expect(() =>
+				createTextModerationAdapter({ ...localProductionE2EEnvironment(), [key]: undefined }),
+			).toThrow();
+			expect(createWaffoPromptScanner).not.toHaveBeenCalled();
+		},
+	);
+
+	it.each([
+		{ NEXT_PUBLIC_SAAS_URL: "https://ezpic.ai" },
+		{ TEST_DATABASE_URL: "postgresql://media:media@127.0.0.1:55432/other_test" },
+		{
+			DATABASE_URL: "postgresql://media:media@remote.example.test/media_e2e_test",
+			TEST_DATABASE_URL: "postgresql://media:media@remote.example.test/media_e2e_test",
+		},
+		{
+			DATABASE_URL:
+				"postgresql://media:media@127.0.0.1:55432/media_e2e_test?host=remote.example.test",
+			TEST_DATABASE_URL:
+				"postgresql://media:media@127.0.0.1:55432/media_e2e_test?host=remote.example.test",
+		},
+	])("rejects non-isolated production-build E2E test adapters: %j", (overrides) => {
+		expect(() =>
+			createTextModerationAdapter({ ...localProductionE2EEnvironment(), ...overrides }),
+		).toThrow();
+		expect(createWaffoPromptScanner).not.toHaveBeenCalled();
 	});
 
 	it.each(["test", "development"])(
@@ -311,6 +347,7 @@ function localProductionE2EEnvironment(): Record<string, string | undefined> {
 		DATABASE_URL: databaseUrl,
 		TEST_DATABASE_URL: databaseUrl,
 		NEXT_PUBLIC_SAAS_URL: "http://localhost:3000",
+		MEDIA_PROVIDER_ADAPTER: "mock",
 		MEDIA_SAFETY_ADAPTER: "test",
 		MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true",
 	};

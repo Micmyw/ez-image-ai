@@ -8,12 +8,12 @@
 `packages/database/prisma/zod/index.ts` 是从本分支 schema 重新生成的产物。
 完整责任与验收要求见 [审核说明](video-v1-github-review.md)。
 
-共 **343 个路径**。A 为新增、M 为修改、D 为删除。
+共 **345 个路径**。A 为新增、M 为修改、D 为删除。
 
 | 类别           | 路径数 |
 | -------------- | -----: |
-| 实现与配置     |    157 |
-| 测试与验证工具 |    135 |
+| 实现与配置     |    158 |
+| 测试与验证工具 |    136 |
 | 文档           |     26 |
 | 夹具与验收记录 |     25 |
 
@@ -97,6 +97,7 @@
 | M    | [packages/auth/config.ts](../../packages/auth/config.ts)                                                                                                                                                 |
 | M    | [packages/config/content-safety.ts](../../packages/config/content-safety.ts)                                                                                                                             |
 | M    | [packages/config/env.ts](../../packages/config/env.ts)                                                                                                                                                   |
+| M    | [packages/config/guest-media.ts](../../packages/config/guest-media.ts)                                                                                                                                   |
 | M    | [packages/config/moderation.ts](../../packages/config/moderation.ts)                                                                                                                                     |
 | M    | [packages/config/package.json](../../packages/config/package.json)                                                                                                                                       |
 | M    | [packages/config/production-launch.ts](../../packages/config/production-launch.ts)                                                                                                                       |
@@ -243,6 +244,7 @@
 | M    | [packages/auth/lib/organization-slug.test.ts](../../packages/auth/lib/organization-slug.test.ts)                                                                                                     |
 | M    | [packages/config/config.test.ts](../../packages/config/config.test.ts)                                                                                                                               |
 | A    | [packages/config/content-safety.test.ts](../../packages/config/content-safety.test.ts)                                                                                                               |
+| M    | [packages/config/guest-media.test.ts](../../packages/config/guest-media.test.ts)                                                                                                                     |
 | M    | [packages/config/moderation.test.ts](../../packages/config/moderation.test.ts)                                                                                                                       |
 | M    | [packages/config/production-launch.test.ts](../../packages/config/production-launch.test.ts)                                                                                                         |
 | A    | [packages/config/video-models.test.ts](../../packages/config/video-models.test.ts)                                                                                                                   |

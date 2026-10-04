@@ -1,3 +1,5 @@
+import { isLocalProductionBuildE2EEnvironment } from "./guest-media";
+
 type Environment = Record<string, string | undefined>;
 
 /** Stable detector identities bind cached approval evidence to enabled checks. */
@@ -27,7 +29,11 @@ export function assertTestModerationConfiguration(environment: Environment): voi
 		environment.MEDIA_ALLOW_TEST_SAFETY_ADAPTER !== "true"
 	)
 		throw new Error("TEST_SAFETY_ADAPTER_DISABLED");
-	if (environment.NODE_ENV !== "test" && environment.NODE_ENV !== "development")
+	if (
+		environment.NODE_ENV !== "test" &&
+		environment.NODE_ENV !== "development" &&
+		!isLocalProductionBuildE2EEnvironment(environment)
+	)
 		throw new Error(
 			"The test safety adapter is forbidden outside explicit local environments, including production",
 		);

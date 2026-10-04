@@ -374,6 +374,9 @@ export function isLocalProductionBuildE2EEnvironment(
 		const database = new URL(databaseUrl);
 		const saas = new URL(normalizedNonEmptyString(environment.NEXT_PUBLIC_SAAS_URL) ?? "");
 		return (
+			(database.protocol === "postgres:" || database.protocol === "postgresql:") &&
+			!database.search &&
+			!database.hash &&
 			isLoopbackHost(database.hostname) &&
 			/test|testing/i.test(database.pathname) &&
 			isLocalHttpOrigin(saas)

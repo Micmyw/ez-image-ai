@@ -39,6 +39,25 @@ establish their actual prerequisites, and the last case asserts that repeated
 technical errors remain blocked without a fabricated approval or extra bypass
 audit. Runtime moderation and recovery guards are unchanged.
 
+The same CI run also exposed a separate production-build E2E configuration
+regression. Its website log repeatedly reported that the test safety adapter was
+forbidden under `NODE_ENV=production`, even with the established loopback-only
+test harness identity. A focused configuration regression reproduced that exact
+failure. The run was cancelled after diagnosis, rather than allowing every
+browser case to exhaust its timeout; it is not a passing run. The 12 ordinary
+MinIO and five video-input MinIO cases had already passed before cancellation.
+
+Text and image moderation now reuse the existing complete local E2E identity
+check. It requires both E2E flags, explicit Mock/test adapter opt-ins, a valid
+run ID, matching loopback test-database URLs and a loopback HTTP site origin.
+The database URL additionally rejects non-PostgreSQL protocols and any query or
+fragment, preventing PostgreSQL connection parameters from overriding the
+apparently local host. Ordinary production and incomplete/remote fixture
+identities still fail closed, and the low-level adapter's production rejection
+is unchanged. Focused regressions passed: 97 config/guest cases, 46 configured
+image/low-level adapter cases and 42 text-moderation cases (185 total). These
+overlap other suites and are not added to their totals.
+
 The nine video UI cases now follow the standard media E2E in CI. They reuse the
 existing browser harness and local services, with video disabled and a network
 guard allowing only loopback services and optional font downloads. Video RPCs,

@@ -98,7 +98,8 @@ export function createTextModerationAdapter(environment: Record<string, string |
 			provider: "test",
 			adapter: createMediaSafetyAdapter({
 				kind: "test",
-				nodeEnv: environment.NODE_ENV as "development" | "test",
+				// The complete environment was validated above, including isolated production-build E2E.
+				nodeEnv: environment.NODE_ENV === "development" ? "development" : "test",
 				allowTestAdapter: true,
 			}),
 		};
