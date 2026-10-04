@@ -106,7 +106,8 @@ environment.VIDEO_TEST_ALLOW_FONT_DOWNLOADS = [
 if (command.startsWith("e2e:media:")) {
 	environment.E2E_RUN_ID = `video-v1-${Date.now().toString(36)}`;
 	environment.E2E_USER_PASSWORD = "LocalMediaE2E!2026";
-	environment.E2E_USE_PRODUCTION_BUILD = "false";
+	environment.E2E_USE_PRODUCTION_BUILD =
+		process.env.E2E_USE_PRODUCTION_BUILD === "true" ? "true" : "false";
 }
 // These release-only overrides must be absent for the release-preflight fixtures.
 // Empty values intentionally fail validation. This is a unit command: provider

@@ -120,6 +120,36 @@ All 19 focused cooldown contracts passed; the E2E tooling type check passed.
 The homepage navigation change also passed the SaaS type check and independent
 source review. No local database or browser server was restarted for these fixes.
 
+[The run on `842797aa`](https://github.com/Micmyw/ez-image-ai/actions/runs/37190262925)
+passed the four non-browser jobs, all 36 authenticated and 28 guest browser cases
+without flaky retries, and both MinIO groups. The measured homepage total fell
+to 531,366 gzip bytes, below the unchanged 532,480-byte limit; the new video
+catalog exclusion assertion passed. The final video UI phase executed for the
+first time in CI: two cases passed and seven failed at their repeated password
+login setup with HTTP 429, before reaching video assertions. This run remains
+FAILURE. The video fixtures now reuse one real authenticated
+session in independent test contexts, while retaining the explicit clear-cookie
+and reauthentication scenario.
+
+The guarded local video runner now accepts an explicit
+`E2E_USE_PRODUCTION_BUILD=true` opt-in instead of always replacing it with false.
+Its default remains development mode, and the database, loopback, environment
+scrubbing and no-paid-network guards are unchanged. Eight offline dispatch
+regressions passed, including a failure reproduced before the opt-in fix; the
+existing CI quality job now runs this check unconditionally.
+
+The complete local video UI rerun then passed all nine cases against a fresh
+PostgreSQL 17.11 database with all 59 migrations and dedicated private MinIO.
+It used a newly built production Next.js site, real local authentication and
+the unchanged video RPC/upload/playback Mock boundary. There were no skipped,
+unexpected or flaky cases: two password-login POSTs returned 200, with zero
+HTTP 429 responses. The full command took 194.273 seconds including the build;
+this is test execution time, not real video delivery latency. The process
+record confirmed all 66 observed task-owned processes exited and port 3349
+closed. A first setup attempt had stopped before building because the local
+seeder's dedicated MinIO endpoint was missing; that prerequisite was supplied
+without relaxing the seeder or network guard.
+
 The nine video UI cases now follow the standard media E2E in CI. They reuse the
 existing browser harness and local services, with video disabled and a network
 guard allowing only loopback services and optional font downloads. Video RPCs,

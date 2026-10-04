@@ -99,6 +99,7 @@ assertStepPrecedes(
 	"run: pnpm test:integration",
 );
 assertUnconditionalStep(quality, "pnpm exec tsx --test tests/load/run-integration.test.ts");
+assertUnconditionalStep(quality, "node --test tests/video-v1/local-command.test.mjs");
 assertIncludes(
 	integrationRunner,
 	"isExplicitGuestVerificationTarget(new URL(guestTestDatabaseUrl))",

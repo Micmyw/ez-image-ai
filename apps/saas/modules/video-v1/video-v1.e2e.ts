@@ -1,7 +1,34 @@
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { expect, test as base, type BrowserContext, type Page } from "@playwright/test";
 import { getVideoModelOptions, VIDEO_MODEL_CATALOG } from "@repo/config/video-models";
 
 import { E2E_PASSWORD, fundedEmail } from "../../../../tooling/e2e/src/fixtures";
+
+const test = base.extend<
+	{},
+	{ videoAuthState: Awaited<ReturnType<BrowserContext["storageState"]>> }
+>({
+	videoAuthState: [
+		async ({ playwright }, use, workerInfo) => {
+			const auth = await playwright.request.newContext({
+				baseURL: workerInfo.project.use.baseURL,
+			});
+			try {
+				const login = await auth.post("/api/auth/sign-in/email", {
+					data: { email: fundedEmail(process.env.E2E_RUN_ID!), password: E2E_PASSWORD },
+				});
+				expect(login.ok()).toBe(true);
+				await use(await auth.storageState());
+			} finally {
+				await auth.dispose();
+			}
+		},
+		{ scope: "worker" },
+	],
+	// Each test receives a fresh context and scenario state with the same real login.
+	storageState: async ({ videoAuthState }, use) => {
+		await use(videoAuthState);
+	},
+});
 
 type MockStage =
 	| "QUEUED"
@@ -159,11 +186,6 @@ async function setup(context: BrowserContext, page: Page, state: Scenario) {
 			});
 		return route.abort(); // Unrecognized video APIs must never escape the UI Mock boundary.
 	});
-	const login = await page.request.post("/api/auth/sign-in/email", {
-		maxRetries: 2, // Local auth setup only; video submission itself is never auto-retried.
-		data: { email: fundedEmail(process.env.E2E_RUN_ID!), password: E2E_PASSWORD },
-	});
-	expect(login.ok()).toBe(true);
 	await page.goto("/video");
 	await expect(page.locator('[data-test="video-workspace"]')).toBeVisible();
 }

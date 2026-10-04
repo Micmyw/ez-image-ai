@@ -18,6 +18,7 @@
 
 ### Private video beta
 
+- Defer signed-in video navigation so guest homepage visits stay within the existing page-transfer budget.
 - Bind the legacy spoken-review size limit to each task's saved audio policy, reserve output capacity before paid generation, and retain successful videos until their recorded expiry. Preserve existing uncertainty, content-review, settlement and physical-cleanup protections.
 - Add a separate, disabled-by-default `/video` workspace and `/video/history` for invited signed-in accounts. Text and one-image inputs default to Kling 2.6, five seconds, and sound off, with explicit credit confirmation and private reviewed output access. A grouped model selector exposes only supported duration, resolution, framing, and audio combinations; service readiness and configured pricing still gate generation.
 - Preserve a confirmation key across interrupted responses, restore task state from the server, and distinguish upload completion, content review, provider uncertainty, storage, and credit settlement. Existing image creation stays unchanged.

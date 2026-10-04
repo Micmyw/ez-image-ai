@@ -8,12 +8,12 @@
 `packages/database/prisma/zod/index.ts` 是从本分支 schema 重新生成的产物。
 完整责任与验收要求见 [审核说明](video-v1-github-review.md)。
 
-共 **358 个路径**。A 为新增、M 为修改、D 为删除。
+共 **359 个路径**。A 为新增、M 为修改、D 为删除。
 
 | 类别           | 路径数 |
 | -------------- | -----: |
 | 实现与配置     |    161 |
-| 测试与验证工具 |    143 |
+| 测试与验证工具 |    144 |
 | 文档           |     26 |
 | 夹具与验收记录 |     28 |
 
@@ -325,6 +325,7 @@
 | A    | [tests/load/video-verification-target.test.ts](../../tests/load/video-verification-target.test.ts)                                                                                                   |
 | A    | [tests/load/video-verification-target.ts](../../tests/load/video-verification-target.ts)                                                                                                             |
 | A    | [tests/video-v1/local-command.mjs](../../tests/video-v1/local-command.mjs)                                                                                                                           |
+| A    | [tests/video-v1/local-command.test.mjs](../../tests/video-v1/local-command.test.mjs)                                                                                                                 |
 | A    | [tests/video-v1/no-paid-network.mjs](../../tests/video-v1/no-paid-network.mjs)                                                                                                                       |
 | A    | [tests/video-v1/pricing-report.ts](../../tests/video-v1/pricing-report.ts)                                                                                                                           |
 | A    | [tests/video-v1/run.ts](../../tests/video-v1/run.ts)                                                                                                                                                 |

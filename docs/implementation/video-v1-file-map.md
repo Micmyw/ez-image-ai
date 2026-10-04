@@ -200,6 +200,12 @@ retaining its original transfer budget.
 Better Auth 429 cooldown for real browser fixture login, with contract tests in
 `tooling/e2e/src/password-sign-in.test.ts`. Production authentication is unchanged.
 
+`apps/saas/modules/video-v1/video-v1.e2e.ts` reuses a real worker-scoped login
+state across independent browser contexts, retaining its explicit authentication
+loss/recovery case. The local video command runner supports an explicit
+production-build opt-in, checked by `tests/video-v1/local-command.test.mjs` and
+the CI workflow contract.
+
 The harness exception is limited to explicit local Mock tests. The video visual
 adapter continues to require SeeAPI, and deployed production does not inherit a
 test approval. Current CI results and external blockers are recorded in
