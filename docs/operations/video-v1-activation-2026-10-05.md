@@ -46,6 +46,8 @@ Private R2 browser CORS was verified for the production origin. Waffo real prefl
 
 ## Release evidence
 
+This section preserves the first pre-activation checkpoint. Subsequent authorized production migrations, deployments and paid acceptance are recorded in the [real acceptance report](video-v1-real-acceptance-2026-10-05.md).
+
 Code, local checks, Git/CI, deployment, real provider/moderation callbacks, storage, ledger and segment timings are recorded separately below when completed. Until there is a real delivered job, output generation and callback acceptance remain **NOT_RUN**.
 
 - Concentrated video unit/Mock run: **684 PASS**, external network blocked. Subsequent admission funding and pre-submit expiry regressions also pass in their focused groups; overlapping totals are not added together.

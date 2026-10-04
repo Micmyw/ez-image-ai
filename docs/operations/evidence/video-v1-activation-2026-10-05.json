@@ -1,0 +1,3690 @@
+{
+	"schemaVersion": 1,
+	"reportDate": "2026-10-05",
+	"status": "FINAL_BOUNDED_REAL_ACCEPTANCE_WITH_EXPLICIT_LIMITS",
+	"evidenceCutoff": "2026-10-04T18:56:25.998Z",
+	"reportTimezone": "Asia/Shanghai",
+	"timestamps": "UTC unless explicitly stated",
+	"scope": {
+		"codeHead": "5b1ccf20cfcd9f0646fd00738ed3585ac43b6c0f",
+		"branch": "codex/video-v1-release",
+		"source": "Saved authorized production read-only PostgreSQL snapshots and local acceptance receipts",
+		"reportPreparationPerformedExternalCalls": false,
+		"realCaseCount": 14,
+		"publicOpening": false,
+		"initialAcceptedCaseRelease": "29f016813fda187680726255074d064fd187d02e",
+		"successfulCaseCount": 12,
+		"failedCaseCount": 1,
+		"browserPlaybackCaseCount": 12,
+		"aspectRatioCoverage": {
+			"observed": "Primarily 16:9 text selections; successful Kling I2V retained 2:3 source ratio, while ProFast used the source sentinel without a preservation guarantee and returned landscape from portrait",
+			"allCatalogAspectRatiosTested": false,
+			"fullParameterMatrixAccepted": false,
+			"source": "Executing agent selection summary plus recorded image/output ratios"
+		},
+		"rejectedCaseCount": 1
+	},
+	"statusMatrix": {
+		"code": "IMPLEMENTED_LATEST_APPLICATION_RELEASE_CI_PASS",
+		"localAndMock": "PASS_WITH_LOCAL_WEBSITE_BUILD_BLOCKED",
+		"realExternalServices": "BOUNDED_BATCH_COMPLETE_12_READY_ONE_CONTRACT_FAILURE_ONE_POLICY_REJECTION",
+		"production": "DEPLOYED_INTERNAL_WHITELIST_ENABLED_PUBLIC_DISABLED"
+	},
+	"provenance": {
+		"databaseSnapshotReaderSha256": "8199c0e6e71f4ab7906546f7bf2cbfc0a93e0658616b775a8defa20a400b683b",
+		"databaseSnapshotMode": "Verified TLS, read-only repeatable-read",
+		"caseIdentifiers": "Report aliases only; excludes production job, user, asset and provider task identifiers",
+		"releaseReceiptSha256": "19575cd89e8f1e4d4f4955a0513f9e7220f44129925b5a95529aa480292ef8b1",
+		"isolatedRegressionSummarySha256": "d14fb1166b0c3320783e225e2c68e4eab4a20c5b7f9ec77618f0847047dd63e0",
+		"browser": "Executing agent observations supplied to report preparer; exact playback/close timestamps not measured",
+		"productionMigrationReportSha256": "11811a86fd2f82d25ab9a47ccda2dcf34e1fa5f3a487fd239609479f11a43e37",
+		"productionMigrationExitReadbackSha256": "961c978f56acc4266600c1cfa1aa00e0fb9741c27b48811f744a85b66584a12d",
+		"expandedPolicyReceiptSha256": "f79654a3459e35c343bc097e59d2b0dc188970d2d52dcb580e4f4d74491675b8",
+		"expandedWebsitePolicyReceiptSha256": "b8f4af894bc7b1c1e432991bc8ca36f4520bf11ee2ebeebef35b7f08c3f9c5ec",
+		"migrationReleaseReceiptSha256": "9c5beb2fe0d5fa2f3d547c5065802dce3c9b65996cbfcc4f5d2e46d146d11b59",
+		"restoredSequentialReceiptSha256": "4f8d8cb1db56bdd6a4d087b4e1f108b9554a5ae3621c522356e15d7d69aacd36",
+		"h3DisabledReceiptSha256": "9c83b3a1ed0e095e2187fe948d88935c464d7b64d8c867338874416011b4b755",
+		"h3DiagnosisSha256": "4a392b829c423bdeb54803ec27242f9a2822227e07d6f3d265c5955acde10f03",
+		"kling3TurboPlaybackReceiptSha256": "c1e87f477fe4a4416db518c8aa84ab8e2b6281f6f660499cb75b0bdc3eba2d0a",
+		"seedance25PlaybackReceiptSha256": "7a6bb2724447f84324fe07b14fa81b125e9b165aab9314ffd5d3bdfe90730736",
+		"S2-T2V-SILENTPlaybackReceiptSha256": "58596c1430192be57d93cd84c8bd1c0f0551ee5bda919debb3a31e6e515f4070",
+		"S2M-T2V-SILENTPlaybackReceiptSha256": "08df9a2fda98af6a2600fb589d623ef19adf1ab5619efe23ab617c6e694436f9",
+		"veoFastUnitReceiptSha256": "c9bfdfee839ed26cb6aefdad2aca6fe0d0bba7ccb6d92058a652998edc09b7dc",
+		"veoFastIntegrationReceiptSha256": "01a94a0acd7b46440773b657ba12c1a941055316637b93a38d9969a04e1cb1f5",
+		"veoFastReleaseReceiptSha256": "90918f15ca4422ac0876321e84ef905becb9abf729f49f8b561abce6e522ef55",
+		"fastPlaybackReceiptSha256": "cd2efe77bf97c1c9a356024ccdb11978c1571ab6c962f94866a45215ffd058f6",
+		"kling3LateCallbackReadbackSha256": "8c4cfce54b664b1e9d95d7c3cda55e3fadfb254f4659a7491575a5ce7bade269",
+		"acceptanceDatabaseIndexSha256": "b06d43b3bbbbcbaa35c44a9ea6b5b5d001a2bc4ec8736f184a58706bcea45590",
+		"runtimeBindingReadbackSha256": "94b29d9aeceb89b30f9aeaeffae6d57b1c574056421ba8df1b3f6dd370946196",
+		"seedance15FreshPlaybackReceiptSha256": "e111544ebe1b016643548af5f859e8962b4d47bee71479c793249deab1e00587",
+		"remainingExistingPlaybackReceiptSha256": "9794c891c0efa7390ef036836f8c4fb4ee871353b134c0982a7f35ceb34ccf26",
+		"latestKieBalanceReceiptSha256": "28076c470e418e7576aa6db893bbbe7c9fbb7411d0434b09a8308e66d3969ef4",
+		"guestCiRepairReceiptSha256": "9b4e67790a6780fda595202938b41568b7b93bab400451b51113576475037fa7",
+		"ciRepairReleaseReceiptSha256": "6bc687e7046edd5d8f618a7c054531b33b6a7410b6ce7bb8e4764718c9aa1ce9",
+		"ciRepairGithubReceiptSha256": "3587d279097d6e2bbae2117c0fb31512aa342bf0c80eac793889910e6f49c5ae",
+		"ciRepairIntegrationReceiptSha256": "0ffde1ab55495bb60d6d1b34020ce2f5f25c2ea0d3cf73f3f5384c4a070f3372",
+		"updatedDatabaseSnapshotReaderSha256": "002a749c50d0e49eb45258fd72eb7df581ae4d06961399dbe8a0a1b73d653e0c",
+		"proFastRejectionDiagnosisSha256": "4f927981a53942ae5cc391ea0e682c6e717034ec5ec98f33599b2db2010cc678",
+		"geminiPlaybackReceiptSha256": "2db15b60b2d8cf0205aed2b9a4992fe1581397ad62bacf876cd48e124bd8de17",
+		"veoFastPlaybackReceiptSha256": "65675e8071dff4f249b1e1f95a5d73ce3c271679f8442439edcbc4f5095f5c65",
+		"finalAdminBalanceReceiptSha256": "cf446ae5e890c07eff1b4d2166510f999076b5d5d5c1981db9df8e47b142ca4c",
+		"finalProviderAccountReconciliationSha256": "a2d08213e9676b7003e45be57bbd50d98beaede234414b7f58b9deaf74500797",
+		"copyRepairReleaseReceiptSha256": "4c868d50ba080f4aca9c6fb1caa279be2521bfb936e8e69d27d6dc1154cc29f8",
+		"copyRepairCiReceiptSha256": "b34f0fa6ca8177eb03c4ba3928d5f32d23bd84977e35e0469e2f65b2d6b5da00",
+		"automaticFramingLiveCopyReceiptSha256": "4e6499b11a0e45193167807c20ac9b5d4b968aba350c3571bd896f963dcbcc87"
+	},
+	"checks": {
+		"unitMock": {
+			"status": "PASS",
+			"tests": 806,
+			"externalNetwork": "BLOCKED",
+			"paidCalls": 0,
+			"source": "veo-fast-unit-verification.json",
+			"groups": {
+				"config": 137,
+				"ai": 273,
+				"storage": 18,
+				"jobs": 233,
+				"api": 34,
+				"workflowUnit": 27,
+				"workflowWorkerd": 15,
+				"webHost": 42,
+				"saas": 27,
+				"totalDistinct": 806,
+				"paidCalls": 0,
+				"network": "blocked",
+				"commands": [
+					"pnpm test:video-v1 (AI filter originally included 178)",
+					"pnpm --filter @repo/ai exec vitest run video kie-veo-fast (273 supersedes 178)"
+				]
+			},
+			"overlapBoundary": "AI 273 supersedes the earlier filtered 178; totals are distinct, not summed across reruns",
+			"releaseScope": "Veo Fast source before latest CI-repair commit"
+		},
+		"isolatedDatabase": {
+			"status": "PASS",
+			"tests": 237,
+			"databaseTests": 213,
+			"jobsTests": 24,
+			"optionalPerformanceNotRun": 3,
+			"migrationCount": 61,
+			"historicalChecksumsMatched": 60,
+			"migrationLockUnchanged": true,
+			"schemaDrift": "PASS_ZERO_DIFFERENCE",
+			"constraintValidated": true,
+			"implementedProductKeyCount": 13,
+			"externalNetwork": "BLOCKED",
+			"paidCalls": 0,
+			"oldConstraintVeoFast": "EXPECTED_FAILURE_23514",
+			"newConstraintVeoFast": "PASS",
+			"lateCallbackOldBehavior": "EXPECTED_FAILURE_RECEIVED_VS_IGNORED",
+			"lateCallbackNewBehavior": "PASS",
+			"cleanup": "PASS",
+			"trackedProcessesExited": 47,
+			"source": "Saved Veo Fast and late-callback isolated PostgreSQL summary; replaces prior 228-test checkpoint",
+			"releaseScope": "Veo Fast source before latest CI-repair commit"
+		},
+		"configurationDeployment": {
+			"status": "PASS_REPORTED_PRIOR_CHECKPOINT",
+			"tests": 212
+		},
+		"affectedTypesLintFormatDiff": {
+			"status": "PASS_REPORTED_PRIOR_CHECKPOINT"
+		},
+		"backendArtifact": {
+			"status": "PASS_REPORTED_PRIOR_CHECKPOINT"
+		},
+		"localWebsiteBuild": {
+			"status": "BLOCKED",
+			"reason": "Linux dependency download timed out before application compilation",
+			"exitCode": 1,
+			"elapsedSeconds": 950.35,
+			"dependencyInstallation": "FAIL",
+			"prismaGeneration": "NOT_RUN",
+			"nextOpenNextBuild": "NOT_RUN",
+			"wranglerBundle": "NOT_RUN",
+			"workerdArtifact": "NOT_RUN",
+			"artifactGenerated": false,
+			"cleanup": "PASS",
+			"trackedProcesses": 20,
+			"remainingTrackedProcesses": 0
+		},
+		"githubCi": {
+			"status": "PASS",
+			"runId": 37216869085,
+			"headSha": "29f016813fda187680726255074d064fd187d02e",
+			"checkedAt": "2026-10-04T17:08:59.732Z",
+			"jobs": [
+				{
+					"name": "Lint, format, type and contracts",
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Mock media E2E",
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Dependency and secret scan",
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Production app builds",
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Fresh PostgreSQL migrations and integration tests",
+					"status": "completed",
+					"conclusion": "success"
+				}
+			]
+		},
+		"cloudflareBuilds": {
+			"status": "PASS",
+			"checkedAt": "2026-10-04T17:09:00.114Z",
+			"builds": [
+				{
+					"target": "website",
+					"id": "9586a5a0-1ef5-40c3-ab1f-8a4e64915013",
+					"status": "stopped",
+					"outcome": "success",
+					"commit": "29f016813fda187680726255074d064fd187d02e",
+					"startedAt": "2026-10-04T16:28:56.025Z",
+					"finishedAt": "2026-10-04T16:34:35.490Z"
+				},
+				{
+					"target": "background",
+					"id": "1c21bf1d-1cb0-4172-88ca-b00f1744d97d",
+					"status": "stopped",
+					"outcome": "success",
+					"commit": "29f016813fda187680726255074d064fd187d02e",
+					"startedAt": "2026-10-04T16:28:58.766Z",
+					"finishedAt": "2026-10-04T16:30:20.709Z"
+				}
+			]
+		},
+		"migrationRelease": {
+			"headSha": "96f47c92d5d32bd20640e7029ab08f88a916c4f1",
+			"gitPublication": "PASS_PARENT_REPORTED_MAIN_AND_RELEASE",
+			"githubCi": {
+				"status": "PASS",
+				"runId": 37219769138,
+				"checkedAt": "2026-10-04T17:25:53.5741411Z",
+				"jobs": [
+					{
+						"name": "Dependency and secret scan",
+						"status": "completed",
+						"conclusion": "success"
+					},
+					{
+						"name": "Mock media E2E",
+						"status": "completed",
+						"conclusion": "success"
+					},
+					{
+						"name": "Fresh PostgreSQL migrations and integration tests",
+						"status": "completed",
+						"conclusion": "success"
+					},
+					{
+						"name": "Production app builds",
+						"status": "completed",
+						"conclusion": "success"
+					},
+					{
+						"name": "Lint, format, type and contracts",
+						"status": "completed",
+						"conclusion": "success"
+					}
+				]
+			},
+			"cloudflare": {
+				"status": "PASS",
+				"checkedAt": "2026-10-04T17:19:41.962Z",
+				"builds": [
+					{
+						"target": "website",
+						"id": "69bcbc61-5f0a-45a2-a4bf-2e25eb5b370c",
+						"status": "stopped",
+						"outcome": "success",
+						"commit": "96f47c92d5d32bd20640e7029ab08f88a916c4f1"
+					},
+					{
+						"target": "background",
+						"id": "10a57f64-bcee-4aa7-8647-21ddca5c2095",
+						"status": "stopped",
+						"outcome": "success",
+						"commit": "96f47c92d5d32bd20640e7029ab08f88a916c4f1"
+					}
+				],
+				"automaticDeployments": "PASS"
+			}
+		},
+		"priorCheckpoints": {
+			"unitMock684": {
+				"status": "PASS",
+				"tests": 684,
+				"externalNetwork": "BLOCKED",
+				"source": "video-unit-final.log",
+				"resultBlocks": [132, 176, 18, 213, 34, 27, 15, 42, 27]
+			},
+			"isolatedDatabase228": {
+				"status": "PASS",
+				"tests": 228,
+				"databaseTests": 204,
+				"jobsTests": 24,
+				"optionalPerformanceNotRun": 3,
+				"migrationCount": 60,
+				"historicalChecksumsMatched": 59,
+				"migrationLockUnchanged": true,
+				"prismaStatus": "PASS",
+				"schemaDrift": "PASS_ZERO_DIFFERENCE",
+				"constraintValidated": true,
+				"implementedProductKeyCount": 12,
+				"externalNetwork": "BLOCKED",
+				"paidCalls": 0,
+				"oldConstraintSeedance": "EXPECTED_FAILURE_23514",
+				"newConstraintSeedance": "PASS",
+				"cleanup": "PASS",
+				"trackedProcessesExited": 40,
+				"source": "Saved isolated PostgreSQL summary; replaces prior 192-test checkpoint"
+			}
+		},
+		"harnessGuards": {
+			"status": "PASS",
+			"tests": 40
+		},
+		"veoFastRelease": {
+			"headSha": "1d9f3136e5230dbc9dab17803d002479d7eb463d",
+			"gitPublication": "PASS_PARENT_REPORTED_MAIN_AND_RELEASE",
+			"githubCi": {
+				"status": "FAIL_THREE_JOBS",
+				"runId": 37222379204,
+				"checkedAt": "2026-10-04T18:06:25.8851474Z",
+				"runStatus": "completed",
+				"conclusion": "failure",
+				"jobs": [
+					{
+						"name": "Dependency and secret scan",
+						"status": "completed",
+						"conclusion": "success"
+					},
+					{
+						"name": "Fresh PostgreSQL migrations and integration tests",
+						"status": "completed",
+						"conclusion": "failure"
+					},
+					{
+						"name": "Mock media E2E",
+						"status": "completed",
+						"conclusion": "failure"
+					},
+					{
+						"name": "Production app builds",
+						"status": "completed",
+						"conclusion": "success"
+					},
+					{
+						"name": "Lint, format, type and contracts",
+						"status": "completed",
+						"conclusion": "failure"
+					}
+				]
+			},
+			"cloudflare": {
+				"status": "PASS",
+				"checkedAt": "2026-10-04T18:01:13.304Z",
+				"automaticDeployments": "PASS",
+				"builds": [
+					{
+						"target": "website",
+						"id": "43cfa333-4e6b-4cf2-86fe-e7947ceb4568",
+						"status": "stopped",
+						"outcome": "success",
+						"commit": "1d9f3136e5230dbc9dab17803d002479d7eb463d"
+					},
+					{
+						"target": "background",
+						"id": "790a11d0-34b5-4159-b3b9-6e99682aa176",
+						"status": "stopped",
+						"outcome": "success",
+						"commit": "1d9f3136e5230dbc9dab17803d002479d7eb463d"
+					}
+				],
+				"deployments": [
+					{
+						"target": "website",
+						"deploymentId": "e5c93b74-689d-46df-aa12-a77f03d9032f",
+						"version": "703429ab-5122-43ce-9378-38b442bb1dae",
+						"trafficPercent": 100,
+						"codeTag": "1d9f3136e5230dbc9dab17803d002479d7eb463d"
+					},
+					{
+						"target": "background",
+						"deploymentId": "b7416f89-4ea4-4d8b-aa37-93880caa57e6",
+						"version": "62aca2a5-ca75-4211-a0ad-d995b9c9ff2a",
+						"trafficPercent": 100,
+						"codeTag": "1d9f3136e5230dbc9dab17803d002479d7eb463d"
+					}
+				]
+			}
+		},
+		"offlineEvidenceAudit": {
+			"status": "PASS",
+			"source": "Report preparer verified all final source hashes, unique source job identities, true recorded exactly-once invariants and all report timing sums; independent provider-safety offline review also reported PASS",
+			"indexGeneratedAt": "2026-10-04T18:49:38.612Z",
+			"sourceSnapshots": 14,
+			"sourceHashesMatched": 14,
+			"sourceJobIdentitiesUnique": true,
+			"readyCases": 12,
+			"failedCases": 1,
+			"settledApplicationCredits": 609,
+			"releasedApplicationCredits": 60,
+			"providerKieCredits": null,
+			"decimalArithmetic": "EXACT",
+			"lateCallbackBusinessObjectsUnchanged": true,
+			"externalCalls": 0,
+			"businessWrites": 0,
+			"rejectedCases": 1,
+			"providerKieReportedSubtotal": 666,
+			"providerKieAmountsMissing": 1,
+			"providerCreditSumComplete": false
+		},
+		"ciRepairRelease": {
+			"headSha": "55144d959af1b0228490174447094d22376f7530",
+			"gitPublication": "PASS_PARENT_REPORTED_MAIN_AND_RELEASE",
+			"githubCi": {
+				"status": "PASS",
+				"runId": 37224317475,
+				"checkedAt": "2026-10-04T18:36:41.1371176Z",
+				"runStatus": "completed",
+				"conclusion": "success",
+				"jobs": [
+					{
+						"name": "Dependency and secret scan",
+						"status": "completed",
+						"conclusion": "success"
+					},
+					{
+						"name": "Fresh PostgreSQL migrations and integration tests",
+						"status": "completed",
+						"conclusion": "success"
+					},
+					{
+						"name": "Lint, format, type and contracts",
+						"status": "completed",
+						"conclusion": "success"
+					},
+					{
+						"name": "Production app builds",
+						"status": "completed",
+						"conclusion": "success"
+					},
+					{
+						"name": "Mock media E2E",
+						"status": "completed",
+						"conclusion": "success"
+					}
+				],
+				"passedJobs": 5,
+				"totalJobs": 5
+			},
+			"cloudflare": {
+				"status": "PASS",
+				"checkedAt": "2026-10-04T18:37:10.663Z",
+				"automaticDeployments": "PASS",
+				"builds": [
+					{
+						"target": "website",
+						"id": "9024cd2f-02bc-49e4-b080-82ba2041aa59",
+						"status": "stopped",
+						"outcome": "success",
+						"commit": "55144d959af1b0228490174447094d22376f7530",
+						"source": "push_event",
+						"branch": "main",
+						"created": "2026-10-04T18:24:24.209Z",
+						"started": "2026-10-04T18:24:26.804Z",
+						"stopped": "2026-10-04T18:31:04.667Z"
+					},
+					{
+						"target": "background",
+						"id": "6a557cb8-d82d-4725-ab4e-66af19040dda",
+						"status": "stopped",
+						"outcome": "success",
+						"commit": "55144d959af1b0228490174447094d22376f7530",
+						"source": "push_event",
+						"branch": "main",
+						"created": "2026-10-04T18:24:24.148Z",
+						"started": "2026-10-04T18:24:26.941Z",
+						"stopped": "2026-10-04T18:25:54.335Z"
+					}
+				],
+				"deployments": [
+					{
+						"target": "website",
+						"deploymentId": "53504843-92d9-4fd7-9792-4c71b2162278",
+						"version": "3ad71bf9-6926-4bf2-9cee-b6dbca4f3e6e",
+						"trafficPercent": 100,
+						"codeTag": "55144d959af1b0228490174447094d22376f7530"
+					},
+					{
+						"target": "background",
+						"deploymentId": "a4b2129f-df90-4a6b-82eb-af9efbf4fa51",
+						"version": "750c0dcf-613d-4bab-8b64-5d4563322853",
+						"trafficPercent": 100,
+						"codeTag": "55144d959af1b0228490174447094d22376f7530"
+					}
+				]
+			},
+			"focusedLocal": {
+				"guestBrowserMock": {
+					"status": "PASS",
+					"passed": 1,
+					"elapsedMinutes": 2,
+					"realBrowser": true,
+					"mockProvider": true,
+					"productionBuild": false,
+					"realPaidCalls": 0
+				},
+				"webhooks": {
+					"status": "PASS_PARENT_REPORTED",
+					"passed": 18
+				},
+				"apiAndJobsTypes": "PASS_PARENT_REPORTED",
+				"guestLintAndFormat": "PASS",
+				"initialBroadGuestDevRun": {
+					"passed": 25,
+					"skipped": 1,
+					"failed": 2,
+					"fullSuiteGreen": false,
+					"reasons": [
+						"guest trial: API route cold compilation exceeded model availability timeout",
+						"originality: /try cold compilation exceeded 30s test timeout"
+					]
+				},
+				"latestCompleteIntegration": {
+					"status": "REPAIR_REGRESSION_PASS_WITH_SCOPED_TIMEOUT_RERUN",
+					"completedAt": "2026-10-04T18:30:16.8134226Z",
+					"originalCommand": "pnpm test:integration",
+					"finalMonolithicExitCode": 1,
+					"monolithicFailure": "Two unrelated PayPal lifecycle tests exceeded unchanged 5000ms timeout; 893 API tests passed; no changed assertion failure",
+					"phases": [
+						{
+							"files": 34,
+							"skipped": 0,
+							"result": "PASS",
+							"passed": 434,
+							"phase": "main database"
+						},
+						{
+							"files": 6,
+							"skipped": 0,
+							"result": "PASS",
+							"passed": 107,
+							"phase": "guest database"
+						},
+						{
+							"files": 1,
+							"skipped": 0,
+							"result": "PASS",
+							"passed": 32,
+							"phase": "video handoff database"
+						},
+						{
+							"files": 11,
+							"skipped": 5,
+							"result": "PASS",
+							"passed": 101,
+							"phase": "main jobs"
+						},
+						{
+							"files": 1,
+							"skipped": 0,
+							"result": "PASS",
+							"passed": 76,
+							"phase": "guest jobs"
+						},
+						{
+							"files": 104,
+							"result": "2 DEFAULT_TIMEOUT_FAILURES",
+							"failed": 2,
+							"passed": 893,
+							"phase": "main API original run"
+						},
+						{
+							"files": 1,
+							"result": "PASS original 5000ms timeout unchanged",
+							"failed": 0,
+							"passed": 2,
+							"phase": "PayPal lifecycle scoped retry"
+						},
+						{
+							"files": 5,
+							"result": "PASS",
+							"failed": 0,
+							"passed": 12,
+							"phase": "remaining original guest API plan entry"
+						}
+					],
+					"countingNote": "Phase counts only. The targeted PayPal retry replaces the two failed API cases; earlier video-only 237 tests are not added.",
+					"invariants": [
+						{
+							"violations": 0,
+							"result": "PASS",
+							"database": "main",
+							"checks": 10
+						},
+						{
+							"violations": 0,
+							"result": "PASS",
+							"database": "guest",
+							"checks": 10
+						},
+						{
+							"violations": 0,
+							"result": "PASS",
+							"database": "video",
+							"checks": 10
+						}
+					],
+					"skipped": {
+						"status": "NOT_RUN",
+						"cases": [
+							"3 video Mock concurrency performance cases",
+							"2 real immutable S3 transfer cases"
+						],
+						"conditions": [
+							"VIDEO_V1_RUN_PERFORMANCE not enabled",
+							"RUN_MEDIA_STORAGE_INTEGRATION not enabled"
+						]
+					},
+					"externalNetwork": "BLOCKED",
+					"paidCalls": 0,
+					"productionAccess": false,
+					"sourceFilesUnchangedDuringTests": true,
+					"fixedFiles": [
+						{
+							"sha256": "cb33ca745d0298f569b983c10fecfd6756ad429810d6b0d64733e48e489c01d9",
+							"path": "packages/jobs/src/video-v1/webhooks.ts"
+						},
+						{
+							"sha256": "d689b21c79885867fda7f267ee4df7a70d343694384f5d2232e785aff024e3bd",
+							"path": "packages/database/prisma/queries/media/video-v1-execution.integration.test.ts"
+						}
+					],
+					"invariantRepair": {
+						"source": "tests/load/verify-invariants.ts",
+						"sha256": "e1ed70057473574a8243e1a6495d78ceb3ce9c6b54ed26a804e87a6c9ed6e81f",
+						"unchanged": true,
+						"red": "Exact 3 durable webhook handoff violations reproduced after 46/46 execution tests",
+						"repair": "Test owner deletes only recorded negative-fixture IDs; no production invariant relaxation"
+					}
+				}
+			},
+			"guestProcessCleanup": {
+				"status": "PASS",
+				"trackedProcesses": 39,
+				"remainingTrackedProcesses": 0,
+				"remainingTaskContainers": 0,
+				"siteListeners": 0
+			},
+			"integrationProcessCleanup": {
+				"status": "PASS",
+				"completedAt": "2026-10-04T18:29:21.2193906Z",
+				"trackedHostPidsExited": 94,
+				"exclusiveDatabaseContainerAndVolumeRemoved": true,
+				"portsFree": [55432, 55440, 55441],
+				"sharedServicesUnchanged": true,
+				"foreignServicesUntouched": true
+			}
+		},
+		"aspectRatioCopyRelease": {
+			"headSha": "5b1ccf20cfcd9f0646fd00738ed3585ac43b6c0f",
+			"gitPublication": "PASS_PARENT_REPORTED_MAIN_AND_RELEASE",
+			"scope": "Eight existing aspect-ratio copy lines across four locales",
+			"focusedLocal": {
+				"status": "PASS_PARENT_REPORTED",
+				"tests": 19,
+				"scope": "Existing render/message checks"
+			},
+			"githubCi": {
+				"status": "PASS",
+				"runId": 37225696809,
+				"checkedAt": "2026-10-04T18:56:23.8390778Z",
+				"runStatus": "completed",
+				"conclusion": "success",
+				"passedJobs": 5,
+				"totalJobs": 5,
+				"jobs": [
+					{
+						"name": "Dependency and secret scan",
+						"status": "completed",
+						"conclusion": "success"
+					},
+					{
+						"name": "Production app builds",
+						"status": "completed",
+						"conclusion": "success"
+					},
+					{
+						"name": "Lint, format, type and contracts",
+						"status": "completed",
+						"conclusion": "success"
+					},
+					{
+						"name": "Fresh PostgreSQL migrations and integration tests",
+						"status": "completed",
+						"conclusion": "success"
+					},
+					{
+						"name": "Mock media E2E",
+						"status": "completed",
+						"conclusion": "success"
+					}
+				]
+			},
+			"cloudflare": {
+				"status": "PASS",
+				"checkedAt": "2026-10-04T18:56:25.998Z",
+				"builds": [
+					{
+						"target": "website",
+						"id": "bc40fb49-cdde-44dd-acbb-ce7a58741106",
+						"status": "stopped",
+						"outcome": "success",
+						"commit": "5b1ccf20cfcd9f0646fd00738ed3585ac43b6c0f",
+						"source": "push_event",
+						"branch": "main",
+						"created": "2026-10-04T18:46:06.044Z",
+						"started": "2026-10-04T18:46:08.762Z",
+						"stopped": "2026-10-04T18:50:54.886Z"
+					},
+					{
+						"target": "background",
+						"id": "4332d6c5-5831-40c5-ac77-6597e5063e91",
+						"status": "stopped",
+						"outcome": "success",
+						"commit": "5b1ccf20cfcd9f0646fd00738ed3585ac43b6c0f",
+						"source": "push_event",
+						"branch": "main",
+						"created": "2026-10-04T18:46:05.978Z",
+						"started": "2026-10-04T18:46:09.091Z",
+						"stopped": "2026-10-04T18:47:37.128Z"
+					}
+				],
+				"deployments": [
+					{
+						"target": "website",
+						"deploymentId": "53f1575a-5057-486d-bb13-a81a11473650",
+						"version": "4290d0a0-0ff8-49bb-a9dc-b93f3e97876a",
+						"trafficPercent": 100,
+						"codeTag": "5b1ccf20cfcd9f0646fd00738ed3585ac43b6c0f"
+					},
+					{
+						"target": "background",
+						"deploymentId": "698e0f89-d88a-4993-b15f-bc7cd1d18329",
+						"version": "b234d53c-b529-44a7-9b5e-2784b21b5f1c",
+						"trafficPercent": 100,
+						"codeTag": "5b1ccf20cfcd9f0646fd00738ed3585ac43b6c0f"
+					}
+				]
+			}
+		},
+		"documentationPublication": {
+			"status": "PLANNED_BY_PARENT",
+			"scope": "Documentation only after evidence freeze; application source unchanged from 5b1ccf20",
+			"githubCi": "NOT_RUN_PLANNED_SKIP_CI",
+			"note": "Do not present a later documentation-only SHA as CI-passed by inheriting application-release CI"
+		},
+		"automaticFramingLiveCopy": {
+			"status": "PASS",
+			"checkedAt": "2026-10-04T18:54:49.974Z",
+			"codeRelease": "5b1ccf20cfcd9f0646fd00738ed3585ac43b6c0f",
+			"method": "Authenticated browser DOM after selecting Image to video",
+			"label": "Automatic framing",
+			"description": "The model determines the output framing for your reference image.",
+			"generationCalls": 0,
+			"uploads": 0,
+			"doesNotVerifyProviderAspectPreservation": true
+		},
+		"independentReportReview": {
+			"status": "PASS_AFTER_TWO_STALE_FIELDS_CORRECTED",
+			"readOnly": true,
+			"filesReviewed": 2,
+			"confirmed": [
+				"14 source snapshot hashes and index hash match",
+				"12 READY cases have actual browser playback",
+				"All 14 timing sums match",
+				"609 application credits settled and 60 released",
+				"Known provider credits 666, missing Veo amount and account residual 30 remain distinct",
+				"391 spendable, 0 reserved and 0 debt from independent account readback",
+				"ProFast rejection, ratio limits, audio boundary and historical CI failures retained",
+				"No sensitive identifier or secret leakage found"
+			],
+			"corrections": [
+				"Updated actual Veo array entry from NOT_RUN/CI_BLOCKED to accepted recorded selection",
+				"Moved 11-case balance mapping into historical checkpoint and mapped final balance cutoff to 14 cases"
+			],
+			"finalReleaseHashesRefreshed": true
+		}
+	},
+	"runtime": {
+		"enabled": true,
+		"audience": "One named authenticated administrator; identity omitted",
+		"funding": "Existing ordinary application credits under expiring operator-funded acceptance policy",
+		"paidRevenueQualified": false,
+		"latestSavedReceiptAt": "2026-10-04T17:41:58.942Z",
+		"bindingsPreserved": true,
+		"sharedProviderCapacity": 2,
+		"globalVideoConcurrency": 1,
+		"ownerVideoConcurrency": 1,
+		"packedPolicyBinding": "VIDEO_RUNTIME_CONFIG",
+		"audioSafetyMode": "not_requested",
+		"publicAndGuestVideoAccess": "DISABLED",
+		"allowlistExpansionSource": "Saved expanded-policy-receipts.json and expanded-site-after-build.json",
+		"capacityReceiptWebsiteVersion": "d036d321-124f-4808-8da2-3145eb792ff6",
+		"capacityReceiptBackendVersion": "ddd6bc6e-8c87-4bce-bcd2-473ffa002215",
+		"versionBoundary": "Latest automatic deployments confirmed at 5b1ccf20 with 100% traffic; direct historical binding readback remains separately dated and cannot read secret policy values",
+		"websiteVersion": "4290d0a0-0ff8-49bb-a9dc-b93f3e97876a",
+		"backendVersion": "b234d53c-b529-44a7-9b5e-2784b21b5f1c",
+		"codeTag": "5b1ccf20cfcd9f0646fd00738ed3585ac43b6c0f",
+		"allowedOptions": [
+			{
+				"productKey": "video-kling-2-6-v1",
+				"modes": ["text-to-video"],
+				"durations": [5],
+				"resolutions": ["default"],
+				"sounds": [false, true]
+			},
+			{
+				"productKey": "video-kling-2-6-v1",
+				"modes": ["image-to-video"],
+				"durations": [5],
+				"resolutions": ["default"],
+				"sounds": [false]
+			},
+			{
+				"productKey": "video-seedance-1-5-pro",
+				"modes": ["text-to-video"],
+				"durations": [4],
+				"resolutions": ["480p"],
+				"sounds": [false]
+			},
+			{
+				"productKey": "video-kling-3",
+				"modes": ["text-to-video"],
+				"durations": [3],
+				"resolutions": ["720p"],
+				"sounds": [false]
+			},
+			{
+				"productKey": "video-kling-3-turbo",
+				"modes": ["text-to-video"],
+				"durations": [3],
+				"resolutions": ["720p"],
+				"sounds": [true]
+			},
+			{
+				"productKey": "video-seedance-2-5",
+				"modes": ["text-to-video"],
+				"durations": [4],
+				"resolutions": ["480p"],
+				"sounds": [false]
+			},
+			{
+				"productKey": "video-seedance-2",
+				"modes": ["text-to-video"],
+				"durations": [4],
+				"resolutions": ["480p"],
+				"sounds": [false]
+			},
+			{
+				"productKey": "video-seedance-2-mini",
+				"modes": ["text-to-video"],
+				"durations": [4],
+				"resolutions": ["480p"],
+				"sounds": [false]
+			},
+			{
+				"productKey": "video-seedance-2-fast",
+				"modes": ["text-to-video"],
+				"durations": [4],
+				"resolutions": ["480p"],
+				"sounds": [false]
+			},
+			{
+				"productKey": "video-seedance-1-pro-fast",
+				"modes": ["image-to-video"],
+				"durations": [5],
+				"resolutions": ["720p"],
+				"sounds": [false]
+			},
+			{
+				"productKey": "video-gemini-omni-flash",
+				"modes": ["text-to-video"],
+				"durations": [4],
+				"resolutions": ["360p"],
+				"sounds": [true]
+			}
+		],
+		"temporaryConcurrencyExperiment": {
+			"result": "REJECTED_FAIL_CLOSED",
+			"requestedOwnerConcurrency": 2,
+			"maximumOwnerConcurrency": 1,
+			"configuredVideoLimitAfterInvalidParse": 0,
+			"newJobOrPaidRequestFromRejectedAdmission": false,
+			"restored": {
+				"sharedCapacity": 2,
+				"globalVideo": 1,
+				"ownerVideo": 1
+			},
+			"behaviorSource": "Executing agent observation; configuration mutation receipts saved",
+			"performanceAcceptance": "NOT_RUN"
+		},
+		"h3Admission": "DISABLED_AFTER_REAL_CONTRACT_FAILURE",
+		"pendingVeoFastPolicy": "Representative allowed selection exercised by real quote, generation, settlement and playback; broader secret policy contents remain unreadable",
+		"allowedOptionGroups": 11,
+		"allowedOptionKeysExcludingAspectRatio": 12,
+		"allowlistKeyFields": ["productKey", "mode", "duration", "resolution", "sound"],
+		"aspectRatioGate": "Aspect ratio is not part of the runtime allowlist key; each admitted key still permits its official catalog aspect ratios",
+		"completeParameterCombinationCount": null,
+		"latestDeploymentReceiptAt": "2026-10-04T18:56:25.998Z",
+		"allowlistCountBoundary": "11 groups / 12 option keys are the last independently recorded H3-removal policy; later Veo build policy adds a selection, with runtime readback pending",
+		"bindingReadback": {
+			"status": "PASS",
+			"checkedAt": "2026-10-04T18:14:00.539Z",
+			"policyValueReadable": false,
+			"secretPolicyContentsIndependentlyRead": false,
+			"policyEvidence": "Explicit build-policy synchronization receipts; binding presence is not policy-value readback",
+			"workers": [
+				{
+					"target": "website",
+					"version": "703429ab-5122-43ce-9378-38b442bb1dae",
+					"codeTag": "1d9f3136e5230dbc9dab17803d002479d7eb463d",
+					"trafficPercent": 100,
+					"videoEnabled": true,
+					"workflowBindingPresent": true,
+					"privateR2BindingPresent": true,
+					"packedSecretBindingPresent": true
+				},
+				{
+					"target": "background",
+					"version": "62aca2a5-ca75-4211-a0ad-d995b9c9ff2a",
+					"codeTag": "1d9f3136e5230dbc9dab17803d002479d7eb463d",
+					"trafficPercent": 100,
+					"videoEnabled": true,
+					"workflowBindingPresent": true,
+					"privateR2BindingPresent": true,
+					"packedSecretBindingPresent": true
+				}
+			]
+		},
+		"operatorFundedGrantExpiresAt": "2026-10-06T00:00:00Z",
+		"operatorFundedGrantExpiresAtAsiaShanghai": "2026-10-06 08:00:00 +08:00",
+		"operatorFundedGrantPermanent": false,
+		"operatorFundedGrantSource": "Executing parent final configuration report"
+	},
+	"pricing": {
+		"version": "kie-public-2026-10-04.3",
+		"generalReferenceExpiresAt": "2026-10-12T00:00:00.000Z",
+		"seedanceMiniFastPromotionExpiresAt": "2026-10-07T06:00:00.000Z",
+		"target": "profit / complete budgeted cost >= 110%",
+		"realizedProfitGuaranteed": false,
+		"budgetUsdMicros": {
+			"moderationBase": 5100,
+			"moderationPerSecond": 200,
+			"runtime": 100000,
+			"storage": 10000
+		},
+		"nonbillableAllowanceBps": 1000,
+		"paymentAllocationBps": 654,
+		"markupBps": 11000,
+		"initialAcceptanceVersion": "kie-public-2026-10-04.2",
+		"modelContractVersion": "video-models-2026-10-04.2",
+		"currentVersionSource": "Current price-basis document and executing parent final runtime configuration report; packed secret value itself is not readable",
+		"versionChangeBoundary": "Price .3 adds legacy-route Veo 3.1 Fast; prior admitted model prices and parameters remain unchanged"
+	},
+	"cases": [
+		{
+			"caseId": "K26-T2V-SILENT",
+			"status": "PASS_PERSISTED_BACKEND",
+			"productKey": "video-kling-2-6-v1",
+			"mode": "text-to-video",
+			"requestedDurationSeconds": 5,
+			"resolution": "default",
+			"sound": false,
+			"jobStatus": "SUCCEEDED",
+			"executionStage": "READY",
+			"readyAt": "2026-10-04T16:45:58.177Z",
+			"sourceSnapshotSha256": "62dfe4cb802aa132eb13444ca4b54deff1c8e73eb6e168b3c9c8c3a7200351a0",
+			"sourceHashVerified": true,
+			"executionEngine": "video-workflow-v1",
+			"verificationEngine": "video-workflow-v1",
+			"textReview": {
+				"provider": "waffo",
+				"decision": "ALLOW",
+				"frozenFingerprintAndProfileMatch": true
+			},
+			"inputImageReview": null,
+			"provider": {
+				"name": "kie",
+				"attemptCount": 1,
+				"status": "SUCCEEDED",
+				"uncertainSubmission": false,
+				"authenticatedResultConfirmed": true,
+				"creditsConsumed": 55,
+				"actualInvoiceUsd": null,
+				"providerCostMicros": null,
+				"quotedEstimateUsd": 0.275
+			},
+			"output": {
+				"mimeType": "video/mp4",
+				"width": 1920,
+				"height": 1080,
+				"durationMillis": 5042,
+				"byteSize": 10647024,
+				"audioTrackCount": 0,
+				"sha256": "8de4ec7d9e4489e19c495660359351516cf07384d70100a9f01c91bf9df3d163",
+				"storageEtagPresent": true,
+				"storageVersionPresent": false,
+				"ownerMatchesJob": true,
+				"bindingChecksumMatches": true,
+				"immutableIdentityMatches": true,
+				"deleteAfter": "2026-11-03T16:45:55.762Z",
+				"verificationValidUntil": "2026-11-03T16:45:55.762Z"
+			},
+			"outputReview": {
+				"provider": "seeapi",
+				"decision": "APPROVED",
+				"reason": "NO_POLICY_MATCH",
+				"coverage": "sampled_frames",
+				"framesRequested": 8,
+				"framesChecked": 8,
+				"framesFlagged": 0,
+				"confirmationPhase": "COMPLETE",
+				"persistedReadAttemptCount": 1,
+				"wireHttpRequestCount": null,
+				"immutableContentBindingMatches": true,
+				"audioSafetyMode": "not_requested",
+				"audioContentModerated": false
+			},
+			"callbacks": {
+				"kie": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"seeapi": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"independentRawSignatureRevalidation": "NOT_RUN"
+			},
+			"ledger": {
+				"applicationCreditsSettled": 49,
+				"reservationCount": 1,
+				"reserveEntryCount": 1,
+				"settleEntryCount": 1,
+				"releaseEntryCount": 0,
+				"allocationTotalsMatch": true,
+				"accountOwnershipMatches": true
+			},
+			"timing": {
+				"source": "Persisted timestamps and commit observations; service clocks may differ",
+				"unit": "milliseconds",
+				"segments": [
+					{
+						"name": "admission",
+						"milliseconds": 2831
+					},
+					{
+						"name": "workflow_start",
+						"milliseconds": 3953
+					},
+					{
+						"name": "workflow_to_input_review",
+						"milliseconds": 2691
+					},
+					{
+						"name": "input_review",
+						"milliseconds": 2491
+					},
+					{
+						"name": "input_to_provider",
+						"milliseconds": 2342
+					},
+					{
+						"name": "provider_request",
+						"milliseconds": 1451
+					},
+					{
+						"name": "provider_generation",
+						"milliseconds": 96192
+					},
+					{
+						"name": "result_discovery",
+						"milliseconds": 7295
+					},
+					{
+						"name": "confirmation_to_storage",
+						"milliseconds": 2288
+					},
+					{
+						"name": "storage",
+						"milliseconds": 10547
+					},
+					{
+						"name": "storage_to_review",
+						"milliseconds": 3002
+					},
+					{
+						"name": "output_review",
+						"milliseconds": 43317
+					},
+					{
+						"name": "finalization",
+						"milliseconds": 2415
+					}
+				],
+				"total": 180815,
+				"segmentSumMatchesTotal": true,
+				"upload": null,
+				"browserRenderToPlayable": null,
+				"isolatedInputImageReviewService": null
+			},
+			"browser": {
+				"playback": "PASS",
+				"source": "Executing agent browser observations",
+				"currentTimeGreaterThanZero": true,
+				"paused": false,
+				"error": null,
+				"audibility": "NOT_APPLICABLE",
+				"muted": null,
+				"closeAndResume": "PASS_SAME_JOB_RECOVERED_FROM_HISTORY",
+				"exactTabCloseTimestamp": null,
+				"firstFrameMilliseconds": null,
+				"privateObjectHeadAndRange": "NOT_RUN"
+			},
+			"liveFaultInjection": "NOT_RUN"
+		},
+		{
+			"caseId": "K26-T2V-SOUND",
+			"status": "PASS_PERSISTED_BACKEND",
+			"productKey": "video-kling-2-6-v1",
+			"mode": "text-to-video",
+			"requestedDurationSeconds": 5,
+			"resolution": "default",
+			"sound": true,
+			"jobStatus": "SUCCEEDED",
+			"executionStage": "READY",
+			"readyAt": "2026-10-04T16:50:56.785Z",
+			"sourceSnapshotSha256": "0d148dad2e7b40ea8a450167728b448fa3beabec908f213d1b63bd88b5538b0e",
+			"sourceHashVerified": true,
+			"executionEngine": "video-workflow-v1",
+			"verificationEngine": "video-workflow-v1",
+			"textReview": {
+				"provider": "waffo",
+				"decision": "ALLOW",
+				"frozenFingerprintAndProfileMatch": true
+			},
+			"inputImageReview": null,
+			"provider": {
+				"name": "kie",
+				"attemptCount": 1,
+				"status": "SUCCEEDED",
+				"uncertainSubmission": false,
+				"authenticatedResultConfirmed": true,
+				"creditsConsumed": 110,
+				"actualInvoiceUsd": null,
+				"providerCostMicros": null,
+				"quotedEstimateUsd": 0.55
+			},
+			"output": {
+				"mimeType": "video/mp4",
+				"width": 1920,
+				"height": 1080,
+				"durationMillis": 5042,
+				"byteSize": 6234542,
+				"audioTrackCount": 1,
+				"sha256": "9e9557dbaff8a81003d46e841e7351e3a7cebbce90957e9d51f27a4c240392e6",
+				"storageEtagPresent": true,
+				"storageVersionPresent": false,
+				"ownerMatchesJob": true,
+				"bindingChecksumMatches": true,
+				"immutableIdentityMatches": true,
+				"deleteAfter": "2026-11-03T16:50:54.481Z",
+				"verificationValidUntil": "2026-11-03T16:50:54.481Z"
+			},
+			"outputReview": {
+				"provider": "seeapi",
+				"decision": "APPROVED",
+				"reason": "NO_POLICY_MATCH",
+				"coverage": "sampled_frames",
+				"framesRequested": 8,
+				"framesChecked": 8,
+				"framesFlagged": 0,
+				"confirmationPhase": "COMPLETE",
+				"persistedReadAttemptCount": 1,
+				"wireHttpRequestCount": null,
+				"immutableContentBindingMatches": true,
+				"audioSafetyMode": "not_requested",
+				"audioContentModerated": false
+			},
+			"callbacks": {
+				"kie": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"seeapi": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"independentRawSignatureRevalidation": "NOT_RUN"
+			},
+			"ledger": {
+				"applicationCreditsSettled": 83,
+				"reservationCount": 1,
+				"reserveEntryCount": 1,
+				"settleEntryCount": 1,
+				"releaseEntryCount": 0,
+				"allocationTotalsMatch": true,
+				"accountOwnershipMatches": true
+			},
+			"timing": {
+				"source": "Persisted timestamps and commit observations; service clocks may differ",
+				"unit": "milliseconds",
+				"segments": [
+					{
+						"name": "admission",
+						"milliseconds": 1966
+					},
+					{
+						"name": "workflow_start",
+						"milliseconds": 3015
+					},
+					{
+						"name": "workflow_to_input_review",
+						"milliseconds": 2302
+					},
+					{
+						"name": "input_review",
+						"milliseconds": 2466
+					},
+					{
+						"name": "input_to_provider",
+						"milliseconds": 1814
+					},
+					{
+						"name": "provider_request",
+						"milliseconds": 1162
+					},
+					{
+						"name": "provider_generation",
+						"milliseconds": 99858
+					},
+					{
+						"name": "result_discovery",
+						"milliseconds": 7004
+					},
+					{
+						"name": "confirmation_to_storage",
+						"milliseconds": 2299
+					},
+					{
+						"name": "storage",
+						"milliseconds": 4949
+					},
+					{
+						"name": "storage_to_review",
+						"milliseconds": 2649
+					},
+					{
+						"name": "output_review",
+						"milliseconds": 49326
+					},
+					{
+						"name": "finalization",
+						"milliseconds": 2304
+					}
+				],
+				"total": 181114,
+				"segmentSumMatchesTotal": true,
+				"upload": null,
+				"browserRenderToPlayable": null,
+				"isolatedInputImageReviewService": null
+			},
+			"browser": {
+				"playback": "PASS",
+				"source": "Executing agent browser observations",
+				"currentTimeGreaterThanZero": true,
+				"paused": false,
+				"error": null,
+				"audibility": "NOT_RUN",
+				"muted": false,
+				"closeAndResume": "NOT_RUN",
+				"exactTabCloseTimestamp": null,
+				"firstFrameMilliseconds": null,
+				"privateObjectHeadAndRange": "NOT_RUN"
+			},
+			"liveFaultInjection": "NOT_RUN"
+		},
+		{
+			"caseId": "K26-I2V-SILENT",
+			"status": "PASS_PERSISTED_BACKEND",
+			"productKey": "video-kling-2-6-v1",
+			"mode": "image-to-video",
+			"requestedDurationSeconds": 5,
+			"resolution": "default",
+			"sound": false,
+			"jobStatus": "SUCCEEDED",
+			"executionStage": "READY",
+			"readyAt": "2026-10-04T16:55:51.754Z",
+			"sourceSnapshotSha256": "7a6a079e3b588eed7a97f4fae529cef0a31dd70996a1253a079579c62e363c88",
+			"sourceHashVerified": true,
+			"executionEngine": "video-workflow-v1",
+			"verificationEngine": "video-workflow-v1",
+			"textReview": {
+				"provider": "waffo",
+				"decision": "ALLOW",
+				"frozenFingerprintAndProfileMatch": true
+			},
+			"inputImageReview": {
+				"provider": "seeapi",
+				"decision": "ALLOW",
+				"model": "nsfw-filter",
+				"operations": 1,
+				"flagged": false,
+				"jobBoundIdentityMatches": true,
+				"genericAssetStatus": "VERIFYING",
+				"decisionLocation": "video_execution.stageData.inputReview",
+				"sealedInput": {
+					"mimeType": "image/png",
+					"width": 1024,
+					"height": 1536,
+					"byteSize": 1014280,
+					"sha256": "a6cf43450b185f628119bd99519e423abba7ff61a000e7534c2d51e1ab304e82"
+				}
+			},
+			"provider": {
+				"name": "kie",
+				"attemptCount": 1,
+				"status": "SUCCEEDED",
+				"uncertainSubmission": false,
+				"authenticatedResultConfirmed": true,
+				"creditsConsumed": 55,
+				"actualInvoiceUsd": null,
+				"providerCostMicros": null,
+				"quotedEstimateUsd": 0.275
+			},
+			"output": {
+				"mimeType": "video/mp4",
+				"width": 1176,
+				"height": 1764,
+				"durationMillis": 5042,
+				"byteSize": 10901196,
+				"audioTrackCount": 0,
+				"sha256": "99636bf7b29f94cc0318a0479938b865cc83def2de778396871fbdd5ac32440a",
+				"storageEtagPresent": true,
+				"storageVersionPresent": false,
+				"ownerMatchesJob": true,
+				"bindingChecksumMatches": true,
+				"immutableIdentityMatches": true,
+				"deleteAfter": "2026-11-03T16:55:48.665Z",
+				"verificationValidUntil": "2026-11-03T16:55:48.665Z"
+			},
+			"outputReview": {
+				"provider": "seeapi",
+				"decision": "APPROVED",
+				"reason": "NO_POLICY_MATCH",
+				"coverage": "sampled_frames",
+				"framesRequested": 8,
+				"framesChecked": 8,
+				"framesFlagged": 0,
+				"confirmationPhase": "COMPLETE",
+				"persistedReadAttemptCount": 1,
+				"wireHttpRequestCount": null,
+				"immutableContentBindingMatches": true,
+				"audioSafetyMode": "not_requested",
+				"audioContentModerated": false
+			},
+			"callbacks": {
+				"kie": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"seeapi": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"independentRawSignatureRevalidation": "NOT_RUN"
+			},
+			"ledger": {
+				"applicationCreditsSettled": 49,
+				"reservationCount": 1,
+				"reserveEntryCount": 1,
+				"settleEntryCount": 1,
+				"releaseEntryCount": 0,
+				"allocationTotalsMatch": true,
+				"accountOwnershipMatches": true
+			},
+			"timing": {
+				"source": "Persisted timestamps and commit observations; service clocks may differ",
+				"unit": "milliseconds",
+				"segments": [
+					{
+						"name": "admission",
+						"milliseconds": 2414
+					},
+					{
+						"name": "workflow_start",
+						"milliseconds": 1972
+					},
+					{
+						"name": "workflow_to_input_review",
+						"milliseconds": 2834
+					},
+					{
+						"name": "input_review",
+						"milliseconds": 41707
+					},
+					{
+						"name": "input_to_provider",
+						"milliseconds": 2290
+					},
+					{
+						"name": "provider_request",
+						"milliseconds": 2143
+					},
+					{
+						"name": "provider_generation",
+						"milliseconds": 132817
+					},
+					{
+						"name": "result_discovery",
+						"milliseconds": 6981
+					},
+					{
+						"name": "confirmation_to_storage",
+						"milliseconds": 2308
+					},
+					{
+						"name": "storage",
+						"milliseconds": 5942
+					},
+					{
+						"name": "storage_to_review",
+						"milliseconds": 2934
+					},
+					{
+						"name": "output_review",
+						"milliseconds": 46333
+					},
+					{
+						"name": "finalization",
+						"milliseconds": 3089
+					}
+				],
+				"total": 253764,
+				"segmentSumMatchesTotal": true,
+				"upload": null,
+				"browserRenderToPlayable": null,
+				"isolatedInputImageReviewService": null
+			},
+			"browser": {
+				"playback": "PASS",
+				"source": "Executing agent browser observations",
+				"currentTimeGreaterThanZero": true,
+				"paused": false,
+				"error": null,
+				"audibility": "NOT_APPLICABLE",
+				"muted": null,
+				"closeAndResume": "NOT_RUN",
+				"exactTabCloseTimestamp": null,
+				"firstFrameMilliseconds": null,
+				"privateObjectHeadAndRange": "NOT_RUN"
+			},
+			"liveFaultInjection": "NOT_RUN"
+		},
+		{
+			"caseId": "S15-T2V-SILENT",
+			"status": "PASS_PERSISTED_BACKEND",
+			"productKey": "video-seedance-1-5-pro",
+			"mode": "text-to-video",
+			"requestedDurationSeconds": 4,
+			"resolution": "480p",
+			"sound": false,
+			"jobStatus": "SUCCEEDED",
+			"executionStage": "READY",
+			"readyAt": "2026-10-04T17:21:00.811Z",
+			"sourceSnapshotSha256": "169d0eddb45abc400178fd9ec71cd21bb779c95ed68b54efcdeaf2967f92f131",
+			"sourceHashVerified": true,
+			"executionEngine": "video-workflow-v1",
+			"verificationEngine": "video-workflow-v1",
+			"textReview": {
+				"provider": "waffo",
+				"decision": "ALLOW",
+				"frozenFingerprintAndProfileMatch": true
+			},
+			"inputImageReview": null,
+			"provider": {
+				"name": "kie",
+				"attemptCount": 1,
+				"status": "SUCCEEDED",
+				"uncertainSubmission": false,
+				"authenticatedResultConfirmed": true,
+				"creditsConsumed": 7,
+				"actualInvoiceUsd": null,
+				"providerCostMicros": null,
+				"quotedEstimateUsd": 0.035
+			},
+			"output": {
+				"mimeType": "video/mp4",
+				"width": 864,
+				"height": 496,
+				"durationMillis": 4042,
+				"byteSize": 2762174,
+				"audioTrackCount": 0,
+				"sha256": "3785072f451fd519d01d12cfba96e274d524ad7a0be937c63933589c66d39661",
+				"storageEtagPresent": true,
+				"storageVersionPresent": false,
+				"ownerMatchesJob": true,
+				"bindingChecksumMatches": true,
+				"immutableIdentityMatches": true,
+				"deleteAfter": "2026-11-03T17:20:58.018Z",
+				"verificationValidUntil": "2026-11-03T17:20:58.018Z"
+			},
+			"outputReview": {
+				"provider": "seeapi",
+				"decision": "APPROVED",
+				"reason": "NO_POLICY_MATCH",
+				"coverage": "sampled_frames",
+				"framesRequested": 8,
+				"framesChecked": 8,
+				"framesFlagged": 0,
+				"confirmationPhase": "COMPLETE",
+				"persistedReadAttemptCount": 1,
+				"wireHttpRequestCount": null,
+				"immutableContentBindingMatches": true,
+				"audioSafetyMode": "not_requested",
+				"audioContentModerated": false
+			},
+			"callbacks": {
+				"kie": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"seeapi": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"independentRawSignatureRevalidation": "NOT_RUN"
+			},
+			"ledger": {
+				"applicationCreditsSettled": 19,
+				"reservationCount": 1,
+				"reserveEntryCount": 1,
+				"settleEntryCount": 1,
+				"releaseEntryCount": 0,
+				"allocationTotalsMatch": true,
+				"accountOwnershipMatches": true
+			},
+			"timing": {
+				"source": "Persisted timestamps and commit observations; service clocks may differ",
+				"unit": "milliseconds",
+				"segments": [
+					{
+						"name": "admission",
+						"milliseconds": 2176
+					},
+					{
+						"name": "workflow_start",
+						"milliseconds": 3262
+					},
+					{
+						"name": "workflow_to_input_review",
+						"milliseconds": 2943
+					},
+					{
+						"name": "input_review",
+						"milliseconds": 2946
+					},
+					{
+						"name": "input_to_provider",
+						"milliseconds": 2207
+					},
+					{
+						"name": "provider_request",
+						"milliseconds": 1386
+					},
+					{
+						"name": "provider_generation",
+						"milliseconds": 22584
+					},
+					{
+						"name": "result_discovery",
+						"milliseconds": 7431
+					},
+					{
+						"name": "confirmation_to_storage",
+						"milliseconds": 2540
+					},
+					{
+						"name": "storage",
+						"milliseconds": 4980
+					},
+					{
+						"name": "storage_to_review",
+						"milliseconds": 3236
+					},
+					{
+						"name": "output_review",
+						"milliseconds": 43677
+					},
+					{
+						"name": "finalization",
+						"milliseconds": 2793
+					}
+				],
+				"total": 102161,
+				"segmentSumMatchesTotal": true,
+				"upload": null,
+				"browserRenderToPlayable": null,
+				"isolatedInputImageReviewService": null
+			},
+			"browser": {
+				"playback": "PASS_FRESH_AUTHORIZATION_PLAYED_TO_END",
+				"source": "Saved fresh-view browser receipt for the same existing job",
+				"observedAt": "2026-10-04T18:13:34.765Z",
+				"currentTime": 4.041667,
+				"duration": 4.041667,
+				"ended": true,
+				"error": null,
+				"muted": false,
+				"paused": true,
+				"readyState": 4,
+				"audibility": "NOT_APPLICABLE_NO_AUDIO_TRACK",
+				"closeAndResume": "NOT_RUN",
+				"firstFrameMilliseconds": null,
+				"privateObjectHeadAndRange": "NOT_RUN",
+				"previousOldTabObservation": {
+					"currentTime": 0,
+					"readyState": 0,
+					"acceptedAsPlaybackPass": false
+				},
+				"freshAuthorizationForSameJob": true,
+				"newGeneration": false
+			},
+			"liveFaultInjection": "NOT_RUN"
+		},
+		{
+			"caseId": "K3-T2V-SILENT",
+			"status": "PASS_PERSISTED_BACKEND",
+			"productKey": "video-kling-3",
+			"mode": "text-to-video",
+			"requestedDurationSeconds": 3,
+			"resolution": "720p",
+			"sound": false,
+			"jobStatus": "SUCCEEDED",
+			"executionStage": "READY",
+			"readyAt": "2026-10-04T17:36:46.948Z",
+			"sourceSnapshotSha256": "2ea36c9888b440aec63d89546add677007e5cbb338915ba27f92f3107eae3dc3",
+			"sourceHashVerified": true,
+			"executionEngine": "video-workflow-v1",
+			"verificationEngine": "video-workflow-v1",
+			"textReview": {
+				"provider": "waffo",
+				"decision": "ALLOW",
+				"frozenFingerprintAndProfileMatch": true
+			},
+			"inputImageReview": null,
+			"provider": {
+				"name": "kie",
+				"attemptCount": 1,
+				"status": "SUCCEEDED",
+				"uncertainSubmission": false,
+				"authenticatedResultConfirmed": true,
+				"creditsConsumed": 42,
+				"actualInvoiceUsd": null,
+				"providerCostMicros": null,
+				"quotedEstimateUsd": 0.21
+			},
+			"output": {
+				"mimeType": "video/mp4",
+				"width": 1280,
+				"height": 720,
+				"durationMillis": 3042,
+				"byteSize": 3207065,
+				"audioTrackCount": 0,
+				"sha256": "9af99d6e33a3243b44274902a2a6be6a0f2d8c25af112e57b094b2fbae6f3533",
+				"storageEtagPresent": true,
+				"storageVersionPresent": false,
+				"ownerMatchesJob": true,
+				"bindingChecksumMatches": true,
+				"immutableIdentityMatches": true,
+				"deleteAfter": "2026-11-03T17:36:44.598Z",
+				"verificationValidUntil": "2026-11-03T17:36:44.598Z"
+			},
+			"outputReview": {
+				"provider": "seeapi",
+				"decision": "APPROVED",
+				"reason": "NO_POLICY_MATCH",
+				"coverage": "sampled_frames",
+				"framesRequested": 8,
+				"framesChecked": 8,
+				"framesFlagged": 0,
+				"confirmationPhase": "COMPLETE",
+				"persistedReadAttemptCount": 1,
+				"wireHttpRequestCount": null,
+				"immutableContentBindingMatches": true,
+				"audioSafetyMode": "not_requested",
+				"audioContentModerated": false
+			},
+			"callbacks": {
+				"kie": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "IGNORED",
+					"processedAt": "2026-10-04T17:57:13.585Z",
+					"previousStatus": "RECEIVED",
+					"reason": "VIDEO_PROVIDER_RESULT_ALREADY_CONFIRMED"
+				},
+				"seeapi": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"independentRawSignatureRevalidation": "NOT_RUN",
+				"lateTerminalCleanup": {
+					"status": "PASS",
+					"businessObjectsUnchanged": {
+						"job": true,
+						"execution": true,
+						"attempts": true,
+						"reservations": true,
+						"ledger": true,
+						"assets": true,
+						"moderation": true,
+						"exactlyOnceSnapshotEvidence": true
+					},
+					"newProviderAttempt": false,
+					"newLedgerMutation": false,
+					"readbackEvidenceSha256": "8c4cfce54b664b1e9d95d7c3cda55e3fadfb254f4659a7491575a5ce7bade269"
+				}
+			},
+			"ledger": {
+				"applicationCreditsSettled": 41,
+				"reservationCount": 1,
+				"reserveEntryCount": 1,
+				"settleEntryCount": 1,
+				"releaseEntryCount": 0,
+				"allocationTotalsMatch": true,
+				"accountOwnershipMatches": true
+			},
+			"timing": {
+				"source": "Persisted timestamps and commit observations; service clocks may differ",
+				"unit": "milliseconds",
+				"segments": [
+					{
+						"name": "admission",
+						"milliseconds": 2059
+					},
+					{
+						"name": "workflow_start",
+						"milliseconds": 1381
+					},
+					{
+						"name": "workflow_to_input_review",
+						"milliseconds": 2403
+					},
+					{
+						"name": "input_review",
+						"milliseconds": 2454
+					},
+					{
+						"name": "input_to_provider",
+						"milliseconds": 1804
+					},
+					{
+						"name": "provider_request",
+						"milliseconds": 1160
+					},
+					{
+						"name": "provider_generation",
+						"milliseconds": 282054
+					},
+					{
+						"name": "result_discovery",
+						"milliseconds": 3050
+					},
+					{
+						"name": "confirmation_to_storage",
+						"milliseconds": 3878
+					},
+					{
+						"name": "storage",
+						"milliseconds": 4185
+					},
+					{
+						"name": "storage_to_review",
+						"milliseconds": 2825
+					},
+					{
+						"name": "output_review",
+						"milliseconds": 48058
+					},
+					{
+						"name": "finalization",
+						"milliseconds": 2350
+					}
+				],
+				"total": 357661,
+				"segmentSumMatchesTotal": true,
+				"upload": null,
+				"browserRenderToPlayable": null,
+				"isolatedInputImageReviewService": null
+			},
+			"browser": {
+				"playback": "PASS_FRESH_AUTHORIZATION_PLAYED_TO_END",
+				"source": "Saved same-job fresh-authorization browser observation",
+				"observedAt": "2026-10-04T18:15:50.924Z",
+				"currentTime": 3.041667,
+				"duration": 3.041667,
+				"ended": true,
+				"error": null,
+				"muted": false,
+				"paused": true,
+				"readyState": 4,
+				"audibility": "NOT_APPLICABLE_NO_AUDIO_TRACK",
+				"closeAndResume": "NOT_RUN",
+				"firstFrameMilliseconds": null,
+				"privateObjectHeadAndRange": "NOT_RUN",
+				"freshAuthorizationForSameJob": true,
+				"newGeneration": false,
+				"previousObservation": {
+					"playback": "NOT_RUN",
+					"audibility": "NOT_APPLICABLE",
+					"closeAndResume": "NOT_RUN",
+					"exactTabCloseTimestamp": null,
+					"firstFrameMilliseconds": null,
+					"privateObjectHeadAndRange": "NOT_RUN"
+				}
+			},
+			"liveFaultInjection": "NOT_RUN",
+			"previousSnapshotSha256": "6a1676dc3865fb909a2f93f497c93616e2cdc2611b1f6b42377a5d823af0b9fe"
+		},
+		{
+			"caseId": "K3T-T2V-SOUND",
+			"status": "PASS_PERSISTED_BACKEND",
+			"productKey": "video-kling-3-turbo",
+			"mode": "text-to-video",
+			"requestedDurationSeconds": 3,
+			"resolution": "720p",
+			"sound": true,
+			"jobStatus": "SUCCEEDED",
+			"executionStage": "READY",
+			"readyAt": "2026-10-04T17:39:44.086Z",
+			"sourceSnapshotSha256": "37929809d8ae5727ff4d9d8bfb8816ddc4bdbe378b8189a8c70f8dc95de6a84b",
+			"sourceHashVerified": true,
+			"executionEngine": "video-workflow-v1",
+			"verificationEngine": "video-workflow-v1",
+			"textReview": {
+				"provider": "waffo",
+				"decision": "ALLOW",
+				"frozenFingerprintAndProfileMatch": true
+			},
+			"inputImageReview": null,
+			"provider": {
+				"name": "kie",
+				"attemptCount": 1,
+				"status": "SUCCEEDED",
+				"uncertainSubmission": false,
+				"authenticatedResultConfirmed": true,
+				"creditsConsumed": 54,
+				"actualInvoiceUsd": null,
+				"providerCostMicros": null,
+				"quotedEstimateUsd": 0.27
+			},
+			"output": {
+				"mimeType": "video/mp4",
+				"width": 1280,
+				"height": 720,
+				"durationMillis": 3042,
+				"byteSize": 3671249,
+				"audioTrackCount": 1,
+				"sha256": "990c44ecbdac480ea02f0ead9aede29246e2c80850460821bfa46b2056a1e864",
+				"storageEtagPresent": true,
+				"storageVersionPresent": false,
+				"ownerMatchesJob": true,
+				"bindingChecksumMatches": true,
+				"immutableIdentityMatches": true,
+				"deleteAfter": "2026-11-03T17:39:41.794Z",
+				"verificationValidUntil": "2026-11-03T17:39:41.794Z"
+			},
+			"outputReview": {
+				"provider": "seeapi",
+				"decision": "APPROVED",
+				"reason": "NO_POLICY_MATCH",
+				"coverage": "sampled_frames",
+				"framesRequested": 8,
+				"framesChecked": 8,
+				"framesFlagged": 0,
+				"confirmationPhase": "COMPLETE",
+				"persistedReadAttemptCount": 1,
+				"wireHttpRequestCount": null,
+				"immutableContentBindingMatches": true,
+				"audioSafetyMode": "not_requested",
+				"audioContentModerated": false
+			},
+			"callbacks": {
+				"kie": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"seeapi": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"independentRawSignatureRevalidation": "NOT_RUN"
+			},
+			"ledger": {
+				"applicationCreditsSettled": 48,
+				"reservationCount": 1,
+				"reserveEntryCount": 1,
+				"settleEntryCount": 1,
+				"releaseEntryCount": 0,
+				"allocationTotalsMatch": true,
+				"accountOwnershipMatches": true
+			},
+			"timing": {
+				"source": "Persisted timestamps and commit observations; service clocks may differ",
+				"unit": "milliseconds",
+				"segments": [
+					{
+						"name": "admission",
+						"milliseconds": 2256
+					},
+					{
+						"name": "workflow_start",
+						"milliseconds": 1693
+					},
+					{
+						"name": "workflow_to_input_review",
+						"milliseconds": 2574
+					},
+					{
+						"name": "input_review",
+						"milliseconds": 2664
+					},
+					{
+						"name": "input_to_provider",
+						"milliseconds": 2041
+					},
+					{
+						"name": "provider_request",
+						"milliseconds": 1285
+					},
+					{
+						"name": "provider_generation",
+						"milliseconds": 35006
+					},
+					{
+						"name": "result_discovery",
+						"milliseconds": 7417
+					},
+					{
+						"name": "confirmation_to_storage",
+						"milliseconds": 2000
+					},
+					{
+						"name": "storage",
+						"milliseconds": 4412
+					},
+					{
+						"name": "storage_to_review",
+						"milliseconds": 2607
+					},
+					{
+						"name": "output_review",
+						"milliseconds": 57461
+					},
+					{
+						"name": "finalization",
+						"milliseconds": 2292
+					}
+				],
+				"total": 123708,
+				"segmentSumMatchesTotal": true,
+				"upload": null,
+				"browserRenderToPlayable": null,
+				"isolatedInputImageReviewService": null
+			},
+			"browser": {
+				"playback": "PASS_PLAYED_TO_END",
+				"source": "Saved real browser observation after explicit native-video playback",
+				"observedAt": "2026-10-04T17:44:42.718Z",
+				"currentTime": 3.041995,
+				"duration": 3.041995,
+				"ended": true,
+				"paused": true,
+				"error": null,
+				"muted": false,
+				"readyState": 4,
+				"intermediatePlayingFrameCaptured": false,
+				"audibility": "NOT_RUN",
+				"closeAndResume": "NOT_RUN",
+				"firstFrameMilliseconds": null,
+				"privateObjectHeadAndRange": "NOT_RUN"
+			},
+			"liveFaultInjection": "NOT_RUN"
+		},
+		{
+			"caseId": "S25-T2V-SILENT",
+			"status": "PASS_PERSISTED_BACKEND",
+			"productKey": "video-seedance-2-5",
+			"mode": "text-to-video",
+			"requestedDurationSeconds": 4,
+			"resolution": "480p",
+			"sound": false,
+			"jobStatus": "SUCCEEDED",
+			"executionStage": "READY",
+			"readyAt": "2026-10-04T17:46:03.833Z",
+			"sourceSnapshotSha256": "60d8fc03d6a932a450c11a398a46e9350010bae309ec3c58405f8a4795cb89b4",
+			"sourceHashVerified": true,
+			"executionEngine": "video-workflow-v1",
+			"verificationEngine": "video-workflow-v1",
+			"textReview": {
+				"provider": "waffo",
+				"decision": "ALLOW",
+				"frozenFingerprintAndProfileMatch": true
+			},
+			"inputImageReview": null,
+			"provider": {
+				"name": "kie",
+				"attemptCount": 1,
+				"status": "SUCCEEDED",
+				"uncertainSubmission": false,
+				"authenticatedResultConfirmed": true,
+				"creditsConsumed": 112,
+				"actualInvoiceUsd": null,
+				"providerCostMicros": null,
+				"quotedEstimateUsd": 0.56
+			},
+			"output": {
+				"mimeType": "video/mp4",
+				"width": 854,
+				"height": 480,
+				"durationMillis": 4042,
+				"byteSize": 2542933,
+				"audioTrackCount": 0,
+				"sha256": "0ee6b27298181276c40ad8376b9d9d432949fbae7f0d597d5bf4e633c4410840",
+				"storageEtagPresent": true,
+				"storageVersionPresent": false,
+				"ownerMatchesJob": true,
+				"bindingChecksumMatches": true,
+				"immutableIdentityMatches": true,
+				"deleteAfter": "2026-11-03T17:46:01.440Z",
+				"verificationValidUntil": "2026-11-03T17:46:01.440Z"
+			},
+			"outputReview": {
+				"provider": "seeapi",
+				"decision": "APPROVED",
+				"reason": "NO_POLICY_MATCH",
+				"coverage": "sampled_frames",
+				"framesRequested": 8,
+				"framesChecked": 8,
+				"framesFlagged": 0,
+				"confirmationPhase": "COMPLETE",
+				"persistedReadAttemptCount": 1,
+				"wireHttpRequestCount": null,
+				"immutableContentBindingMatches": true,
+				"audioSafetyMode": "not_requested",
+				"audioContentModerated": false
+			},
+			"callbacks": {
+				"kie": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"seeapi": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"independentRawSignatureRevalidation": "NOT_RUN"
+			},
+			"ledger": {
+				"applicationCreditsSettled": 84,
+				"reservationCount": 1,
+				"reserveEntryCount": 1,
+				"settleEntryCount": 1,
+				"releaseEntryCount": 0,
+				"allocationTotalsMatch": true,
+				"accountOwnershipMatches": true
+			},
+			"timing": {
+				"source": "Persisted timestamps and commit observations; service clocks may differ",
+				"unit": "milliseconds",
+				"segments": [
+					{
+						"name": "admission",
+						"milliseconds": 1920
+					},
+					{
+						"name": "workflow_start",
+						"milliseconds": 1770
+					},
+					{
+						"name": "workflow_to_input_review",
+						"milliseconds": 2576
+					},
+					{
+						"name": "input_review",
+						"milliseconds": 2822
+					},
+					{
+						"name": "input_to_provider",
+						"milliseconds": 1845
+					},
+					{
+						"name": "provider_request",
+						"milliseconds": 1177
+					},
+					{
+						"name": "provider_generation",
+						"milliseconds": 272436
+					},
+					{
+						"name": "result_discovery",
+						"milliseconds": 14580
+					},
+					{
+						"name": "confirmation_to_storage",
+						"milliseconds": 2130
+					},
+					{
+						"name": "storage",
+						"milliseconds": 4551
+					},
+					{
+						"name": "storage_to_review",
+						"milliseconds": 2751
+					},
+					{
+						"name": "output_review",
+						"milliseconds": 53828
+					},
+					{
+						"name": "finalization",
+						"milliseconds": 2393
+					}
+				],
+				"total": 364779,
+				"segmentSumMatchesTotal": true,
+				"upload": null,
+				"browserRenderToPlayable": null,
+				"isolatedInputImageReviewService": null
+			},
+			"browser": {
+				"playback": "PASS",
+				"source": "Saved real browser playback observation",
+				"observedAt": "2026-10-04T17:46:48.725Z",
+				"currentTime": 1.652521,
+				"duration": 4.041667,
+				"ended": false,
+				"paused": false,
+				"error": null,
+				"muted": false,
+				"audibility": "NOT_APPLICABLE_NO_AUDIO_TRACK",
+				"closeAndResume": "NOT_RUN",
+				"firstFrameMilliseconds": null,
+				"privateObjectHeadAndRange": "NOT_RUN"
+			},
+			"liveFaultInjection": "NOT_RUN"
+		},
+		{
+			"caseId": "S2-T2V-SILENT",
+			"status": "PASS_PERSISTED_BACKEND",
+			"productKey": "video-seedance-2",
+			"mode": "text-to-video",
+			"requestedDurationSeconds": 4,
+			"resolution": "480p",
+			"sound": false,
+			"jobStatus": "SUCCEEDED",
+			"executionStage": "READY",
+			"readyAt": "2026-10-04T17:49:45.194Z",
+			"sourceSnapshotSha256": "f126f1b362aa7e6b19249b1ccfc6f6bb79d35b6b06f5100c50c38ce26dc613aa",
+			"sourceHashVerified": true,
+			"executionEngine": "video-workflow-v1",
+			"verificationEngine": "video-workflow-v1",
+			"textReview": {
+				"provider": "waffo",
+				"decision": "ALLOW",
+				"frozenFingerprintAndProfileMatch": true
+			},
+			"inputImageReview": null,
+			"provider": {
+				"name": "kie",
+				"attemptCount": 1,
+				"status": "SUCCEEDED",
+				"uncertainSubmission": false,
+				"authenticatedResultConfirmed": true,
+				"creditsConsumed": 76,
+				"actualInvoiceUsd": null,
+				"providerCostMicros": null,
+				"quotedEstimateUsd": 0.38
+			},
+			"output": {
+				"mimeType": "video/mp4",
+				"width": 864,
+				"height": 496,
+				"durationMillis": 4042,
+				"byteSize": 737683,
+				"audioTrackCount": 0,
+				"sha256": "41f9c5b7bfff1860119661eb14a552ab231c85c6e1b2e7e6dbaec41a45a73257",
+				"storageEtagPresent": true,
+				"storageVersionPresent": false,
+				"ownerMatchesJob": true,
+				"bindingChecksumMatches": true,
+				"immutableIdentityMatches": true,
+				"deleteAfter": "2026-11-03T17:49:42.843Z",
+				"verificationValidUntil": "2026-11-03T17:49:42.843Z"
+			},
+			"outputReview": {
+				"provider": "seeapi",
+				"decision": "APPROVED",
+				"reason": "NO_POLICY_MATCH",
+				"coverage": "sampled_frames",
+				"framesRequested": 8,
+				"framesChecked": 8,
+				"framesFlagged": 0,
+				"confirmationPhase": "COMPLETE",
+				"persistedReadAttemptCount": 1,
+				"wireHttpRequestCount": null,
+				"immutableContentBindingMatches": true,
+				"audioSafetyMode": "not_requested",
+				"audioContentModerated": false
+			},
+			"callbacks": {
+				"kie": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"seeapi": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"independentRawSignatureRevalidation": "NOT_RUN"
+			},
+			"ledger": {
+				"applicationCreditsSettled": 62,
+				"reservationCount": 1,
+				"reserveEntryCount": 1,
+				"settleEntryCount": 1,
+				"releaseEntryCount": 0,
+				"allocationTotalsMatch": true,
+				"accountOwnershipMatches": true
+			},
+			"timing": {
+				"source": "Persisted timestamps and commit observations; service clocks may differ",
+				"unit": "milliseconds",
+				"segments": [
+					{
+						"name": "admission",
+						"milliseconds": 1985
+					},
+					{
+						"name": "workflow_start",
+						"milliseconds": 3277
+					},
+					{
+						"name": "workflow_to_input_review",
+						"milliseconds": 2626
+					},
+					{
+						"name": "input_review",
+						"milliseconds": 2547
+					},
+					{
+						"name": "input_to_provider",
+						"milliseconds": 1855
+					},
+					{
+						"name": "provider_request",
+						"milliseconds": 1166
+					},
+					{
+						"name": "provider_generation",
+						"milliseconds": 96042
+					},
+					{
+						"name": "result_discovery",
+						"milliseconds": 5916
+					},
+					{
+						"name": "confirmation_to_storage",
+						"milliseconds": 2114
+					},
+					{
+						"name": "storage",
+						"milliseconds": 3968
+					},
+					{
+						"name": "storage_to_review",
+						"milliseconds": 2574
+					},
+					{
+						"name": "output_review",
+						"milliseconds": 49020
+					},
+					{
+						"name": "finalization",
+						"milliseconds": 2351
+					}
+				],
+				"total": 175441,
+				"segmentSumMatchesTotal": true,
+				"upload": null,
+				"browserRenderToPlayable": null,
+				"isolatedInputImageReviewService": null
+			},
+			"browser": {
+				"playback": "PASS_FRESH_AUTHORIZATION_PLAYED_TO_END",
+				"source": "Saved same-job fresh-authorization browser observation",
+				"observedAt": "2026-10-04T18:15:50.924Z",
+				"currentTime": 4.041667,
+				"duration": 4.041667,
+				"ended": true,
+				"error": null,
+				"muted": false,
+				"paused": true,
+				"readyState": 4,
+				"audibility": "NOT_APPLICABLE_NO_AUDIO_TRACK",
+				"closeAndResume": "NOT_RUN",
+				"firstFrameMilliseconds": null,
+				"privateObjectHeadAndRange": "NOT_RUN",
+				"freshAuthorizationForSameJob": true,
+				"newGeneration": false,
+				"previousObservation": {
+					"playback": "STARTED_NOT_CONFIRMED",
+					"source": "Saved real browser playback observation",
+					"observedAt": "2026-10-04T17:51:43.499Z",
+					"currentTime": 0,
+					"duration": 4.041667,
+					"ended": false,
+					"paused": false,
+					"error": null,
+					"audibility": "NOT_APPLICABLE_NO_AUDIO_TRACK",
+					"closeAndResume": "NOT_RUN",
+					"firstFrameMilliseconds": null,
+					"privateObjectHeadAndRange": "NOT_RUN"
+				}
+			},
+			"liveFaultInjection": "NOT_RUN"
+		},
+		{
+			"caseId": "S2M-T2V-SILENT",
+			"status": "PASS_PERSISTED_BACKEND",
+			"productKey": "video-seedance-2-mini",
+			"mode": "text-to-video",
+			"requestedDurationSeconds": 4,
+			"resolution": "480p",
+			"sound": false,
+			"jobStatus": "SUCCEEDED",
+			"executionStage": "READY",
+			"readyAt": "2026-10-04T17:54:48.489Z",
+			"sourceSnapshotSha256": "c90208fd01bf2163c5f1c51e2fe0f0c2a118fbc3920eae90b4740fe2c2e76e70",
+			"sourceHashVerified": true,
+			"executionEngine": "video-workflow-v1",
+			"verificationEngine": "video-workflow-v1",
+			"textReview": {
+				"provider": "waffo",
+				"decision": "ALLOW",
+				"frozenFingerprintAndProfileMatch": true
+			},
+			"inputImageReview": null,
+			"provider": {
+				"name": "kie",
+				"attemptCount": 1,
+				"status": "SUCCEEDED",
+				"uncertainSubmission": false,
+				"authenticatedResultConfirmed": true,
+				"creditsConsumed": 15.2,
+				"actualInvoiceUsd": null,
+				"providerCostMicros": null,
+				"quotedEstimateUsd": 0.076
+			},
+			"output": {
+				"mimeType": "video/mp4",
+				"width": 864,
+				"height": 496,
+				"durationMillis": 4042,
+				"byteSize": 1137815,
+				"audioTrackCount": 0,
+				"sha256": "179b51e952a1b9091193d3231149349f8a46da6b708483c1e1506cc11fc4293e",
+				"storageEtagPresent": true,
+				"storageVersionPresent": false,
+				"ownerMatchesJob": true,
+				"bindingChecksumMatches": true,
+				"immutableIdentityMatches": true,
+				"deleteAfter": "2026-11-03T17:54:46.174Z",
+				"verificationValidUntil": "2026-11-03T17:54:46.174Z"
+			},
+			"outputReview": {
+				"provider": "seeapi",
+				"decision": "APPROVED",
+				"reason": "NO_POLICY_MATCH",
+				"coverage": "sampled_frames",
+				"framesRequested": 8,
+				"framesChecked": 8,
+				"framesFlagged": 0,
+				"confirmationPhase": "COMPLETE",
+				"persistedReadAttemptCount": 1,
+				"wireHttpRequestCount": null,
+				"immutableContentBindingMatches": true,
+				"audioSafetyMode": "not_requested",
+				"audioContentModerated": false
+			},
+			"callbacks": {
+				"kie": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"seeapi": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"independentRawSignatureRevalidation": "NOT_RUN"
+			},
+			"ledger": {
+				"applicationCreditsSettled": 24,
+				"reservationCount": 1,
+				"reserveEntryCount": 1,
+				"settleEntryCount": 1,
+				"releaseEntryCount": 0,
+				"allocationTotalsMatch": true,
+				"accountOwnershipMatches": true
+			},
+			"timing": {
+				"source": "Persisted timestamps and commit observations; service clocks may differ",
+				"unit": "milliseconds",
+				"segments": [
+					{
+						"name": "admission",
+						"milliseconds": 1972
+					},
+					{
+						"name": "workflow_start",
+						"milliseconds": 1269
+					},
+					{
+						"name": "workflow_to_input_review",
+						"milliseconds": 2427
+					},
+					{
+						"name": "input_review",
+						"milliseconds": 2454
+					},
+					{
+						"name": "input_to_provider",
+						"milliseconds": 1775
+					},
+					{
+						"name": "provider_request",
+						"milliseconds": 1136
+					},
+					{
+						"name": "provider_generation",
+						"milliseconds": 69488
+					},
+					{
+						"name": "result_discovery",
+						"milliseconds": 8063
+					},
+					{
+						"name": "confirmation_to_storage",
+						"milliseconds": 1988
+					},
+					{
+						"name": "storage",
+						"milliseconds": 3707
+					},
+					{
+						"name": "storage_to_review",
+						"milliseconds": 2532
+					},
+					{
+						"name": "output_review",
+						"milliseconds": 84811
+					},
+					{
+						"name": "finalization",
+						"milliseconds": 2315
+					}
+				],
+				"total": 183937,
+				"segmentSumMatchesTotal": true,
+				"upload": null,
+				"browserRenderToPlayable": null,
+				"isolatedInputImageReviewService": null
+			},
+			"browser": {
+				"playback": "PASS_PLAYED_TO_END",
+				"source": "Saved real browser playback observation",
+				"observedAt": "2026-10-04T17:55:32.916Z",
+				"currentTime": 4.041667,
+				"duration": 4.041667,
+				"ended": true,
+				"paused": true,
+				"error": null,
+				"audibility": "NOT_APPLICABLE_NO_AUDIO_TRACK",
+				"closeAndResume": "NOT_RUN",
+				"firstFrameMilliseconds": null,
+				"privateObjectHeadAndRange": "NOT_RUN"
+			},
+			"liveFaultInjection": "NOT_RUN"
+		},
+		{
+			"caseId": "S2F-T2V-SILENT",
+			"status": "PASS_PERSISTED_BACKEND",
+			"productKey": "video-seedance-2-fast",
+			"mode": "text-to-video",
+			"requestedDurationSeconds": 4,
+			"resolution": "480p",
+			"sound": false,
+			"jobStatus": "SUCCEEDED",
+			"executionStage": "READY",
+			"readyAt": "2026-10-04T17:58:45.414Z",
+			"sourceSnapshotSha256": "7d4da8b854badcd892e76a332ce1f9cd702858671dc8cccc937a3c99c791e554",
+			"sourceHashVerified": true,
+			"executionEngine": "video-workflow-v1",
+			"verificationEngine": "video-workflow-v1",
+			"textReview": {
+				"provider": "waffo",
+				"decision": "ALLOW",
+				"frozenFingerprintAndProfileMatch": true
+			},
+			"inputImageReview": null,
+			"provider": {
+				"name": "kie",
+				"attemptCount": 1,
+				"status": "SUCCEEDED",
+				"uncertainSubmission": false,
+				"authenticatedResultConfirmed": true,
+				"creditsConsumed": 46.8,
+				"actualInvoiceUsd": null,
+				"providerCostMicros": null,
+				"quotedEstimateUsd": 0.236
+			},
+			"output": {
+				"mimeType": "video/mp4",
+				"width": 864,
+				"height": 496,
+				"durationMillis": 4042,
+				"byteSize": 1158741,
+				"audioTrackCount": 0,
+				"sha256": "411f851ead1695900430a4a685c7acdbfce5c5526cb2e187c00357f7cd4941ab",
+				"storageEtagPresent": true,
+				"storageVersionPresent": false,
+				"ownerMatchesJob": true,
+				"bindingChecksumMatches": true,
+				"immutableIdentityMatches": true,
+				"deleteAfter": "2026-11-03T17:58:43.024Z",
+				"verificationValidUntil": "2026-11-03T17:58:43.024Z"
+			},
+			"outputReview": {
+				"provider": "seeapi",
+				"decision": "APPROVED",
+				"reason": "NO_POLICY_MATCH",
+				"coverage": "sampled_frames",
+				"framesRequested": 8,
+				"framesChecked": 8,
+				"framesFlagged": 0,
+				"confirmationPhase": "COMPLETE",
+				"persistedReadAttemptCount": 1,
+				"wireHttpRequestCount": null,
+				"immutableContentBindingMatches": true,
+				"audioSafetyMode": "not_requested",
+				"audioContentModerated": false
+			},
+			"callbacks": {
+				"kie": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"seeapi": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"independentRawSignatureRevalidation": "NOT_RUN"
+			},
+			"ledger": {
+				"applicationCreditsSettled": 44,
+				"reservationCount": 1,
+				"reserveEntryCount": 1,
+				"settleEntryCount": 1,
+				"releaseEntryCount": 0,
+				"allocationTotalsMatch": true,
+				"accountOwnershipMatches": true
+			},
+			"timing": {
+				"source": "Persisted timestamps and commit observations; service clocks may differ",
+				"unit": "milliseconds",
+				"segments": [
+					{
+						"name": "admission",
+						"milliseconds": 2200
+					},
+					{
+						"name": "workflow_start",
+						"milliseconds": 1625
+					},
+					{
+						"name": "workflow_to_input_review",
+						"milliseconds": 2518
+					},
+					{
+						"name": "input_review",
+						"milliseconds": 2501
+					},
+					{
+						"name": "input_to_provider",
+						"milliseconds": 1830
+					},
+					{
+						"name": "provider_request",
+						"milliseconds": 1154
+					},
+					{
+						"name": "provider_generation",
+						"milliseconds": 108293
+					},
+					{
+						"name": "result_discovery",
+						"milliseconds": 9191
+					},
+					{
+						"name": "confirmation_to_storage",
+						"milliseconds": 2067
+					},
+					{
+						"name": "storage",
+						"milliseconds": 3806
+					},
+					{
+						"name": "storage_to_review",
+						"milliseconds": 2607
+					},
+					{
+						"name": "output_review",
+						"milliseconds": 51223
+					},
+					{
+						"name": "finalization",
+						"milliseconds": 2390
+					}
+				],
+				"total": 191405,
+				"segmentSumMatchesTotal": true,
+				"upload": null,
+				"browserRenderToPlayable": null,
+				"isolatedInputImageReviewService": null
+			},
+			"browser": {
+				"playback": "PASS_PLAYED_TO_END",
+				"source": "Saved real browser playback observation",
+				"observedAt": "2026-10-04T18:00:55.443Z",
+				"currentTime": 4.041667,
+				"duration": 4.041667,
+				"ended": true,
+				"paused": true,
+				"error": null,
+				"audibility": "NOT_APPLICABLE_NO_AUDIO_TRACK",
+				"closeAndResume": "NOT_RUN",
+				"firstFrameMilliseconds": null,
+				"privateObjectHeadAndRange": "NOT_RUN"
+			},
+			"liveFaultInjection": "NOT_RUN"
+		},
+		{
+			"caseId": "GOF-T2V-SOUND",
+			"status": "PASS_PERSISTED_BACKEND",
+			"productKey": "video-gemini-omni-flash",
+			"mode": "text-to-video",
+			"requestedDurationSeconds": 4,
+			"resolution": "360p",
+			"sound": true,
+			"jobStatus": "SUCCEEDED",
+			"executionStage": "READY",
+			"readyAt": "2026-10-04T18:43:56.879Z",
+			"sourceSnapshotSha256": "b0455626854f6143a7056d6c7aeb5864fa5ea4dd91a9e30265f241e8f92ac7cb",
+			"sourceHashVerified": true,
+			"executionEngine": "video-workflow-v1",
+			"verificationEngine": "video-workflow-v1",
+			"textReview": {
+				"provider": "waffo",
+				"decision": "ALLOW",
+				"frozenFingerprintAndProfileMatch": true
+			},
+			"inputImageReview": null,
+			"provider": {
+				"name": "kie",
+				"attemptCount": 1,
+				"status": "SUCCEEDED",
+				"uncertainSubmission": false,
+				"authenticatedResultConfirmed": true,
+				"creditsConsumed": 45,
+				"actualInvoiceUsd": null,
+				"providerCostMicros": null,
+				"quotedEstimateUsd": 0.315,
+				"quotedEstimatedKieCredits": 63,
+				"actualVersusEstimate": "45 provider-reported credits; estimate 63 is not substituted for actual"
+			},
+			"output": {
+				"mimeType": "video/mp4",
+				"width": 640,
+				"height": 360,
+				"durationMillis": 4011,
+				"byteSize": 608749,
+				"audioTrackCount": 1,
+				"sha256": "85bcdb203fc59fedf348938cebcdbf64af0d01c7891c9bf98eb4d53b1581b249",
+				"storageEtagPresent": true,
+				"storageVersionPresent": false,
+				"ownerMatchesJob": true,
+				"bindingChecksumMatches": true,
+				"immutableIdentityMatches": true,
+				"deleteAfter": "2026-11-03T18:43:50.919Z",
+				"verificationValidUntil": "2026-11-03T18:43:50.919Z"
+			},
+			"outputReview": {
+				"provider": "seeapi",
+				"decision": "APPROVED",
+				"reason": "NO_POLICY_MATCH",
+				"coverage": "sampled_frames",
+				"framesRequested": 8,
+				"framesChecked": 8,
+				"framesFlagged": 0,
+				"confirmationPhase": "COMPLETE",
+				"persistedReadAttemptCount": 1,
+				"wireHttpRequestCount": null,
+				"immutableContentBindingMatches": true,
+				"audioSafetyMode": "not_requested",
+				"audioContentModerated": false
+			},
+			"callbacks": {
+				"kie": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"seeapi": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"independentRawSignatureRevalidation": "NOT_RUN"
+			},
+			"ledger": {
+				"applicationCreditsSettled": 54,
+				"reservationCount": 1,
+				"reserveEntryCount": 1,
+				"settleEntryCount": 1,
+				"releaseEntryCount": 0,
+				"allocationTotalsMatch": true,
+				"accountOwnershipMatches": true
+			},
+			"timing": {
+				"source": "Persisted timestamps and commit observations; service clocks may differ",
+				"unit": "milliseconds",
+				"segments": [
+					{
+						"name": "Admission",
+						"milliseconds": 2371
+					},
+					{
+						"name": "Workflow start",
+						"milliseconds": 4148
+					},
+					{
+						"name": "Workflow to input review",
+						"milliseconds": 5906
+					},
+					{
+						"name": "Input review",
+						"milliseconds": 4300
+					},
+					{
+						"name": "Input review to submission",
+						"milliseconds": 4082
+					},
+					{
+						"name": "Provider request",
+						"milliseconds": 3091
+					},
+					{
+						"name": "Provider generation",
+						"milliseconds": 31930
+					},
+					{
+						"name": "Result discovery",
+						"milliseconds": 6239
+					},
+					{
+						"name": "Confirmation to storage",
+						"milliseconds": 3856
+					},
+					{
+						"name": "Storage",
+						"milliseconds": 7809
+					},
+					{
+						"name": "Storage to output review",
+						"milliseconds": 7146
+					},
+					{
+						"name": "Output review",
+						"milliseconds": 81798
+					},
+					{
+						"name": "Finalization",
+						"milliseconds": 5960
+					}
+				],
+				"total": 168636,
+				"segmentSumMatchesTotal": true,
+				"upload": null,
+				"browserRenderToPlayable": null,
+				"isolatedInputImageReviewService": null
+			},
+			"browser": {
+				"playback": "PASS_PLAYED_TO_END",
+				"source": "Saved real browser observation after explicit native-video playback",
+				"observedAt": "2026-10-04T18:45:24.639Z",
+				"currentTime": 4.01,
+				"duration": 4.01,
+				"ended": true,
+				"paused": true,
+				"error": null,
+				"muted": false,
+				"readyState": 4,
+				"intermediatePlayingFrameCaptured": false,
+				"audibility": "NOT_RUN",
+				"closeAndResume": "NOT_RUN",
+				"firstFrameMilliseconds": null,
+				"privateObjectHeadAndRange": "NOT_RUN"
+			},
+			"liveFaultInjection": "NOT_RUN"
+		},
+		{
+			"caseId": "V31F-T2V-SOUND",
+			"status": "PASS_PERSISTED_BACKEND",
+			"productKey": "video-veo-3-1-fast",
+			"mode": "text-to-video",
+			"requestedDurationSeconds": 4,
+			"resolution": "720p",
+			"sound": true,
+			"jobStatus": "SUCCEEDED",
+			"executionStage": "READY",
+			"readyAt": "2026-10-04T18:46:44.604Z",
+			"sourceSnapshotSha256": "1376966c7997e3c01424dce56db76caa2daf56cc652f48bfefd3c7c465b392b0",
+			"sourceHashVerified": true,
+			"executionEngine": "video-workflow-v1",
+			"verificationEngine": "video-workflow-v1",
+			"textReview": {
+				"provider": "waffo",
+				"decision": "ALLOW",
+				"frozenFingerprintAndProfileMatch": true
+			},
+			"inputImageReview": null,
+			"provider": {
+				"name": "kie",
+				"attemptCount": 1,
+				"status": "SUCCEEDED",
+				"uncertainSubmission": false,
+				"authenticatedResultConfirmed": true,
+				"creditsConsumed": null,
+				"creditsStatus": "NOT_REPORTED",
+				"providerCompletedAt": null,
+				"actualInvoiceUsd": null,
+				"providerCostMicros": null,
+				"accountResidualSubstitutedForTaskCost": false
+			},
+			"output": {
+				"mimeType": "video/mp4",
+				"width": 1280,
+				"height": 720,
+				"durationMillis": 4000,
+				"byteSize": 2046153,
+				"audioTrackCount": 1,
+				"sha256": "6e871631af5c89a85eaaf810340f14becb87da22327edf6ac9fdb93f3a75c74d",
+				"storageEtagPresent": true,
+				"storageVersionPresent": false,
+				"ownerMatchesJob": true,
+				"bindingChecksumMatches": true,
+				"immutableIdentityMatches": true,
+				"deleteAfter": "2026-11-03T18:46:42.077Z",
+				"verificationValidUntil": "2026-11-03T18:46:42.077Z"
+			},
+			"outputReview": {
+				"provider": "seeapi",
+				"decision": "APPROVED",
+				"reason": "NO_POLICY_MATCH",
+				"coverage": "sampled_frames",
+				"framesRequested": 8,
+				"framesChecked": 8,
+				"framesFlagged": 0,
+				"confirmationPhase": "COMPLETE",
+				"persistedReadAttemptCount": 1,
+				"wireHttpRequestCount": null,
+				"immutableContentBindingMatches": true,
+				"audioSafetyMode": "not_requested",
+				"audioContentModerated": false
+			},
+			"callbacks": {
+				"kie": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"seeapi": {
+					"ingressVerificationPersisted": true,
+					"identityMatches": true,
+					"workflowNotified": true,
+					"status": "PROCESSED"
+				},
+				"independentRawSignatureRevalidation": "NOT_RUN"
+			},
+			"ledger": {
+				"applicationCreditsSettled": 52,
+				"reservationCount": 1,
+				"reserveEntryCount": 1,
+				"settleEntryCount": 1,
+				"releaseEntryCount": 0,
+				"allocationTotalsMatch": true,
+				"accountOwnershipMatches": true
+			},
+			"timing": {
+				"source": "Persisted timestamps and commit observations; service clocks may differ",
+				"unit": "milliseconds",
+				"segments": [
+					{
+						"name": "Admission",
+						"milliseconds": 2475
+					},
+					{
+						"name": "Workflow start",
+						"milliseconds": 3040
+					},
+					{
+						"name": "Workflow to input review",
+						"milliseconds": 2639
+					},
+					{
+						"name": "Input review",
+						"milliseconds": 2829
+					},
+					{
+						"name": "Input review to submission",
+						"milliseconds": 1832
+					},
+					{
+						"name": "Provider request",
+						"milliseconds": 1170
+					},
+					{
+						"name": "Provider accepted to authenticated confirmation (generation and discovery combined; provider completion timestamp NOT_REPORTED)",
+						"milliseconds": 48153
+					},
+					{
+						"name": "Confirmation to storage",
+						"milliseconds": 2187
+					},
+					{
+						"name": "Storage",
+						"milliseconds": 4063
+					},
+					{
+						"name": "Storage to output review",
+						"milliseconds": 2502
+					},
+					{
+						"name": "Output review",
+						"milliseconds": 49832
+					},
+					{
+						"name": "Finalization",
+						"milliseconds": 2527
+					}
+				],
+				"total": 123249,
+				"segmentSumMatchesTotal": true,
+				"upload": null,
+				"browserRenderToPlayable": null,
+				"isolatedInputImageReviewService": null,
+				"unavailableIndividualIntervals": ["Provider generation", "Result discovery"],
+				"individualIntervals": [
+					{
+						"name": "Admission",
+						"milliseconds": 2475
+					},
+					{
+						"name": "Workflow start",
+						"milliseconds": 3040
+					},
+					{
+						"name": "Workflow to input review",
+						"milliseconds": 2639
+					},
+					{
+						"name": "Input review",
+						"milliseconds": 2829
+					},
+					{
+						"name": "Input review to submission",
+						"milliseconds": 1832
+					},
+					{
+						"name": "Provider request",
+						"milliseconds": 1170
+					},
+					{
+						"name": "Provider generation",
+						"milliseconds": null
+					},
+					{
+						"name": "Result discovery",
+						"milliseconds": null
+					},
+					{
+						"name": "Confirmation to storage",
+						"milliseconds": 2187
+					},
+					{
+						"name": "Storage",
+						"milliseconds": 4063
+					},
+					{
+						"name": "Storage to output review",
+						"milliseconds": 2502
+					},
+					{
+						"name": "Output review",
+						"milliseconds": 49832
+					},
+					{
+						"name": "Finalization",
+						"milliseconds": 2527
+					}
+				],
+				"providerGenerationMilliseconds": null,
+				"resultDiscoveryMilliseconds": null,
+				"combinedGenerationAndDiscoveryMilliseconds": 48153
+			},
+			"browser": {
+				"playback": "PASS_PLAYED_TO_END",
+				"source": "Saved real browser observation after explicit native-video playback",
+				"observedAt": "2026-10-04T18:48:57.935Z",
+				"currentTime": 4,
+				"duration": 4,
+				"ended": true,
+				"paused": true,
+				"error": null,
+				"muted": false,
+				"readyState": 4,
+				"intermediatePlayingFrameCaptured": false,
+				"audibility": "NOT_RUN",
+				"closeAndResume": "NOT_RUN",
+				"firstFrameMilliseconds": null,
+				"privateObjectHeadAndRange": "NOT_RUN"
+			},
+			"liveFaultInjection": "NOT_RUN"
+		}
+	],
+	"spend": {
+		"settledApplicationCredits": 609,
+		"reportedKieCredits": 666,
+		"kieBalanceBefore": {
+			"observedAt": "2026-10-04T15:58:03.246Z",
+			"credits": 985,
+			"httpStatus": 200
+		},
+		"kieBalanceAfter": {
+			"observedAt": "2026-10-04T18:48:14.999Z",
+			"credits": 289,
+			"httpStatus": 200
+		},
+		"kieBalanceDelta": 696,
+		"nominalKieCreditsPerUsd": 200,
+		"generationNominalUsd": null,
+		"actualGenerationInvoiceUsd": null,
+		"actualModerationInvoiceUsd": null,
+		"preciseExternalHttpCallCount": null,
+		"remainingApplicationBalance": 391,
+		"retailReferenceIsEarnedRevenue": false,
+		"balanceDeltaMatchesCasesAtBalanceCutoff": null,
+		"balanceCutoffCaseIds": [
+			"K26-T2V-SILENT",
+			"K26-T2V-SOUND",
+			"K26-I2V-SILENT",
+			"S15-T2V-SILENT",
+			"K3-T2V-SILENT",
+			"K3T-T2V-SOUND",
+			"S25-T2V-SILENT",
+			"S2-T2V-SILENT",
+			"S2M-T2V-SILENT",
+			"S2F-T2V-SILENT",
+			"GOF-T2V-SOUND",
+			"V31F-T2V-SOUND",
+			"H3-T2V-SOUND",
+			"S1PF-I2V-SILENT"
+		],
+		"balanceComparisonBoundary": "Final provider account decrease 696 exceeds known per-task subtotal 666 by 30; one task receipt is unknown. Account residual is not a per-task cost and may include other account activity.",
+		"successfulCaseKieCredits": null,
+		"failedCaseKieCredits": 32,
+		"applicationCreditsReleased": 60,
+		"scope": "Fourteen terminal real cases; complete per-task provider credit total remains unknown",
+		"historicalBalanceObservations": [
+			{
+				"observedAt": "2026-10-04T16:59:56.252Z",
+				"credits": 765,
+				"httpStatus": 200
+			},
+			{
+				"observedAt": "2026-10-04T17:41:58.716Z",
+				"credits": 630,
+				"httpStatus": 200
+			},
+			{
+				"observedAt": "2026-10-04T18:17:13.538Z",
+				"credits": 380,
+				"httpStatus": 200
+			}
+		],
+		"providerCreditArithmetic": "Exact decimal addition at millikredit precision; no integer truncation",
+		"rejectedCaseKieCredits": 16,
+		"nonReadyCaseKieCredits": 48,
+		"providerCreditsReportedSubtotal": 666,
+		"providerCreditsCompleteTotal": null,
+		"providerCreditAmountsMissing": 1,
+		"providerCreditSumComplete": false,
+		"knownPerTaskSubtotalNominalUsd": 3.33,
+		"accountBalanceDecreaseNominalUsd": 3.48,
+		"successfulCaseKieReportedSubtotal": 618,
+		"allTerminalCaseIds": [
+			"K26-T2V-SILENT",
+			"K26-T2V-SOUND",
+			"K26-I2V-SILENT",
+			"S15-T2V-SILENT",
+			"K3-T2V-SILENT",
+			"K3T-T2V-SOUND",
+			"S25-T2V-SILENT",
+			"S2-T2V-SILENT",
+			"S2M-T2V-SILENT",
+			"S2F-T2V-SILENT",
+			"GOF-T2V-SOUND",
+			"V31F-T2V-SOUND",
+			"H3-T2V-SOUND",
+			"S1PF-I2V-SILENT"
+		],
+		"accountReconciliation": {
+			"status": "ACCOUNT_RECONCILIATION_ONLY",
+			"beforeCredits": 380,
+			"afterCredits": 289,
+			"intervalDecrease": 91,
+			"knownIntervalTaskCredits": 61,
+			"unattributedResidual": 30,
+			"wholeRunDecrease": 696,
+			"wholeRunKnownTaskSubtotal": 666,
+			"residualAssignedToVeoTask": false,
+			"possibleOtherAccountActivityExcluded": false
+		},
+		"applicationAccountReadback": {
+			"source": "Production PostgreSQL exact authorized account; verified TLS read-only repeatable-read",
+			"snapshotAt": "2026-10-04T18:52:34.057Z",
+			"completedAt": "2026-10-04T18:52:33.591Z",
+			"spendableCredits": 391,
+			"reservedCredits": 0,
+			"creditDebt": 0,
+			"activeReservationCount": 0,
+			"activeReservedCredits": 0,
+			"arithmeticOnly": false
+		},
+		"priorReconciledCheckpoint": {
+			"balanceObservedAt": "2026-10-04T18:17:13.538Z",
+			"balanceCredits": 380,
+			"initialBalanceCredits": 985,
+			"balanceDelta": 605,
+			"caseIds": [
+				"K26-T2V-SILENT",
+				"K26-T2V-SOUND",
+				"K26-I2V-SILENT",
+				"S15-T2V-SILENT",
+				"K3-T2V-SILENT",
+				"K3T-T2V-SOUND",
+				"S25-T2V-SILENT",
+				"S2-T2V-SILENT",
+				"S2M-T2V-SILENT",
+				"S2F-T2V-SILENT",
+				"H3-T2V-SOUND"
+			],
+			"reportedTaskCostsMatchDelta": true
+		}
+	},
+	"quoteConstraint": {
+		"affectedProductKey": "video-seedance-1-5-pro",
+		"status": "PASS_PRODUCTION_MIGRATION",
+		"failureBoundary": "Quote rejected before job, reservation or paid provider call",
+		"migration": "20261005000000_video_multimodel_quote_pending_evidence",
+		"kind": "Forward CHECK-only DDL; explicit 12 implemented product keys; no business-row rewrite",
+		"productionApplied": "PASS",
+		"historicalMigrationCount": 59,
+		"proposedMigrationCount": 60,
+		"rollback": "Retain expanded compatible CHECK and close admission; do not restore Kling-only CHECK over new rows",
+		"isolatedMigrationAndRegression": "PASS",
+		"migrationSha256": "16948064c815306d1289282e7792069406682669af6aa4fde731e329cab01cfc",
+		"completedAt": "2026-10-04T17:14:34.670Z",
+		"production": {
+			"completedMigrations": 60,
+			"pendingMigrations": 0,
+			"unfinishedMigrations": 0,
+			"rolledBackHistoricalRows": 1,
+			"oldHistoryUnchanged": true,
+			"constraintValidated": true,
+			"newChecksumMatches": true,
+			"prismaDeployInvocations": 1,
+			"ddlAutomaticRetries": 0,
+			"businessDataQueries": 0,
+			"businessDmlStatements": 0,
+			"cleanup": "PASS",
+			"trackedProcessCount": 7,
+			"remainingTrackedProcesses": 0
+		},
+		"affectedSelection": {
+			"mode": "text-to-video",
+			"seconds": 4,
+			"resolution": "480p",
+			"sound": false
+		},
+		"affectedSelectionRealAcceptance": "PASS_PERSISTED_BACKEND"
+	},
+	"remainingPlannedCases": [],
+	"blockedContracts": [
+		{
+			"productKeys": [
+				"video-minimax-h3-turbo",
+				"video-minimax-h3-max-turbo",
+				"video-minimax-h3-max"
+			],
+			"status": "BLOCKED",
+			"reason": "Official implementable contract unavailable"
+		},
+		{
+			"productKeys": ["video-veo-3-1-pro"],
+			"status": "BLOCKED",
+			"reason": "Official variant mapping unconfirmed"
+		},
+		{
+			"productKeys": ["video-veo-3-1"],
+			"status": "BLOCKED",
+			"reason": "Unified route duration and price mapping unconfirmed"
+		}
+	],
+	"liveRecoveryChecks": {
+		"duplicateSubmit": "NOT_RUN",
+		"duplicateCallbackReplay": "NOT_RUN",
+		"providerAcceptanceUnknown": "NOT_RUN",
+		"transferFailureOnlyRecovery": "NOT_RUN",
+		"interruptedConfirmationRecovery": "NOT_RUN",
+		"legacyVideoCallbackAndRecoveryIsolation": "NOT_RUN",
+		"note": "Covered by local Mock/isolated database checks at prior checkpoint; normal production successes do not replace live failure injection",
+		"browserCloseAndResume": "PASS_K26_T2V_SILENT",
+		"outputContractRejectAndCreditRelease": "PASS_H3_REAL_FAILURE",
+		"lateConfirmedTerminalCallbackCleanup": "PASS_IGNORED_NO_BUSINESS_MUTATION"
+	},
+	"limits": [
+		"Sampled visual moderation is not exhaustive every-frame review.",
+		"Native-sound READY outputs have parsed audio tracks; audio-content moderation and audible playback are not confirmed.",
+		"One persisted provider attempt does not prove one wire-level paid HTTP request under every failure.",
+		"Timing does not include upload or browser render/playback delay.",
+		"Pending model prices are plans, not purchases or permission checks.",
+		"Stored MP4 metadata comes from application evidence; independent HEAD/Range/private-access security acceptance is NOT_RUN.",
+		"Allowlist key counts exclude aspectRatio; they are not counts of complete parameter combinations or evidence that every visible ratio was tested."
+	],
+	"pendingContractImplementation": [
+		{
+			"productKey": "video-veo-3-1-fast",
+			"contract": "OFFICIAL_LEGACY_ROUTE_CONFIRMED",
+			"implementation": "IMPLEMENTED_LOCAL_VERIFIED",
+			"realAcceptance": "PASS_RECORDED_SELECTION_BACKEND_AND_BROWSER",
+			"productionAvailability": "REPRESENTATIVE_REAL_SELECTION_ACCEPTED",
+			"source": "Final Veo snapshot and real browser playback; official legacy-route contract remains separately sourced",
+			"acceptanceGate": "PASS_INTERNAL_SCOPE_ONLY"
+		}
+	],
+	"failedCases": [
+		{
+			"caseId": "H3-T2V-SOUND",
+			"productKey": "video-minimax-h3",
+			"status": "FAIL_OUTPUT_CONTRACT_VALIDATION",
+			"mode": "text-to-video",
+			"requestedDurationSeconds": 4,
+			"resolution": "768p",
+			"sound": true,
+			"jobStatus": "FAILED",
+			"executionStage": "FAILED",
+			"failureCode": "VIDEO_DURATION_MISMATCH",
+			"terminalAt": "2026-10-04T17:27:31.868Z",
+			"sourceSnapshotSha256": "7ec2f22b80a84f76f4a372fa26d92bf7b11f92b88a39cd9df364086a9529fce4",
+			"sourceHashVerified": true,
+			"executionEngine": "video-workflow-v1",
+			"provider": {
+				"name": "kie",
+				"attemptCount": 1,
+				"status": "SUCCEEDED",
+				"creditsConsumed": 32,
+				"providerCostMicros": null,
+				"actualInvoiceUsd": null,
+				"uncertainSubmission": false,
+				"authenticatedResultConfirmed": true
+			},
+			"inputReview": {
+				"textVerdict": "ALLOW",
+				"reviewRequestFingerprintMatches": true,
+				"reviewTextProfileMatches": true
+			},
+			"output": {
+				"status": "VERIFICATION_FAILED",
+				"actualDurationMillis": null,
+				"actualWidth": null,
+				"actualHeight": null,
+				"audioTrackCount": null,
+				"finalized": false,
+				"delivered": false,
+				"reason": "Rejected before validated output metadata was persisted"
+			},
+			"outputReview": {
+				"status": "NOT_STARTED",
+				"provider": "seeapi",
+				"moderationRows": 0,
+				"audioContentModerated": false
+			},
+			"callbacks": {
+				"kie": {
+					"ingressVerificationPersisted": true,
+					"status": "PROCESSED"
+				},
+				"seeapi": "NOT_APPLICABLE_NOT_SUBMITTED"
+			},
+			"ledger": {
+				"applicationCreditsReserved": 35,
+				"applicationCreditsSettled": 0,
+				"applicationCreditsReleased": 35,
+				"reservationCount": 1,
+				"reserveEntryCount": 1,
+				"settleEntryCount": 0,
+				"releaseEntryCount": 1,
+				"allocationTotalsMatch": true,
+				"accountOwnershipMatches": true
+			},
+			"timing": {
+				"source": "Persisted timestamps and commit observations; endpoint is failed terminal state",
+				"unit": "milliseconds",
+				"segments": [
+					{
+						"name": "Admission",
+						"milliseconds": 1978
+					},
+					{
+						"name": "Workflow start",
+						"milliseconds": 1616
+					},
+					{
+						"name": "Workflow to input review",
+						"milliseconds": 3091
+					},
+					{
+						"name": "Input review",
+						"milliseconds": 3051
+					},
+					{
+						"name": "Input review to submission",
+						"milliseconds": 2224
+					},
+					{
+						"name": "Provider request",
+						"milliseconds": 1381
+					},
+					{
+						"name": "Provider generation",
+						"milliseconds": 233903
+					},
+					{
+						"name": "Result discovery",
+						"milliseconds": 7172
+					},
+					{
+						"name": "Confirmation to storage",
+						"milliseconds": 2557
+					},
+					{
+						"name": "storageStartedAt to terminal (includes failure handling)",
+						"milliseconds": 5583
+					}
+				],
+				"total": 262556,
+				"totalEndpoint": "terminalAt",
+				"requestToTerminalMilliseconds": 262556,
+				"requestToReadyMilliseconds": null,
+				"segmentSumMatchesTotal": true,
+				"limitation": "Final interval includes validation and failure/release handling; it is not successful storage latency"
+			},
+			"retry": {
+				"paidGenerationRetried": false,
+				"providerAttemptCount": 1
+			},
+			"browser": {
+				"playback": "NOT_APPLICABLE_NO_DELIVERABLE"
+			},
+			"existingProviderOutputDiagnosis": {
+				"status": "PASS_REPRODUCED_DURATION_REJECTION",
+				"source": "Existing exact-attempt authenticated transfer envelope; bounded streamed read with SHA-256; no generation or state change",
+				"sourceEvidenceSha256": "4a392b829c423bdeb54803ec27242f9a2822227e07d6f3d265c5955acde10f03",
+				"streamedBytesSha256": "2aafa949a8f5ece3c14c567149bfef7b269907b7be6a178eab391a05b0a2bdbc",
+				"byteSize": 1800599,
+				"width": 1344,
+				"height": 768,
+				"audioTrackCount": 1,
+				"movieDurationMillis": 4482,
+				"videoMediaDurationMillis": 4458.333333,
+				"videoTrackAndEditDurationMillis": 4459,
+				"audioMediaAndTrackDurationMillis": 4482,
+				"audioEditDurationMillis": 4450,
+				"requestedDurationMillis": 4000,
+				"toleranceMillis": 250,
+				"maximumAllowedMillis": 4250,
+				"originalProductionInspectorResult": "VIDEO_DURATION_MISMATCH",
+				"metadataPersistedToAsset": false,
+				"transferOnlyRetryWouldPass": false,
+				"recoveryPerformed": false,
+				"moderationPerformed": false
+			}
+		}
+	],
+	"veoFastQuoteConstraint": {
+		"status": "PASS_PRODUCTION_MIGRATION",
+		"migration": "20261005010000_video_veo_fast_quote_pending_evidence",
+		"checksum": "30f0b498da33bf4faf7314a9ed5fefd7e6ee033b3a67c58ec87e887772ed6dce",
+		"completedAt": "2026-10-04T17:54:58.602Z",
+		"production": {
+			"completedMigrations": 61,
+			"pendingMigrations": 0,
+			"unfinishedMigrations": 0,
+			"rolledBackHistoricalRows": 1,
+			"oldHistoryUnchanged": true,
+			"constraintValidated": true,
+			"newChecksumMatches": true,
+			"prismaDeployInvocations": 1,
+			"ddlAutomaticRetries": 0,
+			"businessDataQueries": 0,
+			"businessDmlStatements": 0,
+			"cleanup": "PASS",
+			"trackedProcessCount": 7,
+			"remainingTrackedProcesses": 0
+		},
+		"rollback": "Retain compatible additive CHECK and close model admission; preserve accepted rows"
+	},
+	"acceptanceContinuation": {
+		"status": "BOUNDED_BATCH_COMPLETE_NO_ADDITIONAL_PAID_CALLS",
+		"terminalCases": 14,
+		"readyCases": 12,
+		"contractFailedCases": 1,
+		"contentRejectedCases": 1,
+		"browserPlaybackPasses": 12,
+		"paidGenerationRetries": 0,
+		"remainingGenerationCalls": "NONE_PLANNED",
+		"source": "Executing agent stop instruction after final representative request"
+	},
+	"rejectedCases": [
+		{
+			"caseId": "S1PF-I2V-SILENT",
+			"productKey": "video-seedance-1-pro-fast",
+			"status": "REAL_CONTENT_REVIEW_REJECTED",
+			"jobStatus": "FAILED",
+			"executionStage": "REJECTED",
+			"failureCode": "SEEAPI_CONTENT_NOT_ALLOWED",
+			"mode": "image-to-video",
+			"requestedDurationSeconds": 5,
+			"resolution": "720p",
+			"sound": false,
+			"requestedAspectRatio": "source",
+			"terminalAt": "2026-10-04T18:39:45.195Z",
+			"sourceSnapshotSha256": "370dfd1f4cde646e74a4e76218c2025e735f331ea54a5d1200274950daff3493",
+			"sourceHashVerified": true,
+			"executionEngine": "video-workflow-v1",
+			"verificationEngine": "video-workflow-v1",
+			"provider": {
+				"name": "kie",
+				"attemptCount": 1,
+				"status": "SUCCEEDED",
+				"creditsConsumed": 16,
+				"providerCostMicros": null,
+				"actualInvoiceUsd": null,
+				"uncertainSubmission": false,
+				"authenticatedResultConfirmed": true
+			},
+			"inputReview": {
+				"textVerdict": "ALLOW",
+				"imageVerdict": "ALLOW",
+				"imageProvider": "seeapi",
+				"imageModel": "nsfw-filter",
+				"inputImmutableIdentityMatches": true,
+				"inputWidth": 1024,
+				"inputHeight": 1536,
+				"inputByteSize": 1014280,
+				"inputSha256": "a6cf43450b185f628119bd99519e423abba7ff61a000e7534c2d51e1ab304e82"
+			},
+			"output": {
+				"status": "QUARANTINED",
+				"mimeType": "video/mp4",
+				"width": 1248,
+				"height": 704,
+				"durationMillis": 5042,
+				"byteSize": 3617597,
+				"audioTrackCount": 0,
+				"sha256": "2c85391b26f80034c674ad974fa674d44d2836dc8748a256c23bda376d0ad919",
+				"storageEtagPresent": true,
+				"storageVersionPresent": false,
+				"ownerMatchesJob": true,
+				"bindingChecksumMatches": true,
+				"immutableIdentityMatches": true,
+				"finalizedAt": "2026-10-04T18:38:50.913Z",
+				"delivered": false
+			},
+			"outputReview": {
+				"status": "REJECTED",
+				"provider": "seeapi",
+				"confirmation": "COMPLETE",
+				"policyVerdict": "REJECT",
+				"scope": "sampled_frames",
+				"requestedFrames": 8,
+				"checkedFrames": 8,
+				"flaggedFrames": 1,
+				"preservedClassifierLabel": "vagina",
+				"nsfwCategoryCount": 1,
+				"specialCareCategoryCount": 0,
+				"labelBoundary": "Provider classification only; no independent human review of the video content",
+				"immutableChecksumEtagTaskGenerationEventMatch": true,
+				"audioSafetyMode": "not_requested",
+				"audioContentModerated": false
+			},
+			"callbacks": {
+				"kie": {
+					"ingressVerificationPersisted": true,
+					"status": "PROCESSED"
+				},
+				"seeapi": {
+					"ingressVerificationPersisted": true,
+					"status": "PROCESSED"
+				}
+			},
+			"ledger": {
+				"applicationCreditsReserved": 25,
+				"applicationCreditsSettled": 0,
+				"applicationCreditsReleased": 25,
+				"reservationCount": 1,
+				"reserveEntryCount": 1,
+				"settleEntryCount": 0,
+				"releaseEntryCount": 1,
+				"allocationTotalsMatch": true,
+				"accountOwnershipMatches": true
+			},
+			"timing": {
+				"unit": "milliseconds",
+				"segments": [
+					{
+						"name": "Admission",
+						"milliseconds": 2498
+					},
+					{
+						"name": "Workflow start",
+						"milliseconds": 3341
+					},
+					{
+						"name": "Workflow to input review",
+						"milliseconds": 2400
+					},
+					{
+						"name": "Input review",
+						"milliseconds": 39597
+					},
+					{
+						"name": "Input review to submission",
+						"milliseconds": 1918
+					},
+					{
+						"name": "Provider request",
+						"milliseconds": 1154
+					},
+					{
+						"name": "Provider generation",
+						"milliseconds": 28705
+					},
+					{
+						"name": "Result discovery",
+						"milliseconds": 5115
+					},
+					{
+						"name": "Confirmation to storage",
+						"milliseconds": 2054
+					},
+					{
+						"name": "Storage",
+						"milliseconds": 3917
+					},
+					{
+						"name": "Storage to output review",
+						"milliseconds": 2479
+					},
+					{
+						"name": "Output review",
+						"milliseconds": 51803
+					},
+					{
+						"name": "outputReviewCompletedAt to terminal (includes failure handling)",
+						"milliseconds": 0
+					}
+				],
+				"total": 144981,
+				"totalEndpoint": "terminalAt",
+				"requestToReadyMilliseconds": null,
+				"segmentSumMatchesTotal": true
+			},
+			"aspectRatioContract": {
+				"sourceSentinel": "Does not send or assert a numeric aspect ratio; official contract exposes no ratio/adaptive field",
+				"sourceAspectPreserved": "NOT_VERIFIED",
+				"nativeFrameRelationship": "NOT_VERIFIED",
+				"fixedSixteenNineContract": false,
+				"wireBodyCaptured": false,
+				"source": "Executing agent adapter and official-contract assessment; stored snapshot is frozen application input"
+			},
+			"browser": {
+				"playback": "NOT_APPLICABLE_QUARANTINED"
+			},
+			"retry": {
+				"paidGenerationRetried": false,
+				"moderationBypassed": false,
+				"recoveryPerformed": false
+			},
+			"admission": "NOT_NEWLY_DISABLED_AT_PARENT_REPORTED_CHECKPOINT",
+			"acceptance": "SUCCESSFUL_DELIVERY_NOT_ACCEPTED"
+		}
+	],
+	"cleanupAndPreservation": {
+		"source": "Executing parent agent final readback and per-task cleanup receipts",
+		"originalCheckout": {
+			"head": "569bf39eea9dcf072d3c5e5f79d58cd38d6bb466",
+			"existingChangeEntries": 380,
+			"preserved": true,
+			"headAdvancedByThisTask": false
+		},
+		"releaseWorktree": {
+			"name": "video-v1-release",
+			"appManaged": true,
+			"status": "RETAINED",
+			"reason": "Private untracked .cache acceptance evidence and configuration backups must be preserved",
+			"privateEvidenceCommitted": false,
+			"archived": false,
+			"publicationHandoff": "After exact documentation publication, retain private untracked evidence only; parent verifies final status"
+		},
+		"processesAndContainers": {
+			"status": "CLEANED_PER_TASK_OWNERSHIP_RECEIPTS",
+			"sharedServicesStopped": false
+		},
+		"browser": {
+			"retained": "Final Veo result page for user handoff",
+			"otherTaskTabs": "CLOSED_PARENT_REPORTED",
+			"reason": "Requested final delivery context"
+		}
+	}
+}
