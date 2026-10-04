@@ -403,6 +403,9 @@ describe("legacy executors cannot mutate video V1 records", () => {
 		expect(await client.outboxEvent.findFirst({ where: { aggregateId: job.id } })).toMatchObject({
 			eventType: "GENERATION_SETTLE",
 		});
+		// Recovery scans oldest updatedAt first; keep this fixture inside the bounded
+		// batch even when earlier suites leave more than 100 eligible assets behind.
+		const oldestAsset = await client.mediaAsset.aggregate({ _min: { updatedAt: true } });
 		const asset = await client.mediaAsset.create({
 			data: {
 				ownerType: "USER",
@@ -412,6 +415,7 @@ describe("legacy executors cannot mutate video V1 records", () => {
 				objectKey: `test/${crypto.randomUUID()}.png`,
 				mimeType: "image/png",
 				byteSize: 16n,
+				updatedAt: new Date((oldestAsset._min.updatedAt ?? now).getTime() - 1),
 			},
 		});
 		expect(asset.verificationEngine).toBe("legacy");

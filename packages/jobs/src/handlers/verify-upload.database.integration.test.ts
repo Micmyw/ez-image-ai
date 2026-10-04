@@ -446,7 +446,7 @@ describe("claimed draft asset verification", () => {
 		});
 	});
 
-	it("permits exhausted technical verification with explicit bypass evidence", async () => {
+	it("keeps exhausted technical verification blocked without approval or bypass", async () => {
 		const suffix = crypto.randomUUID();
 		const assetId = `verification_exhausted_${suffix.replaceAll("-", "")}`;
 		await client.mediaAsset.create({
@@ -472,6 +472,8 @@ describe("claimed draft asset verification", () => {
 				};
 			}
 		}
+		const safety = new UnavailableSafetyAdapter("ERROR");
+		const moderate = vi.spyOn(safety, "moderateImage");
 		const dependencies = createDatabaseVerifyUploadDependencies(client, {
 			headObject: async () => ({
 				contentLength: 16,
@@ -481,7 +483,7 @@ describe("claimed draft asset verification", () => {
 			}),
 			readMediaHeader: async () => PNG_HEADER,
 			createSignedReadUrl: async () => "https://private.example/exhausted.png",
-			safety: new UnavailableSafetyAdapter("ERROR"),
+			safety,
 			moderationProvider: "test",
 		});
 
@@ -492,16 +494,35 @@ describe("claimed draft asset verification", () => {
 				data: { verificationNextAttemptAt: new Date(0), verificationLeasedUntil: new Date(0) },
 			});
 		}
+		await verifyUpload({ assetId }, dependencies);
+		expect(moderate).toHaveBeenCalledTimes(4);
 
 		await expect(
 			client.mediaAsset.findUniqueOrThrow({ where: { id: assetId } }),
 		).resolves.toMatchObject({
-			status: "READY",
-			verificationAttemptCount: 5,
+			status: "VERIFICATION_FAILED",
+			verificationAttemptCount: 4,
 			verificationExhaustedAt: expect.any(Date),
-			verificationLastErrorCode: "MODERATION_TECHNICAL_FAILURE_BYPASS",
+			verificationLastErrorCode: "MODERATION_UNAVAILABLE",
+			verificationValidUntil: null,
+			verificationNextAttemptAt: null,
 		});
-		await expect(client.assetModerationResult.count({ where: { assetId } })).resolves.toBe(5);
+		await expect(client.assetModerationResult.count({ where: { assetId } })).resolves.toBe(4);
+		await expect(
+			client.assetModerationResult.count({
+				where: { assetId, status: "ERROR", reasonCode: "MODERATION_UNAVAILABLE" },
+			}),
+		).resolves.toBe(4);
+		await expect(
+			client.assetModerationResult.count({
+				where: { assetId, status: { in: ["APPROVED", "BYPASSED"] } },
+			}),
+		).resolves.toBe(0);
+		await expect(
+			client.moderationReview.findFirstOrThrow({
+				where: { targetType: "ASSET", targetId: assetId },
+			}),
+		).resolves.toMatchObject({ status: "BLOCKED", bypassed: false, failureCount: 4 });
 	});
 
 	it("does not spend the transient failure budget on normal video processing polls", async () => {

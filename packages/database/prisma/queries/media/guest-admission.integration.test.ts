@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import { PrismaPg } from "@prisma/adapter-pg";
-import { createVideoAudioSafetyPolicy } from "@repo/config/video-output";
+import { VIDEO_OUTPUT_MAX_BYTES, createVideoAudioSafetyPolicy } from "@repo/config/video-output";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
@@ -231,7 +231,7 @@ describe("guest generation admission", () => {
 				ownerConcurrency: 1,
 				globalConcurrency: 5,
 				providerConcurrency: 1,
-				maximumStorageBytes: 100_000_000n,
+				maximumStorageBytes: BigInt(VIDEO_OUTPUT_MAX_BYTES),
 				maximumInputBytes: 10_000_000,
 			},
 		};
