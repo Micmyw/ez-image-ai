@@ -2,6 +2,10 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { moderationConfiguration } from "@repo/config";
+import { VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
+import { VIDEO_SUPPLIER_PRICE_VERSION } from "@repo/config/video-pricing.server";
+import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
+import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -144,6 +148,41 @@ const retiredModerationEnvironment = {
 };
 
 const root = path.resolve(import.meta.dirname, "../../..");
+// Fixture-only costs and credentials; artifact preparation performs no provider calls.
+const multiModelVideoEnvironment = {
+	VIDEO_V1_ENABLED: "true",
+	MEDIA_GENERATION_ENABLED: "true",
+	VIDEO_V1_ACCESS: "internal",
+	VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
+	KIE_API_KEY: "fixture-only",
+	KIE_WEBHOOK_SECRET: "fixture-only",
+	NEXT_PUBLIC_SAAS_URL: "https://ezimageai.com",
+	VIDEO_V1_TEXT_SAFETY_ADAPTER: "waffo",
+	VIDEO_V1_IMAGE_SAFETY_ADAPTER: "seeapi",
+	VIDEO_V1_VIDEO_SAFETY_ADAPTER: "seeapi",
+	WAFFO_MERCHANT_ID: "fixture-only",
+	WAFFO_PRIVATE_KEY: "fixture-only",
+	SEEAPI_API_KEY: "fixture-only",
+	VIDEO_SEEAPI_CALLBACK_SECRET: "local-video-seeapi-callback-secret-20261004",
+	SEEAPI_WEBHOOK_SIGNING_KEYS: JSON.stringify({
+		whkey_test: "whsec_local_test_signing_secret_20261004",
+	}),
+	VIDEO_V1_PROVIDER_CONCURRENCY: "5",
+	VIDEO_V1_OUTPUT_ALLOWED_HOSTS: "cdn.example.test",
+	VIDEO_V1_UPLOAD_CORS_READY: "true",
+	VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+	VIDEO_PRICE_BASIS: "HYPOTHETICAL_TEST_ONLY_COSTS",
+	VIDEO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00.000Z",
+	VIDEO_COST_VISUAL_POLICY_VERSION: createVideoVisualSafetyProfile("seeapi", 5).policyVersion,
+	VIDEO_COST_TEXT_RULE_VERSION: createVideoTextSafetyProfile().ruleVersion,
+	VIDEO_COST_MODERATION_BASE_MICROS: "10000",
+	VIDEO_COST_MODERATION_PER_SECOND_MICROS: "5000",
+	VIDEO_COST_RUNTIME_MICROS: "5000",
+	VIDEO_COST_STORAGE_MICROS: "5000",
+	VIDEO_COST_PAYMENT_FIXED_MICROS: "2000",
+	VIDEO_COST_PAYMENT_FEE_BPS: "500",
+	VIDEO_COST_NONBILLABLE_FAILURE_BPS: "1000",
+};
 function artifacts(profile: "workers" | "hybrid", overrides: Record<string, string> = {}) {
 	const config = (file: string) =>
 		JSON.parse(readFileSync(path.join(root, file), "utf8")) as Record<string, unknown>;
@@ -203,6 +242,29 @@ describe("prepared deployment artifacts", () => {
 	);
 	it("fails closed when enabling video without pricing and actual service configuration", () => {
 		expect(() => artifacts("workers", { VIDEO_V1_ENABLED: "true" })).toThrow("VIDEO_V1_NOT_READY");
+	});
+	it.each(["workers", "hybrid"] as const)(
+		"accepts current multi-model readiness without retired single-model fields for %s",
+		(profile) => {
+			const result = artifacts(profile, multiModelVideoEnvironment);
+			for (const config of [result.website, result.workflows])
+				expect(config.vars).toMatchObject({
+					VIDEO_V1_ENABLED: "true",
+					VIDEO_V1_ACCESS: "internal",
+				});
+			expect(result["website.secrets"]).not.toHaveProperty("VIDEO_V1_CREDITS");
+			expect(result["website.secrets"]).not.toHaveProperty("VIDEO_V1_MODEL_CONTRACT_VERSION");
+		},
+	);
+	it.each([
+		[{ VIDEO_MODEL_CONTRACT_VERSION: "" }, "VIDEO_MODEL_CONTRACT_NOT_CONFIRMED"],
+		[{ VIDEO_SEEAPI_CALLBACK_SECRET: "" }, "VIDEO_SEEAPI_CALLBACK_NOT_CONFIGURED"],
+		[{ VIDEO_V1_PROVIDER_CONCURRENCY: "" }, "VIDEO_CONCURRENCY_NOT_CONFIGURED"],
+		[{ VIDEO_V1_UPLOAD_CORS_READY: "false" }, "VIDEO_BINDING_UPLOADCORS_NOT_READY"],
+	] as const)("keeps current video safety gates closed for %j", (overrides, reason) => {
+		expect(() => artifacts("workers", { ...multiModelVideoEnvironment, ...overrides })).toThrow(
+			reason,
+		);
 	});
 	it.each(["workers", "hybrid"] as const)(
 		"excludes retired moderation from every %s runtime while preserving active provider secrets",

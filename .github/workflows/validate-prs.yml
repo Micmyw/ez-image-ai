@@ -88,6 +88,7 @@ jobs:
     timeout-minutes: 30
     env:
       NODE_ENV: test
+      VIDEO_VERIFICATION_DATABASE_URL: postgresql://ai_media_test:ai_media_test_only@127.0.0.1:55439/ezpic_video_v1_final_test
     services:
       postgres:
         image: postgres:17-alpine
@@ -99,6 +100,19 @@ jobs:
           - 55432:5432
         options: >-
           --health-cmd "pg_isready -U ai_media_test -d ai_media_foundation_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      video-postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: ai_media_test
+          POSTGRES_PASSWORD: ai_media_test_only
+          POSTGRES_DB: ezpic_video_v1_final_test
+        ports:
+          - 55439:5432
+        options: >-
+          --health-cmd "pg_isready -U ai_media_test -d ezpic_video_v1_final_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
@@ -122,6 +136,10 @@ jobs:
         env:
           DATABASE_URL: ${{ env.TEST_DATABASE_URL }}
         run: pnpm db:migrate:drift
+      - name: Apply migrations to the isolated video invariant database
+        env:
+          DATABASE_URL: ${{ env.VIDEO_VERIFICATION_DATABASE_URL }}
+        run: pnpm db:migrate:deploy
       - name: Run PostgreSQL integration tests
         run: pnpm test:integration
       - name: Build the final Workers jobs artifact for database verification
@@ -249,10 +267,18 @@ jobs:
           mc alias set local http://127.0.0.1:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
           mc mb --ignore-existing local/media-private
           mc anonymous set none local/media-private
+          mc mb --ignore-existing local/video-v1-test
+          mc anonymous set none local/video-v1-test
           mc mb --ignore-existing local/avatars
           mc anonymous set download local/avatars
       - name: Run immutable upload MinIO regression
         run: pnpm --filter @repo/storage test:minio
+      - name: Run video immutable input MinIO regression
+        env:
+          MEDIA_BUCKET_NAME: video-v1-test
+          S3_REGION: us-east-1
+          NODE_OPTIONS: "--import=${{ github.workspace }}/tests/video-v1/no-paid-network.mjs"
+        run: pnpm --filter @repo/storage test:minio:video
       - name: Install Chromium with system dependencies
         run: pnpm --filter saas exec playwright install --with-deps chromium
       - name: Apply test migrations
@@ -261,6 +287,13 @@ jobs:
         run: pnpm db:migrate:deploy
       - name: Run authenticated mock E2E
         run: pnpm e2e:media:ci
+      - name: Run video V1 UI Mock E2E
+        id: video-ui
+        env:
+          VIDEO_V1_ENABLED: "false"
+          VIDEO_TEST_ALLOW_FONT_DOWNLOADS: "true"
+          NODE_OPTIONS: "--import=${{ github.workspace }}/tests/video-v1/no-paid-network.mjs"
+        run: pnpm --filter @repo/e2e-media run e2e --video-ui
       - name: Stop task-owned MinIO service
         if: ${{ always() }}
         run: |
@@ -284,6 +317,17 @@ jobs:
           path: |
             apps/saas/playwright-report/**
             apps/saas/test-results/**
+          if-no-files-found: error
+          retention-days: 30
+      - name: Upload video V1 Playwright evidence
+        if: ${{ !cancelled() && steps.video-ui.outcome != 'skipped' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-video-v1
+          path: |
+            .cache/video-v1/browser-report.json
+            .cache/video-v1/browser-results/**
+          include-hidden-files: true
           if-no-files-found: error
           retention-days: 30
 

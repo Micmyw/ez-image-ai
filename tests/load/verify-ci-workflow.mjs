@@ -18,12 +18,16 @@ const integrationRunner = readFileSync(
 const jobsPackage = JSON.parse(
 	readFileSync(resolve(process.cwd(), "packages/jobs/package.json"), "utf8"),
 );
-const jobsDatabaseIntegrationTests = readdirSync(
-	resolve(process.cwd(), "packages/jobs/src/handlers"),
-)
-	.filter((name) => name.endsWith(".database.integration.test.ts"))
-	.sort()
-	.map((name) => `src/handlers/${name}`);
+const storagePackage = JSON.parse(
+	readFileSync(resolve(process.cwd(), "packages/storage/package.json"), "utf8"),
+);
+const jobsDatabaseIntegrationTests = ["handlers", "video-v1"]
+	.flatMap((directory) =>
+		readdirSync(resolve(process.cwd(), "packages/jobs/src", directory))
+			.filter((name) => name.endsWith(".database.integration.test.ts"))
+			.map((name) => `src/${directory}/${name}`),
+	)
+	.sort();
 const gitleaksIgnorePath = resolve(process.cwd(), ".gitleaksignore");
 if (!existsSync(gitleaksIgnorePath))
 	throw new Error("exact Gitleaks fixture fingerprints are missing");
@@ -80,12 +84,49 @@ assertStepPrecedes(
 	"run: pnpm --filter @repo/database generate",
 	"run: pnpm test:integration",
 );
+assertIncludes(postgres, "      video-postgres:");
+assertIncludes(postgres, "          POSTGRES_DB: ezpic_video_v1_final_test");
+assertIncludes(postgres, "          - 55439:5432");
+assertIncludes(
+	postgres,
+	"VIDEO_VERIFICATION_DATABASE_URL: postgresql://ai_media_test:ai_media_test_only@127.0.0.1:55439/ezpic_video_v1_final_test",
+);
+assertIncludes(postgres, "DATABASE_URL: ${{ env.VIDEO_VERIFICATION_DATABASE_URL }}");
+assertStepPrecedes(
+	postgres,
+	"name: Apply migrations to the isolated video invariant database",
+	"run: pnpm test:integration",
+);
+assertIncludes(
+	integrationRunner,
+	'"prisma/queries/media/video-v1-seeapi-handoff-invariant.integration.test.ts"',
+);
+assertIncludes(integrationRunner, "...isolatedVideoDatabaseTests,");
+assertIncludes(
+	integrationRunner,
+	"isExplicitVideoVerificationTarget(new URL(videoTestDatabaseUrl))",
+);
 assertStepPrecedes(
 	builds,
 	"run: pnpm --filter @repo/database generate",
 	"run: pnpm --filter saas build",
 );
 assertStepPrecedes(mockE2e, "run: pnpm --filter @repo/database generate", "run: pnpm e2e:media:ci");
+const videoUiCommand = "pnpm --filter @repo/e2e-media run e2e --video-ui";
+assertUnconditionalStep(mockE2e, videoUiCommand);
+assertStepPrecedes(mockE2e, "run: pnpm e2e:media:ci", `run: ${videoUiCommand}`);
+assertStepPrecedes(mockE2e, `run: ${videoUiCommand}`, "name: Stop task-owned MinIO service");
+assertIncludes(mockE2e, 'VIDEO_V1_ENABLED: "false"');
+assertIncludes(mockE2e, 'VIDEO_TEST_ALLOW_FONT_DOWNLOADS: "true"');
+assertIncludes(
+	mockE2e,
+	'NODE_OPTIONS: "--import=${{ github.workspace }}/tests/video-v1/no-paid-network.mjs"',
+);
+assertIncludes(mockE2e, "name: Upload video V1 Playwright evidence");
+assertIncludes(mockE2e, "name: playwright-video-v1");
+assertIncludes(mockE2e, ".cache/video-v1/browser-report.json");
+assertIncludes(mockE2e, ".cache/video-v1/browser-results/**");
+assertIncludes(mockE2e, "include-hidden-files: true");
 
 assertIncludes(mockE2e, "name: Start pinned MinIO service");
 assertMatch(
@@ -111,6 +152,24 @@ assertMatch(
 assertIncludes(mockE2e, "name: Stop task-owned MinIO service");
 assertIncludes(mockE2e, "mc mb --ignore-existing local/media-private");
 assertIncludes(mockE2e, "mc anonymous set none local/media-private");
+assertIncludes(mockE2e, "mc mb --ignore-existing local/video-v1-test");
+assertIncludes(mockE2e, "mc anonymous set none local/video-v1-test");
+assertIncludes(mockE2e, "MEDIA_BUCKET_NAME: video-v1-test");
+assertIncludes(
+	storagePackage.scripts?.["test:minio:video"] ?? "",
+	"vitest run provider/s3/video-input.minio.integration.test.ts",
+);
+assertUnconditionalStep(mockE2e, "pnpm --filter @repo/storage test:minio:video");
+assertStepPrecedes(
+	mockE2e,
+	"mc anonymous set none local/video-v1-test",
+	"run: pnpm --filter @repo/storage test:minio:video",
+);
+assertStepPrecedes(
+	mockE2e,
+	"run: pnpm --filter @repo/storage test:minio:video",
+	"name: Stop task-owned MinIO service",
+);
 assertIncludes(mockE2e, "mc mb --ignore-existing local/avatars");
 assertIncludes(mockE2e, "mc anonymous set download local/avatars");
 assertIncludes(mockE2e, "S3_ENDPOINT: http://127.0.0.1:9000");

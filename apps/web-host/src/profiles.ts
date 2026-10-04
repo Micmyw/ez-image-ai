@@ -70,12 +70,18 @@ export function createProfileArtifacts(options: {
 		throw new Error("INVALID_PAYMENT_WEBHOOK_INGRESS_ORIGIN");
 	const flatEnvironment = workersRuntimeEnvironment(environment);
 	if (environment.VIDEO_V1_ENABLED === "true") {
-		const readiness = videoV1Readiness(environment, {
-			workflow: true,
-			r2: Boolean(environment.MEDIA_BUCKET_NAME),
-			hyperdrive: true,
-			uploadCors: environment.VIDEO_V1_UPLOAD_CORS_READY === "true",
-		});
+		const readiness = videoV1Readiness(
+			environment,
+			{
+				workflow: true,
+				r2: Boolean(environment.MEDIA_BUCKET_NAME),
+				hyperdrive: true,
+				uploadCors: environment.VIDEO_V1_UPLOAD_CORS_READY === "true",
+			},
+			// Match API admission: each selected model uses the current contract
+			// and request-specific full-cost pricing, not legacy V1 flat-price fields.
+			{ multiModel: true },
+		);
 		if (!readiness.ready) throw new Error(`VIDEO_V1_NOT_READY: ${readiness.reasons.join(",")}`);
 	}
 	const videoWorkflow = {

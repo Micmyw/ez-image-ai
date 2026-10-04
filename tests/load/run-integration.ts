@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 
 import { assertSafeDatabaseUrl } from "./assert-safe-target";
+import { isExplicitVideoVerificationTarget } from "./video-verification-target";
 
 const phase = process.argv[2] ?? "all";
 if (!["all", "api"].includes(phase)) throw new Error("UNKNOWN_INTEGRATION_PHASE");
@@ -16,8 +17,16 @@ const isolatedGuestDatabaseTests = [
 	"prisma/queries/media/guest-link.integration.test.ts",
 	"prisma/queries/media/guest-retention.integration.test.ts",
 ] as const;
+const isolatedVideoDatabaseTests = [
+	"prisma/queries/media/video-v1-seeapi-handoff-invariant.integration.test.ts",
+] as const;
 
 if (phase === "all") {
+	const videoTestDatabaseUrl = assertSafeDatabaseUrl(
+		process.env.VIDEO_VERIFICATION_DATABASE_URL,
+	).toString();
+	if (!isExplicitVideoVerificationTarget(new URL(videoTestDatabaseUrl)))
+		throw new Error("ISOLATED_VIDEO_TEST_DATABASE_REQUIRED");
 	run(
 		[
 			"--filter",
@@ -30,6 +39,7 @@ if (phase === "all") {
 			"--configLoader",
 			"runner",
 			...isolatedGuestDatabaseTests.flatMap((test) => ["--exclude", test]),
+			...isolatedVideoDatabaseTests.flatMap((test) => ["--exclude", test]),
 		],
 		false,
 		testDatabaseUrl,
@@ -50,6 +60,24 @@ if (phase === "all") {
 		false,
 		guestTestDatabaseUrl,
 	);
+	// This suite requires its explicit disposable target as both URLs; the other
+	// database suites intentionally require DATABASE_URL to be absent.
+	run(
+		[
+			"--filter",
+			"@repo/database",
+			"exec",
+			"vitest",
+			"run",
+			...isolatedVideoDatabaseTests,
+			"--config",
+			"vitest.integration.config.ts",
+			"--configLoader",
+			"runner",
+		],
+		true,
+		videoTestDatabaseUrl,
+	);
 	run(
 		[
 			"--filter",
@@ -67,6 +95,8 @@ if (phase === "all") {
 			"src/handlers/verify-upload.database.integration.test.ts",
 			"src/handlers/moderation-outage.database.integration.test.ts",
 			"src/handlers/temporary-reference.database.integration.test.ts",
+			"src/video-v1/flow.database.integration.test.ts",
+			"src/video-v1/seeapi-flow.database.integration.test.ts",
 			"--config",
 			"vitest.config.ts",
 		],

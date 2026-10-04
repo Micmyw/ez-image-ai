@@ -8,13 +8,13 @@
 `packages/database/prisma/zod/index.ts` 是从本分支 schema 重新生成的产物。
 完整责任与验收要求见 [审核说明](video-v1-github-review.md)。
 
-共 **341 个路径**。A 为新增、M 为修改、D 为删除。
+共 **343 个路径**。A 为新增、M 为修改、D 为删除。
 
 | 类别           | 路径数 |
 | -------------- | -----: |
-| 实现与配置     |    156 |
+| 实现与配置     |    157 |
 | 测试与验证工具 |    135 |
-| 文档           |     25 |
+| 文档           |     26 |
 | 夹具与验收记录 |     25 |
 
 ## 实现与配置
@@ -175,6 +175,7 @@
 | M    | [packages/storage/index.ts](../../packages/storage/index.ts)                                                                                                                                             |
 | M    | [packages/storage/lib/stream-copy.ts](../../packages/storage/lib/stream-copy.ts)                                                                                                                         |
 | A    | [packages/storage/lib/video-mp4.ts](../../packages/storage/lib/video-mp4.ts)                                                                                                                             |
+| M    | [packages/storage/package.json](../../packages/storage/package.json)                                                                                                                                     |
 | M    | [packages/storage/provider/s3/index.ts](../../packages/storage/provider/s3/index.ts)                                                                                                                     |
 | M    | [pnpm-lock.yaml](../../pnpm-lock.yaml)                                                                                                                                                                   |
 
@@ -340,6 +341,7 @@
 | M    | [docs/operations/sightengine-moderation.md](../../docs/operations/sightengine-moderation.md)                           |
 | A    | [docs/operations/video-v1-configuration.example.env](../../docs/operations/video-v1-configuration.example.env)         |
 | A    | [docs/operations/video-v1-followup-verification.md](../../docs/operations/video-v1-followup-verification.md)           |
+| A    | [docs/operations/video-v1-prerelease-validation.md](../../docs/operations/video-v1-prerelease-validation.md)           |
 | A    | [docs/operations/video-v1-review-branch-verification.md](../../docs/operations/video-v1-review-branch-verification.md) |
 | A    | [docs/operations/video-v1-review-fixes-2026-10-04.md](../../docs/operations/video-v1-review-fixes-2026-10-04.md)       |
 | A    | [docs/operations/video-v1-rollout.md](../../docs/operations/video-v1-rollout.md)                                       |

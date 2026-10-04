@@ -18,6 +18,7 @@
 		"test": "vitest run --exclude \"**/*.integration.test.ts\"",
 		"test:remote-media:workerd": "node test-support/remote-media-workerd-smoke.mjs",
 		"test:minio": "vitest run provider/s3/immutable-upload.minio.integration.test.ts provider/s3/avatar-upload.minio.integration.test.ts",
+		"test:minio:video": "vitest run provider/s3/video-input.minio.integration.test.ts",
 		"test:integration": "pnpm run test:minio",
 		"type-check": "tsc --noEmit"
 	},

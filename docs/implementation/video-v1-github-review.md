@@ -11,6 +11,9 @@
 后续修复与新验证单独记录在 [审核修复报告](../operations/video-v1-review-fixes-2026-10-04.md)，
 原始验证记录保留为历史证据。
 
+三项修复已获外部源码复审认可。后续的 CI 接入、部署配置一致性修复与真实验收前置条件见
+[发布前验证说明](../operations/video-v1-prerelease-validation.md)。CI 状态以 GitHub Actions 中对应完整 SHA 的结果为准。
+
 复审请同时检查 `packages/database/prisma/queries/media/video-v1-storage.ts` 的冻结预算、
 准入预留、付费提交检查和 job-key 到 asset-key 的原子迁移，以及同账户上传并发。
 `video-v1-cleanup.ts` 的候选扫描与锁内重查须遵守 `deleteAfter`；未来期限和无期限的已交付内容不能提前清除。
