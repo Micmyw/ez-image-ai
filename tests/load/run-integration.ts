@@ -116,6 +116,7 @@ export function buildIntegrationPlan(phase = "all"): IntegrationCommand[] {
 				"src/handlers/temporary-reference.database.integration.test.ts",
 				"src/video-v1/flow.database.integration.test.ts",
 				"src/video-v1/seeapi-flow.database.integration.test.ts",
+				"src/video-v1/template-flow.database.integration.test.ts",
 				"--config",
 				"vitest.config.ts",
 			],

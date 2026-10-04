@@ -28,6 +28,8 @@ export function readVideoAudioSafetyPolicy(snapshot: unknown): VideoAudioSafetyP
 	return { schemaVersion: 1, mode: value.mode };
 }
 export type VideoOutputConstraints = {
+	/** Frozen template requirement, not a claim that the supplier was quality-tested. */
+	exactPixels?: { width: number; height: number };
 	/** Missing historical constraints retain the spoken-review size limit. */
 	audioSafetyPolicy?: VideoAudioSafetyPolicy;
 	productKey?: string;
@@ -49,6 +51,42 @@ export function videoOutputConstraints(value: unknown): VideoOutputConstraints {
 		value && typeof value === "object" && !Array.isArray(value)
 			? (value as Record<string, unknown>)
 			: {};
+	if (snapshot.requestKind === "template-video" || snapshot.videoEffectTemplate !== undefined) {
+		const template = snapshot.videoEffectTemplate;
+		if (!template || typeof template !== "object" || Array.isArray(template))
+			throw new Error("VIDEO_TEMPLATE_OUTPUT_CONSTRAINTS_INVALID");
+		const config = template as Record<string, unknown>;
+		const rawOutput = config.output;
+		if (!rawOutput || typeof rawOutput !== "object" || Array.isArray(rawOutput))
+			throw new Error("VIDEO_TEMPLATE_OUTPUT_CONSTRAINTS_INVALID");
+		const output = rawOutput as Record<string, unknown>;
+		if (
+			config.schemaVersion !== 1 ||
+			config.effectId !== "hotel-lobby-duo" ||
+			typeof config.templateVersion !== "string" ||
+			output.durationSeconds !== 5 ||
+			output.resolution !== "720p" ||
+			output.aspectRatio !== "9:16" ||
+			output.sound !== false ||
+			output.width !== 720 ||
+			output.height !== 1280 ||
+			snapshot.duration !== output.durationSeconds ||
+			snapshot.resolution !== output.resolution ||
+			snapshot.aspectRatio !== output.aspectRatio ||
+			snapshot.sound !== output.sound ||
+			snapshot.productKey !== "video-seedance-1-5-pro"
+		)
+			throw new Error("VIDEO_TEMPLATE_OUTPUT_CONSTRAINTS_INVALID");
+		return {
+			audioSafetyPolicy: readVideoAudioSafetyPolicy(snapshot),
+			productKey: snapshot.productKey,
+			durationSeconds: output.durationSeconds,
+			sound: output.sound,
+			resolution: output.resolution,
+			aspectRatio: output.aspectRatio,
+			exactPixels: { width: output.width, height: output.height },
+		};
+	}
 	if (typeof snapshot.productKey !== "string")
 		return {
 			audioSafetyPolicy: readVideoAudioSafetyPolicy(snapshot),
@@ -124,6 +162,11 @@ export function videoOutputSpecificationFailure(
 		const height = expected.aspectRatio === "9:16" ? (pixels * 16) / 9 : pixels;
 		if (output.width !== width || output.height !== height) return "VIDEO_RESOLUTION_MISMATCH";
 	}
+	if (
+		expected.exactPixels &&
+		(output.width !== expected.exactPixels.width || output.height !== expected.exactPixels.height)
+	)
+		return "VIDEO_RESOLUTION_MISMATCH";
 	if (!["source", "adaptive"].includes(expected.aspectRatio)) {
 		const ratio = /^(\d+):(\d+)$/.exec(expected.aspectRatio);
 		if (!ratio || !Number(ratio[1]) || !Number(ratio[2])) return "VIDEO_ASPECT_RATIO_INVALID";

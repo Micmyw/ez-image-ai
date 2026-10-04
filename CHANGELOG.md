@@ -2,6 +2,12 @@
 
 ## 2026-10-05
 
+### Hotel Lobby duo template preview
+
+- Add a draft, noindex Hotel Lobby tool with two explicit left/right photo inputs, swapping, one total credit confirmation, private video status and owner-scoped refresh recovery. The template needs no model choice or written prompt.
+- Keep template generation closed until account eligibility, current prices, allowed parameters and release gates pass. Intermediate scene preparation belongs to the same video order; real sample publication requires authorized, version-matched product results and quality review.
+- Reuse account login, credit purchases and video history, with safe return navigation to the same template. No production opening, paid quality test or verified public sample is implied by this development entry.
+
 ### Video beta configuration and pricing
 
 - Limit new video requests to explicitly enabled model, input, duration, resolution and sound combinations. Existing accepted work retains its saved settings during recovery.

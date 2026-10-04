@@ -1,5 +1,6 @@
 "use client";
 
+import { useSessionQuery } from "@auth/lib/api";
 import { PUBLIC_CREDIT_PACKS } from "@repo/config/client";
 import { useRouter } from "@shared/hooks/router";
 import { orpc } from "@shared/lib/orpc-query-utils";
@@ -8,6 +9,7 @@ import { ArrowUpRightIcon, Loader2Icon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { createContext, useContext, useRef, useState, type ReactNode } from "react";
 
+import { bindVideoEffectPaymentReturn } from "../../video-effects/lib/payment-return";
 import { usePaymentAction } from "../hooks/use-payment-action";
 import {
 	createCreditPackCheckoutAttemptController,
@@ -97,6 +99,7 @@ export function CreditPackCheckoutActions({ packKey }: { packKey: PublicCreditPa
 	const t = useTranslations();
 	const router = useRouter();
 	const payment = usePaymentAction();
+	const session = useSessionQuery();
 	const [checkoutUnavailable, setCheckoutUnavailable] = useState(false);
 	const checkoutAttempts = useRef(
 		createCreditPackCheckoutAttemptController(createCheckoutAttemptKey),
@@ -116,14 +119,16 @@ export function CreditPackCheckoutActions({ packKey }: { packKey: PublicCreditPa
 		const selection: CreditPackCheckoutSelection = { packKey, provider };
 		const idempotencyKey = checkoutAttempts.current.begin(selection);
 		setCheckoutUnavailable(false);
+		const originatingPath = window.location.pathname + window.location.search;
 
 		try {
-			const { checkoutLink } = await createCheckout.mutateAsync({
+			const { checkoutLink, intentId } = await createCheckout.mutateAsync({
 				provider,
 				packKey,
 				idempotencyKey,
 			});
 			checkoutAttempts.current.succeeded(selection);
+			bindVideoEffectPaymentReturn(session.data?.user?.id, intentId, originatingPath);
 			payment.redirecting();
 			window.location.href = checkoutLink;
 		} catch (error) {

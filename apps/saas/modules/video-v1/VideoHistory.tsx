@@ -60,9 +60,10 @@ export function VideoHistory() {
 					<li key={state.jobId}>
 						<Link
 							className="space-y-2 p-4 focus-visible:outline-violet-500 block rounded-xl border transition-colors hover:bg-secondary focus-visible:outline-2"
-							href={`/video?job=${encodeURIComponent(state.jobId)}`}
+							href={`${state.effect ? "/video-effects/hotel-lobby-ai" : "/video"}?job=${encodeURIComponent(state.jobId)}`}
 						>
 							<p className="font-medium">{t(`stages.${state.stage}`)}</p>
+							{state.effect && <p className="text-sm">{state.effect.name}</p>}
 							<p className="text-sm text-muted-foreground">
 								{t(`credits.${state.creditState}`, { credits: state.credits })}
 							</p>

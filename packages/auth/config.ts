@@ -62,6 +62,7 @@ export const config = {
 			"try",
 			"verify",
 			"video",
+			"video-effects",
 		],
 	},
 } as const satisfies AuthConfig;

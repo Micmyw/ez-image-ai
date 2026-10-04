@@ -223,6 +223,16 @@ export async function ensureVideoWorkflowStarted(
 type PublicRecord = Awaited<ReturnType<typeof getVideoJobRecord>>;
 export function toVideoPublicState(job: PublicRecord): VideoPublicState {
 	if (!job.videoExecution || !job.reservation) throw new Error("VIDEO_EXECUTION_INVALID");
+	const snapshot =
+		job.inputSnapshot && typeof job.inputSnapshot === "object" && !Array.isArray(job.inputSnapshot)
+			? job.inputSnapshot
+			: {};
+	const template =
+		snapshot.videoEffectTemplate &&
+		typeof snapshot.videoEffectTemplate === "object" &&
+		!Array.isArray(snapshot.videoEffectTemplate)
+			? snapshot.videoEffectTemplate
+			: null;
 	return {
 		jobId: job.id,
 		stage: job.videoExecution.stage,
@@ -234,6 +244,15 @@ export function toVideoPublicState(job: PublicRecord): VideoPublicState {
 			job.reservation.status === "SETTLED",
 		failureCode: job.failureCode,
 		updatedAt: job.updatedAt.toISOString(),
+		...(template?.effectId === "hotel-lobby-duo" && typeof template.templateVersion === "string"
+			? {
+					effect: {
+						effectId: "hotel-lobby-duo" as const,
+						name: "Hotel Lobby AI" as const,
+						templateVersion: template.templateVersion,
+					},
+				}
+			: {}),
 	};
 }
 export async function getVideoPublicState(

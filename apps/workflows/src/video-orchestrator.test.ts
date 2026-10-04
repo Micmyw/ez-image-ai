@@ -6,7 +6,7 @@ import {
 	type VideoWorkflowServices,
 } from "./video-orchestrator";
 
-function fixture() {
+function fixture(template?: boolean) {
 	const names: string[] = [];
 	const steps: VideoDurableSteps = {
 		do: async (name, _config, action) => {
@@ -20,6 +20,7 @@ function fixture() {
 		checkpoint: vi.fn<VideoWorkflowServices["checkpoint"]>(async () => ({
 			stage: "QUEUED",
 			terminal: false,
+			...(template === undefined ? {} : { template }),
 		})),
 		window: vi.fn(async (_jobId, _phase, round) => ({ round: round ?? 0, remainingSeconds: 1800 })),
 		reviewInput: vi.fn<VideoWorkflowServices["reviewInput"]>(async () => ({ status: "ALLOW" })),
@@ -57,6 +58,57 @@ function fixture() {
 }
 
 describe("direct video V1 workflow", () => {
+	it("prepares and seals a template scene before the existing video submit step without extra delay", async () => {
+		const f = fixture(true);
+		f.services.prepareTemplate = vi.fn(async () => ({ status: "ALLOW" as const }));
+		await f.run();
+		expect(f.names.indexOf("video-v1-template-prepare-0")).toBeLessThan(
+			f.names.indexOf("video-v1-submit-provider"),
+		);
+		expect(f.steps.waitForEvent).not.toHaveBeenCalled();
+		expect(f.services.submit).toHaveBeenCalledTimes(1);
+	});
+	it("holds uncertain template preparation before any final-video paid submit", async () => {
+		const f = fixture(true);
+		f.services.prepareTemplate = vi.fn(async () => ({
+			status: "ERROR" as const,
+			reasonCode: "TEMPLATE_SCENE_SUBMISSION_UNCERTAIN",
+			retryable: false,
+		}));
+		expect(await f.run()).toMatchObject({ stage: "NEEDS_REVIEW" });
+		expect(f.services.submit).not.toHaveBeenCalled();
+		expect(f.services.fail).not.toHaveBeenCalled();
+	});
+	it("resumes a pending scene at its bounded deadline and preserves the final-video durable step names", async () => {
+		const f = fixture(true);
+		f.services.prepareTemplate = vi
+			.fn<NonNullable<VideoWorkflowServices["prepareTemplate"]>>()
+			.mockResolvedValueOnce({
+				status: "PENDING",
+				retryAfterSeconds: 2,
+				deadlineAt: new Date(Date.now() + 60000).toISOString(),
+			})
+			.mockResolvedValue({ status: "ALLOW" });
+		await f.run();
+		expect(f.steps.waitForEvent).toHaveBeenCalledWith("video-v1-template-event-0", {
+			type: "provider-result",
+			timeout: "2 seconds",
+		});
+		expect(f.names).toContain("video-v1-submit-provider");
+		expect(f.services.submit).toHaveBeenCalledTimes(1);
+	});
+	it.each([undefined, false])(
+		"keeps ordinary and legacy checkpoints (%s) on their original durable steps even when template services exist",
+		async (template) => {
+			const f = fixture(template);
+			f.services.prepareTemplate = vi.fn(async () => {
+				throw new Error("ORDINARY_TEMPLATE_BRANCH_FORBIDDEN");
+			});
+			expect(await f.run()).toMatchObject({ completed: true, stage: "READY" });
+			expect(f.services.prepareTemplate).not.toHaveBeenCalled();
+			expect(f.names.some((name) => name.includes("template"))).toBe(false);
+		},
+	);
 	it("records repeated 5/10/20-way mock orchestration timings and concurrent entry", async () => {
 		const groups: Array<{
 			concurrency: number;

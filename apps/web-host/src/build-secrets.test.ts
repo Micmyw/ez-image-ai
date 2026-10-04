@@ -24,6 +24,65 @@ const allowedVideoOptions = JSON.stringify([
 ]);
 
 describe("Cloudflare build secret transport", () => {
+	it("keeps ambient template flags inert and permits independent explicit emergency close", () => {
+		const source = "HOTEL_LOBBY_DUO_ENABLED=true\nVIDEO_V1_ENABLED=true\nUNCHANGED=fixture";
+		const untouched = parseEnv(
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: source,
+				HOTEL_LOBBY_DUO_ENABLED: "false",
+			}),
+		);
+		expect(untouched.HOTEL_LOBBY_DUO_ENABLED).toBe("true");
+		const closed = parseEnv(
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: source,
+				HOTEL_LOBBY_DUO_BUILD_ENABLED: "false",
+			}),
+		);
+		expect(closed).toEqual({
+			HOTEL_LOBBY_DUO_ENABLED: "false",
+			VIDEO_V1_ENABLED: "true",
+			UNCHANGED: "fixture",
+		});
+		expect(
+			withoutCloudflareBuildSecrets({
+				HOTEL_LOBBY_DUO_ENABLED: "true",
+				HOTEL_LOBBY_DUO_BUILD_ENABLED: "true",
+			}),
+		).toEqual({});
+	});
+	it.each(["TRUE", " true", "true\nINJECTED=yes"])(
+		"rejects invalid template build flag %j",
+		(value) => {
+			expect(() =>
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=true",
+					HOTEL_LOBBY_DUO_BUILD_ENABLED: value,
+				}),
+			).toThrow("VIDEO_EFFECT_BUILD_ENABLED_OVERRIDE_INVALID");
+		},
+	);
+	it("cannot open the template from ordinary video approval or a packed admission switch", () => {
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=true",
+				HOTEL_LOBBY_DUO_BUILD_ENABLED: "true",
+			}),
+		).toThrow("VIDEO_EFFECT_BUILD_ENABLED_POLICY_REQUIRED");
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=true",
+				VIDEO_RUNTIME_CONFIG: JSON.stringify({ VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions }),
+				HOTEL_LOBBY_DUO_BUILD_ENABLED: "true",
+			}),
+		).toThrow("VIDEO_EFFECT_BUILD_ENABLED_POLICY_REQUIRED");
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=true",
+				VIDEO_RUNTIME_CONFIG: JSON.stringify({ HOTEL_LOBBY_DUO_ENABLED: "true" }),
+			}),
+		).toThrow("VIDEO_RUNTIME_CONFIG_INVALID");
+	});
 	it("enables only through the dedicated build flag with a valid current policy override", () => {
 		const source = "UNRELATED=fixture\nVIDEO_V1_ENABLED=false\nBILLING_ENABLED=false";
 		const policy = {

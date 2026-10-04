@@ -21,6 +21,7 @@ import {
 	submitVideoAttempt,
 } from "@repo/jobs/video-v1/submission";
 import { recordVideoStageMetric } from "@repo/jobs/video-v1/telemetry";
+import { prepareVideoTemplate } from "@repo/jobs/video-v1/template-preparation";
 import { runWithVideoWorkflowBinding } from "@repo/jobs/video-v1/workflow-binding";
 import {
 	createCloudflareImagesProcessor,
@@ -34,6 +35,7 @@ import type { VideoWorkflowServices } from "./video-orchestrator";
 export interface VideoRuntimeEnvironment {
 	VIDEO_RUNTIME_CONFIG?: string;
 	VIDEO_V1_ENABLED?: string;
+	HOTEL_LOBBY_DUO_ENABLED?: string;
 	HYPERDRIVE: { connectionString: string };
 	IMAGES: CloudflareImagesBinding;
 	VIDEO_WORKFLOW: VideoWorkflowBinding;
@@ -106,6 +108,8 @@ export function videoWorkflowServices(env: VideoRuntimeEnvironment): VideoWorkfl
 				}),
 			),
 		reviewInput: (jobId) => measured(jobId, "input-review", () => reviewVideoInput(jobId)),
+		prepareTemplate: (jobId) =>
+			measured(jobId, "template-preparation", () => prepareVideoTemplate(jobId)),
 		submit: (jobId) => measured(jobId, "provider-submit", () => submitVideoAttempt(jobId)),
 		confirm: (jobId) =>
 			measured(jobId, "provider-confirm", () => confirmVideoProviderResult(jobId)),

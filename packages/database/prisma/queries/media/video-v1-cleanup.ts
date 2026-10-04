@@ -49,6 +49,19 @@ export async function listVideoResourceCleanupCandidates(
 		where: {
 			verificationEngine: ENGINE,
 			videoCleanupCompletedAt: null,
+			templateScenes: {
+				none: {
+					OR: [
+						{ sceneSubmissionUncertain: true },
+						{
+							sceneState: {
+								in: ["SUBMITTING", "SUBMISSION_UNCERTAIN", "GENERATING", "NEEDS_REVIEW"],
+							},
+						},
+						{ job: { videoExecution: { stage: { notIn: ["READY", "FAILED", "REJECTED"] } } } },
+					],
+				},
+			},
 			jobBindings: {
 				none: {
 					job: {
@@ -74,6 +87,7 @@ export async function listVideoResourceCleanupCandidates(
 				{
 					kind: "INPUT",
 					jobBindings: { none: {} },
+					AND: [{ OR: [{ templateScenes: { none: {} } }, { deleteAfter: { lte: input.now } }] }],
 					OR: [
 						{ deleteAfter: { lte: input.now } },
 						{ createdAt: { lte: new Date(input.now.getTime() - DAY) } },
@@ -120,6 +134,7 @@ export async function claimVideoResourceCleanup(
 			},
 			include: {
 				uploadSessions: true,
+				templateScenes: { include: { job: { include: { videoExecution: true } } } },
 				jobBindings: {
 					include: {
 						job: {
@@ -133,6 +148,17 @@ export async function claimVideoResourceCleanup(
 			},
 		});
 		if (!asset) return null;
+		if (
+			asset.templateScenes.some(
+				(scene) =>
+					scene.sceneSubmissionUncertain ||
+					["SUBMITTING", "SUBMISSION_UNCERTAIN", "GENERATING", "NEEDS_REVIEW"].includes(
+						scene.sceneState,
+					) ||
+					!TERMINAL.includes(scene.job.videoExecution?.stage ?? ""),
+			)
+		)
+			return null;
 		if (
 			asset.jobBindings.some(
 				({ job }) =>
@@ -165,19 +191,26 @@ export async function claimVideoResourceCleanup(
 			asset.deletedAt ||
 			(asset.kind === "INPUT" &&
 				asset.jobBindings.length === 0 &&
-				(expiredUpload ||
-					(asset.deleteAfter && asset.deleteAfter <= now) ||
-					asset.createdAt.getTime() + DAY <= now.getTime())) ||
+				(asset.templateScenes.length
+					? !!(asset.deleteAfter && asset.deleteAfter <= now)
+					: expiredUpload ||
+						(asset.deleteAfter && asset.deleteAfter <= now) ||
+						asset.createdAt.getTime() + DAY <= now.getTime())) ||
 			// The locked read already applied outputRetentionDue to non-tombstoned outputs.
 			asset.kind === "OUTPUT";
 		if (!due) return null;
-		const originalKey = asset.objectKey.endsWith(".video-input.png")
-			? asset.objectKey.slice(0, -".video-input.png".length)
-			: asset.objectKey;
+		const originalKey = asset.objectKey.endsWith(".template-input.png")
+			? asset.objectKey.slice(0, -".template-input.png".length)
+			: asset.objectKey.endsWith(".video-input.png")
+				? asset.objectKey.slice(0, -".video-input.png".length)
+				: asset.objectKey;
 		const objectKeys = [
 			...new Set(
 				[
 					asset.objectKey,
+					...(asset.objectKey.endsWith(".template-source")
+						? [`${asset.objectKey}.template-input.png`]
+						: []),
 					originalKey,
 					asset.outputStagingObjectKey,
 					...asset.uploadSessions.map((s) => s.stagingObjectKey),
@@ -226,6 +259,7 @@ export async function completeVideoResourceCleanup(
 				deletedAt: { not: null },
 			},
 			include: {
+				templateScenes: { select: { jobId: true } },
 				jobBindings: {
 					where: { role: "OUTPUT", job: { executionEngine: ENGINE } },
 					select: { jobId: true },
@@ -242,6 +276,7 @@ export async function completeVideoResourceCleanup(
 					in: [
 						`generation-output:${asset.id}`,
 						`video-output:${asset.id}`,
+						...asset.templateScenes.map(({ jobId }) => `video-template-scene:${jobId}`),
 						...(asset.kind === "OUTPUT"
 							? asset.jobBindings.map(({ jobId }) => `video-output:${jobId}`)
 							: []),
@@ -289,14 +324,16 @@ export async function listVideoStagingCleanup(
 		}>
 	>`
   SELECT s."id" AS "sessionId", s."assetId", s."stagingObjectKey" AS "stagingKey",
-   CASE WHEN a."objectKey" LIKE '%.video-input.png' AND r."bytes" > a."byteSize"
+   CASE WHEN a."objectKey" LIKE '%.template-input.png' AND r."bytes" > a."byteSize"
+    THEN left(a."objectKey", length(a."objectKey")-length('.template-input.png'))
+    WHEN a."objectKey" LIKE '%.video-input.png' AND r."bytes" > a."byteSize"
     THEN left(a."objectKey", length(a."objectKey")-length('.video-input.png')) ELSE NULL END AS "sourceKey"
   FROM "media_upload_session" s
   JOIN "media_asset" a ON a."id"=s."assetId"
   LEFT JOIN "storage_usage_reservation" r ON r."referenceKey"='media-upload:'||s."id" AND r."status"='COMMITTED'
   WHERE s."status"='COMPLETED' AND s."completedAt" <= ${due}
    AND a."verificationEngine"='video-workflow-v1' AND a."deletedAt" IS NULL
-   AND (s."stagingObjectKey" IS NOT NULL OR (a."objectKey" LIKE '%.video-input.png' AND r."bytes" > a."byteSize"))
+   AND (s."stagingObjectKey" IS NOT NULL OR ((a."objectKey" LIKE '%.video-input.png' OR a."objectKey" LIKE '%.template-input.png') AND r."bytes" > a."byteSize"))
   ORDER BY s."completedAt", s."id" LIMIT ${limit}`;
 }
 export async function completeVideoStagingCleanup(
@@ -322,7 +359,11 @@ export async function completeVideoStagingCleanup(
 			where: { id: session.id },
 			data: { stagingObjectKey: null },
 		});
-		if (input.sourceKey && session.asset.objectKey === `${input.sourceKey}.video-input.png`)
+		if (
+			input.sourceKey &&
+			(session.asset.objectKey === `${input.sourceKey}.video-input.png` ||
+				session.asset.objectKey === `${input.sourceKey}.template-input.png`)
+		)
 			await tx.storageUsageReservation.updateMany({
 				where: { referenceKey: `media-upload:${session.id}`, status: "COMMITTED" },
 				data: { bytes: session.asset.byteSize },

@@ -23,6 +23,7 @@ import { ArrowRightIcon, BadgePercentIcon, CheckIcon, StarIcon } from "lucide-re
 import { useFormatter, useLocale, useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 
+import { bindVideoEffectPaymentReturn } from "../../video-effects/lib/payment-return";
 import {
 	createCheckoutAttemptController,
 	filterSubscriptionCheckoutProviders,
@@ -169,9 +170,10 @@ export function PricingTable({
 		setCheckoutUnavailable(false);
 		const selection: CheckoutSelection = { provider, planId, interval };
 		const checkoutAttemptKey = checkoutAttempts.current.begin(selection);
+		const originatingPath = window.location.pathname + window.location.search;
 
 		try {
-			const { checkoutLink } = await createCheckoutLinkMutation.mutateAsync({
+			const { checkoutLink, checkoutIntentId } = await createCheckoutLinkMutation.mutateAsync({
 				provider,
 				planId,
 				interval,
@@ -180,6 +182,7 @@ export function PricingTable({
 
 			void saasGrowthFunnel.checkoutStarted(checkoutAttemptKey, planId).catch(() => undefined);
 			checkoutAttempts.current.succeeded(selection);
+			bindVideoEffectPaymentReturn(userId, checkoutIntentId, originatingPath);
 			payment.redirecting();
 			window.location.href = checkoutLink;
 		} catch (error) {

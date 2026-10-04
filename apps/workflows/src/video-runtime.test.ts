@@ -71,7 +71,12 @@ function environment(video: Record<string, string | undefined> = {}): VideoRunti
 
 beforeEach(() => {
 	vi.clearAllMocks();
-	for (const key of [...VIDEO_RUNTIME_ENVIRONMENT_KEYS, "VIDEO_RUNTIME_CONFIG", "VIDEO_V1_ENABLED"])
+	for (const key of [
+		...VIDEO_RUNTIME_ENVIRONMENT_KEYS,
+		"VIDEO_RUNTIME_CONFIG",
+		"VIDEO_V1_ENABLED",
+		"HOTEL_LOBBY_DUO_ENABLED",
+	])
 		vi.stubEnv(key, undefined);
 	mocks.database.mockReturnValue({ $disconnect: mocks.disconnect });
 	mocks.disconnect.mockResolvedValue(undefined);

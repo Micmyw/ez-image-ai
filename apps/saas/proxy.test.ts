@@ -6,6 +6,20 @@ import { proxy } from "./proxy";
 afterEach(() => vi.restoreAllMocks());
 
 describe("public content proxy", () => {
+	it("keeps a template job URL private while retaining the public English locale", () => {
+		const response = proxy(
+			new NextRequest("https://example.com/video-effects/hotel-lobby-ai?job=private-job"),
+		);
+		expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+		expect(response.headers.get("x-middleware-request-x-next-intl-locale")).toBe("en");
+	});
+	it("uses explicit template locale views without changing their indexing boundary", () => {
+		const response = proxy(
+			new NextRequest("https://example.com/video-effects/hotel-lobby-ai?lang=de"),
+		);
+		expect(response.headers.get("x-robots-tag")).toBe("noindex, follow");
+		expect(response.headers.get("x-middleware-request-x-next-intl-locale")).toBe("de");
+	});
 	it.each(["/video", "/video/history"])(
 		"keeps %s private and preserves the account locale",
 		(path) => {

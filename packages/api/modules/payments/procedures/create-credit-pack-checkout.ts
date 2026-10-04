@@ -50,7 +50,7 @@ export const createCreditPackCheckout = protectedProcedure
 		description: "Creates a server-priced one-time checkout through PayPal or Waffo",
 	})
 	.input(creditPackCheckoutInputSchema)
-	.output(z.object({ checkoutLink: z.url() }))
+	.output(z.object({ checkoutLink: z.url(), intentId: z.string().min(1) }))
 	.handler(async ({ input, context: { session, user } }) => {
 		assertNewBillingEnabled();
 		await assertBillingEnvironmentReady();
@@ -75,7 +75,7 @@ export const createCreditPackCheckout = protectedProcedure
 				trustedIntent.providerSessionId &&
 				trustedIntent.providerCheckoutUrl
 			) {
-				return { checkoutLink: trustedIntent.providerCheckoutUrl };
+				return { checkoutLink: trustedIntent.providerCheckoutUrl, intentId: trustedIntent.id };
 			}
 			if (trustedIntent.status !== "CREATED" && trustedIntent.status !== "PROVIDER_CREATING") {
 				throw new ORPCError("CONFLICT");
@@ -152,7 +152,7 @@ export const createCreditPackCheckout = protectedProcedure
 				trustedIntent.providerSessionId &&
 				trustedIntent.providerCheckoutUrl
 			) {
-				return { checkoutLink: trustedIntent.providerCheckoutUrl };
+				return { checkoutLink: trustedIntent.providerCheckoutUrl, intentId: trustedIntent.id };
 			}
 			if (trustedIntent.status !== "CREATED" && trustedIntent.status !== "PROVIDER_CREATING") {
 				throw new ORPCError("CONFLICT");
@@ -194,7 +194,7 @@ export const createCreditPackCheckout = protectedProcedure
 					db,
 				);
 				if (recovery.kind === "RECOVERED") {
-					return { checkoutLink: recovery.checkout.checkoutUrl };
+					return { checkoutLink: recovery.checkout.checkoutUrl, intentId: trustedIntent.id };
 				}
 				if (recovery.kind === "REVIEW") throw new ORPCError("CONFLICT");
 			} catch (error) {
@@ -227,7 +227,7 @@ export const createCreditPackCheckout = protectedProcedure
 				},
 				db,
 			);
-			return { checkoutLink: checkout.checkoutUrl };
+			return { checkoutLink: checkout.checkoutUrl, intentId: trustedIntent.id };
 		} catch (error) {
 			logger.error(
 				{ provider, errorClass: creditPackCheckoutErrorClass(error) },

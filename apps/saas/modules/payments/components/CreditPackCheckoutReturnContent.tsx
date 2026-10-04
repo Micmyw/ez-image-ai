@@ -1,5 +1,6 @@
 "use client";
 
+import { useSessionQuery } from "@auth/lib/api";
 import { Spinner } from "@repo/ui/components/spinner";
 import { orpc } from "@shared/lib/orpc-query-utils";
 import { useMutation, useQuery } from "@tanstack/react-query";
@@ -9,11 +10,11 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { consumeVideoEffectPaymentReturn } from "../../video-effects/lib/payment-return";
 import {
 	getCreditPackCheckoutDestination,
 	getPayPalCreditPackCaptureInput,
 } from "./checkout-attempt";
-
 const POLL_INTERVAL_MS = 1_500;
 
 export function CreditPackCheckoutReturnContent({
@@ -25,6 +26,7 @@ export function CreditPackCheckoutReturnContent({
 }) {
 	const t = useTranslations("creditPackCheckoutReturn");
 	const router = useRouter();
+	const session = useSessionQuery();
 	const captureStarted = useRef(false);
 	const [polling, setPolling] = useState(true);
 	const [captureFailed, setCaptureFailed] = useState(false);
@@ -49,15 +51,18 @@ export function CreditPackCheckoutReturnContent({
 	}, [capture, checkoutState, intentId, providerOrderId]);
 
 	useEffect(() => {
+		if (session.isPending) return;
 		const status = checkoutState.data?.status;
 		const destination = getCreditPackCheckoutDestination(status);
 		if (destination) {
 			setPolling(false);
-			router.replace(destination);
+			router.replace(
+				consumeVideoEffectPaymentReturn(session.data?.user?.id, intentId) ?? destination,
+			);
 			return;
 		}
 		if (status && status !== "PENDING") setPolling(false);
-	}, [checkoutState.data?.status, router]);
+	}, [checkoutState.data?.status, router, session.data?.user?.id, session.isPending, intentId]);
 
 	const status = checkoutState.data?.status;
 	const failed = captureFailed || checkoutState.isError;

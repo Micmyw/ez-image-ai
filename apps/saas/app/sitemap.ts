@@ -9,12 +9,17 @@ import {
 	getLegalPageByPath,
 } from "../modules/public-content/lib/content";
 import { CONTENT_PAGE_SIZE, contentPagePath } from "../modules/public-content/lib/pagination";
+import { getPublishedVideoEffects } from "../modules/video-effects/lib/content";
 
 export default function sitemap(): MetadataRoute.Sitemap {
 	const baseUrl = getBaseUrl();
 	const posts = getAllPublishedBlogPosts("en");
 	const pages = [
 		...publicPageUpdates,
+		...getPublishedVideoEffects().map((effect) => ({
+			path: effect.path,
+			lastModified: effect.updatedAt ?? effect.publishedAt,
+		})),
 		...Array.from(
 			{ length: Math.max(0, Math.ceil(posts.length / CONTENT_PAGE_SIZE) - 1) },
 			(_, index) => ({

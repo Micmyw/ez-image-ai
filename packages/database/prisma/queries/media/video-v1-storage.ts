@@ -3,6 +3,7 @@ import { VIDEO_OUTPUT_MAX_BYTES } from "@repo/config/video-output";
 import type { Prisma } from "../../generated/client";
 import { lockOwnerStorageUsage } from "./storage-usage-locks";
 import { unexpiredStorageReservations } from "./temporary-references";
+import { releaseVideoTemplatePreSceneCapacity } from "./video-template-storage";
 
 export const videoOutputStoragePolicy = {
 	schemaVersion: 1,
@@ -68,6 +69,7 @@ export async function releaseVideoPreOutputCapacity(
 	tx: Prisma.TransactionClient,
 	job: { id: string; ownerType: "USER" | "ORGANIZATION"; ownerId: string },
 ) {
+	await releaseVideoTemplatePreSceneCapacity(tx, job);
 	if (await tx.generationJobAsset.count({ where: { jobId: job.id, role: "OUTPUT" } })) return;
 	await tx.storageUsageReservation.updateMany({
 		where: {

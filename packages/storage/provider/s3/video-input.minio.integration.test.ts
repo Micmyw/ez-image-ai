@@ -49,6 +49,7 @@ describe("video immutable input and range storage (isolated MinIO)", () => {
 			const original = await sharp({
 				create: { width: 128, height: 96, channels: 3, background: "#224466" },
 			})
+				.withMetadata({ orientation: 6 })
 				.toFormat(format)
 				.toBuffer();
 			const replacement = Buffer.from(original);
@@ -100,12 +101,13 @@ describe("video immutable input and range storage (isolated MinIO)", () => {
 						})
 					).sha256,
 				).toBe(sealed.sha256);
-				if (format === "webp") {
+				{
 					const converted = await storage.normalizeVideoReferenceToPng({
 						source: final,
 						final: normalized,
 						sourceBytes: original.length,
 						sourceEtag: sealed.etag!,
+						sourceContentType: contentType,
 						maximumBytes: 10_000_000,
 					});
 					expect(
@@ -115,13 +117,22 @@ describe("video immutable input and range storage (isolated MinIO)", () => {
 							contentLength: converted.bytes,
 							ifMatch: converted.etag!,
 						}),
-					).toEqual({ width: 128, height: 96 });
+					).toEqual({ width: 96, height: 128 });
+					const canonicalRead = await storage.readPrivateMediaStream({
+						...normalized,
+						ifMatch: converted.etag!,
+					});
+					const canonicalBytes = Buffer.from(await new Response(canonicalRead.body).arrayBuffer());
+					const canonicalMetadata = await sharp(canonicalBytes).metadata();
+					expect(canonicalMetadata.orientation).toBeUndefined();
+					expect(canonicalMetadata.exif).toBeUndefined();
 					expect(
 						await storage.normalizeVideoReferenceToPng({
 							source: final,
 							final: normalized,
 							sourceBytes: original.length,
 							sourceEtag: sealed.etag!,
+							sourceContentType: contentType,
 							maximumBytes: 10_000_000,
 						}),
 					).toEqual(converted);

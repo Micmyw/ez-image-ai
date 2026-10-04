@@ -23,7 +23,10 @@ export interface VideoDurableSteps {
 	sleep(this: void, name: string, duration: string): Promise<void>;
 }
 export interface VideoWorkflowServices {
-	checkpoint(this: void, jobId: string): Promise<{ stage: VideoStage; terminal: boolean }>;
+	checkpoint(
+		this: void,
+		jobId: string,
+	): Promise<{ stage: VideoStage; terminal: boolean; template?: boolean }>;
 	window(
 		this: void,
 		jobId: string,
@@ -31,6 +34,8 @@ export interface VideoWorkflowServices {
 		round?: number,
 	): Promise<{ round: number; remainingSeconds: number; deadlineAt?: string }>;
 	reviewInput(this: void, jobId: string): Promise<ReviewStepResult>;
+	/** Added branch only. Existing jobs retain all original durable step names. */
+	prepareTemplate?(this: void, jobId: string): Promise<ReviewStepResult>;
 	submit(this: void, jobId: string): Promise<SubmissionStepResult>;
 	confirm(this: void, jobId: string): Promise<ProviderResult>;
 	store(this: void, jobId: string): Promise<StoredOutputRef>;
@@ -237,6 +242,37 @@ export async function runVideoGenerationV1(
 		}
 	}
 
+	if (
+		checkpoint.template === true &&
+		services.prepareTemplate &&
+		["QUEUED", "INPUT_REVIEW", "SUBMITTING"].includes(checkpoint.stage)
+	) {
+		for (let round = 0; ; round++) {
+			const prepared = await step(`template-prepare-${round}`, () =>
+				services.prepareTemplate!(jobId),
+			);
+			if (prepared.status === "ALLOW") break;
+			if (prepared.status === "REJECT") return fail("template", prepared.reasonCode, true);
+			if (prepared.status === "ERROR") return reviewRequired(prepared.reasonCode);
+			const remaining = await step(`template-remaining-${round}`, async () =>
+				prepared.deadlineAt ? Math.ceil((Date.parse(prepared.deadlineAt) - Date.now()) / 1000) : 0,
+			);
+			if (!Number.isFinite(remaining) || remaining <= 0)
+				return reviewRequired("TEMPLATE_PREPARATION_DEADLINE");
+			const timeout = Math.max(
+				1,
+				Math.min(remaining, prepared.retryAfterSeconds ?? services.providerPollSeconds),
+			);
+			try {
+				await steps.waitForEvent(`video-v1-template-event-${round}`, {
+					type: "provider-result",
+					timeout: `${timeout} seconds`,
+				});
+			} catch (error) {
+				if (!isVideoEventTimeout(error, timeout * 1000)) throw error;
+			}
+		}
+	}
 	if (["QUEUED", "INPUT_REVIEW"].includes(checkpoint.stage)) {
 		const result = await review("input");
 		if (result.status === "REJECT") return fail("input", result.reasonCode, true);

@@ -317,6 +317,8 @@ export async function normalizeVideoReferenceToPng(input: {
 	sourceBytes: number;
 	sourceEtag: string;
 	maximumBytes: number;
+	/** Template uploads canonicalize every supported format; legacy WebP callers keep their default. */
+	sourceContentType?: "image/jpeg" | "image/png" | "image/webp";
 }): Promise<{ bytes: number; sha256: string; etag: string | null; versionId: string | null }> {
 	if (input.maximumBytes > 10_000_000 || input.sourceBytes > input.maximumBytes)
 		throw new Error("INPUT_TOO_LARGE");
@@ -334,7 +336,10 @@ export async function normalizeVideoReferenceToPng(input: {
 	const processor = getImageProcessor();
 	if (!processor.normalizePng) throw new Error("VIDEO_WEBP_NORMALIZATION_UNAVAILABLE");
 	const object = await readPrivateMediaStream({ ...input.source, ifMatch: input.sourceEtag });
-	if (object.contentLength !== input.sourceBytes || object.contentType !== "image/webp") {
+	if (
+		object.contentLength !== input.sourceBytes ||
+		object.contentType !== (input.sourceContentType ?? "image/webp")
+	) {
 		await object.body.cancel();
 		throw new Error("VIDEO_INPUT_IDENTITY_MISMATCH");
 	}
@@ -783,6 +788,122 @@ export async function tryWriteImmutableGenerationImage(
 		return winner;
 	} finally {
 		stream.destroy();
+	}
+}
+
+/** Template scenes are decoded and normalized before their only private immutable write.
+ * The caller must first persist the scene asset and reserve its maximum capacity.
+ * Recovery reuses the exact canonical winner even if the remote URL later changes.
+ */
+export async function storeImmutableVideoTemplateScene(
+	input: MediaObjectLocation & {
+		sourceUrl: string;
+		allowedHosts: readonly string[];
+		maximumBytes: number;
+	},
+): Promise<{
+	bytes: number;
+	sha256: string;
+	etag: string | null;
+	versionId: string | null;
+	width: number;
+	height: number;
+}> {
+	if (
+		!Number.isSafeInteger(input.maximumBytes) ||
+		input.maximumBytes < 1 ||
+		input.maximumBytes > 10_000_000
+	)
+		throw new Error("VIDEO_TEMPLATE_SCENE_BYTE_LIMIT_INVALID");
+	const inspectWinner = async () => {
+		const metadata = await headObject(input);
+		if (metadata.contentLength > input.maximumBytes || metadata.contentType !== "image/png")
+			throw new Error("VIDEO_TEMPLATE_SCENE_OBJECT_INVALID");
+		const identity = await inspectPrivateMediaObject({
+			...input,
+			contentType: "image/png",
+			contentLength: metadata.contentLength,
+		});
+		const dimensions = await inspectPrivateImage({
+			...input,
+			contentType: "image/png",
+			contentLength: identity.bytes,
+			ifMatch: identity.etag ?? undefined,
+		});
+		if (Math.abs(dimensions.width / dimensions.height - 9 / 16) > 0.015)
+			throw new Error("VIDEO_TEMPLATE_SCENE_ASPECT_RATIO_INVALID");
+		return { ...identity, ...dimensions };
+	};
+	try {
+		return await inspectWinner();
+	} catch (error) {
+		if (!isExplicitObjectNotFound(error)) throw error;
+	}
+	const processor = getImageProcessor();
+	if (!processor.normalizePng || !processor.validateDecoded)
+		throw new Error("VIDEO_TEMPLATE_SCENE_DECODER_UNAVAILABLE");
+	const response = await requestRemoteMediaStream(input.sourceUrl, {
+		allowedHosts: input.allowedHosts,
+		maxRedirects: config.media.remoteMaxRedirects,
+		connectTimeoutMs: config.media.remoteConnectTimeoutMs,
+		firstByteTimeoutMs: config.media.remoteFirstByteTimeoutMs,
+		totalTimeoutMs: config.media.remoteTotalTimeoutMs,
+	});
+	const bounded = async (source: AsyncIterable<Uint8Array>) => {
+		const chunks: Buffer[] = [];
+		let bytes = 0;
+		for await (const chunk of source) {
+			bytes += chunk.byteLength;
+			if (bytes > input.maximumBytes) throw new Error("VIDEO_TEMPLATE_SCENE_TOO_LARGE");
+			chunks.push(Buffer.from(chunk));
+		}
+		if (!bytes) throw new Error("VIDEO_TEMPLATE_SCENE_EMPTY");
+		return Buffer.concat(chunks, bytes);
+	};
+	try {
+		const body = await bounded(response.stream);
+		const contentType = response.headers["content-type"]?.split(";")[0]?.trim();
+		if (contentType !== "image/jpeg" && contentType !== "image/png" && contentType !== "image/webp")
+			throw new Error("VIDEO_TEMPLATE_SCENE_FORMAT_INVALID");
+		assertDetectedMediaType(body.subarray(0, 64), contentType);
+		const stream = () =>
+			new ReadableStream<Uint8Array>({
+				start(controller) {
+					controller.enqueue(body);
+					controller.close();
+				},
+			});
+		await processor.validateDecoded(stream(), contentType, { contentLength: body.length });
+		const normalized = await processor.normalizePng(stream(), { contentLength: body.length });
+		const reader = normalized.getReader();
+		const normalizedChunks: Buffer[] = [];
+		let bytes = 0;
+		try {
+			for (;;) {
+				const result = await reader.read();
+				if (result.done) break;
+				bytes += result.value.byteLength;
+				if (bytes > input.maximumBytes) throw new Error("VIDEO_TEMPLATE_SCENE_TOO_LARGE");
+				normalizedChunks.push(Buffer.from(result.value));
+			}
+		} finally {
+			await reader.cancel().catch(() => undefined);
+			reader.releaseLock();
+		}
+		const canonical = Buffer.concat(normalizedChunks, bytes);
+		assertDetectedMediaType(canonical.subarray(0, 64), "image/png");
+		const result = await tryWriteImmutableGenerationImage({
+			...input,
+			body: canonical,
+			contentType: "image/png",
+			reserve: async (reserved) => {
+				if (reserved > input.maximumBytes) throw new Error("VIDEO_TEMPLATE_SCENE_TOO_LARGE");
+			},
+		});
+		if (!result) throw new Error("VIDEO_TEMPLATE_SCENE_WRITE_FAILED");
+		return await inspectWinner();
+	} finally {
+		response.stream.destroy();
 	}
 }
 

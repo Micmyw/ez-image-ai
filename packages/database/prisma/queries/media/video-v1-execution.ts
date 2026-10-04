@@ -12,6 +12,12 @@ import { getDatabaseClient } from "../../client";
 import type { Prisma } from "../../generated/client";
 import { releaseCreditsInTransaction } from "./credits";
 import { runReadCommitted } from "./types";
+import { recordVideoTemplateBusinessEvent } from "./video-template-events";
+import {
+	assertVideoTemplateRoleIdentities,
+	getVideoEffectiveInputSnapshot,
+} from "./video-template-execution";
+import { videoTemplateHasUnsettledScene } from "./video-template-storage";
 import {
 	lockVideoOwnerStorage,
 	releaseVideoPreOutputCapacity,
@@ -32,6 +38,7 @@ export function getVideoExecutionContext(jobId: string) {
 		where: { id: jobId, executionEngine: ENGINE },
 		include: {
 			videoExecution: true,
+			videoTemplateExecution: { include: { sceneAsset: true } },
 			attempts: { orderBy: { attemptNumber: "desc" } },
 			assets: { include: { asset: true } },
 			reservation: true,
@@ -49,6 +56,7 @@ async function lockedContext(tx: Prisma.TransactionClient, jobId: string) {
 		where: { id: jobId, executionEngine: ENGINE },
 		include: {
 			videoExecution: true,
+			videoTemplateExecution: { include: { sceneAsset: true } },
 			attempts: { orderBy: { attemptNumber: "desc" } },
 			assets: { include: { asset: true } },
 			reservation: true,
@@ -62,7 +70,30 @@ async function lockedContext(tx: Prisma.TransactionClient, jobId: string) {
 export function assertVideoInputIdentity(
 	job: NonNullable<Awaited<ReturnType<typeof getVideoExecutionContext>>>,
 ) {
-	const snapshot = object(job.inputSnapshot);
+	const original = object(job.inputSnapshot);
+	if (original.videoEffectTemplate) {
+		assertVideoTemplateRoleIdentities(job);
+		if (!job.videoTemplateExecution?.resolvedInputIdentity) return;
+		const identity = object(job.videoTemplateExecution.resolvedInputIdentity);
+		const asset = job.videoTemplateExecution.sceneAsset;
+		if (
+			!asset ||
+			asset.ownerId !== job.ownerId ||
+			asset.ownerType !== job.ownerType ||
+			asset.deletedAt ||
+			!asset.finalizedAt ||
+			asset.status !== "READY" ||
+			asset.checksum !== identity.checksum ||
+			asset.objectKey !== identity.objectKey ||
+			asset.storageEtag !== identity.storageEtag ||
+			asset.storageVersionId !== identity.storageVersionId ||
+			asset.verificationGeneration !== identity.verificationGeneration ||
+			(asset.deleteAfter && asset.deleteAfter <= new Date())
+		)
+			throw new Error("VIDEO_INPUT_IDENTITY_CHANGED");
+		return;
+	}
+	const snapshot = original;
 	if (snapshot.mode === "text-to-video") return;
 	const identity = object(snapshot.inputIdentity);
 	const binding = job.assets.find(
@@ -157,6 +188,7 @@ export async function claimVideoProviderSubmission(input: {
 		if (terminal.has(job.videoExecution!.stage) || job.videoExecution!.stage === "NEEDS_REVIEW")
 			throw new Error("VIDEO_JOB_TERMINAL");
 		assertVideoInputIdentity(job);
+		const effectiveSnapshot = getVideoEffectiveInputSnapshot(job);
 		const textSafetyProfile = readVideoTextSafetyProfile(job.inputSnapshot);
 		const review = object(object(job.videoExecution!.stageData).inputReview);
 		if (
@@ -206,7 +238,7 @@ export async function claimVideoProviderSubmission(input: {
 				provider: "kie",
 				providerModelId: input.providerModelId,
 				callbackTokenHash: input.callbackTokenHash,
-				requestSnapshot: job.inputSnapshot as Prisma.InputJsonValue,
+				requestSnapshot: effectiveSnapshot as Prisma.InputJsonValue,
 				status: "SUBMISSION_UNCERTAIN",
 				uncertainSubmission: true,
 				submittedAt: new Date(),
@@ -303,6 +335,7 @@ export async function failVideoExecution(
 		if (
 			terminal.has(job.videoExecution!.stage) ||
 			job.videoExecution!.stage === "NEEDS_REVIEW" ||
+			videoTemplateHasUnsettledScene(job.videoTemplateExecution) ||
 			(options.onlyBeforeSubmission && job.attempts.length > 0) ||
 			job.attempts[0]?.status === "SUCCEEDED" ||
 			(onlyBeforeAccepted && job.attempts[0]?.providerTaskId) ||
@@ -345,6 +378,11 @@ export async function failVideoExecution(
 				stateVersion: { increment: 1 },
 				lastProgressAt: new Date(),
 			},
+		});
+		await recordVideoTemplateBusinessEvent(tx, {
+			jobId,
+			event: "failed",
+			templateSnapshot: job.videoTemplateExecution?.templateSnapshot,
 		});
 		return true;
 	});
@@ -555,7 +593,7 @@ export async function persistVideoProviderWebhook(input: {
 export async function markVideoWebhookNotified(eventId: string) {
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
 		const event = await tx.providerWebhookEvent.findFirst({
-			where: { id: eventId, provider: "kie-video-v1" },
+			where: { id: eventId, provider: { in: ["kie-video-v1", "kie-video-template-scene"] } },
 		});
 		if (!event) throw new Error("VIDEO_CALLBACK_EVENT_MISSING");
 		await tx.providerWebhookEvent.update({
@@ -573,7 +611,11 @@ export async function markVideoWebhookNotified(eventId: string) {
 /** A failed delivery yields its place in the bounded recovery page. */
 export async function postponeVideoWebhookNotification(eventId: string, now = new Date()) {
 	await getDatabaseClient().providerWebhookEvent.updateMany({
-		where: { id: eventId, provider: "kie-video-v1", status: "RECEIVED" },
+		where: {
+			id: eventId,
+			provider: { in: ["kie-video-v1", "kie-video-template-scene"] },
+			status: "RECEIVED",
+		},
 		data: { processingLeasedUntil: new Date(now.getTime() + 120_000) },
 	});
 }
@@ -582,7 +624,7 @@ export async function listPendingVideoWebhookEvents(limit: number, now = new Dat
 	const database = getDatabaseClient();
 	const rows = await database.providerWebhookEvent.findMany({
 		where: {
-			provider: "kie-video-v1",
+			provider: { in: ["kie-video-v1", "kie-video-template-scene"] },
 			status: "RECEIVED",
 			envelope: { path: ["notifiedAt"], equals: RuntimePrisma.JsonNull },
 			OR: [{ processingLeasedUntil: null }, { processingLeasedUntil: { lte: now } }],
@@ -608,7 +650,11 @@ export async function listPendingVideoWebhookEvents(limit: number, now = new Dat
 		.map((row) => row.id);
 	if (retiredIds.length)
 		await database.providerWebhookEvent.updateMany({
-			where: { id: { in: retiredIds }, provider: "kie-video-v1", status: "RECEIVED" },
+			where: {
+				id: { in: retiredIds },
+				provider: { in: ["kie-video-v1", "kie-video-template-scene"] },
+				status: "RECEIVED",
+			},
 			data: {
 				status: "IGNORED",
 				processedAt: now,

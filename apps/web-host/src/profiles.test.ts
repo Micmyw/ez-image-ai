@@ -1,11 +1,17 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { parseEnv } from "node:util";
 
 import { moderationConfiguration } from "@repo/config";
 import {
 	EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS,
 	parseEzPicImageModelFlags,
 } from "@repo/config/server";
+import {
+	HOTEL_LOBBY_TEMPLATE_VERSION,
+	HOTEL_LOBBY_PRICE_VERSION,
+	HOTEL_LOBBY_SAFETY_POLICY_VERSION,
+} from "@repo/config/video-effects.server";
 import { VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
 import { VIDEO_SUPPLIER_PRICE_VERSION } from "@repo/config/video-pricing.server";
 import {
@@ -18,6 +24,7 @@ import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { describe, expect, it } from "vitest";
 
+import { readCloudflareBuildEnvironment } from "./build-secrets";
 import {
 	createProfileArtifacts,
 	deploymentProfile,
@@ -251,6 +258,89 @@ function artifacts(
 }
 
 describe("prepared deployment artifacts", () => {
+	it.each(["workers", "hybrid"] as const)(
+		"keeps the template closed with ordinary video enabled in %s",
+		(profile) => {
+			const result = artifacts(profile, {
+				...multiModelVideoEnvironment,
+				HOTEL_LOBBY_DUO_BUILD_ENABLED: "true",
+			});
+			for (const name of ["website", "workflows"] as const) {
+				expect(result[name].vars).toMatchObject({
+					VIDEO_V1_ENABLED: "true",
+					HOTEL_LOBBY_DUO_ENABLED: "false",
+				});
+				expect(result[`${name}.secrets`]).not.toHaveProperty("HOTEL_LOBBY_DUO_BUILD_ENABLED");
+			}
+		},
+	);
+	it.each(["workers", "hybrid"] as const)(
+		"mirrors an independently approved template switch and private cost policy in %s",
+		(profile) => {
+			const input = {
+				...multiModelVideoEnvironment,
+				HOTEL_LOBBY_DUO_ENABLED: "true",
+				HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION: HOTEL_LOBBY_TEMPLATE_VERSION,
+				HOTEL_LOBBY_DUO_PRICE_VERSION: HOTEL_LOBBY_PRICE_VERSION,
+				HOTEL_LOBBY_DUO_PRICE_BASIS: "HYPOTHETICAL_TEST_ONLY",
+				HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00Z",
+				HOTEL_LOBBY_DUO_COST_POLICY_VERSION: HOTEL_LOBBY_SAFETY_POLICY_VERSION,
+				HOTEL_LOBBY_DUO_TEXT_COST_RULE_VERSION: createVideoTextSafetyProfile().ruleVersion,
+				HOTEL_LOBBY_DUO_TEXT_COST_BASIS: "HYPOTHETICAL_TEST_ONLY_FREE_REVIEW",
+				HOTEL_LOBBY_DUO_TEXT_REVIEW_COST_MICROS: "0",
+				HOTEL_LOBBY_DUO_SCENE_PROVIDER_COST_MICROS: "20000",
+				HOTEL_LOBBY_DUO_INPUT_REVIEW_COST_MICROS: "1000",
+				HOTEL_LOBBY_DUO_SCENE_REVIEW_COST_MICROS: "1000",
+				HOTEL_LOBBY_DUO_ADDITIONAL_RUNTIME_COST_MICROS: "2000",
+				HOTEL_LOBBY_DUO_ADDITIONAL_STORAGE_COST_MICROS: "3000",
+				VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify([
+					{
+						productKey: "video-seedance-1-5-pro",
+						modes: ["image-to-video"],
+						durations: [5],
+						resolutions: ["720p"],
+						sounds: [false],
+					},
+				]),
+			};
+			const packedInput = packVideoRuntimeEnvironment(input);
+			const overridden = parseEnv(
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=true\nHOTEL_LOBBY_DUO_ENABLED=false",
+					VIDEO_RUNTIME_CONFIG: packedInput.VIDEO_RUNTIME_CONFIG,
+					HOTEL_LOBBY_DUO_BUILD_ENABLED: "true",
+				}),
+			);
+			expect(overridden.HOTEL_LOBBY_DUO_ENABLED).toBe("true");
+			const result = artifacts(profile, packedInput);
+			for (const name of ["website", "workflows"] as const) {
+				expect(result[name].vars).toMatchObject({
+					VIDEO_V1_ENABLED: "true",
+					HOTEL_LOBBY_DUO_ENABLED: "true",
+				});
+				expect(result[`${name}.secrets`]).not.toHaveProperty("HOTEL_LOBBY_DUO_ENABLED");
+				const policy = parseVideoRuntimeConfig(result[`${name}.secrets`].VIDEO_RUNTIME_CONFIG);
+				expect(policy).toMatchObject({ HOTEL_LOBBY_DUO_PRICE_VERSION: HOTEL_LOBBY_PRICE_VERSION });
+				expect(policy).not.toHaveProperty("HOTEL_LOBBY_DUO_ENABLED");
+			}
+			if (profile === "hybrid")
+				expect(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV)).toMatchObject(input);
+		},
+	);
+	it("rejects enabling the template without ordinary readiness or its own confirmed costs", () => {
+		expect(() => artifacts("workers", { HOTEL_LOBBY_DUO_ENABLED: "true" })).toThrow(
+			"VIDEO_EFFECT_VIDEO_DISABLED",
+		);
+		expect(() =>
+			artifacts("workers", { ...multiModelVideoEnvironment, HOTEL_LOBBY_DUO_ENABLED: "true" }),
+		).toThrow("VIDEO_EFFECT_TEMPLATE_NOT_CONFIRMED");
+		expect(() =>
+			artifacts("workers", {
+				HOTEL_LOBBY_DUO_PRICE_BASIS: "flat",
+				VIDEO_RUNTIME_CONFIG: JSON.stringify({ HOTEL_LOBBY_DUO_PRICE_BASIS: "packed" }),
+			}),
+		).toThrow("VIDEO_RUNTIME_CONFIG_CONFLICT");
+	});
 	it.each(["workers", "hybrid"] as const)(
 		"keeps the build-only video flag out of %s runtime artifacts",
 		(profile) => {

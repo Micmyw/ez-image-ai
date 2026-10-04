@@ -37,11 +37,26 @@ export const VIDEO_RUNTIME_ENVIRONMENT_KEYS = [
 	"VIDEO_COST_PAYMENT_FIXED_MICROS",
 	"VIDEO_COST_PAYMENT_FEE_BPS",
 	"VIDEO_COST_NONBILLABLE_FAILURE_BPS",
+	"HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION",
+	"HOTEL_LOBBY_DUO_INTERNAL_FUNDING",
+	"HOTEL_LOBBY_DUO_PRICE_VERSION",
+	"HOTEL_LOBBY_DUO_PRICE_BASIS",
+	"HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL",
+	"HOTEL_LOBBY_DUO_COST_POLICY_VERSION",
+	"HOTEL_LOBBY_DUO_TEXT_COST_RULE_VERSION",
+	"HOTEL_LOBBY_DUO_TEXT_COST_BASIS",
+	"HOTEL_LOBBY_DUO_TEXT_REVIEW_COST_MICROS",
+	"HOTEL_LOBBY_DUO_SCENE_PROVIDER_COST_MICROS",
+	"HOTEL_LOBBY_DUO_INPUT_REVIEW_COST_MICROS",
+	"HOTEL_LOBBY_DUO_SCENE_REVIEW_COST_MICROS",
+	"HOTEL_LOBBY_DUO_ADDITIONAL_RUNTIME_COST_MICROS",
+	"HOTEL_LOBBY_DUO_ADDITIONAL_STORAGE_COST_MICROS",
 ] as const;
 export type VideoRuntimeEnvironmentKey = (typeof VIDEO_RUNTIME_ENVIRONMENT_KEYS)[number];
 export type VideoRuntimeEnvironmentValues = Partial<Record<VideoRuntimeEnvironmentKey, string>> & {
 	VIDEO_RUNTIME_CONFIG?: string;
 	VIDEO_V1_ENABLED?: string;
+	HOTEL_LOBBY_DUO_ENABLED?: string;
 };
 const keys = new Set<string>(VIDEO_RUNTIME_ENVIRONMENT_KEYS);
 const maximumBytes = 5000;
@@ -94,7 +109,7 @@ export function expandVideoRuntimeEnvironment<T extends object>(
 	return { ...input, ...packed };
 }
 
-/** One private Worker binding; keep all secrets and VIDEO_V1_ENABLED as separate bindings. */
+/** One private Worker binding; keep credentials and both admission switches as separate bindings. */
 export function packVideoRuntimeEnvironment(input: Record<string, string>): Record<string, string> {
 	const expanded = expandVideoRuntimeEnvironment(input);
 	const packed = Object.fromEntries(
@@ -127,8 +142,9 @@ export function hydrateVideoRuntimeEnvironment<T extends object>(
 	try {
 		result = expandVideoRuntimeEnvironment(input);
 		result.VIDEO_V1_ENABLED = result.VIDEO_V1_ENABLED === "true" ? "true" : "false";
+		result.HOTEL_LOBBY_DUO_ENABLED = result.HOTEL_LOBBY_DUO_ENABLED === "true" ? "true" : "false";
 	} catch {
-		result = { ...input, VIDEO_V1_ENABLED: "false" };
+		result = { ...input, VIDEO_V1_ENABLED: "false", HOTEL_LOBBY_DUO_ENABLED: "false" };
 		for (const key of VIDEO_RUNTIME_ENVIRONMENT_KEYS) delete result[key];
 		delete result.VIDEO_RUNTIME_CONFIG;
 	}
@@ -137,5 +153,6 @@ export function hydrateVideoRuntimeEnvironment<T extends object>(
 		else target[key] = result[key];
 	}
 	target.VIDEO_V1_ENABLED = result.VIDEO_V1_ENABLED;
+	target.HOTEL_LOBBY_DUO_ENABLED = result.HOTEL_LOBBY_DUO_ENABLED;
 	return result;
 }

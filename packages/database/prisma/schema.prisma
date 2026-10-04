@@ -610,6 +610,7 @@ model GenerationJob {
   pricingSnapshot         Json
   executionEngine         String                   @default("legacy")
   videoExecution          VideoExecution?
+  videoTemplateExecution  VideoTemplateExecution?
   status                  GenerationJobStatus      @default(RESERVED)
   serviceClass            GenerationServiceClass   @default(STANDARD)
   dispatchEligibleAt      DateTime?                @db.Timestamptz(3)
@@ -763,6 +764,7 @@ model MediaAsset {
   createdAt                        DateTime                @default(now()) @db.Timestamptz(3)
   updatedAt                        DateTime                @updatedAt @db.Timestamptz(3)
   deletedAt                        DateTime?               @db.Timestamptz(3)
+  templateScenes                   VideoTemplateExecution[]
   uploadSessions                   MediaUploadSession[]
   jobBindings                      GenerationJobAsset[]
   moderationResults                AssetModerationResult[]
@@ -1730,4 +1732,31 @@ model UserNotificationPreference {
 
   @@unique([userId, type, target])
   @@map("user_notification_preference")
+}
+
+/// Internal two-reference preparation for one commercial video job.
+model VideoTemplateExecution {
+  jobId String @id
+  job GenerationJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  templateSnapshot Json
+  orderedRoleIdentities Json
+  sceneState String @default("PENDING")
+  sceneSubmissionUncertain Boolean @default(false)
+  sceneCallbackTokenHash String? @unique
+  sceneProviderTaskId String? @unique
+  sceneProviderEvidence Json?
+  sceneAssetId String? @unique
+  sceneAsset MediaAsset? @relation(fields: [sceneAssetId], references: [id], onDelete: Restrict)
+  inputReview Json @default("{}")
+  sceneReview Json @default("{}")
+  resolvedInputIdentity Json?
+  stageData Json @default("{}")
+  submittedAt DateTime? @db.Timestamptz(3)
+  acceptedAt DateTime? @db.Timestamptz(3)
+  completedAt DateTime? @db.Timestamptz(3)
+  resolvedAt DateTime? @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  @@index([sceneState, updatedAt, jobId])
+  @@map("video_template_execution")
 }

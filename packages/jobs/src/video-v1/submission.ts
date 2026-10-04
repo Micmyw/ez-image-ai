@@ -23,6 +23,7 @@ import {
 	resolveVideoV1CallbackBaseUrl,
 	VIDEO_V1_RULE_VERSION,
 } from "@repo/config/video-v1";
+import { getVideoEffectiveInputSnapshot } from "@repo/database/video-template-execution";
 import * as database from "@repo/database/video-v1-execution";
 import { createSignedReadUrl } from "@repo/storage";
 
@@ -32,6 +33,7 @@ import type {
 	SubmissionStepResult,
 	VideoInputSnapshot,
 } from "./contracts";
+import { requireVideoTemplateRuntimeEnabled } from "./template-runtime-gates";
 import { moderateVideoText } from "./text-moderation";
 
 const object = (value: unknown): Record<string, unknown> =>
@@ -112,6 +114,9 @@ function prepareVideoProviderRequest(
 			aspectRatio: snapshot.aspectRatio,
 			...(snapshot.inputAssetId !== undefined ? { inputAssetId: snapshot.inputAssetId } : {}),
 			...(snapshot.mode === "image-to-video" ? { imageUrl } : {}),
+			...(snapshot.videoEffectTemplate?.video.fixedLens
+				? { templateFixedLens: true as const }
+				: {}),
 		};
 		if (
 			snapshot.mode === "image-to-video" &&
@@ -171,7 +176,9 @@ export async function reviewVideoInput(
 		await deps.store.failVideoExecution(jobId, "VIDEO_INPUT_IDENTITY_CHANGED", true);
 		return { status: "REJECT", reasonCode: "VIDEO_INPUT_IDENTITY_CHANGED" };
 	}
-	const snapshot = job.inputSnapshot as unknown as VideoInputSnapshot;
+	const snapshot = (object(job.inputSnapshot).videoEffectTemplate
+		? getVideoEffectiveInputSnapshot(job)
+		: job.inputSnapshot) as unknown as VideoInputSnapshot;
 	let textSafetyProfile;
 	try {
 		textSafetyProfile = readVideoTextSafetyProfile(snapshot);
@@ -304,7 +311,9 @@ export async function submitVideoAttempt(
 	if (!job?.videoExecution) throw new Error("VIDEO_JOB_NOT_FOUND");
 	const existing = job.attempts[0];
 	if (existing) return replaySubmission(existing);
-	const snapshot = job.inputSnapshot as unknown as VideoInputSnapshot;
+	const snapshot = (object(job.inputSnapshot).videoEffectTemplate
+		? getVideoEffectiveInputSnapshot(job)
+		: job.inputSnapshot) as unknown as VideoInputSnapshot;
 	readVideoTextSafetyProfile(snapshot);
 	// Finish all deterministic preparation before creating the irrevocable send fence.
 	const callbackBase = resolveVideoV1CallbackBaseUrl(deps.env);
@@ -319,6 +328,8 @@ export async function submitVideoAttempt(
 			? await deps.signRead(snapshot.inputIdentity.objectKey)
 			: undefined;
 	const prepared = prepareVideoProviderRequest(snapshot, callbackUrl, imageUrl);
+	if (snapshot.videoEffectTemplate)
+		await requireVideoTemplateRuntimeEnabled(snapshot.videoEffectTemplate, deps.env);
 	let claim: Awaited<ReturnType<Store["claimVideoProviderSubmission"]>>;
 	try {
 		claim = await deps.store.claimVideoProviderSubmission({

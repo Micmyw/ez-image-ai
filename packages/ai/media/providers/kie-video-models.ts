@@ -13,7 +13,11 @@ import {
 	type KieVideoV1Submission,
 } from "./kie-video-v1";
 
-export type KieVideoModelInput = VideoModelInput & { callbackUrl: string; imageUrl?: string };
+export type KieVideoModelInput = VideoModelInput & {
+	callbackUrl: string;
+	imageUrl?: string;
+	templateFixedLens?: true;
+};
 const httpsUrl = z
 	.string()
 	.url()
@@ -57,8 +61,15 @@ export function resolveKieVideoModelId(productKey: string, mode: VideoMode): str
 
 /** Server-only mapping. A competitor label never selects a provider route. */
 export function buildKieVideoModelRequest(value: KieVideoModelInput) {
-	const { callbackUrl, imageUrl, ...publicInput } = value;
+	const { callbackUrl, imageUrl, templateFixedLens, ...publicInput } = value;
 	const input = videoModelInputSchema.parse(publicInput);
+	if (
+		templateFixedLens !== undefined &&
+		(templateFixedLens !== true ||
+			input.productKey !== "video-seedance-1-5-pro" ||
+			input.mode !== "image-to-video")
+	)
+		throw new Error("VIDEO_TEMPLATE_FIXED_LENS_UNSUPPORTED");
 	httpsUrl.parse(callbackUrl);
 	if (input.mode === "image-to-video") httpsUrl.parse(imageUrl);
 	else if (imageUrl !== undefined) throw new Error("VIDEO_INPUT_ASSET_MODE_MISMATCH");
@@ -117,7 +128,7 @@ export function buildKieVideoModelRequest(value: KieVideoModelInput) {
 				resolution: input.resolution,
 				aspect_ratio: input.aspectRatio,
 				generate_audio: input.sound,
-				fixed_lens: false,
+				fixed_lens: templateFixedLens === true,
 				nsfw_checker: true,
 				...(image ? { input_urls: [imageUrl] } : {}),
 			};

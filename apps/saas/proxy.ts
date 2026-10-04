@@ -26,6 +26,11 @@ export function proxy(request: NextRequest) {
 		response.headers.set("X-Robots-Tag", "noindex, follow");
 	if (request.nextUrl.pathname.startsWith("/effects-preview/"))
 		response.headers.set("X-Robots-Tag", "noindex, nofollow");
+	if (
+		request.nextUrl.pathname.startsWith("/video-effects/") &&
+		request.nextUrl.searchParams.has("job")
+	)
+		response.headers.set("X-Robots-Tag", "noindex, nofollow");
 	return response;
 }
 
@@ -34,6 +39,7 @@ export const config = {
 		"/",
 		"/create",
 		"/video/:path*",
+		"/video-effects/:path*",
 		"/examples",
 		"/effects/:path*",
 		"/effects-preview/:path*",

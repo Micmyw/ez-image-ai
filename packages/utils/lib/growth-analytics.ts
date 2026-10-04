@@ -2,6 +2,16 @@ import { EZPIC_PRODUCT_KEYS } from "@repo/config/client";
 import { z } from "zod";
 
 export const EZPIC_GROWTH_EVENT_NAMES = [
+	"video_effect_view",
+	"video_effect_sample_play",
+	"video_effect_inputs_ready",
+	"video_effect_quote_view",
+	"video_effect_submit",
+	"video_effect_accepted_observed",
+	"video_effect_ready_observed",
+	"video_effect_failed_observed",
+	"video_effect_held_observed",
+	"video_effect_download",
 	"landing_viewed",
 	"effect_viewed",
 	"blog_viewed",
@@ -53,7 +63,9 @@ const contentAttributionShape = {
 	entry_path: z
 		.string()
 		.max(256)
-		.regex(/^\/(?:effects\/[a-z0-9]+(?:-[a-z0-9]+)*|blog\/[a-z0-9]+(?:[-/][a-z0-9]+)*)$/)
+		.regex(
+			/^\/(?:video-effects\/hotel-lobby-ai|effects\/[a-z0-9]+(?:-[a-z0-9]+)*|blog\/[a-z0-9]+(?:[-/][a-z0-9]+)*)$/,
+		)
 		.optional(),
 };
 
