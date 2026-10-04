@@ -1,6 +1,8 @@
 import {
 	EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS,
 	parseEzPicImageModelFlags,
+	parseVideoRuntimeConfig,
+	VIDEO_RUNTIME_ENVIRONMENT_KEYS,
 } from "@repo/config/server";
 
 import { retiredModerationBindings } from "./retired-moderation-bindings";
@@ -25,6 +27,7 @@ export async function stageRetiredWorkerBindings(
 		scriptName: string;
 		nextBindingNames: string[];
 		nextImageModelFlags?: unknown;
+		nextVideoRuntimeConfig?: unknown;
 		versionTag: string;
 		token: string;
 	},
@@ -36,6 +39,11 @@ export async function stageRetiredWorkerBindings(
 	if (options.nextBindingNames.includes("MEDIA_IMAGE_MODEL_FLAGS")) {
 		packedModelKeys = new Set(Object.keys(parseEzPicImageModelFlags(options.nextImageModelFlags)));
 		for (const key of packedModelKeys) candidates.add(key);
+	}
+	let packedVideoKeys: Set<string> | undefined;
+	if (options.nextBindingNames.includes("VIDEO_RUNTIME_CONFIG")) {
+		packedVideoKeys = new Set(Object.keys(parseVideoRuntimeConfig(options.nextVideoRuntimeConfig)));
+		for (const key of packedVideoKeys) candidates.add(key);
 	}
 	const url = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(options.accountId)}/workers/workers/${encodeURIComponent(options.scriptName)}/versions/latest`;
 	async function version(method: "GET" | "PATCH", body?: unknown) {
@@ -66,6 +74,18 @@ export async function stageRetiredWorkerBindings(
 				!packedModelKeys.has(name)
 			)
 				throw new Error(`IMAGE_MODEL_BINDING_REPLACEMENT_MISSING: ${name}`);
+		}
+	}
+	if (packedVideoKeys) {
+		const videoNames = new Set<string>(Object.values(VIDEO_RUNTIME_ENVIRONMENT_KEYS));
+		for (const { name, type } of current.bindings) {
+			if (
+				videoNames.has(name) &&
+				["secret_text", "plain_text"].includes(type) &&
+				!next.has(name) &&
+				!packedVideoKeys.has(name)
+			)
+				throw new Error(`VIDEO_RUNTIME_BINDING_REPLACEMENT_MISSING: ${name}`);
 		}
 	}
 	const retired = current.bindings

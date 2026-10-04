@@ -8,6 +8,12 @@ import {
 } from "@repo/config/server";
 import { VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
 import { VIDEO_SUPPLIER_PRICE_VERSION } from "@repo/config/video-pricing.server";
+import {
+	expandVideoRuntimeEnvironment,
+	packVideoRuntimeEnvironment,
+	parseVideoRuntimeConfig,
+	VIDEO_RUNTIME_ENVIRONMENT_KEYS,
+} from "@repo/config/video-runtime-environment";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { describe, expect, it } from "vitest";
@@ -209,16 +215,27 @@ const multiModelVideoEnvironment = {
 	VIDEO_COST_PAYMENT_FEE_BPS: "500",
 	VIDEO_COST_NONBILLABLE_FAILURE_BPS: "1000",
 };
-function artifacts(profile: "workers" | "hybrid", overrides: Record<string, string> = {}) {
+function artifacts(
+	profile: "workers" | "hybrid",
+	overrides: Record<string, string> = {},
+	templateVars?: Record<string, string>,
+) {
 	const config = (file: string) =>
 		JSON.parse(readFileSync(path.join(root, file), "utf8")) as Record<string, unknown>;
+	const jobsTemplate = config(
+		`apps/workflows/${profileSettings(profile, "production").jobsConfig}`,
+	);
+	if (templateVars) {
+		delete jobsTemplate.env;
+		jobsTemplate.vars = templateVars;
+	}
 	return createProfileArtifacts({
 		root,
 		target: "production",
 		profile,
 		canonicalOrigin: "https://ezimageai.com",
 		websiteTemplate: config("apps/saas/wrangler.jsonc"),
-		jobsTemplate: config(`apps/workflows/${profileSettings(profile, "production").jobsConfig}`),
+		jobsTemplate,
 		environment: {
 			DATABASE_URL: "postgresql://private:private@origin.example/db",
 			BETTER_AUTH_SECRET: "private-auth-secret-at-least-32-characters",
@@ -234,6 +251,102 @@ function artifacts(profile: "workers" | "hybrid", overrides: Record<string, stri
 }
 
 describe("prepared deployment artifacts", () => {
+	it.each(["workers", "hybrid"] as const)(
+		"keeps the build-only video flag out of %s runtime artifacts",
+		(profile) => {
+			const result = artifacts(profile, { VIDEO_V1_BUILD_ENABLED: "true" });
+			for (const name of ["website", "workflows"] as const) {
+				expect(result[name].vars).toMatchObject({ VIDEO_V1_ENABLED: "false" });
+				expect(result[name].vars).not.toHaveProperty("VIDEO_V1_BUILD_ENABLED");
+				expect(result[`${name}.secrets`]).not.toHaveProperty("VIDEO_V1_BUILD_ENABLED");
+			}
+			if (profile === "hybrid")
+				expect(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV)).not.toHaveProperty(
+					"VIDEO_V1_BUILD_ENABLED",
+				);
+		},
+	);
+	it("rejects conflicting template video policies while removing identical legacy vars", () => {
+		expect(() => artifacts("workers", {}, { VIDEO_V1_ACCESS: "public" })).toThrow(
+			"VIDEO_RUNTIME_TEMPLATE_CONFLICT",
+		);
+		expect(() => artifacts("workers", {}, { VIDEO_RUNTIME_CONFIG: "{}" })).toThrow(
+			"VIDEO_RUNTIME_TEMPLATE_CONFLICT",
+		);
+		const result = artifacts(
+			"workers",
+			{},
+			{ VIDEO_V1_ACCESS: "internal", VIDEO_V1_BUILD_ENABLED: "true" },
+		);
+		expect(result.workflows.vars).not.toHaveProperty("VIDEO_V1_ACCESS");
+		expect(result.workflows.vars).not.toHaveProperty("VIDEO_V1_BUILD_ENABLED");
+		expect(result.workflows.vars).toMatchObject({ VIDEO_V1_ENABLED: "false" });
+		expect(parseVideoRuntimeConfig(result["workflows.secrets"].VIDEO_RUNTIME_CONFIG)).toEqual({
+			VIDEO_V1_ACCESS: "internal",
+		});
+	});
+	it.each(["workers", "hybrid"] as const)(
+		"packs all video policy privately and accepts packed-only input for %s",
+		(profile) => {
+			const input = {
+				...multiModelVideoEnvironment,
+				VIDEO_MODEL_ALLOWED_OPTIONS: '[{"productKey":"fixture-only"}]',
+			};
+			const flat = artifacts(profile, input);
+			const packed = artifacts(profile, packVideoRuntimeEnvironment(input));
+			const normalize = (value: typeof packed) => ({
+				...value,
+				"workflows.secrets": {
+					...value["workflows.secrets"],
+					...(profile === "hybrid"
+						? { JOBS_RUNTIME_ENV: JSON.parse(value["workflows.secrets"].JOBS_RUNTIME_ENV) }
+						: {}),
+				},
+			});
+			expect(normalize(packed)).toEqual(normalize(flat));
+			for (const name of ["website", "workflows"] as const) {
+				const secrets = packed[`${name}.secrets`];
+				const policy = parseVideoRuntimeConfig(secrets.VIDEO_RUNTIME_CONFIG);
+				expect(policy).toMatchObject({
+					VIDEO_V1_ACCESS: "internal",
+					VIDEO_V1_UPLOAD_CORS_READY: "true",
+					VIDEO_MODEL_ALLOWED_OPTIONS: input.VIDEO_MODEL_ALLOWED_OPTIONS,
+				});
+				for (const key of VIDEO_RUNTIME_ENVIRONMENT_KEYS) {
+					expect(secrets).not.toHaveProperty(key);
+					expect(packed[name].vars).not.toHaveProperty(key);
+				}
+				expect(policy).not.toHaveProperty("VIDEO_V1_ENABLED");
+				expect(policy).not.toHaveProperty("SEEAPI_API_KEY");
+				expect(packed[name].vars).toMatchObject({ VIDEO_V1_ENABLED: "true" });
+				expect(packed[name].vars).not.toHaveProperty("VIDEO_RUNTIME_CONFIG");
+			}
+			if (profile === "hybrid")
+				expect(JSON.parse(packed["workflows.secrets"].JOBS_RUNTIME_ENV)).toMatchObject(input);
+		},
+	);
+	it("refuses conflicting packed policy before preparing artifacts", () => {
+		expect(() =>
+			artifacts("workers", {
+				VIDEO_RUNTIME_CONFIG: '{"VIDEO_V1_ACCESS":"internal"}',
+				VIDEO_V1_ACCESS: "public",
+			}),
+		).toThrow("VIDEO_RUNTIME_CONFIG_CONFLICT");
+	});
+	it("fits nineteen video policy fields into one binding without opening video", () => {
+		const policy = Object.fromEntries(
+			VIDEO_RUNTIME_ENVIRONMENT_KEYS.slice(0, 19).map((key) => [key, "fixture"]),
+		);
+		policy.VIDEO_V1_ACCESS = "internal";
+		const base = artifacts("workers");
+		const next = artifacts("workers", policy);
+		for (const name of ["website", "workflows"] as const) {
+			expect(Object.keys(next[`${name}.secrets`]).length).toBe(
+				Object.keys(base[`${name}.secrets`]).length,
+			);
+			expect(next[name].vars).toMatchObject({ VIDEO_V1_ENABLED: "false" });
+		}
+	});
 	it.each(["workers", "hybrid"] as const)(
 		"replaces twelve model bindings with one for %s",
 		(profile) => {
@@ -289,8 +402,8 @@ describe("prepared deployment artifacts", () => {
 			for (const config of [result.website, result.workflows]) {
 				expect(config.vars).toMatchObject({
 					VIDEO_V1_ENABLED: "false",
-					VIDEO_V1_ACCESS: "internal",
 				});
+				expect(config.vars).not.toHaveProperty("VIDEO_V1_ACCESS");
 				expect(config.hyperdrive).toEqual([{ binding: "HYPERDRIVE", id: "a".repeat(32) }]);
 				expect(config.r2_buckets).toContainEqual({
 					binding: "VIDEO_MEDIA_BUCKET",
@@ -310,7 +423,6 @@ describe("prepared deployment artifacts", () => {
 			for (const config of [result.website, result.workflows])
 				expect(config.vars).toMatchObject({
 					VIDEO_V1_ENABLED: "true",
-					VIDEO_V1_ACCESS: "internal",
 				});
 			expect(result["website.secrets"]).not.toHaveProperty("VIDEO_V1_CREDITS");
 			expect(result["website.secrets"]).not.toHaveProperty("VIDEO_V1_MODEL_CONTRACT_VERSION");
@@ -347,7 +459,7 @@ describe("prepared deployment artifacts", () => {
 			if (profile === "hybrid")
 				environments.push(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV));
 			for (const environment of environments) {
-				expect(environment).toMatchObject(active);
+				expect(expandVideoRuntimeEnvironment(environment)).toMatchObject(active);
 				for (const key of Object.keys(retiredModerationEnvironment))
 					expect(environment).not.toHaveProperty(key);
 			}

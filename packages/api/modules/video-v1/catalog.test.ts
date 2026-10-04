@@ -1,4 +1,4 @@
-import { VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
+import { VIDEO_MODEL_CATALOG, VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
 import { VIDEO_SUPPLIER_PRICE_VERSION } from "@repo/config/video-pricing.server";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
@@ -17,6 +17,17 @@ const environment = {
 	VIDEO_V1_MODERATION_CALLBACK_CONFIGURED: "true",
 	VIDEO_V1_MODERATION_WEBHOOK_SECRET: "casec_fixture-only",
 	VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
+	VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify(
+		VIDEO_MODEL_CATALOG.filter((model) => model.status === "implemented").flatMap((model) =>
+			model.groups.map((group) => ({
+				productKey: model.productKey,
+				modes: [group.mode],
+				durations: group.durations,
+				resolutions: group.resolutions,
+				sounds: group.sounds,
+			})),
+		),
+	),
 	VIDEO_V1_TEXT_SAFETY_ADAPTER: "waffo",
 	VIDEO_V1_VIDEO_SAFETY_ADAPTER: "seeapi",
 	VIDEO_COST_VISUAL_POLICY_VERSION: createVideoVisualSafetyProfile("seeapi", 5).policyVersion,
@@ -45,6 +56,44 @@ const environment = {
 const bindings = { workflow: true, r2: true, hyperdrive: true, uploadCors: true };
 
 describe("video public catalogue pricing and readiness", () => {
+	it("does not advertise legal but unselected paid options", () => {
+		const models = buildVideoCatalogModels(
+			{
+				...environment,
+				VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify([
+					{
+						productKey: "video-kling-2-6-v1",
+						modes: ["text-to-video"],
+						durations: [5],
+						resolutions: ["default"],
+						sounds: [false],
+					},
+				]),
+			},
+			bindings,
+			true,
+			new Set(),
+		);
+		const enabled = models.flatMap((model) =>
+			model.options
+				.filter((option) => option.available)
+				.map((option) => ({ productKey: model.productKey, ...option })),
+		);
+		expect(enabled).toHaveLength(1);
+		expect(enabled[0]).toMatchObject({
+			productKey: "video-kling-2-6-v1",
+			mode: "text-to-video",
+			duration: 5,
+			sound: false,
+		});
+		const absent = buildVideoCatalogModels(
+			{ ...environment, VIDEO_MODEL_ALLOWED_OPTIONS: "" },
+			bindings,
+			true,
+			new Set(),
+		);
+		expect(absent.every((model) => !model.available)).toBe(true);
+	});
 	it("keeps closed access small and does not publish provider/cost configuration", () => {
 		const models = buildVideoCatalogModels(environment, bindings, false, new Set());
 		expect(models.every((model) => !model.available && model.options.length === 0)).toBe(true);

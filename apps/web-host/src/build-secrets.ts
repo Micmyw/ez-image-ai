@@ -1,6 +1,13 @@
 import { createHash } from "node:crypto";
 import { parseEnv } from "node:util";
 
+import { readVideoModelAccess } from "@repo/config/video-model-access";
+import {
+	expandVideoRuntimeEnvironment,
+	parseVideoRuntimeConfig,
+	VIDEO_RUNTIME_ENVIRONMENT_KEYS,
+} from "@repo/config/video-runtime-environment";
+
 const variableName = "CLOUDFLARE_PRODUCTION_ENV";
 const partPrefix = `${variableName}_PART_`;
 const maximumParts = 16;
@@ -42,7 +49,10 @@ export function readCloudflareBuildEnvironment(environment: Record<string, strin
 		withGuestBudgetOverride(
 			withGuestQuotaOverrides(
 				withModerationOverrides(
-					withVideoCallbackOverrides(unpackCloudflareBuildEnvironment(environment), environment),
+					withVideoCallbackOverrides(
+						withVideoRuntimeOverrides(unpackCloudflareBuildEnvironment(environment), environment),
+						environment,
+					),
 					environment,
 				),
 				environment,
@@ -51,6 +61,58 @@ export function readCloudflareBuildEnvironment(environment: Record<string, strin
 		),
 		environment,
 	);
+}
+
+function withVideoRuntimeOverrides(
+	source: string,
+	environment: Record<string, string | undefined>,
+) {
+	const encoded = environment.VIDEO_RUNTIME_CONFIG;
+	const enabled = environment.VIDEO_V1_BUILD_ENABLED;
+	if (enabled !== undefined && enabled !== "true" && enabled !== "false")
+		throw new Error("VIDEO_BUILD_ENABLED_OVERRIDE_INVALID");
+	const policy = encoded === undefined ? undefined : parseVideoRuntimeConfig(encoded);
+	if (enabled === "true") {
+		const access = readVideoModelAccess(policy ?? {});
+		if (!policy || !access.ready || !access.allowed.size)
+			throw new Error("VIDEO_BUILD_ENABLED_POLICY_REQUIRED");
+	}
+	if (encoded !== undefined) {
+		// A single private build variable carries policy; no interpolation or dotenv injection.
+		const value = JSON.stringify(policy).replaceAll("'", "\\u0027");
+		const assignment = `VIDEO_RUNTIME_CONFIG='${value}'\n`;
+		const previous = parseEnv(source);
+		const merged = `${source}\n${assignment}`;
+		const next = parseEnv(merged);
+		if (
+			next.VIDEO_RUNTIME_CONFIG !== value ||
+			Object.entries(previous).some(
+				([key, original]) => key !== "VIDEO_RUNTIME_CONFIG" && next[key] !== original,
+			)
+		)
+			throw new Error("VIDEO_RUNTIME_CONFIG_INVALID");
+		expandVideoRuntimeEnvironment(next);
+		source = merged;
+	}
+	// An ambient flag must not open admission while applying a policy/secret override.
+	// Only the dedicated build control may update the authoritative dotenv flag.
+	if (enabled !== undefined) {
+		const previous = parseEnv(source);
+		const merged = `${source}\nVIDEO_V1_ENABLED=${enabled}\n`;
+		const next = parseEnv(merged);
+		if (
+			next.VIDEO_V1_ENABLED !== enabled ||
+			Object.entries(previous).some(
+				([key, value]) => key !== "VIDEO_V1_ENABLED" && next[key] !== value,
+			) ||
+			Object.keys(next).length !== new Set([...Object.keys(previous), "VIDEO_V1_ENABLED"]).size
+		)
+			throw new Error("VIDEO_BUILD_ENABLED_OVERRIDE_INVALID");
+		source = merged;
+	}
+	// Validate bundle-only configurations too; a bad pack must stop before build/deploy.
+	expandVideoRuntimeEnvironment(parseEnv(source));
+	return source;
 }
 
 function withVideoCallbackOverrides(
@@ -233,6 +295,10 @@ export function withoutCloudflareBuildSecrets<T extends Record<string, string | 
 			key === variableName ||
 			key.startsWith(partPrefix) ||
 			key === "SEEAPI_API_KEY" ||
+			key === "VIDEO_RUNTIME_CONFIG" ||
+			key === "VIDEO_V1_ENABLED" ||
+			key === "VIDEO_V1_BUILD_ENABLED" ||
+			VIDEO_RUNTIME_ENVIRONMENT_KEYS.some((policy) => policy === key) ||
 			videoCallbackSecrets.some((secret) => secret === key)
 		)
 			delete result[key];

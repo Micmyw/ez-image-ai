@@ -5,7 +5,13 @@ import { configuredVideoVisualSafetyProfile } from "./video-safety";
 import { createVideoTextSafetyProfile } from "./video-text-safety";
 
 /** Public list prices read on 2026-10-04, not an account-specific billing receipt. */
-export const VIDEO_SUPPLIER_PRICE_VERSION = "kie-public-2026-10-04.1";
+export const VIDEO_SUPPLIER_PRICE_VERSION = "kie-public-2026-10-04.2";
+// Official product pages limit these tariffs to October 7 at 06:00 UTC.
+// A later operator approval cannot extend the supplier's promotional price.
+const promotionalPriceExpiry: Readonly<Record<string, number | undefined>> = {
+	"video-seedance-2-mini": Date.parse("2026-10-07T06:00:00Z"),
+	"video-seedance-2-fast": Date.parse("2026-10-07T06:00:00Z"),
+};
 export type VideoPricingSelection = {
 	productKey: string;
 	mode: "text-to-video" | "image-to-video";
@@ -62,11 +68,10 @@ export function videoSupplierCostMicros(input: VideoPricingSelection): bigint {
 		case "video-kling-3-turbo":
 			rate = ({ "720p": 90_000, "1080p": 112_500 } as Record<string, number>)[resolution];
 			break;
-		case "video-minimax-h3": {
+		case "video-minimax-h3":
+			// The first five input images are free; this product accepts one image.
 			rate = ({ "768p": 40_000, "2k": 65_000 } as Record<string, number>)[resolution];
-			if (rate) return BigInt(rate) * seconds + (input.mode === "image-to-video" ? 20_000n : 0n);
 			break;
-		}
 		case "video-seedance-2-5":
 			rate = ({ "480p": 140_000, "720p": 315_000, "1080p": 790_000 } as Record<string, number>)[
 				resolution
@@ -206,9 +211,15 @@ export function resolveVideoModelPrice(
 		!env.VIDEO_PRICE_BASIS?.trim()
 	)
 		throw new Error("VIDEO_PRICE_NOT_APPROVED");
-	const validUntil = Date.parse(env.VIDEO_PRICE_VALID_UNTIL ?? "");
-	if (!Number.isFinite(validUntil) || validUntil <= Date.now())
+	const now = Date.now();
+	const approvedValidUntil = Date.parse(env.VIDEO_PRICE_VALID_UNTIL ?? "");
+	if (!Number.isFinite(approvedValidUntil) || approvedValidUntil <= now)
 		throw new Error("VIDEO_PRICE_EXPIRED");
+	const validUntil = Math.min(
+		approvedValidUntil,
+		promotionalPriceExpiry[request.productKey] ?? Number.POSITIVE_INFINITY,
+	);
+	if (validUntil <= now) throw new Error("VIDEO_MODEL_PRICE_EXPIRED");
 	const visualSafetyProfile = configuredVideoVisualSafetyProfile(env, request.duration);
 	if (env.VIDEO_COST_VISUAL_POLICY_VERSION !== visualSafetyProfile.policyVersion)
 		throw new Error("VIDEO_VISUAL_COST_POLICY_NOT_CONFIRMED");

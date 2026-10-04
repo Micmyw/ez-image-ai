@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("@repo/database/client", () => ({ db: {} }));
 vi.mock("@repo/database/media-assets", () => ({
 	createMediaUploadSessionTransaction: vi.fn(async () => undefined),
@@ -61,11 +61,26 @@ const asset = {
 };
 beforeEach(() => {
 	vi.clearAllMocks();
+	vi.stubEnv("VIDEO_V1_ENABLED", "true");
+	vi.stubEnv("VIDEO_V1_ALLOWED_USER_IDS", "owner");
+	vi.stubEnv(
+		"VIDEO_MODEL_ALLOWED_OPTIONS",
+		JSON.stringify([
+			{
+				productKey: "video-kling-2-6-v1",
+				modes: ["image-to-video"],
+				durations: [5],
+				resolutions: ["default"],
+				sounds: [false],
+			},
+		]),
+	);
 	vi.mocked(getVideoUploadSession).mockResolvedValue({ asset } as never);
 	vi.mocked(recordVideoInputIdentity).mockImplementation(
 		async (value) => ({ ...asset, ...value, byteSize: BigInt(value.bytes) }) as never,
 	);
 });
+afterEach(() => vi.unstubAllEnvs());
 describe("video V1 immutable upload boundary", () => {
 	it("rejects disguised/unsupported declared types and both contract and plan limits", () => {
 		for (const contentType of ["video/mp4", "image/gif", "text/plain"])

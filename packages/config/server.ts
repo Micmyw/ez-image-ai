@@ -24,3 +24,12 @@ export {
 export * from "./production-load";
 export * from "./storage-connect-origin";
 export * from "./workflows";
+export {
+	VIDEO_RUNTIME_ENVIRONMENT_KEYS,
+	expandVideoRuntimeEnvironment,
+	hydrateVideoRuntimeEnvironment,
+	packVideoRuntimeEnvironment,
+	parseVideoRuntimeConfig,
+	type VideoRuntimeEnvironmentKey,
+	type VideoRuntimeEnvironmentValues,
+} from "./video-runtime-environment";

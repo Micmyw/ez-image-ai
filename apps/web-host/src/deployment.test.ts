@@ -3,6 +3,37 @@ import { describe, expect, it } from "vitest";
 import { deploymentEnvironment, publicBuildVariables } from "./deployment";
 
 describe("Cloudflare deployment environment", () => {
+	it("does not forward a build-only video flag into the prepared environment", () => {
+		const result = deploymentEnvironment(
+			{
+				NEXT_PUBLIC_SAAS_URL: "https://ezimageai.com",
+				VIDEO_V1_BUILD_ENABLED: "true",
+				VIDEO_V1_ENABLED: "false",
+			},
+			"https://ezimageai.com",
+		);
+		expect(result).not.toHaveProperty("VIDEO_V1_BUILD_ENABLED");
+		expect(result.VIDEO_V1_ENABLED).toBe("false");
+	});
+	it("expands packed video policy for preparation but excludes it from public build variables", () => {
+		const policy = {
+			VIDEO_V1_ACCESS: "internal",
+			VIDEO_V1_ALLOWED_USER_IDS: "fixture-user",
+			VIDEO_COST_STORAGE_MICROS: "100",
+		};
+		const environment = deploymentEnvironment(
+			{
+				NEXT_PUBLIC_SAAS_URL: "https://ezimageai.com",
+				VIDEO_V1_ENABLED: "false",
+				VIDEO_RUNTIME_CONFIG: JSON.stringify(policy),
+			},
+			"https://ezimageai.com",
+		);
+		expect(environment).toMatchObject({ ...policy, VIDEO_V1_ENABLED: "false" });
+		expect(publicBuildVariables(environment)).toEqual({
+			NEXT_PUBLIC_SAAS_URL: "https://ezimageai.com",
+		});
+	});
 	it("excludes retired moderation variables without removing active providers or unrelated OpenAI", () => {
 		const retired = {
 			SIGHTENGINE_API_USER: "retired-user",

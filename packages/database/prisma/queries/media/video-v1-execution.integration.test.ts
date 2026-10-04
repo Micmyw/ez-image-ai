@@ -3,7 +3,7 @@ import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { runWithDatabaseClient } from "../../client";
-import { PrismaClient } from "../../generated/client";
+import { type Prisma, PrismaClient } from "../../generated/client";
 import { createCreditGrant, releaseCredits, reserveCredits } from "./credits";
 import {
 	claimVideoProviderSubmission,
@@ -11,6 +11,7 @@ import {
 	failVideoExecution,
 	getVideoExecutionContext,
 	listPendingVideoWebhookEvents,
+	markVideoSubmissionUncertain,
 	markVideoWebhookNotified,
 	persistVideoProviderWebhook,
 	postponeVideoWebhookNotification,
@@ -152,10 +153,20 @@ it("yields failed notifications to later events until their retry cooldown expir
 	).toContain(events[0]!.id);
 });
 
-async function fixture(options: { missingTextProfile?: boolean } = {}) {
+async function fixture(
+	options: {
+		missingTextProfile?: boolean;
+		pricingDetails?: (ownerId: string) => Prisma.InputJsonObject;
+	} = {},
+) {
 	const suffix = crypto.randomUUID();
 	const ownerId = `video-submission-test-${suffix}`;
 	fixtureOwners.push(ownerId);
+	const pricingSnapshot = {
+		pricingDetails: options.pricingDetails?.(ownerId) ?? {
+			validUntil: new Date(Date.now() + 3600_000).toISOString(),
+		},
+	};
 	const inputSnapshot = {
 		...(options.missingTextProfile ? {} : { textSafetyProfile: createVideoTextSafetyProfile() }),
 		schemaVersion: 1,
@@ -179,7 +190,7 @@ async function fixture(options: { missingTextProfile?: boolean } = {}) {
 			credits: 5n,
 			costMicros: 0n,
 			inputSnapshot,
-			pricingSnapshot: {},
+			pricingSnapshot,
 			moderationDecision: "PENDING_VIDEO_WORKFLOW",
 			moderationProvider: "video-workflow-v1",
 			moderationReasonCode: "PENDING_VIDEO_WORKFLOW",
@@ -200,7 +211,7 @@ async function fixture(options: { missingTextProfile?: boolean } = {}) {
 			pricingVersion: "test",
 			creditsReserved: 5n,
 			inputSnapshot,
-			pricingSnapshot: {},
+			pricingSnapshot,
 			executionEngine: "video-workflow-v1",
 			videoExecution: {
 				create: {
@@ -268,6 +279,202 @@ async function fixture(options: { missingTextProfile?: boolean } = {}) {
 }
 
 describe("video submission database correctness", () => {
+	it.each([undefined, null, 123, "invalid-date", "2026-02-31T00:00:00.000Z"])(
+		"refuses a new paid submission with invalid frozen price deadline %s",
+		async (validUntil) => {
+			const f = await fixture({ pricingDetails: () => ({ validUntil }) });
+			await expect(run(() => claimVideoProviderSubmission(f.claim))).rejects.toThrow(
+				"VIDEO_PRICE_INVALID",
+			);
+			expect(await client.generationAttempt.count({ where: { jobId: f.job.id } })).toBe(0);
+			expect((await run(() => getVideoExecutionContext(f.job.id)))?.reservation?.status).toBe(
+				"ACTIVE",
+			);
+		},
+	);
+	it("refuses a new paid submission after its frozen price deadline", async () => {
+		const f = await fixture({
+			pricingDetails: () => ({ validUntil: "2000-01-01T00:00:00.000Z" }),
+		});
+		await expect(run(() => claimVideoProviderSubmission(f.claim))).rejects.toThrow(
+			"VIDEO_PRICE_EXPIRED",
+		);
+		expect(await client.generationAttempt.count({ where: { jobId: f.job.id } })).toBe(0);
+		expect((await run(() => getVideoExecutionContext(f.job.id)))?.reservation?.status).toBe(
+			"ACTIVE",
+		);
+	});
+	it("terminalizes an expired unsubmitted job and releases credits and capacity exactly once", async () => {
+		const f = await fixture({
+			pricingDetails: () => ({ validUntil: "2000-01-01T00:00:00.000Z" }),
+		});
+		await expect(run(() => claimVideoProviderSubmission(f.claim))).rejects.toThrow(
+			"VIDEO_PRICE_EXPIRED",
+		);
+		const results = await Promise.all(
+			Array.from({ length: 5 }, () =>
+				run(() =>
+					failVideoExecution(f.job.id, "VIDEO_PRICE_EXPIRED", false, false, {
+						onlyBeforeSubmission: true,
+					}),
+				),
+			),
+		);
+		expect(results.filter(Boolean)).toHaveLength(1);
+		const failed = await run(() => getVideoExecutionContext(f.job.id));
+		expect(failed?.status).toBe("FAILED");
+		expect(failed?.failureCode).toBe("VIDEO_PRICE_EXPIRED");
+		expect(failed?.videoExecution?.stage).toBe("FAILED");
+		expect(failed?.attempts).toHaveLength(0);
+		expect(failed?.reservation?.status).toBe("RELEASED");
+		expect(
+			await client.storageUsageReservation.findUnique({
+				where: { referenceKey: `video-output:${f.job.id}` },
+			}),
+		).toMatchObject({ status: "RELEASED" });
+		expect(
+			await client.creditLedgerEntry.count({
+				where: { reservationId: f.reservation.id, type: "RELEASE" },
+			}),
+		).toBe(1);
+	});
+	it.each(["expired", "invalid", "other-owner", "unqualified-marker-missing"])(
+		"refuses a new paid submission with %s frozen internal funding authorization",
+		async (mode) => {
+			const f = await fixture({
+				pricingDetails: (ownerId) => ({
+					validUntil: new Date(Date.now() + 3600_000).toISOString(),
+					...(mode === "unqualified-marker-missing" ? {} : { paidRevenueQualified: false }),
+					funding: {
+						mode: "operator-funded-internal-v1",
+						authorizedOwnerId: mode === "other-owner" ? "other-owner" : ownerId,
+						validUntil:
+							mode === "expired"
+								? "2000-01-01T00:00:00.000Z"
+								: mode === "invalid"
+									? "invalid-date"
+									: new Date(Date.now() + 3600_000).toISOString(),
+						reason: "Isolated fixture only",
+					},
+				}),
+			});
+			await expect(run(() => claimVideoProviderSubmission(f.claim))).rejects.toThrow(
+				"VIDEO_FUNDING_POLICY_CHANGED",
+			);
+			expect(await client.generationAttempt.count({ where: { jobId: f.job.id } })).toBe(0);
+			expect((await run(() => getVideoExecutionContext(f.job.id)))?.reservation?.status).toBe(
+				"ACTIVE",
+			);
+		},
+	);
+	it("allows the first paid claim with valid frozen internal funding and price deadlines", async () => {
+		const f = await fixture({
+			pricingDetails: (ownerId) => ({
+				validUntil: new Date(Date.now() + 3600_000).toISOString(),
+				paidRevenueQualified: false,
+				funding: {
+					mode: "operator-funded-internal-v1",
+					authorizedOwnerId: ownerId,
+					validUntil: new Date(Date.now() + 3600_000).toISOString(),
+					reason: "Isolated fixture only",
+				},
+			}),
+		});
+		expect(await run(() => claimVideoProviderSubmission(f.claim))).toMatchObject({
+			claimed: true,
+			attempt: { status: "SUBMISSION_UNCERTAIN", uncertainSubmission: true },
+		});
+	});
+	it.each(
+		["expired-price", "missing-price", "expired-funding"].flatMap((deadline) =>
+			["uncertain", "accepted"].map((state) => ({ deadline, state })),
+		),
+	)("preserves $state attempt recovery with $deadline", async ({ deadline, state }) => {
+		const f = await fixture({
+			pricingDetails: (ownerId) => ({
+				...(deadline === "missing-price"
+					? {}
+					: {
+							validUntil:
+								deadline === "expired-price"
+									? "2000-01-01T00:00:00.000Z"
+									: new Date(Date.now() + 3600_000).toISOString(),
+						}),
+				...(deadline === "expired-funding"
+					? {
+							paidRevenueQualified: false,
+							funding: {
+								mode: "operator-funded-internal-v1",
+								authorizedOwnerId: ownerId,
+								validUntil: "2000-01-01T00:00:00.000Z",
+								reason: "Isolated fixture only",
+							},
+						}
+					: {}),
+			}),
+		});
+		// Model an already persisted send fence without rewriting its frozen snapshot.
+		const attempt = await client.generationAttempt.create({
+			data: {
+				jobId: f.job.id,
+				attemptNumber: 1,
+				provider: "kie",
+				providerModelId: f.claim.providerModelId,
+				callbackTokenHash: f.claim.callbackTokenHash,
+				requestSnapshot: f.job.inputSnapshot as Prisma.InputJsonValue,
+				status: "SUBMISSION_UNCERTAIN",
+				uncertainSubmission: true,
+				submittedAt: new Date("1999-12-31T23:59:00.000Z"),
+			},
+		});
+		const taskId = `deadline-recovery-${f.job.id}`;
+		if (state === "accepted")
+			await run(() => recordVideoSubmissionAccepted(f.job.id, attempt.id, taskId));
+		else {
+			await run(() => markVideoSubmissionUncertain(f.job.id, "MOCK_SUBMISSION_UNKNOWN"));
+			expect(await run(() => failVideoExecution(f.job.id, "VIDEO_PRICE_EXPIRED"))).toBe(false);
+		}
+		expect(await run(() => claimVideoProviderSubmission(f.claim))).toMatchObject({
+			claimed: false,
+			attempt: { id: attempt.id },
+		});
+		expect(
+			await run(() =>
+				failVideoExecution(f.job.id, "VIDEO_PRICE_EXPIRED", false, false, {
+					onlyBeforeSubmission: true,
+				}),
+			),
+		).toBe(false);
+		await run(() =>
+			persistVideoProviderWebhook({
+				callbackTokenHash: f.claim.callbackTokenHash,
+				taskId,
+				timestamp: "1791072000",
+				receivedAt: new Date(),
+			}),
+		);
+		await run(() =>
+			recordVideoProviderSuccess({
+				jobId: f.job.id,
+				attemptId: attempt.id,
+				providerTaskId: taskId,
+				outputUrl: "https://provider.example/recovered.mp4",
+				providerCostMicros: null,
+				providerCompletedAt: null,
+			}),
+		);
+		const recovered = await run(() => getVideoExecutionContext(f.job.id));
+		expect(recovered?.attempts).toHaveLength(1);
+		expect(recovered?.attempts[0]).toMatchObject({ id: attempt.id, status: "SUCCEEDED" });
+		expect(recovered?.videoExecution?.stage).toBe("STORING");
+		expect(recovered?.reservation?.status).toBe("ACTIVE");
+		expect(recovered?.pricingSnapshot).toEqual(f.job.pricingSnapshot);
+		expect(
+			await client.creditLedgerEntry.count({
+				where: { reservationId: f.reservation.id, type: "RELEASE" },
+			}),
+		).toBe(0);
+	});
 	it.each(["missing", "insufficient", "released", "foreign-owner"])(
 		"refuses a new paid submission with %s output capacity",
 		async (mode) => {

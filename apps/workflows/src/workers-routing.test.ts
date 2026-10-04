@@ -1,3 +1,4 @@
+import { VIDEO_RUNTIME_ENVIRONMENT_KEYS } from "@repo/config/video-runtime-environment";
 import { signRequest } from "@repo/jobs/orchestration/auth";
 import type { TaskRequest } from "@repo/jobs/orchestration/contracts";
 import { taskDefinition } from "@repo/jobs/orchestration/registry";
@@ -46,7 +47,7 @@ const heavy: TaskRequest = {
 const light: TaskRequest = { taskId: "media-verify-upload", payload: { assetId: "light" } };
 const maintenance: TaskRequest = { taskId: "media-deliver-outbox", payload: {} };
 
-function runtime() {
+function runtime(videoEnvironment: Record<string, string> = {}) {
 	const objects = new Map<string, WorkerJobs>();
 	const routed: string[] = [];
 	const idFromName = (name: string) => ({
@@ -54,6 +55,7 @@ function runtime() {
 		equals: (other: { name: string }) => other.name === name,
 	});
 	const environment = {
+		...videoEnvironment,
 		WORKFLOWS_DISPATCH_SECRET: secret,
 		WORKFLOWS_DISPATCH_URL: "https://jobs.example/internal/dispatch",
 		HYPERDRIVE: { connectionString: "test-only" },
@@ -114,14 +116,46 @@ function runtime() {
 
 beforeEach(() => {
 	vi.clearAllMocks();
+	for (const key of [...VIDEO_RUNTIME_ENVIRONMENT_KEYS, "VIDEO_RUNTIME_CONFIG", "VIDEO_V1_ENABLED"])
+		vi.stubEnv(key, undefined);
 	mocks.disconnect.mockResolvedValue(undefined);
 	mocks.execute.mockResolvedValue({ done: true, waitSeconds: 0 });
 	mocks.poll.mockResolvedValue({ done: true, waitSeconds: 0 });
 	vi.spyOn(console, "info").mockImplementation(() => undefined);
 });
-afterEach(() => vi.restoreAllMocks());
+afterEach(() => {
+	vi.restoreAllMocks();
+	vi.unstubAllEnvs();
+});
 
 describe("Workers executor routing", () => {
+	it("hydrates shared provider capacity before the first legacy executor task", async () => {
+		mocks.execute.mockImplementation(async () => {
+			expect(process.env.VIDEO_V1_PROVIDER_CONCURRENCY).toBe("3");
+			return { done: true, waitSeconds: 0 };
+		});
+		const worker = runtime({
+			VIDEO_RUNTIME_CONFIG: JSON.stringify({ VIDEO_V1_PROVIDER_CONCURRENCY: "3" }),
+		});
+		expect((await worker.send("jobs-primary", heavy)).status).toBe(200);
+		expect(mocks.execute).toHaveBeenCalledTimes(1);
+	});
+
+	it("keeps legacy tasks executable when packed video policy conflicts with a flat binding", async () => {
+		mocks.execute.mockImplementation(async () => {
+			expect(process.env.VIDEO_V1_ENABLED).toBe("false");
+			expect(process.env.VIDEO_V1_PROVIDER_CONCURRENCY).toBeUndefined();
+			return { done: true, waitSeconds: 0 };
+		});
+		const worker = runtime({
+			VIDEO_V1_ENABLED: "true",
+			VIDEO_V1_PROVIDER_CONCURRENCY: "2",
+			VIDEO_RUNTIME_CONFIG: JSON.stringify({ VIDEO_V1_PROVIDER_CONCURRENCY: "3" }),
+		});
+		expect((await worker.send("jobs-primary", heavy)).status).toBe(200);
+		expect(mocks.execute).toHaveBeenCalledTimes(1);
+	});
+
 	it("advances verification and its Outbox while a heavy transfer is still running", async () => {
 		let finish!: () => void;
 		mocks.execute.mockImplementation(async (task: TaskRequest) => {

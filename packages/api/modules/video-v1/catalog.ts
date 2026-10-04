@@ -1,3 +1,4 @@
+import { isVideoModelOptionAllowed, readVideoModelAccess } from "@repo/config/video-model-access";
 import { VIDEO_MODEL_CATALOG, getVideoModelOptions } from "@repo/config/video-models";
 import { resolveVideoModelPrice } from "@repo/config/video-pricing.server";
 import { videoV1Readiness, type VideoV1Bindings } from "@repo/config/video-v1";
@@ -26,6 +27,7 @@ export function buildVideoCatalogModels(
 	accessAllowed: boolean,
 	disabledKeys: ReadonlySet<string>,
 ) {
+	const modelAccess = readVideoModelAccess(environment);
 	const readiness = new Map<boolean, ReturnType<typeof videoV1Readiness>>();
 	const readReady = (sound: boolean) => {
 		let ready = readiness.get(sound);
@@ -50,6 +52,8 @@ export function buildVideoCatalogModels(
 					const reasons = readReady(option.sound).reasons.filter(
 						(reason) => !commonReasons.includes(reason),
 					);
+					if (!isVideoModelOptionAllowed(modelAccess, { productKey: model.productKey, ...option }))
+						reasons.push(modelAccess.reason ?? "VIDEO_MODEL_OPTION_NOT_ENABLED");
 					let credits: string | null = null;
 					try {
 						credits = resolveVideoModelPrice(

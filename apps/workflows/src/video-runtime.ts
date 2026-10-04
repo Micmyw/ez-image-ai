@@ -1,3 +1,4 @@
+import { hydrateVideoRuntimeEnvironment } from "@repo/config/video-runtime-environment";
 import { readVideoV1Config } from "@repo/config/video-v1";
 import { createRuntimeDatabaseClient, runWithDatabaseClient } from "@repo/database/client";
 import {
@@ -31,6 +32,8 @@ import { runWithCloudflareRemoteMedia } from "@repo/storage/lib/cloudflare-remot
 import type { VideoWorkflowServices } from "./video-orchestrator";
 
 export interface VideoRuntimeEnvironment {
+	VIDEO_RUNTIME_CONFIG?: string;
+	VIDEO_V1_ENABLED?: string;
 	HYPERDRIVE: { connectionString: string };
 	IMAGES: CloudflareImagesBinding;
 	VIDEO_WORKFLOW: VideoWorkflowBinding;
@@ -43,6 +46,7 @@ export async function withVideoRuntime<T>(
 	env: VideoRuntimeEnvironment,
 	operation: () => Promise<T>,
 ): Promise<T> {
+	const runtimeEnvironment = hydrateVideoRuntimeEnvironment(env);
 	if (!env.HYPERDRIVE?.connectionString || !env.IMAGES || !env.VIDEO_WORKFLOW)
 		throw new Error("VIDEO_WORKER_BINDINGS_REQUIRED");
 	const database = createRuntimeDatabaseClient(env.HYPERDRIVE.connectionString);
@@ -57,7 +61,7 @@ export async function withVideoRuntime<T>(
 				{
 					r2: Boolean(env.VIDEO_MEDIA_BUCKET),
 					hyperdrive: true,
-					uploadCors: env.VIDEO_V1_UPLOAD_CORS_READY === "true",
+					uploadCors: runtimeEnvironment.VIDEO_V1_UPLOAD_CORS_READY === "true",
 				},
 			),
 		);
@@ -67,6 +71,8 @@ export async function withVideoRuntime<T>(
 }
 
 export function videoWorkflowServices(env: VideoRuntimeEnvironment): VideoWorkflowServices {
+	// A resumed native Workflow need not have received any HTTP request first.
+	hydrateVideoRuntimeEnvironment(env);
 	const config = readVideoV1Config(process.env);
 	const scoped = <T>(fn: () => Promise<T>) => withVideoRuntime(env, fn);
 	const measured = async <T>(jobId: string, stage: string, fn: () => Promise<T>) => {

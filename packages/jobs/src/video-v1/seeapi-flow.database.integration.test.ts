@@ -509,7 +509,10 @@ describe("SeeAPI visual actual-domain Mock flow", () => {
 		const visualSafetyProfile = createVideoVisualSafetyProfile(provider, request.duration);
 		const quotedPrice = {
 			...price,
-			pricingDetails: { visualPolicyVersion: visualSafetyProfile.policyVersion },
+			pricingDetails: {
+				visualPolicyVersion: visualSafetyProfile.policyVersion,
+				validUntil: new Date(Date.now() + 3600_000).toISOString(),
+			},
 		};
 		const quote = await createVideoQuoteRecord(
 			{

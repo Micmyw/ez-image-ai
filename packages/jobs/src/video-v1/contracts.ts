@@ -56,7 +56,7 @@ export type ReviewStepResult =
 export type SubmissionStepResult =
 	| { status: "ACCEPTED"; attemptId: string; providerTaskId: string }
 	| { status: "UNCERTAIN"; attemptId: string; reasonCode: string }
-	| { status: "DEFINITELY_REJECTED"; attemptId: string; reasonCode: string };
+	| { status: "DEFINITELY_REJECTED"; attemptId?: string; reasonCode: string };
 export type ProviderResult =
 	| { status: "PENDING"; retryAfterSeconds?: number; deadlineAt?: string }
 	| { status: "SUCCEEDED"; attemptId: string }

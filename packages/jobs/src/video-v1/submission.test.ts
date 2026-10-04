@@ -28,6 +28,7 @@ function fixture(mode: "text-to-video" | "image-to-video" = "text-to-video") {
 	const stageData: Record<string, unknown> = {};
 	const job = {
 		id: "job-1",
+		status: "QUEUED",
 		createdAt: now,
 		failureCode: null,
 		inputSnapshot: {
@@ -263,6 +264,68 @@ describe("video V1 paid submission fence", () => {
 		f.store.claimVideoProviderSubmission.mockRejectedValueOnce(new Error("claim rolled back"));
 		await expect(submitVideoAttempt("job-1", f.deps)).rejects.toThrow("claim rolled back");
 		expect(f.provider.submit).not.toHaveBeenCalled();
+		expect(f.store.failVideoExecution).not.toHaveBeenCalled();
+	});
+	it.each(["VIDEO_PRICE_INVALID", "VIDEO_PRICE_EXPIRED", "VIDEO_FUNDING_POLICY_CHANGED"])(
+		"safely rejects %s before any paid request or attempt and asks for guarded release",
+		async (reasonCode) => {
+			const f = fixture();
+			f.store.claimVideoProviderSubmission.mockRejectedValueOnce(new Error(reasonCode));
+			expect(await submitVideoAttempt("job-1", f.deps)).toEqual({
+				status: "DEFINITELY_REJECTED",
+				reasonCode,
+			});
+			expect(f.store.failVideoExecution).toHaveBeenCalledWith("job-1", reasonCode, false, false, {
+				onlyBeforeSubmission: true,
+			});
+			expect(f.provider.submit).not.toHaveBeenCalled();
+			expect(f.attempt).toHaveLength(0);
+			expect(f.store.markVideoSubmissionUncertain).not.toHaveBeenCalled();
+		},
+	);
+	it.each(["uncertain", "accepted"])(
+		"preserves a racing %s attempt when a rejected claim cannot obtain guarded release",
+		async (state) => {
+			const f = fixture();
+			f.store.claimVideoProviderSubmission.mockImplementationOnce(async () => {
+				// Another claimant may have committed before this caller saw the deadline.
+				f.attempt.push({
+					id: "racing-attempt",
+					providerModelId: "kling-2.6/text-to-video",
+					providerTaskId: state === "accepted" ? "original-task" : null,
+					status: state === "accepted" ? "SUBMITTED" : "SUBMISSION_UNCERTAIN",
+				});
+				throw new Error("VIDEO_PRICE_EXPIRED");
+			});
+			f.store.failVideoExecution.mockResolvedValueOnce(false);
+			expect(await submitVideoAttempt("job-1", f.deps)).toMatchObject({
+				status: state === "accepted" ? "ACCEPTED" : "UNCERTAIN",
+				attemptId: "racing-attempt",
+			});
+			expect(f.store.failVideoExecution).toHaveBeenCalledWith(
+				"job-1",
+				"VIDEO_PRICE_EXPIRED",
+				false,
+				false,
+				{ onlyBeforeSubmission: true },
+			);
+			expect(f.provider.submit).not.toHaveBeenCalled();
+			expect(f.attempt).toHaveLength(1);
+		},
+	);
+	it("replays a concurrent pre-submission failure without inventing an attempt", async () => {
+		const f = fixture();
+		f.store.claimVideoProviderSubmission.mockRejectedValueOnce(new Error("VIDEO_PRICE_EXPIRED"));
+		f.store.failVideoExecution.mockImplementationOnce(async () => {
+			Object.assign(f.job, { status: "FAILED", failureCode: "VIDEO_PRICE_EXPIRED" });
+			return false;
+		});
+		expect(await submitVideoAttempt("job-1", f.deps)).toEqual({
+			status: "DEFINITELY_REJECTED",
+			reasonCode: "VIDEO_PRICE_EXPIRED",
+		});
+		expect(f.provider.submit).not.toHaveBeenCalled();
+		expect(f.attempt).toHaveLength(0);
 	});
 	it("generates a secret callback token but stores only its hash", async () => {
 		const f = fixture();

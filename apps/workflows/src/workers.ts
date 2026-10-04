@@ -1,3 +1,4 @@
+import { hydrateVideoRuntimeEnvironment } from "@repo/config/video-runtime-environment";
 import { createRuntimeDatabaseClient, runWithDatabaseClient } from "@repo/database/client";
 import { signRequest, workflowInstanceId } from "@repo/jobs/orchestration/auth";
 import { executeTask } from "@repo/jobs/orchestration/executor";
@@ -48,6 +49,8 @@ export class WorkerJobs extends DurableObject<WorkersEnvironment> {
 	private handler?: ReturnType<typeof createWorkerExecutionHandler>;
 
 	override async fetch(request: Request): Promise<Response> {
+		// Legacy handlers also read the shared provider capacity from video settings.
+		hydrateVideoRuntimeEnvironment(this.env);
 		const lane = this.ctx.id.equals(
 			this.env.JOBS_EXECUTOR.idFromName(WORKER_EXECUTORS.control.name),
 		)

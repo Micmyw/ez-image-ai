@@ -1,5 +1,6 @@
 import { parseEnv } from "node:util";
 
+import { expandVideoRuntimeEnvironment } from "@repo/config/video-runtime-environment";
 import { readVideoSeeapiCallbackConfig } from "@repo/config/video-seeapi-callback";
 import { describe, expect, it } from "vitest";
 
@@ -12,8 +13,201 @@ import { publicBuildVariables } from "./deployment";
 
 const unpackValues = (variables: ReturnType<typeof packCloudflareBuildEnvironment>) =>
 	Object.fromEntries(Object.entries(variables).map(([key, item]) => [key, item.value]));
+const allowedVideoOptions = JSON.stringify([
+	{
+		productKey: "video-kling-2-6-v1",
+		modes: ["text-to-video"],
+		durations: [5],
+		resolutions: ["default"],
+		sounds: [false],
+	},
+]);
 
 describe("Cloudflare build secret transport", () => {
+	it("enables only through the dedicated build flag with a valid current policy override", () => {
+		const source = "UNRELATED=fixture\nVIDEO_V1_ENABLED=false\nBILLING_ENABLED=false";
+		const policy = {
+			VIDEO_V1_ACCESS: "internal",
+			VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+		};
+		const input = {
+			CLOUDFLARE_PRODUCTION_ENV: source,
+			VIDEO_RUNTIME_CONFIG: JSON.stringify(policy),
+			VIDEO_V1_BUILD_ENABLED: "true",
+			VIDEO_V1_ENABLED: "false",
+		};
+		const output = readCloudflareBuildEnvironment(input);
+		const values = parseEnv(output);
+		expect(output.startsWith(source)).toBe(true);
+		expect(values).toEqual({
+			UNRELATED: "fixture",
+			VIDEO_V1_ENABLED: "true",
+			BILLING_ENABLED: "false",
+			VIDEO_RUNTIME_CONFIG: JSON.stringify(policy),
+		});
+		expect(values).not.toHaveProperty("VIDEO_V1_BUILD_ENABLED");
+		expect(input.CLOUDFLARE_PRODUCTION_ENV).toBe(source);
+		expect(withoutCloudflareBuildSecrets(input)).toEqual({});
+	});
+	it("allows a dedicated emergency close without a policy override or model list", () => {
+		const source = "VIDEO_V1_ENABLED=true\nUNCHANGED=fixture";
+		const values = parseEnv(
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: source,
+				VIDEO_V1_BUILD_ENABLED: "false",
+				VIDEO_V1_ENABLED: "true",
+			}),
+		);
+		expect(values).toEqual({ VIDEO_V1_ENABLED: "false", UNCHANGED: "fixture" });
+	});
+	it.each(["", "TRUE", " true", "true ", "0", "1", "false\nINJECTED=true"])(
+		"rejects invalid dedicated build flag %j without echoing values",
+		(value) => {
+			expect(() =>
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
+					VIDEO_V1_BUILD_ENABLED: value,
+				}),
+			).toThrow(/^VIDEO_BUILD_ENABLED_OVERRIDE_INVALID$/);
+		},
+	);
+	it("does not enable from only an existing bundled model policy", () => {
+		const source = `VIDEO_V1_ENABLED=false\nVIDEO_RUNTIME_CONFIG='${JSON.stringify({ VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions })}'\n`;
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: source,
+				VIDEO_V1_BUILD_ENABLED: "true",
+			}),
+		).toThrow(/^VIDEO_BUILD_ENABLED_POLICY_REQUIRED$/);
+	});
+	it.each([
+		undefined,
+		"",
+		"[]",
+		"[{}]",
+		"not-json",
+		JSON.stringify([
+			{
+				productKey: "unknown",
+				modes: ["text-to-video"],
+				durations: [5],
+				resolutions: ["default"],
+				sounds: [false],
+			},
+		]),
+		allowedVideoOptions.replace("[5]", "[30]"),
+	])("does not enable with a missing, empty or invalid allowed model policy", (options) => {
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
+				VIDEO_RUNTIME_CONFIG: JSON.stringify({ VIDEO_MODEL_ALLOWED_OPTIONS: options }),
+				VIDEO_V1_BUILD_ENABLED: "true",
+			}),
+		).toThrow(/^VIDEO_BUILD_ENABLED_POLICY_REQUIRED$/);
+	});
+	it("rejects malformed policy and packed build controls before changing the enabled flag", () => {
+		for (const value of [
+			"bad-json",
+			'{"VIDEO_V1_BUILD_ENABLED":"true"}',
+			'{"VIDEO_V1_ENABLED":"true"}',
+			'{"KIE_API_KEY":"fixture"}',
+		]) {
+			expect(() =>
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
+					VIDEO_RUNTIME_CONFIG: value,
+					VIDEO_V1_BUILD_ENABLED: "true",
+				}),
+			).toThrow(/^VIDEO_RUNTIME_CONFIG_INVALID$/);
+		}
+	});
+	it("preserves parsed source fields when a standalone emergency close appends no quote delimiters", () => {
+		const source = "UNRELATED='fixture-unclosed";
+		const result = parseEnv(
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: source,
+				VIDEO_V1_BUILD_ENABLED: "false",
+			}),
+		);
+		expect(result).toEqual({ ...parseEnv(source), VIDEO_V1_ENABLED: "false" });
+	});
+	it.each(["invalid", '{"KIE_API_KEY":"fixture-must-not-leak"}', '{"VIDEO_V1_ENABLED":"true"}'])(
+		"rejects invalid policy embedded only in the authoritative bundle",
+		(value) => {
+			const environment = unpackValues(
+				packCloudflareBuildEnvironment(`VIDEO_V1_ENABLED=false\nVIDEO_RUNTIME_CONFIG='${value}'\n`),
+			);
+			expect(() => readCloudflareBuildEnvironment(environment)).toThrow(
+				/^VIDEO_RUNTIME_CONFIG_INVALID$/,
+			);
+		},
+	);
+	it("rejects a policy override that would change an unterminated dotenv value", () => {
+		const environment = {
+			...unpackValues(packCloudflareBuildEnvironment("PRIVATE_KEY='fixture-unclosed")),
+			VIDEO_RUNTIME_CONFIG: '{"VIDEO_V1_ACCESS":"internal"}',
+		};
+		expect(() => readCloudflareBuildEnvironment(environment)).toThrow(
+			/^VIDEO_RUNTIME_CONFIG_INVALID$/,
+		);
+	});
+	it("overlays strict private video policy without enabling or exposing it to public builds", () => {
+		const policy = {
+			VIDEO_V1_ACCESS: "internal",
+			VIDEO_PRICE_BASIS: "fixture 'quotes' # 中文",
+			VIDEO_MODEL_ALLOWED_OPTIONS: '[{"sounds":[false]}]',
+		};
+		const env = {
+			...unpackValues(
+				packCloudflareBuildEnvironment("PRIVATE_KEY=unchanged\nVIDEO_V1_ENABLED=false\n"),
+			),
+			VIDEO_RUNTIME_CONFIG: JSON.stringify(policy),
+		};
+		const restored = parseEnv(readCloudflareBuildEnvironment(env));
+		expect(expandVideoRuntimeEnvironment(restored)).toMatchObject({
+			...policy,
+			VIDEO_V1_ENABLED: "false",
+			PRIVATE_KEY: "unchanged",
+		});
+		expect(publicBuildVariables(restored as Record<string, string>)).toEqual({});
+		expect(
+			withoutCloudflareBuildSecrets({
+				...env,
+				VIDEO_V1_ENABLED: "true",
+				VIDEO_V1_ALLOWED_USER_IDS: "private-user",
+			}),
+		).toEqual({});
+	});
+	it.each(["true", "false"])(
+		"ignores an ambient %s kill switch while preserving the authoritative bundle",
+		(flag) => {
+			const env = {
+				...unpackValues(packCloudflareBuildEnvironment("VIDEO_V1_ENABLED=false\n")),
+				VIDEO_V1_ENABLED: flag,
+			};
+			expect(parseEnv(readCloudflareBuildEnvironment(env)).VIDEO_V1_ENABLED).toBe("false");
+		},
+	);
+	it("rejects ambient policy injection and conflicting bundled flat policy", () => {
+		const base = unpackValues(
+			packCloudflareBuildEnvironment("VIDEO_V1_ACCESS=internal\nVIDEO_V1_ENABLED=false\n"),
+		);
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				...base,
+				VIDEO_RUNTIME_CONFIG: '{"VIDEO_V1_ENABLED":"true"}',
+			}),
+		).toThrow("VIDEO_RUNTIME_CONFIG_INVALID");
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				...base,
+				VIDEO_RUNTIME_CONFIG: '{"VIDEO_V1_ACCESS":"public"}',
+			}),
+		).toThrow("VIDEO_RUNTIME_CONFIG_CONFLICT");
+		expect(
+			parseEnv(readCloudflareBuildEnvironment({ ...base, VIDEO_V1_ENABLED: "true\nINJECTED=yes" })),
+		).not.toHaveProperty("INJECTED");
+	});
 	it("overlays video callback secrets without changing the existing bundle or opening video", () => {
 		const source = "PRIVATE_KEY=unchanged\nVIDEO_V1_ENABLED=false\nKIE_WEBHOOK_SECRET=old\n";
 		const overrides = {

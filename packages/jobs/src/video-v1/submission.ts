@@ -319,12 +319,35 @@ export async function submitVideoAttempt(
 			? await deps.signRead(snapshot.inputIdentity.objectKey)
 			: undefined;
 	const prepared = prepareVideoProviderRequest(snapshot, callbackUrl, imageUrl);
-	const claim = await deps.store.claimVideoProviderSubmission({
-		jobId,
-		callbackTokenHash: await hashVideoCallbackToken(token),
-		providerModelId: prepared.providerModelId,
-		ruleVersion: VIDEO_V1_RULE_VERSION,
-	});
+	let claim: Awaited<ReturnType<Store["claimVideoProviderSubmission"]>>;
+	try {
+		claim = await deps.store.claimVideoProviderSubmission({
+			jobId,
+			callbackTokenHash: await hashVideoCallbackToken(token),
+			providerModelId: prepared.providerModelId,
+			ruleVersion: VIDEO_V1_RULE_VERSION,
+		});
+	} catch (error) {
+		const reasonCode = error instanceof Error ? error.message : "";
+		if (
+			!["VIDEO_PRICE_INVALID", "VIDEO_PRICE_EXPIRED", "VIDEO_FUNDING_POLICY_CHANGED"].includes(
+				reasonCode,
+			)
+		)
+			throw error;
+		// This rejected claim did not obtain permission to send. A competing caller
+		// might have crossed the fence already, so release only under a no-attempt
+		// guard in the same locked transaction that terminalizes the job.
+		const failed = await deps.store.failVideoExecution(jobId, reasonCode, false, false, {
+			onlyBeforeSubmission: true,
+		});
+		if (failed) return { status: "DEFINITELY_REJECTED", reasonCode };
+		const latest = await deps.store.getVideoExecutionContext(jobId);
+		if (latest?.attempts[0]) return replaySubmission(latest.attempts[0]);
+		if (latest?.status === "FAILED")
+			return { status: "DEFINITELY_REJECTED", reasonCode: latest.failureCode ?? reasonCode };
+		throw error;
+	}
 	if (!claim.claimed) return replaySubmission(claim.attempt);
 	const attemptId = claim.attempt.id;
 	try {

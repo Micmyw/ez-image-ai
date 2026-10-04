@@ -1,6 +1,11 @@
 import path from "node:path";
 
 import { packEzPicImageModelFlags } from "@repo/config/server";
+import {
+	expandVideoRuntimeEnvironment,
+	packVideoRuntimeEnvironment,
+	VIDEO_RUNTIME_ENVIRONMENT_KEYS,
+} from "@repo/config/video-runtime-environment";
 import { videoV1Readiness } from "@repo/config/video-v1";
 
 import {
@@ -25,7 +30,8 @@ export function createProfileArtifacts(options: {
 	websiteTemplate: Record<string, unknown>;
 	jobsTemplate: Record<string, unknown>;
 }) {
-	const { environment, profile, root, target, canonicalOrigin } = options;
+	const { profile, root, target, canonicalOrigin } = options;
+	const environment = expandVideoRuntimeEnvironment(options.environment);
 	const settings = profileSettings(profile, target);
 	for (const key of ["BETTER_AUTH_SECRET", "WORKFLOWS_DISPATCH_SECRET"])
 		if (!environment[key] || environment[key].length < 32)
@@ -69,7 +75,10 @@ export function createProfileArtifacts(options: {
 	const websiteWorkersOrigin = `https://${settings.websiteName}.${dispatch.hostname.split(".").slice(1).join(".")}`;
 	if (paymentWebhookOrigin && paymentWebhookOrigin !== websiteWorkersOrigin)
 		throw new Error("INVALID_PAYMENT_WEBHOOK_INGRESS_ORIGIN");
-	const flatEnvironment = workersRuntimeEnvironment(environment);
+	const flatEnvironment = workersRuntimeEnvironment({
+		...environment,
+		VIDEO_V1_ACCESS: environment.VIDEO_V1_ACCESS ?? "internal",
+	});
 	if (environment.VIDEO_V1_ENABLED === "true") {
 		const readiness = videoV1Readiness(
 			environment,
@@ -91,8 +100,7 @@ export function createProfileArtifacts(options: {
 		class_name: "VideoGenerationWorkflowV1",
 	};
 	const videoVars = {
-		VIDEO_V1_ENABLED: environment.VIDEO_V1_ENABLED ?? "false",
-		VIDEO_V1_ACCESS: "internal",
+		VIDEO_V1_ENABLED: environment.VIDEO_V1_ENABLED === "true" ? "true" : "false",
 	};
 	const hyperdrive = [{ binding: "HYPERDRIVE", id: environment.CLOUDFLARE_HYPERDRIVE_ID }];
 	const account = environment.CLOUDFLARE_ACCOUNT_ID ?? options.jobsTemplate.account_id;
@@ -147,6 +155,17 @@ export function createProfileArtifacts(options: {
 		EZPIC_RUNTIME: "workers",
 		EZPIC_DATABASE_BINDING: "hyperdrive",
 	};
+	// Policy must have one authoritative packed copy, never an inherited flat var.
+	const jobVars = jobs.vars as Record<string, unknown>;
+	delete jobVars.VIDEO_V1_BUILD_ENABLED;
+	const effectiveVideo = expandVideoRuntimeEnvironment(flatEnvironment);
+	for (const key of VIDEO_RUNTIME_ENVIRONMENT_KEYS) {
+		if (jobVars[key] !== undefined && jobVars[key] !== effectiveVideo[key])
+			throw new Error("VIDEO_RUNTIME_TEMPLATE_CONFLICT");
+		delete jobVars[key];
+	}
+	if (jobVars.VIDEO_RUNTIME_CONFIG !== undefined)
+		throw new Error("VIDEO_RUNTIME_TEMPLATE_CONFLICT");
 	jobs.compatibility_flags = [
 		...new Set([...((jobs.compatibility_flags as string[]) ?? []), "global_fetch_strictly_public"]),
 	];
@@ -176,8 +195,14 @@ export function createProfileArtifacts(options: {
 		delete config.$schema;
 	}
 	const hybridEnvironment: Record<string, string> = { ...environment, EZPIC_RUNTIME: "node" };
+	// Containers receive the already expanded snapshot; they do not consume Worker bindings.
+	delete hybridEnvironment.VIDEO_RUNTIME_CONFIG;
 	for (const key of Object.keys(hybridEnvironment))
-		if (key.startsWith("CLOUDFLARE_") || isRetiredModerationBinding(key))
+		if (
+			key.startsWith("CLOUDFLARE_") ||
+			key === "VIDEO_V1_BUILD_ENABLED" ||
+			isRetiredModerationBinding(key)
+		)
 			delete hybridEnvironment[key];
 	const artifacts = {
 		website,
@@ -224,6 +249,7 @@ export function workersRuntimeEnvironment(environment: Record<string, string>) {
 	// in the Next.js build. Keep their build values, but do not bind them a second time.
 	// Evidence paths are offline-only; production cannot enable local test endpoints.
 	const nonRuntimeVariables = new Set([
+		"VIDEO_V1_BUILD_ENABLED",
 		...retiredModerationBindings,
 		"NEXT_PUBLIC_GOOGLE_ANALYTICS_ID",
 		"NEXT_PUBLIC_CLARITY_PROJECT_ID",
@@ -246,18 +272,20 @@ export function workersRuntimeEnvironment(environment: Record<string, string>) {
 			if (environment[key] === "false") nonRuntimeVariables.add(key);
 		}
 	}
-	return packEzPicImageModelFlags({
-		...Object.fromEntries(
-			Object.entries(environment).filter(
-				([key]) =>
-					!nonRuntimeVariables.has(key) &&
-					!/^(?:DATABASE_URL$|DIRECT_URL$|NODE_EXTRA_CA_CERTS$|JOBS_RUNTIME_ENV$|WEB_RUNTIME_ENV$|CLOUDFLARE_|EZPIC_DEPLOYMENT_PROFILE$|EZPIC_WORKERS_BUILD$)/.test(
-						key,
-					),
+	return packVideoRuntimeEnvironment(
+		packEzPicImageModelFlags({
+			...Object.fromEntries(
+				Object.entries(environment).filter(
+					([key]) =>
+						!nonRuntimeVariables.has(key) &&
+						!/^(?:DATABASE_URL$|DIRECT_URL$|NODE_EXTRA_CA_CERTS$|JOBS_RUNTIME_ENV$|WEB_RUNTIME_ENV$|CLOUDFLARE_|EZPIC_DEPLOYMENT_PROFILE$|EZPIC_WORKERS_BUILD$)/.test(
+							key,
+						),
+				),
 			),
-		),
-		NODE_ENV: "production",
-		EZPIC_RUNTIME: "workers",
-		EZPIC_DATABASE_BINDING: "hyperdrive",
-	});
+			NODE_ENV: "production",
+			EZPIC_RUNTIME: "workers",
+			EZPIC_DATABASE_BINDING: "hyperdrive",
+		}),
+	);
 }

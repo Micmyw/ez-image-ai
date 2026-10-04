@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getVideoModelOptions } from "./video-models";
 import {
@@ -29,11 +29,29 @@ const request = {
 	sound: false,
 	resolution: "default",
 };
+function approvedPriceEnvironment() {
+	return {
+		VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+		VIDEO_PRICE_BASIS: "isolated fixture only",
+		VIDEO_V1_VIDEO_SAFETY_ADAPTER: "seeapi",
+		VIDEO_COST_VISUAL_POLICY_VERSION: "seeapi-video-policy-2026-10-04.1",
+		VIDEO_COST_TEXT_RULE_VERSION: "waffo-prompt-safety-2026-10-04.1",
+		VIDEO_PRICE_VALID_UNTIL: "2026-11-01T00:00:00.000Z",
+		VIDEO_COST_MODERATION_BASE_MICROS: "10000",
+		VIDEO_COST_MODERATION_PER_SECOND_MICROS: "5000",
+		VIDEO_COST_RUNTIME_MICROS: "5000",
+		VIDEO_COST_STORAGE_MICROS: "5000",
+		VIDEO_COST_PAYMENT_FIXED_MICROS: "2000",
+		VIDEO_COST_PAYMENT_FEE_BPS: "500",
+		VIDEO_COST_NONBILLABLE_FAILURE_BPS: "1000",
+	};
+}
+afterEach(() => vi.useRealTimers());
 describe("video full variable cost pricing", () => {
 	it("uses the lowest annual revenue per issued credit including bonuses", () => {
 		expect(videoPaidCreditFloorMicros()).toBe(21_944n);
 	});
-	it("uses exact supplier tariffs including per-video steps and image surcharges", () => {
+	it("uses exact supplier tariffs including per-video steps and free single-image input", () => {
 		expect(videoSupplierCostMicros(request)).toBe(275_000n);
 		expect(videoSupplierCostMicros({ ...request, sound: true })).toBe(550_000n);
 		expect(
@@ -43,7 +61,7 @@ describe("video full variable cost pricing", () => {
 				resolution: "768p",
 				mode: "image-to-video",
 			}),
-		).toBe(220_000n);
+		).toBe(200_000n);
 		expect(
 			videoSupplierCostMicros({
 				...request,
@@ -62,6 +80,25 @@ describe("video full variable cost pricing", () => {
 			}),
 		).toBe(735_000n);
 	});
+	it.each([
+		["768p", 5, 200_000n],
+		["2k", 15, 975_000n],
+	] as const)(
+		"does not surcharge H3 single-image input at %s for %s seconds",
+		(resolution, duration, expected) => {
+			for (const mode of ["text-to-video", "image-to-video"] as const)
+				expect(
+					videoSupplierCostMicros({
+						...request,
+						productKey: "video-minimax-h3",
+						mode,
+						resolution,
+						duration,
+						sound: true,
+					}),
+				).toBe(expected);
+		},
+	);
 	it("refuses unavailable variant prices instead of aliasing another model", () => {
 		for (const productKey of [
 			"video-minimax-h3-turbo",
@@ -171,5 +208,80 @@ describe("video full variable cost pricing", () => {
 		expect(() =>
 			resolveVideoModelPrice(request, { ...env, VIDEO_PRICE_VALID_UNTIL: "2000-01-01" }),
 		).toThrow("VIDEO_PRICE_EXPIRED");
+	});
+});
+
+describe("model-specific promotional price expiry", () => {
+	it.each(["video-seedance-2-mini", "video-seedance-2-fast"])(
+		"quotes %s immediately before the cutoff and freezes the supplier deadline",
+		(productKey) => {
+			vi.useFakeTimers();
+			vi.setSystemTime(new Date("2026-10-07T05:59:59.999Z"));
+			const price = resolveVideoModelPrice(
+				{ ...request, productKey, resolution: "720p" },
+				approvedPriceEnvironment(),
+			);
+			expect(price.pricingVersion).toBe("kie-public-2026-10-04.2");
+			expect(price.pricingDetails.validUntil).toBe("2026-10-07T06:00:00.000Z");
+		},
+	);
+	it.each([
+		["video-seedance-2-mini", "2026-10-07T06:00:00.000Z"],
+		["video-seedance-2-mini", "2026-10-07T06:00:00.001Z"],
+		["video-seedance-2-fast", "2026-10-07T06:00:00.000Z"],
+		["video-seedance-2-fast", "2026-10-08T00:00:00.000Z"],
+	])("refuses a new %s quote at %s despite a later global approval", (productKey, now) => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date(now));
+		expect(() =>
+			resolveVideoModelPrice(
+				{ ...request, productKey, resolution: "720p" },
+				approvedPriceEnvironment(),
+			),
+		).toThrow("VIDEO_MODEL_PRICE_EXPIRED");
+	});
+	it.each(["video-seedance-2-mini", "video-seedance-2-fast"])(
+		"does not extend an earlier approved expiry for %s",
+		(productKey) => {
+			vi.useFakeTimers();
+			vi.setSystemTime(new Date("2026-10-05T00:00:00.000Z"));
+			const env = {
+				...approvedPriceEnvironment(),
+				VIDEO_PRICE_VALID_UNTIL: "2026-10-06T00:00:00.000Z",
+			};
+			const selection = { ...request, productKey, resolution: "720p" };
+			expect(resolveVideoModelPrice(selection, env).pricingDetails.validUntil).toBe(
+				env.VIDEO_PRICE_VALID_UNTIL,
+			);
+			vi.setSystemTime(new Date(env.VIDEO_PRICE_VALID_UNTIL));
+			expect(() => resolveVideoModelPrice(selection, env)).toThrow("VIDEO_PRICE_EXPIRED");
+		},
+	);
+	it.each([
+		["video-kling-2-6-v1", "default"],
+		["video-minimax-h3", "768p"],
+		["video-seedance-2", "720p"],
+		["video-seedance-2-5", "720p"],
+	])(
+		"keeps %s available under its own approval after Mini/Fast expire",
+		(productKey, resolution) => {
+			vi.useFakeTimers();
+			vi.setSystemTime(new Date("2026-10-08T00:00:00.000Z"));
+			const env = approvedPriceEnvironment();
+			expect(
+				resolveVideoModelPrice({ ...request, productKey, resolution }, env).pricingDetails
+					.validUntil,
+			).toBe(env.VIDEO_PRICE_VALID_UNTIL);
+		},
+	);
+	it("requires explicit approval of the revised tariff version", () => {
+		vi.useFakeTimers();
+		vi.setSystemTime(new Date("2026-10-05T00:00:00.000Z"));
+		expect(() =>
+			resolveVideoModelPrice(request, {
+				...approvedPriceEnvironment(),
+				VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.1",
+			}),
+		).toThrow("VIDEO_PRICE_NOT_APPROVED");
 	});
 });

@@ -30,6 +30,160 @@ const staged = {
 const response = (result: unknown) => Response.json({ success: true, result });
 
 describe("retired Worker bindings", () => {
+	it("stages covered video settings while preserving the flat kill switch, secrets, and resources", async () => {
+		const settings = {
+			VIDEO_V1_PROVIDER_CONCURRENCY: "5",
+			VIDEO_V1_OUTPUT_ALLOWED_HOSTS: "cdn.example.test",
+		};
+		const bindings = Object.keys(settings).map((name, index) => ({
+			name,
+			type: index === 0 ? "secret_text" : "plain_text",
+		}));
+		const preserved = [
+			{ name: "VIDEO_V1_ENABLED", type: "plain_text" },
+			{ name: "KIE_WEBHOOK_SECRET", type: "secret_text" },
+			{ name: "VIDEO_SEEAPI_CALLBACK_SECRET", type: "secret_text" },
+			{ name: "SEEAPI_WEBHOOK_SIGNING_KEYS", type: "secret_text" },
+			{ name: "VIDEO_WORKFLOW", type: "workflow" },
+			{ name: "VIDEO_MEDIA_BUCKET", type: "r2_bucket" },
+			{ name: "MEDIA_GENERATION_ENABLED", type: "plain_text" },
+			{ name: "VIDEO_UNRELATED_SETTING", type: "secret_text" },
+		];
+		const request = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(response({ id: "old-version", bindings: [...bindings, ...preserved] }))
+			.mockResolvedValueOnce(response({ id: "staged-version", bindings: preserved }));
+		await expect(
+			stageRetiredWorkerBindings(
+				{
+					...options,
+					nextBindingNames: ["VIDEO_RUNTIME_CONFIG"],
+					nextVideoRuntimeConfig: JSON.stringify(settings),
+				},
+				request,
+			),
+		).resolves.toEqual({ versionId: "staged-version", retired: Object.keys(settings) });
+		expect(request).toHaveBeenCalledTimes(2);
+		expect(request.mock.calls[1]![1]!.method).toBe("PATCH");
+		expect(JSON.parse(request.mock.calls[1]![1]!.body as string)).toEqual({
+			env: Object.fromEntries(Object.keys(settings).map((name) => [name, null])),
+			annotations: {
+				"workers/message":
+					"Prepare retired bindings for release-sha; do not deploy this intermediate version",
+			},
+		});
+	});
+	it("does not retire video settings without an explicit next packed binding", async () => {
+		const binding = { name: "VIDEO_V1_PROVIDER_CONCURRENCY", type: "secret_text" };
+		for (const extra of [{}, { nextVideoRuntimeConfig: JSON.stringify({ [binding.name]: "5" }) }]) {
+			const request = vi
+				.fn<typeof fetch>()
+				.mockResolvedValue(response({ id: "old-version", bindings: [binding] }));
+			await expect(stageRetiredWorkerBindings({ ...options, ...extra }, request)).resolves.toEqual({
+				versionId: "old-version",
+				retired: [],
+			});
+			expect(request).toHaveBeenCalledTimes(1);
+		}
+	});
+	it.each([
+		undefined,
+		"",
+		"{",
+		"null",
+		"[]",
+		'{"VIDEO_V1_UPLOAD_CORS_READY":true}',
+		'{"VIDEO_V1_ENABLED":"false"}',
+		'{"KIE_API_KEY":"not-a-runtime-setting"}',
+		'{"VIDEO_SEEAPI_CALLBACK_SECRET":"not-a-runtime-setting"}',
+		'{"VIDEO_WORKFLOW":"not-a-runtime-setting"}',
+		'{"VIDEO_MEDIA_BUCKET":"not-a-runtime-setting"}',
+		'{"VIDEO_UNKNOWN_SETTING":"false"}',
+	])("rejects invalid video replacement before contacting Cloudflare: %j", async (value) => {
+		const request = vi.fn<typeof fetch>();
+		await expect(
+			stageRetiredWorkerBindings(
+				{ ...options, nextBindingNames: ["VIDEO_RUNTIME_CONFIG"], nextVideoRuntimeConfig: value },
+				request,
+			),
+		).rejects.toThrow("VIDEO_RUNTIME_CONFIG");
+		expect(request).not.toHaveBeenCalled();
+	});
+	it("rejects an inherited video setting missing from a partial replacement before PATCH", async () => {
+		const request = vi.fn<typeof fetch>().mockResolvedValue(
+			response({
+				id: "old-version",
+				bindings: [
+					{ name: "VIDEO_V1_PROVIDER_CONCURRENCY", type: "secret_text" },
+					{ name: "VIDEO_V1_OUTPUT_ALLOWED_HOSTS", type: "plain_text" },
+				],
+			}),
+		);
+		await expect(
+			stageRetiredWorkerBindings(
+				{
+					...options,
+					nextBindingNames: ["VIDEO_RUNTIME_CONFIG"],
+					nextVideoRuntimeConfig: JSON.stringify({ VIDEO_V1_PROVIDER_CONCURRENCY: "5" }),
+				},
+				request,
+			),
+		).rejects.toThrow("VIDEO_RUNTIME_BINDING_REPLACEMENT_MISSING: VIDEO_V1_OUTPUT_ALLOWED_HOSTS");
+		expect(request).toHaveBeenCalledTimes(1);
+		expect(request.mock.calls[0]![1]!.method).toBe("GET");
+	});
+	it("preserves explicitly retained video settings and same-named non-text bindings", async () => {
+		const bindings = [
+			{ name: "VIDEO_V1_PROVIDER_CONCURRENCY", type: "secret_text" },
+			{ name: "VIDEO_V1_OUTPUT_ALLOWED_HOSTS", type: "service" },
+		];
+		const request = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(response({ id: "old-version", bindings }));
+		await expect(
+			stageRetiredWorkerBindings(
+				{
+					...options,
+					nextBindingNames: ["VIDEO_RUNTIME_CONFIG", "VIDEO_V1_PROVIDER_CONCURRENCY"],
+					nextVideoRuntimeConfig: JSON.stringify({
+						VIDEO_V1_OUTPUT_ALLOWED_HOSTS: "cdn.example.test",
+					}),
+				},
+				request,
+			),
+		).resolves.toEqual({ versionId: "old-version", retired: [] });
+		expect(request).toHaveBeenCalledTimes(1);
+	});
+	it("stages image and video replacements together in one undeployed snapshot", async () => {
+		const bindings = [
+			{ name: "MEDIA_GPT_IMAGE_2_ENABLED", type: "secret_text" },
+			{ name: "VIDEO_V1_PROVIDER_CONCURRENCY", type: "plain_text" },
+		];
+		const preserved = [{ name: "VIDEO_V1_ENABLED", type: "plain_text" }];
+		const request = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(response({ id: "old-version", bindings: [...bindings, ...preserved] }))
+			.mockResolvedValueOnce(response({ id: "staged-version", bindings: preserved }));
+		await expect(
+			stageRetiredWorkerBindings(
+				{
+					...options,
+					nextBindingNames: ["MEDIA_IMAGE_MODEL_FLAGS", "VIDEO_RUNTIME_CONFIG", "VIDEO_V1_ENABLED"],
+					nextImageModelFlags: JSON.stringify({ MEDIA_GPT_IMAGE_2_ENABLED: "false" }),
+					nextVideoRuntimeConfig: JSON.stringify({ VIDEO_V1_PROVIDER_CONCURRENCY: "5" }),
+				},
+				request,
+			),
+		).resolves.toEqual({
+			versionId: "staged-version",
+			retired: bindings.map(({ name }) => name),
+		});
+		expect(request).toHaveBeenCalledTimes(2);
+		expect(JSON.parse(request.mock.calls[1]![1]!.body as string).env).toEqual({
+			MEDIA_GPT_IMAGE_2_ENABLED: null,
+			VIDEO_V1_PROVIDER_CONCURRENCY: null,
+		});
+	});
 	it("stages only model flags replaced by the validated next packed binding", async () => {
 		const flags = Object.fromEntries(
 			Object.values(EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS).map((name, index) => [

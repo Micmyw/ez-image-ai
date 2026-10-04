@@ -139,6 +139,8 @@ if (command === "build") {
 		nextBindingNames: [...Object.keys(config.vars ?? {}), ...Object.keys(secretSnapshot)],
 		nextImageModelFlags:
 			config.vars?.MEDIA_IMAGE_MODEL_FLAGS ?? secretSnapshot.MEDIA_IMAGE_MODEL_FLAGS,
+		nextVideoRuntimeConfig:
+			config.vars?.VIDEO_RUNTIME_CONFIG ?? secretSnapshot.VIDEO_RUNTIME_CONFIG,
 		versionTag: sha,
 		token: process.env.CLOUDFLARE_API_TOKEN ?? "",
 	});

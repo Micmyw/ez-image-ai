@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 
+import { readVideoInternalFundingSnapshot } from "@repo/config/video-internal-funding";
 import { VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
 import { readVideoAudioSafetyPolicy, type VideoAudioSafetyPolicy } from "@repo/config/video-output";
 import {
@@ -43,6 +44,7 @@ export interface VideoPrice {
 	providerCostMicros: bigint;
 	moderationCostMicros: bigint;
 	pricingBasis: string;
+	paidFundingPolicy?: PaidCreditFundingPolicy;
 	pricingDetails?: Prisma.InputJsonObject;
 }
 export type VideoAdmissionLimits = {
@@ -117,6 +119,13 @@ function videoPricingSnapshot(price: VideoPrice) {
 		moderationCostMicros: price.moderationCostMicros.toString(),
 		pricingBasis: price.pricingBasis,
 		pricingVersion: price.pricingVersion,
+		...(price.paidFundingPolicy
+			? {
+					paidFundingPolicy: {
+						minimumUsdMicrosPerCredit: price.paidFundingPolicy.minimumUsdMicrosPerCredit.toString(),
+					},
+				}
+			: {}),
 		...(price.pricingDetails ? { pricingDetails: price.pricingDetails } : {}),
 		settlementPolicy: {
 			unitCredits: price.credits.toString(),
@@ -374,6 +383,18 @@ export async function createVideoJobRecord(
 				})
 		)
 			throw new Error("PRICE_CHANGED");
+		const funding = input.price.pricingDetails?.funding;
+		if (
+			(funding !== undefined &&
+				(!readVideoInternalFundingSnapshot(funding, input.ownerId, now) ||
+					input.price.pricingDetails?.paidRevenueQualified !== false ||
+					input.price.paidFundingPolicy !== undefined ||
+					input.paidFundingPolicy !== undefined)) ||
+			(input.price.paidFundingPolicy !== undefined &&
+				input.price.paidFundingPolicy.minimumUsdMicrosPerCredit !==
+					input.paidFundingPolicy?.minimumUsdMicrosPerCredit)
+		)
+			throw new Error("VIDEO_FUNDING_POLICY_CHANGED");
 		if (
 			fingerprintVideoRequest(input.ownerId, snapshotRequest(quote.inputSnapshot)) !==
 			fingerprintVideoRequest(input.ownerId, request)

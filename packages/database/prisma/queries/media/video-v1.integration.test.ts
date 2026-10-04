@@ -1,4 +1,5 @@
 import { PrismaPg } from "@prisma/adapter-pg";
+import { applyVideoInternalFunding } from "@repo/config/video-internal-funding";
 import { createVideoAudioSafetyPolicy } from "@repo/config/video-output";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
@@ -6,7 +7,12 @@ import { afterAll, afterEach, beforeAll, describe, expect, it } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
 import { createMediaUploadSessionTransaction } from "./assets";
-import { createCreditGrant, releaseCredits, reserveCreditsInTransaction } from "./credits";
+import {
+	createCreditGrant,
+	releaseCredits,
+	reserveCreditsInTransaction,
+	settleCredits,
+} from "./credits";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
 import {
 	createVideoJobRecord,
@@ -14,6 +20,7 @@ import {
 	getVideoJobRecord,
 	listVideoJobRecords,
 	fingerprintVideoRequest,
+	type VideoPrice,
 } from "./video-v1";
 
 const request = {
@@ -139,6 +146,47 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		});
 	}
 	const paidFundingPolicy = { minimumUsdMicrosPerCredit: 21_944n };
+	async function requote(f: Awaited<ReturnType<typeof fixture>>, quotedPrice: VideoPrice) {
+		const quote = await createVideoQuoteRecord(
+			{
+				...f.input,
+				price: quotedPrice,
+				maximumInputBytes: limits.maximumInputBytes,
+			},
+			client,
+		);
+		return {
+			...f,
+			quote,
+			input: {
+				...f.input,
+				quoteId: quote.quoteId,
+				price: quotedPrice,
+				paidFundingPolicy: quotedPrice.paidFundingPolicy,
+			},
+		};
+	}
+	async function operatorFixture() {
+		const f = await fixture(1000n);
+		const validUntil = new Date(Date.now() + 60_000).toISOString();
+		const operatorPrice = applyVideoInternalFunding(
+			{
+				...price,
+				paidFundingPolicy,
+				pricingDetails: { validUntil, creditFloorMicros: "21944", profitMicros: "100000" },
+			},
+			{ userId: f.ownerId, role: "admin" },
+			{
+				VIDEO_V1_ACCESS: "internal",
+				VIDEO_INTERNAL_FUNDING: JSON.stringify({
+					userIds: [f.ownerId],
+					validUntil,
+					reason: "Explicit isolated test authorization",
+				}),
+			},
+		);
+		return requote(f, operatorPrice);
+	}
 	async function paidSubscriptionGrant(
 		ownerId: string,
 		accountId: string,
@@ -260,6 +308,124 @@ describe("video V1 admission isolated PostgreSQL", () => {
 		await createCreditGrant({ accountId, amount: 100n + bonusCredits, referenceKey }, client);
 		return referenceKey;
 	}
+	it("explicit operator funding reserves genuine ordinary lots once and settles the actual debit", async () => {
+		const f = await operatorFixture();
+		const results = await Promise.all(
+			Array.from({ length: 20 }, () => createVideoJobRecord(f.input, client)),
+		);
+		expect(new Set(results.map((result) => result.jobId)).size).toBe(1);
+		expect(results.filter((result) => !result.replayed)).toHaveLength(1);
+		const job = await client.generationJob.findUniqueOrThrow({
+			where: { id: results[0]!.jobId },
+			include: { reservation: true },
+		});
+		expect(job.pricingSnapshot).toMatchObject({
+			pricingDetails: {
+				paidRevenueQualified: false,
+				funding: { mode: "operator-funded-internal-v1", authorizedOwnerId: f.ownerId },
+				retailReference: { profitMicros: "100000" },
+			},
+		});
+		expect(await client.creditAccount.findUnique({ where: { id: f.account.id } })).toMatchObject({
+			spendableCredits: 993n,
+			reservedCredits: 7n,
+		});
+		const allocations = await client.creditReservationAllocation.findMany({
+			where: { reservationId: job.reservation!.id },
+			include: { lot: true },
+		});
+		expect(allocations).toHaveLength(1);
+		expect(allocations[0]!.lot.grantReferenceKey).toBe(`test:${f.ownerId}`);
+		expect(
+			await client.creditLedgerEntry.count({
+				where: { reservationId: job.reservation!.id, type: "RESERVE" },
+			}),
+		).toBe(1);
+		expect(
+			await client.billingPeriod.count({ where: { subscription: { ownerId: f.ownerId } } }),
+		).toBe(0);
+		expect(await client.creditPackFulfillment.count({ where: { ownerId: f.ownerId } })).toBe(0);
+		await settleCredits(
+			{ reservationId: job.reservation!.id, amount: 7n, referenceKey: `test:${job.id}:settle` },
+			client,
+		);
+		expect(await client.creditAccount.findUnique({ where: { id: f.account.id } })).toMatchObject({
+			spendableCredits: 993n,
+			reservedCredits: 0n,
+		});
+		await expect(
+			createVideoJobRecord({ ...f.input, price, paidFundingPolicy }, client),
+		).resolves.toMatchObject({ jobId: job.id, replayed: true });
+		expect(
+			(await client.generationJob.findUniqueOrThrow({ where: { id: job.id } })).pricingSnapshot,
+		).toEqual(job.pricingSnapshot);
+	});
+	it("requires a new quote when operator authorization changes or is removed", async () => {
+		const f = await operatorFixture();
+		const funding = f.input.price.pricingDetails!.funding as Record<string, string>;
+		for (const changedPrice of [
+			{ ...price, paidFundingPolicy },
+			{
+				...f.input.price,
+				pricingDetails: {
+					...f.input.price.pricingDetails,
+					funding: { ...funding, reason: "different authorization" },
+				},
+			},
+		]) {
+			await expect(
+				createVideoJobRecord({ ...f.input, price: changedPrice }, client),
+			).rejects.toThrow("PRICE_CHANGED");
+		}
+		expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
+	});
+	it.each(["expired", "wrong-owner", "paid-policy"] as const)(
+		"rejects %s operator funding at the transaction boundary before reserving",
+		async (failure) => {
+			let f = await operatorFixture();
+			if (failure !== "paid-policy") {
+				const funding = f.input.price.pricingDetails!.funding as Record<string, string>;
+				f = await requote(f, {
+					...f.input.price,
+					pricingDetails: {
+						...f.input.price.pricingDetails,
+						funding: {
+							...funding,
+							...(failure === "expired"
+								? { validUntil: new Date(Date.now() - 1000).toISOString() }
+								: { authorizedOwnerId: "other-admin" }),
+						},
+					},
+				});
+			}
+			await expect(
+				createVideoJobRecord(
+					{ ...f.input, ...(failure === "paid-policy" ? { paidFundingPolicy } : {}) },
+					client,
+				),
+			).rejects.toThrow("VIDEO_FUNDING_POLICY_CHANGED");
+			expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
+		},
+	);
+	it("binds new paid funding quotes to the exact policy and forbids omission or downgrade", async () => {
+		const f = await requote(await fixture(), { ...price, paidFundingPolicy });
+		await expect(
+			createVideoJobRecord({ ...f.input, paidFundingPolicy: undefined }, client),
+		).rejects.toThrow("VIDEO_FUNDING_POLICY_CHANGED");
+		await expect(
+			createVideoJobRecord(
+				{ ...f.input, paidFundingPolicy: { minimumUsdMicrosPerCredit: 1n } },
+				client,
+			),
+		).rejects.toThrow("VIDEO_FUNDING_POLICY_CHANGED");
+		await expect(createVideoJobRecord({ ...f.input, price }, client)).rejects.toThrow(
+			"PRICE_CHANGED",
+		);
+		await expect(createVideoJobRecord(f.input, client)).rejects.toThrow(
+			"INSUFFICIENT_PAID_CREDITS",
+		);
+		expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(0);
+	});
 	it("paid video policy rejects free grants while the default ledger path remains unchanged", async () => {
 		const f = await fixture();
 		await expect(createVideoJobRecord({ ...f.input, paidFundingPolicy }, client)).rejects.toThrow(

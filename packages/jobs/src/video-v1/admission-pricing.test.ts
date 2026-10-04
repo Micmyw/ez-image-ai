@@ -1,4 +1,4 @@
-import { VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
+import { VIDEO_MODEL_CATALOG, VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
 import { createVideoAudioSafetyPolicy } from "@repo/config/video-output";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
 import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
@@ -61,6 +61,17 @@ const environment = {
 	VIDEO_V1_MODERATION_CALLBACK_CONFIGURED: "true",
 	VIDEO_V1_MODERATION_WEBHOOK_SECRET: "casec_fixture",
 	VIDEO_MODEL_CONTRACT_VERSION: VIDEO_MODEL_CATALOG_VERSION,
+	VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify(
+		VIDEO_MODEL_CATALOG.filter((model) => model.status === "implemented").flatMap((model) =>
+			model.groups.map((group) => ({
+				productKey: model.productKey,
+				modes: [group.mode],
+				durations: group.durations,
+				resolutions: group.resolutions,
+				sounds: group.sounds,
+			})),
+		),
+	),
 	VIDEO_V1_TEXT_SAFETY_ADAPTER: "waffo",
 	VIDEO_V1_VIDEO_SAFETY_ADAPTER: "seeapi",
 	VIDEO_COST_VISUAL_POLICY_VERSION: createVideoVisualSafetyProfile("seeapi", 5).policyVersion,
@@ -95,6 +106,81 @@ beforeEach(() => {
 	vi.mocked(findExistingVideoAdmission).mockResolvedValue(null);
 });
 describe("video admission pricing and paid funding binding", () => {
+	it("uses the same explicit operator funding decision for quotation and job creation", async () => {
+		const operator = { userId: "funding-test-operator", role: "admin" };
+		const internalEnvironment = {
+			...environment,
+			VIDEO_INTERNAL_FUNDING: JSON.stringify({
+				userIds: [operator.userId],
+				validUntil: new Date(Date.now() + 60_000).toISOString(),
+				reason: "Explicit local acceptance fixture",
+			}),
+		};
+		const quoted = requireVideoAdmission(operator, internalEnvironment, bindings, legacyRequest);
+		expect(quoted.price.paidFundingPolicy).toBeUndefined();
+		expect(quoted.price.credits).toBe(fixtures.price.credits);
+		expect(quoted.price.pricingDetails).toMatchObject({
+			paidRevenueQualified: false,
+			funding: { mode: "operator-funded-internal-v1", authorizedOwnerId: operator.userId },
+		});
+		await createVideoJob(
+			operator,
+			{ quoteId: "quote", idempotencyKey: "operator-request", request: legacyRequest },
+			{ ...options, environment: internalEnvironment },
+		);
+		expect(createVideoJobRecord).toHaveBeenCalledWith(
+			expect.objectContaining({ price: quoted.price, paidFundingPolicy: undefined }),
+			expect.anything(),
+		);
+	});
+	it("does not extend configured ordinary-credit funding to another administrator", () => {
+		const quoted = requireVideoAdmission(
+			{ userId: "another-admin", role: "admin" },
+			{
+				...environment,
+				VIDEO_INTERNAL_FUNDING: JSON.stringify({
+					userIds: ["funding-test-operator"],
+					validUntil: new Date(Date.now() + 60_000).toISOString(),
+					reason: "Explicit local acceptance fixture",
+				}),
+			},
+			bindings,
+			legacyRequest,
+		);
+		expect(quoted.price).toBe(fixtures.price);
+		expect(quoted.price.paidFundingPolicy).toBe(fixtures.price.paidFundingPolicy);
+	});
+	it("replays an operator-funded accepted request after the exception has been disabled", async () => {
+		vi.mocked(findExistingVideoAdmission).mockResolvedValue({ id: "job-1" } as never);
+		await createVideoJob(
+			{ userId: "funding-test-operator", role: "admin" },
+			{ quoteId: "old-quote", idempotencyKey: "operator-request", request: legacyRequest },
+			{ ...options, environment: { VIDEO_V1_ENABLED: "false" } },
+		);
+		expect(resolveVideoModelPrice).not.toHaveBeenCalled();
+		expect(createVideoJobRecord).not.toHaveBeenCalled();
+	});
+	it("rejects an unselected option before pricing or creating any reservation", async () => {
+		await expect(
+			createVideoJob(
+				{ userId: "owner" },
+				{ quoteId: "quote", idempotencyKey: "request", request: legacyRequest },
+				{ ...options, environment: { ...environment, VIDEO_MODEL_ALLOWED_OPTIONS: "[]" } },
+			),
+		).rejects.toThrow("VIDEO_MODEL_OPTIONS_INVALID");
+		expect(resolveVideoModelPrice).not.toHaveBeenCalled();
+		expect(createVideoJobRecord).not.toHaveBeenCalled();
+	});
+	it("replays an already accepted request after its option is removed", async () => {
+		vi.mocked(findExistingVideoAdmission).mockResolvedValue({ id: "job-1" } as never);
+		await createVideoJob(
+			{ userId: "owner" },
+			{ quoteId: "quote", idempotencyKey: "request", request: legacyRequest },
+			{ ...options, environment: { ...environment, VIDEO_MODEL_ALLOWED_OPTIONS: "[]" } },
+		);
+		expect(resolveVideoModelPrice).not.toHaveBeenCalled();
+		expect(createVideoJobRecord).not.toHaveBeenCalled();
+	});
 	it("applies current paid funding policy even to a new request using the legacy fixed input shape", async () => {
 		await createVideoJob(
 			{ userId: "owner" },

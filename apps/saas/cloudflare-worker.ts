@@ -1,3 +1,4 @@
+import { hydrateVideoRuntimeEnvironment } from "@repo/config/video-runtime-environment";
 import {
 	createLazyDatabaseClient,
 	createRuntimeDatabaseClient,
@@ -18,6 +19,8 @@ import generatedWorker from "./.open-next/worker.js";
 import { runScopedWorkerRequest, type WorkerExecutionContext } from "./cloudflare/request-scope";
 
 interface WebsiteWorkerEnvironment {
+	VIDEO_RUNTIME_CONFIG?: string;
+	VIDEO_V1_ENABLED?: string;
 	CANONICAL_ORIGIN: string;
 	PAYMENT_WEBHOOK_INGRESS_ORIGIN?: string;
 	HYPERDRIVE: { connectionString: string };
@@ -41,33 +44,34 @@ export default {
 		environment: WebsiteWorkerEnvironment,
 		executionContext: WorkerExecutionContext,
 	): Promise<Response> {
+		const runtimeEnvironment = hydrateVideoRuntimeEnvironment(environment);
 		return forwardToWebsite(
 			request,
-			environment.CANONICAL_ORIGIN,
+			runtimeEnvironment.CANONICAL_ORIGIN,
 			async (forwardedRequest) => {
-				if (!environment.HYPERDRIVE?.connectionString || !environment.IMAGES) {
+				if (!runtimeEnvironment.HYPERDRIVE?.connectionString || !runtimeEnvironment.IMAGES) {
 					throw new Error("WEBSITE_WORKER_BINDINGS_REQUIRED");
 				}
-				const processor = createCloudflareImagesProcessor(environment.IMAGES);
+				const processor = createCloudflareImagesProcessor(runtimeEnvironment.IMAGES);
 				// Most requests (prefetches, public pages) never query the
 				// database; allocate the client only on first actual access.
 				const client = createLazyDatabaseClient(() =>
-					createRuntimeDatabaseClient(environment.HYPERDRIVE.connectionString),
+					createRuntimeDatabaseClient(runtimeEnvironment.HYPERDRIVE.connectionString),
 				);
 				return runScopedWorkerRequest(
 					forwardedRequest,
-					environment,
+					runtimeEnvironment,
 					executionContext,
 					{
 						run: (callback) =>
 							runWithDatabaseClient(client, () =>
 								runWithImageProcessor(processor, () =>
 									runWithCloudflareRemoteMedia(() =>
-										environment.VIDEO_WORKFLOW
-											? runWithVideoWorkflowBinding(environment.VIDEO_WORKFLOW, callback, {
-													r2: Boolean(environment.VIDEO_MEDIA_BUCKET),
-													hyperdrive: Boolean(environment.HYPERDRIVE?.connectionString),
-													uploadCors: environment.VIDEO_V1_UPLOAD_CORS_READY === "true",
+										runtimeEnvironment.VIDEO_WORKFLOW
+											? runWithVideoWorkflowBinding(runtimeEnvironment.VIDEO_WORKFLOW, callback, {
+													r2: Boolean(runtimeEnvironment.VIDEO_MEDIA_BUCKET),
+													hyperdrive: Boolean(runtimeEnvironment.HYPERDRIVE?.connectionString),
+													uploadCors: runtimeEnvironment.VIDEO_V1_UPLOAD_CORS_READY === "true",
 												})
 											: callback(),
 									),
@@ -78,7 +82,7 @@ export default {
 					(request, environment, context) => openNextWorker.fetch(request, environment, context),
 				);
 			},
-			environment.PAYMENT_WEBHOOK_INGRESS_ORIGIN,
+			runtimeEnvironment.PAYMENT_WEBHOOK_INGRESS_ORIGIN,
 		);
 	},
 };

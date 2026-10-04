@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-05
+
+### Video beta configuration and pricing
+
+- Limit new video requests to explicitly enabled model, input, duration, resolution and sound combinations. Existing accepted work retains its saved settings during recovery.
+- Correct H3 single-image pricing and stop new Seedance Mini/Fast quotes when their published promotion expires. Keep the current reference prices and operating-cost assumptions auditable.
+- Support time-limited, named administrator acceptance using existing credits, with the funding source recorded separately from paid customer revenue.
+
 ## 2026-10-04
 
 ### Resources and interactive Photo Ideas

@@ -185,6 +185,7 @@ const price = {
 	providerCostMicros: 2n,
 	moderationCostMicros: 1n,
 	pricingBasis: "SYNTHETIC_TEST_ONLY_NOT_A_FORMAL_PRICE",
+	pricingDetails: { validUntil: new Date(Date.now() + 3600_000).toISOString() },
 };
 const visualSafetyProfile = createVideoVisualSafetyProfile("seeapi", 5);
 const instances = new Set<string>();

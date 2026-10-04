@@ -10,10 +10,13 @@
 		"./photo-ideas": "./photo-ideas.ts",
 		"./video-v1": "./video-v1.ts",
 		"./video-models": "./video-models.ts",
+		"./video-model-access": "./video-model-access.ts",
+		"./video-internal-funding": "./video-internal-funding.ts",
 		"./video-output": "./video-output.ts",
 		"./video-safety": "./video-safety.ts",
 		"./video-text-safety": "./video-text-safety.ts",
 		"./video-seeapi-callback": "./video-seeapi-callback.ts",
+		"./video-runtime-environment": "./video-runtime-environment.ts",
 		"./video-pricing.server": "./video-pricing.server.ts",
 		"./server": "./server.ts"
 	},

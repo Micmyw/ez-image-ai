@@ -1,5 +1,14 @@
 # Video generation V1: verified implementation map
 
+The 2026-10-05 configuration/acceptance batch starts from deployed main commit
+`600194011888e228e8a11e17016a2541f9426adc`. Added responsibilities:
+
+- `packages/config/video-runtime-environment.ts`: private policy packing, strict parsing and Worker hydration; `apps/web-host/src/build-secrets.ts` supplies the explicit build admission switch.
+- `packages/config/video-model-access.ts`: server-owned model/parameter allowlist, shared by admission and catalog. `packages/api/modules/video-v1/uploads.ts` checks an allowed image option before upload.
+- `packages/config/video-internal-funding.ts`: named, expiring administrator acceptance from existing credits. Admission and the database freeze and verify the funding decision without creating paid receipts.
+- `packages/config/video-pricing.server.ts`: corrected H3 single-image fee and model-specific promotion expiry. `video-v1-execution.ts` checks frozen price/authorization deadlines before the first paid submission.
+- [Activation record](../operations/video-v1-activation-2026-10-05.md): current cost assumptions, full parameter price reference, release evidence and rollback.
+
 Review handoff: branch `codex/video-v1-release`, integrated onto
 `e4f6b81fd8fc8e769b975e6c59177a1afefa06a9`. The responsibilities below describe
 the implemented paths; the [review branch inventory](video-v1-review-files.md)

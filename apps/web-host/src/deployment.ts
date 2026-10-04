@@ -1,3 +1,5 @@
+import { expandVideoRuntimeEnvironment } from "@repo/config/video-runtime-environment";
+
 import { isRetiredModerationBinding } from "./retired-moderation-bindings";
 
 export const containerDatabaseCa = "/app/tooling/certificates/supabase-prod-ca-2021.crt";
@@ -31,15 +33,17 @@ export function publicBuildVariables(environment: Record<string, string>): Recor
 }
 
 export function deploymentEnvironment(
-	environment: Record<string, string>,
+	input: Record<string, string>,
 	canonicalOrigin: string,
 ): Record<string, string> {
+	const environment = expandVideoRuntimeEnvironment(input);
 	if (environment.NEXT_PUBLIC_SAAS_URL !== canonicalOrigin) throw new Error("WEB_ORIGIN_MISMATCH");
 	publicBuildVariables(environment);
 	const result = Object.fromEntries(
 		Object.entries(environment).filter(
 			([key, value]) =>
 				value &&
+				key !== "VIDEO_V1_BUILD_ENABLED" &&
 				!isRetiredModerationBinding(key) &&
 				!/^(?:LOAD_|TEST_|E2E_|INVARIANT_|REQUIRE_LOAD_|ALLOW_REMOTE_LOAD_TARGET$|DIRECT_URL$|JOBS_RUNTIME_ENV$)/.test(
 					key,

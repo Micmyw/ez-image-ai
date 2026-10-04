@@ -1,8 +1,10 @@
+import { readVideoInternalFundingSnapshot } from "@repo/config/video-internal-funding";
 import {
 	isApprovedVideoTextDecision,
 	readVideoTextSafetyProfile,
 	videoTextSafetyProfilesMatch,
 } from "@repo/config/video-text-safety";
+import { z } from "zod";
 
 import { Prisma as RuntimePrisma } from "#prisma-runtime-client";
 
@@ -19,6 +21,7 @@ import {
 
 const ENGINE = "video-workflow-v1";
 const terminal = new Set(["READY", "FAILED", "REJECTED"]);
+const priceDeadlineSchema = z.iso.datetime({ offset: true });
 const object = (value: unknown): Record<string, unknown> =>
 	value && typeof value === "object" && !Array.isArray(value)
 		? (value as Record<string, unknown>)
@@ -178,6 +181,24 @@ export async function claimVideoProviderSubmission(input: {
 			},
 		});
 		if (!outputReservation) throw new Error("VIDEO_STORAGE_RESERVATION_REQUIRED");
+		// A job can wait in moderation beyond a frozen price/authorization deadline.
+		// Recheck under the submission lock using the database's current clock, but
+		// never apply this to an existing may-have-sent attempt returned above.
+		const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`
+			SELECT clock_timestamp() AS "now"`;
+		if (!clock || !Number.isFinite(clock.now.getTime()))
+			throw new Error("DATABASE_CLOCK_UNAVAILABLE");
+		const pricingDetails = object(object(job.pricingSnapshot).pricingDetails);
+		const priceDeadline = priceDeadlineSchema.safeParse(pricingDetails.validUntil);
+		if (!priceDeadline.success) throw new Error("VIDEO_PRICE_INVALID");
+		if (Date.parse(priceDeadline.data) <= clock.now.getTime())
+			throw new Error("VIDEO_PRICE_EXPIRED");
+		if (
+			pricingDetails.funding !== undefined &&
+			(!readVideoInternalFundingSnapshot(pricingDetails.funding, job.ownerId, clock.now) ||
+				pricingDetails.paidRevenueQualified !== false)
+		)
+			throw new Error("VIDEO_FUNDING_POLICY_CHANGED");
 		const attempt = await tx.generationAttempt.create({
 			data: {
 				jobId: job.id,
@@ -274,6 +295,7 @@ export async function failVideoExecution(
 	reasonCode: string,
 	rejected = false,
 	onlyBeforeAccepted = false,
+	options: { onlyBeforeSubmission?: boolean } = {},
 ) {
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
 		await lockVideoOwnerStorage(tx, jobId);
@@ -281,6 +303,7 @@ export async function failVideoExecution(
 		if (
 			terminal.has(job.videoExecution!.stage) ||
 			job.videoExecution!.stage === "NEEDS_REVIEW" ||
+			(options.onlyBeforeSubmission && job.attempts.length > 0) ||
 			job.attempts[0]?.status === "SUCCEEDED" ||
 			(onlyBeforeAccepted && job.attempts[0]?.providerTaskId) ||
 			(!onlyBeforeAccepted &&

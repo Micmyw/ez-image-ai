@@ -1,3 +1,5 @@
+import { applyVideoInternalFunding } from "@repo/config/video-internal-funding";
+import { isVideoModelOptionAllowed, readVideoModelAccess } from "@repo/config/video-model-access";
 import {
 	getVideoModel,
 	validateVideoModelSelection,
@@ -39,7 +41,7 @@ export function requireVideoAdmission(
 	context: VideoOwnerContext,
 	environment: Record<string, string | undefined>,
 	bindings: VideoV1Bindings,
-	request?: VideoRequestInput,
+	request?: VideoRequestInput | VideoModelSelection,
 ) {
 	const config = readVideoV1Config(environment);
 	if (!canAccessVideoV1(config, { id: context.userId, role: context.role }))
@@ -48,6 +50,9 @@ export function requireVideoAdmission(
 	const model = getVideoModel(selection.productKey);
 	if (!model || !validateVideoModelSelection(selection))
 		throw new Error("VIDEO_MODEL_OPTION_UNAVAILABLE");
+	const access = readVideoModelAccess(environment);
+	if (!isVideoModelOptionAllowed(access, selection))
+		throw new Error(access.reason ?? "VIDEO_MODEL_OPTION_NOT_ENABLED");
 	const readiness = videoV1Readiness(environment, bindings, {
 		multiModel: true,
 		sound: selection.sound,
@@ -64,12 +69,18 @@ export function requireVideoAdmission(
 		visualSafetyProfile,
 		textSafetyProfile,
 		audioSafetyPolicy: createVideoAudioSafetyPolicy(),
-		price: resolveVideoModelPrice(selection, environment) satisfies VideoPrice,
+		price: applyVideoInternalFunding(
+			resolveVideoModelPrice(selection, environment),
+			context,
+			environment,
+		) satisfies VideoPrice,
 	};
 }
 
 /** Normalize only for current server pricing; persisted legacy fingerprints stay unchanged. */
-export function videoRequestSelection(request?: VideoRequestInput): VideoModelSelection {
+export function videoRequestSelection(
+	request?: VideoRequestInput | VideoModelSelection,
+): VideoModelSelection {
 	if (request && "productKey" in request) return request;
 	return {
 		productKey: VIDEO_V1_PRODUCT_KEY,
