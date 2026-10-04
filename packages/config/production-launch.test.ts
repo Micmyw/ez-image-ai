@@ -2,8 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
 	assertEzPicEnvironmentMatrixConfigured,
+	EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS,
 	isEzPicProductEnvironmentEnabled,
 	mediaDailyProviderCostBudgetMicros,
+	packEzPicImageModelFlags,
+	parseEzPicImageModelFlags,
 	validateEzPicEnvironmentMatrix,
 	validateEzPicLaunchEnvironment,
 } from "./production-launch";
@@ -90,6 +93,130 @@ const productionEnvironment = {
 	MEDIA_ALERT_MODERATION_REJECTION_RATE_BPS: "1500",
 	MEDIA_ALERT_CHANNEL_ID: "ops:ezpic-production",
 } as const;
+
+describe("packed image model environment flags", () => {
+	const modelEntries = Object.entries(EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS);
+	const optionalKeys = new Set([
+		"MEDIA_GPT_IMAGE_2_5_FLARE_ENABLED",
+		"MEDIA_GPT_IMAGE_2_5_SUNBURST_ENABLED",
+		"MEDIA_SEEDREAM_4_ENABLED",
+	]);
+
+	it("preserves the complete launch report and absent optional flags", () => {
+		const packed = packEzPicImageModelFlags(productionEnvironment);
+		expect(validateEzPicLaunchEnvironment(packed)).toEqual(
+			validateEzPicLaunchEnvironment(productionEnvironment),
+		);
+		const flags = parseEzPicImageModelFlags(packed.MEDIA_IMAGE_MODEL_FLAGS);
+		for (const [, key] of modelEntries) expect(packed).not.toHaveProperty(key);
+		for (const key of optionalKeys) expect(flags).not.toHaveProperty(key);
+		expect(packed.MEDIA_GENERATION_ENABLED).toBe("true");
+		expect(packed.MEDIA_MODERATION_ENABLED).toBe("true");
+		expect(packed.BILLING_ENABLED).toBe("true");
+	});
+
+	it.each(modelEntries)(
+		"preserves true/false and reads each environment afresh for %s",
+		(product, key) => {
+			for (const value of ["true", "false", "true"] as const) {
+				const flat = { ...productionEnvironment, [key]: value };
+				const packed = packEzPicImageModelFlags(flat);
+				expect(isEzPicProductEnvironmentEnabled(product, packed)).toBe(value === "true");
+				expect(isEzPicProductEnvironmentEnabled(product, packed)).toBe(
+					isEzPicProductEnvironmentEnabled(product, flat),
+				);
+				expect(validateEzPicLaunchEnvironment(packed)).toEqual(
+					validateEzPicLaunchEnvironment(flat),
+				);
+			}
+		},
+	);
+
+	it.each(modelEntries.filter(([, key]) => !optionalKeys.has(key)))(
+		"does not fill a missing required switch for %s",
+		(_product, key) => {
+			const flat: Record<string, string> = { ...productionEnvironment };
+			delete flat[key];
+			expect(() => validateEzPicLaunchEnvironment(packEzPicImageModelFlags(flat))).toThrow(
+				`${key} must be true or false`,
+			);
+		},
+	);
+
+	it.each(modelEntries)("retains legacy absence defaults for %s", (product, key) => {
+		expect(isEzPicProductEnvironmentEnabled(product, { NODE_ENV: "production" })).toBe(false);
+		expect(isEzPicProductEnvironmentEnabled(product, { NODE_ENV: "development" })).toBe(
+			!optionalKeys.has(key),
+		);
+		expect(
+			isEzPicProductEnvironmentEnabled(product, {
+				NODE_ENV: "production",
+				MEDIA_IMAGE_MODEL_FLAGS: "{}",
+			}),
+		).toBe(false);
+	});
+
+	it.each([
+		"",
+		"{",
+		"null",
+		"[]",
+		"true",
+		"0",
+		JSON.stringify({ MEDIA_GPT_IMAGE_2_ENABLED: true }),
+		JSON.stringify({ MEDIA_GPT_IMAGE_2_ENABLED: "TRUE" }),
+		JSON.stringify({ MEDIA_GPT_IMAGE_2_ENABLED: "" }),
+		JSON.stringify({ MEDIA_GPT_IMAGE_2_ENABLED: 0 }),
+		JSON.stringify({ MEDIA_MODERATION_ENABLED: "false" }),
+		JSON.stringify({ BILLING_ENABLED: "false" }),
+		JSON.stringify({ MEDIA_GENERATION_ENABLED: "true" }),
+		'{"__proto__":{"MEDIA_GPT_IMAGE_2_ENABLED":"true"}}',
+		undefined,
+		null,
+		{},
+	])(
+		"rejects a malformed present binding without falling back to enabled flat flags: %j",
+		(value) => {
+			expect(() => parseEzPicImageModelFlags(value)).toThrow("MEDIA_IMAGE_MODEL_FLAGS");
+			if (value === undefined) return; // Only an absent binding keeps the legacy path.
+			for (const NODE_ENV of ["production", "development"]) {
+				const input = { ...productionEnvironment, NODE_ENV, MEDIA_IMAGE_MODEL_FLAGS: value };
+				expect(isEzPicProductEnvironmentEnabled("image-nano-banana-2-lite", input)).toBe(false);
+				expect(() => validateEzPicLaunchEnvironment(input)).toThrow("MEDIA_IMAGE_MODEL_FLAGS");
+			}
+		},
+	);
+
+	it.each(["true", "false"])("rejects conflicting flat and packed flags: %s", (value) => {
+		const key = "MEDIA_NANO_BANANA_2_LITE_ENABLED";
+		const input = {
+			...packEzPicImageModelFlags({ ...productionEnvironment, [key]: value }),
+			[key]: value === "true" ? "false" : "true",
+		};
+		expect(isEzPicProductEnvironmentEnabled("image-nano-banana-2-lite", input)).toBe(false);
+		expect(() => validateEzPicLaunchEnvironment(input)).toThrow(
+			"MEDIA_IMAGE_MODEL_FLAGS conflicts",
+		);
+		expect(() => packEzPicImageModelFlags(input)).toThrow("MEDIA_IMAGE_MODEL_FLAGS conflicts");
+	});
+
+	it("accepts matching flat values during transition but preserves other launch gates", () => {
+		const input = {
+			...productionEnvironment,
+			...packEzPicImageModelFlags(productionEnvironment),
+		};
+		expect(validateEzPicLaunchEnvironment(input)).toEqual(
+			validateEzPicLaunchEnvironment(productionEnvironment),
+		);
+		for (const key of ["MEDIA_MODERATION_ENABLED", "BILLING_ENABLED"])
+			expect(() => validateEzPicLaunchEnvironment({ ...input, [key]: "false" })).toThrow(key);
+		expect(
+			validateEzPicLaunchEnvironment({ ...input, MEDIA_GENERATION_ENABLED: "false" }).controls
+				.generationEnabled,
+		).toBe(false);
+		expect(() => validateEzPicLaunchEnvironment({ ...input, KIE_API_KEY: undefined })).toThrow();
+	});
+});
 
 it("validates a Workers launch with Hyperdrive and no database origin secret", () => {
 	expect(() =>

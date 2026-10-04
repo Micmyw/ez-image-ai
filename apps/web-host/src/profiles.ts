@@ -1,5 +1,6 @@
 import path from "node:path";
 
+import { packEzPicImageModelFlags } from "@repo/config/server";
 import { videoV1Readiness } from "@repo/config/video-v1";
 
 import {
@@ -245,7 +246,7 @@ export function workersRuntimeEnvironment(environment: Record<string, string>) {
 			if (environment[key] === "false") nonRuntimeVariables.add(key);
 		}
 	}
-	return {
+	return packEzPicImageModelFlags({
 		...Object.fromEntries(
 			Object.entries(environment).filter(
 				([key]) =>
@@ -258,5 +259,5 @@ export function workersRuntimeEnvironment(environment: Record<string, string>) {
 		NODE_ENV: "production",
 		EZPIC_RUNTIME: "workers",
 		EZPIC_DATABASE_BINDING: "hyperdrive",
-	};
+	});
 }

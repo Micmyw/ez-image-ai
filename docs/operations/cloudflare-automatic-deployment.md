@@ -92,6 +92,13 @@ Cloudflare 默认生成的令牌包含 Workers 脚本、Workers 路由、KV、R2
 且不能带首尾空白。Next.js 会在构建时将此名称编入页面标题和公开配置，因此更新变量后
 必须重新构建网站；仅修改 Worker 运行时变量或本地环境文件不会更新已部署的标题。
 
+视频回调配置支持三个独立的服务端构建机密：`KIE_WEBHOOK_SECRET`、
+`VIDEO_SEEAPI_CALLBACK_SECRET` 和 `SEEAPI_WEBHOOK_SIGNING_KEYS`。在网站和后台两侧同步设置，
+构建会在校验原有环境包后仅覆盖提供的项目，无需重写其他生产密钥。SeeAPI 签名配置是
+`whkey_*` 到 `whsec_*` 的 JSON 映射；缺少 Key ID 时不能填写临时或猜测的 ID。
+部分机密可以先保存，但不代表视频配置就绪，也不会打开 `VIDEO_V1_ENABLED`。
+这些覆盖项不会进入公开构建变量，并会从 pnpm 构建子进程环境中移除。
+
 运行时受 Cloudflare 的 128 个文字绑定上限约束。准备脚本不绑定已失效的 Kie 目录认证变量；
 在 `configured` 模式下，关闭的审核开关使用默认的 `false`，且完全停用 Sightengine 时不绑定
 其凭据。构建机密仍保留完整原值，审核启用状态不变，其他运行时变量照常保留。
@@ -100,6 +107,14 @@ Worker `versions/latest` 的 JSON Merge Patch，将上述已停用绑定从最�
 不接收流量的中间版本，并核对其他绑定都保留。随后将新代码和完整 `--secrets-file` 上传部署。
 旧生产版本在切换前继续使用原始凭据。不要单独部署这个标注为 `do not deploy` 的中间版本，
 也不要用即时生效的 `wrangler secret delete` 提前删除旧生产服务仍在使用的凭据。
+
+准备脚本将 12 个图片模型 `MEDIA_*_ENABLED` 开关压缩为一个服务端
+`MEDIA_IMAGE_MODEL_FLAGS` JSON 绑定，原始环境配置仍保留平铺格式。JSON 仅允许这
+12 个原始变量名，值为字符串 `"true"` / `"false"`；不补齐缺失的必填项，三个可选模型
+仍默认关闭。全局生成、审核、计费和游客控制不参与压缩。坏 JSON、未知键、错误值或与残留平铺
+值冲突会拒绝发布校验并关闭运行时图片模型，不会回退为开启。部署只在新 JSON 实际存在且验证通过时，
+从未部署的中间版本移除其明确覆盖的旧模型文本绑定。新代码兼容旧平铺格式；旧代码不识别 JSON，
+所以站点和 jobs 各自的代码与绑定必须配套部署、配套回滚。
 
 - 仅接受 `workers` 部署模式。在 Cloudflare 中检查 `WORKERS_CI_BRANCH=main`，并确认检出的
   提交与 `WORKERS_CI_COMMIT_SHA` 一致。

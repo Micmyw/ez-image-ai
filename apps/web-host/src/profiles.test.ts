@@ -2,6 +2,10 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 
 import { moderationConfiguration } from "@repo/config";
+import {
+	EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS,
+	parseEzPicImageModelFlags,
+} from "@repo/config/server";
 import { VIDEO_MODEL_CATALOG_VERSION } from "@repo/config/video-models";
 import { VIDEO_SUPPLIER_PRICE_VERSION } from "@repo/config/video-pricing.server";
 import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
@@ -49,6 +53,28 @@ describe("deployment profiles", () => {
 			MEDIA_GENERATION_ENABLED: "false",
 			KIE_API_KEY: "runtime-secret",
 		});
+	});
+	it("packs image model switches without packing global, moderation, or billing controls", () => {
+		const environment = workersRuntimeEnvironment({
+			MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
+			MEDIA_GPT_IMAGE_2_ENABLED: "false",
+			MEDIA_GENERATION_ENABLED: "false",
+			MEDIA_MODERATION_ENABLED: "true",
+			BILLING_ENABLED: "false",
+			UNCHANGED_ZERO: "0",
+		});
+		expect(environment).toMatchObject({
+			MEDIA_IMAGE_MODEL_FLAGS: JSON.stringify({
+				MEDIA_NANO_BANANA_2_LITE_ENABLED: "true",
+				MEDIA_GPT_IMAGE_2_ENABLED: "false",
+			}),
+			MEDIA_GENERATION_ENABLED: "false",
+			MEDIA_MODERATION_ENABLED: "true",
+			BILLING_ENABLED: "false",
+			UNCHANGED_ZERO: "0",
+		});
+		expect(environment).not.toHaveProperty("MEDIA_NANO_BANANA_2_LITE_ENABLED");
+		expect(environment).not.toHaveProperty("MEDIA_GPT_IMAGE_2_ENABLED");
 	});
 	it("keeps build, offline evidence, and local test settings out of limited Worker bindings", () => {
 		const environment = workersRuntimeEnvironment({
@@ -208,6 +234,40 @@ function artifacts(profile: "workers" | "hybrid", overrides: Record<string, stri
 }
 
 describe("prepared deployment artifacts", () => {
+	it.each(["workers", "hybrid"] as const)(
+		"replaces twelve model bindings with one for %s",
+		(profile) => {
+			const flags = Object.fromEntries(
+				Object.values(EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS).map((key, index) => [
+					key,
+					index % 2 ? "false" : "true",
+				]),
+			);
+			const baseline = artifacts(profile);
+			const packed = artifacts(profile, flags);
+			for (const name of ["website.secrets", "workflows.secrets"] as const) {
+				expect(parseEzPicImageModelFlags(packed[name].MEDIA_IMAGE_MODEL_FLAGS)).toEqual(flags);
+				for (const key of Object.keys(flags)) expect(packed[name]).not.toHaveProperty(key);
+				expect(Object.keys(packed[name]).length).toBe(Object.keys(baseline[name]).length + 1);
+			}
+		},
+	);
+	it("counts the packed binding toward the unchanged 128 limit", () => {
+		const flags = Object.fromEntries(
+			Object.values(EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS).map((key) => [key, "false"]),
+		);
+		const baseline = artifacts("workers", flags);
+		const count =
+			Object.keys(baseline.website.vars as object).length +
+			Object.keys(baseline["website.secrets"]).length;
+		const extras = Object.fromEntries(
+			Array.from({ length: 128 - count }, (_, index) => [`EXTRA_${index}`, "value"]),
+		);
+		expect(() => artifacts("workers", { ...flags, ...extras })).not.toThrow();
+		expect(() => artifacts("workers", { ...flags, ...extras, ONE_TOO_MANY: "value" })).toThrow(
+			"WORKER_TEXT_BINDING_LIMIT",
+		);
+	});
 	it.each(["workers", "hybrid"] as const)(
 		"binds direct private video runtime in actual %s artifacts with admission closed",
 		(profile) => {

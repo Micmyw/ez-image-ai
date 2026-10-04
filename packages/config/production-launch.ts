@@ -149,6 +149,7 @@ export function validateEzPicLaunchEnvironment(
 	input: Record<string, unknown>,
 	options: ValidateEzPicLaunchEnvironmentOptions = {},
 ): EzPicLaunchEnvironment {
+	input = resolveEzPicImageModelFlags(input);
 	const environment = requiredString(input, "EZPIC_DEPLOYMENT_ENVIRONMENT");
 	if (environment !== "staging" && environment !== "production") {
 		throw new Error("EZPIC_DEPLOYMENT_ENVIRONMENT must be staging or production");
@@ -375,6 +376,11 @@ export function isEzPicProductEnvironmentEnabled(
 		input.EZPIC_DEPLOYMENT_ENVIRONMENT === "production";
 	const environmentKey = EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS[productKey];
 	if (environmentKey) {
+		try {
+			input = resolveEzPicImageModelFlags(input);
+		} catch {
+			return false;
+		}
 		return failClosed ||
 			["image-gpt-image-2-5-flare", "image-gpt-image-2-5-sunburst", "image-seedream-4"].includes(
 				productKey,
@@ -385,20 +391,79 @@ export function isEzPicProductEnvironmentEnabled(
 	return true;
 }
 
-const EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS: Readonly<Record<string, string>> = Object.freeze({
-	"image-nano-banana-2-lite": "MEDIA_NANO_BANANA_2_LITE_ENABLED",
-	"image-nano-banana": "MEDIA_NANO_BANANA_ENABLED",
-	"image-nano-banana-2": "MEDIA_NANO_BANANA_2_ENABLED",
-	"image-nano-banana-pro": "MEDIA_NANO_BANANA_PRO_ENABLED",
-	"image-gpt-image-1-5": "MEDIA_GPT_IMAGE_1_5_ENABLED",
-	"image-gpt-image-2": "MEDIA_GPT_IMAGE_2_ENABLED",
-	"image-gpt-image-2-5-flare": "MEDIA_GPT_IMAGE_2_5_FLARE_ENABLED",
-	"image-gpt-image-2-5-sunburst": "MEDIA_GPT_IMAGE_2_5_SUNBURST_ENABLED",
-	"image-seedream-4": "MEDIA_SEEDREAM_4_ENABLED",
-	"image-seedream-4-5": "MEDIA_SEEDREAM_4_5_ENABLED",
-	"image-seedream-5-lite": "MEDIA_SEEDREAM_5_LITE_ENABLED",
-	"image-seedream-5-pro": "MEDIA_SEEDREAM_5_PRO_ENABLED",
-} satisfies Record<(typeof EZPIC_PRODUCT_KEYS)[number], string>);
+export const EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS: Readonly<Record<string, string>> = Object.freeze(
+	{
+		"image-nano-banana-2-lite": "MEDIA_NANO_BANANA_2_LITE_ENABLED",
+		"image-nano-banana": "MEDIA_NANO_BANANA_ENABLED",
+		"image-nano-banana-2": "MEDIA_NANO_BANANA_2_ENABLED",
+		"image-nano-banana-pro": "MEDIA_NANO_BANANA_PRO_ENABLED",
+		"image-gpt-image-1-5": "MEDIA_GPT_IMAGE_1_5_ENABLED",
+		"image-gpt-image-2": "MEDIA_GPT_IMAGE_2_ENABLED",
+		"image-gpt-image-2-5-flare": "MEDIA_GPT_IMAGE_2_5_FLARE_ENABLED",
+		"image-gpt-image-2-5-sunburst": "MEDIA_GPT_IMAGE_2_5_SUNBURST_ENABLED",
+		"image-seedream-4": "MEDIA_SEEDREAM_4_ENABLED",
+		"image-seedream-4-5": "MEDIA_SEEDREAM_4_5_ENABLED",
+		"image-seedream-5-lite": "MEDIA_SEEDREAM_5_LITE_ENABLED",
+		"image-seedream-5-pro": "MEDIA_SEEDREAM_5_PRO_ENABLED",
+	} satisfies Record<(typeof EZPIC_PRODUCT_KEYS)[number], string>,
+);
+
+const imageModelFlagNames = new Set(Object.values(EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS));
+
+/** Server-only binding: keep the original string values and absent-key semantics. */
+export function parseEzPicImageModelFlags(value: unknown): Record<string, "true" | "false"> {
+	let parsed: unknown;
+	try {
+		if (typeof value !== "string") throw new Error();
+		parsed = JSON.parse(value);
+	} catch {
+		throw new Error("MEDIA_IMAGE_MODEL_FLAGS must be a valid image-model flag object");
+	}
+	if (
+		!parsed ||
+		typeof parsed !== "object" ||
+		Array.isArray(parsed) ||
+		Object.entries(parsed).some(
+			([key, flag]) => !imageModelFlagNames.has(key) || (flag !== "true" && flag !== "false"),
+		)
+	)
+		throw new Error(
+			"MEDIA_IMAGE_MODEL_FLAGS must contain only known image flags as true/false strings",
+		);
+	return parsed as Record<string, "true" | "false">;
+}
+
+function resolveEzPicImageModelFlags(input: Record<string, unknown>): Record<string, unknown> {
+	if (input.MEDIA_IMAGE_MODEL_FLAGS === undefined) return input;
+	const flags = parseEzPicImageModelFlags(input.MEDIA_IMAGE_MODEL_FLAGS);
+	for (const key of imageModelFlagNames) {
+		if (input[key] !== undefined && input[key] !== flags[key])
+			throw new Error(`MEDIA_IMAGE_MODEL_FLAGS conflicts with ${key}`);
+	}
+	return { ...input, ...flags };
+}
+
+/** Deployment compaction changes representation, never defaults or other controls. */
+export function packEzPicImageModelFlags(
+	environment: Record<string, string>,
+): Record<string, string> {
+	const resolved = resolveEzPicImageModelFlags(environment);
+	const flags: Record<string, "true" | "false"> = {};
+	for (const key of imageModelFlagNames) {
+		const value = resolved[key];
+		if (value === undefined) continue;
+		if (value !== "true" && value !== "false") throw new Error(`${key} must be true or false`);
+		flags[key] = value;
+	}
+	if (!Object.keys(flags).length && environment.MEDIA_IMAGE_MODEL_FLAGS === undefined)
+		return { ...environment };
+	return {
+		...Object.fromEntries(
+			Object.entries(environment).filter(([key]) => !imageModelFlagNames.has(key)),
+		),
+		MEDIA_IMAGE_MODEL_FLAGS: JSON.stringify(flags),
+	};
+}
 
 function optionalBoolean(input: Record<string, unknown>, key: string): boolean | undefined {
 	const value = input[key];

@@ -1,3 +1,4 @@
+import { EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS } from "@repo/config/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { stageRetiredWorkerBindings } from "./deployment-bindings";
@@ -29,6 +30,124 @@ const staged = {
 const response = (result: unknown) => Response.json({ success: true, result });
 
 describe("retired Worker bindings", () => {
+	it("stages only model flags replaced by the validated next packed binding", async () => {
+		const flags = Object.fromEntries(
+			Object.values(EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS).map((name, index) => [
+				name,
+				index % 2 ? "false" : "true",
+			]),
+		);
+		const models = Object.keys(flags).map((name) => ({ name, type: "secret_text" }));
+		const preserved = [
+			{ name: "MEDIA_GENERATION_ENABLED", type: "plain_text" },
+			{ name: "MEDIA_MODERATION_ENABLED", type: "secret_text" },
+			{ name: "BILLING_ENABLED", type: "secret_text" },
+			{ name: "UNRELATED_DASHBOARD_SECRET", type: "secret_text" },
+			{ name: "VIDEO_WORKFLOW", type: "workflow" },
+		];
+		const request = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(response({ id: "old-version", bindings: [...models, ...preserved] }))
+			.mockResolvedValueOnce(response({ id: "staged-version", bindings: preserved }));
+		await expect(
+			stageRetiredWorkerBindings(
+				{
+					...options,
+					nextBindingNames: ["MEDIA_IMAGE_MODEL_FLAGS", ...preserved.map(({ name }) => name)],
+					nextImageModelFlags: JSON.stringify(flags),
+				},
+				request,
+			),
+		).resolves.toEqual({ versionId: "staged-version", retired: Object.keys(flags) });
+		expect(request).toHaveBeenCalledTimes(2);
+		expect(request.mock.calls[1]![1]!.method).toBe("PATCH");
+		expect(JSON.parse(request.mock.calls[1]![1]!.body as string)).toEqual({
+			env: Object.fromEntries(Object.keys(flags).map((key) => [key, null])),
+			annotations: {
+				"workers/message":
+					"Prepare retired bindings for release-sha; do not deploy this intermediate version",
+			},
+		});
+	});
+	it("does not infer removal from missing flat flags or from a value without a next binding", async () => {
+		const binding = { name: "MEDIA_GPT_IMAGE_2_ENABLED", type: "secret_text" };
+		for (const extra of [
+			{},
+			{ nextImageModelFlags: JSON.stringify({ [binding.name]: "false" }) },
+		]) {
+			const request = vi
+				.fn<typeof fetch>()
+				.mockResolvedValue(response({ id: "old-version", bindings: [binding] }));
+			await expect(stageRetiredWorkerBindings({ ...options, ...extra }, request)).resolves.toEqual({
+				versionId: "old-version",
+				retired: [],
+			});
+			expect(request).toHaveBeenCalledTimes(1);
+		}
+	});
+	it.each([
+		undefined,
+		"",
+		"{",
+		"null",
+		"[]",
+		'{"MEDIA_GPT_IMAGE_2_ENABLED":true}',
+		'{"BILLING_ENABLED":"false"}',
+	])("rejects an invalid replacement before contacting Cloudflare: %j", async (value) => {
+		const request = vi.fn<typeof fetch>();
+		await expect(
+			stageRetiredWorkerBindings(
+				{ ...options, nextBindingNames: ["MEDIA_IMAGE_MODEL_FLAGS"], nextImageModelFlags: value },
+				request,
+			),
+		).rejects.toThrow("MEDIA_IMAGE_MODEL_FLAGS");
+		expect(request).not.toHaveBeenCalled();
+	});
+	it("rejects a partial replacement that would inherit an unrepresented flat model", async () => {
+		const request = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(
+				response({
+					id: "old-version",
+					bindings: [{ name: "MEDIA_SEEDREAM_4_ENABLED", type: "secret_text" }],
+				}),
+			);
+		await expect(
+			stageRetiredWorkerBindings(
+				{
+					...options,
+					nextBindingNames: ["MEDIA_IMAGE_MODEL_FLAGS"],
+					nextImageModelFlags: JSON.stringify({ MEDIA_GPT_IMAGE_2_ENABLED: "false" }),
+				},
+				request,
+			),
+		).rejects.toThrow("IMAGE_MODEL_BINDING_REPLACEMENT_MISSING: MEDIA_SEEDREAM_4_ENABLED");
+		expect(request).toHaveBeenCalledTimes(1);
+		expect(request.mock.calls[0]![1]!.method).toBe("GET");
+	});
+	it("preserves retained flat names and non-text bindings", async () => {
+		const bindings = [
+			{ name: "MEDIA_GPT_IMAGE_2_ENABLED", type: "secret_text" },
+			{ name: "MEDIA_SEEDREAM_4_ENABLED", type: "service" },
+		];
+		const request = vi
+			.fn<typeof fetch>()
+			.mockResolvedValue(response({ id: "old-version", bindings }));
+		await expect(
+			stageRetiredWorkerBindings(
+				{
+					...options,
+					nextBindingNames: ["MEDIA_IMAGE_MODEL_FLAGS", "MEDIA_GPT_IMAGE_2_ENABLED"],
+					nextImageModelFlags: JSON.stringify({
+						MEDIA_GPT_IMAGE_2_ENABLED: "false",
+						MEDIA_SEEDREAM_4_ENABLED: "true",
+					}),
+				},
+				request,
+			),
+		).resolves.toEqual({ versionId: "old-version", retired: [] });
+		expect(request).toHaveBeenCalledTimes(1);
+	});
 	it("stages retired video callback and audio bindings while keeping active providers", async () => {
 		const obsolete = [
 			"VIDEO_V1_MODERATION_WEBHOOK_SECRET",

@@ -1,3 +1,8 @@
+import {
+	EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS,
+	parseEzPicImageModelFlags,
+} from "@repo/config/server";
+
 import { retiredModerationBindings } from "./retired-moderation-bindings";
 
 const retirementCandidates = new Set([
@@ -19,12 +24,19 @@ export async function stageRetiredWorkerBindings(
 		accountId: string;
 		scriptName: string;
 		nextBindingNames: string[];
+		nextImageModelFlags?: unknown;
 		versionTag: string;
 		token: string;
 	},
 	request: typeof fetch = fetch,
 ): Promise<{ versionId: string; retired: string[] }> {
 	if (!options.token) throw new Error("CLOUDFLARE_API_TOKEN_REQUIRED");
+	const candidates = new Set(retirementCandidates);
+	let packedModelKeys: Set<string> | undefined;
+	if (options.nextBindingNames.includes("MEDIA_IMAGE_MODEL_FLAGS")) {
+		packedModelKeys = new Set(Object.keys(parseEzPicImageModelFlags(options.nextImageModelFlags)));
+		for (const key of packedModelKeys) candidates.add(key);
+	}
 	const url = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(options.accountId)}/workers/workers/${encodeURIComponent(options.scriptName)}/versions/latest`;
 	async function version(method: "GET" | "PATCH", body?: unknown) {
 		const response = await request(url, {
@@ -44,12 +56,22 @@ export async function stageRetiredWorkerBindings(
 	}
 	const current = await version("GET");
 	const next = new Set(options.nextBindingNames);
+	if (packedModelKeys) {
+		const modelNames = new Set(Object.values(EZPIC_IMAGE_PRODUCT_ENVIRONMENT_KEYS));
+		for (const { name, type } of current.bindings) {
+			if (
+				modelNames.has(name) &&
+				["secret_text", "plain_text"].includes(type) &&
+				!next.has(name) &&
+				!packedModelKeys.has(name)
+			)
+				throw new Error(`IMAGE_MODEL_BINDING_REPLACEMENT_MISSING: ${name}`);
+		}
+	}
 	const retired = current.bindings
 		.filter(
 			({ name, type }) =>
-				retirementCandidates.has(name) &&
-				!next.has(name) &&
-				["secret_text", "plain_text"].includes(type),
+				candidates.has(name) && !next.has(name) && ["secret_text", "plain_text"].includes(type),
 		)
 		.map(({ name }) => name);
 	if (!retired.length) return { versionId: current.id, retired };

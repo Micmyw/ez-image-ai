@@ -5,6 +5,11 @@ const variableName = "CLOUDFLARE_PRODUCTION_ENV";
 const partPrefix = `${variableName}_PART_`;
 const maximumParts = 16;
 const maximumValueLength = 5000;
+const videoCallbackSecrets = [
+	"KIE_WEBHOOK_SECRET",
+	"VIDEO_SEEAPI_CALLBACK_SECRET",
+	"SEEAPI_WEBHOOK_SIGNING_KEYS",
+] as const;
 
 export function packCloudflareBuildEnvironment(source: string) {
 	if (!source.trim()) throw new Error("CLOUDFLARE_BUILD_SECRET_REQUIRED");
@@ -36,13 +41,100 @@ export function readCloudflareBuildEnvironment(environment: Record<string, strin
 	return withPublicBrandOverride(
 		withGuestBudgetOverride(
 			withGuestQuotaOverrides(
-				withModerationOverrides(unpackCloudflareBuildEnvironment(environment), environment),
+				withModerationOverrides(
+					withVideoCallbackOverrides(unpackCloudflareBuildEnvironment(environment), environment),
+					environment,
+				),
 				environment,
 			),
 			environment,
 		),
 		environment,
 	);
+}
+
+function withVideoCallbackOverrides(
+	source: string,
+	environment: Record<string, string | undefined>,
+) {
+	for (const key of videoCallbackSecrets) {
+		const value = environment[key];
+		if (value === undefined) continue;
+		const invalid = () => new Error(`CLOUDFLARE_VIDEO_CALLBACK_OVERRIDE_INVALID: ${key}`);
+		let encoded = value;
+		if (key === "KIE_WEBHOOK_SECRET") {
+			// Kie signs with the original UTF-8 value, with no hex/length requirement.
+			// Reject control characters at this dotenv transport boundary, never trim the key.
+			const hasControl = Array.from(value).some(
+				(character) => character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127,
+			);
+			if (!value.trim() || hasControl) throw invalid();
+		} else if (key === "VIDEO_SEEAPI_CALLBACK_SECRET") {
+			if (!/^[\x21-\x7e]{32,512}$/.test(value)) throw invalid();
+		} else {
+			// Match packages/config/video-seeapi-callback.ts without requiring the
+			// other independently supplied secret or treating a partial overlay as ready.
+			try {
+				if (value.length > 8192) throw invalid();
+				const parsed: unknown = JSON.parse(value);
+				if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw invalid();
+				const entries = Object.entries(parsed);
+				if (
+					!entries.length ||
+					entries.length > 8 ||
+					entries.some(
+						([id, secret]) =>
+							!/^whkey_[A-Za-z0-9_-]{1,128}$/.test(id) ||
+							typeof secret !== "string" ||
+							!/^whsec_[\x21-\x7e]{16,256}$/.test(secret),
+					)
+				)
+					throw invalid();
+				// Escape one dotenv delimiter inside JSON string values. The shortest
+				// variant preserves all key bytes without inflating a valid eight-key map.
+				const json = JSON.stringify(Object.fromEntries(entries));
+				encoded = [
+					json.replaceAll("'", "\\u0027"),
+					json.replaceAll("`", "\\u0060"),
+					json.replaceAll("#", "\\u0023"),
+				].sort((a, b) => a.length - b.length)[0]!;
+				if (encoded.length > 8192) throw invalid();
+			} catch {
+				throw invalid();
+			}
+		}
+		let assignment: string | undefined;
+		for (const quote of ["'", '"', "`", ""]) {
+			const candidate = `${key}=${quote}${encoded}${quote}\n`;
+			try {
+				const parsed = parseEnv(candidate);
+				if (Object.keys(parsed).length === 1 && parsed[key] === encoded) {
+					assignment = candidate;
+					break;
+				}
+			} catch {
+				// Only the fixed error below may leave this secret-handling boundary.
+			}
+		}
+		if (!assignment) throw invalid();
+		const merged = `${source}\n${assignment}`;
+		try {
+			const previous = parseEnv(source);
+			const next = parseEnv(merged);
+			if (
+				next[key] !== encoded ||
+				Object.entries(previous).some(
+					([name, original]) => name !== key && next[name] !== original,
+				) ||
+				Object.keys(next).length !== new Set([...Object.keys(previous), key]).size
+			)
+				throw invalid();
+		} catch {
+			throw invalid();
+		}
+		source = merged;
+	}
+	return source;
 }
 
 function withPublicBrandOverride(source: string, environment: Record<string, string | undefined>) {
@@ -137,7 +229,12 @@ export function withoutCloudflareBuildSecrets<T extends Record<string, string | 
 ) {
 	const result = { ...environment };
 	for (const key of Object.keys(result)) {
-		if (key === variableName || key.startsWith(partPrefix) || key === "SEEAPI_API_KEY")
+		if (
+			key === variableName ||
+			key.startsWith(partPrefix) ||
+			key === "SEEAPI_API_KEY" ||
+			videoCallbackSecrets.some((secret) => secret === key)
+		)
 			delete result[key];
 	}
 	return result;

@@ -137,6 +137,8 @@ if (command === "build") {
 		accountId: config.account_id,
 		scriptName: config.name,
 		nextBindingNames: [...Object.keys(config.vars ?? {}), ...Object.keys(secretSnapshot)],
+		nextImageModelFlags:
+			config.vars?.MEDIA_IMAGE_MODEL_FLAGS ?? secretSnapshot.MEDIA_IMAGE_MODEL_FLAGS,
 		versionTag: sha,
 		token: process.env.CLOUDFLARE_API_TOKEN ?? "",
 	});
