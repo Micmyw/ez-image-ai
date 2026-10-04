@@ -1,0 +1,90 @@
+{
+	"observedAt": "2026-10-04T17:28:21.7301050Z",
+	"sourceType": "Official public documentation excerpts; read-only research; no paid generation",
+	"liveAcceptance": "NOT_RUN",
+	"sources": {
+		"submit": "https://docs.kie.ai/old-model/veo3-api/generate-veo-3-video.md",
+		"retrieve": "https://docs.kie.ai/old-model/veo3-api/get-veo-3-video-details.md",
+		"callback": "https://docs.kie.ai/veo3-api/generate-veo-3-video-callbacks.md",
+		"signature": "https://docs.kie.ai/common-api/webhook-verification.md",
+		"pricing": "https://kie.ai/veo-3-1"
+	},
+	"submit": {
+		"method": "POST",
+		"endpoint": "https://api.kie.ai/api/v1/veo/generate",
+		"request": {
+			"type": "object",
+			"required": ["prompt"],
+			"properties": {
+				"prompt": { "type": "string" },
+				"model": { "type": "string", "enum": ["veo3", "veo3_fast", "veo3_lite"] },
+				"imageUrls": { "type": "array", "documentedCount": [1, 2] },
+				"generationType": {
+					"type": "string",
+					"enum": ["TEXT_2_VIDEO", "FIRST_AND_LAST_FRAMES_2_VIDEO", "REFERENCE_2_VIDEO"]
+				},
+				"aspect_ratio": { "type": "string", "enum": ["16:9", "9:16", "Auto"] },
+				"callBackUrl": { "type": "string" },
+				"enableFallback": { "type": "boolean", "deprecated": true },
+				"enableTranslation": { "type": "boolean", "default": false },
+				"watermark": { "type": "string" },
+				"resolution": { "type": "string", "enum": ["720p", "1080p", "4k"], "default": "720p" },
+				"duration": { "type": "integer", "enum": [4, 6, 8], "default": 8 }
+			}
+		},
+		"fastMappingExcerpt": "veo3_fast: Veo3.1 Fast generation model, supports both text-to-video、image-to-video and materials-to-video generation",
+		"acceptedTaskIdPath": "data.taskId",
+		"clientIdempotencyKey": "NOT_DOCUMENTED",
+		"lookupByClientRequestKey": "NOT_DOCUMENTED",
+		"applicationUncertainCodes": [400, 408, 409, 425, 429, 455, 500, 501, 505],
+		"uncertainCode400Reason": "Official code 400 description says 1080P is processing. It should be ready in 1-2 minutes. Please check back shortly."
+	},
+	"retrieve": {
+		"method": "GET",
+		"endpoint": "https://api.kie.ai/api/v1/veo/record-info",
+		"requiredQuery": ["taskId"],
+		"authorityExcerpt": "Callback mechanisms push completion events, but this endpoint remains the final authority",
+		"taskIdPath": "data.taskId",
+		"statusPath": "data.successFlag",
+		"statusValuesFromProse": {
+			"0": "Generating",
+			"1": "Success",
+			"2": "Failed",
+			"3": "Generation Failed"
+		},
+		"outputUrlsPath": "data.response.resultUrls",
+		"outputUrlsType": "array of strings",
+		"parametersPath": "data.paramJson",
+		"parametersType": "JSON encoded string",
+		"fallbackFlagPath": "data.fallbackFlag",
+		"fallbackFlagDeprecated": true,
+		"retentionExcerpt": "Temporarily supports records within 14 days.",
+		"creditsConsumed": "NOT_DOCUMENTED_IN_QUERY_SCHEMA; optional returned value is never synthesized",
+		"completeTime": "Schema says number without a unit; example is a timezone-free datetime string. Application does not infer a UTC instant from either."
+	},
+	"callback": {
+		"method": "POST",
+		"taskIdPath": "data.taskId",
+		"statusPath": "code",
+		"documentedStatusCodes": [200, 400, 422, 500, 501],
+		"outputUrlsPath": "data.info.resultUrls",
+		"outputUrlsType": "array of strings",
+		"creditsConsumedPathInExample": "data.creditsConsumed",
+		"duplicateCallbacksDocumented": true,
+		"signatureHeaders": ["X-Webhook-Timestamp", "X-Webhook-Signature"],
+		"signatureFormula": "Base64(HMAC-SHA256(taskId + '.' + timestampSeconds, webhookHmacKey))",
+		"resultBodyCoveredBySignature": false
+	},
+	"pricing": {
+		"excerpt": "Fast mode (text-to-video / image-to-video / reference-to-video): 720P — 60 credits (≈ $0.30) per video; 1080P — 65 credits (≈ $0.325) per video; 4K — 180 credits (≈ $0.90) per video.",
+		"durationSpecificBillingExample": "NOT_DOCUMENTED; request contract independently permits 4, 6 and 8 seconds",
+		"accountBillingEvidence": "NOT_RUN"
+	},
+	"documentDiscrepancies": [
+		"successFlag prose defines 3, but the generated enum lists only 0, 1 and 2",
+		"Old generated callback schema calls resultUrls a JSON string, but the dedicated callback document defines and demonstrates an array; callbacks are not used as authoritative results",
+		"Generic HMAC examples use data.task_id while the Veo callback document uses data.taskId",
+		"Completion time units and timezone are not consistent between schema and example",
+		"Fallback prose differs between endpoints; the application neither requests fallback nor delivers a result marked fallbackFlag=true"
+	]
+}

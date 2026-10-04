@@ -1230,6 +1230,43 @@ describe("video V1 admission isolated PostgreSQL", () => {
 			creditsReserved: price.credits,
 		});
 	});
+	it("Veo 3.1 Fast 4s 720p native-audio quote admits and reserves only once", async () => {
+		const selection = {
+			productKey: "video-veo-3-1-fast",
+			mode: "text-to-video" as const,
+			duration: 4,
+			resolution: "720p",
+			aspectRatio: "16:9",
+			sound: true,
+		};
+		const f = await modelQuoteFixture(selection);
+		expect(
+			await client.generationQuote.findUnique({ where: { id: f.quote.quoteId } }),
+		).toMatchObject({
+			productKey: selection.productKey,
+			catalogVersion: VIDEO_MODEL_CATALOG_VERSION,
+			moderationDecision: "PENDING_VIDEO_WORKFLOW",
+			moderationProvider: "video-workflow-v1",
+			moderationReasonCode: "PENDING_VIDEO_WORKFLOW",
+			inputSnapshot: selection,
+		});
+		const accepted = await createVideoJobRecord(f.input, client);
+		expect(await client.generationJob.findUnique({ where: { id: accepted.jobId } })).toMatchObject({
+			productKey: selection.productKey,
+			executionEngine: "video-workflow-v1",
+			inputSnapshot: selection,
+			creditsReserved: price.credits,
+		});
+		await expect(createVideoJobRecord(f.input, client)).resolves.toEqual({
+			...accepted,
+			replayed: true,
+		});
+		expect(await client.creditReservation.count({ where: { accountId: f.account.id } })).toBe(1);
+		expect(await client.creditAccount.findUnique({ where: { id: f.account.id } })).toMatchObject({
+			spendableCredits: 100n - price.credits,
+			reservedCredits: price.credits,
+		});
+	});
 	it.each([
 		{ label: "image product", productKey: "image-gpt-image-1-5" },
 		{ label: "unknown video", productKey: "video-not-implemented" },

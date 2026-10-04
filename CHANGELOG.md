@@ -13,6 +13,8 @@
 - Limit new video requests to explicitly enabled model, input, duration, resolution and sound combinations. Existing accepted work retains its saved settings during recovery.
 - Correct H3 single-image pricing and stop new Seedance Mini/Fast quotes when their published promotion expires. Keep the current reference prices and operating-cost assumptions auditable.
 - Support time-limited, named administrator acceptance using existing credits, with the funding source recorded separately from paid customer revenue.
+- Add Veo 3.1 Fast through its documented API with model-specific duration, resolution and native-audio options, explicit per-video pricing, and preserved uncertainty recovery; real acceptance remains a separate release gate.
+- Close late video callbacks after the same provider result has already been confirmed, while retaining unresolved tasks for recovery.
 
 ## 2026-10-04
 

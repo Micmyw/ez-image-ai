@@ -7,6 +7,7 @@ import {
 import { z } from "zod";
 
 import { fetchJson, type HttpClientOptions } from "./http";
+import { buildKieVeoFastRequest, KieVeoFastAdapter } from "./kie-veo-fast";
 import {
 	KieVideoV1Adapter,
 	type KieVideoV1Result,
@@ -54,6 +55,8 @@ export function resolveKieVideoModelId(productKey: string, mode: VideoMode): str
 			return "google/gemini-omni-flash-1-1";
 		case "video-veo-3-1":
 			return "veo-3-1";
+		case "video-veo-3-1-fast":
+			return "veo3_fast";
 		default:
 			throw new Error("VIDEO_MODEL_CONTRACT_UNAVAILABLE");
 	}
@@ -73,6 +76,7 @@ export function buildKieVideoModelRequest(value: KieVideoModelInput) {
 	httpsUrl.parse(callbackUrl);
 	if (input.mode === "image-to-video") httpsUrl.parse(imageUrl);
 	else if (imageUrl !== undefined) throw new Error("VIDEO_INPUT_ASSET_MODE_MISMATCH");
+	if (input.productKey === "video-veo-3-1-fast") return buildKieVeoFastRequest(value);
 	const model = resolveKieVideoModelId(input.productKey, input.mode);
 	let parameters: Record<string, unknown> = { prompt: input.prompt };
 	const image = input.mode === "image-to-video";
@@ -175,10 +179,12 @@ export function buildKieVideoModelRequest(value: KieVideoModelInput) {
 	return { model, callBackUrl: callbackUrl, input: parameters };
 }
 
-/** Exactly one createTask request. Uncertain acceptance always stays uncertain; never fail over. */
+/** Exactly one documented create request. Uncertain acceptance never retries or changes routes. */
 export class KieVideoModelsAdapter {
 	constructor(private readonly options: HttpClientOptions & { apiKey: string }) {}
 	async submit(value: KieVideoModelInput): Promise<KieVideoV1Submission> {
+		if (value.productKey === "video-veo-3-1-fast")
+			return new KieVeoFastAdapter(this.options).submit(value);
 		const body = buildKieVideoModelRequest(value);
 		if (!this.options.apiKey.trim())
 			return { status: "DEFINITELY_REJECTED", reasonCode: "VIDEO_PROVIDER_CONFIGURATION_ERROR" };
@@ -208,10 +214,12 @@ export class KieVideoModelsAdapter {
 			return { status: "UNCERTAIN", reasonCode: "VIDEO_PROVIDER_SUBMISSION_UNCERTAIN" };
 		}
 	}
-	/** All listed models use the documented unified task record contract, not callback body results. */
+	/** Caller binds the product to the frozen request/attempt; callback fields never select a route. */
 	async retrieve(providerTaskId: string, productKey?: string): Promise<KieVideoV1Result> {
 		if (productKey && getVideoModel(productKey)?.status !== "implemented")
 			throw new Error("VIDEO_MODEL_CONTRACT_UNAVAILABLE");
+		if (productKey === "video-veo-3-1-fast")
+			return new KieVeoFastAdapter(this.options).retrieve(providerTaskId);
 		return new KieVideoV1Adapter(this.options).retrieve(providerTaskId);
 	}
 	private headers() {

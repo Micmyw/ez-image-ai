@@ -71,6 +71,7 @@ const commands = integration
 				"vitest",
 				"run",
 				"video",
+				"kie-veo-fast",
 				...(hotelLobby ? ["template-scene"] : []),
 			],
 			[

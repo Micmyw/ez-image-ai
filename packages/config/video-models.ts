@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /** Public capabilities only. Provider routes, costs and account readiness are server-owned. */
-export const VIDEO_MODEL_CATALOG_VERSION = "video-models-2026-10-04.1";
+export const VIDEO_MODEL_CATALOG_VERSION = "video-models-2026-10-04.2";
 export type VideoMode = "text-to-video" | "image-to-video";
 export type VideoModelOption = {
 	duration: number;
@@ -263,7 +263,17 @@ export const VIDEO_MODEL_CATALOG: readonly VideoModelDefinition[] = [
 		"provider-native",
 		1000,
 	),
-	blocked("video-veo-3-1-fast", "Veo 3.1 Fast", "Veo", "OFFICIAL_VARIANT_MAPPING_UNCONFIRMED"),
+	model(
+		"video-veo-3-1-fast",
+		"Veo 3.1 Fast",
+		"Veo",
+		[4, 6, 8],
+		["720p", "1080p", "4k"],
+		widescreen,
+		[...widescreen, "source"],
+		"provider-native",
+		1000,
+	),
 	blocked("video-veo-3-1-pro", "Veo 3.1 Pro", "Veo", "OFFICIAL_VARIANT_MAPPING_UNCONFIRMED"),
 ];
 

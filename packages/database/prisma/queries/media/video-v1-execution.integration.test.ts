@@ -22,6 +22,7 @@ import {
 
 let client: PrismaClient;
 const fixtureOwners: string[] = [];
+const identityFixtureEvents: string[] = [];
 const ruleVersion = "video-test-rule";
 beforeAll(() => {
 	const raw = process.env.TEST_DATABASE_URL;
@@ -34,6 +35,10 @@ beforeAll(() => {
 afterAll(async () => {
 	if (!client) return;
 	try {
+		await client.providerWebhookEvent.updateMany({
+			where: { id: { in: identityFixtureEvents } },
+			data: { status: "PROCESSED", processedAt: new Date() },
+		});
 		// These owners were created in this process in the explicitly isolated test DB.
 		// Preserve their immutable ledger while releasing mock-only reservations so
 		// subsequent suites do not inherit provider/global capacity from our fixtures.
@@ -92,36 +97,273 @@ afterAll(async () => {
 });
 const run = <T>(callback: () => T) => runWithDatabaseClient(client, callback);
 
-it("retires a full page of late terminal callbacks so a live notification is not starved", async () => {
+it("retires a notified callback that arrives after the final provider query without changing settlement", async () => {
+	const f = await fixture();
+	const claimed = await run(() => claimVideoProviderSubmission(f.claim));
+	const taskId = `late-${f.job.id}`;
+	await run(() => recordVideoSubmissionAccepted(f.job.id, claimed.attempt.id, taskId));
+	const queriedAt = new Date(Date.now() - 1000);
+	const event = await run(() =>
+		persistVideoProviderWebhook({
+			callbackTokenHash: f.claim.callbackTokenHash,
+			taskId,
+			timestamp: String(Date.now()),
+			receivedAt: new Date(),
+		}),
+	);
+	await run(() => markVideoWebhookNotified(event.eventId));
+	await run(() =>
+		recordVideoProviderSuccess({
+			jobId: f.job.id,
+			attemptId: claimed.attempt.id,
+			providerTaskId: taskId,
+			outputUrl: "https://example.com/test-video.mp4",
+			providerCostMicros: null,
+			providerCompletedAt: null,
+		}),
+	);
+	await run(() => consumeVideoProviderEvents(f.job.id, claimed.attempt.id, queriedAt));
+	await client.videoExecution.update({ where: { jobId: f.job.id }, data: { stage: "READY" } });
+	const contextBefore = await run(() => getVideoExecutionContext(f.job.id));
+	const ledgerBefore = await client.creditLedgerEntry.findMany({
+		where: { accountId: f.reservation.accountId },
+	});
+	expect(
+		await client.providerWebhookEvent.findUniqueOrThrow({ where: { id: event.eventId } }),
+	).toMatchObject({ status: "RECEIVED", processedAt: null });
+	const now = new Date();
+	expect(
+		(await run(() => listPendingVideoWebhookEvents(100, now))).map((row) => row.eventId),
+	).not.toContain(event.eventId);
+	expect(
+		await client.providerWebhookEvent.findUniqueOrThrow({ where: { id: event.eventId } }),
+	).toMatchObject({
+		status: "IGNORED",
+		processedAt: now,
+		failureReason: "VIDEO_PROVIDER_RESULT_ALREADY_CONFIRMED",
+	});
+	await run(() => listPendingVideoWebhookEvents(100, new Date(now.getTime() + 1000)));
+	expect(
+		(await client.providerWebhookEvent.findUniqueOrThrow({ where: { id: event.eventId } }))
+			.processedAt,
+	).toEqual(now);
+	expect(await run(() => getVideoExecutionContext(f.job.id))).toEqual(contextBefore);
+	expect(
+		await client.creditLedgerEntry.findMany({ where: { accountId: f.reservation.accountId } }),
+	).toEqual(ledgerBefore);
+	const afterReady = await run(() =>
+		persistVideoProviderWebhook({
+			callbackTokenHash: f.claim.callbackTokenHash,
+			taskId,
+			timestamp: "after-ready",
+			receivedAt: new Date(),
+		}),
+	);
+	await run(() => listPendingVideoWebhookEvents(100));
+	expect(
+		await client.providerWebhookEvent.findUniqueOrThrow({ where: { id: afterReady.eventId } }),
+	).toMatchObject({ status: "IGNORED" });
+});
+
+it("preserves notified active, uncertain and unconfirmed callbacks for reconciliation", async () => {
+	for (const stage of ["GENERATING", "SUBMISSION_UNCERTAIN", "NEEDS_REVIEW", "FAILED"] as const) {
+		const f = await fixture();
+		const claimed = await run(() => claimVideoProviderSubmission(f.claim));
+		const taskId = `unconfirmed-${f.job.id}`;
+		await run(() => recordVideoSubmissionAccepted(f.job.id, claimed.attempt.id, taskId));
+		const event = await run(() =>
+			persistVideoProviderWebhook({
+				callbackTokenHash: f.claim.callbackTokenHash,
+				taskId,
+				timestamp: stage,
+				receivedAt: new Date(),
+			}),
+		);
+		await run(() => markVideoWebhookNotified(event.eventId));
+		await client.videoExecution.update({ where: { jobId: f.job.id }, data: { stage } });
+		if (stage === "SUBMISSION_UNCERTAIN" || stage === "NEEDS_REVIEW")
+			await client.generationAttempt.update({
+				where: { id: claimed.attempt.id },
+				data: { status: "SUBMISSION_UNCERTAIN", uncertainSubmission: true },
+			});
+		const unnotified = await run(() =>
+			persistVideoProviderWebhook({
+				callbackTokenHash: f.claim.callbackTokenHash,
+				taskId,
+				timestamp: `${stage}-unnotified`,
+				receivedAt: new Date(),
+			}),
+		);
+		const pending = await run(() => listPendingVideoWebhookEvents(100));
+		expect(pending.map((row) => row.eventId)).not.toContain(event.eventId);
+		if (stage === "GENERATING" || stage === "SUBMISSION_UNCERTAIN")
+			expect(pending.map((row) => row.eventId)).toContain(unnotified.eventId);
+		else expect(pending.map((row) => row.eventId)).not.toContain(unnotified.eventId);
+		for (const eventId of [event.eventId, unnotified.eventId])
+			expect(
+				await client.providerWebhookEvent.findUniqueOrThrow({ where: { id: eventId } }),
+			).toMatchObject({ status: "RECEIVED", processedAt: null });
+		// Yield this fixture's active notification after proving it remains live.
+		await run(() => markVideoWebhookNotified(unnotified.eventId));
+	}
+});
+
+it("retirement and notification require the same video provider, engine, job, attempt and task", async () => {
+	const f = await fixture();
+	const claimed = await run(() => claimVideoProviderSubmission(f.claim));
+	const taskId = `identity-${f.job.id}`;
+	await run(() => recordVideoSubmissionAccepted(f.job.id, claimed.attempt.id, taskId));
+	await run(() =>
+		recordVideoProviderSuccess({
+			jobId: f.job.id,
+			attemptId: claimed.attempt.id,
+			providerTaskId: taskId,
+			outputUrl: "https://example.com/test-video.mp4",
+			providerCostMicros: null,
+			providerCompletedAt: null,
+		}),
+	);
+	const variants = [
+		{ provider: "video-unrelated-test", envelope: {} },
+		{ provider: "kie-video-v1", envelope: { executionEngine: "legacy" } },
+		{ provider: "kie-video-v1", envelope: { jobId: "another-job" } },
+		{ provider: "kie-video-v1", envelope: { attemptId: "another-attempt" } },
+		{ provider: "kie-video-v1", envelope: { taskId: "another-task" } },
+		{ provider: "kie-video-v1", providerTaskId: "another-task", envelope: {} },
+	];
+	const events = [];
+	for (const [index, variant] of variants.entries()) {
+		const event = await client.providerWebhookEvent.create({
+			data: {
+				provider: variant.provider,
+				providerEventId: `video-v1:identity:${f.job.id}:${index}`,
+				providerTaskId: variant.providerTaskId ?? taskId,
+				verifiedAt: new Date(),
+				envelope: {
+					executionEngine: "video-workflow-v1",
+					jobId: f.job.id,
+					attemptId: claimed.attempt.id,
+					taskId,
+					notifiedAt: null,
+					...variant.envelope,
+				},
+			},
+		});
+		events.push(event);
+		identityFixtureEvents.push(event.id);
+	}
+	for (const stage of ["STORING", "READY"] as const) {
+		await client.videoExecution.update({ where: { jobId: f.job.id }, data: { stage } });
+		const pending = await run(() => listPendingVideoWebhookEvents(100));
+		for (const event of events) {
+			expect(pending.map((row) => row.eventId)).not.toContain(event.id);
+			expect(
+				await client.providerWebhookEvent.findUniqueOrThrow({ where: { id: event.id } }),
+			).toEqual(event);
+		}
+	}
+});
+
+it.each([
+	{ status: "SUCCEEDED" as const, uncertainSubmission: false, authoritative: "true" },
+	{ status: "SUCCEEDED" as const, uncertainSubmission: false, authoritative: false },
+	{ status: "SUCCEEDED" as const, uncertainSubmission: true, authoritative: true },
+	{ status: "SUBMITTED" as const, uncertainSubmission: false, authoritative: true },
+])("does not retire a callback without confirmed attempt evidence %j", async (evidence) => {
+	const f = await fixture();
+	const claimed = await run(() => claimVideoProviderSubmission(f.claim));
+	const taskId = `evidence-${f.job.id}`;
+	await run(() => recordVideoSubmissionAccepted(f.job.id, claimed.attempt.id, taskId));
+	const event = await run(() =>
+		persistVideoProviderWebhook({
+			callbackTokenHash: f.claim.callbackTokenHash,
+			taskId,
+			timestamp: "evidence",
+			receivedAt: new Date(),
+		}),
+	);
+	await run(() => markVideoWebhookNotified(event.eventId));
+	await client.generationAttempt.update({
+		where: { id: claimed.attempt.id },
+		data: {
+			status: evidence.status,
+			uncertainSubmission: evidence.uncertainSubmission,
+			responseSnapshot: { authoritative: evidence.authoritative },
+		},
+	});
+	await client.videoExecution.update({ where: { jobId: f.job.id }, data: { stage: "READY" } });
+	await run(() => listPendingVideoWebhookEvents(100));
+	expect(
+		await client.providerWebhookEvent.findUniqueOrThrow({ where: { id: event.eventId } }),
+	).toMatchObject({ status: "RECEIVED", processedAt: null });
+});
+
+it("retires a bounded page of late terminal callbacks without starving a live notification", async () => {
 	const ended = await fixture();
 	const live = await fixture();
+	const endedAttempt = await run(() => claimVideoProviderSubmission(ended.claim));
+	const liveAttempt = await run(() => claimVideoProviderSubmission(live.claim));
+	const endedTask = `ended-${ended.job.id}`;
+	const liveTask = `live-${live.job.id}`;
+	await run(() => recordVideoSubmissionAccepted(ended.job.id, endedAttempt.attempt.id, endedTask));
+	await run(() => recordVideoSubmissionAccepted(live.job.id, liveAttempt.attempt.id, liveTask));
+	await client.generationAttempt.update({
+		where: { id: endedAttempt.attempt.id },
+		data: {
+			status: "FAILED",
+			uncertainSubmission: false,
+			completedAt: new Date(),
+			responseSnapshot: { authoritative: true },
+		},
+	});
 	await client.videoExecution.update({ where: { jobId: ended.job.id }, data: { stage: "FAILED" } });
 	const now = Date.now();
 	const prefix = crypto.randomUUID();
 	await client.providerWebhookEvent.createMany({
-		data: Array.from({ length: 26 }, (_, index) => ({
+		data: Array.from({ length: 27 }, (_, index) => ({
 			provider: "kie-video-v1",
 			providerEventId: `video-v1:starvation:${prefix}:${index}`,
-			providerTaskId: `task-${prefix}`,
+			providerTaskId: index < 26 ? endedTask : liveTask,
 			verifiedAt: new Date(now - 10_000),
 			receivedAt: new Date(now - 10_000 + index),
 			envelope: {
 				executionEngine: "video-workflow-v1",
-				jobId: index < 25 ? ended.job.id : live.job.id,
-				taskId: `task-${prefix}`,
-				notifiedAt: null,
+				jobId: index < 26 ? ended.job.id : live.job.id,
+				attemptId: index < 26 ? endedAttempt.attempt.id : liveAttempt.attempt.id,
+				taskId: index < 26 ? endedTask : liveTask,
+				notifiedAt: index < 26 ? new Date(now).toISOString() : null,
 			},
 		})),
 	});
-	expect(await run(() => listPendingVideoWebhookEvents(25))).toEqual([]);
 	expect(await run(() => listPendingVideoWebhookEvents(25))).toEqual([
 		expect.objectContaining({ jobId: live.job.id }),
 	]);
+	expect(
+		await client.providerWebhookEvent.count({
+			where: {
+				provider: "kie-video-v1",
+				envelope: { path: ["jobId"], equals: ended.job.id },
+				status: "IGNORED",
+			},
+		}),
+	).toBe(25);
+	await run(() => listPendingVideoWebhookEvents(25));
+	expect(
+		await client.providerWebhookEvent.count({
+			where: {
+				provider: "kie-video-v1",
+				envelope: { path: ["jobId"], equals: ended.job.id },
+				status: "IGNORED",
+			},
+		}),
+	).toBe(26);
 });
 
 it("yields failed notifications to later events until their retry cooldown expires", async () => {
 	const live = await fixture();
+	const claimed = await run(() => claimVideoProviderSubmission(live.claim));
 	const prefix = crypto.randomUUID();
+	await run(() => recordVideoSubmissionAccepted(live.job.id, claimed.attempt.id, `task-${prefix}`));
 	const now = new Date();
 	const events = await Promise.all(
 		[0, 1].map((index) =>
@@ -135,6 +377,7 @@ it("yields failed notifications to later events until their retry cooldown expir
 					envelope: {
 						executionEngine: "video-workflow-v1",
 						jobId: live.job.id,
+						attemptId: claimed.attempt.id,
 						taskId: `task-${prefix}`,
 						notifiedAt: null,
 					},

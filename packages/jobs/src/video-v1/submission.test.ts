@@ -151,6 +151,8 @@ describe("video V1 paid submission fence", () => {
 	it.each([
 		["text-to-video", "video-seedance-2", 8, "1080p", "16:9", true, "bytedance/seedance-2"],
 		["image-to-video", "video-minimax-h3", 10, "768p", "source", true, "minimax-h3/image-to-video"],
+		["text-to-video", "video-veo-3-1-fast", 4, "720p", "16:9", true, "veo3_fast"],
+		["image-to-video", "video-veo-3-1-fast", 8, "1080p", "source", true, "veo3_fast"],
 	] as const)(
 		"builds the persisted %s model contract before fencing one paid request",
 		async (mode, productKey, duration, resolution, aspectRatio, sound, providerModelId) => {
@@ -243,6 +245,47 @@ describe("video V1 paid submission fence", () => {
 		expect(f.provider.submit).toHaveBeenCalledTimes(1);
 		expect(f.store.claimVideoProviderSubmission).toHaveBeenCalledTimes(1);
 		expect(f.store.failVideoExecution).not.toHaveBeenCalled();
+	});
+	it("never repeats an ambiguous old-Veo POST and recovers only the original callback task", async () => {
+		const f = fixture();
+		Object.assign(f.job.inputSnapshot, {
+			productKey: "video-veo-3-1-fast",
+			duration: 4,
+			resolution: "720p",
+			sound: true,
+		});
+		const overrides: Partial<VideoSubmissionDependencies> = { ...f.deps };
+		delete overrides.provider;
+		const fetch = vi
+			.spyOn(globalThis, "fetch")
+			.mockResolvedValueOnce(Response.json({ code: 400, msg: "Processing, check back shortly" }))
+			.mockResolvedValueOnce(
+				Response.json({ code: 200, data: { taskId: "original-veo-task", successFlag: 0 } }),
+			);
+		try {
+			for (let replay = 0; replay < 3; replay++)
+				expect(await submitVideoAttempt("job-1", overrides)).toMatchObject({ status: "UNCERTAIN" });
+			expect(fetch).toHaveBeenCalledTimes(1);
+			expect(f.attempt).toHaveLength(1);
+			expect(f.attempt[0]!.providerModelId).toBe("veo3_fast");
+			expect(f.store.failVideoExecution).not.toHaveBeenCalled();
+			// The verified durable callback inbox may restore the fenced attempt's task ID.
+			f.attempt[0]!.providerTaskId = "original-veo-task";
+			expect(await confirmVideoProviderResult("job-1", overrides)).toMatchObject({
+				status: "PENDING",
+			});
+			expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+				"https://api.kie.ai/api/v1/veo/generate",
+				"https://api.kie.ai/api/v1/veo/record-info?taskId=original-veo-task",
+			]);
+			expect(await submitVideoAttempt("job-1", overrides)).toMatchObject({
+				status: "ACCEPTED",
+				providerTaskId: "original-veo-task",
+			});
+			expect(fetch).toHaveBeenCalledTimes(2);
+		} finally {
+			fetch.mockRestore();
+		}
 	});
 	it("simultaneous replays share the durable claim and one paid call", async () => {
 		const f = fixture();
@@ -563,6 +606,56 @@ describe("authoritative provider confirmation", () => {
 		expect(await submitVideoAttempt("job-1", f.deps)).toMatchObject({ status: "UNCERTAIN" });
 		expect(f.provider.submit).toHaveBeenCalledTimes(1);
 		expect(f.attempt[0]!.providerModelId).toBe("bytedance/seedance-2");
+		expect(f.store.failVideoExecution).not.toHaveBeenCalled();
+	});
+	it("requires the frozen Veo Fast model before selecting its status route", async () => {
+		const f = fixture();
+		Object.assign(f.job.inputSnapshot, {
+			productKey: "video-veo-3-1-fast",
+			duration: 4,
+			resolution: "720p",
+			sound: true,
+		});
+		await submitVideoAttempt("job-1", f.deps);
+		expect(await confirmVideoProviderResult("job-1", f.deps)).toMatchObject({ status: "PENDING" });
+		expect(f.provider.retrieve).toHaveBeenCalledWith("task-1", "video-veo-3-1-fast");
+		f.attempt[0]!.providerModelId = "veo-3-1";
+		f.provider.retrieve.mockClear();
+		await expect(confirmVideoProviderResult("job-1", f.deps)).rejects.toThrow(
+			"VIDEO_PROVIDER_MODEL_IDENTITY_MISMATCH",
+		);
+		expect(f.provider.retrieve).not.toHaveBeenCalled();
+		expect(f.store.failVideoExecution).not.toHaveBeenCalled();
+	});
+	it("continues an accepted previous-catalog attempt after admission settings advance", async () => {
+		const f = fixture();
+		Object.assign(f.job.inputSnapshot, {
+			productKey: "video-seedance-2",
+			duration: 4,
+			resolution: "480p",
+			sound: false,
+			modelContractVersion: "video-models-2026-10-04.1",
+			pricingVersion: "kie-public-2026-10-04.2",
+		});
+		f.attempt.push({
+			id: "accepted-before-catalog-update",
+			providerTaskId: "original-task",
+			providerModelId: "bytedance/seedance-2",
+			status: "SUBMITTED",
+		});
+		Object.assign(f.deps.env, {
+			VIDEO_MODEL_CONTRACT_VERSION: "video-models-2026-10-04.2",
+			VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.3",
+			VIDEO_MODEL_ALLOWED_OPTIONS: "[]",
+			VIDEO_V1_ENABLED: "false",
+		});
+		expect(await confirmVideoProviderResult("job-1", f.deps)).toMatchObject({ status: "PENDING" });
+		expect(f.provider.retrieve).toHaveBeenCalledWith("original-task", "video-seedance-2");
+		expect(await submitVideoAttempt("job-1", f.deps)).toMatchObject({
+			status: "ACCEPTED",
+			providerTaskId: "original-task",
+		});
+		expect(f.provider.submit).not.toHaveBeenCalled();
 		expect(f.store.failVideoExecution).not.toHaveBeenCalled();
 	});
 });

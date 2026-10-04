@@ -103,13 +103,46 @@ describe("video full variable cost pricing", () => {
 		for (const productKey of [
 			"video-minimax-h3-turbo",
 			"video-veo-3-1",
-			"video-veo-3-1-fast",
+			"video-veo-3-1-pro",
 			"unknown",
 		])
 			expect(() => videoSupplierCostMicros({ ...request, productKey })).toThrow(
 				"VIDEO_MODEL_PRICE_UNAVAILABLE",
 			);
 	});
+	it("prices explicit old-route Veo Fast per video across supported durations", () => {
+		for (const mode of ["text-to-video", "image-to-video"] as const)
+			for (const duration of [4, 6, 8])
+				for (const [resolution, expected] of [
+					["720p", 300_000n],
+					["1080p", 325_000n],
+					["4k", 900_000n],
+				] as const)
+					expect(
+						videoSupplierCostMicros({
+							productKey: "video-veo-3-1-fast",
+							mode,
+							duration,
+							resolution,
+							sound: true,
+						}),
+					).toBe(expected);
+	});
+	it.each([{ duration: 5 }, { resolution: "480p" }, { sound: false }])(
+		"does not price unsupported Veo Fast parameters %j",
+		(patch) => {
+			expect(() =>
+				videoSupplierCostMicros({
+					...request,
+					productKey: "video-veo-3-1-fast",
+					duration: 4,
+					resolution: "720p",
+					sound: true,
+					...patch,
+				}),
+			).toThrow("VIDEO_MODEL_PRICE_UNAVAILABLE");
+		},
+	);
 	it("maintains >100% profit on complete cost after rounding and percentage payment fees", () => {
 		for (const providerCostMicros of [1n, 8750n, 275_000n, 15_600_000n])
 			for (const paymentFeeBps of [0n, 290n, 500n, 2000n])
@@ -127,7 +160,7 @@ describe("video full variable cost pricing", () => {
 					expect(result.credits * result.creditFloorMicros).toBe(result.minimumGrossRevenueMicros);
 				}
 	});
-	it("prices every supported non-Veo tuple with positive auditable costs", () => {
+	it("prices every supported mapped tuple with positive auditable costs", () => {
 		for (const productKey of [
 			"video-minimax-h3",
 			"video-kling-2-6-v1",
@@ -140,6 +173,7 @@ describe("video full variable cost pricing", () => {
 			"video-seedance-1-5-pro",
 			"video-seedance-1-pro-fast",
 			"video-gemini-omni-flash",
+			"video-veo-3-1-fast",
 		])
 			for (const mode of ["text-to-video", "image-to-video"] as const)
 				for (const option of getVideoModelOptions(productKey, mode))
@@ -221,7 +255,7 @@ describe("model-specific promotional price expiry", () => {
 				{ ...request, productKey, resolution: "720p" },
 				approvedPriceEnvironment(),
 			);
-			expect(price.pricingVersion).toBe("kie-public-2026-10-04.2");
+			expect(price.pricingVersion).toBe("kie-public-2026-10-04.3");
 			expect(price.pricingDetails.validUntil).toBe("2026-10-07T06:00:00.000Z");
 		},
 	);
@@ -280,7 +314,7 @@ describe("model-specific promotional price expiry", () => {
 		expect(() =>
 			resolveVideoModelPrice(request, {
 				...approvedPriceEnvironment(),
-				VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.1",
+				VIDEO_PRICE_ACCEPTED_VERSION: "kie-public-2026-10-04.2",
 			}),
 		).toThrow("VIDEO_PRICE_NOT_APPROVED");
 	});
