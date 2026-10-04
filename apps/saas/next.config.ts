@@ -6,7 +6,7 @@ import { createMDX } from "fumadocs-mdx/next";
 import type { NextConfig } from "next";
 import nextIntlPlugin from "next-intl/plugin";
 
-import { resolveStorageConnectOrigin } from "./storage-connect-origin";
+import { resolveMediaCspTransportPolicy } from "./storage-connect-origin";
 
 const withNextIntl = nextIntlPlugin("./modules/i18n/request.ts");
 const withMDX = createMDX({
@@ -16,9 +16,9 @@ const withMDX = createMDX({
 
 const isProduction = process.env.NODE_ENV === "production";
 const isWorkersBuild = process.env.EZPIC_WORKERS_BUILD === "true";
-const storageConnectSource = resolveStorageConnectOrigin(process.env.S3_ENDPOINT, {
-	allowLoopbackHttp: !isProduction || process.env.E2E_TEST_MEDIA_ADAPTERS === "true",
-});
+const { storageConnectSource, upgradeInsecureRequests } = resolveMediaCspTransportPolicy(
+	process.env,
+);
 const contentSecurityPolicy = [
 	"default-src 'self'",
 	"base-uri 'self'",
@@ -34,7 +34,7 @@ const contentSecurityPolicy = [
 	"font-src 'self' data:",
 	`connect-src 'self' https:${storageConnectSource ? ` ${storageConnectSource}` : ""}${isProduction ? "" : " ws:"}`,
 	"worker-src 'self' blob:",
-	...(isProduction ? ["upgrade-insecure-requests"] : []),
+	...(upgradeInsecureRequests ? ["upgrade-insecure-requests"] : []),
 ].join("; ");
 
 const securityHeaders = [

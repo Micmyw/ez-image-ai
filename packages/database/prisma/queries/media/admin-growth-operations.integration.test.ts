@@ -2,6 +2,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import * as mediaQueries from ".";
+import { isExplicitGuestVerificationTarget } from "../../../../../tests/load/guest-verification-target";
 import { isExplicitVideoVerificationTarget } from "../../../../../tests/load/video-verification-target";
 import { PrismaClient } from "../../generated/client";
 
@@ -111,7 +112,13 @@ const approvedGrowthTestDatabases = new Set([
 ]);
 
 function isApprovedGrowthTestDatabase(value: string): boolean {
-	return approvedGrowthTestDatabases.has(value) || /^ezpic_[a-z0-9_]+_test$/.test(value);
+	if (approvedGrowthTestDatabases.has(value) || /^ezpic_[a-z0-9_]+_test$/.test(value)) return true;
+	if (value !== "ai_media_guest_test" || !process.env.TEST_DATABASE_URL) return false;
+	try {
+		return isExplicitGuestVerificationTarget(new URL(process.env.TEST_DATABASE_URL));
+	} catch {
+		return false;
+	}
 }
 
 function safeTestDatabaseUrl(): string {
@@ -119,6 +126,7 @@ function safeTestDatabaseUrl(): string {
 	if (!value) throw new Error("BLOCKED_BY_ENVIRONMENT: TEST_DATABASE_URL is required");
 	if (process.env.DATABASE_URL === value) throw new Error("UNSAFE_TEST_DATABASE");
 	const parsed = new URL(value);
+	if (isExplicitGuestVerificationTarget(parsed)) return value;
 	if (
 		parsed.hostname !== "127.0.0.1" ||
 		(parsed.port !== "55432" && !isExplicitVideoVerificationTarget(parsed)) ||

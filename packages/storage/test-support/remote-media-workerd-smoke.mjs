@@ -7,6 +7,8 @@ import { createRequire } from "node:module";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { assertWorkerdNetworkDenied } from "./workerd-network-evidence.mjs";
+
 const root = fileURLToPath(new URL("../../../", import.meta.url));
 const output = path.join(root, ".wrangler/remote-media-smoke");
 const wranglerRequire = createRequire(
@@ -189,26 +191,14 @@ try {
 	const noScope = await read("strict", "no-scope");
 	assert.match(noScope.error, /missing from the request scope/);
 	const privateNetwork = await read("strict", "private-network");
-	const assertNetworkDenied = (message) => {
-		const reference = message.match(/reference = (\S+)/)?.[1];
-		if (reference) {
-			const lines = logs.split("\n");
-			const errorLine = lines.findIndex((line) => line.includes("wdErrId = " + reference));
-			assert(errorLine > 0, "Missing workerd network-denial evidence for " + reference);
-			assert.match(
-				lines[errorLine - 1],
-				/blocked by restrictPeers|restricted|not allowed|disallowed/i,
-			);
-		} else {
-			assert.match(message, /restricted|not allowed|permission|private|disallowed/i);
-		}
-	};
+	const assertNetworkDenied = (message) =>
+		assertWorkerdNetworkDenied(message, { runtime, readLogs: () => logs });
 	for (const result of privateNetwork) {
 		assert.equal(result.blocked, true, result.address);
-		assertNetworkDenied(result.message);
+		await assertNetworkDenied(result.message);
 	}
 	const rebinding = await read("strict", "dns-rebinding");
-	assertNetworkDenied(rebinding.error);
+	await assertNetworkDenied(rebinding.error);
 	process.stdout.write(
 		JSON.stringify(
 			{

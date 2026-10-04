@@ -182,6 +182,14 @@ not satisfy them; the root verification report owns final tests and release stat
 | Multi-model deployment readiness                                        | `apps/web-host/src/profiles.ts` and its workers/hybrid tests                                                                                                                                 |
 | Strict local production-build E2E identity and moderation entry points  | `packages/config/guest-media.ts`; `packages/config/moderation.ts`; `packages/ai/media/moderation/configured.ts`; `packages/api/modules/media/lib/text-moderation.ts` and corresponding tests |
 
+Destructive suites additionally use the explicit target in
+`tests/load/guest-verification-target.ts`; `run-integration.test.ts` checks their
+actual command plan and database separation. Local production-build CSP behavior
+lives in `apps/saas/storage-connect-origin.ts` and `next.config.ts`. Bounded workerd
+stderr evidence collection lives in
+`packages/storage/test-support/workerd-network-evidence.mjs`, used by the existing
+remote-media smoke with matching unit coverage.
+
 The harness exception is limited to explicit local Mock tests. The video visual
 adapter continues to require SeeAPI, and deployed production does not inherit a
 test approval. Current CI results and external blockers are recorded in

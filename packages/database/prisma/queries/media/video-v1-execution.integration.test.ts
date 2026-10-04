@@ -104,7 +104,12 @@ it("retires a full page of late terminal callbacks so a live notification is not
 			providerTaskId: `task-${prefix}`,
 			verifiedAt: new Date(now - 10_000),
 			receivedAt: new Date(now - 10_000 + index),
-			envelope: { jobId: index < 25 ? ended.job.id : live.job.id, notifiedAt: null },
+			envelope: {
+				executionEngine: "video-workflow-v1",
+				jobId: index < 25 ? ended.job.id : live.job.id,
+				taskId: `task-${prefix}`,
+				notifiedAt: null,
+			},
 		})),
 	});
 	expect(await run(() => listPendingVideoWebhookEvents(25))).toEqual([]);
@@ -123,9 +128,15 @@ it("yields failed notifications to later events until their retry cooldown expir
 				data: {
 					provider: "kie-video-v1",
 					providerEventId: `video-v1:cooldown:${prefix}:${index}`,
+					providerTaskId: `task-${prefix}`,
 					verifiedAt: now,
 					receivedAt: new Date(now.getTime() + index),
-					envelope: { jobId: live.job.id, notifiedAt: null },
+					envelope: {
+						executionEngine: "video-workflow-v1",
+						jobId: live.job.id,
+						taskId: `task-${prefix}`,
+						notifiedAt: null,
+					},
 				},
 			}),
 		),

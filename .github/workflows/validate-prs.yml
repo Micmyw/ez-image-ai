@@ -47,6 +47,8 @@ jobs:
         run: pnpm --filter @repo/database generate
       - name: Verify workflow infrastructure contract
         run: pnpm verify:ci-workflow
+      - name: Verify isolated integration suite routing
+        run: pnpm exec tsx --test tests/load/run-integration.test.ts
       - run: pnpm lint --deny-warnings
       - run: pnpm format:check
       - run: pnpm type-check
@@ -88,6 +90,7 @@ jobs:
     timeout-minutes: 30
     env:
       NODE_ENV: test
+      GUEST_TEST_DATABASE_URL: postgresql://ai_media_test:ai_media_test_only@127.0.0.1:55440/ai_media_guest_test
       VIDEO_VERIFICATION_DATABASE_URL: postgresql://ai_media_test:ai_media_test_only@127.0.0.1:55439/ezpic_video_v1_final_test
     services:
       postgres:
@@ -100,6 +103,19 @@ jobs:
           - 55432:5432
         options: >-
           --health-cmd "pg_isready -U ai_media_test -d ai_media_foundation_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+      guest-postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: ai_media_test
+          POSTGRES_PASSWORD: ai_media_test_only
+          POSTGRES_DB: ai_media_guest_test
+        ports:
+          - 55440:5432
+        options: >-
+          --health-cmd "pg_isready -U ai_media_test -d ai_media_guest_test"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 12
@@ -140,6 +156,10 @@ jobs:
         env:
           DATABASE_URL: ${{ env.VIDEO_VERIFICATION_DATABASE_URL }}
         run: pnpm db:migrate:deploy
+      - name: Apply migrations to the isolated guest database
+        env:
+          DATABASE_URL: ${{ env.GUEST_TEST_DATABASE_URL }}
+        run: pnpm db:migrate:deploy
       - name: Run PostgreSQL integration tests
         run: pnpm test:integration
       - name: Build the final Workers jobs artifact for database verification
@@ -149,6 +169,10 @@ jobs:
       - name: Run controlled media load route smoke
         run: pnpm load:smoke
       - name: Verify data invariants
+        run: pnpm verify:invariants
+      - name: Verify isolated guest data invariants
+        env:
+          TEST_DATABASE_URL: ${{ env.GUEST_TEST_DATABASE_URL }}
         run: pnpm verify:invariants
 
   builds:

@@ -58,6 +58,37 @@ is unchanged. Focused regressions passed: 97 config/guest cases, 46 configured
 image/low-level adapter cases and 42 text-moderation cases (185 total). These
 overlap other suites and are not added to their totals.
 
+[The run on `e6c12c62`](https://github.com/Micmyw/ez-image-ai/actions/runs/37187052637)
+passed all 1577 integration cases (five optional skips), the database-backed
+workerd artifact and route smoke. Its final global invariant check exposed two
+test-data problems: 28 manually constructed Kie recovery inbox rows omitted the
+identity fields that the real persistence path writes; 23 valid SeeAPI inbox rows
+lost their owning jobs/assets when later suites used `TRUNCATE ... CASCADE` on the
+same database. A local reproduction confirmed all 23 were missing both related
+records. The recovery fixtures now use complete identities. Destructive suites
+now use a third, explicitly approved guest database; the workflow checks full
+invariants on both main and guest targets. Twenty-four target/routing regressions
+cover the actual command plan, including absent configuration, loopback aliases,
+query-only differences, repeated database names behind different forwarded ports and forbidden connection overrides. Invariant SQL and
+provider coverage are unchanged.
+
+That run also reported 34 authenticated browser passes, one login retry that
+passed and one avatar failure. The avatar upload and profile update succeeded;
+the trace showed CSP upgrading the local HTTP MinIO redirect to unsupported HTTPS.
+The strict local production-build E2E identity now controls that transport
+exception. Normal production keeps HTTPS upgrade and HSTS. The original avatar
+assertion is unchanged; 31 focused transport-policy cases passed. Guest browser
+and video UI steps did not execute in that failed run and remain NOT_RUN there.
+
+The workerd network-denial smoke separately exposed a stderr delivery race: its
+HTTP error response arrived before the matching log record. A controlled 100 ms
+stderr delay reproduced the failure and then delivered the same denial reference.
+The correction awaits that exact complete record for at most three seconds and
+still asserts the network-denial cause; absent or unrelated evidence cannot pass.
+Fifteen focused cases and the real local workerd smoke passed, including the same
+100 ms delay injection. The tests are discovered by the existing Storage unit
+contract command. This verifies local workerd behavior, not a Cloudflare deployment.
+
 The nine video UI cases now follow the standard media E2E in CI. They reuse the
 existing browser harness and local services, with video disabled and a network
 guard allowing only loopback services and optional font downloads. Video RPCs,
@@ -74,28 +105,34 @@ The existing five-case immutable video-input/Range storage suite also joins the
 same MinIO lifecycle using a dedicated private bucket containing `test` in its
 name. Its loopback and bucket guards remain unchanged.
 
-For a complete local `pnpm test:integration`, provide both the usual
-`TEST_DATABASE_URL` and the explicit migrated `VIDEO_VERIFICATION_DATABASE_URL`
-accepted by `tests/load/video-verification-target.ts`. The API-only phase does not
-require the additional video database. See the workflow for the two disposable
-service definitions; never substitute a production target.
+For a complete local `pnpm test:integration`, provide the usual
+`TEST_DATABASE_URL`, the separately migrated `GUEST_TEST_DATABASE_URL`
+(`127.0.0.1:55440/ai_media_guest_test`) and the explicit migrated
+`VIDEO_VERIFICATION_DATABASE_URL` accepted by
+`tests/load/video-verification-target.ts`. The API-only phase also requires the
+guest database but does not require the video database. All three physical
+targets must be distinct. See the workflow for the disposable service definitions;
+never substitute a production target. Main and guest targets both undergo the
+unmodified `pnpm verify:invariants` check after integration.
 
 ### Complete local integration result
 
-The corrected root integration command passed on 2026-10-04 against two fresh,
-task-owned PostgreSQL 17.11 databases, each with all 59 migrations applied. The
-run used only local fixture credentials, explicit Mock/test adapters and the
-no-paid-network guard. It completed in 330.7 seconds with exit code 0.
+The latest complete sequence passed on 2026-10-04 against three fresh,
+task-owned PostgreSQL 17.11 databases, each with all 59 migrations applied. It
+used only local fixture credentials, explicit Mock/test adapters and the
+no-paid-network guard. Integration completed in 251.5 seconds; integration,
+route smoke and both invariant checks completed in 260.1 seconds with exit code 0.
 
-| Serial group                             | Passed | Optional cases not run |
-| ---------------------------------------- | -----: | ---------------------: |
-| Ordinary database                        |    369 |                      0 |
-| Guest database and shared video capacity |    103 |                      0 |
-| Dedicated SeeAPI handoff database        |     32 |                      0 |
-| Jobs database and video domain flows     |    177 |                      5 |
-| API                                      |    870 |                      0 |
-| Guest API boundary                       |     12 |                      0 |
-| Total in this command                    |   1563 |                      5 |
+| Serial group                                     | Passed | Optional cases not run |
+| ------------------------------------------------ | -----: | ---------------------: |
+| Ordinary database                                |    365 |                      0 |
+| Guest database, growth and shared video capacity |    107 |                      0 |
+| Dedicated SeeAPI handoff database                |     32 |                      0 |
+| Main Jobs database and video domain flows        |    101 |                      5 |
+| Isolated runtime-stores database                 |     76 |                      0 |
+| API                                              |    884 |                      0 |
+| Guest API boundary                               |     12 |                      0 |
+| Total in this command                            |   1577 |                      5 |
 
 The five skips are explicitly opt-in: three video concurrency performance cases
 (`VIDEO_V1_RUN_PERFORMANCE=1`) and two legacy immutable-S3 crash-recovery cases
@@ -103,8 +140,12 @@ The five skips are explicitly opt-in: three video concurrency performance cases
 This total includes unit and database-backed cases selected by the integration
 runner; it is not a count of independent real-service requests and must not be
 added to historical overlapping test totals. The local log and process record
-are retained under `.cache/video-v1-prerelease/full-integration*` and are not
-published as production evidence.
+are retained under `.cache/video-v1-prerelease/isolated-integration-and-invariants*`
+and are not published as production evidence. Both main and guest databases
+passed all ten unmodified invariant checks. The main database retained all 23
+SeeAPI inbox records with zero missing jobs or assets, proving the result did not
+come from deleting the evidence. The earlier failed reproduction is retained
+separately.
 
 ## Deployment readiness repair
 

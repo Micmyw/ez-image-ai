@@ -33,6 +33,7 @@ import { PrismaClient } from "@repo/database/generated-client";
 import { MediaValidationError } from "@repo/storage";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { isExplicitGuestVerificationTarget } from "../../../../tests/load/guest-verification-target";
 import { isExplicitVideoVerificationTarget } from "../../../../tests/load/video-verification-target";
 import { DispatchAdmissionBlockedError } from "../contracts";
 import {
@@ -4296,6 +4297,7 @@ function legacyRouteGraph(productKey: "image-fast" | "image-quality" | "video-fa
 function assertSafeTestDatabaseUrl(value: string | undefined): void {
 	if (!value) throw new Error("TEST_DATABASE_URL is required");
 	const parsed = new URL(value);
+	if (isExplicitGuestVerificationTarget(parsed)) return;
 	const safeDatabase =
 		parsed.pathname === "/ai_media_foundation_test" ||
 		/^\/ezpic_[a-z0-9_]+_test(?:ing)?$/.test(parsed.pathname);

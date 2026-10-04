@@ -85,6 +85,45 @@ assertStepPrecedes(
 	"run: pnpm test:integration",
 );
 assertIncludes(postgres, "      video-postgres:");
+assertIncludes(postgres, "      guest-postgres:");
+assertIncludes(postgres, "          POSTGRES_DB: ai_media_guest_test");
+assertIncludes(postgres, "          - 55440:5432");
+assertIncludes(
+	postgres,
+	"GUEST_TEST_DATABASE_URL: postgresql://ai_media_test:ai_media_test_only@127.0.0.1:55440/ai_media_guest_test",
+);
+assertIncludes(postgres, "DATABASE_URL: ${{ env.GUEST_TEST_DATABASE_URL }}");
+assertStepPrecedes(
+	postgres,
+	"name: Apply migrations to the isolated guest database",
+	"run: pnpm test:integration",
+);
+assertUnconditionalStep(quality, "pnpm exec tsx --test tests/load/run-integration.test.ts");
+assertIncludes(
+	integrationRunner,
+	"isExplicitGuestVerificationTarget(new URL(guestTestDatabaseUrl))",
+);
+assertIncludes(
+	integrationRunner,
+	"assertDistinctDatabaseTargets([...databaseTargets, new URL(videoTestDatabaseUrl)])",
+);
+assertNotMatch(integrationRunner, /GUEST_TEST_DATABASE_URL\s*\?\?/);
+assertIncludes(
+	integrationRunner,
+	'"prisma/queries/media/admin-growth-operations.integration.test.ts"',
+);
+assertIncludes(integrationRunner, "runtimeDatabaseAlias(guestTestDatabaseUrl)");
+assertIncludes(postgres, "name: Verify data invariants\n        run: pnpm verify:invariants");
+assertIncludes(
+	postgres,
+	"name: Verify isolated guest data invariants\n        env:\n          TEST_DATABASE_URL: ${{ env.GUEST_TEST_DATABASE_URL }}\n        run: pnpm verify:invariants",
+);
+assertStepPrecedes(postgres, "run: pnpm test:integration", "name: Verify data invariants");
+assertStepPrecedes(
+	postgres,
+	"run: pnpm test:integration",
+	"name: Verify isolated guest data invariants",
+);
 assertIncludes(postgres, "          POSTGRES_DB: ezpic_video_v1_final_test");
 assertIncludes(postgres, "          - 55439:5432");
 assertIncludes(

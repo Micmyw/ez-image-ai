@@ -8,14 +8,14 @@
 `packages/database/prisma/zod/index.ts` 是从本分支 schema 重新生成的产物。
 完整责任与验收要求见 [审核说明](video-v1-github-review.md)。
 
-共 **345 个路径**。A 为新增、M 为修改、D 为删除。
+共 **353 个路径**。A 为新增、M 为修改、D 为删除。
 
 | 类别           | 路径数 |
 | -------------- | -----: |
-| 实现与配置     |    158 |
-| 测试与验证工具 |    136 |
+| 实现与配置     |    160 |
+| 测试与验证工具 |    139 |
 | 文档           |     26 |
-| 夹具与验收记录 |     25 |
+| 夹具与验收记录 |     28 |
 
 ## 实现与配置
 
@@ -49,8 +49,10 @@
 | A    | [apps/saas/modules/video-v1/model.ts](../../apps/saas/modules/video-v1/model.ts)                                                                                                                         |
 | A    | [apps/saas/modules/video-v1/use-video-upload.ts](../../apps/saas/modules/video-v1/use-video-upload.ts)                                                                                                   |
 | A    | [apps/saas/modules/video-v1/use-video.ts](../../apps/saas/modules/video-v1/use-video.ts)                                                                                                                 |
+| M    | [apps/saas/next.config.ts](../../apps/saas/next.config.ts)                                                                                                                                               |
 | M    | [apps/saas/package.json](../../apps/saas/package.json)                                                                                                                                                   |
 | M    | [apps/saas/proxy.ts](../../apps/saas/proxy.ts)                                                                                                                                                           |
+| M    | [apps/saas/storage-connect-origin.ts](../../apps/saas/storage-connect-origin.ts)                                                                                                                         |
 | M    | [apps/saas/tests/auth.setup.ts](../../apps/saas/tests/auth.setup.ts)                                                                                                                                     |
 | M    | [apps/saas/wrangler.jsonc](../../apps/saas/wrangler.jsonc)                                                                                                                                               |
 | M    | [apps/web-host/src/build-secrets.ts](../../apps/web-host/src/build-secrets.ts)                                                                                                                           |
@@ -198,6 +200,7 @@
 | A    | [apps/saas/modules/video-v1/video-v1.e2e.ts](../../apps/saas/modules/video-v1/video-v1.e2e.ts)                                                                                                       |
 | A    | [apps/saas/modules/video-v1/vitest.config.ts](../../apps/saas/modules/video-v1/vitest.config.ts)                                                                                                     |
 | M    | [apps/saas/proxy.test.ts](../../apps/saas/proxy.test.ts)                                                                                                                                             |
+| M    | [apps/saas/storage-connect-origin.test.ts](../../apps/saas/storage-connect-origin.test.ts)                                                                                                           |
 | M    | [apps/saas/tests/avatar-upload.spec.ts](../../apps/saas/tests/avatar-upload.spec.ts)                                                                                                                 |
 | M    | [apps/saas/tests/checkout-review.spec.ts](../../apps/saas/tests/checkout-review.spec.ts)                                                                                                             |
 | M    | [apps/saas/tests/subscription-upgrade.spec.ts](../../apps/saas/tests/subscription-upgrade.spec.ts)                                                                                                   |
@@ -309,6 +312,8 @@
 | M    | [packages/jobs/vitest.config.ts](../../packages/jobs/vitest.config.ts)                                                                                                                               |
 | A    | [packages/storage/lib/video-mp4.test.ts](../../packages/storage/lib/video-mp4.test.ts)                                                                                                               |
 | A    | [packages/storage/provider/s3/video-input.minio.integration.test.ts](../../packages/storage/provider/s3/video-input.minio.integration.test.ts)                                                       |
+| A    | [tests/load/guest-verification-target.ts](../../tests/load/guest-verification-target.ts)                                                                                                             |
+| A    | [tests/load/run-integration.test.ts](../../tests/load/run-integration.test.ts)                                                                                                                       |
 | M    | [tests/load/run-integration.ts](../../tests/load/run-integration.ts)                                                                                                                                 |
 | M    | [tests/load/verify-ci-workflow.mjs](../../tests/load/verify-ci-workflow.mjs)                                                                                                                         |
 | M    | [tests/load/verify-invariants.ts](../../tests/load/verify-invariants.ts)                                                                                                                             |
@@ -380,4 +385,7 @@
 | A    | [packages/ai/media/catalog/fixtures/seeapi-video-moderation-contract-2026-10-04.json](../../packages/ai/media/catalog/fixtures/seeapi-video-moderation-contract-2026-10-04.json) |
 | D    | `packages/ai/media/moderation/sightengine.test-fixtures.ts`                                                                                                                      |
 | A    | [packages/jobs/src/video-v1/video-safety.test-fixtures.ts](../../packages/jobs/src/video-v1/video-safety.test-fixtures.ts)                                                       |
+| M    | [packages/storage/test-support/remote-media-workerd-smoke.mjs](../../packages/storage/test-support/remote-media-workerd-smoke.mjs)                                               |
 | A    | [packages/storage/test-support/video-fixture.ts](../../packages/storage/test-support/video-fixture.ts)                                                                           |
+| A    | [packages/storage/test-support/workerd-network-evidence.mjs](../../packages/storage/test-support/workerd-network-evidence.mjs)                                                   |
+| A    | [packages/storage/test-support/workerd-network-evidence.test.mjs](../../packages/storage/test-support/workerd-network-evidence.test.mjs)                                         |
