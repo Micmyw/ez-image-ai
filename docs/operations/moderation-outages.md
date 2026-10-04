@@ -1,5 +1,12 @@
 # Moderation outages and review
 
+> **Superseded runtime policy (2026-10-04).** This document preserves the earlier outage-bypass
+> implementation and its release history. Current moderation fails closed: technical failures,
+> exhausted retries and incomplete checks do not authorize generation or media access. Historical
+> `BYPASS`/`BYPASSED` evidence is retained for audit and does not grant new execution permission.
+> Sightengine is retired and unfinished tasks requiring it are held without another external call.
+> Use [current moderation](content-moderation.md) and [video recovery](video-v1-rollout.md).
+
 Open `/admin/media#moderation` using an administrator account. The panel tracks service incidents
 separately from affected content: service recovery does not resolve the pending review queue.
 

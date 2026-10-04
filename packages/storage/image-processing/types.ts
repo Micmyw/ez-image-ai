@@ -18,6 +18,16 @@ export interface ImageWatermarkOptions extends ImageDimensions, ImageSourceOptio
 /** Private image bytes cross this boundary; object keys and access policy stay in storage. */
 export interface ImageProcessor {
 	readonly key: string;
+	/** Bounded video reference normalization; preserves geometry, never transcodes video. */
+	normalizePng?(
+		source: ReadableStream<Uint8Array>,
+		options: ImageSourceOptions,
+	): Promise<ReadableStream<Uint8Array>>;
+	validateDecoded?(
+		source: ReadableStream<Uint8Array>,
+		contentType: ImageContentType,
+		options: ImageSourceOptions,
+	): Promise<void>;
 	inspect(
 		source: ReadableStream<Uint8Array>,
 		contentType: ImageContentType,

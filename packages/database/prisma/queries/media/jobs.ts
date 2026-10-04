@@ -9,6 +9,11 @@ import { loadCurrentGenerationAdmission } from "./generation-admission";
 import { assertQuoteModerationPermitted } from "./moderation-operations";
 import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
 import {
+	assertSharedKieCapacity,
+	configuredSharedKieCapacity,
+	lockSharedKieCapacity,
+} from "./shared-provider-capacity";
+import {
 	ACTIVE_GENERATION_JOB_STATUSES,
 	canTransition,
 	type GenerationJobStatusValue,
@@ -20,7 +25,7 @@ import type {
 	CreateGenerationJobResult,
 	MediaTransactionClient,
 } from "./types";
-import { isDatabaseUniqueConflict, runSerializable } from "./types";
+import { isDatabaseUniqueConflict, runReadCommitted, runSerializable } from "./types";
 
 async function getDatabaseNow(
 	client: MediaTransactionClient | Prisma.TransactionClient,
@@ -120,10 +125,22 @@ export async function createGenerationJobTransaction(
 		throw new Error("ASSET_CONTENT_CHANGED");
 	}
 
+	const providerLimit = configuredSharedKieCapacity();
+	// Video/guest admissions use READ COMMITTED. A SERIALIZABLE snapshot taken
+	// before waiting for their advisory lock would not see their committed jobs.
+	// With the shared cap enabled all admission predicates use the existing
+	// provider/owner/storage/budget/asset/account locks and fresh statement reads.
+	const runAdmission = providerLimit === null ? runSerializable : runReadCommitted;
 	try {
-		return await runSerializable(client, async (tx) => {
+		return await runAdmission(client, async (tx) => {
 			const operationNow = await getDatabaseNow(tx);
-			if (input.maximumConcurrentJobs !== undefined || input.validateCurrentEligibility) {
+			// Same lock order as video admission; retain capacity protection while video intake is disabled.
+			if (providerLimit !== null) await lockSharedKieCapacity(tx);
+			if (
+				providerLimit !== null ||
+				input.maximumConcurrentJobs !== undefined ||
+				input.validateCurrentEligibility
+			) {
 				if (
 					input.maximumConcurrentJobs !== undefined &&
 					(!Number.isSafeInteger(input.maximumConcurrentJobs) || input.maximumConcurrentJobs <= 0)
@@ -144,7 +161,7 @@ export async function createGenerationJobTransaction(
 			if (quote.expiresAt <= operationNow) throw new Error("Quote expired");
 			if (quote.credits <= 0n) throw new Error("Quote credits are invalid");
 			if (
-				!["ALLOW", "BYPASS"].includes(quote.moderationDecision) ||
+				quote.moderationDecision !== "ALLOW" ||
 				quote.moderationRuleVersion !== input.expectedModerationRuleVersion ||
 				(input.expectedModerationProvider !== undefined &&
 					quote.moderationProvider !== input.expectedModerationProvider) ||
@@ -155,6 +172,8 @@ export async function createGenerationJobTransaction(
 			await assertQuoteModerationPermitted(quote, tx);
 			const replay = await findExistingJob(input, tx);
 			if (replay) return replay;
+			// A shared account cap must serialize admission across both execution engines.
+			if (providerLimit !== null) await assertSharedKieCapacity(tx, providerLimit);
 			const admission = input.validateCurrentEligibility
 				? await loadCurrentGenerationAdmission(
 						{
@@ -704,6 +723,7 @@ export async function transitionGenerationJob(
 	const result = await client.generationJob.updateMany({
 		where: {
 			id: input.jobId,
+			executionEngine: "legacy",
 			status: { in: input.expectedStatuses },
 			version: input.expectedVersion,
 		},
@@ -733,6 +753,7 @@ export async function listGenerationJobs(
 	const take = Math.min(Math.max(input.take ?? 20, 1), 100);
 	return client.generationJob.findMany({
 		where: {
+			executionEngine: "legacy",
 			ownerType: input.ownerType,
 			ownerId: input.ownerId,
 			...(input.cursor

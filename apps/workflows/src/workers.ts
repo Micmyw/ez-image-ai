@@ -24,6 +24,8 @@ import {
 
 import { createWorkflowBindingDispatcher, handleDispatch, type JobsParams } from "./dispatch";
 import { createWorkerExecutionHandler } from "./execution";
+import { runVideoMaintenance, type VideoRuntimeEnvironment } from "./video-runtime";
+export { VideoGenerationWorkflowV1 } from "./video-generation-v1";
 import {
 	runMaintenance,
 	runPolling,
@@ -33,7 +35,7 @@ import {
 	type InvocationResult,
 } from "./orchestrator";
 
-export interface WorkersEnvironment {
+export interface WorkersEnvironment extends VideoRuntimeEnvironment {
 	WORKFLOWS_DISPATCH_SECRET: string;
 	WORKFLOWS_DISPATCH_URL: string;
 	HYPERDRIVE: { connectionString: string };
@@ -138,14 +140,23 @@ export default {
 		return handleDispatch(request, env.WORKFLOWS_DISPATCH_SECRET, env.JOBS);
 	},
 	async scheduled(controller, env) {
+		// Start direct recovery before awaiting legacy maintenance creation. It is
+		// independent of the old maintenance DO's queue and of admission flags.
+		const videoRecovery = runVideoMaintenance(env);
 		const timestamp = Math.floor(controller.scheduledTime / 60_000) * 60_000;
-		const id = await workflowInstanceId({ maintenance: timestamp });
-		await env.JOBS.createBatch([
-			{
-				id,
-				params: { kind: "maintenance", timestamp },
-				retention: { successRetention: "1 day", errorRetention: "7 days" },
-			},
+		const results = await Promise.allSettled([
+			videoRecovery,
+			workflowInstanceId({ maintenance: timestamp }).then((id) =>
+				env.JOBS.createBatch([
+					{
+						id,
+						params: { kind: "maintenance", timestamp },
+						retention: { successRetention: "1 day", errorRetention: "7 days" },
+					},
+				]),
+			),
 		]);
+		if (results.some((result) => result.status === "rejected"))
+			throw new Error("SCHEDULED_RECOVERY_FAILED");
 	},
 } satisfies ExportedHandler<WorkersEnvironment>;

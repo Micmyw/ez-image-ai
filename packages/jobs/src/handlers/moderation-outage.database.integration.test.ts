@@ -4,7 +4,6 @@ import {
 	MEDIA_VERIFICATION_RULE_VERSION,
 	TestMediaSafetyAdapter,
 } from "@repo/ai";
-import { MODERATION_BYPASS_REASON } from "@repo/config";
 import {
 	applyAdminModerationReview,
 	completeAdminTextRecheck,
@@ -18,6 +17,7 @@ import {
 import { PrismaClient } from "@repo/database/generated-client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { isExplicitVideoVerificationTarget } from "../../../../tests/load/video-verification-target";
 import { createDatabaseVerifyUploadDependencies, createDatabaseSettlementStore } from "../runtime";
 import { settleGeneration } from "./settle-generation";
 
@@ -29,10 +29,13 @@ const contract = {
 };
 const PNG = Buffer.from("89504e470d0a1a0a0000000d49484452", "hex");
 beforeAll(() => {
+	vi.stubEnv("NODE_ENV", "test");
+	vi.stubEnv("MEDIA_SAFETY_ADAPTER", "test");
+	vi.stubEnv("MEDIA_ALLOW_TEST_SAFETY_ADAPTER", "true");
 	const url = new URL(process.env.TEST_DATABASE_URL!);
 	if (
 		url.hostname !== "127.0.0.1" ||
-		url.port !== "55432" ||
+		(url.port !== "55432" && !isExplicitVideoVerificationTarget(url)) ||
 		!(
 			url.pathname === "/ai_media_foundation_test" || /^\/ezpic_[a-z0-9_]+_test$/.test(url.pathname)
 		)
@@ -40,7 +43,10 @@ beforeAll(() => {
 		throw new Error("Unsafe test database");
 	client = new PrismaClient({ adapter: new PrismaPg({ connectionString: url.toString() }) });
 });
-afterAll(() => client?.$disconnect());
+afterAll(async () => {
+	await client?.$disconnect();
+	vi.unstubAllEnvs();
+});
 
 async function asset(kind: "INPUT" | "OUTPUT" = "INPUT") {
 	const id = crypto.randomUUID();
@@ -104,6 +110,32 @@ async function reviewFor(targetId: string) {
 		where: { targetType_targetId: { targetType: "ASSET", targetId } },
 	});
 }
+async function queueRecheck(
+	targetType: "ASSET" | "QUOTE",
+	targetId: string,
+	provider: string,
+	epoch: string,
+) {
+	const now = new Date();
+	await client.$transaction((tx) =>
+		recordModerationOutcome(
+			{
+				targetType,
+				targetId,
+				provider,
+				stage: targetType === "ASSET" ? "IMAGE" : "TEXT",
+				epoch,
+				failures: 1,
+				lastErrorCode: "MODERATION_UNAVAILABLE",
+				startedAt: now,
+				lastFailureAt: now,
+				status: "BLOCKED",
+				bypassed: false,
+			},
+			tx,
+		),
+	);
+}
 function action(
 	review: { id: string; version: number },
 	selected: "APPROVE" | "REJECT" | "RECHECK",
@@ -149,7 +181,7 @@ describe("durable moderation outage handling", () => {
 		});
 		await worker.verify(media.id);
 		const review = await reviewFor(media.id);
-		expect(review).toMatchObject({ status: "BLOCKED", bypassed: true });
+		expect(review).toMatchObject({ status: "BLOCKED", bypassed: false });
 		expect(
 			(await client.moderationIncident.findUniqueOrThrow({ where: { id: original.incidentId! } }))
 				.status,
@@ -180,22 +212,15 @@ describe("durable moderation outage handling", () => {
 				inputSnapshot: { prompt: "Review this original instruction" },
 				expiresAt: new Date(Date.now() + 300_000),
 			};
-			const now = new Date().toISOString();
 			const quote = await createModeratedGenerationQuoteTransaction(
 				{
 					...base,
 					moderation: {
-						decision: "BYPASS",
+						decision: "ALLOW",
 						provider: worker.provider,
 						ruleVersion: "v1",
-						reasonCode: MODERATION_BYPASS_REASON,
+						reasonCode: "NO_POLICY_MATCH",
 						inputFingerprint: fingerprintGenerationQuoteSecurityPayload(base),
-						retry: {
-							failures: 4,
-							lastErrorCode: "MODERATION_TIMEOUT",
-							startedAt: now,
-							lastFailureAt: now,
-						},
 					},
 				},
 				client,
@@ -231,6 +256,8 @@ describe("durable moderation outage handling", () => {
 			} else {
 				await exhaust(media.id, worker.verify);
 			}
+			// An admitted prompt can later be explicitly queued for review without a bypass.
+			await queueRecheck("QUOTE", quote.id, worker.provider, "v1");
 			const promptReview = await client.moderationReview.findUniqueOrThrow({
 				where: { targetType_targetId: { targetType: "QUOTE", targetId: quote.id } },
 			});
@@ -294,7 +321,7 @@ describe("durable moderation outage handling", () => {
 			}
 		},
 	);
-	it("allows an inspected image only after the fourth technical failure, with a review and one alert", async () => {
+	it("blocks an inspected image after four technical failures, with no approval and one alert", async () => {
 		const media = await asset();
 		const worker = verifier();
 		await exhaust(media.id, worker.verify);
@@ -302,11 +329,12 @@ describe("durable moderation outage handling", () => {
 		await expect(
 			client.mediaAsset.findUniqueOrThrow({ where: { id: media.id } }),
 		).resolves.toMatchObject({
-			status: "READY",
-			verificationLastErrorCode: MODERATION_BYPASS_REASON,
+			status: "VERIFICATION_FAILED",
+			verificationLastErrorCode: "MODERATION_UNAVAILABLE",
+			verificationValidUntil: null,
 		});
 		const review = await reviewFor(media.id);
-		expect(review).toMatchObject({ status: "PENDING_REVIEW", bypassed: true, failureCount: 4 });
+		expect(review).toMatchObject({ status: "BLOCKED", bypassed: false, failureCount: 4 });
 		expect(
 			await client.assetModerationResult.count({
 				where: { assetId: media.id, status: "APPROVED" },
@@ -316,7 +344,10 @@ describe("durable moderation outage handling", () => {
 			await client.assetModerationResult.count({
 				where: { assetId: media.id, status: "BYPASSED" },
 			}),
-		).toBe(1);
+		).toBe(0);
+		expect(
+			await client.assetModerationResult.count({ where: { assetId: media.id, status: "ERROR" } }),
+		).toBe(4);
 		await worker.verify(media.id);
 		expect(worker.scan).toHaveBeenCalledTimes(4);
 		expect(
@@ -333,7 +364,7 @@ describe("durable moderation outage handling", () => {
 				},
 				client,
 			),
-		).resolves.toMatchObject({ readable: true });
+		).resolves.toMatchObject({ readable: false });
 		await expect(
 			getOwnedMediaAssetReadState(
 				{
@@ -378,7 +409,7 @@ describe("durable moderation outage handling", () => {
 		await expect(
 			client.moderationIncident.findUniqueOrThrow({ where: { id: incident.id } }),
 		).resolves.toMatchObject({ status: "RECOVERED", activeKey: null });
-		expect((await reviewFor(one.id)).status).toBe("PENDING_REVIEW");
+		expect(await reviewFor(one.id)).toMatchObject({ status: "BLOCKED", bypassed: false });
 		expect(
 			await client.outboxEvent.count({
 				where: { aggregateId: incident.id, eventType: "MODERATION_INCIDENT_ALERT" },
@@ -431,7 +462,7 @@ describe("durable moderation outage handling", () => {
 		expect(submit).toHaveBeenCalledOnce();
 		expect(retrieve).not.toHaveBeenCalled();
 		const review = await reviewFor(media.id);
-		expect(review.status).toBe("PENDING_REVIEW");
+		expect(review).toMatchObject({ status: "BLOCKED", bypassed: false });
 		await expect(
 			applyAdminModerationReview(action(review, "RECHECK", worker.provider), client),
 		).rejects.toThrow("MODERATION_UNCERTAIN_REQUIRES_MANUAL_REVIEW");
@@ -460,7 +491,7 @@ describe("durable moderation outage handling", () => {
 	});
 	it("rechecks the original output and preserves already settled credits", async () => {
 		const media = await asset("OUTPUT");
-		const worker = verifier("ERROR", "test");
+		const worker = verifier("ALLOW", "test");
 		const account = await client.creditAccount.create({
 			data: { ownerType: "USER", ownerId: media.ownerId },
 		});
@@ -518,7 +549,7 @@ describe("durable moderation outage handling", () => {
 				assetChecksum: media.checksum!,
 			},
 		});
-		await exhaust(media.id, worker.verify);
+		await worker.verify(media.id);
 		const payload = { jobId: created.job.id, version: 0 };
 		await settleGeneration(payload, { store: createDatabaseSettlementStore(client) });
 		const before = await client.creditLedgerEntry.findMany({
@@ -528,6 +559,8 @@ describe("durable moderation outage handling", () => {
 		expect(
 			(await client.generationJob.findUniqueOrThrow({ where: { id: created.job.id } })).status,
 		).toBe("SUCCEEDED");
+		// Existing approved/settled output remains eligible for an explicit later recheck.
+		await queueRecheck("ASSET", media.id, worker.provider, "1");
 		const review = await reviewFor(media.id);
 		await applyAdminModerationReview(action(review, "RECHECK", worker.provider), client);
 		worker.scan.mockResolvedValue({
@@ -553,7 +586,7 @@ describe("durable moderation outage handling", () => {
 				.outputModerationGraceJobId,
 		).toBeNull();
 	});
-	it("keeps the historical permission and recheck queue visible during another transient failure", async () => {
+	it("keeps failed content inaccessible and its requested recheck visible during another transient failure", async () => {
 		const media = await asset();
 		const worker = verifier();
 		await exhaust(media.id, worker.verify);
@@ -564,7 +597,7 @@ describe("durable moderation outage handling", () => {
 		await worker.verify(media.id);
 		expect(await reviewFor(media.id)).toMatchObject({
 			status: "RECHECKING",
-			bypassed: true,
+			bypassed: false,
 			failureCount: 5,
 		});
 	});
@@ -579,12 +612,12 @@ describe("durable moderation outage handling", () => {
 			ruleVersion: contract.ruleVersion,
 		});
 		await worker.verify((await asset()).id);
-		expect((await reviewFor(media.id)).status).toBe("PENDING_REVIEW");
+		expect(await reviewFor(media.id)).toMatchObject({ status: "BLOCKED", bypassed: false });
 		expect(
 			await client.moderationIncident.findUniqueOrThrow({ where: { id: original.incidentId! } }),
 		).toMatchObject({ status: "RECOVERED" });
 	});
-	it("finishes an image still processing at its deadline without submitting it again", async () => {
+	it("fails closed for an image still processing at its deadline without submitting it again", async () => {
 		const media = await asset();
 		const worker = verifier();
 		const submit = vi.fn(async (input: { idempotencyKey: string; ruleVersion: string }) => ({
@@ -627,13 +660,24 @@ describe("durable moderation outage handling", () => {
 		expect(submit).toHaveBeenCalledOnce();
 		expect(retrieve).toHaveBeenCalledTimes(3);
 		expect(await reviewFor(media.id)).toMatchObject({
-			status: "PENDING_REVIEW",
-			bypassed: true,
+			status: "BLOCKED",
+			bypassed: false,
 			failureCount: 4,
 		});
 		expect((await client.mediaAsset.findUniqueOrThrow({ where: { id: media.id } })).status).toBe(
-			"READY",
+			"VERIFICATION_FAILED",
 		);
+		expect(
+			await client.assetModerationResult.count({
+				where: { assetId: media.id, status: { in: ["APPROVED", "BYPASSED"] } },
+			}),
+		).toBe(0);
+		expect(
+			await client.assetModerationResult.findFirst({
+				where: { assetId: media.id },
+				orderBy: { attemptNumber: "desc" },
+			}),
+		).toMatchObject({ status: "ERROR" });
 	});
 	it("does not cut off the bounded technical retries when the worker is delayed", async () => {
 		const media = await asset();
@@ -651,6 +695,10 @@ describe("durable moderation outage handling", () => {
 			await worker.verify(media.id);
 		}
 		expect(worker.scan).toHaveBeenCalledTimes(4);
-		expect(await reviewFor(media.id)).toMatchObject({ status: "PENDING_REVIEW", failureCount: 4 });
+		expect(await reviewFor(media.id)).toMatchObject({
+			status: "BLOCKED",
+			bypassed: false,
+			failureCount: 4,
+		});
 	});
 });

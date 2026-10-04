@@ -119,6 +119,7 @@ const defaultDependencies: RetryGenerationDependencies = {
 	findSource: ({ userId, jobId }) =>
 		db.generationJob.findFirst({
 			where: {
+				executionEngine: "legacy",
 				id: jobId,
 				ownerType: "USER",
 				ownerId: userId,

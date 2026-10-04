@@ -6,7 +6,7 @@ import { Spinner } from "@repo/ui";
 import { UserAvatar } from "@shared/components/UserAvatar";
 import { orpc } from "@shared/lib/orpc-query-utils";
 import { useMutation } from "@tanstack/react-query";
-import { type HTMLAttributes, useState } from "react";
+import { type HTMLAttributes, useEffect, useState } from "react";
 import { useDropzone } from "react-dropzone";
 
 import { CropImageDialog } from "./CropImageDialog";
@@ -19,13 +19,17 @@ export function UserAvatarUpload({
 	onError: () => void;
 }) {
 	const { user, reloadSession } = useSession();
+	const [hydrated, setHydrated] = useState(false);
+	useEffect(() => setHydrated(true), []);
 	const [uploading, setUploading] = useState(false);
+	const uploadDisabled = !hydrated || uploading;
 	const [cropDialogOpen, setCropDialogOpen] = useState(false);
 	const [image, setImage] = useState<File | null>(null);
 
 	const getSignedUploadUrlMutation = useMutation(orpc.users.avatarUploadUrl.mutationOptions());
 
 	const { getRootProps, getInputProps } = useDropzone({
+		disabled: uploadDisabled,
 		onDrop: (acceptedFiles) => {
 			setImage(acceptedFiles[0]);
 			setCropDialogOpen(true);
@@ -88,7 +92,7 @@ export function UserAvatarUpload({
 				className="size-24 relative rounded-full"
 				{...(getRootProps() as HTMLAttributes<HTMLDivElement>)}
 			>
-				<input {...getInputProps()} />
+				<input {...getInputProps({ disabled: uploadDisabled })} />
 				<UserAvatar
 					className="size-24 text-xl cursor-pointer"
 					avatarUrl={user.image}

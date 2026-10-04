@@ -129,7 +129,9 @@ function takePendingBytes(
 			remaining = 0;
 		}
 	}
-	if (index >= 1_024 && index * 2 >= chunks.length) {
+	// Release each uploaded part immediately. A short stream may contain fewer
+	// than 1,024 large chunks; retaining those references buffers the whole video.
+	if (index > 0) {
 		chunks = chunks.slice(index);
 		index = 0;
 	}

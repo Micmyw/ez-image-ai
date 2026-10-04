@@ -31,19 +31,21 @@ function dependencies(
 }
 
 describe("bounded moderation outage handling", () => {
-	it("permits a prompt after four technical failures with explicit bypass provenance", async () => {
+	it("holds a prompt after four technical failures without approving a quote", async () => {
 		const deps = dependencies(
 			vi.fn().mockResolvedValue(verdict("ERROR", "MODERATION_UNAVAILABLE")),
 		);
-		const result = await moderateQuoteInput(quote, deps);
+		await expect(moderateQuoteInput(quote, deps)).rejects.toThrow("TEXT_MODERATION_ERROR");
 		expect(deps.moderateText).toHaveBeenCalledTimes(4);
 		expect(deps.retryWait).toHaveBeenCalledTimes(3);
-		expect(result).toMatchObject({
-			decision: "BYPASS",
-			reasonCode: "MODERATION_TECHNICAL_FAILURE_BYPASS",
-			retry: { failures: 4, lastErrorCode: "MODERATION_UNAVAILABLE" },
-		});
-		expect(deps.recordDenied).not.toHaveBeenCalled();
+		expect(deps.recordDenied).toHaveBeenCalledWith(
+			expect.objectContaining({
+				decision: "ERROR",
+				reasonCode: "MODERATION_UNAVAILABLE",
+				retry: expect.objectContaining({ failures: 4, lastErrorCode: "MODERATION_UNAVAILABLE" }),
+			}),
+		);
+		expect(deps.persistApproved).not.toHaveBeenCalled();
 	});
 	it("stops on successful recovery and preserves the preceding failures", async () => {
 		const deps = dependencies(

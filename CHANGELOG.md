@@ -16,6 +16,14 @@
 - Restore account images with ownership checks and coloring instructions. Open temporary guest results through their existing authorized access, retaining the watermark and expiry checks. Navigation does not submit a generation or spend credits.
 - Keep personal image URLs out of search indexing while retaining the English tool canonical and adding guidance for editing an existing result.
 
+### Private video beta
+
+- Add a separate, disabled-by-default `/video` workspace and `/video/history` for invited signed-in accounts. Text and one-image inputs default to Kling 2.6, five seconds, and sound off, with explicit credit confirmation and private reviewed output access. A grouped model selector exposes only supported duration, resolution, framing, and audio combinations; service readiness and configured pricing still gate generation.
+- Preserve a confirmation key across interrupted responses, restore task state from the server, and distinguish upload completion, content review, provider uncertainty, storage, and credit settlement. Existing image creation stays unchanged.
+- Prepare SeeAPI sampled-frame visual review for new video requests with the same strict settings as SeeAPI image review. Waffo screens prompts; new text and visual cost approval is required before admission. A verified, durably stored callback starts authenticated status confirmation with bounded retries for transient read failures; a missing callback or unconfirmed result holds the private result and reserved credits for manual review. Native model sound remains available without a separate audio-review call or fee.
+- Retire Sightengine calls across moderation paths and remove technical-outage permission to proceed. Unfinished work requiring retired checks is held; historical completed results retain only their existing bounded, authorized access. Accepted snapshots and historical evidence remain immutable.
+- Real provider, moderation, and deployed Workflow acceptance remain separate release requirements; this entry does not establish production availability.
+
 ### Composer categories
 
 - Add shared Image and Video category controls to the guest and account composers. Image is selected; Video is disabled and marked as coming soon while the future module is unavailable.

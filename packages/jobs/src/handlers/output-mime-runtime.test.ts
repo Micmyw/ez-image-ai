@@ -22,6 +22,30 @@ describe("provider output format detection", () => {
 			asset: { id: "stored-output", status: "READY" },
 		});
 	});
+	it("refuses a direct foreign-engine transfer before any remote inspection or storage claim", async () => {
+		const inspect = vi.fn();
+		const dependencies = createFinalizationDependencies(process.env, {
+			database: { generationJob: { findUnique: async () => null } } as never,
+			store: { findPersistedCandidate: vi.fn() } as unknown as FinalizationStore,
+			safety: new TestMediaSafetyAdapter("ALLOW"),
+			storage: { inspectRemoteMedia: inspect },
+		});
+		await expect(
+			dependencies.persistCandidate(
+				{ jobId: "video-job", ownerId: "test-owner", mediaKind: "video" } as FinalizationClaim,
+				{
+					key: "candidate",
+					output: {
+						kind: "remote-url",
+						url: "https://example.com/video.mp4",
+						trust: "untrusted-transfer-candidate",
+					},
+				},
+			),
+		).rejects.toThrow("LEGACY_EXECUTOR_NOT_MANAGED");
+		expect(boundary.claim).not.toHaveBeenCalled();
+		expect(inspect).not.toHaveBeenCalled();
+	});
 
 	it("uses the stored format for an active transfer without reading an expired provider URL", async () => {
 		boundary.claim.mockResolvedValue({ outcome: "IN_PROGRESS", asset: { id: "stored-output" } });
@@ -30,6 +54,7 @@ describe("provider output format detection", () => {
 		});
 		const dependencies = createFinalizationDependencies(process.env, {
 			database: {
+				generationJob: { findUnique: async () => ({ id: "test-job" }) },
 				mediaAsset: {
 					findUnique: async () => ({
 						ownerType: "USER",
@@ -77,7 +102,10 @@ describe("provider output format detection", () => {
 				mediaKind: "image",
 			} as FinalizationClaim;
 			const dependencies = createFinalizationDependencies(process.env, {
-				database: { mediaAsset: { findUnique: async () => null } } as never,
+				database: {
+					generationJob: { findUnique: async () => ({ id: "test-job" }) },
+					mediaAsset: { findUnique: async () => null },
+				} as never,
 				store: { findPersistedCandidate: async () => null } as unknown as FinalizationStore,
 				safety: new TestMediaSafetyAdapter("ALLOW"),
 				storage: {

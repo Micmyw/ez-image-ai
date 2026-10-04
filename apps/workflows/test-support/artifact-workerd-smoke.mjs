@@ -18,7 +18,10 @@ if (checkDatabase) {
 	const database = new URL(connectionString ?? "");
 	assert(["postgres:", "postgresql:"].includes(database.protocol));
 	assert(["127.0.0.1", "localhost", "[::1]"].includes(database.hostname));
-	assert.equal(database.port, "55432", "Use the disposable integration PostgreSQL port");
+	assert(
+		["55432", "55439"].includes(database.port),
+		"Use a designated disposable integration PostgreSQL port",
+	);
 	assert.match(database.pathname, /test|testing/i);
 }
 
@@ -26,6 +29,7 @@ if (checkDatabase) {
 // wrong conditional exports and generated Prisma/WASM packaging regressions.
 const source = await readFile(path.join(output, "workers.js"), "utf8");
 assert.match(source, /wasm-compiler-edge/);
+assert.match(source, /VideoGenerationWorkflowV1/, "Video V1 class must survive final bundling");
 assert(!source.includes("/runtime/client.mjs"), "Node Prisma runtime leaked into the Worker");
 assert(!source.includes("/sharp/lib/"), "Native Sharp leaked into the Worker");
 assert(!source.includes("/remote-media-node.ts"), "Node media transport leaked into the Worker");
@@ -45,7 +49,15 @@ const runtime = new Miniflare(
 				name: "driver",
 				...compatibility,
 				modules: true,
-				script: `export default { fetch(request, env) {
+				script: `export default { async fetch(request, env) {
+  if (new URL(request.url).pathname === '/__video-binding') {
+    const id = 'video-v1-artifact-invalid';
+    await env.VIDEO.create({id, params: {jobId: 'artifact-invalid', schemaVersion: 0}});
+    return Response.json({created: true});
+  }
+  if (new URL(request.url).pathname === '/__video-status') {
+    return Response.json(await (await env.VIDEO.get('video-v1-artifact-invalid')).status());
+  }
   if (new URL(request.url).pathname === '/internal/execute') {
     const name = request.headers.get('x-test-executor') || 'jobs-primary';
     return env.EXECUTOR.get(env.EXECUTOR.idFromName(name)).fetch(request);
@@ -56,6 +68,13 @@ const runtime = new Miniflare(
 					EXECUTOR: { className: "WorkerJobs", scriptName: "jobs", useSQLite: true },
 				},
 				serviceBindings: { JOBS_ENTRY: "jobs" },
+				workflows: {
+					VIDEO: {
+						name: "video-v1-artifact",
+						className: "VideoGenerationWorkflowV1",
+						scriptName: "jobs",
+					},
+				},
 			},
 			{
 				name: "jobs",
@@ -66,12 +85,20 @@ const runtime = new Miniflare(
 					...wasmFiles.map((file) => ({ type: "CompiledWasm", path: path.join(output, file) })),
 				],
 				durableObjects: { JOBS_EXECUTOR: { className: "WorkerJobs", useSQLite: true } },
+				workflows: {
+					VIDEO_WORKFLOW: { name: "video-v1-artifact", className: "VideoGenerationWorkflowV1" },
+				},
 				bindings: {
 					EZPIC_RUNTIME: "workers",
 					EZPIC_DATABASE_BINDING: "hyperdrive",
 					NODE_ENV: "production",
 					WORKFLOWS_DISPATCH_SECRET: secret,
 					WORKFLOWS_DISPATCH_URL: "https://artifact-smoke.invalid/internal/dispatch",
+					MEDIA_SAFETY_ADAPTER: "configured",
+					MODERATION_IMAGE_SEEAPI_ENABLED: "true",
+					MEDIA_GENERATION_ENABLED: "false",
+					VIDEO_V1_ENABLED: "false",
+					MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "false",
 					MEDIA_ENABLED_PROVIDERS: "",
 					MEDIA_RECOVERY_PROVIDERS: "",
 				},
@@ -99,6 +126,24 @@ async function request(endpoint, body, signed = false, executorName = "jobs-prim
 
 try {
 	await runtime.ready;
+	const videoCreated = await runtime.dispatchFetch(
+		"https://artifact-smoke.invalid/__video-binding",
+	);
+	assert.deepEqual(await videoCreated.json(), { created: true });
+	let videoStatus;
+	for (let i = 0; i < 30; i++) {
+		videoStatus = await (
+			await runtime.dispatchFetch("https://artifact-smoke.invalid/__video-status")
+		).json();
+		if (videoStatus.status === "errored") break;
+		await new Promise((resolve) => setTimeout(resolve, 20));
+	}
+	assert.equal(
+		videoStatus.status,
+		"errored",
+		"Invalid version must reach the real bundled Workflow class and fail before runtime resources",
+	);
+	assert.match(videoStatus.error?.message ?? "", /INVALID_VIDEO_WORKFLOW_PARAMS/);
 	assert.equal((await request("/internal/dispatch", "{}")).status, 401);
 	assert.equal((await request("/internal/execute", "{}")).status, 401);
 	assert.equal((await request("/internal/execute", "{}", true)).status, 400);
@@ -210,6 +255,7 @@ try {
 			unsignedRejected: true,
 			invalidSignedTaskRejected: true,
 			executorRoutingVerified: true,
+			videoWorkflowBindingAndVersionGuard: true,
 			localPostgresQuery: checkDatabase,
 			targetedOutputReviewClaim: checkDatabase,
 			liveCloudflareVerified: false,

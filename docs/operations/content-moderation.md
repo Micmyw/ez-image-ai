@@ -1,7 +1,7 @@
 # Configurable text and image moderation
 
 The API and jobs runtime must receive the same server-only configuration. This selects the initial
-Waffo text + SeeAPI image combination without Sightengine calls:
+Waffo text + SeeAPI image combination. Sightengine is retired across runtime paths:
 
 ```dotenv
 MEDIA_SAFETY_ADAPTER=configured
@@ -20,22 +20,32 @@ Keep credentials in ignored environment files or runtime secrets. Never prefix t
 configuration change, restart/redeploy both API and job workers through the normal release process.
 Preparing a local production environment file does not activate it on the deployed service.
 
-## Switch behavior
+## Current runtime behavior
 
-| Enabled checks              | Behavior                                                                    |
-| --------------------------- | --------------------------------------------------------------------------- |
-| Waffo text only             | Merchant-signed prompt scan; no Sightengine request or credentials required |
-| Sightengine text only       | Existing English text profile; no Waffo request or credentials required     |
-| Both text checks            | Sightengine then Waffo, stopping at the first non-allow result              |
-| SeeAPI images only          | One asynchronous task per verified image, then poll the persisted task ID   |
-| Sightengine images only     | Existing synchronous image profile                                          |
-| Both image checks           | SeeAPI then Sightengine; only allow when both approve                       |
-| No check for a content type | Configuration error; that content cannot pass                               |
+| Check or condition                     | Behavior                                                                     |
+| -------------------------------------- | ---------------------------------------------------------------------------- |
+| Waffo text                             | Merchant-signed prompt scan; only complete approval can authorize generation |
+| SeeAPI images                          | One asynchronous task per verified image, then query the persisted task ID   |
+| Missing required check                 | Configuration error; that content cannot pass                                |
+| Retired Sightengine request            | No external call; unfinished work requiring it remains held                  |
+| Technical failure or incomplete review | Bounded recovery may run, but exhaustion never authorizes bypass             |
 
-Enable either Sightengine switch and supply `SIGHTENGINE_API_USER` and `SIGHTENGINE_API_SECRET`
-to restore its corresponding checks. The old `MEDIA_SAFETY_ADAPTER=sightengine` setting remains
-compatible, including its legacy production-Waffo text layer. Explicit switches apply in
-`configured` mode. The test adapter remains forbidden in production.
+Sightengine switches and the old `MEDIA_SAFETY_ADAPTER=sightengine` value do not restore
+outbound checks. No Sightengine credentials are needed for current execution or old-job
+draining. Keep historical evidence unchanged: unfinished work requiring retired checks
+is held, and previously completed private results remain subject to existing ownership,
+expiry, evidence and settlement checks. The test adapter remains forbidden in production.
+
+The earlier technical-outage `BYPASS`/`BYPASSED` policy is superseded. A detector outage,
+exhausted retry budget, unknown acceptance or still-processing result cannot authorize
+generation or result access. Historical incident/review records remain available for audit;
+neither service recovery nor an old bypass marker supplies a positive content verdict.
+
+Video uses a separately frozen Waffo text profile and SeeAPI visual policy. Its output
+confirmation is triggered by a verified, persisted callback with bounded transient GET
+retries and no periodic polling fallback. Native sound remains supported; new video
+snapshots record `audioSafetyPolicy={schemaVersion:1,mode:'not_requested'}` and invoke no
+transcription or audio-review service. See [video rollout](video-v1-rollout.md).
 
 Waffo's scan is a merchant-signed verification action at the fixed API origin, independent of
 checkout sessions. It needs the merchant ID and RSA private key, not checkout product IDs or a
@@ -69,9 +79,9 @@ Replayed verification and delivery do not create another provider generation or 
 Waffo's documented categories focus on sexual content and exploitation; SeeAPI's interface returns
 NSFW/special-care labels without a complete documented hate/violence taxonomy. This initial
 combination is not evidence of complete violence, hate, identity/consent, copyright, or child-age
-verification. Review those requirements with the payment provider and use the Sightengine profiles
-where their additional coverage is needed. No detector setup guarantees card-network compliance.
-See [the Sightengine profile](./sightengine-moderation.md) for categories, thresholds, and limits.
+verification. No detector setup guarantees card-network compliance.
+The [retired Sightengine profile](./sightengine-moderation.md) remains a historical record,
+not an available fallback or a recommendation to restore its calls.
 
 Cost is controlled by switching unused providers off, screening prompts before generation,
 reusing approvals only for the exact unchanged private asset and current detector policy, and

@@ -42,6 +42,8 @@ function readableAsset(id = "asset-readable"): MediaAssetReadRecord {
 		outputStagingObjectKey: null,
 		outputPromotionMultipartUploadId: null,
 		sourceUrl: null,
+		verificationEngine: "legacy",
+		videoCleanupCompletedAt: null,
 		verificationGeneration: 2,
 		verificationAttemptCount: 3,
 		verificationProvider: verification.provider,
@@ -86,6 +88,73 @@ function readableAsset(id = "asset-readable"): MediaAssetReadRecord {
 }
 
 describe("media asset read authorization", () => {
+	it.each(["sightengine", "seeapi+sightengine", "sightengine+seeapi"])(
+		"preserves complete historical %s approval after retirement without rewriting it",
+		(provider) => {
+			const asset = readableAsset();
+			asset.verificationProvider = provider;
+			asset.moderationResults[0]!.provider = provider;
+			const before = structuredClone(asset);
+			expect(
+				hasCurrentApprovedMediaAssetEvidence(asset, { ...verification, provider: "seeapi" }),
+			).toBe(true);
+			expect(asset).toEqual(before);
+		},
+	);
+	it("does not turn incomplete, stale, mismatched, bypassed or video history into image approval", () => {
+		const asset = readableAsset();
+		const evidence = asset.moderationResults[0]!;
+		const invalid = [
+			{ ...asset, status: "VERIFYING" as const },
+			{ ...asset, status: "QUARANTINED" as const },
+			{ ...asset, verificationEngine: "video-workflow-v1" },
+			{ ...asset, mimeType: "video/mp4" },
+			{ ...asset, verificationValidUntil: now },
+			{ ...asset, verificationRuleVersion: "different" },
+			{ ...asset, verificationPolicyVersion: "different" },
+			{ ...asset, moderationResults: [] },
+			{
+				...asset,
+				moderationResults: [
+					{
+						...evidence,
+						status: "BYPASSED" as const,
+						reasonCode: "MODERATION_TECHNICAL_FAILURE_BYPASS",
+					},
+				],
+			},
+			{ ...asset, moderationResults: [{ ...evidence, verificationGeneration: 1 }] },
+			{ ...asset, moderationResults: [{ ...evidence, provider: "seeapi" }] },
+			{ ...asset, moderationResults: [{ ...evidence, assetChecksum: "b".repeat(64) }] },
+		];
+		for (const value of invalid)
+			expect(
+				hasCurrentApprovedMediaAssetEvidence(value, { ...verification, provider: "seeapi" }),
+			).toBe(false);
+	});
+	it("includes historical approvals in candidate listing and validates their evidence before returning", async () => {
+		const asset = readableAsset();
+		const findMany = vi.fn().mockResolvedValueOnce([asset]);
+		const result = await listReadableMediaAssets(
+			{
+				ownerType: "USER",
+				ownerId: "user-1",
+				take: 5,
+				verification: { ...verification, provider: "seeapi" },
+			},
+			{ mediaAsset: { findMany } } as never,
+		);
+		expect(result.items).toEqual([asset]);
+		expect(findMany).toHaveBeenCalledWith(
+			expect.objectContaining({
+				where: expect.objectContaining({
+					verificationProvider: {
+						in: ["seeapi", "sightengine", "seeapi+sightengine", "sightengine+seeapi"],
+					},
+				}),
+			}),
+		);
+	});
 	it("requires an unexpired READY claim and the latest exact APPROVED evidence", () => {
 		const valid = readableAsset();
 		expect(hasCurrentApprovedMediaAssetEvidence(valid, verification)).toBe(true);

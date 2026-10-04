@@ -4,13 +4,29 @@
 	"account_id": "44c8c5cb3ce2004d398ff271836bdd2e",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-09-08",
-	"compatibility_flags": ["nodejs_compat"],
+	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
 	"workers_dev": true,
 	"preview_urls": false,
 	"observability": { "enabled": true },
 	"limits": { "cpu_ms": 30000 },
 	"triggers": { "crons": ["* * * * *"] },
-	"workflows": [{ "name": "ezpic-jobs", "binding": "JOBS", "class_name": "JobsWorkflow" }],
+	"vars": {
+		"VIDEO_V1_ENABLED": "false",
+		"VIDEO_V1_ACCESS": "internal",
+		"EZPIC_RUNTIME": "workers",
+		"EZPIC_DATABASE_BINDING": "hyperdrive"
+	},
+	"images": { "binding": "IMAGES" },
+	"hyperdrive": [{ "binding": "HYPERDRIVE", "id": "00000000000000000000000000000000" }],
+	"r2_buckets": [{ "binding": "VIDEO_MEDIA_BUCKET", "bucket_name": "ezpic-media-local" }],
+	"workflows": [
+		{ "name": "ezpic-jobs", "binding": "JOBS", "class_name": "JobsWorkflow" },
+		{
+			"name": "ezpic-video-v1-hybrid-local",
+			"binding": "VIDEO_WORKFLOW",
+			"class_name": "VideoGenerationWorkflowV1"
+		}
+	],
 	"containers": [
 		{
 			"class_name": "JobsContainer",
@@ -26,7 +42,12 @@
 		"staging": {
 			"name": "ezpic-workflows-staging",
 			"workflows": [
-				{ "name": "ezpic-jobs-staging", "binding": "JOBS", "class_name": "JobsWorkflow" }
+				{ "name": "ezpic-jobs-staging", "binding": "JOBS", "class_name": "JobsWorkflow" },
+				{
+					"name": "ezpic-video-v1-hybrid-staging",
+					"binding": "VIDEO_WORKFLOW",
+					"class_name": "VideoGenerationWorkflowV1"
+				}
 			],
 			"containers": [
 				{
@@ -42,7 +63,12 @@
 		"production": {
 			"name": "ezpic-workflows-production",
 			"workflows": [
-				{ "name": "ezpic-jobs-production", "binding": "JOBS", "class_name": "JobsWorkflow" }
+				{ "name": "ezpic-jobs-production", "binding": "JOBS", "class_name": "JobsWorkflow" },
+				{
+					"name": "ezpic-video-v1-hybrid-production",
+					"binding": "VIDEO_WORKFLOW",
+					"class_name": "VideoGenerationWorkflowV1"
+				}
 			],
 			"containers": [
 				{

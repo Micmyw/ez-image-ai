@@ -29,6 +29,8 @@ import {
 } from "@repo/payments";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
+import { isExplicitVideoVerificationTarget } from "../../../../tests/load/video-verification-target";
+
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const TEST_MODERATION_RULE_VERSION = "TEST_STRIPE_REFUND_RESERVATION_V1";
 
@@ -48,7 +50,11 @@ function assertSafeTestDatabaseUrl(): string {
 	const safeDatabase =
 		parsed.pathname === "/ai_media_foundation_test" ||
 		/^\/ezpic_[a-z0-9_]+_test$/.test(parsed.pathname);
-	if (parsed.hostname !== "127.0.0.1" || parsed.port !== "55432" || !safeDatabase) {
+	if (
+		parsed.hostname !== "127.0.0.1" ||
+		(parsed.port !== "55432" && !isExplicitVideoVerificationTarget(parsed)) ||
+		!safeDatabase
+	) {
 		throw new Error(
 			"TEST_DATABASE_URL must target 127.0.0.1:55432/ai_media_foundation_test or a dedicated ezpic_*_test database",
 		);

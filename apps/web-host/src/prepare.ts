@@ -87,9 +87,6 @@ const integrations = [
 	"S3_ACCESS_KEY_ID",
 	"S3_SECRET_ACCESS_KEY",
 	"KIE_API_KEY",
-	...(moderation.imageSightengine || moderation.textSightengine
-		? ["SIGHTENGINE_API_USER", "SIGHTENGINE_API_SECRET"]
-		: []),
 	...(moderation.textWaffo ? ["WAFFO_MERCHANT_ID", "WAFFO_PRIVATE_KEY"] : []),
 	...(moderation.imageSeeapi ? ["SEEAPI_API_KEY"] : []),
 	"MAIL_FROM",

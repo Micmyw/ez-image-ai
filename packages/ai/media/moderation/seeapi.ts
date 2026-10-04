@@ -49,6 +49,9 @@ export class SeeapiSafetyAdapter {
 			throw new Error("MODERATION_UNAVAILABLE");
 		return {
 			moderationTaskId: task.id,
+			...(task.status === "succeeded"
+				? { completedDecision: completedTaskDecision(task, input.ruleVersion) }
+				: {}),
 			status: task.status === "queued" ? "QUEUED" : "RUNNING",
 			ruleVersion: input.ruleVersion,
 			idempotency: { key: input.idempotencyKey, providerSupported: true, replayed: false },
@@ -111,4 +114,40 @@ export class SeeapiSafetyAdapter {
 		if (!response.ok) throw new Error(moderationHttpErrorCode(response.status));
 		return taskSchema.parse(response.data);
 	}
+}
+
+function completedTaskDecision(
+	task: z.infer<typeof taskSchema>,
+	ruleVersion: string,
+): ModerationDecision {
+	if (task.status !== "succeeded" || !task.result)
+		return { decision: "ERROR", reasonCode: "MODERATION_INVALID_RESPONSE", ruleVersion };
+	const data = task.result.data;
+	const decision = data.flagged
+		? "REJECT"
+		: data.categories.nsfw.length || data.categories.special_care.length
+			? "REVIEW"
+			: "ALLOW";
+	return {
+		decision,
+		reasonCode:
+			decision === "REJECT"
+				? "SEEAPI_CONTENT_NOT_ALLOWED"
+				: decision === "REVIEW"
+					? "SEEAPI_CONTENT_REVIEW"
+					: "NO_POLICY_MATCH",
+		ruleVersion,
+		evidence: {
+			requestId: task.id,
+			models: ["nsfw-filter"],
+			operations: 1,
+			scores: {},
+			seeapi: {
+				taskId: task.id,
+				flagged: data.flagged,
+				nsfw: data.categories.nsfw,
+				specialCare: data.categories.special_care,
+			},
+		},
+	};
 }

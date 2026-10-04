@@ -12,13 +12,21 @@
 	"vars": {
 		"EZPIC_RUNTIME": "workers",
 		"EZPIC_DATABASE_BINDING": "hyperdrive",
-		"NODE_ENV": "production"
+		"NODE_ENV": "production",
+		"VIDEO_V1_ENABLED": "false",
+		"VIDEO_V1_ACCESS": "internal"
 	},
 	"images": { "binding": "IMAGES" },
 	"hyperdrive": [{ "binding": "HYPERDRIVE", "id": "00000000000000000000000000000000" }],
 	"workflows": [
-		{ "name": "ezpic-jobs-workers-local", "binding": "JOBS", "class_name": "JobsWorkflow" }
+		{ "name": "ezpic-jobs-workers-local", "binding": "JOBS", "class_name": "JobsWorkflow" },
+		{
+			"name": "ezpic-video-v1-workers-local",
+			"binding": "VIDEO_WORKFLOW",
+			"class_name": "VideoGenerationWorkflowV1"
+		}
 	],
+	"r2_buckets": [{ "binding": "VIDEO_MEDIA_BUCKET", "bucket_name": "ezpic-media-local" }],
 	"durable_objects": { "bindings": [{ "name": "JOBS_EXECUTOR", "class_name": "WorkerJobs" }] },
 	"migrations": [{ "tag": "workers-executor-v1", "new_sqlite_classes": ["WorkerJobs"] }]
 }

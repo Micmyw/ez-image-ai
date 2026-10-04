@@ -35,7 +35,7 @@ ARG NEXT_PUBLIC_UMAMI_TRACKING_ID=""
 ENV DATABASE_URL=postgresql://build:build@127.0.0.1:1/build
 ENV BETTER_AUTH_SECRET=build-only-placeholder-not-a-runtime-secret
 ENV RESEND_API_KEY=re_build_only_placeholder
-ENV MEDIA_PROVIDER_ADAPTER=kie MEDIA_SAFETY_ADAPTER=sightengine MEDIA_ALLOW_TEST_SAFETY_ADAPTER=false
+ENV MEDIA_PROVIDER_ADAPTER=kie MEDIA_SAFETY_ADAPTER=configured MEDIA_ALLOW_TEST_SAFETY_ADAPTER=false
 RUN pnpm --filter @repo/database generate
 RUN test -n "$NEXT_PUBLIC_SAAS_URL" && EZPIC_STANDALONE_BUILD=true pnpm --filter saas exec next build --webpack
 

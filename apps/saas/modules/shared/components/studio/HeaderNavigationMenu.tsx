@@ -17,6 +17,7 @@ import {
 	useState,
 } from "react";
 
+import { VideoNavigationLink } from "../../../video-v1/VideoNavigationLink";
 import { HeaderPurchaseActions } from "./HeaderPurchaseActions";
 import { resetStudioWorkspace } from "./studio-context";
 import { StudioToolNavigation } from "./StudioToolNavigation";
@@ -123,6 +124,7 @@ export function HeaderNavigationMenu({
 						{t("create")} <ArrowUpRightIcon aria-hidden />
 					</Link>
 					<StudioToolNavigation drawer />
+					{registered && <VideoNavigationLink onNavigate={() => setOpen(false)} />}
 					<div className="studio-drawer-link-group">
 						<Link href={pricingHref}>{common("pricing")}</Link>
 					</div>

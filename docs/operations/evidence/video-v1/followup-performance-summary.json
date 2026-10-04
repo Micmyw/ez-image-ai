@@ -1,0 +1,537 @@
+{
+	"schemaVersion": 1,
+	"evidenceKind": "LOCAL_NODE_MOCK_WITH_REAL_ISOLATED_POSTGRESQL_AND_DOMAIN_SERVICES",
+	"source": {
+		"path": ".cache/video-v1/performance.json",
+		"generatedAt": "2026-10-04T01:23:14.226Z",
+		"sha256": "edde4ed2ae44180f668a4eb35650ffa4697d1741c20b88f4dd816a3f0f60abcb",
+		"test": "packages/jobs/src/video-v1/flow.database.integration.test.ts"
+	},
+	"capture": {
+		"generatedAt": "2026-10-04T01:23:58.252Z",
+		"immutableSnapshot": true,
+		"description": "This export is bound to the source hash; later cache regeneration does not update this evidence."
+	},
+	"rowCounts": {
+		"totalUniqueJobs": 353,
+		"performanceJobs": 350,
+		"functionalAndRecoveryJobs": 3
+	},
+	"calls": {
+		"providerMockCalls": 353,
+		"safetyMockCalls": 1230,
+		"externalPaidCalls": 0
+	},
+	"testCapacity": {
+		"legacyActiveBaseline": 5,
+		"sharedProviderLimit": "legacyActiveBaseline + each requested concurrency",
+		"productionMaximum": 5
+	},
+	"fixtures": [
+		{
+			"jobId": "cmut4yqap0007xsbkf3c8ihkk",
+			"mode": "text-to-video",
+			"concurrency": 1,
+			"scenario": "functional_text_to_video"
+		},
+		{
+			"jobId": "cmut4yqup000oxsbkp9154l8j",
+			"mode": "image-to-video",
+			"concurrency": 1,
+			"scenario": "functional_image_to_video"
+		},
+		{
+			"jobId": "cmut4yr7v0015xsbkp92gzlqy",
+			"mode": "text-to-video",
+			"concurrency": 1,
+			"scenario": "recovery_lost_submit_response_verified_early_duplicate_callbacks"
+		}
+	],
+	"methodology": {
+		"sampleSource": "The top-level samples array is authoritative. performanceRuns.samples repeats the same 350 performance jobs and is not concatenated.",
+		"fixtureIdentification": "Three concurrency=1 records in the sequential test declaration order: text mode, image mode, then lost-response recovery with verified early duplicate callbacks.",
+		"durationUnit": "milliseconds",
+		"stageDurations": "Subtract ISO timestamp pairs; absent, invalid or negative pairs become null and are excluded from quantiles with explicit counts.",
+		"percentiles": "Nearest rank: sorted[max(0, ceil(p * n) - 1)], p=0.50 or 0.95; no interpolation.",
+		"measuredReady": "performance.now() duration from admission request to READY; post-READY verification replay and account/grant fixture setup excluded.",
+		"timestampPrecision": "Stored ISO timestamps have millisecond precision; measuredReadyMs and measuredStep columns use the monotonic local performance clock.",
+		"csvNullEncoding": "Literal null represents missing, unavailable or unmeasured fields."
+	},
+	"metricDefinitions": {
+		"requestToReservationMs": {
+			"start": "requestReceivedAt",
+			"end": "jobReservedAt",
+			"status": "MEASURED_MOCK",
+			"limitation": "jobReservedAt is observed immediately after the admission transaction COMMIT acknowledgement; the earlier write marker is separate jobReservationWrittenAt."
+		},
+		"reservationToWorkflowStartMs": {
+			"start": "jobReservedAt",
+			"end": "workflowStartedAt",
+			"status": "MEASURED_MOCK"
+		},
+		"inputApprovalToSubmissionMs": {
+			"start": "inputReviewCompletedAt",
+			"end": "providerSubmitStartedAt",
+			"status": "MEASURED_MOCK"
+		},
+		"callbackToConfirmationMs": {
+			"start": "providerCallbackReceivedAt",
+			"end": "providerResultConfirmedAt",
+			"status": "MEASURED_MOCK"
+		},
+		"callbackPersistedToConfirmationMs": {
+			"start": "providerCallbackPersistedAt",
+			"end": "providerResultConfirmedAt",
+			"status": "MEASURED_MOCK",
+			"limitation": "The start is the application clock observed immediately after inbox COMMIT acknowledgement, not the PostgreSQL server commit-clock instant. A crash before recording it leaves null; replays never fabricate it."
+		},
+		"outputApprovalToReadyMs": {
+			"start": "outputReviewCompletedAt",
+			"end": "readyAt",
+			"status": "MEASURED_MOCK"
+		},
+		"admissionQueueMs": {
+			"start": "requestReceivedAt",
+			"end": "admissionTransactionStartedAt",
+			"status": "MEASURED_MOCK"
+		},
+		"admissionLockWaitMs": {
+			"start": "providerCapacityLockRequestedAt",
+			"end": "providerCapacityLockAcquiredAt",
+			"status": "MEASURED_MOCK"
+		},
+		"admissionLockedWorkMs": {
+			"start": "providerCapacityLockAcquiredAt",
+			"end": "jobReservationWrittenAt",
+			"status": "MEASURED_MOCK"
+		},
+		"creditReservationMs": {
+			"start": "creditReservationStartedAt",
+			"end": "creditReservationCompletedAt",
+			"status": "MEASURED_MOCK"
+		}
+	},
+	"groups": [
+		{
+			"concurrency": 5,
+			"batches": 10,
+			"samples": 50,
+			"peakMockProviderCalls": 3,
+			"measuredReady": {
+				"samples": 50,
+				"measuredSamples": 50,
+				"missingSamples": 0,
+				"invalidSamples": 0,
+				"negativeSamples": 0,
+				"p50Ms": 559.6377000000002,
+				"p95Ms": 665.7034000000003
+			},
+			"metrics": {
+				"requestToReservationMs": {
+					"samples": 50,
+					"measuredSamples": 50,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 88,
+					"p95Ms": 167
+				},
+				"reservationToWorkflowStartMs": {
+					"samples": 50,
+					"measuredSamples": 50,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 8,
+					"p95Ms": 14
+				},
+				"inputApprovalToSubmissionMs": {
+					"samples": 50,
+					"measuredSamples": 50,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 22,
+					"p95Ms": 31
+				},
+				"callbackToConfirmationMs": {
+					"samples": 50,
+					"measuredSamples": 50,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 102,
+					"p95Ms": 125
+				},
+				"callbackPersistedToConfirmationMs": {
+					"samples": 50,
+					"measuredSamples": 50,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 75,
+					"p95Ms": 97
+				},
+				"outputApprovalToReadyMs": {
+					"samples": 50,
+					"measuredSamples": 50,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 31,
+					"p95Ms": 51
+				},
+				"admissionQueueMs": {
+					"samples": 50,
+					"measuredSamples": 50,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 2,
+					"p95Ms": 8
+				},
+				"admissionLockWaitMs": {
+					"samples": 50,
+					"measuredSamples": 50,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 54,
+					"p95Ms": 124
+				},
+				"admissionLockedWorkMs": {
+					"samples": 50,
+					"measuredSamples": 50,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 26,
+					"p95Ms": 42
+				},
+				"creditReservationMs": {
+					"samples": 50,
+					"measuredSamples": 50,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 14,
+					"p95Ms": 21
+				}
+			}
+		},
+		{
+			"concurrency": 10,
+			"batches": 10,
+			"samples": 100,
+			"peakMockProviderCalls": 3,
+			"measuredReady": {
+				"samples": 100,
+				"measuredSamples": 100,
+				"missingSamples": 0,
+				"invalidSamples": 0,
+				"negativeSamples": 0,
+				"p50Ms": 1096.6054000000004,
+				"p95Ms": 1504.4372999999978
+			},
+			"metrics": {
+				"requestToReservationMs": {
+					"samples": 100,
+					"measuredSamples": 100,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 196,
+					"p95Ms": 434
+				},
+				"reservationToWorkflowStartMs": {
+					"samples": 100,
+					"measuredSamples": 100,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 13,
+					"p95Ms": 21
+				},
+				"inputApprovalToSubmissionMs": {
+					"samples": 100,
+					"measuredSamples": 100,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 41,
+					"p95Ms": 63
+				},
+				"callbackToConfirmationMs": {
+					"samples": 100,
+					"measuredSamples": 100,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 211,
+					"p95Ms": 316
+				},
+				"callbackPersistedToConfirmationMs": {
+					"samples": 100,
+					"measuredSamples": 100,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 157,
+					"p95Ms": 243
+				},
+				"outputApprovalToReadyMs": {
+					"samples": 100,
+					"measuredSamples": 100,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 59,
+					"p95Ms": 128
+				},
+				"admissionQueueMs": {
+					"samples": 100,
+					"measuredSamples": 100,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 3,
+					"p95Ms": 5
+				},
+				"admissionLockWaitMs": {
+					"samples": 100,
+					"measuredSamples": 100,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 153,
+					"p95Ms": 369
+				},
+				"admissionLockedWorkMs": {
+					"samples": 100,
+					"measuredSamples": 100,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 36,
+					"p95Ms": 63
+				},
+				"creditReservationMs": {
+					"samples": 100,
+					"measuredSamples": 100,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 19,
+					"p95Ms": 35
+				}
+			}
+		},
+		{
+			"concurrency": 20,
+			"batches": 10,
+			"samples": 200,
+			"peakMockProviderCalls": 4,
+			"measuredReady": {
+				"samples": 200,
+				"measuredSamples": 200,
+				"missingSamples": 0,
+				"invalidSamples": 0,
+				"negativeSamples": 0,
+				"p50Ms": 1791.9184000000023,
+				"p95Ms": 2375.389799999997
+			},
+			"metrics": {
+				"requestToReservationMs": {
+					"samples": 200,
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 456,
+					"p95Ms": 1265
+				},
+				"reservationToWorkflowStartMs": {
+					"samples": 200,
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 19,
+					"p95Ms": 34
+				},
+				"inputApprovalToSubmissionMs": {
+					"samples": 200,
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 65,
+					"p95Ms": 90
+				},
+				"callbackToConfirmationMs": {
+					"samples": 200,
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 285,
+					"p95Ms": 367
+				},
+				"callbackPersistedToConfirmationMs": {
+					"samples": 200,
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 213,
+					"p95Ms": 282
+				},
+				"outputApprovalToReadyMs": {
+					"samples": 200,
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 84,
+					"p95Ms": 114
+				},
+				"admissionQueueMs": {
+					"samples": 200,
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 7,
+					"p95Ms": 15
+				},
+				"admissionLockWaitMs": {
+					"samples": 200,
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 381,
+					"p95Ms": 1135
+				},
+				"admissionLockedWorkMs": {
+					"samples": 200,
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 54,
+					"p95Ms": 101
+				},
+				"creditReservationMs": {
+					"samples": 200,
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"invalidSamples": 0,
+					"negativeSamples": 0,
+					"p50Ms": 30,
+					"p95Ms": 53
+				}
+			}
+		}
+	],
+	"realExternalMetrics": {
+		"realProviderGenerationMs": null,
+		"realProviderCostMicros": null,
+		"realModerationCostMicros": null,
+		"realBrowserFirstFrameMs": null,
+		"realUploadMs": null,
+		"realR2TransferMs": null
+	},
+	"verificationStatus": {
+		"exportedRows": "PASS",
+		"sampleMembership": "PASS",
+		"readyQuantileCrossCheck": "PASS",
+		"realExternalServiceAcceptance": "BLOCKED_NOT_RUN",
+		"productionTiming": "NOT_RUN",
+		"callbackCommitAcknowledgementTiming": "MEASURED_MOCK"
+	},
+	"limitations": [
+		"Workflow steps execute in a deterministic local Node harness, not Cloudflare production. Actual workerd verification is a separate artifact.",
+		"Real isolated PostgreSQL, admission/domain services, immutable ledger, provider serializers, moderation policy, MP4 inspection and streaming multipart code ran; external HTTP and storage primitives were mocked.",
+		"The MP4 fixture is a synthetic metadata container, not decodable or model-generated video.",
+		"The provider fixture has an explicit artificial 10 ms response delay to demonstrate overlap.",
+		"Test-only database inputs raise limits for concurrency 10 and 20; production configuration remains maximum 5.",
+		"Preexisting active legacy integration fixtures keep their shared-provider occupancy. The measured legacyActiveBaseline is added only to test capacity so each group gets exactly its requested new-video slots; production limits and predicates are unchanged.",
+		"Synchronous terminal fixture paths have no fixed polling waits; the test waitForEvent shim throws if called.",
+		"Mock provider and safety request counts are not billable real calls. External paid calls are zero.",
+		"Real model generation, moderation cost, R2/network transfer, upload, actual browser first frame, quality and production performance remain unverified and null.",
+		"Admission reservation and callback persistence use application timestamps observed after database COMMIT acknowledgement, not exact PostgreSQL server commit-clock instants. Crash gaps remain null rather than fabricated replay values.",
+		"Paid-funding eligibility executes against synthetic isolated billing records. Those rows do not represent real payment, revenue or profit. Fixture grant setup is outside measured admission.",
+		"Timestamp stage boundaries do not include the entire browser request round trip; no browser performance is inferred."
+	],
+	"privacy": {
+		"fields": "Explicit whitelist only: job ID, mode, controlled scenario, concurrency, timestamps, durations and aggregate counts.",
+		"containsPrompt": false,
+		"containsPrivateUrl": false,
+		"containsSecret": false
+	},
+	"csv": {
+		"path": "docs/operations/evidence/video-v1/followup-task-stage-timings.csv",
+		"rows": 353,
+		"columns": [
+			"jobId",
+			"mode",
+			"scenario",
+			"concurrency",
+			"requestReceivedAt",
+			"jobReservedAt",
+			"workflowCreateRequestedAt",
+			"workflowStartedAt",
+			"admissionTransactionStartedAt",
+			"providerCapacityLockRequestedAt",
+			"providerCapacityLockAcquiredAt",
+			"creditReservationStartedAt",
+			"creditReservationCompletedAt",
+			"jobReservationWrittenAt",
+			"queuedAt",
+			"inputReviewStartedAt",
+			"inputReviewCompletedAt",
+			"providerSubmitStartedAt",
+			"providerAcceptedAt",
+			"providerCompletedAt",
+			"providerCallbackReceivedAt",
+			"providerCallbackPersistedAt",
+			"providerResultConfirmedAt",
+			"storageStartedAt",
+			"storageCompletedAt",
+			"outputReviewStartedAt",
+			"outputReviewCompletedAt",
+			"finalizationStartedAt",
+			"readyAt",
+			"requestToReservationMs",
+			"reservationToWorkflowStartMs",
+			"inputApprovalToSubmissionMs",
+			"callbackToConfirmationMs",
+			"callbackPersistedToConfirmationMs",
+			"outputApprovalToReadyMs",
+			"admissionQueueMs",
+			"admissionLockWaitMs",
+			"admissionLockedWorkMs",
+			"creditReservationMs",
+			"measuredReadyMs",
+			"measuredStep_admissionMs",
+			"measuredStep_video-v1-start",
+			"measuredStep_video-v1-input-window",
+			"measuredStep_video-v1-review-input-0",
+			"measuredStep_video-v1-submit-provider",
+			"measuredStep_video-v1-provider-window",
+			"measuredStep_video-v1-confirm-provider-0",
+			"measuredStep_video-v1-store-output",
+			"measuredStep_video-v1-output-window",
+			"measuredStep_video-v1-review-output-0",
+			"measuredStep_video-v1-finalize",
+			"realProviderGenerationMs",
+			"realProviderCostMicros",
+			"realModerationCostMicros",
+			"realBrowserFirstFrameMs",
+			"realUploadMs",
+			"realR2TransferMs"
+		],
+		"sha256": "f13704faa75e8b21b3168681c421c6c96961d777d62d26b11a74c0ddc730c54a"
+	}
+}

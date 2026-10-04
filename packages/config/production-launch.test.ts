@@ -44,10 +44,11 @@ const productionEnvironment = {
 	MEDIA_OPENROUTER_IMAGE_ROUTES_CERTIFIED: "false",
 	MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS: "2026-09-07.2,2026-09-14.1",
 	KIE_API_KEY: "kie-worker-secret-present-only",
-	MEDIA_SAFETY_ADAPTER: "sightengine",
+	MEDIA_SAFETY_ADAPTER: "configured",
+	MODERATION_TEXT_WAFFO_ENABLED: "true",
+	MODERATION_IMAGE_SEEAPI_ENABLED: "true",
+	SEEAPI_API_KEY: "moderation-key-present-only",
 	MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "false",
-	SIGHTENGINE_API_USER: "moderation-user-present-only",
-	SIGHTENGINE_API_SECRET: "moderation-secret-present-only",
 	S3_ENDPOINT: "https://storage.ezpic.ai",
 	S3_REGION: "auto",
 	MEDIA_BUCKET_NAME: "ezpic-production-private",
@@ -149,22 +150,18 @@ describe("EzPic production launch environment", () => {
 		input.WAFFO_PRIVATE_KEY = "private";
 		expect(() => validateEzPicLaunchEnvironment(input)).not.toThrow();
 	});
-	it("validates Waffo and SeeAPI without disabled Sightengine credentials and rejects all-off", () => {
+	it("validates Waffo and SeeAPI without retired provider credentials and rejects all-off", () => {
 		const input = {
 			...productionEnvironment,
 			MEDIA_SAFETY_ADAPTER: "configured",
 			MODERATION_TEXT_WAFFO_ENABLED: "true",
-			MODERATION_TEXT_SIGHTENGINE_ENABLED: "false",
 			MODERATION_IMAGE_SEEAPI_ENABLED: "true",
-			MODERATION_IMAGE_SIGHTENGINE_ENABLED: "false",
-			SIGHTENGINE_API_USER: undefined,
-			SIGHTENGINE_API_SECRET: undefined,
 			SEEAPI_API_KEY: "seeapi-fixture",
 		};
 		expect(() => validateEzPicLaunchEnvironment(input)).not.toThrow();
 		expect(() =>
 			validateEzPicLaunchEnvironment({ ...input, MODERATION_IMAGE_SEEAPI_ENABLED: "false" }),
-		).toThrow("At least one image");
+		).toThrow("SeeAPI image moderation must be enabled");
 	});
 	it("accepts PayPal/Waffo production billing without Stripe lifecycle configuration", () => {
 		const input: Record<string, string | undefined> = { ...productionEnvironment };
@@ -567,7 +564,7 @@ describe("EzPic production launch environment", () => {
 			"WORKFLOWS_DISPATCH_SECRET",
 			"MEDIA_BUCKET_NAME",
 			"KIE_API_KEY",
-			"SIGHTENGINE_API_SECRET",
+			"SEEAPI_API_KEY",
 			"STRIPE_WEBHOOK_SECRET",
 			"PAYPAL_CLIENT_SECRET",
 			"WAFFO_PRIVATE_KEY",

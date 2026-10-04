@@ -34,6 +34,45 @@ export interface CloudflareImagesBinding {
 export function createCloudflareImagesProcessor(binding: CloudflareImagesBinding): ImageProcessor {
 	return {
 		key: "cloudflare-images",
+		async validateDecoded(source, contentType, options) {
+			const bounded = boundedImageSource(source, options.contentLength);
+			try {
+				const output = await binding.input(bounded).output({ format: contentType, anim: false });
+				const reader = output.image().getReader();
+				let bytes = 0;
+				try {
+					for (;;) {
+						const result = await reader.read();
+						if (result.done) break;
+						bytes += result.value.byteLength;
+						if (bytes > 20_000_000)
+							throw new ImageProcessingError("CLOUDFLARE_IMAGES_SIZE_EXCEEDED");
+					}
+					if (!bytes || output.contentType() !== contentType)
+						throw new ImageProcessingError("OUTPUT_MEDIA_TYPE_MISMATCH");
+				} finally {
+					await reader.cancel().catch(() => undefined);
+					reader.releaseLock();
+				}
+			} finally {
+				if (!bounded.locked) await bounded.cancel().catch(() => undefined);
+			}
+		},
+		async normalizePng(source, options) {
+			const bounded = boundedImageSource(source, options.contentLength);
+			try {
+				const output = await binding.input(bounded).output({ format: "image/png", anim: false });
+				const image = output.image();
+				if (output.contentType() !== "image/png") {
+					await image.cancel();
+					throw new ImageProcessingError("OUTPUT_MEDIA_TYPE_MISMATCH");
+				}
+				return image;
+			} catch (error) {
+				if (!bounded.locked) await bounded.cancel().catch(() => undefined);
+				throw error;
+			}
+		},
 		async inspect(source, contentType, options) {
 			const bounded = boundedImageSource(source, options?.contentLength);
 			try {

@@ -15,6 +15,8 @@
 		"format": "oxfmt .",
 		"format:check": "oxfmt --check .",
 		"test:unit:contracts": "tsx tests/load/run-unit-contracts.ts",
+		"test:video-v1": "tsx tests/video-v1/run.ts",
+		"test:video-v1:integration": "tsx tests/video-v1/run.ts --integration",
 		"test:integration": "tsx tests/load/run-integration.ts",
 		"db:migrate:deploy": "pnpm --filter @repo/database exec prisma migrate deploy",
 		"billing:preflight": "tsx packages/api/scripts/billing-preflight.ts",

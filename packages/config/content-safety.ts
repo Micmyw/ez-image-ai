@@ -12,16 +12,13 @@ export const PUBLIC_MODERATION_REASONS = [
 
 export type PublicModerationReason = (typeof PUBLIC_MODERATION_REASONS)[number];
 
-/** A business permission, explicitly distinct from a positive classifier verdict. */
+/** Historical audit identifier. Technical failure is never approval. */
 export const MODERATION_BYPASS_REASON = "MODERATION_TECHNICAL_FAILURE_BYPASS";
 export const MODERATION_MAX_FAILURES = 4;
 export function isPermittedModerationEvidence<T extends { status: string; reasonCode?: string }>(
 	evidence: T | undefined | null,
 ): evidence is T {
-	return (
-		evidence?.status === "APPROVED" ||
-		(evidence?.status === "BYPASSED" && evidence.reasonCode === MODERATION_BYPASS_REASON)
-	);
+	return evidence?.status === "APPROVED";
 }
 export const MODERATION_RETRYABLE_ERROR_CODES = [
 	"MODERATION_UNAVAILABLE",

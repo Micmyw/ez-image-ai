@@ -7,6 +7,11 @@
 	"migrations": [{ "tag": "v1", "new_sqlite_classes": ["WorkerJobs"] }],
 	"vars": {
 		"EZPIC_RUNTIME": "workers",
+		"MEDIA_SAFETY_ADAPTER": "configured",
+		"MODERATION_IMAGE_SEEAPI_ENABLED": "true",
+		"MEDIA_GENERATION_ENABLED": "false",
+		"VIDEO_V1_ENABLED": "false",
+		"MEDIA_ALLOW_TEST_SAFETY_ADAPTER": "false",
 		"WORKFLOWS_DISPATCH_SECRET": "test-only-32-character-shared-secret",
 		"WORKFLOWS_DISPATCH_URL": "https://jobs.example/internal/dispatch"
 	}

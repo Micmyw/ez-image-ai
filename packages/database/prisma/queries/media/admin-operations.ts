@@ -223,6 +223,8 @@ export async function requeueAdminMediaVerification(
 			return { assetId: input.assetId, generation: result.generation, replayed: true };
 		}
 		const asset = await tx.mediaAsset.findUnique({ where: { id: input.assetId } });
+		if (asset && asset.verificationEngine !== "legacy")
+			throw new Error("EXECUTION_ENGINE_NOT_OWNED");
 		if (!asset || asset.deletedAt !== null) {
 			throw new Error("MEDIA_VERIFICATION_NOT_REQUEUEABLE");
 		}
@@ -365,6 +367,19 @@ export async function replayPersistedMediaEvent(
 				: null;
 		const event = paymentEvent ?? providerEvent;
 		if (!event) throw new Error("EVENT_NOT_FOUND");
+		if (providerEvent?.providerEventId.startsWith("video-v1:"))
+			throw new Error("EXECUTION_ENGINE_NOT_OWNED");
+		if (providerEvent?.providerTaskId) {
+			const foreignAttempt = await tx.generationAttempt.findFirst({
+				where: {
+					provider: providerEvent.provider,
+					providerTaskId: providerEvent.providerTaskId,
+					job: { executionEngine: { not: "legacy" } },
+				},
+				select: { id: true },
+			});
+			if (foreignAttempt) throw new Error("EXECUTION_ENGINE_NOT_OWNED");
+		}
 		assertReplayablePersistedEventStatus(input.eventKind, event.status);
 		const eventType =
 			input.eventKind === "PAYMENT" ? "PAYMENT_EVENT_RECEIVED" : "PROVIDER_EVENT_RECEIVED";
@@ -490,6 +505,7 @@ export async function retryAdminMediaJobStage(
 			},
 		});
 		if (!job) throw new Error("JOB_NOT_FOUND");
+		if (job.executionEngine !== "legacy") throw new Error("EXECUTION_ENGINE_NOT_OWNED");
 		const existingStageEvent =
 			input.stage === "DISPATCH"
 				? true
@@ -644,6 +660,7 @@ export async function resolveAdminUncertainSubmission(
 			include: { job: { include: { reservation: true } } },
 		});
 		if (!attempt) throw new Error("ATTEMPT_NOT_FOUND");
+		if (attempt.job.executionEngine !== "legacy") throw new Error("EXECUTION_ENGINE_NOT_OWNED");
 		if (
 			attempt.status !== "NEEDS_RECONCILIATION" ||
 			attempt.job.status !== "NEEDS_RECONCILIATION" ||

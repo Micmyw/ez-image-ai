@@ -1,5 +1,12 @@
 import path from "node:path";
 
+import { videoV1Readiness } from "@repo/config/video-v1";
+
+import {
+	isRetiredModerationBinding,
+	retiredModerationBindings,
+} from "./retired-moderation-bindings";
+
 export type DeploymentProfile = "workers" | "hybrid";
 
 export function deploymentProfile(environment: Record<string, string>): DeploymentProfile {
@@ -62,6 +69,24 @@ export function createProfileArtifacts(options: {
 	if (paymentWebhookOrigin && paymentWebhookOrigin !== websiteWorkersOrigin)
 		throw new Error("INVALID_PAYMENT_WEBHOOK_INGRESS_ORIGIN");
 	const flatEnvironment = workersRuntimeEnvironment(environment);
+	if (environment.VIDEO_V1_ENABLED === "true") {
+		const readiness = videoV1Readiness(environment, {
+			workflow: true,
+			r2: Boolean(environment.MEDIA_BUCKET_NAME),
+			hyperdrive: true,
+			uploadCors: environment.VIDEO_V1_UPLOAD_CORS_READY === "true",
+		});
+		if (!readiness.ready) throw new Error(`VIDEO_V1_NOT_READY: ${readiness.reasons.join(",")}`);
+	}
+	const videoWorkflow = {
+		name: `ezpic-video-v1-${profile}-${target}`,
+		binding: "VIDEO_WORKFLOW",
+		class_name: "VideoGenerationWorkflowV1",
+	};
+	const videoVars = {
+		VIDEO_V1_ENABLED: environment.VIDEO_V1_ENABLED ?? "false",
+		VIDEO_V1_ACCESS: "internal",
+	};
 	const hyperdrive = [{ binding: "HYPERDRIVE", id: environment.CLOUDFLARE_HYPERDRIVE_ID }];
 	const account = environment.CLOUDFLARE_ACCOUNT_ID ?? options.jobsTemplate.account_id;
 	const website: Record<string, unknown> = {
@@ -71,6 +96,7 @@ export function createProfileArtifacts(options: {
 		main: path.join(root, "apps/saas/cloudflare-worker.ts"),
 		assets: { directory: path.join(root, "apps/saas/.open-next/assets"), binding: "ASSETS" },
 		vars: {
+			...videoVars,
 			CANONICAL_ORIGIN: canonicalOrigin,
 			EZPIC_RUNTIME: "workers",
 			MEDIA_TRUSTED_PROXY_PROVIDER: "cloudflare",
@@ -83,7 +109,9 @@ export function createProfileArtifacts(options: {
 		hyperdrive,
 		r2_buckets: [
 			{ binding: "NEXT_INC_CACHE_R2_BUCKET", bucket_name: environment.CLOUDFLARE_WEB_CACHE_BUCKET },
+			{ binding: "VIDEO_MEDIA_BUCKET", bucket_name: environment.MEDIA_BUCKET_NAME },
 		],
+		workflows: [{ ...videoWorkflow, script_name: settings.jobsName }],
 		services: [{ binding: "WORKER_SELF_REFERENCE", service: settings.websiteName }],
 	};
 	const jobsOverrides = (
@@ -101,6 +129,19 @@ export function createProfileArtifacts(options: {
 	);
 	jobs.workflows = [
 		{ name: `ezpic-jobs-${profile}-${target}`, binding: "JOBS", class_name: "JobsWorkflow" },
+		videoWorkflow,
+	];
+	jobs.hyperdrive = hyperdrive;
+	jobs.images = { binding: "IMAGES" };
+	jobs.r2_buckets = [{ binding: "VIDEO_MEDIA_BUCKET", bucket_name: environment.MEDIA_BUCKET_NAME }];
+	jobs.vars = {
+		...((jobs.vars as Record<string, unknown>) ?? {}),
+		...videoVars,
+		EZPIC_RUNTIME: "workers",
+		EZPIC_DATABASE_BINDING: "hyperdrive",
+	};
+	jobs.compatibility_flags = [
+		...new Set([...((jobs.compatibility_flags as string[]) ?? []), "global_fetch_strictly_public"]),
 	];
 	if (account) jobs.account_id = account;
 	if (profile === "workers") {
@@ -109,7 +150,14 @@ export function createProfileArtifacts(options: {
 	} else {
 		if (!environment.DATABASE_URL) throw new Error("DATABASE_URL_REQUIRED_FOR_HYBRID");
 		// Retain the existing hybrid Workflow name and Container migration history.
-		jobs.workflows = jobsOverrides?.workflows ?? options.jobsTemplate.workflows;
+		jobs.workflows = [
+			...(
+				(jobsOverrides?.workflows ?? options.jobsTemplate.workflows) as Array<
+					Record<string, unknown>
+				>
+			).filter((workflow) => workflow.binding !== "VIDEO_WORKFLOW"),
+			videoWorkflow,
+		];
 		jobs.containers = (jobs.containers as Array<Record<string, unknown>>).map((container) => ({
 			...container,
 			image: path.join(root, "apps/jobs-runtime/Dockerfile"),
@@ -122,7 +170,8 @@ export function createProfileArtifacts(options: {
 	}
 	const hybridEnvironment: Record<string, string> = { ...environment, EZPIC_RUNTIME: "node" };
 	for (const key of Object.keys(hybridEnvironment))
-		if (key.startsWith("CLOUDFLARE_")) delete hybridEnvironment[key];
+		if (key.startsWith("CLOUDFLARE_") || isRetiredModerationBinding(key))
+			delete hybridEnvironment[key];
 	const artifacts = {
 		website,
 		"website.secrets": secretsWithoutVars(flatEnvironment, website),
@@ -131,6 +180,7 @@ export function createProfileArtifacts(options: {
 			profile === "workers"
 				? secretsWithoutVars(flatEnvironment, jobs)
 				: {
+						...secretsWithoutVars(flatEnvironment, jobs),
 						JOBS_RUNTIME_ENV: JSON.stringify(hybridEnvironment),
 						WORKFLOWS_DISPATCH_SECRET: environment.WORKFLOWS_DISPATCH_SECRET,
 						WORKFLOWS_DISPATCH_URL: environment.WORKFLOWS_DISPATCH_URL,
@@ -167,6 +217,7 @@ export function workersRuntimeEnvironment(environment: Record<string, string>) {
 	// in the Next.js build. Keep their build values, but do not bind them a second time.
 	// Evidence paths are offline-only; production cannot enable local test endpoints.
 	const nonRuntimeVariables = new Set([
+		...retiredModerationBindings,
 		"NEXT_PUBLIC_GOOGLE_ANALYTICS_ID",
 		"NEXT_PUBLIC_CLARITY_PROJECT_ID",
 		"NEXT_PUBLIC_SITE_NAME",
@@ -184,22 +235,8 @@ export function workersRuntimeEnvironment(environment: Record<string, string>) {
 	if (environment.MEDIA_SAFETY_ADAPTER === "configured") {
 		// Configured detectors default to disabled, so explicit false switches do
 		// not need separate bindings. The full build configuration keeps them.
-		for (const key of [
-			"MODERATION_TEXT_WAFFO_ENABLED",
-			"MODERATION_TEXT_SIGHTENGINE_ENABLED",
-			"MODERATION_IMAGE_SEEAPI_ENABLED",
-			"MODERATION_IMAGE_SIGHTENGINE_ENABLED",
-		]) {
+		for (const key of ["MODERATION_TEXT_WAFFO_ENABLED", "MODERATION_IMAGE_SEEAPI_ENABLED"]) {
 			if (environment[key] === "false") nonRuntimeVariables.add(key);
-		}
-		if (
-			[
-				environment.MODERATION_TEXT_SIGHTENGINE_ENABLED,
-				environment.MODERATION_IMAGE_SIGHTENGINE_ENABLED,
-			].every((value) => value === undefined || value === "false")
-		) {
-			nonRuntimeVariables.add("SIGHTENGINE_API_USER");
-			nonRuntimeVariables.add("SIGHTENGINE_API_SECRET");
 		}
 	}
 	return {

@@ -40,7 +40,8 @@ describe("requireReadyOwnedMediaAsset", () => {
 	});
 
 	it("fails closed when the current moderation boundary does not authorize the asset", async () => {
-		vi.stubEnv("MEDIA_SAFETY_ADAPTER", "sightengine");
+		vi.stubEnv("MEDIA_SAFETY_ADAPTER", "configured");
+		vi.stubEnv("MODERATION_IMAGE_SEEAPI_ENABLED", "true");
 		vi.mocked(getOwnedMediaAssetReadState).mockResolvedValue({
 			asset: {
 				id: "asset-1",
@@ -59,7 +60,7 @@ describe("requireReadyOwnedMediaAsset", () => {
 				assetId: "asset-1",
 				ownerId: "user-1",
 				verification: expect.objectContaining({
-					provider: "sightengine",
+					provider: "seeapi",
 					ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 					policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 				}),

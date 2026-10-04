@@ -6,7 +6,6 @@ vi.mock("@repo/payments/waffo-content-safety", () => ({
 
 import { createWaffoPromptScanner } from "@repo/payments/waffo-content-safety";
 
-import { safeTextResponse } from "../../../../ai/media/moderation/sightengine.test-fixtures";
 import { toMediaOrpcError } from "./errors";
 import {
 	createTextModerationAdapter,
@@ -21,7 +20,7 @@ afterEach(() => {
 
 describe("generation text moderation", () => {
 	it.each(["A mountain landscape", "画一只坐在窗边的猫"])(
-		"sends %s to Waffo when Sightengine is switched off",
+		"sends %s only to the configured Waffo scanner",
 		async (prompt) => {
 			const scan = vi.fn(async () => ({
 				decision: "ALLOW" as const,
@@ -40,7 +39,6 @@ describe("generation text moderation", () => {
 				NODE_ENV: "test",
 				MEDIA_SAFETY_ADAPTER: "configured",
 				MODERATION_TEXT_WAFFO_ENABLED: "true",
-				MODERATION_TEXT_SIGHTENGINE_ENABLED: "false",
 			});
 			expect(selected.provider).toBe("waffo");
 			expect(
@@ -170,45 +168,56 @@ describe("generation text moderation", () => {
 		).toThrow(/production/i);
 	});
 
-	it("allows the test adapter only for a complete local production-build E2E identity", async () => {
-		const { adapter, provider } = createTextModerationAdapter(localProductionE2EEnvironment());
-		expect(provider).toBe("test");
-		await expect(
-			adapter.moderateText({ text: "local E2E prompt", ruleVersion: "test-rule" }),
-		).resolves.toMatchObject({ decision: "ALLOW", ruleVersion: "test-rule" });
+	it("forbids a test adapter even with a local production-build E2E identity", () => {
+		expect(() => createTextModerationAdapter(localProductionE2EEnvironment())).toThrow(
+			/production/i,
+		);
 	});
 
-	it.each([
-		["production-build opt-in", { E2E_USE_PRODUCTION_BUILD: undefined }],
-		["media adapter opt-in", { E2E_TEST_MEDIA_ADAPTERS: undefined }],
-		["valid run id", { E2E_RUN_ID: "invalid_run_id" }],
-		["declared test database", { TEST_DATABASE_URL: "postgresql://localhost/other_test" }],
-		["loopback database", { DATABASE_URL: "postgresql://database.example/media_test" }],
-		["test database name", { DATABASE_URL: "postgresql://localhost/media" }],
-		["loopback SaaS origin", { NEXT_PUBLIC_SAAS_URL: "https://saas.example" }],
-		["loopback SaaS origin", { NEXT_PUBLIC_SAAS_URL: "https://saas.example" }],
-	] as const)("keeps production closed without a %s", (_boundary, overrides) => {
-		expect(() =>
-			createTextModerationAdapter({ ...localProductionE2EEnvironment(), ...overrides }),
-		).toThrow(/production/i);
-	});
+	it.each(["test", "development"])(
+		"accepts an explicitly enabled test adapter in %s",
+		async (nodeEnv) => {
+			const selected = createTextModerationAdapter({
+				NODE_ENV: nodeEnv,
+				MEDIA_SAFETY_ADAPTER: "test",
+				MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true",
+			});
+			expect(selected.provider).toBe("test");
+			await expect(
+				selected.adapter.moderateText({
+					text: "fixture",
+					ruleVersion: TEXT_MODERATION_RULE_VERSION,
+				}),
+			).resolves.toMatchObject({ decision: "ALLOW" });
+		},
+	);
 
-	it("fails closed when production Sightengine credentials are missing", () => {
+	it.each([undefined, "", "sightengine", "unknown"])(
+		"rejects absent or retired selector %s without calling Waffo",
+		(selector) => {
+			expect(() =>
+				createTextModerationAdapter({
+					NODE_ENV: "production",
+					MEDIA_SAFETY_ADAPTER: selector,
+					MODERATION_TEXT_WAFFO_ENABLED: "true",
+				}),
+			).toThrow();
+			expect(createWaffoPromptScanner).not.toHaveBeenCalled();
+		},
+	);
+
+	it("requires explicit NODE_ENV before using a test adapter", () => {
 		expect(() =>
 			createTextModerationAdapter({
-				NODE_ENV: "production",
-				MEDIA_SAFETY_ADAPTER: "sightengine",
+				MEDIA_SAFETY_ADAPTER: "test",
+				MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true",
 			}),
-		).toThrow("TEXT_MODERATION_CONFIGURATION_ERROR");
+		).toThrow();
 	});
 
 	it.each(["REJECT", "REVIEW", "ERROR"] as const)(
-		"requires the live Waffo scan before approving a quote: %s",
+		"requires the Waffo verdict before approving a quote: %s",
 		async (decision) => {
-			vi.stubGlobal(
-				"fetch",
-				vi.fn(async () => Response.json(safeTextResponse())),
-			);
 			const scan = vi.fn(async () => ({ decision, reasonCode: "WAFFO_PROMPT_SCAN_DENIED" }));
 			vi.mocked(createWaffoPromptScanner).mockReturnValue(scan);
 			const selection = createTextModerationAdapter(liveModerationEnvironment());
@@ -225,19 +234,12 @@ describe("generation text moderation", () => {
 			expect(scan).toHaveBeenCalledExactlyOnceWith("private prompt");
 			expect(persistApproved).not.toHaveBeenCalled();
 			expect(recordDenied).toHaveBeenCalledWith(
-				expect.objectContaining({
-					decision,
-					provider: "sightengine+waffo",
-				}),
+				expect.objectContaining({ decision, provider: "waffo" }),
 			);
 		},
 	);
 
-	it("retains both providers' redacted evidence only after both checks allow", async () => {
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(async () => Response.json(safeTextResponse())),
-		);
+	it("retains only redacted Waffo evidence from its real scanner contract", async () => {
 		const waffoEvidence = {
 			requestId: "waffo-request-1",
 			action: "allow" as const,
@@ -251,7 +253,7 @@ describe("generation text moderation", () => {
 		}));
 		vi.mocked(createWaffoPromptScanner).mockReturnValue(scan);
 		const { adapter, provider } = createTextModerationAdapter(liveModerationEnvironment());
-		expect(provider).toBe("sightengine+waffo");
+		expect(provider).toBe("waffo");
 		const result = await adapter.moderateText({
 			text: "private prompt",
 			ruleVersion: TEXT_MODERATION_RULE_VERSION,
@@ -259,42 +261,43 @@ describe("generation text moderation", () => {
 		expect(result).toMatchObject({
 			decision: "ALLOW",
 			ruleVersion: TEXT_MODERATION_RULE_VERSION,
-			evidence: { requestId: "req_text_fixture", waffo: waffoEvidence },
+			evidence: {
+				requestId: "waffo-request-1",
+				models: ["waffo-prompt-sift"],
+				operations: 1,
+				scores: {},
+				waffo: waffoEvidence,
+			},
 		});
-		expect(JSON.stringify(result)).not.toMatch(/private prompt|fixture-secret/);
+		expect(JSON.stringify(result)).not.toMatch(/private prompt|fixture-secret|sightengine/i);
 	});
 
-	it("does not send a prompt already denied by Sightengine to another provider", async () => {
-		const rejected = safeTextResponse();
-		rejected.moderation_classes.violent = 0.99;
-		vi.stubGlobal(
-			"fetch",
-			vi.fn(async () => Response.json(rejected)),
-		);
-		const scan = vi.fn();
-		vi.mocked(createWaffoPromptScanner).mockReturnValue(scan);
-		const { adapter } = createTextModerationAdapter(liveModerationEnvironment());
-		expect(
-			await adapter.moderateText({
-				text: "private prompt",
-				ruleVersion: TEXT_MODERATION_RULE_VERSION,
+	it("keeps unexpected scanner failures as errors without leaking details", async () => {
+		vi.mocked(createWaffoPromptScanner).mockReturnValue(
+			vi.fn(async () => {
+				throw new Error("private error");
 			}),
-		).toMatchObject({ decision: "REJECT" });
-		expect(scan).not.toHaveBeenCalled();
+		);
+		const { adapter } = createTextModerationAdapter(liveModerationEnvironment());
+		await expect(
+			adapter.moderateText({ text: "private prompt", ruleVersion: TEXT_MODERATION_RULE_VERSION }),
+		).resolves.toEqual({
+			decision: "ERROR",
+			reasonCode: "MODERATION_UNAVAILABLE",
+			ruleVersion: TEXT_MODERATION_RULE_VERSION,
+		});
 	});
 
-	it("invalidates old quote moderation versions when enabling the new safety chain", () => {
-		expect(TEXT_MODERATION_RULE_VERSION).not.toBe("text-safety-2026-09-08.1");
+	it("invalidates old quote moderation versions when retiring the old safety chain", () => {
+		expect(TEXT_MODERATION_RULE_VERSION).not.toBe("text-safety-2026-09-16.3");
 	});
 });
 
 function liveModerationEnvironment(): Record<string, string | undefined> {
 	return {
 		NODE_ENV: "production",
-		MEDIA_SAFETY_ADAPTER: "sightengine",
-		SIGHTENGINE_API_USER: "fixture-user",
-		SIGHTENGINE_API_SECRET: "fixture-secret",
-		WAFFO_ENVIRONMENT: "prod",
+		MEDIA_SAFETY_ADAPTER: "configured",
+		MODERATION_TEXT_WAFFO_ENABLED: "true",
 	};
 }
 

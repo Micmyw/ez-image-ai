@@ -88,11 +88,7 @@ const rawServerEnvironmentSchema = z.object({
 	SENTRY_DSN: z.url().optional(),
 	SEEAPI_API_KEY: optionalSecretSchema,
 	MODERATION_TEXT_WAFFO_ENABLED: z.enum(["true", "false"]).optional(),
-	MODERATION_TEXT_SIGHTENGINE_ENABLED: z.enum(["true", "false"]).optional(),
 	MODERATION_IMAGE_SEEAPI_ENABLED: z.enum(["true", "false"]).optional(),
-	MODERATION_IMAGE_SIGHTENGINE_ENABLED: z.enum(["true", "false"]).optional(),
-	SIGHTENGINE_API_USER: optionalSecretSchema,
-	SIGHTENGINE_API_SECRET: optionalSecretSchema,
 	REPLICATE_API_TOKEN: optionalSecretSchema,
 	FAL_API_KEY: optionalSecretSchema,
 	KIE_API_KEY: optionalSecretSchema,
@@ -101,7 +97,7 @@ const rawServerEnvironmentSchema = z.object({
 	MEDIA_PROVIDER_ADAPTER: mediaProviderAdapterSchema.default("mock"),
 	MEDIA_ENABLED_PROVIDERS: z.string().optional(),
 	MEDIA_RECOVERY_PROVIDERS: z.string().optional(),
-	MEDIA_SAFETY_ADAPTER: z.enum(["sightengine", "configured", "test"]).default("test"),
+	MEDIA_SAFETY_ADAPTER: z.enum(["configured", "test"]),
 	MEDIA_ALLOW_TEST_SAFETY_ADAPTER: booleanStringSchema,
 	GUEST_MEDIA_ENABLED: booleanStringSchema,
 	GUEST_PROMOTION_PERIOD: z.string().trim().min(1).optional(),
@@ -124,7 +120,7 @@ export interface ServerEnvironment {
 	mediaProviderAdapter: "replicate" | "fal" | "kie" | "gemini" | "openrouter" | "mock";
 	mediaEnabledProviders: MediaProviderKey[];
 	mediaRecoveryProviders: MediaProviderKey[];
-	mediaSafetyAdapter: "sightengine" | "configured" | "test";
+	mediaSafetyAdapter: "configured" | "test";
 	allowTestSafetyAdapter: boolean;
 	guestMediaRequestedEnabled: boolean;
 	guestMediaPromotionPeriod: string | undefined;
@@ -154,8 +150,6 @@ export interface ServerSecrets {
 	stripeWebhookSecret: string | undefined;
 	sentryDsn: string | undefined;
 	seeapiApiKey: string | undefined;
-	sightengineApiUser: string | undefined;
-	sightengineApiSecret: string | undefined;
 	guestTurnstileSecretKey: string | undefined;
 	provider: ProviderSecrets;
 }
@@ -213,6 +207,13 @@ export function validateServerEnvironment(
 	if (parsed.MEDIA_SAFETY_ADAPTER === "test" && !parsed.MEDIA_ALLOW_TEST_SAFETY_ADAPTER) {
 		issues.push("MEDIA_ALLOW_TEST_SAFETY_ADAPTER");
 	}
+	if (
+		parsed.MEDIA_SAFETY_ADAPTER === "test" &&
+		input.NODE_ENV !== "test" &&
+		input.NODE_ENV !== "development"
+	) {
+		issues.push("Test safety adapters require an explicit local NODE_ENV");
+	}
 
 	if (parsed.NODE_ENV === "production") {
 		const legacyMockProviderIsActive =
@@ -252,15 +253,13 @@ export function validateServerEnvironment(
 		}
 
 		if (parsed.MEDIA_MODERATION_ENABLED) {
-			if (parsed.MEDIA_SAFETY_ADAPTER === "configured") {
-				assertModerationConfiguration(
-					Object.fromEntries(
-						Object.entries(input).filter(
-							(entry): entry is [string, string] => typeof entry[1] === "string",
-						),
+			assertModerationConfiguration(
+				Object.fromEntries(
+					Object.entries(input).filter(
+						(entry): entry is [string, string] => typeof entry[1] === "string",
 					),
-				);
-			} else requireValues(parsed, issues, ["SIGHTENGINE_API_USER", "SIGHTENGINE_API_SECRET"]);
+				),
+			);
 		}
 	}
 
@@ -298,8 +297,6 @@ export function validateServerEnvironment(
 			stripeWebhookSecret: parsed.STRIPE_WEBHOOK_SECRET,
 			sentryDsn: parsed.SENTRY_DSN,
 			seeapiApiKey: parsed.SEEAPI_API_KEY,
-			sightengineApiUser: parsed.SIGHTENGINE_API_USER,
-			sightengineApiSecret: parsed.SIGHTENGINE_API_SECRET,
 			guestTurnstileSecretKey: parsed.GUEST_TURNSTILE_SECRET_KEY,
 			provider: selectedProviderSecrets(parsed),
 		}),

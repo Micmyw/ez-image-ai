@@ -54,8 +54,14 @@ export async function completeOwnedUploadSession(
 		expectedSha256?: string;
 	},
 	ownerId: string,
+	options?: { expectedVerificationEngine: "video-workflow-v1" },
 ) {
 	const session = await requireOwnedUploadSession(input.sessionId, ownerId);
+	if (
+		(session.asset.verificationEngine ?? "legacy") !==
+		(options?.expectedVerificationEngine ?? "legacy")
+	)
+		throw new Error("UPLOAD_ENGINE_MISMATCH");
 	if (session.status === "COMPLETED") return toMediaAssetDto(session.asset);
 	if (!["PENDING", "FINALIZING"].includes(session.status)) {
 		throw new Error("Upload session is not pending");
@@ -194,7 +200,9 @@ export async function completeOwnedUploadSession(
 	// The transaction already persisted MEDIA_ASSET_VERIFY. Only wait for durable
 	// dispatch acceptance; Outbox recovery still owns delivery if this attempt fails.
 	await Promise.all([
-		dispatchUploadVerification(asset.id),
+		(asset.verificationEngine ?? "legacy") === "legacy"
+			? dispatchUploadVerification(asset.id)
+			: Promise.resolve(),
 		deleteObject(staging).catch(() => undefined),
 	]);
 	return toMediaAssetDto(asset);

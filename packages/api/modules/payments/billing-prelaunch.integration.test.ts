@@ -13,6 +13,7 @@ import {
 import { PrismaClient } from "@repo/database/generated-client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { isExplicitVideoVerificationTarget } from "../../../../tests/load/video-verification-target";
 import { reconcileSubscriptionsWithClient } from "../../../jobs/src/handlers/reconcile-subscriptions-core";
 import { reconcileProviderPaymentEvents } from "../../../payments/provider/event-reconciliation";
 import { normalizeProviderBillingEvent } from "../../../payments/provider/lifecycle-normalization";
@@ -45,8 +46,9 @@ describe("production payment business regressions", () => {
 		const target = new URL(connectionString);
 		if (
 			!["127.0.0.1", "localhost"].includes(target.hostname) ||
-			target.port !== "55432" ||
-			target.pathname !== "/ai_media_foundation_test"
+			(target.port !== "55432" && !isExplicitVideoVerificationTarget(target)) ||
+			(target.pathname !== "/ai_media_foundation_test" &&
+				!isExplicitVideoVerificationTarget(target))
 		)
 			throw new Error("UNSAFE_TEST_DATABASE");
 		client = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });

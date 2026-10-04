@@ -3,6 +3,7 @@ import { createRouteGraphSnapshot } from "@repo/ai";
 import { PrismaClient } from "@repo/database/generated-client";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { isExplicitVideoVerificationTarget } from "../../../../tests/load/video-verification-target";
 import {
 	FINALIZATION_RECOVERY_EXHAUSTED_ACTION,
 	FINALIZATION_RECOVERY_EXHAUSTED_CODE,
@@ -473,7 +474,7 @@ function assertSafeTestDatabaseUrl(value: string | undefined): void {
 	const parsed = new URL(value);
 	if (
 		parsed.hostname !== "127.0.0.1" ||
-		parsed.port !== "55432" ||
+		(parsed.port !== "55432" && !isExplicitVideoVerificationTarget(parsed)) ||
 		!parsed.pathname.toLowerCase().includes("test")
 	) {
 		throw new Error("TEST_DATABASE_URL must target a test database on 127.0.0.1:55432");

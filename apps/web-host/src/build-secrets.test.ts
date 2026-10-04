@@ -133,7 +133,7 @@ describe("Cloudflare build secret transport", () => {
 	it.each(["test", "sightengine"])(
 		"ignores an ambient %s adapter unless configured moderation overrides are requested",
 		(adapter) => {
-			const source = "MEDIA_SAFETY_ADAPTER=sightengine\nPRIVATE_KEY=unchanged\n";
+			const source = "MEDIA_SAFETY_ADAPTER=configured\nPRIVATE_KEY=unchanged\n";
 			expect(
 				readCloudflareBuildEnvironment({
 					CLOUDFLARE_PRODUCTION_ENV: source,
@@ -164,9 +164,7 @@ describe("Cloudflare build secret transport", () => {
 			{
 				MEDIA_SAFETY_ADAPTER: "configured",
 				MODERATION_TEXT_WAFFO_ENABLED: "false",
-				MODERATION_TEXT_SIGHTENGINE_ENABLED: "false",
 				MODERATION_IMAGE_SEEAPI_ENABLED: "true",
-				MODERATION_IMAGE_SIGHTENGINE_ENABLED: "false",
 			},
 		]) {
 			expect(() =>
@@ -178,13 +176,11 @@ describe("Cloudflare build secret transport", () => {
 		}
 	});
 	it("applies explicit moderation switches without replacing unrelated production secrets", () => {
-		const source = "MEDIA_SAFETY_ADAPTER=sightengine\nPRIVATE_KEY=unchanged\n";
+		const source = "MEDIA_SAFETY_ADAPTER=configured\nPRIVATE_KEY=unchanged\n";
 		const switches = {
 			MEDIA_SAFETY_ADAPTER: "configured",
 			MODERATION_TEXT_WAFFO_ENABLED: "true",
-			MODERATION_TEXT_SIGHTENGINE_ENABLED: "false",
 			MODERATION_IMAGE_SEEAPI_ENABLED: "true",
-			MODERATION_IMAGE_SIGHTENGINE_ENABLED: "false",
 		};
 		expect(
 			parseEnv(readCloudflareBuildEnvironment({ CLOUDFLARE_PRODUCTION_ENV: source, ...switches })),

@@ -241,6 +241,146 @@ export async function headObject(input: MediaObjectLocation): Promise<MediaObjec
 	};
 }
 
+/** Server-authorized private object read. Never buffers a video or follows a remote URL. */
+export async function readPrivateMediaStream(
+	input: MediaObjectLocation & { range?: { start: number; end: number }; ifMatch?: string },
+): Promise<{
+	body: ReadableStream<Uint8Array>;
+	contentLength: number;
+	contentType: string | null;
+	etag: string | null;
+}> {
+	if (
+		input.range &&
+		(!Number.isSafeInteger(input.range.start) ||
+			!Number.isSafeInteger(input.range.end) ||
+			input.range.start < 0 ||
+			input.range.end < input.range.start)
+	) {
+		throw new Error("INVALID_MEDIA_RANGE");
+	}
+	const result = await getS3Client().send(
+		new GetObjectCommand({
+			...mediaLocation(input),
+			...(input.ifMatch ? { IfMatch: input.ifMatch } : {}),
+			...(input.range ? { Range: `bytes=${input.range.start}-${input.range.end}` } : {}),
+		}),
+	);
+	if (!result.Body || !Number.isSafeInteger(result.ContentLength) || result.ContentLength! <= 0) {
+		throw new Error("PRIVATE_MEDIA_BODY_MISSING");
+	}
+	return {
+		body: result.Body.transformToWebStream() as ReadableStream<Uint8Array>,
+		contentLength: result.ContentLength!,
+		contentType: result.ContentType ?? null,
+		etag: result.ETag ?? null,
+	};
+}
+
+export async function inspectPrivateImage(
+	input: MediaObjectLocation & {
+		contentType: "image/jpeg" | "image/png" | "image/webp";
+		contentLength: number;
+		ifMatch?: string;
+	},
+): Promise<{ width: number; height: number }> {
+	const object = await readPrivateMediaStream(input);
+	try {
+		if (object.contentLength !== input.contentLength || object.contentType !== input.contentType)
+			throw new Error("VIDEO_INPUT_IDENTITY_MISMATCH");
+		const processor = getImageProcessor();
+		const dimensions = await processor.inspect(object.body, input.contentType, {
+			contentLength: object.contentLength,
+		});
+		if (!processor.validateDecoded) throw new Error("VIDEO_INPUT_DECODER_UNAVAILABLE");
+		const decoded = await readPrivateMediaStream({
+			...input,
+			ifMatch: object.etag ?? input.ifMatch,
+		});
+		try {
+			await processor.validateDecoded(decoded.body, input.contentType, {
+				contentLength: decoded.contentLength,
+			});
+		} finally {
+			if (!decoded.body.locked) await decoded.body.cancel().catch(() => undefined);
+		}
+		return dimensions;
+	} finally {
+		if (!object.body.locked) await object.body.cancel().catch(() => undefined);
+	}
+}
+
+/** Only small reference images use this bounded buffer; generated video stays streamed. */
+export async function normalizeVideoReferenceToPng(input: {
+	source: MediaObjectLocation;
+	final: MediaObjectLocation;
+	sourceBytes: number;
+	sourceEtag: string;
+	maximumBytes: number;
+}): Promise<{ bytes: number; sha256: string; etag: string | null; versionId: string | null }> {
+	if (input.maximumBytes > 10_000_000 || input.sourceBytes > input.maximumBytes)
+		throw new Error("INPUT_TOO_LARGE");
+	try {
+		const existing = await inspectPrivateMediaObject({
+			...input.final,
+			contentType: "image/png",
+			contentLength: (await headObject(input.final)).contentLength,
+		});
+		if (existing.bytes > input.maximumBytes) throw new Error("INPUT_TOO_LARGE");
+		return existing;
+	} catch (error) {
+		if (!isExplicitObjectNotFound(error)) throw error;
+	}
+	const processor = getImageProcessor();
+	if (!processor.normalizePng) throw new Error("VIDEO_WEBP_NORMALIZATION_UNAVAILABLE");
+	const object = await readPrivateMediaStream({ ...input.source, ifMatch: input.sourceEtag });
+	if (object.contentLength !== input.sourceBytes || object.contentType !== "image/webp") {
+		await object.body.cancel();
+		throw new Error("VIDEO_INPUT_IDENTITY_MISMATCH");
+	}
+	const image = await processor.normalizePng(object.body, { contentLength: input.sourceBytes });
+	const reader = image.getReader();
+	const chunks: Uint8Array[] = [];
+	let bytes = 0;
+	try {
+		for (;;) {
+			const result = await reader.read();
+			if (result.done) break;
+			bytes += result.value.byteLength;
+			if (bytes > input.maximumBytes) throw new Error("VIDEO_NORMALIZED_INPUT_TOO_LARGE");
+			chunks.push(result.value);
+		}
+		const body = Buffer.concat(chunks, bytes);
+		assertDetectedMediaType(body.subarray(0, 64), "image/png");
+		const sha256 = createHash("sha256").update(body).digest("hex");
+		try {
+			const stored = await getS3Client().send(
+				new PutObjectCommand({
+					...mediaLocation(input.final),
+					Body: body,
+					ContentLength: bytes,
+					ContentType: "image/png",
+					IfNoneMatch: "*",
+				}),
+			);
+			return { bytes, sha256, etag: stored.ETag ?? null, versionId: stored.VersionId ?? null };
+		} catch (error) {
+			if (!isConditionalWriteConflict(error)) throw error;
+			const winner = await headObject(input.final);
+			if (winner.contentLength > input.maximumBytes) throw new Error("INPUT_TOO_LARGE");
+			return inspectPrivateMediaObject({
+				...input.final,
+				contentType: "image/png",
+				contentLength: winner.contentLength,
+			});
+		}
+	} finally {
+		await reader.cancel().catch(() => undefined);
+		reader.releaseLock();
+		if (!object.body.locked) await object.body.cancel().catch(() => undefined);
+	}
+}
+
 export async function promoteStagedObject(input: {
 	staging: MediaObjectLocation;
 	final: MediaObjectLocation;

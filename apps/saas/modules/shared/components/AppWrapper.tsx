@@ -40,7 +40,7 @@ function AppContent({ children }: PropsWithChildren) {
 export function AppWrapper({ children }: PropsWithChildren) {
 	const pathname = usePathname();
 	if (pathname === "/create") return children;
-	if (/^\/(dashboard|settings|history|assets|edits)(\/|$)/.test(pathname))
+	if (/^\/(dashboard|settings|history|assets|edits|video)(\/|$)/.test(pathname))
 		return (
 			<StudioShell>
 				<div className="studio-route py-8 container">{children}</div>

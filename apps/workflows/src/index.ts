@@ -4,6 +4,8 @@ import { taskDefinition } from "@repo/jobs/orchestration/registry";
 import { WorkflowEntrypoint, type WorkflowEvent, type WorkflowStep } from "cloudflare:workers";
 
 import { ContainerActivity } from "./activity";
+import { runVideoMaintenance, type VideoRuntimeEnvironment } from "./video-runtime";
+export { VideoGenerationWorkflowV1 } from "./video-generation-v1";
 import { handleDispatch, type JobsParams } from "./dispatch";
 import {
 	runMaintenance,
@@ -113,14 +115,21 @@ export default {
 		return handleDispatch(request, env.WORKFLOWS_DISPATCH_SECRET, env.JOBS);
 	},
 	async scheduled(controller, env) {
+		const videoRecovery = runVideoMaintenance(env as Cloudflare.Env & VideoRuntimeEnvironment);
 		const timestamp = Math.floor(controller.scheduledTime / 60_000) * 60_000;
-		const id = await workflowInstanceId({ maintenance: timestamp });
-		await env.JOBS.createBatch([
-			{
-				id,
-				params: { kind: "maintenance", timestamp },
-				retention: { successRetention: "1 day", errorRetention: "7 days" },
-			},
+		const results = await Promise.allSettled([
+			videoRecovery,
+			workflowInstanceId({ maintenance: timestamp }).then((id) =>
+				env.JOBS.createBatch([
+					{
+						id,
+						params: { kind: "maintenance", timestamp },
+						retention: { successRetention: "1 day", errorRetention: "7 days" },
+					},
+				]),
+			),
 		]);
+		if (results.some((result) => result.status === "rejected"))
+			throw new Error("SCHEDULED_RECOVERY_FAILED");
 	},
 } satisfies ExportedHandler<Cloudflare.Env>;

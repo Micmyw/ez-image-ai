@@ -6,6 +6,16 @@ import { proxy } from "./proxy";
 afterEach(() => vi.restoreAllMocks());
 
 describe("public content proxy", () => {
+	it.each(["/video", "/video/history"])(
+		"keeps %s private and preserves the account locale",
+		(path) => {
+			const response = proxy(
+				new NextRequest(`https://example.com${path}`, { headers: { cookie: "NEXT_LOCALE=fr" } }),
+			);
+			expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
+			expect(response.headers.get("x-middleware-request-x-next-intl-locale")).toBeNull();
+		},
+	);
 	it("keeps editorial previews out of indexing", () => {
 		const response = proxy(new NextRequest("https://example.com/effects-preview/1980s-ai-photo"));
 		expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");

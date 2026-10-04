@@ -5,8 +5,8 @@ import {
 } from "@repo/ai";
 import {
 	moderationConfiguration,
+	assertTestModerationConfiguration,
 	isRetryableModerationError,
-	MODERATION_BYPASS_REASON,
 	MODERATION_MAX_FAILURES,
 } from "@repo/config";
 import {
@@ -17,12 +17,12 @@ import { createWaffoPromptScanner } from "@repo/payments/waffo-content-safety";
 
 import { TextModerationError } from "./public-moderation-reason";
 
-export const TEXT_MODERATION_RULE_VERSION = "text-safety-2026-09-16.3";
+export const TEXT_MODERATION_RULE_VERSION = "text-safety-waffo-2026-10-04.1";
 
 export interface TextModerationEvidence extends Omit<ModerationDecision, "decision"> {
-	decision: ModerationDecision["decision"] | "BYPASS";
+	decision: ModerationDecision["decision"];
 	retry?: { failures: number; lastErrorCode: string; startedAt: string; lastFailureAt: string };
-	provider: "sightengine" | "sightengine+waffo" | "waffo" | "test";
+	provider: "waffo" | "test";
 	inputFingerprint: string;
 }
 
@@ -58,8 +58,6 @@ export async function moderateTextWithRetry(
 		if (failures >= MODERATION_MAX_FAILURES)
 			return {
 				...result,
-				decision: "BYPASS",
-				reasonCode: MODERATION_BYPASS_REASON,
 				retry: { failures, lastErrorCode, startedAt, lastFailureAt },
 			};
 		await wait(250 * 2 ** (failures - 1));
@@ -83,7 +81,7 @@ export async function moderateQuoteInput<T>(
 		provider: dependencies.provider,
 		inputFingerprint: fingerprintGenerationQuoteSecurityPayload(input),
 	};
-	if (result.decision !== "ALLOW" && result.decision !== "BYPASS") {
+	if (result.decision !== "ALLOW") {
 		await dependencies.recordDenied(evidence);
 		throw new TextModerationError({ ...result, decision: result.decision });
 	}
@@ -94,67 +92,40 @@ export function createTextModerationAdapter(environment: Record<string, string |
 	provider: TextModerationEvidence["provider"];
 	adapter: Pick<MediaSafetyAdapter, "moderateText">;
 } {
-	const nodeEnv = normalizedNodeEnvironment(environment.NODE_ENV);
 	if (environment.MEDIA_SAFETY_ADAPTER === "test") {
-		if (environment.MEDIA_ALLOW_TEST_SAFETY_ADAPTER !== "true") {
-			throw new Error("TEST_SAFETY_ADAPTER_DISABLED");
-		}
+		assertTestModerationConfiguration(environment);
 		return {
 			provider: "test",
 			adapter: createMediaSafetyAdapter({
 				kind: "test",
-				nodeEnv: isLocalProductionBuildE2E(environment) ? "test" : nodeEnv,
+				nodeEnv: environment.NODE_ENV as "development" | "test",
+				allowTestAdapter: true,
 			}),
 		};
 	}
-	const config = moderationConfiguration(environment);
-	if (!config.textWaffo && !config.textSightengine)
-		throw new Error("TEXT_MODERATION_CONFIGURATION_ERROR");
-	if (
-		config.textSightengine &&
-		(!environment.SIGHTENGINE_API_USER || !environment.SIGHTENGINE_API_SECRET)
-	)
-		throw new Error("TEXT_MODERATION_CONFIGURATION_ERROR");
-	const primaryAdapter = config.textSightengine
-		? createMediaSafetyAdapter({
-				kind: "sightengine",
-				nodeEnv,
-				apiUser: environment.SIGHTENGINE_API_USER!,
-				apiSecret: environment.SIGHTENGINE_API_SECRET!,
-			})
-		: undefined;
-	const scanWaffo = config.textWaffo ? createWaffoPromptScanner(environment) : undefined;
+	const provider = textModerationProviderForEnvironment(environment);
+	const scanWaffo = createWaffoPromptScanner(environment);
 	return {
-		provider: textModerationProviderForEnvironment(environment),
+		provider,
 		adapter: {
 			async moderateText(input) {
-				const primary = primaryAdapter ? await primaryAdapter.moderateText(input) : undefined;
-				if (primary && (primary.decision === "REJECT" || primary.decision === "REVIEW"))
-					return primary;
-				if (!scanWaffo) return primary!;
 				try {
-					const secondary = await scanWaffo(input.text);
-					if (primary?.decision === "ERROR" && secondary.decision === "ALLOW") return primary;
+					const result = await scanWaffo(input.text);
 					return {
-						decision: secondary.decision,
-						reasonCode:
-							secondary.decision === "ALLOW" && primary ? primary.reasonCode : secondary.reasonCode,
+						decision: result.decision,
+						reasonCode: result.reasonCode,
 						ruleVersion: input.ruleVersion,
-						...(secondary.evidence
+						...(result.evidence
 							? {
 									evidence: {
-										...(primary?.evidence ?? {
-											requestId: secondary.evidence.requestId,
-											models: ["waffo-prompt-sift"],
-											operations: 1,
-											scores: {},
-										}),
-										waffo: secondary.evidence,
+										requestId: result.evidence.requestId,
+										models: ["waffo-prompt-sift"],
+										operations: 1,
+										scores: {},
+										waffo: result.evidence,
 									},
 								}
-							: primary?.evidence
-								? { evidence: primary.evidence }
-								: {}),
+							: {}),
 					};
 				} catch {
 					return {
@@ -171,59 +142,11 @@ export function createTextModerationAdapter(environment: Record<string, string |
 export function textModerationProviderForEnvironment(
 	environment: Record<string, string | undefined>,
 ): TextModerationEvidence["provider"] {
-	if (environment.MEDIA_SAFETY_ADAPTER === "test" || !environment.MEDIA_SAFETY_ADAPTER)
+	if (environment.MEDIA_SAFETY_ADAPTER === "test") {
+		assertTestModerationConfiguration(environment);
 		return "test";
-	const config = moderationConfiguration(environment);
-	if (config.textWaffo) return config.textSightengine ? "sightengine+waffo" : "waffo";
-	if (config.textSightengine) return "sightengine";
-	throw new Error("TEXT_MODERATION_CONFIGURATION_ERROR");
-}
-
-function normalizedNodeEnvironment(
-	value: string | undefined,
-): "development" | "test" | "production" {
-	if (value === "production" || value === "test") return value;
-	return "development";
-}
-
-function isLocalProductionBuildE2E(environment: Record<string, string | undefined>): boolean {
-	if (
-		environment.NODE_ENV !== "production" ||
-		environment.E2E_USE_PRODUCTION_BUILD !== "true" ||
-		environment.E2E_TEST_MEDIA_ADAPTERS !== "true" ||
-		!environment.E2E_RUN_ID ||
-		!/^[a-z0-9-]{6,48}$/i.test(environment.E2E_RUN_ID) ||
-		!environment.DATABASE_URL ||
-		!environment.TEST_DATABASE_URL ||
-		environment.DATABASE_URL !== environment.TEST_DATABASE_URL
-	) {
-		return false;
 	}
-	try {
-		const database = new URL(environment.DATABASE_URL);
-		const saas = new URL(environment.NEXT_PUBLIC_SAAS_URL ?? "");
-		return (
-			isLoopbackHost(database.hostname) &&
-			/test|testing/i.test(database.pathname) &&
-			isLocalHttpOrigin(saas)
-		);
-	} catch {
-		return false;
-	}
-}
-
-function isLocalHttpOrigin(url: URL): boolean {
-	return (
-		url.protocol === "http:" &&
-		isLoopbackHost(url.hostname) &&
-		url.pathname === "/" &&
-		!url.username &&
-		!url.password &&
-		!url.search &&
-		!url.hash
-	);
-}
-
-function isLoopbackHost(hostname: string): boolean {
-	return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "[::1]";
+	if (!moderationConfiguration(environment).textWaffo)
+		throw new Error("TEXT_MODERATION_CONFIGURATION_ERROR");
+	return "waffo";
 }

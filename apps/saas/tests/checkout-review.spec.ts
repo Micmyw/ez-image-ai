@@ -4,6 +4,8 @@ import { pathToFileURL } from "node:url";
 import { expect, test } from "@playwright/test";
 import pg from "pg";
 
+import { isExplicitVideoVerificationTarget } from "../../../tests/load/video-verification-target";
+
 // Real local authentication and UI; provider outcomes are fixtures. The API and
 // serializable closure transaction have separate unit and PostgreSQL coverage.
 test.use({ storageState: { cookies: [], origins: [] } });
@@ -17,7 +19,7 @@ test.describe("checkout review browser flow", () => {
 		const url = new URL(process.env.TEST_DATABASE_URL ?? "http://unsafe.invalid");
 		if (
 			!["localhost", "127.0.0.1"].includes(url.hostname) ||
-			url.port !== "55432" ||
+			(url.port !== "55432" && !isExplicitVideoVerificationTarget(url)) ||
 			!url.pathname.includes("test") ||
 			process.env.DATABASE_URL !== process.env.TEST_DATABASE_URL
 		)

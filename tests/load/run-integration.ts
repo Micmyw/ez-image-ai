@@ -2,6 +2,9 @@ import { spawnSync } from "node:child_process";
 
 import { assertSafeDatabaseUrl } from "./assert-safe-target";
 
+const phase = process.argv[2] ?? "all";
+if (!["all", "api"].includes(phase)) throw new Error("UNKNOWN_INTEGRATION_PHASE");
+
 const testDatabaseUrl = assertSafeDatabaseUrl(process.env.TEST_DATABASE_URL).toString();
 const guestTestDatabaseUrl = assertSafeDatabaseUrl(
 	process.env.GUEST_TEST_DATABASE_URL ?? process.env.TEST_DATABASE_URL,
@@ -14,60 +17,63 @@ const isolatedGuestDatabaseTests = [
 	"prisma/queries/media/guest-retention.integration.test.ts",
 ] as const;
 
-run(
-	[
-		"--filter",
-		"@repo/database",
-		"exec",
-		"vitest",
-		"run",
-		"--config",
-		"vitest.integration.config.ts",
-		"--configLoader",
-		"runner",
-		...isolatedGuestDatabaseTests.flatMap((test) => ["--exclude", test]),
-	],
-	false,
-	testDatabaseUrl,
-);
-run(
-	[
-		"--filter",
-		"@repo/database",
-		"exec",
-		"vitest",
-		"run",
-		...isolatedGuestDatabaseTests,
-		"--config",
-		"vitest.integration.config.ts",
-		"--configLoader",
-		"runner",
-	],
-	false,
-	guestTestDatabaseUrl,
-);
-run(
-	[
-		"--filter",
-		"@repo/jobs",
-		"exec",
-		"vitest",
-		"run",
-		"src/handlers/finalization-transfer.database.integration.test.ts",
-		"src/handlers/jobs.database.integration.test.ts",
-		"src/handlers/recover-finalizing-generations.database.integration.test.ts",
-		"src/handlers/runtime-stores.database.integration.test.ts",
-		"src/handlers/verify-upload.database.integration.test.ts",
-		"src/handlers/moderation-outage.database.integration.test.ts",
-		"src/handlers/temporary-reference.database.integration.test.ts",
-		"src/handlers/output-review-delivery.database.integration.test.ts",
-		"src/handlers/continuation-delivery.database.integration.test.ts",
-		"--config",
-		"vitest.config.ts",
-	],
-	true,
-	testDatabaseUrl,
-);
+if (phase === "all") {
+	run(
+		[
+			"--filter",
+			"@repo/database",
+			"exec",
+			"vitest",
+			"run",
+			"--config",
+			"vitest.integration.config.ts",
+			"--configLoader",
+			"runner",
+			...isolatedGuestDatabaseTests.flatMap((test) => ["--exclude", test]),
+		],
+		false,
+		testDatabaseUrl,
+	);
+	run(
+		[
+			"--filter",
+			"@repo/database",
+			"exec",
+			"vitest",
+			"run",
+			...isolatedGuestDatabaseTests,
+			"--config",
+			"vitest.integration.config.ts",
+			"--configLoader",
+			"runner",
+		],
+		false,
+		guestTestDatabaseUrl,
+	);
+	run(
+		[
+			"--filter",
+			"@repo/jobs",
+			"exec",
+			"vitest",
+			"run",
+			"src/handlers/finalization-transfer.database.integration.test.ts",
+			"src/handlers/continuation-delivery.database.integration.test.ts",
+			"src/handlers/output-review-delivery.database.integration.test.ts",
+			"src/handlers/jobs.database.integration.test.ts",
+			"src/handlers/legacy-engine-isolation.database.integration.test.ts",
+			"src/handlers/recover-finalizing-generations.database.integration.test.ts",
+			"src/handlers/runtime-stores.database.integration.test.ts",
+			"src/handlers/verify-upload.database.integration.test.ts",
+			"src/handlers/moderation-outage.database.integration.test.ts",
+			"src/handlers/temporary-reference.database.integration.test.ts",
+			"--config",
+			"vitest.config.ts",
+		],
+		true,
+		testDatabaseUrl,
+	);
+}
 const isolatedApiDatabaseTests = [
 	"modules/media/guest-capability.database.integration.test.ts",
 	"modules/media/guest-media.integration.test.ts",
@@ -82,6 +88,7 @@ run(
 		"exec",
 		"vitest",
 		"run",
+		...(phase === "api" ? [".integration.test.ts"] : []),
 		...isolatedApiDatabaseTests.flatMap((test) => ["--exclude", test]),
 	],
 	true,

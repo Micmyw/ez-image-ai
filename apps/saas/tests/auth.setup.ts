@@ -10,6 +10,7 @@ setup("authenticate deterministic creators", async ({ browser }) => {
 	const password = requiredEnvironment("E2E_USER_PASSWORD");
 	await fs.mkdir("playwright/.auth", { recursive: true });
 	await authenticate(browser, `media-e2e-funded-${runId}@example.test`, password, authFile);
+	if (process.env.E2E_FUNDED_AUTH_ONLY === "true") return;
 	await authenticate(
 		browser,
 		`media-e2e-empty-${runId}@example.test`,

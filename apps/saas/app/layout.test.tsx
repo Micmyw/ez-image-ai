@@ -62,6 +62,7 @@ vi.mock("next-intl/server", () => ({
 			admin: { title: "Administration" },
 			faq: { items: { question: "Frequently asked question" } },
 			publicContent: { contact: { description: "Contact support" } },
+			videoV1: { title: "Create a short video" },
 		},
 }));
 vi.mock("next-themes", () => ({ ThemeProvider: passthrough }));
@@ -103,7 +104,7 @@ describe("SaaS root layout", () => {
 		expect(metadata.verification?.google).toBe(process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION);
 	});
 
-	it("keeps administration and server-only copy out of the shared client payload", async () => {
+	it("keeps administration, video and server-only copy out of the shared client payload", async () => {
 		const { default: RootLayout } = await import("./layout");
 		renderToStaticMarkup(await RootLayout({ children: <main>content</main> }));
 
@@ -137,8 +138,9 @@ describe("SaaS root layout", () => {
 			expect(clientMessages).not.toHaveProperty("admin");
 			expect(clientMessages).not.toHaveProperty("faq");
 			expect(clientMessages).not.toHaveProperty("publicContent");
+			expect(clientMessages).not.toHaveProperty("videoV1");
 			for (const [namespace, messages] of Object.entries(fullMessages)) {
-				if (!["admin", "faq", "publicContent"].includes(namespace)) {
+				if (!["admin", "faq", "publicContent", "videoV1"].includes(namespace)) {
 					expect(clientMessages[namespace]).toEqual(messages);
 				}
 			}

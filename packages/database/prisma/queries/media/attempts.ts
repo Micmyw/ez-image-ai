@@ -15,7 +15,13 @@ export async function createGenerationAttempt(
 	client?: MediaDatabaseClient,
 ) {
 	if (input.attemptNumber < 1) throw new Error("Attempt number must be positive");
-	return getMediaDatabaseClient(client).generationAttempt.create({ data: input });
+	const database = getMediaDatabaseClient(client);
+	const job = await database.generationJob.findFirst({
+		where: { id: input.jobId, executionEngine: "legacy" },
+		select: { id: true },
+	});
+	if (!job) throw new Error("EXECUTION_ENGINE_NOT_OWNED");
+	return database.generationAttempt.create({ data: input });
 }
 
 export async function bindProviderTask(
@@ -24,7 +30,7 @@ export async function bindProviderTask(
 	client?: MediaDatabaseClient,
 ) {
 	return getMediaDatabaseClient(client).generationAttempt.update({
-		where: { id: attemptId },
+		where: { id: attemptId, job: { executionEngine: "legacy" } },
 		data: { providerTaskId, status: "SUBMITTED", submittedAt: new Date() },
 	});
 }

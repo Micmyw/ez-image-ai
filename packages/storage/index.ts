@@ -7,3 +7,4 @@ export * from "./lib/object-key";
 export * from "./lib/remote-url-policy";
 export * from "./lib/stream-copy";
 export * from "./types";
+export * from "./lib/video-mp4";

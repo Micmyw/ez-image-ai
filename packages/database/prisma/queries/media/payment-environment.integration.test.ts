@@ -1,6 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, expect, it } from "vitest";
 
+import { isExplicitVideoVerificationTarget } from "../../../../../tests/load/video-verification-target";
 import { PrismaClient } from "../../generated/client";
 import { assertLiveBillingDataIsolation } from "./payment-environment";
 
@@ -12,8 +13,8 @@ beforeAll(() => {
 	const target = new URL(url);
 	if (
 		!["localhost", "127.0.0.1"].includes(target.hostname) ||
-		target.port !== "55432" ||
-		target.pathname !== "/ai_media_foundation_test"
+		(target.port !== "55432" && !isExplicitVideoVerificationTarget(target)) ||
+		(target.pathname !== "/ai_media_foundation_test" && !isExplicitVideoVerificationTarget(target))
 	)
 		throw new Error("UNSAFE_TEST_DATABASE");
 	client = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) });

@@ -30,6 +30,8 @@ import {
 } from "@repo/storage";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { isExplicitVideoVerificationTarget } from "../../../../tests/load/video-verification-target";
+
 const globalStorage = vi.hoisted(() => ({
 	// Existing cases exercise legacy streaming/promotion and guest recovery.
 	tryWriteImmutableGenerationImage: vi.fn(async () => null),
@@ -1109,7 +1111,7 @@ function assertSafeTestDatabaseUrl(value: string | undefined): void {
 	const databaseName = parsed.pathname.slice(1).toLowerCase();
 	if (
 		!["localhost", "127.0.0.1", "::1"].includes(parsed.hostname) ||
-		parsed.port !== "55432" ||
+		(parsed.port !== "55432" && !isExplicitVideoVerificationTarget(parsed)) ||
 		!/(^|[_-])(test|testing)([_-]|$)/u.test(databaseName) ||
 		["postgres", "template0", "template1"].includes(databaseName)
 	) {

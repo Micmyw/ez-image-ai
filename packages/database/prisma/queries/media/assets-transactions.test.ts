@@ -22,7 +22,7 @@ function transactionClient(overrides: Record<string, unknown> = {}) {
 				status: "READY",
 				deletedAt: null,
 			})),
-			update: vi.fn(async ({ data }) => ({ id: "asset_1", ...data })),
+			update: vi.fn(async ({ data }) => ({ id: "asset_1", verificationEngine: "legacy", ...data })),
 		},
 		mediaUploadSession: {
 			create: vi.fn(async ({ data }) => ({ ...data, status: "PENDING" })),
@@ -192,6 +192,43 @@ describe("media upload transactions", () => {
 				eventType: "MEDIA_UPLOAD_CLEANUP",
 				dedupeKey: "media-upload-invalid-cleanup:session_1",
 			}),
+		});
+	});
+
+	it("video upload seals bytes but leaves moderation to its workflow", async () => {
+		const { client, tx } = transactionClient();
+		tx.mediaUploadSession.findFirst.mockResolvedValueOnce({
+			id: "session_1",
+			status: "FINALIZING",
+			assetId: "asset_1",
+			multipartUploadId: null,
+			stagingObjectKey: "users/user_1/staging/session_1/nonce.png",
+			finalizationToken: "finalize_1",
+			finalizationLeaseExpiresAt: new Date("2026-08-13T01:00:00Z"),
+			asset: { id: "asset_1", status: "UPLOADING", verificationEngine: "video-workflow-v1" },
+		});
+		tx.mediaAsset.update.mockImplementationOnce(async ({ data }) => ({
+			id: "asset_1",
+			verificationEngine: "video-workflow-v1",
+			...data,
+		}));
+		const result = await completeMediaUploadSessionTransaction(
+			{
+				sessionId: "session_1",
+				ownerId: "user_1",
+				checksum: "a".repeat(64),
+				finalizationToken: "finalize_1",
+				now: new Date("2026-08-13T00:00:00Z"),
+			},
+			client as never,
+		);
+		expect(result.status).toBe("VERIFYING");
+		expect(result.checksum).toBe("a".repeat(64));
+		expect(tx.outboxEvent.create).not.toHaveBeenCalledWith({
+			data: expect.objectContaining({ eventType: "MEDIA_ASSET_VERIFY" }),
+		});
+		expect(tx.outboxEvent.create).toHaveBeenCalledWith({
+			data: expect.objectContaining({ eventType: "MEDIA_UPLOAD_CLEANUP" }),
 		});
 	});
 

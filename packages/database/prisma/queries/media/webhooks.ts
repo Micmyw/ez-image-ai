@@ -18,6 +18,19 @@ export async function ingestProviderEvent(
 	client: MediaTransactionClient,
 ) {
 	return runSerializable(client, async (tx) => {
+		if (input.providerEventId.startsWith("video-v1:"))
+			throw new Error("EXECUTION_ENGINE_NOT_OWNED");
+		if (input.providerTaskId) {
+			const foreignAttempt = await tx.generationAttempt.findFirst({
+				where: {
+					provider: input.provider,
+					providerTaskId: input.providerTaskId,
+					job: { executionEngine: { not: "legacy" } },
+				},
+				select: { id: true },
+			});
+			if (foreignAttempt) throw new Error("EXECUTION_ENGINE_NOT_OWNED");
+		}
 		const replay = await tx.providerWebhookEvent.findUnique({
 			where: {
 				provider_providerEventId: {

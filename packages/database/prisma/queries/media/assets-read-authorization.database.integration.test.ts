@@ -80,6 +80,26 @@ describe("media asset read authorization database boundary", () => {
 		await expect(
 			listReadableMediaAssets({ ownerType: "USER", ownerId, verification, take: 20 }, client),
 		).resolves.toMatchObject({ items: [{ id: assetId }], hasMore: false });
+		const beforeRetirementRead = await client.mediaAsset.findUniqueOrThrow({
+			where: { id: assetId },
+			include: { moderationResults: true },
+		});
+		const activeVerification = { ...verification, provider: "seeapi" };
+		await expect(
+			getOwnedMediaAssetReadState({ assetId, ownerId, verification: activeVerification }, client),
+		).resolves.toMatchObject({ readable: true });
+		await expect(
+			listReadableMediaAssets(
+				{ ownerType: "USER", ownerId, verification: activeVerification, take: 20 },
+				client,
+			),
+		).resolves.toMatchObject({ items: [{ id: assetId }] });
+		expect(
+			await client.mediaAsset.findUniqueOrThrow({
+				where: { id: assetId },
+				include: { moderationResults: true },
+			}),
+		).toEqual(beforeRetirementRead);
 
 		const expiredVerification = {
 			...verification,

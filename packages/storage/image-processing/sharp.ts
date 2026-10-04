@@ -11,6 +11,31 @@ import type { ImageProcessor, ImageWatermarkOptions } from "./types";
 export function createSharpImageProcessor(): ImageProcessor {
 	return {
 		key: "sharp",
+		async validateDecoded(source) {
+			const readable = Readable.fromWeb(source as unknown as NodeReadableStream<Uint8Array>);
+			const decoder = sharp({
+				sequentialRead: true,
+				failOn: "error",
+				limitInputPixels: 100_000_000,
+			});
+			try {
+				await Promise.all([decoder.stats(), pipeline(readable, decoder)]);
+			} finally {
+				readable.destroy();
+				decoder.destroy();
+			}
+		},
+		async normalizePng(source) {
+			const readable = Readable.fromWeb(source as unknown as NodeReadableStream<Uint8Array>);
+			const transform = sharp({
+				sequentialRead: true,
+				failOn: "error",
+				limitInputPixels: 100_000_000,
+			}).png();
+			readable.once("error", (error) => transform.destroy(error));
+			transform.once("close", () => readable.destroy());
+			return Readable.toWeb(readable.pipe(transform)) as unknown as ReadableStream<Uint8Array>;
+		},
 		async inspect(source, contentType) {
 			// DOM and workerd declare different BYOB reader methods for the same Web stream.
 			const readable = Readable.fromWeb(source as unknown as NodeReadableStream<Uint8Array>);

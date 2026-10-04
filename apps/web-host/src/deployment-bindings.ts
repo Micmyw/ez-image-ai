@@ -1,13 +1,12 @@
+import { retiredModerationBindings } from "./retired-moderation-bindings";
+
 const retirementCandidates = new Set([
+	...retiredModerationBindings,
 	"MEDIA_KIE_IMAGE_CERTIFIED_CATALOG_VERSIONS",
 	"GUEST_SESSION_MAX_ACCEPTED_TRIALS",
 	"GUEST_DEVICE_MAX_ACCEPTED_PER_PROMOTION",
-	"SIGHTENGINE_API_USER",
-	"SIGHTENGINE_API_SECRET",
 	"MODERATION_TEXT_WAFFO_ENABLED",
-	"MODERATION_TEXT_SIGHTENGINE_ENABLED",
 	"MODERATION_IMAGE_SEEAPI_ENABLED",
-	"MODERATION_IMAGE_SIGHTENGINE_ENABLED",
 ]);
 
 interface WorkerVersion {

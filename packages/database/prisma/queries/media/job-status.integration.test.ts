@@ -4,6 +4,7 @@ import { resolve } from "node:path";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { isExplicitVideoVerificationTarget } from "../../../../../tests/load/video-verification-target";
 import { PrismaClient } from "../../generated/client";
 import { getOwnedMediaAssetReadState } from "./assets";
 import { getOwnedGenerationJobStatus } from "./job-status";
@@ -12,7 +13,11 @@ let client: PrismaClient;
 const statements: string[] = [];
 beforeAll(() => {
 	const url = new URL(process.env.TEST_DATABASE_URL!);
-	if (url.hostname !== "127.0.0.1" || url.port !== "55432" || !/test/.test(url.pathname))
+	if (
+		url.hostname !== "127.0.0.1" ||
+		(url.port !== "55432" && !isExplicitVideoVerificationTarget(url)) ||
+		!/test/.test(url.pathname)
+	)
 		throw new Error("Unsafe database");
 	client = new PrismaClient({
 		adapter: new PrismaPg({ connectionString: url.toString() }),

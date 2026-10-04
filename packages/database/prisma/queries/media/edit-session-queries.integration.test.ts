@@ -1,6 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { isExplicitVideoVerificationTarget } from "../../../../../tests/load/video-verification-target";
 import { Prisma, PrismaClient } from "../../generated/client";
 import { markMediaAssetDeletedTransaction } from "./assets";
 import { createCreditGrant } from "./credits";
@@ -355,7 +356,7 @@ function safeTestDatabaseUrl(value: string | undefined): string {
 	const parsed = new URL(value);
 	if (
 		!["127.0.0.1", "localhost", "[::1]"].includes(parsed.hostname) ||
-		parsed.port !== "55432" ||
+		(parsed.port !== "55432" && !isExplicitVideoVerificationTarget(parsed)) ||
 		!/(^|[_-])(test|testing)([_-]|$)/.test(parsed.pathname.slice(1).toLowerCase())
 	) {
 		throw new Error("TEST_DATABASE_URL must target the disposable PR 5 database");

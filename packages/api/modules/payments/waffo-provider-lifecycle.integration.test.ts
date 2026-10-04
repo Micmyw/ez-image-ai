@@ -8,6 +8,8 @@ import { PrismaClient } from "@repo/database/generated-client";
 import { processProviderPaymentEvent } from "@repo/payments";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { isExplicitVideoVerificationTarget } from "../../../../tests/load/video-verification-target";
+
 describe("Waffo separate payment and subscription notifications", () => {
 	let client: PrismaClient;
 	const runId = crypto.randomUUID();
@@ -23,7 +25,7 @@ describe("Waffo separate payment and subscription notifications", () => {
 		const url = new URL(connectionString);
 		if (
 			url.hostname !== "127.0.0.1" ||
-			url.port !== "55432" ||
+			(url.port !== "55432" && !isExplicitVideoVerificationTarget(url)) ||
 			!/^\/(?:ai_media_foundation_test|ezpic_[a-z0-9_]+_test)$/.test(url.pathname)
 		) {
 			throw new Error("A disposable loopback payment test database on port 55432 is required");

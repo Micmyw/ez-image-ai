@@ -1,10 +1,15 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import { PrismaPg } from "@prisma/adapter-pg";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { createVideoAudioSafetyPolicy } from "@repo/config/video-output";
+import { createVideoVisualSafetyProfile } from "@repo/config/video-safety";
+import { createVideoTextSafetyProfile } from "@repo/config/video-text-safety";
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PrismaClient } from "../../generated/client";
+import type { Prisma } from "../../generated/client";
 import { getAdminMediaDiagnostics } from "./admin-diagnostics";
+import { createCreditGrant } from "./credits";
 import { claimGuestGenerationDraftTransaction } from "./drafts";
 import {
 	createGuestGenerationTransaction,
@@ -14,7 +19,12 @@ import {
 } from "./guest-admission";
 import { beginGuestLinkIntentTransaction } from "./guest-link";
 import { expireGuestJobBeforeProvider } from "./guest-retention";
-import { fingerprintGenerationQuoteSecurityPayload } from "./quotes";
+import { createGenerationJobTransaction } from "./jobs";
+import {
+	createModeratedGenerationQuote,
+	fingerprintGenerationQuoteSecurityPayload,
+} from "./quotes";
+import { createVideoJobRecord, createVideoQuoteRecord } from "./video-v1";
 
 const TEST_DATABASE_URL = process.env.TEST_DATABASE_URL;
 const DATABASE_URL = process.env.DATABASE_URL;
@@ -46,6 +56,186 @@ describe("guest generation admission", () => {
 	afterAll(async () => {
 		await client?.$disconnect();
 	});
+	afterEach(() => vi.unstubAllEnvs());
+
+	it("shared Kie capacity rejects a guest image after video fills the final slot", async () => {
+		vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", "1");
+		const video = await videoAdmissionFixture();
+		await createVideoJobRecord(video, client);
+		const guest = await createGuestFixture("video-cap-full");
+		await expect(
+			createGuestAdmission(guestAdmissionInput(guest, { idempotencyKey: "capacity-full" })),
+		).rejects.toThrow("PROVIDER_CONCURRENT_JOB_LIMIT_REACHED");
+		expect(await countGuestBusinessGraph(guest.ownerId)).toEqual(emptyGuestBusinessGraph());
+	});
+
+	it("shared Kie capacity serializes a guest image and video racing the final slot", async () => {
+		vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", "1");
+		const video = await videoAdmissionFixture();
+		const guest = await createGuestFixture("video-cap-race");
+		const outcomes = await concurrentSettledBarrier([
+			async () => {
+				await createVideoJobRecord(video, client);
+			},
+			async () => {
+				await createGuestAdmission(guestAdmissionInput(guest, { idempotencyKey: "capacity-race" }));
+			},
+		]);
+		expect(outcomes.filter((item) => item.status === "fulfilled")).toHaveLength(1);
+		expect(await client.generationJob.count()).toBe(1);
+		expect(await client.creditReservation.count({ where: { status: "ACTIVE" } })).toBe(1);
+	});
+
+	it("shared Kie capacity observes video committed after an image transaction's first snapshot", async () => {
+		vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", "1");
+		const video = await videoAdmissionFixture();
+		const guest = await createGuestFixture("image-snapshot");
+		const input = guestAdmissionInput(guest, { idempotencyKey: "image-snapshot" });
+		const quote = await createModeratedGenerationQuote(input.quote, client);
+		const account = await client.creditAccount.create({
+			data: { ownerType: "USER", ownerId: guest.ownerId },
+		});
+		await createCreditGrant(
+			{ accountId: account.id, amount: 5n, referenceKey: `snapshot:${account.id}` },
+			client,
+		);
+		let reached!: () => void;
+		let resume!: () => void;
+		const blocked = new Promise<void>((resolve) => {
+			reached = resolve;
+		});
+		const resumed = new Promise<void>((resolve) => {
+			resume = resolve;
+		});
+		const observedClient = new Proxy(client, {
+			get(target, property) {
+				if (property !== "$transaction") return Reflect.get(target, property);
+				return (operation: (tx: Prisma.TransactionClient) => Promise<unknown>, options: object) =>
+					target.$transaction(
+						async (tx) =>
+							operation(
+								new Proxy(tx, {
+									get(transaction, key) {
+										if (key !== "$executeRaw") return Reflect.get(transaction, key);
+										return async (parts: TemplateStringsArray, ...values: unknown[]) => {
+											if (parts.join("").includes("media:provider-capacity:kie")) {
+												reached();
+												await resumed;
+											}
+											return transaction.$executeRaw(parts, ...values);
+										};
+									},
+								}),
+							),
+						options,
+					);
+			},
+		});
+		const imageResult = createGenerationJobTransaction(
+			{
+				ownerType: "USER",
+				ownerId: guest.ownerId,
+				submittedByUserId: guest.ownerId,
+				quoteId: quote.id,
+				idempotencyKey: "image-snapshot",
+				inputAssetIds: [],
+				expectedModerationRuleVersion: input.quote.moderation.ruleVersion,
+			},
+			observedClient,
+		).then(
+			(value) => ({ value }),
+			(error: Error) => ({ error }),
+		);
+		await blocked;
+		try {
+			await createVideoJobRecord(video, client);
+		} finally {
+			resume();
+		}
+		expect(await imageResult).toMatchObject({
+			error: { message: "PROVIDER_CONCURRENT_JOB_LIMIT_REACHED" },
+		});
+		expect(await client.creditReservation.count({ where: { accountId: account.id } })).toBe(0);
+	});
+
+	it("shared Kie capacity transfers one guest replacement slot without admitting extra video", async () => {
+		vi.stubEnv("VIDEO_V1_PROVIDER_CONCURRENCY", "1");
+		const guest = await createGuestFixture("replacement-cap");
+		const admitted = await createGuestAdmission(
+			guestAdmissionInput(guest, { idempotencyKey: "replacement-cap" }),
+		);
+		const video = await videoAdmissionFixture();
+		const [replacement, rejectedVideo] = await Promise.all([
+			client.$transaction((tx) =>
+				expireGuestJobBeforeProvider({ jobId: admitted.jobId, now: new Date() }, tx),
+			),
+			createVideoJobRecord(video, client).then(
+				() => null,
+				(error: Error) => error,
+			),
+		]);
+		expect(replacement).toMatchObject({ outcome: "EXPIRED", replacementJobId: expect.any(String) });
+		expect(rejectedVideo?.message).toBe("VIDEO_PROVIDER_BUSY");
+		expect(
+			await client.generationJob.count({
+				where: { status: { notIn: ["FAILED", "SUCCEEDED", "CANCELED"] } },
+			}),
+		).toBe(1);
+		expect(await client.creditReservation.count({ where: { status: "ACTIVE" } })).toBe(1);
+	});
+
+	async function videoAdmissionFixture() {
+		const ownerId = `video-capacity-${randomUUID()}`;
+		const account = await client.creditAccount.create({ data: { ownerType: "USER", ownerId } });
+		await createCreditGrant(
+			{ accountId: account.id, amount: 7n, referenceKey: `video-capacity:${ownerId}` },
+			client,
+		);
+		const request = {
+			mode: "text-to-video" as const,
+			prompt: "A slow lake panorama",
+			duration: 5 as const,
+			sound: false as const,
+			aspectRatio: "16:9" as const,
+		};
+		const price = {
+			credits: 7n,
+			pricingVersion: "CAPACITY_TEST",
+			providerCostMicros: 2n,
+			moderationCostMicros: 1n,
+			pricingBasis: "LOCAL_TEST_ONLY",
+		};
+		const visualSafetyProfile = createVideoVisualSafetyProfile("sightengine", request.duration);
+		const quote = await createVideoQuoteRecord(
+			{
+				ownerId,
+				request,
+				price,
+				visualSafetyProfile,
+				textSafetyProfile: createVideoTextSafetyProfile(),
+				audioSafetyPolicy: createVideoAudioSafetyPolicy(),
+				maximumInputBytes: 10_000_000,
+			},
+			client,
+		);
+		return {
+			ownerId,
+			quoteId: quote.quoteId,
+			idempotencyKey: randomUUID(),
+			request,
+			price,
+			visualSafetyProfile,
+			textSafetyProfile: createVideoTextSafetyProfile(),
+			audioSafetyPolicy: createVideoAudioSafetyPolicy(),
+			limits: {
+				ownerConcurrency: 1,
+				globalConcurrency: 5,
+				providerConcurrency: 1,
+				maximumStorageBytes: 100_000_000n,
+				maximumInputBytes: 10_000_000,
+			},
+		};
+	}
 
 	it("admits two daily edits on one device across sessions, rejects the third, and resets at UTC midnight", async () => {
 		const now = guestAdmissionTestTime(0);

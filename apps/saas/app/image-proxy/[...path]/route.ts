@@ -1,4 +1,5 @@
 import { getSignedUrl } from "@repo/storage";
+import { config as storageConfig } from "@repo/storage/config";
 import { NextResponse } from "next/server";
 
 export const GET = async (_req: Request, { params }: { params: Promise<{ path: string[] }> }) => {
@@ -10,9 +11,9 @@ export const GET = async (_req: Request, { params }: { params: Promise<{ path: s
 		return new Response("Invalid path", { status: 400 });
 	}
 
-	if (bucket === "avatars") {
+	if (bucket === storageConfig.bucketNames.avatars) {
 		const signedUrl = await getSignedUrl(filePath, {
-			bucket,
+			bucket: "avatars",
 			expiresIn: 60 * 60,
 		});
 

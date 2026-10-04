@@ -12,6 +12,7 @@ import {
 import { PrismaClient } from "@repo/database/generated-client";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { isExplicitVideoVerificationTarget } from "../../../../tests/load/video-verification-target";
 import { createDatabaseVerifyUploadDependencies } from "../runtime";
 import { verifyUpload } from "./verify-upload";
 
@@ -970,7 +971,11 @@ function assertSafeTestDatabaseUrl(value: string | undefined): void {
 	const safeDatabase =
 		parsed.pathname === "/ai_media_foundation_test" ||
 		/^\/ezpic_[a-z0-9_]+_test$/.test(parsed.pathname);
-	if (parsed.hostname !== "127.0.0.1" || parsed.port !== "55432" || !safeDatabase) {
+	if (
+		parsed.hostname !== "127.0.0.1" ||
+		(parsed.port !== "55432" && !isExplicitVideoVerificationTarget(parsed)) ||
+		!safeDatabase
+	) {
 		throw new Error(
 			"TEST_DATABASE_URL must target 127.0.0.1:55432/ai_media_foundation_test or a dedicated ezpic_*_test database",
 		);

@@ -7,10 +7,11 @@ test("crops an avatar and uploads the exact signed PNG before updating the profi
 }) => {
 	test.setTimeout(90_000);
 	await page.goto("/settings/general");
-	await page
-		.locator('input[type="file"]')
-		.setInputFiles({ name: "avatar.png", mimeType: "image/png", buffer: E2E_PNG });
+	const avatarInput = page.locator('input[type="file"]');
+	await expect(avatarInput).toBeEnabled();
+	await avatarInput.setInputFiles({ name: "avatar.png", mimeType: "image/png", buffer: E2E_PNG });
 	const dialog = page.getByRole("dialog");
+	await expect(dialog).toBeVisible();
 	await expect(dialog.locator("cropper-selection")).toBeVisible();
 	const putResponse = page.waitForResponse((response) => response.request().method() === "PUT");
 	const profileResponse = page.waitForResponse((response) =>
@@ -27,4 +28,9 @@ test("crops an avatar and uploads the exact signed PNG before updating the profi
 	await expect(dialog).not.toBeVisible();
 	await page.reload();
 	await expect(page.locator('input[type="file"]')).toBeAttached();
+	const avatarImage = page.locator('input[type="file"]').locator("..").locator("img");
+	await expect(avatarImage).toBeVisible();
+	await expect
+		.poll(() => avatarImage.evaluate((image) => (image as HTMLImageElement).naturalWidth))
+		.toBeGreaterThan(0);
 });

@@ -13,12 +13,23 @@
 		"CANONICAL_ORIGIN": "http://localhost:8787",
 		"EZPIC_RUNTIME": "workers",
 		"EZPIC_DATABASE_BINDING": "hyperdrive",
-		"MEDIA_TRUSTED_PROXY_PROVIDER": "cloudflare"
+		"MEDIA_TRUSTED_PROXY_PROVIDER": "cloudflare",
+		"VIDEO_V1_ENABLED": "false",
+		"VIDEO_V1_ACCESS": "internal"
 	},
 	"images": { "binding": "IMAGES" },
 	"hyperdrive": [{ "binding": "HYPERDRIVE", "id": "00000000000000000000000000000000" }],
 	"r2_buckets": [
-		{ "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "ezimageai-web-cache-local" }
+		{ "binding": "NEXT_INC_CACHE_R2_BUCKET", "bucket_name": "ezimageai-web-cache-local" },
+		{ "binding": "VIDEO_MEDIA_BUCKET", "bucket_name": "ezpic-media-local" }
+	],
+	"workflows": [
+		{
+			"name": "ezpic-video-v1-workers-local",
+			"binding": "VIDEO_WORKFLOW",
+			"class_name": "VideoGenerationWorkflowV1",
+			"script_name": "ezpic-workflows-workers-local"
+		}
 	],
 	"services": [{ "binding": "WORKER_SELF_REFERENCE", "service": "ezimageai-web-local" }],
 	"durable_objects": {

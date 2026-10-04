@@ -5,6 +5,9 @@ export default defineConfig({
 		globals: true,
 		environment: "node",
 		env: {
+			NODE_ENV: "test",
+			MEDIA_SAFETY_ADAPTER: "test",
+			MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true",
 			DATABASE_URL:
 				process.env.DATABASE_URL ??
 				process.env.TEST_DATABASE_URL ??

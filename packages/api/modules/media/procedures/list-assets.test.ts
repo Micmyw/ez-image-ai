@@ -25,7 +25,8 @@ import { listAssets } from "./list-assets";
 
 describe("listAssets", () => {
 	beforeEach(() => {
-		vi.stubEnv("MEDIA_SAFETY_ADAPTER", "sightengine");
+		vi.stubEnv("MEDIA_SAFETY_ADAPTER", "configured");
+		vi.stubEnv("MODERATION_IMAGE_SEEAPI_ENABLED", "true");
 		vi.mocked(auth.api.getSession).mockResolvedValue({
 			user: { id: "user-1" },
 			session: { id: "auth-session-1" },
@@ -77,7 +78,7 @@ describe("listAssets", () => {
 				take: 20,
 				mimeTypePrefix: "image/",
 				verification: expect.objectContaining({
-					provider: "sightengine",
+					provider: "seeapi",
 					ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 					policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
 				}),

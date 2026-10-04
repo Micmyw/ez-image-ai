@@ -10,7 +10,7 @@ export const cancelGeneration = protectedProcedure
 	.handler(async ({ context: { user }, input }) => {
 		return db.$transaction(async (tx) => {
 			const job = await tx.generationJob.findFirst({
-				where: { id: input.jobId, ownerType: "USER", ownerId: user.id },
+				where: { id: input.jobId, executionEngine: "legacy", ownerType: "USER", ownerId: user.id },
 				select: {
 					id: true,
 					status: true,
@@ -50,6 +50,7 @@ export const cancelGeneration = protectedProcedure
 			const canceled = await tx.generationJob.updateMany({
 				where: {
 					id: job.id,
+					executionEngine: "legacy",
 					version: job.version,
 					status: {
 						in: canCancelBeforeProviderSubmission

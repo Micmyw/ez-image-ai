@@ -402,7 +402,7 @@ export async function submitGuestGenerationForGuest(
 	);
 	const moderationProvider =
 		dependencies.moderationProvider ?? textModerationProviderForEnvironment(process.env);
-	if (moderation.decision !== "ALLOW" && moderation.decision !== "BYPASS") {
+	if (moderation.decision !== "ALLOW") {
 		await dependencies.recordModerationDenial?.({ ...moderation, provider: moderationProvider });
 		return rejectGuestAdmission(
 			dependencies,

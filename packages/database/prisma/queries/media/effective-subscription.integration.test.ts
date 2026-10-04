@@ -1,6 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { isExplicitVideoVerificationTarget } from "../../../../../tests/load/video-verification-target";
 import { PrismaClient, type Prisma } from "../../generated/client";
 import { findEffectivePaidSubscription } from "./billing";
 
@@ -341,7 +342,7 @@ function safeTestDatabaseUrl(): string {
 	const safeNamedDatabase = /^\/ezpic_[a-z0-9_]+_test$/.test(parsed.pathname);
 	if (
 		(parsed.hostname !== "127.0.0.1" && parsed.hostname !== "localhost") ||
-		parsed.port !== "55432" ||
+		(parsed.port !== "55432" && !isExplicitVideoVerificationTarget(parsed)) ||
 		(!allowedDatabases.has(parsed.pathname) && !safeNamedDatabase)
 	) {
 		throw new Error("UNSAFE_TEST_DATABASE: expected an approved disposable EzPic database");

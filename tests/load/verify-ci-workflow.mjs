@@ -33,6 +33,22 @@ const postgres = jobBlock(workflow, "postgres", "builds");
 const builds = jobBlock(workflow, "builds", "mock-e2e");
 const mockE2e = jobBlock(workflow, "mock-e2e", "supply-chain");
 
+for (const workflowFile of readdirSync(resolve(process.cwd(), ".github/workflows"))) {
+	if (!/\.ya?ml$/.test(workflowFile)) continue;
+	const workflowText = readFileSync(
+		resolve(process.cwd(), ".github/workflows", workflowFile),
+		"utf8",
+	);
+	assertNotMatch(
+		workflowText,
+		/^\s*(?:MEDIA_SAFETY_ADAPTER|VIDEO_V1_(?:TEXT|IMAGE|VIDEO)_SAFETY_ADAPTER):\s*["']?sightengine\b/im,
+	);
+}
+assertIncludes(quality, "          MEDIA_SAFETY_ADAPTER: configured");
+assertIncludes(quality, '          MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "false"');
+assertIncludes(builds, "      MEDIA_SAFETY_ADAPTER: configured");
+assertIncludes(builds, '      MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "false"');
+
 assertNarrowGitleaksFixtureIgnores(gitleaksIgnore);
 assertJobsDatabaseIntegrationCoverage(
 	jobsDatabaseIntegrationTests,

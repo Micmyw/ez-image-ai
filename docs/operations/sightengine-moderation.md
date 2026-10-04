@@ -1,5 +1,11 @@
 # Sightengine text and image moderation
 
+> **Superseded / retired (2026-10-04).** Current runtime no longer calls Sightengine,
+> including for unfinished historical work. This page preserves its earlier contract and
+> test record only; its switches and credentials must not be used to restore active checks.
+> Unfinished work requiring the retired provider is held. Historical completed results retain
+> only existing bounded authorization. See [current moderation](content-moderation.md).
+
 For provider switches, the initial Waffo + SeeAPI combination, and the account's lifetime
 output-block credit waiver, see [configurable moderation](./content-moderation.md). This page
 describes the Sightengine profile when its corresponding switch is enabled.

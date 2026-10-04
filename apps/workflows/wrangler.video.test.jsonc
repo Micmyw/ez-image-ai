@@ -1,0 +1,18 @@
+{
+	"name": "ezpic-video-workflow-test",
+	"main": "src/video-generation-v1.ts",
+	"compatibility_date": "2026-09-10",
+	"compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+	"workflows": [
+		{
+			"name": "ezpic-video-v1-test",
+			"binding": "VIDEO_WORKFLOW",
+			"class_name": "VideoGenerationWorkflowV1"
+		}
+	],
+	"vars": {
+		"VIDEO_V1_ENABLED": "false",
+		"VIDEO_V1_PROVIDER_POLL_SECONDS": "30",
+		"VIDEO_V1_MODERATION_POLL_SECONDS": "30"
+	}
+}

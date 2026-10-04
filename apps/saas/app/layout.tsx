@@ -58,6 +58,10 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 		publicContent: _publicContent,
 		...messages
 	} = await getMessages();
+	// Video beta copy is supplied only by its authenticated layout.
+	const clientMessages = Object.fromEntries(
+		Object.entries(messages).filter(([key]) => key !== "videoV1"),
+	);
 	const consentStatus = parseConsentStatus((await cookies()).get("consent")?.value);
 
 	return (
@@ -66,7 +70,7 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 				<SiteAnalytics />
 				<ConsentProvider initialConsentStatus={consentStatus}>
 					<NuqsAdapter>
-						<NextIntlClientProvider messages={messages}>
+						<NextIntlClientProvider messages={clientMessages}>
 							<ThemeProvider
 								attribute="class"
 								disableTransitionOnChange

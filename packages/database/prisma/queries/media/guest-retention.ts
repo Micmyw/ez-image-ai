@@ -318,6 +318,9 @@ export async function expireGuestJobBeforeProvider(
 		trial.linkedAt === null &&
 		trial.linkIntents.every((intent) => intent.state === "NONE");
 	if (replacementAllowed) {
+		// The active original and its single replacement change in this transaction:
+		// shared provider occupancy transfers 1 -> 1 without exposing a free slot.
+		// Do not acquire the provider admission lock after the account lock above.
 		const replacement = await createGuestReplacement(job, trial, input, tx);
 		if (replacement) {
 			return { outcome: "EXPIRED", jobId: job.id, replacementJobId: replacement.id };

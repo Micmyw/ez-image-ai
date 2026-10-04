@@ -143,6 +143,11 @@ test.describe("subscription upgrade checkout recovery", () => {
 			"Nano Banana 2 Lite",
 			{ timeout: 30_000 },
 		);
+		await expect(page.locator('[data-test="registered-generator"]')).toHaveAttribute(
+			"aria-busy",
+			"false",
+		);
+		await expect(page.locator('[data-test="generation-submit"]')).toContainText("5 credits");
 		const promptInput = page.getByLabel(/edit instruction|image prompt/i);
 		await promptInput.fill(prompt);
 		await expect(promptInput).toHaveValue(prompt);
@@ -152,6 +157,7 @@ test.describe("subscription upgrade checkout recovery", () => {
 		const dialog = page.getByRole("dialog", { name: /unlock more image models/i });
 		await expect(dialog).toBeHidden();
 		await expect(page.getByRole("button", { name: /^Model: / })).toContainText("GPT Image 2");
+		await expect(promptInput).toHaveValue(prompt);
 		await page.locator('[data-test="editor-model-upgrade"]').click();
 		await expect(dialog).toContainText(/image, instruction, and model settings stay saved/i);
 		await dialog.getByRole("button", { name: /choose a plan/i }).click();

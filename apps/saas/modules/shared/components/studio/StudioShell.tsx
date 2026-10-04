@@ -24,6 +24,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type MouseEvent, type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 
+import { VideoNavigationLink } from "../../../video-v1/VideoNavigationLink";
 import { HeaderNavigationMenu } from "./HeaderNavigationMenu";
 import { HeaderPurchaseActions } from "./HeaderPurchaseActions";
 import {
@@ -63,6 +64,7 @@ export function StudioShell({
 function StudioShellContent({ children, brandName }: { children: ReactNode; brandName: string }) {
 	const t = useTranslations("studio");
 	const common = useTranslations("common.menu");
+	const accountMenu = useTranslations("app.menu");
 	const { user } = useSession();
 	const registered = Boolean(user && user.isAnonymous !== true);
 	const pathname = usePathname();
@@ -210,6 +212,7 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 				{registered && (
 					<>
 						<p className="studio-nav-label">{t("workspace")}</p>
+						<VideoNavigationLink onNavigate={() => setNavigationOpen(false)} />
 						<Link className="studio-nav-link" href="/history" prefetch={false}>
 							<HistoryIcon />
 							{t("history")}
@@ -275,7 +278,11 @@ function StudioShellContent({ children, brandName }: { children: ReactNode; bran
 				<div className="studio-main" inert={mobile && Boolean(panel)}>
 					<header className="studio-topbar">
 						<div className="studio-header-identity">
-							{showSidebar && <span className="studio-workspace-title">{t("create")}</span>}
+							{showSidebar && (
+								<span className="studio-workspace-title">
+									{pathname.startsWith("/video") ? accountMenu("video") : t("create")}
+								</span>
+							)}
 							<Link
 								href="/"
 								prefetch={false}

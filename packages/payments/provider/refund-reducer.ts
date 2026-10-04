@@ -9,6 +9,7 @@ import {
 	calculateCreditPackRefundTargetCredits,
 } from "./credit-pack-reducer";
 import type { ProviderRefundFact } from "./lifecycle-normalization";
+import { lockRefundFundingAccount } from "./refund-funding-lock";
 import { requestRefundTerminationIfCurrent } from "./refund-termination";
 
 export async function applyProviderRefundFact(
@@ -140,6 +141,9 @@ export async function applyProviderRefundFact(
 			ownerType_ownerId: { ownerType: subscription.ownerType, ownerId: subscription.ownerId },
 		},
 	});
+	// Future ungranted periods may have no account yet; existing accounts must
+	// serialize monetary updates even when no grant/rounded credit delta is due.
+	if (account) await lockRefundFundingAccount(account.id, client);
 	for (const period of periods) {
 		const available = period.creditAmount - period.refundedCredits;
 		const allocated = available < remaining ? available : remaining;

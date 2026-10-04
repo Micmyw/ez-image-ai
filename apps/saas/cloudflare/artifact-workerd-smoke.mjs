@@ -78,7 +78,7 @@ const runtime = new Miniflare(
 			NEXT_PUBLIC_SAAS_URL: "https://website-artifact-smoke.invalid",
 			RESEND_API_KEY: "re_artifact_smoke_only_placeholder",
 			MEDIA_PROVIDER_ADAPTER: "kie",
-			MEDIA_SAFETY_ADAPTER: "sightengine",
+			MEDIA_SAFETY_ADAPTER: "configured",
 			MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "false",
 			MEDIA_GENERATION_ENABLED: "false",
 			MEDIA_TRUSTED_PROXY_PROVIDER: "cloudflare",

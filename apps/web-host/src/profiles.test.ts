@@ -91,9 +91,7 @@ describe("deployment profiles", () => {
 		});
 		expect(moderationConfiguration(environment)).toEqual({
 			textWaffo: true,
-			textSightengine: false,
 			imageSeeapi: true,
-			imageSightengine: false,
 		});
 	});
 	it("replaces obsolete lifetime guest limits with daily limits in Worker bindings", () => {
@@ -114,22 +112,36 @@ describe("deployment profiles", () => {
 		});
 	});
 	it.each<Record<string, string>>([
+		{},
 		{ MEDIA_SAFETY_ADAPTER: "sightengine" },
 		{ MEDIA_SAFETY_ADAPTER: "configured", MODERATION_TEXT_SIGHTENGINE_ENABLED: "true" },
 		{ MEDIA_SAFETY_ADAPTER: "configured", MODERATION_IMAGE_SIGHTENGINE_ENABLED: "true" },
-	])("retains credentials when Sightengine is enabled: %j", (switches) => {
-		expect(
-			workersRuntimeEnvironment({
-				...switches,
-				SIGHTENGINE_API_USER: "enabled-scanner-user",
-				SIGHTENGINE_API_SECRET: "enabled-scanner-secret",
-			}),
-		).toMatchObject({
-			SIGHTENGINE_API_USER: "enabled-scanner-user",
-			SIGHTENGINE_API_SECRET: "enabled-scanner-secret",
+		{ MEDIA_SAFETY_ADAPTER: "configured", VIDEO_V1_VIDEO_SAFETY_ADAPTER: "sightengine" },
+	])("excludes retired moderation credentials despite stale switches: %j", (switches) => {
+		const environment = workersRuntimeEnvironment({
+			...retiredModerationEnvironment,
+			...switches,
 		});
+		for (const key of Object.keys(retiredModerationEnvironment))
+			expect(environment).not.toHaveProperty(key);
+		// Invalid selectors remain visible to configuration validation; never translate
+		// a stale provider choice into an enabled replacement provider.
+		if (switches.MEDIA_SAFETY_ADAPTER)
+			expect(environment).toHaveProperty("MEDIA_SAFETY_ADAPTER", switches.MEDIA_SAFETY_ADAPTER);
 	});
 });
+
+const retiredModerationEnvironment = {
+	SIGHTENGINE_API_USER: "retired-scanner-user",
+	SIGHTENGINE_API_SECRET: "retired-scanner-secret",
+	MODERATION_TEXT_SIGHTENGINE_ENABLED: "true",
+	MODERATION_IMAGE_SIGHTENGINE_ENABLED: "true",
+	VIDEO_V1_MODERATION_WEBHOOK_SECRET: "retired-callback-secret",
+	VIDEO_V1_MODERATION_CALLBACK_CONFIGURED: "true",
+	VIDEO_AUDIO_SAFETY_ADAPTER: "openai-transcript",
+	OPENAI_AUDIO_MODERATION_API_KEY: "retired-audio-secret",
+	OPENAI_AUDIO_TRANSCRIPTION_MODEL: "retired-audio-model",
+};
 
 const root = path.resolve(import.meta.dirname, "../../..");
 function artifacts(profile: "workers" | "hybrid", overrides: Record<string, string> = {}) {
@@ -157,6 +169,68 @@ function artifacts(profile: "workers" | "hybrid", overrides: Record<string, stri
 }
 
 describe("prepared deployment artifacts", () => {
+	it.each(["workers", "hybrid"] as const)(
+		"binds direct private video runtime in actual %s artifacts with admission closed",
+		(profile) => {
+			const result = artifacts(profile);
+			const name = `ezpic-video-v1-${profile}-production`;
+			expect(result.website.workflows).toEqual([
+				{
+					name,
+					binding: "VIDEO_WORKFLOW",
+					class_name: "VideoGenerationWorkflowV1",
+					script_name: profileSettings(profile, "production").jobsName,
+				},
+			]);
+			expect(result.workflows.workflows).toContainEqual({
+				name,
+				binding: "VIDEO_WORKFLOW",
+				class_name: "VideoGenerationWorkflowV1",
+			});
+			for (const config of [result.website, result.workflows]) {
+				expect(config.vars).toMatchObject({
+					VIDEO_V1_ENABLED: "false",
+					VIDEO_V1_ACCESS: "internal",
+				});
+				expect(config.hyperdrive).toEqual([{ binding: "HYPERDRIVE", id: "a".repeat(32) }]);
+				expect(config.r2_buckets).toContainEqual({
+					binding: "VIDEO_MEDIA_BUCKET",
+					bucket_name: "private-media",
+				});
+				expect(config.compatibility_flags).toContain("global_fetch_strictly_public");
+			}
+		},
+	);
+	it("fails closed when enabling video without pricing and actual service configuration", () => {
+		expect(() => artifacts("workers", { VIDEO_V1_ENABLED: "true" })).toThrow("VIDEO_V1_NOT_READY");
+	});
+	it.each(["workers", "hybrid"] as const)(
+		"excludes retired moderation from every %s runtime while preserving active provider secrets",
+		(profile) => {
+			const active = {
+				MEDIA_SAFETY_ADAPTER: "configured",
+				VIDEO_V1_TEXT_SAFETY_ADAPTER: "waffo",
+				VIDEO_V1_IMAGE_SAFETY_ADAPTER: "seeapi",
+				VIDEO_V1_VIDEO_SAFETY_ADAPTER: "seeapi",
+				WAFFO_MERCHANT_ID: "active-merchant",
+				WAFFO_PRIVATE_KEY: "active-waffo-secret",
+				SEEAPI_API_KEY: "active-seeapi-secret",
+				OPENAI_API_KEY: "unrelated-openai-secret",
+			};
+			const result = artifacts(profile, { ...retiredModerationEnvironment, ...active });
+			const environments: Record<string, string>[] = [
+				result["website.secrets"],
+				result["workflows.secrets"],
+			];
+			if (profile === "hybrid")
+				environments.push(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV));
+			for (const environment of environments) {
+				expect(environment).toMatchObject(active);
+				for (const key of Object.keys(retiredModerationEnvironment))
+					expect(environment).not.toHaveProperty(key);
+			}
+		},
+	);
 	it("rejects more than 128 text bindings before uploading either Worker", () => {
 		const extras = Object.fromEntries(
 			Array.from({ length: 128 }, (_, index) => [`EXTRA_${index}`, "value"]),

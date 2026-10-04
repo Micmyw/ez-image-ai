@@ -35,14 +35,33 @@ const productionBase = {
 	PAYPAL_CLIENT_SECRET: "paypal-secret",
 	PAYPAL_WEBHOOK_ID: "WH-paypal-webhook",
 	SENTRY_DSN: "https://public@example.ingest.sentry.io/1",
-	SIGHTENGINE_API_USER: "api-user",
-	SIGHTENGINE_API_SECRET: "api-secret",
+	WAFFO_MERCHANT_ID: "fixture-merchant",
+	WAFFO_PRIVATE_KEY: "fixture-private",
 	MEDIA_PROVIDER_ADAPTER: "replicate",
-	MEDIA_SAFETY_ADAPTER: "sightengine",
+	MEDIA_SAFETY_ADAPTER: "configured",
+	MODERATION_TEXT_WAFFO_ENABLED: "true",
+	MODERATION_IMAGE_SEEAPI_ENABLED: "true",
+	SEEAPI_API_KEY: "fixture-seeapi",
 	REPLICATE_API_TOKEN: "replicate-secret",
 } as const;
 
 describe("validateServerEnvironment", () => {
+	it.each([undefined, "sightengine", "unknown"])(
+		"rejects implicit or retired safety selector %s",
+		(selector) => {
+			expect(() =>
+				validateServerEnvironment({ ...productionBase, MEDIA_SAFETY_ADAPTER: selector }),
+			).toThrow();
+		},
+	);
+	it("rejects the local test adapter without an explicit local NODE_ENV", () => {
+		expect(() =>
+			validateServerEnvironment({
+				MEDIA_SAFETY_ADAPTER: "test",
+				MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true",
+			}),
+		).toThrow(/NODE_ENV/);
+	});
 	it("accepts a paired unlimited guest budget at the runtime environment boundary", () => {
 		expect(() =>
 			validateServerEnvironment({
@@ -189,7 +208,8 @@ describe("validateServerEnvironment", () => {
 		["S3/R2", ["S3_ENDPOINT"]],
 		["Cloudflare Workflows", ["WORKFLOWS_DISPATCH_URL", "WORKFLOWS_DISPATCH_SECRET"]],
 		["Sentry", ["SENTRY_DSN"]],
-		["Sightengine", ["SIGHTENGINE_API_USER", "SIGHTENGINE_API_SECRET"]],
+		["SeeAPI", ["SEEAPI_API_KEY"]],
+		["Waffo moderation", ["WAFFO_MERCHANT_ID", "WAFFO_PRIVATE_KEY"]],
 	])("requires %s credentials for enabled production features", (label, keys) => {
 		const input: Record<string, string | undefined> = { ...productionBase };
 		for (const key of keys) {

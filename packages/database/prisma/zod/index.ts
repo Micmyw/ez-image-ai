@@ -94,9 +94,15 @@ export const GenerationQuoteScalarFieldEnumSchema = z.enum(['id', 'ownerType', '
 
 export type GenerationQuoteScalarFieldEnum = z.infer<typeof GenerationQuoteScalarFieldEnumSchema>;
 
+// File: VideoExecutionScalarFieldEnum.schema.ts
+
+export const VideoExecutionScalarFieldEnumSchema = z.enum(['jobId', 'workflowInstanceId', 'workflowSchemaVersion', 'startState', 'stage', 'modelContractVersion', 'stateVersion', 'startAttemptCount', 'nextStartAt', 'lastProgressAt', 'needsReviewReason', 'providerDeadlineAt', 'providerPollRound', 'inputReviewDeadlineAt', 'outputReviewDeadlineAt', 'inputReviewRound', 'outputReviewRound', 'stageData', 'queuedAt', 'inputReviewStartedAt', 'inputReviewCompletedAt', 'providerSubmitStartedAt', 'providerAcceptedAt', 'providerCompletedAt', 'storageStartedAt', 'storageCompletedAt', 'outputReviewStartedAt', 'outputReviewCompletedAt', 'finalizationStartedAt', 'readyAt', 'createdAt', 'updatedAt'])
+
+export type VideoExecutionScalarFieldEnum = z.infer<typeof VideoExecutionScalarFieldEnumSchema>;
+
 // File: GenerationJobScalarFieldEnum.schema.ts
 
-export const GenerationJobScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'submittedByUserId', 'quoteId', 'idempotencyKey', 'productKey', 'catalogVersion', 'pricingVersion', 'creditsReserved', 'archivedCreditsCharged', 'archivedCreditsReleased', 'inputSnapshot', 'pricingSnapshot', 'status', 'serviceClass', 'dispatchEligibleAt', 'guestTrialId', 'version', 'failureCode', 'failureMessage', 'finalizationStage', 'finalizationRetryCount', 'finalizationErrorCode', 'nextFinalizeAt', 'createdAt', 'updatedAt', 'terminalAt', 'editSessionId', 'parentJobId'])
+export const GenerationJobScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'submittedByUserId', 'quoteId', 'idempotencyKey', 'productKey', 'catalogVersion', 'pricingVersion', 'creditsReserved', 'archivedCreditsCharged', 'archivedCreditsReleased', 'inputSnapshot', 'pricingSnapshot', 'executionEngine', 'status', 'serviceClass', 'dispatchEligibleAt', 'guestTrialId', 'version', 'failureCode', 'failureMessage', 'finalizationStage', 'finalizationRetryCount', 'finalizationErrorCode', 'nextFinalizeAt', 'createdAt', 'updatedAt', 'terminalAt', 'editSessionId', 'parentJobId'])
 
 export type GenerationJobScalarFieldEnum = z.infer<typeof GenerationJobScalarFieldEnumSchema>;
 
@@ -108,7 +114,7 @@ export type ImageEditSessionScalarFieldEnum = z.infer<typeof ImageEditSessionSca
 
 // File: GenerationAttemptScalarFieldEnum.schema.ts
 
-export const GenerationAttemptScalarFieldEnumSchema = z.enum(['id', 'jobId', 'attemptNumber', 'provider', 'providerModelId', 'providerTaskId', 'providerStatusUrl', 'providerResultUrl', 'submissionToken', 'status', 'providerCostMicros', 'progress', 'lastProviderEventAt', 'lastProviderOccurredAt', 'lastProviderReceivedAt', 'lastProviderSequence', 'uncertainSubmission', 'reconciliationCount', 'nextReconcileAt', 'reconcileLeaseToken', 'reconcileLeasedUntil', 'requestSnapshot', 'responseSnapshot', 'errorSnapshot', 'createdAt', 'updatedAt', 'submittedAt', 'completedAt'])
+export const GenerationAttemptScalarFieldEnumSchema = z.enum(['id', 'jobId', 'attemptNumber', 'provider', 'providerModelId', 'providerTaskId', 'providerStatusUrl', 'providerResultUrl', 'callbackTokenHash', 'submissionToken', 'status', 'providerCostMicros', 'progress', 'lastProviderEventAt', 'lastProviderOccurredAt', 'lastProviderReceivedAt', 'lastProviderSequence', 'uncertainSubmission', 'reconciliationCount', 'nextReconcileAt', 'reconcileLeaseToken', 'reconcileLeasedUntil', 'requestSnapshot', 'responseSnapshot', 'errorSnapshot', 'createdAt', 'updatedAt', 'submittedAt', 'completedAt'])
 
 export type GenerationAttemptScalarFieldEnum = z.infer<typeof GenerationAttemptScalarFieldEnumSchema>;
 
@@ -120,7 +126,7 @@ export type GenerationAttemptTransferEnvelopeScalarFieldEnum = z.infer<typeof Ge
 
 // File: MediaAssetScalarFieldEnum.schema.ts
 
-export const MediaAssetScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'kind', 'status', 'retentionClass', 'deleteAfter', 'watermarkVersion', 'watermarkedAt', 'cleanStagingDeletedAt', 'objectKey', 'mimeType', 'byteSize', 'width', 'height', 'durationMillis', 'checksum', 'storageEtag', 'storageVersionId', 'finalizedAt', 'outputTransferToken', 'outputTransferLeaseExpiresAt', 'outputStagingObjectKey', 'outputPromotionMultipartUploadId', 'sourceUrl', 'verificationGeneration', 'verificationAttemptCount', 'verificationProvider', 'verificationRuleVersion', 'verificationPolicyVersion', 'verificationProviderTaskId', 'verificationLeaseToken', 'verificationLeasedUntil', 'verificationNextAttemptAt', 'verificationDeadlineAt', 'verificationExhaustedAt', 'verificationValidUntil', 'verificationSubmissionToken', 'verificationSubmissionUncertain', 'verificationSubmittedAt', 'verificationLastErrorCode', 'createdAt', 'updatedAt', 'deletedAt'])
+export const MediaAssetScalarFieldEnumSchema = z.enum(['id', 'ownerType', 'ownerId', 'kind', 'status', 'retentionClass', 'deleteAfter', 'watermarkVersion', 'watermarkedAt', 'cleanStagingDeletedAt', 'objectKey', 'mimeType', 'byteSize', 'width', 'height', 'durationMillis', 'checksum', 'storageEtag', 'storageVersionId', 'finalizedAt', 'outputTransferToken', 'outputTransferLeaseExpiresAt', 'outputStagingObjectKey', 'outputPromotionMultipartUploadId', 'sourceUrl', 'verificationEngine', 'videoCleanupCompletedAt', 'verificationGeneration', 'verificationAttemptCount', 'verificationProvider', 'verificationRuleVersion', 'verificationPolicyVersion', 'verificationProviderTaskId', 'verificationLeaseToken', 'verificationLeasedUntil', 'verificationNextAttemptAt', 'verificationDeadlineAt', 'verificationExhaustedAt', 'verificationValidUntil', 'verificationSubmissionToken', 'verificationSubmissionUncertain', 'verificationSubmittedAt', 'verificationLastErrorCode', 'createdAt', 'updatedAt', 'deletedAt'])
 
 export type MediaAssetScalarFieldEnum = z.infer<typeof MediaAssetScalarFieldEnumSchema>;
 
@@ -423,6 +429,18 @@ export type PaymentProductKind = z.infer<typeof PaymentProductKindSchema>;
 export const OwnerTypeSchema = z.enum(['USER', 'ORGANIZATION'])
 
 export type OwnerType = z.infer<typeof OwnerTypeSchema>;
+
+// File: VideoExecutionStartState.schema.ts
+
+export const VideoExecutionStartStateSchema = z.enum(['PENDING', 'STARTED', 'FAILED'])
+
+export type VideoExecutionStartState = z.infer<typeof VideoExecutionStartStateSchema>;
+
+// File: VideoExecutionStage.schema.ts
+
+export const VideoExecutionStageSchema = z.enum(['QUEUED', 'INPUT_REVIEW', 'SUBMITTING', 'SUBMISSION_UNCERTAIN', 'GENERATING', 'STORING', 'OUTPUT_REVIEW', 'FINALIZING', 'READY', 'REJECTED', 'FAILED', 'NEEDS_REVIEW'])
+
+export type VideoExecutionStage = z.infer<typeof VideoExecutionStageSchema>;
 
 // File: GenerationJobStatus.schema.ts
 
@@ -871,6 +889,46 @@ export const GenerationQuoteSchema = z.object({
 export type GenerationQuoteType = z.infer<typeof GenerationQuoteSchema>;
 
 
+// File: VideoExecution.schema.ts
+
+export const VideoExecutionSchema = z.object({
+  jobId: z.string(),
+  workflowInstanceId: z.string(),
+  workflowSchemaVersion: z.number().int().default(1),
+  startState: VideoExecutionStartStateSchema.default("PENDING"),
+  stage: VideoExecutionStageSchema.default("QUEUED"),
+  modelContractVersion: z.string(),
+  stateVersion: z.number().int(),
+  startAttemptCount: z.number().int(),
+  nextStartAt: z.date().nullish(),
+  lastProgressAt: z.date(),
+  needsReviewReason: z.string().nullish(),
+  providerDeadlineAt: z.date().nullish(),
+  providerPollRound: z.number().int(),
+  inputReviewDeadlineAt: z.date().nullish(),
+  outputReviewDeadlineAt: z.date().nullish(),
+  inputReviewRound: z.number().int(),
+  outputReviewRound: z.number().int(),
+  stageData: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10").default({}),
+  queuedAt: z.date(),
+  inputReviewStartedAt: z.date().nullish(),
+  inputReviewCompletedAt: z.date().nullish(),
+  providerSubmitStartedAt: z.date().nullish(),
+  providerAcceptedAt: z.date().nullish(),
+  providerCompletedAt: z.date().nullish(),
+  storageStartedAt: z.date().nullish(),
+  storageCompletedAt: z.date().nullish(),
+  outputReviewStartedAt: z.date().nullish(),
+  outputReviewCompletedAt: z.date().nullish(),
+  finalizationStartedAt: z.date().nullish(),
+  readyAt: z.date().nullish(),
+  createdAt: z.date(),
+  updatedAt: z.date(),
+});
+
+export type VideoExecutionType = z.infer<typeof VideoExecutionSchema>;
+
+
 // File: GenerationJob.schema.ts
 
 export const GenerationJobSchema = z.object({
@@ -888,6 +946,7 @@ export const GenerationJobSchema = z.object({
   archivedCreditsReleased: z.bigint().nullish(),
   inputSnapshot: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10"),
   pricingSnapshot: z.unknown().refine((val) => { const getDepth = (obj: unknown, depth: number = 0): number => { if (depth > 10) return depth; if (obj === null || typeof obj !== 'object') return depth; const values = Object.values(obj as Record<string, unknown>); if (values.length === 0) return depth; return Math.max(...values.map(v => getDepth(v, depth + 1))); }; return getDepth(val) <= 10; }, "JSON nesting depth exceeds maximum of 10"),
+  executionEngine: z.string().default("legacy"),
   status: GenerationJobStatusSchema.default("RESERVED"),
   serviceClass: GenerationServiceClassSchema.default("STANDARD"),
   dispatchEligibleAt: z.date().nullish(),
@@ -935,6 +994,7 @@ export const GenerationAttemptSchema = z.object({
   providerTaskId: z.string().nullish(),
   providerStatusUrl: z.string().nullish(),
   providerResultUrl: z.string().nullish(),
+  callbackTokenHash: z.string().nullish(),
   submissionToken: z.string().nullish(),
   status: GenerationAttemptStatusSchema.default("CREATED"),
   providerCostMicros: z.bigint().nullish(),
@@ -1000,6 +1060,8 @@ export const MediaAssetSchema = z.object({
   outputStagingObjectKey: z.string().nullish(),
   outputPromotionMultipartUploadId: z.string().nullish(),
   sourceUrl: z.string().nullish(),
+  verificationEngine: z.string().default("legacy"),
+  videoCleanupCompletedAt: z.date().nullish(),
   verificationGeneration: z.number().int(),
   verificationAttemptCount: z.number().int(),
   verificationProvider: z.string().nullish(),

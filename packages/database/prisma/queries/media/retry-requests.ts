@@ -531,7 +531,7 @@ function isMatchingRecoveredJob(
 		job.quote.pricingVersion === operation.pricingVersion &&
 		job.quote.credits.toString() === operation.credits &&
 		job.quote.costMicros.toString() === operation.costMicros &&
-		["ALLOW", "BYPASS"].includes(job.quote.moderationDecision) &&
+		job.quote.moderationDecision === "ALLOW" &&
 		job.quote.moderationProvider === operation.moderationProvider &&
 		job.quote.moderationRuleVersion === operation.moderationRuleVersion &&
 		job.quote.inputFingerprint === fingerprintGenerationQuoteSecurityPayload(job.quote) &&
@@ -608,7 +608,7 @@ function quoteMatchesRetryOperation(
 		(quote.costMicros ?? 0n).toString() === operation.costMicros &&
 		stableSerialize(quote.inputSnapshot) === stableSerialize(retryQuoteInputSnapshot(operation)) &&
 		stableSerialize(quote.pricingSnapshot ?? {}) === stableSerialize(operation.pricingSnapshot) &&
-		["ALLOW", "BYPASS"].includes(moderationDecision ?? "") &&
+		moderationDecision === "ALLOW" &&
 		moderationProvider === operation.moderationProvider &&
 		moderationRuleVersion === operation.moderationRuleVersion
 	);

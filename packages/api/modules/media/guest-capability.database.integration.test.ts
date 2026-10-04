@@ -52,6 +52,8 @@ describe("guest capability database drift fence", () => {
 		vi.stubEnv("NODE_ENV", "test");
 		vi.stubEnv("GUEST_MEDIA_ENABLED", "true");
 		vi.stubEnv("GUEST_PROMOTION_PERIOD", "promotion-a");
+		vi.stubEnv("GUEST_RISK_BUDGET_MICROS", "350000");
+		vi.stubEnv("GUEST_HARD_BUDGET_MICROS", "350000");
 		vi.stubEnv("MEDIA_GENERATION_ENABLED", "true");
 		vi.stubEnv("MEDIA_ENABLED_PROVIDERS", "kie");
 		vi.stubEnv("MEDIA_NANO_BANANA_2_LITE_ENABLED", "true");

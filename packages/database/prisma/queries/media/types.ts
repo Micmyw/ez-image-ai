@@ -102,6 +102,12 @@ export interface ReserveCreditsInput {
 	jobId: string;
 	amount: bigint;
 	referenceKey: string;
+	/** Opt-in funding restriction; image reservations retain their existing lot policy. */
+	paidFundingPolicy?: PaidCreditFundingPolicy;
+}
+
+export interface PaidCreditFundingPolicy {
+	minimumUsdMicrosPerCredit: bigint;
 }
 
 export interface CreditGrantInput {

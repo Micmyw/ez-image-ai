@@ -1,0 +1,600 @@
+import {
+	isApprovedVideoTextDecision,
+	readVideoTextSafetyProfile,
+	videoTextSafetyProfilesMatch,
+} from "@repo/config/video-text-safety";
+
+import { Prisma as RuntimePrisma } from "#prisma-runtime-client";
+
+import { getDatabaseClient } from "../../client";
+import type { Prisma } from "../../generated/client";
+import { releaseCreditsInTransaction } from "./credits";
+import { runReadCommitted } from "./types";
+
+const ENGINE = "video-workflow-v1";
+const terminal = new Set(["READY", "FAILED", "REJECTED"]);
+const object = (value: unknown): Record<string, unknown> =>
+	value && typeof value === "object" && !Array.isArray(value)
+		? (value as Record<string, unknown>)
+		: {};
+
+export function getVideoExecutionContext(jobId: string) {
+	return getDatabaseClient().generationJob.findFirst({
+		where: { id: jobId, executionEngine: ENGINE },
+		include: {
+			videoExecution: true,
+			attempts: { orderBy: { attemptNumber: "desc" } },
+			assets: { include: { asset: true } },
+			reservation: true,
+		},
+	});
+}
+
+async function lockedContext(tx: Prisma.TransactionClient, jobId: string) {
+	// Domain writes use ReadCommitted plus this shared lock. Read state only AFTER
+	// acquiring it: independent jobs must not conflict through Serializable scans.
+	// Existing ledger helpers additionally lock the account and its credit lots.
+	await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`video-v1:${jobId}`}, 0))`;
+	await tx.$queryRaw`SELECT "id" FROM "generation_job" WHERE "id" = ${jobId} AND "executionEngine" = ${ENGINE} FOR UPDATE`;
+	const job = await tx.generationJob.findFirst({
+		where: { id: jobId, executionEngine: ENGINE },
+		include: {
+			videoExecution: true,
+			attempts: { orderBy: { attemptNumber: "desc" } },
+			assets: { include: { asset: true } },
+			reservation: true,
+		},
+	});
+	if (!job?.videoExecution) throw new Error("VIDEO_JOB_NOT_FOUND");
+	return job;
+}
+
+/** Recheck the sealed object identity inside every side-effect transaction. */
+export function assertVideoInputIdentity(
+	job: NonNullable<Awaited<ReturnType<typeof getVideoExecutionContext>>>,
+) {
+	const snapshot = object(job.inputSnapshot);
+	if (snapshot.mode === "text-to-video") return;
+	const identity = object(snapshot.inputIdentity);
+	const binding = job.assets.find(
+		(item) => item.role === "INPUT" && item.assetId === identity.assetId,
+	);
+	const asset = binding?.asset;
+	if (
+		!asset ||
+		asset.ownerType !== job.ownerType ||
+		asset.ownerId !== job.ownerId ||
+		asset.deletedAt ||
+		!asset.finalizedAt ||
+		asset.status === "DELETED" ||
+		asset.status === "QUARANTINED" ||
+		asset.checksum !== identity.checksum ||
+		binding?.assetChecksum !== identity.checksum ||
+		asset.objectKey !== identity.objectKey ||
+		asset.storageEtag !== identity.storageEtag ||
+		asset.storageVersionId !== identity.storageVersionId ||
+		asset.verificationGeneration !== identity.verificationGeneration ||
+		(asset.deleteAfter && asset.deleteAfter <= new Date())
+	)
+		throw new Error("VIDEO_INPUT_IDENTITY_CHANGED");
+}
+
+export async function recordVideoInputReview(jobId: string, patch: Record<string, unknown>) {
+	return runReadCommitted(getDatabaseClient(), async (tx) => {
+		const job = await lockedContext(tx, jobId);
+		if (
+			terminal.has(job.videoExecution!.stage) ||
+			job.videoExecution!.stage === "NEEDS_REVIEW" ||
+			job.attempts.length
+		)
+			return;
+		assertVideoInputIdentity(job);
+		const data = object(job.videoExecution!.stageData);
+		const review = { ...object(data.inputReview), ...patch };
+		await tx.videoExecution.update({
+			where: { jobId },
+			data: {
+				stage: "INPUT_REVIEW",
+				stateVersion: { increment: 1 },
+				lastProgressAt: new Date(),
+				inputReviewStartedAt: job.videoExecution!.inputReviewStartedAt ?? new Date(),
+				...(review.status === "ALLOW" ? { inputReviewCompletedAt: new Date() } : {}),
+				stageData: { ...data, inputReview: review } as Prisma.InputJsonValue,
+			},
+		});
+	});
+}
+
+export async function claimVideoImageReview(jobId: string) {
+	return runReadCommitted(getDatabaseClient(), async (tx) => {
+		const job = await lockedContext(tx, jobId);
+		assertVideoInputIdentity(job);
+		const data = object(job.videoExecution!.stageData);
+		const review = object(data.inputReview);
+		if (
+			terminal.has(job.videoExecution!.stage) ||
+			job.videoExecution!.stage === "NEEDS_REVIEW" ||
+			review.imageSubmissionUncertain ||
+			review.imageTaskId ||
+			review.imageDecision
+		)
+			return false;
+		await tx.videoExecution.update({
+			where: { jobId },
+			data: {
+				stateVersion: { increment: 1 },
+				stageData: {
+					...data,
+					inputReview: { ...review, imageSubmissionUncertain: true },
+				} as Prisma.InputJsonValue,
+			},
+		});
+		return true;
+	});
+}
+
+/** Commit the may-have-sent fence BEFORE returning permission for any paid request. */
+export async function claimVideoProviderSubmission(input: {
+	jobId: string;
+	callbackTokenHash: string;
+	providerModelId: string;
+	ruleVersion: string;
+}) {
+	return runReadCommitted(getDatabaseClient(), async (tx) => {
+		const job = await lockedContext(tx, input.jobId);
+		const existing = job.attempts[0];
+		if (existing) return { attempt: existing, claimed: false };
+		if (terminal.has(job.videoExecution!.stage) || job.videoExecution!.stage === "NEEDS_REVIEW")
+			throw new Error("VIDEO_JOB_TERMINAL");
+		assertVideoInputIdentity(job);
+		const textSafetyProfile = readVideoTextSafetyProfile(job.inputSnapshot);
+		const review = object(object(job.videoExecution!.stageData).inputReview);
+		if (
+			review.status !== "ALLOW" ||
+			review.ruleVersion !== input.ruleVersion ||
+			!videoTextSafetyProfilesMatch(review.textSafetyProfile, textSafetyProfile) ||
+			!isApprovedVideoTextDecision(review.textDecision, textSafetyProfile) ||
+			review.requestFingerprint !== object(job.inputSnapshot).requestFingerprint ||
+			typeof review.validUntil !== "string" ||
+			!Number.isFinite(Date.parse(review.validUntil)) ||
+			new Date(review.validUntil) <= new Date()
+		) {
+			throw new Error("VIDEO_INPUT_REVIEW_REQUIRED");
+		}
+		const attempt = await tx.generationAttempt.create({
+			data: {
+				jobId: job.id,
+				attemptNumber: 1,
+				provider: "kie",
+				providerModelId: input.providerModelId,
+				callbackTokenHash: input.callbackTokenHash,
+				requestSnapshot: job.inputSnapshot as Prisma.InputJsonValue,
+				status: "SUBMISSION_UNCERTAIN",
+				uncertainSubmission: true,
+				submittedAt: new Date(),
+			},
+		});
+		await tx.generationJob.update({
+			where: { id: job.id },
+			data: { status: "SUBMITTING", version: { increment: 1 } },
+		});
+		await tx.videoExecution.update({
+			where: { jobId: job.id },
+			data: {
+				stage: "SUBMITTING",
+				stateVersion: { increment: 1 },
+				providerSubmitStartedAt: new Date(),
+				lastProgressAt: new Date(),
+			},
+		});
+		return { attempt, claimed: true };
+	});
+}
+
+export async function recordVideoSubmissionAccepted(
+	jobId: string,
+	attemptId: string,
+	taskId: string,
+) {
+	return runReadCommitted(getDatabaseClient(), async (tx) => {
+		const job = await lockedContext(tx, jobId);
+		const attempt = job.attempts.find((item) => item.id === attemptId);
+		if (!attempt || (attempt.providerTaskId && attempt.providerTaskId !== taskId))
+			throw new Error("VIDEO_PROVIDER_TASK_CONFLICT");
+		if (terminal.has(job.videoExecution!.stage) || attempt.status === "SUCCEEDED") return;
+		await tx.generationAttempt.update({
+			where: { id: attemptId },
+			data: {
+				providerTaskId: taskId,
+				status: "SUBMITTED",
+				uncertainSubmission: false,
+			},
+		});
+		if (job.videoExecution!.stage === "NEEDS_REVIEW") return;
+		await tx.generationJob.update({
+			where: { id: jobId },
+			data: { status: "PROVIDER_PENDING", version: { increment: 1 } },
+		});
+		await tx.videoExecution.update({
+			where: { jobId },
+			data: {
+				stage: "GENERATING",
+				stateVersion: { increment: 1 },
+				lastProgressAt: new Date(),
+				providerAcceptedAt: job.videoExecution!.providerAcceptedAt ?? new Date(),
+			},
+		});
+	});
+}
+
+export async function markVideoSubmissionUncertain(jobId: string, reasonCode: string) {
+	return runReadCommitted(getDatabaseClient(), async (tx) => {
+		const job = await lockedContext(tx, jobId);
+		if (
+			terminal.has(job.videoExecution!.stage) ||
+			job.videoExecution!.stage === "NEEDS_REVIEW" ||
+			job.attempts[0]?.providerTaskId
+		)
+			return;
+		await tx.generationJob.update({
+			where: { id: jobId },
+			data: { status: "NEEDS_RECONCILIATION", version: { increment: 1 } },
+		});
+		await tx.videoExecution.update({
+			where: { jobId },
+			data: {
+				stage: "SUBMISSION_UNCERTAIN",
+				needsReviewReason: reasonCode,
+				stateVersion: { increment: 1 },
+				lastProgressAt: new Date(),
+			},
+		});
+	});
+}
+
+export async function failVideoExecution(
+	jobId: string,
+	reasonCode: string,
+	rejected = false,
+	onlyBeforeAccepted = false,
+) {
+	return runReadCommitted(getDatabaseClient(), async (tx) => {
+		const job = await lockedContext(tx, jobId);
+		if (
+			terminal.has(job.videoExecution!.stage) ||
+			job.videoExecution!.stage === "NEEDS_REVIEW" ||
+			job.attempts[0]?.status === "SUCCEEDED" ||
+			(onlyBeforeAccepted && job.attempts[0]?.providerTaskId)
+		)
+			return false;
+		if (job.reservation?.status === "ACTIVE")
+			await releaseCreditsInTransaction(
+				{
+					reservationId: job.reservation.id,
+					referenceKey: `video-v1:release:${jobId}`,
+				},
+				tx,
+			);
+		await tx.generationJob.update({
+			where: { id: jobId },
+			data: {
+				status: "FAILED",
+				failureCode: reasonCode,
+				terminalAt: new Date(),
+				version: { increment: 1 },
+			},
+		});
+		await tx.generationAttempt.updateMany({
+			where: { jobId, status: { notIn: ["SUCCEEDED", "FAILED"] } },
+			data: {
+				status: "FAILED",
+				completedAt: new Date(),
+				uncertainSubmission: false,
+				errorSnapshot: { reasonCode },
+			},
+		});
+		await tx.videoExecution.update({
+			where: { jobId },
+			data: {
+				stage: rejected ? "REJECTED" : "FAILED",
+				stateVersion: { increment: 1 },
+				lastProgressAt: new Date(),
+			},
+		});
+		return true;
+	});
+}
+
+export async function recordVideoProviderSuccess(input: {
+	jobId: string;
+	attemptId: string;
+	providerTaskId: string;
+	outputUrl: string;
+	providerCostMicros: bigint | null;
+	providerCreditsConsumed?: number | null;
+	providerCompletedAt: string | null;
+}) {
+	return runReadCommitted(getDatabaseClient(), async (tx) => {
+		const job = await lockedContext(tx, input.jobId);
+		const attempt = job.attempts.find((item) => item.id === input.attemptId);
+		if (!attempt || attempt.providerTaskId !== input.providerTaskId)
+			throw new Error("VIDEO_PROVIDER_TASK_CONFLICT");
+		if (
+			terminal.has(job.videoExecution!.stage) ||
+			job.videoExecution!.stage === "NEEDS_REVIEW" ||
+			attempt.status === "SUCCEEDED"
+		)
+			return;
+		await tx.generationAttempt.update({
+			where: { id: attempt.id },
+			data: {
+				status: "SUCCEEDED",
+				uncertainSubmission: false,
+				completedAt: new Date(),
+				providerCostMicros: input.providerCostMicros,
+				responseSnapshot: {
+					authoritative: true,
+					providerCompletedAt: input.providerCompletedAt,
+					providerCreditsConsumed: input.providerCreditsConsumed ?? null,
+				},
+			},
+		});
+		await tx.generationAttemptTransferEnvelope.upsert({
+			where: { attemptId: attempt.id },
+			create: {
+				attemptId: attempt.id,
+				payload: { schemaVersion: 1, authority: "authenticated-query", outputUrl: input.outputUrl },
+			},
+			update: {
+				payload: { schemaVersion: 1, authority: "authenticated-query", outputUrl: input.outputUrl },
+			},
+		});
+		await tx.generationJob.update({
+			where: { id: job.id },
+			data: { status: "FINALIZING", version: { increment: 1 } },
+		});
+		await tx.videoExecution.update({
+			where: { jobId: job.id },
+			data: {
+				stage: "STORING",
+				stateVersion: { increment: 1 },
+				lastProgressAt: new Date(),
+				providerCompletedAt:
+					input.providerCompletedAt && Number.isFinite(Date.parse(input.providerCompletedAt))
+						? new Date(input.providerCompletedAt)
+						: null,
+				stageData: {
+					...object(job.videoExecution!.stageData),
+					timings: {
+						...object(object(job.videoExecution!.stageData).timings),
+						providerResultConfirmedAt: new Date().toISOString(),
+					},
+				} as Prisma.InputJsonValue,
+			},
+		});
+	});
+}
+
+export async function recordVideoProviderAccounting(
+	jobId: string,
+	attemptId: string,
+	providerCreditsConsumed: number | null,
+) {
+	return runReadCommitted(getDatabaseClient(), async (tx) => {
+		const job = await lockedContext(tx, jobId);
+		const attempt = job.attempts.find((item) => item.id === attemptId);
+		if (!attempt) throw new Error("VIDEO_ATTEMPT_NOT_FOUND");
+		await tx.generationAttempt.update({
+			where: { id: attemptId },
+			data: {
+				responseSnapshot: {
+					...object(attempt.responseSnapshot),
+					authoritative: true,
+					providerCreditsConsumed,
+				} as Prisma.InputJsonValue,
+			},
+		});
+	});
+}
+
+/** Inbox rows deliberately never create an Outbox event or run a legacy handler. */
+export async function persistVideoProviderWebhook(input: {
+	callbackTokenHash: string;
+	taskId: string;
+	timestamp: string;
+	receivedAt: Date;
+}) {
+	const persisted = await runReadCommitted(getDatabaseClient(), async (tx) => {
+		const found = await tx.generationAttempt.findUnique({
+			where: { callbackTokenHash: input.callbackTokenHash },
+		});
+		if (!found || found.provider !== "kie") throw new Error("VIDEO_CALLBACK_ATTEMPT_INVALID");
+		const job = await lockedContext(tx, found.jobId);
+		const attempt = job.attempts.find((item) => item.id === found.id)!;
+		if (attempt.providerTaskId && attempt.providerTaskId !== input.taskId)
+			throw new Error("VIDEO_CALLBACK_TASK_INVALID");
+		const providerEventId = `video-v1:${attempt.id}:${input.taskId}:${input.timestamp}`;
+		const prior = await tx.providerWebhookEvent.findUnique({
+			where: {
+				provider_providerEventId: { provider: "kie-video-v1", providerEventId },
+			},
+		});
+		// A valid early callback gives this already-fenced attempt its original task identity.
+		if (!attempt.providerTaskId && !terminal.has(job.videoExecution!.stage)) {
+			await tx.generationAttempt.update({
+				where: { id: attempt.id },
+				data: {
+					providerTaskId: input.taskId,
+					status: "SUBMITTED",
+					uncertainSubmission: false,
+				},
+			});
+			if (job.videoExecution!.stage !== "NEEDS_REVIEW") {
+				await tx.generationJob.update({
+					where: { id: job.id },
+					data: { status: "PROVIDER_PENDING", version: { increment: 1 } },
+				});
+				await tx.videoExecution.update({
+					where: { jobId: job.id },
+					data: {
+						stage: "GENERATING",
+						providerAcceptedAt: job.videoExecution!.providerAcceptedAt ?? input.receivedAt,
+						stateVersion: { increment: 1 },
+						lastProgressAt: input.receivedAt,
+					},
+				});
+			}
+		}
+		if (!prior)
+			await tx.videoExecution.update({
+				where: { jobId: job.id },
+				data: {
+					stageData: {
+						...object(job.videoExecution!.stageData),
+						timings: {
+							...object(object(job.videoExecution!.stageData).timings),
+							providerCallbackReceivedAt:
+								object(object(job.videoExecution!.stageData).timings).providerCallbackReceivedAt ??
+								input.receivedAt.toISOString(),
+						},
+					} as Prisma.InputJsonValue,
+				},
+			});
+		const event =
+			prior ??
+			(await tx.providerWebhookEvent.create({
+				data: {
+					provider: "kie-video-v1",
+					providerEventId,
+					providerTaskId: input.taskId,
+					verifiedAt: input.receivedAt,
+					receivedAt: input.receivedAt,
+					envelope: {
+						executionEngine: ENGINE,
+						jobId: job.id,
+						attemptId: attempt.id,
+						taskId: input.taskId,
+						notifiedAt: null,
+					},
+				},
+			}));
+		return {
+			eventId: event.id,
+			jobId: job.id,
+			workflowInstanceId: job.videoExecution!.workflowInstanceId,
+			replayed: Boolean(prior),
+			notified: typeof object(event.envelope).notifiedAt === "string",
+		};
+	});
+	// This clock reading follows the inbox transaction's COMMIT acknowledgement.
+	// Recording it separately must not invent a first-commit time on replay after
+	// a crash. Atomic JSON merge also preserves concurrent confirmation timings.
+	if (!persisted.replayed) {
+		const committedAt = new Date().toISOString();
+		await getDatabaseClient().$executeRaw`
+			UPDATE "video_execution"
+			SET "stageData" = jsonb_set(
+				COALESCE("stageData", '{}'::jsonb), '{timings}',
+				COALESCE("stageData"->'timings', '{}'::jsonb)
+					|| jsonb_build_object('providerCallbackPersistedAt', ${committedAt}::text), true
+			)
+			WHERE "jobId" = ${persisted.jobId}
+				AND (
+					"stageData" #>> '{timings,providerCallbackPersistedAt}' IS NULL
+					OR "stageData" #>> '{timings,providerCallbackPersistedAt}' > ${committedAt}
+				)`;
+	}
+	return persisted;
+}
+
+export async function markVideoWebhookNotified(eventId: string) {
+	return runReadCommitted(getDatabaseClient(), async (tx) => {
+		const event = await tx.providerWebhookEvent.findFirst({
+			where: { id: eventId, provider: "kie-video-v1" },
+		});
+		if (!event) throw new Error("VIDEO_CALLBACK_EVENT_MISSING");
+		await tx.providerWebhookEvent.update({
+			where: { id: eventId },
+			data: {
+				envelope: {
+					...object(event.envelope),
+					notifiedAt: new Date().toISOString(),
+				} as Prisma.InputJsonValue,
+			},
+		});
+	});
+}
+
+/** A failed delivery yields its place in the bounded recovery page. */
+export async function postponeVideoWebhookNotification(eventId: string, now = new Date()) {
+	await getDatabaseClient().providerWebhookEvent.updateMany({
+		where: { id: eventId, provider: "kie-video-v1", status: "RECEIVED" },
+		data: { processingLeasedUntil: new Date(now.getTime() + 120_000) },
+	});
+}
+
+export async function listPendingVideoWebhookEvents(limit: number, now = new Date()) {
+	const database = getDatabaseClient();
+	const rows = await database.providerWebhookEvent.findMany({
+		where: {
+			provider: "kie-video-v1",
+			status: "RECEIVED",
+			envelope: { path: ["notifiedAt"], equals: RuntimePrisma.JsonNull },
+			OR: [{ processingLeasedUntil: null }, { processingLeasedUntil: { lte: now } }],
+		},
+		orderBy: [
+			{ processingLeasedUntil: { sort: "asc", nulls: "first" } },
+			{ receivedAt: "asc" },
+			{ id: "asc" },
+		],
+		take: Math.min(100, Math.max(1, limit)),
+	});
+	const active = await database.videoExecution.findMany({
+		where: {
+			jobId: { in: rows.map((row) => String(object(row.envelope).jobId)) },
+			job: { executionEngine: ENGINE },
+			stage: { notIn: ["READY", "FAILED", "REJECTED", "NEEDS_REVIEW"] },
+		},
+		select: { jobId: true },
+	});
+	const activeIds = new Set(active.map((execution) => execution.jobId));
+	const retiredIds = rows
+		.filter((row) => !activeIds.has(String(object(row.envelope).jobId)))
+		.map((row) => row.id);
+	if (retiredIds.length)
+		await database.providerWebhookEvent.updateMany({
+			where: { id: { in: retiredIds }, provider: "kie-video-v1", status: "RECEIVED" },
+			data: {
+				status: "IGNORED",
+				processedAt: now,
+				failureReason: "VIDEO_WORKFLOW_NOT_ACTIVE",
+				processingLeasedUntil: null,
+			},
+		});
+	return rows
+		.filter((row) => activeIds.has(String(object(row.envelope).jobId)))
+		.map((row) => ({
+			eventId: row.id,
+			jobId: String(object(row.envelope).jobId),
+			workflowInstanceId: `video-v1-${String(object(row.envelope).jobId)}`,
+		}));
+}
+
+export async function consumeVideoProviderEvents(
+	jobId: string,
+	attemptId: string,
+	receivedThrough: Date,
+) {
+	await getDatabaseClient().providerWebhookEvent.updateMany({
+		where: {
+			provider: "kie-video-v1",
+			status: "RECEIVED",
+			receivedAt: { lte: receivedThrough },
+			AND: [
+				{ envelope: { path: ["jobId"], equals: jobId } },
+				{ envelope: { path: ["attemptId"], equals: attemptId } },
+			],
+		},
+		data: { status: "PROCESSED", processedAt: new Date() },
+	});
+}

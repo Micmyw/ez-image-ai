@@ -1,0 +1,83 @@
+{
+	"schemaVersion": 1,
+	"verificationStatus": "SUPERSEDED_INTERIM_BEFORE_CALLBACK_DRIVEN_CONFIRMATION",
+	"supersededBy": "callback-flow-verification.json",
+	"verifiedAt": "2026-10-04T03:13:37.103Z",
+	"evidenceKind": "LOCAL_MOCK_WITH_REAL_ISOLATED_POSTGRESQL",
+	"tests": [
+		{
+			"scope": "admission and execution",
+			"passed": 32
+		},
+		{
+			"scope": "admission price and visual profile",
+			"passed": 7
+		},
+		{
+			"scope": "catalog availability",
+			"passed": 6
+		},
+		{
+			"scope": "shared guest-video Kie capacity",
+			"passed": 4,
+			"unrelatedSkipped": 47
+		},
+		{
+			"scope": "SeeAPI complete domain flow",
+			"passed": 4,
+			"historicalPerformanceCasesSkipped": 6
+		}
+	],
+	"checks": {
+		"databaseTypes": "PASS",
+		"jobsTypes": "PASS",
+		"focusedFormatting": "PASS",
+		"focusedLint": "PASS",
+		"independentAdmissionReview": "NO_CONFIRMED_FINDINGS"
+	},
+	"flowScenarios": [
+		"silent SeeAPI to READY with one settlement",
+		"native sound with shared private MP4 hash and frozen SeeAPI profile after environment selects Sightengine",
+		"frozen historical Sightengine drains after environment selects SeeAPI",
+		"lost SeeAPI POST response retains reservation and review fence without repeated paid POST or generation"
+	],
+	"externalPaidCalls": 0,
+	"realExternalAcceptance": "NOT_RUN",
+	"productionMutation": "NOT_RUN",
+	"productionOpening": "NOT_RUN",
+	"localDatabases": [
+		"ezpic_video_v1_final_test",
+		"ezpic_video_seeapi_guest_test",
+		"ezpic_video_seeapi_flow_test"
+	],
+	"localPort": 55439,
+	"appliedMigrations": 59,
+	"sources": [
+		{
+			"path": "packages/database/prisma/queries/media/video-v1.integration.test.ts",
+			"sha256": "7e31631a72d245f163e76c6eea6a88db4a1bb7d15b6a21661b67d1d615438f2c"
+		},
+		{
+			"path": "packages/jobs/src/video-v1/admission-pricing.test.ts",
+			"sha256": "cdab7f81447464eec9beb03c1ebc6cab24cabd40ae9463f73df6ed39f5d13b7b"
+		},
+		{
+			"path": "packages/api/modules/video-v1/catalog.test.ts",
+			"sha256": "d8f885338f3de391b25c0c6c0b6f7dd2f5b5769cbaa2dc6091ecc79023dedb1e"
+		},
+		{
+			"path": "packages/database/prisma/queries/media/guest-admission.integration.test.ts",
+			"sha256": "697d3b3ade031262a1ac3f50c5d9503395d3a078833d54d5afc89e4c97253d90"
+		},
+		{
+			"path": "packages/jobs/src/video-v1/seeapi-flow.database.integration.test.ts",
+			"sha256": "dfb15b1ca5edaf5a924c3e89cf6726d1310650d077794cf3d2d5ce12d04dbc1f"
+		}
+	],
+	"limitations": [
+		"External HTTP and private storage primitives are mocked; PostgreSQL and domain services are real.",
+		"Synthetic MP4 metadata and mock transcript do not prove decodable video, real speech, model quality or external moderation.",
+		"No performance claims are inferred; historical 353-job timing files were not regenerated.",
+		"Build, final whole-project certification and production gates are reported separately by root."
+	]
+}

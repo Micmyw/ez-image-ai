@@ -15,10 +15,18 @@
 		"./media-assets": "./prisma/queries/media/assets.ts",
 		"./media-job-status": "./prisma/queries/media/job-status.ts",
 		"./media-quotes": "./prisma/queries/media/quotes.ts",
+		"./video-v1": "./prisma/queries/media/video-v1.ts",
+		"./video-v1-execution": "./prisma/queries/media/video-v1-execution.ts",
+		"./video-v1-moderation-events": "./prisma/queries/media/video-v1-moderation-events.ts",
+		"./video-v1-seeapi-events": "./prisma/queries/media/video-v1-seeapi-events.ts",
+		"./video-v1-fulfillment": "./prisma/queries/media/video-v1-fulfillment.ts",
+		"./video-v1-recovery": "./prisma/queries/media/video-v1-recovery.ts",
+		"./video-v1-uploads": "./prisma/queries/media/video-v1-uploads.ts",
 		"./generated-client": {
 			"workerd": "./prisma/generated-worker/client.ts",
 			"default": "./prisma/generated/client.ts"
-		}
+		},
+		"./video-v1-cleanup": "./prisma/queries/media/video-v1-cleanup.ts"
 	},
 	"scripts": {
 		"clean": "git clean -xdf .cache .turbo dist node_modules",

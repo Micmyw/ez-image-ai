@@ -89,9 +89,7 @@ function withModerationOverrides(source: string, environment: Record<string, str
 	const keys = [
 		"MEDIA_SAFETY_ADAPTER",
 		"MODERATION_TEXT_WAFFO_ENABLED",
-		"MODERATION_TEXT_SIGHTENGINE_ENABLED",
 		"MODERATION_IMAGE_SEEAPI_ENABLED",
-		"MODERATION_IMAGE_SIGHTENGINE_ENABLED",
 	];
 	// Legacy and test adapters may be inherited from the build runner. Only an
 	// explicit configured adapter or detector switch requests a production override.
@@ -103,10 +101,8 @@ function withModerationOverrides(source: string, environment: Record<string, str
 	if (
 		environment.MEDIA_SAFETY_ADAPTER !== "configured" ||
 		keys.slice(1).some((key) => !["true", "false"].includes(environment[key] ?? "")) ||
-		(environment.MODERATION_TEXT_WAFFO_ENABLED !== "true" &&
-			environment.MODERATION_TEXT_SIGHTENGINE_ENABLED !== "true") ||
-		(environment.MODERATION_IMAGE_SEEAPI_ENABLED !== "true" &&
-			environment.MODERATION_IMAGE_SIGHTENGINE_ENABLED !== "true")
+		environment.MODERATION_TEXT_WAFFO_ENABLED !== "true" ||
+		environment.MODERATION_IMAGE_SEEAPI_ENABLED !== "true"
 	) {
 		throw new Error("CLOUDFLARE_MODERATION_OVERRIDES_INVALID");
 	}

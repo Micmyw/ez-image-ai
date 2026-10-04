@@ -206,7 +206,7 @@ describe("createQuoteForUser", () => {
 					now: () => new Date("2026-08-25T00:00:00.000Z"),
 					assertAllowed: vi.fn(async () => undefined),
 					findEligibleEditParent,
-					createAdapter: () => ({ provider: "sightengine", adapter: { moderateText } }),
+					createAdapter: () => ({ provider: "waffo", adapter: { moderateText } }),
 					persistApproved,
 					recordDenied: vi.fn(),
 				} as never,
@@ -281,7 +281,7 @@ describe("createQuoteForUser", () => {
 				createQuoteForUser("user_1", request, {
 					now: () => new Date("2026-08-14T00:00:00.000Z"),
 					assertAllowed,
-					createAdapter: () => ({ provider: "sightengine", adapter: { moderateText } }),
+					createAdapter: () => ({ provider: "waffo", adapter: { moderateText } }),
 					persistApproved,
 					recordDenied: vi.fn(),
 				}),
@@ -360,7 +360,7 @@ describe("createQuoteForUser", () => {
 					now: () => new Date("2026-08-14T00:00:00.000Z"),
 					assertAllowed: vi.fn(async () => undefined),
 					createAdapter: () => ({
-						provider: "sightengine",
+						provider: "waffo",
 						adapter: {
 							moderateText: vi.fn(async ({ ruleVersion }) => ({
 								decision,

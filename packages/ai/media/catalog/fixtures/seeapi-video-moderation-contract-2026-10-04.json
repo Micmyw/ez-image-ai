@@ -1,0 +1,157 @@
+{
+	"source": {
+		"url": "https://www.seeapi.com/docs/video-nsfw-filter/video-moderation/",
+		"observedOn": "2026-10-04",
+		"cachedHtmlSha256": "74aba8412f76b1247607b85270ae0ef48d3ccbbd931e35603eaa9de89f656682",
+		"evidenceKind": "public documentation examples; no paid inference or account acceptance"
+	},
+	"request": {
+		"method": "POST",
+		"url": "https://api.seeapi.com/v1/inferences",
+		"requiredHeaders": ["Authorization", "Idempotency-Key", "Content-Type"],
+		"body": {
+			"model": "video-nsfw-filter",
+			"endpoint": "video-moderation",
+			"provider": "seeapi",
+			"input": {
+				"video_url": "https://client.example.com/input.mp4",
+				"num_frames": 8,
+				"threshold_offset": 0.02,
+				"strict_special_care": true,
+				"return_frames": "none"
+			},
+			"callback_url": "https://client.example.com/webhooks/seeapi"
+		}
+	},
+	"acceptanceResponse": {
+		"statusCode": 202,
+		"body": {
+			"id": "task_xxx",
+			"object": "inference",
+			"model": "video-nsfw-filter",
+			"endpoint": "video-moderation",
+			"provider": "seeapi",
+			"status": "processing",
+			"result": null,
+			"error": null
+		}
+	},
+	"query": {
+		"method": "GET",
+		"url": "https://api.seeapi.com/v1/inferences/{task_id}",
+		"unsupportedForThisModel": "/v1/generations/{task_id}"
+	},
+	"illustrativeOneFrameQueryResponse": {
+		"id": "task_xxx",
+		"object": "inference",
+		"model": "video-nsfw-filter",
+		"endpoint": "video-moderation",
+		"provider": "seeapi",
+		"status": "succeeded",
+		"result": {
+			"type": "json",
+			"data": {
+				"flagged": false,
+				"output": {
+					"nsfw_detected": false,
+					"scope": "sampled_frames",
+					"sampling_complete": true,
+					"checked_frames": 1,
+					"timestamp_source": "frame_index_div_fps_estimate",
+					"output_layout": "named-files-v1",
+					"report_schema_version": 5,
+					"flagged_frame_count": 0,
+					"frames": [
+						{
+							"frame_number": 1,
+							"timestamp_seconds": 0,
+							"nsfw_detected": false,
+							"nsfw": [],
+							"special": [],
+							"image_url": "https://client.example.com/inference/task_xxx/frame-1.jpg"
+						}
+					]
+				}
+			}
+		},
+		"error": null
+	},
+	"documentedContract": {
+		"maxVideoDurationSeconds": 30,
+		"maxVideoSizeText": "100 M",
+		"sourceFormats": ["MP4", "MOV"],
+		"sourceProtocol": "HTTPS",
+		"numFrames": { "minimum": 8, "maximum": 32, "default": 8 },
+		"thresholdOffset": { "minimum": 0, "maximum": 0.1, "default": 0.02 },
+		"optionalFrameFields": ["special", "image_url"],
+		"sourceFrameNumberIsArrayIndex": false,
+		"timestampsAreApproximate": true,
+		"sourceUrlEcho": false,
+		"idempotencyRequiresSameRequestBody": true,
+		"policyBlock": {
+			"status": "succeeded",
+			"flagged": true,
+			"output": null,
+			"reason": "content_policy_blocked",
+			"billable": true,
+			"frameReportAvailable": false
+		},
+		"coverage": "sampled frames only; does not inspect every frame or guarantee brief-content detection",
+		"audioAssessment": false
+	},
+	"applicationPolicy": {
+		"completionMode": "callback-confirm-once",
+		"completionMeaning": "one callback-triggered confirmation sequence with at most three GETs total",
+		"maxConfirmationReads": 3,
+		"retryableReadFailures": ["network", "timeout", "HTTP 429", "HTTP 5xx"],
+		"nonRetryableReadOutcomes": [
+			"processing",
+			"malformed response",
+			"failed",
+			"canceled",
+			"terminal moderation decision"
+		],
+		"readBudgetPersistence": "PostgreSQL count incremented before GET; 60-second lease; 1-second/3-second backoff; interrupted reads consume budget",
+		"confirmationReadsWithoutCallback": 0,
+		"adapterInternalRetries": false,
+		"callbackUrlRequired": true,
+		"cyclicPollingFallback": false,
+		"newAudioSafetyPolicy": { "schemaVersion": 1, "mode": "not_requested" },
+		"nativeAudioRetained": true,
+		"externalAudioModerationRequested": false,
+		"historicalAudioPolicy": "Missing or required policy remains required; actual audio holds for review without downgrade",
+		"historicalVisualProviderPolicy": "Sightengine profiles remain readable, but their execution is retired and held for review",
+		"thresholdOffset": 0,
+		"strictSpecialCare": true,
+		"returnFrames": "none",
+		"requestedFrames": "frozen profile.sampling.numFrames; admission sets min(32,max(8,requestedDurationSeconds+2))",
+		"requireExactRequestedFrameCount": true,
+		"timestampUpperSlackSeconds": 0.5,
+		"maxFirstTimestampSeconds": 0.25,
+		"maxLastFrameGapSeconds": 1,
+		"maxAdjacentGapSeconds": 1,
+		"note": "Conservative application acceptance thresholds, not a provider guarantee. The illustrative one-frame documentation example intentionally fails this application's complete-sample gate."
+	},
+	"genericWebhookSignatureEvidence": {
+		"publicSourceUrl": "https://www.seeapi.com/_next/static/immutable/chunks/40t71rwpea69l.js",
+		"publicSourceSha256": "e9183bb3ea667edf30e83aaba041f3593b9612d0aa4783c479b5a0ee65d3a23d",
+		"sourceKind": "public official Developer Center application example; secondary to endpoint documentation",
+		"algorithm": "HMAC-SHA256(fullSecretUtf8, originalTimestampHeaderUtf8 + '.' + rawBodyBytes)",
+		"headers": {
+			"timestamp": "X-SEEAPI-Timestamp",
+			"signature": "X-SEEAPI-Signature",
+			"keyUid": "X-SEEAPI-Signing-Key",
+			"delivery": "X-SEEAPI-Delivery",
+			"event": "X-SEEAPI-Event"
+		},
+		"signatureFormat": "case-insensitive v1=<64 hexadecimal characters>",
+		"timestampUnit": "Unix seconds",
+		"clockWindowSeconds": 300,
+		"keyRotation": "Select exact whkey_ UID; retain older secret versions for already queued deliveries",
+		"eventExamples": ["generation.succeeded", "generation.failed"],
+		"inferencePayloadMapping": "NOT_CONFIRMED; not used for routing or business decisions",
+		"inferenceRuntimeSignatureCompatibility": "NOT_RUN",
+		"routingPolicy": "Signed raw bytes are only a wake hint. Server-generated task-bound URL proof and database identity select the previously recorded inference; its authenticated GET is the decision authority.",
+		"unsignedHeaderPolicy": "Event and Delivery are not covered by this HMAC formula. Treat them only as diagnostic metadata; durable raw-body/task/state idempotency remains required."
+	}
+}

@@ -14,7 +14,13 @@ export default defineConfig({
 	test: {
 		globals: true,
 		environment: "node",
-		exclude: ["**/node_modules/**", "**/tests/**", "**/.next/**", "**/.open-next/**"],
+		exclude: [
+			"**/node_modules/**",
+			"**/tests/**",
+			"**/.next/**",
+			"**/.open-next/**",
+			"cloudflare/*.test.mjs",
+		],
 	},
 	resolve: {
 		alias: {

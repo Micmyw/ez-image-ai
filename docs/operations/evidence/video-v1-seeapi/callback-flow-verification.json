@@ -1,0 +1,133 @@
+{
+	"schemaVersion": 2,
+	"verifiedAt": "2026-10-04T04:00:46.4243576Z",
+	"verificationStatus": "PASS_LOCAL_MOCK_FINAL_WAFFO_SEEAPI_NOT_REQUESTED_AUDIO",
+	"evidenceKind": "LOCAL_MOCK_WITH_REAL_ISOLATED_POSTGRESQL",
+	"supersedes": "admission-flow-verification.json",
+	"tests": [
+		{
+			"scope": "admission and execution",
+			"passed": 42
+		},
+		{
+			"passed": 15,
+			"performanceCasesNotRun": 3,
+			"scope": "complete domain flows"
+		},
+		{
+			"scope": "admission price and immutable policies",
+			"passed": 10
+		},
+		{
+			"scope": "catalog availability",
+			"passed": 7
+		}
+	],
+	"checks": {
+		"focusedLint": "PASS",
+		"focusedFormatting": "PASS",
+		"databaseTypes": "PASS",
+		"guestCapacityCurrentPhase": "NOT_RUN",
+		"jobsTypes": "PASS"
+	},
+	"flowScenarios": [
+		"silent and native sound retain sealed visual evidence; audio calls zero",
+		"verified early and deferred duplicate callbacks, one GET",
+		"missing and invalid signatures, zero GET",
+		"HTTP503 max three same-task GETs with durable budget and 1/3 second waits",
+		"HTTP503 then success, two GETs and one POST",
+		"processing and invalid result hold after one GET",
+		"historical required and missing audio policy stay held",
+		"retired Sightengine profile stays held without external call",
+		"lost SeeAPI POST response never repeats submission",
+		"text-to-video and image-to-video real-domain Mock",
+		"lost Kie response recovered by verified early callbacks without regeneration"
+	],
+	"externalPaidCalls": 0,
+	"realExternalAcceptance": "NOT_RUN",
+	"productionMutation": "NOT_RUN",
+	"productionOpening": "NOT_RUN",
+	"concurrencyPerformanceMatrix": "NOT_RUN_OPT_IN_VIDEO_V1_RUN_PERFORMANCE",
+	"localDatabases": ["ezpic_video_seeapi_flow_test"],
+	"localPort": 55439,
+	"appliedMigrations": 59,
+	"logs": [
+		".cache/video-v1/waffo-seeapi-final-flow.log",
+		".cache/video-v1/waffo-seeapi-final-admission.log",
+		".cache/video-v1/waffo-seeapi-final-pricing.log",
+		".cache/video-v1/waffo-seeapi-final-catalog.log"
+	],
+	"localHarnessTime": {
+		"flowTestSeconds": 14.79,
+		"flowTotalSeconds": 17.64,
+		"interpretation": "LOCAL_TEST_RUNTIME_NOT_PRODUCT_OR_CLOUD_LATENCY"
+	},
+	"sources": [
+		{
+			"sha256": "f240d11a8d9c2aa822098450364f383f92d9b43e70590d9fb16fd13ab09ea1a8",
+			"path": "packages/database/prisma/queries/media/video-v1.ts"
+		},
+		{
+			"sha256": "e27415f74a2d2449ca8cc2a8f28b35bf2bae54fbfeae463a1feb171d10d65b15",
+			"path": "packages/database/prisma/queries/media/video-v1.integration.test.ts"
+		},
+		{
+			"sha256": "e9cfcbc19bc15aab3e9cbfba45aa2c18073148e9e675d6377b629247a87c6803",
+			"path": "packages/database/prisma/queries/media/guest-admission.integration.test.ts"
+		},
+		{
+			"sha256": "35072a77651d4241fa26ce6905821d5c07bec9d6dac318582e81f90df68c2ef2",
+			"path": "packages/jobs/src/video-v1/admission.ts"
+		},
+		{
+			"sha256": "11faaf269006c93e1565e2ef6322510bc33d25b1d3f9a512752aca6596fd8c66",
+			"path": "packages/jobs/src/video-v1/contracts.ts"
+		},
+		{
+			"sha256": "95e75b9bc4ec147a36bacf39fd22d70cbecfdd7d542b5f2b0f391bd560af7d1c",
+			"path": "packages/jobs/src/video-v1/admission-pricing.test.ts"
+		},
+		{
+			"sha256": "39733005cd4f7728316bc1eca5cb3abf74ee226a8c639c23e69766f8224ce089",
+			"path": "packages/jobs/src/video-v1/flow.database.integration.test.ts"
+		},
+		{
+			"sha256": "65f03c74f03d621d54a56c23e3774a1bc17a1d875df16b77473496cee0257529",
+			"path": "packages/jobs/src/video-v1/seeapi-flow.database.integration.test.ts"
+		},
+		{
+			"sha256": "85f7187a1566dbae520eab605a1ffab0c996310fa97fc709b648deecb1e36ef1",
+			"path": "packages/jobs/src/video-v1/video-safety.test-fixtures.ts"
+		},
+		{
+			"sha256": "62e433e9ba5e9b5e9155134669bcca63e8e9ebfc3df1a454e5e65926c952f664",
+			"path": "packages/api/modules/video-v1/router.ts"
+		},
+		{
+			"sha256": "99ec46bebab042dcbcb15e0aacebe3e2497e15c85c4566a4395a9fb090f3495b",
+			"path": "packages/api/modules/video-v1/catalog.test.ts"
+		},
+		{
+			"sha256": "91d3537586badfd73bf41bf5581af7c4aab5c373952b92521bcf33a71acbb002",
+			"path": "tests/video-v1/run.ts"
+		},
+		{
+			"sha256": "c64782bf1b82fd46d2a34ceeae09bed87f1d58ab538e8675ef087085f83c80af",
+			"path": "tests/video-v1/local-command.mjs"
+		}
+	],
+	"limitations": [
+		"External HTTP and private object primitives are mocked; SQL/domain logic are real.",
+		"Ephemeral test RSA keys and synthetic MP4 metadata do not prove real Waffo, SeeAPI, model output or media quality.",
+		"No ASR or audio moderation is requested or represented as passed for new jobs.",
+		"Historical performance artifacts were not regenerated; current 350-job matrix remains opt-in.",
+		"Full builds, API release certification and production gates are reported by root."
+	],
+	"processCleanup": {
+		"container": "ezpic-video-seeapi-postgres-20261004",
+		"finalSession": 28836,
+		"containerOwner": "root",
+		"finalPids": [71720, 111512, 172792, 111940],
+		"status": "PASS_TRACKED_PIDS_EXITED"
+	}
+}

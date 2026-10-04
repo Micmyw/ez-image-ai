@@ -530,6 +530,67 @@ model GenerationQuote {
   @@map("generation_quote")
 }
 
+enum VideoExecutionStartState {
+  PENDING
+  STARTED
+  FAILED
+}
+
+enum VideoExecutionStage {
+  QUEUED
+  INPUT_REVIEW
+  SUBMITTING
+  SUBMISSION_UNCERTAIN
+  GENERATING
+  STORING
+  OUTPUT_REVIEW
+  FINALIZING
+  READY
+  REJECTED
+  FAILED
+  NEEDS_REVIEW
+}
+
+model VideoExecution {
+  jobId                    String                   @id
+  job                      GenerationJob            @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  workflowInstanceId       String                   @unique
+  workflowSchemaVersion    Int                      @default(1)
+  startState               VideoExecutionStartState @default(PENDING)
+  stage                    VideoExecutionStage      @default(QUEUED)
+  modelContractVersion     String
+  stateVersion             Int                      @default(0)
+  startAttemptCount        Int                      @default(0)
+  nextStartAt              DateTime?                @db.Timestamptz(3)
+  lastProgressAt           DateTime                 @default(now()) @db.Timestamptz(3)
+  needsReviewReason        String?
+  providerDeadlineAt       DateTime?                @db.Timestamptz(3)
+  providerPollRound        Int                      @default(0)
+  inputReviewDeadlineAt    DateTime?                @db.Timestamptz(3)
+  outputReviewDeadlineAt   DateTime?                @db.Timestamptz(3)
+  inputReviewRound         Int                      @default(0)
+  outputReviewRound        Int                      @default(0)
+  stageData                Json                     @default("{}")
+  queuedAt                 DateTime                 @default(now()) @db.Timestamptz(3)
+  inputReviewStartedAt     DateTime?                @db.Timestamptz(3)
+  inputReviewCompletedAt   DateTime?                @db.Timestamptz(3)
+  providerSubmitStartedAt  DateTime?                @db.Timestamptz(3)
+  providerAcceptedAt       DateTime?                @db.Timestamptz(3)
+  providerCompletedAt      DateTime?                @db.Timestamptz(3)
+  storageStartedAt         DateTime?                @db.Timestamptz(3)
+  storageCompletedAt       DateTime?                @db.Timestamptz(3)
+  outputReviewStartedAt    DateTime?                @db.Timestamptz(3)
+  outputReviewCompletedAt  DateTime?                @db.Timestamptz(3)
+  finalizationStartedAt    DateTime?                @db.Timestamptz(3)
+  readyAt                  DateTime?                @db.Timestamptz(3)
+  createdAt                DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime                 @updatedAt @db.Timestamptz(3)
+
+  @@index([startState, nextStartAt, jobId])
+  @@index([stage, lastProgressAt, jobId])
+  @@map("video_execution")
+}
+
 model GenerationJob {
   id                      String                   @id @default(cuid())
   ownerType               OwnerType
@@ -547,6 +608,8 @@ model GenerationJob {
   archivedCreditsReleased BigInt?
   inputSnapshot           Json
   pricingSnapshot         Json
+  executionEngine         String                   @default("legacy")
+  videoExecution          VideoExecution?
   status                  GenerationJobStatus      @default(RESERVED)
   serviceClass            GenerationServiceClass   @default(STANDARD)
   dispatchEligibleAt      DateTime?                @db.Timestamptz(3)
@@ -580,6 +643,7 @@ model GenerationJob {
   @@index([ownerType, ownerId, createdAt, id])
   @@index([status, updatedAt])
   @@index([status, nextFinalizeAt])
+  @@index([executionEngine, status, updatedAt, id])
   @@index([editSessionId, createdAt, id])
   @@index([parentJobId])
   @@index([serviceClass, dispatchEligibleAt, status])
@@ -612,6 +676,7 @@ model GenerationAttempt {
   providerTaskId         String?
   providerStatusUrl      String?
   providerResultUrl      String?
+  callbackTokenHash      String?                            @unique
   submissionToken        String?
   status                 GenerationAttemptStatus            @default(CREATED)
   providerCostMicros     BigInt?
@@ -677,6 +742,8 @@ model MediaAsset {
   outputStagingObjectKey           String?                 @unique
   outputPromotionMultipartUploadId String?
   sourceUrl                        String?
+  verificationEngine               String                  @default("legacy")
+  videoCleanupCompletedAt          DateTime?               @db.Timestamptz(3)
   verificationGeneration           Int                     @default(0)
   verificationAttemptCount         Int                     @default(0)
   verificationProvider             String?
@@ -707,6 +774,9 @@ model MediaAsset {
   @@index([status, verificationNextAttemptAt, verificationLeasedUntil], map: "media_asset_verification_recovery_idx")
   @@index([status, verificationDeadlineAt, verificationLeasedUntil], map: "media_asset_video_verification_recovery_idx")
   @@index([status, verificationValidUntil], map: "media_asset_ready_expiry_idx")
+  @@index([verificationEngine, status, verificationNextAttemptAt])
+  @@index([verificationEngine, verificationProvider, verificationProviderTaskId], map: "media_asset_video_provider_task_idx")
+  @@index([verificationEngine, videoCleanupCompletedAt, createdAt, id], map: "media_asset_video_cleanup_idx")
   @@index([outputTransferLeaseExpiresAt])
   @@index([outputPromotionMultipartUploadId])
   @@index([retentionClass, deleteAfter])
@@ -951,6 +1021,7 @@ model ProviderWebhookEvent {
 
   @@unique([provider, providerEventId])
   @@index([status, receivedAt])
+  @@index([provider, status, receivedAt])
   @@index([processingLeasedUntil])
   @@map("provider_webhook_event")
 }

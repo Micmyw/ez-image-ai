@@ -1,52 +1,53 @@
 type Environment = Record<string, string | undefined>;
 
-/** Stable detector identities also bind cached approval evidence to enabled checks. */
+/** Stable detector identities bind cached approval evidence to enabled checks. */
 export function moderationConfiguration(environment: Environment) {
-	const legacy = environment.MEDIA_SAFETY_ADAPTER === "sightengine";
-	const configured = environment.MEDIA_SAFETY_ADAPTER === "configured";
-	function enabled(key: string, fallback: boolean) {
-		if (!configured) return fallback;
+	if (environment.MEDIA_SAFETY_ADAPTER === "test") {
+		assertTestModerationConfiguration(environment);
+		return { textWaffo: false, imageSeeapi: false };
+	}
+	if (environment.MEDIA_SAFETY_ADAPTER !== "configured")
+		throw new Error("MODERATION_CONFIGURATION_ERROR");
+	function enabled(key: string) {
 		const value = environment[key];
 		if (value !== undefined && value !== "true" && value !== "false")
 			throw new Error(`Invalid moderation switch: ${key}`);
 		return value === "true";
 	}
 	return {
-		textWaffo: enabled(
-			"MODERATION_TEXT_WAFFO_ENABLED",
-			legacy && environment.WAFFO_ENVIRONMENT === "prod",
-		),
-		textSightengine: enabled("MODERATION_TEXT_SIGHTENGINE_ENABLED", legacy),
-		imageSeeapi: enabled("MODERATION_IMAGE_SEEAPI_ENABLED", false),
-		imageSightengine: enabled("MODERATION_IMAGE_SIGHTENGINE_ENABLED", legacy),
+		textWaffo: enabled("MODERATION_TEXT_WAFFO_ENABLED"),
+		imageSeeapi: enabled("MODERATION_IMAGE_SEEAPI_ENABLED"),
 	};
 }
 
+/** Test evidence is valid only with explicit local environment and adapter opt-ins. */
+export function assertTestModerationConfiguration(environment: Environment): void {
+	if (
+		environment.MEDIA_SAFETY_ADAPTER !== "test" ||
+		environment.MEDIA_ALLOW_TEST_SAFETY_ADAPTER !== "true"
+	)
+		throw new Error("TEST_SAFETY_ADAPTER_DISABLED");
+	if (environment.NODE_ENV !== "test" && environment.NODE_ENV !== "development")
+		throw new Error(
+			"The test safety adapter is forbidden outside explicit local environments, including production",
+		);
+}
+
 export function imageModerationProviderForEnvironment(environment: Environment): string {
-	if (environment.MEDIA_SAFETY_ADAPTER === "test" || !environment.MEDIA_SAFETY_ADAPTER)
+	if (environment.MEDIA_SAFETY_ADAPTER === "test") {
+		assertTestModerationConfiguration(environment);
 		return "test";
-	const config = moderationConfiguration(environment);
-	return (
-		[config.imageSeeapi ? "seeapi" : "", config.imageSightengine ? "sightengine" : ""]
-			.filter(Boolean)
-			.join("+") || "unconfigured"
-	);
+	}
+	if (!moderationConfiguration(environment).imageSeeapi)
+		throw new Error("IMAGE_MODERATION_CONFIGURATION_ERROR");
+	return "seeapi";
 }
 
 export function assertModerationConfiguration(environment: Environment): void {
 	const config = moderationConfiguration(environment);
-	if (!config.textWaffo && !config.textSightengine)
-		throw new Error("At least one text moderation provider must be enabled");
-	if (!config.imageSeeapi && !config.imageSightengine)
-		throw new Error("At least one image moderation provider must be enabled");
-	const required = [
-		...(config.textWaffo ? ["WAFFO_MERCHANT_ID", "WAFFO_PRIVATE_KEY"] : []),
-		...(config.textSightengine || config.imageSightengine
-			? ["SIGHTENGINE_API_USER", "SIGHTENGINE_API_SECRET"]
-			: []),
-		...(config.imageSeeapi ? ["SEEAPI_API_KEY"] : []),
-	];
-	for (const key of required)
+	if (!config.textWaffo) throw new Error("Waffo text moderation must be enabled");
+	if (!config.imageSeeapi) throw new Error("SeeAPI image moderation must be enabled");
+	for (const key of ["WAFFO_MERCHANT_ID", "WAFFO_PRIVATE_KEY", "SEEAPI_API_KEY"])
 		if (!environment[key]?.trim()) throw new Error(`Enabled moderation provider requires ${key}`);
 }
 

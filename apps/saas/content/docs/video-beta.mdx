@@ -1,0 +1,74 @@
+---
+updatedAt: 2026-10-04
+indexable: false
+title: Private video beta
+description: How invited accounts confirm video requests, follow server progress, and access private reviewed results.
+---
+
+The video beta is closed by default. It requires an invited, signed-in account and a configured
+service. When it is available to your account, **Video beta** appears in the account navigation.
+There is no guest video trial. The existing image editor is unchanged.
+
+## Create a video
+
+Open [Video](/video), choose an available model and **Text to video** or **Image to video**, and
+describe the scene or movement. Prompt limits, durations, resolutions, frame shapes, and audio
+options follow the selected model. Image-only models offer only **Image to video**. Models that
+follow the reference image's framing do not offer a separate crop.
+Prompt checks must complete before generation can start.
+
+Image mode accepts one JPEG, PNG, or WebP within the displayed account limit. A local preview is
+not proof of upload or approval. Wait for the server to verify and secure the image. Content review
+starts after generation is confirmed.
+
+Visual review checks sampled frames for NSFW and reported special-care signals. It does not
+inspect every frame or certify every kind of visual content. The saved output must also meet
+the review service's 30-second and 100 MB limits. Incomplete or uncertain review keeps the result
+unavailable; task completion alone does not mean content passed. Accepted tasks keep the output
+visual-review policy recorded when they were confirmed, even if the service's default changes later.
+
+The initial selection is Kling 2.6, five seconds, with sound disabled. The model selector groups
+MiniMax, Seedance, Gemini, Kling, and Veo. A listed model does not guarantee availability: unsupported
+variants and settings without a configured price or required checks remain unavailable.
+Models with a native-audio option can include audio; some models do not offer a sound switch.
+There is no video editing, audio upload, or post-generation resolution upgrade.
+
+Choose **Review credit cost** to get a quote. A quote does not reserve credits or start generation.
+Read the quoted credits, then confirm. Pricing is shown only when a valid service price is configured.
+Video can use only credits backed by a qualifying payment. Free credits, credits with an unknown
+payment source, and payment funding that does not cover the required video spend are not eligible.
+Changing the model, prompt, image, duration, resolution, shape, or audio invalidates the previous quote.
+
+## Progress and interrupted connections
+
+Accepted tasks continue on the server even if you close the page. Open [Video history](/video/history)
+with the same account to restore their current status. Only your own tasks appear there.
+
+The workspace distinguishes input review, provider submission, generation, private storage,
+output review, and final delivery. It does not estimate a generation percentage. Upload percentages
+refer only to bytes sent from your browser.
+
+Output visual confirmation waits for a verified service notification and can briefly retry
+temporary connection failures. If the notification does not arrive or the result still
+cannot be confirmed, the task is held for review: the video stays unavailable
+and credits remain reserved until an operator resolves it. This does not automatically
+purchase a replacement generation.
+
+If a confirmation response is interrupted, use **Check the same request**. This keeps the original
+request identity and every selected model setting. Do not start a new request just because the first response was lost. If the
+provider's acceptance is uncertain, the server checks the original attempt and keeps its credit
+reservation; it does not automatically submit another paid generation.
+
+## Credits and private results
+
+The task displays whether its credits are reserved, charged, or released. A task awaiting an
+operational review can retain its reservation until its outcome is confirmed. Rejected and failed
+tasks show the actual credit status; they do not expose a button that silently buys another generation.
+
+Playback and MP4 download become available only after the saved private video passes required
+checks. If a playback link expires, refresh its authorization. Downloads request fresh access.
+Other accounts cannot use your task or access your stored output through these pages.
+
+If storage needs recovery, the server works with the existing generated result. It does not request
+another video from the model. When new video requests are disabled, your existing task status and
+eligible results remain available.

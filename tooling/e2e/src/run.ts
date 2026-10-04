@@ -4,6 +4,16 @@ import { randomBytes } from "node:crypto";
 import { assertLocalMediaE2E } from "./guard";
 
 const workspaceRoot = process.cwd().replace(/[\\/]tooling[\\/]e2e$/, "");
+const guestOnly = process.argv.includes("--guest-only");
+const avatarOnly = process.argv.includes("--avatar-only");
+const avatarLanding = process.argv.includes("--avatar-landing");
+const videoUi = process.argv.includes("--video-ui");
+const landingRegression = process.argv.includes("--landing-regression");
+const landingRegressionGrep =
+	"a guest text prompt|the public root exposes|the editor follows|the landing generator supports|the selected model and SKU cross|a retryable failure preserves|the landing page proves|the landing tool stays usable";
+const grep = process.argv.includes("--video-regression")
+	? "crops an avatar|requires review evidence|mobile editor keeps|subscription upgrade waits for verified payment"
+	: undefined;
 const runId =
 	process.env.E2E_RUN_ID ?? `${Date.now().toString(36)}-${randomBytes(3).toString("hex")}`;
 const saasOrigin = process.env.NEXT_PUBLIC_SAAS_URL ?? "http://localhost:3000";
@@ -12,6 +22,7 @@ const environment = {
 	E2E_TEST_MEDIA_ADAPTERS: "true",
 	E2E_DRAFT_HANDOFF: "true",
 	E2E_RUN_ID: runId,
+	E2E_FUNDED_AUTH_ONLY: avatarOnly || avatarLanding ? "true" : "false",
 	DATABASE_URL: process.env.TEST_DATABASE_URL,
 	NEXT_PUBLIC_SAAS_URL: saasOrigin,
 	MEDIA_BUCKET_NAME: process.env.MEDIA_BUCKET_NAME ?? "media-private",
@@ -84,32 +95,52 @@ async function main(): Promise<void> {
 			env: environment,
 			stdio: "inherit",
 		});
-		await command([
-			"--filter",
-			"saas",
-			"exec",
-			"playwright",
-			"test",
-			"tests/media-generation.spec.ts",
-			"tests/avatar-upload.spec.ts",
-			"tests/subscription-upgrade.spec.ts",
-			"tests/checkout-review.spec.ts",
-			"tests/billing-auth.spec.ts",
-			"tests/seo.spec.ts",
-			"--workers=1",
-		]);
-		await command([
-			"--filter",
-			"saas",
-			"exec",
-			"playwright",
-			"test",
-			"tests/guest-trial.spec.ts",
-			"tests/landing.spec.ts",
-			"tests/originality.spec.ts",
-			"--project=guest",
-			"--workers=1",
-		]);
+		if (videoUi) {
+			await command([
+				"--filter",
+				"saas",
+				"exec",
+				"playwright",
+				"test",
+				"--config",
+				"modules/video-v1/playwright.config.ts",
+			]);
+			return;
+		}
+		if (!guestOnly && !landingRegression)
+			await command([
+				"--filter",
+				"saas",
+				"exec",
+				"playwright",
+				"test",
+				...(avatarOnly || avatarLanding
+					? ["tests/avatar-upload.spec.ts", "--project=funded"]
+					: [
+							"tests/media-generation.spec.ts",
+							"tests/avatar-upload.spec.ts",
+							"tests/subscription-upgrade.spec.ts",
+							"tests/checkout-review.spec.ts",
+							"tests/billing-auth.spec.ts",
+							"tests/seo.spec.ts",
+						]),
+				"--workers=1",
+				...(grep ? ["--grep", grep] : []),
+			]);
+		if (!avatarOnly)
+			await command([
+				"--filter",
+				"saas",
+				"exec",
+				"playwright",
+				"test",
+				...(avatarLanding || landingRegression
+					? ["tests/landing.spec.ts"]
+					: ["tests/guest-trial.spec.ts", "tests/landing.spec.ts", "tests/originality.spec.ts"]),
+				"--project=guest",
+				"--workers=1",
+				...(landingRegression ? ["--grep", landingRegressionGrep] : []),
+			]);
 	} finally {
 		pump?.kill();
 		await command(["--filter", "@repo/e2e-media", "run", "cleanup"]);
@@ -126,11 +157,12 @@ function command(arguments_: string[]): Promise<void> {
 }
 
 function start(arguments_: string[]): ChildProcess {
-	return spawn("pnpm", arguments_, {
+	const packageManager = process.env.npm_execpath;
+	if (!packageManager) throw new Error("RUN_MEDIA_E2E_WITH_PNPM");
+	return spawn(process.execPath, [packageManager, ...arguments_], {
 		cwd: workspaceRoot,
 		env: environment,
 		stdio: "inherit",
-		shell: process.platform === "win32",
 	});
 }
 

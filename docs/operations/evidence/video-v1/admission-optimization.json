@@ -1,0 +1,130 @@
+{
+	"generatedAt": "2026-10-04T01:10:31.586Z",
+	"evidence": "LOCAL_MOCK_WITH_REAL_ISOLATED_POSTGRESQL",
+	"comparisonScope": "Same concurrency20 benchmark: before and after shared admission SQL round-trip optimization. Both runs precede paid-funding filter and post-COMMIT admission timing. This comparison is separate from the final operational performance artifact.",
+	"mechanism": "Immutable quote pre-read before queue; provider-first lock dependency and owner lock in one lock-only statement; redundant video-global lock removed; capacity/quote-use/runtime reads combined in a separate post-lock statement. Account, lots, storage, asset locks and immutable ledger remain.",
+	"limitations": [
+		"Local deterministic Node harness, synthetic MP4, external HTTP/storage mocks and 10ms provider delay. Not Cloudflare throughput or real video latency.",
+		"requestToReservationWriteMs uses the historical in-transaction write marker, not full COMMIT acknowledgement. Final operational artifact uses the corrected commit-observed marker.",
+		"Before lock wait starts at admissionTransactionStartedAt, which was immediately before the lock call; after uses explicit providerCapacityLockRequestedAt.",
+		"No real paid calls, model time, moderation cost or browser first frame were measured.",
+		"Concurrency20 is a test-only limit; production configuration remains maximum5.",
+		"After P95 1132ms remains above the one-second goal; no assertion of target attainment."
+	],
+	"realProviderGenerationMs": null,
+	"realCostMicros": null,
+	"realBrowserFirstFrameMs": null,
+	"phases": [
+		{
+			"phase": "before",
+			"sourcePath": ".cache/video-v1/performance-baseline-instrumented.json",
+			"sourceGeneratedAt": "2026-10-04T00:35:32.310Z",
+			"sourceSha256": "889049e2085ba1cf2ff6df2c67a4fe11c3217210ef66404e0b35decd20faaa8e",
+			"samples": 200,
+			"concurrency": 20,
+			"batches": 10,
+			"metrics": {
+				"requestToReservationWriteMs": {
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"p50Ms": 664,
+					"p95Ms": 2019
+				},
+				"transactionQueueMs": {
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"p50Ms": 6,
+					"p95Ms": 36
+				},
+				"providerLockWaitMs": {
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"p50Ms": 568,
+					"p95Ms": 1895
+				},
+				"lockedWorkToReservationWriteMs": {
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"p50Ms": 84,
+					"p95Ms": 152
+				},
+				"creditReservationMs": {
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"p50Ms": 31,
+					"p95Ms": 57
+				},
+				"callbackCommitObservedToConfirmationMs": {
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"p50Ms": 210,
+					"p95Ms": 331
+				},
+				"measuredReadyMs": {
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"p50Ms": 2032.135799999999,
+					"p95Ms": 3171.3513999999996
+				}
+			}
+		},
+		{
+			"phase": "after",
+			"sourcePath": ".cache/video-v1/performance-after-admission-optimization.json",
+			"sourceGeneratedAt": "2026-10-04T00:44:46.236Z",
+			"sourceSha256": "55b08c76f18b2d5ea30cf170467e6e39d6e9bdb9432ec2ffb47f6c42be9be8c2",
+			"samples": 200,
+			"concurrency": 20,
+			"batches": 10,
+			"metrics": {
+				"requestToReservationWriteMs": {
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"p50Ms": 402,
+					"p95Ms": 1132
+				},
+				"transactionQueueMs": {
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"p50Ms": 6,
+					"p95Ms": 35
+				},
+				"providerLockWaitMs": {
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"p50Ms": 320,
+					"p95Ms": 1021
+				},
+				"lockedWorkToReservationWriteMs": {
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"p50Ms": 47,
+					"p95Ms": 97
+				},
+				"creditReservationMs": {
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"p50Ms": 24,
+					"p95Ms": 48
+				},
+				"callbackCommitObservedToConfirmationMs": {
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"p50Ms": 215,
+					"p95Ms": 300
+				},
+				"measuredReadyMs": {
+					"measuredSamples": 200,
+					"missingSamples": 0,
+					"p50Ms": 1671.9494000000013,
+					"p95Ms": 2366.7618
+				}
+			}
+		}
+	],
+	"csv": {
+		"path": "docs/operations/evidence/video-v1/admission-optimization-tasks.csv",
+		"rows": 400,
+		"sha256": "0da24436aa832e92a8b8b9b35925c0f29430f1d18155a799c80e7c5b8cc736a1"
+	}
+}

@@ -1,3 +1,5 @@
+import { isRetiredModerationBinding } from "./retired-moderation-bindings";
+
 export const containerDatabaseCa = "/app/tooling/certificates/supabase-prod-ca-2021.crt";
 
 const publicVariables = new Set([
@@ -38,6 +40,7 @@ export function deploymentEnvironment(
 		Object.entries(environment).filter(
 			([key, value]) =>
 				value &&
+				!isRetiredModerationBinding(key) &&
 				!/^(?:LOAD_|TEST_|E2E_|INVARIANT_|REQUIRE_LOAD_|ALLOW_REMOTE_LOAD_TARGET$|DIRECT_URL$|JOBS_RUNTIME_ENV$)/.test(
 					key,
 				),

@@ -1,3 +1,5 @@
+import type { VideoVisualSafetyProfile } from "@repo/config/video-safety";
+
 export type ModerationDecisionType = "ALLOW" | "REJECT" | "REVIEW" | "ERROR";
 
 /** Only explicit classifier rejections qualify for output-block billing. */
@@ -25,11 +27,16 @@ export interface ModerateAssetInput {
 	ruleVersion: string;
 }
 export interface SubmitVideoInput extends ModerateAssetInput {
+	callbackUrl?: string;
+	visualSafetyProfile?: VideoVisualSafetyProfile;
 	idempotencyKey: string;
+	video?: { durationMillis: number; audioTrackIds: number[] };
 }
 export interface RetrieveModerationInput {
+	visualSafetyProfile?: VideoVisualSafetyProfile;
 	moderationTaskId: string;
 	ruleVersion: string;
+	video?: { durationMillis: number; audioTrackIds: number[] };
 }
 export interface ModerationDecision {
 	decision: ModerationDecisionType;
@@ -39,6 +46,21 @@ export interface ModerationDecision {
 	evidence?: ModerationEvidence;
 }
 export type ModerationEvidence = {
+	video?: {
+		complete: true;
+		durationMillis?: number;
+		frameCount: number;
+		firstFrameSeconds: number;
+		lastFrameSeconds: number;
+	};
+	audio?: {
+		complete: true;
+		trackIds: number[];
+		durationMillis: number;
+		language: string;
+		transcriptModerated: true;
+		policyVersion: string;
+	};
 	requestId: string;
 	models: string[];
 	operations: number;
@@ -50,8 +72,29 @@ export type ModerationEvidence = {
 		matchedCategories: string[];
 	};
 	seeapi?: { taskId: string; flagged: boolean; nsfw: string[]; specialCare: string[] };
+	seeapiVideo?: {
+		taskId: string;
+		model: "video-nsfw-filter";
+		scope: "sampled_frames";
+		samplingComplete: true;
+		requestedFrames: number;
+		checkedFrames: number;
+		maxFrameGapSeconds: number;
+		timestampSource: "frame_index_div_fps_estimate";
+		reportSchemaVersion: 5;
+		thresholdOffset: 0;
+		strictSpecialCare: true;
+		returnFrames: "none";
+		flagged: boolean;
+		flaggedFrameCount: number;
+		nsfw: string[];
+		specialCare?: string[];
+		specialCareReportedFrames: number;
+	};
 };
 export interface ModerationSubmission {
+	/** Optional immediate terminal evidence; old image consumers may continue polling. */
+	completedDecision?: ModerationDecision;
 	moderationTaskId: string;
 	status: "QUEUED" | "RUNNING";
 	ruleVersion: string;

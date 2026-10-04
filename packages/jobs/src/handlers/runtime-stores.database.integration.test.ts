@@ -33,6 +33,7 @@ import { PrismaClient } from "@repo/database/generated-client";
 import { MediaValidationError } from "@repo/storage";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { isExplicitVideoVerificationTarget } from "../../../../tests/load/video-verification-target";
 import { DispatchAdmissionBlockedError } from "../contracts";
 import {
 	createDatabaseDispatchStore,
@@ -2804,6 +2805,80 @@ describe("production media runtime stores", () => {
 			vi.useRealTimers();
 		}
 	});
+	it("settles a completed historical Sightengine approval after retirement without rewriting evidence", async () => {
+		const seeded = await seedFinalizingJob();
+		const output = await seedBoundOutputAsset(seeded.jobId, "READY", 60_000, "sightengine");
+		const before = await client.mediaAsset.findUniqueOrThrow({
+			where: { id: output.assetId },
+			include: { moderationResults: true },
+		});
+		vi.stubEnv("MEDIA_SAFETY_ADAPTER", "configured");
+		vi.stubEnv("MODERATION_IMAGE_SEEAPI_ENABLED", "true");
+		try {
+			await settleGeneration(
+				{ jobId: seeded.jobId, version: seeded.version },
+				{ store: createDatabaseSettlementStore(client) },
+			);
+			expect(
+				await client.creditReservation.findUniqueOrThrow({ where: { id: seeded.reservationId } }),
+			).toMatchObject({ status: "SETTLED", settledAmount: seeded.credits });
+			expect(
+				await client.mediaAsset.findUniqueOrThrow({
+					where: { id: output.assetId },
+					include: { moderationResults: true },
+				}),
+			).toEqual(before);
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+	it.each(["sightengine", "seeapi+sightengine"])(
+		"preserves first-block-free billing for historical %s rejections after retirement",
+		async (provider) => {
+			const ownerId = `retired-rejection-${crypto.randomUUID()}`;
+			let graceJobId = "";
+			for (const chargeCredits of [0n, 10n]) {
+				const seeded = await seedFinalizingJob("image-quality", {
+					ownerId,
+					pricingSnapshot: {
+						outputModerationBillingPolicy: OUTPUT_MODERATION_BILLING_POLICY,
+						credits: "10",
+						settlementPolicy: { unitCredits: "10", requestedOutputCount: 1, maxCharge: "10" },
+					},
+				});
+				const output = await seedBoundOutputAsset(seeded.jobId, "QUARANTINED", 60_000, provider);
+				const before = await client.mediaAsset.findUniqueOrThrow({
+					where: { id: output.assetId },
+					include: { moderationResults: true },
+				});
+				vi.stubEnv("MEDIA_SAFETY_ADAPTER", "configured");
+				vi.stubEnv("MODERATION_IMAGE_SEEAPI_ENABLED", "true");
+				try {
+					await settleGeneration(
+						{ jobId: seeded.jobId, version: seeded.version },
+						{ store: createDatabaseSettlementStore(client) },
+					);
+					expect(
+						await client.creditReservation.findUniqueOrThrow({
+							where: { id: seeded.reservationId },
+						}),
+					).toMatchObject({ status: "SETTLED", settledAmount: chargeCredits });
+					if (chargeCredits === 0n) graceJobId = seeded.jobId;
+					expect(
+						await client.creditAccount.findUniqueOrThrow({ where: { id: seeded.accountId } }),
+					).toMatchObject({ outputModerationGraceJobId: graceJobId });
+					expect(
+						await client.mediaAsset.findUniqueOrThrow({
+							where: { id: output.assetId },
+							include: { moderationResults: true },
+						}),
+					).toEqual(before);
+				} finally {
+					vi.unstubAllEnvs();
+				}
+			}
+		},
+	);
 
 	it("does not zero-settle a legacy-quarantined output before mandatory reverification", async () => {
 		const seeded = await seedFinalizingJob();
@@ -3959,8 +4034,9 @@ async function replaceFinalizationOutputs(
 
 async function seedBoundOutputAsset(
 	jobId: string,
-	status: "VERIFYING" | "READY",
+	status: "VERIFYING" | "READY" | "QUARANTINED",
 	validForMs = 60_000,
+	provider = "test",
 ) {
 	const job = await client.generationJob.findUniqueOrThrow({ where: { id: jobId } });
 	const suffix = crypto.randomUUID();
@@ -3981,14 +4057,14 @@ async function seedBoundOutputAsset(
 			checksum,
 			finalizedAt: new Date(),
 			verificationGeneration: 1,
-			verificationAttemptCount: status === "READY" ? 1 : 0,
-			verificationProvider: status === "READY" ? "test" : null,
-			verificationRuleVersion: status === "READY" ? MEDIA_VERIFICATION_RULE_VERSION : null,
-			verificationPolicyVersion: status === "READY" ? MEDIA_VERIFICATION_POLICY_VERSION : null,
+			verificationAttemptCount: status !== "VERIFYING" ? 1 : 0,
+			verificationProvider: status !== "VERIFYING" ? provider : null,
+			verificationRuleVersion: status !== "VERIFYING" ? MEDIA_VERIFICATION_RULE_VERSION : null,
+			verificationPolicyVersion: status !== "VERIFYING" ? MEDIA_VERIFICATION_POLICY_VERSION : null,
 			verificationValidUntil: status === "READY" ? verificationValidUntil : null,
 		},
 	});
-	if (status === "READY") {
+	if (status !== "VERIFYING") {
 		await client.assetModerationResult.create({
 			data: {
 				assetId: asset.id,
@@ -3996,17 +4072,17 @@ async function seedBoundOutputAsset(
 				verificationGeneration: 1,
 				attemptNumber: 1,
 				evidenceKind: "OUTPUT",
-				provider: "test",
+				provider,
 				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
 				policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
-				status: "APPROVED",
-				reasonCode: "TEST_ALLOW",
+				status: status === "READY" ? "APPROVED" : "REJECTED",
+				reasonCode: status === "READY" ? "TEST_ALLOW" : "SEXUAL_CONTENT",
 				categories: {},
-				rawEnvelope: { decision: "ALLOW" },
-				validUntil: verificationValidUntil,
+				rawEnvelope: { decision: status === "READY" ? "ALLOW" : "REJECT" },
+				validUntil: status === "READY" ? verificationValidUntil : null,
 			},
 		});
-		await client.mediaAsset.update({ where: { id: asset.id }, data: { status: "READY" } });
+		await client.mediaAsset.update({ where: { id: asset.id }, data: { status } });
 	}
 	await client.generationJobAsset.create({
 		data: { jobId, assetId: asset.id, assetChecksum: checksum, role: "OUTPUT" },
@@ -4221,7 +4297,11 @@ function assertSafeTestDatabaseUrl(value: string | undefined): void {
 	const safeDatabase =
 		parsed.pathname === "/ai_media_foundation_test" ||
 		/^\/ezpic_[a-z0-9_]+_test(?:ing)?$/.test(parsed.pathname);
-	if (parsed.hostname !== "127.0.0.1" || parsed.port !== "55432" || !safeDatabase) {
+	if (
+		parsed.hostname !== "127.0.0.1" ||
+		(parsed.port !== "55432" && !isExplicitVideoVerificationTarget(parsed)) ||
+		!safeDatabase
+	) {
 		throw new Error(
 			"TEST_DATABASE_URL must target 127.0.0.1:55432/ai_media_foundation_test or a dedicated ezpic_*_test database",
 		);

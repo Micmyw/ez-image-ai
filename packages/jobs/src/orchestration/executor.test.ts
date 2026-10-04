@@ -53,6 +53,9 @@ const mocks = vi.hoisted(() => {
 		findAssets: vi.fn(),
 		findAsset: vi.fn(),
 		continuation: vi.fn(async () => ({ eventIds: [] as string[] })),
+		findJob: vi.fn(),
+		findAttempt: vi.fn(),
+		findProviderEvent: vi.fn(),
 		resolveDispatchRoute: vi.fn(),
 		reconciliationStore,
 		finalizationStore,
@@ -84,7 +87,12 @@ vi.mock("../runtime", () => ({
 }));
 vi.mock("./client", () => ({ dispatchJob: mocks.dispatch }));
 vi.mock("@repo/database/client", () => ({
-	db: { mediaAsset: { findMany: mocks.findAssets, findUnique: mocks.findAsset } },
+	db: {
+		mediaAsset: { findMany: mocks.findAssets, findUnique: mocks.findAsset },
+		generationJob: { findUnique: mocks.findJob },
+		generationAttempt: { findUnique: mocks.findAttempt, findFirst: mocks.findAttempt },
+		providerWebhookEvent: { findUnique: mocks.findProviderEvent },
+	},
 }));
 vi.mock("@repo/database", () => ({
 	expireGenerationDrafts: vi.fn(),
@@ -143,6 +151,9 @@ beforeEach(() => {
 	mocks.outboxStore.release.mockResolvedValue(undefined);
 	mocks.dispatchStore.claimDispatch.mockResolvedValue(null);
 	mocks.findAsset.mockResolvedValue(null);
+	mocks.findJob.mockResolvedValue(null);
+	mocks.findAttempt.mockResolvedValue(null);
+	mocks.findProviderEvent.mockResolvedValue(null);
 });
 
 describe("Node task executor", () => {
@@ -198,6 +209,96 @@ describe("Node task executor", () => {
 			},
 		]);
 	});
+	it.each([
+		"media-cancel-generation",
+		"media-finalize-generation",
+		"media-settle-generation",
+		STATIC_DISPATCH_ROUTE_MANIFEST[0]!.taskId,
+	])("refuses video ownership before any side effect through %s", async (taskId) => {
+		mocks.findJob.mockResolvedValue({ executionEngine: "video-workflow-v1" });
+		await expect(
+			executeTask({ taskId, payload: { jobId: "video-1", version: 0 } }, context),
+		).resolves.toMatchObject({ outcome: "NOT_MANAGED", executionEngine: "video-workflow-v1" });
+		expect(mocks.runtime.createProviderRegistry).not.toHaveBeenCalled();
+		expect(mocks.runtime.createFinalizationDependencies).not.toHaveBeenCalled();
+		expect(mocks.dispatchStore.claimDispatch).not.toHaveBeenCalled();
+		expect(mocks.cancel).not.toHaveBeenCalled();
+		expect(mocks.dispatch).not.toHaveBeenCalled();
+	});
+	it.each(["media-verify-upload", "media-delete-object"])(
+		"refuses video assets through %s",
+		async (taskId) => {
+			mocks.findAsset.mockResolvedValue({ verificationEngine: "video-workflow-v1" });
+			await expect(
+				executeTask(
+					{
+						taskId,
+						payload: {
+							assetId: "video-asset",
+							...(taskId === "media-delete-object" ? { objectKey: "private/video" } : {}),
+						},
+					},
+					context,
+				),
+			).resolves.toMatchObject({ outcome: "NOT_MANAGED" });
+			expect(mocks.verify).not.toHaveBeenCalled();
+			expect(mocks.cleanup).not.toHaveBeenCalled();
+		},
+	);
+	it("does not send a foreign attempt to legacy polling or a callback provider registry", async () => {
+		mocks.findAttempt.mockResolvedValue({ job: { executionEngine: "video-workflow-v1" } });
+		mocks.findProviderEvent.mockResolvedValue({ provider: "kie", providerTaskId: "task-1" });
+		for (const request of [
+			{ taskId: "media-poll-generation", payload: { attemptId: "attempt-1" } },
+			{ taskId: "media-process-provider-webhook", payload: { providerWebhookEventId: "event-1" } },
+		]) {
+			await expect(executeTask(request, context)).resolves.toMatchObject({
+				outcome: "NOT_MANAGED",
+			});
+		}
+		expect(mocks.runtime.createProviderRegistry).not.toHaveBeenCalled();
+		expect(mocks.reconciliationStore.claimStale).not.toHaveBeenCalled();
+	});
+	it.each([
+		{ provider: "kie-video-v1", providerEventId: "callback" },
+		{ provider: "kie", providerEventId: "video-v1:callback" },
+	])("refuses the video callback namespace even before attempt matching: %j", async (identity) => {
+		mocks.findProviderEvent.mockResolvedValue({ ...identity, providerTaskId: null });
+		await expect(
+			executeTask(
+				{
+					taskId: "media-process-provider-webhook",
+					payload: { providerWebhookEventId: "video-event" },
+				},
+				context,
+			),
+		).resolves.toMatchObject({ outcome: "NOT_MANAGED" });
+		expect(mocks.runtime.createProviderRegistry).not.toHaveBeenCalled();
+	});
+	it("fails closed for an unknown future engine", async () => {
+		mocks.findJob.mockResolvedValue({ executionEngine: "video-workflow-v2" });
+		await expect(
+			executeTask(
+				{
+					taskId: "media-settle-generation",
+					payload: { jobId: "future-job", version: 0 },
+				},
+				context,
+			),
+		).resolves.toMatchObject({ outcome: "NOT_MANAGED", executionEngine: "video-workflow-v2" });
+	});
+	it("does not dispatch a stale legacy Outbox event for a video job", async () => {
+		mocks.findJob.mockResolvedValue({ executionEngine: "video-workflow-v1" });
+		mocks.outboxStore.claimBatch.mockResolvedValue([
+			event({
+				eventType: "GENERATION_SETTLE",
+				aggregateId: "video-1",
+				payload: { version: 0 },
+			}),
+		]);
+		await executeTask({ taskId: "media-deliver-outbox", payload: {} }, context);
+		expect(mocks.dispatch).not.toHaveBeenCalled();
+	});
 	it.each([true, false])(
 		"returns the committed Outbox signal %s rather than inferring it from READY",
 		async (outboxCommitted) => {
@@ -211,7 +312,7 @@ describe("Node task executor", () => {
 			).toEqual({ done: true, waitSeconds: 0, outboxCommitted, continuation: { eventIds: [] } });
 		},
 	);
-	it("does not duplicate the execution boundary start log or add a timing database operation", async () => {
+	it("checks execution ownership without duplicating the execution boundary start log", async () => {
 		const info = vi.spyOn(console, "info").mockImplementation(() => undefined);
 		const now = new Date("2026-09-29T00:00:05Z");
 		try {
@@ -225,7 +326,11 @@ describe("Node task executor", () => {
 				{ now: () => now },
 			);
 			expect(info).not.toHaveBeenCalled();
-			expect(mocks.findAsset).toHaveBeenCalledOnce();
+			expect(mocks.findAsset).toHaveBeenCalledTimes(2);
+			expect(mocks.findAsset).toHaveBeenNthCalledWith(1, {
+				where: { id: "asset-1" },
+				select: { verificationEngine: true },
+			});
 		} finally {
 			info.mockRestore();
 		}
@@ -686,6 +791,22 @@ describe("Node task executor", () => {
 			now: new Date(timestamp),
 		});
 	});
+	it("finishes the verification workflow for a retired moderation hold", async () => {
+		mocks.findAsset.mockResolvedValue({
+			verificationEngine: "legacy",
+			status: "VERIFYING",
+			deletedAt: null,
+			verificationNextAttemptAt: null,
+			verificationLeasedUntil: null,
+			verificationLastErrorCode: "MODERATION_PROVIDER_RETIRED",
+		});
+		expect(
+			await executeTask(
+				{ taskId: "media-verify-upload", payload: { assetId: "retired" } },
+				context,
+			),
+		).toMatchObject({ done: true, waitSeconds: 0 });
+	});
 
 	it("passes an explicit unlimited budget through scheduled safety monitoring", async () => {
 		const timestamp = Date.UTC(2026, 8, 21, 12, 0);
@@ -745,7 +866,10 @@ describe("Node task executor", () => {
 		mocks.dispatch.mockRejectedValueOnce(new Error("temporary admission failure"));
 		expect(
 			await executeTask({ taskId: "media-recover-verifications", payload: {} }, context, {
-				environment: { MEDIA_SAFETY_ADAPTER: "sightengine" },
+				environment: {
+					MEDIA_SAFETY_ADAPTER: "configured",
+					MODERATION_IMAGE_SEEAPI_ENABLED: "true",
+				},
 			}),
 		).toEqual({ recovered: 1 });
 		expect(mocks.findAssets).toHaveBeenCalledWith(
@@ -771,7 +895,7 @@ describe("Node task executor", () => {
 							status: "READY",
 							OR: [
 								{ verificationValidUntil: { lte: expect.any(Date) } },
-								{ verificationProvider: { not: "sightengine" } },
+								{ verificationProvider: { not: "seeapi" } },
 								{ verificationRuleVersion: { not: MEDIA_VERIFICATION_RULE_VERSION } },
 								{ verificationPolicyVersion: { not: MEDIA_VERIFICATION_POLICY_VERSION } },
 							],

@@ -2,6 +2,12 @@ import { isLocale } from "@repo/i18n";
 import { type NextRequest, NextResponse } from "next/server";
 
 export function proxy(request: NextRequest) {
+	if (/^\/video(?:\/|$)/.test(request.nextUrl.pathname)) {
+		// Authenticated workspace routes keep account locale-cookie behavior.
+		const response = NextResponse.next();
+		response.headers.set("X-Robots-Tag", "noindex, nofollow");
+		return response;
+	}
 	// Legacy recipe routes resolve through Blog publication checks in their handler.
 	const headers = new Headers(request.headers);
 	// Bare public URLs stay English. Explicit language views retain the canonical
@@ -27,6 +33,7 @@ export const config = {
 	matcher: [
 		"/",
 		"/create",
+		"/video/:path*",
 		"/examples",
 		"/effects/:path*",
 		"/effects-preview/:path*",

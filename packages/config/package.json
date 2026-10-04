@@ -8,6 +8,13 @@
 		"./client": "./client.ts",
 		"./content-safety": "./content-safety.ts",
 		"./photo-ideas": "./photo-ideas.ts",
+		"./video-v1": "./video-v1.ts",
+		"./video-models": "./video-models.ts",
+		"./video-output": "./video-output.ts",
+		"./video-safety": "./video-safety.ts",
+		"./video-text-safety": "./video-text-safety.ts",
+		"./video-seeapi-callback": "./video-seeapi-callback.ts",
+		"./video-pricing.server": "./video-pricing.server.ts",
 		"./server": "./server.ts"
 	},
 	"scripts": {

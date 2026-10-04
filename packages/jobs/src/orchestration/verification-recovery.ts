@@ -14,7 +14,17 @@ export async function listVerificationRecoveryCandidates(
 	const { now, limit } = input;
 	const assets = await database.mediaAsset.findMany({
 		where: {
+			verificationEngine: "legacy",
 			deletedAt: null,
+			// Retired attempts and completed historical approvals are not re-routed to SeeAPI.
+			AND: [
+				{
+					OR: [
+						{ verificationProvider: null },
+						{ verificationProvider: { not: { contains: "sightengine" } } },
+					],
+				},
+			],
 			NOT: {
 				kind: "OUTPUT",
 				OR: [

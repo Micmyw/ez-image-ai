@@ -1,5 +1,6 @@
 import { createCreditGrant, refundCreditGrant, runSerializable, type Prisma } from "@repo/database";
 
+import { lockRefundFundingAccount } from "../refund-funding-lock";
 import {
 	calculateCumulativeCreditRefund,
 	createAnnualBillingPeriods,
@@ -324,6 +325,7 @@ async function applyRefundFact(
 		firstPeriod.subscription.ownerId,
 		client,
 	);
+	await lockRefundFundingAccount(account.id, client);
 
 	for (const period of periods) {
 		if (creditsToRefund <= 0n) break;

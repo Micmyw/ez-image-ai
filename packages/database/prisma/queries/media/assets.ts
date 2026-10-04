@@ -39,10 +39,18 @@ export type MediaAssetReadRecord = Prisma.MediaAssetGetPayload<{
 }>;
 
 export interface MediaAssetVerificationBoundary {
+	verificationEngine?: "legacy" | "video-workflow-v1";
 	provider: string;
 	ruleVersion: string;
 	policyVersion: string;
 	now: Date;
+}
+
+const HISTORICAL_IMAGE_PROVIDERS = ["sightengine", "seeapi+sightengine", "sightengine+seeapi"];
+
+/** Identity only: callers must still validate the immutable completed evidence. */
+export function isHistoricalImageModerationProvider(provider: string | null): boolean {
+	return HISTORICAL_IMAGE_PROVIDERS.includes(provider ?? "");
 }
 
 export function hasCurrentApprovedMediaAssetEvidence(
@@ -51,6 +59,7 @@ export function hasCurrentApprovedMediaAssetEvidence(
 		| "status"
 		| "deletedAt"
 		| "kind"
+		| "mimeType"
 		| "checksum"
 		| "verificationGeneration"
 		| "verificationAttemptCount"
@@ -60,6 +69,7 @@ export function hasCurrentApprovedMediaAssetEvidence(
 		| "verificationPolicyVersion"
 		| "verificationValidUntil"
 	> & {
+		verificationEngine?: string;
 		moderationResults: Array<
 			Pick<
 				MediaAssetReadRecord["moderationResults"][number],
@@ -79,13 +89,24 @@ export function hasCurrentApprovedMediaAssetEvidence(
 	},
 	verification: MediaAssetVerificationBoundary,
 ): boolean {
+	const evidence = asset.moderationResults[0];
+	// Retiring a provider does not erase an already completed approval. This
+	// compatibility only changes the selector comparison; exact content, rule,
+	// policy, lifetime, generation and latest APPROVED evidence remain mandatory.
+	const historicalApproval =
+		verification.provider === "seeapi" &&
+		(asset.verificationEngine ?? "legacy") === "legacy" &&
+		asset.mimeType.startsWith("image/") &&
+		isHistoricalImageModerationProvider(asset.verificationProvider) &&
+		evidence?.status === "APPROVED";
 	if (
+		(asset.verificationEngine ?? "legacy") !== (verification.verificationEngine ?? "legacy") ||
 		asset.status !== "READY" ||
 		asset.deletedAt !== null ||
 		!asset.checksum ||
 		!/^[a-f0-9]{64}$/i.test(asset.checksum) ||
 		asset.verificationAttemptCount < 1 ||
-		asset.verificationProvider !== verification.provider ||
+		(asset.verificationProvider !== verification.provider && !historicalApproval) ||
 		asset.verificationRuleVersion !== verification.ruleVersion ||
 		asset.verificationPolicyVersion !== verification.policyVersion ||
 		asset.verificationValidUntil === null ||
@@ -94,7 +115,6 @@ export function hasCurrentApprovedMediaAssetEvidence(
 		return false;
 	}
 
-	const evidence = asset.moderationResults[0];
 	return (
 		isPermittedModerationEvidence(evidence) &&
 		evidence.assetChecksum === asset.checksum &&
@@ -171,6 +191,7 @@ export async function listMediaAssets(input: CursorPageInput, client?: MediaData
 		where: {
 			ownerType: input.ownerType,
 			ownerId: input.ownerId,
+			verificationEngine: "legacy",
 			status: "READY",
 			deletedAt: null,
 			...(input.cursor
@@ -206,19 +227,26 @@ export async function listReadableMediaAssets(
 			where: {
 				ownerType: input.ownerType,
 				ownerId: input.ownerId,
+				verificationEngine: input.verification.verificationEngine ?? "legacy",
 				status: "READY",
 				deletedAt: null,
 				checksum: { not: null },
 				verificationAttemptCount: { gt: 0 },
-				verificationProvider: input.verification.provider,
+				verificationProvider:
+					input.verification.provider === "seeapi"
+						? { in: ["seeapi", ...HISTORICAL_IMAGE_PROVIDERS] }
+						: input.verification.provider,
 				verificationRuleVersion: input.verification.ruleVersion,
 				verificationPolicyVersion: input.verification.policyVersion,
 				verificationValidUntil: { gt: input.verification.now },
 				AND: [{ OR: [{ deleteAfter: null }, { deleteAfter: { gt: input.verification.now } }] }],
 				moderationResults: {
 					some: {
-						status: { in: ["APPROVED", "BYPASSED"] },
-						provider: input.verification.provider,
+						status: "APPROVED",
+						provider:
+							input.verification.provider === "seeapi"
+								? { in: ["seeapi", ...HISTORICAL_IMAGE_PROVIDERS] }
+								: input.verification.provider,
 						ruleVersion: input.verification.ruleVersion,
 						policyVersion: input.verification.policyVersion,
 						validUntil: { gt: input.verification.now },
@@ -264,6 +292,8 @@ export async function createUploadSession(
 }
 
 export interface CreateMediaUploadSessionTransactionInput {
+	reservedBytes?: bigint;
+	verificationEngine?: "legacy" | "video-workflow-v1";
 	assetId: string;
 	sessionId: string;
 	ownerType: "USER";
@@ -294,6 +324,9 @@ export async function createMediaUploadSessionTransaction(
 ) {
 	if (input.ownerType !== "USER") throw new Error("First-release writes support USER owners only");
 	if (input.expectedBytes <= BigInt(0)) throw new Error("Expected upload bytes must be positive");
+	const reservedBytes = input.reservedBytes ?? input.expectedBytes;
+	if (reservedBytes < input.expectedBytes)
+		throw new Error("Reserved upload bytes must cover expected bytes");
 	if (!input.stagingObjectKey || input.stagingObjectKey === input.objectKey) {
 		throw new Error("Staging upload key must differ from final asset key");
 	}
@@ -323,12 +356,13 @@ export async function createMediaUploadSessionTransaction(
 		if (activeSessions >= input.limits.maximumActiveSessions) {
 			throw new Error("ACTIVE_UPLOAD_SESSION_LIMIT_EXCEEDED");
 		}
-		if ((reserved._sum.bytes ?? 0n) + input.expectedBytes > input.limits.maximumReservedBytes) {
+		if ((reserved._sum.bytes ?? 0n) + reservedBytes > input.limits.maximumReservedBytes) {
 			throw new Error("STORAGE_QUOTA_EXCEEDED");
 		}
 		const asset = await tx.mediaAsset.create({
 			data: {
 				id: input.assetId,
+				verificationEngine: input.verificationEngine ?? "legacy",
 				ownerType: input.ownerType,
 				ownerId: input.ownerId,
 				kind: input.kind,
@@ -363,7 +397,7 @@ export async function createMediaUploadSessionTransaction(
 			data: {
 				ownerType: input.ownerType,
 				ownerId: input.ownerId,
-				bytes: input.expectedBytes,
+				bytes: reservedBytes,
 				referenceKey: `media-upload:${input.sessionId}`,
 				expiresAt: input.expiresAt,
 			},
@@ -901,15 +935,17 @@ export async function completeMediaUploadSessionTransaction(
 			where: { referenceKey: `media-upload:${session.id}`, status: "ACTIVE" },
 			data: { status: "COMMITTED" },
 		});
-		await tx.outboxEvent.create({
-			data: {
-				eventType: "MEDIA_ASSET_VERIFY",
-				aggregateType: "MEDIA_ASSET",
-				aggregateId: asset.id,
-				dedupeKey: `media-asset-verify:${asset.id}`,
-				payload: { assetId: asset.id, ownerType: "USER", ownerId: input.ownerId },
-			},
-		});
+		if (asset.verificationEngine === "legacy") {
+			await tx.outboxEvent.create({
+				data: {
+					eventType: "MEDIA_ASSET_VERIFY",
+					aggregateType: "MEDIA_ASSET",
+					aggregateId: asset.id,
+					dedupeKey: `media-asset-verify:${asset.id}`,
+					payload: { assetId: asset.id, ownerType: "USER", ownerId: input.ownerId },
+				},
+			});
+		}
 		await queueStagingCleanup(
 			session,
 			"DELETE_OBJECT",
@@ -987,6 +1023,7 @@ export async function expirePendingMediaUploadSessions(
 ): Promise<number> {
 	const due = await client.mediaUploadSession.findMany({
 		where: {
+			asset: { verificationEngine: "legacy" },
 			OR: [
 				{ status: "PENDING", expiresAt: { lte: input.now } },
 				{ status: "FINALIZING", finalizationLeaseExpiresAt: { lte: input.now } },
@@ -1313,6 +1350,7 @@ export async function createGenerationOutputAssetBindingTransaction(
 		const job = await tx.generationJob.findFirst({
 			where: {
 				id: input.jobId,
+				executionEngine: "legacy",
 				ownerType: "USER",
 				ownerId: input.asset.ownerId,
 				status: "FINALIZING",
@@ -1437,6 +1475,7 @@ export async function claimGenerationOutputTransferTransaction(
 		const job = await tx.generationJob.findFirst({
 			where: {
 				id: input.jobId,
+				executionEngine: "legacy",
 				ownerType: "USER",
 				ownerId: input.ownerId,
 				status: "FINALIZING",
@@ -1584,7 +1623,12 @@ export async function recordGenerationOutputPromotionMultipartTransaction(
 	return runSerializable(client, async (tx) => {
 		await lockMediaAssetGenerationBindings([input.assetId], tx);
 		const asset = await tx.mediaAsset.findFirst({
-			where: { id: input.assetId, ownerType: "USER", ownerId: input.ownerId },
+			where: {
+				verificationEngine: "legacy",
+				id: input.assetId,
+				ownerType: "USER",
+				ownerId: input.ownerId,
+			},
 		});
 		if (!asset) throw new Error("Generation output asset not found for owner");
 		const now = input.now ?? (await getDatabaseNow(tx));
@@ -1642,7 +1686,12 @@ export async function reserveGenerationOutputStorageTransaction(
 		await lockOwnerStorageUsage({ ownerType: "USER", ownerId: input.ownerId }, tx);
 		await lockMediaAssetGenerationBindings([input.assetId], tx);
 		const asset = await tx.mediaAsset.findFirst({
-			where: { id: input.assetId, ownerType: "USER", ownerId: input.ownerId },
+			where: {
+				verificationEngine: "legacy",
+				id: input.assetId,
+				ownerType: "USER",
+				ownerId: input.ownerId,
+			},
 		});
 		if (!asset) throw new Error("Generation output asset not found for owner");
 		const now = input.now ?? (await getDatabaseNow(tx));
@@ -1730,7 +1779,12 @@ export async function completeGenerationOutputTransferTransaction(
 		await lockOwnerStorageUsage({ ownerType: "USER", ownerId: input.ownerId }, tx);
 		await lockMediaAssetGenerationBindings([input.assetId], tx);
 		const asset = await tx.mediaAsset.findFirst({
-			where: { id: input.assetId, ownerType: "USER", ownerId: input.ownerId },
+			where: {
+				verificationEngine: "legacy",
+				id: input.assetId,
+				ownerType: "USER",
+				ownerId: input.ownerId,
+			},
 		});
 		if (!asset) throw new Error("Generation output asset not found for owner");
 		const now = input.now ?? (await getDatabaseNow(tx));
@@ -1860,7 +1914,12 @@ export async function failGenerationOutputTransferTransaction(
 	return runSerializable(client, async (tx) => {
 		await lockMediaAssetGenerationBindings([input.assetId], tx);
 		const asset = await tx.mediaAsset.findFirst({
-			where: { id: input.assetId, ownerType: "USER", ownerId: input.ownerId },
+			where: {
+				verificationEngine: "legacy",
+				id: input.assetId,
+				ownerType: "USER",
+				ownerId: input.ownerId,
+			},
 		});
 		if (!asset) throw new Error("Generation output asset not found for owner");
 		const failedAt = input.now ?? (await getDatabaseNow(tx));
@@ -2205,7 +2264,7 @@ export async function recordAssetModeration(
 	}
 	for (let appendAttempt = 1; appendAttempt <= 8; appendAttempt += 1) {
 		const asset = await database.mediaAsset.findUniqueOrThrow({
-			where: { id: input.assetId },
+			where: { id: input.assetId, verificationEngine: "legacy" },
 			select: {
 				id: true,
 				kind: true,

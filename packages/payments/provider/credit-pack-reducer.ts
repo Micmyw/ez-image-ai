@@ -11,6 +11,7 @@ import {
 } from "@repo/database";
 
 import type { CreditPackPaymentFact, CreditPackRefundFact } from "./lifecycle-normalization";
+import { lockRefundFundingAccount } from "./refund-funding-lock";
 
 type TransactionClient = Prisma.TransactionClient;
 
@@ -288,16 +289,17 @@ export async function applyCreditPackRefundFact(
 	}
 	const creditDelta = targetCredits - fulfillment.refundedCredits;
 	const refundReferenceKey = `credit-pack-adjustment:${adjustment.id}:refund:v1`;
-	if (creditDelta > 0n) {
-		const account = await client.creditAccount.findUnique({
-			where: {
-				ownerType_ownerId: {
-					ownerType: fulfillment.ownerType,
-					ownerId: fulfillment.ownerId,
-				},
+	const account = await client.creditAccount.findUnique({
+		where: {
+			ownerType_ownerId: {
+				ownerType: fulfillment.ownerType,
+				ownerId: fulfillment.ownerId,
 			},
-		});
-		if (!account) throw new Error("CREDIT_PACK_CREDIT_ACCOUNT_MISSING");
+		},
+	});
+	if (!account) throw new Error("CREDIT_PACK_CREDIT_ACCOUNT_MISSING");
+	await lockRefundFundingAccount(account.id, client);
+	if (creditDelta > 0n) {
 		await refundCreditGrant(
 			{
 				accountId: account.id,

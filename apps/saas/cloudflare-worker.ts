@@ -3,6 +3,8 @@ import {
 	createRuntimeDatabaseClient,
 	runWithDatabaseClient,
 } from "@repo/database/client";
+import type { VideoWorkflowBinding } from "@repo/jobs/video-v1/contracts";
+import { runWithVideoWorkflowBinding } from "@repo/jobs/video-v1/workflow-binding";
 import {
 	createCloudflareImagesProcessor,
 	type CloudflareImagesBinding,
@@ -20,6 +22,9 @@ interface WebsiteWorkerEnvironment {
 	PAYMENT_WEBHOOK_INGRESS_ORIGIN?: string;
 	HYPERDRIVE: { connectionString: string };
 	IMAGES: CloudflareImagesBinding;
+	VIDEO_WORKFLOW?: VideoWorkflowBinding;
+	VIDEO_MEDIA_BUCKET?: unknown;
+	VIDEO_V1_UPLOAD_CORS_READY?: string;
 }
 
 const openNextWorker = generatedWorker as {
@@ -56,7 +61,17 @@ export default {
 					{
 						run: (callback) =>
 							runWithDatabaseClient(client, () =>
-								runWithImageProcessor(processor, () => runWithCloudflareRemoteMedia(callback)),
+								runWithImageProcessor(processor, () =>
+									runWithCloudflareRemoteMedia(() =>
+										environment.VIDEO_WORKFLOW
+											? runWithVideoWorkflowBinding(environment.VIDEO_WORKFLOW, callback, {
+													r2: Boolean(environment.VIDEO_MEDIA_BUCKET),
+													hyperdrive: Boolean(environment.HYPERDRIVE?.connectionString),
+													uploadCors: environment.VIDEO_V1_UPLOAD_CORS_READY === "true",
+												})
+											: callback(),
+									),
+								),
 							),
 						dispose: () => client.$disconnect(),
 					},

@@ -11,12 +11,13 @@ describe("organization slug boundary", () => {
 		expect(isForbiddenOrganizationSlug("models")).toBe(true);
 		expect(isForbiddenOrganizationSlug(" MODELS ")).toBe(true);
 		expect(isForbiddenOrganizationSlug("docs")).toBe(true);
+		expect(isForbiddenOrganizationSlug("video")).toBe(true);
 		expect(isForbiddenOrganizationSlug(" DOCS ")).toBe(true);
 		expect(isForbiddenOrganizationSlug("admin")).toBe(true);
 		expect(isForbiddenOrganizationSlug("design-team")).toBe(false);
 	});
 
-	it.each(["docs", "models"])(
+	it.each(["docs", "models", "video"])(
 		"rejects direct organization creation for the %s slug",
 		async (slug) => {
 			const validation = validateOrganizationSlugBeforeCreate({

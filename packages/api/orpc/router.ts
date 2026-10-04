@@ -7,6 +7,7 @@ import { notificationsRouter } from "../modules/notifications/router";
 import { organizationsRouter } from "../modules/organizations/router";
 import { paymentsRouter } from "../modules/payments/router";
 import { usersRouter } from "../modules/users/router";
+import { videoV1Router } from "../modules/video-v1/router";
 import { publicProcedure } from "./procedures";
 
 export const router = publicProcedure.router({
@@ -17,6 +18,7 @@ export const router = publicProcedure.router({
 	ai: aiRouter,
 	notifications: notificationsRouter,
 	media: mediaRouter,
+	videoV1: videoV1Router,
 });
 
 export type ApiRouterClient = RouterClient<typeof router>;

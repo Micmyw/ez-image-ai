@@ -69,6 +69,7 @@ import {
 } from "../runtime";
 import { dispatchJob } from "./client";
 import type { TaskExecutionContext, TaskRequest } from "./contracts";
+import { unmanagedLegacyTask } from "./legacy-task-ownership";
 import { executePollingTick } from "./polling";
 import {
 	dispatchRouteForTask,
@@ -103,6 +104,8 @@ export async function executeTask(
 	) {
 		throw new Error("INVALID_TASK_EXECUTION_CONTEXT");
 	}
+	const unmanaged = await unmanagedLegacyTask(db, payload);
+	if (unmanaged) return unmanaged;
 	const dispatch = dependencies.dispatch ?? dispatchJob;
 	const environment = dependencies.environment ?? process.env;
 	const now = dependencies.now ?? (() => new Date());
@@ -173,12 +176,14 @@ export async function executeTask(
 					deliver: (event) =>
 						deliverOutboxEvent(event, {
 							deliverModerationAlert: deliverModerationIncidentNotification,
-							trigger: (childTaskId, childPayload) =>
-								dispatch(childTaskId, childPayload, {
+							trigger: async (childTaskId, childPayload) => {
+								if (await unmanagedLegacyTask(db, childPayload)) return;
+								await dispatch(childTaskId, childPayload, {
 									idempotencyKey: `outbox:${event.id}:attempt:${event.attempts}:${childTaskId}`,
 									requireCompletion: true,
 									...outboxTaskTrace(event),
-								}),
+								});
+							},
 							// Cleanup, cancellation, and guest admission must finish before ACK.
 							// Inline execution retains the parent's admitted slot and avoids
 							// reacquiring the same single-slot executor while awaiting a child.
@@ -276,8 +281,11 @@ export async function executeTask(
 					deletedAt: true,
 					verificationNextAttemptAt: true,
 					verificationLeasedUntil: true,
+					verificationLastErrorCode: true,
 				},
 			});
+			if (asset?.verificationLastErrorCode === "MODERATION_PROVIDER_RETIRED")
+				return { done: true, waitSeconds: 0, ...signal };
 			if (!asset || asset.deletedAt || asset.status !== "VERIFYING")
 				return {
 					done: true,

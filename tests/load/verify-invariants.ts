@@ -2,6 +2,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@repo/database/generated-client";
 
 import { assertSafeDatabaseUrl } from "./assert-safe-target";
+import { countSeeapiVideoHandoffViolations } from "./video-seeapi-handoff-invariant";
 
 interface CheckResult {
 	name: string;
@@ -26,6 +27,7 @@ async function verifyInvariants(): Promise<void> {
 			checkAccountBalances(),
 			checkGenerationOutbox(),
 			checkWebhookOutbox(),
+			checkSeeapiVideoHandoff(),
 			checkQueueLatency(),
 		]);
 		for (const check of checks) {
@@ -115,25 +117,51 @@ async function checkGenerationOutbox(): Promise<CheckResult> {
 	const rows = await client.$queryRaw<Array<{ count: bigint }>>`
 		SELECT count(*)::bigint AS count
 		FROM "generation_job" job
-		WHERE job."idempotencyKey" LIKE ${`${jobPrefix}%`}
-		  AND NOT EXISTS (
-			SELECT 1 FROM "outbox_event" event
-			WHERE event."aggregateId" = job."id"
-			  AND event."eventType" IN ('JOB_CREATED', 'GENERATION_DISPATCH')
+		WHERE (job."idempotencyKey" LIKE ${`${jobPrefix}%`} OR job."executionEngine" = 'video-workflow-v1')
+		  AND (
+			(job."executionEngine" = 'legacy' AND NOT EXISTS (
+				SELECT 1 FROM "outbox_event" event
+				WHERE event."aggregateId" = job."id"
+				  AND event."eventType" IN ('JOB_CREATED', 'GENERATION_DISPATCH')
+			)) OR
+			(job."executionEngine" = 'video-workflow-v1' AND NOT EXISTS (
+				SELECT 1 FROM "video_execution" execution
+				WHERE execution."jobId" = job."id"
+				  AND execution."workflowInstanceId" = 'video-v1-' || job."id"
+				  AND execution."workflowSchemaVersion" = 1
+				  AND execution."startState" IN ('PENDING', 'STARTED', 'FAILED')
+			))
 		)`;
-	return countResult("every generation has an initial outbox event", rows);
+	return countResult("every generation has its owning engine durable start intent", rows);
 }
 
 async function checkWebhookOutbox(): Promise<CheckResult> {
 	const rows = await client.$queryRaw<Array<{ count: bigint }>>`
 		SELECT count(*)::bigint AS count
 		FROM "provider_webhook_event" webhook
-		WHERE webhook."providerEventId" LIKE ${`${jobPrefix}%`}
-		  AND NOT EXISTS (
-			SELECT 1 FROM "outbox_event" event
-			WHERE event."dedupeKey" = concat('provider-event:', webhook."provider", ':', webhook."providerEventId")
+		WHERE (webhook."providerEventId" LIKE ${`${jobPrefix}%`} OR webhook."provider" IN ('kie-video-v1', 'sightengine-video-v1'))
+		  AND webhook."provider" <> 'seeapi-video-v1'
+		  AND (
+			(webhook."provider" NOT IN ('kie-video-v1', 'sightengine-video-v1') AND NOT EXISTS (
+				SELECT 1 FROM "outbox_event" event
+				WHERE event."dedupeKey" = concat('provider-event:', webhook."provider", ':', webhook."providerEventId")
+			)) OR
+			(webhook."provider" IN ('kie-video-v1', 'sightengine-video-v1') AND (
+				webhook."providerEventId" NOT LIKE 'video-v1:%'
+				OR webhook."providerTaskId" IS NULL
+				OR webhook."envelope"->>'executionEngine' IS DISTINCT FROM 'video-workflow-v1'
+				OR webhook."envelope"->>'taskId' IS DISTINCT FROM webhook."providerTaskId"
+				OR NOT (webhook."envelope" ? 'notifiedAt')
+			))
 		)`;
-	return countResult("every persisted provider webhook has outbox delivery", rows);
+	return countResult("every persisted provider webhook has an owning engine durable handoff", rows);
+}
+
+async function checkSeeapiVideoHandoff(): Promise<CheckResult> {
+	return {
+		name: "every SeeAPI video webhook has an immutable owning Workflow handoff",
+		violations: Number(await countSeeapiVideoHandoffViolations(client)),
+	};
 }
 
 async function checkQueueLatency(): Promise<CheckResult> {
@@ -143,15 +171,16 @@ async function checkQueueLatency(): Promise<CheckResult> {
 		)::double precision AS p95_ms
 		FROM "generation_job" job
 		JOIN "generation_attempt" attempt ON attempt."jobId" = job."id"
-		WHERE job."idempotencyKey" LIKE ${`${jobPrefix}%`}`;
+		WHERE job."executionEngine" = 'legacy'
+		  AND job."idempotencyKey" LIKE ${`${jobPrefix}%`}`;
 	const p95 = rows[0]?.p95_ms ?? null;
 	if (p95 === null) {
 		if (process.env.REQUIRE_LOAD_SAMPLE === "true")
-			return { name: "internal queue p95 below 5s", violations: 1 };
-		return { name: "internal queue p95 below 5s (no recent sample)", violations: 0 };
+			return { name: "legacy internal queue p95 below 5s", violations: 1 };
+		return { name: "legacy internal queue p95 below 5s (no recent sample)", violations: 0 };
 	}
 	return {
-		name: "internal queue p95 below 5s",
+		name: "legacy internal queue p95 below 5s",
 		violations: p95 < 5_000 ? 0 : 1,
 		details: { p95Ms: p95 },
 	};

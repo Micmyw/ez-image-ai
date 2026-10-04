@@ -1,0 +1,81 @@
+{
+	"contractVersion": "kie-kling-2.6-2026-10-04.1",
+	"verifiedAt": "2026-10-04",
+	"verification": "Public official documentation HTTP 200; no account or paid request performed",
+	"accountModelAccess": "NOT_RUN",
+	"supplierIdempotencySupported": false,
+	"productKey": "video-kling-2-6-v1",
+	"createPath": "/api/v1/jobs/createTask",
+	"retrievePath": "/api/v1/jobs/recordInfo",
+	"parameters": { "duration": "5", "sound": false, "maxPromptCodePoints": 1000 },
+	"text": { "model": "kling-2.6/text-to-video", "aspectRatios": ["16:9", "9:16"] },
+	"image": {
+		"model": "kling-2.6/image-to-video",
+		"sourceField": "image_urls",
+		"maxImages": 1,
+		"mimeTypes": ["image/jpeg", "image/png"],
+		"maxBytes": 10000000,
+		"aspectRatioSupported": false
+	},
+	"statuses": ["waiting", "queuing", "generating", "success", "fail"],
+	"acceptanceFixture": { "code": 200, "data": { "taskId": "fixture_video_task" } },
+	"successFixture": {
+		"code": 200,
+		"data": {
+			"taskId": "fixture_video_task",
+			"state": "success",
+			"resultJson": "{\"resultUrls\":[\"https://provider.example/video.mp4\"]}"
+		}
+	},
+	"callbackFixture": {
+		"code": 200,
+		"data": {
+			"taskId": "fixture_video_task",
+			"state": "success",
+			"resultJson": "{\"resultUrls\":[\"https://untrusted.example/do-not-use.mp4\"]}"
+		}
+	},
+	"callback": {
+		"algorithm": "HMAC-SHA256",
+		"encoding": "base64",
+		"signedMessage": "taskId.timestampSeconds",
+		"signatureHeader": "X-Webhook-Signature",
+		"timestampHeader": "X-Webhook-Timestamp",
+		"bodyIntegrityProtected": false,
+		"authoritativeQueryRequired": true,
+		"maxAgeSeconds": 300,
+		"futureSkewSeconds": 30
+	},
+	"sources": [
+		"https://docs.kie.ai/market/kling/text-to-video",
+		"https://docs.kie.ai/market/kling/image-to-video",
+		"https://docs.kie.ai/common-api/webhook-verification",
+		"https://docs.kie.ai/market/common/get-task-detail",
+		"https://sightengine.com/docs/receive-video-moderation-callbacks",
+		"https://sightengine.com/docs/callback-signature",
+		"https://sightengine.com/docs/moderate-stored-video-asynchronously",
+		"https://sightengine.com/docs/interact-with-video-moderation-jobs"
+	],
+	"sightengine": {
+		"submissionIdentity": "media.id",
+		"queryPath": "/1.0/video/byid.json?id={mediaId}",
+		"queryResult": "output.media + output.data",
+		"terminalApprovalRequires": [
+			"matching media.id",
+			"data.status=finished",
+			"data.progress=1",
+			"nonempty ordered unique frames",
+			"all requested policy fields present and passing on every returned frame"
+		],
+		"signedCallbacks": "account-level only; do not set callback_url per request",
+		"callbackMessage": "timestamp.rawBody",
+		"callbackEncoding": "hex",
+		"accountAcceptance": "NOT_RUN"
+	},
+	"cost": {
+		"supplierCostMicros": null,
+		"moderationCostMicros": null,
+		"retailCredits": null,
+		"status": "BLOCKED until actual commercial terms are supplied"
+	}
+}

@@ -4,6 +4,15 @@ import { fileURLToPath } from "node:url";
 
 import { clearEmbeddedEnvironment } from "./artifact-safety.mjs";
 
+// Native Windows OpenNext copies pnpm junctions into its bundle and treats
+// cloudflare:sockets as an invalid path. Build from clean Linux dependencies in
+// a separate filesystem instead of mutating/relinking the user's node_modules.
+if (process.platform === "win32" || process.argv.includes("--linux-container")) {
+	const { buildInLinuxContainer } = await import("./build-linux.mjs");
+	await buildInLinuxContainer(process.argv.slice(2));
+	process.exit(0);
+}
+
 const appDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const packageManager = process.env.npm_execpath;
 if (!packageManager) throw new Error("RUN_CLOUDFLARE_BUILD_WITH_PNPM");

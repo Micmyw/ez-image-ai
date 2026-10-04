@@ -9,6 +9,7 @@ import {
 	resolveCreditLedgerUniqueRace,
 	throwReservationReplayConflict,
 } from "./idempotency";
+import { findPaidFundedCreditLotIds } from "./paid-credit-funding";
 import type {
 	CreditGrantInput,
 	CreditMutationInput,
@@ -107,6 +108,16 @@ function createReserveCommand(input: ReserveCreditsInput): CreditCommand {
 		accountId: input.accountId,
 		amount: input.amount.toString(),
 		jobId: input.jobId,
+		...(input.paidFundingPolicy
+			? {
+					metadata: {
+						paidFundingPolicy: {
+							minimumUsdMicrosPerCredit:
+								input.paidFundingPolicy.minimumUsdMicrosPerCredit.toString(),
+						},
+					},
+				}
+			: {}),
 	};
 }
 
@@ -228,12 +239,28 @@ export async function reserveCreditsInTransaction(
 	const now = new Date();
 	const expired = await materializeExpiredLots(tx, { accountId: input.accountId, lots, now });
 	if (account.spendableCredits - expired < input.amount) throw new Error("INSUFFICIENT_CREDITS");
+	const eligibleLots = input.paidFundingPolicy
+		? await findPaidFundedCreditLotIds(input.accountId, input.paidFundingPolicy, tx)
+		: null;
+	if (
+		eligibleLots &&
+		lots.reduce(
+			(total, lot) =>
+				total +
+				(eligibleLots.has(lot.id) && (!lot.expiresAt || lot.expiresAt > now)
+					? lot.remainingAmount
+					: 0n),
+			0n,
+		) < input.amount
+	)
+		throw new Error("INSUFFICIENT_PAID_CREDITS");
 
 	let unallocated = input.amount;
 	const allocations: Array<{ lotId: string; amount: bigint }> = [];
 	for (const lot of lots) {
 		if (unallocated === 0n) break;
 		if (lot.expiresAt && lot.expiresAt <= now) continue;
+		if (eligibleLots && !eligibleLots.has(lot.id)) continue;
 		const amount = lot.remainingAmount < unallocated ? lot.remainingAmount : unallocated;
 		if (amount === 0n) continue;
 		await tx.creditLot.update({

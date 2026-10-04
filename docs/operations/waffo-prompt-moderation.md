@@ -1,5 +1,13 @@
 # Waffo pre-generation prompt scanning
 
+> **Historical integration record; superseded runtime selection (2026-10-04).** The
+> Sightengine-first chain and older rule below describe the original implementation and tests.
+> Current runtime uses Waffo prompt checks without Sightengine. Video freezes
+> `waffo-prompt-safety-2026-10-04.1` and requires the matching approved cost marker.
+> Technical failures remain blocked. Earlier real-call evidence below is unchanged and is not
+> current video acceptance. See [current moderation](content-moderation.md) and
+> [video rollout](video-v1-rollout.md).
+
 The production Waffo integration requires a successful prompt scan before image generation,
 including guests and customers using another payment method. It uses the same merchant credentials
 and SDK 0.19.1 as payments. `WAFFO_ENVIRONMENT=prod` automatically enables the additional check;

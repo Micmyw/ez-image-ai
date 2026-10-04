@@ -36,10 +36,8 @@ import {
 } from "@repo/ai";
 import {
 	isTechnicalGenerationFailureCode,
-	isPermittedModerationEvidence,
 	isTemporaryReferenceObjectKey,
 	isRetryableModerationError,
-	MODERATION_BYPASS_REASON,
 	MODERATION_RETRYABLE_ERROR_CODES,
 	moderationServiceErrorCode,
 } from "@repo/config";
@@ -54,7 +52,12 @@ import {
 	maximumMediaStorageBytes,
 	mediaDailyProviderCostBudgetMicros,
 } from "@repo/config/server";
-import { recordModerationOutcome, lockAssetPromptReview } from "@repo/database";
+import {
+	recordModerationOutcome,
+	lockAssetPromptReview,
+	hasCurrentApprovedMediaAssetEvidence,
+	isHistoricalImageModerationProvider,
+} from "@repo/database";
 import {
 	claimOutputModerationGraceInTransaction,
 	claimGenerationOutputTransferTransaction,
@@ -77,7 +80,11 @@ import {
 } from "@repo/database";
 import type { Prisma } from "@repo/database";
 import { db } from "@repo/database/client";
-import type { PrismaClient } from "@repo/database/generated-client";
+import type {
+	PrismaClient,
+	MediaAssetStatus,
+	ModerationStatus,
+} from "@repo/database/generated-client";
 import {
 	abortMultipartUpload,
 	assertMediaKind,
@@ -129,6 +136,7 @@ import {
 	IMAGE_APPROVAL_NO_TIME_EXPIRY,
 } from "./media-approval-lifetime";
 import { kieCompletionCallbackUrl } from "./orchestration/kie-callback-auth";
+import { unmanagedLegacyTask } from "./orchestration/legacy-task-ownership";
 import {
 	createOutputTransferEnvelope,
 	providerOutputsFromTransferEnvelope,
@@ -282,13 +290,13 @@ export async function resolveDatabaseDispatchRoute(
 ) {
 	const database = options.database ?? db;
 	const job = await database.generationJob.findUnique({
-		where: { id: jobId },
+		where: { executionEngine: "legacy", id: jobId },
 		include: {
 			attempts: { orderBy: { attemptNumber: "desc" }, take: 1 },
 			quote: { select: { costMicros: true } },
 		},
 	});
-	if (!job) throw new Error("Generation job not found");
+	if (!job) return null;
 	const environment = options.environment ?? process.env;
 	if (environment.MEDIA_GENERATION_ENABLED !== "true") {
 		throw new Error("MEDIA_GENERATION_DISABLED");
@@ -357,7 +365,7 @@ export function createDatabaseGuestAdmissionDependencies(
 				async (tx) => {
 					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended('guest-dispatch-global', 0))`;
 					const job = await tx.generationJob.findUnique({
-						where: { id: input.jobId },
+						where: { executionEngine: "legacy", id: input.jobId },
 						include: {
 							attempts: { select: { id: true }, take: 1 },
 							guestTrial: { include: { linkIntents: { select: { state: true } } } },
@@ -424,6 +432,7 @@ export function createDatabaseGuestAdmissionDependencies(
 					}
 					const active = await tx.generationJob.findFirst({
 						where: {
+							executionEngine: "legacy",
 							serviceClass: "GUEST_SLOW",
 							id: { not: job.id },
 							status: {
@@ -443,6 +452,7 @@ export function createDatabaseGuestAdmissionDependencies(
 						SELECT "id"
 						FROM "generation_job"
 						WHERE "serviceClass" = 'GUEST_SLOW'::"GenerationServiceClass"
+						  AND "executionEngine" = 'legacy'
 						  AND "status" = 'RESERVED'::"GenerationJobStatus"
 						  AND ("dispatchEligibleAt" IS NULL OR "dispatchEligibleAt" <= ${input.now})
 						ORDER BY "createdAt" ASC, "id" ASC
@@ -455,6 +465,7 @@ export function createDatabaseGuestAdmissionDependencies(
 						);
 						const queueDepth = await tx.generationJob.count({
 							where: {
+								executionEngine: "legacy",
 								serviceClass: "GUEST_SLOW",
 								id: { not: job.id },
 								status: {
@@ -497,6 +508,7 @@ export function createDatabaseGuestAdmissionDependencies(
 					}
 					const changed = await tx.generationJob.updateMany({
 						where: {
+							executionEngine: "legacy",
 							id: job.id,
 							version: job.version,
 							status: "RESERVED",
@@ -545,7 +557,7 @@ async function updateGuestQueueEstimate(
 	estimate: { projectedDispatchAt: Date; estimateExpiresAt: Date },
 ): Promise<void> {
 	await tx.generationJob.update({
-		where: { id: jobId },
+		where: { executionEngine: "legacy", id: jobId },
 		data: { dispatchEligibleAt: retryAt },
 	});
 	await tx.guestMediaTrial.update({
@@ -570,6 +582,7 @@ export function createDatabaseDispatchStore(
 				await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`generation-dispatch:${payload.jobId}`}, 0))`;
 				const job = await tx.generationJob.findFirst({
 					where: {
+						executionEngine: "legacy",
 						id: payload.jobId,
 						version: payload.version,
 						status: { in: ["RESERVED", "DISPATCH_QUEUED"] },
@@ -582,39 +595,8 @@ export function createDatabaseDispatchStore(
 					},
 				});
 				if (!job) return null;
-				if (job.quote.moderationDecision === "BYPASS") {
-					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`moderation-quote:${job.quoteId}`}, 0))`;
-					const promptRevoked = await tx.moderationReview.findFirst({
-						where: {
-							targetType: "QUOTE",
-							targetId: job.quoteId,
-							status: { in: ["REJECTED", "BLOCKED"] },
-						},
-						select: { id: true },
-					});
-					if (promptRevoked) {
-						await tx.generationJob.update({
-							where: { id: job.id },
-							data: {
-								status: "FINALIZING",
-								failureCode: "TEXT_MODERATION_REJECTED",
-								version: { increment: 1 },
-							},
-						});
-						await tx.outboxEvent.upsert({
-							where: { dedupeKey: `moderation-revoked:${job.id}` },
-							create: {
-								eventType: "GENERATION_SETTLE",
-								aggregateType: "GENERATION_JOB",
-								aggregateId: job.id,
-								dedupeKey: `moderation-revoked:${job.id}`,
-								payload: { jobId: job.id, version: job.version + 1 },
-							},
-							update: {},
-						});
-						return null;
-					}
-				}
+				// Historical bypass quotes remain recorded, but cannot start paid work.
+				if (job.quote.moderationDecision === "BYPASS") return null;
 				const isGuest = job.serviceClass === "GUEST_SLOW";
 				if (isGuest && job.status !== "DISPATCH_QUEUED") return null;
 				if (await isMediaGenerationDisabled(tx, job.productKey, environment)) {
@@ -696,7 +678,12 @@ export function createDatabaseDispatchStore(
 				if (rawInput.sourceAssetId) {
 					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${rawInput.sourceAssetId}`}, 0))`;
 					const binding = await tx.generationJobAsset.findFirst({
-						where: { jobId: job.id, assetId: rawInput.sourceAssetId, role: "INPUT" },
+						where: {
+							AND: { job: { executionEngine: "legacy" } },
+							jobId: job.id,
+							assetId: rawInput.sourceAssetId,
+							role: "INPUT",
+						},
 						include: {
 							asset: {
 								include: {
@@ -750,27 +737,14 @@ export function createDatabaseDispatchStore(
 						throw new Error("Input asset checksum no longer matches job binding");
 					}
 					const currentProvider = imageModerationProviderForEnvironment(environment);
-					const evidence = binding.asset.moderationResults[0];
-					const verificationValidUntil = binding.asset.verificationValidUntil;
 					const now = new Date();
 					if (
-						!verificationValidUntil ||
-						verificationValidUntil <= now ||
-						binding.asset.verificationProvider !== currentProvider ||
-						binding.asset.verificationRuleVersion !== MEDIA_VERIFICATION_RULE_VERSION ||
-						binding.asset.verificationPolicyVersion !== MEDIA_VERIFICATION_POLICY_VERSION ||
-						!isPermittedModerationEvidence(evidence) ||
-						evidence.verificationGeneration !== binding.asset.verificationGeneration ||
-						evidence.attemptNumber !== binding.asset.verificationAttemptCount ||
-						evidence.assetChecksum !== binding.asset.checksum ||
-						evidence.evidenceKind !== binding.asset.kind ||
-						evidence.provider !== binding.asset.verificationProvider ||
-						evidence.providerTaskId !== binding.asset.verificationProviderTaskId ||
-						evidence.ruleVersion !== binding.asset.verificationRuleVersion ||
-						evidence.policyVersion !== binding.asset.verificationPolicyVersion ||
-						!evidence.validUntil ||
-						evidence.validUntil.getTime() !== verificationValidUntil.getTime() ||
-						evidence.validUntil <= now
+						!hasCurrentApprovedMediaAssetEvidence(binding.asset, {
+							provider: currentProvider,
+							ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+							policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+							now,
+						})
 					) {
 						throw new Error("Input asset moderation evidence is stale");
 					}
@@ -787,7 +761,12 @@ export function createDatabaseDispatchStore(
 					await options.afterInputAuthorization?.();
 				}
 				const changed = await tx.generationJob.updateMany({
-					where: { id: job.id, version: job.version, status: job.status },
+					where: {
+						executionEngine: "legacy",
+						id: job.id,
+						version: job.version,
+						status: job.status,
+					},
 					data: { status: "SUBMITTING", version: { increment: 1 } },
 				});
 				if (changed.count !== 1) return null;
@@ -804,7 +783,7 @@ export function createDatabaseDispatchStore(
 						},
 					}));
 				await tx.generationAttempt.update({
-					where: { id: attempt.id },
+					where: { AND: { job: { executionEngine: "legacy" } }, id: attempt.id },
 					data: preSendAttemptState(
 						{
 							attemptId: attempt.id,
@@ -874,11 +853,11 @@ export function createDatabaseDispatchStore(
 		},
 		async recordSubmissionStarted(attemptId) {
 			const attempt = await database.generationAttempt.findUniqueOrThrow({
-				where: { id: attemptId },
+				where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
 				include: { job: { select: { inputSnapshot: true } } },
 			});
 			await database.generationAttempt.update({
-				where: { id: attemptId },
+				where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
 				data: preSendAttemptState(
 					{
 						attemptId: attempt.id,
@@ -894,7 +873,9 @@ export function createDatabaseDispatchStore(
 		},
 		async recordSubmission(attemptId, submission) {
 			await database.$transaction(async (tx) => {
-				const attempt = await tx.generationAttempt.findUniqueOrThrow({ where: { id: attemptId } });
+				const attempt = await tx.generationAttempt.findUniqueOrThrow({
+					where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
+				});
 				if (submission.outcome !== "accepted") {
 					throw new Error("Only accepted provider submissions may be recorded as submitted");
 				}
@@ -910,7 +891,7 @@ export function createDatabaseDispatchStore(
 					submission.reconciliation,
 				);
 				await tx.generationAttempt.update({
-					where: { id: attempt.id },
+					where: { AND: { job: { executionEngine: "legacy" } }, id: attempt.id },
 					data: {
 						providerTaskId,
 						...reconciliationEndpoints,
@@ -934,7 +915,7 @@ export function createDatabaseDispatchStore(
 					},
 				});
 				await tx.generationJob.updateMany({
-					where: { id: attempt.jobId, status: "SUBMITTING" },
+					where: { executionEngine: "legacy", id: attempt.jobId, status: "SUBMITTING" },
 					data: {
 						status: terminal ? "FINALIZING" : "PROVIDER_PENDING",
 						version: { increment: 1 },
@@ -957,10 +938,12 @@ export function createDatabaseDispatchStore(
 		},
 		async recordUncertainSubmission(attemptId, evidence) {
 			await database.$transaction(async (tx) => {
-				const existing = await tx.generationAttempt.findUniqueOrThrow({ where: { id: attemptId } });
+				const existing = await tx.generationAttempt.findUniqueOrThrow({
+					where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
+				});
 				const recovery = safeUncertainRecoveryEvidence(existing.provider, evidence);
 				const attempt = await tx.generationAttempt.update({
-					where: { id: attemptId },
+					where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
 					data: {
 						...recovery,
 						status: "SUBMISSION_UNCERTAIN",
@@ -970,7 +953,7 @@ export function createDatabaseDispatchStore(
 					},
 				});
 				const changed = await tx.generationJob.updateMany({
-					where: { id: attempt.jobId, status: "SUBMITTING" },
+					where: { executionEngine: "legacy", id: attempt.jobId, status: "SUBMITTING" },
 					data: { status: "PROVIDER_PENDING", version: { increment: 1 } },
 				});
 				if (changed.count !== 1) throw new Error("Uncertain submission job state changed");
@@ -979,7 +962,7 @@ export function createDatabaseDispatchStore(
 		async recordProviderAdapterUnavailable(attemptId) {
 			await database.$transaction(async (tx) => {
 				const attempt = await tx.generationAttempt.findUnique({
-					where: { id: attemptId },
+					where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
 					include: { job: { select: { status: true } } },
 				});
 				if (!attempt) throw new Error("Generation attempt not found");
@@ -997,7 +980,7 @@ export function createDatabaseDispatchStore(
 		async recordSynchronousCompletion(attemptId, submission, result) {
 			await database.$transaction(async (tx) => {
 				const attempt = await tx.generationAttempt.findUniqueOrThrow({
-					where: { id: attemptId },
+					where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
 					include: { job: { select: { productKey: true } } },
 				});
 				if (submission.outcome !== "accepted") {
@@ -1038,7 +1021,7 @@ export function createDatabaseDispatchStore(
 					update: { payload: outputTransferEnvelopeInput(envelope) },
 				});
 				await tx.generationAttempt.update({
-					where: { id: attemptId },
+					where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
 					data: {
 						providerTaskId,
 						...reconciliationEndpoints,
@@ -1055,7 +1038,7 @@ export function createDatabaseDispatchStore(
 					},
 				});
 				const changed = await tx.generationJob.updateMany({
-					where: { id: attempt.jobId, status: "SUBMITTING" },
+					where: { executionEngine: "legacy", id: attempt.jobId, status: "SUBMITTING" },
 					data: { status: "FINALIZING", version: { increment: 1 } },
 				});
 				if (changed.count !== 1) throw new Error("Synchronous completion job state changed");
@@ -1076,13 +1059,13 @@ export function createDatabaseDispatchStore(
 		async recordRejectedSubmission(attemptId, failure) {
 			await database.$transaction(async (tx) => {
 				const attempt = await tx.generationAttempt.findUniqueOrThrow({
-					where: { id: attemptId },
+					where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
 					include: {
 						job: { include: { attempts: true, quote: { select: { costMicros: true } } } },
 					},
 				});
 				await tx.generationAttempt.update({
-					where: { id: attempt.id },
+					where: { AND: { job: { executionEngine: "legacy" } }, id: attempt.id },
 					data: {
 						status: "FAILED",
 						errorSnapshot: {
@@ -1119,7 +1102,12 @@ export function createDatabaseDispatchStore(
 						},
 					});
 					const changed = await tx.generationJob.updateMany({
-						where: { id: attempt.jobId, status: "SUBMITTING", version: attempt.job.version },
+						where: {
+							executionEngine: "legacy",
+							id: attempt.jobId,
+							status: "SUBMITTING",
+							version: attempt.job.version,
+						},
 						data: { status: "DISPATCH_QUEUED", version: { increment: 1 } },
 					});
 					if (changed.count !== 1) throw new Error("Rejected submission job state changed");
@@ -1137,7 +1125,12 @@ export function createDatabaseDispatchStore(
 					return;
 				}
 				const changed = await tx.generationJob.updateMany({
-					where: { id: attempt.jobId, status: "SUBMITTING", version: attempt.job.version },
+					where: {
+						executionEngine: "legacy",
+						id: attempt.jobId,
+						status: "SUBMITTING",
+						version: attempt.job.version,
+					},
 					data: {
 						status: "FINALIZING",
 						failureCode: "PROVIDER_UNAVAILABLE",
@@ -1250,6 +1243,7 @@ export function createDatabaseStorageCleanupDependencies(
 export const databaseStorageCleanupDependencies = createDatabaseStorageCleanupDependencies(db);
 
 interface VerifyUploadRuntimeOptions {
+	environment?: NodeJS.ProcessEnv;
 	headObject?: (location: { bucket: "media"; key: string }) => Promise<MediaObjectMetadata>;
 	readMediaHeader?: (location: { bucket: "media"; key: string }) => Promise<Uint8Array>;
 	inspectPrivateMediaObject?: (input: {
@@ -1318,15 +1312,20 @@ export function createDatabaseVerifyUploadDependencies(
 	database: PrismaClient,
 	options: VerifyUploadRuntimeOptions = {},
 ) {
-	const safety = options.safety ?? createSafetyAdapter(process.env);
-	const moderationProvider =
-		options.moderationProvider ?? imageModerationProviderForEnvironment(process.env);
 	return {
 		async verify(
 			this: void,
 			assetId: string,
 			verificationOptions = { allowQuarantinedReverification: false },
 		): Promise<OutboxCommitResult> {
+			// Factories are imported during closed-generation builds. Resolve live
+			// moderation configuration only when work starts, before any DB claim.
+			const environment = options.environment ?? process.env;
+			const moderationProvider =
+				options.moderationProvider ?? imageModerationProviderForEnvironment(environment);
+			if (!options.safety && moderationProvider === "seeapi" && !environment.SEEAPI_API_KEY?.trim())
+				throw new Error("IMAGE_MODERATION_CONFIGURATION_ERROR");
+			const safety = options.safety ?? createSafetyAdapter(environment);
 			const taskStartedAt = Date.now();
 			let lastStageAt = taskStartedAt;
 			const recordStage = (stage: string, details: Record<string, unknown> = {}) => {
@@ -1439,6 +1438,7 @@ export function createDatabaseVerifyUploadDependencies(
 				if (!verifiedImmutableObject) {
 					const persistedInspection = await database.mediaAsset.updateMany({
 						where: {
+							verificationEngine: "legacy",
 							id: claim.assetId,
 							status: "VERIFYING",
 							verificationLeaseToken: claim.leaseToken,
@@ -1596,7 +1596,7 @@ export function createDatabaseVerifyUploadDependencies(
 				if (detectorRequestInFlight && claim.mimeType.startsWith("image/")) {
 					const message = moderationServiceErrorCode(error);
 					const state = await database.mediaAsset.findUnique({
-						where: { id: claim.assetId },
+						where: { verificationEngine: "legacy", id: claim.assetId },
 						select: { verificationSubmissionUncertain: true, verificationProviderTaskId: true },
 					});
 					outboxCommitted = await failMediaVerification(
@@ -1696,6 +1696,7 @@ async function resolveJobsWaitingForMediaVerification(
 	let outboxCommitted = false;
 	const bindings = await tx.generationJobAsset.findMany({
 		where: {
+			AND: { job: { executionEngine: "legacy" } },
 			assetId: input.assetId,
 			OR: [
 				{
@@ -1760,6 +1761,7 @@ async function resolveJobsWaitingForMediaVerification(
 		}
 		const changed = await tx.generationJob.updateMany({
 			where: {
+				executionEngine: "legacy",
 				id: binding.jobId,
 				version: binding.job.version,
 				status: { in: ["RESERVED", "DISPATCH_QUEUED"] },
@@ -1799,9 +1801,27 @@ async function claimMediaVerification(
 	let outboxCommitted = false;
 	const claim = await database.$transaction<MediaVerificationClaim | null>(async (tx) => {
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${input.assetId}`}, 0))`;
-		let asset = await tx.mediaAsset.findUnique({ where: { id: input.assetId } });
-		if (!asset) throw new Error("Media asset not found");
+		let asset = await tx.mediaAsset.findUnique({
+			where: { verificationEngine: "legacy", id: input.assetId },
+		});
+		if (!asset) return null;
 		if (asset.deletedAt !== null || asset.status === "DELETED") return null;
+		// Retired provider attempts never become a fresh paid SeeAPI submission.
+		// Preserve completed evidence as written; unfinished attempts stay held for review.
+		if (asset.verificationProvider?.split("+").includes("sightengine")) {
+			if (asset.status === "VERIFYING") {
+				await tx.mediaAsset.updateMany({
+					where: { verificationEngine: "legacy", id: asset.id, status: "VERIFYING" },
+					data: {
+						verificationLastErrorCode: "MODERATION_PROVIDER_RETIRED",
+						verificationLeaseToken: null,
+						verificationLeasedUntil: null,
+						verificationNextAttemptAt: null,
+					},
+				});
+			}
+			return null;
+		}
 		// Transfer recovery owns incomplete outputs. Moderation must not consume its
 		// retry budget or terminalize a placeholder while storage still owns it.
 		if (
@@ -1817,7 +1837,7 @@ async function claimMediaVerification(
 		) {
 			// Preserve historical approvals/rejections when a late wake-up sees expiry.
 			await tx.mediaAsset.updateMany({
-				where: { id: asset.id, status: "VERIFYING" },
+				where: { verificationEngine: "legacy", id: asset.id, status: "VERIFYING" },
 				data: {
 					status: "VERIFICATION_FAILED",
 					verificationLastErrorCode: "TEMPORARY_REFERENCE_EXPIRED",
@@ -1873,7 +1893,7 @@ async function claimMediaVerification(
 					},
 				});
 				await tx.mediaAsset.update({
-					where: { id: asset.id },
+					where: { verificationEngine: "legacy", id: asset.id },
 					data: {
 						verificationGeneration: generation,
 						verificationAttemptCount: 1,
@@ -1933,7 +1953,7 @@ async function claimMediaVerification(
 		if (isAuthorizedLegacyReverification || isStaleReady) {
 			const generation = Math.max(asset.verificationGeneration + 1, 1);
 			await tx.mediaAsset.update({
-				where: { id: asset.id },
+				where: { verificationEngine: "legacy", id: asset.id },
 				data: {
 					status: "VERIFYING",
 					verificationGeneration: generation,
@@ -1975,7 +1995,9 @@ async function claimMediaVerification(
 					},
 				},
 			});
-			asset = await tx.mediaAsset.findUniqueOrThrow({ where: { id: asset.id } });
+			asset = await tx.mediaAsset.findUniqueOrThrow({
+				where: { verificationEngine: "legacy", id: asset.id },
+			});
 		}
 		if (asset.status !== "VERIFYING" || asset.deletedAt !== null) return null;
 		if (asset.verificationLeasedUntil && asset.verificationLeasedUntil > now) return null;
@@ -2001,7 +2023,7 @@ async function claimMediaVerification(
 				rawEnvelope: { decision: "ERROR", submissionUncertain: true },
 			});
 			await tx.mediaAsset.update({
-				where: { id: asset.id },
+				where: { verificationEngine: "legacy", id: asset.id },
 				data: {
 					status: "VERIFICATION_FAILED",
 					verificationAttemptCount: attemptNumber,
@@ -2038,7 +2060,7 @@ async function claimMediaVerification(
 				rawEnvelope: { decision: "ERROR", leaseExpired: true },
 			});
 			await tx.mediaAsset.update({
-				where: { id: asset.id },
+				where: { verificationEngine: "legacy", id: asset.id },
 				data: {
 					verificationAttemptCount: attemptNumber,
 					verificationLeaseToken: null,
@@ -2046,7 +2068,9 @@ async function claimMediaVerification(
 					verificationLastErrorCode: "VERIFICATION_LEASE_EXPIRED",
 				},
 			});
-			asset = await tx.mediaAsset.findUniqueOrThrow({ where: { id: asset.id } });
+			asset = await tx.mediaAsset.findUniqueOrThrow({
+				where: { verificationEngine: "legacy", id: asset.id },
+			});
 		}
 		if (asset.verificationNextAttemptAt && asset.verificationNextAttemptAt > now) return null;
 
@@ -2057,7 +2081,7 @@ async function claimMediaVerification(
 		) {
 			const generation = Math.max(asset.verificationGeneration + 1, 1);
 			await tx.mediaAsset.update({
-				where: { id: asset.id },
+				where: { verificationEngine: "legacy", id: asset.id },
 				data: {
 					verificationGeneration: generation,
 					verificationAttemptCount: 0,
@@ -2082,7 +2106,9 @@ async function claimMediaVerification(
 					verificationLastErrorCode: null,
 				},
 			});
-			asset = await tx.mediaAsset.findUniqueOrThrow({ where: { id: asset.id } });
+			asset = await tx.mediaAsset.findUniqueOrThrow({
+				where: { verificationEngine: "legacy", id: asset.id },
+			});
 		}
 
 		const deadlineAt =
@@ -2122,7 +2148,7 @@ async function claimMediaVerification(
 				rawEnvelope: { decision: "ERROR", deadlineExceeded: true },
 			});
 			await tx.mediaAsset.update({
-				where: { id: asset.id },
+				where: { verificationEngine: "legacy", id: asset.id },
 				data: {
 					status: "VERIFICATION_FAILED",
 					verificationAttemptCount: attemptNumber,
@@ -2152,7 +2178,7 @@ async function claimMediaVerification(
 		});
 		if (failureCount >= MEDIA_VERIFICATION_RETRY_POLICY.maxTransientFailures) {
 			await tx.mediaAsset.update({
-				where: { id: asset.id },
+				where: { verificationEngine: "legacy", id: asset.id },
 				data: {
 					status: "VERIFICATION_FAILED",
 					verificationLeaseToken: null,
@@ -2177,7 +2203,7 @@ async function claimMediaVerification(
 		const nextAllowedQueryAt = asset.verificationNextAttemptAt;
 		const leaseToken = crypto.randomUUID();
 		const claimed = await tx.mediaAsset.update({
-			where: { id: asset.id },
+			where: { verificationEngine: "legacy", id: asset.id },
 			data: {
 				verificationGeneration: generation,
 				verificationAttemptCount: attemptNumber,
@@ -2229,6 +2255,7 @@ async function beginMediaVerificationSubmission(
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${claim.assetId}`}, 0))`;
 		const asset = await tx.mediaAsset.findFirst({
 			where: {
+				verificationEngine: "legacy",
 				id: claim.assetId,
 				status: "VERIFYING",
 				verificationGeneration: claim.generation,
@@ -2241,7 +2268,7 @@ async function beginMediaVerificationSubmission(
 		if (!asset) return null;
 		const submissionToken = asset.verificationSubmissionToken ?? crypto.randomUUID();
 		await tx.mediaAsset.update({
-			where: { id: asset.id },
+			where: { verificationEngine: "legacy", id: asset.id },
 			data: {
 				verificationSubmissionToken: submissionToken,
 				verificationSubmissionUncertain: true,
@@ -2262,6 +2289,7 @@ async function bindMediaVerificationProviderTask(
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${claim.assetId}`}, 0))`;
 		const asset = await tx.mediaAsset.findFirst({
 			where: {
+				verificationEngine: "legacy",
 				id: claim.assetId,
 				status: "VERIFYING",
 				verificationGeneration: claim.generation,
@@ -2273,7 +2301,7 @@ async function bindMediaVerificationProviderTask(
 		});
 		if (!asset) return "LOST";
 		await tx.mediaAsset.update({
-			where: { id: asset.id },
+			where: { verificationEngine: "legacy", id: asset.id },
 			data: {
 				verificationProviderTaskId: providerTaskId,
 				verificationSubmissionUncertain: false,
@@ -2315,6 +2343,7 @@ async function completeMediaVerification(
 		const now = new Date();
 		const asset = await tx.mediaAsset.findFirst({
 			where: {
+				verificationEngine: "legacy",
 				id: claim.assetId,
 				status: "VERIFYING",
 				verificationGeneration: claim.generation,
@@ -2390,7 +2419,7 @@ async function completeMediaVerification(
 			validUntil: verificationValidUntil,
 		});
 		await tx.mediaAsset.update({
-			where: { id: asset.id },
+			where: { verificationEngine: "legacy", id: asset.id },
 			data: {
 				status: input.decision === "ALLOW" ? "READY" : "QUARANTINED",
 				checksum: approvedChecksum,
@@ -2437,11 +2466,12 @@ async function recordMediaVerificationWaitOrFailure(
 	checksum: string | null,
 ): Promise<OutboxCommitResult> {
 	return database.$transaction(async (tx) => {
-		const promptRejected = await lockAssetPromptReview(claim.assetId, tx);
+		await lockAssetPromptReview(claim.assetId, tx);
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${claim.assetId}`}, 0))`;
 		const now = new Date();
 		const asset = await tx.mediaAsset.findFirst({
 			where: {
+				verificationEngine: "legacy",
 				id: claim.assetId,
 				status: "VERIFYING",
 				verificationGeneration: claim.generation,
@@ -2499,14 +2529,6 @@ async function recordMediaVerificationWaitOrFailure(
 			(status === "ERROR" &&
 				(imageRecovery ? failureCount : totalFailureCount) >=
 					MEDIA_VERIFICATION_RETRY_POLICY.maxTransientFailures);
-		const bypass =
-			!isTemporaryReferenceObjectKey(asset.objectKey) &&
-			!promptRejected &&
-			exhausted &&
-			failureCount >= MEDIA_VERIFICATION_RETRY_POLICY.maxTransientFailures &&
-			asset.mimeType.startsWith("image/") &&
-			isRetryableModerationError(reasonCode) &&
-			Boolean(checksum && asset.finalizedAt && asset.checksum === checksum);
 		if (
 			status === "ERROR" &&
 			asset.mimeType.startsWith("image/") &&
@@ -2524,21 +2546,11 @@ async function recordMediaVerificationWaitOrFailure(
 					lastErrorCode: reasonCode,
 					startedAt: now,
 					lastFailureAt: now,
-					status: bypass ? "PENDING_REVIEW" : exhausted ? "BLOCKED" : "RETRYING",
-					bypassed: bypass,
+					status: exhausted ? "BLOCKED" : "RETRYING",
+					bypassed: false,
 				},
 				tx,
 			);
-		}
-		if (bypass) {
-			return {
-				outboxCommitted: await permitFailedImageVerification(
-					tx,
-					asset,
-					claim.attemptNumber + 1,
-					reasonCode,
-				),
-			};
 		}
 		const retryAt = exhausted
 			? null
@@ -2551,7 +2563,7 @@ async function recordMediaVerificationWaitOrFailure(
 					)
 				: new Date(now.getTime() + Math.min(60_000, 1_000 * 2 ** Math.max(failureCount - 1, 0)));
 		await tx.mediaAsset.update({
-			where: { id: asset.id },
+			where: { verificationEngine: "legacy", id: asset.id },
 			data: {
 				status: exhausted ? "VERIFICATION_FAILED" : "VERIFYING",
 				...(["MODERATION_CONFIGURATION_ERROR", "MODERATION_INVALID_INPUT"].includes(reasonCode)
@@ -2614,53 +2626,6 @@ async function recordMediaVerificationWaitOrFailure(
 	});
 }
 
-async function permitFailedImageVerification(
-	tx: Prisma.TransactionClient,
-	asset: Prisma.MediaAssetGetPayload<Record<string, never>>,
-	attemptNumber: number,
-	errorCode: string,
-) {
-	const validUntil = new Date(IMAGE_APPROVAL_NO_TIME_EXPIRY);
-	await appendVerificationEvidence(tx, {
-		assetId: asset.id,
-		assetChecksum: asset.checksum,
-		verificationGeneration: asset.verificationGeneration,
-		attemptNumber,
-		evidenceKind: asset.kind,
-		provider: asset.verificationProvider!,
-		providerTaskId: asset.verificationProviderTaskId,
-		ruleVersion: asset.verificationRuleVersion!,
-		policyVersion: asset.verificationPolicyVersion!,
-		status: "BYPASSED",
-		reasonCode: MODERATION_BYPASS_REASON,
-		rawEnvelope: {
-			decision: "BYPASS",
-			technicalError: errorCode,
-			pendingReview: true,
-			submissionUncertain: asset.verificationSubmissionUncertain,
-		},
-		validUntil,
-	});
-	await tx.mediaAsset.update({
-		where: { id: asset.id },
-		data: {
-			status: "READY",
-			verificationAttemptCount: attemptNumber,
-			verificationLeaseToken: null,
-			verificationLeasedUntil: null,
-			verificationNextAttemptAt: null,
-			verificationExhaustedAt: new Date(),
-			verificationValidUntil: validUntil,
-			verificationLastErrorCode: MODERATION_BYPASS_REASON,
-		},
-	});
-	return resolveJobsWaitingForMediaVerification(tx, {
-		assetId: asset.id,
-		verificationGeneration: asset.verificationGeneration,
-		approved: true,
-	});
-}
-
 async function failMediaVerificationFromError(
 	database: PrismaClient,
 	claim: MediaVerificationClaim,
@@ -2668,7 +2633,7 @@ async function failMediaVerificationFromError(
 	checksum: string | null,
 ): Promise<boolean> {
 	const current = await database.mediaAsset.findUnique({
-		where: { id: claim.assetId },
+		where: { verificationEngine: "legacy", id: claim.assetId },
 		select: {
 			verificationGeneration: true,
 			verificationProviderTaskId: true,
@@ -2702,6 +2667,7 @@ async function failUncertainMediaVerification(
 		await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${claim.assetId}`}, 0))`;
 		const asset = await tx.mediaAsset.findFirst({
 			where: {
+				verificationEngine: "legacy",
 				id: claim.assetId,
 				status: "VERIFYING",
 				verificationGeneration: claim.generation,
@@ -2725,7 +2691,7 @@ async function failUncertainMediaVerification(
 		});
 		const now = new Date();
 		await tx.mediaAsset.update({
-			where: { id: asset.id },
+			where: { verificationEngine: "legacy", id: asset.id },
 			data: {
 				status: "VERIFICATION_FAILED",
 				verificationLeaseToken: null,
@@ -2770,8 +2736,10 @@ interface SettlementOutputBindingSnapshot {
 	assetChecksum: string;
 	asset: {
 		id: string;
+		verificationEngine?: string;
+		mimeType: string;
 		kind: "INPUT" | "OUTPUT";
-		status: string;
+		status: MediaAssetStatus;
 		checksum: string | null;
 		deletedAt: Date | null;
 		verificationGeneration: number;
@@ -2791,7 +2759,7 @@ interface SettlementOutputBindingSnapshot {
 			providerTaskId: string | null;
 			ruleVersion: string;
 			policyVersion: string;
-			status: string;
+			status: ModerationStatus;
 			reasonCode: string;
 			validUntil: Date | null;
 		}>;
@@ -2824,13 +2792,19 @@ function evaluateSettlementOutputs(
 			continue;
 		}
 		const evidence = asset.moderationResults[0];
-		const validUntil = asset.verificationValidUntil;
+		const historicalContentRejection =
+			moderationProvider === "seeapi" &&
+			(asset.verificationEngine ?? "legacy") === "legacy" &&
+			asset.status === "QUARANTINED" &&
+			asset.mimeType.startsWith("image/") &&
+			isHistoricalImageModerationProvider(asset.verificationProvider) &&
+			isImageContentRejection(evidence);
 		const matchingEvidence =
 			asset.deletedAt === null &&
 			asset.kind === "OUTPUT" &&
 			Boolean(asset.checksum) &&
 			binding.assetChecksum === asset.checksum &&
-			asset.verificationProvider === moderationProvider &&
+			(asset.verificationProvider === moderationProvider || historicalContentRejection) &&
 			asset.verificationRuleVersion === MEDIA_VERIFICATION_RULE_VERSION &&
 			asset.verificationPolicyVersion === MEDIA_VERIFICATION_POLICY_VERSION &&
 			evidence?.assetChecksum === asset.checksum &&
@@ -2846,11 +2820,13 @@ function evaluateSettlementOutputs(
 		}
 		if (asset.status !== "READY") continue;
 		const authorized =
-			matchingEvidence &&
-			isPermittedModerationEvidence(evidence) &&
-			Boolean(evidence.validUntil && validUntil) &&
-			evidence.validUntil?.getTime() === validUntil?.getTime() &&
-			Boolean(evidence.validUntil && evidence.validUntil > now);
+			binding.assetChecksum === asset.checksum &&
+			hasCurrentApprovedMediaAssetEvidence(asset, {
+				provider: moderationProvider,
+				ruleVersion: MEDIA_VERIFICATION_RULE_VERSION,
+				policyVersion: MEDIA_VERIFICATION_POLICY_VERSION,
+				now,
+			});
 		if (authorized) readyOutputCount += 1;
 		else waitingForVerification = true;
 	}
@@ -2967,7 +2943,11 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 	return {
 		async claimSettlement(payload) {
 			const job = await database.generationJob.findFirst({
-				where: { id: payload.jobId, status: { in: ["FINALIZING", "CANCELED"] } },
+				where: {
+					executionEngine: "legacy",
+					id: payload.jobId,
+					status: { in: ["FINALIZING", "CANCELED"] },
+				},
 				include: {
 					reservation: true,
 					assets: settlementOutputInclude,
@@ -2983,7 +2963,7 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 			if (outputState.waitingForVerification) return null;
 			if (job.reservation.status !== "ACTIVE") {
 				await database.generationJob.updateMany({
-					where: { id: job.id, status: "FINALIZING" },
+					where: { executionEngine: "legacy", id: job.id, status: "FINALIZING" },
 					data: {
 						status: outputState.readyOutputCount > 0 ? "SUCCEEDED" : "FAILED",
 						failureCode:
@@ -3015,7 +2995,11 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 		async settle(claim) {
 			await runSerializable(database, async (tx) => {
 				let job = await tx.generationJob.findFirst({
-					where: { id: claim.jobId, status: { in: ["FINALIZING", "CANCELED"] } },
+					where: {
+						executionEngine: "legacy",
+						id: claim.jobId,
+						status: { in: ["FINALIZING", "CANCELED"] },
+					},
 					include: { reservation: true, assets: settlementOutputInclude },
 				});
 				if (!job?.reservation || job.reservation.status !== "ACTIVE") return;
@@ -3023,7 +3007,11 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 					await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`media-verification:${assetId}`}, 0))`;
 				}
 				job = await tx.generationJob.findFirst({
-					where: { id: claim.jobId, status: { in: ["FINALIZING", "CANCELED"] } },
+					where: {
+						executionEngine: "legacy",
+						id: claim.jobId,
+						status: { in: ["FINALIZING", "CANCELED"] },
+					},
 					include: { reservation: true, assets: settlementOutputInclude },
 				});
 				if (!job?.reservation) return;
@@ -3073,7 +3061,7 @@ export function createDatabaseSettlementStore(database: PrismaClient): Settlemen
 					tx,
 				);
 				await tx.generationJob.updateMany({
-					where: { id: job.id, status: "FINALIZING" },
+					where: { executionEngine: "legacy", id: job.id, status: "FINALIZING" },
 					data: {
 						status: outputState.readyOutputCount > 0 ? "SUCCEEDED" : "FAILED",
 						failureCode:
@@ -3124,6 +3112,7 @@ export function createDatabaseProviderCancellationStore(
 				if (!intent) return null;
 				const attempt = await tx.generationAttempt.findFirst({
 					where: {
+						AND: { job: { executionEngine: "legacy" } },
 						jobId: payload.jobId,
 						status: { in: ["SUBMITTED", "RUNNING"] },
 						providerTaskId: { not: null },
@@ -3139,6 +3128,7 @@ export function createDatabaseProviderCancellationStore(
 				const leaseToken = crypto.randomUUID();
 				const claimed = await tx.generationAttempt.updateMany({
 					where: {
+						AND: { job: { executionEngine: "legacy" } },
 						id: attempt.id,
 						providerTaskId: attempt.providerTaskId,
 						status: { in: ["SUBMITTED", "RUNNING"] },
@@ -3166,6 +3156,7 @@ export function createDatabaseProviderCancellationStore(
 			return database.$transaction(async (tx) => {
 				const canceledAttempt = await tx.generationAttempt.updateMany({
 					where: {
+						AND: { job: { executionEngine: "legacy" } },
 						id: claim.attemptId,
 						providerTaskId: claim.providerTaskId,
 						reconcileLeaseToken: claim.leaseToken,
@@ -3186,6 +3177,7 @@ export function createDatabaseProviderCancellationStore(
 				if (canceledAttempt.count !== 1) return false;
 				const canceledJob = await tx.generationJob.updateMany({
 					where: {
+						executionEngine: "legacy",
 						id: claim.jobId,
 						status: { in: ["PROVIDER_PENDING", "PROVIDER_RUNNING"] },
 					},
@@ -3214,7 +3206,7 @@ export function createDatabaseProviderCancellationStore(
 		async markProviderCancellationManualRecovery(claim, code) {
 			return database.$transaction(async (tx) => {
 				const attempt = await tx.generationAttempt.findUnique({
-					where: { id: claim.attemptId },
+					where: { AND: { job: { executionEngine: "legacy" } }, id: claim.attemptId },
 					include: { job: { select: { status: true } } },
 				});
 				if (!attempt) return false;
@@ -3233,6 +3225,7 @@ export function createDatabaseProviderCancellationStore(
 		async releaseProviderCancellation(claim) {
 			await database.generationAttempt.updateMany({
 				where: {
+					AND: { job: { executionEngine: "legacy" } },
 					id: claim.attemptId,
 					providerTaskId: claim.providerTaskId,
 					reconcileLeaseToken: claim.leaseToken,
@@ -3252,7 +3245,7 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 		async claimFinalization(payload) {
 			return database.$transaction(async (tx) => {
 				const job = await tx.generationJob.findFirst({
-					where: { id: payload.jobId, status: "FINALIZING" },
+					where: { executionEngine: "legacy", id: payload.jobId, status: "FINALIZING" },
 					include: {
 						guestTrial: { select: { expiresAt: true } },
 						attempts: {
@@ -3322,7 +3315,7 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 						data: { attemptId: attempt.id, payload: outputTransferEnvelopeInput(promoted) },
 					});
 					await tx.generationAttempt.update({
-						where: { id: attempt.id },
+						where: { AND: { job: { executionEngine: "legacy" } }, id: attempt.id },
 						data: {
 							responseSnapshot: safeResponseSnapshot(
 								attempt.responseSnapshot,
@@ -3358,7 +3351,12 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 		},
 		async findPersistedCandidate(jobId, candidateKey) {
 			const binding = await database.generationJobAsset.findFirst({
-				where: { jobId, role: "OUTPUT", asset: { sourceUrl: `provider-output:${candidateKey}` } },
+				where: {
+					AND: { job: { executionEngine: "legacy" } },
+					jobId,
+					role: "OUTPUT",
+					asset: { sourceUrl: `provider-output:${candidateKey}` },
+				},
 				include: {
 					asset: true,
 					job: {
@@ -3395,18 +3393,22 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 		},
 		async recordFinalizationWait(claim, results) {
 			await runSerializable(database, async (tx) => {
-				const job = await tx.generationJob.findUniqueOrThrow({ where: { id: claim.jobId } });
+				const job = await tx.generationJob.findUniqueOrThrow({
+					where: { executionEngine: "legacy", id: claim.jobId },
+				});
 				if (job.status !== "FINALIZING") return;
 				await bindFinalizationResults(tx, claim, results);
 			});
 		},
 		async recordFinalization(claim, results, failure) {
 			await runSerializable(database, async (tx) => {
-				const job = await tx.generationJob.findUniqueOrThrow({ where: { id: claim.jobId } });
+				const job = await tx.generationJob.findUniqueOrThrow({
+					where: { executionEngine: "legacy", id: claim.jobId },
+				});
 				if (job.status !== "FINALIZING") return;
 				await bindFinalizationResults(tx, claim, results);
 				await tx.generationJob.update({
-					where: { id: job.id },
+					where: { executionEngine: "legacy", id: job.id },
 					data: {
 						finalizationStage: failure?.stage ?? null,
 						finalizationErrorCode: failure?.code ?? null,
@@ -3419,10 +3421,13 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 		async recordFinalizationRetry(claim, failure, results = []) {
 			return runSerializable(database, async (tx) => {
 				const locked = await tx.$queryRaw<Array<{ id: string }>>`
-					SELECT "id" FROM "generation_job" WHERE "id" = ${claim.jobId} FOR UPDATE
+					SELECT "id" FROM "generation_job" WHERE "id" = ${claim.jobId}
+					AND "executionEngine" = 'legacy' FOR UPDATE
 				`;
 				if (locked.length !== 1) return { outcome: "TERMINAL" as const, retryCount: 0 };
-				const job = await tx.generationJob.findUniqueOrThrow({ where: { id: claim.jobId } });
+				const job = await tx.generationJob.findUniqueOrThrow({
+					where: { executionEngine: "legacy", id: claim.jobId },
+				});
 				if (job.status !== "FINALIZING") {
 					return { outcome: "TERMINAL" as const, retryCount: job.finalizationRetryCount };
 				}
@@ -3453,7 +3458,7 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 						failure,
 					);
 					await tx.generationJob.update({
-						where: { id: job.id },
+						where: { executionEngine: "legacy", id: job.id },
 						data: {
 							finalizationStage: failure.stage,
 							finalizationRetryCount: transferRetryCount,
@@ -3484,7 +3489,7 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 				) {
 					const nextFinalizeAt = new Date();
 					await tx.generationJob.update({
-						where: { id: job.id },
+						where: { executionEngine: "legacy", id: job.id },
 						data: {
 							finalizationStage: failure.stage,
 							finalizationRetryCount: retryCount,
@@ -3509,7 +3514,7 @@ export function createDatabaseFinalizationStore(database: PrismaClient): Finaliz
 				}
 				const nextFinalizeAt = new Date(Date.now() + Math.min(60, 2 ** retryCount) * 60_000);
 				await tx.generationJob.update({
-					where: { id: job.id },
+					where: { executionEngine: "legacy", id: job.id },
 					data: {
 						finalizationStage: failure.stage,
 						finalizationRetryCount: retryCount,
@@ -3553,7 +3558,7 @@ async function bindFinalizationResults(
 			throw new Error("Finalization result does not belong to the claimed candidates");
 		}
 		const asset = await tx.mediaAsset.findUniqueOrThrow({
-			where: { id: result.assetId },
+			where: { verificationEngine: "legacy", id: result.assetId },
 			select: { checksum: true },
 		});
 		const hasImmutableChecksum = Boolean(asset.checksum && /^[a-f0-9]{64}$/i.test(asset.checksum));
@@ -3608,7 +3613,11 @@ async function transitionGuestOutputCardinalityFailure(
 	},
 ): Promise<void> {
 	await tx.generationAttempt.updateMany({
-		where: { id: input.attemptId, status: "SUCCEEDED" },
+		where: {
+			AND: { job: { executionEngine: "legacy" } },
+			id: input.attemptId,
+			status: "SUCCEEDED",
+		},
 		data: {
 			errorSnapshot: {
 				code: GUEST_OUTPUT_CARDINALITY_INVALID_CODE,
@@ -3618,6 +3627,7 @@ async function transitionGuestOutputCardinalityFailure(
 	});
 	const changed = await tx.generationJob.updateMany({
 		where: {
+			executionEngine: "legacy",
 			id: input.jobId,
 			status: "FINALIZING",
 			failureCode: input.previousFailureCode,
@@ -3654,6 +3664,7 @@ async function isAlreadyTerminalizedOutputTransfer(
 	const [asset, cleanup] = await Promise.all([
 		tx.mediaAsset.findFirst({
 			where: {
+				verificationEngine: "legacy",
 				id: failure.assetId,
 				ownerType: "USER",
 				ownerId: claim.ownerId,
@@ -3689,6 +3700,7 @@ async function getOutputTransferWait(
 	const sourceUrls = claim.candidates.map((candidate) => `provider-output:${candidate.key}`);
 	const bindings = await tx.generationJobAsset.findMany({
 		where: {
+			AND: { job: { executionEngine: "legacy" } },
 			jobId: claim.jobId,
 			role: "OUTPUT",
 			asset: {
@@ -3775,6 +3787,7 @@ async function terminalizeExhaustedOutputTransfer(
 	if (!clock) throw new Error("Database did not return its current time");
 	const transfer = await tx.mediaAsset.findFirst({
 		where: {
+			verificationEngine: "legacy",
 			id: failure.assetId,
 			ownerType: "USER",
 			ownerId: claim.ownerId,
@@ -3799,6 +3812,7 @@ async function terminalizeExhaustedOutputTransfer(
 	}
 	const terminalized = await tx.mediaAsset.updateMany({
 		where: {
+			verificationEngine: "legacy",
 			id: transfer.id,
 			status: "VERIFYING",
 			outputTransferToken: failure.transferToken,
@@ -3863,13 +3877,12 @@ export function createFinalizationDependencies(
 	} = {},
 ): FinalizationDependencies {
 	const database = options.database ?? db;
-	const safety = options.safety ?? createSafetyAdapter(environment);
 	const store = options.store ?? createDatabaseFinalizationStore(database);
 	const verification =
 		options.verification ??
 		createDatabaseVerifyUploadDependencies(database, {
-			safety,
-			moderationProvider: imageModerationProviderForEnvironment(environment),
+			environment,
+			safety: options.safety,
 		});
 	const storage = {
 		inspectRemoteMedia,
@@ -3883,6 +3896,11 @@ export function createFinalizationDependencies(
 	return {
 		store,
 		async persistCandidate(claim, candidate) {
+			const managed = await database.generationJob.findUnique({
+				where: { id: claim.jobId, executionEngine: "legacy" },
+				select: { id: true },
+			});
+			if (!managed) throw new Error("LEGACY_EXECUTOR_NOT_MANAGED");
 			const existing = await store.findPersistedCandidate(claim.jobId, candidate.key);
 			if (existing) return existing;
 			if (claim.guest && claim.guest.deleteAfter <= new Date()) {
@@ -3897,7 +3915,9 @@ export function createFinalizationDependencies(
 				.digest("base64url")
 				.slice(0, 32)}`;
 			const sourceUrl = `provider-output:${candidate.key}`;
-			const placeholder = await database.mediaAsset.findUnique({ where: { id: assetId } });
+			const placeholder = await database.mediaAsset.findUnique({
+				where: { verificationEngine: "legacy", id: assetId },
+			});
 			const matchingPlaceholder =
 				placeholder?.ownerType === "USER" &&
 				placeholder.ownerId === claim.ownerId &&
@@ -4178,7 +4198,9 @@ export function createFinalizationDependencies(
 				return { assetId, approved: false };
 			}
 			const progress = await verification.verify(assetId);
-			const asset = await database.mediaAsset.findUniqueOrThrow({ where: { id: assetId } });
+			const asset = await database.mediaAsset.findUniqueOrThrow({
+				where: { verificationEngine: "legacy", id: assetId },
+			});
 			if (asset.status === "VERIFYING") {
 				const pending = asset.verificationLastErrorCode === "IMAGE_PROCESSING";
 				const polling =
@@ -4231,6 +4253,8 @@ export function createDatabaseProviderEventStore(
 				const event = await tx.providerWebhookEvent.findFirst({
 					where: {
 						id: eventId,
+						provider: { notIn: ["kie-video-v1", "sightengine-video-v1", "seeapi-video-v1"] },
+						NOT: { providerEventId: { startsWith: "video-v1:" } },
 						OR: [
 							{ status: "RECEIVED" },
 							{ status: "PROCESSING", processingLeasedUntil: { lte: new Date() } },
@@ -4238,6 +4262,11 @@ export function createDatabaseProviderEventStore(
 					},
 				});
 				if (!event?.providerTaskId) return null;
+				const owner = await tx.generationAttempt.findFirst({
+					where: { provider: event.provider, providerTaskId: event.providerTaskId },
+					select: { job: { select: { executionEngine: true } } },
+				});
+				if (owner && owner.job.executionEngine !== "legacy") return null;
 				const processingToken = crypto.randomUUID();
 				const claimed = await tx.providerWebhookEvent.updateMany({
 					where: { id: event.id, status: event.status, processingToken: event.processingToken },
@@ -4249,7 +4278,11 @@ export function createDatabaseProviderEventStore(
 				});
 				if (claimed.count !== 1) return null;
 				const attempt = await tx.generationAttempt.findFirst({
-					where: { provider: event.provider, providerTaskId: event.providerTaskId },
+					where: {
+						AND: { job: { executionEngine: "legacy" } },
+						provider: event.provider,
+						providerTaskId: event.providerTaskId,
+					},
 					include: { job: true },
 				});
 				if (!attempt || ["SUCCEEDED", "FAILED", "CANCELED"].includes(attempt.status)) {
@@ -4300,7 +4333,7 @@ export function createDatabaseProviderEventStore(
 				if (!attempt) throw new Error("Provider event attempt not found");
 				await options.afterAttemptLock?.({ eventId: claim.eventId, attemptId: attempt.id });
 				const job = await tx.generationJob.findUniqueOrThrow({
-					where: { id: attempt.jobId },
+					where: { executionEngine: "legacy", id: attempt.jobId },
 					select: { productKey: true, status: true },
 				});
 				const incoming = claim.snapshot.status;
@@ -4394,7 +4427,7 @@ export function createDatabaseProviderEventStore(
 					});
 				}
 				await tx.generationAttempt.update({
-					where: { id: attempt.id },
+					where: { AND: { job: { executionEngine: "legacy" } }, id: attempt.id },
 					data: {
 						status:
 							incoming === "SUCCEEDED"
@@ -4437,6 +4470,7 @@ export function createDatabaseProviderEventStore(
 				if (incoming === "SUCCEEDED") {
 					await tx.generationJob.updateMany({
 						where: {
+							executionEngine: "legacy",
 							id: attempt.jobId,
 							status: { in: ["SUBMITTING", "PROVIDER_PENDING", "PROVIDER_RUNNING"] },
 						},
@@ -4456,6 +4490,7 @@ export function createDatabaseProviderEventStore(
 				} else if (incoming === "FAILED" || incoming === "CANCELED") {
 					await tx.generationJob.updateMany({
 						where: {
+							executionEngine: "legacy",
 							id: attempt.jobId,
 							status: { in: ["SUBMITTING", "PROVIDER_PENDING", "PROVIDER_RUNNING"] },
 						},
@@ -4478,7 +4513,7 @@ export function createDatabaseProviderEventStore(
 					});
 				} else if (incoming === "RUNNING") {
 					await tx.generationJob.updateMany({
-						where: { id: attempt.jobId, status: "PROVIDER_PENDING" },
+						where: { executionEngine: "legacy", id: attempt.jobId, status: "PROVIDER_PENDING" },
 						data: { status: "PROVIDER_RUNNING", version: { increment: 1 } },
 					});
 				}
@@ -4486,9 +4521,10 @@ export function createDatabaseProviderEventStore(
 			});
 		},
 		async markProviderRecoveryUnavailable(claim) {
+			if (await unmanagedLegacyTask(database, { attemptId: claim.attemptId })) return;
 			await database.$transaction(async (tx) => {
 				const attempt = await tx.generationAttempt.findUnique({
-					where: { id: claim.attemptId },
+					where: { AND: { job: { executionEngine: "legacy" } }, id: claim.attemptId },
 					select: { id: true, jobId: true, status: true, errorSnapshot: true },
 				});
 				if (!attempt) {
@@ -4496,7 +4532,7 @@ export function createDatabaseProviderEventStore(
 					return;
 				}
 				const job = await tx.generationJob.findUniqueOrThrow({
-					where: { id: attempt.jobId },
+					where: { executionEngine: "legacy", id: attempt.jobId },
 					select: { status: true },
 				});
 				if (attempt.status === "NEEDS_RECONCILIATION" || job.status === "NEEDS_RECONCILIATION") {
@@ -4516,9 +4552,10 @@ export function createDatabaseProviderEventStore(
 			});
 		},
 		async recordProviderEventFailure(claim, code) {
+			if (await unmanagedLegacyTask(database, { attemptId: claim.attemptId })) return;
 			await database.$transaction(async (tx) => {
 				const attempt = await tx.generationAttempt.findUnique({
-					where: { id: claim.attemptId },
+					where: { AND: { job: { executionEngine: "legacy" } }, id: claim.attemptId },
 					include: { job: { select: { status: true } } },
 				});
 				if (
@@ -4556,7 +4593,7 @@ export function createDatabaseReconciliationStore(
 		async getPollingState(attemptId) {
 			if (!attemptId.trim()) throw new Error("INVALID_GENERATION_ATTEMPT_ID");
 			const attempt = await database.generationAttempt.findUnique({
-				where: { id: attemptId },
+				where: { AND: { job: { executionEngine: "legacy" } }, id: attemptId },
 				select: {
 					status: true,
 					providerTaskId: true,
@@ -4589,7 +4626,8 @@ export function createDatabaseReconciliationStore(
 			return database.$queryRaw`
 			WITH claimable AS (
 				SELECT "id" FROM "generation_attempt"
-				WHERE ("providerTaskId" IS NOT NULL OR "uncertainSubmission" = true)
+				WHERE "jobId" IN (SELECT "id" FROM "generation_job" WHERE "executionEngine" = 'legacy')
+				AND ("providerTaskId" IS NOT NULL OR "uncertainSubmission" = true)
 			  AND "status" IN ('SUBMISSION_UNCERTAIN', 'SUBMITTED', 'RUNNING')
 				  AND (${scopedAttemptId}::text IS NULL OR "id" = ${scopedAttemptId})
 				  AND ("nextReconcileAt" IS NULL OR "nextReconcileAt" <= ${now})
@@ -4611,7 +4649,11 @@ export function createDatabaseReconciliationStore(
 		async recordReconciled(lease, snapshot, result) {
 			return database.$transaction(async (tx) => {
 				const attempt = await tx.generationAttempt.findFirst({
-					where: { id: lease.attemptId, reconcileLeaseToken: lease.leaseToken },
+					where: {
+						AND: { job: { executionEngine: "legacy" } },
+						id: lease.attemptId,
+						reconcileLeaseToken: lease.leaseToken,
+					},
 					include: { job: { select: { productKey: true, status: true } } },
 				});
 				await options.afterAttemptRead?.();
@@ -4623,7 +4665,11 @@ export function createDatabaseReconciliationStore(
 					attempt.job.status === "NEEDS_RECONCILIATION"
 				) {
 					await tx.generationAttempt.updateMany({
-						where: { id: attempt.id, reconcileLeaseToken: lease.leaseToken },
+						where: {
+							AND: { job: { executionEngine: "legacy" } },
+							id: attempt.id,
+							reconcileLeaseToken: lease.leaseToken,
+						},
 						data: { reconcileLeaseToken: null, reconcileLeasedUntil: null, nextReconcileAt: null },
 					});
 					return { outboxCommitted: false };
@@ -4657,7 +4703,11 @@ export function createDatabaseReconciliationStore(
 					});
 				}
 				const changed = await tx.generationAttempt.updateMany({
-					where: { id: attempt.id, reconcileLeaseToken: lease.leaseToken },
+					where: {
+						AND: { job: { executionEngine: "legacy" } },
+						id: attempt.id,
+						reconcileLeaseToken: lease.leaseToken,
+					},
 					data: {
 						status:
 							snapshot.status === "SUCCEEDED"
@@ -4705,6 +4755,7 @@ export function createDatabaseReconciliationStore(
 				if (snapshot.status === "SUCCEEDED") {
 					await tx.generationJob.updateMany({
 						where: {
+							executionEngine: "legacy",
 							id: lease.jobId,
 							status: { in: ["SUBMITTING", "PROVIDER_PENDING", "PROVIDER_RUNNING"] },
 						},
@@ -4724,6 +4775,7 @@ export function createDatabaseReconciliationStore(
 				} else if (technicalFailure) {
 					const jobChanged = await tx.generationJob.updateMany({
 						where: {
+							executionEngine: "legacy",
 							id: attempt.jobId,
 							status: { in: ["SUBMITTING", "PROVIDER_PENDING", "PROVIDER_RUNNING"] },
 						},
@@ -4755,6 +4807,7 @@ export function createDatabaseReconciliationStore(
 					}
 					const jobChanged = await tx.generationJob.updateMany({
 						where: {
+							executionEngine: "legacy",
 							id: lease.jobId,
 							status: { in: ["SUBMITTING", "PROVIDER_PENDING", "PROVIDER_RUNNING"] },
 						},
@@ -4789,12 +4842,20 @@ export function createDatabaseReconciliationStore(
 		async releaseReconciliationLease(lease, code, retryAt) {
 			await database.$transaction(async (tx) => {
 				const attempt = await tx.generationAttempt.findFirst({
-					where: { id: lease.attemptId, reconcileLeaseToken: lease.leaseToken },
+					where: {
+						AND: { job: { executionEngine: "legacy" } },
+						id: lease.attemptId,
+						reconcileLeaseToken: lease.leaseToken,
+					},
 					select: { errorSnapshot: true },
 				});
 				if (!attempt) return;
 				const changed = await tx.generationAttempt.updateMany({
-					where: { id: lease.attemptId, reconcileLeaseToken: lease.leaseToken },
+					where: {
+						AND: { job: { executionEngine: "legacy" } },
+						id: lease.attemptId,
+						reconcileLeaseToken: lease.leaseToken,
+					},
 					data: {
 						errorSnapshot: reconciliationErrorSnapshot(attempt.errorSnapshot, code),
 						reconcileLeaseToken: null,
@@ -4821,6 +4882,7 @@ export function createDatabaseReconciliationStore(
 			await database.$transaction(async (tx) => {
 				const attempt = await tx.generationAttempt.findFirst({
 					where: {
+						AND: { job: { executionEngine: "legacy" } },
 						id: lease.attemptId,
 						reconcileLeaseToken: lease.leaseToken,
 						status: { in: ["SUBMISSION_UNCERTAIN", "SUBMITTED", "RUNNING"] },
@@ -4834,6 +4896,7 @@ export function createDatabaseReconciliationStore(
 				});
 				const changed = await tx.generationAttempt.updateMany({
 					where: {
+						AND: { job: { executionEngine: "legacy" } },
 						id: lease.attemptId,
 						reconcileLeaseToken: lease.leaseToken,
 						status: { in: ["SUBMISSION_UNCERTAIN", "SUBMITTED", "RUNNING"] },
@@ -4849,6 +4912,7 @@ export function createDatabaseReconciliationStore(
 				if (changed.count !== 1) return;
 				const jobChanged = await tx.generationJob.updateMany({
 					where: {
+						executionEngine: "legacy",
 						id: lease.jobId,
 						status: { in: ["SUBMITTING", "PROVIDER_PENDING", "PROVIDER_RUNNING"] },
 					},
@@ -5033,7 +5097,7 @@ async function markQuotedRouteUnavailable(
 	},
 ): Promise<void> {
 	const job = await database.generationJob.findUnique({
-		where: { id: input.jobId },
+		where: { executionEngine: "legacy", id: input.jobId },
 		include: {
 			attempts: { orderBy: { attemptNumber: "desc" }, take: 1 },
 			reservation: { select: { id: true, amount: true, status: true } },
@@ -5044,7 +5108,11 @@ async function markQuotedRouteUnavailable(
 		throw new Error("UNCERTAIN_RESERVATION_NOT_ACTIVE");
 	}
 	const jobChanged = await database.generationJob.updateMany({
-		where: { id: job.id, status: { in: ["RESERVED", "DISPATCH_QUEUED"] } },
+		where: {
+			executionEngine: "legacy",
+			id: job.id,
+			status: { in: ["RESERVED", "DISPATCH_QUEUED"] },
+		},
 		data: {
 			status: "NEEDS_RECONCILIATION",
 			failureCode: input.code,
@@ -5055,7 +5123,7 @@ async function markQuotedRouteUnavailable(
 	const attempt = job.attempts[0];
 	if (attempt?.status === "CREATED") {
 		await database.generationAttempt.updateMany({
-			where: { id: attempt.id, status: "CREATED" },
+			where: { AND: { job: { executionEngine: "legacy" } }, id: attempt.id, status: "CREATED" },
 			data: {
 				status: "NEEDS_RECONCILIATION",
 				uncertainSubmission: false,
@@ -5102,6 +5170,7 @@ async function requeueDispatchBlockedByKillSwitch(
 ): Promise<boolean> {
 	const changed = await tx.generationJob.updateMany({
 		where: {
+			executionEngine: "legacy",
 			id: job.id,
 			version: job.version,
 			status: { in: ["RESERVED", "DISPATCH_QUEUED"] },
@@ -5230,6 +5299,7 @@ async function guestDispatchChecksPass(
 	}
 	const active = await tx.generationJob.findFirst({
 		where: {
+			executionEngine: "legacy",
 			serviceClass: "GUEST_SLOW",
 			id: { not: job.id },
 			status: {
@@ -5370,6 +5440,7 @@ async function moveAttemptToManualReconciliation(
 	}
 	const jobChanged = await tx.generationJob.updateMany({
 		where: {
+			executionEngine: "legacy",
 			id: input.attempt.jobId,
 			status: { in: [...input.jobStatuses] },
 		},
@@ -5382,6 +5453,7 @@ async function moveAttemptToManualReconciliation(
 	if (jobChanged.count !== 1) return false;
 	const attemptChanged = await tx.generationAttempt.updateMany({
 		where: {
+			AND: { job: { executionEngine: "legacy" } },
 			id: input.attempt.id,
 			status: { in: [...input.attemptStatuses] },
 			...(input.reconcileLeaseToken ? { reconcileLeaseToken: input.reconcileLeaseToken } : {}),
@@ -5455,7 +5527,11 @@ async function recoverManualProviderSuccess(
 		update: { payload: outputTransferEnvelopeInput(input.envelope) },
 	});
 	const attemptChanged = await tx.generationAttempt.updateMany({
-		where: { id: input.attempt.id, status: "NEEDS_RECONCILIATION" },
+		where: {
+			AND: { job: { executionEngine: "legacy" } },
+			id: input.attempt.id,
+			status: "NEEDS_RECONCILIATION",
+		},
 		data: {
 			status: "SUCCEEDED",
 			progress:
@@ -5485,7 +5561,7 @@ async function recoverManualProviderSuccess(
 	});
 	if (attemptChanged.count !== 1) throw new Error("MANUAL_RECOVERY_ATTEMPT_STATE_CONFLICT");
 	const jobChanged = await tx.generationJob.updateMany({
-		where: { id: input.attempt.jobId, status: "NEEDS_RECONCILIATION" },
+		where: { executionEngine: "legacy", id: input.attempt.jobId, status: "NEEDS_RECONCILIATION" },
 		data: {
 			status: "FINALIZING",
 			failureCode: null,
@@ -5545,6 +5621,7 @@ async function transitionTerminalSuccessWithoutMedia(
 	}
 	const attemptChanged = await tx.generationAttempt.updateMany({
 		where: {
+			AND: { job: { executionEngine: "legacy" } },
 			id: input.attemptId,
 			status: { in: ["SUBMISSION_UNCERTAIN", "SUBMITTED", "RUNNING", "SUCCEEDED"] },
 			...(input.reconcileLeaseToken ? { reconcileLeaseToken: input.reconcileLeaseToken } : {}),
@@ -5564,6 +5641,7 @@ async function transitionTerminalSuccessWithoutMedia(
 	if (attemptChanged.count !== 1) return;
 	const jobChanged = await tx.generationJob.updateMany({
 		where: {
+			executionEngine: "legacy",
 			id: input.jobId,
 			status: { in: ["SUBMITTING", "PROVIDER_PENDING", "PROVIDER_RUNNING", "FINALIZING"] },
 		},

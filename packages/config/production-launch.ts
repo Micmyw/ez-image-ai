@@ -227,7 +227,7 @@ export function validateEzPicLaunchEnvironment(
 	requireFalse(input, "E2E_DRAFT_HANDOFF");
 	requireFalse(input, "LOAD_TESTING_ENABLED");
 	requireFalse(input, "MEDIA_ALLOW_TEST_SAFETY_ADAPTER");
-	if (!["sightengine", "configured"].includes(String(input.MEDIA_SAFETY_ADAPTER))) {
+	if (input.MEDIA_SAFETY_ADAPTER !== "configured") {
 		throw new Error(
 			"MEDIA_SAFETY_ADAPTER must select real configured moderation; test moderation is forbidden",
 		);

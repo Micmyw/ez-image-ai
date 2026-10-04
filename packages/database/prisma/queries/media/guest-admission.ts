@@ -11,6 +11,11 @@ import {
 	createModeratedGenerationQuote,
 	fingerprintGenerationQuoteSecurityPayload,
 } from "./quotes";
+import {
+	assertSharedKieCapacity,
+	configuredSharedKieCapacity,
+	lockSharedKieCapacity,
+} from "./shared-provider-capacity";
 import { ACTIVE_GENERATION_JOB_STATUSES } from "./state-machine";
 import type { CreateModeratedGenerationQuoteInput, MediaTransactionClient } from "./types";
 import { isDatabaseUniqueConflict, runReadCommitted } from "./types";
@@ -192,11 +197,14 @@ export async function createGuestGenerationTransaction(
 	resolveCanonicalQuote: ResolveCanonicalGuestGenerationQuote,
 ): Promise<CreateGuestGenerationTransactionResult> {
 	validateAdmissionInput(input);
+	const providerLimit = configuredSharedKieCapacity();
 	try {
 		return await runReadCommitted(client, async (tx) => {
+			if (providerLimit !== null) await lockSharedKieCapacity(tx);
 			await acquireGuestAdmissionLocks(input, tx);
 			const replay = await findGuestAdmissionReplay(input, tx);
 			if (replay) return replay;
+			if (providerLimit !== null) await assertSharedKieCapacity(tx, providerLimit);
 			if (!(await consumeGuestTurnstileTokenHash(input.turnstile, tx))) {
 				throw new Error("TURNSTILE_REPLAYED");
 			}

@@ -1,6 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { isExplicitVideoVerificationTarget } from "../../../../../tests/load/video-verification-target";
 import { PrismaClient } from "../../generated/client";
 import {
 	requestCheckoutRecovery,
@@ -50,7 +51,7 @@ describe("account-wide subscription checkout admission", () => {
 		const parsed = new URL(url);
 		if (
 			!["127.0.0.1", "localhost"].includes(parsed.hostname) ||
-			parsed.port !== "55432" ||
+			(parsed.port !== "55432" && !isExplicitVideoVerificationTarget(parsed)) ||
 			!/test/.test(parsed.pathname)
 		)
 			throw new Error("UNSAFE_TEST_DATABASE");

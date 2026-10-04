@@ -74,7 +74,7 @@ jobs:
         env:
           NODE_ENV: production
           MEDIA_PROVIDER_ADAPTER: replicate
-          MEDIA_SAFETY_ADAPTER: sightengine
+          MEDIA_SAFETY_ADAPTER: configured
           MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "false"
         run: pnpm cloudflare:web:build
       - name: Bundle the final website Worker
@@ -141,7 +141,8 @@ jobs:
       NODE_ENV: production
       DATABASE_URL: postgresql://ai_media_test:ai_media_test_only@127.0.0.1:55432/ai_media_foundation_test
       MEDIA_PROVIDER_ADAPTER: replicate
-      MEDIA_SAFETY_ADAPTER: sightengine
+      MEDIA_SAFETY_ADAPTER: configured
+      MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "false"
     services:
       postgres:
         image: postgres:17-alpine

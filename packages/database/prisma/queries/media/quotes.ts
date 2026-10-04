@@ -1,11 +1,5 @@
 import { createHash } from "node:crypto";
 
-import {
-	MODERATION_BYPASS_REASON,
-	MODERATION_MAX_FAILURES,
-	isRetryableModerationError,
-} from "@repo/config";
-
 import type { Prisma } from "../../generated/client";
 import { recordTextModerationOutcome } from "./moderation-operations";
 import type { MediaDatabaseClient, MediaTransactionClient } from "./types";
@@ -72,10 +66,7 @@ export async function createModeratedGenerationQuote(
 	await client.auditLog.create({
 		data: {
 			actorUserId: input.submittedByUserId,
-			action:
-				input.moderation.decision === "BYPASS"
-					? "MEDIA_TEXT_MODERATION_BYPASSED"
-					: "MEDIA_TEXT_MODERATION_ALLOWED",
+			action: "MEDIA_TEXT_MODERATION_ALLOWED",
 			targetType: "GENERATION_QUOTE",
 			targetId: quote.id,
 			after: {
@@ -98,12 +89,7 @@ export async function createModeratedGenerationQuote(
 
 function validateModeratedGenerationQuote(input: CreateModeratedGenerationQuoteInput): void {
 	if (input.ownerType !== "USER") throw new Error("First-release writes support USER owners only");
-	const bypass =
-		input.moderation.decision === "BYPASS" &&
-		input.moderation.reasonCode === MODERATION_BYPASS_REASON &&
-		input.moderation.retry?.failures === MODERATION_MAX_FAILURES &&
-		isRetryableModerationError(input.moderation.retry.lastErrorCode);
-	if (input.moderation.decision !== "ALLOW" && !bypass) {
+	if (input.moderation.decision !== "ALLOW") {
 		throw new Error(`TEXT_MODERATION_${input.moderation.decision}`);
 	}
 	if (!/^[a-f0-9]{64}$/.test(input.moderation.inputFingerprint)) {

@@ -18,6 +18,9 @@ import {
 import { db } from "@repo/database/client";
 import { createProviderWebhookVerifierRegistry } from "@repo/jobs";
 import { dispatchJob } from "@repo/jobs/orchestration/client";
+import { createSeeapiVideoModerationWebhookHandler } from "@repo/jobs/video-v1/seeapi-webhooks";
+import { createVideoProviderWebhookHandler } from "@repo/jobs/video-v1/webhooks";
+import { getVideoWorkflowBinding } from "@repo/jobs/video-v1/workflow-binding";
 import { getLogContext, logger, withLogContext } from "@repo/logs";
 import { webhookHandler as paymentsWebhookHandler } from "@repo/payments";
 import { checkStorageMetadataAccess } from "@repo/storage";
@@ -42,6 +45,8 @@ import { uploadTemporaryReference } from "./modules/media/temporary-reference-up
 import { createKieCallbackHandler } from "./modules/media/webhooks/kie-callback";
 import { createProviderWebhookHandler } from "./modules/media/webhooks/provider-webhook";
 import { mediaLoadTestHandler } from "./modules/testing/media-load";
+import { redactVideoAccessLog } from "./modules/video-v1/log-redaction";
+import { serveVideoPlayback } from "./modules/video-v1/playback";
 import { openApiHandler, rpcHandler } from "./orpc/handler";
 
 export { router } from "./orpc/router";
@@ -139,7 +144,7 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 			// Size is enforced on both declared and streamed bodies. Webhooks keep the reconstructed raw bytes.
 			.use("*", boundedRequestBody)
 			// Logger middleware
-			.use(honoLogger((message, ...rest) => logger.log(message, ...rest)))
+			.use(honoLogger((message, ...rest) => logger.log(redactVideoAccessLog(message), ...rest)))
 			// Cors middleware
 			.use(
 				cors({
@@ -203,13 +208,31 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 			})
 			// Payments webhook handler
 			.post("/webhooks/payments", (c) => paymentsWebhookHandler(c.req.raw))
+			.post("/webhooks/video/kie/:attemptToken", (c) =>
+				createVideoProviderWebhookHandler({ binding: getVideoWorkflowBinding() })(c.req.raw),
+			)
+			.post("/webhooks/video/moderation", (c) =>
+				c.json({ code: "MODERATION_PROVIDER_RETIRED" }, 410),
+			)
+			.post("/webhooks/video-v1/seeapi/:assetId", (c) =>
+				createSeeapiVideoModerationWebhookHandler({ binding: getVideoWorkflowBinding() })(
+					c.req.raw,
+				),
+			)
+			.on(["GET", "HEAD"], "/video-v1/jobs/:jobId/content", (c) =>
+				serveVideoPlayback(c.req.raw, c.req.param("jobId")),
+			)
 			// Provider webhooks must receive the untouched raw body before the oRPC catch-all.
 			.post("/webhooks/ai/:provider", (c) =>
 				c.req.param("provider") === "kie"
 					? kieCallbackHandler(c.req.raw)
 					: providerWebhookHandler(c.req.param("provider"), c.req.raw),
 			)
-			.post("/webhooks/moderation/:provider", (c) => c.json({ code: "WEBHOOK_NOT_SUPPORTED" }, 404))
+			.post("/webhooks/moderation/:provider", (c) =>
+				c.req.param("provider") === "sightengine"
+					? c.json({ code: "MODERATION_PROVIDER_RETIRED" }, 410)
+					: c.json({ code: "WEBHOOK_NOT_SUPPORTED" }, 404),
+			)
 			// Pure process liveness; no dependencies or business effects.
 			.get("/health", (c) => c.json({ status: "alive" }))
 			// Deliberately absent unless the guarded local/staging load-test environment is explicit.
@@ -594,6 +617,7 @@ const DEFAULT_BODY_LIMIT_BYTES = 1024 * 1024;
 const DRAFT_BODY_LIMIT_BYTES = 10 * 1024 * 1024;
 
 function requestBodyLimit(path: string): number {
+	if (/^\/api\/webhooks\/video-v1\/seeapi\/[^/]+$/.test(path)) return 256 * 1024;
 	return path.endsWith("/media/drafts") ? DRAFT_BODY_LIMIT_BYTES : DEFAULT_BODY_LIMIT_BYTES;
 }
 

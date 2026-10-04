@@ -3,6 +3,34 @@ import { describe, expect, it } from "vitest";
 import { deploymentEnvironment, publicBuildVariables } from "./deployment";
 
 describe("Cloudflare deployment environment", () => {
+	it("excludes retired moderation variables without removing active providers or unrelated OpenAI", () => {
+		const retired = {
+			SIGHTENGINE_API_USER: "retired-user",
+			SIGHTENGINE_API_SECRET: "retired-secret",
+			MODERATION_TEXT_SIGHTENGINE_ENABLED: "true",
+			MODERATION_IMAGE_SIGHTENGINE_ENABLED: "false",
+			VIDEO_V1_MODERATION_WEBHOOK_SECRET: "retired-callback-secret",
+			VIDEO_V1_MODERATION_CALLBACK_CONFIGURED: "true",
+			VIDEO_AUDIO_SAFETY_ADAPTER: "openai-transcript",
+			OPENAI_AUDIO_MODERATION_API_KEY: "retired-audio-secret",
+			OPENAI_AUDIO_TRANSCRIPTION_MODEL: "retired-audio-model",
+		};
+		const active = {
+			MEDIA_SAFETY_ADAPTER: "configured",
+			MODERATION_TEXT_WAFFO_ENABLED: "true",
+			MODERATION_IMAGE_SEEAPI_ENABLED: "true",
+			WAFFO_MERCHANT_ID: "active-merchant",
+			WAFFO_PRIVATE_KEY: "active-waffo-secret",
+			SEEAPI_API_KEY: "active-seeapi-secret",
+			OPENAI_API_KEY: "unrelated-openai-secret",
+		};
+		const environment = deploymentEnvironment(
+			{ NEXT_PUBLIC_SAAS_URL: "https://ezimageai.com", ...retired, ...active },
+			"https://ezimageai.com",
+		);
+		expect(environment).toMatchObject(active);
+		for (const key of Object.keys(retired)) expect(environment).not.toHaveProperty(key);
+	});
 	it("keeps the explicit production safety switches after removing test credentials", () => {
 		const environment = deploymentEnvironment(
 			{

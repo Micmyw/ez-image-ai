@@ -29,6 +29,40 @@ const staged = {
 const response = (result: unknown) => Response.json({ success: true, result });
 
 describe("retired Worker bindings", () => {
+	it("stages retired video callback and audio bindings while keeping active providers", async () => {
+		const obsolete = [
+			"VIDEO_V1_MODERATION_WEBHOOK_SECRET",
+			"VIDEO_V1_MODERATION_CALLBACK_CONFIGURED",
+			"VIDEO_AUDIO_SAFETY_ADAPTER",
+			"OPENAI_AUDIO_MODERATION_API_KEY",
+			"OPENAI_AUDIO_TRANSCRIPTION_MODEL",
+		].map((name, index) => ({ name, type: index % 2 === 0 ? "secret_text" : "plain_text" }));
+		const active = [
+			{ name: "SEEAPI_API_KEY", type: "secret_text" },
+			{ name: "WAFFO_PRIVATE_KEY", type: "secret_text" },
+			{ name: "OPENAI_API_KEY", type: "secret_text" },
+			{ name: "VIDEO_WORKFLOW", type: "workflow" },
+		];
+		const request = vi
+			.fn<typeof fetch>()
+			.mockResolvedValueOnce(
+				response({ id: "old-video-version", bindings: [...obsolete, ...active] }),
+			)
+			.mockResolvedValueOnce(response({ id: "retired-video-version", bindings: active }));
+		await expect(
+			stageRetiredWorkerBindings(
+				{ ...options, nextBindingNames: active.map(({ name }) => name) },
+				request,
+			),
+		).resolves.toEqual({
+			versionId: "retired-video-version",
+			retired: obsolete.map(({ name }) => name),
+		});
+		expect(request).toHaveBeenCalledTimes(2);
+		expect(JSON.parse(request.mock.calls[1]![1]!.body as string).env).toEqual(
+			Object.fromEntries(obsolete.map(({ name }) => [name, null])),
+		);
+	});
 	it("stages removal of only retired bindings without deploying or changing unrelated secrets", async () => {
 		const request = vi
 			.fn<typeof fetch>()

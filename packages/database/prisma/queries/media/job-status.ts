@@ -99,7 +99,7 @@ export function getOwnedGenerationJobStatus(
 	client?: MediaDatabaseClient,
 ) {
 	return getMediaDatabaseClient(client).generationJob.findFirst({
-		where: { id: jobId, ownerType: "USER", ownerId },
+		where: { id: jobId, executionEngine: "legacy", ownerType: "USER", ownerId },
 		select: MEDIA_JOB_STATUS_SELECT,
 	});
 }

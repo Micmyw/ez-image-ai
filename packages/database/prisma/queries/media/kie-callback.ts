@@ -24,11 +24,12 @@ export async function wakeKieGenerationAttempt(
 				provider: true,
 				providerTaskId: true,
 				status: true,
-				job: { select: { status: true } },
+				job: { select: { status: true, executionEngine: true } },
 			},
 		}),
 	);
-	if (!attempt || attempt.provider !== "kie") return "invalid";
+	if (!attempt || attempt.job.executionEngine !== "legacy" || attempt.provider !== "kie")
+		return "invalid";
 	if (!attempt.providerTaskId) return "pending";
 	if (attempt.providerTaskId !== input.providerTaskId) return "invalid";
 	const statuses = ["SUBMISSION_UNCERTAIN", "SUBMITTED", "RUNNING"] as const;
@@ -45,7 +46,7 @@ export async function wakeKieGenerationAttempt(
 				provider: "kie",
 				providerTaskId: input.providerTaskId,
 				status: { in: [...statuses] },
-				job: { status: { in: [...jobStatuses] } },
+				job: { executionEngine: "legacy", status: { in: [...jobStatuses] } },
 			},
 			// The notification only wakes recovery. Never trust callback status/URLs,
 			// clear a lease, change business state, or settle customer credits here.

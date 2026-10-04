@@ -25,7 +25,7 @@ export function createDatabaseFinalizingGenerationRecoveryStore(
 				SELECT job."id" AS "jobId"
 				FROM "generation_job" job
 				LEFT JOIN "credit_reservation" reservation ON reservation."jobId" = job."id"
-				WHERE (
+				WHERE job."executionEngine" = 'legacy' AND (
 					job."status" = 'FINALIZING'
 					OR (job."status" = 'CANCELED' AND reservation."status" = 'ACTIVE')
 				)
@@ -44,12 +44,13 @@ export function createDatabaseFinalizingGenerationRecoveryStore(
 		async recoverCandidate(candidate, input) {
 			return database.$transaction(async (tx) => {
 				const locked = await tx.$queryRaw<Array<{ id: string }>>`
-					SELECT "id" FROM "generation_job" WHERE "id" = ${candidate.jobId} FOR UPDATE
+					SELECT "id" FROM "generation_job" WHERE "id" = ${candidate.jobId}
+					AND "executionEngine" = 'legacy' FOR UPDATE
 				`;
 				if (locked.length !== 1) return "SKIPPED";
 
 				const job = await tx.generationJob.findUnique({
-					where: { id: candidate.jobId },
+					where: { id: candidate.jobId, executionEngine: "legacy" },
 					include: {
 						reservation: { select: { status: true } },
 						attempts: {

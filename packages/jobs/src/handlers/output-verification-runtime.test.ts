@@ -151,7 +151,7 @@ describe("output verification admission", () => {
 		await listVerificationRecoveryCandidates(
 			{ mediaAsset: { findMany } } as never,
 			{ limit: 2, now: new Date() },
-			{},
+			{ NODE_ENV: "test", MEDIA_SAFETY_ADAPTER: "test", MEDIA_ALLOW_TEST_SAFETY_ADAPTER: "true" },
 		);
 		expect(findMany).toHaveBeenCalledWith(
 			expect.objectContaining({

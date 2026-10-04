@@ -61,6 +61,7 @@ export const config = {
 			"terms",
 			"try",
 			"verify",
+			"video",
 		],
 	},
 } as const satisfies AuthConfig;

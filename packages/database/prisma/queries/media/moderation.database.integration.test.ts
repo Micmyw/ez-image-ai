@@ -1,6 +1,7 @@
 import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { isExplicitVideoVerificationTarget } from "../../../../../tests/load/video-verification-target";
 import { PrismaClient } from "../../generated/client";
 import {
 	createModeratedGenerationQuoteTransaction,
@@ -64,7 +65,11 @@ function safeTestDatabaseUrl(value: string | undefined): string {
 	const safeDatabase =
 		parsed.pathname === "/ai_media_foundation_test" ||
 		/^\/ezpic_[a-z0-9_]+_test$/.test(parsed.pathname);
-	if (parsed.hostname !== "127.0.0.1" || parsed.port !== "55432" || !safeDatabase) {
+	if (
+		parsed.hostname !== "127.0.0.1" ||
+		(parsed.port !== "55432" && !isExplicitVideoVerificationTarget(parsed)) ||
+		!safeDatabase
+	) {
 		throw new Error("TEST_DATABASE_URL must target the disposable local media test database");
 	}
 	return value;

@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { generateMetadata } from "../../../app/docs/[[...slug]]/page";
+
 const canonicalOrigin = "https://www.ezpic.test";
 const requiredDocsPaths = [
 	"/docs",
@@ -30,10 +32,6 @@ type DocsSourceModule = {
 
 type DocsSearchRouteModule = {
 	GET: (request: Request) => Response | Promise<Response>;
-};
-
-type DocsPageModule = {
-	generateMetadata?: (props: unknown) => Metadata | Promise<Metadata>;
 };
 
 describe("same-origin Docs source", () => {
@@ -103,16 +101,9 @@ describe("same-origin Docs source", () => {
 	] as const)(
 		"exports indexable metadata for reviewed documentation at $path",
 		async ({ path, slug }) => {
-			const pageModule = await loadOptionalModule<DocsPageModule>(
-				"../../../app/docs/[[...slug]]/page",
-			);
-			expect(pageModule, "the nested SaaS Docs page module must exist").not.toBeNull();
-			if (!pageModule) return;
-
-			expect(pageModule.generateMetadata).toBeTypeOf("function");
-			if (!pageModule.generateMetadata) return;
-			const metadata = await pageModule.generateMetadata({
-				params: Promise.resolve({ slug }),
+			const metadata = await generateMetadata({
+				params: Promise.resolve({ slug: slug ? [...slug] : undefined }),
+				searchParams: Promise.resolve({}),
 			});
 			expect(canonicalUrl(metadata)).toBe(new URL(path, canonicalOrigin).href);
 			expect(metadata.title).toBeTruthy();

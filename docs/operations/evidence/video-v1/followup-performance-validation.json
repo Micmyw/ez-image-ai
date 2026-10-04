@@ -1,0 +1,14 @@
+{
+	"verifiedAt": "2026-10-04T01:24:15.305Z",
+	"status": "PASS",
+	"rows": 353,
+	"performanceRows": 350,
+	"functionalRecoveryRows": 3,
+	"recalculatedMetricGroups": 30,
+	"callbackCommitObservedRows": 353,
+	"sourceSha256": "edde4ed2ae44180f668a4eb35650ffa4697d1741c20b88f4dd816a3f0f60abcb",
+	"csvSha256": "f13704faa75e8b21b3168681c421c6c96961d777d62d26b11a74c0ddc730c54a",
+	"legacyActiveBaseline": 5,
+	"externalMetrics": "ALL_NULL",
+	"historicalSource": "PRESERVED"
+}

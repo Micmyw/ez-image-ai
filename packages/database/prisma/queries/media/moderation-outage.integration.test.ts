@@ -2,12 +2,14 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { MODERATION_BYPASS_REASON } from "@repo/config";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { isExplicitVideoVerificationTarget } from "../../../../../tests/load/video-verification-target";
 import { PrismaClient } from "../../generated/client";
 import {
 	applyAdminModerationReview,
 	assertQuoteModerationPermitted,
 	completeAdminTextRecheck,
 	recordModerationOutcome,
+	recordTextModerationOutcome,
 } from "./moderation-operations";
 import {
 	createModeratedGenerationQuoteTransaction,
@@ -17,7 +19,11 @@ import {
 let client: PrismaClient;
 beforeAll(() => {
 	const url = new URL(process.env.TEST_DATABASE_URL!);
-	if (url.hostname !== "127.0.0.1" || url.port !== "55432" || !/test/.test(url.pathname))
+	if (
+		url.hostname !== "127.0.0.1" ||
+		(url.port !== "55432" && !isExplicitVideoVerificationTarget(url)) ||
+		!/test/.test(url.pathname)
+	)
 		throw new Error("Unsafe database");
 	client = new PrismaClient({ adapter: new PrismaPg({ connectionString: url.toString() }) });
 });
@@ -63,19 +69,45 @@ function action(
 	};
 }
 
-describe("outage quote persistence and review", () => {
-	it("cannot persist outage permission without an exhausted budget", async () => {
-		await expect(createModeratedGenerationQuoteTransaction(fixture(3), client)).rejects.toThrow(
-			"TEXT_MODERATION_BYPASS",
-		);
+// Reproduce immutable records written by the retired outage-bypass policy.
+async function createHistoricalBypassQuote(input = fixture()) {
+	return client.$transaction(async (tx) => {
+		const { moderation, ...base } = input;
+		const quote = await tx.generationQuote.create({
+			data: {
+				...base,
+				costMicros: 0n,
+				pricingSnapshot: {},
+				moderationDecision: moderation.decision,
+				moderationProvider: moderation.provider,
+				moderationRuleVersion: moderation.ruleVersion,
+				moderationReasonCode: moderation.reasonCode,
+				inputFingerprint: moderation.inputFingerprint,
+			},
+		});
+		await recordTextModerationOutcome({ targetType: "QUOTE", targetId: quote.id, moderation }, tx);
+		return quote;
 	});
-	it("atomically binds a bypassed quote to its review and keeps the quote immutable", async () => {
-		const quote = await createModeratedGenerationQuoteTransaction(fixture(), client);
+}
+
+describe("outage quote persistence and review", () => {
+	it.each([3, 4, 99])(
+		"never creates a bypass quote after %i technical failures",
+		async (failures) => {
+			await expect(
+				createModeratedGenerationQuoteTransaction(fixture(failures), client),
+			).rejects.toThrow("TEXT_MODERATION_BYPASS");
+		},
+	);
+	it("preserves historical bypass audit records but refuses admission", async () => {
+		const quote = await createHistoricalBypassQuote();
 		const review = await client.moderationReview.findUniqueOrThrow({
 			where: { targetType_targetId: { targetType: "QUOTE", targetId: quote.id } },
 		});
 		expect(review).toMatchObject({ status: "PENDING_REVIEW", failureCount: 4, bypassed: true });
-		await client.$transaction((tx) => assertQuoteModerationPermitted(quote, tx));
+		await expect(
+			client.$transaction((tx) => assertQuoteModerationPermitted(quote, tx)),
+		).rejects.toThrow("TEXT_MODERATION_EVIDENCE_INVALID");
 		await expect(
 			client.generationQuote.update({
 				where: { id: quote.id },
@@ -88,7 +120,7 @@ describe("outage quote persistence and review", () => {
 		).rejects.toThrow("TEXT_MODERATION_EVIDENCE_INVALID");
 	});
 	it("permits only one concurrent administrator decision for a version", async () => {
-		const quote = await createModeratedGenerationQuoteTransaction(fixture(), client);
+		const quote = await createHistoricalBypassQuote();
 		const review = await client.moderationReview.findUniqueOrThrow({
 			where: { targetType_targetId: { targetType: "QUOTE", targetId: quote.id } },
 		});
@@ -101,7 +133,7 @@ describe("outage quote persistence and review", () => {
 	});
 	it("retains the pending marker when a manual recheck also exhausts its retries", async () => {
 		const input = fixture();
-		const quote = await createModeratedGenerationQuoteTransaction(input, client);
+		const quote = await createHistoricalBypassQuote(input);
 		const review = await client.moderationReview.findUniqueOrThrow({
 			where: { targetType_targetId: { targetType: "QUOTE", targetId: quote.id } },
 		});
@@ -116,7 +148,7 @@ describe("outage quote persistence and review", () => {
 	});
 	it("ignores a stale recheck result after an administrator has blocked the prompt", async () => {
 		const input = fixture();
-		const quote = await createModeratedGenerationQuoteTransaction(input, client);
+		const quote = await createHistoricalBypassQuote(input);
 		let review = await client.moderationReview.findUniqueOrThrow({
 			where: { targetType_targetId: { targetType: "QUOTE", targetId: quote.id } },
 		});
@@ -140,7 +172,7 @@ describe("outage quote persistence and review", () => {
 	});
 	it("does not let an older success close a more recent outage", async () => {
 		const input = fixture();
-		const quote = await createModeratedGenerationQuoteTransaction(input, client);
+		const quote = await createHistoricalBypassQuote(input);
 		await client.$transaction((tx) =>
 			recordModerationOutcome(
 				{

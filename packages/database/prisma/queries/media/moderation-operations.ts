@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-import { MODERATION_BYPASS_REASON, MODERATION_MAX_FAILURES } from "@repo/config";
+import { MODERATION_MAX_FAILURES } from "@repo/config";
 
 import type { Prisma } from "../../generated/client";
 import type { MediaDatabaseClient, MediaTransactionClient } from "./types";
@@ -223,16 +223,7 @@ export async function assertQuoteModerationPermitted(
 ) {
 	await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`moderation-quote:${quote.id}`}, 0))`;
 	if (quote.moderationDecision === "ALLOW") return;
-	if (
-		quote.moderationDecision !== "BYPASS" ||
-		quote.moderationReasonCode !== MODERATION_BYPASS_REASON
-	)
-		throw new Error("TEXT_MODERATION_EVIDENCE_INVALID");
-	const review = await tx.moderationReview.findUnique({
-		where: { targetType_targetId: { targetType: "QUOTE", targetId: quote.id } },
-	});
-	if (!review || !["PENDING_REVIEW", "RECHECKING", "APPROVED"].includes(review.status))
-		throw new Error("TEXT_MODERATION_EVIDENCE_INVALID");
+	throw new Error("TEXT_MODERATION_EVIDENCE_INVALID");
 }
 
 /** Fence output publication against a concurrent prompt rejection. Lock before the asset lease. */
@@ -385,6 +376,8 @@ export async function applyAdminModerationReview(
 		if (changed.count !== 1) throw new Error("MODERATION_REVIEW_CHANGED");
 		if (review.targetType === "ASSET") {
 			const asset = await tx.mediaAsset.findUnique({ where: { id: review.targetId } });
+			if (asset && asset.verificationEngine !== "legacy")
+				throw new Error("EXECUTION_ENGINE_NOT_OWNED");
 			if (!asset || asset.deletedAt || !asset.checksum || !asset.finalizedAt)
 				throw new Error("MODERATION_REVIEW_TARGET_UNAVAILABLE");
 			if (
@@ -499,7 +492,10 @@ async function appendManualAssetDecision(
 	const bindings = await tx.generationJobAsset.findMany({
 		where: {
 			assetId: asset.id,
-			job: { status: { in: ["RESERVED", "DISPATCH_QUEUED", "FINALIZING"] } },
+			job: {
+				executionEngine: "legacy",
+				status: { in: ["RESERVED", "DISPATCH_QUEUED", "FINALIZING"] },
+			},
 		},
 		include: { job: true },
 	});
@@ -590,7 +586,11 @@ async function rejectPromptOutputs(
 	needsReview = false,
 ) {
 	const outputs = await tx.mediaAsset.findMany({
-		where: { deletedAt: null, jobBindings: { some: { role: "OUTPUT", job: { quoteId } } } },
+		where: {
+			verificationEngine: "legacy",
+			deletedAt: null,
+			jobBindings: { some: { role: "OUTPUT", job: { quoteId, executionEngine: "legacy" } } },
+		},
 		orderBy: { id: "asc" },
 		select: { id: true },
 	});

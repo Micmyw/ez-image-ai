@@ -11,6 +11,7 @@ export const listJobs = protectedProcedure
 		const cursor = decodeCursor(input.cursor);
 		const rows = await db.generationJob.findMany({
 			where: {
+				executionEngine: "legacy",
 				ownerType: "USER",
 				ownerId: user.id,
 				...(input.productKey ? { productKey: input.productKey } : {}),

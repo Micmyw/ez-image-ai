@@ -108,6 +108,7 @@ describe("getJob", () => {
 			observedAt: expect.any(Number),
 		});
 		const query = mocks.findFirst.mock.calls[0][0];
+		expect(query.where.executionEngine).toBe("legacy");
 		expect(query).not.toHaveProperty("include");
 		expect(query.select.reservation).toEqual({
 			select: { status: true, settledAmount: true, releasedAmount: true },
@@ -133,7 +134,7 @@ describe("getJob", () => {
 			expect(mocks.sign).not.toHaveBeenCalled();
 		},
 	);
-	it("retains only the existing technical-outage bypass policy", async () => {
+	it("never signs historical technical-outage bypasses as approved", async () => {
 		const { MODERATION_BYPASS_REASON } = await import("@repo/config");
 		const output = asset("bypassed");
 		Object.assign(output.moderationResults[0], {
@@ -142,7 +143,8 @@ describe("getJob", () => {
 		});
 		mocks.findFirst.mockResolvedValue({ ...baseJob, assets: [{ role: "OUTPUT", asset: output }] });
 		const result = await call(getJob, { jobId: "job-1" }, { context: { headers: new Headers() } });
-		expect(result.assets[0]).toHaveProperty("preview.url");
+		expect(result.assets).toEqual([]);
+		expect(mocks.sign).not.toHaveBeenCalled();
 	});
 	it.each([
 		{ deleteAfter: new Date(0) },
@@ -315,7 +317,7 @@ describe("getJob", () => {
 			);
 			expect(mocks.findFirst).toHaveBeenCalledWith(
 				expect.objectContaining({
-					where: { id: "job-1", ownerType: "USER", ownerId: "user-1" },
+					where: { id: "job-1", ownerType: "USER", ownerId: "user-1", executionEngine: "legacy" },
 				}),
 			);
 		},
@@ -389,7 +391,7 @@ describe("getJob", () => {
 		).rejects.toBeInstanceOf(ORPCError);
 		expect(mocks.findFirst).toHaveBeenCalledWith(
 			expect.objectContaining({
-				where: { id: "job-other", ownerType: "USER", ownerId: "user-1" },
+				where: { id: "job-other", ownerType: "USER", ownerId: "user-1", executionEngine: "legacy" },
 			}),
 		);
 	});

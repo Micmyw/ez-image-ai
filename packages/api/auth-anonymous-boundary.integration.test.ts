@@ -92,6 +92,20 @@ describe("anonymous Better Auth wildcard boundary", () => {
 
 	afterEach(() => vi.unstubAllEnvs());
 
+	it.each(["/api/webhooks/video/moderation", "/api/webhooks/moderation/sightengine"])(
+		"retires %s without accepting a callback or waking work",
+		async (path) => {
+			const response = await app.request(path, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: '{"status":"approved","taskId":"untrusted"}',
+			});
+			expect(response.status).toBe(410);
+			expect(await response.json()).toEqual({ code: "MODERATION_PROVIDER_RETIRED" });
+			expect(databaseMocks.ingestProviderEvent).not.toHaveBeenCalled();
+		},
+	);
+
 	it("keeps the exported app closed until persistent boundary dependencies are wired", async () => {
 		const response = await app.request("/api/auth/sign-in/anonymous", { method: "POST" });
 

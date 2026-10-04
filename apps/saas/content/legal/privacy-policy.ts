@@ -2,11 +2,11 @@ export const privacyPolicyDocuments = [
 	{
 		path: "privacy-policy",
 		locale: "en",
-		updatedAt: "2026-09-22",
+		updatedAt: "2026-10-04",
 		title: "Privacy Policy",
 		description:
 			"How EzImageAI handles account data, private image-editing media, analytics consent, and retention.",
-		body: `_Last updated: September 22, 2026_
+		body: `_Last updated: October 4, 2026_
 
 This policy explains how EzImageAI handles information when you use the public image editor, prepare a short-lived draft, use an available Nano Banana 2 Lite 1K guest trial, create an account, or use the signed-in editor. EzImageAI is an independently operated service run by an individual. Its operator is responsible for the information handled by the service and can be reached through the [Contact page](/contact) for privacy questions and requests.
 
@@ -28,7 +28,7 @@ If you sign in or register from an active trial, EzImageAI can create an expiry-
 
 EzImageAI may send the minimum necessary edit input to configured hosting, storage, moderation, payment, and image-processing services so they can perform the requested function. Those services do not own EzImageAI job, credit, or subscription state.
 
-Before generation, EzImageAI screens text instructions using Waffo. A prompt scan receives the text instruction and scan settings, without your source image, account email, or payment details. SeeAPI receives a short-lived access URL to check private source and generated images. Sightengine is not enabled for these checks. New temporary editor references are checked when you click Generate and must receive positive approval before the image model runs; a failed check stops generation and releases its credit hold. Other existing moderation paths retain bounded retries for temporary detector failures and may then proceed with a pending-review flag; this is not a positive safety verdict. Confirmed content blocks and content-review decisions remain blocked. Authorized administrators may inspect the original instruction or image to recheck, approve, or restrict it. Access and decisions are audited. EzImageAI retains limited safety decisions and request references without copying raw instructions or private image URLs into these moderation audit records. A billing-account record retains whether the one-time output-block credit waiver has been used, even after related media or job history is removed.
+Before generation, EzImageAI screens text instructions using Waffo. A prompt scan receives the text instruction and scan settings, without your source image, account email, or payment details. SeeAPI receives a short-lived access URL to check private source and generated images. New temporary editor references are checked when you click Generate and must receive positive approval before the image model runs; a failed check stops generation and releases its credit hold. Temporary detector failures may receive bounded retries; exhausted or incomplete checks do not authorize generation or result access. Credit handling follows the persisted job and ledger state. Confirmed content blocks and content-review decisions remain blocked. Authorized administrators may inspect the original instruction or image to recheck, approve, or restrict it. Access and decisions are audited. EzImageAI retains limited safety decisions and request references without copying raw instructions or private image URLs into these moderation audit records. A billing-account record retains whether the one-time output-block credit waiver has been used, even after related media or job history is removed.
 
 ## Analytics consent
 
@@ -62,7 +62,7 @@ EzImageAI uses owner checks, private storage, short-lived access, moderation, id
 		title: "Datenschutzerklärung",
 		description:
 			"Wie EzImageAI Kontodaten, private Medien zur Bildbearbeitung, Analyse-Einwilligung und Aufbewahrung behandelt.",
-		body: `_Zuletzt aktualisiert: 22. September 2026_
+		body: `_Zuletzt aktualisiert: 4. Oktober 2026_
 
 Diese Erklärung beschreibt, wie EzImageAI Informationen verarbeitet, wenn Sie den öffentlichen Bildeditor nutzen, einen kurzlebigen Entwurf vorbereiten, einen verfügbaren Nano-Banana-2-Lite-1K-Gasttest verwenden, ein Konto erstellen oder den angemeldeten Editor nutzen. EzImageAI wird unabhängig von einer Einzelperson betrieben. Der Betreiber ist für die vom Dienst verarbeiteten Informationen verantwortlich und über die [Kontaktseite](/contact) für Datenschutzfragen und Anfragen erreichbar.
 
@@ -84,7 +84,7 @@ Wenn Sie sich aus einem aktiven Test anmelden oder registrieren, kann EzImageAI 
 
 EzImageAI kann die für die angeforderte Funktion notwendigen Eingaben an konfigurierte Hosting-, Speicher-, Moderations-, Zahlungs- und Bildverarbeitungsdienste übermitteln. Diese Dienste besitzen nicht den maßgeblichen EzImageAI-Status für Auftrag, Credits oder Abonnement.
 
-Vor der Generierung prüft Waffo die Anweisungen und erhält Text und Prüfeinstellungen, jedoch kein Quellbild, keine Konto-E-Mail-Adresse und keine Zahlungsdaten. SeeAPI erhält einen kurzlebigen Zugriffslink zur Prüfung privater Quell- und Ergebnisbilder. Sightengine ist hierfür nicht aktiviert. Neue temporäre Referenzbilder werden erst beim Start der Generierung geprüft. Das Bildmodell wird nur nach positiver Freigabe aufgerufen; eine fehlgeschlagene Prüfung beendet den Auftrag und gibt reservierte Credits frei. Für andere bestehende Prüfpfade bleiben begrenzte Wiederholungen bei technischen Ausfällen und gegebenenfalls eine spätere Prüfung bestehen; dies gilt nicht als positive Freigabe. EzImageAI speichert begrenzte Prüfentscheidungen und Anfragereferenzen, ohne Rohtexte oder private Bildlinks in diese Moderationsprotokolle zu kopieren. Im Abrechnungskonto bleibt gespeichert, ob die einmalige Credit-Ausnahme für ein gesperrtes Ergebnis genutzt wurde, auch nach Löschung der zugehörigen Medien oder Aufträge.
+Vor der Generierung prüft Waffo die Anweisungen und erhält Text und Prüfeinstellungen, jedoch kein Quellbild, keine Konto-E-Mail-Adresse und keine Zahlungsdaten. SeeAPI erhält einen kurzlebigen Zugriffslink zur Prüfung privater Quell- und Ergebnisbilder. Neue temporäre Referenzbilder werden erst beim Start der Generierung geprüft. Das Bildmodell wird nur nach positiver Freigabe aufgerufen; eine fehlgeschlagene Prüfung beendet den Auftrag und gibt reservierte Credits frei. Vorübergehende technische Ausfälle können begrenzte Wiederholungen auslösen. Nach ausgeschöpften Wiederholungen oder bei unvollständigen Prüfungen bleiben Generierung und Ergebniszugriff gesperrt; die Credit-Behandlung richtet sich nach dem gespeicherten Auftrags- und Buchungsstand. EzImageAI speichert begrenzte Prüfentscheidungen und Anfragereferenzen, ohne Rohtexte oder private Bildlinks in diese Moderationsprotokolle zu kopieren. Im Abrechnungskonto bleibt gespeichert, ob die einmalige Credit-Ausnahme für ein gesperrtes Ergebnis genutzt wurde, auch nach Löschung der zugehörigen Medien oder Aufträge.
 
 ## Einwilligung in Analysen
 

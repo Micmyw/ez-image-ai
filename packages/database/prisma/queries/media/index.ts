@@ -33,3 +33,4 @@ export * from "./stripe-refund-repairs";
 export * from "./types";
 export * from "./webhooks";
 export * from "./moderation-operations";
+export * from "./video-v1-recovery";

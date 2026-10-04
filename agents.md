@@ -25,7 +25,7 @@ Root checks: `pnpm format`, `pnpm format:check`, `pnpm lint`, `pnpm type-check`,
 ## AI media invariants
 
 - PostgreSQL alone owns business state; orchestration, Stripe, providers, storage, moderation, and browsers deliver work/events.
-- Create job, input bindings, credit reservation, and initial Outbox event in one transaction. Later ledger mutations remain immutable and idempotent with stable reference keys.
+- Create job, input bindings, credit reservation, and durable execution intent in one transaction: legacy uses its initial Outbox event; video uses `VideoExecution` start intent. Later ledger mutations remain immutable and idempotent with stable reference keys.
 - Clients submit stable public product keys only. Provider routes/model IDs/credentials/prices/raw payloads and arbitrary remote URLs remain server-only.
 - Inputs and outputs remain private `MediaAsset` records. Enforce byte, multipart, session, and aggregate storage limits before writes; stream large transfers.
 - Uncertain provider acceptance keeps credits reserved and prevents cancellation or automatic failover until recovery or an audited administrator decision settles the same attempt.
@@ -49,6 +49,8 @@ The Playwright `public` project skips database auth setup. Run SaaS Vitest, Next
 ## Cloudflare execution and hosting
 
 Default `workers` uses OpenNext for the site and Workflows/WorkerJobs for jobs; `hybrid` changes background execution to the private Node container only. `dispatchJob` from `@repo/jobs/orchestration/client` is the API submission path. Business transitions stay in `packages/jobs` and `packages/database`; preserve PostgreSQL leases, immutable ledger, Outbox recovery, and uncertainty gates. Never fail over runtimes automatically after uncertain/timed-out execution.
+
+Video uses the separate native `VIDEO_WORKFLOW` binding and versioned `VideoGenerationWorkflowV1` in both profiles. Its normal execution must not dispatch `jobs-primary` or scan global Outbox. Preserve `executionEngine` / `verificationEngine` guards in legacy callbacks, recovery, moderation, administration and settlement. Video admission stays login-whitelisted and closed until configuration/acceptance gates pass. Model properties and full-cost quotes come from the versioned server contract; qualify paid credit lots before allocation. Refund monetary projections take the account lock even when rounded revoked credits do not increase. Audio review binds the same immutable stored MP4 and uses separate durable transcription and transcript-policy phases; uncertain transcription never automatically repeats a paid call. See `docs/operations/video-v1-rollout.md` for drain and rollback.
 
 Workers route heavy transfers and synchronous image responses to `jobs-primary` (1), lightweight control work to `jobs-control` (4), and maintenance to `jobs-maintenance` (1). Keep classification in `packages/jobs/src/orchestration/worker-executors.ts`; inline Outbox children must stay within the parent's maintenance slot. Separate Durable Objects do not guarantee separate memory isolates.
 

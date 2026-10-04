@@ -2,6 +2,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import * as mediaQueries from ".";
+import { isExplicitVideoVerificationTarget } from "../../../../../tests/load/video-verification-target";
 import { PrismaClient } from "../../generated/client";
 
 type GrowthOperationsQuery = (
@@ -120,7 +121,7 @@ function safeTestDatabaseUrl(): string {
 	const parsed = new URL(value);
 	if (
 		parsed.hostname !== "127.0.0.1" ||
-		parsed.port !== "55432" ||
+		(parsed.port !== "55432" && !isExplicitVideoVerificationTarget(parsed)) ||
 		!isApprovedGrowthTestDatabase(parsed.pathname.slice(1))
 	) {
 		throw new Error("UNSAFE_TEST_DATABASE");
