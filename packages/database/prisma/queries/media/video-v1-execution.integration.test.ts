@@ -35,10 +35,14 @@ beforeAll(() => {
 afterAll(async () => {
 	if (!client) return;
 	try {
-		await client.providerWebhookEvent.updateMany({
+		// Deliberately malformed identity fixtures cannot become valid evidence by
+		// changing status. Remove only the exact rows created by this test process.
+		await client.providerWebhookEvent.deleteMany({
 			where: { id: { in: identityFixtureEvents } },
-			data: { status: "PROCESSED", processedAt: new Date() },
 		});
+		expect(
+			await client.providerWebhookEvent.count({ where: { id: { in: identityFixtureEvents } } }),
+		).toBe(0);
 		// These owners were created in this process in the explicitly isolated test DB.
 		// Preserve their immutable ledger while releasing mock-only reservations so
 		// subsequent suites do not inherit provider/global capacity from our fixtures.

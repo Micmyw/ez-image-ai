@@ -52,18 +52,20 @@ export async function acceptVideoProviderWebhook(
 	// The Veo callback uses taskId; the common signature guide also documents task_id.
 	// Never select one identity while ignoring a conflicting alias in the same payload.
 	if (
-		Object.hasOwn(identity, "taskId") &&
-		Object.hasOwn(identity, "task_id") &&
+		Object.prototype.hasOwnProperty.call(identity, "taskId") &&
+		Object.prototype.hasOwnProperty.call(identity, "task_id") &&
 		identity.taskId !== identity.task_id
 	)
 		throw new VideoWebhookError(400, "VIDEO_WEBHOOK_INVALID_TASK");
-	const taskId = Object.hasOwn(identity, "taskId") ? identity.taskId : identity.task_id;
+	const taskId = Object.prototype.hasOwnProperty.call(identity, "taskId")
+		? identity.taskId
+		: identity.task_id;
 	if (typeof taskId !== "string" || !/^[\w-]{1,160}$/.test(taskId))
 		throw new VideoWebhookError(400, "VIDEO_WEBHOOK_INVALID_TASK");
 	// The common guide also repeats taskId at the envelope root; any such copy must agree.
 	const envelope = payload as Record<string, unknown>;
 	for (const key of ["taskId", "task_id"])
-		if (Object.hasOwn(envelope, key) && envelope[key] !== taskId)
+		if (Object.prototype.hasOwnProperty.call(envelope, key) && envelope[key] !== taskId)
 			throw new VideoWebhookError(400, "VIDEO_WEBHOOK_INVALID_TASK");
 	const receivedAt = options.now?.() ?? new Date();
 	if (

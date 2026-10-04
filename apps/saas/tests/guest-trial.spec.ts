@@ -17,7 +17,9 @@ test("anonymous Nano Banana 2 Lite trial is private, accessible, responsive, and
 }, testInfo) => {
 	test.setTimeout(180_000);
 	const prompt = `[e2e:delayed-success] [run:${runId}] guest browser certification ${testInfo.retry}`;
-	await enterGuestWorkspace(page, prompt);
+	// A retry has a new browser identity and must not inherit the failed attempt's IP budget.
+	const clientIp = `127.0.0.${testInfo.retry + 1}`;
+	await enterGuestWorkspace(page, prompt, clientIp);
 
 	await assertGuestLayouts(page, [1440, 800, 320]);
 	await captureReviewScreenshots(page, testInfo);
@@ -41,7 +43,7 @@ test("anonymous Nano Banana 2 Lite trial is private, accessible, responsive, and
 		await route.continue();
 	});
 	await page.getByRole("button", { name: /start my nano banana edit/i }).click();
-	const alert = page.getByRole("alert");
+	const alert = page.getByRole("alert").filter({ hasText: /we could not submit this edit/i });
 	await expect(alert).toBeVisible();
 	await expect(alert.locator("xpath=..")).toBeFocused();
 	await page.unroute("**/api/**");
@@ -88,7 +90,7 @@ test("anonymous Nano Banana 2 Lite trial is private, accessible, responsive, and
 		.toBe("SUCCEEDED");
 	await page.getByRole("link", { name: "Edit another image", exact: true }).click();
 	const secondPrompt = `${prompt} second daily edit`;
-	await enterGuestWorkspace(page, secondPrompt);
+	await enterGuestWorkspace(page, secondPrompt, clientIp);
 	await expect(page.getByRole("status").filter({ hasText: /^Today:/ })).toContainText(
 		"Today: 1 of 2 free edits remaining",
 	);
@@ -111,7 +113,7 @@ test("anonymous Nano Banana 2 Lite trial is private, accessible, responsive, and
 	await expect(page.getByText(/expired/i).first()).toBeVisible({ timeout: 30_000 });
 });
 
-async function enterGuestWorkspace(page: Page, prompt: string): Promise<void> {
+async function enterGuestWorkspace(page: Page, prompt: string, clientIp: string): Promise<void> {
 	page.on("requestfailed", (request) => {
 		const url = new URL(request.url());
 		console.info("Guest request failed", {
@@ -124,7 +126,7 @@ async function enterGuestWorkspace(page: Page, prompt: string): Promise<void> {
 		// The local dev server has no edge proxy to supply the trusted client IP.
 		await page.route(`${new URL(saasUrl).origin}/**`, (route) =>
 			route.continue({
-				headers: { ...route.request().headers(), "cf-connecting-ip": "127.0.0.1" },
+				headers: { ...route.request().headers(), "cf-connecting-ip": clientIp },
 			}),
 		);
 	}
