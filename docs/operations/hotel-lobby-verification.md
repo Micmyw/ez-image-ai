@@ -2,6 +2,13 @@
 
 This receipt separates local implementation from real provider acceptance and public availability.
 Baseline: `96f47c92d5d32bd20640e7029ab08f88a916c4f1`.
+Updated main incorporated before final publication:
+`1d9f3136e5230dbc9dab17803d002479d7eb463d`.
+During final packaging the shared remote-tracking ref advanced to
+`55144d959af1b0228490174447094d22376f7530`. Its three compatibility/test changes were
+read and add no migration or different paid-request policy. The local build receipt
+below belongs to this feature tree based on `1d9f3136`, not to that later main tree;
+pull-request CI validates the current merge context separately.
 Worktree/ownership: [implementation map](../implementation/hotel-lobby-file-map.md).
 The user's later instruction authorizes pushing the completed feature branch
 `codex/hotel-lobby-duo`. Merge, deployment, production migration, paid calls and
@@ -10,17 +17,17 @@ from the local checks below.
 
 ## External gates
 
-| Item | Status | Required evidence |
-| --- | --- | --- |
-| Template-specific paid test authorization | BLOCKED | Explicit budget, owner and candidate tuples; old administrator funding is not reused |
-| Approved composite cost policy | BLOCKED | Current scene/video costs, both prompt checks, three image checks, final video review, runtime/storage/payment/loss assumptions and expiry |
-| Provider account permissions | NOT_RUN | Read-only account/contract verification for the selected image and video combination |
-| Two-person quality comparison | NOT_RUN | Same authorized input groups for candidate A/B, all results and receipts retained |
-| Real private R2/video/SeeAPI delivery | NOT_RUN | Same immutable stored MP4, authentic callbacks and one actual wallet settlement |
-| Twelve-group release quality check | NOT_RUN | At least ten acceptable groups and no severe identity/audio failures; do not market this as a statistical success rate |
-| Three public product examples | BLOCKED | Rights-cleared independent public copies, real job evidence and exact matching template version |
-| Production migration/deployment/opening | NOT_RUN | Separate authorization plus the above gates |
-| GSC/ChatGPT search appearance | NOT_RUN | Actual search/provider observations; no discovery guarantee |
+| Item                                      | Status  | Required evidence                                                                                                                          |
+| ----------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| Template-specific paid test authorization | BLOCKED | Explicit budget, owner and candidate tuples; old administrator funding is not reused                                                       |
+| Approved composite cost policy            | BLOCKED | Current scene/video costs, both prompt checks, three image checks, final video review, runtime/storage/payment/loss assumptions and expiry |
+| Provider account permissions              | NOT_RUN | Read-only account/contract verification for the selected image and video combination                                                       |
+| Two-person quality comparison             | NOT_RUN | Same authorized input groups for candidate A/B, all results and receipts retained                                                          |
+| Real private R2/video/SeeAPI delivery     | NOT_RUN | Same immutable stored MP4, authentic callbacks and one actual wallet settlement                                                            |
+| Twelve-group release quality check        | NOT_RUN | At least ten acceptable groups and no severe identity/audio failures; do not market this as a statistical success rate                     |
+| Three public product examples             | BLOCKED | Rights-cleared independent public copies, real job evidence and exact matching template version                                            |
+| Production migration/deployment/opening   | NOT_RUN | Separate authorization plus the above gates                                                                                                |
+| GSC/ChatGPT search appearance             | NOT_RUN | Actual search/provider observations; no discovery guarantee                                                                                |
 
 The official candidate references are
 [Nano Banana 2 Lite](https://docs.kie.ai/market/google/nano-banana-2-lite),
@@ -77,7 +84,44 @@ Concentrated database command:
 with the explicit safe loopback `TEST_DATABASE_URL`.
 SaaS Vitest, Next/Fumadocs and browser runs must execute sequentially.
 
-Final commands, outcomes and recovery matrix are appended after integrated verification.
+The requirement-by-requirement recovery matrix, exact test names and limitations are
+in [T01–T26](../implementation/hotel-lobby-test-map.md). Test transport fixtures are
+never public product examples. The private MinIO check uses only the task-owned
+`ezpic-hotel-lobby-minio-20261005` container on loopback port 64266.
+
+## Verification receipt
+
+Tasks 0–5 have implementation and local evidence. Task 6's real candidate comparison,
+sample generation and limited release are blocked by the external gates above.
+
+| Layer / command                                                                                                                              | Result and scope                                                                                                                                                                                                                     |
+| -------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Fresh migrations and Prisma drift                                                                                                            | PASS: all 62 migrations applied in timestamp order to empty `ezpic_hotel_fresh_test`; `migrate status` current; `migrate diff --from-schema prisma/schema.prisma --to-config-datasource --exit-code` reports no difference           |
+| Concentrated unit/Mock, `pnpm exec tsx tests/video-v1/run.ts --hotel-lobby`                                                                  | PASS after incorporating updated main: 1,238 tests, 73 files; all external paid traffic blocked                                                                                                                                      |
+| Concentrated PostgreSQL                                                                                                                      | PASS after merge: 251 database + 29 jobs tests = 280 passed, 3 optional performance tests skipped, 14 files; 87.069 seconds wall clock (56.58 seconds database + 26.15 seconds jobs test runners)                                    |
+| Isolated MinIO, `pnpm --filter @repo/storage test:minio:video`                                                                               | PASS: 5 cases using real local object I/O; JPEG, PNG and WebP rotate/strip EXIF into the same canonical bytes used for review and submission                                                                                         |
+| Template browser, `pnpm --filter saas exec playwright test --config modules/video-v1/playwright.config.ts hotel-lobby-public-routes.spec.ts` | PASS: 7 Mock scenarios, 1.0 minute; screenshots inspected at 1440/390/320px; no horizontal overflow, actual labels and keyboard access                                                                                               |
+| Ordinary video browser                                                                                                                       | NOT_RUN in this batch: no additional local authenticated seed was created. Ordinary native Workflow, SQL, unit and backend artifact checks run separately                                                                            |
+| SaaS types, `pnpm --filter saas type-check`                                                                                                  | PASS: Next route types, Fumadocs and TypeScript. Final website build checks the merged dependency graph again                                                                                                                        |
+| Nine affected backend workspaces                                                                                                             | PASS: config, storage, database, AI, jobs, API, Workflows, web-host and jobs-runtime; 31.226 seconds. API now explicitly uses the ES2022 standard library matching its existing target                                               |
+| CI routing, `pnpm verify:ci-workflow` and `pnpm exec tsx --test tests/load/run-integration.test.ts`                                          | PASS; 24 routing tests. Template SQL flow is in the ordinary integration runner/package script; template browser spec is included in the existing guarded video UI configuration                                                     |
+| Local ledger invariant query, `pnpm verify:invariants` with explicit disposable URL                                                          | PASS: zero duplicate jobs/settlements, reservation/allocation/lot/account inconsistencies or missing durable handoffs. Queue latency has no sample and does not prove P95                                                            |
+| Changed-file Oxlint/Oxfmt and `git diff --check`                                                                                             | PASS for 119 affected source/config files; generated Zod is generated by Prisma, not hand-formatted                                                                                                                                  |
+| Final native Workers bundle and database smoke                                                                                               | PASS: `pnpm cloudflare:jobs:build` 5.970 seconds; `pnpm --filter @repo/workflows test:artifact:workerd --database` 2.923 seconds; actual packed Prisma/WASM, routing, auth and Workflow-version guards                               |
+| Canonical website Linux/OpenNext build                                                                                                       | PASS: `pnpm cloudflare:web:build`, 608.077 seconds including fresh locked dependency installation; Next compilation 77 seconds; 61 static routes, Wrangler dry bundle and actual final-artifact workerd liveness/login/static checks |
+| Live providers, real payments, real R2 and Cloudflare scheduling                                                                             | NOT_RUN; no paid calls were made                                                                                                                                                                                                     |
+
+The initial browser failure was a test locator matching both the visible error and
+Next's route announcer; scoping it to the template error fixed the test. The first
+native Workflow regression exposed ordinary jobs entering the new optional prepare
+service; the production branch now requires the explicit template checkpoint, and
+both ordinary timeout/early-event paths pass again. Before final packaging, updated
+main was merged rather than discarding its callback and pricing changes.
+
+The first Linux packaging run was intentionally stopped while installing dependencies
+because it snapshotted the older main. Its manifest records exit 137 and confirmed
+container removal; it is **superseded, not passing build evidence**. The final run
+uses the merged production source. Dependency download time is not generation latency.
 
 ## Timing evidence
 
@@ -91,6 +135,41 @@ codes, never prompts, photos or signed URLs.
 Real segment times and admission P95: **NOT_RUN**. Unit fixture clock differences are
 not cloud performance measurements. Local command duration belongs only to local
 verification and must not be represented as generation latency.
+
+The final SQL/HTTP-fixture run measured 1,066.58 ms for a complete synthetic flow and
+1,057.54 ms for a scene-commit-response-loss recovery. These include loopback SQL and
+controlled transport responses, not model generation or cloud performance. Raw
+per-step times and explicit limitations are preserved in
+`docs/implementation/hotel-lobby-local-evidence.json`. No sub-second real admission
+claim or real latency percentile has been established.
+
+The merged-source background bundle is 6,095,313 bytes with SHA-256
+`86410a4166506ec2bdbe8b2063b6a856bb07457636e6689ec9942966a431dc12`.
+Its Prisma WASM SHA-256 is
+`c9f94b7945f5681a74403e9148cf67434462cccea6035d2ee29ad593f5f74a25`.
+
+Website artifact: `.cache/cloudflare-web/linux-fQ3EYQ/artifact`, closed local binding
+template, source manifest and build manifest retained. Its main Worker SHA-256 is
+`bbffc8b6e5e524767635567ce87f59ecfc08877b702be11fe081afa5f6d4b48c`.
+After the build, all snapshotted application/runtime files matched current hashes;
+later changes were tests, API type-library configuration and delivery documentation.
+The website artifact smoke did not test concurrent PostgreSQL queries; that flag is
+false in its receipt. The separate jobs artifact smoke exercised the local database.
+Bundler dependency warnings and missing build-only social OAuth credentials did not
+fail compilation; no live OAuth acceptance is claimed.
+
+## Git publication and cleanup
+
+Only the feature branch is published; no main merge or deployment is performed.
+The publication commit and draft pull request are provided in the task's final
+handoff. CI results are independent of these local results and must be inspected
+on that exact pushed revision. Public examples, indexing and paid admission remain
+closed regardless of a successful push or CI run.
+
+Temporary browser, verification and workerd processes are stopped. Both Linux build
+containers confirm removal. Disposable PostgreSQL/MinIO fixtures are removed after
+verification; source, local logs/screenshots and packaged artifacts remain in the
+unmerged app-managed worktree for review. No shared user-started service is stopped.
 
 ## Deployment order and rollback
 

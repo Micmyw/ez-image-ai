@@ -1,0 +1,73 @@
+{
+	"evidence": "LOCAL_POSTGRES_DOMAIN_WORKFLOW_WITH_MOCKED_EXTERNAL_TRANSPORT",
+	"generatedAt": "2026-10-04T18:24:19.253Z",
+	"externalPaidCalls": 0,
+	"limitations": [
+		"Not Cloudflare execution or provider latency",
+		"Synthetic MP4 metadata is not a decodable sample or visual-quality evidence",
+		"Scene byte storage/normalization is separately unit tested; this suite injects its result",
+		"Funding is synthetic test billing, not real revenue"
+	],
+	"samples": [
+		{
+			"name": "complete-and-replay",
+			"elapsedMs": 1066.5799000000002,
+			"stages": {
+				"video-v1-start": 28.800999999999476,
+				"video-v1-template-prepare-0": 480.77099999999996,
+				"video-v1-input-window": 8.937000000000126,
+				"video-v1-review-input-0": 7.40910000000008,
+				"video-v1-submit-provider": 59.624000000000024,
+				"video-v1-provider-window": 7.710600000000113,
+				"video-v1-confirm-provider-0": 47.87610000000018,
+				"video-v1-store-output": 99.89409999999998,
+				"video-v1-output-window": 6.593700000000126,
+				"video-v1-review-output-0": 237.6931999999997,
+				"video-v1-finalize": 79.57569999999987
+			},
+			"jobId": "cmuu5gys70009qsbk7q5xv7cy",
+			"externalPaidCalls": 0
+		},
+		{
+			"name": "scene-write-commit-response-lost",
+			"elapsedMs": 1057.5421999999999,
+			"stages": {
+				"video-v1-start": 7.441200000000208,
+				"video-v1-template-prepare-0": 469.62699999999995,
+				"video-v1-input-window": 9.134900000000016,
+				"video-v1-review-input-0": 6.708799999999883,
+				"video-v1-submit-provider": 65.58519999999999,
+				"video-v1-provider-window": 6.606099999999969,
+				"video-v1-confirm-provider-0": 41.853799999999865,
+				"video-v1-store-output": 67.5600999999997,
+				"video-v1-output-window": 6.413499999999658,
+				"video-v1-review-output-0": 273.5576000000001,
+				"video-v1-finalize": 96.47370000000001
+			},
+			"jobId": "cmuu5gzt4000vqsbk8ii3tsqu",
+			"externalPaidCalls": 0
+		},
+		{
+			"name": "ambiguous-scene-submit",
+			"elapsedMs": 256.80330000000004,
+			"stages": {
+				"video-v1-start": 8.641700000000128,
+				"video-v1-template-prepare-0": 232.04480000000012,
+				"video-v1-needs-review-video-template-scene-submission-uncertain": 9.715400000000045
+			},
+			"jobId": "cmuu5h0pr001hqsbker05ln4o",
+			"externalPaidCalls": 0
+		},
+		{
+			"name": "definitive-scene-rejection",
+			"elapsedMs": 329.9480999999996,
+			"stages": {
+				"video-v1-start": 9.003199999999197,
+				"video-v1-template-prepare-0": 237.36669999999958,
+				"video-v1-template-failed": 76.50560000000041
+			},
+			"jobId": "cmuu5h1mx002hqsbkv0i0iddr",
+			"externalPaidCalls": 0
+		}
+	]
+}

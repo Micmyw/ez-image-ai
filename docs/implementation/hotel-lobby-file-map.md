@@ -14,6 +14,10 @@ release claims are not current acceptance evidence.
   Its initial binary diff hash was `1185a232c6d08dc5021aa13aeb80d9e94dff835b`.
   No implementation was performed there.
 - Fetched `origin/main`: `96f47c92d5d32bd20640e7029ab08f88a916c4f1`.
+- Main advanced during verification to `1d9f3136e5230dbc9dab17803d002479d7eb463d`.
+  This batch incorporates its Veo Fast contract, additive quote migration and
+  authoritative late-callback retirement repair; template scene callbacks retain
+  their separate sidecar identity path.
 - App-managed worktree:
   `C:/Users/梅一伟/.codex/worktrees/hotel-lobby-duo/ez-image-ai`.
 - Implementation branch: `codex/hotel-lobby-duo`; eventual intended incorporation
@@ -23,8 +27,11 @@ release claims are not current acceptance evidence.
 
 The latest multi-model pending-quote repair
 `20261005000000_video_multimodel_quote_pending_evidence` is retained.
-All 60 baseline migrations were applied to a new task-owned PostgreSQL 16 container
-on loopback port 55439 before generating the additive sidecar migration.
+All 60 initial baseline migrations were applied to a new task-owned PostgreSQL 16
+container on loopback port 55439 before generating the additive sidecar migration.
+After the main update, a second empty local database applied all 62 migrations in
+order and Prisma reported no schema difference. Historical migration files were
+not edited by this feature.
 Production migration status was not inferred from local execution.
 
 The local CodeGraph command reported that this worktree has no usable index.
@@ -37,18 +44,18 @@ was performed. The complete changed-path inventory is in
 
 ## Ownership and data boundaries
 
-| Concern | Implementation boundary |
-| --- | --- |
-| Public template request and server-only mapping | `packages/config/video-effects.ts`, `video-effects.server.ts` |
-| Complete cost and expiring admission policy | Existing video pricing algorithm plus composite template costs |
-| Quote, order, reservation and scene sidecar | `packages/database/prisma/queries/media/video-template-*.ts` |
-| Additive persistence | `VideoTemplateExecution`, migration `20261005100000_video_template_scene` |
-| Authenticated API and admission | `packages/api/modules/video-effects/`, `packages/jobs/src/video-v1/template-admission.ts` |
-| Scene provider, storage, moderation and recovery | Template-specific boundaries in AI, storage and video jobs packages |
-| Durable continuation | Optional template branch in the existing native video Workflow |
-| Tool and owner-scoped draft | `apps/saas/modules/video-effects/`, public `/video-effects/hotel-lobby-ai` |
-| Tutorial and sample provenance | Existing Blog plus separate typed video-effect content |
-| Acceptance and operational evidence | `docs/operations/hotel-lobby-verification.md` |
+| Concern                                          | Implementation boundary                                                                   |
+| ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| Public template request and server-only mapping  | `packages/config/video-effects.ts`, `video-effects.server.ts`                             |
+| Complete cost and expiring admission policy      | Existing video pricing algorithm plus composite template costs                            |
+| Quote, order, reservation and scene sidecar      | `packages/database/prisma/queries/media/video-template-*.ts`                              |
+| Additive persistence                             | `VideoTemplateExecution`, migration `20261005100000_video_template_scene`                 |
+| Authenticated API and admission                  | `packages/api/modules/video-effects/`, `packages/jobs/src/video-v1/template-admission.ts` |
+| Scene provider, storage, moderation and recovery | Template-specific boundaries in AI, storage and video jobs packages                       |
+| Durable continuation                             | Optional template branch in the existing native video Workflow                            |
+| Tool and owner-scoped draft                      | `apps/saas/modules/video-effects/`, public `/video-effects/hotel-lobby-ai`                |
+| Tutorial and sample provenance                   | Existing Blog plus separate typed video-effect content                                    |
+| Acceptance and operational evidence              | `docs/operations/hotel-lobby-verification.md`                                             |
 
 One parent video job retains the implemented internal video product key, one original
 wallet reservation and one final settlement. Ordered role identities live in the

@@ -72,8 +72,11 @@ describe("template-only two-reference scene mapping", () => {
 			callbackUrl: input.callbackUrl,
 			imageUrl: "https://private.example/scene",
 		};
-		expect(buildKieVideoModelRequest(video).input.fixed_lens).toBe(false);
+		const ordinary = buildKieVideoModelRequest(video);
 		const body = buildKieVideoModelRequest({ ...video, templateFixedLens: true });
+		if (!("input" in ordinary) || !("input" in body))
+			throw new Error("Expected the Seedance input payload");
+		expect(ordinary.input.fixed_lens).toBe(false);
 		expect(body.input.fixed_lens).toBe(true);
 		expect(body.input.generate_audio).toBe(false);
 		expect(body.input.input_urls).toEqual([video.imageUrl]);

@@ -38,7 +38,13 @@ import {
 	listVideoStagingCleanup,
 	completeVideoStagingCleanup,
 } from "./video-v1-cleanup";
-import { failVideoExecution, claimVideoProviderSubmission } from "./video-v1-execution";
+import {
+	failVideoExecution,
+	claimVideoProviderSubmission,
+	listPendingVideoWebhookEvents,
+	markVideoWebhookNotified,
+	postponeVideoWebhookNotification,
+} from "./video-v1-execution";
 import { failVideoDelivery } from "./video-v1-fulfillment";
 const profile = createVideoTextSafetyProfile();
 const object = (v: unknown) => v as Record<string, unknown>;
@@ -821,4 +827,131 @@ it("manual-review scene and both original roles remain protected after retention
 		await db.storageUsageReservation.count({ where: { ownerId: f.ownerId, status: "ACTIVE" } }),
 	).toBe(2);
 	expect(await db.auditLog.count({ where: { id: `video-effect:${f.jobId}:held` } })).toBe(1);
+});
+
+it("keeps scene callbacks in bounded live recovery without any final-video attempt", async () => {
+	const f = await accepted();
+	await reviewInputs(f.jobId);
+	const token = randomUUID();
+	await run(() => claimVideoTemplateSceneSubmission({ jobId: f.jobId, callbackTokenHash: token }));
+	const now = new Date();
+	const event = await run(() =>
+		persistVideoTemplateSceneWebhook({
+			callbackTokenHash: token,
+			taskId: randomUUID(),
+			timestamp: "pending-scene",
+			receivedAt: now,
+		}),
+	);
+	expect(await db.generationAttempt.count({ where: { jobId: f.jobId } })).toBe(0);
+	const rows = await run(() => listPendingVideoWebhookEvents(100, now));
+	expect(rows).toContainEqual({
+		eventId: event.eventId,
+		jobId: f.jobId,
+		workflowInstanceId: `video-v1-${f.jobId}`,
+	});
+	expect((await run(() => listPendingVideoWebhookEvents(1, now))).length).toBeLessThanOrEqual(1);
+	await run(() => postponeVideoWebhookNotification(event.eventId, now));
+	expect(
+		(await run(() => listPendingVideoWebhookEvents(100, now))).some(
+			(row) => row.eventId === event.eventId,
+		),
+	).toBe(false);
+	expect(
+		(await run(() => listPendingVideoWebhookEvents(100, new Date(now.getTime() + 120001)))).some(
+			(row) => row.eventId === event.eventId,
+		),
+	).toBe(true);
+	await run(() => markVideoWebhookNotified(event.eventId));
+	expect(
+		(await run(() => listPendingVideoWebhookEvents(100, new Date(now.getTime() + 120001)))).some(
+			(row) => row.eventId === event.eventId,
+		),
+	).toBe(false);
+	expect(
+		(await db.providerWebhookEvent.findUniqueOrThrow({ where: { id: event.eventId } })).status,
+	).toBe("RECEIVED");
+});
+it("preserves manual and unconfirmed terminal scene inbox evidence without blocking live recovery", async () => {
+	for (const stage of ["NEEDS_REVIEW", "FAILED"] as const) {
+		const f = await accepted();
+		await reviewInputs(f.jobId);
+		const token = randomUUID();
+		await run(() =>
+			claimVideoTemplateSceneSubmission({ jobId: f.jobId, callbackTokenHash: token }),
+		);
+		const event = await run(() =>
+			persistVideoTemplateSceneWebhook({
+				callbackTokenHash: token,
+				taskId: randomUUID(),
+				timestamp: stage,
+				receivedAt: new Date(),
+			}),
+		);
+		await db.videoExecution.update({ where: { jobId: f.jobId }, data: { stage } });
+		const before = await db.providerWebhookEvent.findUniqueOrThrow({
+			where: { id: event.eventId },
+		});
+		expect(
+			(await run(() => listPendingVideoWebhookEvents(100))).some(
+				(row) => row.eventId === event.eventId,
+			),
+		).toBe(false);
+		expect(
+			await db.providerWebhookEvent.findUniqueOrThrow({ where: { id: event.eventId } }),
+		).toEqual(before);
+	}
+});
+it("scene recovery rejects mismatched provider task job workflow and unverified envelopes", async () => {
+	const f = await accepted();
+	await reviewInputs(f.jobId);
+	const token = randomUUID();
+	const taskId = randomUUID();
+	await run(() => claimVideoTemplateSceneSubmission({ jobId: f.jobId, callbackTokenHash: token }));
+	const original = await run(() =>
+		persistVideoTemplateSceneWebhook({
+			callbackTokenHash: token,
+			taskId,
+			timestamp: "identity",
+			receivedAt: new Date(),
+		}),
+	);
+	await run(() => markVideoWebhookNotified(original.eventId));
+	await expect(
+		db.$executeRaw`UPDATE "provider_webhook_event" SET "verifiedAt"=NULL WHERE "id"=${original.eventId}`,
+	).rejects.toThrow(/null/i);
+	const variants = [
+		{ provider: "kie-video-v1" },
+		{ providerTaskId: "foreign-task" },
+		{ envelope: { jobId: "foreign-job" } },
+		{ envelope: { taskId: "foreign-task" } },
+		{ envelope: { workflowInstanceId: "video-v1-foreign" } },
+	];
+	const ids = [];
+	for (const variant of variants) {
+		const row = await db.providerWebhookEvent.create({
+			data: {
+				provider: "kie-video-template-scene",
+				providerEventId: randomUUID(),
+				providerTaskId: taskId,
+				verifiedAt: new Date(),
+				...variant,
+				envelope: {
+					jobId: f.jobId,
+					taskId,
+					workflowInstanceId: `video-v1-${f.jobId}`,
+					notifiedAt: null,
+					...variant.envelope,
+				},
+			},
+		});
+		ids.push(row.id);
+	}
+	const pending = await run(() => listPendingVideoWebhookEvents(100));
+	for (const id of ids) {
+		expect(pending.some((row) => row.eventId === id)).toBe(false);
+		expect((await db.providerWebhookEvent.findUniqueOrThrow({ where: { id } })).status).toBe(
+			"RECEIVED",
+		);
+	}
 });
