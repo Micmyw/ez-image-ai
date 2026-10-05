@@ -44,18 +44,19 @@ was performed. The complete changed-path inventory is in
 
 ## Ownership and data boundaries
 
-| Concern                                          | Implementation boundary                                                                   |
-| ------------------------------------------------ | ----------------------------------------------------------------------------------------- |
-| Public template request and server-only mapping  | `packages/config/video-effects.ts`, `video-effects.server.ts`                             |
-| Complete cost and expiring admission policy      | Existing video pricing algorithm plus composite template costs                            |
-| Quote, order, reservation and scene sidecar      | `packages/database/prisma/queries/media/video-template-*.ts`                              |
-| Additive persistence                             | `VideoTemplateExecution`, migration `20261005100000_video_template_scene`                 |
-| Authenticated API and admission                  | `packages/api/modules/video-effects/`, `packages/jobs/src/video-v1/template-admission.ts` |
-| Scene provider, storage, moderation and recovery | Template-specific boundaries in AI, storage and video jobs packages                       |
-| Durable continuation                             | Optional template branch in the existing native video Workflow                            |
-| Tool and owner-scoped draft                      | `apps/saas/modules/video-effects/`, public `/video-effects/hotel-lobby-ai`                |
-| Tutorial and sample provenance                   | Existing Blog plus separate typed video-effect content                                    |
-| Acceptance and operational evidence              | `docs/operations/hotel-lobby-verification.md`                                             |
+| Concern                                          | Implementation boundary                                                                              |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| Public template request and server-only mapping  | `packages/config/video-effects.ts`, `video-effects.server.ts`                                        |
+| Complete cost and expiring admission policy      | Existing video pricing algorithm plus composite template costs                                       |
+| Quote, order, reservation and scene sidecar      | `packages/database/prisma/queries/media/video-template-*.ts`                                         |
+| Additive persistence                             | `VideoTemplateExecution`, migration `20261005100000_video_template_scene`                            |
+| Authenticated API and admission                  | `packages/api/modules/video-effects/`, `packages/jobs/src/video-v1/template-admission.ts`            |
+| Scene provider, storage, moderation and recovery | Template-specific boundaries in AI, storage and video jobs packages                                  |
+| Durable continuation                             | Optional template branch in the existing native video Workflow                                       |
+| Tool and owner-scoped draft                      | `apps/saas/modules/video-effects/`, public `/video-effects/hotel-lobby-ai`                           |
+| Tutorial and sample provenance                   | Existing Blog plus separate typed video-effect content                                               |
+| Acceptance and operational evidence              | `docs/operations/hotel-lobby-verification.md`                                                        |
+| Three-times-cost price and model permissions     | `docs/operations/hotel-lobby-pricing-2026-10-05.md`, `tooling/scripts/prepare-hotel-lobby-config.ts` |
 
 One parent video job retains the implemented internal video product key, one original
 wallet reservation and one final settlement. Ordered role identities live in the

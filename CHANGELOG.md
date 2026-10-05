@@ -7,6 +7,7 @@
 - Add a draft, noindex Hotel Lobby tool with two explicit left/right photo inputs, swapping, one total credit confirmation, private video status and owner-scoped refresh recovery. The template needs no model choice or written prompt.
 - Keep template generation closed until account eligibility, current prices, allowed parameters and release gates pass. Intermediate scene preparation belongs to the same video order; real sample publication requires authorized, version-matched product results and quality review.
 - Reuse account login, credit purchases and video history, with safe return navigation to the same template. No production opening, paid quality test or verified public sample is implied by this development entry.
+- Enforce template revenue at least three times its complete approved cost budget; the current 69-credit reference includes both generation stages, moderation, fees, storage and failure allowance. Keep detailed template translations off the homepage payload.
 
 ### Video beta configuration and pricing
 

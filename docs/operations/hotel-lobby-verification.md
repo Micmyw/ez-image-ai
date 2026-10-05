@@ -10,24 +10,27 @@ read and add no migration or different paid-request policy. The local build rece
 below belongs to this feature tree based on `1d9f3136`, not to that later main tree;
 pull-request CI validates the current merge context separately.
 Worktree/ownership: [implementation map](../implementation/hotel-lobby-file-map.md).
-The user's later instruction authorizes pushing the completed feature branch
-`codex/hotel-lobby-duo`. Merge, deployment, production migration, paid calls and
-public activation are not authorized. Git and CI evidence are reported separately
-from the local checks below.
+The user's later instructions authorize pushing the completed feature branch and,
+after passing checks, merging and pushing main. The pricing follow-up explicitly
+requires revenue at least three times complete cost. Main was integrated again at
+`14d26d2a72c3eb656dd689f9a99e1011e81c3e3a`, preserving its latest ordinary-video
+acceptance records and repairs. Paid calls and public activation remain separate
+gates. Git, automatic deployment and database migration evidence must be reported
+independently of the local checks below.
 
 ## External gates
 
-| Item                                      | Status  | Required evidence                                                                                                                          |
-| ----------------------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| Template-specific paid test authorization | BLOCKED | Explicit budget, owner and candidate tuples; old administrator funding is not reused                                                       |
-| Approved composite cost policy            | BLOCKED | Current scene/video costs, both prompt checks, three image checks, final video review, runtime/storage/payment/loss assumptions and expiry |
-| Provider account permissions              | NOT_RUN | Read-only account/contract verification for the selected image and video combination                                                       |
-| Two-person quality comparison             | NOT_RUN | Same authorized input groups for candidate A/B, all results and receipts retained                                                          |
-| Real private R2/video/SeeAPI delivery     | NOT_RUN | Same immutable stored MP4, authentic callbacks and one actual wallet settlement                                                            |
-| Twelve-group release quality check        | NOT_RUN | At least ten acceptable groups and no severe identity/audio failures; do not market this as a statistical success rate                     |
-| Three public product examples             | BLOCKED | Rights-cleared independent public copies, real job evidence and exact matching template version                                            |
-| Production migration/deployment/opening   | NOT_RUN | Separate authorization plus the above gates                                                                                                |
-| GSC/ChatGPT search appearance             | NOT_RUN | Actual search/provider observations; no discovery guarantee                                                                                |
+| Item                                      | Status     | Required evidence                                                                                                                                               |
+| ----------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Template-specific paid test authorization | BLOCKED    | Explicit budget, owner and candidate tuples; old administrator funding is not reused                                                                            |
+| Composite cost policy                     | LOCAL PASS | Version .2 computes 69 credits at the documented conservative budget and enforces revenue >= 3x complete cost; merchant actual-cost acceptance remains separate |
+| Provider account permissions              | PARTIAL    | Existing credential authenticated by read-only balance GET; exact model entitlement and paid template call NOT_RUN                                              |
+| Two-person quality comparison             | NOT_RUN    | Same authorized input groups for candidate A/B, all results and receipts retained                                                                               |
+| Real private R2/video/SeeAPI delivery     | NOT_RUN    | Same immutable stored MP4, authentic callbacks and one actual wallet settlement                                                                                 |
+| Twelve-group release quality check        | NOT_RUN    | At least ten acceptable groups and no severe identity/audio failures; do not market this as a statistical success rate                                          |
+| Three public product examples             | BLOCKED    | Rights-cleared independent public copies, real job evidence and exact matching template version                                                                 |
+| Production migration/deployment/opening   | NOT_RUN    | Separate authorization plus the above gates                                                                                                                     |
+| GSC/ChatGPT search appearance             | NOT_RUN    | Actual search/provider observations; no discovery guarantee                                                                                                     |
 
 The official candidate references are
 [Nano Banana 2 Lite](https://docs.kie.ai/market/google/nano-banana-2-lite),
@@ -35,6 +38,12 @@ The official candidate references are
 and the existing repository model/pricing contracts. The PRD's scene USD0.02 and video
 USD0.0875/USD0.08 numbers are research references, not this task's merchant receipts,
 complete cost, or approved retail price. No real sample was manufactured or copied from Migos.
+
+The later owner-authorized price decision, refreshed public sources, complete
+69-credit budget and model-permission preparation are recorded in
+[the pricing receipt](hotel-lobby-pricing-2026-10-05.md). That receipt supersedes the
+earlier missing-price status; it does not convert public prices into account invoices
+or ordinary-video samples into template acceptance.
 
 ## Private configuration
 
@@ -160,11 +169,35 @@ fail compilation; no live OAuth acceptance is claimed.
 
 ## Git publication and cleanup
 
-Only the feature branch is published; no main merge or deployment is performed.
-The publication commit and draft pull request are provided in the task's final
-handoff. CI results are independent of these local results and must be inspected
-on that exact pushed revision. Public examples, indexing and paid admission remain
-closed regardless of a successful push or CI run.
+The initial feature branch and draft [PR 17](https://github.com/Micmyw/ez-image-ai/pull/17)
+were published at `69611e6d`. Its first CI run passed quality, production builds and
+dependency/secret scans but failed the final database invariant and homepage resource
+budget. These failures were real and are retained as historical evidence.
+
+Repair `e919ee7e` precisely cleans five deliberately invalid callback fixtures after
+the negative SQL test; it does not weaken the invariant. On a fresh local PostgreSQL
+17.11 database all 62 migrations applied, the 23 template cases passed, and all ten
+invariants reported zero violations. The pre-fix single test passed but left exactly
+the same invariant violation as CI, establishing the regression.
+
+The browser repair scopes detailed template translations to its route and removes
+schema imports from shared payment-return navigation. The unchanged homepage budget
+now passes locally at 532,322 gzip bytes against an exclusive 532,480-byte limit
+(previous CI: 534,508). Thirty-four focused unit tests and eight production browser
+cases passed; production build plus browser checks took 110.571 seconds. Final remote
+CI remains authoritative because the local headroom is only 158 bytes.
+
+After merging current main, the concentrated unit/Mock command passed 1,242 tests in
+73 files, in 43.688 seconds. Configuration/deployment focused runs passed 91 and 150
+tests respectively; these overlap the concentrated run and are not added to it.
+The dedicated template markup is 20,000 bps, with an approved payment basis and at
+least 750 bps payment budget, without changing ordinary video pricing.
+
+Final Git/CI outcomes are recorded against the final revision in the delivery reply.
+Main push can trigger the existing two Cloudflare builds; their read-only migration
+preflight refuses to deploy when the new additive migration is pending. No automatic
+build result is treated as real template acceptance. Public examples, indexing and
+paid template admission remain closed regardless of Git/CI success.
 
 Temporary browser, verification and workerd processes are stopped. Both Linux build
 containers confirm removal. Disposable PostgreSQL/MinIO fixtures are removed after
