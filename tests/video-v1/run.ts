@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { assertSafeDatabaseUrl } from "../load/assert-safe-target";
 
 const integration = process.argv.includes("--integration");
+const hotelLobby = process.argv.includes("--hotel-lobby");
 const databaseUrl = integration
 	? assertSafeDatabaseUrl(process.env.TEST_DATABASE_URL).toString()
 	: "postgresql://video_test:video_test@127.0.0.1:1/video_unit_test";
@@ -41,7 +42,7 @@ const commands = integration
 				"exec",
 				"vitest",
 				"run",
-				"video-v1",
+				hotelLobby ? "video" : "video-v1",
 				"--config",
 				"vitest.integration.config.ts",
 				"--configLoader",
@@ -55,6 +56,7 @@ const commands = integration
 				"run",
 				"src/video-v1/flow.database.integration.test.ts",
 				"src/video-v1/seeapi-flow.database.integration.test.ts",
+				...(hotelLobby ? ["src/video-v1/template-flow.database.integration.test.ts"] : []),
 				"src/handlers/legacy-engine-isolation.database.integration.test.ts",
 				"--config",
 				"vitest.config.ts",
@@ -62,8 +64,25 @@ const commands = integration
 		]
 	: [
 			["--filter", "@repo/config", "exec", "vitest", "run", "video"],
-			["--filter", "@repo/ai", "exec", "vitest", "run", "video", "kie-veo-fast"],
-			["--filter", "@repo/storage", "exec", "vitest", "run", "video-mp4"],
+			[
+				"--filter",
+				"@repo/ai",
+				"exec",
+				"vitest",
+				"run",
+				"video",
+				"kie-veo-fast",
+				...(hotelLobby ? ["template-scene"] : []),
+			],
+			[
+				"--filter",
+				"@repo/storage",
+				"exec",
+				"vitest",
+				"run",
+				"video-mp4",
+				...(hotelLobby ? ["template-scene"] : []),
+			],
 			[
 				"--filter",
 				"@repo/jobs",
@@ -71,6 +90,7 @@ const commands = integration
 				"vitest",
 				"run",
 				"video-v1",
+				...(hotelLobby ? ["video-effects"] : []),
 				"--exclude",
 				"**/*.integration.test.ts",
 			],
@@ -81,6 +101,8 @@ const commands = integration
 				"vitest",
 				"run",
 				"video-v1",
+				...(hotelLobby ? ["video-effects"] : []),
+				...(hotelLobby ? ["create-checkout-link", "create-credit-pack-checkout"] : []),
 				"--exclude",
 				"**/*.integration.test.ts",
 			],
@@ -105,8 +127,39 @@ const commands = integration
 				"--project",
 				"video-seeapi-workerd",
 			],
-			["--filter", "@repo/web-host", "exec", "vitest", "run", "src/profiles.test.ts"],
-			["--filter", "saas", "exec", "vitest", "run", "video-v1"],
+			[
+				"--filter",
+				"@repo/web-host",
+				"exec",
+				"vitest",
+				"run",
+				"src/profiles.test.ts",
+				...(hotelLobby ? ["src/build-secrets.test.ts", "src/deployment.test.ts"] : []),
+			],
+			[
+				"--filter",
+				"saas",
+				"exec",
+				"vitest",
+				"run",
+				"video-v1",
+				...(hotelLobby
+					? [
+							"video-effects",
+							"public-routes",
+							"sitemap",
+							"robots",
+							"proxy",
+							"editor-upgrade",
+							"checkout-attempt",
+							"CreditPackCheckoutReturn",
+							"PublicPricingPlans",
+							"PricingTable",
+							"public-navigation",
+							"growth-analytics",
+						]
+					: []),
+			],
 		];
 for (const args of commands) {
 	console.log(

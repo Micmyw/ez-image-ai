@@ -12,8 +12,8 @@ if (target.protocol !== "http:" || !["127.0.0.1", "localhost", "[::1]"].includes
 
 // Run through the guarded local-command/e2e runner, which owns the isolated server.
 export default defineConfig({
-	testDir: ".",
-	testMatch: "video-v1.e2e.ts",
+	testDir: "../..",
+	testMatch: ["**/modules/video-v1/video-v1.e2e.ts", "**/tests/hotel-lobby-public-routes.spec.ts"],
 	workers: 1,
 	fullyParallel: false,
 	timeout: 90_000,

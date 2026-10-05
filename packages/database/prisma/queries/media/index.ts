@@ -34,3 +34,6 @@ export * from "./types";
 export * from "./webhooks";
 export * from "./moderation-operations";
 export * from "./video-v1-recovery";
+
+export * from "./video-template-admission";
+export * from "./video-template-execution";

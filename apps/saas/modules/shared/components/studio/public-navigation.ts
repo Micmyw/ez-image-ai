@@ -28,6 +28,12 @@ export const PUBLIC_NAVIGATION_GROUPS = [
 				descriptionKey: "coloring.navigationDescription",
 				icon: "image",
 			},
+			{
+				href: "/video-effects/hotel-lobby-ai",
+				labelKey: "videoEffects.name",
+				descriptionKey: "videoEffects.navigationDescription",
+				icon: "examples",
+			},
 		],
 	},
 	{

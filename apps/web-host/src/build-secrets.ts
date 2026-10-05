@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { parseEnv } from "node:util";
 
+import { resolveVideoEffectPrice } from "@repo/config/video-effects.server";
 import { readVideoModelAccess } from "@repo/config/video-model-access";
 import {
 	expandVideoRuntimeEnvironment,
@@ -69,8 +70,11 @@ function withVideoRuntimeOverrides(
 ) {
 	const encoded = environment.VIDEO_RUNTIME_CONFIG;
 	const enabled = environment.VIDEO_V1_BUILD_ENABLED;
+	const templateEnabled = environment.HOTEL_LOBBY_DUO_BUILD_ENABLED;
 	if (enabled !== undefined && enabled !== "true" && enabled !== "false")
 		throw new Error("VIDEO_BUILD_ENABLED_OVERRIDE_INVALID");
+	if (templateEnabled !== undefined && templateEnabled !== "true" && templateEnabled !== "false")
+		throw new Error("VIDEO_EFFECT_BUILD_ENABLED_OVERRIDE_INVALID");
 	const policy = encoded === undefined ? undefined : parseVideoRuntimeConfig(encoded);
 	if (enabled === "true") {
 		const access = readVideoModelAccess(policy ?? {});
@@ -108,6 +112,34 @@ function withVideoRuntimeOverrides(
 			Object.keys(next).length !== new Set([...Object.keys(previous), "VIDEO_V1_ENABLED"]).size
 		)
 			throw new Error("VIDEO_BUILD_ENABLED_OVERRIDE_INVALID");
+		source = merged;
+	}
+	if (templateEnabled !== undefined) {
+		const key = "HOTEL_LOBBY_DUO_ENABLED";
+		const previous = parseEnv(source);
+		const merged = `${source}\n${key}=${templateEnabled}\n`;
+		const next = parseEnv(merged);
+		if (
+			next[key] !== templateEnabled ||
+			Object.entries(previous).some(([name, value]) => name !== key && next[name] !== value) ||
+			Object.keys(next).length !== new Set([...Object.keys(previous), key]).size
+		)
+			throw new Error("VIDEO_EFFECT_BUILD_ENABLED_OVERRIDE_INVALID");
+		if (templateEnabled === "true") {
+			try {
+				if (!policy || next.VIDEO_V1_ENABLED !== "true") throw new Error();
+				resolveVideoEffectPrice(
+					{
+						effectId: "hotel-lobby-duo",
+						presetKey: "standard",
+						inputs: { leftAssetId: "build-readiness-left", rightAssetId: "build-readiness-right" },
+					},
+					expandVideoRuntimeEnvironment(next),
+				);
+			} catch {
+				throw new Error("VIDEO_EFFECT_BUILD_ENABLED_POLICY_REQUIRED");
+			}
+		}
 		source = merged;
 	}
 	// Validate bundle-only configurations too; a bad pack must stop before build/deploy.
@@ -298,6 +330,8 @@ export function withoutCloudflareBuildSecrets<T extends Record<string, string | 
 			key === "VIDEO_RUNTIME_CONFIG" ||
 			key === "VIDEO_V1_ENABLED" ||
 			key === "VIDEO_V1_BUILD_ENABLED" ||
+			key === "HOTEL_LOBBY_DUO_ENABLED" ||
+			key === "HOTEL_LOBBY_DUO_BUILD_ENABLED" ||
 			VIDEO_RUNTIME_ENVIRONMENT_KEYS.some((policy) => policy === key) ||
 			videoCallbackSecrets.some((secret) => secret === key)
 		)

@@ -212,7 +212,8 @@ function setting(env: Record<string, string | undefined>, key: string, allowZero
 	return BigInt(value);
 }
 
-export function resolveVideoModelPrice(
+/** Shared approved cost basis; callers may add a template's costs before one retail calculation. */
+export function resolveVideoModelCostBasis(
 	request: VideoPricingSelection,
 	env: Record<string, string | undefined>,
 ) {
@@ -248,6 +249,30 @@ export function resolveVideoModelPrice(
 		nonBillableFailureBps: setting(env, "VIDEO_COST_NONBILLABLE_FAILURE_BPS"),
 		markupBps: env.VIDEO_PRICE_MARKUP_BPS ? setting(env, "VIDEO_PRICE_MARKUP_BPS") : 11_000n,
 	};
+	return {
+		pricingVersion: VIDEO_SUPPLIER_PRICE_VERSION,
+		pricingBasis: env.VIDEO_PRICE_BASIS.trim(),
+		providerCostMicros,
+		policy,
+		validUntil,
+		visualSafetyProfile,
+		textSafetyProfile,
+	};
+}
+
+export function resolveVideoModelPrice(
+	request: VideoPricingSelection,
+	env: Record<string, string | undefined>,
+) {
+	const {
+		providerCostMicros,
+		policy,
+		validUntil,
+		visualSafetyProfile,
+		textSafetyProfile,
+		pricingVersion,
+		pricingBasis,
+	} = resolveVideoModelCostBasis(request, env);
 	const result = calculateVideoRetailPrice({
 		providerCostMicros,
 		duration: request.duration,
@@ -256,8 +281,8 @@ export function resolveVideoModelPrice(
 	});
 	return {
 		credits: result.credits,
-		pricingVersion: VIDEO_SUPPLIER_PRICE_VERSION,
-		pricingBasis: env.VIDEO_PRICE_BASIS.trim(),
+		pricingVersion,
+		pricingBasis,
 		providerCostMicros,
 		moderationCostMicros: result.moderationCostMicros,
 		paidFundingPolicy: { minimumUsdMicrosPerCredit: result.creditFloorMicros },

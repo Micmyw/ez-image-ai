@@ -80,6 +80,8 @@ export function sanitizeEditorReturnPath(value: string | null | undefined): stri
 		return "/create";
 	}
 	if (url.origin !== "https://editor-return.invalid") return "/create";
+	if (url.pathname === "/video-effects/hotel-lobby-ai" && !url.search && !url.hash)
+		return url.pathname;
 	if (url.pathname === "/create") {
 		if (!url.search) return "/create";
 		return url.searchParams.size === 1 && url.searchParams.get("upgrade") === "complete"

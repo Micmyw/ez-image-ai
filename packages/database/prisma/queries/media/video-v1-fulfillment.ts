@@ -20,6 +20,8 @@ import type { Prisma } from "../../generated/client";
 import { lockMediaAssetGenerationBindings } from "./asset-binding-locks";
 import { releaseCreditsInTransaction, settleCreditsInTransaction } from "./credits";
 import { runReadCommitted } from "./types";
+import { recordVideoTemplateBusinessEvent } from "./video-template-events";
+import { videoTemplateHasUnsettledScene } from "./video-template-storage";
 import {
 	lockVideoOwnerStorage,
 	releaseVideoPreOutputCapacity,
@@ -37,6 +39,7 @@ const ENGINE = "video-workflow-v1";
 const MAX_BYTES = VIDEO_OUTPUT_MAX_BYTES;
 const include = {
 	videoExecution: true,
+	videoTemplateExecution: true,
 	reservation: true,
 	attempts: { orderBy: { attemptNumber: "desc" }, take: 1, include: { transferEnvelope: true } },
 	assets: {
@@ -494,6 +497,11 @@ export async function markVideoNeedsReview(jobId: string, reasonCode: string) {
 				stateVersion: { increment: 1 },
 			},
 		});
+		await recordVideoTemplateBusinessEvent(tx, {
+			jobId,
+			event: "held",
+			templateSnapshot: job.videoTemplateExecution?.templateSnapshot,
+		});
 		await tx.generationJob.update({
 			where: { id: jobId },
 			data: { status: "NEEDS_RECONCILIATION", failureCode: reasonCode, version: { increment: 1 } },
@@ -874,6 +882,11 @@ export async function finalizeVideoDelivery(
 			data: { status: "SUCCEEDED", terminalAt: now, failureCode: null, version: { increment: 1 } },
 			include,
 		});
+		await recordVideoTemplateBusinessEvent(tx, {
+			jobId,
+			event: "ready",
+			templateSnapshot: job.videoTemplateExecution?.templateSnapshot,
+		});
 		return state(result);
 	});
 }
@@ -886,6 +899,7 @@ export async function failVideoDelivery(jobId: string, reasonCode: string, rejec
 		assertVideo(job);
 		if (["READY", "FAILED", "REJECTED"].includes(job.videoExecution.stage)) return state(job);
 		if (
+			videoTemplateHasUnsettledScene(job.videoTemplateExecution) ||
 			job.attempts.some((attempt) => attempt.uncertainSubmission) ||
 			job.videoExecution.stage === "SUBMISSION_UNCERTAIN"
 		)
@@ -920,6 +934,11 @@ export async function failVideoDelivery(jobId: string, reasonCode: string, rejec
 		await tx.mediaAsset.updateMany({
 			where: { jobBindings: { some: { jobId, role: "OUTPUT" } }, verificationEngine: ENGINE },
 			data: { status: rejected ? "QUARANTINED" : "VERIFICATION_FAILED" },
+		});
+		await recordVideoTemplateBusinessEvent(tx, {
+			jobId,
+			event: "failed",
+			templateSnapshot: job.videoTemplateExecution?.templateSnapshot,
 		});
 		return state(result);
 	});

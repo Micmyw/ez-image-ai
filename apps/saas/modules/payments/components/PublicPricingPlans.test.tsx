@@ -2,6 +2,8 @@ import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+vi.mock("@auth/lib/api", () => ({ useSessionQuery: () => ({ data: null, isPending: false }) }));
+
 const translations: Record<string, string> = {
 	"payments.providerSelector.providers.paypal": "PayPal",
 	"payments.providerSelector.providers.waffo": "Waffo",

@@ -77,6 +77,7 @@ describe("public navigation taxonomy", () => {
 			/<details[^>]*data-navigation-group="tools"[\s\S]*?<\/details>/,
 		)?.[0];
 		expect(toolGroup).toContain('href="/photo-to-coloring-page"');
+		expect(toolGroup).toContain('href="/video-effects/hotel-lobby-ai"');
 		expect(toolGroup).not.toContain("/blog");
 		expect(toolGroup).not.toContain("/effects");
 		const resourceGroup = markup.match(

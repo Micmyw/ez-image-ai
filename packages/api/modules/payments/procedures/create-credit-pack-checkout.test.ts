@@ -331,6 +331,7 @@ describe("createCreditPackCheckout", () => {
 
 		expect(result).toEqual({
 			checkoutLink: "https://www.sandbox.paypal.com/approve",
+			intentId: "credit-pack-intent-1",
 		});
 		expect(getPaymentCheckoutIntentForOwnerByIdempotencyKey).toHaveBeenCalledWith(
 			{
@@ -512,6 +513,7 @@ describe("createCreditPackCheckout", () => {
 			),
 		).resolves.toEqual({
 			checkoutLink: "https://www.sandbox.paypal.com/frozen-approval",
+			intentId: "credit-pack-intent-frozen",
 		});
 		expect(findEffectivePaidSubscription).not.toHaveBeenCalled();
 		expect(findBillingPlan).not.toHaveBeenCalled();
@@ -567,6 +569,7 @@ describe("createCreditPackCheckout", () => {
 			),
 		).resolves.toEqual({
 			checkoutLink: "https://www.sandbox.paypal.com/recovered-approval",
+			intentId: "credit-pack-intent-1",
 		});
 		expect(providerRecoverCheckout).toHaveBeenCalledWith(
 			expect.objectContaining({

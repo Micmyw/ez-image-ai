@@ -398,7 +398,10 @@ describe("createCheckoutLink", () => {
 			{ context: { headers: new Headers() } },
 		);
 
-		expect(result).toEqual({ checkoutLink: "https://www.sandbox.paypal.com/approve" });
+		expect(result).toEqual({
+			checkoutLink: "https://www.sandbox.paypal.com/approve",
+			checkoutIntentId: "checkout-intent-1",
+		});
 		expect(createCheckoutIntent).toHaveBeenCalledWith(
 			{
 				provider: "paypal",
@@ -468,6 +471,7 @@ describe("createCheckoutLink", () => {
 			),
 		).resolves.toEqual({
 			checkoutLink: "https://www.sandbox.paypal.com/persisted-approval",
+			checkoutIntentId: "checkout-intent-1",
 		});
 		expect(markCheckoutIntentProviderCreating).not.toHaveBeenCalled();
 		expect(providerCheckout).not.toHaveBeenCalled();
@@ -519,6 +523,7 @@ describe("createCheckoutLink", () => {
 			),
 		).resolves.toEqual({
 			checkoutLink: "https://www.sandbox.paypal.com/recovered-subscription",
+			checkoutIntentId: "checkout-intent-1",
 		});
 		expect(providerRecoverCheckout).toHaveBeenCalledWith(
 			expect.objectContaining({

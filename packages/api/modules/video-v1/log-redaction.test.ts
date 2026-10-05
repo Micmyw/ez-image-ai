@@ -3,6 +3,13 @@ import { describe, expect, it } from "vitest";
 import { redactVideoAccessLog } from "./log-redaction";
 
 describe("private video callback access logs", () => {
+	it("redacts the template scene callback token", () => {
+		expect(
+			redactVideoAccessLog(
+				"POST /api/webhooks/video-template/kie/private-scene-token?proof=secret 202",
+			),
+		).toBe("POST /api/webhooks/video-template/kie/[redacted] 202");
+	});
 	it("redacts SeeAPI asset identity and complete callback proof query", () => {
 		const result = redactVideoAccessLog(
 			"POST /api/webhooks/video-v1/seeapi/private_asset?generation=2&attempt=3&proof=privateProof 202",

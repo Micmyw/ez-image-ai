@@ -53,7 +53,7 @@ export const createCheckoutLink = protectedProcedure
 		description: "Creates a server-authorized subscription checkout",
 	})
 	.input(checkoutInputSchema)
-	.output(z.object({ checkoutLink: z.url() }))
+	.output(z.object({ checkoutLink: z.url(), checkoutIntentId: z.string().min(1) }))
 	.handler(async ({ input, context: { session, user } }) => {
 		assertNewBillingEnabled();
 		await assertBillingEnvironmentReady();
@@ -141,6 +141,7 @@ export const createCheckoutLink = protectedProcedure
 			checkoutIntent.intent.providerCheckoutUrl
 		) {
 			return {
+				checkoutIntentId: checkoutIntent.intent.id,
 				checkoutLink: await resumableCheckoutLink({
 					...checkoutIntent.intent,
 					billingPlan: trustedBillingPlan,
@@ -190,7 +191,10 @@ export const createCheckoutLink = protectedProcedure
 					db,
 				);
 				if (recovery.kind === "RECOVERED") {
-					return { checkoutLink: recovery.checkout.checkoutUrl };
+					return {
+						checkoutLink: recovery.checkout.checkoutUrl,
+						checkoutIntentId: checkoutIntent.intent.id,
+					};
 				}
 				if (recovery.kind === "REVIEW") throw new ORPCError("CONFLICT");
 			} catch (error) {
@@ -237,7 +241,7 @@ export const createCheckoutLink = protectedProcedure
 					db,
 				),
 			);
-			return { checkoutLink: checkout.checkoutUrl };
+			return { checkoutLink: checkout.checkoutUrl, checkoutIntentId: checkoutIntent.intent.id };
 		} catch (error) {
 			logger.error(
 				{ provider, errorClass: checkoutErrorClass(error) },

@@ -1,0 +1,224 @@
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { sanitizeEditorReturnPath } from "../../payments/lib/editor-upgrade";
+import { videoEffectMayIndex } from "./indexing";
+import {
+	changeEffectInputs,
+	createEffectConfirmation,
+	effectError,
+	effectRequest,
+	emptyEffectDraft,
+	readEffectDraft,
+	swapEffectInputs,
+	validEffectFile,
+	VIDEO_EFFECT_MAX_BYTES,
+} from "./model";
+import {
+	bindVideoEffectPaymentReturn,
+	consumeVideoEffectPaymentReturn,
+	isVideoEffectPaymentOrigin,
+	readVideoEffectPaymentReturn,
+	saveVideoEffectPaymentReturn,
+} from "./payment-return";
+
+describe("video effect indexing boundary", () => {
+	it("keeps private and localized views noindex after future publication", () => {
+		expect(videoEffectMayIndex(true, {})).toBe(true);
+		expect(videoEffectMayIndex(false, {})).toBe(false);
+		expect(videoEffectMayIndex(true, { job: "private-job" })).toBe(false);
+		expect(videoEffectMayIndex(true, { job: "" })).toBe(false);
+		expect(videoEffectMayIndex(true, { lang: "de" })).toBe(false);
+		expect(videoEffectMayIndex(true, { lang: "en" })).toBe(true);
+	});
+});
+
+const quote = { quoteId: "quote-1", credits: "24", expiresAt: "2030-01-01T00:00:00.000Z" };
+const ready = () => ({
+	...emptyEffectDraft("owner-1"),
+	leftAssetId: "asset-left",
+	rightAssetId: "asset-right",
+});
+describe("Hotel Lobby private draft and paid confirmation", () => {
+	it("swaps actual bindings and increments revision so a pending quote cannot apply", () => {
+		const draft = ready();
+		const swapped = swapEffectInputs(draft);
+		expect(effectRequest(swapped).inputs).toEqual({
+			leftAssetId: "asset-right",
+			rightAssetId: "asset-left",
+		});
+		expect(swapped.revision).toBe(draft.revision + 1);
+	});
+	it("refresh/network recovery keeps the same complete confirmation even if the draft changed", () => {
+		const original = ready();
+		const confirmation = createEffectConfirmation(
+			original,
+			quote,
+			"b858321c-38a1-4da5-a547-05bbbfcb0277",
+		);
+		const next = changeEffectInputs(
+			{ ...original, confirmation, jobId: "accepted-older-job" },
+			{ leftAssetId: "replacement" },
+		);
+		const recovered = readEffectDraft(JSON.stringify(next), "owner-1")!;
+		expect(recovered.confirmation).toEqual(confirmation);
+		expect(recovered.confirmation?.input.request.inputs.leftAssetId).toBe("asset-left");
+		expect(recovered.leftAssetId).toBe("replacement");
+		expect(recovered.jobId).toBe("accepted-older-job");
+	});
+	it("rejects another owner, tampered payloads and signed/raw photo data", () => {
+		expect(readEffectDraft(JSON.stringify(ready()), "owner-2")).toBeNull();
+		for (const patch of [
+			{ previewUrl: "https://private.example?secret=1" },
+			{ leftAssetId: "data:image/png;base64,secret" },
+			{ version: 2 },
+		])
+			expect(readEffectDraft(JSON.stringify({ ...ready(), ...patch }), "owner-1")).toBeNull();
+		const intent = createEffectConfirmation(ready(), quote);
+		expect(
+			readEffectDraft(
+				JSON.stringify({
+					...ready(),
+					confirmation: { ...intent, input: { ...intent.input, quoteId: "different-quote" } },
+				}),
+				"owner-1",
+			),
+		).toBeNull();
+	});
+	it("allows the same adult photo in both roles", () => {
+		expect(effectRequest({ ...ready(), rightAssetId: "asset-left" }).inputs).toEqual({
+			leftAssetId: "asset-left",
+			rightAssetId: "asset-left",
+		});
+	});
+	it("enforces decimal 10,000,000 bytes and the stricter account limit before remote upload", () => {
+		expect(validEffectFile({ type: "image/png", size: VIDEO_EFFECT_MAX_BYTES }, 20_000_000)).toBe(
+			true,
+		);
+		expect(
+			validEffectFile({ type: "image/png", size: VIDEO_EFFECT_MAX_BYTES + 1 }, 20_000_000),
+		).toBe(false);
+		expect(validEffectFile({ type: "image/webp", size: 5_000_001 }, 5_000_000)).toBe(false);
+		expect(validEffectFile({ type: "image/svg+xml", size: 100 }, 5_000_000)).toBe(false);
+	});
+	it("does not mistake an uncertain credit/provider failure for a safely rejected order", () => {
+		expect(effectError(new Error("CREDIT_SETTLEMENT_UNCERTAIN"))).toBe("requestFailed");
+		expect(effectError(new Error("INSUFFICIENT_ELIGIBLE_CREDITS"))).toBe("insufficient");
+		expect(effectError(new Error("QUOTE_EXPIRED_OR_CHANGED"))).toBe("quoteExpired");
+	});
+});
+describe("template payment return", () => {
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.restoreAllMocks();
+	});
+	const raw = (patch = {}) =>
+		JSON.stringify({
+			ownerId: "owner-1",
+			path: "/video-effects/hotel-lobby-ai",
+			stage: "bound",
+			intentId: "intent-1",
+			createdAt: 100,
+			...patch,
+		});
+	it("restores only the original owner, exact safe path and unexpired handoff", () => {
+		expect(readVideoEffectPaymentReturn(raw(), "owner-1", "intent-1", 200)).toBe(
+			"/video-effects/hotel-lobby-ai",
+		);
+		expect(readVideoEffectPaymentReturn(raw(), "owner-2", "intent-1", 200)).toBeNull();
+		expect(readVideoEffectPaymentReturn(raw(), "owner-1", "other-intent", 200)).toBeNull();
+		expect(readVideoEffectPaymentReturn(raw(), "owner-1", undefined, 200)).toBeNull();
+		expect(
+			readVideoEffectPaymentReturn(
+				raw({ path: "https://evil.example" }),
+				"owner-1",
+				"intent-1",
+				200,
+			),
+		).toBeNull();
+		expect(readVideoEffectPaymentReturn(raw(), "owner-1", "intent-1", 4_000_000)).toBeNull();
+		expect(
+			readVideoEffectPaymentReturn(raw({ createdAt: 300 }), "owner-1", "intent-1", 200),
+		).toBeNull();
+		expect(
+			readVideoEffectPaymentReturn(
+				raw({ stage: "armed", intentId: undefined }),
+				"owner-1",
+				"intent-1",
+				200,
+			),
+		).toBeNull();
+	});
+
+	function mockStorage() {
+		const values = new Map<string, string>();
+		vi.stubGlobal("sessionStorage", {
+			getItem: (key: string) => values.get(key) ?? null,
+			setItem: (key: string, value: string) => values.set(key, value),
+			removeItem: (key: string) => values.delete(key),
+		});
+		vi.spyOn(Date, "now").mockReturnValue(200);
+		return values;
+	}
+
+	it("abandoned pricing never redirects a later unrelated completed checkout", () => {
+		mockStorage();
+		saveVideoEffectPaymentReturn("owner-1");
+		expect(consumeVideoEffectPaymentReturn("owner-1", "unrelated-intent")).toBeNull();
+		expect(
+			bindVideoEffectPaymentReturn("owner-1", "unrelated-intent", "/pricing?plan=creator"),
+		).toBe(false);
+		expect(consumeVideoEffectPaymentReturn("owner-1", "unrelated-intent")).toBeNull();
+	});
+
+	it("binds and consumes only the originating owner and exact durable checkout intent", () => {
+		mockStorage();
+		saveVideoEffectPaymentReturn("owner-1");
+		expect(
+			bindVideoEffectPaymentReturn("owner-2", "intent-1", "/video-effects/hotel-lobby-ai"),
+		).toBe(false);
+		expect(
+			bindVideoEffectPaymentReturn("owner-1", "intent-1", "/video-effects/hotel-lobby-ai"),
+		).toBe(true);
+		expect(consumeVideoEffectPaymentReturn("owner-2", "intent-1")).toBeNull();
+		expect(consumeVideoEffectPaymentReturn("owner-1", "unrelated-intent")).toBeNull();
+		expect(
+			bindVideoEffectPaymentReturn(
+				"owner-1",
+				"replacement-intent",
+				"/video-effects/hotel-lobby-ai",
+			),
+		).toBe(false);
+		expect(consumeVideoEffectPaymentReturn("owner-1", "intent-1")).toBe(
+			"/video-effects/hotel-lobby-ai",
+		);
+		expect(consumeVideoEffectPaymentReturn("owner-1", "intent-1")).toBeNull();
+	});
+
+	it("allows the explicit fallback pricing return only with a matching armed owner", () => {
+		mockStorage();
+		const path = "/pricing?view=credit-packs&returnTo=%2Fvideo-effects%2Fhotel-lobby-ai";
+		expect(bindVideoEffectPaymentReturn("owner-1", "intent-1", path)).toBe(false);
+		saveVideoEffectPaymentReturn("owner-1");
+		expect(bindVideoEffectPaymentReturn("owner-1", "intent-1", path)).toBe(true);
+		expect(consumeVideoEffectPaymentReturn("owner-1", "intent-1")).toBe(
+			"/video-effects/hotel-lobby-ai",
+		);
+	});
+
+	it.each([
+		"/pricing",
+		"/create",
+		"//evil.example/video-effects/hotel-lobby-ai",
+		"/pricing?returnTo=https://evil.example",
+		"/pricing?returnTo=/video-effects/hotel-lobby-ai?asset=private",
+	])("rejects unrelated or unsafe checkout origin %s", (path) => {
+		expect(isVideoEffectPaymentOrigin(path)).toBe(false);
+	});
+	it("allows the exact template return without persisting asset or signed URL query parameters", () => {
+		expect(sanitizeEditorReturnPath("/video-effects/hotel-lobby-ai")).toBe(
+			"/video-effects/hotel-lobby-ai",
+		);
+		expect(sanitizeEditorReturnPath("/video-effects/hotel-lobby-ai?asset=private")).toBe("/create");
+		expect(sanitizeEditorReturnPath("//evil.example/video-effects/hotel-lobby-ai")).toBe("/create");
+	});
+});

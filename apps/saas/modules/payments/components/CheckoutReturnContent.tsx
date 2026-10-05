@@ -1,5 +1,6 @@
 "use client";
 
+import { useSessionQuery } from "@auth/lib/api";
 import type { PlanId } from "@payments/types";
 import { Spinner } from "@repo/ui/components/spinner";
 import { saasGrowthFunnel } from "@shared/lib/growth-analytics";
@@ -9,6 +10,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { consumeVideoEffectPaymentReturn } from "../../video-effects/lib/payment-return";
 import { checkoutReturnDestination, createChoosePlanPath } from "../lib/editor-upgrade";
 
 const MAX_WAIT_MS = 20_000;
@@ -29,6 +31,7 @@ export function CheckoutReturnContent({
 }) {
 	const t = useTranslations("checkoutReturn");
 	const router = useRouter();
+	const session = useSessionQuery();
 	const [polling, setPolling] = useState(true);
 	const { mutateAsync: refreshCheckout } = useMutation(
 		orpc.payments.refreshPendingSubscriptionCheckout.mutationOptions(),
@@ -46,13 +49,24 @@ export function CheckoutReturnContent({
 	});
 
 	useEffect(() => {
+		if (session.isPending) return;
 		const destination = checkoutReturnDestination(data?.status, returnTo);
 		if (destination) {
 			void saasGrowthFunnel.subscriptionActivated(expectedPlanId);
 			setPolling(false);
-			router.replace(destination);
+			router.replace(
+				consumeVideoEffectPaymentReturn(session.data?.user?.id, checkoutIntentId) ?? destination,
+			);
 		}
-	}, [data?.status, expectedPlanId, returnTo, router]);
+	}, [
+		data?.status,
+		expectedPlanId,
+		returnTo,
+		router,
+		session.data?.user?.id,
+		session.isPending,
+		checkoutIntentId,
+	]);
 
 	useEffect(() => {
 		if (!polling) return;

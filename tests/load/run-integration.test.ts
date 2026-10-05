@@ -77,7 +77,7 @@ void describe("integration suites use physically distinct disposable databases",
 		assert.ok(!mainJobs.args.includes(runtimeStores));
 		assert.ok(guestJobs.args.includes(runtimeStores));
 		assert.equal(guestJobs.environment.DATABASE_URL, guest);
-		for (const file of ["flow", "seeapi-flow"])
+		for (const file of ["flow", "seeapi-flow", "template-flow"])
 			assert.ok(mainJobs.args.includes(`src/video-v1/${file}.database.integration.test.ts`));
 
 		const api = forPackage("@repo/api");

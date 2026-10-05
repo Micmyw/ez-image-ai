@@ -30,6 +30,18 @@ import {
 	type PaidCreditFundingPolicy,
 } from "./types";
 import {
+	canonicalVideoTemplateJson,
+	templateAdmissionData,
+	assertTemplateAdmissionSnapshot,
+	findTemplateRoleInputs,
+	type TemplateAdmission,
+} from "./video-template-admission";
+import { recordVideoTemplateBusinessEvent } from "./video-template-events";
+import {
+	videoTemplateSceneReservationKey,
+	videoTemplateSceneReservationBytes,
+} from "./video-template-storage";
+import {
 	videoOutputStoragePolicy,
 	videoOutputReservationBytes,
 	videoOutputReservationKey,
@@ -180,6 +192,7 @@ export async function createVideoQuoteRecord(
 		textSafetyProfile: VideoTextSafetyProfile;
 		audioSafetyPolicy: VideoAudioSafetyPolicy;
 		maximumInputBytes: number;
+		template?: TemplateAdmission;
 	},
 	client: MediaTransactionClient,
 ) {
@@ -198,9 +211,30 @@ export async function createVideoQuoteRecord(
 	return runSerializable(client, async (tx) => {
 		const now = await databaseNow(tx);
 		if (request.mode === "image-to-video")
-			await lockMediaAssetGenerationBindings([request.inputAssetId!], tx);
+			await lockMediaAssetGenerationBindings(
+				input.template
+					? [input.template.request.inputs.leftAssetId, input.template.request.inputs.rightAssetId]
+					: [request.inputAssetId!],
+				tx,
+			);
 		const asset = await findSealedInput(input.ownerId, request, input.maximumInputBytes, tx, now);
-		const requestFingerprint = fingerprintVideoRequest(input.ownerId, request);
+		const templateData = input.template
+			? await templateAdmissionData(input.ownerId, input.template, input.maximumInputBytes, tx, now)
+			: {};
+		const requestFingerprint = input.template
+			? createHash("sha256")
+					.update(
+						canonicalVideoTemplateJson({
+							ownerId: input.ownerId,
+							request,
+							...templateData,
+							visualSafetyProfile,
+							textSafetyProfile,
+							audioSafetyPolicy,
+						}),
+					)
+					.digest("hex")
+			: fingerprintVideoRequest(input.ownerId, request);
 		const quote = {
 			ownerType: "USER" as const,
 			ownerId: input.ownerId,
@@ -213,6 +247,7 @@ export async function createVideoQuoteRecord(
 			expiresAt: new Date(now.getTime() + 10 * 60_000),
 			inputSnapshot: {
 				...request,
+				...templateData,
 				visualSafetyProfile,
 				textSafetyProfile,
 				audioSafetyPolicy,
@@ -253,7 +288,12 @@ export async function createVideoQuoteRecord(
 }
 
 export async function findExistingVideoAdmission(
-	input: { ownerId: string; idempotencyKey: string; request: VideoRequest },
+	input: {
+		ownerId: string;
+		idempotencyKey: string;
+		request: VideoRequest;
+		template?: TemplateAdmission;
+	},
 	tx: MediaDatabaseClient,
 ) {
 	const job = await tx.generationJob.findUnique({
@@ -267,12 +307,14 @@ export async function findExistingVideoAdmission(
 		include: { videoExecution: true, reservation: true },
 	});
 	if (!job) return null;
+	assertTemplateAdmissionSnapshot(job.inputSnapshot, input.template, false);
 	if (
 		job.executionEngine !== ENGINE ||
 		!job.videoExecution ||
 		!job.reservation ||
-		fingerprintVideoRequest(input.ownerId, snapshotRequest(job.inputSnapshot)) !==
-			fingerprintVideoRequest(input.ownerId, input.request)
+		(!input.template &&
+			fingerprintVideoRequest(input.ownerId, snapshotRequest(job.inputSnapshot)) !==
+				fingerprintVideoRequest(input.ownerId, input.request))
 	)
 		throw new Error("IDEMPOTENCY_CONFLICT");
 	return job;
@@ -291,6 +333,7 @@ export async function createVideoJobRecord(
 		limits: VideoAdmissionLimits;
 		requestReceivedAt?: Date;
 		paidFundingPolicy?: PaidCreditFundingPolicy;
+		template?: TemplateAdmission;
 	},
 	client: MediaTransactionClient,
 ) {
@@ -357,7 +400,7 @@ export async function createVideoJobRecord(
 				EXISTS(
 					SELECT 1 FROM "runtime_config_override"
 					WHERE "active" = true AND "value" = 'false'::jsonb
-						AND "configKey" IN ('media.generation.enabled', ${`media.model.${requestProduct(request)}.enabled`})
+						AND "configKey" IN ('media.generation.enabled', ${`media.model.${requestProduct(request)}.enabled`}, ${input.template ? `media.model.${input.template.template.scene.productKey}.enabled` : `media.model.${requestProduct(request)}.enabled`}, ${input.template ? "media.model.image-nano-banana-2-lite.enabled" : `media.model.${requestProduct(request)}.enabled`})
 				) AS "blocked",
 				COUNT(*) FILTER (WHERE j."executionEngine" = 'video-workflow-v1'
 					AND j."ownerType" = 'USER' AND j."ownerId" = ${input.ownerId}) AS "ownerCount",
@@ -401,6 +444,7 @@ export async function createVideoJobRecord(
 		)
 			throw new Error("VIDEO_QUOTE_INPUT_MISMATCH");
 		const snap = quote.inputSnapshot as Prisma.JsonObject;
+		assertTemplateAdmissionSnapshot(snap, input.template, true);
 		if (!snap.visualSafetyProfile) throw new Error("VIDEO_SAFETY_PROFILE_CHANGED");
 		const visualSafetyProfile = requiredVisualSafetyProfile(input.visualSafetyProfile, request);
 		if (!snap.textSafetyProfile) throw new Error("VIDEO_TEXT_SAFETY_PROFILE_CHANGED");
@@ -430,14 +474,22 @@ export async function createVideoJobRecord(
 			throw new Error("VIDEO_PROVIDER_BUSY");
 		await lockOwnerStorageUsage({ ownerType: "USER", ownerId: input.ownerId }, tx);
 		const outputBytes = videoOutputReservationBytes(quote.inputSnapshot);
+		const sceneBytes = input.template
+			? videoTemplateSceneReservationBytes(quote.inputSnapshot)
+			: 0n;
 		const usedBytes = await videoOwnerStorageUsage(tx, {
 			ownerType: "USER",
 			ownerId: input.ownerId,
 		});
-		if (usedBytes + outputBytes > input.limits.maximumStorageBytes)
+		if (usedBytes + outputBytes + sceneBytes > input.limits.maximumStorageBytes)
 			throw new Error("STORAGE_QUOTA_EXCEEDED");
 		if (request.mode === "image-to-video")
-			await lockMediaAssetGenerationBindings([request.inputAssetId!], tx);
+			await lockMediaAssetGenerationBindings(
+				input.template
+					? [input.template.request.inputs.leftAssetId, input.template.request.inputs.rightAssetId]
+					: [request.inputAssetId!],
+				tx,
+			);
 		const asset = await findSealedInput(
 			input.ownerId,
 			request,
@@ -445,6 +497,29 @@ export async function createVideoJobRecord(
 			tx,
 			now,
 		);
+		const roleInputs = input.template
+			? await findTemplateRoleInputs(
+					input.ownerId,
+					input.template.request,
+					input.limits.maximumInputBytes,
+					tx,
+					now,
+				)
+			: [];
+		if (input.template) {
+			const currentData = await templateAdmissionData(
+				input.ownerId,
+				input.template,
+				input.limits.maximumInputBytes,
+				tx,
+				now,
+			);
+			if (
+				canonicalVideoTemplateJson(currentData.roleInputIdentities) !==
+				canonicalVideoTemplateJson(snap.roleInputIdentities)
+			)
+				throw new Error("ASSET_CONTENT_CHANGED");
+		}
 		const identity = snap.inputIdentity as Prisma.JsonObject | null;
 		if (
 			asset &&
@@ -489,6 +564,24 @@ export async function createVideoJobRecord(
 				expiresAt: new Date(now.getTime() + 24 * 60 * 60_000),
 			},
 		});
+		if (input.template) {
+			await tx.storageUsageReservation.create({
+				data: {
+					ownerType: "USER",
+					ownerId: input.ownerId,
+					referenceKey: videoTemplateSceneReservationKey(job.id),
+					bytes: sceneBytes,
+					expiresAt: new Date(now.getTime() + 86400000),
+				},
+			});
+			await tx.videoTemplateExecution.create({
+				data: {
+					jobId: job.id,
+					templateSnapshot: snap.videoEffectTemplate as Prisma.InputJsonValue,
+					orderedRoleIdentities: snap.roleInputIdentities as Prisma.InputJsonValue,
+				},
+			});
+		}
 		await reserveCreditsInTransaction(
 			{
 				accountId: account.id,
@@ -500,14 +593,18 @@ export async function createVideoJobRecord(
 			tx,
 		);
 		const creditReservationCompletedAt = new Date().toISOString();
-		if (asset)
+		for (const [position, boundAsset] of [
+			...new Map(
+				(roleInputs.length ? roleInputs : asset ? [asset] : []).map((value) => [value.id, value]),
+			).values(),
+		].entries())
 			await tx.generationJobAsset.create({
 				data: {
 					jobId: job.id,
-					assetId: asset.id,
-					assetChecksum: asset.checksum!,
+					assetId: boundAsset.id,
+					assetChecksum: boundAsset.checksum!,
 					role: "INPUT",
-					position: 0,
+					position,
 				},
 			});
 		await tx.videoExecution.create({
@@ -531,6 +628,11 @@ export async function createVideoJobRecord(
 					},
 				},
 			},
+		});
+		await recordVideoTemplateBusinessEvent(tx, {
+			jobId: job.id,
+			event: "accepted",
+			templateSnapshot: input.template?.template,
 		});
 		return { jobId: job.id, replayed: false };
 	});

@@ -15,6 +15,11 @@ const policy = {
 	VIDEO_V1_OUTPUT_ALLOWED_HOSTS: "cdn.example.test",
 	VIDEO_V1_UPLOAD_CORS_READY: "true",
 	VIDEO_COST_STORAGE_MICROS: "100",
+	HOTEL_LOBBY_DUO_PRICE_VERSION: "fixture-price-only",
+	HOTEL_LOBBY_DUO_PRICE_MARKUP_BPS: "20000",
+	HOTEL_LOBBY_DUO_PAYMENT_FEE_BPS: "750",
+	HOTEL_LOBBY_DUO_PAYMENT_COST_BASIS: "fixture-only-payment-approval",
+	HOTEL_LOBBY_DUO_SCENE_PROVIDER_COST_MICROS: "20000",
 	VIDEO_MODEL_ALLOWED_OPTIONS: JSON.stringify([{ productKey: "fixture", sounds: [false] }]),
 	VIDEO_INTERNAL_FUNDING: JSON.stringify({
 		userIds: ["fixture-user"],
@@ -28,6 +33,7 @@ describe("private video runtime environment transport", () => {
 		const input = {
 			...policy,
 			VIDEO_V1_ENABLED: "false",
+			HOTEL_LOBBY_DUO_ENABLED: "false",
 			KIE_API_KEY: "fixture-only",
 			SEEAPI_WEBHOOK_SIGNING_KEYS: "fixture-only",
 			MEDIA_GENERATION_ENABLED: "true",
@@ -63,6 +69,7 @@ describe("private video runtime environment transport", () => {
 		"VIDEO_SEEAPI_CALLBACK_SECRET",
 		"WAFFO_PRIVATE_KEY",
 		"VIDEO_V1_ENABLED",
+		"HOTEL_LOBBY_DUO_ENABLED",
 		"VIDEO_WORKFLOW",
 		"VIDEO_MEDIA_BUCKET",
 		"NEXT_PUBLIC_VIDEO_RUNTIME_CONFIG",
@@ -137,9 +144,13 @@ describe("private video runtime environment transport", () => {
 			{ VIDEO_V1_ENABLED: "true", VIDEO_V1_ACCESS: "internal" },
 			target,
 		);
-		expect(target).toEqual({ VIDEO_V1_ENABLED: "true", VIDEO_V1_ACCESS: "internal" });
+		expect(target).toEqual({
+			VIDEO_V1_ENABLED: "true",
+			HOTEL_LOBBY_DUO_ENABLED: "false",
+			VIDEO_V1_ACCESS: "internal",
+		});
 		hydrateVideoRuntimeEnvironment({}, target);
-		expect(target).toEqual({ VIDEO_V1_ENABLED: "false" });
+		expect(target).toEqual({ VIDEO_V1_ENABLED: "false", HOTEL_LOBBY_DUO_ENABLED: "false" });
 	});
 	it.each([
 		JSON.stringify({ VIDEO_V1_ENABLED: "true" }),
@@ -155,7 +166,11 @@ describe("private video runtime environment transport", () => {
 			{ VIDEO_RUNTIME_CONFIG: encoded, VIDEO_V1_ENABLED: "true", ...policy },
 			target,
 		);
-		expect(target).toEqual({ VIDEO_V1_ENABLED: "false", MEDIA_GENERATION_ENABLED: "true" });
+		expect(target).toEqual({
+			VIDEO_V1_ENABLED: "false",
+			HOTEL_LOBBY_DUO_ENABLED: "false",
+			MEDIA_GENERATION_ENABLED: "true",
+		});
 		expect(result.VIDEO_V1_ENABLED).toBe("false");
 		expect(result).not.toHaveProperty("VIDEO_RUNTIME_CONFIG");
 	});
@@ -169,8 +184,23 @@ describe("private video runtime environment transport", () => {
 			},
 			target,
 		);
-		expect(target).toEqual({ VIDEO_V1_ENABLED: "false" });
+		expect(target).toEqual({ VIDEO_V1_ENABLED: "false", HOTEL_LOBBY_DUO_ENABLED: "false" });
 		hydrateVideoRuntimeEnvironment({ VIDEO_RUNTIME_CONFIG: JSON.stringify(policy) }, target);
 		expect(target.VIDEO_V1_ENABLED).toBe("false");
+	});
+	it("hydrates the independent template switch and clears it between versions", () => {
+		const target: Record<string, string | undefined> = {};
+		hydrateVideoRuntimeEnvironment(
+			{ VIDEO_V1_ENABLED: "true", HOTEL_LOBBY_DUO_ENABLED: "true" },
+			target,
+		);
+		expect(target.HOTEL_LOBBY_DUO_ENABLED).toBe("true");
+		hydrateVideoRuntimeEnvironment({ VIDEO_V1_ENABLED: "true" }, target);
+		expect(target.HOTEL_LOBBY_DUO_ENABLED).toBe("false");
+		hydrateVideoRuntimeEnvironment(
+			{ HOTEL_LOBBY_DUO_ENABLED: "true", VIDEO_RUNTIME_CONFIG: "invalid" },
+			target,
+		);
+		expect(target.HOTEL_LOBBY_DUO_ENABLED).toBe("false");
 	});
 });

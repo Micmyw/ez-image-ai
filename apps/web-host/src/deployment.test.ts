@@ -9,17 +9,22 @@ describe("Cloudflare deployment environment", () => {
 				NEXT_PUBLIC_SAAS_URL: "https://ezimageai.com",
 				VIDEO_V1_BUILD_ENABLED: "true",
 				VIDEO_V1_ENABLED: "false",
+				HOTEL_LOBBY_DUO_ENABLED: "false",
+				HOTEL_LOBBY_DUO_BUILD_ENABLED: "true",
 			},
 			"https://ezimageai.com",
 		);
 		expect(result).not.toHaveProperty("VIDEO_V1_BUILD_ENABLED");
 		expect(result.VIDEO_V1_ENABLED).toBe("false");
+		expect(result.HOTEL_LOBBY_DUO_ENABLED).toBe("false");
+		expect(result).not.toHaveProperty("HOTEL_LOBBY_DUO_BUILD_ENABLED");
 	});
 	it("expands packed video policy for preparation but excludes it from public build variables", () => {
 		const policy = {
 			VIDEO_V1_ACCESS: "internal",
 			VIDEO_V1_ALLOWED_USER_IDS: "fixture-user",
 			VIDEO_COST_STORAGE_MICROS: "100",
+			HOTEL_LOBBY_DUO_PRICE_BASIS: "isolated template fixture",
 		};
 		const environment = deploymentEnvironment(
 			{

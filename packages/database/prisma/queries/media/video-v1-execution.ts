@@ -10,6 +10,12 @@ import { getDatabaseClient } from "../../client";
 import type { Prisma } from "../../generated/client";
 import { releaseCreditsInTransaction } from "./credits";
 import { runReadCommitted } from "./types";
+import { recordVideoTemplateBusinessEvent } from "./video-template-events";
+import {
+	assertVideoTemplateRoleIdentities,
+	getVideoEffectiveInputSnapshot,
+} from "./video-template-execution";
+import { videoTemplateHasUnsettledScene } from "./video-template-storage";
 import {
 	lockVideoOwnerStorage,
 	releaseVideoPreOutputCapacity,
@@ -30,6 +36,7 @@ export function getVideoExecutionContext(jobId: string) {
 		where: { id: jobId, executionEngine: ENGINE },
 		include: {
 			videoExecution: true,
+			videoTemplateExecution: { include: { sceneAsset: true } },
 			attempts: { orderBy: { attemptNumber: "desc" } },
 			assets: { include: { asset: true } },
 			reservation: true,
@@ -47,6 +54,7 @@ async function lockedContext(tx: Prisma.TransactionClient, jobId: string) {
 		where: { id: jobId, executionEngine: ENGINE },
 		include: {
 			videoExecution: true,
+			videoTemplateExecution: { include: { sceneAsset: true } },
 			attempts: { orderBy: { attemptNumber: "desc" } },
 			assets: { include: { asset: true } },
 			reservation: true,
@@ -60,7 +68,30 @@ async function lockedContext(tx: Prisma.TransactionClient, jobId: string) {
 export function assertVideoInputIdentity(
 	job: NonNullable<Awaited<ReturnType<typeof getVideoExecutionContext>>>,
 ) {
-	const snapshot = object(job.inputSnapshot);
+	const original = object(job.inputSnapshot);
+	if (original.videoEffectTemplate) {
+		assertVideoTemplateRoleIdentities(job);
+		if (!job.videoTemplateExecution?.resolvedInputIdentity) return;
+		const identity = object(job.videoTemplateExecution.resolvedInputIdentity);
+		const asset = job.videoTemplateExecution.sceneAsset;
+		if (
+			!asset ||
+			asset.ownerId !== job.ownerId ||
+			asset.ownerType !== job.ownerType ||
+			asset.deletedAt ||
+			!asset.finalizedAt ||
+			asset.status !== "READY" ||
+			asset.checksum !== identity.checksum ||
+			asset.objectKey !== identity.objectKey ||
+			asset.storageEtag !== identity.storageEtag ||
+			asset.storageVersionId !== identity.storageVersionId ||
+			asset.verificationGeneration !== identity.verificationGeneration ||
+			(asset.deleteAfter && asset.deleteAfter <= new Date())
+		)
+			throw new Error("VIDEO_INPUT_IDENTITY_CHANGED");
+		return;
+	}
+	const snapshot = original;
 	if (snapshot.mode === "text-to-video") return;
 	const identity = object(snapshot.inputIdentity);
 	const binding = job.assets.find(
@@ -155,6 +186,7 @@ export async function claimVideoProviderSubmission(input: {
 		if (terminal.has(job.videoExecution!.stage) || job.videoExecution!.stage === "NEEDS_REVIEW")
 			throw new Error("VIDEO_JOB_TERMINAL");
 		assertVideoInputIdentity(job);
+		const effectiveSnapshot = getVideoEffectiveInputSnapshot(job);
 		const textSafetyProfile = readVideoTextSafetyProfile(job.inputSnapshot);
 		const review = object(object(job.videoExecution!.stageData).inputReview);
 		if (
@@ -204,7 +236,7 @@ export async function claimVideoProviderSubmission(input: {
 				provider: "kie",
 				providerModelId: input.providerModelId,
 				callbackTokenHash: input.callbackTokenHash,
-				requestSnapshot: job.inputSnapshot as Prisma.InputJsonValue,
+				requestSnapshot: effectiveSnapshot as Prisma.InputJsonValue,
 				status: "SUBMISSION_UNCERTAIN",
 				uncertainSubmission: true,
 				submittedAt: new Date(),
@@ -301,6 +333,7 @@ export async function failVideoExecution(
 		if (
 			terminal.has(job.videoExecution!.stage) ||
 			job.videoExecution!.stage === "NEEDS_REVIEW" ||
+			videoTemplateHasUnsettledScene(job.videoTemplateExecution) ||
 			(options.onlyBeforeSubmission && job.attempts.length > 0) ||
 			job.attempts[0]?.status === "SUCCEEDED" ||
 			(onlyBeforeAccepted && job.attempts[0]?.providerTaskId) ||
@@ -343,6 +376,11 @@ export async function failVideoExecution(
 				stateVersion: { increment: 1 },
 				lastProgressAt: new Date(),
 			},
+		});
+		await recordVideoTemplateBusinessEvent(tx, {
+			jobId,
+			event: "failed",
+			templateSnapshot: job.videoTemplateExecution?.templateSnapshot,
 		});
 		return true;
 	});
@@ -553,7 +591,7 @@ export async function persistVideoProviderWebhook(input: {
 export async function markVideoWebhookNotified(eventId: string) {
 	return runReadCommitted(getDatabaseClient(), async (tx) => {
 		const event = await tx.providerWebhookEvent.findFirst({
-			where: { id: eventId, provider: "kie-video-v1" },
+			where: { id: eventId, provider: { in: ["kie-video-v1", "kie-video-template-scene"] } },
 		});
 		if (!event) throw new Error("VIDEO_CALLBACK_EVENT_MISSING");
 		await tx.providerWebhookEvent.update({
@@ -571,7 +609,11 @@ export async function markVideoWebhookNotified(eventId: string) {
 /** A failed delivery yields its place in the bounded recovery page. */
 export async function postponeVideoWebhookNotification(eventId: string, now = new Date()) {
 	await getDatabaseClient().providerWebhookEvent.updateMany({
-		where: { id: eventId, provider: "kie-video-v1", status: "RECEIVED" },
+		where: {
+			id: eventId,
+			provider: { in: ["kie-video-v1", "kie-video-template-scene"] },
+			status: "RECEIVED",
+		},
 		data: { processingLeasedUntil: new Date(now.getTime() + 120_000) },
 	});
 }
@@ -610,21 +652,43 @@ export async function listPendingVideoWebhookEvents(limit: number, now = new Dat
 	// Select active notifications separately so retained unknown-state evidence
 	// and any terminal backlog cannot starve a live workflow's bounded page.
 	return database.$queryRaw<Array<{ eventId: string; jobId: string; workflowInstanceId: string }>>`
-		SELECT e."id" AS "eventId", j."id" AS "jobId", v."workflowInstanceId"
-		FROM "provider_webhook_event" e
-		JOIN "generation_attempt" a ON a."id" = e."envelope"->>'attemptId'
-			AND a."jobId" = e."envelope"->>'jobId'
-		JOIN "generation_job" j ON j."id" = a."jobId" AND j."executionEngine" = ${ENGINE}
-		JOIN "video_execution" v ON v."jobId" = j."id"
-		WHERE e."provider" = 'kie-video-v1' AND e."status" = 'RECEIVED'
-			AND e."verifiedAt" IS NOT NULL
-			AND e."envelope"->>'executionEngine' = ${ENGINE}
-			AND a."provider" = 'kie' AND a."providerTaskId" = e."providerTaskId"
-			AND a."providerTaskId" = e."envelope"->>'taskId'
-			AND v."stage" NOT IN ('READY', 'FAILED', 'REJECTED', 'NEEDS_REVIEW')
-			AND e."envelope"->'notifiedAt' = 'null'::jsonb
-			AND (e."processingLeasedUntil" IS NULL OR e."processingLeasedUntil" <= ${now})
-		ORDER BY e."processingLeasedUntil" ASC NULLS FIRST, e."receivedAt", e."id" LIMIT ${batchLimit}`;
+        WITH pending_events AS (
+            SELECT e."id" AS "eventId", j."id" AS "jobId", v."workflowInstanceId",
+                e."processingLeasedUntil", e."receivedAt"
+            FROM "provider_webhook_event" e
+            JOIN "generation_attempt" a ON a."id" = e."envelope"->>'attemptId'
+                AND a."jobId" = e."envelope"->>'jobId'
+            JOIN "generation_job" j ON j."id" = a."jobId" AND j."executionEngine" = ${ENGINE}
+            JOIN "video_execution" v ON v."jobId" = j."id"
+            WHERE e."provider" = 'kie-video-v1' AND e."status" = 'RECEIVED'
+                AND e."verifiedAt" IS NOT NULL
+                AND e."envelope"->>'executionEngine' = ${ENGINE}
+                AND a."provider" = 'kie' AND a."providerTaskId" = e."providerTaskId"
+                AND a."providerTaskId" = e."envelope"->>'taskId'
+                AND v."stage" NOT IN ('READY', 'FAILED', 'REJECTED', 'NEEDS_REVIEW')
+                AND e."envelope"->'notifiedAt' = 'null'::jsonb
+                AND (e."processingLeasedUntil" IS NULL OR e."processingLeasedUntil" <= ${now})
+            UNION ALL
+            -- A scene has its own paid fence and task identity, never a GenerationAttempt.
+            -- Validate that identity independently before joining the shared bounded page.
+            SELECT e."id" AS "eventId", j."id" AS "jobId", v."workflowInstanceId",
+                e."processingLeasedUntil", e."receivedAt"
+            FROM "provider_webhook_event" e
+            JOIN "video_template_execution" s ON s."jobId" = e."envelope"->>'jobId'
+            JOIN "generation_job" j ON j."id" = s."jobId" AND j."executionEngine" = ${ENGINE}
+            JOIN "video_execution" v ON v."jobId" = j."id"
+            WHERE e."provider" = 'kie-video-template-scene' AND e."status" = 'RECEIVED'
+                AND e."verifiedAt" IS NOT NULL
+                AND s."submittedAt" IS NOT NULL AND s."sceneCallbackTokenHash" IS NOT NULL
+                AND s."sceneProviderTaskId" = e."providerTaskId"
+                AND s."sceneProviderTaskId" = e."envelope"->>'taskId'
+                AND v."workflowInstanceId" = e."envelope"->>'workflowInstanceId'
+                AND v."stage" NOT IN ('READY', 'FAILED', 'REJECTED', 'NEEDS_REVIEW')
+                AND e."envelope"->'notifiedAt' = 'null'::jsonb
+                AND (e."processingLeasedUntil" IS NULL OR e."processingLeasedUntil" <= ${now})
+        )
+        SELECT "eventId", "jobId", "workflowInstanceId" FROM pending_events
+        ORDER BY "processingLeasedUntil" ASC NULLS FIRST, "receivedAt", "eventId" LIMIT ${batchLimit}`;
 }
 
 export async function consumeVideoProviderEvents(

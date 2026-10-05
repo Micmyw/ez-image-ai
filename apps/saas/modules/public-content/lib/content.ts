@@ -3,6 +3,7 @@ import { privacyPolicyDocuments } from "../../../content/legal/privacy-policy";
 import { termsDocuments } from "../../../content/legal/terms";
 import { eightiesPhotoDocuments } from "../../../content/posts/1980s-ai-photo";
 import { promptEditingDocuments } from "../../../content/posts/ai-image-editing-prompts";
+import { hotelLobbyVideoDocuments } from "../../../content/posts/hotel-lobby-ai-video";
 import { blogDocuments } from "../../../content/posts/private-image-editing-workflow";
 import { getEffectRecordsForValidation, getPublishedEffectById } from "../../effects/lib/content";
 import type { BlogPost } from "./blog-types";
@@ -30,6 +31,7 @@ const posts: readonly BlogPost[] = [
 	...blogDocuments,
 	...promptEditingDocuments,
 	...eightiesPhotoDocuments,
+	...hotelLobbyVideoDocuments,
 ];
 
 export function getLegalPageByPath(path: string, options: { locale: string }): LegalPage | null {

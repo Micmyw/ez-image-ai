@@ -31,7 +31,9 @@ export function createSharpImageProcessor(): ImageProcessor {
 				sequentialRead: true,
 				failOn: "error",
 				limitInputPixels: 100_000_000,
-			}).png();
+			})
+				.rotate()
+				.png();
 			readable.once("error", (error) => transform.destroy(error));
 			transform.once("close", () => readable.destroy());
 			return Readable.toWeb(readable.pipe(transform)) as unknown as ReadableStream<Uint8Array>;

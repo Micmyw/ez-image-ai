@@ -11,6 +11,11 @@ export async function getVideoWorkflowCheckpoint(jobId: string, now = new Date()
 		await tx.$queryRaw`SELECT "jobId" FROM "video_execution" WHERE "jobId" = ${jobId} FOR UPDATE`;
 		const execution = await tx.videoExecution.findFirst({
 			where: { jobId, job: { executionEngine: ENGINE } },
+			include: {
+				job: {
+					select: { videoTemplateExecution: { select: { jobId: true } } },
+				},
+			},
 		});
 		if (
 			!execution ||
@@ -50,6 +55,9 @@ export async function getVideoWorkflowCheckpoint(jobId: string, now = new Date()
 			jobId,
 			stage: execution.stage,
 			terminal: TERMINAL.includes(execution.stage as (typeof TERMINAL)[number]),
+			// A frozen sidecar identifies only new template executions. Cached legacy
+			// checkpoints lack this field and retain their original durable step path.
+			template: Boolean(execution.job.videoTemplateExecution),
 		};
 	});
 }

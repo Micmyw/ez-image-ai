@@ -9,7 +9,7 @@ const video = (env as unknown as { VIDEO_WORKFLOW: Workflow<VideoWorkflowParams>
 // Paid providers, database and storage stage bodies are substituted, while the
 // real Workflow class/binding, checkpoints and durable event waits run in workerd.
 describe("video V1 local workerd runtime", () => {
-	it.each(["early-event", "timeout-query"])(
+	it.each(["early-event", "timeout-query", "template-event"])(
 		"resumes %s into a fresh confirmation round without a second submit",
 		async (scenario) => {
 			const jobId = crypto.randomUUID();
@@ -18,7 +18,13 @@ describe("video V1 local workerd runtime", () => {
 			try {
 				await inspection.modify(async (m) => {
 					const results: Record<string, unknown> = {
-						"video-v1-start": { stage: "QUEUED", terminal: false },
+						// Ordinary/legacy cases intentionally omit template, and never mock
+						// preparation: an accidental extra step would hit unavailable bindings.
+						"video-v1-start": {
+							stage: "QUEUED",
+							terminal: false,
+							...(scenario === "template-event" ? { template: true } : {}),
+						},
 						"video-v1-input-window": { round: 0, remainingSeconds: 1800 },
 						"video-v1-review-input-0": { status: "ALLOW" },
 						"video-v1-submit-provider": { status: "ACCEPTED", attemptId: "a", providerTaskId: "t" },
@@ -31,9 +37,11 @@ describe("video V1 local workerd runtime", () => {
 						"video-v1-review-output-0": { status: "ALLOW" },
 						"video-v1-finalize": { stage: "READY" },
 					};
+					if (scenario === "template-event")
+						results["video-v1-template-prepare-0"] = { status: "ALLOW" };
 					for (const [name, result] of Object.entries(results))
 						await m.mockStepResult({ name }, result);
-					if (scenario === "early-event")
+					if (scenario !== "timeout-query")
 						await m.mockEvent({ type: "provider-result", payload: { forgedResultUrl: "ignored" } });
 					else await m.forceEventTimeout({ name: "video-v1-provider-event-0" });
 				});

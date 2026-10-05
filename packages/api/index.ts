@@ -19,6 +19,7 @@ import { db } from "@repo/database/client";
 import { createProviderWebhookVerifierRegistry } from "@repo/jobs";
 import { dispatchJob } from "@repo/jobs/orchestration/client";
 import { createSeeapiVideoModerationWebhookHandler } from "@repo/jobs/video-v1/seeapi-webhooks";
+import { createVideoTemplateProviderWebhookHandler } from "@repo/jobs/video-v1/template-webhooks";
 import { createVideoProviderWebhookHandler } from "@repo/jobs/video-v1/webhooks";
 import { getVideoWorkflowBinding } from "@repo/jobs/video-v1/workflow-binding";
 import { getLogContext, logger, withLogContext } from "@repo/logs";
@@ -210,6 +211,11 @@ export function createApiApp(dependencies: Partial<ApiAppDependencies> = {}) {
 			.post("/webhooks/payments", (c) => paymentsWebhookHandler(c.req.raw))
 			.post("/webhooks/video/kie/:attemptToken", (c) =>
 				createVideoProviderWebhookHandler({ binding: getVideoWorkflowBinding() })(c.req.raw),
+			)
+			.post("/webhooks/video-template/kie/:token", (c) =>
+				createVideoTemplateProviderWebhookHandler({ binding: getVideoWorkflowBinding() })(
+					c.req.raw,
+				),
 			)
 			.post("/webhooks/video/moderation", (c) =>
 				c.json({ code: "MODERATION_PROVIDER_RETIRED" }, 410),

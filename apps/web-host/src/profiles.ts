@@ -1,6 +1,7 @@
 import path from "node:path";
 
 import { packEzPicImageModelFlags } from "@repo/config/server";
+import { resolveVideoEffectPrice } from "@repo/config/video-effects.server";
 import {
 	expandVideoRuntimeEnvironment,
 	packVideoRuntimeEnvironment,
@@ -94,6 +95,18 @@ export function createProfileArtifacts(options: {
 		);
 		if (!readiness.ready) throw new Error(`VIDEO_V1_NOT_READY: ${readiness.reasons.join(",")}`);
 	}
+	if (environment.HOTEL_LOBBY_DUO_ENABLED === "true") {
+		if (environment.VIDEO_V1_ENABLED !== "true") throw new Error("VIDEO_EFFECT_VIDEO_DISABLED");
+		// Validate the same fixed option and complete confirmed cost basis as new admission.
+		resolveVideoEffectPrice(
+			{
+				effectId: "hotel-lobby-duo",
+				presetKey: "standard",
+				inputs: { leftAssetId: "readiness-left", rightAssetId: "readiness-right" },
+			},
+			environment,
+		);
+	}
 	const videoWorkflow = {
 		name: `ezpic-video-v1-${profile}-${target}`,
 		binding: "VIDEO_WORKFLOW",
@@ -101,6 +114,7 @@ export function createProfileArtifacts(options: {
 	};
 	const videoVars = {
 		VIDEO_V1_ENABLED: environment.VIDEO_V1_ENABLED === "true" ? "true" : "false",
+		HOTEL_LOBBY_DUO_ENABLED: environment.HOTEL_LOBBY_DUO_ENABLED === "true" ? "true" : "false",
 	};
 	const hyperdrive = [{ binding: "HYPERDRIVE", id: environment.CLOUDFLARE_HYPERDRIVE_ID }];
 	const account = environment.CLOUDFLARE_ACCOUNT_ID ?? options.jobsTemplate.account_id;
@@ -158,6 +172,7 @@ export function createProfileArtifacts(options: {
 	// Policy must have one authoritative packed copy, never an inherited flat var.
 	const jobVars = jobs.vars as Record<string, unknown>;
 	delete jobVars.VIDEO_V1_BUILD_ENABLED;
+	delete jobVars.HOTEL_LOBBY_DUO_BUILD_ENABLED;
 	const effectiveVideo = expandVideoRuntimeEnvironment(flatEnvironment);
 	for (const key of VIDEO_RUNTIME_ENVIRONMENT_KEYS) {
 		if (jobVars[key] !== undefined && jobVars[key] !== effectiveVideo[key])
@@ -201,6 +216,7 @@ export function createProfileArtifacts(options: {
 		if (
 			key.startsWith("CLOUDFLARE_") ||
 			key === "VIDEO_V1_BUILD_ENABLED" ||
+			key === "HOTEL_LOBBY_DUO_BUILD_ENABLED" ||
 			isRetiredModerationBinding(key)
 		)
 			delete hybridEnvironment[key];
@@ -250,6 +266,7 @@ export function workersRuntimeEnvironment(environment: Record<string, string>) {
 	// Evidence paths are offline-only; production cannot enable local test endpoints.
 	const nonRuntimeVariables = new Set([
 		"VIDEO_V1_BUILD_ENABLED",
+		"HOTEL_LOBBY_DUO_BUILD_ENABLED",
 		...retiredModerationBindings,
 		"NEXT_PUBLIC_GOOGLE_ANALYTICS_ID",
 		"NEXT_PUBLIC_CLARITY_PROJECT_ID",
