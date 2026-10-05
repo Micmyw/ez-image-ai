@@ -1,5 +1,7 @@
 .env.local.example
 apps/saas/app/(public)/video-effects/hotel-lobby-ai/page.tsx
+apps/saas/app/layout.test.tsx
+apps/saas/app/layout.tsx
 apps/saas/app/sitemap.ts
 apps/saas/content/posts/hotel-lobby-ai-video.ts
 apps/saas/content/video-effects/hotel-lobby-duo.ts
@@ -28,6 +30,7 @@ apps/saas/modules/video-effects/lib/content.ts
 apps/saas/modules/video-effects/lib/indexing.ts
 apps/saas/modules/video-effects/lib/model.test.ts
 apps/saas/modules/video-effects/lib/model.ts
+apps/saas/modules/video-effects/lib/paths.ts
 apps/saas/modules/video-effects/lib/payment-return.ts
 apps/saas/modules/video-effects/video-effects.css
 apps/saas/modules/video-v1/playwright.config.ts
@@ -50,9 +53,13 @@ CHANGELOG.md
 docs/agent-reference/cloudflare-runtime.md
 docs/implementation/hotel-lobby-changed-files.txt
 docs/implementation/hotel-lobby-file-map.md
+docs/implementation/hotel-lobby-followup-evidence.json
 docs/implementation/hotel-lobby-local-evidence.json
 docs/implementation/hotel-lobby-test-map.md
+docs/operations/hotel-lobby-configuration.example.env
+docs/operations/hotel-lobby-pricing-2026-10-05.md
 docs/operations/hotel-lobby-verification.md
+package.json
 packages/ai/media/providers/kie-template-scene.test.ts
 packages/ai/media/providers/kie-template-scene.ts
 packages/ai/media/providers/kie-video-models.ts
@@ -124,4 +131,7 @@ packages/storage/provider/s3/video-input.minio.integration.test.ts
 packages/utils/lib/growth-analytics.ts
 tests/load/run-integration.test.ts
 tests/load/run-integration.ts
+tests/load/run-unit-contracts.ts
 tests/video-v1/run.ts
+tooling/scripts/prepare-hotel-lobby-config.test.ts
+tooling/scripts/prepare-hotel-lobby-config.ts

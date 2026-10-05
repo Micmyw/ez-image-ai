@@ -1,0 +1,232 @@
+{
+	"recordedAt": "2026-10-05T01:11:54.883Z",
+	"kind": "LOCAL_AND_READ_ONLY_FOLLOWUP_NOT_PAID_ACCEPTANCE",
+	"integratedMain": "14d26d2a72c3eb656dd689f9a99e1011e81c3e3a",
+	"pricingVersion": "hotel-lobby-duo-cost-2026-10-05.2",
+	"credits": "69",
+	"budget": {
+		"currency": "USD",
+		"providerMicros": "107500",
+		"completeCostMicros": "501228",
+		"minimumRevenueMicros": "1514136",
+		"revenueToCostFloor": "3",
+		"paymentFeeBps": 750,
+		"markupBps": 20000,
+		"validUntil": "2026-10-12T00:00:00Z",
+		"actualInvoice": false
+	},
+	"concentratedUnit": {
+		"startedAt": "2026-10-05T01:03:53.2678377Z",
+		"exitCode": 0,
+		"seconds": 43.6877718,
+		"launcherPid": 138700,
+		"finishedAt": "2026-10-05T01:04:36.9555298Z",
+		"testsPassed": 1242,
+		"filesPassed": 73,
+		"command": "pnpm exec tsx tests/video-v1/run.ts --hotel-lobby",
+		"externalNetwork": "blocked"
+	},
+	"configurationPreparation": {
+		"testsPassed": 8,
+		"command": "pnpm hotel-lobby:test-config",
+		"referenceCli": "PASS",
+		"packedBytes": 2199,
+		"enabled": false,
+		"acceptedVersionWritten": false,
+		"remoteWrites": 0
+	},
+	"ciRegression": {
+		"historicalRun": 37224725487,
+		"database": {
+			"freshMigrations": 62,
+			"postgres": "17.11",
+			"testsPassed": 23,
+			"invariantsPassed": 10,
+			"priorInvariantViolations": 1,
+			"afterInvariantViolations": 0
+		},
+		"frontend": {
+			"baseHead": "69611e6d8d35304f030d7b2bfae4bf02c90628bb",
+			"ciFailure": {
+				"runId": "37224725487",
+				"jobId": "111501911115",
+				"test": "tests/landing.spec.ts:458 the production homepage excludes account tools, charts, and documentation styles",
+				"thresholdBytesExclusive": 532480,
+				"actualBytes": 534508,
+				"excessBytes": 2028,
+				"javascriptGzipBytes": 436337,
+				"htmlGzipBytes": 65049,
+				"cssGzipBytes": 33122,
+				"otherGuestTestsPassed": 27,
+				"log": ".cache/hotel-lobby/ci-browser-37224725487.log"
+			},
+			"causes": [
+				"Root NextIntlClientProvider serialized all detailed videoEffects messages into homepage HTML/RSC.",
+				"Shared payment-return helper imported the path from model.ts, evaluating unrelated template draft and request schemas."
+			],
+			"changedFiles": [
+				"apps/saas/app/layout.tsx",
+				"apps/saas/app/layout.test.tsx",
+				"apps/saas/app/(public)/video-effects/hotel-lobby-ai/page.tsx",
+				"apps/saas/modules/video-effects/components/render.test.tsx",
+				"apps/saas/modules/video-effects/lib/model.ts",
+				"apps/saas/modules/video-effects/lib/payment-return.ts",
+				"apps/saas/modules/video-effects/lib/paths.ts"
+			],
+			"fixes": [
+				"Shared root messages retain only videoEffects.name and navigationDescription; template generator receives its full namespace locally.",
+				"The payment return path is provided by a dependency-free paths module; model re-exports it for existing consumers."
+			],
+			"unit": {
+				"command": "pnpm --filter saas exec vitest run app/layout.test.tsx modules/video-effects/lib/model.test.ts modules/video-effects/components/render.test.tsx",
+				"filesPassed": 3,
+				"testsPassed": 34,
+				"durationMilliseconds": 1040
+			},
+			"formatLintDiff": "PASS: oxfmt --check, oxlint on all 7 files, git diff --check",
+			"productionBrowser": {
+				"command": "pnpm --filter saas exec playwright test --config ../../.cache/hotel-lobby/browser-ci.config.ts",
+				"configuration": "Imports original SaaS Playwright configuration; runs unchanged production homepage test and seven template UI Mock tests, without auth setup or database seeding.",
+				"nextBuild": "PASS: next build --webpack including TypeScript",
+				"testsPassed": 8,
+				"skipped": 0,
+				"unexpected": 0,
+				"flaky": 0,
+				"durationMilliseconds": 110570.68,
+				"firstPartyScripts": 40,
+				"javascriptGzipBytes": 435625,
+				"htmlGzipBytes": 63572,
+				"cssGzipBytes": 33125,
+				"totalGzipBytes": 532322,
+				"thresholdBytesExclusive": 532480,
+				"headroomBytes": 158,
+				"reductionFromFailedCiBytes": 2186,
+				"log": ".cache/hotel-lobby/browser-ci.log",
+				"report": ".cache/hotel-lobby/browser-ci-report.json",
+				"screenshots": ".cache/hotel-lobby/browser-ci-results",
+				"note": "Local Windows production build passes; final merged commit must still pass remote CI."
+			},
+			"processCleanup": {
+				"sessionId": 25456,
+				"rootPid": 133812,
+				"trackedProcesses": 15,
+				"remainingPids": [],
+				"port3417Listening": false,
+				"evidence": ".cache/hotel-lobby/browser-ci-cleanup.json"
+			},
+			"scope": {
+				"paidProviderCalls": "NOT_RUN",
+				"realTemplateGeneration": "NOT_RUN",
+				"productionChanges": "NOT_RUN",
+				"commitOrPushByThisAgent": "NOT_RUN",
+				"networkGuard": "tests/video-v1/no-paid-network.mjs allows only localhost and opt-in public Google font GET/HEAD downloads for the build."
+			}
+		}
+	},
+	"accountReadOnly": {
+		"checkedAt": "2026-10-05T01:03:28.978Z",
+		"source": "existing local production env; not runtime readback",
+		"operation": "GET /api/v1/chat/credit",
+		"paidCalls": 0,
+		"credentialPresent": true,
+		"imageFlag": "true",
+		"kieListed": true,
+		"specificModelEntitlement": "NOT_VERIFIED",
+		"httpStatus": 200,
+		"providerCode": 200,
+		"authenticated": true,
+		"positiveBalance": true
+	},
+	"sourceRequests": [
+		{
+			"url": "https://kie.ai/nano-banana-2-lite",
+			"method": "GET",
+			"fetchedAt": "2026-10-05T00:58:28.177Z",
+			"status": 200,
+			"sha256": "f3a43d1c9b249849beda7a4d780975cc371c5e9daae29ea08fb6c9e3d53c8e3d"
+		},
+		{
+			"url": "https://kie.ai/seedance-1-5-pro",
+			"method": "GET",
+			"fetchedAt": "2026-10-05T00:58:28.217Z",
+			"status": 200,
+			"sha256": "5008c63037941bf5083b03b9e28dd6db9cec75ae0889a2fe04fb2a35d6383aa9"
+		},
+		{
+			"url": "https://docs.kie.ai/market/bytedance/seedance-1-5-pro.md",
+			"method": "GET",
+			"fetchedAt": "2026-10-05T00:58:28.218Z",
+			"status": 200,
+			"sha256": "f596d5fcc3b108caf0d8ef20048d350a254d6f979574e37923aef92c426e4bc1"
+		},
+		{
+			"url": "https://www.seeapi.com/docs/nsfw-filter/image-moderation/",
+			"method": "GET",
+			"fetchedAt": "2026-10-05T00:58:28.218Z",
+			"status": 200,
+			"sha256": "2065e1775c051c08feccd91133e1a9fbed9bc3ab36663c2b132d54d5e0e2542a"
+		},
+		{
+			"url": "https://www.seeapi.com/models/nsfw-filter",
+			"method": "GET",
+			"fetchedAt": "2026-10-05T00:58:28.219Z",
+			"status": 404,
+			"sha256": "8dc5f7b6dcb3ff774d267a3d5825f0c96f0c4b5c37f64fa579d16b256a811348"
+		},
+		{
+			"url": "https://www.seeapi.com/pricing/",
+			"method": "GET",
+			"fetchedAt": "2026-10-05T00:58:28.220Z",
+			"status": 200,
+			"sha256": "1bf8cfcee3f7faa84e38ecc252f84404c2e9d6073b8cdff8a6442c8409e3f7a4"
+		},
+		{
+			"url": "https://api.kie.ai/client/v1/model-pricing/page",
+			"method": "POST",
+			"fetchedAt": "2026-10-05T00:58:57.086Z",
+			"status": 200,
+			"sha256": "3b6eb0ac998771813bc360a80f8cc8cfd2d874e4a162386a8f66f13dbbcef3e8"
+		},
+		{
+			"url": "https://api.kie.ai/client/v1/model-pricing/page",
+			"method": "POST",
+			"fetchedAt": "2026-10-05T00:58:57.622Z",
+			"status": 200,
+			"sha256": "3b6eb0ac998771813bc360a80f8cc8cfd2d874e4a162386a8f66f13dbbcef3e8"
+		},
+		{
+			"url": "https://docs.waffo.ai/zh/api-reference/endpoints/content-safety/scan-prompt",
+			"method": "GET",
+			"fetchedAt": "2026-10-05T00:58:32.5854438Z",
+			"status": 200,
+			"sha256": null
+		},
+		{
+			"url": "https://docs.waffo.ai/zh/api-reference/endpoints/content-safety/scan-prompt.md",
+			"method": "GET",
+			"fetchedAt": "2026-10-05T00:58:43.7023056Z",
+			"status": 200,
+			"sha256": null
+		},
+		{
+			"url": "https://waffo.ai/pricing",
+			"method": "GET",
+			"fetchedAt": "2026-10-05T00:58:33.6252669Z",
+			"status": 200,
+			"sha256": null
+		},
+		{
+			"url": "https://waffo.ai",
+			"method": "GET",
+			"fetchedAt": "2026-10-05T00:58:33.1204026Z",
+			"status": 200,
+			"sha256": null
+		}
+	],
+	"externalPaidCalls": 0,
+	"modelSpecificEntitlement": "NOT_VERIFIED",
+	"duoQuality": "NOT_RUN",
+	"realExamples": [],
+	"productionMigration": "NOT_RUN",
+	"productionAdmission": false
+}
