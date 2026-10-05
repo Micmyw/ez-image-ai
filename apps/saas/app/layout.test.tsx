@@ -63,6 +63,11 @@ vi.mock("next-intl/server", () => ({
 			faq: { items: { question: "Frequently asked question" } },
 			publicContent: { contact: { description: "Contact support" } },
 			videoV1: { title: "Create a short video" },
+			videoEffects: {
+				name: "Hotel Lobby AI",
+				navigationDescription: "Create a video with two photos",
+				left: "Left photo",
+			},
 		},
 }));
 vi.mock("next-themes", () => ({ ThemeProvider: passthrough }));
@@ -111,6 +116,10 @@ describe("SaaS root layout", () => {
 		expect(mocks.clientMessages).toHaveBeenCalledWith({
 			common: { menu: { login: "Sign In" } },
 			home: { title: "Image editor" },
+			videoEffects: {
+				name: "Hotel Lobby AI",
+				navigationDescription: "Create a video with two photos",
+			},
 		});
 	});
 
@@ -139,8 +148,12 @@ describe("SaaS root layout", () => {
 			expect(clientMessages).not.toHaveProperty("faq");
 			expect(clientMessages).not.toHaveProperty("publicContent");
 			expect(clientMessages).not.toHaveProperty("videoV1");
+			expect(clientMessages.videoEffects).toEqual({
+				name: fullMessages.videoEffects.name,
+				navigationDescription: fullMessages.videoEffects.navigationDescription,
+			});
 			for (const [namespace, messages] of Object.entries(fullMessages)) {
-				if (!["admin", "faq", "publicContent", "videoV1"].includes(namespace)) {
+				if (!["admin", "faq", "publicContent", "videoV1", "videoEffects"].includes(namespace)) {
 					expect(clientMessages[namespace]).toEqual(messages);
 				}
 			}

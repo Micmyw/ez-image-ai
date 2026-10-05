@@ -33,7 +33,12 @@ describe("Hotel Lobby public UI", () => {
 		({ locale, messages }) => {
 			const errors = vi.fn();
 			const html = renderToStaticMarkup(
-				<NextIntlClientProvider locale={locale} messages={messages} timeZone="UTC" onError={errors}>
+				<NextIntlClientProvider
+					locale={locale}
+					messages={{ videoEffects: messages.videoEffects }}
+					timeZone="UTC"
+					onError={errors}
+				>
 					<VideoEffectGenerator initialJobId={null} />
 				</NextIntlClientProvider>,
 			);

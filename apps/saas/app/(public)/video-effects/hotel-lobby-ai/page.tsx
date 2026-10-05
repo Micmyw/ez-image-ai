@@ -1,6 +1,7 @@
 import { StudioShell } from "@shared/components/studio/StudioShell";
 import { getBaseUrl } from "@shared/lib/base-url";
-import { getTranslations } from "next-intl/server";
+import { NextIntlClientProvider } from "next-intl";
+import { getMessages, getTranslations } from "next-intl/server";
 import Link from "next/link";
 
 import { PublicFooterLinks } from "../../../../modules/public-content/components/PublicFooterLinks";
@@ -36,6 +37,7 @@ export default async function HotelLobbyVideoPage({
 	searchParams: Promise<Search>;
 }) {
 	const t = await getTranslations("videoEffects");
+	const messages = await getMessages();
 	const params = await searchParams;
 	const jobId =
 		typeof params.job === "string" && /^[a-zA-Z0-9_-]{1,128}$/.test(params.job) ? params.job : null;
@@ -60,7 +62,9 @@ export default async function HotelLobbyVideoPage({
 					<h1>Hotel Lobby AI Video Generator</h1>
 					<p>{t("description")}</p>
 				</header>
-				<VideoEffectGenerator initialJobId={jobId} samples={hotelLobbyContent.samples} />
+				<NextIntlClientProvider messages={{ videoEffects: messages.videoEffects }}>
+					<VideoEffectGenerator initialJobId={jobId} samples={hotelLobbyContent.samples} />
+				</NextIntlClientProvider>
 				<VideoEffectArticle />
 			</main>
 			<PublicFooterLinks />

@@ -56,12 +56,17 @@ export default async function RootLayout({ children }: PropsWithChildren) {
 		admin: _admin,
 		faq: _faq,
 		publicContent: _publicContent,
+		videoEffects,
 		...messages
 	} = await getMessages();
-	// Video beta copy is supplied only by its authenticated layout.
-	const clientMessages = Object.fromEntries(
-		Object.entries(messages).filter(([key]) => key !== "videoV1"),
-	);
+	// Video workspaces supply their detailed copy locally; public navigation needs only its labels.
+	const clientMessages = {
+		...Object.fromEntries(Object.entries(messages).filter(([key]) => key !== "videoV1")),
+		videoEffects: {
+			name: videoEffects.name,
+			navigationDescription: videoEffects.navigationDescription,
+		},
+	};
 	const consentStatus = parseConsentStatus((await cookies()).get("consent")?.value);
 
 	return (

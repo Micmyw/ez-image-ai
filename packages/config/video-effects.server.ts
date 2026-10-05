@@ -15,8 +15,11 @@ import {
 } from "./video-pricing.server";
 
 export const HOTEL_LOBBY_TEMPLATE_VERSION = "hotel-lobby-duo-2026-10-05.1";
-export const HOTEL_LOBBY_PRICE_VERSION = "hotel-lobby-duo-cost-2026-10-05.1";
+export const HOTEL_LOBBY_PRICE_VERSION = "hotel-lobby-duo-cost-2026-10-05.2";
 export const HOTEL_LOBBY_SAFETY_POLICY_VERSION = "hotel-lobby-duo-safety-2026-10-05.1";
+/** Revenue must cover three times complete budgeted cost, including payment fees. */
+export const HOTEL_LOBBY_MINIMUM_MARKUP_BPS = 20_000n;
+export const HOTEL_LOBBY_MINIMUM_PAYMENT_FEE_BPS = 750n;
 
 // Prompts are internal and frozen in each accepted order. Do not import this module in clients.
 const scenePrompt = `Create one original continuous portrait-oriented orange recording-studio scene.
@@ -183,6 +186,23 @@ export function resolveVideoEffectPrice(
 	if (!Number.isFinite(approvedValidUntil) || approvedValidUntil <= Date.now())
 		throw new Error("VIDEO_EFFECT_PRICE_EXPIRED");
 	const basis = resolveVideoModelCostBasis(template.video, env);
+	const paymentCostBasis = env.HOTEL_LOBBY_DUO_PAYMENT_COST_BASIS?.trim();
+	if (!paymentCostBasis) throw new Error("VIDEO_EFFECT_PAYMENT_COST_NOT_CONFIRMED");
+	const markupBps =
+		env.HOTEL_LOBBY_DUO_PRICE_MARKUP_BPS === undefined
+			? HOTEL_LOBBY_MINIMUM_MARKUP_BPS
+			: costSetting(env, "HOTEL_LOBBY_DUO_PRICE_MARKUP_BPS");
+	const templatePaymentFeeBps =
+		env.HOTEL_LOBBY_DUO_PAYMENT_FEE_BPS === undefined
+			? HOTEL_LOBBY_MINIMUM_PAYMENT_FEE_BPS
+			: costSetting(env, "HOTEL_LOBBY_DUO_PAYMENT_FEE_BPS");
+	if (
+		markupBps < HOTEL_LOBBY_MINIMUM_MARKUP_BPS ||
+		markupBps > 100_000n ||
+		templatePaymentFeeBps < HOTEL_LOBBY_MINIMUM_PAYMENT_FEE_BPS ||
+		templatePaymentFeeBps >= 10_000n
+	)
+		throw new Error("VIDEO_EFFECT_PRICING_TARGET_INVALID");
 	if (
 		env.HOTEL_LOBBY_DUO_TEXT_COST_RULE_VERSION !== basis.textSafetyProfile.ruleVersion ||
 		!env.HOTEL_LOBBY_DUO_TEXT_COST_BASIS?.trim()
@@ -205,6 +225,12 @@ export function resolveVideoEffectPrice(
 	);
 	const policy: VideoCostPolicy = {
 		...basis.policy,
+		// Template approval cannot weaken an already higher payment-cost allowance.
+		paymentFeeBps:
+			templatePaymentFeeBps > basis.policy.paymentFeeBps
+				? templatePaymentFeeBps
+				: basis.policy.paymentFeeBps,
+		markupBps,
 		moderationBaseMicros:
 			basis.policy.moderationBaseMicros +
 			inputReviewCostMicros +
@@ -242,6 +268,9 @@ export function resolveVideoEffectPrice(
 			textRuleVersion: basis.textSafetyProfile.ruleVersion,
 			textCostBasis: env.HOTEL_LOBBY_DUO_TEXT_COST_BASIS.trim(),
 			textReviewCount: 2,
+			paymentCostBasis,
+			templatePaymentFeeBps: templatePaymentFeeBps.toString(),
+			minimumRevenueToCostBps: (10_000n + markupBps).toString(),
 			audioSafetyPolicy: createVideoAudioSafetyPolicy(),
 			validUntil: new Date(Math.min(approvedValidUntil, basis.validUntil)).toISOString(),
 			costComponents: {

@@ -927,31 +927,36 @@ it("scene recovery rejects mismatched provider task job workflow and unverified 
 		{ envelope: { taskId: "foreign-task" } },
 		{ envelope: { workflowInstanceId: "video-v1-foreign" } },
 	];
-	const ids = [];
-	for (const variant of variants) {
-		const row = await db.providerWebhookEvent.create({
-			data: {
-				provider: "kie-video-template-scene",
-				providerEventId: randomUUID(),
-				providerTaskId: taskId,
-				verifiedAt: new Date(),
-				...variant,
-				envelope: {
-					jobId: f.jobId,
-					taskId,
-					workflowInstanceId: `video-v1-${f.jobId}`,
-					notifiedAt: null,
-					...variant.envelope,
+	const ids: string[] = [];
+	try {
+		for (const variant of variants) {
+			const row = await db.providerWebhookEvent.create({
+				data: {
+					provider: "kie-video-template-scene",
+					providerEventId: randomUUID(),
+					providerTaskId: taskId,
+					verifiedAt: new Date(),
+					...variant,
+					envelope: {
+						jobId: f.jobId,
+						taskId,
+						workflowInstanceId: `video-v1-${f.jobId}`,
+						notifiedAt: null,
+						...variant.envelope,
+					},
 				},
-			},
-		});
-		ids.push(row.id);
-	}
-	const pending = await run(() => listPendingVideoWebhookEvents(100));
-	for (const id of ids) {
-		expect(pending.some((row) => row.eventId === id)).toBe(false);
-		expect((await db.providerWebhookEvent.findUniqueOrThrow({ where: { id } })).status).toBe(
-			"RECEIVED",
-		);
+			});
+			ids.push(row.id);
+		}
+		const pending = await run(() => listPendingVideoWebhookEvents(100));
+		for (const id of ids) {
+			expect(pending.some((row) => row.eventId === id)).toBe(false);
+			expect((await db.providerWebhookEvent.findUniqueOrThrow({ where: { id } })).status).toBe(
+				"RECEIVED",
+			);
+		}
+	} finally {
+		// Deliberately invalid inbox rows must not leak into the later full-database audit.
+		await db.providerWebhookEvent.deleteMany({ where: { id: { in: ids } } });
 	}
 });

@@ -12,6 +12,7 @@ import {
 } from "./video-effects.server";
 import {
 	calculateVideoRetailPrice,
+	resolveVideoModelPrice,
 	VIDEO_SUPPLIER_PRICE_VERSION,
 	type VideoCostPolicy,
 } from "./video-pricing.server";
@@ -29,6 +30,7 @@ function fixtureEnvironment(): Record<string, string | undefined> {
 		HOTEL_LOBBY_DUO_PRICE_VERSION: HOTEL_LOBBY_PRICE_VERSION,
 		HOTEL_LOBBY_DUO_PRICE_BASIS: "fictional local cost fixture",
 		HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2026-11-01T00:00:00Z",
+		HOTEL_LOBBY_DUO_PAYMENT_COST_BASIS: "fictional local approved payment budget",
 		HOTEL_LOBBY_DUO_COST_POLICY_VERSION: HOTEL_LOBBY_SAFETY_POLICY_VERSION,
 		HOTEL_LOBBY_DUO_TEXT_COST_RULE_VERSION: "waffo-prompt-safety-2026-10-04.1",
 		HOTEL_LOBBY_DUO_TEXT_COST_BASIS: "fictional local zero-cost fixture only",
@@ -136,6 +138,83 @@ describe("frozen Hotel Lobby template", () => {
 });
 
 describe("one complete duo quote", () => {
+	it("requires revenue at least three times complete cost without changing ordinary video pricing", () => {
+		const env = fixtureEnvironment();
+		const ordinary = resolveVideoModelPrice(createVideoEffectTemplateSnapshot(request).video, env);
+		const price = resolveVideoEffectPrice(request, env);
+		expect(BigInt(price.pricingDetails.minimumGrossRevenueMicros)).toBeGreaterThanOrEqual(
+			3n * BigInt(price.pricingDetails.completeCostMicros),
+		);
+		expect(price.pricingDetails.costPolicy.markupBps).toBe("20000");
+		expect(price.pricingDetails.costPolicy.paymentFeeBps).toBe("750");
+		expect(ordinary.pricingDetails.costPolicy.markupBps).toBe("11000");
+		expect(ordinary.pricingDetails.costPolicy.paymentFeeBps).toBe("500");
+		expect(
+			resolveVideoModelPrice(createVideoEffectTemplateSnapshot(request).video, {
+				...env,
+				HOTEL_LOBBY_DUO_PRICE_MARKUP_BPS: "25000",
+				HOTEL_LOBBY_DUO_PAYMENT_FEE_BPS: "1000",
+			}),
+		).toEqual(ordinary);
+	});
+	it("retains higher inherited payment budgets and accepts a stricter template revenue target", () => {
+		const price = resolveVideoEffectPrice(request, {
+			...fixtureEnvironment(),
+			VIDEO_COST_PAYMENT_FEE_BPS: "1400",
+			HOTEL_LOBBY_DUO_PRICE_MARKUP_BPS: "25000",
+			HOTEL_LOBBY_DUO_PAYMENT_FEE_BPS: "750",
+		});
+		expect(price.pricingDetails.costPolicy.paymentFeeBps).toBe("1400");
+		expect(price.pricingDetails.costPolicy.markupBps).toBe("25000");
+		expect(BigInt(price.pricingDetails.minimumGrossRevenueMicros) * 2n).toBeGreaterThanOrEqual(
+			7n * BigInt(price.pricingDetails.completeCostMicros),
+		);
+	});
+	it("does not approve an old price version, a smaller target or an unconfirmed payment budget", () => {
+		const env = fixtureEnvironment();
+		expect(() =>
+			resolveVideoEffectPrice(request, {
+				...env,
+				HOTEL_LOBBY_DUO_PRICE_VERSION: "hotel-lobby-duo-cost-2026-10-05.1",
+			}),
+		).toThrow("VIDEO_EFFECT_PRICE_NOT_APPROVED");
+		for (const value of ["11000", "19999", "0", "", "100001"])
+			expect(() =>
+				resolveVideoEffectPrice(request, { ...env, HOTEL_LOBBY_DUO_PRICE_MARKUP_BPS: value }),
+			).toThrow();
+		for (const value of ["0", "654", "749", "10000", ""])
+			expect(() =>
+				resolveVideoEffectPrice(request, { ...env, HOTEL_LOBBY_DUO_PAYMENT_FEE_BPS: value }),
+			).toThrow();
+		for (const value of [undefined, "", "   "])
+			expect(() =>
+				resolveVideoEffectPrice(request, { ...env, HOTEL_LOBBY_DUO_PAYMENT_COST_BASIS: value }),
+			).toThrow("VIDEO_EFFECT_PAYMENT_COST_NOT_CONFIRMED");
+	});
+	it("quotes 69 credits for the explicit conservative budget and rejects the economics of 68", () => {
+		const price = resolveVideoEffectPrice(request, {
+			...fixtureEnvironment(),
+			VIDEO_COST_MODERATION_BASE_MICROS: "5100",
+			VIDEO_COST_MODERATION_PER_SECOND_MICROS: "200",
+			VIDEO_COST_RUNTIME_MICROS: "100000",
+			VIDEO_COST_STORAGE_MICROS: "10000",
+			VIDEO_COST_PAYMENT_FIXED_MICROS: "0",
+			VIDEO_COST_PAYMENT_FEE_BPS: "654",
+			HOTEL_LOBBY_DUO_INPUT_REVIEW_COST_MICROS: "5100",
+			HOTEL_LOBBY_DUO_SCENE_REVIEW_COST_MICROS: "5100",
+			HOTEL_LOBBY_DUO_ADDITIONAL_RUNTIME_COST_MICROS: "100000",
+			HOTEL_LOBBY_DUO_ADDITIONAL_STORAGE_COST_MICROS: "10000",
+		});
+		expect(price.credits).toBe(69n);
+		expect(price.pricingDetails.minimumGrossRevenueMicros).toBe("1514136");
+		expect(price.pricingDetails.completeCostMicros).toBe("501228");
+		const previousRevenue =
+			(price.credits - 1n) * price.paidFundingPolicy.minimumUsdMicrosPerCredit;
+		const previousPaymentFee = (previousRevenue * 750n + 9999n) / 10000n;
+		expect(previousRevenue).toBeLessThan(
+			3n * (BigInt(price.pricingDetails.riskAdjustedCostMicros) + previousPaymentFee),
+		);
+	});
 	it("adds direct scene costs and all three image reviews before one risk/fee/retail calculation", () => {
 		const price = resolveVideoEffectPrice(request, fixtureEnvironment());
 		const policy: VideoCostPolicy = {
@@ -145,9 +224,9 @@ describe("one complete duo quote", () => {
 			runtimeMicros: 7000n,
 			storageMicros: 8000n,
 			paymentFixedAllocationMicros: 2000n,
-			paymentFeeBps: 500n,
+			paymentFeeBps: 750n,
 			nonBillableFailureBps: 1000n,
-			markupBps: 11000n,
+			markupBps: 20000n,
 		};
 		const expected = calculateVideoRetailPrice({
 			providerCostMicros: 107500n,

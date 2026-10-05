@@ -1,7 +1,7 @@
 import { HOTEL_LOBBY_EFFECT_ID, VIDEO_EFFECT_MAX_INPUT_BYTES } from "@repo/config/video-effects";
 import { z } from "zod";
 
-export const VIDEO_EFFECT_PATH = "/video-effects/hotel-lobby-ai";
+export { VIDEO_EFFECT_PATH } from "./paths";
 export const VIDEO_EFFECT_ID = HOTEL_LOBBY_EFFECT_ID;
 export const VIDEO_EFFECT_PRESET = "standard";
 export const VIDEO_EFFECT_MAX_BYTES = VIDEO_EFFECT_MAX_INPUT_BYTES;

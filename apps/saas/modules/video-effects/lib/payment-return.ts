@@ -1,4 +1,4 @@
-import { VIDEO_EFFECT_PATH } from "./model";
+import { VIDEO_EFFECT_PATH } from "./paths";
 
 const KEY = "ezpic.video-effect.payment-return.v1";
 const MAX_AGE = 60 * 60_000;
