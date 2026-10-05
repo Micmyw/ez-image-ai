@@ -317,3 +317,6 @@ Real provider/moderation acceptance, cloud delivery latency, production migratio
 deployment and feature opening remain BLOCKED / NOT_RUN in this preflight. Existing
 [deployment and rollback instructions](video-v1-rollout.md) still apply; this change
 adds no migration and does not alter credentials or production business data.
+
+Subsequent authorized configuration, production migrations, deployment and real paid
+acceptance are recorded separately in the [2026-10-05 acceptance report](video-v1-real-acceptance-2026-10-05.md).

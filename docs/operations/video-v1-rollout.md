@@ -179,5 +179,6 @@ automatic provider retry. Roll back admission without changing accepted profiles
 letting historical profileless jobs use SeeAPI. Keep unfinished retired-provider work
 held and already completed output access bounded by its existing authorization and expiry.
 Do not remove the immutable-snapshot guard to
-force a provider switch. Current real-service acceptance remains **NOT_RUN/BLOCKED**;
-these instructions do not establish a production deployment or opened feature.
+force a provider switch. Current real-service evidence and remaining limitations are
+recorded in the [2026-10-05 acceptance report](video-v1-real-acceptance-2026-10-05.md);
+these instructions alone do not establish a production deployment or opened feature.
