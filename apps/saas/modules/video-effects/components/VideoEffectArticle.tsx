@@ -10,9 +10,9 @@ export function VideoEffectArticle() {
 				</h2>
 				<p className="leading-relaxed text-muted-foreground">
 					Two adult photos become the left and right performers in one original orange studio scene
-					with a suspended microphone. The planned clip uses a short alternating performance with
-					continuous framing. Real-world quality verification is still pending; this draft page does
-					not claim that the template has passed release acceptance.
+					with a suspended microphone. The five-second clip uses a short alternating performance
+					with continuous framing. This beta is open to signed-in accounts. Facial similarity and
+					movement can vary; verified public examples are not available yet.
 				</p>
 				<dl className="gap-4 p-5 sm:grid-cols-4 grid grid-cols-2 rounded-2xl border">
 					{[

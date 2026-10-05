@@ -1,5 +1,13 @@
 import { parseEnv } from "node:util";
 
+import {
+	HOTEL_LOBBY_PRICE_VERSION,
+	HOTEL_LOBBY_SAFETY_POLICY_VERSION,
+	HOTEL_LOBBY_TEMPLATE_VERSION,
+	resolveVideoEffectPrice,
+} from "@repo/config/video-effects.server";
+import { readVideoModelAccess } from "@repo/config/video-model-access";
+import { VIDEO_SUPPLIER_PRICE_VERSION } from "@repo/config/video-pricing.server";
 import { expandVideoRuntimeEnvironment } from "@repo/config/video-runtime-environment";
 import { readVideoSeeapiCallbackConfig } from "@repo/config/video-seeapi-callback";
 import { describe, expect, it } from "vitest";
@@ -24,6 +32,175 @@ const allowedVideoOptions = JSON.stringify([
 ]);
 
 describe("Cloudflare build secret transport", () => {
+	it("merges a narrow private template patch over the build's current base and adds exactly one tuple", () => {
+		const base = {
+			VIDEO_V1_ACCESS: "internal",
+			VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+			VIDEO_V1_ALLOWED_USER_IDS: "original-private-users",
+			VIDEO_INTERNAL_FUNDING: "original-ordinary-funding",
+			HOTEL_LOBBY_DUO_INTERNAL_FUNDING: "original-template-funding",
+			HOTEL_LOBBY_DUO_PRICE_BASIS: "old-template-price",
+		};
+		const patch = {
+			HOTEL_LOBBY_DUO_ACCESS: "authenticated",
+			HOTEL_LOBBY_DUO_PRICE_BASIS: "new budget, not invoice",
+		};
+		const environment = {
+			CLOUDFLARE_PRODUCTION_ENV:
+				"UNRELATED=secret-fixture\nVIDEO_V1_ENABLED=true\nHOTEL_LOBBY_DUO_ENABLED=false\nHOTEL_LOBBY_DUO_PRICE_BASIS=old-template-price",
+			VIDEO_RUNTIME_CONFIG: JSON.stringify(base),
+			HOTEL_LOBBY_DUO_RUNTIME_CONFIG: JSON.stringify(patch),
+		};
+		const snapshot = { ...environment };
+		const output = parseEnv(readCloudflareBuildEnvironment(environment));
+		const merged = expandVideoRuntimeEnvironment(output);
+		for (const [key, value] of Object.entries(base))
+			if (!["HOTEL_LOBBY_DUO_PRICE_BASIS", "VIDEO_MODEL_ALLOWED_OPTIONS"].includes(key))
+				expect(merged[key]).toBe(value);
+		expect(merged).toMatchObject({
+			...patch,
+			VIDEO_V1_ENABLED: "true",
+			HOTEL_LOBBY_DUO_ENABLED: "false",
+			UNRELATED: "secret-fixture",
+		});
+		expect(output).not.toHaveProperty("HOTEL_LOBBY_DUO_RUNTIME_CONFIG");
+		expect(readVideoModelAccess(merged).allowed.size).toBe(
+			readVideoModelAccess(base).allowed.size + 1,
+		);
+		expect(JSON.parse(merged.VIDEO_MODEL_ALLOWED_OPTIONS!)[0]).toEqual(
+			JSON.parse(allowedVideoOptions)[0],
+		);
+		const repeated = expandVideoRuntimeEnvironment(
+			parseEnv(
+				readCloudflareBuildEnvironment({
+					...environment,
+					CLOUDFLARE_PRODUCTION_ENV: readCloudflareBuildEnvironment(environment),
+					VIDEO_RUNTIME_CONFIG: output.VIDEO_RUNTIME_CONFIG,
+				}),
+			),
+		);
+		expect(repeated.VIDEO_MODEL_ALLOWED_OPTIONS).toBe(merged.VIDEO_MODEL_ALLOWED_OPTIONS);
+		expect(environment).toEqual(snapshot);
+		expect(withoutCloudflareBuildSecrets(environment)).toEqual({});
+	});
+	it.each([undefined, "", "{}", "invalid", '{"VIDEO_MODEL_ALLOWED_OPTIONS":"[]"}'])(
+		"requires an actual current base for a template patch (%s)",
+		(base) => {
+			expect(() =>
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
+					VIDEO_RUNTIME_CONFIG: base,
+					HOTEL_LOBBY_DUO_RUNTIME_CONFIG: '{"HOTEL_LOBBY_DUO_ACCESS":"authenticated"}',
+				}),
+			).toThrow();
+		},
+	);
+	it("refuses template patches that change ordinary policy, funding, switches or secrets", () => {
+		for (const key of [
+			"VIDEO_V1_ACCESS",
+			"VIDEO_MODEL_ALLOWED_OPTIONS",
+			"VIDEO_INTERNAL_FUNDING",
+			"HOTEL_LOBBY_DUO_INTERNAL_FUNDING",
+			"HOTEL_LOBBY_DUO_ENABLED",
+			"KIE_API_KEY",
+		]) {
+			expect(() =>
+				readCloudflareBuildEnvironment({
+					CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
+					VIDEO_RUNTIME_CONFIG: JSON.stringify({
+						VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+					}),
+					HOTEL_LOBBY_DUO_RUNTIME_CONFIG: JSON.stringify({ [key]: "do-not-print-this" }),
+				}),
+			).toThrow(/^HOTEL_LOBBY_RUNTIME_OVERRIDE_INVALID$/);
+		}
+	});
+	it("rejects a merged policy over 5000 bytes without dropping existing fields", () => {
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=false",
+				VIDEO_RUNTIME_CONFIG: JSON.stringify({
+					VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+					VIDEO_PRICE_BASIS: "x".repeat(2800),
+				}),
+				HOTEL_LOBBY_DUO_RUNTIME_CONFIG: JSON.stringify({
+					HOTEL_LOBBY_DUO_PRICE_BASIS: "y".repeat(2800),
+				}),
+			}),
+		).toThrow(/^VIDEO_RUNTIME_CONFIG_INVALID$/);
+	});
+	it("validates the merged 69-credit quote before the separate template build switch can open", () => {
+		const base = {
+			VIDEO_V1_ACCESS: "internal",
+			VIDEO_MODEL_ALLOWED_OPTIONS: allowedVideoOptions,
+			VIDEO_PRICE_ACCEPTED_VERSION: VIDEO_SUPPLIER_PRICE_VERSION,
+			VIDEO_PRICE_BASIS: "isolated budget fixture",
+			VIDEO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00Z",
+			VIDEO_V1_VIDEO_SAFETY_ADAPTER: "seeapi",
+			VIDEO_COST_VISUAL_POLICY_VERSION: "seeapi-video-policy-2026-10-04.1",
+			VIDEO_COST_TEXT_RULE_VERSION: "waffo-prompt-safety-2026-10-04.1",
+			VIDEO_COST_MODERATION_BASE_MICROS: "5100",
+			VIDEO_COST_MODERATION_PER_SECOND_MICROS: "200",
+			VIDEO_COST_RUNTIME_MICROS: "100000",
+			VIDEO_COST_STORAGE_MICROS: "10000",
+			VIDEO_COST_PAYMENT_FIXED_MICROS: "0",
+			VIDEO_COST_PAYMENT_FEE_BPS: "654",
+			VIDEO_COST_NONBILLABLE_FAILURE_BPS: "1000",
+		};
+		const patch = {
+			HOTEL_LOBBY_DUO_ACCESS: "authenticated",
+			HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION: HOTEL_LOBBY_TEMPLATE_VERSION,
+			HOTEL_LOBBY_DUO_PRICE_VERSION: HOTEL_LOBBY_PRICE_VERSION,
+			HOTEL_LOBBY_DUO_PRICE_BASIS: "isolated template budget, not invoice",
+			HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2100-01-01T00:00:00Z",
+			HOTEL_LOBBY_DUO_PRICE_MARKUP_BPS: "20000",
+			HOTEL_LOBBY_DUO_PAYMENT_FEE_BPS: "750",
+			HOTEL_LOBBY_DUO_PAYMENT_COST_BASIS: "isolated payment budget",
+			HOTEL_LOBBY_DUO_COST_POLICY_VERSION: HOTEL_LOBBY_SAFETY_POLICY_VERSION,
+			HOTEL_LOBBY_DUO_TEXT_COST_RULE_VERSION: base.VIDEO_COST_TEXT_RULE_VERSION,
+			HOTEL_LOBBY_DUO_TEXT_COST_BASIS: "isolated text fixture",
+			HOTEL_LOBBY_DUO_TEXT_REVIEW_COST_MICROS: "0",
+			HOTEL_LOBBY_DUO_SCENE_PROVIDER_COST_MICROS: "20000",
+			HOTEL_LOBBY_DUO_INPUT_REVIEW_COST_MICROS: "5100",
+			HOTEL_LOBBY_DUO_SCENE_REVIEW_COST_MICROS: "5100",
+			HOTEL_LOBBY_DUO_ADDITIONAL_RUNTIME_COST_MICROS: "100000",
+			HOTEL_LOBBY_DUO_ADDITIONAL_STORAGE_COST_MICROS: "10000",
+		};
+		const input = {
+			CLOUDFLARE_PRODUCTION_ENV: "VIDEO_V1_ENABLED=true\nHOTEL_LOBBY_DUO_ENABLED=false",
+			VIDEO_RUNTIME_CONFIG: JSON.stringify(base),
+			HOTEL_LOBBY_DUO_RUNTIME_CONFIG: JSON.stringify(patch),
+			HOTEL_LOBBY_DUO_BUILD_ENABLED: "true",
+		};
+		const merged = expandVideoRuntimeEnvironment(parseEnv(readCloudflareBuildEnvironment(input)));
+		expect(merged.HOTEL_LOBBY_DUO_ENABLED).toBe("true");
+		expect(merged.VIDEO_V1_ACCESS).toBe("internal");
+		expect(
+			resolveVideoEffectPrice(
+				{
+					effectId: "hotel-lobby-duo",
+					presetKey: "standard",
+					inputs: { leftAssetId: "fixture-left", rightAssetId: "fixture-right" },
+				},
+				merged,
+			).credits,
+		).toBe(69n);
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				...input,
+				HOTEL_LOBBY_DUO_RUNTIME_CONFIG: JSON.stringify({
+					...patch,
+					HOTEL_LOBBY_DUO_PRICE_VALID_UNTIL: "2000-01-01T00:00:00Z",
+				}),
+			}),
+		).toThrow(/^VIDEO_EFFECT_BUILD_ENABLED_POLICY_REQUIRED$/);
+		expect(() =>
+			readCloudflareBuildEnvironment({
+				...input,
+				HOTEL_LOBBY_DUO_RUNTIME_CONFIG: '{"HOTEL_LOBBY_DUO_ACCESS":"authenticated"}',
+			}),
+		).toThrow(/^VIDEO_EFFECT_BUILD_ENABLED_POLICY_REQUIRED$/);
+	});
 	it("keeps ambient template flags inert and permits independent explicit emergency close", () => {
 		const source = "HOTEL_LOBBY_DUO_ENABLED=true\nVIDEO_V1_ENABLED=true\nUNCHANGED=fixture";
 		const untouched = parseEnv(

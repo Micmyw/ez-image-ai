@@ -2,11 +2,13 @@ import { createHash } from "node:crypto";
 import { parseEnv } from "node:util";
 
 import { resolveVideoEffectPrice } from "@repo/config/video-effects.server";
-import { readVideoModelAccess } from "@repo/config/video-model-access";
+import { isVideoModelOptionAllowed, readVideoModelAccess } from "@repo/config/video-model-access";
 import {
 	expandVideoRuntimeEnvironment,
+	parseHotelLobbyRuntimeOverride,
 	parseVideoRuntimeConfig,
 	VIDEO_RUNTIME_ENVIRONMENT_KEYS,
+	type VideoRuntimeEnvironmentKey,
 } from "@repo/config/video-runtime-environment";
 
 const variableName = "CLOUDFLARE_PRODUCTION_ENV";
@@ -69,13 +71,50 @@ function withVideoRuntimeOverrides(
 	environment: Record<string, string | undefined>,
 ) {
 	const encoded = environment.VIDEO_RUNTIME_CONFIG;
+	const templateOverride = environment.HOTEL_LOBBY_DUO_RUNTIME_CONFIG;
 	const enabled = environment.VIDEO_V1_BUILD_ENABLED;
 	const templateEnabled = environment.HOTEL_LOBBY_DUO_BUILD_ENABLED;
 	if (enabled !== undefined && enabled !== "true" && enabled !== "false")
 		throw new Error("VIDEO_BUILD_ENABLED_OVERRIDE_INVALID");
 	if (templateEnabled !== undefined && templateEnabled !== "true" && templateEnabled !== "false")
 		throw new Error("VIDEO_EFFECT_BUILD_ENABLED_OVERRIDE_INVALID");
-	const policy = encoded === undefined ? undefined : parseVideoRuntimeConfig(encoded);
+	let policy = encoded === undefined ? undefined : parseVideoRuntimeConfig(encoded);
+	const changedFlatKeys = new Set<string>();
+	if (templateOverride !== undefined) {
+		// The build runner reads its current private base. Never substitute a local snapshot.
+		if (!policy || !Object.keys(policy).length || !readVideoModelAccess(policy).ready)
+			throw new Error("HOTEL_LOBBY_RUNTIME_BASE_POLICY_REQUIRED");
+		const previous = parseEnv(source);
+		expandVideoRuntimeEnvironment({ ...previous, VIDEO_RUNTIME_CONFIG: encoded });
+		const patch = parseHotelLobbyRuntimeOverride(templateOverride);
+		const mergedPolicy = { ...policy, ...patch };
+		const selection = {
+			productKey: "video-seedance-1-5-pro",
+			mode: "image-to-video" as const,
+			duration: 5,
+			resolution: "720p",
+			sound: false,
+		};
+		if (!isVideoModelOptionAllowed(readVideoModelAccess(policy), selection)) {
+			// One fixed tuple only; widening a group's arrays would grant Cartesian combinations.
+			const groups: unknown[] = JSON.parse(policy.VIDEO_MODEL_ALLOWED_OPTIONS!);
+			mergedPolicy.VIDEO_MODEL_ALLOWED_OPTIONS = JSON.stringify([
+				...groups,
+				{
+					productKey: selection.productKey,
+					modes: [selection.mode],
+					durations: [selection.duration],
+					resolutions: [selection.resolution],
+					sounds: [selection.sound],
+				},
+			]);
+		}
+		if (!readVideoModelAccess(mergedPolicy).ready)
+			throw new Error("HOTEL_LOBBY_RUNTIME_BASE_POLICY_REQUIRED");
+		policy = parseVideoRuntimeConfig(JSON.stringify(mergedPolicy));
+		for (const key of [...Object.keys(patch), "VIDEO_MODEL_ALLOWED_OPTIONS"])
+			if (previous[key] !== undefined) changedFlatKeys.add(key);
+	}
 	if (enabled === "true") {
 		const access = readVideoModelAccess(policy ?? {});
 		if (!policy || !access.ready || !access.allowed.size)
@@ -84,14 +123,27 @@ function withVideoRuntimeOverrides(
 	if (encoded !== undefined) {
 		// A single private build variable carries policy; no interpolation or dotenv injection.
 		const value = JSON.stringify(policy).replaceAll("'", "\\u0027");
-		const assignment = `VIDEO_RUNTIME_CONFIG='${value}'\n`;
+		let assignment = `VIDEO_RUNTIME_CONFIG='${value}'\n`;
+		for (const key of changedFlatKeys) {
+			const flatValue = policy?.[key as VideoRuntimeEnvironmentKey];
+			if (typeof flatValue !== "string") throw new Error("HOTEL_LOBBY_RUNTIME_OVERRIDE_INVALID");
+			const flatAssignment = ["'", '"', "`", ""]
+				.map((quote) => `${key}=${quote}${flatValue}${quote}\n`)
+				.find((candidate) => {
+					const parsed = parseEnv(candidate);
+					return Object.keys(parsed).length === 1 && parsed[key] === flatValue;
+				});
+			if (!flatAssignment) throw new Error("HOTEL_LOBBY_RUNTIME_OVERRIDE_INVALID");
+			assignment += flatAssignment;
+		}
 		const previous = parseEnv(source);
 		const merged = `${source}\n${assignment}`;
 		const next = parseEnv(merged);
 		if (
 			next.VIDEO_RUNTIME_CONFIG !== value ||
 			Object.entries(previous).some(
-				([key, original]) => key !== "VIDEO_RUNTIME_CONFIG" && next[key] !== original,
+				([key, original]) =>
+					key !== "VIDEO_RUNTIME_CONFIG" && !changedFlatKeys.has(key) && next[key] !== original,
 			)
 		)
 			throw new Error("VIDEO_RUNTIME_CONFIG_INVALID");
@@ -328,6 +380,7 @@ export function withoutCloudflareBuildSecrets<T extends Record<string, string | 
 			key.startsWith(partPrefix) ||
 			key === "SEEAPI_API_KEY" ||
 			key === "VIDEO_RUNTIME_CONFIG" ||
+			key === "HOTEL_LOBBY_DUO_RUNTIME_CONFIG" ||
 			key === "VIDEO_V1_ENABLED" ||
 			key === "VIDEO_V1_BUILD_ENABLED" ||
 			key === "HOTEL_LOBBY_DUO_ENABLED" ||

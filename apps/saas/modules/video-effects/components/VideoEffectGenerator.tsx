@@ -334,6 +334,7 @@ function SignedInGenerator({
 			setQuote(null);
 			void recordVideoEffectEvent("accepted", accepted.jobId);
 			void queryClient.invalidateQueries({ queryKey: ["media-credit-account"] });
+			void queryClient.invalidateQueries({ queryKey: ["video-effects", "history", ownerId] });
 		} catch (failure) {
 			const key = effectError(failure);
 			if (key === "quoteExpired" || key === "insufficient") {
@@ -373,7 +374,7 @@ function SignedInGenerator({
 				<p>{t("photoHint")}</p>
 				{!enabled && (
 					<output className="ve-notice">
-						{t(access.isPending ? "checkingAvailability" : "betaHint")}
+						{t(access.isPending ? "checkingAvailability" : "unavailable")}
 					</output>
 				)}
 				<DuoPhotoInputs
@@ -464,7 +465,7 @@ function SignedInGenerator({
 					<button type="button" className="ve-text-button" onClick={buyCredits}>
 						{t("addCredits")}
 					</button>
-					<Link href="/video/history">{t("history")}</Link>
+					<a href="#hotel-lobby-history">{t("history")}</a>
 				</div>
 			</section>
 			{draft.jobId ? (

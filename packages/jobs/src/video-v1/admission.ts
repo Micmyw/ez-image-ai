@@ -46,6 +46,20 @@ export function requireVideoAdmission(
 	const config = readVideoV1Config(environment);
 	if (!canAccessVideoV1(config, { id: context.userId, role: context.role }))
 		throw new Error("VIDEO_ACCESS_DENIED");
+	const admitted = requireVideoModelReadiness(environment, bindings, request);
+	return {
+		...admitted,
+		price: applyVideoInternalFunding(admitted.price, context, environment) satisfies VideoPrice,
+	};
+}
+
+/** Server-only shared guards; callers must first authorize their own product's audience. */
+export function requireVideoModelReadiness(
+	environment: Record<string, string | undefined>,
+	bindings: VideoV1Bindings,
+	request?: VideoRequestInput | VideoModelSelection,
+) {
+	const config = readVideoV1Config(environment);
 	const selection = videoRequestSelection(request);
 	const model = getVideoModel(selection.productKey);
 	if (!model || !validateVideoModelSelection(selection))
@@ -69,11 +83,7 @@ export function requireVideoAdmission(
 		visualSafetyProfile,
 		textSafetyProfile,
 		audioSafetyPolicy: createVideoAudioSafetyPolicy(),
-		price: applyVideoInternalFunding(
-			resolveVideoModelPrice(selection, environment),
-			context,
-			environment,
-		) satisfies VideoPrice,
+		price: resolveVideoModelPrice(selection, environment) satisfies VideoPrice,
 	};
 }
 

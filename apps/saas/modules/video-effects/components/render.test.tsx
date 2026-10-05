@@ -44,6 +44,7 @@ describe("Hotel Lobby public UI", () => {
 			);
 			expect(html).toContain("/login?redirectTo=%2Fvideo-effects%2Fhotel-lobby-ai");
 			expect(html).toContain(messages.videoEffects.samplesPending);
+			expect(html).toContain(messages.videoEffects.betaHint);
 			expect(html).not.toMatch(
 				/<video|<textarea|<select|seedance|nano-banana|kie|fixed_lens|scenePrompt|providerModel/i,
 			);

@@ -173,6 +173,7 @@ export function createProfileArtifacts(options: {
 	const jobVars = jobs.vars as Record<string, unknown>;
 	delete jobVars.VIDEO_V1_BUILD_ENABLED;
 	delete jobVars.HOTEL_LOBBY_DUO_BUILD_ENABLED;
+	delete jobVars.HOTEL_LOBBY_DUO_RUNTIME_CONFIG;
 	const effectiveVideo = expandVideoRuntimeEnvironment(flatEnvironment);
 	for (const key of VIDEO_RUNTIME_ENVIRONMENT_KEYS) {
 		if (jobVars[key] !== undefined && jobVars[key] !== effectiveVideo[key])
@@ -217,6 +218,7 @@ export function createProfileArtifacts(options: {
 			key.startsWith("CLOUDFLARE_") ||
 			key === "VIDEO_V1_BUILD_ENABLED" ||
 			key === "HOTEL_LOBBY_DUO_BUILD_ENABLED" ||
+			key === "HOTEL_LOBBY_DUO_RUNTIME_CONFIG" ||
 			isRetiredModerationBinding(key)
 		)
 			delete hybridEnvironment[key];
@@ -267,6 +269,7 @@ export function workersRuntimeEnvironment(environment: Record<string, string>) {
 	const nonRuntimeVariables = new Set([
 		"VIDEO_V1_BUILD_ENABLED",
 		"HOTEL_LOBBY_DUO_BUILD_ENABLED",
+		"HOTEL_LOBBY_DUO_RUNTIME_CONFIG",
 		...retiredModerationBindings,
 		"NEXT_PUBLIC_GOOGLE_ANALYTICS_ID",
 		"NEXT_PUBLIC_CLARITY_PROJECT_ID",

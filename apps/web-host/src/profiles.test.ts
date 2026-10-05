@@ -280,6 +280,7 @@ describe("prepared deployment artifacts", () => {
 			const input = {
 				...multiModelVideoEnvironment,
 				HOTEL_LOBBY_DUO_ENABLED: "true",
+				HOTEL_LOBBY_DUO_ACCESS: "authenticated",
 				HOTEL_LOBBY_DUO_ACCEPTED_TEMPLATE_VERSION: HOTEL_LOBBY_TEMPLATE_VERSION,
 				HOTEL_LOBBY_DUO_PRICE_VERSION: HOTEL_LOBBY_PRICE_VERSION,
 				HOTEL_LOBBY_DUO_PRICE_BASIS: "HYPOTHETICAL_TEST_ONLY",
@@ -324,12 +325,14 @@ describe("prepared deployment artifacts", () => {
 				expect(result[`${name}.secrets`]).not.toHaveProperty("HOTEL_LOBBY_DUO_ENABLED");
 				const policy = parseVideoRuntimeConfig(result[`${name}.secrets`].VIDEO_RUNTIME_CONFIG);
 				expect(policy).toMatchObject({
+					HOTEL_LOBBY_DUO_ACCESS: "authenticated",
 					HOTEL_LOBBY_DUO_PRICE_VERSION: HOTEL_LOBBY_PRICE_VERSION,
 					HOTEL_LOBBY_DUO_PRICE_MARKUP_BPS: "20000",
 					HOTEL_LOBBY_DUO_PAYMENT_FEE_BPS: "750",
 					HOTEL_LOBBY_DUO_PAYMENT_COST_BASIS: "HYPOTHETICAL_TEST_ONLY_PAYMENT_BUDGET",
 				});
 				expect(policy).not.toHaveProperty("HOTEL_LOBBY_DUO_ENABLED");
+				expect(result[name].vars).not.toHaveProperty("HOTEL_LOBBY_DUO_ACCESS");
 			}
 			if (profile === "hybrid")
 				expect(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV)).toMatchObject(input);
@@ -352,15 +355,24 @@ describe("prepared deployment artifacts", () => {
 	it.each(["workers", "hybrid"] as const)(
 		"keeps the build-only video flag out of %s runtime artifacts",
 		(profile) => {
-			const result = artifacts(profile, { VIDEO_V1_BUILD_ENABLED: "true" });
+			const result = artifacts(profile, {
+				VIDEO_V1_BUILD_ENABLED: "true",
+				HOTEL_LOBBY_DUO_RUNTIME_CONFIG: '{"HOTEL_LOBBY_DUO_ACCESS":"authenticated"}',
+			});
 			for (const name of ["website", "workflows"] as const) {
 				expect(result[name].vars).toMatchObject({ VIDEO_V1_ENABLED: "false" });
 				expect(result[name].vars).not.toHaveProperty("VIDEO_V1_BUILD_ENABLED");
 				expect(result[`${name}.secrets`]).not.toHaveProperty("VIDEO_V1_BUILD_ENABLED");
+				expect(result[name].vars).not.toHaveProperty("HOTEL_LOBBY_DUO_RUNTIME_CONFIG");
+				expect(result[`${name}.secrets`]).not.toHaveProperty("HOTEL_LOBBY_DUO_RUNTIME_CONFIG");
 			}
 			if (profile === "hybrid")
 				expect(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV)).not.toHaveProperty(
 					"VIDEO_V1_BUILD_ENABLED",
+				);
+			if (profile === "hybrid")
+				expect(JSON.parse(result["workflows.secrets"].JOBS_RUNTIME_ENV)).not.toHaveProperty(
+					"HOTEL_LOBBY_DUO_RUNTIME_CONFIG",
 				);
 		},
 	);

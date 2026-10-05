@@ -1,14 +1,14 @@
 import type { VideoEffectRecord } from "./types";
 
-/** Draft only. Add reviewed, authorized product evidence before publishing this record. */
+/** Public beta. Search publication and public samples still require reviewed product evidence. */
 export const hotelLobbyRecord: VideoEffectRecord = {
 	id: "hotel-lobby-duo",
 	publicVersion: "1",
 	slug: "hotel-lobby-ai",
 	title: "Hotel Lobby AI Video Generator",
 	description:
-		"A two-photo template for an original orange-studio duo video. Planned output: a 5-second, 720p vertical, silent MP4. Currently awaiting real-world quality and release verification.",
-	status: "draft",
+		"Turn two photos into an original orange-studio duo video: a 5-second, 720p vertical, silent MP4. Sign in, upload your photos and confirm one total credit quote.",
+	status: "beta",
 	templateVersion: "hotel-lobby-duo-2026-10-05.1",
 	scenePromptVersion: "hotel-lobby-scene-2026-10-05.1",
 	videoPromptVersion: "hotel-lobby-motion-2026-10-05.1",
@@ -36,7 +36,7 @@ export const hotelLobbyRecord: VideoEffectRecord = {
 		},
 		{
 			title: "Review the full credit cost",
-			body: "When this template is available to your account, review its current total quote and confirm once to start. The scene preparation and final video form one order. There is no separate retail charge for the intermediate scene image.",
+			body: "Review the current total quote and confirm once to start. The scene preparation and final video form one order. There is no separate retail charge for the intermediate scene image.",
 		},
 		{
 			title: "Return to your private result",
@@ -52,7 +52,7 @@ export const hotelLobbyRecord: VideoEffectRecord = {
 		{
 			question: "Is it free?",
 			answer:
-				"This is not a free or unlimited generation service. It uses your existing account and eligible credits. The full current credit quote is shown before you choose to start; a final public price is not being advertised during this draft stage.",
+				"This is not a free or unlimited generation service. It uses your existing account and eligible credits. Sign in and upload your two photos to review the full current credit quote before you choose to start.",
 		},
 		{
 			question: "Does the video include the original song?",

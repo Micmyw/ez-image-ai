@@ -21,12 +21,16 @@ import {
 } from "../../packages/config/video-model-access";
 import {
 	expandVideoRuntimeEnvironment,
+	HOTEL_LOBBY_RUNTIME_OVERRIDE_KEYS,
 	packVideoRuntimeEnvironment,
+	parseHotelLobbyRuntimeOverride,
 } from "../../packages/config/video-runtime-environment";
 import { VIDEO_TEXT_SAFETY_RULE_VERSION } from "../../packages/config/video-text-safety";
 
 export const HOTEL_LOBBY_PRICE_SOURCE = "docs/operations/hotel-lobby-pricing-2026-10-05.md";
 export const DEFAULT_HOTEL_LOBBY_OUTPUT = ".wrangler/hotel-lobby/prepared/.env.local";
+export const DEFAULT_HOTEL_LOBBY_OVERLAY_OUTPUT =
+	".wrangler/hotel-lobby/prepared/build-overlay.env";
 const maximumApprovalExpiry = "2026-10-12T00:00:00.000Z";
 const selection = {
 	productKey: "video-seedance-1-5-pro",
@@ -156,6 +160,40 @@ export function prepareHotelLobbyEnvironment(input: Record<string, string>) {
 	};
 }
 
+/** Only the template patch leaves this path; the build runner supplies its current private base. */
+export function prepareHotelLobbyBuildOverlay(
+	input: Record<string, string>,
+	access: "internal" | "authenticated" = "internal",
+) {
+	const prepared = prepareHotelLobbyEnvironment(input);
+	const expanded = expandVideoRuntimeEnvironment(prepared.environment);
+	const patch = Object.fromEntries(
+		HOTEL_LOBBY_RUNTIME_OVERRIDE_KEYS.filter((key) => expanded[key]?.trim()).map((key) => [
+			key,
+			expanded[key],
+		]),
+	);
+	patch.HOTEL_LOBBY_DUO_ACCESS = access;
+	const encoded = JSON.stringify(parseHotelLobbyRuntimeOverride(JSON.stringify(patch)));
+	return {
+		environment: {
+			HOTEL_LOBBY_DUO_RUNTIME_CONFIG: encoded,
+			HOTEL_LOBBY_DUO_BUILD_ENABLED: "false",
+		},
+		summary: {
+			...prepared.summary,
+			status: "BUILD_OVERLAY_PREPARED_CLOSED" as const,
+			packedBytes: Buffer.byteLength(encoded, "utf8"),
+			changedKeys: Object.keys(patch).sort(),
+			access,
+			existingBaseRequired: true,
+			includesBaseSnapshot: false,
+			addsOnlyDefaultVideoTuple: true,
+			sceneModelConfiguration: "UNCHANGED_BY_BUILD_OVERLAY" as const,
+		},
+	};
+}
+
 /** Fail closed if a dotenv value cannot be round-tripped without changing its bytes. */
 export function serializePrivateEnvironment(environment: Record<string, string>): string {
 	const lines = Object.entries(environment).map(([key, value]) => {
@@ -191,6 +229,8 @@ export async function prepareHotelLobbyConfig(options: {
 	inputPath: string;
 	outputPath?: string;
 	repositoryRoot?: string;
+	buildOverlay?: boolean;
+	access?: "internal" | "authenticated";
 }) {
 	const directory = path.resolve(options.repositoryRoot ?? process.cwd());
 	const gitRoot = spawnSync("git", ["rev-parse", "--show-toplevel"], {
@@ -200,7 +240,11 @@ export async function prepareHotelLobbyConfig(options: {
 	if (gitRoot.status !== 0) throw new Error("HOTEL_LOBBY_PREPARATION_REPOSITORY_REQUIRED");
 	const root = realpathSync(gitRoot.stdout.trim());
 	const inputPath = realpathSync(path.resolve(directory, options.inputPath));
-	const outputPath = path.resolve(root, options.outputPath ?? DEFAULT_HOTEL_LOBBY_OUTPUT);
+	const outputPath = path.resolve(
+		root,
+		options.outputPath ??
+			(options.buildOverlay ? DEFAULT_HOTEL_LOBBY_OVERLAY_OUTPUT : DEFAULT_HOTEL_LOBBY_OUTPUT),
+	);
 	if (inputPath === outputPath || existsSync(outputPath))
 		throw new Error("HOTEL_LOBBY_PREPARATION_OVERWRITE_REFUSED");
 	let ancestor = path.dirname(outputPath);
@@ -223,7 +267,11 @@ export async function prepareHotelLobbyConfig(options: {
 		),
 	);
 	if (!Object.keys(input).length) throw new Error("HOTEL_LOBBY_PREPARATION_INPUT_EMPTY");
-	const prepared = prepareHotelLobbyEnvironment(input);
+	if (options.access !== undefined && !options.buildOverlay)
+		throw new Error("HOTEL_LOBBY_PREPARATION_ACCESS_REQUIRES_OVERLAY");
+	const prepared = options.buildOverlay
+		? prepareHotelLobbyBuildOverlay(input, options.access)
+		: prepareHotelLobbyEnvironment(input);
 	const source = serializePrivateEnvironment(prepared.environment);
 	await mkdir(path.dirname(outputPath), { recursive: true, mode: 0o700 });
 	await writeFile(outputPath, source, { flag: "wx", mode: 0o600 });
@@ -233,20 +281,30 @@ export async function prepareHotelLobbyConfig(options: {
 async function main(args: string[]) {
 	if (args.length === 1 && args[0] === "--help") {
 		process.stdout.write(
-			"Usage: pnpm hotel-lobby:prepare-config --input <private-dotenv> [--output <new-ignored-path>]\nOffline preparation only; no deploy, generation, quality acceptance or account permission probe.\n",
+			"Usage: pnpm hotel-lobby:prepare-config --input <private-dotenv> [--output <new-ignored-path>] [--build-overlay --access internal|authenticated]\nOffline preparation only; no deploy, generation, quality acceptance or account permission probe.\nBuild overlays contain no base policy or funding and require the build runner's existing VIDEO_RUNTIME_CONFIG.\n",
 		);
 		return;
 	}
-	const options: { inputPath: string; outputPath?: string } = { inputPath: "" };
+	const options: Parameters<typeof prepareHotelLobbyConfig>[0] = { inputPath: "" };
 	const seen = new Set<string>();
-	for (let index = 0; index < args.length; index += 2) {
+	for (let index = 0; index < args.length; index++) {
 		const flag = args[index];
-		const value = args[index + 1];
-		if (!["--input", "--output"].includes(flag) || !value || seen.has(flag))
-			throw new Error("HOTEL_LOBBY_PREPARATION_ARGUMENTS_INVALID");
+		if (seen.has(flag)) throw new Error("HOTEL_LOBBY_PREPARATION_ARGUMENTS_INVALID");
 		seen.add(flag);
+		if (flag === "--build-overlay") {
+			options.buildOverlay = true;
+			continue;
+		}
+		const value = args[++index];
+		if (!["--input", "--output", "--access"].includes(flag) || !value)
+			throw new Error("HOTEL_LOBBY_PREPARATION_ARGUMENTS_INVALID");
 		if (flag === "--input") options.inputPath = value;
-		else options.outputPath = value;
+		else if (flag === "--output") options.outputPath = value;
+		else {
+			if (value !== "internal" && value !== "authenticated")
+				throw new Error("HOTEL_LOBBY_PREPARATION_ACCESS_INVALID");
+			options.access = value;
+		}
 	}
 	if (!options.inputPath) throw new Error("HOTEL_LOBBY_PREPARATION_INPUT_REQUIRED");
 	process.stdout.write(`${JSON.stringify(await prepareHotelLobbyConfig(options), null, 2)}\n`);

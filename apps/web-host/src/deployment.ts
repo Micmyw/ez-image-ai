@@ -45,6 +45,7 @@ export function deploymentEnvironment(
 				value &&
 				key !== "VIDEO_V1_BUILD_ENABLED" &&
 				key !== "HOTEL_LOBBY_DUO_BUILD_ENABLED" &&
+				key !== "HOTEL_LOBBY_DUO_RUNTIME_CONFIG" &&
 				!isRetiredModerationBinding(key) &&
 				!/^(?:LOAD_|TEST_|E2E_|INVARIANT_|REQUIRE_LOAD_|ALLOW_REMOTE_LOAD_TARGET$|DIRECT_URL$|JOBS_RUNTIME_ENV$)/.test(
 					key,
